@@ -86,10 +86,10 @@ export default function DashboardLayout({
             <ZenOrb size="lg" />
           </div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            禪意多模態工作室
+            多模態創作工作室
           </h1>
           <p className="text-sm text-muted-foreground mt-3 max-w-sm mx-auto">
-            登入後即可使用企業級 AI 多模態創作平台
+            登入後即可使用 AI 多模態創作平台
           </p>
           <Button
             onClick={() => { window.location.href = getLoginUrl(); }}
@@ -185,7 +185,7 @@ function DashboardLayoutContent({
                 <div className="flex items-center gap-2 min-w-0">
                   <ZenOrb size="sm" />
                   <span className="font-semibold tracking-tight truncate text-foreground text-sm">
-                    Zen Studio
+                    Healing Studio
                   </span>
                 </div>
               )}
@@ -276,7 +276,7 @@ function DashboardLayoutContent({
             <div className="flex items-center gap-2">
               <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />
               <span className="tracking-tight text-foreground text-sm font-medium">
-                {activeMenuItem?.label ?? "Zen Studio"}
+                {activeMenuItem?.label ?? "Healing Studio"}
               </span>
             </div>
           </div>

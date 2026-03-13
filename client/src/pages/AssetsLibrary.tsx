@@ -46,7 +46,7 @@ export default function AssetsLibrary() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Package className="w-5 h-5 text-zen-smoke" />
+          <Package className="w-5 h-5 text-muted-foreground" />
           <h1 className="text-xl font-semibold">數位資產庫</h1>
         </div>
         <Badge variant="secondary" className="rounded-lg text-xs">

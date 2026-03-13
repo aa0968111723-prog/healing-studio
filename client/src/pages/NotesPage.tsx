@@ -47,7 +47,7 @@ export default function NotesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <FileText className="w-5 h-5 text-zen-smoke" />
+          <FileText className="w-5 h-5 text-muted-foreground" />
           <h1 className="text-xl font-semibold">專案筆記</h1>
         </div>
         <Dialog open={showCreate} onOpenChange={setShowCreate}>

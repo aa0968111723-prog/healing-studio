@@ -39,7 +39,7 @@ export function GenerationControls({
               {mode === "lightning" ? (
                 <Zap className="w-4 h-4 text-amber-500" />
               ) : (
-                <Brain className="w-4 h-4 text-zen-smoke" />
+                <Brain className="w-4 h-4 text-muted-foreground" />
               )}
               <Label className="text-sm font-medium">
                 {mode === "lightning" ? "閃電模式" : "深度精修模式"}

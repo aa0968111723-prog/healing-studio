@@ -91,7 +91,7 @@ CO-STAR 框架：
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Clapperboard className="w-5 h-5 text-zen-smoke" />
+          <Clapperboard className="w-5 h-5 text-muted-foreground" />
           <h1 className="text-xl font-semibold">導演 AI</h1>
         </div>
         <div className="flex items-center gap-4">
@@ -134,7 +134,7 @@ CO-STAR 框架：
             height={isMobile ? "calc(100vh - 320px)" : "calc(100vh - 260px)"}
             emptyStateMessage="告訴導演 AI 你的創作構想"
             suggestedPrompts={[
-              "幫我構思一部禪意短片",
+              "幫我構思一部創意短片",
               "我想製作一段冥想引導音頻",
               "設計一個品牌宣傳影片腳本",
             ]}

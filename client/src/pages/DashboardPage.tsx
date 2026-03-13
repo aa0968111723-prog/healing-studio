@@ -30,7 +30,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <LayoutDashboard className="w-5 h-5 text-zen-smoke" />
+        <LayoutDashboard className="w-5 h-5 text-muted-foreground" />
         <h1 className="text-xl font-semibold">儀表板</h1>
       </div>
 
@@ -42,7 +42,7 @@ export default function DashboardPage() {
           <motion.div key={card.label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.08 }}>
             <GlassCard>
               <div className={`w-9 h-9 rounded-lg ${card.color} flex items-center justify-center mb-3`}>
-                <card.icon className="w-4 h-4 text-zen-smoke" />
+                <card.icon className="w-4 h-4 text-muted-foreground" />
               </div>
               <p className="text-[11px] text-muted-foreground">{card.label}</p>
               <p className="text-xl font-semibold mt-1">{card.value}</p>
@@ -55,7 +55,7 @@ export default function DashboardPage() {
       {/* Recent Usage Logs */}
       <GlassCard hover={false}>
         <div className="flex items-center gap-2 mb-4">
-          <Clock className="w-4 h-4 text-zen-smoke" />
+          <Clock className="w-4 h-4 text-muted-foreground" />
           <h2 className="text-sm font-semibold">最近使用紀錄</h2>
         </div>
         {statsQuery.isLoading ? (

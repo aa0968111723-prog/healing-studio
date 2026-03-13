@@ -55,7 +55,7 @@ export default function FeedbackPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <MessageSquare className="w-5 h-5 text-zen-smoke" />
+          <MessageSquare className="w-5 h-5 text-muted-foreground" />
           <h1 className="text-xl font-semibold">回饋中心</h1>
         </div>
         <Dialog open={showCreate} onOpenChange={setShowCreate}>

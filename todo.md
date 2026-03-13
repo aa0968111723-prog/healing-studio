@@ -75,3 +75,6 @@
 - [x] Updated Vitest tests for new workspace params (32 tests passed)
 - [x] TypeScript zero errors
 - [x] All 4 workspaces verified in browser
+
+## 文字清理
+- [x] 移除所有「禪意」、「企業」、「禪」相關字眼

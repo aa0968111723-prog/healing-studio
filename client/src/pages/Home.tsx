@@ -27,13 +27,13 @@ const FEATURES = [
   },
   {
     icon: Package,
-    title: "企業資產庫",
+    title: "數位資產庫",
     description: "團隊共享數位資產，標籤管理，分享獎勵配額機制",
     color: "bg-zen-sage/20",
   },
   {
     icon: Shield,
-    title: "企業級安全",
+    title: "安全可靠",
     description: "RBAC 權限控制、內容安全預檢、S3 預簽名 URL 保護",
     color: "bg-zen-sand/20",
   },
@@ -63,7 +63,7 @@ export default function Home() {
         <div className="max-w-6xl mx-auto px-4 h-full flex items-center justify-between">
           <div className="flex items-center gap-3">
             <ZenOrb size="sm" />
-            <span className="font-semibold tracking-tight text-foreground">Zen Studio</span>
+            <span className="font-semibold tracking-tight text-foreground">Healing Studio</span>
           </div>
           <div>
             {isAuthenticated ? (
@@ -120,13 +120,13 @@ export default function Home() {
             </div>
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-foreground leading-tight">
-              禪意多模態
+              多模態
               <br />
               <span style={{ color: "#6C6C6C" }}>AI 創作工作室</span>
             </h1>
 
             <p className="mt-6 text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-              企業級多模態 AI 生成平台。圖片、影片、音樂、語音一站式創作，
+              多模態 AI 生成平台。圖片、影片、音樂、語音一站式創作，
               搭配導演 AI 雙引擎與角色鍛造系統，打造高品質數位內容。
             </p>
 
@@ -177,7 +177,7 @@ export default function Home() {
             className="text-center mb-14"
           >
             <h2 className="text-2xl sm:text-3xl font-bold text-foreground">
-              專為企業團隊打造
+              專為創作者打造
             </h2>
             <p className="mt-3 text-sm text-muted-foreground max-w-lg mx-auto">
               從創意構思到成品輸出，完整覆蓋多媒體內容生產流程
@@ -195,7 +195,7 @@ export default function Home() {
               >
                 <GlassCard className="h-full">
                   <div className={`w-10 h-10 rounded-xl ${feature.color} flex items-center justify-center mb-4`}>
-                    <feature.icon className="w-5 h-5 text-zen-smoke" />
+                    <feature.icon className="w-5 h-5 text-muted-foreground" />
                   </div>
                   <h3 className="text-sm font-semibold text-foreground mb-2">{feature.title}</h3>
                   <p className="text-xs text-muted-foreground leading-relaxed">{feature.description}</p>
@@ -247,9 +247,9 @@ export default function Home() {
         <div className="max-w-6xl mx-auto flex items-center justify-between text-xs text-muted-foreground">
           <div className="flex items-center gap-2">
             <ZenOrb size="sm" />
-            <span>Zen Multimodal AI Studio</span>
+            <span>Healing Multimodal AI Studio</span>
           </div>
-          <span>Enterprise Internal Platform</span>
+          <span>Multimodal AI Creation Platform</span>
         </div>
       </footer>
     </div>

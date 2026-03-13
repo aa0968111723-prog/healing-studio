@@ -47,7 +47,7 @@ export default function AdminPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <Shield className="w-5 h-5 text-zen-smoke" />
+        <Shield className="w-5 h-5 text-muted-foreground" />
         <h1 className="text-xl font-semibold">管理後台</h1>
       </div>
 

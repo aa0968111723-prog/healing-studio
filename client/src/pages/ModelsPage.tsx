@@ -133,7 +133,7 @@ export default function ModelsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Cpu className="w-5 h-5 text-zen-smoke" />
+          <Cpu className="w-5 h-5 text-muted-foreground" />
           <h1 className="text-xl font-semibold">角色鍛造所</h1>
         </div>
         <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
@@ -170,7 +170,7 @@ export default function ModelsPage() {
                   <div className="space-y-5">
                     <div className="space-y-2">
                       <Label className="text-sm font-medium">模型名稱</Label>
-                      <Input placeholder="例如：禪意角色 A" value={modelName} onChange={(e) => setModelName(e.target.value)} className="rounded-xl" />
+                      <Input placeholder="例如：角色 A" value={modelName} onChange={(e) => setModelName(e.target.value)} className="rounded-xl" />
                     </div>
                     <div className="space-y-2">
                       <Label className="text-sm font-medium">描述（選填）</Label>
@@ -221,13 +221,13 @@ export default function ModelsPage() {
                 {step === "captioning" && (
                   <div className="space-y-5">
                     <div className="text-center py-4">
-                      <Tag className="w-8 h-8 text-zen-smoke mx-auto mb-3" />
+                      <Tag className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
                       <h3 className="text-sm font-medium">自動標註與觸發詞</h3>
                       <p className="text-xs text-muted-foreground mt-1">系統會自動為每張圖片生成描述標註</p>
                     </div>
                     <div className="space-y-2">
                       <Label className="text-sm font-medium">觸發詞 *</Label>
-                      <Input placeholder="例如：zen_char_a（唯一識別碼）" value={triggerWord} onChange={(e) => setTriggerWord(e.target.value)} className="rounded-xl font-mono" />
+                      <Input placeholder="例如：char_a（唯一識別碼）" value={triggerWord} onChange={(e) => setTriggerWord(e.target.value)} className="rounded-xl font-mono" />
                       <p className="text-[11px] text-muted-foreground">在提示詞中使用此觸發詞來呼叫此角色</p>
                     </div>
                     <div className="rounded-xl bg-muted/30 p-4 space-y-2">

@@ -1,5 +1,5 @@
 /**
- * Unified type exports — Zen Multimodal AI Studio
+ * Unified type exports — Healing Multimodal AI Studio
  */
 
 export type * from "../drizzle/schema";
