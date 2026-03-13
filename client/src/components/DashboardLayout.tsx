@@ -32,19 +32,19 @@ import {
   Shield,
   LogOut,
   PanelLeft,
-  Sparkles,
+  Home,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
-import { IdleBear } from "./Mascots";
+import { ZenOrb } from "./ZenCoPilot";
 
 const menuItems = [
   { icon: Wand2, label: "創作工作室", path: "/studio" },
   { icon: Clapperboard, label: "導演 AI", path: "/director" },
   { icon: Package, label: "數位資產庫", path: "/assets" },
-  { icon: Cpu, label: "微調模型", path: "/models" },
+  { icon: Cpu, label: "角色鍛造所", path: "/models" },
   { icon: FileText, label: "專案筆記", path: "/notes" },
   { icon: BarChart3, label: "儀表板", path: "/dashboard" },
   { icon: MessageSquare, label: "回饋中心", path: "/feedback" },
@@ -80,25 +80,21 @@ export default function DashboardLayout({
 
   if (!user) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-morandi-cream via-morandi-blush/20 to-morandi-lavender/20">
-        <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full">
-          <div className="flex flex-col items-center gap-4">
-            <div className="w-16 h-16 rounded-[25px] bg-primary/10 flex items-center justify-center">
-              <Sparkles className="w-8 h-8 text-primary" />
-            </div>
-            <h1 className="text-2xl font-semibold tracking-tight text-center text-foreground">
-              請先登入
-            </h1>
-            <p className="text-sm text-muted-foreground text-center max-w-sm">
-              登入後即可使用療癒多模態工作室的所有功能
-            </p>
+      <div className="flex items-center justify-center min-h-screen" style={{ background: "linear-gradient(135deg, #F5F3F0 0%, #EAC9C1 30%, #D4C5E2 70%, #C8D5E0 100%)" }}>
+        <div className="glass-card p-10 max-w-md w-full mx-4 text-center">
+          <div className="flex justify-center mb-6">
+            <ZenOrb size="lg" />
           </div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            禪意多模態工作室
+          </h1>
+          <p className="text-sm text-muted-foreground mt-3 max-w-sm mx-auto">
+            登入後即可使用企業級 AI 多模態創作平台
+          </p>
           <Button
-            onClick={() => {
-              window.location.href = getLoginUrl();
-            }}
+            onClick={() => { window.location.href = getLoginUrl(); }}
             size="lg"
-            className="w-full rounded-[25px] h-12 shadow-lg hover:shadow-xl transition-all"
+            className="w-full mt-8 h-12 rounded-xl shadow-md hover:shadow-lg transition-all"
           >
             登入
           </Button>
@@ -109,11 +105,7 @@ export default function DashboardLayout({
 
   return (
     <SidebarProvider
-      style={
-        {
-          "--sidebar-width": `${sidebarWidth}px`,
-        } as CSSProperties
-      }
+      style={{ "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}
     >
       <DashboardLayoutContent setSidebarWidth={setSidebarWidth}>
         {children}
@@ -145,33 +137,25 @@ function DashboardLayoutContent({
   const allItems = user?.role === "admin" ? [...menuItems, ...adminItems] : menuItems;
 
   useEffect(() => {
-    if (isCollapsed) {
-      setIsResizing(false);
-    }
+    if (isCollapsed) setIsResizing(false);
   }, [isCollapsed]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isResizing) return;
-      const sidebarLeft =
-        sidebarRef.current?.getBoundingClientRect().left ?? 0;
+      const sidebarLeft = sidebarRef.current?.getBoundingClientRect().left ?? 0;
       const newWidth = e.clientX - sidebarLeft;
       if (newWidth >= MIN_WIDTH && newWidth <= MAX_WIDTH) {
         setSidebarWidth(newWidth);
       }
     };
-
-    const handleMouseUp = () => {
-      setIsResizing(false);
-    };
-
+    const handleMouseUp = () => setIsResizing(false);
     if (isResizing) {
       document.addEventListener("mousemove", handleMouseMove);
       document.addEventListener("mouseup", handleMouseUp);
       document.body.style.cursor = "col-resize";
       document.body.style.userSelect = "none";
     }
-
     return () => {
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
@@ -193,18 +177,18 @@ function DashboardLayoutContent({
               <button
                 onClick={toggleSidebar}
                 className="h-8 w-8 flex items-center justify-center hover:bg-accent rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0"
-                aria-label="Toggle navigation"
+                aria-label="切換導覽列"
               >
                 <PanelLeft className="h-4 w-4 text-muted-foreground" />
               </button>
-              {!isCollapsed ? (
+              {!isCollapsed && (
                 <div className="flex items-center gap-2 min-w-0">
-                  <Sparkles className="w-4 h-4 text-primary shrink-0" />
-                  <span className="font-semibold tracking-tight truncate text-foreground">
-                    療癒工作室
+                  <ZenOrb size="sm" />
+                  <span className="font-semibold tracking-tight truncate text-foreground text-sm">
+                    Zen Studio
                   </span>
                 </div>
-              ) : null}
+              )}
             </div>
           </SidebarHeader>
 
@@ -232,11 +216,10 @@ function DashboardLayoutContent({
           </SidebarContent>
 
           <SidebarFooter className="p-3">
-            {/* Quota display */}
             {!isCollapsed && (
-              <div className="px-2 py-2 mb-2 rounded-[15px] bg-muted/30 text-center">
-                <p className="text-xs text-muted-foreground">剩餘配額</p>
-                <p className="text-lg font-semibold text-foreground">
+              <div className="glass-card-static px-3 py-2.5 mb-2 text-center">
+                <p className="text-[11px] text-muted-foreground tracking-wide uppercase">剩餘配額</p>
+                <p className="text-xl font-semibold text-foreground tabular-nums mt-0.5">
                   {user?.remainingGenerations ?? 0}
                 </p>
               </div>
@@ -264,7 +247,7 @@ function DashboardLayoutContent({
                   onClick={() => setLocation("/")}
                   className="cursor-pointer"
                 >
-                  <Sparkles className="mr-2 h-4 w-4" />
+                  <Home className="mr-2 h-4 w-4" />
                   <span>首頁</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
@@ -280,34 +263,26 @@ function DashboardLayoutContent({
         </Sidebar>
         <div
           className={`absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/20 transition-colors ${isCollapsed ? "hidden" : ""}`}
-          onMouseDown={() => {
-            if (isCollapsed) return;
-            setIsResizing(true);
-          }}
+          onMouseDown={() => { if (!isCollapsed) setIsResizing(true); }}
           style={{ zIndex: 50 }}
         />
       </div>
 
       <SidebarInset>
         {isMobile && (
-          <div className="flex border-b h-14 items-center justify-between bg-background/95 px-2 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
+          <div className="flex border-b h-14 items-center justify-between px-2 sticky top-0 z-40"
+            style={{ background: "rgba(245,243,240,0.85)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}
+          >
             <div className="flex items-center gap-2">
               <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />
-              <div className="flex items-center gap-3">
-                <div className="flex flex-col gap-1">
-                  <span className="tracking-tight text-foreground">
-                    {activeMenuItem?.label ?? "療癒工作室"}
-                  </span>
-                </div>
-              </div>
+              <span className="tracking-tight text-foreground text-sm font-medium">
+                {activeMenuItem?.label ?? "Zen Studio"}
+              </span>
             </div>
           </div>
         )}
         <main className="flex-1 p-4 sm:p-6">{children}</main>
       </SidebarInset>
-
-      {/* Idle Bear Mascot */}
-      <IdleBear visible={!isMobile} />
     </>
   );
 }

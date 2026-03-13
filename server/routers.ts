@@ -407,14 +407,29 @@ export const appRouter = router({
       .input(z.object({
         name: z.string().min(1),
         description: z.string().optional(),
-        modelType: z.enum(["image_subject", "voice_clone", "style_lora"]),
+        modelType: z.enum(["image_subject", "voice_clone", "style_lora"]).default("image_subject"),
+        triggerWord: z.string().optional(),
+        epochs: z.number().optional(),
+        learningRate: z.number().optional(),
+        batchSize: z.number().optional(),
         fileUrl: z.string().optional(),
         fileKey: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
+        const configJson = {
+          triggerWord: input.triggerWord,
+          epochs: input.epochs ?? 20,
+          learningRate: input.learningRate ?? 0.0001,
+          batchSize: input.batchSize ?? 4,
+        };
         const id = await db.createFineTunedModel({
           userId: ctx.user.id,
-          ...input,
+          name: input.name,
+          description: input.description,
+          modelType: input.modelType,
+          fileUrl: input.fileUrl,
+          fileKey: input.fileKey,
+          configJson,
         });
         return { id };
       }),

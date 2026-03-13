@@ -1,16 +1,17 @@
 /**
- * Unified type exports
- * Import shared types from this single entry point.
+ * Unified type exports — Zen Multimodal AI Studio
  */
 
 export type * from "../drizzle/schema";
 export * from "./_core/errors";
 
-// ─── Healing Studio Application Types ────────────────────────────────────────
+// ─── Generation Types ───────────────────────────────────────────────────────
 
 export type GenerationMode = "lightning" | "deep_precision";
 
 export type GenerationType = "image" | "video" | "audio" | "voice" | "multimodal";
+
+// ─── Vibe Cards (Professional, realistic thumbnails) ────────────────────────
 
 export type VibeCard = {
   id: string;
@@ -32,7 +33,7 @@ export const VIBE_CARDS: VibeCard[] = [
   { id: "mystical", label: "Mystical", labelZh: "神秘", description: "神秘、深邃的氣息", color: "#A8B5C8", icon: "star" },
 ];
 
-export type MascotState = "idle" | "hover" | "loading";
+// ─── CO-STAR Script ─────────────────────────────────────────────────────────
 
 export type CoStarScript = {
   context: string;
@@ -45,6 +46,8 @@ export type CoStarScript = {
   musicVibe: string;
 };
 
+// ─── Generation Request ─────────────────────────────────────────────────────
+
 export type GenerationRequest = {
   prompt: string;
   generationType: GenerationType;
@@ -54,10 +57,15 @@ export type GenerationRequest = {
   seed?: number;
   firstFrameUrl?: string;
   lastFrameUrl?: string;
+  referenceImageUrls?: string[];
+  loraWeight?: number;
+  characterProfileId?: number;
   videoDurationSeconds?: number;
   voiceModelId?: string;
   musicStyle?: string;
 };
+
+// ─── Job Progress ───────────────────────────────────────────────────────────
 
 export type JobProgress = {
   jobId: number;
@@ -68,9 +76,55 @@ export type JobProgress = {
   resultJson?: Record<string, unknown>;
 };
 
-export const MORANDI_COLORS = {
-  cream: "#FFF8F0",
-  warmGray: "#6C6C6C",
+// ─── Character Forge (Fine-Tuning) ──────────────────────────────────────────
+
+export type CharacterForgeStep = "dataset" | "captioning" | "hyperparams" | "training";
+
+export type DatasetImage = {
+  url: string;
+  angle: "front" | "side" | "back" | "expression" | "other";
+  caption?: string;
+};
+
+// ─── Zen Co-Pilot Tooltip Definitions ───────────────────────────────────────
+
+export const ZEN_TOOLTIPS: Record<string, { title: string; description: string }> = {
+  temperature: {
+    title: "創意溫度",
+    description: "控制 AI 的創造力程度。數值越低，結果越精確穩定；數值越高，AI 越大膽創新。建議初次使用設定 0.5。",
+  },
+  seed: {
+    title: "種子碼",
+    description: "相同的種子碼會產生相似的結果，方便你微調同一個創作方向。留空則每次隨機生成。",
+  },
+  loraWeight: {
+    title: "LoRA 權重",
+    description: "控制微調角色特徵的套用強度。0.5 為自然融合，1.0 為完全套用角色特徵。",
+  },
+  mode: {
+    title: "生成模式",
+    description: "閃電模式使用 Gemini Flash，速度快但細節較少。深度精修模式使用 Gemini Pro + CO-STAR 框架，品質更高但需要更多時間。",
+  },
+  epochs: {
+    title: "訓練輪數",
+    description: "模型學習資料集的完整次數。更多輪數可提高品質，但過多可能導致過擬合。建議 10-30 輪。",
+  },
+  learningRate: {
+    title: "學習率",
+    description: "模型每次更新的步幅大小。較小的值學習更穩定但更慢，較大的值學習更快但可能不穩定。",
+  },
+  batchSize: {
+    title: "批次大小",
+    description: "每次訓練步驟處理的圖片數量。較大的批次需要更多記憶體，但訓練更穩定。",
+  },
+};
+
+// ─── Morandi Zen Palette ────────────────────────────────────────────────────
+
+export const ZEN_COLORS = {
+  oat: "#F5F3F0",
+  smoke: "#6C6C6C",
+  warmGray: "#9A9590",
   blush: "#EAC9C1",
   sage: "#C5D5C0",
   dustyRose: "#D4A5A5",
@@ -78,26 +132,37 @@ export const MORANDI_COLORS = {
   skyMist: "#C8D5E0",
   sand: "#D4C4A8",
   peach: "#F0D5A8",
-  softGray: "#E8E4E0",
+  frost: "rgba(255, 255, 255, 0.65)",
 } as const;
 
-export const MASCOT_DIALOGUES = {
-  idle: [
-    "嗨！我是小熊，你的 AI 創作夥伴",
-    "AI 模型就像一位畫家，你的提示詞就是它的靈感來源",
-    "試試選擇一張氛圍卡片，讓 AI 更了解你想要的感覺",
-    "溫度滑桿越高，AI 就越有冒險精神哦",
-    "種子碼就像平行宇宙的密碼，相同的種子會產生相似的結果",
+// ─── Progress Messages (Professional) ───────────────────────────────────────
+
+export const PROGRESS_MESSAGES: Record<string, string[]> = {
+  image: [
+    "編譯視覺提示詞...",
+    "初始化影像生成引擎...",
+    "渲染場景構圖...",
+    "精修細節與光影...",
+    "套用風格濾鏡...",
+    "最終品質檢查...",
   ],
-  hover: [
-    "這個選項很不錯呢！",
-    "讓我來幫你解釋一下...",
-    "點擊這裡可以開始創作",
+  video: [
+    "分析場景連續性...",
+    "生成關鍵影格...",
+    "插值運動軌跡...",
+    "合成影片序列...",
+    "音視頻同步處理...",
   ],
-  loading: [
-    "正在為你創作中，請稍等...",
-    "AI 正在施展魔法...",
-    "快好了，再等一下下...",
-    "正在精心調整每一個細節...",
+  audio: [
+    "解析音樂風格參數...",
+    "生成旋律結構...",
+    "編排和弦進行...",
+    "混音與母帶處理...",
   ],
-} as const;
+  voice: [
+    "載入語音模型...",
+    "分析語音韻律...",
+    "合成語音波形...",
+    "後處理降噪...",
+  ],
+};

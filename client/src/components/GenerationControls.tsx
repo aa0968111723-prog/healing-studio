@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Zap, Brain } from "lucide-react";
+import { ZenTooltip } from "./ZenCoPilot";
 import type { GenerationMode } from "@shared/types";
 
 type GenerationControlsProps = {
@@ -12,6 +13,9 @@ type GenerationControlsProps = {
   onSeedChange: (val: string) => void;
   mode: GenerationMode;
   onModeChange: (mode: GenerationMode) => void;
+  loraWeight?: number;
+  onLoraWeightChange?: (val: number) => void;
+  showLoraWeight?: boolean;
 };
 
 export function GenerationControls({
@@ -21,22 +25,27 @@ export function GenerationControls({
   onSeedChange,
   mode,
   onModeChange,
+  loraWeight = 0.7,
+  onLoraWeightChange,
+  showLoraWeight = false,
 }: GenerationControlsProps) {
   return (
     <div className="space-y-5">
       {/* Fast-First Toggle */}
-      <div className="healing-card bg-card p-4 space-y-3">
+      <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {mode === "lightning" ? (
-              <Zap className="w-4 h-4 text-amber-500" />
-            ) : (
-              <Brain className="w-4 h-4 text-primary" />
-            )}
-            <Label className="text-sm font-medium">
-              {mode === "lightning" ? "閃電模式" : "深度精準模式"}
-            </Label>
-          </div>
+          <ZenTooltip tooltipKey="mode">
+            <div className="flex items-center gap-2">
+              {mode === "lightning" ? (
+                <Zap className="w-4 h-4 text-amber-500" />
+              ) : (
+                <Brain className="w-4 h-4 text-zen-smoke" />
+              )}
+              <Label className="text-sm font-medium">
+                {mode === "lightning" ? "閃電模式" : "深度精修模式"}
+              </Label>
+            </div>
+          </ZenTooltip>
           <Switch
             checked={mode === "deep_precision"}
             onCheckedChange={(checked) =>
@@ -44,18 +53,22 @@ export function GenerationControls({
             }
           />
         </div>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-muted-foreground leading-relaxed">
           {mode === "lightning"
-            ? "使用 Gemini Flash，速度快、適合快速迭代"
-            : "使用 Gemini Pro + CO-STAR 框架，品質更高、細節更豐富"}
+            ? "Gemini Flash — 快速迭代，適合探索方向"
+            : "Gemini Pro + CO-STAR — 高品質輸出，細節豐富"}
         </p>
       </div>
+
+      <div className="h-px bg-border/50" />
 
       {/* Temperature Slider */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label className="text-sm font-medium">AI 的冒險度</Label>
-          <span className="text-xs text-muted-foreground tabular-nums">
+          <ZenTooltip tooltipKey="temperature">
+            <Label className="text-sm font-medium">創意溫度</Label>
+          </ZenTooltip>
+          <span className="text-xs text-muted-foreground tabular-nums font-mono">
             {temperature.toFixed(2)}
           </span>
         </div>
@@ -67,25 +80,55 @@ export function GenerationControls({
           step={0.05}
           className="w-full"
         />
-        <div className="flex justify-between text-xs text-muted-foreground">
-          <span>保守精確</span>
+        <div className="flex justify-between text-[11px] text-muted-foreground">
+          <span>精確穩定</span>
           <span>大膽創新</span>
         </div>
       </div>
 
+      {/* LoRA Weight Slider */}
+      {showLoraWeight && onLoraWeightChange && (
+        <>
+          <div className="h-px bg-border/50" />
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <ZenTooltip tooltipKey="loraWeight">
+                <Label className="text-sm font-medium">LoRA 權重</Label>
+              </ZenTooltip>
+              <span className="text-xs text-muted-foreground tabular-nums font-mono">
+                {loraWeight.toFixed(2)}
+              </span>
+            </div>
+            <Slider
+              value={[loraWeight]}
+              onValueChange={([val]) => onLoraWeightChange(val)}
+              min={0}
+              max={1}
+              step={0.05}
+              className="w-full"
+            />
+            <div className="flex justify-between text-[11px] text-muted-foreground">
+              <span>自然融合</span>
+              <span>完全套用</span>
+            </div>
+          </div>
+        </>
+      )}
+
+      <div className="h-px bg-border/50" />
+
       {/* Seed Input */}
       <div className="space-y-2">
-        <Label className="text-sm font-medium">平行宇宙存檔密碼</Label>
+        <ZenTooltip tooltipKey="seed">
+          <Label className="text-sm font-medium">種子碼</Label>
+        </ZenTooltip>
         <Input
           type="text"
-          placeholder="輸入種子碼（選填）"
+          placeholder="留空則隨機生成"
           value={seed}
           onChange={(e) => onSeedChange(e.target.value)}
-          className="rounded-[25px] bg-muted/50"
+          className="rounded-xl bg-muted/30 border-border/50 text-sm"
         />
-        <p className="text-xs text-muted-foreground">
-          相同的種子碼會產生相似的結果，留空則隨機生成
-        </p>
       </div>
     </div>
   );

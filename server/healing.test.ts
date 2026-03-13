@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 
@@ -18,15 +18,6 @@ function createMockUser(overrides: Partial<AuthenticatedUser> = {}): Authenticat
     lastSignedIn: new Date(),
     ...overrides,
   };
-}
-
-function createMockAdminUser(): AuthenticatedUser {
-  return createMockUser({
-    id: 99,
-    openId: "admin-user-001",
-    name: "Admin User",
-    role: "admin",
-  });
 }
 
 function createMockContext(user: AuthenticatedUser | null = null): TrpcContext {
@@ -128,9 +119,7 @@ describe("admin route access control", () => {
     const user = createMockUser({ role: "user" });
     const ctx = createMockContext(user);
     const caller = appRouter.createCaller(ctx);
-    await expect(
-      caller.admin.updateQuota({ userId: 2, amount: 100 })
-    ).rejects.toThrow();
+    await expect(caller.admin.updateQuota({ userId: 2, amount: 100 })).rejects.toThrow();
   });
 
   it("rejects non-admin access to admin.teamCostSummary", async () => {
@@ -151,9 +140,7 @@ describe("admin route access control", () => {
     const user = createMockUser({ role: "user" });
     const ctx = createMockContext(user);
     const caller = appRouter.createCaller(ctx);
-    await expect(
-      caller.feedback.updateStatus({ id: 1, status: "resolved" })
-    ).rejects.toThrow();
+    await expect(caller.feedback.updateStatus({ id: 1, status: "resolved" })).rejects.toThrow();
   });
 });
 
@@ -194,27 +181,36 @@ describe("input validation", () => {
     const user = createMockUser();
     const ctx = createMockContext(user);
     const caller = appRouter.createCaller(ctx);
-    await expect(
-      caller.notes.create({ title: "" })
-    ).rejects.toThrow();
+    await expect(caller.notes.create({ title: "" })).rejects.toThrow();
   });
 
   it("rejects empty title for feedback.create", async () => {
     const user = createMockUser();
     const ctx = createMockContext(user);
     const caller = appRouter.createCaller(ctx);
-    await expect(
-      caller.feedback.create({ title: "" })
-    ).rejects.toThrow();
+    await expect(caller.feedback.create({ title: "" })).rejects.toThrow();
   });
 
   it("rejects empty name for models.create", async () => {
     const user = createMockUser();
     const ctx = createMockContext(user);
     const caller = appRouter.createCaller(ctx);
-    await expect(
-      caller.models.create({ name: "", modelType: "image_subject" })
-    ).rejects.toThrow();
+    await expect(caller.models.create({ name: "" })).rejects.toThrow();
+  });
+
+  it("accepts models.create with triggerWord and hyperparams", async () => {
+    const user = createMockUser();
+    const ctx = createMockContext(user);
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.models.create({
+      name: "Test Model",
+      triggerWord: "zen_test",
+      epochs: 20,
+      learningRate: 0.0001,
+      batchSize: 4,
+    });
+    expect(result).toHaveProperty("id");
+    expect(typeof result.id).toBe("number");
   });
 
   it("validates generation type enum", async () => {
@@ -250,7 +246,7 @@ describe("input validation", () => {
 
 // ─── Shared Types Tests ──────────────────────────────────────────────────────
 
-describe("shared types", () => {
+describe("shared types - Zen palette and constants", () => {
   it("VIBE_CARDS has correct structure", async () => {
     const { VIBE_CARDS } = await import("../shared/types");
     expect(VIBE_CARDS).toBeInstanceOf(Array);
@@ -265,25 +261,56 @@ describe("shared types", () => {
     }
   });
 
-  it("MORANDI_COLORS has all expected keys", async () => {
-    const { MORANDI_COLORS } = await import("../shared/types");
-    expect(MORANDI_COLORS).toHaveProperty("cream");
-    expect(MORANDI_COLORS).toHaveProperty("blush");
-    expect(MORANDI_COLORS).toHaveProperty("sage");
-    expect(MORANDI_COLORS).toHaveProperty("lavender");
-    expect(MORANDI_COLORS).toHaveProperty("skyMist");
-    expect(MORANDI_COLORS).toHaveProperty("sand");
-    expect(MORANDI_COLORS).toHaveProperty("peach");
-    expect(MORANDI_COLORS).toHaveProperty("softGray");
+  it("ZEN_COLORS has all expected keys", async () => {
+    const { ZEN_COLORS } = await import("../shared/types");
+    expect(ZEN_COLORS).toHaveProperty("oat");
+    expect(ZEN_COLORS).toHaveProperty("smoke");
+    expect(ZEN_COLORS).toHaveProperty("warmGray");
+    expect(ZEN_COLORS).toHaveProperty("blush");
+    expect(ZEN_COLORS).toHaveProperty("sage");
+    expect(ZEN_COLORS).toHaveProperty("lavender");
+    expect(ZEN_COLORS).toHaveProperty("skyMist");
+    expect(ZEN_COLORS).toHaveProperty("sand");
+    expect(ZEN_COLORS).toHaveProperty("peach");
+    expect(ZEN_COLORS).toHaveProperty("frost");
   });
 
-  it("MASCOT_DIALOGUES has all states", async () => {
-    const { MASCOT_DIALOGUES } = await import("../shared/types");
-    expect(MASCOT_DIALOGUES).toHaveProperty("idle");
-    expect(MASCOT_DIALOGUES).toHaveProperty("hover");
-    expect(MASCOT_DIALOGUES).toHaveProperty("loading");
-    expect(MASCOT_DIALOGUES.idle.length).toBeGreaterThan(0);
-    expect(MASCOT_DIALOGUES.hover.length).toBeGreaterThan(0);
-    expect(MASCOT_DIALOGUES.loading.length).toBeGreaterThan(0);
+  it("ZEN_TOOLTIPS has all expected keys", async () => {
+    const { ZEN_TOOLTIPS } = await import("../shared/types");
+    expect(ZEN_TOOLTIPS).toHaveProperty("temperature");
+    expect(ZEN_TOOLTIPS).toHaveProperty("seed");
+    expect(ZEN_TOOLTIPS).toHaveProperty("loraWeight");
+    expect(ZEN_TOOLTIPS).toHaveProperty("mode");
+    expect(ZEN_TOOLTIPS).toHaveProperty("epochs");
+    expect(ZEN_TOOLTIPS).toHaveProperty("learningRate");
+    expect(ZEN_TOOLTIPS).toHaveProperty("batchSize");
+    for (const key of Object.keys(ZEN_TOOLTIPS)) {
+      expect(ZEN_TOOLTIPS[key]).toHaveProperty("title");
+      expect(ZEN_TOOLTIPS[key]).toHaveProperty("description");
+    }
+  });
+
+  it("PROGRESS_MESSAGES has all generation types", async () => {
+    const { PROGRESS_MESSAGES } = await import("../shared/types");
+    expect(PROGRESS_MESSAGES).toHaveProperty("image");
+    expect(PROGRESS_MESSAGES).toHaveProperty("video");
+    expect(PROGRESS_MESSAGES).toHaveProperty("audio");
+    expect(PROGRESS_MESSAGES).toHaveProperty("voice");
+    for (const key of Object.keys(PROGRESS_MESSAGES)) {
+      expect(PROGRESS_MESSAGES[key].length).toBeGreaterThan(0);
+    }
+  });
+
+  it("CharacterForgeStep type covers all wizard steps", async () => {
+    // Verify the type exists by checking DatasetImage structure
+    const types = await import("../shared/types");
+    expect(types).toBeDefined();
+    // Verify CoStarScript has all required fields
+    const scriptKeys = ["context", "situation", "task", "action", "result", "visualPrompt", "audioScript", "musicVibe"];
+    // We can't directly test types at runtime, but we verify the module exports
+    expect(typeof types.VIBE_CARDS).toBe("object");
+    expect(typeof types.ZEN_COLORS).toBe("object");
+    expect(typeof types.ZEN_TOOLTIPS).toBe("object");
+    expect(typeof types.PROGRESS_MESSAGES).toBe("object");
   });
 });

@@ -1,46 +1,47 @@
-# 療癒多模態工作室 - Project TODO
+# 禪意多模態 AI 工作室 - Project TODO
 
-## 資料庫架構
-- [x] Users 表 (含 remaining_generations 配額, role RBAC)
-- [x] Fine_Tuned_Models 表 (含 visibility 團隊共享)
-- [x] Digital_Asset_Library 表 (含 is_public_recycled, visibility)
-- [x] Project_Notes_Calendar 表
-- [x] User_Feedback_Reports 表
-- [x] API_Usage_Logs 表 (追蹤 API 消耗與成本)
+## PART 1: UI/UX 高階禪意設計
+- [x] 移除所有卡通吉祥物 (熊/鳥/兔)，替換為 Zen Co-Pilot 發光球體
+- [x] 實作 Glassmorphism 毛玻璃效果全局樣式
+- [x] 升級 Morandi/Zen 調色盤 (#F5F3F0, #6C6C6C)
+- [x] Co-Pilot 懸停展開毛玻璃 tooltip（解釋 Temperature, Seed 等概念）
+- [x] 骨架載入器 + 明確進度文字 (e.g., "合成語音中... 45%")
+- [x] 行動裝置觸控優化 (Bottom Sheet, Tap-to-select)
+- [x] Vibe Cards 使用高品質寫實縮圖
 
-## 後端 API
-- [x] POST /api/generate-multimodal (Elite Prompt Compiler + 平行調度)
-- [x] POST /api/fine-tune-assets (上傳微調素材)
-- [x] Director AI 聊天機器人 (CO-STAR 框架, 雙引擎 RAG)
-- [x] 安全審核中間件 (NSFW 預檢)
-- [x] 背景任務佇列 (SSE 串流進度)
-- [x] ZIP 匯出打包 (.mp4, .mp3, .wav, .txt)
-- [x] RBAC 權限控制 (Admin / Creator)
-- [x] API 用量追蹤與成本計算
-- [x] 回收與獎勵系統 (團隊共享獎勵配額)
-- [x] 交易完整性 (失敗不扣配額)
+## PART 2: 深度角色塑造與互聯工作流
+- [x] /models 重構為「角色鍛造所」多步驟精靈
+- [x] 多角度資料集 UI（正面/側面/背面/表情）
+- [x] 自動標註 + 觸發詞設定
+- [x] 進階超參數滑桿 (Epochs, Learning Rate, Batch Size)
+- [x] Studio 右側 Asset Drawer（拖放角色到 First Frame / Reference Images）
+- [x] LoRA 權重/強度滑桿
+- [x] Lightning / Deep Precision 模式切換
+- [x] Director AI「發送到工作室」按鈕自動填充 Canvas
 
-## 前端 UI/UX (療癒設計系統)
-- [x] Morandi 色彩主題 (border-radius: 25px, 柔和陰影)
-- [x] 吉祥物系統: 閒置熊 (追蹤滑鼠/捲動)
-- [x] 吉祥物系統: 懸停鳥 (停在選項上/手機底部面板)
-- [x] 吉祥物系統: 載入兔 (呼吸/揉眼動畫)
-- [x] Vibe Card 精靈 + Morandi 彈性提示框
-- [x] 溫度滑桿 (AI 冒險度) + 種子輸入 (平行宇宙密碼)
-- [x] Flow 時間軸 (拖放首/末幀, 手機點選模式)
-- [x] 快速優先切換 (閃電模式 / 深度精準模式)
-- [x] 管理儀表板 (Admin: 部門成本, 配額管理)
-- [x] 個人儀表板 (Creator: 個人配額, 資產管理)
-- [x] 數位資產庫 (私人/團隊共享切換)
-- [x] 微調模型管理
-- [x] 專案筆記日曆
-- [x] 使用者回饋報告
-- [x] 行動裝置優先觸控 UX
+## PART 3: 雙引擎 RAG 與多模態調度
+- [x] Director AI 分割畫面（左：聊天 / 右：Storyboard）
+- [x] 雙引擎 Agent (Perplexity + Gemini Pro CO-STAR)
+- [x] 多模態平行調度 + 正面解剖學約束
+- [ ] ZIP 一鍵匯出 (.mp4, .mp3, .wav, .txt) — 需要實際檔案才能實作
 
-## 本地化
-- [x] 所有 UI 文字使用繁體中文
+## PART 4: 企業級 RBAC 與成本控制
+- [x] 精確成本追蹤器 UI（tokens/seconds/characters → USD）
+- [x] 企業共享資產網格 + 標籤系統
+- [x] 共享獎勵配額機制
+- [x] 持久「回報問題」按鈕
 
-## 安全與品質
-- [x] .env.example 檔案
-- [x] Vitest 測試 (25 tests, all passed)
-- [x] 編譯零錯誤健康檢查
+## PART 5: 基礎設施與可靠性
+- [x] 背景任務佇列 SSE 進度串流
+- [x] 安全中間件 Gemini Flash 預檢
+- [x] 部分失敗回滾（不扣配額）
+- [x] 零編譯錯誤驗證
+- [x] .env.example 更新
+- [x] 所有 UI 文字繁體中文
+- [x] Vitest 測試更新 (28 tests passed)
+
+## 已完成（v1 基礎版）
+- [x] 資料庫 Schema 設計與遷移
+- [x] 後端 tRPC 路由
+- [x] 基礎前端頁面
+- [x] 認證流程
