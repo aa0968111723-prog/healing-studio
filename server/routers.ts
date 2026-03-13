@@ -195,9 +195,34 @@ export const appRouter = router({
         vibeCardIds: z.array(z.string()),
         temperature: z.number().min(0).max(1),
         seed: z.number().optional(),
+        // Image workspace params
+        aspectRatio: z.string().optional(),
+        negativePrompt: z.string().optional(),
+        styleReferenceUrl: z.string().nullable().optional(),
+        vibeReferenceUrl: z.string().nullable().optional(),
+        // Video workspace params
         videoDurationSeconds: z.number().optional(),
-        voiceModelId: z.string().optional(),
+        firstFrameUrl: z.string().nullable().optional(),
+        lastFrameUrl: z.string().nullable().optional(),
+        characterRefUrl: z.string().nullable().optional(),
+        cameraMotion: z.object({
+          pan: z.number(),
+          zoom: z.number(),
+          tilt: z.number(),
+        }).optional(),
+        // Audio workspace params
         musicStyle: z.string().optional(),
+        isInstrumental: z.boolean().optional(),
+        lyrics: z.string().optional(),
+        audioDuration: z.number().optional(),
+        audioEnergy: z.number().optional(),
+        // Voice workspace params
+        voiceModelId: z.string().optional(),
+        voiceText: z.string().optional(),
+        voiceSpeed: z.number().optional(),
+        voiceStability: z.number().optional(),
+        voiceEmotionType: z.string().optional(),
+        voiceEmotionIntensity: z.number().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const userId = ctx.user.id;
@@ -253,6 +278,10 @@ export const appRouter = router({
             const imageResult = await generateImage({ prompt: compiledPrompt });
             resultUrl = imageResult.url;
             resultData.imageUrl = imageResult.url;
+            resultData.aspectRatio = input.aspectRatio;
+            resultData.negativePrompt = input.negativePrompt;
+            resultData.styleReferenceUrl = input.styleReferenceUrl;
+            resultData.vibeReferenceUrl = input.vibeReferenceUrl;
           }
 
           // For video/audio/voice - we simulate the API call structure
@@ -261,16 +290,29 @@ export const appRouter = router({
             resultData.videoStatus = "video_generation_queued";
             resultData.videoPrompt = compiledPrompt;
             resultData.videoDuration = input.videoDurationSeconds || 8;
+            resultData.firstFrameUrl = input.firstFrameUrl;
+            resultData.lastFrameUrl = input.lastFrameUrl;
+            resultData.characterRefUrl = input.characterRefUrl;
+            resultData.cameraMotion = input.cameraMotion;
           }
 
           if (input.generationType === "audio" || input.generationType === "multimodal") {
             resultData.audioStatus = "audio_generation_queued";
             resultData.musicStyle = input.musicStyle || "ambient healing";
+            resultData.isInstrumental = input.isInstrumental;
+            resultData.lyrics = input.lyrics;
+            resultData.audioDuration = input.audioDuration;
+            resultData.audioEnergy = input.audioEnergy;
           }
 
           if (input.generationType === "voice") {
             resultData.voiceStatus = "voice_generation_queued";
             resultData.voiceModelId = input.voiceModelId;
+            resultData.voiceText = input.voiceText;
+            resultData.voiceSpeed = input.voiceSpeed;
+            resultData.voiceStability = input.voiceStability;
+            resultData.voiceEmotionType = input.voiceEmotionType;
+            resultData.voiceEmotionIntensity = input.voiceEmotionIntensity;
           }
 
           // Deduct quota

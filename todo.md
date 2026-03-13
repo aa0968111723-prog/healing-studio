@@ -45,3 +45,33 @@
 - [x] 後端 tRPC 路由
 - [x] 基礎前端頁面
 - [x] 認證流程
+
+## Phase 2 Critical Refactoring
+
+### Pillar 1: Dynamic Zen Co-Pilot & Glassmorphism
+- [x] Enforce strict Glassmorphism (blur backdrop, semi-transparent panels, no harsh borders)
+- [x] Zen Co-Pilot orb with framer-motion breathing pulse animation
+- [x] New user onboarding overlay (Zen Orb floats to UI elements with healing language)
+
+### Pillar 2: Modality-Specific Workspaces
+- [x] Image Workspace (Aspect Ratio, Style/Vibe Reference uploads, Negative Prompts)
+- [x] Video Workspace (First/Last Frame dropzones, Camera Motion controls: Pan/Zoom/Tilt)
+- [x] Audio Workspace (Instrumental vs Vocal toggle, Lyrics text area)
+- [x] Voice Workspace (Voice Actor dropdown, Emotion sliders, Speed controls)
+
+### Pillar 3: Progressive Disclosure Prompt Builder
+- [x] Top level: Visual Vibe Cards selection
+- [x] Advanced accordion: Subject, Action, Environment, Lighting, Camera Angle fields
+- [x] Auto-concatenation into elite system prompt
+
+### Pillar 4: Consistency Vault
+- [x] Dedicated Consistency Vault panel for Character/Scene reference images
+- [x] Upload and save Character Reference Images
+- [x] Upload and save Scene Reference Images
+- [x] Drag-and-drop from Vault into Video Workspace
+- [x] Backend passes references as strict reference_image parameters
+
+### Testing & Verification
+- [x] Updated Vitest tests for new workspace params (32 tests passed)
+- [x] TypeScript zero errors
+- [x] All 4 workspaces verified in browser

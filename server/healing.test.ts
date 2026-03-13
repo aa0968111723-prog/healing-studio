@@ -242,6 +242,86 @@ describe("input validation", () => {
       })
     ).rejects.toThrow();
   });
+
+  it("accepts image workspace params (aspectRatio, negativePrompt)", async () => {
+    const user = createMockUser();
+    const ctx = createMockContext(user);
+    const caller = appRouter.createCaller(ctx);
+    // This should not throw on input validation
+    await expect(
+      caller.generate.multimodal({
+        prompt: "a zen garden",
+        generationType: "image",
+        mode: "lightning",
+        vibeCardIds: ["serene"],
+        temperature: 0.5,
+        aspectRatio: "16:9",
+        negativePrompt: "blurry, low quality",
+        styleReferenceUrl: null,
+        vibeReferenceUrl: null,
+      })
+    ).rejects.not.toThrow(/validation/i);
+  });
+
+  it("accepts video workspace params (cameraMotion, frames)", async () => {
+    const user = createMockUser();
+    const ctx = createMockContext(user);
+    const caller = appRouter.createCaller(ctx);
+    await expect(
+      caller.generate.multimodal({
+        prompt: "flowing water",
+        generationType: "video",
+        mode: "deep_precision",
+        vibeCardIds: [],
+        temperature: 0.7,
+        videoDurationSeconds: 8,
+        firstFrameUrl: null,
+        lastFrameUrl: null,
+        characterRefUrl: null,
+        cameraMotion: { pan: 0, zoom: 50, tilt: 0 },
+      })
+    ).rejects.not.toThrow(/validation/i);
+  });
+
+  it("accepts audio workspace params (instrumental, lyrics)", async () => {
+    const user = createMockUser();
+    const ctx = createMockContext(user);
+    const caller = appRouter.createCaller(ctx);
+    await expect(
+      caller.generate.multimodal({
+        prompt: "peaceful ambient",
+        generationType: "audio",
+        mode: "lightning",
+        vibeCardIds: ["dreamy"],
+        temperature: 0.5,
+        musicStyle: "ambient",
+        isInstrumental: true,
+        audioDuration: 60,
+        audioEnergy: 50,
+      })
+    ).rejects.not.toThrow(/validation/i);
+  });
+
+  it("accepts voice workspace params (speed, stability, emotion)", async () => {
+    const user = createMockUser();
+    const ctx = createMockContext(user);
+    const caller = appRouter.createCaller(ctx);
+    await expect(
+      caller.generate.multimodal({
+        prompt: "hello world",
+        generationType: "voice",
+        mode: "lightning",
+        vibeCardIds: [],
+        temperature: 0.5,
+        voiceModelId: "warm_female",
+        voiceText: "你好世界",
+        voiceSpeed: 1.0,
+        voiceStability: 50,
+        voiceEmotionType: "calm",
+        voiceEmotionIntensity: 50,
+      })
+    ).rejects.not.toThrow(/validation/i);
+  });
 });
 
 // ─── Shared Types Tests ──────────────────────────────────────────────────────
