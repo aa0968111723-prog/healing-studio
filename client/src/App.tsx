@@ -5,31 +5,62 @@ import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
+import DashboardLayout from "./components/DashboardLayout";
+import Studio from "./pages/Studio";
+import DirectorAI from "./pages/DirectorAI";
+import AssetsLibrary from "./pages/AssetsLibrary";
+import ModelsPage from "./pages/ModelsPage";
+import NotesPage from "./pages/NotesPage";
+import DashboardPage from "./pages/DashboardPage";
+import FeedbackPage from "./pages/FeedbackPage";
+import AdminPage from "./pages/AdminPage";
+
+function DashboardRoute({ component: Component }: { component: React.ComponentType }) {
+  return (
+    <DashboardLayout>
+      <Component />
+    </DashboardLayout>
+  );
+}
 
 function Router() {
-  // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
-      <Route path={"/"} component={Home} />
-      <Route path={"/404"} component={NotFound} />
-      {/* Final fallback route */}
+      <Route path="/" component={Home} />
+      <Route path="/studio">
+        <DashboardRoute component={Studio} />
+      </Route>
+      <Route path="/director">
+        <DashboardRoute component={DirectorAI} />
+      </Route>
+      <Route path="/assets">
+        <DashboardRoute component={AssetsLibrary} />
+      </Route>
+      <Route path="/models">
+        <DashboardRoute component={ModelsPage} />
+      </Route>
+      <Route path="/notes">
+        <DashboardRoute component={NotesPage} />
+      </Route>
+      <Route path="/dashboard">
+        <DashboardRoute component={DashboardPage} />
+      </Route>
+      <Route path="/feedback">
+        <DashboardRoute component={FeedbackPage} />
+      </Route>
+      <Route path="/admin">
+        <DashboardRoute component={AdminPage} />
+      </Route>
+      <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
   );
 }
 
-// NOTE: About Theme
-// - First choose a default theme according to your design style (dark or light bg), than change color palette in index.css
-//   to keep consistent foreground/background color across components
-// - If you want to make theme switchable, pass `switchable` ThemeProvider and use `useTheme` hook
-
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider
-        defaultTheme="light"
-        // switchable
-      >
+      <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Toaster />
           <Router />
