@@ -27,21 +27,21 @@ const SIZE_MAP = {
 
 const PERSONALITY_COLORS = {
   calm: {
-    primary: "13,27,42",      // #0D1B2A deep navy
-    secondary: "44,82,130",   // steel blue
-    accent: "100,149,237",    // cornflower
+    primary: "0,210,255",       // 電藍光
+    secondary: "100,240,255",   // 冰藍
+    accent: "200,255,255",      // 白藍
     breathDurationMultiplier: 1.5, // slower, calmer
   },
   creative: {
-    primary: "255,111,97",    // #FF6F61 warm coral
-    secondary: "255,165,0",   // orange
-    accent: "255,215,0",      // gold
+    primary: "255,80,180",      // 霓虹粉
+    secondary: "255,160,60",    // 暖橘
+    accent: "255,230,0",        // 亮黃
     breathDurationMultiplier: 1.0, // default rhythm
   },
   technical: {
-    primary: "123,44,191",    // #7B2CBF electric purple
-    secondary: "75,0,130",    // indigo
-    accent: "138,43,226",     // blue-violet
+    primary: "80,255,180",      // 螢光綠
+    secondary: "0,200,120",     // 青綠
+    accent: "150,255,200",      // 薄荷
     breathDurationMultiplier: 0.7, // faster, more precise
   },
 };

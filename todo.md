@@ -327,3 +327,17 @@
 - [x] History 頁面：每筆紀錄加入下載按鈕（根據模態下載對應格式）
 - [x] Assets 頁面：資產卡片加入下載按鈕（含展開詳情面板）
 - [x] 下載功能支援：PNG（圖片）、MP4（影片）、MP3（音樂/語音）+ Notes 下載 MD
+
+## Phase 6: 光球視覺升級 + 拖曳功能
+
+- [x] VisualSoul PERSONALITY_COLORS 升級為高亮度霓虹色系（電藍/霓虹粉/螢光綠）
+- [x] ProactiveOrbWidget 加入 framer-motion drag 全域拖曳
+- [x] 拖曳結束後位置寫入 localStorage 持久化記憶
+
+## Phase 7: 光球引導邏輯升級
+
+- [ ] ProactiveOrbWidget 新增 guideTo(elementId) 方法（移動+脈衝+返回）
+- [ ] 90 秒引導流程（4 步驟：prompt-input → personality-selector → generate-button → storyboard-panel）
+- [ ] 完成後 localStorage.setItem("onboarded", "true") 不再觸發
+- [ ] 移除 OnboardingFlow.tsx 遮罩式教學彈窗
+- [ ] 為目標元素加上 id prop（prompt-input, personality-selector, generate-button, storyboard-panel）
