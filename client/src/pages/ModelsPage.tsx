@@ -10,7 +10,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Cpu, Plus, Upload, Tag, Settings2, Flame, ChevronRight, ChevronLeft, X, Loader2, Globe, Lock, Trash2, Gift, CheckCircle2 } from "lucide-react";
-import { GlassCard, ZenTooltip, ZenSkeleton, ZenOrb } from "@/components/ZenCoPilot";
+import { GlassCard, ZenTooltip, ZenSkeleton } from "@/components/ZenCoPilot";
+import VisualSoul from "@/components/VisualSoul";
 import { motion, AnimatePresence } from "framer-motion";
 import type { CharacterForgeStep, DatasetImage } from "@shared/types";
 
@@ -241,7 +242,7 @@ export default function ModelsPage() {
           <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <ZenOrb size="sm" />
+                <VisualSoul size="sm" />
                 角色鍛造精靈
               </DialogTitle>
             </DialogHeader>
@@ -449,7 +450,7 @@ export default function ModelsPage() {
                       </>
                     ) : (
                       <>
-                        <div className="flex justify-center"><ZenOrb size="lg" /></div>
+                        <div className="flex justify-center"><VisualSoul size="lg" /></div>
                         <h3 className="text-base font-medium">確認訓練設定</h3>
                         <div className="rounded-xl bg-muted/30 p-4 text-left space-y-2 text-sm">
                           <div className="flex justify-between"><span className="text-muted-foreground">模型名稱</span><span className="font-medium">{modelName}</span></div>
@@ -546,7 +547,7 @@ export default function ModelsPage() {
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <ZenOrb size="lg" />
+          <VisualSoul size="lg" />
           <h3 className="text-base font-medium mt-6">尚無角色模型</h3>
           <p className="text-sm text-muted-foreground mt-2 max-w-sm">
             {tab === "my" ? "點擊「新增角色」開始訓練你的第一個角色模型" : "還沒有團隊共享的模型"}

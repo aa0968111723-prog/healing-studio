@@ -20,6 +20,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useIsMobile } from "@/hooks/useMobile";
 import { PROGRESS_MESSAGES } from "@shared/types";
 import { PromptStrengthBar } from "@/components/PromptStrengthBar";
+import ThoughtIslandChain, { type ThoughtNode } from "@/components/ThoughtIslandChain";
+import { useAIState } from "@/contexts/AIStateContext";
 import type { GenerationMode, GenerationType } from "@shared/types";
 
 // ─── Tab Config ─────────────────────────────────────────────────────────────
@@ -36,6 +38,7 @@ const MODALITY_TABS: { value: GenerationType; label: string; icon: React.ReactNo
 export default function Studio() {
   const { user } = useAuth();
   const isMobile = useIsMobile();
+  const { setAIState } = useAIState();
 
   // ── Shared state ──
   const [activeModality, setActiveModality] = useState<GenerationType>("image");
@@ -57,6 +60,7 @@ export default function Studio() {
   const [vaultSheetOpen, setVaultSheetOpen] = useState(false);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [resultData, setResultData] = useState<Record<string, unknown> | null>(null);
+  const [thoughtChain, setThoughtChain] = useState<ThoughtNode[]>([]);
 
   // ── Progress ──
   const [progress, setProgress] = useState(0);
@@ -65,19 +69,23 @@ export default function Studio() {
   // ── Mutation ──
   const utils = trpc.useUtils();
   const generateMutation = trpc.generate.multimodal.useMutation({
+    onMutate: () => {
+      setAIState("generating");
+    },
     onSuccess: (data) => {
       setResultUrl(data.resultUrl || null);
       setResultData(data.resultData);
+      setThoughtChain((data as any).thoughtChain || []);
       setProgress(100);
       setProgressMessage("生成完成");
-      setTimeout(() => setProgress(0), 1500);
+      setTimeout(() => { setProgress(0); setAIState("idle"); }, 1500);
       toast.success("生成完成");
-      // Invalidate auth.me to refresh remainingGenerations across the entire UI
       utils.auth.me.invalidate();
     },
     onError: (error) => {
       setProgress(0);
       setProgressMessage("");
+      setAIState("idle");
       toast.error(error.message);
     },
   });
@@ -335,6 +343,11 @@ export default function Studio() {
             <Wand2 className="w-4 h-4" />
             {generateMutation.isPending ? "生成中..." : "開始創作"}
           </Button>
+
+          {/* Thought Island Chain - AI CoT Visualization */}
+          {thoughtChain.length > 0 && (
+            <ThoughtIslandChain nodes={thoughtChain} />
+          )}
 
           {/* Result Preview */}
           <AnimatePresence>

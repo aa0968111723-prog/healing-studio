@@ -2,14 +2,15 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { getLoginUrl } from "@/const";
 import { useLocation } from "wouter";
-import { ZenOrb, GlassCard } from "@/components/ZenCoPilot";
+import { GlassCard } from "@/components/ZenCoPilot";
+import VisualSoul from "@/components/VisualSoul";
 import { motion } from "framer-motion";
 import { Wand2, Clapperboard, Package, Cpu, ArrowRight, Sparkles, Shield, Users } from "lucide-react";
 
 const FEATURES = [
   {
     icon: Wand2,
-    title: "多模態創作引擎",
+    title: "AI 智慧創作引擎",
     description: "圖片、影片、音樂、語音一站式 AI 生成，搭配專業提示詞編譯器",
     color: "bg-zen-lavender/20",
   },
@@ -62,8 +63,8 @@ export default function Home() {
       >
         <div className="max-w-6xl mx-auto px-4 h-full flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <ZenOrb size="sm" />
-            <span className="font-semibold tracking-tight text-foreground">Healing Studio</span>
+            <VisualSoul size="sm" />
+            <span className="font-semibold tracking-tight text-foreground">AI Director</span>
           </div>
           <div>
             {isAuthenticated ? (
@@ -120,13 +121,13 @@ export default function Home() {
             </div>
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-foreground leading-tight">
-              多模態
+              AI Director
               <br />
-              <span style={{ color: "#6C6C6C" }}>AI 創作工作室</span>
+              <span style={{ color: "#6C6C6C" }}>智慧創作平台</span>
             </h1>
 
             <p className="mt-6 text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-              多模態 AI 生成平台。圖片、影片、音樂、語音一站式創作，
+              AI Director 多模態智慧創作平台。圖片、影片、音樂、語音一站式創作，
               搭配導演 AI 雙引擎與角色鍛造系統，打造高品質數位內容。
             </p>
 
@@ -210,7 +211,7 @@ export default function Home() {
       <section className="py-20 px-4">
         <div className="max-w-3xl mx-auto">
           <GlassCard hover={false} className="text-center py-14 px-8">
-            <ZenOrb size="md" />
+            <VisualSoul size="md" />
             <h2 className="text-2xl font-bold text-foreground mt-6">
               準備好開始創作了嗎？
             </h2>
@@ -246,10 +247,10 @@ export default function Home() {
       <footer className="py-8 px-4 border-t border-border/30">
         <div className="max-w-6xl mx-auto flex items-center justify-between text-xs text-muted-foreground">
           <div className="flex items-center gap-2">
-            <ZenOrb size="sm" />
-            <span>Healing Multimodal AI Studio</span>
+            <VisualSoul size="sm" />
+            <span>AI Director</span>
           </div>
-          <span>Multimodal AI Creation Platform</span>
+          <span>Intelligent Creation Platform</span>
         </div>
       </footer>
     </div>

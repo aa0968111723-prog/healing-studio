@@ -6,7 +6,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Plus, FileText, Clapperboard, Calendar, Trash2, ChevronDown, ChevronRight } from "lucide-react";
-import { GlassCard, ZenSkeleton, ZenOrb } from "@/components/ZenCoPilot";
+import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
+import VisualSoul from "@/components/VisualSoul";
 import { motion, AnimatePresence } from "framer-motion";
 import { Streamdown } from "streamdown";
 
@@ -128,7 +129,7 @@ export default function NotesPage() {
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <ZenOrb size="lg" />
+          <VisualSoul size="lg" />
           <h3 className="text-base font-medium mt-6">尚無筆記</h3>
           <p className="text-sm text-muted-foreground mt-2 max-w-sm">點擊「新增筆記」開始記錄，或使用導演 AI 自動生成腳本</p>
         </div>

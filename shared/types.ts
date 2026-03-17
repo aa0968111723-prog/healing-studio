@@ -1,5 +1,5 @@
 /**
- * Unified type exports — Healing Multimodal AI Studio
+ * Unified type exports — AI Director 智慧創作平台
  */
 
 export type * from "../drizzle/schema";
@@ -26,7 +26,7 @@ export const VIBE_CARDS: VibeCard[] = [
   { id: "serene", label: "Serene", labelZh: "寧靜", description: "平靜、柔和的氛圍", color: "#C8D5E0", icon: "cloud" },
   { id: "warm", label: "Warm", labelZh: "溫暖", description: "溫馨、舒適的感覺", color: "#EAC9C1", icon: "sun" },
   { id: "dreamy", label: "Dreamy", labelZh: "夢幻", description: "如夢似幻的意境", color: "#D4C5E2", icon: "moon" },
-  { id: "nature", label: "Nature", labelZh: "自然", description: "大自然的療癒力量", color: "#C5D5C0", icon: "leaf" },
+  { id: "nature", label: "Nature", labelZh: "自然", description: "大自然的安定力量", color: "#C5D5C0", icon: "leaf" },
   { id: "vintage", label: "Vintage", labelZh: "復古", description: "懷舊、經典的風格", color: "#D4C4A8", icon: "camera" },
   { id: "minimal", label: "Minimal", labelZh: "極簡", description: "簡約、純粹的美學", color: "#E8E4E0", icon: "square" },
   { id: "joyful", label: "Joyful", labelZh: "歡愉", description: "充滿活力與喜悅", color: "#F0D5A8", icon: "sparkles" },

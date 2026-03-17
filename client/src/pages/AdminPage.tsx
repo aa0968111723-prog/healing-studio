@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Users, BarChart3, MessageSquare, Shield, RefreshCw } from "lucide-react";
-import { GlassCard, ZenSkeleton, ZenOrb } from "@/components/ZenCoPilot";
+import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
+import VisualSoul from "@/components/VisualSoul";
 import { motion } from "framer-motion";
 
 export default function AdminPage() {
@@ -37,7 +38,7 @@ export default function AdminPage() {
   if (user?.role !== "admin") {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
-        <ZenOrb size="lg" />
+        <VisualSoul size="lg" />
         <h3 className="text-base font-medium mt-6">權限不足</h3>
         <p className="text-sm text-muted-foreground mt-2">此頁面僅限管理員存取</p>
       </div>

@@ -42,7 +42,8 @@ import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
-import { ZenOrb } from "./ZenCoPilot";
+import VisualSoul from "./VisualSoul";
+import { useAIState } from "@/contexts/AIStateContext";
 
 const menuItems = [
   { icon: Wand2, label: "創作工作室", path: "/studio" },
@@ -91,13 +92,13 @@ export default function DashboardLayout({
       <div className="flex items-center justify-center min-h-screen" style={{ background: "linear-gradient(135deg, #F5F3F0 0%, #EAC9C1 30%, #D4C5E2 70%, #C8D5E0 100%)" }}>
         <div className="glass-card p-10 max-w-md w-full mx-4 text-center">
           <div className="flex justify-center mb-6">
-            <ZenOrb size="lg" />
+            <VisualSoul size="lg" state="idle" />
           </div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-            多模態創作工作室
+            AI Director 創作平台
           </h1>
           <p className="text-sm text-muted-foreground mt-3 max-w-sm mx-auto">
-            登入後即可使用 AI 多模態創作平台
+            登入後即可使用 AI Director 智慧創作平台
           </p>
           <Button
             onClick={() => { window.location.href = getLoginUrl(); }}
@@ -134,6 +135,7 @@ function DashboardLayoutContent({
   const { user, logout } = useAuth();
   const [location, setLocation] = useLocation();
   const { state, toggleSidebar } = useSidebar();
+  const { aiState } = useAIState();
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
@@ -191,9 +193,9 @@ function DashboardLayoutContent({
               </button>
               {!isCollapsed && (
                 <div className="flex items-center gap-2 min-w-0">
-                  <ZenOrb size="sm" />
+                  <VisualSoul size="sm" state={aiState} />
                   <span className="font-semibold tracking-tight truncate text-foreground text-sm">
-                    Healing Studio
+                    AI Director
                   </span>
                 </div>
               )}
@@ -284,7 +286,7 @@ function DashboardLayoutContent({
             <div className="flex items-center gap-2">
               <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />
               <span className="tracking-tight text-foreground text-sm font-medium">
-                {activeMenuItem?.label ?? "Healing Studio"}
+                {activeMenuItem?.label ?? "AI Director"}
               </span>
             </div>
           </div>

@@ -7,7 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Plus, MessageSquare, Bug, Lightbulb, AlertTriangle, HelpCircle } from "lucide-react";
-import { GlassCard, ZenSkeleton, ZenOrb } from "@/components/ZenCoPilot";
+import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
+import VisualSoul from "@/components/VisualSoul";
 import { motion } from "framer-motion";
 
 const categoryInfo: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
@@ -132,7 +133,7 @@ export default function FeedbackPage() {
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <ZenOrb size="lg" />
+          <VisualSoul size="lg" />
           <h3 className="text-base font-medium mt-6">尚無回饋紀錄</h3>
           <p className="text-sm text-muted-foreground mt-2 max-w-sm">點擊「提交回饋」分享你的意見</p>
         </div>

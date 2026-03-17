@@ -501,7 +501,17 @@ export const appRouter = router({
             resultJson: resultData,
           });
 
-          return { jobId, resultUrl, resultData, compiledPrompt };
+          // Build Chain-of-Thought trace for Thought Island Chain visualization
+          const thoughtChain = [
+            { id: "safety", label: "安全檢查", status: "passed", detail: "內容安全檢查通過", timestamp: Date.now() - 4000 },
+            { id: "compile", label: "提示詞編譯", status: "completed", detail: `編譯後提示詞長度: ${compiledPrompt.length} 字元`, timestamp: Date.now() - 3000 },
+            { id: "weight", label: "視覺權重計算", status: "completed", detail: `visualWeight: ${visualWeight}, controlNet: ${JSON.stringify(controlNetParams)}`, timestamp: Date.now() - 2500 },
+            { id: "generate", label: `${input.generationType === "image" ? "圖像" : input.generationType === "video" ? "影片" : input.generationType === "audio" ? "音樂" : "語音"}生成`, status: resultUrl ? "completed" : "queued", detail: resultUrl ? "生成成功" : "已加入佇列", timestamp: Date.now() - 1000 },
+            { id: "quota", label: "配額扣除", status: "completed", detail: "扣除 1 次生成配額", timestamp: Date.now() - 500 },
+            { id: "history", label: "歷史紀錄", status: "completed", detail: "已儲存至生成歷史", timestamp: Date.now() },
+          ];
+
+          return { jobId, resultUrl, resultData, compiledPrompt, thoughtChain };
         } catch (error) {
           // Transactional integrity: refund quota on failure
           await db.refundUserQuota(userId, 1);

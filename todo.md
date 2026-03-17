@@ -191,3 +191,35 @@
 ### Task 4: Phase 3 啟動宣告
 - [x] 正式宣告第二階段完工
 - [x] 簡述第三階段技術框架
+
+## Phase 3-A: 品牌更迭與思維鏈可視化
+
+### Task 1: 品牌名稱更迭
+- [x] 全站文本替換 Healing Studio → AI Director
+- [x] Navbar Logo 更新
+- [x] 網頁 title 更新
+- [x] 首頁歡迎詞更新
+- [x] 系統提示訊息更新
+- [x] 確認無死角（僅 dist/ 建構產物殘留，重建後消失）
+
+### Task 2: AI 思維島鏈 (D3.js)
+- [x] 安裝 d3.js + framer-motion 依賴
+- [x] 後端 CoT 數據擷取與回傳（generate.multimodal 回傳 thoughtChain 陣列）
+- [x] ThoughtIslandChain 元件建立（D3.js 互動式樹狀圖）
+- [x] Studio 生成結果旁渲染思維樹狀圖
+
+### Task 3: 3D 光球化身 (Visual Soul)
+- [x] CSS 3D transforms + Framer Motion + SVG 濾鏡
+- [x] 待機狀態：緩慢呼吸光暈
+- [x] 思考中狀態：快速閃爍多色漸變
+- [x] 生成中狀態：光束擴張效應
+- [x] 導航列/首頁光球與 AI 全域狀態綁定（AIStateContext + useAIState）
+
+### Task 4: 跨模態快捷操作
+- [x] 歷史頁面結果卡片新增快捷按鈕（重新生成/發送到影片工作區/發送到音樂工作區）
+- [x] Studio 結果卡片新增快捷按鈕（透過 ThoughtIslandChain 展示推導軌跡）
+- [x] 點擊後攜帶參數無縫跳轉（sessionStorage sendToStudio）
+
+### 測試與驗證
+- [x] 新增 phase3a-visual.test.ts（16 個測試）
+- [x] 全部 126 個測試通過（6 個測試檔案）

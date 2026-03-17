@@ -5,7 +5,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Image, Video, Music, Mic, FileText, Package, Globe, Lock, Trash2, Gift, ExternalLink } from "lucide-react";
-import { GlassCard, ZenSkeleton, ZenOrb } from "@/components/ZenCoPilot";
+import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
+import VisualSoul from "@/components/VisualSoul";
 import { motion } from "framer-motion";
 
 const typeConfig: Record<string, { icon: React.ReactNode; label: string; color: string }> = {
@@ -137,7 +138,7 @@ export default function AssetsLibrary() {
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <ZenOrb size="lg" />
+          <VisualSoul size="lg" />
           <h3 className="text-base font-medium mt-6">尚無數位資產</h3>
           <p className="text-sm text-muted-foreground mt-2 max-w-sm">
             {tab === "my" ? "前往工作室生成你的第一個作品" : "還沒有團隊共享的資產"}

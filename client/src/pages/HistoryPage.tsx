@@ -1,12 +1,15 @@
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
-import { GlassCard, ZenOrb, ZenSkeleton } from "@/components/ZenCoPilot";
+import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
+import VisualSoul from "@/components/VisualSoul";
 import { toast } from "sonner";
 import {
   Image, Video, Music, Mic, Bookmark, BookmarkCheck,
   Star, Trash2, Filter, Clock, Search, ChevronDown,
+  Send, Wand2, RefreshCw,
 } from "lucide-react";
+import { useLocation } from "wouter";
 import { Input } from "@/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -62,6 +65,7 @@ function StarRating({
 // ─── History Page ──────────────────────────────────────────────────────────
 
 export default function HistoryPage() {
+  const [, navigate] = useLocation();
   const [filter, setFilter] = useState<"all" | "image" | "video" | "audio" | "voice" | "bookmarked">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -219,7 +223,7 @@ export default function HistoryPage() {
       {/* History Grid */}
       {filteredHistory.length === 0 ? (
         <GlassCard hover={false} className="flex flex-col items-center justify-center py-16 text-center">
-          <ZenOrb size="md" />
+          <VisualSoul size="md" />
           <p className="text-sm text-muted-foreground mt-4">
             {filter === "bookmarked"
               ? "尚無收藏的生成紀錄"
@@ -369,6 +373,66 @@ export default function HistoryPage() {
                                 </div>
                               </div>
                             )}
+                            {/* Cross-modal Quick Actions */}
+                            <div className="flex flex-wrap gap-1.5 pt-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 text-xs gap-1 rounded-lg"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  sessionStorage.setItem("sendToStudio", JSON.stringify({
+                                    prompt: item.prompt || item.compiledPrompt || "",
+                                    generationType: item.modality,
+                                  }));
+                                  navigate("/studio");
+                                  toast.success("已發送到工作室");
+                                }}
+                              >
+                                <RefreshCw className="w-3 h-3" />
+                                重新生成
+                              </Button>
+                              {item.modality === "image" && item.resultUrl && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 text-xs gap-1 rounded-lg"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    sessionStorage.setItem("sendToStudio", JSON.stringify({
+                                      prompt: item.prompt || "",
+                                      generationType: "video",
+                                      referenceImageUrl: item.resultUrl,
+                                    }));
+                                    navigate("/studio");
+                                    toast.success("已發送到影片工作區");
+                                  }}
+                                >
+                                  <Video className="w-3 h-3" />
+                                  發送到影片工作區
+                                </Button>
+                              )}
+                              {(item.modality === "image" || item.modality === "video") && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 text-xs gap-1 rounded-lg"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    sessionStorage.setItem("sendToStudio", JSON.stringify({
+                                      prompt: `為這個${item.modality === "image" ? "圖片" : "影片"}創作配樂`,
+                                      generationType: "audio",
+                                    }));
+                                    navigate("/studio");
+                                    toast.success("已發送到音樂工作區");
+                                  }}
+                                >
+                                  <Music className="w-3 h-3" />
+                                  發送到音樂工作區
+                                </Button>
+                              )}
+                            </div>
+
                             <div className="flex justify-end pt-1">
                               <Button
                                 variant="ghost"

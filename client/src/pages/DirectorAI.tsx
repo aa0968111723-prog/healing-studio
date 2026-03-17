@@ -10,7 +10,9 @@ import {
   Clapperboard, Send, Image, Music, Mic,
   Brain, Palette, Wrench, MessageCircleQuestion,
 } from "lucide-react";
-import { GlassCard, ZenOrb } from "@/components/ZenCoPilot";
+import { GlassCard } from "@/components/ZenCoPilot";
+import VisualSoul from "@/components/VisualSoul";
+import { useAIState } from "@/contexts/AIStateContext";
 import { useIsMobile } from "@/hooks/useMobile";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
@@ -105,6 +107,7 @@ function ProactiveQuestionBubble({
 export default function DirectorAI() {
   const isMobile = useIsMobile();
   const [, navigate] = useLocation();
+  const { setAIState } = useAIState();
   const [personality, setPersonality] = useState<Personality>("creative");
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -118,7 +121,9 @@ export default function DirectorAI() {
   const [proactiveQuestion, setProactiveQuestion] = useState<string | null>(null);
 
   const chatMutation = trpc.director.chat.useMutation({
+    onMutate: () => setAIState("thinking"),
     onSuccess: (data) => {
+      setAIState("idle");
       const scriptSummary = data.script
         ? `\n\n---\n**CO-STAR 腳本已生成**\n\n| 欄位 | 內容 |\n|------|------|\n| 背景 | ${data.script.context} |\n| 情境 | ${data.script.situation} |\n| 任務 | ${data.script.task} |\n| 行動 | ${data.script.action} |\n| 結果 | ${data.script.result} |\n\n**視覺提示詞：** ${data.script.visualPrompt}\n\n**語音腳本：** ${data.script.audioScript}\n\n**音樂風格：** ${data.script.musicVibe}`
         : "";
@@ -144,6 +149,7 @@ export default function DirectorAI() {
       }
     },
     onError: (error) => {
+      setAIState("idle");
       toast.error(error.message);
     },
   });
@@ -301,7 +307,7 @@ export default function DirectorAI() {
               <GlassCard hover={false} className="h-full">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-semibold flex items-center gap-2">
-                    <ZenOrb size="sm" />
+                    <VisualSoul size="sm" />
                     Storyboard
                   </h3>
                   <span className="text-[11px] text-muted-foreground">
@@ -312,7 +318,7 @@ export default function DirectorAI() {
                 <ScrollArea className="h-[calc(100vh-440px)]">
                   {scripts.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 text-center">
-                      <ZenOrb size="md" />
+                      <VisualSoul size="md" />
                       <p className="text-sm text-muted-foreground mt-4">
                         與導演 AI 對話後，腳本會自動出現在這裡
                       </p>
@@ -378,7 +384,7 @@ export default function DirectorAI() {
       {isMobile && scripts.length > 0 && (
         <div className="space-y-3">
           <h3 className="text-sm font-semibold flex items-center gap-2">
-            <ZenOrb size="sm" />
+            <VisualSoul size="sm" />
             Storyboard ({scripts.length})
           </h3>
           {scripts.map((script, idx) => (
