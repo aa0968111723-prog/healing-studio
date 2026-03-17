@@ -43,6 +43,12 @@ export default function ThoughtIslandChain({ nodes, isVisible = true }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [expanded, setExpanded] = useState(true);
+  const hasProcessing = nodes.some(n => n.status === "processing");
+
+  // Auto-expand when generation is in progress
+  useEffect(() => {
+    if (hasProcessing) setExpanded(true);
+  }, [hasProcessing]);
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const [dimensions, setDimensions] = useState({ width: 600, height: 120 });
 
@@ -188,7 +194,11 @@ export default function ThoughtIslandChain({ nodes, isVisible = true }: Props) {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
-      className="relative rounded-xl border border-border/50 bg-card/50 backdrop-blur-sm overflow-hidden"
+      className={`relative rounded-xl overflow-hidden transition-all duration-500 ${
+        hasProcessing
+          ? "border-2 border-primary/40 shadow-lg shadow-primary/10 bg-card/70"
+          : "border border-border/50 bg-card/50"
+      } backdrop-blur-sm`}
     >
       {/* Header */}
       <button

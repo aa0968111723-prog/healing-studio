@@ -223,3 +223,29 @@
 ### 測試與驗證
 - [x] 新增 phase3a-visual.test.ts（16 個測試）
 - [x] 全部 126 個測試通過（6 個測試檔案）
+
+## Phase 3-B: UX 大重構 - 光球引導 + 一體化工作區
+
+### Task 1: 光球引導型黃金 90 秒 Onboarding
+- [x] 將 VisualSoul 光球移至首頁/Studio 視覺焦點位置
+- [x] 建立 OnboardingFlow 元件（對話式引導 + 打字機特效）
+- [x] 步驟一：光球問「今天想創作什麼畫面？」
+- [x] 步驟二：展示思維鏈推導過程
+- [x] 步驟三：自動生成並展示結果
+- [x] 首次登入偵測邏輯（localStorage hasCompletedOnboarding）
+
+### Task 2: 一體化工作區 (Unified Workspace)
+- [x] Studio 設為核心主戰場
+- [x] 左側抽屜：一致性保險庫 (Vault) + 數位資產 (Assets)
+- [x] 右側抽屜：生成歷史 (History)
+- [x] 抽屜面板支援拖曳/點擊匯入當前創作流
+- [x] 側邊欄精簡至 6 個頂級入口（工作室/導演AI/角色鍛造所/共享空間/儀表板/設定）
+
+### Task 3: 思維島鏈視覺層級
+- [x] 生成等待期間優雅展開思維樹狀圖（hasProcessing 自動展開 + 發光邊框）
+- [x] 光球互動時同步展示推導過程（OnboardingFlow 整合 ThoughtIslandChain）
+- [x] 確保不被背景遮擋（border-primary/40 + shadow-lg + z-index）
+
+### 驗證
+- [x] TypeScript 零錯誤
+- [x] 全部 126 個 vitest 測試通過

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProgressivePromptBuilder, createEmptyPromptOutput, type PromptBuilderOutput } from "@/components/ProgressivePromptBuilder";
 import { ImageWorkspace, createDefaultImageState, type ImageWorkspaceState } from "@/components/workspaces/ImageWorkspace";
 import { VideoWorkspace, createDefaultVideoState, type VideoWorkspaceState } from "@/components/workspaces/VideoWorkspace";
@@ -10,11 +10,13 @@ import { AudioWorkspace, createDefaultAudioState, type AudioWorkspaceState } fro
 import { VoiceWorkspace, createDefaultVoiceState, type VoiceWorkspaceState } from "@/components/workspaces/VoiceWorkspace";
 import { ConsistencyVault, type VaultItem } from "@/components/ConsistencyVault";
 import { GenerationControls } from "@/components/GenerationControls";
-import { ZenProgressOverlay, GlassCard, ZenSkeleton, BottomSheet } from "@/components/ZenCoPilot";
+import { ZenProgressOverlay, GlassCard, BottomSheet } from "@/components/ZenCoPilot";
 import { toast } from "sonner";
 import {
   Image, Video, Music, Mic, Wand2, Download,
-  PanelRightOpen, PanelRightClose, Layers, Settings2
+  PanelLeftOpen, PanelLeftClose, PanelRightOpen, PanelRightClose,
+  Layers, Settings2, Clock, Package, X, Star, Bookmark, BookmarkCheck,
+  Send, RefreshCw,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useIsMobile } from "@/hooks/useMobile";
@@ -22,6 +24,8 @@ import { PROGRESS_MESSAGES } from "@shared/types";
 import { PromptStrengthBar } from "@/components/PromptStrengthBar";
 import ThoughtIslandChain, { type ThoughtNode } from "@/components/ThoughtIslandChain";
 import { useAIState } from "@/contexts/AIStateContext";
+import VisualSoul from "@/components/VisualSoul";
+import { useLocation } from "wouter";
 import type { GenerationMode, GenerationType } from "@shared/types";
 
 // ─── Tab Config ─────────────────────────────────────────────────────────────
@@ -33,12 +37,188 @@ const MODALITY_TABS: { value: GenerationType; label: string; icon: React.ReactNo
   { value: "voice", label: "語音", icon: <Mic className="w-4 h-4" /> },
 ];
 
+// ─── Mini History Panel (embedded in right drawer) ──────────────────────────
+
+function MiniHistoryPanel({ onSendToStudio }: { onSendToStudio: (prompt: string, type: GenerationType) => void }) {
+  const historyQuery = trpc.history.list.useQuery(
+    { limit: 20 },
+    { retry: false }
+  );
+  const toggleBookmark = trpc.history.toggleBookmark.useMutation({
+    onSuccess: () => historyQuery.refetch(),
+  });
+  const rateHistory = trpc.history.rate.useMutation({
+    onSuccess: () => historyQuery.refetch(),
+  });
+
+  const MODALITY_ICONS: Record<string, React.ReactNode> = {
+    image: <Image className="w-3 h-3" />,
+    video: <Video className="w-3 h-3" />,
+    audio: <Music className="w-3 h-3" />,
+    voice: <Mic className="w-3 h-3" />,
+  };
+
+  if (historyQuery.isLoading) {
+    return (
+      <div className="p-3 space-y-2">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-16 rounded-lg bg-muted/30 animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+
+  const items = historyQuery.data || [];
+
+  if (!items.length) {
+    return (
+      <div className="p-6 text-center">
+        <Clock className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
+        <p className="text-xs text-muted-foreground">尚無生成歷史</p>
+        <p className="text-xs text-muted-foreground/60 mt-1">開始創作後，歷史紀錄將顯示在這裡</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1.5 p-2">
+      {items.map((item: any) => (
+        <div
+          key={item.id}
+          className="group rounded-lg p-2 hover:bg-accent/30 transition-colors cursor-pointer"
+        >
+          <div className="flex items-start gap-2">
+            {/* Thumbnail */}
+            {item.resultUrl && item.generationType === "image" ? (
+              <img
+                src={item.resultUrl}
+                alt=""
+                className="w-10 h-10 rounded-md object-cover shrink-0"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-md bg-muted/30 flex items-center justify-center shrink-0">
+                {MODALITY_ICONS[item.generationType] || <Image className="w-3 h-3" />}
+              </div>
+            )}
+
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-foreground truncate leading-tight">
+                {item.prompt?.slice(0, 40) || "無提示詞"}
+              </p>
+              <div className="flex items-center gap-1.5 mt-1">
+                <span className="text-[10px] text-muted-foreground">
+                  {new Date(item.createdAt).toLocaleDateString()}
+                </span>
+                {item.rating && (
+                  <span className="flex items-center gap-0.5 text-[10px] text-amber-500">
+                    <Star className="w-2.5 h-2.5 fill-current" />
+                    {item.rating}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleBookmark.mutate({ id: item.id, isBookmarked: !item.bookmarked });
+                }}
+                className="p-1 rounded hover:bg-accent/50 transition-colors"
+                title={item.bookmarked ? "取消收藏" : "收藏"}
+              >
+                {item.bookmarked ? (
+                  <BookmarkCheck className="w-3 h-3 text-primary" />
+                ) : (
+                  <Bookmark className="w-3 h-3 text-muted-foreground" />
+                )}
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSendToStudio(item.prompt || "", item.generationType as GenerationType);
+                }}
+                className="p-1 rounded hover:bg-accent/50 transition-colors"
+                title="重新生成"
+              >
+                <RefreshCw className="w-3 h-3 text-muted-foreground" />
+              </button>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Drawer Shell ───────────────────────────────────────────────────────────
+
+function DrawerPanel({
+  open,
+  side,
+  title,
+  icon,
+  onClose,
+  children,
+}: {
+  open: boolean;
+  side: "left" | "right";
+  title: string;
+  icon: React.ReactNode;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ width: 0, opacity: 0 }}
+          animate={{ width: 300, opacity: 1 }}
+          exit={{ width: 0, opacity: 0 }}
+          transition={{ duration: 0.25, ease: "easeInOut" }}
+          className={`shrink-0 overflow-hidden ${side === "left" ? "order-first" : "order-last"}`}
+        >
+          <div
+            className="h-full rounded-xl overflow-hidden flex flex-col"
+            style={{
+              background: "rgba(255,255,255,0.5)",
+              backdropFilter: "blur(16px)",
+              border: "1px solid rgba(255,255,255,0.5)",
+            }}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-3 py-2.5 border-b border-border/20">
+              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                {icon}
+                {title}
+              </div>
+              <button
+                onClick={onClose}
+                className="p-1 rounded-md hover:bg-accent/50 transition-colors"
+              >
+                <X className="w-3.5 h-3.5 text-muted-foreground" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto">
+              {children}
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
 // ─── Studio Page ────────────────────────────────────────────────────────────
 
 export default function Studio() {
   const { user } = useAuth();
   const isMobile = useIsMobile();
-  const { setAIState } = useAIState();
+  const { aiState, setAIState } = useAIState();
+  const [, navigate] = useLocation();
 
   // ── Shared state ──
   const [activeModality, setActiveModality] = useState<GenerationType>("image");
@@ -55,9 +235,11 @@ export default function Studio() {
   const [voiceState, setVoiceState] = useState(createDefaultVoiceState);
 
   // ── UI state ──
-  const [vaultOpen, setVaultOpen] = useState(false);
+  const [leftDrawerOpen, setLeftDrawerOpen] = useState(false);
+  const [leftDrawerTab, setLeftDrawerTab] = useState<"vault" | "assets">("vault");
+  const [rightDrawerOpen, setRightDrawerOpen] = useState(false);
   const [controlsSheetOpen, setControlsSheetOpen] = useState(false);
-  const [vaultSheetOpen, setVaultSheetOpen] = useState(false);
+  const [mobileDrawerSheet, setMobileDrawerSheet] = useState<"left" | "right" | null>(null);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [resultData, setResultData] = useState<Record<string, unknown> | null>(null);
   const [thoughtChain, setThoughtChain] = useState<ThoughtNode[]>([]);
@@ -124,7 +306,6 @@ export default function Studio() {
         if (data.generationType) setActiveModality(data.generationType);
         if (data.musicStyle) setAudioState(prev => ({ ...prev, musicStyle: data.musicStyle }));
         if (data.voiceText) setVoiceState(prev => ({ ...prev, text: data.voiceText }));
-        // Also populate audioScript into voice workspace
         if (data.audioScript) setVoiceState(prev => ({ ...prev, text: data.audioScript }));
         sessionStorage.removeItem("sendToStudio");
         toast.success("已從導演 AI 載入腳本");
@@ -151,14 +332,12 @@ export default function Studio() {
       vibeCardIds: promptBuilder.vibeCardIds,
       temperature,
       seed: seed ? parseInt(seed) : undefined,
-      // Image workspace params
       ...(activeModality === "image" && {
         aspectRatio: imageState.aspectRatio,
         negativePrompt: imageState.negativePrompt || undefined,
         styleReferenceUrl: imageState.styleReferenceUrl,
         vibeReferenceUrl: imageState.vibeReferenceUrl,
       }),
-      // Video workspace params
       ...(activeModality === "video" && {
         videoDurationSeconds: parseInt(videoState.duration),
         firstFrameUrl: videoState.firstFrameUrl,
@@ -166,7 +345,6 @@ export default function Studio() {
         characterRefUrl: videoState.characterRefUrl,
         cameraMotion: videoState.cameraMotion,
       }),
-      // Audio workspace params
       ...(activeModality === "audio" && {
         musicStyle: audioState.musicStyle,
         isInstrumental: audioState.isInstrumental,
@@ -174,7 +352,6 @@ export default function Studio() {
         audioDuration: audioState.duration,
         audioEnergy: audioState.energy,
       }),
-      // Voice workspace params
       ...(activeModality === "voice" && {
         voiceModelId: voiceState.voiceActorId,
         voiceText: voiceState.text,
@@ -186,7 +363,7 @@ export default function Studio() {
     });
   }, [promptBuilder, activeModality, mode, temperature, seed, imageState, videoState, audioState, voiceState, generateMutation]);
 
-  // ── Vault drag handler ──
+  // ── Vault select handler ──
   const handleVaultSelect = useCallback((item: VaultItem) => {
     if (activeModality === "video") {
       if (!videoState.firstFrameUrl) {
@@ -206,8 +383,16 @@ export default function Studio() {
         toast.info("風格參考已設定，請先清除再載入");
       }
     }
-    if (isMobile) setVaultSheetOpen(false);
+    if (isMobile) setMobileDrawerSheet(null);
   }, [activeModality, videoState, imageState, isMobile]);
+
+  // ── History → Studio handler ──
+  const handleHistoryToStudio = useCallback((prompt: string, type: GenerationType) => {
+    setPromptBuilder(prev => ({ ...prev, rawPrompt: prompt, compiledPrompt: prompt }));
+    setActiveModality(type);
+    setRightDrawerOpen(false);
+    toast.success("已載入歷史提示詞");
+  }, []);
 
   const showLoraWeight = activeModality === "video"
     ? !!(videoState.firstFrameUrl || videoState.characterRefUrl)
@@ -216,50 +401,107 @@ export default function Studio() {
     : false;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <ZenProgressOverlay
         visible={generateMutation.isPending}
         progress={progress}
         message={progressMessage}
       />
 
-      {/* ── Header ── */}
+      {/* ── Header with drawer toggles ── */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-foreground tracking-tight">創作工作室</h1>
-          <p className="text-xs text-muted-foreground mt-1">
-            剩餘配額：<span className="tabular-nums font-medium">{user?.remainingGenerations ?? 0}</span> 次
-          </p>
+        <div className="flex items-center gap-3">
+          <VisualSoul size="sm" state={aiState} />
+          <div>
+            <h1 className="text-lg font-semibold text-foreground tracking-tight">創作工作室</h1>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              配額 <span className="tabular-nums font-medium">{user?.remainingGenerations ?? 0}</span>
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+
+        <div className="flex items-center gap-1.5">
+          {/* Left drawer toggle: Vault + Assets */}
+          <Button
+            variant={leftDrawerOpen ? "default" : "outline"}
+            size="sm"
+            className="rounded-xl gap-1.5 text-xs h-8"
+            onClick={() => isMobile ? setMobileDrawerSheet("left") : setLeftDrawerOpen(!leftDrawerOpen)}
+          >
+            {leftDrawerOpen ? <PanelLeftClose className="w-3.5 h-3.5" /> : <PanelLeftOpen className="w-3.5 h-3.5" />}
+            <span className="hidden sm:inline">素材庫</span>
+          </Button>
+
+          {/* Controls (mobile only) */}
           {isMobile && (
             <Button
               variant="outline"
               size="sm"
-              className="rounded-xl gap-1.5 text-xs"
+              className="rounded-xl gap-1.5 text-xs h-8"
               onClick={() => setControlsSheetOpen(true)}
             >
               <Settings2 className="w-3.5 h-3.5" />
-              參數
             </Button>
           )}
+
+          {/* Right drawer toggle: History */}
           <Button
-            variant="outline"
+            variant={rightDrawerOpen ? "default" : "outline"}
             size="sm"
-            className="rounded-xl gap-1.5 text-xs"
-            onClick={() => isMobile ? setVaultSheetOpen(true) : setVaultOpen(!vaultOpen)}
+            className="rounded-xl gap-1.5 text-xs h-8"
+            onClick={() => isMobile ? setMobileDrawerSheet("right") : setRightDrawerOpen(!rightDrawerOpen)}
           >
-            {vaultOpen ? <PanelRightClose className="w-3.5 h-3.5" /> : <PanelRightOpen className="w-3.5 h-3.5" />}
-            一致性保險庫
+            {rightDrawerOpen ? <PanelRightClose className="w-3.5 h-3.5" /> : <PanelRightOpen className="w-3.5 h-3.5" />}
+            <span className="hidden sm:inline">歷史</span>
           </Button>
         </div>
       </div>
 
-      {/* ── Main Layout ── */}
-      <div className="flex gap-5">
-        {/* ── Left: Main Canvas ── */}
-        <div className={`flex-1 space-y-5 transition-all ${vaultOpen && !isMobile ? "max-w-[calc(100%-300px)]" : ""}`}>
+      {/* ── Main Layout with Drawers ── */}
+      <div className="flex gap-4">
+        {/* ── Left Drawer: Vault + Assets ── */}
+        {!isMobile && (
+          <DrawerPanel
+            open={leftDrawerOpen}
+            side="left"
+            title={leftDrawerTab === "vault" ? "一致性保險庫" : "數位資產"}
+            icon={leftDrawerTab === "vault" ? <Layers className="w-4 h-4 text-primary" /> : <Package className="w-4 h-4 text-primary" />}
+            onClose={() => setLeftDrawerOpen(false)}
+          >
+            {/* Tab switcher inside drawer */}
+            <div className="px-2 pt-2">
+              <div className="flex gap-1 p-0.5 rounded-lg bg-muted/30">
+                <button
+                  onClick={() => setLeftDrawerTab("vault")}
+                  className={`flex-1 text-xs py-1.5 rounded-md transition-colors ${
+                    leftDrawerTab === "vault" ? "bg-white shadow-sm text-foreground font-medium" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Layers className="w-3 h-3 inline mr-1" />
+                  保險庫
+                </button>
+                <button
+                  onClick={() => setLeftDrawerTab("assets")}
+                  className={`flex-1 text-xs py-1.5 rounded-md transition-colors ${
+                    leftDrawerTab === "assets" ? "bg-white shadow-sm text-foreground font-medium" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Package className="w-3 h-3 inline mr-1" />
+                  資產
+                </button>
+              </div>
+            </div>
 
+            {leftDrawerTab === "vault" ? (
+              <ConsistencyVault onSelect={handleVaultSelect} compact />
+            ) : (
+              <MiniAssetsPanel />
+            )}
+          </DrawerPanel>
+        )}
+
+        {/* ── Center: Main Canvas ── */}
+        <div className="flex-1 space-y-4 min-w-0">
           {/* Modality Tabs */}
           <Tabs
             value={activeModality}
@@ -282,7 +524,7 @@ export default function Studio() {
             </TabsList>
           </Tabs>
 
-          {/* Progressive Prompt Builder (shared across all modalities except voice) */}
+          {/* Progressive Prompt Builder */}
           {activeModality !== "voice" && (
             <GlassCard hover={false}>
               <ProgressivePromptBuilder
@@ -290,7 +532,6 @@ export default function Studio() {
                 onChange={setPromptBuilder}
                 modality={activeModality}
               />
-              {/* Prompt Strength Evaluator (LLM-as-a-Judge) */}
               <div className="mt-3 pt-3 border-t border-border/20">
                 <PromptStrengthBar
                   prompt={promptBuilder.compiledPrompt || promptBuilder.rawPrompt}
@@ -344,10 +585,26 @@ export default function Studio() {
             {generateMutation.isPending ? "生成中..." : "開始創作"}
           </Button>
 
-          {/* Thought Island Chain - AI CoT Visualization */}
-          {thoughtChain.length > 0 && (
-            <ThoughtIslandChain nodes={thoughtChain} />
-          )}
+          {/* Thought Island Chain - elevated visibility */}
+          <AnimatePresence>
+            {(thoughtChain.length > 0 || generateMutation.isPending) && (
+              <motion.div
+                initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.4 }}
+              >
+                <ThoughtIslandChain
+                  nodes={thoughtChain.length > 0 ? thoughtChain : [
+                    { id: "safety", label: "安全檢查", status: "processing", detail: "正在驗證...", timestamp: Date.now() },
+                    { id: "compile", label: "提示詞編譯", status: "queued", detail: "等待中...", timestamp: Date.now() },
+                    { id: "generate", label: "AI 生成", status: "queued", detail: "等待中...", timestamp: Date.now() },
+                  ]}
+                  isVisible={true}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Result Preview */}
           <AnimatePresence>
@@ -401,7 +658,7 @@ export default function Studio() {
 
         {/* ── Right Panel: Controls (desktop) ── */}
         {!isMobile && (
-          <div className="hidden lg:block w-72 shrink-0 space-y-5">
+          <div className="hidden lg:block w-64 shrink-0 space-y-4">
             <GlassCard hover={false}>
               <GenerationControls
                 temperature={temperature}
@@ -418,25 +675,18 @@ export default function Studio() {
           </div>
         )}
 
-        {/* ── Right Panel: Consistency Vault (desktop) ── */}
-        <AnimatePresence>
-          {vaultOpen && !isMobile && (
-            <motion.div
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 280, opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.3, ease: "easeInOut" }}
-              className="shrink-0 overflow-hidden"
-            >
-              <GlassCard hover={false} className="h-full">
-                <ConsistencyVault
-                  onSelect={handleVaultSelect}
-                  compact
-                />
-              </GlassCard>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* ── Right Drawer: History ── */}
+        {!isMobile && (
+          <DrawerPanel
+            open={rightDrawerOpen}
+            side="right"
+            title="生成歷史"
+            icon={<Clock className="w-4 h-4 text-primary" />}
+            onClose={() => setRightDrawerOpen(false)}
+          >
+            <MiniHistoryPanel onSendToStudio={handleHistoryToStudio} />
+          </DrawerPanel>
+        )}
       </div>
 
       {/* ── Mobile Bottom Sheets ── */}
@@ -461,16 +711,102 @@ export default function Studio() {
           </BottomSheet>
 
           <BottomSheet
-            open={vaultSheetOpen}
-            onClose={() => setVaultSheetOpen(false)}
-            title="一致性保險庫"
+            open={mobileDrawerSheet === "left"}
+            onClose={() => setMobileDrawerSheet(null)}
+            title="素材庫"
           >
-            <ConsistencyVault
-              onSelect={handleVaultSelect}
-            />
+            <div className="flex gap-1 p-2 mb-2">
+              <button
+                onClick={() => setLeftDrawerTab("vault")}
+                className={`flex-1 text-xs py-2 rounded-lg transition-colors ${
+                  leftDrawerTab === "vault" ? "bg-primary text-primary-foreground" : "bg-muted/30 text-muted-foreground"
+                }`}
+              >
+                保險庫
+              </button>
+              <button
+                onClick={() => setLeftDrawerTab("assets")}
+                className={`flex-1 text-xs py-2 rounded-lg transition-colors ${
+                  leftDrawerTab === "assets" ? "bg-primary text-primary-foreground" : "bg-muted/30 text-muted-foreground"
+                }`}
+              >
+                資產
+              </button>
+            </div>
+            {leftDrawerTab === "vault" ? (
+              <ConsistencyVault onSelect={handleVaultSelect} />
+            ) : (
+              <MiniAssetsPanel />
+            )}
+          </BottomSheet>
+
+          <BottomSheet
+            open={mobileDrawerSheet === "right"}
+            onClose={() => setMobileDrawerSheet(null)}
+            title="生成歷史"
+          >
+            <MiniHistoryPanel onSendToStudio={handleHistoryToStudio} />
           </BottomSheet>
         </>
       )}
+    </div>
+  );
+}
+
+// ─── Mini Assets Panel (embedded in left drawer) ────────────────────────────
+
+function MiniAssetsPanel() {
+  const myAssetsQuery = trpc.assets.myAssets.useQuery(undefined, { retry: false });
+
+  if (myAssetsQuery.isLoading) {
+    return (
+      <div className="p-3 space-y-2">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-12 rounded-lg bg-muted/30 animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+
+  const assets = myAssetsQuery.data || [];
+
+  if (!assets.length) {
+    return (
+      <div className="p-6 text-center">
+        <Package className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
+        <p className="text-xs text-muted-foreground">尚無數位資產</p>
+        <p className="text-xs text-muted-foreground/60 mt-1">生成作品後會自動保存至此</p>
+      </div>
+    );
+  }
+
+  const ASSET_ICONS: Record<string, React.ReactNode> = {
+    image: <Image className="w-3 h-3" />,
+    video: <Video className="w-3 h-3" />,
+    audio: <Music className="w-3 h-3" />,
+    voice: <Mic className="w-3 h-3" />,
+  };
+
+  return (
+    <div className="space-y-1 p-2">
+      {assets.slice(0, 20).map((asset: any) => (
+        <div
+          key={asset.id}
+          className="flex items-center gap-2 p-2 rounded-lg hover:bg-accent/30 transition-colors cursor-pointer"
+        >
+          {asset.thumbnailUrl ? (
+            <img src={asset.thumbnailUrl} alt="" className="w-8 h-8 rounded object-cover shrink-0" />
+          ) : (
+            <div className="w-8 h-8 rounded bg-muted/30 flex items-center justify-center shrink-0">
+              {ASSET_ICONS[asset.type] || <Package className="w-3 h-3" />}
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-foreground truncate">{asset.name || "未命名"}</p>
+            <p className="text-[10px] text-muted-foreground">{asset.type}</p>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

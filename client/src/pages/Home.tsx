@@ -1,9 +1,11 @@
+import { useState, useEffect } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { getLoginUrl } from "@/const";
 import { useLocation } from "wouter";
 import { GlassCard } from "@/components/ZenCoPilot";
 import VisualSoul from "@/components/VisualSoul";
+import OnboardingFlow from "@/components/OnboardingFlow";
 import { motion } from "framer-motion";
 import { Wand2, Clapperboard, Package, Cpu, ArrowRight, Sparkles, Shield, Users } from "lucide-react";
 
@@ -49,6 +51,32 @@ const FEATURES = [
 export default function Home() {
   const { user, loading, isAuthenticated } = useAuth();
   const [, navigate] = useLocation();
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  // Check if user needs onboarding (first visit after login)
+  useEffect(() => {
+    if (isAuthenticated && !loading) {
+      const onboarded = localStorage.getItem("ai-director-onboarded");
+      if (!onboarded) {
+        setShowOnboarding(true);
+      }
+    }
+  }, [isAuthenticated, loading]);
+
+  // Onboarding overlay for first-time users
+  if (showOnboarding && isAuthenticated) {
+    return (
+      <OnboardingFlow
+        onComplete={() => {
+          setShowOnboarding(false);
+          navigate("/studio");
+        }}
+        onSkip={() => {
+          setShowOnboarding(false);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen">
@@ -87,9 +115,8 @@ export default function Home() {
         </div>
       </nav>
 
-      {/* Hero Section */}
+      {/* Hero Section - Orb-centered design */}
       <section className="pt-32 pb-20 px-4 relative overflow-hidden">
-        {/* Background gradient */}
         <div className="absolute inset-0 -z-10"
           style={{
             background: "linear-gradient(135deg, rgba(245,243,240,1) 0%, rgba(234,201,193,0.3) 30%, rgba(212,197,226,0.2) 60%, rgba(200,213,224,0.2) 100%)",
@@ -102,22 +129,9 @@ export default function Home() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
+            {/* Central Orb - visual focal point */}
             <div className="flex justify-center mb-8">
-              <motion.div
-                animate={{
-                  scale: [1, 1.05, 1],
-                  boxShadow: [
-                    "0 0 30px rgba(212, 197, 226, 0.3)",
-                    "0 0 60px rgba(212, 197, 226, 0.5)",
-                    "0 0 30px rgba(212, 197, 226, 0.3)",
-                  ],
-                }}
-                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                className="w-20 h-20 rounded-full"
-                style={{
-                  background: "radial-gradient(circle at 35% 35%, rgba(212, 197, 226, 0.8), rgba(200, 213, 224, 0.6), rgba(234, 201, 193, 0.4))",
-                }}
-              />
+              <VisualSoul size="lg" className="!w-20 !h-20" />
             </div>
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-foreground leading-tight">
