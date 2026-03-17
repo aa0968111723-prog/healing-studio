@@ -4,6 +4,7 @@ import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { NotesDrawerProvider } from "./contexts/NotesDrawerContext";
 import Home from "./pages/Home";
 import DashboardLayout from "./components/DashboardLayout";
 import Studio from "./pages/Studio";
@@ -11,6 +12,7 @@ import DirectorAI from "./pages/DirectorAI";
 import AssetsLibrary from "./pages/AssetsLibrary";
 import ModelsPage from "./pages/ModelsPage";
 import NotesPage from "./pages/NotesPage";
+import CalendarPage from "./pages/CalendarPage";
 import DashboardPage from "./pages/DashboardPage";
 import FeedbackPage from "./pages/FeedbackPage";
 import AdminPage from "./pages/AdminPage";
@@ -18,6 +20,7 @@ import SharedSpace from "./pages/SharedSpace";
 import SettingsPage from "./pages/SettingsPage";
 import VaultPage from "./pages/VaultPage";
 import HistoryPage from "./pages/HistoryPage";
+import ProjectNotesDrawer from "./components/ProjectNotesDrawer";
 
 function DashboardRoute({ component: Component }: { component: React.ComponentType }) {
   return (
@@ -52,6 +55,9 @@ function Router() {
       <Route path="/notes">
         <DashboardRoute component={NotesPage} />
       </Route>
+      <Route path="/calendar">
+        <DashboardRoute component={CalendarPage} />
+      </Route>
       <Route path="/dashboard">
         <DashboardRoute component={DashboardPage} />
       </Route>
@@ -77,10 +83,13 @@ function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
-        <TooltipProvider>
-          <Toaster />
-          <Router />
-        </TooltipProvider>
+        <NotesDrawerProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Router />
+            <ProjectNotesDrawer />
+          </TooltipProvider>
+        </NotesDrawerProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );

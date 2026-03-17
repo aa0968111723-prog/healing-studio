@@ -2,12 +2,22 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence, type PanInfo, useAnimation } from "framer-motion";
 import { useAIState } from "@/contexts/AIStateContext";
 import VisualSoul from "./VisualSoul";
-import { X, Sparkles } from "lucide-react";
+import { X, Sparkles, StickyNote, CalendarDays, MessageCircle, Send } from "lucide-react";
 
 type Props = {
   className?: string;
   /** Enable the 90-second guided onboarding for first-time users */
   enableOnboarding?: boolean;
+  /** Callback: save payload to notes context */
+  onSaveToNotes?: (payload: { title: string; content?: string; sourceType?: string }) => void;
+  /** Callback: add event to calendar */
+  onAddToCalendar?: (payload: { title: string; description?: string; date: Date }) => void;
+  /** Callback: open notes drawer */
+  onOpenNotes?: () => void;
+  /** Callback: open calendar */
+  onOpenCalendar?: () => void;
+  /** Callback: restart onboarding tour */
+  onRestartTour?: () => void;
 };
 
 const POSITION_KEY = "proactive-orb-position";
@@ -58,9 +68,93 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
 
 const GUIDE_EASE: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
+// ─── Natural language date parser (simple) ────────────────────────────────
+
+function parseNaturalDate(text: string): Date | null {
+  const now = new Date();
+  const lower = text.toLowerCase();
+
+  if (lower.includes("明天")) {
+    const d = new Date(now);
+    d.setDate(d.getDate() + 1);
+    return d;
+  }
+  if (lower.includes("後天")) {
+    const d = new Date(now);
+    d.setDate(d.getDate() + 2);
+    return d;
+  }
+  if (lower.includes("下週一") || lower.includes("下周一")) {
+    const d = new Date(now);
+    const dayOfWeek = d.getDay();
+    const daysUntilNextMonday = ((1 - dayOfWeek + 7) % 7) || 7;
+    d.setDate(d.getDate() + daysUntilNextMonday);
+    return d;
+  }
+  if (lower.includes("下週五") || lower.includes("下周五")) {
+    const d = new Date(now);
+    const dayOfWeek = d.getDay();
+    const daysUntilNextFriday = ((5 - dayOfWeek + 7) % 7) || 7;
+    d.setDate(d.getDate() + daysUntilNextFriday);
+    return d;
+  }
+  if (lower.includes("下週") || lower.includes("下周")) {
+    const d = new Date(now);
+    d.setDate(d.getDate() + 7);
+    return d;
+  }
+
+  // Try to match "X天後" or "X日後"
+  const daysMatch = text.match(/(\d+)\s*(天|日)後/);
+  if (daysMatch) {
+    const d = new Date(now);
+    d.setDate(d.getDate() + parseInt(daysMatch[1]));
+    return d;
+  }
+
+  return null;
+}
+
+// ─── Command handler ──────────────────────────────────────────────────────
+
+type OrbCommand = {
+  type: "notes" | "calendar" | "tour" | "unknown";
+  payload?: any;
+};
+
+function parseOrbCommand(text: string): OrbCommand {
+  const lower = text.toLowerCase();
+
+  // Notes commands
+  if (lower.includes("筆記") || lower.includes("記錄") || lower.includes("釘選") || lower.includes("note")) {
+    return { type: "notes", payload: { content: text } };
+  }
+
+  // Calendar commands
+  if (lower.includes("排程") || lower.includes("日曆") || lower.includes("行事曆") || lower.includes("schedule") || lower.includes("calendar")) {
+    const date = parseNaturalDate(text);
+    return { type: "calendar", payload: { date, text } };
+  }
+
+  // Tour commands
+  if (lower.includes("導覽") || lower.includes("引導") || lower.includes("教學") || lower.includes("tour")) {
+    return { type: "tour" };
+  }
+
+  return { type: "unknown" };
+}
+
 // ─── Component ────────────────────────────────────────────────────────────
 
-export default function ProactiveOrbWidget({ className = "", enableOnboarding = true }: Props) {
+export default function ProactiveOrbWidget({
+  className = "",
+  enableOnboarding = true,
+  onSaveToNotes,
+  onAddToCalendar,
+  onOpenNotes,
+  onOpenCalendar,
+  onRestartTour,
+}: Props) {
   const { aiState, personality, proactiveMessage, dismissProactive } = useAIState();
   const orbControls = useAnimation();
 
@@ -75,6 +169,14 @@ export default function ProactiveOrbWidget({ className = "", enableOnboarding = 
   const onboardingTimerRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const abortRef = useRef(false);
 
+  // Drop zone state
+  const [isDropTarget, setIsDropTarget] = useState(false);
+  const [dropFlash, setDropFlash] = useState<string | null>(null);
+
+  // Command input state
+  const [showCommandInput, setShowCommandInput] = useState(false);
+  const [commandText, setCommandText] = useState("");
+
   // Home position (bottom-right anchor offset)
   const homePositionRef = useRef(position);
 
@@ -84,64 +186,44 @@ export default function ProactiveOrbWidget({ className = "", enableOnboarding = 
     if (abortRef.current) return;
 
     const el = document.getElementById(elementId);
-    if (!el) {
-      // Element not found — skip this step silently
-      return;
-    }
+    if (!el) return;
 
     setGuiding(true);
     setGuideMessage(message);
 
-    // Get target element position
     const rect = el.getBoundingClientRect();
     const viewportW = window.innerWidth;
     const viewportH = window.innerHeight;
 
-    // Calculate offset from the orb's default bottom-right anchor
-    // The orb sits at bottom:24px right:24px by default, so we need to compute
-    // the delta from that anchor to the target element's left edge (with a small gap)
-    const orbAnchorX = viewportW - 24 - 24; // right:24px + half orb width ~24px
-    const orbAnchorY = viewportH - 24 - 24; // bottom:24px + half orb height ~24px
+    const orbAnchorX = viewportW - 24 - 24;
+    const orbAnchorY = viewportH - 24 - 24;
 
-    const targetX = rect.left - 60; // 60px to the left of the element
-    const targetY = rect.top + rect.height / 2 - 24; // vertically centered
+    const targetX = rect.left - 60;
+    const targetY = rect.top + rect.height / 2 - 24;
 
     const deltaX = targetX - orbAnchorX;
     const deltaY = targetY - orbAnchorY;
 
-    // Animate orb to target position
     await orbControls.start({
       x: deltaX,
       y: deltaY,
-      transition: {
-        duration: 0.8,
-        ease: GUIDE_EASE,
-      },
+      transition: { duration: 0.8, ease: GUIDE_EASE },
     });
 
     if (abortRef.current) return;
 
-    // Triple pulse flash animation
     for (let i = 0; i < 3; i++) {
       if (abortRef.current) break;
-      await orbControls.start({
-        scale: 1.3,
-        transition: { duration: 0.15 },
-      });
-      await orbControls.start({
-        scale: 1,
-        transition: { duration: 0.15 },
-      });
+      await orbControls.start({ scale: 1.3, transition: { duration: 0.15 } });
+      await orbControls.start({ scale: 1, transition: { duration: 0.15 } });
     }
 
     if (abortRef.current) return;
 
-    // Highlight the target element briefly
     el.style.transition = "box-shadow 0.3s ease, outline 0.3s ease";
     el.style.outline = "2px solid rgba(0,210,255,0.6)";
     el.style.boxShadow = "0 0 20px rgba(0,210,255,0.3)";
 
-    // Hold for 1.5 seconds
     await new Promise<void>((resolve) => {
       const timer = setTimeout(resolve, 1500);
       onboardingTimerRef.current.push(timer);
@@ -149,20 +231,15 @@ export default function ProactiveOrbWidget({ className = "", enableOnboarding = 
 
     if (abortRef.current) return;
 
-    // Remove highlight
     el.style.outline = "";
     el.style.boxShadow = "";
 
-    // Fade back to home position
     setGuideMessage(null);
     await orbControls.start({
       x: homePositionRef.current.x,
       y: homePositionRef.current.y,
       scale: 1,
-      transition: {
-        duration: 0.6,
-        ease: GUIDE_EASE,
-      },
+      transition: { duration: 0.6, ease: GUIDE_EASE },
     });
 
     setGuiding(false);
@@ -173,7 +250,6 @@ export default function ProactiveOrbWidget({ className = "", enableOnboarding = 
   useEffect(() => {
     if (!enableOnboarding || isOnboarded()) return;
 
-    // Small delay to let the page render and elements mount
     const startDelay = setTimeout(() => {
       setOnboardingActive(true);
       abortRef.current = false;
@@ -182,7 +258,6 @@ export default function ProactiveOrbWidget({ className = "", enableOnboarding = 
         for (const step of ONBOARDING_STEPS) {
           if (abortRef.current) break;
 
-          // Wait until the step's start time
           const now = performance.now();
           const elapsed = (now - sequenceStart) / 1000;
           const waitTime = Math.max(0, step.startSec - elapsed);
@@ -195,11 +270,9 @@ export default function ProactiveOrbWidget({ className = "", enableOnboarding = 
           }
 
           if (abortRef.current) break;
-
           await guideTo(step.elementId, step.message);
         }
 
-        // Onboarding complete
         if (!abortRef.current) {
           markOnboarded();
           setOnboardingActive(false);
@@ -208,7 +281,7 @@ export default function ProactiveOrbWidget({ className = "", enableOnboarding = 
 
       const sequenceStart = performance.now();
       runSequence();
-    }, 2000); // 2s initial delay for page to settle
+    }, 2000);
 
     return () => {
       clearTimeout(startDelay);
@@ -229,7 +302,6 @@ export default function ProactiveOrbWidget({ className = "", enableOnboarding = 
     setOnboardingActive(false);
     markOnboarded();
 
-    // Return orb to home
     orbControls.start({
       x: homePositionRef.current.x,
       y: homePositionRef.current.y,
@@ -241,7 +313,7 @@ export default function ProactiveOrbWidget({ className = "", enableOnboarding = 
   // ─── Drag handlers ────────────────────────────────────────────────────
 
   function handleDragEnd(_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) {
-    if (guiding) return; // Don't allow drag during guided animation
+    if (guiding) return;
 
     const newX = position.x + info.offset.x;
     const newY = position.y + info.offset.y;
@@ -270,6 +342,116 @@ export default function ProactiveOrbWidget({ className = "", enableOnboarding = 
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  // ─── Drop zone handlers (HTML5 native drag) ──────────────────────────
+
+  const handleNativeDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDropTarget(true);
+  }, []);
+
+  const handleNativeDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDropTarget(false);
+  }, []);
+
+  const handleNativeDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDropTarget(false);
+
+    try {
+      const raw = e.dataTransfer.getData("text/plain");
+      let data: any;
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        data = { text: raw };
+      }
+
+      // Flash the orb with personality color
+      setDropFlash(personality);
+      setTimeout(() => setDropFlash(null), 800);
+
+      // Determine action based on payload
+      if (data.noteId || data.type === "note") {
+        onSaveToNotes?.({
+          title: data.title || "拖曳筆記",
+          content: data.content || data.text || "",
+          sourceType: "orb",
+        });
+        setGuideMessage("已擷取至筆記 ✓");
+        setTimeout(() => setGuideMessage(null), 2000);
+      } else if (data.prompt || data.resultUrl) {
+        onSaveToNotes?.({
+          title: data.prompt?.slice(0, 30) || "生成結果",
+          content: `提示詞：${data.prompt || ""}\n結果：${data.resultUrl || ""}`,
+          sourceType: "orb",
+        });
+        setGuideMessage("已擷取生成結果至筆記 ✓");
+        setTimeout(() => setGuideMessage(null), 2000);
+      } else if (data.thoughtNode) {
+        onSaveToNotes?.({
+          title: `思維節點：${data.thoughtNode.label || ""}`,
+          content: data.thoughtNode.detail || "",
+          sourceType: "orb",
+        });
+        setGuideMessage("已擷取思維節點至筆記 ✓");
+        setTimeout(() => setGuideMessage(null), 2000);
+      } else {
+        onSaveToNotes?.({
+          title: "拖曳內容",
+          content: typeof data === "string" ? data : JSON.stringify(data),
+          sourceType: "orb",
+        });
+        setGuideMessage("已擷取元素 ✓");
+        setTimeout(() => setGuideMessage(null), 2000);
+      }
+    } catch {
+      setGuideMessage("無法解析拖曳內容");
+      setTimeout(() => setGuideMessage(null), 2000);
+    }
+  }, [personality, onSaveToNotes]);
+
+  // ─── Command input handler ────────────────────────────────────────────
+
+  const handleCommand = useCallback(() => {
+    if (!commandText.trim()) return;
+
+    const cmd = parseOrbCommand(commandText);
+
+    switch (cmd.type) {
+      case "notes":
+        onOpenNotes?.();
+        setGuideMessage("已開啟筆記面板");
+        break;
+      case "calendar":
+        if (cmd.payload?.date) {
+          onAddToCalendar?.({
+            title: commandText.replace(/排程|日曆|行事曆|到|schedule|calendar/gi, "").trim() || "新排程",
+            date: cmd.payload.date,
+          });
+          setGuideMessage(`已排程至 ${cmd.payload.date.toLocaleDateString("zh-TW")}`);
+        } else {
+          onOpenCalendar?.();
+          setGuideMessage("已開啟日曆");
+        }
+        break;
+      case "tour":
+        onRestartTour?.();
+        setGuideMessage("重新啟動導覽...");
+        break;
+      default:
+        setGuideMessage("試試輸入「筆記」、「排程到下週五」或「導覽」");
+        break;
+    }
+
+    setCommandText("");
+    setShowCommandInput(false);
+    setTimeout(() => setGuideMessage(null), 3000);
+  }, [commandText, onOpenNotes, onOpenCalendar, onAddToCalendar, onRestartTour]);
+
   // ─── Personality theme maps ───────────────────────────────────────────
 
   const personalityLabels = {
@@ -294,6 +476,12 @@ export default function ProactiveOrbWidget({ className = "", enableOnboarding = 
     calm: "rgba(0,210,255,0.8)",
     creative: "rgba(255,80,180,0.8)",
     technical: "rgba(80,255,180,0.8)",
+  };
+
+  const dropFlashColors: Record<string, string> = {
+    calm: "rgba(0,210,255,0.6)",
+    creative: "rgba(255,80,180,0.6)",
+    technical: "rgba(80,255,180,0.6)",
   };
 
   // Determine which message to show: guide message takes priority over proactive
@@ -390,14 +578,122 @@ export default function ProactiveOrbWidget({ className = "", enableOnboarding = 
           )}
         </AnimatePresence>
 
-        {/* Floating orb with neon glow */}
+        {/* Command input */}
+        <AnimatePresence>
+          {showCommandInput && (
+            <motion.div
+              initial={{ opacity: 0, y: 10, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.9 }}
+              className="flex items-center gap-2 rounded-2xl border border-white/20 bg-background/90 backdrop-blur-xl px-3 py-2 shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <MessageCircle className="w-4 h-4 text-muted-foreground shrink-0" />
+              <input
+                type="text"
+                value={commandText}
+                onChange={(e) => setCommandText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleCommand(); if (e.key === "Escape") setShowCommandInput(false); }}
+                placeholder="輸入指令...（筆記/排程/導覽）"
+                className="bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none w-48"
+                autoFocus
+              />
+              <button
+                onClick={handleCommand}
+                className="p-1 rounded-full hover:bg-accent/50 transition-colors"
+              >
+                <Send className="w-3.5 h-3.5 text-primary" />
+              </button>
+              <button
+                onClick={() => setShowCommandInput(false)}
+                className="p-1 rounded-full hover:bg-accent/50 transition-colors"
+              >
+                <X className="w-3 h-3 text-muted-foreground" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Quick action buttons (visible on hover) */}
+        <AnimatePresence>
+          {!guiding && !showCommandInput && !activeMessage && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              className="flex gap-1.5 opacity-0 hover:opacity-100 transition-opacity"
+            >
+              <button
+                onClick={(e) => { e.stopPropagation(); onOpenNotes?.(); }}
+                className="p-1.5 rounded-full bg-background/80 backdrop-blur-sm border border-white/10 hover:bg-cyan-500/20 transition-colors"
+                title="開啟筆記"
+              >
+                <StickyNote className="w-3 h-3 text-cyan-400" />
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); onOpenCalendar?.(); }}
+                className="p-1.5 rounded-full bg-background/80 backdrop-blur-sm border border-white/10 hover:bg-amber-500/20 transition-colors"
+                title="開啟日曆"
+              >
+                <CalendarDays className="w-3 h-3 text-amber-400" />
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowCommandInput(true); }}
+                className="p-1.5 rounded-full bg-background/80 backdrop-blur-sm border border-white/10 hover:bg-purple-500/20 transition-colors"
+                title="輸入指令"
+              >
+                <MessageCircle className="w-3 h-3 text-purple-400" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Floating orb with neon glow + drop zone */}
         <motion.div
           animate={orbControls}
           whileHover={guiding ? undefined : { scale: 1.1 }}
           whileTap={guiding ? undefined : { scale: 0.95 }}
           className="relative"
-          title={guiding ? "引導中..." : `AI Director - ${personalityLabels[personality]} (可拖曳)`}
+          title={guiding ? "引導中..." : `AI Director - ${personalityLabels[personality]} (可拖曳/接收元素)`}
+          onDoubleClick={() => !guiding && setShowCommandInput(!showCommandInput)}
+          // HTML5 drop zone
+          onDragOver={handleNativeDragOver as any}
+          onDragLeave={handleNativeDragLeave as any}
+          onDrop={handleNativeDrop as any}
         >
+          {/* Drop zone highlight ring */}
+          <AnimatePresence>
+            {isDropTarget && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1.4 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                className="absolute inset-0 rounded-full border-2 border-dashed border-cyan-400/60"
+                style={{
+                  boxShadow: `0 0 30px ${personalityGlowColors[personality]}, 0 0 60px ${personalityGlowColors[personality].replace("0.8", "0.4")}`,
+                  margin: "-8px",
+                }}
+              />
+            )}
+          </AnimatePresence>
+
+          {/* Drop flash effect */}
+          <AnimatePresence>
+            {dropFlash && (
+              <motion.div
+                initial={{ opacity: 0.8, scale: 1 }}
+                animate={{ opacity: 0, scale: 2.5 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.8 }}
+                className="absolute inset-0 rounded-full"
+                style={{
+                  background: `radial-gradient(circle, ${dropFlashColors[dropFlash] || "rgba(255,255,255,0.5)"} 0%, transparent 70%)`,
+                  margin: "-12px",
+                }}
+              />
+            )}
+          </AnimatePresence>
+
           {/* Neon glow ring */}
           <motion.div
             className="absolute inset-0 rounded-full"
@@ -408,13 +704,19 @@ export default function ProactiveOrbWidget({ className = "", enableOnboarding = 
                     `0 0 30px ${personalityGlowColors[personality]}, 0 0 70px ${personalityGlowColors[personality].replace("0.8", "0.7")}`,
                     `0 0 20px ${personalityGlowColors[personality]}, 0 0 50px ${personalityGlowColors[personality].replace("0.8", "0.5")}`,
                   ]
+                : isDropTarget
+                ? [
+                    `0 0 25px ${personalityGlowColors[personality]}, 0 0 60px ${personalityGlowColors[personality].replace("0.8", "0.6")}`,
+                    `0 0 35px ${personalityGlowColors[personality]}, 0 0 80px ${personalityGlowColors[personality].replace("0.8", "0.8")}`,
+                    `0 0 25px ${personalityGlowColors[personality]}, 0 0 60px ${personalityGlowColors[personality].replace("0.8", "0.6")}`,
+                  ]
                 : [
                     `0 0 12px ${personalityGlowColors[personality]}, 0 0 24px ${personalityGlowColors[personality].replace("0.8", "0.3")}`,
                     `0 0 20px ${personalityGlowColors[personality]}, 0 0 40px ${personalityGlowColors[personality].replace("0.8", "0.5")}`,
                     `0 0 12px ${personalityGlowColors[personality]}, 0 0 24px ${personalityGlowColors[personality].replace("0.8", "0.3")}`,
                   ],
             }}
-            transition={{ duration: guiding ? 0.8 : 2, repeat: Infinity, ease: "easeInOut" }}
+            transition={{ duration: guiding ? 0.8 : isDropTarget ? 0.5 : 2, repeat: Infinity, ease: "easeInOut" }}
             style={{ margin: "-4px", borderRadius: "50%" }}
           />
 

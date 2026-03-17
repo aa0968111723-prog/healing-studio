@@ -41,8 +41,11 @@ export default function SettingsPage() {
 
   const handleRestartOnboarding = () => {
     localStorage.removeItem("ai-director-onboarded");
-    toast.success("已重置引導狀態，跳轉至首頁...");
-    setTimeout(() => navigate("/"), 500);
+    localStorage.removeItem("hasSeenTour");
+    localStorage.removeItem("onboarded");
+    window.dispatchEvent(new CustomEvent("restart-tour"));
+    toast.success("已重置引導狀態，跳轉至工作室...");
+    setTimeout(() => navigate("/studio"), 500);
   };
 
   return (

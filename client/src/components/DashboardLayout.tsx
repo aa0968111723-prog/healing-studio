@@ -32,6 +32,8 @@ import {
   Home,
   Users,
   Settings,
+  StickyNote,
+  CalendarDays,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -44,6 +46,8 @@ const menuItems = [
   { icon: Wand2, label: "創作工作室", path: "/studio" },
   { icon: Clapperboard, label: "導演 AI", path: "/director" },
   { icon: Cpu, label: "角色鍛造所", path: "/models" },
+  { icon: StickyNote, label: "專案筆記", path: "/notes" },
+  { icon: CalendarDays, label: "創作排程", path: "/calendar" },
   { icon: Users, label: "共享空間", path: "/shared" },
   { icon: BarChart3, label: "儀表板", path: "/dashboard" },
   { icon: Settings, label: "個人設定", path: "/settings" },

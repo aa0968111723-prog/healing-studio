@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Shield, Cpu, Sparkles, Palette, Zap, CheckCircle2,
   Scissors, Maximize2, RotateCcw, ZoomIn, ZoomOut,
-  ChevronDown, ChevronUp, Eye, Code, Layers,
+  ChevronDown, ChevronUp, Eye, Code, Layers, StickyNote,
 } from "lucide-react";
 import * as d3 from "d3";
 import { cn } from "@/lib/utils";
@@ -28,6 +28,7 @@ type Props = {
   nodes: ThoughtNode[];
   isVisible: boolean;
   onIntervene?: (nodeId: string, action: "trim" | "expand" | "redirect") => void;
+  onPinToNotes?: (node: ThoughtNode) => void;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -343,7 +344,7 @@ function D3IslandCanvas({
 
 // ─── Main Component ────────────────────────────────────────────────────────
 
-export default function ThoughtIslandChain({ nodes, isVisible, onIntervene }: Props) {
+export default function ThoughtIslandChain({ nodes, isVisible, onIntervene, onPinToNotes }: Props) {
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>("overview");
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(true);
@@ -523,7 +524,18 @@ export default function ThoughtIslandChain({ nodes, isVisible, onIntervene }: Pr
                       </div>
                     )}
 
-                    {/* Intervention buttons */}
+                    {/* Pin to Notes + Intervention buttons */}
+                    <div className="flex gap-1.5 pt-1 flex-wrap">
+                      {onPinToNotes && (
+                        <button
+                          onClick={() => onPinToNotes(selectedNodeData)}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 transition-colors"
+                        >
+                          <StickyNote className="w-3 h-3" />
+                          釘選至筆記
+                        </button>
+                      )}
+                    </div>
                     {onIntervene && selectedNodeData.status !== "queued" && (
                       <div className="flex gap-1.5 pt-1">
                         <button

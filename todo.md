@@ -366,3 +366,29 @@
 - [x] ThoughtIslandChain 於生成按鈕下方 Framer Motion 滑出
 - [x] Z-index 防呆：自注意力滑桿不被 D3 畫布蓋住
 - [x] 毛玻璃 + 柔和光暈效果 + 時間戳相對耗時格式修正
+
+## Phase 9: Agentic 實體連動 + 知識管理 + 新手引導
+
+### 任務一：光球進階互動 (Floating Orb)
+- [x] 全局拖曳接收區 (Drop Zone)：圖片卡片/思維節點可拖入光球
+- [x] 拖入時閃爍光球顏色 + 「已成功擷取元素」提示
+- [x] handleOrbCommand 串接真實 API：「存到筆記」→ saveToNotesContext
+- [x] handleOrbCommand 串接真實 API：「加入排程」→ addToCalendar
+
+### 任務二：筆記與日曆系統
+- [x] ProjectNotesDrawer 右側滑出抽屜（Sheet/Radix）
+- [x] ThoughtIslandChain「釘選至筆記」按鈕
+- [x] Studio 生成圖片旁「釘選至筆記」按鈕
+- [x] 光球拖曳/輸入「筆記」可喚出抽屜
+- [x] CalendarPage 月曆檢視（react-day-picker）
+- [x] 拖曳排程：角色卡片/分鏡拖至日曆日期
+- [x] 自然語言排程：光球輸入「排程到下週五」解析時間
+
+### 任務三：全域新手引導 (Onboarding Tour)
+- [x] OnboardingTour.tsx Spotlight 導覽元件
+- [x] Step 1: 聚焦視覺化積木
+- [x] Step 2: 聚焦自注意力滑桿
+- [x] Step 3: 聚焦右下角光球
+- [x] Step 4: 聚焦側邊欄
+- [x] localStorage hasSeenTour 判定
+- [x] 「略過」退出 + 設定頁/光球「重新導覽」觸發

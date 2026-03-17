@@ -16,7 +16,7 @@ import {
   Image, Video, Music, Mic, Wand2, Download,
   PanelLeftOpen, PanelLeftClose, PanelRightOpen, PanelRightClose,
   Layers, Settings2, Clock, Package, X, Star, Bookmark, BookmarkCheck,
-  Send, RefreshCw,
+  Send, RefreshCw, StickyNote,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useIsMobile } from "@/hooks/useMobile";
@@ -30,6 +30,8 @@ import type { GenerationMode, GenerationType } from "@shared/types";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import ProactiveOrbWidget from "@/components/ProactiveOrbWidget";
+import OnboardingTour from "@/components/OnboardingTour";
+import { useNotesDrawer } from "@/contexts/NotesDrawerContext";
 
 // ─── Tab Config ─────────────────────────────────────────────────────────────
 
@@ -636,6 +638,17 @@ export default function Studio() {
                     { id: "generate", label: "AI 生成", status: "queued", detail: "等待中...", timestamp: Date.now() },
                   ]}
                   isVisible={true}
+                  onPinToNotes={(node) => {
+                    const notesEvent = new CustomEvent("pin-to-notes", {
+                      detail: {
+                        title: `思維節點：${node.label}`,
+                        content: `${node.detail}${node.reasoning ? "\n\n推理：" + node.reasoning : ""}`,
+                        sourceType: "thought-chain",
+                      },
+                    });
+                    window.dispatchEvent(notesEvent);
+                    toast.success("已釘選至筆記");
+                  }}
                 />
               </motion.div>
             )}
@@ -731,6 +744,27 @@ export default function Studio() {
                       下載 {activeModality === "image" ? "PNG" : activeModality === "video" ? "MP4" : "MP3"}
                     </Button>
                   )}
+
+                  {/* ── Pin to Notes ── */}
+                  <Button
+                    variant="outline"
+                    className="w-full rounded-xl gap-2 text-sm border-cyan-500/20 hover:bg-cyan-500/10 hover:border-cyan-500/40"
+                    onClick={() => {
+                      const notesEvent = new CustomEvent("pin-to-notes", {
+                        detail: {
+                          title: `${activeModality === "image" ? "圖片" : activeModality === "video" ? "影片" : activeModality === "audio" ? "音樂" : "語音"}生成結果`,
+                          content: `提示詞：${promptBuilder.compiledPrompt || promptBuilder.rawPrompt}\n\n結果：${resultUrl || "(無 URL)"}\n\n模態：${activeModality} | 模式：${mode} | Temperature：${temperature} | Seed：${seed || "random"}`,
+                          sourceType: "studio-result",
+                          resultUrl: resultUrl || undefined,
+                        },
+                      });
+                      window.dispatchEvent(notesEvent);
+                      toast.success("已釘選至筆記");
+                    }}
+                  >
+                    <StickyNote className="w-4 h-4" />
+                    釘選至筆記
+                  </Button>
 
                   {/* ── ZIP Export ── */}
                   <Button
@@ -891,8 +925,29 @@ export default function Studio() {
         </>
       )}
 
+      {/* Onboarding Tour */}
+      <OnboardingTour />
+
       {/* Floating Proactive Orb Widget */}
-      <ProactiveOrbWidget />
+      <ProactiveOrbWidget
+        onSaveToNotes={(payload) => {
+          const notesEvent = new CustomEvent("pin-to-notes", { detail: payload });
+          window.dispatchEvent(notesEvent);
+        }}
+        onOpenNotes={() => {
+          window.dispatchEvent(new CustomEvent("open-notes-drawer"));
+        }}
+        onOpenCalendar={() => {
+          window.dispatchEvent(new CustomEvent("navigate-to", { detail: "/calendar" }));
+        }}
+        onAddToCalendar={(payload) => {
+          window.dispatchEvent(new CustomEvent("add-to-calendar", { detail: payload }));
+        }}
+        onRestartTour={() => {
+          try { localStorage.removeItem("hasSeenTour"); } catch {}
+          window.dispatchEvent(new CustomEvent("restart-tour"));
+        }}
+      />
     </div>
   );
 }
