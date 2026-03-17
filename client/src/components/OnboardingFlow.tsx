@@ -164,7 +164,7 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
     setTimeout(() => {
       setThoughtChain((prev) =>
         prev.map((n) =>
-          n.id === "safety" ? { ...n, status: "passed", detail: "內容安全 ✓" } :
+          n.id === "safety" ? { ...n, status: "completed" as const, detail: "內容安全 ✓" } :
           n.id === "compile" ? { ...n, status: "processing", detail: "正在編譯提示詞..." } : n
         )
       );

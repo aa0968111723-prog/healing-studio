@@ -341,3 +341,28 @@
 - [x] 完成後 localStorage.setItem("onboarded", "true") 不再觸發
 - [x] 移除 OnboardingFlow.tsx 遮罩式教學彈窗（改為自動導航到 Studio）
 - [x] 為目標元素加上 id prop（prompt-input, personality-selector, generate-button, storyboard-panel）
+
+## Phase 8: Proactive Agentic 創作流水線
+
+### 任務一：自注意力 UI (Self-Attention UI)
+- [x] Token 解析器：正則拆解 Prompt 為獨立 Token 標籤
+- [x] 視覺化滑桿（Radix Slider）：0.5~2.0 權重控制
+- [x] 視覺回饋：權重>1.2 橘色發光，<0.8 半透明淡出
+- [x] 回寫機制：自動回寫為 (token: weight) 語法
+
+### 任務二：思維島鏈語意縮放 (Semantic Zoom)
+- [x] D3.js d3-zoom 整合：畫布拖曳與滾輪縮放
+- [x] 三視角層次：縮略圖(<0.75)/標準(0.75-1.2)/專家(>=1.2)
+- [x] Agentic 介入按鈕：修剪/擴充/重新引導
+
+### 任務三：視覺積木引導 (Onboarding Blocks)
+- [x] 6 大分類積木面板：主體/風格/氛圍/場景/光線/鏡頭
+- [x] 顏色編碼：每分類專屬色系
+- [x] 已選組合區：點擊積木後上方顯示
+- [x] 無縫串接：積木→Token→自注意力→生成→思維島鏈
+
+### 任務四：Studio 主介面整合
+- [x] PromptBuilder 佔據上半部主導視覺
+- [x] ThoughtIslandChain 於生成按鈕下方 Framer Motion 滑出
+- [x] Z-index 防呆：自注意力滑桿不被 D3 畫布蓋住
+- [x] 毛玻璃 + 柔和光暈效果 + 時間戳相對耗時格式修正
