@@ -63,6 +63,7 @@ export default function Studio() {
   const [progressMessage, setProgressMessage] = useState("");
 
   // ── Mutation ──
+  const utils = trpc.useUtils();
   const generateMutation = trpc.generate.multimodal.useMutation({
     onSuccess: (data) => {
       setResultUrl(data.resultUrl || null);
@@ -71,6 +72,8 @@ export default function Studio() {
       setProgressMessage("生成完成");
       setTimeout(() => setProgress(0), 1500);
       toast.success("生成完成");
+      // Invalidate auth.me to refresh remainingGenerations across the entire UI
+      utils.auth.me.invalidate();
     },
     onError: (error) => {
       setProgress(0);

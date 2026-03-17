@@ -171,3 +171,23 @@
 - [x] 新增 phase4-soul.test.ts（18 個測試）
 - [x] 全部 110 個測試通過（5 個測試檔案）
 - [x] 展示三種人格回覆範例
+
+## Phase 2 Final Polish: 介面極簡化與真實數據連動
+
+### Task 1: 移除訂閱模組
+- [x] 移除 SettingsPage 中訂閱方案 UI 區塊
+- [x] 保留帳號資訊與導演 AI 偏好
+
+### Task 2: 真實餘額 API 連動
+- [x] 側邊欄配額數字改為真實 API 讀取（user.remainingGenerations）
+- [x] 儀表板配額數字改為真實 API 讀取（dashboard.myStats）
+- [x] 後端生成任務成功後扣除資料庫配額（deductUserQuota + refundUserQuota）
+- [x] 移除前端寫死的假配額數字（全站皆讀 user.remainingGenerations）
+
+### Task 3: AI 人格與評估引擎驗證
+- [x] 展示三種人格對「畫一隻貓」的差異回覆
+- [x] 展示 evaluatePrompt 對「一隻貓」的評分與建議
+
+### Task 4: Phase 3 啟動宣告
+- [x] 正式宣告第二階段完工
+- [x] 簡述第三階段技術框架
