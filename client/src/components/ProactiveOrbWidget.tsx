@@ -461,9 +461,9 @@ export default function ProactiveOrbWidget({
   };
 
   const personalityBubbleColors = {
-    calm: "border-cyan-400/40 bg-cyan-950/80 shadow-cyan-400/20",
-    creative: "border-pink-400/40 bg-pink-950/80 shadow-pink-400/20",
-    technical: "border-emerald-400/40 bg-emerald-950/80 shadow-emerald-400/20",
+    calm: "border-cyan-300/50 bg-white/85 shadow-cyan-200/30",
+    creative: "border-pink-300/50 bg-white/85 shadow-pink-200/30",
+    technical: "border-emerald-300/50 bg-white/85 shadow-emerald-200/30",
   };
 
   const personalityDotColors = {
@@ -542,10 +542,10 @@ export default function ProactiveOrbWidget({
               <div className="flex items-start gap-2">
                 <Sparkles className="w-4 h-4 mt-0.5 shrink-0 text-primary" />
                 <div className="flex-1">
-                  <p className="text-xs font-medium text-foreground/90 mb-1">
+                  <p className="text-xs font-medium text-gray-700 mb-1">
                     {isGuideMsg ? "引導中" : personalityLabels[personality]}
                   </p>
-                  <p className="text-sm text-foreground/80 leading-relaxed font-medium">
+                  <p className="text-sm text-gray-800 leading-relaxed font-medium">
                     {activeMessage}
                   </p>
                   {isGuideMsg && onboardingActive && (
@@ -585,7 +585,7 @@ export default function ProactiveOrbWidget({
               initial={{ opacity: 0, y: 10, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 10, scale: 0.9 }}
-              className="flex items-center gap-2 rounded-2xl border border-white/20 bg-background/90 backdrop-blur-xl px-3 py-2 shadow-xl"
+              className="flex items-center gap-2 rounded-2xl border border-gray-200/60 bg-white/90 backdrop-blur-xl px-3 py-2 shadow-xl"
               onClick={(e) => e.stopPropagation()}
             >
               <MessageCircle className="w-4 h-4 text-muted-foreground shrink-0" />

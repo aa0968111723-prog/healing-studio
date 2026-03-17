@@ -4,7 +4,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { ZenTooltip } from "@/components/ZenCoPilot";
 import { trpc } from "@/lib/trpc";
-import { Mic, Gauge, Heart, Zap, Volume2 } from "lucide-react";
+import { Mic, Gauge, Heart, Zap, Volume2, Sparkles } from "lucide-react";
+import { motion } from "framer-motion";
 
 export type VoiceWorkspaceState = {
   voiceActorId: string;
@@ -37,6 +38,66 @@ const EMOTION_TYPES = [
   { value: "serious", label: "嚴肅" },
 ];
 
+// ─── Quick Presets ─────────────────────────────────────────────────────────
+
+type QuickPreset = {
+  id: string;
+  label: string;
+  icon: string;
+  description: string;
+  color: string;
+  glowRgb: string;
+  state: Partial<VoiceWorkspaceState>;
+};
+
+const QUICK_PRESETS: QuickPreset[] = [
+  {
+    id: "meditation",
+    label: "冥想引導",
+    icon: "🧘",
+    description: "輕柔語調、平靜情緒",
+    color: "cyan",
+    glowRgb: "0,210,255",
+    state: {
+      text: "閉上眼睛，深呼吸。感受空氣緩緩流入你的身體，帶走所有的疲憊與焦慮。讓思緒如雲朵般飄過，不需要抓住任何一個念頭。你是安全的，你是被愛的。",
+      speed: 0.8,
+      emotionType: "calm",
+      emotionIntensity: 0.7,
+      voiceActorId: "default-warm",
+    },
+  },
+  {
+    id: "narration",
+    label: "故事旁白",
+    icon: "📖",
+    description: "專業敘事、中性情緒",
+    color: "amber",
+    glowRgb: "255,180,50",
+    state: {
+      text: "在遙遠的北方，有一座被迷霧環繞的古老城堡。傳說中，每當月圓之夜，城堡的塔頂會亮起一盞幽藍的燈火，指引迷途的旅人找到回家的路。",
+      speed: 1.0,
+      emotionType: "neutral",
+      emotionIntensity: 0.4,
+      voiceActorId: "default-narrator",
+    },
+  },
+  {
+    id: "advertisement",
+    label: "熱情廣告",
+    icon: "📢",
+    description: "明亮語調、興奮情緒",
+    color: "rose",
+    glowRgb: "255,100,130",
+    state: {
+      text: "全新升級！限時優惠只到本週末！現在加入會員，立即享受獨家折扣與專屬好禮。別再猶豫，馬上行動，讓美好生活從今天開始！",
+      speed: 1.3,
+      emotionType: "excited",
+      emotionIntensity: 0.85,
+      voiceActorId: "default-bright",
+    },
+  },
+];
+
 export function createDefaultVoiceState(): VoiceWorkspaceState {
   return {
     voiceActorId: "default-warm",
@@ -55,8 +116,48 @@ export function VoiceWorkspace({ value, onChange }: VoiceWorkspaceProps) {
   const modelsQuery = trpc.models.myModels.useQuery(undefined, { retry: false });
   const voiceModels = (modelsQuery.data || []).filter(m => m.modelType === "voice_clone" && m.status === "ready");
 
+  const applyPreset = (preset: QuickPreset) => {
+    onChange({ ...value, ...preset.state });
+  };
+
   return (
     <div className="space-y-5">
+      {/* ── Quick Presets ── */}
+      <div className="space-y-2">
+        <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+          <Sparkles className="w-3.5 h-3.5" />
+          常用語境預設
+        </Label>
+        <div className="grid grid-cols-3 gap-2">
+          {QUICK_PRESETS.map((preset) => (
+            <motion.button
+              key={preset.id}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => applyPreset(preset)}
+              className="relative flex flex-col items-center gap-1.5 p-3 rounded-xl transition-all border border-white/15 hover:border-white/30"
+              style={{
+                background: "rgba(255,255,255,0.06)",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLElement).style.background = `rgba(${preset.glowRgb}, 0.1)`;
+                (e.currentTarget as HTMLElement).style.boxShadow = `0 0 16px rgba(${preset.glowRgb}, 0.15)`;
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)";
+                (e.currentTarget as HTMLElement).style.boxShadow = "none";
+              }}
+            >
+              <span className="text-xl">{preset.icon}</span>
+              <span className="text-[11px] font-medium text-foreground">{preset.label}</span>
+              <span className="text-[9px] text-muted-foreground/60 leading-tight text-center">{preset.description}</span>
+            </motion.button>
+          ))}
+        </div>
+        <p className="text-[9px] text-muted-foreground/50">
+          點擊預設按鈕將自動填入文案、語速、情緒與聲線設定
+        </p>
+      </div>
+
       {/* Voice Actor Selection */}
       <div className="space-y-2">
         <Label className="text-xs font-medium text-muted-foreground">語音角色</Label>

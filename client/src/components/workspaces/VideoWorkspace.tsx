@@ -60,11 +60,12 @@ export function VideoWorkspace({ value, onChange }: VideoWorkspaceProps) {
             />
           </div>
 
-          {/* Timeline connector */}
-          <div className="flex flex-col items-center gap-1 shrink-0 py-4">
-            <div className="w-0.5 h-3 bg-border/50" />
-            <ArrowRight className="w-4 h-4 text-muted-foreground/40" />
-            <div className="w-0.5 h-3 bg-border/50" />
+          {/* Timeline connector with transition hint */}
+          <div className="flex flex-col items-center gap-0.5 shrink-0 py-4">
+            <div className="w-0.5 h-2 bg-border/50" />
+            <ArrowRight className="w-4 h-4 text-primary/60" />
+            <span className="text-[9px] text-primary/50 font-medium whitespace-nowrap">過渡動態</span>
+            <div className="w-0.5 h-2 bg-border/50" />
           </div>
 
           <div className="flex-1">
@@ -76,8 +77,8 @@ export function VideoWorkspace({ value, onChange }: VideoWorkspaceProps) {
             />
           </div>
         </div>
-        <p className="text-[10px] text-muted-foreground/60">
-          從一致性保險庫拖放角色到首幀，AI 會在兩幀之間生成過渡影片
+        <p className="text-[10px] text-muted-foreground/60 leading-relaxed">
+          上傳或拖放首幀與末幀，AI 將為您自動生成兩幀之間平滑的過渡動態影片
         </p>
       </div>
 

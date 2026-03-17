@@ -392,3 +392,27 @@
 - [x] Step 4: 聚焦側邊欄
 - [x] localStorage hasSeenTour 判定
 - [x] 「略過」退出 + 設定頁/光球「重新導覽」觸發
+
+## Phase 10: 創作者工作室 UI/UX 易用性升級
+
+### 1. Studio 技術名詞淡化
+- [x] 將工作區標題中的技術商標（如 Veo 3.1）藏到 tooltip 或淡化字體
+- [x] 降低新手認知負擔
+
+### 2. 動態靈感積木 (Contextual Blocks)
+- [x] ProgressivePromptBuilder 根據 modality 動態顯示不同積木
+- [x] 圖片/影片：移除「氛圍」類別（與 Vibe Cards 重疊）
+- [x] 音樂：建立專屬積木（樂器/曲風/節奏/環境質感）
+- [x] 積木點擊正確反映到 rawPrompt
+
+### 3. 影片時間軸引導優化
+- [x] VideoWorkspace 首幀/末幀說明文案改為新手友善版本
+- [x] ArrowRight 旁增加「過渡動態」小字提示
+
+### 4. 語音常用語境預設 (Quick Presets)
+- [x] VoiceWorkspace 新增冥想引導/故事旁白/熱情廣告快捷按鈕
+- [x] 點擊自動填寫 text, speed, emotionType, emotionIntensity, voiceActorId
+
+### 5. 光球對話框亮度調整
+- [x] ProactiveOrbWidget 對話框背景改為亮色系
+- [x] 確保文字清晰易讀 + Glassmorphism 一致性

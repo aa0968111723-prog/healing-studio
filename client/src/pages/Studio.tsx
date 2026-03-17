@@ -589,9 +589,24 @@ export default function Studio() {
             <div className="space-y-1">
               <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
                 {activeModality === "image" && <><Image className="w-4 h-4 text-primary" /> 圖片工作區</>}
-                {activeModality === "video" && <><Video className="w-4 h-4 text-primary" /> 影片工作區 (Veo 3.1)</>}
-                {activeModality === "audio" && <><Music className="w-4 h-4 text-primary" /> 音樂工作區 (Suno)</>}
-                {activeModality === "voice" && <><Mic className="w-4 h-4 text-primary" /> 語音工作區 (ElevenLabs)</>}
+                {activeModality === "video" && (
+                  <>
+                    <Video className="w-4 h-4 text-primary" /> 影片工作區
+                    <span className="text-[10px] text-muted-foreground/40 font-normal" title="Powered by Veo 3.1">Veo 3.1</span>
+                  </>
+                )}
+                {activeModality === "audio" && (
+                  <>
+                    <Music className="w-4 h-4 text-primary" /> 音樂工作區
+                    <span className="text-[10px] text-muted-foreground/40 font-normal" title="Powered by Suno">Suno</span>
+                  </>
+                )}
+                {activeModality === "voice" && (
+                  <>
+                    <Mic className="w-4 h-4 text-primary" /> 語音工作區
+                    <span className="text-[10px] text-muted-foreground/40 font-normal" title="Powered by ElevenLabs">ElevenLabs</span>
+                  </>
+                )}
               </h3>
               <div className="h-px bg-border/30 my-3" />
 

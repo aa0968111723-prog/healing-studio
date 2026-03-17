@@ -33,7 +33,10 @@ type BlockCategory = {
   items: { id: string; label: string; prompt: string }[];
 };
 
-const BLOCK_CATEGORIES: BlockCategory[] = [
+// ─── Visual blocks for image/video modalities ─────────────────────────────
+// NOTE: "mood" category removed because Vibe Cards already cover atmosphere
+
+const VISUAL_BLOCK_CATEGORIES: BlockCategory[] = [
   {
     id: "subject", label: "主體", icon: "👤", color: "rose", glowRgb: "255,100,130",
     items: [
@@ -58,19 +61,6 @@ const BLOCK_CATEGORIES: BlockCategory[] = [
       { id: "st6", label: "超現實", prompt: "surrealism" },
       { id: "st7", label: "極簡主義", prompt: "minimalist" },
       { id: "st8", label: "蒸汽龐克", prompt: "steampunk" },
-    ],
-  },
-  {
-    id: "mood", label: "氛圍", icon: "🌈", color: "amber", glowRgb: "255,180,50",
-    items: [
-      { id: "m1", label: "寧靜", prompt: "serene and peaceful" },
-      { id: "m2", label: "史詩", prompt: "epic and grand" },
-      { id: "m3", label: "溫馨", prompt: "warm and cozy" },
-      { id: "m4", label: "神秘", prompt: "mysterious and dark" },
-      { id: "m5", label: "歡樂", prompt: "joyful and vibrant" },
-      { id: "m6", label: "憂鬱", prompt: "melancholic" },
-      { id: "m7", label: "夢幻", prompt: "dreamy and ethereal" },
-      { id: "m8", label: "恐怖", prompt: "horror and eerie" },
     ],
   },
   {
@@ -113,6 +103,67 @@ const BLOCK_CATEGORIES: BlockCategory[] = [
     ],
   },
 ];
+
+// ─── Audio-specific blocks for music modality ─────────────────────────────
+
+const AUDIO_BLOCK_CATEGORIES: BlockCategory[] = [
+  {
+    id: "instrument", label: "樂器", icon: "🎹", color: "violet", glowRgb: "160,100,255",
+    items: [
+      { id: "ai1", label: "鋼琴", prompt: "piano" },
+      { id: "ai2", label: "吉他", prompt: "acoustic guitar" },
+      { id: "ai3", label: "合成器", prompt: "synthesizer" },
+      { id: "ai4", label: "管弦樂", prompt: "orchestral ensemble" },
+      { id: "ai5", label: "小提琴", prompt: "violin" },
+      { id: "ai6", label: "長笛", prompt: "flute" },
+      { id: "ai7", label: "鼓組", prompt: "drums and percussion" },
+      { id: "ai8", label: "豎琴", prompt: "harp" },
+    ],
+  },
+  {
+    id: "genre", label: "曲風", icon: "🎵", color: "rose", glowRgb: "255,100,130",
+    items: [
+      { id: "ag1", label: "環境音", prompt: "ambient music" },
+      { id: "ag2", label: "Lo-Fi", prompt: "lo-fi chill beats" },
+      { id: "ag3", label: "流行", prompt: "pop music" },
+      { id: "ag4", label: "爵士", prompt: "jazz" },
+      { id: "ag5", label: "古典", prompt: "classical music" },
+      { id: "ag6", label: "電子", prompt: "electronic music" },
+      { id: "ag7", label: "民謠", prompt: "folk music" },
+      { id: "ag8", label: "R&B", prompt: "R&B soul" },
+    ],
+  },
+  {
+    id: "tempo", label: "節奏", icon: "⏱️", color: "amber", glowRgb: "255,180,50",
+    items: [
+      { id: "at1", label: "慢板", prompt: "slow tempo, adagio" },
+      { id: "at2", label: "中等", prompt: "moderate tempo" },
+      { id: "at3", label: "快節奏", prompt: "fast tempo, upbeat" },
+      { id: "at4", label: "漸快", prompt: "gradually accelerating tempo" },
+      { id: "at5", label: "自由節奏", prompt: "free tempo, rubato" },
+      { id: "at6", label: "搖擺", prompt: "swing rhythm" },
+    ],
+  },
+  {
+    id: "ambiance", label: "環境質感", icon: "🌊", color: "sky", glowRgb: "80,200,255",
+    items: [
+      { id: "aa1", label: "空間感", prompt: "spacious reverb, wide soundstage" },
+      { id: "aa2", label: "溫暖", prompt: "warm analog tone" },
+      { id: "aa3", label: "復古雜音", prompt: "vintage vinyl crackle, lo-fi noise" },
+      { id: "aa4", label: "空靈", prompt: "ethereal, dreamy atmosphere" },
+      { id: "aa5", label: "深沉", prompt: "deep bass, sub-bass" },
+      { id: "aa6", label: "清透", prompt: "crystal clear, bright mix" },
+    ],
+  },
+];
+
+// ─── Helper: get blocks by modality ───────────────────────────────────────
+
+function getBlocksForModality(modality?: string): BlockCategory[] {
+  if (modality === "audio") return AUDIO_BLOCK_CATEGORIES;
+  // image & video share visual blocks (mood removed to avoid overlap with Vibe Cards)
+  return VISUAL_BLOCK_CATEGORIES;
+}
 
 // ─── Token Weight Types ────────────────────────────────────────────────────
 
@@ -369,6 +420,18 @@ export function ProgressivePromptBuilder({ value, onChange, modality, onType }: 
   const [tokens, setTokens] = useState<TokenWeight[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
+  // Get the correct block categories for the current modality
+  const blockCategories = useMemo(() => getBlocksForModality(modality), [modality]);
+
+  // Reset selected blocks when modality changes (blocks are different per modality)
+  const prevModalityRef = useRef(modality);
+  useEffect(() => {
+    if (prevModalityRef.current !== modality) {
+      setSelectedBlocks(new Set());
+      prevModalityRef.current = modality;
+    }
+  }, [modality]);
+
   // Parse tokens when rawPrompt changes (debounced)
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -459,9 +522,17 @@ export function ProgressivePromptBuilder({ value, onChange, modality, onType }: 
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  // Determine section label based on modality
+  const blocksLabel = modality === "audio" ? "音樂靈感積木" : "靈感積木";
+  const promptPlaceholder = modality === "audio"
+    ? "描述你想要的音樂風格與情感...或從上方積木拼出靈感"
+    : modality === "voice"
+    ? "輸入要轉換為語音的文字..."
+    : "描述你想要創作的畫面...或從上方積木拼出靈感";
+
   return (
     <div className="space-y-4">
-      {/* ═══ Section 1: Visual Blocks (Onboarding) ═══ */}
+      {/* ═══ Section 1: Visual / Audio Blocks (Onboarding) ═══ */}
       <div className="rounded-xl overflow-hidden" style={{
         background: "rgba(255,255,255,0.25)",
         backdropFilter: "blur(12px)",
@@ -473,7 +544,7 @@ export function ProgressivePromptBuilder({ value, onChange, modality, onType }: 
         >
           <div className="flex items-center gap-2">
             <Blocks className="w-4 h-4 text-primary" />
-            <span className="text-sm font-semibold text-foreground">靈感積木</span>
+            <span className="text-sm font-semibold text-foreground">{blocksLabel}</span>
             {selectedBlocks.size > 0 && (
               <span className="text-[10px] bg-primary/15 text-primary px-2 py-0.5 rounded-full font-medium">
                 {selectedBlocks.size} 個已選
@@ -502,7 +573,7 @@ export function ProgressivePromptBuilder({ value, onChange, modality, onType }: 
                     border: "1px dashed rgba(255,255,255,0.25)",
                   }}>
                     <span className="text-[10px] text-muted-foreground/60 mr-1 self-center">已選組合:</span>
-                    {BLOCK_CATEGORIES.flatMap(cat =>
+                    {blockCategories.flatMap(cat =>
                       cat.items
                         .filter(item => selectedBlocks.has(item.id))
                         .map(item => (
@@ -526,7 +597,7 @@ export function ProgressivePromptBuilder({ value, onChange, modality, onType }: 
                 )}
 
                 {/* Block categories */}
-                {BLOCK_CATEGORIES.map((cat) => (
+                {blockCategories.map((cat) => (
                   <div key={cat.id} className="space-y-1.5">
                     <Label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
                       <span>{cat.icon}</span>
@@ -563,13 +634,7 @@ export function ProgressivePromptBuilder({ value, onChange, modality, onType }: 
           )}
         </div>
         <Textarea
-          placeholder={
-            modality === "audio"
-              ? "描述你想要的音樂風格與情感..."
-              : modality === "voice"
-              ? "輸入要轉換為語音的文字..."
-              : "描述你想要創作的畫面...或從上方積木拼出靈感"
-          }
+          placeholder={promptPlaceholder}
           value={value.rawPrompt}
           onChange={(e) => {
             updateField("rawPrompt", e.target.value);
@@ -654,53 +719,55 @@ export function ProgressivePromptBuilder({ value, onChange, modality, onType }: 
         </div>
       )}
 
-      {/* ═══ Section 4: Visual Vibe Cards ═══ */}
-      <div className="space-y-2.5">
-        <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">氛圍風格</Label>
-        <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
-          {VIBE_CARDS.map((card) => {
-            const isSelected = value.vibeCardIds.includes(card.id);
-            return (
-              <motion.button
-                key={card.id}
-                whileTap={{ scale: 0.93 }}
-                onClick={() => toggleVibe(card.id)}
-                className={cn(
-                  "relative flex flex-col items-center gap-1.5 p-2.5 rounded-xl transition-all",
-                  "hover:shadow-md active:scale-95",
-                  isSelected
-                    ? "ring-2 ring-primary/40 shadow-md"
-                    : "hover:ring-1 hover:ring-border/50"
-                )}
-                style={{
-                  background: isSelected
-                    ? `linear-gradient(135deg, ${card.color}50, ${card.color}30)`
-                    : `${card.color}20`,
-                }}
-              >
-                <div
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground"
-                  style={{ backgroundColor: `${card.color}40` }}
+      {/* ═══ Section 4: Visual Vibe Cards (only for image/video) ═══ */}
+      {(modality === "image" || modality === "video" || !modality) && (
+        <div className="space-y-2.5">
+          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">氛圍風格</Label>
+          <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+            {VIBE_CARDS.map((card) => {
+              const isSelected = value.vibeCardIds.includes(card.id);
+              return (
+                <motion.button
+                  key={card.id}
+                  whileTap={{ scale: 0.93 }}
+                  onClick={() => toggleVibe(card.id)}
+                  className={cn(
+                    "relative flex flex-col items-center gap-1.5 p-2.5 rounded-xl transition-all",
+                    "hover:shadow-md active:scale-95",
+                    isSelected
+                      ? "ring-2 ring-primary/40 shadow-md"
+                      : "hover:ring-1 hover:ring-border/50"
+                  )}
+                  style={{
+                    background: isSelected
+                      ? `linear-gradient(135deg, ${card.color}50, ${card.color}30)`
+                      : `${card.color}20`,
+                  }}
                 >
-                  {vibeIcons[card.id] || <Sparkles className="w-4 h-4" />}
-                </div>
-                <span className="text-[10px] font-medium text-foreground leading-tight">{card.labelZh}</span>
-                {isSelected && (
-                  <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary flex items-center justify-center"
+                  <div
+                    className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground"
+                    style={{ backgroundColor: `${card.color}40` }}
                   >
-                    <svg className="w-2.5 h-2.5 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
-                  </motion.div>
-                )}
-              </motion.button>
-            );
-          })}
+                    {vibeIcons[card.id] || <Sparkles className="w-4 h-4" />}
+                  </div>
+                  <span className="text-[10px] font-medium text-foreground leading-tight">{card.labelZh}</span>
+                  {isSelected && (
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary flex items-center justify-center"
+                    >
+                      <svg className="w-2.5 h-2.5 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </motion.div>
+                  )}
+                </motion.button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ═══ Section 5: Advanced Fields (Progressive Disclosure) ═══ */}
       <div className="rounded-xl overflow-hidden" style={{
