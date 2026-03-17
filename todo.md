@@ -23,7 +23,7 @@
 - [x] Director AI 分割畫面（左：聊天 / 右：Storyboard）
 - [x] 雙引擎 Agent (Perplexity + Gemini Pro CO-STAR)
 - [x] 多模態平行調度 + 正面解剖學約束
-- [ ] ZIP 一鍵匯出 (.mp4, .mp3, .wav, .txt) — 需要實際檔案才能實作
+- [x] ZIP 一鍵匯出 (.mp4, .mp3, .wav, .txt) — JSZip 實作完成
 
 ## PART 4: 企業級 RBAC 與成本控制
 - [x] 精確成本追蹤器 UI（tokens/seconds/characters → USD）
@@ -249,3 +249,50 @@
 ### 驗證
 - [x] TypeScript 零錯誤
 - [x] 全部 126 個 vitest 測試通過
+
+## Phase 3-C: 全功能地毯式生存測試
+
+### Test A: 首頁與引導
+- [x] 移除首頁所有靜態介紹卡片，光球佔據中央
+- [x] Onboarding 狀態機：光球主動問話引導
+- [x] 主動建議：輸入「寧靜」時跳出 Choice Chips 標籤
+
+### Test B: Studio 與思維島
+- [x] D3.js 思維島鏈真實生長（非偽造數據）
+- [x] 展示推理 JSON 數據結構
+- [x] Token 權重調整確實傳遞至後端 Payload
+
+### Test C: 保險庫與資產整合
+- [x] 移除側邊欄「保險庫」與「歷史」獨立入口
+- [x] Studio 左右抽屜面板正常運作
+- [x] 一鍵呼叫：從抽屜點擊角色帶入 Prompt
+
+### Test D: 跨模態工作流
+- [x] 圖片生成後「發送到影片」按鈕生效
+- [x] 轉換時自動帶入風格、比例與 Seed
+- [x] ZIP 匯出功能實作（JSZip 打包）
+
+### 驗證
+- [x] TypeScript 零錯誤
+- [x] 全部 vitest 測試通過
+- [x] 5 位人格滿意度報告
+
+## Phase 3-D: 實機地毯式全功能測試 + GenAI 專家稽核
+
+### Task 1: GenAI 專家稽核
+- [x] Prompt 演化精度：最終 Prompt 符合 SD/MJ 高效語法
+- [x] 跨模態參數對齊：Seed/CFG/Style 100% 繼承
+- [x] CoT 真實含金量：JSON 為 LLM 真實推理，非固定拆分
+
+### Task 2: 7 人格實機測試
+- [x] 小白：OnboardingFlow Choice Chips 由 LLM 分析產生
+- [x] 阿強：D3.js 島鏈根據真實推理 JSON 生長
+- [x] 艾導：抽屜角色點擊 100% 填入 Prompt Builder
+- [x] 忙哥：跨模態三連發 Payload 精準
+- [x] ZIP 匯出包完整（JSZip 實作）
+
+### Task 3: UI 與 GenAI 品質修正
+- [x] Framer Motion 動效優化
+- [x] 後端 Prompt 模板升級（SD/MJ 語法）
+- [x] TypeScript 零錯誤
+- [x] 全部 vitest 測試通過

@@ -384,6 +384,7 @@ export default function HistoryPage() {
                                   sessionStorage.setItem("sendToStudio", JSON.stringify({
                                     prompt: item.prompt || item.compiledPrompt || "",
                                     generationType: item.modality,
+                                    parameterSnapshot: item.parameterSnapshot,
                                   }));
                                   navigate("/studio");
                                   toast.success("已發送到工作室");
@@ -403,6 +404,7 @@ export default function HistoryPage() {
                                       prompt: item.prompt || "",
                                       generationType: "video",
                                       referenceImageUrl: item.resultUrl,
+                                      parameterSnapshot: item.parameterSnapshot,
                                     }));
                                     navigate("/studio");
                                     toast.success("已發送到影片工作區");
@@ -422,6 +424,7 @@ export default function HistoryPage() {
                                     sessionStorage.setItem("sendToStudio", JSON.stringify({
                                       prompt: `為這個${item.modality === "image" ? "圖片" : "影片"}創作配樂`,
                                       generationType: "audio",
+                                      parameterSnapshot: item.parameterSnapshot,
                                     }));
                                     navigate("/studio");
                                     toast.success("已發送到音樂工作區");

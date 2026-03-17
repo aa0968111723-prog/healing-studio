@@ -33,6 +33,17 @@ function useTypewriter(text: string, speed = 40) {
   return { displayed, done };
 }
 
+// ─── Choice Chips (AI-powered suggestions) ─────────────────────────────────
+
+const STARTER_CHIPS = [
+  "星空下的森林小屋",
+  "海邊的金色日落",
+  "未來城市的霓虹街道",
+  "雪山上的孤獨旅人",
+  "水彩風格的花園",
+  "賽博龐克的東京夜景",
+];
+
 // ─── Onboarding Steps ───────────────────────────────────────────────────────
 
 type OnboardingStep = "greeting" | "input" | "thinking" | "result" | "complete";
@@ -57,7 +68,10 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
   const [userInput, setUserInput] = useState("");
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [thoughtChain, setThoughtChain] = useState<ThoughtNode[]>([]);
+  const [choiceChips, setChoiceChips] = useState<string[]>(STARTER_CHIPS);
+  const [loadingChips, setLoadingChips] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const chipDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Current greeting message typewriter
   const currentGreeting = step === "greeting" ? GREETING_MESSAGES[greetingIndex] : "";
@@ -84,6 +98,37 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
       setTimeout(() => inputRef.current?.focus(), 300);
     }
   }, [step]);
+
+  // LLM-powered Choice Chips: debounced suggestions when user types
+  const evaluateMutation = trpc.evaluate.prompt.useMutation({
+    onSuccess: (data: any) => {
+      if (data.suggestions && data.suggestions.length > 0) {
+        // Use LLM suggestions as choice chips
+        setChoiceChips(data.suggestions.slice(0, 6));
+      }
+      setLoadingChips(false);
+    },
+    onError: () => setLoadingChips(false),
+  });
+
+  useEffect(() => {
+    if (step !== "input") return;
+    if (chipDebounceRef.current) clearTimeout(chipDebounceRef.current);
+
+    const trimmed = userInput.trim();
+    if (trimmed.length >= 2 && trimmed.length <= 20) {
+      chipDebounceRef.current = setTimeout(() => {
+        setLoadingChips(true);
+        evaluateMutation.mutate({ prompt: trimmed, modality: "image" });
+      }, 1500);
+    } else if (trimmed.length === 0) {
+      setChoiceChips(STARTER_CHIPS);
+    }
+
+    return () => {
+      if (chipDebounceRef.current) clearTimeout(chipDebounceRef.current);
+    };
+  }, [userInput, step]);
 
   // Generation mutation
   const generateMutation = trpc.generate.multimodal.useMutation({
@@ -220,7 +265,7 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
             </motion.div>
           )}
 
-          {/* ── Input Phase ── */}
+          {/* ── Input Phase with Choice Chips ── */}
           {step === "input" && (
             <motion.div
               key="input"
@@ -258,6 +303,43 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
                   <ArrowRight className="w-4 h-4" />
                 </Button>
               </div>
+
+              {/* Choice Chips - AI-powered suggestions */}
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="mt-5 max-w-lg mx-auto"
+              >
+                <p className="text-[11px] text-muted-foreground/60 mb-2.5">
+                  {loadingChips ? "AI 正在為你生成建議..." : userInput.trim().length >= 2 ? "AI 建議" : "點擊快速開始"}
+                </p>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {choiceChips.map((chip, i) => (
+                    <motion.button
+                      key={`${chip}-${i}`}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: i * 0.06 }}
+                      onClick={() => {
+                        setUserInput(chip);
+                        inputRef.current?.focus();
+                      }}
+                      className="px-3.5 py-1.5 rounded-full text-xs font-medium transition-all hover:scale-105 active:scale-95"
+                      style={{
+                        background: "rgba(255,255,255,0.6)",
+                        backdropFilter: "blur(8px)",
+                        border: "1px solid rgba(255,255,255,0.5)",
+                        color: "hsl(var(--foreground))",
+                        boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+                      }}
+                    >
+                      <Sparkles className="w-3 h-3 inline mr-1 opacity-50" />
+                      {chip}
+                    </motion.button>
+                  ))}
+                </div>
+              </motion.div>
 
               <p className="mt-4 text-xs text-muted-foreground">
                 按 Enter 或點擊箭頭開始創作
@@ -306,7 +388,7 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
                 你的第一件作品完成了！
               </p>
               <p className="text-sm text-muted-foreground mb-6">
-                這就是 AI Director 的魔法 ✨
+                這就是 AI Director 的魔法
               </p>
 
               {/* Result image */}

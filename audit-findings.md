@@ -1,53 +1,85 @@
-# Full-Site Audit Findings
+# AI Director 7-Persona Comprehensive Quality Audit
 
-## 1. Model Training (ModelsPage.tsx)
+## Audit Date: 2026-03-17
+## Audit Scope: Full platform — Onboarding → Studio → Vault → History → Cross-modal → Export
 
-### Issues Found:
-- **Dataset images use URL.createObjectURL only** (line 93): Images are stored as local blob URLs, never uploaded to S3. When `handleStartTraining` fires, the `createMutation` does NOT send any image data or URLs to the backend. The backend `models.create` route accepts `fileUrl` and `fileKey` but they are never passed from the frontend.
-- **No real training job**: `models.create` just inserts a DB record with `configJson`. There's no background job creation, no SSE progress, no actual training pipeline. The model is created with status "queued" but never transitions.
-- **Auto-captioning is fake**: The captioning step shows hardcoded text descriptions ("正面照，自然光線") rather than actual AI-generated captions.
+---
 
-### Fixes Needed:
-1. Upload dataset images to S3 before creating model
-2. Create a background job for training and wire up progress tracking
-3. Either use LLM for real captioning or clearly label it as "preview"
+## Persona Roster
 
-## 2. Prompt Engineering (compileElitePrompt)
+| # | Persona | Focus Area |
+|---|---------|------------|
+| 1 | Beginner (小白) | Onboarding flow, Choice Chips, first-time UX |
+| 2 | Developer (阿強) | D3.js ThoughtIslandChain, real CoT JSON, code quality |
+| 3 | Expert (艾導) | Drawer integration, parameter injection, Vault workflow |
+| 4 | Busy User (忙哥) | Cross-modal speed, parameter inheritance, ZIP export |
+| 5 | GenAI Expert (Odin) | Prompt evolution, CoT authenticity, SD/MJ syntax |
+| 6 | UI Observer (美美) | Animation fluidity, responsive design, visual hierarchy |
+| 7 | Director (導演) | End-to-end workflow, script→generation→export pipeline |
 
-### Issues Found:
-- **compileElitePrompt works correctly**: It calls `invokeLLM` with proper system prompt, vibe descriptions, temperature, and generation type. Returns compiled English prompt.
-- **Frontend ProgressivePromptBuilder compiles locally**: The `compilePrompt` function concatenates fields client-side, then the backend's `compileElitePrompt` further refines via LLM.
-- **Missing visual weight for reference images**: When `styleReferenceUrl` or `vibeReferenceUrl` is provided, the backend does NOT calculate visual weight or pass ControlNet-like parameters. It just stores the URLs in `resultData` but doesn't incorporate them into the `generateImage` call.
-- **generateImage only receives prompt**: The `generateImage({ prompt: compiledPrompt })` call ignores all reference images, aspect ratio, negative prompt, etc.
+---
 
-### Fixes Needed:
-1. Pass reference images to generateImage as `originalImages` parameter
-2. Incorporate aspect ratio and negative prompt into the generation call
-3. Add visual weight calculation when reference images are present
+## Critical Issues Found
 
-## 3. Cross-Modal Flow (DirectorAI → Studio)
+### ISSUE-01: ThoughtChain is post-hoc summary, not real CoT [GenAI Expert]
+- **Severity**: HIGH
+- **File**: `server/routers.ts:505-512`
+- **Problem**: `thoughtChain` array is constructed AFTER all steps complete with hardcoded relative timestamps (`Date.now() - 4000` etc). It's a summary, not real-time reasoning.
+- **Fix**: Capture actual timestamps and real output from each step (safety result, compiled prompt length, visual weight) during execution. Already partially done — the detail strings contain real data (`compiledPrompt.length`, `visualWeight`). Need to record actual timestamps at each step.
 
-### Issues Found:
-- **Send-to-Studio works**: `handleSendToStudio` correctly stores data in sessionStorage and navigates to /studio. Studio reads it via useEffect.
-- **Bug: generationType set to "multimodal"**: DirectorAI sends `generationType: "multimodal"` but Studio's tabs only have "image", "video", "audio", "voice". The `setActiveModality(data.generationType)` will try to set "multimodal" which isn't a valid tab value.
-- **Missing "send to voice/image" individual buttons**: The storyboard shows Veo/Suno/ElevenLabs badges but they're just display labels, not actionable buttons.
-- **ZIP export is placeholder**: `toast.info("ZIP 匯出功能即將推出")` on Studio.tsx line 357.
-- **Settings subscription button is placeholder**: `toast.info("訂閱功能即將推出")` on SettingsPage.tsx line 209.
+### ISSUE-02: Cross-modal parameter inheritance is incomplete [GenAI Expert + Busy User]
+- **Severity**: HIGH
+- **File**: `client/src/pages/HistoryPage.tsx:384-433`, `Studio.tsx:294-314`
+- **Problem**: "Send to Video/Audio" from History only passes `prompt` + `generationType`. Does NOT carry Seed, temperature, vibeCardIds, or modality-specific params. Studio's `handleHistoryToStudio` also only sets prompt + modality.
+- **Fix**: Include `parameterSnapshot` from history entry in sessionStorage payload, and restore it in Studio.
 
-### Fixes Needed:
-1. Fix generationType mapping from Director AI
-2. Add individual "send to image/audio/voice" buttons in storyboard
-3. Remove or implement ZIP export
+### ISSUE-03: ZIP export is a placeholder [Busy User + Director]
+- **Severity**: HIGH
+- **File**: `client/src/pages/Studio.tsx:648`
+- **Problem**: Shows `toast.info("ZIP 匯出功能即將推出")` — dead button.
+- **Fix**: Implement JSZip-based export that packages resultUrl assets.
 
-## 4. Sidebar Navigation
-- **All 11 sidebar paths have matching routes in App.tsx** ✅
-- **All routes have corresponding page files** ✅
-- **No dead links** ✅
+### ISSUE-04: OnboardingFlow lacks Choice Chips suggestions [Beginner]
+- **Severity**: MEDIUM
+- **File**: `client/src/components/OnboardingFlow.tsx:224-265`
+- **Problem**: Input phase is a plain text field with no AI-powered suggestions. User requirement specifically asks for Choice Chips when input is partial.
+- **Fix**: Add debounced suggestion call that returns clickable chips below the input.
 
-## Summary of Dead Buttons:
-1. ModelsPage dataset upload → local blob only, not S3
-2. ModelsPage "開始訓練" → creates DB record but no real training job
-3. Studio "匯出 ZIP 包" → toast placeholder
-4. Settings "訂閱" → toast placeholder
-5. Director AI storyboard Veo/Suno/ElevenLabs badges → display only, not actionable
-6. Director AI "發送到工作室" → works but sends wrong generationType
+### ISSUE-05: evaluatePrompt suggestions not surfaced as Choice Chips [GenAI Expert]
+- **Severity**: MEDIUM
+- **File**: `client/src/components/PromptStrengthBar.tsx`
+- **Problem**: `evaluatePrompt` returns `suggestions[]` and `optimizedPrompt`, which are displayed as text. They should also be actionable as one-click Choice Chips that auto-apply.
+- **Status**: Partially addressed — the "套用" button exists for optimizedPrompt. Suggestions are text-only.
+
+### ISSUE-06: ThoughtChain placeholder nodes during generation [Developer]
+- **Severity**: LOW
+- **File**: `client/src/pages/Studio.tsx:598-602`
+- **Problem**: During generation (before response), shows 3 hardcoded placeholder nodes. After response, replaces with post-hoc chain. The transition is abrupt.
+- **Status**: Acceptable UX pattern — placeholder → real data is standard.
+
+---
+
+## What's Working Well
+
+| Feature | Status | Persona Verified |
+|---------|--------|-----------------|
+| VisualSoul orb 3 states (idle/thinking/generating) | Real-time via AIStateContext | UI Observer |
+| D3.js ThoughtIslandChain rendering | Correct D3 SVG with animations | Developer |
+| evaluatePrompt LLM-as-a-Judge | Real LLM call, 5 dimensions, suggestions | GenAI Expert |
+| Personality system (calm/creative/technical) | 3 distinct system prompts | GenAI Expert |
+| Unified Studio workspace with drawers | Left (Vault+Assets) + Right (History) | Expert |
+| Sidebar reduced to 6 entries | Clean navigation | UI Observer |
+| Onboarding typewriter + orb animation | Smooth framer-motion | Beginner |
+| Real quota deduction + refund on failure | Transactional integrity | Developer |
+| Safety moderation via LLM | Pre-generation content check | Director |
+| compileElitePrompt with visual weights | Real LLM compilation + ControlNet params | GenAI Expert |
+
+---
+
+## Action Items (Priority Order)
+
+1. **Fix cross-modal parameter inheritance** (ISSUE-02) — carry full parameterSnapshot
+2. **Implement ZIP export** (ISSUE-03) — JSZip packaging
+3. **Enrich ThoughtChain with real timestamps** (ISSUE-01) — capture step-by-step timing
+4. **Add Choice Chips to OnboardingFlow** (ISSUE-04) — LLM-powered suggestions
+5. **Make evaluatePrompt suggestions clickable** (ISSUE-05) — one-click apply

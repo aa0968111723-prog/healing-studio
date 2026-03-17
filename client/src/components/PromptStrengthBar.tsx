@@ -269,23 +269,28 @@ export function PromptStrengthBar({ prompt, modality, onApplyOptimized }: Prompt
                 </div>
               )}
 
-              {/* Suggestions */}
+              {/* Suggestions as clickable chips */}
               {result.suggestions && result.suggestions.length > 0 && (
                 <div>
                   <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
                     <Lightbulb className="w-3 h-3 text-blue-500" />
-                    優化建議
+                    優化建議（點擊套用）
                   </span>
-                  <ul className="mt-1 space-y-1">
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
                     {result.suggestions.map((s, i) => (
-                      <li key={i} className="text-xs text-foreground/80 flex items-start gap-1.5">
-                        <span className="text-[10px] text-muted-foreground tabular-nums shrink-0 mt-0.5">
+                      <button
+                        key={i}
+                        onClick={() => onApplyOptimized?.(s)}
+                        className="text-xs text-foreground/80 px-2.5 py-1 rounded-lg bg-muted/20 border border-border/30 hover:bg-primary/10 hover:border-primary/30 hover:text-primary transition-all cursor-pointer flex items-center gap-1.5 group"
+                      >
+                        <span className="text-[10px] text-muted-foreground tabular-nums shrink-0 group-hover:text-primary/60">
                           {i + 1}.
                         </span>
-                        {s}
-                      </li>
+                        <span className="line-clamp-1">{s}</span>
+                        <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                      </button>
                     ))}
-                  </ul>
+                  </div>
                 </div>
               )}
 

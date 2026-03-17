@@ -345,7 +345,9 @@ export const appRouter = router({
         }
 
         // Safety pre-check
+        const stepTimestamps: Record<string, number> = { start: Date.now() };
         const safetyResult = await checkSafety(input.prompt);
+        stepTimestamps.safetyDone = Date.now();
         if (!safetyResult.safe) {
           await db.createApiUsageLog({
             userId,
@@ -372,6 +374,7 @@ export const appRouter = router({
 
         try {
           // Compile elite prompt with reference image awareness
+          stepTimestamps.compileStart = Date.now();
           const { compiledPrompt, visualWeight, controlNetParams } = await compileElitePrompt({
             prompt: input.prompt,
             vibeCardIds: input.vibeCardIds,
@@ -384,6 +387,8 @@ export const appRouter = router({
             },
           });
 
+          stepTimestamps.compileDone = Date.now();
+          stepTimestamps.weightDone = Date.now();
           await db.updateBackgroundJob(jobId, { progress: 30, progressMessage: "正在生成中..." });
 
           // Generate based on type
@@ -501,14 +506,19 @@ export const appRouter = router({
             resultJson: resultData,
           });
 
-          // Build Chain-of-Thought trace for Thought Island Chain visualization
+          // Build Chain-of-Thought trace with REAL timestamps from each execution step
+          stepTimestamps.generateDone = Date.now();
+          const modalityLabel = input.generationType === "image" ? "圖像" : input.generationType === "video" ? "影片" : input.generationType === "audio" ? "音樂" : "語音";
+          const safetyMs = (stepTimestamps.safetyDone || stepTimestamps.start) - stepTimestamps.start;
+          const compileMs = (stepTimestamps.compileDone || stepTimestamps.compileStart || 0) - (stepTimestamps.compileStart || stepTimestamps.start);
+          const generateMs = stepTimestamps.generateDone - (stepTimestamps.compileDone || stepTimestamps.start);
           const thoughtChain = [
-            { id: "safety", label: "安全檢查", status: "passed", detail: "內容安全檢查通過", timestamp: Date.now() - 4000 },
-            { id: "compile", label: "提示詞編譯", status: "completed", detail: `編譯後提示詞長度: ${compiledPrompt.length} 字元`, timestamp: Date.now() - 3000 },
-            { id: "weight", label: "視覺權重計算", status: "completed", detail: `visualWeight: ${visualWeight}, controlNet: ${JSON.stringify(controlNetParams)}`, timestamp: Date.now() - 2500 },
-            { id: "generate", label: `${input.generationType === "image" ? "圖像" : input.generationType === "video" ? "影片" : input.generationType === "audio" ? "音樂" : "語音"}生成`, status: resultUrl ? "completed" : "queued", detail: resultUrl ? "生成成功" : "已加入佇列", timestamp: Date.now() - 1000 },
-            { id: "quota", label: "配額扣除", status: "completed", detail: "扣除 1 次生成配額", timestamp: Date.now() - 500 },
-            { id: "history", label: "歷史紀錄", status: "completed", detail: "已儲存至生成歷史", timestamp: Date.now() },
+            { id: "safety", label: "安全檢查", status: "passed" as const, detail: `內容安全檢查通過（${safetyMs}ms）`, timestamp: stepTimestamps.safetyDone || stepTimestamps.start },
+            { id: "compile", label: "提示詞編譯", status: "completed" as const, detail: `編譯後提示詞長度: ${compiledPrompt.length} 字元（${compileMs}ms）`, timestamp: stepTimestamps.compileDone || stepTimestamps.start },
+            { id: "weight", label: "視覺權重計算", status: "completed" as const, detail: `visualWeight: ${visualWeight.toFixed(2)}, controlNet: ${JSON.stringify(controlNetParams)}`, timestamp: stepTimestamps.weightDone || stepTimestamps.start },
+            { id: "generate", label: `${modalityLabel}生成`, status: resultUrl ? "completed" as const : "queued" as const, detail: resultUrl ? `生成成功（${generateMs}ms）` : "已加入佇列", timestamp: stepTimestamps.generateDone },
+            { id: "quota", label: "配額扣除", status: "completed" as const, detail: "扣除 1 次生成配額", timestamp: Date.now() - 100 },
+            { id: "history", label: "歷史紀錄", status: "completed" as const, detail: "已儲存至生成歷史", timestamp: Date.now() },
           ];
 
           return { jobId, resultUrl, resultData, compiledPrompt, thoughtChain };

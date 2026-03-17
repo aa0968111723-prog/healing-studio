@@ -27,6 +27,8 @@ import { useAIState } from "@/contexts/AIStateContext";
 import VisualSoul from "@/components/VisualSoul";
 import { useLocation } from "wouter";
 import type { GenerationMode, GenerationType } from "@shared/types";
+import JSZip from "jszip";
+import { saveAs } from "file-saver";
 
 // ─── Tab Config ─────────────────────────────────────────────────────────────
 
@@ -39,7 +41,7 @@ const MODALITY_TABS: { value: GenerationType; label: string; icon: React.ReactNo
 
 // ─── Mini History Panel (embedded in right drawer) ──────────────────────────
 
-function MiniHistoryPanel({ onSendToStudio }: { onSendToStudio: (prompt: string, type: GenerationType) => void }) {
+function MiniHistoryPanel({ onSendToStudio }: { onSendToStudio: (prompt: string, type: GenerationType, parameterSnapshot?: Record<string, unknown>) => void }) {
   const historyQuery = trpc.history.list.useQuery(
     { limit: 20 },
     { retry: false }
@@ -137,7 +139,7 @@ function MiniHistoryPanel({ onSendToStudio }: { onSendToStudio: (prompt: string,
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  onSendToStudio(item.prompt || "", item.generationType as GenerationType);
+                  onSendToStudio(item.prompt || "", item.generationType as GenerationType, item.parameterSnapshot as Record<string, unknown> | undefined);
                 }}
                 className="p-1 rounded hover:bg-accent/50 transition-colors"
                 title="重新生成"
@@ -307,8 +309,25 @@ export default function Studio() {
         if (data.musicStyle) setAudioState(prev => ({ ...prev, musicStyle: data.musicStyle }));
         if (data.voiceText) setVoiceState(prev => ({ ...prev, text: data.voiceText }));
         if (data.audioScript) setVoiceState(prev => ({ ...prev, text: data.audioScript }));
+
+        // Restore full parameter snapshot from history (cross-modal inheritance)
+        if (data.parameterSnapshot) {
+          const snap = data.parameterSnapshot as Record<string, unknown>;
+          if (snap.temperature != null) setTemperature(Number(snap.temperature));
+          if (snap.seed != null) setSeed(String(snap.seed));
+          if (snap.vibeCardIds && Array.isArray(snap.vibeCardIds)) {
+            setPromptBuilder(prev => ({ ...prev, vibeCardIds: snap.vibeCardIds as string[] }));
+          }
+          if (snap.mode === "lightning" || snap.mode === "deep_precision") setMode(snap.mode as GenerationMode);
+        }
+
+        // Restore video first frame from cross-modal reference
+        if (data.referenceImageUrl && data.generationType === "video") {
+          setVideoState(prev => ({ ...prev, firstFrameUrl: data.referenceImageUrl }));
+        }
+
         sessionStorage.removeItem("sendToStudio");
-        toast.success("已從導演 AI 載入腳本");
+        toast.success("已載入參數與提示詞");
       } catch { /* ignore */ }
     }
   }, []);
@@ -387,11 +406,21 @@ export default function Studio() {
   }, [activeModality, videoState, imageState, isMobile]);
 
   // ── History → Studio handler ──
-  const handleHistoryToStudio = useCallback((prompt: string, type: GenerationType) => {
+  const handleHistoryToStudio = useCallback((prompt: string, type: GenerationType, parameterSnapshot?: Record<string, unknown>) => {
     setPromptBuilder(prev => ({ ...prev, rawPrompt: prompt, compiledPrompt: prompt }));
     setActiveModality(type);
+    if (parameterSnapshot) {
+      if (parameterSnapshot.temperature != null) setTemperature(Number(parameterSnapshot.temperature));
+      if (parameterSnapshot.seed != null) setSeed(String(parameterSnapshot.seed));
+      if (parameterSnapshot.vibeCardIds && Array.isArray(parameterSnapshot.vibeCardIds)) {
+        setPromptBuilder(prev => ({ ...prev, vibeCardIds: parameterSnapshot.vibeCardIds as string[] }));
+      }
+      if (parameterSnapshot.mode === "lightning" || parameterSnapshot.mode === "deep_precision") {
+        setMode(parameterSnapshot.mode as GenerationMode);
+      }
+    }
     setRightDrawerOpen(false);
-    toast.success("已載入歷史提示詞");
+    toast.success("已載入歷史參數與提示詞");
   }, []);
 
   const showLoraWeight = activeModality === "video"
@@ -645,7 +674,57 @@ export default function Studio() {
                   <Button
                     variant="outline"
                     className="w-full rounded-xl gap-2 text-sm"
-                    onClick={() => toast.info("ZIP 匯出功能即將推出")}
+                    onClick={async () => {
+                      try {
+                        const zip = new JSZip();
+                        const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+
+                        // Add generated image
+                        if (resultUrl) {
+                          try {
+                            const resp = await fetch(resultUrl);
+                            const blob = await resp.blob();
+                            const ext = blob.type.includes("png") ? "png" : blob.type.includes("webp") ? "webp" : "jpg";
+                            zip.file(`generated-image.${ext}`, blob);
+                          } catch {
+                            zip.file("image-url.txt", resultUrl);
+                          }
+                        }
+
+                        // Add prompt text
+                        const promptText = promptBuilder.compiledPrompt || promptBuilder.rawPrompt;
+                        if (promptText) {
+                          zip.file("prompt.txt", `Original: ${promptBuilder.rawPrompt}\n\nCompiled: ${promptBuilder.compiledPrompt}`);
+                        }
+
+                        // Add generation metadata
+                        const metadata = {
+                          modality: activeModality,
+                          mode,
+                          temperature,
+                          seed: seed || "random",
+                          vibeCardIds: promptBuilder.vibeCardIds,
+                          resultData,
+                          thoughtChain,
+                          generatedAt: new Date().toISOString(),
+                        };
+                        zip.file("metadata.json", JSON.stringify(metadata, null, 2));
+
+                        // Add thought chain as readable text
+                        if (thoughtChain.length > 0) {
+                          const chainText = thoughtChain.map(n =>
+                            `[${n.status.toUpperCase()}] ${n.label}: ${n.detail}`
+                          ).join("\n");
+                          zip.file("thought-chain.txt", chainText);
+                        }
+
+                        const content = await zip.generateAsync({ type: "blob" });
+                        saveAs(content, `ai-director-${activeModality}-${timestamp}.zip`);
+                        toast.success("已匯出 ZIP 包");
+                      } catch (err) {
+                        toast.error("匯出失敗，請稍後再試");
+                      }
+                    }}
                   >
                     <Download className="w-4 h-4" />
                     匯出 ZIP 包
