@@ -17,6 +17,7 @@ import AdminPage from "./pages/AdminPage";
 import SharedSpace from "./pages/SharedSpace";
 import SettingsPage from "./pages/SettingsPage";
 import VaultPage from "./pages/VaultPage";
+import HistoryPage from "./pages/HistoryPage";
 
 function DashboardRoute({ component: Component }: { component: React.ComponentType }) {
   return (
@@ -59,6 +60,9 @@ function Router() {
       </Route>
       <Route path="/settings">
         <DashboardRoute component={SettingsPage} />
+      </Route>
+      <Route path="/history">
+        <DashboardRoute component={HistoryPage} />
       </Route>
       <Route path="/admin">
         <DashboardRoute component={AdminPage} />

@@ -19,6 +19,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { useIsMobile } from "@/hooks/useMobile";
 import { PROGRESS_MESSAGES } from "@shared/types";
+import { PromptStrengthBar } from "@/components/PromptStrengthBar";
 import type { GenerationMode, GenerationType } from "@shared/types";
 
 // ─── Tab Config ─────────────────────────────────────────────────────────────
@@ -278,6 +279,21 @@ export default function Studio() {
                 onChange={setPromptBuilder}
                 modality={activeModality}
               />
+              {/* Prompt Strength Evaluator (LLM-as-a-Judge) */}
+              <div className="mt-3 pt-3 border-t border-border/20">
+                <PromptStrengthBar
+                  prompt={promptBuilder.compiledPrompt || promptBuilder.rawPrompt}
+                  modality={activeModality as "image" | "video" | "audio" | "voice"}
+                  onApplyOptimized={(optimized) => {
+                    setPromptBuilder(prev => ({
+                      ...prev,
+                      rawPrompt: optimized,
+                      compiledPrompt: optimized,
+                    }));
+                    toast.success("已套用 AI 優化提示詞");
+                  }}
+                />
+              </div>
             </GlassCard>
           )}
 

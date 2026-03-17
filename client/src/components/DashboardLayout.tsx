@@ -36,6 +36,7 @@ import {
   Layers,
   Users,
   Settings,
+  Clock,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -49,6 +50,7 @@ const menuItems = [
   { icon: Layers, label: "一致性保險庫", path: "/vault" },
   { icon: Package, label: "數位資產庫", path: "/assets" },
   { icon: Cpu, label: "角色鍛造所", path: "/models" },
+  { icon: Clock, label: "生成歷史", path: "/history" },
   { icon: Users, label: "共享空間", path: "/shared" },
   { icon: FileText, label: "專案筆記", path: "/notes" },
   { icon: BarChart3, label: "儀表板", path: "/dashboard" },

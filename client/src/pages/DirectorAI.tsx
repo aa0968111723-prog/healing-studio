@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { AIChatBox, type Message } from "@/components/AIChatBox";
 import { Button } from "@/components/ui/button";
@@ -6,34 +6,116 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { Clapperboard, Send, Save, Image, Music, Mic, ChevronRight } from "lucide-react";
-import { GlassCard, ZenOrb, ZenSkeleton } from "@/components/ZenCoPilot";
+import {
+  Clapperboard, Send, Image, Music, Mic,
+  Brain, Palette, Wrench, MessageCircleQuestion,
+} from "lucide-react";
+import { GlassCard, ZenOrb } from "@/components/ZenCoPilot";
 import { useIsMobile } from "@/hooks/useMobile";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
+import { cn } from "@/lib/utils";
 import type { CoStarScript } from "@shared/types";
+
+// ─── Personality Config ────────────────────────────────────────────────────
+
+const PERSONALITIES = [
+  {
+    id: "calm" as const,
+    label: "沉穩型",
+    icon: Brain,
+    description: "重邏輯、結構與可行性分析",
+    color: "from-slate-500 to-blue-600",
+    bgActive: "bg-slate-50 ring-slate-400",
+    textColor: "text-slate-700",
+  },
+  {
+    id: "creative" as const,
+    label: "創意型",
+    icon: Palette,
+    description: "重氛圍、情緒與視覺衝擊力",
+    color: "from-purple-500 to-pink-500",
+    bgActive: "bg-purple-50 ring-purple-400",
+    textColor: "text-purple-700",
+  },
+  {
+    id: "technical" as const,
+    label: "技術型",
+    icon: Wrench,
+    description: "重參數精確度與技術最佳實踐",
+    color: "from-emerald-500 to-teal-600",
+    bgActive: "bg-emerald-50 ring-emerald-400",
+    textColor: "text-emerald-700",
+  },
+];
+
+type Personality = "calm" | "creative" | "technical";
+
+// ─── Proactive Question Bubble ─────────────────────────────────────────────
+
+function ProactiveQuestionBubble({
+  question,
+  personality,
+  onDismiss,
+}: {
+  question: string;
+  personality: Personality;
+  onDismiss: () => void;
+}) {
+  const config = PERSONALITIES.find((p) => p.id === personality) || PERSONALITIES[1];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -10, scale: 0.95 }}
+      className={cn(
+        "rounded-xl p-3.5 border shadow-sm",
+        config.bgActive,
+      )}
+    >
+      <div className="flex items-start gap-2.5">
+        <div className={cn(
+          "w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-gradient-to-br text-white",
+          config.color,
+        )}>
+          <MessageCircleQuestion className="w-3.5 h-3.5" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <span className={cn("text-[10px] font-semibold uppercase tracking-wider", config.textColor)}>
+            導演主動提問
+          </span>
+          <p className="text-xs text-foreground/80 mt-1 leading-relaxed">
+            {question}
+          </p>
+        </div>
+        <button
+          onClick={onDismiss}
+          className="text-muted-foreground/50 hover:text-muted-foreground text-xs shrink-0"
+        >
+          ✕
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── Main Component ────────────────────────────────────────────────────────
 
 export default function DirectorAI() {
   const isMobile = useIsMobile();
   const [, navigate] = useLocation();
+  const [personality, setPersonality] = useState<Personality>("creative");
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "system",
-      content: `你是「導演 AI」，一位專業的多媒體創意導演。你使用 CO-STAR 框架來幫助使用者構思和規劃多媒體創作專案。
-
-CO-STAR 框架：
-- Context（背景）：場景的背景設定
-- Situation（情境）：當前的情境描述
-- Task（任務）：需要完成的創作任務
-- Action（行動）：具體的執行步驟
-- Result（結果）：預期的成果
-
-請用繁體中文回覆，並提供具體、有創意的建議。`,
+      content: `你是「導演 AI」，一位專業的多媒體創意導演。你使用 CO-STAR 框架來幫助使用者構思和規劃多媒體創作專案。請用繁體中文回覆，並提供具體、有創意的建議。`,
     },
   ]);
   const [saveToNotes, setSaveToNotes] = useState(false);
   const [scripts, setScripts] = useState<CoStarScript[]>([]);
   const [showStoryboard, setShowStoryboard] = useState(!isMobile);
+  const [proactiveQuestion, setProactiveQuestion] = useState<string | null>(null);
 
   const chatMutation = trpc.director.chat.useMutation({
     onSuccess: (data) => {
@@ -51,6 +133,11 @@ CO-STAR 框架：
       if (data.script) {
         setScripts((prev) => [...prev, data.script as CoStarScript]);
         if (!showStoryboard && !isMobile) setShowStoryboard(true);
+
+        // Show proactive question if available
+        if (data.script.proactiveQuestion) {
+          setProactiveQuestion(data.script.proactiveQuestion);
+        }
       }
       if (saveToNotes) {
         toast.success("腳本已儲存至專案筆記");
@@ -61,7 +148,8 @@ CO-STAR 框架：
     },
   });
 
-  const handleSend = (content: string) => {
+  const handleSend = useCallback((content: string) => {
+    setProactiveQuestion(null);
     const newMessages: Message[] = [
       ...messages,
       { role: "user", content },
@@ -72,10 +160,11 @@ CO-STAR 框架：
         .filter((m) => m.role !== "system")
         .map((m) => ({ role: m.role, content: m.content })),
       saveToNotes,
+      personality,
     });
-  };
+  }, [messages, saveToNotes, personality, chatMutation]);
 
-  const handleSendToStudio = (script: CoStarScript) => {
+  const handleSendToStudio = useCallback((script: CoStarScript) => {
     sessionStorage.setItem("sendToStudio", JSON.stringify({
       prompt: script.visualPrompt,
       generationType: "multimodal",
@@ -84,15 +173,24 @@ CO-STAR 框架：
     }));
     navigate("/studio");
     toast.success("腳本已發送到工作室");
-  };
+  }, [navigate]);
+
+  const currentPersonality = PERSONALITIES.find((p) => p.id === personality) || PERSONALITIES[1];
 
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <Clapperboard className="w-5 h-5 text-muted-foreground" />
           <h1 className="text-xl font-semibold">導演 AI</h1>
+          <span className={cn(
+            "inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full",
+            currentPersonality.bgActive, currentPersonality.textColor,
+          )}>
+            <currentPersonality.icon className="w-3 h-3" />
+            {currentPersonality.label}
+          </span>
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
@@ -118,9 +216,58 @@ CO-STAR 框架：
         </div>
       </div>
 
+      {/* Personality Selector */}
+      <div className="flex gap-2">
+        {PERSONALITIES.map((p) => {
+          const isActive = personality === p.id;
+          const Icon = p.icon;
+          return (
+            <button
+              key={p.id}
+              onClick={() => setPersonality(p.id)}
+              className={cn(
+                "flex-1 rounded-xl p-3 transition-all border text-left",
+                isActive
+                  ? cn(p.bgActive, "ring-2 shadow-sm")
+                  : "bg-white/40 border-white/60 hover:bg-white/60",
+              )}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <div className={cn(
+                  "w-6 h-6 rounded-lg flex items-center justify-center bg-gradient-to-br text-white",
+                  p.color,
+                )}>
+                  <Icon className="w-3.5 h-3.5" />
+                </div>
+                <span className={cn(
+                  "text-xs font-semibold",
+                  isActive ? p.textColor : "text-foreground",
+                )}>
+                  {p.label}
+                </span>
+              </div>
+              <p className="text-[10px] text-muted-foreground leading-relaxed">
+                {p.description}
+              </p>
+            </button>
+          );
+        })}
+      </div>
+
       <p className="text-xs text-muted-foreground">
         雙引擎 RAG（事實研究 + CO-STAR 創意編排）— 生成的腳本可一鍵發送到工作室
       </p>
+
+      {/* Proactive Question */}
+      <AnimatePresence>
+        {proactiveQuestion && (
+          <ProactiveQuestionBubble
+            question={proactiveQuestion}
+            personality={personality}
+            onDismiss={() => setProactiveQuestion(null)}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Split-Screen Layout */}
       <div className="flex gap-5">
@@ -131,7 +278,7 @@ CO-STAR 框架：
             onSendMessage={handleSend}
             isLoading={chatMutation.isPending}
             placeholder="描述你的創作構想..."
-            height={isMobile ? "calc(100vh - 320px)" : "calc(100vh - 260px)"}
+            height={isMobile ? "calc(100vh - 420px)" : "calc(100vh - 360px)"}
             emptyStateMessage="告訴導演 AI 你的創作構想"
             suggestedPrompts={[
               "幫我構思一部創意短片",
@@ -162,7 +309,7 @@ CO-STAR 框架：
                   </span>
                 </div>
 
-                <ScrollArea className="h-[calc(100vh-340px)]">
+                <ScrollArea className="h-[calc(100vh-440px)]">
                   {scripts.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 text-center">
                       <ZenOrb size="md" />

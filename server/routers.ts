@@ -116,14 +116,88 @@ async function compileElitePrompt(payload: {
 
 // ─── CO-STAR Director AI ─────────────────────────────────────────────────────
 
-async function runDirectorAI(messages: Array<{ role: string; content: string }>, saveToNotes: boolean, userId: number) {
-  // Step 1: Use LLM for factual grounding (simulating Perplexity-like research)
+// ─── Personality System Prompts ──────────────────────────────────────────────
+
+const PERSONALITY_PROMPTS: Record<string, { researchStyle: string; directorStyle: string; proactiveHint: string }> = {
+  calm: {
+    researchStyle: `你是一位沉穩而深思熟慮的研究助手。你重視邏輯、結構與可行性。
+風格特點：
+- 先分析可行性，再提供建議
+- 用「我建議我們先...」「從結構上來看...」等引導式語氣
+- 提供完整的利弊分析
+- 使用繁體中文，語氣平穩而專業`,
+    directorStyle: `你是「導演 AI」，一位沉穩型創意導演。你重視邏輯性與敘事結構。
+風格：
+- 先確認使用者的核心意圖，再展開創作
+- 強調敘事的完整性與情緒弧線
+- 用「我們可以這樣思考...」的引導方式
+- 腳本結構嚴謹，每個元素都有明確目的`,
+    proactiveHint: `
+
+【主動介入規則】
+當使用者的描述不夠具體時，你必須主動提問：
+- 「您的目標觀眾是誰？這會影響我們的敘事節奏。」
+- 「您希望傳達的核心情緒是什麼？平靜、振奮、或是思考？」
+- 「從結構上看，我建議我們先確定 X，再處理 Y。」`,
+  },
+  creative: {
+    researchStyle: `你是一位充滿靈感的創意研究助手。你重視氛圍、情緒與視覺衝擊力。
+風格特點：
+- 用豐富的意象和比喻來描述靈感
+- 主動提供意想不到的角度和組合
+- 用「想像一下...」「如果我們讓...」等啓發式語氣
+- 使用繁體中文，語氣熱情而富有感染力`,
+    directorStyle: `你是「導演 AI」，一位創意型藝術導演。你重視氛圍、情緒和視覺衝擊力。
+風格：
+- 用感性的語言描繪畫面，讓使用者「看見」最終成果
+- 大膽提出意想不到的創意組合
+- 用「想像一下這個畫面...」「如果我們加入...」
+- 腳本充滿藝術性，強調視覺美感與情緒渡染`,
+    proactiveHint: `
+
+【主動介入規則】
+當使用者的描述缺乏情緒或氛圍時，你必須主動引導：
+- 「想像一下，如果我們加入 X 的元素，整個畫面會變得更有張力。」
+- 「我覺得這裡缺少一個情緒高潮點——你希望觀眾在哪個瞬間屏住呼吸？」
+- 「讓我用一個比喻來幫你金化這個構想...」`,
+  },
+  technical: {
+    researchStyle: `你是一位技術導向的研究助手。你重視參數精確度、技術可行性與最佳實踐。
+風格特點：
+- 提供具體的技術參數建議（解析度、幀率、編碼格式）
+- 分析不同模型/工具的技術限制
+- 用「建議使用 X 參數，因為...」等專業語氣
+- 使用繁體中文，語氣精確而專業`,
+    directorStyle: `你是「導演 AI」，一位技術型導演。你重視參數精確度與技術最佳實踐。
+風格：
+- 為每個創作決策提供技術理由
+- 具體建議解析度、幀率、編碼格式、模型參數
+- 用「技術上建議...」「根據模型特性...」等語氣
+- 腳本包含具體的技術參數與模型配置建議`,
+    proactiveHint: `
+
+【主動介入規則】
+當使用者缺少技術參數時，你必須主動提問：
+- 「您希望的輸出解析度是多少？1080p 還是 4K？這會影響我們的模型選擇。」
+- 「目前缺少鏡頭運動參數——建議加入 dolly zoom 或 tracking shot 來增強動態感。」
+- 「技術上，您的描述適合使用 ControlNet depth + canny 雙層控制，要我幫您配置嗎？」`,
+  },
+};
+
+async function runDirectorAI(
+  messages: Array<{ role: string; content: string }>,
+  saveToNotes: boolean,
+  userId: number,
+  personality: "calm" | "creative" | "technical" = "creative",
+) {
+  const persona = PERSONALITY_PROMPTS[personality] || PERSONALITY_PROMPTS.creative;
+
+  // Step 1: Use LLM for factual grounding with personality-aware research style
   const researchResult = await invokeLLM({
     messages: [
       {
         role: "system",
-        content: `你是一位專業的研究助手。根據使用者的創意需求，提供相關的事實資料、趨勢和靈感參考。
-用繁體中文回覆，提供具體、有用的資訊。`,
+        content: persona.researchStyle,
       },
       ...messages.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
     ],
@@ -131,12 +205,14 @@ async function runDirectorAI(messages: Array<{ role: string; content: string }>,
   const researchContent = typeof researchResult.choices[0]?.message?.content === "string"
     ? researchResult.choices[0].message.content : "";
 
-  // Step 2: Creative orchestration with CO-STAR framework
+  // Step 2: Creative orchestration with personality-aware CO-STAR framework
   const scriptResult = await invokeLLM({
     messages: [
       {
         role: "system",
-        content: `你是「導演 AI」，使用 CO-STAR 框架來創作結構化的多媒體腳本。
+        content: `${persona.directorStyle}
+
+使用 CO-STAR 框架來創作結構化的多媒體腳本。
 
 CO-STAR 框架：
 - Context（背景）：場景的背景設定
@@ -147,12 +223,14 @@ CO-STAR 框架：
 
 基於以下研究資料，創作一個結構化的 JSON 腳本：
 ${researchContent}
+${persona.proactiveHint}
 
 輸出 JSON 格式必須包含：
 - context, situation, task, action, result（CO-STAR 各欄位）
 - visualPrompt：給 Veo 3.1 的視覺提示詞（英文，包含正面解剖學約束）
 - audioScript：給 ElevenLabs 的語音腳本（繁體中文）
-- musicVibe：給 Suno V5 的音樂風格描述（英文）`,
+- musicVibe：給 Suno V5 的音樂風格描述（英文）
+- proactiveQuestion：主動向使用者提出的引導性問題（繁體中文，根據使用者描述中缺少的元素提問）`,
       },
       ...messages.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
     ],
@@ -172,8 +250,9 @@ ${researchContent}
             visualPrompt: { type: "string" },
             audioScript: { type: "string" },
             musicVibe: { type: "string" },
+            proactiveQuestion: { type: "string" },
           },
-          required: ["context", "situation", "task", "action", "result", "visualPrompt", "audioScript", "musicVibe"],
+          required: ["context", "situation", "task", "action", "result", "visualPrompt", "audioScript", "musicVibe", "proactiveQuestion"],
           additionalProperties: false,
         },
       },
@@ -185,21 +264,21 @@ ${researchContent}
   try {
     script = typeof scriptContent === "string" ? JSON.parse(scriptContent) : scriptContent;
   } catch {
-    script = { context: "", situation: "", task: "", action: "", result: "", visualPrompt: "", audioScript: "", musicVibe: "" };
+    script = { context: "", situation: "", task: "", action: "", result: "", visualPrompt: "", audioScript: "", musicVibe: "", proactiveQuestion: "" };
   }
 
   // Save to project notes if requested
   if (saveToNotes && userId) {
     await db.createProjectNote({
       userId,
-      title: `導演 AI 腳本 - ${new Date().toLocaleDateString("zh-TW")}`,
+      title: `導演 AI 腳本 (${personality}) - ${new Date().toLocaleDateString("zh-TW")}`,
       content: researchContent,
       scriptJson: script,
       noteType: "script",
     });
   }
 
-  return { research: researchContent, script };
+  return { research: researchContent, script, personality };
 }
 
 // ─── Router Definition ───────────────────────────────────────────────────────
@@ -395,6 +474,25 @@ export const appRouter = router({
             });
           }
 
+          // Save to generation history
+          await db.createHistoryEntry({
+            userId,
+            modality: input.generationType === "multimodal" ? "image" : input.generationType as "image" | "video" | "audio" | "voice",
+            prompt: input.prompt,
+            compiledPrompt,
+            parameterSnapshot: {
+              mode: input.mode,
+              temperature: input.temperature,
+              vibeCardIds: input.vibeCardIds,
+              seed: input.seed,
+              visualWeight,
+              controlNetParams,
+            },
+            resultUrl: resultUrl || undefined,
+            thumbnailUrl: resultUrl || undefined,
+            costCredits: 1,
+          });
+
           // Update job
           await db.updateBackgroundJob(jobId, {
             status: "completed",
@@ -437,6 +535,83 @@ export const appRouter = router({
     }),
   }),
 
+  // ─── Prompt Evaluation (LLM-as-a-Judge) ──────────────────────────────────
+
+  evaluate: router({
+    prompt: protectedProcedure
+      .input(z.object({
+        prompt: z.string().min(1),
+        modality: z.enum(["image", "video", "audio", "voice"]).default("image"),
+      }))
+      .mutation(async ({ input }) => {
+        const result = await invokeLLM({
+          messages: [
+            {
+              role: "system",
+              content: `你是一位專業的 AI 提示詞評估專家（LLM-as-a-Judge）。你的任務是對使用者的創作提示詞進行多維度評估。
+
+評估維度（每項 0-20 分，總分 0-100）：
+1. **主體清晰度 (Subject Clarity)**：主角/物件描述是否具體？
+2. **動作與敘事 (Action & Narrative)**：是否有明確的動態或故事性？
+3. **環境與場景 (Environment)**：背景場景是否有層次感？
+4. **光影與色調 (Lighting & Tone)**：是否指定了光線、色溫或情緒色調？
+5. **技術參數 (Technical Specs)**：是否包含鏡頭角度、構圖、解析度等專業指令？
+
+模態：${input.modality}
+
+你必須回傳 JSON，包含：
+- score: 總分 (0-100)
+- dimensions: 五個維度的個別分數
+- strengths: 提示詞的優點（繁體中文，1-2 句）
+- weaknesses: 提示詞的不足之處（繁體中文，1-2 句）
+- suggestions: 具體的自動優化建議（繁體中文，2-3 條具體建議）
+- optimizedPrompt: 優化後的完整提示詞（英文）`,
+            },
+            { role: "user", content: input.prompt },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "prompt_evaluation",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  score: { type: "integer", description: "Total score 0-100" },
+                  dimensions: {
+                    type: "object",
+                    properties: {
+                      subjectClarity: { type: "integer" },
+                      actionNarrative: { type: "integer" },
+                      environment: { type: "integer" },
+                      lightingTone: { type: "integer" },
+                      technicalSpecs: { type: "integer" },
+                    },
+                    required: ["subjectClarity", "actionNarrative", "environment", "lightingTone", "technicalSpecs"],
+                    additionalProperties: false,
+                  },
+                  strengths: { type: "string" },
+                  weaknesses: { type: "string" },
+                  suggestions: {
+                    type: "array",
+                    items: { type: "string" },
+                  },
+                  optimizedPrompt: { type: "string" },
+                },
+                required: ["score", "dimensions", "strengths", "weaknesses", "suggestions", "optimizedPrompt"],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+        const content = result.choices[0]?.message?.content;
+        if (typeof content === "string") {
+          return JSON.parse(content);
+        }
+        return { score: 50, dimensions: { subjectClarity: 10, actionNarrative: 10, environment: 10, lightingTone: 10, technicalSpecs: 10 }, strengths: "", weaknesses: "", suggestions: [], optimizedPrompt: input.prompt };
+      }),
+  }),
+
   // ─── Director AI Chat ────────────────────────────────────────────────────
 
   director: router({
@@ -447,9 +622,10 @@ export const appRouter = router({
           content: z.string(),
         })),
         saveToNotes: z.boolean().default(false),
+        personality: z.enum(["calm", "creative", "technical"]).default("creative"),
       }))
       .mutation(async ({ ctx, input }) => {
-        return runDirectorAI(input.messages, input.saveToNotes, ctx.user.id);
+        return runDirectorAI(input.messages, input.saveToNotes, ctx.user.id, input.personality);
       }),
   }),
 

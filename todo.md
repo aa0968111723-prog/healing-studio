@@ -145,3 +145,29 @@
 - [x] 新增 phase3-audit.test.ts（32 個測試）
 - [x] 回報死按鈕→功能按鈕轉換清單
 - [x] 確認系統準備好承載 Phase 2 AI 人格評估
+
+## Phase 4: 注入 AI 靈魂 (AI Soul Injection)
+
+### 1. 生成歷史頁面 (/history)
+- [x] 建立 HistoryPage.tsx 頁面元件
+- [x] 從 generation_history 資料庫讀取歷史紀錄
+- [x] 支援多模態縮圖顯示（圖片/影片/音樂/語音）
+- [x] 實作收藏（bookmark）與評分（rating）功能
+- [x] 新增 /history 路由至 App.tsx 與側邊欄
+
+### 2. AI Director 人格系統與主動介入
+- [x] 根據 ai_director_preferences 切換沉穩/創意/技術人格
+- [x] 實作三種人格的差異化系統提示詞
+- [x] 實作主動介入邏輯（停頓偵測、設定不足提醒）
+- [x] 前端 DirectorAI 頁面整合人格切換 UI
+
+### 3. 提示詞強度評估條 (LLM-as-a-Judge)
+- [x] 後端實作 evaluatePrompt tRPC 路由
+- [x] 呼叫 LLM 進行即時提示詞分析
+- [x] 返回 0-100 分數 + 具體優化建議
+- [x] Studio 前端新增即時分數條 UI
+
+### 4. 測試與驗證
+- [x] 新增 phase4-soul.test.ts（18 個測試）
+- [x] 全部 110 個測試通過（5 個測試檔案）
+- [x] 展示三種人格回覆範例
