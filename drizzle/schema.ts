@@ -46,6 +46,7 @@ export const backgroundJobs = mysqlTable("background_jobs", {
     "voice",
     "zip_export",
     "multimodal",
+    "model_training",
   ]).notNull(),
   status: mysqlEnum("status", [
     "queued",

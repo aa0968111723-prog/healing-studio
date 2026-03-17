@@ -1,8 +1,10 @@
 import { useState } from "react";
-import { ImagePlus, X } from "lucide-react";
+import { ImagePlus, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/useMobile";
 import { motion } from "framer-motion";
+import { uploadFileToS3 } from "@/lib/upload";
+import { toast } from "sonner";
 
 type FrameTimelineProps = {
   firstFrame: string | null;
@@ -19,6 +21,21 @@ export function FrameTimeline({
 }: FrameTimelineProps) {
   const isMobile = useIsMobile();
   const [activeSlot, setActiveSlot] = useState<"first" | "last" | null>(null);
+  const [uploading, setUploading] = useState<Record<string, boolean>>({});
+
+  const handleFileUpload = async (slot: "first" | "last", file: File) => {
+    if (!file.type.startsWith("image/")) return;
+    setUploading(prev => ({ ...prev, [slot]: true }));
+    try {
+      const { url } = await uploadFileToS3(file);
+      if (slot === "first") onFirstFrameChange(url);
+      else onLastFrameChange(url);
+    } catch (err: any) {
+      toast.error(`上傳失敗：${err.message}`);
+    } finally {
+      setUploading(prev => ({ ...prev, [slot]: false }));
+    }
+  };
 
   const handleFileSelect = (slot: "first" | "last") => {
     const input = document.createElement("input");
@@ -26,11 +43,7 @@ export function FrameTimeline({
     input.accept = "image/*";
     input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
-      if (file) {
-        const url = URL.createObjectURL(file);
-        if (slot === "first") onFirstFrameChange(url);
-        else onLastFrameChange(url);
-      }
+      if (file) handleFileUpload(slot, file);
     };
     input.click();
   };
@@ -52,7 +65,7 @@ export function FrameTimeline({
         activeSlot === slot ? "border-primary bg-primary/5" : "border-border bg-muted/30"
       } ${frame ? "border-solid" : ""}`}
       onClick={() => {
-        if (isMobile) {
+        if (isMobile && !frame) {
           setActiveSlot(slot);
           handleFileSelect(slot);
         }
@@ -69,15 +82,16 @@ export function FrameTimeline({
           e.preventDefault();
           setActiveSlot(null);
           const file = e.dataTransfer.files[0];
-          if (file && file.type.startsWith("image/")) {
-            const url = URL.createObjectURL(file);
-            if (slot === "first") onFirstFrameChange(url);
-            else onLastFrameChange(url);
-          }
+          if (file) handleFileUpload(slot, file);
         }
       }}
     >
-      {frame ? (
+      {uploading[slot] ? (
+        <div className="flex flex-col items-center justify-center h-full gap-2">
+          <Loader2 className="w-6 h-6 text-primary animate-spin" />
+          <span className="text-xs text-muted-foreground">上傳中...</span>
+        </div>
+      ) : frame ? (
         <>
           <img src={frame} alt={label} className="w-full h-full object-cover" />
           <Button

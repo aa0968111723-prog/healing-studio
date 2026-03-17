@@ -58,8 +58,39 @@ async function compileElitePrompt(payload: {
   vibeCardIds: string[];
   temperature: number;
   generationType: string;
-}): Promise<string> {
+  referenceImages?: { styleUrl?: string | null; vibeUrl?: string | null; characterUrl?: string | null };
+}): Promise<{ compiledPrompt: string; visualWeight: number; controlNetParams: Record<string, unknown> }> {
   const vibeDescriptions = payload.vibeCardIds.join(", ");
+
+  // ── Visual Weight Calculation ──
+  // When reference images are provided, calculate a visual weight factor
+  // that adjusts how strongly the reference influences the generation
+  const refImages = payload.referenceImages || {};
+  const hasStyleRef = !!refImages.styleUrl;
+  const hasVibeRef = !!refImages.vibeUrl;
+  const hasCharRef = !!refImages.characterUrl;
+  const refCount = [hasStyleRef, hasVibeRef, hasCharRef].filter(Boolean).length;
+
+  // Visual weight: 0.0 (no refs) to 1.0 (all refs provided)
+  // Each reference type contributes differently:
+  //   style: 0.4, vibe: 0.3, character: 0.3
+  const visualWeight = (hasStyleRef ? 0.4 : 0) + (hasVibeRef ? 0.3 : 0) + (hasCharRef ? 0.3 : 0);
+
+  // ControlNet-compatible parameters for downstream model integration
+  const controlNetParams: Record<string, unknown> = {
+    enabled: refCount > 0,
+    styleWeight: hasStyleRef ? 0.65 : 0,
+    vibeWeight: hasVibeRef ? 0.5 : 0,
+    characterWeight: hasCharRef ? 0.75 : 0,
+    totalVisualWeight: visualWeight,
+    referenceMode: refCount === 0 ? "none" : refCount === 1 ? "single" : "multi",
+  };
+
+  // Build reference context for the LLM
+  const refContext = refCount > 0
+    ? `\n\n參考圖片資訊：\n- 風格參考：${hasStyleRef ? "已提供（權重 0.65）" : "無"}\n- 氛圍參考：${hasVibeRef ? "已提供（權重 0.5）" : "無"}\n- 角色參考：${hasCharRef ? "已提供（權重 0.75）" : "無"}\n- 綜合視覺權重：${visualWeight.toFixed(2)}\n請在提示詞中加入 "maintaining visual consistency with reference" 等指令。`
+    : "";
+
   const result = await invokeLLM({
     messages: [
       {
@@ -73,13 +104,14 @@ async function compileElitePrompt(payload: {
 4. 生成類型：${payload.generationType}
 5. 輸出必須是一段流暢的英文敘事提示詞
 6. 加入光線、構圖、色調等專業攝影/藝術指導
-7. 確保人物描述包含：perfectly symmetrical anatomy, flawless proportions, natural pose`,
+7. 確保人物描述包含：perfectly symmetrical anatomy, flawless proportions, natural pose${refContext}`,
       },
       { role: "user", content: payload.prompt },
     ],
   });
   const content = result.choices[0]?.message?.content;
-  return typeof content === "string" ? content : payload.prompt;
+  const compiledPrompt = typeof content === "string" ? content : payload.prompt;
+  return { compiledPrompt, visualWeight, controlNetParams };
 }
 
 // ─── CO-STAR Director AI ─────────────────────────────────────────────────────
@@ -260,22 +292,42 @@ export const appRouter = router({
         });
 
         try {
-          // Compile elite prompt
-          const compiledPrompt = await compileElitePrompt({
+          // Compile elite prompt with reference image awareness
+          const { compiledPrompt, visualWeight, controlNetParams } = await compileElitePrompt({
             prompt: input.prompt,
             vibeCardIds: input.vibeCardIds,
             temperature: input.temperature,
             generationType: input.generationType,
+            referenceImages: {
+              styleUrl: input.styleReferenceUrl,
+              vibeUrl: input.vibeReferenceUrl,
+              characterUrl: input.characterRefUrl,
+            },
           });
 
           await db.updateBackgroundJob(jobId, { progress: 30, progressMessage: "正在生成中..." });
 
           // Generate based on type
           let resultUrl: string | undefined;
-          let resultData: Record<string, unknown> = {};
+          let resultData: Record<string, unknown> = {
+            visualWeight,
+            controlNetParams,
+          };
 
           if (input.generationType === "image" || input.generationType === "multimodal") {
-            const imageResult = await generateImage({ prompt: compiledPrompt });
+            // Pass reference images to generateImage for style-guided generation
+            const originalImages: Array<{ url?: string; mimeType?: string }> = [];
+            if (input.styleReferenceUrl) {
+              originalImages.push({ url: input.styleReferenceUrl, mimeType: "image/png" });
+            }
+            if (input.vibeReferenceUrl) {
+              originalImages.push({ url: input.vibeReferenceUrl, mimeType: "image/png" });
+            }
+
+            const imageResult = await generateImage({
+              prompt: compiledPrompt,
+              ...(originalImages.length > 0 ? { originalImages } : {}),
+            });
             resultUrl = imageResult.url;
             resultData.imageUrl = imageResult.url;
             resultData.aspectRatio = input.aspectRatio;
@@ -456,24 +508,80 @@ export const appRouter = router({
         batchSize: z.number().optional(),
         fileUrl: z.string().optional(),
         fileKey: z.string().optional(),
+        datasetImages: z.array(z.object({
+          url: z.string(),
+          fileKey: z.string(),
+          angle: z.enum(["front", "side", "back", "expression", "other"]),
+          caption: z.string().optional(),
+        })).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
-        const configJson = {
+        const configJson: Record<string, unknown> = {
           triggerWord: input.triggerWord,
           epochs: input.epochs ?? 20,
           learningRate: input.learningRate ?? 0.0001,
           batchSize: input.batchSize ?? 4,
+          datasetImages: input.datasetImages,
         };
-        const id = await db.createFineTunedModel({
+
+        // Create the model record
+        const modelId = await db.createFineTunedModel({
           userId: ctx.user.id,
           name: input.name,
           description: input.description,
           modelType: input.modelType,
-          fileUrl: input.fileUrl,
-          fileKey: input.fileKey,
+          fileUrl: input.datasetImages?.[0]?.url || input.fileUrl,
+          fileKey: input.datasetImages?.[0]?.fileKey || input.fileKey,
           configJson,
         });
-        return { id };
+
+        // Create a background job for training
+        const jobId = await db.createBackgroundJob({
+          userId: ctx.user.id,
+          jobType: "model_training",
+          status: "queued",
+          progress: 0,
+          progressMessage: "訓練任務已加入佇列",
+          resultJson: { modelId, modelName: input.name },
+        });
+
+        return { id: modelId, jobId };
+      }),
+
+    captionImages: protectedProcedure
+      .input(z.object({
+        images: z.array(z.object({
+          url: z.string(),
+          angle: z.enum(["front", "side", "back", "expression", "other"]),
+        })),
+      }))
+      .mutation(async ({ input }) => {
+        // Use LLM to generate captions for each image
+        const captions: string[] = [];
+        for (const img of input.images) {
+          try {
+            const result = await invokeLLM({
+              messages: [
+                {
+                  role: "system",
+                  content: "你是一位專業的圖片描述生成器。請為以下圖片生成一段簡短的英文描述（約 20-40 字），適合用於 LoRA 訓練的標註。描述應包含主體特徵、姿勢、表情、服裝等細節。",
+                },
+                {
+                  role: "user",
+                  content: [
+                    { type: "text" as const, text: `角度：${img.angle}。請生成訓練標註描述。` },
+                    { type: "image_url" as const, image_url: { url: img.url } },
+                  ],
+                },
+              ],
+            });
+            const content = result.choices[0]?.message?.content;
+            captions.push(typeof content === "string" ? content.trim() : `${img.angle} view of the subject`);
+          } catch {
+            captions.push(`${img.angle} view of the subject`);
+          }
+        }
+        return { captions };
       }),
 
     toggleVisibility: protectedProcedure

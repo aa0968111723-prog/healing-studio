@@ -123,3 +123,25 @@
 - [x] phase2.test.ts 28 個測試全部通過
 - [x] 全部 60 個測試通過（3 個測試檔案）
 - [x] TypeScript 零錯誤
+
+## Phase 3: 全站核心功能「活化」與「邏輯對齊」審計
+
+### 1. 模型訓練審計
+- [x] 檢查角色鍛造所所有按鈕（上傳、下一步、開始訓練）
+- [x] 移除所有 mockLoading / fakeSuccess 邏輯（確認無 mock 邏輯殘留）
+- [x] 確保訓練按鈕觸發後端任務並寫入資料庫（models.create → backgroundJobs + fineTunedModels）
+
+### 2. 提示詞工程符合性檢查
+- [x] 審計 compileElitePrompt 函數（新增 referenceImages 參數 + visualWeight 計算）
+- [x] 檢查視覺權重計算與 ControlNet 參數傳遞（visualWeight 0.3~0.7 + controlNetParams 注入）
+- [x] 確保參考圖上傳後正確轉化為模型參數（styleRef/vibeRef/charRef → generateImage originalImages）
+
+### 3. 跨模態動線驗證
+- [x] 驗證腳本生成後「發送到配音/圖片工作區」按鈕（DirectorAI sendToStudio → Studio 接收 prompt + audioScript）
+- [x] 確保側邊欄所有入口為真實路由無死連結（11 個側邊欄路由 = 11 個頁面檔案）
+- [x] 驗證 Director AI「發送到工作室」功能
+
+### 4. 測試與報告
+- [x] 新增 phase3-audit.test.ts（32 個測試）
+- [x] 回報死按鈕→功能按鈕轉換清單
+- [x] 確認系統準備好承載 Phase 2 AI 人格評估

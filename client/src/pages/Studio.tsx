@@ -112,6 +112,8 @@ export default function Studio() {
         if (data.generationType) setActiveModality(data.generationType);
         if (data.musicStyle) setAudioState(prev => ({ ...prev, musicStyle: data.musicStyle }));
         if (data.voiceText) setVoiceState(prev => ({ ...prev, text: data.voiceText }));
+        // Also populate audioScript into voice workspace
+        if (data.audioScript) setVoiceState(prev => ({ ...prev, text: data.audioScript }));
         sessionStorage.removeItem("sendToStudio");
         toast.success("已從導演 AI 載入腳本");
       } catch { /* ignore */ }
