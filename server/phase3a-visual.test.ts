@@ -169,7 +169,7 @@ describe("Phase 3-A: Branding & Visual", () => {
         // LLM API may be exhausted or timeout - route still accepted the personality param
         expect(e.message || e.code).toBeDefined();
       }
-    }, 30000);
+    }, 90000);
 
     it("technical personality should respond with parameter focus", async () => {
       const ctx = createMockContext(createMockUser());

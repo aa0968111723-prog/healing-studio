@@ -558,7 +558,7 @@ export default function Studio() {
 
           {/* Progressive Prompt Builder */}
           {activeModality !== "voice" && (
-            <GlassCard hover={false}>
+            <GlassCard hover={false} id="prompt-input">
               <ProgressivePromptBuilder
                 value={promptBuilder}
                 onChange={setPromptBuilder}
@@ -582,8 +582,8 @@ export default function Studio() {
             </GlassCard>
           )}
 
-          {/* Modality-Specific Workspace */}
-          <GlassCard hover={false}>
+          {/* Modality-Specific Workspace / Personality Selector */}
+          <GlassCard hover={false} id="personality-selector">
             <div className="space-y-1">
               <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
                 {activeModality === "image" && <><Image className="w-4 h-4 text-primary" /> 圖片工作區</>}
@@ -610,6 +610,7 @@ export default function Studio() {
 
           {/* Generate Button */}
           <Button
+            id="generate-button"
             onClick={handleGenerate}
             disabled={generateMutation.isPending}
             className="w-full h-12 rounded-xl text-sm font-medium gap-2 shadow-md hover:shadow-lg transition-all"

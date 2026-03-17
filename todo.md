@@ -300,19 +300,19 @@
 ## Phase 4: PDF 合規性稽核修復
 
 ### 技術合規性修復
-- [ ] VisualSoul 人格顏色系統：Calm(深藍)/Creative(暖橘)/Technical(電紫) 三色切換
-- [ ] DirectorEngine 狀態機：根據打字速度、停頓時間、失敗次數自動切換人格
-- [ ] 光球主動介入 UI：Studio 浮動提示氣泡（卡關時彈出建議）
-- [ ] 常駐新手導覽入口：跳過 Onboarding 後仍可重新啟動
-- [ ] ThoughtIslandChain 節點介入功能（修剪/擴充/重新引導按鈕）
+- [x] VisualSoul 人格顏色系統：Calm(電藍)/Creative(霓虹粉)/Technical(螢光綠) 三色切換
+- [x] DirectorEngine 狀態機：根據打字速度、停頓時間、失敗次數自動切換人格
+- [x] 光球主動介入 UI：Studio 浮動提示氣泡（ProactiveOrbWidget）
+- [x] 常駐新手導覽入口：Settings 頁面可重新啟動引導
+- [x] ThoughtIslandChain 節點介入功能（修剪/擴充/重新引導按鈕）
 
 ### 產品哲學合規性修復
-- [ ] AIStateContext 擴充：加入 personality 狀態與自動切換邏輯
-- [ ] Studio 光球常駐顯示：右下角固定位置 Widget
-- [ ] 光球呼吸頻率與人格綁定（Calm=6s, Creative=4s, Technical=8s）
+- [x] AIStateContext 擴充：加入 personality 狀態與自動切換邏輯
+- [x] Studio 光球常駐顯示：右下角固定位置 Widget（ProactiveOrbWidget）
+- [x] 光球呼吸頻率與人格綁定（Calm=6s, Creative=4s, Technical=8s）
 
 ### 視覺合規性
-- [ ] Pro/快速模式切換 UI 標籤優化
+- [x] Pro/快速模式切換 UI 標籤優化
 
 ## Phase 5: 顯示隱藏欄位 + 下載功能
 
@@ -336,8 +336,8 @@
 
 ## Phase 7: 光球引導邏輯升級
 
-- [ ] ProactiveOrbWidget 新增 guideTo(elementId) 方法（移動+脈衝+返回）
-- [ ] 90 秒引導流程（4 步驟：prompt-input → personality-selector → generate-button → storyboard-panel）
-- [ ] 完成後 localStorage.setItem("onboarded", "true") 不再觸發
-- [ ] 移除 OnboardingFlow.tsx 遮罩式教學彈窗
-- [ ] 為目標元素加上 id prop（prompt-input, personality-selector, generate-button, storyboard-panel）
+- [x] ProactiveOrbWidget 新增 guideTo(elementId) 方法（移動+脈衝+返回）
+- [x] 90 秒引導流程（4 步驟：prompt-input → personality-selector → generate-button → storyboard-panel）
+- [x] 完成後 localStorage.setItem("onboarded", "true") 不再觸發
+- [x] 移除 OnboardingFlow.tsx 遮罩式教學彈窗（改為自動導航到 Studio）
+- [x] 為目標元素加上 id prop（prompt-input, personality-selector, generate-button, storyboard-panel）

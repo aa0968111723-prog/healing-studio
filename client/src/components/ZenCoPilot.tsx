@@ -227,13 +227,16 @@ export function GlassCard({
   children,
   className = "",
   hover = true,
+  id,
 }: {
   children: React.ReactNode;
   className?: string;
   hover?: boolean;
+  id?: string;
 }) {
   return (
     <div
+      id={id}
       className={`rounded-2xl p-5 transition-all duration-300 ${hover ? "hover:shadow-lg hover:-translate-y-0.5" : ""} ${className}`}
       style={{
         background: "rgba(255, 255, 255, 0.65)",

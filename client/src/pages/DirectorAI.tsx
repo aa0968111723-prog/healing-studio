@@ -298,6 +298,7 @@ export default function DirectorAI() {
         <AnimatePresence>
           {showStoryboard && !isMobile && (
             <motion.div
+              id="storyboard-panel"
               initial={{ width: 0, opacity: 0 }}
               animate={{ width: "45%", opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
