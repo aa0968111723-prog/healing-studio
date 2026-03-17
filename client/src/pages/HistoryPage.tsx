@@ -7,12 +7,13 @@ import { toast } from "sonner";
 import {
   Image, Video, Music, Mic, Bookmark, BookmarkCheck,
   Star, Trash2, Filter, Clock, Search, ChevronDown,
-  Send, Wand2, RefreshCw,
+  Send, Wand2, RefreshCw, Download, FileText, Timer, Coins, Tag,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { Input } from "@/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { useAIState } from "@/contexts/AIStateContext";
 
 // ─── Modality Config ───────────────────────────────────────────────────────
 
@@ -65,6 +66,7 @@ function StarRating({
 // ─── History Page ──────────────────────────────────────────────────────────
 
 export default function HistoryPage() {
+  const { personality } = useAIState();
   const [, navigate] = useLocation();
   const [filter, setFilter] = useState<"all" | "image" | "video" | "audio" | "voice" | "bookmarked">("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -223,7 +225,7 @@ export default function HistoryPage() {
       {/* History Grid */}
       {filteredHistory.length === 0 ? (
         <GlassCard hover={false} className="flex flex-col items-center justify-center py-16 text-center">
-          <VisualSoul size="md" />
+          <VisualSoul size="md" personality={personality} />
           <p className="text-sm text-muted-foreground mt-4">
             {filter === "bookmarked"
               ? "尚無收藏的生成紀錄"
@@ -342,39 +344,96 @@ export default function HistoryPage() {
                           transition={{ duration: 0.2 }}
                           className="overflow-hidden"
                         >
-                          <div className="pt-3 border-t border-border/30 space-y-2">
+                          <div className="pt-3 border-t border-border/30 space-y-3">
+                            {/* ── Compiled Prompt (full, no truncation) ── */}
                             {item.compiledPrompt && (
                               <div>
-                                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                                  編譯後提示詞
+                                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                                  <FileText className="w-3 h-3" /> 編譯後提示詞
                                 </span>
-                                <p className="text-xs text-foreground/80 mt-1 leading-relaxed line-clamp-4">
+                                <p className="text-xs text-foreground/80 mt-1 leading-relaxed whitespace-pre-wrap">
                                   {item.compiledPrompt}
                                 </p>
                               </div>
                             )}
+
+                            {/* ── Parameter Snapshot (ALL fields, no slice) ── */}
                             {item.parameterSnapshot && (
                               <div>
-                                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                                  參數快照
+                                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                                  <Tag className="w-3 h-3" /> 完整參數快照
                                 </span>
                                 <div className="mt-1 flex flex-wrap gap-1.5">
                                   {Object.entries(item.parameterSnapshot as Record<string, unknown>)
-                                    .filter(([, v]) => v != null && typeof v !== "object")
-                                    .slice(0, 6)
+                                    .filter(([, v]) => v != null)
                                     .map(([k, v]) => (
                                       <span
                                         key={k}
                                         className="text-[10px] bg-muted/30 px-1.5 py-0.5 rounded-md text-muted-foreground"
                                       >
-                                        {k}: {String(v)}
+                                        {k}: {typeof v === "object" ? JSON.stringify(v) : String(v)}
                                       </span>
                                     ))}
                                 </div>
                               </div>
                             )}
-                            {/* Cross-modal Quick Actions */}
-                            <div className="flex flex-wrap gap-1.5 pt-2">
+
+                            {/* ── Duration & Cost ── */}
+                            <div className="flex flex-wrap gap-3">
+                              {item.durationMs != null && (
+                                <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                  <Timer className="w-3 h-3" /> 耗時：{(item.durationMs / 1000).toFixed(1)}s
+                                </span>
+                              )}
+                              <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                <Coins className="w-3 h-3" /> 消耗配額：{item.costCredits}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                <Clock className="w-3 h-3" /> {new Date(item.createdAt).toLocaleString("zh-TW")}
+                              </span>
+                            </div>
+
+                            {/* ── Download Button ── */}
+                            {item.resultUrl && (
+                              <div>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 text-xs gap-1.5 rounded-lg w-full sm:w-auto"
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    try {
+                                      const resp = await fetch(item.resultUrl!);
+                                      const blob = await resp.blob();
+                                      const ext = item.modality === "image" ? (blob.type.includes("png") ? "png" : blob.type.includes("webp") ? "webp" : "jpg")
+                                        : item.modality === "video" ? "mp4"
+                                        : item.modality === "audio" ? "mp3"
+                                        : item.modality === "voice" ? "mp3"
+                                        : "bin";
+                                      const url = URL.createObjectURL(blob);
+                                      const a = document.createElement("a");
+                                      a.href = url;
+                                      a.download = `ai-director-${item.modality}-${item.id}.${ext}`;
+                                      document.body.appendChild(a);
+                                      a.click();
+                                      document.body.removeChild(a);
+                                      URL.revokeObjectURL(url);
+                                      toast.success(`已下載 ${ext.toUpperCase()} 檔案`);
+                                    } catch {
+                                      // Fallback: open in new tab
+                                      window.open(item.resultUrl!, "_blank");
+                                      toast.info("已在新分頁開啟，請右鍵另存新檔");
+                                    }
+                                  }}
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                  下載{item.modality === "image" ? " PNG" : item.modality === "video" ? " MP4" : item.modality === "audio" ? " MP3" : " 檔案"}
+                                </Button>
+                              </div>
+                            )}
+
+                            {/* ── Cross-modal Quick Actions ── */}
+                            <div className="flex flex-wrap gap-1.5 pt-1">
                               <Button
                                 variant="outline"
                                 size="sm"

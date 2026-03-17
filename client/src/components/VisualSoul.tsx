@@ -4,9 +4,11 @@ import { motion } from "framer-motion";
 // ─── AI Global State Types ──────────────────────────────────────────────────
 
 export type AIState = "idle" | "thinking" | "generating";
+export type Personality = "calm" | "creative" | "technical";
 
 type Props = {
   state?: AIState;
+  personality?: Personality;
   size?: "sm" | "md" | "lg";
   visible?: boolean;
   className?: string;
@@ -20,68 +22,105 @@ const SIZE_MAP = {
   lg: { container: "w-14 h-14", blur: 12, particleCount: 7 },
 };
 
-// ─── State-driven visual configs ────────────────────────────────────────────
+// ─── Personality Color Palettes ────────────────────────────────────────────
+// PDF Spec: Calm=#0D1B2A(深藍), Creative=#FF6F61(暖橘), Technical=#7B2CBF(電紫)
 
-const STATE_CONFIG = {
-  idle: {
-    gradient: [
-      "radial-gradient(circle at 35% 35%, rgba(212,197,226,0.9), rgba(200,213,224,0.7), rgba(234,201,193,0.5))",
-      "radial-gradient(circle at 45% 45%, rgba(200,213,224,0.9), rgba(234,201,193,0.7), rgba(212,197,226,0.5))",
-      "radial-gradient(circle at 35% 35%, rgba(212,197,226,0.9), rgba(200,213,224,0.7), rgba(234,201,193,0.5))",
-    ],
-    glowColor: "rgba(212,197,226,0.5)",
-    glowPulse: [
-      "0 0 12px rgba(212,197,226,0.3)",
-      "0 0 20px rgba(212,197,226,0.5)",
-      "0 0 12px rgba(212,197,226,0.3)",
-    ],
-    breathDuration: 3,
-    rotateSpeed: 20,
-    scale: [1, 1.03, 1],
-    particleOpacity: 0.2,
+const PERSONALITY_COLORS = {
+  calm: {
+    primary: "13,27,42",      // #0D1B2A deep navy
+    secondary: "44,82,130",   // steel blue
+    accent: "100,149,237",    // cornflower
+    breathDurationMultiplier: 1.5, // slower, calmer
   },
-  thinking: {
-    gradient: [
-      "radial-gradient(circle at 30% 30%, rgba(251,191,36,0.9), rgba(248,113,113,0.7), rgba(167,139,250,0.5))",
-      "radial-gradient(circle at 50% 50%, rgba(167,139,250,0.9), rgba(251,191,36,0.7), rgba(74,222,128,0.5))",
-      "radial-gradient(circle at 40% 60%, rgba(74,222,128,0.9), rgba(248,113,113,0.7), rgba(251,191,36,0.5))",
-      "radial-gradient(circle at 30% 30%, rgba(251,191,36,0.9), rgba(248,113,113,0.7), rgba(167,139,250,0.5))",
-    ],
-    glowColor: "rgba(251,191,36,0.6)",
-    glowPulse: [
-      "0 0 8px rgba(251,191,36,0.4)",
-      "0 0 20px rgba(167,139,250,0.7)",
-      "0 0 8px rgba(74,222,128,0.4)",
-      "0 0 20px rgba(248,113,113,0.7)",
-    ],
-    breathDuration: 0.8,
-    rotateSpeed: 4,
-    scale: [0.97, 1.05, 0.97],
-    particleOpacity: 0.6,
+  creative: {
+    primary: "255,111,97",    // #FF6F61 warm coral
+    secondary: "255,165,0",   // orange
+    accent: "255,215,0",      // gold
+    breathDurationMultiplier: 1.0, // default rhythm
   },
-  generating: {
-    gradient: [
-      "radial-gradient(circle at 50% 50%, rgba(96,165,250,0.95), rgba(167,139,250,0.8), rgba(251,191,36,0.6))",
-      "radial-gradient(circle at 30% 30%, rgba(251,191,36,0.95), rgba(96,165,250,0.8), rgba(74,222,128,0.6))",
-      "radial-gradient(circle at 50% 50%, rgba(96,165,250,0.95), rgba(167,139,250,0.8), rgba(251,191,36,0.6))",
-    ],
-    glowColor: "rgba(96,165,250,0.7)",
-    glowPulse: [
-      "0 0 16px rgba(96,165,250,0.5), 0 0 40px rgba(96,165,250,0.2)",
-      "0 0 32px rgba(167,139,250,0.8), 0 0 60px rgba(96,165,250,0.4)",
-      "0 0 16px rgba(96,165,250,0.5), 0 0 40px rgba(96,165,250,0.2)",
-    ],
-    breathDuration: 0.5,
-    rotateSpeed: 2,
-    scale: [0.95, 1.1, 0.95],
-    particleOpacity: 0.9,
+  technical: {
+    primary: "123,44,191",    // #7B2CBF electric purple
+    secondary: "75,0,130",    // indigo
+    accent: "138,43,226",     // blue-violet
+    breathDurationMultiplier: 0.7, // faster, more precise
   },
 };
 
+// ─── State-driven visual configs (now personality-aware) ───────────────────
+
+function getStateConfig(state: AIState, personality: Personality) {
+  const colors = PERSONALITY_COLORS[personality];
+  const bm = colors.breathDurationMultiplier;
+
+  const configs = {
+    idle: {
+      gradient: [
+        `radial-gradient(circle at 35% 35%, rgba(${colors.primary},0.7), rgba(${colors.secondary},0.5), rgba(${colors.accent},0.3))`,
+        `radial-gradient(circle at 45% 45%, rgba(${colors.secondary},0.7), rgba(${colors.accent},0.5), rgba(${colors.primary},0.3))`,
+        `radial-gradient(circle at 35% 35%, rgba(${colors.primary},0.7), rgba(${colors.secondary},0.5), rgba(${colors.accent},0.3))`,
+      ],
+      glowColor: `rgba(${colors.primary},0.5)`,
+      glowPulse: [
+        `0 0 12px rgba(${colors.primary},0.3)`,
+        `0 0 20px rgba(${colors.primary},0.5)`,
+        `0 0 12px rgba(${colors.primary},0.3)`,
+      ],
+      breathDuration: 3 * bm,
+      rotateSpeed: 20,
+      scale: [1, 1.03, 1] as number[],
+      particleOpacity: 0.2,
+    },
+    thinking: {
+      gradient: [
+        `radial-gradient(circle at 30% 30%, rgba(${colors.accent},0.9), rgba(${colors.primary},0.7), rgba(${colors.secondary},0.5))`,
+        `radial-gradient(circle at 50% 50%, rgba(${colors.secondary},0.9), rgba(${colors.accent},0.7), rgba(${colors.primary},0.5))`,
+        `radial-gradient(circle at 40% 60%, rgba(${colors.primary},0.9), rgba(${colors.secondary},0.7), rgba(${colors.accent},0.5))`,
+        `radial-gradient(circle at 30% 30%, rgba(${colors.accent},0.9), rgba(${colors.primary},0.7), rgba(${colors.secondary},0.5))`,
+      ],
+      glowColor: `rgba(${colors.accent},0.6)`,
+      glowPulse: [
+        `0 0 8px rgba(${colors.accent},0.4)`,
+        `0 0 20px rgba(${colors.primary},0.7)`,
+        `0 0 8px rgba(${colors.secondary},0.4)`,
+        `0 0 20px rgba(${colors.accent},0.7)`,
+      ],
+      breathDuration: 0.8 * bm,
+      rotateSpeed: 4,
+      scale: [0.97, 1.05, 0.97] as number[],
+      particleOpacity: 0.6,
+    },
+    generating: {
+      gradient: [
+        `radial-gradient(circle at 50% 50%, rgba(${colors.primary},0.95), rgba(${colors.accent},0.8), rgba(${colors.secondary},0.6))`,
+        `radial-gradient(circle at 30% 30%, rgba(${colors.accent},0.95), rgba(${colors.primary},0.8), rgba(${colors.secondary},0.6))`,
+        `radial-gradient(circle at 50% 50%, rgba(${colors.primary},0.95), rgba(${colors.accent},0.8), rgba(${colors.secondary},0.6))`,
+      ],
+      glowColor: `rgba(${colors.primary},0.7)`,
+      glowPulse: [
+        `0 0 16px rgba(${colors.primary},0.5), 0 0 40px rgba(${colors.primary},0.2)`,
+        `0 0 32px rgba(${colors.accent},0.8), 0 0 60px rgba(${colors.primary},0.4)`,
+        `0 0 16px rgba(${colors.primary},0.5), 0 0 40px rgba(${colors.primary},0.2)`,
+      ],
+      breathDuration: 0.5 * bm,
+      rotateSpeed: 2,
+      scale: [0.95, 1.1, 0.95] as number[],
+      particleOpacity: 0.9,
+    },
+  };
+
+  return configs[state];
+}
+
 // ─── Component ──────────────────────────────────────────────────────────────
 
-export default function VisualSoul({ state = "idle", size = "md", visible = true, className = "" }: Props) {
-  const config = STATE_CONFIG[state];
+export default function VisualSoul({
+  state = "idle",
+  personality = "creative",
+  size = "md",
+  visible = true,
+  className = "",
+}: Props) {
+  const config = getStateConfig(state, personality);
   const sizeConfig = SIZE_MAP[size];
 
   // Generate particle positions (stable across renders)
@@ -100,7 +139,7 @@ export default function VisualSoul({ state = "idle", size = "md", visible = true
       {/* SVG Filter for organic distortion */}
       <svg width="0" height="0" className="absolute">
         <defs>
-          <filter id={`soul-turbulence-${size}`}>
+          <filter id={`soul-turbulence-${size}-${personality}`}>
             <feTurbulence
               type="fractalNoise"
               baseFrequency={state === "idle" ? "0.02" : state === "thinking" ? "0.05" : "0.03"}
@@ -113,7 +152,7 @@ export default function VisualSoul({ state = "idle", size = "md", visible = true
               scale={state === "idle" ? "2" : state === "thinking" ? "4" : "6"}
             />
           </filter>
-          <filter id={`soul-glow-${size}`}>
+          <filter id={`soul-glow-${size}-${personality}`}>
             <feGaussianBlur stdDeviation={String(sizeConfig.blur)} result="blur" />
             <feMerge>
               <feMergeNode in="blur" />
@@ -141,7 +180,7 @@ export default function VisualSoul({ state = "idle", size = "md", visible = true
         className="absolute inset-0 rounded-full"
         style={{
           transformStyle: "preserve-3d",
-          filter: `url(#soul-glow-${size})`,
+          filter: `url(#soul-glow-${size}-${personality})`,
         }}
         animate={{
           rotateY: [0, 360],
@@ -156,7 +195,7 @@ export default function VisualSoul({ state = "idle", size = "md", visible = true
         <motion.div
           className="absolute inset-0 rounded-full"
           style={{
-            filter: `url(#soul-turbulence-${size})`,
+            filter: `url(#soul-turbulence-${size}-${personality})`,
           }}
           animate={{
             background: config.gradient,
@@ -235,7 +274,7 @@ export default function VisualSoul({ state = "idle", size = "md", visible = true
             ease: "easeOut",
           }}
           style={{
-            background: "radial-gradient(circle, rgba(96,165,250,0.4) 0%, transparent 70%)",
+            background: `radial-gradient(circle, rgba(${PERSONALITY_COLORS[personality].primary},0.4) 0%, transparent 70%)`,
           }}
         />
       )}

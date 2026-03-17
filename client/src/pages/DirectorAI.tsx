@@ -107,8 +107,8 @@ function ProactiveQuestionBubble({
 export default function DirectorAI() {
   const isMobile = useIsMobile();
   const [, navigate] = useLocation();
-  const { setAIState } = useAIState();
-  const [personality, setPersonality] = useState<Personality>("creative");
+  const { setAIState, personality: globalPersonality, setPersonality: setGlobalPersonality } = useAIState();
+  const [personality, setPersonality] = useState<Personality>(globalPersonality);
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "system",
@@ -307,7 +307,7 @@ export default function DirectorAI() {
               <GlassCard hover={false} className="h-full">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-semibold flex items-center gap-2">
-                    <VisualSoul size="sm" />
+                    <VisualSoul size="sm" personality={personality} />
                     Storyboard
                   </h3>
                   <span className="text-[11px] text-muted-foreground">
@@ -318,7 +318,7 @@ export default function DirectorAI() {
                 <ScrollArea className="h-[calc(100vh-440px)]">
                   {scripts.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 text-center">
-                      <VisualSoul size="md" />
+                      <VisualSoul size="md" personality={personality} />
                       <p className="text-sm text-muted-foreground mt-4">
                         與導演 AI 對話後，腳本會自動出現在這裡
                       </p>
@@ -384,7 +384,7 @@ export default function DirectorAI() {
       {isMobile && scripts.length > 0 && (
         <div className="space-y-3">
           <h3 className="text-sm font-semibold flex items-center gap-2">
-            <VisualSoul size="sm" />
+            <VisualSoul size="sm" personality={personality} />
             Storyboard ({scripts.length})
           </h3>
           {scripts.map((script, idx) => (

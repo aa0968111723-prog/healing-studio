@@ -82,7 +82,7 @@ function compilePrompt(raw: string, vibes: string[], fields: AdvancedFields): st
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
-export function ProgressivePromptBuilder({ value, onChange, modality }: ProgressivePromptBuilderProps) {
+export function ProgressivePromptBuilder({ value, onChange, modality, onType }: ProgressivePromptBuilderProps & { onType?: (len: number) => void }) {
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const updateField = useCallback((key: keyof PromptBuilderOutput, val: unknown) => {
@@ -135,7 +135,10 @@ export function ProgressivePromptBuilder({ value, onChange, modality }: Progress
               : "描述你想要創作的畫面..."
           }
           value={value.rawPrompt}
-          onChange={(e) => updateField("rawPrompt", e.target.value)}
+          onChange={(e) => {
+            updateField("rawPrompt", e.target.value);
+            onType?.(e.target.value.length);
+          }}
           rows={3}
           className="rounded-xl bg-white/40 border-white/60 resize-none text-sm placeholder:text-muted-foreground/40 focus-visible:ring-1 focus-visible:ring-primary/30 focus-visible:border-primary/30"
         />

@@ -5,10 +5,14 @@ import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Settings, User, Sparkles, Save } from "lucide-react";
+import { Settings, User, Sparkles, Save, RotateCcw } from "lucide-react";
+import { useAIState } from "@/contexts/AIStateContext";
+import { useLocation } from "wouter";
 
 export default function SettingsPage() {
   const { user } = useAuth();
+  const { setPersonality: setGlobalPersonality } = useAIState();
+  const [, navigate] = useLocation();
 
   // Director preferences
   const prefsQuery = trpc.directorPreferences.get.useQuery(undefined, { retry: false });
@@ -32,6 +36,13 @@ export default function SettingsPage() {
 
   const handleSavePrefs = () => {
     updatePrefs.mutate({ personality, preferredFormat });
+    setGlobalPersonality(personality);
+  };
+
+  const handleRestartOnboarding = () => {
+    localStorage.removeItem("ai-director-onboarded");
+    toast.success("已重置引導狀態，跳轉至首頁...");
+    setTimeout(() => navigate("/"), 500);
   };
 
   return (
@@ -138,15 +149,26 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            <Button
-              onClick={handleSavePrefs}
-              disabled={updatePrefs.isPending}
-              size="sm"
-              className="rounded-lg"
-            >
-              <Save className="w-3 h-3 mr-1" />
-              儲存偏好
-            </Button>
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={handleSavePrefs}
+                disabled={updatePrefs.isPending}
+                size="sm"
+                className="rounded-lg"
+              >
+                <Save className="w-3 h-3 mr-1" />
+                儲存偏好
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-lg"
+                onClick={handleRestartOnboarding}
+              >
+                <RotateCcw className="w-3 h-3 mr-1" />
+                重新啟動光球引導
+              </Button>
+            </div>
           </div>
         )}
       </GlassCard>

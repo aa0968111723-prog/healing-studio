@@ -62,7 +62,7 @@ type Props = {
 };
 
 export default function OnboardingFlow({ onComplete, onSkip }: Props) {
-  const { setAIState } = useAIState();
+  const { setAIState, personality } = useAIState();
   const [step, setStep] = useState<OnboardingStep>("greeting");
   const [greetingIndex, setGreetingIndex] = useState(0);
   const [userInput, setUserInput] = useState("");
@@ -229,6 +229,7 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
           <VisualSoul
             size="lg"
             state={step === "thinking" ? "thinking" : step === "result" ? "generating" : "idle"}
+            personality={personality}
             className="!w-24 !h-24"
           />
         </motion.div>

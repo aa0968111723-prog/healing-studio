@@ -296,3 +296,34 @@
 - [x] 後端 Prompt 模板升級（SD/MJ 語法）
 - [x] TypeScript 零錯誤
 - [x] 全部 vitest 測試通過
+
+## Phase 4: PDF 合規性稽核修復
+
+### 技術合規性修復
+- [ ] VisualSoul 人格顏色系統：Calm(深藍)/Creative(暖橘)/Technical(電紫) 三色切換
+- [ ] DirectorEngine 狀態機：根據打字速度、停頓時間、失敗次數自動切換人格
+- [ ] 光球主動介入 UI：Studio 浮動提示氣泡（卡關時彈出建議）
+- [ ] 常駐新手導覽入口：跳過 Onboarding 後仍可重新啟動
+- [ ] ThoughtIslandChain 節點介入功能（修剪/擴充/重新引導按鈕）
+
+### 產品哲學合規性修復
+- [ ] AIStateContext 擴充：加入 personality 狀態與自動切換邏輯
+- [ ] Studio 光球常駐顯示：右下角固定位置 Widget
+- [ ] 光球呼吸頻率與人格綁定（Calm=6s, Creative=4s, Technical=8s）
+
+### 視覺合規性
+- [ ] Pro/快速模式切換 UI 標籤優化
+
+## Phase 5: 顯示隱藏欄位 + 下載功能
+
+### 隱藏欄位顯示
+- [x] Studio 頁面：顯示所有隱藏的參數欄位（專案筆記、進階設定等）
+- [x] History 頁面：展開卡片時顯示完整欄位（compiledPrompt、thoughtChain、parameterSnapshot 等）
+- [x] Notes 頁面：確認所有筆記欄位可見（tags、scheduledDate、updatedAt、scriptJson）
+- [x] Settings 頁面：確認所有設定欄位可見
+
+### 下載功能
+- [x] Studio 生成結果：加入 PNG/MP4/MP3 下載按鈕
+- [x] History 頁面：每筆紀錄加入下載按鈕（根據模態下載對應格式）
+- [x] Assets 頁面：資產卡片加入下載按鈕（含展開詳情面板）
+- [x] 下載功能支援：PNG（圖片）、MP4（影片）、MP3（音樂/語音）+ Notes 下載 MD

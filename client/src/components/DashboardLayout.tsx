@@ -82,7 +82,7 @@ export default function DashboardLayout({
       <div className="flex items-center justify-center min-h-screen" style={{ background: "linear-gradient(135deg, #F5F3F0 0%, #EAC9C1 30%, #D4C5E2 70%, #C8D5E0 100%)" }}>
         <div className="glass-card p-10 max-w-md w-full mx-4 text-center">
           <div className="flex justify-center mb-6">
-            <VisualSoul size="lg" state="idle" />
+            <VisualSoul size="lg" state="idle" personality="creative" />
           </div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
             AI Director 創作平台
@@ -125,7 +125,7 @@ function DashboardLayoutContent({
   const { user, logout } = useAuth();
   const [location, setLocation] = useLocation();
   const { state, toggleSidebar } = useSidebar();
-  const { aiState } = useAIState();
+  const { aiState, personality } = useAIState();
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
@@ -183,7 +183,7 @@ function DashboardLayoutContent({
               </button>
               {!isCollapsed && (
                 <div className="flex items-center gap-2 min-w-0">
-                  <VisualSoul size="sm" state={aiState} />
+                  <VisualSoul size="sm" state={aiState} personality={personality} />
                   <span className="font-semibold tracking-tight truncate text-foreground text-sm">
                     AI Director
                   </span>

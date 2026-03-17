@@ -14,6 +14,7 @@ import { GlassCard, ZenTooltip, ZenSkeleton } from "@/components/ZenCoPilot";
 import VisualSoul from "@/components/VisualSoul";
 import { motion, AnimatePresence } from "framer-motion";
 import type { CharacterForgeStep, DatasetImage } from "@shared/types";
+import { useAIState } from "@/contexts/AIStateContext";
 
 const FORGE_STEPS: { id: CharacterForgeStep; label: string; icon: React.ReactNode }[] = [
   { id: "dataset", label: "資料集", icon: <Upload className="w-4 h-4" /> },
@@ -41,6 +42,7 @@ type DatasetImageWithUpload = DatasetImage & {
 };
 
 export default function ModelsPage() {
+  const { personality } = useAIState();
   const [tab, setTab] = useState("my");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [step, setStep] = useState<CharacterForgeStep>("dataset");
@@ -242,7 +244,7 @@ export default function ModelsPage() {
           <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <VisualSoul size="sm" />
+                <VisualSoul size="sm" personality={personality} />
                 角色鍛造精靈
               </DialogTitle>
             </DialogHeader>
@@ -450,7 +452,7 @@ export default function ModelsPage() {
                       </>
                     ) : (
                       <>
-                        <div className="flex justify-center"><VisualSoul size="lg" /></div>
+                        <div className="flex justify-center"><VisualSoul size="lg" personality={personality} /></div>
                         <h3 className="text-base font-medium">確認訓練設定</h3>
                         <div className="rounded-xl bg-muted/30 p-4 text-left space-y-2 text-sm">
                           <div className="flex justify-between"><span className="text-muted-foreground">模型名稱</span><span className="font-medium">{modelName}</span></div>
@@ -547,7 +549,7 @@ export default function ModelsPage() {
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <VisualSoul size="lg" />
+          <VisualSoul size="lg" personality={personality} />
           <h3 className="text-base font-medium mt-6">尚無角色模型</h3>
           <p className="text-sm text-muted-foreground mt-2 max-w-sm">
             {tab === "my" ? "點擊「新增角色」開始訓練你的第一個角色模型" : "還沒有團隊共享的模型"}

@@ -8,6 +8,7 @@ import VisualSoul from "@/components/VisualSoul";
 import OnboardingFlow from "@/components/OnboardingFlow";
 import { motion } from "framer-motion";
 import { Wand2, Clapperboard, Package, Cpu, ArrowRight, Sparkles, Shield, Users } from "lucide-react";
+import { useAIState } from "@/contexts/AIStateContext";
 
 const FEATURES = [
   {
@@ -50,6 +51,7 @@ const FEATURES = [
 
 export default function Home() {
   const { user, loading, isAuthenticated } = useAuth();
+  const { personality } = useAIState();
   const [, navigate] = useLocation();
   const [showOnboarding, setShowOnboarding] = useState(false);
 
@@ -91,7 +93,7 @@ export default function Home() {
       >
         <div className="max-w-6xl mx-auto px-4 h-full flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <VisualSoul size="sm" />
+            <VisualSoul size="sm" personality={personality} />
             <span className="font-semibold tracking-tight text-foreground">AI Director</span>
           </div>
           <div>
@@ -131,7 +133,7 @@ export default function Home() {
           >
             {/* Central Orb - visual focal point */}
             <div className="flex justify-center mb-8">
-              <VisualSoul size="lg" className="!w-20 !h-20" />
+              <VisualSoul size="lg" personality={personality} className="!w-20 !h-20" />
             </div>
 
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-foreground leading-tight">
@@ -225,7 +227,7 @@ export default function Home() {
       <section className="py-20 px-4">
         <div className="max-w-3xl mx-auto">
           <GlassCard hover={false} className="text-center py-14 px-8">
-            <VisualSoul size="md" />
+            <VisualSoul size="md" personality={personality} />
             <h2 className="text-2xl font-bold text-foreground mt-6">
               準備好開始創作了嗎？
             </h2>
@@ -261,7 +263,7 @@ export default function Home() {
       <footer className="py-8 px-4 border-t border-border/30">
         <div className="max-w-6xl mx-auto flex items-center justify-between text-xs text-muted-foreground">
           <div className="flex items-center gap-2">
-            <VisualSoul size="sm" />
+            <VisualSoul size="sm" personality={personality} />
             <span>AI Director</span>
           </div>
           <span>Intelligent Creation Platform</span>

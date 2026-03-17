@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import * as d3 from "d3";
 import { motion, AnimatePresence } from "framer-motion";
-import { Brain, CheckCircle2, Clock, Zap, Shield, Sparkles, Database, ChevronDown, ChevronUp } from "lucide-react";
+import { Brain, CheckCircle2, Clock, Zap, Shield, Sparkles, Database, ChevronDown, ChevronUp, Scissors, Maximize2, RotateCcw } from "lucide-react";
+import { toast } from "sonner";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -16,6 +17,7 @@ export type ThoughtNode = {
 type Props = {
   nodes: ThoughtNode[];
   isVisible?: boolean;
+  onIntervene?: (action: "trim" | "expand" | "redirect", nodeId: string) => void;
 };
 
 // ─── Icon Map ───────────────────────────────────────────────────────────────
@@ -39,7 +41,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
-export default function ThoughtIslandChain({ nodes, isVisible = true }: Props) {
+export default function ThoughtIslandChain({ nodes, isVisible = true, onIntervene }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [expanded, setExpanded] = useState(true);
@@ -50,6 +52,7 @@ export default function ThoughtIslandChain({ nodes, isVisible = true }: Props) {
     if (hasProcessing) setExpanded(true);
   }, [hasProcessing]);
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
+  const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [dimensions, setDimensions] = useState({ width: 600, height: 120 });
 
   // Responsive sizing
@@ -125,12 +128,12 @@ export default function ThoughtIslandChain({ nodes, isVisible = true }: Props) {
         .attr("r", nodeRadius + 4)
         .attr("fill", "none")
         .attr("stroke", STATUS_COLORS[node.status] || "#666")
-        .attr("stroke-width", 1.5)
+        .attr("stroke-width", selectedNode === node.id ? 2.5 : 1.5)
         .attr("opacity", 0)
         .transition()
         .duration(400)
         .delay(i * 150)
-        .attr("opacity", node.status === "processing" ? 0.6 : 0.3);
+        .attr("opacity", node.status === "processing" ? 0.6 : selectedNode === node.id ? 0.8 : 0.3);
 
       // Main circle
       g.append("circle")
@@ -142,6 +145,7 @@ export default function ThoughtIslandChain({ nodes, isVisible = true }: Props) {
         .attr("cursor", "pointer")
         .on("mouseenter", () => setHoveredNode(node.id))
         .on("mouseleave", () => setHoveredNode(null))
+        .on("click", () => setSelectedNode(selectedNode === node.id ? null : node.id))
         .transition()
         .duration(400)
         .delay(i * 150)
@@ -182,11 +186,24 @@ export default function ThoughtIslandChain({ nodes, isVisible = true }: Props) {
         .delay(i * 150 + 100)
         .attr("opacity", 0.8);
     });
-  }, [nodes, dimensions, expanded]);
+  }, [nodes, dimensions, expanded, selectedNode]);
 
   if (!isVisible || !nodes.length) return null;
 
   const hoveredData = nodes.find((n) => n.id === hoveredNode);
+  const selectedData = nodes.find((n) => n.id === selectedNode);
+
+  const handleIntervene = (action: "trim" | "expand" | "redirect") => {
+    if (!selectedNode) return;
+    if (onIntervene) {
+      onIntervene(action, selectedNode);
+    } else {
+      // Default behavior: show toast
+      const labels = { trim: "修剪", expand: "擴充", redirect: "重新引導" };
+      toast.info(`已對「${selectedData?.label}」執行${labels[action]}操作`);
+    }
+    setSelectedNode(null);
+  };
 
   return (
     <motion.div
@@ -234,7 +251,7 @@ export default function ThoughtIslandChain({ nodes, isVisible = true }: Props) {
 
             {/* Hover tooltip */}
             <AnimatePresence>
-              {hoveredData && (
+              {hoveredData && !selectedData && (
                 <motion.div
                   initial={{ opacity: 0, y: 5 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -262,25 +279,80 @@ export default function ThoughtIslandChain({ nodes, isVisible = true }: Props) {
               )}
             </AnimatePresence>
 
+            {/* Selected node intervention panel */}
+            <AnimatePresence>
+              {selectedData && (
+                <motion.div
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 5 }}
+                  className="mx-4 mb-3 p-3 rounded-lg bg-popover border-2 border-primary/30 text-sm shadow-md"
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    {(() => {
+                      const Icon = NODE_ICONS[selectedData.id] || Brain;
+                      return <Icon className="w-4 h-4" style={{ color: STATUS_COLORS[selectedData.status] }} />;
+                    })()}
+                    <span className="font-medium text-foreground">{selectedData.label}</span>
+                    <span className="text-[10px] text-muted-foreground ml-auto">
+                      {selectedData.timestamp}ms
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-3">{selectedData.detail}</p>
+                  {/* Intervention buttons */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleIntervene("trim")}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-red-500/10 text-red-600 hover:bg-red-500/20 transition-colors"
+                    >
+                      <Scissors className="w-3 h-3" />
+                      修剪
+                    </button>
+                    <button
+                      onClick={() => handleIntervene("expand")}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 transition-colors"
+                    >
+                      <Maximize2 className="w-3 h-3" />
+                      擴充
+                    </button>
+                    <button
+                      onClick={() => handleIntervene("redirect")}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 transition-colors"
+                    >
+                      <RotateCcw className="w-3 h-3" />
+                      重新引導
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {/* Node detail cards (compact) */}
             <div className="px-4 pb-3 flex flex-wrap gap-1.5">
               {nodes.map((node) => {
                 const Icon = NODE_ICONS[node.id] || CheckCircle2;
+                const isSelected = selectedNode === node.id;
                 return (
-                  <motion.div
+                  <motion.button
                     key={node.id}
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: nodes.indexOf(node) * 0.1 }}
-                    className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs"
+                    onClick={() => setSelectedNode(isSelected ? null : node.id)}
+                    className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs transition-all ${
+                      isSelected ? "ring-2 ring-primary/40" : ""
+                    }`}
                     style={{
-                      backgroundColor: `${STATUS_COLORS[node.status]}10`,
-                      border: `1px solid ${STATUS_COLORS[node.status]}30`,
+                      backgroundColor: `${STATUS_COLORS[node.status]}${isSelected ? "25" : "10"}`,
+                      border: `1px solid ${STATUS_COLORS[node.status]}${isSelected ? "60" : "30"}`,
                     }}
                   >
                     <Icon className="w-3 h-3" style={{ color: STATUS_COLORS[node.status] }} />
                     <span className="text-foreground/70">{node.label}</span>
-                  </motion.div>
+                    {node.timestamp > 0 && (
+                      <span className="text-[9px] text-muted-foreground/50 ml-0.5">{node.timestamp}ms</span>
+                    )}
+                  </motion.button>
                 );
               })}
             </div>

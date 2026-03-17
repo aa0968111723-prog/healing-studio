@@ -10,6 +10,7 @@ import { Plus, MessageSquare, Bug, Lightbulb, AlertTriangle, HelpCircle } from "
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import VisualSoul from "@/components/VisualSoul";
 import { motion } from "framer-motion";
+import { useAIState } from "@/contexts/AIStateContext";
 
 const categoryInfo: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
   bug: { label: "Bug 回報", icon: <Bug className="w-4 h-4" />, color: "bg-zen-blush/20" },
@@ -33,6 +34,7 @@ const statusLabels: Record<string, { label: string; color: string }> = {
 };
 
 export default function FeedbackPage() {
+  const { personality } = useAIState();
   const [showCreate, setShowCreate] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -133,7 +135,7 @@ export default function FeedbackPage() {
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <VisualSoul size="lg" />
+          <VisualSoul size="lg" personality={personality} />
           <h3 className="text-base font-medium mt-6">尚無回饋紀錄</h3>
           <p className="text-sm text-muted-foreground mt-2 max-w-sm">點擊「提交回饋」分享你的意見</p>
         </div>

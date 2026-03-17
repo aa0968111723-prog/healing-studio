@@ -11,8 +11,10 @@ import { Users, BarChart3, MessageSquare, Shield, RefreshCw } from "lucide-react
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import VisualSoul from "@/components/VisualSoul";
 import { motion } from "framer-motion";
+import { useAIState } from "@/contexts/AIStateContext";
 
 export default function AdminPage() {
+  const { personality } = useAIState();
   const { user } = useAuth();
   const [quotaInputs, setQuotaInputs] = useState<Record<number, string>>({});
 
@@ -38,7 +40,7 @@ export default function AdminPage() {
   if (user?.role !== "admin") {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
-        <VisualSoul size="lg" />
+        <VisualSoul size="lg" personality={personality} />
         <h3 className="text-base font-medium mt-6">權限不足</h3>
         <p className="text-sm text-muted-foreground mt-2">此頁面僅限管理員存取</p>
       </div>

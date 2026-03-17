@@ -29,6 +29,7 @@ import { useLocation } from "wouter";
 import type { GenerationMode, GenerationType } from "@shared/types";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
+import ProactiveOrbWidget from "@/components/ProactiveOrbWidget";
 
 // ─── Tab Config ─────────────────────────────────────────────────────────────
 
@@ -219,7 +220,7 @@ function DrawerPanel({
 export default function Studio() {
   const { user } = useAuth();
   const isMobile = useIsMobile();
-  const { aiState, setAIState } = useAIState();
+  const { aiState, setAIState, personality, reportTyping, reportFailure, reportSuccess, resetIdle } = useAIState();
   const [, navigate] = useLocation();
 
   // ── Shared state ──
@@ -264,6 +265,7 @@ export default function Studio() {
       setProgressMessage("生成完成");
       setTimeout(() => { setProgress(0); setAIState("idle"); }, 1500);
       toast.success("生成完成");
+      reportSuccess();
       utils.auth.me.invalidate();
     },
     onError: (error) => {
@@ -271,6 +273,7 @@ export default function Studio() {
       setProgressMessage("");
       setAIState("idle");
       toast.error(error.message);
+      reportFailure();
     },
   });
 
@@ -440,7 +443,7 @@ export default function Studio() {
       {/* ── Header with drawer toggles ── */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <VisualSoul size="sm" state={aiState} />
+          <VisualSoul size="sm" state={aiState} personality={personality} />
           <div>
             <h1 className="text-lg font-semibold text-foreground tracking-tight">創作工作室</h1>
             <p className="text-[11px] text-muted-foreground mt-0.5">
@@ -560,6 +563,7 @@ export default function Studio() {
                 value={promptBuilder}
                 onChange={setPromptBuilder}
                 modality={activeModality}
+                onType={reportTyping}
               />
               <div className="mt-3 pt-3 border-t border-border/20">
                 <PromptStrengthBar
@@ -671,6 +675,62 @@ export default function Studio() {
                       )}
                     </div>
                   )}
+
+                  {/* ── Generation Details (all fields visible) ── */}
+                  <div className="text-xs text-muted-foreground space-y-1 p-3 rounded-lg bg-muted/10 border border-border/20">
+                    <p className="font-medium text-foreground text-[11px] mb-2">生成詳情</p>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                      <span>模態：{activeModality === "image" ? "圖片" : activeModality === "video" ? "影片" : activeModality === "audio" ? "音樂" : "語音"}</span>
+                      <span>模式：{mode === "lightning" ? "閃電" : "深度精磆"}</span>
+                      <span>Temperature：{temperature}</span>
+                      <span>Seed：{seed || "random"}</span>
+                      <span>LoRA 權重：{loraWeight}</span>
+                      {promptBuilder.vibeCardIds.length > 0 && (
+                        <span className="col-span-2">Vibe Cards：{promptBuilder.vibeCardIds.join(", ")}</span>
+                      )}
+                    </div>
+                    {promptBuilder.compiledPrompt && (
+                      <div className="mt-2 pt-2 border-t border-border/20">
+                        <p className="font-medium text-foreground text-[11px] mb-1">編譯後提示詞</p>
+                        <p className="text-[11px] leading-relaxed whitespace-pre-wrap">{promptBuilder.compiledPrompt}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── Individual Download Button ── */}
+                  {resultUrl && (
+                    <Button
+                      variant="outline"
+                      className="w-full rounded-xl gap-2 text-sm"
+                      onClick={async () => {
+                        try {
+                          const resp = await fetch(resultUrl);
+                          const blob = await resp.blob();
+                          const ext = activeModality === "image" ? (blob.type.includes("png") ? "png" : blob.type.includes("webp") ? "webp" : "jpg")
+                            : activeModality === "video" ? "mp4"
+                            : activeModality === "audio" ? "mp3"
+                            : "mp3";
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url;
+                          a.download = `ai-director-${activeModality}.${ext}`;
+                          document.body.appendChild(a);
+                          a.click();
+                          document.body.removeChild(a);
+                          URL.revokeObjectURL(url);
+                          toast.success(`已下載 ${ext.toUpperCase()} 檔案`);
+                        } catch {
+                          window.open(resultUrl, "_blank");
+                          toast.info("已在新分頁開啟");
+                        }
+                      }}
+                    >
+                      <Download className="w-4 h-4" />
+                      下載 {activeModality === "image" ? "PNG" : activeModality === "video" ? "MP4" : "MP3"}
+                    </Button>
+                  )}
+
+                  {/* ── ZIP Export ── */}
                   <Button
                     variant="outline"
                     className="w-full rounded-xl gap-2 text-sm"
@@ -828,6 +888,9 @@ export default function Studio() {
           </BottomSheet>
         </>
       )}
+
+      {/* Floating Proactive Orb Widget */}
+      <ProactiveOrbWidget />
     </div>
   );
 }
