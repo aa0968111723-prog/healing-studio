@@ -586,6 +586,140 @@ export const appRouter = router({
       }),
   }),
 
+  // ─── Consistency Vault ──────────────────────────────────────────────────────
+
+  vault: router({
+    list: protectedProcedure
+      .input(z.object({ itemType: z.enum(["character", "scene"]).optional() }).optional())
+      .query(async ({ ctx, input }) => {
+        if (input?.itemType) {
+          return db.getVaultItemsByType(ctx.user.id, input.itemType);
+        }
+        return db.getVaultItemsByUser(ctx.user.id);
+      }),
+
+    create: protectedProcedure
+      .input(z.object({
+        name: z.string().min(1),
+        itemType: z.enum(["character", "scene"]),
+        imageUrl: z.string().min(1),
+        fileKey: z.string().optional(),
+        tags: z.array(z.string()).optional(),
+        metadata: z.record(z.string(), z.unknown()).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const id = await db.createVaultItem({
+          userId: ctx.user.id,
+          name: input.name,
+          itemType: input.itemType,
+          imageUrl: input.imageUrl,
+          fileKey: input.fileKey,
+          tags: input.tags,
+          metadata: input.metadata,
+        });
+        return { id };
+      }),
+
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().optional(),
+        tags: z.array(z.string()).optional(),
+        metadata: z.record(z.string(), z.unknown()).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        await db.updateVaultItem(input.id, {
+          name: input.name,
+          tags: input.tags,
+          metadata: input.metadata,
+        });
+        return { success: true };
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.deleteVaultItem(input.id);
+        return { success: true };
+      }),
+  }),
+
+  // ─── Director Preferences ─────────────────────────────────────────────────
+
+  directorPreferences: router({
+    get: protectedProcedure.query(async ({ ctx }) => {
+      return db.getDirectorPreferences(ctx.user.id);
+    }),
+
+    update: protectedProcedure
+      .input(z.object({
+        personality: z.enum(["calm", "creative", "technical"]).optional(),
+        preferredFormat: z.enum(["co-star", "sslcm", "selcm", "free"]).optional(),
+        customSystemPrompt: z.string().optional(),
+        preferencesJson: z.record(z.string(), z.unknown()).optional(),
+        onboardingSteps: z.array(z.string()).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const id = await db.upsertDirectorPreferences(ctx.user.id, input);
+        return { id };
+      }),
+  }),
+
+  // ─── Generation History ───────────────────────────────────────────────────
+
+  history: router({
+    list: protectedProcedure
+      .input(z.object({ limit: z.number().default(50) }).optional())
+      .query(async ({ ctx, input }) => {
+        return db.getHistoryByUser(ctx.user.id, input?.limit ?? 50);
+      }),
+
+    bookmarked: protectedProcedure.query(async ({ ctx }) => {
+      return db.getBookmarkedHistory(ctx.user.id);
+    }),
+
+    toggleBookmark: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        isBookmarked: z.boolean(),
+      }))
+      .mutation(async ({ input }) => {
+        await db.updateHistoryEntry(input.id, { isBookmarked: input.isBookmarked });
+        return { success: true };
+      }),
+
+    rate: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        rating: z.number().min(1).max(5),
+      }))
+      .mutation(async ({ input }) => {
+        await db.updateHistoryEntry(input.id, { userRating: input.rating });
+        return { success: true };
+      }),
+
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.deleteHistoryEntry(input.id);
+        return { success: true };
+      }),
+  }),
+
+  // ─── Subscription Plans ───────────────────────────────────────────────────
+
+  plans: router({
+    list: publicProcedure.query(async () => {
+      return db.getActivePlans();
+    }),
+
+    getById: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        return db.getPlanById(input.id);
+      }),
+  }),
+
   // ─── Admin Dashboard ──────────────────────────────────────────────────────
 
   admin: router({
@@ -612,6 +746,29 @@ export const appRouter = router({
     teamCostSummary: adminProcedure.query(async () => {
       return db.getTeamCostSummary();
     }),
+  }),
+
+  // ─── User Profile & Settings ───────────────────────────────────────────────
+
+  profile: router({
+    updateQuotaJson: protectedProcedure
+      .input(z.object({
+        image: z.number().min(0),
+        video: z.number().min(0),
+        audio: z.number().min(0),
+        voice: z.number().min(0),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await db.updateUserQuotaJson(ctx.user.id, input);
+        return { success: true };
+      }),
+
+    updateOnboarding: protectedProcedure
+      .input(z.object({ done: z.boolean() }))
+      .mutation(async ({ ctx, input }) => {
+        await db.updateUserOnboarding(ctx.user.id, input.done);
+        return { success: true };
+      }),
   }),
 
   // ─── User Dashboard ───────────────────────────────────────────────────────

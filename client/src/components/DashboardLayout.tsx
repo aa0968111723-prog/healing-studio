@@ -33,6 +33,9 @@ import {
   LogOut,
   PanelLeft,
   Home,
+  Layers,
+  Users,
+  Settings,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -43,11 +46,14 @@ import { ZenOrb } from "./ZenCoPilot";
 const menuItems = [
   { icon: Wand2, label: "創作工作室", path: "/studio" },
   { icon: Clapperboard, label: "導演 AI", path: "/director" },
+  { icon: Layers, label: "一致性保險庫", path: "/vault" },
   { icon: Package, label: "數位資產庫", path: "/assets" },
   { icon: Cpu, label: "角色鍛造所", path: "/models" },
+  { icon: Users, label: "共享空間", path: "/shared" },
   { icon: FileText, label: "專案筆記", path: "/notes" },
   { icon: BarChart3, label: "儀表板", path: "/dashboard" },
   { icon: MessageSquare, label: "回饋中心", path: "/feedback" },
+  { icon: Settings, label: "個人設定", path: "/settings" },
 ];
 
 const adminItems = [

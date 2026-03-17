@@ -8,6 +8,10 @@ import {
   userFeedbackReports, InsertUserFeedback,
   apiUsageLogs, InsertApiUsageLog,
   backgroundJobs, InsertBackgroundJob,
+  consistencyVault, InsertConsistencyVaultItem,
+  subscriptionPlans,
+  aiDirectorPreferences, InsertAiDirectorPreference,
+  generationHistory, InsertGenerationHistoryItem,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -83,7 +87,7 @@ export async function updateUserQuota(userId: number, amount: number) {
 export async function deductUserQuota(userId: number, amount: number = 1) {
   const db = await getDb();
   if (!db) return false;
-  const result = await db.update(users)
+  await db.update(users)
     .set({ remainingGenerations: sql`GREATEST(${users.remainingGenerations} - ${amount}, 0)` })
     .where(and(eq(users.id, userId), sql`${users.remainingGenerations} >= ${amount}`));
   return true;
@@ -95,6 +99,19 @@ export async function refundUserQuota(userId: number, amount: number = 1) {
   await db.update(users)
     .set({ remainingGenerations: sql`${users.remainingGenerations} + ${amount}` })
     .where(eq(users.id, userId));
+}
+
+export async function updateUserOnboarding(userId: number, done: boolean) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(users).set({ onboardingDone: done }).where(eq(users.id, userId));
+}
+
+export async function updateUserQuotaJson(userId: number, quotaJson: { image: number; video: number; audio: number; voice: number }) {
+  const db = await getDb();
+  if (!db) return;
+  const total = quotaJson.image + quotaJson.video + quotaJson.audio + quotaJson.voice;
+  await db.update(users).set({ quotaJson, remainingGenerations: total }).where(eq(users.id, userId));
 }
 
 // ─── Fine-Tuned Models ──────────────────────────────────────────────────────
@@ -285,4 +302,115 @@ export async function getJobsByUser(userId: number) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(backgroundJobs).where(eq(backgroundJobs.userId, userId)).orderBy(desc(backgroundJobs.createdAt)).limit(20);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NEW — Phase 1 Foundation Repair
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ─── Consistency Vault ───────────────────────────────────────────────────────
+
+export async function createVaultItem(data: InsertConsistencyVaultItem) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(consistencyVault).values(data);
+  return result[0].insertId;
+}
+
+export async function getVaultItemsByUser(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(consistencyVault).where(eq(consistencyVault.userId, userId)).orderBy(desc(consistencyVault.createdAt));
+}
+
+export async function getVaultItemsByType(userId: number, itemType: "character" | "scene") {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(consistencyVault)
+    .where(and(eq(consistencyVault.userId, userId), eq(consistencyVault.itemType, itemType)))
+    .orderBy(desc(consistencyVault.createdAt));
+}
+
+export async function updateVaultItem(id: number, data: Partial<InsertConsistencyVaultItem>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(consistencyVault).set(data).where(eq(consistencyVault.id, id));
+}
+
+export async function deleteVaultItem(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(consistencyVault).where(eq(consistencyVault.id, id));
+}
+
+// ─── Subscription Plans ──────────────────────────────────────────────────────
+
+export async function getActivePlans() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(subscriptionPlans).where(eq(subscriptionPlans.isActive, true));
+}
+
+export async function getPlanById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(subscriptionPlans).where(eq(subscriptionPlans.id, id)).limit(1);
+  return result[0];
+}
+
+// ─── AI Director Preferences ────────────────────────────────────────────────
+
+export async function getDirectorPreferences(userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(aiDirectorPreferences).where(eq(aiDirectorPreferences.userId, userId)).limit(1);
+  return result[0];
+}
+
+export async function upsertDirectorPreferences(userId: number, data: Partial<InsertAiDirectorPreference>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const existing = await getDirectorPreferences(userId);
+  if (existing) {
+    await db.update(aiDirectorPreferences).set(data).where(eq(aiDirectorPreferences.userId, userId));
+    return existing.id;
+  } else {
+    const result = await db.insert(aiDirectorPreferences).values({ userId, ...data });
+    return result[0].insertId;
+  }
+}
+
+// ─── Generation History ──────────────────────────────────────────────────────
+
+export async function createHistoryEntry(data: InsertGenerationHistoryItem) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(generationHistory).values(data);
+  return result[0].insertId;
+}
+
+export async function getHistoryByUser(userId: number, limit = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(generationHistory).where(eq(generationHistory.userId, userId)).orderBy(desc(generationHistory.createdAt)).limit(limit);
+}
+
+export async function getBookmarkedHistory(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(generationHistory)
+    .where(and(eq(generationHistory.userId, userId), eq(generationHistory.isBookmarked, true)))
+    .orderBy(desc(generationHistory.createdAt));
+}
+
+export async function updateHistoryEntry(id: number, data: Partial<InsertGenerationHistoryItem>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(generationHistory).set(data).where(eq(generationHistory.id, id));
+}
+
+export async function deleteHistoryEntry(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(generationHistory).where(eq(generationHistory.id, id));
 }

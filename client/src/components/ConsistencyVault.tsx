@@ -3,14 +3,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import {
-  User, Mountain, Upload, GripVertical, X, Plus, Search, Tag,
-  ChevronRight, ImagePlus, Layers
+  User, Mountain, Upload, GripVertical, X, Plus, Search,
+  ImagePlus, Layers, Trash2, Loader2
 } from "lucide-react";
-import { GlassCard, ZenSkeleton } from "./ZenCoPilot";
+import { ZenSkeleton } from "./ZenCoPilot";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -28,17 +27,53 @@ type ConsistencyVaultProps = {
   compact?: boolean;
 };
 
+// ─── Upload Helper ──────────────────────────────────────────────────────────
+
+async function uploadFileToS3(file: File): Promise<{ url: string; fileKey: string }> {
+  const reader = new FileReader();
+  const base64 = await new Promise<string>((resolve, reject) => {
+    reader.onload = () => {
+      const result = reader.result as string;
+      // Strip the data:...;base64, prefix
+      const base64Data = result.split(",")[1];
+      resolve(base64Data);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+  const response = await fetch("/api/upload", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      fileName: file.name,
+      mimeType: file.type,
+      data: base64,
+    }),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({ error: "上傳失敗" }));
+    throw new Error(err.error || "上傳失敗");
+  }
+
+  const result = await response.json();
+  return { url: result.url, fileKey: result.fileKey };
+}
+
 // ─── Vault Item Card ────────────────────────────────────────────────────────
 
 function VaultItemCard({
   item,
   onDragStart,
   onSelect,
+  onDelete,
   compact,
 }: {
   item: VaultItem;
   onDragStart?: (item: VaultItem, e: React.DragEvent) => void;
   onSelect?: (item: VaultItem) => void;
+  onDelete?: (id: number) => void;
   compact?: boolean;
 }) {
   return (
@@ -91,6 +126,16 @@ function VaultItemCard({
           </div>
         </div>
 
+        {/* Delete button */}
+        {onDelete && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(item.id); }}
+            className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-red-500/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+          >
+            <Trash2 className="w-3 h-3" />
+          </button>
+        )}
+
         {/* Type badge */}
         <div className="absolute top-1.5 left-1.5">
           <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full ${
@@ -122,44 +167,184 @@ function VaultItemCard({
   );
 }
 
+// ─── Upload Dialog ──────────────────────────────────────────────────────────
+
+function UploadPanel({
+  itemType,
+  onSuccess,
+}: {
+  itemType: "character" | "scene";
+  onSuccess: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [tags, setTags] = useState("");
+
+  const createVaultItem = trpc.vault.create.useMutation({
+    onSuccess: () => {
+      toast.success(`${itemType === "character" ? "角色" : "場景"}參考已儲存`);
+      setName("");
+      setFile(null);
+      setPreview(null);
+      setTags("");
+      onSuccess();
+    },
+    onError: (err) => {
+      toast.error("儲存失敗：" + err.message);
+    },
+  });
+
+  const handleFileSelect = (selectedFile: File) => {
+    if (!selectedFile.type.startsWith("image/")) {
+      toast.error("請選擇圖片檔案");
+      return;
+    }
+    if (selectedFile.size > 16 * 1024 * 1024) {
+      toast.error("檔案大小不能超過 16MB");
+      return;
+    }
+    setFile(selectedFile);
+    const url = URL.createObjectURL(selectedFile);
+    setPreview(url);
+  };
+
+  const handleUpload = async () => {
+    if (!file || !name.trim()) {
+      toast.error("請填寫名稱並選擇圖片");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      // Step 1: Upload file to S3
+      const { url, fileKey } = await uploadFileToS3(file);
+
+      // Step 2: Save vault item via tRPC
+      const tagList = tags.trim() ? tags.split(",").map(t => t.trim()).filter(Boolean) : undefined;
+      await createVaultItem.mutateAsync({
+        name: name.trim(),
+        itemType,
+        imageUrl: url,
+        fileKey,
+        tags: tagList,
+      });
+    } catch (err: any) {
+      toast.error("上傳失敗：" + (err.message || "未知錯誤"));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3 p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.3)", border: "1px solid rgba(255,255,255,0.5)" }}>
+      <Input
+        placeholder={itemType === "character" ? "角色名稱" : "場景名稱"}
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        className="h-8 text-xs rounded-lg bg-white/40 border-white/60"
+      />
+
+      <Input
+        placeholder="標籤（逗號分隔）"
+        value={tags}
+        onChange={(e) => setTags(e.target.value)}
+        className="h-8 text-xs rounded-lg bg-white/40 border-white/60"
+      />
+
+      {preview ? (
+        <div className="relative aspect-video rounded-lg overflow-hidden">
+          <img src={preview} alt="預覽" className="w-full h-full object-cover" />
+          <button
+            onClick={() => { setFile(null); setPreview(null); }}
+            className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-white/80 flex items-center justify-center hover:bg-white"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+      ) : (
+        <label className="flex flex-col items-center justify-center gap-1.5 p-4 rounded-lg border-2 border-dashed border-border/40 hover:border-border/60 cursor-pointer transition-colors">
+          <Upload className="w-5 h-5 text-muted-foreground/40" />
+          <span className="text-[11px] text-muted-foreground">點擊選擇圖片</span>
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleFileSelect(f);
+            }}
+          />
+        </label>
+      )}
+
+      <Button
+        onClick={handleUpload}
+        disabled={uploading || !file || !name.trim()}
+        size="sm"
+        className="w-full h-8 text-xs rounded-lg"
+      >
+        {uploading ? (
+          <>
+            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+            上傳中...
+          </>
+        ) : (
+          <>
+            <Upload className="w-3 h-3 mr-1" />
+            儲存至保險庫
+          </>
+        )}
+      </Button>
+    </div>
+  );
+}
+
 // ─── Main Consistency Vault ─────────────────────────────────────────────────
 
 export function ConsistencyVault({ onDragStart, onSelect, compact = false }: ConsistencyVaultProps) {
   const [activeTab, setActiveTab] = useState<"character" | "scene">("character");
   const [searchQuery, setSearchQuery] = useState("");
+  const [showUpload, setShowUpload] = useState(false);
 
-  // Fetch models as character references
-  const modelsQuery = trpc.models.myModels.useQuery(undefined, { retry: false });
-  // Fetch assets as scene references
-  const assetsQuery = trpc.assets.myAssets.useQuery(undefined, { retry: false });
+  const utils = trpc.useUtils();
+
+  // Fetch vault items from real database
+  const vaultQuery = trpc.vault.list.useQuery(undefined, { retry: false });
+
+  const deleteVaultItem = trpc.vault.delete.useMutation({
+    onSuccess: () => {
+      toast.success("已刪除");
+      utils.vault.list.invalidate();
+    },
+    onError: (err) => {
+      toast.error("刪除失敗：" + err.message);
+    },
+  });
 
   // Transform data into VaultItems
-  const characterItems: VaultItem[] = (modelsQuery.data || [])
-    .filter(m => m.status === "ready")
-    .map(m => ({
-      id: m.id,
-      name: m.name,
-      type: "character" as const,
-      imageUrl: m.fileUrl || "",
-      tags: m.modelType ? [m.modelType] : [],
-    }));
+  const allItems: VaultItem[] = (vaultQuery.data || []).map(item => ({
+    id: item.id,
+    name: item.name,
+    type: item.itemType as "character" | "scene",
+    imageUrl: item.imageUrl,
+    tags: item.tags || [],
+  }));
 
-  const sceneItems: VaultItem[] = (assetsQuery.data || [])
-    .filter(a => a.assetType === "image")
-    .map(a => ({
-      id: a.id,
-      name: a.title,
-      type: "scene" as const,
-      imageUrl: a.fileUrl || "",
-      tags: a.visibility === "team_shared" ? ["共享"] : [],
-    }));
+  const characterItems = allItems.filter(i => i.type === "character");
+  const sceneItems = allItems.filter(i => i.type === "scene");
 
   const items = activeTab === "character" ? characterItems : sceneItems;
   const filteredItems = searchQuery
     ? items.filter(i => i.name.toLowerCase().includes(searchQuery.toLowerCase()))
     : items;
 
-  const isLoading = activeTab === "character" ? modelsQuery.isLoading : assetsQuery.isLoading;
+  const handleDelete = (id: number) => {
+    if (confirm("確定要刪除此項目嗎？")) {
+      deleteVaultItem.mutate({ id });
+    }
+  };
 
   return (
     <div className="space-y-3">
@@ -169,11 +354,40 @@ export function ConsistencyVault({ onDragStart, onSelect, compact = false }: Con
           <Layers className="w-4 h-4 text-muted-foreground" />
           <h3 className="text-sm font-semibold text-foreground">一致性保險庫</h3>
         </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowUpload(!showUpload)}
+          className="h-7 px-2 text-xs"
+        >
+          <Plus className="w-3 h-3 mr-1" />
+          新增
+        </Button>
       </div>
 
       <p className="text-[11px] text-muted-foreground leading-relaxed">
         儲存角色與場景參考圖，拖放到工作區確保風格一致性
       </p>
+
+      {/* Upload Panel */}
+      <AnimatePresence>
+        {showUpload && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <UploadPanel
+              itemType={activeTab}
+              onSuccess={() => {
+                setShowUpload(false);
+                utils.vault.list.invalidate();
+              }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "character" | "scene")}>
@@ -202,22 +416,24 @@ export function ConsistencyVault({ onDragStart, onSelect, compact = false }: Con
         <TabsContent value="character" className="mt-2">
           <VaultGrid
             items={filteredItems}
-            isLoading={isLoading}
+            isLoading={vaultQuery.isLoading}
             onDragStart={onDragStart}
             onSelect={onSelect}
+            onDelete={handleDelete}
             compact={compact}
-            emptyMessage="尚無就緒的角色模型。前往「角色鍛造所」建立角色。"
+            emptyMessage="尚無角色參考圖。點擊「新增」上傳角色圖片。"
           />
         </TabsContent>
 
         <TabsContent value="scene" className="mt-2">
           <VaultGrid
             items={filteredItems}
-            isLoading={isLoading}
+            isLoading={vaultQuery.isLoading}
             onDragStart={onDragStart}
             onSelect={onSelect}
+            onDelete={handleDelete}
             compact={compact}
-            emptyMessage="尚無場景素材。生成圖片後會自動加入。"
+            emptyMessage="尚無場景參考圖。點擊「新增」上傳場景圖片。"
           />
         </TabsContent>
       </Tabs>
@@ -232,6 +448,7 @@ function VaultGrid({
   isLoading,
   onDragStart,
   onSelect,
+  onDelete,
   compact,
   emptyMessage,
 }: {
@@ -239,6 +456,7 @@ function VaultGrid({
   isLoading: boolean;
   onDragStart?: (item: VaultItem, e: React.DragEvent) => void;
   onSelect?: (item: VaultItem) => void;
+  onDelete?: (id: number) => void;
   compact?: boolean;
   emptyMessage: string;
 }) {
@@ -263,6 +481,7 @@ function VaultGrid({
           item={item}
           onDragStart={onDragStart}
           onSelect={onSelect}
+          onDelete={onDelete}
           compact={compact}
         />
       ))}
@@ -286,6 +505,7 @@ export function VaultDropzone({
   className?: string;
 }) {
   const [isDragOver, setIsDragOver] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -309,13 +529,29 @@ export function VaultDropzone({
       return;
     }
 
-    // Try file
+    // Try file - upload to S3
     const file = e.dataTransfer.files[0];
     if (file && file.type.startsWith("image/")) {
-      const url = URL.createObjectURL(file);
-      onDrop(url);
+      handleFileUpload(file);
     }
   }, [onDrop]);
+
+  const handleFileUpload = async (file: File) => {
+    if (file.size > 16 * 1024 * 1024) {
+      toast.error("檔案大小不能超過 16MB");
+      return;
+    }
+    setUploading(true);
+    try {
+      const { url } = await uploadFileToS3(file);
+      onDrop(url);
+      toast.success("圖片已上傳");
+    } catch (err: any) {
+      toast.error("上傳失敗：" + (err.message || "未知錯誤"));
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleFileSelect = () => {
     const input = document.createElement("input");
@@ -324,8 +560,7 @@ export function VaultDropzone({
     input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (file) {
-        const url = URL.createObjectURL(file);
-        onDrop(url);
+        handleFileUpload(file);
       }
     };
     input.click();
@@ -364,11 +599,21 @@ export function VaultDropzone({
       ) : (
         <button
           onClick={handleFileSelect}
+          disabled={uploading}
           className="w-full aspect-video flex flex-col items-center justify-center gap-1.5 p-3 hover:bg-muted/10 transition-colors"
         >
-          <Upload className="w-5 h-5 text-muted-foreground/40" />
-          <span className="text-[11px] text-muted-foreground font-medium">{label}</span>
-          <span className="text-[10px] text-muted-foreground/50">拖放或點擊上傳</span>
+          {uploading ? (
+            <>
+              <Loader2 className="w-5 h-5 text-muted-foreground/40 animate-spin" />
+              <span className="text-[11px] text-muted-foreground font-medium">上傳中...</span>
+            </>
+          ) : (
+            <>
+              <Upload className="w-5 h-5 text-muted-foreground/40" />
+              <span className="text-[11px] text-muted-foreground font-medium">{label}</span>
+              <span className="text-[10px] text-muted-foreground/50">拖放或點擊上傳</span>
+            </>
+          )}
         </button>
       )}
 

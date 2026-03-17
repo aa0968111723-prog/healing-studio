@@ -1,0 +1,13 @@
+{
+  "query": "SELECT GROUP_CONCAT(COLUMN_NAME) as cols FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2fCSGbgaXNaYhdA.c8da999e308a --database aASgFdZpkh6ZcSsaMk5fyX --execute SELECT GROUP_CONCAT(COLUMN_NAME) as cols FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users';",
+  "rows": [
+    {
+      "cols": "id,openId,name,email,loginMethod,role,createdAt,updatedAt,lastSignedIn,remainingGenerations,quotaJson,onboardingDone"
+    }
+  ],
+  "messages": [],
+  "stdout": "cols\nid,openId,name,email,loginMethod,role,createdAt,updatedAt,lastSignedIn,remainingGenerations,quotaJson,onboardingDone\n",
+  "stderr": "",
+  "execution_time_ms": 1517
+}

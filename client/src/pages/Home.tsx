@@ -4,7 +4,7 @@ import { getLoginUrl } from "@/const";
 import { useLocation } from "wouter";
 import { ZenOrb, GlassCard } from "@/components/ZenCoPilot";
 import { motion } from "framer-motion";
-import { Wand2, Clapperboard, Package, Cpu, ArrowRight, Sparkles, Shield, Zap } from "lucide-react";
+import { Wand2, Clapperboard, Package, Cpu, ArrowRight, Sparkles, Shield, Users } from "lucide-react";
 
 const FEATURES = [
   {
@@ -38,9 +38,9 @@ const FEATURES = [
     color: "bg-zen-sand/20",
   },
   {
-    icon: Zap,
-    title: "雙模式切換",
-    description: "閃電模式快速迭代，深度精修模式高品質輸出，靈活應對不同需求",
+    icon: Users,
+    title: "共享空間",
+    description: "社群互動與種子庫，探索他人的創作靈感，分享你的作品獲得配額獎勵",
     color: "bg-zen-peach/20",
   },
 ];

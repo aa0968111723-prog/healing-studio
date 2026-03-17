@@ -78,3 +78,48 @@
 
 ## 文字清理
 - [x] 移除所有「禪意」、「企業」、「禪」相關字眼
+
+## Phase 1: 地基修復 (Foundation Repair)
+
+### Task 1: 資料庫架構補齊
+- [x] 新增 consistency_vault 資料表
+- [x] 新增 subscription_plans 資料表
+- [x] 新增 ai_director_preferences 資料表
+- [x] 新增 generation_history 資料表
+- [x] 修正 users.remainingGenerations 從 int 改為 JSON
+- [x] 擴充 api_usage_logs 新增模態專屬參數欄位
+- [x] 更新 server/db.ts 查詢函數
+
+### Task 2: 真實檔案上傳管線
+- [x] 新增 Express /api/upload 路由
+- [x] 整合 storagePut 上傳至 S3
+- [x] 更新 ConsistencyVault.tsx 使用真實上傳 API
+- [x] 更新 ModelsPage.tsx 使用真實上傳 API
+
+### Task 3: 介面動線修正
+- [x] 首頁第 6 區塊替換為「共享空間」
+- [x] 側邊欄新增 Consistency Vault 獨立入口
+- [x] 側邊欄新增共享空間入口
+- [x] 側邊欄新增個人設定入口
+
+## Phase 2: 地基修復 - tRPC 路由與 UI 修正
+
+### tRPC 路由新增
+- [x] vault.list / vault.create / vault.update / vault.delete 路由
+- [x] directorPreferences.get / directorPreferences.update 路由
+- [x] history.list / history.bookmarked / history.toggleBookmark / history.rate / history.delete 路由
+- [x] plans.list / plans.getById 路由（公開路由）
+- [x] profile.updateQuotaJson / profile.updateOnboarding 路由
+
+### 前端更新
+- [x] ConsistencyVault.tsx 改用真實 /api/upload + vault tRPC 路由
+- [x] 新增 VaultPage.tsx 獨立頁面
+- [x] 新增 SharedSpace.tsx 共享空間頁面
+- [x] 新增 SettingsPage.tsx 個人設定頁面
+- [x] Home.tsx 移除「雙模式切換」改為「共享空間」
+- [x] DashboardLayout.tsx 側邊欄新增 Vault / 共享空間 / 設定入口
+
+### 測試
+- [x] phase2.test.ts 28 個測試全部通過
+- [x] 全部 60 個測試通過（3 個測試檔案）
+- [x] TypeScript 零錯誤

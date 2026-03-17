@@ -1,0 +1,13 @@
+{
+  "query": "SELECT GROUP_CONCAT(TABLE_NAME SEPARATOR ', ') as all_tables FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE();",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2fCSGbgaXNaYhdA.c8da999e308a --database aASgFdZpkh6ZcSsaMk5fyX --execute SELECT GROUP_CONCAT(TABLE_NAME SEPARATOR ', ') as all_tables FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE();",
+  "rows": [
+    {
+      "all_tables": "users, user_feedback_reports, project_notes_calendar, fine_tuned_models, digital_asset_library, background_jobs, api_usage_logs, __drizzle_migrations"
+    }
+  ],
+  "messages": [],
+  "stdout": "all_tables\nusers, user_feedback_reports, project_notes_calendar, fine_tuned_models, digital_asset_library, background_jobs, api_usage_logs, __drizzle_migrations\n",
+  "stderr": "",
+  "execution_time_ms": 1586
+}

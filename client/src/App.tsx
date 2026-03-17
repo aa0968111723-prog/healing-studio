@@ -14,6 +14,9 @@ import NotesPage from "./pages/NotesPage";
 import DashboardPage from "./pages/DashboardPage";
 import FeedbackPage from "./pages/FeedbackPage";
 import AdminPage from "./pages/AdminPage";
+import SharedSpace from "./pages/SharedSpace";
+import SettingsPage from "./pages/SettingsPage";
+import VaultPage from "./pages/VaultPage";
 
 function DashboardRoute({ component: Component }: { component: React.ComponentType }) {
   return (
@@ -39,6 +42,12 @@ function Router() {
       <Route path="/models">
         <DashboardRoute component={ModelsPage} />
       </Route>
+      <Route path="/vault">
+        <DashboardRoute component={VaultPage} />
+      </Route>
+      <Route path="/shared">
+        <DashboardRoute component={SharedSpace} />
+      </Route>
       <Route path="/notes">
         <DashboardRoute component={NotesPage} />
       </Route>
@@ -47,6 +56,9 @@ function Router() {
       </Route>
       <Route path="/feedback">
         <DashboardRoute component={FeedbackPage} />
+      </Route>
+      <Route path="/settings">
+        <DashboardRoute component={SettingsPage} />
       </Route>
       <Route path="/admin">
         <DashboardRoute component={AdminPage} />
