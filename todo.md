@@ -416,3 +416,26 @@
 ### 5. 光球對話框亮度調整
 - [x] ProactiveOrbWidget 對話框背景改為亮色系
 - [x] 確保文字清晰易讀 + Glassmorphism 一致性
+
+## Phase 11: 靈感積木自訂與收藏功能
+
+### 1. 資料庫與後端 API
+- [x] custom_blocks 資料表（modality, category, label, prompt, emoji）
+- [x] block_combos 資料表（name, modality, blockIds, customBlockIds, vibeCardIds）
+- [x] customBlocks tRPC router（create, list, delete）
+- [x] blockCombos tRPC router（create, list, rename, delete）
+- [x] db.ts helpers（CRUD 函式）
+
+### 2. 前端 UI
+- [x] 「自訂積木」按鈕 + 建立 Dialog（類別選擇、標籤、英文提示詞）
+- [x] 自訂積木以 * 前綴顯示在對應類別中
+- [x] 長按自訂積木可刪除
+- [x] 「我的組合」按鈕 + Popover 面板（儲存/套用/重命名/刪除組合）
+- [x] 一鍵儲存當前選取積木為組合
+- [x] 一鍵套用已儲存組合（還原積木 + Vibe Cards 選取狀態）
+- [x] 組合數量 badge 顯示
+- [x] 音樂模態專屬類別（樂器/曲風/節奏/環境質感）支援自訂積木
+
+### 3. 測試
+- [x] 11 個新增 Vitest 測試全部通過（custom blocks CRUD + block combos CRUD）
+- [x] 全部 184 個測試通過

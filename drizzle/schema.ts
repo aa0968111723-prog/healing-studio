@@ -311,3 +311,34 @@ export const generationHistory = mysqlTable("generation_history", {
 export type GenerationHistoryItem = typeof generationHistory.$inferSelect;
 export type InsertGenerationHistoryItem =
   typeof generationHistory.$inferInsert;
+
+// ─── Custom Blocks ─────────────────────────────────────────────────────
+export const customBlocks = mysqlTable("custom_blocks", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  modality: mysqlEnum("modality", ["image", "video", "audio", "voice"]).notNull(),
+  category: varchar("category", { length: 64 }).notNull(),
+  label: varchar("label", { length: 128 }).notNull(),
+  prompt: varchar("prompt", { length: 512 }).notNull(),
+  emoji: varchar("emoji", { length: 8 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type CustomBlock = typeof customBlocks.$inferSelect;
+export type InsertCustomBlock = typeof customBlocks.$inferInsert;
+
+// ─── Block Combos (Saved Inspiration Presets) ───────────────────────────
+export const blockCombos = mysqlTable("block_combos", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  modality: mysqlEnum("modality", ["image", "video", "audio", "voice"]).notNull(),
+  blockIds: json("blockIds").$type<string[]>().notNull(),
+  customBlockIds: json("customBlockIds").$type<number[]>(),
+  vibeCardIds: json("vibeCardIds").$type<string[]>(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type BlockCombo = typeof blockCombos.$inferSelect;
+export type InsertBlockCombo = typeof blockCombos.$inferInsert;

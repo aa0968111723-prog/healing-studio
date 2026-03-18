@@ -12,6 +12,8 @@ import {
   subscriptionPlans,
   aiDirectorPreferences, InsertAiDirectorPreference,
   generationHistory, InsertGenerationHistoryItem,
+  customBlocks, InsertCustomBlock,
+  blockCombos, InsertBlockCombo,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -413,4 +415,66 @@ export async function deleteHistoryEntry(id: number) {
   const db = await getDb();
   if (!db) return;
   await db.delete(generationHistory).where(eq(generationHistory.id, id));
+}
+
+// ─── Custom Blocks ─────────────────────────────────────────────────────────────
+
+export async function createCustomBlock(data: InsertCustomBlock) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(customBlocks).values(data);
+  return result[0].insertId;
+}
+
+export async function getCustomBlocksByUser(userId: number, modality?: string) {
+  const db = await getDb();
+  if (!db) return [];
+  if (modality) {
+    return db.select().from(customBlocks)
+      .where(and(eq(customBlocks.userId, userId), eq(customBlocks.modality, modality as any)))
+      .orderBy(desc(customBlocks.createdAt));
+  }
+  return db.select().from(customBlocks)
+    .where(eq(customBlocks.userId, userId))
+    .orderBy(desc(customBlocks.createdAt));
+}
+
+export async function deleteCustomBlock(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(customBlocks).where(and(eq(customBlocks.id, id), eq(customBlocks.userId, userId)));
+}
+
+// ─── Block Combos ─────────────────────────────────────────────────────────────
+
+export async function createBlockCombo(data: InsertBlockCombo) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(blockCombos).values(data);
+  return result[0].insertId;
+}
+
+export async function getBlockCombosByUser(userId: number, modality?: string) {
+  const db = await getDb();
+  if (!db) return [];
+  if (modality) {
+    return db.select().from(blockCombos)
+      .where(and(eq(blockCombos.userId, userId), eq(blockCombos.modality, modality as any)))
+      .orderBy(desc(blockCombos.updatedAt));
+  }
+  return db.select().from(blockCombos)
+    .where(eq(blockCombos.userId, userId))
+    .orderBy(desc(blockCombos.updatedAt));
+}
+
+export async function renameBlockCombo(id: number, userId: number, name: string) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(blockCombos).set({ name }).where(and(eq(blockCombos.id, id), eq(blockCombos.userId, userId)));
+}
+
+export async function deleteBlockCombo(id: number, userId: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(blockCombos).where(and(eq(blockCombos.id, id), eq(blockCombos.userId, userId)));
 }

@@ -1,13 +1,16 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, ChevronUp, Sparkles, Lightbulb, Blocks, Focus, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Sparkles, Lightbulb, Blocks, Focus, X, Plus, Heart, Trash2, FolderOpen, Save, Edit3, Check } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { VIBE_CARDS } from "@shared/types";
 import { cn } from "@/lib/utils";
+import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 
 // ─── Vibe Card Icons ───────────────────────────────────────────────────────
 
@@ -28,13 +31,12 @@ type BlockCategory = {
   id: string;
   label: string;
   icon: string;
-  color: string;        // tailwind ring/bg color
-  glowRgb: string;      // for glow effects
+  color: string;
+  glowRgb: string;
   items: { id: string; label: string; prompt: string }[];
 };
 
 // ─── Visual blocks for image/video modalities ─────────────────────────────
-// NOTE: "mood" category removed because Vibe Cards already cover atmosphere
 
 const VISUAL_BLOCK_CATEGORIES: BlockCategory[] = [
   {
@@ -161,8 +163,19 @@ const AUDIO_BLOCK_CATEGORIES: BlockCategory[] = [
 
 function getBlocksForModality(modality?: string): BlockCategory[] {
   if (modality === "audio") return AUDIO_BLOCK_CATEGORIES;
-  // image & video share visual blocks (mood removed to avoid overlap with Vibe Cards)
   return VISUAL_BLOCK_CATEGORIES;
+}
+
+// ─── All built-in block IDs for lookup ────────────────────────────────────
+
+const ALL_BUILTIN_BLOCKS = [...VISUAL_BLOCK_CATEGORIES, ...AUDIO_BLOCK_CATEGORIES];
+
+function findBuiltinBlock(blockId: string) {
+  for (const cat of ALL_BUILTIN_BLOCKS) {
+    const item = cat.items.find(i => i.id === blockId);
+    if (item) return { item, category: cat };
+  }
+  return null;
 }
 
 // ─── Token Weight Types ────────────────────────────────────────────────────
@@ -171,33 +184,25 @@ export type TokenWeight = {
   id: string;
   text: string;
   weight: number;
-  category?: string; // from which block category
+  category?: string;
 };
 
 // ─── Token Parser ──────────────────────────────────────────────────────────
 
 function parseTokens(text: string): TokenWeight[] {
   if (!text.trim()) return [];
-
-  // Match existing weighted tokens like (word: 1.5) and regular words
   const weightedPattern = /\(([^:]+):\s*([\d.]+)\)/g;
   const existingWeights: Record<string, number> = {};
   let match;
   while ((match = weightedPattern.exec(text)) !== null) {
     existingWeights[match[1].trim()] = parseFloat(match[2]);
   }
-
-  // Remove weighted syntax for clean parsing
   const cleanText = text.replace(/\(([^:]+):\s*[\d.]+\)/g, "$1");
-
-  // Split into meaningful tokens (nouns, adjectives, phrases)
   const tokenPattern = /[\u4e00-\u9fff\u3400-\u4dbf]+|[a-zA-Z]+(?:\s+[a-zA-Z]+){0,2}/g;
   const rawTokens = cleanText.match(tokenPattern) || [];
-
-  // Deduplicate and create token objects
   const seen = new Set<string>();
   return rawTokens
-    .filter(t => t.trim().length > 1) // skip single chars
+    .filter(t => t.trim().length > 1)
     .filter(t => {
       const key = t.trim().toLowerCase();
       if (seen.has(key)) return false;
@@ -213,21 +218,17 @@ function parseTokens(text: string): TokenWeight[] {
 
 function compileWithWeights(tokens: TokenWeight[], vibes: string[], rawPrompt: string): string {
   if (tokens.length === 0) return rawPrompt;
-
   const weightedParts = tokens.map(t => {
     if (Math.abs(t.weight - 1.0) < 0.05) return t.text;
     return `(${t.text}: ${t.weight.toFixed(1)})`;
   });
-
   const vibeLabels = vibes
     .map(id => VIBE_CARDS.find(v => v.id === id)?.label)
     .filter(Boolean);
-
   const parts = [...weightedParts];
   if (vibeLabels.length > 0) {
     parts.push(`Style: ${vibeLabels.join(", ")}`);
   }
-
   return parts.join(", ").trim();
 }
 
@@ -322,7 +323,6 @@ function TokenChip({
         )}
       </motion.button>
 
-      {/* Floating Weight Slider */}
       <AnimatePresence>
         {isSelected && (
           <motion.div
@@ -368,44 +368,299 @@ function BlockChip({
   category,
   isSelected,
   onToggle,
+  onDelete,
+  isCustom,
 }: {
   item: { id: string; label: string; prompt: string };
   category: BlockCategory;
   isSelected: boolean;
   onToggle: () => void;
+  onDelete?: () => void;
+  isCustom?: boolean;
 }) {
   return (
-    <motion.button
-      whileTap={{ scale: 0.93 }}
-      onClick={onToggle}
-      className={cn(
-        "px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all",
-        "backdrop-blur-sm border",
-        isSelected
-          ? `ring-2 ring-${category.color}-400/50 border-${category.color}-400/40`
-          : "border-white/10 hover:border-white/20"
-      )}
-      style={{
-        background: isSelected
-          ? `rgba(${category.glowRgb}, 0.15)`
-          : "rgba(255, 255, 255, 0.04)",
-        boxShadow: isSelected
-          ? `0 0 12px rgba(${category.glowRgb}, 0.2)`
-          : "none",
-        color: isSelected ? `rgb(${category.glowRgb})` : "inherit",
-      }}
-    >
-      {item.label}
-      {isSelected && (
-        <motion.span
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          className="ml-1 inline-block"
+    <motion.div className="relative group">
+      <motion.button
+        whileTap={{ scale: 0.93 }}
+        onClick={onToggle}
+        className={cn(
+          "px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all",
+          "backdrop-blur-sm border",
+          isSelected
+            ? `ring-2 ring-${category.color}-400/50 border-${category.color}-400/40`
+            : "border-white/10 hover:border-white/20",
+          isCustom && "pr-6"
+        )}
+        style={{
+          background: isSelected
+            ? `rgba(${category.glowRgb}, 0.15)`
+            : "rgba(255, 255, 255, 0.04)",
+          boxShadow: isSelected
+            ? `0 0 12px rgba(${category.glowRgb}, 0.2)`
+            : "none",
+          color: isSelected ? `rgb(${category.glowRgb})` : "inherit",
+        }}
+      >
+        {isCustom && <span className="mr-0.5 opacity-60">*</span>}
+        {item.label}
+        {isSelected && (
+          <motion.span
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            className="ml-1 inline-block"
+          >
+            <X className="w-3 h-3 inline" />
+          </motion.span>
+        )}
+      </motion.button>
+      {isCustom && onDelete && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-destructive/80 text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
         >
-          <X className="w-3 h-3 inline" />
-        </motion.span>
+          <X className="w-2.5 h-2.5" />
+        </button>
       )}
-    </motion.button>
+    </motion.div>
+  );
+}
+
+// ─── Create Custom Block Dialog ───────────────────────────────────────────
+
+function CreateBlockDialog({
+  open,
+  onOpenChange,
+  modality,
+  categories,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  modality: string;
+  categories: BlockCategory[];
+}) {
+  const [label, setLabel] = useState("");
+  const [prompt, setPrompt] = useState("");
+  const [category, setCategory] = useState(categories[0]?.id || "");
+  const utils = trpc.useUtils();
+
+  const createMutation = trpc.customBlocks.create.useMutation({
+    onSuccess: () => {
+      toast.success("自訂積木已建立");
+      utils.customBlocks.list.invalidate();
+      setLabel("");
+      setPrompt("");
+      onOpenChange(false);
+    },
+    onError: (err) => {
+      toast.error("建立失敗：" + err.message);
+    },
+  });
+
+  const handleSubmit = () => {
+    if (!label.trim() || !prompt.trim()) {
+      toast.error("請填寫標籤和提示詞");
+      return;
+    }
+    createMutation.mutate({
+      modality: modality as "image" | "video" | "audio" | "voice",
+      category,
+      label: label.trim(),
+      prompt: prompt.trim(),
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md" style={{
+        background: "rgba(255,255,255,0.95)",
+        backdropFilter: "blur(20px)",
+      }}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Plus className="w-4 h-4 text-primary" />
+            建立自訂積木
+          </DialogTitle>
+          <DialogDescription>
+            建立專屬的靈感積木，加速你的創作流程
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">所屬類別</Label>
+            <div className="flex flex-wrap gap-1.5">
+              {categories.map((cat) => (
+                <button
+                  key={cat.id}
+                  onClick={() => setCategory(cat.id)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-xs font-medium border transition-all",
+                    category === cat.id
+                      ? "border-primary/40 bg-primary/10 text-primary"
+                      : "border-border/50 hover:border-border text-muted-foreground"
+                  )}
+                >
+                  {cat.icon} {cat.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">積木標籤</Label>
+            <Input
+              placeholder="例如：夕陽海灘"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              maxLength={128}
+              className="h-9 text-sm"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">英文提示詞</Label>
+            <Textarea
+              placeholder="例如：sunset on a tropical beach with palm trees"
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              maxLength={512}
+              rows={2}
+              className="text-sm resize-none"
+            />
+            <p className="text-[10px] text-muted-foreground">
+              點選此積木時，此提示詞會自動加入你的創作描述中
+            </p>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} size="sm">
+            取消
+          </Button>
+          <Button onClick={handleSubmit} disabled={createMutation.isPending} size="sm">
+            {createMutation.isPending ? "建立中..." : "建立積木"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Save Combo Dialog ────────────────────────────────────────────────────
+
+function SaveComboDialog({
+  open,
+  onOpenChange,
+  modality,
+  selectedBlocks,
+  selectedCustomBlockIds,
+  vibeCardIds,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  modality: string;
+  selectedBlocks: Set<string>;
+  selectedCustomBlockIds: Set<number>;
+  vibeCardIds: string[];
+}) {
+  const [name, setName] = useState("");
+  const utils = trpc.useUtils();
+
+  const createMutation = trpc.blockCombos.create.useMutation({
+    onSuccess: () => {
+      toast.success("靈感組合已收藏");
+      utils.blockCombos.list.invalidate();
+      setName("");
+      onOpenChange(false);
+    },
+    onError: (err) => {
+      toast.error("收藏失敗：" + err.message);
+    },
+  });
+
+  const handleSubmit = () => {
+    if (!name.trim()) {
+      toast.error("請為組合命名");
+      return;
+    }
+    createMutation.mutate({
+      name: name.trim(),
+      modality: modality as "image" | "video" | "audio" | "voice",
+      blockIds: Array.from(selectedBlocks),
+      customBlockIds: Array.from(selectedCustomBlockIds),
+      vibeCardIds: vibeCardIds.length > 0 ? vibeCardIds : undefined,
+    });
+  };
+
+  const totalCount = selectedBlocks.size + selectedCustomBlockIds.size + vibeCardIds.length;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md" style={{
+        background: "rgba(255,255,255,0.95)",
+        backdropFilter: "blur(20px)",
+      }}>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Heart className="w-4 h-4 text-rose-500" />
+            收藏靈感組合
+          </DialogTitle>
+          <DialogDescription>
+            將目前選取的 {totalCount} 個元素儲存為可快速套用的組合
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">組合名稱</Label>
+            <Input
+              placeholder="例如：賽博龐克城市夜景"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={255}
+              className="h-9 text-sm"
+            />
+          </div>
+
+          {/* Preview of what's being saved */}
+          <div className="p-3 rounded-lg bg-muted/30 border border-border/30 space-y-1.5">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">組合內容預覽</p>
+            <div className="flex flex-wrap gap-1">
+              {Array.from(selectedBlocks).map(id => {
+                const found = findBuiltinBlock(id);
+                return found ? (
+                  <span key={id} className="px-1.5 py-0.5 rounded text-[10px] bg-primary/10 text-primary">
+                    {found.category.icon} {found.item.label}
+                  </span>
+                ) : null;
+              })}
+              {vibeCardIds.map(id => {
+                const card = VIBE_CARDS.find(v => v.id === id);
+                return card ? (
+                  <span key={id} className="px-1.5 py-0.5 rounded text-[10px] bg-violet-500/10 text-violet-600">
+                    {card.labelZh}
+                  </span>
+                ) : null;
+              })}
+              {selectedCustomBlockIds.size > 0 && (
+                <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-500/10 text-amber-600">
+                  +{selectedCustomBlockIds.size} 自訂積木
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} size="sm">
+            取消
+          </Button>
+          <Button onClick={handleSubmit} disabled={createMutation.isPending} size="sm">
+            {createMutation.isPending ? "儲存中..." : "收藏組合"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -417,17 +672,71 @@ export function ProgressivePromptBuilder({ value, onChange, modality, onType }: 
   const [attentionOpen, setAttentionOpen] = useState(false);
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
   const [selectedBlocks, setSelectedBlocks] = useState<Set<string>>(new Set());
+  const [selectedCustomBlockIds, setSelectedCustomBlockIds] = useState<Set<number>>(new Set());
   const [tokens, setTokens] = useState<TokenWeight[]>([]);
+  const [createBlockOpen, setCreateBlockOpen] = useState(false);
+  const [saveComboOpen, setSaveComboOpen] = useState(false);
+  const [combosOpen, setCombosOpen] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // Get the correct block categories for the current modality
   const blockCategories = useMemo(() => getBlocksForModality(modality), [modality]);
 
-  // Reset selected blocks when modality changes (blocks are different per modality)
+  // Fetch custom blocks for current modality
+  const { data: customBlocksData } = trpc.customBlocks.list.useQuery(
+    { modality: modality || "image" },
+    { enabled: !!modality }
+  );
+
+  // Fetch saved combos for current modality
+  const { data: combosData } = trpc.blockCombos.list.useQuery(
+    { modality: modality || "image" },
+    { enabled: !!modality }
+  );
+
+  const utils = trpc.useUtils();
+
+  const deleteCustomBlockMutation = trpc.customBlocks.delete.useMutation({
+    onSuccess: () => {
+      toast.success("自訂積木已刪除");
+      utils.customBlocks.list.invalidate();
+    },
+  });
+
+  const deleteComboMutation = trpc.blockCombos.delete.useMutation({
+    onSuccess: () => {
+      toast.success("組合已刪除");
+      utils.blockCombos.list.invalidate();
+    },
+  });
+
+  const renameComboMutation = trpc.blockCombos.rename.useMutation({
+    onSuccess: () => {
+      toast.success("已重新命名");
+      utils.blockCombos.list.invalidate();
+    },
+  });
+
+  // Group custom blocks by category
+  type CustomBlockItem = NonNullable<typeof customBlocksData>[number];
+
+  const customBlocksByCategory = useMemo(() => {
+    const map = new Map<string, CustomBlockItem[]>();
+    if (!customBlocksData) return map;
+    for (const block of customBlocksData) {
+      const existing = map.get(block.category) || [];
+      existing.push(block);
+      map.set(block.category, existing);
+    }
+    return map;
+  }, [customBlocksData]);
+
+  // Reset selected blocks when modality changes
   const prevModalityRef = useRef(modality);
   useEffect(() => {
     if (prevModalityRef.current !== modality) {
       setSelectedBlocks(new Set());
+      setSelectedCustomBlockIds(new Set());
       prevModalityRef.current = modality;
     }
   }, [modality]);
@@ -437,7 +746,6 @@ export function ProgressivePromptBuilder({ value, onChange, modality, onType }: 
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       const newTokens = parseTokens(value.rawPrompt);
-      // Preserve existing weights for tokens that still exist
       const merged = newTokens.map(nt => {
         const existing = tokens.find(et => et.text.toLowerCase() === nt.text.toLowerCase());
         return existing ? { ...nt, weight: existing.weight } : nt;
@@ -461,7 +769,6 @@ export function ProgressivePromptBuilder({ value, onChange, modality, onType }: 
     if (key === "vibeCardIds") {
       recompile(tokens, val as string[]);
     } else if (key === "rawPrompt") {
-      // Simple compile for raw prompt changes (tokens will update via effect)
       const vibeLabels = value.vibeCardIds.map(id => VIBE_CARDS.find(v => v.id === id)?.label).filter(Boolean);
       const parts = [val as string];
       if (vibeLabels.length > 0) parts.push(`Style: ${vibeLabels.join(", ")}`);
@@ -493,24 +800,82 @@ export function ProgressivePromptBuilder({ value, onChange, modality, onType }: 
     const next = new Set(selectedBlocks);
     if (next.has(blockId)) {
       next.delete(blockId);
-      // Remove from rawPrompt
       const newRaw = value.rawPrompt.replace(prompt, "").replace(/,\s*,/g, ",").replace(/^,\s*|,\s*$/g, "").trim();
       updateField("rawPrompt", newRaw);
     } else {
       next.add(blockId);
-      // Append to rawPrompt
       const separator = value.rawPrompt.trim() ? ", " : "";
       updateField("rawPrompt", value.rawPrompt.trim() + separator + prompt);
     }
     setSelectedBlocks(next);
   }, [selectedBlocks, value.rawPrompt, updateField]);
 
+  const handleCustomBlockToggle = useCallback((block: { id: number; prompt: string }) => {
+    const next = new Set(selectedCustomBlockIds);
+    if (next.has(block.id)) {
+      next.delete(block.id);
+      const newRaw = value.rawPrompt.replace(block.prompt, "").replace(/,\s*,/g, ",").replace(/^,\s*|,\s*$/g, "").trim();
+      updateField("rawPrompt", newRaw);
+    } else {
+      next.add(block.id);
+      const separator = value.rawPrompt.trim() ? ", " : "";
+      updateField("rawPrompt", value.rawPrompt.trim() + separator + block.prompt);
+    }
+    setSelectedCustomBlockIds(next);
+  }, [selectedCustomBlockIds, value.rawPrompt, updateField]);
+
+  // Apply a saved combo
+  const applyCombo = useCallback((combo: NonNullable<typeof combosData>[number]) => {
+    // Clear current selections
+    const newSelectedBlocks = new Set<string>();
+    const newCustomBlockIds = new Set<number>();
+    const promptParts: string[] = [];
+
+    // Re-select built-in blocks
+    const blockIds = combo.blockIds as string[];
+    for (const id of blockIds) {
+      const found = findBuiltinBlock(id);
+      if (found) {
+        newSelectedBlocks.add(id);
+        promptParts.push(found.item.prompt);
+      }
+    }
+
+    // Re-select custom blocks
+    const customIds = (combo.customBlockIds as number[]) || [];
+    for (const id of customIds) {
+      const found = customBlocksData?.find(b => b.id === id);
+      if (found) {
+        newCustomBlockIds.add(id);
+        promptParts.push(found.prompt);
+      }
+    }
+
+    // Set vibes
+    const vibes = (combo.vibeCardIds as string[]) || [];
+
+    setSelectedBlocks(newSelectedBlocks);
+    setSelectedCustomBlockIds(newCustomBlockIds);
+
+    const rawPrompt = promptParts.join(", ");
+    const vibeLabels = vibes.map(id => VIBE_CARDS.find(v => v.id === id)?.label).filter(Boolean);
+    const compiled = rawPrompt + (vibeLabels.length > 0 ? `. Style: ${vibeLabels.join(", ")}` : "");
+
+    onChange({
+      ...value,
+      rawPrompt,
+      vibeCardIds: vibes,
+      compiledPrompt: compiled,
+    });
+
+    toast.success(`已套用組合「${combo.name}」`);
+  }, [customBlocksData, value, onChange]);
+
   const hasAdvancedContent = useMemo(() =>
     Object.values(value.advancedFields).some(v => v.trim()),
     [value.advancedFields]
   );
 
-  // Close token slider when clicking outside
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
@@ -522,7 +887,6 @@ export function ProgressivePromptBuilder({ value, onChange, modality, onType }: 
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // Determine section label based on modality
   const blocksLabel = modality === "audio" ? "音樂靈感積木" : "靈感積木";
   const promptPlaceholder = modality === "audio"
     ? "描述你想要的音樂風格與情感...或從上方積木拼出靈感"
@@ -530,9 +894,12 @@ export function ProgressivePromptBuilder({ value, onChange, modality, onType }: 
     ? "輸入要轉換為語音的文字..."
     : "描述你想要創作的畫面...或從上方積木拼出靈感";
 
+  const totalSelected = selectedBlocks.size + selectedCustomBlockIds.size;
+  const canSaveCombo = totalSelected > 0 || value.vibeCardIds.length > 0;
+
   return (
     <div className="space-y-4">
-      {/* ═══ Section 1: Visual / Audio Blocks (Onboarding) ═══ */}
+      {/* ═══ Section 1: Visual / Audio Blocks ═══ */}
       <div className="rounded-xl overflow-hidden" style={{
         background: "rgba(255,255,255,0.25)",
         backdropFilter: "blur(12px)",
@@ -545,9 +912,9 @@ export function ProgressivePromptBuilder({ value, onChange, modality, onType }: 
           <div className="flex items-center gap-2">
             <Blocks className="w-4 h-4 text-primary" />
             <span className="text-sm font-semibold text-foreground">{blocksLabel}</span>
-            {selectedBlocks.size > 0 && (
+            {totalSelected > 0 && (
               <span className="text-[10px] bg-primary/15 text-primary px-2 py-0.5 rounded-full font-medium">
-                {selectedBlocks.size} 個已選
+                {totalSelected} 個已選
               </span>
             )}
           </div>
@@ -566,8 +933,73 @@ export function ProgressivePromptBuilder({ value, onChange, modality, onType }: 
               className="overflow-hidden"
             >
               <div className="px-4 pb-4 space-y-3">
+                {/* Action bar: create custom block + save combo */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-[11px] gap-1 bg-white/30 border-white/40 hover:bg-white/50"
+                    onClick={() => setCreateBlockOpen(true)}
+                  >
+                    <Plus className="w-3 h-3" />
+                    自訂積木
+                  </Button>
+                  {canSaveCombo && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-[11px] gap-1 bg-rose-500/5 border-rose-300/40 text-rose-600 hover:bg-rose-500/10"
+                      onClick={() => setSaveComboOpen(true)}
+                    >
+                      <Heart className="w-3 h-3" />
+                      收藏組合
+                    </Button>
+                  )}
+                  {combosData && combosData.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-[11px] gap-1 bg-amber-500/5 border-amber-300/40 text-amber-600 hover:bg-amber-500/10"
+                      onClick={() => setCombosOpen(!combosOpen)}
+                    >
+                      <FolderOpen className="w-3 h-3" />
+                      我的組合 ({combosData.length})
+                    </Button>
+                  )}
+                </div>
+
+                {/* Saved combos panel */}
+                <AnimatePresence>
+                  {combosOpen && combosData && combosData.length > 0 && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="p-3 rounded-lg space-y-2" style={{
+                        background: "rgba(255,180,50,0.06)",
+                        border: "1px solid rgba(255,180,50,0.15)",
+                      }}>
+                        <p className="text-[10px] text-amber-600/70 uppercase tracking-wider font-medium">已收藏的靈感組合</p>
+                        <div className="space-y-1.5">
+                          {combosData.map((combo) => (
+                            <ComboCard
+                              key={combo.id}
+                              combo={combo}
+                              onApply={() => applyCombo(combo)}
+                              onDelete={() => deleteComboMutation.mutate({ id: combo.id })}
+                              onRename={(name) => renameComboMutation.mutate({ id: combo.id, name })}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
                 {/* Selected blocks preview */}
-                {selectedBlocks.size > 0 && (
+                {totalSelected > 0 && (
                   <div className="flex flex-wrap gap-1.5 p-2.5 rounded-lg" style={{
                     background: "rgba(255,255,255,0.1)",
                     border: "1px dashed rgba(255,255,255,0.25)",
@@ -593,29 +1025,87 @@ export function ProgressivePromptBuilder({ value, onChange, modality, onType }: 
                           </motion.span>
                         ))
                     )}
+                    {customBlocksData?.filter(b => selectedCustomBlockIds.has(b.id)).map(b => (
+                      <motion.span
+                        key={`custom-${b.id}`}
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-amber-500/15 text-amber-600 border border-amber-500/30"
+                      >
+                        * {b.label}
+                      </motion.span>
+                    ))}
                   </div>
                 )}
 
                 {/* Block categories */}
-                {blockCategories.map((cat) => (
-                  <div key={cat.id} className="space-y-1.5">
-                    <Label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
-                      <span>{cat.icon}</span>
-                      {cat.label}
-                    </Label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {cat.items.map((item) => (
-                        <BlockChip
-                          key={item.id}
-                          item={item}
-                          category={cat}
-                          isSelected={selectedBlocks.has(item.id)}
-                          onToggle={() => handleBlockToggle(item.id, item.prompt)}
-                        />
-                      ))}
+                {blockCategories.map((cat) => {
+                  const customInCategory = customBlocksByCategory.get(cat.id) || [];
+                  return (
+                    <div key={cat.id} className="space-y-1.5">
+                      <Label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
+                        <span>{cat.icon}</span>
+                        {cat.label}
+                        {customInCategory.length > 0 && (
+                          <span className="text-[9px] bg-amber-500/10 text-amber-600 px-1.5 py-0.5 rounded-full">
+                            +{customInCategory.length} 自訂
+                          </span>
+                        )}
+                      </Label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {cat.items.map((item) => (
+                          <BlockChip
+                            key={item.id}
+                            item={item}
+                            category={cat}
+                            isSelected={selectedBlocks.has(item.id)}
+                            onToggle={() => handleBlockToggle(item.id, item.prompt)}
+                          />
+                        ))}
+                        {/* Custom blocks in this category */}
+                        {customInCategory.map((cb) => (
+                          <BlockChip
+                            key={`custom-${cb.id}`}
+                            item={{ id: `custom-${cb.id}`, label: cb.label, prompt: cb.prompt }}
+                            category={cat}
+                            isSelected={selectedCustomBlockIds.has(cb.id)}
+                            onToggle={() => handleCustomBlockToggle({ id: cb.id, prompt: cb.prompt })}
+                            onDelete={() => deleteCustomBlockMutation.mutate({ id: cb.id })}
+                            isCustom
+                          />
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
+
+                {/* Custom blocks in categories not matching built-in ones */}
+                {Array.from(customBlocksByCategory).filter(([catId]: [string, CustomBlockItem[]]) => !blockCategories.some(bc => bc.id === catId))
+                  .map(([catId, blocks]: [string, CustomBlockItem[]]) => (
+                    <div key={catId} className="space-y-1.5">
+                      <Label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
+                        <span>*</span>
+                        {catId}
+                        <span className="text-[9px] bg-amber-500/10 text-amber-600 px-1.5 py-0.5 rounded-full">
+                          自訂
+                        </span>
+                      </Label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {blocks.map((cb) => (
+                          <BlockChip
+                            key={`custom-${cb.id}`}
+                            item={{ id: `custom-${cb.id}`, label: cb.label, prompt: cb.prompt }}
+                            category={{ id: catId, label: catId, icon: "*", color: "amber", glowRgb: "255,180,50", items: [] }}
+                            isSelected={selectedCustomBlockIds.has(cb.id)}
+                            onToggle={() => handleCustomBlockToggle({ id: cb.id, prompt: cb.prompt })}
+                            onDelete={() => deleteCustomBlockMutation.mutate({ id: cb.id })}
+                            isCustom
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                }
               </div>
             </motion.div>
           )}
@@ -686,8 +1176,6 @@ export function ProgressivePromptBuilder({ value, onChange, modality, onType }: 
                   <p className="text-[11px] text-muted-foreground leading-relaxed">
                     點擊 Token 標籤調整 AI 注意力權重。權重越高，AI 越關注該元素。
                   </p>
-
-                  {/* Token chips */}
                   <div className="flex flex-wrap gap-2" data-token-chip>
                     {tokens.map((token) => (
                       <TokenChip
@@ -699,8 +1187,6 @@ export function ProgressivePromptBuilder({ value, onChange, modality, onType }: 
                       />
                     ))}
                   </div>
-
-                  {/* Compiled preview with weights */}
                   {value.compiledPrompt && (
                     <div className="p-3 rounded-lg" style={{
                       background: "rgba(255, 180, 50, 0.05)",
@@ -822,6 +1308,104 @@ export function ProgressivePromptBuilder({ value, onChange, modality, onType }: 
             </motion.div>
           )}
         </AnimatePresence>
+      </div>
+
+      {/* ═══ Dialogs ═══ */}
+      <CreateBlockDialog
+        open={createBlockOpen}
+        onOpenChange={setCreateBlockOpen}
+        modality={modality || "image"}
+        categories={blockCategories}
+      />
+      <SaveComboDialog
+        open={saveComboOpen}
+        onOpenChange={setSaveComboOpen}
+        modality={modality || "image"}
+        selectedBlocks={selectedBlocks}
+        selectedCustomBlockIds={selectedCustomBlockIds}
+        vibeCardIds={value.vibeCardIds}
+      />
+    </div>
+  );
+}
+
+// ─── Combo Card ───────────────────────────────────────────────────────────
+
+function ComboCard({
+  combo,
+  onApply,
+  onDelete,
+  onRename,
+}: {
+  combo: { id: number; name: string; blockIds: unknown; customBlockIds: unknown; vibeCardIds: unknown; createdAt: Date };
+  onApply: () => void;
+  onDelete: () => void;
+  onRename: (name: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState(combo.name);
+
+  const blockIds = (combo.blockIds as string[]) || [];
+  const customIds = (combo.customBlockIds as number[]) || [];
+  const vibeIds = (combo.vibeCardIds as string[]) || [];
+  const totalItems = blockIds.length + customIds.length + vibeIds.length;
+
+  return (
+    <div className="flex items-center gap-2 p-2 rounded-lg bg-white/30 hover:bg-white/50 transition-colors group">
+      {editing ? (
+        <div className="flex items-center gap-1 flex-1">
+          <Input
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+            className="h-6 text-xs flex-1"
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                onRename(editName);
+                setEditing(false);
+              }
+              if (e.key === "Escape") setEditing(false);
+            }}
+          />
+          <button onClick={() => { onRename(editName); setEditing(false); }} className="p-0.5 text-primary hover:text-primary/80">
+            <Check className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ) : (
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-medium text-foreground truncate">{combo.name}</p>
+          <p className="text-[10px] text-muted-foreground">{totalItems} 個元素</p>
+        </div>
+      )}
+
+      <div className="flex items-center gap-0.5 shrink-0">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 w-6 p-0 text-primary hover:text-primary/80 hover:bg-primary/10"
+          onClick={onApply}
+          title="套用此組合"
+        >
+          <Sparkles className="w-3 h-3" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={() => { setEditName(combo.name); setEditing(true); }}
+          title="重新命名"
+        >
+          <Edit3 className="w-3 h-3" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={onDelete}
+          title="刪除組合"
+        >
+          <Trash2 className="w-3 h-3" />
+        </Button>
       </div>
     </div>
   );
