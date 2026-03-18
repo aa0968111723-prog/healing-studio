@@ -1,4 +1,3 @@
-grep -E "vertexai|speech" package.json
 /**
  * Image generation helper using internal ImageService
  *
