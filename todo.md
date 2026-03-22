@@ -439,3 +439,8 @@
 ### 3. 測試
 - [x] 11 個新增 Vitest 測試全部通過（custom blocks CRUD + block combos CRUD）
 - [x] 全部 184 個測試通過
+
+## SEO 修復
+
+- [x] 首頁新增 description meta tag（50-160 字元）
+- [x] 首頁新增 keywords meta tag
