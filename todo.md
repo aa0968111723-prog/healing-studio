@@ -444,3 +444,4 @@
 
 - [x] 首頁新增 description meta tag（50-160 字元）
 - [x] 首頁新增 keywords meta tag
+- [x] 關鍵字精簡至 6 個核心關鍵字（原 10 個過多）
