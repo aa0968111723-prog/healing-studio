@@ -130,7 +130,8 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
     };
   }, [userInput, step]);
 
-  // Generation mutation
+  // Generation mutations (two-step: prepareJob -> multimodal)
+  const prepareJobMutation = trpc.generate.prepareJob.useMutation();
   const generateMutation = trpc.generate.multimodal.useMutation({
     onMutate: () => setAIState("generating"),
     onSuccess: (data) => {
@@ -180,17 +181,24 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
       setAIState("generating");
     }, 1600);
 
-    // Actually trigger generation
-    setTimeout(() => {
-      generateMutation.mutate({
-        prompt: userInput,
-        generationType: "image",
-        mode: "lightning",
-        vibeCardIds: [],
-        temperature: 0.6,
-      });
+    // Actually trigger generation (two-step: prepareJob -> multimodal)
+    setTimeout(async () => {
+      try {
+        const { jobId } = await prepareJobMutation.mutateAsync({ generationType: "image" });
+        generateMutation.mutate({
+          jobId,
+          prompt: userInput,
+          generationType: "image",
+          mode: "lightning",
+          vibeCardIds: [],
+          temperature: 0.6,
+        });
+      } catch {
+        setAIState("idle");
+        setStep("input");
+      }
     }, 2000);
-  }, [userInput, generateMutation, setAIState]);
+  }, [userInput, generateMutation, prepareJobMutation, setAIState]);
 
   const handleComplete = useCallback(() => {
     localStorage.setItem("ai-director-onboarded", "true");

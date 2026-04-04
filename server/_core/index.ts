@@ -8,6 +8,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { uploadRouter } from "../uploadRoute";
+import { sseRouter } from "../sseRoute";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -38,6 +39,8 @@ async function startServer() {
   registerOAuthRoutes(app);
   // File upload API
   app.use(uploadRouter);
+  // SSE for real-time generation events
+  app.use(sseRouter);
   // tRPC API
   app.use(
     "/api/trpc",

@@ -462,3 +462,16 @@
 - [x] 確保 seed、temperature、所有隱藏參數完整傳遞
 - [x] 後端 parameterSnapshot 保存所有模態專屬參數（image/video/audio/voice）
 - [x] 前端 handleHistoryToStudio 還原所有模態專屬參數
+
+## ThoughtIslandChain 真實時間戳改造
+
+- [x] 讀取 ThoughtIslandChain 現有假時間戳邏輯
+- [x] 讀取後端 SSE 事件流與生成流程
+- [x] 後端生成流程中加入真實 timestamp 到 thoughtChain 各節點
+- [x] SSE 事件流即時推送 thoughtChain 節點更新
+- [x] ThoughtIslandChain 改為消費即時 SSE 事件，節點依真實運算時間浮現
+- [x] Fallback：無 SSE 時使用靜態 thoughtChain 數據
+- [x] 新增 generate.prepareJob 兩步流程（快速取得 jobId → SSE 連接 → 執行生成）
+- [x] ThoughtNode type 新增 'passed' 狀態支援
+- [x] generationEvents.ts EventEmitter 事件引擎
+- [x] sseRoute.ts SSE endpoint /api/generation-events/:jobId

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -255,20 +255,30 @@ export default function Studio() {
 
   // ── Mutation ──
   const utils = trpc.useUtils();
+  const sseRef = useRef<EventSource | null>(null);
+  const prepareJobMutation = trpc.generate.prepareJob.useMutation();
   const generateMutation = trpc.generate.multimodal.useMutation({
     onMutate: () => {
       setAIState("generating");
+      setProgress(2);
+      setProgressMessage("初始化...");
+      setThoughtChain([]);
     },
     onSuccess: (data) => {
       setResultUrl(data.resultUrl || null);
       setResultData(data.resultData);
-      setThoughtChain((data as any).thoughtChain || []);
+      // Final thoughtChain from server (authoritative) — merge with SSE updates
+      if ((data as any).thoughtChain?.length) {
+        setThoughtChain((data as any).thoughtChain);
+      }
       setProgress(100);
       setProgressMessage("生成完成");
       setTimeout(() => { setProgress(0); setAIState("idle"); }, 1500);
       toast.success("生成完成");
       reportSuccess();
       utils.auth.me.invalidate();
+      // Close SSE connection
+      if (sseRef.current) { sseRef.current.close(); sseRef.current = null; }
     },
     onError: (error) => {
       setProgress(0);
@@ -276,26 +286,48 @@ export default function Studio() {
       setAIState("idle");
       toast.error(error.message);
       reportFailure();
+      if (sseRef.current) { sseRef.current.close(); sseRef.current = null; }
     },
   });
 
-  // ── Progress simulation ──
+  // ── SSE connection for real-time thought chain updates ──
+  const connectSSE = useCallback((jobId: number) => {
+    if (sseRef.current) { sseRef.current.close(); }
+    const es = new EventSource(`/api/generation-events/${jobId}`);
+    sseRef.current = es;
+    es.onmessage = (evt) => {
+      try {
+        const event = JSON.parse(evt.data);
+        if (event.type === "thought-update" && event.node) {
+          setThoughtChain(prev => {
+            const idx = prev.findIndex(n => n.id === event.node.id);
+            if (idx >= 0) {
+              const updated = [...prev];
+              updated[idx] = event.node;
+              return updated;
+            }
+            return [...prev, event.node];
+          });
+        } else if (event.type === "progress") {
+          setProgress(event.progress);
+          setProgressMessage(event.message);
+        } else if (event.type === "complete" || event.type === "error") {
+          es.close();
+          sseRef.current = null;
+        }
+      } catch { /* ignore parse errors */ }
+    };
+    es.onerror = () => {
+      // SSE connection lost — fall back to mutation result
+      es.close();
+      sseRef.current = null;
+    };
+  }, []);
+
+  // Clean up SSE on unmount
   useEffect(() => {
-    if (!generateMutation.isPending) return;
-    const messages = PROGRESS_MESSAGES[activeModality] || PROGRESS_MESSAGES.image;
-    let step = 0;
-    const interval = setInterval(() => {
-      if (step < messages.length) {
-        const pct = Math.min(10 + (step + 1) * (80 / messages.length), 90);
-        setProgress(Math.round(pct));
-        setProgressMessage(messages[step]);
-        step++;
-      }
-    }, 2000);
-    setProgress(5);
-    setProgressMessage("初始化...");
-    return () => clearInterval(interval);
-  }, [generateMutation.isPending, activeModality]);
+    return () => { if (sseRef.current) { sseRef.current.close(); } };
+  }, []);
 
   // ── Populate from Director AI ──
   useEffect(() => {
@@ -387,7 +419,7 @@ export default function Studio() {
   }, []);
 
   // ── Handle Generate ──
-  const handleGenerate = useCallback(() => {
+  const handleGenerate = useCallback(async () => {
     const prompt = promptBuilder.compiledPrompt || promptBuilder.rawPrompt;
     if (!prompt.trim() && activeModality !== "voice") {
       toast.error("請輸入創作描述");
@@ -398,7 +430,7 @@ export default function Studio() {
       return;
     }
 
-    generateMutation.mutate({
+    const mutationInput = {
       prompt: activeModality === "voice" ? voiceState.text : prompt,
       generationType: activeModality,
       mode,
@@ -433,8 +465,21 @@ export default function Studio() {
         voiceEmotionType: voiceState.emotionType,
         voiceEmotionIntensity: voiceState.emotionIntensity,
       }),
-    });
-  }, [promptBuilder, activeModality, mode, temperature, seed, imageState, videoState, audioState, voiceState, generateMutation]);
+    };
+
+    try {
+      // Step 1: Pre-flight — create job + deduct quota, get jobId instantly
+      const { jobId } = await prepareJobMutation.mutateAsync({ generationType: activeModality });
+
+      // Step 2: Connect SSE immediately so we receive real-time thought chain events
+      connectSSE(jobId);
+
+      // Step 3: Fire the actual generation mutation (SSE events stream during this call)
+      await generateMutation.mutateAsync({ ...mutationInput, jobId });
+    } catch {
+      // Errors are handled by onError callbacks in the mutations
+    }
+  }, [promptBuilder, activeModality, mode, temperature, seed, imageState, videoState, audioState, voiceState, generateMutation, prepareJobMutation, connectSSE]);
 
   // ── Vault select handler ──
   const handleVaultSelect = useCallback((item: VaultItem) => {

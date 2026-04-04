@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 export type ThoughtNode = {
   id: string;
   label: string;
-  status: "queued" | "processing" | "completed" | "error";
+  status: "queued" | "processing" | "completed" | "passed" | "error";
   detail: string;
   timestamp: number;
   children?: ThoughtNode[];
@@ -60,6 +60,7 @@ const STATUS_COLORS: Record<string, string> = {
   queued: "#6b7280",
   processing: "#f59e0b",
   completed: "#10b981",
+  passed: "#10b981",
   error: "#ef4444",
 };
 
@@ -67,6 +68,7 @@ const STATUS_GLOW: Record<string, string> = {
   queued: "rgba(107, 114, 128, 0.15)",
   processing: "rgba(245, 158, 11, 0.25)",
   completed: "rgba(16, 185, 129, 0.2)",
+  passed: "rgba(16, 185, 129, 0.2)",
   error: "rgba(239, 68, 68, 0.25)",
 };
 

@@ -8,6 +8,7 @@ import { invokeLLM } from "./_core/llm";
 import { generateImage } from "./_core/imageGeneration";
 import { storagePut } from "./storage";
 import { TRPCError } from "@trpc/server";
+import { generationBus } from "./generationEvents";
 
 // ─── Safety Moderation Middleware ────────────────────────────────────────────
 
@@ -298,8 +299,40 @@ export const appRouter = router({
   // ─── Generation ──────────────────────────────────────────────────────────
 
   generate: router({
+    // Pre-flight: create job + deduct quota, return jobId for SSE connection
+    prepareJob: protectedProcedure
+      .input(z.object({
+        generationType: z.enum(["image", "video", "audio", "voice", "multimodal"]),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const userId = ctx.user.id;
+        // Atomic quota deduction
+        const deducted = await db.deductUserQuota(userId, 1);
+        if (!deducted) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "生成配額已用完，請聯繫管理員補充配額。" });
+        }
+        const jobId = await db.createBackgroundJob({
+          userId,
+          jobType: input.generationType === "multimodal" ? "multimodal" : input.generationType,
+          status: "processing",
+          progress: 2,
+          progressMessage: "準備中...",
+        });
+        // Emit initial thought chain nodes so SSE clients see them immediately
+        const modalityLabel = input.generationType === "image" ? "圖像" : input.generationType === "video" ? "影片" : input.generationType === "audio" ? "音樂" : "語音";
+        generationBus.emit(jobId, { type: "thought-update", node: { id: "safety", label: "安全檢查", status: "queued", detail: "等待中...", timestamp: 0 } });
+        generationBus.emit(jobId, { type: "thought-update", node: { id: "compile", label: "提示詞編譯", status: "queued", detail: "等待中...", timestamp: 0 } });
+        generationBus.emit(jobId, { type: "thought-update", node: { id: "weight", label: "視覺權重計算", status: "queued", detail: "等待中...", timestamp: 0 } });
+        generationBus.emit(jobId, { type: "thought-update", node: { id: "generate", label: `${modalityLabel}生成`, status: "queued", detail: "等待中...", timestamp: 0 } });
+        generationBus.emit(jobId, { type: "thought-update", node: { id: "quota", label: "配額扣除", status: "completed", detail: "已扣除 1 次配額", timestamp: Date.now() } });
+        generationBus.emit(jobId, { type: "thought-update", node: { id: "history", label: "歷史紀錄", status: "queued", detail: "等待中...", timestamp: 0 } });
+        generationBus.emit(jobId, { type: "progress", progress: 2, message: "已建立任務，準備開始..." });
+        return { jobId };
+      }),
+
     multimodal: protectedProcedure
       .input(z.object({
+        jobId: z.number(), // from prepareJob
         prompt: z.string().min(1),
         generationType: z.enum(["image", "video", "audio", "voice", "multimodal"]),
         mode: z.enum(["lightning", "deep_precision"]),
@@ -337,20 +370,24 @@ export const appRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         const userId = ctx.user.id;
-
-        // ── Atomic quota deduction (database-level lock) ──
-        // Deduct FIRST before any work. If concurrent requests race,
-        // only one will succeed per remaining unit.
-        const deducted = await db.deductUserQuota(userId, 1);
-        if (!deducted) {
-          throw new TRPCError({ code: "FORBIDDEN", message: "生成配額已用完，請聯繫管理員補充配額。" });
-        }
-
-        // Safety pre-check
+        const jobId = input.jobId;
         const stepTimestamps: Record<string, number> = { start: Date.now() };
+        const modalityLabel = input.generationType === "image" ? "圖像" : input.generationType === "video" ? "影片" : input.generationType === "audio" ? "音樂" : "語音";
+
+        // Safety pre-check (quota already deducted in prepareJob)
+        generationBus.emit(jobId, { type: "thought-update", node: { id: "safety", label: "安全檢查", status: "processing", detail: "正在驗證內容安全...", timestamp: Date.now() } });
+        generationBus.emit(jobId, { type: "progress", progress: 5, message: "安全檢查中..." });
+
         const safetyResult = await checkSafety(input.prompt);
         stepTimestamps.safetyDone = Date.now();
+        const safetyMs = stepTimestamps.safetyDone - stepTimestamps.start;
+        generationBus.emit(jobId, { type: "thought-update", node: { id: "safety", label: "安全檢查", status: "passed", detail: `內容安全檢查通過（${safetyMs}ms）`, timestamp: stepTimestamps.safetyDone } });
+        generationBus.emit(jobId, { type: "progress", progress: 10, message: "安全檢查通過" });
         if (!safetyResult.safe) {
+          // Emit error via SSE before throwing
+          generationBus.emit(jobId, { type: "thought-update", node: { id: "safety", label: "安全檢查", status: "error", detail: safetyResult.reason || "內容不符合安全規範", timestamp: Date.now() } });
+          generationBus.emit(jobId, { type: "error", message: safetyResult.reason || "內容不符合安全規範" });
+          setTimeout(() => generationBus.cleanup(jobId), 2000);
           // Refund the atomically deducted quota since no generation occurred
           await db.refundUserQuota(userId, 1);
           await db.createApiUsageLog({
@@ -367,17 +404,11 @@ export const appRouter = router({
           });
         }
 
-        // Create background job
-        const jobId = await db.createBackgroundJob({
-          userId,
-          jobType: input.generationType === "multimodal" ? "multimodal" : input.generationType,
-          status: "processing",
-          progress: 10,
-          progressMessage: "正在編譯提示詞...",
-        });
-
         try {
           // Compile elite prompt with reference image awareness
+          // ── Compile step ──
+          generationBus.emit(jobId, { type: "thought-update", node: { id: "compile", label: "提示詞編譯", status: "processing", detail: "正在編譯提示詞...", timestamp: Date.now() } });
+          generationBus.emit(jobId, { type: "progress", progress: 15, message: "編譯提示詞中..." });
           stepTimestamps.compileStart = Date.now();
           const { compiledPrompt, visualWeight, controlNetParams } = await compileElitePrompt({
             prompt: input.prompt,
@@ -393,7 +424,15 @@ export const appRouter = router({
 
           stepTimestamps.compileDone = Date.now();
           stepTimestamps.weightDone = Date.now();
+          const compileMs = stepTimestamps.compileDone - stepTimestamps.compileStart;
+          generationBus.emit(jobId, { type: "thought-update", node: { id: "compile", label: "提示詞編譯", status: "completed", detail: `編譯後提示詞長度: ${compiledPrompt.length} 字元（${compileMs}ms）`, timestamp: stepTimestamps.compileDone, tokens: compiledPrompt.length } });
+          generationBus.emit(jobId, { type: "thought-update", node: { id: "weight", label: "視覺權重計算", status: "completed", detail: `visualWeight: ${visualWeight.toFixed(2)}, controlNet: ${JSON.stringify(controlNetParams)}`, timestamp: stepTimestamps.weightDone, confidence: visualWeight } });
+          generationBus.emit(jobId, { type: "progress", progress: 30, message: "提示詞編譯完成" });
           await db.updateBackgroundJob(jobId, { progress: 30, progressMessage: "正在生成中..." });
+
+          // ── Generate step ──
+          generationBus.emit(jobId, { type: "thought-update", node: { id: "generate", label: `${modalityLabel}生成`, status: "processing", detail: `正在生成${modalityLabel}...`, timestamp: Date.now() } });
+          generationBus.emit(jobId, { type: "progress", progress: 40, message: `${modalityLabel}生成中...` });
 
           // Generate based on type
           let resultUrl: string | undefined;
@@ -454,6 +493,16 @@ export const appRouter = router({
             resultData.voiceEmotionType = input.voiceEmotionType;
             resultData.voiceEmotionIntensity = input.voiceEmotionIntensity;
           }
+
+          // ── Post-generation events ──
+          stepTimestamps.generateDone = Date.now();
+          const generateMs = stepTimestamps.generateDone - (stepTimestamps.compileDone || stepTimestamps.start);
+          generationBus.emit(jobId, { type: "thought-update", node: { id: "generate", label: `${modalityLabel}生成`, status: resultUrl ? "completed" : "completed", detail: resultUrl ? `生成成功（${generateMs}ms）` : `已加入佇列（${generateMs}ms）`, timestamp: stepTimestamps.generateDone } });
+          generationBus.emit(jobId, { type: "progress", progress: 70, message: "生成完成，處理後續..." });
+
+          // ── Quota logging ──
+          generationBus.emit(jobId, { type: "thought-update", node: { id: "quota", label: "配額扣除", status: "completed", detail: "扣除 1 次生成配額", timestamp: Date.now() } });
+          generationBus.emit(jobId, { type: "progress", progress: 80, message: "配額已扣除" });
 
           // Quota was already atomically deducted before generation started.
           // Log usage
@@ -540,20 +589,27 @@ export const appRouter = router({
             resultJson: resultData,
           });
 
-          // Build Chain-of-Thought trace with REAL timestamps from each execution step
-          stepTimestamps.generateDone = Date.now();
-          const modalityLabel = input.generationType === "image" ? "圖像" : input.generationType === "video" ? "影片" : input.generationType === "audio" ? "音樂" : "語音";
-          const safetyMs = (stepTimestamps.safetyDone || stepTimestamps.start) - stepTimestamps.start;
-          const compileMs = (stepTimestamps.compileDone || stepTimestamps.compileStart || 0) - (stepTimestamps.compileStart || stepTimestamps.start);
-          const generateMs = stepTimestamps.generateDone - (stepTimestamps.compileDone || stepTimestamps.start);
+          // ── History saved event ──
+          generationBus.emit(jobId, { type: "thought-update", node: { id: "history", label: "歷史紀錄", status: "completed", detail: "已儲存至生成歷史", timestamp: Date.now() } });
+          generationBus.emit(jobId, { type: "progress", progress: 95, message: "歷史紀錄已儲存" });
+
+          // Build final Chain-of-Thought trace with REAL timestamps from each execution step
+          const finalSafetyMs = (stepTimestamps.safetyDone || stepTimestamps.start) - stepTimestamps.start;
+          const finalCompileMs = (stepTimestamps.compileDone || stepTimestamps.compileStart || 0) - (stepTimestamps.compileStart || stepTimestamps.start);
+          const finalGenerateMs = stepTimestamps.generateDone - (stepTimestamps.compileDone || stepTimestamps.start);
           const thoughtChain = [
-            { id: "safety", label: "安全檢查", status: "passed" as const, detail: `內容安全檢查通過（${safetyMs}ms）`, timestamp: stepTimestamps.safetyDone || stepTimestamps.start },
-            { id: "compile", label: "提示詞編譯", status: "completed" as const, detail: `編譯後提示詞長度: ${compiledPrompt.length} 字元（${compileMs}ms）`, timestamp: stepTimestamps.compileDone || stepTimestamps.start },
+            { id: "safety", label: "安全檢查", status: "passed" as const, detail: `內容安全檢查通過（${finalSafetyMs}ms）`, timestamp: stepTimestamps.safetyDone || stepTimestamps.start },
+            { id: "compile", label: "提示詞編譯", status: "completed" as const, detail: `編譯後提示詞長度: ${compiledPrompt.length} 字元（${finalCompileMs}ms）`, timestamp: stepTimestamps.compileDone || stepTimestamps.start },
             { id: "weight", label: "視覺權重計算", status: "completed" as const, detail: `visualWeight: ${visualWeight.toFixed(2)}, controlNet: ${JSON.stringify(controlNetParams)}`, timestamp: stepTimestamps.weightDone || stepTimestamps.start },
-            { id: "generate", label: `${modalityLabel}生成`, status: resultUrl ? "completed" as const : "queued" as const, detail: resultUrl ? `生成成功（${generateMs}ms）` : "已加入佇列", timestamp: stepTimestamps.generateDone },
+            { id: "generate", label: `${modalityLabel}生成`, status: resultUrl ? "completed" as const : "completed" as const, detail: resultUrl ? `生成成功（${finalGenerateMs}ms）` : `已加入佇列（${finalGenerateMs}ms）`, timestamp: stepTimestamps.generateDone },
             { id: "quota", label: "配額扣除", status: "completed" as const, detail: "扣除 1 次生成配額", timestamp: Date.now() - 100 },
             { id: "history", label: "歷史紀錄", status: "completed" as const, detail: "已儲存至生成歷史", timestamp: Date.now() },
           ];
+
+          // Emit final complete event via SSE
+          generationBus.emit(jobId, { type: "complete", thoughtChain });
+          // Clean up listeners after a short delay
+          setTimeout(() => generationBus.cleanup(jobId), 2000);
 
           return { jobId, resultUrl, resultData, compiledPrompt, thoughtChain };
         } catch (error) {
