@@ -342,3 +342,73 @@ export const blockCombos = mysqlTable("block_combos", {
 
 export type BlockCombo = typeof blockCombos.$inferSelect;
 export type InsertBlockCombo = typeof blockCombos.$inferInsert;
+
+// ─── System Settings (per-user global preferences) ─────────────────────
+export const systemSettings = mysqlTable("system_settings", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(),
+
+  // ── UI Theme Preferences ──────────────────────────────────────────────
+  uiTheme: mysqlEnum("uiTheme", ["system", "light", "dark"])
+    .default("system")
+    .notNull(),
+  accentColor: varchar("accentColor", { length: 32 }).default("violet"),
+  fontScale: mysqlEnum("fontScale", ["small", "medium", "large"])
+    .default("medium")
+    .notNull(),
+  reducedMotion: boolean("reducedMotion").default(false).notNull(),
+  sidebarCollapsed: boolean("sidebarCollapsed").default(false).notNull(),
+
+  // ── Privacy & Tracking Consent ────────────────────────────────────────
+  analyticsConsent: boolean("analyticsConsent").default(false).notNull(),
+  crashReportConsent: boolean("crashReportConsent").default(false).notNull(),
+  shareUsageData: boolean("shareUsageData").default(false).notNull(),
+  showProfilePublicly: boolean("showProfilePublicly").default(false).notNull(),
+
+  // ── Auto-Backup Settings ──────────────────────────────────────────────
+  autoBackupEnabled: boolean("autoBackupEnabled").default(true).notNull(),
+  backupFrequency: mysqlEnum("backupFrequency", ["daily", "weekly", "monthly"])
+    .default("weekly")
+    .notNull(),
+  backupRetentionDays: int("backupRetentionDays").default(30).notNull(),
+  lastBackupAt: timestamp("lastBackupAt"),
+
+  // ── Generation Defaults ───────────────────────────────────────────────
+  defaultModality: mysqlEnum("defaultModality", [
+    "image",
+    "video",
+    "audio",
+    "voice",
+  ])
+    .default("image")
+    .notNull(),
+  defaultCreativeMode: mysqlEnum("defaultCreativeMode", [
+    "balanced",
+    "creative",
+    "precise",
+  ])
+    .default("balanced")
+    .notNull(),
+  autoSaveHistory: boolean("autoSaveHistory").default(true).notNull(),
+  nsfwFilter: boolean("nsfwFilter").default(true).notNull(),
+
+  // ── Notification Preferences ──────────────────────────────────────────
+  emailNotifications: boolean("emailNotifications").default(true).notNull(),
+  generationCompleteNotify: boolean("generationCompleteNotify")
+    .default(true)
+    .notNull(),
+  weeklyDigestEnabled: boolean("weeklyDigestEnabled").default(false).notNull(),
+
+  // ── Locale & Accessibility ────────────────────────────────────────────
+  locale: varchar("locale", { length: 16 }).default("zh-TW"),
+  timezone: varchar("timezone", { length: 64 }).default("Asia/Taipei"),
+
+  // ── Extensible JSON for future settings ───────────────────────────────
+  extraSettings: json("extraSettings").$type<Record<string, unknown>>(),
+
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SystemSetting = typeof systemSettings.$inferSelect;
+export type InsertSystemSetting = typeof systemSettings.$inferInsert;

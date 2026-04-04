@@ -536,3 +536,11 @@
 - [x] 盤點所有 mock 假資料位置（結果：16 個頁面元件均已對接 tRPC，無寫死假資料）
 - [x] 確認所有頁面已具備完善 Empty State UI（尚無生成歷史/數位資產/角色模型/筆記/回饋等）
 - [x] TypeScript 編譯零錯誤確認（無需修改，已清潔）
+
+## system_settings Table 架構補齊
+
+- [x] drizzle/schema.ts 新增 system_settings Table（27 欄位，含 UI 主題/隱私/備份/生成預設/通知/區域 + extraSettings JSON 擴展欄）
+- [x] 與 users 表建立一對一關聯（userId UNIQUE 約束）
+- [x] 生成遷移檔 0004_past_pandemic.sql 並執行 SQL（驗證 27 欄位建立成功）
+- [x] server/db.ts 新增 getSystemSettings / upsertSystemSettings 查詢輔助
+- [x] server/routers.ts 新增 settings.get（含預設值 fallback）與 settings.update tRPC 路由（Zod 驗證 22 個可更新欄位）

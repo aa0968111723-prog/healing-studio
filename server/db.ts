@@ -14,6 +14,7 @@ import {
   generationHistory, InsertGenerationHistoryItem,
   customBlocks, InsertCustomBlock,
   blockCombos, InsertBlockCombo,
+  systemSettings, InsertSystemSetting,
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -485,4 +486,26 @@ export async function deleteBlockCombo(id: number, userId: number) {
   const db = await getDb();
   if (!db) return;
   await db.delete(blockCombos).where(and(eq(blockCombos.id, id), eq(blockCombos.userId, userId)));
+}
+
+// ─── System Settings ────────────────────────────────────────────────────────
+
+export async function getSystemSettings(userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(systemSettings).where(eq(systemSettings.userId, userId)).limit(1);
+  return result[0];
+}
+
+export async function upsertSystemSettings(userId: number, data: Partial<InsertSystemSetting>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const existing = await getSystemSettings(userId);
+  if (existing) {
+    await db.update(systemSettings).set(data).where(eq(systemSettings.userId, userId));
+    return existing.id;
+  } else {
+    const result = await db.insert(systemSettings).values({ userId, ...data });
+    return result[0].insertId;
+  }
 }
