@@ -521,3 +521,12 @@
 - [x] 建立全域 auth 過期事件機制（CustomEvent + debounce 2s 防重複觸發）
 - [x] 後端 protectedProcedure 已統一回傳 UNAUTHORIZED 狀態碼（原有架構已支援）
 - [x] 前端 onClick 防呆（Studio 生成按鈕 requireAuth guard + 其他 mutation 由底層攔截器統一覆蓋）
+
+## 環境變數 Zod 驗證層（Missing API Key 防呆）
+
+- [x] 分析現有 env.ts 架構與所有環境變數引用（9 個檔案 45 處引用）
+- [x] zod 已預裝（tRPC 依賴）
+- [x] 建立 server/_core/env.validated.ts（core + multimodal Zod schema + OARS 柔性警告 + assertApiKey/getApiKey 工具）
+- [x] 建立 client/src/lib/env.validated.ts（VITE_ 變數 Zod schema + 前端 styled console 警告）
+- [x] 更新 server/_core/env.ts 從 validated 模組 re-export，保持 ENV 形狀向後相容
+- [x] 缺少金鑰時 console.warn OARS 格式而非 crash（開發環境顯示多模態金鑰狀態摘要）
