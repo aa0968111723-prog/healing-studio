@@ -551,3 +551,12 @@
 - [x] drizzle/schema.ts 新增 featured_showcase 表（17 欄位：generatedItemId、vibeParameters 情緒矩陣、completelyDeconstructedBlocks 解構積木 JSON、圖片 CDN、排序權重、按讚/fork 計數等）
 - [x] 生成遷移檔 0005_nasty_anita_blake.sql 並執行 SQL（兩張表建立成功）
 - [x] TypeScript 編譯零錯誤確認
+
+## 首頁新聞 Node-Cron 雙活備援
+
+- [x] 安裝 node-cron + @types/node-cron 依賴
+- [x] 設定 NEWS_API_KEY 與 NEWSDATA_API_KEY 環境變數（已透過 webdev_request_secrets 注入）
+- [x] 實作 server/jobs/newsFetcher.ts（NewsAPI→NewsData 雙活備援 + OARS 摘要 + 分類標籤 + 超時保護）
+- [x] 整合 cron 排程至 server/_core/index.ts（每 6 小時 + 啟動後 30s 首次抓取）
+- [x] TypeScript 編譯零錯誤
+- [x] 伺服器啟動正常，日誌確認「新聞抓取排程已註冊」
