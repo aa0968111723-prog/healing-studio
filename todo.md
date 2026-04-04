@@ -571,3 +571,14 @@
 - [x] 本地 Fallback 柔化器（Gemini 不可用時的正則替換 + 規則分類備援）
 - [x] TypeScript 編譯零錯誤確認
 - [x] 伺服器啟動正常確認
+
+## 首頁 tRPC Router（新聞 + Showcase）
+
+- [x] 建立 server/routers/news.ts — 新聞唯讀 API（list / getById / categories / pinned / byTag）
+- [x] 建立 server/routers/showcase.ts — 精選展示唯讀 API（list / getById / trending / byModality / stats）
+- [x] LOD 分頁機制（cursor-based pagination，支援 limit + cursor + category/modality 篩選）
+- [x] DB 查詢直接在 Router 內使用 Drizzle ORM（requireDb helper + 安全錯誤處理）
+- [x] 整合至 server/routers.ts 主路由（newsRouter + showcaseRouter merge）
+- [x] 所有端點使用 publicProcedure（唯讀，前端不直連第三方 API）
+- [x] 10 個端點全部通過 curl 驗證（正確 JSON 結構 + 404 友善錯誤訊息）
+- [x] TypeScript 編譯零錯誤確認

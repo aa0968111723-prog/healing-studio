@@ -9,6 +9,8 @@ import { generateImage } from "./_core/imageGeneration";
 import { storagePut } from "./storage";
 import { TRPCError } from "@trpc/server";
 import { generationBus } from "./generationEvents";
+import { newsRouter } from "./routers/news";
+import { showcaseRouter } from "./routers/showcase";
 
 // ─── Timeout Utility ────────────────────────────────────────────────────────
 
@@ -305,6 +307,10 @@ ${persona.proactiveHint}
 
 export const appRouter = router({
   system: systemRouter,
+
+  // ─── Homepage Public APIs (Read-only, LOD Pagination) ──────────────────
+  news: newsRouter,
+  showcase: showcaseRouter,
 
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
