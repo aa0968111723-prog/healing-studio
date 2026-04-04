@@ -21,7 +21,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { useIsMobile } from "@/hooks/useMobile";
 import { PROGRESS_MESSAGES } from "@shared/types";
-import { PromptStrengthBar } from "@/components/PromptStrengthBar";
+import { PromptStrengthBar, type SuggestionAction } from "@/components/PromptStrengthBar";
 import ThoughtIslandChain, { type ThoughtNode } from "@/components/ThoughtIslandChain";
 import { useAIState } from "@/contexts/AIStateContext";
 import VisualSoul from "@/components/VisualSoul";
@@ -722,6 +722,48 @@ export default function Studio() {
                       compiledPrompt: optimized,
                     }));
                     toast.success("已套用 AI 優化提示詞");
+                  }}
+                  onApplyAction={(action: SuggestionAction) => {
+                    switch (action.actionType) {
+                      case "append_prompt": {
+                        const separator = promptBuilder.rawPrompt.trim() ? ", " : "";
+                        const newPrompt = promptBuilder.rawPrompt.trim() + separator + action.actionPayload;
+                        setPromptBuilder(prev => ({
+                          ...prev,
+                          rawPrompt: newPrompt,
+                          compiledPrompt: newPrompt,
+                        }));
+                        break;
+                      }
+                      case "replace_prompt": {
+                        setPromptBuilder(prev => ({
+                          ...prev,
+                          rawPrompt: action.actionPayload,
+                          compiledPrompt: action.actionPayload,
+                        }));
+                        break;
+                      }
+                      case "add_negative": {
+                        if (activeModality === "image") {
+                          setImageState(prev => ({
+                            ...prev,
+                            negativePrompt: prev.negativePrompt
+                              ? prev.negativePrompt + ", " + action.actionPayload
+                              : action.actionPayload,
+                          }));
+                        } else {
+                          // For non-image modalities, append as negative context to prompt
+                          const separator = promptBuilder.rawPrompt.trim() ? ", " : "";
+                          const newPrompt = promptBuilder.rawPrompt.trim() + separator + "avoid: " + action.actionPayload;
+                          setPromptBuilder(prev => ({
+                            ...prev,
+                            rawPrompt: newPrompt,
+                            compiledPrompt: newPrompt,
+                          }));
+                        }
+                        break;
+                      }
+                    }
                   }}
                 />
               </div>

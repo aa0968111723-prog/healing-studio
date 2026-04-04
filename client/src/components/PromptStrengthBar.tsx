@@ -5,10 +5,18 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import {
   Sparkles, ChevronDown, ChevronUp, Zap, Lightbulb,
-  AlertTriangle, CheckCircle2, ArrowUpRight,
+  AlertTriangle, CheckCircle2, ArrowUpRight, Plus, Replace, ShieldMinus,
 } from "lucide-react";
+import { toast } from "sonner";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
+
+type ActionableSuggestion = {
+  label: string;
+  actionType: "append_prompt" | "replace_prompt" | "add_negative";
+  actionPayload: string;
+  reason: string;
+};
 
 type EvalResult = {
   score: number;
@@ -21,14 +29,21 @@ type EvalResult = {
   };
   strengths: string;
   weaknesses: string;
-  suggestions: string[];
+  suggestions: ActionableSuggestion[];
   optimizedPrompt: string;
+};
+
+export type SuggestionAction = {
+  actionType: "append_prompt" | "replace_prompt" | "add_negative";
+  actionPayload: string;
+  label: string;
 };
 
 type PromptStrengthBarProps = {
   prompt: string;
   modality: "image" | "video" | "audio" | "voice";
   onApplyOptimized?: (optimizedPrompt: string) => void;
+  onApplyAction?: (action: SuggestionAction) => void;
 };
 
 // ─── Dimension Config ──────────────────────────────────────────────────────
@@ -41,6 +56,32 @@ const DIMENSIONS = [
   { key: "technicalSpecs" as const, label: "技術參數", icon: "📐" },
 ];
 
+// ─── Action Type Config ────────────────────────────────────────────────────
+
+const ACTION_CONFIG = {
+  append_prompt: {
+    icon: Plus,
+    label: "追加",
+    color: "text-emerald-600",
+    bgColor: "bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/30",
+    activeBg: "bg-emerald-500/20",
+  },
+  replace_prompt: {
+    icon: Replace,
+    label: "替換",
+    color: "text-blue-600",
+    bgColor: "bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/30",
+    activeBg: "bg-blue-500/20",
+  },
+  add_negative: {
+    icon: ShieldMinus,
+    label: "負面詞",
+    color: "text-amber-600",
+    bgColor: "bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30",
+    activeBg: "bg-amber-500/20",
+  },
+};
+
 // ─── Score Color ───────────────────────────────────────────────────────────
 
 function getScoreColor(score: number): string {
@@ -48,13 +89,6 @@ function getScoreColor(score: number): string {
   if (score >= 60) return "text-blue-600";
   if (score >= 40) return "text-amber-600";
   return "text-red-500";
-}
-
-function getScoreGradient(score: number): string {
-  if (score >= 80) return "from-emerald-500 to-teal-500";
-  if (score >= 60) return "from-blue-500 to-indigo-500";
-  if (score >= 40) return "from-amber-500 to-orange-500";
-  return "from-red-500 to-rose-500";
 }
 
 function getScoreLabel(score: number): string {
@@ -67,14 +101,13 @@ function getScoreLabel(score: number): string {
 function getScoreIcon(score: number) {
   if (score >= 80) return <CheckCircle2 className="w-3.5 h-3.5" />;
   if (score >= 60) return <Lightbulb className="w-3.5 h-3.5" />;
-  if (score >= 40) return <AlertTriangle className="w-3.5 h-3.5" />;
   return <AlertTriangle className="w-3.5 h-3.5" />;
 }
 
 // ─── Dimension Bar ─────────────────────────────────────────────────────────
 
 function DimensionBar({ label, icon, score }: { label: string; icon: string; score: number }) {
-  const pct = Math.min(100, Math.max(0, score * 5)); // 0-20 → 0-100%
+  const pct = Math.min(100, Math.max(0, score * 5));
   return (
     <div className="flex items-center gap-2">
       <span className="text-xs w-5 text-center">{icon}</span>
@@ -100,9 +133,115 @@ function DimensionBar({ label, icon, score }: { label: string; icon: string; sco
   );
 }
 
+// ─── Actionable Chip ───────────────────────────────────────────────────────
+
+function ActionableChip({
+  suggestion,
+  index,
+  onApply,
+}: {
+  suggestion: ActionableSuggestion;
+  index: number;
+  onApply: (action: SuggestionAction) => void;
+}) {
+  const [showPayload, setShowPayload] = useState(false);
+  const config = ACTION_CONFIG[suggestion.actionType];
+  const Icon = config.icon;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8, scale: 0.95 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.25, delay: index * 0.06 }}
+      className="w-full"
+    >
+      <div
+        className={cn(
+          "group rounded-xl border transition-all duration-200 overflow-hidden",
+          config.bgColor,
+        )}
+      >
+        {/* Main chip row */}
+        <div className="flex items-center gap-2 px-3 py-2">
+          {/* Action type badge */}
+          <span className={cn(
+            "shrink-0 flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md",
+            config.activeBg, config.color,
+          )}>
+            <Icon className="w-3 h-3" />
+            {config.label}
+          </span>
+
+          {/* Label + reason */}
+          <div className="flex-1 min-w-0">
+            <span className="text-xs font-medium text-foreground/90 block truncate">
+              {suggestion.label}
+            </span>
+            <span className="text-[10px] text-muted-foreground block truncate">
+              {suggestion.reason}
+            </span>
+          </div>
+
+          {/* Preview toggle */}
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowPayload(!showPayload); }}
+            className="shrink-0 p-1 rounded-md hover:bg-white/20 transition-colors"
+            title="預覽內容"
+          >
+            {showPayload ? (
+              <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+            )}
+          </button>
+
+          {/* Apply button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(
+              "shrink-0 h-7 text-[10px] gap-1 rounded-lg font-semibold",
+              config.color, "hover:bg-white/30",
+            )}
+            onClick={() => {
+              onApply({
+                actionType: suggestion.actionType,
+                actionPayload: suggestion.actionPayload,
+                label: suggestion.label,
+              });
+            }}
+          >
+            <ArrowUpRight className="w-3 h-3" />
+            套用
+          </Button>
+        </div>
+
+        {/* Expandable payload preview */}
+        <AnimatePresence>
+          {showPayload && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="overflow-hidden"
+            >
+              <div className="px-3 pb-2">
+                <code className="text-[10px] text-foreground/70 bg-black/5 dark:bg-white/5 rounded-md px-2 py-1 block font-mono leading-relaxed">
+                  {suggestion.actionPayload}
+                </code>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </motion.div>
+  );
+}
+
 // ─── Main Component ────────────────────────────────────────────────────────
 
-export function PromptStrengthBar({ prompt, modality, onApplyOptimized }: PromptStrengthBarProps) {
+export function PromptStrengthBar({ prompt, modality, onApplyOptimized, onApplyAction }: PromptStrengthBarProps) {
   const [result, setResult] = useState<EvalResult | null>(null);
   const [expanded, setExpanded] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -131,6 +270,24 @@ export function PromptStrengthBar({ prompt, modality, onApplyOptimized }: Prompt
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [prompt, triggerEvaluate]);
+
+  const handleApplyAction = useCallback((action: SuggestionAction) => {
+    if (onApplyAction) {
+      onApplyAction(action);
+    } else if (onApplyOptimized) {
+      // Fallback: just append or replace via the old callback
+      if (action.actionType === "replace_prompt") {
+        onApplyOptimized(action.actionPayload);
+      } else {
+        onApplyOptimized(prompt.trim() + ", " + action.actionPayload);
+      }
+    }
+    toast.success(`已套用：${action.label}`, {
+      description: action.actionType === "append_prompt" ? "已追加至提示詞"
+        : action.actionType === "replace_prompt" ? "已替換提示詞"
+        : "已加入負面提示詞",
+    });
+  }, [onApplyAction, onApplyOptimized, prompt]);
 
   // No prompt yet
   if (prompt.trim().length < 10 && !result) {
@@ -269,26 +426,21 @@ export function PromptStrengthBar({ prompt, modality, onApplyOptimized }: Prompt
                 </div>
               )}
 
-              {/* Suggestions as clickable chips */}
+              {/* Actionable Suggestion Chips */}
               {result.suggestions && result.suggestions.length > 0 && (
                 <div>
-                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1 mb-2">
                     <Lightbulb className="w-3 h-3 text-blue-500" />
-                    優化建議（點擊套用）
+                    一鍵優化建議
                   </span>
-                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  <div className="space-y-1.5">
                     {result.suggestions.map((s, i) => (
-                      <button
+                      <ActionableChip
                         key={i}
-                        onClick={() => onApplyOptimized?.(s)}
-                        className="text-xs text-foreground/80 px-2.5 py-1 rounded-lg bg-muted/20 border border-border/30 hover:bg-primary/10 hover:border-primary/30 hover:text-primary transition-all cursor-pointer flex items-center gap-1.5 group"
-                      >
-                        <span className="text-[10px] text-muted-foreground tabular-nums shrink-0 group-hover:text-primary/60">
-                          {i + 1}.
-                        </span>
-                        <span className="line-clamp-1">{s}</span>
-                        <ArrowUpRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-                      </button>
+                        suggestion={s}
+                        index={i}
+                        onApply={handleApplyAction}
+                      />
                     ))}
                   </div>
                 </div>

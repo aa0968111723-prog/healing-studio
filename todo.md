@@ -490,3 +490,10 @@
 - [x] 渲染可點擊 Choice Chips UI（毛玻璃風格 + 動畫進場）
 - [x] 點擊 Chip 後自動填入輸入框 + 自動觸發新一輪 AI 建議
 - [x] 重新整合 OnboardingFlow 到首頁（首次登入觸發）+ 保留靜態 STARTER_CHIPS 作為初始建議
+
+## evaluatePrompt 建議轉 Actionable Chips
+
+- [x] 後端 evaluatePrompt 回傳結構擴充（每條建議附帶 actionType + actionPayload + label + reason）
+- [x] 前端 PromptStrengthBar 建議區域改為可點擊 Actionable Chips UI（展開預覽 + 套用按鈕）
+- [x] 點擊 Chip「套用」按鈕直接追加/替換 Prompt Input（已驗證 fluffy ginger cat 成功追加）
+- [x] 支援多種 actionType（append_prompt / replace_prompt / add_negative / set_vibe）

@@ -674,8 +674,17 @@ export const appRouter = router({
 - dimensions: 五個維度的個別分數
 - strengths: 提示詞的優點（繁體中文，1-2 句）
 - weaknesses: 提示詞的不足之處（繁體中文，1-2 句）
-- suggestions: 具體的自動優化建議（繁體中文，2-3 條具體建議）
-- optimizedPrompt: 優化後的完整提示詞（英文）`,
+- suggestions: 具體的可執行優化建議陣列，每條建議必須包含：
+  - label: 建議的簡短標題（繁體中文，6-15字，例如「加入暖色調光線」）
+  - actionType: 動作類型，必須是以下之一：
+    - "append_prompt": 在現有提示詞後追加內容
+    - "replace_prompt": 替換整個提示詞
+    - "add_negative": 加入負面提示詞
+  - actionPayload: 要套用的實際英文內容（例如 "warm golden hour lighting, soft shadows"）
+  - reason: 為什麼這個建議能改善提示詞（繁體中文，10-25字）
+- optimizedPrompt: 優化後的完整提示詞（英文）
+
+注意：suggestions 的 actionPayload 必須是可直接套用的英文提示詞片段，不是描述性文字。`,
             },
             { role: "user", content: input.prompt },
           ],
@@ -704,7 +713,17 @@ export const appRouter = router({
                   weaknesses: { type: "string" },
                   suggestions: {
                     type: "array",
-                    items: { type: "string" },
+                    items: {
+                      type: "object",
+                      properties: {
+                        label: { type: "string", description: "Short label in Traditional Chinese, 6-15 chars" },
+                        actionType: { type: "string", enum: ["append_prompt", "replace_prompt", "add_negative"], description: "Type of action to apply" },
+                        actionPayload: { type: "string", description: "English prompt fragment to apply directly" },
+                        reason: { type: "string", description: "Why this improves the prompt, in Traditional Chinese, 10-25 chars" },
+                      },
+                      required: ["label", "actionType", "actionPayload", "reason"],
+                      additionalProperties: false,
+                    },
                   },
                   optimizedPrompt: { type: "string" },
                 },
