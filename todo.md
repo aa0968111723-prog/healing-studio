@@ -475,3 +475,10 @@
 - [x] ThoughtNode type 新增 'passed' 狀態支援
 - [x] generationEvents.ts EventEmitter 事件引擎
 - [x] sseRoute.ts SSE endpoint /api/generation-events/:jobId
+
+## ZIP 匯出功能實作
+
+- [x] 安裝 jszip 依賴（file-saver 改用原生 URL.createObjectURL 方案）
+- [x] Studio 頁面：實作真實 ZIP 匯出（圖片/影片/音樂/語音 + parameters.txt + metadata.json）
+- [x] History 頁面：實作真實 ZIP 匯出（歷史紀錄結果 + parameters.txt + metadata.json）
+- [x] 移除所有「即將推出」假 Toast，替換為真實 ZIP 打包下載邏輯

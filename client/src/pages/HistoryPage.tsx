@@ -8,7 +8,10 @@ import {
   Image, Video, Music, Mic, Bookmark, BookmarkCheck,
   Star, Trash2, Filter, Clock, Search, ChevronDown,
   Send, Wand2, RefreshCw, Download, FileText, Timer, Coins, Tag,
+  Archive,
 } from "lucide-react";
+import JSZip from "jszip";
+
 import { useLocation } from "wouter";
 import { Input } from "@/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
@@ -393,13 +396,13 @@ export default function HistoryPage() {
                               </span>
                             </div>
 
-                            {/* ── Download Button ── */}
+                            {/* ── Download & ZIP Export Buttons ── */}
                             {item.resultUrl && (
-                              <div>
+                              <div className="flex flex-wrap gap-2">
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  className="h-8 text-xs gap-1.5 rounded-lg w-full sm:w-auto"
+                                  className="h-8 text-xs gap-1.5 rounded-lg flex-1 sm:flex-none"
                                   onClick={async (e) => {
                                     e.stopPropagation();
                                     try {
@@ -420,7 +423,6 @@ export default function HistoryPage() {
                                       URL.revokeObjectURL(url);
                                       toast.success(`已下載 ${ext.toUpperCase()} 檔案`);
                                     } catch {
-                                      // Fallback: open in new tab
                                       window.open(item.resultUrl!, "_blank");
                                       toast.info("已在新分頁開啟，請右鍵另存新檔");
                                     }
@@ -428,6 +430,133 @@ export default function HistoryPage() {
                                 >
                                   <Download className="w-3.5 h-3.5" />
                                   下載{item.modality === "image" ? " PNG" : item.modality === "video" ? " MP4" : item.modality === "audio" ? " MP3" : " 檔案"}
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 text-xs gap-1.5 rounded-lg flex-1 sm:flex-none"
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    try {
+                                      const zip = new JSZip();
+                                      const timestamp = new Date(item.createdAt).toISOString().replace(/[:.]/g, "-").slice(0, 19);
+                                      const modalityLabel = item.modality === "image" ? "圖片" : item.modality === "video" ? "影片" : item.modality === "audio" ? "音樂" : "語音";
+
+                                      // Download and add the generated asset
+                                      const extMap: Record<string, string> = { image: "png", video: "mp4", audio: "mp3", voice: "mp3" };
+                                      const defaultExt = extMap[item.modality] || "bin";
+                                      try {
+                                        const resp = await fetch(item.resultUrl!);
+                                        const blob = await resp.blob();
+                                        let ext = defaultExt;
+                                        if (item.modality === "image") {
+                                          ext = blob.type.includes("png") ? "png" : blob.type.includes("webp") ? "webp" : "jpg";
+                                        }
+                                        zip.file(`generated-${item.modality}.${ext}`, blob);
+                                      } catch {
+                                        zip.file("asset-url.txt", item.resultUrl!);
+                                      }
+
+                                      // Build parameters.txt
+                                      const lines: string[] = [];
+                                      lines.push("═══════════════════════════════════════");
+                                      lines.push("  AI Director — 生成參數說明");
+                                      lines.push("═══════════════════════════════════════");
+                                      lines.push("");
+                                      lines.push(`生成時間：${new Date(item.createdAt).toLocaleString("zh-TW")}`);
+                                      lines.push(`模態：${modalityLabel}`);
+                                      lines.push("");
+                                      lines.push("── 提示詞 ──");
+                                      lines.push(`原始輸入：${item.prompt || "(空)"}`);
+                                      lines.push(`編譯結果：${item.compiledPrompt || "(未編譯)"}`);
+                                      lines.push("");
+
+                                      // Extract params from parameterSnapshot
+                                      const snap = (item.parameterSnapshot || {}) as Record<string, unknown>;
+
+                                      // Common params
+                                      if (snap.mode) lines.push(`模式：${snap.mode === "lightning" ? "閃電模式 (Flash)" : "專業模式 (Pro)"}`);
+                                      if (snap.temperature != null) lines.push(`創意溫度：${snap.temperature}`);
+                                      if (snap.seed) lines.push(`種子碼：${snap.seed}`);
+                                      if (snap.loraWeight != null) lines.push(`LoRA 權重：${snap.loraWeight}`);
+
+                                      // Modality-specific params
+                                      if (item.modality === "image") {
+                                        lines.push("");
+                                        lines.push("── 圖片參數 ──");
+                                        if (snap.aspectRatio) lines.push(`長寬比：${snap.aspectRatio}`);
+                                        if (snap.negativePrompt) lines.push(`負面提示詞：${snap.negativePrompt}`);
+                                        if (snap.styleReferenceUrl) lines.push(`風格參考圖：${snap.styleReferenceUrl}`);
+                                        if (snap.vibeReferenceUrl) lines.push(`氛圍參考圖：${snap.vibeReferenceUrl}`);
+                                      } else if (item.modality === "video") {
+                                        lines.push("");
+                                        lines.push("── 影片參數 ──");
+                                        if (snap.duration) lines.push(`時長：${snap.duration}`);
+                                        if (snap.cameraMotion) lines.push(`鏡頭運動：${snap.cameraMotion}`);
+                                        if (snap.firstFrameUrl) lines.push(`首幀圖片：${snap.firstFrameUrl}`);
+                                        if (snap.lastFrameUrl) lines.push(`末幀圖片：${snap.lastFrameUrl}`);
+                                        if (snap.characterRefUrl) lines.push(`角色參考：${snap.characterRefUrl}`);
+                                      } else if (item.modality === "audio") {
+                                        lines.push("");
+                                        lines.push("── 音樂參數 ──");
+                                        if (snap.musicStyle) lines.push(`音樂風格：${snap.musicStyle}`);
+                                        if (snap.energy) lines.push(`能量等級：${snap.energy}`);
+                                        if (snap.isInstrumental != null) lines.push(`純樂器：${snap.isInstrumental ? "是" : "否"}`);
+                                        if (snap.lyrics) lines.push(`自訂歌詞：${snap.lyrics}`);
+                                      } else if (item.modality === "voice") {
+                                        lines.push("");
+                                        lines.push("── 語音參數 ──");
+                                        if (snap.voiceModelId) lines.push(`語音角色：${snap.voiceModelId}`);
+                                        if (snap.speed != null) lines.push(`語速：${snap.speed}`);
+                                        if (snap.emotionType) lines.push(`情緒類型：${snap.emotionType}`);
+                                        if (snap.emotionIntensity != null) lines.push(`情緒強度：${snap.emotionIntensity}`);
+                                        if (snap.stability != null) lines.push(`穩定度：${snap.stability}`);
+                                        if (snap.text) lines.push(`文案：${snap.text}`);
+                                      }
+
+                                      // Duration & cost
+                                      lines.push("");
+                                      lines.push("── 生成資訊 ──");
+                                      if (item.durationMs != null) lines.push(`生成耗時：${(item.durationMs / 1000).toFixed(1)} 秒`);
+                                      lines.push(`消耗配額：${item.costCredits}`);
+
+                                      zip.file("parameters.txt", lines.join("\n"));
+
+                                      // Also add structured JSON metadata
+                                      zip.file("metadata.json", JSON.stringify({
+                                        modality: item.modality,
+                                        prompt: item.prompt,
+                                        compiledPrompt: item.compiledPrompt,
+                                        parameterSnapshot: snap,
+                                        resultUrl: item.resultUrl,
+                                        costCredits: item.costCredits,
+                                        durationMs: item.durationMs,
+                                        createdAt: item.createdAt,
+                                      }, null, 2));
+
+                                      console.log('[ZIP] Files in zip:', Object.keys(zip.files));
+                                      const content = await zip.generateAsync({ type: "blob" });
+                                      console.log('[ZIP] Generated blob size:', content.size, 'type:', content.type);
+                                      if (content.size === 0) {
+                                        toast.error("ZIP 檔案為空，請稍後再試");
+                                        return;
+                                      }
+                                      const blobUrl = URL.createObjectURL(content);
+                                      const anchor = document.createElement("a");
+                                      anchor.href = blobUrl;
+                                      anchor.download = `ai-director-${item.modality}-${timestamp}.zip`;
+                                      document.body.appendChild(anchor);
+                                      anchor.click();
+                                      document.body.removeChild(anchor);
+                                      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+                                      toast.success("已匯出 ZIP 包");
+                                    } catch {
+                                      toast.error("匯出失敗，請稍後再試");
+                                    }
+                                  }}
+                                >
+                                  <Archive className="w-3.5 h-3.5" />
+                                  匯出 ZIP
                                 </Button>
                               </div>
                             )}

@@ -28,7 +28,7 @@ import VisualSoul from "@/components/VisualSoul";
 import { useLocation } from "wouter";
 import type { GenerationMode, GenerationType } from "@shared/types";
 import JSZip from "jszip";
-import { saveAs } from "file-saver";
+
 import ProactiveOrbWidget from "@/components/ProactiveOrbWidget";
 import OnboardingTour from "@/components/OnboardingTour";
 import { useNotesDrawer } from "@/contexts/NotesDrawerContext";
@@ -934,47 +934,120 @@ export default function Studio() {
                         const zip = new JSZip();
                         const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
 
-                        // Add generated image
+                        // Determine file extension by modality
+                        const extMap: Record<string, string> = { image: "png", video: "mp4", audio: "mp3", voice: "mp3" };
+                        const defaultExt = extMap[activeModality] || "bin";
+
+                        // Download and add the generated asset
                         if (resultUrl) {
                           try {
                             const resp = await fetch(resultUrl);
                             const blob = await resp.blob();
-                            const ext = blob.type.includes("png") ? "png" : blob.type.includes("webp") ? "webp" : "jpg";
-                            zip.file(`generated-image.${ext}`, blob);
+                            let ext = defaultExt;
+                            if (activeModality === "image") {
+                              ext = blob.type.includes("png") ? "png" : blob.type.includes("webp") ? "webp" : "jpg";
+                            }
+                            zip.file(`generated-${activeModality}.${ext}`, blob);
                           } catch {
-                            zip.file("image-url.txt", resultUrl);
+                            zip.file("asset-url.txt", resultUrl);
                           }
                         }
 
-                        // Add prompt text
-                        const promptText = promptBuilder.compiledPrompt || promptBuilder.rawPrompt;
-                        if (promptText) {
-                          zip.file("prompt.txt", `Original: ${promptBuilder.rawPrompt}\n\nCompiled: ${promptBuilder.compiledPrompt}`);
+                        // Build comprehensive parameter description file
+                        const lines: string[] = [];
+                        lines.push("═══════════════════════════════════════");
+                        lines.push("  AI Director — 生成參數說明");
+                        lines.push("═══════════════════════════════════════");
+                        lines.push("");
+                        lines.push(`生成時間：${new Date().toLocaleString("zh-TW")}`);
+                        lines.push(`模態：${activeModality === "image" ? "圖片" : activeModality === "video" ? "影片" : activeModality === "audio" ? "音樂" : "語音"}`);
+                        lines.push(`模式：${mode === "lightning" ? "閃電模式 (Flash)" : "專業模式 (Pro)"}`);
+                        lines.push(`創意溫度：${temperature}`);
+                        lines.push(`種子碼：${seed || "隨機"}`);
+                        lines.push(`LoRA 權重：${loraWeight}`);
+                        lines.push("");
+                        lines.push("── 提示詞 ──");
+                        lines.push(`原始輸入：${promptBuilder.rawPrompt || "(空)"}`);
+                        lines.push(`編譯結果：${promptBuilder.compiledPrompt || "(未編譯)"}`);
+                        if (promptBuilder.vibeCardIds.length > 0) {
+                          lines.push(`Vibe Cards：${promptBuilder.vibeCardIds.join(", ")}`);
+                        }
+                        lines.push("");
+
+                        // Modality-specific params
+                        if (activeModality === "image") {
+                          lines.push("── 圖片參數 ──");
+                          lines.push(`長寬比：${imageState.aspectRatio}`);
+                          lines.push(`負面提示詞：${imageState.negativePrompt || "(無)"}`);
+                          lines.push(`風格參考圖：${imageState.styleReferenceUrl || "(無)"}`);
+                          lines.push(`氛圍參考圖：${imageState.vibeReferenceUrl || "(無)"}`);
+                        } else if (activeModality === "video") {
+                          lines.push("── 影片參數 ──");
+                          lines.push(`時長：${videoState.duration}`);
+                          lines.push(`鏡頭運動：${videoState.cameraMotion || "(無)"}`);
+                          lines.push(`首幀圖片：${videoState.firstFrameUrl || "(無)"}`);
+                          lines.push(`末幀圖片：${videoState.lastFrameUrl || "(無)"}`);
+                          lines.push(`角色參考：${videoState.characterRefUrl || "(無)"}`);
+                        } else if (activeModality === "audio") {
+                          lines.push("── 音樂參數 ──");
+                          lines.push(`音樂風格：${audioState.musicStyle}`);
+                          lines.push(`能量等級：${audioState.energy}`);
+                          lines.push(`純樂器：${audioState.isInstrumental ? "是" : "否"}`);
+                          lines.push(`自訂歌詞：${audioState.lyrics || "(無)"}`);
+                        } else if (activeModality === "voice") {
+                          lines.push("── 語音參數 ──");
+                          lines.push(`語音角色：${voiceState.voiceActorId}`);
+                          lines.push(`語速：${voiceState.speed}`);
+                          lines.push(`情緒類型：${voiceState.emotionType}`);
+                          lines.push(`情緒強度：${voiceState.emotionIntensity}`);
+                          lines.push(`穩定度：${voiceState.stability}`);
+                          lines.push(`文案：${voiceState.text || "(空)"}`);
                         }
 
-                        // Add generation metadata
+                        // Thought chain
+                        if (thoughtChain.length > 0) {
+                          lines.push("");
+                          lines.push("── AI 推理鏈 ──");
+                          thoughtChain.forEach(n => {
+                            lines.push(`[${n.status.toUpperCase()}] ${n.label}：${n.detail}`);
+                          });
+                        }
+
+                        zip.file("parameters.txt", lines.join("\n"));
+
+                        // Also add structured JSON metadata
                         const metadata = {
                           modality: activeModality,
                           mode,
                           temperature,
                           seed: seed || "random",
-                          vibeCardIds: promptBuilder.vibeCardIds,
-                          resultData,
+                          loraWeight,
+                          prompt: { raw: promptBuilder.rawPrompt, compiled: promptBuilder.compiledPrompt, vibeCardIds: promptBuilder.vibeCardIds },
+                          ...(activeModality === "image" ? { imageParams: imageState } : {}),
+                          ...(activeModality === "video" ? { videoParams: videoState } : {}),
+                          ...(activeModality === "audio" ? { audioParams: audioState } : {}),
+                          ...(activeModality === "voice" ? { voiceParams: voiceState } : {}),
+                          resultUrl,
                           thoughtChain,
                           generatedAt: new Date().toISOString(),
                         };
                         zip.file("metadata.json", JSON.stringify(metadata, null, 2));
 
-                        // Add thought chain as readable text
-                        if (thoughtChain.length > 0) {
-                          const chainText = thoughtChain.map(n =>
-                            `[${n.status.toUpperCase()}] ${n.label}: ${n.detail}`
-                          ).join("\n");
-                          zip.file("thought-chain.txt", chainText);
-                        }
-
+                        console.log('[ZIP] Files in zip:', Object.keys(zip.files));
                         const content = await zip.generateAsync({ type: "blob" });
-                        saveAs(content, `ai-director-${activeModality}-${timestamp}.zip`);
+                        console.log('[ZIP] Generated blob size:', content.size, 'type:', content.type);
+                        if (content.size === 0) {
+                          toast.error("ZIP 檔案為空，請稍後再試");
+                          return;
+                        }
+                        const blobUrl = URL.createObjectURL(content);
+                        const anchor = document.createElement("a");
+                        anchor.href = blobUrl;
+                        anchor.download = `ai-director-${activeModality}-${timestamp}.zip`;
+                        document.body.appendChild(anchor);
+                        anchor.click();
+                        document.body.removeChild(anchor);
+                        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
                         toast.success("已匯出 ZIP 包");
                       } catch (err) {
                         toast.error("匯出失敗，請稍後再試");
