@@ -560,3 +560,14 @@
 - [x] 整合 cron 排程至 server/_core/index.ts（每 6 小時 + 啟動後 30s 首次抓取）
 - [x] TypeScript 編譯零錯誤
 - [x] 伺服器啟動正常，日誌確認「新聞抓取排程已註冊」
+
+## OARS NLP 柔化器（Gemini Flash）
+
+- [x] 分析現有 newsFetcher generateOarsSummary 流程
+- [x] 建立 Gemini Flash 專用 NLP 柔化 Prompt（消除恐嚇字眼 + TL;DR + 權重標籤）
+- [x] 重寫為批次處理管線（一次送整批新聞給 Gemini，JSON Schema 結構化回傳）
+- [x] 自動權重標籤分類（Model Breakthrough / Inspiration Tip / Industry Shift / Creative Tool / Community Spotlight / Tutorial Guide / General Update）
+- [x] 更新 news_articles 寫入邏輯（柔化標題 + TL;DR 摘要 + 權重標籤 + 技術標籤 + 分類）
+- [x] 本地 Fallback 柔化器（Gemini 不可用時的正則替換 + 規則分類備援）
+- [x] TypeScript 編譯零錯誤確認
+- [x] 伺服器啟動正常確認
