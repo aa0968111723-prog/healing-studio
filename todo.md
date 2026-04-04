@@ -506,3 +506,10 @@
 - [x] 後端 API 呼叫加入 withTimeout 機制（7個 invokeLLM + 1個 generateImage 全部包裝）
 - [x] 前端生成流程錯誤處理：顯示「未扣積分，請稍後重試」Zero-Anxiety 訊息
 - [x] tRPC mutation onError 統一友善錯誤 Toast（超時/網路/配額/一般錯誤分類處理）
+
+## 離線模式提示
+
+- [x] 建立 OfflineBanner 元件（偵測 navigator.onLine + online/offline 事件）
+- [x] 全域提示條 UI（頂部固定橫幅，琥珀色離線 + 綠色恢復 + 動畫進出場）
+- [x] 整合至 App.tsx 全域佈局（z-index 9999）
+- [x] 離線時禁用生成按鈕並顯示提示（Studio 「開始創作」按鈕 disabled + title 提示）

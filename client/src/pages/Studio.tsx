@@ -222,6 +222,19 @@ function DrawerPanel({
 export default function Studio() {
   const { user } = useAuth();
   const isMobile = useIsMobile();
+
+  // ── Online status ──
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  useEffect(() => {
+    const goOnline = () => setIsOnline(true);
+    const goOffline = () => setIsOnline(false);
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
+    return () => {
+      window.removeEventListener("online", goOnline);
+      window.removeEventListener("offline", goOffline);
+    };
+  }, []);
   const { aiState, setAIState, personality, reportTyping, reportFailure, reportSuccess, resetIdle } = useAIState();
   const [, navigate] = useLocation();
 
@@ -828,7 +841,8 @@ export default function Studio() {
           <Button
             id="generate-button"
             onClick={handleGenerate}
-            disabled={generateMutation.isPending}
+            disabled={generateMutation.isPending || !isOnline}
+            title={!isOnline ? "目前處於離線狀態，無法生成" : undefined}
             className="w-full h-12 rounded-xl text-sm font-medium gap-2 shadow-md hover:shadow-lg transition-all"
           >
             <Wand2 className="w-4 h-4" />

@@ -21,6 +21,7 @@ import SettingsPage from "./pages/SettingsPage";
 import VaultPage from "./pages/VaultPage";
 import HistoryPage from "./pages/HistoryPage";
 import ProjectNotesDrawer from "./components/ProjectNotesDrawer";
+import OfflineBanner from "./components/OfflineBanner";
 
 function DashboardRoute({ component: Component }: { component: React.ComponentType }) {
   return (
@@ -101,6 +102,7 @@ function App() {
         <NotesDrawerProvider>
           <TooltipProvider>
             <Toaster />
+            <OfflineBanner />
             <Router />
             <ProjectNotesDrawer />
           </TooltipProvider>
