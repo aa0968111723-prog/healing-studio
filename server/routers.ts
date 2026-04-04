@@ -720,6 +720,56 @@ export const appRouter = router({
         }
         return { score: 50, dimensions: { subjectClarity: 10, actionNarrative: 10, environment: 10, lightingTone: 10, technicalSpecs: 10 }, strengths: "", weaknesses: "", suggestions: [], optimizedPrompt: input.prompt };
       }),
+
+    suggestChips: protectedProcedure
+      .input(z.object({
+        partial: z.string().min(1).max(50),
+      }))
+      .mutation(async ({ input }) => {
+        const result = await invokeLLM({
+          messages: [
+            {
+              role: "system",
+              content: `你是一位創意靈感助手。使用者正在輸入一個初步的創作靈感，你的任務是根據這個部分輸入，生成 5 個相關但更具體、更有想像力的延展靈感詞彙。
+
+規則：
+- 每個建議必須是繁體中文
+- 每個建議 4~12 個字，簡潔有畫面感
+- 建議應與使用者輸入相關但往不同方向延展
+- 包含場景、風格、氛圍、細節等多元角度
+- 不要重複使用者已輸入的文字
+
+你必須回傳 JSON，包含一個 chips 陣列。`,
+            },
+            { role: "user", content: input.partial },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "inspiration_chips",
+              strict: true,
+              schema: {
+                type: "object",
+                properties: {
+                  chips: {
+                    type: "array",
+                    items: { type: "string" },
+                    description: "3-5 creative inspiration suggestions in Traditional Chinese",
+                  },
+                },
+                required: ["chips"],
+                additionalProperties: false,
+              },
+            },
+          },
+        });
+        const content = result.choices[0]?.message?.content;
+        if (typeof content === "string") {
+          const parsed = JSON.parse(content);
+          return { chips: (parsed.chips || []).slice(0, 5) };
+        }
+        return { chips: [] };
+      }),
   }),
 
   // ─── Director AI Chat ────────────────────────────────────────────────────

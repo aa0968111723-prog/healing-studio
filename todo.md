@@ -482,3 +482,11 @@
 - [x] Studio 頁面：實作真實 ZIP 匯出（圖片/影片/音樂/語音 + parameters.txt + metadata.json）
 - [x] History 頁面：實作真實 ZIP 匯出（歷史紀錄結果 + parameters.txt + metadata.json）
 - [x] 移除所有「即將推出」假 Toast，替換為真實 ZIP 打包下載邏輯
+
+## OnboardingFlow Choice Chips 靈感建議
+
+- [x] 後端新增 evaluate.suggestChips tRPC 路由（LLM 生成 3~5 個延展靈感詞彙）
+- [x] 前端 OnboardingFlow 加入 Debounced 查詢機制（500ms 延遲）
+- [x] 渲染可點擊 Choice Chips UI（毛玻璃風格 + 動畫進場）
+- [x] 點擊 Chip 後自動填入輸入框 + 自動觸發新一輪 AI 建議
+- [x] 重新整合 OnboardingFlow 到首頁（首次登入觸發）+ 保留靜態 STARTER_CHIPS 作為初始建議

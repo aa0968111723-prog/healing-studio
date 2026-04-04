@@ -65,17 +65,21 @@ export default function Home() {
     }
   }, [isAuthenticated, loading]);
 
-  // First-time users: no more blocking modal overlay.
-  // The ProactiveOrbWidget (mounted in Studio/DirectorAI) handles the 90-second guided onboarding.
-  // If the user is new, we just auto-navigate them to the studio where the orb guide awaits.
-  useEffect(() => {
-    if (showOnboarding && isAuthenticated) {
-      // Mark as seen so we don't redirect again, but let ProactiveOrbWidget handle the actual guide
-      localStorage.setItem("ai-director-onboarded", "true");
-      setShowOnboarding(false);
-      navigate("/studio");
-    }
-  }, [showOnboarding, isAuthenticated, navigate]);
+  // First-time users: show OnboardingFlow with AI-powered Choice Chips
+  if (showOnboarding && isAuthenticated) {
+    return (
+      <OnboardingFlow
+        onComplete={() => {
+          setShowOnboarding(false);
+          navigate("/studio");
+        }}
+        onSkip={() => {
+          setShowOnboarding(false);
+          navigate("/studio");
+        }}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen">
