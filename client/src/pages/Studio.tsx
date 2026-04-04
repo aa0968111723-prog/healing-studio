@@ -318,12 +318,61 @@ export default function Studio() {
         // Restore full parameter snapshot from history (cross-modal inheritance)
         if (data.parameterSnapshot) {
           const snap = data.parameterSnapshot as Record<string, unknown>;
+          // ── Common params ──
           if (snap.temperature != null) setTemperature(Number(snap.temperature));
           if (snap.seed != null) setSeed(String(snap.seed));
           if (snap.vibeCardIds && Array.isArray(snap.vibeCardIds)) {
             setPromptBuilder(prev => ({ ...prev, vibeCardIds: snap.vibeCardIds as string[] }));
           }
           if (snap.mode === "lightning" || snap.mode === "deep_precision") setMode(snap.mode as GenerationMode);
+
+          // ── Image-specific params ──
+          if (data.generationType === "image") {
+            setImageState(prev => ({
+              ...prev,
+              ...(snap.aspectRatio != null && { aspectRatio: String(snap.aspectRatio) }),
+              ...(snap.negativePrompt != null && { negativePrompt: String(snap.negativePrompt) }),
+              ...(snap.styleReferenceUrl != null && { styleReferenceUrl: String(snap.styleReferenceUrl) }),
+              ...(snap.vibeReferenceUrl != null && { vibeReferenceUrl: String(snap.vibeReferenceUrl) }),
+            }));
+          }
+
+          // ── Video-specific params ──
+          if (data.generationType === "video") {
+            setVideoState(prev => ({
+              ...prev,
+              ...(snap.videoDurationSeconds != null && { duration: String(snap.videoDurationSeconds) }),
+              ...(snap.firstFrameUrl != null && { firstFrameUrl: String(snap.firstFrameUrl) }),
+              ...(snap.lastFrameUrl != null && { lastFrameUrl: String(snap.lastFrameUrl) }),
+              ...(snap.characterRefUrl != null && { characterRefUrl: String(snap.characterRefUrl) }),
+              ...(snap.cameraMotion != null && typeof snap.cameraMotion === "object" && { cameraMotion: snap.cameraMotion as { pan: number; zoom: number; tilt: number } }),
+            }));
+          }
+
+          // ── Audio-specific params ──
+          if (data.generationType === "audio") {
+            setAudioState(prev => ({
+              ...prev,
+              ...(snap.musicStyle != null && { musicStyle: String(snap.musicStyle) }),
+              ...(snap.isInstrumental != null && { isInstrumental: Boolean(snap.isInstrumental) }),
+              ...(snap.lyrics != null && { lyrics: String(snap.lyrics) }),
+              ...(snap.audioDuration != null && { duration: Number(snap.audioDuration) }),
+              ...(snap.audioEnergy != null && { energy: Number(snap.audioEnergy) }),
+            }));
+          }
+
+          // ── Voice-specific params ──
+          if (data.generationType === "voice") {
+            setVoiceState(prev => ({
+              ...prev,
+              ...(snap.voiceModelId != null && { voiceActorId: String(snap.voiceModelId) }),
+              ...(snap.voiceText != null && { text: String(snap.voiceText) }),
+              ...(snap.voiceSpeed != null && { speed: Number(snap.voiceSpeed) }),
+              ...(snap.voiceStability != null && { stability: Number(snap.voiceStability) }),
+              ...(snap.voiceEmotionType != null && { emotionType: String(snap.voiceEmotionType) }),
+              ...(snap.voiceEmotionIntensity != null && { emotionIntensity: Number(snap.voiceEmotionIntensity) }),
+            }));
+          }
         }
 
         // Restore video first frame from cross-modal reference
@@ -415,13 +464,63 @@ export default function Studio() {
     setPromptBuilder(prev => ({ ...prev, rawPrompt: prompt, compiledPrompt: prompt }));
     setActiveModality(type);
     if (parameterSnapshot) {
-      if (parameterSnapshot.temperature != null) setTemperature(Number(parameterSnapshot.temperature));
-      if (parameterSnapshot.seed != null) setSeed(String(parameterSnapshot.seed));
-      if (parameterSnapshot.vibeCardIds && Array.isArray(parameterSnapshot.vibeCardIds)) {
-        setPromptBuilder(prev => ({ ...prev, vibeCardIds: parameterSnapshot.vibeCardIds as string[] }));
+      const snap = parameterSnapshot;
+      // ── Common params ──
+      if (snap.temperature != null) setTemperature(Number(snap.temperature));
+      if (snap.seed != null) setSeed(String(snap.seed));
+      if (snap.vibeCardIds && Array.isArray(snap.vibeCardIds)) {
+        setPromptBuilder(prev => ({ ...prev, vibeCardIds: snap.vibeCardIds as string[] }));
       }
-      if (parameterSnapshot.mode === "lightning" || parameterSnapshot.mode === "deep_precision") {
-        setMode(parameterSnapshot.mode as GenerationMode);
+      if (snap.mode === "lightning" || snap.mode === "deep_precision") {
+        setMode(snap.mode as GenerationMode);
+      }
+
+      // ── Image-specific params ──
+      if (type === "image") {
+        setImageState(prev => ({
+          ...prev,
+          ...(snap.aspectRatio != null && { aspectRatio: String(snap.aspectRatio) }),
+          ...(snap.negativePrompt != null && { negativePrompt: String(snap.negativePrompt) }),
+          ...(snap.styleReferenceUrl != null && { styleReferenceUrl: String(snap.styleReferenceUrl) }),
+          ...(snap.vibeReferenceUrl != null && { vibeReferenceUrl: String(snap.vibeReferenceUrl) }),
+        }));
+      }
+
+      // ── Video-specific params ──
+      if (type === "video") {
+        setVideoState(prev => ({
+          ...prev,
+          ...(snap.videoDurationSeconds != null && { duration: String(snap.videoDurationSeconds) }),
+          ...(snap.firstFrameUrl != null && { firstFrameUrl: String(snap.firstFrameUrl) }),
+          ...(snap.lastFrameUrl != null && { lastFrameUrl: String(snap.lastFrameUrl) }),
+          ...(snap.characterRefUrl != null && { characterRefUrl: String(snap.characterRefUrl) }),
+          ...(snap.cameraMotion != null && typeof snap.cameraMotion === "object" && { cameraMotion: snap.cameraMotion as { pan: number; zoom: number; tilt: number } }),
+        }));
+      }
+
+      // ── Audio-specific params ──
+      if (type === "audio") {
+        setAudioState(prev => ({
+          ...prev,
+          ...(snap.musicStyle != null && { musicStyle: String(snap.musicStyle) }),
+          ...(snap.isInstrumental != null && { isInstrumental: Boolean(snap.isInstrumental) }),
+          ...(snap.lyrics != null && { lyrics: String(snap.lyrics) }),
+          ...(snap.audioDuration != null && { duration: Number(snap.audioDuration) }),
+          ...(snap.audioEnergy != null && { energy: Number(snap.audioEnergy) }),
+        }));
+      }
+
+      // ── Voice-specific params ──
+      if (type === "voice") {
+        setVoiceState(prev => ({
+          ...prev,
+          ...(snap.voiceModelId != null && { voiceActorId: String(snap.voiceModelId) }),
+          ...(snap.voiceText != null && { text: String(snap.voiceText) }),
+          ...(snap.voiceSpeed != null && { speed: Number(snap.voiceSpeed) }),
+          ...(snap.voiceStability != null && { stability: Number(snap.voiceStability) }),
+          ...(snap.voiceEmotionType != null && { emotionType: String(snap.voiceEmotionType) }),
+          ...(snap.voiceEmotionIntensity != null && { emotionIntensity: Number(snap.voiceEmotionIntensity) }),
+        }));
       }
     }
     setRightDrawerOpen(false);

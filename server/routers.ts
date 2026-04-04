@@ -494,6 +494,38 @@ export const appRouter = router({
               seed: input.seed,
               visualWeight,
               controlNetParams,
+              // ── Image-specific ──
+              ...(input.generationType === "image" && {
+                aspectRatio: input.aspectRatio,
+                negativePrompt: input.negativePrompt,
+                styleReferenceUrl: input.styleReferenceUrl,
+                vibeReferenceUrl: input.vibeReferenceUrl,
+              }),
+              // ── Video-specific ──
+              ...(input.generationType === "video" && {
+                videoDurationSeconds: input.videoDurationSeconds,
+                firstFrameUrl: input.firstFrameUrl,
+                lastFrameUrl: input.lastFrameUrl,
+                characterRefUrl: input.characterRefUrl,
+                cameraMotion: input.cameraMotion,
+              }),
+              // ── Audio-specific ──
+              ...(input.generationType === "audio" && {
+                musicStyle: input.musicStyle,
+                isInstrumental: input.isInstrumental,
+                lyrics: input.lyrics,
+                audioDuration: input.audioDuration,
+                audioEnergy: input.audioEnergy,
+              }),
+              // ── Voice-specific ──
+              ...(input.generationType === "voice" && {
+                voiceModelId: input.voiceModelId,
+                voiceText: input.voiceText,
+                voiceSpeed: input.voiceSpeed,
+                voiceStability: input.voiceStability,
+                voiceEmotionType: input.voiceEmotionType,
+                voiceEmotionIntensity: input.voiceEmotionIntensity,
+              }),
             },
             resultUrl: resultUrl || undefined,
             thumbnailUrl: resultUrl || undefined,

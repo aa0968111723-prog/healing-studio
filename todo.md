@@ -453,3 +453,12 @@
 - [x] 確保扣點失敗時拋出明確錯誤（配額不足）
 - [x] 安全檢查失敗/生成失敗時自動退還配額 (refundUserQuota)
 - [x] 撰寫原子扣點測試 (12 個測試通過)
+
+## 跨模態參數死鎖修復
+
+- [x] 讀取 HistoryPage 的「發送至工作室」邏輯
+- [x] 實作 sessionStorage 傳遞完整 parameterSnapshot
+- [x] Studio 頁面啟動時讀取 sessionStorage 並填入對應工作區參數
+- [x] 確保 seed、temperature、所有隱藏參數完整傳遞
+- [x] 後端 parameterSnapshot 保存所有模態專屬參數（image/video/audio/voice）
+- [x] 前端 handleHistoryToStudio 還原所有模態專屬參數
