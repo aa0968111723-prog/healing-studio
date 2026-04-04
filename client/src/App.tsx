@@ -30,15 +30,30 @@ function DashboardRoute({ component: Component }: { component: React.ComponentTy
   );
 }
 
+/**
+ * Wraps a page component with an inline ErrorBoundary for page-level isolation.
+ * If the page crashes, only the page content shows the friendly error UI,
+ * while the sidebar/navigation remain functional.
+ */
+function ProtectedDashboardRoute({ component: Component }: { component: React.ComponentType }) {
+  return (
+    <DashboardLayout>
+      <ErrorBoundary inline>
+        <Component />
+      </ErrorBoundary>
+    </DashboardLayout>
+  );
+}
+
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/studio">
-        <DashboardRoute component={Studio} />
+        <ProtectedDashboardRoute component={Studio} />
       </Route>
       <Route path="/director">
-        <DashboardRoute component={DirectorAI} />
+        <ProtectedDashboardRoute component={DirectorAI} />
       </Route>
       <Route path="/assets">
         <DashboardRoute component={AssetsLibrary} />
@@ -68,7 +83,7 @@ function Router() {
         <DashboardRoute component={SettingsPage} />
       </Route>
       <Route path="/history">
-        <DashboardRoute component={HistoryPage} />
+        <ProtectedDashboardRoute component={HistoryPage} />
       </Route>
       <Route path="/admin">
         <DashboardRoute component={AdminPage} />

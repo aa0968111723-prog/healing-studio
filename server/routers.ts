@@ -10,11 +10,29 @@ import { storagePut } from "./storage";
 import { TRPCError } from "@trpc/server";
 import { generationBus } from "./generationEvents";
 
+// ─── Timeout Utility ────────────────────────────────────────────────────────
+
+/**
+ * Wraps a promise with a timeout. If the promise doesn't resolve within
+ * the specified duration, it rejects with a descriptive timeout error.
+ * This ensures external API calls (LLM, image gen, etc.) don't hang forever.
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number, label = "API"): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`${label} 回應超時（${Math.round(ms / 1000)}秒），請稍後再試`));
+    }, ms);
+    promise
+      .then((val) => { clearTimeout(timer); resolve(val); })
+      .catch((err) => { clearTimeout(timer); reject(err); });
+  });
+}
+
 // ─── Safety Moderation Middleware ────────────────────────────────────────────
 
 async function checkSafety(text: string): Promise<{ safe: boolean; reason?: string }> {
   try {
-    const result = await invokeLLM({
+    const result = await withTimeout(invokeLLM({
       messages: [
         {
           role: "system",
@@ -41,13 +59,14 @@ async function checkSafety(text: string): Promise<{ safe: boolean; reason?: stri
           },
         },
       },
-    });
+    }), 15_000, "安全檢查");
     const content = result.choices[0]?.message?.content;
     if (typeof content === "string") {
       return JSON.parse(content);
     }
     return { safe: true };
   } catch {
+    // On timeout or error, default to safe to avoid blocking user
     return { safe: true };
   }
 }
@@ -92,7 +111,7 @@ async function compileElitePrompt(payload: {
     ? `\n\n參考圖片資訊：\n- 風格參考：${hasStyleRef ? "已提供（權重 0.65）" : "無"}\n- 氛圍參考：${hasVibeRef ? "已提供（權重 0.5）" : "無"}\n- 角色參考：${hasCharRef ? "已提供（權重 0.75）" : "無"}\n- 綜合視覺權重：${visualWeight.toFixed(2)}\n請在提示詞中加入 "maintaining visual consistency with reference" 等指令。`
     : "";
 
-  const result = await invokeLLM({
+  const result = await withTimeout(invokeLLM({
     messages: [
       {
         role: "system",
@@ -109,7 +128,7 @@ async function compileElitePrompt(payload: {
       },
       { role: "user", content: payload.prompt },
     ],
-  });
+  }), 30_000, "提示詞編譯");
   const content = result.choices[0]?.message?.content;
   const compiledPrompt = typeof content === "string" ? content : payload.prompt;
   return { compiledPrompt, visualWeight, controlNetParams };
@@ -194,7 +213,7 @@ async function runDirectorAI(
   const persona = PERSONALITY_PROMPTS[personality] || PERSONALITY_PROMPTS.creative;
 
   // Step 1: Use LLM for factual grounding with personality-aware research style
-  const researchResult = await invokeLLM({
+  const researchResult = await withTimeout(invokeLLM({
     messages: [
       {
         role: "system",
@@ -202,12 +221,12 @@ async function runDirectorAI(
       },
       ...messages.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
     ],
-  });
+  }), 30_000, "導演AI研究");
   const researchContent = typeof researchResult.choices[0]?.message?.content === "string"
     ? researchResult.choices[0].message.content : "";
 
   // Step 2: Creative orchestration with personality-aware CO-STAR framework
-  const scriptResult = await invokeLLM({
+  const scriptResult = await withTimeout(invokeLLM({
     messages: [
       {
         role: "system",
@@ -258,7 +277,7 @@ ${persona.proactiveHint}
         },
       },
     },
-  });
+  }), 45_000, "導演AI創作");
 
   const scriptContent = scriptResult.choices[0]?.message?.content;
   let script;
@@ -410,17 +429,21 @@ export const appRouter = router({
           generationBus.emit(jobId, { type: "thought-update", node: { id: "compile", label: "提示詞編譯", status: "processing", detail: "正在編譯提示詞...", timestamp: Date.now() } });
           generationBus.emit(jobId, { type: "progress", progress: 15, message: "編譯提示詞中..." });
           stepTimestamps.compileStart = Date.now();
-          const { compiledPrompt, visualWeight, controlNetParams } = await compileElitePrompt({
-            prompt: input.prompt,
-            vibeCardIds: input.vibeCardIds,
-            temperature: input.temperature,
-            generationType: input.generationType,
-            referenceImages: {
-              styleUrl: input.styleReferenceUrl,
-              vibeUrl: input.vibeReferenceUrl,
-              characterUrl: input.characterRefUrl,
-            },
-          });
+          const { compiledPrompt, visualWeight, controlNetParams } = await withTimeout(
+            compileElitePrompt({
+              prompt: input.prompt,
+              vibeCardIds: input.vibeCardIds,
+              temperature: input.temperature,
+              generationType: input.generationType,
+              referenceImages: {
+                styleUrl: input.styleReferenceUrl,
+                vibeUrl: input.vibeReferenceUrl,
+                characterUrl: input.characterRefUrl,
+              },
+            }),
+            30_000,
+            "提示詞編譯"
+          );
 
           stepTimestamps.compileDone = Date.now();
           stepTimestamps.weightDone = Date.now();
@@ -451,10 +474,14 @@ export const appRouter = router({
               originalImages.push({ url: input.vibeReferenceUrl, mimeType: "image/png" });
             }
 
-            const imageResult = await generateImage({
-              prompt: compiledPrompt,
-              ...(originalImages.length > 0 ? { originalImages } : {}),
-            });
+            const imageResult = await withTimeout(
+              generateImage({
+                prompt: compiledPrompt,
+                ...(originalImages.length > 0 ? { originalImages } : {}),
+              }),
+              120_000,
+              "圖片生成"
+            );
             resultUrl = imageResult.url;
             resultData.imageUrl = imageResult.url;
             resultData.aspectRatio = input.aspectRatio;
@@ -615,21 +642,34 @@ export const appRouter = router({
         } catch (error) {
           // Transactional integrity: refund quota on failure
           await db.refundUserQuota(userId, 1);
+          const errMsg = error instanceof Error ? error.message : "生成失敗";
+          const isTimeout = /超時|timeout|timed? ?out|ETIMEDOUT|aborted/i.test(errMsg);
           await db.updateBackgroundJob(jobId, {
             status: "failed",
-            errorMessage: error instanceof Error ? error.message : "生成失敗",
+            errorMessage: errMsg,
           });
           await db.createApiUsageLog({
             userId,
             requestType: "image_generation",
             apiProvider: "gemini",
             responseStatus: "failed",
-            errorMessage: error instanceof Error ? error.message : "Unknown error",
+            errorMessage: errMsg,
             generationsDeducted: 0,
           });
+          // Emit error via SSE so the frontend can update thought chain
+          generationBus.emit(jobId, {
+            type: "thought-update",
+            node: { id: "error", label: "錯誤", status: "error" as const, detail: errMsg, timestamp: Date.now() },
+          });
+          generationBus.emit(jobId, { type: "error", message: errMsg });
+          setTimeout(() => generationBus.cleanup(jobId), 2000);
+          // Zero-Anxiety: friendly message emphasizing no credits were deducted
+          const userMessage = isTimeout
+            ? "AI 服務回應超時，我們並未扣除您的積分，請稍後重試"
+            : "AI 服務連線稍微異常，我們並未扣除您的積分，請稍後重試";
           throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: "生成過程中發生錯誤，配額已退還。請稍後再試。",
+            code: isTimeout ? "TIMEOUT" as any : "INTERNAL_SERVER_ERROR",
+            message: userMessage,
           });
         }
       }),
@@ -654,7 +694,7 @@ export const appRouter = router({
         modality: z.enum(["image", "video", "audio", "voice"]).default("image"),
       }))
       .mutation(async ({ input }) => {
-        const result = await invokeLLM({
+        const result = await withTimeout(invokeLLM({
           messages: [
             {
               role: "system",
@@ -732,7 +772,7 @@ export const appRouter = router({
               },
             },
           },
-        });
+        }), 30_000, "提示詞評估");
         const content = result.choices[0]?.message?.content;
         if (typeof content === "string") {
           return JSON.parse(content);
@@ -745,7 +785,7 @@ export const appRouter = router({
         partial: z.string().min(1).max(50),
       }))
       .mutation(async ({ input }) => {
-        const result = await invokeLLM({
+        const result = await withTimeout(invokeLLM({
           messages: [
             {
               role: "system",
@@ -781,7 +821,7 @@ export const appRouter = router({
               },
             },
           },
-        });
+        }), 15_000, "靈感建議");
         const content = result.choices[0]?.message?.content;
         if (typeof content === "string") {
           const parsed = JSON.parse(content);
@@ -915,7 +955,7 @@ export const appRouter = router({
         const captions: string[] = [];
         for (const img of input.images) {
           try {
-            const result = await invokeLLM({
+            const result = await withTimeout(invokeLLM({
               messages: [
                 {
                   role: "system",
@@ -929,7 +969,7 @@ export const appRouter = router({
                   ],
                 },
               ],
-            });
+            }), 20_000, "圖片標註");
             const content = result.choices[0]?.message?.content;
             captions.push(typeof content === "string" ? content.trim() : `${img.angle} view of the subject`);
           } catch {

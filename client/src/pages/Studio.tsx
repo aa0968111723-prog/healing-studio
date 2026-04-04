@@ -284,7 +284,20 @@ export default function Studio() {
       setProgress(0);
       setProgressMessage("");
       setAIState("idle");
-      toast.error(error.message);
+      // Zero-Anxiety error handling: classify error and show friendly message
+      const msg = error.message || "";
+      const isTimeout = /timeout|timed? ?out|ETIMEDOUT|aborted|abort/i.test(msg);
+      const isNetwork = /network|fetch|ECONNREFUSED|ENOTFOUND|ERR_CONNECTION/i.test(msg);
+      const isQuota = /配額|不足|積分/i.test(msg);
+      if (isQuota) {
+        toast.error(msg);
+      } else if (isTimeout) {
+        toast.error("AI 服務回應超時\n\n我們並未扣除您的積分，請稍後重試", { duration: 6000 });
+      } else if (isNetwork) {
+        toast.error("網路連線稍微異常\n\n我們並未扣除您的積分，請檢查網路後重試", { duration: 6000 });
+      } else {
+        toast.error(`AI 服務連線稍微異常\n\n我們並未扣除您的積分，請稍後重試`, { duration: 6000 });
+      }
       reportFailure();
       if (sseRef.current) { sseRef.current.close(); sseRef.current = null; }
     },
