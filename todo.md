@@ -513,3 +513,11 @@
 - [x] 全域提示條 UI（頂部固定橫幅，琥珀色離線 + 綠色恢復 + 動畫進出場）
 - [x] 整合至 App.tsx 全域佈局（z-index 9999）
 - [x] 離線時禁用生成按鈕並顯示提示（Studio 「開始創作」按鈕 disabled + title 提示）
+
+## 越權操作防呆（JWT/Session 過期攔截）
+
+- [x] 建立 AuthExpiredModal 元件（優雅登入提示 UI，毛玻璃背景 + 彈簧動畫）
+- [x] tRPC QueryCache/MutationCache 加入 UNAUTHORIZED 錯誤攔截（替換強制跳轉為 Modal 事件）
+- [x] 建立全域 auth 過期事件機制（CustomEvent + debounce 2s 防重複觸發）
+- [x] 後端 protectedProcedure 已統一回傳 UNAUTHORIZED 狀態碼（原有架構已支援）
+- [x] 前端 onClick 防呆（Studio 生成按鈕 requireAuth guard + 其他 mutation 由底層攔截器統一覆蓋）

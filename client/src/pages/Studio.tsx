@@ -32,6 +32,7 @@ import JSZip from "jszip";
 import ProactiveOrbWidget from "@/components/ProactiveOrbWidget";
 import OnboardingTour from "@/components/OnboardingTour";
 import { useNotesDrawer } from "@/contexts/NotesDrawerContext";
+import { requireAuth } from "@/components/AuthExpiredModal";
 
 // ─── Tab Config ─────────────────────────────────────────────────────────────
 
@@ -446,6 +447,9 @@ export default function Studio() {
 
   // ── Handle Generate ──
   const handleGenerate = useCallback(async () => {
+    // Auth guard: show login modal instead of 500 error if session expired
+    if (!requireAuth()) return;
+
     const prompt = promptBuilder.compiledPrompt || promptBuilder.rawPrompt;
     if (!prompt.trim() && activeModality !== "voice") {
       toast.error("請輸入創作描述");
