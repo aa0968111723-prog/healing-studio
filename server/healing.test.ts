@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 
@@ -244,12 +244,25 @@ describe("input validation", () => {
   });
 
   it("accepts image workspace params (aspectRatio, negativePrompt)", async () => {
+    // Mock atomic deduction and LLM to prevent real API calls
+    const dbModule = await import("./db");
+    const llmModule = await import("./_core/llm");
+    const spy = vi.spyOn(dbModule, "deductUserQuota").mockResolvedValueOnce(true);
+    const refundSpy = vi.spyOn(dbModule, "refundUserQuota").mockResolvedValue(undefined);
+    const createJobSpy = vi.spyOn(dbModule, "createBackgroundJob").mockResolvedValue(1);
+    const updateJobSpy = vi.spyOn(dbModule, "updateBackgroundJob").mockResolvedValue(undefined);
+    const createLogSpy = vi.spyOn(dbModule, "createApiUsageLog").mockResolvedValue(1);
+    const createAssetSpy = vi.spyOn(dbModule, "createDigitalAsset").mockResolvedValue(1);
+    const createHistorySpy = vi.spyOn(dbModule, "createHistoryEntry").mockResolvedValue(1);
+    const llmSpy = vi.spyOn(llmModule, "invokeLLM").mockResolvedValue({
+      choices: [{ message: { content: JSON.stringify({ safe: true }) }, finish_reason: "stop", index: 0 }],
+    } as any);
     const user = createMockUser();
     const ctx = createMockContext(user);
     const caller = appRouter.createCaller(ctx);
-    // This should not throw on input validation
-    await expect(
-      caller.generate.multimodal({
+    // Should not throw validation error; may succeed or fail on image generation API
+    try {
+      await caller.generate.multimodal({
         prompt: "a zen garden",
         generationType: "image",
         mode: "lightning",
@@ -259,16 +272,34 @@ describe("input validation", () => {
         negativePrompt: "blurry, low quality",
         styleReferenceUrl: null,
         vibeReferenceUrl: null,
-      })
-    ).rejects.not.toThrow(/validation/i);
+      });
+    } catch (e: any) {
+      // Should NOT be a validation error
+      expect(e.message).not.toMatch(/validation/i);
+    }
+    spy.mockRestore(); refundSpy.mockRestore(); createJobSpy.mockRestore();
+    updateJobSpy.mockRestore(); createLogSpy.mockRestore(); llmSpy.mockRestore();
+    createAssetSpy.mockRestore(); createHistorySpy.mockRestore();
   });
 
   it("accepts video workspace params (cameraMotion, frames)", async () => {
+    const dbModule = await import("./db");
+    const llmModule = await import("./_core/llm");
+    const spy = vi.spyOn(dbModule, "deductUserQuota").mockResolvedValueOnce(true);
+    const refundSpy = vi.spyOn(dbModule, "refundUserQuota").mockResolvedValue(undefined);
+    const createJobSpy = vi.spyOn(dbModule, "createBackgroundJob").mockResolvedValue(1);
+    const updateJobSpy = vi.spyOn(dbModule, "updateBackgroundJob").mockResolvedValue(undefined);
+    const createLogSpy = vi.spyOn(dbModule, "createApiUsageLog").mockResolvedValue(1);
+    const createAssetSpy = vi.spyOn(dbModule, "createDigitalAsset").mockResolvedValue(1);
+    const createHistorySpy = vi.spyOn(dbModule, "createHistoryEntry").mockResolvedValue(1);
+    const llmSpy = vi.spyOn(llmModule, "invokeLLM").mockResolvedValue({
+      choices: [{ message: { content: JSON.stringify({ safe: true }) }, finish_reason: "stop", index: 0 }],
+    } as any);
     const user = createMockUser();
     const ctx = createMockContext(user);
     const caller = appRouter.createCaller(ctx);
-    await expect(
-      caller.generate.multimodal({
+    try {
+      await caller.generate.multimodal({
         prompt: "flowing water",
         generationType: "video",
         mode: "deep_precision",
@@ -279,16 +310,33 @@ describe("input validation", () => {
         lastFrameUrl: null,
         characterRefUrl: null,
         cameraMotion: { pan: 0, zoom: 50, tilt: 0 },
-      })
-    ).rejects.not.toThrow(/validation/i);
+      });
+    } catch (e: any) {
+      expect(e.message).not.toMatch(/validation/i);
+    }
+    spy.mockRestore(); refundSpy.mockRestore(); createJobSpy.mockRestore();
+    updateJobSpy.mockRestore(); createLogSpy.mockRestore(); llmSpy.mockRestore();
+    createAssetSpy.mockRestore(); createHistorySpy.mockRestore();
   });
 
   it("accepts audio workspace params (instrumental, lyrics)", async () => {
+    const dbModule = await import("./db");
+    const llmModule = await import("./_core/llm");
+    const spy = vi.spyOn(dbModule, "deductUserQuota").mockResolvedValueOnce(true);
+    const refundSpy = vi.spyOn(dbModule, "refundUserQuota").mockResolvedValue(undefined);
+    const createJobSpy = vi.spyOn(dbModule, "createBackgroundJob").mockResolvedValue(1);
+    const updateJobSpy = vi.spyOn(dbModule, "updateBackgroundJob").mockResolvedValue(undefined);
+    const createLogSpy = vi.spyOn(dbModule, "createApiUsageLog").mockResolvedValue(1);
+    const createAssetSpy = vi.spyOn(dbModule, "createDigitalAsset").mockResolvedValue(1);
+    const createHistorySpy = vi.spyOn(dbModule, "createHistoryEntry").mockResolvedValue(1);
+    const llmSpy = vi.spyOn(llmModule, "invokeLLM").mockResolvedValue({
+      choices: [{ message: { content: JSON.stringify({ safe: true }) }, finish_reason: "stop", index: 0 }],
+    } as any);
     const user = createMockUser();
     const ctx = createMockContext(user);
     const caller = appRouter.createCaller(ctx);
-    await expect(
-      caller.generate.multimodal({
+    try {
+      await caller.generate.multimodal({
         prompt: "peaceful ambient",
         generationType: "audio",
         mode: "lightning",
@@ -298,16 +346,33 @@ describe("input validation", () => {
         isInstrumental: true,
         audioDuration: 60,
         audioEnergy: 50,
-      })
-    ).rejects.not.toThrow(/validation/i);
+      });
+    } catch (e: any) {
+      expect(e.message).not.toMatch(/validation/i);
+    }
+    spy.mockRestore(); refundSpy.mockRestore(); createJobSpy.mockRestore();
+    updateJobSpy.mockRestore(); createLogSpy.mockRestore(); llmSpy.mockRestore();
+    createAssetSpy.mockRestore(); createHistorySpy.mockRestore();
   });
 
   it("accepts voice workspace params (speed, stability, emotion)", async () => {
+    const dbModule = await import("./db");
+    const llmModule = await import("./_core/llm");
+    const spy = vi.spyOn(dbModule, "deductUserQuota").mockResolvedValueOnce(true);
+    const refundSpy = vi.spyOn(dbModule, "refundUserQuota").mockResolvedValue(undefined);
+    const createJobSpy = vi.spyOn(dbModule, "createBackgroundJob").mockResolvedValue(1);
+    const updateJobSpy = vi.spyOn(dbModule, "updateBackgroundJob").mockResolvedValue(undefined);
+    const createLogSpy = vi.spyOn(dbModule, "createApiUsageLog").mockResolvedValue(1);
+    const createAssetSpy = vi.spyOn(dbModule, "createDigitalAsset").mockResolvedValue(1);
+    const createHistorySpy = vi.spyOn(dbModule, "createHistoryEntry").mockResolvedValue(1);
+    const llmSpy = vi.spyOn(llmModule, "invokeLLM").mockResolvedValue({
+      choices: [{ message: { content: JSON.stringify({ safe: true }) }, finish_reason: "stop", index: 0 }],
+    } as any);
     const user = createMockUser();
     const ctx = createMockContext(user);
     const caller = appRouter.createCaller(ctx);
-    await expect(
-      caller.generate.multimodal({
+    try {
+      await caller.generate.multimodal({
         prompt: "hello world",
         generationType: "voice",
         mode: "lightning",
@@ -319,8 +384,13 @@ describe("input validation", () => {
         voiceStability: 50,
         voiceEmotionType: "calm",
         voiceEmotionIntensity: 50,
-      })
-    ).rejects.not.toThrow(/validation/i);
+      });
+    } catch (e: any) {
+      expect(e.message).not.toMatch(/validation/i);
+    }
+    spy.mockRestore(); refundSpy.mockRestore(); createJobSpy.mockRestore();
+    updateJobSpy.mockRestore(); createLogSpy.mockRestore(); llmSpy.mockRestore();
+    createAssetSpy.mockRestore(); createHistorySpy.mockRestore();
   });
 });
 

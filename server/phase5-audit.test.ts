@@ -41,10 +41,12 @@ describe("Phase 5: 7-Persona Audit Fixes", () => {
   // ─── ISSUE-01: ThoughtChain Real Timestamps ──────────────────────────────
 
   describe("ThoughtChain Real Timestamps", () => {
-    it("generate.multimodal should reject when user not found in DB (quota check)", async () => {
-      // Test user doesn't exist in real DB, so getUserByOpenId returns undefined
-      // This verifies the quota check path works correctly
-      const user = createMockUser({ openId: "nonexistent-user" });
+    it("generate.multimodal should reject when atomic deduction fails (quota exhausted)", async () => {
+      // Mock deductUserQuota to return false (atomic deduction failed = no quota)
+      const dbModule = await import("./db");
+      const spy = vi.spyOn(dbModule, "deductUserQuota").mockResolvedValueOnce(false);
+
+      const user = createMockUser({ remainingGenerations: 0 });
       const ctx = createMockContext(user);
       const caller = appRouter.createCaller(ctx);
 
@@ -55,6 +57,8 @@ describe("Phase 5: 7-Persona Audit Fixes", () => {
         vibeCardIds: [],
         temperature: 0.6,
       })).rejects.toThrow("生成配額已用完");
+
+      spy.mockRestore();
     });
 
     it("ThoughtChain structure should include required fields", () => {
@@ -187,11 +191,20 @@ describe("Phase 5: 7-Persona Audit Fixes", () => {
 
   describe("Safety Check", () => {
     it("should block unsafe content", async () => {
-      const user = createMockUser({ openId: "nonexistent-user" });
+      // Mock deductUserQuota to pass quota check, then safety check should block
+      const dbModule = await import("./db");
+      const llmModule = await import("./_core/llm");
+      const deductSpy = vi.spyOn(dbModule, "deductUserQuota").mockResolvedValueOnce(true);
+      const refundSpy = vi.spyOn(dbModule, "refundUserQuota").mockResolvedValue(undefined);
+      const createLogSpy = vi.spyOn(dbModule, "createApiUsageLog").mockResolvedValue(1);
+      const llmSpy = vi.spyOn(llmModule, "invokeLLM").mockResolvedValueOnce({
+        choices: [{ message: { content: JSON.stringify({ safe: false, reason: "內容不安全" }) }, finish_reason: "stop", index: 0 }],
+      } as any);
+
+      const user = createMockUser();
       const ctx = createMockContext(user);
       const caller = appRouter.createCaller(ctx);
 
-      // Even before quota check, safety or quota should reject
       await expect(caller.generate.multimodal({
         prompt: "暴力血腥殘忍的恐怖場景",
         generationType: "image",
@@ -199,6 +212,14 @@ describe("Phase 5: 7-Persona Audit Fixes", () => {
         vibeCardIds: [],
         temperature: 0.5,
       })).rejects.toThrow();
+
+      // Verify refund was called since safety blocked
+      expect(refundSpy).toHaveBeenCalledWith(1, 1);
+
+      deductSpy.mockRestore();
+      refundSpy.mockRestore();
+      createLogSpy.mockRestore();
+      llmSpy.mockRestore();
     });
   });
 

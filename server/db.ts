@@ -86,13 +86,21 @@ export async function updateUserQuota(userId: number, amount: number) {
   await db.update(users).set({ remainingGenerations: amount }).where(eq(users.id, userId));
 }
 
-export async function deductUserQuota(userId: number, amount: number = 1) {
+/**
+ * Atomic quota deduction at the database level.
+ * Uses UPDATE ... SET remaining = remaining - N WHERE remaining >= N
+ * and checks affectedRows to guarantee no over-deduction under concurrency.
+ * Returns true only if the row was actually updated (quota sufficient).
+ */
+export async function deductUserQuota(userId: number, amount: number = 1): Promise<boolean> {
   const db = await getDb();
   if (!db) return false;
-  await db.update(users)
-    .set({ remainingGenerations: sql`GREATEST(${users.remainingGenerations} - ${amount}, 0)` })
+  const result = await db.update(users)
+    .set({ remainingGenerations: sql`${users.remainingGenerations} - ${amount}` })
     .where(and(eq(users.id, userId), sql`${users.remainingGenerations} >= ${amount}`));
-  return true;
+  // result[0] is a MySQL ResultSetHeader with affectedRows
+  const affectedRows = (result as any)[0]?.affectedRows ?? 0;
+  return affectedRows > 0;
 }
 
 export async function refundUserQuota(userId: number, amount: number = 1) {

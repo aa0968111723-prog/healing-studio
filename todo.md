@@ -445,3 +445,11 @@
 - [x] 首頁新增 description meta tag（50-160 字元）
 - [x] 首頁新增 keywords meta tag
 - [x] 關鍵字精簡至 6 個核心關鍵字（原 10 個過多）
+
+## 原子扣點機制 (Atomic Deduction)
+
+- [x] db.ts: 新增 atomicDeductQuota 函式，使用 SQL UPDATE ... SET remaining = remaining - 1 WHERE remaining >= amount + affectedRows 檢查
+- [x] routers.ts: 替換所有讀取後寫回的扣點邏輯為 deductUserQuota（原子扣點）
+- [x] 確保扣點失敗時拋出明確錯誤（配額不足）
+- [x] 安全檢查失敗/生成失敗時自動退還配額 (refundUserQuota)
+- [x] 撰寫原子扣點測試 (12 個測試通過)

@@ -338,9 +338,11 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         const userId = ctx.user.id;
 
-        // Check quota
-        const user = await db.getUserByOpenId(ctx.user.openId);
-        if (!user || user.remainingGenerations <= 0) {
+        // ── Atomic quota deduction (database-level lock) ──
+        // Deduct FIRST before any work. If concurrent requests race,
+        // only one will succeed per remaining unit.
+        const deducted = await db.deductUserQuota(userId, 1);
+        if (!deducted) {
           throw new TRPCError({ code: "FORBIDDEN", message: "生成配額已用完，請聯繫管理員補充配額。" });
         }
 
@@ -349,6 +351,8 @@ export const appRouter = router({
         const safetyResult = await checkSafety(input.prompt);
         stepTimestamps.safetyDone = Date.now();
         if (!safetyResult.safe) {
+          // Refund the atomically deducted quota since no generation occurred
+          await db.refundUserQuota(userId, 1);
           await db.createApiUsageLog({
             userId,
             requestType: "safety_check",
@@ -451,9 +455,7 @@ export const appRouter = router({
             resultData.voiceEmotionIntensity = input.voiceEmotionIntensity;
           }
 
-          // Deduct quota
-          await db.deductUserQuota(userId, 1);
-
+          // Quota was already atomically deducted before generation started.
           // Log usage
           await db.createApiUsageLog({
             userId,
