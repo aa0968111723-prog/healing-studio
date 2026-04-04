@@ -544,3 +544,10 @@
 - [x] 生成遷移檔 0004_past_pandemic.sql 並執行 SQL（驗證 27 欄位建立成功）
 - [x] server/db.ts 新增 getSystemSettings / upsertSystemSettings 查詢輔助
 - [x] server/routers.ts 新增 settings.get（含預設值 fallback）與 settings.update tRPC 路由（Zod 驗證 22 個可更新欄位）
+
+## 首頁生態 DB Schema 擴充
+
+- [x] drizzle/schema.ts 新增 news_articles 表（16 欄位：標題、OARS 柔化摘要、內容 Markdown、來源、分類、標籤、置頂、發布時間、閱讀次數等）
+- [x] drizzle/schema.ts 新增 featured_showcase 表（17 欄位：generatedItemId、vibeParameters 情緒矩陣、completelyDeconstructedBlocks 解構積木 JSON、圖片 CDN、排序權重、按讚/fork 計數等）
+- [x] 生成遷移檔 0005_nasty_anita_blake.sql 並執行 SQL（兩張表建立成功）
+- [x] TypeScript 編譯零錯誤確認

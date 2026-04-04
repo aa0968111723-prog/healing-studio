@@ -412,3 +412,145 @@ export const systemSettings = mysqlTable("system_settings", {
 
 export type SystemSetting = typeof systemSettings.$inferSelect;
 export type InsertSystemSetting = typeof systemSettings.$inferInsert;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NEW TABLES — Homepage Ecosystem
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ─── News Articles (首頁新聞動態) ──────────────────────────────────────────
+export const newsArticles = mysqlTable("news_articles", {
+  id: int("id").autoincrement().primaryKey(),
+
+  /** 文章標題 */
+  title: varchar("title", { length: 512 }).notNull(),
+
+  /** OARS 柔化摘要 (TL;DR) — 以溫暖、低焦慮語氣撰寫的精簡摘要 */
+  oarsSummary: text("oarsSummary").notNull(),
+
+  /** 完整內容（Markdown 格式，可選） */
+  bodyMarkdown: text("bodyMarkdown"),
+
+  /** 來源名稱（如「AI Director 官方」、「社群精選」） */
+  sourceName: varchar("sourceName", { length: 256 }).notNull(),
+
+  /** 來源 URL（外部連結，可選） */
+  sourceUrl: text("sourceUrl"),
+
+  /** 封面圖片 CDN URL */
+  coverImageUrl: text("coverImageUrl"),
+
+  /** 文章分類 */
+  category: mysqlEnum("category", [
+    "product_update",
+    "community_highlight",
+    "tutorial",
+    "industry_news",
+    "tips_and_tricks",
+  ])
+    .default("product_update")
+    .notNull(),
+
+  /** 標籤（用於篩選與推薦） */
+  tags: json("tags").$type<string[]>(),
+
+  /** 是否置頂 */
+  isPinned: boolean("isPinned").default(false).notNull(),
+
+  /** 是否已發布（草稿 vs 公開） */
+  isPublished: boolean("isPublished").default(false).notNull(),
+
+  /** 發布時間（可排程未來發布） */
+  publishedAt: timestamp("publishedAt"),
+
+  /** 作者 userId（可選，null 表示系統發布） */
+  authorUserId: int("authorUserId"),
+
+  /** 閱讀次數 */
+  viewCount: int("viewCount").default(0).notNull(),
+
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type NewsArticle = typeof newsArticles.$inferSelect;
+export type InsertNewsArticle = typeof newsArticles.$inferInsert;
+
+// ─── Featured Showcase (首頁精選展示) ──────────────────────────────────────
+export const featuredShowcase = mysqlTable("featured_showcase", {
+  id: int("id").autoincrement().primaryKey(),
+
+  /** 關聯的生成歷史紀錄 ID（可選，null 表示手動上傳的展示作品） */
+  generatedItemId: int("generatedItemId"),
+
+  /** 展示標題 */
+  title: varchar("title", { length: 512 }).notNull(),
+
+  /** 展示描述（OARS 柔化語氣） */
+  description: text("description"),
+
+  /** 作品圖片 CDN 網址 */
+  imageUrl: text("imageUrl").notNull(),
+
+  /** 縮圖 CDN 網址（用於網格預覽） */
+  thumbnailUrl: text("thumbnailUrl"),
+
+  /** 情緒矩陣 — 多維度情緒向量，用於推薦與篩選 */
+  vibeParameters: json("vibeParameters").$type<{
+    warmth: number;      // 溫暖度 0-1
+    energy: number;      // 能量感 0-1
+    mystery: number;     // 神秘感 0-1
+    serenity: number;    // 寧靜度 0-1
+    whimsy: number;      // 奇幻感 0-1
+    intensity: number;   // 強烈度 0-1
+    dominantMood: string; // 主導情緒標籤
+  }>(),
+
+  /**
+   * 完全解構積木 JSON 組合 — 記錄生成此作品時使用的所有積木選擇，
+   * 讓使用者可以「一鍵複製配方」重現或微調此風格
+   */
+  completelyDeconstructedBlocks: json("completelyDeconstructedBlocks").$type<{
+    modality: "image" | "video" | "audio" | "voice";
+    vibeCards: string[];           // 選中的 Vibe Card ID 列表
+    selectedBlocks: Array<{
+      category: string;            // 積木分類（subject, action, environment, lighting, camera）
+      blockId: string;             // 積木 ID
+      label: string;               // 積木顯示名稱
+      prompt: string;              // 積木對應的提示詞片段
+    }>;
+    customBlockIds: number[];      // 自訂積木 ID 列表
+    freeformPrompt: string;        // 使用者自由輸入的提示詞
+    negativePrompt: string;        // 排除描述
+    compiledPrompt: string;        // 最終編譯後的完整提示詞
+    parameters: Record<string, unknown>; // 所有技術參數快照（seed, cfg, steps 等）
+  }>(),
+
+  /** 原始提示詞（方便搜尋） */
+  originalPrompt: text("originalPrompt"),
+
+  /** 作品模態 */
+  modality: mysqlEnum("modality", ["image", "video", "audio", "voice"])
+    .default("image")
+    .notNull(),
+
+  /** 提交者 userId */
+  curatorUserId: int("curatorUserId"),
+
+  /** 展示排序權重（越大越靠前） */
+  sortWeight: int("sortWeight").default(0).notNull(),
+
+  /** 是否啟用（管理員控制） */
+  isActive: boolean("isActive").default(true).notNull(),
+
+  /** 按讚數 */
+  likeCount: int("likeCount").default(0).notNull(),
+
+  /** 被複製配方次數 */
+  forkCount: int("forkCount").default(0).notNull(),
+
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type FeaturedShowcaseItem = typeof featuredShowcase.$inferSelect;
+export type InsertFeaturedShowcaseItem = typeof featuredShowcase.$inferInsert;
