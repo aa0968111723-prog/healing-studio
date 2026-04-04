@@ -597,3 +597,18 @@
 - [x] 效能優化：requestAnimationFrame + visibilitychange 離屏暫停 + DPR 上限 2x + 粒子數量依視窗面積自適應
 - [x] SceneBadge 場景指示器（動態圖標 + 問候語）+ useCurrentScene hook
 - [x] TypeScript 編譯零錯誤確認 + 瀏覽器實測夜空場景正常渲染
+
+## 首頁環境白噪音系統
+
+- [x] 建立 AmbientSoundEngine.tsx — Web Audio API 程序化音效引擎（零外部依賴）
+- [x] 夜空音效：柔和白噪音（lowpass 800Hz）+ 低頻嗡鳴（55Hz A1）+ 偶發蟟蟀聲（3800-4600Hz 脈衝）
+- [x] 晨光音效：鳥鳴模擬（多音節 chirp 序列）+ 輕柔風聲（pink noise bandpass）+ 溫暖 pad（C4 大三和弦）
+- [x] 咖啡廳音效：Lo-fi 環境音（brown noise lowpass）+ 杯碟輕響（triangle burst）+ 低語人聲（LFO 調變 bandpass）
+- [x] 深海音效：深沉水流聲（brown noise + LFO 波動）+ 氣泡音（頻率上升 burst）+ 低頻共鳴（40/60Hz）
+- [x] OARS 心理學合規：預設靜音（Open-ended）、溫暖中低頻偏好（Affirming）、場景反映情境（Reflective）、漸進式 3s 淡入（Summarizing）
+- [x] 場景切換時音效平滑交叉淡入淡出（2s crossfade + 舊層自動清理）
+- [x] SoundControl UI：靜音/播放切換 + hover 展開音量滑桿 + 場景自適應色彩 + localStorage 記憶
+- [x] 瀏覽器自動播放政策處理（需使用者點擊後才建立 AudioContext + resume）
+- [x] 整合至 Home.tsx nav bar，與 AmbientEnvironment 場景同步（useAmbientSound hook）
+- [x] visibilitychange 離屏自動暫停/恢復 AudioContext
+- [x] TypeScript 編譯零錯誤確認 + 瀏覽器實測 UI 正常渲染

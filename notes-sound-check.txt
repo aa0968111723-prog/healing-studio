@@ -1,0 +1,8 @@
+Browser screenshot confirms:
+- SoundControl button visible in nav bar (top-right, next to "進入工作室" button)
+- Shows speaker-X icon with "環境音" label (muted by default, OARS compliant)
+- Button has tooltip "點擊啟動環境音效"
+- Night sky scene active with stars and dark blue gradient
+- Scene badge shows "夜深了，讓靈感在星空下綻放"
+- TypeScript: 0 errors, LSP: No errors
+- All elements properly styled for dark scene

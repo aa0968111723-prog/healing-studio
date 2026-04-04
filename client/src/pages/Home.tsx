@@ -14,6 +14,7 @@ import {
 import { useAIState } from "@/contexts/AIStateContext";
 import { AmbientEnvironment, useCurrentScene } from "@/components/AmbientEnvironment";
 import type { SceneId } from "@/components/AmbientEnvironment";
+import { useAmbientSound, SoundControl } from "@/components/AmbientSoundEngine";
 
 // ─── Scene-Adaptive Style Maps ──────────────────────────────────────────────
 
@@ -172,6 +173,7 @@ export default function Home() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const { sceneId, isDark } = useCurrentScene();
   const s = useMemo(() => SCENE_STYLES[sceneId], [sceneId]);
+  const soundControls = useAmbientSound(sceneId);
 
   // Check if user needs onboarding
   useEffect(() => {
@@ -216,7 +218,8 @@ export default function Home() {
               AI Director
             </span>
           </div>
-          <div>
+          <div className="flex items-center gap-3">
+            <SoundControl controls={soundControls} isDark={isDark} />
             {isAuthenticated ? (
               <Button
                 onClick={() => navigate("/studio")}
