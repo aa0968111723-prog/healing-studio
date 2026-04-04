@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { getLoginUrl } from "@/const";
@@ -6,56 +6,174 @@ import { useLocation } from "wouter";
 import { GlassCard } from "@/components/ZenCoPilot";
 import VisualSoul from "@/components/VisualSoul";
 import OnboardingFlow from "@/components/OnboardingFlow";
-import { motion } from "framer-motion";
-import { Wand2, Clapperboard, Package, Cpu, ArrowRight, Sparkles, Shield, Users } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Wand2, Clapperboard, Package, Cpu, ArrowRight, Sparkles, Shield, Users,
+  Moon, Sun, Coffee, Waves,
+} from "lucide-react";
 import { useAIState } from "@/contexts/AIStateContext";
+import { AmbientEnvironment, useCurrentScene } from "@/components/AmbientEnvironment";
+import type { SceneId } from "@/components/AmbientEnvironment";
+
+// ─── Scene-Adaptive Style Maps ──────────────────────────────────────────────
+
+const SCENE_STYLES: Record<SceneId, {
+  navBg: string;
+  navBorder: string;
+  textPrimary: string;
+  textSecondary: string;
+  textMuted: string;
+  cardBg: string;
+  cardBorder: string;
+  btnPrimary: string;
+  btnPrimaryText: string;
+  btnOutline: string;
+  btnOutlineText: string;
+  featureBg: string;
+  footerBorder: string;
+  icon: typeof Moon;
+  greeting: string;
+}> = {
+  nightSky: {
+    navBg: "rgba(10,12,35,0.7)",
+    navBorder: "rgba(100,120,200,0.15)",
+    textPrimary: "text-white",
+    textSecondary: "text-slate-300",
+    textMuted: "text-slate-400",
+    cardBg: "rgba(20,25,60,0.45)",
+    cardBorder: "rgba(100,120,200,0.12)",
+    btnPrimary: "bg-indigo-500 hover:bg-indigo-400",
+    btnPrimaryText: "text-white",
+    btnOutline: "border-slate-500/40 hover:bg-slate-700/30",
+    btnOutlineText: "text-slate-200",
+    featureBg: "rgba(80,90,160,0.12)",
+    footerBorder: "rgba(100,120,200,0.1)",
+    icon: Moon,
+    greeting: "夜深了，讓靈感在星空下綻放",
+  },
+  morning: {
+    navBg: "rgba(255,235,215,0.75)",
+    navBorder: "rgba(200,160,120,0.2)",
+    textPrimary: "text-amber-950",
+    textSecondary: "text-amber-800",
+    textMuted: "text-amber-700/70",
+    cardBg: "rgba(255,245,235,0.5)",
+    cardBorder: "rgba(220,180,140,0.2)",
+    btnPrimary: "bg-amber-600 hover:bg-amber-500",
+    btnPrimaryText: "text-white",
+    btnOutline: "border-amber-400/40 hover:bg-amber-100/30",
+    btnOutlineText: "text-amber-800",
+    featureBg: "rgba(255,200,140,0.15)",
+    footerBorder: "rgba(200,160,120,0.15)",
+    icon: Sun,
+    greeting: "早安，用晨光喚醒你的創造力",
+  },
+  cafe: {
+    navBg: "rgba(235,220,200,0.75)",
+    navBorder: "rgba(180,150,120,0.2)",
+    textPrimary: "text-stone-900",
+    textSecondary: "text-stone-700",
+    textMuted: "text-stone-500",
+    cardBg: "rgba(245,235,220,0.5)",
+    cardBorder: "rgba(200,180,150,0.2)",
+    btnPrimary: "bg-stone-700 hover:bg-stone-600",
+    btnPrimaryText: "text-white",
+    btnOutline: "border-stone-400/40 hover:bg-stone-200/30",
+    btnOutlineText: "text-stone-700",
+    featureBg: "rgba(200,180,150,0.12)",
+    footerBorder: "rgba(180,150,120,0.15)",
+    icon: Coffee,
+    greeting: "午後時光，來杯咖啡配靈感",
+  },
+  deepSea: {
+    navBg: "rgba(5,25,50,0.7)",
+    navBorder: "rgba(60,140,180,0.15)",
+    textPrimary: "text-cyan-50",
+    textSecondary: "text-cyan-200",
+    textMuted: "text-cyan-300/70",
+    cardBg: "rgba(10,40,70,0.45)",
+    cardBorder: "rgba(60,140,180,0.12)",
+    btnPrimary: "bg-cyan-600 hover:bg-cyan-500",
+    btnPrimaryText: "text-white",
+    btnOutline: "border-cyan-500/40 hover:bg-cyan-800/30",
+    btnOutlineText: "text-cyan-200",
+    featureBg: "rgba(60,140,180,0.12)",
+    footerBorder: "rgba(60,140,180,0.1)",
+    icon: Waves,
+    greeting: "傍晚了，潛入深海尋找靈感珍珠",
+  },
+};
+
+// ─── Features ───────────────────────────────────────────────────────────────
 
 const FEATURES = [
   {
     icon: Wand2,
     title: "AI 智慧創作引擎",
     description: "圖片、影片、音樂、語音一站式 AI 生成，搭配專業提示詞編譯器",
-    color: "bg-zen-lavender/20",
   },
   {
     icon: Clapperboard,
     title: "導演 AI 雙引擎",
     description: "事實研究 + CO-STAR 創意編排，自動生成結構化多媒體腳本",
-    color: "bg-zen-sky/20",
   },
   {
     icon: Cpu,
     title: "角色鍛造所",
     description: "多角度資料集訓練，確保跨場景角色一致性，支援 LoRA 權重控制",
-    color: "bg-zen-blush/20",
   },
   {
     icon: Package,
     title: "數位資產庫",
     description: "團隊共享數位資產，標籤管理，分享獎勵配額機制",
-    color: "bg-zen-sage/20",
   },
   {
     icon: Shield,
     title: "安全可靠",
     description: "RBAC 權限控制、內容安全預檢、S3 預簽名 URL 保護",
-    color: "bg-zen-sand/20",
   },
   {
     icon: Users,
     title: "共享空間",
     description: "社群互動與種子庫，探索他人的創作靈感，分享你的作品獲得配額獎勵",
-    color: "bg-zen-peach/20",
   },
 ];
+
+// ─── Scene Badge ────────────────────────────────────────────────────────────
+
+function SceneBadge({ sceneId, isDark }: { sceneId: SceneId; isDark: boolean }) {
+  const style = SCENE_STYLES[sceneId];
+  const Icon = style.icon;
+  return (
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={sceneId}
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 8 }}
+        transition={{ duration: 0.4 }}
+        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium backdrop-blur-md ${
+          isDark ? "bg-white/10 text-white/80" : "bg-black/5 text-black/60"
+        }`}
+      >
+        <Icon className="w-3 h-3" />
+        {style.greeting}
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+// ─── Home Page ──────────────────────────────────────────────────────────────
 
 export default function Home() {
   const { user, loading, isAuthenticated } = useAuth();
   const { personality } = useAIState();
   const [, navigate] = useLocation();
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const { sceneId, isDark } = useCurrentScene();
+  const s = useMemo(() => SCENE_STYLES[sceneId], [sceneId]);
 
-  // Check if user needs onboarding (first visit after login)
+  // Check if user needs onboarding
   useEffect(() => {
     if (isAuthenticated && !loading) {
       const onboarded = localStorage.getItem("ai-director-onboarded");
@@ -65,43 +183,44 @@ export default function Home() {
     }
   }, [isAuthenticated, loading]);
 
-  // First-time users: show OnboardingFlow with AI-powered Choice Chips
   if (showOnboarding && isAuthenticated) {
     return (
       <OnboardingFlow
-        onComplete={() => {
-          setShowOnboarding(false);
-          navigate("/studio");
-        }}
-        onSkip={() => {
-          setShowOnboarding(false);
-          navigate("/studio");
-        }}
+        onComplete={() => { setShowOnboarding(false); navigate("/studio"); }}
+        onSkip={() => { setShowOnboarding(false); navigate("/studio"); }}
       />
     );
   }
 
   return (
-    <div className="min-h-screen">
-      {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 h-16"
+    <div className="min-h-screen relative overflow-hidden">
+      {/* ── Full-screen Ambient Environment ── */}
+      <div className="fixed inset-0 -z-10">
+        <AmbientEnvironment />
+      </div>
+
+      {/* ── Navigation ── */}
+      <nav
+        className="fixed top-0 left-0 right-0 z-50 h-16 transition-colors duration-700"
         style={{
-          background: "rgba(245, 243, 240, 0.8)",
-          backdropFilter: "blur(16px)",
-          WebkitBackdropFilter: "blur(16px)",
-          borderBottom: "1px solid rgba(255, 255, 255, 0.4)",
+          background: s.navBg,
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+          borderBottom: `1px solid ${s.navBorder}`,
         }}
       >
         <div className="max-w-6xl mx-auto px-4 h-full flex items-center justify-between">
           <div className="flex items-center gap-3">
             <VisualSoul size="sm" personality={personality} />
-            <span className="font-semibold tracking-tight text-foreground">AI Director</span>
+            <span className={`font-semibold tracking-tight transition-colors duration-700 ${s.textPrimary}`}>
+              AI Director
+            </span>
           </div>
           <div>
             {isAuthenticated ? (
               <Button
                 onClick={() => navigate("/studio")}
-                className="rounded-xl gap-1.5 text-sm"
+                className={`rounded-xl gap-1.5 text-sm ${s.btnPrimary} ${s.btnPrimaryText}`}
               >
                 進入工作室
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -109,7 +228,7 @@ export default function Home() {
             ) : (
               <Button
                 onClick={() => { window.location.href = getLoginUrl(); }}
-                className="rounded-xl text-sm"
+                className={`rounded-xl text-sm ${s.btnPrimary} ${s.btnPrimaryText}`}
               >
                 登入
               </Button>
@@ -118,32 +237,33 @@ export default function Home() {
         </div>
       </nav>
 
-      {/* Hero Section - Orb-centered design */}
-      <section className="pt-32 pb-20 px-4 relative overflow-hidden">
-        <div className="absolute inset-0 -z-10"
-          style={{
-            background: "linear-gradient(135deg, rgba(245,243,240,1) 0%, rgba(234,201,193,0.3) 30%, rgba(212,197,226,0.2) 60%, rgba(200,213,224,0.2) 100%)",
-          }}
-        />
-
+      {/* ── Hero Section ── */}
+      <section className="pt-32 pb-20 px-4 relative">
         <div className="max-w-4xl mx-auto text-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            {/* Central Orb - visual focal point */}
+            {/* Scene Badge */}
+            <div className="flex justify-center mb-6">
+              <SceneBadge sceneId={sceneId} isDark={isDark} />
+            </div>
+
+            {/* Central Orb */}
             <div className="flex justify-center mb-8">
               <VisualSoul size="lg" personality={personality} className="!w-20 !h-20" />
             </div>
 
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-foreground leading-tight">
+            <h1 className={`text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-tight transition-colors duration-700 ${s.textPrimary}`}>
               AI Director
               <br />
-              <span style={{ color: "#6C6C6C" }}>智慧創作平台</span>
+              <span className={`transition-colors duration-700 ${s.textSecondary}`}>
+                智慧創作平台
+              </span>
             </h1>
 
-            <p className="mt-6 text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+            <p className={`mt-6 text-base sm:text-lg max-w-2xl mx-auto leading-relaxed transition-colors duration-700 ${s.textMuted}`}>
               AI Director 多模態智慧創作平台。圖片、影片、音樂、語音一站式創作，
               搭配導演 AI 雙引擎與角色鍛造系統，打造高品質數位內容。
             </p>
@@ -154,7 +274,7 @@ export default function Home() {
                   <Button
                     size="lg"
                     onClick={() => navigate("/studio")}
-                    className="rounded-xl h-12 px-8 gap-2 text-sm shadow-lg hover:shadow-xl transition-all"
+                    className={`rounded-xl h-12 px-8 gap-2 text-sm shadow-lg hover:shadow-xl transition-all ${s.btnPrimary} ${s.btnPrimaryText}`}
                   >
                     <Sparkles className="w-4 h-4" />
                     開始創作
@@ -163,7 +283,7 @@ export default function Home() {
                     variant="outline"
                     size="lg"
                     onClick={() => navigate("/director")}
-                    className="rounded-xl h-12 px-8 gap-2 text-sm"
+                    className={`rounded-xl h-12 px-8 gap-2 text-sm transition-all ${s.btnOutline} ${s.btnOutlineText}`}
                   >
                     <Clapperboard className="w-4 h-4" />
                     導演 AI
@@ -173,7 +293,7 @@ export default function Home() {
                 <Button
                   size="lg"
                   onClick={() => { window.location.href = getLoginUrl(); }}
-                  className="rounded-xl h-12 px-10 gap-2 text-sm shadow-lg hover:shadow-xl transition-all"
+                  className={`rounded-xl h-12 px-10 gap-2 text-sm shadow-lg hover:shadow-xl transition-all ${s.btnPrimary} ${s.btnPrimaryText}`}
                 >
                   立即開始
                   <ArrowRight className="w-4 h-4" />
@@ -184,8 +304,8 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Features Grid */}
-      <section className="py-20 px-4">
+      {/* ── Features Grid ── */}
+      <section className="py-20 px-4 relative">
         <div className="max-w-6xl mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -194,10 +314,10 @@ export default function Home() {
             transition={{ duration: 0.5 }}
             className="text-center mb-14"
           >
-            <h2 className="text-2xl sm:text-3xl font-bold text-foreground">
+            <h2 className={`text-2xl sm:text-3xl font-bold transition-colors duration-700 ${s.textPrimary}`}>
               專為創作者打造
             </h2>
-            <p className="mt-3 text-sm text-muted-foreground max-w-lg mx-auto">
+            <p className={`mt-3 text-sm max-w-lg mx-auto transition-colors duration-700 ${s.textMuted}`}>
               從創意構思到成品輸出，完整覆蓋多媒體內容生產流程
             </p>
           </motion.div>
@@ -211,28 +331,47 @@ export default function Home() {
                 viewport={{ once: true }}
                 transition={{ duration: 0.4, delay: idx * 0.1 }}
               >
-                <GlassCard className="h-full">
-                  <div className={`w-10 h-10 rounded-xl ${feature.color} flex items-center justify-center mb-4`}>
-                    <feature.icon className="w-5 h-5 text-muted-foreground" />
+                <div
+                  className="h-full rounded-2xl p-6 backdrop-blur-md transition-all duration-700 hover:scale-[1.02]"
+                  style={{
+                    background: s.cardBg,
+                    border: `1px solid ${s.cardBorder}`,
+                  }}
+                >
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center mb-4"
+                    style={{ background: s.featureBg }}
+                  >
+                    <feature.icon className={`w-5 h-5 transition-colors duration-700 ${s.textSecondary}`} />
                   </div>
-                  <h3 className="text-sm font-semibold text-foreground mb-2">{feature.title}</h3>
-                  <p className="text-xs text-muted-foreground leading-relaxed">{feature.description}</p>
-                </GlassCard>
+                  <h3 className={`text-sm font-semibold mb-2 transition-colors duration-700 ${s.textPrimary}`}>
+                    {feature.title}
+                  </h3>
+                  <p className={`text-xs leading-relaxed transition-colors duration-700 ${s.textMuted}`}>
+                    {feature.description}
+                  </p>
+                </div>
               </motion.div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-20 px-4">
+      {/* ── CTA Section ── */}
+      <section className="py-20 px-4 relative">
         <div className="max-w-3xl mx-auto">
-          <GlassCard hover={false} className="text-center py-14 px-8">
+          <div
+            className="text-center py-14 px-8 rounded-3xl backdrop-blur-md transition-all duration-700"
+            style={{
+              background: s.cardBg,
+              border: `1px solid ${s.cardBorder}`,
+            }}
+          >
             <VisualSoul size="md" personality={personality} />
-            <h2 className="text-2xl font-bold text-foreground mt-6">
+            <h2 className={`text-2xl font-bold mt-6 transition-colors duration-700 ${s.textPrimary}`}>
               準備好開始創作了嗎？
             </h2>
-            <p className="mt-3 text-sm text-muted-foreground max-w-md mx-auto">
+            <p className={`mt-3 text-sm max-w-md mx-auto transition-colors duration-700 ${s.textMuted}`}>
               登入後即可使用所有功能，每位使用者享有初始免費配額
             </p>
             <div className="mt-8">
@@ -240,7 +379,7 @@ export default function Home() {
                 <Button
                   size="lg"
                   onClick={() => navigate("/studio")}
-                  className="rounded-xl h-12 px-10 gap-2 text-sm"
+                  className={`rounded-xl h-12 px-10 gap-2 text-sm ${s.btnPrimary} ${s.btnPrimaryText}`}
                 >
                   進入工作室
                   <ArrowRight className="w-4 h-4" />
@@ -249,25 +388,30 @@ export default function Home() {
                 <Button
                   size="lg"
                   onClick={() => { window.location.href = getLoginUrl(); }}
-                  className="rounded-xl h-12 px-10 gap-2 text-sm"
+                  className={`rounded-xl h-12 px-10 gap-2 text-sm ${s.btnPrimary} ${s.btnPrimaryText}`}
                 >
                   免費開始
                   <ArrowRight className="w-4 h-4" />
                 </Button>
               )}
             </div>
-          </GlassCard>
+          </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="py-8 px-4 border-t border-border/30">
-        <div className="max-w-6xl mx-auto flex items-center justify-between text-xs text-muted-foreground">
+      {/* ── Footer ── */}
+      <footer
+        className="py-8 px-4 transition-colors duration-700"
+        style={{ borderTop: `1px solid ${s.footerBorder}` }}
+      >
+        <div className="max-w-6xl mx-auto flex items-center justify-between text-xs">
           <div className="flex items-center gap-2">
             <VisualSoul size="sm" personality={personality} />
-            <span>AI Director</span>
+            <span className={`transition-colors duration-700 ${s.textMuted}`}>AI Director</span>
           </div>
-          <span>Intelligent Creation Platform</span>
+          <span className={`transition-colors duration-700 ${s.textMuted}`}>
+            Intelligent Creation Platform
+          </span>
         </div>
       </footer>
     </div>

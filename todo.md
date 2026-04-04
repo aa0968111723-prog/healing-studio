@@ -582,3 +582,18 @@
 - [x] 所有端點使用 publicProcedure（唯讀，前端不直連第三方 API）
 - [x] 10 個端點全部通過 curl 驗證（正確 JSON 結構 + 404 友善錯誤訊息）
 - [x] TypeScript 編譯零錯誤確認
+
+## 首頁 WebGL 動態環境系統
+
+- [x] 建立 AmbientEnvironment.tsx Canvas 粒子動畫元件（原生 Canvas 2D，零外部依賴）
+- [x] 時間偵測邏輯：依當地時間切換 4 種情境（夜空 22-05 / 晨光 05-11 / 咖啡廳 11-17 / 深海 17-22）
+- [x] 夜空情境：深藍漸層 + 星星閃爍粒子 + 流星尾跡 + 星雲光暈
+- [x] 晨光情境：暖橙漸層 + 光塵飄浮粒子 + 柔和光暈 + 太陽光束
+- [x] 咖啡廳情境：暖棕漸層 + 蒸氣上升粒子 + 散景光點
+- [x] 深海情境：深青漸層 + 氣泡上浮粒子 + 水波紋光影（caustic ripples）
+- [x] 流體背景模糊效果（backdrop-blur-md + Canvas 漸層疊加 + 場景自適應 glassmorphism）
+- [x] 情境切換平滑過渡動畫（漸層色交叉淡入淡出 ~2s + 粒子重新初始化）
+- [x] 整合至 Home.tsx 作為 fixed 全屏背景層 + 場景自適應文字/按鈕/卡片色彩
+- [x] 效能優化：requestAnimationFrame + visibilitychange 離屏暫停 + DPR 上限 2x + 粒子數量依視窗面積自適應
+- [x] SceneBadge 場景指示器（動態圖標 + 問候語）+ useCurrentScene hook
+- [x] TypeScript 編譯零錯誤確認 + 瀏覽器實測夜空場景正常渲染
