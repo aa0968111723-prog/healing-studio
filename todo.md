@@ -530,3 +530,9 @@
 - [x] 建立 client/src/lib/env.validated.ts（VITE_ 變數 Zod schema + 前端 styled console 警告）
 - [x] 更新 server/_core/env.ts 從 validated 模組 re-export，保持 ENV 形狀向後相容
 - [x] 缺少金鑰時 console.warn OARS 格式而非 crash（開發環境顯示多模態金鑰狀態摘要）
+
+## 拔除舊有 Mock 引信
+
+- [x] 盤點所有 mock 假資料位置（結果：16 個頁面元件均已對接 tRPC，無寫死假資料）
+- [x] 確認所有頁面已具備完善 Empty State UI（尚無生成歷史/數位資產/角色模型/筆記/回饋等）
+- [x] TypeScript 編譯零錯誤確認（無需修改，已清潔）
