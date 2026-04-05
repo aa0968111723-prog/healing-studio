@@ -671,3 +671,18 @@
 - [x] 修復 useScroll ref hydration 錯誤（改用 window scrollY）
 - [x] TypeScript 編譯零錯誤確認（Found 0 errors）
 - [x] 瀏覽器零 console 錯誤 + 頁面正常渲染
+
+## 首頁精選作品瀑布流
+
+- [x] 建立 ShowcaseMasonry.tsx 元件（CSS Columns 原生瀑布流佈局，零 JS 佈局計算）
+- [x] 綁定 trpc.showcase.list LOD API（useInfiniteQuery + cursor-based 分頁）
+- [x] ProgressiveImage 漸進式圖片載入（IntersectionObserver lazy load + blur placeholder + 500ms 淡入動畫）
+- [x] 60 FPS 效能優化（CSS contain: layout style paint + will-change: transform + contentVisibility: auto）
+- [x] Infinite Scroll 無限捲動載入（IntersectionObserver sentinel + rootMargin 300px 預載）
+- [x] 4 場景自適應色彩（SCENE_MASONRY_STYLES 對應 nightSky/morning/cafe/deepSea）
+- [x] ModalityTabs 模態篩選（全部/圖像/影片/音樂/語音）
+- [x] 空狀態（Sparkles 圖示 + 「暫無精選作品」）+ SkeletonCard 隨機高度骨架動畫
+- [x] MasonryCard hover 特效（scale 1.02 + Progressive Disclosure 描述展開 + glow ring）
+- [x] 整合至 Home.tsx（情報站與 CTA 之間）
+- [x] TypeScript 編譯零錯誤確認（Found 0 errors）
+- [x] 瀏覽器渲染效果驗證（精選作品區塊 + Tabs + 空狀態 + CTA 正常顯示）

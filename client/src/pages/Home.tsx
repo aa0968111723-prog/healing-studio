@@ -17,6 +17,7 @@ import type { SceneId } from "@/components/AmbientEnvironment";
 import { useAmbientSound, SoundControl } from "@/components/AmbientSoundEngine";
 import { AmbientVideo } from "@/components/AmbientVideo";
 import IntelBentoGrid from "@/components/IntelBentoGrid";
+import ShowcaseMasonry from "@/components/ShowcaseMasonry";
 
 // ─── Scene-Adaptive Style Maps ──────────────────────────────────────────────
 
@@ -454,6 +455,9 @@ export default function Home() {
 
       {/* ── Intel Bento Grid (情報站) ── */}
       <IntelBentoGrid sceneId={sceneId} />
+
+      {/* ── Showcase Masonry (精選作品瀑布流) ── */}
+      <ShowcaseMasonry sceneId={sceneId} />
 
       {/* ── CTA Section ── */}
       <section className="py-20 px-4 relative">
