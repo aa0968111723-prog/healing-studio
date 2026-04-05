@@ -555,37 +555,85 @@ export const appRouter = router({
             resultData.cameraMotion = input.cameraMotion;
           }
 
-          // ── Audio: Real Suno API Call ──
+          // ── Audio: Real Suno API Call + Polling for audio_url ──
           if (input.generationType === "audio" || input.generationType === "multimodal") {
             try {
               const orchestrator = getOrchestrator();
               const audioCompiler = getAudioCompiler();
-              // Compile audio prompt with structure tags
+              // Compile audio prompt with structure tags (correct AudioCompilerInput)
               const audioCompiled = audioCompiler.compile({
                 blocks: [{
                   id: "main",
-                  genre: input.musicStyle || "ambient",
-                  instruments: [],
-                  tempo: "moderate",
-                  ambiance: "healing",
+                  category: "genre" as const,
+                  label: input.musicStyle || "ambient",
+                  prompt: input.musicStyle || "ambient healing",
                 }],
-                genre: input.musicStyle || "ambient",
-                energy: input.audioEnergy || 0.5,
-                duration: input.audioDuration || 30,
+                freePrompt: compiledPrompt,
+                targetDurationSec: input.audioDuration || 120,
+                instrumental: input.isInstrumental ?? true,
+                lyrics: input.lyrics || undefined,
               });
+              const audioPrompt = audioCompiled.prompt || `${input.musicStyle || "ambient healing"}, ${compiledPrompt.substring(0, 100)}`;
+              console.log(`[Wave1] Audio prompt compiled (${audioPrompt.length} chars), calling Suno...`);
+
+              // Step 1: Submit generation task
               const sunoResult = await withTimeout(
                 orchestrator.suno.generateMusic({
-                  prompt: audioCompiled.compiledPrompt || `${input.musicStyle || "ambient healing"}, ${compiledPrompt.substring(0, 100)}`,
-                  style: input.musicStyle || "ambient healing",
+                  prompt: audioPrompt,
+                  style: audioCompiled.styleTag || input.musicStyle || "ambient healing",
                   instrumental: input.isInstrumental ?? true,
                   customMode: !!input.lyrics,
                   lyrics: input.lyrics || undefined,
                 }),
                 60_000,
-                "音樂生成"
+                "音樂提交"
               );
-              resultData.audioTaskId = sunoResult.taskId;
-              resultData.audioStatus = sunoResult.taskId ? "processing" : "audio_generation_failed";
+
+              if (sunoResult.taskId) {
+                resultData.audioTaskId = sunoResult.taskId;
+                console.log(`[Wave1] Suno task submitted: ${sunoResult.taskId}, polling for completion...`);
+
+                // Step 2: Poll for completion (max 120s, every 5s)
+                const maxPolls = 24;
+                let audioUrl: string | undefined;
+                for (let poll = 0; poll < maxPolls; poll++) {
+                  await new Promise(r => setTimeout(r, 5000));
+                  try {
+                    const status = await orchestrator.suno.getTaskStatus(sunoResult.taskId);
+                    console.log(`[Wave1] Suno poll ${poll + 1}/${maxPolls}: status=${status.status}, clips=${status.clips.length}`);
+                    generationBus.emit(jobId, { type: "progress", progress: 40 + Math.min(poll * 2, 25), message: `音樂生成中... (${(poll + 1) * 5}s)` });
+
+                    if (status.status === "completed" || status.status === "complete" || status.status === "SUCCESS") {
+                      const firstClip = status.clips.find(c => c.audioUrl);
+                      if (firstClip) {
+                        audioUrl = firstClip.audioUrl;
+                        resultData.audioTitle = firstClip.title;
+                        resultData.audioClipDuration = firstClip.duration;
+                        console.log(`[Wave1] Suno audio ready: ${audioUrl}`);
+                      }
+                      break;
+                    }
+                    if (status.status === "failed" || status.status === "error" || status.status === "FAILED") {
+                      console.error(`[Wave1] Suno task failed: ${status.status}`);
+                      break;
+                    }
+                  } catch (pollErr) {
+                    console.warn(`[Wave1] Suno poll error:`, pollErr);
+                  }
+                }
+
+                if (audioUrl) {
+                  resultData.audioUrl = audioUrl;
+                  resultData.audioStatus = "completed";
+                  if (!resultUrl) resultUrl = audioUrl;
+                } else {
+                  resultData.audioStatus = "processing";
+                  resultData.audioNote = "音樂仍在生成中，請稍後在歷史紀錄中查看";
+                }
+              } else {
+                resultData.audioStatus = "audio_generation_failed";
+                resultData.audioError = "Suno API 未回傳 taskId";
+              }
             } catch (audioErr) {
               console.error("[Wave1] Audio generation failed:", audioErr);
               resultData.audioStatus = "audio_generation_failed";
