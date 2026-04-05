@@ -14,6 +14,7 @@ import {
 import { useAIState } from "@/contexts/AIStateContext";
 import { AmbientEnvironment, useCurrentScene } from "@/components/AmbientEnvironment";
 import type { SceneId } from "@/components/AmbientEnvironment";
+import SceneSwitcher from "@/components/SceneSwitcher";
 import { useAmbientSound, SoundControl } from "@/components/AmbientSoundEngine";
 import OarsGreeting from "@/components/OarsGreeting";
 import { AmbientVideo } from "@/components/AmbientVideo";
@@ -217,7 +218,7 @@ export default function Home() {
   const { personality } = useAIState();
   const [, navigate] = useLocation();
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const { sceneId, isDark } = useCurrentScene();
+  const { sceneId, isDark, override, setOverride, allScenes } = useCurrentScene();
   const s = useMemo(() => SCENE_STYLES[sceneId], [sceneId]);
   const soundControls = useAmbientSound(sceneId);
 
@@ -326,6 +327,13 @@ export default function Home() {
             </span>
           </div>
           <div className="flex items-center gap-3">
+            <SceneSwitcher
+              currentScene={sceneId}
+              override={override}
+              allScenes={allScenes}
+              onSelect={setOverride}
+              isDark={isDark}
+            />
             <SoundControl controls={soundControls} isDark={isDark} />
             {isAuthenticated ? (
               <Button

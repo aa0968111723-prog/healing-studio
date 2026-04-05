@@ -556,24 +556,52 @@ export const AmbientEnvironment = memo(AmbientEnvironmentInner);
 /**
  * Hook: useCurrentScene
  * Returns the current scene ID and label for UI display (e.g., scene indicator badge).
+ * Supports manual override via setOverride (persisted to localStorage).
  */
 export function useCurrentScene(forceScene?: SceneId) {
-  const [scene, setScene] = useState<SceneId>(
-    forceScene ?? getSceneForHour(new Date().getHours())
+  // Check localStorage for user override
+  const [override, setOverrideState] = useState<SceneId | null>(() => {
+    if (forceScene) return forceScene;
+    try {
+      const saved = localStorage.getItem("hs-scene-override");
+      if (saved && saved in SCENES) return saved as SceneId;
+    } catch { /* ignore */ }
+    return null;
+  });
+
+  const [autoScene, setAutoScene] = useState<SceneId>(
+    getSceneForHour(new Date().getHours())
   );
 
+  // Auto-update scene based on time (only when no override)
   useEffect(() => {
     if (forceScene) return;
     const interval = setInterval(() => {
-      setScene(getSceneForHour(new Date().getHours()));
+      setAutoScene(getSceneForHour(new Date().getHours()));
     }, 30_000);
     return () => clearInterval(interval);
   }, [forceScene]);
 
+  const setOverride = (sceneId: SceneId | null) => {
+    setOverrideState(sceneId);
+    try {
+      if (sceneId) {
+        localStorage.setItem("hs-scene-override", sceneId);
+      } else {
+        localStorage.removeItem("hs-scene-override");
+      }
+    } catch { /* ignore */ }
+  };
+
+  const activeScene = override ?? autoScene;
+
   return {
-    sceneId: scene,
-    label: SCENES[scene].label,
-    isDark: scene === "nightSky" || scene === "deepSea",
+    sceneId: activeScene,
+    label: SCENES[activeScene].label,
+    isDark: activeScene === "nightSky" || activeScene === "deepSea",
+    override,
+    setOverride,
+    allScenes: Object.values(SCENES).map(s => ({ id: s.id, label: s.label })),
   };
 }
 

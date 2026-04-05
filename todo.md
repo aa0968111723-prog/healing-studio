@@ -1095,3 +1095,10 @@
 - [x] 驗證 Token 有效性（API 認證成功）
 - [x] 驗證可存取 LoRA 訓練模型（ostris/flux-dev-lora-trainer）
 - [x] 3 個 vitest 測試全部通過（replicate-token-validation.test.ts）
+
+## 首頁背景切換功能
+- [x] 設計多種背景主題（夜空/晨光/咖啡廳/深海 4 種場景）
+- [x] 新增背景切換按鈕 UI（導航列按鈕 + 下拉選擇面板 + 漸層預覽）
+- [x] 實作背景切換邏輯（localStorage 持久化 + 自動模式恢復）
+- [x] 確保背景切換時文字可讀性（isDark 自動切換深/淺色文字）
+- [x] 撰寫 vitest 測試（19 個測試全部通過）
