@@ -312,12 +312,16 @@ export default function VisualSoulInvitation({
   const handleAccept = useCallback(() => {
     // 攜帶推薦參數到 Studio
     if (intentResult) {
+      const cardTitle = extractFavoriteCard(intentResult);
       const transferData: Record<string, unknown> = {
         source: "soul_invitation",
         intentType: intentResult.intentType,
         preferredModality: intentResult.preferredModality,
         detectedAesthetics: intentResult.detectedAesthetics,
         suggestedAction: intentResult.suggestedAction,
+        actionDetail: intentResult.actionDetail,
+        cardTitle: cardTitle || null,
+        confidence: intentResult.confidence,
       };
       try {
         sessionStorage.setItem("soul_invitation_payload", JSON.stringify(transferData));

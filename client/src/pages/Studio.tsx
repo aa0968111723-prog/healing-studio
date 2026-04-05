@@ -527,6 +527,139 @@ export default function Studio() {
     }
   }, []);
 
+  // ── Populate from Soul Invitation (光球推薦一鍵開局) ──
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("soul_invitation_payload");
+      if (!raw) return;
+      const payload = JSON.parse(raw) as {
+        source: string;
+        intentType: string;
+        preferredModality: string;
+        detectedAesthetics: string[];
+        suggestedAction: string;
+        actionDetail?: string;
+        cardTitle?: string | null;
+        confidence?: number;
+      };
+      if (payload.source !== "soul_invitation") return;
+
+      // 1. 設定模態
+      const modalityMap: Record<string, GenerationType> = {
+        image: "image",
+        video: "video",
+        music: "audio",
+        audio: "audio",
+        voice: "voice",
+      };
+      const targetModality = modalityMap[payload.preferredModality];
+      if (targetModality) {
+        setActiveModality(targetModality);
+      }
+
+      // 2. 智慧映射 detectedAesthetics → Vibe Cards
+      //    將推論出的美學標籤與 VIBE_CARDS 的 id/label/labelZh 做模糊匹配
+      const aestheticToVibeMap: Record<string, string> = {
+        // 直接匹配
+        serene: "serene", calm: "serene", peaceful: "serene", tranquil: "serene",
+        warm: "warm", cozy: "warm", comfortable: "warm", soft: "warm",
+        dreamy: "dreamy", ethereal: "dreamy", surreal: "dreamy", fantasy: "dreamy",
+        nature: "nature", organic: "nature", botanical: "nature", natural: "nature",
+        vintage: "vintage", retro: "vintage", nostalgic: "vintage", classic: "vintage",
+        minimal: "minimal", clean: "minimal", simple: "minimal", minimalist: "minimal",
+        joyful: "joyful", happy: "joyful", vibrant: "joyful", colorful: "joyful", bright: "joyful",
+        mystical: "mystical", mysterious: "mystical", dark: "mystical", gothic: "mystical", cosmic: "mystical",
+        // 中文匹配
+        "寧靜": "serene", "溫暖": "warm", "夢幻": "dreamy", "自然": "nature",
+        "復古": "vintage", "極簡": "minimal", "歡愉": "joyful", "神秘": "mystical",
+        // 擴展匹配
+        cyberpunk: "mystical", neon: "joyful", cinematic: "mystical",
+        watercolor: "dreamy", pastel: "serene", golden: "warm",
+      };
+
+      const matchedVibeIds = new Set<string>();
+      if (payload.detectedAesthetics?.length) {
+        for (const tag of payload.detectedAesthetics) {
+          const lower = tag.toLowerCase().trim();
+          // 精確匹配
+          if (aestheticToVibeMap[lower]) {
+            matchedVibeIds.add(aestheticToVibeMap[lower]);
+          } else {
+            // 模糊匹配：檢查標籤是否包含 vibe card 關鍵字
+            for (const [keyword, vibeId] of Object.entries(aestheticToVibeMap)) {
+              if (lower.includes(keyword) || keyword.includes(lower)) {
+                matchedVibeIds.add(vibeId);
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      // 如果沒有匹配到任何 vibe card，根據意圖類型給一個預設
+      if (matchedVibeIds.size === 0) {
+        const intentDefaultVibe: Record<string, string> = {
+          choice_paralysis: "dreamy",
+          inspiration_seeking: "joyful",
+          passive_browsing: "serene",
+          aesthetic_preference: "mystical",
+          exploration_mode: "joyful",
+          goal_oriented: "minimal",
+        };
+        const defaultVibe = intentDefaultVibe[payload.intentType];
+        if (defaultVibe) matchedVibeIds.add(defaultVibe);
+      }
+
+      // 3. 填充 Vibe Cards
+      if (matchedVibeIds.size > 0) {
+        setPromptBuilder(prev => ({
+          ...prev,
+          vibeCardIds: Array.from(matchedVibeIds),
+        }));
+      }
+
+      // 4. 如果有 actionDetail，作為提示詞建議填入
+      if (payload.actionDetail) {
+        // 從 actionDetail 中提取有用的創作方向（移除指令性語句）
+        const cleanedHint = payload.actionDetail
+          .replace(/讓我幫你|我可以|要不要|試試看|我們/g, "")
+          .replace(/^[，、。！？\s]+|[，、。！？\s]+$/g, "")
+          .trim();
+        if (cleanedHint.length > 2) {
+          setPromptBuilder(prev => ({
+            ...prev,
+            rawPrompt: prev.rawPrompt || cleanedHint,
+          }));
+        }
+      }
+
+      // 5. 歡迎 Toast
+      const cardMention = payload.cardTitle ? `「${payload.cardTitle}」` : "";
+      const vibeNames = Array.from(matchedVibeIds).map(id => {
+        const card = ["serene","warm","dreamy","nature","vintage","minimal","joyful","mystical"];
+        const zhMap: Record<string, string> = {
+          serene: "寧靜", warm: "溫暖", dreamy: "夢幻", nature: "自然",
+          vintage: "復古", minimal: "極簡", joyful: "歡愉", mystical: "神秘",
+        };
+        return zhMap[id] || id;
+      }).join("、");
+
+      const toastMsg = cardMention
+        ? `光球已為你準備好${cardMention}的創作起點${vibeNames ? ` · ${vibeNames}風格` : ""}`
+        : `光球已根據你的瀏覽偏好準備好創作起點${vibeNames ? ` · ${vibeNames}風格` : ""}`;
+
+      toast.success(toastMsg, {
+        duration: 5000,
+        icon: "✨",
+      });
+
+      // 6. 消費後清除 payload
+      sessionStorage.removeItem("soul_invitation_payload");
+    } catch {
+      // silent — 不影響正常 Studio 使用
+    }
+  }, []);
+
   // ── Handle Generate ──
   const handleGenerate = useCallback(async () => {
     // Auth guard: show login modal instead of 500 error if session expired

@@ -797,3 +797,13 @@
 - [x] SoulInvitation 提示氣泡（OARS 個性化語句 + 場景自適應）
 - [x] 整合意圖推論狀態（猶豫偵測觸發光球浮起）
 - [x] 光球點擊導航至創作室（攜帶推薦參數）
+
+## Studio 接收端整合 (Soul Invitation Payload)
+
+- [x] Studio 讀取 sessionStorage soul_invitation_payload
+- [x] 自動預設模態（image/video/music/voice）
+- [x] 自動填充風格標籤（detectedAesthetics → Vibe Cards）
+- [x] 自動填充提示詞建議（actionDetail → prompt input）
+- [x] 歡迎 Toast 提示（顯示光球推薦來源）
+- [x] 消費後清除 payload 防止重複觸發
+- [x] vitest 測試覆蓋（48 tests passed）
