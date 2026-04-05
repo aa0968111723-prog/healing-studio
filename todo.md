@@ -951,4 +951,4 @@
 - [x] 任務 1：db.ts 新增 getQueuedJobsByType 和 getStuckJobsByType
 - [x] 任務 2：建立 server/jobs/modelTrainingWorker.ts（cron 每 5 分鐘消費 queued + 恢復 stuck）
 - [x] 任務 3：在 server/_core/index.ts 註冊 initModelTrainingWorkerCron()
-- [ ] 修復 IntelBentoGrid ScrollArea 680px 限高導致遮蔽 ShowcaseMasonry
+- [x] 修復 IntelBentoGrid ScrollArea 680px 限高導致遮蔽 ShowcaseMasonry
