@@ -889,3 +889,13 @@
 - [x] 【相機運動+主體+具體動作+環境光影】公式編譯管線
 - [x] 視角跳躍阻擋機制（合法轉換矩陣 + 橋接運鏡）
 - [x] vitest 測試覆蓋（47 tests passed）
+
+## 核心動力引擎填補 (Wave 1/2/0)
+
+- [ ] Wave 1: Video 模擬→Fal.ai 真實對接
+- [ ] Wave 1: Audio 模擬→Suno V5 真實對接
+- [ ] Wave 1: Voice 模擬→ElevenLabs SDK 真實對接
+- [ ] Wave 2: deductUserQuota 悲觀鎖原子交易 (SELECT FOR UPDATE)
+- [ ] Wave 2: Race Condition 防護 + Transaction Rollback
+- [ ] Wave 0: 光球一鍵轉接 URL Query 參數機制
+- [ ] Wave 0: Studio.tsx 自動擷取 preset_prompt 填入輸入框

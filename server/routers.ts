@@ -13,6 +13,10 @@ import { newsRouter } from "./routers/news";
 import { showcaseRouter } from "./routers/showcase";
 import { senseRouter } from "./routers/sense";
 import { brainRouter } from "./routers/brain";
+import { getOrchestrator } from "./services/modelClients";
+import { getVoiceCompiler } from "./services/voiceCompiler";
+import { getAudioCompiler } from "./services/audioCompiler";
+import { getVideoCompiler } from "./services/videoCompiler";
 
 // ─── Timeout Utility ────────────────────────────────────────────────────────
 
@@ -500,20 +504,86 @@ export const appRouter = router({
             resultData.vibeReferenceUrl = input.vibeReferenceUrl;
           }
 
-          // For video/audio/voice - we simulate the API call structure
-          // In production, these would call Veo 3.1, Suno V5, ElevenLabs respectively
+          // ── Video: Real Fal.ai SDK Call ──
           if (input.generationType === "video" || input.generationType === "multimodal") {
-            resultData.videoStatus = "video_generation_queued";
+            try {
+              const orchestrator = getOrchestrator();
+              const videoCompiler = getVideoCompiler();
+              // Compile video prompt with camera + action verbs
+              const videoCompiled = videoCompiler.compile({
+                blocks: [{
+                  id: "main",
+                  emotion: "serenity",
+                  subject: compiledPrompt.substring(0, 80),
+                  environment: "cinematic scene",
+                }],
+                emotion: "serenity",
+                cameraMode: "dolly_in",
+                duration: input.videoDurationSeconds || 8,
+                firstFrame: input.firstFrameUrl ? { type: "image", value: input.firstFrameUrl } : undefined,
+                lastFrame: input.lastFrameUrl ? { type: "image", value: input.lastFrameUrl } : undefined,
+              });
+              const videoResult = await withTimeout(
+                orchestrator.fal.generateVideo({
+                  prompt: videoCompiled.compiledPrompt || compiledPrompt,
+                  duration: input.videoDurationSeconds || 8,
+                  imageUrl: input.firstFrameUrl || undefined,
+                }),
+                300_000,
+                "影片生成"
+              );
+              resultData.videoUrl = videoResult.videoUrl;
+              resultData.videoStatus = "completed";
+              resultData.videoDuration = videoResult.durationSec;
+              if (!resultUrl) resultUrl = videoResult.videoUrl;
+            } catch (videoErr) {
+              console.error("[Wave1] Video generation failed, falling back to queued:", videoErr);
+              resultData.videoStatus = "video_generation_failed";
+              resultData.videoError = videoErr instanceof Error ? videoErr.message : String(videoErr);
+            }
             resultData.videoPrompt = compiledPrompt;
-            resultData.videoDuration = input.videoDurationSeconds || 8;
             resultData.firstFrameUrl = input.firstFrameUrl;
             resultData.lastFrameUrl = input.lastFrameUrl;
             resultData.characterRefUrl = input.characterRefUrl;
             resultData.cameraMotion = input.cameraMotion;
           }
 
+          // ── Audio: Real Suno API Call ──
           if (input.generationType === "audio" || input.generationType === "multimodal") {
-            resultData.audioStatus = "audio_generation_queued";
+            try {
+              const orchestrator = getOrchestrator();
+              const audioCompiler = getAudioCompiler();
+              // Compile audio prompt with structure tags
+              const audioCompiled = audioCompiler.compile({
+                blocks: [{
+                  id: "main",
+                  genre: input.musicStyle || "ambient",
+                  instruments: [],
+                  tempo: "moderate",
+                  ambiance: "healing",
+                }],
+                genre: input.musicStyle || "ambient",
+                energy: input.audioEnergy || 0.5,
+                duration: input.audioDuration || 30,
+              });
+              const sunoResult = await withTimeout(
+                orchestrator.suno.generateMusic({
+                  prompt: audioCompiled.compiledPrompt || `${input.musicStyle || "ambient healing"}, ${compiledPrompt.substring(0, 100)}`,
+                  style: input.musicStyle || "ambient healing",
+                  instrumental: input.isInstrumental ?? true,
+                  customMode: !!input.lyrics,
+                  lyrics: input.lyrics || undefined,
+                }),
+                60_000,
+                "音樂生成"
+              );
+              resultData.audioTaskId = sunoResult.taskId;
+              resultData.audioStatus = sunoResult.taskId ? "processing" : "audio_generation_failed";
+            } catch (audioErr) {
+              console.error("[Wave1] Audio generation failed:", audioErr);
+              resultData.audioStatus = "audio_generation_failed";
+              resultData.audioError = audioErr instanceof Error ? audioErr.message : String(audioErr);
+            }
             resultData.musicStyle = input.musicStyle || "ambient healing";
             resultData.isInstrumental = input.isInstrumental;
             resultData.lyrics = input.lyrics;
@@ -521,8 +591,39 @@ export const appRouter = router({
             resultData.audioEnergy = input.audioEnergy;
           }
 
+          // ── Voice: Real ElevenLabs SDK Call ──
           if (input.generationType === "voice") {
-            resultData.voiceStatus = "voice_generation_queued";
+            try {
+              const orchestrator = getOrchestrator();
+              const voiceCompiler = getVoiceCompiler();
+              // Compile SSML from emotion blocks
+              const voiceCompiled = voiceCompiler.compile({
+                text: input.voiceText || input.prompt,
+                emotion: (input.voiceEmotionType as any) || "warm",
+                intensity: input.voiceEmotionIntensity || 0.6,
+              });
+              const ttsResult = await withTimeout(
+                orchestrator.elevenlabs.textToSpeech({
+                  text: voiceCompiled.plainText || input.voiceText || input.prompt,
+                  voiceId: input.voiceModelId || undefined,
+                  stability: input.voiceStability || 0.5,
+                  speed: input.voiceSpeed || 1.0,
+                }),
+                60_000,
+                "語音合成"
+              );
+              // Upload audio buffer to S3
+              const audioKey = `voice/${userId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.mp3`;
+              const { url: voiceUrl } = await storagePut(audioKey, ttsResult.audioBuffer, ttsResult.contentType);
+              resultData.voiceUrl = voiceUrl;
+              resultData.voiceStatus = "completed";
+              resultData.voiceSsml = voiceCompiled.ssml;
+              if (!resultUrl) resultUrl = voiceUrl;
+            } catch (voiceErr) {
+              console.error("[Wave1] Voice generation failed:", voiceErr);
+              resultData.voiceStatus = "voice_generation_failed";
+              resultData.voiceError = voiceErr instanceof Error ? voiceErr.message : String(voiceErr);
+            }
             resultData.voiceModelId = input.voiceModelId;
             resultData.voiceText = input.voiceText;
             resultData.voiceSpeed = input.voiceSpeed;
