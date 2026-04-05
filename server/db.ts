@@ -88,28 +88,80 @@ export async function updateUserQuota(userId: number, amount: number) {
 }
 
 /**
- * Atomic quota deduction at the database level.
- * Uses UPDATE ... SET remaining = remaining - N WHERE remaining >= N
- * and checks affectedRows to guarantee no over-deduction under concurrency.
- * Returns true only if the row was actually updated (quota sufficient).
+ * Atomic quota deduction with pessimistic locking (SELECT ... FOR UPDATE).
+ * Uses MySQL transaction + row-level lock to prevent race conditions.
+ * Flow: BEGIN → SELECT FOR UPDATE → check quota → UPDATE → COMMIT
+ * On failure: ROLLBACK automatically via Drizzle transaction wrapper.
+ * Returns true only if quota was sufficient and deduction committed.
  */
 export async function deductUserQuota(userId: number, amount: number = 1): Promise<boolean> {
   const db = await getDb();
   if (!db) return false;
-  const result = await db.update(users)
-    .set({ remainingGenerations: sql`${users.remainingGenerations} - ${amount}` })
-    .where(and(eq(users.id, userId), sql`${users.remainingGenerations} >= ${amount}`));
-  // result[0] is a MySQL ResultSetHeader with affectedRows
-  const affectedRows = (result as any)[0]?.affectedRows ?? 0;
-  return affectedRows > 0;
+
+  try {
+    const success = await db.transaction(async (tx) => {
+      // Step 1: Pessimistic lock — SELECT ... FOR UPDATE
+      const [lockedRow] = await tx.execute(
+        sql`SELECT ${users.id}, ${users.remainingGenerations} FROM ${users} WHERE ${users.id} = ${userId} FOR UPDATE`
+      ) as any;
+      const rows = Array.isArray(lockedRow) ? lockedRow : [lockedRow];
+      const userRow = rows[0];
+
+      if (!userRow) {
+        console.warn(`[QuotaLock] User ${userId} not found during FOR UPDATE`);
+        return false;
+      }
+
+      const currentQuota = Number(userRow.remainingGenerations ?? userRow.remaining_generations ?? 0);
+
+      // Step 2: Check quota sufficiency
+      if (currentQuota < amount) {
+        console.warn(`[QuotaLock] User ${userId} insufficient quota: ${currentQuota} < ${amount}`);
+        return false; // Transaction will rollback
+      }
+
+      // Step 3: Deduct within the same transaction (row is still locked)
+      await tx.update(users)
+        .set({ remainingGenerations: sql`${users.remainingGenerations} - ${amount}` })
+        .where(eq(users.id, userId));
+
+      console.log(`[QuotaLock] ✅ User ${userId} deducted ${amount} (${currentQuota} → ${currentQuota - amount})`);
+      return true;
+    });
+
+    return success;
+  } catch (error) {
+    // Transaction automatically rolled back by Drizzle on throw
+    console.error(`[QuotaLock] ❌ Transaction failed for user ${userId}:`, error);
+    return false;
+  }
 }
 
+/**
+ * Refund quota with pessimistic lock to ensure consistency.
+ * Uses transaction + FOR UPDATE to prevent concurrent refund anomalies.
+ */
 export async function refundUserQuota(userId: number, amount: number = 1) {
   const db = await getDb();
   if (!db) return;
-  await db.update(users)
-    .set({ remainingGenerations: sql`${users.remainingGenerations} + ${amount}` })
-    .where(eq(users.id, userId));
+
+  try {
+    await db.transaction(async (tx) => {
+      // Lock the row first
+      await tx.execute(
+        sql`SELECT ${users.id} FROM ${users} WHERE ${users.id} = ${userId} FOR UPDATE`
+      );
+
+      // Refund within locked transaction
+      await tx.update(users)
+        .set({ remainingGenerations: sql`${users.remainingGenerations} + ${amount}` })
+        .where(eq(users.id, userId));
+
+      console.log(`[QuotaLock] 🔄 User ${userId} refunded ${amount}`);
+    });
+  } catch (error) {
+    console.error(`[QuotaLock] ❌ Refund transaction failed for user ${userId}:`, error);
+  }
 }
 
 export async function updateUserOnboarding(userId: number, done: boolean) {
