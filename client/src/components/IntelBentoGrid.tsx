@@ -13,8 +13,8 @@
  *   - 結合 Radix ScrollArea 可捲動區域
  */
 
-import { useMemo, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useMemo, useState, useCallback } from "react";
+import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from "framer-motion";
 import { trpc } from "@/lib/trpc";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -209,6 +209,10 @@ interface NewsItem {
   createdAt: Date | string;
 }
 
+// ─── Mandatory transition curve (soft-bounce) ─────────────────────────────────────
+
+const SOFT_BOUNCE: [number, number, number, number] = [0.16, 1, 0.3, 1];
+
 function BentoCard({
   item,
   config,
@@ -221,6 +225,27 @@ function BentoCard({
   const Icon = config.icon;
   const isHero = config.size === "hero";
   const isMedium = config.size === "medium";
+  const [isHovered, setIsHovered] = useState(false);
+
+  // ─── Mouse-tracking fluid glow ─────────────────────────────────────────
+  const mouseX = useMotionValue(0.5);
+  const mouseY = useMotionValue(0.5);
+  const glowX = useSpring(mouseX, { stiffness: 200, damping: 30 });
+  const glowY = useSpring(mouseY, { stiffness: 200, damping: 30 });
+  const glowBg = useTransform(
+    [glowX, glowY],
+    ([x, y]: number[]) =>
+      `radial-gradient(600px circle at ${x * 100}% ${y * 100}%, rgba(255,255,255,0.06) 0%, transparent 60%)`
+  );
+
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent<HTMLElement>) => {
+      const rect = e.currentTarget.getBoundingClientRect();
+      mouseX.set((e.clientX - rect.left) / rect.width);
+      mouseY.set((e.clientY - rect.top) / rect.height);
+    },
+    [mouseX, mouseY]
+  );
 
   // Grid span classes
   const spanClass = isHero
@@ -235,27 +260,57 @@ function BentoCard({
       initial={{ opacity: 0, scale: 0.96 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.96 }}
-      transition={{ duration: 0.35, ease: "easeOut" }}
-      className={`group relative rounded-2xl backdrop-blur-md overflow-hidden transition-all duration-300 hover:scale-[1.015] ${spanClass}`}
+      whileHover={{ scale: 1.02 }}
+      transition={{ duration: 0.4, ease: SOFT_BOUNCE }}
+      onHoverStart={() => setIsHovered(true)}
+      onHoverEnd={() => setIsHovered(false)}
+      onMouseMove={handleMouseMove}
+      className={`group relative rounded-2xl overflow-hidden cursor-pointer ${spanClass}`}
       style={{
         background: styles.cardBg,
         border: `1px solid ${styles.cardBorder}`,
       }}
     >
-      {/* Accent stripe */}
-      <div
-        className={`absolute top-0 left-0 right-0 h-[2px] ${config.accentBg} opacity-60`}
+      {/* ── Glassmorphism fluid glow overlay (mouse-tracking) ── */}
+      <motion.div
+        className="absolute inset-0 pointer-events-none z-0 rounded-2xl"
+        style={{ background: glowBg }}
+        animate={{ opacity: isHovered ? 1 : 0 }}
+        transition={{ duration: 0.3, ease: SOFT_BOUNCE }}
       />
 
-      <div className={`flex flex-col h-full ${isHero ? "p-7 sm:p-8" : isMedium ? "p-5 sm:p-6" : "p-4 sm:p-5"}`}>
+      {/* ── Edge glow ring (hover border highlight) ── */}
+      <motion.div
+        className="absolute inset-0 pointer-events-none z-0 rounded-2xl"
+        style={{
+          boxShadow: `inset 0 0 0 1px rgba(255,255,255,0.08), 0 0 20px 2px rgba(255,255,255,0.03)`,
+        }}
+        animate={{
+          boxShadow: isHovered
+            ? `inset 0 0 0 1.5px rgba(255,255,255,0.15), 0 8px 32px 0 rgba(255,255,255,0.06)`
+            : `inset 0 0 0 1px rgba(255,255,255,0.08), 0 0 20px 2px rgba(255,255,255,0.03)`,
+        }}
+        transition={{ duration: 0.4, ease: SOFT_BOUNCE }}
+      />
+
+      {/* Accent stripe */}
+      <motion.div
+        className={`absolute top-0 left-0 right-0 h-[2px] ${config.accentBg}`}
+        animate={{ opacity: isHovered ? 1 : 0.6 }}
+        transition={{ duration: 0.3 }}
+      />
+
+      <div className={`relative z-10 flex flex-col h-full ${isHero ? "p-7 sm:p-8" : isMedium ? "p-5 sm:p-6" : "p-4 sm:p-5"}`}>
         {/* Header: weight badge + time */}
         <div className="flex items-center justify-between mb-3">
-          <span
+          <motion.span
             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium tracking-wide ${config.accentBg} ${config.accentColor}`}
+            animate={{ scale: isHovered ? 1.05 : 1 }}
+            transition={{ duration: 0.3, ease: SOFT_BOUNCE }}
           >
             <Icon className="w-3 h-3" />
             {config.label}
-          </span>
+          </motion.span>
           <span className={`text-[10px] flex items-center gap-1 ${styles.textMuted}`}>
             <Clock className="w-2.5 h-2.5" />
             {formatRelativeTime(item.publishedAt)}
@@ -271,7 +326,7 @@ function BentoCard({
           {item.title}
         </h3>
 
-        {/* Summary — only for hero and medium cards */}
+        {/* ── Progressive Disclosure Layer 1: Summary (hero/medium always, small on hover) ── */}
         {(isHero || isMedium) && (
           <p
             className={`text-xs leading-relaxed ${styles.textSecondary} ${
@@ -282,11 +337,32 @@ function BentoCard({
           </p>
         )}
 
+        {/* Progressive Disclosure: Small cards reveal summary on hover */}
+        {config.size === "small" && (
+          <AnimatePresence>
+            {isHovered && item.oarsSummary && (
+              <motion.p
+                initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+                animate={{ opacity: 1, height: "auto", marginBottom: 8 }}
+                exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+                transition={{ duration: 0.35, ease: SOFT_BOUNCE }}
+                className={`text-[11px] leading-relaxed line-clamp-2 overflow-hidden ${styles.textSecondary}`}
+              >
+                {item.oarsSummary}
+              </motion.p>
+            )}
+          </AnimatePresence>
+        )}
+
         {/* Spacer */}
         <div className="flex-1" />
 
-        {/* Footer: source + views */}
-        <div className="flex items-center justify-between">
+        {/* ── Progressive Disclosure Layer 2: Footer details (revealed on hover) ── */}
+        <motion.div
+          className="flex items-center justify-between"
+          animate={{ opacity: isHovered ? 1 : 0.7, y: isHovered ? 0 : 2 }}
+          transition={{ duration: 0.3, ease: SOFT_BOUNCE }}
+        >
           <span className={`text-[10px] ${styles.textMuted} truncate max-w-[60%]`}>
             {item.sourceName}
           </span>
@@ -302,14 +378,42 @@ function BentoCard({
                 href={item.sourceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className={`text-[10px] flex items-center gap-0.5 ${styles.textMuted} hover:${styles.textSecondary} transition-colors`}
+                className={`text-[10px] flex items-center gap-0.5 ${styles.textMuted} hover:opacity-80 transition-colors`}
                 onClick={(e) => e.stopPropagation()}
               >
                 <ExternalLink className="w-2.5 h-2.5" />
               </a>
             )}
           </div>
-        </div>
+        </motion.div>
+
+        {/* ── Progressive Disclosure Layer 3: "Read more" CTA (hero/medium on hover) ── */}
+        {(isHero || isMedium) && (
+          <AnimatePresence>
+            {isHovered && (
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 8 }}
+                transition={{ duration: 0.3, ease: SOFT_BOUNCE }}
+                className="mt-3 pt-3"
+                style={{ borderTop: `1px solid ${styles.cardBorder}` }}
+              >
+                <span
+                  className={`inline-flex items-center gap-1.5 text-[11px] font-medium ${config.accentColor}`}
+                >
+                  閱讀完整報導
+                  <motion.span
+                    animate={{ x: [0, 3, 0] }}
+                    transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
+                  >
+                    <ChevronRight className="w-3 h-3" />
+                  </motion.span>
+                </span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        )}
       </div>
     </motion.article>
   );

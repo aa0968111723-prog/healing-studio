@@ -655,3 +655,19 @@
 - [x] 空狀態設計（「暫無情報，敬請期待」）+ 載入骨架動畫
 - [x] TypeScript 編譯零錯誤確認（Found 0 errors）
 - [x] 瀏覽器渲染效果驗證（Tabs + 空狀態 + 場景色彩正常）
+
+## 情報站 Bento 卡片動態物理
+
+- [x] Framer Motion Hover 特效：whileHover scale(1.02) + ease [0.16,1,0.3,1] 軟彈過渡曲線
+- [x] Progressive Disclosure 三層漸進式揭露：
+  - Layer 1: Small 卡片 hover 時展開隱藏的 oarsSummary（AnimatePresence height 動畫）
+  - Layer 2: Footer 詳情（來源/瀏覽數）hover 時 opacity 0.7→1 + y 位移歸零
+  - Layer 3: Hero/Medium 卡片 hover 時顯示「閱讀完整報導」CTA + 箭頭動畫
+- [x] CSS 毛玻璃流體高光：
+  - Mouse-tracking radial gradient（useMotionValue + useSpring 追蹤滑鼠位置）
+  - Edge glow ring（hover 時 boxShadow inset 1.5px + 外圈 32px 光暈）
+  - Accent stripe 亮度隨 hover 提升
+- [x] Hero/Medium/Small 卡片各自適配的揭露層級
+- [x] 修復 useScroll ref hydration 錯誤（改用 window scrollY）
+- [x] TypeScript 編譯零錯誤確認（Found 0 errors）
+- [x] 瀏覽器零 console 錯誤 + 頁面正常渲染

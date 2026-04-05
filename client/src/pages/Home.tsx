@@ -216,29 +216,25 @@ export default function Home() {
   const s = useMemo(() => SCENE_STYLES[sceneId], [sceneId]);
   const soundControls = useAmbientSound(sceneId);
 
-  // ─── Scrollytelling: useScroll + useTransform ─────────────────────────────
+  // ─── Scrollytelling: useScroll + useTransform ─────────────────────
   // heroRef marks the Hero section. As user scrolls past it,
   // the ambient background (video + particles) fades to 0 opacity,
   // elegantly handing visual focus to the content sections below.
   const heroRef = useRef<HTMLElement>(null);
 
-  const { scrollYProgress: heroScrollProgress } = useScroll({
-    target: heroRef,
-    // "start start" = when top of hero hits top of viewport
-    // "end start"   = when bottom of hero hits top of viewport
-    offset: ["start start", "end start"],
-  });
+  // Use window scroll instead of target ref to avoid hydration issues
+  // when onboarding early-return unmounts the ref before useScroll resolves.
+  const { scrollY } = useScroll();
 
-  // Ambient layer opacity: 1 → 0 as hero scrolls out of view
-  // Using a gentle easing curve: stays at 1 for first 20%, then fades to 0
-  const ambientOpacity = useTransform(heroScrollProgress, [0, 0.3, 1], [1, 1, 0]);
+  // Map window scrollY to a 0–1 progress based on viewport height
+  const ambientOpacity = useTransform(scrollY, [0, 300, 800], [1, 1, 0]);
 
   // Hero content parallax: subtle upward drift as user scrolls
-  const heroY = useTransform(heroScrollProgress, [0, 1], [0, -80]);
-  const heroContentOpacity = useTransform(heroScrollProgress, [0, 0.5, 0.85], [1, 0.8, 0]);
+  const heroY = useTransform(scrollY, [0, 800], [0, -80]);
+  const heroContentOpacity = useTransform(scrollY, [0, 400, 700], [1, 0.8, 0]);
 
   // Nav background intensifies as ambient fades (more opaque for readability)
-  const navOpacityBoost = useTransform(heroScrollProgress, [0.3, 1], [0, 0.3]);
+  const navOpacityBoost = useTransform(scrollY, [300, 800], [0, 0.3]);
 
   // Track scroll state for conditional rendering optimizations
   const [isAmbientVisible, setIsAmbientVisible] = useState(true);
