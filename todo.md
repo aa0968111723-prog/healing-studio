@@ -735,3 +735,25 @@
 - [x] 整合至 IntelBentoGrid BentoCard（intel-bento-grid 區塊）
 - [x] getFeatureSummary 特徵摘要產生器（modalityPreference / highIntentCards / hesitationSections）
 - [x] TypeScript 編譯零錯誤確認（Found 0 errors）+ HMR 更新正常
+
+## 代理意圖推論（Agent Intent Inference）
+
+- [x] 建立後端 tRPC 端點 sense.inferIntent（publicProcedure，未登入使用者也可推論）
+- [x] Gemini Director 角色推理 Prompt（OARS 心理學框架 + 行為特徵解讀指南 + 溫暖非評判語氣）
+- [x] 輸入：SenseEvent[]（max 200）+ featureSummary（highIntentCards/hesitationSections/modalityPreference）
+- [x] 輸出：JSON Schema 結構化回傳 8 欄位（intentType/intentLabel/confidence/psychologicalInsight/suggestedAction/actionDetail/detectedAesthetics/preferredModality）
+- [x] 6 種心理判定類型：choice_paralysis / aesthetic_preference / exploration_mode / goal_oriented / inspiration_seeking / passive_browsing
+- [x] 6 種建議行動：recommend_modality / recommend_style / simplify_choices / proactive_guide / encourage_exploration / offer_quick_start
+- [x] 前端 useIntentInference hook：
+  - 自動觸發（每 10s 檢查條件）+ 手動 triggerInference
+  - 觸發條件：事件≥ 5 + 工作階段≥30s，或高信號事件≥ 1 + 事件≥3
+  - 防抖：同一工作階段最多 3 次，間隔≥60s
+  - sessionStorage 快取推論結果
+- [x] Home.tsx 整合：
+  - useSenseEngine + useIntentInference 在首頁層級初始化
+  - 意圖推論低語卡片（confidence > 0.4 時顯示）
+  - 顯示 intentLabel + 信心度 + psychologicalInsight + actionDetail + detectedAesthetics 標籤
+  - 場景自適應色彩
+- [x] 30s 超時保護 + Gemini 失敗優雅降級（fallback 探索模式）
+- [x] curl 測試通過（賦博龐克/霓虹街景/蒸氣波 → 「正在尋找靈感」80% 信心度 + cyberpunk/dark_mechanical/vaporwave 美學偵測）
+- [x] TypeScript 編譯零錯誤確認（Found 0 errors）+ HMR 更新正常

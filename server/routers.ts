@@ -11,6 +11,7 @@ import { TRPCError } from "@trpc/server";
 import { generationBus } from "./generationEvents";
 import { newsRouter } from "./routers/news";
 import { showcaseRouter } from "./routers/showcase";
+import { senseRouter } from "./routers/sense";
 
 // ─── Timeout Utility ────────────────────────────────────────────────────────
 
@@ -311,6 +312,7 @@ export const appRouter = router({
   // ─── Homepage Public APIs (Read-only, LOD Pagination) ──────────────────
   news: newsRouter,
   showcase: showcaseRouter,
+  sense: senseRouter,
 
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

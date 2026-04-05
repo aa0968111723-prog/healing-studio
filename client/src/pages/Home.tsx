@@ -18,6 +18,8 @@ import { useAmbientSound, SoundControl } from "@/components/AmbientSoundEngine";
 import { AmbientVideo } from "@/components/AmbientVideo";
 import IntelBentoGrid from "@/components/IntelBentoGrid";
 import ShowcaseMasonry from "@/components/ShowcaseMasonry";
+import { useSenseEngine } from "@/hooks/useSenseEngine";
+import { useIntentInference } from "@/hooks/useIntentInference";
 
 // ─── Scene-Adaptive Style Maps ──────────────────────────────────────────────
 
@@ -216,6 +218,15 @@ export default function Home() {
   const { sceneId, isDark } = useCurrentScene();
   const s = useMemo(() => SCENE_STYLES[sceneId], [sceneId]);
   const soundControls = useAmbientSound(sceneId);
+
+  // ─── Sense Engine + Intent Inference ─────────────────────────────
+  const senseEngine = useSenseEngine({ enabled: true });
+  const { result: intentResult, isInferring: isIntentInferring } = useIntentInference(senseEngine, {
+    minEvents: 5,
+    minSessionMs: 30_000,
+    maxInferences: 3,
+    cooldownMs: 60_000,
+  });
 
   // ─── Scrollytelling: useScroll + useTransform ─────────────────────
   // heroRef marks the Hero section. As user scrolls past it,
@@ -452,6 +463,67 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* ── Intent Inference Whisper (意圖推論低語) ── */}
+      {intentResult && intentResult.confidence > 0.4 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+          className="py-6 px-4"
+        >
+          <div className="max-w-2xl mx-auto">
+            <div
+              className="rounded-2xl px-6 py-5 backdrop-blur-md transition-all duration-700"
+              style={{
+                background: s.cardBg,
+                border: `1px solid ${s.cardBorder}`,
+              }}
+            >
+              <div className="flex items-start gap-3">
+                <div
+                  className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
+                  style={{ background: s.featureBg }}
+                >
+                  <Sparkles className={`w-4 h-4 transition-colors duration-700 ${s.textSecondary}`} />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className={`text-xs font-medium transition-colors duration-700 ${s.textSecondary}`}>
+                      {intentResult.intentLabel}
+                    </span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full transition-colors duration-700 ${s.textMuted}`}
+                      style={{ background: s.featureBg }}
+                    >
+                      {Math.round(intentResult.confidence * 100)}% 信心度
+                    </span>
+                  </div>
+                  <p className={`text-sm leading-relaxed transition-colors duration-700 ${s.textPrimary}`}>
+                    {intentResult.psychologicalInsight}
+                  </p>
+                  <p className={`text-xs mt-2 transition-colors duration-700 ${s.textMuted}`}>
+                    {intentResult.actionDetail}
+                  </p>
+                  {intentResult.detectedAesthetics.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {intentResult.detectedAesthetics.map((tag) => (
+                        <span
+                          key={tag}
+                          className={`text-[10px] px-2 py-0.5 rounded-full transition-colors duration-700 ${s.textMuted}`}
+                          style={{ background: s.featureBg }}
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
 
       {/* ── Intel Bento Grid (情報站) ── */}
       <IntelBentoGrid sceneId={sceneId} />
