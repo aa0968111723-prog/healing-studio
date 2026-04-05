@@ -651,15 +651,25 @@ export const appRouter = router({
             try {
               const orchestrator = getOrchestrator();
               const voiceCompiler = getVoiceCompiler();
-              // Compile SSML from emotion blocks
+              // Compile SSML from emotion blocks (correct VoiceCompilerInput: uses 'script' not 'text')
               const voiceCompiled = voiceCompiler.compile({
-                text: input.voiceText || input.prompt,
-                emotion: (input.voiceEmotionType as any) || "warm",
-                intensity: input.voiceEmotionIntensity || 0.6,
+                script: input.voiceText || input.prompt,
+                moodBlock: input.voiceEmotionType ? {
+                  blockId: "emotion-override",
+                  label: input.voiceEmotionType,
+                  prompt: input.voiceEmotionType,
+                  isCustom: false,
+                } : undefined,
+                voiceId: input.voiceModelId || undefined,
+                rateOverride: input.voiceSpeed ? `${Math.round(input.voiceSpeed * 100)}%` : undefined,
+                enableHesitation: true,
               });
+              const ttsText = voiceCompiled.plainText || input.voiceText || input.prompt;
+              console.log(`[Wave1] Voice compiled: ${ttsText.length} chars, SSML: ${voiceCompiled.ssml.length} chars, calling ElevenLabs...`);
+
               const ttsResult = await withTimeout(
                 orchestrator.elevenlabs.textToSpeech({
-                  text: voiceCompiled.plainText || input.voiceText || input.prompt,
+                  text: ttsText,
                   voiceId: input.voiceModelId || undefined,
                   stability: input.voiceStability || 0.5,
                   speed: input.voiceSpeed || 1.0,
@@ -673,7 +683,9 @@ export const appRouter = router({
               resultData.voiceUrl = voiceUrl;
               resultData.voiceStatus = "completed";
               resultData.voiceSsml = voiceCompiled.ssml;
+              resultData.voiceEstimatedDuration = voiceCompiled.estimatedDurationSec;
               if (!resultUrl) resultUrl = voiceUrl;
+              console.log(`[Wave1] Voice generation completed: ${voiceUrl} (${ttsResult.audioBuffer.length} bytes)`);
             } catch (voiceErr) {
               console.error("[Wave1] Voice generation failed:", voiceErr);
               resultData.voiceStatus = "voice_generation_failed";
