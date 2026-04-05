@@ -943,5 +943,5 @@
 - [x] 實作 submitReplicateLoraTraining（Replicate API 提交訓練）
 - [x] 實作 runLoraTrainingJob（主函數：打包→上傳→提交→輪詢→回寫 DB）
 - [x] models.create 路由加入背景 LoRA 訓練啟動邏輯
-- [ ] 任務 3：ModelsPage.tsx 加入訓練進度輪詢 UI（trainingStatusQuery + 進度條 + 狀態顯示）
-- [ ] 任務 4：env.validated.ts 加入 REPLICATE_API_TOKEN 非必填警告
+- [x] 任務 3：ModelsPage.tsx 加入訓練進度輪詢 UI（trainingStatusQuery + 進度條 + 狀態顯示）
+- [x] 任務 4：env.validated.ts 加入 REPLICATE_API_TOKEN 非必填警告
