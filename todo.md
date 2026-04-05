@@ -926,7 +926,7 @@
 
 ## 首頁背景截斷與版面溢位修復
 
-- [ ] 將 Hero Section 漸層背景移至最外層 fixed/absolute 容器，涵蓋全頁面
-- [ ] 移除 Hero Section 內的 absolute inset-0 -z-10 漸層背景 div
-- [ ] 最外層主容器加 overflow-x-hidden + flex flex-col
-- [ ] 所有 section 內層加 relative z-10 確保內容在背景之上
+- [x] 將 Hero Section 漸層背景移至最外層 fixed/absolute 容器，涵蓋全頁面
+- [x] 移除 Hero Section 內的 absolute inset-0 -z-10 漸層背景 div
+- [x] 最外層主容器加 overflow-x-hidden + flex flex-col
+- [x] 所有 section 內層加 relative z-10 確保內容在背景之上
