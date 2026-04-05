@@ -471,6 +471,26 @@ export const appRouter = router({
           }
         }
 
+        // ── Fine-tuned model injection: append triggerWord to prompt ──
+        let modelTriggerWord = "";
+        if (input.fineTunedModelId) {
+          try {
+            const ftModel = await db.getFineTunedModel(input.fineTunedModelId);
+            if (ftModel) {
+              console.log(`[Model] Injecting fine-tuned model #${ftModel.id}: ${ftModel.name}`);
+              const config = ftModel.configJson as Record<string, unknown> | null;
+              if (config && typeof config.triggerWord === "string" && config.triggerWord.trim()) {
+                modelTriggerWord = config.triggerWord.trim();
+                // Append trigger word to the user prompt so compileElitePrompt includes it
+                input.prompt = `${input.prompt}, ${modelTriggerWord}`;
+                console.log(`[Model] Appended triggerWord "${modelTriggerWord}" to prompt`);
+              }
+            }
+          } catch (e) {
+            console.warn("[Model] Failed to load fine-tuned model:", e);
+          }
+        }
+
         try {
           // Compile elite prompt with reference image awareness
           // ── Compile step ──
@@ -510,6 +530,9 @@ export const appRouter = router({
           let resultData: Record<string, unknown> = {
             visualWeight,
             controlNetParams,
+            ...(input.fineTunedModelId && { modelUsed: { id: input.fineTunedModelId, triggerWord: modelTriggerWord } }),
+            ...(input.vaultCharacterId && { vaultCharacterId: input.vaultCharacterId }),
+            ...(input.vaultSceneId && { vaultSceneId: input.vaultSceneId }),
           };
 
           if (input.generationType === "image" || input.generationType === "multimodal") {
