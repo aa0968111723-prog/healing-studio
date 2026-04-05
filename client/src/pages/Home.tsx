@@ -276,11 +276,22 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen relative">
+    <div className="min-h-screen relative overflow-x-hidden flex flex-col">
+      {/* ── Full-page gradient background (covers entire scroll height) ── */}
+      <div
+        className="fixed inset-0 w-full h-full -z-20 pointer-events-none"
+        style={{
+          background: isDark
+            ? "linear-gradient(180deg, rgba(10,12,35,0.95) 0%, rgba(15,20,50,0.9) 40%, rgba(10,12,35,0.95) 100%)"
+            : "linear-gradient(180deg, rgba(255,235,210,0.6) 0%, rgba(255,245,230,0.4) 30%, rgba(255,250,240,0.3) 60%, rgba(255,245,235,0.5) 100%)",
+          transition: "background 0.7s ease",
+        }}
+        aria-hidden="true"
+      />
       {/* ── Full-screen Ambient Background (Video + Particles) ── */}
       {/* Opacity driven by scroll position via Framer Motion useTransform */}
       <motion.div
-        className="fixed inset-0 -z-10"
+        className="fixed inset-0 -z-10 pointer-events-none"
         style={{ opacity: ambientOpacity }}
         // Performance: skip rendering when fully transparent
         aria-hidden="true"
@@ -339,7 +350,7 @@ export default function Home() {
       {/* ── Hero Section (Scrollytelling anchor) ── */}
       <motion.section
         ref={heroRef}
-        className="pt-32 pb-20 px-4 relative min-h-[85vh]"
+        className="pt-32 pb-20 px-4 relative z-10 min-h-[85vh]"
         style={{ y: heroY }}
       >
         <motion.div
@@ -408,7 +419,7 @@ export default function Home() {
       </motion.section>
 
       {/* ── Features Grid (情報站 — visual focus handoff target) ── */}
-      <section className="py-20 px-4 relative">
+      <section className="py-20 px-4 relative z-10">
         <div className="max-w-6xl mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -538,7 +549,7 @@ export default function Home() {
       />
 
       {/* ── CTA Section ── */}
-      <section className="py-20 px-4 relative">
+      <section className="py-20 px-4 relative z-10">
         <div className="max-w-3xl mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -596,7 +607,7 @@ export default function Home() {
 
       {/* ── Footer ── */}
       <footer
-        className="py-8 px-4 transition-colors duration-700"
+        className="py-8 px-4 transition-colors duration-700 relative z-10 mt-auto"
         style={{ borderTop: `1px solid ${s.footerBorder}` }}
       >
         <div className="max-w-6xl mx-auto flex items-center justify-between text-xs">

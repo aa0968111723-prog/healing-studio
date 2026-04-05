@@ -923,3 +923,10 @@
 - [x] Task 1: 生成路由 input schema 加入 vaultCharacterId / vaultSceneId，注入 characterRefUrl / styleReferenceUrl
 - [x] Task 2: 生成路由 input schema 加入 fineTunedModelId，注入 triggerWord 至 compiledPrompt
 - [x] Task 3: Studio.tsx handleVaultSelect 補齊 audio/voice 處理 + 角色鍛造所快選 UI
+
+## 首頁背景截斷與版面溢位修復
+
+- [ ] 將 Hero Section 漸層背景移至最外層 fixed/absolute 容器，涵蓋全頁面
+- [ ] 移除 Hero Section 內的 absolute inset-0 -z-10 漸層背景 div
+- [ ] 最外層主容器加 overflow-x-hidden + flex flex-col
+- [ ] 所有 section 內層加 relative z-10 確保內容在背景之上
