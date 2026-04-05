@@ -1510,6 +1510,20 @@ export const appRouter = router({
           userId: ctx.user.id,
           ...input,
         });
+        // Notify owner about new feedback
+        const categoryLabels: Record<string, string> = {
+          bug: "錯誤回報",
+          feature_request: "功能詢問",
+          quality_issue: "品質問題",
+          general: "一般意見",
+        };
+        try {
+          const { notifyOwner } = await import("./_core/notification");
+          await notifyOwner({
+            title: `新${categoryLabels[input.category] || "回饋"}：${input.title}`,
+            content: `來自 ${ctx.user.name || "匿名使用者"}\n類別：${categoryLabels[input.category] || input.category}\n優先級：${input.priority}\n\n${input.description || "(無詳細說明)"}`,
+          });
+        } catch { /* notification is best-effort */ }
         return { id };
       }),
 

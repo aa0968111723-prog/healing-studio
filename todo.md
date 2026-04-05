@@ -1102,3 +1102,11 @@
 - [x] 實作背景切換邏輯（localStorage 持久化 + 自動模式恢復）
 - [x] 確保背景切換時文字可讀性（isDark 自動切換深/淺色文字）
 - [x] 撰寫 vitest 測試（19 個測試全部通過）
+
+## 光球新增意見回饋與功能詢問
+- [x] 光球互動選單新增「意見回饋」入口（Quick Action Menu）
+- [x] 光球互動選單新增「功能詢問」入口（Quick Action Menu）
+- [x] 實作回饋/詢問 Dialog UI（FeedbackDialog 元件，含類型選擇/標題/描述/優先級）
+- [x] 後端 tRPC procedure 儲存回饋到資料庫（已有 feedback.create）
+- [x] 回饋提交後通知 Owner（notifyOwner 整合完成）
+- [x] 撰寫 vitest 測試（26 個測試全部通過）

@@ -18,11 +18,13 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
-import { ArrowRight, X, Sparkles } from "lucide-react";
+import { ArrowRight, X, Sparkles, MessageSquarePlus, Lightbulb } from "lucide-react";
 import VisualSoul from "./VisualSoul";
 import type { Personality } from "./VisualSoul";
 import type { SceneId } from "./AmbientEnvironment";
 import type { IntentResult } from "@/hooks/useIntentInference";
+import FeedbackDialog from "./FeedbackDialog";
+import { useAuth } from "@/_core/hooks/useAuth";
 
 // ─── Scene-Adaptive Bubble Styles ──────────────────────────────────────────
 
@@ -380,12 +382,40 @@ export default function VisualSoulInvitation({
     navigate(`/studio${queryString}`);
   }, [intentResult, navigate]);
 
+  // ── Quick Action Menu ──
+  const [showQuickMenu, setShowQuickMenu] = useState(false);
+  const [feedbackMode, setFeedbackMode] = useState<"feedback" | "feature">("feedback");
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const { isAuthenticated } = useAuth();
+  const quickMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close quick menu on outside click
+  useEffect(() => {
+    if (!showQuickMenu) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (quickMenuRef.current && !quickMenuRef.current.contains(e.target as Node)) {
+        setShowQuickMenu(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showQuickMenu]);
+
+  const handleOpenFeedback = useCallback((mode: "feedback" | "feature") => {
+    setFeedbackMode(mode);
+    setFeedbackOpen(true);
+    setShowQuickMenu(false);
+  }, []);
+
   // ── Click orb to toggle ──
   const handleOrbClick = useCallback(() => {
     if (isExpanded) {
       handleDismiss();
     } else if (invitation) {
       setIsExpanded(true);
+    } else {
+      // No invitation available: toggle quick action menu
+      setShowQuickMenu((prev) => !prev);
     }
   }, [isExpanded, invitation, handleDismiss]);
 
@@ -547,52 +577,142 @@ export default function VisualSoulInvitation({
 
         {/* ── Collapsed: Just the Orb ── */}
         {!isExpanded && (
-          <motion.button
-            key="orb-only"
-            onClick={handleOrbClick}
-            className="relative cursor-pointer group"
-            initial={{ opacity: 0, scale: 0.5 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.8 }}
-            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
-            aria-label="AI 光球助手"
-          >
-            {/* Ambient glow */}
-            <motion.div
-              className="absolute -inset-3 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500"
-              style={{
-                background: `radial-gradient(circle, ${bubbleStyle.glowColor}, transparent 70%)`,
-              }}
-            />
+          <div ref={quickMenuRef} className="relative">
+            {/* Quick Action Menu (above orb) */}
+            <AnimatePresence>
+              {showQuickMenu && isAuthenticated && (
+                <motion.div
+                  key="quick-menu"
+                  initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                  transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                  className="absolute bottom-16 right-0 w-52 rounded-xl overflow-hidden backdrop-blur-xl shadow-2xl"
+                  style={{
+                    background: bubbleStyle.bg,
+                    border: `1px solid ${bubbleStyle.border}`,
+                    boxShadow: `0 8px 24px ${bubbleStyle.glowColor}`,
+                  }}
+                >
+                  {/* Menu header */}
+                  <div className={`px-3.5 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider ${bubbleStyle.textMuted}`}>
+                    快速操作
+                  </div>
 
-            {/* Subtle notification dot when invitation is ready */}
-            {invitation && !isDismissed && !hasBeenShown && (
+                  {/* Menu items */}
+                  <div className="px-1.5 pb-2 space-y-0.5">
+                    <button
+                      onClick={() => handleOpenFeedback("feedback")}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left transition-all duration-200 hover:bg-white/8 group`}
+                    >
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                        sceneId === "nightSky" || sceneId === "deepSea"
+                          ? "bg-indigo-500/15 group-hover:bg-indigo-500/25"
+                          : "bg-stone-800/8 group-hover:bg-stone-800/12"
+                      }`}>
+                        <MessageSquarePlus className={`w-3.5 h-3.5 ${
+                          sceneId === "nightSky" || sceneId === "deepSea"
+                            ? "text-indigo-400"
+                            : "text-stone-600"
+                        }`} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className={`text-xs font-medium ${bubbleStyle.text}`}>意見回饋</div>
+                        <div className={`text-[10px] ${bubbleStyle.textMuted}`}>回報問題或分享想法</div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => handleOpenFeedback("feature")}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left transition-all duration-200 hover:bg-white/8 group`}
+                    >
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                        sceneId === "nightSky" || sceneId === "deepSea"
+                          ? "bg-amber-500/15 group-hover:bg-amber-500/25"
+                          : "bg-amber-500/10 group-hover:bg-amber-500/15"
+                      }`}>
+                        <Lightbulb className={`w-3.5 h-3.5 ${
+                          sceneId === "nightSky" || sceneId === "deepSea"
+                            ? "text-amber-400"
+                            : "text-amber-600"
+                        }`} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className={`text-xs font-medium ${bubbleStyle.text}`}>功能詢問</div>
+                        <div className={`text-[10px] ${bubbleStyle.textMuted}`}>告訴我們你想要什麼</div>
+                      </div>
+                    </button>
+                  </div>
+
+                  {/* Tail pointer */}
+                  <div
+                    className="absolute -bottom-1.5 right-5 w-3 h-3 rotate-45"
+                    style={{
+                      background: bubbleStyle.bg,
+                      borderRight: `1px solid ${bubbleStyle.border}`,
+                      borderBottom: `1px solid ${bubbleStyle.border}`,
+                    }}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <motion.button
+              key="orb-only"
+              onClick={handleOrbClick}
+              className="relative cursor-pointer group"
+              initial={{ opacity: 0, scale: 0.5 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+              aria-label="AI 光球助手"
+            >
+              {/* Ambient glow */}
               <motion.div
-                className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full z-10"
+                className="absolute -inset-3 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500"
                 style={{
-                  background: sceneId === "morning" || sceneId === "cafe"
-                    ? "rgb(239,68,68)"
-                    : "rgb(96,165,250)",
+                  background: `radial-gradient(circle, ${bubbleStyle.glowColor}, transparent 70%)`,
                 }}
-                animate={{
-                  scale: [1, 1.3, 1],
-                  opacity: [1, 0.7, 1],
-                }}
-                transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
               />
-            )}
 
-            <VisualSoul
-              size="lg"
-              personality={personality}
-              state={isInferring ? "thinking" : "idle"}
-              className="!w-12 !h-12"
-            />
-          </motion.button>
+              {/* Subtle notification dot when invitation is ready */}
+              {invitation && !isDismissed && !hasBeenShown && (
+                <motion.div
+                  className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full z-10"
+                  style={{
+                    background: sceneId === "morning" || sceneId === "cafe"
+                      ? "rgb(239,68,68)"
+                      : "rgb(96,165,250)",
+                  }}
+                  animate={{
+                    scale: [1, 1.3, 1],
+                    opacity: [1, 0.7, 1],
+                  }}
+                  transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                />
+              )}
+
+              <VisualSoul
+                size="lg"
+                personality={personality}
+                state={isInferring ? "thinking" : "idle"}
+                className="!w-12 !h-12"
+              />
+            </motion.button>
+          </div>
         )}
       </AnimatePresence>
+
+      {/* Feedback Dialog */}
+      <FeedbackDialog
+        open={feedbackOpen}
+        onClose={() => setFeedbackOpen(false)}
+        mode={feedbackMode}
+        sceneId={sceneId}
+        isDark={sceneId === "nightSky" || sceneId === "deepSea"}
+      />
     </div>
   );
 }
