@@ -527,7 +527,63 @@ export default function Studio() {
     }
   }, []);
 
-  // ── Populate from Soul Invitation (光球推薦一鍵開局) ──
+  // ── Populate from URL Query Params (光球一鍵轉接 URL 參數) ──
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const presetPrompt = params.get("preset_prompt");
+      const presetModality = params.get("preset_modality");
+      const presetAesthetics = params.get("preset_aesthetics");
+
+      if (!presetPrompt && !presetModality && !presetAesthetics) return;
+
+      // 設定模態
+      if (presetModality) {
+        const modalityMap: Record<string, GenerationType> = {
+          image: "image", video: "video", music: "audio", audio: "audio", voice: "voice",
+        };
+        const target = modalityMap[presetModality.toLowerCase()];
+        if (target) setActiveModality(target);
+      }
+
+      // 填入提示詞
+      if (presetPrompt) {
+        setPromptBuilder(prev => ({
+          ...prev,
+          rawPrompt: prev.rawPrompt || decodeURIComponent(presetPrompt),
+        }));
+      }
+
+      // 映射美學標籤到 Vibe Cards
+      if (presetAesthetics) {
+        const tags = decodeURIComponent(presetAesthetics).split(",").map(t => t.trim().toLowerCase());
+        const aestheticVibeMap: Record<string, string> = {
+          serene: "serene", calm: "serene", warm: "warm", cozy: "warm",
+          dreamy: "dreamy", ethereal: "dreamy", nature: "nature", organic: "nature",
+          vintage: "vintage", retro: "vintage", minimal: "minimal", clean: "minimal",
+          joyful: "joyful", happy: "joyful", mystical: "mystical", cosmic: "mystical",
+        };
+        const vibeIds = new Set<string>();
+        for (const tag of tags) {
+          if (aestheticVibeMap[tag]) vibeIds.add(aestheticVibeMap[tag]);
+        }
+        if (vibeIds.size > 0) {
+          setPromptBuilder(prev => ({ ...prev, vibeCardIds: Array.from(vibeIds) }));
+        }
+      }
+
+      // 清除 URL 參數（不觸發頁面重載）
+      if (window.history.replaceState) {
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+
+      toast.success("光球已為你準備好創作參數", { duration: 3000, icon: "✨" });
+    } catch {
+      // silent
+    }
+  }, []);
+
+  // ── Populate from Soul Invitation (光球推薦一鍵開局 sessionStorage) ──
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem("soul_invitation_payload");

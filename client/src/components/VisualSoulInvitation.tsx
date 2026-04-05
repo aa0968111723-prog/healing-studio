@@ -331,7 +331,13 @@ export default function VisualSoulInvitation({
     }
 
     setIsExpanded(false);
-    navigate("/studio");
+    // Build URL query params for direct preset
+    const queryParts: string[] = [];
+    if (intentResult?.preferredModality) queryParts.push(`preset_modality=${encodeURIComponent(intentResult.preferredModality)}`);
+    if (intentResult?.suggestedAction) queryParts.push(`preset_prompt=${encodeURIComponent(intentResult.suggestedAction)}`);
+    if (intentResult?.detectedAesthetics?.length) queryParts.push(`preset_aesthetics=${encodeURIComponent(intentResult.detectedAesthetics.join(","))}`);
+    const queryString = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
+    navigate(`/studio${queryString}`);
   }, [intentResult, navigate]);
 
   // ── Click orb to toggle ──
