@@ -872,3 +872,11 @@
 - [x] SSML 編譯管線（積木 JSON → 分段 → 情緒標註 → SSML 輸出）
 - [x] 與 ElevenLabsClient 整合（SSML → TTS 音訊）
 - [x] vitest 測試覆蓋（31 tests passed）
+
+## Audio Compiler 音樂編譯器
+
+- [x] 時間軸結構標記動態生成（[Verse 1] / [Chorus] / [Bridge] / [Drop] 等）
+- [x] Tag Stacking Limit 演算法（每個中括號元素 ≤ 4 個樂器/風格）
+- [x] 積木 → 音樂提示詞編譯管線（S-S-L-C-M → Suno/Udio 格式）
+- [x] 風格衝突偵測與自動調和
+- [x] vitest 測試覆蓋（41 tests passed）
