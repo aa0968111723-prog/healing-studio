@@ -57,13 +57,28 @@ export default function ModelsPage() {
   const [isCaptioning, setIsCaptioning] = useState(false);
   const [trainingJobId, setTrainingJobId] = useState<number | null>(null);
 
+  // ── 訓練進度輪詢 ──
+  const trainingStatusQuery = trpc.generate.jobStatus.useQuery(
+    { jobId: trainingJobId! },
+    {
+      enabled: !!trainingJobId,
+      refetchInterval: (query) => {
+        const data = query.state.data;
+        if (!data) return 15000;
+        if (data.status === "completed" || data.status === "failed") return false;
+        return 15000;
+      },
+      retry: false,
+    }
+  );
+
   const myModelsQuery = trpc.models.myModels.useQuery(undefined, { retry: false });
   const teamModelsQuery = trpc.models.teamModels.useQuery(undefined, { retry: false });
 
   const createMutation = trpc.models.create.useMutation({
     onSuccess: (data) => {
       toast.success("角色模型訓練任務已建立");
-      setTrainingJobId(data.id);
+      setTrainingJobId(data.jobId);
       myModelsQuery.refetch();
     },
     onError: (e) => toast.error(e.message),
@@ -441,14 +456,51 @@ export default function ModelsPage() {
                   <div className="space-y-5 text-center py-6">
                     {trainingJobId ? (
                       <>
-                        <div className="flex justify-center"><CheckCircle2 className="w-12 h-12 text-green-500" /></div>
-                        <h3 className="text-base font-medium">訓練任務已建立</h3>
-                        <p className="text-sm text-muted-foreground">
-                          任務 ID: #{trainingJobId}。模型訓練已加入佇列，完成後會出現在「我的模型」列表中。
-                        </p>
-                        <Button onClick={() => { setDialogOpen(false); resetForm(); }} className="w-full h-12 rounded-xl gap-2">
-                          返回模型列表
-                        </Button>
+                        {/* ── 即時訓練進度顯示 ── */}
+                        {trainingStatusQuery.data?.status === "completed" ? (
+                          <>
+                            <div className="flex justify-center"><CheckCircle2 className="w-12 h-12 text-green-500" /></div>
+                            <h3 className="text-base font-medium">訓練完成！模型已就緒</h3>
+                            <p className="text-sm text-muted-foreground">
+                              模型已成功訓練完成，可在工作室的素材抽屜中直接使用。
+                            </p>
+                            <Button onClick={() => { setDialogOpen(false); resetForm(); myModelsQuery.refetch(); }} className="w-full h-12 rounded-xl gap-2">
+                              <CheckCircle2 className="w-4 h-4" /> 返回模型列表
+                            </Button>
+                          </>
+                        ) : trainingStatusQuery.data?.status === "failed" ? (
+                          <>
+                            <div className="flex justify-center"><X className="w-12 h-12 text-red-500" /></div>
+                            <h3 className="text-base font-medium text-red-500">訓練失敗</h3>
+                            <p className="text-sm text-muted-foreground">
+                              {trainingStatusQuery.data?.errorMessage || "訓練過程中發生錯誤，請重試或聯繫支援。"}
+                            </p>
+                            <Button onClick={() => { setDialogOpen(false); resetForm(); }} variant="outline" className="w-full h-12 rounded-xl gap-2">
+                              關閉
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex justify-center"><Loader2 className="w-12 h-12 text-primary animate-spin" /></div>
+                            <h3 className="text-base font-medium">模型訓練中...</h3>
+                            <p className="text-sm text-muted-foreground">
+                              {trainingStatusQuery.data?.progressMessage || "訓練任務已加入佇列，請稍候..."}
+                            </p>
+                            {/* 進度條 */}
+                            <div className="w-full bg-muted/40 rounded-full h-3 overflow-hidden">
+                              <div
+                                className="h-full bg-primary rounded-full transition-all duration-700 ease-out"
+                                style={{ width: `${trainingStatusQuery.data?.progress ?? 0}%` }}
+                              />
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              進度：{trainingStatusQuery.data?.progress ?? 0}% · 任務 ID: #{trainingJobId}
+                            </p>
+                            <Button onClick={() => { setDialogOpen(false); resetForm(); }} variant="outline" className="w-full h-12 rounded-xl gap-2">
+                              最小化（背景繼續訓練）
+                            </Button>
+                          </>
+                        )}
                       </>
                     ) : (
                       <>
