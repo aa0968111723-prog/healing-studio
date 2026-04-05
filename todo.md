@@ -880,3 +880,12 @@
 - [x] 積木 → 音樂提示詞編譯管線（S-S-L-C-M → Suno/Udio 格式）
 - [x] 風格衝突偵測與自動調和
 - [x] vitest 測試覆蓋（41 tests passed）
+
+## Video Compiler 影片編譯器
+
+- [x] 情感→物理動作翻譯（Action Verbs 大規模映射，14 種情感）
+- [x] 相機運鏡約束（Camera Vectors 穩定光學綁定，16 種運鏡模式）
+- [x] 首尾幀錨定邏輯接口（Frame Anchoring）
+- [x] 【相機運動+主體+具體動作+環境光影】公式編譯管線
+- [x] 視角跳躍阻擋機制（合法轉換矩陣 + 橋接運鏡）
+- [x] vitest 測試覆蓋（47 tests passed）
