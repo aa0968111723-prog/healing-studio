@@ -937,8 +937,8 @@
 
 ## LoRA 訓練服務模組 (loraTrainer.ts)
 
-- [ ] 建立 server/services/loraTrainer.ts
-- [ ] 實作 buildZipBuffer（jszip 打包圖片）
-- [ ] 實作 uploadZipToStorage（storagePut 上傳 S3）
-- [ ] 實作 submitReplicateLoraTraining（Replicate API 提交訓練）
-- [ ] 實作 runLoraTrainingJob（主函數：打包→上傳→提交→輪詢→回寫 DB）
+- [x] 建立 server/services/loraTrainer.ts
+- [x] 實作 buildZipBuffer（jszip 打包圖片）
+- [x] 實作 uploadZipToStorage（storagePut 上傳 S3）
+- [x] 實作 submitReplicateLoraTraining（Replicate API 提交訓練）
+- [x] 實作 runLoraTrainingJob（主函數：打包→上傳→提交→輪詢→回寫 DB）
