@@ -952,3 +952,8 @@
 - [x] 任務 2：建立 server/jobs/modelTrainingWorker.ts（cron 每 5 分鐘消費 queued + 恢復 stuck）
 - [x] 任務 3：在 server/_core/index.ts 註冊 initModelTrainingWorkerCron()
 - [x] 修復 IntelBentoGrid ScrollArea 680px 限高導致遮蔽 ShowcaseMasonry
+
+## 重寫 modelTrainingWorker.ts（詳細規格版）
+
+- [ ] 重寫 modelTrainingWorker.ts：介面定義 + processQueuedTrainingJobs + recoverStuckTrainingJobs + runModelTrainingWorker + cron
+- [ ] 確認 index.ts 已正確註冊 initModelTrainingWorkerCron

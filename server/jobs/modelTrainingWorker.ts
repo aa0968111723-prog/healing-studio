@@ -1,15 +1,16 @@
 /**
- * modelTrainingWorker.ts — 背景任務消費者 Worker
+ * modelTrainingWorker.ts — 模型訓練背景任務消費者 Worker
  *
  * 解決三個問題：
  *   1. 無 Worker 消費：定時掃描 queued 狀態的 model_training 任務並啟動訓練
- *   2. 伺服器重啟任務丟失：偵測 processing 狀態超過 15 分鐘的卡住任務，嘗試恢復或標記失敗
+ *   2. 伺服器重啟任務丟失：偵測 processing 狀態超過 15 分鐘的卡住任務，嘗試 Replicate 狀態恢復
  *   3. queued 任務積壓：每 5 分鐘自動消費，確保不會永久積壓
  *
  * 模式：仿照 newsFetcher.ts 的 cron 排程模式
  */
 
 import * as cron from "node-cron";
+import Replicate from "replicate";
 import {
   getQueuedJobsByType,
   getStuckJobsByType,
@@ -19,216 +20,217 @@ import {
 } from "../db.js";
 import type { LoraTrainingJobInput } from "../services/loraTrainer.js";
 
-// ─── Constants ──────────────────────────────────────────────────────────────
+// ─── Interfaces ─────────────────────────────────────────────────────────────
 
-const LOG_PREFIX = "[ModelTrainingWorker]";
-const JOB_TYPE = "model_training";
-const STUCK_THRESHOLD_MINUTES = 15;
-const MAX_QUEUED_PER_TICK = 5;
-const MAX_STUCK_PER_TICK = 3;
+interface TrainingJobResultJson {
+  modelId?: number;
+  modelName?: string;
+  predictionId?: string;
+}
+
+interface ModelConfigJson {
+  triggerWord?: string;
+  epochs?: number;
+  learningRate?: number;
+  datasetImages?: Array<{ url: string; fileKey?: string; angle?: string; caption?: string }>;
+}
+
+// ─── State ──────────────────────────────────────────────────────────────────
 
 let cronTask: cron.ScheduledTask | null = null;
-let isRunning = false; // Prevent overlapping executions
 
 // ─── Logger ─────────────────────────────────────────────────────────────────
 
-function log(level: "info" | "warn" | "error", message: string): void {
-  const timestamp = new Date().toISOString();
-  const icon = level === "info" ? "ℹ️" : level === "warn" ? "⚠️" : "❌";
-  console[level](`${LOG_PREFIX} ${timestamp} ${icon}  ${message}`);
+function logWorker(level: "info" | "warn" | "error", message: string): void {
+  const icon = level === "info" ? "✅" : level === "warn" ? "⚠️" : "❌";
+  console[level](`[ModelTrainingWorker] ${icon} ${message}`);
 }
 
-// ─── Core: Process Queued Jobs ──────────────────────────────────────────────
+// ─── Function 1: processQueuedTrainingJobs ──────────────────────────────────
 
-async function processQueuedJobs(): Promise<number> {
-  const queuedJobs = await getQueuedJobsByType(JOB_TYPE, MAX_QUEUED_PER_TICK);
+async function processQueuedTrainingJobs(): Promise<void> {
+  const jobs = await getQueuedJobsByType("model_training", 5);
 
-  if (queuedJobs.length === 0) return 0;
+  if (jobs.length === 0) return;
 
-  log("info", `發現 ${queuedJobs.length} 個待處理的訓練任務`);
+  logWorker("info", `發現 ${jobs.length} 個待處理的訓練任務`);
 
-  let launched = 0;
-
-  for (const job of queuedJobs) {
+  for (const job of jobs) {
     try {
-      // Extract modelId from resultJson
-      const resultJson = job.resultJson as Record<string, any> | null;
-      const modelId = resultJson?.modelId as number | undefined;
+      // Parse resultJson
+      const resultJson = (job.resultJson ?? {}) as TrainingJobResultJson;
+      const modelId = resultJson.modelId;
 
       if (!modelId) {
-        log("warn", `任務 #${job.id} 缺少 modelId，標記為失敗`);
+        logWorker("warn", `任務 #${job.id} — resultJson 缺少 modelId，標記為 failed`);
         await updateBackgroundJob(job.id, {
           status: "failed",
-          errorMessage: "任務缺少 modelId 參數",
-          progressMessage: "任務配置錯誤",
+          errorMessage: "resultJson 缺少 modelId",
         });
         continue;
       }
 
-      // Fetch the model record to get training parameters
+      // Fetch model record
       const model = await getFineTunedModel(modelId);
       if (!model) {
-        log("warn", `任務 #${job.id} 對應的模型 #${modelId} 不存在，標記為失敗`);
+        logWorker("warn", `任務 #${job.id} — 模型 #${modelId} 不存在，標記為 failed`);
         await updateBackgroundJob(job.id, {
           status: "failed",
           errorMessage: `模型 #${modelId} 不存在`,
-          progressMessage: "模型記錄不存在",
         });
+        continue;
+      }
+
+      // Parse configJson
+      const config = (model.configJson ?? {}) as ModelConfigJson;
+      const datasetImages = config.datasetImages;
+
+      if (!datasetImages || datasetImages.length < 3) {
+        logWorker("warn", `任務 #${job.id} — 模型 #${modelId} 訓練圖片不足 3 張，標記為 failed`);
+        await updateBackgroundJob(job.id, {
+          status: "failed",
+          errorMessage: "訓練圖片不足 3 張",
+        });
+        await updateFineTunedModel(modelId, { status: "failed" });
         continue;
       }
 
       // Check REPLICATE_API_TOKEN
       if (!process.env.REPLICATE_API_TOKEN) {
-        log("warn", `REPLICATE_API_TOKEN 未設定，跳過任務 #${job.id}（保持 queued）`);
-        break; // No point processing more if token is missing
-      }
-
-      // Extract training parameters from model's configJson
-      const config = (model.configJson as Record<string, any>) || {};
-      const datasetImages = config.datasetImages as Array<{ url: string }> | undefined;
-
-      if (!datasetImages || datasetImages.length < 3) {
-        log("warn", `任務 #${job.id} 的模型 #${modelId} 訓練圖片不足 3 張，標記為失敗`);
-        await updateBackgroundJob(job.id, {
-          status: "failed",
-          errorMessage: "訓練圖片不足 3 張",
-          progressMessage: "資料集不足",
-        });
-        await updateFineTunedModel(modelId, { status: "failed" });
+        logWorker("warn", `REPLICATE_API_TOKEN 未設定，跳過任務 #${job.id}（保持 queued）`);
         continue;
       }
+
+      // Mark as processing BEFORE launching (idempotency: prevents duplicate launches)
+      await updateBackgroundJob(job.id, {
+        status: "processing",
+        progress: 5,
+        progressMessage: "Worker 已接管，準備啟動訓練...",
+      });
 
       // Build LoraTrainingJobInput
       const trainingInput: LoraTrainingJobInput = {
         userId: job.userId,
         modelId,
         jobId: job.id,
-        modelName: (resultJson?.modelName as string) || model.name || "unnamed",
+        modelName: resultJson.modelName || model.name || "unnamed",
         triggerWord: config.triggerWord || "",
         epochs: config.epochs ?? 20,
         learningRate: config.learningRate ?? 0.0001,
-        imageUrls: datasetImages.map((img: { url: string }) => img.url),
+        imageUrls: datasetImages.map((img) => img.url),
       };
 
-      // Launch training in background (non-blocking)
-      log("info", `啟動任務 #${job.id} → 模型 #${modelId} "${trainingInput.modelName}" (${trainingInput.imageUrls.length} 張圖片)`);
-
+      // Fire-and-forget: dynamic import, do NOT await runLoraTrainingJob
       import("../services/loraTrainer.js").then(({ runLoraTrainingJob }) => {
-        runLoraTrainingJob(trainingInput).catch((err: any) => {
-          log("error", `任務 #${job.id} 背景執行失敗: ${err.message}`);
+        runLoraTrainingJob(trainingInput).catch((err: Error) => {
+          logWorker("error", `任務 #${job.id} 背景執行失敗: ${err.message}`);
         });
       });
 
-      launched++;
-    } catch (err: any) {
-      log("error", `處理任務 #${job.id} 時發生錯誤: ${err.message}`);
+      logWorker("info", `已啟動任務 #${job.id} → 模型 #${modelId} "${trainingInput.modelName}" (${trainingInput.imageUrls.length} 張圖片)`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      logWorker("error", `處理任務 #${job.id} 時發生錯誤: ${message}`);
       try {
         await updateBackgroundJob(job.id, {
           status: "failed",
-          errorMessage: err.message,
-          progressMessage: "Worker 處理錯誤",
+          errorMessage: message,
         });
-      } catch (dbErr: any) {
-        log("error", `無法更新任務 #${job.id} 狀態: ${dbErr.message}`);
+      } catch {
+        logWorker("error", `無法更新任務 #${job.id} 狀態`);
       }
     }
   }
-
-  return launched;
 }
 
-// ─── Core: Recover Stuck Jobs ───────────────────────────────────────────────
+// ─── Function 2: recoverStuckTrainingJobs ───────────────────────────────────
 
-async function recoverStuckJobs(): Promise<number> {
-  const stuckJobs = await getStuckJobsByType(JOB_TYPE, STUCK_THRESHOLD_MINUTES, MAX_STUCK_PER_TICK);
+async function recoverStuckTrainingJobs(): Promise<void> {
+  const stuckJobs = await getStuckJobsByType("model_training", 15, 3);
 
-  if (stuckJobs.length === 0) return 0;
+  if (stuckJobs.length === 0) return;
 
-  log("warn", `發現 ${stuckJobs.length} 個卡住的訓練任務（超過 ${STUCK_THRESHOLD_MINUTES} 分鐘未更新）`);
-
-  let recovered = 0;
+  logWorker("warn", `發現 ${stuckJobs.length} 個卡住的訓練任務（超過 15 分鐘未更新）`);
 
   for (const job of stuckJobs) {
     try {
-      const resultJson = job.resultJson as Record<string, any> | null;
-      const modelId = resultJson?.modelId as number | undefined;
+      const resultJson = (job.resultJson ?? {}) as TrainingJobResultJson;
+      const predictionId = resultJson.predictionId;
+      const modelId = resultJson.modelId;
 
-      // Check if there's a Replicate predictionId we can resume polling
-      let hasPredictionId = false;
-      if (modelId) {
-        const model = await getFineTunedModel(modelId);
-        const config = (model?.configJson as Record<string, any>) || {};
-        hasPredictionId = !!config.predictionId;
-      }
+      if (predictionId && process.env.REPLICATE_API_TOKEN) {
+        // Has predictionId — try to recover by checking Replicate status
+        logWorker("info", `任務 #${job.id} — 嘗試恢復 Replicate 預測 ${predictionId}`);
 
-      if (hasPredictionId && process.env.REPLICATE_API_TOKEN) {
-        // The job has a predictionId — it was submitted to Replicate but polling was interrupted.
-        // Reset to queued so the next tick picks it up and re-polls.
-        // Note: runLoraTrainingJob will detect the existing predictionId and resume polling
-        // rather than re-submitting. For now, mark as failed with a clear message.
-        log("warn", `任務 #${job.id} 有 predictionId 但輪詢中斷 — 標記為失敗（需手動重試）`);
-        await updateBackgroundJob(job.id, {
-          status: "failed",
-          errorMessage: "伺服器重啟導致訓練輪詢中斷。Replicate 訓練可能仍在進行中，請檢查 Replicate Dashboard 或重新提交。",
-          progressMessage: "訓練中斷（伺服器重啟）",
-        });
-        if (modelId) {
-          await updateFineTunedModel(modelId, { status: "failed" });
+        try {
+          const replicate = new Replicate({ auth: process.env.REPLICATE_API_TOKEN });
+          const prediction = await replicate.predictions.get(predictionId);
+
+          if (prediction.status === "succeeded") {
+            // Training completed while we were down — extract output
+            const output = prediction.output as string | undefined;
+            logWorker("info", `任務 #${job.id} — Replicate 訓練已成功完成！output: ${output}`);
+
+            if (modelId) {
+              await updateFineTunedModel(modelId, {
+                status: "ready",
+                fileUrl: output || "",
+              });
+            }
+            await updateBackgroundJob(job.id, {
+              status: "completed",
+              progress: 100,
+              progressMessage: "訓練完成（Worker 恢復）",
+            });
+          } else if (prediction.status === "failed" || prediction.status === "canceled") {
+            const errorDetail = prediction.error || prediction.status;
+            logWorker("warn", `任務 #${job.id} — Replicate 訓練 ${prediction.status}: ${errorDetail}`);
+
+            if (modelId) {
+              await updateFineTunedModel(modelId, { status: "failed" });
+            }
+            await updateBackgroundJob(job.id, {
+              status: "failed",
+              errorMessage: `Replicate ${prediction.status}: ${errorDetail}`,
+              progressMessage: `訓練${prediction.status === "failed" ? "失敗" : "已取消"}`,
+            });
+          } else if (prediction.status === "starting" || prediction.status === "processing") {
+            // Still running — reset the stuck timer by touching updatedAt
+            logWorker("info", `任務 #${job.id} — Replicate 仍在 ${prediction.status}，重置計時器`);
+            await updateBackgroundJob(job.id, {
+              progressMessage: `訓練中（${prediction.status}，Worker 已確認仍在執行）`,
+            });
+          }
+        } catch (replicateErr: unknown) {
+          const msg = replicateErr instanceof Error ? replicateErr.message : String(replicateErr);
+          logWorker("error", `任務 #${job.id} — Replicate API 查詢失敗: ${msg}`);
+          // Don't mark as failed — might be a transient error, let next tick retry
+          continue;
         }
       } else {
         // No predictionId — job got stuck before submitting to Replicate
-        // Safe to mark as failed
-        log("warn", `任務 #${job.id} 卡在 processing 且無 predictionId — 標記為失敗`);
+        // Reset to queued so processQueuedTrainingJobs picks it up next tick
+        logWorker("warn", `任務 #${job.id} — 無 predictionId，重置為 queued 等待重試`);
         await updateBackgroundJob(job.id, {
-          status: "failed",
-          errorMessage: `任務卡住超過 ${STUCK_THRESHOLD_MINUTES} 分鐘未更新，已自動標記為失敗。`,
-          progressMessage: "任務超時（自動清理）",
+          status: "queued" as any,
+          progress: 0,
+          progressMessage: "Worker 已重置，等待重新處理",
         });
-        if (modelId) {
-          await updateFineTunedModel(modelId, { status: "failed" });
-        }
       }
-
-      recovered++;
-    } catch (err: any) {
-      log("error", `恢復卡住任務 #${job.id} 時發生錯誤: ${err.message}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      logWorker("error", `恢復卡住任務 #${job.id} 時發生錯誤: ${message}`);
     }
   }
-
-  return recovered;
 }
 
-// ─── Main Worker Tick ───────────────────────────────────────────────────────
+// ─── Function 3: runModelTrainingWorker ─────────────────────────────────────
 
-async function runWorkerTick(): Promise<void> {
-  if (isRunning) {
-    log("info", "上一輪尚未完成，跳過本次執行");
-    return;
-  }
-
-  isRunning = true;
-
-  try {
-    log("info", "═══ Worker 掃描開始 ═══");
-
-    // Phase 1: Recover stuck jobs
-    const recoveredCount = await recoverStuckJobs();
-
-    // Phase 2: Process queued jobs
-    const launchedCount = await processQueuedJobs();
-
-    if (recoveredCount === 0 && launchedCount === 0) {
-      log("info", "無待處理或卡住的任務");
-    } else {
-      log("info", `本輪結果 — 啟動: ${launchedCount} 個, 恢復/清理: ${recoveredCount} 個`);
-    }
-
-    log("info", "═══ Worker 掃描完成 ═══");
-  } catch (err: any) {
-    log("error", `Worker 執行異常: ${err.message}`);
-  } finally {
-    isRunning = false;
-  }
+async function runModelTrainingWorker(): Promise<void> {
+  logWorker("info", "═══ 模型訓練 Worker 開始執行 ═══");
+  await recoverStuckTrainingJobs();  // 先恢復卡住任務
+  await processQueuedTrainingJobs(); // 再處理新任務
+  logWorker("info", "═══ 模型訓練 Worker 完成 ═══");
 }
 
 // ─── Cron Initialization ────────────────────────────────────────────────────
@@ -238,30 +240,28 @@ async function runWorkerTick(): Promise<void> {
  * Runs every 5 minutes to consume queued tasks and recover stuck ones.
  */
 export function initModelTrainingWorkerCron(): void {
-  if (!process.env.REPLICATE_API_TOKEN) {
-    log("warn", "REPLICATE_API_TOKEN 未設定 — 模型訓練 Worker 將以降級模式運行（僅清理卡住任務）");
-  }
-
   // Schedule: every 5 minutes
   cronTask = cron.schedule("*/5 * * * *", async () => {
     try {
-      await runWorkerTick();
-    } catch (err: any) {
-      log("error", `排程執行異常: ${err.message}`);
+      await runModelTrainingWorker();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      logWorker("error", `排程執行異常: ${message}`);
     }
   });
 
-  log("info", "模型訓練 Worker 排程已註冊 — 每 5 分鐘執行一次");
+  logWorker("info", "模型訓練 Worker 排程已註冊 — 每 5 分鐘執行一次");
 
-  // Initial scan after 60s delay (let DB and server warm up)
+  // Initial scan after 10s delay (let DB and server warm up)
   setTimeout(async () => {
-    log("info", "伺服器啟動後首次 Worker 掃描...");
+    logWorker("info", "伺服器啟動後首次 Worker 掃描...");
     try {
-      await runWorkerTick();
-    } catch (err: any) {
-      log("error", `首次掃描異常: ${err.message}`);
+      await runModelTrainingWorker();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      logWorker("error", `首次掃描異常: ${message}`);
     }
-  }, 60_000);
+  }, 10_000);
 }
 
 /**
@@ -271,6 +271,6 @@ export function stopModelTrainingWorkerCron(): void {
   if (cronTask) {
     cronTask.stop();
     cronTask = null;
-    log("info", "模型訓練 Worker 排程已停止");
+    logWorker("info", "模型訓練 Worker 排程已停止");
   }
 }
