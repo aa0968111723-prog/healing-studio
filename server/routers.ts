@@ -504,10 +504,9 @@ export const appRouter = router({
             resultData.vibeReferenceUrl = input.vibeReferenceUrl;
           }
 
-          // ── Video: Real Fal.ai SDK Call (kling-v1 text-to-video) ──
+          // ── Video: Gemini Veo REST API (text-to-video) ──
           if (input.generationType === "video" || input.generationType === "multimodal") {
             try {
-              const orchestrator = getOrchestrator();
               const videoCompiler = getVideoCompiler();
               // Compile video prompt with camera + action verbs
               const videoCompiled = videoCompiler.compile({
@@ -525,24 +524,102 @@ export const appRouter = router({
                 aspectRatio: "16:9",
               });
               const videoPrompt = videoCompiled.prompt || compiledPrompt;
-              console.log(`[Wave1] Video prompt compiled (${videoPrompt.length} chars), calling Fal.ai...`);
+              console.log(`[Wave1] Video prompt compiled (${videoPrompt.length} chars), calling Gemini Veo...`);
 
-              const videoResult = await withTimeout(
-                orchestrator.fal.generateVideo({
-                  prompt: videoPrompt,
-                  model: input.firstFrameUrl ? "kling-v1-5" : "kling-v1",
-                  duration: input.videoDurationSeconds || 5,
-                  aspectRatio: "16:9",
-                  imageUrl: input.firstFrameUrl || undefined,
+              // Get Gemini API Key
+              const geminiKey = (await import("./_core/env.validated")).getApiKey("GEMINI_API_KEY");
+              if (!geminiKey) {
+                throw new Error("GEMINI_API_KEY 未設定，無法生成影片");
+              }
+
+              const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
+              const VEO_MODEL = "veo-2.0-generate-001";
+
+              // Step 1: Submit video generation request
+              const generateRes = await withTimeout(
+                fetch(`${GEMINI_BASE}/models/${VEO_MODEL}:predictLongRunning?key=${geminiKey}`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    instances: [{ prompt: videoPrompt }],
+                    parameters: { aspectRatio: "16:9", sampleCount: 1 },
+                  }),
+                }).then(async (r) => {
+                  if (!r.ok) {
+                    const errText = await r.text().catch(() => r.statusText);
+                    throw new Error(`Gemini Veo API error (${r.status}): ${errText}`);
+                  }
+                  return r.json();
                 }),
-                300_000,
-                "影片生成"
+                60_000,
+                "Gemini Veo 提交"
               );
-              resultData.videoUrl = videoResult.videoUrl;
+
+              const operationName = generateRes.name;
+              if (!operationName) {
+                throw new Error("Gemini Veo 未回傳 operation name");
+              }
+              console.log(`[Wave1] Gemini Veo operation started: ${operationName}`);
+
+              // Step 2: Poll operation until done (max 5 min)
+              const MAX_POLL_MS = 300_000;
+              const POLL_INTERVAL = 10_000;
+              const pollStart = Date.now();
+              let opResult: any = null;
+
+              while (Date.now() - pollStart < MAX_POLL_MS) {
+                await new Promise((r) => setTimeout(r, POLL_INTERVAL));
+                const pollRes = await fetch(`${GEMINI_BASE}/${operationName}?key=${geminiKey}`);
+                if (!pollRes.ok) {
+                  console.warn(`[Wave1] Veo poll error: ${pollRes.status}`);
+                  continue;
+                }
+                opResult = await pollRes.json();
+                if (opResult.done) {
+                  console.log(`[Wave1] Veo operation done after ${Math.round((Date.now() - pollStart) / 1000)}s`);
+                  break;
+                }
+                console.log(`[Wave1] Veo still generating... (${Math.round((Date.now() - pollStart) / 1000)}s)`);
+              }
+
+              if (!opResult?.done) {
+                throw new Error("Gemini Veo 影片生成超時（5分鐘）");
+              }
+
+              // Step 3: Extract video URI and download
+              const generatedVideos = opResult.response?.generateVideoResponse?.generatedSamples
+                || opResult.response?.generatedVideos
+                || [];
+              if (generatedVideos.length === 0) {
+                throw new Error("Gemini Veo 未回傳影片結果");
+              }
+
+              const videoFile = generatedVideos[0].video || generatedVideos[0];
+              const videoUri = videoFile.uri || videoFile.video?.uri;
+
+              if (!videoUri) {
+                throw new Error("Gemini Veo 影片 URI 缺失");
+              }
+
+              // Step 4: Download video bytes and upload to S3
+              const downloadUrl = videoUri.includes("key=") ? videoUri : `${videoUri}?key=${geminiKey}`;
+              const videoBytes = await fetch(downloadUrl).then((r) => {
+                if (!r.ok) throw new Error(`影片下載失敗: ${r.status}`);
+                return r.arrayBuffer();
+              });
+
+              const videoKey = `videos/${userId}/${jobId}-${Date.now()}.mp4`;
+              const { url: videoUrl } = await storagePut(
+                videoKey,
+                Buffer.from(videoBytes),
+                "video/mp4"
+              );
+
+              resultData.videoUrl = videoUrl;
               resultData.videoStatus = "completed";
-              resultData.videoDuration = videoResult.durationSec;
-              if (!resultUrl) resultUrl = videoResult.videoUrl;
-              console.log(`[Wave1] Video generation completed: ${videoResult.videoUrl}`);
+              resultData.videoDuration = 8; // Veo generates ~8s videos
+              if (!resultUrl) resultUrl = videoUrl;
+              console.log(`[Wave1] Video generation completed (Gemini Veo): ${videoUrl}`);
             } catch (videoErr) {
               console.error("[Wave1] Video generation failed:", videoErr);
               resultData.videoStatus = "video_generation_failed";
