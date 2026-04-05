@@ -504,7 +504,7 @@ export const appRouter = router({
             resultData.vibeReferenceUrl = input.vibeReferenceUrl;
           }
 
-          // ── Video: Real Fal.ai SDK Call ──
+          // ── Video: Real Fal.ai SDK Call (kling-v1 text-to-video) ──
           if (input.generationType === "video" || input.generationType === "multimodal") {
             try {
               const orchestrator = getOrchestrator();
@@ -513,20 +513,26 @@ export const appRouter = router({
               const videoCompiled = videoCompiler.compile({
                 blocks: [{
                   id: "main",
-                  emotion: "serenity",
-                  subject: compiledPrompt.substring(0, 80),
-                  environment: "cinematic scene",
+                  category: "subject" as const,
+                  label: "main subject",
+                  prompt: compiledPrompt.substring(0, 120),
                 }],
-                emotion: "serenity",
-                cameraMode: "dolly_in",
-                duration: input.videoDurationSeconds || 8,
-                firstFrame: input.firstFrameUrl ? { type: "image", value: input.firstFrameUrl } : undefined,
-                lastFrame: input.lastFrameUrl ? { type: "image", value: input.lastFrameUrl } : undefined,
+                freePrompt: compiledPrompt,
+                targetDurationSec: input.videoDurationSeconds || 5,
+                forceCameraMode: "dolly_in",
+                firstFrameUrl: input.firstFrameUrl || undefined,
+                lastFrameUrl: input.lastFrameUrl || undefined,
+                aspectRatio: "16:9",
               });
+              const videoPrompt = videoCompiled.prompt || compiledPrompt;
+              console.log(`[Wave1] Video prompt compiled (${videoPrompt.length} chars), calling Fal.ai...`);
+
               const videoResult = await withTimeout(
                 orchestrator.fal.generateVideo({
-                  prompt: videoCompiled.compiledPrompt || compiledPrompt,
-                  duration: input.videoDurationSeconds || 8,
+                  prompt: videoPrompt,
+                  model: input.firstFrameUrl ? "kling-v1-5" : "kling-v1",
+                  duration: input.videoDurationSeconds || 5,
+                  aspectRatio: "16:9",
                   imageUrl: input.firstFrameUrl || undefined,
                 }),
                 300_000,
@@ -536,8 +542,9 @@ export const appRouter = router({
               resultData.videoStatus = "completed";
               resultData.videoDuration = videoResult.durationSec;
               if (!resultUrl) resultUrl = videoResult.videoUrl;
+              console.log(`[Wave1] Video generation completed: ${videoResult.videoUrl}`);
             } catch (videoErr) {
-              console.error("[Wave1] Video generation failed, falling back to queued:", videoErr);
+              console.error("[Wave1] Video generation failed:", videoErr);
               resultData.videoStatus = "video_generation_failed";
               resultData.videoError = videoErr instanceof Error ? videoErr.message : String(videoErr);
             }

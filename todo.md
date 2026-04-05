@@ -909,3 +909,11 @@
 - [x] 建立 VOICE_BLOCK_CATEGORIES（情感/調性語速/結構段落）
 - [x] 修改 getBlocksForModality 四模態路由
 - [x] 修改 ALL_BUILTIN_BLOCKS 合併四陣列
+
+## 四模態真實生成 URL 回傳 (Real Generation Pipeline)
+
+- [x] 驗證 FAL_KEY / SUNO_API_KEY / ELEVENLABS_API_KEY 存在
+- [ ] 影片模態：Fal.ai luma-dream-machine 真實生成 → resultUrl
+- [ ] 音樂模態：Suno API 真實生成 → resultUrl
+- [ ] 語音模態：ElevenLabs TTS → S3 上傳 → resultUrl
+- [ ] 圖片模態：確認已有真實生成邏輯（generateImage）
