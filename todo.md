@@ -976,6 +976,8 @@
 
 ## 影片模態修復
 
-- [ ] 修復後端影片生成邏輯（Gemini Veo API 真實生成 → S3 上傳 → 回傳可播放 URL）
-- [ ] 修復前端影片生成觸發（Studio.tsx → routers.ts 資料流正確傳遞）
-- [ ] 新增 MP4 下載功能（影片生成完成後可下載）
+- [x] 修復後端影片生成邏輯（改用 @google/genai SDK → generateVideos → 輪詢 → S3 上傳 → 回傳可播放 URL）
+- [x] 修復前端影片顯示（Studio.tsx 結果區域根據模態條件渲染 <video>/<audio>/<img> 標籤）
+- [x] 新增 MP4 下載功能（影片生成完成後可下載）
+- [x] 新增錯誤訊息顯示（videoError/audioError/voiceError 紅色文字提示）
+- [x] Gemini Veo API 配額不足時顯示友善錯誤訊息
