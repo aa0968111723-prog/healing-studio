@@ -13,7 +13,7 @@
  *   - 結合 Radix ScrollArea 可捲動區域
  */
 
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, lazy, Suspense } from "react";
 import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from "framer-motion";
 import { trpc } from "@/lib/trpc";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import type { SceneId } from "@/components/AmbientEnvironment";
 import { useSenseEngine, useCardSenseProps, useSectionScrollSense } from "@/hooks/useSenseEngine";
+import ArticleDialog from "@/components/ArticleDialog";
 
 // ─── Weight Label Config ────────────────────────────────────────────────────
 
@@ -219,11 +220,13 @@ function BentoCard({
   config,
   styles,
   senseEngine,
+  onCardClick,
 }: {
   item: NewsItem;
   config: WeightConfig;
   styles: SceneStyles;
   senseEngine: ReturnType<typeof useSenseEngine>;
+  onCardClick: (id: number) => void;
 }) {
   const Icon = config.icon;
   const isHero = config.size === "hero";
@@ -279,6 +282,7 @@ function BentoCard({
       onMouseDown={() => senseProps.onMouseDown()}
       onMouseUp={() => senseProps.onMouseUp()}
       onMouseMove={(e) => { handleMouseMove(e); senseProps.onMouseMove(e); }}
+      onClick={() => onCardClick(item.id)}
       className={`group relative rounded-2xl overflow-hidden cursor-pointer ${spanClass}`}
       style={{
         background: styles.cardBg,
@@ -534,6 +538,15 @@ interface IntelBentoGridProps {
 export default function IntelBentoGrid({ sceneId }: IntelBentoGridProps) {
   const styles = useMemo(() => SCENE_CARD_STYLES[sceneId], [sceneId]);
   const [activeTab, setActiveTab] = useState("all");
+  const [selectedNewsId, setSelectedNewsId] = useState<number | null>(null);
+
+  const handleCardClick = useCallback((id: number) => {
+    setSelectedNewsId(id);
+  }, []);
+
+  const handleDialogClose = useCallback(() => {
+    setSelectedNewsId(null);
+  }, []);
 
   // Sense Engine: micro-behavior tracking
   const senseEngine = useSenseEngine({ dwellThreshold: 5000, scrollHesitationThreshold: 3 });
@@ -637,6 +650,7 @@ export default function IntelBentoGrid({ sceneId }: IntelBentoGridProps) {
                     config={config}
                     styles={styles}
                     senseEngine={senseEngine}
+                    onCardClick={handleCardClick}
                   />
                 ))
               )}
@@ -661,6 +675,13 @@ export default function IntelBentoGrid({ sceneId }: IntelBentoGridProps) {
           </motion.div>
         )}
       </div>
+
+      {/* Article Dialog */}
+      <ArticleDialog
+        newsId={selectedNewsId}
+        onClose={handleDialogClose}
+        sceneId={sceneId}
+      />
     </section>
   );
 }

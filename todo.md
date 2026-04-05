@@ -807,3 +807,11 @@
 - [x] 歡迎 Toast 提示（顯示光球推薦來源）
 - [x] 消費後清除 payload 防止重複觸發
 - [x] vitest 測試覆蓋（48 tests passed）
+
+## 情報站卡片完整內容展開 (BentoCard Article Dialog)
+
+- [x] BentoCard 加入 onClick 事件（可點擊指示）
+- [x] Radix Dialog 彈出完整文章（bodyMarkdown 渲染）
+- [x] Framer Motion 絲滑動畫過渡
+- [x] 顯示來源與原始連結
+- [x] vitest 測試覆蓋（31 tests passed）
