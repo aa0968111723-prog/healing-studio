@@ -21,6 +21,7 @@ import IntelBentoGrid from "@/components/IntelBentoGrid";
 import ShowcaseMasonry from "@/components/ShowcaseMasonry";
 import { useSenseEngine } from "@/hooks/useSenseEngine";
 import { useIntentInference } from "@/hooks/useIntentInference";
+import VisualSoulInvitation from "@/components/VisualSoulInvitation";
 
 // ─── Scene-Adaptive Style Maps ──────────────────────────────────────────────
 
@@ -584,6 +585,14 @@ export default function Home() {
           </motion.div>
         </div>
       </section>
+
+      {/* ── VisualSoul Invitation (光球行動與邀約) ── */}
+      <VisualSoulInvitation
+        sceneId={sceneId}
+        personality={personality}
+        intentResult={intentResult}
+        isInferring={isIntentInferring}
+      />
 
       {/* ── Footer ── */}
       <footer
