@@ -10,6 +10,7 @@ import { serveStatic, setupVite } from "./vite";
 import { uploadRouter } from "../uploadRoute";
 import { sseRouter } from "../sseRoute";
 import { initNewsFetcherCron } from "../jobs/newsFetcher";
+import { initModelTrainingWorkerCron } from "../jobs/modelTrainingWorker";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -69,6 +70,7 @@ async function startServer() {
 
     // Initialize scheduled jobs after server is ready
     initNewsFetcherCron();
+    initModelTrainingWorkerCron();
   });
 }
 
