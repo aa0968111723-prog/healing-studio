@@ -917,3 +917,9 @@
 - [x] 音樂模態：Suno API 真實生成 + 輪詢等待 audio_url → resultUrl
 - [x] 語音模態：ElevenLabs TTS → S3 上傳 → resultUrl
 - [x] 圖片模態：確認已有真實生成邏輯（generateImage）
+
+## Vault/Model → 四模態生成資料流打通
+
+- [ ] Task 1: 生成路由 input schema 加入 vaultCharacterId / vaultSceneId，注入 characterRefUrl / styleReferenceUrl
+- [ ] Task 2: 生成路由 input schema 加入 fineTunedModelId，注入 triggerWord 至 compiledPrompt
+- [ ] Task 3: Studio.tsx handleVaultSelect 補齊 audio/voice 處理 + 角色鍛造所快選 UI

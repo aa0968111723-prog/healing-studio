@@ -400,6 +400,10 @@ export const appRouter = router({
         voiceStability: z.number().optional(),
         voiceEmotionType: z.string().optional(),
         voiceEmotionIntensity: z.number().optional(),
+        // Vault & Model injection params
+        vaultCharacterId: z.number().optional(),
+        vaultSceneId: z.number().optional(),
+        fineTunedModelId: z.number().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const userId = ctx.user.id;
@@ -435,6 +439,36 @@ export const appRouter = router({
             code: "BAD_REQUEST",
             message: `小兔子提醒你：${safetyResult.reason || "這個內容可能不太適合哦，請試試其他描述吧！"}`,
           });
+        }
+
+        // ── Vault injection: resolve vault items to image URLs ──
+        if (input.vaultCharacterId) {
+          try {
+            const vaultChar = await db.getVaultItem(input.vaultCharacterId);
+            if (vaultChar && vaultChar.imageUrl) {
+              console.log(`[Vault] Injecting character ref from vault #${vaultChar.id}: ${vaultChar.name}`);
+              // For video: override characterRefUrl; for image: override styleReferenceUrl
+              if (input.generationType === "video") {
+                input.characterRefUrl = input.characterRefUrl || vaultChar.imageUrl;
+                input.firstFrameUrl = input.firstFrameUrl || vaultChar.imageUrl;
+              } else {
+                input.styleReferenceUrl = input.styleReferenceUrl || vaultChar.imageUrl;
+              }
+            }
+          } catch (e) {
+            console.warn("[Vault] Failed to load character vault item:", e);
+          }
+        }
+        if (input.vaultSceneId) {
+          try {
+            const vaultScene = await db.getVaultItem(input.vaultSceneId);
+            if (vaultScene && vaultScene.imageUrl) {
+              console.log(`[Vault] Injecting scene ref from vault #${vaultScene.id}: ${vaultScene.name}`);
+              input.vibeReferenceUrl = input.vibeReferenceUrl || vaultScene.imageUrl;
+            }
+          } catch (e) {
+            console.warn("[Vault] Failed to load scene vault item:", e);
+          }
         }
 
         try {

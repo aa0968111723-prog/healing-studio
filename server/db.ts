@@ -186,6 +186,13 @@ export async function createFineTunedModel(data: InsertFineTunedModel) {
   return result[0].insertId;
 }
 
+export async function getFineTunedModel(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(fineTunedModels).where(eq(fineTunedModels.id, id)).limit(1);
+  return rows[0] || null;
+}
+
 export async function getFineTunedModelsByUser(userId: number) {
   const db = await getDb();
   if (!db) return [];
@@ -378,6 +385,13 @@ export async function createVaultItem(data: InsertConsistencyVaultItem) {
   if (!db) throw new Error("Database not available");
   const result = await db.insert(consistencyVault).values(data);
   return result[0].insertId;
+}
+
+export async function getVaultItem(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(consistencyVault).where(eq(consistencyVault.id, id)).limit(1);
+  return rows[0] || null;
 }
 
 export async function getVaultItemsByUser(userId: number) {
