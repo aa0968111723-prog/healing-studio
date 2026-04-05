@@ -17,7 +17,7 @@ import { useMemo, useState, useCallback, lazy, Suspense } from "react";
 import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from "framer-motion";
 import { trpc } from "@/lib/trpc";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ScrollArea } from "@/components/ui/scroll-area";
+// ScrollArea removed — bento grid now expands naturally
 import {
   Zap, Lightbulb, TrendingUp, Wrench, Users, BookOpen, Newspaper,
   ExternalLink, Eye, Clock, ChevronRight,
@@ -634,8 +634,8 @@ export default function IntelBentoGrid({ sceneId }: IntelBentoGridProps) {
           ))}
         </Tabs>
 
-        {/* Bento Grid inside ScrollArea */}
-        <ScrollArea className="w-full" style={{ maxHeight: "680px" }}>
+        {/* Bento Grid — natural height, no scroll constraint */}
+        <div className="w-full">
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 auto-rows-[140px] pb-4">
             <AnimatePresence mode="popLayout">
               {isLoading ? (
@@ -656,7 +656,7 @@ export default function IntelBentoGrid({ sceneId }: IntelBentoGridProps) {
               )}
             </AnimatePresence>
           </div>
-        </ScrollArea>
+        </div>
 
         {/* "See more" link */}
         {data?.nextCursor && (
