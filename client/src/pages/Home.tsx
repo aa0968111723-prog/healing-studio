@@ -16,6 +16,7 @@ import { AmbientEnvironment, useCurrentScene } from "@/components/AmbientEnviron
 import type { SceneId } from "@/components/AmbientEnvironment";
 import { useAmbientSound, SoundControl } from "@/components/AmbientSoundEngine";
 import { AmbientVideo } from "@/components/AmbientVideo";
+import IntelBentoGrid from "@/components/IntelBentoGrid";
 
 // ─── Scene-Adaptive Style Maps ──────────────────────────────────────────────
 
@@ -454,6 +455,9 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* ── Intel Bento Grid (情報站) ── */}
+      <IntelBentoGrid sceneId={sceneId} />
 
       {/* ── CTA Section ── */}
       <section className="py-20 px-4 relative">

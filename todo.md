@@ -639,3 +639,19 @@
 - [x] 整合至 Home.tsx（motion.div 包裹 AmbientVideo + AmbientEnvironment，style.opacity 綁定 ambientOpacity）
 - [x] TypeScript 編譯零錯誤確認（Found 0 errors）
 - [x] 瀏覽器滾動效果驗證（頂部粒子全顯 → 滾動至底部粒子完全消失 → Features/CTA 正常顯示）
+
+## 首頁情報站 Bento Grid 網格
+
+- [x] 建立 IntelBentoGrid.tsx 元件（Bento Grid 佈局 + layoutBentoItems 佈局引擎）
+- [x] 資訊權重佈局：Model Breakthrough 跨列/跨行寬視角 hero 卡片（col-span-2 row-span-2）
+- [x] Inspiration Tip 自動分配至網格邊角小方塊（col-span-1 row-span-1）
+- [x] 其他標籤（Industry Shift / Creative Tool / Community Spotlight / Tutorial Guide / General Update）中等尺寸卡片
+- [x] 大面積留白設計，廢棄紅點通知，以權重標籤徽章取代
+- [x] 結合 Radix Tabs 分類切換（全部 / 模型突破 / 靈感技巧 / 產業與工具）
+- [x] 結合 Radix ScrollArea 可捲動區域（maxHeight 680px）
+- [x] 4 場景自適應色彩（SCENE_CARD_STYLES 對應 nightSky/morning/cafe/deepSea）
+- [x] 整合 trpc.news.list API 讀取真實資料（staleTime 60s）
+- [x] 整合至 Home.tsx Features Grid 與 CTA 之間
+- [x] 空狀態設計（「暫無情報，敬請期待」）+ 載入骨架動畫
+- [x] TypeScript 編譯零錯誤確認（Found 0 errors）
+- [x] 瀏覽器渲染效果驗證（Tabs + 空狀態 + 場景色彩正常）
