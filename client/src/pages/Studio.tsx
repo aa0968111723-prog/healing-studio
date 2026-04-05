@@ -1322,8 +1322,8 @@ export default function Studio() {
                           const blob = await resp.blob();
                           const ext = activeModality === "image" ? (blob.type.includes("png") ? "png" : blob.type.includes("webp") ? "webp" : "jpg")
                             : activeModality === "video" ? "mp4"
-                            : activeModality === "audio" ? "mp3"
-                            : "mp3";
+                            : activeModality === "audio" ? (blob.type.includes("wav") ? "wav" : "mp3")
+                            : (blob.type.includes("wav") ? "wav" : "mp3");
                           const url = URL.createObjectURL(blob);
                           const a = document.createElement("a");
                           a.href = url;

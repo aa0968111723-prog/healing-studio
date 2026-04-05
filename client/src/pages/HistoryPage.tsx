@@ -435,8 +435,8 @@ export default function HistoryPage() {
                                       const blob = await resp.blob();
                                       const ext = item.modality === "image" ? (blob.type.includes("png") ? "png" : blob.type.includes("webp") ? "webp" : "jpg")
                                         : item.modality === "video" ? "mp4"
-                                        : item.modality === "audio" ? "mp3"
-                                        : item.modality === "voice" ? "mp3"
+                                        : item.modality === "audio" ? (blob.type.includes("wav") ? "wav" : "mp3")
+                                        : item.modality === "voice" ? (blob.type.includes("wav") ? "wav" : "mp3")
                                         : "bin";
                                       const url = URL.createObjectURL(blob);
                                       const a = document.createElement("a");
@@ -454,7 +454,7 @@ export default function HistoryPage() {
                                   }}
                                 >
                                   <Download className="w-3.5 h-3.5" />
-                                  下載{item.modality === "image" ? " PNG" : item.modality === "video" ? " MP4" : item.modality === "audio" ? " MP3" : " 檔案"}
+                                  下載{item.modality === "image" ? " PNG" : item.modality === "video" ? " MP4" : item.modality === "audio" ? " 音樂" : item.modality === "voice" ? " 語音" : " 檔案"}
                                 </Button>
                                 <Button
                                   variant="outline"
@@ -468,7 +468,7 @@ export default function HistoryPage() {
                                       const modalityLabel = item.modality === "image" ? "圖片" : item.modality === "video" ? "影片" : item.modality === "audio" ? "音樂" : "語音";
 
                                       // Download and add the generated asset
-                                      const extMap: Record<string, string> = { image: "png", video: "mp4", audio: "mp3", voice: "mp3" };
+                                      const extMap: Record<string, string> = { image: "png", video: "mp4", audio: "mp3", voice: "wav" };
                                       const defaultExt = extMap[item.modality] || "bin";
                                       try {
                                         const resp = await fetch(item.resultUrl!);

@@ -673,12 +673,10 @@ export const appRouter = router({
             resultData.cameraMotion = input.cameraMotion;
           }
 
-          // ── Audio: Real Suno API Call + Polling for audio_url ──
+          // ── Audio: Gemini Lyria 3 Music Generation ──
           if (input.generationType === "audio" || input.generationType === "multimodal") {
             try {
-              const orchestrator = getOrchestrator();
               const audioCompiler = getAudioCompiler();
-              // Compile audio prompt with structure tags (correct AudioCompilerInput)
               const audioCompiled = audioCompiler.compile({
                 blocks: [{
                   id: "main",
@@ -691,71 +689,100 @@ export const appRouter = router({
                 instrumental: input.isInstrumental ?? true,
                 lyrics: input.lyrics || undefined,
               });
-              const audioPrompt = audioCompiled.prompt || `${input.musicStyle || "ambient healing"}, ${compiledPrompt.substring(0, 100)}`;
-              console.log(`[Wave1] Audio prompt compiled (${audioPrompt.length} chars), calling Suno...`);
 
-              // Step 1: Submit generation task
-              const sunoResult = await withTimeout(
-                orchestrator.suno.generateMusic({
-                  prompt: audioPrompt,
-                  style: audioCompiled.styleTag || input.musicStyle || "ambient healing",
-                  instrumental: input.isInstrumental ?? true,
-                  customMode: !!input.lyrics,
-                  lyrics: input.lyrics || undefined,
+              // Build the music prompt
+              let musicPrompt = audioCompiled.prompt || `${input.musicStyle || "ambient healing"}, ${compiledPrompt.substring(0, 200)}`;
+              if (input.isInstrumental) {
+                musicPrompt += ". Instrumental only, no vocals.";
+              }
+              if (input.lyrics) {
+                musicPrompt += `\n\n${input.lyrics}`;
+              }
+              console.log(`[Wave1] Audio prompt compiled (${musicPrompt.length} chars), calling Gemini Lyria 3...`);
+
+              // Get Gemini API Key
+              const geminiKey = (await import("./_core/env.validated")).getApiKey("GEMINI_API_KEY");
+              if (!geminiKey) {
+                throw new Error("GEMINI_API_KEY 未設定，無法生成音樂");
+              }
+
+              const { GoogleGenAI } = await import("@google/genai");
+              const ai = new GoogleGenAI({ apiKey: geminiKey });
+
+              // Use Lyria 3 Clip (30s) for short, Lyria 3 Pro for longer
+              const useProModel = (input.audioDuration || 30) > 35;
+              const modelId = useProModel ? "lyria-3-pro-preview" : "lyria-3-clip-preview";
+              console.log(`[Wave1] Using Lyria model: ${modelId}`);
+
+              generationBus.emit(jobId, { type: "progress", progress: 45, message: `正在生成音樂 (${modelId})...` });
+
+              const musicResponse = await withTimeout(
+                ai.models.generateContent({
+                  model: modelId,
+                  contents: musicPrompt,
+                  config: {
+                    responseModalities: ["AUDIO", "TEXT"],
+                  } as any,
                 }),
-                60_000,
-                "音樂提交"
+                180_000,
+                "Lyria 音樂生成"
               );
 
-              if (sunoResult.taskId) {
-                resultData.audioTaskId = sunoResult.taskId;
-                console.log(`[Wave1] Suno task submitted: ${sunoResult.taskId}, polling for completion...`);
+              // Parse response: extract audio data and lyrics
+              let audioBuffer: Buffer | null = null;
+              let audioMimeType = "audio/mp3";
+              let generatedLyrics = "";
 
-                // Step 2: Poll for completion (max 120s, every 5s)
-                const maxPolls = 24;
-                let audioUrl: string | undefined;
-                for (let poll = 0; poll < maxPolls; poll++) {
-                  await new Promise(r => setTimeout(r, 5000));
-                  try {
-                    const status = await orchestrator.suno.getTaskStatus(sunoResult.taskId);
-                    console.log(`[Wave1] Suno poll ${poll + 1}/${maxPolls}: status=${status.status}, clips=${status.clips.length}`);
-                    generationBus.emit(jobId, { type: "progress", progress: 40 + Math.min(poll * 2, 25), message: `音樂生成中... (${(poll + 1) * 5}s)` });
-
-                    if (status.status === "completed" || status.status === "complete" || status.status === "SUCCESS") {
-                      const firstClip = status.clips.find(c => c.audioUrl);
-                      if (firstClip) {
-                        audioUrl = firstClip.audioUrl;
-                        resultData.audioTitle = firstClip.title;
-                        resultData.audioClipDuration = firstClip.duration;
-                        console.log(`[Wave1] Suno audio ready: ${audioUrl}`);
-                      }
-                      break;
-                    }
-                    if (status.status === "failed" || status.status === "error" || status.status === "FAILED") {
-                      console.error(`[Wave1] Suno task failed: ${status.status}`);
-                      break;
-                    }
-                  } catch (pollErr) {
-                    console.warn(`[Wave1] Suno poll error:`, pollErr);
-                  }
+              const parts = musicResponse.candidates?.[0]?.content?.parts || [];
+              for (const part of parts) {
+                if ((part as any).text) {
+                  generatedLyrics += (part as any).text + "\n";
+                } else if ((part as any).inlineData) {
+                  const inlineData = (part as any).inlineData;
+                  audioBuffer = Buffer.from(inlineData.data, "base64");
+                  audioMimeType = inlineData.mimeType || "audio/mp3";
                 }
+              }
 
-                if (audioUrl) {
-                  resultData.audioUrl = audioUrl;
-                  resultData.audioStatus = "completed";
-                  if (!resultUrl) resultUrl = audioUrl;
-                } else {
-                  resultData.audioStatus = "processing";
-                  resultData.audioNote = "音樂仍在生成中，請稍後在歷史紀錄中查看";
+              if (audioBuffer && audioBuffer.length > 0) {
+                // If raw PCM, wrap in WAV header for browser playback
+                if (audioMimeType.includes("L16") || audioMimeType.includes("pcm")) {
+                  const sr = 24000, ch = 1, bps = 16;
+                  const ds = audioBuffer.length;
+                  const wh = Buffer.alloc(44);
+                  wh.write("RIFF", 0); wh.writeUInt32LE(36 + ds, 4);
+                  wh.write("WAVE", 8); wh.write("fmt ", 12);
+                  wh.writeUInt32LE(16, 16); wh.writeUInt16LE(1, 20);
+                  wh.writeUInt16LE(ch, 22); wh.writeUInt32LE(sr, 24);
+                  wh.writeUInt32LE(sr * ch * bps / 8, 28);
+                  wh.writeUInt16LE(ch * bps / 8, 32); wh.writeUInt16LE(bps, 34);
+                  wh.write("data", 36); wh.writeUInt32LE(ds, 40);
+                  audioBuffer = Buffer.concat([wh, audioBuffer]);
+                  audioMimeType = "audio/wav";
                 }
+                const ext = audioMimeType.includes("wav") ? "wav" : "mp3";
+                const audioKey = `music/${userId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+                const { url: audioUrl } = await storagePut(audioKey, audioBuffer, audioMimeType);
+                resultData.audioUrl = audioUrl;
+                resultData.audioStatus = "completed";
+                resultData.audioTitle = generatedLyrics.substring(0, 100) || "Healing Music";
+                resultData.generatedLyrics = generatedLyrics;
+                if (!resultUrl) resultUrl = audioUrl;
+                console.log(`[Wave1] Lyria music generation completed: ${audioUrl} (${audioBuffer.length} bytes)`);
               } else {
                 resultData.audioStatus = "audio_generation_failed";
-                resultData.audioError = "Suno API 未回傳 taskId";
+                resultData.audioError = "Gemini Lyria 未回傳音訊資料";
+                console.warn("[Wave1] Lyria returned no audio data");
               }
-            } catch (audioErr) {
+            } catch (audioErr: any) {
               console.error("[Wave1] Audio generation failed:", audioErr);
               resultData.audioStatus = "audio_generation_failed";
-              resultData.audioError = audioErr instanceof Error ? audioErr.message : String(audioErr);
+              const errMsg = String(audioErr?.message || audioErr);
+              if (errMsg.includes("429") || errMsg.includes("quota") || errMsg.includes("RESOURCE_EXHAUSTED")) {
+                resultData.audioError = "Gemini Lyria API 配額不足，請至 Google AI Studio 確認帳戶餘額後重試";
+              } else {
+                resultData.audioError = audioErr instanceof Error ? audioErr.message : String(audioErr);
+              }
             }
             resultData.musicStyle = input.musicStyle || "ambient healing";
             resultData.isInstrumental = input.isInstrumental;
@@ -764,12 +791,10 @@ export const appRouter = router({
             resultData.audioEnergy = input.audioEnergy;
           }
 
-          // ── Voice: Real ElevenLabs SDK Call ──
+          // ── Voice: Gemini TTS (Text-to-Speech) ──
           if (input.generationType === "voice") {
             try {
-              const orchestrator = getOrchestrator();
               const voiceCompiler = getVoiceCompiler();
-              // Compile SSML from emotion blocks (correct VoiceCompilerInput: uses 'script' not 'text')
               const voiceCompiled = voiceCompiler.compile({
                 script: input.voiceText || input.prompt,
                 moodBlock: input.voiceEmotionType ? {
@@ -783,31 +808,126 @@ export const appRouter = router({
                 enableHesitation: true,
               });
               const ttsText = voiceCompiled.plainText || input.voiceText || input.prompt;
-              console.log(`[Wave1] Voice compiled: ${ttsText.length} chars, SSML: ${voiceCompiled.ssml.length} chars, calling ElevenLabs...`);
+              console.log(`[Wave1] Voice compiled: ${ttsText.length} chars, calling Gemini TTS...`);
 
-              const ttsResult = await withTimeout(
-                orchestrator.elevenlabs.textToSpeech({
-                  text: ttsText,
-                  voiceId: input.voiceModelId || undefined,
-                  stability: input.voiceStability || 0.5,
-                  speed: input.voiceSpeed || 1.0,
+              // Get Gemini API Key
+              const geminiKey = (await import("./_core/env.validated")).getApiKey("GEMINI_API_KEY");
+              if (!geminiKey) {
+                throw new Error("GEMINI_API_KEY 未設定，無法生成語音");
+              }
+
+              const { GoogleGenAI } = await import("@google/genai");
+              const ai = new GoogleGenAI({ apiKey: geminiKey });
+
+              // Map emotion type to Gemini TTS voice
+              const voiceMap: Record<string, string> = {
+                "warm": "Kore",
+                "calm": "Aoede",
+                "cheerful": "Puck",
+                "serious": "Charon",
+                "gentle": "Leda",
+                "energetic": "Fenrir",
+                "soothing": "Enceladus",
+                "clear": "Iapetus",
+                "bright": "Zephyr",
+                "smooth": "Algieba",
+              };
+              const voiceName = voiceMap[input.voiceEmotionType || ""] || "Kore";
+
+              // Build TTS prompt with style instruction
+              let ttsPrompt = ttsText;
+              if (input.voiceEmotionType) {
+                ttsPrompt = `Say in a ${input.voiceEmotionType} tone:\n${ttsText}`;
+              }
+              if (input.voiceSpeed && input.voiceSpeed !== 1.0) {
+                const speedDesc = input.voiceSpeed < 0.8 ? "slowly" : input.voiceSpeed > 1.2 ? "quickly" : "at moderate pace";
+                ttsPrompt = `Say ${speedDesc}:\n${ttsPrompt}`;
+              }
+
+              generationBus.emit(jobId, { type: "progress", progress: 50, message: `正在生成語音 (Gemini TTS, ${voiceName})...` });
+
+              const ttsResponse = await withTimeout(
+                ai.models.generateContent({
+                  model: "gemini-2.5-flash-preview-tts",
+                  contents: ttsPrompt,
+                  config: {
+                    responseModalities: ["AUDIO"],
+                    speechConfig: {
+                      voiceConfig: {
+                        prebuiltVoiceConfig: {
+                          voiceName: voiceName,
+                        },
+                      },
+                    },
+                  } as any,
                 }),
                 60_000,
-                "語音合成"
+                "Gemini TTS"
               );
-              // Upload audio buffer to S3
-              const audioKey = `voice/${userId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.mp3`;
-              const { url: voiceUrl } = await storagePut(audioKey, ttsResult.audioBuffer, ttsResult.contentType);
-              resultData.voiceUrl = voiceUrl;
-              resultData.voiceStatus = "completed";
-              resultData.voiceSsml = voiceCompiled.ssml;
-              resultData.voiceEstimatedDuration = voiceCompiled.estimatedDurationSec;
-              if (!resultUrl) resultUrl = voiceUrl;
-              console.log(`[Wave1] Voice generation completed: ${voiceUrl} (${ttsResult.audioBuffer.length} bytes)`);
-            } catch (voiceErr) {
+
+              // Parse TTS response
+              const ttsParts = ttsResponse.candidates?.[0]?.content?.parts || [];
+              let voiceBuffer: Buffer | null = null;
+              let voiceMimeType = "audio/wav";
+
+              for (const part of ttsParts) {
+                if ((part as any).inlineData) {
+                  const inlineData = (part as any).inlineData;
+                  voiceBuffer = Buffer.from(inlineData.data, "base64");
+                  voiceMimeType = inlineData.mimeType || "audio/wav";
+                }
+              }
+
+              if (voiceBuffer && voiceBuffer.length > 0) {
+                // Gemini TTS returns raw PCM (audio/L16;codec=pcm;rate=24000)
+                // Wrap in WAV header for browser playback
+                if (voiceMimeType.includes("L16") || voiceMimeType.includes("pcm")) {
+                  const sampleRate = 24000;
+                  const numChannels = 1;
+                  const bitsPerSample = 16;
+                  const dataSize = voiceBuffer.length;
+                  const wavHeader = Buffer.alloc(44);
+                  wavHeader.write("RIFF", 0);
+                  wavHeader.writeUInt32LE(36 + dataSize, 4);
+                  wavHeader.write("WAVE", 8);
+                  wavHeader.write("fmt ", 12);
+                  wavHeader.writeUInt32LE(16, 16); // fmt chunk size
+                  wavHeader.writeUInt16LE(1, 20);  // PCM format
+                  wavHeader.writeUInt16LE(numChannels, 22);
+                  wavHeader.writeUInt32LE(sampleRate, 24);
+                  wavHeader.writeUInt32LE(sampleRate * numChannels * bitsPerSample / 8, 28);
+                  wavHeader.writeUInt16LE(numChannels * bitsPerSample / 8, 32);
+                  wavHeader.writeUInt16LE(bitsPerSample, 34);
+                  wavHeader.write("data", 36);
+                  wavHeader.writeUInt32LE(dataSize, 40);
+                  voiceBuffer = Buffer.concat([wavHeader, voiceBuffer]);
+                  voiceMimeType = "audio/wav";
+                  console.log(`[Wave1] Wrapped PCM in WAV header (${voiceBuffer.length} bytes total)`);
+                }
+                const ext = voiceMimeType.includes("wav") ? "wav" : "mp3";
+                const audioKey = `voice/${userId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+                const { url: voiceUrl } = await storagePut(audioKey, voiceBuffer, voiceMimeType);
+                resultData.voiceUrl = voiceUrl;
+                resultData.voiceStatus = "completed";
+                resultData.voiceSsml = voiceCompiled.ssml;
+                resultData.voiceEstimatedDuration = voiceCompiled.estimatedDurationSec;
+                resultData.voiceEngine = "gemini-tts";
+                resultData.voiceVoiceName = voiceName;
+                if (!resultUrl) resultUrl = voiceUrl;
+                console.log(`[Wave1] Gemini TTS completed: ${voiceUrl} (${voiceBuffer.length} bytes, voice: ${voiceName})`);
+              } else {
+                resultData.voiceStatus = "voice_generation_failed";
+                resultData.voiceError = "Gemini TTS 未回傳音訊資料";
+              }
+            } catch (voiceErr: any) {
               console.error("[Wave1] Voice generation failed:", voiceErr);
               resultData.voiceStatus = "voice_generation_failed";
-              resultData.voiceError = voiceErr instanceof Error ? voiceErr.message : String(voiceErr);
+              const errMsg = String(voiceErr?.message || voiceErr);
+              if (errMsg.includes("429") || errMsg.includes("quota") || errMsg.includes("RESOURCE_EXHAUSTED")) {
+                resultData.voiceError = "Gemini TTS API 配額不足，請至 Google AI Studio 確認帳戶餘額後重試";
+              } else {
+                resultData.voiceError = voiceErr instanceof Error ? voiceErr.message : String(voiceErr);
+              }
             }
             resultData.voiceModelId = input.voiceModelId;
             resultData.voiceText = input.voiceText;

@@ -1012,3 +1012,14 @@
 - [x] 修正 Storyboard 版本標籤（Veo 3.1→Veo 2.0，Suno V5→Suno V4）
 - [x] 新增導演 AI 思考狀態光球指示器（聊天區上方顯示光球 + 「導演 AI 正在思考中...」）
 - [x] 優化主動介入規則（降低閒置觸發 30s→20s，新增人格化訊息、慶祝規則、引導探索規則）
+
+## 音樂/配音改用 Gemini API
+
+- [x] 閱讀現有音樂生成程式碼（Suno API → modelClients.ts SunoClient）
+- [x] 閱讀現有配音生成程式碼（ElevenLabs API → modelClients.ts ElevenLabsClient）
+- [x] 研究 Gemini API 音訊生成能力（Lyria 3 音樂 + Gemini 2.5 Flash TTS 配音）
+- [x] 改寫後端音樂生成為 Gemini Lyria 3（lyria-3-clip-preview / lyria-3-pro-preview）
+- [x] 改寫後端配音生成為 Gemini TTS（gemini-2.5-flash-preview-tts，10 種情緒聲音對應）
+- [x] 更新前端適配新的音訊回傳格式（WAV 副檔名偵測、PCM→WAV header 轉換）
+- [x] 實測配音生成：✅ 成功（Gemini TTS, 328KB WAV, voice: Kore）
+- [ ] 實測音樂生成：⚠️ Lyria 3 Free Tier 配額為 0，需要付費方案後重試
