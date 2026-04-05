@@ -822,3 +822,12 @@
 - [x] user_model_switch_logs Table（模型切換日誌）
 - [x] custom_blocks_combo Table（S-S-L-C-M 積木 JSON 結構存檔）
 - [x] DB migration 執行成功
+
+## Brain Context Middleware
+
+- [x] brainContext middleware 實作（讀取 user_ai_brain 注入 ctx.brain）
+- [x] Health Ping 健康狀態區驗（引擎可用性檢查）
+- [x] Graceful Degradation 優雅退回預設引擎
+- [x] 安全提示日誌（切換/降級事件記錄）
+- [x] 整合至 tRPC router（brainProcedure）
+- [x] vitest 測試覆蓋（24 tests passed）
