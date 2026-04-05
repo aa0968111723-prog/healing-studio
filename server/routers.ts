@@ -1252,6 +1252,26 @@ export const appRouter = router({
           resultJson: { modelId, modelName: input.name },
         });
 
+        // 非同步啟動 LoRA 訓練（背景執行，不阻塞此 API 回應）
+        if (input.datasetImages && input.datasetImages.length >= 3 && process.env.REPLICATE_API_TOKEN) {
+          import("./services/loraTrainer").then(({ runLoraTrainingJob }) => {
+            runLoraTrainingJob({
+              userId: ctx.user.id,
+              modelId,
+              jobId,
+              modelName: input.name,
+              triggerWord: input.triggerWord || "",
+              epochs: input.epochs ?? 20,
+              learningRate: input.learningRate ?? 0.0001,
+              imageUrls: input.datasetImages!.map(img => img.url),
+            }).catch(err => {
+              console.error(`[LoraTrainer] Background job failed for model ${modelId}:`, err);
+            });
+          });
+        } else if (!process.env.REPLICATE_API_TOKEN) {
+          console.warn(`[LoraTrainer] REPLICATE_API_TOKEN not set — model ${modelId} will remain queued`);
+        }
+
         return { id: modelId, jobId };
       }),
 
