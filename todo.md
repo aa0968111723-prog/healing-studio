@@ -957,3 +957,19 @@
 
 - [x] 重寫 modelTrainingWorker.ts：介面定義 + processQueuedTrainingJobs + recoverStuckTrainingJobs + runModelTrainingWorker + cron
 - [x] 確認 index.ts 已正確註冊 initModelTrainingWorkerCron
+
+## 端對端 LoRA 訓練鏈路完整性稽核
+
+- [x] 任務 A：確認 db.ts getQueuedJobsByType + getStuckJobsByType 已存在（and/eq/sql import 已齊全）
+- [x] 確認 loraTrainer.ts 使用 ostris/flux-dev-lora-trainer 模型 (version hash: a22c463f)
+- [x] 確認 modelTrainingWorker.ts 正確消費 queued 任務 + 恢復 stuck 任務
+- [x] 確認 index.ts 已註冊 initModelTrainingWorkerCron (行 13, 73)
+- [x] 確認 models.create 路由正確觸發背景訓練 (行 1256-1272)
+
+## 任務 B：重寫 loraTrainer.ts（Replicate SDK 版）
+
+- [ ] 改用 Replicate SDK（replicate.predictions.create/get）取代 raw fetch
+- [ ] 調整日誌格式為 [LoraTrainer] ISO ✅/⚠️/❌
+- [ ] 調整進度百分比（5→15→25→30→30-90→100）
+- [ ] submitReplicateTraining 使用 model name 而非 version hash
+- [ ] 輪詢使用 replicate.predictions.get 而非 raw fetch

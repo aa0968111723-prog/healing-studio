@@ -4,11 +4,12 @@
  * Orchestrates the full LoRA fine-tuning pipeline:
  *   1. Download training images → pack into ZIP
  *   2. Upload ZIP to S3
- *   3. Submit training job to Replicate
+ *   3. Submit training job to Replicate (via SDK)
  *   4. Poll until completion → write results back to DB
  */
 
 import JSZip from "jszip";
+import Replicate from "replicate";
 import { storagePut } from "../storage.js";
 import {
   updateFineTunedModel,
@@ -25,45 +26,46 @@ export interface LoraTrainingJobInput {
   triggerWord: string;
   epochs: number;
   learningRate: number;
-  imageUrls: string[];
+  imageUrls: string[];  // 已上傳至 S3 的圖片 URL 陣列
 }
 
-// ─── Constants ──────────────────────────────────────────────────────────────
+// ─── Logger ─────────────────────────────────────────────────────────────────
 
-const LOG_PREFIX = "[LoraTrainer]";
-const POLL_INTERVAL_MS = 30_000;        // 30 seconds
-const MAX_POLL_DURATION_MS = 3_600_000; // 60 minutes
-const REPLICATE_API_BASE = "https://api.replicate.com/v1";
-
-// ─── Helper: get Replicate API token ────────────────────────────────────────
-
-function getReplicateToken(): string {
-  const token = process.env.REPLICATE_API_TOKEN ?? "";
-  if (!token) {
-    throw new Error(`${LOG_PREFIX} REPLICATE_API_TOKEN is not set`);
-  }
-  return token;
+function log(level: "info" | "warn" | "error", message: string): void {
+  const prefix = "[LoraTrainer]";
+  const ts = new Date().toISOString();
+  if (level === "info") console.info(`${prefix} ${ts} ✅ ${message}`);
+  if (level === "warn") console.warn(`${prefix} ${ts} ⚠️ ${message}`);
+  if (level === "error") console.error(`${prefix} ${ts} ❌ ${message}`);
 }
 
-// ─── Helper: sleep ──────────────────────────────────────────────────────────
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-// ─── Function 1: buildZipBuffer ─────────────────────────────────────────────
+// ─── B-3: buildZipBuffer ────────────────────────────────────────────────────
 
 /**
  * Downloads each image URL and packs them into a ZIP buffer.
- * File names: 001.jpg, 002.jpg, ...
+ * File names: 001.jpg, 002.jpg, ... (extension parsed from URL)
  */
 async function buildZipBuffer(imageUrls: string[]): Promise<Buffer> {
-  console.log(`${LOG_PREFIX} Building ZIP from ${imageUrls.length} images...`);
+  log("info", `Building ZIP from ${imageUrls.length} images...`);
   const zip = new JSZip();
 
-  const downloadPromises = imageUrls.map(async (url, index) => {
-    const paddedIndex = String(index + 1).padStart(3, "0");
-    const fileName = `${paddedIndex}.jpg`;
+  for (let i = 0; i < imageUrls.length; i++) {
+    const url = imageUrls[i];
+    const paddedIndex = String(i + 1).padStart(3, "0");
+
+    // Parse extension from URL, default to .jpg
+    let ext = ".jpg";
+    try {
+      const pathname = new URL(url).pathname;
+      const urlExt = pathname.substring(pathname.lastIndexOf("."));
+      if (urlExt && [".jpg", ".jpeg", ".png", ".webp", ".bmp"].includes(urlExt.toLowerCase())) {
+        ext = urlExt.toLowerCase();
+      }
+    } catch {
+      // keep default .jpg
+    }
+
+    const fileName = `${paddedIndex}${ext}`;
     try {
       const response = await fetch(url);
       if (!response.ok) {
@@ -71,121 +73,76 @@ async function buildZipBuffer(imageUrls: string[]): Promise<Buffer> {
       }
       const arrayBuffer = await response.arrayBuffer();
       zip.file(fileName, arrayBuffer);
-      console.log(`${LOG_PREFIX}   ✓ ${fileName} (${Math.round(arrayBuffer.byteLength / 1024)} KB)`);
+      log("info", `  ✓ ${fileName} (${Math.round(arrayBuffer.byteLength / 1024)} KB)`);
     } catch (err: any) {
-      console.error(`${LOG_PREFIX}   ✗ Failed to download ${url}: ${err.message}`);
+      log("warn", `  ✗ Failed to download ${url}: ${err.message}`);
       // Skip failed images but continue with the rest
     }
-  });
-
-  await Promise.all(downloadPromises);
+  }
 
   const fileCount = Object.keys(zip.files).length;
   if (fileCount === 0) {
-    throw new Error(`${LOG_PREFIX} No images were successfully downloaded`);
+    throw new Error("No images were successfully downloaded");
   }
 
-  console.log(`${LOG_PREFIX} ZIP contains ${fileCount} files, generating buffer...`);
-  const buffer = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
-  console.log(`${LOG_PREFIX} ZIP buffer ready (${Math.round(buffer.length / 1024)} KB)`);
+  log("info", `ZIP contains ${fileCount} files, generating buffer...`);
+  const buffer = await zip.generateAsync({ type: "nodebuffer" });
+  log("info", `ZIP buffer ready (${Math.round(buffer.length / 1024)} KB)`);
   return buffer;
 }
 
-// ─── Function 2: uploadZipToStorage ─────────────────────────────────────────
+// ─── B-4: uploadZipToStorage ────────────────────────────────────────────────
 
 /**
  * Uploads the ZIP buffer to S3 via storagePut.
  * Key format: lora-datasets/{userId}/{modelId}-{timestamp}.zip
  */
 async function uploadZipToStorage(
-  zipBuffer: Buffer,
+  buffer: Buffer,
   userId: number,
   modelId: number
 ): Promise<string> {
   const key = `lora-datasets/${userId}/${modelId}-${Date.now()}.zip`;
-  console.log(`${LOG_PREFIX} Uploading ZIP to S3: ${key}`);
-  const { url } = await storagePut(key, zipBuffer, "application/zip");
-  console.log(`${LOG_PREFIX} ZIP uploaded: ${url}`);
+  log("info", `Uploading ZIP to S3: ${key}`);
+  const { url } = await storagePut(key, buffer, "application/zip");
+  log("info", `ZIP uploaded: ${url}`);
   return url;
 }
 
-// ─── Function 3: submitReplicateLoraTraining ────────────────────────────────
+// ─── B-5: submitReplicateTraining ───────────────────────────────────────────
 
 /**
- * Creates a Replicate prediction for LoRA training (async, non-blocking).
+ * Creates a Replicate prediction for LoRA training using the SDK.
  * Uses ostris/flux-dev-lora-trainer as the training model.
  * Returns the prediction ID for polling.
  */
-async function submitReplicateLoraTraining(params: {
+async function submitReplicateTraining(params: {
   zipUrl: string;
+  triggerWord: string;
   epochs: number;
   learningRate: number;
-  triggerWord: string;
 }): Promise<string> {
-  const token = getReplicateToken();
+  const replicate = new Replicate({ auth: process.env.REPLICATE_API_TOKEN! });
   const steps = Math.min(Math.max(params.epochs * 30, 200), 2000);
 
-  const body: Record<string, any> = {
-    // ostris/flux-dev-lora-trainer or similar LoRA training model on Replicate
-    version: "a22c463f11808638ad5e2ebd582e07a469031f48dd567366fb4c6fdab91d614d",
+  log("info", `Submitting Replicate training: model=ostris/flux-dev-lora-trainer, steps=${steps}, lr=${params.learningRate}, trigger="${params.triggerWord}"`);
+
+  const prediction = await replicate.predictions.create({
+    model: "ostris/flux-dev-lora-trainer",
     input: {
       input_images: params.zipUrl,
       steps: steps,
       learning_rate: params.learningRate,
       ...(params.triggerWord ? { caption_prefix: params.triggerWord } : {}),
     },
-  };
-
-  console.log(`${LOG_PREFIX} Submitting Replicate training: steps=${steps}, lr=${params.learningRate}, trigger="${params.triggerWord}"`);
-
-  const response = await fetch(`${REPLICATE_API_BASE}/predictions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      Prefer: "respond-async",
-    },
-    body: JSON.stringify(body),
   });
 
-  if (!response.ok) {
-    const errText = await response.text().catch(() => response.statusText);
-    throw new Error(`Replicate API error (${response.status}): ${errText}`);
-  }
-
-  const result = await response.json();
-  const predictionId = result.id;
-  console.log(`${LOG_PREFIX} Replicate prediction created: ${predictionId}`);
+  const predictionId = prediction.id;
+  log("info", `Replicate prediction created: ${predictionId}`);
   return predictionId;
 }
 
-// ─── Helper: poll Replicate prediction ──────────────────────────────────────
-
-async function getReplicatePrediction(predictionId: string): Promise<any> {
-  const token = getReplicateToken();
-  const response = await fetch(`${REPLICATE_API_BASE}/predictions/${predictionId}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-  });
-  if (!response.ok) {
-    const errText = await response.text().catch(() => response.statusText);
-    throw new Error(`Replicate poll error (${response.status}): ${errText}`);
-  }
-  return response.json();
-}
-
-// ─── Helper: format elapsed time ────────────────────────────────────────────
-
-function formatElapsed(ms: number): string {
-  const totalSec = Math.floor(ms / 1000);
-  const min = Math.floor(totalSec / 60);
-  const sec = totalSec % 60;
-  return `${min}m ${sec}s`;
-}
-
-// ─── Function 4: runLoraTrainingJob (main orchestrator) ─────────────────────
+// ─── B-6: runLoraTrainingJob (main orchestrator) ────────────────────────────
 
 /**
  * Main entry point — runs the full LoRA training pipeline in the background.
@@ -193,11 +150,11 @@ function formatElapsed(ms: number): string {
  */
 export async function runLoraTrainingJob(input: LoraTrainingJobInput): Promise<void> {
   const { userId, modelId, jobId, modelName, triggerWord, epochs, learningRate, imageUrls } = input;
-  console.log(`${LOG_PREFIX} ═══ Starting LoRA training job ═══`);
-  console.log(`${LOG_PREFIX}   modelId=${modelId}, jobId=${jobId}, name="${modelName}", images=${imageUrls.length}`);
+  log("info", `═══ Starting LoRA training job ═══`);
+  log("info", `  modelId=${modelId}, jobId=${jobId}, name="${modelName}", images=${imageUrls.length}`);
 
   try {
-    // ── Step A: Mark as training ──
+    // ── 步驟 1：啟動狀態 ──
     await updateFineTunedModel(modelId, { status: "training" });
     await updateBackgroundJob(jobId, {
       status: "processing",
@@ -205,39 +162,39 @@ export async function runLoraTrainingJob(input: LoraTrainingJobInput): Promise<v
       progressMessage: "準備訓練資料...",
     });
 
-    // ── Step B: Build ZIP ──
-    console.log(`${LOG_PREFIX} [Step B] Building ZIP buffer...`);
+    // ── 步驟 2：ZIP 打包 ──
+    log("info", "[步驟 2] Building ZIP buffer...");
     const zipBuffer = await buildZipBuffer(imageUrls);
     await updateBackgroundJob(jobId, {
-      progress: 10,
-      progressMessage: `已打包 ${imageUrls.length} 張圖片，正在上傳...`,
+      progress: 15,
+      progressMessage: "正在打包訓練圖片...",
     });
 
-    // ── Step C: Upload ZIP to S3 ──
-    console.log(`${LOG_PREFIX} [Step C] Uploading ZIP to S3...`);
+    // ── 步驟 3：S3 上傳 ──
+    log("info", "[步驟 3] Uploading ZIP to S3...");
     const zipUrl = await uploadZipToStorage(zipBuffer, userId, modelId);
-
-    // ── Step D: Update progress ──
     await updateBackgroundJob(jobId, {
-      progress: 20,
-      progressMessage: "ZIP 已上傳，正在提交訓練任務...",
+      progress: 25,
+      progressMessage: "圖片集已上傳，正在提交訓練任務...",
     });
 
-    // ── Step E: Submit to Replicate ──
-    console.log(`${LOG_PREFIX} [Step E] Submitting to Replicate...`);
-    const predictionId = await submitReplicateLoraTraining({
+    // ── 步驟 4：提交 Replicate ──
+    log("info", "[步驟 4] Submitting to Replicate...");
+    const predictionId = await submitReplicateTraining({
       zipUrl,
+      triggerWord,
       epochs,
       learningRate,
-      triggerWord,
     });
 
-    // ── Step F: Update progress + store predictionId ──
+    // 儲存 predictionId 至 resultJson
     await updateBackgroundJob(jobId, {
       progress: 30,
-      progressMessage: "訓練任務已提交，等待 Replicate 處理...",
+      progressMessage: "訓練任務已提交，等待 GPU 分配...",
+      resultJson: { modelId, modelName, predictionId },
     });
-    // Store predictionId in model's configJson for reference
+
+    // 同時存入 model 的 configJson
     await updateFineTunedModel(modelId, {
       configJson: {
         predictionId,
@@ -249,108 +206,93 @@ export async function runLoraTrainingJob(input: LoraTrainingJobInput): Promise<v
       },
     });
 
-    // ── Step G: Poll until completion ──
-    console.log(`${LOG_PREFIX} [Step G] Starting polling loop (interval=${POLL_INTERVAL_MS / 1000}s, max=${MAX_POLL_DURATION_MS / 1000}s)...`);
-    const pollStartTime = Date.now();
+    // ── 步驟 5：輪詢迴圈 ──
+    const MAX_POLL_MS = 3_600_000;   // 60 minutes
+    const POLL_INTERVAL_MS = 30_000; // 30 seconds
+    const pollStart = Date.now();
+    const replicate = new Replicate({ auth: process.env.REPLICATE_API_TOKEN! });
 
-    while (true) {
-      const elapsed = Date.now() - pollStartTime;
+    log("info", `[步驟 5] Starting polling loop (interval=${POLL_INTERVAL_MS / 1000}s, max=${MAX_POLL_MS / 1000}s)...`);
 
-      // Step H: Timeout check
-      if (elapsed > MAX_POLL_DURATION_MS) {
-        console.error(`${LOG_PREFIX} ✗ Training timed out after ${formatElapsed(elapsed)}`);
-        await updateFineTunedModel(modelId, { status: "failed" });
-        await updateBackgroundJob(jobId, {
-          status: "failed",
-          errorMessage: `訓練超時（超過 ${MAX_POLL_DURATION_MS / 60000} 分鐘未完成）`,
-          progressMessage: "訓練超時",
-        });
-        return;
-      }
-
-      await sleep(POLL_INTERVAL_MS);
+    while (Date.now() - pollStart < MAX_POLL_MS) {
+      await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
 
       let prediction: any;
       try {
-        prediction = await getReplicatePrediction(predictionId);
+        prediction = await replicate.predictions.get(predictionId);
       } catch (pollErr: any) {
-        console.warn(`${LOG_PREFIX} Poll request failed: ${pollErr.message}, will retry...`);
+        log("warn", `Poll request failed: ${pollErr.message}, will retry...`);
         continue;
       }
 
-      const status = prediction.status;
-      console.log(`${LOG_PREFIX}   Poll: status=${status}, elapsed=${formatElapsed(elapsed)}`);
+      const elapsedMs = Date.now() - pollStart;
+      const elapsedMin = Math.floor(elapsedMs / 60000);
+      const elapsedSec = Math.floor(elapsedMs / 1000) % 60;
 
-      if (status === "starting" || status === "processing") {
-        // Linear progress estimate: 30% → 90% over the max poll duration
-        const progressFraction = Math.min(elapsed / MAX_POLL_DURATION_MS, 1);
-        const estimatedProgress = Math.round(30 + progressFraction * 60);
-        await updateBackgroundJob(jobId, {
-          progress: Math.min(estimatedProgress, 90),
-          progressMessage: `訓練中 (${formatElapsed(elapsed)})...`,
-        });
-        continue;
-      }
-
-      if (status === "succeeded") {
-        // Extract output — Replicate LoRA trainers typically return a URL to the trained weights
-        const output = prediction.output;
-        const outputUrl = typeof output === "string"
-          ? output
-          : Array.isArray(output)
-            ? output[0]
-            : output?.weights ?? output?.url ?? JSON.stringify(output);
-
-        console.log(`${LOG_PREFIX} ✓ Training succeeded! Output: ${outputUrl}`);
+      if (prediction.status === "succeeded") {
+        // 提取輸出 URL
+        const outputUrl = typeof prediction.output === "string"
+          ? prediction.output
+          : Array.isArray(prediction.output)
+            ? prediction.output[0]
+            : null;
 
         await updateFineTunedModel(modelId, {
           status: "ready",
-          fileUrl: typeof outputUrl === "string" ? outputUrl : JSON.stringify(outputUrl),
+          fileUrl: outputUrl || undefined,
         });
         await updateBackgroundJob(jobId, {
           status: "completed",
           progress: 100,
           progressMessage: "訓練完成！模型已就緒。",
-          resultJson: {
-            predictionId,
-            output: outputUrl,
-            completedAt: Date.now(),
-            elapsedMs: elapsed,
-          },
+          resultJson: { modelId, modelName, predictionId, outputUrl },
         });
+        log("info", `模型 ${modelId} 訓練完成！輸出：${outputUrl}`);
         return;
       }
 
-      if (status === "failed" || status === "canceled") {
-        const errorDetail = prediction.error ?? prediction.logs ?? "Unknown error";
-        console.error(`${LOG_PREFIX} ✗ Training ${status}: ${errorDetail}`);
-
+      if (prediction.status === "failed" || prediction.status === "canceled") {
+        const errorMsg = prediction.error || `Replicate 任務 ${prediction.status}`;
         await updateFineTunedModel(modelId, { status: "failed" });
         await updateBackgroundJob(jobId, {
           status: "failed",
-          errorMessage: typeof errorDetail === "string" ? errorDetail : JSON.stringify(errorDetail),
-          progressMessage: `訓練${status === "canceled" ? "已取消" : "失敗"}`,
+          errorMessage: typeof errorMsg === "string" ? errorMsg : JSON.stringify(errorMsg),
+          progress: 0,
+          progressMessage: "訓練失敗",
         });
+        log("error", `模型 ${modelId} 訓練失敗：${errorMsg}`);
         return;
       }
 
-      // Unknown status — log and continue polling
-      console.warn(`${LOG_PREFIX} Unknown prediction status: ${status}, continuing...`);
-    }
-  } catch (err: any) {
-    // ── Global catch: any unhandled error ──
-    console.error(`${LOG_PREFIX} ✗ Unhandled error in training pipeline: ${err.message}`);
-    console.error(err.stack);
-
-    try {
-      await updateFineTunedModel(modelId, { status: "failed" });
+      // 仍在處理中：線性估算進度（30%~90%）
+      const progressEstimate = Math.min(30 + Math.floor((elapsedMs / MAX_POLL_MS) * 60), 90);
       await updateBackgroundJob(jobId, {
-        status: "failed",
-        errorMessage: err.message || "Unknown error during training",
-        progressMessage: "訓練過程發生錯誤",
+        progress: progressEstimate,
+        progressMessage: `訓練中... (${elapsedMin}m ${elapsedSec}s)`,
       });
-    } catch (dbErr: any) {
-      console.error(`${LOG_PREFIX} ✗ Failed to update DB after error: ${dbErr.message}`);
+      log("info", `模型 ${modelId} 輪詢中 [${prediction.status}] ${elapsedMin}m ${elapsedSec}s`);
     }
+
+    // ── 超時處理 ──
+    await updateFineTunedModel(modelId, { status: "failed" });
+    await updateBackgroundJob(jobId, {
+      status: "failed",
+      errorMessage: "訓練超時（超過 1 小時）",
+      progressMessage: "訓練超時",
+    });
+    log("error", `模型 ${modelId} 訓練超時（超過 1 小時）`);
+
+  } catch (err) {
+    // ── Global catch: any unhandled error ──
+    const errMsg = err instanceof Error ? err.message : String(err);
+    log("error", `訓練流程異常：${errMsg}`);
+
+    await updateFineTunedModel(modelId, { status: "failed" }).catch(() => {});
+    await updateBackgroundJob(jobId, {
+      status: "failed",
+      errorMessage: errMsg,
+      progressMessage: "訓練失敗（內部錯誤）",
+    }).catch(() => {});
+    // 不 throw，因為此函數在背景執行
   }
 }
