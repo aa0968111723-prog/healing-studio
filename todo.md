@@ -955,5 +955,5 @@
 
 ## 重寫 modelTrainingWorker.ts（詳細規格版）
 
-- [ ] 重寫 modelTrainingWorker.ts：介面定義 + processQueuedTrainingJobs + recoverStuckTrainingJobs + runModelTrainingWorker + cron
-- [ ] 確認 index.ts 已正確註冊 initModelTrainingWorkerCron
+- [x] 重寫 modelTrainingWorker.ts：介面定義 + processQueuedTrainingJobs + recoverStuckTrainingJobs + runModelTrainingWorker + cron
+- [x] 確認 index.ts 已正確註冊 initModelTrainingWorkerCron
