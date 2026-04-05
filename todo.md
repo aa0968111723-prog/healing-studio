@@ -854,3 +854,13 @@
 - [x] REPLICATE_API_TOKEN (Replicate 模型託管) — 驗證通過
 - [ ] POSEHUB_API_KEY (骨骼姿勢測量) — 待確認環境變數名稱
 - [x] 驗證測試確認金鑰有效（14 tests passed）
+
+## 四模態 SDK Orchestrator (modelClients.ts)
+
+- [x] 安裝官方 SDK（@fal-ai/client, elevenlabs, replicate）
+- [x] SafeApiCaller 安全通訊器（Rate Limit 偵測 + 指數退避重試 + 超時保護）
+- [x] FalClient 封裝（圖片生成 Flux + 影片生成）
+- [x] SunoClient 封裝（音樂生成 REST API）
+- [x] ElevenLabsClient 封裝（語音合成 TTS）
+- [x] ReplicateClient 封裝（進階預留通用模型）
+- [x] ModelOrchestrator 統一調度器（四模態路由 + 健康檢查）
