@@ -612,3 +612,16 @@
 - [x] 整合至 Home.tsx nav bar，與 AmbientEnvironment 場景同步（useAmbientSound hook）
 - [x] visibilitychange 離屏自動暫停/恢復 AudioContext
 - [x] TypeScript 編譯零錯誤確認 + 瀏覽器實測 UI 正常渲染
+
+## 首頁 HLS 動態解析度播放器
+
+- [x] 安裝 hls.js 1.6.15 依賴
+- [x] 建立 AmbientVideo.tsx HLS 播放器元件（autoplay/muted/loop/playsinline 屬性綁定）
+- [x] 實作 HLS 動態分片解析度串流（ABR startLevel=-1 auto + capLevelToPlayerSize + 温和切換策略）
+- [x] 滿版背景影片佈局（object-fit: cover + absolute inset-0 + 淡入動畫 1200ms）
+- [x] 原生 HLS 支援偵測（Safari 原生 canPlayType → hls.js polyfill → fallback MP4 三層降級）
+- [x] 錯誤容錯：network error 自動重試 + media error 自動修復 + fatal 靜默降級
+- [x] 整合至 Home.tsx 最頂層（AmbientVideo 在 AmbientEnvironment 之下，粒子疊加在影片之上）
+- [x] 半透明黑色遮罩（overlayOpacity 0.35）確保文字可讀性
+- [x] TypeScript 編譯零錯誤確認
+- [x] 畫面渲染正常確認（粒子動畫 + nav + hero + features 正常顯示）

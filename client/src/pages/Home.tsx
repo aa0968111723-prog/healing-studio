@@ -15,6 +15,7 @@ import { useAIState } from "@/contexts/AIStateContext";
 import { AmbientEnvironment, useCurrentScene } from "@/components/AmbientEnvironment";
 import type { SceneId } from "@/components/AmbientEnvironment";
 import { useAmbientSound, SoundControl } from "@/components/AmbientSoundEngine";
+import { AmbientVideo } from "@/components/AmbientVideo";
 
 // ─── Scene-Adaptive Style Maps ──────────────────────────────────────────────
 
@@ -196,8 +197,14 @@ export default function Home() {
 
   return (
     <div className="min-h-screen relative overflow-hidden">
-      {/* ── Full-screen Ambient Environment ── */}
+      {/* ── Full-screen Ambient Video (HLS topmost layer) ── */}
       <div className="fixed inset-0 -z-10">
+        <AmbientVideo
+          src=""
+          overlayOpacity={0.35}
+          fadeInDuration={1200}
+        />
+        {/* Particle environment renders on top of video */}
         <AmbientEnvironment />
       </div>
 
