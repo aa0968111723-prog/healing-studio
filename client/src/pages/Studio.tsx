@@ -1049,7 +1049,7 @@ export default function Studio() {
             value={activeModality}
             onValueChange={(v) => setActiveModality(v as GenerationType)}
           >
-            <TabsList className="w-full grid grid-cols-4 h-auto rounded-xl p-1" style={{
+            <TabsList id="modality-tabs" className="w-full grid grid-cols-4 h-auto rounded-xl p-1" style={{
               background: "rgba(255,255,255,0.4)",
               border: "1px solid rgba(255,255,255,0.5)",
             }}>
@@ -1068,7 +1068,7 @@ export default function Studio() {
 
           {/* Progressive Prompt Builder — z-20 ensures Self-Attention sliders stay above ThoughtIslandChain D3 canvas */}
           {activeModality !== "voice" && (
-            <GlassCard hover={false} id="prompt-input" className="relative z-20">
+            <GlassCard hover={false} id="prompt-builder-area" className="relative z-20">
               <ProgressivePromptBuilder
                 value={promptBuilder}
                 onChange={setPromptBuilder}
@@ -1632,6 +1632,23 @@ export default function Studio() {
         onRestartTour={() => {
           try { localStorage.removeItem("hasSeenTour"); } catch {}
           window.dispatchEvent(new CustomEvent("restart-tour"));
+        }}
+        onApplyInspiration={(blocks) => {
+          // Build a prompt string from inspiration blocks
+          const parts = Object.entries(blocks)
+            .filter(([_, v]) => v)
+            .map(([_, label]) => label as string);
+          const inspirationPrompt = parts.join(', ');
+          const separator = promptBuilder.rawPrompt.trim() ? ', ' : '';
+          const newRaw = promptBuilder.rawPrompt.trim() + separator + inspirationPrompt;
+          setPromptBuilder((prev) => ({
+            ...prev,
+            rawPrompt: newRaw,
+            compiledPrompt: newRaw,
+          }));
+        }}
+        onSwitchModality={(modality) => {
+          setActiveModality(modality);
         }}
       />
     </div>

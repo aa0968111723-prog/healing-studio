@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, ChevronRight, ChevronLeft, Sparkles, RotateCcw } from "lucide-react";
+import { X, ChevronRight, ChevronLeft, Sparkles, RotateCcw, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 // ─── Tour Step Definition ──────────────────────────────────────────────────
@@ -9,33 +9,44 @@ interface TourStep {
   targetId: string;
   title: string;
   description: string;
+  encouragement: string; // warm micro-copy shown after description
   position: "top" | "bottom" | "left" | "right";
+  fallbackPosition?: "top" | "bottom" | "left" | "right";
 }
 
 const TOUR_STEPS: TourStep[] = [
   {
-    targetId: "prompt-input",
-    title: "視覺化積木",
-    description: "歡迎來到治癒工作室！不知道從何開始？試著點擊這幾個積木組合你的靈感。",
+    targetId: "prompt-builder-area",
+    title: "靈感積木",
+    description:
+      "每個積木都是一片拼圖。不需要想太多，隨手點幾個喜歡的詞彙，AI 會幫你組合成完整的畫面。",
+    encouragement: "沒有對錯，跟著直覺走就好。",
     position: "bottom",
   },
   {
-    targetId: "personality-selector",
-    title: "自注意力滑桿",
-    description: "點擊有顏色的單字，滑動調整權重，你來決定 AI 該看輕還是看重什麼。",
+    targetId: "modality-tabs",
+    title: "創作模態",
+    description:
+      "除了圖片，你還可以生成影片、音樂和語音。每種模態都有專屬的靈感積木，試試切換看看。",
+    encouragement: "多嘗試不同模態，會有意想不到的驚喜。",
     position: "bottom",
   },
   {
     targetId: "generate-button",
-    title: "AI 助理光球",
-    description: "我是你的專屬 AI 助理。你可以把成品直接拖著丟給我，或叫我幫你排入日曆。",
+    title: "開始創作",
+    description:
+      "選好積木後，按下這個按鈕就能生成作品。第一次不用追求完美，先感受一下創作的樂趣。",
+    encouragement: "每一次嘗試都是獨一無二的。",
     position: "top",
   },
   {
-    targetId: "storyboard-panel",
-    title: "側邊欄",
-    description: "你的所有創作與靈感，都會被安全收納在資產庫與專案筆記中。",
-    position: "right",
+    targetId: "proactive-orb-anchor",
+    title: "你的創作夥伴",
+    description:
+      "我是你的 AI 助理光球。點擊我可以獲得靈感推薦、隨機創作建議，或者只是聊聊今天的心情。",
+    encouragement: "隨時點我，我都在這裡陪你。",
+    position: "left",
+    fallbackPosition: "top",
   },
 ];
 
@@ -45,7 +56,7 @@ const STORAGE_KEY = "hasSeenTour";
 
 function SpotlightOverlay({
   targetRect,
-  padding = 12,
+  padding = 16,
 }: {
   targetRect: DOMRect | null;
   padding?: number;
@@ -56,7 +67,7 @@ function SpotlightOverlay({
   const y = targetRect.top - padding;
   const w = targetRect.width + padding * 2;
   const h = targetRect.height + padding * 2;
-  const r = 12;
+  const r = 16;
 
   return (
     <svg
@@ -74,10 +85,10 @@ function SpotlightOverlay({
         y="0"
         width="100%"
         height="100%"
-        fill="rgba(0,0,0,0.75)"
+        fill="rgba(0,0,0,0.6)"
         mask="url(#spotlight-mask)"
       />
-      {/* Animated border around spotlight */}
+      {/* Soft glow border */}
       <rect
         x={x}
         y={y}
@@ -86,15 +97,25 @@ function SpotlightOverlay({
         rx={r}
         ry={r}
         fill="none"
-        stroke="rgba(0,210,255,0.5)"
+        stroke="rgba(255,180,120,0.5)"
         strokeWidth="2"
-        strokeDasharray="8 4"
+      />
+      {/* Animated breathing glow */}
+      <rect
+        x={x - 2}
+        y={y - 2}
+        width={w + 4}
+        height={h + 4}
+        rx={r + 2}
+        ry={r + 2}
+        fill="none"
+        stroke="rgba(255,180,120,0.2)"
+        strokeWidth="3"
       >
         <animate
-          attributeName="stroke-dashoffset"
-          from="0"
-          to="24"
-          dur="1.5s"
+          attributeName="opacity"
+          values="0.3;0.8;0.3"
+          dur="2s"
           repeatCount="indefinite"
         />
       </rect>
@@ -123,81 +144,104 @@ function TooltipCard({
 }) {
   if (!targetRect) return null;
 
-  // Calculate tooltip position
-  let top = 0;
-  let left = 0;
-  const tooltipW = 320;
-  const tooltipH = 180;
+  const tooltipW = Math.min(340, window.innerWidth - 32);
+  const tooltipH = 220;
   const gap = 16;
 
-  switch (step.position) {
-    case "bottom":
-      top = targetRect.bottom + gap;
-      left = targetRect.left + targetRect.width / 2 - tooltipW / 2;
-      break;
-    case "top":
-      top = targetRect.top - tooltipH - gap;
-      left = targetRect.left + targetRect.width / 2 - tooltipW / 2;
-      break;
-    case "left":
-      top = targetRect.top + targetRect.height / 2 - tooltipH / 2;
-      left = targetRect.left - tooltipW - gap;
-      break;
-    case "right":
-      top = targetRect.top + targetRect.height / 2 - tooltipH / 2;
-      left = targetRect.right + gap;
-      break;
+  // Try preferred position first, then fallback
+  function calcPosition(pos: string) {
+    let top = 0;
+    let left = 0;
+    switch (pos) {
+      case "bottom":
+        top = targetRect!.bottom + gap;
+        left = targetRect!.left + targetRect!.width / 2 - tooltipW / 2;
+        break;
+      case "top":
+        top = targetRect!.top - tooltipH - gap;
+        left = targetRect!.left + targetRect!.width / 2 - tooltipW / 2;
+        break;
+      case "left":
+        top = targetRect!.top + targetRect!.height / 2 - tooltipH / 2;
+        left = targetRect!.left - tooltipW - gap;
+        break;
+      case "right":
+        top = targetRect!.top + targetRect!.height / 2 - tooltipH / 2;
+        left = targetRect!.right + gap;
+        break;
+    }
+    return { top, left };
   }
 
-  // Clamp to viewport
+  let { top, left } = calcPosition(step.position);
+
+  // If out of viewport, try fallback
+  if (
+    (top < 16 || top + tooltipH > window.innerHeight - 16 ||
+      left < 16 || left + tooltipW > window.innerWidth - 16) &&
+    step.fallbackPosition
+  ) {
+    ({ top, left } = calcPosition(step.fallbackPosition));
+  }
+
+  // Final clamp
   left = Math.max(16, Math.min(window.innerWidth - tooltipW - 16, left));
   top = Math.max(16, Math.min(window.innerHeight - tooltipH - 16, top));
 
+  const isLastStep = stepIndex === totalSteps - 1;
+
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+      initial={{ opacity: 0, y: 12, scale: 0.95 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 10, scale: 0.95 }}
-      transition={{ type: "spring", stiffness: 300, damping: 25 }}
+      exit={{ opacity: 0, y: 12, scale: 0.95 }}
+      transition={{ type: "spring", stiffness: 260, damping: 22 }}
       className="fixed z-[9999] pointer-events-auto"
       style={{ top, left, width: tooltipW }}
     >
-      <div className="rounded-2xl border border-cyan-500/30 bg-background/95 backdrop-blur-xl shadow-2xl shadow-cyan-500/10 p-5">
+      <div className="rounded-2xl border border-amber-200/40 bg-white/95 backdrop-blur-xl shadow-2xl shadow-amber-500/10 p-5">
         {/* Step indicator */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-cyan-400" />
-            <span className="text-xs font-semibold text-cyan-400">
-              步驟 {stepIndex + 1} / {totalSteps}
+            <Sparkles className="w-4 h-4 text-amber-500" />
+            <span className="text-xs font-semibold text-amber-600">
+              {stepIndex + 1} / {totalSteps}
             </span>
           </div>
           <button
             onClick={onSkip}
-            className="p-1 rounded-full hover:bg-white/10 transition-colors"
+            className="p-1 rounded-full hover:bg-gray-100 transition-colors"
           >
-            <X className="w-3.5 h-3.5 text-muted-foreground" />
+            <X className="w-3.5 h-3.5 text-gray-400" />
           </button>
         </div>
 
         {/* Content */}
-        <h3 className="text-sm font-semibold text-foreground mb-2">{step.title}</h3>
-        <p className="text-xs text-muted-foreground leading-relaxed mb-4">
+        <h3 className="text-base font-semibold text-gray-800 mb-2">{step.title}</h3>
+        <p className="text-sm text-gray-600 leading-relaxed mb-2">
           {step.description}
         </p>
+        <p className="text-xs text-amber-600/80 italic flex items-center gap-1.5 mb-4">
+          <Heart className="w-3 h-3 shrink-0" />
+          {step.encouragement}
+        </p>
 
-        {/* Progress dots */}
+        {/* Progress + Navigation */}
         <div className="flex items-center justify-between">
           <div className="flex gap-1.5">
             {Array.from({ length: totalSteps }).map((_, i) => (
-              <div
+              <motion.div
                 key={i}
-                className={`w-2 h-2 rounded-full transition-all ${
-                  i === stepIndex
-                    ? "bg-cyan-400 scale-110"
-                    : i < stepIndex
-                    ? "bg-cyan-400/40"
-                    : "bg-white/10"
-                }`}
+                animate={{
+                  scale: i === stepIndex ? 1.2 : 1,
+                  backgroundColor:
+                    i === stepIndex
+                      ? "rgb(245, 158, 11)"
+                      : i < stepIndex
+                      ? "rgba(245, 158, 11, 0.4)"
+                      : "rgba(0, 0, 0, 0.08)",
+                }}
+                className="w-2 h-2 rounded-full"
               />
             ))}
           </div>
@@ -208,7 +252,7 @@ function TooltipCard({
                 size="sm"
                 variant="ghost"
                 onClick={onPrev}
-                className="text-xs h-7 px-2 gap-1"
+                className="text-xs h-7 px-2 gap-1 text-gray-500"
               >
                 <ChevronLeft className="w-3 h-3" />
                 上一步
@@ -217,10 +261,10 @@ function TooltipCard({
             <Button
               size="sm"
               onClick={onNext}
-              className="text-xs h-7 px-3 gap-1 bg-cyan-600 hover:bg-cyan-500 text-white"
+              className="text-xs h-7 px-4 gap-1 bg-amber-500 hover:bg-amber-400 text-white rounded-full shadow-md shadow-amber-500/20"
             >
-              {stepIndex === totalSteps - 1 ? "完成" : "下一步"}
-              {stepIndex < totalSteps - 1 && <ChevronRight className="w-3 h-3" />}
+              {isLastStep ? "開始創作" : "下一步"}
+              {!isLastStep && <ChevronRight className="w-3 h-3" />}
             </Button>
           </div>
         </div>
@@ -241,7 +285,6 @@ export default function OnboardingTour({
   const [active, setActive] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
-  const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
   // Check if tour should start
   useEffect(() => {
@@ -254,7 +297,6 @@ export default function OnboardingTour({
     try {
       const seen = localStorage.getItem(STORAGE_KEY);
       if (!seen) {
-        // Delay to let the page render
         const timer = setTimeout(() => setActive(true), 1500);
         return () => clearTimeout(timer);
       }
@@ -282,7 +324,6 @@ export default function OnboardingTour({
       const el = document.getElementById(step.targetId);
       if (el) {
         setTargetRect(el.getBoundingClientRect());
-        // Scroll element into view if needed
         el.scrollIntoView({ behavior: "smooth", block: "center" });
       } else {
         setTargetRect(null);
@@ -291,7 +332,6 @@ export default function OnboardingTour({
 
     updateRect();
 
-    // Re-measure on resize/scroll
     const interval = setInterval(updateRect, 500);
     window.addEventListener("resize", updateRect);
     window.addEventListener("scroll", updateRect, true);
