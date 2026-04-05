@@ -686,3 +686,15 @@
 - [x] 整合至 Home.tsx（情報站與 CTA 之間）
 - [x] TypeScript 編譯零錯誤確認（Found 0 errors）
 - [x] 瀏覽器渲染效果驗證（精選作品區塊 + Tabs + 空狀態 + CTA 正常顯示）
+
+## Showcase 卡片水波紋過渡特效
+
+- [x] 建立 RippleTransition.tsx 全螢幕水波紋遮罩元件（clip-path circle 擴散 + 同心漣漪 + 中心光暈 + 浮動粒子）
+- [x] 水波紋從點擊座標向外擴散（動態計算 maxRadius 覆蓋全螢幕）
+- [x] 4 場景自適應水波紋色彩（SCENE_RIPPLE_COLORS: primary/ring/glow/text/particle）
+- [x] 動畫完成後無縫 navigate('/studio')（onComplete callback + 300ms label 延遲）
+- [x] useRippleTransition hook（triggerRipple/resetRipple 狀態管理）
+- [x] 整合至 ShowcaseMasonry MasonryCard onClick 攚截（不跳轉詳情頁）
+- [x] 「進入工作室」過渡標籤 + 脈衝光點動畫
+- [x] TypeScript 編譯零錯誤確認（Found 0 errors）
+- [x] 瀏覽器零 console 錯誤 + HMR 更新正常

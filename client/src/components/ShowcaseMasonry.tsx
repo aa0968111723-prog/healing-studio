@@ -25,7 +25,9 @@ import {
   Sparkles,
   Eye,
 } from "lucide-react";
+import { useLocation } from "wouter";
 import type { SceneId } from "./AmbientEnvironment";
+import RippleTransition, { useRippleTransition } from "./RippleTransition";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -237,9 +239,11 @@ function ProgressiveImage({
 function MasonryCard({
   item,
   styles,
+  onCardClick,
 }: {
   item: ShowcaseItem;
   styles: MasonrySceneStyles;
+  onCardClick: (e: React.MouseEvent) => void;
 }) {
   const [isHovered, setIsHovered] = useState(false);
   const modConfig = MODALITY_CONFIG[item.modality] || MODALITY_CONFIG.image;
@@ -261,6 +265,7 @@ function MasonryCard({
         contain: "layout style paint",
         willChange: "transform",
       }}
+      onClick={onCardClick}
     >
       {/* Hover glow overlay */}
       <motion.div
@@ -460,6 +465,18 @@ export default function ShowcaseMasonry({
   const styles = useMemo(() => SCENE_MASONRY_STYLES[sceneId], [sceneId]);
   const [modality, setModality] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const [, navigate] = useLocation();
+  const { rippleActive, rippleOrigin, triggerRipple, resetRipple } = useRippleTransition();
+
+  const handleCardClick = useCallback((e: React.MouseEvent) => {
+    triggerRipple(e);
+  }, [triggerRipple]);
+
+  const handleRippleComplete = useCallback(() => {
+    navigate("/studio");
+    // Reset after a short delay to allow exit animation
+    setTimeout(() => resetRipple(), 100);
+  }, [navigate, resetRipple]);
 
   // ─── LOD API: cursor-based pagination ───────────────────────────────
   const {
@@ -593,7 +610,7 @@ export default function ShowcaseMasonry({
           >
             <AnimatePresence mode="popLayout">
               {allItems.map((item) => (
-                <MasonryCard key={item.id} item={item} styles={styles} />
+                <MasonryCard key={item.id} item={item} styles={styles} onCardClick={handleCardClick} />
               ))}
             </AnimatePresence>
           </div>
@@ -616,6 +633,14 @@ export default function ShowcaseMasonry({
           </motion.div>
         )}
       </div>
+
+      {/* Ripple Transition Overlay */}
+      <RippleTransition
+        active={rippleActive}
+        origin={rippleOrigin}
+        sceneId={sceneId}
+        onComplete={handleRippleComplete}
+      />
     </section>
   );
 }
