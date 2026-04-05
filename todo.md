@@ -942,4 +942,4 @@
 - [x] 實作 uploadZipToStorage（storagePut 上傳 S3）
 - [x] 實作 submitReplicateLoraTraining（Replicate API 提交訓練）
 - [x] 實作 runLoraTrainingJob（主函數：打包→上傳→提交→輪詢→回寫 DB）
-- [ ] models.create 路由加入背景 LoRA 訓練啟動邏輯
+- [x] models.create 路由加入背景 LoRA 訓練啟動邏輯
