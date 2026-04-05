@@ -1231,7 +1231,31 @@ export default function Studio() {
                   <h3 className="text-sm font-semibold text-foreground">生成結果</h3>
                   {resultUrl && (
                     <div className="rounded-xl overflow-hidden shadow-sm">
-                      <img src={resultUrl} alt="Generated" className="w-full object-cover" />
+                      {activeModality === "video" ? (
+                        <video
+                          src={resultUrl}
+                          controls
+                          autoPlay
+                          loop
+                          playsInline
+                          className="w-full rounded-xl"
+                          style={{ maxHeight: 400 }}
+                        />
+                      ) : activeModality === "audio" || activeModality === "voice" ? (
+                        <div className="p-4 flex flex-col items-center gap-3">
+                          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500/20 to-cyan-500/20 flex items-center justify-center">
+                            {activeModality === "audio" ? <Music className="w-8 h-8 text-purple-400" /> : <Mic className="w-8 h-8 text-cyan-400" />}
+                          </div>
+                          <audio
+                            src={resultUrl}
+                            controls
+                            autoPlay
+                            className="w-full"
+                          />
+                        </div>
+                      ) : (
+                        <img src={resultUrl} alt="Generated" className="w-full object-cover" />
+                      )}
                     </div>
                   )}
                   {resultData && (
@@ -1242,18 +1266,27 @@ export default function Studio() {
                           影片：{String(resultData.videoStatus)}
                         </p>
                       )}
+                      {resultData.videoError ? (
+                        <p className="text-red-400 text-[11px] ml-5">{`${resultData.videoError}`}</p>
+                      ) : null}
                       {resultData.audioStatus != null && (
                         <p className="flex items-center gap-2">
                           <Music className="w-3 h-3" />
                           音樂：{String(resultData.audioStatus)}
                         </p>
                       )}
+                      {resultData.audioError ? (
+                        <p className="text-red-400 text-[11px] ml-5">{`${resultData.audioError}`}</p>
+                      ) : null}
                       {resultData.voiceStatus != null && (
                         <p className="flex items-center gap-2">
                           <Mic className="w-3 h-3" />
                           語音：{String(resultData.voiceStatus)}
                         </p>
                       )}
+                      {resultData.voiceError ? (
+                        <p className="text-red-400 text-[11px] ml-5">{`${resultData.voiceError}`}</p>
+                      ) : null}
                     </div>
                   )}
 
