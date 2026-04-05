@@ -19,6 +19,7 @@
     "@google-cloud/speech": "^7.3.0",
     "@google-cloud/storage": "^7.19.0",
     "@google-cloud/text-to-speech": "^6.4.0",
+    "@google/genai": "^1.48.0",
     "@google/generative-ai": "^0.24.1",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-accordion": "^1.2.12",

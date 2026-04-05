@@ -973,3 +973,9 @@
 - [ ] 調整進度百分比（5→15→25→30→30-90→100）
 - [ ] submitReplicateTraining 使用 model name 而非 version hash
 - [ ] 輪詢使用 replicate.predictions.get 而非 raw fetch
+
+## 影片模態修復
+
+- [ ] 修復後端影片生成邏輯（Gemini Veo API 真實生成 → S3 上傳 → 回傳可播放 URL）
+- [ ] 修復前端影片生成觸發（Studio.tsx → routers.ts 資料流正確傳遞）
+- [ ] 新增 MP4 下載功能（影片生成完成後可下載）

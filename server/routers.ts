@@ -561,11 +561,10 @@ export const appRouter = router({
             resultData.vibeReferenceUrl = input.vibeReferenceUrl;
           }
 
-          // ── Video: Gemini Veo REST API (text-to-video) ──
+          // ── Video: Gemini Veo SDK (text-to-video) ──
           if (input.generationType === "video" || input.generationType === "multimodal") {
             try {
               const videoCompiler = getVideoCompiler();
-              // Compile video prompt with camera + action verbs
               const videoCompiled = videoCompiler.compile({
                 blocks: [{
                   id: "main",
@@ -581,7 +580,7 @@ export const appRouter = router({
                 aspectRatio: "16:9",
               });
               const videoPrompt = videoCompiled.prompt || compiledPrompt;
-              console.log(`[Wave1] Video prompt compiled (${videoPrompt.length} chars), calling Gemini Veo...`);
+              console.log(`[Wave1] Video prompt compiled (${videoPrompt.length} chars), calling Gemini Veo SDK...`);
 
               // Get Gemini API Key
               const geminiKey = (await import("./_core/env.validated")).getApiKey("GEMINI_API_KEY");
@@ -589,77 +588,57 @@ export const appRouter = router({
                 throw new Error("GEMINI_API_KEY 未設定，無法生成影片");
               }
 
-              const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
-              const VEO_MODEL = "veo-2.0-generate-001";
+              // Use @google/genai SDK for reliable Veo API access
+              const { GoogleGenAI } = await import("@google/genai");
+              const ai = new GoogleGenAI({ apiKey: geminiKey });
 
-              // Step 1: Submit video generation request
-              const generateRes = await withTimeout(
-                fetch(`${GEMINI_BASE}/models/${VEO_MODEL}:predictLongRunning?key=${geminiKey}`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    instances: [{ prompt: videoPrompt }],
-                    parameters: { aspectRatio: "16:9", sampleCount: 1 },
-                  }),
-                }).then(async (r) => {
-                  if (!r.ok) {
-                    const errText = await r.text().catch(() => r.statusText);
-                    throw new Error(`Gemini Veo API error (${r.status}): ${errText}`);
-                  }
-                  return r.json();
-                }),
-                60_000,
-                "Gemini Veo 提交"
-              );
-
-              const operationName = generateRes.name;
-              if (!operationName) {
-                throw new Error("Gemini Veo 未回傳 operation name");
-              }
-              console.log(`[Wave1] Gemini Veo operation started: ${operationName}`);
+              // Step 1: Submit video generation
+              generationBus.emit(jobId, { type: "progress", progress: 45, message: "正在提交 Veo 影片生成..." });
+              let operation = await ai.models.generateVideos({
+                model: "veo-2.0-generate-001",
+                prompt: videoPrompt,
+                config: {
+                  aspectRatio: "16:9",
+                  numberOfVideos: 1,
+                  personGeneration: "allow_all" as any,
+                },
+              });
+              console.log(`[Wave1] Gemini Veo operation started: ${operation.name}`);
 
               // Step 2: Poll operation until done (max 5 min)
               const MAX_POLL_MS = 300_000;
               const POLL_INTERVAL = 10_000;
               const pollStart = Date.now();
-              let opResult: any = null;
 
-              while (Date.now() - pollStart < MAX_POLL_MS) {
+              while (!operation.done && Date.now() - pollStart < MAX_POLL_MS) {
                 await new Promise((r) => setTimeout(r, POLL_INTERVAL));
-                const pollRes = await fetch(`${GEMINI_BASE}/${operationName}?key=${geminiKey}`);
-                if (!pollRes.ok) {
-                  console.warn(`[Wave1] Veo poll error: ${pollRes.status}`);
-                  continue;
-                }
-                opResult = await pollRes.json();
-                if (opResult.done) {
-                  console.log(`[Wave1] Veo operation done after ${Math.round((Date.now() - pollStart) / 1000)}s`);
-                  break;
-                }
-                console.log(`[Wave1] Veo still generating... (${Math.round((Date.now() - pollStart) / 1000)}s)`);
+                operation = await ai.operations.getVideosOperation({ operation });
+                const elapsed = Math.round((Date.now() - pollStart) / 1000);
+                const pct = Math.min(85, 45 + Math.round((elapsed / 300) * 40));
+                generationBus.emit(jobId, { type: "progress", progress: pct, message: `影片生成中... (${elapsed}s)` });
+                console.log(`[Wave1] Veo still generating... (${elapsed}s)`);
               }
 
-              if (!opResult?.done) {
+              if (!operation.done) {
                 throw new Error("Gemini Veo 影片生成超時（5分鐘）");
               }
+              console.log(`[Wave1] Veo operation done after ${Math.round((Date.now() - pollStart) / 1000)}s`);
 
-              // Step 3: Extract video URI and download
-              const generatedVideos = opResult.response?.generateVideoResponse?.generatedSamples
-                || opResult.response?.generatedVideos
-                || [];
+              // Step 3: Extract video and upload to S3
+              const generatedVideos = operation.response?.generatedVideos || [];
               if (generatedVideos.length === 0) {
                 throw new Error("Gemini Veo 未回傳影片結果");
               }
 
-              const videoFile = generatedVideos[0].video || generatedVideos[0];
-              const videoUri = videoFile.uri || videoFile.video?.uri;
-
-              if (!videoUri) {
+              const genVideo = generatedVideos[0];
+              const videoData = genVideo.video;
+              if (!videoData || !videoData.uri) {
                 throw new Error("Gemini Veo 影片 URI 缺失");
               }
 
-              // Step 4: Download video bytes and upload to S3
-              const downloadUrl = videoUri.includes("key=") ? videoUri : `${videoUri}?key=${geminiKey}`;
+              // Download video bytes via the file URI
+              generationBus.emit(jobId, { type: "progress", progress: 88, message: "正在下載影片並上傳至雲端..." });
+              const downloadUrl = videoData.uri.includes("key=") ? videoData.uri : `${videoData.uri}${videoData.uri.includes("?") ? "&" : "?"}key=${geminiKey}`;
               const videoBytes = await fetch(downloadUrl).then((r) => {
                 if (!r.ok) throw new Error(`影片下載失敗: ${r.status}`);
                 return r.arrayBuffer();
@@ -674,13 +653,18 @@ export const appRouter = router({
 
               resultData.videoUrl = videoUrl;
               resultData.videoStatus = "completed";
-              resultData.videoDuration = 8; // Veo generates ~8s videos
+              resultData.videoDuration = 8;
               if (!resultUrl) resultUrl = videoUrl;
-              console.log(`[Wave1] Video generation completed (Gemini Veo): ${videoUrl}`);
-            } catch (videoErr) {
+              console.log(`[Wave1] Video generation completed (Gemini Veo SDK): ${videoUrl}`);
+            } catch (videoErr: any) {
               console.error("[Wave1] Video generation failed:", videoErr);
               resultData.videoStatus = "video_generation_failed";
               resultData.videoError = videoErr instanceof Error ? videoErr.message : String(videoErr);
+              // Check if it's a quota/billing issue
+              const errMsg = String(videoErr?.message || videoErr);
+              if (errMsg.includes("429") || errMsg.includes("quota") || errMsg.includes("billing") || errMsg.includes("RESOURCE_EXHAUSTED")) {
+                resultData.videoError = "Gemini Veo API 配額不足或未啟用付費方案，請至 Google AI Studio 確認帳戶餘額後重試";
+              }
             }
             resultData.videoPrompt = compiledPrompt;
             resultData.firstFrameUrl = input.firstFrameUrl;
