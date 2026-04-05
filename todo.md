@@ -757,3 +757,22 @@
 - [x] 30s 超時保護 + Gemini 失敗優雅降級（fallback 探索模式）
 - [x] curl 測試通過（賦博龐克/霓虹街景/蒸氣波 → 「正在尋找靈感」80% 信心度 + cyberpunk/dark_mechanical/vaporwave 美學偵測）
 - [x] TypeScript 編譯零錯誤確認（Found 0 errors）+ HMR 更新正常
+
+## 代理暗中重構環境（Silent Environment Reconstruction）
+
+- [x] 擴展後端 showcase.byAesthetics 端點：
+  - 接收 aesthetics[] 美學標籤陣列，在 title/description/originalPrompt 中模糊比對
+  - matchScore 加權排序（匹配度 DESC → sortWeight DESC → likeCount DESC）
+  - excludeIds 參數排除已可見卡片
+  - cursor-based 分頁
+- [x] 前端 Home.tsx 偵測 aesthetic_preference 意圖（confidence > 0.5）時傳遞 aestheticOverride
+- [x] ShowcaseMasonry 靜默洗牌機制：
+  - visibleIdsRef 透過 IntersectionObserver 追蹤已進入視野的卡片
+  - reconstructedItems state 儲存美學匹配結果
+  - allItems 合併邏輯：保留已可見卡片 + 接續重構卡片 + ID 去重
+- [x] 已可見卡片保持不動，新載入卡片透過 AnimatePresence popLayout 平滑淡入
+- [x] 防止重複觸發（reconstructedRef + reconstructionAestheticsRef 雙重防護）
+- [x] 靜默失敗容錯（catch 靜默保留原始卡片）
+- [x] TypeScript 編譯零錯誤確認（Found 0 errors）
+- [x] byAesthetics 端點 curl 測試通過（回傳正確 JSON 結構）
+- [x] HMR 更新正常 + 瀏覽器零 console 錯誤

@@ -243,11 +243,13 @@ function MasonryCard({
   styles,
   onCardClick,
   senseEngine,
+  onVisibilityChange,
 }: {
   item: ShowcaseItem;
   styles: MasonrySceneStyles;
   onCardClick: (e: React.MouseEvent, itemId: number) => void;
   senseEngine: ReturnType<typeof useSenseEngine>;
+  onVisibilityChange?: (id: number, isVisible: boolean) => void;
 }) {
   const [isHovered, setIsHovered] = useState(false);
   const modConfig = MODALITY_CONFIG[item.modality] || MODALITY_CONFIG.image;
@@ -261,8 +263,27 @@ function MasonryCard({
     item.modality,
   );
 
+  // Track visibility for silent reconstruction
+  const cardVisRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = cardVisRef.current;
+    if (!el || !onVisibilityChange) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          onVisibilityChange(item.id, true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "0px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [item.id, onVisibilityChange]);
+
   return (
     <motion.article
+      ref={cardVisRef}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
@@ -477,8 +498,11 @@ function ModalityTabs({
 
 export default function ShowcaseMasonry({
   sceneId,
+  aestheticOverride,
 }: {
   sceneId: SceneId;
+  /** 當 Gemini Director 偵測到美學偏好時，傳入標籤陣列觸發靜默重構 */
+  aestheticOverride?: string[] | null;
 }) {
   const styles = useMemo(() => SCENE_MASONRY_STYLES[sceneId], [sceneId]);
   const [modality, setModality] = useState<string | null>(null);
@@ -542,7 +566,14 @@ export default function ShowcaseMasonry({
     }, 50);
   }, [navigate, resetRipple]);
 
-  // ─── LOD API: cursor-based pagination ───────────────────────────────
+  // ───  // ─── Silent Reconstruction State ───────────────────────────────
+  const [reconstructedItems, setReconstructedItems] = useState<ShowcaseItem[]>([]);
+  const [isReconstructing, setIsReconstructing] = useState(false);
+  const reconstructedRef = useRef(false);
+  const visibleIdsRef = useRef<Set<number>>(new Set());
+  const reconstructionAestheticsRef = useRef<string[] | null>(null);
+
+  // ─── LOD API: cursor-based pagination ───────────────────────
   const {
     data,
     fetchNextPage,
@@ -561,10 +592,77 @@ export default function ShowcaseMasonry({
     }
   );
 
-  const allItems = useMemo(
+  const originalItems = useMemo(
     () => data?.pages.flatMap((p) => p.items) ?? [],
     [data]
   );
+
+  // ─── Track visible card IDs via IntersectionObserver ────────────
+  const trackVisibility = useCallback((id: number, isVisible: boolean) => {
+    if (isVisible) {
+      visibleIdsRef.current.add(id);
+    }
+  }, []);
+
+  // ─── Silent Reconstruction: fetch aesthetic-matched items ───────
+  useEffect(() => {
+    if (
+      !aestheticOverride ||
+      aestheticOverride.length === 0 ||
+      reconstructedRef.current ||
+      isReconstructing
+    ) return;
+
+    // Prevent duplicate reconstruction for same aesthetics
+    const sortedKey = [...aestheticOverride].sort();
+    const prevKey = reconstructionAestheticsRef.current;
+    if (prevKey && sortedKey.join(",") === prevKey.join(",")) return;
+    reconstructionAestheticsRef.current = sortedKey;
+
+    setIsReconstructing(true);
+    reconstructedRef.current = true;
+
+    // Collect currently visible IDs to exclude them
+    const excludeIds = Array.from(visibleIdsRef.current);
+
+    utils.showcase.byAesthetics
+      .fetch({
+        aesthetics: aestheticOverride,
+        limit: 24,
+        excludeIds,
+      })
+      .then((result) => {
+        if (result.items.length > 0) {
+          setReconstructedItems(result.items as ShowcaseItem[]);
+        }
+      })
+      .catch(() => {
+        // Silent fail — keep original items
+      })
+      .finally(() => {
+        setIsReconstructing(false);
+      });
+  }, [aestheticOverride, isReconstructing, utils.showcase.byAesthetics]);
+
+  // ─── Merge: visible originals + reconstructed replacements ──────
+  const allItems = useMemo(() => {
+    if (reconstructedItems.length === 0) return originalItems;
+
+    // Keep items that are already visible (in viewport)
+    const visibleIds = visibleIdsRef.current;
+    const keptItems = originalItems.filter((item) => visibleIds.has(item.id));
+
+    // Append reconstructed items (already excludes visible IDs from backend)
+    const merged = [...keptItems, ...reconstructedItems];
+
+    // Deduplicate by ID
+    const seen = new Set<number>();
+    return merged.filter((item) => {
+      if (seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    });
+  }, [originalItems, reconstructedItems]);
 
   // ─── Infinite Scroll: IntersectionObserver sentinel ─────────────────
   const loadMore = useCallback(() => {
@@ -675,7 +773,7 @@ export default function ShowcaseMasonry({
           >
             <AnimatePresence mode="popLayout">
               {allItems.map((item) => (
-                <MasonryCard key={item.id} item={item} styles={styles} onCardClick={handleCardClick as any} senseEngine={senseEngine} />
+                <MasonryCard key={item.id} item={item} styles={styles} onCardClick={handleCardClick as any} senseEngine={senseEngine} onVisibilityChange={trackVisibility} />
               ))}
             </AnimatePresence>
           </div>

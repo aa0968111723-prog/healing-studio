@@ -237,6 +237,104 @@ export const showcaseRouter = router({
     }),
 
   /**
+   * showcase.byAesthetics — 依美學偏好篩選作品
+   *
+   * 代理暗中重構環境專用端點。
+   * 接收 Gemini Director 偵測到的美學標籤陣列，
+   * 在 title / description / originalPrompt 中模糊比對，
+   * 回傳匹配的作品列表（LOD Level 1）。
+   * 排序：匹配度 DESC → sortWeight DESC → likeCount DESC
+   */
+  byAesthetics: publicProcedure
+    .input(
+      z.object({
+        aesthetics: z.array(z.string()).min(1).max(20),
+        limit: z
+          .number()
+          .min(1)
+          .max(MAX_PAGE_SIZE)
+          .default(DEFAULT_PAGE_SIZE),
+        cursor: z.number().nullish(),
+        excludeIds: z.array(z.number()).max(100).default([]),
+      })
+    )
+    .query(async ({ input }) => {
+      const db = await requireDb();
+      const { aesthetics, limit, cursor, excludeIds } = input;
+
+      // Build LIKE conditions for each aesthetic tag across searchable fields
+      const likeConditions = aesthetics.map((tag) => {
+        const pattern = `%${tag}%`;
+        return sql`(
+          ${featuredShowcase.title} LIKE ${pattern}
+          OR ${featuredShowcase.description} LIKE ${pattern}
+          OR ${featuredShowcase.originalPrompt} LIKE ${pattern}
+        )`;
+      });
+
+      // Match score: count how many aesthetic tags match
+      const matchScore = sql<number>`(
+        ${sql.join(
+          aesthetics.map((tag) => {
+            const pattern = `%${tag}%`;
+            return sql`(
+              (${featuredShowcase.title} LIKE ${pattern}) +
+              (${featuredShowcase.description} LIKE ${pattern}) +
+              (${featuredShowcase.originalPrompt} LIKE ${pattern})
+            )`;
+          }),
+          sql` + `
+        )}
+      )`.as("match_score");
+
+      const conditions = [
+        eq(featuredShowcase.isActive, true),
+        sql`(${sql.join(likeConditions, sql` OR `)})`
+      ];
+
+      if (cursor) {
+        conditions.push(lt(featuredShowcase.id, cursor));
+      }
+
+      // Exclude already-visible items
+      if (excludeIds.length > 0) {
+        conditions.push(
+          sql`${featuredShowcase.id} NOT IN (${sql.join(
+            excludeIds.map((id) => sql`${id}`),
+            sql`, `
+          )})`
+        );
+      }
+
+      const items = await db
+        .select({
+          ...LIST_FIELDS,
+          matchScore,
+        })
+        .from(featuredShowcase)
+        .where(and(...conditions))
+        .orderBy(
+          desc(sql`match_score`),
+          desc(featuredShowcase.sortWeight),
+          desc(featuredShowcase.likeCount),
+          desc(featuredShowcase.id)
+        )
+        .limit(limit + 1);
+
+      let nextCursor: number | undefined;
+      if (items.length > limit) {
+        const nextItem = items.pop()!;
+        nextCursor = nextItem.id;
+      }
+
+      return {
+        items: items.map(({ matchScore: _ms, ...rest }) => rest),
+        nextCursor,
+        totalMatched: items.length,
+      };
+    }),
+
+  /**
    * showcase.stats — 展示區統計摘要
    *
    * 回傳各模態的作品數量，前端用於渲染統計 Badge。

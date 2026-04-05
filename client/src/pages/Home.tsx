@@ -529,7 +529,17 @@ export default function Home() {
       <IntelBentoGrid sceneId={sceneId} />
 
       {/* ── Showcase Masonry (精選作品瀑布流) ── */}
-      <ShowcaseMasonry sceneId={sceneId} />
+      <ShowcaseMasonry
+        sceneId={sceneId}
+        aestheticOverride={
+          intentResult &&
+          intentResult.confidence > 0.5 &&
+          intentResult.intentType === "aesthetic_preference" &&
+          intentResult.detectedAesthetics.length > 0
+            ? intentResult.detectedAesthetics
+            : null
+        }
+      />
 
       {/* ── CTA Section ── */}
       <section className="py-20 px-4 relative">
