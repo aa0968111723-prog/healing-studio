@@ -1469,12 +1469,16 @@ export const appRouter = router({
         title: z.string().optional(),
         content: z.string().optional(),
         scriptJson: z.any().optional(),
+        scheduledDate: z.number().nullable().optional(),
       }))
       .mutation(async ({ input }) => {
         await db.updateProjectNote(input.id, {
           title: input.title,
           content: input.content,
           scriptJson: input.scriptJson,
+          ...(input.scheduledDate !== undefined
+            ? { scheduledDate: input.scheduledDate ? new Date(input.scheduledDate) : null }
+            : {}),
         });
         return { success: true };
       }),

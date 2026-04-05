@@ -236,11 +236,8 @@ export default function CalendarPage() {
       if (data.noteId) {
         updateNote.mutate({
           id: data.noteId,
-          title: data.title, // keep existing title
+          scheduledDate: date.getTime(),
         });
-        // We need to update scheduledDate - use create with same data as workaround
-        // Actually, we should update the note's scheduledDate
-        toast.info(`「${data.title}」已排程至 ${date.toLocaleDateString("zh-TW")}`);
       }
     } catch {
       // Not a valid drag payload

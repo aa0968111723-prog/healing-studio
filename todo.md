@@ -1044,3 +1044,26 @@
 - [x] 測試光球點擊展開面板功能（瀏覽器實測通過）
 - [x] 測試光球快捷指令能實際操作積木（隨機靈感填入「城市, 賽博龐克, 霓虹燈, 高飽和, 未來感」）
 - [x] 測試光球引導流程完整性（OnboardingTour 4 步驟 + Spotlight 正常）
+
+## 四大區域前後端連結與 API 檢查
+
+### 1. 角色鍛鍊所 / 一致性保險箱
+- [x] 檢查前端頁面與後端 tRPC 路由連結 → ✅ 完整（models.myModels/teamModels/create/captionImages/toggleVisibility/delete + vault.list/create/update/delete）
+- [x] 檢查 LoRA 訓練 API（Replicate）連結狀態 → ✅ REPLICATE_API_TOKEN 已配置
+- [x] 檢查一致性保險箱功能連結狀態 → ✅ CRUD 完整，無外部 API 依賴
+- [x] API 狀態：✅ 正常（LoRA 需 REPLICATE_API_TOKEN，已配置；圖片標註用內建 invokeLLM）
+
+### 2. 專案筆記
+- [x] 檢查前端頁面與後端 tRPC 路由連結 → ✅ 完整（notes.list/create/update/delete）
+- [x] 檢查筆記 CRUD API 連結狀態 → ✅ 純 CRUD，無外部 API
+- [x] API 狀態：✅ 正常（無外部 API 依賴）
+
+### 3. 創意排程
+- [x] 檢查前端頁面與後端 tRPC 路由連結 → ✅ 完整（共用 notes router）
+- [x] 檢查排程 CRUD API 連結狀態 → ⚠️ 已修復 Bug：notes.update 新增 scheduledDate 欄位，handleDrop 正確傳遞 date.getTime()
+- [x] API 狀態：✅ 正常（無外部 API 依賴，Bug 已修復）
+
+### 4. 共享空間
+- [x] 檢查前端頁面與後端 tRPC 路由連結 → ✅ 完整（assets.teamAssets + models.teamModels）
+- [x] 檢查共享/社群 API 連結狀態 → ✅ 純 CRUD + 前端過濾，無外部 API
+- [x] API 狀態：✅ 正常（無外部 API 依賴，共享獎勵機制已實作）
