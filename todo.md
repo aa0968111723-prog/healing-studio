@@ -934,3 +934,11 @@
 ## 精選作品被情報站遮蓋修復
 
 - [x] 修復 ShowcaseMasonry 被 IntelBentoGrid 遮蓋的問題（加 z-10 至 IntelBentoGrid、ShowcaseMasonry、IntentWhisper）
+
+## LoRA 訓練服務模組 (loraTrainer.ts)
+
+- [ ] 建立 server/services/loraTrainer.ts
+- [ ] 實作 buildZipBuffer（jszip 打包圖片）
+- [ ] 實作 uploadZipToStorage（storagePut 上傳 S3）
+- [ ] 實作 submitReplicateLoraTraining（Replicate API 提交訓練）
+- [ ] 實作 runLoraTrainingJob（主函數：打包→上傳→提交→輪詢→回寫 DB）
