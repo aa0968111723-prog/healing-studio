@@ -26,6 +26,7 @@ import ThoughtIslandChain, { type ThoughtNode } from "@/components/ThoughtIsland
 import { useAIState } from "@/contexts/AIStateContext";
 import VisualSoul from "@/components/VisualSoul";
 import { useLocation } from "wouter";
+import { useShowcaseTransfer } from "@/contexts/ShowcaseTransferContext";
 import type { GenerationMode, GenerationType } from "@shared/types";
 import JSZip from "jszip";
 
@@ -354,6 +355,87 @@ export default function Studio() {
   // Clean up SSE on unmount
   useEffect(() => {
     return () => { if (sseRef.current) { sseRef.current.close(); } };
+  }, []);
+
+  // ── Populate from Showcase Transfer (完全解構 JSON 還原) ──
+  const { consumePayload } = useShowcaseTransfer();
+  useEffect(() => {
+    const showcaseData = consumePayload();
+    if (showcaseData) {
+      // Set modality
+      setActiveModality(showcaseData.modality);
+
+      // Restore compiled prompt
+      if (showcaseData.originalPrompt || showcaseData.deconstructedBlocks?.compiledPrompt) {
+        const prompt = showcaseData.deconstructedBlocks?.compiledPrompt || showcaseData.originalPrompt || "";
+        setPromptBuilder(prev => ({
+          ...prev,
+          rawPrompt: prompt,
+          compiledPrompt: prompt,
+          // Restore vibe card selections
+          ...(showcaseData.deconstructedBlocks?.vibeCards?.length && {
+            vibeCardIds: showcaseData.deconstructedBlocks.vibeCards,
+          }),
+          // Restore freeform prompt
+          ...(showcaseData.deconstructedBlocks?.freeformPrompt && {
+            rawPrompt: showcaseData.deconstructedBlocks.freeformPrompt,
+          }),
+        }));
+      }
+
+      // Restore negative prompt for image modality
+      if (showcaseData.modality === "image" && showcaseData.deconstructedBlocks?.negativePrompt) {
+        setImageState(prev => ({
+          ...prev,
+          negativePrompt: showcaseData.deconstructedBlocks!.negativePrompt,
+          // Use showcase image as style reference
+          ...(showcaseData.imageUrl && { styleReferenceUrl: showcaseData.imageUrl }),
+        }));
+      }
+
+      // Restore video first frame from showcase image
+      if (showcaseData.modality === "video" && showcaseData.imageUrl) {
+        setVideoState(prev => ({ ...prev, firstFrameUrl: showcaseData.imageUrl }));
+      }
+
+      // Restore technical parameters from deconstructed blocks
+      if (showcaseData.deconstructedBlocks?.parameters) {
+        const params = showcaseData.deconstructedBlocks.parameters;
+        if (params.temperature != null) setTemperature(Number(params.temperature));
+        if (params.seed != null) setSeed(String(params.seed));
+        if (params.loraWeight != null) setLoraWeight(Number(params.loraWeight));
+        if (params.mode === "lightning" || params.mode === "deep_precision") {
+          setMode(params.mode as GenerationMode);
+        }
+        // Image-specific
+        if (showcaseData.modality === "image") {
+          setImageState(prev => ({
+            ...prev,
+            ...(params.aspectRatio != null && { aspectRatio: String(params.aspectRatio) }),
+          }));
+        }
+        // Audio-specific
+        if (showcaseData.modality === "audio") {
+          setAudioState(prev => ({
+            ...prev,
+            ...(params.musicStyle != null && { musicStyle: String(params.musicStyle) }),
+            ...(params.isInstrumental != null && { isInstrumental: Boolean(params.isInstrumental) }),
+            ...(params.lyrics != null && { lyrics: String(params.lyrics) }),
+          }));
+        }
+        // Voice-specific
+        if (showcaseData.modality === "voice") {
+          setVoiceState(prev => ({
+            ...prev,
+            ...(params.voiceText != null && { text: String(params.voiceText) }),
+          }));
+        }
+      }
+
+      toast.success(`已載入「${showcaseData.title}」的完整配方`, { duration: 4000 });
+      return; // Skip sendToStudio check if showcase data was consumed
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Populate from Director AI ──

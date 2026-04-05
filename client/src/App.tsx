@@ -23,6 +23,7 @@ import HistoryPage from "./pages/HistoryPage";
 import ProjectNotesDrawer from "./components/ProjectNotesDrawer";
 import OfflineBanner from "./components/OfflineBanner";
 import AuthExpiredModal from "./components/AuthExpiredModal";
+import { ShowcaseTransferProvider } from "./contexts/ShowcaseTransferContext";
 
 function DashboardRoute({ component: Component }: { component: React.ComponentType }) {
   return (
@@ -101,13 +102,15 @@ function App() {
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
         <NotesDrawerProvider>
-          <TooltipProvider>
-            <Toaster />
-            <OfflineBanner />
-            <AuthExpiredModal />
-            <Router />
-            <ProjectNotesDrawer />
-          </TooltipProvider>
+          <ShowcaseTransferProvider>
+            <TooltipProvider>
+              <Toaster />
+              <OfflineBanner />
+              <AuthExpiredModal />
+              <Router />
+              <ProjectNotesDrawer />
+            </TooltipProvider>
+          </ShowcaseTransferProvider>
         </NotesDrawerProvider>
       </ThemeProvider>
     </ErrorBoundary>

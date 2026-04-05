@@ -28,6 +28,7 @@ import {
 import { useLocation } from "wouter";
 import type { SceneId } from "./AmbientEnvironment";
 import RippleTransition, { useRippleTransition } from "./RippleTransition";
+import { useShowcaseTransfer, type ShowcaseTransferPayload } from "@/contexts/ShowcaseTransferContext";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -243,7 +244,7 @@ function MasonryCard({
 }: {
   item: ShowcaseItem;
   styles: MasonrySceneStyles;
-  onCardClick: (e: React.MouseEvent) => void;
+  onCardClick: (e: React.MouseEvent, itemId: number) => void;
 }) {
   const [isHovered, setIsHovered] = useState(false);
   const modConfig = MODALITY_CONFIG[item.modality] || MODALITY_CONFIG.image;
@@ -265,7 +266,7 @@ function MasonryCard({
         contain: "layout style paint",
         willChange: "transform",
       }}
-      onClick={onCardClick}
+      onClick={(e) => onCardClick(e, item.id)}
     >
       {/* Hover glow overlay */}
       <motion.div
@@ -467,15 +468,57 @@ export default function ShowcaseMasonry({
   const sentinelRef = useRef<HTMLDivElement>(null);
   const [, navigate] = useLocation();
   const { rippleActive, rippleOrigin, triggerRipple, resetRipple } = useRippleTransition();
+  const { setPayload, setIsLoading } = useShowcaseTransfer();
+  const utils = trpc.useUtils();
+  const prefetchReady = useRef(false);
+  const pendingItemId = useRef<number | null>(null);
 
-  const handleCardClick = useCallback((e: React.MouseEvent) => {
+  const handleCardClick = useCallback((e: React.MouseEvent, itemId: number) => {
     triggerRipple(e);
-  }, [triggerRipple]);
+    prefetchReady.current = false;
+    pendingItemId.current = itemId;
+    setIsLoading(true);
+
+    // Background prefetch full deconstructed data during ripple animation
+    utils.showcase.getById.fetch({ id: itemId })
+      .then((detail) => {
+        const payload: ShowcaseTransferPayload = {
+          showcaseId: detail.id,
+          generatedItemId: detail.generatedItemId,
+          title: detail.title,
+          deconstructedBlocks: detail.completelyDeconstructedBlocks as ShowcaseTransferPayload["deconstructedBlocks"],
+          vibeParameters: detail.vibeParameters as ShowcaseTransferPayload["vibeParameters"],
+          originalPrompt: detail.originalPrompt,
+          imageUrl: detail.imageUrl,
+          modality: detail.modality as "image" | "video" | "audio" | "voice",
+        };
+        setPayload(payload);
+        prefetchReady.current = true;
+        setIsLoading(false);
+      })
+      .catch(() => {
+        // Even if prefetch fails, still navigate — Studio will work without pre-loaded data
+        prefetchReady.current = true;
+        setIsLoading(false);
+      });
+  }, [triggerRipple, utils.showcase.getById, setPayload, setIsLoading]);
 
   const handleRippleComplete = useCallback(() => {
-    navigate("/studio");
-    // Reset after a short delay to allow exit animation
-    setTimeout(() => resetRipple(), 100);
+    // If prefetch is ready, navigate immediately
+    if (prefetchReady.current) {
+      navigate("/studio");
+      setTimeout(() => resetRipple(), 100);
+      return;
+    }
+    // Otherwise, poll until ready (max 3s safety timeout)
+    const start = Date.now();
+    const poll = setInterval(() => {
+      if (prefetchReady.current || Date.now() - start > 3000) {
+        clearInterval(poll);
+        navigate("/studio");
+        setTimeout(() => resetRipple(), 100);
+      }
+    }, 50);
   }, [navigate, resetRipple]);
 
   // ─── LOD API: cursor-based pagination ───────────────────────────────
@@ -610,7 +653,7 @@ export default function ShowcaseMasonry({
           >
             <AnimatePresence mode="popLayout">
               {allItems.map((item) => (
-                <MasonryCard key={item.id} item={item} styles={styles} onCardClick={handleCardClick} />
+                <MasonryCard key={item.id} item={item} styles={styles} onCardClick={handleCardClick as any} />
               ))}
             </AnimatePresence>
           </div>

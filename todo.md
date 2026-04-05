@@ -698,3 +698,22 @@
 - [x] 「進入工作室」過渡標籤 + 脈衝光點動畫
 - [x] TypeScript 編譯零錯誤確認（Found 0 errors）
 - [x] 瀏覽器零 console 錯誤 + HMR 更新正常
+
+## 完全解構 JSON 傳遞（Showcase → Studio 100% 還原）
+
+- [x] 分析 featured_showcase schema：completelyDeconstructedBlocks（完整積木 JSON）+ generatedItemId + vibeParameters
+- [x] 建立 ShowcaseTransferContext.tsx（Context + sessionStorage 雙層備援，頁面重整也不遺失）
+- [x] ShowcaseTransferProvider 包裹 App.tsx（NotesDrawerProvider 內層）
+- [x] showcase.getById 已回傳完整 LOD Level 2 資料（含 deconstructedBlocks + vibeParameters + originalPrompt）
+- [x] 水波紋動畫期間背景 prefetch（utils.showcase.getById.fetch 與動畫並行）
+- [x] prefetchReady polling 機制（資料就緒後才觸發 navigate，最長 3s 安全逾時）
+- [x] Studio 頁面 useEffect 讀取 consumePayload 實現 100% 開局還原：
+  - modality 自動切換
+  - compiledPrompt / rawPrompt / vibeCardIds 還原
+  - negativePrompt + styleReferenceUrl（圖像模態）
+  - firstFrameUrl（影片模態）
+  - temperature / seed / loraWeight / mode 技術參數
+  - aspectRatio / musicStyle / voiceText 等模態專屬參數
+- [x] Prefetch 失敗容錯（仍導航至 Studio，但不預載配方）
+- [x] toast 提示「已載入『XXX』的完整配方」
+- [x] TypeScript 編譯零錯誤確認（Found 0 errors）+ HMR 更新正常
