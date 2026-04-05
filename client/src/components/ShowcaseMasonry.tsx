@@ -29,6 +29,7 @@ import { useLocation } from "wouter";
 import type { SceneId } from "./AmbientEnvironment";
 import RippleTransition, { useRippleTransition } from "./RippleTransition";
 import { useShowcaseTransfer, type ShowcaseTransferPayload } from "@/contexts/ShowcaseTransferContext";
+import { useSenseEngine, useCardSenseProps, useSectionScrollSense } from "@/hooks/useSenseEngine";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -241,14 +242,24 @@ function MasonryCard({
   item,
   styles,
   onCardClick,
+  senseEngine,
 }: {
   item: ShowcaseItem;
   styles: MasonrySceneStyles;
   onCardClick: (e: React.MouseEvent, itemId: number) => void;
+  senseEngine: ReturnType<typeof useSenseEngine>;
 }) {
   const [isHovered, setIsHovered] = useState(false);
   const modConfig = MODALITY_CONFIG[item.modality] || MODALITY_CONFIG.image;
   const ModIcon = modConfig.icon;
+
+  // Sense Engine: card-level micro-behavior tracking
+  const senseProps = useCardSenseProps(
+    senseEngine,
+    `showcase-${item.id}`,
+    item.title,
+    item.modality,
+  );
 
   return (
     <motion.article
@@ -257,8 +268,11 @@ function MasonryCard({
       exit={{ opacity: 0, y: -10 }}
       whileHover={{ scale: 1.02 }}
       transition={{ duration: 0.4, ease: SOFT_BOUNCE }}
-      onHoverStart={() => setIsHovered(true)}
-      onHoverEnd={() => setIsHovered(false)}
+      onHoverStart={() => { setIsHovered(true); senseProps.onMouseEnter({} as React.MouseEvent); }}
+      onHoverEnd={() => { setIsHovered(false); senseProps.onMouseLeave(); }}
+      onMouseMove={(e) => senseProps.onMouseMove(e)}
+      onMouseDown={() => senseProps.onMouseDown()}
+      onMouseUp={() => senseProps.onMouseUp()}
       className="break-inside-avoid mb-4 rounded-xl overflow-hidden cursor-pointer group"
       style={{
         background: styles.cardBg,
@@ -266,7 +280,10 @@ function MasonryCard({
         contain: "layout style paint",
         willChange: "transform",
       }}
-      onClick={(e) => onCardClick(e, item.id)}
+      onClick={(e) => {
+        senseEngine.trackScrollClick();
+        onCardClick(e, item.id);
+      }}
     >
       {/* Hover glow overlay */}
       <motion.div
@@ -467,6 +484,10 @@ export default function ShowcaseMasonry({
   const [modality, setModality] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const [, navigate] = useLocation();
+
+  // Sense Engine: micro-behavior tracking
+  const senseEngine = useSenseEngine({ dwellThreshold: 5000, scrollHesitationThreshold: 3 });
+  const sectionScrollRef = useSectionScrollSense(senseEngine, "showcase-masonry");
   const { rippleActive, rippleOrigin, triggerRipple, resetRipple } = useRippleTransition();
   const { setPayload, setIsLoading } = useShowcaseTransfer();
   const utils = trpc.useUtils();
@@ -573,6 +594,7 @@ export default function ShowcaseMasonry({
 
   return (
     <section
+      ref={sectionScrollRef}
       className="py-20 px-4 relative"
       style={{ background: styles.sectionBg }}
     >
@@ -653,7 +675,7 @@ export default function ShowcaseMasonry({
           >
             <AnimatePresence mode="popLayout">
               {allItems.map((item) => (
-                <MasonryCard key={item.id} item={item} styles={styles} onCardClick={handleCardClick as any} />
+                <MasonryCard key={item.id} item={item} styles={styles} onCardClick={handleCardClick as any} senseEngine={senseEngine} />
               ))}
             </AnimatePresence>
           </div>

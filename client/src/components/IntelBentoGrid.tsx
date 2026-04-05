@@ -23,6 +23,7 @@ import {
   ExternalLink, Eye, Clock, ChevronRight,
 } from "lucide-react";
 import type { SceneId } from "@/components/AmbientEnvironment";
+import { useSenseEngine, useCardSenseProps, useSectionScrollSense } from "@/hooks/useSenseEngine";
 
 // ─── Weight Label Config ────────────────────────────────────────────────────
 
@@ -217,15 +218,26 @@ function BentoCard({
   item,
   config,
   styles,
+  senseEngine,
 }: {
   item: NewsItem;
   config: WeightConfig;
   styles: SceneStyles;
+  senseEngine: ReturnType<typeof useSenseEngine>;
 }) {
   const Icon = config.icon;
   const isHero = config.size === "hero";
   const isMedium = config.size === "medium";
   const [isHovered, setIsHovered] = useState(false);
+
+  // Sense Engine: card-level micro-behavior tracking
+  const senseProps = useCardSenseProps(
+    senseEngine,
+    `news-${item.id}`,
+    item.title,
+    undefined,
+    item.tags ?? undefined,
+  );
 
   // ─── Mouse-tracking fluid glow ─────────────────────────────────────────
   const mouseX = useMotionValue(0.5);
@@ -262,9 +274,11 @@ function BentoCard({
       exit={{ opacity: 0, scale: 0.96 }}
       whileHover={{ scale: 1.02 }}
       transition={{ duration: 0.4, ease: SOFT_BOUNCE }}
-      onHoverStart={() => setIsHovered(true)}
-      onHoverEnd={() => setIsHovered(false)}
-      onMouseMove={handleMouseMove}
+      onHoverStart={() => { setIsHovered(true); senseProps.onMouseEnter({} as React.MouseEvent); }}
+      onHoverEnd={() => { setIsHovered(false); senseProps.onMouseLeave(); }}
+      onMouseDown={() => senseProps.onMouseDown()}
+      onMouseUp={() => senseProps.onMouseUp()}
+      onMouseMove={(e) => { handleMouseMove(e); senseProps.onMouseMove(e); }}
       className={`group relative rounded-2xl overflow-hidden cursor-pointer ${spanClass}`}
       style={{
         background: styles.cardBg,
@@ -521,6 +535,10 @@ export default function IntelBentoGrid({ sceneId }: IntelBentoGridProps) {
   const styles = useMemo(() => SCENE_CARD_STYLES[sceneId], [sceneId]);
   const [activeTab, setActiveTab] = useState("all");
 
+  // Sense Engine: micro-behavior tracking
+  const senseEngine = useSenseEngine({ dwellThreshold: 5000, scrollHesitationThreshold: 3 });
+  const sectionScrollRef = useSectionScrollSense(senseEngine, "intel-bento-grid");
+
   // Fetch news from tRPC
   const { data, isLoading } = trpc.news.list.useQuery(
     { limit: 20 },
@@ -548,7 +566,7 @@ export default function IntelBentoGrid({ sceneId }: IntelBentoGridProps) {
   const layoutItems = useMemo(() => layoutBentoItems(filteredItems), [filteredItems]);
 
   return (
-    <section className="py-20 px-4 relative">
+    <section ref={sectionScrollRef} className="py-20 px-4 relative">
       <div className="max-w-6xl mx-auto">
         {/* Section header */}
         <motion.div
@@ -618,6 +636,7 @@ export default function IntelBentoGrid({ sceneId }: IntelBentoGridProps) {
                     item={item}
                     config={config}
                     styles={styles}
+                    senseEngine={senseEngine}
                   />
                 ))
               )}

@@ -717,3 +717,21 @@
 - [x] Prefetch 失敗容錯（仍導航至 Studio，但不預載配方）
 - [x] toast 提示「已載入『XXX』的完整配方」
 - [x] TypeScript 編譯零錯誤確認（Found 0 errors）+ HMR 更新正常
+
+## 首頁微行為追蹤（Sense Engine）
+
+- [x] 建立 useSenseEngine hook（微行為追蹤引擎核心，零外部依賴）
+- [x] 定義 6 種 SenseEvent 特徵型別：cardDwell / scrollHesitation / hoverIntent / clickAbort / sectionVisit / rapidScan
+- [x] cardDwell 追蹤：卡片停留超過 5s 觸發事件（含 cardTitle/modality/tags 元資料）
+- [x] scrollHesitation 追蹤：區域內反覆上下滾動超過 3 遍未點擊（含 directionChanges/totalScrollDistance/durationMs）
+- [x] hoverIntent 追蹤：意圖分數 intentScore = timeScore*0.6 + travelScore*0.4（停留越久+移動越少=越高意圖）
+- [x] clickAbort 追蹤：mousedown 後未 mouseup（holdMs > 200ms 才記錄）
+- [x] rapidScan 追蹤：3s 內快速揃過 4+ 張卡片（avgDwellMs < 2s）
+- [x] 特徵陣列暫存至 sessionStorage（MAX_EVENTS 200 筆自動裁剪）
+- [x] requestIdleCallback 非阻塞事件處理 + 離屏自動清理計時器
+- [x] useCardSenseProps 便捷工具（一次綁定 dwell + hoverIntent + clickAbort + rapidScan）
+- [x] useSectionScrollSense 區塊滾動追蹤（IntersectionObserver 偵測區塊進入視野）
+- [x] 整合至 ShowcaseMasonry MasonryCard（showcase-masonry 區塊）
+- [x] 整合至 IntelBentoGrid BentoCard（intel-bento-grid 區塊）
+- [x] getFeatureSummary 特徵摘要產生器（modalityPreference / highIntentCards / hesitationSections）
+- [x] TypeScript 編譯零錯誤確認（Found 0 errors）+ HMR 更新正常
