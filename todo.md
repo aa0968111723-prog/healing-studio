@@ -981,3 +981,37 @@
 - [x] 新增 MP4 下載功能（影片生成完成後可下載）
 - [x] 新增錯誤訊息顯示（videoError/audioError/voiceError 紅色文字提示）
 - [x] Gemini Veo API 配額不足時顯示友善錯誤訊息
+
+## 影片生成實測 + LoRA SDK 重寫 + 歷史頁面播放器
+
+### 任務 1：實測影片生成
+- [x] 在 Studio 影片模態觸發生成，驗證 Gemini Veo API 完整管線（48s 完成，1 個影片生成成功）
+- [x] 確認 API Key 配額足夠，Veo 2.0 正常運作
+
+### 任務 2：loraTrainer.ts Replicate SDK 重寫
+- [x] 改用 Replicate SDK（replicate.predictions.create/get）取代 raw fetch（已在先前開發中完成）
+- [x] 調整日誌格式為 [LoraTrainer] ISO ✅/⚠️/❌（已完成）
+- [x] 調整進度百分比（5→15→25→30→30-90→100）（已完成）
+- [x] submitReplicateTraining 使用 model name ostris/flux-dev-lora-trainer（已完成）
+- [x] 輪詢使用 replicate.predictions.get（已完成）
+
+### 任務 3：歷史頁面播放器
+- [x] HistoryPage 結果縮圖根據模態條件渲染 <video>/<audio>/<img>
+- [x] 展開詳情時也使用對應播放器（下載按鈕已支援 MP4/MP3）
+
+## 影片生成實測 + LoRA SDK 重寫 + 歷史頁面播放器
+
+### 任務 1：實測影片生成
+- [x] 在 Studio 影片模態觸發生成，驗證 Gemini Veo API 完整管線（48s 完成，1 個影片生成成功）
+- [x] 確認 API Key 配額足夠，Veo 2.0 正常運作
+
+### 任務 2：loraTrainer.ts Replicate SDK 重寫
+- [x] 改用 Replicate SDK（replicate.predictions.create/get）取代 raw fetch（已在先前開發中完成）
+- [x] 調整日誌格式為 [LoraTrainer] ISO ✅/⚠️/❌（已完成）
+- [x] 調整進度百分比（5→15→25→30→30-90→100）（已完成）
+- [x] submitReplicateTraining 使用 model name ostris/flux-dev-lora-trainer（已完成）
+- [x] 輪詢使用 replicate.predictions.get（已完成）
+
+### 任務 3：歷史頁面播放器
+- [x] HistoryPage 結果縮圖根據模態條件渲染 <video>/<audio>/<img>
+- [x] 展開詳情時也使用對應播放器（下載按鈕已支援 MP4/MP3）

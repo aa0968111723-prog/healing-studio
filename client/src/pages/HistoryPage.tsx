@@ -268,6 +268,31 @@ export default function HistoryPage() {
                           loading="lazy"
                         />
                       </div>
+                    ) : item.resultUrl && item.modality === "video" ? (
+                      <div className="rounded-lg overflow-hidden aspect-video bg-black/5">
+                        <video
+                          src={item.resultUrl}
+                          controls
+                          preload="metadata"
+                          className="w-full h-full object-contain"
+                          poster={item.thumbnailUrl || undefined}
+                        />
+                      </div>
+                    ) : item.resultUrl && (item.modality === "audio" || item.modality === "voice") ? (
+                      <div className={cn(
+                        "rounded-lg aspect-video flex flex-col items-center justify-center gap-3",
+                        config.bg,
+                      )}>
+                        <div className={cn("w-12 h-12 rounded-full flex items-center justify-center", config.color)}>
+                          {item.modality === "audio" ? <Music className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
+                        </div>
+                        <audio
+                          src={item.resultUrl}
+                          controls
+                          preload="metadata"
+                          className="w-[85%] h-8"
+                        />
+                      </div>
                     ) : (
                       <div className={cn(
                         "rounded-lg aspect-video flex items-center justify-center",
