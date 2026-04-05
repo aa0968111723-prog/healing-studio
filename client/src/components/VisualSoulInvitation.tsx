@@ -192,7 +192,7 @@ const INVITATION_TEMPLATES: Record<string, InvitationTemplate[]> = {
 /** 判定是否應該觸發光球邀約 */
 function shouldTriggerInvitation(intent: IntentResult | null): boolean {
   if (!intent) return false;
-  if (intent.confidence < 0.4) return false;
+  if (intent.confidence < 0.3) return false; // 降低信心門檻，更早介入
 
   // 高觸發優先級：猶豫 / 靈感枯竭 / 被動瀏覽
   const highTriggerTypes = [
@@ -205,10 +205,10 @@ function shouldTriggerInvitation(intent: IntentResult | null): boolean {
   const mediumTriggerTypes = ["aesthetic_preference"];
 
   if (highTriggerTypes.includes(intent.intentType)) return true;
-  if (mediumTriggerTypes.includes(intent.intentType) && intent.confidence > 0.5) return true;
+  if (mediumTriggerTypes.includes(intent.intentType) && intent.confidence > 0.4) return true;
 
-  // 低觸發：探索模式 / 目標導向（只在高信心時觸發）
-  if (intent.confidence > 0.7) return true;
+  // 低觸發：探索模式 / 目標導向（中等信心即觸發）
+  if (intent.confidence > 0.55) return true;
 
   return false;
 }
@@ -250,8 +250,48 @@ export default function VisualSoulInvitation({
   const [isExpanded, setIsExpanded] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);
   const [hasBeenShown, setHasBeenShown] = useState(false);
+  const [welcomeMessage, setWelcomeMessage] = useState<string | null>(null);
   const expandTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dismissCountRef = useRef(0);
+
+  // ── Welcome / Return Visit Greeting ──
+  useEffect(() => {
+    const VISIT_KEY = "healing_studio_visit_count";
+    const LAST_VISIT_KEY = "healing_studio_last_visit";
+    const now = Date.now();
+    const visitCount = parseInt(localStorage.getItem(VISIT_KEY) || "0", 10) + 1;
+    const lastVisit = parseInt(localStorage.getItem(LAST_VISIT_KEY) || "0", 10);
+    localStorage.setItem(VISIT_KEY, String(visitCount));
+    localStorage.setItem(LAST_VISIT_KEY, String(now));
+
+    const hoursSinceLastVisit = lastVisit > 0 ? (now - lastVisit) / (1000 * 60 * 60) : 999;
+    const hour = new Date().getHours();
+
+    let greeting: string | null = null;
+
+    if (visitCount === 1) {
+      // 首次造訪
+      greeting = hour < 12
+        ? "早安，歡迎來到 Healing Studio。這裡是你的創意安全地帶，慢慢探索，沒有壓力。"
+        : hour < 18
+        ? "你好，歡迎來到 Healing Studio。讓我陳伴你開始一段創作旅程吧。"
+        : "晚安，歡迎來到 Healing Studio。夜晚是靈感最活躍的時刻。";
+    } else if (hoursSinceLastVisit > 24) {
+      // 超過一天沒來
+      greeting = "好久不見！你的創作空間一直在這裡等你。準備好繼續上次的靈感了嗎？";
+    } else if (hoursSinceLastVisit > 4) {
+      // 幾小時後回來
+      greeting = "歡迎回來！休息過後的靈感往往更清晰。想從哪裡開始？";
+    }
+    // 短時間內回訪不顯示歡迎語，避免干擾
+
+    if (greeting) {
+      setWelcomeMessage(greeting);
+      // 8 秒後自動消失
+      const timer = setTimeout(() => setWelcomeMessage(null), 8000);
+      return () => clearTimeout(timer);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Invitation content ──
   const invitation = useMemo(() => {
@@ -282,11 +322,11 @@ export default function VisualSoulInvitation({
     const shouldTrigger = shouldTriggerInvitation(intentResult);
     if (!shouldTrigger) return;
 
-    // 延遲 2.5 秒後浮起（避免突兀）
+    // 延遲 1.8 秒後浮起（更快回應使用者需求，但不突兀）
     expandTimerRef.current = setTimeout(() => {
       setIsExpanded(true);
       setHasBeenShown(true);
-    }, 2500);
+    }, 1800);
 
     return () => {
       if (expandTimerRef.current) {
@@ -301,11 +341,11 @@ export default function VisualSoulInvitation({
     setIsDismissed(true);
     dismissCountRef.current += 1;
 
-    // 30 秒後允許再次觸發（如果有新的推論結果）
+    // 45 秒後允許再次觸發（給使用者更多空間，但不會太久）
     setTimeout(() => {
       setIsDismissed(false);
       setHasBeenShown(false);
-    }, 30_000);
+    }, 45_000);
   }, []);
 
   // ── Navigate to studio ──
@@ -474,6 +514,34 @@ export default function VisualSoulInvitation({
                 className="!w-14 !h-14"
               />
             </motion.button>
+          </motion.div>
+        )}
+
+        {/* ── Welcome Message Tooltip ── */}
+        {welcomeMessage && !isExpanded && (
+          <motion.div
+            key="welcome"
+            initial={{ opacity: 0, y: 10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 5, scale: 0.97 }}
+            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+            className="absolute bottom-16 right-0 max-w-[280px] rounded-xl px-4 py-3 backdrop-blur-xl shadow-lg pointer-events-none"
+            style={{
+              background: bubbleStyle.bg,
+              border: `1px solid ${bubbleStyle.border}`,
+            }}
+          >
+            <p className={`text-xs leading-relaxed ${bubbleStyle.text}`}>
+              {welcomeMessage}
+            </p>
+            <div
+              className="absolute -bottom-1.5 right-6 w-3 h-3 rotate-45"
+              style={{
+                background: bubbleStyle.bg,
+                borderRight: `1px solid ${bubbleStyle.border}`,
+                borderBottom: `1px solid ${bubbleStyle.border}`,
+              }}
+            />
           </motion.div>
         )}
 

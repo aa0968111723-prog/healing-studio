@@ -55,27 +55,40 @@ const PROACTIVE_RULES: Array<{
   switchTo?: Personality;
 }> = [
   {
-    // User idle for 30+ seconds → suggest calm guidance
-    condition: (m) => m.idleSeconds >= 30 && m.failCount === 0,
-    message: () => "看起來你在思考中...需要我幫你從一個關鍵詞開始構建畫面嗎？試試描述一個場景或情緒。",
-    switchTo: "calm",
+    // User idle for 20+ seconds → gentle warm nudge
+    condition: (m) => m.idleSeconds >= 20 && m.idleSeconds < 45 && m.failCount === 0,
+    message: (p) => p === "calm"
+      ? "慢慢來，沒有壓力。如果需要靈感，試試閉上眼睛想像一個讓你安心的場景，然後把它描述出來。"
+      : p === "technical"
+      ? "有時候從技術參數開始反而更容易——試試先選擇一個風格或解析度，讓創作自然展開。"
+      : "看起來你在思考中...試試從一個情緒或顏色開始，比如「溫暖的金色光線」或「雨後的寧靜」。",
   },
   {
-    // User typing very fast → switch to creative mode
+    // User typing very fast → affirm and switch to creative mode
     condition: (m, p) => m.typingSpeed > 5 && p !== "creative",
-    message: () => "靈感湧現！我切換到創意模式，幫你捕捉更多想像力。",
+    message: () => "靈感湧現了！我切換到創意模式，讓你的想法自由流動。",
     switchTo: "creative",
   },
   {
-    // 2+ consecutive failures → switch to technical
+    // 2+ consecutive failures → empathetic switch to technical
     condition: (m) => m.failCount >= 2,
-    message: () => "連續生成未達預期，我切換到技術模式，幫你精確調整參數。建議檢查提示詞的具體性和排除描述。",
+    message: () => "創作過程中的嘗試都是有價值的。我切換到技術模式，幫你微調參數——有時候一個小調整就能帶來大不同。",
     switchTo: "technical",
   },
   {
-    // Idle 60+ seconds → stronger nudge
-    condition: (m) => m.idleSeconds >= 60,
-    message: () => "我注意到你暫停了一會兒。要不要試試「光球引導」？我可以根據你的風格偏好推薦創作方向。",
+    // Idle 45+ seconds → warmer, more personal nudge
+    condition: (m) => m.idleSeconds >= 45 && m.idleSeconds < 90,
+    message: () => "休息也是創作的一部分。如果你準備好了，可以試試告訴我你今天的心情，我來幫你轉化成創作靈感。",
+  },
+  {
+    // Idle 90+ seconds → offer guided exploration
+    condition: (m) => m.idleSeconds >= 90,
+    message: () => "要不要讓我帶你看看其他人的作品？有時候別人的創作會點燃意想不到的靈感。",
+  },
+  {
+    // First success after failure → celebrate
+    condition: (m) => m.failCount === 0 && m.typingSpeed > 0 && m.idleSeconds < 5,
+    message: () => "太棒了！繼續保持這個節奏，你的創作正在成形中。",
   },
 ];
 

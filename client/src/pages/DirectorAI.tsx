@@ -230,7 +230,7 @@ export default function DirectorAI() {
           return (
             <button
               key={p.id}
-              onClick={() => setPersonality(p.id)}
+              onClick={() => { setPersonality(p.id); setGlobalPersonality(p.id); }}
               className={cn(
                 "flex-1 rounded-xl p-3 transition-all border text-left",
                 isActive
@@ -279,6 +279,18 @@ export default function DirectorAI() {
       <div className="flex gap-5">
         {/* Left: Chat Panel */}
         <div className={`flex-1 transition-all ${showStoryboard && !isMobile ? "max-w-[55%]" : ""}`}>
+          {/* Orb thinking indicator above chat */}
+          {chatMutation.isPending && (
+            <motion.div
+              initial={{ opacity: 0, y: 5 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="flex items-center gap-2 mb-2 px-1"
+            >
+              <VisualSoul size="sm" personality={personality} state="thinking" />
+              <span className="text-xs text-muted-foreground animate-pulse">導演 AI 正在思考中...</span>
+            </motion.div>
+          )}
           <AIChatBox
             messages={messages}
             onSendMessage={handleSend}
@@ -288,7 +300,7 @@ export default function DirectorAI() {
             emptyStateMessage="告訴導演 AI 你的創作構想"
             suggestedPrompts={[
               "幫我構思一部創意短片",
-              "我想製作一段冥想引導音頻",
+              "我想製作一段冐想引導音頻",
               "設計一個品牌宣傳影片腳本",
             ]}
           />
@@ -361,10 +373,10 @@ export default function DirectorAI() {
                           {/* Dispatch Targets */}
                           <div className="flex gap-2 pt-2 border-t border-border/30">
                             <div className="flex items-center gap-1 text-[10px] text-muted-foreground bg-muted/30 px-2 py-1 rounded-md">
-                              <Image className="w-3 h-3" /> Veo 3.1
+                              <Image className="w-3 h-3" /> Veo 2.0
                             </div>
                             <div className="flex items-center gap-1 text-[10px] text-muted-foreground bg-muted/30 px-2 py-1 rounded-md">
-                              <Music className="w-3 h-3" /> Suno V5
+                              <Music className="w-3 h-3" /> Suno V4
                             </div>
                             <div className="flex items-center gap-1 text-[10px] text-muted-foreground bg-muted/30 px-2 py-1 rounded-md">
                               <Mic className="w-3 h-3" /> ElevenLabs
@@ -404,13 +416,13 @@ export default function DirectorAI() {
               <p className="text-xs text-foreground line-clamp-3">{script.context}</p>
               <div className="flex gap-2">
                 <div className="flex items-center gap-1 text-[10px] text-muted-foreground bg-muted/30 px-2 py-1 rounded-md">
-                  <Image className="w-3 h-3" /> 視覺
+                  <Image className="w-3 h-3" /> Veo 2.0
                 </div>
                 <div className="flex items-center gap-1 text-[10px] text-muted-foreground bg-muted/30 px-2 py-1 rounded-md">
-                  <Music className="w-3 h-3" /> 音樂
+                  <Music className="w-3 h-3" /> Suno V4
                 </div>
                 <div className="flex items-center gap-1 text-[10px] text-muted-foreground bg-muted/30 px-2 py-1 rounded-md">
-                  <Mic className="w-3 h-3" /> 語音
+                  <Mic className="w-3 h-3" /> ElevenLabs
                 </div>
               </div>
             </GlassCard>
