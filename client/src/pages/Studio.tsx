@@ -16,7 +16,7 @@ import {
   Image, Video, Music, Mic, Wand2, Download,
   PanelLeftOpen, PanelLeftClose, PanelRightOpen, PanelRightClose,
   Layers, Settings2, Clock, Package, X, Star, Bookmark, BookmarkCheck,
-  Send, RefreshCw, StickyNote,
+  Send, RefreshCw, StickyNote, Cpu, Check,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useIsMobile } from "@/hooks/useMobile";
@@ -254,9 +254,15 @@ export default function Studio() {
   const [audioState, setAudioState] = useState(createDefaultAudioState);
   const [voiceState, setVoiceState] = useState(createDefaultVoiceState);
 
+  // ── Vault & Model injection state ──
+  const [vaultCharacterId, setVaultCharacterId] = useState<number | undefined>(undefined);
+  const [vaultSceneId, setVaultSceneId] = useState<number | undefined>(undefined);
+  const [fineTunedModelId, setFineTunedModelId] = useState<number | undefined>(undefined);
+  const [fineTunedModelName, setFineTunedModelName] = useState<string | undefined>(undefined);
+
   // ── UI state ──
   const [leftDrawerOpen, setLeftDrawerOpen] = useState(false);
-  const [leftDrawerTab, setLeftDrawerTab] = useState<"vault" | "assets">("vault");
+  const [leftDrawerTab, setLeftDrawerTab] = useState<"vault" | "assets" | "models">("vault");
   const [rightDrawerOpen, setRightDrawerOpen] = useState(false);
   const [controlsSheetOpen, setControlsSheetOpen] = useState(false);
   const [mobileDrawerSheet, setMobileDrawerSheet] = useState<"left" | "right" | null>(null);
@@ -766,6 +772,10 @@ export default function Studio() {
         voiceEmotionType: voiceState.emotionType,
         voiceEmotionIntensity: voiceState.emotionIntensity,
       }),
+      // Vault & Model injection
+      vaultCharacterId,
+      vaultSceneId,
+      fineTunedModelId,
     };
 
     try {
@@ -780,14 +790,21 @@ export default function Studio() {
     } catch {
       // Errors are handled by onError callbacks in the mutations
     }
-  }, [promptBuilder, activeModality, mode, temperature, seed, imageState, videoState, audioState, voiceState, generateMutation, prepareJobMutation, connectSSE]);
+  }, [promptBuilder, activeModality, mode, temperature, seed, imageState, videoState, audioState, voiceState, generateMutation, prepareJobMutation, connectSSE, vaultCharacterId, vaultSceneId, fineTunedModelId]);
 
   // ── Vault select handler ──
   const handleVaultSelect = useCallback((item: VaultItem) => {
+    // Set vault ID for backend injection
+    if (item.type === "character") {
+      setVaultCharacterId(item.id);
+    } else if (item.type === "scene") {
+      setVaultSceneId(item.id);
+    }
+
     if (activeModality === "video") {
       if (!videoState.firstFrameUrl) {
         setVideoState(prev => ({ ...prev, firstFrameUrl: item.imageUrl }));
-        toast.success(`已將「${item.name}」設為首幀`);
+        toast.success(`已將「${item.name}」設為首幀（角色特徵將注入生成）`);
       } else if (!videoState.characterRefUrl) {
         setVideoState(prev => ({ ...prev, characterRefUrl: item.imageUrl }));
         toast.success(`已將「${item.name}」設為角色參考`);
@@ -797,10 +814,14 @@ export default function Studio() {
     } else if (activeModality === "image") {
       if (!imageState.styleReferenceUrl) {
         setImageState(prev => ({ ...prev, styleReferenceUrl: item.imageUrl }));
-        toast.success(`已將「${item.name}」設為風格參考`);
+        toast.success(`已將「${item.name}」設為風格參考（角色特徵將注入生成）`);
       } else {
         toast.info("風格參考已設定，請先清除再載入");
       }
+    } else if (activeModality === "audio") {
+      toast.success(`已綁定「${item.name}」角色特徵至音樂生成`);
+    } else if (activeModality === "voice") {
+      toast.success(`已綁定「${item.name}」角色特徵至語音生成`);
     }
     if (isMobile) setMobileDrawerSheet(null);
   }, [activeModality, videoState, imageState, isMobile]);
@@ -943,8 +964,8 @@ export default function Studio() {
           <DrawerPanel
             open={leftDrawerOpen}
             side="left"
-            title={leftDrawerTab === "vault" ? "一致性保險庫" : "數位資產"}
-            icon={leftDrawerTab === "vault" ? <Layers className="w-4 h-4 text-primary" /> : <Package className="w-4 h-4 text-primary" />}
+            title={leftDrawerTab === "vault" ? "一致性保險庫" : leftDrawerTab === "models" ? "角色鍛造所" : "數位資產"}
+            icon={leftDrawerTab === "vault" ? <Layers className="w-4 h-4 text-primary" /> : leftDrawerTab === "models" ? <Cpu className="w-4 h-4 text-primary" /> : <Package className="w-4 h-4 text-primary" />}
             onClose={() => setLeftDrawerOpen(false)}
           >
             {/* Tab switcher inside drawer */}
@@ -968,11 +989,53 @@ export default function Studio() {
                   <Package className="w-3 h-3 inline mr-1" />
                   資產
                 </button>
+                <button
+                  onClick={() => setLeftDrawerTab("models")}
+                  className={`flex-1 text-xs py-1.5 rounded-md transition-colors ${
+                    leftDrawerTab === "models" ? "bg-white shadow-sm text-foreground font-medium" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Cpu className="w-3 h-3 inline mr-1" />
+                  模型
+                </button>
               </div>
             </div>
 
+            {/* Active vault/model indicator */}
+            {(vaultCharacterId || vaultSceneId || fineTunedModelId) && (
+              <div className="px-3 py-1.5">
+                <div className="flex flex-wrap gap-1">
+                  {vaultCharacterId && (
+                    <span className="inline-flex items-center gap-1 text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                      角色已綁定
+                      <button onClick={() => setVaultCharacterId(undefined)} className="hover:text-destructive"><X className="w-2.5 h-2.5" /></button>
+                    </span>
+                  )}
+                  {vaultSceneId && (
+                    <span className="inline-flex items-center gap-1 text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                      場景已綁定
+                      <button onClick={() => setVaultSceneId(undefined)} className="hover:text-destructive"><X className="w-2.5 h-2.5" /></button>
+                    </span>
+                  )}
+                  {fineTunedModelId && (
+                    <span className="inline-flex items-center gap-1 text-[10px] bg-amber-500/10 text-amber-700 px-2 py-0.5 rounded-full">
+                      <Cpu className="w-2.5 h-2.5" />
+                      {fineTunedModelName || "微調模型"}
+                      <button onClick={() => { setFineTunedModelId(undefined); setFineTunedModelName(undefined); }} className="hover:text-destructive"><X className="w-2.5 h-2.5" /></button>
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
             {leftDrawerTab === "vault" ? (
               <ConsistencyVault onSelect={handleVaultSelect} compact />
+            ) : leftDrawerTab === "models" ? (
+              <MiniModelsPanel
+                activeModelId={fineTunedModelId}
+                onApply={(id, name) => { setFineTunedModelId(id); setFineTunedModelName(name); toast.success(`已套用模型「${name}」的觸發詞`); }}
+                onRemove={() => { setFineTunedModelId(undefined); setFineTunedModelName(undefined); toast.info("已移除微調模型"); }}
+              />
             ) : (
               <MiniAssetsPanel />
             )}
@@ -1483,9 +1546,23 @@ export default function Studio() {
               >
                 資產
               </button>
+              <button
+                onClick={() => setLeftDrawerTab("models")}
+                className={`flex-1 text-xs py-2 rounded-lg transition-colors ${
+                  leftDrawerTab === "models" ? "bg-primary text-primary-foreground" : "bg-muted/30 text-muted-foreground"
+                }`}
+              >
+                模型
+              </button>
             </div>
             {leftDrawerTab === "vault" ? (
               <ConsistencyVault onSelect={handleVaultSelect} />
+            ) : leftDrawerTab === "models" ? (
+              <MiniModelsPanel
+                activeModelId={fineTunedModelId}
+                onApply={(id, name) => { setFineTunedModelId(id); setFineTunedModelName(name); toast.success(`已套用模型「${name}」`); }}
+                onRemove={() => { setFineTunedModelId(undefined); setFineTunedModelName(undefined); toast.info("已移除微調模型"); }}
+              />
             ) : (
               <MiniAssetsPanel />
             )}
@@ -1582,6 +1659,103 @@ function MiniAssetsPanel() {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+
+// ─── Mini Models Panel (embedded in left drawer) ──────────────────────────
+
+function MiniModelsPanel({
+  activeModelId,
+  onApply,
+  onRemove,
+}: {
+  activeModelId?: number;
+  onApply: (id: number, name: string) => void;
+  onRemove: () => void;
+}) {
+  const myModelsQuery = trpc.models.myModels.useQuery(undefined, { retry: false });
+
+  if (myModelsQuery.isLoading) {
+    return (
+      <div className="p-3 space-y-2">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-12 rounded-lg bg-muted/30 animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+
+  const models = myModelsQuery.data || [];
+
+  if (!models.length) {
+    return (
+      <div className="p-6 text-center">
+        <Cpu className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
+        <p className="text-xs text-muted-foreground">尚無微調模型</p>
+        <p className="text-xs text-muted-foreground/60 mt-1">前往「角色鍛造所」訓練你的專屬模型</p>
+      </div>
+    );
+  }
+
+  const STATUS_LABELS: Record<string, { label: string; color: string }> = {
+    ready: { label: "就緒", color: "text-green-600 bg-green-50" },
+    training: { label: "訓練中", color: "text-amber-600 bg-amber-50" },
+    pending: { label: "等待中", color: "text-muted-foreground bg-muted/30" },
+    failed: { label: "失敗", color: "text-red-600 bg-red-50" },
+  };
+
+  return (
+    <div className="space-y-1 p-2">
+      {models.map((model: any) => {
+        const isActive = activeModelId === model.id;
+        const isReady = model.status === "ready";
+        const statusInfo = STATUS_LABELS[model.status] || STATUS_LABELS.pending;
+        const triggerWord = model.configJson?.triggerWord as string | undefined;
+
+        return (
+          <div
+            key={model.id}
+            className={`flex items-center gap-2 p-2 rounded-lg transition-colors ${
+              isActive ? "bg-primary/10 ring-1 ring-primary/30" : "hover:bg-accent/30"
+            }`}
+          >
+            <div className="w-8 h-8 rounded bg-muted/30 flex items-center justify-center shrink-0">
+              <Cpu className="w-3.5 h-3.5 text-muted-foreground" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-foreground truncate font-medium">{model.name}</p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${statusInfo.color}`}>
+                  {statusInfo.label}
+                </span>
+                {triggerWord && (
+                  <span className="text-[10px] text-muted-foreground truncate">
+                    觸發詞: {triggerWord}
+                  </span>
+                )}
+              </div>
+            </div>
+            {isReady && (
+              <button
+                onClick={() => isActive ? onRemove() : onApply(model.id, model.name)}
+                className={`shrink-0 text-[10px] px-2 py-1 rounded-md transition-colors ${
+                  isActive
+                    ? "bg-destructive/10 text-destructive hover:bg-destructive/20"
+                    : "bg-primary/10 text-primary hover:bg-primary/20"
+                }`}
+              >
+                {isActive ? (
+                  <><X className="w-2.5 h-2.5 inline mr-0.5" />移除</>
+                ) : (
+                  <><Check className="w-2.5 h-2.5 inline mr-0.5" />套用</>
+                )}
+              </button>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
