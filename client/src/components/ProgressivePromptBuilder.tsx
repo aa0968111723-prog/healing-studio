@@ -36,85 +36,176 @@ type BlockCategory = {
   items: { id: string; label: string; prompt: string }[];
 };
 
-// ─── Visual blocks for image/video modalities ─────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// 🖼️ IMAGE_BLOCK_CATEGORIES — SSLCM 公式
+// Subject → Style → Lighting → Color → Composition (Mood)
+// ═══════════════════════════════════════════════════════════════════════════
 
-const VISUAL_BLOCK_CATEGORIES: BlockCategory[] = [
+const IMAGE_BLOCK_CATEGORIES: BlockCategory[] = [
   {
-    id: "subject", label: "主體", icon: "👤", color: "rose", glowRgb: "255,100,130",
+    id: "img-subject", label: "主體 Subject", icon: "👤", color: "rose", glowRgb: "255,100,130",
     items: [
-      { id: "s1", label: "少女", prompt: "a young girl" },
-      { id: "s2", label: "武士", prompt: "a samurai warrior" },
-      { id: "s3", label: "貓咪", prompt: "a cat" },
-      { id: "s4", label: "機器人", prompt: "a robot" },
-      { id: "s5", label: "龍", prompt: "a dragon" },
-      { id: "s6", label: "精靈", prompt: "an elf" },
-      { id: "s7", label: "老人", prompt: "an elderly sage" },
-      { id: "s8", label: "花朵", prompt: "flowers" },
+      { id: "is1", label: "少女", prompt: "a young girl" },
+      { id: "is2", label: "武士", prompt: "a samurai warrior" },
+      { id: "is3", label: "貓咪", prompt: "a cat" },
+      { id: "is4", label: "機器人", prompt: "a humanoid robot" },
+      { id: "is5", label: "龍", prompt: "a majestic dragon" },
+      { id: "is6", label: "精靈", prompt: "an ethereal elf" },
+      { id: "is7", label: "老者", prompt: "an elderly sage" },
+      { id: "is8", label: "花朵", prompt: "blooming flowers" },
     ],
   },
   {
-    id: "style", label: "風格", icon: "🎨", color: "violet", glowRgb: "160,100,255",
+    id: "img-style", label: "風格 Style", icon: "🎨", color: "violet", glowRgb: "160,100,255",
     items: [
-      { id: "st1", label: "賽博龐克", prompt: "cyberpunk style" },
-      { id: "st2", label: "水彩畫", prompt: "watercolor painting" },
-      { id: "st3", label: "油畫", prompt: "oil painting" },
-      { id: "st4", label: "浮世繪", prompt: "ukiyo-e style" },
-      { id: "st5", label: "像素藝術", prompt: "pixel art" },
-      { id: "st6", label: "超現實", prompt: "surrealism" },
-      { id: "st7", label: "極簡主義", prompt: "minimalist" },
-      { id: "st8", label: "蒸汽龐克", prompt: "steampunk" },
+      { id: "ist1", label: "賽博龐克", prompt: "cyberpunk style" },
+      { id: "ist2", label: "水彩畫", prompt: "watercolor painting" },
+      { id: "ist3", label: "油畫", prompt: "oil painting, impasto brushstrokes" },
+      { id: "ist4", label: "浮世繪", prompt: "ukiyo-e woodblock print" },
+      { id: "ist5", label: "像素藝術", prompt: "pixel art, 16-bit" },
+      { id: "ist6", label: "超現實", prompt: "surrealism, dreamlike" },
+      { id: "ist7", label: "極簡主義", prompt: "minimalist, clean lines" },
+      { id: "ist8", label: "蒸汽龐克", prompt: "steampunk, brass and gears" },
     ],
   },
   {
-    id: "scene", label: "場景", icon: "🏔️", color: "emerald", glowRgb: "80,220,150",
+    id: "img-lighting", label: "光影 Lighting", icon: "💡", color: "sky", glowRgb: "80,200,255",
     items: [
-      { id: "sc1", label: "森林", prompt: "in a dense forest" },
-      { id: "sc2", label: "城市", prompt: "in a futuristic city" },
-      { id: "sc3", label: "海洋", prompt: "by the ocean" },
-      { id: "sc4", label: "太空", prompt: "in outer space" },
-      { id: "sc5", label: "廢墟", prompt: "in ancient ruins" },
-      { id: "sc6", label: "花園", prompt: "in a beautiful garden" },
-      { id: "sc7", label: "雪山", prompt: "on a snowy mountain" },
-      { id: "sc8", label: "沙漠", prompt: "in a vast desert" },
+      { id: "il1", label: "黃金時刻", prompt: "golden hour lighting" },
+      { id: "il2", label: "霓虹燈", prompt: "neon lighting, cyberpunk glow" },
+      { id: "il3", label: "月光", prompt: "soft moonlight" },
+      { id: "il4", label: "逆光", prompt: "backlit, rim lighting" },
+      { id: "il5", label: "柔光", prompt: "soft diffused light" },
+      { id: "il6", label: "戲劇光", prompt: "dramatic chiaroscuro, Rembrandt lighting" },
+      { id: "il7", label: "燭光", prompt: "warm candlelight" },
+      { id: "il8", label: "極光", prompt: "aurora borealis light" },
     ],
   },
   {
-    id: "lighting", label: "光線", icon: "💡", color: "sky", glowRgb: "80,200,255",
+    id: "img-color", label: "色彩 Color", icon: "🌈", color: "amber", glowRgb: "255,180,50",
     items: [
-      { id: "l1", label: "黃金時刻", prompt: "golden hour lighting" },
-      { id: "l2", label: "霓虹燈", prompt: "neon lighting" },
-      { id: "l3", label: "月光", prompt: "moonlight" },
-      { id: "l4", label: "逆光", prompt: "backlit, rim lighting" },
-      { id: "l5", label: "柔光", prompt: "soft diffused light" },
-      { id: "l6", label: "戲劇光", prompt: "dramatic chiaroscuro" },
-      { id: "l7", label: "燭光", prompt: "candlelight" },
-      { id: "l8", label: "極光", prompt: "aurora borealis light" },
+      { id: "ic1", label: "暖色調", prompt: "warm color palette, amber and gold tones" },
+      { id: "ic2", label: "冷色調", prompt: "cool color palette, blue and teal tones" },
+      { id: "ic3", label: "單色", prompt: "monochromatic, single hue" },
+      { id: "ic4", label: "高飽和", prompt: "vibrant saturated colors" },
+      { id: "ic5", label: "低飽和", prompt: "desaturated, muted tones" },
+      { id: "ic6", label: "復古色", prompt: "vintage color grading, faded film look" },
     ],
   },
   {
-    id: "camera", label: "鏡頭", icon: "📐", color: "orange", glowRgb: "255,140,50",
+    id: "img-composition", label: "構圖 Composition", icon: "📐", color: "orange", glowRgb: "255,140,50",
     items: [
-      { id: "c1", label: "特寫", prompt: "close-up shot" },
-      { id: "c2", label: "全景", prompt: "wide angle panoramic" },
-      { id: "c3", label: "俯瞰", prompt: "bird's eye view" },
-      { id: "c4", label: "仰拍", prompt: "low angle shot" },
-      { id: "c5", label: "微距", prompt: "macro photography" },
-      { id: "c6", label: "淺景深", prompt: "shallow depth of field, bokeh" },
-      { id: "c7", label: "魚眼", prompt: "fisheye lens" },
-      { id: "c8", label: "長焦", prompt: "telephoto lens compression" },
+      { id: "ico1", label: "特寫", prompt: "close-up shot" },
+      { id: "ico2", label: "全景", prompt: "wide angle panoramic" },
+      { id: "ico3", label: "俯瞰", prompt: "bird's eye view" },
+      { id: "ico4", label: "仰拍", prompt: "low angle shot" },
+      { id: "ico5", label: "微距", prompt: "macro photography" },
+      { id: "ico6", label: "淺景深", prompt: "shallow depth of field, bokeh" },
+      { id: "ico7", label: "對稱構圖", prompt: "symmetrical composition" },
+      { id: "ico8", label: "三分法", prompt: "rule of thirds composition" },
     ],
   },
 ];
 
-// ─── Audio-specific blocks for music modality ─────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// 🎬 VIDEO_BLOCK_CATEGORIES
+// Subject → Style → Subject Motion → Camera Motion → Pacing
+// ═══════════════════════════════════════════════════════════════════════════
+
+const VIDEO_BLOCK_CATEGORIES: BlockCategory[] = [
+  {
+    id: "vid-subject", label: "主體 Subject", icon: "🎭", color: "rose", glowRgb: "255,100,130",
+    items: [
+      { id: "vs1", label: "少女", prompt: "a young girl" },
+      { id: "vs2", label: "武士", prompt: "a samurai warrior" },
+      { id: "vs3", label: "貓咪", prompt: "a cat" },
+      { id: "vs4", label: "機器人", prompt: "a humanoid robot" },
+      { id: "vs5", label: "龍", prompt: "a majestic dragon" },
+      { id: "vs6", label: "舞者", prompt: "a graceful dancer" },
+    ],
+  },
+  {
+    id: "vid-style", label: "風格 Style", icon: "🎨", color: "violet", glowRgb: "160,100,255",
+    items: [
+      { id: "vst1", label: "電影感", prompt: "cinematic, film grain" },
+      { id: "vst2", label: "動畫", prompt: "3D animation style" },
+      { id: "vst3", label: "紀錄片", prompt: "documentary style, handheld" },
+      { id: "vst4", label: "夢境", prompt: "dreamlike, ethereal" },
+      { id: "vst5", label: "復古膠片", prompt: "vintage film, Super 8mm" },
+      { id: "vst6", label: "科幻", prompt: "sci-fi futuristic" },
+    ],
+  },
+  {
+    id: "vid-motion", label: "主體動態 Motion", icon: "🏃", color: "emerald", glowRgb: "80,220,150",
+    items: [
+      { id: "vm1", label: "緩步行走", prompt: "walking slowly" },
+      { id: "vm2", label: "奔跑", prompt: "running forward" },
+      { id: "vm3", label: "旋轉", prompt: "spinning gracefully" },
+      { id: "vm4", label: "飛翔", prompt: "flying through the air" },
+      { id: "vm5", label: "靜止凝視", prompt: "standing still, gazing" },
+      { id: "vm6", label: "漂浮", prompt: "floating weightlessly" },
+    ],
+  },
+  {
+    id: "vid-camera", label: "運鏡 Camera", icon: "🎥", color: "sky", glowRgb: "80,200,255",
+    items: [
+      { id: "vc1", label: "推軌", prompt: "dolly forward" },
+      { id: "vc2", label: "環繞", prompt: "orbiting around subject" },
+      { id: "vc3", label: "升降", prompt: "crane shot, rising up" },
+      { id: "vc4", label: "手持跟拍", prompt: "handheld tracking shot" },
+      { id: "vc5", label: "固定鏡頭", prompt: "static locked-off shot" },
+      { id: "vc6", label: "慢動作", prompt: "slow motion, 120fps" },
+    ],
+  },
+  {
+    id: "vid-pacing", label: "節奏 Pacing", icon: "⏱️", color: "amber", glowRgb: "255,180,50",
+    items: [
+      { id: "vp1", label: "緩慢沉浸", prompt: "slow pacing, contemplative" },
+      { id: "vp2", label: "中等節奏", prompt: "moderate pacing" },
+      { id: "vp3", label: "快速剪輯", prompt: "fast cuts, dynamic editing" },
+      { id: "vp4", label: "漸進加速", prompt: "gradually accelerating pace" },
+      { id: "vp5", label: "時間凝結", prompt: "time freeze, bullet time" },
+      { id: "vp6", label: "延時攝影", prompt: "timelapse" },
+    ],
+  },
+];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🎵 AUDIO_BLOCK_CATEGORIES — GMIT 公式
+// Genre → Mood → Instrument → Tempo
+// ═══════════════════════════════════════════════════════════════════════════
 
 const AUDIO_BLOCK_CATEGORIES: BlockCategory[] = [
   {
-    id: "instrument", label: "樂器", icon: "🎹", color: "violet", glowRgb: "160,100,255",
+    id: "aud-genre", label: "曲風 Genre", icon: "🎵", color: "rose", glowRgb: "255,100,130",
+    items: [
+      { id: "ag1", label: "環境音", prompt: "ambient music" },
+      { id: "ag2", label: "Lo-Fi", prompt: "lo-fi chill beats" },
+      { id: "ag3", label: "流行", prompt: "pop music" },
+      { id: "ag4", label: "爵士", prompt: "jazz" },
+      { id: "ag5", label: "古典", prompt: "classical music" },
+      { id: "ag6", label: "電子", prompt: "electronic, EDM" },
+      { id: "ag7", label: "民謠", prompt: "folk, acoustic" },
+      { id: "ag8", label: "R&B", prompt: "R&B soul" },
+    ],
+  },
+  {
+    id: "aud-mood", label: "情緒 Mood", icon: "💫", color: "violet", glowRgb: "160,100,255",
+    items: [
+      { id: "am1", label: "療癒", prompt: "healing, soothing" },
+      { id: "am2", label: "歡快", prompt: "happy, uplifting" },
+      { id: "am3", label: "憂鬱", prompt: "melancholic, bittersweet" },
+      { id: "am4", label: "史詩", prompt: "epic, grandiose" },
+      { id: "am5", label: "神秘", prompt: "mysterious, enigmatic" },
+      { id: "am6", label: "浪漫", prompt: "romantic, tender" },
+    ],
+  },
+  {
+    id: "aud-instrument", label: "樂器 Instrument", icon: "🎹", color: "emerald", glowRgb: "80,220,150",
     items: [
       { id: "ai1", label: "鋼琴", prompt: "piano" },
       { id: "ai2", label: "吉他", prompt: "acoustic guitar" },
-      { id: "ai3", label: "合成器", prompt: "synthesizer" },
+      { id: "ai3", label: "合成器", prompt: "synthesizer, synth pads" },
       { id: "ai4", label: "管弦樂", prompt: "orchestral ensemble" },
       { id: "ai5", label: "小提琴", prompt: "violin" },
       { id: "ai6", label: "長笛", prompt: "flute" },
@@ -123,38 +214,55 @@ const AUDIO_BLOCK_CATEGORIES: BlockCategory[] = [
     ],
   },
   {
-    id: "genre", label: "曲風", icon: "🎵", color: "rose", glowRgb: "255,100,130",
+    id: "aud-tempo", label: "速度 Tempo", icon: "⏱️", color: "amber", glowRgb: "255,180,50",
     items: [
-      { id: "ag1", label: "環境音", prompt: "ambient music" },
-      { id: "ag2", label: "Lo-Fi", prompt: "lo-fi chill beats" },
-      { id: "ag3", label: "流行", prompt: "pop music" },
-      { id: "ag4", label: "爵士", prompt: "jazz" },
-      { id: "ag5", label: "古典", prompt: "classical music" },
-      { id: "ag6", label: "電子", prompt: "electronic music" },
-      { id: "ag7", label: "民謠", prompt: "folk music" },
-      { id: "ag8", label: "R&B", prompt: "R&B soul" },
-    ],
-  },
-  {
-    id: "tempo", label: "節奏", icon: "⏱️", color: "amber", glowRgb: "255,180,50",
-    items: [
-      { id: "at1", label: "慢板", prompt: "slow tempo, adagio" },
-      { id: "at2", label: "中等", prompt: "moderate tempo" },
-      { id: "at3", label: "快節奏", prompt: "fast tempo, upbeat" },
-      { id: "at4", label: "漸快", prompt: "gradually accelerating tempo" },
+      { id: "at1", label: "慢板 60bpm", prompt: "slow tempo, 60 bpm, adagio" },
+      { id: "at2", label: "行板 90bpm", prompt: "moderate tempo, 90 bpm, andante" },
+      { id: "at3", label: "快板 130bpm", prompt: "fast tempo, 130 bpm, allegro" },
+      { id: "at4", label: "急板 160bpm", prompt: "very fast, 160 bpm, presto" },
       { id: "at5", label: "自由節奏", prompt: "free tempo, rubato" },
-      { id: "at6", label: "搖擺", prompt: "swing rhythm" },
+      { id: "at6", label: "搖擺", prompt: "swing rhythm, syncopated" },
+    ],
+  },
+];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🎙️ VOICE_BLOCK_CATEGORIES
+// Emotion → Speed & Tone → Structure
+// ═══════════════════════════════════════════════════════════════════════════
+
+const VOICE_BLOCK_CATEGORIES: BlockCategory[] = [
+  {
+    id: "vox-emotion", label: "情感 Emotion", icon: "🎭", color: "rose", glowRgb: "255,100,130",
+    items: [
+      { id: "ve1", label: "溫柔", prompt: "gentle, warm tone" },
+      { id: "ve2", label: "激昂", prompt: "passionate, energetic" },
+      { id: "ve3", label: "沉穩", prompt: "calm, steady" },
+      { id: "ve4", label: "哀傷", prompt: "sorrowful, melancholic" },
+      { id: "ve5", label: "歡樂", prompt: "joyful, cheerful" },
+      { id: "ve6", label: "神秘", prompt: "mysterious, whispering" },
     ],
   },
   {
-    id: "ambiance", label: "環境質感", icon: "🌊", color: "sky", glowRgb: "80,200,255",
+    id: "vox-speed", label: "調性語速 Speed & Tone", icon: "🔊", color: "sky", glowRgb: "80,200,255",
     items: [
-      { id: "aa1", label: "空間感", prompt: "spacious reverb, wide soundstage" },
-      { id: "aa2", label: "溫暖", prompt: "warm analog tone" },
-      { id: "aa3", label: "復古雜音", prompt: "vintage vinyl crackle, lo-fi noise" },
-      { id: "aa4", label: "空靈", prompt: "ethereal, dreamy atmosphere" },
-      { id: "aa5", label: "深沉", prompt: "deep bass, sub-bass" },
-      { id: "aa6", label: "清透", prompt: "crystal clear, bright mix" },
+      { id: "vsp1", label: "緩慢低沉", prompt: "slow pace, deep voice" },
+      { id: "vsp2", label: "中速清晰", prompt: "moderate pace, clear articulation" },
+      { id: "vsp3", label: "快速活潑", prompt: "fast pace, lively" },
+      { id: "vsp4", label: "抑揚頓挫", prompt: "varied cadence, expressive intonation" },
+      { id: "vsp5", label: "輕聲細語", prompt: "soft whisper, ASMR-like" },
+      { id: "vsp6", label: "高亢宏亮", prompt: "loud, projecting voice" },
+    ],
+  },
+  {
+    id: "vox-structure", label: "結構段落 Structure", icon: "📝", color: "violet", glowRgb: "160,100,255",
+    items: [
+      { id: "vstr1", label: "旁白獨白", prompt: "narration, monologue" },
+      { id: "vstr2", label: "對話", prompt: "dialogue, conversational" },
+      { id: "vstr3", label: "詩歌朗誦", prompt: "poetry recitation" },
+      { id: "vstr4", label: "新聞播報", prompt: "news anchor, broadcast" },
+      { id: "vstr5", label: "故事講述", prompt: "storytelling, narrative" },
+      { id: "vstr6", label: "冥想引導", prompt: "meditation guide, breathing cues" },
     ],
   },
 ];
@@ -162,13 +270,23 @@ const AUDIO_BLOCK_CATEGORIES: BlockCategory[] = [
 // ─── Helper: get blocks by modality ───────────────────────────────────────
 
 function getBlocksForModality(modality?: string): BlockCategory[] {
-  if (modality === "audio") return AUDIO_BLOCK_CATEGORIES;
-  return VISUAL_BLOCK_CATEGORIES;
+  switch (modality) {
+    case "image":  return IMAGE_BLOCK_CATEGORIES;
+    case "video":  return VIDEO_BLOCK_CATEGORIES;
+    case "audio":  return AUDIO_BLOCK_CATEGORIES;
+    case "voice":  return VOICE_BLOCK_CATEGORIES;
+    default:       return IMAGE_BLOCK_CATEGORIES;
+  }
 }
 
 // ─── All built-in block IDs for lookup ────────────────────────────────────
 
-const ALL_BUILTIN_BLOCKS = [...VISUAL_BLOCK_CATEGORIES, ...AUDIO_BLOCK_CATEGORIES];
+const ALL_BUILTIN_BLOCKS = [
+  ...IMAGE_BLOCK_CATEGORIES,
+  ...VIDEO_BLOCK_CATEGORIES,
+  ...AUDIO_BLOCK_CATEGORIES,
+  ...VOICE_BLOCK_CATEGORIES,
+];
 
 function findBuiltinBlock(blockId: string) {
   for (const cat of ALL_BUILTIN_BLOCKS) {
@@ -887,11 +1005,16 @@ export function ProgressivePromptBuilder({ value, onChange, modality, onType }: 
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const blocksLabel = modality === "audio" ? "音樂靈感積木" : "靈感積木";
+  const blocksLabel = modality === "audio" ? "音樂靈感積木"
+    : modality === "voice" ? "配音靈感積木"
+    : modality === "video" ? "影片靈感積木"
+    : "圖像靈感積木";
   const promptPlaceholder = modality === "audio"
     ? "描述你想要的音樂風格與情感...或從上方積木拼出靈感"
     : modality === "voice"
-    ? "輸入要轉換為語音的文字..."
+    ? "輸入要轉換為語音的文字...或從上方積木拼出靈感"
+    : modality === "video"
+    ? "描述你想要的影片畫面...或從上方積木拼出靈感"
     : "描述你想要創作的畫面...或從上方積木拼出靈感";
 
   const totalSelected = selectedBlocks.size + selectedCustomBlockIds.size;
@@ -1205,8 +1328,8 @@ export function ProgressivePromptBuilder({ value, onChange, modality, onType }: 
         </div>
       )}
 
-      {/* ═══ Section 4: Visual Vibe Cards (only for image/video) ═══ */}
-      {(modality === "image" || modality === "video" || !modality) && (
+      {/* ═══ Section 4: Vibe Cards (all modalities) ═══ */}
+      {(modality === "image" || modality === "video" || modality === "audio" || !modality) && (
         <div className="space-y-2.5">
           <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">氛圍風格</Label>
           <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">

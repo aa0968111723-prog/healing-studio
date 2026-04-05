@@ -899,3 +899,13 @@
 - [x] Wave 2: Race Condition 防護 + Transaction Rollback
 - [x] Wave 0: 光球一鍵轉接 URL Query 參數機制
 - [x] Wave 0: Studio.tsx 自動擷取 preset_prompt 填入輸入框
+
+## 四模態高階創作積木擴充 (The 4-Modality Formula)
+
+- [x] 移除舊版 VISUAL_BLOCK_CATEGORIES 和 AUDIO_BLOCK_CATEGORIES
+- [x] 建立 IMAGE_BLOCK_CATEGORIES（SSLCM：主體/風格/光影/色彩/構圖）
+- [x] 建立 VIDEO_BLOCK_CATEGORIES（主體/風格/主體動態/運鏡/節奏）
+- [x] 建立 AUDIO_BLOCK_CATEGORIES（GMIT：曲風/情緒/樂器/速度）
+- [x] 建立 VOICE_BLOCK_CATEGORIES（情感/調性語速/結構段落）
+- [x] 修改 getBlocksForModality 四模態路由
+- [x] 修改 ALL_BUILTIN_BLOCKS 合併四陣列
