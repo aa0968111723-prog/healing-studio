@@ -5,7 +5,7 @@ import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Settings, User, Sparkles, Save, RotateCcw } from "lucide-react";
+import { Settings, User, Sparkles, Save, RotateCcw, Brain, ChevronRight } from "lucide-react";
 import { useAIState } from "@/contexts/AIStateContext";
 import { useLocation } from "wouter";
 
@@ -174,6 +174,26 @@ export default function SettingsPage() {
             </div>
           </div>
         )}
+      </GlassCard>
+      {/* AI Brain Configuration Link */}
+      <GlassCard>
+        <button
+          onClick={() => navigate("/settings/ai-brain")}
+          className="w-full flex items-center justify-between p-1 rounded-lg hover:bg-white/30 transition-colors group"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Brain className="w-4 h-4 text-primary" />
+            </div>
+            <div className="text-left">
+              <h3 className="text-sm font-semibold text-foreground">AI 大腦組態</h3>
+              <p className="text-[10px] text-muted-foreground">
+                管理 5 種推理大腦與 4 種生成引擎的模型選擇與參數配置
+              </p>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+        </button>
       </GlassCard>
     </div>
   );

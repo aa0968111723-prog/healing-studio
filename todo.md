@@ -831,3 +831,13 @@
 - [x] 安全提示日誌（切換/降級事件記錄）
 - [x] 整合至 tRPC router（brainProcedure）
 - [x] vitest 測試覆蓋（24 tests passed）
+
+## Settings AI Brain 儀表板 (/settings/ai-brain)
+
+- [x] brain tRPC 路由（getBrain / upsertBrain / switchModel / healthStatus）
+- [x] 5 大推理大腦下拉選單（導演/新聞過濾/編譯器/光球語調/RAG 向量）
+- [x] 4 大生成引擎下拉選單（圖片/影片/音樂/配音）
+- [x] 健康狀態點燈（Online 綠 / Degraded 橘 / Offline 紅）
+- [x] Live Preview 光球對話範例
+- [x] 整合路由至 App.tsx
+- [x] vitest 測試覆蓋（21 tests passed）

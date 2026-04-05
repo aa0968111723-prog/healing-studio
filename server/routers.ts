@@ -12,6 +12,7 @@ import { generationBus } from "./generationEvents";
 import { newsRouter } from "./routers/news";
 import { showcaseRouter } from "./routers/showcase";
 import { senseRouter } from "./routers/sense";
+import { brainRouter } from "./routers/brain";
 
 // ─── Timeout Utility ────────────────────────────────────────────────────────
 
@@ -313,6 +314,7 @@ export const appRouter = router({
   news: newsRouter,
   showcase: showcaseRouter,
   sense: senseRouter,
+  brain: brainRouter,
 
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

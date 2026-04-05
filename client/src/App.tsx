@@ -18,6 +18,7 @@ import FeedbackPage from "./pages/FeedbackPage";
 import AdminPage from "./pages/AdminPage";
 import SharedSpace from "./pages/SharedSpace";
 import SettingsPage from "./pages/SettingsPage";
+import AiBrainSettings from "./pages/AiBrainSettings";
 import VaultPage from "./pages/VaultPage";
 import HistoryPage from "./pages/HistoryPage";
 import ProjectNotesDrawer from "./components/ProjectNotesDrawer";
@@ -81,6 +82,9 @@ function Router() {
       </Route>
       <Route path="/feedback">
         <DashboardRoute component={FeedbackPage} />
+      </Route>
+      <Route path="/settings/ai-brain">
+        <ProtectedDashboardRoute component={AiBrainSettings} />
       </Route>
       <Route path="/settings">
         <DashboardRoute component={SettingsPage} />
