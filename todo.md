@@ -841,3 +841,16 @@
 - [x] Live Preview 光球對話範例
 - [x] 整合路由至 App.tsx
 - [x] vitest 測試覆蓋（21 tests passed）
+
+## 真實 API 金鑰匯入
+
+- [x] NEWS_API_KEY (NewsAPI.org) — 驗證通過
+- [x] NEWSDATA_API_KEY (NewsData.io) — 驗證通過
+- [x] FAL_API_KEY (Fal.ai 圖片/影片生成) — 驗證通過
+- [x] LANGSMITH_API_KEY (LangSmith 研究監控) — 格式正確
+- [x] PINECONE_API_KEY (Pinecone 向量資料庫) — 驗證通過
+- [x] ELEVENLABS_API_KEY (ElevenLabs 語音合成) — 免費版 401，可能過期
+- [x] SUNO_API_KEY (Suno AI 音樂生成) — 格式正確
+- [x] REPLICATE_API_TOKEN (Replicate 模型託管) — 驗證通過
+- [ ] POSEHUB_API_KEY (骨骼姿勢測量) — 待確認環境變數名稱
+- [x] 驗證測試確認金鑰有效（14 tests passed）
