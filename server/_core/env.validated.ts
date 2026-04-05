@@ -131,6 +131,12 @@ function validateAndWarn(): ServerEnvResult {
     }
   }
 
+  // LoRA 訓練服務（非必填，缺少時角色訓練功能降級）
+  const REPLICATE_API_TOKEN = env.REPLICATE_API_TOKEN;
+  if (!REPLICATE_API_TOKEN) {
+    console.warn("[Env] ⚠️ REPLICATE_API_TOKEN not set — LoRA model training will be disabled");
+  }
+
   return env;
 }
 
