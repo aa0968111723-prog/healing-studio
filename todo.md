@@ -1067,3 +1067,25 @@
 - [x] 檢查前端頁面與後端 tRPC 路由連結 → ✅ 完整（assets.teamAssets + models.teamModels）
 - [x] 檢查共享/社群 API 連結狀態 → ✅ 純 CRUD + 前端過濾，無外部 API
 - [x] API 狀態：✅ 正常（無外部 API 依賴，共享獎勵機制已實作）
+
+## LoRA 實測 + 排程拖曳回饋 + 共享空間一鍵使用
+
+### 任務 1：實測 LoRA 訓練
+- [x] 檢查 Replicate API Token 有效性 → ❌ Token 無效（401 Unauthenticated），需更新
+- [ ] 測試 models.create 觸發 LoRA 訓練流程（待 Token 更新後測試）
+- [ ] 驗證訓練狀態輪詢與進度更新（待 Token 更新後測試）
+- [x] 標註 API 狀態 → ❌ REPLICATE_API_TOKEN 已過期，需前往 replicate.com 重新取得
+
+### 任務 2：創意排程拖曳視覺回饋
+- [x] 拖曳筆記到日期時目標日期高亮（ring-2 ring-amber-400 + scale-110 + shadow-lg）
+- [x] 拖曳完成後顯示 toast 提示（含日期資訊 + CheckCircle2 圖示）
+- [x] 拖曳離開時移除高亮（dragCounter 精確追蹤巢狀元素進出）
+- [x] 新增拖曳提示橫幅（動態顯示目標日期）
+
+### 任務 3：共享空間「一鍵使用」
+- [x] 共享素材卡片新增「一鍵使用」按鈕（hover overlay + 底部「帶入工作室」按鈕）
+- [x] 點擊後帶入 Studio 作為參考圖片或靈感描述（sessionStorage sendToStudio）
+- [x] 支援不同模態的素材（圖片→styleRef、影片→firstFrame、音樂/語音→prompt）
+- [x] 共享模型新增「使用」按鈕（帶入 fineTunedModelId/Name）
+- [x] Studio 接收端新增 shared_space 來源辨識 + styleRef/fineTunedModel 還原
+- [x] 20 個 vitest 測試全部通過（calendar-sharedspace.test.ts）

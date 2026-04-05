@@ -527,8 +527,20 @@ export default function Studio() {
           setVideoState(prev => ({ ...prev, firstFrameUrl: data.referenceImageUrl }));
         }
 
+        // Restore image style reference from shared space
+        if (data.referenceImageUrl && data.generationType === "image") {
+          setImageState(prev => ({ ...prev, styleReferenceUrl: data.referenceImageUrl }));
+        }
+
+        // Restore fine-tuned model selection from shared space
+        if (data.fineTunedModelId) {
+          setFineTunedModelId(Number(data.fineTunedModelId));
+          if (data.fineTunedModelName) setFineTunedModelName(String(data.fineTunedModelName));
+        }
+
         sessionStorage.removeItem("sendToStudio");
-        toast.success("已載入參數與提示詞");
+        const source = data.source === "shared_space" ? "已從共享空間載入素材" : "已載入參數與提示詞";
+        toast.success(source);
       } catch { /* ignore */ }
     }
   }, []);

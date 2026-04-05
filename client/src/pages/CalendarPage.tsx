@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { GlassCard } from "@/components/ZenCoPilot";
 import { toast } from "sonner";
 import {
   CalendarDays, Plus, Trash2, Clock, Image, Video, Music, Mic,
-  ChevronLeft, ChevronRight, GripVertical, X,
+  ChevronLeft, ChevronRight, GripVertical, X, CheckCircle2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -69,6 +69,7 @@ function EventCard({
       draggable
       onDragStart={(e: any) => {
         e.dataTransfer?.setData("text/plain", JSON.stringify({ noteId: note.id, title: note.title }));
+        e.dataTransfer.effectAllowed = "move";
       }}
     >
       <div className="flex items-start justify-between gap-1">
@@ -183,6 +184,10 @@ export default function CalendarPage() {
   const [showNewEvent, setShowNewEvent] = useState(false);
   const [month, setMonth] = useState(new Date());
 
+  // ── Drag state for calendar cell highlighting ──
+  const [dragOverDate, setDragOverDate] = useState<string | null>(null);
+  const dragCounterRef = useRef<Map<string, number>>(new Map());
+
   const notesQuery = trpc.notes.list.useQuery();
   const deleteNote = trpc.notes.delete.useMutation({
     onSuccess: () => {
@@ -192,9 +197,28 @@ export default function CalendarPage() {
   });
 
   const updateNote = trpc.notes.update.useMutation({
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       notesQuery.refetch();
-      toast.success("排程已更新");
+      // Show a rich toast with the scheduled date
+      if (variables.scheduledDate) {
+        const dateObj = new Date(variables.scheduledDate);
+        const dateStr = dateObj.toLocaleDateString("zh-TW", {
+          month: "long",
+          day: "numeric",
+          weekday: "long",
+        });
+        toast.success(
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
+            <span>
+              已排程至 <strong>{dateStr}</strong>
+            </span>
+          </div>,
+          { duration: 3000 }
+        );
+      } else {
+        toast.success("排程已更新");
+      }
     },
   });
 
@@ -231,6 +255,8 @@ export default function CalendarPage() {
   // Handle drop on calendar date
   const handleDrop = useCallback((e: React.DragEvent, date: Date) => {
     e.preventDefault();
+    setDragOverDate(null);
+    dragCounterRef.current.clear();
     try {
       const data = JSON.parse(e.dataTransfer.getData("text/plain"));
       if (data.noteId) {
@@ -243,6 +269,64 @@ export default function CalendarPage() {
       // Not a valid drag payload
     }
   }, [updateNote]);
+
+  // Handle drag over on the calendar container — detect which date cell is being hovered
+  const handleCalendarDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  }, []);
+
+  // Find the date from a drag event target by traversing up to find [data-day]
+  const getDateFromTarget = useCallback((target: EventTarget): Date | null => {
+    let el = target as HTMLElement;
+    while (el) {
+      const dayAttr = el.getAttribute("data-day");
+      if (dayAttr) {
+        const parsed = new Date(dayAttr);
+        if (!isNaN(parsed.getTime())) return parsed;
+      }
+      if (el.parentElement) {
+        el = el.parentElement;
+      } else {
+        break;
+      }
+    }
+    return null;
+  }, []);
+
+  const handleCellDragEnter = useCallback((e: React.DragEvent) => {
+    const date = getDateFromTarget(e.target);
+    if (date) {
+      const key = date.toDateString();
+      const counter = dragCounterRef.current.get(key) || 0;
+      dragCounterRef.current.set(key, counter + 1);
+      setDragOverDate(key);
+    }
+  }, [getDateFromTarget]);
+
+  const handleCellDragLeave = useCallback((e: React.DragEvent) => {
+    const date = getDateFromTarget(e.target);
+    if (date) {
+      const key = date.toDateString();
+      const counter = (dragCounterRef.current.get(key) || 1) - 1;
+      if (counter <= 0) {
+        dragCounterRef.current.delete(key);
+        // Only clear if no other cell is being hovered
+        if (dragOverDate === key) {
+          setDragOverDate(null);
+        }
+      } else {
+        dragCounterRef.current.set(key, counter);
+      }
+    }
+  }, [dragOverDate]);
+
+  const handleCellDrop = useCallback((e: React.DragEvent) => {
+    const date = getDateFromTarget(e.target);
+    if (date) {
+      handleDrop(e, date);
+    }
+  }, [getDateFromTarget, handleDrop]);
 
   return (
     <div className="space-y-6">
@@ -269,20 +353,77 @@ export default function CalendarPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Calendar */}
+        {/* Calendar with drag-over support */}
         <GlassCard className="lg:col-span-2">
-          <Calendar
-            mode="single"
-            selected={selectedDate}
-            onSelect={setSelectedDate}
-            month={month}
-            onMonthChange={setMonth}
-            modifiers={{ hasEvent: eventDates }}
-            modifiersClassNames={{
-              hasEvent: "relative after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1 after:h-1 after:rounded-full after:bg-amber-400",
-            }}
-            className="w-full"
-          />
+          <div
+            onDragOver={handleCalendarDragOver}
+            onDragEnter={handleCellDragEnter}
+            onDragLeave={handleCellDragLeave}
+            onDrop={handleCellDrop}
+          >
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={setSelectedDate}
+              month={month}
+              onMonthChange={setMonth}
+              modifiers={{ hasEvent: eventDates }}
+              modifiersClassNames={{
+                hasEvent: "relative after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1 after:h-1 after:rounded-full after:bg-amber-400",
+              }}
+              className="w-full"
+              classNames={{
+                day: cn(
+                  "relative w-full h-full p-0 text-center group/day aspect-square select-none transition-all duration-200",
+                ),
+              }}
+              components={{
+                DayButton: ({ day, modifiers, className, ...props }) => {
+                  const isDragTarget = dragOverDate === day.date.toDateString();
+                  return (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      data-day={day.date.toLocaleDateString()}
+                      data-selected-single={
+                        modifiers.selected &&
+                        !modifiers.range_start &&
+                        !modifiers.range_end &&
+                        !modifiers.range_middle
+                      }
+                      className={cn(
+                        "data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground flex aspect-square size-auto w-full min-w-(--cell-size) flex-col gap-1 leading-none font-normal [&>span]:text-xs [&>span]:opacity-70",
+                        isDragTarget && "ring-2 ring-amber-400 bg-amber-400/20 scale-110 shadow-lg shadow-amber-400/30 rounded-lg",
+                        className
+                      )}
+                      {...props}
+                    />
+                  );
+                },
+              }}
+            />
+          </div>
+
+          {/* Drag hint banner */}
+          <AnimatePresence>
+            {dragOverDate && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mt-2 rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2 text-xs text-amber-400 flex items-center gap-2"
+              >
+                <CalendarDays className="w-3.5 h-3.5" />
+                放開以排程至{" "}
+                <strong>
+                  {new Date(dragOverDate).toLocaleDateString("zh-TW", {
+                    month: "long",
+                    day: "numeric",
+                  })}
+                </strong>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Selected Date Events */}
           {selectedDate && (
@@ -319,7 +460,7 @@ export default function CalendarPage() {
                   </p>
                 ) : (
                   <AnimatePresence mode="popLayout">
-                    {selectedDateEvents.map((note) => (
+                    {selectedDateEvents.map((note: CalendarNote) => (
                       <EventCard
                         key={note.id}
                         note={note}

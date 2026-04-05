@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
@@ -6,9 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { useLocation } from "wouter";
 import {
   Users, Search, Package, Cpu, Heart, Download,
-  Eye, Share2, Sparkles, Image, Music, Video, Mic
+  Eye, Share2, Sparkles, Image, Music, Video, Mic,
+  Wand2, ArrowRight,
 } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -21,8 +23,18 @@ const MODALITY_ICONS: Record<string, React.ElementType> = {
   zip_bundle: Package,
 };
 
+const MODALITY_LABELS: Record<string, string> = {
+  image: "圖片",
+  video: "影片",
+  audio: "音樂",
+  voice: "語音",
+  script: "腳本",
+  zip_bundle: "素材包",
+};
+
 export default function SharedSpace() {
   const { user } = useAuth();
+  const [, navigate] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("assets");
 
@@ -48,6 +60,85 @@ export default function SharedSpace() {
       (m.description && m.description.toLowerCase().includes(searchQuery.toLowerCase()))
     );
   }, [sharedModelsQuery.data, searchQuery]);
+
+  // ── One-Click Use: Send asset to Studio ──
+  const handleUseAsset = useCallback((asset: {
+    title: string;
+    assetType: string;
+    fileUrl?: string | null;
+    promptUsed?: string | null;
+  }) => {
+    const generationType = (["image", "video", "audio", "voice"].includes(asset.assetType))
+      ? asset.assetType
+      : "image";
+
+    const studioData: Record<string, unknown> = {
+      prompt: asset.promptUsed || `以「${asset.title}」為靈感`,
+      generationType,
+      source: "shared_space",
+    };
+
+    // For image assets, also set as style reference
+    if (asset.assetType === "image" && asset.fileUrl) {
+      studioData.referenceImageUrl = asset.fileUrl;
+      studioData.parameterSnapshot = {
+        styleReferenceUrl: asset.fileUrl,
+      };
+    }
+
+    // For video assets, set as first frame reference
+    if (asset.assetType === "video" && asset.fileUrl) {
+      studioData.referenceImageUrl = asset.fileUrl;
+      studioData.parameterSnapshot = {
+        firstFrameUrl: asset.fileUrl,
+      };
+    }
+
+    sessionStorage.setItem("sendToStudio", JSON.stringify(studioData));
+    toast.success(
+      <div className="flex items-center gap-2">
+        <Wand2 className="w-4 h-4 text-primary shrink-0" />
+        <span>
+          已載入「<strong>{asset.title}</strong>」到工作室
+        </span>
+      </div>,
+      { duration: 3000 }
+    );
+    navigate("/studio");
+  }, [navigate]);
+
+  // ── One-Click Use: Send model to Studio (as LoRA model selection) ──
+  const handleUseModel = useCallback((model: {
+    id: number;
+    name: string;
+    modelType: string;
+    status: string;
+  }) => {
+    if (model.status !== "ready") {
+      toast.error("此模型尚未訓練完成，無法使用");
+      return;
+    }
+
+    const studioData: Record<string, unknown> = {
+      prompt: `使用「${model.name}」風格`,
+      generationType: "image",
+      source: "shared_space",
+      fineTunedModelId: model.id,
+      fineTunedModelName: model.name,
+    };
+
+    sessionStorage.setItem("sendToStudio", JSON.stringify(studioData));
+    toast.success(
+      <div className="flex items-center gap-2">
+        <Cpu className="w-4 h-4 text-primary shrink-0" />
+        <span>
+          已載入模型「<strong>{model.name}</strong>」到工作室
+        </span>
+      </div>,
+      { duration: 3000 }
+    );
+    navigate("/studio");
+  }, [navigate]);
 
   return (
     <div className="space-y-6">
@@ -117,6 +208,7 @@ export default function SharedSpace() {
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
               {filteredAssets.map((asset, idx) => {
                 const ModalityIcon = MODALITY_ICONS[asset.assetType] || Package;
+                const canUse = ["image", "video", "audio", "voice"].includes(asset.assetType);
                 return (
                   <motion.div
                     key={asset.id}
@@ -140,14 +232,41 @@ export default function SharedSpace() {
                         )}
                         <div className="absolute top-2 left-2">
                           <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-white/80 text-muted-foreground" style={{ backdropFilter: "blur(4px)" }}>
-                            {asset.assetType}
+                            {MODALITY_LABELS[asset.assetType] || asset.assetType}
                           </span>
                         </div>
+
+                        {/* One-Click Use overlay */}
+                        {canUse && (
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors duration-300 flex items-center justify-center">
+                            <Button
+                              size="sm"
+                              onClick={() => handleUseAsset(asset)}
+                              className="opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0 gap-1.5 bg-white/90 hover:bg-white text-foreground shadow-lg"
+                            >
+                              <Wand2 className="w-3.5 h-3.5" />
+                              一鍵使用
+                            </Button>
+                          </div>
+                        )}
                       </div>
 
                       <p className="text-xs font-medium text-foreground truncate">{asset.title}</p>
                       {asset.promptUsed && (
                         <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2">{asset.promptUsed}</p>
+                      )}
+
+                      {/* Use button below card content */}
+                      {canUse && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleUseAsset(asset)}
+                          className="w-full mt-2 text-[11px] h-7 gap-1 text-primary hover:text-primary hover:bg-primary/10"
+                        >
+                          <ArrowRight className="w-3 h-3" />
+                          帶入工作室
+                        </Button>
                       )}
                     </GlassCard>
                   </motion.div>
@@ -198,9 +317,21 @@ export default function SharedSpace() {
                       }`}>
                         {model.status === "ready" ? "就緒" : model.status === "training" ? "訓練中" : model.status}
                       </span>
-                      <span className="text-[10px] text-muted-foreground">
-                        {new Date(model.createdAt).toLocaleDateString("zh-TW")}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-muted-foreground">
+                          {new Date(model.createdAt).toLocaleDateString("zh-TW")}
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleUseModel(model)}
+                          disabled={model.status !== "ready"}
+                          className="h-6 text-[10px] gap-1 text-primary hover:text-primary hover:bg-primary/10 px-2"
+                        >
+                          <Wand2 className="w-3 h-3" />
+                          使用
+                        </Button>
+                      </div>
                     </div>
                   </GlassCard>
                 </motion.div>
