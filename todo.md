@@ -945,3 +945,9 @@
 - [x] models.create 路由加入背景 LoRA 訓練啟動邏輯
 - [x] 任務 3：ModelsPage.tsx 加入訓練進度輪詢 UI（trainingStatusQuery + 進度條 + 狀態顯示）
 - [x] 任務 4：env.validated.ts 加入 REPLICATE_API_TOKEN 非必填警告
+
+## Model Training Worker (背景任務消費者)
+
+- [ ] 任務 1：db.ts 新增 getQueuedJobsByType 和 getStuckJobsByType
+- [ ] 任務 2：建立 server/jobs/modelTrainingWorker.ts（cron 每 5 分鐘消費 queued + 恢復 stuck）
+- [ ] 任務 3：在 server/_core/index.ts 註冊 initModelTrainingWorkerCron()

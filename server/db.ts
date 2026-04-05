@@ -575,3 +575,37 @@ export async function upsertSystemSettings(userId: number, data: Partial<InsertS
     return result[0].insertId;
   }
 }
+
+
+// ─── Background Jobs — Worker Queries ────────────────────────────────────────
+
+/**
+ * 查詢指定 jobType 且狀態為 queued 的任務列表
+ */
+export async function getQueuedJobsByType(jobType: string, limit = 10) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select()
+    .from(backgroundJobs)
+    .where(and(eq(backgroundJobs.jobType, jobType as any), eq(backgroundJobs.status, "queued")))
+    .orderBy(backgroundJobs.createdAt)
+    .limit(limit);
+}
+
+/**
+ * 查詢指定 jobType 且狀態為 processing 且更新時間超過指定分鐘數的任務（可能卡住）
+ */
+export async function getStuckJobsByType(jobType: string, stuckAfterMinutes = 15, limit = 5) {
+  const db = await getDb();
+  if (!db) return [];
+  const cutoff = new Date(Date.now() - stuckAfterMinutes * 60 * 1000);
+  return db.select()
+    .from(backgroundJobs)
+    .where(and(
+      eq(backgroundJobs.jobType, jobType as any),
+      eq(backgroundJobs.status, "processing"),
+      sql`${backgroundJobs.updatedAt} < ${cutoff}`
+    ))
+    .orderBy(backgroundJobs.createdAt)
+    .limit(limit);
+}
