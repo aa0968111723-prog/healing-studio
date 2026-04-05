@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { getLoginUrl } from "@/const";
@@ -6,7 +6,7 @@ import { useLocation } from "wouter";
 import { GlassCard } from "@/components/ZenCoPilot";
 import VisualSoul from "@/components/VisualSoul";
 import OnboardingFlow from "@/components/OnboardingFlow";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useScroll, useTransform, useMotionValueEvent } from "framer-motion";
 import {
   Wand2, Clapperboard, Package, Cpu, ArrowRight, Sparkles, Shield, Users,
   Moon, Sun, Coffee, Waves,
@@ -165,6 +165,45 @@ function SceneBadge({ sceneId, isDark }: { sceneId: SceneId; isDark: boolean }) 
   );
 }
 
+// ─── Scroll Indicator ───────────────────────────────────────────────────────
+
+function ScrollIndicator({ isDark }: { isDark: boolean }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ delay: 1.5, duration: 0.8 }}
+      className="flex flex-col items-center gap-2 mt-12"
+    >
+      <span className={`text-[10px] tracking-widest uppercase ${isDark ? "text-white/30" : "text-black/25"}`}>
+        向下探索
+      </span>
+      <motion.div
+        animate={{ y: [0, 6, 0] }}
+        transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+      >
+        <svg
+          width="16"
+          height="24"
+          viewBox="0 0 16 24"
+          fill="none"
+          className={isDark ? "text-white/25" : "text-black/20"}
+        >
+          <rect x="1" y="1" width="14" height="22" rx="7" stroke="currentColor" strokeWidth="1.5" />
+          <motion.circle
+            cx="8"
+            cy="8"
+            r="2"
+            fill="currentColor"
+            animate={{ cy: [7, 14, 7] }}
+            transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+          />
+        </svg>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 // ─── Home Page ──────────────────────────────────────────────────────────────
 
 export default function Home() {
@@ -175,6 +214,36 @@ export default function Home() {
   const { sceneId, isDark } = useCurrentScene();
   const s = useMemo(() => SCENE_STYLES[sceneId], [sceneId]);
   const soundControls = useAmbientSound(sceneId);
+
+  // ─── Scrollytelling: useScroll + useTransform ─────────────────────────────
+  // heroRef marks the Hero section. As user scrolls past it,
+  // the ambient background (video + particles) fades to 0 opacity,
+  // elegantly handing visual focus to the content sections below.
+  const heroRef = useRef<HTMLElement>(null);
+
+  const { scrollYProgress: heroScrollProgress } = useScroll({
+    target: heroRef,
+    // "start start" = when top of hero hits top of viewport
+    // "end start"   = when bottom of hero hits top of viewport
+    offset: ["start start", "end start"],
+  });
+
+  // Ambient layer opacity: 1 → 0 as hero scrolls out of view
+  // Using a gentle easing curve: stays at 1 for first 20%, then fades to 0
+  const ambientOpacity = useTransform(heroScrollProgress, [0, 0.3, 1], [1, 1, 0]);
+
+  // Hero content parallax: subtle upward drift as user scrolls
+  const heroY = useTransform(heroScrollProgress, [0, 1], [0, -80]);
+  const heroContentOpacity = useTransform(heroScrollProgress, [0, 0.5, 0.85], [1, 0.8, 0]);
+
+  // Nav background intensifies as ambient fades (more opaque for readability)
+  const navOpacityBoost = useTransform(heroScrollProgress, [0.3, 1], [0, 0.3]);
+
+  // Track scroll state for conditional rendering optimizations
+  const [isAmbientVisible, setIsAmbientVisible] = useState(true);
+  useMotionValueEvent(ambientOpacity, "change", (latest) => {
+    setIsAmbientVisible(latest > 0.01);
+  });
 
   // Check if user needs onboarding
   useEffect(() => {
@@ -196,20 +265,29 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen relative overflow-hidden">
-      {/* ── Full-screen Ambient Video (HLS topmost layer) ── */}
-      <div className="fixed inset-0 -z-10">
-        <AmbientVideo
-          src=""
-          overlayOpacity={0.35}
-          fadeInDuration={1200}
-        />
-        {/* Particle environment renders on top of video */}
-        <AmbientEnvironment />
-      </div>
+    <div className="min-h-screen relative">
+      {/* ── Full-screen Ambient Background (Video + Particles) ── */}
+      {/* Opacity driven by scroll position via Framer Motion useTransform */}
+      <motion.div
+        className="fixed inset-0 -z-10"
+        style={{ opacity: ambientOpacity }}
+        // Performance: skip rendering when fully transparent
+        aria-hidden="true"
+      >
+        {isAmbientVisible && (
+          <>
+            <AmbientVideo
+              src=""
+              overlayOpacity={0.35}
+              fadeInDuration={1200}
+            />
+            <AmbientEnvironment />
+          </>
+        )}
+      </motion.div>
 
       {/* ── Navigation ── */}
-      <nav
+      <motion.nav
         className="fixed top-0 left-0 right-0 z-50 h-16 transition-colors duration-700"
         style={{
           background: s.navBg,
@@ -245,11 +323,18 @@ export default function Home() {
             )}
           </div>
         </div>
-      </nav>
+      </motion.nav>
 
-      {/* ── Hero Section ── */}
-      <section className="pt-32 pb-20 px-4 relative">
-        <div className="max-w-4xl mx-auto text-center">
+      {/* ── Hero Section (Scrollytelling anchor) ── */}
+      <motion.section
+        ref={heroRef}
+        className="pt-32 pb-20 px-4 relative min-h-[85vh]"
+        style={{ y: heroY }}
+      >
+        <motion.div
+          className="max-w-4xl mx-auto text-center"
+          style={{ opacity: heroContentOpacity }}
+        >
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -310,18 +395,21 @@ export default function Home() {
                 </Button>
               )}
             </div>
-          </motion.div>
-        </div>
-      </section>
 
-      {/* ── Features Grid ── */}
+            {/* Scroll indicator — invites user to scroll down */}
+            <ScrollIndicator isDark={isDark} />
+          </motion.div>
+        </motion.div>
+      </motion.section>
+
+      {/* ── Features Grid (情報站 — visual focus handoff target) ── */}
       <section className="py-20 px-4 relative">
         <div className="max-w-6xl mx-auto">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ duration: 0.6 }}
             className="text-center mb-14"
           >
             <h2 className={`text-2xl sm:text-3xl font-bold transition-colors duration-700 ${s.textPrimary}`}>
@@ -336,10 +424,10 @@ export default function Home() {
             {FEATURES.map((feature, idx) => (
               <motion.div
                 key={feature.title}
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 25 }}
                 whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.4, delay: idx * 0.1 }}
+                viewport={{ once: true, margin: "-40px" }}
+                transition={{ duration: 0.5, delay: idx * 0.08 }}
               >
                 <div
                   className="h-full rounded-2xl p-6 backdrop-blur-md transition-all duration-700 hover:scale-[1.02]"
@@ -370,42 +458,49 @@ export default function Home() {
       {/* ── CTA Section ── */}
       <section className="py-20 px-4 relative">
         <div className="max-w-3xl mx-auto">
-          <div
-            className="text-center py-14 px-8 rounded-3xl backdrop-blur-md transition-all duration-700"
-            style={{
-              background: s.cardBg,
-              border: `1px solid ${s.cardBorder}`,
-            }}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-60px" }}
+            transition={{ duration: 0.6 }}
           >
-            <VisualSoul size="md" personality={personality} />
-            <h2 className={`text-2xl font-bold mt-6 transition-colors duration-700 ${s.textPrimary}`}>
-              準備好開始創作了嗎？
-            </h2>
-            <p className={`mt-3 text-sm max-w-md mx-auto transition-colors duration-700 ${s.textMuted}`}>
-              登入後即可使用所有功能，每位使用者享有初始免費配額
-            </p>
-            <div className="mt-8">
-              {isAuthenticated ? (
-                <Button
-                  size="lg"
-                  onClick={() => navigate("/studio")}
-                  className={`rounded-xl h-12 px-10 gap-2 text-sm ${s.btnPrimary} ${s.btnPrimaryText}`}
-                >
-                  進入工作室
-                  <ArrowRight className="w-4 h-4" />
-                </Button>
-              ) : (
-                <Button
-                  size="lg"
-                  onClick={() => { window.location.href = getLoginUrl(); }}
-                  className={`rounded-xl h-12 px-10 gap-2 text-sm ${s.btnPrimary} ${s.btnPrimaryText}`}
-                >
-                  免費開始
-                  <ArrowRight className="w-4 h-4" />
-                </Button>
-              )}
+            <div
+              className="text-center py-14 px-8 rounded-3xl backdrop-blur-md transition-all duration-700"
+              style={{
+                background: s.cardBg,
+                border: `1px solid ${s.cardBorder}`,
+              }}
+            >
+              <VisualSoul size="md" personality={personality} />
+              <h2 className={`text-2xl font-bold mt-6 transition-colors duration-700 ${s.textPrimary}`}>
+                準備好開始創作了嗎？
+              </h2>
+              <p className={`mt-3 text-sm max-w-md mx-auto transition-colors duration-700 ${s.textMuted}`}>
+                登入後即可使用所有功能，每位使用者享有初始免費配額
+              </p>
+              <div className="mt-8">
+                {isAuthenticated ? (
+                  <Button
+                    size="lg"
+                    onClick={() => navigate("/studio")}
+                    className={`rounded-xl h-12 px-10 gap-2 text-sm ${s.btnPrimary} ${s.btnPrimaryText}`}
+                  >
+                    進入工作室
+                    <ArrowRight className="w-4 h-4" />
+                  </Button>
+                ) : (
+                  <Button
+                    size="lg"
+                    onClick={() => { window.location.href = getLoginUrl(); }}
+                    className={`rounded-xl h-12 px-10 gap-2 text-sm ${s.btnPrimary} ${s.btnPrimaryText}`}
+                  >
+                    免費開始
+                    <ArrowRight className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
             </div>
-          </div>
+          </motion.div>
         </div>
       </section>
 

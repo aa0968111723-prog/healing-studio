@@ -625,3 +625,17 @@
 - [x] 半透明黑色遮罩（overlayOpacity 0.35）確保文字可讀性
 - [x] TypeScript 編譯零錯誤確認
 - [x] 畫面渲染正常確認（粒子動畫 + nav + hero + features 正常顯示）
+
+## 首頁 Scrollytelling 滾動故事線互動
+
+- [x] 建立 Scrollytelling 鉤子（Framer Motion useScroll + useTransform + useMotionValueEvent）
+- [x] HLS 影片 + 粒子環境 Opacity 隨滾動漸隱（heroScrollProgress [0,0.3,1] → [1,1,0] 曲線）
+- [x] Hero 內容視差上移（heroY: 0 → -80px）+ 文字漸隱（heroContentOpacity: [0,0.5,0.85] → [1,0.8,0]）
+- [x] 情報站 Features Grid 漸入效果（whileInView + margin:-80px 觸發）
+- [x] CTA 區塊漸入效果（whileInView + margin:-60px 觸發）
+- [x] 效能優化：isAmbientVisible 狀態追蹤，opacity < 0.01 時停止渲染 Canvas + Video
+- [x] ScrollIndicator 元件（「向下探索」+ 動態滑鼠圖示動畫）
+- [x] Hero 區段 min-h-[85vh] 確保足夠滾動空間
+- [x] 整合至 Home.tsx（motion.div 包裹 AmbientVideo + AmbientEnvironment，style.opacity 綁定 ambientOpacity）
+- [x] TypeScript 編譯零錯誤確認（Found 0 errors）
+- [x] 瀏覽器滾動效果驗證（頂部粒子全顯 → 滾動至底部粒子完全消失 → Features/CTA 正常顯示）

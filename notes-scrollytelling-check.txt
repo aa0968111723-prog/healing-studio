@@ -1,0 +1,20 @@
+Scrollytelling Check - Screenshot 1 (Top of page):
+- Hero section renders correctly with night sky ambient background
+- Scene badge "夜深了，讓靈感在星空下綻放" visible
+- VisualSoul orb, title "AI Director 智慧創作平台" visible
+- CTA buttons "開始創作" and "導演 AI" visible
+- NEW: "向下探索" scroll indicator with animated mouse icon visible at bottom of hero
+- Nav bar with "環境音" and "進入工作室" buttons
+- Ambient particles (stars) visible in background
+- Hero section takes up ~85vh as designed
+- Need to scroll down to verify opacity transition effect
+
+Scrollytelling Check - Screenshot 2 (Scrolled to bottom):
+- Ambient background (stars/particles) has fully faded to transparent
+- Features grid (6 cards) visible with glassmorphism cards on neutral background
+- CTA section "準備好開始創作了嗎？" visible with VisualSoul orb
+- Footer visible at bottom
+- Background is now a neutral/grey tone (no more night sky particles)
+- The scrollytelling opacity transition is WORKING correctly
+- Hero content has parallaxed upward and faded out
+- Nav bar remains fixed at top with proper styling
