@@ -1089,3 +1089,9 @@
 - [x] 共享模型新增「使用」按鈕（帶入 fineTunedModelId/Name）
 - [x] Studio 接收端新增 shared_space 來源辨識 + styleRef/fineTunedModel 還原
 - [x] 20 個 vitest 測試全部通過（calendar-sharedspace.test.ts）
+
+## Replicate API Token 更新
+- [x] 更新 REPLICATE_API_TOKEN 環境變數
+- [x] 驗證 Token 有效性（API 認證成功）
+- [x] 驗證可存取 LoRA 訓練模型（ostris/flux-dev-lora-trainer）
+- [x] 3 個 vitest 測試全部通過（replicate-token-validation.test.ts）
