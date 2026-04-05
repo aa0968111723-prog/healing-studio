@@ -933,4 +933,4 @@
 
 ## 精選作品被情報站遮蓋修復
 
-- [ ] 修復 ShowcaseMasonry 被 IntelBentoGrid 遮蓋的問題
+- [x] 修復 ShowcaseMasonry 被 IntelBentoGrid 遮蓋的問題（加 z-10 至 IntelBentoGrid、ShowcaseMasonry、IntentWhisper）
