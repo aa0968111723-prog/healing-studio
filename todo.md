@@ -864,3 +864,11 @@
 - [x] ElevenLabsClient 封裝（語音合成 TTS）
 - [x] ReplicateClient 封裝（進階預留通用模型）
 - [x] ModelOrchestrator 統一調度器（四模態路由 + 健康檢查）
+
+## Voice Compiler 配音編譯器
+
+- [x] 情緒積木 → SSML 表情指令映射（prosody/emphasis/break）
+- [x] 劇本斷點自動植入 break 換氣停頓（1.5s 遲疑感）
+- [x] SSML 編譯管線（積木 JSON → 分段 → 情緒標註 → SSML 輸出）
+- [x] 與 ElevenLabsClient 整合（SSML → TTS 音訊）
+- [x] vitest 測試覆蓋（31 tests passed）
