@@ -913,7 +913,7 @@
 ## 四模態真實生成 URL 回傳 (Real Generation Pipeline)
 
 - [x] 驗證 FAL_KEY / SUNO_API_KEY / ELEVENLABS_API_KEY 存在
-- [ ] 影片模態：改用 Gemini API 真實生成 → resultUrl
+- [x] 影片模態：改用 Gemini Veo REST API 真實生成 → resultUrl
 - [x] 音樂模態：Suno API 真實生成 + 輪詢等待 audio_url → resultUrl
 - [x] 語音模態：ElevenLabs TTS → S3 上傳 → resultUrl
 - [x] 圖片模態：確認已有真實生成邏輯（generateImage）
