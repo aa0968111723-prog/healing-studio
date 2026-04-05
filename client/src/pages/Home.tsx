@@ -478,7 +478,7 @@ export default function Home() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -10 }}
           transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-          className="py-6 px-4"
+          className="py-6 px-4 relative z-10"
         >
           <div className="max-w-2xl mx-auto">
             <div

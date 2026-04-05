@@ -693,7 +693,7 @@ export default function ShowcaseMasonry({
   return (
     <section
       ref={sectionScrollRef}
-      className="py-20 px-4 relative"
+      className="py-20 px-4 relative z-10"
       style={{ background: styles.sectionBg }}
     >
       <div className="max-w-6xl mx-auto">

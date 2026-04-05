@@ -579,7 +579,7 @@ export default function IntelBentoGrid({ sceneId }: IntelBentoGridProps) {
   const layoutItems = useMemo(() => layoutBentoItems(filteredItems), [filteredItems]);
 
   return (
-    <section ref={sectionScrollRef} className="py-20 px-4 relative">
+    <section ref={sectionScrollRef} className="py-20 px-4 relative z-10">
       <div className="max-w-6xl mx-auto">
         {/* Section header */}
         <motion.div

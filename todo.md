@@ -930,3 +930,7 @@
 - [x] 移除 Hero Section 內的 absolute inset-0 -z-10 漸層背景 div
 - [x] 最外層主容器加 overflow-x-hidden + flex flex-col
 - [x] 所有 section 內層加 relative z-10 確保內容在背景之上
+
+## 精選作品被情報站遮蓋修復
+
+- [ ] 修復 ShowcaseMasonry 被 IntelBentoGrid 遮蓋的問題
