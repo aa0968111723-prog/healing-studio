@@ -15,6 +15,7 @@ import { useAIState } from "@/contexts/AIStateContext";
 import { AmbientEnvironment, useCurrentScene } from "@/components/AmbientEnvironment";
 import type { SceneId } from "@/components/AmbientEnvironment";
 import { useAmbientSound, SoundControl } from "@/components/AmbientSoundEngine";
+import OarsGreeting from "@/components/OarsGreeting";
 import { AmbientVideo } from "@/components/AmbientVideo";
 import IntelBentoGrid from "@/components/IntelBentoGrid";
 import ShowcaseMasonry from "@/components/ShowcaseMasonry";
@@ -359,18 +360,12 @@ export default function Home() {
               <VisualSoul size="lg" personality={personality} className="!w-20 !h-20" />
             </div>
 
-            <h1 className={`text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-tight transition-colors duration-700 ${s.textPrimary}`}>
-              AI Director
-              <br />
-              <span className={`transition-colors duration-700 ${s.textSecondary}`}>
-                智慧創作平台
-              </span>
-            </h1>
-
-            <p className={`mt-6 text-base sm:text-lg max-w-2xl mx-auto leading-relaxed transition-colors duration-700 ${s.textMuted}`}>
-              AI Director 多模態智慧創作平台。圖片、影片、音樂、語音一站式創作，
-              搭配導演 AI 雙引擎與角色鍛造系統，打造高品質數位內容。
-            </p>
+            {/* OARS Contextual Greeting — replaces static title */}
+            <OarsGreeting
+              sceneId={sceneId}
+              textPrimary={`transition-colors duration-700 ${s.textPrimary}`}
+              textMuted={`transition-colors duration-700 ${s.textMuted}`}
+            />
 
             <div className="mt-10 flex items-center justify-center gap-4">
               {isAuthenticated ? (

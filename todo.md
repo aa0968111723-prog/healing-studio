@@ -776,3 +776,17 @@
 - [x] TypeScript 編譯零錯誤確認（Found 0 errors）
 - [x] byAesthetics 端點 curl 測試通過（回傳正確 JSON 結構）
 - [x] HMR 更新正常 + 瀏覽器零 console 錯誤
+
+## 首頁情境問候語（OARS Contextual Greeting）
+
+- [x] 建立 OarsGreeting.tsx 元件（基於 OARS 心理學 + 當地時間的柔性引導）
+- [x] 4 場景問候語庫（夜空 7 句 / 晨光 7 句 / 咖啡廳 7 句 / 深海 7 句，各 6 句副引導語）
+- [x] OARS 四原則融入：主問候語（Open-ended + Reflective）、副引導語（Affirming + Summarizing）
+- [x] 打字機動畫效果（useTypewriter hook，55ms/字 + 500ms 延遲啟動 + 游標閃爍 3 次後消失）
+- [x] 副標語 AnimatePresence 淡入（打字完成後才顯示，ease [0.16,1,0.3,1]）
+- [x] useStableRandom 穩定隨機選取（同一 10 分鐘內保持一致）
+- [x] 平台描述子延遲淡入（「Healing Studio · AI 多模態創作平台」）
+- [x] 場景自適應色彩（textPrimary + textMuted 外部傳入）
+- [x] 整合至 Home.tsx Hero 區塊取代原有靜態標題
+- [x] TypeScript 編譯零錯誤確認（Found 0 errors）
+- [x] 瀏覽器實測：夜空場景「夜晚是最誠實的創作時刻。」打字機動畫 + 「星光會為你的靈感指路」副引導語正常渲染
