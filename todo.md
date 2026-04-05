@@ -815,3 +815,10 @@
 - [x] Framer Motion 絲滑動畫過渡
 - [x] 顯示來源與原始連結
 - [x] vitest 測試覆蓋（31 tests passed）
+
+## 創作室：大腦組態資料庫 (AI Brain Config DB)
+
+- [x] user_ai_brain Table（5 種推理大腦 + 4 種生成引擎預設值，綁定 users）
+- [x] user_model_switch_logs Table（模型切換日誌）
+- [x] custom_blocks_combo Table（S-S-L-C-M 積木 JSON 結構存檔）
+- [x] DB migration 執行成功

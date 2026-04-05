@@ -43,6 +43,13 @@
       "when": 1775344448949,
       "tag": "0005_nasty_anita_blake",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1775354502235,
+      "tag": "0006_remarkable_starfox",
+      "breakpoints": true
     }
   ]
 }

@@ -554,3 +554,302 @@ export const featuredShowcase = mysqlTable("featured_showcase", {
 
 export type FeaturedShowcaseItem = typeof featuredShowcase.$inferSelect;
 export type InsertFeaturedShowcaseItem = typeof featuredShowcase.$inferInsert;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NEW TABLES — AI Brain Configuration Database (大腦組態資料庫)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ─── User AI Brain (使用者 AI 大腦組態) ──────────────────────────────────────
+/**
+ * 每位使用者的 AI 大腦組態：
+ *   - 5 種推理大腦 (Reasoning Brains): director, analyst, storyteller, technician, curator
+ *   - 4 種生成引擎 (Generation Engines): image, video, audio, voice
+ *
+ * 每個大腦/引擎儲存：模型 ID、溫度、top_p、自訂系統提示、啟用狀態。
+ * 一位使用者只有一筆記錄（upsert 模式）。
+ */
+export const userAiBrain = mysqlTable("user_ai_brain", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(),
+
+  // ── 5 種推理大腦 (Reasoning Brains) ──────────────────────────────────────
+
+  /** 導演大腦 — 統籌創作流程、分鏡、敘事結構 */
+  directorModel: varchar("directorModel", { length: 128 }).default("gpt-4o").notNull(),
+  directorTemperature: decimal("directorTemperature", { precision: 3, scale: 2 }).default("0.7").notNull(),
+  directorTopP: decimal("directorTopP", { precision: 3, scale: 2 }).default("0.9").notNull(),
+  directorSystemPrompt: text("directorSystemPrompt"),
+  directorEnabled: boolean("directorEnabled").default(true).notNull(),
+
+  /** 分析師大腦 — 數據分析、趨勢洞察、品質評估 */
+  analystModel: varchar("analystModel", { length: 128 }).default("gpt-4o").notNull(),
+  analystTemperature: decimal("analystTemperature", { precision: 3, scale: 2 }).default("0.3").notNull(),
+  analystTopP: decimal("analystTopP", { precision: 3, scale: 2 }).default("0.8").notNull(),
+  analystSystemPrompt: text("analystSystemPrompt"),
+  analystEnabled: boolean("analystEnabled").default(true).notNull(),
+
+  /** 說書人大腦 — 文案撰寫、故事展開、情感渲染 */
+  storytellerModel: varchar("storytellerModel", { length: 128 }).default("gpt-4o").notNull(),
+  storytellerTemperature: decimal("storytellerTemperature", { precision: 3, scale: 2 }).default("0.9").notNull(),
+  storytellerTopP: decimal("storytellerTopP", { precision: 3, scale: 2 }).default("0.95").notNull(),
+  storytellerSystemPrompt: text("storytellerSystemPrompt"),
+  storytellerEnabled: boolean("storytellerEnabled").default(true).notNull(),
+
+  /** 技師大腦 — 提示詞工程、參數優化、技術翻譯 */
+  technicianModel: varchar("technicianModel", { length: 128 }).default("gpt-4o").notNull(),
+  technicianTemperature: decimal("technicianTemperature", { precision: 3, scale: 2 }).default("0.2").notNull(),
+  technicianTopP: decimal("technicianTopP", { precision: 3, scale: 2 }).default("0.7").notNull(),
+  technicianSystemPrompt: text("technicianSystemPrompt"),
+  technicianEnabled: boolean("technicianEnabled").default(true).notNull(),
+
+  /** 策展人大腦 — 風格推薦、美學判斷、靈感策展 */
+  curatorModel: varchar("curatorModel", { length: 128 }).default("gpt-4o").notNull(),
+  curatorTemperature: decimal("curatorTemperature", { precision: 3, scale: 2 }).default("0.8").notNull(),
+  curatorTopP: decimal("curatorTopP", { precision: 3, scale: 2 }).default("0.9").notNull(),
+  curatorSystemPrompt: text("curatorSystemPrompt"),
+  curatorEnabled: boolean("curatorEnabled").default(true).notNull(),
+
+  // ── 4 種生成引擎 (Generation Engines) ────────────────────────────────────
+
+  /** 圖像生成引擎 */
+  imageEngine: varchar("imageEngine", { length: 128 }).default("flux-pro").notNull(),
+  imageEngineParams: json("imageEngineParams").$type<{
+    steps?: number;
+    cfgScale?: number;
+    seed?: number | null;
+    scheduler?: string;
+    width?: number;
+    height?: number;
+    negativePrompt?: string;
+  }>(),
+  imageEngineEnabled: boolean("imageEngineEnabled").default(true).notNull(),
+
+  /** 影片生成引擎 */
+  videoEngine: varchar("videoEngine", { length: 128 }).default("kling-v1").notNull(),
+  videoEngineParams: json("videoEngineParams").$type<{
+    duration?: number;
+    fps?: number;
+    resolution?: string;
+    motionStrength?: number;
+    seed?: number | null;
+  }>(),
+  videoEngineEnabled: boolean("videoEngineEnabled").default(true).notNull(),
+
+  /** 音樂/音效生成引擎 */
+  audioEngine: varchar("audioEngine", { length: 128 }).default("suno-v4").notNull(),
+  audioEngineParams: json("audioEngineParams").$type<{
+    duration?: number;
+    genre?: string;
+    tempo?: number;
+    instrumental?: boolean;
+  }>(),
+  audioEngineEnabled: boolean("audioEngineEnabled").default(true).notNull(),
+
+  /** 語音合成引擎 */
+  voiceEngine: varchar("voiceEngine", { length: 128 }).default("elevenlabs-v2").notNull(),
+  voiceEngineParams: json("voiceEngineParams").$type<{
+    voiceId?: string;
+    stability?: number;
+    similarityBoost?: number;
+    speed?: number;
+    language?: string;
+  }>(),
+  voiceEngineEnabled: boolean("voiceEngineEnabled").default(true).notNull(),
+
+  // ── Meta ──────────────────────────────────────────────────────────────────
+
+  /** 全局偏好 JSON（擴展用） */
+  globalPreferences: json("globalPreferences").$type<Record<string, unknown>>(),
+
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type UserAiBrain = typeof userAiBrain.$inferSelect;
+export type InsertUserAiBrain = typeof userAiBrain.$inferInsert;
+
+// ─── User Model Switch Logs (模型切換日誌) ─────────────────────────────────
+/**
+ * 記錄使用者每次切換推理大腦或生成引擎的操作：
+ *   - 誰 (userId) 在什麼時候 (switchedAt)
+ *   - 切換了哪個腦/引擎 (brainSlot)
+ *   - 從哪個模型 (fromModel) 切到哪個模型 (toModel)
+ *   - 切換原因 (reason) — 可選，用於分析使用者偏好趨勢
+ */
+export const userModelSwitchLogs = mysqlTable("user_model_switch_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+
+  /** 切換的腦/引擎插槽名稱 */
+  brainSlot: mysqlEnum("brainSlot", [
+    "director", "analyst", "storyteller", "technician", "curator",
+    "imageEngine", "videoEngine", "audioEngine", "voiceEngine",
+  ]).notNull(),
+
+  /** 切換前的模型 ID */
+  fromModel: varchar("fromModel", { length: 128 }).notNull(),
+
+  /** 切換後的模型 ID */
+  toModel: varchar("toModel", { length: 128 }).notNull(),
+
+  /** 切換前的參數快照 */
+  fromParams: json("fromParams").$type<Record<string, unknown>>(),
+
+  /** 切換後的參數快照 */
+  toParams: json("toParams").$type<Record<string, unknown>>(),
+
+  /** 切換原因（使用者自述或系統推薦） */
+  reason: text("reason"),
+
+  /** 切換來源 */
+  switchSource: mysqlEnum("switchSource", [
+    "manual",           // 使用者手動切換
+    "soul_recommendation", // 光球推薦
+    "auto_fallback",    // 自動降級（模型不可用時）
+    "ab_test",          // A/B 測試
+  ]).default("manual").notNull(),
+
+  /** 切換時間 */
+  switchedAt: timestamp("switchedAt").defaultNow().notNull(),
+});
+
+export type UserModelSwitchLog = typeof userModelSwitchLogs.$inferSelect;
+export type InsertUserModelSwitchLog = typeof userModelSwitchLogs.$inferInsert;
+
+// ─── Custom Blocks Combo (S-S-L-C-M 積木組合存檔) ──────────────────────────
+/**
+ * 使用者自訂的「S-S-L-C-M 積木 JSON 結構」完整存檔：
+ *   S = Subject（主體）
+ *   S = Style（風格）
+ *   L = Lighting（光線）
+ *   C = Camera（鏡頭）
+ *   M = Mood（情緒）
+ *
+ * 可供日後重現、分享、或設為精選（管理員 curated）。
+ * 與 blockCombos 的差異：此表儲存完整的積木 JSON 結構（含 prompt 片段），
+ * 而非僅儲存 blockIds 參照。
+ */
+export const customBlocksCombo = mysqlTable("custom_blocks_combo", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+
+  /** 組合名稱 */
+  name: varchar("name", { length: 255 }).notNull(),
+
+  /** 組合描述 */
+  description: text("description"),
+
+  /** 適用模態 */
+  modality: mysqlEnum("modality", ["image", "video", "audio", "voice"]).notNull(),
+
+  /** Subject 積木 JSON */
+  subjectBlock: json("subjectBlock").$type<{
+    blockId: string;
+    label: string;
+    prompt: string;
+    emoji?: string;
+    isCustom: boolean;
+    customBlockId?: number;
+  }>(),
+
+  /** Style 積木 JSON */
+  styleBlock: json("styleBlock").$type<{
+    blockId: string;
+    label: string;
+    prompt: string;
+    emoji?: string;
+    isCustom: boolean;
+    customBlockId?: number;
+  }>(),
+
+  /** Lighting 積木 JSON */
+  lightingBlock: json("lightingBlock").$type<{
+    blockId: string;
+    label: string;
+    prompt: string;
+    emoji?: string;
+    isCustom: boolean;
+    customBlockId?: number;
+  }>(),
+
+  /** Camera 積木 JSON */
+  cameraBlock: json("cameraBlock").$type<{
+    blockId: string;
+    label: string;
+    prompt: string;
+    emoji?: string;
+    isCustom: boolean;
+    customBlockId?: number;
+  }>(),
+
+  /** Mood 積木 JSON */
+  moodBlock: json("moodBlock").$type<{
+    blockId: string;
+    label: string;
+    prompt: string;
+    emoji?: string;
+    isCustom: boolean;
+    customBlockId?: number;
+  }>(),
+
+  /** 額外積木（不在 S-S-L-C-M 五大類的補充積木） */
+  extraBlocks: json("extraBlocks").$type<Array<{
+    category: string;
+    blockId: string;
+    label: string;
+    prompt: string;
+    emoji?: string;
+    isCustom: boolean;
+    customBlockId?: number;
+  }>>(),
+
+  /** 關聯的 Vibe Card IDs */
+  vibeCardIds: json("vibeCardIds").$type<string[]>(),
+
+  /** 自由輸入提示詞 */
+  freeformPrompt: text("freeformPrompt"),
+
+  /** 排除描述 */
+  negativePrompt: text("negativePrompt"),
+
+  /** 編譯後的完整提示詞（快照） */
+  compiledPrompt: text("compiledPrompt"),
+
+  /** 技術參數快照 */
+  parameterSnapshot: json("parameterSnapshot").$type<Record<string, unknown>>(),
+
+  /** 使用的 AI 大腦組態快照（記錄當時的大腦設定） */
+  brainConfigSnapshot: json("brainConfigSnapshot").$type<{
+    reasoningBrain?: string;
+    generationEngine?: string;
+    temperature?: number;
+    topP?: number;
+  }>(),
+
+  /** 預覽圖 URL（用此組合生成的代表作品） */
+  previewImageUrl: text("previewImageUrl"),
+
+  /** 是否為精選（管理員策展） */
+  isCurated: boolean("isCurated").default(false).notNull(),
+
+  /** 是否公開分享 */
+  isPublic: boolean("isPublic").default(false).notNull(),
+
+  /** 被 fork 次數 */
+  forkCount: int("forkCount").default(0).notNull(),
+
+  /** 按讚數 */
+  likeCount: int("likeCount").default(0).notNull(),
+
+  /** 使用次數 */
+  useCount: int("useCount").default(0).notNull(),
+
+  /** 標籤 */
+  tags: json("tags").$type<string[]>(),
+
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type CustomBlocksComboItem = typeof customBlocksCombo.$inferSelect;
+export type InsertCustomBlocksComboItem = typeof customBlocksCombo.$inferInsert;
