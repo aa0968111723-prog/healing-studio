@@ -945,7 +945,7 @@ export default function Studio() {
           </Button>
 
           {/* Controls (mobile only) */}
-          {isMobile && (
+          {false && isMobile && (
             <Button
               variant="outline"
               size="sm"
@@ -1517,7 +1517,7 @@ export default function Studio() {
 
         {/* ── Right Panel: Controls (desktop) ── */}
         {!isMobile && (
-          <div className="hidden lg:block w-64 shrink-0 space-y-4">
+          <div className="hidden lg:block w-64 shrink-0 space-y-4" style={{display:"none"}}>
             <GlassCard hover={false}>
               <GenerationControls
                 temperature={temperature}
@@ -1549,7 +1549,7 @@ export default function Studio() {
       </div>
 
       {/* ── Mobile Bottom Sheets ── */}
-      {isMobile && (
+      {false && isMobile && (
         <>
           <BottomSheet
             open={controlsSheetOpen}
