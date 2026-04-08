@@ -1110,3 +1110,8 @@
 - [x] 後端 tRPC procedure 儲存回饋到資料庫（已有 feedback.create）
 - [x] 回饋提交後通知 Owner（notifyOwner 整合完成）
 - [x] 撰寫 vitest 測試（26 個測試全部通過）
+
+## PostHog 追蹤碼
+- [x] 在 HTML head 加入 PostHog 追蹤腳本（token + api_host + identified_only）
+- [x] 修復 GitHub 拉入的 schema.ts 轉義引號語法錯誤
+- [x] 撰寫 vitest 測試（6 個測試全部通過）
