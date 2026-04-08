@@ -8,212 +8,222 @@ import {
   json,
   boolean,
   decimal,
-} from "drizzle-orm/mysql-core";
+  index,
+} from \"drizzle-orm/mysql-core\";
 
 // ─── Users ─────────────────────────────────────────────────────────────────
-export const users = mysqlTable("users", {
-  id: int("id").autoincrement().primaryKey(),
-  openId: varchar("openId", { length: 64 }).notNull().unique(),
-  name: text("name"),
-  email: varchar("email", { length: 320 }),
-  loginMethod: varchar("loginMethod", { length: 64 }),
-  role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
+export const users = mysqlTable(\"users\", {
+  id: int(\"id\").autoincrement().primaryKey(),
+  openId: varchar(\"openId\", { length: 64 }).notNull().unique(),
+  name: text(\"name\"),
+  email: varchar(\"email\", { length: 320 }),
+  loginMethod: varchar(\"loginMethod\", { length: 64 }),
+  role: mysqlEnum(\"role\", [\"user\", \"admin\"]).default(\"user\").notNull(),
   /** Per-modality quota JSON */
-  quotaJson: json("quotaJson").$type<{
+  quotaJson: json(\"quotaJson\").$type<{
     image: number;
     video: number;
     audio: number;
     voice: number;
   }>(),
-  remainingGenerations: int("remainingGenerations").default(50).notNull(),
-  onboardingDone: boolean("onboardingDone").default(false).notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-  lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
+  remainingGenerations: int(\"remainingGenerations\").default(50).notNull(),
+  onboardingDone: boolean(\"onboardingDone\").default(false).notNull(),
+  createdAt: timestamp(\"createdAt\").defaultNow().notNull(),
+  updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(),
+  lastSignedIn: timestamp(\"lastSignedIn\").defaultNow().notNull(),
 });
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
 // ─── Background Jobs ─────────────────────────────────────────────────────
-export const backgroundJobs = mysqlTable("background_jobs", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
-  jobType: mysqlEnum("jobType", [
-    "image",
-    "video",
-    "audio",
-    "voice",
-    "zip_export",
-    "multimodal",
-    "model_training",
+export const backgroundJobs = mysqlTable(\"background_jobs\", {
+  id: int(\"id\").autoincrement().primaryKey(),
+  userId: int(\"userId\").notNull(),
+  jobType: mysqlEnum(\"jobType\", [
+    \"image\",
+    \"video\",
+    \"audio\",
+    \"voice\",
+    \"zip_export\",
+    \"multimodal\",
+    \"model_training\",
   ]).notNull(),
-  status: mysqlEnum("status", [
-    "queued",
-    "processing",
-    "completed",
-    "failed",
-    "cancelled",
+  status: mysqlEnum(\"status\", [
+    \"queued\",
+    \"processing\",
+    \"completed\",
+    \"failed\",
+    \"cancelled\",
   ])
-    .default("queued")
+    .default(\"queued\")
     .notNull(),
-  progress: int("progress").default(0).notNull(),
-  progressMessage: text("progressMessage"),
-  resultJson: json("resultJson"),
-  errorMessage: text("errorMessage"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+  progress: int(\"progress\").default(0).notNull(),
+  progressMessage: text(\"progressMessage\"),
+  resultJson: json(\"resultJson\"),
+  errorMessage: text(\"errorMessage\"),
+  createdAt: timestamp(\"createdAt\").defaultNow().notNull(),
+  updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  userIdStatusIdx: index(\"userId_status_idx\").on(table.userId, table.status),
+  userIdCreatedAtIdx: index(\"userId_createdAt_idx\").on(table.userId, table.createdAt),
+}));
 
 export type BackgroundJob = typeof backgroundJobs.$inferSelect;
 export type InsertBackgroundJob = typeof backgroundJobs.$inferInsert;
 
 // ─── Digital Asset Library ───────────────────────────────────────────────
-export const digitalAssetLibrary = mysqlTable("digital_asset_library", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
-  title: varchar("title", { length: 255 }).notNull(),
-  description: text("description"),
-  assetType: mysqlEnum("assetType", [
-    "image",
-    "video",
-    "audio",
-    "voice",
-    "script",
-    "zip_bundle",
+export const digitalAssetLibrary = mysqlTable(\"digital_asset_library\", {
+  id: int(\"id\").autoincrement().primaryKey(),
+  userId: int(\"userId\").notNull(),
+  title: varchar(\"title\", { length: 255 }).notNull(),
+  description: text(\"description\"),
+  assetType: mysqlEnum(\"assetType\", [
+    \"image\",
+    \"video\",
+    \"audio\",
+    \"voice\",
+    \"script\",
+    \"zip_bundle\",
   ]).notNull(),
-  fileUrl: text("fileUrl"),
-  fileKey: text("fileKey"),
-  thumbnailUrl: text("thumbnailUrl"),
-  mimeType: varchar("mimeType", { length: 128 }),
-  fileSizeBytes: int("fileSizeBytes"),
-  promptUsed: text("promptUsed"),
-  isPublicRecycled: boolean("isPublicRecycled").default(false).notNull(),
-  visibility: mysqlEnum("visibility", ["private", "team_shared"])
-    .default("private")
+  fileUrl: text(\"fileUrl\"),
+  fileKey: text(\"fileKey\"),
+  thumbnailUrl: text(\"thumbnailUrl\"),
+  mimeType: varchar(\"mimeType\", { length: 128 }),
+  fileSizeBytes: int(\"fileSizeBytes\"),
+  promptUsed: text(\"promptUsed\"),
+  isPublicRecycled: boolean(\"isPublicRecycled\").default(false).notNull(),
+  visibility: mysqlEnum(\"visibility\", [\"private\", \"team_shared\"])
+    .default(\"private\")
     .notNull(),
-  rewardCredits: int("rewardCredits").default(0).notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  rewardCredits: int(\"rewardCredits\").default(0).notNull(),
+  createdAt: timestamp(\"createdAt\").defaultNow().notNull(),
+  updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(),
 });
 
 export type DigitalAsset = typeof digitalAssetLibrary.$inferSelect;
 export type InsertDigitalAsset = typeof digitalAssetLibrary.$inferInsert;
 
 // ─── Fine-Tuned Models ──────────────────────────────────────────────────
-export const fineTunedModels = mysqlTable("fine_tuned_models", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
-  name: varchar("name", { length: 255 }).notNull(),
-  description: text("description"),
-  modelType: mysqlEnum("modelType", [
-    "image_subject",
-    "voice_clone",
-    "style_lora",
+export const fineTunedModels = mysqlTable(\"fine_tuned_models\", {
+  id: int(\"id\").autoincrement().primaryKey(),
+  userId: int(\"userId\").notNull(),
+  name: varchar(\"name\", { length: 255 }).notNull(),
+  description: text(\"description\"),
+  modelType: mysqlEnum(\"modelType\", [
+    \"image_subject\",
+    \"voice_clone\",
+    \"style_lora\",
   ]).notNull(),
-  status: mysqlEnum("status", ["pending", "training", "ready", "failed"])
-    .default("pending")
+  status: mysqlEnum(\"status\", [\"pending\", \"training\", \"ready\", \"failed\"])
+    .default(\"pending\")
     .notNull(),
-  fileUrl: text("fileUrl"),
-  fileKey: text("fileKey"),
-  configJson: json("configJson").$type<Record<string, unknown>>(),
-  visibility: mysqlEnum("visibility", ["private", "team_shared"])
-    .default("private")
+  fileUrl: text(\"fileUrl\"),
+  fileKey: text(\"fileKey\"),
+  configJson: json(\"configJson\").$type<Record<string, unknown>>(),
+  visibility: mysqlEnum(\"visibility\", [\"private\", \"team_shared\"])
+    .default(\"private\")
     .notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+  createdAt: timestamp(\"createdAt\").defaultNow().notNull(),
+  updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  userIdStatusIdx: index(\"userId_status_idx\").on(table.userId, table.status),
+  userIdCreatedAtIdx: index(\"userId_createdAt_idx\").on(table.userId, table.createdAt),
+}));
 
 export type FineTunedModel = typeof fineTunedModels.$inferSelect;
 export type InsertFineTunedModel = typeof fineTunedModels.$inferInsert;
 
 // ─── Project Notes & Calendar ────────────────────────────────────────────
-export const projectNotesCalendar = mysqlTable("project_notes_calendar", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
-  title: varchar("title", { length: 255 }).notNull(),
-  content: text("content"),
-  scriptJson: json("scriptJson"),
-  noteType: mysqlEnum("noteType", ["note", "script", "calendar_event"])
-    .default("note")
+export const projectNotesCalendar = mysqlTable(\"project_notes_calendar\", {
+  id: int(\"id\").autoincrement().primaryKey(),
+  userId: int(\"userId\").notNull(),
+  title: varchar(\"title\", { length: 255 }).notNull(),
+  content: text(\"content\"),
+  scriptJson: json(\"scriptJson\"),
+  noteType: mysqlEnum(\"noteType\", [\"note\", \"script\", \"calendar_event\"])
+    .default(\"note\")
     .notNull(),
-  scheduledDate: timestamp("scheduledDate"),
-  tags: json("tags").$type<string[]>(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  scheduledDate: timestamp(\"scheduledDate\"),
+  tags: json(\"tags\").$type<string[]>(),
+  createdAt: timestamp(\"createdAt\").defaultNow().notNull(),
+  updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(),
 });
 
 export type ProjectNote = typeof projectNotesCalendar.$inferSelect;
 export type InsertProjectNote = typeof projectNotesCalendar.$inferInsert;
 
 // ─── User Feedback Reports ───────────────────────────────────────────────
-export const userFeedbackReports = mysqlTable("user_feedback_reports", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
-  category: mysqlEnum("category", [
-    "bug",
-    "feature_request",
-    "quality_issue",
-    "general",
+export const userFeedbackReports = mysqlTable(\"user_feedback_reports\", {
+  id: int(\"id\").autoincrement().primaryKey(),
+  userId: int(\"userId\").notNull(),
+  category: mysqlEnum(\"category\", [
+    \"bug\",
+    \"feature_request\",
+    \"quality_issue\",
+    \"general\",
   ])
-    .default("general")
+    .default(\"general\")
     .notNull(),
-  title: varchar("title", { length: 255 }).notNull(),
-  description: text("description"),
-  status: mysqlEnum("status", ["open", "in_progress", "resolved", "closed"])
-    .default("open")
+  title: varchar(\"title\", { length: 255 }).notNull(),
+  description: text(\"description\"),
+  status: mysqlEnum(\"status\", [\"open\", \"in_progress\", \"resolved\", \"closed\"])
+    .default(\"open\")
     .notNull(),
-  priority: mysqlEnum("priority", ["low", "medium", "high", "critical"])
-    .default("medium")
+  priority: mysqlEnum(\"priority\", [\"low\", \"medium\", \"high\", \"critical\"])
+    .default(\"medium\")
     .notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+  createdAt: timestamp(\"createdAt\").defaultNow().notNull(),
+  updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  userIdStatusIdx: index(\"userId_status_idx\").on(table.userId, table.status),
+  userIdCreatedAtIdx: index(\"userId_createdAt_idx\").on(table.userId, table.createdAt),
+}));
 
 export type UserFeedback = typeof userFeedbackReports.$inferSelect;
 export type InsertUserFeedback = typeof userFeedbackReports.$inferInsert;
 
 // ─── API Usage Logs ──────────────────────────────────────────────────────
-export const apiUsageLogs = mysqlTable("api_usage_logs", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
-  requestType: mysqlEnum("requestType", [
-    "image_generation",
-    "video_generation",
-    "audio_generation",
-    "voice_dubbing",
-    "prompt_expansion",
-    "safety_check",
-    "director_ai",
+export const apiUsageLogs = mysqlTable(\"api_usage_logs\", {
+  id: int(\"id\").autoincrement().primaryKey(),
+  userId: int(\"userId\").notNull(),
+  requestType: mysqlEnum(\"requestType\", [
+    \"image_generation\",
+    \"video_generation\",
+    \"audio_generation\",
+    \"voice_dubbing\",
+    \"prompt_expansion\",
+    \"safety_check\",
+    \"director_ai\",
   ]).notNull(),
-  apiProvider: varchar("apiProvider", { length: 64 }).notNull(),
-  tokensUsed: int("tokensUsed").default(0),
-  videoSeconds: int("videoSeconds").default(0),
-  audioCharacters: int("audioCharacters").default(0),
-  sunoCredits: int("sunoCredits").default(0),
-  estimatedCostUsd: decimal("estimatedCostUsd", {
+  apiProvider: varchar(\"apiProvider\", { length: 64 }).notNull(),
+  tokensUsed: int(\"tokensUsed\").default(0),
+  videoSeconds: int(\"videoSeconds\").default(0),
+  audioCharacters: int(\"audioCharacters\").default(0),
+  sunoCredits: int(\"sunoCredits\").default(0),
+  estimatedCostUsd: decimal(\"estimatedCostUsd\", {
     precision: 10,
     scale: 6,
-  }).default("0"),
-  requestPayload: json("requestPayload"),
-  responseStatus: mysqlEnum("responseStatus", [
-    "success",
-    "failed",
-    "timeout",
-    "blocked",
+  }).default(\"0\"),
+  requestPayload: json(\"requestPayload\"),
+  responseStatus: mysqlEnum(\"responseStatus\", [
+    \"success\",
+    \"failed\",
+    \"timeout\",
+    \"blocked\",
   ])
-    .default("success")
+    .default(\"success\")
     .notNull(),
-  errorMessage: text("errorMessage"),
-  generationsDeducted: int("generationsDeducted").default(0),
-  model: varchar("model", { length: 128 }),
-  inputTokens: int("inputTokens"),
-  outputTokens: int("outputTokens"),
-  modalityParams: json("modalityParams").$type<Record<string, unknown>>(),
-  costCredits: int("costCredits").default(1).notNull(),
-  durationMs: int("durationMs"),
-  success: boolean("success").default(true).notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  errorMessage: text(\"errorMessage\"),
+  generationsDeducted: int(\"generationsDeducted\").default(0),
+  model: varchar(\"model\", { length: 128 }),
+  inputTokens: int(\"inputTokens\"),
+  outputTokens: int(\"outputTokens\"),
+  modalityParams: json(\"modalityParams\").$type<Record<string, unknown>>(),
+  costCredits: int(\"costCredits\").default(1).notNull(),
+  durationMs: int(\"durationMs\"),
+  success: boolean(\"success\").default(true).notNull(),
+  createdAt: timestamp(\"createdAt\").defaultNow().notNull(),
 });
 
 export type ApiUsageLog = typeof apiUsageLogs.$inferSelect;
@@ -224,31 +234,31 @@ export type InsertApiUsageLog = typeof apiUsageLogs.$inferInsert;
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ─── Consistency Vault ───────────────────────────────────────────────────
-export const consistencyVault = mysqlTable("consistency_vault", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
-  name: varchar("name", { length: 256 }).notNull(),
-  itemType: mysqlEnum("itemType", ["character", "scene"]).notNull(),
-  imageUrl: text("imageUrl").notNull(),
-  fileKey: text("fileKey"),
-  tags: json("tags").$type<string[]>(),
-  metadata: json("metadata").$type<Record<string, unknown>>(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+export const consistencyVault = mysqlTable(\"consistency_vault\", {
+  id: int(\"id\").autoincrement().primaryKey(),
+  userId: int(\"userId\").notNull(),
+  name: varchar(\"name\", { length: 256 }).notNull(),
+  itemType: mysqlEnum(\"itemType\", [\"character\", \"scene\"]).notNull(),
+  imageUrl: text(\"imageUrl\").notNull(),
+  fileKey: text(\"fileKey\"),
+  tags: json(\"tags\").$type<string[]>(),
+  metadata: json(\"metadata\").$type<Record<string, unknown>>(),
+  createdAt: timestamp(\"createdAt\").defaultNow().notNull(),
+  updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(),
 });
 
 export type ConsistencyVaultItem = typeof consistencyVault.$inferSelect;
 export type InsertConsistencyVaultItem = typeof consistencyVault.$inferInsert;
 
 // ─── Subscription Plans ──────────────────────────────────────────────────
-export const subscriptionPlans = mysqlTable("subscription_plans", {
-  id: int("id").autoincrement().primaryKey(),
-  name: varchar("name", { length: 128 }).notNull(),
-  tier: mysqlEnum("tier", ["free", "starter", "pro", "enterprise"])
-    .default("free")
+export const subscriptionPlans = mysqlTable(\"subscription_plans\", {
+  id: int(\"id\").autoincrement().primaryKey(),
+  name: varchar(\"name\", { length: 128 }).notNull(),
+  tier: mysqlEnum(\"tier\", [\"free\", \"starter\", \"pro\", \"enterprise\"])
+    .default(\"free\")
     .notNull(),
-  priceMonthly: int("priceMonthly").default(0).notNull(),
-  quotaAllocation: json("quotaAllocation")
+  priceMonthly: int(\"priceMonthly\").default(0).notNull(),
+  quotaAllocation: json(\"quotaAllocation\")
     .$type<{
       image: number;
       video: number;
@@ -256,158 +266,158 @@ export const subscriptionPlans = mysqlTable("subscription_plans", {
       voice: number;
     }>()
     .notNull(),
-  features: json("features").$type<Record<string, boolean>>(),
-  isActive: boolean("isActive").default(true).notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  features: json(\"features\").$type<Record<string, boolean>>(),
+  isActive: boolean(\"isActive\").default(true).notNull(),
+  createdAt: timestamp(\"createdAt\").defaultNow().notNull(),
 });
 
 export type SubscriptionPlan = typeof subscriptionPlans.$inferSelect;
 export type InsertSubscriptionPlan = typeof subscriptionPlans.$inferInsert;
 
 // ─── AI Director Preferences ────────────────────────────────────────────
-export const aiDirectorPreferences = mysqlTable("ai_director_preferences", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
-  personality: mysqlEnum("personality", ["calm", "creative", "technical"])
-    .default("creative")
+export const aiDirectorPreferences = mysqlTable(\"ai_director_preferences\", {
+  id: int(\"id\").autoincrement().primaryKey(),
+  userId: int(\"userId\").notNull(),
+  personality: mysqlEnum(\"personality\", [\"calm\", \"creative\", \"technical\"])
+    .default(\"creative\")
     .notNull(),
-  preferredFormat: mysqlEnum("preferredFormat", [
-    "co-star",
-    "sslcm",
-    "selcm",
-    "free",
+  preferredFormat: mysqlEnum(\"preferredFormat\", [
+    \"co-star\",
+    \"sslcm\",
+    \"selcm\",
+    \"free\",
   ])
-    .default("co-star")
+    .default(\"co-star\")
     .notNull(),
-  customSystemPrompt: text("customSystemPrompt"),
-  preferencesJson: json("preferencesJson").$type<Record<string, unknown>>(),
-  onboardingSteps: json("onboardingSteps").$type<string[]>(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  customSystemPrompt: text(\"customSystemPrompt\"),
+  preferencesJson: json(\"preferencesJson\").$type<Record<string, unknown>>(),
+  onboardingSteps: json(\"onboardingSteps\").$type<string[]>(),
+  createdAt: timestamp(\"createdAt\").defaultNow().notNull(),
+  updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(),
 });
 
 export type AiDirectorPreference = typeof aiDirectorPreferences.$inferSelect;
-export type InsertAiDirectorPreference =
-  typeof aiDirectorPreferences.$inferInsert;
+export type InsertAiDirectorPreference = typeof aiDirectorPreferences.$inferInsert;
 
 // ─── Generation History ──────────────────────────────────────────────────
-export const generationHistory = mysqlTable("generation_history", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
-  requestId: int("requestId"),
-  modality: mysqlEnum("modality", ["image", "video", "audio", "voice"]).notNull(),
-  prompt: text("prompt"),
-  compiledPrompt: text("compiledPrompt"),
-  parameterSnapshot: json("parameterSnapshot").$type<Record<string, unknown>>(),
-  resultUrl: text("resultUrl"),
-  thumbnailUrl: text("thumbnailUrl"),
-  userRating: int("userRating"),
-  isBookmarked: boolean("isBookmarked").default(false).notNull(),
-  costCredits: int("costCredits").default(1).notNull(),
-  durationMs: int("durationMs"),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+export const generationHistory = mysqlTable(\"generation_history\", {
+  id: int(\"id\").autoincrement().primaryKey(),
+  userId: int(\"userId\").notNull(),
+  requestId: int(\"requestId\"),
+  modality: mysqlEnum(\"modality\", [\"image\", \"video\", \"audio\", \"voice\"]).notNull(),
+  prompt: text(\"prompt\"),
+  compiledPrompt: text(\"compiledPrompt\"),
+  parameterSnapshot: json(\"parameterSnapshot\").$type<Record<string, unknown>>(),
+  resultUrl: text(\"resultUrl\"),
+  thumbnailUrl: text(\"thumbnailUrl\"),
+  userRating: int(\"userRating\"),
+  isBookmarked: boolean(\"isBookmarked\").default(false).notNull(),
+  costCredits: int(\"costCredits\").default(1).notNull(),
+  durationMs: int(\"durationMs\"),
+  createdAt: timestamp(\"createdAt\").defaultNow().notNull(),
+}, (table) => ({
+  userIdCreatedAtIdx: index(\"userId_createdAt_idx\").on(table.userId, table.createdAt),
+}));
 
 export type GenerationHistoryItem = typeof generationHistory.$inferSelect;
-export type InsertGenerationHistoryItem =
-  typeof generationHistory.$inferInsert;
+export type InsertGenerationHistoryItem = typeof generationHistory.$inferInsert;
 
 // ─── Custom Blocks ─────────────────────────────────────────────────────
-export const customBlocks = mysqlTable("custom_blocks", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
-  modality: mysqlEnum("modality", ["image", "video", "audio", "voice"]).notNull(),
-  category: varchar("category", { length: 64 }).notNull(),
-  label: varchar("label", { length: 128 }).notNull(),
-  prompt: varchar("prompt", { length: 512 }).notNull(),
-  emoji: varchar("emoji", { length: 8 }),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
+export const customBlocks = mysqlTable(\"custom_blocks\", {
+  id: int(\"id\").autoincrement().primaryKey(),
+  userId: int(\"userId\").notNull(),
+  modality: mysqlEnum(\"modality\", [\"image\", \"video\", \"audio\", \"voice\"]).notNull(),
+  category: varchar(\"category\", { length: 64 }).notNull(),
+  label: varchar(\"label\", { length: 128 }).notNull(),
+  prompt: varchar(\"prompt\", { length: 512 }).notNull(),
+  emoji: varchar(\"emoji\", { length: 8 }),
+  createdAt: timestamp(\"createdAt\").defaultNow().notNull(),
 });
 
 export type CustomBlock = typeof customBlocks.$inferSelect;
 export type InsertCustomBlock = typeof customBlocks.$inferInsert;
 
 // ─── Block Combos (Saved Inspiration Presets) ───────────────────────────
-export const blockCombos = mysqlTable("block_combos", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
-  name: varchar("name", { length: 255 }).notNull(),
-  modality: mysqlEnum("modality", ["image", "video", "audio", "voice"]).notNull(),
-  blockIds: json("blockIds").$type<string[]>().notNull(),
-  customBlockIds: json("customBlockIds").$type<number[]>(),
-  vibeCardIds: json("vibeCardIds").$type<string[]>(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+export const blockCombos = mysqlTable(\"block_combos\", {
+  id: int(\"id\").autoincrement().primaryKey(),
+  userId: int(\"userId\").notNull(),
+  name: varchar(\"name\", { length: 255 }).notNull(),
+  modality: mysqlEnum(\"modality\", [\"image\", \"video\", \"audio\", \"voice\"]).notNull(),
+  blockIds: json(\"blockIds\").$type<string[]>().notNull(),
+  customBlockIds: json(\"customBlockIds\").$type<number[]>(),
+  vibeCardIds: json(\"vibeCardIds\").$type<string[]>(),
+  createdAt: timestamp(\"createdAt\").defaultNow().notNull(),
+  updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(),
 });
 
 export type BlockCombo = typeof blockCombos.$inferSelect;
 export type InsertBlockCombo = typeof blockCombos.$inferInsert;
 
 // ─── System Settings (per-user global preferences) ─────────────────────
-export const systemSettings = mysqlTable("system_settings", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull().unique(),
+export const systemSettings = mysqlTable(\"system_settings\", {
+  id: int(\"id\").autoincrement().primaryKey(),
+  userId: int(\"userId\").notNull().unique(),
 
   // ── UI Theme Preferences ──────────────────────────────────────────────
-  uiTheme: mysqlEnum("uiTheme", ["system", "light", "dark"])
-    .default("system")
+  uiTheme: mysqlEnum(\"uiTheme\", [\"system\", \"light\", \"dark\"])
+    .default(\"system\")
     .notNull(),
-  accentColor: varchar("accentColor", { length: 32 }).default("violet"),
-  fontScale: mysqlEnum("fontScale", ["small", "medium", "large"])
-    .default("medium")
+  accentColor: varchar(\"accentColor\", { length: 32 }).default(\"violet\"),
+  fontScale: mysqlEnum(\"fontScale\", [\"small\", \"medium\", \"large\"])
+    .default(\"medium\")
     .notNull(),
-  reducedMotion: boolean("reducedMotion").default(false).notNull(),
-  sidebarCollapsed: boolean("sidebarCollapsed").default(false).notNull(),
+  reducedMotion: boolean(\"reducedMotion\").default(false).notNull(),
+  sidebarCollapsed: boolean(\"sidebarCollapsed\").default(false).notNull(),
 
   // ── Privacy & Tracking Consent ────────────────────────────────────────
-  analyticsConsent: boolean("analyticsConsent").default(false).notNull(),
-  crashReportConsent: boolean("crashReportConsent").default(false).notNull(),
-  shareUsageData: boolean("shareUsageData").default(false).notNull(),
-  showProfilePublicly: boolean("showProfilePublicly").default(false).notNull(),
+  analyticsConsent: boolean(\"analyticsConsent\").default(false).notNull(),
+  crashReportConsent: boolean(\"crashReportConsent\").default(false).notNull(),
+  shareUsageData: boolean(\"shareUsageData\").default(false).notNull(),
+  showProfilePublicly: boolean(\"showProfilePublicly\").default(false).notNull(),
 
   // ── Auto-Backup Settings ──────────────────────────────────────────────
-  autoBackupEnabled: boolean("autoBackupEnabled").default(true).notNull(),
-  backupFrequency: mysqlEnum("backupFrequency", ["daily", "weekly", "monthly"])
-    .default("weekly")
+  autoBackupEnabled: boolean(\"autoBackupEnabled\").default(true).notNull(),
+  backupFrequency: mysqlEnum(\"backupFrequency\", [\"daily\", \"weekly\", \"monthly\"])
+    .default(\"weekly\")
     .notNull(),
-  backupRetentionDays: int("backupRetentionDays").default(30).notNull(),
-  lastBackupAt: timestamp("lastBackupAt"),
+  backupRetentionDays: int(\"backupRetentionDays\").default(30).notNull(),
+  lastBackupAt: timestamp(\"lastBackupAt\"),
 
   // ── Generation Defaults ───────────────────────────────────────────────
-  defaultModality: mysqlEnum("defaultModality", [
-    "image",
-    "video",
-    "audio",
-    "voice",
+  defaultModality: mysqlEnum(\"defaultModality\", [
+    \"image\",
+    \"video\",
+    \"audio\",
+    \"voice\",
   ])
-    .default("image")
+    .default(\"image\")
     .notNull(),
-  defaultCreativeMode: mysqlEnum("defaultCreativeMode", [
-    "balanced",
-    "creative",
-    "precise",
+  defaultCreativeMode: mysqlEnum(\"defaultCreativeMode\", [
+    \"balanced\",
+    \"creative\",
+    \"precise\",
   ])
-    .default("balanced")
+    .default(\"balanced\")
     .notNull(),
-  autoSaveHistory: boolean("autoSaveHistory").default(true).notNull(),
-  nsfwFilter: boolean("nsfwFilter").default(true).notNull(),
+  autoSaveHistory: boolean(\"autoSaveHistory\").default(true).notNull(),
+  nsfwFilter: boolean(\"nsfwFilter\").default(true).notNull(),
 
   // ── Notification Preferences ──────────────────────────────────────────
-  emailNotifications: boolean("emailNotifications").default(true).notNull(),
-  generationCompleteNotify: boolean("generationCompleteNotify")
+  emailNotifications: boolean(\"emailNotifications\").default(true).notNull(),
+  generationCompleteNotify: boolean(\"generationCompleteNotify\")
     .default(true)
     .notNull(),
-  weeklyDigestEnabled: boolean("weeklyDigestEnabled").default(false).notNull(),
+  weeklyDigestEnabled: boolean(\"weeklyDigestEnabled\").default(false).notNull(),
 
   // ── Locale & Accessibility ────────────────────────────────────────────
-  locale: varchar("locale", { length: 16 }).default("zh-TW"),
-  timezone: varchar("timezone", { length: 64 }).default("Asia/Taipei"),
+  locale: varchar(\"locale\", { length: 16 }).default(\"zh-TW\"),
+  timezone: varchar(\"timezone\", { length: 64 }).default(\"Asia/Taipei\"),
 
   // ── Extensible JSON for future settings ───────────────────────────────
-  extraSettings: json("extraSettings").$type<Record<string, unknown>>(),
+  extraSettings: json(\"extraSettings\").$type<Record<string, unknown>>(),
 
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  createdAt: timestamp(\"createdAt\").defaultNow().notNull(),
+  updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(),
 });
 
 export type SystemSetting = typeof systemSettings.$inferSelect;
@@ -418,138 +428,138 @@ export type InsertSystemSetting = typeof systemSettings.$inferInsert;
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ─── News Articles (首頁新聞動態) ──────────────────────────────────────────
-export const newsArticles = mysqlTable("news_articles", {
-  id: int("id").autoincrement().primaryKey(),
+export const newsArticles = mysqlTable(\"news_articles\", {
+  id: int(\"id\").autoincrement().primaryKey(),
 
   /** 文章標題 */
-  title: varchar("title", { length: 512 }).notNull(),
+  title: varchar(\"title\", { length: 512 }).notNull(),
 
   /** OARS 柔化摘要 (TL;DR) — 以溫暖、低焦慮語氣撰寫的精簡摘要 */
-  oarsSummary: text("oarsSummary").notNull(),
+  oarsSummary: text(\"oarsSummary\").notNull(),
 
   /** 完整內容（Markdown 格式，可選） */
-  bodyMarkdown: text("bodyMarkdown"),
+  bodyMarkdown: text(\"bodyMarkdown\"),
 
   /** 來源名稱（如「AI Director 官方」、「社群精選」） */
-  sourceName: varchar("sourceName", { length: 256 }).notNull(),
+  sourceName: varchar(\"sourceName\", { length: 256 }).notNull(),
 
   /** 來源 URL（外部連結，可選） */
-  sourceUrl: text("sourceUrl"),
+  sourceUrl: text(\"sourceUrl\"),
 
   /** 封面圖片 CDN URL */
-  coverImageUrl: text("coverImageUrl"),
+  coverImageUrl: text(\"coverImageUrl\"),
 
   /** 文章分類 */
-  category: mysqlEnum("category", [
-    "product_update",
-    "community_highlight",
-    "tutorial",
-    "industry_news",
-    "tips_and_tricks",
+  category: mysqlEnum(\"category\", [
+    \"product_update\",
+    \"community_highlight\",
+    \"tutorial\",
+    \"industry_news\",
+    \"tips_and_tricks\",
   ])
-    .default("product_update")
+    .default(\"product_update\")
     .notNull(),
 
   /** 標籤（用於篩選與推薦） */
-  tags: json("tags").$type<string[]>(),
+  tags: json(\"tags\").$type<string[]>(),
 
   /** 是否置頂 */
-  isPinned: boolean("isPinned").default(false).notNull(),
+  isPinned: boolean(\"isPinned\").default(false).notNull(),
 
   /** 是否已發布（草稿 vs 公開） */
-  isPublished: boolean("isPublished").default(false).notNull(),
+  isPublished: boolean(\"isPublished\").default(false).notNull(),
 
   /** 發布時間（可排程未來發布） */
-  publishedAt: timestamp("publishedAt"),
+  publishedAt: timestamp(\"publishedAt\"),
 
   /** 作者 userId（可選，null 表示系統發布） */
-  authorUserId: int("authorUserId"),
+  authorUserId: int(\"authorUserId\"),
 
   /** 閱讀次數 */
-  viewCount: int("viewCount").default(0).notNull(),
+  viewCount: int(\"viewCount\").default(0).notNull(),
 
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  createdAt: timestamp(\"createdAt\").defaultNow().notNull(),
+  updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(),
 });
 
 export type NewsArticle = typeof newsArticles.$inferSelect;
 export type InsertNewsArticle = typeof newsArticles.$inferInsert;
 
 // ─── Featured Showcase (首頁精選展示) ──────────────────────────────────────
-export const featuredShowcase = mysqlTable("featured_showcase", {
-  id: int("id").autoincrement().primaryKey(),
+export const featuredShowcase = mysqlTable(\"featured_showcase\", {
+  id: int(\"id\").autoincrement().primaryKey(),
 
   /** 關聯的生成歷史紀錄 ID（可選，null 表示手動上傳的展示作品） */
-  generatedItemId: int("generatedItemId"),
+  generatedItemId: int(\"generatedItemId\"),
 
   /** 展示標題 */
-  title: varchar("title", { length: 512 }).notNull(),
+  title: varchar(\"title\", { length: 512 }).notNull(),
 
   /** 展示描述（OARS 柔化語氣） */
-  description: text("description"),
+  description: text(\"description\"),
 
   /** 作品圖片 CDN 網址 */
-  imageUrl: text("imageUrl").notNull(),
+  imageUrl: text(\"imageUrl\").notNull(),
 
   /** 縮圖 CDN 網址（用於網格預覽） */
-  thumbnailUrl: text("thumbnailUrl"),
+  thumbnailUrl: text(\"thumbnailUrl\"),
 
   /** 情緒矩陣 — 多維度情緒向量，用於推薦與篩選 */
-  vibeParameters: json("vibeParameters").$type<{
-    warmth: number;      // 溫暖度 0-1
-    energy: number;      // 能量感 0-1
-    mystery: number;     // 神秘感 0-1
-    serenity: number;    // 寧靜度 0-1
-    whimsy: number;      // 奇幻感 0-1
-    intensity: number;   // 強烈度 0-1
+  vibeParameters: json(\"vibeParameters\").$type<{
+    warmth: number; // 溫暖度 0-1
+    energy: number; // 能量感 0-1
+    mystery: number; // 神秘感 0-1
+    serenity: number; // 寧靜度 0-1
+    whimsy: number; // 奇幻感 0-1
+    intensity: number; // 強烈度 0-1
     dominantMood: string; // 主導情緒標籤
   }>(),
 
   /**
    * 完全解構積木 JSON 組合 — 記錄生成此作品時使用的所有積木選擇，
-   * 讓使用者可以「一鍵複製配方」重現或微調此風格
+   * 讓使用者可以「一鍵複製配方」重現 or 微調此風格
    */
-  completelyDeconstructedBlocks: json("completelyDeconstructedBlocks").$type<{
-    modality: "image" | "video" | "audio" | "voice";
-    vibeCards: string[];           // 選中的 Vibe Card ID 列表
+  completelyDeconstructedBlocks: json(\"completelyDeconstructedBlocks\").$type<{
+    modality: \"image\" | \"video\" | \"audio\" | \"voice\";
+    vibeCards: string[]; // 選中的 Vibe Card ID 列表
     selectedBlocks: Array<{
-      category: string;            // 積木分類（subject, action, environment, lighting, camera）
-      blockId: string;             // 積木 ID
-      label: string;               // 積木顯示名稱
-      prompt: string;              // 積木對應的提示詞片段
+      category: string; // 積木分類（subject, action, environment, lighting, camera）
+      blockId: string; // 積木 ID
+      label: string; // 積木顯示名稱
+      prompt: string; // 積木對應的提示詞片段
     }>;
-    customBlockIds: number[];      // 自訂積木 ID 列表
-    freeformPrompt: string;        // 使用者自由輸入的提示詞
-    negativePrompt: string;        // 排除描述
-    compiledPrompt: string;        // 最終編譯後的完整提示詞
+    customBlockIds: number[]; // 自訂積木 ID 列表
+    freeformPrompt: string; // 使用者自由輸入的提示詞
+    negativePrompt: string; // 排除描述
+    compiledPrompt: string; // 最終編譯後的完整提示詞
     parameters: Record<string, unknown>; // 所有技術參數快照（seed, cfg, steps 等）
   }>(),
 
   /** 原始提示詞（方便搜尋） */
-  originalPrompt: text("originalPrompt"),
+  originalPrompt: text(\"originalPrompt\"),
 
   /** 作品模態 */
-  modality: mysqlEnum("modality", ["image", "video", "audio", "voice"])
-    .default("image")
+  modality: mysqlEnum(\"modality\", [\"image\", \"video\", \"audio\", \"voice\"])
+    .default(\"image\")
     .notNull(),
 
   /** 提交者 userId */
-  curatorUserId: int("curatorUserId"),
+  curatorUserId: int(\"curatorUserId\"),
 
   /** 展示排序權重（越大越靠前） */
-  sortWeight: int("sortWeight").default(0).notNull(),
+  sortWeight: int(\"sortWeight\").default(0).notNull(),
 
   /** 是否啟用（管理員控制） */
-  isActive: boolean("isActive").default(true).notNull(),
+  isActive: boolean(\"isActive\").default(true).notNull(),
 
   /** 按讚數 */
-  likeCount: int("likeCount").default(0).notNull(),
+  likeCount: int(\"likeCount\").default(0).notNull(),
 
   /** 被複製配方次數 */
-  forkCount: int("forkCount").default(0).notNull(),
+  forkCount: int(\"forkCount\").default(0).notNull(),
 
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  createdAt: timestamp(\"createdAt\").defaultNow().notNull(),
+  updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(),
 });
 
 export type FeaturedShowcaseItem = typeof featuredShowcase.$inferSelect;
@@ -562,58 +572,58 @@ export type InsertFeaturedShowcaseItem = typeof featuredShowcase.$inferInsert;
 // ─── User AI Brain (使用者 AI 大腦組態) ──────────────────────────────────────
 /**
  * 每位使用者的 AI 大腦組態：
- *   - 5 種推理大腦 (Reasoning Brains): director, analyst, storyteller, technician, curator
- *   - 4 種生成引擎 (Generation Engines): image, video, audio, voice
+ * - 5 種推理大腦 (Reasoning Brains): director, analyst, storyteller, technician, curator
+ * - 4 種生成引擎 (Generation Engines): image, video, audio, voice
  *
  * 每個大腦/引擎儲存：模型 ID、溫度、top_p、自訂系統提示、啟用狀態。
  * 一位使用者只有一筆記錄（upsert 模式）。
  */
-export const userAiBrain = mysqlTable("user_ai_brain", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull().unique(),
+export const userAiBrain = mysqlTable(\"user_ai_brain\", {
+  id: int(\"id\").autoincrement().primaryKey(),
+  userId: int(\"userId\").notNull().unique(),
 
   // ── 5 種推理大腦 (Reasoning Brains) ──────────────────────────────────────
 
   /** 導演大腦 — 統籌創作流程、分鏡、敘事結構 */
-  directorModel: varchar("directorModel", { length: 128 }).default("gpt-4o").notNull(),
-  directorTemperature: decimal("directorTemperature", { precision: 3, scale: 2 }).default("0.7").notNull(),
-  directorTopP: decimal("directorTopP", { precision: 3, scale: 2 }).default("0.9").notNull(),
-  directorSystemPrompt: text("directorSystemPrompt"),
-  directorEnabled: boolean("directorEnabled").default(true).notNull(),
+  directorModel: varchar(\"directorModel\", { length: 128 }).default(\"gpt-4o\").notNull(),
+  directorTemperature: decimal(\"directorTemperature\", { precision: 3, scale: 2 }).default(\"0.7\").notNull(),
+  directorTopP: decimal(\"directorTopP\", { precision: 3, scale: 2 }).default(\"0.9\").notNull(),
+  directorSystemPrompt: text(\"directorSystemPrompt\"),
+  directorEnabled: boolean(\"directorEnabled\").default(true).notNull(),
 
   /** 分析師大腦 — 數據分析、趨勢洞察、品質評估 */
-  analystModel: varchar("analystModel", { length: 128 }).default("gpt-4o").notNull(),
-  analystTemperature: decimal("analystTemperature", { precision: 3, scale: 2 }).default("0.3").notNull(),
-  analystTopP: decimal("analystTopP", { precision: 3, scale: 2 }).default("0.8").notNull(),
-  analystSystemPrompt: text("analystSystemPrompt"),
-  analystEnabled: boolean("analystEnabled").default(true).notNull(),
+  analystModel: varchar(\"analystModel\", { length: 128 }).default(\"gpt-4o\").notNull(),
+  analystTemperature: decimal(\"analystTemperature\", { precision: 3, scale: 2 }).default(\"0.3\").notNull(),
+  analystTopP: decimal(\"analystTopP\", { precision: 3, scale: 2 }).default(\"0.8\").notNull(),
+  analystSystemPrompt: text(\"analystSystemPrompt\"),
+  analystEnabled: boolean(\"analystEnabled\").default(true).notNull(),
 
   /** 說書人大腦 — 文案撰寫、故事展開、情感渲染 */
-  storytellerModel: varchar("storytellerModel", { length: 128 }).default("gpt-4o").notNull(),
-  storytellerTemperature: decimal("storytellerTemperature", { precision: 3, scale: 2 }).default("0.9").notNull(),
-  storytellerTopP: decimal("storytellerTopP", { precision: 3, scale: 2 }).default("0.95").notNull(),
-  storytellerSystemPrompt: text("storytellerSystemPrompt"),
-  storytellerEnabled: boolean("storytellerEnabled").default(true).notNull(),
+  storytellerModel: varchar(\"storytellerModel\", { length: 128 }).default(\"gpt-4o\").notNull(),
+  storytellerTemperature: decimal(\"storytellerTemperature\", { precision: 3, scale: 2 }).default(\"0.9\").notNull(),
+  storytellerTopP: decimal(\"storytellerTopP\", { precision: 3, scale: 2 }).default(\"0.95\").notNull(),
+  storytellerSystemPrompt: text(\"storytellerSystemPrompt\"),
+  storytellerEnabled: boolean(\"storytellerEnabled\").default(true).notNull(),
 
   /** 技師大腦 — 提示詞工程、參數優化、技術翻譯 */
-  technicianModel: varchar("technicianModel", { length: 128 }).default("gpt-4o").notNull(),
-  technicianTemperature: decimal("technicianTemperature", { precision: 3, scale: 2 }).default("0.2").notNull(),
-  technicianTopP: decimal("technicianTopP", { precision: 3, scale: 2 }).default("0.7").notNull(),
-  technicianSystemPrompt: text("technicianSystemPrompt"),
-  technicianEnabled: boolean("technicianEnabled").default(true).notNull(),
+  technicianModel: varchar(\"technicianModel\", { length: 128 }).default(\"gpt-4o\").notNull(),
+  technicianTemperature: decimal(\"technicianTemperature\", { precision: 3, scale: 2 }).default(\"0.2\").notNull(),
+  technicianTopP: decimal(\"technicianTopP\", { precision: 3, scale: 2 }).default(\"0.7\").notNull(),
+  technicianSystemPrompt: text(\"technicianSystemPrompt\"),
+  technicianEnabled: boolean(\"technicianEnabled\").default(true).notNull(),
 
   /** 策展人大腦 — 風格推薦、美學判斷、靈感策展 */
-  curatorModel: varchar("curatorModel", { length: 128 }).default("gpt-4o").notNull(),
-  curatorTemperature: decimal("curatorTemperature", { precision: 3, scale: 2 }).default("0.8").notNull(),
-  curatorTopP: decimal("curatorTopP", { precision: 3, scale: 2 }).default("0.9").notNull(),
-  curatorSystemPrompt: text("curatorSystemPrompt"),
-  curatorEnabled: boolean("curatorEnabled").default(true).notNull(),
+  curatorModel: varchar(\"curatorModel\", { length: 128 }).default(\"gpt-4o\").notNull(),
+  curatorTemperature: decimal(\"curatorTemperature\", { precision: 3, scale: 2 }).default(\"0.8\").notNull(),
+  curatorTopP: decimal(\"curatorTopP\", { precision: 3, scale: 2 }).default(\"0.9\").notNull(),
+  curatorSystemPrompt: text(\"curatorSystemPrompt\"),
+  curatorEnabled: boolean(\"curatorEnabled\").default(true).notNull(),
 
   // ── 4 種生成引擎 (Generation Engines) ────────────────────────────────────
 
   /** 圖像生成引擎 */
-  imageEngine: varchar("imageEngine", { length: 128 }).default("flux-pro").notNull(),
-  imageEngineParams: json("imageEngineParams").$type<{
+  imageEngine: varchar(\"imageEngine\", { length: 128 }).default(\"flux-pro\").notNull(),
+  imageEngineParams: json(\"imageEngineParams\").$type<{
     steps?: number;
     cfgScale?: number;
     seed?: number | null;
@@ -622,47 +632,47 @@ export const userAiBrain = mysqlTable("user_ai_brain", {
     height?: number;
     negativePrompt?: string;
   }>(),
-  imageEngineEnabled: boolean("imageEngineEnabled").default(true).notNull(),
+  imageEngineEnabled: boolean(\"imageEngineEnabled\").default(true).notNull(),
 
   /** 影片生成引擎 */
-  videoEngine: varchar("videoEngine", { length: 128 }).default("kling-v1").notNull(),
-  videoEngineParams: json("videoEngineParams").$type<{
+  videoEngine: varchar(\"videoEngine\", { length: 128 }).default(\"kling-v1\").notNull(),
+  videoEngineParams: json(\"videoEngineParams\").$type<{
     duration?: number;
     fps?: number;
     resolution?: string;
     motionStrength?: number;
     seed?: number | null;
   }>(),
-  videoEngineEnabled: boolean("videoEngineEnabled").default(true).notNull(),
+  videoEngineEnabled: boolean(\"videoEngineEnabled\").default(true).notNull(),
 
   /** 音樂/音效生成引擎 */
-  audioEngine: varchar("audioEngine", { length: 128 }).default("suno-v4").notNull(),
-  audioEngineParams: json("audioEngineParams").$type<{
+  audioEngine: varchar(\"audioEngine\", { length: 128 }).default(\"suno-v4\").notNull(),
+  audioEngineParams: json(\"audioEngineParams\").$type<{
     duration?: number;
     genre?: string;
     tempo?: number;
     instrumental?: boolean;
   }>(),
-  audioEngineEnabled: boolean("audioEngineEnabled").default(true).notNull(),
+  audioEngineEnabled: boolean(\"audioEngineEnabled\").default(true).notNull(),
 
   /** 語音合成引擎 */
-  voiceEngine: varchar("voiceEngine", { length: 128 }).default("elevenlabs-v2").notNull(),
-  voiceEngineParams: json("voiceEngineParams").$type<{
+  voiceEngine: varchar(\"voiceEngine\", { length: 128 }).default(\"elevenlabs-v2\").notNull(),
+  voiceEngineParams: json(\"voiceEngineParams\").$type<{
     voiceId?: string;
     stability?: number;
     similarityBoost?: number;
     speed?: number;
     language?: string;
   }>(),
-  voiceEngineEnabled: boolean("voiceEngineEnabled").default(true).notNull(),
+  voiceEngineEnabled: boolean(\"voiceEngineEnabled\").default(true).notNull(),
 
   // ── Meta ──────────────────────────────────────────────────────────────────
 
   /** 全局偏好 JSON（擴展用） */
-  globalPreferences: json("globalPreferences").$type<Record<string, unknown>>(),
+  globalPreferences: json(\"globalPreferences\").$type<Record<string, unknown>>(),
 
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  createdAt: timestamp(\"createdAt\").defaultNow().notNull(),
+  updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(),
 });
 
 export type UserAiBrain = typeof userAiBrain.$inferSelect;
@@ -670,47 +680,47 @@ export type InsertUserAiBrain = typeof userAiBrain.$inferInsert;
 
 // ─── User Model Switch Logs (模型切換日誌) ─────────────────────────────────
 /**
- * 記錄使用者每次切換推理大腦或生成引擎的操作：
- *   - 誰 (userId) 在什麼時候 (switchedAt)
- *   - 切換了哪個腦/引擎 (brainSlot)
- *   - 從哪個模型 (fromModel) 切到哪個模型 (toModel)
- *   - 切換原因 (reason) — 可選，用於分析使用者偏好趨勢
+ * 記錄使用者每次切換推理大腦 or 生成引擎的操作：
+ * - 誰 (userId) 在什麼時候 (switchedAt)
+ * - 切換了哪個腦/引擎 (brainSlot)
+ * - 從哪個模型 (fromModel) 切到哪個模型 (toModel)
+ * - 切換原因 (reason) — 可選，用於分析使用者偏好趨勢
  */
-export const userModelSwitchLogs = mysqlTable("user_model_switch_logs", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
+export const userModelSwitchLogs = mysqlTable(\"user_model_switch_logs\", {
+  id: int(\"id\").autoincrement().primaryKey(),
+  userId: int(\"userId\").notNull(),
 
   /** 切換的腦/引擎插槽名稱 */
-  brainSlot: mysqlEnum("brainSlot", [
-    "director", "analyst", "storyteller", "technician", "curator",
-    "imageEngine", "videoEngine", "audioEngine", "voiceEngine",
+  brainSlot: mysqlEnum(\"brainSlot\", [
+    \"director\", \"analyst\", \"storyteller\", \"technician\", \"curator\",
+    \"imageEngine\", \"videoEngine\", \"audioEngine\", \"voiceEngine\",
   ]).notNull(),
 
   /** 切換前的模型 ID */
-  fromModel: varchar("fromModel", { length: 128 }).notNull(),
+  fromModel: varchar(\"fromModel\", { length: 128 }).notNull(),
 
   /** 切換後的模型 ID */
-  toModel: varchar("toModel", { length: 128 }).notNull(),
+  toModel: varchar(\"toModel\", { length: 128 }).notNull(),
 
   /** 切換前的參數快照 */
-  fromParams: json("fromParams").$type<Record<string, unknown>>(),
+  fromParams: json(\"fromParams\").$type<Record<string, unknown>>(),
 
   /** 切換後的參數快照 */
-  toParams: json("toParams").$type<Record<string, unknown>>(),
+  toParams: json(\"toParams\").$type<Record<string, unknown>>(),
 
   /** 切換原因（使用者自述或系統推薦） */
-  reason: text("reason"),
+  reason: text(\"reason\"),
 
   /** 切換來源 */
-  switchSource: mysqlEnum("switchSource", [
-    "manual",           // 使用者手動切換
-    "soul_recommendation", // 光球推薦
-    "auto_fallback",    // 自動降級（模型不可用時）
-    "ab_test",          // A/B 測試
-  ]).default("manual").notNull(),
+  switchSource: mysqlEnum(\"switchSource\", [
+    \"manual\", // 使用者手動切換
+    \"soul_recommendation\", // 光球推薦
+    \"auto_fallback\", // 自動降級（模型不可用時）
+    \"ab_test\", // A/B 測試
+  ]).default(\"manual\").notNull(),
 
   /** 切換時間 */
-  switchedAt: timestamp("switchedAt").defaultNow().notNull(),
+  switchedAt: timestamp(\"switchedAt\").defaultNow().notNull(),
 });
 
 export type UserModelSwitchLog = typeof userModelSwitchLogs.$inferSelect;
@@ -719,31 +729,31 @@ export type InsertUserModelSwitchLog = typeof userModelSwitchLogs.$inferInsert;
 // ─── Custom Blocks Combo (S-S-L-C-M 積木組合存檔) ──────────────────────────
 /**
  * 使用者自訂的「S-S-L-C-M 積木 JSON 結構」完整存檔：
- *   S = Subject（主體）
- *   S = Style（風格）
- *   L = Lighting（光線）
- *   C = Camera（鏡頭）
- *   M = Mood（情緒）
+ * S = Subject（主體）
+ * S = Style（風格）
+ * L = Lighting（光線）
+ * C = Camera（鏡頭）
+ * M = Mood（情緒）
  *
  * 可供日後重現、分享、或設為精選（管理員 curated）。
  * 與 blockCombos 的差異：此表儲存完整的積木 JSON 結構（含 prompt 片段），
  * 而非僅儲存 blockIds 參照。
  */
-export const customBlocksCombo = mysqlTable("custom_blocks_combo", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
+export const customBlocksCombo = mysqlTable(\"custom_blocks_combo\", {
+  id: int(\"id\").autoincrement().primaryKey(),
+  userId: int(\"userId\").notNull(),
 
   /** 組合名稱 */
-  name: varchar("name", { length: 255 }).notNull(),
+  name: varchar(\"name\", { length: 255 }).notNull(),
 
   /** 組合描述 */
-  description: text("description"),
+  description: text(\"description\"),
 
   /** 適用模態 */
-  modality: mysqlEnum("modality", ["image", "video", "audio", "voice"]).notNull(),
+  modality: mysqlEnum(\"modality\", [\"image\", \"video\", \"audio\", \"voice\"]).notNull(),
 
   /** Subject 積木 JSON */
-  subjectBlock: json("subjectBlock").$type<{
+  subjectBlock: json(\"subjectBlock\").$type<{
     blockId: string;
     label: string;
     prompt: string;
@@ -753,7 +763,7 @@ export const customBlocksCombo = mysqlTable("custom_blocks_combo", {
   }>(),
 
   /** Style 積木 JSON */
-  styleBlock: json("styleBlock").$type<{
+  styleBlock: json(\"styleBlock\").$type<{
     blockId: string;
     label: string;
     prompt: string;
@@ -763,7 +773,7 @@ export const customBlocksCombo = mysqlTable("custom_blocks_combo", {
   }>(),
 
   /** Lighting 積木 JSON */
-  lightingBlock: json("lightingBlock").$type<{
+  lightingBlock: json(\"lightingBlock\").$type<{
     blockId: string;
     label: string;
     prompt: string;
@@ -773,7 +783,7 @@ export const customBlocksCombo = mysqlTable("custom_blocks_combo", {
   }>(),
 
   /** Camera 積木 JSON */
-  cameraBlock: json("cameraBlock").$type<{
+  cameraBlock: json(\"cameraBlock\").$type<{
     blockId: string;
     label: string;
     prompt: string;
@@ -783,7 +793,7 @@ export const customBlocksCombo = mysqlTable("custom_blocks_combo", {
   }>(),
 
   /** Mood 積木 JSON */
-  moodBlock: json("moodBlock").$type<{
+  moodBlock: json(\"moodBlock\").$type<{
     blockId: string;
     label: string;
     prompt: string;
@@ -793,7 +803,7 @@ export const customBlocksCombo = mysqlTable("custom_blocks_combo", {
   }>(),
 
   /** 額外積木（不在 S-S-L-C-M 五大類的補充積木） */
-  extraBlocks: json("extraBlocks").$type<Array<{
+  extraBlocks: json(\"extraBlocks\").$type<Array<{
     category: string;
     blockId: string;
     label: string;
@@ -804,22 +814,22 @@ export const customBlocksCombo = mysqlTable("custom_blocks_combo", {
   }>>(),
 
   /** 關聯的 Vibe Card IDs */
-  vibeCardIds: json("vibeCardIds").$type<string[]>(),
+  vibeCardIds: json(\"vibeCardIds\").$type<string[]>(),
 
   /** 自由輸入提示詞 */
-  freeformPrompt: text("freeformPrompt"),
+  freeformPrompt: text(\"freeformPrompt\"),
 
   /** 排除描述 */
-  negativePrompt: text("negativePrompt"),
+  negativePrompt: text(\"negativePrompt\"),
 
   /** 編譯後的完整提示詞（快照） */
-  compiledPrompt: text("compiledPrompt"),
+  compiledPrompt: text(\"compiledPrompt\"),
 
   /** 技術參數快照 */
-  parameterSnapshot: json("parameterSnapshot").$type<Record<string, unknown>>(),
+  parameterSnapshot: json(\"parameterSnapshot\").$type<Record<string, unknown>>(),
 
   /** 使用的 AI 大腦組態快照（記錄當時的大腦設定） */
-  brainConfigSnapshot: json("brainConfigSnapshot").$type<{
+  brainConfigSnapshot: json(\"brainConfigSnapshot\").$type<{
     reasoningBrain?: string;
     generationEngine?: string;
     temperature?: number;
@@ -827,28 +837,28 @@ export const customBlocksCombo = mysqlTable("custom_blocks_combo", {
   }>(),
 
   /** 預覽圖 URL（用此組合生成的代表作品） */
-  previewImageUrl: text("previewImageUrl"),
+  previewImageUrl: text(\"previewImageUrl\"),
 
   /** 是否為精選（管理員策展） */
-  isCurated: boolean("isCurated").default(false).notNull(),
+  isCurated: boolean(\"isCurated\").default(false).notNull(),
 
   /** 是否公開分享 */
-  isPublic: boolean("isPublic").default(false).notNull(),
+  isPublic: boolean(\"isPublic\").default(false).notNull(),
 
   /** 被 fork 次數 */
-  forkCount: int("forkCount").default(0).notNull(),
+  forkCount: int(\"forkCount\").default(0).notNull(),
 
   /** 按讚數 */
-  likeCount: int("likeCount").default(0).notNull(),
+  likeCount: int(\"likeCount\").default(0).notNull(),
 
   /** 使用次數 */
-  useCount: int("useCount").default(0).notNull(),
+  useCount: int(\"useCount\").default(0).notNull(),
 
   /** 標籤 */
-  tags: json("tags").$type<string[]>(),
+  tags: json(\"tags\").$type<string[]>(),
 
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  createdAt: timestamp(\"createdAt\").defaultNow().notNull(),
+  updatedAt: timestamp(\"updatedAt\").defaultNow().onUpdateNow().notNull(),
 });
 
 export type CustomBlocksComboItem = typeof customBlocksCombo.$inferSelect;
