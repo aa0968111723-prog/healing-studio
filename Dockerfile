@@ -17,8 +17,8 @@ COPY . .
 # Build the app
 RUN npm run build
 
-# Verify build output exists
-RUN ls -la dist/index.js dist/public/
+# Verify build output exists and show structure
+RUN ls -la dist/ && ls -la dist/public/
 
 # Copy startup script
 COPY start.sh ./
@@ -26,6 +26,10 @@ RUN chmod +x start.sh
 
 # Expose port
 EXPOSE 3000
+
+# Set working directory to /app so process.cwd() = /app
+# dist/public is at /app/dist/public ✅
+WORKDIR /app
 
 # Start the app
 ENV NODE_ENV=production

@@ -48,26 +48,30 @@ export async function setupVite(app: Express, server: Server) {
 }
 
 export function serveStatic(app: Express) {
-  // Try multiple possible paths for the built frontend
+  // import.meta.dirname after esbuild bundle = the source file location, NOT dist/
+  // So we must use process.cwd() or absolute paths to find dist/public
   const possiblePaths = [
-    path.resolve(import.meta.dirname, "public"),           // production: dist/public (esbuild sets dirname=dist)
-    path.resolve(import.meta.dirname, "../..", "dist", "public"), // dev fallback
-    path.resolve(process.cwd(), "dist", "public"),         // cwd fallback
-    path.resolve("/app", "dist", "public"),                // Docker absolute path
+    path.resolve(process.cwd(), "dist", "public"),         // Railway/Docker: /app/dist/public ✅
+    path.resolve("/app", "dist", "public"),                // Docker absolute fallback
+    path.resolve(import.meta.dirname, "public"),           // esbuild dirname fallback
+    path.resolve(import.meta.dirname, "../dist", "public"), // relative fallback
+    path.resolve(import.meta.dirname, "../../dist", "public"), // dev fallback
   ];
 
   let distPath = possiblePaths[0];
   for (const p of possiblePaths) {
     if (fs.existsSync(p) && fs.existsSync(path.join(p, "index.html"))) {
       distPath = p;
-      console.log(`[Static] Serving from: ${distPath}`);
       break;
     }
   }
 
+  console.log(`[Static] Serving frontend from: ${distPath}`);
+  console.log(`[Static] index.html exists: ${fs.existsSync(path.join(distPath, "index.html"))}`);
+
   if (!fs.existsSync(distPath)) {
     console.error(
-      `[Static] Could not find build directory. Tried: ${possiblePaths.join(", ")}`
+      `[Static] Could not find build directory. Tried:\n  ${possiblePaths.join("\n  ")}`
     );
   }
 
