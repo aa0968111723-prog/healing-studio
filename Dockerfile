@@ -20,10 +20,14 @@ RUN npm run build
 # Verify build output exists
 RUN ls -la dist/index.js dist/public/
 
+# Copy startup script
+COPY start.sh ./
+RUN chmod +x start.sh
+
 # Expose port
 EXPOSE 3000
 
 # Start the app
 ENV NODE_ENV=production
 ENV PORT=3000
-CMD ["node", "dist/index.js"]
+CMD ["./start.sh"]
