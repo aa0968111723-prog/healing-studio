@@ -34,4 +34,5 @@ WORKDIR /app
 # Start the app
 ENV NODE_ENV=production
 ENV PORT=3000
-CMD ["./start.sh"]
+# Ensure NODE_ENV is production at runtime
+CMD ["sh", "-c", "NODE_ENV=production node dist/index.js"]
