@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import { nanoid } from "nanoid";
 import { storagePut } from "./storage";
-import { sdk } from "./_core/sdk";
+import { authenticateRequest } from "./_core/googleAuth";
 
 const uploadRouter = Router();
 
@@ -10,7 +10,7 @@ const uploadRouter = Router();
 uploadRouter.post("/api/upload", async (req: Request, res: Response) => {
   try {
     // Authenticate the request
-    const user = await sdk.authenticateRequest(req);
+    const user = await authenticateRequest(req);
     if (!user) {
       res.status(401).json({ error: "Unauthorized" });
       return;

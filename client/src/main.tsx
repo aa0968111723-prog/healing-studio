@@ -9,7 +9,25 @@ import { AIStateProvider } from "@/contexts/AIStateContext";
 import { emitAuthExpiredDebounced } from "@/components/AuthExpiredModal";
 import "./index.css";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // 30 秒內不重複請求，減少不必要的 API 呼叫
+      staleTime: 30_000,
+      // 視窗切換時不自動 refetch（Studio 等重型頁面需要穩定狀態）
+      refetchOnWindowFocus: false,
+      // 網路恢復時自動 refetch（保留此行為，確保離線後數據更新）
+      refetchOnReconnect: true,
+      // 失敗時最多重試 1 次（避免過多無效請求）
+      retry: 1,
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10_000),
+    },
+    mutations: {
+      // mutation 失敗不自動重試
+      retry: 0,
+    },
+  },
+});
 
 // ─── Unified Auth Interceptor ──────────────────────────────────────────────
 // Instead of hard-redirecting to login page (which loses user's work-in-progress),

@@ -1485,9 +1485,7 @@ export default function Studio() {
                         };
                         zip.file("metadata.json", JSON.stringify(metadata, null, 2));
 
-                        console.log('[ZIP] Files in zip:', Object.keys(zip.files));
                         const content = await zip.generateAsync({ type: "blob" });
-                        console.log('[ZIP] Generated blob size:', content.size, 'type:', content.type);
                         if (content.size === 0) {
                           toast.error("ZIP 檔案為空，請稍後再試");
                           return;

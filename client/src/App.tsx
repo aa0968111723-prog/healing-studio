@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
@@ -5,45 +6,63 @@ import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { NotesDrawerProvider } from "./contexts/NotesDrawerContext";
-import Home from "./pages/Home";
+import { PersonalityProvider } from "./contexts/PersonalityContext";
 import DashboardLayout from "./components/DashboardLayout";
-import Studio from "./pages/Studio";
-import DirectorAI from "./pages/DirectorAI";
-import AssetsLibrary from "./pages/AssetsLibrary";
-import ModelsPage from "./pages/ModelsPage";
-import NotesPage from "./pages/NotesPage";
-import CalendarPage from "./pages/CalendarPage";
-import DashboardPage from "./pages/DashboardPage";
-import FeedbackPage from "./pages/FeedbackPage";
-import AdminPage from "./pages/AdminPage";
-import SharedSpace from "./pages/SharedSpace";
-import SettingsPage from "./pages/SettingsPage";
-import AiBrainSettings from "./pages/AiBrainSettings";
-import VaultPage from "./pages/VaultPage";
-import HistoryPage from "./pages/HistoryPage";
 import ProjectNotesDrawer from "./components/ProjectNotesDrawer";
 import OfflineBanner from "./components/OfflineBanner";
 import AuthExpiredModal from "./components/AuthExpiredModal";
 import { ShowcaseTransferProvider } from "./contexts/ShowcaseTransferContext";
 
+// ─── 首頁直接載入（不延遲，確保首屏最快） ─────────────────────────────────
+import Home from "./pages/Home";
+
+// ─── 其他頁面使用 lazy() 延遲載入，按需拆分 bundle ────────────────────────
+const Studio           = lazy(() => import("./pages/Studio"));
+const DirectorAI       = lazy(() => import("./pages/DirectorAI"));
+const AssetsLibrary    = lazy(() => import("./pages/AssetsLibrary"));
+const ModelsPage       = lazy(() => import("./pages/ModelsPage"));
+const VaultPage        = lazy(() => import("./pages/VaultPage"));
+const SharedSpace      = lazy(() => import("./pages/SharedSpace"));
+const NotesPage        = lazy(() => import("./pages/NotesPage"));
+const CalendarPage     = lazy(() => import("./pages/CalendarPage"));
+const DashboardPage    = lazy(() => import("./pages/DashboardPage"));
+const FeedbackPage     = lazy(() => import("./pages/FeedbackPage"));
+const AiBrainSettings  = lazy(() => import("./pages/AiBrainSettings"));
+const SettingsPage     = lazy(() => import("./pages/SettingsPage"));
+const HistoryPage      = lazy(() => import("./pages/HistoryPage"));
+const AdminPage        = lazy(() => import("./pages/AdminPage"));
+
+// ─── 頁面載入中的通用 Skeleton ─────────────────────────────────────────────
+function PageSkeleton() {
+  return (
+    <div className="flex items-center justify-center h-full min-h-[60vh]">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+        <p className="text-sm text-muted-foreground">載入中...</p>
+      </div>
+    </div>
+  );
+}
+
+// ─── 路由包裝元件 ─────────────────────────────────────────────────────────
+
 function DashboardRoute({ component: Component }: { component: React.ComponentType }) {
   return (
     <DashboardLayout>
-      <Component />
+      <Suspense fallback={<PageSkeleton />}>
+        <Component />
+      </Suspense>
     </DashboardLayout>
   );
 }
 
-/**
- * Wraps a page component with an inline ErrorBoundary for page-level isolation.
- * If the page crashes, only the page content shows the friendly error UI,
- * while the sidebar/navigation remain functional.
- */
 function ProtectedDashboardRoute({ component: Component }: { component: React.ComponentType }) {
   return (
     <DashboardLayout>
       <ErrorBoundary inline>
-        <Component />
+        <Suspense fallback={<PageSkeleton />}>
+          <Component />
+        </Suspense>
       </ErrorBoundary>
     </DashboardLayout>
   );
@@ -105,6 +124,7 @@ function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
+        <PersonalityProvider>
         <NotesDrawerProvider>
           <ShowcaseTransferProvider>
             <TooltipProvider>
@@ -116,6 +136,7 @@ function App() {
             </TooltipProvider>
           </ShowcaseTransferProvider>
         </NotesDrawerProvider>
+        </PersonalityProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );

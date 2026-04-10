@@ -167,6 +167,29 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    // ── Chunk 分割策略：按功能拆分大型第三方套件 ──────────────
+    rollupOptions: {
+      output: {
+        manualChunks: (id: string) => {
+          // D3.js — 圖表/思維島鏈（重型，獨立 chunk）
+          if (id.includes("node_modules/d3")) return "vendor-d3";
+          // Framer Motion — 動畫（中型）
+          if (id.includes("node_modules/framer-motion")) return "vendor-motion";
+          // Three.js — 3D 光球（重型，僅在 Phase 10 頁面用）
+          if (id.includes("node_modules/three") || id.includes("node_modules/@react-three")) return "vendor-three";
+          // Recharts — 儀表板圖表
+          if (id.includes("node_modules/recharts")) return "vendor-charts";
+          // JSZip — 匯出功能
+          if (id.includes("node_modules/jszip")) return "vendor-jszip";
+          // Radix UI — UI 元件庫（中型）
+          if (id.includes("node_modules/@radix-ui")) return "vendor-radix";
+          // TanStack Query + tRPC — 資料層
+          if (id.includes("node_modules/@tanstack") || id.includes("node_modules/@trpc")) return "vendor-query";
+          // 其餘 node_modules 統一歸入 vendor
+          if (id.includes("node_modules")) return "vendor";
+        },
+      },
+    },
   },
   server: {
     host: true,
