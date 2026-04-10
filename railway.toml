@@ -1,6 +1,6 @@
 [build]
-builder = "NIXPACKS"
-buildCommand = "npm install --legacy-peer-deps && npm run build"
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
 
 [deploy]
 startCommand = "node dist/index.js"
@@ -8,4 +8,3 @@ healthcheckPath = "/api/trpc/system.health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
-# cache bust Apr 10 07:55 UTC 2026
