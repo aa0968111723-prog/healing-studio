@@ -43,6 +43,11 @@ async function startServer() {
   app.use(uploadRouter);
   // SSE for real-time generation events
   app.use(sseRouter);
+  // Simple health check endpoint (for Railway/Docker healthcheck — no tRPC overhead)
+  app.get("/api/health", (_req, res) => {
+    res.status(200).json({ ok: true, ts: Date.now() });
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",
@@ -65,8 +70,8 @@ async function startServer() {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
-  server.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}/`);
+  server.listen(port, "0.0.0.0", () => {
+    console.log(`Server running on http://0.0.0.0:${port}/`);
 
     // Initialize scheduled jobs after server is ready
     initNewsFetcherCron();
