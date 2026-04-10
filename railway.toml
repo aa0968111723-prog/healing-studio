@@ -8,4 +8,4 @@ healthcheckPath = "/api/trpc/system.health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
-# Railway cache bust Fri Apr 10 07:15:00 UTC 2026 — removed pnpm section from package.json
+# cache bust Apr 10 07:55 UTC 2026
