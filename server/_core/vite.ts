@@ -48,13 +48,26 @@ export async function setupVite(app: Express, server: Server) {
 }
 
 export function serveStatic(app: Express) {
-  const distPath =
-    process.env.NODE_ENV === "development"
-      ? path.resolve(import.meta.dirname, "../..", "dist", "public")
-      : path.resolve(import.meta.dirname, "public");
+  // Try multiple possible paths for the built frontend
+  const possiblePaths = [
+    path.resolve(import.meta.dirname, "public"),           // production: dist/public (esbuild sets dirname=dist)
+    path.resolve(import.meta.dirname, "../..", "dist", "public"), // dev fallback
+    path.resolve(process.cwd(), "dist", "public"),         // cwd fallback
+    path.resolve("/app", "dist", "public"),                // Docker absolute path
+  ];
+
+  let distPath = possiblePaths[0];
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p) && fs.existsSync(path.join(p, "index.html"))) {
+      distPath = p;
+      console.log(`[Static] Serving from: ${distPath}`);
+      break;
+    }
+  }
+
   if (!fs.existsSync(distPath)) {
     console.error(
-      `Could not find the build directory: ${distPath}, make sure to build the client first`
+      `[Static] Could not find build directory. Tried: ${possiblePaths.join(", ")}`
     );
   }
 
