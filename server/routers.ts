@@ -5,7 +5,7 @@ import { publicProcedure, protectedProcedure, adminProcedure, router } from "./_
 import { z } from "zod";
 import * as db from "./db";
 import { invokeLLM } from "./_core/llm";
-import { generateImage } from "./_core/imageGeneration";
+// imageGeneration.ts no longer used directly — all 4 modalities go through falDispatcher
 import { storagePut } from "./storage";
 import { TRPCError } from "@trpc/server";
 import { generationBus } from "./generationEvents";
@@ -16,9 +16,7 @@ import { brainRouter } from "./routers/brain";
 import { proStudioRouter } from "./routers/proStudio";
 import { imageStudioRouter } from "./routers/imageStudio";
 import { getOrchestrator } from "./services/modelClients";
-import { getVoiceCompiler } from "./services/voiceCompiler";
-import { getAudioCompiler } from "./services/audioCompiler";
-import { getVideoCompiler } from "./services/videoCompiler";
+// voiceCompiler, audioCompiler, videoCompiler are no longer used — all modalities route through falDispatcher
 import { buildMemoryContext, upsertMemory } from "./services/ragMemory";
 import {
   estimatePoints,
@@ -735,405 +733,208 @@ export const appRouter = router({
           };
 
           if (input.generationType === "image" || input.generationType === "multimodal") {
-            // Pass reference images to generateImage for style-guided generation
-            const originalImages: Array<{ url?: string; mimeType?: string }> = [];
-            if (input.styleReferenceUrl) {
-              originalImages.push({ url: input.styleReferenceUrl, mimeType: "image/png" });
-            }
-            if (input.vibeReferenceUrl) {
-              originalImages.push({ url: input.vibeReferenceUrl, mimeType: "image/png" });
-            }
-
-            const imageResult = await withTimeout(
-              generateImage({
+            // ── Image: fal.ai Flux Pro (真實 API，無 Forge 依賴) ──
+            generationBus.emit(jobId, { type: "progress", progress: 42, message: "正在呼叫 fal.ai Flux 生成圖片..." });
+            const refImageUrl = input.styleReferenceUrl || input.vibeReferenceUrl || undefined;
+            const imageDispatch = await withTimeout(
+              dispatchImageGeneration({
+                modelId: refImageUrl ? falEngines.imageToImage : falEngines.textToImage,
                 prompt: compiledPrompt,
-                ...(originalImages.length > 0 ? { originalImages } : {}),
+                negativePrompt: input.negativePrompt,
+                imageUrl: refImageUrl,
+                aspectRatio: input.aspectRatio,
+                seed: input.seed,
               }),
               120_000,
               "圖片生成"
             );
-            resultUrl = imageResult.url;
-            resultData.imageUrl = imageResult.url;
+            if (!imageDispatch.success) {
+              // 真實失敗：退還點數並拋出明確錯誤
+              await db.refundUserPoints(userId, _genEstimate.totalPoints);
+              throw new TRPCError({
+                code: "INTERNAL_SERVER_ERROR",
+                message: `圖片生成失敗（fal.ai ${imageDispatch.modelId}）：${imageDispatch.error || "未知錯誤"}`,
+              });
+            }
+            const imageUrl = (imageDispatch.data as any)?.images?.[0]?.url
+              ?? (imageDispatch.data as any)?.image?.url
+              ?? (imageDispatch.data as any)?.url as string | undefined;
+            if (!imageUrl) {
+              await db.refundUserPoints(userId, _genEstimate.totalPoints);
+              throw new TRPCError({
+                code: "INTERNAL_SERVER_ERROR",
+                message: `fal.ai 圖片生成未回傳有效 URL（model: ${imageDispatch.modelId}）`,
+              });
+            }
+            resultUrl = imageUrl;
+            resultData.imageUrl = imageUrl;
             resultData.aspectRatio = input.aspectRatio;
             resultData.negativePrompt = input.negativePrompt;
             resultData.styleReferenceUrl = input.styleReferenceUrl;
             resultData.vibeReferenceUrl = input.vibeReferenceUrl;
+            resultData.imageModel = imageDispatch.modelId;
+            debug(`[Fal] Image generation completed: ${imageUrl} (${imageDispatch.durationMs}ms, model: ${imageDispatch.modelId})`);
           }
 
-          // ── Video: Gemini Veo SDK (text-to-video) ──
+          // ── Video: fal.ai Kling (真實 API，無 Gemini Veo 依賴) ──
           if (input.generationType === "video" || input.generationType === "multimodal") {
-            try {
-              const videoCompiler = getVideoCompiler();
-              const videoCompiled = videoCompiler.compile({
-                blocks: [{
-                  id: "main",
-                  category: "subject" as const,
-                  label: "main subject",
-                  prompt: compiledPrompt.substring(0, 120),
-                }],
-                freePrompt: compiledPrompt,
-                targetDurationSec: input.videoDurationSeconds || 5,
-                forceCameraMode: "dolly_in",
-                firstFrameUrl: input.firstFrameUrl || undefined,
-                lastFrameUrl: input.lastFrameUrl || undefined,
-                aspectRatio: "16:9",
+            generationBus.emit(jobId, { type: "progress", progress: 45, message: "正在呼叫 fal.ai Kling 生成影片..." });
+            const videoModelId = input.firstFrameUrl
+              ? falEngines.imageToVideo
+              : falEngines.textToVideo;
+            const videoDispatch = await withTimeout(
+              dispatchVideoGeneration({
+                modelId: videoModelId,
+                prompt: compiledPrompt,
+                imageUrl: input.firstFrameUrl || input.characterRefUrl || undefined,
+                durationSec: input.videoDurationSeconds || 5,
+                aspectRatio: input.aspectRatio || "16:9",
+                seed: input.seed,
+              }),
+              300_000,
+              "影片生成"
+            );
+            if (!videoDispatch.success) {
+              // 真實失敗：退還點數並拋出明確錯誤
+              await db.refundUserPoints(userId, _genEstimate.totalPoints);
+              throw new TRPCError({
+                code: "INTERNAL_SERVER_ERROR",
+                message: `影片生成失敗（fal.ai ${videoDispatch.modelId}）：${videoDispatch.error || "未知錯誤"}`,
               });
-              const videoPrompt = videoCompiled.prompt || compiledPrompt;
-              debug(`[Wave1] Video prompt compiled (${videoPrompt.length} chars), calling Gemini Veo SDK...`);
-
-              // Get Gemini API Key
-              const geminiKey = (await import("./_core/env.validated")).getApiKey("GEMINI_API_KEY");
-              if (!geminiKey) {
-                throw new Error("GEMINI_API_KEY 未設定，無法生成影片");
-              }
-
-              // Use @google/genai SDK for reliable Veo API access
-              const { GoogleGenAI } = await import("@google/genai");
-              const ai = new GoogleGenAI({ apiKey: geminiKey });
-
-              // Step 1: Submit video generation
-              generationBus.emit(jobId, { type: "progress", progress: 45, message: "正在提交 Veo 影片生成..." });
-              let operation = await ai.models.generateVideos({
-                model: "veo-2.0-generate-001",
-                prompt: videoPrompt,
-                config: {
-                  aspectRatio: "16:9",
-                  numberOfVideos: 1,
-                  personGeneration: "allow_all" as any,
-                },
-              });
-              debug(`[Wave1] Gemini Veo operation started: ${operation.name}`);
-
-              // Step 2: Poll operation until done (max 5 min)
-              const MAX_POLL_MS = 300_000;
-              const POLL_INTERVAL = 10_000;
-              const pollStart = Date.now();
-
-              while (!operation.done && Date.now() - pollStart < MAX_POLL_MS) {
-                await new Promise((r) => setTimeout(r, POLL_INTERVAL));
-                operation = await ai.operations.getVideosOperation({ operation });
-                const elapsed = Math.round((Date.now() - pollStart) / 1000);
-                const pct = Math.min(85, 45 + Math.round((elapsed / 300) * 40));
-                generationBus.emit(jobId, { type: "progress", progress: pct, message: `影片生成中... (${elapsed}s)` });
-                debug(`[Wave1] Veo still generating... (${elapsed}s)`);
-              }
-
-              if (!operation.done) {
-                throw new Error("Gemini Veo 影片生成超時（5分鐘）");
-              }
-              debug(`[Wave1] Veo operation done after ${Math.round((Date.now() - pollStart) / 1000)}s`);
-
-              // Step 3: Extract video and upload to S3
-              const generatedVideos = operation.response?.generatedVideos || [];
-              if (generatedVideos.length === 0) {
-                throw new Error("Gemini Veo 未回傳影片結果");
-              }
-
-              const genVideo = generatedVideos[0];
-              const videoData = genVideo.video;
-              if (!videoData || !videoData.uri) {
-                throw new Error("Gemini Veo 影片 URI 缺失");
-              }
-
-              // Download video bytes via the file URI
-              generationBus.emit(jobId, { type: "progress", progress: 88, message: "正在下載影片並上傳至雲端..." });
-              const downloadUrl = videoData.uri.includes("key=") ? videoData.uri : `${videoData.uri}${videoData.uri.includes("?") ? "&" : "?"}key=${geminiKey}`;
-              const videoBytes = await fetch(downloadUrl).then((r) => {
-                if (!r.ok) throw new Error(`影片下載失敗: ${r.status}`);
-                return r.arrayBuffer();
-              });
-
-              const videoKey = `videos/${userId}/${jobId}-${Date.now()}.mp4`;
-              const { url: videoUrl } = await storagePut(
-                videoKey,
-                Buffer.from(videoBytes),
-                "video/mp4"
-              );
-
-              resultData.videoUrl = videoUrl;
-              resultData.videoStatus = "completed";
-              resultData.videoDuration = 8;
-              if (!resultUrl) resultUrl = videoUrl;
-              debug(`[Wave1] Video generation completed (Gemini Veo SDK): ${videoUrl}`);
-            } catch (videoErr: any) {
-              console.error("[Wave1] Video generation failed:", videoErr);
-              resultData.videoStatus = "video_generation_failed";
-              resultData.videoError = videoErr instanceof Error ? videoErr.message : String(videoErr);
-              // Check if it's a quota/billing issue
-              const errMsg = String(videoErr?.message || videoErr);
-              if (errMsg.includes("429") || errMsg.includes("quota") || errMsg.includes("billing") || errMsg.includes("RESOURCE_EXHAUSTED")) {
-                resultData.videoError = "Gemini Veo API 配額不足或未啟用付費方案，請至 Google AI Studio 確認帳戶餘額後重試";
-              }
             }
+            const videoUrl = (videoDispatch.data as any)?.video?.url
+              ?? (videoDispatch.data as any)?.videos?.[0]?.url
+              ?? (videoDispatch.data as any)?.url as string | undefined;
+            if (!videoUrl) {
+              await db.refundUserPoints(userId, _genEstimate.totalPoints);
+              throw new TRPCError({
+                code: "INTERNAL_SERVER_ERROR",
+                message: `fal.ai 影片生成未回傳有效 URL（model: ${videoDispatch.modelId}）`,
+              });
+            }
+            resultData.videoUrl = videoUrl;
+            resultData.videoStatus = "completed";
+            resultData.videoDuration = input.videoDurationSeconds || 5;
+            resultData.videoModel = videoDispatch.modelId;
             resultData.videoPrompt = compiledPrompt;
             resultData.firstFrameUrl = input.firstFrameUrl;
             resultData.lastFrameUrl = input.lastFrameUrl;
             resultData.characterRefUrl = input.characterRefUrl;
             resultData.cameraMotion = input.cameraMotion;
+            if (!resultUrl) resultUrl = videoUrl;
+            debug(`[Fal] Video generation completed: ${videoUrl} (${videoDispatch.durationMs}ms, model: ${videoDispatch.modelId})`);
           }
 
-          // ── Audio: Gemini Lyria 3 Music Generation ──
+          // ── Audio: fal.ai stable-audio (真實 API，無 Gemini Lyria 依賴) ──
           if (input.generationType === "audio" || input.generationType === "multimodal") {
-            try {
-              const audioCompiler = getAudioCompiler();
-              const audioCompiled = audioCompiler.compile({
-                blocks: [{
-                  id: "main",
-                  category: "genre" as const,
-                  label: input.musicStyle || "ambient",
-                  prompt: input.musicStyle || "ambient healing",
-                }],
-                freePrompt: compiledPrompt,
-                targetDurationSec: input.audioDuration || 120,
-                instrumental: input.isInstrumental ?? true,
-                lyrics: input.lyrics || undefined,
-              });
-
-              // Build the music prompt
-              let musicPrompt = audioCompiled.prompt || `${input.musicStyle || "ambient healing"}, ${compiledPrompt.substring(0, 200)}`;
-              if (input.isInstrumental) {
-                musicPrompt += ". Instrumental only, no vocals.";
-              }
-              if (input.lyrics) {
-                musicPrompt += `\n\n${input.lyrics}`;
-              }
-              debug(`[Wave1] Audio prompt compiled (${musicPrompt.length} chars), calling Gemini Lyria 3...`);
-
-              // Get Gemini API Key
-              const geminiKey = (await import("./_core/env.validated")).getApiKey("GEMINI_API_KEY");
-              if (!geminiKey) {
-                throw new Error("GEMINI_API_KEY 未設定，無法生成音樂");
-              }
-
-              const { GoogleGenAI } = await import("@google/genai");
-              const ai = new GoogleGenAI({ apiKey: geminiKey });
-
-              // Use Lyria 3 Clip (30s) for short, Lyria 3 Pro for longer
-              const useProModel = (input.audioDuration || 30) > 35;
-              const modelId = useProModel ? "lyria-3-pro-preview" : "lyria-3-clip-preview";
-              debug(`[Wave1] Using Lyria model: ${modelId}`);
-
-              generationBus.emit(jobId, { type: "progress", progress: 45, message: `正在生成音樂 (${modelId})...` });
-
-              const musicResponse = await withTimeout(
-                ai.models.generateContent({
-                  model: modelId,
-                  contents: musicPrompt,
-                  config: {
-                    responseModalities: ["AUDIO", "TEXT"],
-                  } as any,
-                }),
-                180_000,
-                "Lyria 音樂生成"
-              );
-
-              // Parse response: extract audio data and lyrics
-              let audioBuffer: Buffer | null = null;
-              let audioMimeType = "audio/mp3";
-              let generatedLyrics = "";
-
-              const parts = musicResponse.candidates?.[0]?.content?.parts || [];
-              for (const part of parts) {
-                if ((part as any).text) {
-                  generatedLyrics += (part as any).text + "\n";
-                } else if ((part as any).inlineData) {
-                  const inlineData = (part as any).inlineData;
-                  audioBuffer = Buffer.from(inlineData.data, "base64");
-                  audioMimeType = inlineData.mimeType || "audio/mp3";
-                }
-              }
-
-              if (audioBuffer && audioBuffer.length > 0) {
-                // If raw PCM, wrap in WAV header for browser playback
-                if (audioMimeType.includes("L16") || audioMimeType.includes("pcm")) {
-                  const sr = 24000, ch = 1, bps = 16;
-                  const ds = audioBuffer.length;
-                  const wh = Buffer.alloc(44);
-                  wh.write("RIFF", 0); wh.writeUInt32LE(36 + ds, 4);
-                  wh.write("WAVE", 8); wh.write("fmt ", 12);
-                  wh.writeUInt32LE(16, 16); wh.writeUInt16LE(1, 20);
-                  wh.writeUInt16LE(ch, 22); wh.writeUInt32LE(sr, 24);
-                  wh.writeUInt32LE(sr * ch * bps / 8, 28);
-                  wh.writeUInt16LE(ch * bps / 8, 32); wh.writeUInt16LE(bps, 34);
-                  wh.write("data", 36); wh.writeUInt32LE(ds, 40);
-                  audioBuffer = Buffer.concat([wh, audioBuffer]);
-                  audioMimeType = "audio/wav";
-                }
-                const ext = audioMimeType.includes("wav") ? "wav" : "mp3";
-                const audioKey = `music/${userId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-                const { url: audioUrl } = await storagePut(audioKey, audioBuffer, audioMimeType);
-                resultData.audioUrl = audioUrl;
-                resultData.audioStatus = "completed";
-                resultData.audioTitle = generatedLyrics.substring(0, 100) || "Healing Music";
-                resultData.generatedLyrics = generatedLyrics;
-                if (!resultUrl) resultUrl = audioUrl;
-                debug(`[Wave1] Lyria music generation completed: ${audioUrl} (${audioBuffer.length} bytes)`);
-              } else {
-                resultData.audioStatus = "audio_generation_failed";
-                resultData.audioError = "Gemini Lyria 未回傳音訊資料";
-                console.warn("[Wave1] Lyria returned no audio data");
-              }
-            } catch (audioErr: any) {
-              console.error("[Wave1] Audio generation failed:", audioErr);
-              resultData.audioStatus = "audio_generation_failed";
-              const errMsg = String(audioErr?.message || audioErr);
-              if (errMsg.includes("429") || errMsg.includes("quota") || errMsg.includes("RESOURCE_EXHAUSTED")) {
-                resultData.audioError = "Gemini Lyria API 配額不足，請至 Google AI Studio 確認帳戶餘額後重試";
-              } else {
-                resultData.audioError = audioErr instanceof Error ? audioErr.message : String(audioErr);
-              }
+            generationBus.emit(jobId, { type: "progress", progress: 45, message: "正在呼叫 fal.ai 生成音樂..." });
+            // Build music prompt from style + compiled prompt
+            let musicPrompt = compiledPrompt;
+            if (input.musicStyle) {
+              musicPrompt = `${input.musicStyle}, ${compiledPrompt}`;
             }
+            if (input.isInstrumental) {
+              musicPrompt += ". Instrumental only, no vocals.";
+            }
+            if (input.lyrics) {
+              musicPrompt += `\n\nLyrics:\n${input.lyrics}`;
+            }
+            const audioDispatch = await withTimeout(
+              dispatchAudioGeneration({
+                modelId: falEngines.textToAudio,
+                prompt: musicPrompt,
+                durationSec: input.audioDuration || 30,
+                seed: input.seed,
+              }),
+              180_000,
+              "音樂生成"
+            );
+            if (!audioDispatch.success) {
+              await db.refundUserPoints(userId, _genEstimate.totalPoints);
+              throw new TRPCError({
+                code: "INTERNAL_SERVER_ERROR",
+                message: `音樂生成失敗（fal.ai ${audioDispatch.modelId}）：${audioDispatch.error || "未知錯誤"}`,
+              });
+            }
+            const audioUrl = (audioDispatch.data as any)?.audio?.url
+              ?? (audioDispatch.data as any)?.audio_url
+              ?? (audioDispatch.data as any)?.url as string | undefined;
+            if (!audioUrl) {
+              await db.refundUserPoints(userId, _genEstimate.totalPoints);
+              throw new TRPCError({
+                code: "INTERNAL_SERVER_ERROR",
+                message: `fal.ai 音樂生成未回傳有效 URL（model: ${audioDispatch.modelId}）`,
+              });
+            }
+            resultData.audioUrl = audioUrl;
+            resultData.audioStatus = "completed";
+            resultData.audioTitle = input.musicStyle || "Healing Music";
+            resultData.audioModel = audioDispatch.modelId;
             resultData.musicStyle = input.musicStyle || "ambient healing";
             resultData.isInstrumental = input.isInstrumental;
             resultData.lyrics = input.lyrics;
             resultData.audioDuration = input.audioDuration;
             resultData.audioEnergy = input.audioEnergy;
+            if (!resultUrl) resultUrl = audioUrl;
+            debug(`[Fal] Audio generation completed: ${audioUrl} (${audioDispatch.durationMs}ms, model: ${audioDispatch.modelId})`);
           }
 
-          // ── Voice: Gemini TTS (Text-to-Speech) ──
+          // ── Voice: fal.ai playai-tts (真實 API，無 Gemini TTS 依賴) ──
           if (input.generationType === "voice") {
-            try {
-              const voiceCompiler = getVoiceCompiler();
-              const voiceCompiled = voiceCompiler.compile({
-                script: input.voiceText || input.prompt,
-                moodBlock: input.voiceEmotionType ? {
-                  blockId: "emotion-override",
-                  label: input.voiceEmotionType,
-                  prompt: input.voiceEmotionType,
-                  isCustom: false,
-                } : undefined,
-                voiceId: input.voiceModelId || undefined,
-                rateOverride: input.voiceSpeed ? `${Math.round(input.voiceSpeed * 100)}%` : undefined,
-                enableHesitation: true,
+            generationBus.emit(jobId, { type: "progress", progress: 50, message: "正在呼叫 fal.ai TTS 生成語音..." });
+            const ttsText = input.voiceText || input.prompt;
+            // Map emotion to fal.ai playai voice IDs
+            const voiceIdMap: Record<string, string> = {
+              "warm":     "s3://voice-cloning-zero-shot/d9ff78ba-d016-47f6-b0ef-dd630f59414e/female-cs/manifest.json",
+              "calm":     "s3://voice-cloning-zero-shot/e5df2eb3-5153-40fa-9f6e-6e27bbb7a38e/original/manifest.json",
+              "cheerful": "s3://voice-cloning-zero-shot/f6594c50-e59b-492c-bac2-047d57f8bdd8/original/manifest.json",
+              "serious":  "s3://voice-cloning-zero-shot/820da3d2-3a3b-42e7-8d14-a0e2bed3c4f3/original/manifest.json",
+              "gentle":   "s3://voice-cloning-zero-shot/d9ff78ba-d016-47f6-b0ef-dd630f59414e/female-cs/manifest.json",
+              "energetic":"s3://voice-cloning-zero-shot/f6594c50-e59b-492c-bac2-047d57f8bdd8/original/manifest.json",
+            };
+            const falVoiceId = input.voiceModelId
+              || voiceIdMap[input.voiceEmotionType || ""]
+              || "s3://voice-cloning-zero-shot/e5df2eb3-5153-40fa-9f6e-6e27bbb7a38e/original/manifest.json";
+            const voiceDispatch = await withTimeout(
+              dispatchTTS({
+                modelId: falEngines.textToSpeech,
+                text: ttsText,
+                voiceId: falVoiceId,
+                speed: input.voiceSpeed,
+                charCount: ttsText.length,
+              }),
+              90_000,
+              "語音生成"
+            );
+            if (!voiceDispatch.success) {
+              await db.refundUserPoints(userId, _genEstimate.totalPoints);
+              throw new TRPCError({
+                code: "INTERNAL_SERVER_ERROR",
+                message: `語音生成失敗（fal.ai ${voiceDispatch.modelId}）：${voiceDispatch.error || "未知錯誤"}`,
               });
-              const ttsText = voiceCompiled.plainText || input.voiceText || input.prompt;
-              debug(`[Wave1] Voice compiled: ${ttsText.length} chars, calling Gemini TTS...`);
-
-              // Get Gemini API Key
-              const geminiKey = (await import("./_core/env.validated")).getApiKey("GEMINI_API_KEY");
-              if (!geminiKey) {
-                throw new Error("GEMINI_API_KEY 未設定，無法生成語音");
-              }
-
-              const { GoogleGenAI } = await import("@google/genai");
-              const ai = new GoogleGenAI({ apiKey: geminiKey });
-
-              // Map emotion type to Gemini TTS voice
-              const voiceMap: Record<string, string> = {
-                "warm": "Kore",
-                "calm": "Aoede",
-                "cheerful": "Puck",
-                "serious": "Charon",
-                "gentle": "Leda",
-                "energetic": "Fenrir",
-                "soothing": "Enceladus",
-                "clear": "Iapetus",
-                "bright": "Zephyr",
-                "smooth": "Algieba",
-              };
-              const voiceName = voiceMap[input.voiceEmotionType || ""] || "Kore";
-
-              // Build TTS prompt with style instruction
-              let ttsPrompt = ttsText;
-              if (input.voiceEmotionType) {
-                ttsPrompt = `Say in a ${input.voiceEmotionType} tone:\n${ttsText}`;
-              }
-              if (input.voiceSpeed && input.voiceSpeed !== 1.0) {
-                const speedDesc = input.voiceSpeed < 0.8 ? "slowly" : input.voiceSpeed > 1.2 ? "quickly" : "at moderate pace";
-                ttsPrompt = `Say ${speedDesc}:\n${ttsPrompt}`;
-              }
-
-              generationBus.emit(jobId, { type: "progress", progress: 50, message: `正在生成語音 (Gemini TTS, ${voiceName})...` });
-
-              const ttsResponse = await withTimeout(
-                ai.models.generateContent({
-                  model: "gemini-2.5-flash-preview-tts",
-                  contents: ttsPrompt,
-                  config: {
-                    responseModalities: ["AUDIO"],
-                    speechConfig: {
-                      voiceConfig: {
-                        prebuiltVoiceConfig: {
-                          voiceName: voiceName,
-                        },
-                      },
-                    },
-                  } as any,
-                }),
-                60_000,
-                "Gemini TTS"
-              );
-
-              // Parse TTS response
-              const ttsParts = ttsResponse.candidates?.[0]?.content?.parts || [];
-              let voiceBuffer: Buffer | null = null;
-              let voiceMimeType = "audio/wav";
-
-              for (const part of ttsParts) {
-                if ((part as any).inlineData) {
-                  const inlineData = (part as any).inlineData;
-                  voiceBuffer = Buffer.from(inlineData.data, "base64");
-                  voiceMimeType = inlineData.mimeType || "audio/wav";
-                }
-              }
-
-              if (voiceBuffer && voiceBuffer.length > 0) {
-                // Gemini TTS returns raw PCM (audio/L16;codec=pcm;rate=24000)
-                // Wrap in WAV header for browser playback
-                if (voiceMimeType.includes("L16") || voiceMimeType.includes("pcm")) {
-                  const sampleRate = 24000;
-                  const numChannels = 1;
-                  const bitsPerSample = 16;
-                  const dataSize = voiceBuffer.length;
-                  const wavHeader = Buffer.alloc(44);
-                  wavHeader.write("RIFF", 0);
-                  wavHeader.writeUInt32LE(36 + dataSize, 4);
-                  wavHeader.write("WAVE", 8);
-                  wavHeader.write("fmt ", 12);
-                  wavHeader.writeUInt32LE(16, 16); // fmt chunk size
-                  wavHeader.writeUInt16LE(1, 20);  // PCM format
-                  wavHeader.writeUInt16LE(numChannels, 22);
-                  wavHeader.writeUInt32LE(sampleRate, 24);
-                  wavHeader.writeUInt32LE(sampleRate * numChannels * bitsPerSample / 8, 28);
-                  wavHeader.writeUInt16LE(numChannels * bitsPerSample / 8, 32);
-                  wavHeader.writeUInt16LE(bitsPerSample, 34);
-                  wavHeader.write("data", 36);
-                  wavHeader.writeUInt32LE(dataSize, 40);
-                  voiceBuffer = Buffer.concat([wavHeader, voiceBuffer]);
-                  voiceMimeType = "audio/wav";
-                  debug(`[Wave1] Wrapped PCM in WAV header (${voiceBuffer.length} bytes total)`);
-                }
-                const ext = voiceMimeType.includes("wav") ? "wav" : "mp3";
-                const audioKey = `voice/${userId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-                const { url: voiceUrl } = await storagePut(audioKey, voiceBuffer, voiceMimeType);
-                resultData.voiceUrl = voiceUrl;
-                resultData.voiceStatus = "completed";
-                resultData.voiceSsml = voiceCompiled.ssml;
-                resultData.voiceEstimatedDuration = voiceCompiled.estimatedDurationSec;
-                resultData.voiceEngine = "gemini-tts";
-                resultData.voiceVoiceName = voiceName;
-                if (!resultUrl) resultUrl = voiceUrl;
-                debug(`[Wave1] Gemini TTS completed: ${voiceUrl} (${voiceBuffer.length} bytes, voice: ${voiceName})`);
-              } else {
-                resultData.voiceStatus = "voice_generation_failed";
-                resultData.voiceError = "Gemini TTS 未回傳音訊資料";
-              }
-            } catch (voiceErr: any) {
-              console.error("[Wave1] Voice generation failed:", voiceErr);
-              resultData.voiceStatus = "voice_generation_failed";
-              const errMsg = String(voiceErr?.message || voiceErr);
-              if (errMsg.includes("429") || errMsg.includes("quota") || errMsg.includes("RESOURCE_EXHAUSTED")) {
-                resultData.voiceError = "Gemini TTS API 配額不足，請至 Google AI Studio 確認帳戶餘額後重試";
-              } else {
-                resultData.voiceError = voiceErr instanceof Error ? voiceErr.message : String(voiceErr);
-              }
             }
+            const voiceUrl = (voiceDispatch.data as any)?.audio?.url
+              ?? (voiceDispatch.data as any)?.audio_url
+              ?? (voiceDispatch.data as any)?.url as string | undefined;
+            if (!voiceUrl) {
+              await db.refundUserPoints(userId, _genEstimate.totalPoints);
+              throw new TRPCError({
+                code: "INTERNAL_SERVER_ERROR",
+                message: `fal.ai 語音生成未回傳有效 URL（model: ${voiceDispatch.modelId}）`,
+              });
+            }
+            resultData.voiceUrl = voiceUrl;
+            resultData.voiceStatus = "completed";
+            resultData.voiceEngine = "fal-tts";
+            resultData.voiceModel = voiceDispatch.modelId;
             resultData.voiceModelId = input.voiceModelId;
             resultData.voiceText = input.voiceText;
             resultData.voiceSpeed = input.voiceSpeed;
             resultData.voiceStability = input.voiceStability;
             resultData.voiceEmotionType = input.voiceEmotionType;
             resultData.voiceEmotionIntensity = input.voiceEmotionIntensity;
+            if (!resultUrl) resultUrl = voiceUrl;
+            debug(`[Fal] Voice generation completed: ${voiceUrl} (${voiceDispatch.durationMs}ms, model: ${voiceDispatch.modelId})`);
           }
 
           // ── Post-generation events ──

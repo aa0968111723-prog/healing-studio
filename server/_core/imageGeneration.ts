@@ -1,22 +1,16 @@
 /**
- * Image generation helper using internal ImageService
+ * imageGeneration.ts — 圖片生成介面（fal.ai Flux Pro）
  *
- * Example usage:
- *   const { url: imageUrl } = await generateImage({
- *     prompt: "A serene landscape with mountains"
- *   });
+ * 已完全移除對 Manus Forge 私有閘道的依賴。
+ * 統一改用 fal.ai 官方 API：
+ *   - 文字生圖 → fal-ai/flux-pro/v1.1
+ *   - 圖片參考生圖 → fal-ai/flux-pro/v1.1（附 image_url 參數）
  *
- * For editing:
- *   const { url: imageUrl } = await generateImage({
- *     prompt: "Add a rainbow to this landscape",
- *     originalImages: [{
- *       url: "https://example.com/original.jpg",
- *       mimeType: "image/jpeg"
- *     }]
- *   });
+ * 需要環境變數：FAL_API_KEY
  */
-import { storagePut } from "server/storage";
-import { ENV } from "./env";
+
+import { callFalModel } from "../services/falModels";
+import { storagePut } from "../storage";
 
 export type GenerateImageOptions = {
   prompt: string;
@@ -25,68 +19,99 @@ export type GenerateImageOptions = {
     b64Json?: string;
     mimeType?: string;
   }>;
+  aspectRatio?: string;
+  negativePrompt?: string;
+  seed?: number;
+  numInferenceSteps?: number;
+  guidanceScale?: number;
 };
 
 export type GenerateImageResponse = {
   url?: string;
 };
 
+/**
+ * 生成圖片（fal.ai Flux Pro）
+ * 失敗時直接拋出錯誤，不回傳假資料
+ */
 export async function generateImage(
   options: GenerateImageOptions
 ): Promise<GenerateImageResponse> {
-  if (!ENV.forgeApiUrl) {
-    throw new Error("BUILT_IN_FORGE_API_URL is not configured");
-  }
-  if (!ENV.forgeApiKey) {
-    throw new Error("BUILT_IN_FORGE_API_KEY is not configured");
-  }
-
-  // Build the full URL by appending the service path to the base URL
-  const baseUrl = ENV.forgeApiUrl.endsWith("/")
-    ? ENV.forgeApiUrl
-    : `${ENV.forgeApiUrl}/`;
-  const fullUrl = new URL(
-    "images.v1.ImageService/GenerateImage",
-    baseUrl
-  ).toString();
-
-  const response = await fetch(fullUrl, {
-    method: "POST",
-    headers: {
-      accept: "application/json",
-      "content-type": "application/json",
-      "connect-protocol-version": "1",
-      authorization: `Bearer ${ENV.forgeApiKey}`,
-    },
-    body: JSON.stringify({
-      prompt: options.prompt,
-      original_images: options.originalImages || [],
-    }),
-  });
-
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "");
+  const apiKey = process.env.FAL_API_KEY;
+  if (!apiKey) {
     throw new Error(
-      `Image generation request failed (${response.status} ${response.statusText})${detail ? `: ${detail}` : ""}`
+      "FAL_API_KEY 未設定，無法生成圖片。請在環境變數中設定 FAL_API_KEY。"
     );
   }
 
-  const result = (await response.json()) as {
-    image: {
-      b64Json: string;
-      mimeType: string;
-    };
+  // Build fal.ai input
+  const falInput: Record<string, unknown> = {
+    prompt: options.prompt,
+    num_images: 1,
+    enable_safety_checker: false,
   };
-  const base64Data = result.image.b64Json;
-  const buffer = Buffer.from(base64Data, "base64");
 
-  // Save to S3
-  const { url } = await storagePut(
-    `generated/${Date.now()}.png`,
-    buffer,
-    result.image.mimeType
-  );
-  return {
-    url,
-  };
+  if (options.aspectRatio) {
+    falInput.aspect_ratio = options.aspectRatio;
+  }
+  if (options.negativePrompt) {
+    falInput.negative_prompt = options.negativePrompt;
+  }
+  if (options.seed !== undefined) {
+    falInput.seed = options.seed;
+  }
+  if (options.numInferenceSteps !== undefined) {
+    falInput.num_inference_steps = options.numInferenceSteps;
+  }
+  if (options.guidanceScale !== undefined) {
+    falInput.guidance_scale = options.guidanceScale;
+  }
+
+  // Attach reference image if provided (use first valid URL)
+  const refImageUrl = options.originalImages?.find((img) => img.url)?.url;
+  if (refImageUrl) {
+    falInput.image_url = refImageUrl;
+  }
+
+  // Choose model: image-to-image if reference provided, else text-to-image
+  const modelId = refImageUrl
+    ? "fal-ai/flux/dev/image-to-image"
+    : "fal-ai/flux-pro/v1.1";
+
+  const result = await callFalModel({
+    modelId,
+    input: falInput,
+    timeoutMs: 120_000,
+  });
+
+  // Extract image URL from fal.ai response
+  const images = (result.data as any)?.images as Array<{ url: string }> | undefined;
+  const firstImage = images?.[0];
+
+  if (!firstImage?.url) {
+    throw new Error(
+      `fal.ai ${modelId} 未回傳圖片結果（response: ${JSON.stringify(result.data).substring(0, 200)}）`
+    );
+  }
+
+  // Download and re-upload to our S3 bucket for stable URL
+  let finalUrl: string = firstImage.url;
+  try {
+    const res = await fetch(firstImage.url);
+    if (res.ok) {
+      const buffer = Buffer.from(await res.arrayBuffer());
+      const contentType = res.headers.get("content-type") || "image/png";
+      const ext = contentType.includes("jpeg") ? "jpg" : "png";
+      const { url } = await storagePut(
+        `generated/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`,
+        buffer,
+        contentType
+      );
+      finalUrl = url;
+    }
+  } catch {
+    // storagePut 失敗時直接使用 fal.ai 的臨時 URL
+  }
+
+  return { url: finalUrl };
 }
