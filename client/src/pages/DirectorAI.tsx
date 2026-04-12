@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { AIChatBox, type Message } from "@/components/AIChatBox";
 import { Button } from "@/components/ui/button";
@@ -104,6 +104,14 @@ function ProactiveQuestionBubble({
 
 // ─── Main Component ────────────────────────────────────────────────────────
 
+// ─── Per-personality system prompts ─────────────────────────────────────────
+
+const PERSONALITY_SYSTEM_PROMPTS: Record<Personality, string> = {
+  calm: `你是「導演 AI」（沉穩型），一位注重邏輯、結構與可行性分析的多媒體創意導演。你使用 CO-STAR 框架來幫助使用者構思和規劃多媒體創作專案。請用繁體中文回覆，提供有條理、有依據的建議，著重可執行性與結構完整性。`,
+  creative: `你是「導演 AI」（創意型），一位充滿熱情、重視氛圍與視覺衝擊力的多媒體創意導演。你使用 CO-STAR 框架來幫助使用者構思和規劃多媒體創作專案。請用繁體中文回覆，提供富有想像力、充滿情緒感染力的建議，著重視覺美感與情感共鳴。`,
+  technical: `你是「導演 AI」（技術型），一位精通參數與技術最佳實踐的多媒體創意導演。你使用 CO-STAR 框架來幫助使用者構思和規劃多媒體創作專案。請用繁體中文回覆，提供精確、專業的技術建議，著重參數設定、工作流程與最佳化策略。`,
+};
+
 export default function DirectorAI() {
   const isMobile = useIsMobile();
   const [, navigate] = useLocation();
@@ -112,9 +120,20 @@ export default function DirectorAI() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "system",
-      content: `你是「導演 AI」，一位專業的多媒體創意導演。你使用 CO-STAR 框架來幫助使用者構思和規劃多媒體創作專案。請用繁體中文回覆，並提供具體、有創意的建議。`,
+      content: PERSONALITY_SYSTEM_PROMPTS[globalPersonality] ?? PERSONALITY_SYSTEM_PROMPTS.creative,
     },
   ]);
+
+  // When personality changes, update the system prompt (keep existing conversation, only swap system msg)
+  useEffect(() => {
+    setMessages((prev) => {
+      const nonSystem = prev.filter((m) => m.role !== "system");
+      return [
+        { role: "system", content: PERSONALITY_SYSTEM_PROMPTS[personality] ?? PERSONALITY_SYSTEM_PROMPTS.creative },
+        ...nonSystem,
+      ];
+    });
+  }, [personality]);
   const [saveToNotes, setSaveToNotes] = useState(false);
   const [scripts, setScripts] = useState<CoStarScript[]>([]);
   const [showStoryboard, setShowStoryboard] = useState(!isMobile);

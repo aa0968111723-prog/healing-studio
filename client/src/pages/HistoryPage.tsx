@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useAIState } from "@/contexts/AIStateContext";
+import { useIsMobile } from "@/hooks/useMobile";
 
 // ─── Modality Config ───────────────────────────────────────────────────────
 
@@ -70,6 +71,7 @@ function StarRating({
 
 export default function HistoryPage() {
   const { personality } = useAIState();
+  const isMobile = useIsMobile();
   const [, navigate] = useLocation();
   const [filter, setFilter] = useState<"all" | "image" | "video" | "audio" | "voice" | "bookmarked">("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -162,7 +164,7 @@ export default function HistoryPage() {
           <Clock className="w-5 h-5 text-muted-foreground" />
           <h1 className="text-xl font-semibold">生成歷史</h1>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
             <ZenSkeleton key={i} className="h-48 rounded-xl" />
           ))}
@@ -184,34 +186,36 @@ export default function HistoryPage() {
         </div>
       </div>
 
-      {/* Stats Bar */}
-      <div className="flex gap-2 flex-wrap">
-        {[
-          { key: "all" as const, label: "全部", count: stats.total },
-          { key: "image" as const, label: "圖片", count: stats.image },
-          { key: "video" as const, label: "影片", count: stats.video },
-          { key: "audio" as const, label: "音樂", count: stats.audio },
-          { key: "voice" as const, label: "語音", count: stats.voice },
-          { key: "bookmarked" as const, label: "收藏", count: stats.bookmarked },
-        ].map((item) => (
-          <Button
-            key={item.key}
-            variant={filter === item.key ? "default" : "outline"}
-            size="sm"
-            className="rounded-xl text-xs gap-1.5 h-8"
-            onClick={() => setFilter(item.key)}
-          >
-            {item.key === "bookmarked" ? (
-              <BookmarkCheck className="w-3 h-3" />
-            ) : item.key !== "all" ? (
-              MODALITY_CONFIG[item.key]?.icon
-            ) : (
-              <Filter className="w-3 h-3" />
-            )}
-            {item.label}
-            <span className="tabular-nums opacity-70">{item.count}</span>
-          </Button>
-        ))}
+      {/* Stats Bar — horizontal scroll on mobile */}
+      <div className="-mx-4 sm:mx-0 px-4 sm:px-0">
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide no-scrollbar" style={{ scrollbarWidth: "none" }}>
+          {[
+            { key: "all" as const, label: "全部", count: stats.total },
+            { key: "image" as const, label: "圖片", count: stats.image },
+            { key: "video" as const, label: "影片", count: stats.video },
+            { key: "audio" as const, label: "音樂", count: stats.audio },
+            { key: "voice" as const, label: "語音", count: stats.voice },
+            { key: "bookmarked" as const, label: "收藏", count: stats.bookmarked },
+          ].map((item) => (
+            <Button
+              key={item.key}
+              variant={filter === item.key ? "default" : "outline"}
+              size="sm"
+              className="rounded-xl text-xs gap-1.5 h-8 shrink-0"
+              onClick={() => setFilter(item.key)}
+            >
+              {item.key === "bookmarked" ? (
+                <BookmarkCheck className="w-3 h-3" />
+              ) : item.key !== "all" ? (
+                MODALITY_CONFIG[item.key]?.icon
+              ) : (
+                <Filter className="w-3 h-3" />
+              )}
+              {item.label}
+              <span className="tabular-nums opacity-70">{item.count}</span>
+            </Button>
+          ))}
+        </div>
       </div>
 
       {/* Search */}
@@ -238,7 +242,7 @@ export default function HistoryPage() {
           </p>
         </GlassCard>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           <AnimatePresence mode="popLayout">
             {filteredHistory.map((item) => {
               const config = MODALITY_CONFIG[item.modality] || MODALITY_CONFIG.image;
@@ -423,11 +427,11 @@ export default function HistoryPage() {
 
                             {/* ── Download & ZIP Export Buttons ── */}
                             {item.resultUrl && (
-                              <div className="flex flex-wrap gap-2">
+                              <div className="grid grid-cols-2 gap-2">
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  className="h-8 text-xs gap-1.5 rounded-lg flex-1 sm:flex-none"
+                                  className="h-9 text-xs gap-1.5 rounded-lg w-full"
                                   onClick={async (e) => {
                                     e.stopPropagation();
                                     try {
@@ -459,7 +463,7 @@ export default function HistoryPage() {
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  className="h-8 text-xs gap-1.5 rounded-lg flex-1 sm:flex-none"
+                                  className="h-9 text-xs gap-1.5 rounded-lg w-full"
                                   onClick={async (e) => {
                                     e.stopPropagation();
                                     try {
@@ -585,7 +589,7 @@ export default function HistoryPage() {
                             )}
 
                             {/* ── Cross-modal Quick Actions ── */}
-                            <div className="flex flex-wrap gap-1.5 pt-1">
+                            <div className="flex flex-wrap gap-1.5 pt-1 justify-start">
                               <Button
                                 variant="outline"
                                 size="sm"

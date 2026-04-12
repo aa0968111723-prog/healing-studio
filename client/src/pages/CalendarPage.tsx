@@ -79,7 +79,7 @@ function EventCard({
         </div>
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(note.id); }}
-          className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-red-500/20 text-muted-foreground/40 hover:text-red-400 transition-all shrink-0"
+          className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 p-0.5 rounded hover:bg-red-500/20 text-muted-foreground/40 hover:text-red-400 transition-all shrink-0"
         >
           <Trash2 className="w-2.5 h-2.5" />
         </button>

@@ -131,17 +131,22 @@ export default function AdminPage() {
           ) : !costQuery.data || costQuery.data.length === 0 ? (
             <p className="text-center text-muted-foreground py-8 text-sm">沒有成本資料</p>
           ) : (
-            costQuery.data.map((item) => (
-              <GlassCard key={item.userId}>
-                <div className="flex items-center gap-4">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">使用者 #{item.userId}</p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">{item.totalRequests} 次請求 | {item.totalTokens} tokens</p>
+            costQuery.data.map((item) => {
+              const user = usersQuery.data?.find((u) => u.id === item.userId);
+              const displayName = user?.name || user?.email || `使用者 #${item.userId}`;
+              const displaySub = user?.email && user?.name ? user.email : `ID: ${item.userId}`;
+              return (
+                <GlassCard key={item.userId}>
+                  <div className="flex items-center gap-4">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{displayName}</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">{displaySub} | {item.totalRequests} 次請求 | {item.totalTokens} tokens</p>
+                    </div>
+                    <p className="text-lg font-semibold shrink-0">${parseFloat(String(item.totalCost)).toFixed(3)}</p>
                   </div>
-                  <p className="text-lg font-semibold">${parseFloat(String(item.totalCost)).toFixed(3)}</p>
-                </div>
-              </GlassCard>
-            ))
+                </GlassCard>
+              );
+            })
           )}
         </TabsContent>
       </Tabs>

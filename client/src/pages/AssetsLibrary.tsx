@@ -12,6 +12,7 @@ import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import VisualSoul from "@/components/VisualSoul";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAIState } from "@/contexts/AIStateContext";
+import { useIsMobile } from "@/hooks/useMobile";
 
 const typeConfig: Record<string, { icon: React.ReactNode; label: string; color: string; ext: string }> = {
   image: { icon: <Image className="w-4 h-4" />, label: "圖片", color: "bg-zen-lavender/20", ext: "png" },
@@ -50,6 +51,7 @@ async function downloadFile(url: string, filename: string) {
 
 export default function AssetsLibrary() {
   const { personality } = useAIState();
+  const isMobile = useIsMobile();
   const [tab, setTab] = useState("my");
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
@@ -97,7 +99,7 @@ export default function AssetsLibrary() {
       </Tabs>
 
       {isLoading ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
           {[1, 2, 3, 4].map((i) => (
             <GlassCard key={i} hover={false}>
               <div className="aspect-square rounded-lg bg-muted/30 animate-pulse mb-3" />
@@ -106,7 +108,7 @@ export default function AssetsLibrary() {
           ))}
         </div>
       ) : assets && assets.length > 0 ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
           {assets.map((asset, idx) => {
             const config = typeConfig[asset.assetType] || { icon: <Package className="w-4 h-4" />, label: asset.assetType, color: "bg-muted/20", ext: "bin" };
             const isExpanded = expandedId === asset.id;
@@ -117,9 +119,9 @@ export default function AssetsLibrary() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: idx * 0.05 }}
               >
-                <GlassCard className="overflow-hidden group">
+                <GlassCard className="overflow-hidden group p-2 sm:p-4">
                   {/* Preview */}
-                  <div className="aspect-square rounded-lg overflow-hidden bg-muted/20 relative mb-3">
+                  <div className="aspect-square rounded-lg overflow-hidden bg-muted/20 relative mb-2 sm:mb-3">
                     {asset.fileUrl && asset.assetType === "image" ? (
                       <img src={asset.fileUrl} alt={asset.title} className="w-full h-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
                     ) : asset.thumbnailUrl ? (
@@ -131,40 +133,83 @@ export default function AssetsLibrary() {
                         </div>
                       </div>
                     )}
-                    {/* Hover overlay */}
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-end justify-center pb-2 opacity-0 group-hover:opacity-100">
-                      <div className="flex gap-1">
-                        {asset.fileUrl && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="rounded-lg bg-white/90 text-xs h-7 gap-1"
-                            onClick={() => downloadFile(
-                              asset.fileUrl!,
-                              `${asset.title.replace(/[^a-zA-Z0-9\u4e00-\u9fff]/g, "_")}.${config.ext}`
-                            )}
-                          >
-                            <Download className="w-3 h-3" /> 下載
-                          </Button>
-                        )}
-                        {asset.fileUrl && (
-                          <Button variant="outline" size="sm" className="rounded-lg bg-white/90 text-xs h-7 gap-1" onClick={() => window.open(asset.fileUrl!, "_blank")}>
-                            <ExternalLink className="w-3 h-3" /> 開啟
-                          </Button>
-                        )}
-                        {tab === "my" && (
-                          <>
-                            <Button variant="outline" size="sm" className="rounded-lg bg-white/90 text-xs h-7 gap-1" onClick={() => toggleVisibility.mutate({ id: asset.id, visibility: asset.visibility === "private" ? "team_shared" : "private" })}>
-                              {asset.visibility === "private" ? <Globe className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
+                    {/* Desktop hover overlay (hidden on mobile) */}
+                    {!isMobile && (
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-end justify-center pb-2 opacity-0 group-hover:opacity-100">
+                        <div className="flex gap-1">
+                          {asset.fileUrl && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="rounded-lg bg-white/90 text-xs h-7 gap-1"
+                              onClick={() => downloadFile(
+                                asset.fileUrl!,
+                                `${asset.title.replace(/[^a-zA-Z0-9\u4e00-\u9fff]/g, "_")}.${config.ext}`
+                              )}
+                            >
+                              <Download className="w-3 h-3" /> 下載
                             </Button>
-                            <Button variant="outline" size="sm" className="rounded-lg bg-white/90 text-xs h-7 text-destructive" onClick={() => deleteAsset.mutate({ id: asset.id })}>
-                              <Trash2 className="w-3 h-3" />
+                          )}
+                          {asset.fileUrl && (
+                            <Button variant="outline" size="sm" className="rounded-lg bg-white/90 text-xs h-7 gap-1" onClick={() => window.open(asset.fileUrl!, "_blank")}>
+                              <ExternalLink className="w-3 h-3" /> 開啟
                             </Button>
-                          </>
-                        )}
+                          )}
+                          {tab === "my" && (
+                            <>
+                              <Button variant="outline" size="sm" className="rounded-lg bg-white/90 text-xs h-7 gap-1" onClick={() => toggleVisibility.mutate({ id: asset.id, visibility: asset.visibility === "private" ? "team_shared" : "private" })}>
+                                {asset.visibility === "private" ? <Globe className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
+                              </Button>
+                              <Button variant="outline" size="sm" className="rounded-lg bg-white/90 text-xs h-7 text-destructive" onClick={() => deleteAsset.mutate({ id: asset.id })}>
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
+                  {/* Mobile action bar — always visible on touch */}
+                  {isMobile && (
+                    <div className="flex gap-1 mb-2 justify-end">
+                      {asset.fileUrl && (
+                        <button
+                          className="p-1.5 rounded-lg bg-muted/30 hover:bg-muted/60 transition-colors"
+                          onClick={() => downloadFile(asset.fileUrl!, `${asset.title.replace(/[^a-zA-Z0-9\u4e00-\u9fff]/g, "_")}.${config.ext}`)}
+                          title="下載"
+                        >
+                          <Download className="w-3.5 h-3.5 text-muted-foreground" />
+                        </button>
+                      )}
+                      {asset.fileUrl && (
+                        <button
+                          className="p-1.5 rounded-lg bg-muted/30 hover:bg-muted/60 transition-colors"
+                          onClick={() => window.open(asset.fileUrl!, "_blank")}
+                          title="開啟"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5 text-muted-foreground" />
+                        </button>
+                      )}
+                      {tab === "my" && (
+                        <>
+                          <button
+                            className="p-1.5 rounded-lg bg-muted/30 hover:bg-muted/60 transition-colors"
+                            onClick={() => toggleVisibility.mutate({ id: asset.id, visibility: asset.visibility === "private" ? "team_shared" : "private" })}
+                            title={asset.visibility === "private" ? "分享到團隊" : "設為私人"}
+                          >
+                            {asset.visibility === "private" ? <Globe className="w-3.5 h-3.5 text-muted-foreground" /> : <Lock className="w-3.5 h-3.5 text-muted-foreground" />}
+                          </button>
+                          <button
+                            className="p-1.5 rounded-lg bg-destructive/10 hover:bg-destructive/20 transition-colors"
+                            onClick={() => deleteAsset.mutate({ id: asset.id })}
+                            title="刪除"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
 
                   {/* Info */}
                   <div className="space-y-2">
