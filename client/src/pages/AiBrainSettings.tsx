@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import { Button } from "@/components/ui/button";
@@ -245,75 +245,118 @@ function ProviderBadge({ value }: { value: string }) {
 // Live Preview — 光球對話範例
 // ═══════════════════════════════════════════════════════════════════════════
 
-const SOUL_PREVIEW_MESSAGES: Record<string, string[]> = {
-  "gemini-2.5-pro": [
-    "我注意到你在這張星空作品前停留了好一會兒。要不要讓我幫你把光影參數調好，我們直接去創作室試試看？",
-    "你的創作風格很有層次感。我可以建議一些進階的構圖技巧，讓畫面更有深度。",
-  ],
-  "gemini-2.5-flash": [
-    "嗨！看起來你對這個風格很感興趣。要試試看嗎？",
-    "這張圖的色調很棒！我可以幫你快速設定類似的參數。",
-  ],
-  "vertex/gemini-2.5-pro": [
-    "我留意到你反覆端詳這幅作品的光影層次。如果你願意，我可以為你解析其中的構圖邏輯，並協助你在創作室重現這種氛圍。",
-    "你的審美直覺很敏銳。這種明暗對比的手法在文藝復興時期被稱為 chiaroscuro——要不要一起探索這個方向？",
-  ],
-  "vertex/llama-3.2-90b": [
-    "我觀察到你對這件作品的光影處理特別著迷。讓我為你深入剖析它的藝術脈絡，然後我們可以一起在創作室中展開一場對話式的創作旅程。",
-    "你的目光在這幅作品上流連了許久。我感受到你被它的情感張力所吸引——要不要讓我們一起解構這份感動，轉化為你自己的創作語言？",
-  ],
-  "gemini-1.5-pro": [
-    "有趣的選擇！我分析了這張圖的 42 個視覺特徵，發現它的獨特之處在於光源角度和色溫的巧妙平衡。要我幫你設定最佳參數嗎？",
-    "根據你的瀏覽模式，你似乎偏好暖色調和柔和光線。我已經準備好了一組推薦配置，隨時可以開始。",
-  ],
-};
+// ── Static preview sentences for orb voice (used before API call) ─────────
+const SOUL_PREVIEW_TEXT =
+  "你好，我是光球。我已準備好協助你開始今天的創作旅程。";
 
-function LivePreview({ model }: { model: string }) {
-  const messages = SOUL_PREVIEW_MESSAGES[model]
-    ?? SOUL_PREVIEW_MESSAGES["gemini-2.5-flash"]
-    ?? ["光球已就緒，等待您的指示。"];
-  const [msgIndex, setMsgIndex] = useState(0);
+// ── Real Orb Voice Preview (ElevenLabs TTS via backend) ──────────────────
+function LivePreview({ model, voiceId }: { model: string; voiceId?: string }) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  useEffect(() => { setMsgIndex(0); }, [model]);
+  const orbVoicePreview = trpc.brain.orbVoicePreview.useMutation({
+    onSuccess: (data) => {
+      setIsLoading(false);
+      setErrorMsg(null);
+      // Play the base64 audio
+      const audio = new Audio(data.audioBase64);
+      audioRef.current = audio;
+      audio.onended = () => setIsPlaying(false);
+      audio.onerror = () => { setIsPlaying(false); setErrorMsg("音頻播放失敗"); };
+      audio.play().catch((e) => {
+        setIsPlaying(false);
+        setErrorMsg("無法播放：" + String(e));
+      });
+      setIsPlaying(true);
+    },
+    onError: (err) => {
+      setIsLoading(false);
+      setIsPlaying(false);
+      setErrorMsg(err.message);
+    },
+  });
 
-  const currentMsg = messages[msgIndex % messages.length];
+  const handlePlay = () => {
+    if (isLoading || isPlaying) {
+      // Stop playback
+      audioRef.current?.pause();
+      audioRef.current = null;
+      setIsPlaying(false);
+      setIsLoading(false);
+      return;
+    }
+    setIsLoading(true);
+    setErrorMsg(null);
+    orbVoicePreview.mutate({
+      text: SOUL_PREVIEW_TEXT,
+      voiceId: voiceId ?? "Rachel",
+      modelId: "eleven_turbo_v2",
+      stability: 0.5,
+      similarityBoost: 0.75,
+      speed: 1.0,
+    });
+  };
 
   return (
-    <div className="relative">
+    <div className="space-y-3">
+      {/* Orb animation */}
       <div className="flex items-start gap-3">
         <motion.div
-          className="relative flex-shrink-0"
-          animate={{ scale: [1, 1.05, 1] }}
-          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+          className="relative flex-shrink-0 cursor-pointer"
+          animate={isPlaying
+            ? { scale: [1, 1.15, 1, 1.1, 1], opacity: [1, 0.9, 1, 0.85, 1] }
+            : { scale: [1, 1.04, 1] }
+          }
+          transition={isPlaying
+            ? { duration: 1.2, repeat: Infinity, ease: "easeInOut" }
+            : { duration: 3, repeat: Infinity, ease: "easeInOut" }
+          }
+          onClick={handlePlay}
+          title="點擊播放光球語音預覽"
         >
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-300 via-orange-400 to-rose-400 shadow-lg shadow-amber-300/30" />
+          <div className={`w-10 h-10 rounded-full shadow-lg transition-all duration-500 ${
+            isPlaying
+              ? "bg-gradient-to-br from-amber-300 via-orange-500 to-rose-500 shadow-orange-400/50"
+              : "bg-gradient-to-br from-amber-300 via-orange-400 to-rose-400 shadow-amber-300/30"
+          }`} />
           <div className="absolute inset-0 w-10 h-10 rounded-full bg-gradient-to-br from-amber-300/40 via-orange-400/30 to-rose-400/20 blur-md" />
+          {isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-5 h-5 border-2 border-white/60 border-t-white rounded-full animate-spin" />
+            </div>
+          )}
         </motion.div>
 
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={`${model}-${msgIndex}`}
-            initial={{ opacity: 0, y: 8, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.96 }}
-            transition={{ duration: 0.4, ease: "easeOut" }}
-            className="flex-1 bg-white/60 dark:bg-white/10 backdrop-blur-sm rounded-2xl rounded-tl-sm p-3.5 border border-white/40 shadow-sm"
-          >
-            <p className="text-sm text-foreground/90 leading-relaxed">{currentMsg}</p>
-            <div className="flex items-center justify-between mt-2.5">
-              <span className="text-[10px] text-muted-foreground/60">
-                {model} · 光球語調預覽
-              </span>
-              <button
-                onClick={() => setMsgIndex((i) => i + 1)}
-                className="text-[10px] text-primary/70 hover:text-primary transition-colors flex items-center gap-0.5"
-              >
-                換一句 <ChevronRight className="w-3 h-3" />
-              </button>
-            </div>
-          </motion.div>
-        </AnimatePresence>
+        <div className="flex-1 bg-white/60 dark:bg-white/10 backdrop-blur-sm rounded-2xl rounded-tl-sm p-3.5 border border-white/40 shadow-sm">
+          <p className="text-sm text-foreground/90 leading-relaxed italic">
+            「{SOUL_PREVIEW_TEXT}」
+          </p>
+          <div className="flex items-center justify-between mt-2.5">
+            <span className="text-[10px] text-muted-foreground/60">
+              {model} · ElevenLabs TTS
+            </span>
+            <button
+              onClick={handlePlay}
+              disabled={false}
+              className={`text-[10px] flex items-center gap-1 transition-colors ${
+                isLoading ? "text-amber-500 cursor-wait"
+                : isPlaying ? "text-red-400 hover:text-red-500"
+                : "text-primary/70 hover:text-primary"
+              }`}
+            >
+              {isLoading ? "載入中..." : isPlaying ? "停止 ■" : "▶ 播放預覽"}
+            </button>
+          </div>
+          {errorMsg && (
+            <p className="text-[10px] text-red-400 mt-1 leading-relaxed">{errorMsg}</p>
+          )}
+        </div>
       </div>
+      <p className="text-[10px] text-muted-foreground/60 text-center">
+        點擊光球或「播放預覽」聆聽真實 TTS 語音
+      </p>
     </div>
   );
 }
@@ -631,6 +674,12 @@ export default function AiBrainSettings() {
   const catalogQuery  = trpc.brain.catalog.useQuery(undefined, { staleTime: 60_000 });
   const healthQuery   = trpc.brain.healthStatus.useQuery(undefined, { refetchInterval: 30_000 });
   const pricingQuery  = trpc.brain.pricingSummary.useQuery(undefined, { staleTime: 60_000 });
+  // Real provider ping — refresh every 60 seconds
+  const pingQuery     = trpc.brain.pingProviders.useQuery(undefined, {
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    retry: false,
+  });
   const upsertMutation = trpc.brain.upsert.useMutation({
     onSuccess: () => { toast.success("大腦組態已儲存"); brainQuery.refetch(); },
     onError: (err) => toast.error("儲存失敗：" + err.message),
@@ -992,31 +1041,64 @@ export default function AiBrainSettings() {
             <LivePreview model={technicianModel} />
           </GlassCard>
 
-          {/* Providers Status */}
+          {/* Providers Status — real ping latency */}
           <GlassCard>
             <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
               <Activity className="w-4 h-4" />
               整合服務
+              {pingQuery.isFetching && (
+                <span className="text-[9px] text-muted-foreground animate-pulse ml-1">偵測中...</span>
+              )}
+              {!pingQuery.isFetching && (
+                <button
+                  onClick={() => pingQuery.refetch()}
+                  className="ml-auto text-[9px] text-primary/60 hover:text-primary transition-colors flex items-center gap-0.5"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  重新偵測
+                </button>
+              )}
             </h2>
             <div className="space-y-2 text-xs">
               {[
-                { provider: "Gemini API", desc: "生圖/生影/生音樂/配音", env: "GEMINI_API_KEY", badge: "bg-blue-500/10 text-blue-600" },
-                { provider: "Vertex AI", desc: "企業級 Gemini + Imagen + Chirp", env: "GOOGLE_APPLICATION_CREDENTIALS_JSON", badge: "bg-cyan-500/10 text-cyan-600" },
-                { provider: "ElevenLabs", desc: "TTS V3 · 音效 · 音樂 · 聲音克隆", env: "ELEVENLABS_API_KEY", badge: "bg-purple-500/10 text-purple-600" },
-                { provider: "Fal.ai", desc: "16大類 80+ AI模型", env: "FAL_API_KEY", badge: "bg-violet-500/10 text-violet-600" },
-                { provider: "Suno", desc: "AI 音樂生成", env: "SUNO_API_KEY", badge: "bg-green-500/10 text-green-600" },
-              ].map((s) => (
-                <div key={s.provider} className="flex items-center justify-between">
-                  <div>
-                    <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-md ${s.badge}`}>{s.provider}</span>
-                    <span className="text-[10px] text-muted-foreground ml-1.5">{s.desc}</span>
+                { key: "gemini",      provider: "Gemini API",   desc: "LLM/生圖/語音",             badge: "bg-blue-500/10 text-blue-600",   dotOk: "bg-emerald-400", dotFail: "bg-red-400" },
+                { key: "vertex",      provider: "Vertex AI",    desc: "企業級 Gemini + Imagen",     badge: "bg-cyan-500/10 text-cyan-600",   dotOk: "bg-emerald-400", dotFail: "bg-amber-400" },
+                { key: "elevenlabs",  provider: "ElevenLabs",   desc: "TTS V3 · 音效 · 聲音克隆",   badge: "bg-purple-500/10 text-purple-600",dotOk: "bg-emerald-400", dotFail: "bg-red-400" },
+                { key: "fal",         provider: "Fal.ai",       desc: "16大類 80+ AI 模型",         badge: "bg-violet-500/10 text-violet-600",dotOk: "bg-emerald-400", dotFail: "bg-red-400" },
+              ].map((s) => {
+                const pingData = pingQuery.data as Record<string, { latencyMs: number | null; ok: boolean; error?: string }> | undefined;
+                const pingResult = pingData?.[s.key];
+                const isLoading = pingQuery.isLoading;
+                return (
+                  <div key={s.provider} className="flex items-center justify-between py-0.5">
+                    <div className="flex items-center gap-2">
+                      {/* Latency dot */}
+                      <span
+                        className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                          isLoading ? "bg-gray-300 animate-pulse"
+                          : pingResult === undefined ? "bg-gray-300"
+                          : pingResult.ok ? s.dotOk
+                          : s.dotFail
+                        }`}
+                        title={pingResult?.error ?? (pingResult?.ok ? "在線" : "離線")}
+                      />
+                      <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-md ${s.badge}`}>{s.provider}</span>
+                      <span className="text-[10px] text-muted-foreground">{s.desc}</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-muted-foreground/70 shrink-0">
+                      {isLoading ? "…"
+                        : pingResult?.latencyMs != null ? `${pingResult.latencyMs}ms`
+                        : pingResult?.ok ? "✓"
+                        : pingResult?.error ? "✕"
+                        : "—"}
+                    </span>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </GlassCard>
 
-          {/* Health Overview */}
+          {/* Health Overview — combined from model health + provider ping */}
           <GlassCard>
             <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
               <Activity className="w-4 h-4" />
@@ -1024,20 +1106,30 @@ export default function AiBrainSettings() {
             </h2>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">在線引擎</span>
+                <span className="text-muted-foreground">模型在線</span>
                 <span className="font-medium text-emerald-600">{healthSummary.online}</span>
               </div>
               <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">降級中</span>
+                <span className="text-muted-foreground">模型降級中</span>
                 <span className="font-medium text-amber-600">{healthSummary.degraded}</span>
               </div>
               <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">離線</span>
+                <span className="text-muted-foreground">模型離線</span>
                 <span className="font-medium text-red-600">{healthSummary.offline}</span>
               </div>
+              {/* Real provider ping summary */}
+              {pingQuery.data && (
+                <div className="flex items-center justify-between text-xs pt-1 border-t border-white/20">
+                  <span className="text-muted-foreground">服務在線</span>
+                  <span className="font-medium text-emerald-600">
+                    {Object.values(pingQuery.data as Record<string, {ok: boolean}>).filter(v => v.ok).length}
+                    /{Object.keys(pingQuery.data).length}
+                  </span>
+                </div>
+              )}
               <div className="pt-2 border-t border-white/20">
                 <p className="text-[10px] text-muted-foreground/60">
-                  健康檢查每 30 秒自動更新。離線引擎將自動降級至備援。
+                  模型健康每 30 秒更新，服務 ping 每 60 秒更新。離線引擎自動降級至備援。
                 </p>
               </div>
             </div>

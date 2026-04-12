@@ -592,13 +592,18 @@ export default function HistoryPage() {
                                 className="h-7 text-xs gap-1 rounded-lg"
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  // 完整傳遞：prompt + compiledPrompt + parameterSnapshot（含 seed/ratio/model 等）
                                   sessionStorage.setItem("sendToStudio", JSON.stringify({
                                     prompt: item.prompt || item.compiledPrompt || "",
+                                    compiledPrompt: item.compiledPrompt || "",
                                     generationType: item.modality,
-                                    parameterSnapshot: item.parameterSnapshot,
+                                    source: "history",
+                                    historyId: item.id,
+                                    resultUrl: item.resultUrl,
+                                    parameterSnapshot: item.parameterSnapshot || {},
                                   }));
                                   navigate("/studio");
-                                  toast.success("已發送到工作室");
+                                  toast.success("已完整還原生成配置，前往工作室重現", { duration: 4000 });
                                 }}
                               >
                                 <RefreshCw className="w-3 h-3" />
@@ -613,12 +618,18 @@ export default function HistoryPage() {
                                     e.stopPropagation();
                                     sessionStorage.setItem("sendToStudio", JSON.stringify({
                                       prompt: item.prompt || "",
+                                      compiledPrompt: item.compiledPrompt || "",
                                       generationType: "video",
+                                      source: "history_cross",
+                                      historyId: item.id,
                                       referenceImageUrl: item.resultUrl,
-                                      parameterSnapshot: item.parameterSnapshot,
+                                      parameterSnapshot: {
+                                        ...(item.parameterSnapshot || {}),
+                                        firstFrameUrl: item.resultUrl,
+                                      },
                                     }));
                                     navigate("/studio");
-                                    toast.success("已發送到影片工作區");
+                                    toast.success("已發送到影片工作區（以圖片為首幀）");
                                   }}
                                 >
                                   <Video className="w-3 h-3" />
@@ -633,9 +644,14 @@ export default function HistoryPage() {
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     sessionStorage.setItem("sendToStudio", JSON.stringify({
-                                      prompt: `為這個${item.modality === "image" ? "圖片" : "影片"}創作配樂`,
+                                      prompt: `為這個${item.modality === "image" ? "圖片" : "影片"}創作配樂：${item.prompt || ""}`,
                                       generationType: "audio",
-                                      parameterSnapshot: item.parameterSnapshot,
+                                      source: "history_cross",
+                                      historyId: item.id,
+                                      parameterSnapshot: {
+                                        musicStyle: (item.parameterSnapshot as any)?.musicStyle || "ambient",
+                                        audioDuration: 30,
+                                      },
                                     }));
                                     navigate("/studio");
                                     toast.success("已發送到音樂工作區");

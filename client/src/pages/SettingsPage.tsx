@@ -29,13 +29,17 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (prefsQuery.data) {
-      setPersonality(prefsQuery.data.personality as any || "creative");
+      const dbPersonality = (prefsQuery.data.personality as any) || "creative";
+      setPersonality(dbPersonality);
       setPreferredFormat(prefsQuery.data.preferredFormat as any || "co-star");
+      // Sync DB value → global context (single source of truth)
+      setGlobalPersonality(dbPersonality);
     }
-  }, [prefsQuery.data]);
+  }, [prefsQuery.data, setGlobalPersonality]);
 
   const handleSavePrefs = () => {
     updatePrefs.mutate({ personality, preferredFormat });
+    // Immediately propagate to global context (localStorage + in-memory)
     setGlobalPersonality(personality);
   };
 

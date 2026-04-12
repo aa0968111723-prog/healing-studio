@@ -89,6 +89,21 @@ export type InvokeParams = {
    * 不填     → 自動選擇最佳可用引擎
    */
   engine?: LLMEngine;
+  /**
+   * 創意溫度（0.0–1.0）。若未設定，使用各引擎預設值。
+   * 注入來自 ctx.brain.reasoning.storyteller.temperature
+   */
+  temperature?: number;
+  /**
+   * 核取機率（0.0–1.0）。若未設定，使用各引擎預設值。
+   * 注入來自 ctx.brain.reasoning.storyteller.topP
+   */
+  topP?: number;
+  /**
+   * 強制指定使用的模型名稱（覆蓋引擎預設模型）。
+   * 注入來自 ctx.brain.reasoning.storyteller.model
+   */
+  model?: string;
 };
 
 export type ToolCall = {
@@ -248,17 +263,25 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   const {
     messages, tools, toolChoice, tool_choice,
     outputSchema, output_schema, responseFormat, response_format,
-    runName, engine,
+    runName, engine, temperature, topP, model: overrideModel,
   } = params;
 
   // ── 透過路由器取得引擎設定 ───────────────────────────────
   const engineConfig = resolveEngineConfig(engine);
 
   const payload: Record<string, unknown> = {
-    model: engineConfig.model,
+    model: overrideModel ?? engineConfig.model,
     messages: messages.map(normalizeMessage),
     max_tokens: 32768,
   };
+
+  // 注入 AI 大腦的 temperature / top_p（若已設定）
+  if (typeof temperature === "number" && temperature >= 0 && temperature <= 2) {
+    payload.temperature = temperature;
+  }
+  if (typeof topP === "number" && topP > 0 && topP <= 1) {
+    payload.top_p = topP;
+  }
 
   // Forge 引擎支援 thinking 擴展推理預算（Gemini 直連不需要此參數）
   if (engineConfig.supportsThinking && engineConfig.name.includes("Forge")) {
