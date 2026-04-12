@@ -562,6 +562,8 @@ export const appRouter = router({
         vaultCharacterId: z.number().optional(),
         vaultSceneId: z.number().optional(),
         fineTunedModelId: z.number().optional(),
+        // LoRA weight for reference-guided generation
+        loraWeight: z.number().min(0).max(1).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const userId = ctx.user.id;
@@ -1007,8 +1009,13 @@ export const appRouter = router({
               temperature: input.temperature,
               vibeCardIds: input.vibeCardIds,
               seed: input.seed,
+              loraWeight: input.loraWeight,
               visualWeight,
               controlNetParams,
+              // Preserve fine-tuned model & vault IDs for full config restoration
+              ...(input.fineTunedModelId && { fineTunedModelId: input.fineTunedModelId }),
+              ...(input.vaultCharacterId && { vaultCharacterId: input.vaultCharacterId }),
+              ...(input.vaultSceneId && { vaultSceneId: input.vaultSceneId }),
               // ── Image-specific ──
               ...(input.generationType === "image" && {
                 aspectRatio: input.aspectRatio,
@@ -1302,11 +1309,19 @@ export const appRouter = router({
 
   assets: router({
     myAssets: protectedProcedure.query(async ({ ctx }) => {
-      return db.getDigitalAssetsByUser(ctx.user.id);
+      try {
+        return await db.getDigitalAssetsByUser(ctx.user.id);
+      } catch {
+        return [];
+      }
     }),
 
     teamAssets: protectedProcedure.query(async () => {
-      return db.getTeamSharedAssets();
+      try {
+        return await db.getTeamSharedAssets();
+      } catch {
+        return [];
+      }
     }),
 
     toggleVisibility: protectedProcedure
@@ -1339,7 +1354,11 @@ export const appRouter = router({
     }),
 
     teamModels: protectedProcedure.query(async () => {
-      return db.getTeamSharedModels();
+      try {
+        return await db.getTeamSharedModels();
+      } catch {
+        return [];
+      }
     }),
 
     create: protectedProcedure
@@ -1662,11 +1681,19 @@ export const appRouter = router({
     list: protectedProcedure
       .input(z.object({ limit: z.number().default(50) }).optional())
       .query(async ({ ctx, input }) => {
-        return db.getHistoryByUser(ctx.user.id, input?.limit ?? 50);
+        try {
+          return await db.getHistoryByUser(ctx.user.id, input?.limit ?? 50);
+        } catch {
+          return [];
+        }
       }),
 
     bookmarked: protectedProcedure.query(async ({ ctx }) => {
-      return db.getBookmarkedHistory(ctx.user.id);
+      try {
+        return await db.getBookmarkedHistory(ctx.user.id);
+      } catch {
+        return [];
+      }
     }),
 
     toggleBookmark: protectedProcedure

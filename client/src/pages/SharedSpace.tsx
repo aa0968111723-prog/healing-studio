@@ -75,15 +75,17 @@ export default function SharedSpace() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("assets");
 
-  // Fetch shared assets — retry: 1, staleTime to avoid infinite refetch hammering
+  // Fetch shared assets — retry: 1, fail fast (500ms retry delay), no window refetch
   const sharedAssetsQuery = trpc.assets.teamAssets.useQuery(undefined, {
     retry: 1,
+    retryDelay: 500,
     staleTime: 30_000,
     refetchOnWindowFocus: false,
   });
   // Fetch shared models — same guards
   const sharedModelsQuery = trpc.models.teamModels.useQuery(undefined, {
     retry: 1,
+    retryDelay: 500,
     staleTime: 30_000,
     refetchOnWindowFocus: false,
   });
