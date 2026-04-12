@@ -1,7 +1,6 @@
 import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
-import net from "net";
 import fs from "fs";
 import path from "path";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
@@ -14,37 +13,23 @@ import { sseRouter } from "../sseRoute";
 import { initNewsFetcherCron } from "../jobs/newsFetcher";
 import { initModelTrainingWorkerCron } from "../jobs/modelTrainingWorker";
 
-function isPortAvailable(port: number): Promise<boolean> {
-  return new Promise(resolve => {
-    const server = net.createServer();
-    server.listen(port, () => {
-      server.close(() => resolve(true));
-    });
-    server.on("error", () => resolve(false));
-  });
-}
-
-async function findAvailablePort(startPort: number = 3000): Promise<number> {
-  for (let port = startPort; port < startPort + 20; port++) {
-    if (await isPortAvailable(port)) {
-      return port;
-    }
-  }
-  throw new Error(`No available port found starting from ${startPort}`);
-}
-
 async function startServer() {
   const app = express();
   const server = createServer(app);
+
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+
   // File upload API
   app.use(uploadRouter);
+
   // SSE for real-time generation events
   app.use(sseRouter);
+
   // Simple health check endpoint (for Railway/Docker healthcheck — no tRPC overhead)
   app.get("/api/health", (_req, res) => {
     res.status(200).json({ ok: true, ts: Date.now() });
@@ -58,6 +43,7 @@ async function startServer() {
       createContext,
     })
   );
+
   // Use static files if dist/public/index.html exists (production build), otherwise Vite (dev)
   const distPublic = path.resolve(process.cwd(), "dist", "public");
   const isBuilt = fs.existsSync(path.join(distPublic, "index.html"));
@@ -69,20 +55,25 @@ async function startServer() {
     await setupVite(app, server);
   }
 
-  const preferredPort = parseInt(process.env.PORT || "3000");
-  const port = await findAvailablePort(preferredPort);
-
-  if (port !== preferredPort) {
-    console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
-  }
+  // Always use the PORT env var directly — Railway proxies to exactly this port
+  const port = parseInt(process.env.PORT || "3000", 10);
 
   server.listen(port, "0.0.0.0", () => {
-    console.log(`Server running on http://0.0.0.0:${port}/`);
+    console.log(`[Server] Listening on http://0.0.0.0:${port}/`);
+    console.log(`[Server] NODE_ENV=${process.env.NODE_ENV}`);
 
     // Initialize scheduled jobs after server is ready
     initNewsFetcherCron();
     initModelTrainingWorkerCron();
   });
+
+  server.on("error", (err) => {
+    console.error(`[Server] Failed to start on port ${port}:`, err);
+    process.exit(1);
+  });
 }
 
-startServer().catch(console.error);
+startServer().catch((err) => {
+  console.error("[Server] Fatal startup error:", err);
+  process.exit(1);
+});
