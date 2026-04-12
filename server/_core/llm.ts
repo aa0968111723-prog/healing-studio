@@ -184,10 +184,12 @@ const normalizeResponseFormat = ({
   };
 };
 
-// ─── API 端點解析（Vertex AI 優先，Manus Forge 降級）──────────────────────
+// ─── API 端點解析（Gemini 優先，自訂 Forge 次之，絕不 fallback 到私有閘道）
 
 function resolveApiConfig(): { url: string; apiKey: string; isGemini: boolean } {
-  // 優先：直接使用 Gemini API Key（無需 Manus 代理）
+  // ── 優先路徑：直接使用 Google Gemini API Key ──────────────────────────
+  // GEMINI_API_KEY 存在且非空時，直接呼叫 Google 公開 Gemini REST 端點。
+  // 此路徑在 Railway 外部環境完全可達，不依賴任何私有代理。
   if (ENV.geminiApiKey && ENV.geminiApiKey.trim().length > 0) {
     return {
       url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
@@ -196,17 +198,31 @@ function resolveApiConfig(): { url: string; apiKey: string; isGemini: boolean } 
     };
   }
 
-  // 降級：使用 Manus Forge API（向後相容）
-  if (ENV.forgeApiKey && ENV.forgeApiUrl) {
+  // ── 次要路徑：自訂 Forge / OpenAI 相容閘道（需明確設定兩個變數）───────
+  // 僅當 BUILT_IN_FORGE_API_URL 與 BUILT_IN_FORGE_API_KEY 同時存在且非空時
+  // 才進入此路徑，並以 URL 為準——絕不內嵌任何私有域名（forge.manus.im）。
+  const forgeUrl  = ENV.forgeApiUrl?.trim();
+  const forgeKey  = ENV.forgeApiKey?.trim();
+  if (forgeKey && forgeUrl) {
+    // 安全守衛：拒絕指向已知私有閘道（在 Railway 環境中必定失敗）
+    if (forgeUrl.includes("forge.manus.im") || forgeUrl.includes("manus.im")) {
+      throw new Error(
+        "[LLM] BUILT_IN_FORGE_API_URL 指向 Manus 私有閘道（forge.manus.im），" +
+        "在 Railway 外部環境無法存取。請改用 GEMINI_API_KEY 或可公開訪問的 OpenAI 相容端點。"
+      );
+    }
     return {
-      url: `${ENV.forgeApiUrl.replace(/\/$/, "")}/v1/chat/completions`,
-      apiKey: ENV.forgeApiKey,
+      url: `${forgeUrl.replace(/\/$/, "")}/v1/chat/completions`,
+      apiKey: forgeKey,
       isGemini: false,
     };
   }
 
+  // ── 兩者均未設定：拋出明確錯誤，方便 Railway 日誌快速定位 ─────────────
   throw new Error(
-    "LLM API 未設定：請設定 GEMINI_API_KEY（推薦）或 BUILT_IN_FORGE_API_KEY（向後相容）"
+    "[LLM] LLM API 未設定。Railway 環境請在 Environment Variables 中設定：\n" +
+    "  GEMINI_API_KEY（推薦）→ 從 https://aistudio.google.com/apikey 取得\n" +
+    "  或同時設定 BUILT_IN_FORGE_API_URL + BUILT_IN_FORGE_API_KEY（自訂閘道）"
   );
 }
 
