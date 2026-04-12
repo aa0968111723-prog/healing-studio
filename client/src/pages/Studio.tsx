@@ -239,6 +239,22 @@ export default function Studio() {
       window.removeEventListener("offline", goOffline);
     };
   }, []);
+
+  // ── Style preset injection (from ImageWorkspace quick-select chips) ──
+  useEffect(() => {
+    const handleStylePreset = (e: Event) => {
+      const preset = (e as CustomEvent<string>).detail;
+      if (!preset) return;
+      setPromptBuilder(prev => {
+        const separator = prev.rawPrompt.trim() ? ", " : "";
+        const newPrompt = prev.rawPrompt.trim() + separator + preset;
+        return { ...prev, rawPrompt: newPrompt, compiledPrompt: newPrompt };
+      });
+      toast.success("已套用風格描述");
+    };
+    window.addEventListener("apply-style-preset", handleStylePreset);
+    return () => window.removeEventListener("apply-style-preset", handleStylePreset);
+  }, []);
   const { aiState, setAIState, personality, reportTyping, reportFailure, reportSuccess, resetIdle } = useAIState();
   const { onGenerationStart: notifyGenStart, onGenerationDone: notifyGenDone, onGenerationFail: notifyGenFail, onTyping: notifyTyping, onAdvancedParams: notifyAdvancedParams } = usePersonality();
   const [, navigate] = useLocation();
