@@ -13,6 +13,14 @@ import { sseRouter } from "../sseRoute";
 import { initNewsFetcherCron } from "../jobs/newsFetcher";
 import { initModelTrainingWorkerCron } from "../jobs/modelTrainingWorker";
 
+// Global error handlers — prevent unhandled exceptions from killing the process
+process.on("uncaughtException", (err) => {
+  console.error("[Server] uncaughtException (process kept alive):", err);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("[Server] unhandledRejection (process kept alive):", reason);
+});
+
 async function startServer() {
   const app = express();
   const server = createServer(app);
