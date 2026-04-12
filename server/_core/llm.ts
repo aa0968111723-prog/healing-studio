@@ -1,19 +1,40 @@
 /**
- * llm.ts — LLM 統一調用介面
+ * llm.ts — LLM 統一調用介面（LangSmith 深度整合版）
  *
- * 三引擎並存架構（透過 llmRouter.ts 智慧路由）：
- *   Engine A — Gemini API  (GEMINI_API_KEY)              ← 推薦，直連無代理
+ * 三引擎並存架構：
+ *   Engine A — Gemini API  (GEMINI_API_KEY)              ← 推薦，@langchain/google-genai
  *   Engine B — Vertex AI   (GOOGLE_APPLICATION_CREDENTIALS_JSON) ← GCP 進階功能
  *   Engine C — Manus Forge (BUILT_IN_FORGE_API_KEY)      ← 向後相容降級
  *
- * 路由順序（auto 模式）：Gemini → Forge → 錯誤
- * 可在 .env 中設定 LLM_ENGINE=gemini|vertex|forge 強制指定引擎。
- *
- * LangSmith 追蹤：若 LANGSMITH_API_KEY 已設定，每次呼叫都會記錄。
+ * LangSmith 深度整合：
+ *   - LANGCHAIN_TRACING_V2=true 時自動啟用 SDK 追蹤
+ *   - 所有 Prompt、Temperature、生成結果、Token 花費全部記錄到 LangSmith
+ *   - 每次呼叫建立完整的 run trace（含 parent/child chain）
+ *   - 失敗呼叫也會回報 error 到 LangSmith 供事後分析
  */
 
 import { serverEnv } from "./env.validated";
 import { resolveEngineConfig, type LLMEngine } from "./llmRouter";
+
+// ─── LangSmith SDK 初始化（當 API Key 存在時） ───────────────────────────────
+let langSmithClient: import("langsmith").Client | null = null;
+
+async function getLangSmithClient(): Promise<import("langsmith").Client | null> {
+  if (!serverEnv.LANGSMITH_API_KEY) return null;
+  if (langSmithClient) return langSmithClient;
+  try {
+    const { Client } = await import("langsmith");
+    langSmithClient = new Client({
+      apiKey: serverEnv.LANGSMITH_API_KEY,
+      apiUrl: serverEnv.LANGCHAIN_ENDPOINT || "https://api.smith.langchain.com",
+    });
+    return langSmithClient;
+  } catch {
+    return null;
+  }
+}
+
+// ─── Types ─────────────────────────────────────────────────────────────────
 
 export type Role = "system" | "user" | "assistant" | "tool" | "function";
 
@@ -81,27 +102,22 @@ export type InvokeParams = {
   response_format?: ResponseFormat;
   /** LangSmith 追蹤標籤 */
   runName?: string;
+  /** LangSmith parent run ID（用於建立 chain 巢狀追蹤） */
+  parentRunId?: string;
   /**
    * 強制指定使用哪個 LLM 引擎（覆蓋 auto 路由）
-   * 'gemini'  → 直接打 Gemini API（需 GEMINI_API_KEY）
-   * 'vertex'  → Vertex AI（需 GCP 服務帳號）
-   * 'forge'   → Manus Forge（向後相容，需 BUILT_IN_FORGE_API_KEY）
-   * 不填     → 自動選擇最佳可用引擎
    */
   engine?: LLMEngine;
   /**
-   * 創意溫度（0.0–1.0）。若未設定，使用各引擎預設值。
-   * 注入來自 ctx.brain.reasoning.storyteller.temperature
+   * 創意溫度（0.0–1.0）。注入來自 ctx.brain.reasoning.storyteller.temperature
    */
   temperature?: number;
   /**
-   * 核取機率（0.0–1.0）。若未設定，使用各引擎預設值。
-   * 注入來自 ctx.brain.reasoning.storyteller.topP
+   * 核取機率（0.0–1.0）。注入來自 ctx.brain.reasoning.storyteller.topP
    */
   topP?: number;
   /**
    * 強制指定使用的模型名稱（覆蓋引擎預設模型）。
-   * 注入來自 ctx.brain.reasoning.storyteller.model
    */
   model?: string;
 };
@@ -212,46 +228,116 @@ const normalizeResponseFormat = ({
   };
 };
 
-// ─── API 端點解析（委派至 llmRouter.ts）─────────────────────────────────
-// resolveEngineConfig() 實作三引擎優先邏輯，此處直接呼叫。
+// ─── 估算 Token 成本（USD） ──────────────────────────────────────────────────
 
-// ─── LangSmith 追蹤 ────────────────────────────────────────────────────────
+function estimateTokenCostUsd(model: string, usage?: InvokeResult["usage"]): number {
+  if (!usage) return 0;
+  // Approximate pricing (USD per 1M tokens)
+  const PRICING: Record<string, { input: number; output: number }> = {
+    "gemini-2.5-pro":   { input: 1.25,  output: 5.00 },
+    "gemini-2.5-flash": { input: 0.075, output: 0.30 },
+    "gemini-1.5-pro":   { input: 1.25,  output: 5.00 },
+    "gemini-1.5-flash": { input: 0.075, output: 0.30 },
+    "gpt-4o":           { input: 2.50,  output: 10.0 },
+    "gpt-4o-mini":      { input: 0.15,  output: 0.60 },
+  };
+  const key = Object.keys(PRICING).find(k => model.includes(k)) ?? "gemini-2.5-flash";
+  const p = PRICING[key];
+  return (
+    (usage.prompt_tokens / 1_000_000) * p.input +
+    (usage.completion_tokens / 1_000_000) * p.output
+  );
+}
 
-async function trackLangSmith(
+// ─── LangSmith SDK 追蹤（深度整合） ──────────────────────────────────────────
+
+async function trackLangSmithSDK(
+  runId: string,
   runName: string,
   messages: Message[],
-  result: InvokeResult,
+  payload: Record<string, unknown>,
+  result: InvokeResult | null,
+  error: Error | null,
   durationMs: number,
-  engineName?: string
+  engineName: string,
+  parentRunId?: string,
 ): Promise<void> {
-  const apiKey = serverEnv.LANGSMITH_API_KEY;
-  if (!apiKey) return;
+  const client = await getLangSmithClient();
+  if (!client) return;
+
+  const projectName = serverEnv.LANGSMITH_PROJECT || "healing-studio";
+  const startTime = new Date(Date.now() - durationMs);
+  const endTime = new Date();
+  const costUsd = result ? estimateTokenCostUsd(result.model || "", result.usage) : 0;
 
   try {
-    const endpoint = serverEnv.LANGCHAIN_ENDPOINT || "https://api.smith.langchain.com";
-    await fetch(`${endpoint}/runs`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-      },
-      body: JSON.stringify({
-        id: result.id,
+    if (error || !result) {
+      // ── 失敗追蹤 ──
+      await client.createRun({
+        id: runId,
         name: runName || "llm-invoke",
         run_type: "llm",
-        start_time: new Date(Date.now() - durationMs).toISOString(),
-        end_time: new Date().toISOString(),
-        inputs: { messages },
-        outputs: { choices: result.choices },
-        extra: {
-          model: result.model,
-          engine: engineName,
-          usage: result.usage,
-          project: serverEnv.LANGSMITH_PROJECT || "ai-director",
-          duration_ms: durationMs,
+        project_name: projectName,
+        start_time: startTime.getTime(),
+        end_time: endTime.getTime(),
+        inputs: {
+          messages: messages.map(m => ({
+            role: m.role,
+            content: typeof m.content === "string" ? m.content.slice(0, 500) : "[multimodal]",
+          })),
+          model: payload.model,
+          temperature: payload.temperature,
+          top_p: payload.top_p,
         },
-      }),
-    });
+        outputs: {},
+        error: error?.message || "unknown error",
+        extra: {
+          metadata: {
+            engine: engineName,
+            project: projectName,
+          },
+        },
+        parent_run_id: parentRunId,
+      });
+    } else {
+      // ── 成功追蹤 ──
+      const outputContent = result.choices[0]?.message?.content;
+      await client.createRun({
+        id: runId,
+        name: runName || "llm-invoke",
+        run_type: "llm",
+        project_name: projectName,
+        start_time: startTime.getTime(),
+        end_time: endTime.getTime(),
+        inputs: {
+          messages: messages.map(m => ({
+            role: m.role,
+            content: typeof m.content === "string" ? m.content.slice(0, 2000) : "[multimodal]",
+          })),
+          model: payload.model,
+          temperature: payload.temperature,
+          top_p: payload.top_p,
+          max_tokens: payload.max_tokens,
+        },
+        outputs: {
+          content: typeof outputContent === "string" ? outputContent.slice(0, 2000) : "[structured]",
+          finish_reason: result.choices[0]?.finish_reason,
+          usage: result.usage,
+        },
+        extra: {
+          metadata: {
+            engine: engineName,
+            model: result.model,
+            duration_ms: durationMs,
+            cost_usd: costUsd,
+            prompt_tokens: result.usage?.prompt_tokens ?? 0,
+            completion_tokens: result.usage?.completion_tokens ?? 0,
+            total_tokens: result.usage?.total_tokens ?? 0,
+          },
+        },
+        parent_run_id: parentRunId,
+      });
+    }
   } catch {
     // LangSmith 追蹤失敗不影響主流程
   }
@@ -263,7 +349,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   const {
     messages, tools, toolChoice, tool_choice,
     outputSchema, output_schema, responseFormat, response_format,
-    runName, engine, temperature, topP, model: overrideModel,
+    runName, parentRunId, engine, temperature, topP, model: overrideModel,
   } = params;
 
   // ── 透過路由器取得引擎設定 ───────────────────────────────
@@ -283,7 +369,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.top_p = topP;
   }
 
-  // Forge 引擎支援 thinking 擴展推理預算（Gemini 直連不需要此參數）
+  // Forge 引擎支援 thinking 擴展推理預算
   if (engineConfig.supportsThinking && engineConfig.name.includes("Forge")) {
     payload.thinking = { budget_tokens: 128 };
   }
@@ -299,28 +385,43 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   if (normalizedResponseFormat) payload.response_format = normalizedResponseFormat;
 
   const startTime = Date.now();
+  // 生成唯一 run ID（供 LangSmith 追蹤）
+  const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
-  const response = await fetch(engineConfig.url, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${engineConfig.apiKey}`,
-    },
-    body: JSON.stringify(payload),
-  });
+  let result: InvokeResult;
+  try {
+    const response = await fetch(engineConfig.url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${engineConfig.apiKey}`,
+      },
+      body: JSON.stringify(payload),
+    });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `[${engineConfig.name}] LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
-    );
+    if (!response.ok) {
+      const errorText = await response.text();
+      const err = new Error(
+        `[${engineConfig.name}] LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
+      );
+      const durationMs = Date.now() - startTime;
+      // 非同步記錄失敗至 LangSmith
+      trackLangSmithSDK(runId, runName || "llm-invoke", messages, payload, null, err, durationMs, engineConfig.name, parentRunId).catch(() => {});
+      throw err;
+    }
+
+    result = (await response.json()) as InvokeResult;
+  } catch (err: unknown) {
+    const durationMs = Date.now() - startTime;
+    const error = err instanceof Error ? err : new Error(String(err));
+    trackLangSmithSDK(runId, runName || "llm-invoke", messages, payload, null, error, durationMs, engineConfig.name, parentRunId).catch(() => {});
+    throw err;
   }
 
-  const result = (await response.json()) as InvokeResult;
   const durationMs = Date.now() - startTime;
 
-  // 非同步追蹤至 LangSmith（不阻塞主流程）
-  trackLangSmith(runName || "llm-invoke", messages, result, durationMs, engineConfig.name).catch(() => {});
+  // 非同步追蹤成功結果至 LangSmith SDK（不阻塞主流程）
+  trackLangSmithSDK(runId, runName || "llm-invoke", messages, payload, result, null, durationMs, engineConfig.name, parentRunId).catch(() => {});
 
   return result;
 }

@@ -1428,17 +1428,24 @@ export default function Studio() {
                         const extMap: Record<string, string> = { image: "png", video: "mp4", audio: "mp3", voice: "mp3" };
                         const defaultExt = extMap[activeModality] || "bin";
 
-                        // Download and add the generated asset
+                        // Download and add the generated asset (via proxy to avoid CORS)
                         if (resultUrl) {
                           try {
-                            const resp = await fetch(resultUrl);
+                            const proxyUrl = `/api/proxy-download?url=${encodeURIComponent(resultUrl)}`;
+                            const resp = await fetch(proxyUrl);
+                            if (!resp.ok) throw new Error(`proxy ${resp.status}`);
                             const blob = await resp.blob();
                             let ext = defaultExt;
                             if (activeModality === "image") {
                               ext = blob.type.includes("png") ? "png" : blob.type.includes("webp") ? "webp" : "jpg";
+                            } else if (activeModality === "video") {
+                              ext = blob.type.includes("webm") ? "webm" : "mp4";
+                            } else if (activeModality === "audio" || activeModality === "voice") {
+                              ext = blob.type.includes("wav") ? "wav" : blob.type.includes("ogg") ? "ogg" : "mp3";
                             }
                             zip.file(`generated-${activeModality}.${ext}`, blob);
                           } catch {
+                            // Fallback: include URL as text file
                             zip.file("asset-url.txt", resultUrl);
                           }
                         }

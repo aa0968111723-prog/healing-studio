@@ -413,6 +413,39 @@ export async function getUserCostSummary(userId: number) {
   return { totalCost: parseFloat(result[0]?.totalCost || "0"), totalRequests: result[0]?.totalRequests || 0 };
 }
 
+/** 按模態分類的生成次數統計（用於 Dashboard 圓餅圖） */
+export async function getUserModalityBreakdown(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({
+    requestType: apiUsageLogs.requestType,
+    count: sql<number>`COUNT(*)`,
+    totalCost: sql<string>`COALESCE(SUM(${apiUsageLogs.estimatedCostUsd}), 0)`,
+  }).from(apiUsageLogs)
+    .where(eq(apiUsageLogs.userId, userId))
+    .groupBy(apiUsageLogs.requestType);
+}
+
+/** 近 7 天每日請求數量趨勢（用於 Dashboard 折線圖） */
+export async function getUserDailyTrend(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({
+    date: sql<string>`DATE(${apiUsageLogs.createdAt})`,
+    count: sql<number>`COUNT(*)`,
+    totalCost: sql<string>`COALESCE(SUM(${apiUsageLogs.estimatedCostUsd}), 0)`,
+    totalTokens: sql<number>`COALESCE(SUM(${apiUsageLogs.tokensUsed}), 0)`,
+  }).from(apiUsageLogs)
+    .where(
+      and(
+        eq(apiUsageLogs.userId, userId),
+        sql`${apiUsageLogs.createdAt} >= DATE_SUB(NOW(), INTERVAL 7 DAY)`,
+      )
+    )
+    .groupBy(sql`DATE(${apiUsageLogs.createdAt})`)
+    .orderBy(sql`DATE(${apiUsageLogs.createdAt})`);
+}
+
 export async function getTeamCostSummary() {
   const db = await getDb();
   if (!db) return [];

@@ -115,7 +115,7 @@ function ToolCard({
   color = "purple",
   children,
 }: {
-  icon: React.ElementType;
+  icon: React.FC<React.SVGProps<SVGSVGElement>>;
   title: string;
   description: string;
   badge?: string;
@@ -262,7 +262,7 @@ function MusicTab() {
             </div>
           </div>
           <Button
-            onClick={() => mutation.mutate({ prompt, lyrics: lyrics || undefined, duration, instrumental, tags: tags || undefined })}
+            onClick={() => mutation.mutate({ prompt, lyrics: lyrics || undefined, instrumental, tags: tags || undefined })}
             disabled={mutation.isPending || !prompt.trim()}
             className="w-full"
           >
