@@ -302,7 +302,7 @@ export default function ModelsPage() {
                               <button onClick={() => handleFileUpload(angle.value)} className="w-full aspect-square rounded-xl border-2 border-dashed border-border/50 hover:border-primary/30 transition-colors flex flex-col items-center justify-center gap-1 bg-muted/20 relative overflow-hidden">
                                 {images.length > 0 ? (
                                   <div className="relative w-full h-full">
-                                    <img src={images[images.length - 1].uploadedUrl || images[images.length - 1].url} alt={angle.label} className="w-full h-full object-cover rounded-xl" />
+                                    <img src={images[images.length - 1].uploadedUrl || images[images.length - 1].url} alt={angle.label} className="w-full h-full object-cover rounded-xl" loading="lazy" />
                                     <span className="absolute bottom-1 right-1 text-[10px] bg-black/50 text-white px-1.5 rounded-md">{images.length}</span>
                                     {hasUploading && (
                                       <div className="absolute inset-0 bg-black/30 flex items-center justify-center rounded-xl">
@@ -348,7 +348,7 @@ export default function ModelsPage() {
                           <div className="flex flex-wrap gap-1.5">
                             {datasetImages.map((img, idx) => (
                               <div key={idx} className="relative w-12 h-12 rounded-lg overflow-hidden group">
-                                <img src={img.uploadedUrl || img.url} alt="" className="w-full h-full object-cover" />
+                                <img src={img.uploadedUrl || img.url} alt="" className="w-full h-full object-cover" loading="lazy" />
                                 {img.uploading && (
                                   <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                                     <Loader2 className="w-3 h-3 text-white animate-spin" />
@@ -397,7 +397,7 @@ export default function ModelsPage() {
                       <h4 className="text-xs font-medium">標註結果</h4>
                       {datasetImages.slice(0, 5).map((img, idx) => (
                         <div key={idx} className="flex items-start gap-3 text-xs">
-                          <img src={img.uploadedUrl || img.url} alt="" className="w-8 h-8 rounded-md object-cover shrink-0" />
+                          <img src={img.uploadedUrl || img.url} alt="" className="w-8 h-8 rounded-md object-cover shrink-0" loading="lazy" />
                           <div className="flex-1 min-w-0">
                             {img.captionGenerated ? (
                               <span className="text-foreground">{img.caption}</span>

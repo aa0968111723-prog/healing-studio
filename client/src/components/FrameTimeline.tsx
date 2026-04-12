@@ -93,7 +93,7 @@ export function FrameTimeline({
         </div>
       ) : frame ? (
         <>
-          <img src={frame} alt={label} className="w-full h-full object-cover" />
+          <img src={frame} alt={label} className="w-full h-full object-cover" loading="lazy" />
           <Button
             variant="outline"
             size="icon"

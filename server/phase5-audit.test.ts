@@ -1,4 +1,44 @@
 import { describe, it, expect, vi } from "vitest";
+
+// Mock LLM for evaluatePrompt tests
+// NOTE: vi.mock factory is hoisted, so inline the value (no top-level variable references)
+vi.mock("./_core/llm", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./_core/llm")>();
+  return {
+    ...actual,
+    invokeLLM: vi.fn().mockResolvedValue({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              score: 78,
+              dimensions: {
+                subjectClarity: 16,
+                actionNarrative: 14,
+                environment: 16,
+                lightingTone: 17,
+                technicalSpecs: 15,
+              },
+              strengths: "主體清晰，場景優美",
+              weaknesses: "缺少技術參數",
+              suggestions: [
+                {
+                  label: "加入電影感光線",
+                  actionType: "append_prompt",
+                  actionPayload: "cinematic lighting, warm golden hour, soft shadows",
+                  reason: "提升畫面的電影感和氛圍",
+                },
+              ],
+              optimizedPrompt:
+                "a serene Zen garden with gentle morning light on stones, cinematic lighting, high quality, 8k resolution, masterpiece",
+            }),
+          },
+        },
+      ],
+    }),
+  };
+});
+
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 
@@ -41,22 +81,23 @@ describe("Phase 5: 7-Persona Audit Fixes", () => {
   // ─── ISSUE-01: ThoughtChain Real Timestamps ──────────────────────────────
 
   describe("ThoughtChain Real Timestamps", () => {
-    it("generate.multimodal should reject when atomic deduction fails (quota exhausted)", async () => {
-      // Mock deductUserQuota to return false (atomic deduction failed = no quota)
+    it("generate.prepareJob should reject when deductUserPoints fails (insufficient credits)", async () => {
+      // Mock deductUserPoints to return failure (model-based billing)
       const dbModule = await import("./db");
-      const spy = vi.spyOn(dbModule, "deductUserQuota").mockResolvedValueOnce(false);
+      const spy = vi.spyOn(dbModule, "deductUserPoints").mockResolvedValueOnce({
+        success: false,
+        actualDeducted: 0,
+        remainingBefore: 0,
+        remainingAfter: 0,
+      });
 
       const user = createMockUser({ remainingGenerations: 0 });
       const ctx = createMockContext(user);
       const caller = appRouter.createCaller(ctx);
 
-      await expect(caller.generate.multimodal({
-        prompt: "寧靜的禪意花園",
+      await expect(caller.generate.prepareJob({
         generationType: "image",
-        mode: "lightning",
-        vibeCardIds: [],
-        temperature: 0.6,
-      })).rejects.toThrow("生成配額已用完");
+      })).rejects.toThrow();
 
       spy.mockRestore();
     });
@@ -191,14 +232,14 @@ describe("Phase 5: 7-Persona Audit Fixes", () => {
 
   describe("Safety Check", () => {
     it("should block unsafe content", async () => {
-      // Mock deductUserQuota to pass quota check, then safety check should block
+      // Mock safety check (LLM returns unsafe) and refundUserPoints should be called
       const dbModule = await import("./db");
       const llmModule = await import("./_core/llm");
-      const deductSpy = vi.spyOn(dbModule, "deductUserQuota").mockResolvedValueOnce(true);
-      const refundSpy = vi.spyOn(dbModule, "refundUserQuota").mockResolvedValue(undefined);
+      const refundSpy = vi.spyOn(dbModule, "refundUserPoints").mockResolvedValue(undefined);
       const createLogSpy = vi.spyOn(dbModule, "createApiUsageLog").mockResolvedValue(1);
+      const updateJobSpy = vi.spyOn(dbModule, "updateBackgroundJob").mockResolvedValue(undefined);
       const llmSpy = vi.spyOn(llmModule, "invokeLLM").mockResolvedValueOnce({
-        choices: [{ message: { content: JSON.stringify({ safe: false, reason: "內容不安全" }) }, finish_reason: "stop", index: 0 }],
+        choices: [{ message: { content: JSON.stringify({ safe: false, reason: "内容不安全" }) }, finish_reason: "stop", index: 0 }],
       } as any);
 
       const user = createMockUser();
@@ -206,19 +247,20 @@ describe("Phase 5: 7-Persona Audit Fixes", () => {
       const caller = appRouter.createCaller(ctx);
 
       await expect(caller.generate.multimodal({
-        prompt: "暴力血腥殘忍的恐怖場景",
+        jobId: 99,
+        prompt: "暴力血腥的恐怖场景",
         generationType: "image",
         mode: "lightning",
         vibeCardIds: [],
         temperature: 0.5,
-      })).rejects.toThrow();
+      })).rejects.toThrow("小兔子提醒你");
 
-      // Verify refund was called since safety blocked
-      expect(refundSpy).toHaveBeenCalledWith(1, 1);
+      // Verify refundUserPoints was called since safety blocked (model-based billing)
+      expect(refundSpy).toHaveBeenCalledTimes(1);
 
-      deductSpy.mockRestore();
       refundSpy.mockRestore();
       createLogSpy.mockRestore();
+      updateJobSpy.mockRestore();
       llmSpy.mockRestore();
     });
   });

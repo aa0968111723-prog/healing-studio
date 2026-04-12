@@ -1,4 +1,45 @@
 import { describe, it, expect, vi } from "vitest";
+
+// Mock DB before importing routers
+let noteIdCounter = 100;
+const notesStore: any[] = [];
+
+vi.mock("./db", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./db")>();
+  return {
+    ...actual,
+    getDb: vi.fn().mockResolvedValue(null),
+    createProjectNote: vi.fn().mockImplementation(async (data: any) => {
+      const id = noteIdCounter++;
+      notesStore.push({
+        id,
+        ...data,
+        tags: data.tags ?? [],
+        scheduledDate: data.scheduledDate ?? null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      return id;
+    }),
+    getProjectNotesByUser: vi.fn().mockImplementation(async (userId: number) => {
+      return notesStore.filter((n) => n.userId === userId);
+    }),
+    deleteProjectNote: vi.fn().mockImplementation(async (id: number) => {
+      const idx = notesStore.findIndex((n) => n.id === id);
+      if (idx !== -1) notesStore.splice(idx, 1);
+    }),
+    updateProjectNote: vi.fn().mockImplementation(async (id: number, data: any) => {
+      const note = notesStore.find((n) => n.id === id);
+      if (note) Object.assign(note, data);
+    }),
+    deductUserQuota: vi.fn().mockResolvedValue(true),
+    deductUserPoints: vi.fn().mockResolvedValue(true),
+    refundUserQuota: vi.fn().mockResolvedValue(undefined),
+    refundUserPoints: vi.fn().mockResolvedValue(undefined),
+    createApiUsageLog: vi.fn().mockResolvedValue(undefined),
+  };
+});
+
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 

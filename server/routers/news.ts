@@ -48,6 +48,11 @@ async function requireDb() {
   return db;
 }
 
+/** 嘗試取得 DB，DB 不可用時回傳 null（公開唯讀端點用，降級為空結果） */
+async function tryDb() {
+  return await getDb();
+}
+
 // ─── News Router ──────────────────────────────────────────────────────────────
 
 export const newsRouter = router({
@@ -70,7 +75,10 @@ export const newsRouter = router({
       })
     )
     .query(async ({ input }) => {
-      const db = await requireDb();
+      const db = await tryDb();
+      // DB 不可用時，優雅降級為空結果（首頁仍可顯示，但無新聞資料）
+      if (!db) return { items: [], nextCursor: undefined };
+
       const { limit, cursor, category } = input;
 
       // Build WHERE conditions

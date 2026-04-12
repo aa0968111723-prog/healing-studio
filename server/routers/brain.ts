@@ -22,107 +22,244 @@ import {
   type GenerationEngineSlot,
 } from "../middleware/brainContext";
 import { TRPCError } from "@trpc/server";
+import {
+  FAL_MODEL_CATALOG,
+  FAL_CATEGORY_LABELS,
+  type FalCategory,
+} from "../services/falModels";
+import { ELEVENLABS_TTS_MODELS } from "../services/elevenLabsExtended";
+import {
+  MODEL_PRICING_CATALOG,
+  estimatePoints,
+  getModelPricing,
+  checkModelAvailability,
+  getAllPricingByCategory,
+  pointsToUsd,
+} from "../services/modelPricing";
+import { resolveFalEnginesFromRow, DEFAULT_FAL_ENGINES } from "../services/falDispatcher";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Model Catalog (白皮書規格)
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** 5 大推理大腦備選清單 */
+/** 5 大推理大腦備選清單（含 Vertex AI 模型） */
 export const REASONING_MODEL_CATALOG = {
   director: {
     label: "全站導演",
     description: "統籌創作流程、分鏡、敘事結構",
     options: [
+      // ── Gemini / Vertex AI ──
+      { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro ✦", tier: "premium" },
+      { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash ⚡", tier: "fast" },
       { value: "gemini-1.5-pro", label: "Gemini 1.5 Pro", tier: "premium" },
-      { value: "gemini-pro", label: "Gemini Pro", tier: "standard" },
-      { value: "claude-3.5-sonnet", label: "Claude 3.5 Sonnet", tier: "premium" },
-      { value: "claude-3-opus", label: "Claude 3 Opus", tier: "premium" },
-      { value: "gpt-4o", label: "GPT-4o", tier: "premium" },
-      { value: "gpt-4o-mini", label: "GPT-4o Mini", tier: "standard" },
+      { value: "gemini-1.5-flash", label: "Gemini 1.5 Flash", tier: "fast" },
+      // ── Vertex AI 模型 ──
+      { value: "vertex/gemini-2.5-pro", label: "Vertex Gemini 2.5 Pro 🔷", tier: "premium" },
+      { value: "vertex/llama-3.2-90b", label: "Vertex Llama 3.2 90B", tier: "premium" },
     ],
   },
   analyst: {
     label: "新聞過濾",
     description: "數據分析、趨勢洞察、新聞摘要",
     options: [
-      { value: "gemini-1.5-pro", label: "Gemini 1.5 Flash", tier: "fast" },
-      { value: "gpt-4o-mini", label: "GPT-4o Mini", tier: "fast" },
-      { value: "gpt-4o", label: "GPT-4o", tier: "standard" },
-      { value: "claude-3.5-sonnet", label: "Claude 3.5 Sonnet", tier: "standard" },
+      { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash ⚡", tier: "fast" },
+      { value: "gemini-1.5-flash", label: "Gemini 1.5 Flash", tier: "fast" },
+      { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", tier: "premium" },
+      { value: "vertex/gemini-2.5-flash", label: "Vertex Gemini 2.5 Flash 🔷", tier: "fast" },
+      { value: "vertex/llama-3.1-405b", label: "Vertex Llama 3.1 405B", tier: "premium" },
     ],
   },
   storyteller: {
     label: "編譯器",
     description: "提示詞編譯、文案撰寫、故事展開",
     options: [
-      { value: "gpt-4o", label: "GPT-4o", tier: "premium" },
-      { value: "claude-3.5-sonnet", label: "Claude 3.5 Sonnet", tier: "premium" },
-      { value: "claude-3-opus", label: "Claude 3 Opus", tier: "premium" },
+      { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro ✦", tier: "premium" },
+      { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash ⚡", tier: "fast" },
       { value: "gemini-1.5-pro", label: "Gemini 1.5 Pro", tier: "premium" },
-      { value: "gpt-4o-mini", label: "GPT-4o Mini", tier: "standard" },
+      { value: "vertex/gemini-2.5-pro", label: "Vertex Gemini 2.5 Pro 🔷", tier: "premium" },
+      { value: "vertex/mistral-nemo", label: "Vertex Mistral NeMo", tier: "standard" },
     ],
   },
   technician: {
     label: "光球語調",
     description: "VisualSoul 對話風格、OARS 語句生成",
     options: [
-      { value: "gpt-4o", label: "GPT-4o", tier: "premium" },
-      { value: "gpt-4o-mini", label: "GPT-4o Mini", tier: "fast" },
-      { value: "claude-3.5-sonnet", label: "Claude 3.5 Sonnet", tier: "premium" },
-      { value: "gemini-pro", label: "Gemini Pro", tier: "standard" },
+      { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash ⚡", tier: "fast" },
+      { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", tier: "premium" },
+      { value: "gemini-1.5-flash", label: "Gemini 1.5 Flash", tier: "fast" },
+      { value: "vertex/gemini-2.5-flash", label: "Vertex Gemini 2.5 Flash 🔷", tier: "fast" },
     ],
   },
   curator: {
     label: "RAG 向量",
     description: "風格推薦、美學判斷、靈感策展",
     options: [
-      { value: "gpt-4o", label: "GPT-4o", tier: "premium" },
-      { value: "gpt-4o-mini", label: "GPT-4o Mini", tier: "fast" },
+      { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash ⚡", tier: "fast" },
+      { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", tier: "premium" },
       { value: "gemini-1.5-pro", label: "Gemini 1.5 Pro", tier: "premium" },
-      { value: "claude-3.5-sonnet", label: "Claude 3.5 Sonnet", tier: "standard" },
+      { value: "vertex/gemini-2.5-pro", label: "Vertex Gemini 2.5 Pro 🔷", tier: "premium" },
     ],
   },
 } as const;
 
-/** 4 大生成引擎備選清單 */
+/** 生成引擎備選清單（圖片/影片/音頻/語音 + Gemini + ElevenLabs 完整目錄） */
 export const GENERATION_ENGINE_CATALOG = {
   imageEngine: {
     label: "圖片引擎",
-    description: "AI 圖像生成",
+    description: "AI 圖像生成（文字轉圖像）",
     options: [
-      { value: "flux-pro", label: "Flux Pro (dev)", tier: "premium" },
-      { value: "flux-schnell", label: "Flux Schnell", tier: "fast" },
-      { value: "stable-diffusion-xl", label: "SDXL 1.0", tier: "standard" },
-      { value: "dall-e-3", label: "DALL·E 3", tier: "premium" },
-      { value: "midjourney-v6", label: "Midjourney V6", tier: "premium" },
+      // ── Fal.ai ──
+      { value: "fal/flux-pro-1.1", label: "Flux Pro 1.1 ✦", tier: "premium" },
+      { value: "fal/flux-dev", label: "Flux Dev", tier: "premium" },
+      { value: "fal/flux-schnell", label: "Flux Schnell ⚡", tier: "fast" },
+      { value: "fal/sd3-medium", label: "Stable Diffusion 3", tier: "standard" },
+      { value: "fal/ideogram-v2", label: "Ideogram V2", tier: "premium" },
+      { value: "fal/aura-flow", label: "AuraFlow", tier: "standard" },
+      // ── Gemini Imagen ──
+      { value: "gemini/imagen-3", label: "Imagen 3 (Gemini) 🔵", tier: "premium" },
+      { value: "gemini/imagen-3-fast", label: "Imagen 3 Fast (Gemini) ⚡", tier: "fast" },
+      // ── Vertex Imagen ──
+      { value: "vertex/imagen-3", label: "Imagen 3 (Vertex) 🔷", tier: "premium" },
     ],
   },
   videoEngine: {
     label: "影片引擎",
-    description: "AI 影片生成",
+    description: "AI 影片生成（文字/圖片轉視頻）",
     options: [
-      { value: "kling-v1-5", label: "Veo 3.1 (Kling)", tier: "premium" },
-      { value: "kling-v1", label: "Kling V1", tier: "standard" },
-      { value: "runway-gen3", label: "Luma (Runway Gen3)", tier: "premium" },
-      { value: "minimax-video", label: "MiniMax Video", tier: "standard" },
+      // ── Fal.ai 文字轉影片 ──
+      { value: "fal/kling-v2.1-pro-t2v", label: "Kling V2.1 Pro ✦", tier: "premium" },
+      { value: "fal/kling-v1.5-pro-t2v", label: "Kling V1.5 Pro", tier: "premium" },
+      { value: "fal/minimax-t2v", label: "MiniMax Hailuo", tier: "standard" },
+      { value: "fal/luma-dream-machine-t2v", label: "Luma Dream Machine", tier: "premium" },
+      { value: "fal/wan-t2v-v2.1", label: "WAN T2V 2.1", tier: "standard" },
+      { value: "fal/cogvideox-5b-t2v", label: "CogVideoX 5B", tier: "standard" },
+      // ── Fal.ai 圖片轉影片 ──
+      { value: "fal/kling-v2.1-pro-i2v", label: "Kling V2.1 i2v ✦", tier: "premium" },
+      { value: "fal/runway-gen3-i2v", label: "Runway Gen3 Turbo i2v", tier: "premium" },
+      // ── Gemini Veo ──
+      { value: "gemini/veo-2", label: "Veo 2 (Gemini) 🔵", tier: "premium" },
+      { value: "gemini/veo-3", label: "Veo 3 Preview (Gemini) 🔵", tier: "premium" },
     ],
   },
   audioEngine: {
     label: "音樂引擎",
     description: "AI 音樂/音效生成",
     options: [
-      { value: "suno-v4", label: "Suno V4", tier: "premium" },
+      // ── Suno ──
+      { value: "suno-v4", label: "Suno V4 ✦", tier: "premium" },
       { value: "suno-v3.5", label: "Suno V3.5", tier: "standard" },
-      { value: "udio-v1", label: "Udio V1", tier: "standard" },
+      // ── Fal.ai 音頻 ──
+      { value: "fal/stable-audio", label: "Stable Audio (Fal)", tier: "premium" },
+      { value: "fal/musicgen", label: "MusicGen (Meta)", tier: "standard" },
+      { value: "fal/ace-step", label: "ACE-Step", tier: "premium" },
+      { value: "fal/audioldm2", label: "AudioLDM 2", tier: "standard" },
+      // ── Gemini Lyria ──
+      { value: "gemini/lyria-2", label: "Lyria 2 (Gemini) 🔵", tier: "premium" },
+      { value: "gemini/musicfx", label: "MusicFX (Gemini) 🔵", tier: "standard" },
+      // ── ElevenLabs ──
+      { value: "elevenlabs/music", label: "ElevenLabs Music 🎵", tier: "premium" },
+      { value: "elevenlabs/sound-effects", label: "ElevenLabs 音效 🎵", tier: "standard" },
     ],
   },
   voiceEngine: {
     label: "配音引擎",
-    description: "AI 語音合成",
+    description: "AI 語音合成（文字轉語音）",
     options: [
-      { value: "elevenlabs-v2", label: "ElevenLabs V2", tier: "premium" },
-      { value: "elevenlabs-v1", label: "ElevenLabs V1", tier: "standard" },
-      { value: "azure-tts", label: "Azure TTS", tier: "standard" },
+      // ── ElevenLabs ──
+      { value: "elevenlabs/eleven-v3", label: "ElevenLabs V3 ✦", tier: "premium" },
+      { value: "elevenlabs/multilingual-v2", label: "ElevenLabs Multilingual V2", tier: "premium" },
+      { value: "elevenlabs/turbo-v2.5", label: "ElevenLabs Turbo V2.5 ⚡", tier: "fast" },
+      { value: "elevenlabs/flash-v2.5", label: "ElevenLabs Flash V2.5 ⚡", tier: "fast" },
+      // ── Fal.ai TTS ──
+      { value: "fal/metavoice-v1", label: "MetaVoice V1 (Fal)", tier: "premium" },
+      { value: "fal/playai-tts", label: "PlayAI TTS (Fal)", tier: "premium" },
+      { value: "fal/kokoro", label: "Kokoro TTS (Fal) ⚡", tier: "fast" },
+      { value: "fal/orpheus-tts", label: "Orpheus TTS (Fal)", tier: "standard" },
+      { value: "fal/dia-tts", label: "Dia TTS (Fal)", tier: "standard" },
+      // ── Gemini TTS ──
+      { value: "gemini/tts-flash", label: "Gemini TTS Flash 🔵 ⚡", tier: "fast" },
+      { value: "gemini/tts-pro", label: "Gemini TTS Pro 🔵", tier: "premium" },
+    ],
+  },
+} as const;
+
+/** Fal.ai 16大類專用引擎（可在大腦設定中為特定任務指定） */
+export const FAL_TASK_ENGINE_CATALOG = {
+  imageTo3d: {
+    label: "影像轉3D",
+    description: "從圖片生成3D模型",
+    options: [
+      { value: "fal/trellis", label: "Trellis 3D ✦", tier: "premium" },
+      { value: "fal/triposr", label: "TripoSR ⚡", tier: "standard" },
+      { value: "fal/zero123plus", label: "Zero123++", tier: "standard" },
+      { value: "fal/stable-zero123", label: "Stable Zero123", tier: "standard" },
+      { value: "fal/mv-adapter", label: "MV-Adapter", tier: "premium" },
+    ],
+  },
+  imageToImage: {
+    label: "影像到影像",
+    description: "圖片風格轉換/超解析度",
+    options: [
+      { value: "fal/flux-dev-i2i", label: "Flux Dev i2i ✦", tier: "premium" },
+      { value: "fal/sd3-medium-i2i", label: "SD3 Medium i2i", tier: "standard" },
+      { value: "fal/ip-adapter-faceid", label: "IP-Adapter FaceID", tier: "premium" },
+      { value: "fal/controlnet-union", label: "ControlNet Union", tier: "standard" },
+      { value: "fal/aura-sr", label: "AuraSR 超解析度 ⚡", tier: "fast" },
+      { value: "fal/rembg", label: "RemBG 去背 ⚡", tier: "fast" },
+    ],
+  },
+  textTo3d: {
+    label: "文字轉3D",
+    description: "從文字描述生成3D模型",
+    options: [
+      { value: "fal/meshy-4", label: "Meshy 4 ✦", tier: "premium" },
+      { value: "fal/hyper3d-rodin", label: "Hyper3D Rodin", tier: "premium" },
+      { value: "fal/shap-e", label: "Shap-E", tier: "standard" },
+      { value: "fal/dreamgaussian", label: "DreamGaussian", tier: "standard" },
+      { value: "fal/fantasia3d", label: "Fantasia3D", tier: "premium" },
+    ],
+  },
+  videoToAudio: {
+    label: "視訊轉音訊",
+    description: "為影片生成配樂音效",
+    options: [
+      { value: "fal/mmaudio-v2", label: "MMAudio V2 ✦", tier: "premium" },
+      { value: "fal/stable-audio-v2a", label: "Stable Audio v2a", tier: "standard" },
+      { value: "fal/audioldm2-v2a", label: "AudioLDM2 v2a", tier: "standard" },
+      { value: "fal/sync-lipsync", label: "Sync Lipsync", tier: "premium" },
+      { value: "fal/elevenlabs-sound", label: "ElevenLabs 音效", tier: "standard" },
+    ],
+  },
+  videoToText: {
+    label: "影片轉文字",
+    description: "影片語音轉錄/內容分析",
+    options: [
+      { value: "fal/whisper", label: "Whisper ✦", tier: "standard" },
+      { value: "fal/wizper", label: "Wizper ⚡", tier: "fast" },
+      { value: "fal/any-llm-video", label: "Any LLM 影片分析", tier: "premium" },
+      { value: "fal/llava-next-video", label: "LLaVA-Next 影片", tier: "standard" },
+    ],
+  },
+  videoToVideo: {
+    label: "影片對影片",
+    description: "影片風格轉換/增強",
+    options: [
+      { value: "fal/kling-v2.1-v2v", label: "Kling V2.1 V2V ✦", tier: "premium" },
+      { value: "fal/wan-v2v", label: "WAN V2V", tier: "standard" },
+      { value: "fal/cogvideox-v2v", label: "CogVideoX V2V", tier: "standard" },
+      { value: "fal/topaz-video", label: "Topaz 超解析度", tier: "premium" },
+      { value: "fal/stable-video-upscaler", label: "SVD 超解析度", tier: "standard" },
+    ],
+  },
+  training: {
+    label: "模型訓練",
+    description: "LoRA/DreamBooth 微調訓練",
+    options: [
+      { value: "fal/flux-lora-fast", label: "Flux LoRA 快速訓練 ✦", tier: "premium" },
+      { value: "fal/flux-lora-portrait", label: "Flux LoRA 人像", tier: "premium" },
+      { value: "fal/dreambooth-flux", label: "DreamBooth Flux", tier: "premium" },
+      { value: "fal/sd3-lora", label: "SD3 LoRA", tier: "standard" },
+      { value: "fal/cogvideox-lora", label: "CogVideoX LoRA", tier: "premium" },
     ],
   },
 } as const;
@@ -136,6 +273,45 @@ export const brainRouter = router({
   catalog: protectedProcedure.query(() => ({
     reasoning: REASONING_MODEL_CATALOG,
     generation: GENERATION_ENGINE_CATALOG,
+    /** Fal.ai 16大類任務引擎（每類 5-6 模型） */
+    falTasks: Object.fromEntries(
+      (Object.keys(FAL_MODEL_CATALOG) as FalCategory[]).map((cat) => [
+        cat,
+        {
+          label: FAL_CATEGORY_LABELS[cat],
+          description: FAL_MODEL_CATALOG[cat][0]?.description ?? "",
+          options: FAL_MODEL_CATALOG[cat].map((m) => ({
+            value: m.modelId,
+            label: m.label,
+            tier: m.tier,
+            description: m.description,
+            inputSchema: m.inputSchema,
+            outputSchema: m.outputSchema,
+          })),
+        },
+      ])
+    ) as Record<FalCategory, {
+      label: string;
+      description: string;
+      options: Array<{
+        value: string;
+        label: string;
+        tier: string;
+        description: string;
+        inputSchema: Record<string, boolean | undefined>;
+        outputSchema: Record<string, boolean | undefined>;
+      }>;
+    }>,
+    /** ElevenLabs TTS 模型目錄 */
+    elevenLabsModels: ELEVENLABS_TTS_MODELS.map((m) => ({
+      value: m.value,
+      label: m.label,
+      tier: m.tier,
+      description: m.description,
+      supportsEmotionTags: m.supportsEmotionTags,
+      supportsMultiSpeaker: m.supportsMultiSpeaker,
+      languages: m.languages,
+    })),
   })),
 
   /** 取得使用者的大腦組態 */
@@ -231,6 +407,23 @@ export const brainRouter = router({
         voiceEngine: z.string().optional(),
         voiceEngineParams: z.record(z.string(), z.unknown()).nullable().optional(),
         voiceEngineEnabled: z.boolean().optional(),
+        // Fal.ai 16大類任務引擎
+        falImageTo3dEngine: z.string().optional(),
+        falImageToImageEngine: z.string().optional(),
+        falImageToJsonEngine: z.string().optional(),
+        falImageToVideoEngine: z.string().optional(),
+        falJsonEngine: z.string().optional(),
+        falLlmEngine: z.string().optional(),
+        falTextTo3dEngine: z.string().optional(),
+        falTextToAudioEngine: z.string().optional(),
+        falTextToImageEngine: z.string().optional(),
+        falTextToJsonEngine: z.string().optional(),
+        falTextToSpeechEngine: z.string().optional(),
+        falTextToVideoEngine: z.string().optional(),
+        falTrainingEngine: z.string().optional(),
+        falVideoToAudioEngine: z.string().optional(),
+        falVideoToTextEngine: z.string().optional(),
+        falVideoToVideoEngine: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -314,6 +507,65 @@ export const brainRouter = router({
       return { success: true };
     }),
 
+  /**
+   * 取得當前大腦組態各模態的引擎選擇 + 詳細點數費率
+   * 供 Studio 頁面顯示「本次生成預估費用」
+   */
+  pricingSummary: protectedProcedure
+    .input(z.object({
+      durationSec: z.number().optional(),
+      charCount: z.number().optional(),
+    }).optional())
+    .query(async ({ ctx, input }) => {
+      const userId = ctx.user.id;
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "資料庫不可用" });
+
+      const rows = await db
+        .select()
+        .from(userAiBrain)
+        .where(eq(userAiBrain.userId, userId))
+        .limit(1);
+      const brainRow = (rows[0] ?? null) as Record<string, unknown> | null;
+      const falEngines = resolveFalEnginesFromRow(brainRow);
+
+      // 四模態引擎
+      const imageEngine  = String(brainRow?.imageEngine  ?? falEngines.textToImage);
+      const videoEngine  = String(brainRow?.videoEngine  ?? falEngines.textToVideo);
+      const audioEngine  = String(brainRow?.audioEngine  ?? falEngines.textToAudio);
+      const voiceEngine  = String(brainRow?.voiceEngine  ?? falEngines.textToSpeech);
+
+      const buildEntry = (modelId: string, durationSec?: number, charCount?: number) => {
+        const p = getModelPricing(modelId);
+        const est = estimatePoints(modelId, { durationSec, charCount });
+        const avail = checkModelAvailability(modelId);
+        return {
+          modelId,
+          label: p?.label ?? modelId,
+          provider: p?.provider ?? "unknown",
+          tier: p?.tier ?? "standard",
+          unit: p?.unit ?? "每次",
+          basePoints: p?.basePoints ?? est.basePoints,
+          estimatedPoints: est.totalPoints,
+          breakdown: est.breakdown,
+          estimatedUsd: pointsToUsd(est.totalPoints),
+          available: avail.available,
+          availabilityNote: !avail.available ? avail.reason : undefined,
+        };
+      };
+
+      return {
+        image: buildEntry(imageEngine),
+        video: buildEntry(videoEngine, input?.durationSec ?? 5),
+        audio: buildEntry(audioEngine, input?.durationSec ?? 30),
+        voice: buildEntry(voiceEngine, undefined, input?.charCount ?? 100),
+        /** 全模型費率表（按分類，供 UI 展示） */
+        allPricingByCategory: getAllPricingByCategory(),
+        /** 換算匯率提示 */
+        rateNote: "1 USD ≈ 100 pts（點數）。最低扣 1 pt，上限 500 pts/次。",
+      };
+    }),
+
   /** 取得所有引擎的健康狀態 */
   healthStatus: protectedProcedure.query(() => {
     const snapshot = getHealthSnapshot();
@@ -329,6 +581,12 @@ export const brainRouter = router({
     for (const slot of Object.values(GENERATION_ENGINE_CATALOG)) {
       for (const opt of slot.options) {
         allModels.add(opt.value);
+      }
+    }
+    // Include Fal.ai task engine models
+    for (const models of Object.values(FAL_MODEL_CATALOG)) {
+      for (const m of models) {
+        allModels.add(m.modelId);
       }
     }
 

@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { motion, AnimatePresence, type PanInfo, useAnimation } from "framer-motion";
 import { useAIState } from "@/contexts/AIStateContext";
+import { usePersonality, PERSONALITY_CONFIGS } from "@/contexts/PersonalityContext";
+import type { Personality } from "@/contexts/PersonalityContext";
 import VisualSoul from "./VisualSoul";
 import {
   X, Sparkles, Lightbulb, Palette, Shuffle, MessageCircle,
@@ -164,7 +166,8 @@ export default function ProactiveOrbWidget({
   onApplyInspiration,
   onSwitchModality,
 }: Props) {
-  const { aiState, personality, proactiveMessage, dismissProactive } = useAIState();
+  const { aiState, proactiveMessage, dismissProactive } = useAIState();
+  const { personality, setPersonality, isManual, resetToAuto, config: personalityConfig } = usePersonality();
   const orbControls = useAnimation();
 
   // Drag position state
@@ -915,10 +918,11 @@ export default function ProactiveOrbWidget({
             style={{ margin: "-4px", borderRadius: "50%" }}
           />
 
+          {/* Phase 10: 升級為 3D 光球 (size=lg → WebGL) */}
           <VisualSoul
             state={guiding ? "thinking" : showPanel ? "generating" : aiState}
             personality={personality}
-            size="md"
+            size="lg"
             className="!w-12 !h-12"
           />
 

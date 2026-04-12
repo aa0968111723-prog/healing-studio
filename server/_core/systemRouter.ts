@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { notifyOwner } from "./notification";
 import { adminProcedure, publicProcedure, router } from "./trpc";
+import { getEngineStatus } from "./llmRouter";
 
 export const systemRouter = router({
   health: publicProcedure
@@ -12,6 +13,14 @@ export const systemRouter = router({
     .query(() => ({
       ok: true,
     })),
+
+  /**
+   * 查詢目前 LLM 引擎狀態
+   * 回傳：當前引擎名稱、可用引擎列表、缺少的 API Key、優化建議
+   */
+  engineStatus: publicProcedure.query(() => {
+    return getEngineStatus();
+  }),
 
   notifyOwner: adminProcedure
     .input(

@@ -21,25 +21,10 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <script>
-      /* Analytics guard — 只在 VITE_ANALYTICS_ENDPOINT 已被 Vite 正確替換時才載入 Umami。
-         若環境變數未設定，Vite 會將 %VITE_*% 佔位符保留為原始字串，
-         此時載入 src="%VITE_ANALYTICS_ENDPOINT%/umami" 會觸發 HTTP 400 錯誤。
-         透過 JS 動態插入 <script> 可完全避免此問題。 */
-      (function() {
-        var endpoint = "%VITE_ANALYTICS_ENDPOINT%";
-        var websiteId = "%VITE_ANALYTICS_WEBSITE_ID%";
-        // 若佔位符未被替換（仍包含 %VITE_），或端點為空，則跳過 analytics
-        if (!endpoint || endpoint.indexOf("%VITE_") !== -1 || !websiteId || websiteId.indexOf("%VITE_") !== -1) {
-          return;
-        }
-        var s = document.createElement("script");
-        s.defer = true;
-        s.src = endpoint + "/umami";
-        s.setAttribute("data-website-id", websiteId);
-        document.body.appendChild(s);
-      })();
-    </script>
+    <script
+      defer
+      src="%VITE_ANALYTICS_ENDPOINT%/umami"
+      data-website-id="%VITE_ANALYTICS_WEBSITE_ID%"></script>
   </body>
 
 </html>

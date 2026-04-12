@@ -1,6 +1,5 @@
 import { eq, desc, and, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import mysql from "mysql2/promise";
 import {
   InsertUser, users,
   fineTunedModels, InsertFineTunedModel,
@@ -24,18 +23,7 @@ let _db: ReturnType<typeof drizzle> | null = null;
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      // Use a connection pool with reconnection support to handle Railway proxy disconnects
-      const pool = mysql.createPool({
-        uri: process.env.DATABASE_URL,
-        waitForConnections: true,
-        connectionLimit: 5,
-        queueLimit: 0,
-        enableKeepAlive: true,
-        keepAliveInitialDelay: 10000,
-        connectTimeout: 15000,
-      });
-      _db = drizzle(pool);
-      console.log("[Database] ✅ Connected using mysql2 pool");
+      _db = drizzle(process.env.DATABASE_URL);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
@@ -173,6 +161,84 @@ export async function refundUserQuota(userId: number, amount: number = 1) {
     });
   } catch (error) {
     console.error(`[QuotaLock] ❌ Refund transaction failed for user ${userId}:`, error);
+  }
+}
+
+/**
+ * Deduct points based on actual model cost (for model-based billing).
+ * Falls back to deducting `amount` generation units if points system not used.
+ *
+ * The `pointsAmount` is the integer points to deduct (1 point = 1 generation unit base).
+ * Since remainingGenerations already acts as "credits", we deduct pointsAmount units.
+ * Minimum deduction is 1 (never deduct 0).
+ *
+ * Returns: { success, actualDeducted, remainingBefore, remainingAfter }
+ */
+export async function deductUserPoints(userId: number, pointsAmount: number): Promise<{
+  success: boolean;
+  actualDeducted: number;
+  remainingBefore: number;
+  remainingAfter: number;
+}> {
+  const db = await getDb();
+  if (!db) return { success: false, actualDeducted: 0, remainingBefore: 0, remainingAfter: 0 };
+
+  // Minimum 1 point, maximum safety cap of 500
+  const toDeduct = Math.max(1, Math.min(500, Math.round(pointsAmount)));
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      const [lockedRow] = await tx.execute(
+        sql`SELECT ${users.id}, ${users.remainingGenerations} FROM ${users} WHERE ${users.id} = ${userId} FOR UPDATE`
+      ) as any;
+      const rows = Array.isArray(lockedRow) ? lockedRow : [lockedRow];
+      const userRow = rows[0];
+
+      if (!userRow) {
+        console.warn(`[PointsLock] User ${userId} not found during FOR UPDATE`);
+        return { success: false, actualDeducted: 0, remainingBefore: 0, remainingAfter: 0 };
+      }
+
+      const currentCredits = Number(userRow.remainingGenerations ?? userRow.remaining_generations ?? 0);
+
+      if (currentCredits < toDeduct) {
+        console.warn(`[PointsLock] User ${userId} insufficient credits: ${currentCredits} < ${toDeduct}`);
+        return { success: false, actualDeducted: 0, remainingBefore: currentCredits, remainingAfter: currentCredits };
+      }
+
+      await tx.update(users)
+        .set({ remainingGenerations: sql`${users.remainingGenerations} - ${toDeduct}` })
+        .where(eq(users.id, userId));
+
+      console.log(`[PointsLock] ✅ User ${userId} deducted ${toDeduct} pts (${currentCredits} → ${currentCredits - toDeduct})`);
+      return { success: true, actualDeducted: toDeduct, remainingBefore: currentCredits, remainingAfter: currentCredits - toDeduct };
+    });
+    return result;
+  } catch (error) {
+    console.error(`[PointsLock] ❌ Points deduction failed for user ${userId}:`, error);
+    return { success: false, actualDeducted: 0, remainingBefore: 0, remainingAfter: 0 };
+  }
+}
+
+/**
+ * Refund points (reverse of deductUserPoints).
+ */
+export async function refundUserPoints(userId: number, pointsAmount: number) {
+  const db = await getDb();
+  if (!db) return;
+  const toRefund = Math.max(1, Math.min(500, Math.round(pointsAmount)));
+  try {
+    await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`SELECT ${users.id} FROM ${users} WHERE ${users.id} = ${userId} FOR UPDATE`
+      );
+      await tx.update(users)
+        .set({ remainingGenerations: sql`${users.remainingGenerations} + ${toRefund}` })
+        .where(eq(users.id, userId));
+      console.log(`[PointsLock] 🔄 User ${userId} refunded ${toRefund} pts`);
+    });
+  } catch (error) {
+    console.error(`[PointsLock] ❌ Points refund failed for user ${userId}:`, error);
   }
 }
 

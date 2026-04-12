@@ -41,6 +41,11 @@ async function requireDb() {
   return db;
 }
 
+/** 嘗試取得 DB，DB 不可用時回傳 null（公開唯讀端點用，優雅降級） */
+async function tryDb() {
+  return await getDb();
+}
+
 // ─── LOD Field Sets ──────────────────────────────────────────────────────────
 
 /** 列表層級：輕量欄位，適合網格/卡片預覽 */
@@ -82,7 +87,10 @@ export const showcaseRouter = router({
       })
     )
     .query(async ({ input }) => {
-      const db = await requireDb();
+      const db = await tryDb();
+      // DB 不可用時，優雅降級為空結果（首頁仍可顯示，但無精選作品）
+      if (!db) return { items: [], nextCursor: undefined };
+
       const { limit, cursor, modality } = input;
 
       const conditions = [eq(featuredShowcase.isActive, true)];

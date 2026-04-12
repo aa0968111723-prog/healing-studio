@@ -1,4 +1,41 @@
 import { describe, it, expect, vi } from "vitest";
+
+// Mock LLM to avoid API key requirement
+vi.mock("./_core/llm", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./_core/llm")>();
+  const mockOptimizedPrompt = "a cat sitting by the window watching the rain, cinematic lighting, high quality, 8k resolution, detailed fur texture, masterpiece, best quality";
+  const mockEvalResult = JSON.stringify({
+    score: 72,
+    dimensions: { subjectClarity: 15, actionNarrative: 12, environment: 15, lightingTone: 15, technicalSpecs: 15 },
+    strengths: "主體清晰，場景生動",
+    weaknesses: "缺乏技術參數和光線細節",
+    suggestions: [
+      { label: "加入電影感光線", actionType: "append_prompt", actionPayload: "cinematic lighting, warm golden hour", reason: "提升畫面氛圍感" }
+    ],
+    optimizedPrompt: mockOptimizedPrompt,
+  });
+  return {
+    ...actual,
+    invokeLLM: vi.fn().mockResolvedValue({
+      choices: [{ message: { content: mockEvalResult } }],
+    }),
+  };
+});
+
+// Mock DB
+vi.mock("./db", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./db")>();
+  return {
+    ...actual,
+    getDb: vi.fn().mockResolvedValue(null),
+    deductUserQuota: vi.fn().mockResolvedValue(true),
+    deductUserPoints: vi.fn().mockResolvedValue(true),
+    refundUserQuota: vi.fn().mockResolvedValue(undefined),
+    refundUserPoints: vi.fn().mockResolvedValue(undefined),
+    createApiUsageLog: vi.fn().mockResolvedValue(undefined),
+  };
+});
+
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 

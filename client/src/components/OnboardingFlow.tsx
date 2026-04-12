@@ -467,7 +467,7 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
                   className="max-w-sm mx-auto mb-6 rounded-2xl overflow-hidden shadow-xl"
                   style={{ border: "2px solid rgba(255,255,255,0.5)" }}
                 >
-                  <img src={resultUrl} alt="Your first creation" className="w-full" />
+                  <img src={resultUrl} alt="Your first creation" className="w-full" loading="lazy" />
                 </motion.div>
               )}
 

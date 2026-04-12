@@ -1,4 +1,24 @@
 import { describe, expect, it, vi } from "vitest";
+
+// Mock DB before importing routers
+vi.mock("./db", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./db")>();
+  return {
+    ...actual,
+    getDb: vi.fn().mockResolvedValue(null),
+    createVaultItem: vi.fn().mockResolvedValue(1),
+    getVaultItemsByUser: vi.fn().mockResolvedValue([]),
+    deleteVaultItem: vi.fn().mockResolvedValue(undefined),
+    upsertDirectorPreferences: vi.fn().mockResolvedValue(undefined),
+    getDirectorPreferences: vi.fn().mockResolvedValue(null),
+    deductUserQuota: vi.fn().mockResolvedValue(true),
+    deductUserPoints: vi.fn().mockResolvedValue(true),
+    refundUserQuota: vi.fn().mockResolvedValue(undefined),
+    refundUserPoints: vi.fn().mockResolvedValue(undefined),
+    createApiUsageLog: vi.fn().mockResolvedValue(undefined),
+  };
+});
+
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 

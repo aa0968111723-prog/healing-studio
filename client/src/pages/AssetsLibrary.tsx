@@ -121,9 +121,9 @@ export default function AssetsLibrary() {
                   {/* Preview */}
                   <div className="aspect-square rounded-lg overflow-hidden bg-muted/20 relative mb-3">
                     {asset.fileUrl && asset.assetType === "image" ? (
-                      <img src={asset.fileUrl} alt={asset.title} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
+                      <img src={asset.fileUrl} alt={asset.title} className="w-full h-full object-cover transition-transform group-hover:scale-105" loading="lazy" />
                     ) : asset.thumbnailUrl ? (
-                      <img src={asset.thumbnailUrl} alt={asset.title} className="w-full h-full object-cover" />
+                      <img src={asset.thumbnailUrl} alt={asset.title} className="w-full h-full object-cover" loading="lazy" />
                     ) : (
                       <div className="flex items-center justify-center h-full">
                         <div className={`w-12 h-12 rounded-xl ${config.color} flex items-center justify-center`}>

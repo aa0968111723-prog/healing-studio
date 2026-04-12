@@ -666,6 +666,41 @@ export const userAiBrain = mysqlTable("user_ai_brain", {
   }>(),
   voiceEngineEnabled: boolean("voiceEngineEnabled").default(true).notNull(),
 
+  // ── Fal.ai 16大類任務引擎 ────────────────────────────────────────────────
+
+  /** 2-1 影像轉3D */
+  falImageTo3dEngine: varchar("falImageTo3dEngine", { length: 128 }).default("fal-ai/trellis"),
+  /** 2-2 影像到影像 */
+  falImageToImageEngine: varchar("falImageToImageEngine", { length: 128 }).default("fal-ai/flux/dev/image-to-image"),
+  /** 2-3 圖像轉JSON */
+  falImageToJsonEngine: varchar("falImageToJsonEngine", { length: 128 }).default("fal-ai/any-llm"),
+  /** 2-4 圖片轉視頻 */
+  falImageToVideoEngine: varchar("falImageToVideoEngine", { length: 128 }).default("fal-ai/kling-video/v2.1/pro/image-to-video"),
+  /** 2-5 JSON 結構化輸出 */
+  falJsonEngine: varchar("falJsonEngine", { length: 128 }).default("fal-ai/any-llm"),
+  /** 2-6 大型語言模型 */
+  falLlmEngine: varchar("falLlmEngine", { length: 128 }).default("fal-ai/any-llm"),
+  /** 2-7 文字轉3D */
+  falTextTo3dEngine: varchar("falTextTo3dEngine", { length: 128 }).default("fal-ai/hyper3d/rodin"),
+  /** 2-8 文字轉音頻 */
+  falTextToAudioEngine: varchar("falTextToAudioEngine", { length: 128 }).default("fal-ai/stable-audio"),
+  /** 2-9 文字轉圖像 */
+  falTextToImageEngine: varchar("falTextToImageEngine", { length: 128 }).default("fal-ai/flux-pro/v1.1"),
+  /** 2-10 文字轉JSON */
+  falTextToJsonEngine: varchar("falTextToJsonEngine", { length: 128 }).default("fal-ai/any-llm"),
+  /** 2-11 文字轉語音 */
+  falTextToSpeechEngine: varchar("falTextToSpeechEngine", { length: 128 }).default("fal-ai/metavoice-v1"),
+  /** 2-12 文字轉視頻 */
+  falTextToVideoEngine: varchar("falTextToVideoEngine", { length: 128 }).default("fal-ai/kling-video/v2.1/pro/text-to-video"),
+  /** 2-13 訓練 */
+  falTrainingEngine: varchar("falTrainingEngine", { length: 128 }).default("fal-ai/flux-lora-fast-training"),
+  /** 2-14 視訊轉音訊 */
+  falVideoToAudioEngine: varchar("falVideoToAudioEngine", { length: 128 }).default("fal-ai/mmaudio-v2/video-to-audio"),
+  /** 2-15 影片轉文字 */
+  falVideoToTextEngine: varchar("falVideoToTextEngine", { length: 128 }).default("fal-ai/whisper"),
+  /** 2-16 影片對影片 */
+  falVideoToVideoEngine: varchar("falVideoToVideoEngine", { length: 128 }).default("fal-ai/kling-video/v2.1/standard/video-to-video"),
+
   // ── Meta ──────────────────────────────────────────────────────────────────
 
   /** 全局偏好 JSON（擴展用） */
