@@ -758,7 +758,9 @@ export function initNewsFetcherCron(): void {
 
   logOars("info", "新聞抓取排程已註冊 — 每 6 小時執行一次 (含 Gemini Flash OARS NLP 柔化)");
 
-  // Initial fetch after 30s delay (let DB and server warm up)
+  // Initial fetch after 5-minute delay — let server fully warm up and accept traffic first.
+  // Previously 30s was too short; NewsFetcher + Gemini API calls can spike memory and block
+  // the event loop during Railway's healthcheck window, causing 502 errors.
   setTimeout(async () => {
     logOars("info", "伺服器啟動後首次新聞抓取（含 OARS NLP 柔化）...");
     try {
@@ -766,7 +768,7 @@ export function initNewsFetcherCron(): void {
     } catch (err: any) {
       logOars("error", `首次抓取異常：${err.message}`);
     }
-  }, 30_000);
+  }, 5 * 60_000); // 5 minutes — give Railway healthcheck time to pass first
 }
 
 /**
