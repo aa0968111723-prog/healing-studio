@@ -1915,12 +1915,27 @@ export const appRouter = router({
 
   dashboard: router({
     myStats: protectedProcedure.query(async ({ ctx }) => {
-      const costSummary = await db.getUserCostSummary(ctx.user.id);
-      const recentLogs = await db.getUsageLogsByUser(ctx.user.id, 10);
+      const [costSummary, recentLogs, modalityBreakdown, dailyTrend] = await Promise.all([
+        db.getUserCostSummary(ctx.user.id),
+        db.getUsageLogsByUser(ctx.user.id, 10),
+        db.getUserModalityBreakdown(ctx.user.id),
+        db.getUserDailyTrend(ctx.user.id),
+      ]);
       return {
         remainingGenerations: ctx.user.remainingGenerations,
         ...costSummary,
         recentLogs,
+        modalityBreakdown: modalityBreakdown.map(r => ({
+          requestType: r.requestType,
+          count: r.count,
+          totalCost: parseFloat(r.totalCost || "0"),
+        })),
+        dailyTrend: dailyTrend.map(r => ({
+          date: r.date,
+          count: r.count,
+          totalCost: parseFloat(r.totalCost || "0"),
+          totalTokens: r.totalTokens,
+        })),
       };
     }),
 
