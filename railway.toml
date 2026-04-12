@@ -3,9 +3,9 @@ builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "./start.sh"
+startCommand = "node /app/dist/index.js"
 healthcheckPath = "/api/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
-# cache bust: 2026-04-11T08:00
+# cache bust: 2026-04-12T09:20
