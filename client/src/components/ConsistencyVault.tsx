@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import {
   User, Mountain, Upload, GripVertical, X, Plus, Search,
-  ImagePlus, Layers, Trash2, Loader2
+  ImagePlus, Layers, Trash2, Loader2, Link, Check,
 } from "lucide-react";
 import { ZenSkeleton } from "./ZenCoPilot";
 
@@ -507,6 +507,8 @@ export function VaultDropzone({
 }) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [showUrlInput, setShowUrlInput] = useState(false);
+  const [urlInput, setUrlInput] = useState("");
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -567,6 +569,20 @@ export function VaultDropzone({
     input.click();
   };
 
+  const handleUrlSubmit = () => {
+    const trimmed = urlInput.trim();
+    if (!trimmed) return;
+    // Accept http/https URLs
+    if (!/^https?:\/\/.+/.test(trimmed)) {
+      toast.error("請輸入有效的圖片 URL（以 http:// 或 https:// 開頭）");
+      return;
+    }
+    onDrop(trimmed);
+    setUrlInput("");
+    setShowUrlInput(false);
+    toast.success("已載入圖片 URL");
+  };
+
   return (
     <div
       className={`relative rounded-xl border-2 border-dashed transition-all overflow-hidden ${
@@ -597,25 +613,67 @@ export function VaultDropzone({
             </span>
           </div>
         </div>
+      ) : showUrlInput ? (
+        /* URL input mode */
+        <div className="aspect-video flex flex-col items-center justify-center gap-2 p-3">
+          <div className="flex items-center gap-1.5 w-full">
+            <input
+              type="url"
+              value={urlInput}
+              onChange={(e) => setUrlInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleUrlSubmit();
+                if (e.key === "Escape") { setShowUrlInput(false); setUrlInput(""); }
+              }}
+              placeholder="貼上圖片 URL..."
+              autoFocus
+              className="flex-1 text-[11px] bg-white/60 border border-border/40 rounded-lg px-2 py-1.5 outline-none focus:border-primary/50 min-w-0"
+            />
+            <button
+              onClick={handleUrlSubmit}
+              disabled={!urlInput.trim()}
+              className="p-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors disabled:opacity-30"
+            >
+              <Check className="w-3.5 h-3.5 text-primary" />
+            </button>
+            <button
+              onClick={() => { setShowUrlInput(false); setUrlInput(""); }}
+              className="p-1.5 rounded-lg hover:bg-muted/20 transition-colors"
+            >
+              <X className="w-3.5 h-3.5 text-muted-foreground" />
+            </button>
+          </div>
+          <span className="text-[10px] text-muted-foreground/50">按 Enter 確認，Esc 取消</span>
+        </div>
       ) : (
-        <button
-          onClick={handleFileSelect}
-          disabled={uploading}
-          className="w-full aspect-video flex flex-col items-center justify-center gap-1.5 p-3 hover:bg-muted/10 transition-colors"
-        >
-          {uploading ? (
-            <>
-              <Loader2 className="w-5 h-5 text-muted-foreground/40 animate-spin" />
-              <span className="text-[11px] text-muted-foreground font-medium">上傳中...</span>
-            </>
-          ) : (
-            <>
-              <Upload className="w-5 h-5 text-muted-foreground/40" />
-              <span className="text-[11px] text-muted-foreground font-medium">{label}</span>
-              <span className="text-[10px] text-muted-foreground/50">拖放或點擊上傳</span>
-            </>
-          )}
-        </button>
+        <div className="w-full aspect-video flex flex-col items-center justify-center gap-1 p-3">
+          <button
+            onClick={handleFileSelect}
+            disabled={uploading}
+            className="flex flex-col items-center gap-1.5 hover:bg-muted/10 transition-colors rounded-lg px-4 py-2 w-full"
+          >
+            {uploading ? (
+              <>
+                <Loader2 className="w-5 h-5 text-muted-foreground/40 animate-spin" />
+                <span className="text-[11px] text-muted-foreground font-medium">上傳中...</span>
+              </>
+            ) : (
+              <>
+                <Upload className="w-5 h-5 text-muted-foreground/40" />
+                <span className="text-[11px] text-muted-foreground font-medium">{label}</span>
+                <span className="text-[10px] text-muted-foreground/50">拖放或點擊上傳</span>
+              </>
+            )}
+          </button>
+          {/* URL input toggle */}
+          <button
+            onClick={() => setShowUrlInput(true)}
+            className="flex items-center gap-1 text-[10px] text-muted-foreground/60 hover:text-primary/70 transition-colors mt-0.5"
+          >
+            <Link className="w-3 h-3" />
+            貼上 URL
+          </button>
+        </div>
       )}
 
       {/* Drag overlay */}

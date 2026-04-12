@@ -7,7 +7,9 @@ import VisualSoul from "./VisualSoul";
 import {
   X, Sparkles, Lightbulb, Palette, Shuffle, MessageCircle,
   Send, Heart, Music, Video, Image, Mic, BookOpen, RotateCcw,
+  Loader2,
 } from "lucide-react";
+import { trpc } from "@/lib/trpc";
 
 type Props = {
   className?: string;
@@ -190,6 +192,7 @@ export default function ProactiveOrbWidget({
   const [panelView, setPanelView] = useState<"main" | "chat" | "inspiration">("main");
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "orb"; text: string }>>([]);
+  const [isChatLoading, setIsChatLoading] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
 
   // Home position
@@ -455,55 +458,54 @@ export default function ProactiveOrbWidget({
     }
   }, [onApplyInspiration, onRestartTour, greeting, showFeedback]);
 
-  // ─── Chat handler ────────────────────────────────────────────────────
+  // ─── AI chat mutation ─────────────────────────────────────────────────
+  const aiChatMutation = trpc.ai.chat.useMutation();
 
-  const handleChatSend = useCallback(() => {
-    if (!chatInput.trim()) return;
+  // ─── Chat handler (with real LLM + conversation history) ─────────────
+
+  const handleChatSend = useCallback(async () => {
+    if (!chatInput.trim() || isChatLoading) return;
 
     const userMsg = chatInput.trim();
-    setChatMessages((prev) => [...prev, { role: "user", text: userMsg }]);
+    const updatedMessages = [...chatMessages, { role: "user" as const, text: userMsg }];
+    setChatMessages(updatedMessages);
     setChatInput("");
+    setIsChatLoading(true);
 
-    // Simple keyword-based response for immediate feedback
-    setTimeout(() => {
-      let response = "";
-      const lower = userMsg.toLowerCase();
+    // Check for modality keywords to trigger UI side effects
+    const lower = userMsg.toLowerCase();
+    if (lower.includes("影片") || lower.includes("視頻") || lower.includes("動畫")) {
+      onSwitchModality?.("video");
+    } else if (lower.includes("音樂") || lower.includes("歌曲") || lower.includes("譜曲")) {
+      onSwitchModality?.("audio");
+    } else if (lower.includes("配音") || lower.includes("語音合成")) {
+      onSwitchModality?.("voice");
+    }
 
-      if (lower.includes("開心") || lower.includes("快樂") || lower.includes("高興")) {
-        response = "太好了！開心的時候最適合創作。試試用暖色調和明亮的光線來表達你的心情？";
-      } else if (lower.includes("難過") || lower.includes("傷心") || lower.includes("低落") || lower.includes("累")) {
-        response = "沒關係，創作也可以是一種療癒。試試畫一幅寧靜的風景，讓心情慢慢沉澱。";
-      } else if (lower.includes("無聊") || lower.includes("沒靈感") || lower.includes("不知道")) {
-        const preset = INSPIRATION_PRESETS[Math.floor(Math.random() * INSPIRATION_PRESETS.length)];
-        response = `試試「${preset.label}」${preset.emoji} 這個主題？我幫你準備好了積木，點擊下方的靈感推薦就能套用。`;
-      } else if (lower.includes("謝") || lower.includes("感謝")) {
-        response = "不客氣！創作的路上有我陪你。隨時點我聊聊天或要靈感。";
-      } else if (lower.includes("你好") || lower.includes("嗨") || lower.includes("哈囉")) {
-        response = "嗨！很高興見到你。今天想創作什麼呢？可以告訴我你的心情，我來推薦適合的靈感。";
-      } else if (lower.includes("圖") || lower.includes("畫") || lower.includes("圖片")) {
-        response = "想畫圖嗎？試試點選上方的積木，組合出你想要的畫面。或者讓我幫你隨機推薦一組？";
-      } else if (lower.includes("影片") || lower.includes("視頻") || lower.includes("動畫")) {
-        response = "影片創作很有趣！切換到影片模態，選擇主體動態和運鏡方式，就能生成短影片。";
-        onSwitchModality?.("video");
-      } else if (lower.includes("音樂") || lower.includes("歌") || lower.includes("曲")) {
-        response = "想要音樂嗎？切換到音樂模態，描述你想要的氛圍，AI 就能為你譜曲。";
-        onSwitchModality?.("audio");
-      } else if (lower.includes("配音") || lower.includes("語音") || lower.includes("說話")) {
-        response = "語音功能可以幫你把文字變成有感情的聲音。切換到語音模態試試看！";
-        onSwitchModality?.("voice");
-      } else {
-        const responses = [
-          "我理解你的感受。要不要試試把這個想法轉化成一幅畫？",
-          "有趣的想法！你可以用積木來描述這個場景，看看 AI 會怎麼詮釋。",
-          "嗯，讓我想想...也許可以從一個顏色或一種光線開始，慢慢建構你的畫面。",
-          "每個想法都是創作的種子。試著選幾個積木，讓它發芽吧。",
-        ];
-        response = responses[Math.floor(Math.random() * responses.length)];
-      }
+    try {
+      // Build history for the LLM (exclude the greeting from orb since it's not part of the real history)
+      const llmMessages = updatedMessages
+        .filter((m) => !(m.role === "orb" && chatMessages.indexOf(m) === 0)) // skip initial greeting
+        .map((m) => ({
+          role: m.role === "user" ? "user" as const : "assistant" as const,
+          content: m.text,
+        }))
+        .filter((m) => m.role === "user" || m.content !== greeting); // skip greeting bubble
 
-      setChatMessages((prev) => [...prev, { role: "orb", text: response }]);
-    }, 600);
-  }, [chatInput, onSwitchModality]);
+      const data = await aiChatMutation.mutateAsync({
+        messages: llmMessages,
+        personality,
+      });
+      setChatMessages((prev) => [...prev, { role: "orb", text: data.reply }]);
+    } catch {
+      setChatMessages((prev) => [
+        ...prev,
+        { role: "orb", text: "抱歉，我剛才斷線了一下。能再說一次嗎？" },
+      ]);
+    } finally {
+      setIsChatLoading(false);
+    }
+  }, [chatInput, chatMessages, isChatLoading, personality, greeting, aiChatMutation, onSwitchModality]);
 
   // ─── Apply inspiration preset ────────────────────────────────────────
 
@@ -752,10 +754,13 @@ export default function ProactiveOrbWidget({
                         />
                         <button
                           onClick={handleChatSend}
-                          disabled={!chatInput.trim()}
+                          disabled={!chatInput.trim() || isChatLoading}
                           className="p-1.5 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-30"
                         >
-                          <Send className="w-3.5 h-3.5 text-gray-500" />
+                          {isChatLoading
+                            ? <Loader2 className="w-3.5 h-3.5 text-gray-500 animate-spin" />
+                            : <Send className="w-3.5 h-3.5 text-gray-500" />
+                          }
                         </button>
                       </div>
                     </div>

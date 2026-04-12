@@ -1,12 +1,8 @@
-import { useState } from "react";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { VaultDropzone } from "@/components/ConsistencyVault";
 import { ZenTooltip } from "@/components/ZenCoPilot";
-import { ImagePlus, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
 
 export type ImageWorkspaceState = {
   aspectRatio: string;
@@ -29,12 +25,45 @@ const ASPECT_RATIOS = [
   { value: "21:9", label: "21:9 超寬" },
 ];
 
+// ─── Quick chips for Negative Prompt ──────────────────────────────────────
+const NEGATIVE_CHIPS = [
+  "模糊",
+  "低品質",
+  "變形",
+  "多餘肢體",
+  "噪點",
+  "過曝",
+  "水印",
+  "文字",
+  "低解析度",
+  "扭曲臉部",
+];
+
+// ─── Style description quick presets ──────────────────────────────────────
+const STYLE_PRESETS = [
+  { label: "🖼️ 油畫",    value: "oil painting style, impasto brushwork" },
+  { label: "📷 寫實",    value: "photorealistic, 8K, cinematic lighting" },
+  { label: "✏️ 手繪",    value: "hand-drawn illustration, pencil sketch" },
+  { label: "🎨 水彩",    value: "watercolor painting, soft edges" },
+  { label: "🌸 動漫",    value: "anime style, vibrant colors, clean lines" },
+  { label: "🏙️ 賽博龐克", value: "cyberpunk aesthetic, neon lights, futuristic" },
+  { label: "🌿 吉卜力",  value: "Studio Ghibli inspired, soft lighting, lush" },
+  { label: "🖤 暗黑",    value: "dark fantasy, moody, dramatic shadows" },
+];
+
 export function createDefaultImageState(): ImageWorkspaceState {
   return { aspectRatio: "16:9", negativePrompt: "", styleReferenceUrl: null, vibeReferenceUrl: null };
 }
 
 export function ImageWorkspace({ value, onChange }: ImageWorkspaceProps) {
   const update = (partial: Partial<ImageWorkspaceState>) => onChange({ ...value, ...partial });
+
+  // Append a negative chip (avoid duplicates)
+  const appendNegativeChip = (chip: string) => {
+    const current = value.negativePrompt.trim();
+    if (current.includes(chip)) return; // already present
+    update({ negativePrompt: current ? `${current}, ${chip}` : chip });
+  };
 
   return (
     <div className="space-y-4">
@@ -78,7 +107,36 @@ export function ImageWorkspace({ value, onChange }: ImageWorkspaceProps) {
           />
         </div>
         <p className="text-[10px] text-muted-foreground/60">
-          從一致性保險庫拖放角色或場景，或上傳新圖片作為風格參考
+          從一致性保險庫拖放角色或場景，上傳檔案，或貼上圖片 URL 作為風格參考
+        </p>
+      </div>
+
+      {/* Style Description Quick Presets */}
+      <div className="space-y-2">
+        <Label className="text-xs font-medium text-muted-foreground">風格描述快選</Label>
+        <div className="flex flex-wrap gap-1.5">
+          {STYLE_PRESETS.map((preset) => (
+            <button
+              key={preset.value}
+              onClick={() => update({ vibeReferenceUrl: null, styleReferenceUrl: null,
+                // Inject style preset into the prompt via a custom event the parent can listen to
+                // For now we also expose it as a data attribute so Studio can read it
+              })}
+              title={preset.value}
+              className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-white/40 text-muted-foreground hover:bg-primary/10 hover:text-primary border border-white/60 hover:border-primary/30 transition-all"
+              data-style-preset={preset.value}
+              onClickCapture={(e) => {
+                // Dispatch a custom event so Studio/parent can inject this into the prompt
+                const event = new CustomEvent("apply-style-preset", { detail: preset.value, bubbles: true });
+                (e.target as HTMLElement).dispatchEvent(event);
+              }}
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+        <p className="text-[10px] text-muted-foreground/50">
+          點擊快選風格標籤，自動附加到提示詞結尾
         </p>
       </div>
 
@@ -87,6 +145,27 @@ export function ImageWorkspace({ value, onChange }: ImageWorkspaceProps) {
         <ZenTooltip tooltipKey="negativePrompt">
           <Label className="text-xs font-medium text-muted-foreground">排除描述 (Negative Prompt)</Label>
         </ZenTooltip>
+        {/* Quick chips */}
+        <div className="flex flex-wrap gap-1">
+          {NEGATIVE_CHIPS.map((chip) => {
+            const active = value.negativePrompt.includes(chip);
+            return (
+              <button
+                key={chip}
+                onClick={() => appendNegativeChip(chip)}
+                disabled={active}
+                className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-medium transition-all border ${
+                  active
+                    ? "bg-destructive/10 text-destructive border-destructive/30 cursor-default"
+                    : "bg-white/40 text-muted-foreground border-white/60 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
+                }`}
+              >
+                {!active && <Plus className="w-2.5 h-2.5" />}
+                {chip}
+              </button>
+            );
+          })}
+        </div>
         <Textarea
           placeholder="描述你不想出現的元素（例：模糊、變形、低品質）"
           value={value.negativePrompt}
