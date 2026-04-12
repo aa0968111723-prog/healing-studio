@@ -432,7 +432,9 @@ function TTSTab() {
     if (engine === "elevenlabs") {
       elevenMutation.mutate({ text, voice_id: voiceId || undefined, stability, similarity_boost: similarity });
     } else {
-      qwenMutation.mutate({ text, voice_id: voiceId || undefined, speed });
+      // Qwen3-TTS accepts: text, voice (preset name), language
+      // It does NOT support voice_id or speed parameters
+      qwenMutation.mutate({ text, voice: voiceId || undefined });
     }
   };
 
@@ -542,11 +544,13 @@ function TTSTab() {
             </div>
           )}
 
-          {/* Qwen 速度設定 */}
+          {/* Qwen 語音名稱（可選） */}
           {engine === "qwen" && (
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">語速：{speed.toFixed(1)}x</Label>
-              <Slider value={[speed]} onValueChange={([v]) => setSpeed(v)} min={0.5} max={2} step={0.1} />
+            <div className="p-3 rounded-lg bg-blue-50/40 border border-blue-200/30">
+              <p className="text-[10px] text-blue-700">
+                💡 Qwen3-TTS 不支援 ElevenLabs voice_id。
+                可在「語音 ID」中填入預訓練語音名稱（如 <code>Vivian</code>）或留空使用預設。
+              </p>
             </div>
           )}
 
@@ -576,10 +580,12 @@ function CloneTab() {
   const [klingResult, setKlingResult] = useState<any>(null);
   const [result, setResult] = useState<AudioResult | null>(null);
 
-  const qwenClone = trpc.proStudio.qwenCloneVoice.useMutation({
+  // qwenCloneAndSpeak: clone + TTS in one step (audio_url + text → audio)
+  const qwenClone = trpc.proStudio.qwenCloneAndSpeak.useMutation({
     onSuccess: (data) => { setResult(data as AudioResult); toast.success("🎭 聲音克隆完成！"); },
     onError: (e) => toast.error(`克隆失敗：${e.message}`),
   });
+  // diaTTSVoiceClone: only accepts { text } — no reference_audio_url
   const diaClone = trpc.proStudio.diaTTSVoiceClone.useMutation({
     onSuccess: (data) => { setResult(data as AudioResult); toast.success("🎭 聲音克隆完成！"); },
     onError: (e) => toast.error(`克隆失敗：${e.message}`),
@@ -603,9 +609,11 @@ function CloneTab() {
     setResult(null);
     setKlingResult(null);
     if (mode === "qwen") {
-      qwenClone.mutate({ text, reference_audio_url: refAudio });
+      // qwenCloneAndSpeak: audio_url = reference, text = what to say
+      qwenClone.mutate({ audio_url: refAudio, text, reference_text: refTranscript || undefined });
     } else if (mode === "dia") {
-      diaClone.mutate({ text, reference_audio_url: refAudio, reference_transcript: refTranscript || undefined });
+      // diaTTSVoiceClone: only text; supports [S1]/[S2] speaker tags
+      diaClone.mutate({ text });
     } else if (mode === "design") {
       voiceDesign.mutate({ voice_description: voiceDesc, text: text || undefined });
     } else {
@@ -621,7 +629,9 @@ function CloneTab() {
   ];
 
   const isKlingDisabled = mode === "kling" && (!refAudio.trim() || !klingName.trim());
-  const isOtherDisabled = mode !== "kling" && mode !== "design" && (!text.trim() || !refAudio.trim());
+  // dia only needs text; qwen needs both audio + text
+  const isOtherDisabled = mode === "qwen" && (!text.trim() || !refAudio.trim())
+    || mode === "dia" && !text.trim();
   const isDesignDisabled = mode === "design" && !voiceDesc.trim();
   const submitDisabled = isPending || isKlingDisabled || isOtherDisabled || isDesignDisabled;
 
@@ -660,23 +670,35 @@ function CloneTab() {
         {(mode === "qwen" || mode === "dia") && (
           <ToolCard
             icon={UserRound}
-            title={mode === "qwen" ? "Qwen3-TTS 零次聲音克隆" : "Dia TTS 對話語音克隆"}
-            description={mode === "qwen" ? "上傳 3-10 秒參考音訊，立即克隆任何聲音" : "支援多說話者克隆，保留說話風格與情緒"}
+            title={mode === "qwen" ? "Qwen3-TTS 零次聲音克隆" : "Dia TTS 多說話者 TTS"}
+            description={mode === "qwen" ? "上傳 3-10 秒參考音訊，AI 克隆聲音後合成語音" : "用 [S1]/[S2] 標籤標注多位說話者，AI 自動分配音色"}
             badge={mode === "qwen" ? "Qwen3 1.7B" : "Dia TTS"}
             modelId={mode === "qwen" ? "fal-ai/qwen-3-tts/clone-voice/1.7b" : "fal-ai/dia-tts/voice-clone"}
             color="pink"
           >
             <div className="space-y-3">
-              <AudioUrlInput label="參考音訊 URL" value={refAudio} onChange={setRefAudio} required placeholder="貼上 3-10 秒高品質音訊（mp3/wav/flac）" />
+              {/* Qwen 需要參考音訊；Dia 不支援參考音訊 */}
+              {mode === "qwen" && (
+                <>
+                  <AudioUrlInput label="參考音訊 URL" value={refAudio} onChange={setRefAudio} required placeholder="貼上 3-10 秒高品質音訊（mp3/wav/flac）" />
+                  <div>
+                    <Label className="text-xs text-muted-foreground">參考音訊文字稿（選填，可提升克隆品質）</Label>
+                    <Textarea
+                      value={refTranscript}
+                      onChange={(e) => setRefTranscript(e.target.value)}
+                      placeholder="輸入參考音訊中說的文字（可提升準確度）..."
+                      className="mt-1 text-sm resize-none h-14"
+                    />
+                  </div>
+                </>
+              )}
               {mode === "dia" && (
-                <div>
-                  <Label className="text-xs text-muted-foreground">參考音訊文字稿（選填，可提升準確度）</Label>
-                  <Textarea
-                    value={refTranscript}
-                    onChange={(e) => setRefTranscript(e.target.value)}
-                    placeholder="輸入參考音訊中說的文字..."
-                    className="mt-1 text-sm resize-none h-14"
-                  />
+                <div className="p-3 rounded-lg bg-pink-50/60 border border-pink-200/40">
+                  <p className="text-[11px] text-pink-700 leading-relaxed">
+                    💡 <strong>Dia TTS</strong> 不需要參考音訊。<br />
+                    用 <code className="bg-pink-100 px-1 rounded">[S1]</code> / <code className="bg-pink-100 px-1 rounded">[S2]</code> 標記不同說話者，AI 會自動分配不同音色。<br />
+                    例如：<code className="bg-pink-100 px-1 rounded text-[10px]">[S1] 你好，我是第一位說話者。 [S2] 我是第二位。</code>
+                  </p>
                 </div>
               )}
               <div>
@@ -686,18 +708,20 @@ function CloneTab() {
                 <Textarea
                   value={text}
                   onChange={(e) => setText(e.target.value)}
-                  placeholder="輸入要用克隆語音朗讀的文字..."
+                  placeholder={mode === "qwen"
+                    ? "輸入要用克隆語音朗讀的文字..."
+                    : "[S1] 你好，請問有什麼需要幫助的？ [S2] 我想了解一下你們的服務。"}
                   className="mt-1 text-sm resize-none h-20"
                 />
               </div>
               <Button onClick={handleGenerate} disabled={submitDisabled} className="w-full">
                 {isPending
-                  ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />克隆中...</>
-                  : <><Wand2 className="w-4 h-4 mr-2" />克隆聲音</>
+                  ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />{mode === "qwen" ? "克隆中..." : "合成中..."}</>
+                  : <><Wand2 className="w-4 h-4 mr-2" />{mode === "qwen" ? "克隆並合成語音" : "合成多說話者語音"}</>
                 }
               </Button>
             </div>
-            {audioUrl && <AudioPlayer url={audioUrl as string} label="🎭 克隆結果" />}
+            {audioUrl && <AudioPlayer url={audioUrl as string} label="🎭 合成結果" />}
           </ToolCard>
         )}
 
@@ -1067,8 +1091,7 @@ function ProcessTab() {
 
 function ASRTab() {
   const [audioUrl, setAudioUrl] = useState("");
-  const [language, setLanguage] = useState("zh");
-  const [task, setTask] = useState<"transcribe" | "translate">("transcribe");
+  const [acceleration, setAcceleration] = useState<"none" | "low" | "medium" | "high">("none");
   const [result, setResult] = useState<any>(null);
 
   const mutation = trpc.proStudio.speechToText.useMutation({
@@ -1091,41 +1114,31 @@ function ASRTab() {
         <div className="space-y-3">
           <AudioUrlInput label="音訊 URL" value={audioUrl} onChange={setAudioUrl} required />
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="text-xs text-muted-foreground">語言</Label>
-              <Select value={language} onValueChange={setLanguage}>
-                <SelectTrigger className="mt-1 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="zh">中文（繁/簡）</SelectItem>
-                  <SelectItem value="en">English</SelectItem>
-                  <SelectItem value="ja">日本語</SelectItem>
-                  <SelectItem value="ko">한국어</SelectItem>
-                  <SelectItem value="es">Español</SelectItem>
-                  <SelectItem value="fr">Français</SelectItem>
-                  <SelectItem value="de">Deutsch</SelectItem>
-                  <SelectItem value="auto">自動偵測</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs text-muted-foreground">任務</Label>
-              <Select value={task} onValueChange={(v) => setTask(v as any)}>
-                <SelectTrigger className="mt-1 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="transcribe">轉錄（原語言）</SelectItem>
-                  <SelectItem value="translate">翻譯成英文</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          {/* Nemotron ASR 自動偵測語言，不支援 language/task 參數 */}
+          <div className="p-3 rounded-lg bg-green-50/50 border border-green-200/40">
+            <p className="text-[11px] text-green-700">
+              💡 Nemotron ASR <strong>自動偵測語言</strong>（支援中文、英文、日文等），無需手動選擇。
+            </p>
+          </div>
+
+          <div>
+            <Label className="text-xs text-muted-foreground">加速模式</Label>
+            <Select value={acceleration} onValueChange={(v) => setAcceleration(v as any)}>
+              <SelectTrigger className="mt-1 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">標準（最高準確度）</SelectItem>
+                <SelectItem value="low">低加速</SelectItem>
+                <SelectItem value="medium">中等加速</SelectItem>
+                <SelectItem value="high">高加速（最快）</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-[10px] text-muted-foreground/60 mt-1">加速越高速度越快，但準確度略低</p>
           </div>
 
           <Button
-            onClick={() => mutation.mutate({ audio_url: audioUrl, language, task })}
+            onClick={() => mutation.mutate({ audio_url: audioUrl, acceleration })}
             disabled={mutation.isPending || !audioUrl.trim()}
             className="w-full"
           >
