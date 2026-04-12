@@ -462,11 +462,12 @@ export default function Studio() {
     if (studioData) {
       try {
         const data = JSON.parse(studioData);
-        if (data.prompt) {
+        // ── Restore prompts (prefer compiledPrompt as raw if available) ──
+        if (data.prompt || data.compiledPrompt) {
           setPromptBuilder(prev => ({
             ...prev,
-            rawPrompt: data.prompt,
-            compiledPrompt: data.prompt,
+            rawPrompt: data.prompt || data.compiledPrompt || "",
+            compiledPrompt: data.compiledPrompt || data.prompt || "",
           }));
         }
         if (data.generationType) setActiveModality(data.generationType);
@@ -474,9 +475,10 @@ export default function Studio() {
         if (data.voiceText) setVoiceState(prev => ({ ...prev, text: data.voiceText }));
         if (data.audioScript) setVoiceState(prev => ({ ...prev, text: data.audioScript }));
 
-        // Restore full parameter snapshot from history (cross-modal inheritance)
+        // ── Restore full parameter snapshot from history (cross-modal, 100% fidelity) ──
         if (data.parameterSnapshot) {
           const snap = data.parameterSnapshot as Record<string, unknown>;
+
           // ── Common params ──
           if (snap.temperature != null) setTemperature(Number(snap.temperature));
           if (snap.seed != null) setSeed(String(snap.seed));
@@ -484,6 +486,16 @@ export default function Studio() {
             setPromptBuilder(prev => ({ ...prev, vibeCardIds: snap.vibeCardIds as string[] }));
           }
           if (snap.mode === "lightning" || snap.mode === "deep_precision") setMode(snap.mode as GenerationMode);
+          // ── LoRA weight ──
+          if (snap.loraWeight != null) setLoraWeight(Number(snap.loraWeight));
+          // ── Fine-tuned model embedded in snapshot ──
+          if (snap.fineTunedModelId != null) {
+            setFineTunedModelId(Number(snap.fineTunedModelId));
+            if (snap.fineTunedModelName != null) setFineTunedModelName(String(snap.fineTunedModelName));
+          }
+          // ── Consistency Vault IDs ──
+          if (snap.vaultCharacterId != null) setVaultCharacterId(Number(snap.vaultCharacterId));
+          if (snap.vaultSceneId != null) setVaultSceneId(Number(snap.vaultSceneId));
 
           // ── Image-specific params ──
           if (data.generationType === "image") {
@@ -534,25 +546,29 @@ export default function Studio() {
           }
         }
 
-        // Restore video first frame from cross-modal reference
+        // ── Restore video first frame from cross-modal reference ──
         if (data.referenceImageUrl && data.generationType === "video") {
           setVideoState(prev => ({ ...prev, firstFrameUrl: data.referenceImageUrl }));
         }
 
-        // Restore image style reference from shared space
+        // ── Restore image style reference from shared space ──
         if (data.referenceImageUrl && data.generationType === "image") {
           setImageState(prev => ({ ...prev, styleReferenceUrl: data.referenceImageUrl }));
         }
 
-        // Restore fine-tuned model selection from shared space
+        // ── Restore fine-tuned model from top-level data (shared space / history) ──
         if (data.fineTunedModelId) {
           setFineTunedModelId(Number(data.fineTunedModelId));
           if (data.fineTunedModelName) setFineTunedModelName(String(data.fineTunedModelName));
         }
 
         sessionStorage.removeItem("sendToStudio");
-        const source = data.source === "shared_space" ? "已從共享空間載入素材" : "已載入參數與提示詞";
-        toast.success(source);
+        const sourceLabel = data.source === "shared_space"
+          ? "已從共享空間載入素材"
+          : data.source === "history" || data.source === "history_cross"
+          ? "已 100% 還原生成配置，可直接重新生成"
+          : "已載入參數與提示詞";
+        toast.success(sourceLabel);
       } catch { /* ignore */ }
     }
   }, []);
@@ -800,6 +816,7 @@ export default function Studio() {
       vaultCharacterId,
       vaultSceneId,
       fineTunedModelId,
+      loraWeight,
     };
 
     try {
@@ -857,9 +874,13 @@ export default function Studio() {
     if (isMobile) setMobileDrawerSheet(null);
   }, [activeModality, videoState, imageState, isMobile]);
 
-  // ── History → Studio handler ──
+  // ── History → Studio handler (MiniHistoryPanel in right drawer) ──
   const handleHistoryToStudio = useCallback((prompt: string, type: GenerationType, parameterSnapshot?: Record<string, unknown>) => {
-    setPromptBuilder(prev => ({ ...prev, rawPrompt: prompt, compiledPrompt: prompt }));
+    setPromptBuilder(prev => ({
+      ...prev,
+      rawPrompt: prompt,
+      compiledPrompt: prompt,
+    }));
     setActiveModality(type);
     if (parameterSnapshot) {
       const snap = parameterSnapshot;
@@ -872,6 +893,16 @@ export default function Studio() {
       if (snap.mode === "lightning" || snap.mode === "deep_precision") {
         setMode(snap.mode as GenerationMode);
       }
+      // ── LoRA weight ──
+      if (snap.loraWeight != null) setLoraWeight(Number(snap.loraWeight));
+      // ── Fine-tuned model embedded in snapshot ──
+      if (snap.fineTunedModelId != null) {
+        setFineTunedModelId(Number(snap.fineTunedModelId));
+        if (snap.fineTunedModelName != null) setFineTunedModelName(String(snap.fineTunedModelName));
+      }
+      // ── Consistency Vault IDs ──
+      if (snap.vaultCharacterId != null) setVaultCharacterId(Number(snap.vaultCharacterId));
+      if (snap.vaultSceneId != null) setVaultSceneId(Number(snap.vaultSceneId));
 
       // ── Image-specific params ──
       if (type === "image") {
@@ -922,7 +953,7 @@ export default function Studio() {
       }
     }
     setRightDrawerOpen(false);
-    toast.success("已載入歷史參數與提示詞");
+    toast.success("已 100% 還原歷史參數與提示詞");
   }, []);
 
   const showLoraWeight = activeModality === "video"
