@@ -1,5 +1,6 @@
 import { eq, desc, and, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
+import mysql from "mysql2/promise";
 import {
   InsertUser, users,
   fineTunedModels, InsertFineTunedModel,
@@ -23,7 +24,18 @@ let _db: ReturnType<typeof drizzle> | null = null;
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      // Use a connection pool with reconnection support to handle Railway proxy disconnects
+      const pool = mysql.createPool({
+        uri: process.env.DATABASE_URL,
+        waitForConnections: true,
+        connectionLimit: 5,
+        queueLimit: 0,
+        enableKeepAlive: true,
+        keepAliveInitialDelay: 10000,
+        connectTimeout: 15000,
+      });
+      _db = drizzle(pool);
+      console.log("[Database] ✅ Connected using mysql2 pool");
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
