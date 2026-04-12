@@ -602,4 +602,141 @@ export const brainRouter = router({
 
     return status;
   }),
+
+  // ─── Orb Voice Preview ──────────────────────────────────────────────────
+  /**
+   * orbVoicePreview — 使用 ElevenLabs TTS 生成光球語調預覽音頻。
+   * 傳入文字與 voiceId，回傳 base64 encoded audio URL。
+   */
+  orbVoicePreview: protectedProcedure
+    .input(
+      z.object({
+        text: z.string().min(1).max(300),
+        voiceId: z.string().optional().default("Rachel"),
+        modelId: z.string().optional().default("eleven_turbo_v2"),
+        stability: z.number().min(0).max(1).optional().default(0.5),
+        similarityBoost: z.number().min(0).max(1).optional().default(0.75),
+        speed: z.number().min(0.25).max(4.0).optional().default(1.0),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const apiKey = process.env.ELEVENLABS_API_KEY;
+      if (!apiKey) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "ELEVENLABS_API_KEY 未設定，無法預覽光球語調",
+        });
+      }
+
+      const url = `https://api.elevenlabs.io/v1/text-to-speech/${input.voiceId}`;
+      const payload = {
+        text: input.text,
+        model_id: input.modelId,
+        voice_settings: {
+          stability: input.stability,
+          similarity_boost: input.similarityBoost,
+          speed: input.speed,
+        },
+      };
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "xi-api-key": apiKey,
+          "Content-Type": "application/json",
+          Accept: "audio/mpeg",
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(15_000),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `ElevenLabs TTS 失敗 (${res.status}): ${errText.slice(0, 200)}`,
+        });
+      }
+
+      const arrayBuffer = await res.arrayBuffer();
+      const base64 = Buffer.from(arrayBuffer).toString("base64");
+      return {
+        audioBase64: `data:audio/mpeg;base64,${base64}`,
+        durationEstimateMs: Math.round((input.text.length / 15) * 1000), // rough estimate
+        voiceId: input.voiceId,
+        modelId: input.modelId,
+      };
+    }),
+
+  // ─── Provider Health Ping ──────────────────────────────────────────────
+  /**
+   * pingProviders — 對各主要第三方 API 端點發出輕量探測，回傳真實延遲。
+   */
+  pingProviders: protectedProcedure.query(async () => {
+    const results: Record<
+      string,
+      { latencyMs: number | null; ok: boolean; error?: string }
+    > = {};
+
+    async function ping(
+      name: string,
+      url: string,
+      options: RequestInit = {}
+    ): Promise<void> {
+      const start = Date.now();
+      try {
+        const res = await fetch(url, {
+          ...options,
+          signal: AbortSignal.timeout(8_000),
+        });
+        results[name] = {
+          latencyMs: Date.now() - start,
+          ok: res.ok || res.status === 401 || res.status === 403, // key-gated = service alive
+        };
+      } catch (e: unknown) {
+        results[name] = {
+          latencyMs: Date.now() - start,
+          ok: false,
+          error: e instanceof Error ? e.message : String(e),
+        };
+      }
+    }
+
+    // Gemini — list models endpoint (no auth = 400/401 but confirms reachability)
+    const geminiKey = process.env.GEMINI_API_KEY;
+    await ping(
+      "gemini",
+      geminiKey
+        ? `https://generativelanguage.googleapis.com/v1beta/models?key=${geminiKey}&pageSize=1`
+        : "https://generativelanguage.googleapis.com/v1beta/models",
+      { method: "GET" }
+    );
+
+    // Fal.ai — queue status endpoint
+    await ping("fal", "https://queue.fal.run/fal-ai/flux/requests", {
+      method: "GET",
+      headers: process.env.FAL_API_KEY
+        ? { Authorization: `Key ${process.env.FAL_API_KEY}` }
+        : {},
+    });
+
+    // ElevenLabs — user info (returns 401 if key missing but confirms service alive)
+    await ping("elevenlabs", "https://api.elevenlabs.io/v1/user", {
+      method: "GET",
+      headers: process.env.ELEVENLABS_API_KEY
+        ? { "xi-api-key": process.env.ELEVENLABS_API_KEY }
+        : {},
+    });
+
+    // Vertex AI — not directly pingable from client; mark as unknown unless credential present
+    results["vertex"] = {
+      latencyMs: null,
+      ok: !!(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON),
+      error: process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON
+        ? undefined
+        : "GOOGLE_APPLICATION_CREDENTIALS_JSON 未設定",
+    };
+
+    return results;
+  }),
 });

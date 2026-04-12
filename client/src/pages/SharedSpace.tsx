@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, Component, type ReactNode } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
@@ -8,11 +8,48 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
 import {
-  Users, Search, Package, Cpu, Heart, Download,
-  Eye, Share2, Sparkles, Image, Music, Video, Mic,
-  Wand2, ArrowRight,
+  Users, Search, Package, Cpu, Share2, Sparkles, Image, Music, Video, Mic,
+  Wand2, ArrowRight, AlertTriangle, RefreshCw,
 } from "lucide-react";
 import { motion } from "framer-motion";
+
+// ─── Error Boundary ────────────────────────────────────────────────────────
+
+class SharedSpaceErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean; errorMessage: string }
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false, errorMessage: "" };
+  }
+  static getDerivedStateFromError(err: Error) {
+    return { hasError: true, errorMessage: err.message };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <GlassCard className="flex flex-col items-center justify-center py-16 text-center gap-4">
+          <AlertTriangle className="w-10 h-10 text-amber-500" />
+          <div>
+            <p className="text-sm font-medium text-foreground">共享空間暫時無法顯示</p>
+            <p className="text-xs text-muted-foreground mt-1">{this.state.errorMessage}</p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => this.setState({ hasError: false, errorMessage: "" })}
+            className="gap-1.5"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            重新載入
+          </Button>
+        </GlassCard>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const MODALITY_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   image: Image,
@@ -38,10 +75,18 @@ export default function SharedSpace() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("assets");
 
-  // Fetch shared assets
-  const sharedAssetsQuery = trpc.assets.teamAssets.useQuery(undefined, { retry: false });
-  // Fetch shared models
-  const sharedModelsQuery = trpc.models.teamModels.useQuery(undefined, { retry: false });
+  // Fetch shared assets — retry: 1, staleTime to avoid infinite refetch hammering
+  const sharedAssetsQuery = trpc.assets.teamAssets.useQuery(undefined, {
+    retry: 1,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+  // Fetch shared models — same guards
+  const sharedModelsQuery = trpc.models.teamModels.useQuery(undefined, {
+    retry: 1,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
 
   const filteredAssets = useMemo(() => {
     const assets = sharedAssetsQuery.data || [];
@@ -141,6 +186,7 @@ export default function SharedSpace() {
   }, [navigate]);
 
   return (
+    <SharedSpaceErrorBoundary>
     <div className="space-y-6">
       {/* Header */}
       <div>
@@ -196,6 +242,23 @@ export default function SharedSpace() {
         <TabsContent value="assets" className="mt-4">
           {sharedAssetsQuery.isLoading ? (
             <ZenSkeleton lines={4} />
+          ) : sharedAssetsQuery.isError ? (
+            <GlassCard className="text-center py-12">
+              <AlertTriangle className="w-10 h-10 text-amber-400/60 mx-auto mb-3" />
+              <p className="text-sm text-muted-foreground">載入共享素材失敗</p>
+              <p className="text-xs text-muted-foreground/60 mt-1">
+                {sharedAssetsQuery.error?.message || "網路不穩定，請稍後再試"}
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3 gap-1.5"
+                onClick={() => sharedAssetsQuery.refetch()}
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                重試
+              </Button>
+            </GlassCard>
           ) : filteredAssets.length === 0 ? (
             <GlassCard className="text-center py-12">
               <Package className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
@@ -281,6 +344,23 @@ export default function SharedSpace() {
         <TabsContent value="models" className="mt-4">
           {sharedModelsQuery.isLoading ? (
             <ZenSkeleton lines={4} />
+          ) : sharedModelsQuery.isError ? (
+            <GlassCard className="text-center py-12">
+              <AlertTriangle className="w-10 h-10 text-amber-400/60 mx-auto mb-3" />
+              <p className="text-sm text-muted-foreground">載入共享模型失敗</p>
+              <p className="text-xs text-muted-foreground/60 mt-1">
+                {sharedModelsQuery.error?.message || "網路不穩定，請稍後再試"}
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3 gap-1.5"
+                onClick={() => sharedModelsQuery.refetch()}
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                重試
+              </Button>
+            </GlassCard>
           ) : filteredModels.length === 0 ? (
             <GlassCard className="text-center py-12">
               <Cpu className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
@@ -343,5 +423,6 @@ export default function SharedSpace() {
         </TabsContent>
       </Tabs>
     </div>
+    </SharedSpaceErrorBoundary>
   );
 }

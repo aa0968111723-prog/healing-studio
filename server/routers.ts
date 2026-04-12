@@ -1,7 +1,7 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, protectedProcedure, adminProcedure, router } from "./_core/trpc";
+import { publicProcedure, protectedProcedure, adminProcedure, brainProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import * as db from "./db";
 import { invokeLLM } from "./_core/llm";
@@ -110,6 +110,10 @@ async function compileElitePrompt(payload: {
   generationType: string;
   referenceImages?: { styleUrl?: string | null; vibeUrl?: string | null; characterUrl?: string | null };
   memoryContext?: string; // Phase 14 RAG 記憶注入
+  // ── AI 大腦組態注入（來自 ctx.brain）────────────────────
+  brainModel?: string;       // storyteller/director model override
+  brainTemperature?: number; // storyteller.temperature
+  brainTopP?: number;        // storyteller.topP
 }): Promise<{ compiledPrompt: string; visualWeight: number; controlNetParams: Record<string, unknown> }> {
   const vibeDescriptions = payload.vibeCardIds.join(", ");
 
@@ -143,6 +147,8 @@ async function compileElitePrompt(payload: {
     : "";
 
   const memorySection = payload.memoryContext || "";
+  // Effective temperature: prefer brain-injected value, fallback to input.temperature
+  const effectiveTemperature = payload.brainTemperature ?? payload.temperature;
   const result = await withTimeout(invokeLLM({
     messages: [
       {
@@ -152,7 +158,7 @@ async function compileElitePrompt(payload: {
 規則：
 1. 必須使用正面解剖學約束（例如：「完美對稱的解剖結構、無瑕的比例」），絕對不使用負面提示
 2. 融入氛圍描述：${vibeDescriptions}
-3. 創意溫度：${payload.temperature}（0=保守精確，1=大膽創新）
+3. 創意溫度：${effectiveTemperature}（0=保守精確，1=大膽創新）
 4. 生成類型：${payload.generationType}
 5. 輸出必須是一段流暢的英文敘事提示詞
 6. 加入光線、構圖、色調等專業攝影/藝術指導
@@ -160,6 +166,10 @@ async function compileElitePrompt(payload: {
       },
       { role: "user", content: payload.prompt },
     ],
+    // Inject brain model & parameters when available
+    ...(payload.brainModel ? { model: payload.brainModel } : {}),
+    ...(payload.brainTemperature !== undefined ? { temperature: payload.brainTemperature } : {}),
+    ...(payload.brainTopP !== undefined ? { topP: payload.brainTopP } : {}),
   }), 30_000, "提示詞編譯");
   const content = result.choices[0]?.message?.content;
   const compiledPrompt = typeof content === "string" ? content : payload.prompt;
@@ -511,7 +521,7 @@ export const appRouter = router({
         };
       }),
 
-    multimodal: protectedProcedure
+    multimodal: brainProcedure
       .input(z.object({
         jobId: z.number(), // from prepareJob
         prompt: z.string().min(1),
@@ -693,6 +703,8 @@ export const appRouter = router({
           generationBus.emit(jobId, { type: "thought-update", node: { id: "compile", label: "提示詞編譯", status: "processing", detail: "正在編譯提示詞...", timestamp: Date.now() } });
           generationBus.emit(jobId, { type: "progress", progress: 15, message: "編譯提示詞中..." });
           stepTimestamps.compileStart = Date.now();
+          // ── Read AI Brain storyteller config for prompt compilation ──
+          const storytellerBrain = ctx.brain?.getBrain?.("storyteller");
           const { compiledPrompt, visualWeight, controlNetParams } = await withTimeout(
             compileElitePrompt({
               prompt: input.prompt,
@@ -705,6 +717,10 @@ export const appRouter = router({
                 characterUrl: input.characterRefUrl,
               },
               memoryContext, // Phase 14 RAG 記憶注入
+              // Inject brain configuration for model & sampling parameters
+              brainModel: storytellerBrain?.enabled ? storytellerBrain.model : undefined,
+              brainTemperature: storytellerBrain?.enabled ? storytellerBrain.temperature : undefined,
+              brainTopP: storytellerBrain?.enabled ? storytellerBrain.topP : undefined,
             }),
             30_000,
             "提示詞編譯"

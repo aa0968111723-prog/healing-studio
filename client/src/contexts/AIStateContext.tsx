@@ -1,6 +1,17 @@
 import { createContext, useContext, useState, useCallback, useRef, useEffect, type ReactNode } from "react";
 import type { AIState } from "@/components/VisualSoul";
 
+// ─── Personality localStorage persistence key ──────────────────────────────
+const PERSONALITY_STORAGE_KEY = "ai-director-personality";
+
+function readPersistedPersonality(): Personality {
+  try {
+    const v = localStorage.getItem(PERSONALITY_STORAGE_KEY);
+    if (v === "calm" || v === "creative" || v === "technical") return v;
+  } catch { /* ignore */ }
+  return "creative";
+}
+
 // ─── Personality Types ─────────────────────────────────────────────────────
 
 export type Personality = "calm" | "creative" | "technical";
@@ -96,7 +107,8 @@ const PROACTIVE_RULES: Array<{
 
 export function AIStateProvider({ children }: { children: ReactNode }) {
   const [aiState, setAIState] = useState<AIState>("idle");
-  const [personality, setPersonality] = useState<Personality>("creative");
+  // Read from localStorage on mount so personality survives page refreshes
+  const [personality, setPersonalityState] = useState<Personality>(readPersistedPersonality);
   const [proactiveMessage, setProactiveMessage] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<DirectorEngineMetrics>({
     typingSpeed: 0,
@@ -183,6 +195,12 @@ export function AIStateProvider({ children }: { children: ReactNode }) {
       }
     }
   }, [metrics.idleSeconds, metrics.failCount, metrics.typingSpeed, aiState, personality]);
+
+  // Wrap setPersonality to persist to localStorage
+  const setPersonality = useCallback((p: Personality) => {
+    setPersonalityState(p);
+    try { localStorage.setItem(PERSONALITY_STORAGE_KEY, p); } catch { /* ignore */ }
+  }, []);
 
   // Reset proactive shown set when personality changes manually
   useEffect(() => {
