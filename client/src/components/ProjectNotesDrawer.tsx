@@ -142,7 +142,7 @@ function QuickSaveForm({
 
       {payload.resultUrl && (
         <div className="rounded-lg overflow-hidden border border-white/10 bg-black/20">
-          <img src={payload.resultUrl} alt="preview" className="w-full h-24 object-cover" />
+          <img src={payload.resultUrl} alt="preview" className="w-full h-24 object-cover" loading="lazy" />
         </div>
       )}
 

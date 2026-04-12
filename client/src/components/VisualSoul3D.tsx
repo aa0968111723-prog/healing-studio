@@ -1,166 +1,368 @@
 /**
- * VisualSoul3D.tsx — Three.js 3D 光球元件 (Phase 10)
+ * VisualSoul3D.tsx — Three.js + GLSL 三維光球 (Phase 10)
  *
- * 使用 React Three Fiber 實作白皮書要求的 3D 光球伴侶：
- * - 物理光球材質（MeshPhysicalMaterial）
- * - XState 人格引擎驅動顏色/速度
- * - 呼吸動效（Calm=6s, Creative=3s, Technical=1.5s）
- * - 根據 AIState 切換 idle/thinking/generating 狀態
- *
- * 若 WebGL 不支援，自動降級至 CSS 版本（VisualSoul.tsx）
+ * 架構：
+ *   - React Three Fiber Canvas 渲染 WebGL 場景
+ *   - 自訂 GLSL Vertex + Fragment Shader：物理光照 + Fresnel 邊緣光暈
+ *   - 三種人格各有獨立顏色主題 + 呼吸週期
+ *   - 三種 AI 狀態：idle(呼吸) / thinking(渦漩) / generating(爆發)
+ *   - 尺寸自適應：sm/md/lg/xl
+ *   - CSS fallback 當 WebGL 不可用時退回 VisualSoul
  */
 
-import { Suspense, useRef, useMemo } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
-import { MeshDistortMaterial, Float } from "@react-three/drei";
+import { useRef, useMemo, Suspense, lazy, useState, useEffect } from "react";
+import { Canvas, useFrame, extend } from "@react-three/fiber";
 import * as THREE from "three";
-import { usePersonality } from "@/contexts/PersonalityContext";
-import { useAIState } from "@/contexts/AIStateContext";
+import type { AIState, Personality } from "./VisualSoul";
 
-// ─── 3D 光球核心 ───────────────────────────────────────────────────────────
+// ─── GLSL Shaders ─────────────────────────────────────────────────────────
 
-function OrbMesh() {
-  const meshRef = useRef<THREE.Mesh>(null);
-  const { config } = usePersonality();
-  const { aiState } = useAIState();
+const VERTEX_SHADER = /* glsl */ `
+  uniform float uTime;
+  uniform float uState;        // 0=idle, 1=thinking, 2=generating
+  uniform float uBreathSpeed;
+  uniform float uPulseIntensity;
 
-  // 根據 AI 狀態決定動效參數
-  const animParams = useMemo(() => {
-    switch (aiState) {
-      case "thinking":
-        return { distort: 0.6, speed: 3, rotationSpeed: 0.008 };
-      case "generating":
-        return { distort: 0.8, speed: 5, rotationSpeed: 0.015 };
-      default: // idle
-        return { distort: 0.3, speed: config.breathSpeed, rotationSpeed: 0.003 };
+  varying vec3 vNormal;
+  varying vec3 vPosition;
+  varying float vFresnel;
+
+  void main() {
+    vNormal = normalize(normalMatrix * normal);
+    vPosition = position;
+
+    // ── 呼吸變形 ──
+    float breathPhase = sin(uTime * uBreathSpeed) * 0.5 + 0.5;
+    float breathScale = 1.0 + breathPhase * uPulseIntensity * 0.12;
+
+    // ── thinking 狀態：Perlin-noise 擾動 ──
+    float noiseAmt = 0.0;
+    if (uState >= 0.9) { // thinking or generating
+      float n = sin(position.x * 4.0 + uTime * 2.3)
+              * cos(position.y * 3.7 + uTime * 1.9)
+              * sin(position.z * 5.1 + uTime * 2.7);
+      noiseAmt = n * 0.08 * uPulseIntensity;
     }
-  }, [aiState, config.breathSpeed]);
 
-  // 顏色從字串解析為 THREE.Color
-  const color = useMemo(() => new THREE.Color(config.color), [config.color]);
-  const emissiveColor = useMemo(() => new THREE.Color(config.color), [config.color]);
+    // ── generating 狀態：外擴爆發 ──
+    float burstAmt = 0.0;
+    if (uState >= 1.9) {
+      burstAmt = sin(uTime * 6.0) * 0.06;
+    }
 
-  // 每幀動畫：呼吸縮放 + 緩慢旋轉
-  useFrame((state) => {
-    if (!meshRef.current) return;
-    const t = state.clock.getElapsedTime();
+    vec3 displaced = position * (breathScale + noiseAmt + burstAmt);
 
-    // 呼吸動效
-    const breathCycle = (2 * Math.PI) / config.breathSpeed;
-    const scale = 1 + Math.sin(t * breathCycle) * 0.08 * config.pulseIntensity;
-    meshRef.current.scale.setScalar(scale);
+    // ── Fresnel 邊緣光 ──
+    vec4 worldPosition = modelMatrix * vec4(displaced, 1.0);
+    vec3 viewDir = normalize(cameraPosition - worldPosition.xyz);
+    vFresnel = 1.0 - abs(dot(vNormal, viewDir));
 
-    // 緩慢旋轉
-    meshRef.current.rotation.y += animParams.rotationSpeed;
-    meshRef.current.rotation.x = Math.sin(t * 0.3) * 0.1;
-  });
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(displaced, 1.0);
+  }
+`;
 
-  return (
-    <Float speed={1.5} rotationIntensity={0.2} floatIntensity={0.5}>
-      <mesh ref={meshRef}>
-        <sphereGeometry args={[1, 64, 64]} />
-        <MeshDistortMaterial
-          color={color}
-          emissive={emissiveColor}
-          emissiveIntensity={config.emissiveIntensity}
-          distort={animParams.distort}
-          speed={animParams.speed}
-          roughness={0.1}
-          metalness={0.1}
-          transparent
-          opacity={0.9}
-        />
-      </mesh>
-    </Float>
-  );
-}
+const FRAGMENT_SHADER = /* glsl */ `
+  uniform float uTime;
+  uniform float uState;
+  uniform vec3  uColorPrimary;
+  uniform vec3  uColorSecondary;
+  uniform vec3  uColorAccent;
+  uniform float uEmissiveIntensity;
 
-// ─── 光暈效果 ──────────────────────────────────────────────────────────────
+  varying vec3 vNormal;
+  varying vec3 vPosition;
+  varying float vFresnel;
 
-function OrbGlow() {
+  void main() {
+    // ── 基礎光照 ──
+    vec3 lightDir = normalize(vec3(1.0, 1.5, 2.0));
+    float diff = max(dot(vNormal, lightDir), 0.0);
+    float ambient = 0.55;  // 更高 ambient，整體更亮
+
+    // ── 色彩混合（隨時間旋轉） ──
+    float t = uTime * 0.4;
+    float mixA = sin(t) * 0.5 + 0.5;
+    float mixB = cos(t * 0.7 + 1.0) * 0.5 + 0.5;
+    vec3 baseColor = mix(
+      mix(uColorPrimary, uColorSecondary, mixA),
+      uColorAccent,
+      mixB * 0.35
+    );
+
+    // ── 亮色系：中心純白，邊緣保留彩色 ──
+    float centerGlow = pow(max(0.0, 1.0 - length(vPosition) * 1.2), 2.0);
+    baseColor = mix(baseColor, vec3(1.0), centerGlow * 0.55);
+
+    // ── 深度感：邊緣透明化（去背感） ──
+    float depth = 1.0 - length(vPosition) * 0.6;
+    depth = clamp(depth, 0.3, 1.0);
+
+    // ── Fresnel 邊緣光暈（更強烈的彩色邊光） ──
+    vec3 fresnelColor = mix(uColorPrimary, uColorAccent, 0.5) * pow(vFresnel, 1.8) * 2.5;
+
+    // ── thinking 狀態：旋轉光帶 ──
+    float spiral = 0.0;
+    if (uState >= 0.9) {
+      spiral = sin(vPosition.y * 8.0 + uTime * 4.0) * 0.4 * uState;
+    }
+
+    // ── generating 狀態：熱光核心（白熱化） ──
+    float hotCore = 0.0;
+    if (uState >= 1.9) {
+      hotCore = pow(max(0.0, 1.0 - length(vPosition) * 2.5), 3.0) * 1.2;
+    }
+
+    vec3 finalColor = baseColor * (ambient + diff * 0.55) * depth;
+    finalColor += fresnelColor;
+    finalColor += vec3(spiral * 0.6);
+    finalColor += vec3(1.0) * hotCore;  // 白熱核心
+    finalColor *= uEmissiveIntensity;
+
+    // ── Specular highlight（更強高光） ──
+    vec3 viewDir = normalize(vec3(0.0, 0.0, 1.0));
+    vec3 halfDir = normalize(lightDir + viewDir);
+    float spec = pow(max(dot(vNormal, halfDir), 0.0), 48.0);
+    finalColor += vec3(spec * 0.7);
+
+    // ── 邊緣透明（去背感）：Fresnel 邊緣降低 alpha ──
+    float edgeAlpha = 1.0 - pow(vFresnel, 3.0) * 0.5;
+    float alpha = min(edgeAlpha, 0.95);
+
+    gl_FragColor = vec4(finalColor, alpha);
+  }
+`;
+
+// ─── Personality → Shader Uniforms ────────────────────────────────────────
+
+const PERSONALITY_UNIFORMS: Record<Personality, {
+  colorPrimary: [number, number, number];
+  colorSecondary: [number, number, number];
+  colorAccent: [number, number, number];
+  breathSpeed: number;
+  pulseIntensity: number;
+  emissiveIntensity: number;
+}> = {
+  calm: {
+    colorPrimary:   [0.00, 0.82, 1.00],   // 亮青 #00D2FF
+    colorSecondary: [0.39, 0.94, 1.00],   // 天藍白 #64EFFF
+    colorAccent:    [0.78, 1.00, 1.00],   // 冰白青 #C8FFFF
+    breathSpeed:    0.7,
+    pulseIntensity: 0.4,
+    emissiveIntensity: 2.2,
+  },
+  creative: {
+    colorPrimary:   [1.00, 0.31, 0.71],   // 亮粉 #FF50B5
+    colorSecondary: [1.00, 0.63, 0.24],   // 橘粉 #FFA03D
+    colorAccent:    [1.00, 0.90, 0.00],   // 亮黃 #FFE600
+    breathSpeed:    1.8,
+    pulseIntensity: 0.8,
+    emissiveIntensity: 2.4,
+  },
+  technical: {
+    colorPrimary:   [0.31, 1.00, 0.71],   // 亮綠 #50FFB5
+    colorSecondary: [0.00, 0.78, 0.47],   // 翠綠 #00C778
+    colorAccent:    [0.59, 1.00, 0.78],   // 薄荷 #96FFC7
+    breathSpeed:    2.5,
+    pulseIntensity: 0.6,
+    emissiveIntensity: 2.2,
+  },
+};
+
+const STATE_VALUE: Record<AIState, number> = {
+  idle: 0.0,
+  thinking: 1.0,
+  generating: 2.0,
+};
+
+// ─── The 3D Orb Mesh ───────────────────────────────────────────────────────
+
+function OrbMesh({
+  personality,
+  state,
+}: {
+  personality: Personality;
+  state: AIState;
+}) {
   const meshRef = useRef<THREE.Mesh>(null);
-  const { config } = usePersonality();
-  const glowColor = useMemo(() => new THREE.Color(config.color), [config.color]);
+  const cfg = PERSONALITY_UNIFORMS[personality];
 
-  useFrame((state) => {
-    if (!meshRef.current) return;
-    const t = state.clock.getElapsedTime();
-    const opacity = 0.15 + Math.sin(t * 1.5) * 0.05;
-    (meshRef.current.material as THREE.MeshBasicMaterial).opacity = opacity;
+  const uniforms = useMemo(
+    () => ({
+      uTime:             { value: 0 },
+      uState:            { value: STATE_VALUE[state] },
+      uBreathSpeed:      { value: cfg.breathSpeed },
+      uPulseIntensity:   { value: cfg.pulseIntensity },
+      uEmissiveIntensity:{ value: cfg.emissiveIntensity },
+      uColorPrimary:     { value: new THREE.Color(...cfg.colorPrimary) },
+      uColorSecondary:   { value: new THREE.Color(...cfg.colorSecondary) },
+      uColorAccent:      { value: new THREE.Color(...cfg.colorAccent) },
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [personality]
+  );
+
+  // Update state uniform reactively (no remount needed)
+  useEffect(() => {
+    uniforms.uState.value = STATE_VALUE[state];
+  }, [state, uniforms]);
+
+  useFrame(({ clock }) => {
+    uniforms.uTime.value = clock.getElapsedTime();
+    // Slow rotation
+    if (meshRef.current) {
+      meshRef.current.rotation.y = clock.getElapsedTime() * 0.25;
+      meshRef.current.rotation.x = Math.sin(clock.getElapsedTime() * 0.15) * 0.1;
+    }
   });
 
   return (
-    <mesh ref={meshRef} scale={1.4}>
-      <sphereGeometry args={[1, 32, 32]} />
-      <meshBasicMaterial color={glowColor} transparent opacity={0.15} side={THREE.BackSide} />
+    <mesh ref={meshRef}>
+      {/* Higher segments = smoother sphere = better GLSL displacement */}
+      <sphereGeometry args={[1, 64, 64]} />
+      <shaderMaterial
+        vertexShader={VERTEX_SHADER}
+        fragmentShader={FRAGMENT_SHADER}
+        uniforms={uniforms}
+        transparent={true}
+        side={THREE.FrontSide}
+      />
     </mesh>
   );
 }
 
-// ─── 場景燈光 ─────────────────────────────────────────────────────────────
+// ─── Particle Ring (orbiting dots) ────────────────────────────────────────
 
-function SceneLights() {
-  const { config } = usePersonality();
-  const lightColor = useMemo(() => new THREE.Color(config.color), [config.color]);
+function ParticleRing({
+  personality,
+  state,
+  count = 8,
+}: {
+  personality: Personality;
+  state: AIState;
+  count?: number;
+}) {
+  const groupRef = useRef<THREE.Group>(null);
+  const cfg = PERSONALITY_UNIFORMS[personality];
+
+  useFrame(({ clock }) => {
+    if (!groupRef.current) return;
+    const t = clock.getElapsedTime();
+    groupRef.current.rotation.y = t * (state === "generating" ? 3.0 : 0.8);
+    groupRef.current.rotation.x = Math.sin(t * 0.4) * 0.3;
+  });
+
+  const particles = useMemo(() => {
+    return Array.from({ length: count }, (_, i) => {
+      const angle = (i / count) * Math.PI * 2;
+      const radius = 1.5;
+      return {
+        x: Math.cos(angle) * radius,
+        y: Math.sin(angle) * 0.4,
+        z: Math.sin(angle) * radius,
+        delay: i * 0.15,
+      };
+    });
+  }, [count]);
+
+  const opacity = state === "idle" ? 0.4 : state === "thinking" ? 0.7 : 1.0;
+  const color = new THREE.Color(...cfg.colorAccent);
 
   return (
-    <>
-      <ambientLight intensity={0.3} />
-      <pointLight position={[2, 3, 2]} intensity={1.5} color={lightColor} />
-      <pointLight position={[-2, -1, -2]} intensity={0.5} color="#ffffff" />
-    </>
+    <group ref={groupRef}>
+      {particles.map((p, i) => (
+        <mesh key={i} position={[p.x, p.y, p.z]}>
+          <sphereGeometry args={[0.05, 8, 8]} />
+          <meshBasicMaterial color={color} transparent opacity={opacity} />
+        </mesh>
+      ))}
+    </group>
   );
 }
 
-// ─── 降級 CSS 光球 ─────────────────────────────────────────────────────────
+// ─── Bloom Post-Processing (simulated via ambient glow plane) ─────────────
 
-function FallbackOrb({ size = 80 }: { size?: number }) {
-  const { config } = usePersonality();
-  return (
-    <div
-      style={{
-        width: size,
-        height: size,
-        borderRadius: "50%",
-        background: `radial-gradient(circle at 35% 35%, ${config.color}cc, ${config.color}44)`,
-        boxShadow: `0 0 ${size * 0.4}px ${config.glowColor}`,
-        animation: `pulse ${config.breathSpeed}s ease-in-out infinite`,
-      }}
-    />
-  );
+function GlowPlane({ personality }: { personality: Personality }) {
+  // 移除背景平面，改為純透明（去背效果）
+  return null;
 }
 
-// ─── 主元件 ───────────────────────────────────────────────────────────────
+// ─── Size Map ──────────────────────────────────────────────────────────────
+
+const SIZE_PX: Record<string, number> = {
+  sm: 24,
+  md: 40,
+  lg: 56,
+  xl: 80,
+};
+
+// ─── Main 3D Component ─────────────────────────────────────────────────────
 
 interface VisualSoul3DProps {
-  size?: number;
+  personality?: Personality;
+  state?: AIState;
+  size?: "sm" | "md" | "lg" | "xl";
   className?: string;
 }
 
-export default function VisualSoul3D({ size = 80, className }: VisualSoul3DProps) {
-  const { config } = usePersonality();
+export default function VisualSoul3D({
+  personality = "creative",
+  state = "idle",
+  size = "md",
+  className = "",
+}: VisualSoul3DProps) {
+  const px = SIZE_PX[size] ?? 40;
+  const showParticles = size !== "sm";
+  const particleCount = size === "xl" ? 12 : 8;
+
+  const glowColor = PERSONALITY_UNIFORMS[personality].colorPrimary
+    .map((v) => Math.round(v * 255))
+    .join(", ");
+
+  // 多層光暈強化亮色感
+  const accentColor = PERSONALITY_UNIFORMS[personality].colorAccent
+    .map((v) => Math.round(v * 255))
+    .join(", ");
 
   return (
     <div
-      className={className}
+      className={`relative ${className}`}
       style={{
-        width: size,
-        height: size,
-        position: "relative",
-        filter: `drop-shadow(0 0 ${size * 0.25}px ${config.glowColor})`,
+        width: px,
+        height: px,
+        filter: [
+          `drop-shadow(0 0 ${px * 0.5}px rgba(${glowColor}, 0.9))`,
+          `drop-shadow(0 0 ${px * 0.8}px rgba(${glowColor}, 0.5))`,
+          `drop-shadow(0 0 ${px * 1.2}px rgba(${accentColor}, 0.3))`,
+        ].join(" "),
       }}
     >
-      <Suspense fallback={<FallbackOrb size={size} />}>
-        <Canvas
-          camera={{ position: [0, 0, 3], fov: 45 }}
-          gl={{ antialias: true, alpha: true }}
-          style={{ background: "transparent" }}
-        >
-          <SceneLights />
-          <OrbGlow />
-          <OrbMesh />
-        </Canvas>
-      </Suspense>
+      <Canvas
+        camera={{ position: [0, 0, 3], fov: 45 }}
+        gl={{
+          antialias: true,
+          alpha: true,
+          powerPreference: "default",
+        }}
+        style={{ width: "100%", height: "100%", background: "transparent" }}
+        frameloop="always"
+      >
+        <ambientLight intensity={0.8} />
+        <pointLight position={[2, 3, 4]} intensity={2.0} color={new THREE.Color(1, 1, 1)} />
+        <pointLight position={[-2, -1, -3]} intensity={1.2} color={new THREE.Color(...PERSONALITY_UNIFORMS[personality].colorAccent)} />
+        <pointLight position={[0, 2, 2]} intensity={1.5} color={new THREE.Color(...PERSONALITY_UNIFORMS[personality].colorPrimary)} />
+
+        <Suspense fallback={null}>
+          <OrbMesh personality={personality} state={state} />
+          {showParticles && (
+            <ParticleRing
+              personality={personality}
+              state={state}
+              count={particleCount}
+            />
+          )}
+          <GlowPlane personality={personality} />
+        </Suspense>
+      </Canvas>
     </div>
   );
 }

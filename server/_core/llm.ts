@@ -1,14 +1,19 @@
 /**
  * llm.ts — LLM 統一調用介面
  *
- * 優先使用 Vertex AI / Gemini API（直接），
- * 若 GEMINI_API_KEY 未設定則降級至 Manus Forge API（向後相容）。
+ * 三引擎並存架構（透過 llmRouter.ts 智慧路由）：
+ *   Engine A — Gemini API  (GEMINI_API_KEY)              ← 推薦，直連無代理
+ *   Engine B — Vertex AI   (GOOGLE_APPLICATION_CREDENTIALS_JSON) ← GCP 進階功能
+ *   Engine C — Manus Forge (BUILT_IN_FORGE_API_KEY)      ← 向後相容降級
  *
- * LangSmith 追蹤：若 LANGSMITH_API_KEY 已設定，每次呼叫都會記錄至 LangSmith。
+ * 路由順序（auto 模式）：Gemini → Forge → 錯誤
+ * 可在 .env 中設定 LLM_ENGINE=gemini|vertex|forge 強制指定引擎。
+ *
+ * LangSmith 追蹤：若 LANGSMITH_API_KEY 已設定，每次呼叫都會記錄。
  */
 
-import { ENV } from "./env";
 import { serverEnv } from "./env.validated";
+import { resolveEngineConfig, type LLMEngine } from "./llmRouter";
 
 export type Role = "system" | "user" | "assistant" | "tool" | "function";
 
@@ -76,6 +81,14 @@ export type InvokeParams = {
   response_format?: ResponseFormat;
   /** LangSmith 追蹤標籤 */
   runName?: string;
+  /**
+   * 強制指定使用哪個 LLM 引擎（覆蓋 auto 路由）
+   * 'gemini'  → 直接打 Gemini API（需 GEMINI_API_KEY）
+   * 'vertex'  → Vertex AI（需 GCP 服務帳號）
+   * 'forge'   → Manus Forge（向後相容，需 BUILT_IN_FORGE_API_KEY）
+   * 不填     → 自動選擇最佳可用引擎
+   */
+  engine?: LLMEngine;
 };
 
 export type ToolCall = {
@@ -184,47 +197,8 @@ const normalizeResponseFormat = ({
   };
 };
 
-// ─── API 端點解析（Gemini 優先，自訂 Forge 次之，絕不 fallback 到私有閘道）
-
-function resolveApiConfig(): { url: string; apiKey: string; isGemini: boolean } {
-  // ── 優先路徑：直接使用 Google Gemini API Key ──────────────────────────
-  // GEMINI_API_KEY 存在且非空時，直接呼叫 Google 公開 Gemini REST 端點。
-  // 此路徑在 Railway 外部環境完全可達，不依賴任何私有代理。
-  if (ENV.geminiApiKey && ENV.geminiApiKey.trim().length > 0) {
-    return {
-      url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-      apiKey: ENV.geminiApiKey,
-      isGemini: true,
-    };
-  }
-
-  // ── 次要路徑：自訂 Forge / OpenAI 相容閘道（需明確設定兩個變數）───────
-  // 僅當 BUILT_IN_FORGE_API_URL 與 BUILT_IN_FORGE_API_KEY 同時存在且非空時
-  // 才進入此路徑，並以 URL 為準——絕不內嵌任何私有域名（forge.manus.im）。
-  const forgeUrl  = ENV.forgeApiUrl?.trim();
-  const forgeKey  = ENV.forgeApiKey?.trim();
-  if (forgeKey && forgeUrl) {
-    // 安全守衛：拒絕指向已知私有閘道（在 Railway 環境中必定失敗）
-    if (forgeUrl.includes("forge.manus.im") || forgeUrl.includes("manus.im")) {
-      throw new Error(
-        "[LLM] BUILT_IN_FORGE_API_URL 指向 Manus 私有閘道（forge.manus.im），" +
-        "在 Railway 外部環境無法存取。請改用 GEMINI_API_KEY 或可公開訪問的 OpenAI 相容端點。"
-      );
-    }
-    return {
-      url: `${forgeUrl.replace(/\/$/, "")}/v1/chat/completions`,
-      apiKey: forgeKey,
-      isGemini: false,
-    };
-  }
-
-  // ── 兩者均未設定：拋出明確錯誤，方便 Railway 日誌快速定位 ─────────────
-  throw new Error(
-    "[LLM] LLM API 未設定。Railway 環境請在 Environment Variables 中設定：\n" +
-    "  GEMINI_API_KEY（推薦）→ 從 https://aistudio.google.com/apikey 取得\n" +
-    "  或同時設定 BUILT_IN_FORGE_API_URL + BUILT_IN_FORGE_API_KEY（自訂閘道）"
-  );
-}
+// ─── API 端點解析（委派至 llmRouter.ts）─────────────────────────────────
+// resolveEngineConfig() 實作三引擎優先邏輯，此處直接呼叫。
 
 // ─── LangSmith 追蹤 ────────────────────────────────────────────────────────
 
@@ -232,7 +206,8 @@ async function trackLangSmith(
   runName: string,
   messages: Message[],
   result: InvokeResult,
-  durationMs: number
+  durationMs: number,
+  engineName?: string
 ): Promise<void> {
   const apiKey = serverEnv.LANGSMITH_API_KEY;
   if (!apiKey) return;
@@ -255,8 +230,10 @@ async function trackLangSmith(
         outputs: { choices: result.choices },
         extra: {
           model: result.model,
+          engine: engineName,
           usage: result.usage,
           project: serverEnv.LANGSMITH_PROJECT || "ai-director",
+          duration_ms: durationMs,
         },
       }),
     });
@@ -271,19 +248,20 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   const {
     messages, tools, toolChoice, tool_choice,
     outputSchema, output_schema, responseFormat, response_format,
-    runName,
+    runName, engine,
   } = params;
 
-  const { url, apiKey, isGemini } = resolveApiConfig();
+  // ── 透過路由器取得引擎設定 ───────────────────────────────
+  const engineConfig = resolveEngineConfig(engine);
 
   const payload: Record<string, unknown> = {
-    model: "gemini-2.5-flash",
+    model: engineConfig.model,
     messages: messages.map(normalizeMessage),
     max_tokens: 32768,
   };
 
-  // Gemini 直接 API 不支援 thinking 參數（只有 Manus Forge 代理版本才有）
-  if (!isGemini) {
+  // Forge 引擎支援 thinking 擴展推理預算（Gemini 直連不需要此參數）
+  if (engineConfig.supportsThinking && engineConfig.name.includes("Forge")) {
     payload.thinking = { budget_tokens: 128 };
   }
 
@@ -299,25 +277,27 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
 
   const startTime = Date.now();
 
-  const response = await fetch(url, {
+  const response = await fetch(engineConfig.url, {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      authorization: `Bearer ${apiKey}`,
+      authorization: `Bearer ${engineConfig.apiKey}`,
     },
     body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`);
+    throw new Error(
+      `[${engineConfig.name}] LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
+    );
   }
 
   const result = (await response.json()) as InvokeResult;
   const durationMs = Date.now() - startTime;
 
   // 非同步追蹤至 LangSmith（不阻塞主流程）
-  trackLangSmith(runName || "llm-invoke", messages, result, durationMs).catch(() => {});
+  trackLangSmith(runName || "llm-invoke", messages, result, durationMs, engineConfig.name).catch(() => {});
 
   return result;
 }

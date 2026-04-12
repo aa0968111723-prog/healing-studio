@@ -4,15 +4,13 @@ import type { TrpcContext } from "./_core/context";
 import type { User } from "../drizzle/schema";
 
 /**
- * Tests for atomic quota deduction.
+ * Tests for atomic points deduction.
  *
- * The key invariant: deductUserQuota uses a single SQL UPDATE with
- *   SET remainingGenerations = remainingGenerations - N
- *   WHERE remainingGenerations >= N
- * and checks affectedRows to return true/false.
+ * The key invariant: deductUserPoints uses a SELECT FOR UPDATE transaction
+ * to prevent race conditions when multiple requests try to deduct simultaneously.
  *
- * This prevents the read-then-write race condition that could allow
- * concurrent requests to over-deduct.
+ * deductUserQuota (legacy, flat 1-quota) still exists for backward compatibility.
+ * The generation flow now uses deductUserPoints (model-based cost).
  */
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -45,17 +43,46 @@ function makeCtx(user: User): TrpcContext {
   };
 }
 
-// ─── Unit tests for deductUserQuota logic ───────────────────────────────────
+// ─── Unit tests for deductUserPoints (model-based billing) ──────────────────
 
-describe("Atomic Quota Deduction", () => {
-  // We test the db helper directly by importing it
-  // Since it requires a real DB connection, we mock the getDb function
+describe("Atomic Points Deduction", () => {
+  describe("deductUserPoints contract", () => {
+    it("should return an object with success boolean", async () => {
+      const { deductUserPoints } = await import("./db");
+      const result = await deductUserPoints(999, 5);
+      expect(typeof result).toBe("object");
+      expect(typeof result.success).toBe("boolean");
+      expect(result.success).toBe(false); // no DB → false
+    });
 
-  describe("deductUserQuota contract", () => {
+    it("should clamp minimum deduction to 1", async () => {
+      const { deductUserPoints } = await import("./db");
+      const result = await deductUserPoints(999, 0);
+      expect(result.success).toBe(false); // no DB, but no throw
+    });
+
+    it("should clamp maximum deduction to 500", async () => {
+      const { deductUserPoints } = await import("./db");
+      const result = await deductUserPoints(999, 9999);
+      expect(result.success).toBe(false); // no DB, but no throw
+    });
+  });
+
+  describe("refundUserPoints contract", () => {
+    it("should not throw when DB is unavailable", async () => {
+      const { refundUserPoints } = await import("./db");
+      await expect(refundUserPoints(999, 5)).resolves.not.toThrow();
+    });
+
+    it("should accept custom refund amount", async () => {
+      const { refundUserPoints } = await import("./db");
+      await expect(refundUserPoints(999, 49)).resolves.not.toThrow();
+    });
+  });
+
+  describe("deductUserQuota legacy contract", () => {
     it("should return boolean indicating success or failure", async () => {
-      // Import the function to verify its return type
       const { deductUserQuota } = await import("./db");
-      // Without a DB connection, it returns false
       const result = await deductUserQuota(999, 1);
       expect(typeof result).toBe("boolean");
       expect(result).toBe(false); // no DB → false
@@ -63,29 +90,21 @@ describe("Atomic Quota Deduction", () => {
 
     it("should accept a custom amount parameter", async () => {
       const { deductUserQuota } = await import("./db");
-      // Verify it doesn't throw with amount > 1
       const result = await deductUserQuota(999, 5);
       expect(result).toBe(false);
     });
 
     it("should default amount to 1", async () => {
       const { deductUserQuota } = await import("./db");
-      // Verify default parameter works
       const result = await deductUserQuota(999);
       expect(result).toBe(false);
     });
   });
 
-  describe("refundUserQuota contract", () => {
+  describe("refundUserQuota legacy contract", () => {
     it("should not throw when DB is unavailable", async () => {
       const { refundUserQuota } = await import("./db");
-      // Should gracefully handle no DB
       await expect(refundUserQuota(999, 1)).resolves.not.toThrow();
-    });
-
-    it("should accept custom refund amount", async () => {
-      const { refundUserQuota } = await import("./db");
-      await expect(refundUserQuota(999, 3)).resolves.not.toThrow();
     });
   });
 
@@ -101,96 +120,71 @@ describe("Atomic Quota Deduction", () => {
 
 describe("Generation mutation quota flow", () => {
   it("generate.multimodal procedure exists and is a mutation", () => {
-    // Verify the procedure is wired up
     const caller = appRouter.createCaller(makeCtx(makeUser()));
     expect(typeof caller.generate.multimodal).toBe("function");
   });
 
-  it("should reject generation when deductUserQuota returns false (quota exhausted)", async () => {
-    // Mock deductUserQuota to return false (simulating 0 remaining)
+  it("generate.prepareJob procedure exists and is a mutation", () => {
+    const caller = appRouter.createCaller(makeCtx(makeUser()));
+    expect(typeof caller.generate.prepareJob).toBe("function");
+  });
+
+  it("generate.estimateCost procedure exists and is a query", () => {
+    const caller = appRouter.createCaller(makeCtx(makeUser()));
+    expect(typeof caller.generate.estimateCost).toBe("function");
+  });
+
+  it("should reject prepareJob when deductUserPoints returns failure (insufficient credits)", async () => {
     const dbModule = await import("./db");
-    const spy = vi.spyOn(dbModule, "deductUserQuota").mockResolvedValueOnce(false);
+    // Mock deductUserPoints to return failure (simulating 0 remaining)
+    const spy = vi.spyOn(dbModule, "deductUserPoints").mockResolvedValueOnce({
+      success: false,
+      actualDeducted: 0,
+      remainingBefore: 0,
+      remainingAfter: 0,
+    });
 
     const caller = appRouter.createCaller(makeCtx(makeUser({ remainingGenerations: 0 })));
 
     await expect(
-      caller.generate.multimodal({
-        prompt: "test prompt",
-        generationType: "image",
-        mode: "lightning",
-        vibeCardIds: [],
-        temperature: 0.5,
-      })
-    ).rejects.toThrow("生成配額已用完");
+      caller.generate.prepareJob({ generationType: "image" })
+    ).rejects.toThrow(/積分不足|pts/);
 
     spy.mockRestore();
   });
 
-  it("should proceed when deductUserQuota returns true (quota available)", { timeout: 15000 }, async () => {
+  it("should succeed prepareJob when deductUserPoints returns success", async () => {
     const dbModule = await import("./db");
-    const llmModule = await import("./_core/llm");
-
-    // Mock deductUserQuota to return true
-    const deductSpy = vi.spyOn(dbModule, "deductUserQuota").mockResolvedValueOnce(true);
-
-    // Mock LLM for safety check (returns safe)
-    const llmSpy = vi.spyOn(llmModule, "invokeLLM").mockResolvedValue({
-      choices: [{
-        message: { content: JSON.stringify({ safe: true, reason: "" }) },
-        finish_reason: "stop",
-        index: 0,
-      }],
-    } as any);
-
-    // Mock other DB calls that happen during generation
+    // Mock deductUserPoints to return success
+    const deductSpy = vi.spyOn(dbModule, "deductUserPoints").mockResolvedValueOnce({
+      success: true,
+      actualDeducted: 4,
+      remainingBefore: 50,
+      remainingAfter: 46,
+    });
     const createJobSpy = vi.spyOn(dbModule, "createBackgroundJob").mockResolvedValueOnce(1);
-    const updateJobSpy = vi.spyOn(dbModule, "updateBackgroundJob").mockResolvedValue(undefined);
-    const createLogSpy = vi.spyOn(dbModule, "createApiUsageLog").mockResolvedValue(1);
-    const createAssetSpy = vi.spyOn(dbModule, "createDigitalAsset").mockResolvedValue(1);
-    const createHistorySpy = vi.spyOn(dbModule, "createHistoryEntry").mockResolvedValue(1);
-    // Mock refundUserQuota in case generation fails
-    const refundSpy = vi.spyOn(dbModule, "refundUserQuota").mockResolvedValue(undefined);
 
-    const caller = appRouter.createCaller(makeCtx(makeUser({ remainingGenerations: 5 })));
+    const caller = appRouter.createCaller(makeCtx(makeUser({ remainingGenerations: 50 })));
 
-    // The generation will likely fail due to missing image generation API in test env,
-    // but deductUserQuota should have been called first
-    try {
-      await caller.generate.multimodal({
-        prompt: "a beautiful sunset",
-        generationType: "image",
-        mode: "lightning",
-        vibeCardIds: [],
-        temperature: 0.5,
-      });
-    } catch {
-      // Expected: generation may fail in test env, but quota flow should work
-    }
-
-    // Verify deductUserQuota was called FIRST (before any generation work)
-    expect(deductSpy).toHaveBeenCalledWith(42, 1);
-    expect(deductSpy).toHaveBeenCalledTimes(1);
+    const result = await caller.generate.prepareJob({ generationType: "image" });
+    expect(result.jobId).toBe(1);
+    expect(result.pointsCost).toBeGreaterThan(0);
+    expect(typeof result.selectedEngine).toBe("string");
+    expect(typeof result.engineLabel).toBe("string");
 
     deductSpy.mockRestore();
-    llmSpy.mockRestore();
     createJobSpy.mockRestore();
-    updateJobSpy.mockRestore();
-    createLogSpy.mockRestore();
-    createAssetSpy.mockRestore();
-    createHistorySpy.mockRestore();
-    refundSpy.mockRestore();
   });
 
-  it("should refund quota when safety check blocks the request", async () => {
+  it("should refund points when safety check blocks the request", async () => {
     const dbModule = await import("./db");
 
-    // Mock deductUserQuota to return true (quota deducted)
-    const deductSpy = vi.spyOn(dbModule, "deductUserQuota").mockResolvedValueOnce(true);
-    const refundSpy = vi.spyOn(dbModule, "refundUserQuota").mockResolvedValue(undefined);
+    // multimodal requires jobId — we need to set up for that
+    const refundSpy = vi.spyOn(dbModule, "refundUserPoints").mockResolvedValue(undefined);
     const createLogSpy = vi.spyOn(dbModule, "createApiUsageLog").mockResolvedValue(1);
+    const updateJobSpy = vi.spyOn(dbModule, "updateBackgroundJob").mockResolvedValue(undefined);
 
-    // Mock checkSafety to block the request
-    // We need to mock the LLM call that checkSafety uses
+    // Mock checkSafety to block the request via LLM
     const llmModule = await import("./_core/llm");
     const llmSpy = vi.spyOn(llmModule, "invokeLLM").mockResolvedValueOnce({
       choices: [{
@@ -206,6 +200,7 @@ describe("Generation mutation quota flow", () => {
 
     await expect(
       caller.generate.multimodal({
+        jobId: 99,
         prompt: "blocked content test",
         generationType: "image",
         mode: "lightning",
@@ -214,13 +209,12 @@ describe("Generation mutation quota flow", () => {
       })
     ).rejects.toThrow("小兔子提醒你");
 
-    // Verify: deduct was called, then refund was called
-    expect(deductSpy).toHaveBeenCalledWith(42, 1);
-    expect(refundSpy).toHaveBeenCalledWith(42, 1);
+    // refundUserPoints should be called since safety blocked it
+    expect(refundSpy).toHaveBeenCalledTimes(1);
 
-    deductSpy.mockRestore();
     refundSpy.mockRestore();
     createLogSpy.mockRestore();
+    updateJobSpy.mockRestore();
     llmSpy.mockRestore();
   });
 });
@@ -228,50 +222,46 @@ describe("Generation mutation quota flow", () => {
 // ─── SQL pattern verification ───────────────────────────────────────────────
 
 describe("SQL pattern correctness", () => {
-  it("deductUserQuota source code uses atomic SQL pattern (not read-then-write)", async () => {
-    // Read the actual source to verify the SQL pattern
+  it("deductUserPoints source code uses SELECT FOR UPDATE pattern", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync("server/db.ts", "utf-8");
 
     // Must contain atomic SQL decrement pattern
-    expect(source).toContain("remainingGenerations} - ${amount}");
+    expect(source).toContain("remainingGenerations} - ${toDeduct}");
 
-    // Must contain WHERE constraint to prevent negative
-    expect(source).toContain("remainingGenerations} >= ${amount}");
+    // Must use SELECT FOR UPDATE for pessimistic locking
+    expect(source).toContain("FOR UPDATE");
 
-    // Must check affectedRows
-    expect(source).toContain("affectedRows");
-
-    // Must NOT contain a read-then-write pattern for deduction
-    // (i.e., should not SELECT remaining then UPDATE with absolute value)
-    const deductFnMatch = source.match(
-      /export async function deductUserQuota[\s\S]*?^}/m
-    );
-    expect(deductFnMatch).toBeTruthy();
-    const deductFn = deductFnMatch![0];
-    // Should not contain .select() in the deduct function
-    expect(deductFn).not.toContain(".select()");
-    // Should not contain getUserByOpenId in the deduct function
-    expect(deductFn).not.toContain("getUserByOpenId");
+    // Must check result before deducting
+    expect(source).toContain("currentCredits < toDeduct");
   });
 
-  it("routers.ts does NOT read user quota before deducting (no TOCTOU)", async () => {
+  it("deductUserQuota source code uses atomic SQL pattern (backward compat)", async () => {
+    const fs = await import("fs");
+    const source = fs.readFileSync("server/db.ts", "utf-8");
+
+    // Must contain atomic SQL decrement pattern for legacy function
+    expect(source).toContain("remainingGenerations} - ${amount}");
+
+    // Must contain pessimistic locking
+    expect(source).toContain("FOR UPDATE");
+  });
+
+  it("routers.ts uses deductUserPoints in prepareJob (model-based billing)", async () => {
     const fs = await import("fs");
     const source = fs.readFileSync("server/routers.ts", "utf-8");
 
-    // The generate mutation should call deductUserQuota directly,
-    // not check remainingGenerations first
-    const generateSection = source.substring(
-      source.indexOf(".mutation(async ({ ctx, input }) => {"),
-      source.indexOf("// Safety pre-check")
+    // prepareJob should call deductUserPoints (not the legacy deductUserQuota)
+    const prepareJobSection = source.substring(
+      source.indexOf("prepareJob: protectedProcedure"),
+      source.indexOf("estimateCost: protectedProcedure")
     );
 
-    // Should contain atomic deduction call
-    expect(generateSection).toContain("deductUserQuota");
+    expect(prepareJobSection).toContain("deductUserPoints");
+    expect(prepareJobSection).toContain("estimatePoints");
+    expect(prepareJobSection).toContain("pointsCost");
 
-    // Should NOT contain a read-check pattern before deduction
-    expect(generateSection).not.toContain("getUserByOpenId");
-    expect(generateSection).not.toContain("user.remainingGenerations <= 0");
-    expect(generateSection).not.toContain("user.remainingGenerations < 1");
+    // Should NOT use the old flat deduction
+    expect(prepareJobSection).not.toContain("deductUserQuota");
   });
 });

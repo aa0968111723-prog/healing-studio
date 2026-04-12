@@ -24,6 +24,7 @@ import { PROGRESS_MESSAGES } from "@shared/types";
 import { PromptStrengthBar, type SuggestionAction } from "@/components/PromptStrengthBar";
 import ThoughtIslandChain, { type ThoughtNode } from "@/components/ThoughtIslandChain";
 import { useAIState } from "@/contexts/AIStateContext";
+import { usePersonality } from "@/contexts/PersonalityContext";
 import VisualSoul from "@/components/VisualSoul";
 import { useLocation } from "wouter";
 import { useShowcaseTransfer } from "@/contexts/ShowcaseTransferContext";
@@ -101,6 +102,7 @@ function MiniHistoryPanel({ onSendToStudio }: { onSendToStudio: (prompt: string,
                 src={item.resultUrl}
                 alt=""
                 className="w-10 h-10 rounded-md object-cover shrink-0"
+                loading="lazy"
               />
             ) : (
               <div className="w-10 h-10 rounded-md bg-muted/30 flex items-center justify-center shrink-0">
@@ -238,6 +240,7 @@ export default function Studio() {
     };
   }, []);
   const { aiState, setAIState, personality, reportTyping, reportFailure, reportSuccess, resetIdle } = useAIState();
+  const { onGenerationStart: notifyGenStart, onGenerationDone: notifyGenDone, onGenerationFail: notifyGenFail, onTyping: notifyTyping, onAdvancedParams: notifyAdvancedParams } = usePersonality();
   const [, navigate] = useLocation();
 
   // ── Shared state ──
@@ -274,6 +277,13 @@ export default function Studio() {
   const [progress, setProgress] = useState(0);
   const [progressMessage, setProgressMessage] = useState("");
 
+  // ── Brain Pricing Summary (show engine name + cost in UI) ──
+  const pricingSummaryQuery = trpc.brain.pricingSummary.useQuery(
+    { durationSec: parseInt(videoState.duration) || 5, charCount: voiceState.text?.length || 100 },
+    { retry: false, staleTime: 30_000 }
+  );
+  const currentEngine = pricingSummaryQuery.data?.[activeModality as "image" | "video" | "audio" | "voice"];
+
   // ── Mutation ──
   const utils = trpc.useUtils();
   const sseRef = useRef<EventSource | null>(null);
@@ -281,6 +291,7 @@ export default function Studio() {
   const generateMutation = trpc.generate.multimodal.useMutation({
     onMutate: () => {
       setAIState("generating");
+      notifyGenStart();
       setProgress(2);
       setProgressMessage("初始化...");
       setThoughtChain([]);
@@ -294,7 +305,7 @@ export default function Studio() {
       }
       setProgress(100);
       setProgressMessage("生成完成");
-      setTimeout(() => { setProgress(0); setAIState("idle"); }, 1500);
+      setTimeout(() => { setProgress(0); setAIState("idle"); notifyGenDone(); }, 1500);
       toast.success("生成完成");
       reportSuccess();
       utils.auth.me.invalidate();
@@ -305,6 +316,7 @@ export default function Studio() {
       setProgress(0);
       setProgressMessage("");
       setAIState("idle");
+      notifyGenFail();
       // Zero-Anxiety error handling: classify error and show friendly message
       const msg = error.message || "";
       const isTimeout = /timeout|timed? ?out|ETIMEDOUT|aborted|abort/i.test(msg);
@@ -791,8 +803,15 @@ export default function Studio() {
     };
 
     try {
-      // Step 1: Pre-flight — create job + deduct quota, get jobId instantly
-      const { jobId } = await prepareJobMutation.mutateAsync({ generationType: activeModality });
+      // Step 1: Pre-flight — create job + deduct points (model-based cost)
+      const { jobId } = await prepareJobMutation.mutateAsync({
+        generationType: activeModality,
+        // Pass duration/charCount for more accurate cost estimation at deduction time
+        durationSec: activeModality === "video" ? parseInt(videoState.duration) || 5
+          : activeModality === "audio" ? (audioState as any).duration || 30
+          : undefined,
+        charCount: activeModality === "voice" ? voiceState.text?.length || undefined : undefined,
+      });
 
       // Step 2: Connect SSE immediately so we receive real-time thought chain events
       connectSSE(jobId);
@@ -1085,7 +1104,7 @@ export default function Studio() {
                 value={promptBuilder}
                 onChange={setPromptBuilder}
                 modality={activeModality}
-                onType={reportTyping}
+                onType={(len) => { reportTyping(len); notifyTyping(); }}
               />
               <div className="mt-3 pt-3 border-t border-border/20">
                 <PromptStrengthBar
@@ -1187,6 +1206,25 @@ export default function Studio() {
             </div>
           </GlassCard>
 
+          {/* Engine + Cost Preview Badge */}
+          {currentEngine && !generateMutation.isPending && (
+            <div className="flex items-center justify-between text-[11px] text-muted-foreground px-1">
+              <span className="flex items-center gap-1">
+                <Cpu className="w-3 h-3" />
+                {currentEngine.label}
+              </span>
+              <span className={`flex items-center gap-1 font-medium ${
+                currentEngine.estimatedPoints >= 30 ? "text-amber-500" :
+                currentEngine.estimatedPoints >= 10 ? "text-blue-500" : "text-green-600"
+              }`}>
+                {currentEngine.estimatedPoints} pts
+                {!currentEngine.available && (
+                  <span className="text-destructive ml-1">（不可用）</span>
+                )}
+              </span>
+            </div>
+          )}
+
           {/* Generate Button */}
           <Button
             id="generate-button"
@@ -1266,7 +1304,7 @@ export default function Studio() {
                           />
                         </div>
                       ) : (
-                        <img src={resultUrl} alt="Generated" className="w-full object-cover" />
+                        <img src={resultUrl} alt="Generated" className="w-full object-cover" loading="lazy" />
                       )}
                     </div>
                   )}
@@ -1519,11 +1557,11 @@ export default function Studio() {
             <GlassCard hover={false}>
               <GenerationControls
                 temperature={temperature}
-                onTemperatureChange={setTemperature}
+                onTemperatureChange={(v) => { setTemperature(v); notifyAdvancedParams(); }}
                 seed={seed}
-                onSeedChange={setSeed}
+                onSeedChange={(v) => { setSeed(v); notifyAdvancedParams(); }}
                 mode={mode}
-                onModeChange={setMode}
+                onModeChange={(v) => { setMode(v); notifyAdvancedParams(); }}
                 loraWeight={loraWeight}
                 onLoraWeightChange={setLoraWeight}
                 showLoraWeight={showLoraWeight}
@@ -1707,7 +1745,7 @@ function MiniAssetsPanel() {
           className="flex items-center gap-2 p-2 rounded-lg hover:bg-accent/30 transition-colors cursor-pointer"
         >
           {asset.thumbnailUrl ? (
-            <img src={asset.thumbnailUrl} alt="" className="w-8 h-8 rounded object-cover shrink-0" />
+            <img src={asset.thumbnailUrl} alt="" className="w-8 h-8 rounded object-cover shrink-0" loading="lazy" />
           ) : (
             <div className="w-8 h-8 rounded bg-muted/30 flex items-center justify-center shrink-0">
               {ASSET_ICONS[asset.type] || <Package className="w-3 h-3" />}

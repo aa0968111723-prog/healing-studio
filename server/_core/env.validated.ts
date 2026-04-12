@@ -45,6 +45,7 @@ const coreSchema = z.object({
 
   // ── Google Cloud Platform ─────────────────────────────────
   GOOGLE_CLOUD_PROJECT_ID:             z.string().min(1).optional().default(""),
+  GOOGLE_CLOUD_LOCATION:               z.string().optional().default("us-central1"),
   GOOGLE_APPLICATION_CREDENTIALS_JSON: z.string().min(1).optional().default(""),
   GCS_BUCKET_NAME:                     z.string().min(1).optional().default(""),
 

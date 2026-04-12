@@ -13,7 +13,7 @@
  *   - 結合 Radix ScrollArea 可捲動區域
  */
 
-import { useMemo, useState, useCallback, lazy, Suspense } from "react";
+import { useMemo, useState, useCallback, lazy, Suspense, memo } from "react";
 import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from "framer-motion";
 import { trpc } from "@/lib/trpc";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -535,7 +535,7 @@ interface IntelBentoGridProps {
   sceneId: SceneId;
 }
 
-export default function IntelBentoGrid({ sceneId }: IntelBentoGridProps) {
+const IntelBentoGrid = memo(function IntelBentoGrid({ sceneId }: IntelBentoGridProps) {
   const styles = useMemo(() => SCENE_CARD_STYLES[sceneId], [sceneId]);
   const [activeTab, setActiveTab] = useState("all");
   const [selectedNewsId, setSelectedNewsId] = useState<number | null>(null);
@@ -684,4 +684,8 @@ export default function IntelBentoGrid({ sceneId }: IntelBentoGridProps) {
       />
     </section>
   );
-}
+});
+
+IntelBentoGrid.displayName = "IntelBentoGrid";
+
+export default IntelBentoGrid;

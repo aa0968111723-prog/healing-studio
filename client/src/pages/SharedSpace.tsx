@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 
-const MODALITY_ICONS: Record<string, React.ElementType> = {
+const MODALITY_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   image: Image,
   video: Video,
   audio: Music,
@@ -224,10 +224,12 @@ export default function SharedSpace() {
                             src={asset.fileUrl}
                             alt={asset.title}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            loading="lazy"
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center bg-muted/10">
-                            <ModalityIcon className="w-10 h-10 text-muted-foreground/20" />
+                            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                            <ModalityIcon className={"w-10 h-10 text-muted-foreground/20" as any} />
                           </div>
                         )}
                         <div className="absolute top-2 left-2">

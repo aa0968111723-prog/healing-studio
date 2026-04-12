@@ -124,6 +124,9 @@
     "vite-plugin-manus-runtime": "^0.0.57",
     "vitest": "^2.1.4"
   },
+  "overrides": {
+    "nanoid": "3.3.7"
+  },
   "engines": {
     "node": ">=20.0.0",
     "npm": ">=10.0.0"

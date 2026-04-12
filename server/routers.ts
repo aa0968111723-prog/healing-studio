@@ -14,10 +14,33 @@ import { showcaseRouter } from "./routers/showcase";
 import { senseRouter } from "./routers/sense";
 import { brainRouter } from "./routers/brain";
 import { proStudioRouter } from "./routers/proStudio";
+import { imageStudioRouter } from "./routers/imageStudio";
 import { getOrchestrator } from "./services/modelClients";
 import { getVoiceCompiler } from "./services/voiceCompiler";
 import { getAudioCompiler } from "./services/audioCompiler";
 import { getVideoCompiler } from "./services/videoCompiler";
+import { buildMemoryContext, upsertMemory } from "./services/ragMemory";
+import {
+  estimatePoints,
+  getModelPricing,
+  checkModelAvailability,
+} from "./services/modelPricing";
+import {
+  dispatchImageGeneration,
+  dispatchVideoGeneration,
+  dispatchAudioGeneration,
+  dispatchTTS,
+  resolveFalEnginesFromRow,
+  DEFAULT_FAL_ENGINES,
+  estimateGenerationPoints,
+} from "./services/falDispatcher";
+import { eq } from "drizzle-orm";
+import { userAiBrain } from "../drizzle/schema";
+import { getDb } from "./db";
+
+// ─── Dev-only debug logger (no-ops in production) ─────────────────────────
+const isDev = process.env.NODE_ENV !== "production";
+const debug = isDev ? console.log : () => {};  // eslint-disable-line no-console
 
 // ─── Timeout Utility ────────────────────────────────────────────────────────
 
@@ -88,6 +111,7 @@ async function compileElitePrompt(payload: {
   temperature: number;
   generationType: string;
   referenceImages?: { styleUrl?: string | null; vibeUrl?: string | null; characterUrl?: string | null };
+  memoryContext?: string; // Phase 14 RAG 記憶注入
 }): Promise<{ compiledPrompt: string; visualWeight: number; controlNetParams: Record<string, unknown> }> {
   const vibeDescriptions = payload.vibeCardIds.join(", ");
 
@@ -120,6 +144,7 @@ async function compileElitePrompt(payload: {
     ? `\n\n參考圖片資訊：\n- 風格參考：${hasStyleRef ? "已提供（權重 0.65）" : "無"}\n- 氛圍參考：${hasVibeRef ? "已提供（權重 0.5）" : "無"}\n- 角色參考：${hasCharRef ? "已提供（權重 0.75）" : "無"}\n- 綜合視覺權重：${visualWeight.toFixed(2)}\n請在提示詞中加入 "maintaining visual consistency with reference" 等指令。`
     : "";
 
+  const memorySection = payload.memoryContext || "";
   const result = await withTimeout(invokeLLM({
     messages: [
       {
@@ -133,7 +158,7 @@ async function compileElitePrompt(payload: {
 4. 生成類型：${payload.generationType}
 5. 輸出必須是一段流暢的英文敘事提示詞
 6. 加入光線、構圖、色調等專業攝影/藝術指導
-7. 確保人物描述包含：perfectly symmetrical anatomy, flawless proportions, natural pose${refContext}`,
+7. 確保人物描述包含：perfectly symmetrical anatomy, flawless proportions, natural pose${refContext}${memorySection}`,
       },
       { role: "user", content: payload.prompt },
     ],
@@ -321,6 +346,7 @@ export const appRouter = router({
   sense: senseRouter,
   brain: brainRouter,
   proStudio: proStudioRouter,
+  imageStudio: imageStudioRouter,
 
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
@@ -334,18 +360,69 @@ export const appRouter = router({
   // ─── Generation ──────────────────────────────────────────────────────────
 
   generate: router({
-    // Pre-flight: create job + deduct quota, return jobId for SSE connection
+    /**
+     * Pre-flight: load brain config → estimate points → deduct → create job
+     *
+     * 點數計費規則（1 USD ≈ 100 pts）：
+     *  - 讀取使用者 AI 大腦組態，取得各模態選定的引擎
+     *  - 依 MODEL_PRICING_CATALOG 精確估算本次任務點數
+     *  - SELECT FOR UPDATE 原子扣點，不足則拒絕並顯示友善錯誤
+     *  - 傳回 jobId、引擎名稱、點數明細供前端顯示
+     */
     prepareJob: protectedProcedure
       .input(z.object({
         generationType: z.enum(["image", "video", "audio", "voice", "multimodal"]),
+        durationSec: z.number().optional(),
+        charCount: z.number().optional(),
+        overrideEngine: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const userId = ctx.user.id;
-        // Atomic quota deduction
-        const deducted = await db.deductUserQuota(userId, 1);
-        if (!deducted) {
-          throw new TRPCError({ code: "FORBIDDEN", message: "生成配額已用完，請聯繫管理員補充配額。" });
+
+        // ── Step 1: 讀取使用者大腦組態 ──
+        let brainRow: Record<string, unknown> | null = null;
+        try {
+          const database = await getDb();
+          if (database) {
+            const rows = await database
+              .select()
+              .from(userAiBrain)
+              .where(eq(userAiBrain.userId, userId))
+              .limit(1);
+            brainRow = (rows[0] ?? null) as Record<string, unknown> | null;
+          }
+        } catch { /* fallback to defaults */ }
+
+        const falEngines = resolveFalEnginesFromRow(brainRow);
+
+        // ── Step 2: 選定本次任務的引擎 ──
+        const modalityEngineMap: Record<string, string> = {
+          image:      input.overrideEngine ?? String(brainRow?.imageEngine ?? falEngines.textToImage),
+          video:      input.overrideEngine ?? String(brainRow?.videoEngine ?? falEngines.textToVideo),
+          audio:      input.overrideEngine ?? String(brainRow?.audioEngine ?? falEngines.textToAudio),
+          voice:      input.overrideEngine ?? String(brainRow?.voiceEngine ?? falEngines.textToSpeech),
+          multimodal: input.overrideEngine ?? String(brainRow?.imageEngine ?? falEngines.textToImage),
+        };
+        const selectedEngine = modalityEngineMap[input.generationType] ?? "gemini/imagen-3";
+
+        // ── Step 3: 按模型成本估算點數 ──
+        const estimate = estimatePoints(selectedEngine, {
+          durationSec: input.durationSec,
+          charCount: input.charCount,
+        });
+        const pointsCost = estimate.totalPoints; // 最少 1 pt
+
+        // ── Step 4: 原子扣點 ──
+        const deduction = await db.deductUserPoints(userId, pointsCost);
+        if (!deduction.success) {
+          const remaining = deduction.remainingBefore;
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: `積分不足（需要 ${pointsCost} pts，剩餘 ${remaining} pts）。請至設定頁面查看積分或聯繫管理員。`,
+          });
         }
+
+        // ── Step 5: 建立背景任務 ──
         const jobId = await db.createBackgroundJob({
           userId,
           jobType: input.generationType === "multimodal" ? "multimodal" : input.generationType,
@@ -353,16 +430,87 @@ export const appRouter = router({
           progress: 2,
           progressMessage: "準備中...",
         });
-        // Emit initial thought chain nodes so SSE clients see them immediately
+
+        // ── Step 6: 推送初始思維鏈節點（含積分明細） ──
         const modalityLabel = input.generationType === "image" ? "圖像" : input.generationType === "video" ? "影片" : input.generationType === "audio" ? "音樂" : "語音";
+        const pricing = getModelPricing(selectedEngine);
+        const engineLabel = pricing?.label ?? selectedEngine;
+
         generationBus.emit(jobId, { type: "thought-update", node: { id: "safety", label: "安全檢查", status: "queued", detail: "等待中...", timestamp: 0 } });
         generationBus.emit(jobId, { type: "thought-update", node: { id: "compile", label: "提示詞編譯", status: "queued", detail: "等待中...", timestamp: 0 } });
         generationBus.emit(jobId, { type: "thought-update", node: { id: "weight", label: "視覺權重計算", status: "queued", detail: "等待中...", timestamp: 0 } });
-        generationBus.emit(jobId, { type: "thought-update", node: { id: "generate", label: `${modalityLabel}生成`, status: "queued", detail: "等待中...", timestamp: 0 } });
-        generationBus.emit(jobId, { type: "thought-update", node: { id: "quota", label: "配額扣除", status: "completed", detail: "已扣除 1 次配額", timestamp: Date.now() } });
+        generationBus.emit(jobId, { type: "thought-update", node: { id: "generate", label: `${modalityLabel}生成（${engineLabel}）`, status: "queued", detail: "等待中...", timestamp: 0 } });
+        generationBus.emit(jobId, { type: "thought-update", node: {
+          id: "quota",
+          label: "積分扣除",
+          status: "completed",
+          detail: `扣除 ${pointsCost} pts ｜ ${estimate.breakdown} ｜ 引擎：${engineLabel} ｜ 剩餘：${deduction.remainingAfter} pts`,
+          timestamp: Date.now(),
+        }});
         generationBus.emit(jobId, { type: "thought-update", node: { id: "history", label: "歷史紀錄", status: "queued", detail: "等待中...", timestamp: 0 } });
-        generationBus.emit(jobId, { type: "progress", progress: 2, message: "已建立任務，準備開始..." });
-        return { jobId };
+        generationBus.emit(jobId, { type: "progress", progress: 2, message: `任務已建立 ｜ ${engineLabel} ｜ ${pointsCost} pts` });
+
+        return {
+          jobId,
+          selectedEngine,
+          engineLabel,
+          pointsCost,
+          pointsBreakdown: estimate.breakdown,
+          remainingPoints: deduction.remainingAfter,
+        };
+      }),
+
+    /**
+     * 查詢本次生成的點數預估（不扣點，供前端顯示費用預覽）
+     */
+    estimateCost: protectedProcedure
+      .input(z.object({
+        generationType: z.enum(["image", "video", "audio", "voice"]),
+        durationSec: z.number().optional(),
+        charCount: z.number().optional(),
+      }))
+      .query(async ({ ctx, input }) => {
+        const userId = ctx.user.id;
+        let brainRow: Record<string, unknown> | null = null;
+        try {
+          const database = await getDb();
+          if (database) {
+            const rows = await database
+              .select()
+              .from(userAiBrain)
+              .where(eq(userAiBrain.userId, userId))
+              .limit(1);
+            brainRow = (rows[0] ?? null) as Record<string, unknown> | null;
+          }
+        } catch { /* fallback */ }
+
+        const falEngines = resolveFalEnginesFromRow(brainRow);
+        const modalityEngineMap: Record<string, string> = {
+          image: String(brainRow?.imageEngine ?? falEngines.textToImage),
+          video: String(brainRow?.videoEngine ?? falEngines.textToVideo),
+          audio: String(brainRow?.audioEngine ?? falEngines.textToAudio),
+          voice: String(brainRow?.voiceEngine ?? falEngines.textToSpeech),
+        };
+        const engineId = modalityEngineMap[input.generationType];
+        const estimate = estimatePoints(engineId, {
+          durationSec: input.durationSec,
+          charCount: input.charCount,
+        });
+        const pricingInfo = getModelPricing(engineId);
+        const availability = checkModelAvailability(engineId);
+
+        return {
+          generationType: input.generationType,
+          engineId,
+          engineLabel: pricingInfo?.label ?? engineId,
+          provider: pricingInfo?.provider ?? "unknown",
+          tier: pricingInfo?.tier ?? "standard",
+          pointsCost: estimate.totalPoints,
+          pointsBreakdown: estimate.breakdown,
+          unit: pricingInfo?.unit ?? "每次",
+          available: availability.available,
+          availabilityNote: !availability.available ? availability.reason : undefined,
+        };
       }),
 
     multimodal: protectedProcedure
@@ -413,7 +561,44 @@ export const appRouter = router({
         const stepTimestamps: Record<string, number> = { start: Date.now() };
         const modalityLabel = input.generationType === "image" ? "圖像" : input.generationType === "video" ? "影片" : input.generationType === "audio" ? "音樂" : "語音";
 
-        // Safety pre-check (quota already deducted in prepareJob)
+        // ── Load brain config to get selected engines for this generation ──
+        let brainRow: Record<string, unknown> | null = null;
+        try {
+          const database = await getDb();
+          if (database) {
+            const rows = await database
+              .select()
+              .from(userAiBrain)
+              .where(eq(userAiBrain.userId, userId))
+              .limit(1);
+            brainRow = (rows[0] ?? null) as Record<string, unknown> | null;
+          }
+        } catch { /* use defaults */ }
+        const falEngines = resolveFalEnginesFromRow(brainRow);
+
+        // Resolve which engine was selected for this modality (from brain config)
+        const _resolvedImageEngine  = String(brainRow?.imageEngine  ?? falEngines.textToImage);
+        const _resolvedVideoEngine  = String(brainRow?.videoEngine  ?? falEngines.textToVideo);
+        const _resolvedAudioEngine  = String(brainRow?.audioEngine  ?? falEngines.textToAudio);
+        const _resolvedVoiceEngine  = String(brainRow?.voiceEngine  ?? falEngines.textToSpeech);
+        const _falTextToImageEngine = falEngines.textToImage;
+        const _falTextToVideoEngine = falEngines.textToVideo;
+        const _falTextToAudioEngine = falEngines.textToAudio;
+        const _falTextToSpeechEngine = falEngines.textToSpeech;
+
+        // Estimate real cost for this generation (for api usage log)
+        const _genModelId = input.generationType === "video" ? _resolvedVideoEngine
+          : input.generationType === "audio" ? _resolvedAudioEngine
+          : input.generationType === "voice" ? _resolvedVoiceEngine
+          : _resolvedImageEngine;
+        const _genEstimate = estimatePoints(_genModelId, {
+          durationSec: input.videoDurationSeconds ?? (input.generationType === "audio" ? (input as any).audioDuration : undefined),
+          charCount: input.voiceText?.length,
+        });
+        const _genPricing = getModelPricing(_genModelId);
+        const _genEngineLabel = _genPricing?.label ?? _genModelId;
+
+        // Safety pre-check (points already deducted in prepareJob)
         generationBus.emit(jobId, { type: "thought-update", node: { id: "safety", label: "安全檢查", status: "processing", detail: "正在驗證內容安全...", timestamp: Date.now() } });
         generationBus.emit(jobId, { type: "progress", progress: 5, message: "安全檢查中..." });
 
@@ -427,8 +612,8 @@ export const appRouter = router({
           generationBus.emit(jobId, { type: "thought-update", node: { id: "safety", label: "安全檢查", status: "error", detail: safetyResult.reason || "內容不符合安全規範", timestamp: Date.now() } });
           generationBus.emit(jobId, { type: "error", message: safetyResult.reason || "內容不符合安全規範" });
           setTimeout(() => generationBus.cleanup(jobId), 2000);
-          // Refund the atomically deducted quota since no generation occurred
-          await db.refundUserQuota(userId, 1);
+          // Refund the points since no generation occurred
+          await db.refundUserPoints(userId, _genEstimate.totalPoints);
           await db.createApiUsageLog({
             userId,
             requestType: "safety_check",
@@ -448,7 +633,7 @@ export const appRouter = router({
           try {
             const vaultChar = await db.getVaultItem(input.vaultCharacterId);
             if (vaultChar && vaultChar.imageUrl) {
-              console.log(`[Vault] Injecting character ref from vault #${vaultChar.id}: ${vaultChar.name}`);
+              debug(`[Vault] Injecting character ref from vault #${vaultChar.id}: ${vaultChar.name}`);
               // For video: override characterRefUrl; for image: override styleReferenceUrl
               if (input.generationType === "video") {
                 input.characterRefUrl = input.characterRefUrl || vaultChar.imageUrl;
@@ -465,7 +650,7 @@ export const appRouter = router({
           try {
             const vaultScene = await db.getVaultItem(input.vaultSceneId);
             if (vaultScene && vaultScene.imageUrl) {
-              console.log(`[Vault] Injecting scene ref from vault #${vaultScene.id}: ${vaultScene.name}`);
+              debug(`[Vault] Injecting scene ref from vault #${vaultScene.id}: ${vaultScene.name}`);
               input.vibeReferenceUrl = input.vibeReferenceUrl || vaultScene.imageUrl;
             }
           } catch (e) {
@@ -479,13 +664,13 @@ export const appRouter = router({
           try {
             const ftModel = await db.getFineTunedModel(input.fineTunedModelId);
             if (ftModel) {
-              console.log(`[Model] Injecting fine-tuned model #${ftModel.id}: ${ftModel.name}`);
+              debug(`[Model] Injecting fine-tuned model #${ftModel.id}: ${ftModel.name}`);
               const config = ftModel.configJson as Record<string, unknown> | null;
               if (config && typeof config.triggerWord === "string" && config.triggerWord.trim()) {
                 modelTriggerWord = config.triggerWord.trim();
                 // Append trigger word to the user prompt so compileElitePrompt includes it
                 input.prompt = `${input.prompt}, ${modelTriggerWord}`;
-                console.log(`[Model] Appended triggerWord "${modelTriggerWord}" to prompt`);
+                debug(`[Model] Appended triggerWord "${modelTriggerWord}" to prompt`);
               }
             }
           } catch (e) {
@@ -494,6 +679,17 @@ export const appRouter = router({
         }
 
         try {
+          // ── Phase 14: RAG 記憶檢索（非阻塞，失敗不影響生成）────────────
+          let memoryContext = "";
+          try {
+            memoryContext = await Promise.race([
+              buildMemoryContext(userId, input.prompt),
+              new Promise<string>((resolve) => setTimeout(() => resolve(""), 3000)), // 3s 超時
+            ]);
+          } catch {
+            // RAG 失敗靜默降級
+          }
+
           // Compile elite prompt with reference image awareness
           // ── Compile step ──
           generationBus.emit(jobId, { type: "thought-update", node: { id: "compile", label: "提示詞編譯", status: "processing", detail: "正在編譯提示詞...", timestamp: Date.now() } });
@@ -510,6 +706,7 @@ export const appRouter = router({
                 vibeUrl: input.vibeReferenceUrl,
                 characterUrl: input.characterRefUrl,
               },
+              memoryContext, // Phase 14 RAG 記憶注入
             }),
             30_000,
             "提示詞編譯"
@@ -582,7 +779,7 @@ export const appRouter = router({
                 aspectRatio: "16:9",
               });
               const videoPrompt = videoCompiled.prompt || compiledPrompt;
-              console.log(`[Wave1] Video prompt compiled (${videoPrompt.length} chars), calling Gemini Veo SDK...`);
+              debug(`[Wave1] Video prompt compiled (${videoPrompt.length} chars), calling Gemini Veo SDK...`);
 
               // Get Gemini API Key
               const geminiKey = (await import("./_core/env.validated")).getApiKey("GEMINI_API_KEY");
@@ -605,7 +802,7 @@ export const appRouter = router({
                   personGeneration: "allow_all" as any,
                 },
               });
-              console.log(`[Wave1] Gemini Veo operation started: ${operation.name}`);
+              debug(`[Wave1] Gemini Veo operation started: ${operation.name}`);
 
               // Step 2: Poll operation until done (max 5 min)
               const MAX_POLL_MS = 300_000;
@@ -618,13 +815,13 @@ export const appRouter = router({
                 const elapsed = Math.round((Date.now() - pollStart) / 1000);
                 const pct = Math.min(85, 45 + Math.round((elapsed / 300) * 40));
                 generationBus.emit(jobId, { type: "progress", progress: pct, message: `影片生成中... (${elapsed}s)` });
-                console.log(`[Wave1] Veo still generating... (${elapsed}s)`);
+                debug(`[Wave1] Veo still generating... (${elapsed}s)`);
               }
 
               if (!operation.done) {
                 throw new Error("Gemini Veo 影片生成超時（5分鐘）");
               }
-              console.log(`[Wave1] Veo operation done after ${Math.round((Date.now() - pollStart) / 1000)}s`);
+              debug(`[Wave1] Veo operation done after ${Math.round((Date.now() - pollStart) / 1000)}s`);
 
               // Step 3: Extract video and upload to S3
               const generatedVideos = operation.response?.generatedVideos || [];
@@ -657,7 +854,7 @@ export const appRouter = router({
               resultData.videoStatus = "completed";
               resultData.videoDuration = 8;
               if (!resultUrl) resultUrl = videoUrl;
-              console.log(`[Wave1] Video generation completed (Gemini Veo SDK): ${videoUrl}`);
+              debug(`[Wave1] Video generation completed (Gemini Veo SDK): ${videoUrl}`);
             } catch (videoErr: any) {
               console.error("[Wave1] Video generation failed:", videoErr);
               resultData.videoStatus = "video_generation_failed";
@@ -700,7 +897,7 @@ export const appRouter = router({
               if (input.lyrics) {
                 musicPrompt += `\n\n${input.lyrics}`;
               }
-              console.log(`[Wave1] Audio prompt compiled (${musicPrompt.length} chars), calling Gemini Lyria 3...`);
+              debug(`[Wave1] Audio prompt compiled (${musicPrompt.length} chars), calling Gemini Lyria 3...`);
 
               // Get Gemini API Key
               const geminiKey = (await import("./_core/env.validated")).getApiKey("GEMINI_API_KEY");
@@ -714,7 +911,7 @@ export const appRouter = router({
               // Use Lyria 3 Clip (30s) for short, Lyria 3 Pro for longer
               const useProModel = (input.audioDuration || 30) > 35;
               const modelId = useProModel ? "lyria-3-pro-preview" : "lyria-3-clip-preview";
-              console.log(`[Wave1] Using Lyria model: ${modelId}`);
+              debug(`[Wave1] Using Lyria model: ${modelId}`);
 
               generationBus.emit(jobId, { type: "progress", progress: 45, message: `正在生成音樂 (${modelId})...` });
 
@@ -770,7 +967,7 @@ export const appRouter = router({
                 resultData.audioTitle = generatedLyrics.substring(0, 100) || "Healing Music";
                 resultData.generatedLyrics = generatedLyrics;
                 if (!resultUrl) resultUrl = audioUrl;
-                console.log(`[Wave1] Lyria music generation completed: ${audioUrl} (${audioBuffer.length} bytes)`);
+                debug(`[Wave1] Lyria music generation completed: ${audioUrl} (${audioBuffer.length} bytes)`);
               } else {
                 resultData.audioStatus = "audio_generation_failed";
                 resultData.audioError = "Gemini Lyria 未回傳音訊資料";
@@ -810,7 +1007,7 @@ export const appRouter = router({
                 enableHesitation: true,
               });
               const ttsText = voiceCompiled.plainText || input.voiceText || input.prompt;
-              console.log(`[Wave1] Voice compiled: ${ttsText.length} chars, calling Gemini TTS...`);
+              debug(`[Wave1] Voice compiled: ${ttsText.length} chars, calling Gemini TTS...`);
 
               // Get Gemini API Key
               const geminiKey = (await import("./_core/env.validated")).getApiKey("GEMINI_API_KEY");
@@ -904,7 +1101,7 @@ export const appRouter = router({
                   wavHeader.writeUInt32LE(dataSize, 40);
                   voiceBuffer = Buffer.concat([wavHeader, voiceBuffer]);
                   voiceMimeType = "audio/wav";
-                  console.log(`[Wave1] Wrapped PCM in WAV header (${voiceBuffer.length} bytes total)`);
+                  debug(`[Wave1] Wrapped PCM in WAV header (${voiceBuffer.length} bytes total)`);
                 }
                 const ext = voiceMimeType.includes("wav") ? "wav" : "mp3";
                 const audioKey = `voice/${userId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
@@ -916,7 +1113,7 @@ export const appRouter = router({
                 resultData.voiceEngine = "gemini-tts";
                 resultData.voiceVoiceName = voiceName;
                 if (!resultUrl) resultUrl = voiceUrl;
-                console.log(`[Wave1] Gemini TTS completed: ${voiceUrl} (${voiceBuffer.length} bytes, voice: ${voiceName})`);
+                debug(`[Wave1] Gemini TTS completed: ${voiceUrl} (${voiceBuffer.length} bytes, voice: ${voiceName})`);
               } else {
                 resultData.voiceStatus = "voice_generation_failed";
                 resultData.voiceError = "Gemini TTS 未回傳音訊資料";
@@ -945,23 +1142,30 @@ export const appRouter = router({
           generationBus.emit(jobId, { type: "thought-update", node: { id: "generate", label: `${modalityLabel}生成`, status: resultUrl ? "completed" : "completed", detail: resultUrl ? `生成成功（${generateMs}ms）` : `已加入佇列（${generateMs}ms）`, timestamp: stepTimestamps.generateDone } });
           generationBus.emit(jobId, { type: "progress", progress: 70, message: "生成完成，處理後續..." });
 
-          // ── Quota logging ──
-          generationBus.emit(jobId, { type: "thought-update", node: { id: "quota", label: "配額扣除", status: "completed", detail: "扣除 1 次生成配額", timestamp: Date.now() } });
-          generationBus.emit(jobId, { type: "progress", progress: 80, message: "配額已扣除" });
+          // ── Points logging ──
+          stepTimestamps.quotaDone = Date.now();
+          generationBus.emit(jobId, { type: "thought-update", node: {
+            id: "quota",
+            label: "積分扣除",
+            status: "completed",
+            detail: `扣除 ${_genEstimate.totalPoints} pts | ${_genEstimate.breakdown} | 引擎：${_genEngineLabel}`,
+            timestamp: stepTimestamps.quotaDone,
+          }});
+          generationBus.emit(jobId, { type: "progress", progress: 80, message: `積分已扣除 ${_genEstimate.totalPoints} pts` });
 
-          // Quota was already atomically deducted before generation started.
-          // Log usage
+          // Points were already atomically deducted in prepareJob.
+          // Log real usage with actual model cost.
           await db.createApiUsageLog({
             userId,
             requestType: input.generationType === "image" ? "image_generation" :
               input.generationType === "video" ? "video_generation" :
               input.generationType === "audio" ? "audio_generation" :
               input.generationType === "voice" ? "voice_dubbing" : "image_generation",
-            apiProvider: input.mode === "lightning" ? "gemini_flash" : "gemini_pro",
-            tokensUsed: 1000,
-            estimatedCostUsd: "0.005",
+            apiProvider: _genPricing?.provider ?? (input.mode === "lightning" ? "gemini_flash" : "gemini_pro"),
+            tokensUsed: _genEstimate.totalPoints * 200, // approximate tokens (1 pt ≈ 200 tokens)
+            estimatedCostUsd: (_genEstimate.totalPoints / 100).toFixed(4), // 100 pts = $1
             responseStatus: "success",
-            generationsDeducted: 1,
+            generationsDeducted: _genEstimate.totalPoints,
           });
 
           // Save to asset library
@@ -1034,8 +1238,19 @@ export const appRouter = router({
             resultJson: resultData,
           });
 
+          // ── Phase 14: RAG 記憶向量化（非同步，不阻塞回應）──────────────
+          upsertMemory({
+            userId,
+            generationId: jobId,
+            prompt: input.prompt,
+            generationType: input.generationType,
+            resultSummary: resultUrl ? `成功生成 ${input.generationType}` : undefined,
+            vibeCardIds: input.vibeCardIds,
+          }).catch(() => { /* 靜默降級 */ });
+
           // ── History saved event ──
-          generationBus.emit(jobId, { type: "thought-update", node: { id: "history", label: "歷史紀錄", status: "completed", detail: "已儲存至生成歷史", timestamp: Date.now() } });
+          stepTimestamps.historyDone = Date.now();
+          generationBus.emit(jobId, { type: "thought-update", node: { id: "history", label: "歷史紀錄", status: "completed", detail: "已儲存至生成歷史", timestamp: stepTimestamps.historyDone } });
           generationBus.emit(jobId, { type: "progress", progress: 95, message: "歷史紀錄已儲存" });
 
           // Build final Chain-of-Thought trace with REAL timestamps from each execution step
@@ -1047,8 +1262,8 @@ export const appRouter = router({
             { id: "compile", label: "提示詞編譯", status: "completed" as const, detail: `編譯後提示詞長度: ${compiledPrompt.length} 字元（${finalCompileMs}ms）`, timestamp: stepTimestamps.compileDone || stepTimestamps.start },
             { id: "weight", label: "視覺權重計算", status: "completed" as const, detail: `visualWeight: ${visualWeight.toFixed(2)}, controlNet: ${JSON.stringify(controlNetParams)}`, timestamp: stepTimestamps.weightDone || stepTimestamps.start },
             { id: "generate", label: `${modalityLabel}生成`, status: resultUrl ? "completed" as const : "completed" as const, detail: resultUrl ? `生成成功（${finalGenerateMs}ms）` : `已加入佇列（${finalGenerateMs}ms）`, timestamp: stepTimestamps.generateDone },
-            { id: "quota", label: "配額扣除", status: "completed" as const, detail: "扣除 1 次生成配額", timestamp: Date.now() - 100 },
-            { id: "history", label: "歷史紀錄", status: "completed" as const, detail: "已儲存至生成歷史", timestamp: Date.now() },
+            { id: "quota", label: "配額扣除", status: "completed" as const, detail: "扣除 1 次生成配額", timestamp: stepTimestamps.quotaDone || Date.now() },
+            { id: "history", label: "歷史紀錄", status: "completed" as const, detail: "已儲存至生成歷史", timestamp: stepTimestamps.historyDone || Date.now() },
           ];
 
           // Emit final complete event via SSE
@@ -1058,8 +1273,8 @@ export const appRouter = router({
 
           return { jobId, resultUrl, resultData, compiledPrompt, thoughtChain };
         } catch (error) {
-          // Transactional integrity: refund quota on failure
-          await db.refundUserQuota(userId, 1);
+          // Transactional integrity: refund points on generation failure
+          await db.refundUserPoints(userId, _genEstimate.totalPoints);
           const errMsg = error instanceof Error ? error.message : "生成失敗";
           const isTimeout = /超時|timeout|timed? ?out|ETIMEDOUT|aborted/i.test(errMsg);
           await db.updateBackgroundJob(jobId, {

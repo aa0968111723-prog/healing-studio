@@ -252,9 +252,7 @@ export function initModelTrainingWorkerCron(): void {
 
   logWorker("info", "模型訓練 Worker 排程已註冊 — 每 5 分鐘執行一次");
 
-  // Initial scan after 2-minute delay (let Railway healthcheck pass first)
-  // Previously 10s was too soon — DB queries during Railway's healthcheck window
-  // can cause event-loop contention and 502 errors.
+  // Initial scan after 10s delay (let DB and server warm up)
   setTimeout(async () => {
     logWorker("info", "伺服器啟動後首次 Worker 掃描...");
     try {
@@ -263,7 +261,7 @@ export function initModelTrainingWorkerCron(): void {
       const message = err instanceof Error ? err.message : String(err);
       logWorker("error", `首次掃描異常: ${message}`);
     }
-  }, 2 * 60_000); // 2 minutes — after Railway healthcheck has passed
+  }, 10_000);
 }
 
 /**

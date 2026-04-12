@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Shield, Cpu, Sparkles, Palette, Zap, CheckCircle2,
@@ -88,7 +88,8 @@ const ZOOM_LABELS: Record<ZoomLevel, { label: string; icon: React.ReactNode; des
 
 // ─── D3 Island Visualization ───────────────────────────────────────────────
 
-function D3IslandCanvas({
+// ─── Wrapped with memo — D3 re-renders are expensive ──────────────────────
+const D3IslandCanvas = memo(function D3IslandCanvas({
   nodes,
   zoomLevel,
   selectedNode,
@@ -342,11 +343,12 @@ function D3IslandCanvas({
       />
     </div>
   );
-}
+});
 
 // ─── Main Component ────────────────────────────────────────────────────────
 
-export default function ThoughtIslandChain({ nodes, isVisible, onIntervene, onPinToNotes }: Props) {
+// ─── Wrapped with React.memo to prevent re-renders when nodes haven't changed ─
+const ThoughtIslandChain = memo(function ThoughtIslandChain({ nodes, isVisible, onIntervene, onPinToNotes }: Props) {
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>("overview");
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(true);
@@ -603,4 +605,8 @@ export default function ThoughtIslandChain({ nodes, isVisible, onIntervene, onPi
       </AnimatePresence>
     </motion.div>
   );
-}
+});
+
+ThoughtIslandChain.displayName = "ThoughtIslandChain";
+
+export default ThoughtIslandChain;

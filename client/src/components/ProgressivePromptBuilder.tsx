@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, ChevronUp, Sparkles, Lightbulb, Blocks, Focus, X, Plus, Heart, Trash2, FolderOpen, Save, Edit3, Check } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
@@ -784,7 +784,7 @@ function SaveComboDialog({
 
 // ─── Main Component ────────────────────────────────────────────────────────
 
-export function ProgressivePromptBuilder({ value, onChange, modality, onType }: ProgressivePromptBuilderProps & { onType?: (len: number) => void }) {
+export const ProgressivePromptBuilder = memo(function ProgressivePromptBuilder({ value, onChange, modality, onType }: ProgressivePromptBuilderProps & { onType?: (len: number) => void }) {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [blocksOpen, setBlocksOpen] = useState(true);
   const [attentionOpen, setAttentionOpen] = useState(false);
@@ -1450,7 +1450,9 @@ export function ProgressivePromptBuilder({ value, onChange, modality, onType }: 
       />
     </div>
   );
-}
+});
+
+ProgressivePromptBuilder.displayName = "ProgressivePromptBuilder";
 
 // ─── Combo Card ───────────────────────────────────────────────────────────
 

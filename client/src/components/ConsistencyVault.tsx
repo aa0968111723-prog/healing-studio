@@ -107,6 +107,7 @@ function VaultItemCard({
             alt={item.name}
             className="w-full h-full object-cover"
             draggable={false}
+            loading="lazy"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-muted/20">
@@ -255,7 +256,7 @@ function UploadPanel({
 
       {preview ? (
         <div className="relative aspect-video rounded-lg overflow-hidden">
-          <img src={preview} alt="預覽" className="w-full h-full object-cover" />
+          <img src={preview} alt="預覽" className="w-full h-full object-cover" loading="lazy" />
           <button
             onClick={() => { setFile(null); setPreview(null); }}
             className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-white/80 flex items-center justify-center hover:bg-white"
@@ -581,7 +582,7 @@ export function VaultDropzone({
     >
       {value ? (
         <div className="relative aspect-video">
-          <img src={value} alt={label} className="w-full h-full object-cover rounded-xl" />
+          <img src={value} alt={label} className="w-full h-full object-cover rounded-xl" loading="lazy" />
           <Button
             variant="outline"
             size="icon"
