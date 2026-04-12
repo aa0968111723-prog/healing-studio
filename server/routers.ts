@@ -13,6 +13,7 @@ import { newsRouter } from "./routers/news";
 import { showcaseRouter } from "./routers/showcase";
 import { senseRouter } from "./routers/sense";
 import { brainRouter } from "./routers/brain";
+import { proStudioRouter } from "./routers/proStudio";
 import { getOrchestrator } from "./services/modelClients";
 import { getVoiceCompiler } from "./services/voiceCompiler";
 import { getAudioCompiler } from "./services/audioCompiler";
@@ -319,6 +320,7 @@ export const appRouter = router({
   showcase: showcaseRouter,
   sense: senseRouter,
   brain: brainRouter,
+  proStudio: proStudioRouter,
 
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

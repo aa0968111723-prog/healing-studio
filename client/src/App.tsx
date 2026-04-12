@@ -31,6 +31,7 @@ const AiBrainSettings  = lazy(() => import("./pages/AiBrainSettings"));
 const SettingsPage     = lazy(() => import("./pages/SettingsPage"));
 const HistoryPage      = lazy(() => import("./pages/HistoryPage"));
 const AdminPage        = lazy(() => import("./pages/AdminPage"));
+const ProStudio        = lazy(() => import("./pages/ProStudio"));
 
 // ─── 頁面載入中的通用 Skeleton ─────────────────────────────────────────────
 function PageSkeleton() {
@@ -113,6 +114,9 @@ function Router() {
       </Route>
       <Route path="/admin">
         <DashboardRoute component={AdminPage} />
+      </Route>
+      <Route path="/pro-studio">
+        <ProtectedDashboardRoute component={ProStudio} />
       </Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

@@ -34,6 +34,7 @@ import {
   Settings,
   StickyNote,
   CalendarDays,
+  Sparkles,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -44,6 +45,7 @@ import { useAIState } from "@/contexts/AIStateContext";
 
 const menuItems = [
   { icon: Wand2, label: "創作工作室", path: "/studio" },
+  { icon: Sparkles, label: "專業創作室", path: "/pro-studio" },
   { icon: Clapperboard, label: "導演 AI", path: "/director" },
   { icon: Cpu, label: "角色鍛造所", path: "/models" },
   { icon: StickyNote, label: "專案筆記", path: "/notes" },
