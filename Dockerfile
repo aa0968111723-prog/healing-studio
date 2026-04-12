@@ -24,14 +24,16 @@ RUN ls -la dist/ && ls -la dist/public/
 COPY start.sh ./
 RUN chmod +x start.sh
 
-# Expose port
-EXPOSE 3000
-
 # Set working directory to /app so process.cwd() = /app
 # dist/public is at /app/dist/public ✅
 WORKDIR /app
 
-# Start the app
+# Set production mode only — DO NOT hardcode PORT.
+# Railway injects $PORT automatically; hardcoding causes port mismatch → 502.
 ENV NODE_ENV=production
-ENV PORT=3000
-CMD ["./start.sh"]
+
+# EXPOSE uses Railway's injected PORT (Railway replaces this at runtime)
+EXPOSE ${PORT:-3000}
+
+# Start the app — Railway overrides this with startCommand from railway.toml
+CMD ["node", "/app/dist/index.js"]

@@ -3,12 +3,12 @@ builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-# Use --max-old-space-size to prevent OOM crashes on Railway's Hobby plan (512MB RAM)
-# Previously: NewsFetcher ran 30s after start → Gemini API + DB writes spiked memory → OOM → 502
-# Fix: delayed jobs (NewsFetcher: 5min, ModelTrainingWorker: 2min) + memory cap 400MB
+# Railway injects $PORT automatically. The app reads process.env.PORT (set by Railway).
+# --max-old-space-size=400 prevents OOM on Railway Hobby plan (512MB RAM limit).
+# Do NOT hardcode the port here — Railway sets PORT env var to its internal routing port.
 startCommand = "node --max-old-space-size=400 /app/dist/index.js"
 healthcheckPath = "/api/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
-# cache bust: 2026-04-12T09:45
+# cache bust: 2026-04-12T09:50
