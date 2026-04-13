@@ -1,10 +1,12 @@
+import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   BarChart3, Zap, DollarSign, Clock, TrendingUp, LayoutDashboard,
-  Image, Video, Music, Mic, Activity,
+  Image, Video, Music, Mic, Activity, List,
 } from "lucide-react";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import { motion } from "framer-motion";
@@ -340,6 +342,76 @@ export default function DashboardPage() {
           </div>
         )}
       </GlassCard>
+
+      {/* Detailed Usage Logs (dashboard.myUsageLogs) */}
+      <DetailedUsageLogs />
     </div>
+  );
+}
+
+function DetailedUsageLogs() {
+  const [limit, setLimit] = useState(20);
+  const logsQuery = trpc.dashboard.myUsageLogs.useQuery({ limit }, { retry: false });
+
+  return (
+    <GlassCard hover={false}>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <List className="w-4 h-4 text-muted-foreground" />
+          <h2 className="text-sm font-semibold">完整使用紀錄</h2>
+        </div>
+        {logsQuery.data && logsQuery.data.length >= limit && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs h-7"
+            onClick={() => setLimit(prev => prev + 20)}
+          >
+            載入更多
+          </Button>
+        )}
+      </div>
+      {logsQuery.isLoading ? (
+        <ZenSkeleton lines={5} />
+      ) : !logsQuery.data || logsQuery.data.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-center py-6">尚無詳細使用紀錄</p>
+      ) : (
+        <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-border/20">
+                <th className="text-left py-2 text-muted-foreground font-medium">類型</th>
+                <th className="text-left py-2 text-muted-foreground font-medium">提供者</th>
+                <th className="text-right py-2 text-muted-foreground font-medium">Tokens</th>
+                <th className="text-right py-2 text-muted-foreground font-medium">費用</th>
+                <th className="text-left py-2 text-muted-foreground font-medium">狀態</th>
+                <th className="text-right py-2 text-muted-foreground font-medium">時間</th>
+              </tr>
+            </thead>
+            <tbody>
+              {logsQuery.data.map((log) => (
+                <tr key={log.id} className="border-b border-border/10 hover:bg-muted/10">
+                  <td className="py-2">{requestTypeLabels[log.requestType] || log.requestType}</td>
+                  <td className="py-2 text-muted-foreground">{log.apiProvider}</td>
+                  <td className="py-2 text-right tabular-nums">{log.tokensUsed ?? 0}</td>
+                  <td className="py-2 text-right tabular-nums">${log.estimatedCostUsd ?? "0"}</td>
+                  <td className="py-2">
+                    <Badge
+                      variant={log.responseStatus === "success" ? "secondary" : "destructive"}
+                      className="text-[9px] rounded-md"
+                    >
+                      {log.responseStatus === "success" ? "成功" : log.responseStatus === "blocked" ? "攔截" : "失敗"}
+                    </Badge>
+                  </td>
+                  <td className="py-2 text-right text-muted-foreground whitespace-nowrap">
+                    {new Date(log.createdAt).toLocaleString("zh-TW")}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </GlassCard>
   );
 }

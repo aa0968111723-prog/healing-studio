@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import {
   Image, Video, Music, Mic, FileText, Package, Globe, Lock, Trash2,
   Gift, ExternalLink, Download, Calendar, HardDrive, Wand2, ChevronDown, ChevronRight,
-  Plus, Upload, Search, X, Filter,
+  Plus, Upload, Search, X, Filter, Pencil, Save,
 } from "lucide-react";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import VisualSoul from "@/components/VisualSoul";
@@ -217,6 +217,19 @@ export default function AssetsLibrary() {
     },
   });
 
+  const updateAsset = trpc.assets.update.useMutation({
+    onSuccess: () => {
+      myAssetsQuery.refetch();
+      teamAssetsQuery.refetch();
+      toast.success("資產已更新");
+    },
+    onError: (e) => toast.error("更新失敗：" + e.message),
+  });
+
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+
   const assets = tab === "my" ? myAssetsQuery.data : teamAssetsQuery.data;
   const isLoading = tab === "my" ? myAssetsQuery.isLoading : teamAssetsQuery.isLoading;
   const totalMyAssets = myAssetsQuery.data?.length ?? 0;
@@ -407,7 +420,26 @@ export default function AssetsLibrary() {
                           className="overflow-hidden"
                         >
                           <div className="pt-2 border-t border-border/20 space-y-1.5 text-[10px] text-muted-foreground">
-                            {asset.description && (
+                            {/* Inline edit */}
+                            {tab === "my" && editingId === asset.id ? (
+                              <div className="space-y-2 mb-2">
+                                <Input value={editTitle} onChange={e => setEditTitle(e.target.value)} placeholder="標題" className="h-7 text-xs rounded-lg" />
+                                <Input value={editDescription} onChange={e => setEditDescription(e.target.value)} placeholder="描述（選填）" className="h-7 text-xs rounded-lg" />
+                                <div className="flex gap-1">
+                                  <Button size="sm" className="h-6 text-[10px] rounded-lg gap-1" disabled={updateAsset.isPending}
+                                    onClick={() => { updateAsset.mutate({ id: asset.id, title: editTitle.trim() || undefined, description: editDescription }); setEditingId(null); }}>
+                                    <Save className="w-2.5 h-2.5" /> 儲存
+                                  </Button>
+                                  <Button variant="ghost" size="sm" className="h-6 text-[10px] rounded-lg" onClick={() => setEditingId(null)}>取消</Button>
+                                </div>
+                              </div>
+                            ) : tab === "my" ? (
+                              <button className="flex items-center gap-1 text-[10px] text-primary hover:text-primary/80 transition-colors mb-1"
+                                onClick={() => { setEditingId(asset.id); setEditTitle(asset.title); setEditDescription(asset.description || ""); }}>
+                                <Pencil className="w-2.5 h-2.5" /> 編輯標題與描述
+                              </button>
+                            ) : null}
+                            {asset.description && editingId !== asset.id && (
                               <div><span className="font-medium text-foreground">描述：</span><span>{asset.description}</span></div>
                             )}
                             {asset.promptUsed && (

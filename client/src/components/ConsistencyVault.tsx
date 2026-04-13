@@ -70,12 +70,14 @@ function VaultItemCard({
   onDragStart,
   onSelect,
   onDelete,
+  onExport,
   compact,
 }: {
   item: VaultItem;
   onDragStart?: (item: VaultItem, e: React.DragEvent) => void;
   onSelect?: (item: VaultItem) => void;
   onDelete?: (id: number) => void;
+  onExport?: (id: number) => void;
   compact?: boolean;
 }) {
   const isMobile = useIsMobile();
@@ -139,6 +141,19 @@ function VaultItemCard({
             }`}
           >
             <Trash2 className="w-3 h-3" />
+          </button>
+        )}
+
+        {/* Export to assets button */}
+        {onExport && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onExport(item.id); }}
+            className={`absolute top-1.5 ${onDelete ? "right-9" : "right-1.5"} w-6 h-6 rounded-full bg-primary/80 text-white flex items-center justify-center transition-opacity hover:bg-primary ${
+              isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+            }`}
+            title="匯出至資產庫"
+          >
+            <Link className="w-3 h-3" />
           </button>
         )}
 
@@ -329,6 +344,15 @@ export function ConsistencyVault({ onDragStart, onSelect, compact = false }: Con
     },
   });
 
+  const exportToAssets = trpc.vault.exportToAssets.useMutation({
+    onSuccess: () => {
+      toast.success("已匯出至數位資產庫");
+    },
+    onError: (err) => {
+      toast.error("匯出失敗：" + err.message);
+    },
+  });
+
   // Transform data into VaultItems
   const allItems: VaultItem[] = (vaultQuery.data || []).map(item => ({
     id: item.id,
@@ -426,6 +450,7 @@ export function ConsistencyVault({ onDragStart, onSelect, compact = false }: Con
             onDragStart={onDragStart}
             onSelect={onSelect}
             onDelete={handleDelete}
+            onExport={(id) => exportToAssets.mutate({ id })}
             compact={compact}
             emptyMessage="尚無角色參考圖。點擊「新增」上傳角色圖片。"
           />
@@ -438,6 +463,7 @@ export function ConsistencyVault({ onDragStart, onSelect, compact = false }: Con
             onDragStart={onDragStart}
             onSelect={onSelect}
             onDelete={handleDelete}
+            onExport={(id) => exportToAssets.mutate({ id })}
             compact={compact}
             emptyMessage="尚無場景參考圖。點擊「新增」上傳場景圖片。"
           />
@@ -463,6 +489,7 @@ function VaultGrid({
   onDragStart?: (item: VaultItem, e: React.DragEvent) => void;
   onSelect?: (item: VaultItem) => void;
   onDelete?: (id: number) => void;
+  onExport?: (id: number) => void;
   compact?: boolean;
   emptyMessage: string;
 }) {
@@ -488,6 +515,7 @@ function VaultGrid({
           onDragStart={onDragStart}
           onSelect={onSelect}
           onDelete={onDelete}
+          onExport={onExport}
           compact={compact}
         />
       ))}

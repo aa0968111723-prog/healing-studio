@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Users, BarChart3, MessageSquare, Shield, RefreshCw } from "lucide-react";
+import { Users, BarChart3, MessageSquare, Shield, RefreshCw, List } from "lucide-react";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import VisualSoul from "@/components/VisualSoul";
 import { motion } from "framer-motion";
@@ -61,6 +61,7 @@ export default function AdminPage() {
           <TabsTrigger value="users" className="rounded-lg gap-1 text-xs"><Users className="w-3 h-3" /> 使用者</TabsTrigger>
           <TabsTrigger value="feedback" className="rounded-lg gap-1 text-xs"><MessageSquare className="w-3 h-3" /> 回饋</TabsTrigger>
           <TabsTrigger value="costs" className="rounded-lg gap-1 text-xs"><BarChart3 className="w-3 h-3" /> 成本</TabsTrigger>
+          <TabsTrigger value="logs" className="rounded-lg gap-1 text-xs"><List className="w-3 h-3" /> 使用紀錄</TabsTrigger>
         </TabsList>
 
         <TabsContent value="users" className="mt-4 space-y-2">
@@ -149,7 +150,71 @@ export default function AdminPage() {
             })
           )}
         </TabsContent>
+
+        <TabsContent value="logs" className="mt-4 space-y-2">
+          <AdminUsageLogs />
+        </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+function AdminUsageLogs() {
+  const [limit, setLimit] = useState(50);
+  const logsQuery = trpc.admin.usageLogs.useQuery({ limit }, { retry: false });
+
+  if (logsQuery.isLoading) {
+    return <div className="space-y-2">{[1, 2, 3].map((i) => (<GlassCard key={i} hover={false}><ZenSkeleton lines={2} /></GlassCard>))}</div>;
+  }
+
+  if (!logsQuery.data || logsQuery.data.length === 0) {
+    return <p className="text-center text-muted-foreground py-8 text-sm">沒有使用紀錄</p>;
+  }
+
+  return (
+    <>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-border/20">
+              <th className="text-left py-2 text-muted-foreground font-medium">使用者</th>
+              <th className="text-left py-2 text-muted-foreground font-medium">類型</th>
+              <th className="text-left py-2 text-muted-foreground font-medium">提供者</th>
+              <th className="text-right py-2 text-muted-foreground font-medium">Tokens</th>
+              <th className="text-right py-2 text-muted-foreground font-medium">費用</th>
+              <th className="text-left py-2 text-muted-foreground font-medium">狀態</th>
+              <th className="text-right py-2 text-muted-foreground font-medium">時間</th>
+            </tr>
+          </thead>
+          <tbody>
+            {logsQuery.data.map((log) => (
+              <tr key={log.id} className="border-b border-border/10 hover:bg-muted/10">
+                <td className="py-2 text-muted-foreground">#{log.userId}</td>
+                <td className="py-2">{log.requestType}</td>
+                <td className="py-2 text-muted-foreground">{log.apiProvider}</td>
+                <td className="py-2 text-right tabular-nums">{log.tokensUsed ?? 0}</td>
+                <td className="py-2 text-right tabular-nums">${log.estimatedCostUsd ?? "0"}</td>
+                <td className="py-2">
+                  <Badge
+                    variant={log.responseStatus === "success" ? "secondary" : "destructive"}
+                    className="text-[9px] rounded-md"
+                  >
+                    {log.responseStatus}
+                  </Badge>
+                </td>
+                <td className="py-2 text-right text-muted-foreground whitespace-nowrap">
+                  {new Date(log.createdAt).toLocaleString("zh-TW")}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {logsQuery.data.length >= limit && (
+        <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => setLimit(prev => prev + 50)}>
+          載入更多
+        </Button>
+      )}
+    </>
   );
 }

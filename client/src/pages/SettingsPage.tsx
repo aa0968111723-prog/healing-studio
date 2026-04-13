@@ -7,7 +7,7 @@ import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Settings, User, Sparkles, Save, RotateCcw, Brain, ChevronRight } from "lucide-react";
+import { Settings, User, Sparkles, Save, RotateCcw, Brain, ChevronRight, Palette, Monitor, Bell } from "lucide-react";
 import { useAIState } from "@/contexts/AIStateContext";
 import { useLocation } from "wouter";
 
@@ -184,6 +184,9 @@ export default function SettingsPage() {
           </div>
         )}
       </GlassCard>
+      {/* ── UI Preferences (settings.get / settings.update) ── */}
+      <UIPreferencesSection />
+
       {/* AI Brain Configuration Link */}
       <GlassCard>
         <button
@@ -204,6 +207,149 @@ export default function SettingsPage() {
           <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
         </button>
       </GlassCard>
+    </div>
+  );
+}
+
+// ─── UI Preferences Section ──────────────────────────────────────────────────
+
+function UIPreferencesSection() {
+  const settingsQuery = trpc.settings.get.useQuery(undefined, { retry: false });
+  const updateSettings = trpc.settings.update.useMutation({
+    onSuccess: () => {
+      settingsQuery.refetch();
+      toast.success("介面偏好已儲存");
+    },
+    onError: (err) => toast.error("儲存失敗：" + err.message),
+  });
+
+  const [uiTheme, setUiTheme] = useState<"system" | "light" | "dark">("system");
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const [defaultModality, setDefaultModality] = useState<"image" | "video" | "audio" | "voice">("image");
+  const [autoSaveHistory, setAutoSaveHistory] = useState(true);
+  const [nsfwFilter, setNsfwFilter] = useState(true);
+  const [emailNotifications, setEmailNotifications] = useState(true);
+  const [generationCompleteNotify, setGenerationCompleteNotify] = useState(true);
+
+  useEffect(() => {
+    if (settingsQuery.data) {
+      const s = settingsQuery.data;
+      setUiTheme(s.uiTheme ?? "system");
+      setReducedMotion(s.reducedMotion ?? false);
+      setDefaultModality((s.defaultModality as typeof defaultModality) ?? "image");
+      setAutoSaveHistory(s.autoSaveHistory ?? true);
+      setNsfwFilter(s.nsfwFilter ?? true);
+      setEmailNotifications(s.emailNotifications ?? true);
+      setGenerationCompleteNotify(s.generationCompleteNotify ?? true);
+    }
+  }, [settingsQuery.data]);
+
+  const handleSave = () => {
+    updateSettings.mutate({
+      uiTheme,
+      reducedMotion,
+      defaultModality,
+      autoSaveHistory,
+      nsfwFilter,
+      emailNotifications,
+      generationCompleteNotify,
+    });
+  };
+
+  if (settingsQuery.isLoading) {
+    return <GlassCard><ZenSkeleton lines={4} /></GlassCard>;
+  }
+
+  return (
+    <>
+      {/* Appearance */}
+      <GlassCard>
+        <h2 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+          <Palette className="w-4 h-4" />
+          介面外觀
+        </h2>
+        <div className="space-y-4">
+          <div>
+            <Label className="text-xs text-muted-foreground mb-2 block">主題模式</Label>
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                { value: "system" as const, label: "跟隨系統", icon: <Monitor className="w-3 h-3" /> },
+                { value: "light" as const, label: "淺色", icon: null },
+                { value: "dark" as const, label: "深色", icon: null },
+              ]).map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => setUiTheme(opt.value)}
+                  className={`p-2.5 rounded-lg text-center text-xs font-medium transition-all border ${
+                    uiTheme === opt.value
+                      ? "bg-primary/10 text-primary border-primary/30"
+                      : "bg-white/30 text-muted-foreground border-white/50 hover:bg-white/50"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground mb-2 block">預設創作模態</Label>
+            <div className="grid grid-cols-4 gap-2">
+              {([
+                { value: "image" as const, label: "圖像" },
+                { value: "video" as const, label: "影片" },
+                { value: "audio" as const, label: "音樂" },
+                { value: "voice" as const, label: "語音" },
+              ]).map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => setDefaultModality(opt.value)}
+                  className={`p-2 rounded-lg text-center text-xs font-medium transition-all border ${
+                    defaultModality === opt.value
+                      ? "bg-primary/10 text-primary border-primary/30"
+                      : "bg-white/30 text-muted-foreground border-white/50 hover:bg-white/50"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <ToggleRow label="減少動態效果" checked={reducedMotion} onChange={setReducedMotion} />
+        </div>
+      </GlassCard>
+
+      {/* Content & Privacy */}
+      <GlassCard>
+        <h2 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+          <Bell className="w-4 h-4" />
+          通知與內容
+        </h2>
+        <div className="space-y-3">
+          <ToggleRow label="自動儲存生成歷史" checked={autoSaveHistory} onChange={setAutoSaveHistory} />
+          <ToggleRow label="NSFW 內容過濾" checked={nsfwFilter} onChange={setNsfwFilter} />
+          <ToggleRow label="電子郵件通知" checked={emailNotifications} onChange={setEmailNotifications} />
+          <ToggleRow label="生成完成時通知" checked={generationCompleteNotify} onChange={setGenerationCompleteNotify} />
+        </div>
+      </GlassCard>
+
+      <Button onClick={handleSave} disabled={updateSettings.isPending} size="sm" className="rounded-lg">
+        <Save className="w-3 h-3 mr-1" />
+        儲存介面偏好
+      </Button>
+    </>
+  );
+}
+
+function ToggleRow({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-xs text-foreground">{label}</span>
+      <button
+        onClick={() => onChange(!checked)}
+        className={`relative w-9 h-5 rounded-full transition-colors ${checked ? "bg-primary" : "bg-muted/60"}`}
+      >
+        <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${checked ? "translate-x-4" : ""}`} />
+      </button>
     </div>
   );
 }
