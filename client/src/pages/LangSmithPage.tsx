@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
@@ -36,16 +36,21 @@ import {
   Heart,
   Layers,
   RefreshCw,
+  Save,
   Search,
   Shield,
+  Tag,
   ThumbsDown,
   ThumbsUp,
+  TrendingUp,
   Wifi,
   WifiOff,
   XCircle,
   Zap,
 } from "lucide-react";
 import {
+  AreaChart,
+  Area,
   BarChart,
   Bar,
   XAxis,
@@ -114,12 +119,31 @@ function StatCard({
   );
 }
 
+// ─── Error State ─────────────────────────────────────────────────────────────
+
+function ErrorState({ message, onRetry }: { message?: string; onRetry?: () => void }) {
+  return (
+    <GlassCard>
+      <div className="flex flex-col items-center justify-center py-10 text-center">
+        <AlertTriangle className="w-8 h-8 text-destructive mb-3" />
+        <h3 className="text-sm font-medium text-destructive">載入失敗</h3>
+        <p className="text-xs text-muted-foreground mt-1 max-w-sm">{message || "無法取得資料，請稍後重試。"}</p>
+        {onRetry && (
+          <Button variant="outline" size="sm" className="mt-3 rounded-xl text-xs gap-1" onClick={onRetry}>
+            <RefreshCw className="w-3 h-3" /> 重試
+          </Button>
+        )}
+      </div>
+    </GlassCard>
+  );
+}
+
 // ─── Overview Tab ────────────────────────────────────────────────────────────
 
 function OverviewTab() {
   const healthQuery = trpc.langsmith.healthStats.useQuery(
     { sampleSize: 50 },
-    { retry: false, refetchInterval: 60_000 }
+    { retry: 1, refetchInterval: 60_000 }
   );
   const health = healthQuery.data;
 
@@ -134,6 +158,10 @@ function OverviewTab() {
         <GlassCard hover={false}><ZenSkeleton lines={6} /></GlassCard>
       </div>
     );
+  }
+
+  if (healthQuery.isError) {
+    return <ErrorState message={healthQuery.error?.message} onRetry={() => healthQuery.refetch()} />;
   }
 
   if (!health?.connected) {
@@ -170,6 +198,27 @@ function OverviewTab() {
           <StatCard key={card.label} {...card} delay={idx * 0.08} />
         ))}
       </div>
+
+      {/* Hourly Traffic Timeline */}
+      {health.hourlyTraffic.length > 0 && (
+        <GlassCard hover={false}>
+          <div className="flex items-center gap-2 mb-4">
+            <TrendingUp className="w-4 h-4 text-muted-foreground" />
+            <h2 className="text-sm font-semibold">流量趨勢</h2>
+            <Badge variant="secondary" className="text-[10px] ml-auto">{health.hourlyTraffic.length} 時段</Badge>
+          </div>
+          <ResponsiveContainer width="100%" height={140}>
+            <AreaChart data={health.hourlyTraffic} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+              <XAxis dataKey="hour" tick={{ fontSize: 9, fill: "#94a3b8" }} />
+              <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} allowDecimals={false} />
+              <Tooltip contentStyle={{ fontSize: 11, borderRadius: 8, background: "rgba(0,0,0,0.75)", border: "none" }} />
+              <Area type="monotone" dataKey="count" stroke="#818cf8" fill="#818cf8" fillOpacity={0.15} strokeWidth={2} name="請求數" />
+              <Area type="monotone" dataKey="errors" stroke="#f87171" fill="#f87171" fillOpacity={0.1} strokeWidth={1.5} name="錯誤" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </GlassCard>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Error Breakdown */}
@@ -230,13 +279,16 @@ function OverviewTab() {
 function TracesTab() {
   const [runType, setRunType] = useState<"llm" | "chain" | "tool" | "retriever" | undefined>(undefined);
   const [errorOnly, setErrorOnly] = useState(false);
+  const [search, setSearch] = useState("");
+  const [tag, setTag] = useState("");
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [feedbackRunId, setFeedbackRunId] = useState<string | null>(null);
   const [feedbackComment, setFeedbackComment] = useState("");
+  const [saveDatasetName, setSaveDatasetName] = useState("");
 
   const runsQuery = trpc.langsmith.listRuns.useQuery(
-    { limit: 30, runType, errorOnly },
-    { retry: false }
+    { limit: 30, runType, errorOnly, search: search || undefined, tag: tag || undefined },
+    { retry: 1 }
   );
 
   const runDetailQuery = trpc.langsmith.getRun.useQuery(
@@ -263,13 +315,17 @@ function TracesTab() {
     onError: (e) => toast.error(e.message),
   });
 
-  const handleFeedback = (runId: string, score: number) => {
-    createFeedback.mutate({
-      runId,
-      score,
-      comment: feedbackComment || undefined,
-    });
-  };
+  const addToDataset = trpc.langsmith.addRunToDataset.useMutation({
+    onSuccess: (data) => {
+      if (data.success) { toast.success(data.message); setSaveDatasetName(""); }
+      else toast.error(data.message);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const handleFeedback = useCallback((runId: string, score: number) => {
+    createFeedback.mutate({ runId, score, comment: feedbackComment || undefined });
+  }, [createFeedback, feedbackComment]);
 
   return (
     <div className="space-y-4">
@@ -279,7 +335,7 @@ function TracesTab() {
           value={runType ?? "all"}
           onValueChange={(v) => setRunType(v === "all" ? undefined : v as typeof runType)}
         >
-          <SelectTrigger className="w-40 rounded-xl text-xs">
+          <SelectTrigger className="w-32 rounded-xl text-xs">
             <SelectValue placeholder="Run 類型" />
           </SelectTrigger>
           <SelectContent>
@@ -299,6 +355,24 @@ function TracesTab() {
           <AlertTriangle className="w-3 h-3" />
           {errorOnly ? "僅錯誤" : "全部狀態"}
         </Button>
+        <div className="flex items-center gap-1.5 flex-1 min-w-[140px] max-w-[220px]">
+          <Search className="w-3 h-3 text-muted-foreground shrink-0" />
+          <Input
+            placeholder="搜尋名稱..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="rounded-xl text-xs h-8"
+          />
+        </div>
+        <div className="flex items-center gap-1.5 min-w-[120px] max-w-[180px]">
+          <Tag className="w-3 h-3 text-muted-foreground shrink-0" />
+          <Input
+            placeholder="標籤篩選..."
+            value={tag}
+            onChange={(e) => setTag(e.target.value)}
+            className="rounded-xl text-xs h-8"
+          />
+        </div>
         <Button
           variant="ghost"
           size="sm"
@@ -312,6 +386,8 @@ function TracesTab() {
       {/* Runs List */}
       {runsQuery.isLoading ? (
         <GlassCard hover={false}><ZenSkeleton lines={8} /></GlassCard>
+      ) : runsQuery.isError ? (
+        <ErrorState message={runsQuery.error?.message} onRetry={() => runsQuery.refetch()} />
       ) : !runsQuery.data?.runs.length ? (
         <GlassCard>
           <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -331,20 +407,23 @@ function TracesTab() {
                 <div className="flex items-center gap-3">
                   <div className={`w-2 h-2 rounded-full shrink-0 ${run.status === "error" ? "bg-destructive" : "bg-emerald-500"}`} />
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-medium truncate">{run.name}</span>
                       <Badge variant="outline" className="text-[10px] rounded-md shrink-0">{run.run_type}</Badge>
                       {run.error && <Badge variant="destructive" className="text-[10px] rounded-md shrink-0">錯誤</Badge>}
+                      {run.tags.length > 0 && run.tags.slice(0, 2).map((t) => (
+                        <Badge key={t} variant="secondary" className="text-[9px] rounded-md shrink-0">{t}</Badge>
+                      ))}
                     </div>
-                    <div className="flex items-center gap-3 mt-1 text-[11px] text-muted-foreground">
-                      {run.extra?.duration_ms != null && (
+                    <div className="flex items-center gap-3 mt-1 text-[11px] text-muted-foreground flex-wrap">
+                      {run.latency != null && (
                         <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3" /> {run.extra.duration_ms as number}ms
+                          <Clock className="w-3 h-3" /> {run.latency}ms
                         </span>
                       )}
-                      {run.extra?.total_tokens != null && (
+                      {(run.total_tokens ?? run.extra?.total_tokens) != null && (
                         <span className="flex items-center gap-1">
-                          <Zap className="w-3 h-3" /> {run.extra.total_tokens as number} tokens
+                          <Zap className="w-3 h-3" /> {(run.total_tokens ?? run.extra?.total_tokens) as number} tokens
                         </span>
                       )}
                       {run.extra?.cost_usd != null && (
@@ -356,23 +435,14 @@ function TracesTab() {
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
-                    {/* Feedback buttons */}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
+                    <Button variant="ghost" size="icon" className="h-7 w-7"
                       onClick={(e) => { e.stopPropagation(); setFeedbackRunId(run.id); }}
-                      title="回饋"
-                    >
+                      title="回饋">
                       <Heart className="w-3.5 h-3.5" />
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
+                    <Button variant="ghost" size="icon" className="h-7 w-7"
                       onClick={() => setSelectedRunId(run.id)}
-                      title="詳情"
-                    >
+                      title="詳情">
                       <Eye className="w-3.5 h-3.5" />
                     </Button>
                   </div>
@@ -403,9 +473,15 @@ function TracesTab() {
                     {runDetailQuery.data.status}
                   </Badge>
                 </div>
+                <div><span className="text-muted-foreground">延遲：</span>
+                  {runDetailQuery.data.latency != null ? `${runDetailQuery.data.latency}ms` : "-"}
+                </div>
                 <div><span className="text-muted-foreground">時間：</span>
                   {runDetailQuery.data.start_time ? new Date(runDetailQuery.data.start_time).toLocaleString("zh-TW") : "-"}
                 </div>
+                {runDetailQuery.data.extra?.model != null && (
+                  <div><span className="text-muted-foreground">模型：</span>{String(runDetailQuery.data.extra.model)}</div>
+                )}
               </div>
 
               {runDetailQuery.data.error && (
@@ -430,6 +506,27 @@ function TracesTab() {
                   </pre>
                 </div>
               )}
+
+              {/* Quick Save to Dataset */}
+              <div className="flex items-end gap-2 pt-2 border-t border-border/20">
+                <div className="flex-1 space-y-1">
+                  <label className="text-[11px] text-muted-foreground flex items-center gap-1"><Save className="w-3 h-3" /> 存入 Dataset</label>
+                  <Input
+                    placeholder="Dataset 名稱..."
+                    value={saveDatasetName}
+                    onChange={(e) => setSaveDatasetName(e.target.value)}
+                    className="rounded-xl text-xs h-8"
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  className="rounded-xl text-xs h-8"
+                  disabled={!saveDatasetName.trim() || !selectedRunId || addToDataset.isPending}
+                  onClick={() => selectedRunId && addToDataset.mutate({ runId: selectedRunId, datasetName: saveDatasetName })}
+                >
+                  {addToDataset.isPending ? "儲存..." : "存入"}
+                </Button>
+              </div>
 
               {/* Feedback for this run */}
               {feedbackQuery.data && feedbackQuery.data.length > 0 && (
@@ -504,7 +601,7 @@ function TracesTab() {
 function ComparisonTab() {
   const comparisonQuery = trpc.langsmith.modelComparison.useQuery(
     { sampleSize: 100 },
-    { retry: false }
+    { retry: 1 }
   );
   const data = comparisonQuery.data;
 
@@ -515,6 +612,10 @@ function ComparisonTab() {
         <GlassCard hover={false}><ZenSkeleton lines={6} /></GlassCard>
       </div>
     );
+  }
+
+  if (comparisonQuery.isError) {
+    return <ErrorState message={comparisonQuery.error?.message} onRetry={() => comparisonQuery.refetch()} />;
   }
 
   if (!data?.models.length) {
@@ -937,19 +1038,19 @@ export default function LangSmithPage() {
       <Tabs defaultValue="overview" className="space-y-4">
         <TabsList className="grid w-full grid-cols-5 rounded-xl h-9">
           <TabsTrigger value="overview" className="text-xs rounded-lg gap-1">
-            <Shield className="w-3 h-3" /> 總覽
+            <Shield className="w-3 h-3" /> <span className="hidden sm:inline">總覽</span>
           </TabsTrigger>
           <TabsTrigger value="traces" className="text-xs rounded-lg gap-1">
-            <Search className="w-3 h-3" /> 追蹤
+            <Search className="w-3 h-3" /> <span className="hidden sm:inline">追蹤</span>
           </TabsTrigger>
           <TabsTrigger value="comparison" className="text-xs rounded-lg gap-1">
-            <GitCompare className="w-3 h-3" /> 模型對比
+            <GitCompare className="w-3 h-3" /> <span className="hidden sm:inline">模型對比</span>
           </TabsTrigger>
           <TabsTrigger value="datasets" className="text-xs rounded-lg gap-1">
-            <Database className="w-3 h-3" /> 數據集
+            <Database className="w-3 h-3" /> <span className="hidden sm:inline">數據集</span>
           </TabsTrigger>
           <TabsTrigger value="export" className="text-xs rounded-lg gap-1">
-            <Download className="w-3 h-3" /> 微調導出
+            <Download className="w-3 h-3" /> <span className="hidden sm:inline">微調導出</span>
           </TabsTrigger>
         </TabsList>
 

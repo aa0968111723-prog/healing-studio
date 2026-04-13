@@ -2,13 +2,12 @@
  * langsmith.ts — LangSmith 深度整合 API 路由
  *
  * 提供 LangSmith 追蹤資料的查詢代理，讓前端儀表板可以：
- *   1. 全鏈路追蹤（列出 runs、查看 run 詳情）
- *   2. 生產環境監控（健康狀況、流量分析、錯誤率）
+ *   1. 全鏈路追蹤（列出 runs、查看 run 詳情、自定義標籤篩選）
+ *   2. 生產環境監控（健康狀況、流量分析、錯誤率、每小時流量趨勢）
  *   3. 用戶回饋收集（建立 / 列出 feedback）
  *   4. 數據集管理（列出 datasets、建立 example）
- *   5. Prompt 管理（列出 prompts）
- *   6. 跨模型對比（側邊欄對比、盲測評分、成本速度分析）
- *   7. 微調數據導出（優質案例提取、JSONL 格式化導出）
+ *   5. 跨模型對比（側邊欄對比、盲測評分、成本速度分析）
+ *   6. 微調數據導出（優質案例提取、JSONL 格式化導出）
  *
  * 所有呼叫透過 LangSmith SDK 存取，不直接暴露 API Key 給前端。
  */
@@ -42,7 +41,36 @@ function getProjectName(): string {
   return serverEnv.LANGSMITH_PROJECT || "healing-studio";
 }
 
+// ─── TTL Cache for expensive aggregation queries ────────────────────────────
+
+interface CacheEntry<T> { data: T; expiry: number }
+const queryCache = new Map<string, CacheEntry<unknown>>();
+const CACHE_TTL_MS = 60_000; // 60 seconds
+
+function getCached<T>(key: string): T | null {
+  const entry = queryCache.get(key) as CacheEntry<T> | undefined;
+  if (!entry) return null;
+  if (Date.now() > entry.expiry) { queryCache.delete(key); return null; }
+  return entry.data;
+}
+
+function setCache<T>(key: string, data: T, ttlMs = CACHE_TTL_MS): void {
+  queryCache.set(key, { data, expiry: Date.now() + ttlMs });
+}
+
 // ─── Helper: safe serialization of LangSmith run objects ────────────────────
+
+function computeLatencyMs(run: Record<string, unknown>): number | null {
+  // Prefer metadata.duration_ms → then compute from start_time/end_time
+  const extra = run.extra as Record<string, unknown> | undefined;
+  const meta = extra?.metadata as Record<string, unknown> | undefined;
+  if (meta?.duration_ms && typeof meta.duration_ms === "number") return meta.duration_ms;
+  if (run.start_time && run.end_time) {
+    const diff = new Date(String(run.end_time)).getTime() - new Date(String(run.start_time)).getTime();
+    if (diff >= 0) return diff;
+  }
+  return null;
+}
 
 function serializeRun(run: Record<string, unknown>) {
   return {
@@ -53,9 +81,7 @@ function serializeRun(run: Record<string, unknown>) {
     error: run.error ? String(run.error) : null,
     start_time: run.start_time ? String(run.start_time) : null,
     end_time: run.end_time ? String(run.end_time) : null,
-    latency: run.start_time && run.end_time
-      ? new Date(String(run.end_time)).getTime() - new Date(String(run.start_time)).getTime()
-      : null,
+    latency: computeLatencyMs(run),
     total_tokens: typeof run.total_tokens === "number" ? run.total_tokens : null,
     prompt_tokens: typeof run.prompt_tokens === "number" ? run.prompt_tokens : null,
     completion_tokens: typeof run.completion_tokens === "number" ? run.completion_tokens : null,
@@ -98,6 +124,17 @@ function extractMetadata(extra: Record<string, unknown>): Record<string, unknown
   };
 }
 
+/** Categorize error strings into human-readable labels */
+function categorizeError(errMsg: string): string {
+  if (errMsg.includes("timeout") || errMsg.includes("Timeout") || errMsg.includes("ETIMEDOUT")) return "API 逾時";
+  if (errMsg.includes("JSON") || errMsg.includes("parse")) return "JSON 解析失敗";
+  if (errMsg.includes("prompt") || errMsg.includes("Prompt")) return "Prompt 錯誤";
+  if (errMsg.includes("rate") || errMsg.includes("429") || errMsg.includes("quota")) return "速率限制";
+  if (errMsg.includes("500") || errMsg.includes("502") || errMsg.includes("503")) return "伺服器錯誤";
+  if (errMsg.includes("auth") || errMsg.includes("401") || errMsg.includes("403")) return "認證失敗";
+  return "其他";
+}
+
 // ─── Router ────────────────────────────────────────────────────────────────
 
 export const langsmithRouter = router({
@@ -131,13 +168,15 @@ export const langsmithRouter = router({
   // ═══════════════════════════════════════════════════════════════════════════
 
   /**
-   * 列出最近的 runs（支援過濾）
+   * 列出最近的 runs（支援過濾：類型、錯誤、自定義標籤、搜尋）
    */
   listRuns: protectedProcedure
     .input(z.object({
       limit: z.number().min(1).max(100).default(20),
       runType: z.enum(["llm", "chain", "tool", "retriever"]).optional(),
       errorOnly: z.boolean().default(false),
+      search: z.string().optional(),
+      tag: z.string().optional(),
     }))
     .query(async ({ input }) => {
       const client = await getClient();
@@ -145,7 +184,13 @@ export const langsmithRouter = router({
 
       const runs: ReturnType<typeof serializeRun>[] = [];
       try {
-        const filter = input.errorOnly ? 'eq(status, "error")' : undefined;
+        // Build LangSmith filter string
+        const filters: string[] = [];
+        if (input.errorOnly) filters.push('eq(status, "error")');
+        if (input.search) filters.push(`search("${input.search.replace(/"/g, '\\"')}")`);
+        if (input.tag) filters.push(`has(tags, "${input.tag.replace(/"/g, '\\"')}")`);
+        const filter = filters.length > 0 ? filters.join(" and ") : undefined;
+
         for await (const run of client.listRuns({
           projectName: getProjectName(),
           limit: input.limit,
@@ -182,23 +227,39 @@ export const langsmithRouter = router({
 
   /**
    * 健康狀況摘要 — 最近 N 筆 runs 的成功/失敗率、平均延遲、Token 成本
+   * 包含每小時流量趨勢（最近 24 小時）用於流量分析
+   * 結果快取 60 秒以降低 LangSmith API 呼叫頻率
    */
   healthStats: protectedProcedure
     .input(z.object({ sampleSize: z.number().min(10).max(200).default(50) }))
     .query(async ({ input }) => {
+      type HealthResult = {
+        connected: boolean;
+        total: number;
+        success: number;
+        errors: number;
+        successRate: number;
+        avgLatencyMs: number;
+        totalTokens: number;
+        totalCostUsd: number;
+        errorBreakdown: Record<string, number>;
+        recentErrors: Array<{ id: string; name: string; error: string; time: string | null }>;
+        hourlyTraffic: Array<{ hour: string; count: number; errors: number }>;
+      };
+
+      const cacheKey = `health-${input.sampleSize}`;
+      const cached = getCached<HealthResult>(cacheKey);
+      if (cached) return cached;
+
       const client = await getClient();
       if (!client) {
         return {
           connected: false,
-          total: 0,
-          success: 0,
-          errors: 0,
-          successRate: 0,
-          avgLatencyMs: 0,
-          totalTokens: 0,
-          totalCostUsd: 0,
+          total: 0, success: 0, errors: 0, successRate: 0,
+          avgLatencyMs: 0, totalTokens: 0, totalCostUsd: 0,
           errorBreakdown: {} as Record<string, number>,
-          recentErrors: [] as Array<{ id: string; name: string; error: string; time: string | null }>,
+          recentErrors: [] as HealthResult["recentErrors"],
+          hourlyTraffic: [] as HealthResult["hourlyTraffic"],
         };
       }
 
@@ -206,10 +267,13 @@ export const langsmithRouter = router({
       let success = 0;
       let errors = 0;
       let totalLatency = 0;
+      let latencyCount = 0;
       let totalTokens = 0;
       let totalCostUsd = 0;
       const errorBreakdown: Record<string, number> = {};
-      const recentErrors: Array<{ id: string; name: string; error: string; time: string | null }> = [];
+      const recentErrors: HealthResult["recentErrors"] = [];
+      // Hourly traffic buckets (last 24h)
+      const hourlyMap = new Map<string, { count: number; errors: number }>();
 
       try {
         for await (const run of client.listRuns({
@@ -219,18 +283,22 @@ export const langsmithRouter = router({
           const r = run as unknown as Record<string, unknown>;
           total++;
           const status = String(r.status ?? "");
+
+          // Hourly bucket
+          if (r.start_time) {
+            const d = new Date(String(r.start_time));
+            const hourKey = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, "0")}:00`;
+            const bucket = hourlyMap.get(hourKey) ?? { count: 0, errors: 0 };
+            bucket.count++;
+            if (status === "error") bucket.errors++;
+            hourlyMap.set(hourKey, bucket);
+          }
+
           if (status === "error") {
             errors++;
             const errMsg = String(r.error ?? "unknown");
-            // Categorize error
-            let errType = "其他";
-            if (errMsg.includes("timeout") || errMsg.includes("Timeout")) errType = "API 逾時";
-            else if (errMsg.includes("JSON")) errType = "JSON 解析失敗";
-            else if (errMsg.includes("prompt") || errMsg.includes("Prompt")) errType = "Prompt 錯誤";
-            else if (errMsg.includes("rate") || errMsg.includes("429")) errType = "速率限制";
-            else if (errMsg.includes("500") || errMsg.includes("502") || errMsg.includes("503")) errType = "伺服器錯誤";
+            const errType = categorizeError(errMsg);
             errorBreakdown[errType] = (errorBreakdown[errType] ?? 0) + 1;
-
             if (recentErrors.length < 5) {
               recentErrors.push({
                 id: String(r.id ?? ""),
@@ -243,35 +311,41 @@ export const langsmithRouter = router({
             success++;
           }
 
-          // Extract latency
+          // Latency — use unified helper
+          const lat = computeLatencyMs(r);
+          if (lat !== null) { totalLatency += lat; latencyCount++; }
+
+          // Tokens & cost from metadata
           const extra = r.extra as Record<string, unknown> | undefined;
           const meta = extra?.metadata as Record<string, unknown> | undefined;
-          if (meta?.duration_ms && typeof meta.duration_ms === "number") {
-            totalLatency += meta.duration_ms;
-          }
-          if (meta?.total_tokens && typeof meta.total_tokens === "number") {
-            totalTokens += meta.total_tokens;
-          }
-          if (meta?.cost_usd && typeof meta.cost_usd === "number") {
-            totalCostUsd += meta.cost_usd;
-          }
+          if (meta?.total_tokens && typeof meta.total_tokens === "number") totalTokens += meta.total_tokens;
+          if (meta?.cost_usd && typeof meta.cost_usd === "number") totalCostUsd += meta.cost_usd;
         }
       } catch {
         // LangSmith unavailable
       }
 
-      return {
+      // Sort hourly traffic chronologically
+      const hourlyTraffic = Array.from(hourlyMap.entries())
+        .map(([hour, data]) => ({ hour, ...data }))
+        .sort((a, b) => a.hour.localeCompare(b.hour));
+
+      const result: HealthResult = {
         connected: true,
         total,
         success,
         errors,
         successRate: total > 0 ? Math.round((success / total) * 10000) / 100 : 0,
-        avgLatencyMs: total > 0 ? Math.round(totalLatency / total) : 0,
+        avgLatencyMs: latencyCount > 0 ? Math.round(totalLatency / latencyCount) : 0,
         totalTokens,
         totalCostUsd: Math.round(totalCostUsd * 100000) / 100000,
         errorBreakdown,
         recentErrors,
+        hourlyTraffic,
       };
+
+      setCache(cacheKey, result);
+      return result;
     }),
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -425,10 +499,30 @@ export const langsmithRouter = router({
   /**
    * 跨模型對比分析 — 按模型名稱分組統計 runs 的品質、速度、成本
    * 用於「成本與速度折衷分析」視覺化圖表
+   * 結果快取 60 秒
    */
   modelComparison: protectedProcedure
     .input(z.object({ sampleSize: z.number().min(10).max(500).default(100) }))
     .query(async ({ input }) => {
+      type ModelEntry = {
+        model: string;
+        runs: number;
+        errors: number;
+        successRate: number;
+        avgLatencyMs: number;
+        totalTokens: number;
+        avgTokensPerRun: number;
+        totalCostUsd: number;
+        avgCostPerRun: number;
+        qualityScore: number | null;
+        scoredRuns: number;
+      };
+      type CompResult = { models: ModelEntry[]; totalRuns: number };
+
+      const cacheKey = `model-cmp-${input.sampleSize}`;
+      const cached = getCached<CompResult>(cacheKey);
+      if (cached) return cached;
+
       const client = await getClient();
       if (!client) return { models: [], totalRuns: 0 };
 
@@ -437,6 +531,7 @@ export const langsmithRouter = router({
         runs: number;
         errors: number;
         totalLatencyMs: number;
+        latencyCount: number;
         totalTokens: number;
         totalCostUsd: number;
         positiveScores: number;
@@ -459,7 +554,7 @@ export const langsmithRouter = router({
 
           if (!modelMap.has(model)) {
             modelMap.set(model, {
-              runs: 0, errors: 0, totalLatencyMs: 0,
+              runs: 0, errors: 0, totalLatencyMs: 0, latencyCount: 0,
               totalTokens: 0, totalCostUsd: 0,
               positiveScores: 0, totalScored: 0,
             });
@@ -468,7 +563,10 @@ export const langsmithRouter = router({
           entry.runs++;
 
           if (String(r.status ?? "") === "error") entry.errors++;
-          if (meta?.duration_ms && typeof meta.duration_ms === "number") entry.totalLatencyMs += meta.duration_ms;
+
+          const lat = computeLatencyMs(r);
+          if (lat !== null) { entry.totalLatencyMs += lat; entry.latencyCount++; }
+
           if (meta?.total_tokens && typeof meta.total_tokens === "number") entry.totalTokens += meta.total_tokens;
           if (meta?.cost_usd && typeof meta.cost_usd === "number") entry.totalCostUsd += meta.cost_usd;
 
@@ -491,7 +589,7 @@ export const langsmithRouter = router({
         runs: data.runs,
         errors: data.errors,
         successRate: data.runs > 0 ? Math.round(((data.runs - data.errors) / data.runs) * 10000) / 100 : 0,
-        avgLatencyMs: data.runs > 0 ? Math.round(data.totalLatencyMs / data.runs) : 0,
+        avgLatencyMs: data.latencyCount > 0 ? Math.round(data.totalLatencyMs / data.latencyCount) : 0,
         totalTokens: data.totalTokens,
         avgTokensPerRun: data.runs > 0 ? Math.round(data.totalTokens / data.runs) : 0,
         totalCostUsd: Math.round(data.totalCostUsd * 100000) / 100000,
@@ -500,7 +598,9 @@ export const langsmithRouter = router({
         scoredRuns: data.totalScored,
       })).sort((a, b) => b.runs - a.runs);
 
-      return { models, totalRuns };
+      const result = { models, totalRuns };
+      setCache(cacheKey, result);
+      return result;
     }),
 
   // ═══════════════════════════════════════════════════════════════════════════
