@@ -109,6 +109,7 @@ function UploadDialog({ onSuccess }: { onSuccess: () => void }) {
       const resp = await fetch("/api/upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ fileName: selectedFile.name, mimeType: selectedFile.type, data: base64Data }),
       });
       if (!resp.ok) { const err = await resp.json(); throw new Error(err.error || "上傳失敗"); }
