@@ -118,17 +118,34 @@ export const fineTunedModels = mysqlTable("fine_tuned_models", {
   status: mysqlEnum("status", ["pending", "training", "ready", "failed"])
     .default("pending")
     .notNull(),
-  fileUrl: text("fileUrl"),
+  fileUrl: text("fileUrl"),       // 訓練資料 ZIP 或原始資料集 URL
   fileKey: text("fileKey"),
-  configJson: json("configJson").$type<Record<string, unknown>>(),
+  /** 訓練完成後由 Replicate 回傳的 LoRA weights URL (.safetensors / .tar) */
+  trainedLoraUrl: text("trainedLoraUrl"),
+  /** Replicate prediction ID，用於狀態追蹤 */
+  replicatePredictionId: varchar("replicatePredictionId", { length: 128 }),
+  configJson: json("configJson").$type<{
+    triggerWord?: string;
+    epochs?: number;
+    learningRate?: number;
+    batchSize?: number;
+    steps?: number;
+    zipUrl?: string;
+    predictionId?: string;
+    submittedAt?: number;
+    completedAt?: number;
+    datasetImages?: Array<{ url: string; fileKey: string; angle: string; caption?: string }>;
+  }>(),
+  /** 使用計數（被引用生成幾次） */
+  usageCount: int("usageCount").default(0).notNull(),
   visibility: mysqlEnum("visibility", ["private", "team_shared"])
     .default("private")
     .notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => ({
-  userIdStatusIdx: index("userId_status_idx").on(table.userId, table.status),
-  userIdCreatedAtIdx: index("userId_createdAt_idx").on(table.userId, table.createdAt),
+  userIdStatusIdx: index("ftm_userId_status_idx").on(table.userId, table.status),
+  userIdCreatedAtIdx: index("ftm_userId_createdAt_idx").on(table.userId, table.createdAt),
 }));
 
 export type FineTunedModel = typeof fineTunedModels.$inferSelect;

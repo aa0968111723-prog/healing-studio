@@ -194,8 +194,9 @@ export async function runLoraTrainingJob(input: LoraTrainingJobInput): Promise<v
       resultJson: { modelId, modelName, predictionId },
     });
 
-    // 同時存入 model 的 configJson
+    // 同時存入 model 的 configJson 與 replicatePredictionId（方便後續同步查詢）
     await updateFineTunedModel(modelId, {
+      replicatePredictionId: predictionId,
       configJson: {
         predictionId,
         triggerWord,
@@ -230,7 +231,7 @@ export async function runLoraTrainingJob(input: LoraTrainingJobInput): Promise<v
       const elapsedSec = Math.floor(elapsedMs / 1000) % 60;
 
       if (prediction.status === "succeeded") {
-        // 提取輸出 URL
+        // 提取輸出 URL（LoRA weights .safetensors 或 .tar）
         const outputUrl = typeof prediction.output === "string"
           ? prediction.output
           : Array.isArray(prediction.output)
@@ -239,7 +240,17 @@ export async function runLoraTrainingJob(input: LoraTrainingJobInput): Promise<v
 
         await updateFineTunedModel(modelId, {
           status: "ready",
+          trainedLoraUrl: outputUrl || undefined,
           fileUrl: outputUrl || undefined,
+          configJson: {
+            predictionId,
+            triggerWord,
+            epochs,
+            learningRate,
+            zipUrl,
+            submittedAt: Date.now(),
+            completedAt: Date.now(),
+          },
         });
         await updateBackgroundJob(jobId, {
           status: "completed",

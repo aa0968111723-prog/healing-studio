@@ -287,6 +287,7 @@ export default function CalendarPage() {
     while (el) {
       const dayAttr = el.getAttribute("data-day");
       if (dayAttr) {
+        // data-day is stored as ISO string, parse reliably
         const parsed = new Date(dayAttr);
         if (!isNaN(parsed.getTime())) return parsed;
       }
@@ -346,15 +347,25 @@ export default function CalendarPage() {
             </p>
           </div>
         </div>
-        <Button
-          size="sm"
-          onClick={() => setShowNewEvent(true)}
-          className="gap-1.5"
-          disabled={!selectedDate}
-        >
-          <Plus className="w-3.5 h-3.5" />
-          新增排程
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => { const t = new Date(); setSelectedDate(t); setMonth(t); }}
+            className="gap-1.5 text-xs"
+          >
+            今天
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => setShowNewEvent(true)}
+            className="gap-1.5"
+            disabled={!selectedDate}
+          >
+            <Plus className="w-3.5 h-3.5" />
+            新增排程
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -389,7 +400,7 @@ export default function CalendarPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      data-day={day.date.toLocaleDateString()}
+                      data-day={day.date.toISOString()}
                       data-selected-single={
                         modifiers.selected &&
                         !modifiers.range_start &&

@@ -80,6 +80,7 @@ export default function SharedSpace() {
   const isMobile = useIsMobile();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("assets");
+  const [assetTypeFilter, setAssetTypeFilter] = useState("all");
 
   // Fetch shared assets — retry: 1, fail fast (500ms retry delay), no window refetch
   const sharedAssetsQuery = trpc.assets.teamAssets.useQuery(undefined, {
@@ -95,15 +96,41 @@ export default function SharedSpace() {
     staleTime: 30_000,
     refetchOnWindowFocus: false,
   });
+  // My own assets — to calculate personal contribution count
+  const myAssetsQuery = trpc.assets.myAssets.useQuery(undefined, {
+    retry: 1,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
+  const myModelsQuery = trpc.models.myModels.useQuery(undefined, {
+    retry: 1,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
+
+  // Contribution stats
+  const mySharedAssetsCount = useMemo(
+    () => (myAssetsQuery.data || []).filter(a => a.visibility === "team_shared").length,
+    [myAssetsQuery.data]
+  );
+  const mySharedModelsCount = useMemo(
+    () => (myModelsQuery.data || []).filter(m => m.visibility === "team_shared").length,
+    [myModelsQuery.data]
+  );
+  const myTotalContributions = mySharedAssetsCount + mySharedModelsCount;
 
   const filteredAssets = useMemo(() => {
     const assets = sharedAssetsQuery.data || [];
-    if (!searchQuery) return assets;
-    return assets.filter(a =>
+    let result = assets;
+    if (assetTypeFilter !== "all") {
+      result = result.filter(a => a.assetType === assetTypeFilter);
+    }
+    if (!searchQuery) return result;
+    return result.filter(a =>
       a.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (a.promptUsed && a.promptUsed.toLowerCase().includes(searchQuery.toLowerCase()))
     );
-  }, [sharedAssetsQuery.data, searchQuery]);
+  }, [sharedAssetsQuery.data, searchQuery, assetTypeFilter]);
 
   const filteredModels = useMemo(() => {
     const models = sharedModelsQuery.data || [];
@@ -212,8 +239,8 @@ export default function SharedSpace() {
         {[
           { label: "共享素材", value: sharedAssetsQuery.data?.length || 0, icon: Package },
           { label: "共享模型", value: sharedModelsQuery.data?.length || 0, icon: Cpu },
-          { label: "你的貢獻", value: "—", icon: Share2 },
-          { label: "獲得獎勵", value: "—", icon: Sparkles },
+          { label: "你的貢獻", value: myTotalContributions, icon: Share2 },
+          { label: "共享資產", value: mySharedAssetsCount, icon: Sparkles },
         ].map((stat) => (
           <GlassCard key={stat.label} className="text-center py-4">
             <stat.icon className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
@@ -223,15 +250,34 @@ export default function SharedSpace() {
         ))}
       </div>
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
-        <Input
-          placeholder="搜尋共享素材或模型..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-10 h-10 rounded-xl bg-white/40 border-white/60"
-        />
+      {/* Search + asset type filter */}
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
+          <Input
+            placeholder="搜尋共享素材或模型..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10 h-10 rounded-xl bg-white/40 border-white/60"
+          />
+        </div>
+        {activeTab === "assets" && (
+          <div className="flex gap-1 flex-wrap">
+            {(["all", "image", "video", "audio", "voice", "script"] as const).map(t => (
+              <button
+                key={t}
+                onClick={() => setAssetTypeFilter(t)}
+                className={`px-2.5 py-1.5 rounded-xl text-[11px] font-medium transition-colors ${
+                  assetTypeFilter === t
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted/40 text-muted-foreground hover:bg-muted/60"
+                }`}
+              >
+                {t === "all" ? "全部" : MODALITY_LABELS[t] || t}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
