@@ -40,6 +40,7 @@ const VideoStudio      = lazy(() => import("./pages/VideoStudio"));
 const LearnHub         = lazy(() => import("./pages/LearnHub"));
 const LoraTrainer      = lazy(() => import("./pages/LoraTrainer"));
 const FocusFlowPage    = lazy(() => import("./pages/FocusFlowPage"));
+const LangSmithPage    = lazy(() => import("./pages/LangSmithPage"));
 
 // ─── 頁面載入中的通用 Skeleton ─────────────────────────────────────────────
 function PageSkeleton() {
@@ -140,6 +141,9 @@ function Router() {
       </Route>
       <Route path="/focus-flow">
         <DashboardRoute component={FocusFlowPage} />
+      </Route>
+      <Route path="/langsmith">
+        <DashboardRoute component={LangSmithPage} />
       </Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

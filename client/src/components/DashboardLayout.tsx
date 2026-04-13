@@ -52,6 +52,7 @@ import {
   Film,
   BookOpen,
   Leaf,
+  Radar,
   ChevronRight,
   Palette,
   Boxes,
@@ -135,8 +136,9 @@ const sidebarStructure: SidebarEntry[] = [
       { icon: CalendarDays, label: "創作排程", path: "/calendar", id: "sidebar-calendar-link" },
     ],
   },
-  // 7. 儀表板
+  // 7. 儀表板與監控
   { icon: BarChart3, label: "儀表板", path: "/dashboard", id: "sidebar-dashboard-link" },
+  { icon: Radar, label: "AI 監控中心", path: "/langsmith", id: "sidebar-langsmith-link" },
   // 8. 學習文件中心
   { icon: BookOpen, label: "學習文件中心", path: "/learn", id: "sidebar-learn-link" },
   // 9. 回饋與設定
@@ -551,6 +553,7 @@ function DashboardLayoutContent({
               "/settings/ai-brain": "settings",
               "/learn":        "learn",
               "/focus-flow":   "focus-flow",
+              "/langsmith":    "langsmith",
             };
             const pageId = pathToPageId[location] ?? "welcome";
             window.dispatchEvent(new CustomEvent("site-tour-start", { detail: { pageId } }));

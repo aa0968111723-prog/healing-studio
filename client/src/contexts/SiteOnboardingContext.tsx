@@ -54,7 +54,8 @@ export type PageId =
   | "feedback"
   | "settings"
   | "learn"
-  | "focus-flow";
+  | "focus-flow"
+  | "langsmith";
 
 interface TourDefinition {
   pageId: PageId;
@@ -574,6 +575,22 @@ const TOUR_DEFINITIONS: Record<PageId, TourDefinition> = {
         tip: "上方的步驟條會顯示你目前在哪個階段。",
         icon: "🔄",
         position: "bottom",
+      },
+    ],
+  },
+
+  langsmith: {
+    pageId: "langsmith",
+    storageKey: "site-tour-langsmith-v1",
+    steps: [
+      {
+        targetId: null,
+        title: "AI 監控中心 📡",
+        description:
+          "這裡深度整合了 LangSmith，提供全鏈路追蹤、生產環境監控、用戶回饋收集、跨模型對比和微調數據導出功能。",
+        tip: "需要在 .env 中設定 LANGSMITH_API_KEY 才能啟用完整功能。",
+        icon: "📊",
+        position: "center",
       },
     ],
   },
