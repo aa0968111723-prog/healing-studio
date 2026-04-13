@@ -3,7 +3,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { Loader2, Send, User, Sparkles } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Streamdown } from "streamdown";
 
 /**
@@ -126,8 +126,11 @@ export function AIChatBox({
   const inputAreaRef = useRef<HTMLFormElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Filter out system messages
-  const displayMessages = messages.filter((msg) => msg.role !== "system");
+  // Filter out system messages (memoized to avoid recalculating on every render)
+  const displayMessages = useMemo(
+    () => messages.filter((msg) => msg.role !== "system"),
+    [messages]
+  );
 
   // Calculate min-height for last assistant message to push user message to top
   const [minHeightForLastMessage, setMinHeightForLastMessage] = useState(0);

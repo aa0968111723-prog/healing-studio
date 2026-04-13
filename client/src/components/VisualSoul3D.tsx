@@ -314,6 +314,14 @@ export default function VisualSoul3D({
   const showParticles = size !== "sm";
   const particleCount = size === "xl" ? 12 : 8;
 
+  // Pause rendering when tab is hidden to save GPU/CPU
+  const [frameloop, setFrameloop] = useState<"always" | "never">("always");
+  useEffect(() => {
+    const onVisibility = () => setFrameloop(document.hidden ? "never" : "always");
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
+
   const glowColor = PERSONALITY_UNIFORMS[personality].colorPrimary
     .map((v) => Math.round(v * 255))
     .join(", ");
@@ -344,7 +352,7 @@ export default function VisualSoul3D({
           powerPreference: "default",
         }}
         style={{ width: "100%", height: "100%", background: "transparent" }}
-        frameloop="always"
+        frameloop={frameloop}
       >
         <ambientLight intensity={0.8} />
         <pointLight position={[2, 3, 4]} intensity={2.0} color={new THREE.Color(1, 1, 1)} />

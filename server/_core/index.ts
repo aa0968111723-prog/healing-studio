@@ -14,6 +14,7 @@ import { uploadRouter } from "../uploadRoute";
 import { sseRouter } from "../sseRoute";
 import { initNewsFetcherCron, stopNewsFetcherCron } from "../jobs/newsFetcher";
 import { initModelTrainingWorkerCron, stopModelTrainingWorkerCron } from "../jobs/modelTrainingWorker";
+import { detectStorageBackend } from "../storage";
 import { closeDb } from "../db";
 
 // ─── Allowlist helpers for proxy-download ─────────────────────────────────
@@ -158,7 +159,6 @@ async function startServer() {
   // ── Plain HTTP healthcheck (Railway uses this path to verify container is up) ──
   // Must respond within the healthcheck window (typically 5m on Railway)
   app.get("/api/health", (_req, res) => {
-    const { detectStorageBackend } = require("../storage");
     const storageBackend = detectStorageBackend();
     res.json({ ok: true, ts: Date.now(), storage: storageBackend });
   });
@@ -194,7 +194,6 @@ async function startServer() {
 
     // Log storage backend status on startup
     try {
-      const { detectStorageBackend } = require("../storage");
       const backend = detectStorageBackend();
       const backendLabels: Record<string, string> = {
         s3:    "✅ S3 / Cloudflare R2（S3_ENDPOINT + S3_ACCESS_KEY_ID + S3_SECRET_ACCESS_KEY + S3_BUCKET_NAME）",

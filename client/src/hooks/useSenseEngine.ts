@@ -119,6 +119,15 @@ export function useSenseEngine(options: SenseEngineOptions = {}) {
   }, [enabled]);
 
   // ── Emit event ──
+  // Batch writes to sessionStorage: accumulate events in-memory and flush periodically
+  const pendingFlushRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const FLUSH_INTERVAL = 3000; // flush every 3 seconds
+
+  const flushToStorage = useCallback(() => {
+    persistEvents(eventsRef.current);
+    pendingFlushRef.current = null;
+  }, []);
+
   const emit = useCallback((event: SenseEvent) => {
     if (!isEnabledRef.current) return;
 
@@ -126,9 +135,12 @@ export function useSenseEngine(options: SenseEngineOptions = {}) {
     const schedule = window.requestIdleCallback || ((cb: () => void) => setTimeout(cb, 1));
     schedule(() => {
       eventsRef.current = [...eventsRef.current, event].slice(-MAX_EVENTS);
-      persistEvents(eventsRef.current);
+      // Batch: schedule a flush if not already pending
+      if (!pendingFlushRef.current) {
+        pendingFlushRef.current = setTimeout(flushToStorage, FLUSH_INTERVAL);
+      }
     });
-  }, []);
+  }, [flushToStorage]);
 
   // ── Get all events ──
   const getEvents = useCallback((): SenseEvent[] => {
@@ -468,6 +480,11 @@ export function useSenseEngine(options: SenseEngineOptions = {}) {
       clickAbortState.current.clear();
       if (scanTimer.current) clearTimeout(scanTimer.current);
       if (scrollState.current?.debounceTimer) clearTimeout(scrollState.current.debounceTimer);
+      // Flush any pending batched events to sessionStorage
+      if (pendingFlushRef.current) {
+        clearTimeout(pendingFlushRef.current);
+        persistEvents(eventsRef.current);
+      }
     };
   }, []);
 

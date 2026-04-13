@@ -45,13 +45,20 @@ import {
   BookOpen,
 } from "lucide-react";
 import { useSiteOnboarding, type PageId } from "@/contexts/SiteOnboardingContext";
-import { CSSProperties, useEffect, useRef, useState } from "react";
+import { CSSProperties, memo, useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
 import VisualSoul from "./VisualSoul";
 import { useAIState } from "@/contexts/AIStateContext";
 import ProactiveOrbWidget from "./ProactiveOrbWidget";
+
+// Isolated component that subscribes to AI state —
+// prevents the entire DashboardLayout from re-rendering when aiState/personality change.
+const SidebarVisualSoul = memo(function SidebarVisualSoul() {
+  const { aiState, personality } = useAIState();
+  return <VisualSoul size="sm" state={aiState} personality={personality} />;
+});
 
 const menuItems = [
   { icon: Wand2, label: "創作工作室", path: "/studio",       id: "sidebar-studio-link" },
@@ -60,6 +67,7 @@ const menuItems = [
   { icon: Film, label: "影片工作室", path: "/video-studio", id: "sidebar-video-studio-link" },
   { icon: Clapperboard, label: "導演 AI", path: "/director", id: "sidebar-director-link" },
   { icon: Cpu, label: "角色鍛造所", path: "/models",                     id: "sidebar-models-link" },
+  { icon: Zap, label: "LoRA 訓練工坊", path: "/lora-trainer",           id: "sidebar-lora-trainer-link" },
   { icon: Clock, label: "生成歷史", path: "/history",                     id: "sidebar-history-link" },
   { icon: Package, label: "數位資產庫", path: "/assets",                 id: "sidebar-assets-link" },
   { icon: Layers, label: "一致性保險庫", path: "/vault",                 id: "sidebar-vault-link" },
@@ -157,7 +165,6 @@ function DashboardLayoutContent({
   const { user, logout } = useAuth();
   const [location, setLocation] = useLocation();
   const { state, toggleSidebar } = useSidebar();
-  const { aiState, personality } = useAIState();
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
@@ -185,13 +192,22 @@ function DashboardLayoutContent({
   }, [isCollapsed]);
 
   useEffect(() => {
+    // Throttle mousemove to ~60fps via rAF to avoid excessive re-renders during resize.
+    // Store the latest clientX so we never drop the most recent position.
+    let rafId: number | null = null;
+    let latestClientX = 0;
     const handleMouseMove = (e: MouseEvent) => {
       if (!isResizing) return;
-      const sidebarLeft = sidebarRef.current?.getBoundingClientRect().left ?? 0;
-      const newWidth = e.clientX - sidebarLeft;
-      if (newWidth >= MIN_WIDTH && newWidth <= MAX_WIDTH) {
-        setSidebarWidth(newWidth);
-      }
+      latestClientX = e.clientX;
+      if (rafId !== null) return; // rAF already scheduled; it will use the latest value
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        const sidebarLeft = sidebarRef.current?.getBoundingClientRect().left ?? 0;
+        const newWidth = latestClientX - sidebarLeft;
+        if (newWidth >= MIN_WIDTH && newWidth <= MAX_WIDTH) {
+          setSidebarWidth(newWidth);
+        }
+      });
     };
     const handleMouseUp = () => setIsResizing(false);
     if (isResizing) {
@@ -201,6 +217,7 @@ function DashboardLayoutContent({
       document.body.style.userSelect = "none";
     }
     return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
       document.body.style.cursor = "";
@@ -227,7 +244,7 @@ function DashboardLayoutContent({
               </button>
               {!isCollapsed && (
                 <div className="flex items-center gap-2 min-w-0">
-                  <VisualSoul size="sm" state={aiState} personality={personality} />
+                  <SidebarVisualSoul />
                   <span className="font-semibold tracking-tight truncate text-foreground text-sm">
                     AI Director
                   </span>

@@ -43,6 +43,7 @@ export type PageId =
   | "video-studio"
   | "director"
   | "models"
+  | "lora-trainer"
   | "history"
   | "assets"
   | "vault"
@@ -532,6 +533,22 @@ const TOUR_DEFINITIONS: Record<PageId, TourDefinition> = {
         tip: "新手建議從「入門指南」分類開始！",
         icon: "🏷️",
         position: "bottom",
+      },
+    ],
+  },
+
+  "lora-trainer": {
+    pageId: "lora-trainer",
+    storageKey: "site-tour-lora-trainer-v1",
+    steps: [
+      {
+        targetId: null,
+        title: "LoRA 訓練工坊 🔥",
+        description:
+          "這裡是 Replicate 專屬的 LoRA 微調訓練環境。你可以查看訓練統計、監控訓練狀態，並管理所有 LoRA 模型。",
+        tip: "訓練新模型請前往「角色鍛造所」，這裡專注於訓練監控和管理！",
+        icon: "🔥",
+        position: "center",
       },
     ],
   },

@@ -18,6 +18,7 @@ import { proStudioRouter } from "./routers/proStudio";
 import { imageStudioRouter } from "./routers/imageStudio";
 import { videoStudioRouter } from "./routers/videoStudio";
 import { learnHubRouter } from "./routers/learnHub";
+import { loraTrainerRouter } from "./routers/loraTrainer";
 import { getOrchestrator } from "./services/modelClients";
 // voiceCompiler, audioCompiler, videoCompiler are no longer used — all modalities route through falDispatcher
 import { buildMemoryContext, upsertMemory } from "./services/ragMemory";
@@ -365,6 +366,7 @@ export const appRouter = router({
   imageStudio: imageStudioRouter,
   videoStudio: videoStudioRouter,
   learnHub: learnHubRouter,
+  loraTrainer: loraTrainerRouter,
 
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
@@ -1569,6 +1571,62 @@ export const appRouter = router({
           throw new TRPCError({ code: "FORBIDDEN", message: "無存取權限" });
         }
         return model;
+      }),
+
+    // ── 模型詳細分析（訓練配置 + 資料集 + 訓練歷史 + 使用統計）──────────
+    getAnalysis: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const model = await db.getFineTunedModel(input.id);
+        if (!model) throw new TRPCError({ code: "NOT_FOUND", message: "模型不存在" });
+        if (model.userId !== ctx.user.id && model.visibility !== "team_shared") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "無存取權限" });
+        }
+
+        const trainingJobs = await db.getTrainingJobsByModelId(input.id);
+
+        const config = (model.configJson ?? {}) as Record<string, unknown>;
+        const datasetImages = (config.datasetImages ?? []) as Array<{
+          url: string;
+          fileKey?: string;
+          angle: string;
+          caption?: string;
+        }>;
+
+        return {
+          model: {
+            id: model.id,
+            name: model.name,
+            description: model.description,
+            modelType: model.modelType,
+            status: model.status,
+            visibility: model.visibility,
+            usageCount: model.usageCount,
+            trainedLoraUrl: model.trainedLoraUrl,
+            replicatePredictionId: model.replicatePredictionId,
+            createdAt: model.createdAt,
+            updatedAt: model.updatedAt,
+          },
+          config: {
+            triggerWord: (config.triggerWord as string) || "",
+            epochs: (config.epochs as number) ?? 0,
+            learningRate: (config.learningRate as number) ?? 0,
+            batchSize: (config.batchSize as number) ?? 0,
+            steps: (config.steps as number) ?? 0,
+            submittedAt: (config.submittedAt as number) ?? null,
+            completedAt: (config.completedAt as number) ?? null,
+          },
+          datasetImages,
+          trainingJobs: trainingJobs.map((j) => ({
+            id: j.id,
+            status: j.status,
+            progress: j.progress,
+            progressMessage: j.progressMessage,
+            errorMessage: j.errorMessage,
+            createdAt: j.createdAt,
+            updatedAt: j.updatedAt,
+          })),
+        };
       }),
 
     // ── 取得訓練任務狀態（輪詢用）────────────────────────────────────────
