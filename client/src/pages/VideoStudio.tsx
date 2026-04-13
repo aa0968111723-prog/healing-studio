@@ -6,7 +6,7 @@
  *  🎬 文生影 | 🖼️ 圖生影 | 🎞️ 影生影 | ✨ 畫質優化 | 🎛️ 進階控制
  */
 
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { Button } from "@/components/ui/button";
@@ -24,8 +24,10 @@ import {
   Sparkles, Star, ChevronDown, ChevronUp,
   Layers, Move, Eye, Maximize2, RefreshCw,
   ArrowUpCircle, Clapperboard, Camera, Cpu,
+  Upload, X, Link,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { uploadFileToS3 } from "@/lib/upload";
 
 // ─── 類型 ────────────────────────────────────────────────────────────────────
 
@@ -66,21 +68,52 @@ function VideoPlayer({ url, label }: { url: string; label?: string }) {
       >
         <track kind="captions" />
       </video>
-      <a
-        href={url}
-        download
-        className="mt-2 inline-flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 hover:underline transition-colors"
-      >
-        <Download className="w-3 h-3" />
-        下載影片
-      </a>
+      <div className="mt-2 flex items-center gap-2">
+        <button
+          className="inline-flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 hover:underline transition-colors"
+          onClick={async () => {
+            try {
+              // Use server proxy to bypass CORS on CDN URLs
+              const proxyUrl = `/api/proxy-download?url=${encodeURIComponent(url)}`;
+              const resp = await fetch(proxyUrl);
+              if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+              const blob = await resp.blob();
+              const blobUrl = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = blobUrl;
+              a.download = `ai-video-${Date.now()}.mp4`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+              toast.success("影片已下載");
+            } catch {
+              window.open(url, "_blank");
+              toast.info("已在新分頁開啟，請右鍵另存新檔");
+            }
+          }}
+        >
+          <Download className="w-3 h-3" />
+          下載 MP4
+        </button>
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors"
+        >
+          <ExternalLink className="w-3 h-3" />
+          在新分頁開啟
+        </a>
+      </div>
     </div>
   );
 }
 
 // ─── 子元件：URL 輸入框 ──────────────────────────────────────────────────────
 
-function UrlInput({
+// ─── 子元件：MediaInput（支援 URL 貼上 + 檔案上傳） ────────────────────────
+function MediaInput({
   label,
   value,
   onChange,
@@ -95,24 +128,106 @@ function UrlInput({
   accept?: "video" | "image";
   required?: boolean;
 }) {
+  const [uploading, setUploading] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const fileAccept = accept === "image" ? "image/*" : "video/*,image/*";
   const defaultPlaceholder = accept === "image"
-    ? "貼上圖片 URL（支援 jpg、png、webp）"
-    : "貼上影片 URL（支援 mp4、mov、webm）";
+    ? "貼上圖片 URL 或點擊上傳（jpg/png/webp）"
+    : "貼上影片 URL 或點擊上傳（mp4/mov/webm）";
+
+  const handleUpload = useCallback(async (file: File) => {
+    if (file.size > 50 * 1024 * 1024) { toast.error("檔案不能超過 50MB"); return; }
+    setUploading(true);
+    try {
+      const { url } = await uploadFileToS3(file);
+      onChange(url);
+      toast.success("✅ 已上傳");
+    } catch (e: any) {
+      toast.error("上傳失敗：" + (e.message || "未知錯誤"));
+    } finally {
+      setUploading(false);
+    }
+  }, [onChange]);
+
+  const handleFileSelect = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = fileAccept;
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) handleUpload(file);
+    };
+    input.click();
+  };
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleUpload(file);
+  }, [handleUpload]);
 
   return (
     <div className="space-y-1.5">
       <Label className="text-xs text-muted-foreground">
         {label}{required && <span className="text-destructive ml-0.5">*</span>}
       </Label>
-      <Input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder ?? defaultPlaceholder}
-        className="text-sm font-mono"
-      />
+      <div
+        className={`relative rounded-xl border transition-all ${isDragOver ? "border-primary/50 bg-primary/5" : "border-border/40"}`}
+        onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+        onDragLeave={() => setIsDragOver(false)}
+        onDrop={handleDrop}
+      >
+        <div className="flex items-center gap-1 p-1">
+          <Input
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder ?? defaultPlaceholder}
+            className="text-sm font-mono border-0 shadow-none focus-visible:ring-0 flex-1"
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            onClick={handleFileSelect}
+            disabled={uploading}
+            title="上傳檔案"
+          >
+            {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+          </Button>
+          {value && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0"
+              onClick={() => onChange("")}
+              title="清除"
+            >
+              <X className="w-3.5 h-3.5" />
+            </Button>
+          )}
+        </div>
+        {/* Preview */}
+        {value && accept === "image" && (
+          <div className="px-2 pb-2">
+            <img src={value} alt="preview" className="w-full max-h-32 object-cover rounded-lg" onError={(e) => (e.currentTarget.style.display = "none")} />
+          </div>
+        )}
+        {value && accept === "video" && (
+          <div className="px-2 pb-2">
+            <video src={value} className="w-full max-h-32 rounded-lg bg-black/5" controls preload="metadata" />
+          </div>
+        )}
+      </div>
+      <p className="text-[10px] text-muted-foreground/60">支援貼上 URL 或直接拖放上傳（最大 50MB）</p>
     </div>
   );
 }
+
+// Keep UrlInput as alias for backward-compat
+const UrlInput = MediaInput;
 
 // ─── 子元件：ToolCard 卡片容器 ───────────────────────────────────────────────
 
@@ -1205,6 +1320,23 @@ export default function VideoStudio() {
   usePageTour("video-studio");
 
   const [activeTab, setActiveTab] = useState<TabId>("t2v");
+  const [appliedModelBanner, setAppliedModelBanner] = useState<string | null>(null);
+
+  // ── Restore applied model from ModelsPage (via sessionStorage) ──
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("applyModel");
+      if (raw) {
+        const modelData = JSON.parse(raw);
+        if (modelData?.name) {
+          setAppliedModelBanner(`角色模型「${modelData.name}」已就緒${modelData.triggerWord ? ` (觸發詞: ${modelData.triggerWord})` : ""}，請在提示詞中加入觸發詞以啟用角色一致性`);
+          sessionStorage.removeItem("applyModel");
+        }
+      }
+    } catch {
+      // silent
+    }
+  }, []);
 
   const MODEL_COUNT = {
     t2v: 6,
@@ -1236,6 +1368,17 @@ export default function VideoStudio() {
 
       {/* API Key 提示 */}
       <ApiKeyBanner />
+
+      {/* Applied Model Banner */}
+      {appliedModelBanner && (
+        <div className="rounded-xl border border-amber-200/60 bg-amber-50/60 dark:bg-amber-900/20 px-4 py-3 flex items-center justify-between gap-2">
+          <p className="text-xs text-amber-700 dark:text-amber-400 flex items-center gap-2">
+            <span>🎭</span>
+            {appliedModelBanner}
+          </p>
+          <button onClick={() => setAppliedModelBanner(null)} className="text-amber-500 hover:text-amber-700 transition-colors text-xs shrink-0">✕</button>
+        </div>
+      )}
 
       {/* 標籤列 */}
       <div className="flex overflow-x-auto gap-1 pb-1 -mx-1 px-1">

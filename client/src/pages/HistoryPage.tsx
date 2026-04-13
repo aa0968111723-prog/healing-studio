@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import VisualSoul from "@/components/VisualSoul";
 import { toast } from "sonner";
@@ -9,16 +10,16 @@ import {
   Image, Video, Music, Mic, Bookmark, BookmarkCheck,
   Star, Trash2, Filter, Clock, Search, ChevronDown,
   Send, Wand2, RefreshCw, Download, FileText, Timer, Coins, Tag,
-  Archive,
+  Archive, Sparkles, X,
 } from "lucide-react";
 import JSZip from "jszip";
 
 import { useLocation } from "wouter";
-import { Input } from "@/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useAIState } from "@/contexts/AIStateContext";
 import { useIsMobile } from "@/hooks/useMobile";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 // ─── Modality Config ───────────────────────────────────────────────────────
 
@@ -127,6 +128,26 @@ export default function HistoryPage() {
       toast.success("已刪除");
     },
   });
+
+  // ── Promote to Showcase ──
+  const [promoteDialogId, setPromoteDialogId] = useState<number | null>(null);
+  const [promoteTitle, setPromoteTitle] = useState("");
+  const [promoteDesc, setPromoteDesc] = useState("");
+  const promoteMutation = trpc.showcase.promote.useMutation({
+    onSuccess: () => {
+      toast.success("已加入首頁精選作品集！", { duration: 5000 });
+      setPromoteDialogId(null);
+      setPromoteTitle("");
+      setPromoteDesc("");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const handlePromote = () => {
+    if (!promoteTitle.trim()) { toast.error("請輸入作品標題"); return; }
+    if (!promoteDialogId) return;
+    promoteMutation.mutate({ historyId: promoteDialogId, title: promoteTitle.trim(), description: promoteDesc.trim() || undefined });
+  };
 
   const filteredHistory = useMemo(() => {
     let items = filter === "bookmarked"
@@ -473,21 +494,24 @@ export default function HistoryPage() {
                                   onClick={async (e) => {
                                     e.stopPropagation();
                                     try {
-                                      const resp = await fetch(item.resultUrl!);
+                                      // Use server proxy to bypass CORS on CDN URLs
+                                      const proxyUrl = `/api/proxy-download?url=${encodeURIComponent(item.resultUrl!)}`;
+                                      const resp = await fetch(proxyUrl);
+                                      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
                                       const blob = await resp.blob();
                                       const ext = item.modality === "image" ? (blob.type.includes("png") ? "png" : blob.type.includes("webp") ? "webp" : "jpg")
                                         : item.modality === "video" ? "mp4"
                                         : item.modality === "audio" ? (blob.type.includes("wav") ? "wav" : "mp3")
                                         : item.modality === "voice" ? (blob.type.includes("wav") ? "wav" : "mp3")
                                         : "bin";
-                                      const url = URL.createObjectURL(blob);
+                                      const objectUrl = URL.createObjectURL(blob);
                                       const a = document.createElement("a");
-                                      a.href = url;
+                                      a.href = objectUrl;
                                       a.download = `ai-director-${item.modality}-${item.id}.${ext}`;
                                       document.body.appendChild(a);
                                       a.click();
                                       document.body.removeChild(a);
-                                      URL.revokeObjectURL(url);
+                                      URL.revokeObjectURL(objectUrl);
                                       toast.success(`已下載 ${ext.toUpperCase()} 檔案`);
                                     } catch {
                                       window.open(item.resultUrl!, "_blank");
@@ -705,11 +729,28 @@ export default function HistoryPage() {
                               )}
                             </div>
 
-                            <div className="flex justify-end pt-1">
+                            <div className="flex justify-between items-center pt-1">
+                              {/* Set as Featured */}
+                              {item.resultUrl && (item.modality === "image" || item.modality === "video") && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 text-xs gap-1 rounded-lg text-amber-600 border-amber-200 hover:bg-amber-50"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setPromoteTitle(item.prompt?.slice(0, 100) || "精選作品");
+                                    setPromoteDesc(item.compiledPrompt?.slice(0, 200) || "");
+                                    setPromoteDialogId(item.id);
+                                  }}
+                                >
+                                  <Sparkles className="w-3 h-3" />
+                                  加入精選
+                                </Button>
+                              )}
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="text-destructive hover:text-destructive h-7 text-xs gap-1"
+                                className="text-destructive hover:text-destructive h-7 text-xs gap-1 ml-auto"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   deleteMutation.mutate({ id: item.id });
@@ -741,6 +782,60 @@ export default function HistoryPage() {
           </AnimatePresence>
         </div>
       )}
+
+      {/* ── 加入精選 Dialog ── */}
+      <Dialog open={!!promoteDialogId} onOpenChange={(open) => { if (!open) { setPromoteDialogId(null); setPromoteTitle(""); setPromoteDesc(""); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-500" />
+              加入首頁精選作品集
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <p className="text-xs text-muted-foreground">
+              精選作品將顯示在首頁的作品展示區，讓所有訪客欣賞你的創作。每天最多可提交 5 件。
+            </p>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">作品標題 *</label>
+              <Input
+                value={promoteTitle}
+                onChange={(e) => setPromoteTitle(e.target.value)}
+                placeholder="給你的作品取個名字..."
+                className="rounded-xl"
+                maxLength={200}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">作品描述（選填）</label>
+              <Input
+                value={promoteDesc}
+                onChange={(e) => setPromoteDesc(e.target.value)}
+                placeholder="描述創作靈感或使用的技巧..."
+                className="rounded-xl"
+                maxLength={500}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={handlePromote}
+                disabled={promoteMutation.isPending || !promoteTitle.trim()}
+                className="flex-1 rounded-xl gap-2"
+              >
+                <Sparkles className="w-4 h-4" />
+                {promoteMutation.isPending ? "提交中..." : "確認加入精選"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => { setPromoteDialogId(null); setPromoteTitle(""); setPromoteDesc(""); }}
+                className="rounded-xl"
+              >
+                取消
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -10,12 +10,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Cpu, Plus, Upload, Tag, Settings2, Flame, ChevronRight, ChevronLeft, X, Loader2, Globe, Lock, Trash2, Gift, CheckCircle2 } from "lucide-react";
+import { Cpu, Plus, Upload, Tag, Settings2, Flame, ChevronRight, ChevronLeft, X, Loader2, Globe, Lock, Trash2, Gift, CheckCircle2, Wand2, Image, Video } from "lucide-react";
 import { GlassCard, ZenTooltip, ZenSkeleton } from "@/components/ZenCoPilot";
 import VisualSoul from "@/components/VisualSoul";
 import { motion, AnimatePresence } from "framer-motion";
 import type { CharacterForgeStep, DatasetImage } from "@shared/types";
 import { useAIState } from "@/contexts/AIStateContext";
+import { useLocation } from "wouter";
 
 const FORGE_STEPS: { id: CharacterForgeStep; label: string; icon: React.ReactNode }[] = [
   { id: "dataset", label: "資料集", icon: <Upload className="w-4 h-4" /> },
@@ -44,6 +45,7 @@ type DatasetImageWithUpload = DatasetImage & {
 
 export default function ModelsPage() {
   const { personality } = useAIState();
+  const [, navigate] = useLocation();
 
   // 全站新手引導
   usePageTour("models");
@@ -585,6 +587,59 @@ export default function ModelsPage() {
                   <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground bg-muted/30 px-2 py-0.5 rounded-md">
                     <Gift className="w-2.5 h-2.5" /> 共享
                   </span>
+                )}
+                {/* Use in Studio buttons */}
+                {model.status === "ready" && (
+                  <div className="flex gap-1.5">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 h-7 text-xs gap-1 rounded-lg"
+                      onClick={() => {
+                        sessionStorage.setItem("applyModel", JSON.stringify({ id: model.id, name: model.name, triggerWord: (model.configJson as any)?.triggerWord || "" }));
+                        navigate("/studio");
+                        toast.success(`已套用模型「${model.name}」，前往創作工作室`);
+                      }}
+                    >
+                      <Wand2 className="w-3 h-3" />
+                      套用至工作室
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs gap-1 rounded-lg"
+                      title="在圖片工作室使用此模型"
+                      onClick={() => {
+                        sessionStorage.setItem("applyModel", JSON.stringify({
+                          id: model.id,
+                          name: model.name,
+                          triggerWord: (model.configJson as any)?.triggerWord || "",
+                          loraUrl: (model.configJson as any)?.loraUrl || "",
+                        }));
+                        navigate("/image-studio");
+                        toast.success(`已套用模型「${model.name}」至圖片工作室`);
+                      }}
+                    >
+                      <Image className="w-3 h-3" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs gap-1 rounded-lg"
+                      title="在影片工作室使用此模型"
+                      onClick={() => {
+                        sessionStorage.setItem("applyModel", JSON.stringify({
+                          id: model.id,
+                          name: model.name,
+                          triggerWord: (model.configJson as any)?.triggerWord || "",
+                        }));
+                        navigate("/video-studio");
+                        toast.success(`已套用模型「${model.name}」至影片工作室`);
+                      }}
+                    >
+                      <Video className="w-3 h-3" />
+                    </Button>
+                  </div>
                 )}
                 <div className="flex items-center justify-between pt-2 border-t border-border/30">
                   <span className="text-[11px] text-muted-foreground">{model.createdAt && new Date(model.createdAt).toLocaleDateString("zh-TW")}</span>

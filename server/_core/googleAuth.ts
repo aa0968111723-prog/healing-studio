@@ -26,7 +26,8 @@ const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo";
 // ─── JWT 工具 ──────────────────────────────────────────────────────────────
 
 function getJwtSecret(): Uint8Array {
-  const secret = ENV.cookieSecret;
+  // Read from process.env directly to avoid ESM module evaluation order issues
+  const secret = process.env.JWT_SECRET || ENV.cookieSecret;
   if (!secret) throw new Error("JWT_SECRET 未設定，無法建立 Session");
   return new TextEncoder().encode(secret);
 }
@@ -148,12 +149,48 @@ export async function getGoogleUserInfo(accessToken: string): Promise<GoogleUser
   return response.json() as Promise<GoogleUserInfo>;
 }
 
+// ─── Demo 用戶（無 DB 時使用）────────────────────────────────────────────────
+
+export const DEMO_USER = {
+  id: 1,
+  openId: "demo-user-001",
+  name: "訪客創作者",
+  email: "demo@ai-director.art",
+  loginMethod: "demo",
+  role: "user" as const,
+  quotaJson: { image: 100, video: 50, audio: 50, voice: 50 },
+  remainingGenerations: 999,
+  onboardingDone: true,
+  createdAt: new Date("2024-01-01"),
+  updatedAt: new Date("2024-01-01"),
+  lastSignedIn: new Date(),
+};
+
+export function isDemoMode(): boolean {
+  return !process.env.DATABASE_URL;
+}
+
 // ─── 從 Request 驗證 Session ───────────────────────────────────────────────
 
 export async function authenticateRequest(req: Request) {
   const cookieHeader = req.headers.cookie || "";
   const cookies = parseCookie(cookieHeader);
   const sessionToken = cookies[COOKIE_NAME];
+
+  // Demo mode: no DATABASE_URL → auto-login as demo user when demo cookie exists
+  if (isDemoMode()) {
+    if (sessionToken) {
+      try {
+        const payload = await verifySessionToken(sessionToken);
+        if (payload?.sub === "demo-user-001") {
+          return DEMO_USER as import("../../drizzle/schema").User;
+        }
+      } catch {
+        // fall through
+      }
+    }
+    return null;
+  }
 
   if (!sessionToken) return null;
 

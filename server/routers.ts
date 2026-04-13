@@ -2,6 +2,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, adminProcedure, brainProcedure, router } from "./_core/trpc";
+import { isDemoMode } from "./_core/googleAuth";
 import { z } from "zod";
 import * as db from "./db";
 import { invokeLLM } from "./_core/llm";
@@ -151,11 +152,12 @@ async function compileElitePrompt(payload: {
   const memorySection = payload.memoryContext || "";
   // Effective temperature: prefer brain-injected value, fallback to input.temperature
   const effectiveTemperature = payload.brainTemperature ?? payload.temperature;
-  const result = await withTimeout(invokeLLM({
-    messages: [
-      {
-        role: "system",
-        content: `你是一位精英級 AI 提示詞編譯器。你的任務是將使用者的簡短描述擴展為一段優化的、敘事性的提示詞。
+  try {
+    const result = await withTimeout(invokeLLM({
+      messages: [
+        {
+          role: "system",
+          content: `你是一位精英級 AI 提示詞編譯器。你的任務是將使用者的簡短描述擴展為一段優化的、敘事性的提示詞。
 
 規則：
 1. 必須使用正面解剖學約束（例如：「完美對稱的解剖結構、無瑕的比例」），絕對不使用負面提示
@@ -165,17 +167,21 @@ async function compileElitePrompt(payload: {
 5. 輸出必須是一段流暢的英文敘事提示詞
 6. 加入光線、構圖、色調等專業攝影/藝術指導
 7. 確保人物描述包含：perfectly symmetrical anatomy, flawless proportions, natural pose${refContext}${memorySection}`,
-      },
-      { role: "user", content: payload.prompt },
-    ],
-    // Inject brain model & parameters when available
-    ...(payload.brainModel ? { model: payload.brainModel } : {}),
-    ...(payload.brainTemperature !== undefined ? { temperature: payload.brainTemperature } : {}),
-    ...(payload.brainTopP !== undefined ? { topP: payload.brainTopP } : {}),
-  }), 30_000, "提示詞編譯");
-  const content = result.choices[0]?.message?.content;
-  const compiledPrompt = typeof content === "string" ? content : payload.prompt;
-  return { compiledPrompt, visualWeight, controlNetParams };
+        },
+        { role: "user", content: payload.prompt },
+      ],
+      // Inject brain model & parameters when available
+      ...(payload.brainModel ? { model: payload.brainModel } : {}),
+      ...(payload.brainTemperature !== undefined ? { temperature: payload.brainTemperature } : {}),
+      ...(payload.brainTopP !== undefined ? { topP: payload.brainTopP } : {}),
+    }), 30_000, "提示詞編譯");
+    const content = result.choices[0]?.message?.content;
+    const compiledPrompt = typeof content === "string" ? content : payload.prompt;
+    return { compiledPrompt, visualWeight, controlNetParams };
+  } catch {
+    // LLM unavailable (e.g., no GEMINI_API_KEY in demo mode) — gracefully fall back to original prompt
+    return { compiledPrompt: payload.prompt, visualWeight, controlNetParams };
+  }
 }
 
 // ─── CO-STAR Director AI ─────────────────────────────────────────────────────
@@ -390,6 +396,7 @@ export const appRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         const userId = ctx.user.id;
+        const demoMode = isDemoMode();
 
         // ── Step 1: 讀取使用者大腦組態 ──
         let brainRow: Record<string, unknown> | null = null;
@@ -424,24 +431,32 @@ export const appRouter = router({
         });
         const pointsCost = estimate.totalPoints; // 最少 1 pt
 
-        // ── Step 4: 原子扣點 ──
-        const deduction = await db.deductUserPoints(userId, pointsCost);
-        if (!deduction.success) {
-          const remaining = deduction.remainingBefore;
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: `積分不足（需要 ${pointsCost} pts，剩餘 ${remaining} pts）。請至設定頁面查看積分或聯繫管理員。`,
-          });
+        // ── Step 4: 原子扣點（Demo 模式跳過） ──
+        let deduction = { success: true, remainingBefore: 999, remainingAfter: 999 };
+        if (!demoMode) {
+          deduction = await db.deductUserPoints(userId, pointsCost);
+          if (!deduction.success) {
+            const remaining = deduction.remainingBefore;
+            throw new TRPCError({
+              code: "FORBIDDEN",
+              message: `積分不足（需要 ${pointsCost} pts，剩餘 ${remaining} pts）。請至設定頁面查看積分或聯繫管理員。`,
+            });
+          }
         }
 
-        // ── Step 5: 建立背景任務 ──
-        const jobId = await db.createBackgroundJob({
-          userId,
-          jobType: input.generationType === "multimodal" ? "multimodal" : input.generationType,
-          status: "processing",
-          progress: 2,
-          progressMessage: "準備中...",
-        });
+        // ── Step 5: 建立背景任務（Demo 模式使用假 jobId） ──
+        let jobId: number;
+        if (demoMode) {
+          jobId = Date.now() % 2147483647; // 用時間戳作為 demo jobId
+        } else {
+          jobId = await db.createBackgroundJob({
+            userId,
+            jobType: input.generationType === "multimodal" ? "multimodal" : input.generationType,
+            status: "processing",
+            progress: 2,
+            progressMessage: "準備中...",
+          });
+        }
 
         // ── Step 6: 推送初始思維鏈節點（含積分明細） ──
         const modalityLabel = input.generationType === "image" ? "圖像" : input.generationType === "video" ? "影片" : input.generationType === "audio" ? "音樂" : "語音";
@@ -572,6 +587,7 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         const userId = ctx.user.id;
         const jobId = input.jobId;
+        const demoMode = isDemoMode();
         const stepTimestamps: Record<string, number> = { start: Date.now() };
         const modalityLabel = input.generationType === "image" ? "圖像" : input.generationType === "video" ? "影片" : input.generationType === "audio" ? "音樂" : "語音";
 
@@ -627,15 +643,17 @@ export const appRouter = router({
           generationBus.emit(jobId, { type: "error", message: safetyResult.reason || "內容不符合安全規範" });
           setTimeout(() => generationBus.cleanup(jobId), 2000);
           // Refund the points since no generation occurred
-          await db.refundUserPoints(userId, _genEstimate.totalPoints);
-          await db.createApiUsageLog({
-            userId,
-            requestType: "safety_check",
-            apiProvider: "gemini_flash",
-            responseStatus: "blocked",
-            errorMessage: safetyResult.reason || "內容不符合安全規範",
-            generationsDeducted: 0,
-          });
+          if (!demoMode) {
+            await db.refundUserPoints(userId, _genEstimate.totalPoints);
+            await db.createApiUsageLog({
+              userId,
+              requestType: "safety_check",
+              apiProvider: "gemini_flash",
+              responseStatus: "blocked",
+              errorMessage: safetyResult.reason || "內容不符合安全規範",
+              generationsDeducted: 0,
+            });
+          }
           throw new TRPCError({
             code: "BAD_REQUEST",
             message: `小兔子提醒你：${safetyResult.reason || "這個內容可能不太適合哦，請試試其他描述吧！"}`,
@@ -738,11 +756,37 @@ export const appRouter = router({
           generationBus.emit(jobId, { type: "thought-update", node: { id: "compile", label: "提示詞編譯", status: "completed", detail: `編譯後提示詞長度: ${compiledPrompt.length} 字元（${compileMs}ms）`, timestamp: stepTimestamps.compileDone, tokens: compiledPrompt.length } });
           generationBus.emit(jobId, { type: "thought-update", node: { id: "weight", label: "視覺權重計算", status: "completed", detail: `visualWeight: ${visualWeight.toFixed(2)}, controlNet: ${JSON.stringify(controlNetParams)}`, timestamp: stepTimestamps.weightDone, confidence: visualWeight } });
           generationBus.emit(jobId, { type: "progress", progress: 30, message: "提示詞編譯完成" });
-          await db.updateBackgroundJob(jobId, { progress: 30, progressMessage: "正在生成中..." });
+          if (!demoMode) await db.updateBackgroundJob(jobId, { progress: 30, progressMessage: "正在生成中..." });
 
           // ── Generate step ──
           generationBus.emit(jobId, { type: "thought-update", node: { id: "generate", label: `${modalityLabel}生成`, status: "processing", detail: `正在生成${modalityLabel}...`, timestamp: Date.now() } });
           generationBus.emit(jobId, { type: "progress", progress: 40, message: `${modalityLabel}生成中...` });
+
+          // ── Demo mode sample assets (used as fallback when real API fails) ──
+          const DEMO_SAMPLE_ASSETS = {
+            image: [
+              "https://images.unsplash.com/photo-1682687220742-aba13b6e50ba?w=1024&q=80",
+              "https://images.unsplash.com/photo-1686002359940-6a51b0d64f68?w=1024&q=80",
+              "https://images.unsplash.com/photo-1700669113058-f9c9c2e862b0?w=1024&q=80",
+              "https://images.unsplash.com/photo-1704458590483-6d9db5f6e5b3?w=1024&q=80",
+            ],
+            video: [
+              "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+              "https://storage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
+              "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+            ],
+            audio: [
+              "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+              "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
+            ],
+            voice: [
+              "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
+            ],
+          };
+          const getDemoAsset = (type: "image" | "video" | "audio" | "voice") => {
+            const arr = DEMO_SAMPLE_ASSETS[type];
+            return arr[Math.floor(Math.random() * arr.length)];
+          };
 
           // Generate based on type
           let resultUrl: string | undefined;
@@ -758,34 +802,46 @@ export const appRouter = router({
             // ── Image: fal.ai Flux Pro (真實 API，無 Forge 依賴) ──
             generationBus.emit(jobId, { type: "progress", progress: 42, message: "正在呼叫 fal.ai Flux 生成圖片..." });
             const refImageUrl = input.styleReferenceUrl || input.vibeReferenceUrl || undefined;
-            const imageDispatch = await withTimeout(
-              dispatchImageGeneration({
-                modelId: refImageUrl ? falEngines.imageToImage : falEngines.textToImage,
-                prompt: compiledPrompt,
-                negativePrompt: input.negativePrompt,
-                imageUrl: refImageUrl,
-                aspectRatio: input.aspectRatio,
-                seed: input.seed,
-              }),
-              120_000,
-              "圖片生成"
-            );
-            if (!imageDispatch.success) {
-              // 真實失敗：退還點數並拋出明確錯誤
-              await db.refundUserPoints(userId, _genEstimate.totalPoints);
-              throw new TRPCError({
-                code: "INTERNAL_SERVER_ERROR",
-                message: `圖片生成失敗（fal.ai ${imageDispatch.modelId}）：${imageDispatch.error || "未知錯誤"}`,
-              });
+            let imageUrl: string | undefined;
+            try {
+              const imageDispatch = await withTimeout(
+                dispatchImageGeneration({
+                  modelId: refImageUrl ? falEngines.imageToImage : falEngines.textToImage,
+                  prompt: compiledPrompt,
+                  negativePrompt: input.negativePrompt,
+                  imageUrl: refImageUrl,
+                  aspectRatio: input.aspectRatio,
+                  seed: input.seed,
+                }),
+                120_000,
+                "圖片生成"
+              );
+              if (imageDispatch.success) {
+                imageUrl = (imageDispatch.data as any)?.images?.[0]?.url
+                  ?? (imageDispatch.data as any)?.image?.url
+                  ?? (imageDispatch.data as any)?.url as string | undefined;
+                debug(`[Fal] Image generation completed: ${imageUrl} (${imageDispatch.durationMs}ms, model: ${imageDispatch.modelId})`);
+              } else if (!demoMode) {
+                await db.refundUserPoints(userId, _genEstimate.totalPoints);
+                throw new TRPCError({
+                  code: "INTERNAL_SERVER_ERROR",
+                  message: `圖片生成失敗（fal.ai ${imageDispatch.modelId}）：${imageDispatch.error || "未知錯誤"}`,
+                });
+              }
+            } catch (err) {
+              if (!demoMode) throw err;
+              // Demo mode: fall back to sample image
+              debug(`[Demo] Image generation failed, using sample asset. Error: ${err}`);
             }
-            const imageUrl = (imageDispatch.data as any)?.images?.[0]?.url
-              ?? (imageDispatch.data as any)?.image?.url
-              ?? (imageDispatch.data as any)?.url as string | undefined;
-            if (!imageUrl) {
-              await db.refundUserPoints(userId, _genEstimate.totalPoints);
+            // Demo mode fallback: use sample image if no URL was obtained
+            if (!imageUrl && demoMode) {
+              imageUrl = getDemoAsset("image");
+              generationBus.emit(jobId, { type: "progress", progress: 60, message: "（示範模式）已載入範例圖片" });
+            } else if (!imageUrl) {
+              if (!demoMode) await db.refundUserPoints(userId, _genEstimate.totalPoints);
               throw new TRPCError({
                 code: "INTERNAL_SERVER_ERROR",
-                message: `fal.ai 圖片生成未回傳有效 URL（model: ${imageDispatch.modelId}）`,
+                message: "fal.ai 圖片生成未回傳有效 URL，請稍後再試",
               });
             }
             resultUrl = imageUrl;
@@ -794,8 +850,7 @@ export const appRouter = router({
             resultData.negativePrompt = input.negativePrompt;
             resultData.styleReferenceUrl = input.styleReferenceUrl;
             resultData.vibeReferenceUrl = input.vibeReferenceUrl;
-            resultData.imageModel = imageDispatch.modelId;
-            debug(`[Fal] Image generation completed: ${imageUrl} (${imageDispatch.durationMs}ms, model: ${imageDispatch.modelId})`);
+            resultData.imageModel = demoMode ? "demo-sample" : falEngines.textToImage;
           }
 
           // ── Video: fal.ai Kling (真實 API，無 Gemini Veo 依賴) ──
@@ -804,47 +859,58 @@ export const appRouter = router({
             const videoModelId = input.firstFrameUrl
               ? falEngines.imageToVideo
               : falEngines.textToVideo;
-            const videoDispatch = await withTimeout(
-              dispatchVideoGeneration({
-                modelId: videoModelId,
-                prompt: compiledPrompt,
-                imageUrl: input.firstFrameUrl || input.characterRefUrl || undefined,
-                durationSec: input.videoDurationSeconds || 5,
-                aspectRatio: input.aspectRatio || "16:9",
-                seed: input.seed,
-              }),
-              300_000,
-              "影片生成"
-            );
-            if (!videoDispatch.success) {
-              // 真實失敗：退還點數並拋出明確錯誤
-              await db.refundUserPoints(userId, _genEstimate.totalPoints);
-              throw new TRPCError({
-                code: "INTERNAL_SERVER_ERROR",
-                message: `影片生成失敗（fal.ai ${videoDispatch.modelId}）：${videoDispatch.error || "未知錯誤"}`,
-              });
+            let videoUrl: string | undefined;
+            try {
+              const videoDispatch = await withTimeout(
+                dispatchVideoGeneration({
+                  modelId: videoModelId,
+                  prompt: compiledPrompt,
+                  imageUrl: input.firstFrameUrl || input.characterRefUrl || undefined,
+                  durationSec: input.videoDurationSeconds || 5,
+                  aspectRatio: input.aspectRatio || "16:9",
+                  seed: input.seed,
+                }),
+                300_000,
+                "影片生成"
+              );
+              if (videoDispatch.success) {
+                videoUrl = (videoDispatch.data as any)?.video?.url
+                  ?? (videoDispatch.data as any)?.videos?.[0]?.url
+                  ?? (videoDispatch.data as any)?.url as string | undefined;
+                debug(`[Fal] Video generation completed: ${videoUrl} (${videoDispatch.durationMs}ms, model: ${videoDispatch.modelId})`);
+              } else if (!demoMode) {
+                await db.refundUserPoints(userId, _genEstimate.totalPoints);
+                throw new TRPCError({
+                  code: "INTERNAL_SERVER_ERROR",
+                  message: `影片生成失敗（fal.ai ${videoDispatch.modelId}）：${videoDispatch.error || "未知錯誤"}`,
+                });
+              }
+            } catch (err) {
+              if (!demoMode) throw err;
+              // Demo mode: fall back to sample video
+              debug(`[Demo] Video generation failed, using sample asset. Error: ${err}`);
             }
-            const videoUrl = (videoDispatch.data as any)?.video?.url
-              ?? (videoDispatch.data as any)?.videos?.[0]?.url
-              ?? (videoDispatch.data as any)?.url as string | undefined;
-            if (!videoUrl) {
-              await db.refundUserPoints(userId, _genEstimate.totalPoints);
+            // Demo mode fallback: use sample video if no URL was obtained
+            if (!videoUrl && demoMode) {
+              videoUrl = getDemoAsset("video");
+              generationBus.emit(jobId, { type: "progress", progress: 65, message: "（示範模式）已載入範例影片" });
+            } else if (!videoUrl) {
+              if (!demoMode) await db.refundUserPoints(userId, _genEstimate.totalPoints);
               throw new TRPCError({
                 code: "INTERNAL_SERVER_ERROR",
-                message: `fal.ai 影片生成未回傳有效 URL（model: ${videoDispatch.modelId}）`,
+                message: "fal.ai 影片生成未回傳有效 URL，請稍後再試",
               });
             }
             resultData.videoUrl = videoUrl;
             resultData.videoStatus = "completed";
             resultData.videoDuration = input.videoDurationSeconds || 5;
-            resultData.videoModel = videoDispatch.modelId;
+            resultData.videoModel = demoMode ? "demo-sample" : videoModelId;
             resultData.videoPrompt = compiledPrompt;
             resultData.firstFrameUrl = input.firstFrameUrl;
             resultData.lastFrameUrl = input.lastFrameUrl;
             resultData.characterRefUrl = input.characterRefUrl;
             resultData.cameraMotion = input.cameraMotion;
             if (!resultUrl) resultUrl = videoUrl;
-            debug(`[Fal] Video generation completed: ${videoUrl} (${videoDispatch.durationMs}ms, model: ${videoDispatch.modelId})`);
           }
 
           // ── Audio: fal.ai stable-audio (真實 API，無 Gemini Lyria 依賴) ──
@@ -861,44 +927,51 @@ export const appRouter = router({
             if (input.lyrics) {
               musicPrompt += `\n\nLyrics:\n${input.lyrics}`;
             }
-            const audioDispatch = await withTimeout(
-              dispatchAudioGeneration({
-                modelId: falEngines.textToAudio,
-                prompt: musicPrompt,
-                durationSec: input.audioDuration || 30,
-                seed: input.seed,
-              }),
-              180_000,
-              "音樂生成"
-            );
-            if (!audioDispatch.success) {
-              await db.refundUserPoints(userId, _genEstimate.totalPoints);
-              throw new TRPCError({
-                code: "INTERNAL_SERVER_ERROR",
-                message: `音樂生成失敗（fal.ai ${audioDispatch.modelId}）：${audioDispatch.error || "未知錯誤"}`,
-              });
+            let audioUrl: string | undefined;
+            try {
+              const audioDispatch = await withTimeout(
+                dispatchAudioGeneration({
+                  modelId: falEngines.textToAudio,
+                  prompt: musicPrompt,
+                  durationSec: input.audioDuration || 30,
+                  seed: input.seed,
+                }),
+                180_000,
+                "音樂生成"
+              );
+              if (audioDispatch.success) {
+                audioUrl = (audioDispatch.data as any)?.audio?.url
+                  ?? (audioDispatch.data as any)?.audio_url
+                  ?? (audioDispatch.data as any)?.url as string | undefined;
+                debug(`[Fal] Audio generation completed: ${audioUrl} (${audioDispatch.durationMs}ms, model: ${audioDispatch.modelId})`);
+              } else if (!demoMode) {
+                await db.refundUserPoints(userId, _genEstimate.totalPoints);
+                throw new TRPCError({
+                  code: "INTERNAL_SERVER_ERROR",
+                  message: `音樂生成失敗（fal.ai ${audioDispatch.modelId}）：${audioDispatch.error || "未知錯誤"}`,
+                });
+              }
+            } catch (err) {
+              if (!demoMode) throw err;
+              debug(`[Demo] Audio generation failed, using sample asset. Error: ${err}`);
             }
-            const audioUrl = (audioDispatch.data as any)?.audio?.url
-              ?? (audioDispatch.data as any)?.audio_url
-              ?? (audioDispatch.data as any)?.url as string | undefined;
-            if (!audioUrl) {
-              await db.refundUserPoints(userId, _genEstimate.totalPoints);
-              throw new TRPCError({
-                code: "INTERNAL_SERVER_ERROR",
-                message: `fal.ai 音樂生成未回傳有效 URL（model: ${audioDispatch.modelId}）`,
-              });
+            if (!audioUrl && demoMode) {
+              audioUrl = getDemoAsset("audio");
+              generationBus.emit(jobId, { type: "progress", progress: 65, message: "（示範模式）已載入範例音樂" });
+            } else if (!audioUrl) {
+              if (!demoMode) await db.refundUserPoints(userId, _genEstimate.totalPoints);
+              throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "fal.ai 音樂生成未回傳有效 URL，請稍後再試" });
             }
             resultData.audioUrl = audioUrl;
             resultData.audioStatus = "completed";
             resultData.audioTitle = input.musicStyle || "Healing Music";
-            resultData.audioModel = audioDispatch.modelId;
+            resultData.audioModel = demoMode ? "demo-sample" : falEngines.textToAudio;
             resultData.musicStyle = input.musicStyle || "ambient healing";
             resultData.isInstrumental = input.isInstrumental;
             resultData.lyrics = input.lyrics;
             resultData.audioDuration = input.audioDuration;
             resultData.audioEnergy = input.audioEnergy;
             if (!resultUrl) resultUrl = audioUrl;
-            debug(`[Fal] Audio generation completed: ${audioUrl} (${audioDispatch.durationMs}ms, model: ${audioDispatch.modelId})`);
           }
 
           // ── Voice: fal.ai playai-tts (真實 API，無 Gemini TTS 依賴) ──
@@ -917,38 +990,46 @@ export const appRouter = router({
             const falVoiceId = input.voiceModelId
               || voiceIdMap[input.voiceEmotionType || ""]
               || "s3://voice-cloning-zero-shot/e5df2eb3-5153-40fa-9f6e-6e27bbb7a38e/original/manifest.json";
-            const voiceDispatch = await withTimeout(
-              dispatchTTS({
-                modelId: falEngines.textToSpeech,
-                text: ttsText,
-                voiceId: falVoiceId,
-                speed: input.voiceSpeed,
-                charCount: ttsText.length,
-              }),
-              90_000,
-              "語音生成"
-            );
-            if (!voiceDispatch.success) {
-              await db.refundUserPoints(userId, _genEstimate.totalPoints);
-              throw new TRPCError({
-                code: "INTERNAL_SERVER_ERROR",
-                message: `語音生成失敗（fal.ai ${voiceDispatch.modelId}）：${voiceDispatch.error || "未知錯誤"}`,
-              });
+            let voiceUrl: string | undefined;
+            try {
+              const voiceDispatch = await withTimeout(
+                dispatchTTS({
+                  modelId: falEngines.textToSpeech,
+                  text: ttsText,
+                  voiceId: falVoiceId,
+                  speed: input.voiceSpeed,
+                  charCount: ttsText.length,
+                }),
+                90_000,
+                "語音生成"
+              );
+              if (voiceDispatch.success) {
+                voiceUrl = (voiceDispatch.data as any)?.audio?.url
+                  ?? (voiceDispatch.data as any)?.audio_url
+                  ?? (voiceDispatch.data as any)?.url as string | undefined;
+                debug(`[Fal] Voice generation completed: ${voiceUrl} (${voiceDispatch.durationMs}ms, model: ${voiceDispatch.modelId})`);
+              } else if (!demoMode) {
+                await db.refundUserPoints(userId, _genEstimate.totalPoints);
+                throw new TRPCError({
+                  code: "INTERNAL_SERVER_ERROR",
+                  message: `語音生成失敗（fal.ai ${voiceDispatch.modelId}）：${voiceDispatch.error || "未知錯誤"}`,
+                });
+              }
+            } catch (err) {
+              if (!demoMode) throw err;
+              debug(`[Demo] Voice generation failed, using sample asset. Error: ${err}`);
             }
-            const voiceUrl = (voiceDispatch.data as any)?.audio?.url
-              ?? (voiceDispatch.data as any)?.audio_url
-              ?? (voiceDispatch.data as any)?.url as string | undefined;
-            if (!voiceUrl) {
-              await db.refundUserPoints(userId, _genEstimate.totalPoints);
-              throw new TRPCError({
-                code: "INTERNAL_SERVER_ERROR",
-                message: `fal.ai 語音生成未回傳有效 URL（model: ${voiceDispatch.modelId}）`,
-              });
+            if (!voiceUrl && demoMode) {
+              voiceUrl = getDemoAsset("voice");
+              generationBus.emit(jobId, { type: "progress", progress: 65, message: "（示範模式）已載入範例語音" });
+            } else if (!voiceUrl) {
+              if (!demoMode) await db.refundUserPoints(userId, _genEstimate.totalPoints);
+              throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "fal.ai 語音生成未回傳有效 URL，請稍後再試" });
             }
             resultData.voiceUrl = voiceUrl;
             resultData.voiceStatus = "completed";
             resultData.voiceEngine = "fal-tts";
-            resultData.voiceModel = voiceDispatch.modelId;
+            resultData.voiceModel = demoMode ? "demo-sample" : falEngines.textToSpeech;
             resultData.voiceModelId = input.voiceModelId;
             resultData.voiceText = input.voiceText;
             resultData.voiceSpeed = input.voiceSpeed;
@@ -956,7 +1037,6 @@ export const appRouter = router({
             resultData.voiceEmotionType = input.voiceEmotionType;
             resultData.voiceEmotionIntensity = input.voiceEmotionIntensity;
             if (!resultUrl) resultUrl = voiceUrl;
-            debug(`[Fal] Voice generation completed: ${voiceUrl} (${voiceDispatch.durationMs}ms, model: ${voiceDispatch.modelId})`);
           }
 
           // ── Post-generation events ──
@@ -978,93 +1058,90 @@ export const appRouter = router({
 
           // Points were already atomically deducted in prepareJob.
           // Log real usage with actual model cost.
-          await db.createApiUsageLog({
-            userId,
-            requestType: input.generationType === "image" ? "image_generation" :
-              input.generationType === "video" ? "video_generation" :
-              input.generationType === "audio" ? "audio_generation" :
-              input.generationType === "voice" ? "voice_dubbing" : "image_generation",
-            apiProvider: _genPricing?.provider ?? (input.mode === "lightning" ? "gemini_flash" : "gemini_pro"),
-            tokensUsed: _genEstimate.totalPoints * 200, // approximate tokens (1 pt ≈ 200 tokens)
-            estimatedCostUsd: (_genEstimate.totalPoints / 100).toFixed(4), // 100 pts = $1
-            responseStatus: "success",
-            generationsDeducted: _genEstimate.totalPoints,
-          });
-
-          // Save to asset library
-          if (resultUrl) {
-            await db.createDigitalAsset({
+          if (!demoMode) {
+            await db.createApiUsageLog({
               userId,
-              title: input.prompt.substring(0, 100),
-              assetType: input.generationType === "multimodal" ? "image" : input.generationType,
-              fileUrl: resultUrl,
-              promptUsed: input.prompt,
+              requestType: input.generationType === "image" ? "image_generation" :
+                input.generationType === "video" ? "video_generation" :
+                input.generationType === "audio" ? "audio_generation" :
+                input.generationType === "voice" ? "voice_dubbing" : "image_generation",
+              apiProvider: _genPricing?.provider ?? (input.mode === "lightning" ? "gemini_flash" : "gemini_pro"),
+              tokensUsed: _genEstimate.totalPoints * 200,
+              estimatedCostUsd: (_genEstimate.totalPoints / 100).toFixed(4),
+              responseStatus: "success",
+              generationsDeducted: _genEstimate.totalPoints,
+            });
+
+            // Save to asset library
+            if (resultUrl) {
+              await db.createDigitalAsset({
+                userId,
+                title: input.prompt.substring(0, 100),
+                assetType: input.generationType === "multimodal" ? "image" : input.generationType,
+                fileUrl: resultUrl,
+                promptUsed: input.prompt,
+              });
+            }
+
+            // Save to generation history
+            await db.createHistoryEntry({
+              userId,
+              modality: input.generationType === "multimodal" ? "image" : input.generationType as "image" | "video" | "audio" | "voice",
+              prompt: input.prompt,
+              compiledPrompt,
+              parameterSnapshot: {
+                mode: input.mode,
+                temperature: input.temperature,
+                vibeCardIds: input.vibeCardIds,
+                seed: input.seed,
+                loraWeight: input.loraWeight,
+                visualWeight,
+                controlNetParams,
+                ...(input.fineTunedModelId && { fineTunedModelId: input.fineTunedModelId }),
+                ...(input.vaultCharacterId && { vaultCharacterId: input.vaultCharacterId }),
+                ...(input.vaultSceneId && { vaultSceneId: input.vaultSceneId }),
+                ...(input.generationType === "image" && {
+                  aspectRatio: input.aspectRatio,
+                  negativePrompt: input.negativePrompt,
+                  styleReferenceUrl: input.styleReferenceUrl,
+                  vibeReferenceUrl: input.vibeReferenceUrl,
+                }),
+                ...(input.generationType === "video" && {
+                  videoDurationSeconds: input.videoDurationSeconds,
+                  firstFrameUrl: input.firstFrameUrl,
+                  lastFrameUrl: input.lastFrameUrl,
+                  characterRefUrl: input.characterRefUrl,
+                  cameraMotion: input.cameraMotion,
+                }),
+                ...(input.generationType === "audio" && {
+                  musicStyle: input.musicStyle,
+                  isInstrumental: input.isInstrumental,
+                  lyrics: input.lyrics,
+                  audioDuration: input.audioDuration,
+                  audioEnergy: input.audioEnergy,
+                }),
+                ...(input.generationType === "voice" && {
+                  voiceModelId: input.voiceModelId,
+                  voiceText: input.voiceText,
+                  voiceSpeed: input.voiceSpeed,
+                  voiceStability: input.voiceStability,
+                  voiceEmotionType: input.voiceEmotionType,
+                  voiceEmotionIntensity: input.voiceEmotionIntensity,
+                }),
+              },
+              resultUrl: resultUrl || undefined,
+              thumbnailUrl: resultUrl || undefined,
+              costCredits: 1,
+            });
+
+            // Update job
+            await db.updateBackgroundJob(jobId, {
+              status: "completed",
+              progress: 100,
+              progressMessage: "生成完成！",
+              resultJson: resultData,
             });
           }
-
-          // Save to generation history
-          await db.createHistoryEntry({
-            userId,
-            modality: input.generationType === "multimodal" ? "image" : input.generationType as "image" | "video" | "audio" | "voice",
-            prompt: input.prompt,
-            compiledPrompt,
-            parameterSnapshot: {
-              mode: input.mode,
-              temperature: input.temperature,
-              vibeCardIds: input.vibeCardIds,
-              seed: input.seed,
-              loraWeight: input.loraWeight,
-              visualWeight,
-              controlNetParams,
-              // Preserve fine-tuned model & vault IDs for full config restoration
-              ...(input.fineTunedModelId && { fineTunedModelId: input.fineTunedModelId }),
-              ...(input.vaultCharacterId && { vaultCharacterId: input.vaultCharacterId }),
-              ...(input.vaultSceneId && { vaultSceneId: input.vaultSceneId }),
-              // ── Image-specific ──
-              ...(input.generationType === "image" && {
-                aspectRatio: input.aspectRatio,
-                negativePrompt: input.negativePrompt,
-                styleReferenceUrl: input.styleReferenceUrl,
-                vibeReferenceUrl: input.vibeReferenceUrl,
-              }),
-              // ── Video-specific ──
-              ...(input.generationType === "video" && {
-                videoDurationSeconds: input.videoDurationSeconds,
-                firstFrameUrl: input.firstFrameUrl,
-                lastFrameUrl: input.lastFrameUrl,
-                characterRefUrl: input.characterRefUrl,
-                cameraMotion: input.cameraMotion,
-              }),
-              // ── Audio-specific ──
-              ...(input.generationType === "audio" && {
-                musicStyle: input.musicStyle,
-                isInstrumental: input.isInstrumental,
-                lyrics: input.lyrics,
-                audioDuration: input.audioDuration,
-                audioEnergy: input.audioEnergy,
-              }),
-              // ── Voice-specific ──
-              ...(input.generationType === "voice" && {
-                voiceModelId: input.voiceModelId,
-                voiceText: input.voiceText,
-                voiceSpeed: input.voiceSpeed,
-                voiceStability: input.voiceStability,
-                voiceEmotionType: input.voiceEmotionType,
-                voiceEmotionIntensity: input.voiceEmotionIntensity,
-              }),
-            },
-            resultUrl: resultUrl || undefined,
-            thumbnailUrl: resultUrl || undefined,
-            costCredits: 1,
-          });
-
-          // Update job
-          await db.updateBackgroundJob(jobId, {
-            status: "completed",
-            progress: 100,
-            progressMessage: "生成完成！",
-            resultJson: resultData,
-          });
 
           // ── Phase 14: RAG 記憶向量化（非同步，不阻塞回應）──────────────
           upsertMemory({
@@ -1102,21 +1179,23 @@ export const appRouter = router({
           return { jobId, resultUrl, resultData, compiledPrompt, thoughtChain };
         } catch (error) {
           // Transactional integrity: refund points on generation failure
-          await db.refundUserPoints(userId, _genEstimate.totalPoints);
           const errMsg = error instanceof Error ? error.message : "生成失敗";
           const isTimeout = /超時|timeout|timed? ?out|ETIMEDOUT|aborted/i.test(errMsg);
-          await db.updateBackgroundJob(jobId, {
-            status: "failed",
-            errorMessage: errMsg,
-          });
-          await db.createApiUsageLog({
-            userId,
-            requestType: "image_generation",
-            apiProvider: "gemini",
-            responseStatus: "failed",
-            errorMessage: errMsg,
-            generationsDeducted: 0,
-          });
+          if (!demoMode) {
+            await db.refundUserPoints(userId, _genEstimate.totalPoints);
+            await db.updateBackgroundJob(jobId, {
+              status: "failed",
+              errorMessage: errMsg,
+            });
+            await db.createApiUsageLog({
+              userId,
+              requestType: "image_generation",
+              apiProvider: "gemini",
+              responseStatus: "failed",
+              errorMessage: errMsg,
+              generationsDeducted: 0,
+            });
+          }
           // Emit error via SSE so the frontend can update thought chain
           generationBus.emit(jobId, {
             type: "thought-update",

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { getLoginUrl } from "@/const";
+import { getLoginUrl, getDemoLoginUrl } from "@/const";
 import { useLocation } from "wouter";
 import { GlassCard } from "@/components/ZenCoPilot";
 import VisualSoul from "@/components/VisualSoul";
@@ -409,14 +409,24 @@ export default function Home() {
                   </Button>
                 </>
               ) : (
-                <Button
-                  size="lg"
-                  onClick={() => { window.location.href = getLoginUrl(); }}
-                  className={`rounded-xl h-12 px-10 gap-2 text-sm shadow-lg hover:shadow-xl transition-all ${s.btnPrimary} ${s.btnPrimaryText}`}
-                >
-                  立即開始
-                  <ArrowRight className="w-4 h-4" />
-                </Button>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Button
+                    size="lg"
+                    onClick={() => { window.location.href = getLoginUrl(); }}
+                    className={`rounded-xl h-12 px-10 gap-2 text-sm shadow-lg hover:shadow-xl transition-all ${s.btnPrimary} ${s.btnPrimaryText}`}
+                  >
+                    立即開始
+                    <ArrowRight className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    onClick={() => { window.location.href = getDemoLoginUrl(); }}
+                    className={`rounded-xl h-12 px-8 gap-2 text-sm border-dashed transition-all ${s.btnOutline} ${s.btnOutlineText}`}
+                  >
+                    ✨ 訪客體驗
+                  </Button>
+                </div>
               )}
             </div>
 
