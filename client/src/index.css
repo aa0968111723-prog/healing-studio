@@ -343,4 +343,47 @@
       opacity: 0.15;
     }
   }
+
+  /* ─── Mobile Optimizations ──────────────────────────────────────── */
+
+  /* Hide scrollbar but keep scroll functional */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Mobile-friendly touch targets: minimum 44x44 active area */
+  .touch-target {
+    position: relative;
+  }
+  .touch-target::after {
+    content: "";
+    position: absolute;
+    inset: -6px;
+    /* Ensure at least 44px tappable area on small icons/buttons */
+  }
+
+  /* ─── Mobile: Shrink decorative orbs to reduce visual clutter ─── */
+  @media (max-width: 640px) {
+    .workspace-orb-1 {
+      width: 100px;
+      height: 100px;
+    }
+    .workspace-orb-2 {
+      width: 80px;
+      height: 80px;
+    }
+    .workspace-orb-3 {
+      width: 60px;
+      height: 60px;
+    }
+
+    /* Prevent horizontal overflow on mobile */
+    .container {
+      overflow-x: hidden;
+    }
+  }
 }
