@@ -593,7 +593,14 @@ export const featuredShowcase = mysqlTable("featured_showcase", {
 
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  // Composite index for the main listing query: WHERE isActive = true ORDER BY sortWeight, likeCount, id
+  isActiveSortIdx: index("fs_isActive_sort_idx").on(table.isActive, table.sortWeight, table.likeCount),
+  // Index for modality filtering (used when filtering by image/video/audio/voice)
+  modalityIdx: index("fs_modality_idx").on(table.modality),
+  // Index for curator lookups
+  curatorIdx: index("fs_curator_idx").on(table.curatorUserId),
+}));
 
 export type FeaturedShowcaseItem = typeof featuredShowcase.$inferSelect;
 export type InsertFeaturedShowcaseItem = typeof featuredShowcase.$inferInsert;

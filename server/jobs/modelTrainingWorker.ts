@@ -10,7 +10,7 @@
  */
 
 import * as cron from "node-cron";
-import Replicate from "replicate";
+import { getReplicateClient } from "../services/replicateClient.js";
 import {
   getQueuedJobsByType,
   getStuckJobsByType,
@@ -173,7 +173,7 @@ async function recoverStuckTrainingJobs(): Promise<void> {
         logWorker("info", `任務 #${job.id} — 嘗試恢復 Replicate 預測 ${predictionId}`);
 
         try {
-          const replicate = new Replicate({ auth: process.env.REPLICATE_API_TOKEN });
+          const replicate = getReplicateClient();
           const prediction = await replicate.predictions.get(predictionId);
 
           if (prediction.status === "succeeded") {

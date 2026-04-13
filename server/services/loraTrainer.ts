@@ -9,7 +9,7 @@
  */
 
 import JSZip from "jszip";
-import Replicate from "replicate";
+import { getReplicateClient } from "./replicateClient.js";
 import { storagePut } from "../storage.js";
 import {
   updateFineTunedModel,
@@ -122,7 +122,7 @@ async function submitReplicateTraining(params: {
   epochs: number;
   learningRate: number;
 }): Promise<string> {
-  const replicate = new Replicate({ auth: process.env.REPLICATE_API_TOKEN! });
+  const replicate = getReplicateClient();
   const steps = Math.min(Math.max(params.epochs * 30, 200), 2000);
 
   log("info", `Submitting Replicate training: model=ostris/flux-dev-lora-trainer, steps=${steps}, lr=${params.learningRate}, trigger="${params.triggerWord}"`);
@@ -211,7 +211,7 @@ export async function runLoraTrainingJob(input: LoraTrainingJobInput): Promise<v
     const MAX_POLL_MS = 3_600_000;   // 60 minutes
     const POLL_INTERVAL_MS = 30_000; // 30 seconds
     const pollStart = Date.now();
-    const replicate = new Replicate({ auth: process.env.REPLICATE_API_TOKEN! });
+    const replicate = getReplicateClient();
 
     log("info", `[步驟 5] Starting polling loop (interval=${POLL_INTERVAL_MS / 1000}s, max=${MAX_POLL_MS / 1000}s)...`);
 
