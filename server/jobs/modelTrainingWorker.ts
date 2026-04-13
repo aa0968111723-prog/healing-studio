@@ -19,6 +19,7 @@ import {
   getFineTunedModel,
 } from "../db.js";
 import type { LoraTrainingJobInput } from "../services/loraTrainer.js";
+import { CircuitBreaker } from "./circuitBreaker.js";
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
 
@@ -38,6 +39,15 @@ interface ModelConfigJson {
 // ─── State ──────────────────────────────────────────────────────────────────
 
 let cronTask: cron.ScheduledTask | null = null;
+
+// ─── Circuit Breaker — Stops retrying when Replicate API fails repeatedly ────
+const replicateBreaker = new CircuitBreaker("ReplicateTraining", {
+  failureThreshold: 3,
+  cooldownMs: 10 * 60_000, // 10 minutes cooldown
+});
+
+// ─── Deduplication Lock — Prevents overlapping cron runs ─────────────────────
+let isWorkerRunning = false;
 
 // ─── Logger ─────────────────────────────────────────────────────────────────
 
@@ -227,10 +237,31 @@ async function recoverStuckTrainingJobs(): Promise<void> {
 // ─── Function 3: runModelTrainingWorker ─────────────────────────────────────
 
 async function runModelTrainingWorker(): Promise<void> {
+  // Deduplication: prevent overlapping runs
+  if (isWorkerRunning) {
+    logWorker("warn", "前一輪 Worker 仍在執行中，跳過本次排程。");
+    return;
+  }
+
+  // Circuit breaker: stop hammering Replicate when it's down
+  if (!replicateBreaker.canExecute()) {
+    logWorker("warn", `Circuit breaker OPEN（狀態: ${replicateBreaker.getState()}），跳過本次排程。`);
+    return;
+  }
+
+  isWorkerRunning = true;
   logWorker("info", "═══ 模型訓練 Worker 開始執行 ═══");
-  await recoverStuckTrainingJobs();  // 先恢復卡住任務
-  await processQueuedTrainingJobs(); // 再處理新任務
-  logWorker("info", "═══ 模型訓練 Worker 完成 ═══");
+  try {
+    await recoverStuckTrainingJobs();  // 先恢復卡住任務
+    await processQueuedTrainingJobs(); // 再處理新任務
+    replicateBreaker.recordSuccess();
+    logWorker("info", "═══ 模型訓練 Worker 完成 ═══");
+  } catch (err: unknown) {
+    replicateBreaker.recordFailure();
+    throw err;
+  } finally {
+    isWorkerRunning = false;
+  }
 }
 
 // ─── Cron Initialization ────────────────────────────────────────────────────

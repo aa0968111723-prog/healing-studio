@@ -12,8 +12,9 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { uploadRouter } from "../uploadRoute";
 import { sseRouter } from "../sseRoute";
-import { initNewsFetcherCron } from "../jobs/newsFetcher";
-import { initModelTrainingWorkerCron } from "../jobs/modelTrainingWorker";
+import { initNewsFetcherCron, stopNewsFetcherCron } from "../jobs/newsFetcher";
+import { initModelTrainingWorkerCron, stopModelTrainingWorkerCron } from "../jobs/modelTrainingWorker";
+import { closeDb } from "../db";
 
 // ─── Allowlist helpers for proxy-download ─────────────────────────────────
 const PROXY_ALLOWED_HOSTS = [
@@ -213,6 +214,26 @@ async function startServer() {
     initNewsFetcherCron();
     initModelTrainingWorkerCron();
   });
+
+  // ── Graceful Shutdown ────────────────────────────────────────────────────
+  const shutdown = async (signal: string) => {
+    console.log(`\n[Server] Received ${signal}. Shutting down gracefully...`);
+    stopNewsFetcherCron();
+    stopModelTrainingWorkerCron();
+    server.close(async () => {
+      await closeDb();
+      console.log("[Server] All resources released. Exiting.");
+      process.exit(0);
+    });
+    // Force exit after 10s if graceful shutdown hangs
+    setTimeout(() => {
+      console.warn("[Server] Graceful shutdown timed out. Forcing exit.");
+      process.exit(1);
+    }, 10_000);
+  };
+
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 }
 
 startServer().catch(console.error);
