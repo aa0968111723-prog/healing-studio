@@ -2196,6 +2196,82 @@ export const appRouter = router({
     teamCostSummary: adminProcedure.query(async () => {
       return db.getTeamCostSummary();
     }),
+
+    // ── New Admin Endpoints ──────────────────────────────────────────────────
+
+    /** System-wide statistics overview */
+    systemStats: adminProcedure.query(async () => {
+      return db.getSystemStats();
+    }),
+
+    /** Update user role (admin/user) */
+    updateRole: adminProcedure
+      .input(z.object({
+        userId: z.number(),
+        role: z.enum(["user", "admin"]),
+      }))
+      .mutation(async ({ input }) => {
+        await db.updateUserRole(input.userId, input.role);
+        return { success: true };
+      }),
+
+    /** All generation history across all users */
+    allGenerationHistory: adminProcedure
+      .input(z.object({ limit: z.number().default(200) }))
+      .query(async ({ input }) => {
+        return db.getAllGenerationHistory(input.limit);
+      }),
+
+    /** Per-user activity summary */
+    userActivity: adminProcedure.query(async () => {
+      return db.getUserActivitySummary();
+    }),
+
+    /** API provider usage breakdown */
+    apiProviderBreakdown: adminProcedure.query(async () => {
+      return db.getApiProviderBreakdown();
+    }),
+
+    /** Daily system usage trend (last 30 days) */
+    systemDailyTrend: adminProcedure
+      .input(z.object({ days: z.number().default(30) }))
+      .query(async ({ input }) => {
+        return db.getSystemDailyTrend(input.days);
+      }),
+
+    /** All background jobs for monitoring */
+    allBackgroundJobs: adminProcedure
+      .input(z.object({ limit: z.number().default(100) }))
+      .query(async ({ input }) => {
+        return db.getAllBackgroundJobs(input.limit);
+      }),
+
+    /** API keys configuration status (no secrets exposed) */
+    apiKeysStatus: adminProcedure.query(async () => {
+      // Only report whether keys are set, NEVER expose actual values
+      const env = process.env;
+      const keys = [
+        { name: "GEMINI_API_KEY", label: "Gemini LLM", module: "LLM 主引擎" },
+        { name: "FAL_API_KEY", label: "Fal.ai", module: "圖片/影片生成" },
+        { name: "REPLICATE_API_TOKEN", label: "Replicate", module: "LoRA 模型訓練" },
+        { name: "ELEVENLABS_API_KEY", label: "ElevenLabs", module: "語音合成" },
+        { name: "SUNO_API_KEY", label: "Suno", module: "音樂生成" },
+        { name: "PINECONE_API_KEY", label: "Pinecone", module: "RAG 記憶系統" },
+        { name: "NEWS_API_KEY", label: "NewsAPI", module: "新聞資料" },
+        { name: "NEWSDATA_API_KEY", label: "NewsData.io", module: "新聞資料" },
+        { name: "LANGSMITH_API_KEY", label: "LangSmith", module: "AI 監控" },
+        { name: "GCS_BUCKET_NAME", label: "GCS Storage", module: "媒體儲存" },
+        { name: "S3_ENDPOINT", label: "S3/R2 Storage", module: "S3 儲存" },
+        { name: "GOOGLE_CLIENT_ID", label: "Google OAuth", module: "登入認證" },
+        { name: "DATABASE_URL", label: "MySQL Database", module: "資料庫" },
+      ];
+      return keys.map(k => ({
+        name: k.name,
+        label: k.label,
+        module: k.module,
+        isSet: Boolean(env[k.name] && env[k.name]!.trim().length > 0),
+      }));
+    }),
   }),
 
   // ─── User Profile & Settings ───────────────────────────────────────────────
