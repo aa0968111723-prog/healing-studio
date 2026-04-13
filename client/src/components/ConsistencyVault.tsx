@@ -47,6 +47,7 @@ async function uploadFileToS3(file: File): Promise<{ url: string; fileKey: strin
   const response = await fetch("/api/upload", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify({
       fileName: file.name,
       mimeType: file.type,
