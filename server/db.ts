@@ -295,6 +295,15 @@ export async function deleteFineTunedModel(id: number) {
   await db.delete(fineTunedModels).where(eq(fineTunedModels.id, id));
 }
 
+/** 增加模型使用計數 */
+export async function incrementModelUsage(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(fineTunedModels)
+    .set({ usageCount: sql`${fineTunedModels.usageCount} + 1` })
+    .where(eq(fineTunedModels.id, id));
+}
+
 // ─── Digital Asset Library ───────────────────────────────────────────────────
 
 export async function createDigitalAsset(data: InsertDigitalAsset) {
@@ -302,6 +311,13 @@ export async function createDigitalAsset(data: InsertDigitalAsset) {
   if (!db) throw new Error("Database not available");
   const result = await db.insert(digitalAssetLibrary).values(data);
   return result[0].insertId;
+}
+
+export async function getDigitalAsset(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(digitalAssetLibrary).where(eq(digitalAssetLibrary.id, id)).limit(1);
+  return rows[0] || null;
 }
 
 export async function getDigitalAssetsByUser(userId: number) {
@@ -335,6 +351,13 @@ export async function createProjectNote(data: InsertProjectNote) {
   if (!db) throw new Error("Database not available");
   const result = await db.insert(projectNotesCalendar).values(data);
   return result[0].insertId;
+}
+
+export async function getProjectNote(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db.select().from(projectNotesCalendar).where(eq(projectNotesCalendar.id, id)).limit(1);
+  return rows[0] || null;
 }
 
 export async function getProjectNotesByUser(userId: number) {

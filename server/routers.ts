@@ -690,22 +690,37 @@ export const appRouter = router({
           }
         }
 
-        // ── Fine-tuned model injection: append triggerWord to prompt ──
+        // ── Fine-tuned model injection: append triggerWord + inject LoRA URL ──
         let modelTriggerWord = "";
+        let fineTunedLoraUrl: string | undefined;
         if (input.fineTunedModelId) {
           try {
             const ftModel = await db.getFineTunedModel(input.fineTunedModelId);
             if (ftModel) {
-              debug(`[Model] Injecting fine-tuned model #${ftModel.id}: ${ftModel.name}`);
+              debug(`[Model] Injecting fine-tuned model #${ftModel.id}: ${ftModel.name} (status=${ftModel.status})`);
+              if (ftModel.status !== "ready") {
+                throw new TRPCError({ code: "BAD_REQUEST", message: `模型「${ftModel.name}」尚未訓練完成（狀態：${ftModel.status}），請等待訓練完畢再使用` });
+              }
               const config = ftModel.configJson as Record<string, unknown> | null;
               if (config && typeof config.triggerWord === "string" && config.triggerWord.trim()) {
                 modelTriggerWord = config.triggerWord.trim();
-                // Append trigger word to the user prompt so compileElitePrompt includes it
-                input.prompt = `${input.prompt}, ${modelTriggerWord}`;
-                debug(`[Model] Appended triggerWord "${modelTriggerWord}" to prompt`);
+                // Prepend trigger word so it appears prominently in compiled prompt
+                input.prompt = `${modelTriggerWord}, ${input.prompt}`;
+                debug(`[Model] Prepended triggerWord "${modelTriggerWord}" to prompt`);
               }
+              // Extract the trained LoRA weights URL (used for fal.ai sdLora endpoint)
+              if (ftModel.trainedLoraUrl) {
+                fineTunedLoraUrl = ftModel.trainedLoraUrl;
+                debug(`[Model] Will inject LoRA weights URL: ${fineTunedLoraUrl}`);
+              } else if (ftModel.fileUrl && (ftModel.fileUrl.endsWith(".safetensors") || ftModel.fileUrl.endsWith(".tar") || ftModel.fileUrl.includes("replicate"))) {
+                fineTunedLoraUrl = ftModel.fileUrl;
+                debug(`[Model] Will inject LoRA fileUrl as weights: ${fineTunedLoraUrl}`);
+              }
+              // Increment usage count asynchronously
+              db.incrementModelUsage(ftModel.id).catch(() => {});
             }
           } catch (e) {
+            if (e instanceof TRPCError) throw e;
             console.warn("[Model] Failed to load fine-tuned model:", e);
           }
         }
@@ -804,16 +819,26 @@ export const appRouter = router({
             const refImageUrl = input.styleReferenceUrl || input.vibeReferenceUrl || undefined;
             let imageUrl: string | undefined;
             try {
+              // If user selected a fine-tuned LoRA model and we have the weights URL,
+              // route to the sdLora / lora model instead of the standard T2I engine.
+              const imageModelId = fineTunedLoraUrl
+                ? "fal-ai/lora"
+                : (refImageUrl ? falEngines.imageToImage : falEngines.textToImage);
               const imageDispatch = await withTimeout(
                 dispatchImageGeneration({
-                  modelId: refImageUrl ? falEngines.imageToImage : falEngines.textToImage,
+                  modelId: imageModelId,
                   prompt: compiledPrompt,
                   negativePrompt: input.negativePrompt,
                   imageUrl: refImageUrl,
                   aspectRatio: input.aspectRatio,
                   seed: input.seed,
+                  // Inject LoRA weights URL + scale when fine-tuned model selected
+                  ...(fineTunedLoraUrl && {
+                    loraUrl: fineTunedLoraUrl,
+                    loraScale: input.loraWeight ?? 0.8,
+                  }),
                 }),
-                120_000,
+                150_000,
                 "圖片生成"
               );
               if (imageDispatch.success) {
@@ -1391,21 +1416,103 @@ export const appRouter = router({
   // ─── Assets ──────────────────────────────────────────────────────────────
 
   assets: router({
-    myAssets: protectedProcedure.query(async ({ ctx }) => {
-      try {
-        return await db.getDigitalAssetsByUser(ctx.user.id);
-      } catch {
-        return [];
-      }
-    }),
+    myAssets: protectedProcedure
+      .input(z.object({
+        assetType: z.enum(["image", "video", "audio", "voice", "script", "zip_bundle", "all"]).default("all"),
+        search: z.string().optional(),
+      }).optional())
+      .query(async ({ ctx, input }) => {
+        try {
+          const all = await db.getDigitalAssetsByUser(ctx.user.id);
+          let result = all;
+          if (input?.assetType && input.assetType !== "all") {
+            result = result.filter(a => a.assetType === input.assetType);
+          }
+          if (input?.search) {
+            const q = input.search.toLowerCase();
+            result = result.filter(a =>
+              a.title.toLowerCase().includes(q) ||
+              (a.description || "").toLowerCase().includes(q) ||
+              (a.promptUsed || "").toLowerCase().includes(q)
+            );
+          }
+          return result;
+        } catch {
+          return [];
+        }
+      }),
 
-    teamAssets: protectedProcedure.query(async () => {
-      try {
-        return await db.getTeamSharedAssets();
-      } catch {
-        return [];
-      }
-    }),
+    teamAssets: protectedProcedure
+      .input(z.object({
+        assetType: z.enum(["image", "video", "audio", "voice", "script", "zip_bundle", "all"]).default("all"),
+        search: z.string().optional(),
+      }).optional())
+      .query(async ({ ctx: _ctx, input }) => {
+        try {
+          const all = await db.getTeamSharedAssets();
+          let result = all;
+          if (input?.assetType && input.assetType !== "all") {
+            result = result.filter(a => a.assetType === input.assetType);
+          }
+          if (input?.search) {
+            const q = input.search.toLowerCase();
+            result = result.filter(a =>
+              a.title.toLowerCase().includes(q) ||
+              (a.description || "").toLowerCase().includes(q) ||
+              (a.promptUsed || "").toLowerCase().includes(q)
+            );
+          }
+          return result;
+        } catch {
+          return [];
+        }
+      }),
+
+    // ── 手動上傳資產（已上傳至 S3 後呼叫此端點登記）──────────────────────
+    upload: protectedProcedure
+      .input(z.object({
+        title: z.string().min(1).max(255),
+        description: z.string().max(500).optional(),
+        assetType: z.enum(["image", "video", "audio", "voice", "script", "zip_bundle"]),
+        fileUrl: z.string().url(),
+        fileKey: z.string(),
+        mimeType: z.string().optional(),
+        fileSizeBytes: z.number().optional(),
+        thumbnailUrl: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const id = await db.createDigitalAsset({
+          userId: ctx.user.id,
+          title: input.title,
+          description: input.description,
+          assetType: input.assetType,
+          fileUrl: input.fileUrl,
+          fileKey: input.fileKey,
+          mimeType: input.mimeType,
+          fileSizeBytes: input.fileSizeBytes,
+          thumbnailUrl: input.thumbnailUrl,
+        });
+        return { id };
+      }),
+
+    // ── 更新資產資訊 ──────────────────────────────────────────────────────
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        title: z.string().min(1).max(255).optional(),
+        description: z.string().max(500).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const asset = await db.getDigitalAsset(input.id);
+        if (!asset || asset.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "資產不存在" });
+        }
+        const updates: Record<string, unknown> = {};
+        if (input.title) updates.title = input.title;
+        if (input.description !== undefined) updates.description = input.description;
+        await db.updateDigitalAsset(input.id, updates as Parameters<typeof db.updateDigitalAsset>[1]);
+        return { success: true };
+      }),
 
     toggleVisibility: protectedProcedure
       .input(z.object({
@@ -1413,6 +1520,10 @@ export const appRouter = router({
         visibility: z.enum(["private", "team_shared"]),
       }))
       .mutation(async ({ ctx, input }) => {
+        const asset = await db.getDigitalAsset(input.id);
+        if (!asset || asset.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "資產不存在" });
+        }
         await db.updateDigitalAsset(input.id, { visibility: input.visibility });
         // Reward credits for sharing
         if (input.visibility === "team_shared") {
@@ -1423,7 +1534,11 @@ export const appRouter = router({
 
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
+        const asset = await db.getDigitalAsset(input.id);
+        if (!asset || asset.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "資產不存在" });
+        }
         await db.deleteDigitalAsset(input.id);
         return { success: true };
       }),
@@ -1444,15 +1559,151 @@ export const appRouter = router({
       }
     }),
 
+    getById: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const model = await db.getFineTunedModel(input.id);
+        if (!model) throw new TRPCError({ code: "NOT_FOUND", message: "模型不存在" });
+        // Only allow access to own or team-shared models
+        if (model.userId !== ctx.user.id && model.visibility !== "team_shared") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "無存取權限" });
+        }
+        return model;
+      }),
+
+    // ── 取得訓練任務狀態（輪詢用）────────────────────────────────────────
+    trainingStatus: protectedProcedure
+      .input(z.object({ jobId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const job = await db.getBackgroundJob(input.jobId);
+        if (!job) throw new TRPCError({ code: "NOT_FOUND", message: "任務不存在" });
+        if (job.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "無存取權限" });
+        }
+        return {
+          jobId: job.id,
+          status: job.status,
+          progress: job.progress,
+          progressMessage: job.progressMessage,
+          resultJson: job.resultJson as Record<string, unknown> | null,
+          errorMessage: job.errorMessage,
+          updatedAt: job.updatedAt,
+        };
+      }),
+
+    // ── 同步 Replicate 狀態（主動拉取 Replicate prediction 最新狀態）────
+    syncReplicateStatus: protectedProcedure
+      .input(z.object({ modelId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const model = await db.getFineTunedModel(input.modelId);
+        if (!model || model.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "模型不存在" });
+        }
+        if (model.status === "ready" || model.status === "failed") {
+          return { status: model.status, message: "已是最終狀態" };
+        }
+
+        const predictionId = model.replicatePredictionId ||
+          (model.configJson as Record<string, unknown> | null)?.predictionId as string | undefined;
+
+        if (!predictionId) {
+          return { status: model.status, message: "尚無 Replicate prediction ID" };
+        }
+
+        if (!process.env.REPLICATE_API_TOKEN) {
+          return { status: model.status, message: "REPLICATE_API_TOKEN 未設定" };
+        }
+
+        try {
+          const Replicate = (await import("replicate")).default;
+          const replicate = new Replicate({ auth: process.env.REPLICATE_API_TOKEN });
+          const prediction = await replicate.predictions.get(predictionId) as {
+            status: string;
+            output?: unknown;
+            error?: unknown;
+          };
+
+          if (prediction.status === "succeeded") {
+            const outputUrl = typeof prediction.output === "string"
+              ? prediction.output
+              : Array.isArray(prediction.output) ? (prediction.output as string[])[0] : null;
+
+            await db.updateFineTunedModel(input.modelId, {
+              status: "ready",
+              trainedLoraUrl: outputUrl || undefined,
+              fileUrl: outputUrl || model.fileUrl || undefined,
+            });
+            return { status: "ready", loraUrl: outputUrl, message: "訓練完成！" };
+          } else if (prediction.status === "failed" || prediction.status === "canceled") {
+            await db.updateFineTunedModel(input.modelId, { status: "failed" });
+            return { status: "failed", message: `Replicate 任務 ${prediction.status}` };
+          }
+          return { status: "training", message: `Replicate 狀態：${prediction.status}` };
+        } catch (e: any) {
+          return { status: model.status, message: `同步失敗：${e.message}` };
+        }
+      }),
+
+    // ── 重新訓練（重新提交已失敗的模型）──────────────────────────────────
+    retrain: protectedProcedure
+      .input(z.object({ modelId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const model = await db.getFineTunedModel(input.modelId);
+        if (!model || model.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "模型不存在" });
+        }
+        if (model.status === "training") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "模型正在訓練中" });
+        }
+        if (!process.env.REPLICATE_API_TOKEN) {
+          throw new TRPCError({ code: "PRECONDITION_FAILED", message: "REPLICATE_API_TOKEN 未設定，無法訓練" });
+        }
+
+        const config = model.configJson as Record<string, unknown> | null;
+        const imageUrls = (config?.datasetImages as Array<{ url: string }> | undefined)?.map(i => i.url) ?? [];
+        if (imageUrls.length < 3) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "訓練圖片不足（至少 3 張）" });
+        }
+
+        // Reset status
+        await db.updateFineTunedModel(input.modelId, { status: "pending", trainedLoraUrl: undefined });
+
+        const jobId = await db.createBackgroundJob({
+          userId: ctx.user.id,
+          jobType: "model_training",
+          status: "queued",
+          progress: 0,
+          progressMessage: "重新訓練任務已加入佇列",
+          resultJson: { modelId: input.modelId, modelName: model.name },
+        });
+
+        import("./services/loraTrainer").then(({ runLoraTrainingJob }) => {
+          runLoraTrainingJob({
+            userId: ctx.user.id,
+            modelId: input.modelId,
+            jobId,
+            modelName: model.name,
+            triggerWord: (config?.triggerWord as string) || "",
+            epochs: (config?.epochs as number) ?? 20,
+            learningRate: (config?.learningRate as number) ?? 0.0001,
+            imageUrls,
+          }).catch(err => {
+            console.error(`[LoraTrainer] Retrain job failed for model ${input.modelId}:`, err);
+          });
+        });
+
+        return { jobId, message: "重新訓練已啟動" };
+      }),
+
     create: protectedProcedure
       .input(z.object({
-        name: z.string().min(1),
-        description: z.string().optional(),
+        name: z.string().min(1).max(100),
+        description: z.string().max(500).optional(),
         modelType: z.enum(["image_subject", "voice_clone", "style_lora"]).default("image_subject"),
-        triggerWord: z.string().optional(),
-        epochs: z.number().optional(),
-        learningRate: z.number().optional(),
-        batchSize: z.number().optional(),
+        triggerWord: z.string().max(50).optional(),
+        epochs: z.number().min(5).max(100).optional(),
+        learningRate: z.number().min(0.00001).max(0.01).optional(),
+        batchSize: z.number().min(1).max(8).optional(),
         fileUrl: z.string().optional(),
         fileKey: z.string().optional(),
         datasetImages: z.array(z.object({
@@ -1460,15 +1711,16 @@ export const appRouter = router({
           fileKey: z.string(),
           angle: z.enum(["front", "side", "back", "expression", "other"]),
           caption: z.string().optional(),
-        })).optional(),
+        })).min(3).max(30).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
-        const configJson: Record<string, unknown> = {
-          triggerWord: input.triggerWord,
+        const configJson = {
+          triggerWord: input.triggerWord || "",
           epochs: input.epochs ?? 20,
           learningRate: input.learningRate ?? 0.0001,
           batchSize: input.batchSize ?? 4,
-          datasetImages: input.datasetImages,
+          steps: Math.min(Math.max((input.epochs ?? 20) * 30, 200), 2000),
+          datasetImages: input.datasetImages ?? [],
         };
 
         // Create the model record
@@ -1492,8 +1744,10 @@ export const appRouter = router({
           resultJson: { modelId, modelName: input.name },
         });
 
-        // 非同步啟動 LoRA 訓練（背景執行，不阻塞此 API 回應）
-        if (input.datasetImages && input.datasetImages.length >= 3 && process.env.REPLICATE_API_TOKEN) {
+        if (!process.env.REPLICATE_API_TOKEN) {
+          console.warn(`[LoraTrainer] REPLICATE_API_TOKEN not set — model ${modelId} will remain queued`);
+        } else if (input.datasetImages && input.datasetImages.length >= 3) {
+          // 非同步啟動 LoRA 訓練（背景執行，不阻塞此 API 回應）
           import("./services/loraTrainer").then(({ runLoraTrainingJob }) => {
             runLoraTrainingJob({
               userId: ctx.user.id,
@@ -1508,8 +1762,6 @@ export const appRouter = router({
               console.error(`[LoraTrainer] Background job failed for model ${modelId}:`, err);
             });
           });
-        } else if (!process.env.REPLICATE_API_TOKEN) {
-          console.warn(`[LoraTrainer] REPLICATE_API_TOKEN not set — model ${modelId} will remain queued`);
         }
 
         return { id: modelId, jobId };
@@ -1520,10 +1772,9 @@ export const appRouter = router({
         images: z.array(z.object({
           url: z.string(),
           angle: z.enum(["front", "side", "back", "expression", "other"]),
-        })),
+        })).max(30),
       }))
       .mutation(async ({ input }) => {
-        // Use LLM to generate captions for each image
         const captions: string[] = [];
         for (const img of input.images) {
           try {
@@ -1531,12 +1782,12 @@ export const appRouter = router({
               messages: [
                 {
                   role: "system",
-                  content: "你是一位專業的圖片描述生成器。請為以下圖片生成一段簡短的英文描述（約 20-40 字），適合用於 LoRA 訓練的標註。描述應包含主體特徵、姿勢、表情、服裝等細節。",
+                  content: "You are a professional image captioner for LoRA training datasets. Generate a concise English description (20-40 words) that captures the subject's appearance, pose, expression, and clothing. Be specific and descriptive. Only output the caption text, nothing else.",
                 },
                 {
                   role: "user",
                   content: [
-                    { type: "text" as const, text: `角度：${img.angle}。請生成訓練標註描述。` },
+                    { type: "text" as const, text: `Angle: ${img.angle}. Generate a training caption for this image.` },
                     { type: "image_url" as const, image_url: { url: img.url } },
                   ],
                 },
@@ -1557,17 +1808,59 @@ export const appRouter = router({
         visibility: z.enum(["private", "team_shared"]),
       }))
       .mutation(async ({ ctx, input }) => {
+        const model = await db.getFineTunedModel(input.id);
+        if (!model || model.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "模型不存在" });
+        }
         await db.updateFineTunedModel(input.id, { visibility: input.visibility });
         if (input.visibility === "team_shared") {
-          await db.refundUserQuota(ctx.user.id, 3);
+          // Reward 3 quota for sharing a ready model
+          if (model.status === "ready") await db.refundUserQuota(ctx.user.id, 3);
         }
+        return { success: true };
+      }),
+
+    // ── 更新模型資訊（名稱、描述、觸發詞）──────────────────────────────────
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().min(1).max(100).optional(),
+        description: z.string().max(500).optional(),
+        triggerWord: z.string().max(50).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const model = await db.getFineTunedModel(input.id);
+        if (!model || model.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "模型不存在" });
+        }
+        const updates: Record<string, unknown> = {};
+        if (input.name) updates.name = input.name;
+        if (input.description !== undefined) updates.description = input.description;
+        if (input.triggerWord !== undefined) {
+          // Update triggerWord in configJson
+          const config = (model.configJson as Record<string, unknown>) || {};
+          updates.configJson = { ...config, triggerWord: input.triggerWord };
+        }
+        await db.updateFineTunedModel(input.id, updates as Partial<typeof model>);
         return { success: true };
       }),
 
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
+        const model = await db.getFineTunedModel(input.id);
+        if (!model || model.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "模型不存在" });
+        }
         await db.deleteFineTunedModel(input.id);
+        return { success: true };
+      }),
+
+    // ── 增加使用計數（生成時呼叫）────────────────────────────────────────
+    incrementUsage: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.incrementModelUsage(input.id);
         return { success: true };
       }),
   }),
@@ -1575,17 +1868,42 @@ export const appRouter = router({
   // ─── Project Notes ────────────────────────────────────────────────────────
 
   notes: router({
-    list: protectedProcedure.query(async ({ ctx }) => {
-      return db.getProjectNotesByUser(ctx.user.id);
-    }),
+    list: protectedProcedure
+      .input(z.object({
+        noteType: z.enum(["note", "script", "calendar_event", "all"]).default("all"),
+        search: z.string().optional(),
+        tags: z.array(z.string()).optional(),
+      }).optional())
+      .query(async ({ ctx, input }) => {
+        const all = await db.getProjectNotesByUser(ctx.user.id);
+        let result = all;
+        if (input?.noteType && input.noteType !== "all") {
+          result = result.filter(n => n.noteType === input.noteType);
+        }
+        if (input?.search) {
+          const q = input.search.toLowerCase();
+          result = result.filter(n =>
+            n.title.toLowerCase().includes(q) ||
+            (n.content || "").toLowerCase().includes(q)
+          );
+        }
+        if (input?.tags && input.tags.length > 0) {
+          result = result.filter(n => {
+            const noteTags = (n.tags as string[] | null) || [];
+            return input.tags!.some(t => noteTags.includes(t));
+          });
+        }
+        return result;
+      }),
 
     create: protectedProcedure
       .input(z.object({
-        title: z.string().min(1),
+        title: z.string().min(1).max(255),
         content: z.string().optional(),
         scriptJson: z.any().optional(),
         noteType: z.enum(["note", "script", "calendar_event"]).default("note"),
         scheduledDate: z.number().optional(),
+        tags: z.array(z.string().max(32)).max(10).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const id = await db.createProjectNote({
@@ -1595,6 +1913,7 @@ export const appRouter = router({
           scriptJson: input.scriptJson,
           noteType: input.noteType,
           scheduledDate: input.scheduledDate ? new Date(input.scheduledDate) : undefined,
+          tags: input.tags,
         });
         return { id };
       }),
@@ -1602,16 +1921,24 @@ export const appRouter = router({
     update: protectedProcedure
       .input(z.object({
         id: z.number(),
-        title: z.string().optional(),
+        title: z.string().min(1).max(255).optional(),
         content: z.string().optional(),
         scriptJson: z.any().optional(),
         scheduledDate: z.number().nullable().optional(),
+        tags: z.array(z.string().max(32)).max(10).optional(),
+        noteType: z.enum(["note", "script", "calendar_event"]).optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
+        const note = await db.getProjectNote(input.id);
+        if (!note || note.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "筆記不存在" });
+        }
         await db.updateProjectNote(input.id, {
           title: input.title,
           content: input.content,
           scriptJson: input.scriptJson,
+          noteType: input.noteType,
+          tags: input.tags,
           ...(input.scheduledDate !== undefined
             ? { scheduledDate: input.scheduledDate ? new Date(input.scheduledDate) : null }
             : {}),
@@ -1621,7 +1948,11 @@ export const appRouter = router({
 
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
+        const note = await db.getProjectNote(input.id);
+        if (!note || note.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "筆記不存在" });
+        }
         await db.deleteProjectNote(input.id);
         return { success: true };
       }),
@@ -1683,21 +2014,39 @@ export const appRouter = router({
 
   vault: router({
     list: protectedProcedure
-      .input(z.object({ itemType: z.enum(["character", "scene"]).optional() }).optional())
+      .input(z.object({
+        itemType: z.enum(["character", "scene"]).optional(),
+        search: z.string().optional(),
+        tags: z.array(z.string()).optional(),
+      }).optional())
       .query(async ({ ctx, input }) => {
-        if (input?.itemType) {
-          return db.getVaultItemsByType(ctx.user.id, input.itemType);
+        let items = input?.itemType
+          ? await db.getVaultItemsByType(ctx.user.id, input.itemType)
+          : await db.getVaultItemsByUser(ctx.user.id);
+
+        if (input?.search) {
+          const q = input.search.toLowerCase();
+          items = items.filter(v =>
+            v.name.toLowerCase().includes(q) ||
+            ((v.tags as string[] | null) || []).some(t => t.toLowerCase().includes(q))
+          );
         }
-        return db.getVaultItemsByUser(ctx.user.id);
+        if (input?.tags && input.tags.length > 0) {
+          items = items.filter(v => {
+            const vTags = (v.tags as string[] | null) || [];
+            return input.tags!.some(t => vTags.includes(t));
+          });
+        }
+        return items;
       }),
 
     create: protectedProcedure
       .input(z.object({
-        name: z.string().min(1),
+        name: z.string().min(1).max(128),
         itemType: z.enum(["character", "scene"]),
         imageUrl: z.string().min(1),
         fileKey: z.string().optional(),
-        tags: z.array(z.string()).optional(),
+        tags: z.array(z.string().max(32)).max(20).optional(),
         metadata: z.record(z.string(), z.unknown()).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
@@ -1716,14 +2065,20 @@ export const appRouter = router({
     update: protectedProcedure
       .input(z.object({
         id: z.number(),
-        name: z.string().optional(),
-        tags: z.array(z.string()).optional(),
+        name: z.string().min(1).max(128).optional(),
+        tags: z.array(z.string().max(32)).max(20).optional(),
+        imageUrl: z.string().optional(),
         metadata: z.record(z.string(), z.unknown()).optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
+        const item = await db.getVaultItem(input.id);
+        if (!item || item.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "保險庫項目不存在" });
+        }
         await db.updateVaultItem(input.id, {
           name: input.name,
           tags: input.tags,
+          imageUrl: input.imageUrl,
           metadata: input.metadata,
         });
         return { success: true };
@@ -1731,9 +2086,32 @@ export const appRouter = router({
 
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
+        const item = await db.getVaultItem(input.id);
+        if (!item || item.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "保險庫項目不存在" });
+        }
         await db.deleteVaultItem(input.id);
         return { success: true };
+      }),
+
+    // ── 同步至資產庫（保存庫項目另存為數位資產）──────────────────────────
+    exportToAssets: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const item = await db.getVaultItem(input.id);
+        if (!item || item.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "保險庫項目不存在" });
+        }
+        const assetId = await db.createDigitalAsset({
+          userId: ctx.user.id,
+          title: `[保險庫] ${item.name}`,
+          description: `從一致性保險庫匯出 (${item.itemType})`,
+          assetType: "image",
+          fileUrl: item.imageUrl,
+          fileKey: item.fileKey || "",
+        });
+        return { assetId };
       }),
   }),
 

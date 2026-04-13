@@ -105,6 +105,25 @@ export default function ModelsPage() {
     },
   });
 
+  const retrainMutation = trpc.models.retrain.useMutation({
+    onSuccess: (data) => {
+      setTrainingJobId(data.jobId);
+      myModelsQuery.refetch();
+      toast.success("重新訓練已啟動");
+    },
+    onError: (e) => toast.error("重新訓練失敗：" + e.message),
+  });
+
+  const syncStatusMutation = trpc.models.syncReplicateStatus.useMutation({
+    onSuccess: (data) => {
+      myModelsQuery.refetch();
+      if (data.status === "ready") toast.success(`訓練完成！LoRA 已就緒`);
+      else if (data.status === "failed") toast.error("訓練失敗，可以重試");
+      else toast.info(`狀態已同步：${data.message}`);
+    },
+    onError: (e) => toast.error("同步失敗：" + e.message),
+  });
+
   const captionMutation = trpc.models.captionImages.useMutation({
     onSuccess: (data) => {
       // Update captions on dataset images
@@ -583,10 +602,29 @@ export default function ModelsPage() {
                   );
                 })()}
                 {model.description && <p className="text-xs text-muted-foreground line-clamp-2">{model.description}</p>}
-                {model.visibility === "team_shared" && (
-                  <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground bg-muted/30 px-2 py-0.5 rounded-md">
-                    <Gift className="w-2.5 h-2.5" /> 共享
-                  </span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {model.visibility === "team_shared" && (
+                    <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground bg-muted/30 px-2 py-0.5 rounded-md">
+                      <Gift className="w-2.5 h-2.5" /> 共享
+                    </span>
+                  )}
+                  {(model as any).usageCount > 0 && (
+                    <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground bg-muted/20 px-2 py-0.5 rounded-md">
+                      使用 {(model as any).usageCount} 次
+                    </span>
+                  )}
+                  {(model as any).trainedLoraUrl && (
+                    <span className="inline-flex items-center gap-1 text-[10px] text-green-700 bg-green-50 px-2 py-0.5 rounded-md">
+                      ✓ LoRA 權重已就緒
+                    </span>
+                  )}
+                </div>
+                {/* Training status indicator for "training" state */}
+                {model.status === "training" && (
+                  <div className="text-xs text-amber-600 bg-amber-50 rounded-lg p-2 text-center">
+                    <Loader2 className="w-3 h-3 inline mr-1 animate-spin" />
+                    正在 Replicate 上訓練中，約需 20-60 分鐘
+                  </div>
                 )}
                 {/* Use in Studio buttons */}
                 {model.status === "ready" && (
@@ -596,7 +634,12 @@ export default function ModelsPage() {
                       size="sm"
                       className="flex-1 h-7 text-xs gap-1 rounded-lg"
                       onClick={() => {
-                        sessionStorage.setItem("applyModel", JSON.stringify({ id: model.id, name: model.name, triggerWord: (model.configJson as any)?.triggerWord || "" }));
+                        sessionStorage.setItem("applyModel", JSON.stringify({
+                          id: model.id,
+                          name: model.name,
+                          triggerWord: (model.configJson as any)?.triggerWord || "",
+                          loraUrl: (model as any).trainedLoraUrl || (model.configJson as any)?.loraUrl || "",
+                        }));
                         navigate("/studio");
                         toast.success(`已套用模型「${model.name}」，前往創作工作室`);
                       }}
@@ -608,13 +651,13 @@ export default function ModelsPage() {
                       variant="outline"
                       size="sm"
                       className="h-7 text-xs gap-1 rounded-lg"
-                      title="在圖片工作室使用此模型"
+                      title="在圖片工作室使用此模型（LoRA 注入）"
                       onClick={() => {
                         sessionStorage.setItem("applyModel", JSON.stringify({
                           id: model.id,
                           name: model.name,
                           triggerWord: (model.configJson as any)?.triggerWord || "",
-                          loraUrl: (model.configJson as any)?.loraUrl || "",
+                          loraUrl: (model as any).trainedLoraUrl || "",
                         }));
                         navigate("/image-studio");
                         toast.success(`已套用模型「${model.name}」至圖片工作室`);
@@ -626,7 +669,7 @@ export default function ModelsPage() {
                       variant="outline"
                       size="sm"
                       className="h-7 text-xs gap-1 rounded-lg"
-                      title="在影片工作室使用此模型"
+                      title="在影片工作室使用觸發詞"
                       onClick={() => {
                         sessionStorage.setItem("applyModel", JSON.stringify({
                           id: model.id,
@@ -641,13 +684,40 @@ export default function ModelsPage() {
                     </Button>
                   </div>
                 )}
+                {/* Sync / Retrain buttons for non-ready models */}
+                {tab === "my" && (model.status === "training" || model.status === "pending") && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full h-7 text-xs gap-1 rounded-lg"
+                    disabled={syncStatusMutation.isPending}
+                    onClick={() => syncStatusMutation.mutate({ modelId: model.id })}
+                  >
+                    {syncStatusMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Settings2 className="w-3 h-3" />}
+                    同步訓練狀態
+                  </Button>
+                )}
+                {tab === "my" && model.status === "failed" && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full h-7 text-xs gap-1 rounded-lg text-amber-600 border-amber-300"
+                    disabled={retrainMutation.isPending}
+                    onClick={() => retrainMutation.mutate({ modelId: model.id })}
+                  >
+                    {retrainMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Flame className="w-3 h-3" />}
+                    重新訓練
+                  </Button>
+                )}
                 <div className="flex items-center justify-between pt-2 border-t border-border/30">
                   <span className="text-[11px] text-muted-foreground">{model.createdAt && new Date(model.createdAt).toLocaleDateString("zh-TW")}</span>
                   {tab === "my" && (
                     <div className="flex gap-1">
-                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0 rounded-lg" onClick={() => toggleVisibility.mutate({ id: model.id, visibility: model.visibility === "private" ? "team_shared" : "private" })}>
-                        {model.visibility === "private" ? <Globe className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
-                      </Button>
+                      {model.status === "ready" && (
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 rounded-lg" title={model.visibility === "private" ? "分享給團隊" : "設為私人"} onClick={() => toggleVisibility.mutate({ id: model.id, visibility: model.visibility === "private" ? "team_shared" : "private" })}>
+                          {model.visibility === "private" ? <Globe className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
+                        </Button>
+                      )}
                       <Button variant="ghost" size="sm" className="h-7 w-7 p-0 rounded-lg text-destructive" onClick={() => deleteModel.mutate({ id: model.id })}>
                         <Trash2 className="w-3.5 h-3.5" />
                       </Button>
