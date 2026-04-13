@@ -43,6 +43,7 @@ import {
   Zap,
   Film,
   BookOpen,
+  Leaf,
 } from "lucide-react";
 import { useSiteOnboarding, type PageId } from "@/contexts/SiteOnboardingContext";
 import { CSSProperties, memo, useCallback, useEffect, useRef, useState } from "react";
@@ -77,6 +78,7 @@ const menuItems = [
   { icon: BarChart3, label: "儀表板", path: "/dashboard",               id: "sidebar-dashboard-link" },
   { icon: MessageSquare, label: "回饋中心", path: "/feedback",           id: "sidebar-feedback-link" },
   { icon: BookOpen, label: "學習文件", path: "/learn",                   id: "sidebar-learn-link" },
+  { icon: Leaf, label: "專注流", path: "/focus-flow",                   id: "sidebar-focus-flow-link" },
   { icon: Settings, label: "個人設定", path: "/settings",               id: "sidebar-settings-link" },
 ];
 
@@ -401,6 +403,7 @@ function DashboardLayoutContent({
               "/settings":     "settings",
               "/settings/ai-brain": "settings",
               "/learn":        "learn",
+              "/focus-flow":   "focus-flow",
             };
             const pageId = pathToPageId[location] ?? "welcome";
             window.dispatchEvent(new CustomEvent("site-tour-start", { detail: { pageId } }));

@@ -53,7 +53,8 @@ export type PageId =
   | "dashboard"
   | "feedback"
   | "settings"
-  | "learn";
+  | "learn"
+  | "focus-flow";
 
 interface TourDefinition {
   pageId: PageId;
@@ -549,6 +550,30 @@ const TOUR_DEFINITIONS: Record<PageId, TourDefinition> = {
         tip: "訓練新模型請前往「角色鍛造所」，這裡專注於訓練監控和管理！",
         icon: "🔥",
         position: "center",
+      },
+    ],
+  },
+
+  "focus-flow": {
+    pageId: "focus-flow",
+    storageKey: "site-tour-focus-flow-v1",
+    steps: [
+      {
+        targetId: null,
+        title: "專注流 🍅🌿🎯",
+        description:
+          "這裡整合了番茄鐘、療癒時間和聚焦時間三大工具，幫助你放鬆身心、專注工作，最後將零散想法彙整起來。",
+        tip: "建議流程：先「療癒時間」放鬆 → 再用「番茄鐘」專注 → 最後在「聚焦時間」整理想法！",
+        icon: "🧘",
+        position: "center",
+      },
+      {
+        targetId: "focus-flow-tabs",
+        title: "三合一切換",
+        description: "可以自由切換番茄鐘、療癒時間、聚焦時間三種模式，也可以按照建議流程依序進行。",
+        tip: "上方的步驟條會顯示你目前在哪個階段。",
+        icon: "🔄",
+        position: "bottom",
       },
     ],
   },
