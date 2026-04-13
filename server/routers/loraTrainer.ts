@@ -94,6 +94,7 @@ export const loraTrainerRouter = router({
         submittedAt: (config?.submittedAt as number) || null,
         completedAt: (config?.completedAt as number) || null,
         usageCount: (m as Record<string, unknown>).usageCount as number ?? 0,
+        visibility: m.visibility,
         createdAt: m.createdAt,
         updatedAt: m.updatedAt,
       };

@@ -27,6 +27,10 @@ import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
 
+// ── Type alias for dataset images from training detail ──────────────────────
+
+type DatasetImageEntry = { url: string; angle: string; caption?: string };
+
 // ── Status badge helper ─────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: string }) {
@@ -453,14 +457,15 @@ export default function LoraTrainer() {
                             variant="ghost"
                             size="sm"
                             className="h-7 w-7 p-0 rounded-lg"
-                            title={model.status === "ready" ? "切換可見性" : ""}
+                            aria-label={model.visibility === "team_shared" ? "設為私人" : "分享給團隊"}
+                            title={model.status === "ready" ? (model.visibility === "team_shared" ? "設為私人" : "分享給團隊") : ""}
                             disabled={model.status !== "ready"}
                             onClick={() => toggleVisibility.mutate({
                               id: model.id,
-                              visibility: "team_shared",
+                              visibility: model.visibility === "team_shared" ? "private" : "team_shared",
                             })}
                           >
-                            <Globe className="w-3.5 h-3.5" />
+                            {model.visibility === "team_shared" ? <Lock className="w-3.5 h-3.5" /> : <Globe className="w-3.5 h-3.5" />}
                           </Button>
                           <Button
                             variant="ghost"
@@ -579,7 +584,7 @@ export default function LoraTrainer() {
                       <Database className="w-4 h-4" /> 資料集 ({detailQuery.data.datasetImages.length} 張)
                     </h3>
                     <div className="flex flex-wrap gap-2">
-                      {(detailQuery.data.datasetImages as Array<{ url: string; angle: string; caption?: string }>).slice(0, 10).map((img, idx) => (
+                      {(detailQuery.data.datasetImages as DatasetImageEntry[]).slice(0, 10).map((img, idx) => (
                         <div key={idx} className="relative group">
                           <img
                             src={img.url}
