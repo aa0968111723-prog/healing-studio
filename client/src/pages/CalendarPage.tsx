@@ -500,7 +500,8 @@ export default function CalendarPage() {
                       variant="ghost"
                       className="h-6 px-2 text-[10px] gap-1 text-blue-500 hover:text-blue-400 hover:bg-blue-500/10"
                       onClick={() => {
-                        for (const note of selectedDateEvents) {
+                        if (selectedDateEvents.length === 1) {
+                          const note = selectedDateEvents[0];
                           const eventDate = note.scheduledDate ? new Date(note.scheduledDate) : selectedDate;
                           openGoogleCalendar({
                             title: note.title,
@@ -508,8 +509,22 @@ export default function CalendarPage() {
                             date: eventDate,
                             allDay: true,
                           });
+                          toast.success("已開啟 Google 日曆");
+                        } else {
+                          // Combine multiple events into a single Google Calendar event
+                          // to avoid popup blockers from opening multiple tabs
+                          const combinedTitle = `${selectedDate.toLocaleDateString("zh-TW")} 創作排程（${selectedDateEvents.length} 項）`;
+                          const combinedDescription = selectedDateEvents
+                            .map((n, i) => `${i + 1}. ${n.title}${n.content ? `\n   ${n.content}` : ""}`)
+                            .join("\n\n");
+                          openGoogleCalendar({
+                            title: combinedTitle,
+                            description: combinedDescription,
+                            date: selectedDate,
+                            allDay: true,
+                          });
+                          toast.success(`已將 ${selectedDateEvents.length} 個排程匯出至 Google 日曆`);
                         }
-                        toast.success(`已開啟 ${selectedDateEvents.length} 個 Google 日曆事件`);
                       }}
                     >
                       <ExternalLink className="w-3 h-3" />
