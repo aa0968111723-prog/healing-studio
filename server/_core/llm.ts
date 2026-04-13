@@ -442,27 +442,58 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
 
   let result: InvokeResult;
   try {
-    const response = await fetch(engineConfig.url, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${engineConfig.apiKey}`,
-      },
-      body: JSON.stringify(payload),
-    });
+    // Retry with exponential backoff for transient failures
+    const MAX_RETRIES = 3;
+    let lastError: Error | null = null;
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 60_000); // 60s timeout
+        const response = await fetch(engineConfig.url, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${engineConfig.apiKey}`,
+          },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      const err = new Error(
-        `[${engineConfig.name}] LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
-      );
-      const durationMs = Date.now() - startTime;
-      // 非同步記錄失敗至 LangSmith
-      trackLangSmithSDK(runId, runName || "llm-invoke", messages, payload, null, err, durationMs, engineConfig.name, parentRunId).catch(() => {});
-      throw err;
+        if (!response.ok) {
+          const errorText = await response.text();
+          const err = new Error(
+            `[${engineConfig.name}] LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
+          );
+          // Retry on 5xx server errors or 429 rate limit
+          if ((response.status >= 500 || response.status === 429) && attempt < MAX_RETRIES) {
+            lastError = err;
+            const delay = Math.min(1000 * Math.pow(2, attempt - 1), 8000);
+            await new Promise(r => setTimeout(r, delay));
+            continue;
+          }
+          const durationMs = Date.now() - startTime;
+          trackLangSmithSDK(runId, runName || "llm-invoke", messages, payload, null, err, durationMs, engineConfig.name, parentRunId).catch(() => {});
+          throw err;
+        }
+
+        result = (await response.json()) as InvokeResult;
+        lastError = null;
+        break;
+      } catch (err: unknown) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        lastError = error;
+        // Retry on network / abort errors (not on explicit HTTP error throws above)
+        const isRetryable = error.name === "AbortError" || error.message.includes("fetch failed");
+        if (isRetryable && attempt < MAX_RETRIES) {
+          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 8000);
+          await new Promise(r => setTimeout(r, delay));
+          continue;
+        }
+        throw err;
+      }
     }
-
-    result = (await response.json()) as InvokeResult;
+    if (lastError) throw lastError;
   } catch (err: unknown) {
     const durationMs = Date.now() - startTime;
     const error = err instanceof Error ? err : new Error(String(err));
