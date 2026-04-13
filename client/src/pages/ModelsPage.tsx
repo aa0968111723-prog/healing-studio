@@ -9,8 +9,11 @@ import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { Cpu, Plus, Upload, Tag, Settings2, Flame, ChevronRight, ChevronLeft, X, Loader2, Globe, Lock, Trash2, Gift, CheckCircle2, Wand2, Image, Video } from "lucide-react";
+import { Cpu, Plus, Upload, Tag, Settings2, Flame, ChevronRight, ChevronLeft, X, Loader2, Globe, Lock, Trash2, Gift, CheckCircle2, Wand2, Image, Video, BarChart3, Clock, Activity, Database, Eye } from "lucide-react";
 import { GlassCard, ZenTooltip, ZenSkeleton } from "@/components/ZenCoPilot";
 import VisualSoul from "@/components/VisualSoul";
 import { motion, AnimatePresence } from "framer-motion";
@@ -43,6 +46,233 @@ type DatasetImageWithUpload = DatasetImage & {
   captionGenerated?: boolean;
 };
 
+// ─── Model Analysis Dialog ──────────────────────────────────────────────────
+
+const STATUS_LABELS: Record<string, { text: string; className: string }> = {
+  ready: { text: "就緒", className: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
+  training: { text: "訓練中", className: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
+  failed: { text: "失敗", className: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+  pending: { text: "佇列中", className: "bg-muted text-muted-foreground" },
+  queued: { text: "佇列中", className: "bg-muted text-muted-foreground" },
+  processing: { text: "處理中", className: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
+  completed: { text: "完成", className: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
+  cancelled: { text: "已取消", className: "bg-muted text-muted-foreground" },
+};
+
+function StatusBadge({ status }: { status: string }) {
+  const info = STATUS_LABELS[status] ?? { text: status, className: "bg-muted text-muted-foreground" };
+  return <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${info.className}`}>{info.text}</span>;
+}
+
+function ModelAnalysisDialog({ modelId, open, onOpenChange }: {
+  modelId: number;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const analysisQuery = trpc.models.getAnalysis.useQuery(
+    { id: modelId },
+    { enabled: open, retry: false },
+  );
+
+  const data = analysisQuery.data;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <BarChart3 className="w-4 h-4" />
+            模型詳細分析
+          </DialogTitle>
+        </DialogHeader>
+
+        {analysisQuery.isLoading ? (
+          <div className="py-12 text-center">
+            <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto mb-3" />
+            <p className="text-sm text-muted-foreground">載入分析資料中...</p>
+          </div>
+        ) : analysisQuery.isError ? (
+          <div className="py-12 text-center">
+            <X className="w-8 h-8 text-red-500 mx-auto mb-3" />
+            <p className="text-sm text-red-500">載入失敗：{analysisQuery.error?.message}</p>
+          </div>
+        ) : data ? (
+          <ScrollArea className="flex-1 -mx-6 px-6">
+            <div className="space-y-6 pb-4">
+              {/* Model Overview */}
+              <section className="space-y-3">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Cpu className="w-4 h-4 text-muted-foreground" />
+                  基本資訊
+                </div>
+                <div className="rounded-xl bg-muted/30 p-4 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg font-semibold">{data.model.name}</span>
+                    <StatusBadge status={data.model.status} />
+                  </div>
+                  {data.model.description && (
+                    <p className="text-sm text-muted-foreground">{data.model.description}</p>
+                  )}
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">模型類型</span>
+                      <span className="font-medium">
+                        {data.model.modelType === "image_subject" ? "角色主體" : data.model.modelType === "style_lora" ? "風格 LoRA" : "語音複製"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">可見性</span>
+                      <span className="font-medium flex items-center gap-1">
+                        {data.model.visibility === "team_shared" ? <><Globe className="w-3 h-3" /> 團隊共享</> : <><Lock className="w-3 h-3" /> 私人</>}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">使用次數</span>
+                      <span className="font-medium">{data.model.usageCount} 次</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">建立日期</span>
+                      <span className="font-medium">{new Date(data.model.createdAt).toLocaleDateString("zh-TW")}</span>
+                    </div>
+                    {data.model.replicatePredictionId && (
+                      <div className="flex justify-between col-span-2">
+                        <span className="text-muted-foreground">Replicate ID</span>
+                        <code className="font-mono text-[11px]">{data.model.replicatePredictionId}</code>
+                      </div>
+                    )}
+                    {data.model.trainedLoraUrl && (
+                      <div className="flex items-center gap-1.5 col-span-2 mt-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+                        <span className="text-[11px] text-green-700">LoRA 權重已就緒</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </section>
+
+              {/* Training Configuration */}
+              <section className="space-y-3">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Settings2 className="w-4 h-4 text-muted-foreground" />
+                  訓練配置
+                </div>
+                <div className="rounded-xl bg-muted/30 p-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    <div className="space-y-1">
+                      <span className="text-[11px] text-muted-foreground">觸發詞</span>
+                      <div className="text-sm font-mono font-medium">{data.config.triggerWord || "—"}</div>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[11px] text-muted-foreground">訓練輪數</span>
+                      <div className="text-sm font-medium">{data.config.epochs || "—"}</div>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[11px] text-muted-foreground">學習率</span>
+                      <div className="text-sm font-mono font-medium">{data.config.learningRate ? data.config.learningRate.toFixed(4) : "—"}</div>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[11px] text-muted-foreground">批次大小</span>
+                      <div className="text-sm font-medium">{data.config.batchSize || "—"}</div>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[11px] text-muted-foreground">訓練步驟</span>
+                      <div className="text-sm font-medium">{data.config.steps || "—"}</div>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-[11px] text-muted-foreground">資料集大小</span>
+                      <div className="text-sm font-medium">{data.datasetImages.length} 張圖片</div>
+                    </div>
+                  </div>
+                  {data.config.submittedAt && (
+                    <div className="mt-3 pt-3 border-t border-border/30 flex gap-4 text-xs text-muted-foreground">
+                      <span>提交時間：{new Date(data.config.submittedAt).toLocaleString("zh-TW")}</span>
+                      {data.config.completedAt && (
+                        <span>完成時間：{new Date(data.config.completedAt).toLocaleString("zh-TW")}</span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              {/* Dataset Gallery */}
+              {data.datasetImages.length > 0 && (
+                <section className="space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Database className="w-4 h-4 text-muted-foreground" />
+                    訓練資料集（{data.datasetImages.length} 張）
+                  </div>
+                  <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                    {data.datasetImages.map((img, idx) => (
+                      <div key={idx} className="group relative aspect-square rounded-lg overflow-hidden bg-muted/30">
+                        <img
+                          src={img.url}
+                          alt={img.caption || `Dataset ${idx + 1}`}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent p-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <span className="text-[9px] text-white leading-tight line-clamp-2">
+                            {img.caption || img.angle}
+                          </span>
+                        </div>
+                        <span className="absolute top-1 left-1 text-[9px] bg-black/50 text-white px-1 rounded">
+                          {img.angle === "front" ? "正面" : img.angle === "side" ? "側面" : img.angle === "back" ? "背面" : img.angle === "expression" ? "表情" : "其他"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* Training Jobs History */}
+              <section className="space-y-3">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Activity className="w-4 h-4 text-muted-foreground" />
+                  訓練歷程（{data.trainingJobs.length} 筆任務）
+                </div>
+                {data.trainingJobs.length > 0 ? (
+                  <div className="space-y-2">
+                    {data.trainingJobs.map((job) => (
+                      <div key={job.id} className="rounded-xl bg-muted/30 p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-mono text-muted-foreground">#{job.id}</span>
+                            <StatusBadge status={job.status} />
+                          </div>
+                          <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {new Date(job.createdAt).toLocaleString("zh-TW")}
+                          </span>
+                        </div>
+                        <Progress value={job.progress} className="h-1.5" />
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground truncate flex-1">
+                            {job.progressMessage || "—"}
+                          </span>
+                          <span className="text-muted-foreground tabular-nums ml-2">{job.progress}%</span>
+                        </div>
+                        {job.errorMessage && (
+                          <p className="text-[11px] text-red-500 bg-red-50 dark:bg-red-900/20 rounded-lg px-2 py-1">
+                            {job.errorMessage}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-xl bg-muted/20 p-6 text-center text-sm text-muted-foreground">
+                    尚無訓練紀錄
+                  </div>
+                )}
+              </section>
+            </div>
+          </ScrollArea>
+        ) : null}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function ModelsPage() {
   const { personality } = useAIState();
   const [, navigate] = useLocation();
@@ -62,6 +292,7 @@ export default function ModelsPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [isCaptioning, setIsCaptioning] = useState(false);
   const [trainingJobId, setTrainingJobId] = useState<number | null>(null);
+  const [analysisModelId, setAnalysisModelId] = useState<number | null>(null);
 
   // ── 訓練進度輪詢 ──
   const trainingStatusQuery = trpc.generate.jobStatus.useQuery(
@@ -709,6 +940,16 @@ export default function ModelsPage() {
                     重新訓練
                   </Button>
                 )}
+                {/* View Analysis button */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full h-7 text-xs gap-1 rounded-lg"
+                  onClick={() => setAnalysisModelId(model.id)}
+                >
+                  <Eye className="w-3 h-3" />
+                  詳細分析
+                </Button>
                 <div className="flex items-center justify-between pt-2 border-t border-border/30">
                   <span className="text-[11px] text-muted-foreground">{model.createdAt && new Date(model.createdAt).toLocaleDateString("zh-TW")}</span>
                   {tab === "my" && (
@@ -736,6 +977,15 @@ export default function ModelsPage() {
             {tab === "my" ? "點擊「新增角色」開始訓練你的第一個角色模型" : "還沒有團隊共享的模型"}
           </p>
         </div>
+      )}
+
+      {/* Model Analysis Dialog */}
+      {analysisModelId !== null && (
+        <ModelAnalysisDialog
+          modelId={analysisModelId}
+          open={true}
+          onOpenChange={(open) => { if (!open) setAnalysisModelId(null); }}
+        />
       )}
     </div>
   );
