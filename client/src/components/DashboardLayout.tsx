@@ -488,6 +488,7 @@ function DashboardLayoutContent({
           >
             <div className="flex items-center gap-2.5">
               <SidebarTrigger className="h-10 w-10 rounded-lg bg-background" />
+              {/* Truncate long page titles on narrow mobile screens to avoid pushing right controls off-screen */}
               <span className="tracking-tight text-foreground text-sm font-medium truncate max-w-[140px]">
                 {activeMenuItem?.label ?? "AI Director"}
               </span>

@@ -1578,7 +1578,7 @@ export default function ImageStudio() {
       <ApiKeyBanner />
 
       {/* ── Tab Bar ── */}
-      <div className="flex gap-1.5 overflow-x-auto pb-0.5 no-scrollbar -mx-1 px-1" style={{ scrollbarWidth: "none" }}>
+      <div className="flex gap-1.5 overflow-x-auto pb-0.5 no-scrollbar -mx-1 px-1">
         {TABS.map(tab => {
           const Icon = tab.icon;
           const active = activeTab === tab.id;

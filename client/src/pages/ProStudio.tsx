@@ -1856,7 +1856,7 @@ export default function ProStudio() {
       )}
 
       {/* Tab 選擇 */}
-      <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar -mx-1 px-1" style={{ scrollbarWidth: "none" }}>
+      <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar -mx-1 px-1">
         {TABS.map(({ id, label, icon: Icon }) => (
           <button
             key={id}

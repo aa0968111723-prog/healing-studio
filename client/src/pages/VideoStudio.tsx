@@ -1435,7 +1435,7 @@ export default function VideoStudio() {
       )}
 
       {/* 標籤列 */}
-      <div className="flex overflow-x-auto gap-1.5 pb-1 -mx-1 px-1 no-scrollbar" style={{ scrollbarWidth: "none" }}>
+      <div className="flex overflow-x-auto gap-1.5 pb-1 -mx-1 px-1 no-scrollbar">
         {TABS.map(tab => {
           const Icon = tab.icon;
           const count = MODEL_COUNT[tab.id];
