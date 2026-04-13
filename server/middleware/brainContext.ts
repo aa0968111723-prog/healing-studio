@@ -108,11 +108,11 @@ export const DEFAULT_REASONING_BRAINS: Record<
   ReasoningBrainSlot,
   { model: string; temperature: number; topP: number }
 > = {
-  director: { model: "gpt-4o", temperature: 0.7, topP: 0.9 },
-  analyst: { model: "gpt-4o", temperature: 0.3, topP: 0.8 },
-  storyteller: { model: "gpt-4o", temperature: 0.9, topP: 0.95 },
-  technician: { model: "gpt-4o", temperature: 0.2, topP: 0.7 },
-  curator: { model: "gpt-4o", temperature: 0.8, topP: 0.9 },
+  director:    { model: "gemini-2.5-pro",   temperature: 0.7,  topP: 0.9  },
+  analyst:     { model: "gemini-2.5-flash",  temperature: 0.3,  topP: 0.8  },
+  storyteller: { model: "gemini-2.5-pro",   temperature: 0.9,  topP: 0.95 },
+  technician:  { model: "gemini-2.5-flash",  temperature: 0.2,  topP: 0.7  },
+  curator:     { model: "gemini-2.5-flash",  temperature: 0.8,  topP: 0.9  },
 };
 
 export const DEFAULT_GENERATION_ENGINES: Record<
@@ -127,12 +127,21 @@ export const DEFAULT_GENERATION_ENGINES: Record<
 
 /** 每個引擎的備援候選清單（按優先順序） */
 const ENGINE_FALLBACK_CHAIN: Record<string, string[]> = {
-  // 推理大腦
-  "gpt-4o": ["gpt-4o-mini", "gpt-3.5-turbo"],
-  "gpt-4o-mini": ["gpt-3.5-turbo", "gpt-4o"],
-  "gpt-3.5-turbo": ["gpt-4o-mini", "gpt-4o"],
-  "claude-3.5-sonnet": ["gpt-4o", "gpt-4o-mini"],
-  "claude-3-opus": ["claude-3.5-sonnet", "gpt-4o"],
+  // 推理大腦（Gemini 模型族）
+  "gemini-2.5-pro":   ["gemini-2.5-flash", "gemini-1.5-pro"],
+  "gemini-2.5-flash": ["gemini-1.5-flash", "gemini-2.5-pro"],
+  "gemini-1.5-pro":   ["gemini-2.5-pro",   "gemini-1.5-flash"],
+  "gemini-1.5-flash": ["gemini-2.5-flash",  "gemini-1.5-pro"],
+  // OpenAI 模型名稱 → Gemini fallback（向後相容，防止舊設定觸發 404）
+  "gpt-4o":           ["gemini-2.5-pro",   "gemini-2.5-flash"],
+  "gpt-4o-mini":      ["gemini-2.5-flash",  "gemini-1.5-flash"],
+  "gpt-3.5-turbo":    ["gemini-2.5-flash",  "gemini-1.5-flash"],
+  "claude-3.5-sonnet":["gemini-2.5-pro",   "gemini-2.5-flash"],
+  "claude-3-opus":    ["gemini-2.5-pro",   "gemini-1.5-pro"],
+  "claude-3-haiku":   ["gemini-2.5-flash",  "gemini-1.5-flash"],
+  // Vertex AI 路徑 → 直接 Gemini fallback
+  "vertex/gemini-2.5-pro":   ["gemini-2.5-pro",   "gemini-2.5-flash"],
+  "vertex/gemini-2.5-flash":  ["gemini-2.5-flash",  "gemini-1.5-flash"],
   // 圖像引擎
   "flux-pro": ["flux-schnell", "dall-e-3"],
   "flux-schnell": ["flux-pro", "dall-e-3"],
@@ -240,14 +249,21 @@ function scheduleHealthCheck(modelOrEngine: string): void {
 
 /** 已知的模型/引擎清單 */
 const KNOWN_MODELS = new Set([
-  // LLM
+  // LLM — Gemini（主要引擎）
+  "gemini-2.5-pro",
+  "gemini-2.5-flash",
+  "gemini-1.5-pro",
+  "gemini-1.5-flash",
+  "gemini-pro",
+  // Vertex AI 路徑
+  "vertex/gemini-2.5-pro",
+  "vertex/gemini-2.5-flash",
+  // OpenAI/Claude（向後相容，系統會自動 remapping）
   "gpt-4o",
   "gpt-4o-mini",
   "gpt-3.5-turbo",
   "claude-3.5-sonnet",
   "claude-3-opus",
-  "gemini-pro",
-  "gemini-1.5-pro",
   // 圖像
   "flux-pro",
   "flux-schnell",

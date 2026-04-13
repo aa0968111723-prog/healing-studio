@@ -343,6 +343,54 @@ async function trackLangSmithSDK(
   }
 }
 
+// ─── 模型名稱正規化（防止 OpenAI 模型名稱傳給 Gemini API） ──────────────────
+
+/**
+ * 當使用 Gemini API endpoint 時，將非 Gemini 模型名稱自動 remap。
+ * 舊有組態（gpt-4o 等）會自動對應到相近能力的 Gemini 模型，
+ * 確保 API 呼叫不會因為模型名稱不相容而發生 404。
+ *
+ * Vertex AI 路徑（"vertex/..."）也會被解析為純模型名稱。
+ */
+const GEMINI_MODEL_REMAP: Record<string, string> = {
+  // OpenAI → Gemini 等效對應
+  "gpt-4o":              "gemini-2.5-pro",
+  "gpt-4o-mini":         "gemini-2.5-flash",
+  "gpt-4-turbo":         "gemini-2.5-pro",
+  "gpt-4":               "gemini-1.5-pro",
+  "gpt-3.5-turbo":       "gemini-2.5-flash",
+  "gpt-3.5-turbo-16k":   "gemini-1.5-flash",
+  // Anthropic Claude → Gemini 等效對應
+  "claude-3-opus":       "gemini-2.5-pro",
+  "claude-3.5-sonnet":   "gemini-2.5-pro",
+  "claude-3-sonnet":     "gemini-1.5-pro",
+  "claude-3-haiku":      "gemini-2.5-flash",
+  "claude-instant-1":    "gemini-2.5-flash",
+  // Mistral → Gemini
+  "mistral-large":       "gemini-2.5-pro",
+  "mistral-medium":      "gemini-1.5-pro",
+  "mistral-small":       "gemini-2.5-flash",
+};
+
+/**
+ * 正規化模型名稱，確保與所選引擎相容。
+ *   - Gemini API/Vertex API：不接受 OpenAI/Claude 名稱 → remap
+ *   - Vertex 路徑（"vertex/gemini-..."）→ 取 "/" 後半段
+ *   - Forge/其他代理 API：不做任何修改（代理層自行處理）
+ */
+function normalizeModelForEngine(model: string, engineName: string): string {
+  const isGeminiEndpoint = engineName.includes("Gemini") || engineName.includes("Vertex");
+  if (!isGeminiEndpoint) return model;
+
+  // 處理 "vertex/gemini-2.5-pro" 路徑格式
+  if (model.startsWith("vertex/")) {
+    return model.split("/").slice(1).join("/");
+  }
+
+  // 已知不相容名稱 → remap
+  return GEMINI_MODEL_REMAP[model] ?? model;
+}
+
 // ─── 主要 LLM 呼叫函數 ────────────────────────────────────────────────────
 
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
@@ -355,8 +403,12 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   // ── 透過路由器取得引擎設定 ───────────────────────────────
   const engineConfig = resolveEngineConfig(engine);
 
+  // ── 解析最終模型名稱（含 engine 相容性正規化）───────────
+  const rawModel = overrideModel ?? engineConfig.model;
+  const resolvedModel = normalizeModelForEngine(rawModel, engineConfig.name);
+
   const payload: Record<string, unknown> = {
-    model: overrideModel ?? engineConfig.model,
+    model: resolvedModel,
     messages: messages.map(normalizeMessage),
     max_tokens: 32768,
   };
