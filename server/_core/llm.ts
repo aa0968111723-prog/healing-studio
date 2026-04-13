@@ -391,6 +391,15 @@ function normalizeModelForEngine(model: string, engineName: string): string {
   return GEMINI_MODEL_REMAP[model] ?? model;
 }
 
+// ─── LLM retry constants ───────────────────────────────────────────────────
+const LLM_REQUEST_TIMEOUT_MS = 60_000;  // 60 seconds
+const LLM_MAX_RETRIES = 3;
+const LLM_MAX_RETRY_DELAY_MS = 8_000;
+
+function getRetryDelayMs(attempt: number): number {
+  return Math.min(1000 * Math.pow(2, attempt - 1), LLM_MAX_RETRY_DELAY_MS);
+}
+
 // ─── 主要 LLM 呼叫函數 ────────────────────────────────────────────────────
 
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
@@ -443,12 +452,11 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   let result!: InvokeResult;
   try {
     // Retry with exponential backoff for transient failures
-    const MAX_RETRIES = 3;
     let lastError: Error | null = null;
-    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    for (let attempt = 1; attempt <= LLM_MAX_RETRIES; attempt++) {
       try {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 60_000); // 60s timeout
+        const timeout = setTimeout(() => controller.abort(), LLM_REQUEST_TIMEOUT_MS);
         const response = await fetch(engineConfig.url, {
           method: "POST",
           headers: {
@@ -466,10 +474,9 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
             `[${engineConfig.name}] LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
           );
           // Retry on 5xx server errors or 429 rate limit
-          if ((response.status >= 500 || response.status === 429) && attempt < MAX_RETRIES) {
+          if ((response.status >= 500 || response.status === 429) && attempt < LLM_MAX_RETRIES) {
             lastError = err;
-            const delay = Math.min(1000 * Math.pow(2, attempt - 1), 8000);
-            await new Promise(r => setTimeout(r, delay));
+            await new Promise(r => setTimeout(r, getRetryDelayMs(attempt)));
             continue;
           }
           const durationMs = Date.now() - startTime;
@@ -485,9 +492,8 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
         lastError = error;
         // Retry on network / abort errors (not on explicit HTTP error throws above)
         const isRetryable = error.name === "AbortError" || error.message.includes("fetch failed");
-        if (isRetryable && attempt < MAX_RETRIES) {
-          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 8000);
-          await new Promise(r => setTimeout(r, delay));
+        if (isRetryable && attempt < LLM_MAX_RETRIES) {
+          await new Promise(r => setTimeout(r, getRetryDelayMs(attempt)));
           continue;
         }
         throw err;

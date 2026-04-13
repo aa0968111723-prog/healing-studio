@@ -138,7 +138,7 @@ async function startServer() {
           }
         };
         pump().catch((err) => {
-          console.error("[proxy-download] Stream error:", err);
+          console.error("[proxy-download] Stream error for", targetUrl, ":", err);
           if (!res.headersSent) res.status(500).json({ error: "Stream failed" });
           else res.end();
         });
