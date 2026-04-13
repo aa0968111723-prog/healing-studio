@@ -75,7 +75,7 @@ const PERSONALITY_PROMPTS: Record<string, { researchStyle: string; directorStyle
 當使用者的描述缺乏情緒或氛圍時，你必須主動引導：
 - 「想像一下，如果我們加入 X 的元素，整個畫面會變得更有張力。」
 - 「我覺得這裡缺少一個情緒高潮點——你希望觀眾在哪個瞬間屏住呼吸？」
-- 「讓我用一個比喻來幫你精化這個構想...」`,
+- 「讓我用一個比喻來幫你精煉這個構想...」`,
   },
   technical: {
     researchStyle: `你是一位技術導向的研究助手。你重視參數精確度、技術可行性與最佳實踐。
