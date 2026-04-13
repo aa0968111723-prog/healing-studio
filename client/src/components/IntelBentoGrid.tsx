@@ -558,7 +558,21 @@ const IntelBentoGrid = memo(function IntelBentoGrid({ sceneId }: IntelBentoGridP
     { staleTime: 60_000 }
   );
 
+  // ── Pinned / Featured articles (news.pinned) ──
+  const pinnedQuery = trpc.news.pinned.useQuery(undefined, { staleTime: 120_000 });
+
+  // ── Dynamic categories (news.categories) ──
+  const categoriesQuery = trpc.news.categories.useQuery(undefined, { staleTime: 120_000 });
+
+  // ── Tag-based filter (news.byTag) ──
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const tagQuery = trpc.news.byTag.useQuery(
+    { tag: selectedTag ?? "", limit: 10 },
+    { enabled: !!selectedTag, staleTime: 60_000 }
+  );
+
   const items = data?.items ?? [];
+  const pinnedItems = pinnedQuery.data ?? [];
 
   // Filter by tab
   const filteredItems = useMemo(() => {
@@ -633,6 +647,92 @@ const IntelBentoGrid = memo(function IntelBentoGrid({ sceneId }: IntelBentoGridP
             </TabsContent>
           ))}
         </Tabs>
+
+        {/* Pinned / Featured Articles (news.pinned) */}
+        {pinnedItems.length > 0 && (
+          <div className="mb-8">
+            <h3 className={`text-sm font-semibold mb-3 ${styles.textMuted}`}>📌 精選文章</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {pinnedItems.slice(0, 2).map((article: any) => (
+                <motion.a
+                  key={article.id}
+                  href={article.sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-xl overflow-hidden group"
+                  style={{ background: styles.tabsActiveBg, border: `1px solid ${styles.cardBorder}` }}
+                  whileHover={{ scale: 1.01 }}
+                >
+                  {article.coverImageUrl && (
+                    <img src={article.coverImageUrl} alt={article.title} className="w-full h-32 object-cover group-hover:scale-105 transition-transform" loading="lazy" />
+                  )}
+                  <div className="p-3">
+                    <p className={`text-sm font-medium ${styles.textPrimary}`}>{article.title}</p>
+                    {article.oarsSummary && (
+                      <p className={`text-xs mt-1 line-clamp-2 ${styles.textMuted}`}>{article.oarsSummary}</p>
+                    )}
+                    <div className={`flex items-center gap-2 mt-2 text-[9px] ${styles.textMuted}`}>
+                      <span>{article.sourceName}</span>
+                      <span>👁 {article.viewCount}</span>
+                    </div>
+                  </div>
+                </motion.a>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Dynamic Categories (news.categories) + Tag Filter (news.byTag) */}
+        {categoriesQuery.data && categoriesQuery.data.length > 0 && (
+          <div className="mb-4 flex flex-wrap gap-1.5 justify-center">
+            {selectedTag && (
+              <button
+                onClick={() => setSelectedTag(null)}
+                className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-primary text-primary-foreground"
+              >
+                清除標籤 ✕
+              </button>
+            )}
+            {categoriesQuery.data.map((cat: any) => (
+              <button
+                key={cat.key}
+                onClick={() => setSelectedTag(cat.key === selectedTag ? null : cat.key)}
+                className={`px-2 py-0.5 rounded-md text-[10px] font-medium transition-colors ${
+                  selectedTag === cat.key ? "bg-primary text-primary-foreground" : ""
+                }`}
+                style={selectedTag !== cat.key ? { background: styles.tabsActiveBg, color: styles.textMuted } : {}}
+              >
+                {cat.label} ({cat.count})
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Tag-filtered results (news.byTag) */}
+        {selectedTag && tagQuery.data?.items && tagQuery.data.items.length > 0 && (
+          <div className="mb-6">
+            <h3 className={`text-sm font-semibold mb-3 ${styles.textMuted}`}>🏷️ 「{selectedTag}」相關文章</h3>
+            <div className="space-y-2">
+              {tagQuery.data.items.map((article: any) => (
+                <a
+                  key={article.id}
+                  href={article.sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 p-2 rounded-lg transition-colors hover:bg-muted/20"
+                >
+                  {article.coverImageUrl && (
+                    <img src={article.coverImageUrl} alt="" className="w-10 h-10 rounded-lg object-cover shrink-0" loading="lazy" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-xs font-medium truncate ${styles.textPrimary}`}>{article.title}</p>
+                    <p className={`text-[9px] ${styles.textMuted}`}>{article.sourceName}</p>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Bento Grid — natural height, no scroll constraint */}
         <div className="w-full">

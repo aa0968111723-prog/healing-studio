@@ -108,6 +108,41 @@ export default function SharedSpace() {
     refetchOnWindowFocus: false,
   });
 
+  // ── Showcase data (showcase.*) ──
+  const [showcaseModality, setShowcaseModality] = useState<"image" | "video" | "audio" | "voice">("image");
+  const [aestheticSearch, setAestheticSearch] = useState<string[]>([]);
+  const showcaseTrending = trpc.showcase.trending.useQuery(
+    { limit: 8 },
+    { staleTime: 60_000, retry: 1 }
+  );
+  const showcaseStats = trpc.showcase.stats.useQuery(undefined, {
+    staleTime: 120_000, retry: 1,
+  });
+  const showcaseByModality = trpc.showcase.byModality.useQuery(
+    { modality: showcaseModality, limit: 12 },
+    { staleTime: 60_000, retry: 1 }
+  );
+  const showcaseMyItems = trpc.showcase.myItems.useQuery(undefined, {
+    retry: 1, staleTime: 30_000,
+  });
+  const showcaseRemove = trpc.showcase.removeItem.useMutation({
+    onSuccess: () => {
+      showcaseMyItems.refetch();
+      toast.success("已移除展示作品");
+    },
+    onError: (e) => toast.error("移除失敗：" + e.message),
+  });
+  const [selectedShowcaseId, setSelectedShowcaseId] = useState<number | null>(null);
+  const showcaseDetail = trpc.showcase.getById.useQuery(
+    { id: selectedShowcaseId! },
+    { enabled: !!selectedShowcaseId, retry: false }
+  );
+  // ── Aesthetic search (showcase.byAesthetics) ──
+  const showcaseByAesthetics = trpc.showcase.byAesthetics.useQuery(
+    { aesthetics: aestheticSearch, limit: 12 },
+    { enabled: aestheticSearch.length > 0, staleTime: 60_000, retry: 1 }
+  );
+
   // Contribution stats
   const mySharedAssetsCount = useMemo(
     () => (myAssetsQuery.data || []).filter(a => a.visibility === "team_shared").length,
@@ -290,6 +325,10 @@ export default function SharedSpace() {
           <TabsTrigger value="models" className="rounded-lg text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm">
             <Cpu className="w-4 h-4 mr-1.5" />
             共享模型 ({filteredModels.length})
+          </TabsTrigger>
+          <TabsTrigger value="showcase" className="rounded-lg text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm">
+            <Sparkles className="w-4 h-4 mr-1.5" />
+            精選展示
           </TabsTrigger>
         </TabsList>
 
@@ -484,6 +523,194 @@ export default function SharedSpace() {
                   </GlassCard>
                 </motion.div>
               ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* ── Showcase Tab (showcase.*) ── */}
+        <TabsContent value="showcase" className="mt-4 space-y-6">
+          {/* Showcase Stats */}
+          {showcaseStats.data && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {showcaseStats.data.map((s: any) => (
+                <GlassCard key={s.key} className="text-center py-3 px-2">
+                  <p className="text-lg font-bold tabular-nums">{s.count}</p>
+                  <p className="text-[10px] text-muted-foreground">{s.label}</p>
+                  <p className="text-[9px] text-muted-foreground/60">{s.totalLikes} ♥ · {s.totalForks} ⑂</p>
+                </GlassCard>
+              ))}
+            </div>
+          )}
+
+          {/* Trending Section */}
+          <div>
+            <h3 className="text-sm font-semibold flex items-center gap-1.5 mb-3">
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" /> 趨勢作品
+            </h3>
+            {showcaseTrending.isLoading ? (
+              <ZenSkeleton lines={3} />
+            ) : showcaseTrending.data && showcaseTrending.data.length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {showcaseTrending.data.map((item: any) => (
+                  <div key={item.id} className="overflow-hidden cursor-pointer group p-0 rounded-xl border border-border/20 bg-background/60 backdrop-blur-sm" onClick={() => setSelectedShowcaseId(item.id)}>
+                    {item.thumbnailUrl || item.imageUrl ? (
+                      <img src={item.thumbnailUrl || item.imageUrl} alt={item.title} className="w-full aspect-video object-cover group-hover:scale-105 transition-transform" loading="lazy" />
+                    ) : (
+                      <div className="w-full aspect-video bg-muted/20 flex items-center justify-center">
+                        <Sparkles className="w-6 h-6 text-muted-foreground/30" />
+                      </div>
+                    )}
+                    <div className="p-2">
+                      <p className="text-xs font-medium truncate">{item.title}</p>
+                      <div className="flex items-center gap-2 text-[9px] text-muted-foreground mt-0.5">
+                        <span>{item.modality}</span>
+                        <span>♥ {item.likeCount}</span>
+                        <span>⑂ {item.forkCount}</span>
+                      </div>
+                    </div>
+                    </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-4">暫無趨勢作品</p>
+            )}
+          </div>
+
+          {/* Filter by Modality (showcase.byModality) */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <h3 className="text-sm font-semibold">依類型瀏覽</h3>
+              <div className="flex gap-1">
+                {(["image", "video", "audio", "voice"] as const).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setShowcaseModality(m)}
+                    className={`px-2 py-0.5 rounded-md text-[10px] font-medium transition-colors ${
+                      showcaseModality === m ? "bg-primary text-primary-foreground" : "bg-muted/30 text-muted-foreground"
+                    }`}
+                  >
+                    {m === "image" ? "圖片" : m === "video" ? "影片" : m === "audio" ? "音樂" : "語音"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {showcaseByModality.isLoading ? (
+              <ZenSkeleton lines={3} />
+            ) : showcaseByModality.data?.items && showcaseByModality.data.items.length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                {showcaseByModality.data.items.map((item: any) => (
+                  <div key={item.id} className="overflow-hidden cursor-pointer group p-0 rounded-xl border border-border/20 bg-background/60 backdrop-blur-sm" onClick={() => setSelectedShowcaseId(item.id)}>
+                    {item.thumbnailUrl || item.imageUrl ? (
+                      <img src={item.thumbnailUrl || item.imageUrl} alt={item.title} className="w-full aspect-square object-cover group-hover:scale-105 transition-transform" loading="lazy" />
+                    ) : (
+                      <div className="w-full aspect-square bg-muted/20 flex items-center justify-center">
+                        <Package className="w-6 h-6 text-muted-foreground/30" />
+                      </div>
+                    )}
+                    <div className="p-2">
+                      <p className="text-xs font-medium truncate">{item.title}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-4">此類型暫無作品</p>
+            )}
+          </div>
+
+          {/* Aesthetic Search (showcase.byAesthetics) */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <h3 className="text-sm font-semibold">依美學風格搜尋</h3>
+            </div>
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {["cyberpunk", "watercolor", "minimalist", "surreal", "anime", "cinematic", "vintage", "abstract"].map((tag) => (
+                <button
+                  key={tag}
+                  onClick={() => setAestheticSearch(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag])}
+                  className={`px-2 py-0.5 rounded-md text-[10px] font-medium transition-colors ${
+                    aestheticSearch.includes(tag) ? "bg-primary text-primary-foreground" : "bg-muted/30 text-muted-foreground"
+                  }`}
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
+            {aestheticSearch.length > 0 && (
+              showcaseByAesthetics.isLoading ? (
+                <ZenSkeleton lines={2} />
+              ) : showcaseByAesthetics.data?.items && showcaseByAesthetics.data.items.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {showcaseByAesthetics.data.items.map((item: any) => (
+                    <div key={item.id} className="overflow-hidden cursor-pointer group p-0 rounded-xl border border-border/20 bg-background/60 backdrop-blur-sm" onClick={() => setSelectedShowcaseId(item.id)}>
+                      {item.thumbnailUrl || item.imageUrl ? (
+                        <img src={item.thumbnailUrl || item.imageUrl} alt={item.title} className="w-full aspect-square object-cover group-hover:scale-105 transition-transform" loading="lazy" />
+                      ) : (
+                        <div className="w-full aspect-square bg-muted/20 flex items-center justify-center">
+                          <Sparkles className="w-6 h-6 text-muted-foreground/30" />
+                        </div>
+                      )}
+                      <div className="p-2">
+                        <p className="text-xs font-medium truncate">{item.title}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">沒有符合的作品</p>
+              )
+            )}
+          </div>
+
+          {/* My Showcase Items (showcase.myItems) */}
+          {showcaseMyItems.data && showcaseMyItems.data.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold mb-3">我的展示作品</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {showcaseMyItems.data.map((item: any) => (
+                  <GlassCard key={item.id} className="p-3">
+                    <p className="text-xs font-medium truncate">{item.title}</p>
+                    <div className="flex items-center justify-between mt-2">
+                      <span className="text-[9px] text-muted-foreground">♥ {item.likeCount} · ⑂ {item.forkCount}</span>
+                      <button
+                        className="text-[9px] text-destructive hover:text-destructive/80 transition-colors"
+                        onClick={() => { if (confirm("確定要移除此展示作品？")) showcaseRemove.mutate({ id: item.id }); }}
+                      >
+                        移除
+                      </button>
+                    </div>
+                  </GlassCard>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Showcase Detail Modal (showcase.getById) */}
+          {selectedShowcaseId && showcaseDetail.data && (
+            <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setSelectedShowcaseId(null)}>
+              <div className="bg-background rounded-2xl max-w-lg w-full max-h-[80vh] overflow-y-auto p-6 space-y-4" onClick={e => e.stopPropagation()}>
+                <div className="flex items-start justify-between">
+                  <h3 className="text-lg font-semibold">{(showcaseDetail.data as any).title}</h3>
+                  <button onClick={() => setSelectedShowcaseId(null)} className="text-muted-foreground hover:text-foreground text-sm">✕</button>
+                </div>
+                {(showcaseDetail.data as any).imageUrl && (
+                  <img src={(showcaseDetail.data as any).imageUrl} alt={(showcaseDetail.data as any).title} className="w-full rounded-xl object-cover" loading="lazy" />
+                )}
+                {(showcaseDetail.data as any).description && (
+                  <p className="text-sm text-muted-foreground">{(showcaseDetail.data as any).description}</p>
+                )}
+                {(showcaseDetail.data as any).originalPrompt && (
+                  <div className="bg-muted/20 rounded-lg p-3">
+                    <p className="text-[10px] font-medium text-muted-foreground mb-1">原始提示詞</p>
+                    <p className="text-xs whitespace-pre-wrap">{(showcaseDetail.data as any).originalPrompt}</p>
+                  </div>
+                )}
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <span>{(showcaseDetail.data as any).modality}</span>
+                  <span>♥ {(showcaseDetail.data as any).likeCount}</span>
+                  <span>⑂ {(showcaseDetail.data as any).forkCount}</span>
+                </div>
+              </div>
             </div>
           )}
         </TabsContent>

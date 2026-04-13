@@ -685,6 +685,9 @@ export default function AiBrainSettings() {
     onError: (err) => toast.error("儲存失敗：" + err.message),
   });
 
+  // ── Model Switch Tracking (brain.switchModel) ──
+  const switchModelMutation = trpc.brain.switchModel.useMutation();
+
   // ── Reasoning Brain State ─────────────────────────────────────────────
   const [directorModel,    setDirectorModel]    = useState("gemini-2.5-pro");
   const [directorTemp,     setDirectorTemp]     = useState(0.7);
@@ -748,6 +751,14 @@ export default function AiBrainSettings() {
   }, [brainQuery.data]);
 
   // ── Save Handler ──────────────────────────────────────────────────────
+
+  // Track model switches (brain.switchModel)
+  const trackModelSwitch = useCallback((brainSlot: string, fromModel: string, toModel: string) => {
+    if (fromModel !== toModel) {
+      switchModelMutation.mutate({ brainSlot, fromModel, toModel, switchSource: "manual" });
+    }
+  }, [switchModelMutation]);
+
   const handleSave = useCallback(() => {
     const falTaskPayload: Record<string, string> = {};
     for (const key of FAL_TASK_KEYS) {
@@ -878,7 +889,7 @@ export default function AiBrainSettings() {
                     topP={directorTopP}
                     enabled={directorEnabled}
                     health={health}
-                    onModelChange={setDirectorModel}
+                    onModelChange={(m: string) => { trackModelSwitch("director", directorModel, m); setDirectorModel(m); }}
                     onTemperatureChange={setDirectorTemp}
                     onTopPChange={setDirectorTopP}
                     onEnabledChange={setDirectorEnabled}
@@ -892,7 +903,7 @@ export default function AiBrainSettings() {
                     topP={analystTopP}
                     enabled={analystEnabled}
                     health={health}
-                    onModelChange={setAnalystModel}
+                    onModelChange={(m: string) => { trackModelSwitch("analyst", analystModel, m); setAnalystModel(m); }}
                     onTemperatureChange={setAnalystTemp}
                     onTopPChange={setAnalystTopP}
                     onEnabledChange={setAnalystEnabled}
@@ -906,7 +917,7 @@ export default function AiBrainSettings() {
                     topP={storytellerTopP}
                     enabled={storytellerEnabled}
                     health={health}
-                    onModelChange={setStorytellerModel}
+                    onModelChange={(m: string) => { trackModelSwitch("storyteller", storytellerModel, m); setStorytellerModel(m); }}
                     onTemperatureChange={setStorytellerTemp}
                     onTopPChange={setStorytellerTopP}
                     onEnabledChange={setStorytellerEnabled}
@@ -920,7 +931,7 @@ export default function AiBrainSettings() {
                     topP={technicianTopP}
                     enabled={technicianEnabled}
                     health={health}
-                    onModelChange={setTechnicianModel}
+                    onModelChange={(m: string) => { trackModelSwitch("technician", technicianModel, m); setTechnicianModel(m); }}
                     onTemperatureChange={setTechnicianTemp}
                     onTopPChange={setTechnicianTopP}
                     onEnabledChange={setTechnicianEnabled}
@@ -934,7 +945,7 @@ export default function AiBrainSettings() {
                     topP={curatorTopP}
                     enabled={curatorEnabled}
                     health={health}
-                    onModelChange={setCuratorModel}
+                    onModelChange={(m: string) => { trackModelSwitch("curator", curatorModel, m); setCuratorModel(m); }}
                     onTemperatureChange={setCuratorTemp}
                     onTopPChange={setCuratorTopP}
                     onEnabledChange={setCuratorEnabled}
