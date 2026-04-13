@@ -165,6 +165,11 @@ export function AIChatBox({
     }
   };
 
+  // Auto-scroll whenever messages change or loading state toggles
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, isLoading]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedInput = input.trim();
@@ -172,9 +177,6 @@ export function AIChatBox({
 
     onSendMessage(trimmedInput);
     setInput("");
-
-    // Scroll immediately after sending
-    scrollToBottom();
 
     // Keep focus on input
     textareaRef.current?.focus();

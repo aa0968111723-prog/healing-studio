@@ -13,7 +13,7 @@ import { GenerationControls } from "@/components/GenerationControls";
 import { ZenProgressOverlay, GlassCard, BottomSheet } from "@/components/ZenCoPilot";
 import { toast } from "sonner";
 import {
-  Image, Video, Music, Mic, Wand2, Download,
+  Image, Video, Music, Mic, Wand2, Download, Copy,
   PanelLeftOpen, PanelLeftClose, PanelRightOpen, PanelRightClose,
   Layers, Settings2, Clock, Package, X, Star, Bookmark, BookmarkCheck,
   Send, RefreshCw, StickyNote, Cpu, Check,
@@ -128,7 +128,7 @@ function MiniHistoryPanel({ onSendToStudio }: { onSendToStudio: (prompt: string,
             </div>
 
             {/* Actions */}
-            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+            <div className="flex items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -1011,7 +1011,7 @@ export default function Studio() {
           </Button>
 
           {/* Controls (mobile only) */}
-          {false && isMobile && (
+          {isMobile && (
             <Button
               variant="outline"
               size="sm"
@@ -1441,6 +1441,34 @@ export default function Studio() {
                     </Button>
                   )}
 
+                  {/* ── Copy Result URL ── */}
+                  {resultUrl && (
+                    <Button
+                      variant="outline"
+                      className="w-full rounded-xl gap-2 text-sm"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(resultUrl);
+                          toast.success("已複製結果連結");
+                        } catch {
+                          // Fallback for older browsers
+                          const ta = document.createElement("textarea");
+                          ta.value = resultUrl;
+                          ta.style.position = "fixed";
+                          ta.style.opacity = "0";
+                          document.body.appendChild(ta);
+                          ta.select();
+                          document.execCommand("copy");
+                          document.body.removeChild(ta);
+                          toast.success("已複製結果連結");
+                        }
+                      }}
+                    >
+                      <Copy className="w-4 h-4" />
+                      複製連結
+                    </Button>
+                  )}
+
                   {/* ── Pin to Notes ── */}
                   <Button
                     variant="outline"
@@ -1639,7 +1667,7 @@ export default function Studio() {
       </div>
 
       {/* ── Mobile Bottom Sheets ── */}
-      {false && isMobile && (
+      {isMobile && (
         <>
           <BottomSheet
             open={controlsSheetOpen}

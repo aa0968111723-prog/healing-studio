@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { useIsMobile } from "@/hooks/useMobile";
 import { motion, AnimatePresence } from "framer-motion";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -76,6 +77,7 @@ function VaultItemCard({
   onDelete?: (id: number) => void;
   compact?: boolean;
 }) {
+  const isMobile = useIsMobile();
   return (
     <motion.div
       whileHover={{ scale: 1.02 }}
@@ -127,11 +129,13 @@ function VaultItemCard({
           </div>
         </div>
 
-        {/* Delete button */}
+        {/* Delete button — always visible on mobile, hover-only on desktop */}
         {onDelete && (
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(item.id); }}
-            className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-red-500/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+            className={`absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-red-500/80 text-white flex items-center justify-center transition-opacity hover:bg-red-600 ${
+              isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+            }`}
           >
             <Trash2 className="w-3 h-3" />
           </button>

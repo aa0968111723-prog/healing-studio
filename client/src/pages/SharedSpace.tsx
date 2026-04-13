@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, Component, type ReactNode } from "react";
+import { useIsMobile } from "@/hooks/useMobile";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
@@ -72,6 +73,7 @@ const MODALITY_LABELS: Record<string, string> = {
 export default function SharedSpace() {
   const { user } = useAuth();
   const [, navigate] = useLocation();
+  const isMobile = useIsMobile();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("assets");
 
@@ -270,7 +272,7 @@ export default function SharedSpace() {
               </p>
             </GlassCard>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
               {filteredAssets.map((asset, idx) => {
                 const ModalityIcon = MODALITY_ICONS[asset.assetType] || Package;
                 const canUse = ["image", "video", "audio", "voice"].includes(asset.assetType);
@@ -303,13 +305,21 @@ export default function SharedSpace() {
                           </span>
                         </div>
 
-                        {/* One-Click Use overlay */}
+                        {/* One-Click Use overlay — always visible on mobile, hover-only on desktop */}
                         {canUse && (
-                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors duration-300 flex items-center justify-center">
+                          <div className={`absolute inset-0 transition-colors duration-300 flex items-center justify-center ${
+                            isMobile
+                              ? "bg-black/0"
+                              : "bg-black/0 group-hover:bg-black/40"
+                          }`}>
                             <Button
                               size="sm"
                               onClick={() => handleUseAsset(asset)}
-                              className="opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0 gap-1.5 bg-white/90 hover:bg-white text-foreground shadow-lg"
+                              className={`gap-1.5 bg-white/90 hover:bg-white text-foreground shadow-lg transition-all duration-300 ${
+                                isMobile
+                                  ? "opacity-0 pointer-events-none"
+                                  : "opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0"
+                              }`}
                             >
                               <Wand2 className="w-3.5 h-3.5" />
                               一鍵使用
@@ -323,16 +333,20 @@ export default function SharedSpace() {
                         <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2">{asset.promptUsed}</p>
                       )}
 
-                      {/* Use button below card content */}
+                      {/* Use button below card content — always visible */}
                       {canUse && (
                         <Button
                           size="sm"
-                          variant="ghost"
+                          variant={isMobile ? "default" : "ghost"}
                           onClick={() => handleUseAsset(asset)}
-                          className="w-full mt-2 text-[11px] h-7 gap-1 text-primary hover:text-primary hover:bg-primary/10"
+                          className={`w-full mt-2 text-[11px] gap-1 ${
+                            isMobile
+                              ? "h-8 rounded-lg"
+                              : "h-7 text-primary hover:text-primary hover:bg-primary/10"
+                          }`}
                         >
-                          <ArrowRight className="w-3 h-3" />
-                          帶入工作室
+                          {isMobile ? <Wand2 className="w-3 h-3" /> : <ArrowRight className="w-3 h-3" />}
+                          {isMobile ? "使用此素材" : "帶入工作室"}
                         </Button>
                       )}
                     </GlassCard>

@@ -113,6 +113,7 @@ export default function DashboardLayout({
   return (
     <SidebarProvider
       style={{ "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}
+      className="h-svh overflow-hidden"
     >
       <DashboardLayoutContent setSidebarWidth={setSidebarWidth}>
         {children}
@@ -276,10 +277,10 @@ function DashboardLayoutContent({
         />
       </div>
 
-      <SidebarInset>
+      <SidebarInset className="flex flex-col min-h-0 overflow-hidden">
         {isMobile && (
-          <div className="flex border-b h-14 items-center justify-between px-2 sticky top-0 z-40"
-            style={{ background: "rgba(245,243,240,0.85)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}
+          <div className="flex border-b h-14 items-center justify-between px-2 shrink-0 sticky top-0 z-40"
+            style={{ background: "rgba(245,243,240,0.92)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}
           >
             <div className="flex items-center gap-2">
               <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />
@@ -289,7 +290,7 @@ function DashboardLayoutContent({
             </div>
           </div>
         )}
-        <main className="flex-1 p-4 sm:p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-safe-area-inset-bottom" style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}>{children}</main>
       </SidebarInset>
     </>
   );
