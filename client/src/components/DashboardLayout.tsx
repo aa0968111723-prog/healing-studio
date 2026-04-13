@@ -420,7 +420,7 @@ function DashboardLayoutContent({
 
           <SidebarFooter className="p-3">
             {!isCollapsed && (
-              <div className="glass-card-static px-3 py-2.5 mb-2 text-center" style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.6) 0%, rgba(212,197,226,0.15) 50%, rgba(234,201,193,0.12) 100%)" }}>
+              <div className="glass-card-static quota-card-zen px-3 py-2.5 mb-2 text-center">
                 <p className="text-[11px] text-muted-foreground tracking-wide uppercase">剩餘配額</p>
                 <p className="text-xl font-semibold text-foreground tabular-nums mt-0.5">
                   {user?.remainingGenerations ?? 0}
