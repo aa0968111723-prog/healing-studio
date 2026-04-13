@@ -117,12 +117,11 @@ export default function SettingsPage() {
                   <button
                     key={opt.value}
                     onClick={() => setPersonality(opt.value)}
-                    className={`p-3 rounded-xl text-left transition-all ${
+                    className={`p-3 rounded-xl text-left transition-all border ${
                       personality === opt.value
                         ? "bg-primary/10 border-primary/30 shadow-sm"
                         : "bg-white/30 border-white/50 hover:bg-white/50"
                     }`}
-                    style={{ border: "1px solid" }}
                   >
                     <p className="text-xs font-medium text-foreground">{opt.label}</p>
                     <p className="text-[10px] text-muted-foreground mt-0.5">{opt.desc}</p>
@@ -143,12 +142,11 @@ export default function SettingsPage() {
                   <button
                     key={opt.value}
                     onClick={() => setPreferredFormat(opt.value)}
-                    className={`p-2.5 rounded-lg text-center text-xs font-medium transition-all ${
+                    className={`p-2.5 rounded-lg text-center text-xs font-medium transition-all border ${
                       preferredFormat === opt.value
                         ? "bg-primary/10 text-primary border-primary/30"
                         : "bg-white/30 text-muted-foreground border-white/50 hover:bg-white/50"
                     }`}
-                    style={{ border: "1px solid" }}
                   >
                     {opt.label}
                   </button>

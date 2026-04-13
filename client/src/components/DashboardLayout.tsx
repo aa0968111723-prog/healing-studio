@@ -36,6 +36,11 @@ import {
   CalendarDays,
   Sparkles,
   Image,
+  Clock,
+  Package,
+  Layers,
+  MessageSquare,
+  Zap,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -50,10 +55,14 @@ const menuItems = [
   { icon: Image, label: "圖片創作室", path: "/image-studio" },
   { icon: Clapperboard, label: "導演 AI", path: "/director" },
   { icon: Cpu, label: "角色鍛造所", path: "/models" },
+  { icon: Clock, label: "生成歷史", path: "/history" },
+  { icon: Package, label: "數位資產庫", path: "/assets" },
+  { icon: Layers, label: "一致性保險庫", path: "/vault" },
   { icon: StickyNote, label: "專案筆記", path: "/notes" },
   { icon: CalendarDays, label: "創作排程", path: "/calendar" },
   { icon: Users, label: "共享空間", path: "/shared" },
   { icon: BarChart3, label: "儀表板", path: "/dashboard" },
+  { icon: MessageSquare, label: "回饋中心", path: "/feedback" },
   { icon: Settings, label: "個人設定", path: "/settings" },
 ];
 
@@ -287,6 +296,39 @@ function DashboardLayoutContent({
               <span className="tracking-tight text-foreground text-sm font-medium">
                 {activeMenuItem?.label ?? "AI Director"}
               </span>
+            </div>
+            <div className="flex items-center gap-2 pr-1">
+              {/* Quota badge */}
+              <div className="flex items-center gap-1 bg-primary/10 rounded-lg px-2 py-1">
+                <Zap className="w-3 h-3 text-primary" />
+                <span className="text-xs font-semibold text-primary tabular-nums">
+                  {user?.remainingGenerations ?? 0}
+                </span>
+              </div>
+              {/* User avatar dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="h-8 w-8 rounded-full border flex items-center justify-center bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                    <span className="text-xs font-medium text-primary">
+                      {user?.name?.charAt(0).toUpperCase() || "U"}
+                    </span>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  <div className="px-2 py-1.5 border-b mb-1">
+                    <p className="text-xs font-medium truncate">{user?.name || "使用者"}</p>
+                    <p className="text-[10px] text-muted-foreground truncate">{user?.email || "-"}</p>
+                  </div>
+                  <DropdownMenuItem onClick={() => setLocation("/")} className="cursor-pointer">
+                    <Home className="mr-2 h-4 w-4" />
+                    <span>首頁</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={logout} className="cursor-pointer text-destructive focus:text-destructive">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>登出</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         )}

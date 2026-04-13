@@ -1635,7 +1635,7 @@ export default function Studio() {
 
         {/* ── Right Panel: Controls (desktop) ── */}
         {!isMobile && (
-          <div className="hidden lg:block w-64 shrink-0 space-y-4" style={{display:"none"}}>
+          <div className="hidden lg:block w-64 shrink-0 space-y-4">
             <GlassCard hover={false}>
               <GenerationControls
                 temperature={temperature}

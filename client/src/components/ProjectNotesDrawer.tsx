@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useIsMobile } from "@/hooks/useMobile";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
@@ -32,6 +33,7 @@ function NoteCard({
   };
   onDelete: (id: number) => void;
 }) {
+  const isMobile = useIsMobile();
   const typeColor = note.noteType === "script"
     ? "bg-purple-500/20 text-purple-300 border-purple-500/30"
     : note.noteType === "calendar_event"
@@ -71,7 +73,7 @@ function NoteCard({
         </div>
         <button
           onClick={() => onDelete(note.id)}
-          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-500/20 text-muted-foreground/40 hover:text-red-400"
+          className={`transition-opacity p-1 rounded hover:bg-red-500/20 text-muted-foreground/40 hover:text-red-400 ${isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
         >
           <Trash2 className="w-3.5 h-3.5" />
         </button>
