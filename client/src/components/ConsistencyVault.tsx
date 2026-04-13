@@ -481,6 +481,7 @@ function VaultGrid({
   onDragStart,
   onSelect,
   onDelete,
+  onExport,
   compact,
   emptyMessage,
 }: {
