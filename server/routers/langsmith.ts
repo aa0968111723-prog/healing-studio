@@ -53,7 +53,9 @@ function serializeRun(run: Record<string, unknown>) {
     error: run.error ? String(run.error) : null,
     start_time: run.start_time ? String(run.start_time) : null,
     end_time: run.end_time ? String(run.end_time) : null,
-    latency: typeof run.total_tokens === "number" ? run.total_tokens : null,
+    latency: run.start_time && run.end_time
+      ? new Date(String(run.end_time)).getTime() - new Date(String(run.start_time)).getTime()
+      : null,
     total_tokens: typeof run.total_tokens === "number" ? run.total_tokens : null,
     prompt_tokens: typeof run.prompt_tokens === "number" ? run.prompt_tokens : null,
     completion_tokens: typeof run.completion_tokens === "number" ? run.completion_tokens : null,

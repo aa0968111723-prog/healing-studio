@@ -533,7 +533,7 @@ function ComparisonTab() {
   const barData = data.models.map((m) => ({
     name: m.model.length > 20 ? m.model.slice(0, 20) + "…" : m.model,
     延遲: m.avgLatencyMs,
-    成本: m.avgCostPerRun * 1000, // scale up for visibility
+    成本: m.avgCostPerRun * 1000, // ×1000 to convert from USD to milli-USD for chart readability
     使用次數: m.runs,
   }));
 
@@ -792,7 +792,8 @@ function ExportTab() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `fine-tuning-${format}-${new Date().toISOString().slice(0, 10)}.jsonl`;
+    const ext = format === "openai" ? "json" : "jsonl";
+    a.download = `fine-tuning-${format}-${new Date().toISOString().slice(0, 10)}.${ext}`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success(`已下載 ${exportQuery.data.records.length} 筆微調數據`);
