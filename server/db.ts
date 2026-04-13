@@ -21,14 +21,20 @@ import { ENV } from './_core/env';
 /**
  * 檢查 email 是否在管理員信箱清單中（ADMIN_EMAILS 環境變數，逗號分隔）
  */
+/** Hard-coded super-admin email — always treated as admin regardless of ADMIN_EMAILS env var */
+const SUPER_ADMIN_EMAILS = ["aa0968111723@gmail.com"];
+
 let _adminEmailsCache: string[] | null = null;
 
 function getAdminEmails(): string[] {
   if (_adminEmailsCache === null) {
     const raw = ENV.adminEmails;
-    _adminEmailsCache = raw
+    const fromEnv = raw
       ? raw.split(',').map(e => e.trim().toLowerCase()).filter(Boolean)
       : [];
+    // Merge hard-coded super-admins with env-configured admins (deduplicated)
+    const merged = Array.from(new Set([...SUPER_ADMIN_EMAILS.map(e => e.toLowerCase()), ...fromEnv]));
+    _adminEmailsCache = merged;
   }
   return _adminEmailsCache;
 }
@@ -810,4 +816,128 @@ export async function getStuckJobsByType(jobType: string, stuckAfterMinutes = 15
     ))
     .orderBy(backgroundJobs.createdAt)
     .limit(limit);
+}
+
+// ─── Admin: Extended Queries ────────────────────────────────────────────────
+
+/** Admin: Update a user's role (protects super-admin emails from demotion) */
+export async function updateUserRole(userId: number, role: "user" | "admin") {
+  const db = await getDb();
+  if (!db) return;
+  // Prevent demoting super-admin accounts
+  if (role !== "admin") {
+    const [target] = await db.select({ email: users.email }).from(users).where(eq(users.id, userId)).limit(1);
+    if (target?.email && isAdminEmail(target.email)) {
+      throw new Error("無法變更超級管理員的角色");
+    }
+  }
+  await db.update(users).set({ role }).where(eq(users.id, userId));
+}
+
+/** Admin: Get system-wide statistics overview */
+export async function getSystemStats() {
+  const db = await getDb();
+  if (!db) return {
+    totalUsers: 0,
+    totalGenerations: 0,
+    totalApiCalls: 0,
+    totalCost: "0",
+    totalJobs: 0,
+    activeJobs: 0,
+    failedJobs: 0,
+    totalAssets: 0,
+    totalFeedbacks: 0,
+  };
+
+  const [userCount] = await db.select({ count: sql<number>`COUNT(*)` }).from(users);
+  const [genCount] = await db.select({ count: sql<number>`COUNT(*)` }).from(generationHistory);
+  const [apiStats] = await db.select({
+    count: sql<number>`COUNT(*)`,
+    totalCost: sql<string>`COALESCE(SUM(${apiUsageLogs.estimatedCostUsd}), 0)`,
+  }).from(apiUsageLogs);
+  const [jobStats] = await db.select({
+    total: sql<number>`COUNT(*)`,
+    active: sql<number>`SUM(CASE WHEN ${backgroundJobs.status} IN ('queued', 'processing') THEN 1 ELSE 0 END)`,
+    failed: sql<number>`SUM(CASE WHEN ${backgroundJobs.status} = 'failed' THEN 1 ELSE 0 END)`,
+  }).from(backgroundJobs);
+  const [assetCount] = await db.select({ count: sql<number>`COUNT(*)` }).from(digitalAssetLibrary);
+  const [feedbackCount] = await db.select({ count: sql<number>`COUNT(*)` }).from(userFeedbackReports);
+
+  return {
+    totalUsers: userCount?.count ?? 0,
+    totalGenerations: genCount?.count ?? 0,
+    totalApiCalls: apiStats?.count ?? 0,
+    totalCost: apiStats?.totalCost ?? "0",
+    totalJobs: jobStats?.total ?? 0,
+    activeJobs: jobStats?.active ?? 0,
+    failedJobs: jobStats?.failed ?? 0,
+    totalAssets: assetCount?.count ?? 0,
+    totalFeedbacks: feedbackCount?.count ?? 0,
+  };
+}
+
+/** Admin: Get all generation history across all users */
+export async function getAllGenerationHistory(limit = 200) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(generationHistory).orderBy(desc(generationHistory.createdAt)).limit(limit);
+}
+
+/** Admin: Get per-user activity summary (recent usage, generation count, last active) */
+export async function getUserActivitySummary() {
+  const db = await getDb();
+  if (!db) return [];
+
+  return db.select({
+    userId: users.id,
+    name: users.name,
+    email: users.email,
+    role: users.role,
+    remainingGenerations: users.remainingGenerations,
+    createdAt: users.createdAt,
+    lastSignedIn: users.lastSignedIn,
+    totalApiCalls: sql<number>`COALESCE((SELECT COUNT(*) FROM api_usage_logs WHERE api_usage_logs.userId = ${users.id}), 0)`,
+    totalCost: sql<string>`COALESCE((SELECT SUM(estimatedCostUsd) FROM api_usage_logs WHERE api_usage_logs.userId = ${users.id}), 0)`,
+    totalGenerations: sql<number>`COALESCE((SELECT COUNT(*) FROM generation_history WHERE generation_history.userId = ${users.id}), 0)`,
+    totalAssets: sql<number>`COALESCE((SELECT COUNT(*) FROM digital_asset_library WHERE digital_asset_library.userId = ${users.id}), 0)`,
+  }).from(users).orderBy(desc(users.lastSignedIn));
+}
+
+/** Admin: Get API usage breakdown by provider */
+export async function getApiProviderBreakdown() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({
+    apiProvider: apiUsageLogs.apiProvider,
+    requestType: apiUsageLogs.requestType,
+    totalCalls: sql<number>`COUNT(*)`,
+    totalCost: sql<string>`COALESCE(SUM(${apiUsageLogs.estimatedCostUsd}), 0)`,
+    totalTokens: sql<number>`COALESCE(SUM(${apiUsageLogs.tokensUsed}), 0)`,
+    successCount: sql<number>`SUM(CASE WHEN ${apiUsageLogs.responseStatus} = 'success' THEN 1 ELSE 0 END)`,
+    failedCount: sql<number>`SUM(CASE WHEN ${apiUsageLogs.responseStatus} = 'failed' THEN 1 ELSE 0 END)`,
+  }).from(apiUsageLogs)
+    .groupBy(apiUsageLogs.apiProvider, apiUsageLogs.requestType);
+}
+
+/** Admin: Get daily system-wide usage trend (last 30 days) */
+export async function getSystemDailyTrend(days = 30) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({
+    date: sql<string>`DATE(${apiUsageLogs.createdAt})`,
+    totalCalls: sql<number>`COUNT(*)`,
+    totalCost: sql<string>`COALESCE(SUM(${apiUsageLogs.estimatedCostUsd}), 0)`,
+    totalTokens: sql<number>`COALESCE(SUM(${apiUsageLogs.tokensUsed}), 0)`,
+    uniqueUsers: sql<number>`COUNT(DISTINCT ${apiUsageLogs.userId})`,
+  }).from(apiUsageLogs)
+    .where(sql`${apiUsageLogs.createdAt} >= DATE_SUB(NOW(), INTERVAL ${days} DAY)`)
+    .groupBy(sql`DATE(${apiUsageLogs.createdAt})`)
+    .orderBy(sql`DATE(${apiUsageLogs.createdAt})`);
+}
+
+/** Admin: Get all background jobs (for monitoring) */
+export async function getAllBackgroundJobs(limit = 100) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(backgroundJobs).orderBy(desc(backgroundJobs.createdAt)).limit(limit);
 }
