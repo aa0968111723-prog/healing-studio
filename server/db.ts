@@ -42,13 +42,45 @@ let _db: ReturnType<typeof drizzle> | null = null;
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      // Use drizzle's built-in connection pooling with explicit pool configuration
+      _db = drizzle({
+        connection: {
+          uri: process.env.DATABASE_URL,
+          waitForConnections: true,
+          connectionLimit: 10,
+          maxIdle: 5,
+          idleTimeout: 60_000,        // Close idle connections after 60s
+          enableKeepAlive: true,
+          keepAliveInitialDelay: 30_000,
+        },
+      });
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
     }
   }
   return _db;
+}
+
+/**
+ * Gracefully close the database connection pool.
+ * Call this during server shutdown to release all connections.
+ */
+export async function closeDb(): Promise<void> {
+  if (_db) {
+    try {
+      // Access the underlying mysql2 pool via $client and end it
+      const client = (_db as any).$client;
+      if (client && typeof client.end === "function") {
+        await client.end();
+        console.info("[Database] Connection pool closed gracefully.");
+      }
+    } catch (error) {
+      console.warn("[Database] Error closing connection pool:", error);
+    } finally {
+      _db = null;
+    }
+  }
 }
 
 // ─── Users ───────────────────────────────────────────────────────────────────

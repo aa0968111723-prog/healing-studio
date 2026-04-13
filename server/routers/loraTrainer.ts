@@ -45,8 +45,8 @@ export const loraTrainerRouter = router({
     }
 
     try {
-      const Replicate = (await import("replicate")).default;
-      const replicate = new Replicate({ auth: token });
+      const { getReplicateClient } = await import("../services/replicateClient.js");
+      const replicate = getReplicateClient(token);
 
       // Use a simple API call to verify the token works
       // Get the training model info to verify connectivity
@@ -121,10 +121,8 @@ export const loraTrainerRouter = router({
 
       if (predictionId && process.env.REPLICATE_API_TOKEN) {
         try {
-          const Replicate = (await import("replicate")).default;
-          const replicate = new Replicate({
-            auth: process.env.REPLICATE_API_TOKEN,
-          });
+          const { getReplicateClient } = await import("../services/replicateClient.js");
+          const replicate = getReplicateClient();
           const prediction = (await replicate.predictions.get(
             predictionId,
           )) as unknown as Record<string, unknown>;

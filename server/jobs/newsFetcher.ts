@@ -19,6 +19,7 @@ import { getDb } from "../db";
 import { newsArticles } from "../../drizzle/schema";
 import { invokeLLM } from "../_core/llm";
 import { eq } from "drizzle-orm";
+import { CircuitBreaker } from "./circuitBreaker";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -72,6 +73,15 @@ const FETCH_KEYWORDS = "AI art OR AI image generation OR generative AI OR AI cre
 const MAX_ARTICLES_PER_FETCH = 10;
 const FETCH_TIMEOUT_MS = 15_000;
 const GEMINI_BATCH_TIMEOUT_MS = 60_000;
+
+// ─── Circuit Breaker — Stops retrying when news APIs fail repeatedly ──────────
+const newsApiBreaker = new CircuitBreaker("NewsFetcher", {
+  failureThreshold: 3,
+  cooldownMs: 30 * 60_000, // 30 minutes cooldown
+});
+
+// ─── Deduplication Lock — Prevents overlapping cron runs ──────────────────────
+let isFetchRunning = false;
 
 // ─── OARS Logger ──────────────────────────────────────────────────────────────
 
@@ -706,23 +716,45 @@ async function writeArticlesToDb(result: FetchResult): Promise<number> {
 // ─── Main Fetch Job ───────────────────────────────────────────────────────────
 
 export async function runNewsFetchJob(): Promise<void> {
-  const startTime = Date.now();
-  logOars("info", "═══ 新聞抓取排程啟動（含 Gemini Flash OARS NLP 柔化）═══");
-
-  const result = await fetchNewsWithFailover();
-
-  if (!result) {
-    logOars("info", "═══ 新聞抓取排程結束（無資料）═══");
+  // Deduplication: prevent overlapping runs
+  if (isFetchRunning) {
+    logOars("warn", "前一輪新聞抓取仍在執行中，跳過本次排程。");
     return;
   }
 
-  const written = await writeArticlesToDb(result);
-  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+  // Circuit breaker: stop hammering failed APIs
+  if (!newsApiBreaker.canExecute()) {
+    logOars("warn", `Circuit breaker OPEN（狀態: ${newsApiBreaker.getState()}），跳過本次排程。`);
+    return;
+  }
 
-  logOars(
-    "info",
-    `═══ 新聞抓取排程完成 ═══ 來源: ${result.provider} | 抓取: ${result.articles.length} 篇 | 柔化+寫入: ${written} 篇 | 耗時: ${elapsed}s`
-  );
+  isFetchRunning = true;
+  const startTime = Date.now();
+  logOars("info", "═══ 新聞抓取排程啟動（含 Gemini Flash OARS NLP 柔化）═══");
+
+  try {
+    const result = await fetchNewsWithFailover();
+
+    if (!result) {
+      newsApiBreaker.recordFailure();
+      logOars("info", "═══ 新聞抓取排程結束（無資料）═══");
+      return;
+    }
+
+    const written = await writeArticlesToDb(result);
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+
+    newsApiBreaker.recordSuccess();
+    logOars(
+      "info",
+      `═══ 新聞抓取排程完成 ═══ 來源: ${result.provider} | 抓取: ${result.articles.length} 篇 | 柔化+寫入: ${written} 篇 | 耗時: ${elapsed}s`
+    );
+  } catch (err: any) {
+    newsApiBreaker.recordFailure();
+    throw err;
+  } finally {
+    isFetchRunning = false;
+  }
 }
 
 // ─── Cron Scheduler ───────────────────────────────────────────────────────────

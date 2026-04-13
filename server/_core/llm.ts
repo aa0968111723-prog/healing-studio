@@ -391,6 +391,15 @@ function normalizeModelForEngine(model: string, engineName: string): string {
   return GEMINI_MODEL_REMAP[model] ?? model;
 }
 
+// ─── LLM retry constants ───────────────────────────────────────────────────
+const LLM_REQUEST_TIMEOUT_MS = 60_000;  // 60 seconds
+const LLM_MAX_RETRIES = 3;
+const LLM_MAX_RETRY_DELAY_MS = 8_000;
+
+function getRetryDelayMs(attempt: number): number {
+  return Math.min(1000 * Math.pow(2, attempt - 1), LLM_MAX_RETRY_DELAY_MS);
+}
+
 // ─── 主要 LLM 呼叫函數 ────────────────────────────────────────────────────
 
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
@@ -440,35 +449,66 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   // 生成唯一 run ID（供 LangSmith 追蹤）
   const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
-  let result: InvokeResult;
+  let result: InvokeResult | undefined;
   try {
-    const response = await fetch(engineConfig.url, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${engineConfig.apiKey}`,
-      },
-      body: JSON.stringify(payload),
-    });
+    // Retry with exponential backoff for transient failures
+    let lastError: Error | null = null;
+    for (let attempt = 1; attempt <= LLM_MAX_RETRIES; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), LLM_REQUEST_TIMEOUT_MS);
+        const response = await fetch(engineConfig.url, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${engineConfig.apiKey}`,
+          },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      const err = new Error(
-        `[${engineConfig.name}] LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
-      );
-      const durationMs = Date.now() - startTime;
-      // 非同步記錄失敗至 LangSmith
-      trackLangSmithSDK(runId, runName || "llm-invoke", messages, payload, null, err, durationMs, engineConfig.name, parentRunId).catch(() => {});
-      throw err;
+        if (!response.ok) {
+          const errorText = await response.text();
+          const err = new Error(
+            `[${engineConfig.name}] LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
+          );
+          // Retry on 5xx server errors or 429 rate limit
+          if ((response.status >= 500 || response.status === 429) && attempt < LLM_MAX_RETRIES) {
+            lastError = err;
+            await new Promise(r => setTimeout(r, getRetryDelayMs(attempt)));
+            continue;
+          }
+          const durationMs = Date.now() - startTime;
+          trackLangSmithSDK(runId, runName || "llm-invoke", messages, payload, null, err, durationMs, engineConfig.name, parentRunId).catch(() => {});
+          throw err;
+        }
+
+        result = (await response.json()) as InvokeResult;
+        lastError = null;
+        break;
+      } catch (err: unknown) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        lastError = error;
+        // Retry on network / abort errors (not on explicit HTTP error throws above)
+        const isRetryable = error.name === "AbortError" || error.message.includes("fetch failed");
+        if (isRetryable && attempt < LLM_MAX_RETRIES) {
+          await new Promise(r => setTimeout(r, getRetryDelayMs(attempt)));
+          continue;
+        }
+        throw err;
+      }
     }
-
-    result = (await response.json()) as InvokeResult;
+    if (lastError) throw lastError;
   } catch (err: unknown) {
     const durationMs = Date.now() - startTime;
     const error = err instanceof Error ? err : new Error(String(err));
     trackLangSmithSDK(runId, runName || "llm-invoke", messages, payload, null, error, durationMs, engineConfig.name, parentRunId).catch(() => {});
     throw err;
   }
+
+  // Safety: result is guaranteed to be set here (retry loop either sets it or throws)
+  if (!result) throw new Error("[LLM] Unexpected: no result after retry loop");
 
   const durationMs = Date.now() - startTime;
 

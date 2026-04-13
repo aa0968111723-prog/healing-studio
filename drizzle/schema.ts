@@ -99,7 +99,11 @@ export const digitalAssetLibrary = mysqlTable("digital_asset_library", {
   rewardCredits: int("rewardCredits").default(0).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  userIdIdx: index("dal_userId_idx").on(table.userId),
+  userIdAssetTypeIdx: index("dal_userId_assetType_idx").on(table.userId, table.assetType),
+  userIdCreatedAtIdx: index("dal_userId_createdAt_idx").on(table.userId, table.createdAt),
+}));
 
 export type DigitalAsset = typeof digitalAssetLibrary.$inferSelect;
 export type InsertDigitalAsset = typeof digitalAssetLibrary.$inferInsert;
@@ -165,7 +169,11 @@ export const projectNotesCalendar = mysqlTable("project_notes_calendar", {
   tags: json("tags").$type<string[]>(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  userIdIdx: index("pnc_userId_idx").on(table.userId),
+  userIdNoteTypeIdx: index("pnc_userId_noteType_idx").on(table.userId, table.noteType),
+  userIdScheduledDateIdx: index("pnc_userId_scheduledDate_idx").on(table.userId, table.scheduledDate),
+}));
 
 export type ProjectNote = typeof projectNotesCalendar.$inferSelect;
 export type InsertProjectNote = typeof projectNotesCalendar.$inferInsert;
@@ -241,7 +249,10 @@ export const apiUsageLogs = mysqlTable("api_usage_logs", {
   durationMs: int("durationMs"),
   success: boolean("success").default(true).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (table) => ({
+  userIdCreatedAtIdx: index("aul_userId_createdAt_idx").on(table.userId, table.createdAt),
+  userIdProviderIdx: index("aul_userId_provider_idx").on(table.userId, table.apiProvider),
+}));
 
 export type ApiUsageLog = typeof apiUsageLogs.$inferSelect;
 export type InsertApiUsageLog = typeof apiUsageLogs.$inferInsert;
@@ -262,7 +273,10 @@ export const consistencyVault = mysqlTable("consistency_vault", {
   metadata: json("metadata").$type<Record<string, unknown>>(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  userIdIdx: index("cv_userId_idx").on(table.userId),
+  userIdItemTypeIdx: index("cv_userId_itemType_idx").on(table.userId, table.itemType),
+}));
 
 export type ConsistencyVaultItem = typeof consistencyVault.$inferSelect;
 export type InsertConsistencyVaultItem = typeof consistencyVault.$inferInsert;
@@ -349,7 +363,9 @@ export const customBlocks = mysqlTable("custom_blocks", {
   prompt: varchar("prompt", { length: 512 }).notNull(),
   emoji: varchar("emoji", { length: 8 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (table) => ({
+  userIdModalityIdx: index("cb_userId_modality_idx").on(table.userId, table.modality),
+}));
 
 export type CustomBlock = typeof customBlocks.$inferSelect;
 export type InsertCustomBlock = typeof customBlocks.$inferInsert;
@@ -577,7 +593,14 @@ export const featuredShowcase = mysqlTable("featured_showcase", {
 
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+}, (table) => ({
+  // Composite index for the main listing query: WHERE isActive = true ORDER BY sortWeight, likeCount, id
+  isActiveSortIdx: index("fs_isActive_sort_idx").on(table.isActive, table.sortWeight, table.likeCount),
+  // Index for modality filtering (used when filtering by image/video/audio/voice)
+  modalityIdx: index("fs_modality_idx").on(table.modality),
+  // Index for curator lookups
+  curatorIdx: index("fs_curator_idx").on(table.curatorUserId),
+}));
 
 export type FeaturedShowcaseItem = typeof featuredShowcase.$inferSelect;
 export type InsertFeaturedShowcaseItem = typeof featuredShowcase.$inferInsert;

@@ -245,10 +245,18 @@ async function gcsGetUrl(relKey: string): Promise<StorageResult> {
   return { key, url: `https://storage.googleapis.com/${bucketName}/${key}` };
 }
 
+// ─── GCS Token Cache ────────────────────────────────────────────────────
+let gcsTokenCache: { token: string; expiresAt: number } | null = null;
+
 async function getGcsAccessToken(credentials: {
   client_email: string;
   private_key: string;
 }): Promise<string> {
+  // Return cached token if still valid (refresh 5 min before expiry)
+  if (gcsTokenCache && gcsTokenCache.expiresAt > Date.now()) {
+    return gcsTokenCache.token;
+  }
+
   const now = Math.floor(Date.now() / 1000);
   const payload = {
     iss: credentials.client_email,
@@ -277,6 +285,9 @@ async function getGcsAccessToken(credentials: {
     throw new Error(`GCS token exchange failed: ${tokenResp.status}`);
   }
   const { access_token } = (await tokenResp.json()) as { access_token: string };
+
+  // Cache token for 55 minutes (token valid for 60 min)
+  gcsTokenCache = { token: access_token, expiresAt: Date.now() + 55 * 60 * 1000 };
   return access_token;
 }
 
