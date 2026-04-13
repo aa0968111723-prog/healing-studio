@@ -120,15 +120,15 @@ export default function AdminPage() {
       </p>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="rounded-xl bg-muted/40 p-1 flex-wrap h-auto gap-1">
-          <TabsTrigger value="overview" className="rounded-lg gap-1 text-xs"><TrendingUp className="w-3 h-3" /> 系統概覽</TabsTrigger>
-          <TabsTrigger value="users" className="rounded-lg gap-1 text-xs"><Users className="w-3 h-3" /> 使用者</TabsTrigger>
-          <TabsTrigger value="activity" className="rounded-lg gap-1 text-xs"><Eye className="w-3 h-3" /> 活動紀錄</TabsTrigger>
-          <TabsTrigger value="api" className="rounded-lg gap-1 text-xs"><Database className="w-3 h-3" /> API / 資料庫</TabsTrigger>
-          <TabsTrigger value="costs" className="rounded-lg gap-1 text-xs"><BarChart3 className="w-3 h-3" /> 成本金流</TabsTrigger>
-          <TabsTrigger value="generations" className="rounded-lg gap-1 text-xs"><Image className="w-3 h-3" /> 生成歷史</TabsTrigger>
-          <TabsTrigger value="jobs" className="rounded-lg gap-1 text-xs"><Server className="w-3 h-3" /> 背景任務</TabsTrigger>
-          <TabsTrigger value="feedback" className="rounded-lg gap-1 text-xs"><MessageSquare className="w-3 h-3" /> 回饋</TabsTrigger>
+        <TabsList className="rounded-xl bg-muted/40 p-1 flex-nowrap overflow-x-auto h-auto gap-1 w-full justify-start md:flex-wrap md:justify-center">
+          <TabsTrigger value="overview" className="rounded-lg gap-1 text-xs shrink-0"><TrendingUp className="w-3 h-3" /> 系統概覽</TabsTrigger>
+          <TabsTrigger value="users" className="rounded-lg gap-1 text-xs shrink-0"><Users className="w-3 h-3" /> 使用者管理</TabsTrigger>
+          <TabsTrigger value="activity" className="rounded-lg gap-1 text-xs shrink-0"><Eye className="w-3 h-3" /> 活動紀錄</TabsTrigger>
+          <TabsTrigger value="api" className="rounded-lg gap-1 text-xs shrink-0"><Database className="w-3 h-3" /> API / 資料庫</TabsTrigger>
+          <TabsTrigger value="costs" className="rounded-lg gap-1 text-xs shrink-0"><BarChart3 className="w-3 h-3" /> 成本金流</TabsTrigger>
+          <TabsTrigger value="generations" className="rounded-lg gap-1 text-xs shrink-0"><Image className="w-3 h-3" /> 生成歷史</TabsTrigger>
+          <TabsTrigger value="jobs" className="rounded-lg gap-1 text-xs shrink-0"><Server className="w-3 h-3" /> 背景任務</TabsTrigger>
+          <TabsTrigger value="feedback" className="rounded-lg gap-1 text-xs shrink-0"><MessageSquare className="w-3 h-3" /> 回饋</TabsTrigger>
         </TabsList>
 
         {/* ═══ Tab 1: System Overview ═══ */}
