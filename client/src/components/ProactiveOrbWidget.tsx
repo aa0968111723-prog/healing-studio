@@ -7,9 +7,11 @@ import VisualSoul from "./VisualSoul";
 import {
   X, Sparkles, Lightbulb, Palette, Shuffle, MessageCircle,
   Send, Heart, Music, Video, Image, Mic, BookOpen, RotateCcw,
-  Loader2,
+  Loader2, Leaf,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { useFocusFlow } from "@/contexts/FocusFlowContext";
+import FocusFlowMini from "./FocusFlowMini";
 
 type Props = {
   className?: string;
@@ -155,6 +157,13 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
 
 const GUIDE_EASE: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
+/** Compact mm:ss for the orb badge */
+function formatTimerBadge(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
 // ─── Component ────────────────────────────────────────────────────────────
 
 export default function ProactiveOrbWidget({
@@ -170,6 +179,7 @@ export default function ProactiveOrbWidget({
 }: Props) {
   const { aiState, proactiveMessage, dismissProactive } = useAIState();
   const { personality, setPersonality, isManual, resetToAuto, config: personalityConfig } = usePersonality();
+  const { isAnyTimerRunning, activeMode, pomodoroRemaining, healingRemaining, pomodoroPhase } = useFocusFlow();
   const orbControls = useAnimation();
 
   // Drag position state
@@ -189,7 +199,7 @@ export default function ProactiveOrbWidget({
 
   // Interaction panel state
   const [showPanel, setShowPanel] = useState(false);
-  const [panelView, setPanelView] = useState<"main" | "chat" | "inspiration">("main");
+  const [panelView, setPanelView] = useState<"main" | "chat" | "inspiration" | "focus-flow">("main");
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "orb"; text: string }>>([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
@@ -639,7 +649,7 @@ export default function ProactiveOrbWidget({
                 <div className="flex items-center gap-2">
                   <VisualSoul state={aiState} personality={personality} size="sm" className="!w-6 !h-6" />
                   <span className="text-sm font-semibold text-gray-800">
-                    {panelView === "chat" ? "聊聊天" : panelView === "inspiration" ? "靈感推薦" : "你的創作夥伴"}
+                    {panelView === "chat" ? "聊聊天" : panelView === "inspiration" ? "靈感推薦" : panelView === "focus-flow" ? "專注流" : "你的創作夥伴"}
                   </span>
                 </div>
                 <div className="flex items-center gap-1">
@@ -701,6 +711,15 @@ export default function ProactiveOrbWidget({
                     >
                       <Lightbulb className="w-4 h-4" />
                       瀏覽靈感推薦
+                    </button>
+
+                    {/* Focus Flow Button */}
+                    <button
+                      onClick={() => setPanelView("focus-flow")}
+                      className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-gradient-to-r from-green-50 to-indigo-50 border border-green-200/40 hover:from-green-100 hover:to-indigo-100 transition-all text-sm font-medium text-green-700 mt-2"
+                    >
+                      <Leaf className="w-4 h-4" />
+                      專注流（邊做邊用）
                     </button>
                   </motion.div>
                 )}
@@ -796,6 +815,18 @@ export default function ProactiveOrbWidget({
                         </button>
                       ))}
                     </div>
+                  </motion.div>
+                )}
+
+                {/* ─── Focus Flow View ─── */}
+                {panelView === "focus-flow" && (
+                  <motion.div
+                    key="focus-flow"
+                    initial={{ opacity: 0, x: 10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -10 }}
+                  >
+                    <FocusFlowMini />
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -944,6 +975,28 @@ export default function ProactiveOrbWidget({
             transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
             style={{ backgroundColor: personalityDotColors[personality] }}
           />
+
+          {/* Active timer indicator (shown when a focus-flow timer is running) */}
+          <AnimatePresence>
+            {isAnyTimerRunning && !showPanel && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.6 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.6 }}
+                className="absolute -top-3 -left-3 flex items-center gap-1 bg-white/95 backdrop-blur-sm rounded-full px-1.5 py-0.5 shadow-md border border-gray-200/60"
+              >
+                <motion.div
+                  className="w-1.5 h-1.5 rounded-full"
+                  animate={{ opacity: [1, 0.3, 1] }}
+                  transition={{ duration: 1, repeat: Infinity }}
+                  style={{ backgroundColor: activeMode === "pomodoro" ? (pomodoroPhase === "work" ? "#ef4444" : "#22c55e") : "#ec4899" }}
+                />
+                <span className="text-[9px] font-bold tabular-nums text-gray-600">
+                  {formatTimerBadge(activeMode === "pomodoro" ? pomodoroRemaining : healingRemaining)}
+                </span>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
       </motion.div>
     </div>

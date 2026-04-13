@@ -7,9 +7,12 @@
  *   3. 聚焦時間 — 專注寫下零散想法，最終彙整
  *
  * 設計概念：放鬆 → 專注 → 聚焦想法
+ *
+ * 狀態由 FocusFlowContext 全域管理，導航不會中斷計時器。
+ * 也可透過光球 (ProactiveOrbWidget) 的迷你面板使用。
  */
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { GlassCard } from "@/components/ZenCoPilot";
@@ -35,30 +38,16 @@ import {
   ListChecks,
 } from "lucide-react";
 import { toast } from "sonner";
-
-// ─── Types ──────────────────────────────────────────────────────────────────
-
-type FlowMode = "pomodoro" | "healing" | "focus";
-type PomodoroPhase = "work" | "break";
-
-interface ThoughtEntry {
-  id: string;
-  text: string;
-  createdAt: number;
-}
+import {
+  useFocusFlow,
+  POMODORO_WORK_SECONDS,
+  POMODORO_BREAK_SECONDS,
+  HEALING_SECONDS,
+  BREATHING_PHASES,
+  type FlowMode,
+} from "@/contexts/FocusFlowContext";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
-
-const POMODORO_WORK_SECONDS = 25 * 60; // 25 minutes
-const POMODORO_BREAK_SECONDS = 5 * 60; // 5 minutes
-const HEALING_SECONDS = 5 * 60; // 5 minutes default
-
-const BREATHING_PHASES = [
-  { label: "吸氣", duration: 4000, scale: 1.3 },
-  { label: "屏息", duration: 4000, scale: 1.3 },
-  { label: "吐氣", duration: 6000, scale: 1.0 },
-  { label: "放鬆", duration: 2000, scale: 1.0 },
-] as const;
 
 const MODE_CONFIG: Record<FlowMode, { icon: typeof Timer; label: string; color: string; description: string }> = {
   pomodoro: {
@@ -89,67 +78,20 @@ function formatTime(seconds: number): string {
   return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
-function generateId(): string {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-}
+// ─── Pomodoro Timer (reads from FocusFlowContext) ────────────────────────────
 
-// ─── Pomodoro Timer ─────────────────────────────────────────────────────────
-
-function PomodoroTimer({ onComplete }: { onComplete: () => void }) {
-  const [phase, setPhase] = useState<PomodoroPhase>("work");
-  const [remaining, setRemaining] = useState(POMODORO_WORK_SECONDS);
-  const [running, setRunning] = useState(false);
-  const [rounds, setRounds] = useState(0);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+function PomodoroTimer() {
+  const {
+    pomodoroPhase: phase,
+    pomodoroRemaining: remaining,
+    pomodoroRunning: running,
+    pomodoroRounds: rounds,
+    togglePomodoro,
+    resetPomodoro,
+  } = useFocusFlow();
 
   const totalSeconds = phase === "work" ? POMODORO_WORK_SECONDS : POMODORO_BREAK_SECONDS;
   const progress = ((totalSeconds - remaining) / totalSeconds) * 100;
-
-  const clearTimer = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!running) {
-      clearTimer();
-      return;
-    }
-
-    intervalRef.current = setInterval(() => {
-      setRemaining((prev) => {
-        if (prev <= 1) {
-          clearTimer();
-          setRunning(false);
-
-          if (phase === "work") {
-            setRounds((r) => r + 1);
-            toast.success("🍅 專注時間結束！休息一下吧");
-            setPhase("break");
-            setRemaining(POMODORO_BREAK_SECONDS);
-          } else {
-            toast.success("☕ 休息結束！準備進入下一輪");
-            setPhase("work");
-            setRemaining(POMODORO_WORK_SECONDS);
-            onComplete();
-          }
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return clearTimer;
-  }, [running, phase, clearTimer, onComplete]);
-
-  const reset = () => {
-    clearTimer();
-    setRunning(false);
-    setPhase("work");
-    setRemaining(POMODORO_WORK_SECONDS);
-  };
 
   return (
     <div className="flex flex-col items-center gap-6">
@@ -186,12 +128,12 @@ function PomodoroTimer({ onComplete }: { onComplete: () => void }) {
 
       {/* Controls */}
       <div className="flex items-center gap-3">
-        <Button variant="outline" size="icon" onClick={reset} className="rounded-full h-10 w-10">
+        <Button variant="outline" size="icon" onClick={resetPomodoro} className="rounded-full h-10 w-10">
           <RotateCcw className="h-4 w-4" />
         </Button>
         <Button
           size="lg"
-          onClick={() => setRunning((r) => !r)}
+          onClick={togglePomodoro}
           className="rounded-full h-14 w-14 shadow-lg"
         >
           {running ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 ml-0.5" />}
@@ -201,83 +143,20 @@ function PomodoroTimer({ onComplete }: { onComplete: () => void }) {
   );
 }
 
-// ─── Healing / Breathing Timer ──────────────────────────────────────────────
+// ─── Healing / Breathing Timer (reads from FocusFlowContext) ─────────────────
 
-function HealingTimer({ onComplete }: { onComplete: () => void }) {
-  const [running, setRunning] = useState(false);
-  const [remaining, setRemaining] = useState(HEALING_SECONDS);
-  const [breathPhaseIdx, setBreathPhaseIdx] = useState(0);
-  const [breathLabel, setBreathLabel] = useState<string>(BREATHING_PHASES[0].label);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const breathRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+function HealingTimer() {
+  const {
+    healingRemaining: remaining,
+    healingRunning: running,
+    breathPhaseIdx,
+    breathLabel,
+    toggleHealing,
+    resetHealing,
+  } = useFocusFlow();
 
   const progress = ((HEALING_SECONDS - remaining) / HEALING_SECONDS) * 100;
   const currentBreathPhase = BREATHING_PHASES[breathPhaseIdx];
-
-  const clearTimer = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-  }, []);
-
-  const clearBreath = useCallback(() => {
-    if (breathRef.current) {
-      clearTimeout(breathRef.current);
-      breathRef.current = null;
-    }
-  }, []);
-
-  // Countdown timer
-  useEffect(() => {
-    if (!running) {
-      clearTimer();
-      return;
-    }
-
-    intervalRef.current = setInterval(() => {
-      setRemaining((prev) => {
-        if (prev <= 1) {
-          clearTimer();
-          setRunning(false);
-          toast.success("🌿 療癒時間結束，感覺如何？");
-          onComplete();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return clearTimer;
-  }, [running, clearTimer, onComplete]);
-
-  // Breathing cycle
-  useEffect(() => {
-    if (!running) {
-      clearBreath();
-      return;
-    }
-
-    const cycle = () => {
-      setBreathPhaseIdx((prev) => {
-        const next = (prev + 1) % BREATHING_PHASES.length;
-        setBreathLabel(BREATHING_PHASES[next].label);
-        return next;
-      });
-    };
-
-    breathRef.current = setTimeout(cycle, currentBreathPhase.duration);
-    return clearBreath;
-  }, [running, breathPhaseIdx, currentBreathPhase.duration, clearBreath]);
-
-  const reset = () => {
-    clearTimer();
-    clearBreath();
-    setRunning(false);
-    setRemaining(HEALING_SECONDS);
-    setBreathPhaseIdx(0);
-    setBreathLabel(BREATHING_PHASES[0].label);
-  };
 
   return (
     <div className="flex flex-col items-center gap-6">
@@ -332,12 +211,12 @@ function HealingTimer({ onComplete }: { onComplete: () => void }) {
 
       {/* Controls */}
       <div className="flex items-center gap-3">
-        <Button variant="outline" size="icon" onClick={reset} className="rounded-full h-10 w-10">
+        <Button variant="outline" size="icon" onClick={resetHealing} className="rounded-full h-10 w-10">
           <RotateCcw className="h-4 w-4" />
         </Button>
         <Button
           size="lg"
-          onClick={() => setRunning((r) => !r)}
+          onClick={toggleHealing}
           className="rounded-full h-14 w-14 shadow-lg"
         >
           {running ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 ml-0.5" />}
@@ -347,44 +226,18 @@ function HealingTimer({ onComplete }: { onComplete: () => void }) {
   );
 }
 
-// ─── Focus / Thought Collector ──────────────────────────────────────────────
+// ─── Focus / Thought Collector (reads from FocusFlowContext) ────────────────
 
 function FocusCollector() {
-  const [thoughts, setThoughts] = useState<ThoughtEntry[]>(() => {
-    try {
-      const saved = localStorage.getItem("focus-flow-thoughts");
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const { thoughts, addThought, removeThought, clearThoughts } = useFocusFlow();
   const [draft, setDraft] = useState("");
   const [showSummary, setShowSummary] = useState(false);
 
-  // Persist thoughts
-  useEffect(() => {
-    localStorage.setItem("focus-flow-thoughts", JSON.stringify(thoughts));
-  }, [thoughts]);
-
-  const addThought = () => {
+  const handleAdd = () => {
     const trimmed = draft.trim();
     if (!trimmed) return;
-    setThoughts((prev) => [
-      ...prev,
-      { id: generateId(), text: trimmed, createdAt: Date.now() },
-    ]);
+    addThought(trimmed);
     setDraft("");
-    toast.success("💡 想法已記錄");
-  };
-
-  const removeThought = (id: string) => {
-    setThoughts((prev) => prev.filter((t) => t.id !== id));
-  };
-
-  const clearAll = () => {
-    setThoughts([]);
-    setShowSummary(false);
-    toast("已清除所有想法");
   };
 
   return (
@@ -403,13 +256,13 @@ function FocusCollector() {
           onKeyDown={(e) => {
             if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
               e.preventDefault();
-              addThought();
+              handleAdd();
             }
           }}
         />
       </div>
       <div className="flex gap-2">
-        <Button onClick={addThought} disabled={!draft.trim()} className="rounded-xl flex-1">
+        <Button onClick={handleAdd} disabled={!draft.trim()} className="rounded-xl flex-1">
           <Plus className="h-4 w-4 mr-1" /> 記錄想法
         </Button>
         {thoughts.length > 0 && (
@@ -479,7 +332,7 @@ function FocusCollector() {
                 >
                   📋 複製全部
                 </Button>
-                <Button variant="ghost" size="sm" onClick={clearAll} className="rounded-lg text-xs text-destructive">
+                <Button variant="ghost" size="sm" onClick={() => { clearThoughts(); setShowSummary(false); }} className="rounded-lg text-xs text-destructive">
                   <Trash2 className="h-3 w-3 mr-1" /> 清除全部
                 </Button>
               </div>
@@ -560,14 +413,6 @@ export default function FocusFlowPage() {
     setActiveTab(stepToMode[step]);
   };
 
-  const advanceStep = useCallback(() => {
-    setFlowStep((prev) => {
-      const next = Math.min(prev + 1, 2);
-      setActiveTab(stepToMode[next]);
-      return next;
-    });
-  }, []);
-
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       {/* Header */}
@@ -606,7 +451,7 @@ export default function FocusFlowPage() {
                 <h3 className="text-sm font-semibold text-foreground">番茄鐘</h3>
               </div>
               <p className="text-xs text-muted-foreground mb-6">{MODE_CONFIG.pomodoro.description}</p>
-              <PomodoroTimer onComplete={advanceStep} />
+              <PomodoroTimer />
             </GlassCard>
           </TabsContent>
 
@@ -617,7 +462,7 @@ export default function FocusFlowPage() {
                 <h3 className="text-sm font-semibold text-foreground">療癒時間</h3>
               </div>
               <p className="text-xs text-muted-foreground mb-6">{MODE_CONFIG.healing.description}</p>
-              <HealingTimer onComplete={advanceStep} />
+              <HealingTimer />
             </GlassCard>
           </TabsContent>
 
@@ -638,6 +483,9 @@ export default function FocusFlowPage() {
       <GlassCard className="text-center">
         <p className="text-xs text-muted-foreground">
           💡 建議流程：先用<strong>療癒時間</strong>放鬆身心，再用<strong>番茄鐘</strong>專注工作，最後在<strong>聚焦時間</strong>整理想法
+        </p>
+        <p className="text-xs text-muted-foreground mt-2">
+          🌟 計時器已全站同步 — 切換頁面不會中斷，也可透過右下角<strong>光球</strong>隨時操作
         </p>
       </GlassCard>
     </div>
