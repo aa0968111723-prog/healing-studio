@@ -101,20 +101,8 @@ async function falRun(modelId: string, input: Record<string, unknown>, timeoutMs
 
 async function falQueueRun(modelId: string, input: Record<string, unknown>, waitSec = 180): Promise<unknown> {
   const { request_id } = await falQueueSubmit(modelId, input);
-  const deadline = Date.now() + waitSec * 1000;
-  let pollInterval = 2000;
-  while (Date.now() < deadline) {
-    await new Promise(r => setTimeout(r, pollInterval));
-    pollInterval = Math.min(pollInterval * 1.4, 8000);
-    const status = await falQueueStatus(request_id, modelId) as any;
-    const s = status?.status ?? status?.state;
-    if (s === "COMPLETED") return falQueueResult(request_id, modelId);
-    if (s === "FAILED") {
-      const errMsg = status?.error ?? status?.message ?? "未知錯誤";
-      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `fal.ai 任務失敗 [${modelId}]: ${errMsg}` });
-    }
-  }
-  throw new TRPCError({ code: "TIMEOUT", message: `fal.ai 圖片生成超時（>${waitSec}s）[${modelId}]` });
+  // 直接回傳 request_id，不在後端等待（防止 504 Timeout）
+  return { request_id, raw_model_id: modelId, is_async_polling: true };
 }
 
 /** 統一解析 fal.ai 圖片回應，回傳第一張圖片 URL */
@@ -859,6 +847,39 @@ export const imageStudioRouter = router({
   jobResult: protectedProcedure
     .input(z.object({ request_id: z.string(), model: z.string() }))
     .query(async ({ input }) => falQueueResult(input.request_id, input.model)),
+
+  /**
+   * 通用圖片輪詢 API：每 3 秒輪詢一次直到完成
+   * 支援所有 imageStudio 的异步任務（包括 3D, SD, 圖片編輯等）
+   */
+  checkImageStatus: protectedProcedure
+    .input(z.object({
+      requestId: z.string().min(1),
+      modelId:   z.string().min(1),
+    }))
+    .query(async ({ input }) => {
+      const status = await falQueueStatus(input.requestId, input.modelId) as any;
+      const s = status?.status ?? status?.state;
+
+      if (s === "COMPLETED") {
+        const result = await falQueueResult(input.requestId, input.modelId) as any;
+        return {
+          status:        "COMPLETED",
+          image_url:     extractImageUrl(result),
+          images:        extractAllImageUrls(result),
+          // 3D 模型輸出
+          model_glb_url: result?.model_glb?.url || result?.model_mesh?.url || null,
+          raw:           result,
+        };
+      }
+
+      if (s === "FAILED") {
+        const errMsg = status?.error ?? status?.message ?? "未知錯誤";
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `任務失敗 [${input.modelId}]: ${errMsg}` });
+      }
+
+      return { status: "IN_PROGRESS" };
+    }),
 });
 
 export type ImageStudioRouter = typeof imageStudioRouter;
