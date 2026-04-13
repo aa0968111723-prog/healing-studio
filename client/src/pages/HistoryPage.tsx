@@ -42,17 +42,17 @@ function StarRating({
   size?: "sm" | "md";
 }) {
   const [hover, setHover] = useState(0);
-  const starSize = size === "sm" ? "w-3.5 h-3.5" : "w-4.5 h-4.5";
+  const starSize = size === "sm" ? "w-5 h-5 sm:w-3.5 sm:h-3.5" : "w-5 h-5 sm:w-4.5 sm:h-4.5";
 
   return (
-    <div className="flex gap-0.5">
+    <div className="flex gap-1 sm:gap-0.5">
       {[1, 2, 3, 4, 5].map((star) => (
         <button
           key={star}
           onMouseEnter={() => setHover(star)}
           onMouseLeave={() => setHover(0)}
           onClick={(e) => { e.stopPropagation(); onChange(star); }}
-          className="transition-transform hover:scale-110"
+          className="p-1 sm:p-0 transition-transform hover:scale-110"
         >
           <Star
             className={cn(
@@ -226,7 +226,7 @@ export default function HistoryPage() {
               key={item.key}
               variant={filter === item.key ? "default" : "outline"}
               size="sm"
-              className="rounded-xl text-xs gap-1.5 h-8 shrink-0"
+              className="rounded-xl text-xs gap-1.5 h-10 sm:h-8 shrink-0"
               onClick={() => setFilter(item.key)}
             >
               {item.key === "bookmarked" ? (
@@ -250,7 +250,7 @@ export default function HistoryPage() {
           placeholder="搜尋提示詞..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-9 rounded-xl bg-white/40 border-white/60 h-9 text-sm"
+          className="pl-9 rounded-xl bg-white/40 border-white/60 h-11 sm:h-9 text-base sm:text-sm"
         />
       </div>
 
@@ -370,7 +370,7 @@ export default function HistoryPage() {
                             isBookmarked: !item.isBookmarked,
                           });
                         }}
-                        className="shrink-0 p-1 rounded-md hover:bg-muted/50 transition-colors"
+                        className="shrink-0 p-2 sm:p-1 rounded-md hover:bg-muted/50 active:bg-muted/70 transition-colors"
                       >
                         {item.isBookmarked ? (
                           <BookmarkCheck className="w-4 h-4 text-amber-500 fill-amber-500" />
@@ -418,10 +418,10 @@ export default function HistoryPage() {
                                 toast.info("已在新分頁開啟");
                               }
                             }}
-                            className="p-1 rounded-md hover:bg-muted/50 transition-colors"
+                            className="p-2 sm:p-1 rounded-md hover:bg-muted/50 active:bg-muted/70 transition-colors"
                             title="快速下載"
                           >
-                            <Download className="w-3.5 h-3.5 text-muted-foreground/60 hover:text-foreground" />
+                            <Download className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-muted-foreground/60 hover:text-foreground" />
                           </button>
                         )}
                       </div>

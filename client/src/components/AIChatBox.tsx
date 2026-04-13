@@ -212,13 +212,13 @@ export function AIChatBox({
               </div>
 
               {suggestedPrompts && suggestedPrompts.length > 0 && (
-                <div className="flex max-w-2xl flex-wrap justify-center gap-2">
+                <div className="flex max-w-2xl flex-wrap justify-center gap-2 px-2">
                   {suggestedPrompts.map((prompt, index) => (
                     <button
                       key={index}
                       onClick={() => onSendMessage(prompt)}
                       disabled={isLoading}
-                      className="rounded-lg border border-border bg-card px-4 py-2 text-sm transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+                      className="rounded-lg border border-border bg-card px-4 py-2.5 text-sm transition-colors hover:bg-accent active:bg-accent/70 disabled:cursor-not-allowed disabled:opacity-50 min-h-[44px]"
                     >
                       {prompt}
                     </button>
@@ -259,7 +259,7 @@ export function AIChatBox({
 
                     <div
                       className={cn(
-                        "max-w-[80%] rounded-lg px-4 py-2.5",
+                        "max-w-[88%] sm:max-w-[80%] rounded-lg px-4 py-2.5",
                         message.role === "user"
                           ? "bg-primary text-primary-foreground"
                           : "bg-muted text-foreground"
@@ -311,7 +311,7 @@ export function AIChatBox({
       <form
         ref={inputAreaRef}
         onSubmit={handleSubmit}
-        className="flex gap-2 p-4 border-t bg-background/50 items-end"
+        className="flex gap-2 p-3 sm:p-4 border-t bg-background/50 items-end"
       >
         <Textarea
           ref={textareaRef}
@@ -319,14 +319,14 @@ export function AIChatBox({
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
-          className="flex-1 max-h-32 resize-none min-h-9"
+          className="flex-1 max-h-24 sm:max-h-32 resize-none min-h-[44px] text-base sm:text-sm"
           rows={1}
         />
         <Button
           type="submit"
           size="icon"
           disabled={!input.trim() || isLoading}
-          className="shrink-0 h-[38px] w-[38px]"
+          className="shrink-0 h-11 w-11"
         >
           {isLoading ? (
             <Loader2 className="size-4 animate-spin" />

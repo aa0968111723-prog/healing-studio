@@ -319,6 +319,7 @@ export default function Home() {
           backdropFilter: "blur(20px)",
           WebkitBackdropFilter: "blur(20px)",
           borderBottom: `1px solid ${s.navBorder}`,
+          paddingTop: "env(safe-area-inset-top, 0px)",
         }}
       >
         <div className="max-w-6xl mx-auto px-4 h-full flex items-center justify-between">
@@ -328,27 +329,30 @@ export default function Home() {
               AI Director
             </span>
           </div>
-          <div className="flex items-center gap-3">
-            <SceneSwitcher
-              currentScene={sceneId}
-              override={override}
-              allScenes={allScenes}
-              onSelect={setOverride}
-              isDark={isDark}
-            />
-            <SoundControl controls={soundControls} isDark={isDark} />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="hidden sm:flex items-center gap-2">
+              <SceneSwitcher
+                currentScene={sceneId}
+                override={override}
+                allScenes={allScenes}
+                onSelect={setOverride}
+                isDark={isDark}
+              />
+              <SoundControl controls={soundControls} isDark={isDark} />
+            </div>
             {isAuthenticated ? (
               <Button
                 onClick={() => navigate("/studio")}
-                className={`rounded-xl gap-1.5 text-sm ${s.btnPrimary} ${s.btnPrimaryText}`}
+                className={`rounded-xl gap-1.5 text-sm h-10 px-4 sm:px-6 ${s.btnPrimary} ${s.btnPrimaryText}`}
               >
-                進入工作室
+                <span className="hidden sm:inline">進入工作室</span>
+                <span className="sm:hidden">工作室</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </Button>
             ) : (
               <Button
                 onClick={() => { window.location.href = getLoginUrl(); }}
-                className={`rounded-xl text-sm ${s.btnPrimary} ${s.btnPrimaryText}`}
+                className={`rounded-xl text-sm h-10 px-4 sm:px-6 ${s.btnPrimary} ${s.btnPrimaryText}`}
               >
                 登入
               </Button>
@@ -360,7 +364,7 @@ export default function Home() {
       {/* ── Hero Section (Scrollytelling anchor) ── */}
       <motion.section
         ref={heroRef}
-        className="pt-32 pb-20 px-4 relative z-10 min-h-[85vh]"
+        className="pt-24 sm:pt-32 pb-16 sm:pb-20 px-4 relative z-10 min-h-[85vh]"
         style={{ y: heroY }}
       >
         <motion.div
@@ -391,11 +395,11 @@ export default function Home() {
 
             <div className="mt-10 flex items-center justify-center gap-4">
               {isAuthenticated ? (
-                <>
+                <div className="flex flex-col sm:flex-row items-center gap-3">
                   <Button
                     size="lg"
                     onClick={() => navigate("/studio")}
-                    className={`rounded-xl h-12 px-8 gap-2 text-sm shadow-lg hover:shadow-xl transition-all ${s.btnPrimary} ${s.btnPrimaryText}`}
+                    className={`rounded-xl h-12 px-6 sm:px-8 gap-2 text-sm shadow-lg hover:shadow-xl transition-all w-full sm:w-auto ${s.btnPrimary} ${s.btnPrimaryText}`}
                   >
                     <Sparkles className="w-4 h-4" />
                     開始創作
@@ -404,18 +408,18 @@ export default function Home() {
                     variant="outline"
                     size="lg"
                     onClick={() => navigate("/director")}
-                    className={`rounded-xl h-12 px-8 gap-2 text-sm transition-all ${s.btnOutline} ${s.btnOutlineText}`}
+                    className={`rounded-xl h-12 px-6 sm:px-8 gap-2 text-sm transition-all w-full sm:w-auto ${s.btnOutline} ${s.btnOutlineText}`}
                   >
                     <Clapperboard className="w-4 h-4" />
                     導演 AI
                   </Button>
-                </>
+                </div>
               ) : (
                 <div className="flex flex-col sm:flex-row gap-3">
                   <Button
                     size="lg"
                     onClick={() => { window.location.href = getLoginUrl(); }}
-                    className={`rounded-xl h-12 px-10 gap-2 text-sm shadow-lg hover:shadow-xl transition-all ${s.btnPrimary} ${s.btnPrimaryText}`}
+                    className={`rounded-xl h-12 px-6 sm:px-10 gap-2 text-sm shadow-lg hover:shadow-xl transition-all ${s.btnPrimary} ${s.btnPrimaryText}`}
                   >
                     立即開始
                     <ArrowRight className="w-4 h-4" />
@@ -424,7 +428,7 @@ export default function Home() {
                     size="lg"
                     variant="outline"
                     onClick={() => { window.location.href = getDemoLoginUrl(); }}
-                    className={`rounded-xl h-12 px-8 gap-2 text-sm border-dashed transition-all ${s.btnOutline} ${s.btnOutlineText}`}
+                    className={`rounded-xl h-12 px-6 sm:px-8 gap-2 text-sm border-dashed transition-all ${s.btnOutline} ${s.btnOutlineText}`}
                   >
                     ✨ 訪客體驗
                   </Button>
@@ -439,7 +443,7 @@ export default function Home() {
       </motion.section>
 
       {/* ── Features Grid (情報站 — visual focus handoff target) ── */}
-      <section className="py-20 px-4 relative z-10">
+      <section className="py-14 sm:py-20 px-4 relative z-10">
         <div className="max-w-6xl mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -573,7 +577,7 @@ export default function Home() {
       </Suspense>
 
       {/* ── CTA Section ── */}
-      <section className="py-20 px-4 relative z-10">
+      <section className="py-14 sm:py-20 px-4 relative z-10">
         <div className="max-w-3xl mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -582,7 +586,7 @@ export default function Home() {
             transition={{ duration: 0.6 }}
           >
             <div
-              className="text-center py-14 px-8 rounded-3xl backdrop-blur-md transition-all duration-700"
+              className="text-center py-10 sm:py-14 px-6 sm:px-8 rounded-3xl backdrop-blur-md transition-all duration-700"
               style={{
                 background: s.cardBg,
                 border: `1px solid ${s.cardBorder}`,

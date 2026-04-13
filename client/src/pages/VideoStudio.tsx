@@ -1401,7 +1401,7 @@ export default function VideoStudio() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
+    <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-5 sm:space-y-6">
       {/* 頁面標題 */}
       <div className="flex items-start gap-4">
         <div className="p-3 rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-500/10 border border-blue-200/40">
@@ -1414,7 +1414,7 @@ export default function VideoStudio() {
           </p>
           <div className="flex flex-wrap gap-1.5 mt-2">
             {(["Kling 2.1", "Wan 2.1", "Veo 3", "Sora", "Runway Gen4", "PixVerse 4.5", "MiniMax", "LTX 13B", "Topaz", "RIFE", "CamMaster", "Vidu Q1"] as string[]).map(tag => (
-              <Badge key={tag} variant="outline" className="text-[10px]">{tag}</Badge>
+              <Badge key={tag} variant="outline" className="text-[10px] sm:text-[10px]">{tag}</Badge>
             ))}
           </div>
         </div>
@@ -1435,7 +1435,7 @@ export default function VideoStudio() {
       )}
 
       {/* 標籤列 */}
-      <div className="flex overflow-x-auto gap-1 pb-1 -mx-1 px-1">
+      <div className="flex overflow-x-auto gap-1.5 pb-1 -mx-1 px-1 no-scrollbar">
         {TABS.map(tab => {
           const Icon = tab.icon;
           const count = MODEL_COUNT[tab.id];
@@ -1445,10 +1445,10 @@ export default function VideoStudio() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`
-                shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all
+                shrink-0 flex items-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-medium transition-all min-h-[44px]
                 ${isActive
                   ? "bg-primary text-primary-foreground shadow-md"
-                  : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground active:bg-muted"
                 }
               `}
             >

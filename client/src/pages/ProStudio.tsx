@@ -1813,7 +1813,7 @@ export default function ProStudio() {
   const ActiveTab = TABS.find((t) => t.id === tab)?.component ?? MusicTab;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="max-w-3xl mx-auto space-y-5 sm:space-y-6">
       {/* 標題 */}
       <div className="flex items-start gap-3">
         <div className="p-2.5 rounded-2xl bg-gradient-to-br from-purple-500 to-violet-600 shadow-lg shrink-0">
@@ -1856,15 +1856,15 @@ export default function ProStudio() {
       )}
 
       {/* Tab 選擇 */}
-      <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+      <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar -mx-1 px-1">
         {TABS.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             onClick={() => setTab(id)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl whitespace-nowrap text-xs font-medium transition-all border shrink-0 ${
+            className={`flex items-center gap-1.5 px-3 py-2.5 sm:py-2 rounded-xl whitespace-nowrap text-xs font-medium transition-all border shrink-0 min-h-[44px] ${
               tab === id
                 ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                : "bg-background text-muted-foreground hover:bg-accent border-border"
+                : "bg-background text-muted-foreground hover:bg-accent active:bg-accent border-border"
             }`}
           >
             <Icon className="w-3.5 h-3.5" />

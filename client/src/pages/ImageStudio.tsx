@@ -1563,14 +1563,14 @@ export default function ImageStudio() {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <button onClick={() => setViewMode(v => v === "single" ? "grid" : "single")}
-            className="p-2 rounded-xl border border-border/40 hover:bg-accent transition-colors" title="切換檢視">
+            className="p-2.5 rounded-xl border border-border/40 hover:bg-accent active:bg-accent/70 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center" title="切換檢視">
             {viewMode === "single" ? <Grid3x3 className="w-4 h-4" /> : <Image className="w-4 h-4" />}
           </button>
           <button onClick={() => setShowHistory(!showHistory)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-medium transition-all ${
-              showHistory ? "bg-primary text-primary-foreground border-primary" : "border-border/40 hover:bg-accent text-muted-foreground"
+            className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-xs font-medium transition-all min-h-[44px] ${
+              showHistory ? "bg-primary text-primary-foreground border-primary" : "border-border/40 hover:bg-accent active:bg-accent/70 text-muted-foreground"
             }`}>
-            <History className="w-3.5 h-3.5" /> 歷史 / 精選
+            <History className="w-3.5 h-3.5" /> <span className="hidden sm:inline">歷史 / 精選</span><span className="sm:hidden">歷史</span>
           </button>
         </div>
       </div>
@@ -1578,16 +1578,16 @@ export default function ImageStudio() {
       <ApiKeyBanner />
 
       {/* ── Tab Bar ── */}
-      <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-hide">
+      <div className="flex gap-1.5 overflow-x-auto pb-0.5 no-scrollbar -mx-1 px-1">
         {TABS.map(tab => {
           const Icon = tab.icon;
           const active = activeTab === tab.id;
           return (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-3 py-2.5 rounded-2xl border whitespace-nowrap text-xs font-medium transition-all shrink-0 ${
+              className={`flex items-center gap-1.5 px-3 py-3 sm:py-2.5 rounded-2xl border whitespace-nowrap text-xs font-medium transition-all shrink-0 min-h-[44px] ${
                 active
                   ? `bg-gradient-to-r ${tabColor(tab.id)} text-white border-transparent shadow-md`
-                  : "bg-background border-border/40 text-muted-foreground hover:bg-accent"
+                  : "bg-background border-border/40 text-muted-foreground hover:bg-accent active:bg-accent"
               }`}>
               <Icon className="w-3.5 h-3.5" />
               {tab.label}
@@ -1600,7 +1600,7 @@ export default function ImageStudio() {
       </div>
 
       {/* ── Main Layout ── */}
-      <div className="flex gap-4">
+      <div className="flex flex-col sm:flex-row gap-4">
 
         {/* ── Left: Control Panel ── */}
         <div className="flex-1 min-w-0 space-y-4">
@@ -1900,7 +1900,7 @@ export default function ImageStudio() {
         <AnimatePresence>
           {showHistory && (
             <motion.div
-              initial={{ width: 0, opacity: 0 }} animate={{ width: 280, opacity: 1 }} exit={{ width: 0, opacity: 0 }}
+              initial={{ width: 0, opacity: 0 }} animate={{ width: "min(280px, 85vw)", opacity: 1 }} exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.25, ease: "easeInOut" }}
               className="shrink-0 overflow-hidden rounded-2xl border border-border/30 bg-background/60 flex flex-col"
               style={{ maxHeight: "calc(100vh - 200px)", position: "sticky", top: "1rem" }}>
@@ -1908,8 +1908,8 @@ export default function ImageStudio() {
                 <div className="flex items-center gap-2 text-sm font-medium">
                   <History className="w-4 h-4 text-primary" /> 歷史 / 精選
                 </div>
-                <button onClick={() => setShowHistory(false)} className="p-1 hover:bg-accent rounded-md">
-                  <X className="w-3.5 h-3.5 text-muted-foreground" />
+                <button onClick={() => setShowHistory(false)} className="p-2 sm:p-1 hover:bg-accent active:bg-accent/70 rounded-md">
+                  <X className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-muted-foreground" />
                 </button>
               </div>
               <HistoryPanel onReuse={handleReuseHistory} />

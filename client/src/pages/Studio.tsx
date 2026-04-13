@@ -135,13 +135,13 @@ function MiniHistoryPanel({ onSendToStudio }: { onSendToStudio: (prompt: string,
                   e.stopPropagation();
                   toggleBookmark.mutate({ id: item.id, isBookmarked: !item.bookmarked });
                 }}
-                className="p-1 rounded hover:bg-accent/50 transition-colors"
+                className="p-1.5 rounded hover:bg-accent/50 active:bg-accent/70 transition-colors"
                 title={item.bookmarked ? "取消收藏" : "收藏"}
               >
                 {item.bookmarked ? (
-                  <BookmarkCheck className="w-3 h-3 text-primary" />
+                  <BookmarkCheck className="w-4 h-4 text-primary" />
                 ) : (
-                  <Bookmark className="w-3 h-3 text-muted-foreground" />
+                  <Bookmark className="w-4 h-4 text-muted-foreground" />
                 )}
               </button>
               <button
@@ -149,10 +149,10 @@ function MiniHistoryPanel({ onSendToStudio }: { onSendToStudio: (prompt: string,
                   e.stopPropagation();
                   onSendToStudio(item.prompt || "", item.generationType as GenerationType, item.parameterSnapshot as Record<string, unknown> | undefined);
                 }}
-                className="p-1 rounded hover:bg-accent/50 transition-colors"
+                className="p-1.5 rounded hover:bg-accent/50 active:bg-accent/70 transition-colors"
                 title="重新生成"
               >
-                <RefreshCw className="w-3 h-3 text-muted-foreground" />
+                <RefreshCw className="w-4 h-4 text-muted-foreground" />
               </button>
             </div>
           </div>
@@ -184,7 +184,7 @@ function DrawerPanel({
       {open && (
         <motion.div
           initial={{ width: 0, opacity: 0 }}
-          animate={{ width: 300, opacity: 1 }}
+          animate={{ width: "min(300px, 85vw)", opacity: 1 }}
           exit={{ width: 0, opacity: 0 }}
           transition={{ duration: 0.25, ease: "easeInOut" }}
           className={`shrink-0 overflow-hidden ${side === "left" ? "order-first" : "order-last"}`}
@@ -205,9 +205,9 @@ function DrawerPanel({
               </div>
               <button
                 onClick={onClose}
-                className="p-1 rounded-md hover:bg-accent/50 transition-colors"
+                className="p-2 rounded-md hover:bg-accent/50 active:bg-accent/70 transition-colors"
               >
-                <X className="w-3.5 h-3.5 text-muted-foreground" />
+                <X className="w-4 h-4 text-muted-foreground" />
               </button>
             </div>
 
