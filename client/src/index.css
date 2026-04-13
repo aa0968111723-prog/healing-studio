@@ -219,4 +219,128 @@
   .vibe-selected {
     box-shadow: 0 0 0 2px rgba(108, 108, 108, 0.3), 0 4px 16px rgba(108, 108, 108, 0.1);
   }
+
+  /* ─── Workspace Ambient Background ─────────────────────────────── */
+  /* Subtle breathing gradient mesh for the studio workspace area */
+  @keyframes workspace-gradient-shift {
+    0%, 100% {
+      background-position: 0% 50%;
+    }
+    25% {
+      background-position: 50% 0%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+    75% {
+      background-position: 50% 100%;
+    }
+  }
+
+  .workspace-ambient-bg {
+    background:
+      radial-gradient(ellipse 60% 50% at 15% 20%, rgba(212, 197, 226, 0.12) 0%, transparent 70%),
+      radial-gradient(ellipse 50% 60% at 85% 80%, rgba(200, 213, 224, 0.10) 0%, transparent 70%),
+      radial-gradient(ellipse 40% 40% at 50% 50%, rgba(234, 201, 193, 0.08) 0%, transparent 60%);
+    background-size: 200% 200%;
+    animation: workspace-gradient-shift 20s ease-in-out infinite;
+  }
+
+  /* Floating decorative orb (pure CSS) */
+  @keyframes workspace-orb-float {
+    0%, 100% {
+      transform: translate(0, 0) scale(1);
+      opacity: 0.25;
+    }
+    33% {
+      transform: translate(12px, -18px) scale(1.05);
+      opacity: 0.35;
+    }
+    66% {
+      transform: translate(-8px, 10px) scale(0.97);
+      opacity: 0.2;
+    }
+  }
+
+  .workspace-orb {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+    filter: blur(40px);
+    animation: workspace-orb-float 15s ease-in-out infinite;
+  }
+
+  .workspace-orb-1 {
+    width: 200px;
+    height: 200px;
+    top: 8%;
+    right: 10%;
+    background: radial-gradient(circle, rgba(212, 197, 226, 0.30) 0%, transparent 70%);
+    animation-duration: 18s;
+  }
+
+  .workspace-orb-2 {
+    width: 160px;
+    height: 160px;
+    bottom: 15%;
+    left: 5%;
+    background: radial-gradient(circle, rgba(234, 201, 193, 0.25) 0%, transparent 70%);
+    animation-duration: 22s;
+    animation-delay: -6s;
+  }
+
+  .workspace-orb-3 {
+    width: 120px;
+    height: 120px;
+    top: 50%;
+    left: 45%;
+    background: radial-gradient(circle, rgba(200, 213, 224, 0.20) 0%, transparent 70%);
+    animation-duration: 25s;
+    animation-delay: -12s;
+  }
+
+  /* Subtle top-edge glow for the workspace */
+  .workspace-top-glow {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 120px;
+    background: linear-gradient(180deg, rgba(212, 197, 226, 0.08) 0%, transparent 100%);
+    pointer-events: none;
+  }
+
+  /* Enhanced sidebar glass effect for workspace */
+  .sidebar-zen-glow {
+    position: relative;
+  }
+
+  .sidebar-zen-glow::before {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, rgba(212, 197, 226, 0.3) 50%, transparent 100%);
+    pointer-events: none;
+  }
+
+  /* Quota card with subtle zen gradient overlay */
+  .quota-card-zen {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.6) 0%, rgba(212, 197, 226, 0.15) 50%, rgba(234, 201, 193, 0.12) 100%);
+  }
+
+  /* ─── Workspace Reduced Motion ─────────────────────────────────── */
+  @media (prefers-reduced-motion: reduce) {
+    .workspace-ambient-bg {
+      animation: none;
+    }
+
+    .workspace-orb {
+      animation: none;
+      opacity: 0.15;
+    }
+  }
 }
