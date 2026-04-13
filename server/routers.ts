@@ -19,6 +19,7 @@ import { imageStudioRouter } from "./routers/imageStudio";
 import { videoStudioRouter } from "./routers/videoStudio";
 import { learnHubRouter } from "./routers/learnHub";
 import { loraTrainerRouter } from "./routers/loraTrainer";
+import { directorRouter } from "./routers/director";
 import { getOrchestrator } from "./services/modelClients";
 // voiceCompiler, audioCompiler, videoCompiler are no longer used — all modalities route through falDispatcher
 import { buildMemoryContext, upsertMemory } from "./services/ragMemory";
@@ -183,173 +184,6 @@ async function compileElitePrompt(payload: {
     // LLM unavailable (e.g., no GEMINI_API_KEY in demo mode) — gracefully fall back to original prompt
     return { compiledPrompt: payload.prompt, visualWeight, controlNetParams };
   }
-}
-
-// ─── CO-STAR Director AI ─────────────────────────────────────────────────────
-
-// ─── Personality System Prompts ──────────────────────────────────────────────
-
-const PERSONALITY_PROMPTS: Record<string, { researchStyle: string; directorStyle: string; proactiveHint: string }> = {
-  calm: {
-    researchStyle: `你是一位沉穩而深思熟慮的研究助手。你重視邏輯、結構與可行性。
-風格特點：
-- 先分析可行性，再提供建議
-- 用「我建議我們先...」「從結構上來看...」等引導式語氣
-- 提供完整的利弊分析
-- 使用繁體中文，語氣平穩而專業`,
-    directorStyle: `你是「導演 AI」，一位沉穩型創意導演。你重視邏輯性與敘事結構。
-風格：
-- 先確認使用者的核心意圖，再展開創作
-- 強調敘事的完整性與情緒弧線
-- 用「我們可以這樣思考...」的引導方式
-- 腳本結構嚴謹，每個元素都有明確目的`,
-    proactiveHint: `
-
-【主動介入規則】
-當使用者的描述不夠具體時，你必須主動提問：
-- 「您的目標觀眾是誰？這會影響我們的敘事節奏。」
-- 「您希望傳達的核心情緒是什麼？平靜、振奮、或是思考？」
-- 「從結構上看，我建議我們先確定 X，再處理 Y。」`,
-  },
-  creative: {
-    researchStyle: `你是一位充滿靈感的創意研究助手。你重視氛圍、情緒與視覺衝擊力。
-風格特點：
-- 用豐富的意象和比喻來描述靈感
-- 主動提供意想不到的角度和組合
-- 用「想像一下...」「如果我們讓...」等啓發式語氣
-- 使用繁體中文，語氣熱情而富有感染力`,
-    directorStyle: `你是「導演 AI」，一位創意型藝術導演。你重視氛圍、情緒和視覺衝擊力。
-風格：
-- 用感性的語言描繪畫面，讓使用者「看見」最終成果
-- 大膽提出意想不到的創意組合
-- 用「想像一下這個畫面...」「如果我們加入...」
-- 腳本充滿藝術性，強調視覺美感與情緒渡染`,
-    proactiveHint: `
-
-【主動介入規則】
-當使用者的描述缺乏情緒或氛圍時，你必須主動引導：
-- 「想像一下，如果我們加入 X 的元素，整個畫面會變得更有張力。」
-- 「我覺得這裡缺少一個情緒高潮點——你希望觀眾在哪個瞬間屏住呼吸？」
-- 「讓我用一個比喻來幫你金化這個構想...」`,
-  },
-  technical: {
-    researchStyle: `你是一位技術導向的研究助手。你重視參數精確度、技術可行性與最佳實踐。
-風格特點：
-- 提供具體的技術參數建議（解析度、幀率、編碼格式）
-- 分析不同模型/工具的技術限制
-- 用「建議使用 X 參數，因為...」等專業語氣
-- 使用繁體中文，語氣精確而專業`,
-    directorStyle: `你是「導演 AI」，一位技術型導演。你重視參數精確度與技術最佳實踐。
-風格：
-- 為每個創作決策提供技術理由
-- 具體建議解析度、幀率、編碼格式、模型參數
-- 用「技術上建議...」「根據模型特性...」等語氣
-- 腳本包含具體的技術參數與模型配置建議`,
-    proactiveHint: `
-
-【主動介入規則】
-當使用者缺少技術參數時，你必須主動提問：
-- 「您希望的輸出解析度是多少？1080p 還是 4K？這會影響我們的模型選擇。」
-- 「目前缺少鏡頭運動參數——建議加入 dolly zoom 或 tracking shot 來增強動態感。」
-- 「技術上，您的描述適合使用 ControlNet depth + canny 雙層控制，要我幫您配置嗎？」`,
-  },
-};
-
-async function runDirectorAI(
-  messages: Array<{ role: string; content: string }>,
-  saveToNotes: boolean,
-  userId: number,
-  personality: "calm" | "creative" | "technical" = "creative",
-) {
-  const persona = PERSONALITY_PROMPTS[personality] || PERSONALITY_PROMPTS.creative;
-
-  // Step 1: Use LLM for factual grounding with personality-aware research style
-  const researchResult = await withTimeout(invokeLLM({
-    messages: [
-      {
-        role: "system",
-        content: persona.researchStyle,
-      },
-      ...messages.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
-    ],
-  }), 30_000, "導演AI研究");
-  const researchContent = typeof researchResult.choices[0]?.message?.content === "string"
-    ? researchResult.choices[0].message.content : "";
-
-  // Step 2: Creative orchestration with personality-aware CO-STAR framework
-  const scriptResult = await withTimeout(invokeLLM({
-    messages: [
-      {
-        role: "system",
-        content: `${persona.directorStyle}
-
-使用 CO-STAR 框架來創作結構化的多媒體腳本。
-
-CO-STAR 框架：
-- Context（背景）：場景的背景設定
-- Situation（情境）：當前的情境描述
-- Task（任務）：需要完成的創作任務
-- Action（行動）：具體的執行步驟
-- Result（結果）：預期的成果
-
-基於以下研究資料，創作一個結構化的 JSON 腳本：
-${researchContent}
-${persona.proactiveHint}
-
-輸出 JSON 格式必須包含：
-- context, situation, task, action, result（CO-STAR 各欄位）
-- visualPrompt：給 Veo 3.1 的視覺提示詞（英文，包含正面解剖學約束）
-- audioScript：給 ElevenLabs 的語音腳本（繁體中文）
-- musicVibe：給 Suno V5 的音樂風格描述（英文）
-- proactiveQuestion：主動向使用者提出的引導性問題（繁體中文，根據使用者描述中缺少的元素提問）`,
-      },
-      ...messages.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
-    ],
-    response_format: {
-      type: "json_schema",
-      json_schema: {
-        name: "costar_script",
-        strict: true,
-        schema: {
-          type: "object",
-          properties: {
-            context: { type: "string" },
-            situation: { type: "string" },
-            task: { type: "string" },
-            action: { type: "string" },
-            result: { type: "string" },
-            visualPrompt: { type: "string" },
-            audioScript: { type: "string" },
-            musicVibe: { type: "string" },
-            proactiveQuestion: { type: "string" },
-          },
-          required: ["context", "situation", "task", "action", "result", "visualPrompt", "audioScript", "musicVibe", "proactiveQuestion"],
-          additionalProperties: false,
-        },
-      },
-    },
-  }), 45_000, "導演AI創作");
-
-  const scriptContent = scriptResult.choices[0]?.message?.content;
-  let script;
-  try {
-    script = typeof scriptContent === "string" ? JSON.parse(scriptContent) : scriptContent;
-  } catch {
-    script = { context: "", situation: "", task: "", action: "", result: "", visualPrompt: "", audioScript: "", musicVibe: "", proactiveQuestion: "" };
-  }
-
-  // Save to project notes if requested
-  if (saveToNotes && userId) {
-    await db.createProjectNote({
-      userId,
-      title: `導演 AI 腳本 (${personality}) - ${new Date().toLocaleDateString("zh-TW")}`,
-      content: researchContent,
-      scriptJson: script,
-      noteType: "script",
-    });
-  }
-
-  return { research: researchContent, script, personality };
 }
 
 // ─── Router Definition ───────────────────────────────────────────────────────
@@ -1398,22 +1232,9 @@ export const appRouter = router({
       }),
   }),
 
-  // ─── Director AI Chat ────────────────────────────────────────────────────
+  // ─── Director AI ─────────────────────────────────────────────────────────
 
-  director: router({
-    chat: protectedProcedure
-      .input(z.object({
-        messages: z.array(z.object({
-          role: z.string(),
-          content: z.string(),
-        })),
-        saveToNotes: z.boolean().default(false),
-        personality: z.enum(["calm", "creative", "technical"]).default("creative"),
-      }))
-      .mutation(async ({ ctx, input }) => {
-        return runDirectorAI(input.messages, input.saveToNotes, ctx.user.id, input.personality);
-      }),
-  }),
+  director: directorRouter,
 
   // ─── Assets ──────────────────────────────────────────────────────────────
 
@@ -2170,27 +1991,6 @@ export const appRouter = router({
           fileKey: item.fileKey || "",
         });
         return { assetId };
-      }),
-  }),
-
-  // ─── Director Preferences ─────────────────────────────────────────────────
-
-  directorPreferences: router({
-    get: protectedProcedure.query(async ({ ctx }) => {
-      return db.getDirectorPreferences(ctx.user.id);
-    }),
-
-    update: protectedProcedure
-      .input(z.object({
-        personality: z.enum(["calm", "creative", "technical"]).optional(),
-        preferredFormat: z.enum(["co-star", "sslcm", "selcm", "free"]).optional(),
-        customSystemPrompt: z.string().optional(),
-        preferencesJson: z.record(z.string(), z.unknown()).optional(),
-        onboardingSteps: z.array(z.string()).optional(),
-      }))
-      .mutation(async ({ ctx, input }) => {
-        const id = await db.upsertDirectorPreferences(ctx.user.id, input);
-        return { id };
       }),
   }),
 

@@ -44,6 +44,30 @@ export type CoStarScript = {
   visualPrompt: string;
   audioScript: string;
   musicVibe: string;
+  proactiveQuestion?: string;
+};
+
+// ─── Director Session ───────────────────────────────────────────────────────
+
+export type DirectorSession = {
+  id: string;
+  title: string;
+  personality: "calm" | "creative" | "technical";
+  messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
+  scripts: CoStarScript[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+// ─── Director Templates ─────────────────────────────────────────────────────
+
+export type DirectorTemplate = {
+  id: string;
+  label: string;
+  description: string;
+  category: "short-film" | "ad" | "meditation" | "music-video" | "tutorial" | "brand";
+  prompt: string;
+  personality: "calm" | "creative" | "technical";
 };
 
 // ─── Generation Request ─────────────────────────────────────────────────────
