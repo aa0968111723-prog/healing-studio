@@ -15,10 +15,18 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarProvider,
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { getLoginUrl, getDemoLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import {
@@ -45,7 +53,13 @@ import {
   BookOpen,
   Leaf,
   Radar,
+  ChevronRight,
+  Palette,
+  Boxes,
+  FolderOpen,
+  Wrench,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useSiteOnboarding, type PageId } from "@/contexts/SiteOnboardingContext";
 import { CSSProperties, memo, useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -62,27 +76,86 @@ const SidebarVisualSoul = memo(function SidebarVisualSoul() {
   return <VisualSoul size="sm" state={aiState} personality={personality} />;
 });
 
-const menuItems = [
-  { icon: Wand2, label: "創作工作室", path: "/studio",       id: "sidebar-studio-link" },
-  { icon: Sparkles, label: "音樂配音創作室", path: "/pro-studio", id: "sidebar-pro-studio-link" },
-  { icon: Image, label: "圖片創作室", path: "/image-studio", id: "sidebar-image-studio-link" },
-  { icon: Film, label: "影片工作室", path: "/video-studio", id: "sidebar-video-studio-link" },
+type SidebarLeafItem = {
+  icon: LucideIcon;
+  label: string;
+  path: string;
+  id: string;
+};
+
+type SidebarGroupItem = {
+  icon: LucideIcon;
+  label: string;
+  children: SidebarLeafItem[];
+};
+
+type SidebarEntry = SidebarLeafItem | SidebarGroupItem;
+
+function isGroup(entry: SidebarEntry): entry is SidebarGroupItem {
+  return "children" in entry;
+}
+
+/** Hierarchical sidebar structure (for rendering) */
+const sidebarStructure: SidebarEntry[] = [
+  // 1. 創作工作室
+  { icon: Wand2, label: "創作工作室", path: "/studio", id: "sidebar-studio-link" },
+  // 2. 專業工作室
+  {
+    icon: Palette, label: "專業工作室",
+    children: [
+      { icon: Sparkles, label: "音樂配音創作室", path: "/pro-studio", id: "sidebar-pro-studio-link" },
+      { icon: Image, label: "圖片創作室", path: "/image-studio", id: "sidebar-image-studio-link" },
+      { icon: Film, label: "影片專業工作室", path: "/video-studio", id: "sidebar-video-studio-link" },
+    ],
+  },
+  // 3. 導演 AI
   { icon: Clapperboard, label: "導演 AI", path: "/director", id: "sidebar-director-link" },
-  { icon: Cpu, label: "角色鍛造所", path: "/models",                     id: "sidebar-models-link" },
-  { icon: Zap, label: "LoRA 訓練工坊", path: "/lora-trainer",           id: "sidebar-lora-trainer-link" },
-  { icon: Clock, label: "生成歷史", path: "/history",                     id: "sidebar-history-link" },
-  { icon: Package, label: "數位資產庫", path: "/assets",                 id: "sidebar-assets-link" },
-  { icon: Layers, label: "一致性保險庫", path: "/vault",                 id: "sidebar-vault-link" },
-  { icon: StickyNote, label: "專案筆記", path: "/notes",                 id: "sidebar-notes-link" },
-  { icon: CalendarDays, label: "創作排程", path: "/calendar",           id: "sidebar-calendar-link" },
-  { icon: Users, label: "共享空間", path: "/shared",                     id: "sidebar-shared-link" },
-  { icon: BarChart3, label: "儀表板", path: "/dashboard",               id: "sidebar-dashboard-link" },
-  { icon: MessageSquare, label: "回饋中心", path: "/feedback",           id: "sidebar-feedback-link" },
-  { icon: BookOpen, label: "學習文件", path: "/learn",                   id: "sidebar-learn-link" },
-  { icon: Leaf, label: "專注流", path: "/focus-flow",                   id: "sidebar-focus-flow-link" },
-  { icon: Radar, label: "AI 監控中心", path: "/langsmith",             id: "sidebar-langsmith-link" },
-  { icon: Settings, label: "個人設定", path: "/settings",               id: "sidebar-settings-link" },
+  // 4. 模型訓練
+  {
+    icon: Boxes, label: "模型訓練",
+    children: [
+      { icon: Cpu, label: "角色鍛造所", path: "/models", id: "sidebar-models-link" },
+      { icon: Zap, label: "LoRA 訓練工坊", path: "/lora-trainer", id: "sidebar-lora-trainer-link" },
+      { icon: Layers, label: "一致性保險庫", path: "/vault", id: "sidebar-vault-link" },
+    ],
+  },
+  // 5. 紀錄
+  {
+    icon: FolderOpen, label: "紀錄",
+    children: [
+      { icon: Clock, label: "生成歷史", path: "/history", id: "sidebar-history-link" },
+      { icon: Package, label: "數位資產庫", path: "/assets", id: "sidebar-assets-link" },
+      { icon: Users, label: "共享空間", path: "/shared", id: "sidebar-shared-link" },
+    ],
+  },
+  // 6. 筆記與排程
+  {
+    icon: StickyNote, label: "筆記與排程",
+    children: [
+      { icon: StickyNote, label: "專案筆記", path: "/notes", id: "sidebar-notes-link" },
+      { icon: CalendarDays, label: "創作排程", path: "/calendar", id: "sidebar-calendar-link" },
+    ],
+  },
+  // 7. 儀表板與監控
+  { icon: BarChart3, label: "儀表板", path: "/dashboard", id: "sidebar-dashboard-link" },
+  { icon: Radar, label: "AI 監控中心", path: "/langsmith", id: "sidebar-langsmith-link" },
+  // 8. 學習文件中心
+  { icon: BookOpen, label: "學習文件中心", path: "/learn", id: "sidebar-learn-link" },
+  // 9. 回饋與設定
+  {
+    icon: Wrench, label: "回饋與設定",
+    children: [
+      { icon: MessageSquare, label: "回饋中心", path: "/feedback", id: "sidebar-feedback-link" },
+      { icon: Settings, label: "個人設定", path: "/settings", id: "sidebar-settings-link" },
+      { icon: Leaf, label: "專注流", path: "/focus-flow", id: "sidebar-focus-flow-link" },
+    ],
+  },
 ];
+
+/** Flat list of all navigable items (for lookups like active-page label) */
+const flatMenuItems: SidebarLeafItem[] = sidebarStructure.flatMap((entry) =>
+  isGroup(entry) ? entry.children : [entry],
+);
 
 const adminItems = [
   { icon: Shield, label: "管理後台", path: "/admin" },
@@ -172,12 +245,12 @@ function DashboardLayoutContent({
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
-  const activeMenuItem = [...menuItems, ...adminItems].find(
+  const activeMenuItem = [...flatMenuItems, ...adminItems].find(
     (item) => item.path === location
   );
   const isMobile = useIsMobile();
 
-  const allItems = user?.role === "admin" ? [...menuItems, ...adminItems] : menuItems;
+  const isAdmin = user?.role === "admin";
 
   // ── 全站 Welcome Tour（首次登入時自動觸發）────────────────────────────
   const { startTour, hasSeen } = useSiteOnboarding();
@@ -259,25 +332,91 @@ function DashboardLayoutContent({
 
           <SidebarContent className="gap-0">
             <SidebarMenu className="px-2 py-1" id="sidebar-nav">
-              {allItems.map((item) => {
-                const isActive = location === item.path;
+              {sidebarStructure.map((entry) => {
+                if (isGroup(entry)) {
+                  const hasActiveChild = entry.children.some(
+                    (child) => location === child.path,
+                  );
+                  return (
+                    <Collapsible
+                      key={entry.label}
+                      defaultOpen={hasActiveChild}
+                      className="group/collapsible"
+                    >
+                      <SidebarMenuItem>
+                        <CollapsibleTrigger asChild>
+                          <SidebarMenuButton
+                            tooltip={entry.label}
+                            className="h-10 transition-all font-normal"
+                          >
+                            <entry.icon className="h-4 w-4" />
+                            <span>{entry.label}</span>
+                            <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                          </SidebarMenuButton>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <SidebarMenuSub>
+                            {entry.children.map((child) => {
+                              const isChildActive = location === child.path;
+                              return (
+                                <SidebarMenuSubItem key={child.path}>
+                                  <SidebarMenuSubButton
+                                    onClick={() => setLocation(child.path)}
+                                    isActive={isChildActive}
+                                    className="cursor-pointer"
+                                    id={child.id}
+                                  >
+                                    <child.icon
+                                      className={`h-4 w-4 ${isChildActive ? "text-primary" : ""}`}
+                                    />
+                                    <span>{child.label}</span>
+                                  </SidebarMenuSubButton>
+                                </SidebarMenuSubItem>
+                              );
+                            })}
+                          </SidebarMenuSub>
+                        </CollapsibleContent>
+                      </SidebarMenuItem>
+                    </Collapsible>
+                  );
+                }
+                const isActive = location === entry.path;
                 return (
-                  <SidebarMenuItem key={item.path}>
+                  <SidebarMenuItem key={entry.path}>
                     <SidebarMenuButton
                       isActive={isActive}
-                      onClick={() => setLocation(item.path)}
-                      tooltip={item.label}
+                      onClick={() => setLocation(entry.path)}
+                      tooltip={entry.label}
                       className="h-10 transition-all font-normal"
-                      id={(item as any).id}
+                      id={entry.id}
                     >
-                      <item.icon
+                      <entry.icon
                         className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
                       />
-                      <span>{item.label}</span>
+                      <span>{entry.label}</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 );
               })}
+              {isAdmin &&
+                adminItems.map((item) => {
+                  const isActive = location === item.path;
+                  return (
+                    <SidebarMenuItem key={item.path}>
+                      <SidebarMenuButton
+                        isActive={isActive}
+                        onClick={() => setLocation(item.path)}
+                        tooltip={item.label}
+                        className="h-10 transition-all font-normal"
+                      >
+                        <item.icon
+                          className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
+                        />
+                        <span>{item.label}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
             </SidebarMenu>
           </SidebarContent>
 
