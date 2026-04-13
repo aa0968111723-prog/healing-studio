@@ -68,21 +68,18 @@ function getCategoryConfig(id: string) {
 }
 
 // Simple Markdown → HTML renderer (no heavy dependency)
-// Includes basic HTML entity escaping to prevent XSS from user-supplied content.
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+// Includes HTML tag stripping to prevent XSS from user-supplied content.
+function stripHtmlTags(str: string): string {
+  // Remove any raw HTML tags to prevent XSS — we only allow markdown syntax.
+  // This strips <script>, <img onerror=...>, <style>, etc.
+  return str.replace(/<[^>]*>/g, "");
 }
 
 function renderMarkdown(md: string): string {
-  // First, escape HTML entities in the raw markdown to neutralise embedded scripts/tags
-  const escaped = escapeHtml(md);
+  // First, strip raw HTML tags to neutralise embedded scripts/event handlers
+  const safe = stripHtmlTags(md);
 
-  return escaped
+  return safe
     // Code blocks
     .replace(/```[\w]*\n([\s\S]*?)```/g, "<pre class=\"bg-gray-900 text-green-300 p-4 rounded-xl text-xs overflow-x-auto my-3\"><code>$1</code></pre>")
     // Inline code
