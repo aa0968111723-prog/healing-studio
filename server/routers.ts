@@ -1604,7 +1604,10 @@ export const appRouter = router({
         })).max(20).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
-        const effectiveSteps = input.steps ?? Math.min(Math.max((input.epochs ?? 20) * 30, 200), 2000);
+        const STEPS_PER_EPOCH = 30;
+        const MIN_TRAINING_STEPS = 200;
+        const MAX_TRAINING_STEPS = 2000;
+        const effectiveSteps = input.steps ?? Math.min(Math.max((input.epochs ?? 20) * STEPS_PER_EPOCH, MIN_TRAINING_STEPS), MAX_TRAINING_STEPS);
         const configJson: Record<string, unknown> = {
           triggerWord: input.triggerWord || "",
           epochs: input.epochs ?? 20,

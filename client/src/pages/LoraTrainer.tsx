@@ -526,7 +526,7 @@ export default function LoraTrainer() {
                   {TRAINING_CATEGORIES.filter(c => c.type !== "voice_clone").map((cat) => (
                     <button
                       key={cat.type}
-                      onClick={() => { setSelectedTrainingType(cat.type); resetForm(); setSelectedTrainingType(cat.type); }}
+                      onClick={() => { resetForm(); setSelectedTrainingType(cat.type); }}
                       className={`relative rounded-xl border-2 p-3 text-left transition-all hover:border-primary/40 ${
                         selectedTrainingType === cat.type
                           ? "border-primary bg-primary/5 ring-1 ring-primary/20"

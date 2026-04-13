@@ -246,12 +246,13 @@ export async function runFalTrainingJob(input: FalTrainingJobInput): Promise<voi
     }
 
     // Update progress periodically in background
+    const trainingStartTime = Date.now();
     const progressInterval = setInterval(async () => {
       try {
-        const elapsed = Date.now() - (Date.now()); // approximate
+        const elapsedMin = Math.round((Date.now() - trainingStartTime) / 60_000);
         await updateBackgroundJob(jobId, {
           progress: Math.min(85, 30 + Math.floor(Math.random() * 40)),
-          progressMessage: "Fal.ai 訓練進行中...",
+          progressMessage: `Fal.ai 訓練進行中...（已耗時 ${elapsedMin} 分鐘）`,
         });
       } catch { /* ignore */ }
     }, 30_000);
@@ -261,7 +262,7 @@ export async function runFalTrainingJob(input: FalTrainingJobInput): Promise<voi
       const response = await Promise.race([
         client.subscribe(falModelId, { input: falInput, logs: false }),
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("Fal.ai 訓練超時（超過 60 分鐘）")), 3_600_000)
+          setTimeout(() => reject(new Error("Fal.ai 訓練超時（60 分鐘）")), 3_600_000)
         ),
       ]);
       result = (response as { data?: Record<string, unknown> }).data ?? (response as Record<string, unknown>) ?? {};
