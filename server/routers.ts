@@ -15,6 +15,7 @@ import { senseRouter } from "./routers/sense";
 import { brainRouter } from "./routers/brain";
 import { proStudioRouter } from "./routers/proStudio";
 import { imageStudioRouter } from "./routers/imageStudio";
+import { videoStudioRouter } from "./routers/videoStudio";
 import { getOrchestrator } from "./services/modelClients";
 // voiceCompiler, audioCompiler, videoCompiler are no longer used — all modalities route through falDispatcher
 import { buildMemoryContext, upsertMemory } from "./services/ragMemory";
@@ -355,6 +356,7 @@ export const appRouter = router({
   brain: brainRouter,
   proStudio: proStudioRouter,
   imageStudio: imageStudioRouter,
+  videoStudio: videoStudioRouter,
 
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
