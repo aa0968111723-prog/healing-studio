@@ -68,8 +68,21 @@ function getCategoryConfig(id: string) {
 }
 
 // Simple Markdown → HTML renderer (no heavy dependency)
+// Includes basic HTML entity escaping to prevent XSS from user-supplied content.
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function renderMarkdown(md: string): string {
-  return md
+  // First, escape HTML entities in the raw markdown to neutralise embedded scripts/tags
+  const escaped = escapeHtml(md);
+
+  return escaped
     // Code blocks
     .replace(/```[\w]*\n([\s\S]*?)```/g, "<pre class=\"bg-gray-900 text-green-300 p-4 rounded-xl text-xs overflow-x-auto my-3\"><code>$1</code></pre>")
     // Inline code
