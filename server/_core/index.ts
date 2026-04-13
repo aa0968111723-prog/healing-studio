@@ -114,7 +114,9 @@ async function startServer() {
   // ── Plain HTTP healthcheck (Railway uses this path to verify container is up) ──
   // Must respond within the healthcheck window (typically 5m on Railway)
   app.get("/api/health", (_req, res) => {
-    res.json({ ok: true, ts: Date.now() });
+    const { detectStorageBackend } = require("../storage");
+    const storageBackend = detectStorageBackend();
+    res.json({ ok: true, ts: Date.now(), storage: storageBackend });
   });
 
   // tRPC API
@@ -145,6 +147,24 @@ async function startServer() {
 
   server.listen(port, "0.0.0.0", () => {
     console.log(`Server running on http://0.0.0.0:${port}/`);
+
+    // Log storage backend status on startup
+    try {
+      const { detectStorageBackend } = require("../storage");
+      const backend = detectStorageBackend();
+      const backendLabels: Record<string, string> = {
+        s3:    "✅ S3 / Cloudflare R2（S3_ENDPOINT + S3_ACCESS_KEY_ID + S3_SECRET_ACCESS_KEY + S3_BUCKET_NAME）",
+        gcs:   "✅ Google Cloud Storage（GCS_BUCKET_NAME + GOOGLE_APPLICATION_CREDENTIALS_JSON）",
+        manus: "✅ Manus Storage Proxy（BUILT_IN_FORGE_API_URL + BUILT_IN_FORGE_API_KEY）",
+        none:  "❌ 未設定任何儲存後端！請在 Railway 環境變數中設定以下任一組合：\n" +
+               "   ▸ 方案A（推薦）Cloudflare R2：S3_ENDPOINT + S3_ACCESS_KEY_ID + S3_SECRET_ACCESS_KEY + S3_BUCKET_NAME\n" +
+               "   ▸ 方案B Google GCS：GCS_BUCKET_NAME + GOOGLE_APPLICATION_CREDENTIALS_JSON\n" +
+               "   ▸ 方案C Manus Proxy：BUILT_IN_FORGE_API_URL + BUILT_IN_FORGE_API_KEY",
+      };
+      console.log(`[Storage] 目前使用的儲存後端：${backendLabels[backend] ?? backend}`);
+    } catch (e) {
+      console.warn("[Storage] 無法偵測儲存後端：", e);
+    }
 
     // Initialize scheduled jobs after server is ready
     initNewsFetcherCron();

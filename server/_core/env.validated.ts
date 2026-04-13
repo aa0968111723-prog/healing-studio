@@ -49,6 +49,21 @@ const coreSchema = z.object({
   GOOGLE_APPLICATION_CREDENTIALS_JSON: z.string().min(1).optional().default(""),
   GCS_BUCKET_NAME:                     z.string().min(1).optional().default(""),
 
+  // ── S3 相容儲存（Cloudflare R2 / AWS S3 / MinIO 等）──────
+  // 在 Railway 環境變數中設定以下四個即可啟用 Cloudflare R2：
+  //   S3_ENDPOINT          = https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+  //   S3_ACCESS_KEY_ID     = <R2 Access Key ID>
+  //   S3_SECRET_ACCESS_KEY = <R2 Secret Access Key>
+  //   S3_BUCKET_NAME       = <bucket 名稱>
+  //   S3_PUBLIC_URL        = https://pub-xxxx.r2.dev  （選填，R2 公開網域）
+  //   S3_REGION            = auto                      （選填，R2 固定 auto）
+  S3_ENDPOINT:           z.string().optional().default(""),
+  S3_ACCESS_KEY_ID:      z.string().optional().default(""),
+  S3_SECRET_ACCESS_KEY:  z.string().optional().default(""),
+  S3_BUCKET_NAME:        z.string().optional().default(""),
+  S3_PUBLIC_URL:         z.string().optional().default(""),
+  S3_REGION:             z.string().optional().default("auto"),
+
   // ── 向後相容：Manus Forge API（遷移完成後可移除）─────────
   VITE_APP_ID:            z.string().optional().default(""),
   OAUTH_SERVER_URL:       z.string().optional().default(""),
