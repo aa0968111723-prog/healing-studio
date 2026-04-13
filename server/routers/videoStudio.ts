@@ -432,10 +432,6 @@ export const videoStudioRouter = router({
       strength:    z.number().min(0.1).max(1.0).default(0.7),
     }))
     .mutation(async ({ input }) => {
-      const payload: Record<string, unknown> = {
-        prompt: input.prompt,
-        video_url: input.videoUrl,
-        strength: input.strength,
       const result = await falQueueRun("fal-ai/wan-t2v", {
         prompt: input.prompt,
         video_url: input.videoUrl,
