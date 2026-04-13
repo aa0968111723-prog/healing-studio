@@ -308,7 +308,7 @@ function DashboardLayoutContent({
           className="border-r-0"
           disableTransition={isResizing}
         >
-          <SidebarHeader className="h-16 justify-center">
+          <SidebarHeader className="h-16 justify-center sidebar-zen-glow">
             <div className="flex items-center gap-3 px-2 transition-all w-full">
               <button
                 onClick={toggleSidebar}
@@ -420,7 +420,7 @@ function DashboardLayoutContent({
 
           <SidebarFooter className="p-3">
             {!isCollapsed && (
-              <div className="glass-card-static px-3 py-2.5 mb-2 text-center">
+              <div className="glass-card-static px-3 py-2.5 mb-2 text-center" style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.6) 0%, rgba(212,197,226,0.15) 50%, rgba(234,201,193,0.12) 100%)" }}>
                 <p className="text-[11px] text-muted-foreground tracking-wide uppercase">剩餘配額</p>
                 <p className="text-xl font-semibold text-foreground tabular-nums mt-0.5">
                   {user?.remainingGenerations ?? 0}
@@ -471,7 +471,15 @@ function DashboardLayoutContent({
         />
       </div>
 
-      <SidebarInset className="flex flex-col min-h-0 overflow-hidden">
+      <SidebarInset className="flex flex-col min-h-0 overflow-hidden relative">
+        {/* ── Workspace ambient background decorations ── */}
+        <div className="workspace-ambient-bg absolute inset-0 pointer-events-none" aria-hidden="true">
+          <div className="workspace-top-glow" />
+          <div className="workspace-orb workspace-orb-1" />
+          <div className="workspace-orb workspace-orb-2" />
+          <div className="workspace-orb workspace-orb-3" />
+        </div>
+
         {isMobile && (
           <div className="flex border-b h-14 items-center justify-between px-2 shrink-0 sticky top-0 z-40"
             style={{ background: "rgba(245,243,240,0.92)", backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)" }}
@@ -517,7 +525,7 @@ function DashboardLayoutContent({
             </div>
           </div>
         )}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-safe-area-inset-bottom" style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}>{children}</main>
+        <main className="relative flex-1 overflow-y-auto p-4 sm:p-6 pb-safe-area-inset-bottom" style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}>{children}</main>
       </SidebarInset>
 
       {/* 全站光球常駐協助（Studio 頁面內已有自己的光球，不需要重複） */}
