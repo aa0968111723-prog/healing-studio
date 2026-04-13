@@ -30,6 +30,8 @@ export function useComposition<
   const c = useRef(false);
   // Track compositionEnd timestamp for Safari timing workaround
   const compositionEndTimeRef = useRef(0);
+  // Safari fires keyDown within a few ms of compositionEnd; this grace period catches those events
+  const COMPOSITION_END_GRACE_MS = 10;
 
   const onCompositionStart = usePersistFn((e: React.CompositionEvent<T>) => {
     c.current = true;
@@ -51,7 +53,7 @@ export function useComposition<
     // In Safari, keyDown may fire right after compositionEnd with ~0ms gap.
     // Use timeStamp comparison as an extra safeguard.
     const isJustAfterComposition =
-      c.current || (compositionEndTimeRef.current > 0 && Math.abs(e.timeStamp - compositionEndTimeRef.current) < 10);
+      c.current || (compositionEndTimeRef.current > 0 && Math.abs(e.timeStamp - compositionEndTimeRef.current) < COMPOSITION_END_GRACE_MS);
 
     if (
       isJustAfterComposition &&

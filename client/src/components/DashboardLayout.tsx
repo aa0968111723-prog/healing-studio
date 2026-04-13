@@ -191,15 +191,18 @@ function DashboardLayoutContent({
   }, [isCollapsed]);
 
   useEffect(() => {
-    // Throttle mousemove to ~60fps to avoid excessive re-renders during resize
+    // Throttle mousemove to ~60fps via rAF to avoid excessive re-renders during resize.
+    // Store the latest clientX so we never drop the most recent position.
     let rafId: number | null = null;
+    let latestClientX = 0;
     const handleMouseMove = (e: MouseEvent) => {
       if (!isResizing) return;
-      if (rafId !== null) return; // skip if a frame is already scheduled
+      latestClientX = e.clientX;
+      if (rafId !== null) return; // rAF already scheduled; it will use the latest value
       rafId = requestAnimationFrame(() => {
         rafId = null;
         const sidebarLeft = sidebarRef.current?.getBoundingClientRect().left ?? 0;
-        const newWidth = e.clientX - sidebarLeft;
+        const newWidth = latestClientX - sidebarLeft;
         if (newWidth >= MIN_WIDTH && newWidth <= MAX_WIDTH) {
           setSidebarWidth(newWidth);
         }
