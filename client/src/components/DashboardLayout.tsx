@@ -19,7 +19,7 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { getLoginUrl } from "@/const";
+import { getLoginUrl, getDemoLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import {
   Wand2,
@@ -118,7 +118,15 @@ export default function DashboardLayout({
             size="lg"
             className="w-full mt-8 h-12 rounded-xl shadow-md hover:shadow-lg transition-all"
           >
-            登入
+            Google 登入
+          </Button>
+          <Button
+            onClick={() => { window.location.href = getDemoLoginUrl(); }}
+            variant="outline"
+            size="lg"
+            className="w-full mt-3 h-12 rounded-xl border-dashed border-muted-foreground/30 hover:bg-muted/40 transition-all"
+          >
+            ✨ 訪客體驗（免登入）
           </Button>
         </div>
       </div>

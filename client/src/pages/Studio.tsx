@@ -593,6 +593,29 @@ export default function Studio() {
     }
   }, []);
 
+  // ── Apply model from ModelsPage (applyModel sessionStorage) ──
+  useEffect(() => {
+    const applyModelData = sessionStorage.getItem("applyModel");
+    if (applyModelData) {
+      try {
+        const data = JSON.parse(applyModelData);
+        if (data.id) {
+          setFineTunedModelId(Number(data.id));
+          if (data.name) setFineTunedModelName(String(data.name));
+          // Append triggerWord to prompt builder
+          if (data.triggerWord) {
+            setPromptBuilder(prev => ({
+              ...prev,
+              rawPrompt: prev.rawPrompt ? `${data.triggerWord}, ${prev.rawPrompt}` : data.triggerWord,
+            }));
+          }
+        }
+        sessionStorage.removeItem("applyModel");
+        toast.success(`已套用模型「${data.name || "模型"}」，觸發詞已加入提示詞`);
+      } catch { /* ignore */ }
+    }
+  }, []);
+
   // ── Populate from URL Query Params (光球一鍵轉接 URL 參數) ──
   useEffect(() => {
     try {
@@ -1280,12 +1303,12 @@ export default function Studio() {
           <Button
             id="generate-button"
             onClick={handleGenerate}
-            disabled={generateMutation.isPending || !isOnline}
+            disabled={generateMutation.isPending || prepareJobMutation.isPending || !isOnline}
             title={!isOnline ? "目前處於離線狀態，無法生成" : undefined}
             className="w-full h-12 rounded-xl text-sm font-medium gap-2 shadow-md hover:shadow-lg transition-all"
           >
             <Wand2 className="w-4 h-4" />
-            {generateMutation.isPending ? "生成中..." : "開始創作"}
+            {prepareJobMutation.isPending ? "準備中..." : generateMutation.isPending ? "生成中..." : "開始創作"}
           </Button>
 
           {/* Thought Island Chain — z-10 below PromptBuilder's z-20 */}
@@ -1419,20 +1442,23 @@ export default function Studio() {
                       className="w-full rounded-xl gap-2 text-sm"
                       onClick={async () => {
                         try {
-                          const resp = await fetch(resultUrl);
+                          // Use server proxy to bypass CORS on CDN URLs
+                          const proxyUrl = `/api/proxy-download?url=${encodeURIComponent(resultUrl)}`;
+                          const resp = await fetch(proxyUrl);
+                          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
                           const blob = await resp.blob();
                           const ext = activeModality === "image" ? (blob.type.includes("png") ? "png" : blob.type.includes("webp") ? "webp" : "jpg")
                             : activeModality === "video" ? "mp4"
                             : activeModality === "audio" ? (blob.type.includes("wav") ? "wav" : "mp3")
                             : (blob.type.includes("wav") ? "wav" : "mp3");
-                          const url = URL.createObjectURL(blob);
+                          const objectUrl = URL.createObjectURL(blob);
                           const a = document.createElement("a");
-                          a.href = url;
-                          a.download = `ai-director-${activeModality}.${ext}`;
+                          a.href = objectUrl;
+                          a.download = `ai-director-${activeModality}-${Date.now()}.${ext}`;
                           document.body.appendChild(a);
                           a.click();
                           document.body.removeChild(a);
-                          URL.revokeObjectURL(url);
+                          URL.revokeObjectURL(objectUrl);
                           toast.success(`已下載 ${ext.toUpperCase()} 檔案`);
                         } catch {
                           window.open(resultUrl, "_blank");

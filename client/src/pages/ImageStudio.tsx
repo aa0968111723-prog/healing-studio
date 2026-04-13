@@ -27,9 +27,10 @@ import {
   Settings2, X, ChevronDown, ChevronUp, Zap, Check,
   Paintbrush, ImagePlus, RefreshCw, Trash2, Eye, Grid3x3,
   SlidersHorizontal, Plus, Box, Scan, ArrowUpCircle,
-  Brain, Layers, Camera,
+  Brain, Layers, Camera, Upload, Cpu,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { uploadFileToS3 } from "@/lib/upload";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -679,29 +680,87 @@ function PromptBuilder({ value, onChange, vibeIds, onVibeChange }: {
   );
 }
 
-function RefImageInput({ label, value, onChange, onClear, multiple = false, extraUrls = [], onExtraUrlsChange }: {
+function RefImageInput({ label, value, onChange, onClear, multiple = false, extraUrls = [], onExtraUrlsChange, required = true }: {
   label: string; value: string; onChange: (v: string) => void; onClear: () => void;
   multiple?: boolean; extraUrls?: string[]; onExtraUrlsChange?: (urls: string[]) => void;
+  required?: boolean;
 }) {
+  const [uploading, setUploading] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  const handleUpload = useCallback(async (file: File) => {
+    if (file.size > 16 * 1024 * 1024) { toast.error("圖片不能超過 16MB"); return; }
+    setUploading(true);
+    try {
+      const { url } = await uploadFileToS3(file);
+      onChange(url);
+      toast.success("✅ 圖片已上傳");
+    } catch (e: any) {
+      toast.error("上傳失敗：" + (e.message || "未知錯誤"));
+    } finally {
+      setUploading(false);
+    }
+  }, [onChange]);
+
+  const handleFileSelect = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) handleUpload(file);
+    };
+    input.click();
+  };
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file && file.type.startsWith("image/")) handleUpload(file);
+    const url = e.dataTransfer.getData("text/plain");
+    if (url && !file) onChange(url);
+  }, [handleUpload, onChange]);
+
   return (
     <div className="space-y-2">
       <Label className="text-xs font-medium text-muted-foreground">
-        {label} <span className="text-destructive">*</span>
+        {label} {required && <span className="text-destructive">*</span>}
       </Label>
-      <div className="relative">
-        <Input value={value} onChange={e => onChange(e.target.value)}
-          placeholder="貼上圖片 URL（支援 PNG/JPG/WebP）" className="pr-8 text-sm" />
+      <div
+        className={`relative rounded-xl border transition-all ${isDragOver ? "border-primary/50 bg-primary/5 scale-[1.01]" : "border-border/40"}`}
+        onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+        onDragLeave={() => setIsDragOver(false)}
+        onDrop={handleDrop}
+      >
+        <div className="flex items-center gap-1 p-1">
+          <Input value={value} onChange={e => onChange(e.target.value)}
+            placeholder="貼上圖片 URL 或點擊上傳（PNG/JPG/WebP）" className="border-0 shadow-none focus-visible:ring-0 flex-1 text-sm pr-1" />
+          <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={handleFileSelect} disabled={uploading} title="上傳圖片">
+            {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+          </Button>
+          {value && (
+            <Button type="button" variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={onClear} title="清除">
+              <X className="w-3.5 h-3.5" />
+            </Button>
+          )}
+        </div>
         {value && (
-          <button onClick={onClear} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-            <X className="w-3.5 h-3.5" />
-          </button>
+          <div className="px-2 pb-2">
+            <div className="rounded-xl overflow-hidden border border-border/30">
+              <img src={value} alt="reference" className="w-full max-h-40 object-cover" onError={() => onChange("")} />
+            </div>
+          </div>
+        )}
+        {!value && (
+          <div className="px-2 pb-2">
+            <button onClick={handleFileSelect} className="w-full py-4 rounded-xl border border-dashed border-border/40 text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors flex items-center justify-center gap-2">
+              <Upload className="w-3.5 h-3.5" />
+              點擊或拖放圖片上傳（最大 16MB）
+            </button>
+          </div>
         )}
       </div>
-      {value && (
-        <div className="rounded-xl overflow-hidden border border-border/30">
-          <img src={value} alt="reference" className="w-full max-h-40 object-cover" onError={() => onChange("")} />
-        </div>
-      )}
       {multiple && onExtraUrlsChange && (
         <div className="space-y-1.5">
           <p className="text-[10px] text-muted-foreground">額外參考圖（最多 13 張，選填）</p>
@@ -1170,6 +1229,10 @@ export default function ImageStudio() {
   const [resultPose, setResultPose] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
 
+  // ── Applied Fine-tuned Model from ModelsPage ──
+  const [appliedModelName, setAppliedModelName] = useState<string | null>(null);
+  const [appliedTriggerWord, setAppliedTriggerWord] = useState<string | null>(null);
+
   // ── UI ──
   const [showHistory, setShowHistory] = useState(false);
   const [viewMode, setViewMode] = useState<"single" | "grid">("single");
@@ -1185,6 +1248,32 @@ export default function ImageStudio() {
       setSelectedModelId(first.id);
     }
   }, [activeTab]);
+
+  // ── Restore applied model from ModelsPage (via sessionStorage) ──
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("applyModel");
+      if (raw) {
+        const modelData = JSON.parse(raw);
+        if (modelData?.name) {
+          setAppliedModelName(modelData.name);
+          setAppliedTriggerWord(modelData.triggerWord || null);
+          // Auto-inject trigger word into prompt
+          if (modelData.triggerWord && modelData.triggerWord.trim()) {
+            setPrompt(prev => {
+              if (prev.includes(modelData.triggerWord)) return prev;
+              return prev ? `${modelData.triggerWord}, ${prev}` : modelData.triggerWord;
+            });
+            setLoraPath(modelData.loraUrl || "");
+          }
+          toast.success(`已套用角色模型「${modelData.name}」，觸發詞已自動加入提示詞`);
+          sessionStorage.removeItem("applyModel");
+        }
+      }
+    } catch {
+      // silent
+    }
+  }, []);
 
   // ── tRPC mutations ──
   const mutations = {
@@ -1223,17 +1312,25 @@ export default function ImageStudio() {
 
   const downloadImage = async (url: string) => {
     try {
-      const resp = await fetch(url);
+      // Use server proxy to bypass CORS restrictions on CDN URLs
+      const proxyUrl = `/api/proxy-download?url=${encodeURIComponent(url)}`;
+      const resp = await fetch(proxyUrl);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const blob = await resp.blob();
       const ext = blob.type.includes("png") ? "png" : blob.type.includes("webp") ? "webp" : "jpg";
+      const objectUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `image-studio-${Date.now()}.${ext}`;
+      a.href = objectUrl;
+      a.download = `ai-image-${Date.now()}.${ext}`;
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(a.href);
-      toast.success("下載完成");
+      document.body.removeChild(a);
+      URL.revokeObjectURL(objectUrl);
+      toast.success("圖片已下載");
     } catch {
+      // Fallback: open in new tab
       window.open(url, "_blank");
+      toast.info("已在新分頁開啟圖片");
     }
   };
 
@@ -1543,6 +1640,21 @@ export default function ImageStudio() {
           {/* T2I — Prompt + Settings */}
           {activeTab === "t2i" && (
             <>
+              {/* Applied Model Banner */}
+              {appliedModelName && (
+                <div className="rounded-xl border border-amber-200/60 bg-amber-50/60 dark:bg-amber-900/20 px-3 py-2 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-xs">
+                    <Cpu className="w-3.5 h-3.5 text-amber-600" />
+                    <span className="font-medium text-amber-700 dark:text-amber-400">角色模型：{appliedModelName}</span>
+                    {appliedTriggerWord && (
+                      <code className="text-[10px] bg-amber-100 dark:bg-amber-800/40 px-1.5 py-0.5 rounded text-amber-700 dark:text-amber-300 font-mono">{appliedTriggerWord}</code>
+                    )}
+                  </div>
+                  <button onClick={() => { setAppliedModelName(null); setAppliedTriggerWord(null); }} className="text-amber-500 hover:text-amber-700 transition-colors">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
               <div className="rounded-2xl border border-border/30 p-4 bg-background/60">
                 <PromptBuilder value={prompt} onChange={setPrompt} vibeIds={vibeIds} onVibeChange={setVibeIds} />
               </div>

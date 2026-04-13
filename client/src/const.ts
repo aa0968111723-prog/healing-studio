@@ -25,3 +25,6 @@ export const getLoginUrl = () => {
   const currentPath = window.location.pathname + window.location.search;
   return `/api/oauth/google/start?redirect=${encodeURIComponent(currentPath)}`;
 };
+
+/** Demo 模式：直接以訪客身分體驗（無需 Google OAuth） */
+export const getDemoLoginUrl = () => `/api/oauth/demo/start`;

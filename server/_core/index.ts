@@ -24,6 +24,10 @@ const PROXY_ALLOWED_HOSTS = [
   "pbxt.replicate.delivery",
   "suno.ai",
   "elevenlabs.io",
+  // Demo sample assets
+  "images.unsplash.com",
+  "www.soundhelix.com",
+  "gtv-videos-bucket.storage.googleapis.com",
 ];
 
 function isProxyAllowed(urlStr: string): boolean {

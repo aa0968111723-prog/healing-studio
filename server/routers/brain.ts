@@ -316,16 +316,19 @@ export const brainRouter = router({
 
   /** 取得使用者的大腦組態 */
   get: protectedProcedure.query(async ({ ctx }) => {
-    const db = await getDb();
-    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "資料庫不可用" });
-
-    const rows = await db
-      .select()
-      .from(userAiBrain)
-      .where(eq(userAiBrain.userId, ctx.user.id))
-      .limit(1);
-
-    const row = rows[0] ?? null;
+    // Demo mode (no DB): return defaults
+    let row: Record<string, unknown> | null = null;
+    try {
+      const db = await getDb();
+      if (db) {
+        const rows = await db
+          .select()
+          .from(userAiBrain)
+          .where(eq(userAiBrain.userId, ctx.user.id))
+          .limit(1);
+        row = (rows[0] ?? null) as Record<string, unknown> | null;
+      }
+    } catch { /* fallback to defaults */ }
 
     // 組裝回傳結構（不暴露任何 API Key）
     const reasoningSlots: ReasoningBrainSlot[] = ["director", "analyst", "storyteller", "technician", "curator"];
@@ -518,15 +521,19 @@ export const brainRouter = router({
     }).optional())
     .query(async ({ ctx, input }) => {
       const userId = ctx.user.id;
-      const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "資料庫不可用" });
-
-      const rows = await db
-        .select()
-        .from(userAiBrain)
-        .where(eq(userAiBrain.userId, userId))
-        .limit(1);
-      const brainRow = (rows[0] ?? null) as Record<string, unknown> | null;
+      // Demo mode (no DB): use default engines
+      let brainRow: Record<string, unknown> | null = null;
+      try {
+        const db = await getDb();
+        if (db) {
+          const rows = await db
+            .select()
+            .from(userAiBrain)
+            .where(eq(userAiBrain.userId, userId))
+            .limit(1);
+          brainRow = (rows[0] ?? null) as Record<string, unknown> | null;
+        }
+      } catch { /* fallback to defaults */ }
       const falEngines = resolveFalEnginesFromRow(brainRow);
 
       // 四模態引擎
