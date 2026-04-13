@@ -13,6 +13,7 @@ import OfflineBanner from "./components/OfflineBanner";
 import AuthExpiredModal from "./components/AuthExpiredModal";
 import { ShowcaseTransferProvider } from "./contexts/ShowcaseTransferContext";
 import { SiteOnboardingProvider } from "./contexts/SiteOnboardingContext";
+import { FocusFlowProvider } from "./contexts/FocusFlowContext";
 import SiteOnboardingOverlay from "./components/SiteOnboardingOverlay";
 
 // ─── 首頁直接載入（不延遲，確保首屏最快） ─────────────────────────────────
@@ -154,6 +155,7 @@ function App() {
         <NotesDrawerProvider>
           <ShowcaseTransferProvider>
             <SiteOnboardingProvider>
+              <FocusFlowProvider>
               <TooltipProvider>
                 <Toaster />
                 <OfflineBanner />
@@ -162,6 +164,7 @@ function App() {
                 <ProjectNotesDrawer />
                 <SiteOnboardingOverlay />
               </TooltipProvider>
+              </FocusFlowProvider>
             </SiteOnboardingProvider>
           </ShowcaseTransferProvider>
         </NotesDrawerProvider>
