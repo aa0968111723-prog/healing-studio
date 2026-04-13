@@ -23,6 +23,7 @@ import { directorRouter } from "./routers/director";
 import { getOrchestrator } from "./services/modelClients";
 // voiceCompiler, audioCompiler, videoCompiler are no longer used — all modalities route through falDispatcher
 import { buildMemoryContext, upsertMemory } from "./services/ragMemory";
+import { buildOrbSystemPrompt } from "./services/siteKnowledge";
 import {
   estimatePoints,
   getModelPricing,
@@ -2056,19 +2057,11 @@ export const appRouter = router({
         context: z.string().optional(), // current page / modality context
       }))
       .mutation(async ({ input }) => {
-        const systemPromptMap: Record<string, string> = {
-          calm: "你是「光球」，一位溫柔、沉穩的 AI 創作夥伴。你用繁體中文回覆，說話簡短有溫度，像是老朋友陪伴在身旁。你了解 AI 多媒體創作（圖片、影片、音樂、語音），能根據使用者的情緒和需求給出貼心的創作建議。",
-          creative: "你是「光球」，一位活潑、充滿創意的 AI 創作夥伴。你用繁體中文回覆，語氣輕快有活力，喜歡用比喻和想像力來激發靈感。你熟悉各種 AI 生成技術，能把使用者的想法轉化成具體的創作提示詞建議。",
-          technical: "你是「光球」，一位精準、理性的 AI 技術顧問。你用繁體中文回覆，說話直接有條理，擅長把技術細節解釋得淺顯易懂。你精通 AI 圖像、影片、音頻生成的技術參數，能給出精確的優化建議。",
-        };
-        const systemPrompt = systemPromptMap[input.personality] ?? systemPromptMap.creative;
-        const contextNote = input.context
-          ? `\n\n【當前使用者情境：${input.context}】`
-          : "";
+        const systemPrompt = buildOrbSystemPrompt(input.personality, input.context ?? undefined);
 
         const result = await withTimeout(invokeLLM({
           messages: [
-            { role: "system", content: systemPrompt + contextNote },
+            { role: "system", content: systemPrompt },
             ...input.messages.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
           ],
         }), 20_000, "光球聊天");

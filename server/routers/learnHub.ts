@@ -2773,6 +2773,681 @@ http://localhost:3000/api/oauth/callback  (開發用)
     authorName: "Healing Studio Team",
   },
 
+  // ══════════════════════════════════════════════════════
+  // 全站完整知識庫文件
+  // ══════════════════════════════════════════════════════
+
+  {
+    id: "mg-full-models",
+    category: "model-guide",
+    title: "全模型完整對照表：圖片 / 影片 / 音頻 / 語音 / 3D",
+    summary: "Healing Studio 所有 AI 生成模型的完整規格對照，包含點數費用、等級、特點與最佳使用場景。",
+    content: `# 全模型完整對照表
+
+本文件列出 Healing Studio 平台上所有可用的 AI 生成模型，幫助你選擇最適合的模型。
+
+---
+
+## 一、圖片生成（Text-to-Image）
+
+| 模型 | 等級 | 點數/張 | 特點 |
+|------|------|---------|------|
+| **Flux Pro 1.1** | Premium | 4 | 最高品質，細節精準，適合最終成品 |
+| **Flux Dev** | Premium | 3 | 開發者版，速度較快，品質接近 Pro |
+| **Flux Schnell** | Economy | 1 | 超快速，適合快速預覽和測試提示詞 |
+| **SD3 Medium** | Standard | 2 | 穩定擴散第三代，風格多元 |
+| **AuraFlow** | Standard | 2 | 獨特風格，適合藝術創作 |
+| **Ideogram V2** | Premium | 4 | 擅長文字排版，適合海報/LOGO |
+| **Imagen 3 (Gemini)** | Premium | 4 | Google 最新模型，自然寫實 |
+| **Imagen 3 Fast** | Economy | 1 | Imagen 3 快速版，適合預覽 |
+| **Imagen 3 (Vertex)** | Premium | 5 | 企業級 API，最高穩定性 |
+
+### 選擇建議
+- **快速測試**：用 Flux Schnell（1點）或 Imagen 3 Fast（1點）
+- **最終成品**：用 Flux Pro 1.1（4點）或 Imagen 3（4點）
+- **有文字需求**：用 Ideogram V2（4點）
+- **預算有限**：用 SD3 Medium（2點）或 AuraFlow（2點）
+
+---
+
+## 二、圖片編輯（Image-to-Image）
+
+| 模型 | 等級 | 點數/次 | 特點 |
+|------|------|---------|------|
+| **Flux Dev i2i** | Premium | 3 | 保留構圖的風格轉換 |
+| **SD3 Medium i2i** | Standard | 2 | 基礎風格轉換 |
+| **IP-Adapter FaceID** | Premium | 4 | 臉部一致性保持，角色換裝 |
+| **ControlNet Union** | Standard | 3 | 深度/邊緣/骨架多層控制 |
+| **AuraSR 超解析度** | Economy | 1 | 圖片放大增強，無損提升 |
+| **RemBG 去背** | Economy | 1 | 智能去除背景 |
+
+---
+
+## 三、影片生成（Text-to-Video）
+
+| 模型 | 等級 | 點數/5秒 | 點數/秒 | 特點 |
+|------|------|----------|---------|------|
+| **Kling V2.1 Pro** | Ultra | 49 | 9.8 | 最高品質，動態流暢 |
+| **Kling V1.5 Pro** | Premium | 35 | 7.0 | 穩定品質，性價比佳 |
+| **MiniMax Hailuo** | Standard | 20 | 3.3 | 高性價比，適合批量 |
+| **Luma Dream Machine** | Premium | 30 | 6.0 | 夢境感強，藝術風格 |
+| **WAN T2V 2.1** | Standard | 15 | 3.0 | 基礎影片，經濟實惠 |
+| **CogVideoX 5B** | Standard | 15 | 2.5 | 開源方案，穩定可靠 |
+| **Veo 2 (Gemini)** | Ultra | 35 | 7.0 | Google Veo 2，高品質 |
+| **Veo 3 Preview** | Ultra | 50 | 10.0 | 最新預覽版，需申請 |
+
+### 選擇建議
+- **頂級品質**：Kling V2.1 Pro 或 Veo 2
+- **性價比首選**：MiniMax Hailuo 或 WAN T2V 2.1
+- **藝術風格**：Luma Dream Machine
+- **預算測試**：CogVideoX 5B
+
+---
+
+## 四、圖片轉影片（Image-to-Video）
+
+| 模型 | 等級 | 點數/5秒 | 特點 |
+|------|------|----------|------|
+| **Kling V2.1 Pro i2v** | Ultra | 55 | 最高品質，完美銜接 |
+| **Kling V1.5 Pro i2v** | Premium | 40 | 穩定品質 |
+| **Runway Gen3 Turbo** | Premium | 40 | 快速生成 |
+| **Stable Video** | Standard | 15 | 基礎方案，每25幀 |
+| **MiniMax i2v** | Standard | 22 | 高性價比 |
+| **Luma i2v** | Premium | 32 | 夢境風格 |
+
+---
+
+## 五、音樂/音頻生成
+
+| 模型 | 等級 | 點數 | 單位 | 特點 |
+|------|------|------|------|------|
+| **Stable Audio** | Premium | 5 | 每30秒 | 高品質純音樂 |
+| **AudioLDM 2** | Standard | 3 | 每10秒 | 音效為主 |
+| **MMAudio V2** | Standard | 4 | 每15秒 | 多模態音頻 |
+| **ACE-Step** | Premium | 8 | 每60秒 | 長音樂片段 |
+| **MusicGen** | Standard | 3 | 每15秒 | Meta 開源 |
+| **Suno V4** | Premium | 10 | 每首 | 完整歌曲+歌詞 |
+| **Suno V3.5** | Standard | 6 | 每首 | 穩定版歌曲 |
+| **Lyria 2** | Premium | 8 | 每30秒 | Google 音樂 |
+| **ElevenLabs Music** | Premium | 10 | 每30秒 | 高品質音樂 |
+| **ElevenLabs 音效** | Standard | 3 | 每次 | 音效片段 |
+
+### 選擇建議
+- **完整歌曲**：Suno V4（含歌詞）或 Suno V3.5
+- **背景音樂**：Stable Audio 或 ACE-Step
+- **音效**：ElevenLabs 音效 或 AudioLDM 2
+- **長片段**：ACE-Step（60秒/次）
+
+---
+
+## 六、語音合成（Text-to-Speech）
+
+| 模型 | 等級 | 點數/千字符 | 特點 |
+|------|------|------------|------|
+| **ElevenLabs V3** | Premium | 4 | 最自然，情感表現力強 |
+| **ElevenLabs Multilingual V2** | Premium | 3 | 多語言支援 |
+| **ElevenLabs Turbo V2.5** | Economy | 1 | 快速合成 |
+| **ElevenLabs Flash V2.5** | Economy | 1 | 極速版 |
+| **MetaVoice V1** | Premium | 5 | 高品質語音 |
+| **PlayAI TTS** | Premium | 4 | 表現力強 |
+| **Kokoro TTS** | Economy | 1 | 輕量級，高效 |
+| **Orpheus TTS** | Standard | 2 | 情感豐富 |
+| **Dia TTS** | Standard | 2 | 對話式 |
+| **Gemini TTS Flash** | Economy | 1 | Google 快速版 |
+| **Gemini TTS Pro** | Standard | 2 | Google 專業版 |
+
+### 選擇建議
+- **配音/旁白**：ElevenLabs V3 或 Multilingual V2
+- **快速測試**：Kokoro TTS 或 ElevenLabs Flash
+- **對話場景**：Dia TTS
+- **情感表達**：Orpheus TTS
+
+---
+
+## 七、3D 生成
+
+| 模型 | 等級 | 點數/次 | 特點 |
+|------|------|---------|------|
+| **Trellis 3D** | Premium | 10 | 高品質3D模型 |
+| **TripoSR** | Standard | 5 | 快速3D重建 |
+| **Stable Zero123** | Standard | 4 | 零樣本3D |
+
+---
+
+## 八、其他工具
+
+| 工具 | 用途 | 點數 |
+|------|------|------|
+| **MMAudio V2 v2a** | 影片提取/生成配音 | 4 |
+| **Whisper** | 語音辨識/字幕生成 | 2 |
+| **Kling v2v** | 影片風格轉換 | 35 |
+| **Flux LoRA Training** | LoRA 微調訓練 | 50 |
+
+---
+
+## 點數系統說明
+
+- **1 USD ≈ 100 點數**
+- 等級費用範圍：Economy(1-2) / Standard(2-5) / Premium(3-10) / Ultra(35-55)
+- 影片生成最貴（按秒計費）
+- 團隊共享素材可獲得 **2 點數獎勵**
+- 可在「AI 大腦設定」自訂每個模態的預設模型
+`,
+    tags: ["模型", "對照表", "點數", "費用", "選擇指南"],
+    difficulty: "beginner",
+    readingMinutes: 12,
+    publishedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-04-13T00:00:00Z",
+    featured: true,
+    authorName: "Healing Studio Team",
+  },
+
+  {
+    id: "wf-full-workflows",
+    category: "workflow",
+    title: "五大創作工作流程完整指南",
+    summary: "從影片製作到品牌內容，詳解五種核心工作流程，教你如何串聯各工作室完成專案。",
+    content: `# 五大創作工作流程完整指南
+
+學會這五種工作流程，你就能充分利用 Healing Studio 的所有功能。
+
+---
+
+## 工作流程 A：完整影片製作
+
+> 適合製作 15-60 秒的完整影片作品
+
+### 步驟
+1. **導演 AI** → 構思腳本（CO-STAR 框架）
+   - 選擇「創意型」或「技術型」導演人格
+   - 描述你的影片概念，AI 會生成結構化腳本
+   - 腳本包含視覺提示詞、語音腳本、音樂風格建議
+
+2. **一鍵發送到工作室**
+   - 腳本的 visualPrompt 自動填入提示詞
+   - musicVibe 自動設定音樂風格
+   - audioScript 用於語音合成
+
+3. **圖片創作室** → 生成關鍵畫面/角色設計
+   - 推薦：Flux Pro 1.1（最終成品）或 Flux Schnell（快速測試）
+   - 設定一致性保險庫確保角色統一
+
+4. **影片工作室** → 用圖片轉影片
+   - 上傳關鍵畫面作為首幀
+   - 推薦：Kling V2.1 Pro（最高品質）或 MiniMax（性價比）
+   - 選擇 5/10/15 秒時長
+
+5. **音樂配音創作室** → 生成配樂 + 旁白
+   - 配樂：Stable Audio 或 Suno V4
+   - 旁白：ElevenLabs V3 或 Multilingual V2
+
+6. **數位資產庫** → 統一管理所有素材
+
+### 預估費用
+- 經濟方案：~30 點（Schnell + WAN + AudioLDM + Kokoro）
+- 標準方案：~80 點（Flux Dev + Kling V1.5 + Stable Audio + ElevenLabs Turbo）
+- 頂級方案：~120 點（Flux Pro + Kling V2.1 Pro + Suno V4 + ElevenLabs V3）
+
+---
+
+## 工作流程 B：角色一致性系列
+
+> 適合需要在多張圖片/多部影片中保持同一角色外觀
+
+### 步驟
+1. **LoRA 訓練工坊** → 訓練專屬角色模型
+   - 上傳 5-15 張角色照片（多角度：正面/側面/背面/表情）
+   - AI 自動標註圖片
+   - 設定觸發詞（例如：\`sks_character\`）
+   - 啟動訓練（約 10-30 分鐘）
+
+2. **角色鍛造所** → 管理模型
+   - 查看訓練狀態和配置
+   - 可分享給團隊使用
+
+3. **創作工作室** → 使用自訂模型生成
+   - 選擇你訓練的 LoRA 模型
+   - 在提示詞中加入觸發詞
+   - 調整 LoRA 權重（0.5-1.0）
+
+4. **一致性保險庫** → 保存角色定義
+   - 儲存角色參考圖
+   - 下次生成時可直接注入
+
+---
+
+## 工作流程 C：音樂 + 影片 MV
+
+> 適合製作音樂影片
+
+### 步驟
+1. **導演 AI** → 規劃 MV 腳本
+   - 選擇「創意型」導演
+   - 描述曲風、情緒、視覺意象
+
+2. **音樂配音創作室** → 生成歌曲
+   - **Suno V4**：完整歌曲 + 歌詞（10點/首）
+   - 也可用 Stable Audio 生成純音樂
+
+3. **圖片創作室** → 生成場景圖
+   - 根據歌詞段落設計不同場景
+   - 使用 Flux Pro 1.1 確保品質
+
+4. **影片工作室** → 圖片轉影片
+   - 為每個場景生成 5-10 秒影片片段
+   - 使用 Luma Dream Machine 增加夢境感
+
+5. **專案筆記** → 追蹤製作進度
+
+---
+
+## 工作流程 D：冥想/療癒內容
+
+> 適合製作冥想引導、療癒音頻
+
+### 步驟
+1. **導演 AI（沉穩型）** → 規劃引導腳本
+   - 選擇「沉穩型」導演人格
+   - 設定冥想主題和時長
+
+2. **音樂配音創作室** → 生成環境音
+   - **Stable Audio**：自然環境音（森林/海浪/雨聲）
+   - 時長建議：30-60 秒循環片段
+
+3. **文字轉語音** → 生成引導旁白
+   - **ElevenLabs Multilingual V2**：溫柔中文旁白
+   - 語速放慢，語氣平靜
+
+4. **圖片創作室** → 生成視覺化場景
+   - 柔和色調的自然場景
+   - 使用「寧靜」或「自然」氛圍卡
+
+5. **專注流** → 搭配番茄鐘使用
+   - 4-7-8 引導式呼吸
+   - 番茄鐘工作/休息循環
+
+---
+
+## 工作流程 E：品牌內容製作
+
+> 適合企業品牌宣傳和行銷內容
+
+### 步驟
+1. **導演 AI（技術型）** → 規劃品牌影片結構
+   - 選擇「技術型」確保參數精確
+   - 描述品牌核心價值和目標受眾
+
+2. **LoRA 訓練** → 訓練品牌風格模型
+   - 上傳品牌視覺素材訓練統一風格
+
+3. **圖片創作室** → 生成品牌視覺素材
+   - 使用品牌 LoRA 確保風格一致
+   - Ideogram V2 適合含文字的設計
+
+4. **影片工作室** → 製作品牌短片
+   - 15-30 秒品牌宣傳片
+   - 使用首幀控制確保畫面精準
+
+5. **共享空間** → 團隊審核
+   - 分享給團隊成員審核
+   - 收集回饋後微調
+
+---
+
+## 提示詞最佳實踐
+
+### 圖片提示詞結構
+\`\`\`
+[主體描述], [環境/背景], [光線], [構圖], [風格], [色調]
+\`\`\`
+**範例：**
+> A serene forest clearing at golden hour, soft volumetric light filtering through ancient trees, cinematic composition, Monet-inspired color palette, 8K ultra detail
+
+### 影片提示詞結構
+\`\`\`
+[場景描述], [動態/運鏡], [氛圍], [技術參數]
+\`\`\`
+**範例：**
+> Slow dolly zoom into a misty mountain lake, gentle ripples, warm sunrise light, cinematic 24fps, shallow depth of field
+
+### 音樂提示詞結構
+\`\`\`
+[風格/類型], [情緒], [樂器], [節奏/BPM], [時長]
+\`\`\`
+**範例：**
+> Ambient electronic, ethereal and calming, soft synth pads with gentle piano, 80 BPM, 30 seconds
+
+### 語音提示詞結構
+\`\`\`
+[語言], [語氣], [語速], [情感]
+\`\`\`
+**範例：**
+> 繁體中文，溫柔引導的語氣，中等語速，帶有安慰感
+`,
+    tags: ["工作流程", "影片製作", "角色一致性", "MV", "冥想", "品牌"],
+    difficulty: "intermediate",
+    readingMinutes: 15,
+    publishedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-04-13T00:00:00Z",
+    featured: true,
+    authorName: "Healing Studio Team",
+  },
+
+  {
+    id: "gs-full-sitemap",
+    category: "getting-started",
+    title: "全站功能地圖：21 個頁面完整介紹",
+    summary: "Healing Studio 所有頁面功能的完整索引，從創作工作室到管理後台一覽無遺。",
+    content: `# 全站功能地圖
+
+Healing Studio 包含 21 個功能頁面，涵蓋創作、管理、協作、學習的完整生態系。
+
+---
+
+## 🎨 核心創作區
+
+### 1. 創作工作室（/studio）
+**平台核心入口**，統一管理四大生成模態。
+
+| 功能 | 說明 |
+|------|------|
+| 四大模態 | 圖片、影片、音頻/音樂、語音 |
+| 氛圍卡 | 8 款 Vibe Cards：寧靜/溫暖/夢幻/自然/復古/極簡/歡愉/神秘 |
+| 創意溫度 | 滑桿 0-1，控制 AI 創造力 |
+| 種子碼 | 相同種子碼產生相似結果 |
+| 參考圖片 | 風格/氛圍/角色三種參考，支援 ControlNet |
+| LoRA 模型 | 選擇自訂微調模型 + 權重調節 |
+| 生成模式 | 閃電模式（快速）vs 深度精煉（高品質） |
+
+### 2. 音樂配音創作室（/pro-studio）
+**專業音頻工作站**，20+ 工具。
+
+- 文字生音樂（Suno, Stable Audio, MusicGen 等）
+- 音效生成（ElevenLabs Sound Effects）
+- AI 語音合成（11 種 TTS 模型）
+- 聲音克隆、說話頭像
+- 音訊分離（Demucs）
+- 影片配音（ElevenLabs Dubbing）
+- 語音轉文字（WhisperX）
+
+### 3. 圖片創作室（/image-studio）
+**專業圖片工作站**。
+
+- 文字生圖（9 種模型）
+- 圖片編輯（風格轉換、ControlNet、FaceID）
+- 超解析度、去背
+- 批次生成、多尺寸
+
+### 4. 影片工作室（/video-studio）
+**專業影片工作站**。
+
+- 文字轉影片（8 種模型）
+- 圖片轉影片（6 種模型）
+- 影片轉影片、影片轉音頻
+- 首幀/尾幀控制
+- 5/10/15 秒時長選擇
+
+---
+
+## 🤖 AI 協作區
+
+### 5. 導演 AI（/director）
+CO-STAR 雙引擎導演系統。
+
+- 三種人格：沉穩/創意/技術
+- Storyboard 即時面板
+- 腳本一鍵發送到工作室
+- 腳本微調、模板庫
+- 對話持久化
+
+### 6. 光球（全站浮動 Orb）
+AI 創作夥伴，在每個頁面都能開啟。
+
+- 三種人格同步導演 AI
+- 了解全站所有功能和模型
+- 根據當前頁面提供情境建議
+- 提示詞優化、功能引導
+
+---
+
+## 🔧 訓練與管理區
+
+### 7. 角色鍛造所（/models）
+LoRA 微調模型管理。
+
+### 8. LoRA 訓練工坊（/lora-trainer）
+四步驟微調訓練流程。
+
+### 9. 一致性保險庫（/vault）
+角色/場景視覺一致性。
+
+---
+
+## 📊 歷史與資產區
+
+### 10. 生成歷史（/history）
+所有生成紀錄、書籤、評分。
+
+### 11. 數位資產庫（/assets）
+統一管理所有數位資產。
+
+---
+
+## 📝 專案管理區
+
+### 12. 專案筆記（/notes）
+筆記 + 腳本 + 日曆事件。
+
+### 13. 創作排程（/calendar）
+時間線管理、Google Calendar 整合。
+
+### 14. 共享空間（/shared）
+團隊協作與作品展示。
+
+---
+
+## 📈 分析與回饋區
+
+### 15. 儀表板（/dashboard）
+使用統計、點數消耗、趨勢分析。
+
+### 16. 回饋中心（/feedback）
+Bug 回報、功能建議。
+
+---
+
+## 📚 學習區
+
+### 17. 學習文件（/learn）
+教學文章、模型說明、API 文件。
+
+---
+
+## 🧘 身心靈區
+
+### 18. 專注流（/focus-flow）
+番茄鐘 + 療癒呼吸 + 想法記錄。
+
+---
+
+## ⚙️ 設定區
+
+### 19. 個人設定（/settings）
+導演偏好、帳戶管理。
+
+### 20. AI 大腦設定（/settings/ai-brain）
+自訂每個模態的 AI 引擎。
+
+### 21. 管理後台（/admin）
+管理員專屬：用戶管理、使用統計。
+
+---
+
+## 💡 快速跳轉指南
+
+| 我想要... | 去哪裡？ |
+|-----------|---------|
+| 生成一張圖片 | 創作工作室 或 圖片創作室 |
+| 製作短影片 | 影片工作室 |
+| 生成音樂 | 音樂配音創作室 |
+| AI 幫我規劃腳本 | 導演 AI |
+| 訓練我的角色模型 | LoRA 訓練工坊 |
+| 查看過去的作品 | 生成歷史 |
+| 管理所有素材 | 數位資產庫 |
+| 學習使用技巧 | 學習文件 |
+| 放鬆一下 | 專注流 |
+`,
+    tags: ["全站地圖", "功能索引", "入門", "導覽"],
+    difficulty: "beginner",
+    readingMinutes: 10,
+    publishedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-04-13T00:00:00Z",
+    featured: true,
+    authorName: "Healing Studio Team",
+  },
+
+  {
+    id: "tech-prompt-mastery",
+    category: "technique",
+    title: "提示詞大師班：四大模態的提示詞撰寫秘訣",
+    summary: "從圖片到語音，手把手教你寫出高品質的 AI 提示詞，附上大量實際範例。",
+    content: `# 提示詞大師班
+
+掌握提示詞是使用 AI 生成工具最重要的技能。本文涵蓋四大模態的提示詞撰寫技巧。
+
+---
+
+## 一、圖片提示詞
+
+### 基本結構
+\`\`\`
+[主體] + [環境/背景] + [光線] + [構圖] + [風格] + [色調] + [品質關鍵字]
+\`\`\`
+
+### 品質關鍵字（加在尾部提升品質）
+- \`8K ultra detail, masterpiece, best quality\`
+- \`professional photography, award-winning\`
+- \`cinematic lighting, volumetric light\`
+- \`sharp focus, intricate details\`
+
+### 風格關鍵字
+| 風格 | 關鍵字 |
+|------|--------|
+| 寫實攝影 | \`photorealistic, DSLR, 85mm lens, bokeh\` |
+| 油畫 | \`oil painting, impasto, gallery quality\` |
+| 水彩 | \`watercolor, soft edges, paper texture\` |
+| 動漫 | \`anime style, cel shading, vibrant colors\` |
+| 3D 渲染 | \`3D render, octane, unreal engine 5\` |
+| 極簡 | \`minimalist, clean, negative space\` |
+
+### 實際範例
+
+**人像攝影：**
+> A graceful young woman in a flowing white dress standing in a sunlit meadow, golden hour backlight creating a halo effect, shallow depth of field, 85mm portrait lens, perfectly symmetrical anatomy, flawless proportions, 8K ultra detail
+
+**風景：**
+> A serene Japanese zen garden at dawn, raked sand patterns, moss-covered stones, soft morning mist, warm golden light filtering through maple trees, wide angle composition, cinematic color grading, 4K
+
+**產品：**
+> A sleek wireless earbuds product shot on a reflective black surface, dramatic rim lighting, clean white background, professional studio setup, commercial photography, ultra sharp focus
+
+### 負面提示詞（避免不良效果）
+- \`blurry, low quality, distorted, watermark\`
+- \`extra fingers, deformed hands\`（人物專用）
+- \`cropped, out of frame\`
+
+---
+
+## 二、影片提示詞
+
+### 基本結構
+\`\`\`
+[場景描述] + [動態/運鏡] + [氛圍] + [技術參數]
+\`\`\`
+
+### 常用運鏡詞彙
+| 運鏡 | 描述 | 適用場景 |
+|------|------|----------|
+| dolly zoom | 鏡頭推近/拉遠 | 強調主體 |
+| tracking shot | 跟蹤鏡頭 | 跟隨運動 |
+| aerial view | 空拍俯瞰 | 壯闊場景 |
+| slow motion | 慢動作 | 戲劇效果 |
+| time-lapse | 縮時攝影 | 時間流逝 |
+| pan | 水平搖移 | 展示環境 |
+| tilt | 垂直搖移 | 展示高度 |
+
+### 實際範例
+
+**自然場景：**
+> Slow aerial tracking shot over a misty mountain lake at sunrise, gentle ripples on water surface, warm golden light breaking through clouds, cinematic 24fps, anamorphic lens flare
+
+**人物動態：**
+> A dancer performing a graceful spin in slow motion, flowing silk dress creating dynamic shapes, dramatic side lighting, shallow depth of field, 60fps slow motion
+
+**產品展示：**
+> Smooth 360-degree rotation around a luxury watch on a marble surface, dramatic lighting revealing metallic reflections, shallow depth of field, commercial style
+
+---
+
+## 三、音樂提示詞
+
+### 基本結構
+\`\`\`
+[風格/類型] + [情緒] + [樂器] + [節奏/BPM] + [時長]
+\`\`\`
+
+### 風格參考
+| 類型 | 關鍵字範例 |
+|------|-----------|
+| 環境音樂 | ambient, atmospheric, ethereal |
+| 電子音樂 | electronic, synth-wave, EDM, lo-fi |
+| 古典 | orchestral, piano solo, string quartet |
+| 流行 | pop, catchy melody, upbeat |
+| 搖滾 | rock, electric guitar, driving drums |
+| 爵士 | jazz, smooth, saxophone, swing |
+| 療癒 | healing, meditation, nature sounds |
+
+### 實際範例
+
+**冥想音樂：**
+> Ambient meditation music, gentle flowing water sounds, soft singing bowls, ethereal pad drones, 60 BPM, deeply calming and introspective, 60 seconds
+
+**品牌配樂：**
+> Uplifting corporate background music, clean piano with light strings, inspirational and professional, 120 BPM, modern and optimistic, 30 seconds
+
+**遊戲配樂：**
+> Epic orchestral fantasy battle theme, full symphony with brass fanfares, intense percussion, building to a heroic climax, 140 BPM, 45 seconds
+
+---
+
+## 四、語音提示詞
+
+### TTS 腳本撰寫技巧
+1. **標點控制節奏**：逗號=短停，句號=長停
+2. **括號標註情感**：（溫柔地）、（興奮地）
+3. **保持自然語序**：避免過於書面的用語
+4. **控制長度**：每段 50-100 字最佳
+
+### 實際範例
+
+**冥想引導：**
+> （緩慢、溫柔地）現在，請你閉上眼睛。深深地吸一口氣......（停頓三秒）然後，慢慢地吐出來。感受空氣流過你的身體，讓每一個細胞都得到放鬆。
+
+**品牌旁白：**
+> （自信、專業地）在科技與人文的交匯點，我們相信創造力的無限可能。這不只是一個工具，這是你的創意夥伴。
+
+**教學解說：**
+> （清晰、友善地）歡迎來到 Healing Studio。今天我要帶你完成第一件 AI 創作。首先，點擊左邊的「創作工作室」。
+`,
+    tags: ["提示詞", "技巧", "圖片", "影片", "音樂", "語音", "教學"],
+    difficulty: "intermediate",
+    readingMinutes: 12,
+    publishedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-04-13T00:00:00Z",
+    featured: true,
+    authorName: "Healing Studio Team",
+  },
+
 ];
 
 // ─── In-memory store（後端無 DB 表時使用） ────────────────────────────────

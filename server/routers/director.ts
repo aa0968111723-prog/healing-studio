@@ -16,6 +16,7 @@ import { router, protectedProcedure } from "../_core/trpc";
 import { invokeLLM } from "../_core/llm";
 import * as db from "../db";
 import { buildMemoryContext } from "../services/ragMemory";
+import { buildDirectorSystemPrompt, GENERATION_MODALITIES_KNOWLEDGE, WORKFLOW_KNOWLEDGE } from "../services/siteKnowledge";
 import type { DirectorTemplate } from "../../shared/types";
 
 // ─── Timeout Utility ────────────────────────────────────────────────────────
@@ -161,6 +162,7 @@ async function runDirectorAI(
   personality: "calm" | "creative" | "technical" = "creative",
 ) {
   const persona = PERSONALITY_PROMPTS[personality] ?? PERSONALITY_PROMPTS.creative;
+  const fullDirectorPrompt = buildDirectorSystemPrompt(personality);
 
   // Build RAG memory context for this user (gracefully degrade if unavailable)
   let memoryContext = "";
@@ -177,12 +179,17 @@ async function runDirectorAI(
     ? `\n\n【用戶歷史偏好記憶】\n${memoryContext}\n請參考用戶的歷史偏好來調整建議。`
     : "";
 
-  // Step 1: Factual grounding with personality-aware research style
+  // Step 1: Factual grounding with personality-aware research style + full platform knowledge
   const researchResult = await withTimeout(invokeLLM({
     messages: [
       {
         role: "system",
-        content: persona.researchStyle + memorySection,
+        content: `${persona.researchStyle}
+
+你深入了解 Healing Studio 平台所有生成模型和工具：
+${GENERATION_MODALITIES_KNOWLEDGE}
+${WORKFLOW_KNOWLEDGE}
+${memorySection}`,
       },
       ...messages.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
     ],
@@ -190,21 +197,12 @@ async function runDirectorAI(
   const researchContent = typeof researchResult.choices[0]?.message?.content === "string"
     ? researchResult.choices[0].message.content : "";
 
-  // Step 2: Creative orchestration with CO-STAR framework
+  // Step 2: Creative orchestration with CO-STAR framework + full director knowledge
   const scriptResult = await withTimeout(invokeLLM({
     messages: [
       {
         role: "system",
-        content: `${persona.directorStyle}
-
-使用 CO-STAR 框架來創作結構化的多媒體腳本。
-
-CO-STAR 框架：
-- Context（背景）：場景的背景設定
-- Situation（情境）：當前的情境描述
-- Task（任務）：需要完成的創作任務
-- Action（行動）：具體的執行步驟
-- Result（結果）：預期的成果
+        content: `${fullDirectorPrompt}
 
 基於以下研究資料，創作一個結構化的 JSON 腳本：
 ${researchContent}
@@ -212,9 +210,9 @@ ${persona.proactiveHint}
 
 輸出 JSON 格式必須包含：
 - context, situation, task, action, result（CO-STAR 各欄位）
-- visualPrompt：給 Veo 3.1 的視覺提示詞（英文，包含正面解剖學約束）
-- audioScript：給 ElevenLabs 的語音腳本（繁體中文）
-- musicVibe：給 Suno V5 的音樂風格描述（英文）
+- visualPrompt：視覺提示詞（英文，包含推薦模型名稱和正面解剖學約束）
+- audioScript：語音腳本（繁體中文，標明推薦的 TTS 模型）
+- musicVibe：音樂風格描述（英文，標明推薦的音樂模型）
 - proactiveQuestion：主動向使用者提出的引導性問題（繁體中文，根據使用者描述中缺少的元素提問）`,
       },
       ...messages.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
@@ -301,13 +299,13 @@ export const directorRouter = router({
       personality: z.enum(["calm", "creative", "technical"]).default("creative"),
     }))
     .mutation(async ({ input }) => {
-      const persona = PERSONALITY_PROMPTS[input.personality] ?? PERSONALITY_PROMPTS.creative;
+      const fullPrompt = buildDirectorSystemPrompt(input.personality);
 
       const result = await withTimeout(invokeLLM({
         messages: [
           {
             role: "system",
-            content: `${persona.directorStyle}
+            content: `${fullPrompt}
 
 你收到一份已存在的 CO-STAR 腳本，以及使用者的修改指示。
 請根據指示修改腳本，保留未被要求更動的部分。
