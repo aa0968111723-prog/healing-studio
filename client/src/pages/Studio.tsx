@@ -803,7 +803,7 @@ export default function Studio() {
       mode,
       vibeCardIds: promptBuilder.vibeCardIds,
       temperature,
-      seed: seed ? parseInt(seed) : undefined,
+      seed: seed.trim() ? (isNaN(parseInt(seed)) ? undefined : parseInt(seed)) : undefined,
       ...(activeModality === "image" && {
         aspectRatio: imageState.aspectRatio,
         negativePrompt: imageState.negativePrompt || undefined,

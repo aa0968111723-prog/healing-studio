@@ -878,25 +878,55 @@ export const ProgressivePromptBuilder = memo(function ProgressivePromptBuilder({
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [value.rawPrompt]);
 
+  // ─── Advanced fields → compiled prompt builder ────────────────────────────
+  // Compiles rawPrompt + advancedFields + vibeCards into a final prompt string
+  const buildCompiledPrompt = useCallback((
+    raw: string,
+    adv: AdvancedFields,
+    vibes: string[],
+    tkns: TokenWeight[]
+  ): string => {
+    // Start with raw prompt (or token-weighted version if tokens exist)
+    const base = tkns.length > 0 ? compileWithWeights(tkns, [], raw) : raw;
+
+    // Append advanced structured fields
+    const advParts: string[] = [];
+    if (adv.subject?.trim()) advParts.push(`Subject: ${adv.subject.trim()}`);
+    if (adv.action?.trim()) advParts.push(`Action: ${adv.action.trim()}`);
+    if (adv.environment?.trim()) advParts.push(`Environment: ${adv.environment.trim()}`);
+    if (adv.lighting?.trim()) advParts.push(`Lighting: ${adv.lighting.trim()}`);
+    if (adv.cameraAngle?.trim()) advParts.push(`Camera: ${adv.cameraAngle.trim()}`);
+
+    // Append vibe style labels
+    const vibeLabels = vibes
+      .map(id => VIBE_CARDS.find(v => v.id === id)?.label)
+      .filter(Boolean) as string[];
+
+    const parts: string[] = [];
+    if (base.trim()) parts.push(base.trim());
+    if (advParts.length > 0) parts.push(advParts.join(", "));
+    if (vibeLabels.length > 0) parts.push(`Style: ${vibeLabels.join(", ")}`);
+    return parts.join(". ").trim();
+  }, []);
+
   // Recompile when tokens change
   const recompile = useCallback((updatedTokens: TokenWeight[], vibes: string[]) => {
-    const compiled = compileWithWeights(updatedTokens, vibes, value.rawPrompt);
+    const compiled = buildCompiledPrompt(value.rawPrompt, value.advancedFields, vibes, updatedTokens);
     onChange({ ...value, compiledPrompt: compiled, tokenWeights: updatedTokens, vibeCardIds: vibes });
-  }, [value, onChange]);
+  }, [value, onChange, buildCompiledPrompt]);
 
   const updateField = useCallback((key: keyof PromptBuilderOutput, val: unknown) => {
     const next = { ...value, [key]: val };
     if (key === "vibeCardIds") {
-      recompile(tokens, val as string[]);
+      const compiled = buildCompiledPrompt(value.rawPrompt, value.advancedFields, val as string[], tokens);
+      onChange({ ...next, compiledPrompt: compiled });
     } else if (key === "rawPrompt") {
-      const vibeLabels = value.vibeCardIds.map(id => VIBE_CARDS.find(v => v.id === id)?.label).filter(Boolean);
-      const parts = [val as string];
-      if (vibeLabels.length > 0) parts.push(`Style: ${vibeLabels.join(", ")}`);
-      onChange({ ...next, compiledPrompt: parts.join(". ").trim() });
+      const compiled = buildCompiledPrompt(val as string, value.advancedFields, value.vibeCardIds, tokens);
+      onChange({ ...next, compiledPrompt: compiled });
     } else {
       onChange(next);
     }
-  }, [value, onChange, tokens, recompile]);
+  }, [value, onChange, tokens, buildCompiledPrompt]);
 
   const toggleVibe = useCallback((id: string) => {
     const next = value.vibeCardIds.includes(id)
@@ -907,8 +937,10 @@ export const ProgressivePromptBuilder = memo(function ProgressivePromptBuilder({
 
   const updateAdvanced = useCallback((key: keyof AdvancedFields, val: string) => {
     const next = { ...value.advancedFields, [key]: val };
-    updateField("advancedFields", next);
-  }, [value.advancedFields, updateField]);
+    // Recompile compiled prompt including the updated advanced fields
+    const compiled = buildCompiledPrompt(value.rawPrompt, next, value.vibeCardIds, tokens);
+    onChange({ ...value, advancedFields: next, compiledPrompt: compiled });
+  }, [value, onChange, tokens, buildCompiledPrompt]);
 
   const handleTokenWeightChange = useCallback((tokenId: string, weight: number) => {
     const updated = tokens.map(t => t.id === tokenId ? { ...t, weight } : t);
@@ -916,19 +948,32 @@ export const ProgressivePromptBuilder = memo(function ProgressivePromptBuilder({
     recompile(updated, value.vibeCardIds);
   }, [tokens, value.vibeCardIds, recompile]);
 
-  const handleBlockToggle = useCallback((blockId: string, prompt: string) => {
+  const handleBlockToggle = useCallback((blockId: string, prompt: string, categoryId: string) => {
     const next = new Set(selectedBlocks);
     if (next.has(blockId)) {
+      // Deselect
       next.delete(blockId);
       const newRaw = value.rawPrompt.replace(prompt, "").replace(/,\s*,/g, ",").replace(/^,\s*|,\s*$/g, "").trim();
       updateField("rawPrompt", newRaw);
     } else {
+      // ── Enforce 1-per-category limit for conflicting categories ──
+      // Find any other selected item in the same category and deselect it first
+      const cat = blockCategories.find(c => c.id === categoryId);
+      let rawPrompt = value.rawPrompt;
+      if (cat) {
+        for (const item of cat.items) {
+          if (next.has(item.id)) {
+            next.delete(item.id);
+            rawPrompt = rawPrompt.replace(item.prompt, "").replace(/,\s*,/g, ",").replace(/^,\s*|,\s*$/g, "").trim();
+          }
+        }
+      }
       next.add(blockId);
-      const separator = value.rawPrompt.trim() ? ", " : "";
-      updateField("rawPrompt", value.rawPrompt.trim() + separator + prompt);
+      const separator = rawPrompt.trim() ? ", " : "";
+      updateField("rawPrompt", rawPrompt.trim() + separator + prompt);
     }
     setSelectedBlocks(next);
-  }, [selectedBlocks, value.rawPrompt, updateField]);
+  }, [selectedBlocks, value.rawPrompt, updateField, blockCategories]);
 
   const handleCustomBlockToggle = useCallback((block: { id: number; prompt: string }) => {
     const next = new Set(selectedCustomBlockIds);
@@ -1184,7 +1229,7 @@ export const ProgressivePromptBuilder = memo(function ProgressivePromptBuilder({
                             item={item}
                             category={cat}
                             isSelected={selectedBlocks.has(item.id)}
-                            onToggle={() => handleBlockToggle(item.id, item.prompt)}
+                            onToggle={() => handleBlockToggle(item.id, item.prompt, cat.id)}
                           />
                         ))}
                         {/* Custom blocks in this category */}

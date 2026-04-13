@@ -118,18 +118,14 @@ export function ImageWorkspace({ value, onChange }: ImageWorkspaceProps) {
           {STYLE_PRESETS.map((preset) => (
             <button
               key={preset.value}
-              onClick={() => update({ vibeReferenceUrl: null, styleReferenceUrl: null,
-                // Inject style preset into the prompt via a custom event the parent can listen to
-                // For now we also expose it as a data attribute so Studio can read it
-              })}
+              onClick={(e) => {
+                // Dispatch a custom event so Studio/parent can inject this into the prompt
+                const event = new CustomEvent("apply-style-preset", { detail: preset.value, bubbles: true });
+                (e.currentTarget as HTMLElement).dispatchEvent(event);
+              }}
               title={preset.value}
               className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-white/40 text-muted-foreground hover:bg-primary/10 hover:text-primary border border-white/60 hover:border-primary/30 transition-all"
               data-style-preset={preset.value}
-              onClickCapture={(e) => {
-                // Dispatch a custom event so Studio/parent can inject this into the prompt
-                const event = new CustomEvent("apply-style-preset", { detail: preset.value, bubbles: true });
-                (e.target as HTMLElement).dispatchEvent(event);
-              }}
             >
               {preset.label}
             </button>
