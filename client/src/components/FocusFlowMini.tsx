@@ -11,7 +11,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useFocusFlow, BREATHING_PHASES, POMODORO_WORK_SECONDS, POMODORO_BREAK_SECONDS, HEALING_SECONDS } from "@/contexts/FocusFlowContext";
+import { useFocusFlow, BREATHING_PHASES } from "@/contexts/FocusFlowContext";
 import {
   Timer,
   Heart,
@@ -41,12 +41,14 @@ function MiniPomodoro() {
     pomodoroRemaining,
     pomodoroRunning,
     pomodoroRounds,
+    pomodoroWorkMin,
+    pomodoroBreakMin,
     togglePomodoro,
     resetPomodoro,
   } = useFocusFlow();
 
-  const totalSeconds = pomodoroPhase === "work" ? POMODORO_WORK_SECONDS : POMODORO_BREAK_SECONDS;
-  const progress = ((totalSeconds - pomodoroRemaining) / totalSeconds) * 100;
+  const totalSeconds = pomodoroPhase === "work" ? pomodoroWorkMin * 60 : pomodoroBreakMin * 60;
+  const progress = totalSeconds > 0 ? ((totalSeconds - pomodoroRemaining) / totalSeconds) * 100 : 0;
 
   return (
     <div className="flex flex-col items-center gap-3 py-2">
@@ -103,6 +105,7 @@ function MiniHealing() {
   const {
     healingRemaining,
     healingRunning,
+    healingMin,
     breathPhaseIdx,
     breathLabel,
     toggleHealing,
@@ -110,7 +113,8 @@ function MiniHealing() {
   } = useFocusFlow();
 
   const currentBreathPhase = BREATHING_PHASES[breathPhaseIdx];
-  const progress = ((HEALING_SECONDS - healingRemaining) / HEALING_SECONDS) * 100;
+  const healingSec = healingMin * 60;
+  const progress = healingSec > 0 ? ((healingSec - healingRemaining) / healingSec) * 100 : 0;
 
   return (
     <div className="flex flex-col items-center gap-3 py-2">

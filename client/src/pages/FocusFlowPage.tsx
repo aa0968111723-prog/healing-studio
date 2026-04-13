@@ -36,13 +36,15 @@ import {
   Brain,
   Wind,
   ListChecks,
+  Clock,
+  Settings2,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
   useFocusFlow,
-  POMODORO_WORK_SECONDS,
-  POMODORO_BREAK_SECONDS,
-  HEALING_SECONDS,
+  POMODORO_WORK_PRESETS,
+  POMODORO_BREAK_PRESETS,
+  HEALING_PRESETS,
   BREATHING_PHASES,
   type FlowMode,
 } from "@/contexts/FocusFlowContext";
@@ -54,7 +56,7 @@ const MODE_CONFIG: Record<FlowMode, { icon: typeof Timer; label: string; color: 
     icon: Timer,
     label: "番茄鐘",
     color: "text-red-500",
-    description: "25 分鐘專注 + 5 分鐘休息",
+    description: "自訂專注與休息時長",
   },
   healing: {
     icon: Heart,
@@ -78,6 +80,52 @@ function formatTime(seconds: number): string {
   return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
+// ─── Time Preset Picker ─────────────────────────────────────────────────────
+
+function TimePresetPicker({
+  label,
+  presets,
+  value,
+  onChange,
+  disabled,
+  colorClass = "bg-primary",
+}: {
+  label: string;
+  presets: readonly number[];
+  value: number;
+  onChange: (min: number) => void;
+  disabled?: boolean;
+  colorClass?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-1.5">
+        <Clock className="h-3 w-3 text-muted-foreground" />
+        <span className="text-xs text-muted-foreground">{label}</span>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {presets.map((min) => {
+          const isActive = value === min;
+          return (
+            <button
+              key={min}
+              onClick={() => onChange(min)}
+              disabled={disabled}
+              className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
+                isActive
+                  ? `${colorClass} text-primary-foreground shadow-sm`
+                  : "bg-muted/60 text-muted-foreground hover:bg-muted"
+              } ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+            >
+              {min} 分
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Pomodoro Timer (reads from FocusFlowContext) ────────────────────────────
 
 function PomodoroTimer() {
@@ -86,21 +134,33 @@ function PomodoroTimer() {
     pomodoroRemaining: remaining,
     pomodoroRunning: running,
     pomodoroRounds: rounds,
+    pomodoroWorkMin,
+    pomodoroBreakMin,
+    setPomodoroWorkMin,
+    setPomodoroBreakMin,
     togglePomodoro,
     resetPomodoro,
+    totalFocusSeconds,
   } = useFocusFlow();
 
-  const totalSeconds = phase === "work" ? POMODORO_WORK_SECONDS : POMODORO_BREAK_SECONDS;
+  const [showSettings, setShowSettings] = useState(false);
+
+  const totalSeconds = phase === "work" ? pomodoroWorkMin * 60 : pomodoroBreakMin * 60;
   const progress = ((totalSeconds - remaining) / totalSeconds) * 100;
 
   return (
-    <div className="flex flex-col items-center gap-6">
-      {/* Phase badge */}
+    <div className="flex flex-col items-center gap-5">
+      {/* Phase badge + stats */}
       <div className="flex items-center gap-3">
         <Badge variant={phase === "work" ? "default" : "secondary"} className="text-sm px-3 py-1">
           {phase === "work" ? "🍅 專注中" : "☕ 休息中"}
         </Badge>
         <span className="text-sm text-muted-foreground">已完成 {rounds} 輪</span>
+        {totalFocusSeconds > 0 && (
+          <span className="text-xs text-muted-foreground/70">
+            累計 {Math.round(totalFocusSeconds / 60)} 分鐘
+          </span>
+        )}
       </div>
 
       {/* Timer circle */}
@@ -122,7 +182,9 @@ function PomodoroTimer() {
         </svg>
         <div className="flex flex-col items-center">
           <span className="text-4xl font-bold tabular-nums text-foreground">{formatTime(remaining)}</span>
-          <span className="text-xs text-muted-foreground mt-1">{phase === "work" ? "專注時間" : "休息時間"}</span>
+          <span className="text-xs text-muted-foreground mt-1">
+            {phase === "work" ? `專注 ${pomodoroWorkMin} 分鐘` : `休息 ${pomodoroBreakMin} 分鐘`}
+          </span>
         </div>
       </div>
 
@@ -138,7 +200,49 @@ function PomodoroTimer() {
         >
           {running ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 ml-0.5" />}
         </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => setShowSettings((s) => !s)}
+          className={`rounded-full h-10 w-10 transition-colors ${showSettings ? "bg-muted" : ""}`}
+        >
+          <Settings2 className="h-4 w-4" />
+        </Button>
       </div>
+
+      {/* Time presets (collapsible) */}
+      <AnimatePresence>
+        {showSettings && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="w-full overflow-hidden"
+          >
+            <div className="flex flex-col gap-3 p-4 rounded-xl bg-muted/30 border border-border/50">
+              <TimePresetPicker
+                label="專注時長"
+                presets={POMODORO_WORK_PRESETS}
+                value={pomodoroWorkMin}
+                onChange={setPomodoroWorkMin}
+                disabled={running}
+                colorClass="bg-red-500"
+              />
+              <TimePresetPicker
+                label="休息時長"
+                presets={POMODORO_BREAK_PRESETS}
+                value={pomodoroBreakMin}
+                onChange={setPomodoroBreakMin}
+                disabled={running}
+                colorClass="bg-green-500"
+              />
+              {running && (
+                <p className="text-[10px] text-muted-foreground text-center">⏸ 暫停後才能更改時間設定</p>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -149,17 +253,21 @@ function HealingTimer() {
   const {
     healingRemaining: remaining,
     healingRunning: running,
+    healingMin,
+    setHealingMin,
     breathPhaseIdx,
     breathLabel,
     toggleHealing,
     resetHealing,
   } = useFocusFlow();
 
-  const progress = ((HEALING_SECONDS - remaining) / HEALING_SECONDS) * 100;
+  const [showSettings, setShowSettings] = useState(false);
+  const healingSec = healingMin * 60;
+  const progress = healingSec > 0 ? ((healingSec - remaining) / healingSec) * 100 : 0;
   const currentBreathPhase = BREATHING_PHASES[breathPhaseIdx];
 
   return (
-    <div className="flex flex-col items-center gap-6">
+    <div className="flex flex-col items-center gap-5">
       <span className="text-sm text-muted-foreground">
         深呼吸，讓自己慢下來
       </span>
@@ -201,6 +309,7 @@ function HealingTimer() {
             </motion.span>
           </AnimatePresence>
           <span className="text-3xl font-bold tabular-nums text-foreground mt-2">{formatTime(remaining)}</span>
+          <span className="text-[10px] text-muted-foreground mt-1">{healingMin} 分鐘療癒</span>
         </div>
       </div>
 
@@ -221,7 +330,41 @@ function HealingTimer() {
         >
           {running ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 ml-0.5" />}
         </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => setShowSettings((s) => !s)}
+          className={`rounded-full h-10 w-10 transition-colors ${showSettings ? "bg-muted" : ""}`}
+        >
+          <Settings2 className="h-4 w-4" />
+        </Button>
       </div>
+
+      {/* Time presets (collapsible) */}
+      <AnimatePresence>
+        {showSettings && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="w-full overflow-hidden"
+          >
+            <div className="flex flex-col gap-3 p-4 rounded-xl bg-muted/30 border border-border/50">
+              <TimePresetPicker
+                label="療癒時長"
+                presets={HEALING_PRESETS}
+                value={healingMin}
+                onChange={setHealingMin}
+                disabled={running}
+                colorClass="bg-pink-500"
+              />
+              {running && (
+                <p className="text-[10px] text-muted-foreground text-center">⏸ 暫停後才能更改時間設定</p>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
