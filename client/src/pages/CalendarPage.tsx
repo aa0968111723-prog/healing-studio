@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useRef } from "react";
 import { trpc } from "@/lib/trpc";
+import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -180,6 +181,10 @@ function NewEventForm({
 
 export default function CalendarPage() {
   const { personality } = useAIState();
+
+  // 全站新手引導
+  usePageTour("calendar");
+
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [showNewEvent, setShowNewEvent] = useState(false);
   const [month, setMonth] = useState(new Date());

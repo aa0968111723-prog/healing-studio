@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
+import { usePageTour } from "@/contexts/SiteOnboardingContext";
+import { ResetAllToursButton } from "@/components/SiteOnboardingOverlay";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import { Button } from "@/components/ui/button";
@@ -11,6 +13,9 @@ import { useLocation } from "wouter";
 
 export default function SettingsPage() {
   const { user } = useAuth();
+
+  // 全站新手引導
+  usePageTour("settings");
   const { setPersonality: setGlobalPersonality } = useAIState();
   const [, navigate] = useLocation();
 
@@ -44,12 +49,13 @@ export default function SettingsPage() {
   };
 
   const handleRestartOnboarding = () => {
+    // 重置舊式引導標記
     localStorage.removeItem("ai-director-onboarded");
     localStorage.removeItem("hasSeenTour");
     localStorage.removeItem("onboarded");
-    window.dispatchEvent(new CustomEvent("restart-tour"));
-    toast.success("已重置引導狀態，跳轉至工作室...");
-    setTimeout(() => navigate("/studio"), 500);
+    // 觸發全站 Welcome Tour
+    window.dispatchEvent(new CustomEvent("site-tour-start", { detail: { pageId: "welcome" } }));
+    toast.success("已重置引導狀態，全站引導即將開始...");
   };
 
   return (
@@ -171,8 +177,9 @@ export default function SettingsPage() {
                 onClick={handleRestartOnboarding}
               >
                 <RotateCcw className="w-3 h-3 mr-1" />
-                重新啟動光球引導
+                重新觀看全站引導
               </Button>
+              <ResetAllToursButton />
             </div>
           </div>
         )}

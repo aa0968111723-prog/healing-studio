@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -52,6 +53,9 @@ async function downloadFile(url: string, filename: string) {
 export default function AssetsLibrary() {
   const { personality } = useAIState();
   const isMobile = useIsMobile();
+
+  // 全站新手引導
+  usePageTour("assets");
   const [tab, setTab] = useState("my");
   const [expandedId, setExpandedId] = useState<number | null>(null);
 

@@ -8,6 +8,7 @@
 
 import { useState, useRef } from "react";
 import { trpc } from "@/lib/trpc";
+import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -1200,6 +1201,9 @@ function AdvancedControlTab() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export default function VideoStudio() {
+  // 全站新手引導
+  usePageTour("video-studio");
+
   const [activeTab, setActiveTab] = useState<TabId>("t2v");
 
   const MODEL_COUNT = {

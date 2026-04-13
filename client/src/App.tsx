@@ -12,6 +12,8 @@ import ProjectNotesDrawer from "./components/ProjectNotesDrawer";
 import OfflineBanner from "./components/OfflineBanner";
 import AuthExpiredModal from "./components/AuthExpiredModal";
 import { ShowcaseTransferProvider } from "./contexts/ShowcaseTransferContext";
+import { SiteOnboardingProvider } from "./contexts/SiteOnboardingContext";
+import SiteOnboardingOverlay from "./components/SiteOnboardingOverlay";
 
 // ─── 首頁直接載入（不延遲，確保首屏最快） ─────────────────────────────────
 import Home from "./pages/Home";
@@ -34,6 +36,7 @@ const AdminPage        = lazy(() => import("./pages/AdminPage"));
 const ProStudio        = lazy(() => import("./pages/ProStudio"));
 const ImageStudio      = lazy(() => import("./pages/ImageStudio"));
 const VideoStudio      = lazy(() => import("./pages/VideoStudio"));
+const LearnHub         = lazy(() => import("./pages/LearnHub"));
 
 // ─── 頁面載入中的通用 Skeleton ─────────────────────────────────────────────
 function PageSkeleton() {
@@ -126,6 +129,9 @@ function Router() {
       <Route path="/video-studio">
         <ProtectedDashboardRoute component={VideoStudio} />
       </Route>
+      <Route path="/learn">
+        <DashboardRoute component={LearnHub} />
+      </Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
@@ -139,13 +145,16 @@ function App() {
         <PersonalityProvider>
         <NotesDrawerProvider>
           <ShowcaseTransferProvider>
-            <TooltipProvider>
-              <Toaster />
-              <OfflineBanner />
-              <AuthExpiredModal />
-              <Router />
-              <ProjectNotesDrawer />
-            </TooltipProvider>
+            <SiteOnboardingProvider>
+              <TooltipProvider>
+                <Toaster />
+                <OfflineBanner />
+                <AuthExpiredModal />
+                <Router />
+                <ProjectNotesDrawer />
+                <SiteOnboardingOverlay />
+              </TooltipProvider>
+            </SiteOnboardingProvider>
           </ShowcaseTransferProvider>
         </NotesDrawerProvider>
         </PersonalityProvider>

@@ -1,7 +1,11 @@
 import { ConsistencyVault } from "@/components/ConsistencyVault";
 import { Layers } from "lucide-react";
+import { usePageTour } from "@/contexts/SiteOnboardingContext";
 
 export default function VaultPage() {
+  // 全站新手引導
+  usePageTour("vault");
+
   return (
     <div className="space-y-6 max-w-4xl">
       {/* Header */}

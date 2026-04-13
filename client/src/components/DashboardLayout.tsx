@@ -42,30 +42,34 @@ import {
   MessageSquare,
   Zap,
   Film,
+  BookOpen,
 } from "lucide-react";
+import { useSiteOnboarding, type PageId } from "@/contexts/SiteOnboardingContext";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
 import VisualSoul from "./VisualSoul";
 import { useAIState } from "@/contexts/AIStateContext";
+import ProactiveOrbWidget from "./ProactiveOrbWidget";
 
 const menuItems = [
-  { icon: Wand2, label: "創作工作室", path: "/studio" },
-  { icon: Sparkles, label: "專業創作室", path: "/pro-studio" },
-  { icon: Image, label: "圖片創作室", path: "/image-studio" },
-  { icon: Film, label: "影片工作室", path: "/video-studio" },
-  { icon: Clapperboard, label: "導演 AI", path: "/director" },
-  { icon: Cpu, label: "角色鍛造所", path: "/models" },
-  { icon: Clock, label: "生成歷史", path: "/history" },
-  { icon: Package, label: "數位資產庫", path: "/assets" },
-  { icon: Layers, label: "一致性保險庫", path: "/vault" },
-  { icon: StickyNote, label: "專案筆記", path: "/notes" },
-  { icon: CalendarDays, label: "創作排程", path: "/calendar" },
-  { icon: Users, label: "共享空間", path: "/shared" },
-  { icon: BarChart3, label: "儀表板", path: "/dashboard" },
-  { icon: MessageSquare, label: "回饋中心", path: "/feedback" },
-  { icon: Settings, label: "個人設定", path: "/settings" },
+  { icon: Wand2, label: "創作工作室", path: "/studio",       id: "sidebar-studio-link" },
+  { icon: Sparkles, label: "專業創作室", path: "/pro-studio", id: "sidebar-pro-studio-link" },
+  { icon: Image, label: "圖片創作室", path: "/image-studio", id: "sidebar-image-studio-link" },
+  { icon: Film, label: "影片工作室", path: "/video-studio", id: "sidebar-video-studio-link" },
+  { icon: Clapperboard, label: "導演 AI", path: "/director", id: "sidebar-director-link" },
+  { icon: Cpu, label: "角色鍛造所", path: "/models",                     id: "sidebar-models-link" },
+  { icon: Clock, label: "生成歷史", path: "/history",                     id: "sidebar-history-link" },
+  { icon: Package, label: "數位資產庫", path: "/assets",                 id: "sidebar-assets-link" },
+  { icon: Layers, label: "一致性保險庫", path: "/vault",                 id: "sidebar-vault-link" },
+  { icon: StickyNote, label: "專案筆記", path: "/notes",                 id: "sidebar-notes-link" },
+  { icon: CalendarDays, label: "創作排程", path: "/calendar",           id: "sidebar-calendar-link" },
+  { icon: Users, label: "共享空間", path: "/shared",                     id: "sidebar-shared-link" },
+  { icon: BarChart3, label: "儀表板", path: "/dashboard",               id: "sidebar-dashboard-link" },
+  { icon: MessageSquare, label: "回饋中心", path: "/feedback",           id: "sidebar-feedback-link" },
+  { icon: BookOpen, label: "學習文件", path: "/learn",                   id: "sidebar-learn-link" },
+  { icon: Settings, label: "個人設定", path: "/settings",               id: "sidebar-settings-link" },
 ];
 
 const adminItems = [
@@ -156,6 +160,18 @@ function DashboardLayoutContent({
 
   const allItems = user?.role === "admin" ? [...menuItems, ...adminItems] : menuItems;
 
+  // ── 全站 Welcome Tour（首次登入時自動觸發）────────────────────────────
+  const { startTour, hasSeen } = useSiteOnboarding();
+  useEffect(() => {
+    if (!user) return;
+    const timer = setTimeout(() => {
+      if (!hasSeen("welcome")) {
+        startTour("welcome");
+      }
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [user, startTour, hasSeen]);
+
   useEffect(() => {
     if (isCollapsed) setIsResizing(false);
   }, [isCollapsed]);
@@ -213,7 +229,7 @@ function DashboardLayoutContent({
           </SidebarHeader>
 
           <SidebarContent className="gap-0">
-            <SidebarMenu className="px-2 py-1">
+            <SidebarMenu className="px-2 py-1" id="sidebar-nav">
               {allItems.map((item) => {
                 const isActive = location === item.path;
                 return (
@@ -223,6 +239,7 @@ function DashboardLayoutContent({
                       onClick={() => setLocation(item.path)}
                       tooltip={item.label}
                       className="h-10 transition-all font-normal"
+                      id={(item as any).id}
                     >
                       <item.icon
                         className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
@@ -336,6 +353,47 @@ function DashboardLayoutContent({
         )}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-safe-area-inset-bottom" style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}>{children}</main>
       </SidebarInset>
+
+      {/* 全站光球常駐協助（Studio 頁面內已有自己的光球，不需要重複） */}
+      {user && location !== "/studio" && (
+        <ProactiveOrbWidget
+          onRestartTour={() => {
+            // 根據當前路徑尋找對應的 pageId
+            const pathToPageId: Record<string, PageId> = {
+              "/pro-studio":   "pro-studio",
+              "/image-studio": "image-studio",
+              "/video-studio": "video-studio",
+              "/director":     "director",
+              "/models":       "models",
+              "/history":      "history",
+              "/assets":       "assets",
+              "/vault":        "vault",
+              "/notes":        "notes",
+              "/calendar":     "calendar",
+              "/shared":       "shared",
+              "/dashboard":    "dashboard",
+              "/feedback":     "feedback",
+              "/settings":     "settings",
+              "/settings/ai-brain": "settings",
+              "/learn":        "learn",
+            };
+            const pageId = pathToPageId[location] ?? "welcome";
+            window.dispatchEvent(new CustomEvent("site-tour-start", { detail: { pageId } }));
+          }}
+          onSaveToNotes={(payload) => {
+            window.dispatchEvent(new CustomEvent("pin-to-notes", { detail: payload }));
+          }}
+          onOpenNotes={() => {
+            window.dispatchEvent(new CustomEvent("open-notes-drawer"));
+          }}
+          onOpenCalendar={() => {
+            window.dispatchEvent(new CustomEvent("navigate-to", { detail: "/calendar" }));
+          }}
+          onAddToCalendar={(payload) => {
+            window.dispatchEvent(new CustomEvent("add-to-calendar", { detail: payload }));
+          }}
+        />
+      )}
     </>
   );
 }

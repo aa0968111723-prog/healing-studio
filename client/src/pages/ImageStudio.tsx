@@ -8,6 +8,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
+import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -1104,6 +1105,9 @@ function ThreeDPanel({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ImageStudio() {
+  // 全站新手引導
+  usePageTour("image-studio");
+
   // ── Tab / Model ──
   const [activeTab, setActiveTab] = useState<StudioTab>("t2i");
   const [selectedModelId, setSelectedModelId] = useState("nanoBanana2");

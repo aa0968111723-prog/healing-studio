@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
+import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { AIChatBox, type Message } from "@/components/AIChatBox";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -114,6 +115,9 @@ const PERSONALITY_SYSTEM_PROMPTS: Record<Personality, string> = {
 
 export default function DirectorAI() {
   const isMobile = useIsMobile();
+
+  // 全站新手引導
+  usePageTour("director");
   const [, navigate] = useLocation();
   const { setAIState, personality: globalPersonality, setPersonality: setGlobalPersonality } = useAIState();
   const [personality, setPersonality] = useState<Personality>(globalPersonality);

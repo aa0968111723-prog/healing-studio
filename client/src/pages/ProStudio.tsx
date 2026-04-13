@@ -7,6 +7,7 @@
 
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -1370,6 +1371,9 @@ const TABS = [
 ];
 
 export default function ProStudio() {
+  // 全站新手引導
+  usePageTour("pro-studio");
+
   const [tab, setTab] = useState("music");
   const apiKeyQuery = trpc.proStudio.checkApiKey.useQuery();
   const hasKey = apiKeyQuery.data?.configured;
