@@ -5,7 +5,7 @@
  * 分類：音樂生成 / 音效生成 / 語音合成 / 聲音克隆 / Kling 語音 / 音訊處理 / 語音識別 / AI 形像影片
  */
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,67 @@ interface AudioResult {
   request_id?: string;
   model?: string;
   [key: string]: unknown;
+}
+
+// ─── 子元件：AsyncAudioPoller — 音訊輪詢元件 ─────────────────────────────────
+
+/**
+ * 當後端 textToMusic / speechToText 回傳 request_id 時
+ * 每 3 秒輪詢 checkAudioStatus，完成後自動顯示 AudioPlayer
+ */
+function AsyncAudioPoller({ result, onUpdate, label }: {
+  result: AudioResult;
+  onUpdate: (r: AudioResult) => void;
+  label?: string;
+}) {
+  const modelId = result.model ?? "";
+  const audioUrl = result.audio_url ?? (result.audio as any)?.url ?? result.url;
+
+  const { data, isError, error } = trpc.proStudio.checkAudioStatus.useQuery(
+    { requestId: result.request_id ?? "", model: modelId },
+    {
+      enabled: !!(result.request_id && !audioUrl && modelId),
+      refetchInterval: (query) => {
+        const s = (query.state.data as any)?.status;
+        return s === "COMPLETED" || s === "FAILED" ? false : 3000;
+      },
+      refetchIntervalInBackground: true,
+      retry: 5,
+    }
+  );
+
+  useEffect(() => {
+    if ((data as any)?.status === "COMPLETED") {
+      const newUrl = (data as any)?.audio_url ?? (data as any)?.text;
+      if (newUrl) {
+        toast.success(`✅ ${label ?? "音訊"} 生成完成！`);
+        onUpdate({ ...result, audio_url: newUrl });
+      }
+    } else if ((data as any)?.status === "FAILED") {
+      toast.error(`❌ ${label ?? "音訊"} 生成失敗`);
+    }
+  }, [(data as any)?.status, label]);
+
+  if (audioUrl) return <AudioPlayer url={audioUrl as string} label={label} />;
+
+  if (isError) return (
+    <div className="mt-4 p-3 rounded-xl border border-destructive/50 bg-destructive/10 text-destructive text-xs flex items-center gap-2">
+      <AlertCircle className="w-4 h-4" />
+      <span>生成失敗：{(error as any)?.message ?? "請重試"}</span>
+    </div>
+  );
+
+  if (result.request_id && !audioUrl) return (
+    <div className="mt-4 p-5 rounded-xl bg-gradient-to-br from-primary/5 to-purple-500/5 border border-primary/20 flex flex-col items-center gap-2">
+      <Loader2 className="w-6 h-6 text-primary animate-spin" />
+      <div className="text-center">
+        <p className="text-sm font-semibold">{label ?? "音訊"} 生成中...</p>
+        <p className="text-xs text-muted-foreground mt-0.5">已提交任務，每 3 秒自動更新進度</p>
+      </div>
+    </div>
+  );
+
+  return null;
 }
 
 // ─── 子元件：音訊播放器 ──────────────────────────────────────────────────────
@@ -453,7 +514,10 @@ function MusicTab() {
   const mutation = trpc.proStudio.textToMusic.useMutation({
     onSuccess: (data) => {
       setResult(data as AudioResult);
-      toast.success("🎵 音樂生成完成！");
+      // 若已有 audio_url 則直接顯示；若只有 request_id 則啟動輪詢
+      const immediate = (data as any)?.audio_url ?? (data as any)?.url;
+      if (immediate) toast.success("🎵 音樂生成完成！");
+      else toast.success("📤 任務已提交！稍後自動更新結果...");
     },
     onError: (e) => toast.error(`生成失敗：${e.message}`),
   });
@@ -520,7 +584,9 @@ function MusicTab() {
             }
           </Button>
         </div>
-        {audioUrl && <AudioPlayer url={audioUrl as string} label="✨ 生成結果" />}
+        {result ? (
+          <AsyncAudioPoller result={result} onUpdate={setResult} label="✨ 音樂生成結果" />
+        ) : null}
       </ToolCard>
 
       {/* 使用說明 */}

@@ -366,7 +366,7 @@ function AsyncVideoPoller({
       toast.error(`❌ ${label ?? "影片"} 生成失敗`);
       onUpdate({ ...result, raw: { ...(result.raw as any), failed: true } });
     }
-  }, [(data as any)?.status, (data as any)?.video_url]);
+  }, [(data as any)?.status, (data as any)?.video_url, label]);
 
   // 已有影片 URL → 直接顯示
   if (result.video_url) {
@@ -455,46 +455,45 @@ function TextToVideoTab() {
 
   async function runKling() {
     if (!klingPrompt.trim()) return toast.error("請輸入提詞");
-    toast.info("⏳ Kling 生成中（約 1-3 分鐘）...");
-    const r = await klingMut.mutateAsync({ prompt: klingPrompt, negativePrompt: klingNeg || undefined, duration: klingDuration, aspectRatio: klingAspect, cfgScale: klingCfg });
+        const r = await klingMut.mutateAsync({ prompt: klingPrompt, negativePrompt: klingNeg || undefined, duration: klingDuration, aspectRatio: klingAspect, cfgScale: klingCfg });
     setKlingResult(r);
-    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");
+    toast.success("📤 任務已提交！稍後自動更新結果...");
   }
 
   async function runWan() {
     if (!wanPrompt.trim()) return toast.error("請輸入提詞");
-    toast.info("⏳ Wan 生成中（約 1-3 分鐘）...");
-    const r = await wanMut.mutateAsync({ prompt: wanPrompt, negativePrompt: wanNeg || undefined, resolution: wanRes, numFrames: wanFrames });
+        const r = await wanMut.mutateAsync({ prompt: wanPrompt, negativePrompt: wanNeg || undefined, resolution: wanRes, numFrames: wanFrames });
     setWanResult(r);
-    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
+    toast.success("📤 任務已提交！稍後自動更新結果...");
+  }
 
   async function runMinimax() {
     if (!mmPrompt.trim()) return toast.error("請輸入提詞");
-    toast.info("⏳ MiniMax 生成中（約 1-3 分鐘）...");
-    const r = await mmMut.mutateAsync({ prompt: mmPrompt, promptOptimizer: mmOptimize });
+        const r = await mmMut.mutateAsync({ prompt: mmPrompt, promptOptimizer: mmOptimize });
     setMmResult(r);
-    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
+    toast.success("📤 任務已提交！稍後自動更新結果...");
+  }
 
   async function runVeo3() {
     if (!veoPrompt.trim()) return toast.error("請輸入提詞");
-    toast.info("⏳ Veo 3 生成中（約 3-8 分鐘）...");
-    const r = await veoMut.mutateAsync({ prompt: veoPrompt, aspectRatio: veoAspect, generateAudio: veoAudio });
+        const r = await veoMut.mutateAsync({ prompt: veoPrompt, aspectRatio: veoAspect, generateAudio: veoAudio });
     setVeoResult(r);
-    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
+    toast.success("📤 任務已提交！稍後自動更新結果...");
+  }
 
   async function runLtx() {
     if (!ltxPrompt.trim()) return toast.error("請輸入提詞");
-    toast.info("⏳ LTX-Video 生成中...");
-    const r = await ltxMut.mutateAsync({ prompt: ltxPrompt, negativePrompt: ltxNeg || undefined });
+        const r = await ltxMut.mutateAsync({ prompt: ltxPrompt, negativePrompt: ltxNeg || undefined });
     setLtxResult(r);
-    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
+    toast.success("📤 任務已提交！稍後自動更新結果...");
+  }
 
   async function runSora() {
     if (!soraPrompt.trim()) return toast.error("請輸入提詞");
-    toast.info("⏳ Sora Turbo 生成中...");
-    const r = await soraMut.mutateAsync({ prompt: soraPrompt, duration: soraDuration, resolution: soraRes, aspectRatio: soraAspect });
+        const r = await soraMut.mutateAsync({ prompt: soraPrompt, duration: soraDuration, resolution: soraRes, aspectRatio: soraAspect });
     setSoraResult(r);
-    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
+    toast.success("📤 任務已提交！稍後自動更新結果...");
+  }
 
   return (
     <div className="space-y-6">
@@ -730,38 +729,38 @@ function ImageToVideoTab() {
 
   async function runKling() {
     if (!klingPrompt.trim() || !klingImage.trim()) return toast.error("請輸入提詞與圖片 URL");
-    toast.info("⏳ Kling 圖生影中...");
-    const r = await klingMut.mutateAsync({ prompt: klingPrompt, imageUrl: klingImage, tailImageUrl: klingTail || undefined, duration: klingDuration });
+        const r = await klingMut.mutateAsync({ prompt: klingPrompt, imageUrl: klingImage, tailImageUrl: klingTail || undefined, duration: klingDuration });
     setKlingResult(r);
-    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
+    toast.success("📤 任務已提交！稍後自動更新結果...");
+  }
 
   async function runWan() {
     if (!wanPrompt.trim() || !wanImage.trim()) return toast.error("請輸入提詞與圖片 URL");
-    toast.info("⏳ Wan 圖生影中...");
-    const r = await wanMut.mutateAsync({ prompt: wanPrompt, imageUrl: wanImage, resolution: wanRes });
+        const r = await wanMut.mutateAsync({ prompt: wanPrompt, imageUrl: wanImage, resolution: wanRes });
     setWanResult(r);
-    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
+    toast.success("📤 任務已提交！稍後自動更新結果...");
+  }
 
   async function runRunway() {
     if (!runwayPrompt.trim() || !runwayImage.trim()) return toast.error("請輸入提詞與圖片 URL");
-    toast.info("⏳ Runway Gen4 圖生影中...");
-    const r = await runwayMut.mutateAsync({ prompt: runwayPrompt, imageUrl: runwayImage, duration: runwayDuration, ratio: runwayRatio as any });
+        const r = await runwayMut.mutateAsync({ prompt: runwayPrompt, imageUrl: runwayImage, duration: runwayDuration, ratio: runwayRatio as any });
     setRunwayResult(r);
-    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
+    toast.success("📤 任務已提交！稍後自動更新結果...");
+  }
 
   async function runPixverse() {
     if (!pvPrompt.trim() || !pvImage.trim()) return toast.error("請輸入提詞與圖片 URL");
-    toast.info("⏳ PixVerse 圖生影中...");
-    const r = await pvMut.mutateAsync({ prompt: pvPrompt, imageUrl: pvImage, duration: pvDuration, quality: pvQuality });
+        const r = await pvMut.mutateAsync({ prompt: pvPrompt, imageUrl: pvImage, duration: pvDuration, quality: pvQuality });
     setPvResult(r);
-    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
+    toast.success("📤 任務已提交！稍後自動更新結果...");
+  }
 
   async function runMinimax() {
     if (!mmPrompt.trim() || !mmImage.trim()) return toast.error("請輸入提詞與圖片 URL");
-    toast.info("⏳ MiniMax 圖生影中...");
-    const r = await mmMut.mutateAsync({ prompt: mmPrompt, imageUrl: mmImage, promptOptimizer: mmOptimize });
+        const r = await mmMut.mutateAsync({ prompt: mmPrompt, imageUrl: mmImage, promptOptimizer: mmOptimize });
     setMmResult(r);
-    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
+    toast.success("📤 任務已提交！稍後自動更新結果...");
+  }
 
   return (
     <div className="space-y-6">
@@ -942,24 +941,24 @@ function VideoToVideoTab() {
 
   async function runWan() {
     if (!wanPrompt.trim() || !wanVideo.trim()) return toast.error("請輸入提詞與影片 URL");
-    toast.info("⏳ Wan 影片重繪中...");
-    const r = await wanMut.mutateAsync({ prompt: wanPrompt, videoUrl: wanVideo, strength: wanStrength });
+        const r = await wanMut.mutateAsync({ prompt: wanPrompt, videoUrl: wanVideo, strength: wanStrength });
     setWanResult(r);
-    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
+    toast.success("📤 任務已提交！稍後自動更新結果...");
+  }
 
   async function runKling() {
     if (!klingPrompt.trim() || !klingVideo.trim()) return toast.error("請輸入提詞與影片 URL");
-    toast.info("⏳ Kling 影片重繪中...");
-    const r = await klingMut.mutateAsync({ prompt: klingPrompt, videoUrl: klingVideo, cfgScale: klingCfg });
+        const r = await klingMut.mutateAsync({ prompt: klingPrompt, videoUrl: klingVideo, cfgScale: klingCfg });
     setKlingResult(r);
-    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
+    toast.success("📤 任務已提交！稍後自動更新結果...");
+  }
 
   async function runLtx() {
     if (!ltxPrompt.trim() || !ltxImage.trim()) return toast.error("請輸入提詞與圖片 URL");
-    toast.info("⏳ LTX 關鍵幀影片生成中...");
-    const r = await ltxMut.mutateAsync({ prompt: ltxPrompt, imageUrl: ltxImage, negativePrompt: ltxNeg || undefined });
+        const r = await ltxMut.mutateAsync({ prompt: ltxPrompt, imageUrl: ltxImage, negativePrompt: ltxNeg || undefined });
     setLtxResult(r);
-    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
+    toast.success("📤 任務已提交！稍後自動更新結果...");
+  }
 
   return (
     <div className="space-y-6">
@@ -1048,24 +1047,24 @@ function EnhancementTab() {
 
   async function runUpscale() {
     if (!upVideo.trim()) return toast.error("請輸入影片 URL");
-    toast.info("⏳ 影片超分中...");
-    const r = await upscaleMut.mutateAsync({ videoUrl: upVideo, upscaleFactor: upFactor });
+        const r = await upscaleMut.mutateAsync({ videoUrl: upVideo, upscaleFactor: upFactor });
     setUpResult(r);
-    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
+    toast.success("📤 任務已提交！稍後自動更新結果...");
+  }
 
   async function runRife() {
     if (!rifeVideo.trim()) return toast.error("請輸入影片 URL");
-    toast.info("⏳ 影片補幀中...");
-    const r = await rifeMut.mutateAsync({ videoUrl: rifeVideo, multiplier: rifeMult, outputFps: rifeFps });
+        const r = await rifeMut.mutateAsync({ videoUrl: rifeVideo, multiplier: rifeMult, outputFps: rifeFps });
     setRifeResult(r);
-    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
+    toast.success("📤 任務已提交！稍後自動更新結果...");
+  }
 
   async function runTopaz() {
     if (!topazVideo.trim()) return toast.error("請輸入影片 URL");
-    toast.info("⏳ Topaz 增強中（較長時間）...");
-    const r = await topazMut.mutateAsync({ videoUrl: topazVideo, model: topazModel, outputScale: topazScale });
+        const r = await topazMut.mutateAsync({ videoUrl: topazVideo, model: topazModel, outputScale: topazScale });
     setTopazResult(r);
-    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
+    toast.success("📤 任務已提交！稍後自動更新結果...");
+  }
 
   return (
     <div className="space-y-6">
@@ -1183,32 +1182,32 @@ function AdvancedControlTab() {
 
   async function runCam() {
     if (!camPrompt.trim() || !camImage.trim()) return toast.error("請輸入提詞與圖片 URL");
-    toast.info("⏳ CamMaster 鏡頭控制中...");
-    const r = await camMut.mutateAsync({ prompt: camPrompt, imageUrl: camImage, cameraMotion: camMotion as any, duration: camDuration });
+        const r = await camMut.mutateAsync({ prompt: camPrompt, imageUrl: camImage, cameraMotion: camMotion as any, duration: camDuration });
     setCamResult(r);
-    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
+    toast.success("📤 任務已提交！稍後自動更新結果...");
+  }
 
   async function runAnimateDiff() {
     if (!adPrompt.trim() || !adVideo.trim()) return toast.error("請輸入提詞與影片 URL");
-    toast.info("⏳ AnimateDiff 控制生成中...");
-    const r = await adMut.mutateAsync({ prompt: adPrompt, videoUrl: adVideo, controlNet: adControlNet, guidanceScale: adGuide, negativePrompt: adNeg || undefined });
+        const r = await adMut.mutateAsync({ prompt: adPrompt, videoUrl: adVideo, controlNet: adControlNet, guidanceScale: adGuide, negativePrompt: adNeg || undefined });
     setAdResult(r);
-    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
+    toast.success("📤 任務已提交！稍後自動更新結果...");
+  }
 
   async function runDepthCrafter() {
     if (!dcVideo.trim()) return toast.error("請輸入影片 URL");
-    toast.info("⏳ DepthCrafter 深度重建中...");
-    const r = await dcMut.mutateAsync({ videoUrl: dcVideo });
+        const r = await dcMut.mutateAsync({ videoUrl: dcVideo });
     setDcResult(r);
-    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
+    toast.success("📤 任務已提交！稍後自動更新結果...");
+  }
 
   async function runVidu() {
     const urls = viduImages.filter(u => u.trim());
     if (!viduPrompt.trim() || urls.length === 0) return toast.error("請輸入提詞與至少一張圖片 URL");
-    toast.info("⏳ Vidu 角色一致性生成中...");
-    const r = await viduMut.mutateAsync({ prompt: viduPrompt, imageUrls: urls, duration: viduDuration });
+        const r = await viduMut.mutateAsync({ prompt: viduPrompt, imageUrls: urls, duration: viduDuration });
     setViduResult(r);
-    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
+    toast.success("📤 任務已提交！稍後自動更新結果...");
+  }
 
   const CAMERA_MOTIONS = [
     { value: "static", label: "靜態（無鏡頭移動）" },
