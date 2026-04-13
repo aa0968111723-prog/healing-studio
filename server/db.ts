@@ -820,10 +820,17 @@ export async function getStuckJobsByType(jobType: string, stuckAfterMinutes = 15
 
 // ─── Admin: Extended Queries ────────────────────────────────────────────────
 
-/** Admin: Update a user's role */
+/** Admin: Update a user's role (protects super-admin emails from demotion) */
 export async function updateUserRole(userId: number, role: "user" | "admin") {
   const db = await getDb();
   if (!db) return;
+  // Prevent demoting super-admin accounts
+  if (role !== "admin") {
+    const [target] = await db.select({ email: users.email }).from(users).where(eq(users.id, userId)).limit(1);
+    if (target?.email && isAdminEmail(target.email)) {
+      throw new Error("無法變更超級管理員的角色");
+    }
+  }
   await db.update(users).set({ role }).where(eq(users.id, userId));
 }
 

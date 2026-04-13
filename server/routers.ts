@@ -2246,9 +2246,10 @@ export const appRouter = router({
         return db.getAllBackgroundJobs(input.limit);
       }),
 
-    /** API keys configuration status (no secrets exposed) */
+    /** API keys configuration status (no secrets exposed — only boolean isSet) */
     apiKeysStatus: adminProcedure.query(async () => {
-      // Only report whether keys are set, NEVER expose actual values
+      // SECURITY: Only report whether keys are set via boolean flag.
+      // NEVER return env[k.name] values directly — only Boolean(truthy check).
       const env = process.env;
       const keys = [
         { name: "GEMINI_API_KEY", label: "Gemini LLM", module: "LLM 主引擎" },

@@ -17,6 +17,11 @@ import VisualSoul from "@/components/VisualSoul";
 import { motion } from "framer-motion";
 import { useAIState } from "@/contexts/AIStateContext";
 
+// Shared modality icon map (avoid recreating in render loops)
+const MODALITY_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  image: Image, video: Film, audio: Music, voice: Mic,
+};
+
 // ─── Stat Card Component ─────────────────────────────────────────────────────
 function StatCard({ icon: Icon, label, value, sub, color = "text-primary" }: {
   icon: React.ComponentType<{ className?: string }>;
@@ -107,7 +112,7 @@ export default function AdminPage() {
       <div className="flex items-center gap-3">
         <Shield className="w-5 h-5 text-muted-foreground" />
         <h1 className="text-xl font-semibold">管理後台</h1>
-        <Badge variant="outline" className="text-[10px]">超級管理員</Badge>
+        <Badge variant="outline" className="text-[10px]">管理員</Badge>
       </div>
 
       <p className="text-xs text-muted-foreground">
@@ -144,14 +149,16 @@ export default function AdminPage() {
               </div>
 
               {/* Daily trend mini chart */}
-              {trendQuery.data && trendQuery.data.length > 0 && (
+              {trendQuery.data && trendQuery.data.length > 0 && (() => {
+                const trendData = trendQuery.data;
+                const maxCalls = Math.max(...trendData.map(x => x.totalCalls), 1);
+                return (
                 <GlassCard>
                   <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
                     <TrendingUp className="w-4 h-4" /> 近 30 天系統使用趨勢
                   </h3>
                   <div className="flex items-end gap-1 h-24">
-                    {trendQuery.data.map((d, i) => {
-                      const maxCalls = Math.max(...trendQuery.data!.map(x => x.totalCalls), 1);
+                    {trendData.map((d, i) => {
                       const height = Math.max(4, (d.totalCalls / maxCalls) * 100);
                       return (
                         <div
@@ -164,11 +171,12 @@ export default function AdminPage() {
                     })}
                   </div>
                   <div className="flex justify-between mt-1">
-                    <span className="text-[10px] text-muted-foreground">{trendQuery.data[0]?.date}</span>
-                    <span className="text-[10px] text-muted-foreground">{trendQuery.data[trendQuery.data.length - 1]?.date}</span>
+                    <span className="text-[10px] text-muted-foreground">{trendData[0]?.date}</span>
+                    <span className="text-[10px] text-muted-foreground">{trendData[trendData.length - 1]?.date}</span>
                   </div>
                 </GlassCard>
-              )}
+                );
+              })()}
             </>
           ) : (
             <p className="text-center text-muted-foreground py-8 text-sm">無法載入系統統計</p>
@@ -380,8 +388,7 @@ export default function AdminPage() {
           ) : (
             genHistoryQuery.data.map((g) => {
               const u = usersQuery.data?.find(u => u.id === g.userId);
-              const modalityIcons: Record<string, React.ComponentType<{ className?: string }>> = { image: Image, video: Film, audio: Music, voice: Mic };
-              const ModalityIcon = modalityIcons[g.modality] || Cpu;
+              const ModalityIcon = MODALITY_ICONS[g.modality] || Cpu;
               return (
                 <motion.div key={g.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                   <GlassCard>
