@@ -324,6 +324,22 @@ export async function incrementModelUsage(id: number) {
     .where(eq(fineTunedModels.id, id));
 }
 
+/** 取得特定模型的訓練任務歷史 */
+export async function getTrainingJobsByModelId(modelId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.select().from(backgroundJobs)
+    .where(
+      and(
+        eq(backgroundJobs.jobType, "model_training"),
+        sql`JSON_EXTRACT(${backgroundJobs.resultJson}, '$.modelId') = ${modelId}`,
+      ),
+    )
+    .orderBy(desc(backgroundJobs.createdAt))
+    .limit(20);
+  return rows;
+}
+
 // ─── Digital Asset Library ───────────────────────────────────────────────────
 
 export async function createDigitalAsset(data: InsertDigitalAsset) {

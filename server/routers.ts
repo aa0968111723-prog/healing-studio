@@ -1573,6 +1573,62 @@ export const appRouter = router({
         return model;
       }),
 
+    // ── 模型詳細分析（訓練配置 + 資料集 + 訓練歷史 + 使用統計）──────────
+    getAnalysis: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const model = await db.getFineTunedModel(input.id);
+        if (!model) throw new TRPCError({ code: "NOT_FOUND", message: "模型不存在" });
+        if (model.userId !== ctx.user.id && model.visibility !== "team_shared") {
+          throw new TRPCError({ code: "FORBIDDEN", message: "無存取權限" });
+        }
+
+        const trainingJobs = await db.getTrainingJobsByModelId(input.id);
+
+        const config = (model.configJson ?? {}) as Record<string, unknown>;
+        const datasetImages = (config.datasetImages ?? []) as Array<{
+          url: string;
+          fileKey?: string;
+          angle: string;
+          caption?: string;
+        }>;
+
+        return {
+          model: {
+            id: model.id,
+            name: model.name,
+            description: model.description,
+            modelType: model.modelType,
+            status: model.status,
+            visibility: model.visibility,
+            usageCount: model.usageCount,
+            trainedLoraUrl: model.trainedLoraUrl,
+            replicatePredictionId: model.replicatePredictionId,
+            createdAt: model.createdAt,
+            updatedAt: model.updatedAt,
+          },
+          config: {
+            triggerWord: (config.triggerWord as string) || "",
+            epochs: (config.epochs as number) ?? 0,
+            learningRate: (config.learningRate as number) ?? 0,
+            batchSize: (config.batchSize as number) ?? 0,
+            steps: (config.steps as number) ?? 0,
+            submittedAt: (config.submittedAt as number) ?? null,
+            completedAt: (config.completedAt as number) ?? null,
+          },
+          datasetImages,
+          trainingJobs: trainingJobs.map((j) => ({
+            id: j.id,
+            status: j.status,
+            progress: j.progress,
+            progressMessage: j.progressMessage,
+            errorMessage: j.errorMessage,
+            createdAt: j.createdAt,
+            updatedAt: j.updatedAt,
+          })),
+        };
+      }),
+
     // ── 取得訓練任務狀態（輪詢用）────────────────────────────────────────
     trainingStatus: protectedProcedure
       .input(z.object({ jobId: z.number() }))
