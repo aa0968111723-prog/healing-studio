@@ -645,31 +645,39 @@ export default function ShowcaseMasonry({
   }, [aestheticOverride, isReconstructing, utils.showcase.byAesthetics]);
 
   // ─── Merge: visible originals + reconstructed replacements ──────
+  // Hard cap to prevent OOM from unlimited infinite scroll
+  const MAX_DISPLAY_ITEMS = 200;
+
   const allItems = useMemo(() => {
-    if (reconstructedItems.length === 0) return originalItems;
+    let items: ShowcaseItem[];
+    if (reconstructedItems.length === 0) {
+      items = originalItems;
+    } else {
+      // Keep items that are already visible (in viewport)
+      const visibleIds = visibleIdsRef.current;
+      const keptItems = originalItems.filter((item) => visibleIds.has(item.id));
 
-    // Keep items that are already visible (in viewport)
-    const visibleIds = visibleIdsRef.current;
-    const keptItems = originalItems.filter((item) => visibleIds.has(item.id));
+      // Append reconstructed items (already excludes visible IDs from backend)
+      const merged = [...keptItems, ...reconstructedItems];
 
-    // Append reconstructed items (already excludes visible IDs from backend)
-    const merged = [...keptItems, ...reconstructedItems];
-
-    // Deduplicate by ID
-    const seen = new Set<number>();
-    return merged.filter((item) => {
-      if (seen.has(item.id)) return false;
-      seen.add(item.id);
-      return true;
-    });
+      // Deduplicate by ID
+      const seen = new Set<number>();
+      items = merged.filter((item) => {
+        if (seen.has(item.id)) return false;
+        seen.add(item.id);
+        return true;
+      });
+    }
+    // Cap total items to prevent OOM in DOM
+    return items.slice(0, MAX_DISPLAY_ITEMS);
   }, [originalItems, reconstructedItems]);
 
   // ─── Infinite Scroll: IntersectionObserver sentinel ─────────────────
   const loadMore = useCallback(() => {
-    if (hasNextPage && !isFetchingNextPage) {
+    if (hasNextPage && !isFetchingNextPage && originalItems.length < MAX_DISPLAY_ITEMS) {
       fetchNextPage();
     }
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage, originalItems.length]);
 
   useEffect(() => {
     const el = sentinelRef.current;

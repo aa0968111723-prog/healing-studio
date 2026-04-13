@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, lazy, Suspense } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { getLoginUrl, getDemoLoginUrl } from "@/const";
@@ -18,11 +18,13 @@ import SceneSwitcher from "@/components/SceneSwitcher";
 import { useAmbientSound, SoundControl } from "@/components/AmbientSoundEngine";
 import OarsGreeting from "@/components/OarsGreeting";
 import { AmbientVideo } from "@/components/AmbientVideo";
-import IntelBentoGrid from "@/components/IntelBentoGrid";
-import ShowcaseMasonry from "@/components/ShowcaseMasonry";
 import { useSenseEngine } from "@/hooks/useSenseEngine";
 import { useIntentInference } from "@/hooks/useIntentInference";
 import VisualSoulInvitation from "@/components/VisualSoulInvitation";
+
+// ─── Heavy components: lazy load to reduce initial bundle ───────────────────
+const IntelBentoGrid = lazy(() => import("@/components/IntelBentoGrid"));
+const ShowcaseMasonry = lazy(() => import("@/components/ShowcaseMasonry"));
 
 // ─── Scene-Adaptive Style Maps ──────────────────────────────────────────────
 
@@ -551,10 +553,13 @@ export default function Home() {
       )}
 
       {/* ── Intel Bento Grid (情報站) ── */}
-      <IntelBentoGrid sceneId={sceneId} />
+      <Suspense fallback={<div className="flex items-center justify-center py-20"><div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" /></div>}>
+        <IntelBentoGrid sceneId={sceneId} />
+      </Suspense>
 
       {/* ── Showcase Masonry (精選作品瀑布流) ── */}
-      <ShowcaseMasonry
+      <Suspense fallback={<div className="flex items-center justify-center py-20"><div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" /></div>}>
+        <ShowcaseMasonry
         sceneId={sceneId}
         aestheticOverride={
           intentResult &&
@@ -565,6 +570,7 @@ export default function Home() {
             : null
         }
       />
+      </Suspense>
 
       {/* ── CTA Section ── */}
       <section className="py-20 px-4 relative z-10">

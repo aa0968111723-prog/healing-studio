@@ -140,6 +140,7 @@ export function AIStateProvider({ children }: { children: ReactNode }) {
       typingBufferRef.current = typingBufferRef.current.slice(-10);
     }
     const buffer = typingBufferRef.current;
+    idleSecondsRef.current = 0;
     if (buffer.length >= 2) {
       const elapsed = (buffer[buffer.length - 1] - buffer[0]) / 1000;
       const speed = elapsed > 0 ? charCount / elapsed : 0;
@@ -158,6 +159,7 @@ export function AIStateProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const resetIdle = useCallback(() => {
+    idleSecondsRef.current = 0;
     setMetrics((prev) => ({ ...prev, idleSeconds: 0, lastActivity: Date.now() }));
   }, []);
 
@@ -165,13 +167,23 @@ export function AIStateProvider({ children }: { children: ReactNode }) {
     setProactiveMessage(null);
   }, []);
 
-  // Idle timer: increment idleSeconds every second
+  // Idle timer: track idle time via ref, only update state at key thresholds
+  // This avoids triggering a global re-render every second for all useAIState() consumers.
+  const idleSecondsRef = useRef(0);
+
   useEffect(() => {
+    // Thresholds at which proactive rules fire (from PROACTIVE_RULES conditions)
+    const THRESHOLDS = [5, 20, 45, 90];
     idleTimerRef.current = setInterval(() => {
-      setMetrics((prev) => ({
-        ...prev,
-        idleSeconds: prev.idleSeconds + 1,
-      }));
+      idleSecondsRef.current += 1;
+      const sec = idleSecondsRef.current;
+      // Only update React state when crossing a threshold relevant to proactive rules
+      if (THRESHOLDS.includes(sec)) {
+        setMetrics((prev) => ({
+          ...prev,
+          idleSeconds: sec,
+        }));
+      }
     }, 1000);
     return () => {
       if (idleTimerRef.current) clearInterval(idleTimerRef.current);
