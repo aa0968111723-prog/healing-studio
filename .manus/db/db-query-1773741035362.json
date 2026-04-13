@@ -1,0 +1,46 @@
+{
+  "query": "SELECT column_name FROM information_schema.columns WHERE table_name = 'users' ORDER BY ordinal_position;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2fCSGbgaXNaYhdA.c8da999e308a --database aASgFdZpkh6ZcSsaMk5fyX --execute SELECT column_name FROM information_schema.columns WHERE table_name = 'users' ORDER BY ordinal_position;",
+  "rows": [
+    {
+      "column_name": "id"
+    },
+    {
+      "column_name": "openId"
+    },
+    {
+      "column_name": "name"
+    },
+    {
+      "column_name": "email"
+    },
+    {
+      "column_name": "loginMethod"
+    },
+    {
+      "column_name": "role"
+    },
+    {
+      "column_name": "createdAt"
+    },
+    {
+      "column_name": "updatedAt"
+    },
+    {
+      "column_name": "lastSignedIn"
+    },
+    {
+      "column_name": "remainingGenerations"
+    },
+    {
+      "column_name": "quotaJson"
+    },
+    {
+      "column_name": "onboardingDone"
+    }
+  ],
+  "messages": [],
+  "stdout": "column_name\nid\nopenId\nname\nemail\nloginMethod\nrole\ncreatedAt\nupdatedAt\nlastSignedIn\nremainingGenerations\nquotaJson\nonboardingDone\n",
+  "stderr": "",
+  "execution_time_ms": 1571
+}

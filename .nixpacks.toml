@@ -1,0 +1,17 @@
+# This file is kept as a fallback.
+# Railway will prefer the Dockerfile in the root directory.
+# If Nixpacks is used instead, these settings apply:
+
+[phases.setup]
+nixPkgs = ["nodejs_20", "nodePackages.npm"]
+
+[phases.install]
+cmds = [
+  "npm install --legacy-peer-deps"
+]
+
+[phases.build]
+cmds = ["npm run build"]
+
+[start]
+cmd = "node dist/index.js"

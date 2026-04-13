@@ -1,0 +1,40 @@
+CREATE TABLE `featured_showcase` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`generatedItemId` int,
+	`title` varchar(512) NOT NULL,
+	`description` text,
+	`imageUrl` text NOT NULL,
+	`thumbnailUrl` text,
+	`vibeParameters` json,
+	`completelyDeconstructedBlocks` json,
+	`originalPrompt` text,
+	`modality` enum('image','video','audio','voice') NOT NULL DEFAULT 'image',
+	`curatorUserId` int,
+	`sortWeight` int NOT NULL DEFAULT 0,
+	`isActive` boolean NOT NULL DEFAULT true,
+	`likeCount` int NOT NULL DEFAULT 0,
+	`forkCount` int NOT NULL DEFAULT 0,
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `featured_showcase_id` PRIMARY KEY(`id`)
+);
+--> statement-breakpoint
+CREATE TABLE `news_articles` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`title` varchar(512) NOT NULL,
+	`oarsSummary` text NOT NULL,
+	`bodyMarkdown` text,
+	`sourceName` varchar(256) NOT NULL,
+	`sourceUrl` text,
+	`coverImageUrl` text,
+	`category` enum('product_update','community_highlight','tutorial','industry_news','tips_and_tricks') NOT NULL DEFAULT 'product_update',
+	`tags` json,
+	`isPinned` boolean NOT NULL DEFAULT false,
+	`isPublished` boolean NOT NULL DEFAULT false,
+	`publishedAt` timestamp,
+	`authorUserId` int,
+	`viewCount` int NOT NULL DEFAULT 0,
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `news_articles_id` PRIMARY KEY(`id`)
+);

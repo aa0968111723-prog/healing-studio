@@ -1,0 +1,27 @@
+Phase 11 Screenshot Findings
+===========================
+
+1. Studio Page - Custom Blocks UI:
+   - "自訂積木" button visible in toolbar (index 20)
+   - "我的組合 (4)" button visible showing 4 saved combos from test data
+   - Custom blocks from test data visible: *測試積木 (x2)
+   - All built-in blocks still rendering correctly
+
+2. Custom Block Creation Dialog:
+   - Dialog opens correctly with title "建立自訂積木"
+   - Category selector with 5 tabs: 主體, 風格, 場景, 光線, 鏡頭
+   - "積木標籤" input field with placeholder
+   - "英文提示詞" textarea for prompt
+   - "取消" and "建立積木" buttons
+   - Close button (X) in top right
+   - Description text: "建立專屬的靈感積木，加速你的創作流程"
+   - Note: "點選此積木時，此提示詞會自動加入你的創作描述中"
+
+3. Dialog Close: Escape key closes dialog correctly, full blocks view restored
+   - All category labels visible: 主體, 風格, 場景, 光線, 鏡頭
+   - Custom blocks marked with * prefix visible in their categories
+   - "我的組合 (4)" button with orange highlight visible
+   - "+2 自訂" indicator showing custom block count
+
+4. All 184 tests passing (173 existing + 11 new)
+5. TypeScript: 0 errors

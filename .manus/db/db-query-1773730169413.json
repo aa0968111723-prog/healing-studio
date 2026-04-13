@@ -1,0 +1,9 @@
+{
+  "query": "INSERT IGNORE INTO subscription_plans (name, tier, priceMonthly, quotaAllocation, features, isActive)\nVALUES\n('免費體驗', 'free', 0, '{\"image\":10,\"video\":2,\"audio\":5,\"voice\":5}', '[\"基礎生成\",\"社群瀏覽\"]', true),\n('創作者', 'starter', 290, '{\"image\":100,\"video\":20,\"audio\":50,\"voice\":50}', '[\"進階生成\",\"角色訓練\",\"導演AI\"]', true),\n('專業版', 'pro', 790, '{\"image\":500,\"video\":100,\"audio\":200,\"voice\":200}', '[\"無限生成\",\"優先佇列\",\"API存取\",\"團隊協作\"]', true);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2fCSGbgaXNaYhdA.c8da999e308a --database aASgFdZpkh6ZcSsaMk5fyX --execute INSERT IGNORE INTO subscription_plans (name, tier, priceMonthly, quotaAllocation, features, isActive)\nVALUES\n('免費體驗', 'free', 0, '{\"image\":10,\"video\":2,\"audio\":5,\"voice\":5}', '[\"基礎生成\",\"社群瀏覽\"]', true),\n('創作者', 'starter', 290, '{\"image\":100,\"video\":20,\"audio\":50,\"voice\":50}', '[\"進階生成\",\"角色訓練\",\"導演AI\"]', true),\n('專業版', 'pro', 790, '{\"image\":500,\"video\":100,\"audio\":200,\"voice\":200}', '[\"無限生成\",\"優先佇列\",\"API存取\",\"團隊協作\"]', true);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1533
+}
