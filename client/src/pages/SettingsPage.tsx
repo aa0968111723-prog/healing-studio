@@ -20,8 +20,8 @@ export default function SettingsPage() {
   const [, navigate] = useLocation();
 
   // Director preferences
-  const prefsQuery = trpc.directorPreferences.get.useQuery(undefined, { retry: false });
-  const updatePrefs = trpc.directorPreferences.update.useMutation({
+  const prefsQuery = trpc.director.preferences.get.useQuery(undefined, { retry: false });
+  const updatePrefs = trpc.director.preferences.update.useMutation({
     onSuccess: () => {
       toast.success("偏好設定已儲存");
       prefsQuery.refetch();
