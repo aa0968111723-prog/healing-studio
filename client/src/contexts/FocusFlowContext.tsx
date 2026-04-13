@@ -186,11 +186,7 @@ export function FocusFlowProvider({ children }: { children: ReactNode }) {
   // ── Duration setters (only allowed when timer not running) ─────────────
   const setPomodoroWorkMin = useCallback((min: number) => {
     updatePref("pomodoroWorkMin", min);
-    // Reset remaining if we're in work phase and not running
-    setPomodoroRemaining((prev) => {
-      // Only reset if timer is at full or not running
-      return min * 60;
-    });
+    setPomodoroRemaining(min * 60);
     setPomodoroPhase("work");
     setPomodoroRunning(false);
   }, [updatePref]);

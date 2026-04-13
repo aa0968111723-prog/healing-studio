@@ -158,7 +158,7 @@ function PomodoroTimer() {
         <span className="text-sm text-muted-foreground">已完成 {rounds} 輪</span>
         {totalFocusSeconds > 0 && (
           <span className="text-xs text-muted-foreground/70">
-            累計 {Math.floor(totalFocusSeconds / 60)} 分鐘
+            累計 {Math.round(totalFocusSeconds / 60)} 分鐘
           </span>
         )}
       </div>
