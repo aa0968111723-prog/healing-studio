@@ -59,6 +59,20 @@ const STATUS_LABELS: Record<string, { text: string; className: string }> = {
   cancelled: { text: "已取消", className: "bg-muted text-muted-foreground" },
 };
 
+const MODEL_TYPE_LABELS: Record<string, string> = {
+  image_subject: "角色主體",
+  style_lora: "風格 LoRA",
+  voice_clone: "語音複製",
+};
+
+const ANGLE_LABELS: Record<string, string> = {
+  front: "正面",
+  side: "側面",
+  back: "背面",
+  expression: "表情",
+  other: "其他",
+};
+
 function StatusBadge({ status }: { status: string }) {
   const info = STATUS_LABELS[status] ?? { text: status, className: "bg-muted text-muted-foreground" };
   return <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${info.className}`}>{info.text}</span>;
@@ -117,7 +131,7 @@ function ModelAnalysisDialog({ modelId, open, onOpenChange }: {
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">模型類型</span>
                       <span className="font-medium">
-                        {data.model.modelType === "image_subject" ? "角色主體" : data.model.modelType === "style_lora" ? "風格 LoRA" : "語音複製"}
+                        {MODEL_TYPE_LABELS[data.model.modelType] ?? data.model.modelType}
                       </span>
                     </div>
                     <div className="flex justify-between">
@@ -216,7 +230,7 @@ function ModelAnalysisDialog({ modelId, open, onOpenChange }: {
                           </span>
                         </div>
                         <span className="absolute top-1 left-1 text-[9px] bg-black/50 text-white px-1 rounded">
-                          {img.angle === "front" ? "正面" : img.angle === "side" ? "側面" : img.angle === "back" ? "背面" : img.angle === "expression" ? "表情" : "其他"}
+                          {ANGLE_LABELS[img.angle] ?? img.angle}
                         </span>
                       </div>
                     ))}
