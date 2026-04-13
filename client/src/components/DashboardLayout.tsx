@@ -67,6 +67,7 @@ const menuItems = [
   { icon: Film, label: "影片工作室", path: "/video-studio", id: "sidebar-video-studio-link" },
   { icon: Clapperboard, label: "導演 AI", path: "/director", id: "sidebar-director-link" },
   { icon: Cpu, label: "角色鍛造所", path: "/models",                     id: "sidebar-models-link" },
+  { icon: Zap, label: "LoRA 訓練工坊", path: "/lora-trainer",           id: "sidebar-lora-trainer-link" },
   { icon: Clock, label: "生成歷史", path: "/history",                     id: "sidebar-history-link" },
   { icon: Package, label: "數位資產庫", path: "/assets",                 id: "sidebar-assets-link" },
   { icon: Layers, label: "一致性保險庫", path: "/vault",                 id: "sidebar-vault-link" },
