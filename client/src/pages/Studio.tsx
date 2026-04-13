@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -226,6 +227,9 @@ function DrawerPanel({
 export default function Studio() {
   const { user } = useAuth();
   const isMobile = useIsMobile();
+
+  // 全站新手引導
+  usePageTour("studio");
 
   // ── Online status ──
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -1760,8 +1764,8 @@ export default function Studio() {
           window.dispatchEvent(new CustomEvent("add-to-calendar", { detail: payload }));
         }}
         onRestartTour={() => {
-          try { localStorage.removeItem("hasSeenTour"); } catch {}
-          window.dispatchEvent(new CustomEvent("restart-tour"));
+          // 觸發全站引導 for studio
+          window.dispatchEvent(new CustomEvent("site-tour-start", { detail: { pageId: "studio" } }));
         }}
         onApplyInspiration={(blocks) => {
           // Build a prompt string from inspiration blocks

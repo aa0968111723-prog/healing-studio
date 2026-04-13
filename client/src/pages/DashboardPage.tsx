@@ -1,5 +1,6 @@
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { Badge } from "@/components/ui/badge";
 import {
   BarChart3, Zap, DollarSign, Clock, TrendingUp, LayoutDashboard,
@@ -74,6 +75,10 @@ function CustomPieLabel({ cx, cy, midAngle, outerRadius, percent, name }: any) {
 
 export default function DashboardPage() {
   const { user } = useAuth();
+
+  // 全站新手引導
+  usePageTour("dashboard");
+
   const statsQuery = trpc.dashboard.myStats.useQuery(undefined, { retry: false });
   const stats = statsQuery.data;
 

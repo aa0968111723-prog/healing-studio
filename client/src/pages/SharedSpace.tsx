@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, Component, type ReactNode } from "react";
 import { useIsMobile } from "@/hooks/useMobile";
+import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
@@ -72,6 +73,9 @@ const MODALITY_LABELS: Record<string, string> = {
 
 export default function SharedSpace() {
   const { user } = useAuth();
+
+  // 全站新手引導
+  usePageTour("shared");
   const [, navigate] = useLocation();
   const isMobile = useIsMobile();
   const [searchQuery, setSearchQuery] = useState("");

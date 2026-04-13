@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
+import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { Button } from "@/components/ui/button";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import VisualSoul from "@/components/VisualSoul";
@@ -71,6 +72,9 @@ function StarRating({
 
 export default function HistoryPage() {
   const { personality } = useAIState();
+
+  // 全站新手引導
+  usePageTour("history");
   const isMobile = useIsMobile();
   const [, navigate] = useLocation();
   const [filter, setFilter] = useState<"all" | "image" | "video" | "audio" | "voice" | "bookmarked">("all");

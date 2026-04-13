@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
+import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { uploadFileToS3 } from "@/lib/upload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,6 +44,9 @@ type DatasetImageWithUpload = DatasetImage & {
 
 export default function ModelsPage() {
   const { personality } = useAIState();
+
+  // 全站新手引導
+  usePageTour("models");
   const [tab, setTab] = useState("my");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [step, setStep] = useState<CharacterForgeStep>("dataset");
