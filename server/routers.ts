@@ -20,6 +20,7 @@ import { videoStudioRouter } from "./routers/videoStudio";
 import { learnHubRouter } from "./routers/learnHub";
 import { loraTrainerRouter } from "./routers/loraTrainer";
 import { directorRouter } from "./routers/director";
+import { langsmithRouter } from "./routers/langsmith";
 import { getOrchestrator } from "./services/modelClients";
 // voiceCompiler, audioCompiler, videoCompiler are no longer used — all modalities route through falDispatcher
 import { buildMemoryContext, upsertMemory } from "./services/ragMemory";
@@ -2322,6 +2323,9 @@ export const appRouter = router({
         return db.getUsageLogsByUser(ctx.user.id, input.limit);
       }),
   }),
+
+  // ─── LangSmith 深度整合（AI 監控儀表板）─────────────────────────────────────
+  langsmith: langsmithRouter,
 });
 
 export type AppRouter = typeof appRouter;
