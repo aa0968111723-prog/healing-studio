@@ -15,6 +15,7 @@
 
 import { z } from "zod";
 import { protectedProcedure, publicProcedure, adminProcedure, router } from "../_core/trpc";
+import { TRPCError } from "@trpc/server";
 
 // ─── 靜態種子文件資料 ─────────────────────────────────────────────────────────
 
@@ -2831,7 +2832,7 @@ export const learnHubRouter = router({
     .input(z.object({ id: z.string() }))
     .query(({ input }) => {
       const doc = docs.find(d => d.id === input.id);
-      if (!doc) throw new Error("文件不存在");
+      if (!doc) throw new TRPCError({ code: "NOT_FOUND", message: "文件不存在" });
       return doc;
     }),
 
@@ -2885,7 +2886,7 @@ export const learnHubRouter = router({
     }))
     .mutation(({ input }) => {
       const idx = docs.findIndex(d => d.id === input.id);
-      if (idx === -1) throw new Error("文件不存在");
+      if (idx === -1) throw new TRPCError({ code: "NOT_FOUND", message: "文件不存在" });
       const { id, ...updates } = input;
       docs[idx] = { ...docs[idx], ...updates, updatedAt: new Date().toISOString() };
       return docs[idx];
@@ -2896,7 +2897,7 @@ export const learnHubRouter = router({
     .input(z.object({ id: z.string() }))
     .mutation(({ input }) => {
       const idx = docs.findIndex(d => d.id === input.id);
-      if (idx === -1) throw new Error("文件不存在");
+      if (idx === -1) throw new TRPCError({ code: "NOT_FOUND", message: "文件不存在" });
       docs.splice(idx, 1);
       return { success: true };
     }),

@@ -141,6 +141,11 @@ function FileUploadInput({
             credentials: "include",
             body: JSON.stringify({ fileName: file.name, mimeType: file.type, data: base64 }),
           });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({ error: "上傳失敗" }));
+            toast.error("上傳失敗：" + (err.error ?? `HTTP ${res.status}`));
+            return;
+          }
           const json = await res.json();
           if (json.url) {
             onChange(json.url);

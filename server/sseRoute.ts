@@ -37,6 +37,8 @@ sseRouter.get("/api/generation-events/:jobId", (req: Request, res: Response) => 
 
     // Close connection after complete or error
     if (event.type === "complete" || event.type === "error") {
+      clearInterval(heartbeat);
+      unsubscribe();
       setTimeout(() => {
         res.end();
       }, 500);
