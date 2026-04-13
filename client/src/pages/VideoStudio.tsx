@@ -1322,6 +1322,32 @@ export default function VideoStudio() {
   const [activeTab, setActiveTab] = useState<TabId>("t2v");
   const [appliedModelBanner, setAppliedModelBanner] = useState<string | null>(null);
 
+  // ── Async Job Polling (videoStudio.jobStatus) ──
+  const [videoJobInfo, setVideoJobInfo] = useState<{ requestId: string; modelId: string } | null>(null);
+  const videoJobStatus = trpc.videoStudio.jobStatus.useQuery(
+    { requestId: videoJobInfo?.requestId ?? "", modelId: videoJobInfo?.modelId ?? "" },
+    {
+      enabled: !!videoJobInfo,
+      refetchInterval: (query) => {
+        const s = query.state.data?.status;
+        if (s === "COMPLETED" || s === "FAILED") return false;
+        return 5_000;
+      },
+      retry: false,
+    }
+  );
+
+  // Show notification when async video job completes
+  useEffect(() => {
+    if (videoJobStatus.data?.status === "COMPLETED") {
+      toast.success("影片非同步生成完成");
+      setVideoJobInfo(null);
+    } else if (videoJobStatus.data?.status === "FAILED") {
+      toast.error("影片生成失敗");
+      setVideoJobInfo(null);
+    }
+  }, [videoJobStatus.data?.status]);
+
   // ── Restore applied model from ModelsPage (via sessionStorage) ──
   useEffect(() => {
     try {

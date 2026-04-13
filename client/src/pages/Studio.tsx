@@ -304,6 +304,16 @@ export default function Studio() {
   );
   const currentEngine = pricingSummaryQuery.data?.[activeModality as "image" | "video" | "audio" | "voice"];
 
+  // ── Cost Estimate (generate.estimateCost) ──
+  const costEstimate = trpc.generate.estimateCost.useQuery(
+    {
+      generationType: activeModality as "image" | "video" | "audio" | "voice",
+      durationSec: activeModality === "video" ? (parseInt(videoState.duration) || 5) : undefined,
+      charCount: activeModality === "voice" ? (voiceState.text?.length || 100) : undefined,
+    },
+    { retry: false, staleTime: 30_000 }
+  );
+
   // ── Mutation ──
   const utils = trpc.useUtils();
   const sseRef = useRef<EventSource | null>(null);
@@ -354,6 +364,12 @@ export default function Studio() {
       reportFailure();
       if (sseRef.current) { sseRef.current.close(); sseRef.current = null; }
     },
+  });
+
+  // ── My Jobs queue (generate.myJobs) ──
+  const myJobsQuery = trpc.generate.myJobs.useQuery(undefined, {
+    retry: false,
+    refetchInterval: generateMutation.isPending ? 5_000 : false,
   });
 
   // ── SSE connection for real-time thought chain updates ──
@@ -1299,6 +1315,14 @@ export default function Studio() {
             </div>
           )}
 
+          {/* Detailed Cost Estimate (generate.estimateCost) */}
+          {costEstimate.data && !generateMutation.isPending && (
+            <div className="flex items-center justify-between text-[10px] text-muted-foreground/70 px-1">
+              <span>{costEstimate.data.engineLabel} ({costEstimate.data.provider})</span>
+              <span>{costEstimate.data.pointsCost} pts / {costEstimate.data.unit}</span>
+            </div>
+          )}
+
           {/* Generate Button */}
           <Button
             id="generate-button"
@@ -1310,6 +1334,13 @@ export default function Studio() {
             <Wand2 className="w-4 h-4" />
             {prepareJobMutation.isPending ? "準備中..." : generateMutation.isPending ? "生成中..." : "開始創作"}
           </Button>
+
+          {/* Active Jobs Count (generate.myJobs) */}
+          {myJobsQuery.data && myJobsQuery.data.filter((j: any) => j.status === "processing" || j.status === "pending").length > 0 && (
+            <div className="text-[10px] text-center text-muted-foreground/60">
+              {myJobsQuery.data.filter((j: any) => j.status === "processing" || j.status === "pending").length} 個任務進行中
+            </div>
+          )}
 
           {/* Thought Island Chain — z-10 below PromptBuilder's z-20 */}
           <AnimatePresence>

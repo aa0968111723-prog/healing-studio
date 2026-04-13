@@ -62,6 +62,7 @@ export default function ModelsPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [isCaptioning, setIsCaptioning] = useState(false);
   const [trainingJobId, setTrainingJobId] = useState<number | null>(null);
+  const [selectedModelId, setSelectedModelId] = useState<number | null>(null);
 
   // ── 訓練進度輪詢 ──
   const trainingStatusQuery = trpc.generate.jobStatus.useQuery(
@@ -77,6 +78,21 @@ export default function ModelsPage() {
       retry: false,
     }
   );
+
+  // ── Detailed training status (models.trainingStatus) ──
+  const detailedTrainingQuery = trpc.models.trainingStatus.useQuery(
+    { jobId: trainingJobId! },
+    { enabled: !!trainingJobId, refetchInterval: 15_000, retry: false }
+  );
+
+  // ── Model detail (models.getById) ──
+  const modelDetailQuery = trpc.models.getById.useQuery(
+    { id: selectedModelId! },
+    { enabled: !!selectedModelId, retry: false }
+  );
+
+  // ── Increment usage counter (models.incrementUsage) ──
+  const incrementUsage = trpc.models.incrementUsage.useMutation();
 
   const myModelsQuery = trpc.models.myModels.useQuery(undefined, { retry: false });
   const teamModelsQuery = trpc.models.teamModels.useQuery(undefined, { retry: false });
@@ -521,6 +537,12 @@ export default function ModelsPage() {
                             <p className="text-xs text-muted-foreground">
                               進度：{trainingStatusQuery.data?.progress ?? 0}% · 任務 ID: #{trainingJobId}
                             </p>
+                            {/* Detailed training status (models.trainingStatus) */}
+                            {detailedTrainingQuery.data && (
+                              <p className="text-[10px] text-muted-foreground/60">
+                                {detailedTrainingQuery.data.progressMessage}
+                              </p>
+                            )}
                             <Button onClick={() => { setDialogOpen(false); resetForm(); }} variant="outline" className="w-full h-12 rounded-xl gap-2">
                               最小化（背景繼續訓練）
                             </Button>
@@ -640,6 +662,7 @@ export default function ModelsPage() {
                           triggerWord: (model.configJson as any)?.triggerWord || "",
                           loraUrl: (model as any).trainedLoraUrl || (model.configJson as any)?.loraUrl || "",
                         }));
+                        incrementUsage.mutate({ id: model.id });
                         navigate("/studio");
                         toast.success(`已套用模型「${model.name}」，前往創作工作室`);
                       }}
@@ -659,6 +682,7 @@ export default function ModelsPage() {
                           triggerWord: (model.configJson as any)?.triggerWord || "",
                           loraUrl: (model as any).trainedLoraUrl || "",
                         }));
+                        incrementUsage.mutate({ id: model.id });
                         navigate("/image-studio");
                         toast.success(`已套用模型「${model.name}」至圖片工作室`);
                       }}
@@ -676,6 +700,7 @@ export default function ModelsPage() {
                           name: model.name,
                           triggerWord: (model.configJson as any)?.triggerWord || "",
                         }));
+                        incrementUsage.mutate({ id: model.id });
                         navigate("/video-studio");
                         toast.success(`已套用模型「${model.name}」至影片工作室`);
                       }}

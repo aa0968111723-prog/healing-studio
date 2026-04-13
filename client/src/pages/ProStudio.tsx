@@ -922,8 +922,15 @@ function CloneTab() {
     },
     onError: (e) => toast.error(`Kling 建立失敗：${e.message}`),
   });
+  // qwenCloneVoice: Extract speaker embedding from sample audio for reuse
+  const qwenCloneVoiceMut = trpc.proStudio.qwenCloneVoice.useMutation({
+    onSuccess: (data) => {
+      toast.success("聲音特徵提取完成，可用於後續生成");
+    },
+    onError: (e) => toast.error(`聲音特徵提取失敗：${e.message}`),
+  });
 
-  const isPending = qwenClone.isPending || diaClone.isPending || voiceDesign.isPending || klingVoice.isPending;
+  const isPending = qwenClone.isPending || diaClone.isPending || voiceDesign.isPending || klingVoice.isPending || qwenCloneVoiceMut.isPending;
   const audioUrl = result?.audio_url ?? (result?.audio as any)?.url ?? result?.url;
 
   const handleGenerate = () => {
@@ -1546,6 +1553,12 @@ function AvatarVideoTab() {
   const statusQuery = trpc.proStudio.jobStatus.useQuery(
     { request_id: jobInfo?.request_id ?? "", model: jobInfo?.model ?? "" },
     { enabled: !!jobInfo && !!jobInfo.request_id, refetchInterval: 3000 }
+  );
+
+  // ── Fetch full result when job completes (proStudio.jobResult) ──
+  const jobResultQuery = trpc.proStudio.jobResult.useQuery(
+    { request_id: jobInfo?.request_id ?? "", model: jobInfo?.model ?? "" },
+    { enabled: !!jobInfo && (statusQuery.data as any)?.status === "COMPLETED", retry: false }
   );
 
   const isPending = wanMut.isPending || echoMut.isPending || stableMut.isPending || longcatMut.isPending || ltxMut.isPending || dubbingMut.isPending;

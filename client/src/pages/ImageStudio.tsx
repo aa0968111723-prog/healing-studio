@@ -1310,6 +1310,45 @@ export default function ImageStudio() {
 
   const currentMutation = mutations[model.id as keyof typeof mutations] as any;
 
+  // ── Async Job Polling (imageStudio.jobStatus / imageStudio.jobResult) ──
+  const [asyncJobInfo, setAsyncJobInfo] = useState<{ request_id: string; model: string } | null>(null);
+  const jobStatusQuery = trpc.imageStudio.jobStatus.useQuery(
+    { request_id: asyncJobInfo?.request_id ?? "", model: asyncJobInfo?.model ?? "" },
+    {
+      enabled: !!asyncJobInfo,
+      refetchInterval: (query) => {
+        const s = (query.state.data as any)?.status;
+        if (s === "COMPLETED" || s === "FAILED") return false;
+        return 3_000;
+      },
+      retry: false,
+    }
+  );
+  const jobResultQuery = trpc.imageStudio.jobResult.useQuery(
+    { request_id: asyncJobInfo?.request_id ?? "", model: asyncJobInfo?.model ?? "" },
+    {
+      enabled: !!asyncJobInfo && (jobStatusQuery.data as any)?.status === "COMPLETED",
+      retry: false,
+    }
+  );
+
+  // When async job result arrives, update resultImages
+  useEffect(() => {
+    if (jobResultQuery.data) {
+      const data = jobResultQuery.data as any;
+      const imgs: string[] = [];
+      if (data.images) data.images.forEach((img: any) => img?.url && imgs.push(img.url));
+      else if (data.image?.url) imgs.push(data.image.url);
+      else if (data.output) imgs.push(data.output);
+      if (imgs.length > 0) {
+        setResultImages(imgs);
+        setIsGenerating(false);
+        setAsyncJobInfo(null);
+        toast.success("非同步生成完成");
+      }
+    }
+  }, [jobResultQuery.data]);
+
   const downloadImage = async (url: string) => {
     try {
       // Use server proxy to bypass CORS restrictions on CDN URLs
