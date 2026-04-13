@@ -3,7 +3,7 @@ import { ImagePlus, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/useMobile";
 import { motion } from "framer-motion";
-import { uploadFileToS3 } from "@/lib/upload";
+import { uploadFileToS3, shortErrorMsg } from "@/lib/upload";
 import { toast } from "sonner";
 
 type FrameTimelineProps = {
@@ -31,7 +31,7 @@ export function FrameTimeline({
       if (slot === "first") onFirstFrameChange(url);
       else onLastFrameChange(url);
     } catch (err: any) {
-      toast.error(`上傳失敗：${err.message}`);
+      toast.error(`上傳失敗：${shortErrorMsg(err)}`, { duration: 5000 });
     } finally {
       setUploading(prev => ({ ...prev, [slot]: false }));
     }

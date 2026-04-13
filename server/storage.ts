@@ -300,10 +300,7 @@ function getManusStorageConfig(): StorageConfig {
   const apiKey  = ENV.forgeApiKey;
   if (!baseUrl || !apiKey) {
     throw new Error(
-      "Storage 未設定：請在 Railway 環境變數中設定以下任一組合：\n" +
-      "  方案A（推薦）Cloudflare R2：S3_ENDPOINT + S3_ACCESS_KEY_ID + S3_SECRET_ACCESS_KEY + S3_BUCKET_NAME\n" +
-      "  方案B Google GCS：GCS_BUCKET_NAME + GOOGLE_APPLICATION_CREDENTIALS_JSON\n" +
-      "  方案C Manus Proxy：BUILT_IN_FORGE_API_URL + BUILT_IN_FORGE_API_KEY"
+      "Storage 未設定：請在 Railway 設定 S3_ENDPOINT / S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY / S3_BUCKET_NAME"
     );
   }
   return { baseUrl: baseUrl.replace(/\/+$/, ""), apiKey };

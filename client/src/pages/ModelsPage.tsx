@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
-import { uploadFileToS3 } from "@/lib/upload";
+import { uploadFileToS3, shortErrorMsg } from "@/lib/upload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -190,7 +190,7 @@ export default function ModelsPage() {
             )
           );
         } catch (err: any) {
-          toast.error(`上傳失敗：${file.name} - ${err.message}`);
+          toast.error(`上傳失敗：${shortErrorMsg(err)}`, { duration: 5000 });
           setDatasetImages((prev) =>
             prev.map((img) =>
               img.file === file ? { ...img, uploading: false } : img

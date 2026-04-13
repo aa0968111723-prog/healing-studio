@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { useIsMobile } from "@/hooks/useMobile";
 import { motion, AnimatePresence } from "framer-motion";
 import { trpc } from "@/lib/trpc";
+import { shortErrorMsg } from "@/lib/upload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -197,7 +198,7 @@ function UploadPanel({
       onSuccess();
     },
     onError: (err) => {
-      toast.error("儲存失敗：" + err.message);
+      toast.error("儲存失敗：" + shortErrorMsg(err.message), { duration: 5000 });
     },
   });
 
@@ -236,7 +237,7 @@ function UploadPanel({
         tags: tagList,
       });
     } catch (err: any) {
-      toast.error("上傳失敗：" + (err.message || "未知錯誤"));
+      toast.error("上傳失敗：" + shortErrorMsg(err), { duration: 5000 });
     } finally {
       setUploading(false);
     }
@@ -554,7 +555,7 @@ export function VaultDropzone({
       onDrop(url);
       toast.success("圖片已上傳");
     } catch (err: any) {
-      toast.error("上傳失敗：" + (err.message || "未知錯誤"));
+      toast.error("上傳失敗：" + shortErrorMsg(err), { duration: 5000 });
     } finally {
       setUploading(false);
     }
