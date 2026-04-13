@@ -89,26 +89,11 @@ async function falRun(modelId: string, input: Record<string, unknown>): Promise<
 async function falQueueRun(
   modelId: string,
   input: Record<string, unknown>,
-  waitSec = 300
+  _waitSec = 300 // 參數已废棄，不在後端等待（防止 504）
 ): Promise<unknown> {
   const { request_id } = await falQueueSubmit(modelId, input);
-  const deadline = Date.now() + waitSec * 1000;
-  let pollInterval = 3000;
-
-  while (Date.now() < deadline) {
-    await new Promise(r => setTimeout(r, pollInterval));
-    pollInterval = Math.min(pollInterval * 1.4, 10000);
-
-    const status = await falQueueStatus(request_id, modelId) as any;
-    const s = status?.status ?? status?.state;
-
-    if (s === "COMPLETED") return falQueueResult(request_id, modelId);
-    if (s === "FAILED") {
-      const errMsg = status?.error ?? status?.message ?? "未知錯誤";
-      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `fal.ai 任務失敗 [${modelId}]: ${errMsg}` });
-    }
-  }
-  throw new TRPCError({ code: "TIMEOUT", message: `fal.ai 任務超時（>${waitSec}s）[${modelId}]` });
+  // 立即回傳 request_id，前端每 3 秒輪詢 checkVideoStatus
+  return { request_id, raw_model_id: modelId, is_async_polling: true };
 }
 
 // ─── 提取影片 URL 的通用助手 ─────────────────────────────────────────────────
@@ -692,5 +677,35 @@ export const videoStudioRouter = router({
         progress: status?.progress ?? null,
         logs: status?.logs ?? [],
       };
+    }),
+
+  /**
+   * checkVideoStatus — 前端輪詢 API（每 3 秒呼叫一次）
+   * 若已完成則回傳影片 URL，若失敗則丟出錯誤
+   */
+  checkVideoStatus: protectedProcedure
+    .input(z.object({
+      requestId: z.string().min(1),
+      modelId:   z.string().min(1),
+    }))
+    .query(async ({ input }) => {
+      const status = await falQueueStatus(input.requestId, input.modelId) as any;
+      const s = status?.status ?? status?.state;
+
+      if (s === "COMPLETED") {
+        const result = await falQueueResult(input.requestId, input.modelId) as any;
+        return {
+          status:    "COMPLETED" as const,
+          video_url: extractVideoUrl(result),
+          raw:       result,
+        };
+      }
+
+      if (s === "FAILED") {
+        const errMsg = status?.error ?? status?.message ?? "未知錯誤";
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `影片任務失敗 [${input.modelId}]: ${errMsg}` });
+      }
+
+      return { status: "IN_PROGRESS" as const, video_url: null, raw: null };
     }),
 });

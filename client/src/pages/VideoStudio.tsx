@@ -327,6 +327,82 @@ function ApiKeyBanner() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// 🔄 AsyncVideoPoller — 非同步影片輪詢元件（防止 504 的核心機制）
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * AsyncVideoPoller — 當後端回傳 request_id 時，每 3 秒輪詢 checkVideoStatus
+ * 完成後自動顯示 VideoPlayer；生成中顯示動態等待畫面
+ */
+function AsyncVideoPoller({
+  result,
+  onUpdate,
+  label,
+}: {
+  result: VideoResult;
+  onUpdate: (r: VideoResult) => void;
+  label?: string;
+}) {
+  const modelId = (result.raw as any)?.raw_model_id ?? "";
+
+  const { data, isError, error } = trpc.videoStudio.checkVideoStatus.useQuery(
+    { requestId: result.request_id ?? "", modelId },
+    {
+      enabled: !!(result.request_id && !result.video_url && modelId),
+      refetchInterval: (query) => {
+        const s = (query.state.data as any)?.status;
+        return s === "COMPLETED" || s === "FAILED" ? false : 3000;
+      },
+      refetchIntervalInBackground: true,
+      retry: 5,
+    }
+  );
+
+  useEffect(() => {
+    if ((data as any)?.status === "COMPLETED" && (data as any)?.video_url) {
+      toast.success(`✅ ${label ?? "影片"} 生成完成！`);
+      onUpdate({ ...result, video_url: (data as any).video_url, raw: (data as any).raw });
+    } else if ((data as any)?.status === "FAILED") {
+      toast.error(`❌ ${label ?? "影片"} 生成失敗`);
+      onUpdate({ ...result, raw: { ...(result.raw as any), failed: true } });
+    }
+  }, [(data as any)?.status, (data as any)?.video_url]);
+
+  // 已有影片 URL → 直接顯示
+  if (result.video_url) {
+    return <VideoPlayer url={result.video_url} label={label} />;
+  }
+
+  // API 錯誤或任務失敗
+  if (isError || (result.raw as any)?.failed) {
+    return (
+      <div className="mt-4 p-4 rounded-xl border border-destructive/50 bg-destructive/10 text-destructive text-xs flex items-center gap-2">
+        <AlertCircle className="w-4 h-4 flex-shrink-0" />
+        <span>生成失敗：{(error as any)?.message ?? "請重試或檢查網路連線"}</span>
+      </div>
+    );
+  }
+
+  // 等待中（有 request_id 但沒有 video_url）
+  if (result.request_id && !result.video_url) {
+    return (
+      <div className="mt-4 p-6 rounded-2xl bg-gradient-to-br from-primary/5 to-purple-500/5 border border-primary/20 flex flex-col items-center justify-center gap-3">
+        <Loader2 className="w-7 h-7 text-primary animate-spin" />
+        <div className="text-center">
+          <p className="text-sm font-semibold text-foreground">{label ?? "影片"} 生成中...</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            已提交任務，每 3 秒自動更新進度<br />
+            <span className="text-primary/70 font-mono text-[10px]">ID: {result.request_id.slice(0, 16)}...</span>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // 🎬 Tab 1 — 文生影 Text-to-Video
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -382,8 +458,7 @@ function TextToVideoTab() {
     toast.info("⏳ Kling 生成中（約 1-3 分鐘）...");
     const r = await klingMut.mutateAsync({ prompt: klingPrompt, negativePrompt: klingNeg || undefined, duration: klingDuration, aspectRatio: klingAspect, cfgScale: klingCfg });
     setKlingResult(r);
-    if (r.video_url) toast.success("✅ Kling 影片生成完成！");
-    else toast.warning("回傳資料異常，請檢查 raw 結果");
+    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");
   }
 
   async function runWan() {
@@ -391,40 +466,35 @@ function TextToVideoTab() {
     toast.info("⏳ Wan 生成中（約 1-3 分鐘）...");
     const r = await wanMut.mutateAsync({ prompt: wanPrompt, negativePrompt: wanNeg || undefined, resolution: wanRes, numFrames: wanFrames });
     setWanResult(r);
-    if (r.video_url) toast.success("✅ Wan 影片生成完成！");
-  }
+    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
 
   async function runMinimax() {
     if (!mmPrompt.trim()) return toast.error("請輸入提詞");
     toast.info("⏳ MiniMax 生成中（約 1-3 分鐘）...");
     const r = await mmMut.mutateAsync({ prompt: mmPrompt, promptOptimizer: mmOptimize });
     setMmResult(r);
-    if (r.video_url) toast.success("✅ MiniMax 影片生成完成！");
-  }
+    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
 
   async function runVeo3() {
     if (!veoPrompt.trim()) return toast.error("請輸入提詞");
     toast.info("⏳ Veo 3 生成中（約 3-8 分鐘）...");
     const r = await veoMut.mutateAsync({ prompt: veoPrompt, aspectRatio: veoAspect, generateAudio: veoAudio });
     setVeoResult(r);
-    if (r.video_url) toast.success("✅ Veo 3 影片生成完成！");
-  }
+    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
 
   async function runLtx() {
     if (!ltxPrompt.trim()) return toast.error("請輸入提詞");
     toast.info("⏳ LTX-Video 生成中...");
     const r = await ltxMut.mutateAsync({ prompt: ltxPrompt, negativePrompt: ltxNeg || undefined });
     setLtxResult(r);
-    if (r.video_url) toast.success("✅ LTX-Video 影片生成完成！");
-  }
+    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
 
   async function runSora() {
     if (!soraPrompt.trim()) return toast.error("請輸入提詞");
     toast.info("⏳ Sora Turbo 生成中...");
     const r = await soraMut.mutateAsync({ prompt: soraPrompt, duration: soraDuration, resolution: soraRes, aspectRatio: soraAspect });
     setSoraResult(r);
-    if (r.video_url) toast.success("✅ Sora 影片生成完成！");
-  }
+    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
 
   return (
     <div className="space-y-6">
@@ -470,7 +540,7 @@ function TextToVideoTab() {
           <Button onClick={runKling} disabled={klingMut.isPending} className="w-full">
             {klingMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />生成中...</> : <><Sparkles className="w-4 h-4 mr-2" />Kling 文生影</>}
           </Button>
-          {klingResult?.video_url && <VideoPlayer url={klingResult.video_url} label="Kling 生成結果" />}
+          {klingResult && <AsyncVideoPoller result={klingResult} onUpdate={setKlingResult} label="Kling 生成結果" />}
         </div>
       </ToolCard>
 
@@ -504,7 +574,7 @@ function TextToVideoTab() {
           <Button onClick={runWan} disabled={wanMut.isPending} className="w-full" variant="secondary">
             {wanMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />生成中...</> : <><Film className="w-4 h-4 mr-2" />Wan 文生影</>}
           </Button>
-          {wanResult?.video_url && <VideoPlayer url={wanResult.video_url} label="Wan 生成結果" />}
+          {wanResult && <AsyncVideoPoller result={wanResult} onUpdate={setWanResult} label="Wan 生成結果" />}
         </div>
       </ToolCard>
 
@@ -522,7 +592,7 @@ function TextToVideoTab() {
           <Button onClick={runMinimax} disabled={mmMut.isPending} className="w-full" variant="secondary">
             {mmMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />生成中...</> : <><Sparkles className="w-4 h-4 mr-2" />MiniMax 文生影</>}
           </Button>
-          {mmResult?.video_url && <VideoPlayer url={mmResult.video_url} label="MiniMax 生成結果" />}
+          {mmResult && <AsyncVideoPoller result={mmResult} onUpdate={setMmResult} label="MiniMax 生成結果" />}
         </div>
       </ToolCard>
 
@@ -552,7 +622,7 @@ function TextToVideoTab() {
           <Button onClick={runVeo3} disabled={veoMut.isPending} className="w-full" variant="secondary">
             {veoMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />生成中（約 3-8 分鐘）...</> : <><Sparkles className="w-4 h-4 mr-2" />Veo 3 文生影</>}
           </Button>
-          {veoResult?.video_url && <VideoPlayer url={veoResult.video_url} label="Veo 3 生成結果" />}
+          {veoResult && <AsyncVideoPoller result={veoResult} onUpdate={setVeoResult} label="Veo 3 生成結果" />}
         </div>
       </ToolCard>
 
@@ -570,7 +640,7 @@ function TextToVideoTab() {
           <Button onClick={runLtx} disabled={ltxMut.isPending} className="w-full" variant="secondary">
             {ltxMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />生成中...</> : <><Zap className="w-4 h-4 mr-2" />LTX 文生影</>}
           </Button>
-          {ltxResult?.video_url && <VideoPlayer url={ltxResult.video_url} label="LTX-Video 生成結果" />}
+          {ltxResult && <AsyncVideoPoller result={ltxResult} onUpdate={setLtxResult} label="LTX-Video 生成結果" />}
         </div>
       </ToolCard>
 
@@ -612,7 +682,7 @@ function TextToVideoTab() {
           <Button onClick={runSora} disabled={soraMut.isPending} className="w-full" variant="secondary">
             {soraMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />生成中...</> : <><Sparkles className="w-4 h-4 mr-2" />Sora 文生影</>}
           </Button>
-          {soraResult?.video_url && <VideoPlayer url={soraResult.video_url} label="Sora 生成結果" />}
+          {soraResult && <AsyncVideoPoller result={soraResult} onUpdate={setSoraResult} label="Sora 生成結果" />}
         </div>
       </ToolCard>
     </div>
@@ -663,40 +733,35 @@ function ImageToVideoTab() {
     toast.info("⏳ Kling 圖生影中...");
     const r = await klingMut.mutateAsync({ prompt: klingPrompt, imageUrl: klingImage, tailImageUrl: klingTail || undefined, duration: klingDuration });
     setKlingResult(r);
-    if (r.video_url) toast.success("✅ Kling 圖生影完成！");
-  }
+    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
 
   async function runWan() {
     if (!wanPrompt.trim() || !wanImage.trim()) return toast.error("請輸入提詞與圖片 URL");
     toast.info("⏳ Wan 圖生影中...");
     const r = await wanMut.mutateAsync({ prompt: wanPrompt, imageUrl: wanImage, resolution: wanRes });
     setWanResult(r);
-    if (r.video_url) toast.success("✅ Wan 圖生影完成！");
-  }
+    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
 
   async function runRunway() {
     if (!runwayPrompt.trim() || !runwayImage.trim()) return toast.error("請輸入提詞與圖片 URL");
     toast.info("⏳ Runway Gen4 圖生影中...");
     const r = await runwayMut.mutateAsync({ prompt: runwayPrompt, imageUrl: runwayImage, duration: runwayDuration, ratio: runwayRatio as any });
     setRunwayResult(r);
-    if (r.video_url) toast.success("✅ Runway 圖生影完成！");
-  }
+    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
 
   async function runPixverse() {
     if (!pvPrompt.trim() || !pvImage.trim()) return toast.error("請輸入提詞與圖片 URL");
     toast.info("⏳ PixVerse 圖生影中...");
     const r = await pvMut.mutateAsync({ prompt: pvPrompt, imageUrl: pvImage, duration: pvDuration, quality: pvQuality });
     setPvResult(r);
-    if (r.video_url) toast.success("✅ PixVerse 圖生影完成！");
-  }
+    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
 
   async function runMinimax() {
     if (!mmPrompt.trim() || !mmImage.trim()) return toast.error("請輸入提詞與圖片 URL");
     toast.info("⏳ MiniMax 圖生影中...");
     const r = await mmMut.mutateAsync({ prompt: mmPrompt, imageUrl: mmImage, promptOptimizer: mmOptimize });
     setMmResult(r);
-    if (r.video_url) toast.success("✅ MiniMax 圖生影完成！");
-  }
+    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
 
   return (
     <div className="space-y-6">
@@ -722,7 +787,7 @@ function ImageToVideoTab() {
           <Button onClick={runKling} disabled={klingMut.isPending} className="w-full">
             {klingMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />生成中...</> : <><Sparkles className="w-4 h-4 mr-2" />Kling 圖生影</>}
           </Button>
-          {klingResult?.video_url && <VideoPlayer url={klingResult.video_url} label="Kling 圖生影結果" />}
+          {klingResult && <AsyncVideoPoller result={klingResult} onUpdate={setKlingResult} label="Kling 圖生影結果" />}
         </div>
       </ToolCard>
 
@@ -747,7 +812,7 @@ function ImageToVideoTab() {
           <Button onClick={runWan} disabled={wanMut.isPending} className="w-full" variant="secondary">
             {wanMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />生成中...</> : <><Film className="w-4 h-4 mr-2" />Wan 圖生影</>}
           </Button>
-          {wanResult?.video_url && <VideoPlayer url={wanResult.video_url} label="Wan 圖生影結果" />}
+          {wanResult && <AsyncVideoPoller result={wanResult} onUpdate={setWanResult} label="Wan 圖生影結果" />}
         </div>
       </ToolCard>
 
@@ -786,7 +851,7 @@ function ImageToVideoTab() {
           <Button onClick={runRunway} disabled={runwayMut.isPending} className="w-full" variant="secondary">
             {runwayMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />生成中...</> : <><Camera className="w-4 h-4 mr-2" />Runway 圖生影</>}
           </Button>
-          {runwayResult?.video_url && <VideoPlayer url={runwayResult.video_url} label="Runway 圖生影結果" />}
+          {runwayResult && <AsyncVideoPoller result={runwayResult} onUpdate={setRunwayResult} label="Runway 圖生影結果" />}
         </div>
       </ToolCard>
 
@@ -825,7 +890,7 @@ function ImageToVideoTab() {
           <Button onClick={runPixverse} disabled={pvMut.isPending} className="w-full" variant="secondary">
             {pvMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />生成中...</> : <><Sparkles className="w-4 h-4 mr-2" />PixVerse 圖生影</>}
           </Button>
-          {pvResult?.video_url && <VideoPlayer url={pvResult.video_url} label="PixVerse 圖生影結果" />}
+          {pvResult && <AsyncVideoPoller result={pvResult} onUpdate={setPvResult} label="PixVerse 圖生影結果" />}
         </div>
       </ToolCard>
 
@@ -844,7 +909,7 @@ function ImageToVideoTab() {
           <Button onClick={runMinimax} disabled={mmMut.isPending} className="w-full" variant="secondary">
             {mmMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />生成中...</> : <><Sparkles className="w-4 h-4 mr-2" />MiniMax 圖生影</>}
           </Button>
-          {mmResult?.video_url && <VideoPlayer url={mmResult.video_url} label="MiniMax 圖生影結果" />}
+          {mmResult && <AsyncVideoPoller result={mmResult} onUpdate={setMmResult} label="MiniMax 圖生影結果" />}
         </div>
       </ToolCard>
     </div>
@@ -880,24 +945,21 @@ function VideoToVideoTab() {
     toast.info("⏳ Wan 影片重繪中...");
     const r = await wanMut.mutateAsync({ prompt: wanPrompt, videoUrl: wanVideo, strength: wanStrength });
     setWanResult(r);
-    if (r.video_url) toast.success("✅ Wan 影生影完成！");
-  }
+    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
 
   async function runKling() {
     if (!klingPrompt.trim() || !klingVideo.trim()) return toast.error("請輸入提詞與影片 URL");
     toast.info("⏳ Kling 影片重繪中...");
     const r = await klingMut.mutateAsync({ prompt: klingPrompt, videoUrl: klingVideo, cfgScale: klingCfg });
     setKlingResult(r);
-    if (r.video_url) toast.success("✅ Kling 影生影完成！");
-  }
+    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
 
   async function runLtx() {
     if (!ltxPrompt.trim() || !ltxImage.trim()) return toast.error("請輸入提詞與圖片 URL");
     toast.info("⏳ LTX 關鍵幀影片生成中...");
     const r = await ltxMut.mutateAsync({ prompt: ltxPrompt, imageUrl: ltxImage, negativePrompt: ltxNeg || undefined });
     setLtxResult(r);
-    if (r.video_url) toast.success("✅ LTX 影片生成完成！");
-  }
+    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
 
   return (
     <div className="space-y-6">
@@ -916,7 +978,7 @@ function VideoToVideoTab() {
           <Button onClick={runWan} disabled={wanMut.isPending} className="w-full">
             {wanMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />重繪中...</> : <><RefreshCw className="w-4 h-4 mr-2" />Wan 影片風格化</>}
           </Button>
-          {wanResult?.video_url && <VideoPlayer url={wanResult.video_url} label="Wan 影生影結果" />}
+          {wanResult && <AsyncVideoPoller result={wanResult} onUpdate={setWanResult} label="Wan 影生影結果" />}
         </div>
       </ToolCard>
 
@@ -935,7 +997,7 @@ function VideoToVideoTab() {
           <Button onClick={runKling} disabled={klingMut.isPending} className="w-full" variant="secondary">
             {klingMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />重繪中...</> : <><Clapperboard className="w-4 h-4 mr-2" />Kling 影片重繪</>}
           </Button>
-          {klingResult?.video_url && <VideoPlayer url={klingResult.video_url} label="Kling 影生影結果" />}
+          {klingResult && <AsyncVideoPoller result={klingResult} onUpdate={setKlingResult} label="Kling 影生影結果" />}
         </div>
       </ToolCard>
 
@@ -954,7 +1016,7 @@ function VideoToVideoTab() {
           <Button onClick={runLtx} disabled={ltxMut.isPending} className="w-full" variant="secondary">
             {ltxMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />生成中...</> : <><Layers className="w-4 h-4 mr-2" />LTX 關鍵幀生成</>}
           </Button>
-          {ltxResult?.video_url && <VideoPlayer url={ltxResult.video_url} label="LTX 影片結果" />}
+          {ltxResult && <AsyncVideoPoller result={ltxResult} onUpdate={setLtxResult} label="LTX 影片結果" />}
         </div>
       </ToolCard>
     </div>
@@ -989,24 +1051,21 @@ function EnhancementTab() {
     toast.info("⏳ 影片超分中...");
     const r = await upscaleMut.mutateAsync({ videoUrl: upVideo, upscaleFactor: upFactor });
     setUpResult(r);
-    if (r.video_url) toast.success("✅ 影片超分完成！");
-  }
+    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
 
   async function runRife() {
     if (!rifeVideo.trim()) return toast.error("請輸入影片 URL");
     toast.info("⏳ 影片補幀中...");
     const r = await rifeMut.mutateAsync({ videoUrl: rifeVideo, multiplier: rifeMult, outputFps: rifeFps });
     setRifeResult(r);
-    if (r.video_url) toast.success("✅ 影片補幀完成！");
-  }
+    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
 
   async function runTopaz() {
     if (!topazVideo.trim()) return toast.error("請輸入影片 URL");
     toast.info("⏳ Topaz 增強中（較長時間）...");
     const r = await topazMut.mutateAsync({ videoUrl: topazVideo, model: topazModel, outputScale: topazScale });
     setTopazResult(r);
-    if (r.video_url) toast.success("✅ Topaz 增強完成！");
-  }
+    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
 
   return (
     <div className="space-y-6">
@@ -1027,7 +1086,7 @@ function EnhancementTab() {
           <Button onClick={runUpscale} disabled={upscaleMut.isPending} className="w-full">
             {upscaleMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />超分中...</> : <><Maximize2 className="w-4 h-4 mr-2" />影片超解析度</>}
           </Button>
-          {upResult?.video_url && <VideoPlayer url={upResult.video_url} label="超分結果" />}
+          {upResult && <AsyncVideoPoller result={upResult} onUpdate={setUpResult} label="超分結果" />}
         </div>
       </ToolCard>
 
@@ -1054,7 +1113,7 @@ function EnhancementTab() {
           <Button onClick={runRife} disabled={rifeMut.isPending} className="w-full" variant="secondary">
             {rifeMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />補幀中...</> : <><Zap className="w-4 h-4 mr-2" />影片補幀</>}
           </Button>
-          {rifeResult?.video_url && <VideoPlayer url={rifeResult.video_url} label="補幀結果" />}
+          {rifeResult && <AsyncVideoPoller result={rifeResult} onUpdate={setRifeResult} label="補幀結果" />}
         </div>
       </ToolCard>
 
@@ -1084,7 +1143,7 @@ function EnhancementTab() {
           <Button onClick={runTopaz} disabled={topazMut.isPending} className="w-full" variant="secondary">
             {topazMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />增強中（可能需要 5-10 分鐘）...</> : <><Eye className="w-4 h-4 mr-2" />Topaz 影片增強</>}
           </Button>
-          {topazResult?.video_url && <VideoPlayer url={topazResult.video_url} label="Topaz 增強結果" />}
+          {topazResult && <AsyncVideoPoller result={topazResult} onUpdate={setTopazResult} label="Topaz 增強結果" />}
         </div>
       </ToolCard>
     </div>
@@ -1127,24 +1186,21 @@ function AdvancedControlTab() {
     toast.info("⏳ CamMaster 鏡頭控制中...");
     const r = await camMut.mutateAsync({ prompt: camPrompt, imageUrl: camImage, cameraMotion: camMotion as any, duration: camDuration });
     setCamResult(r);
-    if (r.video_url) toast.success("✅ CamMaster 完成！");
-  }
+    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
 
   async function runAnimateDiff() {
     if (!adPrompt.trim() || !adVideo.trim()) return toast.error("請輸入提詞與影片 URL");
     toast.info("⏳ AnimateDiff 控制生成中...");
     const r = await adMut.mutateAsync({ prompt: adPrompt, videoUrl: adVideo, controlNet: adControlNet, guidanceScale: adGuide, negativePrompt: adNeg || undefined });
     setAdResult(r);
-    if (r.video_url) toast.success("✅ AnimateDiff 完成！");
-  }
+    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
 
   async function runDepthCrafter() {
     if (!dcVideo.trim()) return toast.error("請輸入影片 URL");
     toast.info("⏳ DepthCrafter 深度重建中...");
     const r = await dcMut.mutateAsync({ videoUrl: dcVideo });
     setDcResult(r);
-    if (r.video_url) toast.success("✅ DepthCrafter 完成！");
-  }
+    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
 
   async function runVidu() {
     const urls = viduImages.filter(u => u.trim());
@@ -1152,8 +1208,7 @@ function AdvancedControlTab() {
     toast.info("⏳ Vidu 角色一致性生成中...");
     const r = await viduMut.mutateAsync({ prompt: viduPrompt, imageUrls: urls, duration: viduDuration });
     setViduResult(r);
-    if (r.video_url) toast.success("✅ Vidu 生成完成！");
-  }
+    toast.info("📤 任務已提交，等待雲端生成（自動更新）...");  }
 
   const CAMERA_MOTIONS = [
     { value: "static", label: "靜態（無鏡頭移動）" },
@@ -1205,7 +1260,7 @@ function AdvancedControlTab() {
           <Button onClick={runCam} disabled={camMut.isPending} className="w-full">
             {camMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />生成中...</> : <><Camera className="w-4 h-4 mr-2" />CamMaster 生成</>}
           </Button>
-          {camResult?.video_url && <VideoPlayer url={camResult.video_url} label="CamMaster 結果" />}
+          {camResult && <AsyncVideoPoller result={camResult} onUpdate={setCamResult} label="CamMaster 結果" />}
         </div>
       </ToolCard>
 
@@ -1242,7 +1297,7 @@ function AdvancedControlTab() {
           <Button onClick={runAnimateDiff} disabled={adMut.isPending} className="w-full" variant="secondary">
             {adMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />生成中...</> : <><Move className="w-4 h-4 mr-2" />AnimateDiff 生成</>}
           </Button>
-          {adResult?.video_url && <VideoPlayer url={adResult.video_url} label="AnimateDiff 結果" />}
+          {adResult && <AsyncVideoPoller result={adResult} onUpdate={setAdResult} label="AnimateDiff 結果" />}
         </div>
       </ToolCard>
 
@@ -1256,7 +1311,7 @@ function AdvancedControlTab() {
           <Button onClick={runDepthCrafter} disabled={dcMut.isPending} className="w-full" variant="secondary">
             {dcMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />深度重建中...</> : <><Eye className="w-4 h-4 mr-2" />DepthCrafter 深度重建</>}
           </Button>
-          {dcResult?.video_url && <VideoPlayer url={dcResult.video_url} label="DepthCrafter 深度圖結果" />}
+          {dcResult && <AsyncVideoPoller result={dcResult} onUpdate={setDcResult} label="DepthCrafter 深度圖結果" />}
         </div>
       </ToolCard>
 
@@ -1304,7 +1359,7 @@ function AdvancedControlTab() {
           <Button onClick={runVidu} disabled={viduMut.isPending} className="w-full" variant="secondary">
             {viduMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />生成中...</> : <><Cpu className="w-4 h-4 mr-2" />Vidu 角色一致性生成</>}
           </Button>
-          {viduResult?.video_url && <VideoPlayer url={viduResult.video_url} label="Vidu 生成結果" />}
+          {viduResult && <AsyncVideoPoller result={viduResult} onUpdate={setViduResult} label="Vidu 生成結果" />}
         </div>
       </ToolCard>
     </div>
