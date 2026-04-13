@@ -97,7 +97,7 @@ const TOUR_DEFINITIONS: Record<PageId, TourDefinition> = {
       },
       {
         targetId: "sidebar-pro-studio-link",
-        title: "專業創作室",
+        title: "音樂配音創作室",
         description:
           "整合頂尖音訊/語音模型：TTS、音樂生成、聲音克隆、音訊處理。還有 AI 形像影片、說話頭像等進階功能。",
         tip: "音樂人、播客創作者和配音師的專屬天地。",
@@ -211,7 +211,7 @@ const TOUR_DEFINITIONS: Record<PageId, TourDefinition> = {
     steps: [
       {
         targetId: null,
-        title: "專業創作室 🎵",
+        title: "音樂配音創作室 🎵",
         description:
           "整合 fal.ai 頂尖音訊/語音/影片模型。分類包含：音樂生成、音效設計、TTS 語音合成、聲音克隆、音訊處理和 AI 形像影片。",
         tip: "每個工具卡片下方都有對應的 fal.ai 模型連結，可以查看詳細說明！",

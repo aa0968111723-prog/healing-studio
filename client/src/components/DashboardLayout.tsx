@@ -55,7 +55,7 @@ import ProactiveOrbWidget from "./ProactiveOrbWidget";
 
 const menuItems = [
   { icon: Wand2, label: "創作工作室", path: "/studio",       id: "sidebar-studio-link" },
-  { icon: Sparkles, label: "專業創作室", path: "/pro-studio", id: "sidebar-pro-studio-link" },
+  { icon: Sparkles, label: "音樂配音創作室", path: "/pro-studio", id: "sidebar-pro-studio-link" },
   { icon: Image, label: "圖片創作室", path: "/image-studio", id: "sidebar-image-studio-link" },
   { icon: Film, label: "影片工作室", path: "/video-studio", id: "sidebar-video-studio-link" },
   { icon: Clapperboard, label: "導演 AI", path: "/director", id: "sidebar-director-link" },
