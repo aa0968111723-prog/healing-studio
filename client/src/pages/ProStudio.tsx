@@ -1,11 +1,11 @@
 /**
- * ProStudio.tsx — 專業創作室
+ * ProStudio.tsx — 音樂配音創作室
  *
  * 整合 fal.ai 頂尖音訊 / 語音 / 影片模型
  * 分類：音樂生成 / 音效生成 / 語音合成 / 聲音克隆 / Kling 語音 / 音訊處理 / 語音識別 / AI 形像影片
  */
 
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { Button } from "@/components/ui/button";
@@ -18,10 +18,11 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
-  Music2, Mic2, Waves, Merge, Repeat2, FileText, Video,
+  Music2, Mic2, Waves, Merge, Repeat2, FileText,
   Sparkles, Download, Loader2, AlertCircle,
-  Volume2, Guitar, Headphones, Wand2, Film, Languages,
+  Volume2, Guitar, Headphones, Wand2, Film, Upload,
   UserRound, Zap, Bot, Star, Check, Copy, ExternalLink,
+  ChevronDown, ChevronUp, Info, Tag,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -101,6 +102,260 @@ function AudioUrlInput({
         placeholder={placeholder ?? "貼上音訊 URL（支援 mp3、wav、flac）"}
         className="text-sm"
       />
+    </div>
+  );
+}
+
+// ─── 子元件：檔案上傳輸入框（支援上傳 + URL 貼上）────────────────────────────
+
+function FileUploadInput({
+  label,
+  value,
+  onChange,
+  accept = "audio/*",
+  placeholder,
+  required,
+  hint,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  accept?: string;
+  placeholder?: string;
+  required?: boolean;
+  hint?: string;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleFile = useCallback(async (file: File) => {
+    setUploading(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const base64 = (e.target?.result as string).split(",")[1];
+          const res = await fetch("/api/upload", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ fileName: file.name, mimeType: file.type, data: base64 }),
+          });
+          const json = await res.json();
+          if (json.url) {
+            onChange(json.url);
+            toast.success(`✅ 上傳完成：${file.name}`);
+          } else {
+            toast.error("上傳失敗：" + (json.error ?? "未知錯誤"));
+          }
+        } catch {
+          toast.error("上傳失敗，請檢查網路連線");
+        } finally {
+          setUploading(false);
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch {
+      setUploading(false);
+      toast.error("讀取檔案失敗");
+    }
+  }, [onChange]);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file) handleFile(file);
+  }, [handleFile]);
+
+  const isImageAccept = accept.includes("image");
+  const defaultPlaceholder = isImageAccept
+    ? "貼上圖片 URL，或點右側上傳"
+    : "貼上音訊 URL（mp3/wav/flac），或點右側上傳";
+
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs text-muted-foreground">
+        {label}{required && <span className="text-destructive ml-0.5">*</span>}
+      </Label>
+      <div
+        className="flex gap-2 items-center"
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={handleDrop}
+      >
+        <Input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder ?? defaultPlaceholder}
+          className="text-sm flex-1"
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="shrink-0 text-xs px-3 h-9 gap-1.5 border-dashed"
+          disabled={uploading}
+          onClick={() => inputRef.current?.click()}
+        >
+          {uploading
+            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            : <Upload className="w-3.5 h-3.5" />
+          }
+          {uploading ? "上傳中" : "上傳"}
+        </Button>
+        <input
+          ref={inputRef}
+          type="file"
+          accept={accept}
+          className="hidden"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }}
+        />
+      </div>
+      {hint && <p className="text-[10px] text-muted-foreground/60">{hint}</p>}
+      {value && value.startsWith("http") && (
+        <p className="text-[10px] text-emerald-600 truncate">✓ {value}</p>
+      )}
+    </div>
+  );
+}
+
+// ─── 音樂風格標籤資料 ─────────────────────────────────────────────────────────
+
+const MUSIC_TAG_CATEGORIES = [
+  {
+    label: "曲風",
+    color: "purple",
+    tags: ["pop", "rock", "jazz", "classical", "hip-hop", "electronic", "folk", "country", "R&B", "metal", "blues", "reggae", "soul", "funk", "ambient", "lo-fi"],
+  },
+  {
+    label: "樂器",
+    color: "blue",
+    tags: ["piano", "guitar", "violin", "drums", "bass", "flute", "cello", "trumpet", "synthesizer", "acoustic guitar", "electric guitar", "ukulele"],
+  },
+  {
+    label: "情緒氛圍",
+    color: "pink",
+    tags: ["happy", "sad", "romantic", "energetic", "relaxing", "dramatic", "mysterious", "uplifting", "melancholic", "calm", "tense", "nostalgic"],
+  },
+  {
+    label: "節奏速度",
+    color: "orange",
+    tags: ["60bpm", "80bpm", "100bpm", "120bpm", "140bpm", "upbeat", "slow", "moderate", "fast", "danceable"],
+  },
+  {
+    label: "調性",
+    color: "green",
+    tags: ["C major", "G major", "D major", "A minor", "E minor", "F major", "minor key", "major key"],
+  },
+];
+
+type TagColor = "purple" | "blue" | "pink" | "orange" | "green";
+
+const TAG_COLOR_MAP: Record<TagColor, string> = {
+  purple: "bg-purple-50 hover:bg-purple-100 border-purple-200/60 text-purple-700",
+  blue:   "bg-blue-50 hover:bg-blue-100 border-blue-200/60 text-blue-700",
+  pink:   "bg-pink-50 hover:bg-pink-100 border-pink-200/60 text-pink-700",
+  orange: "bg-orange-50 hover:bg-orange-100 border-orange-200/60 text-orange-700",
+  green:  "bg-emerald-50 hover:bg-emerald-100 border-emerald-200/60 text-emerald-700",
+};
+
+const TAG_COLOR_ACTIVE_MAP: Record<TagColor, string> = {
+  purple: "bg-purple-500 border-purple-500 text-white",
+  blue:   "bg-blue-500 border-blue-500 text-white",
+  pink:   "bg-pink-500 border-pink-500 text-white",
+  orange: "bg-orange-500 border-orange-500 text-white",
+  green:  "bg-emerald-500 border-emerald-500 text-white",
+};
+
+function MusicTagPicker({ tags, onChange }: { tags: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const selectedSet = new Set(
+    tags.split(",").map((t) => t.trim()).filter(Boolean)
+  );
+
+  const toggle = (tag: string) => {
+    const next = new Set(selectedSet);
+    if (next.has(tag)) next.delete(tag);
+    else next.add(tag);
+    onChange(Array.from(next).join(", "));
+  };
+
+  const selectedCount = selectedSet.size;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <Label className="text-xs text-muted-foreground flex items-center gap-1">
+          <Tag className="w-3 h-3" />
+          風格標籤（逗號分隔）
+          {selectedCount > 0 && (
+            <Badge variant="secondary" className="text-[9px] px-1 py-0 ml-1">{selectedCount} 個已選</Badge>
+          )}
+        </Label>
+        <button
+          onClick={() => setOpen(!open)}
+          className="flex items-center gap-0.5 text-[10px] text-primary hover:text-primary/80 transition-colors"
+        >
+          {open ? <><ChevronUp className="w-3 h-3" />收起快選</> : <><ChevronDown className="w-3 h-3" />快速選取</>}
+        </button>
+      </div>
+
+      {/* 手動輸入 */}
+      <Input
+        value={tags}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="例如：jazz, piano, 120bpm, relaxing, C major"
+        className="text-sm"
+      />
+
+      {/* 快選面板 */}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="p-3 rounded-xl bg-muted/30 border border-border/50 space-y-3">
+              <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                <Info className="w-3 h-3" />
+                點擊標籤快速新增，多個標籤會自動合併為逗號分隔格式
+              </div>
+              {MUSIC_TAG_CATEGORIES.map((cat) => (
+                <div key={cat.label}>
+                  <p className="text-[10px] font-medium text-muted-foreground mb-1.5">{cat.label}</p>
+                  <div className="flex flex-wrap gap-1">
+                    {cat.tags.map((tag) => {
+                      const isActive = selectedSet.has(tag);
+                      const colorKey = cat.color as TagColor;
+                      return (
+                        <button
+                          key={tag}
+                          onClick={() => toggle(tag)}
+                          className={`text-[11px] px-2 py-0.5 rounded-full border transition-all ${
+                            isActive ? TAG_COLOR_ACTIVE_MAP[colorKey] : TAG_COLOR_MAP[colorKey]
+                          }`}
+                        >
+                          {isActive && <span className="mr-0.5">✓</span>}
+                          {tag}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+              {selectedCount > 0 && (
+                <button
+                  onClick={() => onChange("")}
+                  className="text-[10px] text-muted-foreground hover:text-destructive transition-colors"
+                >
+                  清除全部選取
+                </button>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -186,7 +441,6 @@ function ToolCard({
 function MusicTab() {
   const [prompt, setPrompt] = useState("");
   const [lyrics, setLyrics] = useState("");
-  const [duration, setDuration] = useState(60);
   const [instrumental, setInstrumental] = useState(false);
   const [tags, setTags] = useState("");
   const [result, setResult] = useState<AudioResult | null>(null);
@@ -223,14 +477,8 @@ function MusicTab() {
               className="mt-1 text-sm resize-none h-20"
             />
           </div>
-          <div>
-            <Label className="text-xs text-muted-foreground">風格標籤（逗號分隔）</Label>
-            <Input
-              value={tags}
-              onChange={(e) => setTags(e.target.value)}
-              placeholder="例如：jazz, piano, upbeat, warm, acoustic"
-              className="mt-1 text-sm"
-            />
+          <div className="mt-1">
+            <MusicTagPicker tags={tags} onChange={setTags} />
           </div>
           <div className="flex items-center gap-2">
             <Switch checked={instrumental} onCheckedChange={setInstrumental} id="instrumental" />
@@ -249,18 +497,12 @@ function MusicTab() {
               />
             </div>
           )}
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">時長：{duration} 秒</Label>
-            <Slider
-              value={[duration]}
-              onValueChange={([v]) => setDuration(v)}
-              min={10} max={240} step={10}
-              className="mt-1"
-            />
-            <div className="flex justify-between text-[10px] text-muted-foreground/60">
-              <span>10s</span>
-              <span>4 分鐘</span>
-            </div>
+          {/* 注意：Sonauto v2 API 不接受 duration 參數，由模型自動決定 */}
+          <div className="p-2.5 rounded-lg bg-amber-50/60 border border-amber-200/40">
+            <p className="text-[10px] text-amber-700">
+              ⚡ <strong>Sonauto v2</strong> 自動決定音樂時長（通常 60-180 秒），無法手動指定。
+              若需精確時長控制，請在描述中說明（如：「60 秒短曲」）。
+            </p>
           </div>
           <Button
             onClick={() => mutation.mutate({ prompt, lyrics: lyrics || undefined, instrumental, tags: tags || undefined })}
@@ -277,19 +519,36 @@ function MusicTab() {
       </ToolCard>
 
       {/* 使用說明 */}
-      <div className="rounded-xl p-4 bg-purple-50/50 border border-purple-200/40">
-        <p className="text-xs font-medium text-purple-700 mb-1.5">💡 提示詞技巧</p>
-        <ul className="space-y-1">
-          {[
-            "在描述中加入情緒（歡快、憂鬱、緊張）效果更佳",
-            "指定樂器（鋼琴、吉他、弦樂）讓音色更精準",
-            "「風格標籤」可加入 BPM 或調性，例如：120bpm, C major",
-          ].map((tip, i) => (
-            <li key={i} className="flex gap-1.5 text-[11px] text-purple-600">
-              <span className="shrink-0 mt-0.5">•</span>{tip}
-            </li>
-          ))}
-        </ul>
+      <div className="rounded-xl p-4 bg-purple-50/50 border border-purple-200/40 space-y-3">
+        <div>
+          <p className="text-xs font-medium text-purple-700 mb-1.5">💡 提示詞技巧</p>
+          <ul className="space-y-1">
+            {[
+              "「音樂描述」：用自然語言說明想要的音樂感覺（情境、情緒、場景）",
+              "「風格標籤」：點擊「快速選取」選擇曲風/樂器/情緒/節奏/調性",
+              "兩者可同時使用：描述提供脈絡，標籤精確指定音樂特徵",
+            ].map((tip, i) => (
+              <li key={i} className="flex gap-1.5 text-[11px] text-purple-600">
+                <span className="shrink-0 mt-0.5">•</span>{tip}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="border-t border-purple-200/40 pt-3">
+          <p className="text-[10px] font-medium text-purple-700 mb-1">📝 範例組合</p>
+          <div className="space-y-1.5">
+            {[
+              { desc: "溫暖咖啡廳背景音樂", tags: "jazz, piano, acoustic, warm, 80bpm" },
+              { desc: "科幻電影高潮場景配樂", tags: "electronic, dramatic, tense, 140bpm, synthesizer" },
+              { desc: "輕鬆夏日流行歌曲", tags: "pop, upbeat, happy, guitar, 120bpm, C major" },
+            ].map((ex, i) => (
+              <div key={i} className="p-1.5 rounded bg-purple-100/50 text-[10px] text-purple-700">
+                <strong>描述：</strong>{ex.desc}<br />
+                <strong>標籤：</strong>{ex.tags}
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -440,12 +699,21 @@ function TTSTab() {
   };
 
   const elevenVoices = [
-    { id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel（英文女聲）" },
-    { id: "AZnzlk1XvdvUeBnXmlld", name: "Domi（英文女聲）" },
-    { id: "EXAVITQu4vr4xnSDxMaL", name: "Bella（英文女聲）" },
-    { id: "ErXwobaYiN019PkySvjV", name: "Antoni（英文男聲）" },
-    { id: "MF3mGyEYCl7XYWbV9V6O", name: "Elli（英文女聲）" },
-    { id: "TxGEqnHWrfWFTfGW9XjX", name: "Josh（英文男聲）" },
+    { id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel", desc: "英文女聲・自然沉穩", emoji: "👩" },
+    { id: "AZnzlk1XvdvUeBnXmlld", name: "Domi",   desc: "英文女聲・充滿活力", emoji: "💃" },
+    { id: "EXAVITQu4vr4xnSDxMaL", name: "Bella",  desc: "英文女聲・柔和溫暖", emoji: "🌸" },
+    { id: "ErXwobaYiN019PkySvjV", name: "Antoni", desc: "英文男聲・親切自然", emoji: "👨" },
+    { id: "MF3mGyEYCl7XYWbV9V6O", name: "Elli",   desc: "英文女聲・年輕清亮", emoji: "✨" },
+    { id: "TxGEqnHWrfWFTfGW9XjX", name: "Josh",   desc: "英文男聲・低沉磁性", emoji: "🎙️" },
+    { id: "pNInz4obpRJjN438Rq59", name: "Adam",  desc: "英文男聲・新聞播報", emoji: "📰" },
+    { id: "yoZ06aMxZJJ28mfd3POQ", name: "Sam",   desc: "英文男聲・理性穩健", emoji: "🤵" },
+  ];
+
+  const qwenVoicePresets = [
+    { id: "Chelsie", desc: "女聲・活潑英語", emoji: "🌟", lang: "英文" },
+    { id: "Ethan",   desc: "男聲・英語播報", emoji: "🎤", lang: "英文" },
+    { id: "Vivian",  desc: "女聲・中文自然", emoji: "🌺", lang: "中文" },
+    { id: "Dylan",   desc: "男聲・中文沉穩", emoji: "🎯", lang: "中文" },
   ];
 
   return (
@@ -495,37 +763,87 @@ function TTSTab() {
             <p className="text-[10px] text-muted-foreground/60 mt-1">{text.length} / 5000 字元</p>
           </div>
 
-          {/* 語音 ID */}
+          {/* 語音選擇 */}
           {engine === "elevenlabs" ? (
-            <div>
-              <Label className="text-xs text-muted-foreground">語音選擇</Label>
-              <Select value={voiceId || "default"} onValueChange={(v) => setVoiceId(v === "default" ? "" : v)}>
-                <SelectTrigger className="mt-1 text-sm">
-                  <SelectValue placeholder="選擇語音（或輸入自訂 ID）" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="default">預設語音</SelectItem>
-                  {elevenVoices.map((v) => (
-                    <SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Input
-                value={voiceId}
-                onChange={(e) => setVoiceId(e.target.value)}
-                placeholder="或貼上自訂語音 ID"
-                className="mt-2 text-xs"
-              />
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">語音選擇（點擊快速套用）</Label>
+              {/* ElevenLabs 預設語音快選卡 */}
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  onClick={() => setVoiceId("")}
+                  className={`p-2 rounded-lg border text-left transition-all text-xs ${!voiceId ? "bg-blue-500 text-white border-blue-500" : "bg-background hover:bg-accent border-border"}`}
+                >
+                  <span className="mr-1">🎵</span> 預設語音
+                  <p className={`text-[9px] mt-0.5 ${!voiceId ? "text-blue-100" : "text-muted-foreground"}`}>系統自動選擇</p>
+                </button>
+                {elevenVoices.map((v) => (
+                  <button
+                    key={v.id}
+                    onClick={() => setVoiceId(v.id)}
+                    className={`p-2 rounded-lg border text-left transition-all ${voiceId === v.id ? "bg-blue-500 text-white border-blue-500" : "bg-background hover:bg-accent border-border"}`}
+                  >
+                    <span className="mr-1">{v.emoji}</span>
+                    <span className="text-xs font-medium">{v.name}</span>
+                    <p className={`text-[9px] mt-0.5 ${voiceId === v.id ? "text-blue-100" : "text-muted-foreground"}`}>{v.desc}</p>
+                  </button>
+                ))}
+              </div>
+              {/* 自訂 Voice ID 輸入 */}
+              <div>
+                <Label className="text-xs text-muted-foreground">或輸入自訂 Voice ID</Label>
+                <div className="flex gap-2 mt-1">
+                  <Input
+                    value={voiceId}
+                    onChange={(e) => setVoiceId(e.target.value)}
+                    placeholder="貼上 ElevenLabs voice_id（例：21m00Tcm4TlvDq8ikWAM）"
+                    className="text-xs flex-1"
+                  />
+                  {voiceId && (
+                    <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => setVoiceId("")}>
+                      ✕
+                    </Button>
+                  )}
+                </div>
+                <p className="text-[10px] text-muted-foreground/60 mt-1">
+                  💡 在 <a href="https://elevenlabs.io/voice-library" target="_blank" rel="noopener noreferrer" className="text-primary underline">ElevenLabs Voice Library</a> 可找到更多語音 ID
+                </p>
+              </div>
             </div>
           ) : (
-            <div>
-              <Label className="text-xs text-muted-foreground">語音 ID（選填）</Label>
-              <Input
-                value={voiceId}
-                onChange={(e) => setVoiceId(e.target.value)}
-                placeholder="Qwen 語音 ID（留空使用預設）"
-                className="mt-1 text-sm"
-              />
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Qwen 語音選擇（點擊快速套用）</Label>
+              {/* Qwen 預設語音快選 */}
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  onClick={() => setVoiceId("")}
+                  className={`p-2 rounded-lg border text-left transition-all text-xs ${!voiceId ? "bg-blue-500 text-white border-blue-500" : "bg-background hover:bg-accent border-border"}`}
+                >
+                  <span className="mr-1">🤖</span> 預設語音
+                  <p className={`text-[9px] mt-0.5 ${!voiceId ? "text-blue-100" : "text-muted-foreground"}`}>系統自動決定</p>
+                </button>
+                {qwenVoicePresets.map((v) => (
+                  <button
+                    key={v.id}
+                    onClick={() => setVoiceId(v.id)}
+                    className={`p-2 rounded-lg border text-left transition-all ${voiceId === v.id ? "bg-blue-500 text-white border-blue-500" : "bg-background hover:bg-accent border-border"}`}
+                  >
+                    <span className="mr-1">{v.emoji}</span>
+                    <span className="text-xs font-medium">{v.id}</span>
+                    <Badge variant="outline" className="ml-1 text-[8px] px-1 py-0">{v.lang}</Badge>
+                    <p className={`text-[9px] mt-0.5 ${voiceId === v.id ? "text-blue-100" : "text-muted-foreground"}`}>{v.desc}</p>
+                  </button>
+                ))}
+              </div>
+              {/* 手動輸入 */}
+              <div>
+                <Label className="text-xs text-muted-foreground">或輸入語音名稱</Label>
+                <Input
+                  value={voiceId}
+                  onChange={(e) => setVoiceId(e.target.value)}
+                  placeholder="如：Vivian、Dylan（留空使用預設）"
+                  className="mt-1 text-sm"
+                />
+              </div>
             </div>
           )}
 
@@ -545,12 +863,14 @@ function TTSTab() {
             </div>
           )}
 
-          {/* Qwen 語音名稱（可選） */}
+          {/* Qwen 語音說明 */}
           {engine === "qwen" && (
             <div className="p-3 rounded-lg bg-blue-50/40 border border-blue-200/30">
-              <p className="text-[10px] text-blue-700">
-                💡 Qwen3-TTS 不支援 ElevenLabs voice_id。
-                可在「語音 ID」中填入預訓練語音名稱（如 <code>Vivian</code>）或留空使用預設。
+              <p className="text-[10px] text-blue-700 leading-relaxed">
+                💡 <strong>Qwen3-TTS</strong> 支援中文、英文、日文等多語言，自動偵測語言。<br />
+                • 預設語音為系統自動選擇<br />
+                • 語音名稱（如 Vivian、Dylan）為 Qwen 內建的人聲風格<br />
+                • <strong>不支援</strong> ElevenLabs voice_id 格式
               </p>
             </div>
           )}
@@ -681,7 +1001,7 @@ function CloneTab() {
               {/* Qwen 需要參考音訊；Dia 不支援參考音訊 */}
               {mode === "qwen" && (
                 <>
-                  <AudioUrlInput label="參考音訊 URL" value={refAudio} onChange={setRefAudio} required placeholder="貼上 3-10 秒高品質音訊（mp3/wav/flac）" />
+                  <FileUploadInput label="參考音訊" value={refAudio} onChange={setRefAudio} required accept="audio/*" placeholder="貼上 3-10 秒高品質音訊（mp3/wav/flac）" hint="建議：安靜環境錄製的清晰人聲，3-10 秒，最大 16MB" />
                   <div>
                     <Label className="text-xs text-muted-foreground">參考音訊文字稿（選填，可提升克隆品質）</Label>
                     <Textarea
@@ -753,7 +1073,7 @@ function CloneTab() {
                 <Input
                   value={text}
                   onChange={(e) => setText(e.target.value)}
-                  placeholder="你好，我是你設計的聲音，歡迎使用 AI Director 專業創作室。"
+                  placeholder="你好，我是你設計的聲音，歡迎使用 AI Director 音樂配音創作室。"
                   className="mt-1 text-sm"
                 />
               </div>
@@ -788,12 +1108,14 @@ function CloneTab() {
                 </p>
               </div>
 
-              <AudioUrlInput
-                label="音訊來源 URL"
+              <FileUploadInput
+                label="音訊來源"
                 value={refAudio}
                 onChange={setRefAudio}
                 required
-                placeholder="貼上 3-30 秒清晰人聲音訊（建議 wav/mp3，需有乾淨的人聲）"
+                accept="audio/*"
+                placeholder="貼上 3-30 秒清晰人聲音訊（建議 wav/mp3）"
+                hint="需有乾淨的人聲，建議 16kHz 以上，無背景音樂，最大 16MB"
               />
 
               <div>
@@ -970,25 +1292,21 @@ function ProcessTab() {
           <div className="space-y-3">
             {/* 音訊輸入 */}
             {tool !== "merge" ? (
-              <AudioUrlInput label="音訊 URL" value={audioUrl} onChange={setAudioUrl} required />
+              <FileUploadInput label="音訊" value={audioUrl} onChange={setAudioUrl} required accept="audio/*" hint="支援 mp3、wav、flac，最大 16MB" />
             ) : (
               <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground">音訊列表（最少 2 個）<span className="text-destructive ml-0.5">*</span></Label>
                 {audioUrls.map((u, i) => (
-                  <div key={i} className="flex gap-2">
-                    <Input
+                  <div key={i} className="space-y-1">
+                    <FileUploadInput
+                      label={`音訊 ${i + 1}`}
                       value={u}
-                      onChange={(e) => {
-                        const next = [...audioUrls];
-                        next[i] = e.target.value;
-                        setAudioUrls(next);
-                      }}
-                      placeholder={`音訊 ${i + 1} URL`}
-                      className="text-sm flex-1"
+                      onChange={(v) => { const next = [...audioUrls]; next[i] = v; setAudioUrls(next); }}
+                      accept="audio/*"
                     />
                     {i > 1 && (
-                      <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => setAudioUrls(audioUrls.filter((_, j) => j !== i))}>
-                        <span className="text-sm">✕</span>
+                      <Button variant="ghost" size="sm" className="text-xs text-destructive h-6 px-2" onClick={() => setAudioUrls(audioUrls.filter((_, j) => j !== i))}>
+                        移除此音訊
                       </Button>
                     )}
                   </div>
@@ -1048,12 +1366,30 @@ function ProcessTab() {
               <>
                 <div>
                   <Label className="text-xs text-muted-foreground">目標語音 ID <span className="text-destructive">*</span></Label>
+                  {/* 快選 */}
+                  <div className="mt-1 flex flex-wrap gap-1 mb-2">
+                    {[
+                      { id: "21m00Tcm4TlvDq8ikWAM", label: "Rachel 女聲" },
+                      { id: "ErXwobaYiN019PkySvjV", label: "Antoni 男聲" },
+                      { id: "TxGEqnHWrfWFTfGW9XjX", label: "Josh 男聲" },
+                      { id: "EXAVITQu4vr4xnSDxMaL", label: "Bella 女聲" },
+                    ].map((v) => (
+                      <button
+                        key={v.id}
+                        onClick={() => setVoiceId(v.id)}
+                        className={`text-[10px] px-2 py-1 rounded-lg border transition-all ${voiceId === v.id ? "bg-blue-500 text-white border-blue-500" : "bg-blue-50 hover:bg-blue-100 border-blue-200/60 text-blue-700"}`}
+                      >
+                        {v.label}
+                      </button>
+                    ))}
+                  </div>
                   <Input
                     value={voiceId}
                     onChange={(e) => setVoiceId(e.target.value)}
-                    placeholder="ElevenLabs 語音 ID（例如：21m00Tcm4TlvDq8ikWAM）"
-                    className="mt-1 text-sm"
+                    placeholder="或貼上自訂 ElevenLabs voice_id"
+                    className="text-sm"
                   />
+                  <p className="text-[10px] text-muted-foreground/60 mt-1">💡 點擊上方快選，或到 <a href="https://elevenlabs.io/voice-library" target="_blank" rel="noopener noreferrer" className="text-primary underline">Voice Library</a> 取得更多</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Switch checked={removeBgNoise} onCheckedChange={setRemoveBgNoise} id="rmBg" />
@@ -1113,7 +1449,7 @@ function ASRTab() {
         color="green"
       >
         <div className="space-y-3">
-          <AudioUrlInput label="音訊 URL" value={audioUrl} onChange={setAudioUrl} required />
+          <FileUploadInput label="音訊" value={audioUrl} onChange={setAudioUrl} required accept="audio/*" hint="支援 mp3、wav、flac、m4a 等格式，最大 16MB" />
 
           {/* Nemotron ASR 自動偵測語言，不支援 language/task 參數 */}
           <div className="p-3 rounded-lg bg-green-50/50 border border-green-200/40">
@@ -1183,12 +1519,12 @@ function AvatarVideoTab() {
   const [jobInfo, setJobInfo] = useState<{ request_id: string; model: string } | null>(null);
 
   const modelConfig = {
-    wan:     { label: "Wan 說話人",       desc: "圖片＋音訊 → 說話影片",         badge: "Wan 14B",    color: "purple" as const },
-    echo:    { label: "EchoMimic V3",    desc: "虛擬形像 + 音訊/文字驅動",       badge: "EchoMimic",  color: "blue" as const },
-    stable:  { label: "Stable Avatar",  desc: "音訊驅動頭像（最長 5 分鐘）",    badge: "Stable",     color: "green" as const },
-    longcat: { label: "LongCat Avatar", desc: "超逼真長影片唇形同步",            badge: "LongCat",    color: "orange" as const },
-    ltx:     { label: "LTX-2 音訊→影片", desc: "音訊＋文字＋圖像生成影片",      badge: "LTX-2 19B",  color: "cyan" as const },
-    dubbing: { label: "ElevenLabs 配音", desc: "影片 / 音訊 AI 翻譯配音",        badge: "Dubbing",    color: "pink" as const },
+    wan:     { label: "Wan 說話人",       desc: "圖片＋音訊 → 說話影片｜需：圖片＋音訊",   badge: "Wan 14B",    color: "purple" as const },
+    echo:    { label: "EchoMimic V3",    desc: "形像驅動｜需：圖片（音訊/文字選填）",       badge: "EchoMimic",  color: "blue" as const },
+    stable:  { label: "Stable Avatar",  desc: "音訊驅動頭像，最長 5 分鐘｜需：圖片＋音訊", badge: "Stable",     color: "green" as const },
+    longcat: { label: "LongCat Avatar", desc: "超逼真唇形同步｜需：圖片＋音訊",            badge: "LongCat",    color: "orange" as const },
+    ltx:     { label: "LTX-2 音訊→影片", desc: "音訊＋文字生成影片｜需：提示詞＋音訊",    badge: "LTX-2 19B",  color: "cyan" as const },
+    dubbing: { label: "ElevenLabs 配音", desc: "AI 翻譯配音｜需：影片或音訊 URL",           badge: "Dubbing",    color: "pink" as const },
   };
 
   const modelIds: Record<string, string> = {
@@ -1215,6 +1551,17 @@ function AvatarVideoTab() {
   const isPending = wanMut.isPending || echoMut.isPending || stableMut.isPending || longcatMut.isPending || ltxMut.isPending || dubbingMut.isPending;
   const jobStatus = (statusQuery.data as any)?.status;
   const videoResult = (statusQuery.data as any)?.output?.video_url;
+
+  // 每個模型的必填欄位驗證
+  const isGenerateDisabled = isPending || (() => {
+    if (model === "wan")     return !imageUrl.trim() || !audioUrl.trim();
+    if (model === "echo")    return !imageUrl.trim();
+    if (model === "stable")  return !imageUrl.trim() || !audioUrl.trim();
+    if (model === "longcat") return !imageUrl.trim() || !audioUrl.trim();
+    if (model === "ltx")     return !prompt.trim() || !audioUrl.trim();
+    if (model === "dubbing") return !videoUrl.trim() && !audioUrl.trim();
+    return false;
+  })();
 
   const handleGenerate = () => {
     setJobInfo(null);
@@ -1261,21 +1608,26 @@ function AvatarVideoTab() {
           <div className="space-y-3">
             {/* 圖片輸入 */}
             {model !== "dubbing" && model !== "ltx" && (
-              <div>
-                <Label className="text-xs text-muted-foreground">
-                  圖片 URL（人物/頭像）<span className="text-destructive ml-0.5">*</span>
-                </Label>
-                <Input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="貼上人物圖片 URL（建議正面照）" className="mt-1 text-sm" />
-              </div>
+              <FileUploadInput
+                label="人物圖片（頭像）"
+                value={imageUrl}
+                onChange={setImageUrl}
+                required
+                accept="image/*"
+                placeholder="貼上人物圖片 URL（建議正面照）"
+                hint="建議：清晰正面照，人臉居中，jpg/png，最大 16MB"
+              />
             )}
 
             {/* 音訊輸入 */}
             {model !== "dubbing" && (
-              <AudioUrlInput
-                label={`音訊 URL${model === "echo" ? "（選填）" : ""}`}
+              <FileUploadInput
+                label={`驅動音訊${model === "echo" ? "（選填，也可用文字驅動）" : ""}`}
                 value={audioUrl}
                 onChange={setAudioUrl}
                 required={model !== "echo"}
+                accept="audio/*"
+                hint={model === "echo" ? "EchoMimic V3：可選填音訊或在下方輸入文字提示詞" : "支援 mp3、wav，最大 16MB"}
               />
             )}
 
@@ -1284,9 +1636,10 @@ function AvatarVideoTab() {
               <>
                 <div>
                   <Label className="text-xs text-muted-foreground">影片 URL（與音訊二選一）</Label>
-                  <Input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="貼上影片 URL" className="mt-1 text-sm" />
+                  <Input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="貼上影片 URL（mp4）" className="mt-1 text-sm" />
+                  <p className="text-[10px] text-muted-foreground/60 mt-1">影片格式：mp4，ElevenLabs Dubbing 僅接受 URL（不支援直接上傳）</p>
                 </div>
-                <AudioUrlInput label="音訊 URL（與影片二選一）" value={audioUrl} onChange={setAudioUrl} />
+                <FileUploadInput label="音訊（與影片二選一）" value={audioUrl} onChange={setAudioUrl} accept="audio/*" hint="支援 mp3、wav，最大 16MB" />
                 <div>
                   <Label className="text-xs text-muted-foreground">目標語言</Label>
                   <Select value={targetLang} onValueChange={setTargetLang}>
@@ -1320,12 +1673,20 @@ function AvatarVideoTab() {
               </div>
             )}
 
-            <Button onClick={handleGenerate} disabled={isPending} className="w-full">
+            <Button onClick={handleGenerate} disabled={isGenerateDisabled} className="w-full">
               {isPending
-                ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />提交中...</>
+                ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />提交中（非同步，1-5 分鐘）...</>
                 : <><Film className="w-4 h-4 mr-2" />生成影片（非同步）</>
               }
             </Button>
+            {isGenerateDisabled && !isPending && (
+              <p className="text-[10px] text-amber-600 text-center">
+                {model === "ltx" ? "⚠️ 請填寫提示詞和音訊" :
+                 model === "dubbing" ? "⚠️ 請提供影片或音訊 URL" :
+                 model === "echo" ? "⚠️ 請提供人物圖片" :
+                 "⚠️ 請填寫圖片和音訊"}
+              </p>
+            )}
           </div>
 
           {/* 任務狀態 */}
@@ -1388,9 +1749,9 @@ export default function ProStudio() {
           <Sparkles className="w-6 h-6 text-white" />
         </div>
         <div className="flex-1 min-w-0">
-          <h1 className="text-xl font-bold tracking-tight text-foreground">專業創作室</h1>
+          <h1 className="text-xl font-bold tracking-tight text-foreground">音樂配音創作室</h1>
           <p className="text-xs text-muted-foreground mt-0.5">
-            fal.ai 頂尖模型整合 — 音樂・音效・語音・聲音克隆・Kling・AI 形像影片
+            音樂創作・配音制作・聲音克隆・AI 形像影片 — fal.ai 頂尖模型整合
           </p>
         </div>
         {hasKey === false && (
@@ -1406,7 +1767,7 @@ export default function ProStudio() {
         <div className="p-4 rounded-xl bg-amber-50/80 border border-amber-200/60">
           <p className="text-sm font-medium text-amber-800 mb-1">⚙️ 需要設定 FAL_API_KEY</p>
           <p className="text-xs text-amber-700 mb-2">
-            專業創作室的所有功能均需要 fal.ai API Key 才能使用。
+            音樂配音創作室的所有功能均需要 fal.ai API Key 才能使用。
           </p>
           <a
             href="https://fal.ai/dashboard/keys"
