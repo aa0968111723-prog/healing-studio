@@ -395,7 +395,9 @@ export default function HistoryPage() {
                             onClick={async (e) => {
                               e.stopPropagation();
                               try {
-                                const resp = await fetch(item.resultUrl!);
+                                const proxyUrl = `/api/proxy-download?url=${encodeURIComponent(item.resultUrl!)}`;
+                                const resp = await fetch(proxyUrl);
+                                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
                                 const blob = await resp.blob();
                                 const ext = item.modality === "image" ? (blob.type.includes("png") ? "png" : blob.type.includes("webp") ? "webp" : "jpg")
                                   : item.modality === "video" ? "mp4"
@@ -537,7 +539,9 @@ export default function HistoryPage() {
                                       const extMap: Record<string, string> = { image: "png", video: "mp4", audio: "mp3", voice: "wav" };
                                       const defaultExt = extMap[item.modality] || "bin";
                                       try {
-                                        const resp = await fetch(item.resultUrl!);
+                                        const proxyUrl = `/api/proxy-download?url=${encodeURIComponent(item.resultUrl!)}`;
+                                        const resp = await fetch(proxyUrl);
+                                        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
                                         const blob = await resp.blob();
                                         let ext = defaultExt;
                                         if (item.modality === "image") {

@@ -326,59 +326,6 @@ function ApiKeyBanner() {
   );
 }
 
-
-// ─── 子元件：AsyncVideoPoller (防止 504 Timeout 的進度查詢) ────────────────
-
-function AsyncVideoPoller({ result, onUpdate, label }: { result: VideoResult, onUpdate: (r: VideoResult) => void, label?: string }) {
-  const { data, isError, error } = trpc.videoStudio.checkVideoStatus.useQuery(
-    { requestId: result.request_id || "", modelId: result.raw?.raw_model_id || "" },
-    {
-      enabled: !!(result.request_id && !result.video_url && result.raw?.raw_model_id),
-      refetchInterval: (query: any) => (query?.state?.data?.status === "COMPLETED" || query?.state?.data?.status === "FAILED" ? false : 3000),
-      refetchIntervalInBackground: true,
-      retry: 3
-    }
-  );
-
-  useEffect(() => {
-    if (data?.status === "COMPLETED" && data.video_url) {
-      toast.success('✅ ' + (label || "影片") + ' 生成完成！');
-      onUpdate({ ...result, video_url: data.video_url, raw: data.raw });
-    } else if (data?.status === "FAILED") {
-      toast.error('❌ ' + (label || "影片") + ' 生成失敗');
-      onUpdate({ ...result, raw: { ...result.raw, failed: true } });
-    }
-  }, [data?.status, data?.video_url, label, onUpdate, result]);
-
-  if (result.video_url) {
-    return <VideoPlayer url={result.video_url} label={label} />;
-  }
-
-  if (isError || result.raw?.failed) {
-    return (
-      <div className="mt-4 p-4 rounded-xl border border-destructive/50 bg-destructive/10 text-destructive text-xs">
-        <AlertCircle className="w-4 h-4 mb-2 inline-block" />
-        生成任務失敗或超時阻攔：{error?.message || "內部錯誤"}
-      </div>
-    );
-  }
-
-  if (result.request_id && !result.video_url) {
-    return (
-      <div className="mt-4 p-6 rounded-2xl bg-secondary/30 flex flex-col items-center justify-center border border-primary/20">
-        <Loader2 className="w-6 h-6 text-primary animate-spin mb-3" />
-        <p className="text-sm font-medium text-foreground">正在雲端生成中...</p>
-        <p className="text-xs text-muted-foreground mt-1 text-center leading-relaxed">
-          已送出任務，每 3 秒自動更新進度。<br/>
-          (無需死等，背景查詢中...)
-        </p>
-      </div>
-    );
-  }
-
-  return null;
-}
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // 🎬 Tab 1 — 文生影 Text-to-Video
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -523,7 +470,7 @@ function TextToVideoTab() {
           <Button onClick={runKling} disabled={klingMut.isPending} className="w-full">
             {klingMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />生成中...</> : <><Sparkles className="w-4 h-4 mr-2" />Kling 文生影</>}
           </Button>
-          {klingResult && <AsyncVideoPoller result={klingResult} onUpdate={setKlingResult} label="Kling 生成結果" />}
+          {klingResult?.video_url && <VideoPlayer url={klingResult.video_url} label="Kling 生成結果" />}
         </div>
       </ToolCard>
 
@@ -557,7 +504,7 @@ function TextToVideoTab() {
           <Button onClick={runWan} disabled={wanMut.isPending} className="w-full" variant="secondary">
             {wanMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />生成中...</> : <><Film className="w-4 h-4 mr-2" />Wan 文生影</>}
           </Button>
-          {wanResult && <AsyncVideoPoller result={wanResult} onUpdate={setWanResult} label="Wan 生成結果" />}
+          {wanResult?.video_url && <VideoPlayer url={wanResult.video_url} label="Wan 生成結果" />}
         </div>
       </ToolCard>
 
@@ -575,7 +522,7 @@ function TextToVideoTab() {
           <Button onClick={runMinimax} disabled={mmMut.isPending} className="w-full" variant="secondary">
             {mmMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />生成中...</> : <><Sparkles className="w-4 h-4 mr-2" />MiniMax 文生影</>}
           </Button>
-          {mmResult && <AsyncVideoPoller result={mmResult} onUpdate={setMmResult} label="MiniMax 生成結果" />}
+          {mmResult?.video_url && <VideoPlayer url={mmResult.video_url} label="MiniMax 生成結果" />}
         </div>
       </ToolCard>
 
@@ -605,7 +552,7 @@ function TextToVideoTab() {
           <Button onClick={runVeo3} disabled={veoMut.isPending} className="w-full" variant="secondary">
             {veoMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />生成中（約 3-8 分鐘）...</> : <><Sparkles className="w-4 h-4 mr-2" />Veo 3 文生影</>}
           </Button>
-          {veoResult && <AsyncVideoPoller result={veoResult} onUpdate={setVeoResult} label="Veo 3 生成結果" />}
+          {veoResult?.video_url && <VideoPlayer url={veoResult.video_url} label="Veo 3 生成結果" />}
         </div>
       </ToolCard>
 
@@ -623,7 +570,7 @@ function TextToVideoTab() {
           <Button onClick={runLtx} disabled={ltxMut.isPending} className="w-full" variant="secondary">
             {ltxMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />生成中...</> : <><Zap className="w-4 h-4 mr-2" />LTX 文生影</>}
           </Button>
-          {ltxResult && <AsyncVideoPoller result={ltxResult} onUpdate={setLtxResult} label="LTX-Video 生成結果" />}
+          {ltxResult?.video_url && <VideoPlayer url={ltxResult.video_url} label="LTX-Video 生成結果" />}
         </div>
       </ToolCard>
 
@@ -665,7 +612,7 @@ function TextToVideoTab() {
           <Button onClick={runSora} disabled={soraMut.isPending} className="w-full" variant="secondary">
             {soraMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />生成中...</> : <><Sparkles className="w-4 h-4 mr-2" />Sora 文生影</>}
           </Button>
-          {soraResult && <AsyncVideoPoller result={soraResult} onUpdate={setSoraResult} label="Sora 生成結果" />}
+          {soraResult?.video_url && <VideoPlayer url={soraResult.video_url} label="Sora 生成結果" />}
         </div>
       </ToolCard>
     </div>
@@ -775,7 +722,7 @@ function ImageToVideoTab() {
           <Button onClick={runKling} disabled={klingMut.isPending} className="w-full">
             {klingMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />生成中...</> : <><Sparkles className="w-4 h-4 mr-2" />Kling 圖生影</>}
           </Button>
-          {klingResult && <AsyncVideoPoller result={klingResult} onUpdate={setKlingResult} label="Kling 圖生影結果" />}
+          {klingResult?.video_url && <VideoPlayer url={klingResult.video_url} label="Kling 圖生影結果" />}
         </div>
       </ToolCard>
 
@@ -800,7 +747,7 @@ function ImageToVideoTab() {
           <Button onClick={runWan} disabled={wanMut.isPending} className="w-full" variant="secondary">
             {wanMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />生成中...</> : <><Film className="w-4 h-4 mr-2" />Wan 圖生影</>}
           </Button>
-          {wanResult && <AsyncVideoPoller result={wanResult} onUpdate={setWanResult} label="Wan 圖生影結果" />}
+          {wanResult?.video_url && <VideoPlayer url={wanResult.video_url} label="Wan 圖生影結果" />}
         </div>
       </ToolCard>
 
@@ -839,7 +786,7 @@ function ImageToVideoTab() {
           <Button onClick={runRunway} disabled={runwayMut.isPending} className="w-full" variant="secondary">
             {runwayMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />生成中...</> : <><Camera className="w-4 h-4 mr-2" />Runway 圖生影</>}
           </Button>
-          {runwayResult && <AsyncVideoPoller result={runwayResult} onUpdate={setRunwayResult} label="Runway 圖生影結果" />}
+          {runwayResult?.video_url && <VideoPlayer url={runwayResult.video_url} label="Runway 圖生影結果" />}
         </div>
       </ToolCard>
 
@@ -878,7 +825,7 @@ function ImageToVideoTab() {
           <Button onClick={runPixverse} disabled={pvMut.isPending} className="w-full" variant="secondary">
             {pvMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />生成中...</> : <><Sparkles className="w-4 h-4 mr-2" />PixVerse 圖生影</>}
           </Button>
-          {pvResult && <AsyncVideoPoller result={pvResult} onUpdate={setPvResult} label="PixVerse 圖生影結果" />}
+          {pvResult?.video_url && <VideoPlayer url={pvResult.video_url} label="PixVerse 圖生影結果" />}
         </div>
       </ToolCard>
 
@@ -897,7 +844,7 @@ function ImageToVideoTab() {
           <Button onClick={runMinimax} disabled={mmMut.isPending} className="w-full" variant="secondary">
             {mmMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />生成中...</> : <><Sparkles className="w-4 h-4 mr-2" />MiniMax 圖生影</>}
           </Button>
-          {mmResult && <AsyncVideoPoller result={mmResult} onUpdate={setMmResult} label="MiniMax 圖生影結果" />}
+          {mmResult?.video_url && <VideoPlayer url={mmResult.video_url} label="MiniMax 圖生影結果" />}
         </div>
       </ToolCard>
     </div>
@@ -969,7 +916,7 @@ function VideoToVideoTab() {
           <Button onClick={runWan} disabled={wanMut.isPending} className="w-full">
             {wanMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />重繪中...</> : <><RefreshCw className="w-4 h-4 mr-2" />Wan 影片風格化</>}
           </Button>
-          {wanResult && <AsyncVideoPoller result={wanResult} onUpdate={setWanResult} label="Wan 影生影結果" />}
+          {wanResult?.video_url && <VideoPlayer url={wanResult.video_url} label="Wan 影生影結果" />}
         </div>
       </ToolCard>
 
@@ -988,7 +935,7 @@ function VideoToVideoTab() {
           <Button onClick={runKling} disabled={klingMut.isPending} className="w-full" variant="secondary">
             {klingMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />重繪中...</> : <><Clapperboard className="w-4 h-4 mr-2" />Kling 影片重繪</>}
           </Button>
-          {klingResult && <AsyncVideoPoller result={klingResult} onUpdate={setKlingResult} label="Kling 影生影結果" />}
+          {klingResult?.video_url && <VideoPlayer url={klingResult.video_url} label="Kling 影生影結果" />}
         </div>
       </ToolCard>
 
@@ -1007,7 +954,7 @@ function VideoToVideoTab() {
           <Button onClick={runLtx} disabled={ltxMut.isPending} className="w-full" variant="secondary">
             {ltxMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />生成中...</> : <><Layers className="w-4 h-4 mr-2" />LTX 關鍵幀生成</>}
           </Button>
-          {ltxResult && <AsyncVideoPoller result={ltxResult} onUpdate={setLtxResult} label="LTX 影片結果" />}
+          {ltxResult?.video_url && <VideoPlayer url={ltxResult.video_url} label="LTX 影片結果" />}
         </div>
       </ToolCard>
     </div>
@@ -1080,7 +1027,7 @@ function EnhancementTab() {
           <Button onClick={runUpscale} disabled={upscaleMut.isPending} className="w-full">
             {upscaleMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />超分中...</> : <><Maximize2 className="w-4 h-4 mr-2" />影片超解析度</>}
           </Button>
-          {upResult && <AsyncVideoPoller result={upResult} onUpdate={setUpResult} label="超分結果" />}
+          {upResult?.video_url && <VideoPlayer url={upResult.video_url} label="超分結果" />}
         </div>
       </ToolCard>
 
@@ -1107,7 +1054,7 @@ function EnhancementTab() {
           <Button onClick={runRife} disabled={rifeMut.isPending} className="w-full" variant="secondary">
             {rifeMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />補幀中...</> : <><Zap className="w-4 h-4 mr-2" />影片補幀</>}
           </Button>
-          {rifeResult && <AsyncVideoPoller result={rifeResult} onUpdate={setRifeResult} label="補幀結果" />}
+          {rifeResult?.video_url && <VideoPlayer url={rifeResult.video_url} label="補幀結果" />}
         </div>
       </ToolCard>
 
@@ -1137,7 +1084,7 @@ function EnhancementTab() {
           <Button onClick={runTopaz} disabled={topazMut.isPending} className="w-full" variant="secondary">
             {topazMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />增強中（可能需要 5-10 分鐘）...</> : <><Eye className="w-4 h-4 mr-2" />Topaz 影片增強</>}
           </Button>
-          {topazResult && <AsyncVideoPoller result={topazResult} onUpdate={setTopazResult} label="Topaz 增強結果" />}
+          {topazResult?.video_url && <VideoPlayer url={topazResult.video_url} label="Topaz 增強結果" />}
         </div>
       </ToolCard>
     </div>
@@ -1258,7 +1205,7 @@ function AdvancedControlTab() {
           <Button onClick={runCam} disabled={camMut.isPending} className="w-full">
             {camMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />生成中...</> : <><Camera className="w-4 h-4 mr-2" />CamMaster 生成</>}
           </Button>
-          {camResult && <AsyncVideoPoller result={camResult} onUpdate={setCamResult} label="CamMaster 結果" />}
+          {camResult?.video_url && <VideoPlayer url={camResult.video_url} label="CamMaster 結果" />}
         </div>
       </ToolCard>
 
@@ -1295,7 +1242,7 @@ function AdvancedControlTab() {
           <Button onClick={runAnimateDiff} disabled={adMut.isPending} className="w-full" variant="secondary">
             {adMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />生成中...</> : <><Move className="w-4 h-4 mr-2" />AnimateDiff 生成</>}
           </Button>
-          {adResult && <AsyncVideoPoller result={adResult} onUpdate={setAdResult} label="AnimateDiff 結果" />}
+          {adResult?.video_url && <VideoPlayer url={adResult.video_url} label="AnimateDiff 結果" />}
         </div>
       </ToolCard>
 
@@ -1309,7 +1256,7 @@ function AdvancedControlTab() {
           <Button onClick={runDepthCrafter} disabled={dcMut.isPending} className="w-full" variant="secondary">
             {dcMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />深度重建中...</> : <><Eye className="w-4 h-4 mr-2" />DepthCrafter 深度重建</>}
           </Button>
-          {dcResult && <AsyncVideoPoller result={dcResult} onUpdate={setDcResult} label="DepthCrafter 深度圖結果" />}
+          {dcResult?.video_url && <VideoPlayer url={dcResult.video_url} label="DepthCrafter 深度圖結果" />}
         </div>
       </ToolCard>
 
@@ -1357,7 +1304,7 @@ function AdvancedControlTab() {
           <Button onClick={runVidu} disabled={viduMut.isPending} className="w-full" variant="secondary">
             {viduMut.isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />生成中...</> : <><Cpu className="w-4 h-4 mr-2" />Vidu 角色一致性生成</>}
           </Button>
-          {viduResult && <AsyncVideoPoller result={viduResult} onUpdate={setViduResult} label="Vidu 生成結果" />}
+          {viduResult?.video_url && <VideoPlayer url={viduResult.video_url} label="Vidu 生成結果" />}
         </div>
       </ToolCard>
     </div>

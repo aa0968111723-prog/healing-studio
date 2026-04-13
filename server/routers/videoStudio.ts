@@ -89,11 +89,26 @@ async function falRun(modelId: string, input: Record<string, unknown>): Promise<
 async function falQueueRun(
   modelId: string,
   input: Record<string, unknown>,
-  waitSec = 300 // 參數已廢棄不用，改由前端 Polling
+  waitSec = 300
 ): Promise<unknown> {
   const { request_id } = await falQueueSubmit(modelId, input);
-  // 直接回傳 request_id，不等待結果
-  return { request_id, raw_model_id: modelId, is_async_polling: true };
+  const deadline = Date.now() + waitSec * 1000;
+  let pollInterval = 3000;
+
+  while (Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, pollInterval));
+    pollInterval = Math.min(pollInterval * 1.4, 10000);
+
+    const status = await falQueueStatus(request_id, modelId) as any;
+    const s = status?.status ?? status?.state;
+
+    if (s === "COMPLETED") return falQueueResult(request_id, modelId);
+    if (s === "FAILED") {
+      const errMsg = status?.error ?? status?.message ?? "未知錯誤";
+      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `fal.ai 任務失敗 [${modelId}]: ${errMsg}` });
+    }
+  }
+  throw new TRPCError({ code: "TIMEOUT", message: `fal.ai 任務超時（>${waitSec}s）[${modelId}]` });
 }
 
 // ─── 提取影片 URL 的通用助手 ─────────────────────────────────────────────────
@@ -118,26 +133,6 @@ export const videoStudioRouter = router({
   checkApiKey: publicProcedure.query(() => {
     return { configured: !!process.env.FAL_API_KEY };
   }),
-
-  /** 用來讓前端以每 3 秒非同步查詢任務是否完成，防 504 Timeout */
-  checkVideoStatus: protectedProcedure
-    .input(z.object({
-      requestId: z.string(),
-      modelId: z.string(),
-    }))
-    .query(async ({ input }) => {
-      const status = await falQueueStatus(input.requestId, input.modelId) as any;
-      const s = status?.status ?? status?.state;
-      if (s === "COMPLETED") {
-        const result = await falQueueResult(input.requestId, input.modelId) as any;
-        return { status: "COMPLETED", video_url: extractVideoUrl(result), raw: result };
-      }
-      if (s === "FAILED") {
-        const errMsg = status?.error ?? status?.message ?? "未知錯誤";
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `fal.ai 任務失敗 [${input.modelId}]: ${errMsg}` });
-      }
-      return { status: "IN_PROGRESS" };
-    }),
 
   // ═══════════════════════════════════════════════════════════════════════════
   // 🎬 一、文生影 Text-to-Video
@@ -184,8 +179,8 @@ export const videoStudioRouter = router({
     }))
     .mutation(async ({ input }) => {
       const modelId = input.resolution === "720p"
-        ? "fal-ai/wan-t2v-v2.1/720p"
-        : "fal-ai/wan-t2v-v2.1/480p";
+        ? "fal-ai/wan-ai/wan2.1-t2v-720p"
+        : "fal-ai/wan-ai/wan2.1-t2v-480p";
 
       const payload: Record<string, unknown> = {
         prompt: input.prompt,

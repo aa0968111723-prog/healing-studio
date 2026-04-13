@@ -13,6 +13,7 @@ import OfflineBanner from "./components/OfflineBanner";
 import AuthExpiredModal from "./components/AuthExpiredModal";
 import { ShowcaseTransferProvider } from "./contexts/ShowcaseTransferContext";
 import { SiteOnboardingProvider } from "./contexts/SiteOnboardingContext";
+import { FocusFlowProvider } from "./contexts/FocusFlowContext";
 import SiteOnboardingOverlay from "./components/SiteOnboardingOverlay";
 
 // ─── 首頁直接載入（不延遲，確保首屏最快） ─────────────────────────────────
@@ -38,6 +39,7 @@ const ImageStudio      = lazy(() => import("./pages/ImageStudio"));
 const VideoStudio      = lazy(() => import("./pages/VideoStudio"));
 const LearnHub         = lazy(() => import("./pages/LearnHub"));
 const LoraTrainer      = lazy(() => import("./pages/LoraTrainer"));
+const FocusFlowPage    = lazy(() => import("./pages/FocusFlowPage"));
 
 // ─── 頁面載入中的通用 Skeleton ─────────────────────────────────────────────
 function PageSkeleton() {
@@ -136,6 +138,9 @@ function Router() {
       <Route path="/lora-trainer">
         <ProtectedDashboardRoute component={LoraTrainer} />
       </Route>
+      <Route path="/focus-flow">
+        <DashboardRoute component={FocusFlowPage} />
+      </Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
@@ -150,6 +155,7 @@ function App() {
         <NotesDrawerProvider>
           <ShowcaseTransferProvider>
             <SiteOnboardingProvider>
+              <FocusFlowProvider>
               <TooltipProvider>
                 <Toaster />
                 <OfflineBanner />
@@ -158,6 +164,7 @@ function App() {
                 <ProjectNotesDrawer />
                 <SiteOnboardingOverlay />
               </TooltipProvider>
+              </FocusFlowProvider>
             </SiteOnboardingProvider>
           </ShowcaseTransferProvider>
         </NotesDrawerProvider>
