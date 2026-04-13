@@ -100,6 +100,112 @@ export type JobProgress = {
   resultJson?: Record<string, unknown>;
 };
 
+// ─── Model Training Types ───────────────────────────────────────────────────
+
+export type TrainingModelType =
+  | "image_subject"
+  | "voice_clone"
+  | "style_lora"
+  | "scene_lora"
+  | "video_lora"
+  | "portrait_lora";
+
+export type TrainingEngine = "replicate" | "fal";
+
+/** 訓練類別定義：UI 顯示資訊 + 預設引擎 + 資料需求 */
+export type TrainingCategory = {
+  type: TrainingModelType;
+  label: string;
+  labelZh: string;
+  description: string;
+  icon: string;
+  defaultEngine: TrainingEngine;
+  acceptsImages: boolean;
+  acceptsVideos: boolean;
+  minDatasetSize: number;
+  maxDatasetSize: number;
+};
+
+export const TRAINING_CATEGORIES: TrainingCategory[] = [
+  {
+    type: "image_subject",
+    label: "Character / Subject",
+    labelZh: "角色 / 主體",
+    description: "訓練特定角色或物件的外觀，可在生成時用觸發詞呼叫",
+    icon: "user",
+    defaultEngine: "replicate",
+    acceptsImages: true,
+    acceptsVideos: false,
+    minDatasetSize: 3,
+    maxDatasetSize: 30,
+  },
+  {
+    type: "portrait_lora",
+    label: "Portrait",
+    labelZh: "人像專訓",
+    description: "針對人像生成最佳化，專注於面部特徵與表情細節",
+    icon: "smile",
+    defaultEngine: "fal",
+    acceptsImages: true,
+    acceptsVideos: false,
+    minDatasetSize: 5,
+    maxDatasetSize: 30,
+  },
+  {
+    type: "style_lora",
+    label: "Style",
+    labelZh: "風格微調",
+    description: "學習特定藝術風格、色調或視覺語言，套用至任意主題",
+    icon: "palette",
+    defaultEngine: "fal",
+    acceptsImages: true,
+    acceptsVideos: false,
+    minDatasetSize: 5,
+    maxDatasetSize: 50,
+  },
+  {
+    type: "scene_lora",
+    label: "Scene / Environment",
+    labelZh: "場景 / 環境",
+    description: "訓練特定場景風格（如室內設計、自然景觀、建築）",
+    icon: "mountain",
+    defaultEngine: "fal",
+    acceptsImages: true,
+    acceptsVideos: false,
+    minDatasetSize: 5,
+    maxDatasetSize: 50,
+  },
+  {
+    type: "video_lora",
+    label: "Video LoRA",
+    labelZh: "影片 LoRA",
+    description: "訓練影片風格微調，可用於文字生成影片或影片轉換",
+    icon: "film",
+    defaultEngine: "fal",
+    acceptsImages: true,
+    acceptsVideos: true,
+    minDatasetSize: 3,
+    maxDatasetSize: 48,
+  },
+  {
+    type: "voice_clone",
+    label: "Voice Clone",
+    labelZh: "語音複製",
+    description: "複製特定人聲進行語音合成（即將推出）",
+    icon: "mic",
+    defaultEngine: "fal",
+    acceptsImages: false,
+    acceptsVideos: false,
+    minDatasetSize: 1,
+    maxDatasetSize: 10,
+  },
+];
+
+/** 依 modelType 取得訓練類別設定 */
+export function getTrainingCategory(type: TrainingModelType): TrainingCategory | undefined {
+  return TRAINING_CATEGORIES.find(c => c.type === type);
+}
+
 // ─── Character Forge (Fine-Tuning) ──────────────────────────────────────────
 
 export type CharacterForgeStep = "dataset" | "captioning" | "hyperparams" | "training";
@@ -107,6 +213,12 @@ export type CharacterForgeStep = "dataset" | "captioning" | "hyperparams" | "tra
 export type DatasetImage = {
   url: string;
   angle: "front" | "side" | "back" | "expression" | "other";
+  caption?: string;
+};
+
+export type DatasetVideo = {
+  url: string;
+  fileKey: string;
   caption?: string;
 };
 

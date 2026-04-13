@@ -115,7 +115,7 @@ const sidebarStructure: SidebarEntry[] = [
     icon: Boxes, label: "模型訓練",
     children: [
       { icon: Cpu, label: "角色鍛造所", path: "/models", id: "sidebar-models-link" },
-      { icon: Zap, label: "LoRA 訓練工坊", path: "/lora-trainer", id: "sidebar-lora-trainer-link" },
+      { icon: Zap, label: "AI 模型訓練中心", path: "/lora-trainer", id: "sidebar-lora-trainer-link" },
       { icon: Layers, label: "一致性保險庫", path: "/vault", id: "sidebar-vault-link" },
     ],
   },

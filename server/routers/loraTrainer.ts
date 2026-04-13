@@ -15,7 +15,7 @@ import * as db from "../db";
 
 export const loraTrainerRouter = router({
   /**
-   * 取得用戶 LoRA 訓練總覽統計
+   * 取得用戶 LoRA 訓練總覽統計（含所有訓練類型）
    */
   stats: protectedProcedure.query(async ({ ctx }) => {
     const models = await db.getFineTunedModelsByUser(ctx.user.id);
@@ -29,43 +29,61 @@ export const loraTrainerRouter = router({
       0,
     );
 
-    return { total, ready, training, failed, pending, totalUsage };
+    // 各類型統計
+    const byType: Record<string, number> = {};
+    for (const m of models) {
+      byType[m.modelType] = (byType[m.modelType] ?? 0) + 1;
+    }
+
+    return { total, ready, training, failed, pending, totalUsage, byType };
   }),
 
   /**
-   * 取得 Replicate API 連線狀態
+   * 取得 Replicate + Fal.ai API 連線狀態
    */
   replicateStatus: protectedProcedure.query(async () => {
-    const token = process.env.REPLICATE_API_TOKEN;
-    if (!token) {
-      return {
-        connected: false,
-        message: "REPLICATE_API_TOKEN 未設定",
-      };
-    }
+    const replicateToken = process.env.REPLICATE_API_TOKEN;
+    const falKey = process.env.FAL_API_KEY;
 
-    try {
-      const { getReplicateClient } = await import("../services/replicateClient.js");
-      const replicate = getReplicateClient(token);
+    let replicateConnected = false;
+    let replicateMsg = "REPLICATE_API_TOKEN 未設定";
+    let trainingModel: string | null = null;
 
-      // Use a simple API call to verify the token works
-      // Get the training model info to verify connectivity
-      const model = await replicate.models.get("ostris", "flux-dev-lora-trainer");
-      const modelObj = model as unknown as Record<string, unknown> | null;
-      return {
-        connected: true,
-        message: "Replicate API 連線正常",
-        trainingModel: modelObj
+    if (replicateToken) {
+      try {
+        const { getReplicateClient } = await import("../services/replicateClient.js");
+        const replicate = getReplicateClient(replicateToken);
+        const model = await replicate.models.get("ostris", "flux-dev-lora-trainer");
+        const modelObj = model as unknown as Record<string, unknown> | null;
+        replicateConnected = true;
+        replicateMsg = "Replicate API 連線正常";
+        trainingModel = modelObj
           ? `${modelObj.owner ?? "ostris"}/${modelObj.name ?? "flux-dev-lora-trainer"}`
-          : "ostris/flux-dev-lora-trainer",
-      };
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return {
-        connected: false,
-        message: `Replicate API 連線失敗：${msg}`,
-      };
+          : "ostris/flux-dev-lora-trainer";
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        replicateMsg = `Replicate API 連線失敗：${msg}`;
+      }
     }
+
+    const falConnected = !!falKey;
+    const falMsg = falKey ? "Fal.ai API 已設定" : "FAL_API_KEY 未設定";
+
+    return {
+      connected: replicateConnected || falConnected,
+      message: replicateConnected && falConnected
+        ? "Replicate + Fal.ai 雙引擎就緒"
+        : replicateConnected
+        ? replicateMsg
+        : falConnected
+        ? falMsg
+        : "未設定任何訓練引擎 API Key",
+      trainingModel,
+      engines: {
+        replicate: { connected: replicateConnected, message: replicateMsg },
+        fal: { connected: falConnected, message: falMsg },
+      },
+    };
   }),
 
   /**
@@ -86,10 +104,16 @@ export const loraTrainerRouter = router({
         epochs: (config?.epochs as number) ?? 0,
         learningRate: (config?.learningRate as number) ?? 0,
         steps: (config?.steps as number) ?? 0,
+        isStyle: (config?.isStyle as boolean) ?? false,
         predictionId: m.replicatePredictionId || (config?.predictionId as string) || null,
+        falModelId: (config?.falModelId as string) || null,
+        trainingEngine: (m as Record<string, unknown>).trainingEngine as string ?? "replicate",
         trainedLoraUrl: (m as Record<string, unknown>).trainedLoraUrl as string | null,
         datasetImageCount: Array.isArray(config?.datasetImages)
           ? (config.datasetImages as unknown[]).length
+          : 0,
+        datasetVideoCount: Array.isArray(config?.datasetVideos)
+          ? (config.datasetVideos as unknown[]).length
           : 0,
         submittedAt: (config?.submittedAt as number) || null,
         completedAt: (config?.completedAt as number) || null,
