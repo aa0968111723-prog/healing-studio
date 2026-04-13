@@ -41,6 +41,7 @@ import {
   Layers,
   MessageSquare,
   Zap,
+  Film,
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -53,6 +54,7 @@ const menuItems = [
   { icon: Wand2, label: "創作工作室", path: "/studio" },
   { icon: Sparkles, label: "專業創作室", path: "/pro-studio" },
   { icon: Image, label: "圖片創作室", path: "/image-studio" },
+  { icon: Film, label: "影片工作室", path: "/video-studio" },
   { icon: Clapperboard, label: "導演 AI", path: "/director" },
   { icon: Cpu, label: "角色鍛造所", path: "/models" },
   { icon: Clock, label: "生成歷史", path: "/history" },

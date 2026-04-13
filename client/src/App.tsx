@@ -33,6 +33,7 @@ const HistoryPage      = lazy(() => import("./pages/HistoryPage"));
 const AdminPage        = lazy(() => import("./pages/AdminPage"));
 const ProStudio        = lazy(() => import("./pages/ProStudio"));
 const ImageStudio      = lazy(() => import("./pages/ImageStudio"));
+const VideoStudio      = lazy(() => import("./pages/VideoStudio"));
 
 // ─── 頁面載入中的通用 Skeleton ─────────────────────────────────────────────
 function PageSkeleton() {
@@ -121,6 +122,9 @@ function Router() {
       </Route>
       <Route path="/image-studio">
         <ProtectedDashboardRoute component={ImageStudio} />
+      </Route>
+      <Route path="/video-studio">
+        <ProtectedDashboardRoute component={VideoStudio} />
       </Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
