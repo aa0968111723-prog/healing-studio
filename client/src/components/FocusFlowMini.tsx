@@ -11,7 +11,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useFocusFlow, BREATHING_PHASES } from "@/contexts/FocusFlowContext";
+import { useFocusFlow, BREATHING_PHASES, POMODORO_WORK_SECONDS, POMODORO_BREAK_SECONDS, HEALING_SECONDS } from "@/contexts/FocusFlowContext";
 import {
   Timer,
   Heart,
@@ -45,7 +45,7 @@ function MiniPomodoro() {
     resetPomodoro,
   } = useFocusFlow();
 
-  const totalSeconds = pomodoroPhase === "work" ? 25 * 60 : 5 * 60;
+  const totalSeconds = pomodoroPhase === "work" ? POMODORO_WORK_SECONDS : POMODORO_BREAK_SECONDS;
   const progress = ((totalSeconds - pomodoroRemaining) / totalSeconds) * 100;
 
   return (
@@ -110,7 +110,7 @@ function MiniHealing() {
   } = useFocusFlow();
 
   const currentBreathPhase = BREATHING_PHASES[breathPhaseIdx];
-  const progress = ((5 * 60 - healingRemaining) / (5 * 60)) * 100;
+  const progress = ((HEALING_SECONDS - healingRemaining) / HEALING_SECONDS) * 100;
 
   return (
     <div className="flex flex-col items-center gap-3 py-2">
