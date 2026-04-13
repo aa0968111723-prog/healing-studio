@@ -1,4 +1,13 @@
 /**
+ * Truncate a long error message to a max length for display in toasts.
+ * Prevents storage-config paragraphs from flooding the UI.
+ */
+export function shortErrorMsg(raw: unknown, maxLen = 60): string {
+  const msg = typeof raw === "string" ? raw : (raw as any)?.message || "未知錯誤";
+  return msg.length > maxLen ? msg.slice(0, maxLen) + "…" : msg;
+}
+
+/**
  * Shared file upload helper — uploads a File to S3 via /api/upload
  */
 export async function uploadFileToS3(file: File): Promise<{ url: string; fileKey: string }> {

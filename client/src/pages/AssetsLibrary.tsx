@@ -19,6 +19,7 @@ import VisualSoul from "@/components/VisualSoul";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAIState } from "@/contexts/AIStateContext";
 import { useIsMobile } from "@/hooks/useMobile";
+import { shortErrorMsg } from "@/lib/upload";
 
 const typeConfig: Record<string, { icon: React.ReactNode; label: string; color: string; ext: string; mimePrefix: string }> = {
   image: { icon: <Image className="w-4 h-4" />, label: "圖片", color: "bg-zen-lavender/20", ext: "png", mimePrefix: "image/" },
@@ -75,7 +76,7 @@ function UploadDialog({ onSuccess }: { onSuccess: () => void }) {
       setSelectedFile(null);
       onSuccess();
     },
-    onError: (e) => toast.error("上傳失敗：" + e.message),
+    onError: (e) => toast.error("上傳失敗：" + shortErrorMsg(e.message), { duration: 5000 }),
   });
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -121,7 +122,7 @@ function UploadDialog({ onSuccess }: { onSuccess: () => void }) {
         fileSizeBytes: selectedFile.size,
       });
     } catch (err: any) {
-      toast.error("上傳失敗：" + err.message);
+      toast.error("上傳失敗：" + shortErrorMsg(err), { duration: 5000 });
     } finally {
       setUploading(false);
     }

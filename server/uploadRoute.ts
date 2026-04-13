@@ -60,6 +60,18 @@ uploadRouter.post("/api/upload", async (req: Request, res: Response) => {
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
+    // Return a short, user-friendly error — avoid dumping long config instructions to the UI
+    const isStorageError =
+      error.message?.includes("Storage") ||
+      error.message?.includes("S3") ||
+      error.message?.includes("GCS") ||
+      error.message?.includes("Forge");
+    if (isStorageError) {
+      res.status(503).json({
+        error: "Storage 未設定：請聯絡管理員在 Railway 設定 S3/R2 儲存環境變數。",
+      });
+      return;
+    }
     res.status(500).json({ error: "Upload failed: " + (error.message || "Unknown error") });
   }
 });
