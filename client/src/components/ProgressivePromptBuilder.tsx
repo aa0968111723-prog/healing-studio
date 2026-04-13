@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useRef, useEffect, memo } from "react";
+import { useIsMobile } from "@/hooks/useMobile";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, ChevronUp, Sparkles, Lightbulb, Blocks, Focus, X, Plus, Heart, Trash2, FolderOpen, Save, Edit3, Check } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
@@ -496,6 +497,7 @@ function BlockChip({
   onDelete?: () => void;
   isCustom?: boolean;
 }) {
+  const isMobile = useIsMobile();
   return (
     <motion.div className="relative group">
       <motion.button
@@ -534,7 +536,7 @@ function BlockChip({
       {isCustom && onDelete && (
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-destructive/80 text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+          className={`absolute -top-1 -right-1 w-4 h-4 rounded-full bg-destructive/80 text-destructive-foreground flex items-center justify-center transition-opacity ${isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
         >
           <X className="w-2.5 h-2.5" />
         </button>
@@ -1467,6 +1469,7 @@ function ComboCard({
   onDelete: () => void;
   onRename: (name: string) => void;
 }) {
+  const isMobile = useIsMobile();
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(combo.name);
 
@@ -1516,7 +1519,7 @@ function ComboCard({
         <Button
           variant="ghost"
           size="sm"
-          className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+          className={`h-6 w-6 p-0 text-muted-foreground hover:text-foreground transition-opacity ${isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
           onClick={() => { setEditName(combo.name); setEditing(true); }}
           title="重新命名"
         >
@@ -1525,7 +1528,7 @@ function ComboCard({
         <Button
           variant="ghost"
           size="sm"
-          className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+          className={`h-6 w-6 p-0 text-muted-foreground hover:text-destructive transition-opacity ${isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
           onClick={onDelete}
           title="刪除組合"
         >
