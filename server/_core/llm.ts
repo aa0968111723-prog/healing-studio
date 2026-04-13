@@ -449,7 +449,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   // 生成唯一 run ID（供 LangSmith 追蹤）
   const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
-  let result!: InvokeResult;
+  let result: InvokeResult | undefined;
   try {
     // Retry with exponential backoff for transient failures
     let lastError: Error | null = null;
@@ -506,6 +506,9 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     trackLangSmithSDK(runId, runName || "llm-invoke", messages, payload, null, error, durationMs, engineConfig.name, parentRunId).catch(() => {});
     throw err;
   }
+
+  // Safety: result is guaranteed to be set here (retry loop either sets it or throws)
+  if (!result) throw new Error("[LLM] Unexpected: no result after retry loop");
 
   const durationMs = Date.now() - startTime;
 
