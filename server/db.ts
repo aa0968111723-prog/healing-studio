@@ -21,11 +21,20 @@ import { ENV } from './_core/env';
 /**
  * 檢查 email 是否在管理員信箱清單中（ADMIN_EMAILS 環境變數，逗號分隔）
  */
+let _adminEmailsCache: string[] | null = null;
+
+function getAdminEmails(): string[] {
+  if (_adminEmailsCache === null) {
+    const raw = ENV.adminEmails;
+    _adminEmailsCache = raw
+      ? raw.split(',').map(e => e.trim().toLowerCase()).filter(Boolean)
+      : [];
+  }
+  return _adminEmailsCache;
+}
+
 function isAdminEmail(email: string): boolean {
-  const adminEmails = ENV.adminEmails;
-  if (!adminEmails) return false;
-  const list = adminEmails.split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
-  return list.includes(email.toLowerCase());
+  return getAdminEmails().includes(email.toLowerCase());
 }
 
 let _db: ReturnType<typeof drizzle> | null = null;
