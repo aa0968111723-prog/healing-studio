@@ -118,16 +118,21 @@ export const fineTunedModels = mysqlTable("fine_tuned_models", {
     "image_subject",
     "voice_clone",
     "style_lora",
+    "scene_lora",
+    "video_lora",
+    "portrait_lora",
   ]).notNull(),
   status: mysqlEnum("status", ["pending", "training", "ready", "failed"])
     .default("pending")
     .notNull(),
   fileUrl: text("fileUrl"),       // 訓練資料 ZIP 或原始資料集 URL
   fileKey: text("fileKey"),
-  /** 訓練完成後由 Replicate 回傳的 LoRA weights URL (.safetensors / .tar) */
+  /** 訓練完成後由 Replicate / Fal.ai 回傳的 LoRA weights URL (.safetensors / .tar) */
   trainedLoraUrl: text("trainedLoraUrl"),
-  /** Replicate prediction ID，用於狀態追蹤 */
+  /** Replicate prediction ID 或 Fal.ai request ID，用於狀態追蹤 */
   replicatePredictionId: varchar("replicatePredictionId", { length: 128 }),
+  /** 訓練引擎：replicate 或 fal（新增以區分不同 API 來源） */
+  trainingEngine: mysqlEnum("trainingEngine", ["replicate", "fal"]).default("replicate"),
   configJson: json("configJson").$type<{
     triggerWord?: string;
     epochs?: number;
@@ -136,9 +141,13 @@ export const fineTunedModels = mysqlTable("fine_tuned_models", {
     steps?: number;
     zipUrl?: string;
     predictionId?: string;
+    falRequestId?: string;
+    falModelId?: string;
+    isStyle?: boolean;
     submittedAt?: number;
     completedAt?: number;
     datasetImages?: Array<{ url: string; fileKey: string; angle: string; caption?: string }>;
+    datasetVideos?: Array<{ url: string; fileKey: string; caption?: string }>;
   }>(),
   /** 使用計數（被引用生成幾次） */
   usageCount: int("usageCount").default(0).notNull(),

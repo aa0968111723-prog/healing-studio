@@ -1580,11 +1580,15 @@ export const appRouter = router({
       .input(z.object({
         name: z.string().min(1).max(100),
         description: z.string().max(500).optional(),
-        modelType: z.enum(["image_subject", "voice_clone", "style_lora"]).default("image_subject"),
+        modelType: z.enum(["image_subject", "voice_clone", "style_lora", "scene_lora", "video_lora", "portrait_lora"]).default("image_subject"),
+        trainingEngine: z.enum(["replicate", "fal"]).default("replicate"),
         triggerWord: z.string().max(50).optional(),
         epochs: z.number().min(5).max(100).optional(),
         learningRate: z.number().min(0.00001).max(0.01).optional(),
         batchSize: z.number().min(1).max(8).optional(),
+        steps: z.number().min(100).max(5000).optional(),
+        isStyle: z.boolean().optional(),
+        falModelId: z.string().optional(),
         fileUrl: z.string().optional(),
         fileKey: z.string().optional(),
         datasetImages: z.array(z.object({
@@ -1592,17 +1596,26 @@ export const appRouter = router({
           fileKey: z.string(),
           angle: z.enum(["front", "side", "back", "expression", "other"]),
           caption: z.string().optional(),
-        })).min(3).max(30).optional(),
+        })).max(50).optional(),
+        datasetVideos: z.array(z.object({
+          url: z.string(),
+          fileKey: z.string(),
+          caption: z.string().optional(),
+        })).max(20).optional(),
       }))
       .mutation(async ({ ctx, input }) => {
-        const configJson = {
+        const effectiveSteps = input.steps ?? Math.min(Math.max((input.epochs ?? 20) * 30, 200), 2000);
+        const configJson: Record<string, unknown> = {
           triggerWord: input.triggerWord || "",
           epochs: input.epochs ?? 20,
           learningRate: input.learningRate ?? 0.0001,
           batchSize: input.batchSize ?? 4,
-          steps: Math.min(Math.max((input.epochs ?? 20) * 30, 200), 2000),
+          steps: effectiveSteps,
+          isStyle: input.isStyle,
           datasetImages: input.datasetImages ?? [],
+          datasetVideos: input.datasetVideos ?? [],
         };
+        if (input.falModelId) configJson.falModelId = input.falModelId;
 
         // Create the model record
         const modelId = await db.createFineTunedModel({
@@ -1622,27 +1635,59 @@ export const appRouter = router({
           status: "queued",
           progress: 0,
           progressMessage: "訓練任務已加入佇列",
-          resultJson: { modelId, modelName: input.name },
+          resultJson: { modelId, modelName: input.name, engine: input.trainingEngine },
         });
 
-        if (!process.env.REPLICATE_API_TOKEN) {
-          console.warn(`[LoraTrainer] REPLICATE_API_TOKEN not set — model ${modelId} will remain queued`);
-        } else if (input.datasetImages && input.datasetImages.length >= 3) {
-          // 非同步啟動 LoRA 訓練（背景執行，不阻塞此 API 回應）
-          import("./services/loraTrainer").then(({ runLoraTrainingJob }) => {
-            runLoraTrainingJob({
-              userId: ctx.user.id,
-              modelId,
-              jobId,
-              modelName: input.name,
-              triggerWord: input.triggerWord || "",
-              epochs: input.epochs ?? 20,
-              learningRate: input.learningRate ?? 0.0001,
-              imageUrls: input.datasetImages!.map(img => img.url),
-            }).catch(err => {
-              console.error(`[LoraTrainer] Background job failed for model ${modelId}:`, err);
+        const imageUrls = (input.datasetImages ?? []).map(img => img.url);
+        const videoUrls = (input.datasetVideos ?? []).map(v => v.url);
+        const totalDataCount = imageUrls.length + videoUrls.length;
+
+        // Dispatch to the correct training engine
+        if (input.trainingEngine === "fal") {
+          // ── Fal.ai training path ──
+          if (!process.env.FAL_API_KEY) {
+            console.warn(`[FalTrainer] FAL_API_KEY not set — model ${modelId} will remain queued`);
+          } else if (totalDataCount >= 1) {
+            import("./services/falTrainer").then(({ runFalTrainingJob, resolveFalTrainingModel }) => {
+              const resolvedFalModel = input.falModelId || resolveFalTrainingModel(input.modelType);
+              runFalTrainingJob({
+                userId: ctx.user.id,
+                modelId,
+                jobId,
+                modelName: input.name,
+                modelType: input.modelType,
+                triggerWord: input.triggerWord || "",
+                steps: effectiveSteps,
+                learningRate: input.learningRate ?? 0.0001,
+                isStyle: input.isStyle,
+                imageUrls,
+                videoUrls,
+                falModelId: resolvedFalModel,
+              }).catch(err => {
+                console.error(`[FalTrainer] Background job failed for model ${modelId}:`, err);
+              });
             });
-          });
+          }
+        } else {
+          // ── Replicate training path (existing) ──
+          if (!process.env.REPLICATE_API_TOKEN) {
+            console.warn(`[LoraTrainer] REPLICATE_API_TOKEN not set — model ${modelId} will remain queued`);
+          } else if (imageUrls.length >= 3) {
+            import("./services/loraTrainer").then(({ runLoraTrainingJob }) => {
+              runLoraTrainingJob({
+                userId: ctx.user.id,
+                modelId,
+                jobId,
+                modelName: input.name,
+                triggerWord: input.triggerWord || "",
+                epochs: input.epochs ?? 20,
+                learningRate: input.learningRate ?? 0.0001,
+                imageUrls,
+              }).catch(err => {
+                console.error(`[LoraTrainer] Background job failed for model ${modelId}:`, err);
+              });
+            });
+          }
         }
 
         return { id: modelId, jobId };
