@@ -27,11 +27,30 @@ function getQueryParam(req: Request, key: string): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
+/**
+ * Validate that a redirect path is a safe, relative path.
+ * Blocks absolute URLs, protocol-relative URLs, encoded slash bypasses, etc.
+ */
+function isSafeRedirectPath(path: string): boolean {
+  if (!path.startsWith("/")) return false;
+  // Block protocol-relative URLs (//evil.com) and encoded variants
+  if (/^\/[\\/]/.test(path)) return false;
+  // Block encoded slashes that could decode to //
+  if (/%2f/i.test(path.slice(0, 3))) return false;
+  // Block URLs containing protocol markers
+  if (/[a-z]+:/i.test(path)) return false;
+  return true;
+}
+
 export function registerOAuthRoutes(app: Express) {
   // ── 1. 啟動 Google 登入流程 ───────────────────────────────
   app.get("/api/oauth/google/start", (req: Request, res: Response) => {
     try {
-      const redirectAfter = getQueryParam(req, "redirect") || "/";
+      let redirectAfter = getQueryParam(req, "redirect") || "/";
+      // Only allow safe relative paths — block absolute URLs, protocol-relative URLs, etc.
+      if (!isSafeRedirectPath(redirectAfter)) {
+        redirectAfter = "/";
+      }
       const authUrl = buildGoogleAuthUrl(redirectAfter);
       res.redirect(302, authUrl);
     } catch (error) {
@@ -93,11 +112,15 @@ export function registerOAuthRoutes(app: Express) {
         maxAge: ONE_YEAR_MS,
       });
 
-      // 解碼 state 取得重定向路徑
+      // 解碼 state 取得重定向路徑（僅允許安全的相對路徑，防止 Open Redirect 攻擊）
       let redirectTo = "/";
       if (state) {
         try {
-          redirectTo = Buffer.from(state, "base64").toString("utf-8") || "/";
+          const decoded = Buffer.from(state, "base64").toString("utf-8") || "/";
+          // Only allow safe relative paths — block absolute URLs, protocol-relative URLs, etc.
+          if (isSafeRedirectPath(decoded)) {
+            redirectTo = decoded;
+          }
         } catch {
           redirectTo = "/";
         }

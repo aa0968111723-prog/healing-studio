@@ -68,8 +68,18 @@ function getCategoryConfig(id: string) {
 }
 
 // Simple Markdown → HTML renderer (no heavy dependency)
+// Includes HTML tag stripping to prevent XSS from user-supplied content.
+function stripHtmlTags(str: string): string {
+  // Remove any raw HTML tags to prevent XSS — we only allow markdown syntax.
+  // This strips <script>, <img onerror=...>, <style>, etc.
+  return str.replace(/<[^>]*>/g, "");
+}
+
 function renderMarkdown(md: string): string {
-  return md
+  // First, strip raw HTML tags to neutralise embedded scripts/event handlers
+  const safe = stripHtmlTags(md);
+
+  return safe
     // Code blocks
     .replace(/```[\w]*\n([\s\S]*?)```/g, "<pre class=\"bg-gray-900 text-green-300 p-4 rounded-xl text-xs overflow-x-auto my-3\"><code>$1</code></pre>")
     // Inline code
