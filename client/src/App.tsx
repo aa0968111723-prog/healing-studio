@@ -37,6 +37,7 @@ const ProStudio        = lazy(() => import("./pages/ProStudio"));
 const ImageStudio      = lazy(() => import("./pages/ImageStudio"));
 const VideoStudio      = lazy(() => import("./pages/VideoStudio"));
 const LearnHub         = lazy(() => import("./pages/LearnHub"));
+const LoraTrainer      = lazy(() => import("./pages/LoraTrainer"));
 
 // ─── 頁面載入中的通用 Skeleton ─────────────────────────────────────────────
 function PageSkeleton() {
@@ -131,6 +132,9 @@ function Router() {
       </Route>
       <Route path="/learn">
         <DashboardRoute component={LearnHub} />
+      </Route>
+      <Route path="/lora-trainer">
+        <ProtectedDashboardRoute component={LoraTrainer} />
       </Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

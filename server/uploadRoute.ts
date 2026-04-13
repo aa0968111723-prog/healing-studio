@@ -5,6 +5,18 @@ import { authenticateRequest } from "./_core/googleAuth";
 
 const uploadRouter = Router();
 
+// ── Allowed MIME types for upload ─────────────────────────────────────────
+const ALLOWED_MIME_TYPES = new Set([
+  // Images
+  "image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml", "image/avif",
+  // Audio
+  "audio/mpeg", "audio/wav", "audio/ogg", "audio/webm", "audio/mp4", "audio/aac", "audio/flac",
+  // Video
+  "video/mp4", "video/webm", "video/ogg", "video/quicktime",
+  // Documents
+  "application/pdf",
+]);
+
 // Parse raw body for file uploads (multipart handled manually via base64 JSON)
 // We use JSON-based upload: { fileName, mimeType, data (base64) }
 uploadRouter.post("/api/upload", async (req: Request, res: Response) => {
@@ -24,6 +36,12 @@ uploadRouter.post("/api/upload", async (req: Request, res: Response) => {
 
     if (!fileName || !mimeType || !data) {
       res.status(400).json({ error: "Missing fileName, mimeType, or data" });
+      return;
+    }
+
+    // Validate MIME type against allowlist
+    if (!ALLOWED_MIME_TYPES.has(mimeType)) {
+      res.status(415).json({ error: `Unsupported file type: ${mimeType}` });
       return;
     }
 

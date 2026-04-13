@@ -18,8 +18,6 @@ export interface UseCompositionOptions<
   onCompositionEnd?: React.CompositionEventHandler<T>;
 }
 
-type TimerResponse = ReturnType<typeof setTimeout>;
-
 export function useComposition<
   T extends HTMLInputElement | HTMLTextAreaElement = HTMLInputElement,
 >(options: UseCompositionOptions<T> = {}): UseCompositionReturn<T> {
@@ -30,36 +28,35 @@ export function useComposition<
   } = options;
 
   const c = useRef(false);
-  const timer = useRef<TimerResponse | null>(null);
-  const timer2 = useRef<TimerResponse | null>(null);
+  // Track compositionEnd timestamp for Safari timing workaround
+  const compositionEndTimeRef = useRef(0);
+  // Safari fires keyDown within a few ms of compositionEnd; this grace period catches those events
+  const COMPOSITION_END_GRACE_MS = 10;
 
   const onCompositionStart = usePersistFn((e: React.CompositionEvent<T>) => {
-    if (timer.current) {
-      clearTimeout(timer.current);
-      timer.current = null;
-    }
-    if (timer2.current) {
-      clearTimeout(timer2.current);
-      timer2.current = null;
-    }
     c.current = true;
+    compositionEndTimeRef.current = 0;
     originalOnCompositionStart?.(e);
   });
 
   const onCompositionEnd = usePersistFn((e: React.CompositionEvent<T>) => {
-    // 使用两层 setTimeout 来处理 Safari 浏览器中 compositionEnd 先于 onKeyDown 触发的问题
-    timer.current = setTimeout(() => {
-      timer2.current = setTimeout(() => {
-        c.current = false;
-      });
-    });
+    // Use a single short setTimeout to handle Safari's compositionEnd→keyDown ordering issue.
+    // Record the timestamp so onKeyDown can ignore events immediately following compositionEnd.
+    compositionEndTimeRef.current = e.timeStamp;
+    setTimeout(() => {
+      c.current = false;
+    }, 0);
     originalOnCompositionEnd?.(e);
   });
 
   const onKeyDown = usePersistFn((e: React.KeyboardEvent<T>) => {
-    // 在 composition 状态下，阻止 ESC 和 Enter（非 shift+Enter）事件的冒泡
+    // In Safari, keyDown may fire right after compositionEnd with ~0ms gap.
+    // Use timeStamp comparison as an extra safeguard.
+    const isJustAfterComposition =
+      c.current || (compositionEndTimeRef.current > 0 && Math.abs(e.timeStamp - compositionEndTimeRef.current) < COMPOSITION_END_GRACE_MS);
+
     if (
-      c.current &&
+      isJustAfterComposition &&
       (e.key === "Escape" || (e.key === "Enter" && !e.shiftKey))
     ) {
       e.stopPropagation();

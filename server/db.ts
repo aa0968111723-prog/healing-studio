@@ -18,18 +18,69 @@ import {
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
+/**
+ * 檢查 email 是否在管理員信箱清單中（ADMIN_EMAILS 環境變數，逗號分隔）
+ */
+let _adminEmailsCache: string[] | null = null;
+
+function getAdminEmails(): string[] {
+  if (_adminEmailsCache === null) {
+    const raw = ENV.adminEmails;
+    _adminEmailsCache = raw
+      ? raw.split(',').map(e => e.trim().toLowerCase()).filter(Boolean)
+      : [];
+  }
+  return _adminEmailsCache;
+}
+
+function isAdminEmail(email: string): boolean {
+  return getAdminEmails().includes(email.toLowerCase());
+}
+
 let _db: ReturnType<typeof drizzle> | null = null;
 
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      // Use drizzle's built-in connection pooling with explicit pool configuration
+      _db = drizzle({
+        connection: {
+          uri: process.env.DATABASE_URL,
+          waitForConnections: true,
+          connectionLimit: 10,
+          maxIdle: 5,
+          idleTimeout: 60_000,        // Close idle connections after 60s
+          enableKeepAlive: true,
+          keepAliveInitialDelay: 30_000,
+        },
+      });
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
     }
   }
   return _db;
+}
+
+/**
+ * Gracefully close the database connection pool.
+ * Call this during server shutdown to release all connections.
+ */
+export async function closeDb(): Promise<void> {
+  if (_db) {
+    try {
+      // Access the underlying mysql2 pool via $client and end it
+      const client = (_db as any).$client;
+      if (client && typeof client.end === "function") {
+        await client.end();
+        console.info("[Database] Connection pool closed gracefully.");
+      }
+    } catch (error) {
+      console.warn("[Database] Error closing connection pool:", error);
+    } finally {
+      _db = null;
+    }
+  }
 }
 
 // ─── Users ───────────────────────────────────────────────────────────────────
@@ -57,6 +108,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     if (user.lastSignedIn !== undefined) { values.lastSignedIn = user.lastSignedIn; updateSet.lastSignedIn = user.lastSignedIn; }
     if (user.role !== undefined) { values.role = user.role; updateSet.role = user.role; }
     else if (user.openId === ENV.ownerOpenId) { values.role = 'admin'; updateSet.role = 'admin'; }
+    else if (user.email && isAdminEmail(user.email)) { values.role = 'admin'; updateSet.role = 'admin'; }
 
     if (!values.lastSignedIn) values.lastSignedIn = new Date();
     if (Object.keys(updateSet).length === 0) updateSet.lastSignedIn = new Date();
@@ -302,6 +354,22 @@ export async function incrementModelUsage(id: number) {
   await db.update(fineTunedModels)
     .set({ usageCount: sql`${fineTunedModels.usageCount} + 1` })
     .where(eq(fineTunedModels.id, id));
+}
+
+/** 取得特定模型的訓練任務歷史 */
+export async function getTrainingJobsByModelId(modelId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.select().from(backgroundJobs)
+    .where(
+      and(
+        eq(backgroundJobs.jobType, "model_training"),
+        sql`JSON_EXTRACT(${backgroundJobs.resultJson}, '$.modelId') = ${modelId}`,
+      ),
+    )
+    .orderBy(desc(backgroundJobs.createdAt))
+    .limit(20);
+  return rows;
 }
 
 // ─── Digital Asset Library ───────────────────────────────────────────────────

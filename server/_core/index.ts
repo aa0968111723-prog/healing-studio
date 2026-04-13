@@ -2,6 +2,9 @@ import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
+import compression from "compression";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
@@ -9,8 +12,10 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { uploadRouter } from "../uploadRoute";
 import { sseRouter } from "../sseRoute";
-import { initNewsFetcherCron } from "../jobs/newsFetcher";
-import { initModelTrainingWorkerCron } from "../jobs/modelTrainingWorker";
+import { initNewsFetcherCron, stopNewsFetcherCron } from "../jobs/newsFetcher";
+import { initModelTrainingWorkerCron, stopModelTrainingWorkerCron } from "../jobs/modelTrainingWorker";
+import { detectStorageBackend } from "../storage";
+import { closeDb } from "../db";
 
 // ─── Allowlist helpers for proxy-download ─────────────────────────────────
 const PROXY_ALLOWED_HOSTS = [
@@ -61,6 +66,26 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
+
+  // ── Security headers ─────────────────────────────────────────────────────
+  app.use(helmet({
+    contentSecurityPolicy: false,  // CSP managed separately (inline scripts, CDNs)
+    crossOriginEmbedderPolicy: false, // Allow cross-origin media assets
+  }));
+
+  // ── Gzip/Brotli compression (60-80% smaller text/JSON responses) ────────
+  app.use(compression({ threshold: 1024 }));
+
+  // ── Rate limiting for API endpoints ─────────────────────────────────────
+  const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,  // 15 minutes
+    max: 300,                   // limit each IP to 300 requests per window
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many requests, please try again later." },
+  });
+  app.use("/api/", apiLimiter);
+
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
@@ -98,12 +123,32 @@ async function startServer() {
       const contentType = upstream.headers.get("content-type") || "application/octet-stream";
       const contentLength = upstream.headers.get("content-length");
       res.setHeader("Content-Type", contentType);
-      res.setHeader("Cache-Control", "public, max-age=3600");
+      res.setHeader("Cache-Control", "public, max-age=86400"); // 24h cache
       res.setHeader("Access-Control-Allow-Origin", "*");
       if (contentLength) res.setHeader("Content-Length", contentLength);
-      // Stream the response
-      const buffer = await upstream.arrayBuffer();
-      res.send(Buffer.from(buffer));
+      // Stream the response body instead of buffering into memory
+      if (upstream.body) {
+        const reader = upstream.body.getReader();
+        const pump = async () => {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) { res.end(); return; }
+            if (!res.write(value)) {
+              // Handle backpressure
+              await new Promise<void>(resolve => res.once("drain", resolve));
+            }
+          }
+        };
+        pump().catch((err) => {
+          console.error("[proxy-download] Stream error for", targetUrl, ":", err);
+          if (!res.headersSent) res.status(500).json({ error: "Stream failed" });
+          else res.end();
+        });
+      } else {
+        // Fallback for environments without ReadableStream
+        const buffer = await upstream.arrayBuffer();
+        res.send(Buffer.from(buffer));
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error("[proxy-download] Error:", msg);
@@ -114,7 +159,6 @@ async function startServer() {
   // ── Plain HTTP healthcheck (Railway uses this path to verify container is up) ──
   // Must respond within the healthcheck window (typically 5m on Railway)
   app.get("/api/health", (_req, res) => {
-    const { detectStorageBackend } = require("../storage");
     const storageBackend = detectStorageBackend();
     res.json({ ok: true, ts: Date.now(), storage: storageBackend });
   });
@@ -150,7 +194,6 @@ async function startServer() {
 
     // Log storage backend status on startup
     try {
-      const { detectStorageBackend } = require("../storage");
       const backend = detectStorageBackend();
       const backendLabels: Record<string, string> = {
         s3:    "✅ S3 / Cloudflare R2（S3_ENDPOINT + S3_ACCESS_KEY_ID + S3_SECRET_ACCESS_KEY + S3_BUCKET_NAME）",
@@ -170,6 +213,26 @@ async function startServer() {
     initNewsFetcherCron();
     initModelTrainingWorkerCron();
   });
+
+  // ── Graceful Shutdown ────────────────────────────────────────────────────
+  const shutdown = async (signal: string) => {
+    console.log(`\n[Server] Received ${signal}. Shutting down gracefully...`);
+    stopNewsFetcherCron();
+    stopModelTrainingWorkerCron();
+    server.close(async () => {
+      await closeDb();
+      console.log("[Server] All resources released. Exiting.");
+      process.exit(0);
+    });
+    // Force exit after 10s if graceful shutdown hangs
+    setTimeout(() => {
+      console.warn("[Server] Graceful shutdown timed out. Forcing exit.");
+      process.exit(1);
+    }, 10_000);
+  };
+
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 }
 
 startServer().catch(console.error);

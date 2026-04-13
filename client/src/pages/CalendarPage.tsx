@@ -10,8 +10,9 @@ import { GlassCard } from "@/components/ZenCoPilot";
 import { toast } from "sonner";
 import {
   CalendarDays, Plus, Trash2, Clock, Image, Video, Music, Mic,
-  ChevronLeft, ChevronRight, GripVertical, X, CheckCircle2,
+  ChevronLeft, ChevronRight, GripVertical, X, CheckCircle2, ExternalLink,
 } from "lucide-react";
+import { openGoogleCalendar } from "@/lib/googleCalendar";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useAIState } from "@/contexts/AIStateContext";
@@ -56,6 +57,18 @@ function EventCard({
       ? "border-purple-500/30 bg-purple-500/10"
       : "border-cyan-500/30 bg-cyan-500/10";
 
+  const handleAddToGoogleCalendar = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const eventDate = note.scheduledDate ? new Date(note.scheduledDate) : new Date();
+    openGoogleCalendar({
+      title: note.title,
+      description: note.content ?? undefined,
+      date: eventDate,
+      allDay: true,
+    });
+    toast.success("已開啟 Google 日曆");
+  };
+
   return (
     <motion.div
       layout
@@ -78,12 +91,23 @@ function EventCard({
           <GripVertical className="w-3 h-3 text-muted-foreground/30 shrink-0" />
           <span className="truncate font-medium text-foreground/80">{note.title}</span>
         </div>
-        <button
-          onClick={(e) => { e.stopPropagation(); onDelete(note.id); }}
-          className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 p-0.5 rounded hover:bg-red-500/20 text-muted-foreground/40 hover:text-red-400 transition-all shrink-0"
-        >
-          <Trash2 className="w-2.5 h-2.5" />
-        </button>
+        <div className="flex items-center gap-0.5 shrink-0">
+          {note.scheduledDate && (
+            <button
+              onClick={handleAddToGoogleCalendar}
+              className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 p-0.5 rounded hover:bg-blue-500/20 text-muted-foreground/40 hover:text-blue-400 transition-all"
+              title="加入 Google 日曆"
+            >
+              <ExternalLink className="w-2.5 h-2.5" />
+            </button>
+          )}
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(note.id); }}
+            className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 p-0.5 rounded hover:bg-red-500/20 text-muted-foreground/40 hover:text-red-400 transition-all"
+          >
+            <Trash2 className="w-2.5 h-2.5" />
+          </button>
+        </div>
       </div>
       {!compact && note.content && (
         <p className="text-muted-foreground/60 line-clamp-1 mt-1 ml-4.5">{note.content}</p>
@@ -105,12 +129,21 @@ function NewEventForm({
 }) {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [addToGoogle, setAddToGoogle] = useState(false);
 
   const createNote = trpc.notes.create.useMutation({
     onSuccess: () => {
+      if (addToGoogle && title.trim()) {
+        openGoogleCalendar({
+          title: title.trim(),
+          description: content.trim() || undefined,
+          date,
+          allDay: true,
+        });
+      }
       onCreated();
       onClose();
-      toast.success("排程已建立");
+      toast.success(addToGoogle ? "排程已建立，已開啟 Google 日曆" : "排程已建立");
     },
     onError: (e) => toast.error(e.message),
   });
@@ -146,6 +179,17 @@ function NewEventForm({
         rows={2}
         className="bg-white/5 border-white/10 text-xs resize-none"
       />
+
+      <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={addToGoogle}
+          onChange={(e) => setAddToGoogle(e.target.checked)}
+          className="rounded border-white/20 bg-white/5 h-3.5 w-3.5 accent-blue-500"
+        />
+        <ExternalLink className="w-3 h-3" />
+        同時加入 Google 日曆
+      </label>
 
       <div className="flex gap-2">
         <Button
@@ -449,9 +493,48 @@ export default function CalendarPage() {
                   <Clock className="w-3.5 h-3.5 text-amber-400" />
                   {selectedDate.toLocaleDateString("zh-TW", { month: "long", day: "numeric", weekday: "long" })}
                 </h3>
-                <Badge variant="outline" className="text-[10px]">
-                  {selectedDateEvents.length} 個排程
-                </Badge>
+                <div className="flex items-center gap-2">
+                  {selectedDateEvents.length > 0 && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 px-2 text-[10px] gap-1 text-blue-500 hover:text-blue-400 hover:bg-blue-500/10"
+                      onClick={() => {
+                        if (selectedDateEvents.length === 1) {
+                          const note = selectedDateEvents[0];
+                          const eventDate = note.scheduledDate ? new Date(note.scheduledDate) : selectedDate;
+                          openGoogleCalendar({
+                            title: note.title,
+                            description: note.content ?? undefined,
+                            date: eventDate,
+                            allDay: true,
+                          });
+                          toast.success("已開啟 Google 日曆");
+                        } else {
+                          // Combine multiple events into a single Google Calendar event
+                          // to avoid popup blockers from opening multiple tabs
+                          const combinedTitle = `${selectedDate.toLocaleDateString("zh-TW")} 創作排程（${selectedDateEvents.length} 項）`;
+                          const combinedDescription = selectedDateEvents
+                            .map((n, i) => `${i + 1}. ${n.title}${n.content ? `\n   ${n.content}` : ""}`)
+                            .join("\n\n");
+                          openGoogleCalendar({
+                            title: combinedTitle,
+                            description: combinedDescription,
+                            date: selectedDate,
+                            allDay: true,
+                          });
+                          toast.success(`已將 ${selectedDateEvents.length} 個排程匯出至 Google 日曆`);
+                        }
+                      }}
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                      匯出至 Google 日曆
+                    </Button>
+                  )}
+                  <Badge variant="outline" className="text-[10px]">
+                    {selectedDateEvents.length} 個排程
+                  </Badge>
+                </div>
               </div>
 
               <AnimatePresence>
