@@ -212,7 +212,7 @@ function MediaInput({
         {/* Preview */}
         {value && accept === "image" && (
           <div className="px-2 pb-2">
-            <img src={value} alt="preview" className="w-full max-h-32 object-cover rounded-lg" onError={(e) => (e.currentTarget.style.display = "none")} />
+            <img src={value} alt="preview" className="w-full max-h-32 object-cover rounded-lg" loading="lazy" onError={(e) => (e.currentTarget.style.display = "none")} />
           </div>
         )}
         {value && accept === "video" && (

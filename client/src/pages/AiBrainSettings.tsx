@@ -686,7 +686,9 @@ export default function AiBrainSettings() {
   });
 
   // ── Model Switch Tracking (brain.switchModel) ──
-  const switchModelMutation = trpc.brain.switchModel.useMutation();
+  const switchModelMutation = trpc.brain.switchModel.useMutation({
+    onError: (e) => console.warn("Model switch tracking failed:", e.message),
+  });
 
   // ── Reasoning Brain State ─────────────────────────────────────────────
   const [directorModel,    setDirectorModel]    = useState("gemini-2.5-pro");

@@ -92,7 +92,9 @@ export default function ModelsPage() {
   );
 
   // ── Increment usage counter (models.incrementUsage) ──
-  const incrementUsage = trpc.models.incrementUsage.useMutation();
+  const incrementUsage = trpc.models.incrementUsage.useMutation({
+    onError: (e) => console.warn("Usage tracking failed:", e.message),
+  });
 
   const myModelsQuery = trpc.models.myModels.useQuery(undefined, { retry: false });
   const teamModelsQuery = trpc.models.teamModels.useQuery(undefined, { retry: false });

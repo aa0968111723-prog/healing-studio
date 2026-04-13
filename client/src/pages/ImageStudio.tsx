@@ -382,7 +382,7 @@ function ResultImage({ url, prompt, onDownload }: { url: string; prompt: string;
     <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }}
       className="rounded-2xl overflow-hidden border border-border/30 shadow-lg bg-background">
       <div className="relative group">
-        <img src={url} alt={prompt} className="w-full object-contain max-h-[600px]" />
+        <img src={url} alt={prompt} className="w-full object-contain max-h-[600px]" loading="lazy" />
         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
           <Button size="sm" variant="secondary" className="gap-1.5" onClick={onDownload}>
             <Download className="w-3.5 h-3.5" /> 下載
@@ -461,7 +461,7 @@ function PoseResult({ poseUrl, prompt }: { poseUrl: string; prompt: string }) {
         <p className="text-xs font-medium text-lime-800">骨骼姿勢圖</p>
       </div>
       <div className="relative group">
-        <img src={poseUrl} alt="pose" className="w-full object-contain max-h-[500px]" />
+        <img src={poseUrl} alt="pose" className="w-full object-contain max-h-[500px]" loading="lazy" />
         <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
           <Button size="sm" variant="secondary" className="gap-1.5" onClick={() => window.open(poseUrl, "_blank")}>
             <Eye className="w-3.5 h-3.5" /> 全尺寸
@@ -521,7 +521,7 @@ function HistoryPanel({ onReuse }: { onReuse: (item: HistoryItem) => void }) {
         {shown.map(item => (
           <div key={item.id} className="rounded-xl border border-border/30 overflow-hidden bg-background/50">
             <div className="relative">
-              <img src={item.imageUrl} alt={item.prompt} className="w-full h-28 object-cover" />
+              <img src={item.imageUrl} alt={item.prompt} className="w-full h-28 object-cover" loading="lazy" />
               <div className="absolute top-1 right-1 flex gap-1">
                 <button onClick={() => toggleBookmark(item.id)} className="p-1 rounded-md bg-black/50 text-white hover:bg-black/70 transition-colors">
                   {item.bookmarked ? <BookmarkCheck className="w-3 h-3 text-amber-400" /> : <Bookmark className="w-3 h-3" />}
@@ -748,7 +748,7 @@ function RefImageInput({ label, value, onChange, onClear, multiple = false, extr
         {value && (
           <div className="px-2 pb-2">
             <div className="rounded-xl overflow-hidden border border-border/30">
-              <img src={value} alt="reference" className="w-full max-h-40 object-cover" onError={() => onChange("")} />
+              <img src={value} alt="reference" className="w-full max-h-40 object-cover" loading="lazy" onError={() => onChange("")} />
             </div>
           </div>
         )}

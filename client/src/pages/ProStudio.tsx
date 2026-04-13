@@ -141,6 +141,11 @@ function FileUploadInput({
             credentials: "include",
             body: JSON.stringify({ fileName: file.name, mimeType: file.type, data: base64 }),
           });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({ error: "上傳失敗" }));
+            toast.error("上傳失敗：" + (err.error ?? `HTTP ${res.status}`));
+            return;
+          }
           const json = await res.json();
           if (json.url) {
             onChange(json.url);
@@ -1552,7 +1557,14 @@ function AvatarVideoTab() {
 
   const statusQuery = trpc.proStudio.jobStatus.useQuery(
     { request_id: jobInfo?.request_id ?? "", model: jobInfo?.model ?? "" },
-    { enabled: !!jobInfo && !!jobInfo.request_id, refetchInterval: 3000 }
+    {
+      enabled: !!jobInfo && !!jobInfo.request_id,
+      refetchInterval: (query) => {
+        const s = (query.state.data as any)?.status;
+        if (s === "COMPLETED" || s === "FAILED") return false;
+        return 3000;
+      },
+    }
   );
 
   // ── Fetch full result when job completes (proStudio.jobResult) ──
@@ -1563,7 +1575,9 @@ function AvatarVideoTab() {
 
   const isPending = wanMut.isPending || echoMut.isPending || stableMut.isPending || longcatMut.isPending || ltxMut.isPending || dubbingMut.isPending;
   const jobStatus = (statusQuery.data as any)?.status;
-  const videoResult = (statusQuery.data as any)?.output?.video_url;
+  // Prefer full result from jobResultQuery (fetched after COMPLETED), fall back to status response
+  const resultData = jobResultQuery.data ?? statusQuery.data;
+  const videoResult = (resultData as any)?.video?.url ?? (resultData as any)?.output?.video_url ?? (resultData as any)?.video_url;
 
   // 每個模型的必填欄位驗證
   const isGenerateDisabled = isPending || (() => {

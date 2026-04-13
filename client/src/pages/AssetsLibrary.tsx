@@ -42,7 +42,10 @@ function formatBytes(bytes: number | null | undefined): string {
 
 async function downloadFile(url: string, filename: string) {
   try {
-    const resp = await fetch(url);
+    // Use server proxy to bypass CORS restrictions on CDN URLs
+    const proxyUrl = `/api/proxy-download?url=${encodeURIComponent(url)}`;
+    const resp = await fetch(proxyUrl);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const blob = await resp.blob();
     const blobUrl = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -109,6 +112,7 @@ function UploadDialog({ onSuccess }: { onSuccess: () => void }) {
       const resp = await fetch("/api/upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ fileName: selectedFile.name, mimeType: selectedFile.type, data: base64Data }),
       });
       if (!resp.ok) { const err = await resp.json(); throw new Error(err.error || "上傳失敗"); }
@@ -208,6 +212,7 @@ export default function AssetsLibrary() {
       teamAssetsQuery.refetch();
       toast.success("已更新，分享資產可獲得額外配額");
     },
+    onError: (e) => toast.error("更新失敗：" + e.message),
   });
 
   const deleteAsset = trpc.assets.delete.useMutation({
@@ -215,6 +220,7 @@ export default function AssetsLibrary() {
       myAssetsQuery.refetch();
       toast.success("已刪除");
     },
+    onError: (e) => toast.error("刪除失敗：" + e.message),
   });
 
   const updateAsset = trpc.assets.update.useMutation({
