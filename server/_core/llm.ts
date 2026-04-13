@@ -440,7 +440,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   // 生成唯一 run ID（供 LangSmith 追蹤）
   const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
-  let result: InvokeResult;
+  let result!: InvokeResult;
   try {
     // Retry with exponential backoff for transient failures
     const MAX_RETRIES = 3;
