@@ -115,31 +115,11 @@ async function falRun(modelId: string, input: Record<string, unknown>): Promise<
 async function falQueueRun(
   modelId: string,
   input: Record<string, unknown>,
-  waitSec = 300
+  waitSec = 300 // 參數已废棄，改由前端 Polling
 ): Promise<unknown> {
   const { request_id } = await falQueueSubmit(modelId, input);
-
-  const deadline = Date.now() + waitSec * 1000;
-  let pollInterval = 2000; // 初始 2 秒
-
-  while (Date.now() < deadline) {
-    await new Promise(r => setTimeout(r, pollInterval));
-    pollInterval = Math.min(pollInterval * 1.4, 8000); // 指數退避，最長 8 秒
-
-    const status = await falQueueStatus(request_id, modelId) as any;
-    const s = status?.status ?? status?.state;
-
-    if (s === "COMPLETED") {
-      return falQueueResult(request_id, modelId);
-    }
-    if (s === "FAILED") {
-      const errMsg = status?.error ?? status?.message ?? "未知錯誤";
-      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `fal.ai 任務失敗 [${modelId}]: ${errMsg}` });
-    }
-    // IN_QUEUE / IN_PROGRESS / PROCESSING → 繼續等待
-  }
-
-  throw new TRPCError({ code: "TIMEOUT", message: `fal.ai 任務超時（>${waitSec}s）[${modelId}]` });
+  // 直接回傳 request_id，不等待結果
+  return { request_id, raw_model_id: modelId, is_async_polling: true };
 }
 
 // ─── Router ──────────────────────────────────────────────────────────────────
@@ -208,18 +188,12 @@ export const proStudioRouter = router({
       payload.output_format = "mp3";
       payload.num_songs = 1;
 
-      // 音樂生成耗時長，使用 queue 非同步呼叫（最多等 300 秒）
-      const result = await falQueueRun("sonauto/v2/text-to-music", payload, 300) as any;
-
-      // 統一回傳格式：{ audio_url, tags, lyrics }
-      const audioList = result?.audio ?? result?.data?.audio ?? [];
-      const audioUrl  = Array.isArray(audioList) ? audioList[0]?.url : audioList?.url;
-
+      // 音樂生成耗時長，使用 queue 非同步叐交，立即回傳 request_id 給前端輪詢
+      const { request_id } = await falQueueSubmit("sonauto/v2/text-to-music", payload);
       return {
-        audio_url: audioUrl ?? null,
-        tags:      result?.tags ?? result?.data?.tags ?? [],
-        lyrics:    result?.lyrics ?? result?.data?.lyrics ?? "",
-        seed:      result?.seed ?? result?.data?.seed ?? null,
+        request_id,
+        model: "sonauto/v2/text-to-music",
+        is_async_polling: true,
       };
     }),
 
@@ -528,34 +502,16 @@ export const proStudioRouter = router({
       acceleration: z.enum(["none", "low", "medium", "high"]).optional().default("none"),
     }))
     .mutation(async ({ input }) => {
-      // 使用 queue 模式避免 SSE 串流解析錯誤
-      const rawResult = await falQueueRun("fal-ai/nemotron/asr/stream", {
+      // 使用 submit 立即回傳 request_id，不在後端等待
+      const { request_id } = await falQueueSubmit("fal-ai/nemotron/asr/stream", {
         audio_url:    input.audio_url,
         acceleration: input.acceleration,
-      }, 180) as any;
+      });
 
-      // 解析 Nemotron 結果格式
-      // 可能的結構：result.text / result.transcription / result.segments[].text
-      const rawData = rawResult?.data ?? rawResult;
-
-      let text = "";
-      if (typeof rawData?.text === "string") {
-        text = rawData.text;
-      } else if (typeof rawData?.transcription === "string") {
-        text = rawData.transcription;
-      } else if (Array.isArray(rawData?.segments)) {
-        text = rawData.segments
-          .map((s: any) => s?.text ?? s?.transcript ?? "")
-          .filter(Boolean)
-          .join(" ");
-      } else if (typeof rawData?.transcript === "string") {
-        text = rawData.transcript;
-      }
-
-      // 永遠回傳標準 JSON，前端不會收到 SSE 串流
       return {
-        text:         text.trim() || "(識別結果為空)",
-        raw:          rawData,
+        request_id,
+        model: "fal-ai/nemotron/asr/stream",
+        is_async_polling: true,
       };
     }),
 
@@ -695,6 +651,49 @@ export const proStudioRouter = router({
     }))
     .query(async ({ input }) => {
       return falQueueResult(input.request_id, input.model);
+    }),
+
+  /**
+   * 結合狀態+結果的通用輪詢 API
+   * 前端每 3 秒呼叫：若已完成則回傳音訊 URL
+   */
+  checkAudioStatus: protectedProcedure
+    .input(z.object({
+      requestId: z.string().min(1),
+      model:     z.string().min(1),
+    }))
+    .query(async ({ input }) => {
+      const status = await falQueueStatus(input.requestId, input.model) as any;
+      const s = status?.status ?? status?.state;
+
+      if (s === "COMPLETED") {
+        const result = await falQueueResult(input.requestId, input.model) as any;
+        const rawData = result?.data ?? result;
+
+        // 通用提取 audio_url
+        const audioUrl =
+          rawData?.audio?.url ??
+          rawData?.audio_url ??
+          (Array.isArray(rawData?.audio) ? rawData.audio[0]?.url : null) ??
+          rawData?.output?.url ??
+          null;
+
+        // 如果是 ASR 結果，提取文字
+        let text = "";
+        if (typeof rawData?.text === "string") text = rawData.text;
+        else if (typeof rawData?.transcription === "string") text = rawData.transcription;
+        else if (Array.isArray(rawData?.segments))
+          text = rawData.segments.map((s: any) => s?.text ?? "").filter(Boolean).join(" ");
+
+        return { status: "COMPLETED", audio_url: audioUrl, text: text.trim() || null, raw: rawData };
+      }
+
+      if (s === "FAILED") {
+        const errMsg = status?.error ?? status?.message ?? "未知錯誤";
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `任務失敗 [${input.model}]: ${errMsg}` });
+      }
+
+      return { status: "IN_PROGRESS" };
     }),
 });
 

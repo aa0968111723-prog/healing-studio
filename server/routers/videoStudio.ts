@@ -178,9 +178,8 @@ export const videoStudioRouter = router({
       enableSafety:  z.boolean().default(false),
     }))
     .mutation(async ({ input }) => {
-      const modelId = input.resolution === "720p"
-        ? "fal-ai/wan-ai/wan2.1-t2v-720p"
-        : "fal-ai/wan-ai/wan2.1-t2v-480p";
+      // Wan t2v 正確 endpoint（fal.ai 2025年最新）
+      const modelId = "fal-ai/wan-t2v";
 
       const payload: Record<string, unknown> = {
         prompt: input.prompt,
@@ -333,9 +332,8 @@ export const videoStudioRouter = router({
       resolution:   z.enum(["480p", "720p"]).default("720p"),
     }))
     .mutation(async ({ input }) => {
-      const modelId = input.resolution === "720p"
-        ? "fal-ai/wan-ai/wan2.1-i2v-720p"
-        : "fal-ai/wan-ai/wan2.1-i2v-480p";
+      // Wan i2v 正確 endpoint
+      const modelId = "fal-ai/wan-i2v";
 
       const payload: Record<string, unknown> = {
         prompt: input.prompt,
@@ -438,8 +436,11 @@ export const videoStudioRouter = router({
         prompt: input.prompt,
         video_url: input.videoUrl,
         strength: input.strength,
-      };
-      const result = await falQueueRun("fal-ai/wan-ai/wan2.1-v2v-480p", payload, 300) as any;
+      const result = await falQueueRun("fal-ai/wan-t2v", {
+        prompt: input.prompt,
+        video_url: input.videoUrl,
+        strength: input.strength,
+      }, 300) as any;
       return { video_url: extractVideoUrl(result), raw: result };
     }),
 
