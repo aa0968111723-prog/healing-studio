@@ -31,11 +31,19 @@ import {
   Upload,
   ChevronRight,
   ChevronLeft,
+  User,
+  Smile,
+  Palette,
+  Mountain,
+  Film,
+  Mic,
+  Video,
 } from "lucide-react";
 import { GlassCard, ZenTooltip, ZenSkeleton } from "@/components/ZenCoPilot";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
-import type { CharacterForgeStep, DatasetImage } from "@shared/types";
+import type { CharacterForgeStep, DatasetImage, TrainingModelType, TrainingEngine } from "@shared/types";
+import { TRAINING_CATEGORIES, getTrainingCategory } from "@shared/types";
 
 // ── Type alias for dataset images from training detail ──────────────────────
 
@@ -50,6 +58,17 @@ type DatasetImageWithUpload = DatasetImage & {
   uploading?: boolean;
   uploaded?: boolean;
   captionGenerated?: boolean;
+};
+
+// ── Video upload entry ──────────────────────────────────────────────────────
+
+type DatasetVideoEntry = {
+  url: string;
+  fileKey: string;
+  caption?: string;
+  file?: File;
+  uploading?: boolean;
+  uploaded?: boolean;
 };
 
 // ── Training wizard steps ───────────────────────────────────────────────────
@@ -68,6 +87,33 @@ const ANGLES = [
   { value: "expression" as const, label: "表情" },
   { value: "other" as const, label: "其他" },
 ];
+
+// ── Training type icon mapping ──────────────────────────────────────────────
+
+const TRAINING_TYPE_ICONS: Record<string, React.ReactNode> = {
+  image_subject: <User className="w-5 h-5" />,
+  portrait_lora: <Smile className="w-5 h-5" />,
+  style_lora: <Palette className="w-5 h-5" />,
+  scene_lora: <Mountain className="w-5 h-5" />,
+  video_lora: <Film className="w-5 h-5" />,
+  voice_clone: <Mic className="w-5 h-5" />,
+};
+
+/** 模型類型中文標籤 */
+const MODEL_TYPE_LABELS: Record<string, string> = {
+  image_subject: "角色 / 主體",
+  portrait_lora: "人像專訓",
+  style_lora: "風格微調",
+  scene_lora: "場景 / 環境",
+  video_lora: "影片 LoRA",
+  voice_clone: "語音複製",
+};
+
+/** 訓練引擎標籤 */
+const ENGINE_LABELS: Record<string, string> = {
+  replicate: "Replicate",
+  fal: "Fal.ai",
+};
 
 // ── Status badge helper ─────────────────────────────────────────────────────
 
@@ -106,15 +152,24 @@ export default function LoraTrainer() {
   const [tab, setTab] = useState<"train" | "overview" | "history" | "detail">("train");
   const [selectedModelId, setSelectedModelId] = useState<number | null>(null);
 
+  // ── Training type selection ──
+  const [selectedTrainingType, setSelectedTrainingType] = useState<TrainingModelType>("image_subject");
+  const currentCategory = getTrainingCategory(selectedTrainingType);
+
+  // Resolve engine: for image_subject use replicate, others use fal
+  const trainingEngine: TrainingEngine = selectedTrainingType === "image_subject" ? "replicate" : "fal";
+
   // ── Training form state ──
   const [step, setStep] = useState<CharacterForgeStep>("dataset");
   const [modelName, setModelName] = useState("");
   const [triggerWord, setTriggerWord] = useState("");
   const [description, setDescription] = useState("");
   const [datasetImages, setDatasetImages] = useState<DatasetImageWithUpload[]>([]);
+  const [datasetVideos, setDatasetVideos] = useState<DatasetVideoEntry[]>([]);
   const [epochs, setEpochs] = useState(20);
   const [learningRate, setLearningRate] = useState(0.0001);
   const [batchSize, setBatchSize] = useState(4);
+  const [trainingSteps, setTrainingSteps] = useState(1000);
   const [isCaptioning, setIsCaptioning] = useState(false);
   const [trainingJobId, setTrainingJobId] = useState<number | null>(null);
 
@@ -219,9 +274,11 @@ export default function LoraTrainer() {
     setTriggerWord("");
     setDescription("");
     setDatasetImages([]);
+    setDatasetVideos([]);
     setEpochs(20);
     setLearningRate(0.0001);
     setBatchSize(4);
+    setTrainingSteps(1000);
     setIsCaptioning(false);
     setTrainingJobId(null);
   }, []);
@@ -273,6 +330,54 @@ export default function LoraTrainer() {
     setDatasetImages((prev) => prev.filter((_, i) => i !== idx));
   }, []);
 
+  // ── Video upload handler (for video_lora type) ──
+  const handleVideoUpload = useCallback(() => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "video/*";
+    input.multiple = true;
+    input.onchange = async (e) => {
+      const files = (e.target as HTMLInputElement).files;
+      if (!files) return;
+
+      const newVideos: DatasetVideoEntry[] = Array.from(files).map((file) => ({
+        url: URL.createObjectURL(file),
+        fileKey: "",
+        file,
+        uploading: true,
+        uploaded: false,
+      }));
+
+      setDatasetVideos((prev) => [...prev, ...newVideos]);
+
+      for (const vid of newVideos) {
+        const file = vid.file!;
+        try {
+          const { url, fileKey } = await uploadFileToS3(file);
+          setDatasetVideos((prev) =>
+            prev.map((item) =>
+              item.file === file
+                ? { ...item, url, fileKey, uploading: false, uploaded: true }
+                : item
+            )
+          );
+        } catch (err: unknown) {
+          toast.error(`影片上傳失敗：${shortErrorMsg(err)}`, { duration: 5000 });
+          setDatasetVideos((prev) =>
+            prev.map((item) =>
+              item.file === file ? { ...item, uploading: false } : item
+            )
+          );
+        }
+      }
+    };
+    input.click();
+  }, []);
+
+  const removeVideo = useCallback((idx: number) => {
+    setDatasetVideos((prev) => prev.filter((_, i) => i !== idx));
+  }, []);
+
   const handleAutoCaptioning = useCallback(() => {
     const uploadedImages = datasetImages.filter(img => img.uploaded && img.uploadedUrl);
     if (uploadedImages.length === 0) {
@@ -293,8 +398,12 @@ export default function LoraTrainer() {
     if (!triggerWord.trim()) { toast.error("請設定觸發詞"); return; }
 
     const uploadedImages = datasetImages.filter(img => img.uploaded && img.uploadedUrl);
-    if (uploadedImages.length < 3) {
-      toast.error("至少需要 3 張已上傳的圖片");
+    const uploadedVideos = datasetVideos.filter(v => v.uploaded);
+    const totalData = uploadedImages.length + uploadedVideos.length;
+    const minRequired = currentCategory?.minDatasetSize ?? 3;
+
+    if (totalData < minRequired) {
+      toast.error(`至少需要 ${minRequired} 份已上傳的訓練資料`);
       return;
     }
 
@@ -302,25 +411,38 @@ export default function LoraTrainer() {
       name: modelName,
       triggerWord,
       description,
-      epochs,
+      modelType: selectedTrainingType,
+      trainingEngine,
+      epochs: trainingEngine === "replicate" ? epochs : undefined,
       learningRate,
-      batchSize,
+      batchSize: trainingEngine === "replicate" ? batchSize : undefined,
+      steps: trainingEngine === "fal" ? trainingSteps : undefined,
+      isStyle: selectedTrainingType === "style_lora",
       datasetImages: uploadedImages.map(img => ({
         url: img.uploadedUrl!,
         fileKey: img.uploadedKey!,
         angle: img.angle,
         caption: img.caption,
       })),
+      datasetVideos: uploadedVideos.map(v => ({
+        url: v.url,
+        fileKey: v.fileKey,
+        caption: v.caption,
+      })),
     });
-  }, [modelName, triggerWord, description, epochs, learningRate, batchSize, datasetImages, createMutation]);
+  }, [modelName, triggerWord, description, selectedTrainingType, trainingEngine, epochs, learningRate, batchSize, trainingSteps, datasetImages, datasetVideos, currentCategory, createMutation]);
 
-  const allUploaded = datasetImages.length > 0 && datasetImages.every(img => img.uploaded);
-  const anyUploading = datasetImages.some(img => img.uploading);
+  const allImagesUploaded = datasetImages.length === 0 || datasetImages.every(img => img.uploaded);
+  const allVideosUploaded = datasetVideos.length === 0 || datasetVideos.every(v => v.uploaded);
+  const allUploaded = (datasetImages.length > 0 || datasetVideos.length > 0) && allImagesUploaded && allVideosUploaded;
+  const anyUploading = datasetImages.some(img => img.uploading) || datasetVideos.some(v => v.uploading);
+  const totalDataCount = datasetImages.filter(i => i.uploaded).length + datasetVideos.filter(v => v.uploaded).length;
   const currentStepIndex = FORGE_STEPS.findIndex((s) => s.id === step);
+  const minDatasetSize = currentCategory?.minDatasetSize ?? 3;
 
   const canProceed = () => {
     switch (step) {
-      case "dataset": return modelName.trim() !== "" && datasetImages.length >= 3 && allUploaded;
+      case "dataset": return modelName.trim() !== "" && totalDataCount >= minDatasetSize && allUploaded;
       case "captioning": return triggerWord.trim() !== "";
       case "hyperparams": return true;
       case "training": return true;
@@ -340,8 +462,8 @@ export default function LoraTrainer() {
         <div className="flex items-center gap-3">
           <Flame className="w-5 h-5 text-orange-500" />
           <div>
-            <h1 className="text-xl font-semibold">LoRA 訓練工坊</h1>
-            <p className="text-xs text-muted-foreground">Replicate 專屬 LoRA 微調訓練環境</p>
+            <h1 className="text-xl font-semibold">AI 模型訓練中心</h1>
+            <p className="text-xs text-muted-foreground">多類型 LoRA 微調訓練 · 支援 Replicate + Fal.ai 雙引擎</p>
           </div>
         </div>
         <Button
@@ -383,13 +505,58 @@ export default function LoraTrainer() {
             exit={{ opacity: 0, y: -10 }}
             className="space-y-6"
           >
-            {/* Replicate Connection Status (compact) */}
+            {/* Engine Connection Status (compact) */}
             {replicateStatusQuery.data && !replicateStatusQuery.data.connected && (
               <GlassCard>
                 <div className="flex items-center gap-2 text-xs text-red-500">
                   <X className="w-4 h-4" />
                   <span>{replicateStatusQuery.data.message}</span>
                 </div>
+              </GlassCard>
+            )}
+
+            {/* ═══ Training Type Selector ═══ */}
+            {!trainingJobId && (
+              <GlassCard>
+                <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+                  <Cpu className="w-4 h-4" />
+                  選擇訓練類型
+                </h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                  {TRAINING_CATEGORIES.filter(c => c.type !== "voice_clone").map((cat) => (
+                    <button
+                      key={cat.type}
+                      onClick={() => { setSelectedTrainingType(cat.type); resetForm(); setSelectedTrainingType(cat.type); }}
+                      className={`relative rounded-xl border-2 p-3 text-left transition-all hover:border-primary/40 ${
+                        selectedTrainingType === cat.type
+                          ? "border-primary bg-primary/5 ring-1 ring-primary/20"
+                          : "border-border/40 bg-muted/10"
+                      }`}
+                    >
+                      <div className="flex flex-col items-center gap-2 text-center">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                          selectedTrainingType === cat.type ? "bg-primary/10 text-primary" : "bg-muted/30 text-muted-foreground"
+                        }`}>
+                          {TRAINING_TYPE_ICONS[cat.type]}
+                        </div>
+                        <span className="text-xs font-medium leading-tight">{cat.labelZh}</span>
+                      </div>
+                      <p className="text-[9px] text-muted-foreground mt-1.5 text-center leading-tight line-clamp-2">{cat.description}</p>
+                      {selectedTrainingType === cat.type && (
+                        <div className="absolute top-1.5 right-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-primary" />
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+                {currentCategory && (
+                  <div className="mt-3 flex items-center gap-3 text-[11px] text-muted-foreground bg-muted/20 rounded-lg p-2">
+                    <span>引擎：<strong className="text-foreground">{ENGINE_LABELS[trainingEngine]}</strong></span>
+                    <span>·</span>
+                    <span>資料需求：{currentCategory.acceptsImages && "圖片"}{currentCategory.acceptsVideos && " + 影片"} · 最少 {currentCategory.minDatasetSize} 份</span>
+                  </div>
+                )}
               </GlassCard>
             )}
 
@@ -466,86 +633,159 @@ export default function LoraTrainer() {
                         <div className="space-y-5">
                           <div className="space-y-2">
                             <Label className="text-sm font-medium">模型名稱 *</Label>
-                            <Input placeholder="例如：角色 A" value={modelName} onChange={(e) => setModelName(e.target.value)} className="rounded-xl" />
+                            <Input placeholder={`例如：${currentCategory?.labelZh || "模型"} A`} value={modelName} onChange={(e) => setModelName(e.target.value)} className="rounded-xl" />
                           </div>
                           <div className="space-y-2">
                             <Label className="text-sm font-medium">描述（選填）</Label>
-                            <Textarea placeholder="角色的背景描述..." value={description} onChange={(e) => setDescription(e.target.value)} className="rounded-xl" rows={2} />
+                            <Textarea placeholder={`${currentCategory?.description || "模型的背景描述"}...`} value={description} onChange={(e) => setDescription(e.target.value)} className="rounded-xl" rows={2} />
                           </div>
-                          <div className="space-y-3">
-                            <Label className="text-sm font-medium">多角度資料集</Label>
-                            <p className="text-xs text-muted-foreground">上傳至少 3 張不同角度的圖片，圖片會自動上傳至雲端儲存</p>
-                            <div className="grid grid-cols-5 gap-2">
-                              {ANGLES.map((angle) => {
-                                const images = datasetImages.filter((img) => img.angle === angle.value);
-                                const hasUploading = images.some(img => img.uploading);
-                                return (
-                                  <div key={angle.value} className="space-y-1.5">
-                                    <span className="text-[11px] font-medium text-muted-foreground text-center block">{angle.label}</span>
-                                    <button onClick={() => handleFileUpload(angle.value)} className="w-full aspect-square rounded-xl border-2 border-dashed border-border/50 hover:border-primary/30 transition-colors flex flex-col items-center justify-center gap-1 bg-muted/20 relative overflow-hidden">
-                                      {images.length > 0 ? (
-                                        <div className="relative w-full h-full">
-                                          <img src={images[images.length - 1].uploadedUrl || images[images.length - 1].url} alt={angle.label} className="w-full h-full object-cover rounded-xl" loading="lazy" />
-                                          <span className="absolute bottom-1 right-1 text-[10px] bg-black/50 text-white px-1.5 rounded-md">{images.length}</span>
-                                          {hasUploading && (
-                                            <div className="absolute inset-0 bg-black/30 flex items-center justify-center rounded-xl">
-                                              <Loader2 className="w-4 h-4 text-white animate-spin" />
+
+                          {/* ── Image upload (for image-based training types) ── */}
+                          {currentCategory?.acceptsImages && (
+                            <div className="space-y-3">
+                              <Label className="text-sm font-medium flex items-center gap-1.5">
+                                {TRAINING_TYPE_ICONS[selectedTrainingType]}
+                                {selectedTrainingType === "image_subject" || selectedTrainingType === "portrait_lora"
+                                  ? "多角度資料集"
+                                  : "訓練圖片集"}
+                              </Label>
+                              <p className="text-xs text-muted-foreground">
+                                上傳至少 {minDatasetSize} 張圖片，圖片會自動上傳至雲端儲存
+                              </p>
+
+                              {/* Angle-based upload for character/portrait */}
+                              {(selectedTrainingType === "image_subject" || selectedTrainingType === "portrait_lora") ? (
+                                <div className="grid grid-cols-5 gap-2">
+                                  {ANGLES.map((angle) => {
+                                    const images = datasetImages.filter((img) => img.angle === angle.value);
+                                    const hasUploading = images.some(img => img.uploading);
+                                    return (
+                                      <div key={angle.value} className="space-y-1.5">
+                                        <span className="text-[11px] font-medium text-muted-foreground text-center block">{angle.label}</span>
+                                        <button onClick={() => handleFileUpload(angle.value)} className="w-full aspect-square rounded-xl border-2 border-dashed border-border/50 hover:border-primary/30 transition-colors flex flex-col items-center justify-center gap-1 bg-muted/20 relative overflow-hidden">
+                                          {images.length > 0 ? (
+                                            <div className="relative w-full h-full">
+                                              <img src={images[images.length - 1].uploadedUrl || images[images.length - 1].url} alt={angle.label} className="w-full h-full object-cover rounded-xl" loading="lazy" />
+                                              <span className="absolute bottom-1 right-1 text-[10px] bg-black/50 text-white px-1.5 rounded-md">{images.length}</span>
+                                              {hasUploading && (
+                                                <div className="absolute inset-0 bg-black/30 flex items-center justify-center rounded-xl">
+                                                  <Loader2 className="w-4 h-4 text-white animate-spin" />
+                                                </div>
+                                              )}
+                                              {!hasUploading && images.every(i => i.uploaded) && (
+                                                <div className="absolute top-1 left-1">
+                                                  <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
+                                                </div>
+                                              )}
                                             </div>
+                                          ) : (
+                                            <>
+                                              <Upload className="w-4 h-4 text-muted-foreground" />
+                                              <span className="text-[10px] text-muted-foreground">上傳</span>
+                                            </>
                                           )}
-                                          {!hasUploading && images.every(i => i.uploaded) && (
-                                            <div className="absolute top-1 left-1">
-                                              <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
-                                            </div>
-                                          )}
-                                        </div>
-                                      ) : (
-                                        <>
-                                          <Upload className="w-4 h-4 text-muted-foreground" />
-                                          <span className="text-[10px] text-muted-foreground">上傳</span>
-                                        </>
-                                      )}
-                                    </button>
+                                        </button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                /* Simple grid upload for style/scene/video */
+                                <button
+                                  onClick={() => handleFileUpload("other")}
+                                  className="w-full py-8 rounded-xl border-2 border-dashed border-border/50 hover:border-primary/30 transition-colors flex flex-col items-center justify-center gap-2 bg-muted/20"
+                                >
+                                  <Upload className="w-6 h-6 text-muted-foreground" />
+                                  <span className="text-sm text-muted-foreground">點擊上傳訓練圖片</span>
+                                  <span className="text-[10px] text-muted-foreground/70">支援 JPG, PNG, WebP</span>
+                                </button>
+                              )}
+
+                              {/* Uploaded images preview */}
+                              {datasetImages.length > 0 && (
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs text-muted-foreground">
+                                      {datasetImages.filter(i => i.uploaded).length}/{datasetImages.length} 張圖片已上傳
+                                    </span>
+                                    {anyUploading && (
+                                      <span className="text-xs text-amber-600 flex items-center gap-1">
+                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                        上傳中...
+                                      </span>
+                                    )}
+                                    {allUploaded && !anyUploading && (
+                                      <span className="text-xs text-green-600 flex items-center gap-1">
+                                        <CheckCircle2 className="w-3 h-3" />
+                                        全部上傳完成
+                                      </span>
+                                    )}
                                   </div>
-                                );
-                              })}
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {datasetImages.map((img, idx) => (
+                                      <div key={idx} className="relative w-12 h-12 rounded-lg overflow-hidden group">
+                                        <img src={img.uploadedUrl || img.url} alt="" className="w-full h-full object-cover" loading="lazy" />
+                                        {img.uploading && (
+                                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                                            <Loader2 className="w-3 h-3 text-white animate-spin" />
+                                          </div>
+                                        )}
+                                        <button onClick={() => removeImage(idx)} className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                          <X className="w-3 h-3 text-white" />
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                            {datasetImages.length > 0 && (
-                              <div className="space-y-2">
-                                <div className="flex items-center justify-between">
+                          )}
+
+                          {/* ── Video upload (for video_lora type) ── */}
+                          {currentCategory?.acceptsVideos && (
+                            <div className="space-y-3">
+                              <Label className="text-sm font-medium flex items-center gap-1.5">
+                                <Video className="w-4 h-4" />
+                                影片資料集
+                              </Label>
+                              <p className="text-xs text-muted-foreground">上傳訓練影片（支援 MP4, MOV, WebM），影片會自動分析並提取特徵</p>
+                              <button
+                                onClick={handleVideoUpload}
+                                className="w-full py-8 rounded-xl border-2 border-dashed border-border/50 hover:border-primary/30 transition-colors flex flex-col items-center justify-center gap-2 bg-muted/20"
+                              >
+                                <Film className="w-6 h-6 text-muted-foreground" />
+                                <span className="text-sm text-muted-foreground">點擊上傳訓練影片</span>
+                                <span className="text-[10px] text-muted-foreground/70">支援 MP4, MOV, WebM</span>
+                              </button>
+                              {datasetVideos.length > 0 && (
+                                <div className="space-y-2">
                                   <span className="text-xs text-muted-foreground">
-                                    {datasetImages.filter(i => i.uploaded).length}/{datasetImages.length} 張已上傳
+                                    {datasetVideos.filter(v => v.uploaded).length}/{datasetVideos.length} 部影片已上傳
                                   </span>
-                                  {anyUploading && (
-                                    <span className="text-xs text-amber-600 flex items-center gap-1">
-                                      <Loader2 className="w-3 h-3 animate-spin" />
-                                      上傳中...
-                                    </span>
-                                  )}
-                                  {allUploaded && (
-                                    <span className="text-xs text-green-600 flex items-center gap-1">
-                                      <CheckCircle2 className="w-3 h-3" />
-                                      全部上傳完成
-                                    </span>
-                                  )}
+                                  <div className="flex flex-wrap gap-2">
+                                    {datasetVideos.map((vid, idx) => (
+                                      <div key={idx} className="relative w-24 h-16 rounded-lg overflow-hidden group bg-muted/30 flex items-center justify-center">
+                                        {vid.uploading ? (
+                                          <Loader2 className="w-4 h-4 text-muted-foreground animate-spin" />
+                                        ) : vid.uploaded ? (
+                                          <>
+                                            <Film className="w-5 h-5 text-muted-foreground" />
+                                            <span className="absolute bottom-0.5 left-1 text-[8px] text-white bg-black/50 px-1 rounded">影片 {idx + 1}</span>
+                                            <CheckCircle2 className="absolute top-0.5 left-0.5 w-3 h-3 text-green-400" />
+                                          </>
+                                        ) : (
+                                          <X className="w-4 h-4 text-red-400" />
+                                        )}
+                                        <button onClick={() => removeVideo(idx)} className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                          <X className="w-3 h-3 text-white" />
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
                                 </div>
-                                <div className="flex flex-wrap gap-1.5">
-                                  {datasetImages.map((img, idx) => (
-                                    <div key={idx} className="relative w-12 h-12 rounded-lg overflow-hidden group">
-                                      <img src={img.uploadedUrl || img.url} alt="" className="w-full h-full object-cover" loading="lazy" />
-                                      {img.uploading && (
-                                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                                          <Loader2 className="w-3 h-3 text-white animate-spin" />
-                                        </div>
-                                      )}
-                                      <button onClick={() => removeImage(idx)} className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                        <X className="w-3 h-3 text-white" />
-                                      </button>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </GlassCard>
                     )}
@@ -605,13 +845,39 @@ export default function LoraTrainer() {
                     {step === "hyperparams" && (
                       <GlassCard>
                         <div className="space-y-5">
-                          <div className="space-y-3">
-                            <ZenTooltip tooltipKey="epochs"><Label className="text-sm font-medium">訓練輪數 (Epochs)</Label></ZenTooltip>
-                            <div className="flex items-center gap-4">
-                              <Slider value={[epochs]} onValueChange={([v]) => setEpochs(v)} min={5} max={50} step={5} className="flex-1" />
-                              <span className="text-sm tabular-nums font-mono w-8 text-right">{epochs}</span>
+                          {/* Replicate-specific: epochs + batch size */}
+                          {trainingEngine === "replicate" && (
+                            <>
+                              <div className="space-y-3">
+                                <ZenTooltip tooltipKey="epochs"><Label className="text-sm font-medium">訓練輪數 (Epochs)</Label></ZenTooltip>
+                                <div className="flex items-center gap-4">
+                                  <Slider value={[epochs]} onValueChange={([v]) => setEpochs(v)} min={5} max={50} step={5} className="flex-1" />
+                                  <span className="text-sm tabular-nums font-mono w-8 text-right">{epochs}</span>
+                                </div>
+                              </div>
+                              <div className="space-y-3">
+                                <Label className="text-sm font-medium">批次大小 (Batch Size)</Label>
+                                <div className="flex items-center gap-4">
+                                  <Slider value={[batchSize]} onValueChange={([v]) => setBatchSize(v)} min={1} max={16} step={1} className="flex-1" />
+                                  <span className="text-sm tabular-nums font-mono w-8 text-right">{batchSize}</span>
+                                </div>
+                              </div>
+                            </>
+                          )}
+
+                          {/* Fal.ai-specific: steps */}
+                          {trainingEngine === "fal" && (
+                            <div className="space-y-3">
+                              <Label className="text-sm font-medium">訓練步驟數 (Steps)</Label>
+                              <div className="flex items-center gap-4">
+                                <Slider value={[trainingSteps]} onValueChange={([v]) => setTrainingSteps(v)} min={200} max={3000} step={100} className="flex-1" />
+                                <span className="text-sm tabular-nums font-mono w-12 text-right">{trainingSteps}</span>
+                              </div>
+                              <p className="text-[10px] text-muted-foreground">建議 800–2000 步。步驟越多品質越好，但耗時更長。</p>
                             </div>
-                          </div>
+                          )}
+
+                          {/* Shared: learning rate */}
                           <div className="space-y-3">
                             <ZenTooltip tooltipKey="learningRate"><Label className="text-sm font-medium">學習率 (Learning Rate)</Label></ZenTooltip>
                             <div className="flex items-center gap-4">
@@ -619,20 +885,21 @@ export default function LoraTrainer() {
                               <span className="text-sm tabular-nums font-mono w-16 text-right">{learningRate.toFixed(4)}</span>
                             </div>
                           </div>
-                          <div className="space-y-3">
-                            <Label className="text-sm font-medium">批次大小 (Batch Size)</Label>
-                            <div className="flex items-center gap-4">
-                              <Slider value={[batchSize]} onValueChange={([v]) => setBatchSize(v)} min={1} max={16} step={1} className="flex-1" />
-                              <span className="text-sm tabular-nums font-mono w-8 text-right">{batchSize}</span>
-                            </div>
-                          </div>
+
+                          {/* Summary */}
                           <div className="rounded-xl bg-muted/30 p-4">
                             <h4 className="text-xs font-medium mb-2">預估訓練資訊</h4>
                             <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
-                              <span>資料集大小：{datasetImages.filter(i => i.uploaded).length} 張</span>
-                              <span>預估時間：~{Math.ceil(epochs * datasetImages.length * 0.5)} 分鐘</span>
-                              <span>訓練步驟：~{Math.min(Math.max(epochs * 30, 200), 2000)}</span>
+                              <span>訓練類型：{MODEL_TYPE_LABELS[selectedTrainingType]}</span>
+                              <span>訓練引擎：{ENGINE_LABELS[trainingEngine]}</span>
+                              <span>資料集：{totalDataCount} 份</span>
+                              {trainingEngine === "replicate" ? (
+                                <span>訓練步驟：~{Math.min(Math.max(epochs * 30, 200), 2000)}</span>
+                              ) : (
+                                <span>訓練步驟：{trainingSteps}</span>
+                              )}
                               <span>觸發詞：<code className="font-mono text-foreground">{triggerWord || "未設定"}</code></span>
+                              <span>學習率：<code className="font-mono text-foreground">{learningRate.toFixed(4)}</code></span>
                             </div>
                           </div>
                         </div>
@@ -643,20 +910,38 @@ export default function LoraTrainer() {
                     {step === "training" && (
                       <GlassCard>
                         <div className="space-y-5 text-center py-4">
-                          <Flame className="w-10 h-10 text-orange-500 mx-auto" />
+                          <div className="flex items-center justify-center gap-2">
+                            {TRAINING_TYPE_ICONS[selectedTrainingType]}
+                            <Flame className="w-10 h-10 text-orange-500" />
+                          </div>
                           <h3 className="text-sm font-medium">確認訓練設定</h3>
                           <div className="rounded-xl bg-muted/30 p-4 text-left space-y-2 text-sm">
+                            <div className="flex justify-between"><span className="text-muted-foreground">訓練類型</span><span className="font-medium">{MODEL_TYPE_LABELS[selectedTrainingType]}</span></div>
+                            <div className="flex justify-between"><span className="text-muted-foreground">訓練引擎</span><span className="font-medium">{ENGINE_LABELS[trainingEngine]}</span></div>
                             <div className="flex justify-between"><span className="text-muted-foreground">模型名稱</span><span className="font-medium">{modelName}</span></div>
                             <div className="flex justify-between"><span className="text-muted-foreground">觸發詞</span><code className="font-mono text-xs">{triggerWord}</code></div>
-                            <div className="flex justify-between"><span className="text-muted-foreground">資料集</span><span>{datasetImages.filter(i => i.uploaded).length} 張圖片（已上傳至雲端）</span></div>
-                            <div className="flex justify-between"><span className="text-muted-foreground">訓練輪數</span><span>{epochs}</span></div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">資料集</span>
+                              <span>
+                                {datasetImages.filter(i => i.uploaded).length > 0 && `${datasetImages.filter(i => i.uploaded).length} 張圖片`}
+                                {datasetImages.filter(i => i.uploaded).length > 0 && datasetVideos.filter(v => v.uploaded).length > 0 && " + "}
+                                {datasetVideos.filter(v => v.uploaded).length > 0 && `${datasetVideos.filter(v => v.uploaded).length} 部影片`}
+                              </span>
+                            </div>
+                            {trainingEngine === "replicate" && (
+                              <>
+                                <div className="flex justify-between"><span className="text-muted-foreground">訓練輪數</span><span>{epochs}</span></div>
+                                <div className="flex justify-between"><span className="text-muted-foreground">批次大小</span><span>{batchSize}</span></div>
+                              </>
+                            )}
+                            {trainingEngine === "fal" && (
+                              <div className="flex justify-between"><span className="text-muted-foreground">訓練步驟</span><span>{trainingSteps}</span></div>
+                            )}
                             <div className="flex justify-between"><span className="text-muted-foreground">學習率</span><span className="font-mono text-xs">{learningRate.toFixed(4)}</span></div>
-                            <div className="flex justify-between"><span className="text-muted-foreground">批次大小</span><span>{batchSize}</span></div>
-                            <div className="flex justify-between"><span className="text-muted-foreground">訓練模型</span><code className="font-mono text-xs">ostris/flux-dev-lora-trainer</code></div>
                           </div>
                           <Button onClick={handleStartTraining} disabled={createMutation.isPending} className="w-full h-12 rounded-xl gap-2">
                             {createMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Flame className="w-4 h-4" />}
-                            {createMutation.isPending ? "啟動中..." : "開始 Replicate LoRA 訓練"}
+                            {createMutation.isPending ? "啟動中..." : `開始 ${ENGINE_LABELS[trainingEngine]} 訓練`}
                           </Button>
                         </div>
                       </GlassCard>
@@ -691,33 +976,50 @@ export default function LoraTrainer() {
             exit={{ opacity: 0, y: -10 }}
             className="space-y-6"
           >
-            {/* Replicate Connection Status */}
+            {/* Training Engine Status */}
             <GlassCard>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">
                   <Activity className="w-5 h-5 text-muted-foreground" />
-                  <div>
-                    <h3 className="text-sm font-medium">Replicate API 狀態</h3>
-                    {replicateStatusQuery.isLoading ? (
-                      <span className="text-xs text-muted-foreground">檢查中...</span>
-                    ) : replicateStatusQuery.data?.connected ? (
-                      <span className="text-xs text-green-600 flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3" /> {replicateStatusQuery.data.message}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-red-500 flex items-center gap-1">
-                        <X className="w-3 h-3" /> {replicateStatusQuery.data?.message ?? "未連線"}
-                      </span>
+                  <h3 className="text-sm font-medium">訓練引擎狀態</h3>
+                </div>
+              </div>
+              {replicateStatusQuery.isLoading ? (
+                <ZenSkeleton lines={2} />
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Replicate */}
+                  <div className="rounded-xl bg-muted/20 p-3 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <Cpu className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-xs font-medium">Replicate</span>
+                      {replicateStatusQuery.data?.engines?.replicate?.connected ? (
+                        <CheckCircle2 className="w-3 h-3 text-green-500 ml-auto" />
+                      ) : (
+                        <X className="w-3 h-3 text-red-400 ml-auto" />
+                      )}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">{replicateStatusQuery.data?.engines?.replicate?.message ?? "未知"}</p>
+                    {replicateStatusQuery.data?.trainingModel && (
+                      <code className="text-[10px] font-mono text-muted-foreground">{replicateStatusQuery.data.trainingModel}</code>
                     )}
                   </div>
-                </div>
-                {replicateStatusQuery.data?.connected && replicateStatusQuery.data?.trainingModel && (
-                  <div className="text-right">
-                    <p className="text-[10px] text-muted-foreground">訓練模型</p>
-                    <code className="text-xs font-mono">{replicateStatusQuery.data.trainingModel}</code>
+                  {/* Fal.ai */}
+                  <div className="rounded-xl bg-muted/20 p-3 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <Zap className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-xs font-medium">Fal.ai</span>
+                      {replicateStatusQuery.data?.engines?.fal?.connected ? (
+                        <CheckCircle2 className="w-3 h-3 text-green-500 ml-auto" />
+                      ) : (
+                        <X className="w-3 h-3 text-red-400 ml-auto" />
+                      )}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">{replicateStatusQuery.data?.engines?.fal?.message ?? "未知"}</p>
+                    <code className="text-[10px] font-mono text-muted-foreground">支援影片 / 風格 / 場景 LoRA</code>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </GlassCard>
 
             {/* Stats Cards */}
@@ -769,18 +1071,18 @@ export default function LoraTrainer() {
               </div>
             ) : null}
 
-            {/* Replicate Training Pipeline Overview */}
+            {/* Training Pipeline Overview */}
             <GlassCard>
               <h3 className="text-sm font-medium mb-4 flex items-center gap-2">
                 <Flame className="w-4 h-4 text-orange-500" />
-                Replicate LoRA 訓練管線
+                多類型 LoRA 訓練管線
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 {[
-                  { step: "1", title: "資料集打包", desc: "多角度圖片 → ZIP 檔案", icon: <Database className="w-4 h-4" /> },
-                  { step: "2", title: "雲端上傳", desc: "ZIP → S3 儲存空間", icon: <Globe className="w-4 h-4" /> },
-                  { step: "3", title: "提交訓練", desc: "ostris/flux-dev-lora-trainer", icon: <Flame className="w-4 h-4" /> },
-                  { step: "4", title: "輪詢完成", desc: "30s 間隔 · 最長 60 分鐘", icon: <RefreshCw className="w-4 h-4" /> },
+                  { step: "1", title: "選擇類型", desc: "角色 / 人像 / 風格 / 場景 / 影片", icon: <Cpu className="w-4 h-4" /> },
+                  { step: "2", title: "上傳資料集", desc: "圖片 + 影片 → S3 儲存", icon: <Database className="w-4 h-4" /> },
+                  { step: "3", title: "提交訓練", desc: "Replicate / Fal.ai 雙引擎", icon: <Flame className="w-4 h-4" /> },
+                  { step: "4", title: "自動完成", desc: "輪詢狀態 → LoRA 就緒", icon: <RefreshCw className="w-4 h-4" /> },
                 ].map((item) => (
                   <div key={item.step} className="rounded-xl bg-muted/30 p-3 space-y-2">
                     <div className="flex items-center gap-2">
@@ -796,51 +1098,47 @@ export default function LoraTrainer() {
               </div>
             </GlassCard>
 
-            {/* Training Hyperparameters Reference */}
+            {/* Training Types Overview */}
             <GlassCard>
               <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
                 <Settings2 className="w-4 h-4" />
-                超參數參考
+                支援的訓練類型
               </h3>
-              <div className="rounded-xl overflow-hidden border border-border/30">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="bg-muted/40 text-muted-foreground">
-                      <th className="text-left px-3 py-2 font-medium">參數</th>
-                      <th className="text-left px-3 py-2 font-medium">範圍</th>
-                      <th className="text-left px-3 py-2 font-medium">預設值</th>
-                      <th className="text-left px-3 py-2 font-medium">說明</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/20">
-                    <tr>
-                      <td className="px-3 py-2 font-mono">epochs</td>
-                      <td className="px-3 py-2">5 – 50</td>
-                      <td className="px-3 py-2">20</td>
-                      <td className="px-3 py-2 text-muted-foreground">訓練輪數，建議 10-30</td>
-                    </tr>
-                    <tr>
-                      <td className="px-3 py-2 font-mono">learning_rate</td>
-                      <td className="px-3 py-2">0.00001 – 0.01</td>
-                      <td className="px-3 py-2">0.0001</td>
-                      <td className="px-3 py-2 text-muted-foreground">學習率，過高可能不穩定</td>
-                    </tr>
-                    <tr>
-                      <td className="px-3 py-2 font-mono">steps</td>
-                      <td className="px-3 py-2">200 – 2000</td>
-                      <td className="px-3 py-2">epochs × 30</td>
-                      <td className="px-3 py-2 text-muted-foreground">訓練步驟數（自動計算）</td>
-                    </tr>
-                    <tr>
-                      <td className="px-3 py-2 font-mono">caption_prefix</td>
-                      <td className="px-3 py-2">自訂</td>
-                      <td className="px-3 py-2">—</td>
-                      <td className="px-3 py-2 text-muted-foreground">觸發詞，在提示詞中使用</td>
-                    </tr>
-                  </tbody>
-                </table>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {TRAINING_CATEGORIES.filter(c => c.type !== "voice_clone").map((cat) => (
+                  <div key={cat.type} className="rounded-xl bg-muted/20 p-3 space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      {TRAINING_TYPE_ICONS[cat.type]}
+                      <span className="text-xs font-medium">{cat.labelZh}</span>
+                      <span className="text-[9px] bg-muted px-1.5 py-0.5 rounded-md text-muted-foreground ml-auto">{ENGINE_LABELS[cat.defaultEngine]}</span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">{cat.description}</p>
+                    <p className="text-[9px] text-muted-foreground/70">
+                      {cat.acceptsImages && "📷 圖片"}{cat.acceptsVideos && " + 🎬 影片"} · 最少 {cat.minDatasetSize} 份
+                    </p>
+                  </div>
+                ))}
               </div>
             </GlassCard>
+
+            {/* Per-type Stats */}
+            {statsQuery.data?.byType && Object.keys(statsQuery.data.byType).length > 0 && (
+              <GlassCard>
+                <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4" />
+                  各類型模型統計
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(statsQuery.data.byType).map(([type, count]) => (
+                    <div key={type} className="flex items-center gap-1.5 rounded-lg bg-muted/20 px-2.5 py-1.5">
+                      {TRAINING_TYPE_ICONS[type] || <Database className="w-3.5 h-3.5" />}
+                      <span className="text-xs">{MODEL_TYPE_LABELS[type] || type}</span>
+                      <span className="text-xs font-bold text-primary">{count}</span>
+                    </div>
+                  ))}
+                </div>
+              </GlassCard>
+            )}
           </motion.div>
         )}
 
@@ -872,6 +1170,19 @@ export default function LoraTrainer() {
                         <StatusBadge status={model.status} />
                       </div>
 
+                      {/* Type + Engine badge */}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="inline-flex items-center gap-1 text-[10px] bg-muted/40 px-1.5 py-0.5 rounded-md">
+                          {TRAINING_TYPE_ICONS[model.modelType] || <Database className="w-3 h-3" />}
+                          {MODEL_TYPE_LABELS[model.modelType] || model.modelType}
+                        </span>
+                        {model.trainingEngine && (
+                          <span className="text-[9px] bg-muted/30 px-1.5 py-0.5 rounded-md text-muted-foreground">
+                            {ENGINE_LABELS[model.trainingEngine] || model.trainingEngine}
+                          </span>
+                        )}
+                      </div>
+
                       {/* Trigger word */}
                       {model.triggerWord && (
                         <div className="flex items-center gap-1.5">
@@ -882,10 +1193,13 @@ export default function LoraTrainer() {
 
                       {/* Training info */}
                       <div className="grid grid-cols-2 gap-1.5 text-[11px] text-muted-foreground">
-                        <span>輪數: {model.epochs}</span>
+                        {model.epochs > 0 && <span>輪數: {model.epochs}</span>}
                         <span>學習率: {model.learningRate.toFixed(4)}</span>
                         <span>步驟: {model.steps}</span>
-                        <span>圖片: {model.datasetImageCount} 張</span>
+                        <span>
+                          圖片: {model.datasetImageCount} 張
+                          {(model.datasetVideoCount ?? 0) > 0 && ` + ${model.datasetVideoCount} 影片`}
+                        </span>
                       </div>
 
                       {/* Replicate Prediction ID */}
