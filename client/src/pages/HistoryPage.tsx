@@ -359,15 +359,49 @@ export default function HistoryPage() {
                       </button>
                     </div>
 
-                    {/* Rating */}
+                    {/* Rating + Quick Download */}
                     <div className="flex items-center justify-between">
                       <StarRating
                         value={item.userRating}
                         onChange={(rating) => rateMutation.mutate({ id: item.id, rating })}
                       />
-                      <span className="text-[10px] text-muted-foreground tabular-nums">
-                        {item.costCredits} 配額
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-muted-foreground tabular-nums">
+                          {item.costCredits} 配額
+                        </span>
+                        {item.resultUrl && (
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              try {
+                                const resp = await fetch(item.resultUrl!);
+                                const blob = await resp.blob();
+                                const ext = item.modality === "image" ? (blob.type.includes("png") ? "png" : blob.type.includes("webp") ? "webp" : "jpg")
+                                  : item.modality === "video" ? "mp4"
+                                  : item.modality === "audio" ? (blob.type.includes("wav") ? "wav" : "mp3")
+                                  : item.modality === "voice" ? (blob.type.includes("wav") ? "wav" : "mp3")
+                                  : "bin";
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement("a");
+                                a.href = url;
+                                a.download = `ai-director-${item.modality}-${item.id}.${ext}`;
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                                URL.revokeObjectURL(url);
+                                toast.success(`已下載`);
+                              } catch {
+                                window.open(item.resultUrl!, "_blank");
+                                toast.info("已在新分頁開啟");
+                              }
+                            }}
+                            className="p-1 rounded-md hover:bg-muted/50 transition-colors"
+                            title="快速下載"
+                          >
+                            <Download className="w-3.5 h-3.5 text-muted-foreground/60 hover:text-foreground" />
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     {/* Expanded Details */}

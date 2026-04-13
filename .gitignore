@@ -109,3 +109,5 @@ temp/
 
 # Webdev artifacts (checkpoint zips, migrations, etc.)
 .webdev/
+frame*.jpg
+video_frames/
