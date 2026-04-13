@@ -64,6 +64,9 @@ const coreSchema = z.object({
   S3_PUBLIC_URL:         z.string().optional().default(""),
   S3_REGION:             z.string().optional().default("auto"),
 
+  // ── 管理員信箱（逗號分隔，登入時自動設為 admin）─────────
+  ADMIN_EMAILS:           z.string().optional().default(""),
+
   // ── 向後相容：Manus Forge API（遷移完成後可移除）─────────
   VITE_APP_ID:            z.string().optional().default(""),
   OAUTH_SERVER_URL:       z.string().optional().default(""),

@@ -20,6 +20,9 @@ export const ENV = {
   googleClientSecret: serverEnv.GOOGLE_CLIENT_SECRET,
   googleRedirectUri:  serverEnv.GOOGLE_REDIRECT_URI,
 
+  // ── 管理員信箱清單 ────────────────────────────────────────
+  adminEmails:        serverEnv.ADMIN_EMAILS,
+
   // ── Google Cloud / Vertex AI ──────────────────────────────
   gcpProjectId:   serverEnv.GOOGLE_CLOUD_PROJECT_ID,
   gcsBucketName:  serverEnv.GCS_BUCKET_NAME,

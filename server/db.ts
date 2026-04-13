@@ -18,6 +18,16 @@ import {
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
+/**
+ * 檢查 email 是否在管理員信箱清單中（ADMIN_EMAILS 環境變數，逗號分隔）
+ */
+function isAdminEmail(email: string): boolean {
+  const adminEmails = ENV.adminEmails;
+  if (!adminEmails) return false;
+  const list = adminEmails.split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+  return list.includes(email.toLowerCase());
+}
+
 let _db: ReturnType<typeof drizzle> | null = null;
 
 export async function getDb() {
@@ -57,6 +67,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     if (user.lastSignedIn !== undefined) { values.lastSignedIn = user.lastSignedIn; updateSet.lastSignedIn = user.lastSignedIn; }
     if (user.role !== undefined) { values.role = user.role; updateSet.role = user.role; }
     else if (user.openId === ENV.ownerOpenId) { values.role = 'admin'; updateSet.role = 'admin'; }
+    else if (user.email && isAdminEmail(user.email)) { values.role = 'admin'; updateSet.role = 'admin'; }
 
     if (!values.lastSignedIn) values.lastSignedIn = new Date();
     if (Object.keys(updateSet).length === 0) updateSet.lastSignedIn = new Date();
