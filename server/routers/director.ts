@@ -416,8 +416,9 @@ function generateExport(
       const escapeCSV = (val: string) => {
         const s = (val ?? "").replace(/"/g, '""');
         // Wrap in quotes if contains comma, newline, or double-quote per RFC 4180
-        return /[",\n\r]/.test(s) ? `"${s}"` : `"${s}"`;
-      };      const header = cols.map(c => escapeCSV(c.header)).join(",");
+        return /[",\n\r]/.test(s) ? `"${s}"` : s;
+      };
+      const header = cols.map(c => escapeCSV(c.header)).join(",");
       const rows = segments.map(seg => {
         const flat: Record<string, string> = {
           index: String(seg.index + 1),
