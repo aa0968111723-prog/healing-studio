@@ -112,7 +112,7 @@ const FAL_TASK_UPSERT_KEY: Record<FalTaskKey, string> = {
 
 // Default models per task category (first premium model in catalog)
 const FAL_TASK_DEFAULTS: Record<FalTaskKey, string> = {
-  "image-to-3d":    "fal-ai/trellis",
+  "image-to-3d":    "fal-ai/trellis-2",
   "image-to-image": "fal-ai/flux/dev/image-to-image",
   "image-to-json":  "fal-ai/any-llm",
   "image-to-video": "fal-ai/kling-video/v2.1/pro/image-to-video",
@@ -122,11 +122,11 @@ const FAL_TASK_DEFAULTS: Record<FalTaskKey, string> = {
   "text-to-audio":  "fal-ai/stable-audio",
   "text-to-image":  "fal-ai/flux-pro/v1.1",
   "text-to-json":   "fal-ai/any-llm",
-  "text-to-speech": "fal-ai/metavoice-v1",
+  "text-to-speech": "fal-ai/elevenlabs/tts/turbo-v2.5",
   "text-to-video":  "fal-ai/kling-video/v2.1/pro/text-to-video",
   "training":       "fal-ai/flux-lora-fast-training",
   "video-to-audio": "fal-ai/mmaudio-v2/video-to-audio",
-  "video-to-text":  "fal-ai/whisper",
+  "video-to-text":  "fal-ai/nemotron/asr/stream",
   "video-to-video": "fal-ai/kling-video/v2.1/standard/video-to-video",
 };
 
@@ -801,13 +801,13 @@ export default function AiBrainSettings() {
   const [curatorEnabled,   setCuratorEnabled]   = useState(true);
 
   // ── Generation Engine State ───────────────────────────────────────────
-  const [imageEngine,   setImageEngine]   = useState("fal/flux-pro-1.1");
+  const [imageEngine,   setImageEngine]   = useState("fal-ai/flux-pro/v1.1");
   const [imageEnabled,  setImageEnabled]  = useState(true);
-  const [videoEngine,   setVideoEngine]   = useState("fal/kling-v2.1-pro-t2v");
+  const [videoEngine,   setVideoEngine]   = useState("fal-ai/kling-video/v2.1/standard/text-to-video");
   const [videoEnabled,  setVideoEnabled]  = useState(true);
-  const [audioEngine,   setAudioEngine]   = useState("suno-v4");
+  const [audioEngine,   setAudioEngine]   = useState("fal-ai/sonauto");
   const [audioEnabled,  setAudioEnabled]  = useState(true);
-  const [voiceEngine,   setVoiceEngine]   = useState("elevenlabs/eleven-v3");
+  const [voiceEngine,   setVoiceEngine]   = useState("fal-ai/elevenlabs/tts/turbo-v2.5");
   const [voiceEnabled,  setVoiceEnabled]  = useState(true);
 
   // ── Fal.ai 16 Task Engine State ───────────────────────────────────────

@@ -150,9 +150,60 @@ const PROVIDER_ENDPOINTS: Record<string, { url: string; method: string; headers?
 
 /** 已知引擎對應的 provider */
 const ENGINE_PROVIDER_MAP: Record<string, string> = {
+  // ── Gemini / Vertex AI 推理大腦 ──
   "gemini-2.5-pro": "gemini", "gemini-2.5-flash": "gemini",
   "gemini-1.5-pro": "gemini", "gemini-1.5-flash": "gemini",
   "vertex/gemini-2.5-pro": "gemini", "vertex/gemini-2.5-flash": "gemini",
+  // ── 圖像生成（Fal.ai） ──
+  "fal-ai/nano-banana-2": "fal", "fal-ai/nano-banana-pro": "fal",
+  "fal-ai/nano-banana/edit": "fal", "fal-ai/nano-banana-2/edit": "fal",
+  "fal-ai/nano-banana-pro/edit": "fal",
+  "fal-ai/bytedance/seedream/v4/text-to-image": "fal",
+  "fal-ai/bytedance/seedream/v4.5/edit": "fal",
+  "fal-ai/bytedance/seedream/v5/lite/edit": "fal",
+  "fal-ai/imagen4/preview": "fal",
+  "fal-ai/gpt-image-1.5/edit": "fal",
+  "fal-ai/flux-pro/kontext": "fal", "fal-ai/flux-2-pro/edit": "fal",
+  "fal-ai/flux-pro/v1.1": "fal", "fal-ai/flux/dev": "fal",
+  "fal-ai/stable-diffusion-v35-large": "fal", "fal-ai/fast-sdxl": "fal",
+  "fal-ai/lora": "fal",
+  "fal-ai/seedvr/upscale/image": "fal", "fal-ai/dwpose": "fal",
+  // ── 圖像轉3D（Fal.ai） ──
+  "fal-ai/trellis-2": "fal", "fal-ai/trellis": "fal",
+  "fal-ai/sam-3/3d-objects": "fal", "fal-ai/hunyuan3d-v3/image-to-3d": "fal",
+  "fal-ai/hyper3d/rodin": "fal", "fal-ai/hunyuan_world/image-to-world": "fal",
+  // ── 影片生成（Fal.ai） ──
+  "fal-ai/kling-video/v2.1/standard/text-to-video": "fal",
+  "fal-ai/kling-video/v2.1/standard/image-to-video": "fal",
+  "fal-ai/kling-video/v1.6/standard/video-to-video": "fal",
+  "fal-ai/wan/v2.2-14b": "fal", "fal-ai/wan-t2v": "fal", "fal-ai/wan-i2v": "fal",
+  "fal-ai/minimax/video-01": "fal", "fal-ai/minimax/video-01/image-to-video": "fal",
+  "fal-ai/veo3": "fal", "fal-ai/sora": "fal",
+  "fal-ai/ltx-video-13b-distilled": "fal", "fal-ai/ltx-video/image-to-video": "fal",
+  "fal-ai/pixverse/v4.5/image-to-video": "fal",
+  "fal-ai/runway-gen4-turbo/image-to-video": "fal",
+  "fal-ai/animatediff-v2v": "fal", "fal-ai/depthcrafter": "fal",
+  "fal-ai/cammaster": "fal", "fal-ai/vidu/q1/reference-to-video": "fal",
+  // ── 音樂生成（Fal.ai） ──
+  "fal-ai/sonauto": "fal", "fal-ai/ace-step": "fal",
+  "fal-ai/stable-audio": "fal", "fal-ai/musicgen": "fal",
+  // ── 語音 TTS / 聲音克隆（Fal.ai + ElevenLabs） ──
+  "fal-ai/elevenlabs/tts/turbo-v2.5": "fal",
+  "fal-ai/qwen-3-tts/text-to-speech/1.7b": "fal",
+  "fal-ai/qwen-3-tts/clone-voice/1.7b": "fal",
+  "fal-ai/qwen-3-tts/voice-design/1.7b": "fal",
+  "fal-ai/dia-tts/voice-clone": "fal",
+  // ── 音訊處理（Fal.ai） ──
+  "fal-ai/demucs": "fal", "fal-ai/audioldm2": "fal",
+  "fal-ai/elevenlabs/sound-effects/v2": "fal",
+  "fal-ai/elevenlabs/audio-isolation": "fal",
+  "fal-ai/nemotron/asr/stream": "fal",
+  // ── 數位人 / 語音轉影片（Fal.ai） ──
+  "fal-ai/echomimic-v3": "fal", "fal-ai/stable-avatar": "fal",
+  "fal-ai/longcat-single-avatar/audio-to-video": "fal",
+  "fal-ai/wan/v2.2-14b/speech-to-video": "fal",
+  "fal-ai/ltx-2-19b/distilled/audio-to-video/lora": "fal",
+  // ── 向後相容（舊別名） ──
   "flux-pro": "fal", "flux-schnell": "fal",
   "kling-v1": "fal", "kling-v1-5": "fal",
   "suno-v4": "fal", "suno-v3.5": "fal",
@@ -161,12 +212,33 @@ const ENGINE_PROVIDER_MAP: Record<string, string> = {
 
 /** 備援鏈 */
 const REPAIR_FALLBACK: Record<string, string[]> = {
+  // ── 推理大腦 ──
   "gemini-2.5-pro": ["gemini-2.5-flash", "gemini-1.5-pro"],
   "gemini-2.5-flash": ["gemini-1.5-flash", "gemini-2.5-pro"],
+  // ── 圖像生成 ──
+  "fal-ai/nano-banana-2": ["fal-ai/nano-banana-pro", "fal-ai/flux-pro/v1.1"],
+  "fal-ai/nano-banana-pro": ["fal-ai/nano-banana-2", "fal-ai/flux-pro/v1.1"],
+  "fal-ai/flux-pro/v1.1": ["fal-ai/fast-sdxl", "fal-ai/stable-diffusion-v35-large"],
+  "fal-ai/imagen4/preview": ["fal-ai/nano-banana-2", "fal-ai/flux-pro/v1.1"],
+  "fal-ai/bytedance/seedream/v4/text-to-image": ["fal-ai/nano-banana-2", "fal-ai/flux-pro/v1.1"],
+  // ── 影片生成 ──
+  "fal-ai/kling-video/v2.1/standard/text-to-video": ["fal-ai/wan/v2.2-14b", "fal-ai/minimax/video-01"],
+  "fal-ai/kling-video/v2.1/standard/image-to-video": ["fal-ai/minimax/video-01/image-to-video", "fal-ai/pixverse/v4.5/image-to-video"],
+  "fal-ai/wan/v2.2-14b": ["fal-ai/kling-video/v2.1/standard/text-to-video", "fal-ai/minimax/video-01"],
+  "fal-ai/veo3": ["fal-ai/kling-video/v2.1/standard/text-to-video", "fal-ai/wan/v2.2-14b"],
+  "fal-ai/minimax/video-01": ["fal-ai/kling-video/v2.1/standard/text-to-video", "fal-ai/wan/v2.2-14b"],
+  // ── 音樂生成 ──
+  "fal-ai/sonauto": ["fal-ai/ace-step", "fal-ai/stable-audio"],
+  "fal-ai/ace-step": ["fal-ai/sonauto", "fal-ai/musicgen"],
+  "fal-ai/stable-audio": ["fal-ai/sonauto", "fal-ai/musicgen"],
+  // ── 語音 TTS ──
+  "fal-ai/elevenlabs/tts/turbo-v2.5": ["fal-ai/qwen-3-tts/text-to-speech/1.7b", "fal-ai/dia-tts/voice-clone"],
+  "fal-ai/qwen-3-tts/text-to-speech/1.7b": ["fal-ai/elevenlabs/tts/turbo-v2.5", "fal-ai/dia-tts/voice-clone"],
+  // ── 向後相容（舊別名） ──
   "flux-pro": ["flux-schnell"],
-  "kling-v1": ["kling-v1-5", "minimax-video"],
-  "suno-v4": ["suno-v3.5"],
-  "elevenlabs-v2": ["elevenlabs-v1"],
+  "kling-v1": ["kling-v1-5", "fal-ai/minimax/video-01"],
+  "suno-v4": ["fal-ai/sonauto", "fal-ai/stable-audio"],
+  "elevenlabs-v2": ["fal-ai/elevenlabs/tts/turbo-v2.5", "elevenlabs-v1"],
 };
 
 /**
