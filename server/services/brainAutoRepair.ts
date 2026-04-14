@@ -445,7 +445,7 @@ export function getActiveAlertCount(): number {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /** 記錄一個生成錯誤 */
-export function recordErrorTrace(trace: Omit<ErrorTrace, "id" | "createdAt" | "errorCategory" | "rootCause" | "rootCauseConfidence" | "suggestedSteps">): ErrorTrace {
+export function recordErrorTrace(trace: Omit<ErrorTrace, "id" | "createdAt">): ErrorTrace {
   const full: ErrorTrace = {
     ...trace,
     id: genId("err"),
@@ -823,20 +823,29 @@ export function diagnoseError(traceId: string): ErrorDiagnosis | null {
   const relatedTraceIds = findRelatedTraces(trace, category);
   const searchQueries = buildSearchQueries(trace, category);
 
+  // Confidence scoring constants
+  const BASE_CONFIDENCE = 85;
+  const UNMATCHED_CONFIDENCE = 30;
+  const MAX_CONFIDENCE = 95;
+  const MIN_RELATED_TRACES_FOR_BOOST = 2;
+  const CONFIDENCE_BOOST_PER_TRACE = 3;
+
   let rootCause: string;
   let confidence: number;
   let steps: SolutionStep[];
 
   if (matched) {
     rootCause = matched.rootCause;
-    confidence = 85;
+    confidence = BASE_CONFIDENCE;
     steps = matched.steps;
 
     // 若有多個相關錯誤，提高信心度
-    if (relatedTraceIds.length >= 2) confidence = Math.min(95, confidence + relatedTraceIds.length * 3);
+    if (relatedTraceIds.length >= MIN_RELATED_TRACES_FOR_BOOST) {
+      confidence = Math.min(MAX_CONFIDENCE, confidence + relatedTraceIds.length * CONFIDENCE_BOOST_PER_TRACE);
+    }
   } else {
     rootCause = `未能自動分類此錯誤。錯誤訊息：「${trace.errorMessage.slice(0, 100)}」。建議使用下方的搜尋關鍵字在網路上搜尋解決方案，或手動檢查 API 設定。`;
-    confidence = 30;
+    confidence = UNMATCHED_CONFIDENCE;
     steps = [
       { step: 1, title: "閱讀錯誤訊息", description: "仔細閱讀完整的錯誤訊息，記下關鍵的錯誤碼和錯誤描述。", action: "check" },
       { step: 2, title: "搜尋解決方案", description: "使用下方的「爬網研究」功能搜尋錯誤訊息，尋找他人的解決經驗。", action: "check" },

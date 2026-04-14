@@ -65,6 +65,32 @@ import { motion, AnimatePresence } from "framer-motion";
 // Types
 // ═══════════════════════════════════════════════════════════════════════════
 
+/** 錯誤分類中文標籤（集中定義，避免重複） */
+const ERROR_CATEGORY_LABEL_MAP: Record<string, string> = {
+  rate_limit: "速率限制", auth_failure: "認證失敗", connection: "連線問題",
+  timeout: "請求逾時", missing_api: "缺失 API", broken_link: "連結中斷",
+  validation: "參數錯誤", server_error: "伺服器錯誤", quota_exceeded: "配額用盡",
+  model_unavailable: "模型不可用", unknown: "未知",
+};
+
+/** 錯誤分類的顏色樣式 */
+const ERROR_CATEGORY_COLOR_MAP: Record<string, string> = {
+  rate_limit: "text-orange-600 bg-orange-500/10", auth_failure: "text-red-600 bg-red-500/10",
+  connection: "text-yellow-600 bg-yellow-500/10", timeout: "text-amber-600 bg-amber-500/10",
+  missing_api: "text-purple-600 bg-purple-500/10", broken_link: "text-pink-600 bg-pink-500/10",
+  validation: "text-blue-600 bg-blue-500/10", server_error: "text-red-700 bg-red-600/10",
+  quota_exceeded: "text-orange-700 bg-orange-600/10", model_unavailable: "text-slate-600 bg-slate-500/10",
+  unknown: "text-muted-foreground bg-muted",
+};
+
+/** 錯誤分類帶 emoji 標籤（爬網研究頁用） */
+const ERROR_CATEGORY_EMOJI_LABELS: Record<string, string> = {
+  rate_limit: "🚦 速率限制", auth_failure: "🔑 認證失敗", connection: "🔌 連線問題",
+  timeout: "⏱️ 請求逾時", missing_api: "❓ 缺失 API", broken_link: "🔗 連結中斷",
+  validation: "📋 參數錯誤", server_error: "💥 伺服器錯誤", quota_exceeded: "📊 配額用盡",
+  model_unavailable: "🚫 模型不可用", unknown: "❔ 未分類",
+};
+
 interface ModelOption {
   value: string;
   label: string;
@@ -686,6 +712,8 @@ export default function AiBrainSettings() {
   // ── Tab State ─────────────────────────────────────────────────────────
   type TabId = "config" | "alerts" | "errors" | "proposals" | "research" | "accuracy";
   const [activeTab, setActiveTab] = useState<TabId>("config");
+  // ── Error Diagnosis State ─────────────────────────────────────────────
+  const [expandedDiagnosisId, setExpandedDiagnosisId] = useState<string | null>(null);
 
   const brainQuery    = trpc.brain.get.useQuery(undefined, { retry: false });
   const catalogQuery  = trpc.brain.catalog.useQuery(undefined, { staleTime: 60_000 });
@@ -788,8 +816,6 @@ export default function AiBrainSettings() {
 
   // ── Web Search State ──────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState("");
-  // ── Error Diagnosis State ─────────────────────────────────────────────
-  const [expandedDiagnosisId, setExpandedDiagnosisId] = useState<string | null>(null);
 
   // ── Accuracy Test State ───────────────────────────────────────────────
   const [testEngine, setTestEngine] = useState("gemini-2.5-flash");
@@ -1490,22 +1516,10 @@ export default function AiBrainSettings() {
                 {(errorsQuery.data ?? []).map((trace) => {
                   const isExpanded = expandedDiagnosisId === trace.id;
                   const categoryLabel = trace.errorCategory
-                    ? ({
-                        rate_limit: "速率限制", auth_failure: "認證失敗", connection: "連線問題",
-                        timeout: "請求逾時", missing_api: "缺失 API", broken_link: "連結中斷",
-                        validation: "參數錯誤", server_error: "伺服器錯誤", quota_exceeded: "配額用盡",
-                        model_unavailable: "模型不可用", unknown: "未知",
-                      } as Record<string, string>)[trace.errorCategory] ?? trace.errorCategory
+                    ? ERROR_CATEGORY_LABEL_MAP[trace.errorCategory] ?? trace.errorCategory
                     : null;
                   const categoryColor = trace.errorCategory
-                    ? ({
-                        rate_limit: "text-orange-600 bg-orange-500/10", auth_failure: "text-red-600 bg-red-500/10",
-                        connection: "text-yellow-600 bg-yellow-500/10", timeout: "text-amber-600 bg-amber-500/10",
-                        missing_api: "text-purple-600 bg-purple-500/10", broken_link: "text-pink-600 bg-pink-500/10",
-                        validation: "text-blue-600 bg-blue-500/10", server_error: "text-red-700 bg-red-600/10",
-                        quota_exceeded: "text-orange-700 bg-orange-600/10", model_unavailable: "text-slate-600 bg-slate-500/10",
-                        unknown: "text-muted-foreground bg-muted",
-                      } as Record<string, string>)[trace.errorCategory] ?? ""
+                    ? ERROR_CATEGORY_COLOR_MAP[trace.errorCategory] ?? ""
                     : "";
                   return (
                     <div key={trace.id} className={`rounded-lg border p-3 text-xs transition-all ${
@@ -1800,12 +1814,7 @@ export default function AiBrainSettings() {
                 categoryGroups[cat].push(t);
               }
 
-              const categoryLabels: Record<string, string> = {
-                rate_limit: "🚦 速率限制", auth_failure: "🔑 認證失敗", connection: "🔌 連線問題",
-                timeout: "⏱️ 請求逾時", missing_api: "❓ 缺失 API", broken_link: "🔗 連結中斷",
-                validation: "📋 參數錯誤", server_error: "💥 伺服器錯誤", quota_exceeded: "📊 配額用盡",
-                model_unavailable: "🚫 模型不可用", unknown: "❔ 未分類",
-              };
+              const categoryLabels = ERROR_CATEGORY_EMOJI_LABELS;
 
               return (
                 <div className="mb-4 space-y-3">
