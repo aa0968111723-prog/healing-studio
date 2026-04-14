@@ -277,27 +277,63 @@ const KNOWN_MODELS = new Set([
   // 圖像引擎（fal.ai）
   "fal-ai/flux-pro/v1.1",
   "fal-ai/flux/dev",
+  "fal-ai/flux/schnell",
   "fal-ai/flux-schnell",
+  "fal-ai/stable-diffusion-v3-medium",
+  "fal-ai/aura-flow",
   "flux-pro",       // 向後相容短名稱
   "flux-schnell",   // 向後相容短名稱
+  // 圖像編輯 / ControlNet / IP-Adapter
+  "fal-ai/flux/dev/image-to-image",
+  "fal-ai/stable-diffusion-v3-medium/image-to-image",
+  "fal-ai/controlnet-union",
+  "fal-ai/ip-adapter-face-id",
+  "fal-ai/aura-sr",
   // 影片引擎（fal.ai）
   "fal-ai/kling-video/v2.1/pro/text-to-video",
   "fal-ai/kling-video/v2.1/standard/text-to-video",
   "fal-ai/kling-video/v2.1/pro/image-to-video",
+  "fal-ai/kling-video/v2.1/standard/video-to-video",
   "fal-ai/wan-t2v",
+  "fal-ai/wan-t2v-v2.1",
+  "fal-ai/wan-v2v",
   "fal-ai/minimax/video-01",
+  "fal-ai/minimax-video/text-to-video",
+  "fal-ai/minimax-video/image-to-video",
+  "fal-ai/luma-dream-machine/image-to-video",
+  "fal-ai/stable-video",
+  "fal-ai/cogvideox-5b",
+  "fal-ai/cogvideox-5b/video-to-video",
   "kling-v1",       // 向後相容短名稱
   // 音樂引擎（fal.ai）
   "fal-ai/stable-audio",
   "fal-ai/ace-step",
   "fal-ai/musicgen",
+  "fal-ai/mmaudio-v2",
+  "fal-ai/audioldm2",
   "suno-v4",        // 向後相容短名稱
   "suno-v3.5",      // 向後相容短名稱
   // 語音引擎（fal.ai TTS）
   "fal-ai/metavoice-v1",
   "fal-ai/kokoro",
   "fal-ai/dia-tts",
+  "fal-ai/playai-tts",
+  "fal-ai/orpheus-tts",
+  "fal-ai/whisper",
+  "fal-ai/wizper",
   "elevenlabs-v2",  // 向後相容短名稱
+  // 3D 引擎
+  "fal-ai/triposr",
+  "fal-ai/stable-zero123",
+  "fal-ai/zero123plus",
+  "fal-ai/shap-e",
+  "fal-ai/dreamgaussian",
+  // LLM / JSON / Vision（fal.ai）
+  "fal-ai/any-llm",
+  "fal-ai/llava-next",
+  "fal-ai/moondream",
+  // 訓練引擎
+  "fal-ai/flux-lora-fast-training",
 ]);
 
 function isRecognizedModel(model: string): boolean {

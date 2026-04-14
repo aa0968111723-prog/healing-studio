@@ -135,6 +135,8 @@ export const videoStudioRouter = router({
       duration:      z.enum(["5", "10"]).default("5"),
       aspectRatio:   z.enum(["16:9", "9:16", "1:1"]).default("16:9"),
       cfgScale:      z.number().min(0).max(1).default(0.5),
+      /** 動態強度 — 0=靜態畫面, 1=高動態，預設 0.5 均衡 */
+      motionIntensity: z.number().min(0).max(1).optional(),
     }))
     .mutation(async ({ input }) => {
       const payload: Record<string, unknown> = {
@@ -144,6 +146,7 @@ export const videoStudioRouter = router({
         cfg_scale: input.cfgScale,
       };
       if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
+      if (input.motionIntensity !== undefined) payload.motion_intensity = input.motionIntensity;
 
       const result = await falQueueRun("fal-ai/kling-video/v2.1/standard/text-to-video", payload, 300) as any;
       return { video_url: extractVideoUrl(result), request_id: result?.request_id ?? null, raw: result };

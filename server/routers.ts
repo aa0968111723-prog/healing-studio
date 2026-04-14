@@ -81,6 +81,7 @@ async function checkSafety(text: string): Promise<{ safe: boolean; reason?: stri
         },
         { role: "user", content: text },
       ],
+      maxTokens: 256,
       response_format: {
         type: "json_schema",
         json_schema: {
@@ -175,6 +176,7 @@ async function compileElitePrompt(payload: {
         },
         { role: "user", content: payload.prompt },
       ],
+      maxTokens: 2048,
       // Inject brain model & parameters when available
       ...(payload.brainModel ? { model: payload.brainModel } : {}),
       ...(payload.brainTemperature !== undefined ? { temperature: payload.brainTemperature } : {}),
