@@ -59,6 +59,7 @@ import {
   FolderOpen,
   Wrench,
   ListChecks,
+  Coins,
 } from "lucide-react";
 import { BackgroundTasksProvider } from "@/contexts/BackgroundTasksContext";
 import BackgroundTasksDrawer from "./BackgroundTasksDrawer";
@@ -145,6 +146,8 @@ const sidebarStructure: SidebarEntry[] = [
   { icon: Radar, label: "AI 監控中心", path: "/langsmith", id: "sidebar-langsmith-link" },
   // 8. 學習文件中心
   { icon: BookOpen, label: "學習文件中心", path: "/learn", id: "sidebar-learn-link" },
+  // 8b. 積分說明
+  { icon: Coins, label: "積分說明", path: "/credits", id: "sidebar-credits-link" },
   // 9. 回饋與設定
   {
     icon: Wrench, label: "回饋與設定",
@@ -431,12 +434,15 @@ function DashboardLayoutContent({
             {/* 背景任務面板 */}
             {!isCollapsed && <BackgroundTasksDrawer />}
             {!isCollapsed && (
-              <div className="glass-card-static quota-card-zen px-3 py-2.5 mb-2 text-center">
-                <p className="text-[11px] text-muted-foreground tracking-wide uppercase">剩餘配額</p>
-                <p className="text-xl font-semibold text-foreground tabular-nums mt-0.5">
-                  {user?.remainingGenerations ?? 0}
-                </p>
-              </div>
+              <a href="/credits" className="block cursor-pointer group">
+                <div className="glass-card-static quota-card-zen px-3 py-2.5 mb-2 text-center transition-colors group-hover:bg-accent/40">
+                  <p className="text-[11px] text-muted-foreground tracking-wide uppercase">剩餘配額</p>
+                  <p className="text-xl font-semibold text-foreground tabular-nums mt-0.5">
+                    {user?.remainingGenerations ?? 0}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground/70 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">點擊查看積分說明</p>
+                </div>
+              </a>
             )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
