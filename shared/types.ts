@@ -59,6 +59,95 @@ export type DirectorSession = {
   updatedAt: string;
 };
 
+// ─── Script Segment (長腳本分鏡) ──────────────────────────────────────────────
+
+export type ScriptSegment = {
+  id: string;
+  index: number;
+  /** Raw text from the imported script for this segment */
+  rawText: string;
+  /** AI-generated storyboard breakdown */
+  storyboard: {
+    sceneHeading: string;
+    visualDescription: string;
+    dialogue: string;
+    soundDesign: string;
+    cameraDirection: string;
+    duration: string;
+    mood: string;
+  };
+  /** CO-STAR structured data for this segment */
+  costar?: CoStarScript;
+  /** Characters appearing in this segment (extracted during import or discussion) */
+  characters?: string[];
+  /** Locations referenced in this segment */
+  locations?: string[];
+  /** Free-form notes / annotations by the user or AI */
+  notes?: string;
+  /** Discussion messages for this segment */
+  discussion: Array<{
+    role: "user" | "assistant";
+    content: string;
+    /** Optional attached reference image URL */
+    imageUrl?: string;
+    /** Quick-action type that triggered this message */
+    quickAction?: string;
+    timestamp: string;
+  }>;
+  /** Current status */
+  status: "pending" | "draft" | "refined" | "approved";
+};
+
+/** Holistic overview of an entire imported script */
+export type ScriptOverview = {
+  totalDuration: string;
+  segmentCount: number;
+  themes: string[];
+  characters: Array<{ name: string; segmentIndices: number[] }>;
+  locations: Array<{ name: string; segmentIndices: number[] }>;
+  moodDistribution: Record<string, number>;
+  pacingNotes: string;
+  overallSuggestion: string;
+};
+
+export type QuickAction = {
+  id: string;
+  label: string;
+  labelZh: string;
+  icon: string;
+  /** The prompt template sent to AI when user clicks this action */
+  promptTemplate: string;
+  /** Category for grouping */
+  category: "visual" | "audio" | "narrative" | "technical" | "mood";
+};
+
+export type ScriptExportFormat = "json" | "csv" | "markdown" | "fdx" | "srt" | "custom";
+
+export type ScriptExportOptions = {
+  format: ScriptExportFormat;
+  /** Column mappings for custom spreadsheet format */
+  customColumns?: Array<{
+    header: string;
+    field: string;
+  }>;
+  /** Include discussion history in export */
+  includeDiscussion?: boolean;
+  /** Include CO-STAR data in export */
+  includeCostar?: boolean;
+  /** Custom template string for free-form export */
+  customTemplate?: string;
+};
+
+export type ImportedScript = {
+  id: string;
+  title: string;
+  rawContent: string;
+  sourceFormat: string;
+  segments: ScriptSegment[];
+  createdAt: string;
+  updatedAt: string;
+};
+
 // ─── Director Templates ─────────────────────────────────────────────────────
 
 export type DirectorTemplate = {
