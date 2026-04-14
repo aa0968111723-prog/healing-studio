@@ -259,7 +259,7 @@ function importToLearnHub(docs: Array<{
       publishedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       featured: false,
-      authorName: "Brave Search AI",
+      authorName: "AI 自動學習合成",
     };
 
     addLearnDoc(learnDoc);
@@ -290,7 +290,7 @@ async function runBraveLearnFetchJob(): Promise<void> {
 
   try {
     // Pick today's topic (rotate through topics by day of year)
-    const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
+    const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 1).getTime()) / 86400000);
     const topic = SEARCH_TOPICS[dayOfYear % SEARCH_TOPICS.length];
 
     logFetch("info", `今日搜尋主題: ${topic}`);
