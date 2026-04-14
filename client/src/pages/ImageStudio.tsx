@@ -614,7 +614,7 @@ function PromptBuilder({ value, onChange, vibeIds, onVibeChange }: {
         </div>
         <Textarea value={value} onChange={e => onChange(e.target.value)}
           placeholder="描述你想生成的圖片（支援中英文）..."
-          className="resize-none min-h-[5rem] sm:min-h-[6rem] text-sm" />
+          className="resize-none min-h-[6rem] text-sm" />
         <div className="flex items-center justify-between mt-1">
           <span className="text-[10px] text-muted-foreground/60">{value.length} 字元</span>
           <div className="flex gap-2">
