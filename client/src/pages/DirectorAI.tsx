@@ -334,6 +334,7 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
   const [inputMessage, setInputMessage] = useState("");
   const [selectedAction, setSelectedAction] = useState<QuickAction | null>(null);
   const [showAllActions, setShowAllActions] = useState(false);
+  const [showGenPipeline, setShowGenPipeline] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const config = PERSONALITIES.find((p) => p.id === personality) ?? PERSONALITIES[1];
 
@@ -588,6 +589,394 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
           className="rounded-lg h-9 px-3"
         >
           <Send className="w-3.5 h-3.5" />
+        </Button>
+      </div>
+
+      {/* Quick Generate toggle */}
+      <div className="pt-2 border-t border-border/20">
+        <Button
+          variant={showGenPipeline ? "default" : "outline"}
+          size="sm"
+          className="w-full rounded-xl gap-1.5 text-xs"
+          onClick={() => setShowGenPipeline(!showGenPipeline)}
+        >
+          <Zap className="w-3.5 h-3.5" />
+          {showGenPipeline ? "收起生成管道" : "快速生成 — 選擇模型並生成"}
+        </Button>
+      </div>
+
+      {/* Generation Pipeline */}
+      <AnimatePresence>
+        {showGenPipeline && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="pt-2">
+              <GenerationPipelinePanel
+                segment={segment}
+                personality={personality}
+                onClose={() => setShowGenPipeline(false)}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+});
+
+// ─── Generation Pipeline Panel ──────────────────────────────────────────────
+
+type GenerationTask = {
+  modality: "image" | "video" | "audio" | "voice";
+  label: string;
+  labelZh: string;
+  icon: React.ComponentType<{ className?: string }>;
+  prompt: string;
+  enabled: boolean;
+};
+
+const TIER_COLORS: Record<string, string> = {
+  free: "text-gray-500",
+  economy: "text-green-600",
+  standard: "text-blue-600",
+  premium: "text-purple-600",
+  ultra: "text-amber-600",
+};
+
+const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
+  segment,
+  personality,
+  onClose,
+}: {
+  segment: ScriptSegment;
+  personality: Personality;
+  onClose: () => void;
+}) {
+  const [, navigate] = useLocation();
+
+  // Model selections per modality
+  const [selectedModels, setSelectedModels] = useState<Record<string, string>>({});
+  const [enabledTasks, setEnabledTasks] = useState<Record<string, boolean>>({
+    image: true,
+    video: false,
+    audio: true,
+    voice: true,
+  });
+
+  // Fetch available models
+  const modelsQuery = trpc.director.generationModels.useQuery(undefined, {
+    staleTime: 60_000,
+  });
+
+  // Build generation tasks from segment data
+  const tasks = useMemo((): GenerationTask[] => {
+    const costar = segment.costar;
+    const sb = segment.storyboard;
+
+    return [
+      {
+        modality: "image",
+        label: "Image",
+        labelZh: "圖像生成",
+        icon: Image,
+        prompt: costar?.visualPrompt || sb.visualDescription || "",
+        enabled: enabledTasks.image,
+      },
+      {
+        modality: "video",
+        label: "Video",
+        labelZh: "影片生成",
+        icon: Camera,
+        prompt: costar?.visualPrompt || sb.visualDescription || "",
+        enabled: enabledTasks.video,
+      },
+      {
+        modality: "audio",
+        label: "Music / Audio",
+        labelZh: "音樂生成",
+        icon: Music,
+        prompt: costar?.musicVibe || sb.soundDesign || sb.mood || "",
+        enabled: enabledTasks.audio,
+      },
+      {
+        modality: "voice",
+        label: "Voice / TTS",
+        labelZh: "語音合成",
+        icon: Mic,
+        prompt: costar?.audioScript || sb.dialogue || "",
+        enabled: enabledTasks.voice,
+      },
+    ];
+  }, [segment, enabledTasks]);
+
+  // Get model options per category
+  const modelOptions = useMemo(() => {
+    const data = modelsQuery.data;
+    if (!data) return {};
+    return {
+      image: data["text-to-image"] ?? [],
+      video: data["text-to-video"] ?? [],
+      audio: data["text-to-audio"] ?? [],
+      voice: data["text-to-speech"] ?? [],
+    } as Record<string, Array<{
+      modelId: string;
+      label: string;
+      provider: string;
+      tier: string;
+      basePoints: number;
+      unit: string;
+      available: boolean;
+      pointsPerSecond?: number;
+      pointsPer1kChars?: number;
+    }>>;
+  }, [modelsQuery.data]);
+
+  // Get estimated total cost
+  const totalCost = useMemo(() => {
+    let total = 0;
+    for (const task of tasks) {
+      if (!task.enabled || !task.prompt) continue;
+      const modelId = selectedModels[task.modality];
+      if (!modelId) continue;
+      const options = modelOptions[task.modality] ?? [];
+      const model = options.find(m => m.modelId === modelId);
+      if (model) total += model.basePoints;
+    }
+    return total;
+  }, [tasks, selectedModels, modelOptions]);
+
+  // Set default model selections when models load
+  useEffect(() => {
+    if (!modelsQuery.data) return;
+    const defaults: Record<string, string> = {};
+    for (const [modality, models] of Object.entries(modelOptions)) {
+      if (!selectedModels[modality] && models.length > 0) {
+        // Pick first available model, or first model
+        const avail = models.find(m => m.available);
+        defaults[modality] = avail?.modelId ?? models[0].modelId;
+      }
+    }
+    if (Object.keys(defaults).length > 0) {
+      setSelectedModels(prev => ({ ...prev, ...defaults }));
+    }
+  }, [modelsQuery.data, modelOptions]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleGenerate = useCallback((task: GenerationTask) => {
+    if (!task.prompt.trim()) {
+      toast.error(`${task.labelZh}缺少提示詞內容`);
+      return;
+    }
+    const modelId = selectedModels[task.modality];
+    if (!modelId) {
+      toast.error(`請先選擇${task.labelZh}模型`);
+      return;
+    }
+
+    // Send to studio with the specific model override
+    sessionStorage.setItem("sendToStudio", JSON.stringify({
+      prompt: task.prompt,
+      generationType: task.modality,
+      overrideEngine: modelId,
+      // Include context metadata for studio
+      musicStyle: task.modality === "audio" ? task.prompt : undefined,
+      audioScript: task.modality === "voice" ? task.prompt : undefined,
+      segmentContext: {
+        sceneHeading: segment.storyboard.sceneHeading,
+        mood: segment.storyboard.mood,
+        duration: segment.storyboard.duration,
+      },
+    }));
+    navigate("/studio");
+    toast.success(`已發送「${task.labelZh}」到工作室（${selectedModels[task.modality]}）`);
+  }, [selectedModels, segment, navigate]);
+
+  const handleGenerateAll = useCallback(() => {
+    const activeTasks = tasks.filter(t => t.enabled && t.prompt.trim());
+    if (activeTasks.length === 0) {
+      toast.error("沒有可生成的任務");
+      return;
+    }
+
+    // Pack all tasks for studio
+    const batch = activeTasks.map(t => ({
+      prompt: t.prompt,
+      generationType: t.modality,
+      overrideEngine: selectedModels[t.modality],
+      musicStyle: t.modality === "audio" ? t.prompt : undefined,
+      audioScript: t.modality === "voice" ? t.prompt : undefined,
+    }));
+
+    sessionStorage.setItem("sendToStudio", JSON.stringify({
+      prompt: activeTasks[0].prompt,
+      generationType: activeTasks[0].modality,
+      overrideEngine: selectedModels[activeTasks[0].modality],
+      musicStyle: activeTasks.find(t => t.modality === "audio")?.prompt,
+      audioScript: activeTasks.find(t => t.modality === "voice")?.prompt,
+      batchTasks: batch,
+      segmentContext: {
+        sceneHeading: segment.storyboard.sceneHeading,
+        mood: segment.storyboard.mood,
+        duration: segment.storyboard.duration,
+      },
+    }));
+    navigate("/studio");
+    toast.success(`已發送 ${activeTasks.length} 個任務到工作室`);
+  }, [tasks, selectedModels, segment, navigate]);
+
+  const enabledCount = tasks.filter(t => t.enabled && t.prompt.trim()).length;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h4 className="text-xs font-semibold flex items-center gap-1.5">
+          <Zap className="w-3.5 h-3.5 text-amber-500" />
+          快速生成管道
+        </h4>
+        <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* Scene context */}
+      <div className="flex items-center gap-2 text-[10px] text-muted-foreground bg-muted/20 rounded-lg px-2.5 py-1.5">
+        <Clapperboard className="w-3 h-3 shrink-0" />
+        <span className="truncate">
+          #{segment.index + 1} {segment.storyboard.sceneHeading} · {segment.storyboard.mood} · {segment.storyboard.duration}
+        </span>
+        {!segment.costar && (
+          <Badge variant="outline" className="text-[8px] h-4 px-1 shrink-0 text-amber-600 border-amber-300">
+            建議先生成 CO-STAR
+          </Badge>
+        )}
+      </div>
+
+      {/* Generation tasks */}
+      <div className="space-y-2.5">
+        {tasks.map((task) => {
+          const TaskIcon = task.icon;
+          const models = modelOptions[task.modality] ?? [];
+          const selectedModel = models.find(m => m.modelId === selectedModels[task.modality]);
+          const hasPrompt = !!task.prompt.trim();
+
+          return (
+            <div
+              key={task.modality}
+              className={cn(
+                "rounded-xl border p-3 transition-all",
+                task.enabled
+                  ? "border-border/50 bg-white/40"
+                  : "border-transparent bg-muted/10 opacity-50",
+              )}
+            >
+              {/* Task header */}
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setEnabledTasks(prev => ({ ...prev, [task.modality]: !prev[task.modality] }))}
+                    className={cn(
+                      "w-5 h-5 rounded-md border flex items-center justify-center transition-all",
+                      task.enabled
+                        ? "bg-primary border-primary text-primary-foreground"
+                        : "border-border/50 bg-white/30",
+                    )}
+                  >
+                    {task.enabled && <CheckCircle2 className="w-3 h-3" />}
+                  </button>
+                  <TaskIcon className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-xs font-semibold">{task.labelZh}</span>
+                  {!hasPrompt && task.enabled && (
+                    <span className="text-[9px] text-red-400">缺少內容</span>
+                  )}
+                </div>
+                {task.enabled && selectedModel && (
+                  <span className={cn("text-[10px] font-medium", TIER_COLORS[selectedModel.tier] ?? "text-muted-foreground")}>
+                    {selectedModel.basePoints} pts
+                  </span>
+                )}
+              </div>
+
+              {task.enabled && (
+                <>
+                  {/* Prompt preview */}
+                  {hasPrompt && (
+                    <div className="text-[10px] text-muted-foreground bg-muted/20 rounded-lg px-2.5 py-1.5 mb-2 line-clamp-2 leading-relaxed">
+                      {task.prompt}
+                    </div>
+                  )}
+
+                  {/* Model selector */}
+                  <div className="space-y-1">
+                    <Label className="text-[10px] text-muted-foreground">選擇模型</Label>
+                    {modelsQuery.isLoading ? (
+                      <div className="text-[10px] text-muted-foreground animate-pulse">載入模型中...</div>
+                    ) : (
+                      <div className="flex flex-wrap gap-1">
+                        {models.map(m => {
+                          const isSelected = selectedModels[task.modality] === m.modelId;
+                          return (
+                            <button
+                              key={m.modelId}
+                              onClick={() => setSelectedModels(prev => ({ ...prev, [task.modality]: m.modelId }))}
+                              disabled={!m.available}
+                              className={cn(
+                                "inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium border transition-all",
+                                isSelected
+                                  ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                                  : m.available
+                                    ? "bg-white/50 border-border/40 hover:bg-white/80 text-muted-foreground hover:text-foreground"
+                                    : "bg-muted/20 border-border/20 text-muted-foreground/40 cursor-not-allowed line-through",
+                              )}
+                              title={`${m.label} — ${m.basePoints} pts/${m.unit}${!m.available ? " (不可用)" : ""}`}
+                            >
+                              <span>{m.label}</span>
+                              <span className={cn("text-[9px]", TIER_COLORS[m.tier] ?? "")}>
+                                {m.basePoints}pt
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Single task generate button */}
+                  {hasPrompt && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-2 rounded-lg text-[10px] h-7 gap-1 w-full"
+                      onClick={() => handleGenerate(task)}
+                      disabled={!selectedModels[task.modality]}
+                    >
+                      <Play className="w-3 h-3" />
+                      單獨生成 {task.labelZh}
+                    </Button>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Footer: total cost + batch generate */}
+      <div className="flex items-center justify-between pt-2 border-t border-border/30">
+        <div className="text-[11px] text-muted-foreground">
+          <span className="font-medium">{enabledCount}</span> 個任務 ·
+          預估 <span className="font-semibold text-foreground">{totalCost}</span> pts
+        </div>
+        <Button
+          size="sm"
+          className="rounded-xl gap-1.5 text-xs"
+          onClick={handleGenerateAll}
+          disabled={enabledCount === 0}
+        >
+          <Zap className="w-3.5 h-3.5" />
+          一鍵生成全部
         </Button>
       </div>
     </div>

@@ -19,6 +19,7 @@ import { invokeLLM } from "../_core/llm";
 import * as db from "../db";
 import { buildMemoryContext } from "../services/ragMemory";
 import { buildDirectorSystemPrompt, GENERATION_MODALITIES_KNOWLEDGE, WORKFLOW_KNOWLEDGE } from "../services/siteKnowledge";
+import { getAllPricingByCategory, estimatePoints, getModelPricing, checkModelAvailability, type ModelCategory } from "../services/modelPricing";
 import type { DirectorTemplate, ScriptSegment, QuickAction } from "../../shared/types";
 
 // ─── Timeout Utility ────────────────────────────────────────────────────────
@@ -1026,5 +1027,78 @@ ${persona.proactiveHint}`,
       } catch {
         return { context: "", situation: "", task: "", action: "", result: "", visualPrompt: "", audioScript: "", musicVibe: "", proactiveQuestion: "" };
       }
+    }),
+
+  // ─── Quick Generation Pipeline ──────────────────────────────────────────
+
+  /** Get available generation models grouped by modality for the model picker */
+  generationModels: protectedProcedure.query(() => {
+    const byCategory = getAllPricingByCategory();
+    const relevantCategories: ModelCategory[] = [
+      "text-to-image", "text-to-video", "text-to-audio", "text-to-speech",
+    ];
+    const result: Record<string, Array<{
+      modelId: string;
+      label: string;
+      provider: string;
+      tier: string;
+      basePoints: number;
+      unit: string;
+      minPoints: number;
+      maxPoints: number;
+      pointsPerSecond?: number;
+      pointsPer1kChars?: number;
+      available: boolean;
+    }>> = {};
+    for (const cat of relevantCategories) {
+      const models = byCategory[cat] ?? [];
+      result[cat] = models.map(m => {
+        const avail = checkModelAvailability(m.modelId);
+        return {
+          modelId: m.modelId,
+          label: m.label,
+          provider: m.provider,
+          tier: m.tier,
+          basePoints: m.basePoints,
+          unit: m.unit,
+          minPoints: m.minPoints,
+          maxPoints: m.maxPoints,
+          pointsPerSecond: m.pointsPerSecond,
+          pointsPer1kChars: m.pointsPer1kChars,
+          available: avail.available,
+        };
+      });
+    }
+    return result;
+  }),
+
+  /** Estimate generation cost for a segment with user-selected models */
+  estimateSegmentCost: protectedProcedure
+    .input(z.object({
+      tasks: z.array(z.object({
+        modality: z.enum(["image", "video", "audio", "voice"]),
+        modelId: z.string(),
+        durationSec: z.number().optional(),
+        charCount: z.number().optional(),
+      })),
+    }))
+    .query(({ input }) => {
+      return input.tasks.map(task => {
+        const estimate = estimatePoints(task.modelId, {
+          durationSec: task.durationSec,
+          charCount: task.charCount,
+        });
+        const pricing = getModelPricing(task.modelId);
+        const avail = checkModelAvailability(task.modelId);
+        return {
+          modality: task.modality,
+          modelId: task.modelId,
+          modelLabel: pricing?.label ?? task.modelId,
+          points: estimate.totalPoints,
+          breakdown: estimate.breakdown,
+          available: avail.available,
+          availabilityNote: avail.reason,
+        };
+      });
     }),
 });
