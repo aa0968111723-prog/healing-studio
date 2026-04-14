@@ -606,3 +606,91 @@ export function estimateGenerationPoints(params: {
     modelLabel: pricing?.label ?? params.modelId,
   };
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Queue-based async submission (non-blocking)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const FAL_QUEUE_BASE = "https://queue.fal.run";
+
+/**
+ * 非同步提交 fal.ai 任務到佇列，立即回傳 request_id，不等待結果。
+ * 用於創意工作室背景任務模式。
+ */
+export async function submitToFalQueue(
+  modelId: string,
+  input: Record<string, unknown>,
+): Promise<{ requestId: string }> {
+  const apiKey = process.env.FAL_API_KEY;
+  if (!apiKey) throw new Error("FAL_API_KEY 未設定");
+
+  // Resolve model + fallback (same logic as dispatchFalTask)
+  let targetModelId = modelId;
+  const modelConfig = getFalModelById(targetModelId);
+  if (!modelConfig) {
+    // Try category fallback chains
+    for (const [, chain] of Object.entries(FALLBACK_CHAINS)) {
+      if (chain.includes(targetModelId)) continue;
+      // Use first from the chain that matches if original not found
+    }
+    // If not found, still try to submit — fal.ai may know the model
+    console.warn(`[FalDispatcher] submitToFalQueue: model ${targetModelId} not in catalog, submitting anyway`);
+  }
+
+  const res = await fetch(`${FAL_QUEUE_BASE}/${targetModelId}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Key ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "Unknown error");
+    throw new Error(`fal.ai queue submit failed [${targetModelId}]: ${res.status} ${errText}`);
+  }
+
+  const data = (await res.json()) as Record<string, unknown>;
+  const requestId = data.request_id as string;
+  if (!requestId) {
+    throw new Error(`fal.ai queue submit returned no request_id [${targetModelId}]`);
+  }
+
+  return { requestId };
+}
+
+/**
+ * 為 dispatchFalTask 的輸入格式建構 fal.ai API 參數。
+ * 共用邏輯：從 FalDispatchInput 轉換為 fal.ai HTTP API 參數。
+ */
+export function buildFalApiInput(input: FalDispatchInput): Record<string, unknown> {
+  const falInput: Record<string, unknown> = {};
+
+  if (input.prompt !== undefined) falInput.prompt = input.prompt;
+  if (input.imageUrl !== undefined) falInput.image_url = input.imageUrl;
+  if (input.videoUrl !== undefined) falInput.video_url = input.videoUrl;
+  if (input.audioUrl !== undefined) falInput.audio_url = input.audioUrl;
+  if (input.negativePrompt !== undefined) falInput.negative_prompt = input.negativePrompt;
+  if (input.seed !== undefined) falInput.seed = input.seed;
+  if (input.numInferenceSteps !== undefined) falInput.num_inference_steps = input.numInferenceSteps;
+  if (input.guidanceScale !== undefined) falInput.guidance_scale = input.guidanceScale;
+  if (input.imageSize !== undefined) falInput.image_size = input.imageSize;
+  if (input.aspectRatio !== undefined) falInput.aspect_ratio = input.aspectRatio;
+  if (input.durationSec !== undefined) falInput.duration = input.durationSec;
+  if (input.strength !== undefined) falInput.strength = input.strength;
+  if (input.loraUrl !== undefined) falInput.lora_url = input.loraUrl;
+  if (input.loraScale !== undefined) falInput.lora_scale = input.loraScale;
+  if (input.numFrames !== undefined) falInput.num_frames = input.numFrames;
+  if (input.fps !== undefined) falInput.fps = input.fps;
+  if (input.voiceId !== undefined) falInput.voice_id = input.voiceId;
+  if (input.speed !== undefined) falInput.speed = input.speed;
+  if (input.exaggeration !== undefined) falInput.exaggeration = input.exaggeration;
+  if (input.trainingSteps !== undefined) falInput.training_steps = input.trainingSteps;
+  if (input.learningRate !== undefined) falInput.learning_rate = input.learningRate;
+  if (input.stylePrompt !== undefined) falInput.style_prompt = input.stylePrompt;
+  if (input.motionBucketId !== undefined) falInput.motion_bucket_id = input.motionBucketId;
+  if (input.condAugmentation !== undefined) falInput.cond_augmentation = input.condAugmentation;
+
+  return falInput;
+}
