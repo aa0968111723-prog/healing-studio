@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -58,7 +57,6 @@ import {
   BookOpen,
   Play,
   RefreshCw,
-  Clock,
   TrendingUp,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
