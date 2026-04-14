@@ -58,6 +58,7 @@ import {
   Boxes,
   FolderOpen,
   Wrench,
+  ListChecks,
 } from "lucide-react";
 import { BackgroundTasksProvider } from "@/contexts/BackgroundTasksContext";
 import BackgroundTasksDrawer from "./BackgroundTasksDrawer";
@@ -126,6 +127,7 @@ const sidebarStructure: SidebarEntry[] = [
     icon: FolderOpen, label: "紀錄",
     children: [
       { icon: Clock, label: "生成歷史", path: "/history", id: "sidebar-history-link" },
+      { icon: ListChecks, label: "背景任務中心", path: "/background-tasks", id: "sidebar-background-tasks-link" },
       { icon: Package, label: "數位資產庫", path: "/assets", id: "sidebar-assets-link" },
       { icon: Users, label: "共享空間", path: "/shared", id: "sidebar-shared-link" },
     ],

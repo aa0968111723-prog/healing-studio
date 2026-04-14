@@ -55,7 +55,8 @@ export type PageId =
   | "settings"
   | "learn"
   | "focus-flow"
-  | "langsmith";
+  | "langsmith"
+  | "background-tasks";
 
 interface TourDefinition {
   pageId: PageId;
@@ -590,6 +591,22 @@ const TOUR_DEFINITIONS: Record<PageId, TourDefinition> = {
           "這裡深度整合了 LangSmith，提供全鏈路追蹤、生產環境監控、用戶回饋收集、跨模型對比和微調數據導出功能。",
         tip: "需要在 .env 中設定 LANGSMITH_API_KEY 才能啟用完整功能。",
         icon: "📊",
+        position: "center",
+      },
+    ],
+  },
+
+  "background-tasks": {
+    pageId: "background-tasks",
+    storageKey: "site-tour-background-tasks-v1",
+    steps: [
+      {
+        targetId: null,
+        title: "背景任務中心 🚀",
+        description:
+          "所有生成（圖片/影片/音樂/語音）與模型訓練任務都會在背景執行。即使切換頁面也不會中斷，完成後自動通知。",
+        tip: "在任何工作室提交任務後，都可以在此追蹤進度與查看結果。",
+        icon: "📋",
         position: "center",
       },
     ],
