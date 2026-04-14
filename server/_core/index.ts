@@ -18,6 +18,7 @@ import { initLearnDocSyncerCron, stopLearnDocSyncerCron } from "../jobs/learnDoc
 import { initApiHealthMonitorCron, stopApiHealthMonitorCron } from "../jobs/apiHealthMonitor";
 import { detectStorageBackend } from "../storage";
 import { closeDb } from "../db";
+import { langsmithRouter } from "../routes/langsmith";
 
 // ─── Allowlist helpers for proxy-download ─────────────────────────────────
 const PROXY_ALLOWED_HOSTS = [
@@ -97,6 +98,8 @@ async function startServer() {
   app.use(uploadRouter);
   // SSE for real-time generation events
   app.use(sseRouter);
+  // LangSmith observability stats
+  app.use(langsmithRouter);
 
   // ── 後端代理下載（解決前端直接 fetch CDN 時的 CORS 問題）──────────────────
   // GET /api/proxy-download?url=<encodedUrl>
