@@ -62,6 +62,7 @@ import {
   Coins,
   Monitor,
   Smartphone,
+  Brain,
 } from "lucide-react";
 import { BackgroundTasksProvider } from "@/contexts/BackgroundTasksContext";
 import BackgroundTasksDrawer from "./BackgroundTasksDrawer";
@@ -168,6 +169,7 @@ const flatMenuItems: SidebarLeafItem[] = sidebarStructure.flatMap((entry) =>
 
 const adminItems = [
   { icon: Shield, label: "管理後台", path: "/admin" },
+  { icon: Brain, label: "大腦組態", path: "/settings/ai-brain" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
@@ -262,8 +264,7 @@ function DashboardLayoutContent({
   const isMobile = useIsMobile();
   const { viewMode, setViewMode } = useViewMode();
 
-  // TODO: 管理員權限暫時下放給所有登入使用者，之後要改回來
-  const isAdmin = true;
+  const isAdmin = user?.role === "admin";
 
   // ── 全站 Welcome Tour（首次登入時自動觸發）────────────────────────────
   const { startTour, hasSeen } = useSiteOnboarding();

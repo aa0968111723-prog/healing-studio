@@ -115,7 +115,7 @@ function Router() {
         <DashboardRoute component={FeedbackPage} />
       </Route>
       <Route path="/settings/ai-brain">
-        <ProtectedDashboardRoute component={AiBrainSettings} />
+        <ProtectedDashboardRoute component={AdminPage} />
       </Route>
       <Route path="/settings">
         <DashboardRoute component={SettingsPage} />
@@ -162,7 +162,7 @@ function Router() {
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider defaultTheme="light">
+      <ThemeProvider defaultTheme="light" switchable>
         <PersonalityProvider>
         <NotesDrawerProvider>
           <ShowcaseTransferProvider>

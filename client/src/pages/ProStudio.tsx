@@ -8,6 +8,8 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
+import { useAIState } from "@/contexts/AIStateContext";
+import VisualSoul from "@/components/VisualSoul";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -557,6 +559,7 @@ const MUSIC_TEMPLATES = [
 
 function MusicTab() {
   const registerBgTask = useRegisterBgTask();
+  const { setAIState, reportSuccess, reportFailure } = useAIState();
   const [prompt, setPrompt] = useState("");
   const [lyrics, setLyrics] = useState("");
   const [instrumental, setInstrumental] = useState(false);
@@ -570,14 +573,17 @@ function MusicTab() {
   const models = modelsQuery.data ?? [];
 
   const mutation = trpc.proStudio.textToMusic.useMutation({
+    onMutate: () => setAIState("generating"),
     onSuccess: (data) => {
       setResult(data as AudioResult);
       registerBgTask(data, "audio", "🎵 音樂生成");
       const immediate = (data as any)?.audio_url ?? (data as any)?.url;
       if (immediate) toast.success("🎵 音樂生成完成！");
       else toast.success("📤 任務已提交！稍後自動更新結果...");
+      reportSuccess();
     },
-    onError: (e) => toast.error(`生成失敗：${e.message}`),
+    onError: (e) => { toast.error(`生成失敗：${e.message}`); reportFailure(); },
+    onSettled: () => setAIState("idle"),
   });
 
   const audioUrl = result?.audio_url ?? (result?.audio as any)?.url ?? result?.url;
@@ -773,6 +779,7 @@ function MusicTab() {
 
 function SoundEffectsTab() {
   const registerBgTask = useRegisterBgTask();
+  const { setAIState, reportSuccess, reportFailure } = useAIState();
   const [text, setText] = useState("");
   const [duration, setDuration] = useState<number>(10);
   const [useDuration, setUseDuration] = useState(false);
@@ -785,8 +792,10 @@ function SoundEffectsTab() {
   const models = modelsQuery.data ?? [];
 
   const mutation = trpc.proStudio.soundEffects.useMutation({
-    onSuccess: (data) => { setResult(data as AudioResult); registerBgTask(data, "audio", "🔊 音效生成"); toast.success("📤 任務已提交！背景生成中，完成後會自動通知你"); },
-    onError: (e) => toast.error(`生成失敗：${e.message}`),
+    onMutate: () => setAIState("generating"),
+    onSuccess: (data) => { setResult(data as AudioResult); registerBgTask(data, "audio", "🔊 音效生成"); toast.success("📤 任務已提交！背景生成中，完成後會自動通知你"); reportSuccess(); },
+    onError: (e) => { toast.error(`生成失敗：${e.message}`); reportFailure(); },
+    onSettled: () => setAIState("idle"),
   });
 
   const audioUrl = result?.audio_url ?? (result?.audio as any)?.url ?? result?.url;
@@ -948,6 +957,7 @@ function SoundEffectsTab() {
 
 function TTSTab() {
   const registerBgTask = useRegisterBgTask();
+  const { setAIState, reportSuccess, reportFailure } = useAIState();
   const [engine, setEngine] = useState<"elevenlabs" | "qwen">("elevenlabs");
   const [text, setText] = useState("");
   const [voiceId, setVoiceId] = useState("");
@@ -957,13 +967,17 @@ function TTSTab() {
   const [result, setResult] = useState<AudioResult | null>(null);
 
   const elevenMutation = trpc.proStudio.elevenLabsTTS.useMutation({
-    onSuccess: (data) => { setResult(data as AudioResult); registerBgTask(data, "voice", "🎤 ElevenLabs 語音"); toast.success("📤 任務已提交！背景生成中，完成後會自動通知你"); },
-    onError: (e) => toast.error(`合成失敗：${e.message}`),
+    onMutate: () => setAIState("generating"),
+    onSuccess: (data) => { setResult(data as AudioResult); registerBgTask(data, "voice", "🎤 ElevenLabs 語音"); toast.success("📤 任務已提交！背景生成中，完成後會自動通知你"); reportSuccess(); },
+    onError: (e) => { toast.error(`合成失敗：${e.message}`); reportFailure(); },
+    onSettled: () => setAIState("idle"),
   });
 
   const qwenMutation = trpc.proStudio.qwenTTS.useMutation({
-    onSuccess: (data) => { setResult(data as AudioResult); registerBgTask(data, "voice", "🎤 Qwen 語音"); toast.success("📤 任務已提交！背景生成中，完成後會自動通知你"); },
-    onError: (e) => toast.error(`合成失敗：${e.message}`),
+    onMutate: () => setAIState("generating"),
+    onSuccess: (data) => { setResult(data as AudioResult); registerBgTask(data, "voice", "🎤 Qwen 語音"); toast.success("📤 任務已提交！背景生成中，完成後會自動通知你"); reportSuccess(); },
+    onError: (e) => { toast.error(`合成失敗：${e.message}`); reportFailure(); },
+    onSettled: () => setAIState("idle"),
   });
 
   const isPending = elevenMutation.isPending || qwenMutation.isPending;
@@ -1177,6 +1191,7 @@ function TTSTab() {
 
 function CloneTab() {
   const registerBgTask = useRegisterBgTask();
+  const { setAIState, reportSuccess, reportFailure } = useAIState();
   const [mode, setMode] = useState<"qwen" | "dia" | "design" | "kling">("qwen");
   const [text, setText] = useState("");
   const [refAudio, setRefAudio] = useState("");
@@ -1189,25 +1204,34 @@ function CloneTab() {
 
   // qwenCloneAndSpeak: clone + TTS in one step (audio_url + text → audio)
   const qwenClone = trpc.proStudio.qwenCloneAndSpeak.useMutation({
-    onSuccess: (data) => { setResult(data as AudioResult); registerBgTask(data, "voice", "🎭 Qwen 聲音克隆"); toast.success("📤 任務已提交！背景生成中，完成後會自動通知你"); },
-    onError: (e) => toast.error(`克隆失敗：${e.message}`),
+    onMutate: () => setAIState("generating"),
+    onSuccess: (data) => { setResult(data as AudioResult); registerBgTask(data, "voice", "🎭 Qwen 聲音克隆"); toast.success("📤 任務已提交！背景生成中，完成後會自動通知你"); reportSuccess(); },
+    onError: (e) => { toast.error(`克隆失敗：${e.message}`); reportFailure(); },
+    onSettled: () => setAIState("idle"),
   });
   // diaTTSVoiceClone: only accepts { text } — no reference_audio_url
   const diaClone = trpc.proStudio.diaTTSVoiceClone.useMutation({
-    onSuccess: (data) => { setResult(data as AudioResult); registerBgTask(data, "voice", "🎭 Dia 聲音克隆"); toast.success("📤 任務已提交！背景生成中，完成後會自動通知你"); },
-    onError: (e) => toast.error(`克隆失敗：${e.message}`),
+    onMutate: () => setAIState("generating"),
+    onSuccess: (data) => { setResult(data as AudioResult); registerBgTask(data, "voice", "🎭 Dia 聲音克隆"); toast.success("📤 任務已提交！背景生成中，完成後會自動通知你"); reportSuccess(); },
+    onError: (e) => { toast.error(`克隆失敗：${e.message}`); reportFailure(); },
+    onSettled: () => setAIState("idle"),
   });
   const voiceDesign = trpc.proStudio.qwenVoiceDesign.useMutation({
-    onSuccess: (data) => { setResult(data as AudioResult); registerBgTask(data, "voice", "🎨 語音設計"); toast.success("📤 任務已提交！背景生成中，完成後會自動通知你"); },
-    onError: (e) => toast.error(`設計失敗：${e.message}`),
+    onMutate: () => setAIState("generating"),
+    onSuccess: (data) => { setResult(data as AudioResult); registerBgTask(data, "voice", "🎨 語音設計"); toast.success("📤 任務已提交！背景生成中，完成後會自動通知你"); reportSuccess(); },
+    onError: (e) => { toast.error(`設計失敗：${e.message}`); reportFailure(); },
+    onSettled: () => setAIState("idle"),
   });
   const klingVoice = trpc.proStudio.klingCreateVoice.useMutation({
+    onMutate: () => setAIState("generating"),
     onSuccess: (data) => {
       setKlingResult(data);
       registerBgTask(data, "voice", "✅ Kling 語音建立");
       toast.success("📤 任務已提交！背景生成中，完成後會自動通知你");
+      reportSuccess();
     },
-    onError: (e) => toast.error(`Kling 建立失敗：${e.message}`),
+    onError: (e) => { toast.error(`Kling 建立失敗：${e.message}`); reportFailure(); },
+    onSettled: () => setAIState("idle"),
   });
 
   const isPending = qwenClone.isPending || diaClone.isPending || voiceDesign.isPending || klingVoice.isPending;
@@ -1498,6 +1522,7 @@ function CloneTab() {
 
 function ProcessTab() {
   const registerBgTask = useRegisterBgTask();
+  const { setAIState, reportSuccess, reportFailure } = useAIState();
   const [tool, setTool] = useState<"demucs" | "isolation" | "merge" | "changer">("demucs");
   const [audioUrl, setAudioUrl] = useState("");
   const [audioUrls, setAudioUrls] = useState(["", ""]);
@@ -1508,20 +1533,28 @@ function ProcessTab() {
   const [result, setResult] = useState<any>(null);
 
   const demucsMut = trpc.proStudio.demucs.useMutation({
-    onSuccess: (data) => { setResult(data); registerBgTask(data, "audio", "🎸 音幹分離"); toast.success("📤 任務已提交！背景生成中，完成後會自動通知你"); },
-    onError: (e) => toast.error(`失敗：${e.message}`),
+    onMutate: () => setAIState("generating"),
+    onSuccess: (data) => { setResult(data); registerBgTask(data, "audio", "🎸 音幹分離"); toast.success("📤 任務已提交！背景生成中，完成後會自動通知你"); reportSuccess(); },
+    onError: (e) => { toast.error(`失敗：${e.message}`); reportFailure(); },
+    onSettled: () => setAIState("idle"),
   });
   const isoMut = trpc.proStudio.audioIsolation.useMutation({
-    onSuccess: (data) => { setResult(data); registerBgTask(data, "audio", "🔇 音訊隔離"); toast.success("📤 任務已提交！背景生成中，完成後會自動通知你"); },
-    onError: (e) => toast.error(`失敗：${e.message}`),
+    onMutate: () => setAIState("generating"),
+    onSuccess: (data) => { setResult(data); registerBgTask(data, "audio", "🔇 音訊隔離"); toast.success("📤 任務已提交！背景生成中，完成後會自動通知你"); reportSuccess(); },
+    onError: (e) => { toast.error(`失敗：${e.message}`); reportFailure(); },
+    onSettled: () => setAIState("idle"),
   });
   const mergeMut = trpc.proStudio.mergeAudios.useMutation({
-    onSuccess: (data) => { setResult(data); registerBgTask(data, "audio", "🔗 音訊合併"); toast.success("📤 任務已提交！背景生成中，完成後會自動通知你"); },
-    onError: (e) => toast.error(`失敗：${e.message}`),
+    onMutate: () => setAIState("generating"),
+    onSuccess: (data) => { setResult(data); registerBgTask(data, "audio", "🔗 音訊合併"); toast.success("📤 任務已提交！背景生成中，完成後會自動通知你"); reportSuccess(); },
+    onError: (e) => { toast.error(`失敗：${e.message}`); reportFailure(); },
+    onSettled: () => setAIState("idle"),
   });
   const changerMut = trpc.proStudio.voiceChanger.useMutation({
-    onSuccess: (data) => { setResult(data); registerBgTask(data, "voice", "🔁 聲音變換"); toast.success("📤 任務已提交！背景生成中，完成後會自動通知你"); },
-    onError: (e) => toast.error(`失敗：${e.message}`),
+    onMutate: () => setAIState("generating"),
+    onSuccess: (data) => { setResult(data); registerBgTask(data, "voice", "🔁 聲音變換"); toast.success("📤 任務已提交！背景生成中，完成後會自動通知你"); reportSuccess(); },
+    onError: (e) => { toast.error(`失敗：${e.message}`); reportFailure(); },
+    onSettled: () => setAIState("idle"),
   });
 
   const isPending = demucsMut.isPending || isoMut.isPending || mergeMut.isPending || changerMut.isPending;
@@ -1728,13 +1761,16 @@ function ProcessTab() {
 
 function ASRTab() {
   const registerBgTask = useRegisterBgTask();
+  const { setAIState, reportSuccess, reportFailure } = useAIState();
   const [audioUrl, setAudioUrl] = useState("");
   const [acceleration, setAcceleration] = useState<"none" | "low" | "medium" | "high">("none");
   const [result, setResult] = useState<any>(null);
 
   const mutation = trpc.proStudio.speechToText.useMutation({
-    onSuccess: (data) => { setResult(data); registerBgTask(data, "audio", "📝 語音識別"); toast.success("📤 任務已提交！背景生成中，完成後會自動通知你"); },
-    onError: (e) => toast.error(`失敗：${e.message}`),
+    onMutate: () => setAIState("generating"),
+    onSuccess: (data) => { setResult(data); registerBgTask(data, "audio", "📝 語音識別"); toast.success("📤 任務已提交！背景生成中，完成後會自動通知你"); reportSuccess(); },
+    onError: (e) => { toast.error(`失敗：${e.message}`); reportFailure(); },
+    onSettled: () => setAIState("idle"),
   });
 
   const text = result?.text ?? result?.transcript ?? result?.transcription;
@@ -1812,6 +1848,7 @@ function ASRTab() {
 
 function AvatarVideoTab() {
   const registerBgTask = useRegisterBgTask();
+  const { setAIState, reportSuccess, reportFailure } = useAIState();
   const [model, setModel] = useState<"wan" | "echo" | "stable" | "longcat" | "ltx" | "dubbing">("echo");
   const [imageUrl, setImageUrl] = useState("");
   const [audioUrl, setAudioUrl] = useState("");
@@ -1838,12 +1875,42 @@ function AvatarVideoTab() {
     dubbing: "fal-ai/elevenlabs/dubbing",
   };
 
-  const wanMut      = trpc.proStudio.speechToVideo.useMutation({ onSuccess: (d) => { setJobInfo(d); registerBgTask(d, "video", "🎬 Wan 說話人"); toast.success("🎬 任務已提交！"); }, onError: (e) => toast.error(e.message) });
-  const echoMut     = trpc.proStudio.echoMimic.useMutation({ onSuccess: (d) => { setJobInfo(d); registerBgTask(d, "video", "🎬 EchoMimic"); toast.success("🎬 任務已提交！"); }, onError: (e) => toast.error(e.message) });
-  const stableMut   = trpc.proStudio.stableAvatar.useMutation({ onSuccess: (d) => { setJobInfo(d); registerBgTask(d, "video", "🎬 Stable Avatar"); toast.success("🎬 任務已提交！"); }, onError: (e) => toast.error(e.message) });
-  const longcatMut  = trpc.proStudio.longcatAvatar.useMutation({ onSuccess: (d) => { setJobInfo(d); registerBgTask(d, "video", "🎬 LongCat Avatar"); toast.success("🎬 任務已提交！"); }, onError: (e) => toast.error(e.message) });
-  const ltxMut      = trpc.proStudio.ltxAudioToVideo.useMutation({ onSuccess: (d) => { setJobInfo(d); registerBgTask(d, "video", "🎬 LTX 音訊→影片"); toast.success("🎬 任務已提交！"); }, onError: (e) => toast.error(e.message) });
-  const dubbingMut  = trpc.proStudio.dubbing.useMutation({ onSuccess: (d) => { setJobInfo(d); registerBgTask(d, "video", "🎬 ElevenLabs 配音"); toast.success("🎬 配音任務已提交！"); }, onError: (e) => toast.error(e.message) });
+  const wanMut = trpc.proStudio.speechToVideo.useMutation({
+    onMutate: () => setAIState("generating"),
+    onSuccess: (d) => { setJobInfo(d); registerBgTask(d, "video", "🎬 Wan 說話人"); toast.success("🎬 任務已提交！"); reportSuccess(); },
+    onError: (e) => { toast.error(e.message); reportFailure(); },
+    onSettled: () => setAIState("idle"),
+  });
+  const echoMut = trpc.proStudio.echoMimic.useMutation({
+    onMutate: () => setAIState("generating"),
+    onSuccess: (d) => { setJobInfo(d); registerBgTask(d, "video", "🎬 EchoMimic"); toast.success("🎬 任務已提交！"); reportSuccess(); },
+    onError: (e) => { toast.error(e.message); reportFailure(); },
+    onSettled: () => setAIState("idle"),
+  });
+  const stableMut = trpc.proStudio.stableAvatar.useMutation({
+    onMutate: () => setAIState("generating"),
+    onSuccess: (d) => { setJobInfo(d); registerBgTask(d, "video", "🎬 Stable Avatar"); toast.success("🎬 任務已提交！"); reportSuccess(); },
+    onError: (e) => { toast.error(e.message); reportFailure(); },
+    onSettled: () => setAIState("idle"),
+  });
+  const longcatMut = trpc.proStudio.longcatAvatar.useMutation({
+    onMutate: () => setAIState("generating"),
+    onSuccess: (d) => { setJobInfo(d); registerBgTask(d, "video", "🎬 LongCat Avatar"); toast.success("🎬 任務已提交！"); reportSuccess(); },
+    onError: (e) => { toast.error(e.message); reportFailure(); },
+    onSettled: () => setAIState("idle"),
+  });
+  const ltxMut = trpc.proStudio.ltxAudioToVideo.useMutation({
+    onMutate: () => setAIState("generating"),
+    onSuccess: (d) => { setJobInfo(d); registerBgTask(d, "video", "🎬 LTX 音訊→影片"); toast.success("🎬 任務已提交！"); reportSuccess(); },
+    onError: (e) => { toast.error(e.message); reportFailure(); },
+    onSettled: () => setAIState("idle"),
+  });
+  const dubbingMut = trpc.proStudio.dubbing.useMutation({
+    onMutate: () => setAIState("generating"),
+    onSuccess: (d) => { setJobInfo(d); registerBgTask(d, "video", "🎬 ElevenLabs 配音"); toast.success("🎬 配音任務已提交！"); reportSuccess(); },
+    onError: (e) => { toast.error(e.message); reportFailure(); },
+    onSettled: () => setAIState("idle"),
+  });
 
   const statusQuery = trpc.proStudio.jobStatus.useQuery(
     { request_id: jobInfo?.request_id ?? "", model: jobInfo?.model ?? "" },
@@ -2037,11 +2104,20 @@ export default function ProStudio() {
   // 全站新手引導
   usePageTour("pro-studio");
 
+  // ── AI Agent Integration ──
+  const { aiState, setPageContext, personality } = useAIState();
+
   const [tab, setTab] = useState("music");
   const apiKeyQuery = trpc.proStudio.checkApiKey.useQuery();
   const hasKey = apiKeyQuery.data?.configured;
 
   const ActiveTab = TABS.find((t) => t.id === tab)?.component ?? MusicTab;
+
+  // ── AI Agent: broadcast page context ──
+  useEffect(() => {
+    setPageContext({ pageId: "pro-studio", pageLabel: "音樂配音創作室", activeTab: tab });
+    return () => setPageContext(null);
+  }, [tab, setPageContext]);
 
   return (
     <div className="max-w-3xl mx-auto px-3 sm:px-4 space-y-5 sm:space-y-6">
@@ -2061,6 +2137,7 @@ export default function ProStudio() {
             ))}
           </div>
         </div>
+        <VisualSoul size="sm" state={aiState} personality={personality} className="!w-7 !h-7 shrink-0 mt-1" />
         {hasKey === false && (
           <div className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 shrink-0">
             <AlertCircle className="w-4 h-4" />

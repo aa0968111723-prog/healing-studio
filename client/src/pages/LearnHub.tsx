@@ -9,9 +9,11 @@
  *  - 整合 usePageTour（自動觸發新手引導）
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useAIState } from "@/contexts/AIStateContext";
+import VisualSoul from "@/components/VisualSoul";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -414,10 +416,19 @@ export default function LearnHub() {
   // Auto tour
   usePageTour("learn");
 
+  // ── AI Agent Integration ──
+  const { aiState, setPageContext, personality } = useAIState();
+
   // Filter state
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<CategoryId>("all");
   const [selectedDifficulty, setSelectedDifficulty] = useState<DifficultyId>("all");
+
+  // ── AI Agent: broadcast page context ──
+  useEffect(() => {
+    setPageContext({ pageId: "learn", pageLabel: "學習文件中心" });
+    return () => setPageContext(null);
+  }, [setPageContext]);
 
   // Document detail
   const [openDocId, setOpenDocId] = useState<string | null>(null);
@@ -487,16 +498,19 @@ export default function LearnHub() {
           </div>
         </div>
 
-        {isAdmin && (
-          <Button
-            onClick={() => setShowCreateForm(true)}
-            className="gap-2 shrink-0"
-            size="sm"
-          >
-            <Plus className="w-4 h-4" />
-            新增文件
-          </Button>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          <VisualSoul size="sm" state={aiState} personality={personality} className="!w-6 !h-6" />
+          {isAdmin && (
+            <Button
+              onClick={() => setShowCreateForm(true)}
+              className="gap-2 shrink-0"
+              size="sm"
+            >
+              <Plus className="w-4 h-4" />
+              新增文件
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* ── 搜尋列 ─────────────────────────────────────────────── */}
