@@ -14,6 +14,7 @@
  */
 
 import * as cron from "node-cron";
+import { createHash } from "crypto";
 import { getDb } from "../db";
 import { newsArticles } from "../../drizzle/schema";
 import { invokeLLM } from "../_core/llm";
@@ -36,6 +37,23 @@ const MAX_DOCS_PER_RUN = 3;
 
 /** Gemini 呼叫逾時（毫秒） */
 const LLM_TIMEOUT_MS = 90_000;
+
+/** 啟動後首次同步延遲（毫秒） */
+const INITIAL_SYNC_DELAY_MS = 60_000;
+
+/** 文件標題最大長度 */
+const MAX_TITLE_LENGTH = 200;
+
+/** 文件摘要最大長度 */
+const MAX_SUMMARY_LENGTH = 500;
+
+/** 每篇文件最多標籤數 */
+const MAX_TAGS_PER_DOC = 10;
+
+/** 閱讀時間範圍與預設值（分鐘） */
+const MIN_READING_MINUTES = 1;
+const MAX_READING_MINUTES = 120;
+const DEFAULT_READING_MINUTES = 8;
 
 // ─── State ──────────────────────────────────────────────────────────────────
 
@@ -157,7 +175,7 @@ ${newsSummary}
 ]`;
 
   try {
-    const result = await invokeLLM({
+    const llmPromise = invokeLLM({
       messages: [
         {
           role: "system",
@@ -169,6 +187,13 @@ ${newsSummary}
       temperature: 0.7,
       runName: "learn-doc-syncer-weekly",
     });
+
+    // Apply timeout to prevent indefinite hangs
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`LLM 呼叫逾時（${LLM_TIMEOUT_MS}ms）`)), LLM_TIMEOUT_MS),
+    );
+
+    const result = await Promise.race([llmPromise, timeoutPromise]);
 
     const rawContent = result.choices?.[0]?.message?.content;
     const text = (typeof rawContent === "string" ? rawContent : "").trim();
@@ -205,16 +230,16 @@ ${newsSummary}
           validCategories.includes(d.category),
       )
       .map((d: any) => ({
-        title: String(d.title).substring(0, 200),
-        summary: String(d.summary).substring(0, 500),
+        title: String(d.title).substring(0, MAX_TITLE_LENGTH),
+        summary: String(d.summary).substring(0, MAX_SUMMARY_LENGTH),
         content: String(d.content),
         tags: Array.isArray(d.tags)
-          ? d.tags.map(String).slice(0, 10)
+          ? d.tags.map(String).slice(0, MAX_TAGS_PER_DOC)
           : ["AI", "自動生成"],
         difficulty: validDifficulties.includes(d.difficulty)
           ? (d.difficulty as SynthesizedDoc["difficulty"])
           : "intermediate",
-        readingMinutes: Math.max(1, Math.min(120, Number(d.readingMinutes) || 8)),
+        readingMinutes: Math.max(MIN_READING_MINUTES, Math.min(MAX_READING_MINUTES, Number(d.readingMinutes) || DEFAULT_READING_MINUTES)),
         category: d.category as DocCategory,
       }))
       .slice(0, MAX_DOCS_PER_RUN);
@@ -233,7 +258,7 @@ function importDocsToLearnHub(synthesized: SynthesizedDoc[]): number {
 
   for (const doc of synthesized) {
     // Generate deterministic ID based on title hash to prevent duplicates
-    const idHash = simpleHash(doc.title);
+    const idHash = contentHash(doc.title);
     const docId = `auto-${idHash}`;
 
     if (hasLearnDoc(docId)) {
@@ -264,16 +289,10 @@ function importDocsToLearnHub(synthesized: SynthesizedDoc[]): number {
   return imported;
 }
 
-// ─── Helper: Simple string hash ─────────────────────────────────────────────
+// ─── Helper: Deterministic content hash ─────────────────────────────────────
 
-function simpleHash(str: string): string {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash |= 0; // Convert to 32-bit integer
-  }
-  return Math.abs(hash).toString(36);
+function contentHash(str: string): string {
+  return createHash("sha256").update(str).digest("hex").substring(0, 12);
 }
 
 // ─── Main Sync Job ──────────────────────────────────────────────────────────
@@ -366,7 +385,7 @@ export function initLearnDocSyncerCron(): void {
       const message = err instanceof Error ? err.message : String(err);
       logSync("error", `首次同步異常: ${message}`);
     }
-  }, 60_000);
+  }, INITIAL_SYNC_DELAY_MS);
 }
 
 /**
