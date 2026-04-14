@@ -25,6 +25,7 @@ import {
   ChevronDown, ChevronUp, Info, Tag,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useRegisterBgTask } from "@/contexts/BackgroundTasksContext";
 
 // ─── 類型 ────────────────────────────────────────────────────────────────────
 
@@ -505,6 +506,7 @@ function ToolCard({
 // ─── 音樂生成 Tab ─────────────────────────────────────────────────────────────
 
 function MusicTab() {
+  const registerBgTask = useRegisterBgTask();
   const [prompt, setPrompt] = useState("");
   const [lyrics, setLyrics] = useState("");
   const [instrumental, setInstrumental] = useState(false);
@@ -514,6 +516,7 @@ function MusicTab() {
   const mutation = trpc.proStudio.textToMusic.useMutation({
     onSuccess: (data) => {
       setResult(data as AudioResult);
+      registerBgTask(data, "audio", "🎵 音樂生成");
       // 若已有 audio_url 則直接顯示；若只有 request_id 則啟動輪詢
       const immediate = (data as any)?.audio_url ?? (data as any)?.url;
       if (immediate) toast.success("🎵 音樂生成完成！");
@@ -628,6 +631,7 @@ function MusicTab() {
 // ─── 音效生成 Tab ─────────────────────────────────────────────────────────────
 
 function SoundEffectsTab() {
+  const registerBgTask = useRegisterBgTask();
   const [text, setText] = useState("");
   const [duration, setDuration] = useState<number>(5);
   const [useDuration, setUseDuration] = useState(false);
@@ -635,7 +639,7 @@ function SoundEffectsTab() {
   const [result, setResult] = useState<AudioResult | null>(null);
 
   const mutation = trpc.proStudio.soundEffects.useMutation({
-    onSuccess: (data) => { setResult(data as AudioResult); toast.success("🔊 音效生成完成！"); },
+    onSuccess: (data) => { setResult(data as AudioResult); registerBgTask(data, "audio", "🔊 音效生成"); toast.success("🔊 音效生成完成！"); },
     onError: (e) => toast.error(`生成失敗：${e.message}`),
   });
 
@@ -737,6 +741,7 @@ function SoundEffectsTab() {
 // ─── 語音合成 Tab ─────────────────────────────────────────────────────────────
 
 function TTSTab() {
+  const registerBgTask = useRegisterBgTask();
   const [engine, setEngine] = useState<"elevenlabs" | "qwen">("elevenlabs");
   const [text, setText] = useState("");
   const [voiceId, setVoiceId] = useState("");
@@ -746,12 +751,12 @@ function TTSTab() {
   const [result, setResult] = useState<AudioResult | null>(null);
 
   const elevenMutation = trpc.proStudio.elevenLabsTTS.useMutation({
-    onSuccess: (data) => { setResult(data as AudioResult); toast.success("🎤 語音合成完成！"); },
+    onSuccess: (data) => { setResult(data as AudioResult); registerBgTask(data, "voice", "🎤 ElevenLabs 語音"); toast.success("🎤 語音合成完成！"); },
     onError: (e) => toast.error(`合成失敗：${e.message}`),
   });
 
   const qwenMutation = trpc.proStudio.qwenTTS.useMutation({
-    onSuccess: (data) => { setResult(data as AudioResult); toast.success("🎤 語音合成完成！"); },
+    onSuccess: (data) => { setResult(data as AudioResult); registerBgTask(data, "voice", "🎤 Qwen 語音"); toast.success("🎤 語音合成完成！"); },
     onError: (e) => toast.error(`合成失敗：${e.message}`),
   });
 

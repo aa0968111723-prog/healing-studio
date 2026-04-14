@@ -197,3 +197,35 @@ export function useBackgroundTasks() {
   if (!ctx) throw new Error("useBackgroundTasks must be used within BackgroundTasksProvider");
   return ctx;
 }
+
+/**
+ * useRegisterBgTask — 方便各工作室元件快速登錄背景任務。
+ * 回傳 register(result, studioType, label)，適用於任何 fal.ai async mutation 結果。
+ */
+export function useRegisterBgTask() {
+  const ctx = useContext(BackgroundTasksContext);
+  return useCallback(
+    async (
+      result: unknown,
+      studioType: StudioJobType,
+      label?: string,
+    ) => {
+      if (!ctx) return;
+      const r = result as Record<string, unknown> | null;
+      // 提取 request_id 和 model_id（支援直接和 raw 嵌套格式）
+      const requestId =
+        (r?.request_id as string) ??
+        ((r?.raw as Record<string, unknown>)?.request_id as string) ??
+        null;
+      const modelId =
+        (r?.raw_model_id as string) ??
+        ((r?.raw as Record<string, unknown>)?.raw_model_id as string) ??
+        (r?.model as string) ??
+        null;
+      if (requestId && modelId) {
+        await ctx.submitTask({ studioType, requestId, modelId, label });
+      }
+    },
+    [ctx],
+  );
+}

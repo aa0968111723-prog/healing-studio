@@ -564,6 +564,7 @@ function DashboardLayoutContent({
               "/learn":        "learn",
               "/focus-flow":   "focus-flow",
               "/langsmith":    "langsmith",
+              "/background-tasks": "background-tasks",
             };
             const pageId = pathToPageId[location] ?? "welcome";
             window.dispatchEvent(new CustomEvent("site-tour-start", { detail: { pageId } }));

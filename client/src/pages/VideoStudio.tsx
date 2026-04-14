@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { uploadFileToS3 } from "@/lib/upload";
+import { useRegisterBgTask } from "@/contexts/BackgroundTasksContext";
 
 // ─── 類型 ────────────────────────────────────────────────────────────────────
 
@@ -407,6 +408,7 @@ function AsyncVideoPoller({
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function TextToVideoTab() {
+  const registerBgTask = useRegisterBgTask();
   // ─ Kling
   const [klingPrompt, setKlingPrompt]         = useState("");
   const [klingNeg, setKlingNeg]               = useState("");
@@ -457,6 +459,7 @@ function TextToVideoTab() {
     if (!klingPrompt.trim()) return toast.error("請輸入提詞");
         const r = await klingMut.mutateAsync({ prompt: klingPrompt, negativePrompt: klingNeg || undefined, duration: klingDuration, aspectRatio: klingAspect, cfgScale: klingCfg });
     setKlingResult(r);
+    registerBgTask(r, "video", "Kling 文生影");
     toast.success("📤 任務已提交！稍後自動更新結果...");
   }
 
@@ -464,6 +467,7 @@ function TextToVideoTab() {
     if (!wanPrompt.trim()) return toast.error("請輸入提詞");
         const r = await wanMut.mutateAsync({ prompt: wanPrompt, negativePrompt: wanNeg || undefined, resolution: wanRes, numFrames: wanFrames });
     setWanResult(r);
+    registerBgTask(r, "video", "Wan 文生影");
     toast.success("📤 任務已提交！稍後自動更新結果...");
   }
 
@@ -471,6 +475,7 @@ function TextToVideoTab() {
     if (!mmPrompt.trim()) return toast.error("請輸入提詞");
         const r = await mmMut.mutateAsync({ prompt: mmPrompt, promptOptimizer: mmOptimize });
     setMmResult(r);
+    registerBgTask(r, "video", "MiniMax 文生影");
     toast.success("📤 任務已提交！稍後自動更新結果...");
   }
 
@@ -478,6 +483,7 @@ function TextToVideoTab() {
     if (!veoPrompt.trim()) return toast.error("請輸入提詞");
         const r = await veoMut.mutateAsync({ prompt: veoPrompt, aspectRatio: veoAspect, generateAudio: veoAudio });
     setVeoResult(r);
+    registerBgTask(r, "video", "Veo 3 文生影");
     toast.success("📤 任務已提交！稍後自動更新結果...");
   }
 
@@ -485,6 +491,7 @@ function TextToVideoTab() {
     if (!ltxPrompt.trim()) return toast.error("請輸入提詞");
         const r = await ltxMut.mutateAsync({ prompt: ltxPrompt, negativePrompt: ltxNeg || undefined });
     setLtxResult(r);
+    registerBgTask(r, "video", "LTX 文生影");
     toast.success("📤 任務已提交！稍後自動更新結果...");
   }
 
@@ -492,6 +499,7 @@ function TextToVideoTab() {
     if (!soraPrompt.trim()) return toast.error("請輸入提詞");
         const r = await soraMut.mutateAsync({ prompt: soraPrompt, duration: soraDuration, resolution: soraRes, aspectRatio: soraAspect });
     setSoraResult(r);
+    registerBgTask(r, "video", "Sora 文生影");
     toast.success("📤 任務已提交！稍後自動更新結果...");
   }
 
@@ -693,6 +701,7 @@ function TextToVideoTab() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function ImageToVideoTab() {
+  const registerBgTask = useRegisterBgTask();
   const [klingPrompt, setKlingPrompt]   = useState("");
   const [klingImage, setKlingImage]     = useState("");
   const [klingTail, setKlingTail]       = useState("");
@@ -731,6 +740,7 @@ function ImageToVideoTab() {
     if (!klingPrompt.trim() || !klingImage.trim()) return toast.error("請輸入提詞與圖片 URL");
         const r = await klingMut.mutateAsync({ prompt: klingPrompt, imageUrl: klingImage, tailImageUrl: klingTail || undefined, duration: klingDuration });
     setKlingResult(r);
+    registerBgTask(r, "video", "Kling 圖生影");
     toast.success("📤 任務已提交！稍後自動更新結果...");
   }
 
@@ -738,6 +748,7 @@ function ImageToVideoTab() {
     if (!wanPrompt.trim() || !wanImage.trim()) return toast.error("請輸入提詞與圖片 URL");
         const r = await wanMut.mutateAsync({ prompt: wanPrompt, imageUrl: wanImage, resolution: wanRes });
     setWanResult(r);
+    registerBgTask(r, "video", "Wan 圖生影");
     toast.success("📤 任務已提交！稍後自動更新結果...");
   }
 
@@ -745,6 +756,7 @@ function ImageToVideoTab() {
     if (!runwayPrompt.trim() || !runwayImage.trim()) return toast.error("請輸入提詞與圖片 URL");
         const r = await runwayMut.mutateAsync({ prompt: runwayPrompt, imageUrl: runwayImage, duration: runwayDuration, ratio: runwayRatio as any });
     setRunwayResult(r);
+    registerBgTask(r, "video", "Runway 圖生影");
     toast.success("📤 任務已提交！稍後自動更新結果...");
   }
 
@@ -752,6 +764,7 @@ function ImageToVideoTab() {
     if (!pvPrompt.trim() || !pvImage.trim()) return toast.error("請輸入提詞與圖片 URL");
         const r = await pvMut.mutateAsync({ prompt: pvPrompt, imageUrl: pvImage, duration: pvDuration, quality: pvQuality });
     setPvResult(r);
+    registerBgTask(r, "video", "Pixverse 圖生影");
     toast.success("📤 任務已提交！稍後自動更新結果...");
   }
 
@@ -759,6 +772,7 @@ function ImageToVideoTab() {
     if (!mmPrompt.trim() || !mmImage.trim()) return toast.error("請輸入提詞與圖片 URL");
         const r = await mmMut.mutateAsync({ prompt: mmPrompt, imageUrl: mmImage, promptOptimizer: mmOptimize });
     setMmResult(r);
+    registerBgTask(r, "video", "MiniMax 圖生影");
     toast.success("📤 任務已提交！稍後自動更新結果...");
   }
 
@@ -920,6 +934,7 @@ function ImageToVideoTab() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function VideoToVideoTab() {
+  const registerBgTask = useRegisterBgTask();
   const [wanPrompt, setWanPrompt]     = useState("");
   const [wanVideo, setWanVideo]       = useState("");
   const [wanStrength, setWanStrength] = useState(0.7);
@@ -943,6 +958,7 @@ function VideoToVideoTab() {
     if (!wanPrompt.trim() || !wanVideo.trim()) return toast.error("請輸入提詞與影片 URL");
         const r = await wanMut.mutateAsync({ prompt: wanPrompt, videoUrl: wanVideo, strength: wanStrength });
     setWanResult(r);
+    registerBgTask(r, "video", "Wan 影生影");
     toast.success("📤 任務已提交！稍後自動更新結果...");
   }
 
@@ -950,6 +966,7 @@ function VideoToVideoTab() {
     if (!klingPrompt.trim() || !klingVideo.trim()) return toast.error("請輸入提詞與影片 URL");
         const r = await klingMut.mutateAsync({ prompt: klingPrompt, videoUrl: klingVideo, cfgScale: klingCfg });
     setKlingResult(r);
+    registerBgTask(r, "video", "Kling 影生影");
     toast.success("📤 任務已提交！稍後自動更新結果...");
   }
 
@@ -957,6 +974,7 @@ function VideoToVideoTab() {
     if (!ltxPrompt.trim() || !ltxImage.trim()) return toast.error("請輸入提詞與圖片 URL");
         const r = await ltxMut.mutateAsync({ prompt: ltxPrompt, imageUrl: ltxImage, negativePrompt: ltxNeg || undefined });
     setLtxResult(r);
+    registerBgTask(r, "video", "LTX 影生影");
     toast.success("📤 任務已提交！稍後自動更新結果...");
   }
 
@@ -1027,6 +1045,7 @@ function VideoToVideoTab() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function EnhancementTab() {
+  const registerBgTask = useRegisterBgTask();
   const [upVideo, setUpVideo]       = useState("");
   const [upFactor, setUpFactor]     = useState<"2"|"4">("2");
   const [upResult, setUpResult]     = useState<VideoResult | null>(null);
@@ -1049,6 +1068,7 @@ function EnhancementTab() {
     if (!upVideo.trim()) return toast.error("請輸入影片 URL");
         const r = await upscaleMut.mutateAsync({ videoUrl: upVideo, upscaleFactor: upFactor });
     setUpResult(r);
+    registerBgTask(r, "video", "影片超解析度");
     toast.success("📤 任務已提交！稍後自動更新結果...");
   }
 
@@ -1056,6 +1076,7 @@ function EnhancementTab() {
     if (!rifeVideo.trim()) return toast.error("請輸入影片 URL");
         const r = await rifeMut.mutateAsync({ videoUrl: rifeVideo, multiplier: rifeMult, outputFps: rifeFps });
     setRifeResult(r);
+    registerBgTask(r, "video", "幀插補");
     toast.success("📤 任務已提交！稍後自動更新結果...");
   }
 
@@ -1063,6 +1084,7 @@ function EnhancementTab() {
     if (!topazVideo.trim()) return toast.error("請輸入影片 URL");
         const r = await topazMut.mutateAsync({ videoUrl: topazVideo, model: topazModel, outputScale: topazScale });
     setTopazResult(r);
+    registerBgTask(r, "video", "Topaz 畫質增強");
     toast.success("📤 任務已提交！稍後自動更新結果...");
   }
 
@@ -1154,6 +1176,7 @@ function EnhancementTab() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function AdvancedControlTab() {
+  const registerBgTask = useRegisterBgTask();
   const [camPrompt, setCamPrompt]   = useState("");
   const [camImage, setCamImage]     = useState("");
   const [camMotion, setCamMotion]   = useState("push_in");
@@ -1184,6 +1207,7 @@ function AdvancedControlTab() {
     if (!camPrompt.trim() || !camImage.trim()) return toast.error("請輸入提詞與圖片 URL");
         const r = await camMut.mutateAsync({ prompt: camPrompt, imageUrl: camImage, cameraMotion: camMotion as any, duration: camDuration });
     setCamResult(r);
+    registerBgTask(r, "video", "CamMaster 鏡頭控制");
     toast.success("📤 任務已提交！稍後自動更新結果...");
   }
 
@@ -1191,6 +1215,7 @@ function AdvancedControlTab() {
     if (!adPrompt.trim() || !adVideo.trim()) return toast.error("請輸入提詞與影片 URL");
         const r = await adMut.mutateAsync({ prompt: adPrompt, videoUrl: adVideo, controlNet: adControlNet, guidanceScale: adGuide, negativePrompt: adNeg || undefined });
     setAdResult(r);
+    registerBgTask(r, "video", "AnimateDiff 風格化");
     toast.success("📤 任務已提交！稍後自動更新結果...");
   }
 
@@ -1198,6 +1223,7 @@ function AdvancedControlTab() {
     if (!dcVideo.trim()) return toast.error("請輸入影片 URL");
         const r = await dcMut.mutateAsync({ videoUrl: dcVideo });
     setDcResult(r);
+    registerBgTask(r, "video", "DepthCrafter 深度圖");
     toast.success("📤 任務已提交！稍後自動更新結果...");
   }
 
@@ -1206,6 +1232,7 @@ function AdvancedControlTab() {
     if (!viduPrompt.trim() || urls.length === 0) return toast.error("請輸入提詞與至少一張圖片 URL");
         const r = await viduMut.mutateAsync({ prompt: viduPrompt, imageUrls: urls, duration: viduDuration });
     setViduResult(r);
+    registerBgTask(r, "video", "Vidu 參考圖生影");
     toast.success("📤 任務已提交！稍後自動更新結果...");
   }
 

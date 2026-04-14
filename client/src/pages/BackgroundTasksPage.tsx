@@ -158,8 +158,8 @@ function ResultPreview({ job }: { job: JobRow }) {
   if (job.jobType === "model_training" && meta.modelName) {
     return (
       <div className="mt-3 text-xs text-muted-foreground">
-        <span className="font-medium">模型:</span> {meta.modelName as string}
-        {meta.engine && <> · <span className="font-medium">引擎:</span> {meta.engine as string}</>}
+        <span className="font-medium">模型:</span> {String(meta.modelName)}
+        {meta.engine && <> · <span className="font-medium">引擎:</span> {String(meta.engine)}</>}
       </div>
     );
   }
