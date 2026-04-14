@@ -134,17 +134,17 @@ const PROVIDER_ENDPOINTS: Record<string, { url: string; method: string; headers?
   fal: {
     url: "https://queue.fal.run/fal-ai/flux/requests",
     method: "GET",
-    headers: () => (process.env.FAL_API_KEY ? { Authorization: `Key ${process.env.FAL_API_KEY}` } : {}),
+    headers: (): Record<string, string> => (process.env.FAL_API_KEY ? { Authorization: `Key ${process.env.FAL_API_KEY}` } : {}),
   },
   elevenlabs: {
     url: "https://api.elevenlabs.io/v1/user",
     method: "GET",
-    headers: () => (process.env.ELEVENLABS_API_KEY ? { "xi-api-key": process.env.ELEVENLABS_API_KEY } : {}),
+    headers: (): Record<string, string> => (process.env.ELEVENLABS_API_KEY ? { "xi-api-key": process.env.ELEVENLABS_API_KEY } : {}),
   },
   replicate: {
     url: "https://api.replicate.com/v1/models",
     method: "GET",
-    headers: () => (process.env.REPLICATE_API_TOKEN ? { Authorization: `Bearer ${process.env.REPLICATE_API_TOKEN}` } : {}),
+    headers: (): Record<string, string> => (process.env.REPLICATE_API_TOKEN ? { Authorization: `Bearer ${process.env.REPLICATE_API_TOKEN}` } : {}),
   },
 };
 
@@ -536,11 +536,13 @@ export function addResearchToLearnHub(researchId: string): boolean {
     title: `[爬網] ${item.title}`,
     summary: item.summary.slice(0, 200),
     content: `# ${item.title}\n\n**來源:** ${item.source}\n**連結:** ${item.url}\n**搜尋詞:** ${item.query}\n\n---\n\n${item.summary}`,
-    category: "reference" as any,
+    category: "technique",
     tags: ["爬網研究", item.source.toLowerCase()],
-    readingTimeMinutes: 2,
-    createdAt: new Date().toISOString(),
+    difficulty: "intermediate",
+    readingMinutes: 2,
+    publishedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    featured: false,
   });
 
   item.addedToLearnHub = true;

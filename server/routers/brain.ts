@@ -7,8 +7,26 @@
 
 import { z } from "zod";
 import { eq } from "drizzle-orm";
-import { router, protectedProcedure } from "../_core/trpc";
+import { router, protectedProcedure, adminProcedure } from "../_core/trpc";
 import { getDb } from "../db";
+import {
+  getAlerts,
+  dismissAlert,
+  getErrorTraces,
+  recordErrorTrace,
+  resolveErrorTrace,
+  getProposals,
+  createReflectionProposal,
+  approveProposal,
+  rejectProposal,
+  webSearch,
+  getResearchResults,
+  addResearchToLearnHub,
+  getAccuracyTests,
+  runAccuracyTest,
+  runAllAccuracyTests,
+  getSystemSummary,
+} from "../services/brainAutoRepair";
 import {
   userAiBrain,
   userModelSwitchLogs,
@@ -746,4 +764,153 @@ export const brainRouter = router({
 
     return results;
   }),
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // 自動修復 & 監控中心 API（5 大子系統）
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /** 系統摘要 — 返回所有子系統的即時統計 */
+  monitorSummary: protectedProcedure.query(() => {
+    return getSystemSummary();
+  }),
+
+  // ─── 1. 自動修復 API + 提醒管理 ──────────────────────────────────────
+
+  /** 取得 API 警報清單 */
+  alerts: protectedProcedure
+    .input(z.object({ limit: z.number().min(1).max(200).default(50) }).optional())
+    .query(({ input }) => getAlerts(input?.limit ?? 50)),
+
+  /** 管理員關閉警報 */
+  dismissAlert: adminProcedure
+    .input(z.object({ alertId: z.string() }))
+    .mutation(({ ctx, input }) => {
+      const ok = dismissAlert(input.alertId, ctx.user.id);
+      if (!ok) throw new TRPCError({ code: "NOT_FOUND", message: "警報不存在" });
+      return { success: true };
+    }),
+
+  // ─── 2. 生成錯誤線索系統 ─────────────────────────────────────────────
+
+  /** 取得錯誤線索 */
+  errorTraces: protectedProcedure
+    .input(z.object({
+      limit: z.number().min(1).max(200).default(50),
+      modality: z.enum(["image", "video", "audio", "voice", "llm"]).optional(),
+    }).optional())
+    .query(({ input }) => getErrorTraces(input?.limit ?? 50, input?.modality)),
+
+  /** 記錄一個生成錯誤（供其他 router 呼叫，或管理員手動回報） */
+  reportError: protectedProcedure
+    .input(z.object({
+      modality: z.enum(["image", "video", "audio", "voice", "llm"]),
+      engine: z.string(),
+      prompt: z.string().max(2000),
+      errorMessage: z.string().max(2000),
+      errorCode: z.string().optional(),
+      stackHint: z.string().max(1000).optional(),
+    }))
+    .mutation(({ ctx, input }) => {
+      return recordErrorTrace({ ...input, userId: ctx.user.id });
+    }),
+
+  /** 標記錯誤已解決 */
+  resolveError: adminProcedure
+    .input(z.object({ traceId: z.string(), resolution: z.string().max(1000) }))
+    .mutation(({ input }) => {
+      const ok = resolveErrorTrace(input.traceId, input.resolution);
+      if (!ok) throw new TRPCError({ code: "NOT_FOUND", message: "錯誤線索不存在" });
+      return { success: true };
+    }),
+
+  // ─── 3. 回饋自我反省優化系統 ─────────────────────────────────────────
+
+  /** 取得優化提案清單 */
+  proposals: protectedProcedure
+    .input(z.object({
+      status: z.enum(["pending", "approved", "rejected"]).optional(),
+    }).optional())
+    .query(({ input }) => getProposals(input?.status)),
+
+  /** 手動建立優化提案 */
+  createProposal: protectedProcedure
+    .input(z.object({
+      category: z.enum(["prompt_optimization", "engine_switch", "param_tuning", "fallback_update", "accuracy_fix"]),
+      title: z.string().min(2).max(200),
+      description: z.string().max(2000),
+      currentValue: z.string().max(500),
+      proposedValue: z.string().max(500),
+      reasoning: z.string().max(2000),
+      confidence: z.number().min(0).max(100),
+    }))
+    .mutation(({ input }) => createReflectionProposal(input)),
+
+  /** 管理員批准提案 */
+  approveProposal: adminProcedure
+    .input(z.object({ proposalId: z.string(), note: z.string().max(500).optional() }))
+    .mutation(({ ctx, input }) => {
+      const ok = approveProposal(input.proposalId, ctx.user.id, input.note);
+      if (!ok) throw new TRPCError({ code: "NOT_FOUND", message: "提案不存在或已處理" });
+      return { success: true };
+    }),
+
+  /** 管理員拒絕提案 */
+  rejectProposal: adminProcedure
+    .input(z.object({ proposalId: z.string(), note: z.string().max(500).optional() }))
+    .mutation(({ ctx, input }) => {
+      const ok = rejectProposal(input.proposalId, ctx.user.id, input.note);
+      if (!ok) throw new TRPCError({ code: "NOT_FOUND", message: "提案不存在或已處理" });
+      return { success: true };
+    }),
+
+  // ─── 4. 爬網找資料功能 ──────────────────────────────────────────────
+
+  /** 執行爬網搜尋 */
+  webSearch: protectedProcedure
+    .input(z.object({
+      query: z.string().min(2).max(200),
+      maxResults: z.number().min(1).max(10).default(5),
+    }))
+    .mutation(async ({ input }) => {
+      return webSearch(input.query, input.maxResults);
+    }),
+
+  /** 取得歷史研究結果 */
+  researchResults: protectedProcedure
+    .input(z.object({ limit: z.number().min(1).max(200).default(50) }).optional())
+    .query(({ input }) => getResearchResults(input?.limit ?? 50)),
+
+  /** 將研究結果加入 LearnHub */
+  addResearchToLearnHub: adminProcedure
+    .input(z.object({ researchId: z.string() }))
+    .mutation(({ input }) => {
+      const ok = addResearchToLearnHub(input.researchId);
+      if (!ok) throw new TRPCError({ code: "NOT_FOUND", message: "研究結果不存在或已加入" });
+      return { success: true };
+    }),
+
+  // ─── 5. AI 精準度測試系統 ───────────────────────────────────────────
+
+  /** 取得測試結果歷史 */
+  accuracyTests: protectedProcedure
+    .input(z.object({ limit: z.number().min(1).max(200).default(50) }).optional())
+    .query(({ input }) => getAccuracyTests(input?.limit ?? 50)),
+
+  /** 執行單一精準度測試 */
+  runAccuracyTest: adminProcedure
+    .input(z.object({
+      engine: z.string(),
+      testType: z.enum(["response_quality", "latency", "consistency", "error_rate"]),
+      testPrompt: z.string().min(1).max(500),
+      expectedBehavior: z.string().min(1).max(500),
+    }))
+    .mutation(async ({ input }) => {
+      return runAccuracyTest(input.engine, input.testType, input.testPrompt, input.expectedBehavior);
+    }),
+
+  /** 執行全部預定義測試 */
+  runAllAccuracyTests: adminProcedure
+    .mutation(async () => {
+      return runAllAccuracyTests();
+    }),
 });
