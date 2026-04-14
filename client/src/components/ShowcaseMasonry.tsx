@@ -143,6 +143,9 @@ const SCENE_DOT_COLORS: Record<SceneId, string> = {
   deepSea: "#ecfeff",
 };
 
+/** Max dot indicators shown in carousel to prevent visual clutter */
+const MAX_VISIBLE_DOTS = 10;
+
 // ─── Modality config ────────────────────────────────────────────────────────
 
 const MODALITY_CONFIG: Record<
@@ -851,7 +854,7 @@ export default function ShowcaseMasonry({
             {/* Carousel dot indicators */}
             {showcaseSlideCount > 1 && (
               <div className="flex items-center justify-center gap-2 mt-8">
-                {Array.from({ length: Math.min(showcaseSlideCount, 10) }).map((_, i) => (
+                {Array.from({ length: Math.min(showcaseSlideCount, MAX_VISIBLE_DOTS) }).map((_, i) => (
                   <motion.button
                     key={i}
                     onClick={() => showcaseScrollTo(i)}
@@ -873,7 +876,9 @@ export default function ShowcaseMasonry({
           </div>
         )}
 
-        {/* Infinite scroll sentinel — still fetches more data for carousel */}
+        {/* Infinite scroll sentinel — prefetches additional data that populates the carousel.
+            Carousel displays up to 24 items; newly fetched items replace/extend the carousel pool
+            via allItems computed value, keeping the experience fresh as user browses. */}
         <div ref={sentinelRef} className="h-4" />
 
         {/* Loading more indicator */}

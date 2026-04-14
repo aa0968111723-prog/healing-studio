@@ -209,6 +209,9 @@ const SCENE_DOT_COLORS: Record<SceneId, string> = {
   deepSea: "#ecfeff",
 };
 
+/** Max dot indicators shown in carousel to prevent visual clutter */
+const MAX_VISIBLE_DOTS = 10;
+
 // ─── News Card ──────────────────────────────────────────────────────────────
 
 interface NewsItem {
@@ -294,7 +297,7 @@ function BentoCard({
       style={{
         background: styles.cardBg,
         border: `1px solid ${styles.cardBorder}`,
-        minHeight: isHero ? "280px" : isMedium ? "220px" : "180px",
+      minHeight: isHero ? "280px" : isMedium ? "220px" : "180px", // Carousel card min-heights for visual consistency
       }}
     >
       {/* ── Glassmorphism fluid glow overlay (mouse-tracking) ── */}
@@ -719,7 +722,7 @@ const IntelBentoGrid = memo(function IntelBentoGrid({ sceneId }: IntelBentoGridP
             {/* Carousel dot indicators */}
             {slideCount > 1 && (
               <div className="flex items-center justify-center gap-2 mt-8">
-                {Array.from({ length: Math.min(slideCount, 10) }).map((_, i) => (
+                {Array.from({ length: Math.min(slideCount, MAX_VISIBLE_DOTS) }).map((_, i) => (
                   <motion.button
                     key={i}
                     onClick={() => scrollTo(i)}
