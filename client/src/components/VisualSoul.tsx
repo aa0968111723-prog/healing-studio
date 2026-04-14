@@ -33,10 +33,10 @@ const VisualSoul3D = lazy(() => import("./VisualSoul3D"));
 // ─── CSS Size Map ──────────────────────────────────────────────────────────
 
 const SIZE_MAP = {
-  sm:  { container: "w-6 h-6",   blur: 4,  particleCount: 3 },
-  md:  { container: "w-10 h-10", blur: 8,  particleCount: 5 },
-  lg:  { container: "w-14 h-14", blur: 12, particleCount: 7 },
-  xl:  { container: "w-20 h-20", blur: 16, particleCount: 9 },
+  sm:  { container: "w-7 h-7",   blur: 5,  particleCount: 3 },
+  md:  { container: "w-12 h-12", blur: 10, particleCount: 5 },
+  lg:  { container: "w-16 h-16", blur: 14, particleCount: 7 },
+  xl:  { container: "w-24 h-24", blur: 18, particleCount: 9 },
 };
 
 // ─── CSS Personality Colors ─────────────────────────────────────────────────
@@ -71,16 +71,16 @@ function getStateConfig(state: AIState, personality: Personality) {
   const configs = {
     idle: {
       gradient: [
-        `radial-gradient(circle at 35% 35%, rgba(${colors.primary},0.7), rgba(${colors.secondary},0.5), rgba(${colors.accent},0.3))`,
-        `radial-gradient(circle at 45% 45%, rgba(${colors.secondary},0.7), rgba(${colors.accent},0.5), rgba(${colors.primary},0.3))`,
-        `radial-gradient(circle at 35% 35%, rgba(${colors.primary},0.7), rgba(${colors.secondary},0.5), rgba(${colors.accent},0.3))`,
+        `radial-gradient(circle at 35% 35%, rgba(${colors.primary},0.85), rgba(${colors.secondary},0.6), rgba(${colors.accent},0.4))`,
+        `radial-gradient(circle at 45% 45%, rgba(${colors.secondary},0.85), rgba(${colors.accent},0.6), rgba(${colors.primary},0.4))`,
+        `radial-gradient(circle at 35% 35%, rgba(${colors.primary},0.85), rgba(${colors.secondary},0.6), rgba(${colors.accent},0.4))`,
       ],
-      glowColor:     `rgba(${colors.primary},0.5)`,
-      glowPulse:     [`0 0 12px rgba(${colors.primary},0.3)`, `0 0 20px rgba(${colors.primary},0.5)`, `0 0 12px rgba(${colors.primary},0.3)`],
+      glowColor:     `rgba(${colors.primary},0.6)`,
+      glowPulse:     [`0 0 16px rgba(${colors.primary},0.4), 0 0 32px rgba(${colors.primary},0.15)`, `0 0 24px rgba(${colors.primary},0.6), 0 0 48px rgba(${colors.primary},0.25)`, `0 0 16px rgba(${colors.primary},0.4), 0 0 32px rgba(${colors.primary},0.15)`],
       breathDuration: 3 * bm,
       rotateSpeed:   20,
-      scale:         [1, 1.03, 1] as number[],
-      particleOpacity: 0.2,
+      scale:         [1, 1.04, 1] as number[],
+      particleOpacity: 0.3,
     },
     thinking: {
       gradient: [
@@ -155,8 +155,8 @@ function CSSOrb({
 
       {/* Outer glow halo — 去背透暈 */}
       <motion.div className="absolute rounded-full"
-        style={{ inset: "-30%", zIndex: 0 }}
-        animate={{ boxShadow: config.glowPulse, opacity: [0.6, 1, 0.6] }}
+        style={{ inset: "-35%", zIndex: 0 }}
+        animate={{ boxShadow: config.glowPulse, opacity: [0.7, 1, 0.7] }}
         transition={{ duration: config.breathDuration, repeat: Infinity, ease: "easeInOut" }}
       />
 
@@ -171,8 +171,8 @@ function CSSOrb({
         />
         {/* 中心白熱點光 */}
         <motion.div className="absolute rounded-full"
-          style={{ top: "15%", left: "20%", width: "35%", height: "30%", background: "radial-gradient(circle, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.3) 50%, transparent 80%)" }}
-          animate={{ opacity: state === "generating" ? [0.6, 1.0, 0.6] : [0.5, 0.8, 0.5] }}
+          style={{ top: "12%", left: "15%", width: "40%", height: "35%", background: "radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.4) 50%, transparent 80%)" }}
+          animate={{ opacity: state === "generating" ? [0.7, 1.0, 0.7] : [0.6, 0.9, 0.6] }}
           transition={{ duration: config.breathDuration, repeat: Infinity, ease: "easeInOut" }}
         />
       </motion.div>
@@ -198,8 +198,8 @@ function CSSOrb({
 
       {/* 去背暈光圈 — 邊緣漸隐 */}
       <motion.div className="absolute inset-0 rounded-full"
-        style={{ zIndex: 0, background: `radial-gradient(circle, transparent 40%, rgba(${colors.primary},0.15) 70%, transparent 100%)` }}
-        animate={{ scale: [1, 1.2, 1], opacity: [0.4, 0.8, 0.4] }}
+        style={{ zIndex: 0, background: `radial-gradient(circle, transparent 35%, rgba(${colors.primary},0.2) 65%, transparent 100%)` }}
+        animate={{ scale: [1, 1.25, 1], opacity: [0.5, 0.9, 0.5] }}
         transition={{ duration: config.breathDuration * 1.5, repeat: Infinity, ease: "easeInOut" }}
       />
 
