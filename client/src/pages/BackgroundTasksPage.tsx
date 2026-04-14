@@ -159,7 +159,7 @@ function ResultPreview({ job }: { job: JobRow }) {
     return (
       <div className="mt-3 text-xs text-muted-foreground">
         <span className="font-medium">模型:</span> {String(meta.modelName)}
-        {meta.engine && <> · <span className="font-medium">引擎:</span> {String(meta.engine)}</>}
+        {!!meta.engine && <> · <span className="font-medium">引擎:</span> {String(meta.engine)}</>}
       </div>
     );
   }

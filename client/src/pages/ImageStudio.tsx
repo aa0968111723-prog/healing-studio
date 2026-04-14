@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { uploadFileToS3 } from "@/lib/upload";
+import { useRegisterBgTask } from "@/contexts/BackgroundTasksContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1166,6 +1167,7 @@ function ThreeDPanel({
 export default function ImageStudio() {
   // 全站新手引導
   usePageTour("image-studio");
+  const registerBgTask = useRegisterBgTask();
 
   // ── Tab / Model ──
   const [activeTab, setActiveTab] = useState<StudioTab>("t2i");
@@ -1454,6 +1456,7 @@ export default function ImageStudio() {
       }
 
       result = await currentMutation.mutateAsync(input);
+      registerBgTask(result, "image", `🖼️ ${model.name}`);
 
       // Handle 3D result
       if (model.category === "3d") {
