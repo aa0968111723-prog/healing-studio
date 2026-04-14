@@ -86,21 +86,22 @@ export function resolveEngineConfig(forceEngine?: LLMEngine): EngineConfig {
   }
 
   // ── Engine B：Vertex AI（GCP SDK，需服務帳號）───────────────
-  // Vertex AI 使用 OpenAI-compatible endpoint
+  // Vertex AI 使用 OpenAI-compatible endpoint 或原生 REST API
   if (preferred === "vertex") {
     const projectId = serverEnv.GOOGLE_CLOUD_PROJECT_ID;
     const credentials = serverEnv.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+    const location = serverEnv.GOOGLE_CLOUD_LOCATION || "us-central1";
     if (!projectId || !credentials) {
       throw new Error(
         "Engine 'vertex' 指定但 GOOGLE_CLOUD_PROJECT_ID 或 GOOGLE_APPLICATION_CREDENTIALS_JSON 未設定"
       );
     }
-    // Vertex AI 需要 OAuth2 token，這裡使用 Gemini API Key 作為替代
-    // 若需要完整 Vertex AI SDK，請改用 @google-cloud/vertexai 套件
+    // Vertex AI 支援 Gemini API Key 作為認證（OpenAI-compatible endpoint）
+    // 完整 Vertex AI SDK 認證需要服務帳號 Token
     if (ENV.geminiApiKey) {
       return {
         name: "Vertex AI (via Gemini Key)",
-        url: `https://us-central1-aiplatform.googleapis.com/v1/projects/${projectId}/locations/us-central1/publishers/google/models/gemini-2.5-flash:generateContent`,
+        url: `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/gemini-2.5-flash:generateContent`,
         apiKey: ENV.geminiApiKey,
         model: "gemini-2.5-flash",
         supportsThinking: true,
@@ -172,5 +173,85 @@ export function getEngineStatus(): EngineStatus {
       : available[0].engine === "forge"
         ? "建議設定 GEMINI_API_KEY 以取得更好的效能與穩定性"
         : "引擎設定正常",
+  };
+}
+
+// ─── Google AI Studio / Vertex AI 多模態端點解析 ──────────────────────────────
+
+/**
+ * 部署環境配置 — 定義 Google AI Studio 和 Vertex AI 的多模態模型端點
+ *
+ * Google AI Studio (Gemini API)：免費/付費，適合開發測試與中小流量
+ *   - 端點：generativelanguage.googleapis.com
+ *   - 認證：GEMINI_API_KEY
+ *
+ * Vertex AI (GCP)：企業級，適合正式環境與高流量
+ *   - 端點：{LOCATION}-aiplatform.googleapis.com
+ *   - 認證：GOOGLE_APPLICATION_CREDENTIALS_JSON + PROJECT_ID
+ */
+export type MultimodalModelType = "imagen" | "veo" | "lyria" | "tts";
+
+export interface MultimodalEndpoint {
+  name: string;
+  modelId: string;
+  url: string;
+  apiKey: string;
+  provider: "gemini" | "vertex";
+}
+
+/**
+ * 解析 Google 多模態模型的 API 端點
+ * 支援 Imagen（圖片）、Veo（影片）、Lyria（音樂）、TTS（語音）
+ *
+ * @param modelType - 模型類型
+ * @param variant - 模型變體（如 "3", "4", "3-fast" 等）
+ * @param forceProvider - 強制使用的提供者（留空則自動偵測）
+ */
+export function resolveMultimodalEndpoint(
+  modelType: MultimodalModelType,
+  variant: string = "",
+  forceProvider?: "gemini" | "vertex"
+): MultimodalEndpoint {
+  const projectId = serverEnv.GOOGLE_CLOUD_PROJECT_ID;
+  const location = serverEnv.GOOGLE_CLOUD_LOCATION || "us-central1";
+  const hasVertex = !!(projectId && serverEnv.GOOGLE_APPLICATION_CREDENTIALS_JSON);
+  const hasGemini = !!ENV.geminiApiKey;
+
+  // 決定提供者
+  const provider: "gemini" | "vertex" = forceProvider
+    ?? (hasVertex ? "vertex" : "gemini");
+
+  // 模型名稱映射
+  const modelNames: Record<MultimodalModelType, string> = {
+    imagen: variant ? `imagen-${variant}` : "imagen-4",
+    veo: variant ? `veo-${variant}` : "veo-3",
+    lyria: variant ? `lyria-${variant}` : "lyria-2",
+    tts: variant ? `tts-${variant}` : "tts-flash",
+  };
+
+  const modelName = modelNames[modelType];
+
+  if (provider === "vertex") {
+    if (!projectId) throw new Error("Vertex AI 需要 GOOGLE_CLOUD_PROJECT_ID");
+    if (!ENV.geminiApiKey) throw new Error("Vertex AI 端點需要 GEMINI_API_KEY 作為認證");
+
+    return {
+      name: `${modelName} (Vertex AI)`,
+      modelId: `vertex/${modelName}`,
+      url: `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${modelName}:predict`,
+      apiKey: ENV.geminiApiKey,
+      provider: "vertex",
+    };
+  }
+
+  // Google AI Studio（Gemini API）
+  if (!ENV.geminiApiKey) throw new Error("Google AI Studio 需要 GEMINI_API_KEY");
+
+  return {
+    name: `${modelName} (AI Studio)`,
+    modelId: `gemini/${modelName}`,
+    url: `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:predict`,
+    apiKey: ENV.geminiApiKey,
+    provider: "gemini",
   };
 }
