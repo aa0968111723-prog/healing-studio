@@ -9,7 +9,7 @@ import OnboardingFlow from "@/components/OnboardingFlow";
 import { motion, AnimatePresence, useScroll, useTransform, useMotionValueEvent } from "framer-motion";
 import {
   Wand2, Clapperboard, Package, Cpu, ArrowRight, Sparkles, Shield, Users,
-  Moon, Sun, Coffee, Waves,
+  Moon, Sun, Coffee, Waves, Play, Pause, Volume2, VolumeX,
 } from "lucide-react";
 import { useAIState } from "@/contexts/AIStateContext";
 import { AmbientEnvironment, useCurrentScene } from "@/components/AmbientEnvironment";
@@ -115,38 +115,68 @@ const SCENE_STYLES: Record<SceneId, {
   },
 };
 
-// ─── Features ───────────────────────────────────────────────────────────────
+// ─── Video Demo Showcase Data ────────────────────────────────────────────
 
-const FEATURES = [
+const VIDEO_DEMOS = [
   {
+    id: "text-to-image",
     icon: Wand2,
-    title: "AI 智慧創作引擎",
-    description: "圖片、影片、音樂、語音一站式 AI 生成，搭配專業提示詞編譯器",
+    title: "AI 圖片生成",
+    description: "從文字描述生成高品質圖片",
+    tag: "圖片",
+    color: "rgba(168,85,247,0.15)",
+    borderColor: "rgba(168,85,247,0.25)",
+    accentColor: "rgb(168,85,247)",
   },
   {
+    id: "text-to-video",
     icon: Clapperboard,
-    title: "導演 AI 雙引擎",
-    description: "事實研究 + CO-STAR 創意編排，自動生成結構化多媒體腳本",
+    title: "AI 影片創作",
+    description: "文字 → 影片，一鍵生成動態內容",
+    tag: "影片",
+    color: "rgba(59,130,246,0.15)",
+    borderColor: "rgba(59,130,246,0.25)",
+    accentColor: "rgb(59,130,246)",
   },
   {
+    id: "text-to-music",
+    icon: Sparkles,
+    title: "AI 音樂生成",
+    description: "描述風格即可生成原創音樂",
+    tag: "音樂",
+    color: "rgba(236,72,153,0.15)",
+    borderColor: "rgba(236,72,153,0.25)",
+    accentColor: "rgb(236,72,153)",
+  },
+  {
+    id: "director-ai",
     icon: Cpu,
-    title: "角色鍛造所",
-    description: "多角度資料集訓練，確保跨場景角色一致性，支援 LoRA 權重控制",
+    title: "導演 AI 編排",
+    description: "自動編排多媒體腳本，一鍵組合創意",
+    tag: "導演",
+    color: "rgba(34,197,94,0.15)",
+    borderColor: "rgba(34,197,94,0.25)",
+    accentColor: "rgb(34,197,94)",
   },
   {
-    icon: Package,
-    title: "數位資產庫",
-    description: "團隊共享數位資產，標籤管理，分享獎勵配額機制",
-  },
-  {
-    icon: Shield,
-    title: "安全可靠",
-    description: "RBAC 權限控制、內容安全預檢、S3 預簽名 URL 保護",
-  },
-  {
+    id: "voice-clone",
     icon: Users,
-    title: "共享空間",
-    description: "社群互動與種子庫，探索他人的創作靈感，分享你的作品獲得配額獎勵",
+    title: "語音克隆",
+    description: "上傳樣本即可克隆語音風格",
+    tag: "語音",
+    color: "rgba(249,115,22,0.15)",
+    borderColor: "rgba(249,115,22,0.25)",
+    accentColor: "rgb(249,115,22)",
+  },
+  {
+    id: "lora-training",
+    icon: Shield,
+    title: "角色訓練 LoRA",
+    description: "訓練專屬角色模型，保持風格一致性",
+    tag: "訓練",
+    color: "rgba(14,165,233,0.15)",
+    borderColor: "rgba(14,165,233,0.25)",
+    accentColor: "rgb(14,165,233)",
   },
 ];
 
@@ -442,7 +472,7 @@ export default function Home() {
         </motion.div>
       </motion.section>
 
-      {/* ── Features Grid (情報站 — visual focus handoff target) ── */}
+      {/* ── Video Demo Showcase (影片功能展示區域) ── */}
       <section className="py-14 sm:py-20 px-4 relative z-10">
         <div className="max-w-6xl mx-auto">
           <motion.div
@@ -453,41 +483,77 @@ export default function Home() {
             className="text-center mb-14"
           >
             <h2 className={`text-2xl sm:text-3xl font-bold transition-colors duration-700 ${s.textPrimary}`}>
-              專為創作者打造
+              功能展示
             </h2>
             <p className={`mt-3 text-sm max-w-lg mx-auto transition-colors duration-700 ${s.textMuted}`}>
-              從創意構思到成品輸出，完整覆蓋多媒體內容生產流程
+              體驗 AI Director 的核心創作能力，點擊探索每項功能
             </p>
           </motion.div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {FEATURES.map((feature, idx) => (
+            {VIDEO_DEMOS.map((demo, idx) => (
               <motion.div
-                key={feature.title}
+                key={demo.id}
                 initial={{ opacity: 0, y: 25 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-40px" }}
                 transition={{ duration: 0.5, delay: idx * 0.08 }}
               >
                 <div
-                  className="h-full rounded-2xl p-6 backdrop-blur-md transition-all duration-700 hover:scale-[1.02]"
+                  className="group h-full rounded-2xl overflow-hidden backdrop-blur-md transition-all duration-500 hover:scale-[1.02] cursor-pointer"
                   style={{
                     background: s.cardBg,
                     border: `1px solid ${s.cardBorder}`,
                   }}
+                  onClick={() => navigate(isAuthenticated ? "/studio" : "/")}
                 >
+                  {/* Video preview area with play overlay */}
                   <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center mb-4"
-                    style={{ background: s.featureBg }}
+                    className="relative aspect-video flex items-center justify-center overflow-hidden"
+                    style={{ background: demo.color }}
                   >
-                    <feature.icon className={`w-5 h-5 transition-colors duration-700 ${s.textSecondary}`} />
+                    {/* Animated gradient background */}
+                    <motion.div
+                      className="absolute inset-0"
+                      style={{
+                        background: `radial-gradient(circle at 30% 40%, ${demo.accentColor}22 0%, transparent 60%), radial-gradient(circle at 70% 60%, ${demo.accentColor}11 0%, transparent 50%)`,
+                      }}
+                      animate={{ opacity: [0.5, 1, 0.5] }}
+                      transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                    />
+                    {/* Center icon + play button */}
+                    <div className="relative z-10 flex flex-col items-center gap-3">
+                      <motion.div
+                        className="w-14 h-14 rounded-2xl flex items-center justify-center"
+                        style={{ background: `${demo.accentColor}30`, border: `1px solid ${demo.accentColor}40` }}
+                        whileHover={{ scale: 1.1 }}
+                      >
+                        <demo.icon className="w-7 h-7" style={{ color: demo.accentColor }} />
+                      </motion.div>
+                      <motion.div
+                        className="w-10 h-10 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                        style={{ background: `${demo.accentColor}20`, border: `1px solid ${demo.accentColor}30` }}
+                      >
+                        <Play className="w-4 h-4 ml-0.5" style={{ color: demo.accentColor }} />
+                      </motion.div>
+                    </div>
+                    {/* Tag badge */}
+                    <div
+                      className="absolute top-3 left-3 px-2.5 py-0.5 rounded-full text-[10px] font-medium backdrop-blur-sm"
+                      style={{ background: `${demo.accentColor}20`, color: demo.accentColor, border: `1px solid ${demo.accentColor}30` }}
+                    >
+                      {demo.tag}
+                    </div>
                   </div>
-                  <h3 className={`text-sm font-semibold mb-2 transition-colors duration-700 ${s.textPrimary}`}>
-                    {feature.title}
-                  </h3>
-                  <p className={`text-xs leading-relaxed transition-colors duration-700 ${s.textMuted}`}>
-                    {feature.description}
-                  </p>
+                  {/* Text content */}
+                  <div className="p-5">
+                    <h3 className={`text-sm font-semibold mb-1.5 transition-colors duration-700 ${s.textPrimary}`}>
+                      {demo.title}
+                    </h3>
+                    <p className={`text-xs leading-relaxed transition-colors duration-700 ${s.textMuted}`}>
+                      {demo.description}
+                    </p>
+                  </div>
                 </div>
               </motion.div>
             ))}

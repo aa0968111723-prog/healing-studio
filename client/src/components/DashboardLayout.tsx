@@ -28,7 +28,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { getLoginUrl, getDemoLoginUrl } from "@/const";
-import { useIsMobile } from "@/hooks/useMobile";
+import { useIsMobile, useViewMode } from "@/hooks/useMobile";
 import {
   Wand2,
   Clapperboard,
@@ -60,6 +60,8 @@ import {
   Wrench,
   ListChecks,
   Coins,
+  Monitor,
+  Smartphone,
 } from "lucide-react";
 import { BackgroundTasksProvider } from "@/contexts/BackgroundTasksContext";
 import BackgroundTasksDrawer from "./BackgroundTasksDrawer";
@@ -258,6 +260,7 @@ function DashboardLayoutContent({
     (item) => item.path === location
   );
   const isMobile = useIsMobile();
+  const { viewMode, setViewMode } = useViewMode();
 
   // TODO: 管理員權限暫時下放給所有登入使用者，之後要改回來
   const isAdmin = true;
@@ -444,6 +447,35 @@ function DashboardLayoutContent({
                 </div>
               </Link>
             )}
+            {/* Desktop/Mobile view toggle */}
+            {!isCollapsed && (
+              <div className="flex items-center justify-between px-1 py-1.5 mb-1 rounded-lg bg-muted/40">
+                <span className="text-[11px] text-muted-foreground ml-1">檢視模式</span>
+                <div className="flex gap-0.5">
+                  <button
+                    onClick={() => setViewMode("auto")}
+                    className={`h-7 px-2 rounded-md text-[11px] font-medium transition-colors ${viewMode === "auto" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                    title="自動"
+                  >
+                    自動
+                  </button>
+                  <button
+                    onClick={() => setViewMode("desktop")}
+                    className={`h-7 w-7 rounded-md flex items-center justify-center transition-colors ${viewMode === "desktop" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                    title="電腦版"
+                  >
+                    <Monitor className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setViewMode("mobile")}
+                    className={`h-7 w-7 rounded-md flex items-center justify-center transition-colors ${viewMode === "mobile" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                    title="行動版"
+                  >
+                    <Smartphone className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-3 rounded-lg px-1.5 py-1.5 hover:bg-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring min-h-[44px]">
@@ -509,6 +541,19 @@ function DashboardLayoutContent({
               </span>
             </div>
             <div className="flex items-center gap-2">
+              {/* View mode toggle: desktop/mobile */}
+              <button
+                onClick={() => setViewMode(viewMode === "desktop" ? "auto" : "desktop")}
+                className="h-9 w-9 rounded-lg flex items-center justify-center bg-muted/60 hover:bg-muted transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label={viewMode === "desktop" ? "切換行動版" : "切換電腦版"}
+                title={viewMode === "desktop" ? "切換回行動版" : "切換至電腦版"}
+              >
+                {viewMode === "desktop" ? (
+                  <Smartphone className="w-4 h-4 text-primary" />
+                ) : (
+                  <Monitor className="w-4 h-4 text-muted-foreground" />
+                )}
+              </button>
               {/* Quota badge */}
               <div className="flex items-center gap-1.5 bg-primary/10 rounded-lg px-2.5 py-1.5">
                 <Zap className="w-3.5 h-3.5 text-primary" />
