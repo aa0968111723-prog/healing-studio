@@ -288,11 +288,17 @@ function ModelAnalysisDialog({ modelId, open, onOpenChange }: {
 }
 
 export default function ModelsPage() {
-  const { personality } = useAIState();
+  const { aiState, setPageContext, personality } = useAIState();
   const [, navigate] = useLocation();
 
   // 全站新手引導
   usePageTour("models");
+
+  useEffect(() => {
+    setPageContext({ pageId: "models", pageLabel: "模型庫" });
+    return () => setPageContext(null);
+  }, [setPageContext]);
+
   const [tab, setTab] = useState("my");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [step, setStep] = useState<CharacterForgeStep>("dataset");

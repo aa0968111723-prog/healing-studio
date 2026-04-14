@@ -60,6 +60,8 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAIState } from "@/contexts/AIStateContext";
+import VisualSoul from "@/components/VisualSoul";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
@@ -709,6 +711,13 @@ const FAL_TASK_KEYS: FalTaskKey[] = [
 ];
 
 export default function AiBrainSettings() {
+  const { aiState, setPageContext, personality } = useAIState();
+
+  useEffect(() => {
+    setPageContext({ pageId: "brain-settings", pageLabel: "AI 大腦設定" });
+    return () => setPageContext(null);
+  }, [setPageContext]);
+
   // ── Tab State ─────────────────────────────────────────────────────────
   type TabId = "config" | "alerts" | "errors" | "proposals" | "research" | "accuracy" | "langsmith";
   const [activeTab, setActiveTab] = useState<TabId>("config");
