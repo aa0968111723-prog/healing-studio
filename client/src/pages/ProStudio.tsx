@@ -25,6 +25,7 @@ import {
   ChevronDown, ChevronUp, Info, Tag,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useRegisterBgTask } from "@/contexts/BackgroundTasksContext";
 
 // ─── 類型 ────────────────────────────────────────────────────────────────────
 
@@ -505,6 +506,7 @@ function ToolCard({
 // ─── 音樂生成 Tab ─────────────────────────────────────────────────────────────
 
 function MusicTab() {
+  const registerBgTask = useRegisterBgTask();
   const [prompt, setPrompt] = useState("");
   const [lyrics, setLyrics] = useState("");
   const [instrumental, setInstrumental] = useState(false);
@@ -514,6 +516,7 @@ function MusicTab() {
   const mutation = trpc.proStudio.textToMusic.useMutation({
     onSuccess: (data) => {
       setResult(data as AudioResult);
+      registerBgTask(data, "audio", "🎵 音樂生成");
       // 若已有 audio_url 則直接顯示；若只有 request_id 則啟動輪詢
       const immediate = (data as any)?.audio_url ?? (data as any)?.url;
       if (immediate) toast.success("🎵 音樂生成完成！");
@@ -628,6 +631,7 @@ function MusicTab() {
 // ─── 音效生成 Tab ─────────────────────────────────────────────────────────────
 
 function SoundEffectsTab() {
+  const registerBgTask = useRegisterBgTask();
   const [text, setText] = useState("");
   const [duration, setDuration] = useState<number>(5);
   const [useDuration, setUseDuration] = useState(false);
@@ -635,7 +639,7 @@ function SoundEffectsTab() {
   const [result, setResult] = useState<AudioResult | null>(null);
 
   const mutation = trpc.proStudio.soundEffects.useMutation({
-    onSuccess: (data) => { setResult(data as AudioResult); toast.success("🔊 音效生成完成！"); },
+    onSuccess: (data) => { setResult(data as AudioResult); registerBgTask(data, "audio", "🔊 音效生成"); toast.success("🔊 音效生成完成！"); },
     onError: (e) => toast.error(`生成失敗：${e.message}`),
   });
 
@@ -737,6 +741,7 @@ function SoundEffectsTab() {
 // ─── 語音合成 Tab ─────────────────────────────────────────────────────────────
 
 function TTSTab() {
+  const registerBgTask = useRegisterBgTask();
   const [engine, setEngine] = useState<"elevenlabs" | "qwen">("elevenlabs");
   const [text, setText] = useState("");
   const [voiceId, setVoiceId] = useState("");
@@ -746,12 +751,12 @@ function TTSTab() {
   const [result, setResult] = useState<AudioResult | null>(null);
 
   const elevenMutation = trpc.proStudio.elevenLabsTTS.useMutation({
-    onSuccess: (data) => { setResult(data as AudioResult); toast.success("🎤 語音合成完成！"); },
+    onSuccess: (data) => { setResult(data as AudioResult); registerBgTask(data, "voice", "🎤 ElevenLabs 語音"); toast.success("🎤 語音合成完成！"); },
     onError: (e) => toast.error(`合成失敗：${e.message}`),
   });
 
   const qwenMutation = trpc.proStudio.qwenTTS.useMutation({
-    onSuccess: (data) => { setResult(data as AudioResult); toast.success("🎤 語音合成完成！"); },
+    onSuccess: (data) => { setResult(data as AudioResult); registerBgTask(data, "voice", "🎤 Qwen 語音"); toast.success("🎤 語音合成完成！"); },
     onError: (e) => toast.error(`合成失敗：${e.message}`),
   });
 
@@ -962,6 +967,7 @@ function TTSTab() {
 // ─── 聲音克隆 Tab ─────────────────────────────────────────────────────────────
 
 function CloneTab() {
+  const registerBgTask = useRegisterBgTask();
   const [mode, setMode] = useState<"qwen" | "dia" | "design" | "kling">("qwen");
   const [text, setText] = useState("");
   const [refAudio, setRefAudio] = useState("");
@@ -974,21 +980,22 @@ function CloneTab() {
 
   // qwenCloneAndSpeak: clone + TTS in one step (audio_url + text → audio)
   const qwenClone = trpc.proStudio.qwenCloneAndSpeak.useMutation({
-    onSuccess: (data) => { setResult(data as AudioResult); toast.success("🎭 聲音克隆完成！"); },
+    onSuccess: (data) => { setResult(data as AudioResult); registerBgTask(data, "voice", "🎭 Qwen 聲音克隆"); toast.success("🎭 聲音克隆完成！"); },
     onError: (e) => toast.error(`克隆失敗：${e.message}`),
   });
   // diaTTSVoiceClone: only accepts { text } — no reference_audio_url
   const diaClone = trpc.proStudio.diaTTSVoiceClone.useMutation({
-    onSuccess: (data) => { setResult(data as AudioResult); toast.success("🎭 聲音克隆完成！"); },
+    onSuccess: (data) => { setResult(data as AudioResult); registerBgTask(data, "voice", "🎭 Dia 聲音克隆"); toast.success("🎭 聲音克隆完成！"); },
     onError: (e) => toast.error(`克隆失敗：${e.message}`),
   });
   const voiceDesign = trpc.proStudio.qwenVoiceDesign.useMutation({
-    onSuccess: (data) => { setResult(data as AudioResult); toast.success("🎨 語音設計完成！"); },
+    onSuccess: (data) => { setResult(data as AudioResult); registerBgTask(data, "voice", "🎨 語音設計"); toast.success("🎨 語音設計完成！"); },
     onError: (e) => toast.error(`設計失敗：${e.message}`),
   });
   const klingVoice = trpc.proStudio.klingCreateVoice.useMutation({
     onSuccess: (data) => {
       setKlingResult(data);
+      registerBgTask(data, "voice", "✅ Kling 語音建立");
       toast.success("✅ Kling 語音建立完成！已可用於 Kling 影片生成");
     },
     onError: (e) => toast.error(`Kling 建立失敗：${e.message}`),
@@ -1272,6 +1279,7 @@ function CloneTab() {
 // ─── 音訊處理 Tab ─────────────────────────────────────────────────────────────
 
 function ProcessTab() {
+  const registerBgTask = useRegisterBgTask();
   const [tool, setTool] = useState<"demucs" | "isolation" | "merge" | "changer">("demucs");
   const [audioUrl, setAudioUrl] = useState("");
   const [audioUrls, setAudioUrls] = useState(["", ""]);
@@ -1282,19 +1290,19 @@ function ProcessTab() {
   const [result, setResult] = useState<any>(null);
 
   const demucsMut = trpc.proStudio.demucs.useMutation({
-    onSuccess: (data) => { setResult(data); toast.success("🎸 音幹分離完成！"); },
+    onSuccess: (data) => { setResult(data); registerBgTask(data, "audio", "🎸 音幹分離"); toast.success("🎸 音幹分離完成！"); },
     onError: (e) => toast.error(`失敗：${e.message}`),
   });
   const isoMut = trpc.proStudio.audioIsolation.useMutation({
-    onSuccess: (data) => { setResult(data); toast.success("🔇 音訊隔離完成！"); },
+    onSuccess: (data) => { setResult(data); registerBgTask(data, "audio", "🔇 音訊隔離"); toast.success("🔇 音訊隔離完成！"); },
     onError: (e) => toast.error(`失敗：${e.message}`),
   });
   const mergeMut = trpc.proStudio.mergeAudios.useMutation({
-    onSuccess: (data) => { setResult(data); toast.success("🔗 音訊合併完成！"); },
+    onSuccess: (data) => { setResult(data); registerBgTask(data, "audio", "🔗 音訊合併"); toast.success("🔗 音訊合併完成！"); },
     onError: (e) => toast.error(`失敗：${e.message}`),
   });
   const changerMut = trpc.proStudio.voiceChanger.useMutation({
-    onSuccess: (data) => { setResult(data); toast.success("🔁 聲音變換完成！"); },
+    onSuccess: (data) => { setResult(data); registerBgTask(data, "voice", "🔁 聲音變換"); toast.success("🔁 聲音變換完成！"); },
     onError: (e) => toast.error(`失敗：${e.message}`),
   });
 
@@ -1498,12 +1506,13 @@ function ProcessTab() {
 // ─── 語音識別 Tab ─────────────────────────────────────────────────────────────
 
 function ASRTab() {
+  const registerBgTask = useRegisterBgTask();
   const [audioUrl, setAudioUrl] = useState("");
   const [acceleration, setAcceleration] = useState<"none" | "low" | "medium" | "high">("none");
   const [result, setResult] = useState<any>(null);
 
   const mutation = trpc.proStudio.speechToText.useMutation({
-    onSuccess: (data) => { setResult(data); toast.success("📝 識別完成！"); },
+    onSuccess: (data) => { setResult(data); registerBgTask(data, "audio", "📝 語音識別"); toast.success("📝 識別完成！"); },
     onError: (e) => toast.error(`失敗：${e.message}`),
   });
 
@@ -1581,6 +1590,7 @@ function ASRTab() {
 // ─── AI 形像影片 Tab ──────────────────────────────────────────────────────────
 
 function AvatarVideoTab() {
+  const registerBgTask = useRegisterBgTask();
   const [model, setModel] = useState<"wan" | "echo" | "stable" | "longcat" | "ltx" | "dubbing">("echo");
   const [imageUrl, setImageUrl] = useState("");
   const [audioUrl, setAudioUrl] = useState("");
@@ -1607,12 +1617,12 @@ function AvatarVideoTab() {
     dubbing: "fal-ai/elevenlabs/dubbing",
   };
 
-  const wanMut      = trpc.proStudio.speechToVideo.useMutation({ onSuccess: (d) => { setJobInfo(d); toast.success("🎬 任務已提交！"); }, onError: (e) => toast.error(e.message) });
-  const echoMut     = trpc.proStudio.echoMimic.useMutation({ onSuccess: (d) => { setJobInfo(d); toast.success("🎬 任務已提交！"); }, onError: (e) => toast.error(e.message) });
-  const stableMut   = trpc.proStudio.stableAvatar.useMutation({ onSuccess: (d) => { setJobInfo(d); toast.success("🎬 任務已提交！"); }, onError: (e) => toast.error(e.message) });
-  const longcatMut  = trpc.proStudio.longcatAvatar.useMutation({ onSuccess: (d) => { setJobInfo(d); toast.success("🎬 任務已提交！"); }, onError: (e) => toast.error(e.message) });
-  const ltxMut      = trpc.proStudio.ltxAudioToVideo.useMutation({ onSuccess: (d) => { setJobInfo(d); toast.success("🎬 任務已提交！"); }, onError: (e) => toast.error(e.message) });
-  const dubbingMut  = trpc.proStudio.dubbing.useMutation({ onSuccess: (d) => { setJobInfo(d); toast.success("🎬 配音任務已提交！"); }, onError: (e) => toast.error(e.message) });
+  const wanMut      = trpc.proStudio.speechToVideo.useMutation({ onSuccess: (d) => { setJobInfo(d); registerBgTask(d, "video", "🎬 Wan 說話人"); toast.success("🎬 任務已提交！"); }, onError: (e) => toast.error(e.message) });
+  const echoMut     = trpc.proStudio.echoMimic.useMutation({ onSuccess: (d) => { setJobInfo(d); registerBgTask(d, "video", "🎬 EchoMimic"); toast.success("🎬 任務已提交！"); }, onError: (e) => toast.error(e.message) });
+  const stableMut   = trpc.proStudio.stableAvatar.useMutation({ onSuccess: (d) => { setJobInfo(d); registerBgTask(d, "video", "🎬 Stable Avatar"); toast.success("🎬 任務已提交！"); }, onError: (e) => toast.error(e.message) });
+  const longcatMut  = trpc.proStudio.longcatAvatar.useMutation({ onSuccess: (d) => { setJobInfo(d); registerBgTask(d, "video", "🎬 LongCat Avatar"); toast.success("🎬 任務已提交！"); }, onError: (e) => toast.error(e.message) });
+  const ltxMut      = trpc.proStudio.ltxAudioToVideo.useMutation({ onSuccess: (d) => { setJobInfo(d); registerBgTask(d, "video", "🎬 LTX 音訊→影片"); toast.success("🎬 任務已提交！"); }, onError: (e) => toast.error(e.message) });
+  const dubbingMut  = trpc.proStudio.dubbing.useMutation({ onSuccess: (d) => { setJobInfo(d); registerBgTask(d, "video", "🎬 ElevenLabs 配音"); toast.success("🎬 配音任務已提交！"); }, onError: (e) => toast.error(e.message) });
 
   const statusQuery = trpc.proStudio.jobStatus.useQuery(
     { request_id: jobInfo?.request_id ?? "", model: jobInfo?.model ?? "" },

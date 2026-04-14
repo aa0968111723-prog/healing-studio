@@ -1,0 +1,186 @@
+/**
+ * BackgroundTasksDrawer — 全域背景任務面板
+ *
+ * 顯示所有進行中 + 近 24 小時已完成/失敗的背景任務。
+ * 固定在側邊欄底部，點擊 badge 展開/收起。
+ */
+
+import { useBackgroundTasks, type BackgroundTask, type StudioJobType } from "@/contexts/BackgroundTasksContext";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  Image, Film, Music, Mic, CheckCircle2, XCircle,
+  Loader2, ChevronUp, ChevronDown, ExternalLink, Clock,
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { useCallback } from "react";
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const STUDIO_ICON: Record<StudioJobType, React.ReactNode> = {
+  image: <Image className="w-4 h-4" />,
+  video: <Film className="w-4 h-4" />,
+  audio: <Music className="w-4 h-4" />,
+  voice: <Mic className="w-4 h-4" />,
+};
+
+const STUDIO_LABEL: Record<StudioJobType, string> = {
+  image: "圖片",
+  video: "影片",
+  audio: "音樂",
+  voice: "語音",
+};
+
+const STATUS_CONFIG: Record<string, { icon: React.ReactNode; className: string; label: string }> = {
+  queued:     { icon: <Clock className="w-3.5 h-3.5" />,                   className: "text-muted-foreground", label: "等待中" },
+  processing: { icon: <Loader2 className="w-3.5 h-3.5 animate-spin" />,   className: "text-primary",         label: "生成中" },
+  completed:  { icon: <CheckCircle2 className="w-3.5 h-3.5" />,           className: "text-green-500",       label: "已完成" },
+  failed:     { icon: <XCircle className="w-3.5 h-3.5" />,                className: "text-destructive",     label: "失敗" },
+  cancelled:  { icon: <XCircle className="w-3.5 h-3.5" />,                className: "text-muted-foreground", label: "已取消" },
+};
+
+function formatTime(iso?: string) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return d.toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" });
+}
+
+// ─── Task Row ─────────────────────────────────────────────────────────────────
+
+function TaskRow({ task }: { task: BackgroundTask }) {
+  const cfg = STATUS_CONFIG[task.status] ?? STATUS_CONFIG.processing;
+  const resultUrl = task.resultUrl;
+
+  const handleOpenResult = useCallback(() => {
+    if (resultUrl) {
+      window.open(resultUrl, "_blank", "noopener,noreferrer");
+    }
+  }, [resultUrl]);
+
+  return (
+    <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent/50 transition-colors">
+      {/* Icon */}
+      <div className={`flex-shrink-0 ${cfg.className}`}>
+        {STUDIO_ICON[task.studioType] ?? STUDIO_ICON.image}
+      </div>
+
+      {/* Info */}
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-medium truncate">
+          {task.label || `${STUDIO_LABEL[task.studioType] ?? task.studioType} 生成`}
+        </p>
+        <div className="flex items-center gap-1.5 mt-0.5">
+          <span className={`flex items-center gap-1 text-[10px] ${cfg.className}`}>
+            {cfg.icon}
+            {cfg.label}
+          </span>
+          {task.createdAt && (
+            <span className="text-[10px] text-muted-foreground">
+              {formatTime(task.createdAt)}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Result link */}
+      {task.status === "completed" && resultUrl && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 flex-shrink-0"
+          onClick={handleOpenResult}
+          title="查看結果"
+        >
+          <ExternalLink className="w-3.5 h-3.5" />
+        </Button>
+      )}
+
+      {/* Progress bar for processing */}
+      {task.status === "processing" && (
+        <div className="w-8 h-1 rounded-full bg-muted overflow-hidden flex-shrink-0">
+          <div className="h-full bg-primary rounded-full animate-pulse" style={{ width: "60%" }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
+export default function BackgroundTasksDrawer() {
+  const { tasks, activeCount, drawerOpen, setDrawerOpen } = useBackgroundTasks();
+
+  // 不顯示 badge 如果沒有任何任務
+  if (tasks.length === 0 && !drawerOpen) return null;
+
+  const activeTasks = tasks.filter((t) => t.status === "queued" || t.status === "processing");
+  const completedTasks = tasks.filter((t) => t.status === "completed" || t.status === "failed" || t.status === "cancelled");
+
+  return (
+    <div className="w-full">
+      {/* Toggle Button */}
+      <button
+        onClick={() => setDrawerOpen(!drawerOpen)}
+        className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg hover:bg-accent/50 transition-colors text-left"
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <Loader2 className={`w-4 h-4 flex-shrink-0 ${activeCount > 0 ? "animate-spin text-primary" : "text-muted-foreground"}`} />
+          <span className="text-sm font-medium truncate">背景任務</span>
+        </div>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {activeCount > 0 && (
+            <Badge variant="default" className="h-5 px-1.5 text-[10px] font-bold">
+              {activeCount}
+            </Badge>
+          )}
+          {drawerOpen ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" />}
+        </div>
+      </button>
+
+      {/* Drawer Content */}
+      <AnimatePresence>
+        {drawerOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+            className="overflow-hidden"
+          >
+            <div className="max-h-64 overflow-y-auto no-scrollbar py-1 space-y-0.5">
+              {/* Active Tasks */}
+              {activeTasks.length > 0 && (
+                <div>
+                  <p className="px-3 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    進行中 ({activeTasks.length})
+                  </p>
+                  {activeTasks.map((t) => (
+                    <TaskRow key={t.jobId} task={t} />
+                  ))}
+                </div>
+              )}
+
+              {/* Completed Tasks */}
+              {completedTasks.length > 0 && (
+                <div>
+                  <p className="px-3 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    最近完成 ({completedTasks.length})
+                  </p>
+                  {completedTasks.map((t) => (
+                    <TaskRow key={t.jobId} task={t} />
+                  ))}
+                </div>
+              )}
+
+              {tasks.length === 0 && (
+                <p className="px-3 py-4 text-center text-xs text-muted-foreground">
+                  目前沒有背景任務
+                </p>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}

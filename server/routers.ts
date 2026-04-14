@@ -1086,6 +1086,156 @@ export const appRouter = router({
     myJobs: protectedProcedure.query(async ({ ctx }) => {
       return db.getJobsByUser(ctx.user.id);
     }),
+
+    // ─── Background Studio Job Management ──────────────────────────────
+
+    /**
+     * submitStudioJob — 將專業工作室的非同步任務（Image / Video / Audio）
+     * 登錄到 background_jobs 表，使其可在任意頁面追蹤。
+     */
+    submitStudioJob: protectedProcedure
+      .input(z.object({
+        studioType: z.enum(["image", "video", "audio", "voice"]),
+        requestId: z.string().min(1),
+        modelId: z.string().min(1),
+        label: z.string().max(200).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const jobId = await db.createBackgroundJob({
+          userId: ctx.user.id,
+          jobType: input.studioType,
+          status: "processing",
+          progress: 0,
+          progressMessage: `${input.label ?? input.studioType} 生成中...`,
+          resultJson: {
+            requestId: input.requestId,
+            modelId: input.modelId,
+            studioType: input.studioType,
+            label: input.label,
+          },
+        });
+        return { jobId };
+      }),
+
+    /**
+     * checkStudioJob — 檢查已提交的工作室背景任務狀態。
+     * 如果任務仍在 processing，會即時向 fal.ai 查詢並更新 DB。
+     */
+    checkStudioJob: protectedProcedure
+      .input(z.object({ jobId: z.number() }))
+      .query(async ({ ctx, input }) => {
+        const job = await db.getBackgroundJob(input.jobId);
+        if (!job) return null;
+        // 權限檢查
+        if (job.userId !== ctx.user.id) return null;
+        // 已完成/失敗 → 直接回傳
+        if (job.status !== "processing") return job;
+
+        const meta = job.resultJson as Record<string, unknown> | null;
+        const requestId = meta?.requestId as string | undefined;
+        const modelId = meta?.modelId as string | undefined;
+        if (!requestId || !modelId) return job;
+
+        // 向 fal.ai queue 查詢狀態
+        const FAL_QUEUE_BASE = "https://queue.fal.run";
+        const falKey = process.env.FAL_API_KEY;
+        if (!falKey) return job;
+
+        try {
+          const statusRes = await fetch(
+            `${FAL_QUEUE_BASE}/${modelId}/requests/${requestId}/status`,
+            { headers: { Authorization: `Key ${falKey}` } },
+          );
+          if (!statusRes.ok) return job;
+          const statusData = (await statusRes.json()) as Record<string, unknown>;
+          const s = (statusData.status ?? statusData.state) as string | undefined;
+
+          if (s === "COMPLETED") {
+            const resultRes = await fetch(
+              `${FAL_QUEUE_BASE}/${modelId}/requests/${requestId}`,
+              { headers: { Authorization: `Key ${falKey}` } },
+            );
+            const resultData = resultRes.ok ? await resultRes.json() : null;
+
+            // 從結果中提取 URL（嘗試所有已知路徑）
+            const r = resultData as Record<string, unknown> | null;
+            const resultUrl =
+              (r?.images as any)?.[0]?.url ??
+              (r?.image as any)?.url ??
+              (r as any)?.image_url ??
+              (r?.video as any)?.url ??
+              (r as any)?.video_url ??
+              (r?.output as any)?.url ??
+              (r?.audio as any)?.url ??
+              (r as any)?.audio_url ??
+              (r?.videos as any)?.[0]?.url ??
+              (r?.model_glb as any)?.url ??
+              null;
+
+            await db.updateBackgroundJob(job.id, {
+              status: "completed",
+              progress: 100,
+              progressMessage: "生成完成",
+              resultJson: { ...meta, resultUrl, result: resultData },
+            });
+            return {
+              ...job,
+              status: "completed" as const,
+              progress: 100,
+              progressMessage: "生成完成",
+              resultJson: { ...meta, resultUrl, result: resultData },
+            };
+          }
+
+          if (s === "FAILED") {
+            const errMsg = String(statusData.error ?? statusData.message ?? "生成失敗");
+            await db.updateBackgroundJob(job.id, {
+              status: "failed",
+              errorMessage: errMsg,
+            });
+            return { ...job, status: "failed" as const, errorMessage: errMsg };
+          }
+        } catch {
+          // fal.ai 暫時不可用，保持 processing 狀態
+        }
+
+        return job;
+      }),
+
+    /**
+     * activeJobs — 回傳使用者所有進行中的背景任務 + 近 24 小時已完成的任務。
+     * 供全域 BackgroundTasksDrawer 使用。
+     */
+    activeJobs: protectedProcedure.query(async ({ ctx }) => {
+      const database = await getDb();
+      if (!database) return [];
+      const { backgroundJobs } = await import("../drizzle/schema");
+      const { eq, and, or, gte, desc } = await import("drizzle-orm");
+      const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      return database
+        .select()
+        .from(backgroundJobs)
+        .where(
+          and(
+            eq(backgroundJobs.userId, ctx.user.id),
+            or(
+              // 所有進行中的任務
+              eq(backgroundJobs.status, "queued"),
+              eq(backgroundJobs.status, "processing"),
+              // 近 24 小時已完成的任務
+              and(
+                or(
+                  eq(backgroundJobs.status, "completed"),
+                  eq(backgroundJobs.status, "failed"),
+                ),
+                gte(backgroundJobs.updatedAt, cutoff),
+              ),
+            ),
+          ),
+        )
+        .orderBy(desc(backgroundJobs.createdAt))
+        .limit(50);
+    }),
   }),
 
   // ─── Prompt Evaluation (LLM-as-a-Judge) ──────────────────────────────────

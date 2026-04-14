@@ -58,7 +58,10 @@ import {
   Boxes,
   FolderOpen,
   Wrench,
+  ListChecks,
 } from "lucide-react";
+import { BackgroundTasksProvider } from "@/contexts/BackgroundTasksContext";
+import BackgroundTasksDrawer from "./BackgroundTasksDrawer";
 import type { LucideIcon } from "lucide-react";
 import { useSiteOnboarding, type PageId } from "@/contexts/SiteOnboardingContext";
 import { CSSProperties, memo, useCallback, useEffect, useRef, useState } from "react";
@@ -124,6 +127,7 @@ const sidebarStructure: SidebarEntry[] = [
     icon: FolderOpen, label: "紀錄",
     children: [
       { icon: Clock, label: "生成歷史", path: "/history", id: "sidebar-history-link" },
+      { icon: ListChecks, label: "背景任務中心", path: "/background-tasks", id: "sidebar-background-tasks-link" },
       { icon: Package, label: "數位資產庫", path: "/assets", id: "sidebar-assets-link" },
       { icon: Users, label: "共享空間", path: "/shared", id: "sidebar-shared-link" },
     ],
@@ -223,9 +227,11 @@ export default function DashboardLayout({
       style={{ "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}
       className="h-svh overflow-hidden"
     >
-      <DashboardLayoutContent setSidebarWidth={setSidebarWidth}>
-        {children}
-      </DashboardLayoutContent>
+      <BackgroundTasksProvider>
+        <DashboardLayoutContent setSidebarWidth={setSidebarWidth}>
+          {children}
+        </DashboardLayoutContent>
+      </BackgroundTasksProvider>
     </SidebarProvider>
   );
 }
@@ -422,6 +428,8 @@ function DashboardLayoutContent({
           </SidebarContent>
 
           <SidebarFooter className="p-3">
+            {/* 背景任務面板 */}
+            {!isCollapsed && <BackgroundTasksDrawer />}
             {!isCollapsed && (
               <div className="glass-card-static quota-card-zen px-3 py-2.5 mb-2 text-center">
                 <p className="text-[11px] text-muted-foreground tracking-wide uppercase">剩餘配額</p>
@@ -556,6 +564,7 @@ function DashboardLayoutContent({
               "/learn":        "learn",
               "/focus-flow":   "focus-flow",
               "/langsmith":    "langsmith",
+              "/background-tasks": "background-tasks",
             };
             const pageId = pathToPageId[location] ?? "welcome";
             window.dispatchEvent(new CustomEvent("site-tour-start", { detail: { pageId } }));
