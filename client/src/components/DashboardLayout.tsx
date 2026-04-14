@@ -59,6 +59,8 @@ import {
   FolderOpen,
   Wrench,
 } from "lucide-react";
+import { BackgroundTasksProvider } from "@/contexts/BackgroundTasksContext";
+import BackgroundTasksDrawer from "./BackgroundTasksDrawer";
 import type { LucideIcon } from "lucide-react";
 import { useSiteOnboarding, type PageId } from "@/contexts/SiteOnboardingContext";
 import { CSSProperties, memo, useCallback, useEffect, useRef, useState } from "react";
@@ -223,9 +225,11 @@ export default function DashboardLayout({
       style={{ "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}
       className="h-svh overflow-hidden"
     >
-      <DashboardLayoutContent setSidebarWidth={setSidebarWidth}>
-        {children}
-      </DashboardLayoutContent>
+      <BackgroundTasksProvider>
+        <DashboardLayoutContent setSidebarWidth={setSidebarWidth}>
+          {children}
+        </DashboardLayoutContent>
+      </BackgroundTasksProvider>
     </SidebarProvider>
   );
 }
@@ -422,6 +426,8 @@ function DashboardLayoutContent({
           </SidebarContent>
 
           <SidebarFooter className="p-3">
+            {/* 背景任務面板 */}
+            {!isCollapsed && <BackgroundTasksDrawer />}
             {!isCollapsed && (
               <div className="glass-card-static quota-card-zen px-3 py-2.5 mb-2 text-center">
                 <p className="text-[11px] text-muted-foreground tracking-wide uppercase">剩餘配額</p>
