@@ -1120,6 +1120,7 @@ export const appRouter = router({
     /**
      * checkStudioJob — 檢查已提交的工作室背景任務狀態。
      * 如果任務仍在 processing，會即時向 fal.ai 查詢並更新 DB。
+     * ⚠️ 超過 10 分鐘仍未完成的任務會自動標記為失敗。
      */
     checkStudioJob: protectedProcedure
       .input(z.object({ jobId: z.number() }))
@@ -1130,6 +1131,18 @@ export const appRouter = router({
         if (job.userId !== ctx.user.id) return null;
         // 已完成/失敗 → 直接回傳
         if (job.status !== "processing") return job;
+
+        // ── 超時偵測：超過 10 分鐘未完成 → 自動標記失敗 ─────────
+        const STALE_JOB_TIMEOUT_MS = 10 * 60 * 1000; // 10 分鐘
+        const createdTime = job.createdAt ? new Date(job.createdAt).getTime() : 0;
+        if (createdTime > 0 && Date.now() - createdTime > STALE_JOB_TIMEOUT_MS) {
+          const timeoutMsg = "任務已超時（超過 10 分鐘），請嘗試更換模型或簡化描述後重試";
+          await db.updateBackgroundJob(job.id, {
+            status: "failed",
+            errorMessage: timeoutMsg,
+          });
+          return { ...job, status: "failed" as const, errorMessage: timeoutMsg };
+        }
 
         const meta = job.resultJson as Record<string, unknown> | null;
         const requestId = meta?.requestId as string | undefined;
