@@ -341,18 +341,18 @@ export default function Home() {
         )}
       </motion.div>
 
-      {/* ── Navigation ── */}
+      {/* ── Navigation — healing glass nav ── */}
       <motion.nav
-        className="fixed top-0 left-0 right-0 z-50 h-16 transition-colors duration-700"
+        className="fixed top-0 left-0 right-0 z-50 h-16 transition-all duration-700"
         style={{
           background: s.navBg,
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
+          backdropFilter: "blur(24px) saturate(180%)",
+          WebkitBackdropFilter: "blur(24px) saturate(180%)",
           borderBottom: `1px solid ${s.navBorder}`,
           paddingTop: "env(safe-area-inset-top, 0px)",
         }}
       >
-        <div className="max-w-6xl mx-auto px-4 h-full flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-full flex items-center justify-between">
           <div className="flex items-center gap-3">
             <VisualSoul size="sm" personality={personality} />
             <span className={`font-semibold tracking-tight transition-colors duration-700 ${s.textPrimary}`}>
@@ -373,7 +373,7 @@ export default function Home() {
             {isAuthenticated ? (
               <Button
                 onClick={() => navigate("/studio")}
-                className={`rounded-xl gap-1.5 text-sm h-10 px-4 sm:px-6 ${s.btnPrimary} ${s.btnPrimaryText}`}
+                className={`rounded-2xl gap-1.5 text-sm h-10 px-4 sm:px-6 btn-healing ${s.btnPrimary} ${s.btnPrimaryText}`}
               >
                 <span className="hidden sm:inline">進入工作室</span>
                 <span className="sm:hidden">工作室</span>
@@ -382,7 +382,7 @@ export default function Home() {
             ) : (
               <Button
                 onClick={() => { window.location.href = getLoginUrl(); }}
-                className={`rounded-xl text-sm h-10 px-4 sm:px-6 ${s.btnPrimary} ${s.btnPrimaryText}`}
+                className={`rounded-2xl text-sm h-10 px-4 sm:px-6 btn-healing ${s.btnPrimary} ${s.btnPrimaryText}`}
               >
                 登入
               </Button>
@@ -391,45 +391,45 @@ export default function Home() {
         </div>
       </motion.nav>
 
-      {/* ── Hero Section (Scrollytelling anchor) ── */}
+      {/* ── Hero Section (Scrollytelling anchor) — healing breathing space ── */}
       <motion.section
         ref={heroRef}
-        className="pt-24 sm:pt-32 pb-16 sm:pb-20 px-4 relative z-10 min-h-[85vh]"
+        className="pt-28 sm:pt-36 pb-20 sm:pb-28 px-4 sm:px-6 relative z-10 min-h-[88vh] flex items-center"
         style={{ y: heroY }}
       >
         <motion.div
-          className="max-w-4xl mx-auto text-center"
+          className="max-w-4xl mx-auto text-center w-full"
           style={{ opacity: heroContentOpacity }}
         >
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.8, ease: [0.25, 0.46, 0.45, 0.94] }}
           >
             {/* Scene Badge */}
-            <div className="flex justify-center mb-6">
+            <div className="flex justify-center mb-8">
               <SceneBadge sceneId={sceneId} isDark={isDark} />
             </div>
 
-            {/* Central Orb */}
-            <div className="flex justify-center mb-8">
-              <VisualSoul size="lg" personality={personality} className="!w-20 !h-20" />
+            {/* Central Orb — larger, more ethereal */}
+            <div className="flex justify-center mb-10">
+              <VisualSoul size="xl" personality={personality} />
             </div>
 
             {/* OARS Contextual Greeting — replaces static title */}
             <OarsGreeting
               sceneId={sceneId}
-              textPrimary={`transition-colors duration-700 ${s.textPrimary}`}
-              textMuted={`transition-colors duration-700 ${s.textMuted}`}
+              textPrimary={`transition-colors duration-700 heading-healing ${s.textPrimary}`}
+              textMuted={`transition-colors duration-700 body-healing ${s.textMuted}`}
             />
 
-            <div className="mt-10 flex items-center justify-center gap-4">
+            <div className="mt-12 flex items-center justify-center gap-4">
               {isAuthenticated ? (
                 <div className="flex flex-col sm:flex-row items-center gap-3">
                   <Button
                     size="lg"
                     onClick={() => navigate("/studio")}
-                    className={`rounded-xl h-12 px-6 sm:px-8 gap-2 text-sm shadow-lg hover:shadow-xl transition-all w-full sm:w-auto ${s.btnPrimary} ${s.btnPrimaryText}`}
+                    className={`rounded-2xl h-12 px-6 sm:px-8 gap-2 text-sm shadow-lg hover:shadow-xl btn-healing w-full sm:w-auto ${s.btnPrimary} ${s.btnPrimaryText}`}
                   >
                     <Sparkles className="w-4 h-4" />
                     開始創作
@@ -438,7 +438,7 @@ export default function Home() {
                     variant="outline"
                     size="lg"
                     onClick={() => navigate("/director")}
-                    className={`rounded-xl h-12 px-6 sm:px-8 gap-2 text-sm transition-all w-full sm:w-auto ${s.btnOutline} ${s.btnOutlineText}`}
+                    className={`rounded-2xl h-12 px-6 sm:px-8 gap-2 text-sm btn-healing w-full sm:w-auto ${s.btnOutline} ${s.btnOutlineText}`}
                   >
                     <Clapperboard className="w-4 h-4" />
                     導演 AI
@@ -449,7 +449,7 @@ export default function Home() {
                   <Button
                     size="lg"
                     onClick={() => { window.location.href = getLoginUrl(); }}
-                    className={`rounded-xl h-12 px-6 sm:px-10 gap-2 text-sm shadow-lg hover:shadow-xl transition-all ${s.btnPrimary} ${s.btnPrimaryText}`}
+                    className={`rounded-2xl h-12 px-6 sm:px-10 gap-2 text-sm shadow-lg hover:shadow-xl btn-healing ${s.btnPrimary} ${s.btnPrimaryText}`}
                   >
                     立即開始
                     <ArrowRight className="w-4 h-4" />
@@ -458,7 +458,7 @@ export default function Home() {
                     size="lg"
                     variant="outline"
                     onClick={() => { window.location.href = getDemoLoginUrl(); }}
-                    className={`rounded-xl h-12 px-6 sm:px-8 gap-2 text-sm border-dashed transition-all ${s.btnOutline} ${s.btnOutlineText}`}
+                    className={`rounded-2xl h-12 px-6 sm:px-8 gap-2 text-sm border-dashed btn-healing ${s.btnOutline} ${s.btnOutlineText}`}
                   >
                     ✨ 訪客體驗
                   </Button>
@@ -466,41 +466,43 @@ export default function Home() {
               )}
             </div>
 
-            {/* Scroll indicator — invites user to scroll down */}
+            {/* Scroll indicator — gentle invitation */}
             <ScrollIndicator isDark={isDark} />
           </motion.div>
         </motion.div>
       </motion.section>
 
-      {/* ── Video Demo Showcase (影片功能展示區域) ── */}
-      <section className="py-14 sm:py-20 px-4 relative z-10">
+      {/* ── Video Demo Showcase (影片功能展示區域) — healing card grid ── */}
+      <section className="section-healing px-4 sm:px-6 relative z-10">
         <div className="max-w-6xl mx-auto">
           <motion.div
-            initial={{ opacity: 0, y: 30 }}
+            initial={{ opacity: 0, y: 24 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-80px" }}
-            transition={{ duration: 0.6 }}
-            className="text-center mb-14"
+            transition={{ duration: 0.7, ease: [0.25, 0.46, 0.45, 0.94] }}
+            className="text-center mb-16"
           >
-            <h2 className={`text-2xl sm:text-3xl font-bold transition-colors duration-700 ${s.textPrimary}`}>
+            <h2 className={`text-2xl sm:text-3xl heading-healing transition-colors duration-700 ${s.textPrimary}`}>
               功能展示
             </h2>
-            <p className={`mt-3 text-sm max-w-lg mx-auto transition-colors duration-700 ${s.textMuted}`}>
-              體驗 AI Director 的核心創作能力，點擊探索每項功能
+            <p className={`mt-4 text-sm max-w-md mx-auto body-healing transition-colors duration-700 ${s.textMuted}`}>
+              體驗 AI Director 的核心創作能力
             </p>
+            {/* Healing divider */}
+            <div className="mx-auto mt-6 w-12 h-[2px] rounded-full" style={{ background: `linear-gradient(90deg, transparent, ${isDark ? "rgba(100,120,200,0.3)" : "rgba(212,197,226,0.5)"}, transparent)` }} />
           </motion.div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
             {VIDEO_DEMOS.map((demo, idx) => (
               <motion.div
                 key={demo.id}
-                initial={{ opacity: 0, y: 25 }}
+                initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: "-40px" }}
-                transition={{ duration: 0.5, delay: idx * 0.08 }}
+                transition={{ duration: 0.6, delay: idx * 0.1, ease: [0.25, 0.46, 0.45, 0.94] }}
               >
                 <div
-                  className="group h-full rounded-2xl overflow-hidden backdrop-blur-md transition-all duration-500 hover:scale-[1.02] cursor-pointer"
+                  className="group h-full rounded-2xl overflow-hidden backdrop-blur-md transition-all duration-500 hover:scale-[1.015] cursor-pointer hover-lift"
                   style={{
                     background: s.cardBg,
                     border: `1px solid ${s.cardBorder}`,
@@ -509,48 +511,49 @@ export default function Home() {
                 >
                   {/* Video preview area with play overlay */}
                   <div
-                    className="relative aspect-video flex items-center justify-center overflow-hidden"
+                    className="relative aspect-[16/10] flex items-center justify-center overflow-hidden"
                     style={{ background: demo.color }}
                   >
-                    {/* Animated gradient background */}
+                    {/* Animated gradient background — gentle breathing */}
                     <motion.div
                       className="absolute inset-0"
                       style={{
-                        background: `radial-gradient(circle at 30% 40%, ${demo.accentColor}22 0%, transparent 60%), radial-gradient(circle at 70% 60%, ${demo.accentColor}11 0%, transparent 50%)`,
+                        background: `radial-gradient(circle at 30% 40%, ${demo.accentColor}18 0%, transparent 60%), radial-gradient(circle at 70% 60%, ${demo.accentColor}0d 0%, transparent 50%)`,
                       }}
-                      animate={{ opacity: [0.5, 1, 0.5] }}
-                      transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                      animate={{ opacity: [0.5, 0.8, 0.5] }}
+                      transition={{ duration: 4, repeat: Infinity, ease: [0.37, 0, 0.63, 1] }}
                     />
                     {/* Center icon + play button */}
-                    <div className="relative z-10 flex flex-col items-center gap-3">
+                    <div className="relative z-10 flex flex-col items-center gap-4">
                       <motion.div
-                        className="w-14 h-14 rounded-2xl flex items-center justify-center"
-                        style={{ background: `${demo.accentColor}30`, border: `1px solid ${demo.accentColor}40` }}
-                        whileHover={{ scale: 1.1 }}
+                        className="w-16 h-16 rounded-2xl flex items-center justify-center"
+                        style={{ background: `${demo.accentColor}20`, border: `1px solid ${demo.accentColor}25`, backdropFilter: "blur(8px)" }}
+                        whileHover={{ scale: 1.08 }}
+                        transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
                       >
                         <demo.icon className="w-7 h-7" style={{ color: demo.accentColor }} />
                       </motion.div>
                       <motion.div
-                        className="w-10 h-10 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                        style={{ background: `${demo.accentColor}20`, border: `1px solid ${demo.accentColor}30` }}
+                        className="w-10 h-10 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-500"
+                        style={{ background: `${demo.accentColor}15`, border: `1px solid ${demo.accentColor}20`, backdropFilter: "blur(8px)" }}
                       >
                         <Play className="w-4 h-4 ml-0.5" style={{ color: demo.accentColor }} />
                       </motion.div>
                     </div>
                     {/* Tag badge */}
                     <div
-                      className="absolute top-3 left-3 px-2.5 py-0.5 rounded-full text-[10px] font-medium backdrop-blur-sm"
-                      style={{ background: `${demo.accentColor}20`, color: demo.accentColor, border: `1px solid ${demo.accentColor}30` }}
+                      className="absolute top-3.5 left-3.5 px-3 py-1 rounded-full text-[10px] font-medium tracking-wide"
+                      style={{ background: `${demo.accentColor}15`, color: demo.accentColor, border: `1px solid ${demo.accentColor}20`, backdropFilter: "blur(8px)" }}
                     >
                       {demo.tag}
                     </div>
                   </div>
-                  {/* Text content */}
-                  <div className="p-5">
-                    <h3 className={`text-sm font-semibold mb-1.5 transition-colors duration-700 ${s.textPrimary}`}>
+                  {/* Text content — healing spacing */}
+                  <div className="px-5 py-4 sm:px-6 sm:py-5">
+                    <h3 className={`text-sm font-semibold mb-2 transition-colors duration-700 ${s.textPrimary}`}>
                       {demo.title}
                     </h3>
-                    <p className={`text-xs leading-relaxed transition-colors duration-700 ${s.textMuted}`}>
+                    <p className={`text-xs leading-relaxed body-healing transition-colors duration-700 ${s.textMuted}`}>
                       {demo.description}
                     </p>
                   </div>
@@ -642,35 +645,37 @@ export default function Home() {
       />
       </Suspense>
 
-      {/* ── CTA Section ── */}
-      <section className="py-14 sm:py-20 px-4 relative z-10">
+      {/* ── CTA Section — healing invitation ── */}
+      <section className="section-healing px-4 sm:px-6 relative z-10">
         <div className="max-w-3xl mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-60px" }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.7, ease: [0.25, 0.46, 0.45, 0.94] }}
           >
             <div
-              className="text-center py-10 sm:py-14 px-6 sm:px-8 rounded-3xl backdrop-blur-md transition-all duration-700"
+              className="text-center py-12 sm:py-16 px-6 sm:px-10 rounded-3xl backdrop-blur-md transition-all duration-700"
               style={{
                 background: s.cardBg,
                 border: `1px solid ${s.cardBorder}`,
               }}
             >
-              <VisualSoul size="md" personality={personality} />
-              <h2 className={`text-2xl font-bold mt-6 transition-colors duration-700 ${s.textPrimary}`}>
+              <div className="flex justify-center">
+                <VisualSoul size="lg" personality={personality} />
+              </div>
+              <h2 className={`text-2xl heading-healing mt-8 transition-colors duration-700 ${s.textPrimary}`}>
                 準備好開始創作了嗎？
               </h2>
-              <p className={`mt-3 text-sm max-w-md mx-auto transition-colors duration-700 ${s.textMuted}`}>
+              <p className={`mt-4 text-sm max-w-md mx-auto body-healing transition-colors duration-700 ${s.textMuted}`}>
                 登入後即可使用所有功能，每位使用者享有初始免費配額
               </p>
-              <div className="mt-8">
+              <div className="mt-10">
                 {isAuthenticated ? (
                   <Button
                     size="lg"
                     onClick={() => navigate("/studio")}
-                    className={`rounded-xl h-12 px-10 gap-2 text-sm ${s.btnPrimary} ${s.btnPrimaryText}`}
+                    className={`rounded-2xl h-12 px-10 gap-2 text-sm btn-healing ${s.btnPrimary} ${s.btnPrimaryText}`}
                   >
                     進入工作室
                     <ArrowRight className="w-4 h-4" />
@@ -679,7 +684,7 @@ export default function Home() {
                   <Button
                     size="lg"
                     onClick={() => { window.location.href = getLoginUrl(); }}
-                    className={`rounded-xl h-12 px-10 gap-2 text-sm ${s.btnPrimary} ${s.btnPrimaryText}`}
+                    className={`rounded-2xl h-12 px-10 gap-2 text-sm btn-healing ${s.btnPrimary} ${s.btnPrimaryText}`}
                   >
                     免費開始
                     <ArrowRight className="w-4 h-4" />
@@ -699,18 +704,18 @@ export default function Home() {
         isInferring={isIntentInferring}
       />
 
-      {/* ── Footer ── */}
+      {/* ── Footer — healing minimal ── */}
       <footer
-        className="py-8 px-4 transition-colors duration-700 relative z-10 mt-auto"
+        className="py-10 px-4 sm:px-6 transition-colors duration-700 relative z-10 mt-auto"
         style={{ borderTop: `1px solid ${s.footerBorder}` }}
       >
         <div className="max-w-6xl mx-auto flex items-center justify-between text-xs">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <VisualSoul size="sm" personality={personality} />
-            <span className={`transition-colors duration-700 ${s.textMuted}`}>AI Director</span>
+            <span className={`transition-colors duration-700 tracking-wide ${s.textMuted}`}>AI Director</span>
           </div>
-          <span className={`transition-colors duration-700 ${s.textMuted}`}>
-            Intelligent Creation Platform
+          <span className={`transition-colors duration-700 tracking-wide ${s.textMuted}`}>
+            Healing Creative Platform
           </span>
         </div>
       </footer>

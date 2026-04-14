@@ -196,21 +196,21 @@ export default function DashboardLayout({
 
   if (!user) {
     return (
-      <div className="flex items-center justify-center min-h-screen" style={{ background: "linear-gradient(135deg, #F5F3F0 0%, #EAC9C1 30%, #D4C5E2 70%, #C8D5E0 100%)" }}>
-        <div className="glass-card p-10 max-w-md w-full mx-4 text-center">
-          <div className="flex justify-center mb-6">
-            <VisualSoul size="lg" state="idle" personality="creative" />
+      <div className="flex items-center justify-center min-h-screen healing-wash-bg" style={{ background: "linear-gradient(135deg, #F5F3F0 0%, #EAC9C1 25%, #D4C5E2 55%, #C4DFCF 80%, #C8D5E0 100%)" }}>
+        <div className="glass-card p-10 sm:p-12 max-w-md w-full mx-4 text-center">
+          <div className="flex justify-center mb-8">
+            <VisualSoul size="xl" state="idle" personality="creative" />
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground heading-healing">
             AI Director 創作平台
           </h1>
-          <p className="text-sm text-muted-foreground mt-3 max-w-sm mx-auto">
-            登入後即可使用 AI Director 智慧創作平台
+          <p className="text-sm text-muted-foreground mt-4 max-w-sm mx-auto body-healing leading-relaxed">
+            在這裡，讓 AI 陪伴你舒適地創作
           </p>
           <Button
             onClick={() => { window.location.href = getLoginUrl(); }}
             size="lg"
-            className="w-full mt-8 h-12 rounded-xl shadow-md hover:shadow-lg transition-all"
+            className="w-full mt-8 h-12 rounded-2xl shadow-md hover:shadow-lg btn-healing"
           >
             Google 登入
           </Button>
@@ -218,7 +218,7 @@ export default function DashboardLayout({
             onClick={() => { window.location.href = getDemoLoginUrl(); }}
             variant="outline"
             size="lg"
-            className="w-full mt-3 h-12 rounded-xl border-dashed border-muted-foreground/30 hover:bg-muted/40 transition-all"
+            className="w-full mt-3 h-12 rounded-2xl border-dashed border-muted-foreground/30 hover:bg-muted/40 btn-healing"
           >
             ✨ 訪客體驗（免登入）
           </Button>
@@ -588,7 +588,7 @@ function DashboardLayoutContent({
             </div>
           </div>
         )}
-        <main className="relative flex-1 overflow-y-auto p-4 sm:p-6 pb-safe-area-inset-bottom" style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}>{children}</main>
+        <main className="relative flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-safe-area-inset-bottom" data-scroll-area style={{ paddingBottom: "calc(2rem + env(safe-area-inset-bottom, 0px))" }}>{children}</main>
       </SidebarInset>
 
       {/* 全站光球常駐協助（Studio 頁面內已有自己的光球，不需要重複） */}
