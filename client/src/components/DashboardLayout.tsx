@@ -62,6 +62,7 @@ import {
   Coins,
   Monitor,
   Smartphone,
+  Brain,
 } from "lucide-react";
 import { BackgroundTasksProvider } from "@/contexts/BackgroundTasksContext";
 import BackgroundTasksDrawer from "./BackgroundTasksDrawer";
@@ -168,6 +169,7 @@ const flatMenuItems: SidebarLeafItem[] = sidebarStructure.flatMap((entry) =>
 
 const adminItems = [
   { icon: Shield, label: "管理後台", path: "/admin" },
+  { icon: Brain, label: "大腦組態", path: "/settings/ai-brain" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";

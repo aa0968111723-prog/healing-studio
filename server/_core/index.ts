@@ -16,6 +16,7 @@ import { initNewsFetcherCron, stopNewsFetcherCron } from "../jobs/newsFetcher";
 import { initModelTrainingWorkerCron, stopModelTrainingWorkerCron } from "../jobs/modelTrainingWorker";
 import { initLearnDocSyncerCron, stopLearnDocSyncerCron } from "../jobs/learnDocSyncer";
 import { initApiHealthMonitorCron, stopApiHealthMonitorCron } from "../jobs/apiHealthMonitor";
+import { initBraveLearnFetcherCron, stopBraveLearnFetcherCron } from "../jobs/braveLearnFetcher";
 import { detectStorageBackend } from "../storage";
 import { closeDb } from "../db";
 
@@ -216,6 +217,7 @@ async function startServer() {
     initModelTrainingWorkerCron();
     initLearnDocSyncerCron();
     initApiHealthMonitorCron();
+    initBraveLearnFetcherCron();
   });
 
   // ── Graceful Shutdown ────────────────────────────────────────────────────
@@ -225,6 +227,7 @@ async function startServer() {
     stopModelTrainingWorkerCron();
     stopLearnDocSyncerCron();
     stopApiHealthMonitorCron();
+    stopBraveLearnFetcherCron();
     server.close(async () => {
       await closeDb();
       console.log("[Server] All resources released. Exiting.");

@@ -187,7 +187,7 @@ export default function SettingsPage() {
       {/* AI Brain Configuration Link */}
       <GlassCard>
         <button
-          onClick={() => navigate("/settings/ai-brain")}
+          onClick={() => navigate("/admin")}
           className="w-full flex items-center justify-between p-1 rounded-lg hover:bg-white/30 transition-colors group"
         >
           <div className="flex items-center gap-3">
@@ -197,7 +197,7 @@ export default function SettingsPage() {
             <div className="text-left">
               <h3 className="text-sm font-semibold text-foreground">AI 大腦組態</h3>
               <p className="text-[10px] text-muted-foreground">
-                管理 5 種推理大腦與 4 種生成引擎的模型選擇與參數配置
+                管理 5 種推理大腦與 4 種生成引擎的模型選擇與參數配置（已移至管理後台）
               </p>
             </div>
           </div>
