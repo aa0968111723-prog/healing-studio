@@ -56,7 +56,8 @@ export type PageId =
   | "learn"
   | "focus-flow"
   | "langsmith"
-  | "background-tasks";
+  | "background-tasks"
+  | "credits";
 
 interface TourDefinition {
   pageId: PageId;
@@ -607,6 +608,22 @@ const TOUR_DEFINITIONS: Record<PageId, TourDefinition> = {
           "所有生成（圖片/影片/音樂/語音）與模型訓練任務都會在背景執行。即使切換頁面也不會中斷，完成後自動通知。",
         tip: "在任何工作室提交任務後，都可以在此追蹤進度與查看結果。",
         icon: "📋",
+        position: "center",
+      },
+    ],
+  },
+
+  credits: {
+    pageId: "credits",
+    storageKey: "site-tour-credits-v1",
+    steps: [
+      {
+        targetId: null,
+        title: "積分說明 🎯",
+        description:
+          "本平台使用「積分」計費，不需要信用卡或真實金錢。這裡可以查看各模型的費率、積分取得方式與退還機制。",
+        tip: "新帳號會自動獲得 50 積分，分享作品還能獲得額外獎勵！",
+        icon: "🪙",
         position: "center",
       },
     ],

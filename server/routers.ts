@@ -29,6 +29,7 @@ import {
   estimatePoints,
   getModelPricing,
   checkModelAvailability,
+  getAllPricingByCategory,
 } from "./services/modelPricing";
 import {
   dispatchImageGeneration,
@@ -210,6 +211,53 @@ export const appRouter = router({
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       return { success: true } as const;
+    }),
+  }),
+
+  // ─── Credits / Points Info ───────────────────────────────────────────────
+  credits: router({
+    /** 取得所有模型的定價分類表（公開，無需登入） */
+    pricingCatalog: publicProcedure.query(() => {
+      const byCategory = getAllPricingByCategory();
+      // Transform to serializable format
+      const result: Record<string, Array<{
+        modelId: string;
+        label: string;
+        provider: string;
+        tier: string;
+        basePoints: number;
+        unit: string;
+        minPoints: number;
+        maxPoints: number;
+        pointsPerSecond?: number;
+        pointsPer1kChars?: number;
+        pointsPerImage?: number;
+        pointsPerStep?: number;
+      }>> = {};
+      for (const [cat, models] of Object.entries(byCategory)) {
+        result[cat] = models.map(m => ({
+          modelId: m.modelId,
+          label: m.label,
+          provider: m.provider,
+          tier: m.tier,
+          basePoints: m.basePoints,
+          unit: m.unit,
+          minPoints: m.minPoints,
+          maxPoints: m.maxPoints,
+          pointsPerSecond: m.pointsPerSecond,
+          pointsPer1kChars: m.pointsPer1kChars,
+          pointsPerImage: m.pointsPerImage,
+          pointsPerStep: m.pointsPerStep,
+        }));
+      }
+      return result;
+    }),
+
+    /** 取得使用者目前積分餘額（需登入） */
+    myBalance: protectedProcedure.query(async ({ ctx }) => {
+      return {
+        remaining: ctx.user.remainingGenerations ?? 0,
+      };
     }),
   }),
 
@@ -1528,9 +1576,15 @@ export const appRouter = router({
           throw new TRPCError({ code: "NOT_FOUND", message: "資產不存在" });
         }
         await db.updateDigitalAsset(input.id, { visibility: input.visibility });
-        // Reward credits for sharing
-        if (input.visibility === "team_shared") {
-          await db.refundUserQuota(ctx.user.id, 2);
+        // Reward credits for sharing (only on first share — prevent toggle exploit)
+        // Skip in demo mode: demo users don't have real quota
+        if (!isDemoMode() && input.visibility === "team_shared" && asset.visibility !== "team_shared") {
+          const alreadyRewarded = (asset.rewardCredits ?? 0) > 0;
+          if (!alreadyRewarded) {
+            await db.refundUserQuota(ctx.user.id, 2);
+            await db.updateDigitalAsset(input.id, { rewardCredits: 2 });
+            console.log(`[Reward] User ${ctx.user.id} earned 2 pts for sharing asset ${input.id}`);
+          }
         }
         return { success: true };
       }),
@@ -1920,9 +1974,19 @@ export const appRouter = router({
           throw new TRPCError({ code: "NOT_FOUND", message: "模型不存在" });
         }
         await db.updateFineTunedModel(input.id, { visibility: input.visibility });
-        if (input.visibility === "team_shared") {
-          // Reward 3 quota for sharing a ready model
-          if (model.status === "ready") await db.refundUserQuota(ctx.user.id, 3);
+        // Reward 3 quota for sharing a ready model (only on first share — prevent toggle exploit)
+        // Skip in demo mode: demo users don't have real quota
+        // Track reward via configJson.shareRewarded to prevent double-granting
+        if (!isDemoMode() && input.visibility === "team_shared" && model.visibility !== "team_shared") {
+          const cfg = (model.configJson ?? {}) as Record<string, unknown>;
+          const alreadyRewarded = cfg.shareRewarded === true;
+          if (model.status === "ready" && !alreadyRewarded) {
+            await db.refundUserQuota(ctx.user.id, 3);
+            await db.updateFineTunedModel(input.id, {
+              configJson: { ...cfg, shareRewarded: true } as typeof model.configJson,
+            });
+            console.log(`[Reward] User ${ctx.user.id} earned 3 pts for sharing model ${input.id}`);
+          }
         }
         return { success: true };
       }),
