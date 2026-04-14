@@ -383,7 +383,7 @@ function ResultImage({ url, prompt, onDownload }: { url: string; prompt: string;
     <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }}
       className="rounded-2xl overflow-hidden border border-border/30 shadow-lg bg-background">
       <div className="relative group">
-        <img src={url} alt={prompt} className="w-full object-contain max-h-[600px]" loading="lazy" />
+        <img src={url} alt={prompt} className="w-full object-contain max-h-[400px] sm:max-h-[500px] lg:max-h-[600px]" loading="lazy" />
         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
           <Button size="sm" variant="secondary" className="gap-1.5" onClick={onDownload}>
             <Download className="w-3.5 h-3.5" /> 下載
@@ -462,7 +462,7 @@ function PoseResult({ poseUrl, prompt }: { poseUrl: string; prompt: string }) {
         <p className="text-xs font-medium text-lime-800">骨骼姿勢圖</p>
       </div>
       <div className="relative group">
-        <img src={poseUrl} alt="pose" className="w-full object-contain max-h-[500px]" loading="lazy" />
+        <img src={poseUrl} alt="pose" className="w-full object-contain max-h-[350px] sm:max-h-[400px] lg:max-h-[500px]" loading="lazy" />
         <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
           <Button size="sm" variant="secondary" className="gap-1.5" onClick={() => window.open(poseUrl, "_blank")}>
             <Eye className="w-3.5 h-3.5" /> 全尺寸
@@ -614,7 +614,7 @@ function PromptBuilder({ value, onChange, vibeIds, onVibeChange }: {
         </div>
         <Textarea value={value} onChange={e => onChange(e.target.value)}
           placeholder="描述你想生成的圖片（支援中英文）..."
-          className="resize-none h-24 text-sm" />
+          className="resize-none min-h-[5rem] sm:min-h-[6rem] text-sm" />
         <div className="flex items-center justify-between mt-1">
           <span className="text-[10px] text-muted-foreground/60">{value.length} 字元</span>
           <div className="flex gap-2">
@@ -1560,28 +1560,28 @@ export default function ImageStudio() {
   const gradientBtn = `bg-gradient-to-r ${tabColor(activeTab)} hover:opacity-90`;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-5 pb-10">
+    <div className="max-w-6xl mx-auto px-3 sm:px-4 space-y-5 sm:space-y-6 pb-10">
 
       {/* ── Header ── */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 shadow-lg shrink-0">
-            <Image className="w-6 h-6 text-white" />
+      <div className="flex items-start justify-between gap-3 sm:gap-4">
+        <div className="flex items-center gap-2.5 sm:gap-3">
+          <div className="p-2 sm:p-2.5 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 shadow-lg shrink-0">
+            <Image className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
           </div>
-          <div>
-            <h1 className="text-xl font-bold tracking-tight">圖片創作室</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              fal.ai 23 大模型 — 文字生圖・圖片編輯・影像放大・骨骼姿勢・Stable Diffusion・圖片轉3D
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-bold tracking-tight">圖片創作室</h1>
+            <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5 line-clamp-2 sm:line-clamp-none">
+              fal.ai 23 大模型 — 文字生圖・圖片編輯・影像放大・骨骼姿勢・SD・3D
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <button onClick={() => setViewMode(v => v === "single" ? "grid" : "single")}
-            className="p-2.5 rounded-xl border border-border/40 hover:bg-accent active:bg-accent/70 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center" title="切換檢視">
+            className="p-2 sm:p-2.5 rounded-xl border border-border/40 hover:bg-accent active:bg-accent/70 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center" title="切換檢視">
             {viewMode === "single" ? <Grid3x3 className="w-4 h-4" /> : <Image className="w-4 h-4" />}
           </button>
           <button onClick={() => setShowHistory(!showHistory)}
-            className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-xs font-medium transition-all min-h-[44px] ${
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-2.5 rounded-xl border text-xs font-medium transition-all min-h-[44px] ${
               showHistory ? "bg-primary text-primary-foreground border-primary" : "border-border/40 hover:bg-accent active:bg-accent/70 text-muted-foreground"
             }`}>
             <History className="w-3.5 h-3.5" /> <span className="hidden sm:inline">歷史 / 精選</span><span className="sm:hidden">歷史</span>
@@ -1592,7 +1592,7 @@ export default function ImageStudio() {
       <ApiKeyBanner />
 
       {/* ── Tab Bar ── */}
-      <div className="flex gap-1.5 overflow-x-auto pb-0.5 no-scrollbar -mx-1 px-1">
+      <div className="flex gap-1.5 overflow-x-auto pb-0.5 no-scrollbar scroll-fade-x -mx-1 px-1">
         {TABS.map(tab => {
           const Icon = tab.icon;
           const active = activeTab === tab.id;
@@ -1614,15 +1614,15 @@ export default function ImageStudio() {
       </div>
 
       {/* ── Main Layout ── */}
-      <div className="flex flex-col sm:flex-row gap-4">
+      <div className="flex flex-col sm:flex-row gap-4 sm:gap-5">
 
         {/* ── Left: Control Panel ── */}
-        <div className="flex-1 min-w-0 space-y-4">
+        <div className="flex-1 min-w-0 space-y-4 sm:space-y-5">
 
           {/* Model Selection */}
-          <div className="rounded-2xl border border-border/30 p-3 bg-background/60">
-            <p className="text-xs font-medium text-muted-foreground mb-2">選擇模型（{tabModels.length} 個）</p>
-            <div className={`grid gap-2 ${tabModels.length <= 2 ? "grid-cols-1 sm:grid-cols-2" : tabModels.length <= 4 ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3"}`}>
+          <div className="rounded-2xl border border-border/30 p-3 sm:p-4 bg-background/60">
+            <p className="text-xs font-medium text-muted-foreground mb-2 sm:mb-3">選擇模型（{tabModels.length} 個）</p>
+            <div className={`grid gap-2 sm:gap-2.5 ${tabModels.length <= 2 ? "grid-cols-1 sm:grid-cols-2" : tabModels.length <= 4 ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3"}`}>
               {tabModels.map(m => (
                 <button key={m.id} onClick={() => setSelectedModelId(m.id)}
                   className={`p-3 rounded-xl border text-left transition-all relative overflow-hidden ${
@@ -1703,7 +1703,7 @@ export default function ImageStudio() {
                   <div>
                     <Label className="text-xs text-muted-foreground mb-1 block">負向提示詞</Label>
                     <Textarea value={negPrompt} onChange={e => setNegPrompt(e.target.value)}
-                      placeholder="描述不想出現的元素" className="resize-none h-14 text-xs" />
+                      placeholder="描述不想出現的元素" className="resize-none min-h-[3.5rem] text-xs" />
                   </div>
                 )}
                 <div>
@@ -1884,7 +1884,7 @@ export default function ImageStudio() {
 
           {/* Generate Button */}
           <Button onClick={handleGenerate} disabled={isGenerating}
-            className={`w-full h-14 rounded-2xl text-base font-semibold gap-3 shadow-lg hover:shadow-xl transition-all text-white ${gradientBtn}`}>
+            className={`w-full h-12 sm:h-14 rounded-2xl text-sm sm:text-base font-semibold gap-2 sm:gap-3 shadow-lg hover:shadow-xl transition-all text-white ${gradientBtn}`}>
             {isGenerating
               ? <><Loader2 className="w-5 h-5 animate-spin" />{generateBtnLabel()}</>
               : <><Wand2 className="w-5 h-5" />{generateBtnLabel()}<span className="opacity-60 text-sm ml-1">({model.name})</span></>
@@ -1895,7 +1895,7 @@ export default function ImageStudio() {
           <AnimatePresence>
             {resultImages.length > 0 && (
               <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-                className={viewMode === "grid" && resultImages.length > 1 ? "grid grid-cols-2 gap-3" : "space-y-3"}>
+                className={viewMode === "grid" && resultImages.length > 1 ? "grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4" : "space-y-3 sm:space-y-4"}>
                 {resultImages.map((url, i) => (
                   <ResultImage key={i} url={url} prompt={prompt} onDownload={() => downloadImage(url)} />
                 ))}
@@ -1916,8 +1916,8 @@ export default function ImageStudio() {
             <motion.div
               initial={{ width: 0, opacity: 0 }} animate={{ width: "min(280px, 85vw)", opacity: 1 }} exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.25, ease: "easeInOut" }}
-              className="shrink-0 overflow-hidden rounded-2xl border border-border/30 bg-background/60 flex flex-col"
-              style={{ maxHeight: "calc(100vh - 200px)", position: "sticky", top: "1rem" }}>
+              className="shrink-0 overflow-hidden rounded-2xl border border-border/30 bg-background/60 flex flex-col sm:sticky sm:top-4"
+              style={{ maxHeight: "min(calc(100vh - 10rem), 700px)" }}>
               <div className="flex items-center justify-between px-3 py-2.5 border-b border-border/20">
                 <div className="flex items-center gap-2 text-sm font-medium">
                   <History className="w-4 h-4 text-primary" /> 歷史 / 精選

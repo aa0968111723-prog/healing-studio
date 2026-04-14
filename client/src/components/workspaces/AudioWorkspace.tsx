@@ -48,10 +48,7 @@ export function AudioWorkspace({ value, onChange }: AudioWorkspaceProps) {
   return (
     <div className="space-y-5">
       {/* Instrumental vs Vocal Toggle */}
-      <div className="flex items-center justify-between p-3 rounded-xl" style={{
-        background: "rgba(255,255,255,0.35)",
-        border: "1px solid rgba(255,255,255,0.5)",
-      }}>
+      <div className="flex items-center justify-between p-3 rounded-xl bg-white/35 border border-white/50">
         <div className="flex items-center gap-3">
           <div className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
             value.isInstrumental ? "bg-primary/10" : "bg-violet-500/10"
@@ -97,7 +94,7 @@ export function AudioWorkspace({ value, onChange }: AudioWorkspaceProps) {
       {/* Music Style */}
       <div className="space-y-2">
         <Label className="text-xs font-medium text-muted-foreground">音樂風格</Label>
-        <div className="grid grid-cols-5 gap-1.5">
+        <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
           {MUSIC_STYLES.map((style) => (
             <button
               key={style.value}

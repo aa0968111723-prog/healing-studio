@@ -54,7 +54,7 @@ type TabId = typeof TABS[number]["id"];
 
 function VideoPlayer({ url, label }: { url: string; label?: string }) {
   return (
-    <div className="mt-4 p-4 rounded-2xl bg-gradient-to-br from-blue-500/8 to-purple-500/5 border border-blue-200/40">
+    <div className="mt-4 p-3 sm:p-4 rounded-2xl bg-gradient-to-br from-blue-500/8 to-purple-500/5 border border-blue-200/40">
       {label && (
         <p className="text-xs text-muted-foreground mb-2 font-medium flex items-center gap-1.5">
           <Film className="w-3 h-3" />
@@ -63,7 +63,7 @@ function VideoPlayer({ url, label }: { url: string; label?: string }) {
       )}
       <video
         controls
-        className="w-full rounded-xl max-h-80 bg-black/5"
+        className="w-full rounded-xl max-h-64 sm:max-h-80 lg:max-h-96 bg-black/5"
         src={url}
         preload="metadata"
       >
@@ -269,11 +269,11 @@ function ToolCard({
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`rounded-2xl p-5 bg-gradient-to-br ${c.bg} border backdrop-blur-sm`}
+      className={`rounded-2xl p-4 sm:p-5 bg-gradient-to-br ${c.bg} border backdrop-blur-sm`}
     >
-      <div className="flex items-start gap-3 mb-4">
-        <div className={`p-2 rounded-xl bg-white/60 shadow-sm ${c.icon} shrink-0`}>
-          <Icon className="w-5 h-5" />
+      <div className="flex items-start gap-2.5 sm:gap-3 mb-3 sm:mb-4">
+        <div className={`p-1.5 sm:p-2 rounded-xl bg-white/60 shadow-sm ${c.icon} shrink-0`}>
+          <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -1438,16 +1438,16 @@ export default function VideoStudio() {
   return (
     <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-5 sm:space-y-6">
       {/* 頁面標題 */}
-      <div className="flex items-start gap-4">
-        <div className="p-3 rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-500/10 border border-blue-200/40">
-          <Film className="w-7 h-7 text-blue-600" />
+      <div className="flex items-start gap-3 sm:gap-4">
+        <div className="p-2.5 sm:p-3 rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-500/10 border border-blue-200/40 shrink-0">
+          <Film className="w-6 h-6 sm:w-7 sm:h-7 text-blue-600" />
         </div>
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">影片專業工作室</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground">影片專業工作室</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
             整合 FAL.AI 頂尖影片生成模型，共 {Object.values(MODEL_COUNT).reduce((a, b) => a + b, 0)} 個模型
           </p>
-          <div className="flex flex-wrap gap-1.5 mt-2">
+          <div className="flex flex-wrap gap-1 sm:gap-1.5 mt-2">
             {(["Kling 2.1", "Wan 2.1", "Veo 3", "Sora", "Runway Gen4", "PixVerse 4.5", "MiniMax", "LTX 13B", "Topaz", "RIFE", "CamMaster", "Vidu Q1"] as string[]).map(tag => (
               <Badge key={tag} variant="outline" className="text-[10px] sm:text-[10px]">{tag}</Badge>
             ))}
@@ -1470,7 +1470,7 @@ export default function VideoStudio() {
       )}
 
       {/* 標籤列 */}
-      <div className="flex overflow-x-auto gap-1.5 pb-1 -mx-1 px-1 no-scrollbar">
+      <div className="flex overflow-x-auto gap-1.5 pb-1 -mx-1 px-1 no-scrollbar scroll-fade-x">
         {TABS.map(tab => {
           const Icon = tab.icon;
           const count = MODEL_COUNT[tab.id];
@@ -1520,7 +1520,7 @@ export default function VideoStudio() {
       </AnimatePresence>
 
       {/* 頁腳說明 */}
-      <div className="mt-8 p-4 rounded-2xl bg-muted/40 text-xs text-muted-foreground space-y-1">
+      <div className="mt-6 sm:mt-8 p-3 sm:p-4 rounded-2xl bg-muted/40 text-xs text-muted-foreground space-y-1">
         <p className="font-medium text-foreground text-sm">📋 使用說明</p>
         <p>• 所有影片生成任務均為非同步處理，通常需要 1-10 分鐘，請耐心等待。</p>
         <p>• 提詞（Prompt）建議使用英文以獲得最佳效果，Kling 模型對中文有優化。</p>
