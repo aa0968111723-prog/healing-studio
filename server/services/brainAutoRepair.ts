@@ -118,7 +118,7 @@ const MAX_RESEARCH = 200;
 const MAX_TESTS = 200;
 
 function genId(prefix: string): string {
-  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  return `${prefix}_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -633,6 +633,9 @@ export async function runAccuracyTest(
           candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
         };
         actualResult = data.candidates?.[0]?.content?.parts?.[0]?.text ?? "[無回應內容]";
+        if (actualResult === "[無回應內容]") {
+          console.warn(`[BrainAutoRepair] 精準度測試: ${engine} 回傳非預期結構`, JSON.stringify(data).slice(0, 500));
+        }
 
         // 評分邏輯
         switch (testType) {

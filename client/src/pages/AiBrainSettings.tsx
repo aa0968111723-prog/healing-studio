@@ -963,7 +963,7 @@ export default function AiBrainSettings() {
           >
             <tab.icon className="w-3.5 h-3.5" />
             {tab.label}
-            {tab.badge != null && Number(tab.badge) > 0 && (
+            {tab.badge != null && (typeof tab.badge === "string" || Number(tab.badge) > 0) && (
               <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 min-w-[18px]">
                 {tab.badge}
               </Badge>
