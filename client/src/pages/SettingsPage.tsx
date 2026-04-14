@@ -14,7 +14,6 @@ import {
   Clapperboard, Eye, Bell, Palette, BarChart3, Coins, Activity,
   Monitor, Coffee, Waves, ExternalLink, Sparkles,
 } from "lucide-react";
-import { useAIState } from "@/contexts/AIStateContext";
 import { useTheme, type AppearanceMode } from "@/contexts/ThemeContext";
 import { useCurrentScene } from "@/components/AmbientEnvironment";
 import type { SceneId } from "@/components/AmbientEnvironment";
@@ -135,9 +134,8 @@ const WALLPAPER_RESOURCES = [
 export default function SettingsPage() {
   const { user } = useAuth();
   usePageTour("settings");
-  const { personality } = useAIState();
-  const { theme, appearanceMode, setAppearanceMode, toggleTheme, switchable } = useTheme();
-  const { sceneId, override: sceneOverride, setOverride: setSceneOverride, isDark: sceneDark } = useCurrentScene();
+  const { theme, appearanceMode, setAppearanceMode } = useTheme();
+  const { sceneId, override: sceneOverride, setOverride: setSceneOverride } = useCurrentScene();
   const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState("profile");
 

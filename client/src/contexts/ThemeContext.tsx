@@ -42,7 +42,7 @@ function isSceneDark(): boolean {
   } catch { /* ignore */ }
   // Fallback: check time of day (same logic as AmbientEnvironment)
   const h = new Date().getHours();
-  return h >= 22 || h < 5 || (h >= 17 && h < 22);
+  return h >= 17 || h < 5;
 }
 
 /** Determine resolved theme from mode */
