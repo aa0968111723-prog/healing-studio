@@ -95,16 +95,16 @@ export default function AdminPage() {
     },
   });
 
-  // TODO: 管理員權限暫時下放給所有登入使用者，之後要改回來
-  // if (user?.role !== "admin") {
-  //   return (
-  //     <div className="flex flex-col items-center justify-center py-20 text-center">
-  //       <VisualSoul size="lg" personality={personality} />
-  //       <h3 className="text-base font-medium mt-6">權限不足</h3>
-  //       <p className="text-sm text-muted-foreground mt-2">此頁面僅限管理員存取</p>
-  //     </div>
-  //   );
-  // }
+  // 僅限管理員存取此頁面
+  if (user?.role !== "admin") {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <VisualSoul size="lg" personality={personality} />
+        <h3 className="text-base font-medium mt-6">權限不足</h3>
+        <p className="text-sm text-muted-foreground mt-2">此頁面僅限管理員存取</p>
+      </div>
+    );
+  }
 
   const stats = statsQuery.data;
 

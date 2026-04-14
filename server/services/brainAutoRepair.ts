@@ -18,6 +18,7 @@ import {
   BrainAuditLogger,
 } from "../middleware/brainContext";
 import { addLearnDoc, hasLearnDoc } from "../routers/learnHub";
+import { ENV } from "../_core/env";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
@@ -584,7 +585,7 @@ const KNOWN_ERROR_PATTERNS: KnownErrorPattern[] = [
     ],
     rootCause: "網路連線問題。可能原因：一次開啟太多連線導致資源耗盡、目標伺服器暫時不可用、DNS 解析失敗、或防火牆阻擋。",
     steps: [
-      { step: 1, title: "確認網路狀態", description: "檢查伺服器的網路連線是否正常。可嘗試 ping 目標 API 伺服器。", action: "check", command: "ping api.duckduckgo.com\nping generativelanguage.googleapis.com\nping queue.fal.run" },
+      { step: 1, title: "確認網路狀態", description: "檢查伺服器的網路連線是否正常。可嘗試 ping 目標 API 伺服器。", action: "check", command: "ping api.search.brave.com\nping generativelanguage.googleapis.com\nping queue.fal.run" },
       { step: 2, title: "減少同時連線數", description: "若錯誤是「too many connections」，需減少同時進行的任務。在大腦組態中降低巡檢頻率，或限制同時進行的生成任務數。", action: "fix" },
       { step: 3, title: "檢查 DNS 設定", description: "若錯誤包含 ENOTFOUND，代表 DNS 解析失敗。檢查伺服器的 DNS 設定，或嘗試使用 Google DNS (8.8.8.8) 或 Cloudflare DNS (1.1.1.1)。", action: "fix", command: "echo 'nameserver 8.8.8.8' | sudo tee /etc/resolv.conf" },
       { step: 4, title: "等待並重試", description: "如果是暫時性的網路問題，系統會自動重試。通常等待幾分鐘後即可恢復。", action: "fallback" },
@@ -948,69 +949,62 @@ export function rejectProposal(proposalId: string, adminUserId: number, note?: s
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * 使用公開搜尋 API 爬網搜尋。
- * 策略：嘗試 DuckDuckGo Instant Answer API（免費，不需 API Key）。
- * 若失敗，使用 Gemini LLM 生成摘要作為備援。
+ * 使用 Brave Search API 搜尋網路。
+ * 若 Brave Search API Key 未設定，退回 GitHub 搜尋作為備援。
  */
 export async function webSearch(query: string, maxResults = 5): Promise<WebResearchResult[]> {
   const results: WebResearchResult[] = [];
 
-  try {
-    // DuckDuckGo Instant Answer API (zero-click)
-    const encoded = encodeURIComponent(query);
-    const ddgUrl = `https://api.duckduckgo.com/?q=${encoded}&format=json&no_html=1&skip_disambig=1`;
-    const res = await fetch(ddgUrl, { signal: AbortSignal.timeout(10_000) });
+  // ── 嘗試 Brave Search API ──────────────────────────────────
+  const braveApiKey = ENV.braveSearchApiKey;
+  if (braveApiKey) {
+    try {
+      const encoded = encodeURIComponent(query);
+      const braveUrl = `https://api.search.brave.com/res/v1/web/search?q=${encoded}&count=${maxResults}`;
+      const res = await fetch(braveUrl, {
+        headers: {
+          Accept: "application/json",
+          "Accept-Encoding": "gzip",
+          "X-Subscription-Token": braveApiKey,
+        },
+        signal: AbortSignal.timeout(10_000),
+      });
 
-    if (res.ok) {
-      const data = await res.json() as {
-        Abstract?: string;
-        AbstractSource?: string;
-        AbstractURL?: string;
-        AbstractText?: string;
-        RelatedTopics?: Array<{ Text?: string; FirstURL?: string }>;
-      };
-
-      // Main abstract
-      if (data.Abstract && data.AbstractURL) {
-        const item: WebResearchResult = {
-          id: genId("web"),
-          query,
-          source: data.AbstractSource ?? "DuckDuckGo",
-          title: data.Abstract.slice(0, 100),
-          summary: data.AbstractText ?? data.Abstract,
-          url: data.AbstractURL,
-          relevance: 85,
-          addedToLearnHub: false,
-          createdAt: Date.now(),
+      if (res.ok) {
+        const data = await res.json() as {
+          web?: {
+            results?: Array<{
+              title?: string;
+              description?: string;
+              url?: string;
+            }>;
+          };
         };
-        results.push(item);
-      }
 
-      // Related topics
-      if (data.RelatedTopics) {
-        for (const topic of data.RelatedTopics.slice(0, maxResults - results.length)) {
-          if (topic.Text && topic.FirstURL) {
-            const item: WebResearchResult = {
-              id: genId("web"),
-              query,
-              source: "DuckDuckGo",
-              title: topic.Text.slice(0, 100),
-              summary: topic.Text,
-              url: topic.FirstURL,
-              relevance: 60,
-              addedToLearnHub: false,
-              createdAt: Date.now(),
-            };
-            results.push(item);
+        if (data.web?.results) {
+          for (const item of data.web.results.slice(0, maxResults)) {
+            if (item.title && item.url) {
+              results.push({
+                id: genId("web"),
+                query,
+                source: "Brave Search",
+                title: item.title.slice(0, 100),
+                summary: item.description ?? item.title,
+                url: item.url,
+                relevance: 80,
+                addedToLearnHub: false,
+                createdAt: Date.now(),
+              });
+            }
           }
         }
       }
+    } catch (err) {
+      console.warn("[WebResearch] Brave Search 搜尋失敗:", err);
     }
-  } catch (err) {
-    console.warn("[WebResearch] DuckDuckGo 搜尋失敗:", err);
   }
 
-  // 若 DuckDuckGo 沒有結果，嘗試 GitHub 公開搜尋 API
+  // 若 Brave Search 沒有結果，嘗試 GitHub 公開搜尋 API
   if (results.length === 0) {
     try {
       const ghQuery = encodeURIComponent(query);

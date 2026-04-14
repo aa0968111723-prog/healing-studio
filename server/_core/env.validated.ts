@@ -106,6 +106,9 @@ const multimodalSchema = z.object({
   LANGCHAIN_TRACING_V2:   z.string().optional().default("false"),
   LANGCHAIN_ENDPOINT:     z.string().optional().default("https://api.smith.langchain.com"),
 
+  // ── Brave Search API ──────────────────────────────────────
+  BRAVE_SEARCH_API_KEY:   z.string().min(1).optional().default(""),
+
   // ── 姿勢估測 ─────────────────────────────────────────────
   OPENPOSE_API_KEY: z.string().min(1).optional().default(""),
 });
@@ -150,6 +153,7 @@ function validateAndWarn(): ServerEnvResult {
     ["NEWS_API_KEY",        env.NEWS_API_KEY,        "NewsAPI（新聞）",      "前往 https://newsapi.org/account 取得。"],
     ["NEWSDATA_API_KEY",    env.NEWSDATA_API_KEY,    "NewsData.io（新聞）",  "前往 https://newsdata.io 取得。"],
     ["LANGSMITH_API_KEY",   env.LANGSMITH_API_KEY,   "LangSmith（監控）",    "前往 https://smith.langchain.com 取得。"],
+    ["BRAVE_SEARCH_API_KEY", env.BRAVE_SEARCH_API_KEY, "Brave Search（網路搜尋）", "前往 https://brave.com/search/api/ 取得。"],
     ["GCS_BUCKET_NAME",     env.GCS_BUCKET_NAME,     "GCS 儲存（媒體檔案）", "在 Google Cloud Console 建立 Storage Bucket。"],
   ];
 
