@@ -23,6 +23,16 @@ export type DirectorEngineMetrics = {
   lastActivity: number;      // timestamp of last user activity
 };
 
+// ─── Page Context for site-wide AI agent awareness ─────────────────────────
+
+export type PageContext = {
+  pageId: string;            // e.g. "image-studio", "video-studio", "pro-studio"
+  pageLabel: string;         // e.g. "圖片創作室"
+  activeModel?: string;      // currently selected model name
+  activeTab?: string;        // current sub-tab within the page
+  generationCount?: number;  // number of generations this session
+};
+
 type AIStateContextType = {
   aiState: AIState;
   setAIState: (state: AIState) => void;
@@ -40,6 +50,9 @@ type AIStateContextType = {
   // Proactive intervention
   proactiveMessage: string | null;
   dismissProactive: () => void;
+  // Page-aware context for site-wide AI agent
+  pageContext: PageContext | null;
+  setPageContext: (ctx: PageContext | null) => void;
 };
 
 const AIStateContext = createContext<AIStateContextType>({
@@ -56,6 +69,8 @@ const AIStateContext = createContext<AIStateContextType>({
   resetIdle: () => {},
   proactiveMessage: null,
   dismissProactive: () => {},
+  pageContext: null,
+  setPageContext: () => {},
 });
 
 // ─── Proactive Intervention Rules ──────────────────────────────────────────
@@ -110,6 +125,7 @@ export function AIStateProvider({ children }: { children: ReactNode }) {
   // Read from localStorage on mount so personality survives page refreshes
   const [personality, setPersonalityState] = useState<Personality>(readPersistedPersonality);
   const [proactiveMessage, setProactiveMessage] = useState<string | null>(null);
+  const [pageContext, setPageContext] = useState<PageContext | null>(null);
   const [metrics, setMetrics] = useState<DirectorEngineMetrics>({
     typingSpeed: 0,
     idleSeconds: 0,
@@ -235,6 +251,8 @@ export function AIStateProvider({ children }: { children: ReactNode }) {
         resetIdle,
         proactiveMessage,
         dismissProactive,
+        pageContext,
+        setPageContext,
       }}
     >
       {children}

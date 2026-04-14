@@ -9,6 +9,8 @@
 import { useState, useCallback, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
+import { useAIState } from "@/contexts/AIStateContext";
+import VisualSoul from "@/components/VisualSoul";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -1169,6 +1171,9 @@ export default function ImageStudio() {
   usePageTour("image-studio");
   const registerBgTask = useRegisterBgTask();
 
+  // ── AI Agent Integration ──
+  const { aiState, setAIState, reportSuccess, reportFailure, setPageContext, personality } = useAIState();
+
   // ── Tab / Model ──
   const [activeTab, setActiveTab] = useState<StudioTab>("t2i");
   const [selectedModelId, setSelectedModelId] = useState("nanoBanana2");
@@ -1242,6 +1247,12 @@ export default function ImageStudio() {
 
   const model = MODELS.find(m => m.id === selectedModelId) ?? MODELS[0];
   const tabModels = MODELS.filter(m => m.category === activeTab);
+
+  // ── AI Agent: broadcast page context so the orb knows where user is ──
+  useEffect(() => {
+    setPageContext({ pageId: "image-studio", pageLabel: "圖片創作室", activeModel: model.name, activeTab });
+    return () => setPageContext(null);
+  }, [model.name, activeTab, setPageContext]);
 
   // Auto-select first model when switching tabs
   useEffect(() => {
@@ -1338,6 +1349,7 @@ export default function ImageStudio() {
 
   const handleGenerate = useCallback(async () => {
     setIsGenerating(true);
+    setAIState("generating");
     setResultImages([]);
     setResult3d(null);
     setResultPose(null);
@@ -1506,6 +1518,7 @@ export default function ImageStudio() {
       }
       setResultImages(imgs);
       toast.success(`✨ 生成完成！（${imgs.length} 張）`);
+      reportSuccess();
 
       addToHistory({
         prompt: fullPrompt || upscaleImageUrl || poseImageUrl || imageUrl3d,
@@ -1516,8 +1529,10 @@ export default function ImageStudio() {
 
     } catch (err: any) {
       toast.error(`生成失敗：${err?.message ?? "未知錯誤"}`);
+      reportFailure();
     } finally {
       setIsGenerating(false);
+      setAIState("idle");
     }
   }, [
     model, prompt, vibeIds, aspectRatio, numImages, seed,
@@ -1576,6 +1591,7 @@ export default function ImageStudio() {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <VisualSoul size="sm" state={aiState} personality={personality} className="!w-7 !h-7" />
           <button onClick={() => setViewMode(v => v === "single" ? "grid" : "single")}
             className="p-2.5 rounded-xl border border-border/40 hover:bg-accent active:bg-accent/70 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center" title="切換檢視">
             {viewMode === "single" ? <Grid3x3 className="w-4 h-4" /> : <Image className="w-4 h-4" />}

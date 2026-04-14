@@ -9,6 +9,8 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
+import { useAIState } from "@/contexts/AIStateContext";
+import VisualSoul from "@/components/VisualSoul";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -1407,6 +1409,9 @@ function AdvancedControlTab() {
 export default function VideoStudio() {
   // 全站新手引導
   usePageTour("video-studio");
+
+  // ── AI Agent Integration ──
+  const { aiState, setAIState, reportSuccess, reportFailure, setPageContext, personality } = useAIState();
 
   const [activeTab, setActiveTab] = useState<TabId>("t2v");
   const [appliedModelBanner, setAppliedModelBanner] = useState<string | null>(null);
