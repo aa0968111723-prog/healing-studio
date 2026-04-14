@@ -288,10 +288,10 @@ export const imageStudioRouter = router({
     }))
     .mutation(async ({ input }) => {
       const urls = [input.image_url, ...(input.image_urls ?? [])];
-      const raw = await falRun("fal-ai/nano-banana/edit", {
+      const raw = await falQueueRun("fal-ai/nano-banana/edit", {
         prompt:     input.prompt,
         image_urls: urls,
-      }, 120_000) as any;
+      }) as any;
       return {
         image_url: extractImageUrl(raw),
         images:    extractAllImageUrls(raw),

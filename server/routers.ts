@@ -1160,16 +1160,31 @@ export const appRouter = router({
             // 從結果中提取 URL（嘗試所有已知路徑）
             const r = resultData as Record<string, unknown> | null;
             const resultUrl =
+              // 圖片
               (r?.images as any)?.[0]?.url ??
               (r?.image as any)?.url ??
               (r as any)?.image_url ??
+              // 影片
               (r?.video as any)?.url ??
               (r as any)?.video_url ??
-              (r?.output as any)?.url ??
+              (r?.videos as any)?.[0]?.url ??
+              // 音訊
               (r?.audio as any)?.url ??
               (r as any)?.audio_url ??
-              (r?.videos as any)?.[0]?.url ??
+              // 音效（ElevenLabs sound-effects）
+              (r?.audio_file as any)?.url ??
+              // 音幹分離（demucs：取第一個 stem URL）
+              (r?.vocals as any)?.url ??
+              // 聲音克隆（speaker_embedding）
+              (r?.speaker_embedding as any)?.url ??
+              // 其他
+              (r?.output as any)?.url ??
               (r?.model_glb as any)?.url ??
+              // dubbing 結果
+              (r?.dubbed_url as string) ??
+              // 語音轉文字（取文字結果）
+              (r as any)?.text ??
+              (r as any)?.transcript ??
               null;
 
             await db.updateBackgroundJob(job.id, {
