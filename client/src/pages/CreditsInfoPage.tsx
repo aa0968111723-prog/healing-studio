@@ -488,7 +488,7 @@ export default function CreditsInfoPage() {
         className="text-center pt-4"
       >
         <Button variant="outline" size="sm" asChild>
-          <Link href="/learn" aria-label="前往學習文件中心">
+          <Link href="/learn">
             前往學習文件中心查看更多說明 →
           </Link>
         </Button>
