@@ -1416,6 +1416,12 @@ export default function VideoStudio() {
   const [activeTab, setActiveTab] = useState<TabId>("t2v");
   const [appliedModelBanner, setAppliedModelBanner] = useState<string | null>(null);
 
+  // ── AI Agent: broadcast page context ──
+  useEffect(() => {
+    setPageContext({ pageId: "video-studio", pageLabel: "影片專業工作室", activeTab });
+    return () => setPageContext(null);
+  }, [activeTab, setPageContext]);
+
   // ── Restore applied model from ModelsPage (via sessionStorage) ──
   useEffect(() => {
     try {
@@ -1447,7 +1453,7 @@ export default function VideoStudio() {
         <div className="p-3 rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-500/10 border border-blue-200/40">
           <Film className="w-7 h-7 text-blue-600" />
         </div>
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-bold text-foreground">影片專業工作室</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             整合 FAL.AI 頂尖影片生成模型，共 {Object.values(MODEL_COUNT).reduce((a, b) => a + b, 0)} 個模型
@@ -1458,6 +1464,7 @@ export default function VideoStudio() {
             ))}
           </div>
         </div>
+        <VisualSoul size="sm" state={aiState} personality={personality} className="!w-7 !h-7 shrink-0" />
       </div>
 
       {/* API Key 提示 */}

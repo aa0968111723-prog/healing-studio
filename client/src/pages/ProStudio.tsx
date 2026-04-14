@@ -8,6 +8,8 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
+import { useAIState } from "@/contexts/AIStateContext";
+import VisualSoul from "@/components/VisualSoul";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -2037,11 +2039,20 @@ export default function ProStudio() {
   // 全站新手引導
   usePageTour("pro-studio");
 
+  // ── AI Agent Integration ──
+  const { aiState, setPageContext, personality } = useAIState();
+
   const [tab, setTab] = useState("music");
   const apiKeyQuery = trpc.proStudio.checkApiKey.useQuery();
   const hasKey = apiKeyQuery.data?.configured;
 
   const ActiveTab = TABS.find((t) => t.id === tab)?.component ?? MusicTab;
+
+  // ── AI Agent: broadcast page context ──
+  useEffect(() => {
+    setPageContext({ pageId: "pro-studio", pageLabel: "音樂配音創作室", activeTab: tab });
+    return () => setPageContext(null);
+  }, [tab, setPageContext]);
 
   return (
     <div className="max-w-3xl mx-auto space-y-5 sm:space-y-6">
@@ -2056,6 +2067,7 @@ export default function ProStudio() {
             音樂創作・配音制作・聲音克隆・AI 形像影片 — fal.ai 頂尖模型整合
           </p>
         </div>
+        <VisualSoul size="sm" state={aiState} personality={personality} className="!w-7 !h-7 shrink-0 mt-1" />
         {hasKey === false && (
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 shrink-0">
             <AlertCircle className="w-4 h-4" />
