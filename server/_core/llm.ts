@@ -405,6 +405,7 @@ function getRetryDelayMs(attempt: number): number {
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   const {
     messages, tools, toolChoice, tool_choice,
+    maxTokens, max_tokens,
     outputSchema, output_schema, responseFormat, response_format,
     runName, parentRunId, engine, temperature, topP, model: overrideModel,
   } = params;
@@ -419,7 +420,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   const payload: Record<string, unknown> = {
     model: resolvedModel,
     messages: messages.map(normalizeMessage),
-    max_tokens: 32768,
+    max_tokens: maxTokens ?? max_tokens ?? 8192,
   };
 
   // 注入 AI 大腦的 temperature / top_p（若已設定）

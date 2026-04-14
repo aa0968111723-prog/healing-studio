@@ -291,16 +291,16 @@ describe("Brain Context Middleware", () => {
           curatorTopP: "0.9",
           curatorSystemPrompt: null,
           curatorEnabled: true,
-          imageEngine: "dall-e-3",
+          imageEngine: "fal-ai/flux/dev",
           imageEngineParams: null,
           imageEngineEnabled: true,
-          videoEngine: "kling-v1",
+          videoEngine: "fal-ai/kling-video/v2.1/pro/text-to-video",
           videoEngineParams: null,
           videoEngineEnabled: true,
-          audioEngine: "suno-v4",
+          audioEngine: "fal-ai/stable-audio",
           audioEngineParams: null,
           audioEngineEnabled: true,
-          voiceEngine: "elevenlabs-v2",
+          voiceEngine: "fal-ai/metavoice-v1",
           voiceEngineParams: null,
           voiceEngineEnabled: true,
           globalPreferences: null,
@@ -311,12 +311,12 @@ describe("Brain Context Middleware", () => {
 
       const brain = await buildBrainContext(50);
 
-      // Image engine should be degraded
+      // Image engine should be degraded since fal-ai/flux/dev is unhealthy
       const imgEngine = brain.getEngine("imageEngine");
       expect(imgEngine.degraded).toBe(true);
-      expect(imgEngine.originalEngine).toBe("dall-e-3");
-      // Should fall back to flux-pro (first in dall-e-3's fallback chain)
-      expect(imgEngine.engine).toBe("flux-pro");
+      expect(imgEngine.originalEngine).toBe("fal-ai/flux/dev");
+      // Should fall back to fal-ai/flux-pro/v1.1 (first in fal-ai/flux/dev's fallback chain)
+      expect(imgEngine.engine).toBe("fal-ai/flux-pro/v1.1");
 
       // Degradation summary should have 1 event
       expect(brain.degradationSummary.length).toBeGreaterThanOrEqual(1);
@@ -324,8 +324,8 @@ describe("Brain Context Middleware", () => {
         (d) => d.slot === "imageEngine"
       );
       expect(imgDeg).toBeDefined();
-      expect(imgDeg!.originalModel).toBe("dall-e-3");
-      expect(imgDeg!.fallbackModel).toBe("flux-pro");
+      expect(imgDeg!.originalModel).toBe("fal-ai/flux/dev");
+      expect(imgDeg!.fallbackModel).toBe("fal-ai/flux-pro/v1.1");
 
       errorSpy.mockRestore();
       warnSpy.mockRestore();
@@ -432,7 +432,7 @@ describe("Brain Context Middleware", () => {
       const brain = await buildBrainContext(999);
       const imgEngine = brain.getEngine("imageEngine");
       expect(imgEngine.slot).toBe("imageEngine");
-      expect(imgEngine.engine).toBe("flux-pro");
+      expect(imgEngine.engine).toBe("fal-ai/flux-pro/v1.1");
     });
 
     it("getHealthyBrains should filter disabled brains", async () => {
