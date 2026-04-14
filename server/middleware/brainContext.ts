@@ -375,6 +375,7 @@ const KNOWN_MODELS = new Set([
   "fal-ai/dolphin-2.9.2-qwen2-72b",
   "fal-ai/lmstudio",
   "fal-ai/outlines",
+  "fal-ai/wizardcoder",
   // 訓練引擎
   "fal-ai/flux-lora-fast-training",
   "fal-ai/flux-lora-portrait-trainer",
