@@ -55,6 +55,11 @@ import {
   pointsToUsd,
 } from "../services/modelPricing";
 import { resolveFalEnginesFromRow, DEFAULT_FAL_ENGINES } from "../services/falDispatcher";
+import {
+  getAutoRepairConfig,
+  setAutoRepairEnabled,
+  setMonitorInterval,
+} from "../jobs/apiHealthMonitor";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Model Catalog (白皮書規格)
@@ -773,6 +778,27 @@ export const brainRouter = router({
   monitorSummary: protectedProcedure.query(() => {
     return getSystemSummary();
   }),
+
+  // ─── 自動除錯開關 & 巡檢間隔設定 ──────────────────────────────────────
+
+  /** 取得自動除錯設定（開關 + 間隔） */
+  autoRepairConfig: protectedProcedure.query(() => {
+    return getAutoRepairConfig();
+  }),
+
+  /** 切換自動除錯開關 */
+  toggleAutoRepair: adminProcedure
+    .input(z.object({ enabled: z.boolean() }))
+    .mutation(({ input }) => {
+      return setAutoRepairEnabled(input.enabled);
+    }),
+
+  /** 設定巡檢間隔（1–60 分鐘） */
+  setMonitorInterval: adminProcedure
+    .input(z.object({ minutes: z.number().min(1).max(60) }))
+    .mutation(({ input }) => {
+      return setMonitorInterval(input.minutes);
+    }),
 
   // ─── 1. 自動修復 API + 提醒管理 ──────────────────────────────────────
 

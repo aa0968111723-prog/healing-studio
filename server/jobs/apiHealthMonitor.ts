@@ -1,11 +1,13 @@
 /**
  * apiHealthMonitor.ts — API 健康巡檢背景任務
  *
- * 每 3 分鐘執行一次：
+ * 支援功能：
  *   1. 對所有已知 API provider 發出健康探測
  *   2. 對不健康的引擎嘗試自動修復（備援切換）
  *   3. 無法自動修復時產生管理員警報
  *   4. 每小時自動執行一次精準度抽測
+ *   5. 可透過 API 開關啟用/停用自動除錯
+ *   6. 可透過 API 設定巡檢間隔（分鐘）
  *
  * 模式：仿照 modelTrainingWorker.ts 的 cron + CircuitBreaker + dedup lock
  */
@@ -31,9 +33,20 @@ let isRunning = false;
 let tickCount = 0;
 const ACCURACY_TEST_INTERVAL = 20; // every 20 ticks = ~60 min (3min * 20)
 
+// ─── Configurable State (開關 + 巡檢間隔) ───────────────────────────────────
+
+/** 是否啟用自動除錯 */
+let autoRepairEnabled = true;
+
+/** 巡檢間隔（分鐘），預設 3 分鐘 */
+let monitorIntervalMinutes = 3;
+
 // ─── Core ───────────────────────────────────────────────────────────────────
 
 async function runMonitorCycle(): Promise<void> {
+  if (!autoRepairEnabled) {
+    return;
+  }
   if (isRunning) {
     console.log("[ApiHealthMonitor] ⏭️  Previous cycle still running, skipping.");
     return;
@@ -62,7 +75,8 @@ async function runMonitorCycle(): Promise<void> {
 
     // Periodic accuracy tests (every ~60 min)
     tickCount++;
-    if (tickCount >= ACCURACY_TEST_INTERVAL) {
+    const accuracyInterval = Math.max(1, Math.round(60 / monitorIntervalMinutes));
+    if (tickCount >= accuracyInterval) {
       tickCount = 0;
       console.log("[ApiHealthMonitor] 🎯 開始精準度抽測...");
       try {
@@ -88,10 +102,78 @@ async function runMonitorCycle(): Promise<void> {
   }
 }
 
+// ─── Internal: recreate cron with current interval ──────────────────────────
+
+function recreateCron(): void {
+  if (cronTask) {
+    cronTask.stop();
+    cronTask = null;
+  }
+
+  if (!autoRepairEnabled) {
+    console.log("[ApiHealthMonitor] 🔴 Auto-repair disabled, cron not started.");
+    return;
+  }
+
+  const cronExpr = `*/${monitorIntervalMinutes} * * * *`;
+  cronTask = cron.schedule(cronExpr, () => {
+    runMonitorCycle().catch((e) =>
+      console.error("[ApiHealthMonitor] Cron error:", e)
+    );
+  });
+
+  console.log(`[ApiHealthMonitor] ✅ Cron re-initialized (every ${monitorIntervalMinutes} min)`);
+}
+
+// ─── Public API: Toggle & Interval ──────────────────────────────────────────
+
+/**
+ * 取得自動除錯設定狀態
+ */
+export function getAutoRepairConfig(): {
+  enabled: boolean;
+  intervalMinutes: number;
+} {
+  return {
+    enabled: autoRepairEnabled,
+    intervalMinutes: monitorIntervalMinutes,
+  };
+}
+
+/**
+ * 切換自動除錯開關
+ */
+export function setAutoRepairEnabled(enabled: boolean): {
+  enabled: boolean;
+  intervalMinutes: number;
+} {
+  autoRepairEnabled = enabled;
+  recreateCron();
+  console.log(`[ApiHealthMonitor] Auto-repair ${enabled ? "ENABLED ✅" : "DISABLED 🔴"}`);
+  return getAutoRepairConfig();
+}
+
+/**
+ * 設定巡檢間隔（分鐘）。有效範圍：1–60 分鐘。
+ */
+export function setMonitorInterval(minutes: number): {
+  enabled: boolean;
+  intervalMinutes: number;
+} {
+  const clamped = Math.max(1, Math.min(60, Math.round(minutes)));
+  monitorIntervalMinutes = clamped;
+  tickCount = 0; // reset accuracy test counter
+  if (autoRepairEnabled) {
+    recreateCron();
+  }
+  console.log(`[ApiHealthMonitor] Monitor interval set to ${clamped} min`);
+  return getAutoRepairConfig();
+}
+
 // ─── Lifecycle ──────────────────────────────────────────────────────────────
 
 /**
- * 啟動 API 健康巡檢 cron（每 3 分鐘）。
+ * 啟動 API 健康巡檢 cron。
  * 首次執行延遲 30 秒，避免啟動時與其他 cron 衝突。
  */
 export function initApiHealthMonitorCron(): void {
@@ -107,14 +189,15 @@ export function initApiHealthMonitorCron(): void {
     );
   }, 30_000);
 
-  // Schedule: every 3 minutes
-  cronTask = cron.schedule("*/3 * * * *", () => {
+  // Schedule with current interval
+  const cronExpr = `*/${monitorIntervalMinutes} * * * *`;
+  cronTask = cron.schedule(cronExpr, () => {
     runMonitorCycle().catch((e) =>
       console.error("[ApiHealthMonitor] Cron error:", e)
     );
   });
 
-  console.log("[ApiHealthMonitor] ✅ Cron initialized (every 3 min)");
+  console.log(`[ApiHealthMonitor] ✅ Cron initialized (every ${monitorIntervalMinutes} min)`);
 }
 
 /**

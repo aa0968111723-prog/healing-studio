@@ -706,12 +706,15 @@ export default function AiBrainSettings() {
   const summaryQuery = trpc.brain.monitorSummary.useQuery(undefined, {
     refetchInterval: 15_000,
   });
+  const autoRepairConfigQuery = trpc.brain.autoRepairConfig.useQuery(undefined, {
+    refetchInterval: 30_000,
+  });
   const alertsQuery = trpc.brain.alerts.useQuery(undefined, {
     enabled: activeTab === "alerts",
     refetchInterval: 10_000,
   });
   const errorsQuery = trpc.brain.errorTraces.useQuery(undefined, {
-    enabled: activeTab === "errors",
+    enabled: activeTab === "errors" || activeTab === "research",
     refetchInterval: 15_000,
   });
   const proposalsQuery = trpc.brain.proposals.useQuery(undefined, {
@@ -727,6 +730,20 @@ export default function AiBrainSettings() {
   });
 
   // ── Monitoring Mutations ──────────────────────────────────────────────
+  const toggleAutoRepairMut = trpc.brain.toggleAutoRepair.useMutation({
+    onSuccess: (r) => {
+      toast.success(r.enabled ? "自動除錯已啟用 ✅" : "自動除錯已停用 🔴");
+      autoRepairConfigQuery.refetch();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const setMonitorIntervalMut = trpc.brain.setMonitorInterval.useMutation({
+    onSuccess: (r) => {
+      toast.success(`巡檢間隔已更新為 ${r.intervalMinutes} 分鐘`);
+      autoRepairConfigQuery.refetch();
+    },
+    onError: (e) => toast.error(e.message),
+  });
   const dismissAlertMut = trpc.brain.dismissAlert.useMutation({
     onSuccess: () => { toast.success("警報已關閉"); alertsQuery.refetch(); summaryQuery.refetch(); },
     onError: (e) => toast.error(e.message),
@@ -1343,13 +1360,58 @@ export default function AiBrainSettings() {
       {/* ── Tab: Alerts (自動修復監控) ──────────────────────────────────── */}
       {activeTab === "alerts" && (
         <div className="space-y-4">
+          {/* ── 自動除錯開關 & 巡檢間隔 ─────────────────────────────────── */}
+          <GlassCard>
+            <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+              <Shield className="w-4 h-4 text-blue-500" />
+              自動除錯設定
+            </h2>
+            <div className="space-y-4">
+              {/* Toggle */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-xs font-medium">啟用自動除錯</Label>
+                  <p className="text-[10px] text-muted-foreground">開啟後系統將定時自動巡檢 API 並嘗試修復故障引擎</p>
+                </div>
+                <Switch
+                  checked={autoRepairConfigQuery.data?.enabled ?? true}
+                  onCheckedChange={(checked) => toggleAutoRepairMut.mutate({ enabled: checked })}
+                  disabled={toggleAutoRepairMut.isPending}
+                />
+              </div>
+              {/* Interval Slider */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <Label className="text-xs font-medium">巡檢間隔</Label>
+                  <span className="text-xs font-mono text-muted-foreground">
+                    {autoRepairConfigQuery.data?.intervalMinutes ?? 3} 分鐘
+                  </span>
+                </div>
+                <Slider
+                  min={1}
+                  max={60}
+                  step={1}
+                  value={[autoRepairConfigQuery.data?.intervalMinutes ?? 3]}
+                  onValueCommit={(v) => setMonitorIntervalMut.mutate({ minutes: v[0] })}
+                  disabled={setMonitorIntervalMut.isPending || !(autoRepairConfigQuery.data?.enabled ?? true)}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-[9px] text-muted-foreground/50 mt-1">
+                  <span>1 分鐘</span>
+                  <span>30 分鐘</span>
+                  <span>60 分鐘</span>
+                </div>
+              </div>
+            </div>
+          </GlassCard>
+
           <GlassCard>
             <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-500" />
               自動修復 API + 提醒管理
             </h2>
             <p className="text-xs text-muted-foreground mb-4">
-              系統每 3 分鐘自動巡檢所有 API provider，偵測到故障時自動切換備援引擎，無法修復時通知管理員。
+              系統每 {autoRepairConfigQuery.data?.intervalMinutes ?? 3} 分鐘自動巡檢所有 API provider，偵測到故障時自動切換備援引擎，無法修復時通知管理員。
             </p>
             {alertsQuery.isLoading ? <ZenSkeleton lines={4} /> : (
               <div className="space-y-2">
@@ -1567,6 +1629,50 @@ export default function AiBrainSettings() {
                 {webSearchMut.isPending ? "搜尋中..." : "搜尋"}
               </Button>
             </div>
+
+            {/* ── 錯誤 API 快選 ───────────────────────────────────────── */}
+            {(() => {
+              const unresolvedErrors = (errorsQuery.data ?? []).filter((t) => !t.resolvedAt);
+              if (unresolvedErrors.length === 0) return null;
+              // Deduplicate by engine name
+              const uniqueEngines = Array.from(new Set(unresolvedErrors.map((t) => t.engine)));
+              return (
+                <div className="mb-4">
+                  <p className="text-[10px] text-muted-foreground mb-1.5 flex items-center gap-1">
+                    <Bug className="w-3 h-3 text-red-400" />
+                    快選錯誤 API 搜尋修復方案：
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {uniqueEngines.slice(0, 10).map((engine) => {
+                      const errorCount = unresolvedErrors.filter((t) => t.engine === engine).length;
+                      const errMsg = unresolvedErrors.find((t) => t.engine === engine)?.errorMessage ?? "";
+                      const query = `${engine} API error fix ${errMsg.slice(0, 60)}`;
+                      return (
+                        <Button
+                          key={engine}
+                          size="sm"
+                          variant="outline"
+                          className="text-[10px] h-7 border-red-500/20 bg-red-500/5 hover:bg-red-500/10 text-red-600"
+                          onClick={() => {
+                            setSearchQuery(query);
+                            webSearchMut.mutate({ query });
+                          }}
+                          disabled={webSearchMut.isPending}
+                        >
+                          <AlertTriangle className="w-3 h-3 mr-1" />
+                          {engine.split("/").pop()}
+                          {errorCount > 1 && (
+                            <Badge variant="secondary" className="text-[8px] ml-1 px-1 py-0 h-3.5">
+                              ×{errorCount}
+                            </Badge>
+                          )}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
           </GlassCard>
 
           <GlassCard>
