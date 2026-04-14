@@ -1280,12 +1280,16 @@ ${persona.proactiveHint}
       const content = result.choices[0]?.message?.content;
       try {
         const parsed = typeof content === "string" ? JSON.parse(content) : content;
-        // Map results back to segment IDs
-        const resultMap: Record<string, typeof parsed.results[0]> = {};
-        (parsed.results ?? []).forEach((r: { segmentId: string }, i: number) => {
-          const segId = r.segmentId || input.segments[i]?.id;
-          if (segId) resultMap[segId] = (parsed.results as Array<typeof parsed.results[0]>)[i];
-        });
+        // Map results back to segment IDs — use segmentId from AI, fallback to input order
+        const resultMap: Record<string, Record<string, string>> = {};
+        const results = Array.isArray(parsed.results) ? parsed.results : [];
+        for (let i = 0; i < results.length; i++) {
+          const r = results[i] as { segmentId?: string; [key: string]: unknown };
+          const segId = r.segmentId || (i < input.segments.length ? input.segments[i].id : undefined);
+          if (segId) {
+            resultMap[segId] = r as Record<string, string>;
+          }
+        }
         return { results: resultMap };
       } catch {
         return { results: {} };

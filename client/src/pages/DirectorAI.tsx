@@ -1560,10 +1560,11 @@ export default function DirectorAI() {
   // Batch CO-STAR generation
   const batchCostarMut = trpc.director.batchGenerateCostar.useMutation({
     onSuccess: (data) => {
-      const results = data.results as Record<string, CoStarScript>;
+      const results = data.results ?? {};
       setImportedSegments(prev => prev.map(s => {
-        const costar = results[s.id];
-        return costar ? { ...s, costar } : s;
+        const entry = results[s.id];
+        if (!entry || typeof entry !== "object" || !("context" in entry)) return s;
+        return { ...s, costar: entry as unknown as CoStarScript };
       }));
       const count = Object.keys(results).length;
       toast.success(`已批次生成 ${count} 個 CO-STAR`);
