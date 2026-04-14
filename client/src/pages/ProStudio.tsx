@@ -1182,6 +1182,9 @@ function CloneTab() {
                 }
               </Button>
             </div>
+            {result?.request_id && result?.model && !audioUrl && (
+              <AsyncAudioPoller result={result as AudioResult} onUpdate={setResult} label="🎨 設計結果" />
+            )}
             {audioUrl && <AudioPlayer url={audioUrl as string} label="🎨 設計結果" />}
           </ToolCard>
         )}
@@ -1254,8 +1257,11 @@ function CloneTab() {
               </Button>
             </div>
 
-            {/* Kling 結果 */}
-            {klingResult && (
+            {/* Kling 結果 — 背景任務輪詢 */}
+            {klingResult?.request_id && klingResult?.model && !klingResult?.voice_id && (
+              <AsyncAudioPoller result={klingResult as AudioResult} onUpdate={(r) => setKlingResult(r)} label="✅ Kling 語音建立" />
+            )}
+            {klingResult && klingResult.voice_id && (
               <div className="mt-4 p-4 rounded-xl bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border border-indigo-200/50">
                 <div className="flex items-center gap-2 mb-2">
                   <Check className="w-4 h-4 text-emerald-500" />
