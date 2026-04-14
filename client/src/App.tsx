@@ -115,7 +115,7 @@ function Router() {
         <DashboardRoute component={FeedbackPage} />
       </Route>
       <Route path="/settings/ai-brain">
-        <ProtectedDashboardRoute component={AiBrainSettings} />
+        <ProtectedDashboardRoute component={AdminPage} />
       </Route>
       <Route path="/settings">
         <DashboardRoute component={SettingsPage} />
