@@ -1544,7 +1544,7 @@ export default function ImageStudio() {
     imageUrl3d, prompt3d, trellisResolution, trellisTextureSize,
     samPrompt, enablePbr, hunyuanGenType,
     rodinQuality, rodinMaterial, labelsFg1, labelsFg2, worldClasses,
-    currentMutation,
+    currentMutation, setAIState, reportSuccess, reportFailure,
   ]);
 
   const handleReuseHistory = (item: HistoryItem) => {

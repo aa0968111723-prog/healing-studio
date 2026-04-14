@@ -584,9 +584,10 @@ export default function ProactiveOrbWidget({
         .filter((m) => m.role === "user" || m.content !== greeting); // skip greeting bubble
 
       // Build page context string for LLM
-      const contextStr = pageContext
-        ? `${pageContext.pageLabel}${pageContext.activeModel ? ` (模型: ${pageContext.activeModel})` : ""}${pageContext.activeTab ? ` [分頁: ${pageContext.activeTab}]` : ""}`
-        : undefined;
+      const contextParts = [pageContext?.pageLabel];
+      if (pageContext?.activeModel) contextParts.push(`模型: ${pageContext.activeModel}`);
+      if (pageContext?.activeTab) contextParts.push(`分頁: ${pageContext.activeTab}`);
+      const contextStr = pageContext ? contextParts.filter(Boolean).join(" · ") : undefined;
 
       const data = await aiChatMutation.mutateAsync({
         messages: llmMessages,
@@ -774,23 +775,7 @@ export default function ProactiveOrbWidget({
 
                     {/* Quick Actions */}
                     <div className="space-y-1.5 mb-3">
-                      {QUICK_ACTIONS.map((qa) => (
-                        <button
-                          key={qa.action}
-                          onClick={() => handleQuickAction(qa.action)}
-                          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-left group"
-                        >
-                          <div className={`p-1.5 rounded-lg ${personalityAccent[personality]} transition-colors`}>
-                            {qa.icon}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-700">{qa.label}</p>
-                            <p className="text-xs text-gray-400 truncate">{qa.description}</p>
-                          </div>
-                        </button>
-                      ))}
-                      {/* Page-specific AI agent actions */}
-                      {pageContext?.pageId && PAGE_QUICK_ACTIONS[pageContext.pageId]?.map((qa) => (
+                      {[...QUICK_ACTIONS, ...(pageContext?.pageId ? (PAGE_QUICK_ACTIONS[pageContext.pageId] ?? []) : [])].map((qa) => (
                         <button
                           key={qa.action}
                           onClick={() => handleQuickAction(qa.action)}
