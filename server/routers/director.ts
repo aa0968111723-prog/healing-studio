@@ -181,12 +181,16 @@ const QUICK_ACTIONS: QuickAction[] = [
 
 // ─── Script Import & Analysis Functions ─────────────────────────────────────
 
+/** Maximum characters sent to LLM for script analysis (LLM context window budget) */
+const SCRIPT_ANALYSIS_MAX_CHARS = 15_000;
+
 async function parseScriptIntoSegments(
   rawContent: string,
   sourceFormat: string,
   personality: "calm" | "creative" | "technical",
 ): Promise<Omit<ScriptSegment, "discussion" | "status">[]> {
   const persona = PERSONALITY_PROMPTS[personality] ?? PERSONALITY_PROMPTS.creative;
+  const truncatedContent = rawContent.slice(0, SCRIPT_ANALYSIS_MAX_CHARS);
 
   const result = await withTimeout(invokeLLM({
     messages: [
@@ -212,7 +216,7 @@ async function parseScriptIntoSegments(
       },
       {
         role: "user",
-        content: `請分析以下腳本並拆分為分鏡段落：\n\n${rawContent.slice(0, 15000)}`,
+        content: `請分析以下腳本並拆分為分鏡段落：\n\n${truncatedContent}`,
       },
     ],
     response_format: {
@@ -262,10 +266,16 @@ async function parseScriptIntoSegments(
     parsed = { segments: [] };
   }
 
-  return (parsed.segments ?? []).map((seg, idx) => ({
+  const segments = parsed.segments ?? [];
+  const segCount = segments.length || 1;
+  // Split rawContent into roughly equal paragraph-aligned chunks as fallback
+  const paragraphs = rawContent.split(/\n{2,}/);
+  const chunkSize = Math.ceil(paragraphs.length / segCount);
+
+  return segments.map((seg, idx) => ({
     id: `seg-${Date.now()}-${idx}`,
     index: idx,
-    rawText: seg.rawText || rawContent.slice(idx * 500, (idx + 1) * 500),
+    rawText: seg.rawText || paragraphs.slice(idx * chunkSize, (idx + 1) * chunkSize).join("\n\n"),
     storyboard: {
       sceneHeading: seg.sceneHeading,
       visualDescription: seg.visualDescription,
@@ -402,8 +412,11 @@ function generateExport(
         { header: "氛圍", field: "mood" },
         { header: "狀態", field: "status" },
       ];
-      const escapeCSV = (val: string) => `"${(val ?? "").replace(/"/g, '""')}"`;
-      const header = cols.map(c => escapeCSV(c.header)).join(",");
+      const escapeCSV = (val: string) => {
+        const s = (val ?? "").replace(/"/g, '""');
+        // Wrap in quotes if contains comma, newline, or double-quote per RFC 4180
+        return /[",\n\r]/.test(s) ? `"${s}"` : `"${s}"`;
+      };      const header = cols.map(c => escapeCSV(c.header)).join(",");
       const rows = segments.map(seg => {
         const flat: Record<string, string> = {
           index: String(seg.index + 1),

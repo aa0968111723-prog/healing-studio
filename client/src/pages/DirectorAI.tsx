@@ -151,13 +151,21 @@ const ScriptImportPanel = memo(function ScriptImportPanel({
       const text = ev.target?.result;
       if (typeof text === "string") {
         setScriptContent(text);
-        if (!scriptTitle) setScriptTitle(file.name.replace(/\.[^.]+$/, ""));
+        if (!scriptTitle) {
+          // Extract filename without extension, handling edge cases like hidden files
+          const dotIdx = file.name.lastIndexOf(".");
+          const baseName = dotIdx > 0 ? file.name.slice(0, dotIdx) : file.name;
+          setScriptTitle(baseName || "未命名腳本");
+        }
         // Auto-detect format
         if (file.name.endsWith(".srt")) setSourceFormat("srt");
         else if (file.name.endsWith(".fdx")) setSourceFormat("fdx");
         else if (file.name.endsWith(".fountain")) setSourceFormat("screenplay");
         toast.success(`已載入 ${file.name}`);
       }
+    };
+    reader.onerror = () => {
+      toast.error("檔案讀取失敗，請確認檔案格式正確");
     };
     reader.readAsText(file);
     e.target.value = "";
