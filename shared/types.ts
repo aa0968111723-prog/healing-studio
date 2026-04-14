@@ -78,6 +78,12 @@ export type ScriptSegment = {
   };
   /** CO-STAR structured data for this segment */
   costar?: CoStarScript;
+  /** Characters appearing in this segment (extracted during import or discussion) */
+  characters?: string[];
+  /** Locations referenced in this segment */
+  locations?: string[];
+  /** Free-form notes / annotations by the user or AI */
+  notes?: string;
   /** Discussion messages for this segment */
   discussion: Array<{
     role: "user" | "assistant";
@@ -90,6 +96,18 @@ export type ScriptSegment = {
   }>;
   /** Current status */
   status: "pending" | "draft" | "refined" | "approved";
+};
+
+/** Holistic overview of an entire imported script */
+export type ScriptOverview = {
+  totalDuration: string;
+  segmentCount: number;
+  themes: string[];
+  characters: Array<{ name: string; segmentIndices: number[] }>;
+  locations: Array<{ name: string; segmentIndices: number[] }>;
+  moodDistribution: Record<string, number>;
+  pacingNotes: string;
+  overallSuggestion: string;
 };
 
 export type QuickAction = {
