@@ -134,6 +134,15 @@ const SCENE_MASONRY_STYLES: Record<SceneId, MasonrySceneStyles> = {
   },
 };
 
+// ─── Scene dot indicator colors ────────────────────────────────────────────
+
+const SCENE_DOT_COLORS: Record<SceneId, string> = {
+  nightSky: "#e0e7ff",
+  morning: "#78350f",
+  cafe: "#1c1917",
+  deepSea: "#ecfeff",
+};
+
 // ─── Modality config ────────────────────────────────────────────────────────
 
 const MODALITY_CONFIG: Record<
@@ -520,8 +529,9 @@ export default function ShowcaseMasonry({
   const [showcaseApi, setShowcaseApi] = useState<CarouselApi>();
   const [showcaseSlide, setShowcaseSlide] = useState(0);
   const [showcaseSlideCount, setShowcaseSlideCount] = useState(0);
-  const showcaseAutoplay = useRef(
-    Autoplay({ delay: 4500, stopOnInteraction: true, stopOnMouseEnter: true })
+  const showcaseAutoplay = useMemo(
+    () => Autoplay({ delay: 4500, stopOnInteraction: true, stopOnMouseEnter: true }),
+    [],
   );
 
   useEffect(() => {
@@ -818,11 +828,12 @@ export default function ShowcaseMasonry({
           <div className="w-full">
             <Carousel
               setApi={setShowcaseApi}
-              plugins={[showcaseAutoplay.current]}
+              plugins={[showcaseAutoplay]}
               opts={{ align: "start", loop: true }}
               className="w-full"
             >
               <CarouselContent className="-ml-4">
+                {/* Cap at 24 items for carousel performance — prevents excessive DOM nodes and keeps navigation snappy */}
                 {allItems.slice(0, 24).map((item) => (
                   <CarouselItem key={item.id} className="pl-4 basis-full sm:basis-1/2 lg:basis-1/3">
                     <MasonryCard
@@ -846,11 +857,7 @@ export default function ShowcaseMasonry({
                     onClick={() => showcaseScrollTo(i)}
                     className="rounded-full transition-all duration-500"
                     style={{
-                      background: styles.titleColor.includes("indigo") || styles.titleColor.includes("cyan")
-                        ? "white"
-                        : styles.titleColor.includes("amber")
-                        ? "#78350f"
-                        : "#1c1917",
+                      background: SCENE_DOT_COLORS[sceneId],
                       opacity: i === showcaseSlide ? 0.6 : 0.15,
                     }}
                     animate={{

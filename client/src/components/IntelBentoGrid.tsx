@@ -200,6 +200,15 @@ const SCENE_CARD_STYLES: Record<SceneId, SceneStyles> = {
   },
 };
 
+// ─── Scene dot indicator colors ────────────────────────────────────────────
+
+const SCENE_DOT_COLORS: Record<SceneId, string> = {
+  nightSky: "#e0e7ff",
+  morning: "#78350f",
+  cafe: "#1c1917",
+  deepSea: "#ecfeff",
+};
+
 // ─── News Card ──────────────────────────────────────────────────────────────
 
 interface NewsItem {
@@ -543,8 +552,9 @@ const IntelBentoGrid = memo(function IntelBentoGrid({ sceneId }: IntelBentoGridP
   const [carouselApi, setCarouselApi] = useState<CarouselApi>();
   const [currentSlide, setCurrentSlide] = useState(0);
   const [slideCount, setSlideCount] = useState(0);
-  const autoplayRef = useRef(
-    Autoplay({ delay: 5000, stopOnInteraction: true, stopOnMouseEnter: true })
+  const autoplayPlugin = useMemo(
+    () => Autoplay({ delay: 5000, stopOnInteraction: true, stopOnMouseEnter: true }),
+    [],
   );
 
   useEffect(() => {
@@ -678,7 +688,7 @@ const IntelBentoGrid = memo(function IntelBentoGrid({ sceneId }: IntelBentoGridP
           <div className="w-full">
             <Carousel
               setApi={setCarouselApi}
-              plugins={[autoplayRef.current]}
+              plugins={[autoplayPlugin]}
               opts={{ align: "start", loop: true }}
               className="w-full"
             >
@@ -714,21 +724,9 @@ const IntelBentoGrid = memo(function IntelBentoGrid({ sceneId }: IntelBentoGridP
                     key={i}
                     onClick={() => scrollTo(i)}
                     className={`rounded-full transition-all duration-500 ${
-                      i === currentSlide
-                        ? `opacity-60`
-                        : `opacity-15 hover:opacity-25`
+                      i === currentSlide ? "opacity-60" : "opacity-15 hover:opacity-25"
                     }`}
-                    style={{
-                      background: styles.textPrimary.includes("white")
-                        ? "white"
-                        : styles.textPrimary.includes("amber")
-                        ? "#78350f"
-                        : styles.textPrimary.includes("stone")
-                        ? "#1c1917"
-                        : styles.textPrimary.includes("cyan")
-                        ? "#ecfeff"
-                        : "#fff",
-                    }}
+                    style={{ background: SCENE_DOT_COLORS[sceneId] }}
                     animate={{
                       width: i === currentSlide ? 24 : 8,
                       height: 8,

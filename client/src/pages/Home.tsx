@@ -313,8 +313,9 @@ export default function Home() {
   // ─── Feature Carousel State ─────────────────────────────────────
   const [featureApi, setFeatureApi] = useState<CarouselApi>();
   const [featureCurrent, setFeatureCurrent] = useState(0);
-  const featureAutoplay = useRef(
-    Autoplay({ delay: 4000, stopOnInteraction: true, stopOnMouseEnter: true })
+  const featureAutoplay = useMemo(
+    () => Autoplay({ delay: 4000, stopOnInteraction: true, stopOnMouseEnter: true }),
+    [],
   );
 
   useEffect(() => {
@@ -610,7 +611,7 @@ export default function Home() {
           >
             <Carousel
               setApi={setFeatureApi}
-              plugins={[featureAutoplay.current]}
+              plugins={[featureAutoplay]}
               opts={{ align: "start", loop: true }}
               className="w-full"
             >
