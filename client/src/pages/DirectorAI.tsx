@@ -19,6 +19,8 @@ import {
   MessageSquare, Zap, Heart, Timer, Shuffle,
   Settings, Wand2, Sun, Volume2, Headphones,
   Camera, Sparkles, Eye, Play, ChevronRight,
+  BarChart3, ArrowUp, ArrowDown, Layers, Users,
+  MapPin, Tag,
 } from "lucide-react";
 import { GlassCard } from "@/components/ZenCoPilot";
 import VisualSoul from "@/components/VisualSoul";
@@ -27,7 +29,7 @@ import { useIsMobile } from "@/hooks/useMobile";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import type { CoStarScript, ScriptSegment, QuickAction } from "@shared/types";
+import type { CoStarScript, ScriptSegment, ScriptOverview, QuickAction } from "@shared/types";
 
 // ─── Personality Config ────────────────────────────────────────────────────
 
@@ -91,6 +93,7 @@ const QUICK_ACTION_ICONS: Record<string, React.ComponentType<{ className?: strin
   wand: Wand2,
   sun: Sun,
   zap: Zap,
+  eye: Eye,
 };
 
 const QUICK_ACTION_CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
@@ -324,17 +327,26 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
   quickActions,
   onUpdateSegment,
   onStatusChange,
+  onNavigate,
+  adjacentSegments,
+  onGenerateCostar,
+  isGeneratingCostar,
 }: {
   segment: ScriptSegment;
   personality: Personality;
   quickActions: QuickAction[];
   onUpdateSegment: (updated: ScriptSegment) => void;
   onStatusChange: (status: ScriptSegment["status"]) => void;
+  onNavigate?: (direction: "prev" | "next") => void;
+  adjacentSegments?: { prev?: ScriptSegment; next?: ScriptSegment };
+  onGenerateCostar?: () => void;
+  isGeneratingCostar?: boolean;
 }) {
   const [inputMessage, setInputMessage] = useState("");
   const [selectedAction, setSelectedAction] = useState<QuickAction | null>(null);
   const [showAllActions, setShowAllActions] = useState(false);
   const [showGenPipeline, setShowGenPipeline] = useState(false);
+  const [showCostar, setShowCostar] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const config = PERSONALITIES.find((p) => p.id === personality) ?? PERSONALITIES[1];
 
@@ -382,11 +394,13 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
       message: inputMessage || "",
       personality,
       quickActionId: selectedAction?.id,
+      prevSegment: adjacentSegments?.prev ? { index: adjacentSegments.prev.index, storyboard: adjacentSegments.prev.storyboard } : undefined,
+      nextSegment: adjacentSegments?.next ? { index: adjacentSegments.next.index, storyboard: adjacentSegments.next.storyboard } : undefined,
     });
 
     setInputMessage("");
     setSelectedAction(null);
-  }, [inputMessage, selectedAction, segment, personality, discussMut, onUpdateSegment]);
+  }, [inputMessage, selectedAction, segment, personality, discussMut, onUpdateSegment, adjacentSegments]);
 
   const handleQuickAction = useCallback((action: QuickAction) => {
     setSelectedAction(action);
@@ -412,8 +426,10 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
       message: "",
       personality,
       quickActionId: action.id,
+      prevSegment: adjacentSegments?.prev ? { index: adjacentSegments.prev.index, storyboard: adjacentSegments.prev.storyboard } : undefined,
+      nextSegment: adjacentSegments?.next ? { index: adjacentSegments.next.index, storyboard: adjacentSegments.next.storyboard } : undefined,
     });
-  }, [segment, personality, discussMut, onUpdateSegment]);
+  }, [segment, personality, discussMut, onUpdateSegment, adjacentSegments]);
 
   // Group quick actions by category
   const groupedActions = useMemo(() => {
@@ -434,9 +450,29 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
 
   return (
     <div className="space-y-3">
-      {/* Segment header */}
+      {/* Segment header with navigation */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
+          {onNavigate && (
+            <div className="flex items-center gap-0.5">
+              <button
+                onClick={() => onNavigate("prev")}
+                disabled={!adjacentSegments?.prev}
+                className="p-0.5 rounded hover:bg-muted/40 disabled:opacity-30 disabled:cursor-not-allowed"
+                title="上一段"
+              >
+                <ArrowUp className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => onNavigate("next")}
+                disabled={!adjacentSegments?.next}
+                className="p-0.5 rounded hover:bg-muted/40 disabled:opacity-30 disabled:cursor-not-allowed"
+                title="下一段"
+              >
+                <ArrowDown className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
           <span className="text-xs font-bold text-muted-foreground">#{segment.index + 1}</span>
           <span className="text-sm font-semibold truncate max-w-[200px]">{segment.storyboard.sceneHeading}</span>
           {statusCfg && (
@@ -464,6 +500,22 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
         </div>
       </div>
 
+      {/* Character & location tags */}
+      {((segment.characters?.length ?? 0) > 0 || (segment.locations?.length ?? 0) > 0) && (
+        <div className="flex flex-wrap gap-1.5">
+          {segment.characters?.map(c => (
+            <span key={c} className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
+              <Users className="w-2.5 h-2.5" />{c}
+            </span>
+          ))}
+          {segment.locations?.map(l => (
+            <span key={l} className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200">
+              <MapPin className="w-2.5 h-2.5" />{l}
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* Storyboard info */}
       <div className="grid grid-cols-2 gap-2 text-[11px]">
         {[
@@ -482,6 +534,80 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
             </div>
           </div>
         ))}
+      </div>
+
+      {/* CO-STAR Section */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => setShowCostar(!showCostar)}
+            className="flex items-center gap-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
+          >
+            <Layers className="w-3 h-3" />
+            CO-STAR 結構
+            {segment.costar ? (
+              <Badge variant="secondary" className="text-[8px] h-4 px-1 bg-green-100 text-green-700">已生成</Badge>
+            ) : (
+              <Badge variant="outline" className="text-[8px] h-4 px-1 text-amber-600 border-amber-300">未生成</Badge>
+            )}
+            {showCostar ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          </button>
+          {onGenerateCostar && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-lg text-[10px] h-6 px-2 gap-1"
+              onClick={onGenerateCostar}
+              disabled={isGeneratingCostar}
+            >
+              {isGeneratingCostar ? (
+                <div className="w-3 h-3 border border-current/30 border-t-current rounded-full animate-spin" />
+              ) : (
+                <Sparkles className="w-3 h-3" />
+              )}
+              {segment.costar ? "重新生成" : "生成 CO-STAR"}
+            </Button>
+          )}
+        </div>
+
+        <AnimatePresence>
+          {showCostar && segment.costar && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="space-y-1.5 pt-1">
+                {[
+                  { label: "C 背景", value: segment.costar.context },
+                  { label: "O 目標", value: segment.costar.situation },
+                  { label: "S 風格", value: segment.costar.task },
+                  { label: "T 語調", value: segment.costar.action },
+                  { label: "A 觀眾", value: segment.costar.result },
+                  { label: "R 回應", value: segment.costar.proactiveQuestion ?? "" },
+                ].map((item) => (
+                  <div key={item.label} className="flex gap-2 text-[10px]">
+                    <span className="font-bold text-primary/70 w-12 shrink-0">{item.label}</span>
+                    <span className="text-foreground/70 leading-relaxed line-clamp-2">{item.value || "—"}</span>
+                  </div>
+                ))}
+                {segment.costar.visualPrompt && (
+                  <div className="p-2 rounded-lg bg-blue-50/50 border border-blue-100 mt-1">
+                    <span className="text-[9px] font-bold text-blue-600 block mb-0.5">Visual Prompt</span>
+                    <p className="text-[10px] text-blue-800/70 leading-relaxed line-clamp-3">{segment.costar.visualPrompt}</p>
+                  </div>
+                )}
+                {segment.costar.musicVibe && (
+                  <div className="p-2 rounded-lg bg-purple-50/50 border border-purple-100">
+                    <span className="text-[9px] font-bold text-purple-600 block mb-0.5">Music Vibe</span>
+                    <p className="text-[10px] text-purple-800/70 leading-relaxed line-clamp-2">{segment.costar.musicVibe}</p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Quick actions */}
@@ -1385,6 +1511,8 @@ export default function DirectorAI() {
   const [importedTitle, setImportedTitle] = useState("");
   const [selectedSegmentIdx, setSelectedSegmentIdx] = useState<number | null>(null);
   const [showExport, setShowExport] = useState(false);
+  const [scriptOverview, setScriptOverview] = useState<ScriptOverview | null>(null);
+  const [showOverview, setShowOverview] = useState(false);
 
   // ─── tRPC hooks ──────────────────────────────────────────────────────────
 
@@ -1416,6 +1544,41 @@ export default function DirectorAI() {
       toast.success(`已匯入「${data.title}」— 分析出 ${data.segments.length} 個分鏡段落`);
     },
     onError: (e) => toast.error("匯入失敗：" + e.message),
+  });
+
+  // CO-STAR generation for individual segments
+  const generateCostarMut = trpc.director.generateSegmentCostar.useMutation({
+    onSuccess: (data, vars) => {
+      setImportedSegments(prev => prev.map(s =>
+        s.id === vars.segment.id ? { ...s, costar: data as CoStarScript } : s
+      ));
+      toast.success("CO-STAR 已生成");
+    },
+    onError: (e) => toast.error("CO-STAR 生成失敗：" + e.message),
+  });
+
+  // Batch CO-STAR generation
+  const batchCostarMut = trpc.director.batchGenerateCostar.useMutation({
+    onSuccess: (data) => {
+      const results = data.results as Record<string, CoStarScript>;
+      setImportedSegments(prev => prev.map(s => {
+        const costar = results[s.id];
+        return costar ? { ...s, costar } : s;
+      }));
+      const count = Object.keys(results).length;
+      toast.success(`已批次生成 ${count} 個 CO-STAR`);
+    },
+    onError: (e) => toast.error("批次生成失敗：" + e.message),
+  });
+
+  // Script overview analysis
+  const overviewMut = trpc.director.analyzeScriptOverview.useMutation({
+    onSuccess: (data) => {
+      setScriptOverview(data as ScriptOverview);
+      setShowOverview(true);
+      toast.success("腳本全局分析完成");
+    },
+    onError: (e) => toast.error("分析失敗：" + e.message),
   });
 
   const chatMutation = trpc.director.chat.useMutation({
@@ -1579,7 +1742,89 @@ export default function DirectorAI() {
     setImportedSegments(prev => prev.map(s => s.id === segId ? { ...s, status } : s));
   }, []);
 
+  const handleNavigateSegment = useCallback((direction: "prev" | "next") => {
+    setSelectedSegmentIdx(prev => {
+      if (prev === null) return null;
+      const next = direction === "prev" ? prev - 1 : prev + 1;
+      if (next < 0 || next >= importedSegments.length) return prev;
+      return next;
+    });
+  }, [importedSegments.length]);
+
+  const handleGenerateCostar = useCallback((segmentId: string) => {
+    const seg = importedSegments.find(s => s.id === segmentId);
+    if (!seg) return;
+    generateCostarMut.mutate({
+      segment: {
+        id: seg.id,
+        index: seg.index,
+        rawText: seg.rawText,
+        storyboard: seg.storyboard,
+        discussion: seg.discussion.map(d => ({ role: d.role, content: d.content })),
+        characters: seg.characters,
+        locations: seg.locations,
+      },
+      personality,
+    });
+  }, [importedSegments, personality, generateCostarMut]);
+
+  const handleBatchCostar = useCallback(() => {
+    const segmentsWithoutCostar = importedSegments.filter(s => !s.costar);
+    if (segmentsWithoutCostar.length === 0) {
+      toast.info("所有分鏡已有 CO-STAR");
+      return;
+    }
+    batchCostarMut.mutate({
+      segments: segmentsWithoutCostar.map(s => ({
+        id: s.id,
+        index: s.index,
+        rawText: s.rawText,
+        storyboard: s.storyboard,
+      })),
+      personality,
+    });
+  }, [importedSegments, personality, batchCostarMut]);
+
+  const handleAnalyzeOverview = useCallback(() => {
+    overviewMut.mutate({
+      segments: importedSegments.map(s => ({
+        index: s.index,
+        storyboard: s.storyboard,
+        characters: s.characters,
+        locations: s.locations,
+      })),
+      personality,
+    });
+  }, [importedSegments, personality, overviewMut]);
+
+  const handleMoveSegment = useCallback((fromIdx: number, direction: "up" | "down") => {
+    const toIdx = direction === "up" ? fromIdx - 1 : fromIdx + 1;
+    if (toIdx < 0 || toIdx >= importedSegments.length) return;
+    setImportedSegments(prev => {
+      const next = [...prev];
+      [next[fromIdx], next[toIdx]] = [next[toIdx], next[fromIdx]];
+      // Reassign indices
+      return next.map((s, i) => ({ ...s, index: i }));
+    });
+    // Follow selection
+    if (selectedSegmentIdx === fromIdx) setSelectedSegmentIdx(toIdx);
+    else if (selectedSegmentIdx === toIdx) setSelectedSegmentIdx(fromIdx);
+  }, [importedSegments.length, selectedSegmentIdx]);
+
   // ─── Memoized values ─────────────────────────────────────────────────────
+
+  const scriptStats = useMemo(() => {
+    if (importedSegments.length === 0) return null;
+    const approved = importedSegments.filter(s => s.status === "approved").length;
+    const refined = importedSegments.filter(s => s.status === "refined").length;
+    const withCostar = importedSegments.filter(s => !!s.costar).length;
+    const moods = new Map<string, number>();
+    importedSegments.forEach(s => {
+      const m = s.storyboard.mood;
+      if (m) moods.set(m, (moods.get(m) ?? 0) + 1);
+    });
+    return { approved, refined, withCostar, total: importedSegments.length, moods };
+  }, [importedSegments]);
 
   const currentPersonality = useMemo(
     () => PERSONALITIES.find((p) => p.id === personality) ?? PERSONALITIES[1],
@@ -1946,7 +2191,7 @@ export default function DirectorAI() {
           ) : (
             /* Script analysis workspace */
             <div className="space-y-4">
-              {/* Script header bar */}
+              {/* Script header bar — enhanced with stats */}
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-2">
                   <FileText className="w-4 h-4 text-muted-foreground" />
@@ -1954,11 +2199,46 @@ export default function DirectorAI() {
                   <Badge variant="secondary" className="text-[10px]">
                     {importedSegments.length} 個分鏡
                   </Badge>
-                  <Badge variant="outline" className="text-[10px]">
-                    {importedSegments.filter(s => s.status === "approved").length} 已確認
-                  </Badge>
+                  {scriptStats && (
+                    <>
+                      <Badge variant="outline" className="text-[10px] bg-green-50 text-green-700 border-green-200">
+                        {scriptStats.approved} 已確認
+                      </Badge>
+                      <Badge variant="outline" className="text-[10px] bg-purple-50 text-purple-700 border-purple-200">
+                        {scriptStats.withCostar}/{scriptStats.total} CO-STAR
+                      </Badge>
+                    </>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-xl text-xs gap-1"
+                    onClick={handleAnalyzeOverview}
+                    disabled={overviewMut.isPending}
+                  >
+                    {overviewMut.isPending ? (
+                      <div className="w-3.5 h-3.5 border-2 border-current/30 border-t-current rounded-full animate-spin" />
+                    ) : (
+                      <BarChart3 className="w-3.5 h-3.5" />
+                    )}
+                    全局分析
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-xl text-xs gap-1"
+                    onClick={handleBatchCostar}
+                    disabled={batchCostarMut.isPending}
+                  >
+                    {batchCostarMut.isPending ? (
+                      <div className="w-3.5 h-3.5 border-2 border-current/30 border-t-current rounded-full animate-spin" />
+                    ) : (
+                      <Layers className="w-3.5 h-3.5" />
+                    )}
+                    批次 CO-STAR
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"
@@ -1977,6 +2257,7 @@ export default function DirectorAI() {
                         setImportedSegments([]);
                         setImportedTitle("");
                         setSelectedSegmentIdx(null);
+                        setScriptOverview(null);
                       }
                     }}
                   >
@@ -1985,6 +2266,88 @@ export default function DirectorAI() {
                   </Button>
                 </div>
               </div>
+
+              {/* Script overview panel */}
+              <AnimatePresence>
+                {showOverview && scriptOverview && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <GlassCard hover={false} className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-semibold flex items-center gap-2">
+                          <BarChart3 className="w-4 h-4" />
+                          全局分析
+                        </h3>
+                        <button onClick={() => setShowOverview(false)} className="text-muted-foreground hover:text-foreground">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px]">
+                        <div className="p-2 rounded-lg bg-blue-50/50 border border-blue-100">
+                          <span className="text-blue-600 font-semibold block text-[10px]">總時長</span>
+                          <span className="text-blue-800 font-bold">{scriptOverview.totalDuration}</span>
+                        </div>
+                        <div className="p-2 rounded-lg bg-purple-50/50 border border-purple-100">
+                          <span className="text-purple-600 font-semibold block text-[10px]">核心主題</span>
+                          <span className="text-purple-800">{scriptOverview.themes.join("、")}</span>
+                        </div>
+                        <div className="p-2 rounded-lg bg-green-50/50 border border-green-100">
+                          <span className="text-green-600 font-semibold block text-[10px]">角色數</span>
+                          <span className="text-green-800 font-bold">{scriptOverview.characters.length}</span>
+                        </div>
+                        <div className="p-2 rounded-lg bg-amber-50/50 border border-amber-100">
+                          <span className="text-amber-600 font-semibold block text-[10px]">場景數</span>
+                          <span className="text-amber-800 font-bold">{scriptOverview.locations.length}</span>
+                        </div>
+                      </div>
+                      {/* Characters */}
+                      {scriptOverview.characters.length > 0 && (
+                        <div className="space-y-1">
+                          <span className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1"><Users className="w-3 h-3" /> 角色分佈</span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {scriptOverview.characters.map(c => (
+                              <span key={c.name} className="text-[10px] px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
+                                {c.name} <span className="text-blue-400">({c.segmentIndices.length}段)</span>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {/* Mood distribution */}
+                      {Object.keys(scriptOverview.moodDistribution).length > 0 && (
+                        <div className="space-y-1">
+                          <span className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1"><Tag className="w-3 h-3" /> 氛圍分佈</span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {Object.entries(scriptOverview.moodDistribution).map(([mood, count]) => (
+                              <span key={mood} className="text-[10px] px-2 py-0.5 rounded-md bg-pink-50 text-pink-700 border border-pink-200">
+                                {mood} ×{count}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {/* Pacing notes */}
+                      {scriptOverview.pacingNotes && (
+                        <div className="p-2.5 rounded-lg bg-muted/20 text-[11px] leading-relaxed text-foreground/80">
+                          <span className="font-semibold text-muted-foreground block mb-1">節奏分析</span>
+                          {scriptOverview.pacingNotes}
+                        </div>
+                      )}
+                      {/* Overall suggestion */}
+                      {scriptOverview.overallSuggestion && (
+                        <div className="p-2.5 rounded-lg bg-primary/5 border border-primary/10 text-[11px] leading-relaxed text-foreground/80">
+                          <span className="font-semibold text-primary/70 block mb-1">改善建議</span>
+                          {scriptOverview.overallSuggestion}
+                        </div>
+                      )}
+                    </GlassCard>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* Export panel */}
               <AnimatePresence>
@@ -2017,39 +2380,75 @@ export default function DirectorAI() {
                           const sCfg = STATUS_CONFIG[seg.status];
                           const isSelected = selectedSegmentIdx === idx;
                           return (
-                            <button
-                              key={seg.id}
-                              onClick={() => setSelectedSegmentIdx(idx)}
-                              className={cn(
-                                "w-full text-left rounded-lg p-2.5 transition-all border",
-                                isSelected
-                                  ? "bg-primary/5 border-primary/30 shadow-sm"
-                                  : "bg-white/30 border-transparent hover:bg-white/60 hover:border-border/30",
-                              )}
-                            >
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="text-[11px] font-bold text-muted-foreground">
-                                  #{idx + 1}
-                                </span>
-                                {sCfg && (
-                                  <span className={cn("text-[9px] px-1.5 py-0.5 rounded-full font-medium", sCfg.color)}>
-                                    {sCfg.label}
-                                  </span>
-                                )}
+                            <div key={seg.id} className="flex items-stretch gap-0.5">
+                              {/* Reorder controls */}
+                              <div className="flex flex-col justify-center gap-0.5 opacity-0 hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleMoveSegment(idx, "up"); }}
+                                  disabled={idx === 0}
+                                  className="p-0.5 rounded hover:bg-muted/40 disabled:opacity-20 text-muted-foreground"
+                                  title="上移"
+                                >
+                                  <ArrowUp className="w-2.5 h-2.5" />
+                                </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleMoveSegment(idx, "down"); }}
+                                  disabled={idx === importedSegments.length - 1}
+                                  className="p-0.5 rounded hover:bg-muted/40 disabled:opacity-20 text-muted-foreground"
+                                  title="下移"
+                                >
+                                  <ArrowDown className="w-2.5 h-2.5" />
+                                </button>
                               </div>
-                              <p className="text-xs font-medium truncate">{seg.storyboard.sceneHeading}</p>
-                              <p className="text-[10px] text-muted-foreground truncate mt-0.5">
-                                {seg.storyboard.mood} · {seg.storyboard.duration}
-                              </p>
-                              {seg.discussion.length > 0 && (
-                                <div className="flex items-center gap-1 mt-1">
-                                  <MessageSquare className="w-2.5 h-2.5 text-muted-foreground" />
-                                  <span className="text-[9px] text-muted-foreground">
-                                    {seg.discussion.length} 則討論
-                                  </span>
+                              <button
+                                onClick={() => setSelectedSegmentIdx(idx)}
+                                className={cn(
+                                  "flex-1 text-left rounded-lg p-2.5 transition-all border",
+                                  isSelected
+                                    ? "bg-primary/5 border-primary/30 shadow-sm"
+                                    : "bg-white/30 border-transparent hover:bg-white/60 hover:border-border/30",
+                                )}
+                              >
+                                <div className="flex items-center justify-between mb-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[11px] font-bold text-muted-foreground">
+                                      #{idx + 1}
+                                    </span>
+                                    {seg.costar && (
+                                      <span title="已有 CO-STAR"><Layers className="w-2.5 h-2.5 text-green-500" /></span>
+                                    )}
+                                  </div>
+                                  {sCfg && (
+                                    <span className={cn("text-[9px] px-1.5 py-0.5 rounded-full font-medium", sCfg.color)}>
+                                      {sCfg.label}
+                                    </span>
+                                  )}
                                 </div>
-                              )}
-                            </button>
+                                <p className="text-xs font-medium truncate">{seg.storyboard.sceneHeading}</p>
+                                <p className="text-[10px] text-muted-foreground truncate mt-0.5">
+                                  {seg.storyboard.mood} · {seg.storyboard.duration}
+                                </p>
+                                {/* Character tags in segment list */}
+                                {(seg.characters?.length ?? 0) > 0 && (
+                                  <div className="flex flex-wrap gap-0.5 mt-1">
+                                    {seg.characters!.slice(0, 3).map(c => (
+                                      <span key={c} className="text-[8px] px-1 py-0 rounded bg-blue-50 text-blue-600">{c}</span>
+                                    ))}
+                                    {(seg.characters?.length ?? 0) > 3 && (
+                                      <span className="text-[8px] text-muted-foreground">+{seg.characters!.length - 3}</span>
+                                    )}
+                                  </div>
+                                )}
+                                {seg.discussion.length > 0 && (
+                                  <div className="flex items-center gap-1 mt-1">
+                                    <MessageSquare className="w-2.5 h-2.5 text-muted-foreground" />
+                                    <span className="text-[9px] text-muted-foreground">
+                                      {seg.discussion.length} 則討論
+                                    </span>
+                                  </div>
+                                )}
+                              </button>
+                            </div>
                           );
                         })}
                       </div>
@@ -2070,6 +2469,13 @@ export default function DirectorAI() {
                         onStatusChange={(status) =>
                           handleSegmentStatusChange(importedSegments[selectedSegmentIdx].id, status)
                         }
+                        onNavigate={handleNavigateSegment}
+                        adjacentSegments={{
+                          prev: selectedSegmentIdx > 0 ? importedSegments[selectedSegmentIdx - 1] : undefined,
+                          next: selectedSegmentIdx < importedSegments.length - 1 ? importedSegments[selectedSegmentIdx + 1] : undefined,
+                        }}
+                        onGenerateCostar={() => handleGenerateCostar(importedSegments[selectedSegmentIdx].id)}
+                        isGeneratingCostar={generateCostarMut.isPending}
                       />
                     </GlassCard>
                   ) : (
