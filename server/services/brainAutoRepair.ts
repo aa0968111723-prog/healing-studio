@@ -241,13 +241,26 @@ const REPAIR_FALLBACK: Record<string, string[]> = {
   "elevenlabs-v2": ["fal-ai/elevenlabs/tts/turbo-v2.5", "elevenlabs-v1"],
 };
 
-/** 根據引擎名稱推斷生成類型 */
+/** 根據引擎名稱推斷生成類型（more specific patterns checked first） */
 function inferModality(engine: string): ErrorTrace["modality"] {
   const e = engine.toLowerCase();
-  if (e.includes("video") || e.includes("kling") || e.includes("wan") || e.includes("minimax") || e.includes("veo") || e.includes("sora") || e.includes("ltx-video") || e.includes("pixverse") || e.includes("runway") || e.includes("animatediff")) return "video";
-  if (e.includes("audio") || e.includes("sonauto") || e.includes("musicgen") || e.includes("ace-step") || e.includes("stable-audio") || e.includes("suno")) return "audio";
-  if (e.includes("tts") || e.includes("voice") || e.includes("elevenlabs") || e.includes("dia-tts") || e.includes("qwen-3-tts") || e.includes("avatar") || e.includes("echomimic")) return "voice";
-  if (e.includes("gemini") || e.includes("vertex") || e.includes("llm") || e.includes("any-llm")) return "llm";
+
+  // 語音 / TTS（先於 audio，因為部分 TTS 引擎含 "audio" 字樣）
+  const voicePatterns = ["tts", "voice", "dia-tts", "qwen-3-tts", "avatar", "echomimic", "elevenlabs/tts", "elevenlabs/voice", "elevenlabs/dubbing"];
+  if (voicePatterns.some((p) => e.includes(p))) return "voice";
+
+  // 音訊 / 音樂（先於 video，因為 "video-to-audio" 等含 video 字樣）
+  const audioPatterns = ["audio", "sonauto", "musicgen", "ace-step", "stable-audio", "suno", "demucs", "audioldm", "sound-effects", "audio-isolation", "asr", "merge-audio"];
+  if (audioPatterns.some((p) => e.includes(p))) return "audio";
+
+  // 影片
+  const videoPatterns = ["video", "kling", "wan", "minimax", "veo", "sora", "ltx-video", "pixverse", "runway", "animatediff", "depthcrafter", "cammaster", "vidu"];
+  if (videoPatterns.some((p) => e.includes(p))) return "video";
+
+  // LLM 推理
+  const llmPatterns = ["gemini", "vertex", "llm", "any-llm"];
+  if (llmPatterns.some((p) => e.includes(p))) return "llm";
+
   return "image"; // 圖像生成為預設
 }
 
