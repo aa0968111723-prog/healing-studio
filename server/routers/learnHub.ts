@@ -5659,6 +5659,20 @@ AI 大腦是 Healing Studio 的智能核心，讓你為不同功能指定最適�
 
 let docs: LearnDoc[] = [...SEED_DOCS];
 
+/**
+ * 提供給 learnDocSyncer 等外部模組存取 docs 陣列的接口。
+ * 新增文件時，syncer 會呼叫 addLearnDoc；查詢是否已存在時使用 hasLearnDoc。
+ */
+export function addLearnDoc(doc: LearnDoc): void {
+  docs.unshift(doc);
+}
+export function hasLearnDoc(id: string): boolean {
+  return docs.some((d) => d.id === id);
+}
+export function getLearnDocCount(): number {
+  return docs.length;
+}
+
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 export const learnHubRouter = router({

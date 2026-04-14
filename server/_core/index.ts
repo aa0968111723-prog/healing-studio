@@ -14,6 +14,7 @@ import { uploadRouter } from "../uploadRoute";
 import { sseRouter } from "../sseRoute";
 import { initNewsFetcherCron, stopNewsFetcherCron } from "../jobs/newsFetcher";
 import { initModelTrainingWorkerCron, stopModelTrainingWorkerCron } from "../jobs/modelTrainingWorker";
+import { initLearnDocSyncerCron, stopLearnDocSyncerCron } from "../jobs/learnDocSyncer";
 import { detectStorageBackend } from "../storage";
 import { closeDb } from "../db";
 
@@ -212,6 +213,7 @@ async function startServer() {
     // Initialize scheduled jobs after server is ready
     initNewsFetcherCron();
     initModelTrainingWorkerCron();
+    initLearnDocSyncerCron();
   });
 
   // ── Graceful Shutdown ────────────────────────────────────────────────────
@@ -219,6 +221,7 @@ async function startServer() {
     console.log(`\n[Server] Received ${signal}. Shutting down gracefully...`);
     stopNewsFetcherCron();
     stopModelTrainingWorkerCron();
+    stopLearnDocSyncerCron();
     server.close(async () => {
       await closeDb();
       console.log("[Server] All resources released. Exiting.");
