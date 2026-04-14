@@ -15,6 +15,7 @@ import { sseRouter } from "../sseRoute";
 import { initNewsFetcherCron, stopNewsFetcherCron } from "../jobs/newsFetcher";
 import { initModelTrainingWorkerCron, stopModelTrainingWorkerCron } from "../jobs/modelTrainingWorker";
 import { initLearnDocSyncerCron, stopLearnDocSyncerCron } from "../jobs/learnDocSyncer";
+import { initApiHealthMonitorCron, stopApiHealthMonitorCron } from "../jobs/apiHealthMonitor";
 import { detectStorageBackend } from "../storage";
 import { closeDb } from "../db";
 
@@ -214,6 +215,7 @@ async function startServer() {
     initNewsFetcherCron();
     initModelTrainingWorkerCron();
     initLearnDocSyncerCron();
+    initApiHealthMonitorCron();
   });
 
   // ── Graceful Shutdown ────────────────────────────────────────────────────
@@ -222,6 +224,7 @@ async function startServer() {
     stopNewsFetcherCron();
     stopModelTrainingWorkerCron();
     stopLearnDocSyncerCron();
+    stopApiHealthMonitorCron();
     server.close(async () => {
       await closeDb();
       console.log("[Server] All resources released. Exiting.");
