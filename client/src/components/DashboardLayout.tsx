@@ -250,7 +250,8 @@ function DashboardLayoutContent({
   );
   const isMobile = useIsMobile();
 
-  const isAdmin = user?.role === "admin";
+  // TODO: 管理員權限暫時下放給所有登入使用者，之後要改回來
+  const isAdmin = true;
 
   // ── 全站 Welcome Tour（首次登入時自動觸發）────────────────────────────
   const { startTour, hasSeen } = useSiteOnboarding();
