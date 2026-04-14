@@ -43,7 +43,8 @@ interface AudioResult {
 
 /**
  * 當後端 textToMusic / speechToText 回傳 request_id 時
- * 每 3 秒輪詢 checkAudioStatus，完成後自動顯示 AudioPlayer
+ * 每 3 秒輪詢 checkAudioStatus，完成後自動顯示 AudioPlayer。
+ * 支援超時偵測：超過 10 分鐘自動標記失敗。
  */
 function AsyncAudioPoller({ result, onUpdate, label }: {
   result: AudioResult;
@@ -53,9 +54,11 @@ function AsyncAudioPoller({ result, onUpdate, label }: {
   const modelId = result.model ?? "";
   const audioUrl = result.audio_url ?? (result.audio as any)?.url ?? result.url;
   const [dismissed, setDismissed] = useState(false);
+  // 記錄提交時間，用於超時偵測
+  const [submittedAt] = useState(() => Date.now());
 
   const { data, isError, error } = trpc.proStudio.checkAudioStatus.useQuery(
-    { requestId: result.request_id ?? "", model: modelId },
+    { requestId: result.request_id ?? "", model: modelId, submittedAt },
     {
       enabled: !!(result.request_id && !audioUrl && modelId),
       refetchInterval: (query) => {
@@ -296,7 +299,30 @@ function FileUploadInput({
   );
 }
 
-// ─── 音樂風格標籤資料 ─────────────────────────────────────────────────────────
+// ─── 音樂風格標籤資料（含中文翻譯）──────────────────────────────────────────
+
+/** 英文標籤 → 中文翻譯對照 */
+const TAG_ZH: Record<string, string> = {
+  // 曲風
+  pop: "流行", rock: "搖滾", jazz: "爵士", classical: "古典", "hip-hop": "嘻哈",
+  electronic: "電子", folk: "民謠", country: "鄉村", "R&B": "節奏藍調", metal: "金屬",
+  blues: "藍調", reggae: "雷鬼", soul: "靈魂樂", funk: "放克", ambient: "氛圍",
+  "lo-fi": "低保真",
+  // 樂器
+  piano: "鋼琴", guitar: "吉他", violin: "小提琴", drums: "鼓", bass: "貝斯",
+  flute: "長笛", cello: "大提琴", trumpet: "小號", synthesizer: "合成器",
+  "acoustic guitar": "木吉他", "electric guitar": "電吉他", ukulele: "烏克麗麗",
+  // 情緒
+  happy: "開心", sad: "悲傷", romantic: "浪漫", energetic: "活力", relaxing: "放鬆",
+  dramatic: "戲劇性", mysterious: "神秘", uplifting: "振奮", melancholic: "憂鬱",
+  calm: "平靜", tense: "緊張", nostalgic: "懷舊",
+  // 節奏
+  upbeat: "輕快", slow: "慢速", moderate: "中速", fast: "快速", danceable: "適合跳舞",
+  // 調性
+  "C major": "C 大調", "G major": "G 大調", "D major": "D 大調",
+  "A minor": "A 小調", "E minor": "E 小調", "F major": "F 大調",
+  "minor key": "小調", "major key": "大調",
+};
 
 const MUSIC_TAG_CATEGORIES = [
   {
@@ -413,9 +439,11 @@ function MusicTagPicker({ tags, onChange }: { tags: string; onChange: (v: string
                           className={`text-[11px] px-2 py-0.5 rounded-full border transition-all ${
                             isActive ? TAG_COLOR_ACTIVE_MAP[colorKey] : TAG_COLOR_MAP[colorKey]
                           }`}
+                          title={TAG_ZH[tag] ? `${TAG_ZH[tag]} (${tag})` : tag}
                         >
                           {isActive && <span className="mr-0.5">✓</span>}
-                          {tag}
+                          {TAG_ZH[tag] ? `${TAG_ZH[tag]}` : tag}
+                          {TAG_ZH[tag] && <span className="ml-0.5 opacity-60 text-[9px]">{tag}</span>}
                         </button>
                       );
                     })}
@@ -516,19 +544,34 @@ function ToolCard({
 
 // ─── 音樂生成 Tab ─────────────────────────────────────────────────────────────
 
+/** 一鍵套用模板 */
+const MUSIC_TEMPLATES = [
+  { label: "☕ 咖啡廳", desc: "溫暖咖啡廳背景音樂，適合閱讀和聊天", tags: "jazz, piano, calm, 80bpm" },
+  { label: "🎬 電影配樂", desc: "科幻電影高潮場景配樂", tags: "electronic, dramatic, tense, 140bpm, synthesizer" },
+  { label: "🌅 放鬆冥想", desc: "寧靜的冥想背景音樂，自然環境融合", tags: "ambient, calm, relaxing, slow, piano" },
+  { label: "🎉 派對", desc: "輕鬆夏日流行歌曲", tags: "pop, upbeat, happy, guitar, 120bpm, C major" },
+  { label: "📚 學習專注", desc: "幫助專注的 Lo-fi 音樂", tags: "lo-fi, calm, piano, 80bpm" },
+  { label: "🏃 運動健身", desc: "高能量健身動感音樂", tags: "electronic, energetic, fast, drums, 140bpm" },
+];
+
 function MusicTab() {
   const registerBgTask = useRegisterBgTask();
   const [prompt, setPrompt] = useState("");
   const [lyrics, setLyrics] = useState("");
   const [instrumental, setInstrumental] = useState(false);
   const [tags, setTags] = useState("");
+  const [musicModel, setMusicModel] = useState<"sonauto" | "ace-step" | "stable-audio" | "musicgen">("sonauto");
+  const [duration, setDuration] = useState(30);
   const [result, setResult] = useState<AudioResult | null>(null);
+
+  // 載入可用模型清單
+  const modelsQuery = trpc.proStudio.musicModels.useQuery();
+  const models = modelsQuery.data ?? [];
 
   const mutation = trpc.proStudio.textToMusic.useMutation({
     onSuccess: (data) => {
       setResult(data as AudioResult);
       registerBgTask(data, "audio", "🎵 音樂生成");
-      // 若已有 audio_url 則直接顯示；若只有 request_id 則啟動輪詢
       const immediate = (data as any)?.audio_url ?? (data as any)?.url;
       if (immediate) toast.success("🎵 音樂生成完成！");
       else toast.success("📤 任務已提交！稍後自動更新結果...");
@@ -537,18 +580,76 @@ function MusicTab() {
   });
 
   const audioUrl = result?.audio_url ?? (result?.audio as any)?.url ?? result?.url;
+  const showDuration = musicModel !== "sonauto"; // Sonauto 不支援 duration
+  const showLyrics = musicModel === "sonauto" || musicModel === "ace-step"; // 只有支援歌詞的模型才顯示
+
+  const applyTemplate = (t: typeof MUSIC_TEMPLATES[number]) => {
+    setPrompt(t.desc);
+    setTags(t.tags);
+    toast.success(`已套用模板「${t.label}」`);
+  };
 
   return (
     <div className="space-y-4">
       <ToolCard
         icon={Music2}
         title="文字轉音樂"
-        description="sonauto/v2 — 輸入描述，AI 為你作曲完整歌曲"
-        badge="Sonauto v2"
-        modelId="sonauto/v2/text-to-music"
+        description="多模型支援 — 輸入描述，AI 為你作曲"
+        badge={models.find(m => m.id === musicModel)?.label ?? "Sonauto v2"}
+        modelId={musicModel === "sonauto" ? "sonauto/v2/text-to-music" : `fal-ai/${musicModel}`}
         color="purple"
       >
         <div className="space-y-3">
+          {/* 模型選擇 */}
+          <div>
+            <Label className="text-xs text-muted-foreground flex items-center gap-1">
+              <Bot className="w-3 h-3" />
+              選擇模型
+              <span className="text-[9px] text-muted-foreground/60 ml-1">（主模型失敗可切換備選）</span>
+            </Label>
+            <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+              {(models.length > 0 ? models : [
+                { id: "sonauto", label: "Sonauto v2", description: "完整歌曲生成", badge: "預設", tier: "premium" },
+                { id: "ace-step", label: "ACE-Step", description: "高品質音樂", badge: "推薦", tier: "premium" },
+                { id: "stable-audio", label: "Stable Audio", description: "音樂/音效", badge: "", tier: "premium" },
+                { id: "musicgen", label: "MusicGen", description: "輕量快速", badge: "快速", tier: "standard" },
+              ]).map((m) => (
+                <button
+                  key={m.id}
+                  onClick={() => setMusicModel(m.id as typeof musicModel)}
+                  className={`p-2 rounded-lg border text-left transition-all text-[11px] ${
+                    musicModel === m.id
+                      ? "bg-purple-50 border-purple-300 ring-1 ring-purple-300"
+                      : "bg-background border-border hover:bg-accent"
+                  }`}
+                >
+                  <div className="font-medium flex items-center gap-1">
+                    {m.label}
+                    {m.badge && <Badge variant="secondary" className="text-[8px] px-1 py-0">{m.badge}</Badge>}
+                  </div>
+                  <p className="text-[9px] text-muted-foreground mt-0.5">{m.description}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 快速模板 */}
+          <div>
+            <Label className="text-xs text-muted-foreground">🎯 一鍵套用模板（點擊快速填入）</Label>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {MUSIC_TEMPLATES.map((t, i) => (
+                <button
+                  key={i}
+                  onClick={() => applyTemplate(t)}
+                  className="text-[10px] px-2 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 border border-purple-200/60 text-purple-700 transition-colors"
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 音樂描述 */}
           <div>
             <Label className="text-xs text-muted-foreground">
               音樂描述 <span className="text-destructive">*</span>
@@ -569,7 +670,7 @@ function MusicTab() {
               純音樂（無人聲）
             </Label>
           </div>
-          {!instrumental && (
+          {!instrumental && showLyrics && (
             <div>
               <Label className="text-xs text-muted-foreground">歌詞（選填）</Label>
               <Textarea
@@ -580,20 +681,42 @@ function MusicTab() {
               />
             </div>
           )}
-          {/* 注意：Sonauto v2 API 不接受 duration 參數，由模型自動決定 */}
-          <div className="p-2.5 rounded-lg bg-amber-50/60 border border-amber-200/40">
-            <p className="text-[10px] text-amber-700">
-              ⚡ <strong>Sonauto v2</strong> 自動決定音樂時長（通常 60-180 秒），無法手動指定。
-              若需精確時長控制，請在描述中說明（如：「60 秒短曲」）。
-            </p>
-          </div>
+          {/* 時長控制（非 Sonauto 模型） */}
+          {showDuration && (
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">
+                音樂時長：{duration} 秒（{Math.floor(duration / 60)}:{(duration % 60).toString().padStart(2, "0")}）
+              </Label>
+              <Slider
+                value={[duration]}
+                onValueChange={([v]) => setDuration(v)}
+                min={5} max={180} step={5}
+              />
+            </div>
+          )}
+          {/* Sonauto 注意事項 */}
+          {musicModel === "sonauto" && (
+            <div className="p-2.5 rounded-lg bg-amber-50/60 border border-amber-200/40">
+              <p className="text-[10px] text-amber-700">
+                ⚡ <strong>Sonauto v2</strong> 自動決定音樂時長（通常 60-180 秒），無法手動指定。
+                若需精確時長控制，請在描述中說明（如：「60 秒短曲」）或切換至其他模型。
+              </p>
+            </div>
+          )}
           <Button
-            onClick={() => mutation.mutate({ prompt, lyrics: lyrics || undefined, instrumental, tags: tags || undefined })}
+            onClick={() => mutation.mutate({
+              prompt,
+              lyrics: lyrics || undefined,
+              instrumental,
+              tags: tags || undefined,
+              model: musicModel,
+              duration: showDuration ? duration : undefined,
+            })}
             disabled={mutation.isPending || !prompt.trim()}
             className="w-full"
           >
             {mutation.isPending
-              ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />AI 作曲中（約 30-60 秒）...</>
+              ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />AI 作曲中...</>
               : <><Sparkles className="w-4 h-4 mr-2" />生成音樂</>
             }
           </Button>
@@ -610,8 +733,9 @@ function MusicTab() {
           <ul className="space-y-1">
             {[
               "「音樂描述」：用自然語言說明想要的音樂感覺（情境、情緒、場景）",
-              "「風格標籤」：點擊「快速選取」選擇曲風/樂器/情緒/節奏/調性",
+              "「風格標籤」：點擊「快速選取」選擇曲風/樂器/情緒/節奏/調性（已附中文翻譯）",
               "兩者可同時使用：描述提供脈絡，標籤精確指定音樂特徵",
+              "⏱️ 如果主模型（Sonauto）超時或失敗，可切換至 ACE-Step / MusicGen 重試",
             ].map((tip, i) => (
               <li key={i} className="flex gap-1.5 text-[11px] text-purple-600">
                 <span className="shrink-0 mt-0.5">•</span>{tip}
@@ -627,10 +751,15 @@ function MusicTab() {
               { desc: "科幻電影高潮場景配樂", tags: "electronic, dramatic, tense, 140bpm, synthesizer" },
               { desc: "輕鬆夏日流行歌曲", tags: "pop, upbeat, happy, guitar, 120bpm, C major" },
             ].map((ex, i) => (
-              <div key={i} className="p-1.5 rounded bg-purple-100/50 text-[10px] text-purple-700">
+              <button
+                key={i}
+                onClick={() => { setPrompt(ex.desc); setTags(ex.tags); }}
+                className="w-full p-1.5 rounded bg-purple-100/50 text-[10px] text-purple-700 text-left hover:bg-purple-100 transition-colors cursor-pointer"
+              >
                 <strong>描述：</strong>{ex.desc}<br />
                 <strong>標籤：</strong>{ex.tags}
-              </div>
+                <span className="ml-1 text-[9px] text-purple-500">（點擊套用）</span>
+              </button>
             ))}
           </div>
         </div>
@@ -644,10 +773,15 @@ function MusicTab() {
 function SoundEffectsTab() {
   const registerBgTask = useRegisterBgTask();
   const [text, setText] = useState("");
-  const [duration, setDuration] = useState<number>(5);
+  const [duration, setDuration] = useState<number>(10);
   const [useDuration, setUseDuration] = useState(false);
   const [influence, setInfluence] = useState(0.3);
+  const [sfxModel, setSfxModel] = useState<"stable-audio" | "audioldm2" | "elevenlabs">("stable-audio");
   const [result, setResult] = useState<AudioResult | null>(null);
+
+  // 載入可用模型清單
+  const modelsQuery = trpc.proStudio.sfxModels.useQuery();
+  const models = modelsQuery.data ?? [];
 
   const mutation = trpc.proStudio.soundEffects.useMutation({
     onSuccess: (data) => { setResult(data as AudioResult); registerBgTask(data, "audio", "🔊 音效生成"); toast.success("📤 任務已提交！背景生成中，完成後會自動通知你"); },
@@ -655,13 +789,16 @@ function SoundEffectsTab() {
   });
 
   const audioUrl = result?.audio_url ?? (result?.audio as any)?.url ?? result?.url;
+  // ElevenLabs max 22s, others up to 180s
+  const maxDuration = sfxModel === "elevenlabs" ? 22 : 180;
+  const showInfluence = sfxModel === "elevenlabs"; // 只有 ElevenLabs 支援 prompt_influence
 
   const examples = [
     "雷雨交加的夜晚，遠處傳來狼嚎聲，樹葉沙沙作響",
     "古老城堡的木門緩緩開啟，發出刺耳的嘎吱聲",
-    "城市早晨的咖啡廳環境音，輕柔的背景音樂和人聲交談",
     "太空船引擎啟動，伴隨低沉的轟鳴和電子儀器音效",
     "森林中的鳥鳴聲，溪流潺潺，清晨的寧靜氛圍",
+    "繁忙街道上的車流聲，遠處偶爾傳來喇叭聲",
   ];
 
   return (
@@ -669,12 +806,57 @@ function SoundEffectsTab() {
       <ToolCard
         icon={Volume2}
         title="AI 音效生成"
-        description="ElevenLabs Sound Effects v2 — 文字描述即可生成任意音效"
-        badge="ElevenLabs"
-        modelId="fal-ai/elevenlabs/sound-effects/v2"
+        description="環境音效 / Foley 音效 — 文字描述即可生成真實音效"
+        badge={models.find(m => m.id === sfxModel)?.label ?? "Stable Audio"}
+        modelId={sfxModel === "elevenlabs" ? "fal-ai/elevenlabs/sound-effects/v2" : `fal-ai/${sfxModel}`}
         color="orange"
       >
         <div className="space-y-3">
+          {/* 模型選擇 */}
+          <div>
+            <Label className="text-xs text-muted-foreground flex items-center gap-1">
+              <Bot className="w-3 h-3" />
+              選擇模型
+            </Label>
+            <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+              {(models.length > 0 ? models : [
+                { id: "stable-audio", label: "Stable Audio", description: "真實環境音效", badge: "預設", tier: "premium" },
+                { id: "audioldm2", label: "AudioLDM 2", description: "自然音效", badge: "", tier: "standard" },
+                { id: "elevenlabs", label: "ElevenLabs", description: "備用", badge: "備用", tier: "standard" },
+              ]).map((m) => (
+                <button
+                  key={m.id}
+                  onClick={() => {
+                    setSfxModel(m.id as typeof sfxModel);
+                    // 切換模型時調整時長上限
+                    if (m.id === "elevenlabs" && duration > 22) setDuration(22);
+                  }}
+                  className={`p-2 rounded-lg border text-left transition-all text-[11px] ${
+                    sfxModel === m.id
+                      ? "bg-orange-50 border-orange-300 ring-1 ring-orange-300"
+                      : "bg-background border-border hover:bg-accent"
+                  }`}
+                >
+                  <div className="font-medium flex items-center gap-1">
+                    {m.label}
+                    {m.badge && <Badge variant="secondary" className="text-[8px] px-1 py-0">{m.badge}</Badge>}
+                  </div>
+                  <p className="text-[9px] text-muted-foreground mt-0.5 line-clamp-1">{m.description}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* ⚠️ ElevenLabs 警告 */}
+          {sfxModel === "elevenlabs" && (
+            <div className="p-2.5 rounded-lg bg-amber-50/60 border border-amber-200/40">
+              <p className="text-[10px] text-amber-700">
+                ⚠️ ElevenLabs Sound Effects 對某些描述可能產生「語音配音」而非音效。
+                如需純音效，建議使用 <strong>Stable Audio</strong> 或 <strong>AudioLDM 2</strong>。
+              </p>
+            </div>
+          )}
+
           <div>
             <Label className="text-xs text-muted-foreground">
               音效描述 <span className="text-destructive">*</span>
@@ -682,7 +864,7 @@ function SoundEffectsTab() {
             <Textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
-              placeholder="詳細描述你想要的音效場景..."
+              placeholder="詳細描述你想要的音效場景（避免包含「說話」「對白」等詞彙，以確保生成純音效）..."
               className="mt-1 text-sm resize-none h-20"
             />
           </div>
@@ -712,33 +894,40 @@ function SoundEffectsTab() {
 
           {useDuration && (
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">時長：{duration} 秒（最長 22 秒）</Label>
+              <Label className="text-xs text-muted-foreground">時長：{duration} 秒（最長 {maxDuration} 秒）</Label>
               <Slider
                 value={[duration]}
                 onValueChange={([v]) => setDuration(v)}
-                min={1} max={22} step={0.5}
+                min={1} max={maxDuration} step={0.5}
               />
             </div>
           )}
 
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">
-              提示詞影響強度：{influence.toFixed(2)}
-              <span className="ml-2 text-[10px] text-muted-foreground/60">（越高越貼近描述，越低越有創意）</span>
-            </Label>
-            <Slider
-              value={[influence]}
-              onValueChange={([v]) => setInfluence(v)}
-              min={0} max={1} step={0.05}
-            />
-          </div>
+          {showInfluence && (
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">
+                提示詞影響強度：{influence.toFixed(2)}
+                <span className="ml-2 text-[10px] text-muted-foreground/60">（越高越貼近描述，越低越有創意）</span>
+              </Label>
+              <Slider
+                value={[influence]}
+                onValueChange={([v]) => setInfluence(v)}
+                min={0} max={1} step={0.05}
+              />
+            </div>
+          )}
           <Button
-            onClick={() => mutation.mutate({ text, duration_seconds: useDuration ? duration : undefined, prompt_influence: influence })}
+            onClick={() => mutation.mutate({
+              text,
+              duration_seconds: useDuration ? duration : undefined,
+              prompt_influence: showInfluence ? influence : undefined,
+              model: sfxModel,
+            })}
             disabled={mutation.isPending || !text.trim()}
             className="w-full"
           >
             {mutation.isPending
-              ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />生成中（約 10-30 秒）...</>
+              ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />生成中...</>
               : <><Volume2 className="w-4 h-4 mr-2" />生成音效</>
             }
           </Button>

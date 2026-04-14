@@ -122,6 +122,26 @@ async function falQueueRun(
   return { request_id, raw_model_id: modelId, is_async_polling: true };
 }
 
+// ─── 音樂 & 音效模型清單 ──────────────────────────────────────────────────────
+
+/** 可用的音樂生成模型 */
+const MUSIC_MODELS = [
+  { id: "sonauto",      label: "Sonauto v2",     description: "完整歌曲生成，支援歌詞 & 風格標籤（1-3 分鐘）", badge: "預設", tier: "premium" as const },
+  { id: "ace-step",     label: "ACE-Step",        description: "高品質音樂生成，支援自訂時長", badge: "推薦", tier: "premium" as const },
+  { id: "stable-audio", label: "Stable Audio",    description: "高品質音樂/音效（最長 3 分鐘）", badge: "", tier: "premium" as const },
+  { id: "musicgen",     label: "MusicGen (Meta)", description: "Meta 開源音樂模型，輕量快速", badge: "快速", tier: "standard" as const },
+];
+
+/** 可用的音效生成模型 */
+const SFX_MODELS = [
+  { id: "stable-audio", label: "Stable Audio",   description: "真實環境音效 & Foley 音效（最長 3 分鐘）", badge: "預設", tier: "premium" as const },
+  { id: "audioldm2",    label: "AudioLDM 2",     description: "音頻潛在擴散模型，擅長自然音效", badge: "", tier: "standard" as const },
+  { id: "elevenlabs",   label: "ElevenLabs SFX",  description: "ElevenLabs 音效（最長 22 秒，部分描述可能產生語音）", badge: "備用", tier: "standard" as const },
+];
+
+/** 背景任務超時閾值（毫秒）— 超過此時間未完成則標記失敗 */
+const ASYNC_TASK_TIMEOUT_MS = 10 * 60 * 1000; // 10 分鐘
+
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 export const proStudioRouter = router({
@@ -135,87 +155,165 @@ export const proStudioRouter = router({
   // 🎵 音樂生成
   // ═══════════════════════════════════════════════════════════════
 
+  /** 可用的音樂生成模型清單（前端使用） */
+  musicModels: publicProcedure.query(() => MUSIC_MODELS),
+
   /**
-   * sonauto/v2/text-to-music — 文字轉完整歌曲
+   * 文字轉音樂 — 支援多模型切換
    *
-   * 規則：
-   *  - prompt / tags / lyrics_prompt 三者最多同時給兩個
-   *  - lyrics_prompt 單獨使用無效（需配 prompt 或 tags）
-   *  - tags 必須是陣列（API 接受 string[]）
-   *  - 沒有 duration 參數
-   *  - 耗時 1-3 分鐘 → 使用 falQueueRun
+   * 可用模型：
+   *  1. sonauto/v2/text-to-music（預設）— 完整歌曲，支援歌詞 + tags
+   *  2. fal-ai/ace-step           — 高品質音樂，支援 prompt + duration
+   *  3. fal-ai/stable-audio       — 音效/音樂皆可，支援 duration + negative_prompt
+   *  4. fal-ai/musicgen           — Meta MusicGen，支援 prompt + duration
+   *
+   * 當主模型失敗時前端可切換至其他備選模型重試。
    */
   textToMusic: protectedProcedure
     .input(z.object({
       prompt:       z.string().min(1).max(2000).optional(),
-      lyrics:       z.string().optional(),         // 前端傳的歌詞文字，對應 API 的 lyrics_prompt
+      lyrics:       z.string().optional(),         // 前端傳的歌詞文字，對應 Sonauto API 的 lyrics_prompt
       tags:         z.string().optional(),         // 逗號分隔的標籤字串，轉換為陣列
       instrumental: z.boolean().optional(),        // true → 傳空字串歌詞（純音樂）
       bpm:          z.number().min(40).max(300).optional(),
+      duration:     z.number().min(1).max(300).optional(), // 秒數（非 Sonauto 模型用）
+      model:        z.enum(["sonauto", "ace-step", "stable-audio", "musicgen"]).optional().default("sonauto"),
     }))
     .mutation(async ({ input }) => {
-      // 建構 Sonauto API payload，遵守「最多兩兩組合」規則
-      const payload: Record<string, unknown> = {};
+      const modelChoice = input.model ?? "sonauto";
 
-      if (input.prompt) payload.prompt = input.prompt;
+      // ── Sonauto v2（預設）─────────────────────────────────────
+      if (modelChoice === "sonauto") {
+        const payload: Record<string, unknown> = {};
+        if (input.prompt) payload.prompt = input.prompt;
+        if (input.tags) {
+          const tagsArr = input.tags.split(",").map(t => t.trim()).filter(Boolean);
+          if (tagsArr.length > 0) payload.tags = tagsArr;
+        }
+        const hasPrompt = !!payload.prompt;
+        const hasTags   = !!payload.tags;
+        if (input.instrumental) {
+          payload.lyrics_prompt = "";
+        } else if (input.lyrics && !(hasPrompt && hasTags)) {
+          payload.lyrics_prompt = input.lyrics;
+        }
+        if (!payload.prompt && !payload.tags) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "請至少提供音樂描述（prompt）或風格標籤（tags）" });
+        }
+        if (input.bpm) payload.bpm = input.bpm;
+        payload.output_format = "mp3";
+        payload.num_songs = 1;
 
-      // tags：逗號分隔字串 → 陣列，去掉空白
-      if (input.tags) {
-        const tagsArr = input.tags.split(",").map(t => t.trim()).filter(Boolean);
-        if (tagsArr.length > 0) payload.tags = tagsArr;
+        const falModelId = "sonauto/v2/text-to-music";
+        const { request_id } = await falQueueSubmit(falModelId, payload);
+        return { request_id, model: falModelId, is_async_polling: true };
       }
 
-      // 純音樂模式：lyrics_prompt = "" 表示無歌詞
-      // 有歌詞時：lyrics_prompt = 歌詞內容
-      // ⚠️ 若同時有 prompt + tags，不再加 lyrics_prompt（避免三者同時）
-      const hasPrompt = !!payload.prompt;
-      const hasTags   = !!payload.tags;
+      // ── 通用 prompt（非 Sonauto 模型）──────────────────────────
+      // 組合 prompt + tags + 情境 為單一描述字串
+      const parts: string[] = [];
+      if (input.prompt) parts.push(input.prompt);
+      if (input.tags) parts.push(input.tags);
+      if (input.instrumental) parts.push("instrumental, no vocals");
+      const combinedPrompt = parts.join(", ") || "relaxing ambient music";
 
-      if (input.instrumental) {
-        // 純音樂：需要加 lyrics_prompt: "" 告訴 Sonauto 不要歌詞
-        payload.lyrics_prompt = "";
-      } else if (input.lyrics && !(hasPrompt && hasTags)) {
-        // 有歌詞且未同時有 prompt+tags
-        payload.lyrics_prompt = input.lyrics;
+      // ── ACE-Step ──────────────────────────────────────────────
+      if (modelChoice === "ace-step") {
+        const falModelId = "fal-ai/ace-step";
+        const payload: Record<string, unknown> = {
+          prompt: combinedPrompt,
+          ...(input.duration ? { duration: input.duration } : {}),
+        };
+        if (input.lyrics && !input.instrumental) {
+          payload.lyrics = input.lyrics;
+        }
+        const { request_id } = await falQueueSubmit(falModelId, payload);
+        return { request_id, model: falModelId, is_async_polling: true };
       }
 
-      // 若什麼都沒給，至少要有 prompt
-      if (!payload.prompt && !payload.tags) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "請至少提供音樂描述（prompt）或風格標籤（tags）" });
+      // ── Stable Audio ──────────────────────────────────────────
+      if (modelChoice === "stable-audio") {
+        const falModelId = "fal-ai/stable-audio";
+        const payload: Record<string, unknown> = {
+          prompt: combinedPrompt,
+          ...(input.duration ? { seconds_total: input.duration } : { seconds_total: 30 }),
+        };
+        const { request_id } = await falQueueSubmit(falModelId, payload);
+        return { request_id, model: falModelId, is_async_polling: true };
       }
 
-      if (input.bpm) payload.bpm = input.bpm;
-      payload.output_format = "mp3";
-      payload.num_songs = 1;
-
-      // 音樂生成耗時長，使用 queue 非同步叐交，立即回傳 request_id 給前端輪詢
-      const { request_id } = await falQueueSubmit("sonauto/v2/text-to-music", payload);
-      return {
-        request_id,
-        model: "sonauto/v2/text-to-music",
-        is_async_polling: true,
-      };
+      // ── MusicGen ──────────────────────────────────────────────
+      {
+        const falModelId = "fal-ai/musicgen";
+        const payload: Record<string, unknown> = {
+          prompt: combinedPrompt,
+          ...(input.duration ? { duration: input.duration } : {}),
+        };
+        const { request_id } = await falQueueSubmit(falModelId, payload);
+        return { request_id, model: falModelId, is_async_polling: true };
+      }
     }),
 
   // ═══════════════════════════════════════════════════════════════
   // 🔊 音效生成
   // ═══════════════════════════════════════════════════════════════
 
-  /** fal-ai/elevenlabs/sound-effects/v2 — AI 音效生成（非同步 queue） */
+  /** 可用的音效生成模型清單（前端使用） */
+  sfxModels: publicProcedure.query(() => SFX_MODELS),
+
+  /**
+   * AI 音效生成 — 支援多模型切換
+   *
+   * 可用模型：
+   *  1. fal-ai/stable-audio（預設）— 真正的環境音效/Foley 音效，非語音
+   *  2. fal-ai/audioldm2          — 音頻潛在擴散模型，擅長環境音效
+   *  3. fal-ai/elevenlabs/sound-effects/v2 — ElevenLabs（備用，部分描述可能產生語音）
+   *
+   * ⚠️ 原先使用 ElevenLabs Sound Effects 會產生「配音說話」而非音效，
+   *    已改為 Stable Audio 作為預設模型。
+   */
   soundEffects: protectedProcedure
     .input(z.object({
       text:              z.string().min(1).max(500),
-      duration_seconds:  z.number().min(0.5).max(22).optional(),
+      duration_seconds:  z.number().min(0.5).max(180).optional(),
       prompt_influence:  z.number().min(0).max(1).optional().default(0.3),
+      model:             z.enum(["stable-audio", "audioldm2", "elevenlabs"]).optional().default("stable-audio"),
     }))
     .mutation(async ({ input }) => {
-      const modelId = "fal-ai/elevenlabs/sound-effects/v2";
-      const { request_id } = await falQueueSubmit(modelId, {
-        text:             input.text,
-        duration_seconds: input.duration_seconds,
-        prompt_influence: input.prompt_influence,
-      });
-      return { request_id, model: modelId, is_async_polling: true };
+      const modelChoice = input.model ?? "stable-audio";
+
+      // ── Stable Audio（預設）── 真正的音效生成 ──────────────────
+      if (modelChoice === "stable-audio") {
+        const falModelId = "fal-ai/stable-audio";
+        const payload: Record<string, unknown> = {
+          prompt: input.text,
+          seconds_total: input.duration_seconds ?? 10,
+        };
+        const { request_id } = await falQueueSubmit(falModelId, payload);
+        return { request_id, model: falModelId, is_async_polling: true };
+      }
+
+      // ── AudioLDM2 ── 音頻潛在擴散，擅長環境音效 ────────────────
+      if (modelChoice === "audioldm2") {
+        const falModelId = "fal-ai/audioldm2";
+        const payload: Record<string, unknown> = {
+          prompt: input.text,
+          ...(input.duration_seconds ? { audio_length_in_s: input.duration_seconds } : {}),
+        };
+        const { request_id } = await falQueueSubmit(falModelId, payload);
+        return { request_id, model: falModelId, is_async_polling: true };
+      }
+
+      // ── ElevenLabs（備用）──────────────────────────────────────
+      {
+        const falModelId = "fal-ai/elevenlabs/sound-effects/v2";
+        const { request_id } = await falQueueSubmit(falModelId, {
+          text:             input.text,
+          duration_seconds: input.duration_seconds ? Math.min(input.duration_seconds, 22) : undefined,
+          prompt_influence: input.prompt_influence,
+        });
+        return { request_id, model: falModelId, is_async_polling: true };
+      }
     }),
 
   // ═══════════════════════════════════════════════════════════════
@@ -656,13 +754,26 @@ export const proStudioRouter = router({
   /**
    * 結合狀態+結果的通用輪詢 API
    * 前端每 3 秒呼叫：若已完成則回傳音訊 URL
+   * 支援超時偵測：若任務執行超過 10 分鐘仍未完成，自動標記為失敗
    */
   checkAudioStatus: protectedProcedure
     .input(z.object({
-      requestId: z.string().min(1),
-      model:     z.string().min(1),
+      requestId:   z.string().min(1),
+      model:       z.string().min(1),
+      submittedAt: z.number().optional(), // epoch ms — 用於超時偵測
     }))
     .query(async ({ input }) => {
+      // ── 超時偵測：若超過 10 分鐘仍在處理，視為失敗 ───────────
+      if (input.submittedAt) {
+        const elapsed = Date.now() - input.submittedAt;
+        if (elapsed > ASYNC_TASK_TIMEOUT_MS) {
+          throw new TRPCError({
+            code: "TIMEOUT",
+            message: `任務已超時（超過 ${Math.round(ASYNC_TASK_TIMEOUT_MS / 60000)} 分鐘），請嘗試更換模型或簡化描述後重試`,
+          });
+        }
+      }
+
       const status = await falQueueStatus(input.requestId, input.model) as any;
       const s = status?.status ?? status?.state;
 
@@ -670,12 +781,13 @@ export const proStudioRouter = router({
         const result = await falQueueResult(input.requestId, input.model) as any;
         const rawData = result?.data ?? result;
 
-        // 通用提取 audio_url
+        // 通用提取 audio_url（支援各種模型的不同回傳格式）
         const audioUrl =
           rawData?.audio?.url ??
           rawData?.audio_url ??
           (Array.isArray(rawData?.audio) ? rawData.audio[0]?.url : null) ??
           rawData?.output?.url ??
+          rawData?.audio_file?.url ??
           null;
 
         // 如果是 ASR 結果，提取文字
