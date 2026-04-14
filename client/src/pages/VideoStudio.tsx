@@ -1480,14 +1480,14 @@ export default function VideoStudio() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`
-                shrink-0 flex items-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-medium transition-all min-h-[44px]
+                shrink-0 flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-3 sm:py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all min-h-[44px] border
                 ${isActive
-                  ? "bg-primary text-primary-foreground shadow-md"
-                  : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground active:bg-muted"
+                  ? "bg-primary text-primary-foreground border-primary shadow-md"
+                  : "bg-background text-muted-foreground hover:bg-accent hover:text-foreground active:bg-accent border-border/40"
                 }
               `}
             >
-              <Icon className="w-4 h-4" />
+              <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               <span>{tab.label}</span>
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${isActive ? "bg-white/20" : "bg-primary/10 text-primary"}`}>
                 {count}
@@ -1498,7 +1498,8 @@ export default function VideoStudio() {
       </div>
 
       {/* 標籤說明 */}
-      <div className="text-xs text-muted-foreground px-1">
+      <div className="text-[11px] sm:text-xs text-muted-foreground px-1 flex items-center gap-1.5">
+        <span className="inline-block w-1 h-1 rounded-full bg-primary/40"></span>
         {TABS.find(t => t.id === activeTab)?.desc}
       </div>
 

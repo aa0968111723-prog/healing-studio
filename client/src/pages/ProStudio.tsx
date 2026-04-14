@@ -2055,6 +2055,11 @@ export default function ProStudio() {
           <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">
             音樂創作・配音制作・聲音克隆・AI 形像影片 — fal.ai 頂尖模型整合
           </p>
+          <div className="flex flex-wrap gap-1 sm:gap-1.5 mt-2">
+            {(["Sonauto", "ACE-Step", "Stable Audio", "MusicGen", "ElevenLabs", "Qwen TTS", "Kling"] as string[]).map(tag => (
+              <Badge key={tag} variant="outline" className="text-[10px]">{tag}</Badge>
+            ))}
+          </div>
         </div>
         {hasKey === false && (
           <div className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 shrink-0">
@@ -2118,7 +2123,14 @@ export default function ProStudio() {
       </AnimatePresence>
 
       {/* 底部說明 */}
-      <div className="text-center py-4 border-t border-border/40">
+      <div className="mt-6 sm:mt-8 p-3 sm:p-4 rounded-2xl bg-muted/40 text-xs text-muted-foreground space-y-1">
+        <p className="font-medium text-foreground text-sm">📋 使用說明</p>
+        <p>• 音樂生成支援 Sonauto、ACE-Step、Stable Audio、MusicGen 四種模型。</p>
+        <p>• 語音合成支援中英文，可調整語速、音調和情緒強度。</p>
+        <p>• 聲音克隆需上傳至少 30 秒的清晰語音樣本。</p>
+        <p>• AI 形像影片可由人像照片 + 音訊生成口型同步的說話影片。</p>
+      </div>
+      <div className="text-center pb-2">
         <p className="text-[11px] text-muted-foreground/60">
           Powered by fal.ai · ElevenLabs · Sonauto · Qwen · Kling · LTX
         </p>

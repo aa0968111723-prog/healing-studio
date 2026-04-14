@@ -478,6 +478,16 @@
     @apply space-y-4;
   }
 
+  /* Studio footer info card */
+  .studio-footer {
+    @apply mt-6 p-3 rounded-2xl bg-muted/40 text-xs text-muted-foreground space-y-1;
+  }
+  @media (min-width: 640px) {
+    .studio-footer {
+      @apply mt-8 p-4;
+    }
+  }
+
   /* ─── Mobile Optimizations — healing touch experience ────────── */
 
   /* Hide scrollbar but keep scroll functional */
