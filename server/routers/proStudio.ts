@@ -140,7 +140,7 @@ const SFX_MODELS = [
 ];
 
 /** 背景任務超時閾值（毫秒）— 超過此時間未完成則標記失敗 */
-const ASYNC_TASK_TIMEOUT_MS = 10 * 60 * 1000; // 10 分鐘
+const BACKGROUND_TASK_TIMEOUT_MS = 10 * 60 * 1000; // 10 分鐘
 
 // ─── Router ──────────────────────────────────────────────────────────────────
 
@@ -242,16 +242,14 @@ export const proStudioRouter = router({
         return { request_id, model: falModelId, is_async_polling: true };
       }
 
-      // ── MusicGen ──────────────────────────────────────────────
-      {
-        const falModelId = "fal-ai/musicgen";
-        const payload: Record<string, unknown> = {
-          prompt: combinedPrompt,
-          ...(input.duration ? { duration: input.duration } : {}),
-        };
-        const { request_id } = await falQueueSubmit(falModelId, payload);
-        return { request_id, model: falModelId, is_async_polling: true };
-      }
+      // ── MusicGen（最終備選）──────────────────────────────────
+      const falModelId = "fal-ai/musicgen";
+      const payload: Record<string, unknown> = {
+        prompt: combinedPrompt,
+        ...(input.duration ? { duration: input.duration } : {}),
+      };
+      const { request_id } = await falQueueSubmit(falModelId, payload);
+      return { request_id, model: falModelId, is_async_polling: true };
     }),
 
   // ═══════════════════════════════════════════════════════════════
@@ -304,16 +302,14 @@ export const proStudioRouter = router({
         return { request_id, model: falModelId, is_async_polling: true };
       }
 
-      // ── ElevenLabs（備用）──────────────────────────────────────
-      {
-        const falModelId = "fal-ai/elevenlabs/sound-effects/v2";
-        const { request_id } = await falQueueSubmit(falModelId, {
-          text:             input.text,
-          duration_seconds: input.duration_seconds ? Math.min(input.duration_seconds, 22) : undefined,
-          prompt_influence: input.prompt_influence,
-        });
-        return { request_id, model: falModelId, is_async_polling: true };
-      }
+      // ── ElevenLabs（最終備用）─────────────────────────────────
+      const falModelId = "fal-ai/elevenlabs/sound-effects/v2";
+      const { request_id } = await falQueueSubmit(falModelId, {
+        text:             input.text,
+        duration_seconds: input.duration_seconds ? Math.min(input.duration_seconds, 22) : undefined,
+        prompt_influence: input.prompt_influence,
+      });
+      return { request_id, model: falModelId, is_async_polling: true };
     }),
 
   // ═══════════════════════════════════════════════════════════════
@@ -766,10 +762,10 @@ export const proStudioRouter = router({
       // ── 超時偵測：若超過 10 分鐘仍在處理，視為失敗 ───────────
       if (input.submittedAt) {
         const elapsed = Date.now() - input.submittedAt;
-        if (elapsed > ASYNC_TASK_TIMEOUT_MS) {
+        if (elapsed > BACKGROUND_TASK_TIMEOUT_MS) {
           throw new TRPCError({
             code: "TIMEOUT",
-            message: `任務已超時（超過 ${Math.round(ASYNC_TASK_TIMEOUT_MS / 60000)} 分鐘），請嘗試更換模型或簡化描述後重試`,
+            message: `任務已超時（超過 ${Math.round(BACKGROUND_TASK_TIMEOUT_MS / 60000)} 分鐘），請嘗試更換模型或簡化描述後重試`,
           });
         }
       }

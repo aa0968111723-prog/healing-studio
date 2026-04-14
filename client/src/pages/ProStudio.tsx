@@ -432,6 +432,7 @@ function MusicTagPicker({ tags, onChange }: { tags: string; onChange: (v: string
                     {cat.tags.map((tag) => {
                       const isActive = selectedSet.has(tag);
                       const colorKey = cat.color as TagColor;
+                      const zhLabel = TAG_ZH[tag];
                       return (
                         <button
                           key={tag}
@@ -439,11 +440,11 @@ function MusicTagPicker({ tags, onChange }: { tags: string; onChange: (v: string
                           className={`text-[11px] px-2 py-0.5 rounded-full border transition-all ${
                             isActive ? TAG_COLOR_ACTIVE_MAP[colorKey] : TAG_COLOR_MAP[colorKey]
                           }`}
-                          title={TAG_ZH[tag] ? `${TAG_ZH[tag]} (${tag})` : tag}
+                          title={zhLabel ? `${zhLabel} (${tag})` : tag}
                         >
                           {isActive && <span className="mr-0.5">✓</span>}
-                          {TAG_ZH[tag] ? `${TAG_ZH[tag]}` : tag}
-                          {TAG_ZH[tag] && <span className="ml-0.5 opacity-60 text-[9px]">{tag}</span>}
+                          {zhLabel ?? tag}
+                          {zhLabel && <span className="ml-0.5 opacity-60 text-[9px]">{tag}</span>}
                         </button>
                       );
                     })}
@@ -864,7 +865,9 @@ function SoundEffectsTab() {
             <Textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
-              placeholder="詳細描述你想要的音效場景（避免包含「說話」「對白」等詞彙，以確保生成純音效）..."
+              placeholder={sfxModel === "elevenlabs"
+                ? "詳細描述你想要的音效（ElevenLabs 模式，最長 22 秒）..."
+                : "詳細描述你想要的音效場景，例如：森林鳥鳴、雷雨聲、機器運轉..."}
               className="mt-1 text-sm resize-none h-20"
             />
           </div>
