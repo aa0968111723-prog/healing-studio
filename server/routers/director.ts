@@ -9,6 +9,8 @@
  *   - 對話 session 持久化（localStorage 為主，server 端筆記備份）
  *   - 預設模板庫
  *   - 偏好設定 CRUD
+ *   - 長腳本匯入、分鏡分析、逐段多模態討論
+ *   - 腳本匯出（JSON / CSV / Markdown / FDX / SRT / 自訂格式）
  */
 
 import { z } from "zod";
@@ -17,7 +19,7 @@ import { invokeLLM } from "../_core/llm";
 import * as db from "../db";
 import { buildMemoryContext } from "../services/ragMemory";
 import { buildDirectorSystemPrompt, GENERATION_MODALITIES_KNOWLEDGE, WORKFLOW_KNOWLEDGE } from "../services/siteKnowledge";
-import type { DirectorTemplate } from "../../shared/types";
+import type { DirectorTemplate, ScriptSegment, QuickAction } from "../../shared/types";
 
 // ─── Timeout Utility ────────────────────────────────────────────────────────
 
@@ -152,6 +154,372 @@ const DIRECTOR_TEMPLATES: DirectorTemplate[] = [
     personality: "technical",
   },
 ];
+
+// ─── Quick Actions for Multi-Modal Discussion ───────────────────────────────
+
+const QUICK_ACTIONS: QuickAction[] = [
+  // Visual
+  { id: "enhance-visual", label: "Enhance Visual", labelZh: "強化視覺", icon: "image", promptTemplate: "請針對這段分鏡的視覺描述進行強化，增加更豐富的畫面細節、光影描述、色調與構圖建議。", category: "visual" },
+  { id: "add-camera", label: "Camera Direction", labelZh: "鏡頭運動", icon: "video", promptTemplate: "請為這段分鏡添加具體的鏡頭運動建議（如推拉搖移跟、特寫、中景、遠景等），並說明每個鏡頭選擇的理由。", category: "visual" },
+  { id: "color-palette", label: "Color Palette", labelZh: "色彩設計", icon: "palette", promptTemplate: "請為這段分鏡設計一個完整的色彩方案，包含主色調、輔助色、點綴色，並說明這些顏色如何服務敘事情緒。", category: "visual" },
+  { id: "reference-style", label: "Style Reference", labelZh: "風格參考", icon: "sparkles", promptTemplate: "請為這段分鏡推薦視覺風格參考（電影、攝影師、藝術家或藝術流派），並說明如何在 AI 生成時運用這些風格。", category: "visual" },
+  // Audio
+  { id: "sound-design", label: "Sound Design", labelZh: "音效設計", icon: "volume", promptTemplate: "請為這段分鏡設計完整的音效層次，包括環境音、音效、配樂風格、音量變化，並建議適合的 AI 音樂模型。", category: "audio" },
+  { id: "dialogue-polish", label: "Dialogue Polish", labelZh: "對白優化", icon: "mic", promptTemplate: "請優化這段分鏡的對白，使語調更自然、更符合角色性格，並標注語氣和情緒提示。", category: "audio" },
+  { id: "voiceover", label: "Voiceover Script", labelZh: "旁白腳本", icon: "headphones", promptTemplate: "請為這段分鏡撰寫旁白腳本，包含語氣標註、節奏控制、停頓位置，適合 TTS 生成。", category: "audio" },
+  // Narrative
+  { id: "pacing", label: "Pacing", labelZh: "節奏調整", icon: "timer", promptTemplate: "請分析並調整這段分鏡的敘事節奏，建議哪些地方需要加速或放慢，如何營造張力和釋放。", category: "narrative" },
+  { id: "emotion-arc", label: "Emotion Arc", labelZh: "情緒弧線", icon: "heart", promptTemplate: "請分析這段分鏡的情緒走向，建議如何強化情緒弧線，讓觀眾在關鍵時刻產生共鳴。", category: "narrative" },
+  { id: "transition", label: "Transition", labelZh: "轉場設計", icon: "shuffle", promptTemplate: "請設計這段分鏡與前後段之間的轉場方式，可以是視覺轉場、聲音轉場或概念轉場。", category: "narrative" },
+  // Technical
+  { id: "gen-params", label: "Gen Parameters", labelZh: "生成參數", icon: "settings", promptTemplate: "請為這段分鏡建議具體的 AI 生成參數，包括推薦模型、解析度、步數、CFG 值、種子碼策略等。", category: "technical" },
+  { id: "prompt-optimize", label: "Optimize Prompt", labelZh: "提示詞優化", icon: "wand", promptTemplate: "請將這段分鏡的描述轉化為最佳化的英文 AI 生成提示詞（Prompt），包含正向與負向提示詞。", category: "technical" },
+  // Mood
+  { id: "mood-shift", label: "Mood Shift", labelZh: "氛圍轉換", icon: "sun", promptTemplate: "請嘗試將這段分鏡的氛圍往不同方向調整，提供 2-3 種氛圍變體供選擇。", category: "mood" },
+  { id: "intensity", label: "Intensity", labelZh: "強度調整", icon: "zap", promptTemplate: "請調整這段分鏡的戲劇張力強度，提供「低張力」、「中張力」、「高張力」三個版本。", category: "mood" },
+];
+
+// ─── Script Import & Analysis Functions ─────────────────────────────────────
+
+async function parseScriptIntoSegments(
+  rawContent: string,
+  sourceFormat: string,
+  personality: "calm" | "creative" | "technical",
+): Promise<Omit<ScriptSegment, "discussion" | "status">[]> {
+  const persona = PERSONALITY_PROMPTS[personality] ?? PERSONALITY_PROMPTS.creative;
+
+  const result = await withTimeout(invokeLLM({
+    messages: [
+      {
+        role: "system",
+        content: `${persona.directorStyle}
+
+你是一位專業的腳本分析師。你的任務是將使用者匯入的長腳本拆分為獨立的分鏡段落。
+
+來源格式：${sourceFormat}
+
+請分析腳本內容，根據場景切換、敘事節點、情緒轉折等自然斷點，將內容拆分為多個分鏡段落。
+每個段落需要包含：
+- sceneHeading: 場景標題（如 INT. 咖啡廳 - 日）
+- visualDescription: 視覺描述（畫面內容、光影、構圖）
+- dialogue: 對白內容
+- soundDesign: 音效/音樂描述
+- cameraDirection: 鏡頭運動建議
+- duration: 預估時長
+- mood: 情緒氛圍
+
+輸出 JSON 格式：一個段落陣列。`,
+      },
+      {
+        role: "user",
+        content: `請分析以下腳本並拆分為分鏡段落：\n\n${rawContent.slice(0, 15000)}`,
+      },
+    ],
+    response_format: {
+      type: "json_schema",
+      json_schema: {
+        name: "script_segments",
+        strict: true,
+        schema: {
+          type: "object",
+          properties: {
+            segments: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  sceneHeading: { type: "string" },
+                  visualDescription: { type: "string" },
+                  dialogue: { type: "string" },
+                  soundDesign: { type: "string" },
+                  cameraDirection: { type: "string" },
+                  duration: { type: "string" },
+                  mood: { type: "string" },
+                  rawText: { type: "string" },
+                },
+                required: ["sceneHeading", "visualDescription", "dialogue", "soundDesign", "cameraDirection", "duration", "mood", "rawText"],
+                additionalProperties: false,
+              },
+            },
+          },
+          required: ["segments"],
+          additionalProperties: false,
+        },
+      },
+    },
+    maxTokens: 8192,
+  }), 60_000, "腳本分析");
+
+  const content = result.choices[0]?.message?.content;
+  let parsed: { segments: Array<{
+    sceneHeading: string; visualDescription: string; dialogue: string;
+    soundDesign: string; cameraDirection: string; duration: string;
+    mood: string; rawText: string;
+  }> };
+  try {
+    parsed = typeof content === "string" ? JSON.parse(content) : content;
+  } catch {
+    parsed = { segments: [] };
+  }
+
+  return (parsed.segments ?? []).map((seg, idx) => ({
+    id: `seg-${Date.now()}-${idx}`,
+    index: idx,
+    rawText: seg.rawText || rawContent.slice(idx * 500, (idx + 1) * 500),
+    storyboard: {
+      sceneHeading: seg.sceneHeading,
+      visualDescription: seg.visualDescription,
+      dialogue: seg.dialogue,
+      soundDesign: seg.soundDesign,
+      cameraDirection: seg.cameraDirection,
+      duration: seg.duration,
+      mood: seg.mood,
+    },
+  }));
+}
+
+async function discussSegmentWithAI(
+  segment: ScriptSegment,
+  userMessage: string,
+  personality: "calm" | "creative" | "technical",
+  quickActionId?: string,
+  imageUrl?: string,
+): Promise<{ reply: string; updatedStoryboard?: ScriptSegment["storyboard"] }> {
+  const persona = PERSONALITY_PROMPTS[personality] ?? PERSONALITY_PROMPTS.creative;
+  const quickAction = quickActionId ? QUICK_ACTIONS.find(a => a.id === quickActionId) : undefined;
+
+  const contextParts = [
+    `【目前分鏡資訊】`,
+    `場景：${segment.storyboard.sceneHeading}`,
+    `視覺：${segment.storyboard.visualDescription}`,
+    `對白：${segment.storyboard.dialogue}`,
+    `音效：${segment.storyboard.soundDesign}`,
+    `鏡頭：${segment.storyboard.cameraDirection}`,
+    `時長：${segment.storyboard.duration}`,
+    `氛圍：${segment.storyboard.mood}`,
+  ];
+
+  if (segment.rawText) {
+    contextParts.push(`\n【原始腳本段落】\n${segment.rawText}`);
+  }
+
+  if (imageUrl) {
+    contextParts.push(`\n【使用者附上了參考圖片】URL: ${imageUrl}\n請在回覆中參考這張圖片的風格、構圖或色調來調整建議。`);
+  }
+
+  const previousDiscussion = segment.discussion.slice(-6).map(d =>
+    `${d.role === "user" ? "使用者" : "導演"}：${d.content}`
+  ).join("\n");
+
+  if (previousDiscussion) {
+    contextParts.push(`\n【先前討論紀錄】\n${previousDiscussion}`);
+  }
+
+  const effectiveMessage = quickAction
+    ? `${quickAction.promptTemplate}\n\n使用者補充：${userMessage || "（無額外補充）"}`
+    : userMessage;
+
+  const result = await withTimeout(invokeLLM({
+    messages: [
+      {
+        role: "system",
+        content: `${persona.directorStyle}
+
+你正在與使用者逐段討論一份長腳本的分鏡。你的角色是專業的導演 AI，幫助使用者優化每個分鏡段落。
+
+${contextParts.join("\n")}
+
+請根據使用者的指示提供具體、可執行的建議。
+如果你認為分鏡需要修改，請在回覆末尾附上修改後的分鏡 JSON（用 \`\`\`json 包裹）。
+如果不需要修改分鏡結構，只需要提供文字回覆即可。`,
+      },
+      {
+        role: "user",
+        content: effectiveMessage,
+      },
+    ],
+    maxTokens: 4096,
+  }), 45_000, "分鏡討論");
+
+  const replyText = typeof result.choices[0]?.message?.content === "string"
+    ? result.choices[0].message.content : "";
+
+  // Try to extract updated storyboard JSON from the reply
+  let updatedStoryboard: ScriptSegment["storyboard"] | undefined;
+  const jsonMatch = replyText.match(/```json\s*([\s\S]*?)\s*```/);
+  if (jsonMatch) {
+    try {
+      const parsed = JSON.parse(jsonMatch[1]);
+      if (parsed.sceneHeading || parsed.visualDescription) {
+        updatedStoryboard = {
+          sceneHeading: parsed.sceneHeading ?? segment.storyboard.sceneHeading,
+          visualDescription: parsed.visualDescription ?? segment.storyboard.visualDescription,
+          dialogue: parsed.dialogue ?? segment.storyboard.dialogue,
+          soundDesign: parsed.soundDesign ?? segment.storyboard.soundDesign,
+          cameraDirection: parsed.cameraDirection ?? segment.storyboard.cameraDirection,
+          duration: parsed.duration ?? segment.storyboard.duration,
+          mood: parsed.mood ?? segment.storyboard.mood,
+        };
+      }
+    } catch {
+      // JSON parse failed — just return text reply
+    }
+  }
+
+  return { reply: replyText, updatedStoryboard };
+}
+
+function generateExport(
+  segments: ScriptSegment[],
+  format: string,
+  options: {
+    customColumns?: Array<{ header: string; field: string }>;
+    includeDiscussion?: boolean;
+    includeCostar?: boolean;
+    customTemplate?: string;
+  },
+): string {
+  switch (format) {
+    case "json":
+      return JSON.stringify(segments.map(seg => ({
+        index: seg.index,
+        ...seg.storyboard,
+        rawText: seg.rawText,
+        status: seg.status,
+        ...(options.includeCostar && seg.costar ? { costar: seg.costar } : {}),
+        ...(options.includeDiscussion ? { discussion: seg.discussion } : {}),
+      })), null, 2);
+
+    case "csv": {
+      const cols = options.customColumns ?? [
+        { header: "序號", field: "index" },
+        { header: "場景", field: "sceneHeading" },
+        { header: "視覺描述", field: "visualDescription" },
+        { header: "對白", field: "dialogue" },
+        { header: "音效", field: "soundDesign" },
+        { header: "鏡頭", field: "cameraDirection" },
+        { header: "時長", field: "duration" },
+        { header: "氛圍", field: "mood" },
+        { header: "狀態", field: "status" },
+      ];
+      const escapeCSV = (val: string) => `"${(val ?? "").replace(/"/g, '""')}"`;
+      const header = cols.map(c => escapeCSV(c.header)).join(",");
+      const rows = segments.map(seg => {
+        const flat: Record<string, string> = {
+          index: String(seg.index + 1),
+          ...seg.storyboard,
+          rawText: seg.rawText,
+          status: seg.status,
+        };
+        return cols.map(c => escapeCSV(flat[c.field] ?? "")).join(",");
+      });
+      return [header, ...rows].join("\n");
+    }
+
+    case "markdown": {
+      return segments.map((seg, i) => {
+        const lines = [
+          `## 分鏡 ${i + 1}：${seg.storyboard.sceneHeading}`,
+          "",
+          `**視覺描述：** ${seg.storyboard.visualDescription}`,
+          "",
+          seg.storyboard.dialogue ? `**對白：**\n> ${seg.storyboard.dialogue.replace(/\n/g, "\n> ")}` : "",
+          "",
+          `**音效設計：** ${seg.storyboard.soundDesign}`,
+          `**鏡頭運動：** ${seg.storyboard.cameraDirection}`,
+          `**預估時長：** ${seg.storyboard.duration}`,
+          `**情緒氛圍：** ${seg.storyboard.mood}`,
+          `**狀態：** ${seg.status}`,
+        ];
+        if (options.includeDiscussion && seg.discussion.length > 0) {
+          lines.push("", "### 討論紀錄", "");
+          seg.discussion.forEach(d => {
+            lines.push(`- **${d.role === "user" ? "使用者" : "導演"}**：${d.content}`);
+          });
+        }
+        return lines.filter(Boolean).join("\n");
+      }).join("\n\n---\n\n");
+    }
+
+    case "srt": {
+      let timeOffset = 0;
+      return segments.map((seg, i) => {
+        const durationSec = parseDurationToSeconds(seg.storyboard.duration);
+        const start = formatSrtTime(timeOffset);
+        const end = formatSrtTime(timeOffset + durationSec);
+        timeOffset += durationSec;
+        const text = seg.storyboard.dialogue || seg.storyboard.visualDescription;
+        return `${i + 1}\n${start} --> ${end}\n${text}`;
+      }).join("\n\n");
+    }
+
+    case "fdx": {
+      const elements = segments.map(seg => {
+        const parts: string[] = [];
+        if (seg.storyboard.sceneHeading) {
+          parts.push(`    <Paragraph Type="Scene Heading"><Text>${escapeXml(seg.storyboard.sceneHeading)}</Text></Paragraph>`);
+        }
+        if (seg.storyboard.visualDescription) {
+          parts.push(`    <Paragraph Type="Action"><Text>${escapeXml(seg.storyboard.visualDescription)}</Text></Paragraph>`);
+        }
+        if (seg.storyboard.dialogue) {
+          parts.push(`    <Paragraph Type="Dialogue"><Text>${escapeXml(seg.storyboard.dialogue)}</Text></Paragraph>`);
+        }
+        return parts.join("\n");
+      }).join("\n");
+      return `<?xml version="1.0" encoding="UTF-8"?>\n<FinalDraft DocumentType="Script" Template="No">\n  <Content>\n${elements}\n  </Content>\n</FinalDraft>`;
+    }
+
+    case "custom": {
+      if (!options.customTemplate) return JSON.stringify(segments, null, 2);
+      return segments.map((seg, i) => {
+        let out = options.customTemplate!;
+        out = out.replace(/\{\{index\}\}/g, String(i + 1));
+        out = out.replace(/\{\{sceneHeading\}\}/g, seg.storyboard.sceneHeading);
+        out = out.replace(/\{\{visualDescription\}\}/g, seg.storyboard.visualDescription);
+        out = out.replace(/\{\{dialogue\}\}/g, seg.storyboard.dialogue);
+        out = out.replace(/\{\{soundDesign\}\}/g, seg.storyboard.soundDesign);
+        out = out.replace(/\{\{cameraDirection\}\}/g, seg.storyboard.cameraDirection);
+        out = out.replace(/\{\{duration\}\}/g, seg.storyboard.duration);
+        out = out.replace(/\{\{mood\}\}/g, seg.storyboard.mood);
+        out = out.replace(/\{\{status\}\}/g, seg.status);
+        out = out.replace(/\{\{rawText\}\}/g, seg.rawText);
+        return out;
+      }).join("\n\n");
+    }
+
+    default:
+      return JSON.stringify(segments, null, 2);
+  }
+}
+
+function parseDurationToSeconds(duration: string): number {
+  const minMatch = duration.match(/(\d+)\s*分/);
+  const secMatch = duration.match(/(\d+)\s*秒/);
+  const numMatch = duration.match(/^(\d+(?:\.\d+)?)$/);
+  let total = 0;
+  if (minMatch) total += parseInt(minMatch[1], 10) * 60;
+  if (secMatch) total += parseInt(secMatch[1], 10);
+  if (!minMatch && !secMatch && numMatch) total = parseFloat(numMatch[1]);
+  return total || 5;
+}
+
+function formatSrtTime(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  const ms = Math.round((seconds % 1) * 1000);
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")},${String(ms).padStart(3, "0")}`;
+}
+
+function escapeXml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
 
 // ─── Core Director AI Logic ─────────────────────────────────────────────────
 
@@ -427,4 +795,223 @@ export const directorRouter = router({
         return { id };
       }),
   }),
+
+  // ─── Script Analysis & Discussion System ──────────────────────────────────
+
+  /** Import and parse a long script into storyboard segments */
+  importScript: protectedProcedure
+    .input(z.object({
+      rawContent: z.string().min(1).max(100000),
+      title: z.string().min(1).max(255),
+      sourceFormat: z.string().default("plaintext"),
+      personality: z.enum(["calm", "creative", "technical"]).default("creative"),
+    }))
+    .mutation(async ({ input }) => {
+      const segments = await parseScriptIntoSegments(
+        input.rawContent,
+        input.sourceFormat,
+        input.personality,
+      );
+      const fullSegments: ScriptSegment[] = segments.map(seg => ({
+        ...seg,
+        discussion: [],
+        status: "draft" as const,
+      }));
+      return {
+        id: `script-${Date.now()}`,
+        title: input.title,
+        rawContent: input.rawContent,
+        sourceFormat: input.sourceFormat,
+        segments: fullSegments,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+    }),
+
+  /** Discuss a specific segment with AI — supports quick actions and image references */
+  discussSegment: protectedProcedure
+    .input(z.object({
+      segment: z.object({
+        id: z.string(),
+        index: z.number(),
+        rawText: z.string(),
+        storyboard: z.object({
+          sceneHeading: z.string(),
+          visualDescription: z.string(),
+          dialogue: z.string(),
+          soundDesign: z.string(),
+          cameraDirection: z.string(),
+          duration: z.string(),
+          mood: z.string(),
+        }),
+        discussion: z.array(z.object({
+          role: z.enum(["user", "assistant"]),
+          content: z.string(),
+          imageUrl: z.string().optional(),
+          quickAction: z.string().optional(),
+          timestamp: z.string(),
+        })),
+        status: z.enum(["pending", "draft", "refined", "approved"]),
+      }),
+      message: z.string().min(1),
+      personality: z.enum(["calm", "creative", "technical"]).default("creative"),
+      quickActionId: z.string().optional(),
+      imageUrl: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const result = await discussSegmentWithAI(
+        input.segment as ScriptSegment,
+        input.message,
+        input.personality,
+        input.quickActionId,
+        input.imageUrl,
+      );
+      return result;
+    }),
+
+  /** Get available quick actions for multi-modal discussion */
+  quickActions: protectedProcedure.query(() => {
+    return QUICK_ACTIONS;
+  }),
+
+  /** Export segments in various formats */
+  exportScript: protectedProcedure
+    .input(z.object({
+      segments: z.array(z.object({
+        id: z.string(),
+        index: z.number(),
+        rawText: z.string(),
+        storyboard: z.object({
+          sceneHeading: z.string(),
+          visualDescription: z.string(),
+          dialogue: z.string(),
+          soundDesign: z.string(),
+          cameraDirection: z.string(),
+          duration: z.string(),
+          mood: z.string(),
+        }),
+        costar: z.object({
+          context: z.string(),
+          situation: z.string(),
+          task: z.string(),
+          action: z.string(),
+          result: z.string(),
+          visualPrompt: z.string(),
+          audioScript: z.string(),
+          musicVibe: z.string(),
+          proactiveQuestion: z.string().optional(),
+        }).optional(),
+        discussion: z.array(z.object({
+          role: z.enum(["user", "assistant"]),
+          content: z.string(),
+          imageUrl: z.string().optional(),
+          quickAction: z.string().optional(),
+          timestamp: z.string(),
+        })),
+        status: z.enum(["pending", "draft", "refined", "approved"]),
+      })),
+      format: z.enum(["json", "csv", "markdown", "fdx", "srt", "custom"]),
+      customColumns: z.array(z.object({
+        header: z.string(),
+        field: z.string(),
+      })).optional(),
+      includeDiscussion: z.boolean().default(false),
+      includeCostar: z.boolean().default(false),
+      customTemplate: z.string().optional(),
+    }))
+    .mutation(({ input }) => {
+      const content = generateExport(
+        input.segments as ScriptSegment[],
+        input.format,
+        {
+          customColumns: input.customColumns,
+          includeDiscussion: input.includeDiscussion,
+          includeCostar: input.includeCostar,
+          customTemplate: input.customTemplate,
+        },
+      );
+      return { content, format: input.format };
+    }),
+
+  /** Generate CO-STAR storyboard for a specific segment */
+  generateSegmentCostar: protectedProcedure
+    .input(z.object({
+      segment: z.object({
+        id: z.string(),
+        index: z.number(),
+        rawText: z.string(),
+        storyboard: z.object({
+          sceneHeading: z.string(),
+          visualDescription: z.string(),
+          dialogue: z.string(),
+          soundDesign: z.string(),
+          cameraDirection: z.string(),
+          duration: z.string(),
+          mood: z.string(),
+        }),
+      }),
+      personality: z.enum(["calm", "creative", "technical"]).default("creative"),
+    }))
+    .mutation(async ({ input }) => {
+      const persona = PERSONALITY_PROMPTS[input.personality] ?? PERSONALITY_PROMPTS.creative;
+      const fullPrompt = buildDirectorSystemPrompt(input.personality);
+
+      const result = await withTimeout(invokeLLM({
+        messages: [
+          {
+            role: "system",
+            content: `${fullPrompt}
+
+根據以下分鏡段落資訊，生成完整的 CO-STAR 腳本結構。
+
+分鏡資訊：
+- 場景：${input.segment.storyboard.sceneHeading}
+- 視覺：${input.segment.storyboard.visualDescription}
+- 對白：${input.segment.storyboard.dialogue}
+- 音效：${input.segment.storyboard.soundDesign}
+- 鏡頭：${input.segment.storyboard.cameraDirection}
+- 時長：${input.segment.storyboard.duration}
+- 氛圍：${input.segment.storyboard.mood}
+
+原始文本：${input.segment.rawText}
+
+${persona.proactiveHint}`,
+          },
+          {
+            role: "user",
+            content: "請為這段分鏡生成完整的 CO-STAR 腳本。",
+          },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "costar_script",
+            strict: true,
+            schema: {
+              type: "object",
+              properties: {
+                context: { type: "string" },
+                situation: { type: "string" },
+                task: { type: "string" },
+                action: { type: "string" },
+                result: { type: "string" },
+                visualPrompt: { type: "string" },
+                audioScript: { type: "string" },
+                musicVibe: { type: "string" },
+                proactiveQuestion: { type: "string" },
+              },
+              required: ["context", "situation", "task", "action", "result", "visualPrompt", "audioScript", "musicVibe", "proactiveQuestion"],
+              additionalProperties: false,
+            },
+          },
+        },
+      }), 30_000, "分鏡 CO-STAR 生成");
+
+      const content = result.choices[0]?.message?.content;
+      try {
+        return typeof content === "string" ? JSON.parse(content) : content;
+      } catch {
+        return { context: "", situation: "", task: "", action: "", result: "", visualPrompt: "", audioScript: "", musicVibe: "", proactiveQuestion: "" };
+      }
+    }),
 });
