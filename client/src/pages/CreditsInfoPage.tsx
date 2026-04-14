@@ -20,9 +20,11 @@ import {
   Brain,
   HelpCircle,
   Sparkles,
+  AlertTriangle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Link } from "wouter";
 
 // ─── Tier Config ──────────────────────────────────────────────────────────────
 
@@ -197,8 +199,8 @@ function FAQItem({ q, a }: { q: string; a: string }) {
 // ─── Main Page ─────────────────────────────────────────────────────────────
 
 export default function CreditsInfoPage() {
-  const { data: catalog, isLoading } = trpc.credits.pricingCatalog.useQuery();
-  const { data: balance } = trpc.credits.myBalance.useQuery(undefined, {
+  const { data: catalog, isLoading, error: catalogError } = trpc.credits.pricingCatalog.useQuery();
+  const { data: balance, isLoading: balanceLoading } = trpc.credits.myBalance.useQuery(undefined, {
     retry: false,
   });
 
@@ -227,23 +229,27 @@ export default function CreditsInfoPage() {
       </motion.div>
 
       {/* Balance Card */}
-      {balance != null && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.96 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.3, delay: 0.1 }}
-        >
-          <GlassCard className="p-5 flex items-center justify-between">
-            <div>
-              <p className="text-xs text-muted-foreground uppercase tracking-wide">我的積分餘額</p>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.3, delay: 0.1 }}
+      >
+        <GlassCard className="p-5 flex items-center justify-between">
+          <div>
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">我的積分餘額</p>
+            {balanceLoading ? (
+              <ZenSkeleton className="h-9 w-32 mt-1 rounded" />
+            ) : balance != null ? (
               <p className="text-3xl font-bold tabular-nums mt-1 text-primary">
                 {balance.remaining} <span className="text-base font-medium text-muted-foreground">pts</span>
               </p>
-            </div>
-            <Zap className="w-10 h-10 text-primary/30" />
-          </GlassCard>
-        </motion.div>
-      )}
+            ) : (
+              <p className="text-sm text-muted-foreground mt-1">請登入後查看餘額</p>
+            )}
+          </div>
+          <Zap className="w-10 h-10 text-primary/30" />
+        </GlassCard>
+      </motion.div>
 
       {/* Key Info Cards */}
       <motion.div
@@ -393,6 +399,15 @@ export default function CreditsInfoPage() {
           </div>
         )}
 
+        {catalogError && (
+          <GlassCard className="p-4 border-destructive/30">
+            <div className="flex items-center gap-2 text-sm text-destructive">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <p>無法載入費率表，請稍後重試。</p>
+            </div>
+          </GlassCard>
+        )}
+
         {catalog &&
           sortedCategories.map((cat, idx) => (
             <CategoryTable
@@ -473,9 +488,9 @@ export default function CreditsInfoPage() {
         className="text-center pt-4"
       >
         <Button variant="outline" size="sm" asChild>
-          <a href="/learn">
+          <Link href="/learn" aria-label="前往學習文件中心">
             前往學習文件中心查看更多說明 →
-          </a>
+          </Link>
         </Button>
       </motion.div>
     </div>

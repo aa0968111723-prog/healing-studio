@@ -66,7 +66,7 @@ import BackgroundTasksDrawer from "./BackgroundTasksDrawer";
 import type { LucideIcon } from "lucide-react";
 import { useSiteOnboarding, type PageId } from "@/contexts/SiteOnboardingContext";
 import { CSSProperties, memo, useCallback, useEffect, useRef, useState } from "react";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
 import VisualSoul from "./VisualSoul";
@@ -434,7 +434,7 @@ function DashboardLayoutContent({
             {/* 背景任務面板 */}
             {!isCollapsed && <BackgroundTasksDrawer />}
             {!isCollapsed && (
-              <a href="/credits" className="block cursor-pointer group">
+              <Link href="/credits" className="block cursor-pointer group" aria-label="查看積分說明">
                 <div className="glass-card-static quota-card-zen px-3 py-2.5 mb-2 text-center transition-colors group-hover:bg-accent/40">
                   <p className="text-[11px] text-muted-foreground tracking-wide uppercase">剩餘配額</p>
                   <p className="text-xl font-semibold text-foreground tabular-nums mt-0.5">
@@ -442,7 +442,7 @@ function DashboardLayoutContent({
                   </p>
                   <p className="text-[10px] text-muted-foreground/70 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">點擊查看積分說明</p>
                 </div>
-              </a>
+              </Link>
             )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

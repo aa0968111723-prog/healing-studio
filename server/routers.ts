@@ -1577,11 +1577,13 @@ export const appRouter = router({
         }
         await db.updateDigitalAsset(input.id, { visibility: input.visibility });
         // Reward credits for sharing (only on first share — prevent toggle exploit)
-        if (input.visibility === "team_shared" && asset.visibility !== "team_shared") {
+        // Skip in demo mode: demo users don't have real quota
+        if (!isDemoMode() && input.visibility === "team_shared" && asset.visibility !== "team_shared") {
           const alreadyRewarded = (asset.rewardCredits ?? 0) > 0;
           if (!alreadyRewarded) {
             await db.refundUserQuota(ctx.user.id, 2);
             await db.updateDigitalAsset(input.id, { rewardCredits: 2 });
+            console.log(`[Reward] User ${ctx.user.id} earned 2 pts for sharing asset ${input.id}`);
           }
         }
         return { success: true };
@@ -1973,8 +1975,18 @@ export const appRouter = router({
         }
         await db.updateFineTunedModel(input.id, { visibility: input.visibility });
         // Reward 3 quota for sharing a ready model (only on first share — prevent toggle exploit)
-        if (input.visibility === "team_shared" && model.visibility !== "team_shared") {
-          if (model.status === "ready") await db.refundUserQuota(ctx.user.id, 3);
+        // Skip in demo mode: demo users don't have real quota
+        // Track reward via configJson.shareRewarded to prevent double-granting
+        if (!isDemoMode() && input.visibility === "team_shared" && model.visibility !== "team_shared") {
+          const cfg = (model.configJson ?? {}) as Record<string, unknown>;
+          const alreadyRewarded = cfg.shareRewarded === true;
+          if (model.status === "ready" && !alreadyRewarded) {
+            await db.refundUserQuota(ctx.user.id, 3);
+            await db.updateFineTunedModel(input.id, {
+              configJson: { ...cfg, shareRewarded: true } as typeof model.configJson,
+            });
+            console.log(`[Reward] User ${ctx.user.id} earned 3 pts for sharing model ${input.id}`);
+          }
         }
         return { success: true };
       }),
