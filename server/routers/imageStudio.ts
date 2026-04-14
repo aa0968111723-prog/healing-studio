@@ -132,6 +132,15 @@ function extractAllImageUrls(raw: any): string[] {
 const ASPECT_RATIOS = ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3", "4:1", "1:4", "21:9", "auto"] as const;
 const IMAGE_SIZES   = ["square", "square_hd", "portrait_4_3", "portrait_16_9", "landscape_4_3", "landscape_16_9"] as const;
 
+/** 標準品質負向提示詞 — 用於未提供 negative_prompt 時的預設值 */
+const DEFAULT_NEGATIVE_PROMPT = "low quality, blurry, distorted, deformed, artifacts, watermark, text, signature, cropped, out of frame, worst quality, jpeg artifacts";
+
+/** 安全地合併負向提示詞：用戶提供的 + 預設品質保護 */
+function mergeNegativePrompt(userNegative?: string): string {
+  if (!userNegative || userNegative.trim() === "") return DEFAULT_NEGATIVE_PROMPT;
+  return `${userNegative}, ${DEFAULT_NEGATIVE_PROMPT}`;
+}
+
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 export const imageStudioRouter = router({
@@ -216,7 +225,7 @@ export const imageStudioRouter = router({
       const raw = await falQueueRun("fal-ai/bytedance/seedream/v4/text-to-image", {
         prompt:          input.prompt,
         aspect_ratio:    input.aspect_ratio,
-        negative_prompt: input.negative_prompt,
+        negative_prompt: mergeNegativePrompt(input.negative_prompt),
         num_images:      input.num_images,
       }, 120) as any;
       return {
@@ -243,7 +252,7 @@ export const imageStudioRouter = router({
         prompt:          input.prompt,
         aspect_ratio:    input.aspect_ratio,
         num_images:      input.num_images,
-        negative_prompt: input.negative_prompt,
+        negative_prompt: mergeNegativePrompt(input.negative_prompt),
       }, 120) as any;
       return {
         image_url: extractImageUrl(raw),
@@ -573,7 +582,7 @@ export const imageStudioRouter = router({
     .mutation(async ({ input }) => {
       const payload: Record<string, unknown> = {
         prompt:              input.prompt,
-        negative_prompt:     input.negative_prompt,
+        negative_prompt:     mergeNegativePrompt(input.negative_prompt),
         num_inference_steps: input.num_inference_steps,
         guidance_scale:      input.guidance_scale,
         num_images:          input.num_images,
@@ -617,7 +626,7 @@ export const imageStudioRouter = router({
     .mutation(async ({ input }) => {
       const payload: Record<string, unknown> = {
         prompt:          input.prompt,
-        negative_prompt: input.negative_prompt,
+        negative_prompt: mergeNegativePrompt(input.negative_prompt),
         image_size:      input.image_size,
         num_images:      input.num_images,
         ...(input.seed !== undefined && { seed: input.seed }),
@@ -652,7 +661,7 @@ export const imageStudioRouter = router({
       const raw = await falQueueRun("fal-ai/lora", {
         model_name:      input.model_name,
         prompt:          input.prompt,
-        negative_prompt: input.negative_prompt,
+        negative_prompt: mergeNegativePrompt(input.negative_prompt),
         image_size:      input.image_size,
         num_images:      input.num_images,
         ...(input.seed !== undefined && { seed: input.seed }),

@@ -195,9 +195,18 @@ export const proStudioRouter = router({
         }
         const hasPrompt = !!payload.prompt;
         const hasTags   = !!payload.tags;
+        const hasLyrics = !!input.lyrics && !input.instrumental;
+
+        // Sonauto API 限制：prompt + tags + lyrics_prompt 不能三者同時存在
+        if (hasPrompt && hasTags && hasLyrics) {
+          // 優先使用 prompt + lyrics，移除 tags（tags 可從 prompt 推斷）
+          console.warn("[ProStudio] Sonauto: prompt+tags+lyrics all set, dropping tags to comply with API constraints");
+          delete payload.tags;
+        }
+
         if (input.instrumental) {
           payload.lyrics_prompt = "";
-        } else if (input.lyrics && !(hasPrompt && hasTags)) {
+        } else if (input.lyrics) {
           payload.lyrics_prompt = input.lyrics;
         }
         if (!payload.prompt && !payload.tags) {

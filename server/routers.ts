@@ -81,6 +81,7 @@ async function checkSafety(text: string): Promise<{ safe: boolean; reason?: stri
         },
         { role: "user", content: text },
       ],
+      maxTokens: 256,
       response_format: {
         type: "json_schema",
         json_schema: {
@@ -175,6 +176,7 @@ async function compileElitePrompt(payload: {
         },
         { role: "user", content: payload.prompt },
       ],
+      maxTokens: 2048,
       // Inject brain model & parameters when available
       ...(payload.brainModel ? { model: payload.brainModel } : {}),
       ...(payload.brainTemperature !== undefined ? { temperature: payload.brainTemperature } : {}),
@@ -663,32 +665,6 @@ export const appRouter = router({
           generationBus.emit(jobId, { type: "thought-update", node: { id: "generate", label: `${modalityLabel}生成`, status: "processing", detail: `正在生成${modalityLabel}...`, timestamp: Date.now() } });
           generationBus.emit(jobId, { type: "progress", progress: 40, message: `${modalityLabel}生成中...` });
 
-          // ── Demo mode sample assets (used as fallback when real API fails) ──
-          const DEMO_SAMPLE_ASSETS = {
-            image: [
-              "https://images.unsplash.com/photo-1682687220742-aba13b6e50ba?w=1024&q=80",
-              "https://images.unsplash.com/photo-1686002359940-6a51b0d64f68?w=1024&q=80",
-              "https://images.unsplash.com/photo-1700669113058-f9c9c2e862b0?w=1024&q=80",
-              "https://images.unsplash.com/photo-1704458590483-6d9db5f6e5b3?w=1024&q=80",
-            ],
-            video: [
-              "https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
-              "https://storage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
-              "https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-            ],
-            audio: [
-              "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
-              "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
-            ],
-            voice: [
-              "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
-            ],
-          };
-          const getDemoAsset = (type: "image" | "video" | "audio" | "voice") => {
-            const arr = DEMO_SAMPLE_ASSETS[type];
-            return arr[Math.floor(Math.random() * arr.length)];
-          };
-
           // Generate based on type
           let resultUrl: string | undefined;
           let resultData: Record<string, unknown> = {
@@ -741,14 +717,10 @@ export const appRouter = router({
               }
             } catch (err) {
               if (!demoMode) throw err;
-              // Demo mode: fall back to sample image
-              debug(`[Demo] Image generation failed, using sample asset. Error: ${err}`);
+              // Demo mode: 無 API key 時直接報錯
+              debug(`[Demo] Image generation failed: ${err}`);
             }
-            // Demo mode fallback: use sample image if no URL was obtained
-            if (!imageUrl && demoMode) {
-              imageUrl = getDemoAsset("image");
-              generationBus.emit(jobId, { type: "progress", progress: 60, message: "（示範模式）已載入範例圖片" });
-            } else if (!imageUrl) {
+            if (!imageUrl) {
               if (!demoMode) await db.refundUserPoints(userId, _genEstimate.totalPoints);
               throw new TRPCError({
                 code: "INTERNAL_SERVER_ERROR",
@@ -761,7 +733,7 @@ export const appRouter = router({
             resultData.negativePrompt = input.negativePrompt;
             resultData.styleReferenceUrl = input.styleReferenceUrl;
             resultData.vibeReferenceUrl = input.vibeReferenceUrl;
-            resultData.imageModel = demoMode ? "demo-sample" : falEngines.textToImage;
+            resultData.imageModel = falEngines.textToImage;
           }
 
           // ── Video: fal.ai Kling (真實 API，無 Gemini Veo 依賴) ──
@@ -798,14 +770,9 @@ export const appRouter = router({
               }
             } catch (err) {
               if (!demoMode) throw err;
-              // Demo mode: fall back to sample video
-              debug(`[Demo] Video generation failed, using sample asset. Error: ${err}`);
+              debug(`[Demo] Video generation failed: ${err}`);
             }
-            // Demo mode fallback: use sample video if no URL was obtained
-            if (!videoUrl && demoMode) {
-              videoUrl = getDemoAsset("video");
-              generationBus.emit(jobId, { type: "progress", progress: 65, message: "（示範模式）已載入範例影片" });
-            } else if (!videoUrl) {
+            if (!videoUrl) {
               if (!demoMode) await db.refundUserPoints(userId, _genEstimate.totalPoints);
               throw new TRPCError({
                 code: "INTERNAL_SERVER_ERROR",
@@ -815,7 +782,7 @@ export const appRouter = router({
             resultData.videoUrl = videoUrl;
             resultData.videoStatus = "completed";
             resultData.videoDuration = input.videoDurationSeconds || 5;
-            resultData.videoModel = demoMode ? "demo-sample" : videoModelId;
+            resultData.videoModel = videoModelId;
             resultData.videoPrompt = compiledPrompt;
             resultData.firstFrameUrl = input.firstFrameUrl;
             resultData.lastFrameUrl = input.lastFrameUrl;
@@ -864,19 +831,16 @@ export const appRouter = router({
               }
             } catch (err) {
               if (!demoMode) throw err;
-              debug(`[Demo] Audio generation failed, using sample asset. Error: ${err}`);
+              debug(`[Demo] Audio generation failed: ${err}`);
             }
-            if (!audioUrl && demoMode) {
-              audioUrl = getDemoAsset("audio");
-              generationBus.emit(jobId, { type: "progress", progress: 65, message: "（示範模式）已載入範例音樂" });
-            } else if (!audioUrl) {
+            if (!audioUrl) {
               if (!demoMode) await db.refundUserPoints(userId, _genEstimate.totalPoints);
               throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "fal.ai 音樂生成未回傳有效 URL，請稍後再試" });
             }
             resultData.audioUrl = audioUrl;
             resultData.audioStatus = "completed";
             resultData.audioTitle = input.musicStyle || "Healing Music";
-            resultData.audioModel = demoMode ? "demo-sample" : falEngines.textToAudio;
+            resultData.audioModel = falEngines.textToAudio;
             resultData.musicStyle = input.musicStyle || "ambient healing";
             resultData.isInstrumental = input.isInstrumental;
             resultData.lyrics = input.lyrics;
@@ -928,19 +892,16 @@ export const appRouter = router({
               }
             } catch (err) {
               if (!demoMode) throw err;
-              debug(`[Demo] Voice generation failed, using sample asset. Error: ${err}`);
+              debug(`[Demo] Voice generation failed: ${err}`);
             }
-            if (!voiceUrl && demoMode) {
-              voiceUrl = getDemoAsset("voice");
-              generationBus.emit(jobId, { type: "progress", progress: 65, message: "（示範模式）已載入範例語音" });
-            } else if (!voiceUrl) {
+            if (!voiceUrl) {
               if (!demoMode) await db.refundUserPoints(userId, _genEstimate.totalPoints);
               throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "fal.ai 語音生成未回傳有效 URL，請稍後再試" });
             }
             resultData.voiceUrl = voiceUrl;
             resultData.voiceStatus = "completed";
             resultData.voiceEngine = "fal-tts";
-            resultData.voiceModel = demoMode ? "demo-sample" : falEngines.textToSpeech;
+            resultData.voiceModel = falEngines.textToSpeech;
             resultData.voiceModelId = input.voiceModelId;
             resultData.voiceText = input.voiceText;
             resultData.voiceSpeed = input.voiceSpeed;

@@ -913,7 +913,7 @@ AI Brain 是 Healing Studio 的智能核心配置，讓你為平台的不同 AI 
 | fal/flux-dev | Flux Dev | premium |
 | fal/flux-schnell | Flux Schnell ⚡ | fast |
 | fal/sd3-medium | Stable Diffusion 3 | standard |
-| gemini/imagen-3 | Imagen 3 (Gemini) 🔵 | premium |
+| fal/ideogram-v2 | Ideogram V2 | premium |
 | vertex/imagen-3 | Imagen 3 (Vertex) 🔷 | premium |
 
 ### 影片引擎選項
@@ -922,7 +922,7 @@ AI Brain 是 Healing Studio 的智能核心配置，讓你為平台的不同 AI 
 | fal/kling-v2.1-pro-t2v | Kling V2.1 Pro ✦ | premium |
 | fal/wan-t2v-v2.1 | WAN T2V 2.1 | standard |
 | fal/kling-v2.1-pro-i2v | Kling V2.1 i2v ✦ | premium |
-| gemini/veo-3 | Veo 3 Preview 🔵 | premium |
+| fal/minimax-t2v | MiniMax Hailuo | standard |
 
 ## Brain API 端點
 

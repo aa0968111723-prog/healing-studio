@@ -73,6 +73,30 @@ export interface FalDispatchInput {
 // Fallback chain for each category
 // ═══════════════════════════════════════════════════════════════════════════
 
+/** 模型特定的超時覆寫（毫秒）—— 影片/3D 模型需要更長時間 */
+const TIMEOUT_OVERRIDES: Record<string, number> = {
+  "fal-ai/kling-video/v2.1/pro/text-to-video": 240_000,
+  "fal-ai/kling-video/v2.1/standard/text-to-video": 240_000,
+  "fal-ai/kling-video/v2.1/pro/image-to-video": 240_000,
+  "fal-ai/kling-video/v2.1/standard/video-to-video": 240_000,
+  "fal-ai/wan-t2v-v2.1": 200_000,
+  "fal-ai/minimax-video/text-to-video": 200_000,
+  "fal-ai/cogvideox-5b": 180_000,
+  "fal-ai/flux-pro/v1.1": 90_000,
+  "fal-ai/flux/schnell": 60_000,
+  "fal-ai/triposr": 180_000,
+  "fal-ai/stable-zero123": 180_000,
+};
+
+/** 判斷錯誤是否可重試（4xx 客戶端錯誤不應重試） */
+function isRetryableError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  // HTTP 4xx 客戶端錯誤（除 429 限流）不應重試
+  if (/\b(400|401|403|404|405|409|413|422)\b/.test(msg)) return false;
+  // 429 限流、5xx、網路錯誤、超時都可重試
+  return true;
+}
+
 /** 每個分類的降級鏈（按品質由高至低） */
 const FALLBACK_CHAINS: Record<string, string[]> = {
   "text-to-image": [
@@ -90,13 +114,13 @@ const FALLBACK_CHAINS: Record<string, string[]> = {
     "fal-ai/aura-sr",
   ],
   "text-to-video": [
-    "fal-ai/kling-video/v1.5/pro/text-to-video",
+    "fal-ai/kling-video/v2.1/pro/text-to-video",
     "fal-ai/wan-t2v-v2.1",
     "fal-ai/minimax-video/text-to-video",
     "fal-ai/cogvideox-5b",
   ],
   "image-to-video": [
-    "fal-ai/kling-video/v1.5/pro/image-to-video",
+    "fal-ai/kling-video/v2.1/pro/image-to-video",
     "fal-ai/minimax-video/image-to-video",
     "fal-ai/luma-dream-machine/image-to-video",
     "fal-ai/stable-video",
@@ -230,13 +254,14 @@ export async function dispatchFalTask(input: FalDispatchInput): Promise<FalDispa
   if (input.motionBucketId !== undefined) falInput.motion_bucket_id = input.motionBucketId;
   if (input.condAugmentation !== undefined) falInput.cond_augmentation = input.condAugmentation;
 
-  // ── Step 4: 呼叫 Fal 模型 ──
+  // ── Step 4: 呼叫 Fal 模型（含完整降級鏈重試） ──
   const startMs = Date.now();
+  const resolvedTimeout = TIMEOUT_OVERRIDES[targetModelId] ?? modelConfig.timeoutMs ?? 120_000;
   try {
     const result = await callFalModel({
       modelId: targetModelId,
       input: falInput,
-      timeoutMs: modelConfig.timeoutMs ?? 120_000,
+      timeoutMs: resolvedTimeout,
     });
 
     const durationMs = Date.now() - startMs;
@@ -256,35 +281,66 @@ export async function dispatchFalTask(input: FalDispatchInput): Promise<FalDispa
     const durationMs = Date.now() - startMs;
     const errMsg = err instanceof Error ? err.message : String(err);
 
-    // ── 降級重試 ──
+    // ── 4xx 客戶端錯誤不重試（參數錯誤、認證失敗等）──
+    if (!isRetryableError(err)) {
+      console.error(`[FalDispatcher] Non-retryable error for ${targetModelId}: ${errMsg}`);
+      return {
+        success: false,
+        modelId: targetModelId,
+        modelLabel: modelConfig.label,
+        category,
+        data: {},
+        durationMs,
+        pointsDeducted: estimate.totalPoints,
+        pointsBreakdown: estimate.breakdown,
+        error: errMsg,
+        ...(degraded && { degraded, originalModel }),
+      };
+    }
+
+    // ── 完整降級鏈重試（遍歷所有候選模型） ──
     const fallbackChain = FALLBACK_CHAINS[category] ?? [];
-    const nextFallback = fallbackChain.find((m) => m !== targetModelId);
-    if (nextFallback) {
-      console.warn(`[FalDispatcher] Primary model ${targetModelId} failed, retrying with ${nextFallback}`);
-      const nextConfig = getFalModelById(nextFallback);
-      if (nextConfig) {
-        try {
-          const retryResult = await callFalModel({
-            modelId: nextFallback,
-            input: falInput,
-            timeoutMs: nextConfig.timeoutMs ?? 120_000,
-          });
-          const retryEstimate = estimatePoints(nextFallback, { durationSec, charCount });
-          return {
-            success: true,
-            modelId: nextFallback,
-            modelLabel: nextConfig.label,
-            category,
-            data: retryResult.data,
-            durationMs: Date.now() - startMs,
-            pointsDeducted: retryEstimate.totalPoints,
-            pointsBreakdown: retryEstimate.breakdown,
-            degraded: true,
-            originalModel: modelId,
-          };
-        } catch {
-          // 降級也失敗，回傳錯誤
+    let lastFallbackError = errMsg;
+    for (let i = 0; i < fallbackChain.length; i++) {
+      const candidate = fallbackChain[i];
+      if (candidate === targetModelId) continue;
+
+      const candidateConfig = getFalModelById(candidate);
+      if (!candidateConfig) continue;
+
+      // 指數退避（1s, 2s, 4s, max 8s）
+      const backoffMs = Math.min(1000 * Math.pow(2, i), 8000);
+      await new Promise(r => setTimeout(r, backoffMs));
+
+      console.warn(`[FalDispatcher] Primary ${targetModelId} failed, trying fallback ${candidate} (${i + 1}/${fallbackChain.length})`);
+      try {
+        const candidateTimeout = TIMEOUT_OVERRIDES[candidate] ?? candidateConfig.timeoutMs ?? 120_000;
+        const retryResult = await callFalModel({
+          modelId: candidate,
+          input: falInput,
+          timeoutMs: candidateTimeout,
+        });
+        const retryEstimate = estimatePoints(candidate, { durationSec, charCount });
+        return {
+          success: true,
+          modelId: candidate,
+          modelLabel: candidateConfig.label,
+          category,
+          data: retryResult.data,
+          durationMs: Date.now() - startMs,
+          pointsDeducted: retryEstimate.totalPoints,
+          pointsBreakdown: retryEstimate.breakdown,
+          degraded: true,
+          originalModel: modelId,
+        };
+      } catch (retryErr) {
+        lastFallbackError = retryErr instanceof Error ? retryErr.message : String(retryErr);
+        // 如果候選模型也是不可重試錯誤，跳過剩餘候選
+        if (!isRetryableError(retryErr)) {
+          console.error(`[FalDispatcher] Fallback ${candidate} non-retryable: ${lastFallbackError}`);
+          break;
         }
+        console.warn(`[FalDispatcher] Fallback ${candidate} also failed: ${lastFallbackError}`);
       }
     }
 
@@ -294,10 +350,10 @@ export async function dispatchFalTask(input: FalDispatchInput): Promise<FalDispa
       modelLabel: modelConfig.label,
       category,
       data: {},
-      durationMs,
+      durationMs: Date.now() - startMs,
       pointsDeducted: estimate.totalPoints,
       pointsBreakdown: estimate.breakdown,
-      error: errMsg,
+      error: `${errMsg} (all ${fallbackChain.length} fallbacks exhausted: ${lastFallbackError})`,
       ...(degraded && { degraded, originalModel }),
     };
   }

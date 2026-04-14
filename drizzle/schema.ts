@@ -671,7 +671,7 @@ export const userAiBrain = mysqlTable("user_ai_brain", {
   // ── 4 種生成引擎 (Generation Engines) ────────────────────────────────────
 
   /** 圖像生成引擎 */
-  imageEngine: varchar("imageEngine", { length: 128 }).default("flux-pro").notNull(),
+  imageEngine: varchar("imageEngine", { length: 128 }).default("fal-ai/flux-pro/v1.1").notNull(),
   imageEngineParams: json("imageEngineParams").$type<{
     steps?: number;
     cfgScale?: number;
@@ -684,7 +684,7 @@ export const userAiBrain = mysqlTable("user_ai_brain", {
   imageEngineEnabled: boolean("imageEngineEnabled").default(true).notNull(),
 
   /** 影片生成引擎 */
-  videoEngine: varchar("videoEngine", { length: 128 }).default("kling-v1").notNull(),
+  videoEngine: varchar("videoEngine", { length: 128 }).default("fal-ai/kling-video/v2.1/pro/text-to-video").notNull(),
   videoEngineParams: json("videoEngineParams").$type<{
     duration?: number;
     fps?: number;
@@ -695,7 +695,7 @@ export const userAiBrain = mysqlTable("user_ai_brain", {
   videoEngineEnabled: boolean("videoEngineEnabled").default(true).notNull(),
 
   /** 音樂/音效生成引擎 */
-  audioEngine: varchar("audioEngine", { length: 128 }).default("suno-v4").notNull(),
+  audioEngine: varchar("audioEngine", { length: 128 }).default("fal-ai/stable-audio").notNull(),
   audioEngineParams: json("audioEngineParams").$type<{
     duration?: number;
     genre?: string;
@@ -705,7 +705,7 @@ export const userAiBrain = mysqlTable("user_ai_brain", {
   audioEngineEnabled: boolean("audioEngineEnabled").default(true).notNull(),
 
   /** 語音合成引擎 */
-  voiceEngine: varchar("voiceEngine", { length: 128 }).default("elevenlabs-v2").notNull(),
+  voiceEngine: varchar("voiceEngine", { length: 128 }).default("fal-ai/metavoice-v1").notNull(),
   voiceEngineParams: json("voiceEngineParams").$type<{
     voiceId?: string;
     stability?: number;
