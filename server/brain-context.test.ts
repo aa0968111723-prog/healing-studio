@@ -256,12 +256,12 @@ describe("Brain Context Middleware", () => {
       const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
       const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
-      // Make "dall-e-3" unhealthy
-      reportEngineFailure("dall-e-3", "API 503");
-      reportEngineFailure("dall-e-3", "API 503");
-      reportEngineFailure("dall-e-3", "API 503");
+      // Make "fal-ai/flux/dev" unhealthy
+      reportEngineFailure("fal-ai/flux/dev", "API 503");
+      reportEngineFailure("fal-ai/flux/dev", "API 503");
+      reportEngineFailure("fal-ai/flux/dev", "API 503");
 
-      // Set user config with dall-e-3 as image engine
+      // Set user config with fal-ai/flux/dev as image engine
       mockDbResult = [
         {
           id: 1,

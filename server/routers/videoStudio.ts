@@ -426,8 +426,8 @@ export const videoStudioRouter = router({
     }),
 
   /**
-   * Kling v1.6 Video-to-Video（影片重繪）
-   * fal-ai/kling-video/v1.6/standard/video-to-video
+   * Kling v2.1 Video-to-Video（影片重繪）
+   * fal-ai/kling-video/v2.1/standard/video-to-video
    * Kling 高品質影片重繪，保持原始動態
    */
   klingVideoToVideo: protectedProcedure
@@ -442,7 +442,7 @@ export const videoStudioRouter = router({
         video_url: input.videoUrl,
         cfg_scale: input.cfgScale,
       };
-      const result = await falQueueRun("fal-ai/kling-video/v1.6/standard/video-to-video", payload, 300) as any;
+      const result = await falQueueRun("fal-ai/kling-video/v2.1/standard/video-to-video", payload, 300) as any;
       return { video_url: extractVideoUrl(result), raw: result };
     }),
 

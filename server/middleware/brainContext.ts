@@ -119,10 +119,10 @@ export const DEFAULT_GENERATION_ENGINES: Record<
   GenerationEngineSlot,
   { engine: string; params: Record<string, unknown> | null }
 > = {
-  imageEngine: { engine: "flux-pro", params: null },
-  videoEngine: { engine: "kling-v1", params: null },
-  audioEngine: { engine: "suno-v4", params: null },
-  voiceEngine: { engine: "elevenlabs-v2", params: null },
+  imageEngine: { engine: "fal-ai/flux-pro/v1.1", params: null },
+  videoEngine: { engine: "fal-ai/kling-video/v2.1/pro/text-to-video", params: null },
+  audioEngine: { engine: "fal-ai/stable-audio", params: null },
+  voiceEngine: { engine: "fal-ai/metavoice-v1", params: null },
 };
 
 /** 每個引擎的備援候選清單（按優先順序） */
@@ -142,23 +142,33 @@ const ENGINE_FALLBACK_CHAIN: Record<string, string[]> = {
   // Vertex AI 路徑 → 直接 Gemini fallback
   "vertex/gemini-2.5-pro":   ["gemini-2.5-pro",   "gemini-2.5-flash"],
   "vertex/gemini-2.5-flash":  ["gemini-2.5-flash",  "gemini-1.5-flash"],
-  // 圖像引擎
-  "flux-pro": ["flux-schnell", "dall-e-3"],
-  "flux-schnell": ["flux-pro", "dall-e-3"],
-  "dall-e-3": ["flux-pro", "flux-schnell"],
-  "stable-diffusion-xl": ["flux-pro", "dall-e-3"],
-  // 影片引擎
-  "kling-v1": ["kling-v1-5", "minimax-video"],
-  "kling-v1-5": ["kling-v1", "minimax-video"],
-  "minimax-video": ["kling-v1", "kling-v1-5"],
-  // 音樂引擎
-  "suno-v4": ["suno-v3.5", "udio-v1"],
-  "suno-v3.5": ["suno-v4", "udio-v1"],
-  "udio-v1": ["suno-v4", "suno-v3.5"],
-  // 語音引擎
-  "elevenlabs-v2": ["elevenlabs-v1", "azure-tts"],
-  "elevenlabs-v1": ["elevenlabs-v2", "azure-tts"],
-  "azure-tts": ["elevenlabs-v2", "elevenlabs-v1"],
+  // 圖像引擎（fal.ai）
+  "fal-ai/flux-pro/v1.1":       ["fal-ai/flux/dev", "fal-ai/flux-schnell"],
+  "fal-ai/flux/dev":             ["fal-ai/flux-pro/v1.1", "fal-ai/flux-schnell"],
+  "fal-ai/flux-schnell":         ["fal-ai/flux/dev", "fal-ai/flux-pro/v1.1"],
+  // 向後相容短名稱 → fal.ai 路徑 fallback
+  "flux-pro":                    ["fal-ai/flux-pro/v1.1", "fal-ai/flux-schnell"],
+  "flux-schnell":                ["fal-ai/flux-schnell", "fal-ai/flux-pro/v1.1"],
+  // 影片引擎（fal.ai Kling v2.1）
+  "fal-ai/kling-video/v2.1/pro/text-to-video":      ["fal-ai/wan-t2v", "fal-ai/minimax/video-01"],
+  "fal-ai/kling-video/v2.1/pro/image-to-video":      ["fal-ai/wan-i2v", "fal-ai/minimax/video-01/image-to-video"],
+  "fal-ai/wan-t2v":              ["fal-ai/kling-video/v2.1/standard/text-to-video", "fal-ai/minimax/video-01"],
+  "fal-ai/minimax/video-01":     ["fal-ai/kling-video/v2.1/standard/text-to-video", "fal-ai/wan-t2v"],
+  // 向後相容短名稱
+  "kling-v1":                    ["fal-ai/kling-video/v2.1/pro/text-to-video", "fal-ai/wan-t2v"],
+  // 音樂引擎（fal.ai）
+  "fal-ai/stable-audio":         ["fal-ai/ace-step", "fal-ai/musicgen"],
+  "fal-ai/ace-step":             ["fal-ai/stable-audio", "fal-ai/musicgen"],
+  "fal-ai/musicgen":             ["fal-ai/stable-audio", "fal-ai/ace-step"],
+  // 向後相容短名稱
+  "suno-v4":                     ["fal-ai/stable-audio", "fal-ai/ace-step"],
+  "suno-v3.5":                   ["fal-ai/stable-audio", "fal-ai/ace-step"],
+  // 語音引擎（fal.ai TTS）
+  "fal-ai/metavoice-v1":         ["fal-ai/kokoro", "fal-ai/dia-tts"],
+  "fal-ai/kokoro":               ["fal-ai/metavoice-v1", "fal-ai/dia-tts"],
+  "fal-ai/dia-tts":              ["fal-ai/metavoice-v1", "fal-ai/kokoro"],
+  // 向後相容短名稱
+  "elevenlabs-v2":               ["fal-ai/metavoice-v1", "fal-ai/kokoro"],
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -264,25 +274,30 @@ const KNOWN_MODELS = new Set([
   "gpt-3.5-turbo",
   "claude-3.5-sonnet",
   "claude-3-opus",
-  // 圖像
-  "flux-pro",
-  "flux-schnell",
-  "dall-e-3",
-  "stable-diffusion-xl",
-  "midjourney-v6",
-  // 影片
-  "kling-v1",
-  "kling-v1-5",
-  "minimax-video",
-  "runway-gen3",
-  // 音樂
-  "suno-v4",
-  "suno-v3.5",
-  "udio-v1",
-  // 語音
-  "elevenlabs-v2",
-  "elevenlabs-v1",
-  "azure-tts",
+  // 圖像引擎（fal.ai）
+  "fal-ai/flux-pro/v1.1",
+  "fal-ai/flux/dev",
+  "fal-ai/flux-schnell",
+  "flux-pro",       // 向後相容短名稱
+  "flux-schnell",   // 向後相容短名稱
+  // 影片引擎（fal.ai）
+  "fal-ai/kling-video/v2.1/pro/text-to-video",
+  "fal-ai/kling-video/v2.1/standard/text-to-video",
+  "fal-ai/kling-video/v2.1/pro/image-to-video",
+  "fal-ai/wan-t2v",
+  "fal-ai/minimax/video-01",
+  "kling-v1",       // 向後相容短名稱
+  // 音樂引擎（fal.ai）
+  "fal-ai/stable-audio",
+  "fal-ai/ace-step",
+  "fal-ai/musicgen",
+  "suno-v4",        // 向後相容短名稱
+  "suno-v3.5",      // 向後相容短名稱
+  // 語音引擎（fal.ai TTS）
+  "fal-ai/metavoice-v1",
+  "fal-ai/kokoro",
+  "fal-ai/dia-tts",
+  "elevenlabs-v2",  // 向後相容短名稱
 ]);
 
 function isRecognizedModel(model: string): boolean {
