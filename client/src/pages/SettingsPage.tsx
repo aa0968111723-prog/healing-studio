@@ -12,16 +12,132 @@ import { toast } from "sonner";
 import {
   Settings, User, RotateCcw, Brain, ChevronRight, Shield, Sun, Moon,
   Clapperboard, Eye, Bell, Palette, BarChart3, Coins, Activity,
+  Monitor, Coffee, Waves, ExternalLink, Sparkles,
 } from "lucide-react";
 import { useAIState } from "@/contexts/AIStateContext";
-import { useTheme } from "@/contexts/ThemeContext";
+import { useTheme, type AppearanceMode } from "@/contexts/ThemeContext";
+import { useCurrentScene } from "@/components/AmbientEnvironment";
+import type { SceneId } from "@/components/AmbientEnvironment";
 import { useLocation } from "wouter";
+
+// ─── Appearance Mode Definitions ────────────────────────────────────────────
+
+const APPEARANCE_MODES: {
+  id: AppearanceMode;
+  label: string;
+  description: string;
+  icon: typeof Sun;
+  preview: string;
+}[] = [
+  {
+    id: "light",
+    label: "亮色模式",
+    description: "始終使用柔和暖色調亮色主題",
+    icon: Sun,
+    preview: "linear-gradient(135deg, #f8f5f0 0%, #f0ebe3 50%, #ede5d8 100%)",
+  },
+  {
+    id: "dark",
+    label: "深色模式",
+    description: "始終使用護眼深色主題",
+    icon: Moon,
+    preview: "linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)",
+  },
+  {
+    id: "auto",
+    label: "場景連動",
+    description: "根據背景場景自動切換亮/深色",
+    icon: Sparkles,
+    preview: "linear-gradient(135deg, #ffebd2 0%, #051932 50%, #ebdcc8 100%)",
+  },
+  {
+    id: "system",
+    label: "跟隨系統",
+    description: "依作業系統偏好自動決定",
+    icon: Monitor,
+    preview: "linear-gradient(135deg, #e8e8e8 0%, #333333 100%)",
+  },
+];
+
+// ─── Scene Definitions ──────────────────────────────────────────────────────
+
+const SCENE_OPTIONS: {
+  id: SceneId;
+  label: string;
+  description: string;
+  icon: typeof Moon;
+  timeRange: string;
+  preview: string;
+}[] = [
+  {
+    id: "nightSky",
+    label: "夜空",
+    description: "深藍星空 · 流星閃爍 · 星雲光暈",
+    icon: Moon,
+    timeRange: "22:00 – 05:00",
+    preview: "linear-gradient(135deg, #0a0c23 0%, #191245 50%, #0a0820 100%)",
+  },
+  {
+    id: "morning",
+    label: "晨光",
+    description: "暖橙日出 · 光塵飄浮 · 柔和光暈",
+    icon: Sun,
+    timeRange: "05:00 – 11:00",
+    preview: "linear-gradient(135deg, #ffebd2 0%, #ffd4a0 50%, #ffe8c0 100%)",
+  },
+  {
+    id: "cafe",
+    label: "咖啡廳",
+    description: "暖棕午後 · 蒸氣上升 · 散景光點",
+    icon: Coffee,
+    timeRange: "11:00 – 17:00",
+    preview: "linear-gradient(135deg, #ebdcc8 0%, #d4c0a8 50%, #f5ebe0 100%)",
+  },
+  {
+    id: "deepSea",
+    label: "深海",
+    description: "深青海洋 · 氣泡上浮 · 水波光影",
+    icon: Waves,
+    timeRange: "17:00 – 22:00",
+    preview: "linear-gradient(135deg, #051932 0%, #0a2846 50%, #051428 100%)",
+  },
+];
+
+// ─── Third-party Wallpaper Resources ────────────────────────────────────────
+
+const WALLPAPER_RESOURCES = [
+  {
+    name: "Unsplash",
+    description: "免費高品質攝影作品，可用作桌面背景靈感",
+    url: "https://unsplash.com/t/wallpapers",
+    icon: "🖼️",
+  },
+  {
+    name: "Pexels",
+    description: "免費素材圖庫，療癒風景與自然攝影",
+    url: "https://www.pexels.com/search/wallpaper/",
+    icon: "📸",
+  },
+  {
+    name: "Dribbble",
+    description: "設計師社群作品集，UI/UX 設計靈感",
+    url: "https://dribbble.com/tags/wallpaper",
+    icon: "🎨",
+  },
+  {
+    name: "Coolors",
+    description: "色彩搭配工具，探索療癒色票組合",
+    url: "https://coolors.co/palettes/trending",
+    icon: "🎨",
+  },
+];
 
 export default function SettingsPage() {
   const { user } = useAuth();
   usePageTour("settings");
   const { personality } = useAIState();
-  const { theme, toggleTheme, switchable } = useTheme();
+  const { theme, appearanceMode, setAppearanceMode, toggleTheme, switchable } = useTheme();
+  const { sceneId, override: sceneOverride, setOverride: setSceneOverride, isDark: sceneDark } = useCurrentScene();
   const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState("profile");
 
@@ -164,34 +280,149 @@ export default function SettingsPage() {
 
         {/* ═══ Tab 2: Appearance ═══ */}
         <TabsContent value="appearance" className="mt-4 space-y-4">
+          {/* ── Section 1: Appearance Mode ── */}
           <GlassCard>
-            <h2 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
               <Palette className="w-4 h-4" />
-              外觀設定
+              外觀模式
             </h2>
-            <div className="space-y-4">
-              {/* Theme toggle */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {theme === "dark" ? <Moon className="w-4 h-4 text-indigo-400" /> : <Sun className="w-4 h-4 text-amber-500" />}
-                  <div>
-                    <p className="text-sm font-medium text-foreground">深色模式</p>
-                    <p className="text-[10px] text-muted-foreground">
-                      {switchable ? "切換亮色與深色主題" : "目前主題由系統控制"}
+            <p className="text-[10px] text-muted-foreground mb-4">
+              選擇主題切換策略 — 目前：<span className="font-medium">{theme === "dark" ? "深色" : "亮色"}</span>
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {APPEARANCE_MODES.map((mode) => {
+                const Icon = mode.icon;
+                const isActive = appearanceMode === mode.id;
+                return (
+                  <button
+                    key={mode.id}
+                    onClick={() => {
+                      setAppearanceMode(mode.id);
+                      toast.success(`外觀模式已切換為「${mode.label}」`);
+                    }}
+                    className={`
+                      relative rounded-xl p-3 text-left transition-all border overflow-hidden group
+                      ${isActive
+                        ? "ring-2 ring-primary/40 border-primary/30 shadow-sm"
+                        : "border-border/40 hover:border-border/60 hover:shadow-sm"
+                      }
+                    `}
+                  >
+                    {/* Preview gradient background */}
+                    <div
+                      className="absolute inset-0 opacity-30 group-hover:opacity-40 transition-opacity rounded-xl"
+                      style={{ background: mode.preview }}
+                    />
+                    <div className="relative z-10">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <Icon className={`w-4 h-4 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
+                        {isActive && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
+                        )}
+                      </div>
+                      <p className={`text-xs font-semibold ${isActive ? "text-primary" : "text-foreground"}`}>
+                        {mode.label}
+                      </p>
+                      <p className="text-[9px] text-muted-foreground mt-0.5 leading-relaxed">
+                        {mode.description}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </GlassCard>
+
+          {/* ── Section 2: Background Scene ── */}
+          <GlassCard>
+            <h2 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
+              <Sparkles className="w-4 h-4" />
+              背景場景
+            </h2>
+            <p className="text-[10px] text-muted-foreground mb-4">
+              {sceneOverride
+                ? <>已手動鎖定場景 · <button onClick={() => { setSceneOverride(null); toast.success("已恢復自動場景"); }} className="text-primary hover:underline">恢復自動</button></>
+                : "依時間自動切換 · 也可手動鎖定"
+              }
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {SCENE_OPTIONS.map((scene) => {
+                const Icon = scene.icon;
+                const isActive = sceneId === scene.id;
+                const isOverridden = sceneOverride === scene.id;
+                return (
+                  <button
+                    key={scene.id}
+                    onClick={() => {
+                      setSceneOverride(scene.id);
+                      toast.success(`場景已切換為「${scene.label}」`);
+                    }}
+                    className={`
+                      relative rounded-xl overflow-hidden transition-all border group
+                      ${isActive
+                        ? "ring-2 ring-primary/40 border-primary/30 shadow-sm"
+                        : "border-border/40 hover:border-border/60 hover:shadow-sm"
+                      }
+                    `}
+                  >
+                    {/* Scene preview gradient */}
+                    <div
+                      className="h-16 w-full transition-transform group-hover:scale-105"
+                      style={{ background: scene.preview }}
+                    />
+                    <div className="p-2.5">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <Icon className={`w-3 h-3 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
+                        <span className={`text-xs font-semibold ${isActive ? "text-primary" : "text-foreground"}`}>
+                          {scene.label}
+                        </span>
+                        {isOverridden && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                        )}
+                      </div>
+                      <p className="text-[9px] text-muted-foreground leading-relaxed">
+                        {scene.description}
+                      </p>
+                      <p className="text-[8px] text-muted-foreground/60 mt-1">
+                        🕐 {scene.timeRange}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </GlassCard>
+
+          {/* ── Section 3: Third-party Wallpaper Resources ── */}
+          <GlassCard>
+            <h2 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
+              <ExternalLink className="w-4 h-4" />
+              靈感資源
+            </h2>
+            <p className="text-[10px] text-muted-foreground mb-4">
+              探索更多視覺靈感與背景素材
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {WALLPAPER_RESOURCES.map((res) => (
+                <a
+                  key={res.name}
+                  href={res.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 p-3 rounded-lg border border-border/30 hover:border-border/60 hover:bg-white/30 dark:hover:bg-white/5 transition-all group"
+                >
+                  <span className="text-xl shrink-0">{res.icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-foreground group-hover:text-primary transition-colors">
+                      {res.name}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground leading-relaxed">
+                      {res.description}
                     </p>
                   </div>
-                </div>
-                {switchable && toggleTheme ? (
-                  <Switch
-                    checked={theme === "dark"}
-                    onCheckedChange={toggleTheme}
-                  />
-                ) : (
-                  <span className="text-xs text-muted-foreground px-2 py-1 rounded-md bg-muted/40">
-                    {theme === "dark" ? "深色" : "亮色"}
-                  </span>
-                )}
-              </div>
+                  <ExternalLink className="w-3 h-3 text-muted-foreground/40 group-hover:text-primary shrink-0 transition-colors" />
+                </a>
+              ))}
             </div>
           </GlassCard>
         </TabsContent>
