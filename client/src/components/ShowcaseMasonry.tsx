@@ -30,6 +30,13 @@ import type { SceneId } from "./AmbientEnvironment";
 import RippleTransition, { useRippleTransition } from "./RippleTransition";
 import { useShowcaseTransfer, type ShowcaseTransferPayload } from "@/contexts/ShowcaseTransferContext";
 import { useSenseEngine, useCardSenseProps, useSectionScrollSense } from "@/hooks/useSenseEngine";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  type CarouselApi,
+} from "@/components/ui/carousel";
+import Autoplay from "embla-carousel-autoplay";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -509,6 +516,35 @@ export default function ShowcaseMasonry({
   const sentinelRef = useRef<HTMLDivElement>(null);
   const [, navigate] = useLocation();
 
+  // ─── Carousel state ─────────────────────────────────────────────
+  const [showcaseApi, setShowcaseApi] = useState<CarouselApi>();
+  const [showcaseSlide, setShowcaseSlide] = useState(0);
+  const [showcaseSlideCount, setShowcaseSlideCount] = useState(0);
+  const showcaseAutoplay = useRef(
+    Autoplay({ delay: 4500, stopOnInteraction: true, stopOnMouseEnter: true })
+  );
+
+  useEffect(() => {
+    if (!showcaseApi) return;
+    const onSelect = () => setShowcaseSlide(showcaseApi.selectedScrollSnap());
+    const onReInit = () => {
+      setShowcaseSlideCount(showcaseApi.scrollSnapList().length);
+      setShowcaseSlide(showcaseApi.selectedScrollSnap());
+    };
+    showcaseApi.on("select", onSelect);
+    showcaseApi.on("reInit", onReInit);
+    onReInit();
+    return () => {
+      showcaseApi.off("select", onSelect);
+      showcaseApi.off("reInit", onReInit);
+    };
+  }, [showcaseApi]);
+
+  const showcaseScrollTo = useCallback(
+    (idx: number) => showcaseApi?.scrollTo(idx),
+    [showcaseApi],
+  );
+
   // Sense Engine: micro-behavior tracking
   const senseEngine = useSenseEngine({ dwellThreshold: 5000, scrollHesitationThreshold: 3 });
   const sectionScrollRef = useSectionScrollSense(senseEngine, "showcase-masonry");
@@ -704,7 +740,7 @@ export default function ShowcaseMasonry({
       className="py-20 px-4 relative z-10"
       style={{ background: styles.sectionBg }}
     >
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         {/* Section header */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -721,6 +757,13 @@ export default function ShowcaseMasonry({
           <p className={`mt-3 text-sm ${styles.subtitleColor}`}>
             社群創作者的靈感結晶，探索多模態 AI 的無限可能
           </p>
+          {/* Healing divider */}
+          <div
+            className="mx-auto mt-6 w-12 h-[2px] rounded-full"
+            style={{
+              background: `linear-gradient(90deg, transparent, ${styles.cardBorder}, transparent)`,
+            }}
+          />
         </motion.div>
 
         {/* Modality filter tabs */}
@@ -740,11 +783,8 @@ export default function ShowcaseMasonry({
 
         {/* Loading skeleton */}
         {isLoading && (
-          <div
-            className="columns-2 sm:columns-3 lg:columns-4 gap-4"
-            style={{ columnFill: "balance" }}
-          >
-            {Array.from({ length: 8 }).map((_, i) => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
               <SkeletonCard key={i} styles={styles} />
             ))}
           </div>
@@ -773,21 +813,60 @@ export default function ShowcaseMasonry({
           </motion.div>
         )}
 
-        {/* Masonry grid */}
+        {/* ── Carousel layout — gentle sliding showcase ── */}
         {!isLoading && allItems.length > 0 && (
-          <div
-            className="columns-2 sm:columns-3 lg:columns-4 gap-4"
-            style={{ columnFill: "balance" }}
-          >
-            <AnimatePresence mode="popLayout">
-              {allItems.map((item) => (
-                <MasonryCard key={item.id} item={item} styles={styles} onCardClick={handleCardClick as any} senseEngine={senseEngine} onVisibilityChange={trackVisibility} />
-              ))}
-            </AnimatePresence>
+          <div className="w-full">
+            <Carousel
+              setApi={setShowcaseApi}
+              plugins={[showcaseAutoplay.current]}
+              opts={{ align: "start", loop: true }}
+              className="w-full"
+            >
+              <CarouselContent className="-ml-4">
+                {allItems.slice(0, 24).map((item) => (
+                  <CarouselItem key={item.id} className="pl-4 basis-full sm:basis-1/2 lg:basis-1/3">
+                    <MasonryCard
+                      item={item}
+                      styles={styles}
+                      onCardClick={handleCardClick as any}
+                      senseEngine={senseEngine}
+                      onVisibilityChange={trackVisibility}
+                    />
+                  </CarouselItem>
+                ))}
+              </CarouselContent>
+            </Carousel>
+
+            {/* Carousel dot indicators */}
+            {showcaseSlideCount > 1 && (
+              <div className="flex items-center justify-center gap-2 mt-8">
+                {Array.from({ length: Math.min(showcaseSlideCount, 10) }).map((_, i) => (
+                  <motion.button
+                    key={i}
+                    onClick={() => showcaseScrollTo(i)}
+                    className="rounded-full transition-all duration-500"
+                    style={{
+                      background: styles.titleColor.includes("indigo") || styles.titleColor.includes("cyan")
+                        ? "white"
+                        : styles.titleColor.includes("amber")
+                        ? "#78350f"
+                        : "#1c1917",
+                      opacity: i === showcaseSlide ? 0.6 : 0.15,
+                    }}
+                    animate={{
+                      width: i === showcaseSlide ? 24 : 8,
+                      height: 8,
+                    }}
+                    transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
+                    aria-label={`Go to slide ${i + 1}`}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         )}
 
-        {/* Infinite scroll sentinel */}
+        {/* Infinite scroll sentinel — still fetches more data for carousel */}
         <div ref={sentinelRef} className="h-4" />
 
         {/* Loading more indicator */}

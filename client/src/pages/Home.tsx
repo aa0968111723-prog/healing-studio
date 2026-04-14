@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, lazy, Suspense } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { getLoginUrl, getDemoLoginUrl } from "@/const";
@@ -10,6 +10,7 @@ import { motion, AnimatePresence, useScroll, useTransform, useMotionValueEvent }
 import {
   Wand2, Clapperboard, Package, Cpu, ArrowRight, Sparkles, Shield, Users,
   Moon, Sun, Coffee, Waves, Play, Pause, Volume2, VolumeX,
+  ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { useAIState } from "@/contexts/AIStateContext";
 import { AmbientEnvironment, useCurrentScene } from "@/components/AmbientEnvironment";
@@ -21,6 +22,13 @@ import { AmbientVideo } from "@/components/AmbientVideo";
 import { useSenseEngine } from "@/hooks/useSenseEngine";
 import { useIntentInference } from "@/hooks/useIntentInference";
 import VisualSoulInvitation from "@/components/VisualSoulInvitation";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  type CarouselApi,
+} from "@/components/ui/carousel";
+import Autoplay from "embla-carousel-autoplay";
 
 // ─── Heavy components: lazy load to reduce initial bundle ───────────────────
 const IntelBentoGrid = lazy(() => import("@/components/IntelBentoGrid"));
@@ -180,6 +188,54 @@ const VIDEO_DEMOS = [
   },
 ];
 
+// ─── Personality display labels (linked to personal settings) ────────────────
+
+const PERSONALITY_LABELS: Record<string, { label: string; color: string }> = {
+  calm: { label: "沉穩模式", color: "rgba(30,64,175,0.6)" },
+  creative: { label: "創意模式", color: "rgba(255,80,180,0.6)" },
+  technical: { label: "技術模式", color: "rgba(80,255,180,0.6)" },
+};
+
+// ─── Carousel Dot Indicator ─────────────────────────────────────────────────
+
+function CarouselDots({
+  count,
+  current,
+  onSelect,
+  isDark,
+}: {
+  count: number;
+  current: number;
+  onSelect: (idx: number) => void;
+  isDark: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-center gap-2 mt-8">
+      {Array.from({ length: count }).map((_, i) => (
+        <motion.button
+          key={i}
+          onClick={() => onSelect(i)}
+          className={`rounded-full transition-all duration-500 ${
+            i === current
+              ? isDark
+                ? "bg-white/60"
+                : "bg-black/30"
+              : isDark
+              ? "bg-white/15 hover:bg-white/25"
+              : "bg-black/8 hover:bg-black/15"
+          }`}
+          animate={{
+            width: i === current ? 24 : 8,
+            height: 8,
+          }}
+          transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
+          aria-label={`Go to slide ${i + 1}`}
+        />
+      ))}
+    </div>
+  );
+}
+
 // ─── Scene Badge ────────────────────────────────────────────────────────────
 
 function SceneBadge({ sceneId, isDark }: { sceneId: SceneId; isDark: boolean }) {
@@ -253,6 +309,26 @@ export default function Home() {
   const { sceneId, isDark, override, setOverride, allScenes } = useCurrentScene();
   const s = useMemo(() => SCENE_STYLES[sceneId], [sceneId]);
   const soundControls = useAmbientSound(sceneId);
+
+  // ─── Feature Carousel State ─────────────────────────────────────
+  const [featureApi, setFeatureApi] = useState<CarouselApi>();
+  const [featureCurrent, setFeatureCurrent] = useState(0);
+  const featureAutoplay = useRef(
+    Autoplay({ delay: 4000, stopOnInteraction: true, stopOnMouseEnter: true })
+  );
+
+  useEffect(() => {
+    if (!featureApi) return;
+    const onSelect = () => setFeatureCurrent(featureApi.selectedScrollSnap());
+    featureApi.on("select", onSelect);
+    onSelect();
+    return () => { featureApi.off("select", onSelect); };
+  }, [featureApi]);
+
+  const featureScrollTo = useCallback(
+    (idx: number) => featureApi?.scrollTo(idx),
+    [featureApi],
+  );
 
   // ─── Sense Engine + Intent Inference ─────────────────────────────
   const senseEngine = useSenseEngine({ enabled: true });
@@ -411,9 +487,43 @@ export default function Home() {
               <SceneBadge sceneId={sceneId} isDark={isDark} />
             </div>
 
-            {/* Central Orb — larger, more ethereal */}
-            <div className="flex justify-center mb-10">
-              <VisualSoul size="xl" personality={personality} />
+            {/* Central Orb — larger, more ethereal, connected to personal settings */}
+            <div className="flex flex-col items-center mb-10">
+              {/* Orb glow aura — scene-linked ambient ring */}
+              <motion.div
+                className="relative"
+                animate={{
+                  filter: [
+                    `drop-shadow(0 0 30px ${PERSONALITY_LABELS[personality]?.color ?? "rgba(255,80,180,0.4)"})`,
+                    `drop-shadow(0 0 50px ${PERSONALITY_LABELS[personality]?.color ?? "rgba(255,80,180,0.6)"})`,
+                    `drop-shadow(0 0 30px ${PERSONALITY_LABELS[personality]?.color ?? "rgba(255,80,180,0.4)"})`,
+                  ],
+                }}
+                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+              >
+                <VisualSoul size="xl" personality={personality} />
+              </motion.div>
+              {/* Personality indicator — connected to personal settings */}
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={personality}
+                  initial={{ opacity: 0, y: 6, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -6, scale: 0.95 }}
+                  transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
+                  className={`mt-4 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] tracking-wider backdrop-blur-md ${
+                    isDark ? "bg-white/8 text-white/50" : "bg-black/4 text-black/40"
+                  }`}
+                >
+                  <motion.div
+                    className="w-1.5 h-1.5 rounded-full"
+                    style={{ background: PERSONALITY_LABELS[personality]?.color }}
+                    animate={{ scale: [1, 1.3, 1], opacity: [0.7, 1, 0.7] }}
+                    transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+                  />
+                  {PERSONALITY_LABELS[personality]?.label ?? "創意模式"}
+                </motion.div>
+              </AnimatePresence>
             </div>
 
             {/* OARS Contextual Greeting — replaces static title */}
@@ -472,15 +582,15 @@ export default function Home() {
         </motion.div>
       </motion.section>
 
-      {/* ── Video Demo Showcase (影片功能展示區域) — healing card grid ── */}
+      {/* ── Video Demo Showcase (影片功能展示區域) — healing carousel ── */}
       <section className="section-healing px-4 sm:px-6 relative z-10">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 24 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-80px" }}
             transition={{ duration: 0.7, ease: [0.25, 0.46, 0.45, 0.94] }}
-            className="text-center mb-16"
+            className="text-center mb-12"
           >
             <h2 className={`text-2xl sm:text-3xl heading-healing transition-colors duration-700 ${s.textPrimary}`}>
               功能展示
@@ -492,75 +602,89 @@ export default function Home() {
             <div className="mx-auto mt-6 w-12 h-[2px] rounded-full" style={{ background: `linear-gradient(90deg, transparent, ${isDark ? "rgba(100,120,200,0.3)" : "rgba(212,197,226,0.5)"}, transparent)` }} />
           </motion.div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
-            {VIDEO_DEMOS.map((demo, idx) => (
-              <motion.div
-                key={demo.id}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-40px" }}
-                transition={{ duration: 0.6, delay: idx * 0.1, ease: [0.25, 0.46, 0.45, 0.94] }}
-              >
-                <div
-                  className="group h-full rounded-2xl overflow-hidden backdrop-blur-md transition-all duration-500 hover:scale-[1.015] cursor-pointer hover-lift"
-                  style={{
-                    background: s.cardBg,
-                    border: `1px solid ${s.cardBorder}`,
-                  }}
-                  onClick={() => navigate(isAuthenticated ? "/studio" : "/")}
-                >
-                  {/* Video preview area with play overlay */}
-                  <div
-                    className="relative aspect-[16/10] flex items-center justify-center overflow-hidden"
-                    style={{ background: demo.color }}
-                  >
-                    {/* Animated gradient background — gentle breathing */}
-                    <motion.div
-                      className="absolute inset-0"
-                      style={{
-                        background: `radial-gradient(circle at 30% 40%, ${demo.accentColor}18 0%, transparent 60%), radial-gradient(circle at 70% 60%, ${demo.accentColor}0d 0%, transparent 50%)`,
-                      }}
-                      animate={{ opacity: [0.5, 0.8, 0.5] }}
-                      transition={{ duration: 4, repeat: Infinity, ease: [0.37, 0, 0.63, 1] }}
-                    />
-                    {/* Center icon + play button */}
-                    <div className="relative z-10 flex flex-col items-center gap-4">
-                      <motion.div
-                        className="w-16 h-16 rounded-2xl flex items-center justify-center"
-                        style={{ background: `${demo.accentColor}20`, border: `1px solid ${demo.accentColor}25`, backdropFilter: "blur(8px)" }}
-                        whileHover={{ scale: 1.08 }}
-                        transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
-                      >
-                        <demo.icon className="w-7 h-7" style={{ color: demo.accentColor }} />
-                      </motion.div>
-                      <motion.div
-                        className="w-10 h-10 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-500"
-                        style={{ background: `${demo.accentColor}15`, border: `1px solid ${demo.accentColor}20`, backdropFilter: "blur(8px)" }}
-                      >
-                        <Play className="w-4 h-4 ml-0.5" style={{ color: demo.accentColor }} />
-                      </motion.div>
-                    </div>
-                    {/* Tag badge */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-40px" }}
+            transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] }}
+          >
+            <Carousel
+              setApi={setFeatureApi}
+              plugins={[featureAutoplay.current]}
+              opts={{ align: "start", loop: true }}
+              className="w-full"
+            >
+              <CarouselContent className="-ml-4">
+                {VIDEO_DEMOS.map((demo) => (
+                  <CarouselItem key={demo.id} className="pl-4 basis-full sm:basis-1/2 lg:basis-1/3">
                     <div
-                      className="absolute top-3.5 left-3.5 px-3 py-1 rounded-full text-[10px] font-medium tracking-wide"
-                      style={{ background: `${demo.accentColor}15`, color: demo.accentColor, border: `1px solid ${demo.accentColor}20`, backdropFilter: "blur(8px)" }}
+                      className="group h-full rounded-2xl overflow-hidden backdrop-blur-md transition-all duration-500 hover:scale-[1.015] cursor-pointer hover-lift"
+                      style={{
+                        background: s.cardBg,
+                        border: `1px solid ${s.cardBorder}`,
+                      }}
+                      onClick={() => navigate(isAuthenticated ? "/studio" : "/")}
                     >
-                      {demo.tag}
+                      {/* Preview area with play overlay */}
+                      <div
+                        className="relative aspect-[16/10] flex items-center justify-center overflow-hidden"
+                        style={{ background: demo.color }}
+                      >
+                        {/* Animated gradient — gentle breathing */}
+                        <motion.div
+                          className="absolute inset-0"
+                          style={{
+                            background: `radial-gradient(circle at 30% 40%, ${demo.accentColor}18 0%, transparent 60%), radial-gradient(circle at 70% 60%, ${demo.accentColor}0d 0%, transparent 50%)`,
+                          }}
+                          animate={{ opacity: [0.5, 0.8, 0.5] }}
+                          transition={{ duration: 4, repeat: Infinity, ease: [0.37, 0, 0.63, 1] }}
+                        />
+                        {/* Center icon + play */}
+                        <div className="relative z-10 flex flex-col items-center gap-4">
+                          <motion.div
+                            className="w-16 h-16 rounded-2xl flex items-center justify-center"
+                            style={{ background: `${demo.accentColor}20`, border: `1px solid ${demo.accentColor}25`, backdropFilter: "blur(8px)" }}
+                            whileHover={{ scale: 1.08 }}
+                            transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
+                          >
+                            <demo.icon className="w-7 h-7" style={{ color: demo.accentColor }} />
+                          </motion.div>
+                          <motion.div
+                            className="w-10 h-10 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-500"
+                            style={{ background: `${demo.accentColor}15`, border: `1px solid ${demo.accentColor}20`, backdropFilter: "blur(8px)" }}
+                          >
+                            <Play className="w-4 h-4 ml-0.5" style={{ color: demo.accentColor }} />
+                          </motion.div>
+                        </div>
+                        {/* Tag badge */}
+                        <div
+                          className="absolute top-3.5 left-3.5 px-3 py-1 rounded-full text-[10px] font-medium tracking-wide"
+                          style={{ background: `${demo.accentColor}15`, color: demo.accentColor, border: `1px solid ${demo.accentColor}20`, backdropFilter: "blur(8px)" }}
+                        >
+                          {demo.tag}
+                        </div>
+                      </div>
+                      {/* Text content — healing spacing */}
+                      <div className="px-5 py-4 sm:px-6 sm:py-5">
+                        <h3 className={`text-sm font-semibold mb-2 transition-colors duration-700 ${s.textPrimary}`}>
+                          {demo.title}
+                        </h3>
+                        <p className={`text-xs leading-relaxed body-healing transition-colors duration-700 ${s.textMuted}`}>
+                          {demo.description}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  {/* Text content — healing spacing */}
-                  <div className="px-5 py-4 sm:px-6 sm:py-5">
-                    <h3 className={`text-sm font-semibold mb-2 transition-colors duration-700 ${s.textPrimary}`}>
-                      {demo.title}
-                    </h3>
-                    <p className={`text-xs leading-relaxed body-healing transition-colors duration-700 ${s.textMuted}`}>
-                      {demo.description}
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
+                  </CarouselItem>
+                ))}
+              </CarouselContent>
+            </Carousel>
+            <CarouselDots
+              count={VIDEO_DEMOS.length}
+              current={featureCurrent}
+              onSelect={featureScrollTo}
+              isDark={isDark}
+            />
+          </motion.div>
         </div>
       </section>
 
@@ -661,8 +785,19 @@ export default function Home() {
                 border: `1px solid ${s.cardBorder}`,
               }}
             >
-              <div className="flex justify-center">
-                <VisualSoul size="lg" personality={personality} />
+              <div className="flex flex-col items-center">
+                <motion.div
+                  animate={{
+                    filter: [
+                      `drop-shadow(0 0 20px ${PERSONALITY_LABELS[personality]?.color ?? "rgba(255,80,180,0.3)"})`,
+                      `drop-shadow(0 0 35px ${PERSONALITY_LABELS[personality]?.color ?? "rgba(255,80,180,0.5)"})`,
+                      `drop-shadow(0 0 20px ${PERSONALITY_LABELS[personality]?.color ?? "rgba(255,80,180,0.3)"})`,
+                    ],
+                  }}
+                  transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
+                >
+                  <VisualSoul size="lg" personality={personality} />
+                </motion.div>
               </div>
               <h2 className={`text-2xl heading-healing mt-8 transition-colors duration-700 ${s.textPrimary}`}>
                 準備好開始創作了嗎？

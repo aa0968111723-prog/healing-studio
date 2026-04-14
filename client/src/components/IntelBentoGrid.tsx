@@ -13,11 +13,17 @@
  *   - 結合 Radix ScrollArea 可捲動區域
  */
 
-import { useMemo, useState, useCallback, lazy, Suspense, memo } from "react";
+import { useMemo, useState, useCallback, useEffect, useRef, lazy, Suspense, memo } from "react";
 import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from "framer-motion";
 import { trpc } from "@/lib/trpc";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-// ScrollArea removed — bento grid now expands naturally
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  type CarouselApi,
+} from "@/components/ui/carousel";
+import Autoplay from "embla-carousel-autoplay";
 import {
   Zap, Lightbulb, TrendingUp, Wrench, Users, BookOpen, Newspaper,
   ExternalLink, Eye, Clock, ChevronRight,
@@ -262,16 +268,8 @@ function BentoCard({
     [mouseX, mouseY]
   );
 
-  // Grid span classes
-  const spanClass = isHero
-    ? "col-span-2 row-span-2 sm:col-span-2 sm:row-span-2"
-    : isMedium
-    ? "col-span-1 row-span-2"
-    : "col-span-1 row-span-1";
-
   return (
     <motion.article
-      layout
       initial={{ opacity: 0, scale: 0.96 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.96 }}
@@ -283,10 +281,11 @@ function BentoCard({
       onMouseUp={() => senseProps.onMouseUp()}
       onMouseMove={(e) => { handleMouseMove(e); senseProps.onMouseMove(e); }}
       onClick={() => onCardClick(item.id)}
-      className={`group relative rounded-2xl overflow-hidden cursor-pointer ${spanClass}`}
+      className="group relative rounded-2xl overflow-hidden cursor-pointer h-full"
       style={{
         background: styles.cardBg,
         border: `1px solid ${styles.cardBorder}`,
+        minHeight: isHero ? "280px" : isMedium ? "220px" : "180px",
       }}
     >
       {/* ── Glassmorphism fluid glow overlay (mouse-tracking) ── */}
@@ -540,6 +539,35 @@ const IntelBentoGrid = memo(function IntelBentoGrid({ sceneId }: IntelBentoGridP
   const [activeTab, setActiveTab] = useState("all");
   const [selectedNewsId, setSelectedNewsId] = useState<number | null>(null);
 
+  // ─── Carousel state ─────────────────────────────────────────────
+  const [carouselApi, setCarouselApi] = useState<CarouselApi>();
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [slideCount, setSlideCount] = useState(0);
+  const autoplayRef = useRef(
+    Autoplay({ delay: 5000, stopOnInteraction: true, stopOnMouseEnter: true })
+  );
+
+  useEffect(() => {
+    if (!carouselApi) return;
+    const onSelect = () => setCurrentSlide(carouselApi.selectedScrollSnap());
+    const onReInit = () => {
+      setSlideCount(carouselApi.scrollSnapList().length);
+      setCurrentSlide(carouselApi.selectedScrollSnap());
+    };
+    carouselApi.on("select", onSelect);
+    carouselApi.on("reInit", onReInit);
+    onReInit();
+    return () => {
+      carouselApi.off("select", onSelect);
+      carouselApi.off("reInit", onReInit);
+    };
+  }, [carouselApi]);
+
+  const scrollTo = useCallback(
+    (idx: number) => carouselApi?.scrollTo(idx),
+    [carouselApi],
+  );
+
   const handleCardClick = useCallback((id: number) => {
     setSelectedNewsId(id);
   }, []);
@@ -580,7 +608,7 @@ const IntelBentoGrid = memo(function IntelBentoGrid({ sceneId }: IntelBentoGridP
 
   return (
     <section ref={sectionScrollRef} className="py-20 px-4 relative z-10">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         {/* Section header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -597,6 +625,13 @@ const IntelBentoGrid = memo(function IntelBentoGrid({ sceneId }: IntelBentoGridP
           <p className={`mt-2 text-sm max-w-md mx-auto transition-colors duration-700 ${styles.textMuted}`}>
             AI 與創作領域的最新脈動，以溫暖視角重新詮釋
           </p>
+          {/* Healing divider */}
+          <div
+            className="mx-auto mt-6 w-12 h-[2px] rounded-full"
+            style={{
+              background: `linear-gradient(90deg, transparent, ${styles.cardBorder}, transparent)`,
+            }}
+          />
         </motion.div>
 
         {/* Tabs */}
@@ -626,37 +661,86 @@ const IntelBentoGrid = memo(function IntelBentoGrid({ sceneId }: IntelBentoGridP
             </TabsList>
           </div>
 
-          {/* Tab content — all tabs share the same grid, just filtered differently */}
+          {/* Tab content — mount points for Radix Tabs */}
           {TABS.map((tab) => (
-            <TabsContent key={tab.value} value={tab.value} className="mt-0">
-              {/* This is just a mount point; actual content rendered below */}
-            </TabsContent>
+            <TabsContent key={tab.value} value={tab.value} className="mt-0" />
           ))}
         </Tabs>
 
-        {/* Bento Grid — natural height, no scroll constraint */}
-        <div className="w-full">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 auto-rows-[140px] pb-4">
-            <AnimatePresence mode="popLayout">
-              {isLoading ? (
-                <BentoSkeleton styles={styles} />
-              ) : layoutItems.length === 0 ? (
-                <EmptyState styles={styles} />
-              ) : (
-                layoutItems.map(({ item, config }) => (
-                  <BentoCard
-                    key={item.id}
-                    item={item}
-                    config={config}
-                    styles={styles}
-                    senseEngine={senseEngine}
-                    onCardClick={handleCardClick}
-                  />
-                ))
-              )}
-            </AnimatePresence>
+        {/* ── Carousel Layout — elegant sliding instead of overwhelming grid ── */}
+        {isLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <BentoSkeleton styles={styles} />
           </div>
-        </div>
+        ) : layoutItems.length === 0 ? (
+          <EmptyState styles={styles} />
+        ) : (
+          <div className="w-full">
+            <Carousel
+              setApi={setCarouselApi}
+              plugins={[autoplayRef.current]}
+              opts={{ align: "start", loop: true }}
+              className="w-full"
+            >
+              <CarouselContent className="-ml-4">
+                {layoutItems.map(({ item, config }) => (
+                  <CarouselItem
+                    key={item.id}
+                    className={`pl-4 ${
+                      config.size === "hero"
+                        ? "basis-full sm:basis-2/3"
+                        : config.size === "medium"
+                        ? "basis-full sm:basis-1/2"
+                        : "basis-full sm:basis-1/2 lg:basis-1/3"
+                    }`}
+                  >
+                    <BentoCard
+                      item={item}
+                      config={config}
+                      styles={styles}
+                      senseEngine={senseEngine}
+                      onCardClick={handleCardClick}
+                    />
+                  </CarouselItem>
+                ))}
+              </CarouselContent>
+            </Carousel>
+
+            {/* Carousel dot indicators */}
+            {slideCount > 1 && (
+              <div className="flex items-center justify-center gap-2 mt-8">
+                {Array.from({ length: Math.min(slideCount, 10) }).map((_, i) => (
+                  <motion.button
+                    key={i}
+                    onClick={() => scrollTo(i)}
+                    className={`rounded-full transition-all duration-500 ${
+                      i === currentSlide
+                        ? `opacity-60`
+                        : `opacity-15 hover:opacity-25`
+                    }`}
+                    style={{
+                      background: styles.textPrimary.includes("white")
+                        ? "white"
+                        : styles.textPrimary.includes("amber")
+                        ? "#78350f"
+                        : styles.textPrimary.includes("stone")
+                        ? "#1c1917"
+                        : styles.textPrimary.includes("cyan")
+                        ? "#ecfeff"
+                        : "#fff",
+                    }}
+                    animate={{
+                      width: i === currentSlide ? 24 : 8,
+                      height: 8,
+                    }}
+                    transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
+                    aria-label={`Go to slide ${i + 1}`}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* "See more" link */}
         {data?.nextCursor && (
