@@ -1,6 +1,9 @@
+import { useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
+import { useAIState } from "@/contexts/AIStateContext";
+import VisualSoul from "@/components/VisualSoul";
 import { Badge } from "@/components/ui/badge";
 import {
   BarChart3, Zap, DollarSign, Clock, TrendingUp, LayoutDashboard,
@@ -78,6 +81,13 @@ export default function DashboardPage() {
 
   // 全站新手引導
   usePageTour("dashboard");
+
+  const { aiState, setPageContext, personality } = useAIState();
+
+  useEffect(() => {
+    setPageContext({ pageId: "dashboard", pageLabel: "總覽儀表板" });
+    return () => setPageContext(null);
+  }, [setPageContext]);
 
   const statsQuery = trpc.dashboard.myStats.useQuery(undefined, { retry: false });
   const stats = statsQuery.data;

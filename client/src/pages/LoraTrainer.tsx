@@ -153,7 +153,7 @@ export default function LoraTrainer() {
   const [, navigate] = useLocation();
 
   // ── AI Agent Integration ──
-  const { aiState, setPageContext, personality } = useAIState();
+  const { aiState, setAIState, reportSuccess, reportFailure, setPageContext, personality } = useAIState();
 
   const [tab, setTab] = useState<"train" | "overview" | "history" | "detail">("train");
   const [selectedModelId, setSelectedModelId] = useState<number | null>(null);
@@ -216,16 +216,23 @@ export default function LoraTrainer() {
 
   // ── Mutations ──
   const createMutation = trpc.models.create.useMutation({
+    onMutate: () => setAIState("generating"),
     onSuccess: (data) => {
       toast.success("LoRA 訓練任務已建立");
       setTrainingJobId(data.jobId);
       historyQuery.refetch();
       statsQuery.refetch();
+      reportSuccess();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => {
+      toast.error(e.message);
+      reportFailure();
+    },
+    onSettled: () => setAIState("idle"),
   });
 
   const captionMutation = trpc.models.captionImages.useMutation({
+    onMutate: () => setAIState("generating"),
     onSuccess: (data) => {
       setDatasetImages(prev => prev.map((img, idx) => ({
         ...img,
@@ -234,11 +241,14 @@ export default function LoraTrainer() {
       })));
       setIsCaptioning(false);
       toast.success("自動標註完成");
+      reportSuccess();
     },
     onError: (e) => {
       setIsCaptioning(false);
       toast.error("標註失敗：" + e.message);
+      reportFailure();
     },
+    onSettled: () => setAIState("idle"),
   });
 
   const syncStatusMutation = trpc.models.syncReplicateStatus.useMutation({
@@ -252,12 +262,18 @@ export default function LoraTrainer() {
   });
 
   const retrainMutation = trpc.models.retrain.useMutation({
+    onMutate: () => setAIState("generating"),
     onSuccess: () => {
       historyQuery.refetch();
       statsQuery.refetch();
       toast.success("重新訓練已啟動");
+      reportSuccess();
     },
-    onError: (e) => toast.error("重新訓練失敗：" + e.message),
+    onError: (e) => {
+      toast.error("重新訓練失敗：" + e.message);
+      reportFailure();
+    },
+    onSettled: () => setAIState("idle"),
   });
 
   const deleteModel = trpc.models.delete.useMutation({
