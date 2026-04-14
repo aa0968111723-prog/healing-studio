@@ -263,7 +263,7 @@ export default function DirectorAI() {
   const prefsQuery = trpc.director.preferences.get.useQuery(undefined, { retry: false });
   const updatePrefs = trpc.director.preferences.update.useMutation({
     onSuccess: () => prefsQuery.refetch(),
-    onError: (err) => toast.error("偏好儲存失敗：" + err.message),
+    onError: (err) => toast.error(`偏好儲存失敗：${err.message}`),
   });
   const [preferredFormat, setPreferredFormat] = useState<"co-star" | "sslcm" | "selcm" | "free">("co-star");
 
