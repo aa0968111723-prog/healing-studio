@@ -65,6 +65,32 @@ import { motion, AnimatePresence } from "framer-motion";
 // Types
 // ═══════════════════════════════════════════════════════════════════════════
 
+/** 錯誤分類中文標籤（集中定義，避免重複） */
+const ERROR_CATEGORY_LABEL_MAP: Record<string, string> = {
+  rate_limit: "速率限制", auth_failure: "認證失敗", connection: "連線問題",
+  timeout: "請求逾時", missing_api: "缺失 API", broken_link: "連結中斷",
+  validation: "參數錯誤", server_error: "伺服器錯誤", quota_exceeded: "配額用盡",
+  model_unavailable: "模型不可用", unknown: "未知",
+};
+
+/** 錯誤分類的顏色樣式 */
+const ERROR_CATEGORY_COLOR_MAP: Record<string, string> = {
+  rate_limit: "text-orange-600 bg-orange-500/10", auth_failure: "text-red-600 bg-red-500/10",
+  connection: "text-yellow-600 bg-yellow-500/10", timeout: "text-amber-600 bg-amber-500/10",
+  missing_api: "text-purple-600 bg-purple-500/10", broken_link: "text-pink-600 bg-pink-500/10",
+  validation: "text-blue-600 bg-blue-500/10", server_error: "text-red-700 bg-red-600/10",
+  quota_exceeded: "text-orange-700 bg-orange-600/10", model_unavailable: "text-slate-600 bg-slate-500/10",
+  unknown: "text-muted-foreground bg-muted",
+};
+
+/** 錯誤分類帶 emoji 標籤（爬網研究頁用） */
+const ERROR_CATEGORY_EMOJI_LABELS: Record<string, string> = {
+  rate_limit: "🚦 速率限制", auth_failure: "🔑 認證失敗", connection: "🔌 連線問題",
+  timeout: "⏱️ 請求逾時", missing_api: "❓ 缺失 API", broken_link: "🔗 連結中斷",
+  validation: "📋 參數錯誤", server_error: "💥 伺服器錯誤", quota_exceeded: "📊 配額用盡",
+  model_unavailable: "🚫 模型不可用", unknown: "❔ 未分類",
+};
+
 interface ModelOption {
   value: string;
   label: string;
@@ -686,6 +712,8 @@ export default function AiBrainSettings() {
   // ── Tab State ─────────────────────────────────────────────────────────
   type TabId = "config" | "alerts" | "errors" | "proposals" | "research" | "accuracy";
   const [activeTab, setActiveTab] = useState<TabId>("config");
+  // ── Error Diagnosis State ─────────────────────────────────────────────
+  const [expandedDiagnosisId, setExpandedDiagnosisId] = useState<string | null>(null);
 
   const brainQuery    = trpc.brain.get.useQuery(undefined, { retry: false });
   const catalogQuery  = trpc.brain.catalog.useQuery(undefined, { staleTime: 60_000 });
@@ -717,6 +745,10 @@ export default function AiBrainSettings() {
     enabled: activeTab === "errors" || activeTab === "research",
     refetchInterval: 15_000,
   });
+  const diagnosisQuery = trpc.brain.diagnoseError.useQuery(
+    { traceId: expandedDiagnosisId ?? "" },
+    { enabled: !!expandedDiagnosisId && activeTab === "errors" }
+  );
   const proposalsQuery = trpc.brain.proposals.useQuery(undefined, {
     enabled: activeTab === "proposals",
     refetchInterval: 15_000,
@@ -1474,48 +1506,187 @@ export default function AiBrainSettings() {
               生成錯誤線索系統
             </h2>
             <p className="text-xs text-muted-foreground mb-4">
-              追蹤所有失敗的生成任務，自動爬網搜尋修復方案，並建立優化提案通知管理員。
+              追蹤所有失敗的生成任務，自動分析根因、爬網搜尋修復方案，並提供步驟式解決指南。
             </p>
             {errorsQuery.isLoading ? <ZenSkeleton lines={4} /> : (
               <div className="space-y-2">
                 {(errorsQuery.data ?? []).length === 0 && (
                   <p className="text-xs text-muted-foreground/60 py-4 text-center">✅ 目前沒有錯誤記錄</p>
                 )}
-                {(errorsQuery.data ?? []).map((trace) => (
-                  <div key={trace.id} className={`rounded-lg border p-3 text-xs ${
-                    trace.resolvedAt ? "opacity-50 border-muted" : "border-red-500/20 bg-red-500/5"
-                  }`}>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <Badge variant="outline" className="text-[9px]">{trace.modality}</Badge>
-                          <span className="font-medium">{trace.engine}</span>
-                          {trace.errorCode && <Badge variant="secondary" className="text-[9px]">{trace.errorCode}</Badge>}
-                          {trace.resolvedAt && <Badge variant="secondary" className="text-[9px] bg-emerald-500/10 text-emerald-600">已解決</Badge>}
+                {(errorsQuery.data ?? []).map((trace) => {
+                  const isExpanded = expandedDiagnosisId === trace.id;
+                  const categoryLabel = trace.errorCategory
+                    ? ERROR_CATEGORY_LABEL_MAP[trace.errorCategory] ?? trace.errorCategory
+                    : null;
+                  const categoryColor = trace.errorCategory
+                    ? ERROR_CATEGORY_COLOR_MAP[trace.errorCategory] ?? ""
+                    : "";
+                  return (
+                    <div key={trace.id} className={`rounded-lg border p-3 text-xs transition-all ${
+                      trace.resolvedAt ? "opacity-50 border-muted" : "border-red-500/20 bg-red-500/5"
+                    }`}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                            <Badge variant="outline" className="text-[9px]">{trace.modality}</Badge>
+                            <span className="font-medium">{trace.engine}</span>
+                            {trace.errorCode && <Badge variant="secondary" className="text-[9px]">{trace.errorCode}</Badge>}
+                            {categoryLabel && (
+                              <Badge variant="secondary" className={`text-[9px] ${categoryColor}`}>
+                                {categoryLabel}
+                              </Badge>
+                            )}
+                            {trace.rootCauseConfidence != null && trace.rootCauseConfidence > 0 && (
+                              <span className="text-[9px] text-muted-foreground">
+                                信心度 {trace.rootCauseConfidence}%
+                              </span>
+                            )}
+                            {trace.resolvedAt && <Badge variant="secondary" className="text-[9px] bg-emerald-500/10 text-emerald-600">已解決</Badge>}
+                          </div>
+                          <p className="text-muted-foreground break-all">{trace.errorMessage.slice(0, 200)}</p>
+                          {trace.rootCause && (
+                            <p className="text-[10px] text-amber-600 mt-1">🔍 根因：{trace.rootCause.slice(0, 150)}</p>
+                          )}
+                          {trace.webSearchResult && (
+                            <p className="text-[10px] text-blue-500/80 mt-1">🌐 {trace.webSearchResult.slice(0, 150)}...</p>
+                          )}
+                          <p className="text-[10px] text-muted-foreground/60 mt-1">
+                            {new Date(trace.createdAt).toLocaleString("zh-TW")}
+                          </p>
                         </div>
-                        <p className="text-muted-foreground break-all">{trace.errorMessage.slice(0, 200)}</p>
-                        {trace.webSearchResult && (
-                          <p className="text-[10px] text-blue-500/80 mt-1">🔍 {trace.webSearchResult.slice(0, 150)}...</p>
-                        )}
-                        <p className="text-[10px] text-muted-foreground/60 mt-1">
-                          {new Date(trace.createdAt).toLocaleString("zh-TW")}
-                        </p>
+                        <div className="flex flex-col gap-1 shrink-0">
+                          {!trace.resolvedAt && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className={`text-[10px] h-7 ${isExpanded ? "border-blue-500 text-blue-600" : ""}`}
+                                onClick={() => setExpandedDiagnosisId(isExpanded ? null : trace.id)}
+                              >
+                                <Search className="w-3 h-3 mr-1" />
+                                {isExpanded ? "收起" : "診斷"}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-[10px] h-7"
+                                onClick={() => resolveErrorMut.mutate({ traceId: trace.id, resolution: "手動標記已解決" })}
+                                disabled={resolveErrorMut.isPending}
+                              >
+                                <Check className="w-3 h-3 mr-1" />
+                                解決
+                              </Button>
+                            </>
+                          )}
+                        </div>
                       </div>
-                      {!trace.resolvedAt && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-[10px] h-7 shrink-0"
-                          onClick={() => resolveErrorMut.mutate({ traceId: trace.id, resolution: "手動標記已解決" })}
-                          disabled={resolveErrorMut.isPending}
-                        >
-                          <Check className="w-3 h-3 mr-1" />
-                          解決
-                        </Button>
+
+                      {/* ── 展開：步驟式診斷面板 ── */}
+                      {isExpanded && (
+                        <div className="mt-3 pt-3 border-t border-blue-500/20">
+                          {diagnosisQuery.isLoading ? (
+                            <ZenSkeleton lines={3} />
+                          ) : diagnosisQuery.data ? (
+                            <div className="space-y-3">
+                              {/* 根因分析 */}
+                              <div className="rounded-md bg-amber-500/5 border border-amber-500/20 p-2.5">
+                                <p className="text-[10px] font-semibold text-amber-700 mb-1 flex items-center gap-1">
+                                  <AlertTriangle className="w-3 h-3" />
+                                  根因分析（信心度 {diagnosisQuery.data.rootCauseConfidence}%）
+                                </p>
+                                <p className="text-[11px] text-amber-900/80">{diagnosisQuery.data.rootCause}</p>
+                              </div>
+
+                              {/* 相關錯誤 */}
+                              {diagnosisQuery.data.relatedTraceIds.length > 0 && (
+                                <p className="text-[10px] text-muted-foreground">
+                                  🔗 發現 {diagnosisQuery.data.relatedTraceIds.length} 筆相關錯誤（同一引擎或分類）
+                                </p>
+                              )}
+
+                              {/* 步驟式解決方案 */}
+                              <div>
+                                <p className="text-[10px] font-semibold text-foreground mb-2 flex items-center gap-1">
+                                  <Lightbulb className="w-3 h-3 text-yellow-500" />
+                                  步驟式解決方案
+                                </p>
+                                <div className="space-y-2">
+                                  {diagnosisQuery.data.suggestedSteps.map((s) => (
+                                    <div key={s.step} className={`rounded-md border p-2 ${
+                                      s.action === "check" ? "border-blue-500/20 bg-blue-500/5" :
+                                      s.action === "fix" ? "border-emerald-500/20 bg-emerald-500/5" :
+                                      s.action === "verify" ? "border-indigo-500/20 bg-indigo-500/5" :
+                                      "border-orange-500/20 bg-orange-500/5"
+                                    }`}>
+                                      <div className="flex items-start gap-2">
+                                        <span className={`shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold ${
+                                          s.action === "check" ? "bg-blue-500/20 text-blue-700" :
+                                          s.action === "fix" ? "bg-emerald-500/20 text-emerald-700" :
+                                          s.action === "verify" ? "bg-indigo-500/20 text-indigo-700" :
+                                          "bg-orange-500/20 text-orange-700"
+                                        }`}>
+                                          {s.step}
+                                        </span>
+                                        <div className="flex-1 min-w-0">
+                                          <p className="text-[11px] font-medium">{s.title}</p>
+                                          <p className="text-[10px] text-muted-foreground mt-0.5">{s.description}</p>
+                                          {s.command && (
+                                            <pre className="mt-1 text-[9px] bg-black/5 dark:bg-white/5 rounded px-2 py-1 whitespace-pre-wrap font-mono text-muted-foreground">
+                                              {s.command}
+                                            </pre>
+                                          )}
+                                        </div>
+                                        <Badge variant="outline" className={`text-[8px] shrink-0 ${
+                                          s.action === "check" ? "text-blue-600" :
+                                          s.action === "fix" ? "text-emerald-600" :
+                                          s.action === "verify" ? "text-indigo-600" :
+                                          "text-orange-600"
+                                        }`}>
+                                          {s.action === "check" ? "檢查" : s.action === "fix" ? "修復" : s.action === "verify" ? "驗證" : "備援"}
+                                        </Badge>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {/* 建議搜尋 */}
+                              {diagnosisQuery.data.searchQueries.length > 0 && (
+                                <div>
+                                  <p className="text-[10px] font-semibold text-foreground mb-1.5 flex items-center gap-1">
+                                    <Globe className="w-3 h-3 text-blue-500" />
+                                    建議搜尋關鍵字
+                                  </p>
+                                  <div className="flex flex-wrap gap-1">
+                                    {diagnosisQuery.data.searchQueries.map((q, i) => (
+                                      <Button
+                                        key={i}
+                                        size="sm"
+                                        variant="outline"
+                                        className="text-[9px] h-6 border-blue-500/20 bg-blue-500/5 hover:bg-blue-500/10 text-blue-600"
+                                        onClick={() => {
+                                          setActiveTab("research");
+                                          setSearchQuery(q);
+                                          webSearchMut.mutate({ query: q });
+                                        }}
+                                        disabled={webSearchMut.isPending}
+                                      >
+                                        <Search className="w-2.5 h-2.5 mr-0.5" />
+                                        {q.slice(0, 40)}
+                                      </Button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="text-[10px] text-muted-foreground">無法取得診斷資訊</p>
+                          )}
+                        </div>
                       )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </GlassCard>
@@ -1630,46 +1801,66 @@ export default function AiBrainSettings() {
               </Button>
             </div>
 
-            {/* ── 錯誤 API 快選 ───────────────────────────────────────── */}
+            {/* ── 錯誤 API 快選（按分類分組） ─────────────────────────── */}
             {(() => {
               const unresolvedErrors = (errorsQuery.data ?? []).filter((t) => !t.resolvedAt);
               if (unresolvedErrors.length === 0) return null;
-              // Deduplicate by engine name
-              const uniqueEngines = Array.from(new Set(unresolvedErrors.map((t) => t.engine)));
+
+              // 按錯誤分類分組
+              const categoryGroups: Record<string, typeof unresolvedErrors> = {};
+              for (const t of unresolvedErrors) {
+                const cat = t.errorCategory ?? "unknown";
+                if (!categoryGroups[cat]) categoryGroups[cat] = [];
+                categoryGroups[cat].push(t);
+              }
+
+              const categoryLabels = ERROR_CATEGORY_EMOJI_LABELS;
+
               return (
-                <div className="mb-4">
+                <div className="mb-4 space-y-3">
                   <p className="text-[10px] text-muted-foreground mb-1.5 flex items-center gap-1">
                     <Bug className="w-3 h-3 text-red-400" />
-                    快選錯誤 API 搜尋修復方案：
+                    依錯誤分類搜尋修復方案：
                   </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {uniqueEngines.slice(0, 10).map((engine) => {
-                      const errorCount = unresolvedErrors.filter((t) => t.engine === engine).length;
-                      const errMsg = unresolvedErrors.find((t) => t.engine === engine)?.errorMessage ?? "";
-                      const query = `${engine} API error fix ${errMsg.slice(0, 60)}`;
-                      return (
-                        <Button
-                          key={engine}
-                          size="sm"
-                          variant="outline"
-                          className="text-[10px] h-7 border-red-500/20 bg-red-500/5 hover:bg-red-500/10 text-red-600"
-                          onClick={() => {
-                            setSearchQuery(query);
-                            webSearchMut.mutate({ query });
-                          }}
-                          disabled={webSearchMut.isPending}
-                        >
-                          <AlertTriangle className="w-3 h-3 mr-1" />
-                          {engine.split("/").pop()}
-                          {errorCount > 1 && (
-                            <Badge variant="secondary" className="text-[8px] ml-1 px-1 py-0 h-3.5">
-                              ×{errorCount}
-                            </Badge>
-                          )}
-                        </Button>
-                      );
-                    })}
-                  </div>
+                  {Object.entries(categoryGroups).map(([cat, traces]) => {
+                    const label = categoryLabels[cat] ?? cat;
+                    const uniqueEngines = Array.from(new Set(traces.map((t) => t.engine)));
+                    return (
+                      <div key={cat} className="space-y-1">
+                        <p className="text-[10px] font-medium text-foreground/80">{label} ({traces.length})</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {uniqueEngines.slice(0, 8).map((engine) => {
+                            const errorCount = traces.filter((t) => t.engine === engine).length;
+                            const errMsg = traces.find((t) => t.engine === engine)?.errorMessage ?? "";
+                            const query = cat !== "unknown"
+                              ? `${engine} ${cat.replace("_", " ")} error fix solution`
+                              : `${engine} API error fix ${errMsg.slice(0, 60)}`;
+                            return (
+                              <Button
+                                key={engine}
+                                size="sm"
+                                variant="outline"
+                                className="text-[10px] h-7 border-red-500/20 bg-red-500/5 hover:bg-red-500/10 text-red-600"
+                                onClick={() => {
+                                  setSearchQuery(query);
+                                  webSearchMut.mutate({ query });
+                                }}
+                                disabled={webSearchMut.isPending}
+                              >
+                                <AlertTriangle className="w-3 h-3 mr-1" />
+                                {engine.split("/").pop()}
+                                {errorCount > 1 && (
+                                  <Badge variant="secondary" className="text-[8px] ml-1 px-1 py-0 h-3.5">
+                                    ×{errorCount}
+                                  </Badge>
+                                )}
+                              </Button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               );
             })()}

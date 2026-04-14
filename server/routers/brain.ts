@@ -15,6 +15,7 @@ import {
   getErrorTraces,
   recordErrorTrace,
   resolveErrorTrace,
+  diagnoseError,
   getProposals,
   createReflectionProposal,
   approveProposal,
@@ -26,6 +27,7 @@ import {
   runAccuracyTest,
   runAllAccuracyTests,
   getSystemSummary,
+  ERROR_CATEGORY_LABELS,
 } from "../services/brainAutoRepair";
 import {
   userAiBrain,
@@ -848,6 +850,19 @@ export const brainRouter = router({
       if (!ok) throw new TRPCError({ code: "NOT_FOUND", message: "錯誤線索不存在" });
       return { success: true };
     }),
+
+  /** 取得錯誤診斷（根因分析 + 步驟式解決方案） */
+  diagnoseError: protectedProcedure
+    .input(z.object({ traceId: z.string() }))
+    .query(({ input }) => {
+      const diagnosis = diagnoseError(input.traceId);
+      if (!diagnosis) throw new TRPCError({ code: "NOT_FOUND", message: "錯誤線索不存在" });
+      return diagnosis;
+    }),
+
+  /** 取得錯誤分類標籤對照表 */
+  errorCategoryLabels: protectedProcedure
+    .query(() => ERROR_CATEGORY_LABELS),
 
   // ─── 3. 回饋自我反省優化系統 ─────────────────────────────────────────
 
