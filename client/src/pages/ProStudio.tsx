@@ -420,7 +420,7 @@ function MusicTagPicker({ tags, onChange }: { tags: string; onChange: (v: string
             exit={{ opacity: 0, height: 0 }}
             className="overflow-hidden"
           >
-            <div className="p-2.5 sm:p-3 rounded-xl bg-muted/30 border border-border/50 space-y-2.5 sm:space-y-3 max-h-[50vh] overflow-y-auto">
+            <div className="p-2.5 sm:p-3 rounded-xl bg-muted/30 border border-border/50 space-y-2.5 sm:space-y-3 max-h-[50vh] overflow-y-auto focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none" tabIndex={0} role="region" aria-label="音樂風格標籤選擇器">
               <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                 <Info className="w-3 h-3" />
                 點擊標籤快速新增，多個標籤會自動合併為逗號分隔格式

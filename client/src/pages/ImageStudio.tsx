@@ -1571,7 +1571,7 @@ export default function ImageStudio() {
           <div className="min-w-0">
             <h1 className="text-lg sm:text-xl font-bold tracking-tight">圖片創作室</h1>
             <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5 line-clamp-2 sm:line-clamp-none">
-              fal.ai 23 大模型 — 文字生圖・圖片編輯・影像放大・骨骼姿勢・SD・3D
+              fal.ai 23 大模型 — 文字生圖・圖片編輯・影像放大・骨骼姿勢・<span className="hidden sm:inline">Stable Diffusion</span><span className="sm:hidden" title="Stable Diffusion">SD</span>・3D
             </p>
           </div>
         </div>
