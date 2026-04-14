@@ -484,46 +484,53 @@ export default function LoraTrainer() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-5 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Flame className="w-5 h-5 text-orange-500" />
-          <div>
-            <h1 className="text-xl font-semibold">AI 模型訓練中心</h1>
-            <p className="text-xs text-muted-foreground">多類型 LoRA 微調訓練 · 支援 Replicate + Fal.ai 雙引擎</p>
+      <div className="flex items-start justify-between gap-3 sm:gap-4">
+        <div className="flex items-center gap-2.5 sm:gap-3">
+          <div className="p-2 sm:p-2.5 rounded-2xl bg-gradient-to-br from-orange-500/20 to-amber-500/10 border border-orange-200/40 shrink-0">
+            <Flame className="w-5 h-5 sm:w-6 sm:h-6 text-orange-500" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-lg sm:text-xl font-bold tracking-tight">AI 模型訓練中心</h1>
+            <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">
+              多類型 LoRA 微調訓練 · 支援 Replicate + Fal.ai 雙引擎
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <VisualSoul size="sm" state={aiState} personality={personality} className="!w-6 !h-6" />
           <Button
-            className="rounded-xl gap-1.5 text-sm"
+            className="rounded-xl gap-1.5 text-xs sm:text-sm shrink-0 min-h-[44px]"
             onClick={() => { resetForm(); setTab("train"); }}
           >
             <Plus className="w-4 h-4" />
-            新增訓練
+            <span className="hidden sm:inline">新增訓練</span>
+            <span className="sm:hidden">新增</span>
           </Button>
         </div>
       </div>
 
       {/* Tabs */}
       <Tabs value={tab} onValueChange={(v) => { setTab(v as typeof tab); if (v !== "detail") setSelectedModelId(null); }}>
-        <TabsList className="rounded-xl bg-muted/40 p-1">
-          <TabsTrigger value="train" className="rounded-lg gap-1 text-xs">
-            <Flame className="w-3 h-3" /> 訓練微調
-          </TabsTrigger>
-          <TabsTrigger value="overview" className="rounded-lg gap-1 text-xs">
-            <BarChart3 className="w-3 h-3" /> 總覽
-          </TabsTrigger>
-          <TabsTrigger value="history" className="rounded-lg gap-1 text-xs">
-            <Clock className="w-3 h-3" /> 訓練紀錄
-          </TabsTrigger>
-          {selectedModelId && (
-            <TabsTrigger value="detail" className="rounded-lg gap-1 text-xs">
-              <Settings2 className="w-3 h-3" /> 訓練詳情
+        <div className="overflow-x-auto no-scrollbar scroll-fade-x -mx-1 px-1">
+          <TabsList className="rounded-xl bg-muted/40 p-1 w-max">
+            <TabsTrigger value="train" className="rounded-lg gap-1.5 text-xs min-h-[40px]">
+              <Flame className="w-3.5 h-3.5" /> 訓練微調
             </TabsTrigger>
-          )}
-        </TabsList>
+            <TabsTrigger value="overview" className="rounded-lg gap-1.5 text-xs min-h-[40px]">
+              <BarChart3 className="w-3.5 h-3.5" /> 總覽
+            </TabsTrigger>
+            <TabsTrigger value="history" className="rounded-lg gap-1.5 text-xs min-h-[40px]">
+              <Clock className="w-3.5 h-3.5" /> 訓練紀錄
+            </TabsTrigger>
+            {selectedModelId && (
+              <TabsTrigger value="detail" className="rounded-lg gap-1.5 text-xs min-h-[40px]">
+                <Settings2 className="w-3.5 h-3.5" /> 訓練詳情
+              </TabsTrigger>
+            )}
+          </TabsList>
+        </div>
       </Tabs>
 
       <AnimatePresence mode="wait">
@@ -644,10 +651,10 @@ export default function LoraTrainer() {
             {!trainingJobId && (
               <>
                 {/* Step Indicator */}
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 overflow-x-auto no-scrollbar -mx-1 px-1">
                   {FORGE_STEPS.map((s, i) => (
-                    <div key={s.id} className="flex items-center gap-1 flex-1">
-                      <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all w-full justify-center ${i <= currentStepIndex ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+                    <div key={s.id} className="flex items-center gap-1 flex-1 min-w-0">
+                      <div className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-2 sm:py-1.5 rounded-lg text-xs font-medium transition-all w-full justify-center min-h-[40px] ${i <= currentStepIndex ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
                         {s.icon}
                         <span className="hidden sm:inline">{s.label}</span>
                       </div>
@@ -686,7 +693,7 @@ export default function LoraTrainer() {
 
                               {/* Angle-based upload for character/portrait */}
                               {(selectedTrainingType === "image_subject" || selectedTrainingType === "portrait_lora") ? (
-                                <div className="grid grid-cols-5 gap-2">
+                                <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                                   {ANGLES.map((angle) => {
                                     const images = datasetImages.filter((img) => img.angle === angle.value);
                                     const hasUploading = images.some(img => img.uploading);
@@ -1581,6 +1588,15 @@ export default function LoraTrainer() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* 頁腳說明 */}
+      <div className="mt-6 sm:mt-8 p-3 sm:p-4 rounded-2xl bg-muted/40 text-xs text-muted-foreground space-y-1">
+        <p className="font-medium text-foreground text-sm">📋 訓練說明</p>
+        <p>• 角色 / 肖像 LoRA 訓練使用 Replicate 引擎，風格 / 場景 / 影片 LoRA 使用 Fal.ai 引擎。</p>
+        <p>• 資料集建議使用高品質、多角度的圖片，至少上傳引擎要求的最低數量。</p>
+        <p>• 訓練過程通常需要 15-60 分鐘，進度可在總覽頁面監控。</p>
+        <p>• 訓練完成後，在圖片創作室輸入觸發詞即可使用您的自訂模型。</p>
+      </div>
     </div>
   );
 }

@@ -422,7 +422,7 @@ function MusicTagPicker({ tags, onChange }: { tags: string; onChange: (v: string
             exit={{ opacity: 0, height: 0 }}
             className="overflow-hidden"
           >
-            <div className="p-3 rounded-xl bg-muted/30 border border-border/50 space-y-3">
+            <div className="p-2.5 sm:p-3 rounded-xl bg-muted/30 border border-border/50 space-y-2.5 sm:space-y-3 max-h-[50vh] overflow-y-auto focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:outline-none" tabIndex={0} role="region" aria-label="音樂風格標籤選擇器">
               <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                 <Info className="w-3 h-3" />
                 點擊標籤快速新增，多個標籤會自動合併為逗號分隔格式
@@ -511,11 +511,11 @@ function ToolCard({
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`rounded-2xl p-5 bg-gradient-to-br ${colors[color]} border backdrop-blur-sm`}
+      className={`rounded-2xl p-4 sm:p-5 bg-gradient-to-br ${colors[color]} border backdrop-blur-sm`}
     >
-      <div className="flex items-start gap-3 mb-4">
-        <div className={`p-2 rounded-xl bg-white/60 shadow-sm ${iconColors[color]}`}>
-          <Icon className="w-5 h-5" />
+      <div className="flex items-start gap-2.5 sm:gap-3 mb-3 sm:mb-4">
+        <div className={`p-1.5 sm:p-2 rounded-xl bg-white/60 shadow-sm ${iconColors[color]}`}>
+          <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -2120,30 +2120,35 @@ export default function ProStudio() {
   }, [tab, setPageContext]);
 
   return (
-    <div className="max-w-3xl mx-auto space-y-5 sm:space-y-6">
+    <div className="max-w-3xl mx-auto px-3 sm:px-4 space-y-5 sm:space-y-6">
       {/* 標題 */}
-      <div className="flex items-start gap-3">
-        <div className="p-2.5 rounded-2xl bg-gradient-to-br from-purple-500 to-violet-600 shadow-lg shrink-0">
-          <Sparkles className="w-6 h-6 text-white" />
+      <div className="flex items-start gap-2.5 sm:gap-3">
+        <div className="p-2 sm:p-2.5 rounded-2xl bg-gradient-to-br from-purple-500 to-violet-600 shadow-lg shrink-0">
+          <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
         </div>
         <div className="flex-1 min-w-0">
-          <h1 className="text-xl font-bold tracking-tight text-foreground">音樂配音創作室</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <h1 className="text-lg sm:text-xl font-bold tracking-tight text-foreground">音樂配音創作室</h1>
+          <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">
             音樂創作・配音制作・聲音克隆・AI 形像影片 — fal.ai 頂尖模型整合
           </p>
+          <div className="flex flex-wrap gap-1 sm:gap-1.5 mt-2">
+            {(["Sonauto", "ACE-Step", "Stable Audio", "MusicGen", "ElevenLabs", "Qwen TTS", "Kling"] as string[]).map(tag => (
+              <Badge key={tag} variant="outline" className="text-[10px]">{tag}</Badge>
+            ))}
+          </div>
         </div>
         <VisualSoul size="sm" state={aiState} personality={personality} className="!w-7 !h-7 shrink-0 mt-1" />
         {hasKey === false && (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 shrink-0">
+          <div className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 shrink-0">
             <AlertCircle className="w-4 h-4" />
-            <span className="text-xs font-medium whitespace-nowrap">需設定 FAL_API_KEY</span>
+            <span className="text-[11px] sm:text-xs font-medium whitespace-nowrap">需設定 FAL_API_KEY</span>
           </div>
         )}
       </div>
 
       {/* API Key 提示 */}
       {hasKey === false && (
-        <div className="p-4 rounded-xl bg-amber-50/80 border border-amber-200/60">
+        <div className="p-3 sm:p-4 rounded-xl bg-amber-50/80 border border-amber-200/60">
           <p className="text-sm font-medium text-amber-800 mb-1">⚙️ 需要設定 FAL_API_KEY</p>
           <p className="text-xs text-amber-700 mb-2">
             音樂配音創作室的所有功能均需要 fal.ai API Key 才能使用。
@@ -2164,12 +2169,12 @@ export default function ProStudio() {
       )}
 
       {/* Tab 選擇 */}
-      <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar -mx-1 px-1">
+      <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar scroll-fade-x -mx-1 px-1">
         {TABS.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             onClick={() => setTab(id)}
-            className={`flex items-center gap-1.5 px-3 py-2.5 sm:py-2 rounded-xl whitespace-nowrap text-xs font-medium transition-all border shrink-0 min-h-[44px] ${
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-2.5 sm:py-2 rounded-xl whitespace-nowrap text-xs font-medium transition-all border shrink-0 min-h-[44px] ${
               tab === id
                 ? "bg-primary text-primary-foreground border-primary shadow-sm"
                 : "bg-background text-muted-foreground hover:bg-accent active:bg-accent border-border"
@@ -2195,7 +2200,14 @@ export default function ProStudio() {
       </AnimatePresence>
 
       {/* 底部說明 */}
-      <div className="text-center py-4 border-t border-border/40">
+      <div className="mt-6 sm:mt-8 p-3 sm:p-4 rounded-2xl bg-muted/40 text-xs text-muted-foreground space-y-1">
+        <p className="font-medium text-foreground text-sm">📋 使用說明</p>
+        <p>• 音樂生成支援 Sonauto、ACE-Step、Stable Audio、MusicGen 四種模型。</p>
+        <p>• 語音合成支援中英文，可調整語速、音調和情緒強度。</p>
+        <p>• 聲音克隆需上傳至少 30 秒的清晰語音樣本。</p>
+        <p>• AI 形像影片可由人像照片 + 音訊生成口型同步的說話影片。</p>
+      </div>
+      <div className="text-center pb-2">
         <p className="text-[11px] text-muted-foreground/60">
           Powered by fal.ai · ElevenLabs · Sonauto · Qwen · Kling · LTX
         </p>

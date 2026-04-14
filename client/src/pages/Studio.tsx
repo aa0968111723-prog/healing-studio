@@ -190,12 +190,7 @@ function DrawerPanel({
           className={`shrink-0 overflow-hidden ${side === "left" ? "order-first" : "order-last"}`}
         >
           <div
-            className="h-full rounded-xl overflow-hidden flex flex-col"
-            style={{
-              background: "rgba(255,255,255,0.5)",
-              backdropFilter: "blur(16px)",
-              border: "1px solid rgba(255,255,255,0.5)",
-            }}
+            className="h-full rounded-xl overflow-hidden flex flex-col bg-white/50 backdrop-blur-md border border-white/50"
           >
             {/* Header */}
             <div className="flex items-center justify-between px-3 py-2.5 border-b border-border/20">
@@ -1063,7 +1058,7 @@ export default function Studio() {
       </div>
 
       {/* ── Main Layout with Drawers ── */}
-      <div className="flex gap-4">
+      <div className="flex gap-3 sm:gap-4">
         {/* ── Left Drawer: Vault + Assets ── */}
         {!isMobile && (
           <DrawerPanel
@@ -1148,16 +1143,13 @@ export default function Studio() {
         )}
 
         {/* ── Center: Main Canvas ── */}
-        <div className="flex-1 space-y-4 min-w-0">
+        <div className="flex-1 space-y-4 sm:space-y-5 min-w-0">
           {/* Modality Tabs */}
           <Tabs
             value={activeModality}
             onValueChange={(v) => setActiveModality(v as GenerationType)}
           >
-            <TabsList id="modality-tabs" className="w-full grid grid-cols-4 h-auto rounded-xl p-1" style={{
-              background: "rgba(255,255,255,0.4)",
-              border: "1px solid rgba(255,255,255,0.5)",
-            }}>
+            <TabsList id="modality-tabs" className="w-full grid grid-cols-4 h-auto rounded-xl p-1 bg-white/40 border border-white/50 backdrop-blur-sm">
               {MODALITY_TABS.map((t) => (
                 <TabsTrigger
                   key={t.value}
@@ -1305,7 +1297,7 @@ export default function Studio() {
             onClick={handleGenerate}
             disabled={generateMutation.isPending || prepareJobMutation.isPending || !isOnline}
             title={!isOnline ? "目前處於離線狀態，無法生成" : undefined}
-            className="w-full h-12 rounded-xl text-sm font-medium gap-2 shadow-md hover:shadow-lg transition-all"
+            className="w-full h-11 sm:h-12 rounded-xl text-sm font-medium gap-2 shadow-md hover:shadow-lg transition-all"
           >
             <Wand2 className="w-4 h-4" />
             {prepareJobMutation.isPending ? "準備中..." : generateMutation.isPending ? "生成中..." : "開始創作"}
@@ -1362,8 +1354,7 @@ export default function Studio() {
                           autoPlay
                           loop
                           playsInline
-                          className="w-full rounded-xl"
-                          style={{ maxHeight: 400 }}
+                          className="w-full rounded-xl max-h-64 sm:max-h-80 lg:max-h-[400px]"
                         />
                       ) : activeModality === "audio" || activeModality === "voice" ? (
                         <div className="p-4 flex flex-col items-center gap-3">
@@ -1378,7 +1369,7 @@ export default function Studio() {
                           />
                         </div>
                       ) : (
-                        <img src={resultUrl} alt="Generated" className="w-full object-cover" loading="lazy" />
+                        <img src={resultUrl} alt="Generated" className="w-full object-cover max-h-[400px] sm:max-h-[500px] lg:max-h-[600px]" loading="lazy" />
                       )}
                     </div>
                   )}

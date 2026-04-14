@@ -448,6 +448,46 @@
     }
   }
 
+  /* ─── Studio Layout Utilities ──────────────────────────────── */
+
+  /* Horizontal scroll container with fade hints on edges */
+  .scroll-fade-x {
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      #000 12px,
+      #000 calc(100% - 12px),
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      #000 12px,
+      #000 calc(100% - 12px),
+      transparent 100%
+    );
+  }
+
+  /* Consistent studio section card */
+  .studio-card {
+    @apply rounded-2xl border border-border/30 bg-background/60 p-4;
+  }
+
+  /* Studio panel spacing: consistent vertical rhythm */
+  .studio-panel-stack {
+    @apply space-y-4;
+  }
+
+  /* Studio footer info card */
+  .studio-footer {
+    @apply mt-6 p-3 rounded-2xl bg-muted/40 text-xs text-muted-foreground space-y-1;
+  }
+  @media (min-width: 640px) {
+    .studio-footer {
+      @apply mt-8 p-4;
+    }
+  }
+
   /* ─── Mobile Optimizations — healing touch experience ────────── */
 
   /* Hide scrollbar but keep scroll functional */

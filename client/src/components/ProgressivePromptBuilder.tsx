@@ -788,7 +788,7 @@ function SaveComboDialog({
 
 export const ProgressivePromptBuilder = memo(function ProgressivePromptBuilder({ value, onChange, modality, onType }: ProgressivePromptBuilderProps & { onType?: (len: number) => void }) {
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [blocksOpen, setBlocksOpen] = useState(true);
+  const [blocksOpen, setBlocksOpen] = useState(false);
   const [attentionOpen, setAttentionOpen] = useState(false);
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
   const [selectedBlocks, setSelectedBlocks] = useState<Set<string>>(new Set());
@@ -1069,7 +1069,80 @@ export const ProgressivePromptBuilder = memo(function ProgressivePromptBuilder({
 
   return (
     <div className="space-y-4">
-      {/* ═══ Section 1: Visual / Audio Blocks ═══ */}
+      {/* ═══ Section 1: Main Prompt Textarea ═══ */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label className="text-sm font-medium text-foreground">創作描述</Label>
+          {value.compiledPrompt && value.compiledPrompt !== value.rawPrompt && (
+            <span className="text-[10px] text-muted-foreground/70 flex items-center gap-1">
+              <Sparkles className="w-3 h-3" />
+              已自動編譯進階提示詞
+            </span>
+          )}
+        </div>
+        <Textarea
+          placeholder={promptPlaceholder}
+          value={value.rawPrompt}
+          onChange={(e) => {
+            updateField("rawPrompt", e.target.value);
+            onType?.(e.target.value.length);
+          }}
+          rows={3}
+          className="rounded-xl bg-white/40 border-white/60 resize-none text-sm placeholder:text-muted-foreground/40 focus-visible:ring-1 focus-visible:ring-primary/30 focus-visible:border-primary/30"
+        />
+      </div>
+
+      {/* ═══ Section 2: Vibe Cards (all modalities) ═══ */}
+      {(modality === "image" || modality === "video" || modality === "audio" || !modality) && (
+        <div className="space-y-2.5">
+          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">氛圍風格</Label>
+          <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+            {VIBE_CARDS.map((card) => {
+              const isSelected = value.vibeCardIds.includes(card.id);
+              return (
+                <motion.button
+                  key={card.id}
+                  whileTap={{ scale: 0.93 }}
+                  onClick={() => toggleVibe(card.id)}
+                  className={cn(
+                    "relative flex flex-col items-center gap-1.5 p-2.5 rounded-xl transition-all",
+                    "hover:shadow-md active:scale-95",
+                    isSelected
+                      ? "ring-2 ring-primary/40 shadow-md"
+                      : "hover:ring-1 hover:ring-border/50"
+                  )}
+                  style={{
+                    background: isSelected
+                      ? `linear-gradient(135deg, ${card.color}50, ${card.color}30)`
+                      : `${card.color}20`,
+                  }}
+                >
+                  <div
+                    className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground"
+                    style={{ backgroundColor: `${card.color}40` }}
+                  >
+                    {vibeIcons[card.id] || <Sparkles className="w-4 h-4" />}
+                  </div>
+                  <span className="text-[10px] font-medium text-foreground leading-tight">{card.labelZh}</span>
+                  {isSelected && (
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary flex items-center justify-center"
+                    >
+                      <svg className="w-2.5 h-2.5 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </motion.div>
+                  )}
+                </motion.button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ═══ Section 3: Visual / Audio Blocks (collapsed by default) ═══ */}
       <div className="rounded-xl overflow-hidden" style={{
         background: "rgba(255,255,255,0.25)",
         backdropFilter: "blur(12px)",
@@ -1282,30 +1355,7 @@ export const ProgressivePromptBuilder = memo(function ProgressivePromptBuilder({
         </AnimatePresence>
       </div>
 
-      {/* ═══ Section 2: Main Prompt Textarea ═══ */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label className="text-sm font-medium text-foreground">創作描述</Label>
-          {value.compiledPrompt && value.compiledPrompt !== value.rawPrompt && (
-            <span className="text-[10px] text-muted-foreground/70 flex items-center gap-1">
-              <Sparkles className="w-3 h-3" />
-              已自動編譯進階提示詞
-            </span>
-          )}
-        </div>
-        <Textarea
-          placeholder={promptPlaceholder}
-          value={value.rawPrompt}
-          onChange={(e) => {
-            updateField("rawPrompt", e.target.value);
-            onType?.(e.target.value.length);
-          }}
-          rows={3}
-          className="rounded-xl bg-white/40 border-white/60 resize-none text-sm placeholder:text-muted-foreground/40 focus-visible:ring-1 focus-visible:ring-primary/30 focus-visible:border-primary/30"
-        />
-      </div>
-
-      {/* ═══ Section 3: Self-Attention UI (Token Weights) ═══ */}
+      {/* ═══ Section 4: Self-Attention UI (Token Weights) ═══ */}
       {tokens.length > 0 && (
         <div className="rounded-xl overflow-hidden" style={{
           background: "rgba(255,255,255,0.25)",
@@ -1375,57 +1425,7 @@ export const ProgressivePromptBuilder = memo(function ProgressivePromptBuilder({
         </div>
       )}
 
-      {/* ═══ Section 4: Vibe Cards (all modalities) ═══ */}
-      {(modality === "image" || modality === "video" || modality === "audio" || !modality) && (
-        <div className="space-y-2.5">
-          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">氛圍風格</Label>
-          <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
-            {VIBE_CARDS.map((card) => {
-              const isSelected = value.vibeCardIds.includes(card.id);
-              return (
-                <motion.button
-                  key={card.id}
-                  whileTap={{ scale: 0.93 }}
-                  onClick={() => toggleVibe(card.id)}
-                  className={cn(
-                    "relative flex flex-col items-center gap-1.5 p-2.5 rounded-xl transition-all",
-                    "hover:shadow-md active:scale-95",
-                    isSelected
-                      ? "ring-2 ring-primary/40 shadow-md"
-                      : "hover:ring-1 hover:ring-border/50"
-                  )}
-                  style={{
-                    background: isSelected
-                      ? `linear-gradient(135deg, ${card.color}50, ${card.color}30)`
-                      : `${card.color}20`,
-                  }}
-                >
-                  <div
-                    className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground"
-                    style={{ backgroundColor: `${card.color}40` }}
-                  >
-                    {vibeIcons[card.id] || <Sparkles className="w-4 h-4" />}
-                  </div>
-                  <span className="text-[10px] font-medium text-foreground leading-tight">{card.labelZh}</span>
-                  {isSelected && (
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary flex items-center justify-center"
-                    >
-                      <svg className="w-2.5 h-2.5 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                    </motion.div>
-                  )}
-                </motion.button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ═══ Section 5: Advanced Fields (Progressive Disclosure) ═══ */}
+      {/* ═══ Section 5: Advanced Fields (collapsed by default) ═══ */}
       <div className="rounded-xl overflow-hidden" style={{
         background: "rgba(255,255,255,0.25)",
         backdropFilter: "blur(12px)",

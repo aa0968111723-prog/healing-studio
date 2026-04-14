@@ -128,7 +128,7 @@ export function VoiceWorkspace({ value, onChange }: VoiceWorkspaceProps) {
           <Sparkles className="w-3.5 h-3.5" />
           常用語境預設
         </Label>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {QUICK_PRESETS.map((preset) => (
             <motion.button
               key={preset.id}
