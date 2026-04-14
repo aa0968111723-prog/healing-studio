@@ -598,7 +598,7 @@ export interface BrainFalEngines {
 
 /** 預設 Fal 引擎（對應 DB schema 預設值） */
 export const DEFAULT_FAL_ENGINES: BrainFalEngines = {
-  imageToThreeD:  "fal-ai/trellis",
+  imageToThreeD:  "fal-ai/trellis-2",
   imageToImage:   "fal-ai/flux/dev/image-to-image",
   imageToJson:    "fal-ai/any-llm",
   imageToVideo:   "fal-ai/kling-video/v2.1/pro/image-to-video",
@@ -608,11 +608,11 @@ export const DEFAULT_FAL_ENGINES: BrainFalEngines = {
   textToAudio:    "fal-ai/stable-audio",
   textToImage:    "fal-ai/flux-pro/v1.1",
   textToJson:     "fal-ai/any-llm",
-  textToSpeech:   "fal-ai/metavoice-v1",
+  textToSpeech:   "fal-ai/elevenlabs/tts/turbo-v2.5",
   textToVideo:    "fal-ai/kling-video/v2.1/pro/text-to-video",
   training:       "fal-ai/flux-lora-fast-training",
   videoToAudio:   "fal-ai/mmaudio-v2/video-to-audio",
-  videoToText:    "fal-ai/whisper",
+  videoToText:    "fal-ai/nemotron/asr/stream",
   videoToVideo:   "fal-ai/kling-video/v2.1/standard/video-to-video",
 };
 

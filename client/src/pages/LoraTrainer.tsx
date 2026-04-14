@@ -1,6 +1,8 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
+import { useAIState } from "@/contexts/AIStateContext";
+import VisualSoul from "@/components/VisualSoul";
 import { uploadFileToS3, shortErrorMsg } from "@/lib/upload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -149,12 +151,22 @@ function formatDuration(startMs: number | null, endMs: number | null): string {
 export default function LoraTrainer() {
   usePageTour("lora-trainer");
   const [, navigate] = useLocation();
+
+  // ── AI Agent Integration ──
+  const { aiState, setAIState, reportSuccess, reportFailure, setPageContext, personality } = useAIState();
+
   const [tab, setTab] = useState<"train" | "overview" | "history" | "detail">("train");
   const [selectedModelId, setSelectedModelId] = useState<number | null>(null);
 
   // ── Training type selection ──
   const [selectedTrainingType, setSelectedTrainingType] = useState<TrainingModelType>("image_subject");
   const currentCategory = getTrainingCategory(selectedTrainingType);
+
+  // ── AI Agent: broadcast page context ──
+  useEffect(() => {
+    setPageContext({ pageId: "lora-trainer", pageLabel: "AI 模型訓練中心", activeTab: tab });
+    return () => setPageContext(null);
+  }, [tab, setPageContext]);
 
   // Resolve engine: for image_subject use replicate, others use fal
   const trainingEngine: TrainingEngine = selectedTrainingType === "image_subject" ? "replicate" : "fal";
@@ -204,16 +216,23 @@ export default function LoraTrainer() {
 
   // ── Mutations ──
   const createMutation = trpc.models.create.useMutation({
+    onMutate: () => setAIState("generating"),
     onSuccess: (data) => {
       toast.success("LoRA 訓練任務已建立");
       setTrainingJobId(data.jobId);
       historyQuery.refetch();
       statsQuery.refetch();
+      reportSuccess();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => {
+      toast.error(e.message);
+      reportFailure();
+    },
+    onSettled: () => setAIState("idle"),
   });
 
   const captionMutation = trpc.models.captionImages.useMutation({
+    onMutate: () => setAIState("generating"),
     onSuccess: (data) => {
       setDatasetImages(prev => prev.map((img, idx) => ({
         ...img,
@@ -222,11 +241,14 @@ export default function LoraTrainer() {
       })));
       setIsCaptioning(false);
       toast.success("自動標註完成");
+      reportSuccess();
     },
     onError: (e) => {
       setIsCaptioning(false);
       toast.error("標註失敗：" + e.message);
+      reportFailure();
     },
+    onSettled: () => setAIState("idle"),
   });
 
   const syncStatusMutation = trpc.models.syncReplicateStatus.useMutation({
@@ -240,12 +262,18 @@ export default function LoraTrainer() {
   });
 
   const retrainMutation = trpc.models.retrain.useMutation({
+    onMutate: () => setAIState("generating"),
     onSuccess: () => {
       historyQuery.refetch();
       statsQuery.refetch();
       toast.success("重新訓練已啟動");
+      reportSuccess();
     },
-    onError: (e) => toast.error("重新訓練失敗：" + e.message),
+    onError: (e) => {
+      toast.error("重新訓練失敗：" + e.message);
+      reportFailure();
+    },
+    onSettled: () => setAIState("idle"),
   });
 
   const deleteModel = trpc.models.delete.useMutation({
@@ -466,13 +494,16 @@ export default function LoraTrainer() {
             <p className="text-xs text-muted-foreground">多類型 LoRA 微調訓練 · 支援 Replicate + Fal.ai 雙引擎</p>
           </div>
         </div>
-        <Button
-          className="rounded-xl gap-1.5 text-sm"
-          onClick={() => { resetForm(); setTab("train"); }}
-        >
-          <Plus className="w-4 h-4" />
-          新增訓練
-        </Button>
+        <div className="flex items-center gap-2">
+          <VisualSoul size="sm" state={aiState} personality={personality} className="!w-6 !h-6" />
+          <Button
+            className="rounded-xl gap-1.5 text-sm"
+            onClick={() => { resetForm(); setTab("train"); }}
+          >
+            <Plus className="w-4 h-4" />
+            新增訓練
+          </Button>
+        </div>
       </div>
 
       {/* Tabs */}

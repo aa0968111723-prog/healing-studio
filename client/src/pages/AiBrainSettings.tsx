@@ -60,10 +60,38 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAIState } from "@/contexts/AIStateContext";
+import VisualSoul from "@/components/VisualSoul";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
 // ═══════════════════════════════════════════════════════════════════════════
+
+/** 錯誤分類中文標籤（集中定義，避免重複） */
+const ERROR_CATEGORY_LABEL_MAP: Record<string, string> = {
+  rate_limit: "速率限制", auth_failure: "認證失敗", connection: "連線問題",
+  timeout: "請求逾時", missing_api: "缺失 API", broken_link: "連結中斷",
+  validation: "參數錯誤", server_error: "伺服器錯誤", quota_exceeded: "配額用盡",
+  model_unavailable: "模型不可用", unknown: "未知",
+};
+
+/** 錯誤分類的顏色樣式 */
+const ERROR_CATEGORY_COLOR_MAP: Record<string, string> = {
+  rate_limit: "text-orange-600 bg-orange-500/10", auth_failure: "text-red-600 bg-red-500/10",
+  connection: "text-yellow-600 bg-yellow-500/10", timeout: "text-amber-600 bg-amber-500/10",
+  missing_api: "text-purple-600 bg-purple-500/10", broken_link: "text-pink-600 bg-pink-500/10",
+  validation: "text-blue-600 bg-blue-500/10", server_error: "text-red-700 bg-red-600/10",
+  quota_exceeded: "text-orange-700 bg-orange-600/10", model_unavailable: "text-slate-600 bg-slate-500/10",
+  unknown: "text-muted-foreground bg-muted",
+};
+
+/** 錯誤分類帶 emoji 標籤（爬網研究頁用） */
+const ERROR_CATEGORY_EMOJI_LABELS: Record<string, string> = {
+  rate_limit: "🚦 速率限制", auth_failure: "🔑 認證失敗", connection: "🔌 連線問題",
+  timeout: "⏱️ 請求逾時", missing_api: "❓ 缺失 API", broken_link: "🔗 連結中斷",
+  validation: "📋 參數錯誤", server_error: "💥 伺服器錯誤", quota_exceeded: "📊 配額用盡",
+  model_unavailable: "🚫 模型不可用", unknown: "❔ 未分類",
+};
 
 interface ModelOption {
   value: string;
@@ -112,7 +140,7 @@ const FAL_TASK_UPSERT_KEY: Record<FalTaskKey, string> = {
 
 // Default models per task category (first premium model in catalog)
 const FAL_TASK_DEFAULTS: Record<FalTaskKey, string> = {
-  "image-to-3d":    "fal-ai/trellis",
+  "image-to-3d":    "fal-ai/trellis-2",
   "image-to-image": "fal-ai/flux/dev/image-to-image",
   "image-to-json":  "fal-ai/any-llm",
   "image-to-video": "fal-ai/kling-video/v2.1/pro/image-to-video",
@@ -122,11 +150,11 @@ const FAL_TASK_DEFAULTS: Record<FalTaskKey, string> = {
   "text-to-audio":  "fal-ai/stable-audio",
   "text-to-image":  "fal-ai/flux-pro/v1.1",
   "text-to-json":   "fal-ai/any-llm",
-  "text-to-speech": "fal-ai/metavoice-v1",
+  "text-to-speech": "fal-ai/elevenlabs/tts/turbo-v2.5",
   "text-to-video":  "fal-ai/kling-video/v2.1/pro/text-to-video",
   "training":       "fal-ai/flux-lora-fast-training",
   "video-to-audio": "fal-ai/mmaudio-v2/video-to-audio",
-  "video-to-text":  "fal-ai/whisper",
+  "video-to-text":  "fal-ai/nemotron/asr/stream",
   "video-to-video": "fal-ai/kling-video/v2.1/standard/video-to-video",
 };
 
@@ -683,9 +711,18 @@ const FAL_TASK_KEYS: FalTaskKey[] = [
 ];
 
 export default function AiBrainSettings() {
+  const { aiState, setPageContext, personality } = useAIState();
+
+  useEffect(() => {
+    setPageContext({ pageId: "brain-settings", pageLabel: "AI 大腦設定" });
+    return () => setPageContext(null);
+  }, [setPageContext]);
+
   // ── Tab State ─────────────────────────────────────────────────────────
-  type TabId = "config" | "alerts" | "errors" | "proposals" | "research" | "accuracy";
+  type TabId = "config" | "alerts" | "errors" | "proposals" | "research" | "accuracy" | "langsmith";
   const [activeTab, setActiveTab] = useState<TabId>("config");
+  // ── Error Diagnosis State ─────────────────────────────────────────────
+  const [expandedDiagnosisId, setExpandedDiagnosisId] = useState<string | null>(null);
 
   const brainQuery    = trpc.brain.get.useQuery(undefined, { retry: false });
   const catalogQuery  = trpc.brain.catalog.useQuery(undefined, { staleTime: 60_000 });
@@ -706,14 +743,21 @@ export default function AiBrainSettings() {
   const summaryQuery = trpc.brain.monitorSummary.useQuery(undefined, {
     refetchInterval: 15_000,
   });
+  const autoRepairConfigQuery = trpc.brain.autoRepairConfig.useQuery(undefined, {
+    refetchInterval: 30_000,
+  });
   const alertsQuery = trpc.brain.alerts.useQuery(undefined, {
     enabled: activeTab === "alerts",
     refetchInterval: 10_000,
   });
   const errorsQuery = trpc.brain.errorTraces.useQuery(undefined, {
-    enabled: activeTab === "errors",
+    enabled: activeTab === "errors" || activeTab === "research",
     refetchInterval: 15_000,
   });
+  const diagnosisQuery = trpc.brain.diagnoseError.useQuery(
+    { traceId: expandedDiagnosisId ?? "" },
+    { enabled: !!expandedDiagnosisId && activeTab === "errors" }
+  );
   const proposalsQuery = trpc.brain.proposals.useQuery(undefined, {
     enabled: activeTab === "proposals",
     refetchInterval: 15_000,
@@ -727,6 +771,20 @@ export default function AiBrainSettings() {
   });
 
   // ── Monitoring Mutations ──────────────────────────────────────────────
+  const toggleAutoRepairMut = trpc.brain.toggleAutoRepair.useMutation({
+    onSuccess: (r) => {
+      toast.success(r.enabled ? "自動除錯已啟用 ✅" : "自動除錯已停用 🔴");
+      autoRepairConfigQuery.refetch();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const setMonitorIntervalMut = trpc.brain.setMonitorInterval.useMutation({
+    onSuccess: (r) => {
+      toast.success(`巡檢間隔已更新為 ${r.intervalMinutes} 分鐘`);
+      autoRepairConfigQuery.refetch();
+    },
+    onError: (e) => toast.error(e.message),
+  });
   const dismissAlertMut = trpc.brain.dismissAlert.useMutation({
     onSuccess: () => { toast.success("警報已關閉"); alertsQuery.refetch(); summaryQuery.refetch(); },
     onError: (e) => toast.error(e.message),
@@ -768,6 +826,57 @@ export default function AiBrainSettings() {
   // ── Web Search State ──────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState("");
 
+  // ── LangSmith State ───────────────────────────────────────────────────
+  interface LangSmithRun {
+    id: string;
+    name: string;
+    status: string;
+    latency: number | null;
+    totalTokens: number;
+    error: string | null;
+    startTime: string;
+  }
+  interface LangSmithStats {
+    runs: LangSmithRun[];
+    summary: {
+      totalRuns: number;
+      errorCount: number;
+      errorRate: number;
+      avgLatency: number;
+      totalTokens: number;
+    };
+  }
+  const [langsmithStats, setLangsmithStats] = useState<LangSmithStats | null>(null);
+  const [langsmithLoading, setLangsmithLoading] = useState(false);
+  const [langsmithError, setLangsmithError] = useState<string | null>(null);
+
+  const fetchLangsmithStats = useCallback(async () => {
+    setLangsmithLoading(true);
+    setLangsmithError(null);
+    try {
+      const res = await fetch("/api/langsmith/stats");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setLangsmithError((data as { error?: string }).error ?? `HTTP ${res.status}`);
+        setLangsmithStats(null);
+      } else {
+        const data = await res.json() as LangSmithStats;
+        setLangsmithStats(data);
+      }
+    } catch (e) {
+      setLangsmithError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLangsmithLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab !== "langsmith") return;
+    fetchLangsmithStats();
+    const timer = setInterval(fetchLangsmithStats, 30_000);
+    return () => clearInterval(timer);
+  }, [activeTab, fetchLangsmithStats]);
+
   // ── Accuracy Test State ───────────────────────────────────────────────
   const [testEngine, setTestEngine] = useState("gemini-2.5-flash");
   const [testType, setTestType] = useState<"response_quality" | "latency" | "consistency" | "error_rate">("response_quality");
@@ -801,13 +910,13 @@ export default function AiBrainSettings() {
   const [curatorEnabled,   setCuratorEnabled]   = useState(true);
 
   // ── Generation Engine State ───────────────────────────────────────────
-  const [imageEngine,   setImageEngine]   = useState("fal/flux-pro-1.1");
+  const [imageEngine,   setImageEngine]   = useState("fal-ai/flux-pro/v1.1");
   const [imageEnabled,  setImageEnabled]  = useState(true);
-  const [videoEngine,   setVideoEngine]   = useState("fal/kling-v2.1-pro-t2v");
+  const [videoEngine,   setVideoEngine]   = useState("fal-ai/kling-video/v2.1/standard/text-to-video");
   const [videoEnabled,  setVideoEnabled]  = useState(true);
-  const [audioEngine,   setAudioEngine]   = useState("suno-v4");
+  const [audioEngine,   setAudioEngine]   = useState("fal-ai/sonauto");
   const [audioEnabled,  setAudioEnabled]  = useState(true);
-  const [voiceEngine,   setVoiceEngine]   = useState("elevenlabs/eleven-v3");
+  const [voiceEngine,   setVoiceEngine]   = useState("fal-ai/elevenlabs/tts/turbo-v2.5");
   const [voiceEnabled,  setVoiceEnabled]  = useState(true);
 
   // ── Fal.ai 16 Task Engine State ───────────────────────────────────────
@@ -951,6 +1060,7 @@ export default function AiBrainSettings() {
           { id: "proposals" as TabId, icon: Lightbulb, label: "自我反省", badge: summaryQuery.data?.pendingProposals },
           { id: "research" as TabId, icon: Globe, label: "爬網研究", badge: summaryQuery.data?.totalResearch },
           { id: "accuracy" as TabId, icon: Target, label: "精準度測試", badge: summaryQuery.data?.recentTestScore != null ? `${summaryQuery.data.recentTestScore}分` : null },
+          { id: "langsmith" as TabId, icon: Activity, label: "LangSmith 監控", badge: null },
         ]).map((tab) => (
           <button
             key={tab.id}
@@ -1343,13 +1453,58 @@ export default function AiBrainSettings() {
       {/* ── Tab: Alerts (自動修復監控) ──────────────────────────────────── */}
       {activeTab === "alerts" && (
         <div className="space-y-4">
+          {/* ── 自動除錯開關 & 巡檢間隔 ─────────────────────────────────── */}
+          <GlassCard>
+            <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+              <Shield className="w-4 h-4 text-blue-500" />
+              自動除錯設定
+            </h2>
+            <div className="space-y-4">
+              {/* Toggle */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-xs font-medium">啟用自動除錯</Label>
+                  <p className="text-[10px] text-muted-foreground">開啟後系統將定時自動巡檢 API 並嘗試修復故障引擎</p>
+                </div>
+                <Switch
+                  checked={autoRepairConfigQuery.data?.enabled ?? true}
+                  onCheckedChange={(checked) => toggleAutoRepairMut.mutate({ enabled: checked })}
+                  disabled={toggleAutoRepairMut.isPending}
+                />
+              </div>
+              {/* Interval Slider */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <Label className="text-xs font-medium">巡檢間隔</Label>
+                  <span className="text-xs font-mono text-muted-foreground">
+                    {autoRepairConfigQuery.data?.intervalMinutes ?? 3} 分鐘
+                  </span>
+                </div>
+                <Slider
+                  min={1}
+                  max={60}
+                  step={1}
+                  value={[autoRepairConfigQuery.data?.intervalMinutes ?? 3]}
+                  onValueCommit={(v) => setMonitorIntervalMut.mutate({ minutes: v[0] })}
+                  disabled={setMonitorIntervalMut.isPending || !(autoRepairConfigQuery.data?.enabled ?? true)}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-[9px] text-muted-foreground/50 mt-1">
+                  <span>1 分鐘</span>
+                  <span>30 分鐘</span>
+                  <span>60 分鐘</span>
+                </div>
+              </div>
+            </div>
+          </GlassCard>
+
           <GlassCard>
             <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-500" />
               自動修復 API + 提醒管理
             </h2>
             <p className="text-xs text-muted-foreground mb-4">
-              系統每 3 分鐘自動巡檢所有 API provider，偵測到故障時自動切換備援引擎，無法修復時通知管理員。
+              系統每 {autoRepairConfigQuery.data?.intervalMinutes ?? 3} 分鐘自動巡檢所有 API provider，偵測到故障時自動切換備援引擎，無法修復時通知管理員。
             </p>
             {alertsQuery.isLoading ? <ZenSkeleton lines={4} /> : (
               <div className="space-y-2">
@@ -1412,48 +1567,187 @@ export default function AiBrainSettings() {
               生成錯誤線索系統
             </h2>
             <p className="text-xs text-muted-foreground mb-4">
-              追蹤所有失敗的生成任務，自動爬網搜尋修復方案，並建立優化提案通知管理員。
+              追蹤所有失敗的生成任務，自動分析根因、爬網搜尋修復方案，並提供步驟式解決指南。
             </p>
             {errorsQuery.isLoading ? <ZenSkeleton lines={4} /> : (
               <div className="space-y-2">
                 {(errorsQuery.data ?? []).length === 0 && (
                   <p className="text-xs text-muted-foreground/60 py-4 text-center">✅ 目前沒有錯誤記錄</p>
                 )}
-                {(errorsQuery.data ?? []).map((trace) => (
-                  <div key={trace.id} className={`rounded-lg border p-3 text-xs ${
-                    trace.resolvedAt ? "opacity-50 border-muted" : "border-red-500/20 bg-red-500/5"
-                  }`}>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <Badge variant="outline" className="text-[9px]">{trace.modality}</Badge>
-                          <span className="font-medium">{trace.engine}</span>
-                          {trace.errorCode && <Badge variant="secondary" className="text-[9px]">{trace.errorCode}</Badge>}
-                          {trace.resolvedAt && <Badge variant="secondary" className="text-[9px] bg-emerald-500/10 text-emerald-600">已解決</Badge>}
+                {(errorsQuery.data ?? []).map((trace) => {
+                  const isExpanded = expandedDiagnosisId === trace.id;
+                  const categoryLabel = trace.errorCategory
+                    ? ERROR_CATEGORY_LABEL_MAP[trace.errorCategory] ?? trace.errorCategory
+                    : null;
+                  const categoryColor = trace.errorCategory
+                    ? ERROR_CATEGORY_COLOR_MAP[trace.errorCategory] ?? ""
+                    : "";
+                  return (
+                    <div key={trace.id} className={`rounded-lg border p-3 text-xs transition-all ${
+                      trace.resolvedAt ? "opacity-50 border-muted" : "border-red-500/20 bg-red-500/5"
+                    }`}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                            <Badge variant="outline" className="text-[9px]">{trace.modality}</Badge>
+                            <span className="font-medium">{trace.engine}</span>
+                            {trace.errorCode && <Badge variant="secondary" className="text-[9px]">{trace.errorCode}</Badge>}
+                            {categoryLabel && (
+                              <Badge variant="secondary" className={`text-[9px] ${categoryColor}`}>
+                                {categoryLabel}
+                              </Badge>
+                            )}
+                            {trace.rootCauseConfidence != null && trace.rootCauseConfidence > 0 && (
+                              <span className="text-[9px] text-muted-foreground">
+                                信心度 {trace.rootCauseConfidence}%
+                              </span>
+                            )}
+                            {trace.resolvedAt && <Badge variant="secondary" className="text-[9px] bg-emerald-500/10 text-emerald-600">已解決</Badge>}
+                          </div>
+                          <p className="text-muted-foreground break-all">{trace.errorMessage.slice(0, 200)}</p>
+                          {trace.rootCause && (
+                            <p className="text-[10px] text-amber-600 mt-1">🔍 根因：{trace.rootCause.slice(0, 150)}</p>
+                          )}
+                          {trace.webSearchResult && (
+                            <p className="text-[10px] text-blue-500/80 mt-1">🌐 {trace.webSearchResult.slice(0, 150)}...</p>
+                          )}
+                          <p className="text-[10px] text-muted-foreground/60 mt-1">
+                            {new Date(trace.createdAt).toLocaleString("zh-TW")}
+                          </p>
                         </div>
-                        <p className="text-muted-foreground break-all">{trace.errorMessage.slice(0, 200)}</p>
-                        {trace.webSearchResult && (
-                          <p className="text-[10px] text-blue-500/80 mt-1">🔍 {trace.webSearchResult.slice(0, 150)}...</p>
-                        )}
-                        <p className="text-[10px] text-muted-foreground/60 mt-1">
-                          {new Date(trace.createdAt).toLocaleString("zh-TW")}
-                        </p>
+                        <div className="flex flex-col gap-1 shrink-0">
+                          {!trace.resolvedAt && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className={`text-[10px] h-7 ${isExpanded ? "border-blue-500 text-blue-600" : ""}`}
+                                onClick={() => setExpandedDiagnosisId(isExpanded ? null : trace.id)}
+                              >
+                                <Search className="w-3 h-3 mr-1" />
+                                {isExpanded ? "收起" : "診斷"}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-[10px] h-7"
+                                onClick={() => resolveErrorMut.mutate({ traceId: trace.id, resolution: "手動標記已解決" })}
+                                disabled={resolveErrorMut.isPending}
+                              >
+                                <Check className="w-3 h-3 mr-1" />
+                                解決
+                              </Button>
+                            </>
+                          )}
+                        </div>
                       </div>
-                      {!trace.resolvedAt && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-[10px] h-7 shrink-0"
-                          onClick={() => resolveErrorMut.mutate({ traceId: trace.id, resolution: "手動標記已解決" })}
-                          disabled={resolveErrorMut.isPending}
-                        >
-                          <Check className="w-3 h-3 mr-1" />
-                          解決
-                        </Button>
+
+                      {/* ── 展開：步驟式診斷面板 ── */}
+                      {isExpanded && (
+                        <div className="mt-3 pt-3 border-t border-blue-500/20">
+                          {diagnosisQuery.isLoading ? (
+                            <ZenSkeleton lines={3} />
+                          ) : diagnosisQuery.data ? (
+                            <div className="space-y-3">
+                              {/* 根因分析 */}
+                              <div className="rounded-md bg-amber-500/5 border border-amber-500/20 p-2.5">
+                                <p className="text-[10px] font-semibold text-amber-700 mb-1 flex items-center gap-1">
+                                  <AlertTriangle className="w-3 h-3" />
+                                  根因分析（信心度 {diagnosisQuery.data.rootCauseConfidence}%）
+                                </p>
+                                <p className="text-[11px] text-amber-900/80">{diagnosisQuery.data.rootCause}</p>
+                              </div>
+
+                              {/* 相關錯誤 */}
+                              {diagnosisQuery.data.relatedTraceIds.length > 0 && (
+                                <p className="text-[10px] text-muted-foreground">
+                                  🔗 發現 {diagnosisQuery.data.relatedTraceIds.length} 筆相關錯誤（同一引擎或分類）
+                                </p>
+                              )}
+
+                              {/* 步驟式解決方案 */}
+                              <div>
+                                <p className="text-[10px] font-semibold text-foreground mb-2 flex items-center gap-1">
+                                  <Lightbulb className="w-3 h-3 text-yellow-500" />
+                                  步驟式解決方案
+                                </p>
+                                <div className="space-y-2">
+                                  {diagnosisQuery.data.suggestedSteps.map((s) => (
+                                    <div key={s.step} className={`rounded-md border p-2 ${
+                                      s.action === "check" ? "border-blue-500/20 bg-blue-500/5" :
+                                      s.action === "fix" ? "border-emerald-500/20 bg-emerald-500/5" :
+                                      s.action === "verify" ? "border-indigo-500/20 bg-indigo-500/5" :
+                                      "border-orange-500/20 bg-orange-500/5"
+                                    }`}>
+                                      <div className="flex items-start gap-2">
+                                        <span className={`shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold ${
+                                          s.action === "check" ? "bg-blue-500/20 text-blue-700" :
+                                          s.action === "fix" ? "bg-emerald-500/20 text-emerald-700" :
+                                          s.action === "verify" ? "bg-indigo-500/20 text-indigo-700" :
+                                          "bg-orange-500/20 text-orange-700"
+                                        }`}>
+                                          {s.step}
+                                        </span>
+                                        <div className="flex-1 min-w-0">
+                                          <p className="text-[11px] font-medium">{s.title}</p>
+                                          <p className="text-[10px] text-muted-foreground mt-0.5">{s.description}</p>
+                                          {s.command && (
+                                            <pre className="mt-1 text-[9px] bg-black/5 dark:bg-white/5 rounded px-2 py-1 whitespace-pre-wrap font-mono text-muted-foreground">
+                                              {s.command}
+                                            </pre>
+                                          )}
+                                        </div>
+                                        <Badge variant="outline" className={`text-[8px] shrink-0 ${
+                                          s.action === "check" ? "text-blue-600" :
+                                          s.action === "fix" ? "text-emerald-600" :
+                                          s.action === "verify" ? "text-indigo-600" :
+                                          "text-orange-600"
+                                        }`}>
+                                          {s.action === "check" ? "檢查" : s.action === "fix" ? "修復" : s.action === "verify" ? "驗證" : "備援"}
+                                        </Badge>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {/* 建議搜尋 */}
+                              {diagnosisQuery.data.searchQueries.length > 0 && (
+                                <div>
+                                  <p className="text-[10px] font-semibold text-foreground mb-1.5 flex items-center gap-1">
+                                    <Globe className="w-3 h-3 text-blue-500" />
+                                    建議搜尋關鍵字
+                                  </p>
+                                  <div className="flex flex-wrap gap-1">
+                                    {diagnosisQuery.data.searchQueries.map((q, i) => (
+                                      <Button
+                                        key={i}
+                                        size="sm"
+                                        variant="outline"
+                                        className="text-[9px] h-6 border-blue-500/20 bg-blue-500/5 hover:bg-blue-500/10 text-blue-600"
+                                        onClick={() => {
+                                          setActiveTab("research");
+                                          setSearchQuery(q);
+                                          webSearchMut.mutate({ query: q });
+                                        }}
+                                        disabled={webSearchMut.isPending}
+                                      >
+                                        <Search className="w-2.5 h-2.5 mr-0.5" />
+                                        {q.slice(0, 40)}
+                                      </Button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="text-[10px] text-muted-foreground">無法取得診斷資訊</p>
+                          )}
+                        </div>
                       )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </GlassCard>
@@ -1567,6 +1861,70 @@ export default function AiBrainSettings() {
                 {webSearchMut.isPending ? "搜尋中..." : "搜尋"}
               </Button>
             </div>
+
+            {/* ── 錯誤 API 快選（按分類分組） ─────────────────────────── */}
+            {(() => {
+              const unresolvedErrors = (errorsQuery.data ?? []).filter((t) => !t.resolvedAt);
+              if (unresolvedErrors.length === 0) return null;
+
+              // 按錯誤分類分組
+              const categoryGroups: Record<string, typeof unresolvedErrors> = {};
+              for (const t of unresolvedErrors) {
+                const cat = t.errorCategory ?? "unknown";
+                if (!categoryGroups[cat]) categoryGroups[cat] = [];
+                categoryGroups[cat].push(t);
+              }
+
+              const categoryLabels = ERROR_CATEGORY_EMOJI_LABELS;
+
+              return (
+                <div className="mb-4 space-y-3">
+                  <p className="text-[10px] text-muted-foreground mb-1.5 flex items-center gap-1">
+                    <Bug className="w-3 h-3 text-red-400" />
+                    依錯誤分類搜尋修復方案：
+                  </p>
+                  {Object.entries(categoryGroups).map(([cat, traces]) => {
+                    const label = categoryLabels[cat] ?? cat;
+                    const uniqueEngines = Array.from(new Set(traces.map((t) => t.engine)));
+                    return (
+                      <div key={cat} className="space-y-1">
+                        <p className="text-[10px] font-medium text-foreground/80">{label} ({traces.length})</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {uniqueEngines.slice(0, 8).map((engine) => {
+                            const errorCount = traces.filter((t) => t.engine === engine).length;
+                            const errMsg = traces.find((t) => t.engine === engine)?.errorMessage ?? "";
+                            const query = cat !== "unknown"
+                              ? `${engine} ${cat.replace("_", " ")} error fix solution`
+                              : `${engine} API error fix ${errMsg.slice(0, 60)}`;
+                            return (
+                              <Button
+                                key={engine}
+                                size="sm"
+                                variant="outline"
+                                className="text-[10px] h-7 border-red-500/20 bg-red-500/5 hover:bg-red-500/10 text-red-600"
+                                onClick={() => {
+                                  setSearchQuery(query);
+                                  webSearchMut.mutate({ query });
+                                }}
+                                disabled={webSearchMut.isPending}
+                              >
+                                <AlertTriangle className="w-3 h-3 mr-1" />
+                                {engine.split("/").pop()}
+                                {errorCount > 1 && (
+                                  <Badge variant="secondary" className="text-[8px] ml-1 px-1 py-0 h-3.5">
+                                    ×{errorCount}
+                                  </Badge>
+                                )}
+                              </Button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </GlassCard>
 
           <GlassCard>
@@ -1707,6 +2065,139 @@ export default function AiBrainSettings() {
                   </div>
                 ))}
               </div>
+            )}
+          </GlassCard>
+        </div>
+      )}
+
+      {/* ── Tab: LangSmith 監控 ─────────────────────────────────────────── */}
+      {activeTab === "langsmith" && (
+        <div className="space-y-4">
+          <GlassCard>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <Activity className="w-4 h-4 text-primary" />
+                LangSmith 監控
+              </h2>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs gap-1.5"
+                onClick={fetchLangsmithStats}
+                disabled={langsmithLoading}
+              >
+                <RefreshCw className={`w-3 h-3 ${langsmithLoading ? "animate-spin" : ""}`} />
+                重新整理
+              </Button>
+            </div>
+
+            {/* Loading skeleton */}
+            {langsmithLoading && !langsmithStats && (
+              <ZenSkeleton lines={6} />
+            )}
+
+            {/* Error / not configured */}
+            {!langsmithLoading && langsmithError && (
+              <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 p-4 text-sm text-amber-700 space-y-1">
+                <p className="font-semibold flex items-center gap-1.5">
+                  <AlertTriangle className="w-4 h-4" />
+                  無法載入 LangSmith 資料
+                </p>
+                <p className="text-xs">{langsmithError}</p>
+                {langsmithError.includes("LANGSMITH_API_KEY") && (
+                  <p className="text-xs mt-2">
+                    前往{" "}
+                    <a
+                      href="https://smith.langchain.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline"
+                    >
+                      smith.langchain.com
+                    </a>{" "}
+                    取得 API Key，並在伺服器環境變數中設定{" "}
+                    <code className="bg-amber-500/20 px-1 rounded">LANGSMITH_API_KEY</code>。
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* KPI cards */}
+            {langsmithStats && (
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                  {[
+                    { label: "總呼叫次數", value: langsmithStats.summary.totalRuns, unit: "" },
+                    { label: "平均延遲", value: langsmithStats.summary.avgLatency, unit: "ms" },
+                    { label: "錯誤率", value: langsmithStats.summary.errorRate, unit: "%" },
+                    { label: "Token 用量", value: langsmithStats.summary.totalTokens.toLocaleString(), unit: "" },
+                  ].map((kpi) => (
+                    <div
+                      key={kpi.label}
+                      className="rounded-lg bg-muted/30 border border-white/10 p-3 text-center"
+                    >
+                      <p className="text-[10px] text-muted-foreground mb-1">{kpi.label}</p>
+                      <p className="text-lg font-bold text-foreground">
+                        {kpi.value}
+                        {kpi.unit && <span className="text-xs font-normal text-muted-foreground ml-0.5">{kpi.unit}</span>}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Recent runs table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-white/10 text-muted-foreground">
+                        <th className="text-left py-2 pr-3 font-medium">時間</th>
+                        <th className="text-left py-2 pr-3 font-medium">名稱</th>
+                        <th className="text-left py-2 pr-3 font-medium">狀態</th>
+                        <th className="text-right py-2 pr-3 font-medium">延遲</th>
+                        <th className="text-right py-2 font-medium">Tokens</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {langsmithStats.runs.slice(0, 10).map((run) => (
+                        <tr key={run.id} className="border-b border-white/5 hover:bg-muted/20 transition-colors">
+                          <td className="py-2 pr-3 text-muted-foreground whitespace-nowrap">
+                            {run.startTime
+                              ? new Date(run.startTime).toLocaleString("zh-TW", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
+                              : "—"}
+                          </td>
+                          <td className="py-2 pr-3 max-w-[160px] truncate" title={run.name}>
+                            {run.name || "—"}
+                          </td>
+                          <td className="py-2 pr-3">
+                            {run.error || run.status === "error" ? (
+                              <Badge variant="secondary" className="text-[9px] bg-red-500/10 text-red-600 border-red-500/20">
+                                錯誤
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="text-[9px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+                                成功
+                              </Badge>
+                            )}
+                          </td>
+                          <td className="py-2 pr-3 text-right text-muted-foreground">
+                            {run.latency != null ? `${run.latency.toLocaleString()} ms` : "—"}
+                          </td>
+                          <td className="py-2 text-right text-muted-foreground">
+                            {run.totalTokens > 0 ? run.totalTokens.toLocaleString() : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                      {langsmithStats.runs.length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="py-8 text-center text-muted-foreground">
+                            尚無追蹤記錄
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </GlassCard>
         </div>

@@ -28,6 +28,9 @@ export const ENV = {
   gcsBucketName:  serverEnv.GCS_BUCKET_NAME,
   geminiApiKey:   serverEnv.GEMINI_API_KEY,
 
+  // ── Brave Search ────────────────────────────────────────
+  braveSearchApiKey: serverEnv.BRAVE_SEARCH_API_KEY,
+
   // ── 向後相容：Manus Forge API（遷移完成後可移除）─────────
   oAuthServerUrl: serverEnv.OAUTH_SERVER_URL,
   ownerOpenId:    serverEnv.OWNER_OPEN_ID,

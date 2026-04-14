@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -11,11 +11,14 @@ import {
   Users, BarChart3, MessageSquare, Shield, RefreshCw, Activity,
   Database, Key, Eye, TrendingUp, Server, Clock, AlertTriangle,
   CheckCircle2, XCircle, DollarSign, Cpu, Image, Film, Music, Mic,
+  Brain, Search, GitBranch, Loader2, ExternalLink, ThumbsUp, ThumbsDown,
 } from "lucide-react";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import VisualSoul from "@/components/VisualSoul";
 import { motion } from "framer-motion";
 import { useAIState } from "@/contexts/AIStateContext";
+
+const AiBrainSettings = lazy(() => import("./AiBrainSettings"));
 
 // Shared modality icon map (avoid recreating in render loops)
 const MODALITY_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -95,16 +98,16 @@ export default function AdminPage() {
     },
   });
 
-  // TODO: 管理員權限暫時下放給所有登入使用者，之後要改回來
-  // if (user?.role !== "admin") {
-  //   return (
-  //     <div className="flex flex-col items-center justify-center py-20 text-center">
-  //       <VisualSoul size="lg" personality={personality} />
-  //       <h3 className="text-base font-medium mt-6">權限不足</h3>
-  //       <p className="text-sm text-muted-foreground mt-2">此頁面僅限管理員存取</p>
-  //     </div>
-  //   );
-  // }
+  // 僅限管理員存取此頁面
+  if (user?.role !== "admin") {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <VisualSoul size="lg" personality={personality} />
+        <h3 className="text-base font-medium mt-6">權限不足</h3>
+        <p className="text-sm text-muted-foreground mt-2">此頁面僅限管理員存取</p>
+      </div>
+    );
+  }
 
   const stats = statsQuery.data;
 
@@ -130,6 +133,8 @@ export default function AdminPage() {
           <TabsTrigger value="generations" className="rounded-lg gap-1 text-xs shrink-0"><Image className="w-3 h-3" /> 生成歷史</TabsTrigger>
           <TabsTrigger value="jobs" className="rounded-lg gap-1 text-xs shrink-0"><Server className="w-3 h-3" /> 背景任務</TabsTrigger>
           <TabsTrigger value="feedback" className="rounded-lg gap-1 text-xs shrink-0"><MessageSquare className="w-3 h-3" /> 回饋</TabsTrigger>
+          <TabsTrigger value="brain" className="rounded-lg gap-1 text-xs shrink-0"><Brain className="w-3 h-3" /> 大腦組態</TabsTrigger>
+          <TabsTrigger value="ai-research" className="rounded-lg gap-1 text-xs shrink-0"><Search className="w-3 h-3" /> AI 全站研究</TabsTrigger>
         </TabsList>
 
         {/* ═══ Tab 1: System Overview ═══ */}
@@ -517,7 +522,252 @@ export default function AdminPage() {
             ))
           )}
         </TabsContent>
+
+        {/* ═══ Tab 9: Brain Configuration ═══ */}
+        <TabsContent value="brain" className="mt-4">
+          <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}>
+            <AiBrainSettings />
+          </Suspense>
+        </TabsContent>
+
+        {/* ═══ Tab 10: AI Site Research ═══ */}
+        <TabsContent value="ai-research" className="mt-4">
+          <AiSiteResearchPanel />
+        </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+// ─── AI Site Research Panel ─────────────────────────────────────────────────
+// 自動抓漏程式缺陷、思考優化、管理員同意後自動連結 GitHub 修正
+
+function AiSiteResearchPanel() {
+  const [scanPrompt, setScanPrompt] = useState("掃描全站程式碼，找出潛在缺陷、效能問題、安全漏洞、以及可優化的架構點");
+  const [isScanning, setIsScanning] = useState(false);
+
+  // ── Queries ──
+  const proposalsQuery = trpc.brain.proposals.useQuery(undefined, { refetchInterval: 15_000 });
+  const researchQuery = trpc.brain.researchResults.useQuery(undefined);
+  const summaryQuery = trpc.brain.monitorSummary.useQuery(undefined, { refetchInterval: 15_000 });
+
+  // ── Mutations ──
+  const createProposalMut = trpc.brain.createProposal.useMutation({
+    onSuccess: () => { toast.success("AI 研究提案已建立"); proposalsQuery.refetch(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const approveProposalMut = trpc.brain.approveProposal.useMutation({
+    onSuccess: () => { toast.success("提案已核准，將自動連結 GitHub 修正"); proposalsQuery.refetch(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const rejectProposalMut = trpc.brain.rejectProposal.useMutation({
+    onSuccess: () => { toast.success("提案已拒絕"); proposalsQuery.refetch(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const webSearchMut = trpc.brain.webSearch.useMutation({
+    onSuccess: (results) => {
+      toast.success(`找到 ${results.length} 筆研究結果`);
+      researchQuery.refetch();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+  const addToLearnHubMut = trpc.brain.addResearchToLearnHub.useMutation({
+    onSuccess: () => { toast.success("已加入學習文件庫"); researchQuery.refetch(); },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const handleScan = async () => {
+    setIsScanning(true);
+    try {
+      // Step 1: Web search for best practices and known issues
+      await webSearchMut.mutateAsync({
+        query: "healing studio AI multimodal platform common bugs optimization",
+        maxResults: 5,
+      });
+      // Step 2: Create a self-reflection proposal for site-wide analysis
+      await createProposalMut.mutateAsync({
+        title: "AI 全站自動研究：程式缺陷與優化建議",
+        description: scanPrompt,
+        category: "prompt_optimization",
+        currentValue: "目前全站未經 AI 自動掃描",
+        proposedValue: "AI 自動掃描發現並產出優化建議",
+        reasoning: scanPrompt,
+        confidence: 70,
+      });
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
+  const proposals = proposalsQuery.data ?? [];
+  const research = researchQuery.data ?? [];
+  const summary = summaryQuery.data;
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <GlassCard>
+        <div className="flex items-center gap-3 mb-3">
+          <div className="p-2 rounded-lg bg-primary/10">
+            <Search className="w-4 h-4 text-primary" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold">AI 全站自動研究系統</h3>
+            <p className="text-[10px] text-muted-foreground">
+              自動掃描程式碼缺陷、思考優化方案，經管理員同意後可自動連結 GitHub 建立 Issue / PR 修正
+            </p>
+          </div>
+        </div>
+
+        {/* Stats */}
+        {summary && (
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            <div className="text-center p-2 rounded-lg bg-muted/30">
+              <p className="text-lg font-semibold">{summary.pendingProposals}</p>
+              <p className="text-[10px] text-muted-foreground">待審核提案</p>
+            </div>
+            <div className="text-center p-2 rounded-lg bg-muted/30">
+              <p className="text-lg font-semibold">{summary.totalResearch}</p>
+              <p className="text-[10px] text-muted-foreground">研究資料</p>
+            </div>
+            <div className="text-center p-2 rounded-lg bg-muted/30">
+              <p className="text-lg font-semibold">{summary.unresolvedErrors}</p>
+              <p className="text-[10px] text-muted-foreground">未解決錯誤</p>
+            </div>
+          </div>
+        )}
+
+        {/* Scan Controls */}
+        <div className="space-y-2">
+          <Input
+            value={scanPrompt}
+            onChange={(e) => setScanPrompt(e.target.value)}
+            placeholder="自訂研究指令..."
+            className="text-xs"
+          />
+          <Button
+            onClick={handleScan}
+            disabled={isScanning || !scanPrompt.trim()}
+            className="w-full gap-2 text-xs"
+            size="sm"
+          >
+            {isScanning ? <Loader2 className="w-3 h-3 animate-spin" /> : <Search className="w-3 h-3" />}
+            {isScanning ? "AI 研究中..." : "啟動 AI 全站研究"}
+          </Button>
+        </div>
+      </GlassCard>
+
+      {/* Proposals requiring approval */}
+      <GlassCard>
+        <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+          <GitBranch className="w-4 h-4" />
+          優化提案（需管理員審核）
+          {proposals.filter(p => p.status === "pending").length > 0 && (
+            <Badge variant="destructive" className="text-[9px]">
+              {proposals.filter(p => p.status === "pending").length} 待審核
+            </Badge>
+          )}
+        </h3>
+        <div className="space-y-2 max-h-[400px] overflow-y-auto">
+          {proposals.length === 0 ? (
+            <p className="text-center text-muted-foreground py-4 text-xs">尚無提案。啟動 AI 研究以生成優化建議。</p>
+          ) : (
+            proposals.map((p) => (
+              <motion.div key={p.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+                <div className="p-3 rounded-lg bg-muted/20 border border-white/5 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium">{p.title}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{p.description}</p>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className={`text-[9px] shrink-0 ${
+                        p.status === "pending" ? "border-yellow-500/30 text-yellow-600" :
+                        p.status === "approved" ? "border-green-500/30 text-green-600" :
+                        "border-red-500/30 text-red-600"
+                      }`}
+                    >
+                      {p.status === "pending" ? "待審核" : p.status === "approved" ? "已核准" : "已拒絕"}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                    <Badge variant="secondary" className="text-[9px]">{p.category}</Badge>
+                    <span>{new Date(p.createdAt).toLocaleString("zh-TW")}</span>
+                  </div>
+                  {p.status === "pending" && (
+                    <div className="flex gap-2 pt-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1 text-[10px] h-7 border-green-500/30 hover:bg-green-500/10"
+                        onClick={() => approveProposalMut.mutate({ proposalId: p.id })}
+                        disabled={approveProposalMut.isPending}
+                      >
+                        <ThumbsUp className="w-3 h-3" /> 核准並連結 GitHub
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1 text-[10px] h-7 border-red-500/30 hover:bg-red-500/10"
+                        onClick={() => rejectProposalMut.mutate({ proposalId: p.id })}
+                        disabled={rejectProposalMut.isPending}
+                      >
+                        <ThumbsDown className="w-3 h-3" /> 拒絕
+                      </Button>
+                    </div>
+                  )}
+                  {p.status === "approved" && (
+                    <div className="flex items-center gap-1.5 text-[10px] text-green-600">
+                      <CheckCircle2 className="w-3 h-3" />
+                      已核准 — 系統將自動建立 GitHub Issue 追蹤修正
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            ))
+          )}
+        </div>
+      </GlassCard>
+
+      {/* Research Results */}
+      <GlassCard>
+        <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+          <ExternalLink className="w-4 h-4" />
+          網路研究資料
+        </h3>
+        <div className="space-y-2 max-h-[300px] overflow-y-auto">
+          {research.length === 0 ? (
+            <p className="text-center text-muted-foreground py-4 text-xs">尚無研究資料</p>
+          ) : (
+            research.slice(0, 20).map((r) => (
+              <div key={r.id} className="p-2 rounded-lg bg-muted/20 flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <a href={r.url} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-primary hover:underline line-clamp-1">
+                    {r.title}
+                  </a>
+                  <p className="text-[10px] text-muted-foreground line-clamp-1">{r.summary}</p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <Badge variant="secondary" className="text-[9px]">{r.source}</Badge>
+                    <span className="text-[9px] text-muted-foreground">相關度: {r.relevance}%</span>
+                  </div>
+                </div>
+                {!r.addedToLearnHub && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-[10px] h-6 shrink-0"
+                    onClick={() => addToLearnHubMut.mutate({ researchId: r.id })}
+                    disabled={addToLearnHubMut.isPending}
+                  >
+                    加入學習庫
+                  </Button>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </GlassCard>
     </div>
   );
 }

@@ -1,6 +1,8 @@
-import { useState, useMemo, useCallback, Component, type ReactNode } from "react";
+import { useState, useMemo, useCallback, useEffect, Component, type ReactNode } from "react";
 import { useIsMobile } from "@/hooks/useMobile";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
+import { useAIState } from "@/contexts/AIStateContext";
+import VisualSoul from "@/components/VisualSoul";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
@@ -76,11 +78,21 @@ export default function SharedSpace() {
 
   // 全站新手引導
   usePageTour("shared");
+
+  // ── AI Agent Integration ──
+  const { aiState, setPageContext, personality } = useAIState();
+
   const [, navigate] = useLocation();
   const isMobile = useIsMobile();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("assets");
   const [assetTypeFilter, setAssetTypeFilter] = useState("all");
+
+  // ── AI Agent: broadcast page context ──
+  useEffect(() => {
+    setPageContext({ pageId: "shared", pageLabel: "共享空間", activeTab });
+    return () => setPageContext(null);
+  }, [activeTab, setPageContext]);
 
   // Fetch shared assets — retry: 1, fail fast (500ms retry delay), no window refetch
   const sharedAssetsQuery = trpc.assets.teamAssets.useQuery(undefined, {
@@ -224,14 +236,17 @@ export default function SharedSpace() {
     <SharedSpaceErrorBoundary>
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground tracking-tight flex items-center gap-2">
-          <Users className="w-6 h-6" />
-          共享空間
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          探索社群創作、分享你的作品，獲得配額獎勵
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight flex items-center gap-2">
+            <Users className="w-6 h-6" />
+            共享空間
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            探索社群創作、分享你的作品，獲得配額獎勵
+          </p>
+        </div>
+        <VisualSoul size="sm" state={aiState} personality={personality} className="!w-6 !h-6 shrink-0" />
       </div>
 
       {/* Stats */}

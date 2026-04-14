@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { Button } from "@/components/ui/button";
@@ -72,10 +72,16 @@ function StarRating({
 // ─── History Page ──────────────────────────────────────────────────────────
 
 export default function HistoryPage() {
-  const { personality } = useAIState();
+  const { aiState, setPageContext, personality } = useAIState();
 
   // 全站新手引導
   usePageTour("history");
+
+  useEffect(() => {
+    setPageContext({ pageId: "history", pageLabel: "歷史記錄" });
+    return () => setPageContext(null);
+  }, [setPageContext]);
+
   const isMobile = useIsMobile();
   const [, navigate] = useLocation();
   const [filter, setFilter] = useState<"all" | "image" | "video" | "audio" | "voice" | "bookmarked">("all");

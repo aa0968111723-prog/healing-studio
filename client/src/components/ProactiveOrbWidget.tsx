@@ -124,6 +124,61 @@ const MOOD_GREETINGS: Record<string, string[]> = {
   ],
 };
 
+// ─── Page-aware greetings ─────────────────────────────────────────────────
+
+const PAGE_GREETINGS: Record<string, string[]> = {
+  "image-studio": [
+    "想生成什麼圖片呢？我可以幫你推薦模型和參數！",
+    "要不要試試 NanoBanana2 的新功能？速度快又高品質。",
+    "圖片編輯、文字生圖、3D 轉換——選一個開始吧！",
+  ],
+  "video-studio": [
+    "影片生成需要多一點時間，但結果絕對值得等待。",
+    "Kling 2.1 和 Veo 3 是目前最強的影片模型，要試試嗎？",
+    "可以用圖片當首幀，控制影片的開頭畫面喔！",
+  ],
+  "pro-studio": [
+    "音樂、配音還是音效？告訴我你的需求！",
+    "試試 Sonauto 生成音樂，支援自訂歌詞和風格。",
+    "聲音克隆只需要幾秒鐘的參考音頻就能完成。",
+  ],
+  "lora-trainer": [
+    "訓練自己的 AI 模型？我可以幫你選擇最佳參數。",
+    "記得準備多角度的訓練圖片，效果會更好。",
+    "LoRA 訓練通常需要 10-30 分鐘，我會幫你追蹤進度。",
+  ],
+  "learn": [
+    "有什麼不懂的嗎？這裡有超過 38 篇教學文件。",
+    "新手推薦從「快速開始」分類開始閱讀！",
+    "每篇文件都有難度標示，可以按程度選擇。",
+  ],
+  "shared": [
+    "看看大家的作品，說不定能找到靈感！",
+    "分享你的創作也能獲得配額獎勵喔。",
+    "探索社群作品，看看別人怎麼使用 AI 創作。",
+  ],
+  "dashboard": [
+    "這是你的總覽儀表板，可以一覽所有創作數據。",
+    "看看你最近的創作成果——有沒有什麼新靈感？",
+    "配額快用完了嗎？我可以幫你規劃最佳使用策略。",
+  ],
+  "history": [
+    "你的創作歷史都在這裡，可以隨時重新使用參數！",
+    "試試收藏功能，把滿意的作品標記起來。",
+    "找到喜歡的作品了嗎？可以直接下載或分享。",
+  ],
+  "models": [
+    "這裡列出了所有可用的 AI 模型，按需求挑選吧！",
+    "每個模型有不同的特長，需要我幫你比較嗎？",
+    "自己訓練的模型也會出現在這裡喔。",
+  ],
+  "brain-settings": [
+    "這是 AI 大腦的設定中心，可以監控和調整 AI 行為。",
+    "錯誤追蹤功能能幫你快速定位問題所在。",
+    "自動修復系統會主動偵測並修正 API 問題。",
+  ],
+};
+
 // ─── Quick actions for the interaction panel ─────────────────────────────
 
 interface QuickAction {
@@ -138,6 +193,29 @@ const QUICK_ACTIONS: QuickAction[] = [
   { icon: <MessageCircle className="w-4 h-4" />, label: "聊聊心情", description: "告訴我你現在的感受", action: "chat" },
   { icon: <BookOpen className="w-4 h-4" />, label: "重新導覽", description: "再看一次新手引導", action: "tour" },
 ];
+
+// ─── Page-specific quick actions (contextual AI agent capabilities) ────────
+
+const PAGE_QUICK_ACTIONS: Record<string, QuickAction[]> = {
+  "image-studio": [
+    { icon: <Image className="w-4 h-4" />, label: "模型推薦", description: "根據你的需求推薦最適合的圖片模型", action: "chat-model-recommend" },
+    { icon: <Sparkles className="w-4 h-4" />, label: "提詞優化", description: "讓 AI 幫你改進提示詞", action: "chat-prompt-optimize" },
+  ],
+  "video-studio": [
+    { icon: <Video className="w-4 h-4" />, label: "模型比較", description: "幫你比較 Kling / Veo / Sora 等影片模型", action: "chat-model-compare" },
+    { icon: <Sparkles className="w-4 h-4" />, label: "影片提詞技巧", description: "教你寫出更好的影片生成提示詞", action: "chat-video-tips" },
+  ],
+  "pro-studio": [
+    { icon: <Music className="w-4 h-4" />, label: "音樂風格建議", description: "推薦適合你的音樂風格和模型", action: "chat-music-style" },
+    { icon: <Mic className="w-4 h-4" />, label: "配音技巧", description: "語音合成和聲音克隆的最佳實踐", action: "chat-voice-tips" },
+  ],
+  "lora-trainer": [
+    { icon: <Sparkles className="w-4 h-4" />, label: "訓練建議", description: "如何準備最佳的訓練資料集", action: "chat-training-tips" },
+  ],
+  "learn": [
+    { icon: <BookOpen className="w-4 h-4" />, label: "學習路徑", description: "推薦適合你程度的學習文件", action: "chat-learning-path" },
+  ],
+};
 
 // ─── 90-second onboarding step definitions ────────────────────────────────
 
@@ -177,7 +255,7 @@ export default function ProactiveOrbWidget({
   onApplyInspiration,
   onSwitchModality,
 }: Props) {
-  const { aiState, proactiveMessage, dismissProactive } = useAIState();
+  const { aiState, proactiveMessage, dismissProactive, pageContext } = useAIState();
   const { personality, setPersonality, isManual, resetToAuto, config: personalityConfig } = usePersonality();
   const { isAnyTimerRunning, activeMode, pomodoroRemaining, healingRemaining, pomodoroPhase } = useFocusFlow();
   const orbControls = useAnimation();
@@ -208,11 +286,13 @@ export default function ProactiveOrbWidget({
   // Home position
   const homePositionRef = useRef(position);
 
-  // Random greeting based on personality
+  // Random greeting based on personality + page context
   const greeting = useMemo(() => {
-    const greetings = MOOD_GREETINGS[personality] || MOOD_GREETINGS.calm;
+    // Prefer page-specific greetings when available
+    const pageGreetings = pageContext?.pageId ? PAGE_GREETINGS[pageContext.pageId] : null;
+    const greetings = pageGreetings ?? MOOD_GREETINGS[personality] ?? MOOD_GREETINGS.calm;
     return greetings[Math.floor(Math.random() * greetings.length)];
-  }, [personality, showPanel]);
+  }, [personality, showPanel, pageContext?.pageId]);
 
   // ─── guideTo method ───────────────────────────────────────────────────
 
@@ -465,6 +545,27 @@ export default function ProactiveOrbWidget({
         setShowPanel(false);
         onRestartTour?.();
         break;
+      default:
+        // Handle page-specific chat actions (chat-model-recommend, chat-prompt-optimize, etc.)
+        if (action.startsWith("chat-")) {
+          const topicHints: Record<string, string> = {
+            "chat-model-recommend": "請推薦適合我的模型",
+            "chat-prompt-optimize": "請幫我優化提示詞",
+            "chat-model-compare": "請幫我比較影片模型的差異",
+            "chat-video-tips": "影片提示詞有什麼技巧？",
+            "chat-music-style": "請推薦適合的音樂風格",
+            "chat-voice-tips": "聲音克隆有什麼注意事項？",
+            "chat-training-tips": "訓練 LoRA 模型有什麼建議？",
+            "chat-learning-path": "推薦適合新手的學習路徑",
+          };
+          const seedMsg = topicHints[action] ?? "有什麼可以幫你的嗎？";
+          setPanelView("chat");
+          setChatMessages([
+            { role: "orb", text: greeting },
+          ]);
+          setChatInput(seedMsg);
+        }
+        break;
     }
   }, [onApplyInspiration, onRestartTour, greeting, showFeedback]);
 
@@ -502,9 +603,16 @@ export default function ProactiveOrbWidget({
         }))
         .filter((m) => m.role === "user" || m.content !== greeting); // skip greeting bubble
 
+      // Build page context string for LLM
+      const contextParts = [pageContext?.pageLabel];
+      if (pageContext?.activeModel) contextParts.push(`模型: ${pageContext.activeModel}`);
+      if (pageContext?.activeTab) contextParts.push(`分頁: ${pageContext.activeTab}`);
+      const contextStr = pageContext ? contextParts.filter(Boolean).join(" · ") : undefined;
+
       const data = await aiChatMutation.mutateAsync({
         messages: llmMessages,
         personality,
+        context: contextStr,
       });
       setChatMessages((prev) => [...prev, { role: "orb", text: data.reply }]);
     } catch {
@@ -515,7 +623,7 @@ export default function ProactiveOrbWidget({
     } finally {
       setIsChatLoading(false);
     }
-  }, [chatInput, chatMessages, isChatLoading, personality, greeting, aiChatMutation, onSwitchModality]);
+  }, [chatInput, chatMessages, isChatLoading, personality, greeting, aiChatMutation, onSwitchModality, pageContext]);
 
   // ─── Apply inspiration preset ────────────────────────────────────────
 
@@ -649,7 +757,7 @@ export default function ProactiveOrbWidget({
                 <div className="flex items-center gap-2">
                   <VisualSoul state={aiState} personality={personality} size="sm" className="!w-6 !h-6" />
                   <span className="text-sm font-semibold text-gray-800">
-                    {panelView === "chat" ? "聊聊天" : panelView === "inspiration" ? "靈感推薦" : panelView === "focus-flow" ? "專注流" : "你的創作夥伴"}
+                    {panelView === "chat" ? "聊聊天" : panelView === "inspiration" ? "靈感推薦" : panelView === "focus-flow" ? "專注流" : pageContext ? `AI 助手 · ${pageContext.pageLabel}` : "你的創作夥伴"}
                   </span>
                 </div>
                 <div className="flex items-center gap-1">
@@ -687,7 +795,7 @@ export default function ProactiveOrbWidget({
 
                     {/* Quick Actions */}
                     <div className="space-y-1.5 mb-3">
-                      {QUICK_ACTIONS.map((qa) => (
+                      {[...QUICK_ACTIONS, ...(pageContext?.pageId ? (PAGE_QUICK_ACTIONS[pageContext.pageId] ?? []) : [])].map((qa) => (
                         <button
                           key={qa.action}
                           onClick={() => handleQuickAction(qa.action)}

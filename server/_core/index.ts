@@ -16,8 +16,10 @@ import { initNewsFetcherCron, stopNewsFetcherCron } from "../jobs/newsFetcher";
 import { initModelTrainingWorkerCron, stopModelTrainingWorkerCron } from "../jobs/modelTrainingWorker";
 import { initLearnDocSyncerCron, stopLearnDocSyncerCron } from "../jobs/learnDocSyncer";
 import { initApiHealthMonitorCron, stopApiHealthMonitorCron } from "../jobs/apiHealthMonitor";
+import { initBraveLearnFetcherCron, stopBraveLearnFetcherCron } from "../jobs/braveLearnFetcher";
 import { detectStorageBackend } from "../storage";
 import { closeDb } from "../db";
+import { langsmithRouter } from "../routes/langsmith";
 
 // ─── Allowlist helpers for proxy-download ─────────────────────────────────
 const PROXY_ALLOWED_HOSTS = [
@@ -97,6 +99,8 @@ async function startServer() {
   app.use(uploadRouter);
   // SSE for real-time generation events
   app.use(sseRouter);
+  // LangSmith observability stats
+  app.use(langsmithRouter);
 
   // ── 後端代理下載（解決前端直接 fetch CDN 時的 CORS 問題）──────────────────
   // GET /api/proxy-download?url=<encodedUrl>
@@ -216,6 +220,7 @@ async function startServer() {
     initModelTrainingWorkerCron();
     initLearnDocSyncerCron();
     initApiHealthMonitorCron();
+    initBraveLearnFetcherCron();
   });
 
   // ── Graceful Shutdown ────────────────────────────────────────────────────
@@ -225,6 +230,7 @@ async function startServer() {
     stopModelTrainingWorkerCron();
     stopLearnDocSyncerCron();
     stopApiHealthMonitorCron();
+    stopBraveLearnFetcherCron();
     server.close(async () => {
       await closeDb();
       console.log("[Server] All resources released. Exiting.");
