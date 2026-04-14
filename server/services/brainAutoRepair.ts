@@ -241,6 +241,16 @@ const REPAIR_FALLBACK: Record<string, string[]> = {
   "elevenlabs-v2": ["fal-ai/elevenlabs/tts/turbo-v2.5", "elevenlabs-v1"],
 };
 
+/** 根據引擎名稱推斷生成類型 */
+function inferModality(engine: string): ErrorTrace["modality"] {
+  const e = engine.toLowerCase();
+  if (e.includes("video") || e.includes("kling") || e.includes("wan") || e.includes("minimax") || e.includes("veo") || e.includes("sora") || e.includes("ltx-video") || e.includes("pixverse") || e.includes("runway") || e.includes("animatediff")) return "video";
+  if (e.includes("audio") || e.includes("sonauto") || e.includes("musicgen") || e.includes("ace-step") || e.includes("stable-audio") || e.includes("suno")) return "audio";
+  if (e.includes("tts") || e.includes("voice") || e.includes("elevenlabs") || e.includes("dia-tts") || e.includes("qwen-3-tts") || e.includes("avatar") || e.includes("echomimic")) return "voice";
+  if (e.includes("gemini") || e.includes("vertex") || e.includes("llm") || e.includes("any-llm")) return "llm";
+  return "image"; // 圖像生成為預設
+}
+
 /**
  * 對單一 provider 執行健康探測。
  * 回傳 { ok, latencyMs, error? }
@@ -312,6 +322,18 @@ async function attemptAutoRepair(engine: string): Promise<ApiAlert> {
         createdAt: Date.now(),
       };
       addAlert(alert);
+
+      // 連動：記錄錯誤線索（已自動修復），觸發爬網搜尋根因
+      recordErrorTrace({
+        userId: 0,
+        modality: inferModality(engine),
+        engine,
+        prompt: "[系統自動巡檢]",
+        errorMessage: `${engine} 無法連線（${pingResult.error ?? "timeout"}），已自動切換至備援 ${candidate}`,
+        errorCode: "AUTO_REPAIR_WARNING",
+        stackHint: `Provider: ${provider}, Repaired with: ${candidate}`,
+      });
+
       return alert;
     }
   }
@@ -328,6 +350,18 @@ async function attemptAutoRepair(engine: string): Promise<ApiAlert> {
     createdAt: Date.now(),
   };
   addAlert(alert);
+
+  // 連動：自動建立錯誤線索 → 觸發爬網搜尋修復方案 → 建立修復提案
+  recordErrorTrace({
+    userId: 0, // system-generated
+    modality: inferModality(engine),
+    engine,
+    prompt: "[系統自動巡檢]",
+    errorMessage: `API 巡檢失敗：${engine} 及所有備援均無法連線。錯誤：${pingResult.error ?? "Provider unreachable"}`,
+    errorCode: "AUTO_REPAIR_CRITICAL",
+    stackHint: `Provider: ${provider}, Fallbacks tried: ${fallbacks.join(", ") || "none"}`,
+  });
+
   return alert;
 }
 

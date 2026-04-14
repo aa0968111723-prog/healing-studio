@@ -37,6 +37,7 @@
 import { z } from "zod";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
+import { recordErrorTrace } from "../services/brainAutoRepair";
 
 // ─── fal.ai 呼叫工具 ──────────────────────────────────────────────────────────
 
@@ -62,6 +63,7 @@ async function falQueueSubmit(
   });
   if (!res.ok) {
     const err = await res.text();
+    recordErrorTrace({ userId: 0, modality: "audio", engine: modelId, prompt: "[falQueueSubmit]", errorMessage: err.slice(0, 500), errorCode: "FAL_SUBMIT_ERROR" });
     throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `fal.ai submit 錯誤 [${modelId}]: ${err}` });
   }
   return res.json();
@@ -103,6 +105,7 @@ async function falRun(modelId: string, input: Record<string, unknown>): Promise<
   });
   if (!res.ok) {
     const err = await res.text();
+    recordErrorTrace({ userId: 0, modality: "audio", engine: modelId, prompt: "[falRun]", errorMessage: err.slice(0, 500), errorCode: "FAL_RUN_ERROR" });
     throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `fal.ai 錯誤 [${modelId}]: ${err}` });
   }
   return res.json();
@@ -798,6 +801,15 @@ export const proStudioRouter = router({
 
       if (s === "FAILED") {
         const errMsg = status?.error ?? status?.message ?? "未知錯誤";
+        // 連動：記錄到錯誤線索系統 → 自動觸發爬網搜尋 → 建立修復提案
+        recordErrorTrace({
+          userId: 0,
+          modality: "audio",
+          engine: input.model,
+          prompt: `[非同步任務失敗] requestId=${input.requestId}`,
+          errorMessage: errMsg,
+          errorCode: "FAL_TASK_FAILED",
+        });
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `任務失敗 [${input.model}]: ${errMsg}` });
       }
 
