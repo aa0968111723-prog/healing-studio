@@ -201,7 +201,7 @@ export const proStudioRouter = router({
   // 🔊 音效生成
   // ═══════════════════════════════════════════════════════════════
 
-  /** fal-ai/elevenlabs/sound-effects/v2 — AI 音效生成（快速，直接呼叫） */
+  /** fal-ai/elevenlabs/sound-effects/v2 — AI 音效生成（非同步 queue） */
   soundEffects: protectedProcedure
     .input(z.object({
       text:              z.string().min(1).max(500),
@@ -209,19 +209,20 @@ export const proStudioRouter = router({
       prompt_influence:  z.number().min(0).max(1).optional().default(0.3),
     }))
     .mutation(async ({ input }) => {
-      const result = await falRun("fal-ai/elevenlabs/sound-effects/v2", {
+      const modelId = "fal-ai/elevenlabs/sound-effects/v2";
+      const { request_id } = await falQueueSubmit(modelId, {
         text:             input.text,
         duration_seconds: input.duration_seconds,
         prompt_influence: input.prompt_influence,
       });
-      return result;
+      return { request_id, model: modelId, is_async_polling: true };
     }),
 
   // ═══════════════════════════════════════════════════════════════
   // 🎤 語音合成 (TTS)
   // ═══════════════════════════════════════════════════════════════
 
-  /** fal-ai/elevenlabs/tts/turbo-v2.5 — 高速 ElevenLabs TTS */
+  /** fal-ai/elevenlabs/tts/turbo-v2.5 — 高速 ElevenLabs TTS（非同步 queue） */
   elevenLabsTTS: protectedProcedure
     .input(z.object({
       text:              z.string().min(1).max(5000),
@@ -233,7 +234,8 @@ export const proStudioRouter = router({
       language_code:     z.string().optional(),
     }))
     .mutation(async ({ input }) => {
-      const result = await falRun("fal-ai/elevenlabs/tts/turbo-v2.5", {
+      const modelId = "fal-ai/elevenlabs/tts/turbo-v2.5";
+      const { request_id } = await falQueueSubmit(modelId, {
         text:     input.text,
         voice_id: input.voice_id,
         model_id: input.model_id,
@@ -244,10 +246,10 @@ export const proStudioRouter = router({
         },
         language_code: input.language_code,
       });
-      return result;
+      return { request_id, model: modelId, is_async_polling: true };
     }),
 
-  /** fal-ai/qwen-3-tts/text-to-speech/1.7b — Qwen TTS */
+  /** fal-ai/qwen-3-tts/text-to-speech/1.7b — Qwen TTS（非同步 queue） */
   qwenTTS: protectedProcedure
     .input(z.object({
       text:                           z.string().min(1).max(5000),
@@ -257,14 +259,15 @@ export const proStudioRouter = router({
       language:                       z.enum(["Auto","English","Chinese","Japanese","Korean","Spanish","French","German","Italian","Portuguese","Russian"]).optional().default("Auto"),
     }))
     .mutation(async ({ input }) => {
-      const result = await falRun("fal-ai/qwen-3-tts/text-to-speech/1.7b", {
+      const modelId = "fal-ai/qwen-3-tts/text-to-speech/1.7b";
+      const { request_id } = await falQueueSubmit(modelId, {
         text:                             input.text,
         voice:                            input.voice,
         speaker_voice_embedding_file_url: input.speaker_voice_embedding_file_url,
         reference_text:                   input.reference_text,
         language:                         input.language,
       });
-      return result;
+      return { request_id, model: modelId, is_async_polling: true };
     }),
 
   // ═══════════════════════════════════════════════════════════════
@@ -285,21 +288,18 @@ export const proStudioRouter = router({
       reference_text: z.string().optional(),              // 參考音訊的文字（可提升品質）
     }))
     .mutation(async ({ input }) => {
-      const result = await falRun("fal-ai/qwen-3-tts/clone-voice/1.7b", {
+      const modelId = "fal-ai/qwen-3-tts/clone-voice/1.7b";
+      const { request_id } = await falQueueSubmit(modelId, {
         audio_url:      input.audio_url,
         reference_text: input.reference_text,
-      }) as any;
-
-      // 回傳 speaker_embedding URL，前端需將其傳給 qwenTTS
-      return {
-        speaker_embedding_url: result?.speaker_embedding?.url ?? null,
-        speaker_embedding:     result?.speaker_embedding ?? null,
-      };
+      });
+      return { request_id, model: modelId, is_async_polling: true };
     }),
 
   /**
    * 二合一：克隆聲音後直接合成語音（方便前端單步操作）
    * 步驟：clone → 取得 embedding → TTS
+   * ⚠️ 使用非同步 queue 避免超時
    */
   qwenCloneAndSpeak: protectedProcedure
     .input(z.object({
@@ -309,8 +309,9 @@ export const proStudioRouter = router({
       language:       z.enum(["Auto","English","Chinese","Japanese","Korean","Spanish","French","German","Italian","Portuguese","Russian"]).optional().default("Auto"),
     }))
     .mutation(async ({ input }) => {
-      // Step 1: 建立 speaker embedding
-      const cloneResult = await falRun("fal-ai/qwen-3-tts/clone-voice/1.7b", {
+      // Step 1: 建立 speaker embedding（使用同步呼叫，因為 Step 2 依賴結果）
+      const cloneModelId = "fal-ai/qwen-3-tts/clone-voice/1.7b";
+      const cloneResult = await falRun(cloneModelId, {
         audio_url:      input.audio_url,
         reference_text: input.reference_text,
       }) as any;
@@ -320,33 +321,36 @@ export const proStudioRouter = router({
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "聲音克隆失敗：未取得 speaker_embedding" });
       }
 
-      // Step 2: 用克隆聲音合成語音
-      const ttsResult = await falRun("fal-ai/qwen-3-tts/text-to-speech/1.7b", {
+      // Step 2: 用克隆聲音合成語音（非同步 queue）
+      const ttsModelId = "fal-ai/qwen-3-tts/text-to-speech/1.7b";
+      const { request_id } = await falQueueSubmit(ttsModelId, {
         text:                             input.text,
         speaker_voice_embedding_file_url: embeddingUrl,
         reference_text:                   input.reference_text,
         language:                         input.language,
-      }) as any;
+      });
 
       return {
-        audio_url:             ttsResult?.audio?.url ?? null,
-        audio:                 ttsResult?.audio ?? null,
+        request_id,
+        model: ttsModelId,
+        is_async_polling: true,
         speaker_embedding_url: embeddingUrl,
       };
     }),
 
-  /** fal-ai/qwen-3-tts/voice-design/1.7b — 文字描述設計語音 */
+  /** fal-ai/qwen-3-tts/voice-design/1.7b — 文字描述設計語音（非同步 queue） */
   qwenVoiceDesign: protectedProcedure
     .input(z.object({
       voice_description: z.string().min(1).max(1000),
       text:              z.string().min(1).max(500).optional().default("你好，我是你設計的聲音。"),
     }))
     .mutation(async ({ input }) => {
-      const result = await falRun("fal-ai/qwen-3-tts/voice-design/1.7b", {
+      const modelId = "fal-ai/qwen-3-tts/voice-design/1.7b";
+      const { request_id } = await falQueueSubmit(modelId, {
         voice_description: input.voice_description,
         text:              input.text,
       });
-      return result;
+      return { request_id, model: modelId, is_async_polling: true };
     }),
 
   /**
@@ -361,24 +365,26 @@ export const proStudioRouter = router({
       text: z.string().min(1).max(5000),
     }))
     .mutation(async ({ input }) => {
-      const result = await falRun("fal-ai/dia-tts/voice-clone", {
+      const modelId = "fal-ai/dia-tts/voice-clone";
+      const { request_id } = await falQueueSubmit(modelId, {
         text: input.text,
       });
-      return result;
+      return { request_id, model: modelId, is_async_polling: true };
     }),
 
-  /** fal-ai/kling-video/create-voice — 建立 Kling 語音配置（供 Kling 影片使用） */
+  /** fal-ai/kling-video/create-voice — 建立 Kling 語音配置（非同步 queue） */
   klingCreateVoice: protectedProcedure
     .input(z.object({
       audio_url: z.string().url(),
       name:      z.string().min(1).max(100),
     }))
     .mutation(async ({ input }) => {
-      const result = await falRun("fal-ai/kling-video/create-voice", {
+      const modelId = "fal-ai/kling-video/create-voice";
+      const { request_id } = await falQueueSubmit(modelId, {
         audio_url: input.audio_url,
         name:      input.name,
       });
-      return result;
+      return { request_id, model: modelId, is_async_polling: true };
     }),
 
   // ═══════════════════════════════════════════════════════════════
@@ -414,59 +420,52 @@ export const proStudioRouter = router({
         stems = ["vocals", "drums", "bass", "other"];
       }
 
-      const rawResult = await falRun("fal-ai/demucs", {
+      const modelId = "fal-ai/demucs";
+      const { request_id } = await falQueueSubmit(modelId, {
         audio_url:     input.audio_url,
         model:         input.model,
         stems:         stems,
         output_format: input.output_format,
         shifts:        1,
         overlap:       0.25,
-      }) as any;
+      });
 
-      // 正規化輸出：將各 stem 的 { url } 物件轉為純 URL 字串的 stems map
-      const stemsMap: Record<string, string> = {};
-      for (const stem of stems) {
-        const val = rawResult?.[stem] ?? rawResult?.data?.[stem];
-        if (val?.url) stemsMap[stem] = val.url;
-      }
-
-      return {
-        stems: Object.keys(stemsMap).length > 0 ? stemsMap : null,
-        raw:   rawResult,
-      };
+      return { request_id, model: modelId, is_async_polling: true };
     }),
 
-  /** fal-ai/elevenlabs/audio-isolation — 人聲隔離/去噪 */
+  /** fal-ai/elevenlabs/audio-isolation — 人聲隔離/去噪（非同步 queue） */
   audioIsolation: protectedProcedure
     .input(z.object({
       audio_url: z.string().url(),
     }))
     .mutation(async ({ input }) => {
-      const result = await falRun("fal-ai/elevenlabs/audio-isolation", {
+      const modelId = "fal-ai/elevenlabs/audio-isolation";
+      const { request_id } = await falQueueSubmit(modelId, {
         audio_url: input.audio_url,
       });
-      return result;
+      return { request_id, model: modelId, is_async_polling: true };
     }),
 
-  /** fal-ai/ffmpeg-api/merge-audios — 多音訊合併（串接或混音） */
+  /** fal-ai/ffmpeg-api/merge-audios — 多音訊合併（非同步 queue） */
   mergeAudios: protectedProcedure
     .input(z.object({
       audio_urls:      z.array(z.string().url()).min(2).max(10),
       merge_strategy:  z.enum(["concatenate", "mix"]).optional().default("concatenate"),
     }))
     .mutation(async ({ input }) => {
-      const result = await falRun("fal-ai/ffmpeg-api/merge-audios", {
+      const modelId = "fal-ai/ffmpeg-api/merge-audios";
+      const { request_id } = await falQueueSubmit(modelId, {
         audio_urls:     input.audio_urls,
         merge_strategy: input.merge_strategy,
       });
-      return result;
+      return { request_id, model: modelId, is_async_polling: true };
     }),
 
   // ═══════════════════════════════════════════════════════════════
   // 🔁 聲音變換
   // ═══════════════════════════════════════════════════════════════
 
-  /** fal-ai/elevenlabs/voice-changer — 聲音變換（換成 ElevenLabs 語音） */
+  /** fal-ai/elevenlabs/voice-changer — 聲音變換（非同步 queue） */
   voiceChanger: protectedProcedure
     .input(z.object({
       audio_url:               z.string().url(),
@@ -474,12 +473,13 @@ export const proStudioRouter = router({
       remove_background_noise: z.boolean().optional().default(false),
     }))
     .mutation(async ({ input }) => {
-      const result = await falRun("fal-ai/elevenlabs/voice-changer", {
+      const modelId = "fal-ai/elevenlabs/voice-changer";
+      const { request_id } = await falQueueSubmit(modelId, {
         audio_url:               input.audio_url,
         voice_id:                input.voice_id,
         remove_background_noise: input.remove_background_noise,
       });
-      return result;
+      return { request_id, model: modelId, is_async_polling: true };
     }),
 
   // ═══════════════════════════════════════════════════════════════
