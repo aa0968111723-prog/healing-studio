@@ -76,13 +76,26 @@ const AIStateContext = createContext<AIStateContextType>({
 // ─── Proactive Intervention Rules ──────────────────────────────────────────
 
 const PROACTIVE_RULES: Array<{
-  condition: (m: DirectorEngineMetrics, personality: Personality) => boolean;
-  message: (personality: Personality) => string;
+  condition: (m: DirectorEngineMetrics, personality: Personality, page?: PageContext | null) => boolean;
+  message: (personality: Personality, page?: PageContext | null) => string;
   switchTo?: Personality;
 }> = [
   {
-    // User idle for 20+ seconds → gentle warm nudge
-    condition: (m) => m.idleSeconds >= 20 && m.idleSeconds < 45 && m.failCount === 0,
+    // User idle for 20+ seconds → page-aware gentle nudge
+    condition: (m, _p, page) => m.idleSeconds >= 20 && m.idleSeconds < 45 && m.failCount === 0 && !!page,
+    message: (_p, page) => {
+      const hints: Record<string, string> = {
+        "image-studio": "試試在提詞中加入情緒或風格描述，例如「夢幻的水彩風」或「電影感光線」。",
+        "video-studio": "影片生成提詞的重點是「動態」——試著描述物體怎麼移動、鏡頭怎麼運動。",
+        "pro-studio": "你可以先用快速模板開始，再慢慢調整到想要的效果。",
+        "lora-trainer": "訓練圖片的品質比數量重要——清晰、光線好的圖片效果最佳。",
+      };
+      return hints[page?.pageId ?? ""] ?? "看起來你在思考中...需要靈感的話，隨時問我！";
+    },
+  },
+  {
+    // User idle for 20+ seconds on non-studio pages → generic nudge
+    condition: (m, _p, page) => m.idleSeconds >= 20 && m.idleSeconds < 45 && m.failCount === 0 && !page,
     message: (p) => p === "calm"
       ? "慢慢來，沒有壓力。如果需要靈感，試試閉上眼睛想像一個讓你安心的場景，然後把它描述出來。"
       : p === "technical"
@@ -96,9 +109,16 @@ const PROACTIVE_RULES: Array<{
     switchTo: "creative",
   },
   {
-    // 2+ consecutive failures → empathetic switch to technical
+    // 2+ consecutive failures → empathetic switch to technical with page-specific tip
     condition: (m) => m.failCount >= 2,
-    message: () => "創作過程中的嘗試都是有價值的。我切換到技術模式，幫你微調參數——有時候一個小調整就能帶來大不同。",
+    message: (_p, page) => {
+      const tips: Record<string, string> = {
+        "image-studio": "我切換到技術模式——試試降低解析度或換一個模型，有時候能解決問題。",
+        "video-studio": "我切換到技術模式——影片生成較複雜，試試縮短時長或降低畫質再重試。",
+        "pro-studio": "我切換到技術模式——確認音頻 URL 是否正確，或換一個備選模型。",
+      };
+      return tips[page?.pageId ?? ""] ?? "創作過程中的嘗試都是有價值的。我切換到技術模式，幫你微調參數——有時候一個小調整就能帶來大不同。";
+    },
     switchTo: "technical",
   },
   {
@@ -212,9 +232,9 @@ export function AIStateProvider({ children }: { children: ReactNode }) {
     if (aiState === "generating") return;
 
     for (const rule of PROACTIVE_RULES) {
-      const ruleKey = rule.message(personality);
-      if (rule.condition(metrics, personality) && !proactiveShownRef.current.has(ruleKey)) {
-        setProactiveMessage(rule.message(personality));
+      const ruleKey = rule.message(personality, pageContext);
+      if (rule.condition(metrics, personality, pageContext) && !proactiveShownRef.current.has(ruleKey)) {
+        setProactiveMessage(rule.message(personality, pageContext));
         proactiveShownRef.current.add(ruleKey);
         if (rule.switchTo && rule.switchTo !== personality) {
           setPersonality(rule.switchTo);
@@ -222,7 +242,7 @@ export function AIStateProvider({ children }: { children: ReactNode }) {
         break;
       }
     }
-  }, [metrics.idleSeconds, metrics.failCount, metrics.typingSpeed, aiState, personality]);
+  }, [metrics.idleSeconds, metrics.failCount, metrics.typingSpeed, aiState, personality, pageContext]);
 
   // Wrap setPersonality to persist to localStorage
   const setPersonality = useCallback((p: Personality) => {
