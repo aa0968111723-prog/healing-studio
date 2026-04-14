@@ -345,6 +345,7 @@ function AsyncVideoPoller({
   label?: string;
 }) {
   const modelId = (result.raw as any)?.raw_model_id ?? "";
+  const [dismissed, setDismissed] = useState(false);
 
   const { data, isError, error } = trpc.videoStudio.checkVideoStatus.useQuery(
     { requestId: result.request_id ?? "", modelId },
@@ -361,6 +362,7 @@ function AsyncVideoPoller({
 
   useEffect(() => {
     if ((data as any)?.status === "COMPLETED" && (data as any)?.video_url) {
+      setDismissed(false); // 完成時自動顯示結果
       toast.success(`✅ ${label ?? "影片"} 生成完成！`);
       onUpdate({ ...result, video_url: (data as any).video_url, raw: (data as any).raw });
     } else if ((data as any)?.status === "FAILED") {
@@ -384,16 +386,22 @@ function AsyncVideoPoller({
     );
   }
 
-  // 等待中（有 request_id 但沒有 video_url）
+  // 使用者已關閉等待畫面
+  if (dismissed) return null;
+
+  // 等待中（有 request_id 但沒有 video_url）— 可關閉
   if (result.request_id && !result.video_url) {
     return (
-      <div className="mt-4 p-6 rounded-2xl bg-gradient-to-br from-primary/5 to-purple-500/5 border border-primary/20 flex flex-col items-center justify-center gap-3">
+      <div className="mt-4 p-6 rounded-2xl bg-gradient-to-br from-primary/5 to-purple-500/5 border border-primary/20 flex flex-col items-center justify-center gap-3 relative">
+        <button onClick={() => setDismissed(true)} className="absolute top-2 right-2 p-1.5 rounded-lg hover:bg-accent active:bg-accent/70 transition-colors" title="隱藏等待畫面（背景任務會繼續）">
+          <X className="w-4 h-4 text-muted-foreground" />
+        </button>
         <Loader2 className="w-7 h-7 text-primary animate-spin" />
         <div className="text-center">
-          <p className="text-sm font-semibold text-foreground">{label ?? "影片"} 生成中...</p>
+          <p className="text-sm font-semibold text-foreground">{label ?? "影片"} 背景生成中...</p>
           <p className="text-xs text-muted-foreground mt-1">
-            已提交任務，每 3 秒自動更新進度<br />
-            <span className="text-primary/70 font-mono text-[10px]">ID: {result.request_id.slice(0, 16)}...</span>
+            已轉入背景任務，完成後會自動通知你<br />
+            <span className="text-primary/70">你可以關閉此面板繼續其他操作</span>
           </p>
         </div>
       </div>

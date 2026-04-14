@@ -1458,6 +1458,13 @@ export default function ImageStudio() {
       result = await currentMutation.mutateAsync(input);
       registerBgTask(result, "image", `🖼️ ${model.name}`);
 
+      // 若為非同步任務（只有 request_id），不嘗試提取結果，直接提示並回傳
+      const isAsyncResult = !!(result?.raw?.request_id || result?.raw?.is_async_polling);
+      if (isAsyncResult) {
+        toast.success("📤 任務已提交！背景生成中，完成後會自動通知你");
+        return;
+      }
+
       // Handle 3D result
       if (model.category === "3d") {
         const glb = result?.model_glb_url || null;
@@ -1492,7 +1499,11 @@ export default function ImageStudio() {
       if (result?.images?.length) imgs.push(...result.images);
       else if (result?.image_url) imgs.push(result.image_url);
 
-      if (!imgs.length) { toast.error("生成完成但未取得圖片 URL"); return; }
+      if (!imgs.length) {
+        // 已提交背景任務，不再顯示錯誤
+        toast.success("📤 任務已提交！背景生成中，完成後會自動通知你");
+        return;
+      }
       setResultImages(imgs);
       toast.success(`✨ 生成完成！（${imgs.length} 張）`);
 
