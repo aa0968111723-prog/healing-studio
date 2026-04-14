@@ -6,6 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -45,6 +47,19 @@ import {
   VideoIcon,
   Dumbbell,
   ChevronDown,
+  AlertTriangle,
+  Bug,
+  Lightbulb,
+  Globe,
+  Target,
+  Check,
+  X,
+  Search,
+  BookOpen,
+  Play,
+  RefreshCw,
+  Clock,
+  TrendingUp,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -670,6 +685,10 @@ const FAL_TASK_KEYS: FalTaskKey[] = [
 ];
 
 export default function AiBrainSettings() {
+  // ── Tab State ─────────────────────────────────────────────────────────
+  type TabId = "config" | "alerts" | "errors" | "proposals" | "research" | "accuracy";
+  const [activeTab, setActiveTab] = useState<TabId>("config");
+
   const brainQuery    = trpc.brain.get.useQuery(undefined, { retry: false });
   const catalogQuery  = trpc.brain.catalog.useQuery(undefined, { staleTime: 60_000 });
   const healthQuery   = trpc.brain.healthStatus.useQuery(undefined, { refetchInterval: 30_000 });
@@ -684,6 +703,78 @@ export default function AiBrainSettings() {
     onSuccess: () => { toast.success("大腦組態已儲存"); brainQuery.refetch(); },
     onError: (err) => toast.error("儲存失敗：" + err.message),
   });
+
+  // ── Monitoring Queries (only fetch when active) ───────────────────────
+  const summaryQuery = trpc.brain.monitorSummary.useQuery(undefined, {
+    refetchInterval: 15_000,
+  });
+  const alertsQuery = trpc.brain.alerts.useQuery(undefined, {
+    enabled: activeTab === "alerts",
+    refetchInterval: 10_000,
+  });
+  const errorsQuery = trpc.brain.errorTraces.useQuery(undefined, {
+    enabled: activeTab === "errors",
+    refetchInterval: 15_000,
+  });
+  const proposalsQuery = trpc.brain.proposals.useQuery(undefined, {
+    enabled: activeTab === "proposals",
+    refetchInterval: 15_000,
+  });
+  const researchQuery = trpc.brain.researchResults.useQuery(undefined, {
+    enabled: activeTab === "research",
+  });
+  const testsQuery = trpc.brain.accuracyTests.useQuery(undefined, {
+    enabled: activeTab === "accuracy",
+    refetchInterval: 15_000,
+  });
+
+  // ── Monitoring Mutations ──────────────────────────────────────────────
+  const dismissAlertMut = trpc.brain.dismissAlert.useMutation({
+    onSuccess: () => { toast.success("警報已關閉"); alertsQuery.refetch(); summaryQuery.refetch(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const resolveErrorMut = trpc.brain.resolveError.useMutation({
+    onSuccess: () => { toast.success("已標記解決"); errorsQuery.refetch(); summaryQuery.refetch(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const approveProposalMut = trpc.brain.approveProposal.useMutation({
+    onSuccess: () => { toast.success("提案已批准"); proposalsQuery.refetch(); summaryQuery.refetch(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const rejectProposalMut = trpc.brain.rejectProposal.useMutation({
+    onSuccess: () => { toast.success("提案已拒絕"); proposalsQuery.refetch(); summaryQuery.refetch(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const webSearchMut = trpc.brain.webSearch.useMutation({
+    onSuccess: (data) => { toast.success(`找到 ${data.length} 筆結果`); researchQuery.refetch(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const addToLearnHubMut = trpc.brain.addResearchToLearnHub.useMutation({
+    onSuccess: () => { toast.success("已加入學習文件庫"); researchQuery.refetch(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const runTestMut = trpc.brain.runAccuracyTest.useMutation({
+    onSuccess: (t) => { toast.success(`測試完成：${t.score}/100`); testsQuery.refetch(); summaryQuery.refetch(); },
+    onError: (e) => toast.error(e.message),
+  });
+  const runAllTestsMut = trpc.brain.runAllAccuracyTests.useMutation({
+    onSuccess: (tests) => {
+      const avg = tests.length > 0 ? Math.round(tests.reduce((s, t) => s + t.score, 0) / tests.length) : 0;
+      toast.success(`全部測試完成，平均分數 ${avg}/100`);
+      testsQuery.refetch();
+      summaryQuery.refetch();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  // ── Web Search State ──────────────────────────────────────────────────
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // ── Accuracy Test State ───────────────────────────────────────────────
+  const [testEngine, setTestEngine] = useState("gemini-2.5-flash");
+  const [testType, setTestType] = useState<"response_quality" | "latency" | "consistency" | "error_rate">("response_quality");
+  const [testPrompt, setTestPrompt] = useState("");
+  const [testExpected, setTestExpected] = useState("");
 
   // ── Reasoning Brain State ─────────────────────────────────────────────
   const [directorModel,    setDirectorModel]    = useState("gemini-2.5-pro");
@@ -852,6 +943,40 @@ export default function AiBrainSettings() {
         <Badge variant="outline" className="text-[9px] bg-purple-500/10 text-purple-600 border-purple-500/20">ElevenLabs</Badge>
         <Badge variant="outline" className="text-[9px] bg-green-500/10 text-green-600 border-green-500/20">Suno</Badge>
       </div>
+
+      {/* ── Tab Navigation ──────────────────────────────────────────────── */}
+      <div className="flex gap-1 overflow-x-auto no-scrollbar border-b border-white/10 pb-1">
+        {([
+          { id: "config" as TabId, icon: Brain, label: "組態", badge: null },
+          { id: "alerts" as TabId, icon: AlertTriangle, label: "自動修復", badge: summaryQuery.data?.activeAlerts },
+          { id: "errors" as TabId, icon: Bug, label: "錯誤線索", badge: summaryQuery.data?.unresolvedErrors },
+          { id: "proposals" as TabId, icon: Lightbulb, label: "自我反省", badge: summaryQuery.data?.pendingProposals },
+          { id: "research" as TabId, icon: Globe, label: "爬網研究", badge: summaryQuery.data?.totalResearch },
+          { id: "accuracy" as TabId, icon: Target, label: "精準度測試", badge: summaryQuery.data?.recentTestScore != null ? `${summaryQuery.data.recentTestScore}分` : null },
+        ]).map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all whitespace-nowrap min-h-[44px] ${
+              activeTab === tab.id
+                ? "bg-primary/10 text-primary border border-primary/20"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
+            }`}
+          >
+            <tab.icon className="w-3.5 h-3.5" />
+            {tab.label}
+            {tab.badge != null && Number(tab.badge) > 0 && (
+              <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4 min-w-[18px]">
+                {tab.badge}
+              </Badge>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Tab: Config (original content) ─────────────────────────────── */}
+      {activeTab === "config" && (
+      <>
 
       {/* ── Two-column layout ────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
@@ -1214,6 +1339,380 @@ export default function AiBrainSettings() {
           </div>
         </div>
       </div>
+      </>
+      )}
+
+      {/* ── Tab: Alerts (自動修復監控) ──────────────────────────────────── */}
+      {activeTab === "alerts" && (
+        <div className="space-y-4">
+          <GlassCard>
+            <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-500" />
+              自動修復 API + 提醒管理
+            </h2>
+            <p className="text-xs text-muted-foreground mb-4">
+              系統每 3 分鐘自動巡檢所有 API provider，偵測到故障時自動切換備援引擎，無法修復時通知管理員。
+            </p>
+            {alertsQuery.isLoading ? <ZenSkeleton lines={4} /> : (
+              <div className="space-y-2">
+                {(alertsQuery.data ?? []).length === 0 && (
+                  <p className="text-xs text-muted-foreground/60 py-4 text-center">✅ 目前沒有警報，所有 API 正常運作</p>
+                )}
+                {(alertsQuery.data ?? []).map((alert) => (
+                  <div key={alert.id} className={`rounded-lg border p-3 text-xs ${
+                    alert.dismissedAt ? "opacity-50 border-muted" :
+                    alert.severity === "critical" ? "border-red-500/30 bg-red-500/5" :
+                    alert.severity === "warning" ? "border-amber-500/30 bg-amber-500/5" :
+                    "border-emerald-500/30 bg-emerald-500/5"
+                  }`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <Badge variant="outline" className={`text-[9px] ${
+                            alert.severity === "critical" ? "text-red-600 border-red-500/30" :
+                            alert.severity === "warning" ? "text-amber-600 border-amber-500/30" :
+                            "text-emerald-600 border-emerald-500/30"
+                          }`}>
+                            {alert.severity}
+                          </Badge>
+                          <span className="font-medium">{alert.engine}</span>
+                          {alert.autoRepaired && <Badge variant="secondary" className="text-[9px]">已自動修復</Badge>}
+                        </div>
+                        <p className="text-muted-foreground">{alert.message}</p>
+                        <p className="text-[10px] text-muted-foreground/60 mt-1">
+                          {new Date(alert.createdAt).toLocaleString("zh-TW")}
+                          {alert.repairedWith && ` · 備援: ${alert.repairedWith}`}
+                        </p>
+                      </div>
+                      {!alert.dismissedAt && alert.severity !== "info" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-[10px] h-7 shrink-0"
+                          onClick={() => dismissAlertMut.mutate({ alertId: alert.id })}
+                          disabled={dismissAlertMut.isPending}
+                        >
+                          <Check className="w-3 h-3 mr-1" />
+                          關閉
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </GlassCard>
+        </div>
+      )}
+
+      {/* ── Tab: Errors (錯誤線索) ─────────────────────────────────────── */}
+      {activeTab === "errors" && (
+        <div className="space-y-4">
+          <GlassCard>
+            <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+              <Bug className="w-4 h-4 text-red-500" />
+              生成錯誤線索系統
+            </h2>
+            <p className="text-xs text-muted-foreground mb-4">
+              追蹤所有失敗的生成任務，自動爬網搜尋修復方案，並建立優化提案通知管理員。
+            </p>
+            {errorsQuery.isLoading ? <ZenSkeleton lines={4} /> : (
+              <div className="space-y-2">
+                {(errorsQuery.data ?? []).length === 0 && (
+                  <p className="text-xs text-muted-foreground/60 py-4 text-center">✅ 目前沒有錯誤記錄</p>
+                )}
+                {(errorsQuery.data ?? []).map((trace) => (
+                  <div key={trace.id} className={`rounded-lg border p-3 text-xs ${
+                    trace.resolvedAt ? "opacity-50 border-muted" : "border-red-500/20 bg-red-500/5"
+                  }`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <Badge variant="outline" className="text-[9px]">{trace.modality}</Badge>
+                          <span className="font-medium">{trace.engine}</span>
+                          {trace.errorCode && <Badge variant="secondary" className="text-[9px]">{trace.errorCode}</Badge>}
+                          {trace.resolvedAt && <Badge variant="secondary" className="text-[9px] bg-emerald-500/10 text-emerald-600">已解決</Badge>}
+                        </div>
+                        <p className="text-muted-foreground break-all">{trace.errorMessage.slice(0, 200)}</p>
+                        {trace.webSearchResult && (
+                          <p className="text-[10px] text-blue-500/80 mt-1">🔍 {trace.webSearchResult.slice(0, 150)}...</p>
+                        )}
+                        <p className="text-[10px] text-muted-foreground/60 mt-1">
+                          {new Date(trace.createdAt).toLocaleString("zh-TW")}
+                        </p>
+                      </div>
+                      {!trace.resolvedAt && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-[10px] h-7 shrink-0"
+                          onClick={() => resolveErrorMut.mutate({ traceId: trace.id, resolution: "手動標記已解決" })}
+                          disabled={resolveErrorMut.isPending}
+                        >
+                          <Check className="w-3 h-3 mr-1" />
+                          解決
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </GlassCard>
+        </div>
+      )}
+
+      {/* ── Tab: Proposals (自我反省) ──────────────────────────────────── */}
+      {activeTab === "proposals" && (
+        <div className="space-y-4">
+          <GlassCard>
+            <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+              <Lightbulb className="w-4 h-4 text-yellow-500" />
+              回饋自我反省優化系統
+            </h2>
+            <p className="text-xs text-muted-foreground mb-4">
+              AI 自動分析系統表現，提出優化提案。所有修改需經管理員審核批准後才會套用。
+            </p>
+            {proposalsQuery.isLoading ? <ZenSkeleton lines={4} /> : (
+              <div className="space-y-3">
+                {(proposalsQuery.data ?? []).length === 0 && (
+                  <p className="text-xs text-muted-foreground/60 py-4 text-center">目前沒有優化提案</p>
+                )}
+                {(proposalsQuery.data ?? []).map((p) => (
+                  <div key={p.id} className={`rounded-lg border p-3 text-xs ${
+                    p.status === "pending" ? "border-yellow-500/30 bg-yellow-500/5" :
+                    p.status === "approved" ? "border-emerald-500/30 bg-emerald-500/5 opacity-70" :
+                    "border-red-500/20 bg-red-500/5 opacity-50"
+                  }`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <Badge variant="outline" className="text-[9px]">{p.category}</Badge>
+                          <Badge variant={p.status === "approved" ? "default" : p.status === "rejected" ? "destructive" : "secondary"} className="text-[9px]">
+                            {p.status === "pending" ? "待審核" : p.status === "approved" ? "已批准" : "已拒絕"}
+                          </Badge>
+                          <span className="text-[10px] text-muted-foreground">信心度 {p.confidence}%</span>
+                        </div>
+                        <p className="font-medium mb-1">{p.title}</p>
+                        <p className="text-muted-foreground">{p.description.slice(0, 200)}</p>
+                        <div className="flex gap-4 mt-1.5 text-[10px] text-muted-foreground/60">
+                          <span>現行：{p.currentValue}</span>
+                          <span>→ 建議：{p.proposedValue.slice(0, 80)}</span>
+                        </div>
+                        {p.adminNote && <p className="text-[10px] text-blue-500/80 mt-1">管理員備註：{p.adminNote}</p>}
+                        <p className="text-[10px] text-muted-foreground/60 mt-1">
+                          {new Date(p.createdAt).toLocaleString("zh-TW")}
+                        </p>
+                      </div>
+                      {p.status === "pending" && (
+                        <div className="flex flex-col gap-1 shrink-0">
+                          <Button
+                            size="sm"
+                            className="text-[10px] h-7 bg-emerald-600 hover:bg-emerald-700"
+                            onClick={() => approveProposalMut.mutate({ proposalId: p.id })}
+                            disabled={approveProposalMut.isPending}
+                          >
+                            <Check className="w-3 h-3 mr-1" />
+                            批准
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-[10px] h-7 text-red-600 hover:text-red-700"
+                            onClick={() => rejectProposalMut.mutate({ proposalId: p.id })}
+                            disabled={rejectProposalMut.isPending}
+                          >
+                            <X className="w-3 h-3 mr-1" />
+                            拒絕
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </GlassCard>
+        </div>
+      )}
+
+      {/* ── Tab: Research (爬網研究) ───────────────────────────────────── */}
+      {activeTab === "research" && (
+        <div className="space-y-4">
+          <GlassCard>
+            <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+              <Globe className="w-4 h-4 text-blue-500" />
+              爬網找資料功能
+            </h2>
+            <p className="text-xs text-muted-foreground mb-4">
+              搜尋開源模型、程式碼、API 文件等資源。搜尋結果可直接加入學習文件庫供 AI 使用。
+            </p>
+            <div className="flex gap-2 mb-4">
+              <Input
+                placeholder="搜尋 AI 模型、API 錯誤修復方案..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && searchQuery.trim()) {
+                    webSearchMut.mutate({ query: searchQuery.trim() });
+                  }
+                }}
+                className="text-xs"
+              />
+              <Button
+                size="sm"
+                onClick={() => searchQuery.trim() && webSearchMut.mutate({ query: searchQuery.trim() })}
+                disabled={webSearchMut.isPending || !searchQuery.trim()}
+                className="shrink-0"
+              >
+                <Search className="w-3.5 h-3.5 mr-1" />
+                {webSearchMut.isPending ? "搜尋中..." : "搜尋"}
+              </Button>
+            </div>
+          </GlassCard>
+
+          <GlassCard>
+            <h3 className="text-xs font-semibold text-foreground mb-3">搜尋結果</h3>
+            {researchQuery.isLoading ? <ZenSkeleton lines={3} /> : (
+              <div className="space-y-2">
+                {(researchQuery.data ?? []).length === 0 && (
+                  <p className="text-xs text-muted-foreground/60 py-4 text-center">尚無搜尋結果，請在上方輸入搜尋詞</p>
+                )}
+                {(researchQuery.data ?? []).map((r) => (
+                  <div key={r.id} className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-3 text-xs">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <Badge variant="outline" className="text-[9px]">{r.source}</Badge>
+                          <span className="text-[10px] text-muted-foreground">相關度 {r.relevance}%</span>
+                          {r.addedToLearnHub && <Badge variant="secondary" className="text-[9px] bg-emerald-500/10 text-emerald-600">已加入學習庫</Badge>}
+                        </div>
+                        <a href={r.url} target="_blank" rel="noopener noreferrer" className="font-medium text-blue-600 hover:underline">
+                          {r.title}
+                        </a>
+                        <p className="text-muted-foreground mt-1">{r.summary.slice(0, 200)}</p>
+                        <p className="text-[10px] text-muted-foreground/60 mt-1">{new Date(r.createdAt).toLocaleString("zh-TW")}</p>
+                      </div>
+                      {!r.addedToLearnHub && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-[10px] h-7 shrink-0"
+                          onClick={() => addToLearnHubMut.mutate({ researchId: r.id })}
+                          disabled={addToLearnHubMut.isPending}
+                        >
+                          <BookOpen className="w-3 h-3 mr-1" />
+                          加入學習庫
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </GlassCard>
+        </div>
+      )}
+
+      {/* ── Tab: Accuracy (精準度測試) ─────────────────────────────────── */}
+      {activeTab === "accuracy" && (
+        <div className="space-y-4">
+          <GlassCard>
+            <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+              <Target className="w-4 h-4 text-indigo-500" />
+              AI 精準度測試系統
+            </h2>
+            <p className="text-xs text-muted-foreground mb-4">
+              自行測試生成式 AI 的回應品質、延遲、一致性。低於門檻時自動建立優化提案（需管理員批准）。
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+              <div>
+                <Label className="text-[10px]">引擎</Label>
+                <Input value={testEngine} onChange={(e) => setTestEngine(e.target.value)} className="text-xs mt-1" placeholder="gemini-2.5-flash" />
+              </div>
+              <div>
+                <Label className="text-[10px]">測試類型</Label>
+                <Select value={testType} onValueChange={(v) => setTestType(v as typeof testType)}>
+                  <SelectTrigger className="text-xs mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="response_quality">回應品質</SelectItem>
+                    <SelectItem value="latency">延遲測試</SelectItem>
+                    <SelectItem value="consistency">一致性</SelectItem>
+                    <SelectItem value="error_rate">錯誤率</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-[10px]">測試提示詞</Label>
+                <Input value={testPrompt} onChange={(e) => setTestPrompt(e.target.value)} className="text-xs mt-1" placeholder="用 30 字描述一棵樹" />
+              </div>
+              <div>
+                <Label className="text-[10px]">預期行為</Label>
+                <Input value={testExpected} onChange={(e) => setTestExpected(e.target.value)} className="text-xs mt-1" placeholder="回傳繁體中文，字數接近 30" />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                onClick={() => testPrompt.trim() && testExpected.trim() && runTestMut.mutate({ engine: testEngine, testType, testPrompt, expectedBehavior: testExpected })}
+                disabled={runTestMut.isPending || !testPrompt.trim() || !testExpected.trim()}
+              >
+                <Play className="w-3.5 h-3.5 mr-1" />
+                {runTestMut.isPending ? "測試中..." : "執行測試"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => runAllTestsMut.mutate()}
+                disabled={runAllTestsMut.isPending}
+              >
+                <RefreshCw className={`w-3.5 h-3.5 mr-1 ${runAllTestsMut.isPending ? "animate-spin" : ""}`} />
+                {runAllTestsMut.isPending ? "批量測試中..." : "執行全部預定義測試"}
+              </Button>
+            </div>
+          </GlassCard>
+
+          <GlassCard>
+            <h3 className="text-xs font-semibold text-foreground mb-3 flex items-center gap-2">
+              <TrendingUp className="w-3.5 h-3.5" />
+              測試結果歷史
+            </h3>
+            {testsQuery.isLoading ? <ZenSkeleton lines={3} /> : (
+              <div className="space-y-2">
+                {(testsQuery.data ?? []).length === 0 && (
+                  <p className="text-xs text-muted-foreground/60 py-4 text-center">尚無測試記錄，請執行測試</p>
+                )}
+                {(testsQuery.data ?? []).map((t) => (
+                  <div key={t.id} className={`rounded-lg border p-3 text-xs ${
+                    t.passed ? "border-emerald-500/20 bg-emerald-500/5" : "border-red-500/20 bg-red-500/5"
+                  }`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <Badge variant="outline" className="text-[9px]">{t.engine}</Badge>
+                          <Badge variant="secondary" className="text-[9px]">{t.testType}</Badge>
+                          <span className={`font-bold text-sm ${t.passed ? "text-emerald-600" : "text-red-600"}`}>
+                            {t.score}/100
+                          </span>
+                          {t.passed ? <Check className="w-3 h-3 text-emerald-600" /> : <X className="w-3 h-3 text-red-600" />}
+                        </div>
+                        <p className="text-muted-foreground">提示：{t.testPrompt}</p>
+                        <p className="text-muted-foreground mt-0.5">結果：{t.actualResult.slice(0, 200)}</p>
+                        {t.suggestions.length > 0 && (
+                          <div className="mt-1.5 text-[10px] text-amber-600">
+                            💡 {t.suggestions.join("；")}
+                          </div>
+                        )}
+                        <p className="text-[10px] text-muted-foreground/60 mt-1">{new Date(t.createdAt).toLocaleString("zh-TW")}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </GlassCard>
+        </div>
+      )}
     </div>
   );
 }
