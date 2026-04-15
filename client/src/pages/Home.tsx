@@ -196,6 +196,14 @@ const PERSONALITY_LABELS: Record<string, { label: string; color: string }> = {
   technical: { label: "技術模式", color: "rgba(80,255,180,0.6)" },
 };
 
+/** Default personality color when personality key is unknown */
+const DEFAULT_PERSONALITY_COLOR = "rgba(255,80,180,0.6)";
+
+/** Get personality color with fallback */
+function getPersonalityColor(personality: string): string {
+  return PERSONALITY_LABELS[personality]?.color ?? DEFAULT_PERSONALITY_COLOR;
+}
+
 // ─── Carousel Dot Indicator ─────────────────────────────────────────────────
 
 function CarouselDots({
@@ -499,7 +507,7 @@ export default function Home() {
               <motion.div
                 className="absolute w-48 h-48 sm:w-64 sm:h-64 rounded-full pointer-events-none"
                 style={{
-                  background: `radial-gradient(circle, ${PERSONALITY_LABELS[personality]?.color ?? "rgba(255,80,180,0.15)"} 0%, transparent 70%)`,
+                  background: `radial-gradient(circle, ${getPersonalityColor(personality)} 0%, transparent 70%)`,
                 }}
                 animate={{
                   scale: [1, 1.15, 1],
@@ -512,9 +520,9 @@ export default function Home() {
                 className="relative"
                 animate={{
                   filter: [
-                    `drop-shadow(0 0 30px ${PERSONALITY_LABELS[personality]?.color ?? "rgba(255,80,180,0.4)"})`,
-                    `drop-shadow(0 0 50px ${PERSONALITY_LABELS[personality]?.color ?? "rgba(255,80,180,0.6)"})`,
-                    `drop-shadow(0 0 30px ${PERSONALITY_LABELS[personality]?.color ?? "rgba(255,80,180,0.4)"})`,
+                    `drop-shadow(0 0 30px ${getPersonalityColor(personality)})`,
+                    `drop-shadow(0 0 50px ${getPersonalityColor(personality)})`,
+                    `drop-shadow(0 0 30px ${getPersonalityColor(personality)})`,
                   ],
                 }}
                 transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
@@ -839,7 +847,7 @@ export default function Home() {
               <motion.div
                 className="absolute inset-0 pointer-events-none"
                 style={{
-                  background: `radial-gradient(ellipse at 50% 30%, ${PERSONALITY_LABELS[personality]?.color ?? "rgba(255,80,180,0.08)"} 0%, transparent 60%)`,
+                  background: `radial-gradient(ellipse at 50% 30%, ${getPersonalityColor(personality)} 0%, transparent 60%)`,
                 }}
                 animate={{ opacity: [0.3, 0.6, 0.3] }}
                 transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
@@ -849,9 +857,9 @@ export default function Home() {
                   <motion.div
                     animate={{
                       filter: [
-                        `drop-shadow(0 0 20px ${PERSONALITY_LABELS[personality]?.color ?? "rgba(255,80,180,0.3)"})`,
-                        `drop-shadow(0 0 40px ${PERSONALITY_LABELS[personality]?.color ?? "rgba(255,80,180,0.5)"})`,
-                        `drop-shadow(0 0 20px ${PERSONALITY_LABELS[personality]?.color ?? "rgba(255,80,180,0.3)"})`,
+                        `drop-shadow(0 0 20px ${getPersonalityColor(personality)})`,
+                        `drop-shadow(0 0 40px ${getPersonalityColor(personality)})`,
+                        `drop-shadow(0 0 20px ${getPersonalityColor(personality)})`,
                       ],
                     }}
                     transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}

@@ -734,7 +734,7 @@ const IntelBentoGrid = memo(function IntelBentoGrid({ sceneId }: IntelBentoGridP
                     key={i}
                     onClick={() => scrollTo(i)}
                     className={`rounded-full transition-all duration-700 ${
-                      i === currentSlide ? "opacity-50" : "opacity-12 hover:opacity-20"
+                      i === currentSlide ? "opacity-50" : "opacity-[0.12] hover:opacity-20"
                     }`}
                     style={{ background: SCENE_DOT_COLORS[sceneId] }}
                     animate={{
