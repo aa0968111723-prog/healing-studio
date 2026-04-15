@@ -13,11 +13,15 @@ import { Button } from "@/components/ui/button";
 interface GenerationActionBarProps {
   actionMode: ActionMode;
   onActionModeChange: (mode: ActionMode) => void;
-  workspaceMode: WorkspaceMode;
-  onWorkspaceModeChange: (mode: WorkspaceMode) => void;
+  /** @deprecated Use creativeMode in Studio instead. Still accepted for backwards compat. */
+  workspaceMode?: WorkspaceMode;
+  /** @deprecated Use creativeMode in Studio instead. */
+  onWorkspaceModeChange?: (mode: WorkspaceMode) => void;
   onGenerate: () => void;
   isGenerating: boolean;
   hasResult: boolean;
+  /** When true, render a bigger more prominent generate button (zen mode) */
+  zenMode?: boolean;
 }
 
 const actionModes = [
@@ -86,9 +90,30 @@ export function GenerationActionBar({
   onGenerate,
   isGenerating,
   hasResult,
+  zenMode = false,
 }: GenerationActionBarProps) {
   const current = actionModes.find((a) => a.mode === actionMode) ?? actionModes[0];
   const currentWsMode = workspaceModes.find((w) => w.mode === workspaceMode) ?? workspaceModes[0];
+
+  /* Zen mode: only show the big generate button */
+  if (zenMode) {
+    return (
+      <div className="space-y-2">
+        <Button
+          className="w-full h-14 rounded-2xl text-base font-semibold shadow-lg hover:shadow-xl transition-all bg-emerald-600 hover:bg-emerald-500"
+          disabled={isGenerating}
+          onClick={onGenerate}
+        >
+          {isGenerating ? (
+            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+          ) : (
+            <Wand2 className="mr-2 h-5 w-5" />
+          )}
+          {isGenerating ? "生成中…" : "開始創作"}
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">
@@ -141,32 +166,34 @@ export function GenerationActionBar({
         {isGenerating ? "生成中…" : current.buttonLabel}
       </Button>
 
-      {/* Workspace mode toggle */}
-      <div className="space-y-1.5">
-        <div className="flex gap-1 rounded-lg bg-white/5 backdrop-blur-sm p-0.5">
-          {workspaceModes.map(({ mode, label, Icon }) => {
-            const active = workspaceMode === mode;
-            return (
-              <button
-                key={mode}
-                onClick={() => onWorkspaceModeChange(mode)}
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-1 rounded-md px-2 py-1.5 text-[11px] font-medium transition-all",
-                  active
-                    ? "bg-white/15 text-white shadow-sm"
-                    : "text-white/50 hover:text-white/80 hover:bg-white/5",
-                )}
-              >
-                <Icon className="h-3 w-3" />
-                {label}
-              </button>
-            );
-          })}
+      {/* Workspace mode toggle — hidden when creativeMode is used in Studio */}
+      {onWorkspaceModeChange && (
+        <div className="space-y-1.5">
+          <div className="flex gap-1 rounded-lg bg-white/5 backdrop-blur-sm p-0.5">
+            {workspaceModes.map(({ mode, label, Icon }) => {
+              const active = workspaceMode === mode;
+              return (
+                <button
+                  key={mode}
+                  onClick={() => onWorkspaceModeChange(mode)}
+                  className={cn(
+                    "flex-1 flex items-center justify-center gap-1 rounded-md px-2 py-1.5 text-[11px] font-medium transition-all",
+                    active
+                      ? "bg-white/15 text-white shadow-sm"
+                      : "text-white/50 hover:text-white/80 hover:bg-white/5",
+                  )}
+                >
+                  <Icon className="h-3 w-3" />
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-[11px] text-white/40 text-center">
+            {currentWsMode.description}
+          </p>
         </div>
-        <p className="text-[11px] text-white/40 text-center">
-          {currentWsMode.description}
-        </p>
-      </div>
+      )}
     </div>
   );
 }

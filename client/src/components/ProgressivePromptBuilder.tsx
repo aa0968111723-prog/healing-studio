@@ -383,6 +383,8 @@ type ProgressivePromptBuilderProps = {
   value: PromptBuilderOutput;
   onChange: (output: PromptBuilderOutput) => void;
   modality?: string;
+  /** When true, show enlarged vibe cards and hide blocks/advanced sections */
+  zenMode?: boolean;
 };
 
 // ─── Self-Attention Token Chip ─────────────────────────────────────────────
@@ -786,7 +788,7 @@ function SaveComboDialog({
 
 // ─── Main Component ────────────────────────────────────────────────────────
 
-export const ProgressivePromptBuilder = memo(function ProgressivePromptBuilder({ value, onChange, modality, onType }: ProgressivePromptBuilderProps & { onType?: (len: number) => void }) {
+export const ProgressivePromptBuilder = memo(function ProgressivePromptBuilder({ value, onChange, modality, onType, zenMode }: ProgressivePromptBuilderProps & { onType?: (len: number) => void }) {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [blocksOpen, setBlocksOpen] = useState(false);
   const [attentionOpen, setAttentionOpen] = useState(false);
@@ -1068,12 +1070,14 @@ export const ProgressivePromptBuilder = memo(function ProgressivePromptBuilder({
   const canSaveCombo = totalSelected > 0 || value.vibeCardIds.length > 0;
 
   return (
-    <div className="space-y-4">
+    <div className={cn("space-y-4", zenMode && "space-y-6")}>
       {/* ═══ Section 1: Main Prompt Textarea ═══ */}
-      <div className="space-y-2">
+      <div className={cn("space-y-2", zenMode && "space-y-3")}>
         <div className="flex items-center justify-between">
-          <Label className="text-sm font-medium text-foreground">創作描述</Label>
-          {value.compiledPrompt && value.compiledPrompt !== value.rawPrompt && (
+          <Label className={cn("text-sm font-medium text-foreground", zenMode && "text-base")}>
+            {zenMode ? "想創作什麼？" : "創作描述"}
+          </Label>
+          {!zenMode && value.compiledPrompt && value.compiledPrompt !== value.rawPrompt && (
             <span className="text-[10px] text-muted-foreground/70 flex items-center gap-1">
               <Sparkles className="w-3 h-3" />
               已自動編譯進階提示詞
@@ -1081,14 +1085,17 @@ export const ProgressivePromptBuilder = memo(function ProgressivePromptBuilder({
           )}
         </div>
         <Textarea
-          placeholder={promptPlaceholder}
+          placeholder={zenMode ? "描述你想看到的畫面，或直接選擇下方靈感卡片..." : promptPlaceholder}
           value={value.rawPrompt}
           onChange={(e) => {
             updateField("rawPrompt", e.target.value);
             onType?.(e.target.value.length);
           }}
-          rows={3}
-          className="rounded-xl bg-white/40 border-white/60 resize-none text-sm placeholder:text-muted-foreground/40 focus-visible:ring-1 focus-visible:ring-primary/30 focus-visible:border-primary/30"
+          rows={zenMode ? 4 : 3}
+          className={cn(
+            "rounded-xl bg-white/40 border-white/60 resize-none text-sm placeholder:text-muted-foreground/40 focus-visible:ring-1 focus-visible:ring-primary/30 focus-visible:border-primary/30",
+            zenMode && "text-base py-4 px-5 rounded-2xl",
+          )}
         />
       </div>
 
@@ -1096,7 +1103,10 @@ export const ProgressivePromptBuilder = memo(function ProgressivePromptBuilder({
       {(modality === "image" || modality === "video" || modality === "audio" || !modality) && (
         <div className="space-y-2.5">
           <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">氛圍風格</Label>
-          <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
+          <div className={cn(
+            "grid gap-2",
+            zenMode ? "grid-cols-2 sm:grid-cols-4 gap-3" : "grid-cols-4 sm:grid-cols-8",
+          )}>
             {VIBE_CARDS.map((card) => {
               const isSelected = value.vibeCardIds.includes(card.id);
               return (
@@ -1105,8 +1115,9 @@ export const ProgressivePromptBuilder = memo(function ProgressivePromptBuilder({
                   whileTap={{ scale: 0.93 }}
                   onClick={() => toggleVibe(card.id)}
                   className={cn(
-                    "relative flex flex-col items-center gap-1.5 p-2.5 rounded-xl transition-all",
+                    "relative flex flex-col items-center gap-1.5 rounded-xl transition-all",
                     "hover:shadow-md active:scale-95",
+                    zenMode ? "p-4 rounded-2xl" : "p-2.5",
                     isSelected
                       ? "ring-2 ring-primary/40 shadow-md"
                       : "hover:ring-1 hover:ring-border/50"
@@ -1118,19 +1129,33 @@ export const ProgressivePromptBuilder = memo(function ProgressivePromptBuilder({
                   }}
                 >
                   <div
-                    className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground"
+                    className={cn(
+                      "rounded-lg flex items-center justify-center text-muted-foreground",
+                      zenMode ? "w-10 h-10" : "w-8 h-8",
+                    )}
                     style={{ backgroundColor: `${card.color}40` }}
                   >
-                    {vibeIcons[card.id] || <Sparkles className="w-4 h-4" />}
+                    {vibeIcons[card.id] || <Sparkles className={zenMode ? "w-5 h-5" : "w-4 h-4"} />}
                   </div>
-                  <span className="text-[10px] font-medium text-foreground leading-tight">{card.labelZh}</span>
+                  <span className={cn(
+                    "font-medium text-foreground leading-tight",
+                    zenMode ? "text-xs" : "text-[10px]",
+                  )}>
+                    {card.labelZh}
+                  </span>
+                  {zenMode && (
+                    <span className="text-[9px] text-muted-foreground/60">{card.description}</span>
+                  )}
                   {isSelected && (
                     <motion.div
                       initial={{ scale: 0 }}
                       animate={{ scale: 1 }}
-                      className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-primary flex items-center justify-center"
+                      className={cn(
+                        "absolute rounded-full bg-primary flex items-center justify-center",
+                        zenMode ? "-top-1.5 -right-1.5 w-5 h-5" : "-top-1 -right-1 w-4 h-4",
+                      )}
                     >
-                      <svg className="w-2.5 h-2.5 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <svg className={zenMode ? "w-3 h-3 text-primary-foreground" : "w-2.5 h-2.5 text-primary-foreground"} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                       </svg>
                     </motion.div>
@@ -1142,7 +1167,9 @@ export const ProgressivePromptBuilder = memo(function ProgressivePromptBuilder({
         </div>
       )}
 
-      {/* ═══ Section 3: Visual / Audio Blocks (collapsed by default) ═══ */}
+      {/* ═══ Section 3+ : Blocks, Self-Attention, Advanced — hidden in zen mode ═══ */}
+      {!zenMode && (
+        <>
       <div className="rounded-xl overflow-hidden" style={{
         background: "rgba(255,255,255,0.25)",
         backdropFilter: "blur(12px)",
@@ -1479,6 +1506,8 @@ export const ProgressivePromptBuilder = memo(function ProgressivePromptBuilder({
           )}
         </AnimatePresence>
       </div>
+        </>
+      )}
 
       {/* ═══ Dialogs ═══ */}
       <CreateBlockDialog

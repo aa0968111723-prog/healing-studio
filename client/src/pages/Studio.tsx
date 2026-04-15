@@ -17,7 +17,7 @@ import {
   Image, Video, Music, Mic, Wand2, Download, Copy,
   PanelLeftOpen, PanelLeftClose, PanelRightOpen, PanelRightClose,
   Layers, Settings2, Clock, Package, X, Star, Bookmark, BookmarkCheck,
-  Send, RefreshCw, StickyNote, Cpu, Check,
+  Send, RefreshCw, StickyNote, Cpu, Check, Briefcase,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useIsMobile } from "@/hooks/useMobile";
@@ -36,6 +36,11 @@ import ProactiveOrbWidget from "@/components/ProactiveOrbWidget";
 import OnboardingTour from "@/components/OnboardingTour";
 import { useNotesDrawer } from "@/contexts/NotesDrawerContext";
 import { requireAuth } from "@/components/AuthExpiredModal";
+
+// ─── Zen Mode / Creative Mode ────────────────────────────────────────────────
+import { ZenModeSelector, loadCreativeMode } from "@/components/ZenModeSelector";
+import { InspirationQuickPanel, type InspirationBlocks } from "@/components/InspirationQuickPanel";
+import type { CreativeMode } from "@/stores/workspaceStore";
 
 // ─── New Workspace Components ────────────────────────────────────────────────
 import {
@@ -306,18 +311,28 @@ export default function Studio() {
   const [fineTunedModelName, setFineTunedModelName] = useState<string | undefined>(undefined);
 
   // ── UI state ──
+  const [creativeMode, setCreativeMode] = useState<CreativeMode>(loadCreativeMode);
   const [leftDrawerOpen, setLeftDrawerOpen] = useState(false);
   const [leftDrawerTab, setLeftDrawerTab] = useState<"vault" | "assets" | "models">("vault");
   const [rightDrawerOpen, setRightDrawerOpen] = useState(false);
   const [controlsSheetOpen, setControlsSheetOpen] = useState(false);
   const [mobileDrawerSheet, setMobileDrawerSheet] = useState<"left" | "right" | null>(null);
+  const [toolboxSheetOpen, setToolboxSheetOpen] = useState(false);
+  const [toolboxTab, setToolboxTab] = useState<"vault" | "assets" | "models" | "history" | "controls">("vault");
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [resultData, setResultData] = useState<Record<string, unknown> | null>(null);
   const [thoughtChain, setThoughtChain] = useState<ThoughtNode[]>([]);
 
   // ── Multi-Modal Workspace State (new) ──
   const modalityKey = (activeModality === "audio" ? "music" : activeModality) as Modality;
+  // Derive workspaceMode from creativeMode for backward compat
+  const derivedWorkspaceMode: WSMode = creativeMode === "pro" ? "advanced" : "beginner";
   const [workspaceMode, setWorkspaceMode] = useState<WSMode>("beginner");
+  // Sync workspaceMode when creativeMode changes
+  useEffect(() => { setWorkspaceMode(derivedWorkspaceMode); }, [derivedWorkspaceMode]);
+  const isZen = creativeMode === "zen";
+  const isStandard = creativeMode === "standard";
+  const isPro = creativeMode === "pro";
   const [actionMode, setActionMode] = useState<ActionMode>("generate");
   const [promptStrength, setPromptStrength] = useState<PromptStrengthLevel>("medium");
   const [structuredBlocks, setStructuredBlocks] = useState<Record<string, StructuredBlock[]>>({
