@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from "react";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -38,8 +38,12 @@ export function CalendarProvider({ children }: { children: ReactNode }) {
     setIsOpen(true);
   }, []);
 
+  const contextValue = useMemo(() => ({
+    isOpen, pendingEvent, openCalendar, closeCalendar, addToCalendar,
+  }), [isOpen, pendingEvent, openCalendar, closeCalendar, addToCalendar]);
+
   return (
-    <CalendarContext.Provider value={{ isOpen, pendingEvent, openCalendar, closeCalendar, addToCalendar }}>
+    <CalendarContext.Provider value={contextValue}>
       {children}
     </CalendarContext.Provider>
   );

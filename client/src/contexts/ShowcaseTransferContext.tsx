@@ -14,6 +14,7 @@ import {
   createContext,
   useContext,
   useCallback,
+  useMemo,
   useState,
   type ReactNode,
 } from "react";
@@ -124,10 +125,12 @@ export function ShowcaseTransferProvider({ children }: { children: ReactNode }) 
     return null;
   }, [payload]);
 
+  const contextValue = useMemo(() => ({
+    payload, setPayload, consumePayload, isLoading, setIsLoading,
+  }), [payload, setPayload, consumePayload, isLoading, setIsLoading]);
+
   return (
-    <ShowcaseTransferContext.Provider
-      value={{ payload, setPayload, consumePayload, isLoading, setIsLoading }}
-    >
+    <ShowcaseTransferContext.Provider value={contextValue}>
       {children}
     </ShowcaseTransferContext.Provider>
   );

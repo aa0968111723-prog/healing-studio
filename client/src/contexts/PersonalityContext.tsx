@@ -25,6 +25,7 @@ import {
   useContext,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
 } from "react";
 import { useMachine } from "@xstate/react";
@@ -224,24 +225,31 @@ export function PersonalityProvider({ children }: { children: React.ReactNode })
     };
   }, [send]);
 
+  const config = PERSONALITY_CONFIGS[personality];
+
+  const contextValue = useMemo(() => ({
+    personality,
+    config,
+    isManual,
+    aiState,
+    setPersonality,
+    resetToAuto,
+    onTyping,
+    onAdvancedParams,
+    onGenerationStart,
+    onGenerationDone,
+    onGenerationFail,
+    onThinkingStart,
+    onThinkingDone,
+  }), [
+    personality, config, isManual, aiState,
+    setPersonality, resetToAuto, onTyping, onAdvancedParams,
+    onGenerationStart, onGenerationDone, onGenerationFail,
+    onThinkingStart, onThinkingDone,
+  ]);
+
   return (
-    <PersonalityContext.Provider
-      value={{
-        personality,
-        config: PERSONALITY_CONFIGS[personality],
-        isManual,
-        aiState,
-        setPersonality,
-        resetToAuto,
-        onTyping,
-        onAdvancedParams,
-        onGenerationStart,
-        onGenerationDone,
-        onGenerationFail,
-        onThinkingStart,
-        onThinkingDone,
-      }}
-    >
+    <PersonalityContext.Provider value={contextValue}>
       {children}
     </PersonalityContext.Provider>
   );
