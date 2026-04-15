@@ -71,16 +71,16 @@ function getStateConfig(state: AIState, personality: Personality) {
   const configs = {
     idle: {
       gradient: [
-        `radial-gradient(circle at 35% 35%, rgba(${colors.primary},0.85), rgba(${colors.secondary},0.6), rgba(${colors.accent},0.4))`,
-        `radial-gradient(circle at 45% 45%, rgba(${colors.secondary},0.85), rgba(${colors.accent},0.6), rgba(${colors.primary},0.4))`,
-        `radial-gradient(circle at 35% 35%, rgba(${colors.primary},0.85), rgba(${colors.secondary},0.6), rgba(${colors.accent},0.4))`,
+        `radial-gradient(circle at 35% 35%, rgba(${colors.primary},0.7), rgba(${colors.secondary},0.5), rgba(${colors.accent},0.3))`,
+        `radial-gradient(circle at 45% 45%, rgba(${colors.secondary},0.7), rgba(${colors.accent},0.5), rgba(${colors.primary},0.3))`,
+        `radial-gradient(circle at 35% 35%, rgba(${colors.primary},0.7), rgba(${colors.secondary},0.5), rgba(${colors.accent},0.3))`,
       ],
-      glowColor:     `rgba(${colors.primary},0.6)`,
-      glowPulse:     [`0 0 16px rgba(${colors.primary},0.4), 0 0 32px rgba(${colors.primary},0.15)`, `0 0 24px rgba(${colors.primary},0.6), 0 0 48px rgba(${colors.primary},0.25)`, `0 0 16px rgba(${colors.primary},0.4), 0 0 32px rgba(${colors.primary},0.15)`],
-      breathDuration: 3 * bm,
-      rotateSpeed:   20,
-      scale:         [1, 1.04, 1] as number[],
-      particleOpacity: 0.3,
+      glowColor:     `rgba(${colors.primary},0.4)`,
+      glowPulse:     [`0 0 10px rgba(${colors.primary},0.25), 0 0 24px rgba(${colors.primary},0.1)`, `0 0 18px rgba(${colors.primary},0.4), 0 0 36px rgba(${colors.primary},0.18)`, `0 0 10px rgba(${colors.primary},0.25), 0 0 24px rgba(${colors.primary},0.1)`],
+      breathDuration: 4 * bm,
+      rotateSpeed:   25,
+      scale:         [1, 1.03, 1] as number[],
+      particleOpacity: 0.2,
     },
     thinking: {
       gradient: [

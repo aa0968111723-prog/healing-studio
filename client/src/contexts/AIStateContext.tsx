@@ -86,50 +86,50 @@ const PROACTIVE_RULES: Array<{
   switchTo?: Personality;
 }> = [
   {
-    // User idle for 60+ seconds → page-aware gentle nudge (was 20s, now 60s to be less intrusive)
-    condition: (m, _p, page) => m.idleSeconds >= 60 && m.idleSeconds < 120 && m.failCount === 0 && !!page,
+    // User idle for 90+ seconds on studio pages → warm, healing-tone nudge (no pressure)
+    condition: (m, _p, page) => m.idleSeconds >= 90 && m.idleSeconds < 180 && m.failCount === 0 && !!page,
     message: (_p, page) => {
       const hints: Record<string, string> = {
-        "image-studio": "需要靈感嗎？點我可以幫你推薦風格或優化提詞。",
-        "video-studio": "影片提詞小技巧：描述「動態」和「鏡頭運動」可以大幅提升效果。",
-        "pro-studio": "想要快速開始？可以先試試模板。",
-        "lora-trainer": "訓練圖片的品質比數量重要——清晰、光線好的圖片效果最佳。",
+        "image-studio": "🌿 想到什麼畫面了嗎？不急，靈感會在放鬆的時候來。",
+        "video-studio": "✨ 影片創作需要想像力——試著閉眼想像你要的畫面。",
+        "pro-studio": "🎵 音樂是心靈的語言，隨時可以開始嘗試。",
+        "lora-trainer": "🌸 訓練需要耐心，就像種一棵樹一樣。",
       };
-      return hints[page?.pageId ?? ""] ?? "有什麼需要幫忙的嗎？點我開始對話。";
+      return hints[page?.pageId ?? ""] ?? "🌿 我在這裡陪你，需要的時候隨時點我。";
     },
   },
   {
-    // User idle for 60+ seconds on non-studio pages → gentle nudge (was 20s)
-    condition: (m, _p, page) => m.idleSeconds >= 60 && m.idleSeconds < 120 && m.failCount === 0 && !page,
+    // User idle for 90+ seconds on non-studio pages → gentle presence reminder
+    condition: (m, _p, page) => m.idleSeconds >= 90 && m.idleSeconds < 180 && m.failCount === 0 && !page,
     message: (p) => p === "calm"
-      ? "慢慢來，不急。需要的時候隨時點我。"
+      ? "🌿 慢慢來，享受這個安靜的時刻。"
       : p === "technical"
-      ? "需要技術建議嗎？我隨時在。"
-      : "需要靈感的話，隨時點我聊聊。",
+      ? "🔧 想到什麼了嗎？我隨時在這。"
+      : "✨ 放鬆一下，靈感不會消失的。",
   },
   {
-    // User typing very fast → affirm and switch to creative mode
-    condition: (m, p) => m.typingSpeed > 5 && p !== "creative",
-    message: () => "靈感湧現了！切換到創意模式。",
-    switchTo: "creative",
+    // User typing very fast → gently affirm momentum (no personality switch to avoid disruption)
+    condition: (m, _p) => m.typingSpeed > 6,
+    message: () => "✨ 感覺你很有靈感呢！繼續加油。",
+    // No personality switch — don't disrupt flow
   },
   {
-    // 3+ consecutive failures → empathetic switch to technical (was 2, now 3 for less interruption)
+    // 3+ consecutive failures → healing empathy + gentle help offer
     condition: (m) => m.failCount >= 3,
     message: (_p, page) => {
       const tips: Record<string, string> = {
-        "image-studio": "連續幾次沒成功——試試降低解析度或換一個模型？",
-        "video-studio": "影片生成較複雜，試試縮短時長或降低畫質再重試。",
-        "pro-studio": "確認音頻 URL 是否正確，或換一個備選模型。",
+        "image-studio": "🌸 沒關係的，生成有時候需要嘗試。要不要我幫你調整看看？",
+        "video-studio": "🌸 影片生成比較費時，這很正常。我來幫你想想其他方法？",
+        "pro-studio": "🌸 音訊處理有時候會挑剔，我來幫你排查一下？",
       };
-      return tips[page?.pageId ?? ""] ?? "遇到困難了嗎？我切換到技術模式，幫你排查問題。";
+      return tips[page?.pageId ?? ""] ?? "🌸 每次嘗試都是學習的機會。讓我幫你看看有沒有更順暢的方式？";
     },
     switchTo: "technical",
   },
   {
-    // Idle 120+ seconds → single warm nudge (was 45s)
-    condition: (m) => m.idleSeconds >= 120 && m.idleSeconds < 180,
-    message: () => "休息也是創作的一部分。準備好了隨時點我。",
+    // Idle 180+ seconds → acknowledge rest, no pressure to return
+    condition: (m) => m.idleSeconds >= 180 && m.idleSeconds < 300,
+    message: () => "🌿 休息是創作的一部分。你的光球會一直在這裡等你。",
   },
 ];
 
@@ -213,7 +213,7 @@ export function AIStateProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Thresholds at which proactive rules fire (from PROACTIVE_RULES conditions)
-    const THRESHOLDS = [5, 60, 120, 180];
+    const THRESHOLDS = [5, 90, 180, 300];
     idleTimerRef.current = setInterval(() => {
       idleSecondsRef.current += 1;
       const sec = idleSecondsRef.current;
