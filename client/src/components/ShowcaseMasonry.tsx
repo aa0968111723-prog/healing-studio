@@ -30,6 +30,13 @@ import type { SceneId } from "./AmbientEnvironment";
 import RippleTransition, { useRippleTransition } from "./RippleTransition";
 import { useShowcaseTransfer, type ShowcaseTransferPayload } from "@/contexts/ShowcaseTransferContext";
 import { useSenseEngine, useCardSenseProps, useSectionScrollSense } from "@/hooks/useSenseEngine";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  type CarouselApi,
+} from "@/components/ui/carousel";
+import Autoplay from "embla-carousel-autoplay";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -127,6 +134,18 @@ const SCENE_MASONRY_STYLES: Record<SceneId, MasonrySceneStyles> = {
   },
 };
 
+// ─── Scene dot indicator colors ────────────────────────────────────────────
+
+const SCENE_DOT_COLORS: Record<SceneId, string> = {
+  nightSky: "#e0e7ff",
+  morning: "#78350f",
+  cafe: "#1c1917",
+  deepSea: "#ecfeff",
+};
+
+/** Max dot indicators shown in carousel to prevent visual clutter */
+const MAX_VISIBLE_DOTS = 10;
+
 // ─── Modality config ────────────────────────────────────────────────────────
 
 const MODALITY_CONFIG: Record<
@@ -208,7 +227,7 @@ function ProgressiveImage({
         </div>
       )}
 
-      {/* Actual image (lazy loaded) */}
+      {/* Actual image (lazy loaded) — with gentle zoom on card hover */}
       {inView && displaySrc && (
         <motion.img
           src={displaySrc}
@@ -218,8 +237,8 @@ function ProgressiveImage({
           onLoad={() => setLoaded(true)}
           initial={{ opacity: 0 }}
           animate={{ opacity: loaded ? 1 : 0 }}
-          transition={{ duration: 0.5, ease: SOFT_BOUNCE }}
-          className="relative w-full h-auto block"
+          transition={{ duration: 0.6, ease: SOFT_BOUNCE }}
+          className="relative w-full h-auto block img-healing"
           style={{ contentVisibility: "auto" }}
         />
       )}
@@ -287,14 +306,14 @@ function MasonryCard({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
-      whileHover={{ scale: 1.02 }}
-      transition={{ duration: 0.4, ease: SOFT_BOUNCE }}
+      whileHover={{ y: -3 }}
+      transition={{ duration: 0.5, ease: SOFT_BOUNCE }}
       onHoverStart={() => { setIsHovered(true); senseProps.onMouseEnter({} as React.MouseEvent); }}
       onHoverEnd={() => { setIsHovered(false); senseProps.onMouseLeave(); }}
       onMouseMove={(e) => senseProps.onMouseMove(e)}
       onMouseDown={() => senseProps.onMouseDown()}
       onMouseUp={() => senseProps.onMouseUp()}
-      className="break-inside-avoid mb-4 rounded-xl overflow-hidden cursor-pointer group"
+      className="break-inside-avoid mb-4 rounded-xl overflow-hidden cursor-pointer group card-healing"
       style={{
         background: styles.cardBg,
         border: `1px solid ${styles.cardBorder}`,
@@ -311,10 +330,10 @@ function MasonryCard({
         className="absolute inset-0 pointer-events-none z-10 rounded-xl"
         animate={{
           boxShadow: isHovered
-            ? `inset 0 0 0 1.5px rgba(255,255,255,0.12), 0 8px 24px 0 ${styles.glowColor}`
-            : `inset 0 0 0 1px rgba(255,255,255,0.05), 0 0 0 0 transparent`,
+            ? `inset 0 0 0 1.5px rgba(255,255,255,0.1), 0 12px 32px 0 ${styles.glowColor}`
+            : `inset 0 0 0 1px rgba(255,255,255,0.04), 0 0 0 0 transparent`,
         }}
-        transition={{ duration: 0.4, ease: SOFT_BOUNCE }}
+        transition={{ duration: 0.5, ease: SOFT_BOUNCE }}
       />
 
       {/* Image with progressive loading */}
@@ -509,6 +528,36 @@ export default function ShowcaseMasonry({
   const sentinelRef = useRef<HTMLDivElement>(null);
   const [, navigate] = useLocation();
 
+  // ─── Carousel state ─────────────────────────────────────────────
+  const [showcaseApi, setShowcaseApi] = useState<CarouselApi>();
+  const [showcaseSlide, setShowcaseSlide] = useState(0);
+  const [showcaseSlideCount, setShowcaseSlideCount] = useState(0);
+  const showcaseAutoplay = useMemo(
+    () => Autoplay({ delay: 4500, stopOnInteraction: true, stopOnMouseEnter: true }),
+    [],
+  );
+
+  useEffect(() => {
+    if (!showcaseApi) return;
+    const onSelect = () => setShowcaseSlide(showcaseApi.selectedScrollSnap());
+    const onReInit = () => {
+      setShowcaseSlideCount(showcaseApi.scrollSnapList().length);
+      setShowcaseSlide(showcaseApi.selectedScrollSnap());
+    };
+    showcaseApi.on("select", onSelect);
+    showcaseApi.on("reInit", onReInit);
+    onReInit();
+    return () => {
+      showcaseApi.off("select", onSelect);
+      showcaseApi.off("reInit", onReInit);
+    };
+  }, [showcaseApi]);
+
+  const showcaseScrollTo = useCallback(
+    (idx: number) => showcaseApi?.scrollTo(idx),
+    [showcaseApi],
+  );
+
   // Sense Engine: micro-behavior tracking
   const senseEngine = useSenseEngine({ dwellThreshold: 5000, scrollHesitationThreshold: 3 });
   const sectionScrollRef = useSectionScrollSense(senseEngine, "showcase-masonry");
@@ -701,26 +750,40 @@ export default function ShowcaseMasonry({
   return (
     <section
       ref={sectionScrollRef}
-      className="py-20 px-4 relative z-10"
+      className="section-breathing px-4 relative z-10"
       style={{ background: styles.sectionBg }}
     >
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-5xl mx-auto">
+        {/* Soft gradient divider */}
+        <div
+          className="mx-auto max-w-3xl mb-12 h-px"
+          style={{
+            background: `linear-gradient(90deg, transparent, ${styles.cardBorder}, transparent)`,
+          }}
+        />
         {/* Section header */}
         <motion.div
-          initial={{ opacity: 0, y: 30 }}
+          initial={{ opacity: 0, y: 28 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-80px" }}
-          transition={{ duration: 0.6, ease: SOFT_BOUNCE }}
-          className="text-center mb-10"
+          viewport={{ once: true, margin: "-100px" }}
+          transition={{ duration: 0.7, ease: SOFT_BOUNCE }}
+          className="text-center mb-12"
         >
           <h2
             className={`text-2xl sm:text-3xl font-bold tracking-tight ${styles.titleColor}`}
           >
             精選作品
           </h2>
-          <p className={`mt-3 text-sm ${styles.subtitleColor}`}>
+          <p className={`mt-4 text-sm ${styles.subtitleColor}`}>
             社群創作者的靈感結晶，探索多模態 AI 的無限可能
           </p>
+          {/* Healing divider */}
+          <div
+            className="mx-auto mt-8 w-16 h-[1px] rounded-full"
+            style={{
+              background: `linear-gradient(90deg, transparent, ${styles.cardBorder}, transparent)`,
+            }}
+          />
         </motion.div>
 
         {/* Modality filter tabs */}
@@ -740,11 +803,8 @@ export default function ShowcaseMasonry({
 
         {/* Loading skeleton */}
         {isLoading && (
-          <div
-            className="columns-2 sm:columns-3 lg:columns-4 gap-4"
-            style={{ columnFill: "balance" }}
-          >
-            {Array.from({ length: 8 }).map((_, i) => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
               <SkeletonCard key={i} styles={styles} />
             ))}
           </div>
@@ -759,35 +819,78 @@ export default function ShowcaseMasonry({
           </div>
         )}
 
-        {/* Empty state */}
+        {/* Empty state — with gentle breathing */}
         {!isLoading && !isError && allItems.length === 0 && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="text-center py-16"
+            className="text-center py-20"
           >
-            <Sparkles className={`w-10 h-10 mx-auto mb-4 ${styles.textMuted}`} />
+            <motion.div
+              animate={{ scale: [1, 1.08, 1], opacity: [0.4, 0.7, 0.4] }}
+              transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+            >
+              <Sparkles className={`w-10 h-10 mx-auto mb-5 ${styles.textMuted}`} />
+            </motion.div>
             <p className={`text-sm ${styles.textMuted}`}>
               暫無精選作品，敬請期待
             </p>
           </motion.div>
         )}
 
-        {/* Masonry grid */}
+        {/* ── Carousel layout — gentle sliding showcase ── */}
         {!isLoading && allItems.length > 0 && (
-          <div
-            className="columns-2 sm:columns-3 lg:columns-4 gap-4"
-            style={{ columnFill: "balance" }}
-          >
-            <AnimatePresence mode="popLayout">
-              {allItems.map((item) => (
-                <MasonryCard key={item.id} item={item} styles={styles} onCardClick={handleCardClick as any} senseEngine={senseEngine} onVisibilityChange={trackVisibility} />
-              ))}
-            </AnimatePresence>
+          <div className="w-full">
+            <Carousel
+              setApi={setShowcaseApi}
+              plugins={[showcaseAutoplay]}
+              opts={{ align: "start", loop: true }}
+              className="w-full carousel-fade-edge"
+            >
+              <CarouselContent className="-ml-5">
+                {/* Cap at 24 items for carousel performance — prevents excessive DOM nodes and keeps navigation snappy */}
+                {allItems.slice(0, 24).map((item) => (
+                  <CarouselItem key={item.id} className="pl-5 basis-full sm:basis-1/2 lg:basis-1/3">
+                    <MasonryCard
+                      item={item}
+                      styles={styles}
+                      onCardClick={handleCardClick as any}
+                      senseEngine={senseEngine}
+                      onVisibilityChange={trackVisibility}
+                    />
+                  </CarouselItem>
+                ))}
+              </CarouselContent>
+            </Carousel>
+
+            {/* Carousel dot indicators */}
+            {showcaseSlideCount > 1 && (
+              <div className="flex items-center justify-center gap-2.5 mt-10">
+                {Array.from({ length: Math.min(showcaseSlideCount, MAX_VISIBLE_DOTS) }).map((_, i) => (
+                  <motion.button
+                    key={i}
+                    onClick={() => showcaseScrollTo(i)}
+                    className="rounded-full transition-all duration-700"
+                    style={{
+                      background: SCENE_DOT_COLORS[sceneId],
+                      opacity: i === showcaseSlide ? 0.5 : 0.12,
+                    }}
+                    animate={{
+                      width: i === showcaseSlide ? 28 : 8,
+                      height: 8,
+                    }}
+                    transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                    aria-label={`Go to slide ${i + 1}`}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         )}
 
-        {/* Infinite scroll sentinel */}
+        {/* Infinite scroll sentinel — prefetches additional data that populates the carousel.
+            Carousel displays up to 24 items; newly fetched items replace/extend the carousel pool
+            via allItems computed value, keeping the experience fresh as user browses. */}
         <div ref={sentinelRef} className="h-4" />
 
         {/* Loading more indicator */}

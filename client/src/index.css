@@ -436,6 +436,67 @@
     border: none;
   }
 
+  /* ─── Deep Healing Section — generous breathing whitespace ──── */
+  .section-breathing {
+    padding-top: 3.5rem;
+    padding-bottom: 3.5rem;
+  }
+  @media (min-width: 640px) {
+    .section-breathing {
+      padding-top: 5rem;
+      padding-bottom: 5rem;
+    }
+  }
+
+  /* Card glass healing — delicate frosted glass effect */
+  .card-healing {
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                box-shadow 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                border-color 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  .card-healing:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 40px rgba(108, 108, 108, 0.06), 0 4px 16px rgba(212, 197, 226, 0.08);
+  }
+
+  /* Ambient glow pulse — for active/focused elements */
+  .glow-healing {
+    animation: glowPulse 4s ease-in-out infinite;
+  }
+  @keyframes glowPulse {
+    0%, 100% { box-shadow: 0 0 20px rgba(212, 197, 226, 0.1), 0 0 40px rgba(212, 197, 226, 0.05); }
+    50% { box-shadow: 0 0 30px rgba(212, 197, 226, 0.2), 0 0 60px rgba(212, 197, 226, 0.08); }
+  }
+
+  /* Image reveal on hover — gentle zoom for showcase cards */
+  .img-healing {
+    transition: transform 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                filter 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  .group:hover .img-healing {
+    transform: scale(1.04);
+  }
+
+  /* Fade-in edge mask for carousel — soft fade at edges */
+  .carousel-fade-edge {
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      #000 3%,
+      #000 97%,
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      #000 3%,
+      #000 97%,
+      transparent 100%
+    );
+  }
+
   /* ─── Workspace Reduced Motion — respect user preference ──────── */
   @media (prefers-reduced-motion: reduce) {
     .workspace-ambient-bg {
