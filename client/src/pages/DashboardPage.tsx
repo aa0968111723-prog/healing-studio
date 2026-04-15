@@ -160,9 +160,9 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex items-center gap-3">
         <LayoutDashboard className="w-5 h-5 text-muted-foreground" />
-        <h1 className="text-xl font-semibold">儀表板</h1>
+        <h1 className="hs-h2 !mb-0">儀表板</h1>
       </div>
-      <p className="text-xs text-muted-foreground -mt-4">查看個人使用統計、配額餘額與成本分析。</p>
+      <p className="hs-small !mb-0 text-muted-foreground -mt-4">查看個人使用統計、配額餘額與成本分析。</p>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -177,9 +177,9 @@ export default function DashboardPage() {
               <div className={`w-9 h-9 rounded-lg ${card.color} flex items-center justify-center mb-3`}>
                 <card.icon className={`w-4 h-4 ${card.textColor}`} />
               </div>
-              <p className="text-[11px] text-muted-foreground">{card.label}</p>
+              <p className="hs-small !mb-0 text-muted-foreground">{card.label}</p>
               <p className={`text-xl font-semibold mt-1 ${card.textColor}`}>{card.value}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">{card.unit}</p>
+              <p className="hs-small !mb-0 text-muted-foreground mt-0.5">{card.unit}</p>
             </GlassCard>
           </motion.div>
         ))}
@@ -197,7 +197,7 @@ export default function DashboardPage() {
           <GlassCard hover={false}>
             <div className="flex items-center gap-2 mb-4">
               <Activity className="w-4 h-4 text-muted-foreground" />
-              <h2 className="text-sm font-semibold">近 7 天活躍趨勢</h2>
+              <h2 className="hs-h3 !mb-0">近 7 天活躍趨勢</h2>
             </div>
             {dailyChartData.every(d => d.請求數 === 0) ? (
               <div className="flex items-center justify-center h-40 text-sm text-muted-foreground">
@@ -220,7 +220,7 @@ export default function DashboardPage() {
           <GlassCard hover={false}>
             <div className="flex items-center gap-2 mb-4">
               <BarChart3 className="w-4 h-4 text-muted-foreground" />
-              <h2 className="text-sm font-semibold">模態使用分布</h2>
+              <h2 className="hs-h3 !mb-0">模態使用分布</h2>
             </div>
             {pieData.length === 0 ? (
               <div className="flex items-center justify-center h-40 text-sm text-muted-foreground">
@@ -273,7 +273,7 @@ export default function DashboardPage() {
         <GlassCard hover={false}>
           <div className="flex items-center gap-2 mb-4">
             <DollarSign className="w-4 h-4 text-muted-foreground" />
-            <h2 className="text-sm font-semibold">近 7 天費用趨勢 (USD)</h2>
+            <h2 className="hs-h3 !mb-0">近 7 天費用趨勢 (USD)</h2>
           </div>
           <ResponsiveContainer width="100%" height={160}>
             <LineChart data={dailyChartData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
@@ -301,12 +301,12 @@ export default function DashboardPage() {
       <GlassCard hover={false}>
         <div className="flex items-center gap-2 mb-4">
           <Clock className="w-4 h-4 text-muted-foreground" />
-          <h2 className="text-sm font-semibold">最近使用紀錄</h2>
+          <h2 className="hs-h3 !mb-0">最近使用紀錄</h2>
         </div>
         {statsQuery.isLoading ? (
           <ZenSkeleton lines={5} />
         ) : !stats?.recentLogs || stats.recentLogs.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-8">還沒有使用紀錄</p>
+          <p className="hs-small !mb-0 text-muted-foreground text-center py-8">還沒有使用紀錄</p>
         ) : (
           <div className="space-y-2">
             {stats.recentLogs.map((log) => (
@@ -338,11 +338,11 @@ export default function DashboardPage() {
                         : "失敗"}
                     </Badge>
                   </div>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                  <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
                     {log.apiProvider} | {log.tokensUsed ?? 0} tokens | ${log.estimatedCostUsd ?? "0"}
                   </p>
                 </div>
-                <span className="text-[11px] text-muted-foreground shrink-0">
+                <span className="hs-small !mb-0 text-muted-foreground shrink-0">
                   {new Date(log.createdAt).toLocaleString("zh-TW")}
                 </span>
               </div>
