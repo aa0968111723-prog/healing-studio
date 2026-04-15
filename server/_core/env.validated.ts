@@ -56,12 +56,14 @@ const coreSchema = z.object({
   //   S3_SECRET_ACCESS_KEY = <R2 Secret Access Key>
   //   S3_BUCKET_NAME       = <bucket 名稱>
   //   S3_PUBLIC_URL        = https://pub-xxxx.r2.dev  （選填，R2 公開網域）
+  //   S3_PUBLIC_DOMAIN     = 同上，向後相容別名
   //   S3_REGION            = auto                      （選填，R2 固定 auto）
   S3_ENDPOINT:           z.string().optional().default(""),
   S3_ACCESS_KEY_ID:      z.string().optional().default(""),
   S3_SECRET_ACCESS_KEY:  z.string().optional().default(""),
   S3_BUCKET_NAME:        z.string().optional().default(""),
   S3_PUBLIC_URL:         z.string().optional().default(""),
+  S3_PUBLIC_DOMAIN:      z.string().optional().default(""),
   S3_REGION:             z.string().optional().default("auto"),
 
   // ── 管理員信箱（逗號分隔，登入時自動設為 admin）─────────
@@ -102,11 +104,16 @@ const multimodalSchema = z.object({
 
   // ── AI 監控（LangSmith）──────────────────────────────────
   LANGSMITH_API_KEY:      z.string().min(1).optional().default(""),
-  LANGSMITH_PROJECT:      z.string().optional().default("ai-director"),
-  LANGCHAIN_TRACING_V2:   z.string().optional().default("false"),
+  LANGSMITH_PROJECT:      z.string().optional().default("網站"),
+  LANGCHAIN_TRACING_V2:   z.string().optional().default("true"),
   LANGCHAIN_ENDPOINT:     z.string().optional().default("https://api.smith.langchain.com"),
 
+  // ── LLM 引擎路由選擇 ──────────────────────────────────────
+  // auto = 健康感知自動路由（gemini > minimax > vertex > forge）
+  LLM_ENGINE: z.enum(["auto", "gemini", "vertex", "forge", "minimax"]).optional().default("auto"),
+
   // ── MiniMax M2.7 via NVIDIA NIM（光球 AI 代理人引擎）──────────────────────
+  // ⚠️ 注意：env var 名稱為 NVIDA_API（Railway 歷史相容，非筆誤）
   NVIDA_API:              z.string().min(1).optional().default(""),
 
   // ── Brave Search API ──────────────────────────────────────

@@ -82,6 +82,7 @@ async function checkSafety(text: string): Promise<{ safe: boolean; reason?: stri
         },
         { role: "user", content: text },
       ],
+      runName: "safety-moderation",
       maxTokens: 256,
       response_format: {
         type: "json_schema",
@@ -177,6 +178,7 @@ async function compileElitePrompt(payload: {
         },
         { role: "user", content: payload.prompt },
       ],
+      runName: "prompt-compiler",
       maxTokens: 2048,
       // Inject brain model & parameters when available
       ...(payload.brainModel ? { model: payload.brainModel } : {}),
@@ -1286,6 +1288,7 @@ export const appRouter = router({
       }))
       .mutation(async ({ input }) => {
         const result = await withTimeout(invokeLLM({
+          runName: "prompt-judge",
           messages: [
             {
               role: "system",
@@ -1377,6 +1380,7 @@ export const appRouter = router({
       }))
       .mutation(async ({ input }) => {
         const result = await withTimeout(invokeLLM({
+          runName: "inspiration-chips",
           messages: [
             {
               role: "system",
@@ -1902,6 +1906,7 @@ export const appRouter = router({
         for (const img of input.images) {
           try {
             const result = await withTimeout(invokeLLM({
+              runName: "lora-image-captioner",
               messages: [
                 {
                   role: "system",
@@ -2315,30 +2320,53 @@ export const appRouter = router({
         // Prefer MiniMax M2.7 via NVIDIA NIM for orb agent, fallback to default
         const enginePreference = serverEnv.NVIDA_API ? "minimax" as const : undefined;
 
-        const result = await withTimeout(invokeLLM({
-          messages: [
-            { role: "system", content: systemPrompt },
-            ...input.messages.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
-          ],
-          engine: enginePreference,
-          runName: "orb-agent-chat",
-        }), 20_000, "光球聊天");
+        try {
+          const result = await withTimeout(invokeLLM({
+            messages: [
+              { role: "system", content: systemPrompt },
+              ...input.messages.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
+            ],
+            engine: enginePreference,
+            runName: "orb-agent-chat",
+          }), 20_000, "光球聊天");
 
-        const rawReply = typeof result.choices[0]?.message?.content === "string"
-          ? result.choices[0].message.content
-          : "抱歉，我剛才走神了。你說什麼？";
+          const rawReply = typeof result.choices[0]?.message?.content === "string"
+            ? result.choices[0].message.content
+            : "";
 
-        // Parse agent actions from reply (format: [ACTION:type:payload] at end of message)
-        const actionPattern = /\[ACTION:(\w+):([^\]]*)\]/g;
-        const actions: Array<{ type: string; payload: string }> = [];
-        let reply = rawReply;
-        let match;
-        while ((match = actionPattern.exec(rawReply)) !== null) {
-          actions.push({ type: match[1], payload: match[2] });
-          reply = reply.replace(match[0], "").trim();
+          if (!rawReply) {
+            console.warn("[Orb] Empty LLM response, using fallback");
+            return { reply: "✨ 抱歉，我暫時無法回應。稍後再試試看吧～", actions: [] };
+          }
+
+          // ── Parse & whitelist ACTION commands ──
+          const ALLOWED_ACTIONS = new Set([
+            "navigate", "preset", "modality", "focus",
+            "generate", "refine", "export",
+          ]);
+          const actionPattern = /\[ACTION:(\w+):([^\]]*)\]/g;
+          const actions: Array<{ type: string; payload: string }> = [];
+          let reply = rawReply;
+          let match;
+          while ((match = actionPattern.exec(rawReply)) !== null) {
+            if (ALLOWED_ACTIONS.has(match[1])) {
+              actions.push({ type: match[1], payload: match[2] });
+            } else {
+              console.warn(`[Orb] Rejected unknown action type: ${match[1]}`);
+            }
+            reply = reply.replace(match[0], "").trim();
+          }
+
+          return { reply, actions };
+        } catch (err) {
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          console.error("[Orb] Chat error:", errorMsg);
+          // Return healing-style fallback rather than crashing
+          return {
+            reply: "🌿 抱歉，我剛才遇到了一點小狀況。請稍等一下再試試～如果問題持續，可以在設定頁檢查 API 設定唷。",
+            actions: [],
+          };
         }
-
-        return { reply, actions };
       }),
   }),
 

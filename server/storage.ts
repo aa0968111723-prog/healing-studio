@@ -175,7 +175,7 @@ async function s3Upload(
   const region          = serverEnv.S3_REGION || "auto";
   const accessKeyId     = serverEnv.S3_ACCESS_KEY_ID!;
   const secretAccessKey = serverEnv.S3_SECRET_ACCESS_KEY!;
-  const publicUrl       = serverEnv.S3_PUBLIC_URL || undefined;
+  const publicUrl       = serverEnv.S3_PUBLIC_URL || serverEnv.S3_PUBLIC_DOMAIN || undefined;
 
   const key    = relKey.replace(/^\/+/, "");
   const body   = typeof data === "string" ? Buffer.from(data, "utf-8") : Buffer.from(data);
@@ -185,7 +185,7 @@ async function s3Upload(
 
 function s3GetUrl(relKey: string): StorageResult {
   const key       = relKey.replace(/^\/+/, "");
-  const publicUrl = serverEnv.S3_PUBLIC_URL;
+  const publicUrl = serverEnv.S3_PUBLIC_URL || serverEnv.S3_PUBLIC_DOMAIN;
   const endpoint  = serverEnv.S3_ENDPOINT!.replace(/\/+$/, "");
   const bucket    = serverEnv.S3_BUCKET_NAME!;
   const url = publicUrl

@@ -35,7 +35,7 @@ export type ModelCategory =
 export interface ModelPricing {
   modelId: string;
   label: string;
-  provider: "fal" | "gemini" | "vertex" | "elevenlabs" | "suno" | "openai" | "anthropic";
+  provider: "fal" | "gemini" | "vertex" | "elevenlabs" | "suno" | "openai" | "anthropic" | "nvidia";
   category: ModelCategory;
   tier: PricingTier;
 
@@ -2058,6 +2058,21 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     maxPoints: 50,
     requiresKey: true,
     keyEnvVar: "FAL_API_KEY",
+  },
+  // ── MiniMax M2.7 via NVIDIA NIM（光球 AI 代理人推理引擎）──
+  "minimaxai/minimax-m2.7": {
+    modelId: "minimaxai/minimax-m2.7",
+    label: "MiniMax M2.7 (NVIDIA NIM)",
+    provider: "nvidia",
+    category: "llm",
+    tier: "standard",
+    basePoints: 1,
+    baseCostUsd: 0.01,
+    unit: "每次呼叫",
+    minPoints: 1,
+    maxPoints: 10,
+    requiresKey: true,
+    keyEnvVar: "NVIDA_API",
   },
 };
 

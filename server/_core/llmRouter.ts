@@ -1,24 +1,32 @@
 /**
- * llmRouter.ts — 三引擎智慧路由層
+ * llmRouter.ts — 四引擎智慧路由層（含斷路器 + 健康感知自動降級）
  *
- * ┌─────────────────────────────────────────────────────┐
- * │              LLM Router (此檔案)                     │
- * ├──────────────┬──────────────────┬───────────────────┤
- * │  Engine A    │   Engine B       │   Engine C        │
- * │  Gemini API  │  Vertex AI       │  Manus Forge      │
- * │  (直接呼叫)  │  (GCP SDK)       │  (向後相容降級)   │
- * └──────────────┴──────────────────┴───────────────────┘
+ * ┌─────────────────────────────────────────────────────────────────┐
+ * │                    LLM Router (此檔案)                          │
+ * ├──────────────┬────────────┬──────────────────┬─────────────────┤
+ * │  Engine A    │ Engine B   │   Engine C       │   Engine D      │
+ * │  Gemini API  │ Vertex AI  │  Manus Forge     │  MiniMax M2.7   │
+ * │  (直接呼叫)  │ (GCP SDK)  │  (向後相容降級)  │  (NVIDIA NIM)   │
+ * └──────────────┴────────────┴──────────────────┴─────────────────┘
  *
  * 路由策略（可在 .env 中設定 LLM_ENGINE 覆蓋）：
- *   auto     → 自動偵測可用引擎，優先 Gemini > Forge
+ *   auto     → 自動偵測可用引擎，健康感知優先：gemini > minimax > vertex > forge
  *   gemini   → 強制使用 Gemini API（需要 GEMINI_API_KEY）
  *   vertex   → 強制使用 Vertex AI（需要 GOOGLE_APPLICATION_CREDENTIALS_JSON）
  *   forge    → 強制使用 Manus Forge（需要 BUILT_IN_FORGE_API_KEY）
+ *   minimax  → 強制使用 MiniMax M2.7 via NVIDIA NIM（需要 NVIDA_API）
  *
  * 每個 Engine 支援的功能：
- *   Engine A (Gemini API)：chat, json_mode, function_calling, vision
- *   Engine B (Vertex AI) ：chat, json_mode, function_calling, vision, grounding, long_context
- *   Engine C (Forge)     ：chat, json_mode, function_calling, vision, thinking, whisper, maps
+ *   Engine A (Gemini API)   ：chat, json_mode, function_calling, vision, thinking
+ *   Engine B (Vertex AI)    ：chat, json_mode, function_calling, vision, grounding, long_context
+ *   Engine C (Forge)        ：chat, json_mode, function_calling, vision, thinking, whisper, maps
+ *   Engine D (MiniMax M2.7) ：chat, json_mode, function_calling, long_context (200K), agentic
+ *
+ * 穩定性機制：
+ *   1. Circuit Breaker — 連續失敗 N 次後自動斷路，冷卻後半開放試探
+ *   2. Health-Aware Routing — auto 模式自動跳過不健康的引擎
+ *   3. Automatic Failover — invokeLLM 內建引擎降級鏈，首選引擎失敗後自動嘗試備援
+ *   4. Exponential Backoff — 每次重試指數退避，避免雪崩
  */
 
 import { serverEnv } from "./env.validated";
@@ -30,12 +38,111 @@ export type LLMEngine = "gemini" | "vertex" | "forge" | "minimax" | "auto";
 
 export interface EngineConfig {
   name: string;
+  engine: LLMEngine;           // 引擎識別符
   url: string;
   apiKey: string;
   model: string;
   supportsThinking: boolean;    // extended reasoning budget_tokens
   supportsGrounding: boolean;   // Google Search grounding
-  supportsLongContext: boolean; // >1M token context
+  supportsLongContext: boolean;  // >1M token context
+  supportsToolCalling: boolean; // function calling / tool use
+}
+
+// ─── Circuit Breaker（斷路器）──────────────────────────────────────────────
+
+/**
+ * 斷路器狀態：
+ *   CLOSED   — 正常運作，失敗計數累積
+ *   OPEN     — 已斷路，所有請求直接跳過此引擎
+ *   HALF_OPEN — 冷卻結束，允許一次試探請求
+ */
+type CircuitState = "CLOSED" | "OPEN" | "HALF_OPEN";
+
+interface CircuitBreakerEntry {
+  state: CircuitState;
+  failures: number;
+  lastFailureAt: number;
+  lastSuccessAt: number;
+  openedAt: number;            // 進入 OPEN 狀態的時間
+}
+
+/** 連續失敗幾次後斷路 */
+const CIRCUIT_FAILURE_THRESHOLD = 3;
+/** 斷路後冷卻時間（毫秒），冷卻後進入 HALF_OPEN */
+const CIRCUIT_COOLDOWN_MS = 60_000; // 60 秒
+/** 成功一次後重置計數器 */
+const CIRCUIT_SUCCESS_RESET = true;
+
+const circuitBreakers = new Map<LLMEngine, CircuitBreakerEntry>();
+
+function getCircuit(engine: LLMEngine): CircuitBreakerEntry {
+  if (!circuitBreakers.has(engine)) {
+    circuitBreakers.set(engine, {
+      state: "CLOSED",
+      failures: 0,
+      lastFailureAt: 0,
+      lastSuccessAt: Date.now(),
+      openedAt: 0,
+    });
+  }
+  return circuitBreakers.get(engine)!;
+}
+
+/** 引擎是否可用（斷路器判斷） */
+export function isEngineAvailable(engine: LLMEngine): boolean {
+  const cb = getCircuit(engine);
+  if (cb.state === "CLOSED") return true;
+  if (cb.state === "OPEN") {
+    // 檢查冷卻期是否結束
+    if (Date.now() - cb.openedAt >= CIRCUIT_COOLDOWN_MS) {
+      cb.state = "HALF_OPEN";
+      return true; // 允許一次試探
+    }
+    return false;
+  }
+  // HALF_OPEN — 允許試探
+  return true;
+}
+
+/** 記錄引擎成功（重置斷路器） */
+export function recordEngineSuccess(engine: LLMEngine): void {
+  const cb = getCircuit(engine);
+  if (CIRCUIT_SUCCESS_RESET) {
+    cb.failures = 0;
+  }
+  cb.lastSuccessAt = Date.now();
+  cb.state = "CLOSED";
+}
+
+/** 記錄引擎失敗（累積失敗計數，達到閾值則斷路） */
+export function recordEngineFailure(engine: LLMEngine): void {
+  const cb = getCircuit(engine);
+  cb.failures++;
+  cb.lastFailureAt = Date.now();
+
+  if (cb.state === "HALF_OPEN") {
+    // 試探失敗 → 重新打開
+    cb.state = "OPEN";
+    cb.openedAt = Date.now();
+    console.warn(`[CircuitBreaker] 🔴 ${engine} 試探失敗，重新斷路`);
+  } else if (cb.failures >= CIRCUIT_FAILURE_THRESHOLD) {
+    cb.state = "OPEN";
+    cb.openedAt = Date.now();
+    console.warn(`[CircuitBreaker] 🔴 ${engine} 連續失敗 ${cb.failures} 次，斷路中（冷卻 ${CIRCUIT_COOLDOWN_MS / 1000}s）`);
+  }
+}
+
+/** 取得所有斷路器狀態（供 debug / health endpoint 使用） */
+export function getCircuitBreakerStatus(): Record<string, { state: CircuitState; failures: number; available: boolean }> {
+  const result: Record<string, { state: CircuitState; failures: number; available: boolean }> = {};
+  for (const [engine, cb] of circuitBreakers.entries()) {
+    result[engine] = {
+      state: cb.state,
+      failures: cb.failures,
+      available: isEngineAvailable(engine),
+    };
+  }
+  return result;
 }
 
 // ─── 引擎偵測 ──────────────────────────────────────────────────────────────
@@ -65,100 +172,137 @@ export function detectAvailableEngines(): Array<{ engine: LLMEngine; reason: str
 
 /**
  * 解析當前應使用的引擎設定
- * 優先順序：env override → gemini → forge → 錯誤
+ * 健康感知優先順序（auto 模式）：gemini > minimax > vertex > forge
+ * 含斷路器判斷 — 跳過不健康的引擎
  */
 export function resolveEngineConfig(forceEngine?: LLMEngine): EngineConfig {
-  const preferred = forceEngine ?? (process.env.LLM_ENGINE as LLMEngine | undefined) ?? "auto";
+  const preferred = forceEngine ?? (serverEnv.LLM_ENGINE as LLMEngine) ?? "auto";
 
-  // ── Engine A：Gemini API（直連，無需 GCP 帳號）─────────────
-  if (preferred === "gemini" || preferred === "auto") {
-    if (ENV.geminiApiKey) {
+  // ── 強制指定引擎 — 不受斷路器影響（用戶明確選擇）─────────
+  if (preferred !== "auto") {
+    return resolveSpecificEngine(preferred);
+  }
+
+  // ── Auto 模式 — 健康感知路由 ───────────────────────────────
+  // 優先順序：gemini > minimax > vertex > forge
+  const autoOrder: LLMEngine[] = ["gemini", "minimax", "vertex", "forge"];
+
+  for (const engine of autoOrder) {
+    if (!isEngineAvailable(engine)) continue;
+    try {
+      return resolveSpecificEngine(engine);
+    } catch {
+      // 此引擎未設定 → 跳過
+      continue;
+    }
+  }
+
+  // 全部都不可用 — 嘗試無視斷路器取得任何引擎
+  for (const engine of autoOrder) {
+    try {
+      return resolveSpecificEngine(engine);
+    } catch {
+      continue;
+    }
+  }
+
+  throw new Error(
+    "沒有可用的 LLM 引擎！請在 .env 中設定 GEMINI_API_KEY（推薦）、NVIDA_API（MiniMax M2.7）或 BUILT_IN_FORGE_API_KEY（Manus 相容）"
+  );
+}
+
+/**
+ * 取得 auto 模式下的引擎降級鏈（供 invokeLLM 自動降級使用）
+ * 回傳從首選引擎開始的所有可用引擎列表（不含首選自身）
+ */
+export function getEngineFallbackChain(primaryEngine: LLMEngine): EngineConfig[] {
+  const allOrder: LLMEngine[] = ["gemini", "minimax", "vertex", "forge"];
+  const fallbacks: EngineConfig[] = [];
+
+  for (const engine of allOrder) {
+    if (engine === primaryEngine) continue;
+    if (!isEngineAvailable(engine)) continue;
+    try {
+      fallbacks.push(resolveSpecificEngine(engine));
+    } catch {
+      continue;
+    }
+  }
+
+  return fallbacks;
+}
+
+/**
+ * 解析指定的引擎設定（內部函數）
+ */
+function resolveSpecificEngine(engine: LLMEngine): EngineConfig {
+  switch (engine) {
+    case "gemini":
+      if (!ENV.geminiApiKey) throw new Error("Engine 'gemini' 指定但 GEMINI_API_KEY 未設定");
       return {
         name: "Gemini API (Direct)",
+        engine: "gemini",
         url: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
         apiKey: ENV.geminiApiKey,
         model: "gemini-2.5-flash",
         supportsThinking: true,
         supportsGrounding: false,
         supportsLongContext: true,
+        supportsToolCalling: true,
       };
-    }
-    if (preferred === "gemini") {
-      throw new Error("Engine 'gemini' 指定但 GEMINI_API_KEY 未設定");
-    }
-  }
 
-  // ── Engine B：Vertex AI（GCP SDK，需服務帳號）───────────────
-  // Vertex AI 使用 OpenAI-compatible endpoint 或原生 REST API
-  if (preferred === "vertex") {
-    const projectId = serverEnv.GOOGLE_CLOUD_PROJECT_ID;
-    const credentials = serverEnv.GOOGLE_APPLICATION_CREDENTIALS_JSON;
-    const location = serverEnv.GOOGLE_CLOUD_LOCATION || "us-central1";
-    if (!projectId || !credentials) {
-      throw new Error(
-        "Engine 'vertex' 指定但 GOOGLE_CLOUD_PROJECT_ID 或 GOOGLE_APPLICATION_CREDENTIALS_JSON 未設定"
-      );
-    }
-    // Vertex AI 支援 Gemini API Key 作為認證（OpenAI-compatible endpoint）
-    // 完整 Vertex AI SDK 認證需要服務帳號 Token
-    if (ENV.geminiApiKey) {
+    case "vertex": {
+      const projectId = serverEnv.GOOGLE_CLOUD_PROJECT_ID;
+      const credentials = serverEnv.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+      const location = serverEnv.GOOGLE_CLOUD_LOCATION || "us-central1";
+      if (!projectId || !credentials) {
+        throw new Error("Engine 'vertex' 指定但 GOOGLE_CLOUD_PROJECT_ID 或 GOOGLE_APPLICATION_CREDENTIALS_JSON 未設定");
+      }
+      if (!ENV.geminiApiKey) throw new Error("Vertex AI 需要 GEMINI_API_KEY 或服務帳號 Token");
       return {
         name: "Vertex AI (via Gemini Key)",
+        engine: "vertex",
         url: `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/gemini-2.5-flash:generateContent`,
         apiKey: ENV.geminiApiKey,
         model: "gemini-2.5-flash",
         supportsThinking: true,
         supportsGrounding: true,
         supportsLongContext: true,
+        supportsToolCalling: true,
       };
     }
-    throw new Error("Vertex AI 需要 GEMINI_API_KEY 或服務帳號 Token");
-  }
 
-  // ── Engine D：MiniMax M2.7 via NVIDIA NIM（AI 代理人專用引擎）────────────
-  // NVIDIA NIM 使用 OpenAI-compatible API，支援 agentic workflow
-  if (preferred === "minimax" || preferred === "auto") {
-    if (serverEnv.NVIDA_API) {
+    case "minimax":
+      if (!serverEnv.NVIDA_API) throw new Error("Engine 'minimax' 指定但 NVIDA_API 未設定");
       return {
         name: "MiniMax M2.7 (NVIDIA NIM)",
+        engine: "minimax",
         url: "https://integrate.api.nvidia.com/v1/chat/completions",
         apiKey: serverEnv.NVIDA_API,
         model: "minimaxai/minimax-m2.7",
         supportsThinking: false,
         supportsGrounding: false,
         supportsLongContext: true,  // 200K context
+        supportsToolCalling: true,
       };
-    }
-    if (preferred === "minimax") {
-      throw new Error("Engine 'minimax' 指定但 NVIDA_API 未設定");
-    }
-  }
 
-  // ── Engine C：Manus Forge（向後相容）────────────────────────
-  if (preferred === "forge" || preferred === "auto") {
-    if (ENV.forgeApiKey && ENV.forgeApiUrl) {
+    case "forge":
+      if (!ENV.forgeApiKey || !ENV.forgeApiUrl) throw new Error("Engine 'forge' 指定但 BUILT_IN_FORGE_API_KEY 未設定");
       return {
         name: "Manus Forge API (Legacy)",
+        engine: "forge",
         url: `${ENV.forgeApiUrl.replace(/\/$/, "")}/v1/chat/completions`,
         apiKey: ENV.forgeApiKey,
         model: "gemini-2.5-flash",
-        supportsThinking: true,   // Forge 代理版有 thinking 功能
+        supportsThinking: true,
         supportsGrounding: false,
         supportsLongContext: false,
+        supportsToolCalling: true,
       };
-    }
-    if (preferred === "forge") {
-      throw new Error("Engine 'forge' 指定但 BUILT_IN_FORGE_API_KEY 未設定");
-    }
-  }
 
-  // 全部都沒設定
-  const available = detectAvailableEngines();
-  throw new Error(
-    available.length === 0
-      ? "沒有可用的 LLM 引擎！請在 .env 中設定 GEMINI_API_KEY（推薦）或 BUILT_IN_FORGE_API_KEY（Manus 相容）"
-      : `LLM 引擎設定錯誤。可用引擎：${available.map(e => e.engine).join(", ")}`
-  );
+    default:
+      throw new Error(`Unknown engine: ${engine}`);
+  }
 }
 
 // ─── 引擎狀態回報（供 /api/health 或 debug 使用）─────────────────────────
@@ -177,6 +321,7 @@ export function getEngineStatus(): EngineStatus {
   if (!ENV.geminiApiKey) missing.push("GEMINI_API_KEY（推薦）");
   if (!serverEnv.GOOGLE_APPLICATION_CREDENTIALS_JSON) missing.push("GOOGLE_APPLICATION_CREDENTIALS_JSON（Vertex AI）");
   if (!ENV.forgeApiKey) missing.push("BUILT_IN_FORGE_API_KEY（Manus 相容）");
+  if (!serverEnv.NVIDA_API) missing.push("NVIDA_API（MiniMax M2.7 via NVIDIA NIM）");
 
   let currentName = "無可用引擎";
   try {
@@ -186,15 +331,23 @@ export function getEngineStatus(): EngineStatus {
     // ignore
   }
 
+  const cbStatus = getCircuitBreakerStatus();
+  const cbInfo = Object.entries(cbStatus)
+    .filter(([, s]) => s.state !== "CLOSED")
+    .map(([eng, s]) => `${eng}: ${s.state}(failures=${s.failures})`)
+    .join(", ");
+
   return {
     current: currentName,
     available: available.map(a => `${a.engine}: ${a.reason}`),
     missing,
     recommendation: available.length === 0
       ? "請設定 GEMINI_API_KEY 以啟用 LLM 功能"
-      : available[0].engine === "forge"
-        ? "建議設定 GEMINI_API_KEY 以取得更好的效能與穩定性"
-        : "引擎設定正常",
+      : cbInfo
+        ? `引擎部分斷路中：${cbInfo}`
+        : available[0].engine === "forge"
+          ? "建議設定 GEMINI_API_KEY 以取得更好的效能與穩定性"
+          : "引擎設定正常",
   };
 }
 

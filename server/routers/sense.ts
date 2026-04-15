@@ -168,6 +168,7 @@ ${events.slice(-10).map(e => {
 
   const result = await withTimeout(
     invokeLLM({
+      runName: "sense-intent-inference",
       messages: [
         { role: "system", content: DIRECTOR_INTENT_PROMPT },
         { role: "user", content: behaviorReport },
