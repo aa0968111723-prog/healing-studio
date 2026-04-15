@@ -424,8 +424,7 @@ export default function Studio() {
       };
       setVersions(prev => [newVersion, ...prev]);
       previousBlocksRef.current = [...currentBlocks];
-      // Enable refine/branch after first generation
-      if (actionMode === "generate") setActionMode("generate");
+      // resultUrl is set above, which enables Refine/Branch via hasResult prop
       // Close SSE connection
       if (sseRef.current) { sseRef.current.close(); sseRef.current = null; }
     },

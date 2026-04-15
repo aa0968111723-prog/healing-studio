@@ -28,6 +28,7 @@ import { Input } from '@/components/ui/input';
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 let _blockId = 0;
+let _islandId = 0;
 function makeBlock(
   fieldKey: string,
   label: string,
@@ -49,7 +50,7 @@ function makeIsland(
   content: string,
   hint: string,
 ): ThoughtIsland {
-  return { id: `tpl-island-${++_blockId}`, category, content, hint };
+  return { id: `tpl-island-${++_islandId}`, category, content, hint };
 }
 
 // ─── Starter Template Type ────────────────────────────────────────────────────
