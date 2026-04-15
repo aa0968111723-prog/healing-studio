@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
 
 /**
  * Resolved theme applied to the DOM — always "light" or "dark".
@@ -135,15 +135,18 @@ export function ThemeProvider({
     } catch { /* ignore */ }
   }, []);
 
-  const toggleTheme = switchable
-    ? () => {
-        const newMode: AppearanceMode = theme === "light" ? "dark" : "light";
-        setAppearanceMode(newMode);
-      }
-    : undefined;
+  const toggleTheme = useCallback(() => {
+    if (!switchable) return;
+    const newMode: AppearanceMode = theme === "light" ? "dark" : "light";
+    setAppearanceMode(newMode);
+  }, [switchable, theme, setAppearanceMode]);
+
+  const contextValue = useMemo(() => ({
+    theme, appearanceMode, setAppearanceMode, toggleTheme: switchable ? toggleTheme : undefined, switchable,
+  }), [theme, appearanceMode, setAppearanceMode, toggleTheme, switchable]);
 
   return (
-    <ThemeContext.Provider value={{ theme, appearanceMode, setAppearanceMode, toggleTheme, switchable }}>
+    <ThemeContext.Provider value={contextValue}>
       {children}
     </ThemeContext.Provider>
   );

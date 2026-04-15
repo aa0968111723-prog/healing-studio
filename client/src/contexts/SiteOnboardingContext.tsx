@@ -18,6 +18,7 @@ import {
   useCallback,
   useEffect,
   useRef,
+  useMemo,
   type ReactNode,
 } from "react";
 
@@ -749,7 +750,7 @@ export function SiteOnboardingProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("site-tour-start", handler);
   }, [startTour]);
 
-  const value: SiteOnboardingContextValue = {
+  const value = useMemo<SiteOnboardingContextValue>(() => ({
     startTour,
     stopTour,
     isActive,
@@ -762,7 +763,11 @@ export function SiteOnboardingProvider({ children }: { children: ReactNode }) {
     markSeen,
     hasSeen,
     resetAllTours,
-  };
+  }), [
+    startTour, stopTour, isActive, currentPageId,
+    currentStep, totalSteps, currentStepData,
+    nextStep, prevStep, markSeen, hasSeen, resetAllTours,
+  ]);
 
   return (
     <SiteOnboardingContext.Provider value={value}>
