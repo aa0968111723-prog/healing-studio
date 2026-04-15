@@ -53,19 +53,6 @@ export type ErrorCategory =
   | "model_unavailable" // 模型不可用
   | "unknown";         // 未知
 
-export const ERROR_CATEGORY_LABELS: Record<ErrorCategory, string> = {
-  rate_limit: "速率限制",
-  auth_failure: "認證失敗",
-  connection: "連線問題",
-  timeout: "請求逾時",
-  missing_api: "缺失 API",
-  broken_link: "連結中斷",
-  validation: "參數錯誤",
-  server_error: "伺服器錯誤",
-  quota_exceeded: "配額用盡",
-  model_unavailable: "模型不可用",
-  unknown: "未知",
-};
 
 /** 步驟式解決方案 */
 export interface SolutionStep {

@@ -135,7 +135,7 @@ export function recordEngineFailure(engine: LLMEngine): void {
 /** 取得所有斷路器狀態（供 debug / health endpoint 使用） */
 export function getCircuitBreakerStatus(): Record<string, { state: CircuitState; failures: number; available: boolean }> {
   const result: Record<string, { state: CircuitState; failures: number; available: boolean }> = {};
-  for (const [engine, cb] of circuitBreakers.entries()) {
+  for (const [engine, cb] of Array.from(circuitBreakers.entries())) {
     result[engine] = {
       state: cb.state,
       failures: cb.failures,

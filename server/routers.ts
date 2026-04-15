@@ -2318,7 +2318,7 @@ export const appRouter = router({
         const systemPrompt = buildOrbSystemPrompt(input.personality, input.context ?? undefined);
 
         // Prefer MiniMax M2.7 via NVIDIA NIM for orb agent, fallback to default
-        const enginePreference = (serverEnv.NVIDIA_API || serverEnv.NVIDA_API) ? "minimax" as const : undefined;
+        const enginePreference = (serverEnv.NVIDIA_API || serverEnv.NVIDA_API) ? "nvidia" as const : undefined;
 
         try {
           const result = await withTimeout(invokeLLM({
