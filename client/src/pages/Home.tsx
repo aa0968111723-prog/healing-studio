@@ -5,7 +5,7 @@ import { getLoginUrl, getDemoLoginUrl } from "@/const";
 import { useLocation } from "wouter";
 import { GlassCard } from "@/components/ZenCoPilot";
 import VisualSoul from "@/components/VisualSoul";
-import OnboardingFlow from "@/components/OnboardingFlow";
+const OnboardingFlow = lazy(() => import("@/components/OnboardingFlow"));
 import { motion, AnimatePresence, useScroll, useTransform, useMotionValueEvent } from "framer-motion";
 import {
   Wand2, Clapperboard, Package, Cpu, ArrowRight, Sparkles, Shield, Users,
@@ -388,10 +388,12 @@ export default function Home() {
 
   if (showOnboarding && isAuthenticated) {
     return (
-      <OnboardingFlow
-        onComplete={() => { setShowOnboarding(false); navigate("/studio"); }}
-        onSkip={() => { setShowOnboarding(false); navigate("/studio"); }}
-      />
+      <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><VisualSoul state="thinking" /></div>}>
+        <OnboardingFlow
+          onComplete={() => { setShowOnboarding(false); navigate("/studio"); }}
+          onSkip={() => { setShowOnboarding(false); navigate("/studio"); }}
+        />
+      </Suspense>
     );
   }
 

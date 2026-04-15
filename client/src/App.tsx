@@ -15,7 +15,7 @@ import LoginOrbAnimation from "./components/LoginOrbAnimation";
 import { ShowcaseTransferProvider } from "./contexts/ShowcaseTransferContext";
 import { SiteOnboardingProvider } from "./contexts/SiteOnboardingContext";
 import { FocusFlowProvider } from "./contexts/FocusFlowContext";
-import SiteOnboardingOverlay from "./components/SiteOnboardingOverlay";
+const SiteOnboardingOverlay = lazy(() => import("./components/SiteOnboardingOverlay"));
 
 // ─── 首頁直接載入（不延遲，確保首屏最快） ─────────────────────────────────
 import Home from "./pages/Home";
@@ -176,7 +176,9 @@ function App() {
                 <LoginOrbAnimation />
                 <Router />
                 <ProjectNotesDrawer />
-                <SiteOnboardingOverlay />
+                <Suspense fallback={null}>
+                  <SiteOnboardingOverlay />
+                </Suspense>
               </TooltipProvider>
               </FocusFlowProvider>
             </SiteOnboardingProvider>
