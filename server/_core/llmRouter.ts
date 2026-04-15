@@ -56,8 +56,8 @@ export function detectAvailableEngines(): Array<{ engine: LLMEngine; reason: str
   if (ENV.forgeApiKey && ENV.forgeApiUrl) {
     available.push({ engine: "forge", reason: "BUILT_IN_FORGE_API_KEY 已設定（Manus 相容模式）" });
   }
-  if (serverEnv.MINIMAX_API_KEY) {
-    available.push({ engine: "minimax", reason: "MINIMAX_API_KEY 已設定（MiniMax M2.7 代理人引擎）" });
+  if (serverEnv.NVIDA_API) {
+    available.push({ engine: "minimax", reason: "NVIDA_API 已設定（MiniMax M2.7 via NVIDIA NIM 代理人引擎）" });
   }
 
   return available;
@@ -115,22 +115,22 @@ export function resolveEngineConfig(forceEngine?: LLMEngine): EngineConfig {
     throw new Error("Vertex AI 需要 GEMINI_API_KEY 或服務帳號 Token");
   }
 
-  // ── Engine D：MiniMax M2.7（AI 代理人專用引擎）─────────────
-  // MiniMax 使用 OpenAI-compatible API，支援 agentic workflow
+  // ── Engine D：MiniMax M2.7 via NVIDIA NIM（AI 代理人專用引擎）────────────
+  // NVIDIA NIM 使用 OpenAI-compatible API，支援 agentic workflow
   if (preferred === "minimax" || preferred === "auto") {
-    if (serverEnv.MINIMAX_API_KEY) {
+    if (serverEnv.NVIDA_API) {
       return {
-        name: "MiniMax M2.7 (Agent)",
-        url: "https://api.minimax.chat/v1/text/chatcompletion_v2",
-        apiKey: serverEnv.MINIMAX_API_KEY,
-        model: "MiniMax-M2.7",
+        name: "MiniMax M2.7 (NVIDIA NIM)",
+        url: "https://integrate.api.nvidia.com/v1/chat/completions",
+        apiKey: serverEnv.NVIDA_API,
+        model: "minimaxai/minimax-m2.7",
         supportsThinking: false,
         supportsGrounding: false,
         supportsLongContext: true,  // 200K context
       };
     }
     if (preferred === "minimax") {
-      throw new Error("Engine 'minimax' 指定但 MINIMAX_API_KEY 未設定");
+      throw new Error("Engine 'minimax' 指定但 NVIDA_API 未設定");
     }
   }
 

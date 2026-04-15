@@ -241,6 +241,7 @@ function estimateTokenCostUsd(model: string, usage?: InvokeResult["usage"]): num
     "gpt-4o":           { input: 2.50,  output: 10.0 },
     "gpt-4o-mini":      { input: 0.15,  output: 0.60 },
     "MiniMax-M2.7":     { input: 0.30,  output: 1.20 },
+    "minimaxai/minimax-m2.7": { input: 0.30, output: 1.20 },
   };
   const key = Object.keys(PRICING).find(k => model.includes(k)) ?? "gemini-2.5-flash";
   const p = PRICING[key];

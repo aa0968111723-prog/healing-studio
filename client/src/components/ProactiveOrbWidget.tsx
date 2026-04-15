@@ -7,7 +7,8 @@ import VisualSoul from "./VisualSoul";
 import {
   X, Sparkles, Lightbulb, Palette, Shuffle, MessageCircle,
   Send, Heart, Music, Video, Image, Mic, BookOpen, RotateCcw,
-  Loader2, Leaf,
+  Loader2, Leaf, VolumeX, Volume2, Bot, Zap, ArrowRight,
+  Navigation,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useFocusFlow } from "@/contexts/FocusFlowContext";
@@ -25,6 +26,8 @@ type Props = {
   onApplyInspiration?: (blocks: { subject?: string; style?: string; lighting?: string; color?: string; mood?: string }) => void;
   /** Switch modality tab */
   onSwitchModality?: (modality: "image" | "video" | "audio" | "voice") => void;
+  /** Navigate to a page (agent action) */
+  onNavigate?: (path: string) => void;
 };
 
 const POSITION_KEY = "proactive-orb-position";
@@ -254,8 +257,9 @@ export default function ProactiveOrbWidget({
   onRestartTour,
   onApplyInspiration,
   onSwitchModality,
+  onNavigate,
 }: Props) {
-  const { aiState, proactiveMessage, dismissProactive, pageContext } = useAIState();
+  const { aiState, proactiveMessage, dismissProactive, pageContext, quietMode, setQuietMode } = useAIState();
   const { personality, setPersonality, isManual, resetToAuto, config: personalityConfig } = usePersonality();
   const { isAnyTimerRunning, activeMode, pomodoroRemaining, healingRemaining, pomodoroPhase } = useFocusFlow();
   const orbControls = useAnimation();
@@ -615,6 +619,30 @@ export default function ProactiveOrbWidget({
         context: contextStr,
       });
       setChatMessages((prev) => [...prev, { role: "orb", text: data.reply }]);
+
+      // Handle agent actions from LLM response
+      if (data.actions && Array.isArray(data.actions)) {
+        for (const action of data.actions) {
+          switch (action.type) {
+            case "navigate":
+              onNavigate?.(action.payload);
+              break;
+            case "modality":
+              if (["image", "video", "audio", "voice"].includes(action.payload)) {
+                onSwitchModality?.(action.payload as "image" | "video" | "audio" | "voice");
+              }
+              break;
+            case "preset": {
+              const preset = INSPIRATION_PRESETS.find(p => p.label === action.payload);
+              if (preset) {
+                onApplyInspiration?.(preset.blocks);
+                showFeedback(`已套用「${preset.label}」靈感 ${preset.emoji}`);
+              }
+              break;
+            }
+          }
+        }
+      }
     } catch {
       setChatMessages((prev) => [
         ...prev,
@@ -623,7 +651,7 @@ export default function ProactiveOrbWidget({
     } finally {
       setIsChatLoading(false);
     }
-  }, [chatInput, chatMessages, isChatLoading, personality, greeting, aiChatMutation, onSwitchModality, pageContext]);
+  }, [chatInput, chatMessages, isChatLoading, personality, greeting, aiChatMutation, onSwitchModality, pageContext, onNavigate, onApplyInspiration, showFeedback]);
 
   // ─── Apply inspiration preset ────────────────────────────────────────
 
@@ -749,29 +777,53 @@ export default function ProactiveOrbWidget({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 20, scale: 0.9 }}
               transition={{ type: "spring", stiffness: 300, damping: 25 }}
-              className="w-72 sm:w-80 rounded-2xl border border-gray-200/60 bg-white/95 backdrop-blur-xl shadow-2xl overflow-hidden"
+              className="w-72 sm:w-80 rounded-2xl overflow-hidden"
+              style={{
+                background: "rgba(255, 255, 255, 0.92)",
+                backdropFilter: "blur(24px) saturate(180%)",
+                WebkitBackdropFilter: "blur(24px) saturate(180%)",
+                border: "1px solid rgba(255, 255, 255, 0.5)",
+                boxShadow: "0 8px 40px rgba(0, 0, 0, 0.08), 0 2px 12px rgba(0, 0, 0, 0.04)",
+              }}
               onClick={(e) => e.stopPropagation()}
             >
               {/* Panel Header */}
               <div className="px-4 pt-4 pb-2 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <VisualSoul state={aiState} personality={personality} size="sm" className="!w-6 !h-6" />
+                  <div className="relative">
+                    <VisualSoul state={aiState} personality={personality} size="sm" className="!w-6 !h-6" />
+                    {/* Agent badge */}
+                    <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border border-white" title="AI 代理人模式" />
+                  </div>
                   <span className="text-sm font-semibold text-gray-800">
-                    {panelView === "chat" ? "聊聊天" : panelView === "inspiration" ? "靈感推薦" : panelView === "focus-flow" ? "專注流" : pageContext ? `AI 助手 · ${pageContext.pageLabel}` : "你的創作夥伴"}
+                    {panelView === "chat" ? "AI 對話" : panelView === "inspiration" ? "靈感推薦" : panelView === "focus-flow" ? "專注流" : "AI 助手"}
                   </span>
+                  {pageContext && panelView === "main" && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium">
+                      {pageContext.pageLabel}
+                    </span>
+                  )}
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-0.5">
+                  {/* Quiet mode toggle */}
+                  <button
+                    onClick={() => setQuietMode(!quietMode)}
+                    className={`p-1.5 rounded-full transition-colors ${quietMode ? "bg-amber-50 text-amber-500" : "hover:bg-gray-100 text-gray-400"}`}
+                    title={quietMode ? "開啟提示（目前靜音中）" : "靜音模式（不再主動提示）"}
+                  >
+                    {quietMode ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+                  </button>
                   {panelView !== "main" && (
                     <button
                       onClick={() => setPanelView("main")}
-                      className="p-1 rounded-full hover:bg-gray-100 transition-colors"
+                      className="p-1.5 rounded-full hover:bg-gray-100 transition-colors"
                     >
                       <RotateCcw className="w-3.5 h-3.5 text-gray-400" />
                     </button>
                   )}
                   <button
                     onClick={() => setShowPanel(false)}
-                    className="p-1 rounded-full hover:bg-gray-100 transition-colors"
+                    className="p-1.5 rounded-full hover:bg-gray-100 transition-colors"
                   >
                     <X className="w-3.5 h-3.5 text-gray-400" />
                   </button>
@@ -788,12 +840,15 @@ export default function ProactiveOrbWidget({
                     exit={{ opacity: 0, x: 10 }}
                     className="px-4 pb-4"
                   >
-                    {/* Greeting */}
-                    <p className="text-xs text-gray-500 mb-3 leading-relaxed">
-                      {greeting}
-                    </p>
+                    {/* Greeting with agent badge */}
+                    <div className="flex items-start gap-2 mb-3">
+                      <Bot className="w-3.5 h-3.5 mt-0.5 shrink-0 text-emerald-500" />
+                      <p className="text-xs text-gray-500 leading-relaxed">
+                        {greeting}
+                      </p>
+                    </div>
 
-                    {/* Quick Actions */}
+                    {/* Quick Actions — redesigned as compact cards */}
                     <div className="space-y-1.5 mb-3">
                       {[...QUICK_ACTIONS, ...(pageContext?.pageId ? (PAGE_QUICK_ACTIONS[pageContext.pageId] ?? []) : [])].map((qa) => (
                         <button

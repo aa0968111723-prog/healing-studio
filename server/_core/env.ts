@@ -31,8 +31,8 @@ export const ENV = {
   // ── Brave Search ────────────────────────────────────────
   braveSearchApiKey: serverEnv.BRAVE_SEARCH_API_KEY,
 
-  // ── MiniMax M2.7（光球 AI 代理人）────────────────────────
-  minimaxApiKey: serverEnv.MINIMAX_API_KEY,
+  // ── MiniMax M2.7 via NVIDIA NIM（光球 AI 代理人）───────────
+  nvidaApi: serverEnv.NVIDA_API,
 
   // ── 向後相容：Manus Forge API（遷移完成後可移除）─────────
   oAuthServerUrl: serverEnv.OAUTH_SERVER_URL,
