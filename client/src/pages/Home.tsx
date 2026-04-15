@@ -52,6 +52,8 @@ const SCENE_STYLES: Record<SceneId, {
   footerBorder: string;
   icon: typeof Moon;
   greeting: string;
+  /** Scene-matched glow color for orb auras */
+  glowColor: string;
 }> = {
   nightSky: {
     navBg: "rgba(10,12,35,0.7)",
@@ -69,6 +71,7 @@ const SCENE_STYLES: Record<SceneId, {
     footerBorder: "rgba(100,120,200,0.1)",
     icon: Moon,
     greeting: "夜深了，讓靈感在星空下綻放",
+    glowColor: "rgba(100,120,220,0.45)",
   },
   morning: {
     navBg: "rgba(255,235,215,0.75)",
@@ -86,6 +89,7 @@ const SCENE_STYLES: Record<SceneId, {
     footerBorder: "rgba(200,160,120,0.15)",
     icon: Sun,
     greeting: "早安，用晨光喚醒你的創造力",
+    glowColor: "rgba(240,180,100,0.4)",
   },
   cafe: {
     navBg: "rgba(235,220,200,0.75)",
@@ -103,6 +107,7 @@ const SCENE_STYLES: Record<SceneId, {
     footerBorder: "rgba(180,150,120,0.15)",
     icon: Coffee,
     greeting: "午後時光，來杯咖啡配靈感",
+    glowColor: "rgba(200,175,140,0.4)",
   },
   deepSea: {
     navBg: "rgba(5,25,50,0.7)",
@@ -120,6 +125,7 @@ const SCENE_STYLES: Record<SceneId, {
     footerBorder: "rgba(60,140,180,0.1)",
     icon: Waves,
     greeting: "傍晚了，潛入深海尋找靈感珍珠",
+    glowColor: "rgba(60,160,200,0.4)",
   },
 };
 
@@ -130,79 +136,63 @@ const VIDEO_DEMOS = [
     id: "text-to-image",
     icon: Wand2,
     title: "AI 圖片生成",
-    description: "從文字描述生成高品質圖片",
+    description: "輸入文字描述，即刻生成高品質影像。支援多種風格與精準的參數調校。",
     tag: "圖片",
-    color: "rgba(168,85,247,0.15)",
-    borderColor: "rgba(168,85,247,0.25)",
+    color: "rgba(168,85,247,0.10)",
+    borderColor: "rgba(168,85,247,0.20)",
     accentColor: "rgb(168,85,247)",
   },
   {
     id: "text-to-video",
     icon: Clapperboard,
     title: "AI 影片創作",
-    description: "文字 → 影片，一鍵生成動態內容",
+    description: "從文字一鍵生成流暢動態影片，適用於短片、動畫與創意敘事。",
     tag: "影片",
-    color: "rgba(59,130,246,0.15)",
-    borderColor: "rgba(59,130,246,0.25)",
+    color: "rgba(59,130,246,0.10)",
+    borderColor: "rgba(59,130,246,0.20)",
     accentColor: "rgb(59,130,246)",
   },
   {
     id: "text-to-music",
     icon: Sparkles,
     title: "AI 音樂生成",
-    description: "描述風格即可生成原創音樂",
+    description: "描述曲風情境，自動產生原創配樂。從電子氛圍到古典管弦皆可駕馭。",
     tag: "音樂",
-    color: "rgba(236,72,153,0.15)",
-    borderColor: "rgba(236,72,153,0.25)",
+    color: "rgba(236,72,153,0.10)",
+    borderColor: "rgba(236,72,153,0.20)",
     accentColor: "rgb(236,72,153)",
   },
   {
     id: "director-ai",
     icon: Cpu,
     title: "導演 AI 編排",
-    description: "自動編排多媒體腳本，一鍵組合創意",
+    description: "智慧腳本分析與多媒體編排，自動拆解段落並生成對應的圖、影、音。",
     tag: "導演",
-    color: "rgba(34,197,94,0.15)",
-    borderColor: "rgba(34,197,94,0.25)",
+    color: "rgba(34,197,94,0.10)",
+    borderColor: "rgba(34,197,94,0.20)",
     accentColor: "rgb(34,197,94)",
   },
   {
     id: "voice-clone",
     icon: Users,
     title: "語音克隆",
-    description: "上傳樣本即可克隆語音風格",
+    description: "上傳語音樣本，精確複製說話風格與音色，適用於配音與旁白製作。",
     tag: "語音",
-    color: "rgba(249,115,22,0.15)",
-    borderColor: "rgba(249,115,22,0.25)",
+    color: "rgba(249,115,22,0.10)",
+    borderColor: "rgba(249,115,22,0.20)",
     accentColor: "rgb(249,115,22)",
   },
   {
     id: "lora-training",
     icon: Shield,
     title: "角色訓練 LoRA",
-    description: "訓練專屬角色模型，保持風格一致性",
+    description: "訓練專屬角色模型，確保跨作品的視覺風格一致性與角色辨識度。",
     tag: "訓練",
-    color: "rgba(14,165,233,0.15)",
-    borderColor: "rgba(14,165,233,0.25)",
+    color: "rgba(14,165,233,0.10)",
+    borderColor: "rgba(14,165,233,0.20)",
     accentColor: "rgb(14,165,233)",
   },
 ];
-
-// ─── Personality display labels (linked to personal settings) ────────────────
-
-const PERSONALITY_LABELS: Record<string, { label: string; color: string }> = {
-  calm: { label: "沉穩模式", color: "rgba(30,64,175,0.6)" },
-  creative: { label: "創意模式", color: "rgba(255,80,180,0.6)" },
-  technical: { label: "技術模式", color: "rgba(80,255,180,0.6)" },
-};
-
-/** Default personality color when personality key is unknown */
-const DEFAULT_PERSONALITY_COLOR = "rgba(255,80,180,0.6)";
-
-/** Get personality color with fallback */
-function getPersonalityColor(personality: string): string {
-  return PERSONALITY_LABELS[personality]?.color ?? DEFAULT_PERSONALITY_COLOR;
-}
 
 // ─── Carousel Dot Indicator ─────────────────────────────────────────────────
 
@@ -501,55 +491,34 @@ export default function Home() {
               <SceneBadge sceneId={sceneId} isDark={isDark} />
             </motion.div>
 
-            {/* Central Orb — larger, more ethereal, connected to personal settings */}
+            {/* Central Orb — ethereal, scene-adaptive glow */}
             <div className="flex flex-col items-center mb-12">
               {/* Ambient glow ring behind orb — soft, scene-linked */}
               <motion.div
-                className="absolute w-48 h-48 sm:w-64 sm:h-64 rounded-full pointer-events-none"
+                className="absolute w-40 h-40 sm:w-56 sm:h-56 rounded-full pointer-events-none"
                 style={{
-                  background: `radial-gradient(circle, ${getPersonalityColor(personality)} 0%, transparent 70%)`,
+                  background: `radial-gradient(circle, ${s.glowColor} 0%, transparent 70%)`,
                 }}
                 animate={{
-                  scale: [1, 1.15, 1],
-                  opacity: [0.3, 0.5, 0.3],
+                  scale: [1, 1.08, 1],
+                  opacity: [0.25, 0.4, 0.25],
                 }}
-                transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+                transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
               />
-              {/* Orb glow aura — scene-linked ambient ring */}
+              {/* Orb with subtle scene-matched aura */}
               <motion.div
                 className="relative"
                 animate={{
                   filter: [
-                    `drop-shadow(0 0 30px ${getPersonalityColor(personality)})`,
-                    `drop-shadow(0 0 50px ${getPersonalityColor(personality)})`,
-                    `drop-shadow(0 0 30px ${getPersonalityColor(personality)})`,
+                    `drop-shadow(0 0 20px ${s.glowColor})`,
+                    `drop-shadow(0 0 35px ${s.glowColor})`,
+                    `drop-shadow(0 0 20px ${s.glowColor})`,
                   ],
                 }}
-                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
               >
-                <VisualSoul size="xl" personality={personality} />
+                <VisualSoul size="lg" personality={personality} />
               </motion.div>
-              {/* Personality indicator — connected to personal settings */}
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={personality}
-                  initial={{ opacity: 0, y: 8, scale: 0.9 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -8, scale: 0.9 }}
-                  transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-                  className={`mt-5 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[10px] tracking-wider backdrop-blur-md ${
-                    isDark ? "bg-white/8 text-white/50" : "bg-black/4 text-black/40"
-                  }`}
-                >
-                  <motion.div
-                    className="w-1.5 h-1.5 rounded-full"
-                    style={{ background: PERSONALITY_LABELS[personality]?.color }}
-                    animate={{ scale: [1, 1.4, 1], opacity: [0.6, 1, 0.6] }}
-                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                  />
-                  {PERSONALITY_LABELS[personality]?.label ?? "創意模式"}
-                </motion.div>
-              </AnimatePresence>
             </div>
 
             {/* OARS Contextual Greeting — replaces static title */}
@@ -635,13 +604,25 @@ export default function Home() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-100px" }}
             transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-            className="text-center mb-14"
+            className="text-center mb-16"
           >
+            <motion.div
+              className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] tracking-[0.15em] uppercase mb-6 ${
+                isDark ? "bg-white/6 text-white/40" : "bg-black/3 text-black/30"
+              }`}
+              initial={{ opacity: 0, y: 8 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.1 }}
+            >
+              <Package className="w-3 h-3" />
+              Core Capabilities
+            </motion.div>
             <h2 className={`text-2xl sm:text-3xl heading-healing transition-colors duration-700 ${s.textPrimary}`}>
-              功能展示
+              多模態 AI 創作引擎
             </h2>
-            <p className={`mt-5 text-sm max-w-md mx-auto body-healing transition-colors duration-700 ${s.textMuted}`}>
-              體驗 AI Director 的核心創作能力
+            <p className={`mt-5 text-sm sm:text-base max-w-lg mx-auto body-healing transition-colors duration-700 ${s.textMuted}`}>
+              從圖片、影片到音樂與配音，一站式覆蓋你的所有創作需求
             </p>
             {/* Healing divider */}
             <div className="mx-auto mt-8 w-16 h-[1px] rounded-full" style={{ background: `linear-gradient(90deg, transparent, ${isDark ? "rgba(100,120,200,0.3)" : "rgba(212,197,226,0.5)"}, transparent)` }} />
@@ -660,10 +641,10 @@ export default function Home() {
               className="w-full carousel-fade-edge"
             >
               <CarouselContent className="-ml-5">
-                {VIDEO_DEMOS.map((demo) => (
+                {VIDEO_DEMOS.map((demo, idx) => (
                   <CarouselItem key={demo.id} className="pl-5 basis-full sm:basis-1/2 lg:basis-1/3">
                     <motion.div
-                      whileHover={{ y: -4 }}
+                      whileHover={{ y: -5 }}
                       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
                     >
                       <div
@@ -674,53 +655,77 @@ export default function Home() {
                         }}
                         onClick={() => navigate(isAuthenticated ? "/studio" : "/")}
                       >
-                        {/* Preview area with play overlay */}
+                        {/* Preview area with refined layered gradients */}
                         <div
                           className="relative aspect-[16/10] flex items-center justify-center overflow-hidden"
                           style={{ background: demo.color }}
                         >
-                          {/* Animated gradient — gentle breathing */}
+                          {/* Multi-layer ambient gradient */}
                           <motion.div
                             className="absolute inset-0"
                             style={{
-                              background: `radial-gradient(circle at 30% 40%, ${demo.accentColor}18 0%, transparent 60%), radial-gradient(circle at 70% 60%, ${demo.accentColor}0d 0%, transparent 50%)`,
+                              background: `radial-gradient(circle at 30% 30%, ${demo.accentColor}15 0%, transparent 50%), radial-gradient(circle at 70% 70%, ${demo.accentColor}0a 0%, transparent 50%)`,
                             }}
-                            animate={{ opacity: [0.4, 0.75, 0.4] }}
-                            transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+                            animate={{ opacity: [0.5, 0.8, 0.5] }}
+                            transition={{ duration: 6 + idx * 0.5, repeat: Infinity, ease: "easeInOut" }}
                           />
-                          {/* Center icon + play */}
-                          <div className="relative z-10 flex flex-col items-center gap-4">
+                          {/* Center icon — refined glass container */}
+                          <div className="relative z-10 flex flex-col items-center gap-3">
                             <motion.div
-                              className="w-16 h-16 rounded-2xl flex items-center justify-center"
-                              style={{ background: `${demo.accentColor}20`, border: `1px solid ${demo.accentColor}20`, backdropFilter: "blur(12px)" }}
-                              whileHover={{ scale: 1.06 }}
+                              className="w-14 h-14 rounded-xl flex items-center justify-center"
+                              style={{
+                                background: `${demo.accentColor}15`,
+                                border: `1px solid ${demo.accentColor}18`,
+                                backdropFilter: "blur(16px)",
+                              }}
+                              whileHover={{ scale: 1.08, rotate: 2 }}
                               transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
                             >
-                              <demo.icon className="w-7 h-7" style={{ color: demo.accentColor }} />
+                              <demo.icon className="w-6 h-6" style={{ color: demo.accentColor }} />
                             </motion.div>
                             <motion.div
-                              className="w-10 h-10 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-700"
-                              style={{ background: `${demo.accentColor}12`, border: `1px solid ${demo.accentColor}18`, backdropFilter: "blur(12px)" }}
+                              className="w-9 h-9 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-700"
+                              style={{
+                                background: `${demo.accentColor}10`,
+                                border: `1px solid ${demo.accentColor}15`,
+                                backdropFilter: "blur(12px)",
+                              }}
                             >
-                              <Play className="w-4 h-4 ml-0.5" style={{ color: demo.accentColor }} />
+                              <Play className="w-3.5 h-3.5 ml-0.5" style={{ color: demo.accentColor }} />
                             </motion.div>
                           </div>
-                          {/* Tag badge */}
+                          {/* Tag badge — refined positioning */}
                           <div
-                            className="absolute top-3.5 left-3.5 px-3 py-1 rounded-full text-[10px] font-medium tracking-wide"
-                            style={{ background: `${demo.accentColor}12`, color: demo.accentColor, border: `1px solid ${demo.accentColor}18`, backdropFilter: "blur(12px)" }}
+                            className="absolute top-3 left-3 px-2.5 py-0.5 rounded-full text-[9px] font-medium tracking-wider uppercase"
+                            style={{
+                              background: `${demo.accentColor}10`,
+                              color: demo.accentColor,
+                              border: `1px solid ${demo.accentColor}15`,
+                              backdropFilter: "blur(12px)",
+                            }}
                           >
                             {demo.tag}
                           </div>
                         </div>
-                        {/* Text content — healing spacing */}
+                        {/* Text content — refined healing spacing with accent line */}
                         <div className="px-5 py-5 sm:px-6 sm:py-6">
-                          <h3 className={`text-sm font-semibold mb-2.5 transition-colors duration-700 ${s.textPrimary}`}>
-                            {demo.title}
-                          </h3>
+                          <div className="flex items-center gap-2 mb-3">
+                            <div
+                              className="w-1 h-4 rounded-full"
+                              style={{ background: `${demo.accentColor}40` }}
+                            />
+                            <h3 className={`text-sm font-semibold transition-colors duration-700 ${s.textPrimary}`}>
+                              {demo.title}
+                            </h3>
+                          </div>
                           <p className={`text-xs leading-relaxed body-healing transition-colors duration-700 ${s.textMuted}`}>
                             {demo.description}
                           </p>
+                          {/* Subtle "explore" hint on hover */}
+                          <div className={`mt-3 flex items-center gap-1.5 text-[10px] tracking-wide opacity-0 group-hover:opacity-60 transition-opacity duration-500 ${s.textMuted}`}>
+                            <span>探索功能</span>
+                            <ArrowRight className="w-3 h-3" />
+                          </div>
                         </div>
                       </div>
                     </motion.div>
@@ -837,43 +842,48 @@ export default function Home() {
             transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
           >
             <div
-              className="relative text-center py-14 sm:py-20 px-6 sm:px-12 rounded-3xl card-healing overflow-hidden"
+              className="relative text-center py-16 sm:py-24 px-6 sm:px-12 rounded-3xl card-healing overflow-hidden"
               style={{
                 background: s.cardBg,
                 border: `1px solid ${s.cardBorder}`,
               }}
             >
-              {/* Subtle ambient glow behind CTA */}
+              {/* Subtle ambient glow — scene-adaptive, no orb */}
               <motion.div
                 className="absolute inset-0 pointer-events-none"
                 style={{
-                  background: `radial-gradient(ellipse at 50% 30%, ${getPersonalityColor(personality)} 0%, transparent 60%)`,
+                  background: `radial-gradient(ellipse at 50% 0%, ${s.glowColor} 0%, transparent 55%)`,
                 }}
-                animate={{ opacity: [0.3, 0.6, 0.3] }}
-                transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+                animate={{ opacity: [0.2, 0.35, 0.2] }}
+                transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+              />
+              {/* Decorative top accent line */}
+              <div
+                className="absolute top-0 left-1/2 -translate-x-1/2 h-[1px] w-1/2 rounded-full"
+                style={{ background: `linear-gradient(90deg, transparent, ${s.glowColor}, transparent)` }}
               />
               <div className="relative z-10">
-                <div className="flex flex-col items-center">
-                  <motion.div
-                    animate={{
-                      filter: [
-                        `drop-shadow(0 0 20px ${getPersonalityColor(personality)})`,
-                        `drop-shadow(0 0 40px ${getPersonalityColor(personality)})`,
-                        `drop-shadow(0 0 20px ${getPersonalityColor(personality)})`,
-                      ],
-                    }}
-                    transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                  >
-                    <VisualSoul size="lg" personality={personality} />
-                  </motion.div>
-                </div>
-                <h2 className={`text-2xl heading-healing mt-10 transition-colors duration-700 ${s.textPrimary}`}>
+                <motion.div
+                  className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] tracking-[0.15em] uppercase mb-8 ${
+                    isDark ? "bg-white/6 text-white/40" : "bg-black/3 text-black/30"
+                  }`}
+                  initial={{ opacity: 0, y: 8 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.6, delay: 0.2 }}
+                >
+                  <Sparkles className="w-3 h-3" />
+                  Healing Studio
+                </motion.div>
+                <h2 className={`text-2xl sm:text-3xl heading-healing transition-colors duration-700 ${s.textPrimary}`}>
                   準備好開始創作了嗎？
                 </h2>
-                <p className={`mt-5 text-sm max-w-md mx-auto body-healing transition-colors duration-700 ${s.textMuted}`}>
+                <p className={`mt-5 text-sm sm:text-base max-w-lg mx-auto body-healing transition-colors duration-700 ${s.textMuted}`}>
                   登入後即可使用所有功能，每位使用者享有初始免費配額
                 </p>
-                <div className="mt-12">
+                {/* Healing divider */}
+                <div className="mx-auto mt-8 mb-10 w-12 h-[1px] rounded-full" style={{ background: `linear-gradient(90deg, transparent, ${isDark ? "rgba(100,120,200,0.3)" : "rgba(212,197,226,0.5)"}, transparent)` }} />
+                <div>
                   {isAuthenticated ? (
                     <Button
                       size="lg"
