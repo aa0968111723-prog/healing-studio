@@ -155,7 +155,7 @@ export default function NotesPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <StickyNote className="w-5 h-5 text-muted-foreground" />
-          <h1 className="text-xl font-semibold">專案筆記</h1>
+          <h1 className="hs-h2 !mb-0">專案筆記</h1>
           <Badge variant="secondary" className="rounded-lg text-xs">{allNotes.length} 篇</Badge>
         </div>
         <Dialog open={showCreate} onOpenChange={setShowCreate}>
@@ -233,7 +233,7 @@ export default function NotesPage() {
         </Dialog>
       </div>
 
-      <p className="text-xs text-muted-foreground">記錄創作靈感與導演 AI 生成的 CO-STAR 腳本。支援標籤分類與全文搜尋。</p>
+      <p className="hs-small !mb-0 text-muted-foreground">記錄創作靈感與導演 AI 生成的 CO-STAR 腳本。支援標籤分類與全文搜尋。</p>
 
       {/* ── Search + Type Filter ── */}
       <div className="flex flex-col sm:flex-row gap-2">
@@ -318,7 +318,7 @@ export default function NotesPage() {
                           />
                         ) : (
                           <>
-                            <p className="text-sm font-medium truncate">{note.title}</p>
+                            <p className="hs-h3 !mb-0 truncate">{note.title}</p>
                             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                               <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-muted/30 font-medium">
                                 {info.label}
@@ -437,7 +437,7 @@ export default function NotesPage() {
                                 {/* CO-STAR JSON */}
                                 {note.scriptJson != null && (
                                   <div className="p-3 bg-muted/20 rounded-lg text-xs">
-                                    <p className="font-medium mb-2 text-muted-foreground">CO-STAR 腳本</p>
+                                    <p className="hs-small !mb-0 text-muted-foreground">CO-STAR 腳本</p>
                                     <pre className="whitespace-pre-wrap text-muted-foreground font-mono text-[11px] leading-relaxed">
                                       {JSON.stringify(note.scriptJson, null, 2)}
                                     </pre>
@@ -526,10 +526,10 @@ export default function NotesPage() {
       ) : (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <VisualSoul size="lg" personality={personality} />
-          <h3 className="text-base font-medium mt-6">
+          <h3 className="hs-h3 !mb-0 mt-6">
             {search || typeFilter !== "all" ? "沒有符合條件的筆記" : "尚無筆記"}
           </h3>
-          <p className="text-sm text-muted-foreground mt-2 max-w-sm">
+          <p className="hs-small !mb-0 text-muted-foreground mt-2 max-w-sm">
             {search || typeFilter !== "all"
               ? "請試試其他搜尋條件"
               : "點擊「新增筆記」開始記錄，或使用導演 AI 自動生成腳本"}

@@ -1194,8 +1194,8 @@ export default function Studio() {
         <div className="flex items-center gap-3">
           <VisualSoul size="sm" state={aiState} personality={personality} />
           <div>
-            <h1 className="text-lg font-semibold text-foreground tracking-tight">創作工作室</h1>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
+            <h1 className="hs-h3-lg !mb-0 text-foreground">創作工作室</h1>
+            <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
               配額 <span className="tabular-nums font-medium">{user?.remainingGenerations ?? 0}</span>
             </p>
           </div>
@@ -1424,7 +1424,7 @@ export default function Studio() {
           {/* Modality-Specific Workspace / Personality Selector */}
           <GlassCard hover={false} id="personality-selector">
             <div className="space-y-1">
-              <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <h3 className="hs-h3 !mb-0 text-foreground flex items-center gap-2">
                 {activeModality === "image" && <><Image className="w-4 h-4 text-primary" /> 圖片工作區</>}
                 {activeModality === "video" && (
                   <>
@@ -1593,7 +1593,7 @@ export default function Studio() {
                 animate={{ opacity: 1, y: 0 }}
               >
                 <GlassCard className="space-y-4">
-                  <h3 className="text-sm font-semibold text-foreground">生成結果</h3>
+                  <h3 className="hs-h3 !mb-0 text-foreground">生成結果</h3>
                   {resultUrl && (
                     <div className="rounded-xl overflow-hidden shadow-sm">
                       {activeModality === "video" ? (

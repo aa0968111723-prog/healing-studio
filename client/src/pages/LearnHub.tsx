@@ -88,8 +88,8 @@ function renderMarkdown(md: string): string {
     .replace(/`([^`]+)`/g, "<code class=\"bg-gray-100 text-pink-600 px-1.5 py-0.5 rounded text-sm font-mono\">$1</code>")
     // Headers
     .replace(/^#### (.+)$/gm, "<h4 class=\"text-sm font-bold text-gray-800 mt-4 mb-1\">$1</h4>")
-    .replace(/^### (.+)$/gm, "<h3 class=\"text-base font-bold text-gray-800 mt-5 mb-2\">$1</h3>")
-    .replace(/^## (.+)$/gm, "<h2 class=\"text-lg font-bold text-gray-900 mt-6 mb-3 border-b pb-1\">$1</h2>")
+    .replace(/^### (.+)$/gm, "<h3 class=\"hs-h3 !mb-0 text-gray-800 mt-5 mb-2\">$1</h3>")
+    .replace(/^## (.+)$/gm, "<h2 class=\"hs-h2 !mb-0 text-gray-900 mt-6 mb-3 border-b pb-1\">$1</h2>")
     .replace(/^# (.+)$/gm, "<h1 class=\"text-xl font-bold text-gray-900 mt-2 mb-4\">$1</h1>")
     // Bold
     .replace(/\*\*(.+?)\*\*/g, "<strong class=\"font-semibold\">$1</strong>")
@@ -107,7 +107,7 @@ function renderMarkdown(md: string): string {
     // Ordered list items
     .replace(/^\d+\. (.+)$/gm, "<li class=\"ml-4 text-sm text-gray-700 list-decimal mb-1\">$1</li>")
     // Paragraphs (double newlines)
-    .replace(/\n\n/g, "</p><p class=\"text-sm text-gray-700 leading-relaxed mb-3\">")
+    .replace(/\n\n/g, "</p><p class=\"hs-p !mb-0 text-gray-700 mb-3\">")
     // Single newlines
     .replace(/\n/g, "<br />");
 }
@@ -164,12 +164,12 @@ function DocCard({
         </div>
 
         {/* Title */}
-        <h3 className="font-semibold text-sm text-gray-900 mb-2 line-clamp-2 group-hover:text-primary transition-colors">
+        <h3 className="hs-h3 !mb-0 text-gray-900 mb-2 line-clamp-2 group-hover:text-primary transition-colors">
           {doc.title}
         </h3>
 
         {/* Summary */}
-        <p className="text-xs text-gray-500 leading-relaxed line-clamp-2 mb-3">
+        <p className="hs-small !mb-0 text-gray-500 line-clamp-2 mb-3">
           {doc.summary}
         </p>
 
@@ -247,15 +247,15 @@ function DocDetailModal({ doc, onClose }: { doc: any; onClose: () => void }) {
                 <Clock className="w-3 h-3" />{doc.readingMinutes} 分鐘
               </span>
             </div>
-            <h2 className="text-lg font-bold text-gray-900">{doc.title}</h2>
-            <p className="text-sm text-gray-500 mt-1">{doc.summary}</p>
+            <h2 className="hs-h2 !mb-0 text-gray-900">{doc.title}</h2>
+            <p className="hs-small !mb-0 text-gray-500 mt-1">{doc.summary}</p>
           </div>
         </div>
 
         {/* Content */}
         <div
           className="flex-1 overflow-y-auto p-6 prose prose-sm max-w-none"
-          dangerouslySetInnerHTML={{ __html: `<p class="text-sm text-gray-700 leading-relaxed mb-3">${html}</p>` }}
+          dangerouslySetInnerHTML={{ __html: `<p class="hs-p !mb-0 text-gray-700 mb-3">${html}</p>` }}
         />
 
         {/* Footer */}
@@ -481,8 +481,8 @@ export default function LearnHub() {
             <BookOpen className="w-7 h-7 text-emerald-600" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">學習文件中心</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
+            <h1 className="hs-h1 !mb-0 text-foreground">學習文件中心</h1>
+            <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
               AI 生成技術教學、模型說明、API 文件和最新 AI 新聞
             </p>
             <div className="flex items-center gap-2 mt-2">
@@ -592,7 +592,7 @@ export default function LearnHub() {
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <Star className="w-4 h-4 text-amber-500 fill-amber-400" />
-            <h2 className="text-sm font-semibold text-foreground">精選文件</h2>
+            <h2 className="hs-h3 !mb-0 text-foreground">精選文件</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {featuredDocs.map(doc => (
@@ -618,13 +618,13 @@ export default function LearnHub() {
         {(!searchQuery && selectedCategory === "all" && selectedDifficulty === "all") && (
           <div className="flex items-center gap-2">
             <BookOpen className="w-4 h-4 text-muted-foreground" />
-            <h2 className="text-sm font-semibold text-foreground">所有文件</h2>
+            <h2 className="hs-h3 !mb-0 text-foreground">所有文件</h2>
           </div>
         )}
         {(searchQuery || selectedCategory !== "all" || selectedDifficulty !== "all") && (
           <div className="flex items-center gap-2">
             <Search className="w-4 h-4 text-muted-foreground" />
-            <h2 className="text-sm font-semibold text-foreground">
+            <h2 className="hs-h3 !mb-0 text-foreground">
               搜尋結果 · {total} 篇
             </h2>
           </div>
@@ -639,7 +639,7 @@ export default function LearnHub() {
         ) : docs.length === 0 ? (
           <div className="py-20 text-center space-y-3">
             <BookOpen className="w-12 h-12 text-muted-foreground/30 mx-auto" />
-            <p className="text-muted-foreground text-sm">找不到相關文件</p>
+            <p className="text-muted-foreground hs-small !mb-0">找不到相關文件</p>
             {searchQuery && (
               <Button variant="ghost" size="sm" onClick={() => setSearchQuery("")}>
                 清除搜尋

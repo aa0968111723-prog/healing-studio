@@ -628,10 +628,10 @@ export default function Home() {
               <Package className="w-3 h-3" />
               Core Capabilities
             </motion.div>
-            <h2 className={`text-xl sm:text-2xl lg:text-3xl heading-healing transition-colors duration-1000 ${s.textPrimary}`}>
+            <h2 className={`hs-h2 !mb-0 transition-colors duration-1000 ${s.textPrimary}`}>
               多模態 AI 創作引擎
             </h2>
-            <p className={`mt-4 sm:mt-5 text-xs sm:text-sm lg:text-base max-w-lg mx-auto body-healing transition-colors duration-1000 ${s.textMuted}`}>
+            <p className={`mt-4 sm:mt-5 hs-p !mb-0 max-w-lg mx-auto transition-colors duration-1000 ${s.textMuted}`}>
               從圖片、影片到音樂與配音，一站式覆蓋你的所有創作需求
             </p>
             {/* Healing divider */}
@@ -724,11 +724,11 @@ export default function Home() {
                               className="w-1 h-4 rounded-full"
                               style={{ background: `${demo.accentColor}40` }}
                             />
-                            <h3 className={`text-sm font-semibold transition-colors duration-1000 ${s.textPrimary}`}>
+                            <h3 className={`hs-h3 !mb-0 transition-colors duration-1000 ${s.textPrimary}`}>
                               {demo.title}
                             </h3>
                           </div>
-                          <p className={`text-xs leading-relaxed body-healing transition-colors duration-1000 ${s.textMuted}`}>
+                          <p className={`hs-small !mb-0 leading-relaxed transition-colors duration-1000 ${s.textMuted}`}>
                             {demo.description}
                           </p>
                           {/* Subtle "explore" hint on hover */}
@@ -788,10 +788,10 @@ export default function Home() {
                       {Math.round(intentResult.confidence * 100)}% 信心度
                     </span>
                   </div>
-                  <p className={`text-sm leading-relaxed transition-colors duration-1000 ${s.textPrimary}`}>
+                  <p className={`hs-p !mb-0 leading-relaxed transition-colors duration-1000 ${s.textPrimary}`}>
                     {intentResult.psychologicalInsight}
                   </p>
-                  <p className={`text-xs mt-2 transition-colors duration-1000 ${s.textMuted}`}>
+                  <p className={`hs-small !mb-0 mt-2 transition-colors duration-1000 ${s.textMuted}`}>
                     {intentResult.actionDetail}
                   </p>
                   {intentResult.detectedAesthetics.length > 0 && (
@@ -885,10 +885,10 @@ export default function Home() {
                   <Sparkles className="w-3 h-3" />
                   Healing Studio
                 </motion.div>
-                <h2 className={`text-xl sm:text-2xl lg:text-3xl heading-healing transition-colors duration-1000 ${s.textPrimary}`}>
+                <h2 className={`hs-h2 !mb-0 transition-colors duration-1000 ${s.textPrimary}`}>
                   準備好開始創作了嗎？
                 </h2>
-                <p className={`mt-4 sm:mt-5 text-xs sm:text-sm lg:text-base max-w-lg mx-auto body-healing transition-colors duration-1000 ${s.textMuted}`}>
+                <p className={`mt-4 sm:mt-5 hs-p !mb-0 max-w-lg mx-auto transition-colors duration-1000 ${s.textMuted}`}>
                   登入後即可使用所有功能，每位使用者享有初始免費配額
                 </p>
                 {/* Healing divider */}

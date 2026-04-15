@@ -224,7 +224,7 @@ function MediaInput({
           </div>
         )}
       </div>
-      <p className="text-[10px] text-muted-foreground/60">支援貼上 URL 或直接拖放上傳（最大 50MB）</p>
+      <p className="hs-small !mb-0 text-muted-foreground/60">支援貼上 URL 或直接拖放上傳（最大 50MB）</p>
     </div>
   );
 }
@@ -279,7 +279,7 @@ function ToolCard({
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="font-semibold text-sm text-foreground">{title}</h3>
+            <h3 className="hs-h3 !mb-0 text-foreground">{title}</h3>
             {badge && (
               <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
                 {badge}
@@ -291,7 +291,7 @@ function ToolCard({
               </Badge>
             )}
           </div>
-          <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+          <p className="hs-small !mb-0 text-muted-foreground mt-0.5">{description}</p>
           {modelId && (
             <a
               href={`https://fal.ai/models/${modelId}`}
@@ -401,7 +401,7 @@ function AsyncVideoPoller({
         <Loader2 className="w-7 h-7 text-primary animate-spin" />
         <div className="text-center">
           <p className="text-sm font-semibold text-foreground">{label ?? "影片"} 背景生成中...</p>
-          <p className="text-xs text-muted-foreground mt-1">
+          <p className="hs-small !mb-0 text-muted-foreground mt-1">
             已轉入背景任務，完成後會自動通知你<br />
             <span className="text-primary/70">你可以關閉此面板繼續其他操作</span>
           </p>
@@ -1514,7 +1514,7 @@ function AdvancedControlTab() {
       <ToolCard icon={Eye} title="DepthCrafter 深度感知生成" description="從單目影片重建深度時序，產生 3D 視差效果深度圖影片" badge="DepthCrafter" modelId="fal-ai/depthcrafter" color="green">
         <div className="space-y-3">
           <UrlInput label="原始影片 URL *" value={dcVideo} onChange={setDcVideo} required />
-          <p className="text-xs text-muted-foreground">
+          <p className="hs-small !mb-0 text-muted-foreground">
             DepthCrafter 將分析影片每一幀的深度信息，輸出深度圖影片，可用於後期 3D 效果合成。
           </p>
           <Button onClick={runDepthCrafter} disabled={dcMut.isPending} className="w-full" variant="secondary">
@@ -1627,8 +1627,8 @@ export default function VideoStudio() {
           <Film className="w-6 h-6 sm:w-7 sm:h-7 text-blue-600" />
         </div>
         <div className="flex-1 min-w-0">
-          <h1 className="text-xl sm:text-2xl font-bold text-foreground">影片專業工作室</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+          <h1 className="hs-h2 !mb-0 text-foreground">影片專業工作室</h1>
+          <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
             整合 FAL.AI 頂尖影片生成模型，共 {Object.values(MODEL_COUNT).reduce((a, b) => a + b, 0)} 個模型
           </p>
           <div className="flex flex-wrap gap-1 sm:gap-1.5 mt-2">
@@ -1646,7 +1646,7 @@ export default function VideoStudio() {
       {/* Applied Model Banner */}
       {appliedModelBanner && (
         <div className="rounded-xl border border-amber-200/60 bg-amber-50/60 dark:bg-amber-900/20 px-4 py-3 flex items-center justify-between gap-2">
-          <p className="text-xs text-amber-700 dark:text-amber-400 flex items-center gap-2">
+          <p className="hs-small !mb-0 text-amber-700 dark:text-amber-400 flex items-center gap-2">
             <span>🎭</span>
             {appliedModelBanner}
           </p>

@@ -492,8 +492,8 @@ export default function LoraTrainer() {
             <Flame className="w-5 h-5 sm:w-6 sm:h-6 text-orange-500" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-lg sm:text-xl font-bold tracking-tight">AI 模型訓練中心</h1>
-            <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">
+            <h1 className="hs-h2 !mb-0">AI 模型訓練中心</h1>
+            <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
               多類型 LoRA 微調訓練 · 支援 Replicate + Fal.ai 雙引擎
             </p>
           </div>
@@ -556,7 +556,7 @@ export default function LoraTrainer() {
             {/* ═══ Training Type Selector ═══ */}
             {!trainingJobId && (
               <GlassCard>
-                <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+                <h3 className="hs-h3 !mb-0 mb-3 flex items-center gap-2">
                   <Cpu className="w-4 h-4" />
                   選擇訓練類型
                 </h3>
@@ -605,8 +605,8 @@ export default function LoraTrainer() {
                   {trainingStatusQuery.data?.status === "completed" ? (
                     <>
                       <CheckCircle2 className="w-10 h-10 text-green-500 mx-auto" />
-                      <h3 className="text-sm font-medium">訓練完成！LoRA 模型已就緒</h3>
-                      <p className="text-xs text-muted-foreground">模型已成功訓練完成，可在工作室中使用觸發詞來呼叫。</p>
+                      <h3 className="hs-h3 !mb-0">訓練完成！LoRA 模型已就緒</h3>
+                      <p className="hs-small !mb-0 text-muted-foreground">模型已成功訓練完成，可在工作室中使用觸發詞來呼叫。</p>
                       <div className="flex gap-2 justify-center">
                         <Button variant="outline" className="rounded-xl gap-1.5 text-xs" onClick={() => { resetForm(); }}>
                           <Plus className="w-3 h-3" /> 訓練新模型
@@ -619,8 +619,8 @@ export default function LoraTrainer() {
                   ) : trainingStatusQuery.data?.status === "failed" ? (
                     <>
                       <X className="w-10 h-10 text-red-500 mx-auto" />
-                      <h3 className="text-sm font-medium text-red-500">訓練失敗</h3>
-                      <p className="text-xs text-muted-foreground">{trainingStatusQuery.data?.errorMessage || "訓練過程中發生錯誤"}</p>
+                      <h3 className="hs-h3 !mb-0 text-red-500">訓練失敗</h3>
+                      <p className="hs-small !mb-0 text-muted-foreground">{trainingStatusQuery.data?.errorMessage || "訓練過程中發生錯誤"}</p>
                       <Button variant="outline" className="rounded-xl gap-1.5 text-xs" onClick={() => resetForm()}>
                         重新開始
                       </Button>
@@ -628,7 +628,7 @@ export default function LoraTrainer() {
                   ) : (
                     <>
                       <Loader2 className="w-10 h-10 text-primary animate-spin mx-auto" />
-                      <h3 className="text-sm font-medium">模型訓練中...</h3>
+                      <h3 className="hs-h3 !mb-0">模型訓練中...</h3>
                       <p className="text-xs text-muted-foreground">
                         {trainingStatusQuery.data?.progressMessage || "訓練任務已加入佇列，請稍候..."}
                       </p>
@@ -834,13 +834,13 @@ export default function LoraTrainer() {
                         <div className="space-y-5">
                           <div className="text-center py-2">
                             <Tag className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
-                            <h3 className="text-sm font-medium">自動標註與觸發詞</h3>
-                            <p className="text-xs text-muted-foreground mt-1">AI 會自動為每張圖片生成描述標註</p>
+                            <h3 className="hs-h3 !mb-0">自動標註與觸發詞</h3>
+                            <p className="hs-small !mb-0 text-muted-foreground mt-1">AI 會自動為每張圖片生成描述標註</p>
                           </div>
                           <div className="space-y-2">
                             <Label className="text-sm font-medium">觸發詞 *</Label>
                             <Input placeholder="例如：char_a（唯一識別碼）" value={triggerWord} onChange={(e) => setTriggerWord(e.target.value)} className="rounded-xl font-mono" />
-                            <p className="text-[11px] text-muted-foreground">在提示詞中使用此觸發詞來呼叫此角色</p>
+                            <p className="hs-small !mb-0 text-muted-foreground">在提示詞中使用此觸發詞來呼叫此角色</p>
                           </div>
                           <Button
                             onClick={handleAutoCaptioning}
@@ -952,7 +952,7 @@ export default function LoraTrainer() {
                             {TRAINING_TYPE_ICONS[selectedTrainingType]}
                             <Flame className="w-10 h-10 text-orange-500" />
                           </div>
-                          <h3 className="text-sm font-medium">確認訓練設定</h3>
+                          <h3 className="hs-h3 !mb-0">確認訓練設定</h3>
                           <div className="rounded-xl bg-muted/30 p-4 text-left space-y-2 text-sm">
                             <div className="flex justify-between"><span className="text-muted-foreground">訓練類型</span><span className="font-medium">{MODEL_TYPE_LABELS[selectedTrainingType]}</span></div>
                             <div className="flex justify-between"><span className="text-muted-foreground">訓練引擎</span><span className="font-medium">{ENGINE_LABELS[trainingEngine]}</span></div>
@@ -1019,7 +1019,7 @@ export default function LoraTrainer() {
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">
                   <Activity className="w-5 h-5 text-muted-foreground" />
-                  <h3 className="text-sm font-medium">訓練引擎狀態</h3>
+                  <h3 className="hs-h3 !mb-0">訓練引擎狀態</h3>
                 </div>
               </div>
               {replicateStatusQuery.isLoading ? (
@@ -1074,36 +1074,36 @@ export default function LoraTrainer() {
                 <GlassCard>
                   <div className="text-center space-y-1">
                     <Database className="w-5 h-5 mx-auto text-muted-foreground" />
-                    <p className="text-2xl font-bold">{statsQuery.data.total}</p>
-                    <p className="text-[11px] text-muted-foreground">模型總數</p>
+                    <p className="hs-h1 !mb-0">{statsQuery.data.total}</p>
+                    <p className="hs-small !mb-0 text-muted-foreground">模型總數</p>
                   </div>
                 </GlassCard>
                 <GlassCard>
                   <div className="text-center space-y-1">
                     <CheckCircle2 className="w-5 h-5 mx-auto text-green-500" />
-                    <p className="text-2xl font-bold text-green-600">{statsQuery.data.ready}</p>
-                    <p className="text-[11px] text-muted-foreground">已就緒</p>
+                    <p className="hs-h1 !mb-0 text-green-600">{statsQuery.data.ready}</p>
+                    <p className="hs-small !mb-0 text-muted-foreground">已就緒</p>
                   </div>
                 </GlassCard>
                 <GlassCard>
                   <div className="text-center space-y-1">
                     <Loader2 className="w-5 h-5 mx-auto text-amber-500" />
-                    <p className="text-2xl font-bold text-amber-600">{statsQuery.data.training}</p>
-                    <p className="text-[11px] text-muted-foreground">訓練中</p>
+                    <p className="hs-h1 !mb-0 text-amber-600">{statsQuery.data.training}</p>
+                    <p className="hs-small !mb-0 text-muted-foreground">訓練中</p>
                   </div>
                 </GlassCard>
                 <GlassCard>
                   <div className="text-center space-y-1">
                     <X className="w-5 h-5 mx-auto text-red-500" />
-                    <p className="text-2xl font-bold text-red-600">{statsQuery.data.failed}</p>
-                    <p className="text-[11px] text-muted-foreground">失敗</p>
+                    <p className="hs-h1 !mb-0 text-red-600">{statsQuery.data.failed}</p>
+                    <p className="hs-small !mb-0 text-muted-foreground">失敗</p>
                   </div>
                 </GlassCard>
                 <GlassCard>
                   <div className="text-center space-y-1">
                     <Zap className="w-5 h-5 mx-auto text-blue-500" />
-                    <p className="text-2xl font-bold text-blue-600">{statsQuery.data.totalUsage}</p>
-                    <p className="text-[11px] text-muted-foreground">總使用次數</p>
+                    <p className="hs-h1 !mb-0 text-blue-600">{statsQuery.data.totalUsage}</p>
+                    <p className="hs-small !mb-0 text-muted-foreground">總使用次數</p>
                   </div>
                 </GlassCard>
               </div>
@@ -1111,7 +1111,7 @@ export default function LoraTrainer() {
 
             {/* Training Pipeline Overview */}
             <GlassCard>
-              <h3 className="text-sm font-medium mb-4 flex items-center gap-2">
+              <h3 className="hs-h3 !mb-0 mb-4 flex items-center gap-2">
                 <Flame className="w-4 h-4 text-orange-500" />
                 多類型 LoRA 訓練管線
               </h3>
@@ -1138,7 +1138,7 @@ export default function LoraTrainer() {
 
             {/* Training Types Overview */}
             <GlassCard>
-              <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+              <h3 className="hs-h3 !mb-0 mb-3 flex items-center gap-2">
                 <Settings2 className="w-4 h-4" />
                 支援的訓練類型
               </h3>
@@ -1162,7 +1162,7 @@ export default function LoraTrainer() {
             {/* Per-type Stats */}
             {statsQuery.data?.byType && Object.keys(statsQuery.data.byType).length > 0 && (
               <GlassCard>
-                <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+                <h3 className="hs-h3 !mb-0 mb-3 flex items-center gap-2">
                   <BarChart3 className="w-4 h-4" />
                   各類型模型統計
                 </h3>
@@ -1204,7 +1204,7 @@ export default function LoraTrainer() {
                     <div className="space-y-3">
                       {/* Header */}
                       <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-semibold truncate">{model.name}</h3>
+                        <h3 className="hs-h3 !mb-0 truncate">{model.name}</h3>
                         <StatusBadge status={model.status} />
                       </div>
 
@@ -1354,7 +1354,7 @@ export default function LoraTrainer() {
             ) : (
               <div className="flex flex-col items-center justify-center py-20 text-center">
                 <Flame className="w-12 h-12 text-muted-foreground/30" />
-                <h3 className="text-base font-medium mt-6">尚無訓練紀錄</h3>
+                <h3 className="hs-h3 !mb-0 mt-6">尚無訓練紀錄</h3>
                 <p className="text-sm text-muted-foreground mt-2 max-w-sm">
                   在「訓練微調」頁籤中建立你的第一個 LoRA 模型
                 </p>
@@ -1387,9 +1387,9 @@ export default function LoraTrainer() {
                     <div className="flex items-center gap-3">
                       <Flame className="w-5 h-5 text-orange-500" />
                       <div>
-                        <h2 className="text-base font-semibold">{detailQuery.data.name}</h2>
+                        <h2 className="hs-h2 !mb-0">{detailQuery.data.name}</h2>
                         {detailQuery.data.description && (
-                          <p className="text-xs text-muted-foreground">{detailQuery.data.description}</p>
+                          <p className="hs-small !mb-0 text-muted-foreground">{detailQuery.data.description}</p>
                         )}
                       </div>
                     </div>
@@ -1424,7 +1424,7 @@ export default function LoraTrainer() {
 
                 {/* Training Configuration */}
                 <GlassCard>
-                  <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+                  <h3 className="hs-h3 !mb-0 mb-3 flex items-center gap-2">
                     <Settings2 className="w-4 h-4" /> 訓練配置
                   </h3>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
@@ -1450,7 +1450,7 @@ export default function LoraTrainer() {
                 {/* Dataset Images Preview */}
                 {Array.isArray(detailQuery.data.datasetImages) && detailQuery.data.datasetImages.length > 0 && (
                   <GlassCard>
-                    <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+                    <h3 className="hs-h3 !mb-0 mb-3 flex items-center gap-2">
                       <Database className="w-4 h-4" /> 資料集 ({detailQuery.data.datasetImages.length} 張)
                     </h3>
                     <div className="flex flex-wrap gap-2">
@@ -1478,7 +1478,7 @@ export default function LoraTrainer() {
 
                 {/* Replicate Info */}
                 <GlassCard>
-                  <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+                  <h3 className="hs-h3 !mb-0 mb-3 flex items-center gap-2">
                     <Activity className="w-4 h-4" /> Replicate 訓練資訊
                   </h3>
                   <div className="space-y-2 text-xs">

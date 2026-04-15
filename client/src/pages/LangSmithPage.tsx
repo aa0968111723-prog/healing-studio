@@ -112,8 +112,8 @@ function StatCard({
           <Icon className={`w-4 h-4 ${textColor}`} />
         </div>
         <p className="text-[11px] text-muted-foreground">{label}</p>
-        <p className={`text-xl font-semibold mt-1 ${textColor}`}>{value}</p>
-        <p className="text-[10px] text-muted-foreground mt-0.5">{unit}</p>
+        <p className={`hs-h2 !mb-0 mt-1 ${textColor}`}>{value}</p>
+        <p className="hs-small !mb-0 text-muted-foreground mt-0.5">{unit}</p>
       </GlassCard>
     </motion.div>
   );
@@ -415,7 +415,7 @@ function TracesTab() {
                         <Badge key={t} variant="secondary" className="text-[9px] rounded-md shrink-0">{t}</Badge>
                       ))}
                     </div>
-                    <div className="flex items-center gap-3 mt-1 text-[11px] text-muted-foreground flex-wrap">
+                    <div className="flex items-center gap-3 mt-1 hs-small !mb-0 text-muted-foreground flex-wrap">
                       {run.latency != null && (
                         <span className="flex items-center gap-1">
                           <Clock className="w-3 h-3" /> {run.latency}ms
@@ -1023,7 +1023,7 @@ export default function LangSmithPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Activity className="w-5 h-5 text-muted-foreground" />
-          <h1 className="text-xl font-semibold">AI 監控中心</h1>
+          <h1 className="hs-h2 !mb-0">AI 監控中心</h1>
         </div>
         <ConnectionBadge
           connected={statusQuery.data?.connected ?? false}

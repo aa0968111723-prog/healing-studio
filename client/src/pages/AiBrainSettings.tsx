@@ -375,7 +375,7 @@ function LivePreview({ model, voiceId }: { model: string; voiceId?: string }) {
             「{SOUL_PREVIEW_TEXT}」
           </p>
           <div className="flex items-center justify-between mt-2.5">
-            <span className="text-[10px] text-muted-foreground/60">
+            <span className="hs-small !mb-0 text-muted-foreground/60">
               {model} · ElevenLabs TTS
             </span>
             <button
@@ -391,11 +391,11 @@ function LivePreview({ model, voiceId }: { model: string; voiceId?: string }) {
             </button>
           </div>
           {errorMsg && (
-            <p className="text-[10px] text-red-400 mt-1 leading-relaxed">{errorMsg}</p>
+            <p className="hs-small !mb-0 text-red-400 mt-1">{errorMsg}</p>
           )}
         </div>
       </div>
-      <p className="text-[10px] text-muted-foreground/60 text-center">
+      <p className="hs-small !mb-0 text-muted-foreground/60 text-center">
         點擊光球或「播放預覽」聆聽真實 TTS 語音
       </p>
     </div>
@@ -454,7 +454,7 @@ function BrainSlotCard({
               <h3 className="text-sm font-semibold text-foreground">{catalog.label}</h3>
               <HealthDot model={currentModel} health={health} />
             </div>
-            <p className="text-[10px] text-muted-foreground">{catalog.description}</p>
+            <p className="hs-small !mb-0 text-muted-foreground">{catalog.description}</p>
           </div>
         </div>
         <Switch checked={enabled} onCheckedChange={onEnabledChange} />
@@ -569,7 +569,7 @@ function EngineSlotCard({
               <h3 className="text-sm font-semibold text-foreground">{catalog.label}</h3>
               <HealthDot model={currentEngine} health={health} />
             </div>
-            <p className="text-[10px] text-muted-foreground">{catalog.description}</p>
+            <p className="hs-small !mb-0 text-muted-foreground">{catalog.description}</p>
           </div>
         </div>
         <Switch checked={enabled} onCheckedChange={onEnabledChange} />
@@ -669,7 +669,7 @@ function FalTaskCard({
             className="border-t border-white/20 dark:border-white/10"
           >
             <div className="p-3 space-y-2">
-              <p className="text-[10px] text-muted-foreground">{catalog.description}</p>
+              <p className="hs-small !mb-0 text-muted-foreground">{catalog.description}</p>
               <Select value={currentModel} onValueChange={onModelChange}>
                 <SelectTrigger className="h-8 text-xs bg-white/40 dark:bg-white/5">
                   <SelectValue />
@@ -687,7 +687,7 @@ function FalTaskCard({
                 </SelectContent>
               </Select>
               {selectedOpt?.description && (
-                <p className="text-[9px] text-muted-foreground/70 leading-relaxed">
+                <p className="hs-small !mb-0 text-muted-foreground/70">
                   {selectedOpt.description}
                 </p>
               )}
@@ -997,7 +997,7 @@ export default function AiBrainSettings() {
     return (
       <div className="space-y-6 max-w-5xl">
         <div>
-          <h1 className="text-2xl font-bold text-foreground tracking-tight flex items-center gap-2">
+          <h1 className="hs-h1 !mb-0 text-foreground flex items-center gap-2">
             <Brain className="w-6 h-6" />
             AI 大腦組態
           </h1>
@@ -1012,7 +1012,7 @@ export default function AiBrainSettings() {
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground tracking-tight flex items-center gap-2">
+          <h1 className="hs-h1 !mb-0 text-foreground flex items-center gap-2">
             <Brain className="w-6 h-6" />
             AI 大腦組態
           </h1>
@@ -1236,7 +1236,7 @@ export default function AiBrainSettings() {
               Fal.ai 任務引擎
               <Badge variant="outline" className="text-[9px] ml-1 bg-violet-500/10 text-violet-600 border-violet-500/20">16 categories</Badge>
             </h2>
-            <p className="text-[10px] text-muted-foreground mb-4">
+            <p className="hs-small !mb-0 text-muted-foreground mb-4">
               為每種 AI 任務類型選擇最佳 Fal.ai 模型。點擊展開可查看所有可用模型。
             </p>
 
@@ -1268,7 +1268,7 @@ export default function AiBrainSettings() {
               <Sparkles className="w-4 h-4" />
               光球語調預覽
             </h2>
-            <p className="text-[10px] text-muted-foreground mb-3">
+            <p className="hs-small !mb-0 text-muted-foreground mb-3">
               切換「光球語調」大腦模型，即時預覽光球對話風格
             </p>
             <LivePreview model={technicianModel} />
@@ -1361,7 +1361,7 @@ export default function AiBrainSettings() {
                 </div>
               )}
               <div className="pt-2 border-t border-white/20">
-                <p className="text-[10px] text-muted-foreground/60">
+                <p className="hs-small !mb-0 text-muted-foreground/60">
                   模型健康每 30 秒更新，服務 ping 每 60 秒更新。離線引擎自動降級至備援。
                 </p>
               </div>
@@ -1404,7 +1404,7 @@ export default function AiBrainSettings() {
                     </div>
                   );
                 })}
-                <p className="text-[9px] text-muted-foreground/50 pt-1 leading-relaxed">
+                <p className="hs-small !mb-0 text-muted-foreground/50 pt-1">
                   {pricingQuery.data.rateNote}
                 </p>
               </div>
@@ -1439,7 +1439,7 @@ export default function AiBrainSettings() {
 
           {/* Info */}
           <div className="rounded-xl bg-primary/5 border border-primary/10 p-3">
-            <p className="text-[10px] text-muted-foreground leading-relaxed">
+            <p className="hs-small !mb-0 text-muted-foreground">
               <strong className="text-foreground">安全提示：</strong>
               此頁面不會顯示或暴露任何 API Key。所有模型呼叫均透過伺服器端安全代理執行。
               切換模型時，系統會自動記錄切換日誌以供審計。
@@ -1464,7 +1464,7 @@ export default function AiBrainSettings() {
               <div className="flex items-center justify-between">
                 <div>
                   <Label className="text-xs font-medium">啟用自動除錯</Label>
-                  <p className="text-[10px] text-muted-foreground">開啟後系統將定時自動巡檢 API 並嘗試修復故障引擎</p>
+                  <p className="hs-small !mb-0 text-muted-foreground">開啟後系統將定時自動巡檢 API 並嘗試修復故障引擎</p>
                 </div>
                 <Switch
                   checked={autoRepairConfigQuery.data?.enabled ?? true}

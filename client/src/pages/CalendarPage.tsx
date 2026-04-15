@@ -385,8 +385,8 @@ export default function CalendarPage() {
         <div className="flex items-center gap-3">
           <VisualSoul size="sm" state="idle" personality={personality} />
           <div>
-            <h1 className="text-xl font-semibold tracking-tight">創作排程</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
+            <h1 className="hs-h2 !mb-0">創作排程</h1>
+            <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
               拖曳筆記到日曆上安排創作時程
             </p>
           </div>
@@ -489,7 +489,7 @@ export default function CalendarPage() {
           {selectedDate && (
             <div className="mt-4 pt-4 border-t border-border/20">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
+                <h3 className="hs-h3 !mb-0 text-foreground flex items-center gap-2">
                   <Clock className="w-3.5 h-3.5 text-amber-400" />
                   {selectedDate.toLocaleDateString("zh-TW", { month: "long", day: "numeric", weekday: "long" })}
                 </h3>
@@ -554,7 +554,7 @@ export default function CalendarPage() {
                 onDrop={(e) => { e.currentTarget.classList.remove("border-amber-400/40", "bg-amber-500/5"); handleDrop(e, selectedDate); }}
               >
                 {selectedDateEvents.length === 0 ? (
-                  <p className="text-xs text-muted-foreground/40 text-center py-4">
+                  <p className="hs-small !mb-0 text-muted-foreground/40 text-center py-4">
                     拖曳筆記到此處排程，或點擊「新增排程」
                   </p>
                 ) : (
@@ -576,11 +576,11 @@ export default function CalendarPage() {
         {/* Sidebar: Unscheduled Notes */}
         <div className="space-y-4">
           <GlassCard>
-            <h3 className="text-sm font-medium text-foreground flex items-center gap-2 mb-3">
+            <h3 className="hs-h3 !mb-0 text-foreground flex items-center gap-2 mb-3">
               <CalendarDays className="w-4 h-4 text-cyan-400" />
               待排程筆記
             </h3>
-            <p className="text-[10px] text-muted-foreground/50 mb-3">
+            <p className="hs-small !mb-0 text-muted-foreground/50 mb-3">
               拖曳以下筆記到日曆上的日期
             </p>
 
@@ -593,7 +593,7 @@ export default function CalendarPage() {
             ) : unscheduledNotes.length === 0 ? (
               <div className="text-center py-6">
                 <CalendarDays className="w-8 h-8 text-muted-foreground/20 mx-auto mb-2" />
-                <p className="text-xs text-muted-foreground/40">所有筆記已排程</p>
+                <p className="hs-small !mb-0 text-muted-foreground/40">所有筆記已排程</p>
               </div>
             ) : (
               <div className="space-y-1.5 max-h-[400px] overflow-y-auto">
@@ -613,19 +613,19 @@ export default function CalendarPage() {
 
           {/* Quick Stats */}
           <GlassCard>
-            <h3 className="text-sm font-medium text-foreground mb-3">排程統計</h3>
+            <h3 className="hs-h3 !mb-0 text-foreground mb-3">排程統計</h3>
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 p-3 text-center">
-                <p className="text-lg font-semibold text-amber-400 tabular-nums">
+                <p className="hs-h3-lg !mb-0 text-amber-400 tabular-nums">
                   {Array.from(notesByDate.values()).reduce((sum, arr) => sum + arr.length, 0)}
                 </p>
-                <p className="text-[10px] text-muted-foreground/60">已排程</p>
+                <p className="hs-small !mb-0 text-muted-foreground/60">已排程</p>
               </div>
               <div className="rounded-lg bg-cyan-500/10 border border-cyan-500/20 p-3 text-center">
-                <p className="text-lg font-semibold text-cyan-400 tabular-nums">
+                <p className="hs-h3-lg !mb-0 text-cyan-400 tabular-nums">
                   {unscheduledNotes.length}
                 </p>
-                <p className="text-[10px] text-muted-foreground/60">待排程</p>
+                <p className="hs-small !mb-0 text-muted-foreground/60">待排程</p>
               </div>
             </div>
           </GlassCard>
