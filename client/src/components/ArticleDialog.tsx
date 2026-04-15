@@ -13,7 +13,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { trpc } from "@/lib/trpc";
-import { Streamdown } from "streamdown";
+import LazyStreamdown from "@/components/LazyStreamdown";
 import {
   X, ExternalLink, Clock, Eye, Loader2, Newspaper,
 } from "lucide-react";
@@ -361,7 +361,7 @@ export default function ArticleDialog({ newsId, onClose, sceneId }: ArticleDialo
                         >
                           {article.bodyMarkdown ? (
                             <div className={`prose prose-sm max-w-none ${styles.proseClass} prose-p:leading-relaxed prose-headings:tracking-tight prose-img:rounded-xl prose-pre:rounded-xl`}>
-                              <Streamdown>{article.bodyMarkdown}</Streamdown>
+                              <LazyStreamdown>{article.bodyMarkdown}</LazyStreamdown>
                             </div>
                           ) : (
                             <div className="flex flex-col items-center py-8 gap-3">

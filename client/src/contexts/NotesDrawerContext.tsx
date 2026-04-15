@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from "react";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -42,8 +42,12 @@ export function NotesDrawerProvider({ children }: { children: ReactNode }) {
     setIsOpen(true);
   }, []);
 
+  const contextValue = useMemo(() => ({
+    isOpen, pendingPayload, openDrawer, closeDrawer, toggleDrawer, saveToNotes,
+  }), [isOpen, pendingPayload, openDrawer, closeDrawer, toggleDrawer, saveToNotes]);
+
   return (
-    <NotesDrawerContext.Provider value={{ isOpen, pendingPayload, openDrawer, closeDrawer, toggleDrawer, saveToNotes }}>
+    <NotesDrawerContext.Provider value={contextValue}>
       {children}
     </NotesDrawerContext.Provider>
   );

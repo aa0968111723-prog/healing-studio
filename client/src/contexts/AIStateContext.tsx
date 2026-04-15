@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useRef, useEffect, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useRef, useEffect, useMemo, type ReactNode } from "react";
 import type { AIState } from "@/components/VisualSoul";
 
 // ─── Personality localStorage persistence key ──────────────────────────────
@@ -259,28 +259,34 @@ export function AIStateProvider({ children }: { children: ReactNode }) {
     proactiveShownRef.current.clear();
   }, [personality]);
 
+  const contextValue = useMemo(() => ({
+    aiState,
+    setAIState,
+    flashThinking,
+    flashGenerating,
+    personality,
+    setPersonality,
+    metrics,
+    reportTyping,
+    reportFailure,
+    reportSuccess,
+    resetIdle,
+    proactiveMessage,
+    dismissProactive,
+    pageContext,
+    setPageContext,
+    quietMode,
+    setQuietMode,
+  }), [
+    aiState, setAIState, flashThinking, flashGenerating,
+    personality, setPersonality, metrics,
+    reportTyping, reportFailure, reportSuccess, resetIdle,
+    proactiveMessage, dismissProactive,
+    pageContext, setPageContext, quietMode, setQuietMode,
+  ]);
+
   return (
-    <AIStateContext.Provider
-      value={{
-        aiState,
-        setAIState,
-        flashThinking,
-        flashGenerating,
-        personality,
-        setPersonality,
-        metrics,
-        reportTyping,
-        reportFailure,
-        reportSuccess,
-        resetIdle,
-        proactiveMessage,
-        dismissProactive,
-        pageContext,
-        setPageContext,
-        quietMode,
-        setQuietMode,
-      }}
-    >
+    <AIStateContext.Provider value={contextValue}>
       {children}
     </AIStateContext.Provider>
   );

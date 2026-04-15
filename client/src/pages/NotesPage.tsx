@@ -15,7 +15,7 @@ import {
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import VisualSoul from "@/components/VisualSoul";
 import { motion, AnimatePresence } from "framer-motion";
-import { Streamdown } from "streamdown";
+import LazyStreamdown from "@/components/LazyStreamdown";
 import { useAIState } from "@/contexts/AIStateContext";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
@@ -431,7 +431,7 @@ export default function NotesPage() {
                               <>
                                 {/* Markdown content */}
                                 <div className="prose prose-sm max-w-none text-foreground">
-                                  <Streamdown>{note.content || "（無內容）"}</Streamdown>
+                                  <LazyStreamdown>{note.content || "（無內容）"}</LazyStreamdown>
                                 </div>
 
                                 {/* CO-STAR JSON */}

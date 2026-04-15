@@ -345,7 +345,7 @@ function DashboardLayoutContent({
       document.body.style.cursor = "col-resize";
       document.body.style.userSelect = "none";
       // -webkit-user-select needed for Safari on iPad during touch-resize
-      (document.body.style as Record<string, string>).webkitUserSelect = "none";
+      (document.body.style as unknown as Record<string, string>).webkitUserSelect = "none";
     }
     return () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
@@ -356,7 +356,7 @@ function DashboardLayoutContent({
       document.removeEventListener("touchcancel", handleEnd);
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
-      (document.body.style as Record<string, string>).webkitUserSelect = "";
+      (document.body.style as unknown as Record<string, string>).webkitUserSelect = "";
     };
   }, [isResizing, setSidebarWidth]);
 
@@ -369,6 +369,49 @@ function DashboardLayoutContent({
   const resetWidth = useCallback(() => {
     setSidebarWidth(DEFAULT_WIDTH);
   }, [setSidebarWidth]);
+
+  // ── Memoized ProactiveOrbWidget callbacks ──────────────────────────────
+  const handleOrbRestartTour = useCallback(() => {
+    const pathToPageId: Record<string, PageId> = {
+      "/pro-studio":   "pro-studio",
+      "/image-studio": "image-studio",
+      "/video-studio": "video-studio",
+      "/director":     "director",
+      "/models":       "models",
+      "/history":      "history",
+      "/assets":       "assets",
+      "/vault":        "vault",
+      "/notes":        "notes",
+      "/calendar":     "calendar",
+      "/shared":       "shared",
+      "/dashboard":    "dashboard",
+      "/feedback":     "feedback",
+      "/settings":     "settings",
+      "/settings/ai-brain": "settings",
+      "/learn":        "learn",
+      "/focus-flow":   "focus-flow",
+      "/langsmith":    "langsmith",
+      "/background-tasks": "background-tasks",
+    };
+    const pageId = pathToPageId[location] ?? "welcome";
+    window.dispatchEvent(new CustomEvent("site-tour-start", { detail: { pageId } }));
+  }, [location]);
+
+  const handleOrbSaveToNotes = useCallback((payload: { title: string; content?: string; sourceType?: string }) => {
+    window.dispatchEvent(new CustomEvent("pin-to-notes", { detail: payload }));
+  }, []);
+
+  const handleOrbOpenNotes = useCallback(() => {
+    window.dispatchEvent(new CustomEvent("open-notes-drawer"));
+  }, []);
+
+  const handleOrbOpenCalendar = useCallback(() => {
+    window.dispatchEvent(new CustomEvent("navigate-to", { detail: "/calendar" }));
+  }, []);
+
+  const handleOrbAddToCalendar = useCallback((payload: { title: string; description?: string; date: Date }) => {
+    window.dispatchEvent(new CustomEvent("add-to-calendar", { detail: payload }));
+  }, []);
 
   return (
     <>
@@ -659,7 +702,7 @@ function DashboardLayoutContent({
               {/* User avatar dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="h-10 w-10 rounded-full border flex items-center justify-center bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <button aria-label="使用者選單" className="h-10 w-10 rounded-full border flex items-center justify-center bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                     <span className="text-sm font-medium text-primary">
                       {user?.name?.charAt(0).toUpperCase() || "U"}
                     </span>
@@ -689,44 +732,11 @@ function DashboardLayoutContent({
       {/* 全站光球常駐協助（Studio 頁面內已有自己的光球，不需要重複） */}
       {user && location !== "/studio" && (
         <ProactiveOrbWidget
-          onRestartTour={() => {
-            // 根據當前路徑尋找對應的 pageId
-            const pathToPageId: Record<string, PageId> = {
-              "/pro-studio":   "pro-studio",
-              "/image-studio": "image-studio",
-              "/video-studio": "video-studio",
-              "/director":     "director",
-              "/models":       "models",
-              "/history":      "history",
-              "/assets":       "assets",
-              "/vault":        "vault",
-              "/notes":        "notes",
-              "/calendar":     "calendar",
-              "/shared":       "shared",
-              "/dashboard":    "dashboard",
-              "/feedback":     "feedback",
-              "/settings":     "settings",
-              "/settings/ai-brain": "settings",
-              "/learn":        "learn",
-              "/focus-flow":   "focus-flow",
-              "/langsmith":    "langsmith",
-              "/background-tasks": "background-tasks",
-            };
-            const pageId = pathToPageId[location] ?? "welcome";
-            window.dispatchEvent(new CustomEvent("site-tour-start", { detail: { pageId } }));
-          }}
-          onSaveToNotes={(payload) => {
-            window.dispatchEvent(new CustomEvent("pin-to-notes", { detail: payload }));
-          }}
-          onOpenNotes={() => {
-            window.dispatchEvent(new CustomEvent("open-notes-drawer"));
-          }}
-          onOpenCalendar={() => {
-            window.dispatchEvent(new CustomEvent("navigate-to", { detail: "/calendar" }));
-          }}
-          onAddToCalendar={(payload) => {
-            window.dispatchEvent(new CustomEvent("add-to-calendar", { detail: payload }));
-          }}
+          onRestartTour={handleOrbRestartTour}
+          onSaveToNotes={handleOrbSaveToNotes}
+          onOpenNotes={handleOrbOpenNotes}
+          onOpenCalendar={handleOrbOpenCalendar}
+          onAddToCalendar={handleOrbAddToCalendar}
         />
       )}
     </>

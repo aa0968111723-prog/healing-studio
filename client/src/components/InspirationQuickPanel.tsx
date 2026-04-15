@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Dice5 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -79,6 +79,7 @@ interface InspirationQuickPanelProps {
 }
 
 export function InspirationQuickPanel({ onApply, className }: InspirationQuickPanelProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const handleRandom = useCallback(() => {

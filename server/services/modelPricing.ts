@@ -26,7 +26,7 @@
 
 export type PricingTier = "free" | "economy" | "standard" | "premium" | "ultra";
 export type ModelCategory =
-  | "image-to-3d" | "image-to-image" | "image-to-json" | "image-to-video"
+  | "audio-to-text" | "image-to-3d" | "image-to-image" | "image-to-json" | "image-to-video"
   | "json" | "llm" | "text-to-3d" | "text-to-audio" | "text-to-image"
   | "text-to-json" | "text-to-speech" | "text-to-video" | "training"
   | "video-to-audio" | "video-to-text" | "video-to-video"
