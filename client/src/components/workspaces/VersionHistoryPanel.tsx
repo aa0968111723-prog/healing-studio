@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import type { VersionEntry, PromptStrengthLevel } from '@/stores/workspaceStore';
 import { cn } from '@/lib/utils';
 import {
@@ -28,7 +28,7 @@ interface VersionHistoryPanelProps {
 
 const actionModeConfig: Record<
   VersionEntry['actionMode'],
-  { label: string; icon: React.ElementType; colorClass: string }
+  { label: string; icon: React.ComponentType<{ className?: string }>; colorClass: string }
 > = {
   generate: {
     label: 'Generate',
