@@ -1,24 +1,31 @@
 /**
- * LoginOrbAnimation.tsx — 登入光球飛入動畫（極細膩療癒版）
+ * LoginOrbAnimation.tsx — 登入光球飛入動畫（高效能療癒版）
  *
  * 當使用者成功登入（URL 帶有 ?welcome=1）時播放：
  *   1. 深邃星空背景漸顯，三層深度星場營造空間感
- *   2. 多顆柔光球沿弧線軌跡從畫面四周飛入，帶有柔和拖尾殘像
+ *   2. 柔光球沿弧線軌跡從畫面四周飛入
  *   3. 匯聚瞬間爆發溫暖光芒（convergence flash）
- *   4. 形成主光球，SVG 湍流紋理賦予有機質感，多層光暈呼吸
- *   5. 極光般的色彩飄帶環繞核心
- *   6. 「歡迎回來」以發光漸層文字浮現
- *   7. 輕柔淡出，回歸日常
+ *   4. 形成主光球，多層柔和漸層呼吸
+ *   5. 「歡迎回來」以發光漸層文字浮現
+ *   6. 輕柔淡出，回歸日常
+ *
+ * 效能優化（v2 — 消除卡頓）：
+ *   - 星場：純 CSS @keyframes（消除 ~63 個 framer-motion JS 動畫迴圈）
+ *   - 光球飛行：純 CSS @keyframes + translate3d GPU 合成（消除 ~42 個迴圈）
+ *   - 移除 SVG feTurbulence / feDisplacementMap / feGaussianBlur（GPU 重大瓶頸）
+ *   - 移除所有 CSS filter:blur()，改用大尺寸柔化漸層模擬模糊效果
+ *   - 元素數量大幅精簡：7 光球（原 14+28 拖尾）、3 中央層（原 7+6+5）、37 星（原 63）
+ *   - 僅遮罩進出場與中央光球使用 framer-motion（~9 實例，原 ~126）
+ *   - will-change 提示關鍵動畫元素確保 GPU 合成層
+ *   - CSS containment 隔離佈局
  *
  * 設計原則：
- *   - 極細膩：SVG feTurbulence 有機紋理 + 多層高斯模糊 + 弧線軌跡 + 殘像拖尾
- *   - 療癒感：緩慢 spring 物理 + 溫暖色調 + 呼吸節奏 + 深邃星空
+ *   - 療癒感：溫暖色調 + 呼吸節奏 + 深邃星空
  *   - 人格感知：依使用者 AI 人格（calm/creative/technical）微調光球色調
  *   - 無障礙：尊重 prefers-reduced-motion，降級為簡潔淡入淡出
- *   - 效能：will-change 提示 GPU 加速，memoize 靜態元素
  */
 
-import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, useId, memo } from "react";
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePersonality } from "@/contexts/PersonalityContext";
 import type { Personality } from "@/contexts/PersonalityContext";
@@ -29,280 +36,212 @@ const TOTAL_DURATION_MS = 5800;
 const FADEOUT_DURATION_S = 1.4;
 /** Above OfflineBanner/OnboardingTour (9999) and AuthExpiredModal (10000/10001) — topmost ephemeral overlay */
 const Z_INDEX_ANIMATION_OVERLAY = 10050;
+
+// Reduced star count (37 total, down from 63) — sufficient for atmosphere
 const STAR_LAYERS = [
-  { count: 35, sizeMin: 1, sizeMax: 1.5, opacityMin: 0.15, opacityMax: 0.4,  driftSpeed: 6 },
-  { count: 20, sizeMin: 1.5, sizeMax: 2.5, opacityMin: 0.2,  opacityMax: 0.55, driftSpeed: 8 },
-  { count: 8,  sizeMin: 2.5, sizeMax: 4,   opacityMin: 0.3,  opacityMax: 0.7,  driftSpeed: 12 },
+  { count: 20, sizeMin: 1, sizeMax: 1.5, opacityMin: 0.15, opacityMax: 0.4 },
+  { count: 12, sizeMin: 1.5, sizeMax: 2.5, opacityMin: 0.2,  opacityMax: 0.55 },
+  { count: 5,  sizeMin: 2.5, sizeMax: 4,   opacityMin: 0.3,  opacityMax: 0.7 },
 ];
-const PULSE_RING_COUNT = 5;
+
+// ─── Static CSS keyframes (pure CSS — no JS animation overhead) ─────────────
+
+const STATIC_KEYFRAMES =
+  // Star twinkle per layer (mid-opacity values from each layer's range)
+  "@keyframes hs-tw0{0%,100%{opacity:.28}50%{opacity:.15}}" +
+  "@keyframes hs-tw1{0%,100%{opacity:.38}50%{opacity:.22}}" +
+  "@keyframes hs-tw2{0%,100%{opacity:.5}50%{opacity:.3}}" +
+  // Star drift per layer (vertical float distance increases with depth)
+  "@keyframes hs-dr0{0%,100%{transform:translate3d(0,0,0)}50%{transform:translate3d(0,-2px,0)}}" +
+  "@keyframes hs-dr1{0%,100%{transform:translate3d(0,0,0)}50%{transform:translate3d(0,-4px,0)}}" +
+  "@keyframes hs-dr2{0%,100%{transform:translate3d(0,0,0)}50%{transform:translate3d(0,-6px,0)}}";
 
 // ─── Personality → Color Palette ────────────────────────────────────────────
 
 interface PaletteConfig {
-  /** Warm base orb colors (always warm, slightly tinted by personality) */
   orbs: Array<{ color: string; glow: string }>;
-  /** Central orb halo color */
   haloInner: string;
   haloOuter: string;
-  /** Core bright spot tint */
   coreTint: string;
-  /** Aurora wisp colors */
-  aurora: [string, string];
-  /** Pulse ring color */
   pulseRing: string;
-  /** Welcome text glow */
   textGlow: string;
 }
 
 function buildPalette(personality: Personality): PaletteConfig {
-  // Base warm palette, subtly tinted by personality
   const tints: Record<Personality, { h: number; s: number }> = {
-    calm:      { h: 200, s: 30 },  // cool blue tint
-    creative:  { h: 25,  s: 40 },  // warm amber tint
-    technical: { h: 160, s: 25 },  // mint-green tint
+    calm:      { h: 200, s: 30 },
+    creative:  { h: 25,  s: 40 },
+    technical: { h: 160, s: 25 },
   };
   const t = tints[personality];
 
   return {
     orbs: [
-      // Primary warm (universal)
       { color: "rgba(255,200,120,0.7)",  glow: "rgba(255,180,80,0.45)" },
       { color: "rgba(255,160,180,0.6)",  glow: "rgba(255,120,160,0.35)" },
       { color: "rgba(200,180,255,0.55)", glow: "rgba(180,160,255,0.3)" },
       { color: "rgba(180,230,255,0.55)", glow: "rgba(140,210,255,0.3)" },
       { color: "rgba(255,220,180,0.6)",  glow: "rgba(255,200,140,0.35)" },
-      // Secondary (more ethereal)
-      { color: "rgba(255,190,200,0.45)", glow: "rgba(255,160,180,0.25)" },
-      { color: "rgba(220,200,255,0.45)", glow: "rgba(200,180,255,0.25)" },
-      { color: "rgba(255,230,200,0.45)", glow: "rgba(255,210,160,0.25)" },
-      { color: "rgba(180,220,255,0.4)",  glow: "rgba(150,200,255,0.22)" },
-      { color: "rgba(255,210,170,0.45)", glow: "rgba(255,190,140,0.25)" },
-      // Personality-tinted accent orbs
       { color: `hsla(${t.h},${t.s + 30}%,75%,0.55)`, glow: `hsla(${t.h},${t.s + 20}%,65%,0.3)` },
       { color: `hsla(${t.h + 20},${t.s + 20}%,80%,0.45)`, glow: `hsla(${t.h + 20},${t.s + 10}%,70%,0.25)` },
-      // Tiny sparkle dust
-      { color: "rgba(255,245,230,0.35)", glow: "rgba(255,230,200,0.18)" },
-      { color: `hsla(${t.h + 10},${t.s}%,85%,0.35)`, glow: `hsla(${t.h + 10},${t.s}%,75%,0.18)` },
     ],
     haloInner: `hsla(${t.h},${t.s}%,80%,0.2)`,
     haloOuter: "rgba(255,200,140,0.12)",
     coreTint:  `hsla(${t.h},${Math.max(10, t.s - 10)}%,92%,0.3)`,
-    aurora: [
-      `hsla(${t.h},${t.s + 20}%,70%,0.08)`,
-      `hsla(${t.h + 40},${t.s + 10}%,75%,0.06)`,
-    ],
     pulseRing: `hsla(${t.h},${t.s}%,80%,0.12)`,
     textGlow:  `hsla(${t.h},${t.s + 10}%,80%,0.6)`,
   };
 }
 
-// ─── Orb flight configuration ───────────────────────────────────────────────
+// ─── Orb flight configuration (7 orbs, down from 14 — no trails) ────────────
 
 interface OrbFlight {
   id: number;
   startX: number;
   startY: number;
-  /** Bezier mid-point offset (perpendicular to flight path, in vw%) */
   curveOffset: number;
   size: number;
   delay: number;
   duration: number;
-  /** Index into palette.orbs */
   colorIdx: number;
 }
 
-/**
- * Compute a curved midpoint between start and center (50,50).
- * The midpoint is offset perpendicular to the straight-line path.
- */
-function getCurvedMidpoint(startX: number, startY: number, offset: number): { x: number; y: number } {
+function getCurvedMidpoint(startX: number, startY: number, offset: number) {
   const cx = 50, cy = 50;
   const mx = (startX + cx) / 2;
   const my = (startY + cy) / 2;
-  // Perpendicular direction
   const dx = cx - startX;
   const dy = cy - startY;
   const len = Math.sqrt(dx * dx + dy * dy) || 1;
-  const px = -dy / len;
-  const py = dx / len;
-  return { x: mx + px * offset, y: my + py * offset };
+  return { x: mx + (-dy / len) * offset, y: my + (dx / len) * offset };
 }
 
 const ORB_FLIGHTS: OrbFlight[] = [
-  // Large primary orbs — wide curves
-  { id: 1,  startX: -12, startY: 18,  curveOffset: 18,  size: 20, delay: 0,    duration: 3.0, colorIdx: 0 },
-  { id: 2,  startX: 112, startY: 32,  curveOffset: -15, size: 16, delay: 0.18, duration: 3.2, colorIdx: 1 },
-  { id: 3,  startX: 28,  startY: -12, curveOffset: 20,  size: 14, delay: 0.35, duration: 2.8, colorIdx: 2 },
-  { id: 4,  startX: 78,  startY: 112, curveOffset: -18, size: 18, delay: 0.22, duration: 3.1, colorIdx: 3 },
-  { id: 5,  startX: -8,  startY: 72,  curveOffset: -14, size: 12, delay: 0.45, duration: 2.9, colorIdx: 4 },
-  // Medium accent orbs — tighter curves
-  { id: 6,  startX: 108, startY: 68,  curveOffset: 12,  size: 10, delay: 0.55, duration: 3.3, colorIdx: 5 },
-  { id: 7,  startX: 48,  startY: -10, curveOffset: -16, size: 11, delay: 0.4,  duration: 2.7, colorIdx: 6 },
-  { id: 8,  startX: 14,  startY: 108, curveOffset: 14,  size: 9,  delay: 0.6,  duration: 3.0, colorIdx: 7 },
-  { id: 9,  startX: 92,  startY: -8,  curveOffset: -12, size: 13, delay: 0.3,  duration: 3.4, colorIdx: 8 },
-  { id: 10, startX: -10, startY: 48,  curveOffset: 10,  size: 8,  delay: 0.65, duration: 3.1, colorIdx: 9 },
-  // Personality-tinted orbs
-  { id: 11, startX: 65,  startY: -8,  curveOffset: 15,  size: 12, delay: 0.5,  duration: 2.9, colorIdx: 10 },
-  { id: 12, startX: -6,  startY: 55,  curveOffset: -11, size: 10, delay: 0.7,  duration: 3.2, colorIdx: 11 },
-  // Tiny sparkle dust
-  { id: 13, startX: 20,  startY: -14, curveOffset: 8,   size: 5,  delay: 0.5,  duration: 2.5, colorIdx: 12 },
-  { id: 14, startX: 110, startY: 50,  curveOffset: -8,  size: 6,  delay: 0.75, duration: 3.0, colorIdx: 13 },
+  { id: 1, startX: -12, startY: 18,  curveOffset: 18,  size: 22, delay: 0,    duration: 3.0, colorIdx: 0 },
+  { id: 2, startX: 112, startY: 32,  curveOffset: -15, size: 18, delay: 0.15, duration: 3.2, colorIdx: 1 },
+  { id: 3, startX: 28,  startY: -12, curveOffset: 20,  size: 16, delay: 0.3,  duration: 2.8, colorIdx: 2 },
+  { id: 4, startX: 78,  startY: 112, curveOffset: -18, size: 20, delay: 0.2,  duration: 3.1, colorIdx: 3 },
+  { id: 5, startX: -8,  startY: 72,  curveOffset: -14, size: 14, delay: 0.4,  duration: 2.9, colorIdx: 4 },
+  { id: 6, startX: 65,  startY: -8,  curveOffset: 15,  size: 12, delay: 0.45, duration: 2.9, colorIdx: 5 },
+  { id: 7, startX: -6,  startY: 55,  curveOffset: -11, size: 10, delay: 0.6,  duration: 3.2, colorIdx: 6 },
 ];
 
-// ─── FlyingOrb with curved path + trailing afterglow ────────────────────────
+// ─── Pre-computed star data (computed once at module load) ───────────────────
 
-function FlyingOrb({
-  flight,
-  palette,
-  containerSize,
-}: {
-  flight: OrbFlight;
-  palette: PaletteConfig;
-  /** [width, height] of the overlay container in px for %-to-px conversion */
-  containerSize: [number, number];
-}) {
-  const color = palette.orbs[flight.colorIdx] ?? palette.orbs[0];
-  const mid = getCurvedMidpoint(flight.startX, flight.startY, flight.curveOffset);
-
-  // Convert % to px for transform-based (GPU-composited) animation
-  const [cw, ch] = containerSize;
-  const toPx = (pctX: number, pctY: number) => [cw * pctX / 100, ch * pctY / 100] as const;
-
-  const [startPxX, startPxY] = toPx(flight.startX, flight.startY);
-  const [midPxX, midPxY] = toPx(mid.x, mid.y);
-  const [endPxX, endPxY] = toPx(50, 50);
-
-  // Trail ghost: smaller, delayed, lower opacity copy
-  const trailCount = flight.size >= 12 ? 2 : 1;
-
-  return (
-    <>
-      {/* Trailing afterglow copies — GPU-composited via x/y transforms */}
-      {Array.from({ length: trailCount }).map((_, ti) => (
-        <motion.div
-          key={`trail-${flight.id}-${ti}`}
-          className="absolute rounded-full pointer-events-none"
-          style={{
-            left: 0,
-            top: 0,
-            width: flight.size * (0.6 - ti * 0.15),
-            height: flight.size * (0.6 - ti * 0.15),
-            background: `radial-gradient(circle, ${color.glow} 0%, transparent 70%)`,
-            filter: `blur(${flight.size * 0.3 + ti * 2}px)`,
-          }}
-          initial={{
-            x: startPxX,
-            y: startPxY,
-            opacity: 0,
-          }}
-          animate={{
-            x: [startPxX, midPxX, endPxX],
-            y: [startPxY, midPxY, endPxY],
-            opacity: [0, 0.35 - ti * 0.1, 0],
-          }}
-          transition={{
-            duration: flight.duration,
-            delay: flight.delay + 0.12 * (ti + 1),
-            ease: [0.22, 0.68, 0.36, 1],
-          }}
-        />
-      ))}
-
-      {/* Main orb — GPU-composited via x/y transforms */}
-      <motion.div
-        className="absolute rounded-full pointer-events-none"
-        style={{
-          left: 0,
-          top: 0,
-          width: flight.size,
-          height: flight.size,
-          background: `radial-gradient(circle, ${color.color} 0%, transparent 70%)`,
-          boxShadow: `0 0 ${flight.size * 2.5}px ${color.glow}, 0 0 ${flight.size * 5}px ${color.glow}`,
-          filter: `blur(${Math.max(0.5, flight.size * 0.12)}px)`,
-        }}
-        initial={{
-          x: startPxX,
-          y: startPxY,
-          scale: 0.2,
-          opacity: 0,
-        }}
-        animate={{
-          x: [startPxX, midPxX, endPxX],
-          y: [startPxY, midPxY, endPxY],
-          scale: [0.2, 1.15, 0.5],
-          opacity: [0, 0.85, 0.6],
-        }}
-        transition={{
-          duration: flight.duration,
-          delay: flight.delay,
-          ease: [0.22, 0.68, 0.36, 1],
-          scale: { duration: flight.duration, delay: flight.delay, ease: "easeInOut" },
-          opacity: { duration: flight.duration * 0.7, delay: flight.delay, ease: "easeOut" },
-        }}
-      />
-    </>
-  );
+interface StarData {
+  x: number; y: number; size: number; layer: number;
+  twinkleDur: number; driftDur: number;
+  twinkleDelay: number; driftDelay: number;
+  bg: string;
+  shadow: string;
 }
 
-// ─── Star field background ──────────────────────────────────────────────────
+const STARS: StarData[] = (() => {
+  const result: StarData[] = [];
+  STAR_LAYERS.forEach((layer, li) => {
+    for (let i = 0; i < layer.count; i++) {
+      const seed = li * 100 + i;
+      const x = ((seed * 17 + 31) % 97) / 97 * 100;
+      const y = ((seed * 41 + 7) % 89) / 89 * 100;
+      const size = layer.sizeMin + ((seed * 13) % 100) / 100 * (layer.sizeMax - layer.sizeMin);
+      const opacity = layer.opacityMin + ((seed * 29) % 100) / 100 * (layer.opacityMax - layer.opacityMin);
+      result.push({
+        x, y, size, layer: li,
+        twinkleDur: 3 + (seed % 5),
+        driftDur: (li === 0 ? 6 : li === 1 ? 8 : 12) + (seed % 4),
+        twinkleDelay: (i % 8) * 0.3,
+        driftDelay: (i % 6) * 0.4,
+        bg: li === 2
+          ? `radial-gradient(circle, rgba(255,240,220,${opacity.toFixed(2)}) 0%, transparent 70%)`
+          : `rgba(255,250,240,${opacity.toFixed(2)})`,
+        shadow: li >= 1
+          ? `0 0 ${(size * 2).toFixed(1)}px rgba(255,240,220,${(opacity * 0.5).toFixed(2)})`
+          : "none",
+      });
+    }
+  });
+  return result;
+})();
+
+// ─── Star field (pure CSS animations — no framer-motion) ────────────────────
 
 const StarField = memo(function StarField() {
-  const stars = useMemo(() => {
-    const result: Array<{
-      x: number; y: number; size: number; opacity: number;
-      drift: number; twinkle: number; layer: number;
-    }> = [];
-    STAR_LAYERS.forEach((layer, li) => {
-      for (let i = 0; i < layer.count; i++) {
-        // Deterministic but varied positions via simple hash
-        const seed = li * 100 + i;
-        const x = ((seed * 17 + 31) % 97) / 97 * 100;
-        const y = ((seed * 41 + 7) % 89) / 89 * 100;
-        const size = layer.sizeMin + ((seed * 13) % 100) / 100 * (layer.sizeMax - layer.sizeMin);
-        const opacity = layer.opacityMin + ((seed * 29) % 100) / 100 * (layer.opacityMax - layer.opacityMin);
-        result.push({
-          x, y, size, opacity,
-          drift: layer.driftSpeed + (seed % 4),
-          twinkle: 3 + (seed % 5),
-          layer: li,
-        });
-      }
-    });
-    return result;
-  }, []);
-
   return (
     <>
-      {stars.map((star, i) => (
-        <motion.div
-          key={`star-${i}`}
+      {STARS.map((star, i) => (
+        <div
+          key={i}
           className="absolute rounded-full pointer-events-none"
           style={{
             width: star.size,
             height: star.size,
             left: `${star.x}%`,
             top: `${star.y}%`,
-            background: star.layer === 2
-              ? `radial-gradient(circle, rgba(255,240,220,${star.opacity}) 0%, transparent 70%)`
-              : `rgba(255,250,240,${star.opacity})`,
-            boxShadow: star.layer >= 1
-              ? `0 0 ${star.size * 2}px rgba(255,240,220,${star.opacity * 0.5})`
-              : "none",
-          }}
-          initial={{ opacity: 0 }}
-          animate={{
-            opacity: [0, star.opacity, star.opacity * 0.6, star.opacity],
-            y: [0, -(2 + star.layer * 2), 0],
-          }}
-          transition={{
-            opacity: { duration: star.twinkle, repeat: Infinity, ease: "easeInOut", delay: (i % 8) * 0.3 },
-            y: { duration: star.drift, repeat: Infinity, ease: "easeInOut", delay: (i % 6) * 0.4 },
+            background: star.bg,
+            boxShadow: star.shadow,
+            animation:
+              `hs-tw${star.layer} ${star.twinkleDur}s ease-in-out ${star.twinkleDelay}s infinite,` +
+              `hs-dr${star.layer} ${star.driftDur}s ease-in-out ${star.driftDelay}s infinite`,
           }}
         />
       ))}
     </>
   );
 });
+
+// ─── Flying orbs (CSS @keyframes + translate3d GPU compositing) ─────────────
+
+function buildOrbKeyframes(cw: number, ch: number): string {
+  if (cw === 0 || ch === 0) return "";
+  return ORB_FLIGHTS.map((f) => {
+    const mid = getCurvedMidpoint(f.startX, f.startY, f.curveOffset);
+    const sx = (cw * f.startX / 100).toFixed(1);
+    const sy = (ch * f.startY / 100).toFixed(1);
+    const mx = (cw * mid.x / 100).toFixed(1);
+    const my = (ch * mid.y / 100).toFixed(1);
+    const ex = (cw * 0.5).toFixed(1);
+    const ey = (ch * 0.5).toFixed(1);
+    return (
+      `@keyframes hs-orb-${f.id}{` +
+      `0%{transform:translate3d(${sx}px,${sy}px,0) scale(0.2);opacity:0}` +
+      `40%{transform:translate3d(${mx}px,${my}px,0) scale(1.15);opacity:0.85}` +
+      `100%{transform:translate3d(${ex}px,${ey}px,0) scale(0.5);opacity:0}}`
+    );
+  }).join("");
+}
+
+function FlyingOrbs({ palette, containerSize }: { palette: PaletteConfig; containerSize: [number, number] }) {
+  const css = useMemo(
+    () => buildOrbKeyframes(containerSize[0], containerSize[1]),
+    [containerSize],
+  );
+
+  return (
+    <>
+      {/* eslint-disable-next-line react/no-danger */}
+      <style dangerouslySetInnerHTML={{ __html: css }} />
+      {ORB_FLIGHTS.map((f) => {
+        const color = palette.orbs[f.colorIdx] ?? palette.orbs[0];
+        return (
+          <div
+            key={f.id}
+            className="absolute rounded-full pointer-events-none"
+            style={{
+              left: 0,
+              top: 0,
+              width: f.size,
+              height: f.size,
+              background: `radial-gradient(circle, ${color.color} 0%, transparent 70%)`,
+              boxShadow: `0 0 ${f.size * 2}px ${color.glow}`,
+              animation: `hs-orb-${f.id} ${f.duration}s cubic-bezier(0.22,0.68,0.36,1) ${f.delay}s forwards`,
+              willChange: "transform, opacity",
+            }}
+          />
+        );
+      })}
+    </>
+  );
+}
 
 // ─── Convergence flash (brief bright burst when orbs meet) ──────────────────
 
@@ -313,246 +252,85 @@ function ConvergenceFlash() {
       style={{
         left: "50%",
         top: "50%",
-        width: 300,
-        height: 300,
-        marginLeft: -150,
-        marginTop: -150,
-        background: "radial-gradient(circle, rgba(255,255,240,0.5) 0%, rgba(255,220,180,0.2) 30%, transparent 60%)",
-        filter: "blur(20px)",
+        width: 340,
+        height: 340,
+        marginLeft: -170,
+        marginTop: -170,
+        // Larger, softer gradient replaces blur(20px) filter
+        background: "radial-gradient(circle, rgba(255,255,240,0.45) 0%, rgba(255,220,180,0.15) 30%, transparent 55%)",
         willChange: "transform, opacity",
       }}
       initial={{ scale: 0, opacity: 0 }}
-      animate={{
-        scale: [0, 1.5, 0.8],
-        opacity: [0, 0.8, 0],
-      }}
-      transition={{
-        duration: 1.0,
-        ease: [0.16, 1, 0.3, 1],
-      }}
+      animate={{ scale: [0, 1.5, 0.8], opacity: [0, 0.8, 0] }}
+      transition={{ duration: 1.0, ease: [0.16, 1, 0.3, 1] }}
     />
   );
 }
 
-// ─── Central converged orb — multi-layered, organic, breathing ──────────────
+// ─── Central converged orb — simplified, no SVG filters, no blur ────────────
 
-function CentralOrb({ palette, filterId }: { palette: PaletteConfig; filterId: string }) {
-  const turbId = `orb-turb-${filterId}`;
-  const glowId = `orb-glow-${filterId}`;
+function CentralOrb({ palette }: { palette: PaletteConfig }) {
   return (
     <motion.div
       className="absolute pointer-events-none"
-      style={{
-        left: "50%",
-        top: "50%",
-        /* x/y offset handled by Framer Motion to avoid transform conflict */
-      }}
+      style={{ left: "50%", top: "50%", willChange: "transform, opacity" }}
       initial={{ opacity: 0, x: "-50%", y: "-50%" }}
       animate={{ opacity: 1, x: "-50%", y: "-50%" }}
       transition={{ duration: 0.8, ease: "easeOut" }}
     >
-      {/* SVG Filters — turbulence for organic texture (unique IDs) */}
-      <svg width="0" height="0" className="absolute" aria-hidden="true">
-        <defs>
-          <filter id={turbId}>
-            <feTurbulence type="fractalNoise" baseFrequency="0.015" numOctaves="4" result="noise" seed="42" />
-            <feDisplacementMap in="SourceGraphic" in2="noise" scale="8" />
-          </filter>
-          <filter id={glowId}>
-            <feGaussianBlur stdDeviation="18" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
-      </svg>
-
-      {/* Layer 1: Outermost atmospheric halo — very diffuse */}
+      {/* Outer atmospheric halo — large soft gradient (no blur filter) */}
       <motion.div
         className="absolute rounded-full"
         style={{
-          width: 280,
-          height: 280,
-          left: -140,
-          top: -140,
-          background: `radial-gradient(circle, ${palette.haloOuter} 0%, transparent 65%)`,
-          filter: "blur(40px)",
+          width: 360,
+          height: 360,
+          left: -180,
+          top: -180,
+          background: `radial-gradient(circle, ${palette.haloOuter} 0%, rgba(255,200,140,0.04) 35%, transparent 65%)`,
+          willChange: "transform, opacity",
         }}
         initial={{ scale: 0, opacity: 0 }}
-        animate={{
-          scale: [0, 2.0, 1.6, 1.7],
-          opacity: [0, 0.7, 0.5, 0.55],
-        }}
-        transition={{ duration: 2.6, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
+        animate={{ scale: [0, 1.8, 1.5], opacity: [0, 0.7, 0.5] }}
+        transition={{ duration: 2.2, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
       />
 
-      {/* Layer 2: Aurora wisp A — rotating ethereal band */}
-      <motion.div
-        className="absolute"
-        style={{
-          width: 200,
-          height: 100,
-          left: -100,
-          top: -50,
-          background: `linear-gradient(135deg, transparent 20%, ${palette.aurora[0]} 50%, transparent 80%)`,
-          borderRadius: "50%",
-          filter: "blur(25px)",
-        }}
-        initial={{ scale: 0, opacity: 0, rotate: 0 }}
-        animate={{
-          scale: [0, 1.3, 1.1],
-          opacity: [0, 0.6, 0.4],
-          rotate: [0, 45, 90],
-        }}
-        transition={{ duration: 4.0, delay: 0.8, ease: "easeInOut" }}
-      />
-
-      {/* Layer 3: Aurora wisp B — counter-rotating */}
-      <motion.div
-        className="absolute"
-        style={{
-          width: 160,
-          height: 120,
-          left: -80,
-          top: -60,
-          background: `linear-gradient(225deg, transparent 25%, ${palette.aurora[1]} 55%, transparent 85%)`,
-          borderRadius: "50%",
-          filter: "blur(20px)",
-        }}
-        initial={{ scale: 0, opacity: 0, rotate: 0 }}
-        animate={{
-          scale: [0, 1.2, 1.0],
-          opacity: [0, 0.5, 0.35],
-          rotate: [0, -30, -60],
-        }}
-        transition={{ duration: 3.8, delay: 1.0, ease: "easeInOut" }}
-      />
-
-      {/* Layer 4: Mid glow ring — personality-tinted */}
+      {/* Mid glow ring — personality-tinted */}
       <motion.div
         className="absolute rounded-full"
         style={{
-          width: 140,
-          height: 140,
-          left: -70,
-          top: -70,
-          background: `radial-gradient(circle, ${palette.haloInner} 0%, rgba(255,210,170,0.15) 45%, transparent 75%)`,
-          filter: `url(#${glowId})`,
+          width: 180,
+          height: 180,
+          left: -90,
+          top: -90,
+          background: `radial-gradient(circle, ${palette.haloInner} 0%, rgba(255,210,170,0.1) 40%, transparent 75%)`,
+          willChange: "transform, opacity",
         }}
         initial={{ scale: 0, opacity: 0 }}
-        animate={{
-          scale: [0, 1.4, 1.15, 1.25, 1.15],
-          opacity: [0, 1, 0.8, 0.9, 0.8],
-        }}
-        transition={{ duration: 3.0, delay: 0.5, ease: "easeInOut" }}
+        animate={{ scale: [0, 1.4, 1.15, 1.25], opacity: [0, 1, 0.8, 0.85] }}
+        transition={{ duration: 2.6, delay: 0.5, ease: "easeInOut" }}
       />
 
-      {/* Layer 5: Organic textured core — SVG turbulence */}
+      {/* Inner bright core */}
       <motion.div
         className="absolute rounded-full"
         style={{
-          width: 70,
-          height: 70,
-          left: -35,
-          top: -35,
-          background: "radial-gradient(circle, rgba(255,230,200,0.5) 0%, rgba(255,200,160,0.25) 50%, transparent 80%)",
-          filter: `url(#${turbId})`,
-        }}
-        initial={{ scale: 0, opacity: 0 }}
-        animate={{
-          scale: [0, 1.3, 1.0, 1.1],
-          opacity: [0, 0.7, 0.5, 0.6],
-          rotate: [0, 180, 360],
-        }}
-        transition={{
-          duration: 4.0,
-          delay: 0.6,
-          ease: "easeInOut",
-          rotate: { duration: 20, repeat: Infinity, ease: "linear", delay: 0.6 },
-        }}
-      />
-
-      {/* Layer 6: Inner bright core — white-hot center */}
-      <motion.div
-        className="absolute rounded-full"
-        style={{
-          width: 36,
-          height: 36,
-          left: -18,
-          top: -18,
+          width: 44,
+          height: 44,
+          left: -22,
+          top: -22,
           background: `radial-gradient(circle, rgba(255,255,248,0.95) 0%, rgba(255,230,200,0.7) 35%, ${palette.coreTint} 60%, transparent 100%)`,
-          filter: "blur(1.5px)",
+          willChange: "transform, opacity",
         }}
         initial={{ scale: 0, opacity: 0 }}
         animate={{
-          scale: [0, 1.6, 1.0, 1.12, 1.0, 1.08, 1.0],
-          opacity: [0, 1, 0.9, 1, 0.88, 0.95, 0.88],
+          scale: [0, 1.5, 1.0, 1.1, 1.0],
+          opacity: [0, 1, 0.9, 1, 0.9],
         }}
-        transition={{ duration: 3.6, delay: 0.8, ease: [0.16, 1, 0.3, 1] }}
+        transition={{ duration: 3.0, delay: 0.6, ease: [0.16, 1, 0.3, 1] }}
       />
 
-      {/* Layer 7: Specular highlight — top-left catchlight */}
-      <motion.div
-        className="absolute rounded-full"
-        style={{
-          width: 14,
-          height: 10,
-          left: -12,
-          top: -14,
-          background: "radial-gradient(ellipse, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.3) 60%, transparent 100%)",
-          filter: "blur(1px)",
-          transform: "rotate(-25deg)",
-        }}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: [0, 0.8, 0.5, 0.7] }}
-        transition={{ duration: 2.0, delay: 1.2, ease: "easeInOut" }}
-      />
-
-      {/* Inner sparkle particles — orbiting micro-lights */}
-      {[0, 1, 2, 3, 4, 5].map((i) => {
-        const angle = (i / 6) * Math.PI * 2;
-        const radius = 28 + (i % 3) * 8;
-        return (
-          <motion.div
-            key={`sparkle-${i}`}
-            className="absolute rounded-full"
-            style={{
-              width: 3 + (i % 2),
-              height: 3 + (i % 2),
-              left: -1.5,
-              top: -1.5,
-              background: "rgba(255,250,235,0.8)",
-              boxShadow: "0 0 6px rgba(255,240,210,0.6)",
-            }}
-            initial={{ opacity: 0, x: 0, y: 0 }}
-            animate={{
-              opacity: [0, 0.7, 0.3, 0.7],
-              x: [
-                Math.cos(angle) * radius * 0.3,
-                Math.cos(angle + 1) * radius,
-                Math.cos(angle + 2) * radius * 0.8,
-                Math.cos(angle + 3) * radius,
-              ],
-              y: [
-                Math.sin(angle) * radius * 0.3,
-                Math.sin(angle + 1) * radius,
-                Math.sin(angle + 2) * radius * 0.8,
-                Math.sin(angle + 3) * radius,
-              ],
-            }}
-            transition={{
-              duration: 4 + i * 0.3,
-              delay: 1.0 + i * 0.15,
-              ease: "easeInOut",
-              repeat: 1,
-            }}
-          />
-        );
-      })}
-
-      {/* Breathing pulse rings — expanding halos */}
-      {Array.from({ length: PULSE_RING_COUNT }).map((_, i) => (
+      {/* Pulse rings */}
+      {[0, 1].map((i) => (
         <motion.div
           key={`pulse-${i}`}
           className="absolute rounded-full"
@@ -563,12 +341,10 @@ function CentralOrb({ palette, filterId }: { palette: PaletteConfig; filterId: s
             top: -25,
             border: `1px solid ${palette.pulseRing}`,
             background: "transparent",
+            willChange: "transform, opacity",
           }}
           initial={{ scale: 0, opacity: 0 }}
-          animate={{
-            scale: [0.8, 2.8 + i * 0.4],
-            opacity: [0.5, 0],
-          }}
+          animate={{ scale: [0.8, 2.8 + i * 0.4], opacity: [0.45, 0] }}
           transition={{
             duration: 2.2 + i * 0.15,
             delay: 1.4 + i * 0.35,
@@ -579,25 +355,18 @@ function CentralOrb({ palette, filterId }: { palette: PaletteConfig; filterId: s
         />
       ))}
 
-      {/* Welcome text — elegant glow gradient */}
+      {/* Welcome text */}
       <motion.div
         className="absolute whitespace-nowrap"
         style={{
           left: "50%",
           top: "calc(50% + 70px)",
           transform: "translateX(-50%)",
+          willChange: "opacity",
         }}
-        initial={{ opacity: 0, y: 16, filter: "blur(4px)" }}
-        animate={{
-          opacity: [0, 0.9, 0.9, 0.75],
-          y: [16, 0, 0, 0],
-          filter: ["blur(4px)", "blur(0px)", "blur(0px)", "blur(0px)"],
-        }}
-        transition={{
-          duration: 2.0,
-          delay: 2.0,
-          ease: [0.16, 1, 0.3, 1],
-        }}
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: [0, 0.9, 0.9, 0.75], y: [16, 0, 0, 0] }}
+        transition={{ duration: 2.0, delay: 2.0, ease: [0.16, 1, 0.3, 1] }}
       >
         <span
           className="text-sm tracking-[0.2em] font-light"
@@ -668,16 +437,10 @@ export default function LoginOrbAnimation() {
   const [show, setShow] = useState(false);
   const [phase, setPhase] = useState<"stars" | "flying" | "converged" | "fadeout">("stars");
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
-  /** Container size [w, h] for %-to-px conversion (GPU-composited orb animation) */
   const [containerSize, setContainerSize] = useState<[number, number]>([0, 0]);
   const resizeRaf = useRef(0);
 
-  // Unique ID for SVG filters to prevent collisions across mounts / Strict Mode
-  const filterId = useId();
-
-  // Read personality for color adaptation (always inside PersonalityProvider)
   const { personality } = usePersonality();
-
   const palette = useMemo(() => buildPalette(personality), [personality]);
 
   // Sync container size before first paint
@@ -699,7 +462,6 @@ export default function LoginOrbAnimation() {
     const params = new URLSearchParams(window.location.search);
     if (params.get("welcome") !== "1") return;
 
-    // Remove the query param from URL without reload
     params.delete("welcome");
     const newSearch = params.toString();
     const newUrl = window.location.pathname + (newSearch ? `?${newSearch}` : "") + window.location.hash;
@@ -708,7 +470,7 @@ export default function LoginOrbAnimation() {
     setShow(true);
   }, []);
 
-  // Lock body scroll while the overlay is visible to prevent layout shifts
+  // Lock body scroll while visible
   useEffect(() => {
     if (!show) return;
     const prev = document.body.style.overflow;
@@ -716,7 +478,7 @@ export default function LoginOrbAnimation() {
     return () => { document.body.style.overflow = prev; };
   }, [show]);
 
-  // Track viewport size (throttled via rAF to avoid excessive re-renders)
+  // Track viewport size (throttled via rAF)
   useEffect(() => {
     if (!show) return;
     const onResize = () => {
@@ -726,57 +488,34 @@ export default function LoginOrbAnimation() {
       });
     };
     window.addEventListener("resize", onResize);
-    onResize(); // sync immediately
+    onResize();
     return () => {
       window.removeEventListener("resize", onResize);
       cancelAnimationFrame(resizeRaf.current);
     };
   }, [show]);
 
-  // Phase transitions — carefully timed sequence
+  // Phase transitions
   useEffect(() => {
     if (!show || prefersReducedMotion) return;
-
-    // Stars → flying (orbs begin)
     const flyTimer = setTimeout(() => setPhase("flying"), 400);
-    // Flying → converged (central orb appears)
     const convergeTimer = setTimeout(() => setPhase("converged"), 2200);
-    // Converged → fadeout
     const fadeTimer = setTimeout(() => setPhase("fadeout"), TOTAL_DURATION_MS);
-
-    return () => {
-      clearTimeout(flyTimer);
-      clearTimeout(convergeTimer);
-      clearTimeout(fadeTimer);
-    };
+    return () => { clearTimeout(flyTimer); clearTimeout(convergeTimer); clearTimeout(fadeTimer); };
   }, [show, prefersReducedMotion]);
 
-  // Hide after fade-out completes
+  // Hide after fade-out
   useEffect(() => {
     if (phase !== "fadeout") return;
     const timer = setTimeout(() => setShow(false), FADEOUT_DURATION_S * 1000 + 200);
     return () => clearTimeout(timer);
   }, [phase]);
 
-  const handleSkip = useCallback(() => {
-    setPhase("fadeout");
-  }, []);
-
-  const handleReducedMotionDone = useCallback(() => {
-    setShow(false);
-  }, []);
-
-  // Memoize orb elements (depend on palette + containerSize)
-  const orbElements = useMemo(
-    () => ORB_FLIGHTS.map((flight) => (
-      <FlyingOrb key={flight.id} flight={flight} palette={palette} containerSize={containerSize} />
-    )),
-    [palette, containerSize],
-  );
+  const handleSkip = useCallback(() => { setPhase("fadeout"); }, []);
+  const handleReducedMotionDone = useCallback(() => { setShow(false); }, []);
 
   if (!show) return null;
 
-  // Reduced motion: simple elegant fade
   if (prefersReducedMotion) {
     return (
       <AnimatePresence>
@@ -798,16 +537,12 @@ export default function LoginOrbAnimation() {
           style={{
             zIndex: Z_INDEX_ANIMATION_OVERLAY,
             background: "radial-gradient(ellipse at 50% 45%, rgba(18,14,32,0.93) 0%, rgba(8,6,18,0.97) 100%)",
-            /* CSS containment prevents layout bleed into the rest of the page */
             isolation: "isolate",
             contain: "layout paint style",
-            /* Disable pointer events during fadeout so underlying page is interactive */
             pointerEvents: isFading ? "none" : "auto",
             cursor: isFading ? "default" : "pointer",
-            /* Explicit dimensions guard against inset-0 edge cases on some browsers */
             width: "100vw",
             height: "100vh",
-            /* Ensure no sub-pixel rendering shifts */
             backfaceVisibility: "hidden",
           }}
           initial={{ opacity: 0 }}
@@ -820,7 +555,11 @@ export default function LoginOrbAnimation() {
           onClick={handleSkip}
           onKeyDown={(e) => { if (e.key === "Enter" || e.key === " " || e.key === "Escape") handleSkip(); }}
         >
-          {/* Deep star field — three depth layers */}
+          {/* Inject static CSS keyframes for stars */}
+          {/* eslint-disable-next-line react/no-danger */}
+          <style dangerouslySetInnerHTML={{ __html: STATIC_KEYFRAMES }} />
+
+          {/* Star field — pure CSS animations */}
           <StarField />
 
           {/* Subtle vignette overlay */}
@@ -831,16 +570,14 @@ export default function LoginOrbAnimation() {
             }}
           />
 
-          {/* Flying orbs (visible from phase "flying" onward) */}
-          {phase !== "stars" && orbElements}
+          {/* Flying orbs — CSS animations (visible from phase "flying" onward) */}
+          {phase !== "stars" && <FlyingOrbs palette={palette} containerSize={containerSize} />}
 
-          {/* Convergence flash — brief bright burst */}
+          {/* Convergence flash */}
           {phase === "converged" && <ConvergenceFlash />}
 
-          {/* Central merged orb — appears after convergence */}
-          {(phase === "converged" || phase === "fadeout") && (
-            <CentralOrb palette={palette} filterId={filterId} />
-          )}
+          {/* Central orb */}
+          {(phase === "converged" || phase === "fadeout") && <CentralOrb palette={palette} />}
         </motion.div>
       )}
     </AnimatePresence>
