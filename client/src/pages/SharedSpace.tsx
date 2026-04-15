@@ -36,8 +36,8 @@ class SharedSpaceErrorBoundary extends Component<
         <GlassCard className="flex flex-col items-center justify-center py-16 text-center gap-4">
           <AlertTriangle className="w-10 h-10 text-amber-500" />
           <div>
-            <p className="text-sm font-medium text-foreground">共享空間暫時無法顯示</p>
-            <p className="text-xs text-muted-foreground mt-1">{this.state.errorMessage}</p>
+            <p className="hs-h3 !mb-0 text-foreground">共享空間暫時無法顯示</p>
+            <p className="hs-small !mb-0 text-muted-foreground mt-1">{this.state.errorMessage}</p>
           </div>
           <Button
             variant="outline"
@@ -238,11 +238,11 @@ export default function SharedSpace() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground tracking-tight flex items-center gap-2">
+          <h1 className="hs-h1 !mb-0 text-foreground flex items-center gap-2">
             <Users className="w-6 h-6" />
             共享空間
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="hs-p !mb-0 text-muted-foreground mt-1">
             探索社群創作、分享你的作品，獲得配額獎勵
           </p>
         </div>
@@ -259,8 +259,8 @@ export default function SharedSpace() {
         ].map((stat) => (
           <GlassCard key={stat.label} className="text-center py-4">
             <stat.icon className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
-            <p className="text-lg font-semibold text-foreground tabular-nums">{stat.value}</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">{stat.label}</p>
+            <p className="hs-h3-lg !mb-0 text-foreground tabular-nums">{stat.value}</p>
+            <p className="hs-small !mb-0 text-muted-foreground mt-0.5">{stat.label}</p>
           </GlassCard>
         ))}
       </div>
@@ -314,8 +314,8 @@ export default function SharedSpace() {
           ) : sharedAssetsQuery.isError ? (
             <GlassCard className="text-center py-12">
               <AlertTriangle className="w-10 h-10 text-amber-400/60 mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground">載入共享素材失敗</p>
-              <p className="text-xs text-muted-foreground/60 mt-1">
+              <p className="hs-p !mb-0 text-muted-foreground">載入共享素材失敗</p>
+              <p className="hs-small !mb-0 text-muted-foreground/60 mt-1">
                 {sharedAssetsQuery.error?.message || "網路不穩定，請稍後再試"}
               </p>
               <Button
@@ -331,8 +331,8 @@ export default function SharedSpace() {
           ) : filteredAssets.length === 0 ? (
             <GlassCard className="text-center py-12">
               <Package className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground">尚無共享素材</p>
-              <p className="text-xs text-muted-foreground/60 mt-1">
+              <p className="hs-p !mb-0 text-muted-foreground">尚無共享素材</p>
+              <p className="hs-small !mb-0 text-muted-foreground/60 mt-1">
                 在「數位資產庫」中將素材設為團隊共享，即可出現在這裡
               </p>
             </GlassCard>
@@ -393,9 +393,9 @@ export default function SharedSpace() {
                         )}
                       </div>
 
-                      <p className="text-xs font-medium text-foreground truncate">{asset.title}</p>
+                      <p className="hs-h3 !mb-0 text-foreground truncate">{asset.title}</p>
                       {asset.promptUsed && (
-                        <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2">{asset.promptUsed}</p>
+                        <p className="hs-small !mb-0 text-muted-foreground mt-1 line-clamp-2">{asset.promptUsed}</p>
                       )}
 
                       {/* Use button below card content — always visible */}
@@ -428,8 +428,8 @@ export default function SharedSpace() {
           ) : sharedModelsQuery.isError ? (
             <GlassCard className="text-center py-12">
               <AlertTriangle className="w-10 h-10 text-amber-400/60 mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground">載入共享模型失敗</p>
-              <p className="text-xs text-muted-foreground/60 mt-1">
+              <p className="hs-p !mb-0 text-muted-foreground">載入共享模型失敗</p>
+              <p className="hs-small !mb-0 text-muted-foreground/60 mt-1">
                 {sharedModelsQuery.error?.message || "網路不穩定，請稍後再試"}
               </p>
               <Button
@@ -445,8 +445,8 @@ export default function SharedSpace() {
           ) : filteredModels.length === 0 ? (
             <GlassCard className="text-center py-12">
               <Cpu className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground">尚無共享模型</p>
-              <p className="text-xs text-muted-foreground/60 mt-1">
+              <p className="hs-p !mb-0 text-muted-foreground">尚無共享模型</p>
+              <p className="hs-small !mb-0 text-muted-foreground/60 mt-1">
                 在「角色鍛造所」中將模型設為團隊共享，即可出現在這裡
               </p>
             </GlassCard>
@@ -465,10 +465,10 @@ export default function SharedSpace() {
                         <Cpu className="w-6 h-6 text-primary/40" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-foreground truncate">{model.name}</p>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">{model.modelType}</p>
+                        <p className="hs-h3 !mb-0 text-foreground truncate">{model.name}</p>
+                        <p className="hs-small !mb-0 text-muted-foreground mt-0.5">{model.modelType}</p>
                         {model.description && (
-                          <p className="text-[10px] text-muted-foreground/70 mt-1 line-clamp-2">{model.description}</p>
+                          <p className="hs-small !mb-0 text-muted-foreground/70 mt-1 line-clamp-2">{model.description}</p>
                         )}
                       </div>
                     </div>

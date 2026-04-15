@@ -103,29 +103,29 @@ function ModelAnalysisDialog({ modelId, open, onOpenChange }: {
         {analysisQuery.isLoading ? (
           <div className="py-12 text-center">
             <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground">載入分析資料中...</p>
+            <p className="hs-p !mb-0 text-muted-foreground">載入分析資料中...</p>
           </div>
         ) : analysisQuery.isError ? (
           <div className="py-12 text-center">
             <X className="w-8 h-8 text-red-500 mx-auto mb-3" />
-            <p className="text-sm text-red-500">載入失敗：{analysisQuery.error?.message}</p>
+            <p className="hs-p !mb-0 text-red-500">載入失敗：{analysisQuery.error?.message}</p>
           </div>
         ) : data ? (
           <ScrollArea className="flex-1 -mx-6 px-6">
             <div className="space-y-6 pb-4">
               {/* Model Overview */}
               <section className="space-y-3">
-                <div className="flex items-center gap-2 text-sm font-medium">
+                <div className="flex items-center gap-2 hs-h3 !mb-0">
                   <Cpu className="w-4 h-4 text-muted-foreground" />
                   基本資訊
                 </div>
                 <div className="rounded-xl bg-muted/30 p-4 space-y-2.5">
                   <div className="flex items-center justify-between">
-                    <span className="text-lg font-semibold">{data.model.name}</span>
+                    <span className="hs-h3-lg !mb-0">{data.model.name}</span>
                     <StatusBadge status={data.model.status} />
                   </div>
                   {data.model.description && (
-                    <p className="text-sm text-muted-foreground">{data.model.description}</p>
+                    <p className="hs-p !mb-0 text-muted-foreground">{data.model.description}</p>
                   )}
                   <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
                     <div className="flex justify-between">
@@ -166,7 +166,7 @@ function ModelAnalysisDialog({ modelId, open, onOpenChange }: {
 
               {/* Training Configuration */}
               <section className="space-y-3">
-                <div className="flex items-center gap-2 text-sm font-medium">
+                <div className="flex items-center gap-2 hs-h3 !mb-0">
                   <Settings2 className="w-4 h-4 text-muted-foreground" />
                   訓練配置
                 </div>
@@ -211,7 +211,7 @@ function ModelAnalysisDialog({ modelId, open, onOpenChange }: {
               {/* Dataset Gallery */}
               {data.datasetImages.length > 0 && (
                 <section className="space-y-3">
-                  <div className="flex items-center gap-2 text-sm font-medium">
+                  <div className="flex items-center gap-2 hs-h3 !mb-0">
                     <Database className="w-4 h-4 text-muted-foreground" />
                     訓練資料集（{data.datasetImages.length} 張）
                   </div>
@@ -240,7 +240,7 @@ function ModelAnalysisDialog({ modelId, open, onOpenChange }: {
 
               {/* Training Jobs History */}
               <section className="space-y-3">
-                <div className="flex items-center gap-2 text-sm font-medium">
+                <div className="flex items-center gap-2 hs-h3 !mb-0">
                   <Activity className="w-4 h-4 text-muted-foreground" />
                   訓練歷程（{data.trainingJobs.length} 筆任務）
                 </div>
@@ -266,7 +266,7 @@ function ModelAnalysisDialog({ modelId, open, onOpenChange }: {
                           <span className="text-muted-foreground tabular-nums ml-2">{job.progress}%</span>
                         </div>
                         {job.errorMessage && (
-                          <p className="text-[11px] text-red-500 bg-red-50 dark:bg-red-900/20 rounded-lg px-2 py-1">
+                          <p className="hs-small !mb-0 text-red-500 bg-red-50 dark:bg-red-900/20 rounded-lg px-2 py-1">
                             {job.errorMessage}
                           </p>
                         )}
@@ -523,7 +523,7 @@ export default function ModelsPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Cpu className="w-5 h-5 text-muted-foreground" />
-          <h1 className="text-xl font-semibold">角色鍛造所</h1>
+          <h1 className="hs-h2 !mb-0">角色鍛造所</h1>
         </div>
         <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
           <DialogTrigger asChild>
@@ -567,7 +567,7 @@ export default function ModelsPage() {
                     </div>
                     <div className="space-y-3">
                       <Label className="text-sm font-medium">多角度資料集</Label>
-                      <p className="text-xs text-muted-foreground">上傳至少 3 張不同角度的圖片，圖片會自動上傳至雲端儲存</p>
+                      <p className="hs-small !mb-0 text-muted-foreground">上傳至少 3 張不同角度的圖片，圖片會自動上傳至雲端儲存</p>
                       <div className="grid grid-cols-5 gap-2">
                         {ANGLES.map((angle) => {
                           const images = datasetImages.filter((img) => img.angle === angle.value);
@@ -646,13 +646,13 @@ export default function ModelsPage() {
                   <div className="space-y-5">
                     <div className="text-center py-4">
                       <Tag className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
-                      <h3 className="text-sm font-medium">自動標註與觸發詞</h3>
-                      <p className="text-xs text-muted-foreground mt-1">AI 會自動為每張圖片生成描述標註</p>
+                      <h3 className="hs-h3 !mb-0">自動標註與觸發詞</h3>
+                      <p className="hs-small !mb-0 text-muted-foreground mt-1">AI 會自動為每張圖片生成描述標註</p>
                     </div>
                     <div className="space-y-2">
                       <Label className="text-sm font-medium">觸發詞 *</Label>
                       <Input placeholder="例如：char_a（唯一識別碼）" value={triggerWord} onChange={(e) => setTriggerWord(e.target.value)} className="rounded-xl font-mono" />
-                      <p className="text-[11px] text-muted-foreground">在提示詞中使用此觸發詞來呼叫此角色</p>
+                      <p className="hs-small !mb-0 text-muted-foreground">在提示詞中使用此觸發詞來呼叫此角色</p>
                     </div>
 
                     {/* Auto-caption button */}
@@ -670,7 +670,7 @@ export default function ModelsPage() {
                     </Button>
 
                     <div className="rounded-xl bg-muted/30 p-4 space-y-2">
-                      <h4 className="text-xs font-medium">標註結果</h4>
+                      <h4 className="hs-small !mb-0 font-medium">標註結果</h4>
                       {datasetImages.slice(0, 5).map((img, idx) => (
                         <div key={idx} className="flex items-start gap-3 text-xs">
                           <img src={img.uploadedUrl || img.url} alt="" className="w-8 h-8 rounded-md object-cover shrink-0" loading="lazy" />
@@ -687,7 +687,7 @@ export default function ModelsPage() {
                         </div>
                       ))}
                       {datasetImages.length > 5 && (
-                        <p className="text-[10px] text-muted-foreground">...還有 {datasetImages.length - 5} 張圖片</p>
+                        <p className="hs-small !mb-0 text-muted-foreground">...還有 {datasetImages.length - 5} 張圖片</p>
                       )}
                     </div>
                   </div>
@@ -717,7 +717,7 @@ export default function ModelsPage() {
                       </div>
                     </div>
                     <div className="rounded-xl bg-muted/30 p-4">
-                      <h4 className="text-xs font-medium mb-2">預估訓練資訊</h4>
+                      <h4 className="hs-small font-medium mb-2">預估訓練資訊</h4>
                       <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                         <span>資料集大小：{datasetImages.filter(i => i.uploaded).length} 張</span>
                         <span>預估時間：~{Math.ceil(epochs * datasetImages.length * 0.5)} 分鐘</span>
@@ -736,8 +736,8 @@ export default function ModelsPage() {
                         {trainingStatusQuery.data?.status === "completed" ? (
                           <>
                             <div className="flex justify-center"><CheckCircle2 className="w-12 h-12 text-green-500" /></div>
-                            <h3 className="text-base font-medium">訓練完成！模型已就緒</h3>
-                            <p className="text-sm text-muted-foreground">
+                            <h3 className="hs-h3 !mb-0">訓練完成！模型已就緒</h3>
+                            <p className="hs-p !mb-0 text-muted-foreground">
                               模型已成功訓練完成，可在工作室的素材抽屜中直接使用。
                             </p>
                             <Button onClick={() => { setDialogOpen(false); resetForm(); myModelsQuery.refetch(); }} className="w-full h-12 rounded-xl gap-2">
@@ -747,8 +747,8 @@ export default function ModelsPage() {
                         ) : trainingStatusQuery.data?.status === "failed" ? (
                           <>
                             <div className="flex justify-center"><X className="w-12 h-12 text-red-500" /></div>
-                            <h3 className="text-base font-medium text-red-500">訓練失敗</h3>
-                            <p className="text-sm text-muted-foreground">
+                            <h3 className="hs-h3 !mb-0 text-red-500">訓練失敗</h3>
+                            <p className="hs-p !mb-0 text-muted-foreground">
                               {trainingStatusQuery.data?.errorMessage || "訓練過程中發生錯誤，請重試或聯繫支援。"}
                             </p>
                             <Button onClick={() => { setDialogOpen(false); resetForm(); }} variant="outline" className="w-full h-12 rounded-xl gap-2">
@@ -758,8 +758,8 @@ export default function ModelsPage() {
                         ) : (
                           <>
                             <div className="flex justify-center"><Loader2 className="w-12 h-12 text-primary animate-spin" /></div>
-                            <h3 className="text-base font-medium">模型訓練中...</h3>
-                            <p className="text-sm text-muted-foreground">
+                            <h3 className="hs-h3 !mb-0">模型訓練中...</h3>
+                            <p className="hs-p !mb-0 text-muted-foreground">
                               {trainingStatusQuery.data?.progressMessage || "訓練任務已加入佇列，請稍候..."}
                             </p>
                             {/* 進度條 */}
@@ -769,7 +769,7 @@ export default function ModelsPage() {
                                 style={{ width: `${trainingStatusQuery.data?.progress ?? 0}%` }}
                               />
                             </div>
-                            <p className="text-xs text-muted-foreground">
+                            <p className="hs-small !mb-0 text-muted-foreground">
                               進度：{trainingStatusQuery.data?.progress ?? 0}% · 任務 ID: #{trainingJobId}
                             </p>
                             <Button onClick={() => { setDialogOpen(false); resetForm(); }} variant="outline" className="w-full h-12 rounded-xl gap-2">
@@ -781,7 +781,7 @@ export default function ModelsPage() {
                     ) : (
                       <>
                         <div className="flex justify-center"><VisualSoul size="lg" personality={personality} /></div>
-                        <h3 className="text-base font-medium">確認訓練設定</h3>
+                        <h3 className="hs-h3 !mb-0">確認訓練設定</h3>
                         <div className="rounded-xl bg-muted/30 p-4 text-left space-y-2 text-sm">
                           <div className="flex justify-between"><span className="text-muted-foreground">模型名稱</span><span className="font-medium">{modelName}</span></div>
                           <div className="flex justify-between"><span className="text-muted-foreground">觸發詞</span><code className="font-mono text-xs">{triggerWord}</code></div>
@@ -815,7 +815,7 @@ export default function ModelsPage() {
         </Dialog>
       </div>
 
-      <p className="text-xs text-muted-foreground">訓練專屬角色模型，確保跨場景的角色一致性。模型就緒後可在工作室的素材抽屜中直接使用。</p>
+      <p className="hs-small !mb-0 text-muted-foreground">訓練專屬角色模型，確保跨場景的角色一致性。模型就緒後可在工作室的素材抽屜中直接使用。</p>
 
       {/* Tabs */}
       <Tabs value={tab} onValueChange={setTab}>
@@ -836,7 +836,7 @@ export default function ModelsPage() {
             <GlassCard key={model.id}>
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold truncate">{model.name}</h3>
+                  <h3 className="hs-h3 !mb-0 truncate">{model.name}</h3>
                   <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${model.status === "ready" ? "bg-zen-sage/30 text-green-700" : model.status === "training" ? "bg-zen-peach/30 text-amber-700" : model.status === "failed" ? "bg-red-100 text-red-700" : "bg-muted text-muted-foreground"}`}>
                     {model.status === "ready" ? "就緒" : model.status === "training" ? "訓練中" : model.status === "failed" ? "失敗" : "佇列中"}
                   </span>
@@ -852,7 +852,7 @@ export default function ModelsPage() {
                     </div>
                   );
                 })()}
-                {model.description && <p className="text-xs text-muted-foreground line-clamp-2">{model.description}</p>}
+                {model.description && <p className="hs-small !mb-0 text-muted-foreground line-clamp-2">{model.description}</p>}
                 <div className="flex items-center gap-1.5 flex-wrap">
                   {model.visibility === "team_shared" && (
                     <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground bg-muted/30 px-2 py-0.5 rounded-md">
@@ -992,8 +992,8 @@ export default function ModelsPage() {
       ) : (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <VisualSoul size="lg" personality={personality} />
-          <h3 className="text-base font-medium mt-6">尚無角色模型</h3>
-          <p className="text-sm text-muted-foreground mt-2 max-w-sm">
+          <h3 className="hs-h3 !mb-0 mt-6">尚無角色模型</h3>
+          <p className="hs-p !mb-0 text-muted-foreground mt-2 max-w-sm">
             {tab === "my" ? "點擊「新增角色」開始訓練你的第一個角色模型" : "還沒有團隊共享的模型"}
           </p>
         </div>

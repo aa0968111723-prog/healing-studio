@@ -193,7 +193,7 @@ export default function HistoryPage() {
       <div className="space-y-5">
         <div className="flex items-center gap-3">
           <Clock className="w-5 h-5 text-muted-foreground" />
-          <h1 className="text-xl font-semibold">生成歷史</h1>
+          <h1 className="hs-h2 !mb-0">生成歷史</h1>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -210,7 +210,7 @@ export default function HistoryPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Clock className="w-5 h-5 text-muted-foreground" />
-          <h1 className="text-xl font-semibold">生成歷史</h1>
+          <h1 className="hs-h2 !mb-0">生成歷史</h1>
           <span className="text-xs text-muted-foreground tabular-nums">
             共 {stats.total} 筆紀錄
           </span>
@@ -264,7 +264,7 @@ export default function HistoryPage() {
       {filteredHistory.length === 0 ? (
         <GlassCard hover={false} className="flex flex-col items-center justify-center py-16 text-center">
           <VisualSoul size="md" personality={personality} />
-          <p className="text-sm text-muted-foreground mt-4">
+          <p className="hs-small !mb-0 text-muted-foreground mt-4">
             {filter === "bookmarked"
               ? "尚無收藏的生成紀錄"
               : searchQuery
@@ -362,7 +362,7 @@ export default function HistoryPage() {
                             })}
                           </span>
                         </div>
-                        <p className="text-xs text-foreground line-clamp-2 leading-relaxed">
+                        <p className="hs-small !mb-0 text-foreground line-clamp-2">
                           {item.prompt || "（無提示詞）"}
                         </p>
                       </div>
@@ -450,7 +450,7 @@ export default function HistoryPage() {
                                 <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1">
                                   <FileText className="w-3 h-3" /> 編譯後提示詞
                                 </span>
-                                <p className="text-xs text-foreground/80 mt-1 leading-relaxed whitespace-pre-wrap">
+                                <p className="hs-small !mb-0 text-foreground/80 mt-1 whitespace-pre-wrap">
                                   {item.compiledPrompt}
                                 </p>
                               </div>
@@ -803,7 +803,7 @@ export default function HistoryPage() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
-            <p className="text-xs text-muted-foreground">
+            <p className="hs-small !mb-0 text-muted-foreground">
               精選作品將顯示在首頁的作品展示區，讓所有訪客欣賞你的創作。每天最多可提交 5 件。
             </p>
             <div className="space-y-2">

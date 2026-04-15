@@ -231,7 +231,7 @@ export default function AssetsLibrary() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Package className="w-5 h-5 text-muted-foreground" />
-          <h1 className="text-xl font-semibold">數位資產庫</h1>
+          <h1 className="hs-h2 !mb-0">數位資產庫</h1>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="secondary" className="rounded-lg text-xs">{totalMyAssets} 個資產</Badge>
@@ -239,7 +239,7 @@ export default function AssetsLibrary() {
         </div>
       </div>
 
-      <p className="text-xs text-muted-foreground">管理所有生成與上傳的數位資產。分享至團隊可獲得額外配額獎勵。</p>
+      <p className="hs-small !mb-0 text-muted-foreground">管理所有生成與上傳的數位資產。分享至團隊可獲得額外配額獎勵。</p>
 
       {/* Search + Filter bar */}
       <div className="flex gap-2 flex-wrap">
@@ -380,7 +380,7 @@ export default function AssetsLibrary() {
 
                   {/* Info */}
                   <div className="space-y-2">
-                    <p className="text-sm font-medium truncate">{asset.title}</p>
+                    <p className="hs-h3 !mb-0 truncate">{asset.title}</p>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className={`text-[10px] px-2 py-0.5 rounded-md font-medium ${config.color} text-foreground`}>{config.label}</span>
                       {asset.visibility === "team_shared" && (
@@ -417,7 +417,7 @@ export default function AssetsLibrary() {
                             {asset.promptUsed && (
                               <div>
                                 <span className="font-medium text-foreground flex items-center gap-0.5 mb-0.5"><Wand2 className="w-2.5 h-2.5" /> 使用的提示詞：</span>
-                                <p className="leading-relaxed whitespace-pre-wrap">{asset.promptUsed}</p>
+                                <p className="hs-p !mb-0 whitespace-pre-wrap">{asset.promptUsed}</p>
                               </div>
                             )}
                             {asset.mimeType && (
@@ -446,10 +446,10 @@ export default function AssetsLibrary() {
       ) : (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <VisualSoul size="lg" personality={personality} />
-          <h3 className="text-base font-medium mt-6">
+          <h3 className="hs-h3 !mb-0 mt-6">
             {search || typeFilter !== "all" ? "沒有符合條件的資產" : "尚無數位資產"}
           </h3>
-          <p className="text-sm text-muted-foreground mt-2 max-w-sm">
+          <p className="hs-p !mb-0 text-muted-foreground mt-2 max-w-sm">
             {search || typeFilter !== "all"
               ? "請嘗試其他搜尋條件"
               : tab === "my" ? "前往工作室生成或點擊「上傳資產」手動添加" : "還沒有團隊共享的資產"}

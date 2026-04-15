@@ -172,11 +172,11 @@ export default function SettingsPage() {
     <div className="space-y-6 max-w-3xl">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-foreground tracking-tight flex items-center gap-2">
+        <h1 className="hs-h1 !mb-0 text-foreground flex items-center gap-2">
           <Settings className="w-6 h-6" />
           個人設定
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">
+        <p className="hs-small !mb-0 text-muted-foreground mt-1">
           管理你的帳號、外觀偏好與通知設定
         </p>
       </div>
@@ -205,7 +205,7 @@ export default function SettingsPage() {
         {/* ═══ Tab 1: Profile ═══ */}
         <TabsContent value="profile" className="mt-4 space-y-4">
           <GlassCard>
-            <h2 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+            <h2 className="hs-h3 !mb-0 text-foreground mb-4 flex items-center gap-2">
               <User className="w-4 h-4" />
               帳號資訊
             </h2>
@@ -244,8 +244,8 @@ export default function SettingsPage() {
                   <Clapperboard className="w-4 h-4 text-purple-600" />
                 </div>
                 <div className="text-left">
-                  <h3 className="text-sm font-semibold text-foreground">導演 AI 偏好</h3>
-                  <p className="text-[10px] text-muted-foreground">
+                  <h3 className="hs-h3 !mb-0 text-foreground">導演 AI 偏好</h3>
+                  <p className="hs-small !mb-0 text-muted-foreground">
                     AI 個性風格與偏好框架設定已整合至導演 AI 頁面
                   </p>
                 </div>
@@ -265,8 +265,8 @@ export default function SettingsPage() {
                   <Coins className="w-4 h-4 text-amber-600" />
                 </div>
                 <div className="text-left">
-                  <h3 className="text-sm font-semibold text-foreground">積分與配額</h3>
-                  <p className="text-[10px] text-muted-foreground">
+                  <h3 className="hs-h3 !mb-0 text-foreground">積分與配額</h3>
+                  <p className="hs-small !mb-0 text-muted-foreground">
                     查看各模型消耗規則與剩餘配額
                   </p>
                 </div>
@@ -280,11 +280,11 @@ export default function SettingsPage() {
         <TabsContent value="appearance" className="mt-4 space-y-4">
           {/* ── Section 1: Appearance Mode ── */}
           <GlassCard>
-            <h2 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
+            <h2 className="hs-h3 !mb-0 text-foreground mb-1 flex items-center gap-2">
               <Palette className="w-4 h-4" />
               外觀模式
             </h2>
-            <p className="text-[10px] text-muted-foreground mb-4">
+            <p className="hs-small !mb-0 text-muted-foreground mb-4">
               選擇主題切換策略 — 目前：<span className="font-medium">{theme === "dark" ? "深色" : "亮色"}</span>
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -318,10 +318,10 @@ export default function SettingsPage() {
                           <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
                         )}
                       </div>
-                      <p className={`text-xs font-semibold ${isActive ? "text-primary" : "text-foreground"}`}>
+                      <p className={`hs-small !mb-0 font-semibold ${isActive ? "text-primary" : "text-foreground"}`}>
                         {mode.label}
                       </p>
-                      <p className="text-[9px] text-muted-foreground mt-0.5 leading-relaxed">
+                      <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
                         {mode.description}
                       </p>
                     </div>
@@ -333,11 +333,11 @@ export default function SettingsPage() {
 
           {/* ── Section 2: Background Scene ── */}
           <GlassCard>
-            <h2 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
+            <h2 className="hs-h3 !mb-0 text-foreground mb-1 flex items-center gap-2">
               <Sparkles className="w-4 h-4" />
               背景場景
             </h2>
-            <p className="text-[10px] text-muted-foreground mb-4">
+            <p className="hs-small !mb-0 text-muted-foreground mb-4">
               {sceneOverride
                 ? <>已手動鎖定場景 · <button onClick={() => { setSceneOverride(null); toast.success("已恢復自動場景"); }} className="text-primary hover:underline">恢復自動</button></>
                 : "依時間自動切換 · 也可手動鎖定"
@@ -371,14 +371,14 @@ export default function SettingsPage() {
                     <div className="p-2.5">
                       <div className="flex items-center gap-1.5 mb-0.5">
                         <Icon className={`w-3 h-3 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
-                        <span className={`text-xs font-semibold ${isActive ? "text-primary" : "text-foreground"}`}>
+                        <span className={`hs-small !mb-0 font-semibold ${isActive ? "text-primary" : "text-foreground"}`}>
                           {scene.label}
                         </span>
                         {isOverridden && (
                           <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
                         )}
                       </div>
-                      <p className="text-[9px] text-muted-foreground leading-relaxed">
+                      <p className="hs-small !mb-0 text-muted-foreground">
                         {scene.description}
                       </p>
                       <p className="text-[8px] text-muted-foreground/60 mt-1">
@@ -393,11 +393,11 @@ export default function SettingsPage() {
 
           {/* ── Section 3: Third-party Wallpaper Resources ── */}
           <GlassCard>
-            <h2 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
+            <h2 className="hs-h3 !mb-0 text-foreground mb-1 flex items-center gap-2">
               <ExternalLink className="w-4 h-4" />
               靈感資源
             </h2>
-            <p className="text-[10px] text-muted-foreground mb-4">
+            <p className="hs-small !mb-0 text-muted-foreground mb-4">
               探索更多視覺靈感與背景素材
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -411,10 +411,10 @@ export default function SettingsPage() {
                 >
                   <span className="text-xl shrink-0">{res.icon}</span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-foreground group-hover:text-primary transition-colors">
+                    <p className="hs-small !mb-0 text-foreground group-hover:text-primary transition-colors font-semibold">
                       {res.name}
                     </p>
-                    <p className="text-[10px] text-muted-foreground leading-relaxed">
+                    <p className="hs-small !mb-0 text-muted-foreground">
                       {res.description}
                     </p>
                   </div>
@@ -428,7 +428,7 @@ export default function SettingsPage() {
         {/* ═══ Tab 3: Notifications ═══ */}
         <TabsContent value="notifications" className="mt-4 space-y-4">
           <GlassCard>
-            <h2 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+            <h2 className="hs-h3 !mb-0 text-foreground mb-4 flex items-center gap-2">
               <Bell className="w-4 h-4" />
               通知偏好
             </h2>
@@ -436,14 +436,14 @@ export default function SettingsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-foreground">音效提示</p>
-                  <p className="text-[10px] text-muted-foreground">生成完成時播放提示音</p>
+                  <p className="hs-small !mb-0 text-muted-foreground">生成完成時播放提示音</p>
                 </div>
                 <Switch checked={soundEnabled} onCheckedChange={setSoundEnabled} />
               </div>
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-foreground">桌面通知</p>
-                  <p className="text-[10px] text-muted-foreground">背景任務完成時發送系統通知</p>
+                  <p className="hs-small !mb-0 text-muted-foreground">背景任務完成時發送系統通知</p>
                 </div>
                 <Switch checked={desktopNotif} onCheckedChange={setDesktopNotif} />
               </div>
@@ -454,11 +454,11 @@ export default function SettingsPage() {
         {/* ═══ Tab 4: Onboarding ═══ */}
         <TabsContent value="onboarding" className="mt-4 space-y-4">
           <GlassCard>
-            <h2 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+            <h2 className="hs-h3 !mb-0 text-foreground mb-4 flex items-center gap-2">
               <Eye className="w-4 h-4" />
               新手引導
             </h2>
-            <p className="text-xs text-muted-foreground mb-4">
+            <p className="hs-small !mb-0 text-muted-foreground mb-4">
               如果想重溫全站引導教學，可以在這裡重置。
             </p>
             <div className="flex items-center gap-3 flex-wrap">
@@ -480,11 +480,11 @@ export default function SettingsPage() {
         {isAdmin && (
           <TabsContent value="admin" className="mt-4 space-y-4">
             <GlassCard>
-              <h2 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+              <h2 className="hs-h3 !mb-0 text-foreground mb-4 flex items-center gap-2">
                 <Shield className="w-4 h-4" />
                 管理員工具
               </h2>
-              <p className="text-xs text-muted-foreground mb-4">
+              <p className="hs-small !mb-0 text-muted-foreground mb-4">
                 快速存取管理員專屬功能
               </p>
               <div className="space-y-2">
@@ -498,8 +498,8 @@ export default function SettingsPage() {
                       <Shield className="w-4 h-4 text-red-600" />
                     </div>
                     <div className="text-left">
-                      <h3 className="text-sm font-semibold text-foreground">管理後台</h3>
-                      <p className="text-[10px] text-muted-foreground">
+                      <h3 className="hs-h3 !mb-0 text-foreground">管理後台</h3>
+                      <p className="hs-small !mb-0 text-muted-foreground">
                         使用者管理、API 金鑰、成本金流、系統監控
                       </p>
                     </div>
@@ -517,8 +517,8 @@ export default function SettingsPage() {
                       <Brain className="w-4 h-4 text-primary" />
                     </div>
                     <div className="text-left">
-                      <h3 className="text-sm font-semibold text-foreground">AI 大腦組態</h3>
-                      <p className="text-[10px] text-muted-foreground">
+                      <h3 className="hs-h3 !mb-0 text-foreground">AI 大腦組態</h3>
+                      <p className="hs-small !mb-0 text-muted-foreground">
                         5 種推理大腦與 4 種生成引擎的模型選擇與參數配置
                       </p>
                     </div>
@@ -536,8 +536,8 @@ export default function SettingsPage() {
                       <BarChart3 className="w-4 h-4 text-orange-600" />
                     </div>
                     <div className="text-left">
-                      <h3 className="text-sm font-semibold text-foreground">成本與用量</h3>
-                      <p className="text-[10px] text-muted-foreground">
+                      <h3 className="hs-h3 !mb-0 text-foreground">成本與用量</h3>
+                      <p className="hs-small !mb-0 text-muted-foreground">
                         API 呼叫統計、費用趨勢、使用紀錄
                       </p>
                     </div>
@@ -555,8 +555,8 @@ export default function SettingsPage() {
                       <Activity className="w-4 h-4 text-emerald-600" />
                     </div>
                     <div className="text-left">
-                      <h3 className="text-sm font-semibold text-foreground">AI 監控中心</h3>
-                      <p className="text-[10px] text-muted-foreground">
+                      <h3 className="hs-h3 !mb-0 text-foreground">AI 監控中心</h3>
+                      <p className="hs-small !mb-0 text-muted-foreground">
                         LangSmith 追蹤、LLM 呼叫分析
                       </p>
                     </div>

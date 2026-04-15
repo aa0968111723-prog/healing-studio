@@ -63,7 +63,7 @@ export default function FeedbackPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <MessageSquare className="w-5 h-5 text-muted-foreground" />
-          <h1 className="text-xl font-semibold">回饋中心</h1>
+          <h1 className="hs-h2 !mb-0">回饋中心</h1>
         </div>
         <Dialog open={showCreate} onOpenChange={setShowCreate}>
           <DialogTrigger asChild>
@@ -102,7 +102,7 @@ export default function FeedbackPage() {
         </Dialog>
       </div>
 
-      <p className="text-xs text-muted-foreground">提交問題回報或功能建議，協助我們持續改善平台。</p>
+      <p className="hs-small !mb-0 text-muted-foreground">提交問題回報或功能建議，協助我們持續改善平台。</p>
 
       {feedbacksQuery.isLoading ? (
         <div className="space-y-3">
@@ -122,8 +122,8 @@ export default function FeedbackPage() {
                       {catInfo.icon}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium">{fb.title}</p>
-                      {fb.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{fb.description}</p>}
+                      <p className="hs-small !mb-0">{fb.title}</p>
+                      {fb.description && <p className="hs-small !mb-0 text-muted-foreground mt-1 line-clamp-2">{fb.description}</p>}
                       <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                         <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-muted/30 font-medium">{catInfo.label}</span>
                         <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium ${priInfo.color}`}>{priInfo.label}</span>
@@ -140,8 +140,8 @@ export default function FeedbackPage() {
       ) : (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <VisualSoul size="lg" personality={personality} />
-          <h3 className="text-base font-medium mt-6">尚無回饋紀錄</h3>
-          <p className="text-sm text-muted-foreground mt-2 max-w-sm">點擊「提交回饋」分享你的意見</p>
+          <h3 className="hs-h3 !mb-0 mt-6">尚無回饋紀錄</h3>
+          <p className="hs-small !mb-0 text-muted-foreground mt-2 max-w-sm">點擊「提交回饋」分享你的意見</p>
         </div>
       )}
     </div>

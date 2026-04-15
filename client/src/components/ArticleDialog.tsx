@@ -311,7 +311,7 @@ export default function ArticleDialog({ newsId, onClose, sceneId }: ArticleDialo
                           >
                             {weightLabelZh}
                           </span>
-                          <span className={`text-[11px] flex items-center gap-1 ${styles.textMuted}`}>
+                          <span className={`hs-small !mb-0 flex items-center gap-1 ${styles.textMuted}`}>
                             <Clock className="w-3 h-3" />
                             {formatDate(article.publishedAt)}
                           </span>
@@ -319,13 +319,13 @@ export default function ArticleDialog({ newsId, onClose, sceneId }: ArticleDialo
 
                         {/* Title */}
                         <DialogPrimitive.Title asChild>
-                          <h2 className={`text-xl sm:text-2xl font-bold leading-tight tracking-tight ${styles.textPrimary}`}>
+                          <h2 className={`hs-h2 !mb-0 ${styles.textPrimary}`}>
                             {article.title}
                           </h2>
                         </DialogPrimitive.Title>
 
                         {/* Meta row */}
-                        <div className={`flex items-center gap-4 mt-3 text-[11px] ${styles.textMuted}`}>
+                        <div className={`flex items-center gap-4 mt-3 hs-small !mb-0 ${styles.textMuted}`}>
                           <span className="truncate max-w-[200px]">{article.sourceName}</span>
                           {article.viewCount > 0 && (
                             <span className="flex items-center gap-1">
@@ -392,7 +392,7 @@ export default function ArticleDialog({ newsId, onClose, sceneId }: ArticleDialo
                         className={`px-6 sm:px-8 py-4 flex items-center justify-between flex-shrink-0 border-t ${styles.divider}`}
                         style={{ background: styles.headerBg }}
                       >
-                        <span className={`text-[11px] ${styles.textMuted}`}>
+                        <span className={`hs-small !mb-0 ${styles.textMuted}`}>
                           來源：{article.sourceName}
                         </span>
                         {article.sourceUrl && (

@@ -189,7 +189,7 @@ const ScriptImportPanel = memo(function ScriptImportPanel({
   return (
     <GlassCard hover={false} className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold flex items-center gap-2">
+        <h3 className="hs-h3 !mb-0 flex items-center gap-2">
           <Upload className="w-4 h-4" />
           匯入腳本
         </h3>
@@ -530,7 +530,7 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
             <item.icon className="w-3 h-3 mt-0.5 text-muted-foreground shrink-0" />
             <div>
               <span className="text-muted-foreground font-medium">{item.label}</span>
-              <p className="text-foreground/80 leading-relaxed line-clamp-2">{item.value || "—"}</p>
+              <p className="hs-p !mb-0 text-foreground/80 line-clamp-2">{item.value || "—"}</p>
             </div>
           </div>
         ))}
@@ -595,13 +595,13 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
                 {segment.costar.visualPrompt && (
                   <div className="p-2 rounded-lg bg-blue-50/50 border border-blue-100 mt-1">
                     <span className="text-[9px] font-bold text-blue-600 block mb-0.5">Visual Prompt</span>
-                    <p className="text-[10px] text-blue-800/70 leading-relaxed line-clamp-3">{segment.costar.visualPrompt}</p>
+                    <p className="hs-small !mb-0 text-blue-800/70 line-clamp-3">{segment.costar.visualPrompt}</p>
                   </div>
                 )}
                 {segment.costar.musicVibe && (
                   <div className="p-2 rounded-lg bg-purple-50/50 border border-purple-100">
                     <span className="text-[9px] font-bold text-purple-600 block mb-0.5">Music Vibe</span>
-                    <p className="text-[10px] text-purple-800/70 leading-relaxed line-clamp-2">{segment.costar.musicVibe}</p>
+                    <p className="hs-small !mb-0 text-purple-800/70 line-clamp-2">{segment.costar.musicVibe}</p>
                   </div>
                 )}
               </div>
@@ -1166,7 +1166,7 @@ const ExportPanel = memo(function ExportPanel({
   return (
     <GlassCard hover={false} className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold flex items-center gap-2">
+        <h3 className="hs-h3 !mb-0 flex items-center gap-2">
           <Download className="w-4 h-4" />
           匯出腳本
         </h3>
@@ -1324,7 +1324,7 @@ const ProactiveQuestionBubble = memo(function ProactiveQuestionBubble({
           <span className={cn("text-[10px] font-semibold uppercase tracking-wider", config.textColor)}>
             導演主動提問
           </span>
-          <p className="text-xs text-foreground/80 mt-1 leading-relaxed">
+          <p className="hs-small !mb-0 text-foreground/80 mt-1">
             {question}
           </p>
           <button
@@ -1438,7 +1438,7 @@ const ScriptCard = memo(function ScriptCard({
             {script.visualPrompt && (
               <div className="mt-2 p-2 rounded-lg bg-muted/30 border border-border/30">
                 <span className="text-[10px] font-medium text-muted-foreground block mb-1">Visual Prompt</span>
-                <p className="text-[11px] text-foreground/70 leading-relaxed line-clamp-3">{script.visualPrompt}</p>
+                <p className="hs-small !mb-0 text-foreground/70 line-clamp-3">{script.visualPrompt}</p>
               </div>
             )}
 
@@ -1865,7 +1865,7 @@ export default function DirectorAI() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <Clapperboard className="w-5 h-5 text-muted-foreground" />
-          <h1 className="text-xl font-semibold">導演 AI</h1>
+          <h1 className="hs-h2 !mb-0">導演 AI</h1>
           <span className={cn(
             "inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full",
             currentPersonality.bgActive, currentPersonality.textColor,
@@ -1941,7 +1941,7 @@ export default function DirectorAI() {
           >
             <GlassCard hover={false} className="space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold flex items-center gap-2">
+                <h3 className="hs-h3 !mb-0 flex items-center gap-2">
                   <BookTemplate className="w-4 h-4" />
                   模板庫 — 快速開始
                 </h3>
@@ -1969,7 +1969,7 @@ export default function DirectorAI() {
                           {t.label}
                         </span>
                       </div>
-                      <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2">
+                      <p className="hs-small !mb-0 text-muted-foreground line-clamp-2">
                         {t.description}
                       </p>
                     </button>
@@ -1992,7 +1992,7 @@ export default function DirectorAI() {
           >
             <GlassCard hover={false} className="space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold flex items-center gap-2">
+                <h3 className="hs-h3 !mb-0 flex items-center gap-2">
                   <FolderOpen className="w-4 h-4" />
                   已儲存對話
                 </h3>
@@ -2001,10 +2001,10 @@ export default function DirectorAI() {
                 </button>
               </div>
               {sessionsQuery.isLoading && (
-                <p className="text-xs text-muted-foreground py-4 text-center">載入中...</p>
+                <p className="hs-small !mb-0 text-muted-foreground py-4 text-center">載入中...</p>
               )}
               {sessionsQuery.data?.length === 0 && (
-                <p className="text-xs text-muted-foreground py-4 text-center">
+                <p className="hs-small !mb-0 text-muted-foreground py-4 text-center">
                   還沒有儲存的對話。對話後點擊「儲存」按鈕來保存。
                 </p>
               )}
@@ -2025,7 +2025,7 @@ export default function DirectorAI() {
 
       {/* Personality Selector + Preferred Format */}
       <GlassCard hover={false} className="space-y-4">
-        <h3 className="text-xs font-semibold text-muted-foreground flex items-center gap-2">
+        <h3 className="hs-h3 !mb-0 text-muted-foreground flex items-center gap-2">
           <Palette className="w-3.5 h-3.5" />
           導演偏好
         </h3>
@@ -2062,7 +2062,7 @@ export default function DirectorAI() {
                     {p.label}
                   </span>
                 </div>
-                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                <p className="hs-small !mb-0 text-muted-foreground">
                   {p.description}
                 </p>
               </button>
@@ -2100,7 +2100,7 @@ export default function DirectorAI() {
         </div>
       </GlassCard>
 
-      <p className="text-xs text-muted-foreground">
+      <p className="hs-small !mb-0 text-muted-foreground">
         雙引擎 RAG（事實研究 + CO-STAR 創意編排）— 腳本可一鍵發送到工作室，也可微調修改
       </p>
 
@@ -2176,7 +2176,7 @@ export default function DirectorAI() {
                 >
                   <GlassCard hover={false} className="h-full">
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-sm font-semibold flex items-center gap-2">
+                      <h3 className="hs-h3 !mb-0 flex items-center gap-2">
                         <VisualSoul size="sm" personality={personality} />
                         Storyboard
                       </h3>
@@ -2189,7 +2189,7 @@ export default function DirectorAI() {
                       {scripts.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-16 text-center">
                           <VisualSoul size="md" personality={personality} />
-                          <p className="text-sm text-muted-foreground mt-4">
+                          <p className="hs-small !mb-0 text-muted-foreground mt-4">
                             與導演 AI 對話後，腳本會自動出現在這裡
                           </p>
                         </div>
@@ -2218,7 +2218,7 @@ export default function DirectorAI() {
           {/* Mobile: Storyboard as scrollable section below chat */}
           {isMobile && scripts.length > 0 && (
             <div className="space-y-3">
-              <h3 className="text-sm font-semibold flex items-center gap-2">
+              <h3 className="hs-h3 !mb-0 flex items-center gap-2">
                 <VisualSoul size="sm" personality={personality} />
                 Storyboard ({scripts.length})
               </h3>
@@ -2337,7 +2337,7 @@ export default function DirectorAI() {
                   >
                     <GlassCard hover={false} className="space-y-3">
                       <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-semibold flex items-center gap-2">
+                        <h3 className="hs-h3 !mb-0 flex items-center gap-2">
                           <BarChart3 className="w-4 h-4" />
                           全局分析
                         </h3>
@@ -2483,8 +2483,8 @@ export default function DirectorAI() {
                                     </span>
                                   )}
                                 </div>
-                                <p className="text-xs font-medium truncate">{seg.storyboard.sceneHeading}</p>
-                                <p className="text-[10px] text-muted-foreground truncate mt-0.5">
+                                <p className="hs-small !mb-0 truncate">{seg.storyboard.sceneHeading}</p>
+                                <p className="hs-small !mb-0 text-muted-foreground truncate mt-0.5">
                                   {seg.storyboard.mood} · {seg.storyboard.duration}
                                 </p>
                                 {/* Character tags in segment list */}
@@ -2541,10 +2541,10 @@ export default function DirectorAI() {
                     <GlassCard hover={false}>
                       <div className="flex flex-col items-center justify-center py-16 text-center">
                         <Play className="w-8 h-8 text-muted-foreground/30 mb-3" />
-                        <p className="text-sm text-muted-foreground">
+                        <p className="hs-small !mb-0 text-muted-foreground">
                           從左側選擇一個分鏡段落開始討論
                         </p>
-                        <p className="text-[11px] text-muted-foreground/60 mt-1">
+                        <p className="hs-small !mb-0 text-muted-foreground/60 mt-1">
                           使用快選動作或自由輸入，與導演 AI 逐段優化你的腳本
                         </p>
                       </div>

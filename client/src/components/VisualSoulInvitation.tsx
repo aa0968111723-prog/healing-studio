@@ -465,7 +465,7 @@ export default function VisualSoulInvitation({
                   <Sparkles className={`w-4 h-4 ${bubbleStyle.textMuted}`} />
                 </motion.div>
                 {intentResult && (
-                  <span className={`text-[10px] tracking-wide uppercase ${bubbleStyle.textMuted}`}>
+                  <span className={`hs-small !mb-0 tracking-wide uppercase ${bubbleStyle.textMuted}`}>
                     {intentResult.intentLabel}
                   </span>
                 )}
@@ -618,7 +618,7 @@ export default function VisualSoulInvitation({
                       </div>
                       <div className="min-w-0">
                         <div className={`text-xs font-medium ${bubbleStyle.text}`}>意見回饋</div>
-                        <div className={`text-[10px] ${bubbleStyle.textMuted}`}>回報問題或分享想法</div>
+                        <div className={`hs-small !mb-0 ${bubbleStyle.textMuted}`}>回報問題或分享想法</div>
                       </div>
                     </button>
 
@@ -639,7 +639,7 @@ export default function VisualSoulInvitation({
                       </div>
                       <div className="min-w-0">
                         <div className={`text-xs font-medium ${bubbleStyle.text}`}>功能詢問</div>
-                        <div className={`text-[10px] ${bubbleStyle.textMuted}`}>告訴我們你想要什麼</div>
+                        <div className={`hs-small !mb-0 ${bubbleStyle.textMuted}`}>告訴我們你想要什麼</div>
                       </div>
                     </button>
                   </div>

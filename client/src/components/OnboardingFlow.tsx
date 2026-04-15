@@ -271,7 +271,7 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
               className="text-center"
             >
               <div className="min-h-[3rem] flex items-center justify-center">
-                <p className="text-lg sm:text-xl text-foreground font-medium tracking-tight">
+                <p className="hs-h2 !mb-0 text-foreground">
                   {greetingText}
                   {!greetingDone && (
                     <motion.span
@@ -301,7 +301,7 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
               exit={{ opacity: 0, y: -10 }}
               className="w-full text-center"
             >
-              <p className="text-lg text-foreground font-medium mb-6">
+              <p className="hs-h2 !mb-0 text-foreground mb-6">
                 今天想創作什麼畫面？
               </p>
 
@@ -343,7 +343,7 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
                   {loadingChips && (
                     <Loader2 className="w-3 h-3 animate-spin text-primary/60" />
                   )}
-                  <p className="text-[11px] text-muted-foreground/60">
+                  <p className="hs-small !mb-0 text-muted-foreground/60">
                     {loadingChips
                       ? "AI 正在為你延展靈感..."
                       : chipsSource === "ai"
@@ -423,7 +423,7 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
               exit={{ opacity: 0, y: -10 }}
               className="w-full"
             >
-              <p className="text-center text-lg text-foreground font-medium mb-4">
+              <p className="text-center hs-h2 !mb-0 text-foreground mb-4">
                 AI 正在為「{userInput}」構思...
               </p>
 
@@ -451,7 +451,7 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
               exit={{ opacity: 0, y: -10 }}
               className="w-full text-center"
             >
-              <p className="text-lg text-foreground font-medium mb-2">
+              <p className="hs-h2 !mb-0 text-foreground mb-2">
                 你的第一件作品完成了！
               </p>
               <p className="text-sm text-muted-foreground mb-6">

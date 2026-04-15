@@ -220,9 +220,9 @@ export default function CreditsInfoPage() {
       >
         <div className="flex items-center gap-3 mb-2">
           <Coins className="w-7 h-7 text-primary" />
-          <h1 className="text-2xl font-bold tracking-tight">積分說明</h1>
+          <h1 className="hs-h1 !mb-0">積分說明</h1>
         </div>
-        <p className="text-muted-foreground text-sm leading-relaxed">
+        <p className="hs-p !mb-0 text-muted-foreground">
           Healing Studio 使用「平台積分」作為所有 AI 生成的計費單位。
           <strong className="text-foreground"> 不需要信用卡，不涉及任何真實金錢交易。</strong>
         </p>
@@ -261,7 +261,7 @@ export default function CreditsInfoPage() {
         <GlassCard className="p-4">
           <div className="flex items-center gap-2 mb-3">
             <Gift className="w-5 h-5 text-primary" />
-            <h3 className="font-semibold text-sm">積分取得方式</h3>
+            <h3 className="hs-h3 !mb-0">積分取得方式</h3>
           </div>
           <ul className="text-sm space-y-2 text-muted-foreground">
             <li className="flex items-start gap-2">
@@ -286,7 +286,7 @@ export default function CreditsInfoPage() {
         <GlassCard className="p-4">
           <div className="flex items-center gap-2 mb-3">
             <ShieldCheck className="w-5 h-5 text-primary" />
-            <h3 className="font-semibold text-sm">安全保障</h3>
+            <h3 className="hs-h3 !mb-0">安全保障</h3>
           </div>
           <ul className="text-sm space-y-2 text-muted-foreground">
             <li className="flex items-start gap-2">
@@ -318,7 +318,7 @@ export default function CreditsInfoPage() {
         <GlassCard className="p-4">
           <div className="flex items-center gap-2 mb-3">
             <RotateCcw className="w-5 h-5 text-primary" />
-            <h3 className="font-semibold text-sm">退還機制</h3>
+            <h3 className="hs-h3 !mb-0">退還機制</h3>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
@@ -383,11 +383,11 @@ export default function CreditsInfoPage() {
         transition={{ duration: 0.3, delay: 0.25 }}
         className="space-y-3"
       >
-        <h2 className="text-lg font-semibold flex items-center gap-2">
+        <h2 className="hs-h2 !mb-0 flex items-center gap-2">
           <Sparkles className="w-5 h-5 text-primary" />
           完整模型費率表
         </h2>
-        <p className="text-xs text-muted-foreground mb-3">
+        <p className="hs-small !mb-0 text-muted-foreground mb-3">
           點擊分類展開查看各模型的詳細積分費率。積分範圍表示該模型的最低到最高單次扣除上限。
         </p>
 
@@ -426,7 +426,7 @@ export default function CreditsInfoPage() {
         transition={{ duration: 0.3, delay: 0.3 }}
       >
         <GlassCard className="p-4">
-          <h3 className="font-semibold text-sm flex items-center gap-2 mb-3">
+          <h3 className="hs-h3 !mb-0 flex items-center gap-2 mb-3">
             <HelpCircle className="w-4 h-4 text-primary" />
             計費公式
           </h3>
@@ -435,7 +435,7 @@ export default function CreditsInfoPage() {
             <p className="pl-4">基礎積分 + 時長加收 + 字符加收 + 批次加收 + 步驟加收</p>
             <p>))</p>
           </div>
-          <p className="text-xs text-muted-foreground mt-2">
+          <p className="hs-small !mb-0 text-muted-foreground mt-2">
             每個模型都有最低和最高積分限制，防止異常計費。計費前會先預估並顯示費用供確認。
           </p>
         </GlassCard>
@@ -447,7 +447,7 @@ export default function CreditsInfoPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.35 }}
       >
-        <h2 className="text-lg font-semibold mb-3">常見問題</h2>
+        <h2 className="hs-h2 !mb-0 mb-3">常見問題</h2>
         <GlassCard className="overflow-hidden">
           <FAQItem
             q="積分用完了怎麼辦？"
