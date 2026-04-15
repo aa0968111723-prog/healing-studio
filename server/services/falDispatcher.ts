@@ -17,6 +17,99 @@
 import { callFalModel, getFalModelById, getFalModelsByCategory, type FalCallInput } from "./falModels";
 import { estimatePoints, getModelPricing } from "./modelPricing";
 
+// ─── LangSmith 追蹤（fal.ai 多模態模型深度整合）──────────────────────────────
+
+let _langSmithClient: import("langsmith").Client | null = null;
+
+async function getFalLangSmithClient(): Promise<import("langsmith").Client | null> {
+  const apiKey = process.env.LANGSMITH_API_KEY;
+  if (!apiKey) return null;
+  if (_langSmithClient) return _langSmithClient;
+  try {
+    const { Client } = await import("langsmith");
+    _langSmithClient = new Client({
+      apiKey,
+      apiUrl: process.env.LANGCHAIN_ENDPOINT || "https://api.smith.langchain.com",
+    });
+    return _langSmithClient;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 記錄 fal.ai 任務到 LangSmith
+ * run_type 使用 "tool"（fal.ai 任務屬於工具呼叫，非 LLM 對話）
+ */
+async function trackFalLangSmith(opts: {
+  runId: string;
+  modelId: string;
+  category: string;
+  prompt: string | undefined;
+  inputs: Record<string, unknown>;
+  result: Record<string, unknown> | null;
+  error: string | null;
+  durationMs: number;
+  pointsDeducted: number;
+  degraded: boolean;
+  originalModel?: string;
+}): Promise<void> {
+  const client = await getFalLangSmithClient();
+  if (!client) return;
+
+  const projectName = process.env.LANGSMITH_PROJECT || "healing-studio";
+  const endTime = Date.now();
+  const startTime = endTime - opts.durationMs;
+
+  // run_name 格式：模態類別 / 模型ID（方便在 LangSmith 儀表板篩選）
+  const runName = `fal/${opts.category}/${opts.modelId.replace("fal-ai/", "")}`;
+
+  try {
+    await client.createRun({
+      id: opts.runId,
+      name: runName,
+      run_type: "tool",
+      project_name: projectName,
+      start_time: startTime,
+      end_time: endTime,
+      inputs: {
+        model_id: opts.modelId,
+        category: opts.category,
+        prompt: opts.prompt?.slice(0, 500) ?? "(無文字提示)",
+        ...Object.fromEntries(
+          Object.entries(opts.inputs)
+            .filter(([k]) => !["prompt"].includes(k))
+            .map(([k, v]) => [k, typeof v === "string" ? v.slice(0, 200) : v])
+        ),
+      },
+      outputs: opts.result
+        ? {
+            success: true,
+            data_keys: Object.keys(opts.result),
+            points_deducted: opts.pointsDeducted,
+            degraded: opts.degraded,
+            ...(opts.originalModel ? { original_model: opts.originalModel } : {}),
+          }
+        : {},
+      error: opts.error ?? undefined,
+      extra: {
+        metadata: {
+          provider: "fal.ai",
+          model_id: opts.modelId,
+          category: opts.category,
+          duration_ms: opts.durationMs,
+          points_deducted: opts.pointsDeducted,
+          degraded: opts.degraded,
+          ...(opts.originalModel ? { original_model: opts.originalModel } : {}),
+        },
+      },
+    });
+  } catch {
+    // LangSmith 追蹤失敗不影響主流程
+  }
+}
+
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
 // ═══════════════════════════════════════════════════════════════════════════
@@ -185,6 +278,8 @@ const FALLBACK_CHAINS: Record<string, string[]> = {
  */
 export async function dispatchFalTask(input: FalDispatchInput): Promise<FalDispatchResult> {
   const { modelId, category, durationSec, charCount } = input;
+  // 每次呼叫產生唯一的追蹤 ID
+  const runId = `fal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
   // ── Step 1: 驗證模型存在 ──
   let targetModelId = modelId;
@@ -212,7 +307,7 @@ export async function dispatchFalTask(input: FalDispatchInput): Promise<FalDispa
   });
 
   if (!modelConfig) {
-    return {
+    const failResult: FalDispatchResult = {
       success: false,
       modelId: targetModelId,
       modelLabel: targetModelId,
@@ -224,6 +319,9 @@ export async function dispatchFalTask(input: FalDispatchInput): Promise<FalDispa
       error: `模型 ${targetModelId} 不在目錄中，無法分派`,
       ...(degraded && { degraded, originalModel }),
     };
+    // LangSmith 追蹤：模型不存在
+    trackFalLangSmith({ runId, modelId: targetModelId, category, prompt: input.prompt, inputs: {}, result: null, error: failResult.error!, durationMs: 0, pointsDeducted: estimate.totalPoints, degraded: !!degraded, originalModel }).catch(() => {});
+    return failResult;
   }
 
   // ── Step 3: 建構 Fal 呼叫參數 ──
@@ -266,6 +364,21 @@ export async function dispatchFalTask(input: FalDispatchInput): Promise<FalDispa
 
     const durationMs = Date.now() - startMs;
 
+    // LangSmith 追蹤：成功
+    trackFalLangSmith({
+      runId,
+      modelId: targetModelId,
+      category: modelConfig.category,
+      prompt: input.prompt,
+      inputs: falInput,
+      result: result.data,
+      error: null,
+      durationMs,
+      pointsDeducted: estimate.totalPoints,
+      degraded: !!degraded,
+      originalModel,
+    }).catch(() => {});
+
     return {
       success: true,
       modelId: targetModelId,
@@ -284,7 +397,7 @@ export async function dispatchFalTask(input: FalDispatchInput): Promise<FalDispa
     // ── 4xx 客戶端錯誤不重試（參數錯誤、認證失敗等）──
     if (!isRetryableError(err)) {
       console.error(`[FalDispatcher] Non-retryable error for ${targetModelId}: ${errMsg}`);
-      return {
+      const errResult: FalDispatchResult = {
         success: false,
         modelId: targetModelId,
         modelLabel: modelConfig.label,
@@ -296,6 +409,9 @@ export async function dispatchFalTask(input: FalDispatchInput): Promise<FalDispa
         error: errMsg,
         ...(degraded && { degraded, originalModel }),
       };
+      // LangSmith 追蹤：4xx 不可重試錯誤
+      trackFalLangSmith({ runId, modelId: targetModelId, category, prompt: input.prompt, inputs: falInput, result: null, error: errMsg, durationMs, pointsDeducted: estimate.totalPoints, degraded: !!degraded, originalModel }).catch(() => {});
+      return errResult;
     }
 
     // ── 完整降級鏈重試（遍歷所有候選模型） ──
@@ -321,13 +437,16 @@ export async function dispatchFalTask(input: FalDispatchInput): Promise<FalDispa
           timeoutMs: candidateTimeout,
         });
         const retryEstimate = estimatePoints(candidate, { durationSec, charCount });
+        // LangSmith 追蹤：降級成功
+        const retryDuration = Date.now() - startMs;
+        trackFalLangSmith({ runId, modelId: candidate, category, prompt: input.prompt, inputs: falInput, result: retryResult.data, error: null, durationMs: retryDuration, pointsDeducted: retryEstimate.totalPoints, degraded: true, originalModel: modelId }).catch(() => {});
         return {
           success: true,
           modelId: candidate,
           modelLabel: candidateConfig.label,
           category,
           data: retryResult.data,
-          durationMs: Date.now() - startMs,
+          durationMs: retryDuration,
           pointsDeducted: retryEstimate.totalPoints,
           pointsBreakdown: retryEstimate.breakdown,
           degraded: true,
@@ -344,16 +463,20 @@ export async function dispatchFalTask(input: FalDispatchInput): Promise<FalDispa
       }
     }
 
+    // LangSmith 追蹤：所有降級連鎖失敗
+    const finalDuration = Date.now() - startMs;
+    const finalErrMsg = `${errMsg} (all ${fallbackChain.length} fallbacks exhausted: ${lastFallbackError})`;
+    trackFalLangSmith({ runId, modelId: targetModelId, category, prompt: input.prompt, inputs: falInput, result: null, error: finalErrMsg, durationMs: finalDuration, pointsDeducted: estimate.totalPoints, degraded: !!degraded, originalModel }).catch(() => {});
     return {
       success: false,
       modelId: targetModelId,
       modelLabel: modelConfig.label,
       category,
       data: {},
-      durationMs: Date.now() - startMs,
+      durationMs: finalDuration,
       pointsDeducted: estimate.totalPoints,
       pointsBreakdown: estimate.breakdown,
-      error: `${errMsg} (all ${fallbackChain.length} fallbacks exhausted: ${lastFallbackError})`,
+      error: finalErrMsg,
       ...(degraded && { degraded, originalModel }),
     };
   }
