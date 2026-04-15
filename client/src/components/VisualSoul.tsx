@@ -10,7 +10,7 @@
  *   <VisualSoul personality="creative" state="generating" size="lg" />
  */
 
-import { useMemo, lazy, Suspense } from "react";
+import { useMemo, lazy, Suspense, memo } from "react";
 import { motion } from "framer-motion";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -243,7 +243,7 @@ function CSSOrb({
 
 // ─── Main Export ────────────────────────────────────────────────────────────
 
-export default function VisualSoul({
+export default memo(function VisualSoul({
   state       = "idle",
   personality = "creative",
   size        = "md",
@@ -268,4 +268,4 @@ export default function VisualSoul({
       />
     </Suspense>
   );
-}
+});

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, memo } from "react";
 import { motion, AnimatePresence, type PanInfo, useAnimation } from "framer-motion";
 import { useAIState } from "@/contexts/AIStateContext";
 import { usePersonality, PERSONALITY_CONFIGS } from "@/contexts/PersonalityContext";
@@ -250,7 +250,7 @@ function formatTimerBadge(seconds: number): string {
 
 // ─── Component ────────────────────────────────────────────────────────────
 
-export default function ProactiveOrbWidget({
+export default memo(function ProactiveOrbWidget({
   className = "",
   enableOnboarding = true,
   onSaveToNotes,
@@ -1198,4 +1198,4 @@ export default function ProactiveOrbWidget({
       </motion.div>
     </div>
   );
-}
+});

@@ -110,6 +110,7 @@ function ReferenceCard({
               src={item.url}
               alt={item.purpose || "參考素材"}
               className="w-10 h-10 rounded-lg object-cover border border-white/40 shrink-0"
+              loading="lazy"
             />
           )}
           <span className="text-xs text-muted-foreground truncate">

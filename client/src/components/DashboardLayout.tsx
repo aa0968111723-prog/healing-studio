@@ -659,7 +659,7 @@ function DashboardLayoutContent({
               {/* User avatar dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="h-10 w-10 rounded-full border flex items-center justify-center bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <button aria-label="使用者選單" className="h-10 w-10 rounded-full border flex items-center justify-center bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                     <span className="text-sm font-medium text-primary">
                       {user?.name?.charAt(0).toUpperCase() || "U"}
                     </span>
