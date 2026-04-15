@@ -149,6 +149,10 @@ const defaultThoughtIslands: Record<Modality, ThoughtIsland[]> = {
   ],
 };
 
+export function getDefaultThoughtIslands(modality: Modality): ThoughtIsland[] {
+  return (defaultThoughtIslands[modality] || defaultThoughtIslands.image).map((i) => ({ ...i }));
+}
+
 // ─── Default Blocks per Modality ──────────────────────────────────────────────
 
 function block(
