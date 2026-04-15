@@ -170,6 +170,11 @@ const PROVIDER_ENDPOINTS: Record<string, { url: string; method: string; headers?
     url: "https://generativelanguage.googleapis.com/v1beta/models",
     method: "GET",
   },
+  nvidia: {
+    url: "https://integrate.api.nvidia.com/v1/models",
+    method: "GET",
+    headers: (): Record<string, string> => (process.env.NVIDA_API ? { Authorization: `Bearer ${process.env.NVIDA_API}` } : {}),
+  },
   fal: {
     url: "https://queue.fal.run/fal-ai/flux/requests",
     method: "GET",

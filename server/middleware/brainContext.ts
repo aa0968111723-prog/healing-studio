@@ -132,6 +132,8 @@ const ENGINE_FALLBACK_CHAIN: Record<string, string[]> = {
   "gemini-2.5-flash": ["gemini-1.5-flash", "gemini-2.5-pro"],
   "gemini-1.5-pro":   ["gemini-2.5-pro",   "gemini-1.5-flash"],
   "gemini-1.5-flash": ["gemini-2.5-flash",  "gemini-1.5-pro"],
+  // MiniMax M2.7（NVIDIA NIM 代理人引擎）→ 降級到 Gemini
+  "minimaxai/minimax-m2.7": ["gemini-2.5-flash", "gemini-2.5-pro"],
   // OpenAI 模型名稱 → Gemini fallback（向後相容，防止舊設定觸發 404）
   "gpt-4o":           ["gemini-2.5-pro",   "gemini-2.5-flash"],
   "gpt-4o-mini":      ["gemini-2.5-flash",  "gemini-1.5-flash"],
@@ -275,6 +277,8 @@ const KNOWN_MODELS = new Set([
   "gemini-1.5-pro",
   "gemini-1.5-flash",
   "gemini-pro",
+  // LLM — MiniMax M2.7 via NVIDIA NIM（代理人引擎）
+  "minimaxai/minimax-m2.7",
   // Vertex AI 路徑
   "vertex/gemini-2.5-pro",
   "vertex/gemini-2.5-flash",

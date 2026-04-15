@@ -14,7 +14,7 @@
  */
 
 import { serverEnv } from "./env.validated";
-import { resolveEngineConfig, type LLMEngine } from "./llmRouter";
+import { resolveEngineConfig, getEngineFallbackChain, recordEngineSuccess, recordEngineFailure, type LLMEngine, type EngineConfig } from "./llmRouter";
 
 // ─── LangSmith SDK 初始化（當 API Key 存在時） ───────────────────────────────
 let langSmithClient: import("langsmith").Client | null = null;
@@ -413,7 +413,80 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   } = params;
 
   // ── 透過路由器取得引擎設定 ───────────────────────────────
-  const engineConfig = resolveEngineConfig(engine);
+  const primaryConfig = resolveEngineConfig(engine);
+
+  // ── 嘗試主引擎 + 自動降級到備援引擎 ───────────────────────
+  const engineConfigs: EngineConfig[] = [primaryConfig];
+
+  // auto 模式下，加入備援引擎鏈（手動指定引擎不降級）
+  if (!engine || engine === "auto") {
+    engineConfigs.push(...getEngineFallbackChain(primaryConfig.engine));
+  }
+
+  let lastError: Error | null = null;
+
+  for (const engineConfig of engineConfigs) {
+    try {
+      const result = await invokeSingleEngine(engineConfig, {
+        messages, tools, toolChoice, tool_choice,
+        maxTokens, max_tokens,
+        outputSchema, output_schema, responseFormat, response_format,
+        runName, parentRunId, temperature, topP, overrideModel,
+      });
+
+      // 成功 — 更新斷路器
+      recordEngineSuccess(engineConfig.engine);
+      return result;
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      lastError = error;
+
+      // 記錄斷路器失敗
+      recordEngineFailure(engineConfig.engine);
+
+      // 如果還有備援引擎，繼續嘗試
+      if (engineConfigs.indexOf(engineConfig) < engineConfigs.length - 1) {
+        console.warn(
+          `[LLM] ⚠️ ${engineConfig.name} 失敗，嘗試備援引擎... 錯誤: ${error.message.slice(0, 200)}`
+        );
+        continue;
+      }
+    }
+  }
+
+  // 所有引擎都失敗
+  throw lastError ?? new Error("[LLM] 所有引擎都失敗");
+}
+
+/**
+ * 對單一引擎執行 LLM 呼叫（含重試）
+ */
+async function invokeSingleEngine(
+  engineConfig: EngineConfig,
+  params: {
+    messages: Message[];
+    tools?: Tool[];
+    toolChoice?: ToolChoice;
+    tool_choice?: ToolChoice;
+    maxTokens?: number;
+    max_tokens?: number;
+    outputSchema?: OutputSchema;
+    output_schema?: OutputSchema;
+    responseFormat?: ResponseFormat;
+    response_format?: ResponseFormat;
+    runName?: string;
+    parentRunId?: string;
+    temperature?: number;
+    topP?: number;
+    overrideModel?: string;
+  },
+): Promise<InvokeResult> {
+  const {
+    messages, tools, toolChoice, tool_choice,
+    maxTokens, max_tokens,
+    outputSchema, output_schema, responseFormat, response_format,
+    runName, parentRunId, temperature, topP, overrideModel,
+  } = params;
 
   // ── 解析最終模型名稱（含 engine 相容性正規化）───────────
   const rawModel = overrideModel ?? engineConfig.model;
@@ -449,12 +522,10 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   if (normalizedResponseFormat) payload.response_format = normalizedResponseFormat;
 
   const startTime = Date.now();
-  // 生成唯一 run ID（供 LangSmith 追蹤）
   const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 
   let result: InvokeResult | undefined;
   try {
-    // Retry with exponential backoff for transient failures
     let lastError: Error | null = null;
     for (let attempt = 1; attempt <= LLM_MAX_RETRIES; attempt++) {
       try {
@@ -493,7 +564,6 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
       } catch (err: unknown) {
         const error = err instanceof Error ? err : new Error(String(err));
         lastError = error;
-        // Retry on network / abort errors (not on explicit HTTP error throws above)
         const isRetryable = error.name === "AbortError" || error.message.includes("fetch failed");
         if (isRetryable && attempt < LLM_MAX_RETRIES) {
           await new Promise(r => setTimeout(r, getRetryDelayMs(attempt)));
@@ -510,12 +580,9 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     throw err;
   }
 
-  // Safety: result is guaranteed to be set here (retry loop either sets it or throws)
   if (!result) throw new Error("[LLM] Unexpected: no result after retry loop");
 
   const durationMs = Date.now() - startTime;
-
-  // 非同步追蹤成功結果至 LangSmith SDK（不阻塞主流程）
   trackLangSmithSDK(runId, runName || "llm-invoke", messages, payload, result, null, durationMs, engineConfig.name, parentRunId).catch(() => {});
 
   return result;
