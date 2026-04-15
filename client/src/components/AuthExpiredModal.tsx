@@ -124,7 +124,7 @@ export default function AuthExpiredModal() {
               <div className="flex flex-col gap-3">
                 <Button
                   onClick={handleLogin}
-                  className="w-full h-11 rounded-xl gap-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-md"
+                  className="w-full h-11 rounded-xl gap-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white shadow-md hover:shadow-lg transition-all duration-200"
                 >
                   <LogIn className="w-4 h-4" />
                   Google 登入
@@ -132,7 +132,7 @@ export default function AuthExpiredModal() {
                 <Button
                   variant="outline"
                   onClick={() => { window.location.href = getDemoLoginUrl(); }}
-                  className="w-full h-11 rounded-xl gap-2 border-dashed border-muted-foreground/30"
+                  className="w-full h-11 rounded-xl gap-2 border-dashed border-muted-foreground/30 hover:bg-muted/30 hover:shadow-md transition-all duration-200"
                 >
                   ✨ 訪客體驗（免登入）
                 </Button>

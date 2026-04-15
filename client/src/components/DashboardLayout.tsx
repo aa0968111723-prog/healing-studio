@@ -212,7 +212,7 @@ export default function DashboardLayout({
           <Button
             onClick={() => { window.location.href = getLoginUrl(); }}
             size="lg"
-            className="w-full mt-8 h-12 rounded-2xl shadow-md hover:shadow-lg btn-healing"
+            className="w-full mt-8 h-12 rounded-2xl shadow-md hover:shadow-lg hover:bg-primary/80 btn-healing"
           >
             Google 登入
           </Button>
@@ -220,7 +220,7 @@ export default function DashboardLayout({
             onClick={() => { window.location.href = getDemoLoginUrl(); }}
             variant="outline"
             size="lg"
-            className="w-full mt-3 h-12 rounded-2xl border-dashed border-muted-foreground/30 hover:bg-muted/40 btn-healing"
+            className="w-full mt-3 h-12 rounded-2xl border-dashed border-muted-foreground/30 hover:bg-muted/40 hover:shadow-md btn-healing"
           >
             ✨ 訪客體驗（免登入）
           </Button>
