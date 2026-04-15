@@ -106,6 +106,9 @@ const multimodalSchema = z.object({
   LANGCHAIN_TRACING_V2:   z.string().optional().default("false"),
   LANGCHAIN_ENDPOINT:     z.string().optional().default("https://api.smith.langchain.com"),
 
+  // ── MiniMax M2.7（光球 AI 代理人引擎）──────────────────────
+  MINIMAX_API_KEY:        z.string().min(1).optional().default(""),
+
   // ── Brave Search API ──────────────────────────────────────
   BRAVE_SEARCH_API_KEY:   z.string().min(1).optional().default(""),
 

@@ -53,6 +53,9 @@ type AIStateContextType = {
   // Page-aware context for site-wide AI agent
   pageContext: PageContext | null;
   setPageContext: (ctx: PageContext | null) => void;
+  // Quiet mode — suppresses all proactive messages
+  quietMode: boolean;
+  setQuietMode: (q: boolean) => void;
 };
 
 const AIStateContext = createContext<AIStateContextType>({
@@ -71,6 +74,8 @@ const AIStateContext = createContext<AIStateContextType>({
   dismissProactive: () => {},
   pageContext: null,
   setPageContext: () => {},
+  quietMode: false,
+  setQuietMode: () => {},
 });
 
 // ─── Proactive Intervention Rules ──────────────────────────────────────────
@@ -81,60 +86,50 @@ const PROACTIVE_RULES: Array<{
   switchTo?: Personality;
 }> = [
   {
-    // User idle for 20+ seconds → page-aware gentle nudge
-    condition: (m, _p, page) => m.idleSeconds >= 20 && m.idleSeconds < 45 && m.failCount === 0 && !!page,
+    // User idle for 60+ seconds → page-aware gentle nudge (was 20s, now 60s to be less intrusive)
+    condition: (m, _p, page) => m.idleSeconds >= 60 && m.idleSeconds < 120 && m.failCount === 0 && !!page,
     message: (_p, page) => {
       const hints: Record<string, string> = {
-        "image-studio": "試試在提詞中加入情緒或風格描述，例如「夢幻的水彩風」或「電影感光線」。",
-        "video-studio": "影片生成提詞的重點是「動態」——試著描述物體怎麼移動、鏡頭怎麼運動。",
-        "pro-studio": "你可以先用快速模板開始，再慢慢調整到想要的效果。",
+        "image-studio": "需要靈感嗎？點我可以幫你推薦風格或優化提詞。",
+        "video-studio": "影片提詞小技巧：描述「動態」和「鏡頭運動」可以大幅提升效果。",
+        "pro-studio": "想要快速開始？可以先試試模板。",
         "lora-trainer": "訓練圖片的品質比數量重要——清晰、光線好的圖片效果最佳。",
       };
-      return hints[page?.pageId ?? ""] ?? "看起來你在思考中...需要靈感的話，隨時問我！";
+      return hints[page?.pageId ?? ""] ?? "有什麼需要幫忙的嗎？點我開始對話。";
     },
   },
   {
-    // User idle for 20+ seconds on non-studio pages → generic nudge
-    condition: (m, _p, page) => m.idleSeconds >= 20 && m.idleSeconds < 45 && m.failCount === 0 && !page,
+    // User idle for 60+ seconds on non-studio pages → gentle nudge (was 20s)
+    condition: (m, _p, page) => m.idleSeconds >= 60 && m.idleSeconds < 120 && m.failCount === 0 && !page,
     message: (p) => p === "calm"
-      ? "慢慢來，沒有壓力。如果需要靈感，試試閉上眼睛想像一個讓你安心的場景，然後把它描述出來。"
+      ? "慢慢來，不急。需要的時候隨時點我。"
       : p === "technical"
-      ? "有時候從技術參數開始反而更容易——試試先選擇一個風格或解析度，讓創作自然展開。"
-      : "看起來你在思考中...試試從一個情緒或顏色開始，比如「溫暖的金色光線」或「雨後的寧靜」。",
+      ? "需要技術建議嗎？我隨時在。"
+      : "需要靈感的話，隨時點我聊聊。",
   },
   {
     // User typing very fast → affirm and switch to creative mode
     condition: (m, p) => m.typingSpeed > 5 && p !== "creative",
-    message: () => "靈感湧現了！我切換到創意模式，讓你的想法自由流動。",
+    message: () => "靈感湧現了！切換到創意模式。",
     switchTo: "creative",
   },
   {
-    // 2+ consecutive failures → empathetic switch to technical with page-specific tip
-    condition: (m) => m.failCount >= 2,
+    // 3+ consecutive failures → empathetic switch to technical (was 2, now 3 for less interruption)
+    condition: (m) => m.failCount >= 3,
     message: (_p, page) => {
       const tips: Record<string, string> = {
-        "image-studio": "我切換到技術模式——試試降低解析度或換一個模型，有時候能解決問題。",
-        "video-studio": "我切換到技術模式——影片生成較複雜，試試縮短時長或降低畫質再重試。",
-        "pro-studio": "我切換到技術模式——確認音頻 URL 是否正確，或換一個備選模型。",
+        "image-studio": "連續幾次沒成功——試試降低解析度或換一個模型？",
+        "video-studio": "影片生成較複雜，試試縮短時長或降低畫質再重試。",
+        "pro-studio": "確認音頻 URL 是否正確，或換一個備選模型。",
       };
-      return tips[page?.pageId ?? ""] ?? "創作過程中的嘗試都是有價值的。我切換到技術模式，幫你微調參數——有時候一個小調整就能帶來大不同。";
+      return tips[page?.pageId ?? ""] ?? "遇到困難了嗎？我切換到技術模式，幫你排查問題。";
     },
     switchTo: "technical",
   },
   {
-    // Idle 45+ seconds → warmer, more personal nudge
-    condition: (m) => m.idleSeconds >= 45 && m.idleSeconds < 90,
-    message: () => "休息也是創作的一部分。如果你準備好了，可以試試告訴我你今天的心情，我來幫你轉化成創作靈感。",
-  },
-  {
-    // Idle 90+ seconds → offer guided exploration
-    condition: (m) => m.idleSeconds >= 90,
-    message: () => "要不要讓我帶你看看其他人的作品？有時候別人的創作會點燃意想不到的靈感。",
-  },
-  {
-    // First success after failure → celebrate
-    condition: (m) => m.failCount === 0 && m.typingSpeed > 0 && m.idleSeconds < 5,
-    message: () => "太棒了！繼續保持這個節奏，你的創作正在成形中。",
+    // Idle 120+ seconds → single warm nudge (was 45s)
+    condition: (m) => m.idleSeconds >= 120 && m.idleSeconds < 180,
+    message: () => "休息也是創作的一部分。準備好了隨時點我。",
   },
 ];
 
@@ -146,6 +141,9 @@ export function AIStateProvider({ children }: { children: ReactNode }) {
   const [personality, setPersonalityState] = useState<Personality>(readPersistedPersonality);
   const [proactiveMessage, setProactiveMessage] = useState<string | null>(null);
   const [pageContext, setPageContext] = useState<PageContext | null>(null);
+  const [quietMode, setQuietModeState] = useState<boolean>(() => {
+    try { return localStorage.getItem("orb-quiet-mode") === "true"; } catch { return false; }
+  });
   const [metrics, setMetrics] = useState<DirectorEngineMetrics>({
     typingSpeed: 0,
     idleSeconds: 0,
@@ -203,13 +201,19 @@ export function AIStateProvider({ children }: { children: ReactNode }) {
     setProactiveMessage(null);
   }, []);
 
+  const setQuietMode = useCallback((q: boolean) => {
+    setQuietModeState(q);
+    try { localStorage.setItem("orb-quiet-mode", q ? "true" : "false"); } catch { /* ignore */ }
+    if (q) setProactiveMessage(null); // Clear any active proactive when entering quiet mode
+  }, []);
+
   // Idle timer: track idle time via ref, only update state at key thresholds
   // This avoids triggering a global re-render every second for all useAIState() consumers.
   const idleSecondsRef = useRef(0);
 
   useEffect(() => {
     // Thresholds at which proactive rules fire (from PROACTIVE_RULES conditions)
-    const THRESHOLDS = [5, 20, 45, 90];
+    const THRESHOLDS = [5, 60, 120, 180];
     idleTimerRef.current = setInterval(() => {
       idleSecondsRef.current += 1;
       const sec = idleSecondsRef.current;
@@ -228,8 +232,8 @@ export function AIStateProvider({ children }: { children: ReactNode }) {
 
   // DirectorEngine: evaluate proactive rules when metrics change
   useEffect(() => {
-    // Only evaluate when not generating
-    if (aiState === "generating") return;
+    // Only evaluate when not generating and not in quiet mode
+    if (aiState === "generating" || quietMode) return;
 
     for (const rule of PROACTIVE_RULES) {
       const ruleKey = rule.message(personality, pageContext);
@@ -242,7 +246,7 @@ export function AIStateProvider({ children }: { children: ReactNode }) {
         break;
       }
     }
-  }, [metrics.idleSeconds, metrics.failCount, metrics.typingSpeed, aiState, personality, pageContext]);
+  }, [metrics.idleSeconds, metrics.failCount, metrics.typingSpeed, aiState, personality, pageContext, quietMode]);
 
   // Wrap setPersonality to persist to localStorage
   const setPersonality = useCallback((p: Personality) => {
@@ -273,6 +277,8 @@ export function AIStateProvider({ children }: { children: ReactNode }) {
         dismissProactive,
         pageContext,
         setPageContext,
+        quietMode,
+        setQuietMode,
       }}
     >
       {children}

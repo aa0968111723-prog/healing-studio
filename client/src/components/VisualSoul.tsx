@@ -15,7 +15,7 @@ import { motion } from "framer-motion";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
-export type AIState   = "idle" | "thinking" | "generating";
+export type AIState   = "idle" | "thinking" | "generating" | "listening" | "acting";
 export type Personality = "calm" | "creative" | "technical";
 
 type Props = {
@@ -108,6 +108,32 @@ function getStateConfig(state: AIState, personality: Personality) {
       rotateSpeed:   2,
       scale:         [0.95, 1.1, 0.95] as number[],
       particleOpacity: 0.9,
+    },
+    listening: {
+      gradient: [
+        `radial-gradient(circle at 40% 40%, rgba(${colors.secondary},0.85), rgba(${colors.primary},0.65), rgba(${colors.accent},0.45))`,
+        `radial-gradient(circle at 50% 50%, rgba(${colors.primary},0.85), rgba(${colors.secondary},0.65), rgba(${colors.accent},0.45))`,
+        `radial-gradient(circle at 40% 40%, rgba(${colors.secondary},0.85), rgba(${colors.primary},0.65), rgba(${colors.accent},0.45))`,
+      ],
+      glowColor:     `rgba(${colors.secondary},0.5)`,
+      glowPulse:     [`0 0 14px rgba(${colors.secondary},0.35), 0 0 28px rgba(${colors.secondary},0.15)`, `0 0 20px rgba(${colors.secondary},0.55), 0 0 42px rgba(${colors.secondary},0.25)`, `0 0 14px rgba(${colors.secondary},0.35), 0 0 28px rgba(${colors.secondary},0.15)`],
+      breathDuration: 1.2 * bm,
+      rotateSpeed:   15,
+      scale:         [1, 1.06, 1] as number[],
+      particleOpacity: 0.5,
+    },
+    acting: {
+      gradient: [
+        `radial-gradient(circle at 45% 45%, rgba(${colors.accent},0.95), rgba(${colors.primary},0.8), rgba(${colors.secondary},0.5))`,
+        `radial-gradient(circle at 35% 35%, rgba(${colors.primary},0.95), rgba(${colors.accent},0.8), rgba(${colors.secondary},0.5))`,
+        `radial-gradient(circle at 45% 45%, rgba(${colors.accent},0.95), rgba(${colors.primary},0.8), rgba(${colors.secondary},0.5))`,
+      ],
+      glowColor:     `rgba(${colors.accent},0.7)`,
+      glowPulse:     [`0 0 20px rgba(${colors.accent},0.5), 0 0 40px rgba(${colors.accent},0.2)`, `0 0 36px rgba(${colors.accent},0.8), 0 0 56px rgba(${colors.accent},0.4)`, `0 0 20px rgba(${colors.accent},0.5), 0 0 40px rgba(${colors.accent},0.2)`],
+      breathDuration: 0.6 * bm,
+      rotateSpeed:   3,
+      scale:         [0.96, 1.08, 0.96] as number[],
+      particleOpacity: 0.85,
     },
   };
 

@@ -172,6 +172,8 @@ const STATE_VALUE: Record<AIState, number> = {
   idle: 0.0,
   thinking: 1.0,
   generating: 2.0,
+  listening: 0.5,
+  acting: 1.5,
 };
 
 // ─── The 3D Orb Mesh ───────────────────────────────────────────────────────
