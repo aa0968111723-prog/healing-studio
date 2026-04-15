@@ -19,6 +19,7 @@ import {
 } from "../middleware/brainContext";
 import { addLearnDoc, hasLearnDoc } from "../routers/learnHub";
 import { ENV } from "../_core/env";
+import { serverEnv } from "../_core/env.validated";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
@@ -173,22 +174,22 @@ const PROVIDER_ENDPOINTS: Record<string, { url: string; method: string; headers?
   nvidia: {
     url: "https://integrate.api.nvidia.com/v1/models",
     method: "GET",
-    headers: (): Record<string, string> => (process.env.NVIDA_API ? { Authorization: `Bearer ${process.env.NVIDA_API}` } : {}),
+    headers: (): Record<string, string> => (serverEnv.NVIDA_API ? { Authorization: `Bearer ${serverEnv.NVIDA_API}` } : {}),
   },
   fal: {
     url: "https://queue.fal.run/fal-ai/flux/requests",
     method: "GET",
-    headers: (): Record<string, string> => (process.env.FAL_API_KEY ? { Authorization: `Key ${process.env.FAL_API_KEY}` } : {}),
+    headers: (): Record<string, string> => (serverEnv.FAL_API_KEY ? { Authorization: `Key ${serverEnv.FAL_API_KEY}` } : {}),
   },
   elevenlabs: {
     url: "https://api.elevenlabs.io/v1/user",
     method: "GET",
-    headers: (): Record<string, string> => (process.env.ELEVENLABS_API_KEY ? { "xi-api-key": process.env.ELEVENLABS_API_KEY } : {}),
+    headers: (): Record<string, string> => (serverEnv.ELEVENLABS_API_KEY ? { "xi-api-key": serverEnv.ELEVENLABS_API_KEY } : {}),
   },
   replicate: {
     url: "https://api.replicate.com/v1/models",
     method: "GET",
-    headers: (): Record<string, string> => (process.env.REPLICATE_API_TOKEN ? { Authorization: `Bearer ${process.env.REPLICATE_API_TOKEN}` } : {}),
+    headers: (): Record<string, string> => (serverEnv.REPLICATE_API_TOKEN ? { Authorization: `Bearer ${serverEnv.REPLICATE_API_TOKEN}` } : {}),
   },
 };
 
@@ -282,6 +283,20 @@ const REPAIR_FALLBACK: Record<string, string[]> = {
   // ── 語音 TTS ──
   "fal-ai/elevenlabs/tts/turbo-v2.5": ["fal-ai/qwen-3-tts/text-to-speech/1.7b", "fal-ai/dia-tts/voice-clone"],
   "fal-ai/qwen-3-tts/text-to-speech/1.7b": ["fal-ai/elevenlabs/tts/turbo-v2.5", "fal-ai/dia-tts/voice-clone"],
+  // ── 3D 模型 ──
+  "fal-ai/trellis-2": ["fal-ai/trellis", "fal-ai/triposr"],
+  "fal-ai/trellis": ["fal-ai/trellis-2", "fal-ai/triposr"],
+  "fal-ai/triposr": ["fal-ai/trellis-2", "fal-ai/stable-zero123"],
+  "fal-ai/hunyuan3d-v3/image-to-3d": ["fal-ai/trellis-2", "fal-ai/triposr"],
+  // ── 音訊處理 ──
+  "fal-ai/demucs": ["fal-ai/elevenlabs/audio-isolation"],
+  "fal-ai/elevenlabs/audio-isolation": ["fal-ai/demucs"],
+  // ── ASR 語音轉文字 ──
+  "fal-ai/nemotron/asr/stream": ["fal-ai/wizper"],
+  // ── 影片轉影片 ──
+  "fal-ai/kling-video/v1.6/standard/video-to-video": ["fal-ai/wan-v2v", "fal-ai/cogvideox-5b/video-to-video"],
+  // ── LoRA 訓練 ──
+  "fal-ai/flux-lora-fast-training": [],
   // ── 向後相容（舊別名） ──
   "flux-pro": ["flux-schnell"],
   "kling-v1": ["kling-v1-5", "fal-ai/minimax/video-01"],
@@ -308,6 +323,10 @@ function inferModality(engine: string): ErrorTrace["modality"] {
   // LLM 推理
   const llmPatterns = ["gemini", "vertex", "llm", "any-llm", "minimaxai", "minimax-m2"];
   if (llmPatterns.some((p) => e.includes(p))) return "llm";
+
+  // 3D 模型（先於 image，因為 "image-to-3d" 等含 "image" 意味但應歸類 3D）
+  const threeDPatterns = ["3d", "trellis", "triposr", "zero123", "shap-e", "dreamgaussian", "hunyuan3d", "rodin", "world"];
+  if (threeDPatterns.some((p) => e.includes(p))) return "image"; // 3D 暫歸入 image 模態
 
   return "image"; // 圖像生成為預設
 }
@@ -1150,7 +1169,7 @@ export async function runAccuracyTest(
 
   try {
     // 嘗試透過 Gemini API 進行測試
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = serverEnv.GEMINI_API_KEY || ENV.geminiApiKey;
     if (!apiKey) {
       actualResult = "[無法測試] GEMINI_API_KEY 未設定";
       score = 0;
