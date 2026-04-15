@@ -41,8 +41,8 @@ function StatCard({ icon: Icon, label, value, sub, color = "text-primary" }: {
         </div>
         <div className="min-w-0">
           <p className="text-[11px] text-muted-foreground">{label}</p>
-          <p className="text-lg font-semibold tabular-nums">{value}</p>
-          {sub && <p className="text-[10px] text-muted-foreground">{sub}</p>}
+          <p className="hs-h3-lg !mb-0 tabular-nums">{value}</p>
+          {sub && <p className="hs-small !mb-0 text-muted-foreground">{sub}</p>}
         </div>
       </div>
     </GlassCard>
@@ -115,7 +115,7 @@ export default function AdminPage() {
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Shield className="w-5 h-5 text-muted-foreground" />
-        <h1 className="text-xl font-semibold">管理後台</h1>
+        <h1 className="hs-h2 !mb-0">管理後台</h1>
         <Badge variant="outline" className="text-[10px]">管理員</Badge>
       </div>
 
@@ -177,8 +177,8 @@ export default function AdminPage() {
                     })}
                   </div>
                   <div className="flex justify-between mt-1">
-                    <span className="text-[10px] text-muted-foreground">{trendData[0]?.date}</span>
-                    <span className="text-[10px] text-muted-foreground">{trendData[trendData.length - 1]?.date}</span>
+                    <span className="hs-small !mb-0 text-muted-foreground">{trendData[0]?.date}</span>
+                    <span className="hs-small !mb-0 text-muted-foreground">{trendData[trendData.length - 1]?.date}</span>
                   </div>
                 </GlassCard>
                 );
@@ -203,7 +203,7 @@ export default function AdminPage() {
                         <p className="text-sm font-medium truncate">{u.name || "未命名"}</p>
                         <Badge variant={u.role === "admin" ? "default" : "secondary"} className="text-[10px] rounded-md">{u.role === "admin" ? "管理員" : "使用者"}</Badge>
                       </div>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                      <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
                         {u.email || "無信箱"} | 配額: {u.remainingGenerations} | 註冊: {new Date(u.createdAt).toLocaleDateString("zh-TW")}
                       </p>
                     </div>
@@ -259,11 +259,11 @@ export default function AdminPage() {
                         <p className="text-sm font-medium">{a.name || "未命名"}</p>
                         <Badge variant={a.role === "admin" ? "default" : "secondary"} className="text-[10px]">{a.role}</Badge>
                       </div>
-                      <span className="text-[10px] text-muted-foreground">
+                      <span className="hs-small !mb-0 text-muted-foreground">
                         最後登入: {a.lastSignedIn ? new Date(a.lastSignedIn).toLocaleString("zh-TW") : "未知"}
                       </span>
                     </div>
-                    <p className="text-[11px] text-muted-foreground">{a.email || "無信箱"}</p>
+                    <p className="hs-small !mb-0 text-muted-foreground">{a.email || "無信箱"}</p>
                     <div className="flex flex-wrap gap-2 mt-1">
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
                         API 呼叫: {a.totalApiCalls}
@@ -307,7 +307,7 @@ export default function AdminPage() {
                       )}
                       <div className="min-w-0">
                         <p className="text-xs font-medium">{k.label}</p>
-                        <p className="text-[10px] text-muted-foreground">{k.module} — {k.name}</p>
+                        <p className="hs-small !mb-0 text-muted-foreground">{k.module} — {k.name}</p>
                       </div>
                       <Badge variant={k.isSet ? "default" : "destructive"} className="text-[10px] ml-auto shrink-0">
                         {k.isSet ? "已設定" : "未設定"}
@@ -339,13 +339,13 @@ export default function AdminPage() {
                             <p className="text-xs font-medium">{item.apiProvider}</p>
                             <Badge variant="outline" className="text-[10px]">{item.requestType}</Badge>
                           </div>
-                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                          <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
                             {item.totalCalls} 次呼叫 | {item.totalTokens} tokens | 成功率: {successRate}%
                           </p>
                         </div>
                         <div className="text-right shrink-0">
                           <p className="text-sm font-semibold">${parseFloat(String(item.totalCost)).toFixed(3)}</p>
-                          <p className="text-[10px] text-muted-foreground">
+                          <p className="hs-small !mb-0 text-muted-foreground">
                             <span className="text-green-600">{item.successCount}✓</span>{" "}
                             <span className="text-red-500">{item.failedCount}✗</span>
                           </p>
@@ -375,9 +375,9 @@ export default function AdminPage() {
                   <div className="flex items-center gap-4">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{displayName}</p>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">{displaySub} | {item.totalRequests} 次請求 | {item.totalTokens} tokens</p>
+                      <p className="hs-small !mb-0 text-muted-foreground mt-0.5">{displaySub} | {item.totalRequests} 次請求 | {item.totalTokens} tokens</p>
                     </div>
-                    <p className="text-lg font-semibold shrink-0">${parseFloat(String(item.totalCost)).toFixed(3)}</p>
+                    <p className="hs-h3-lg !mb-0 shrink-0">${parseFloat(String(item.totalCost)).toFixed(3)}</p>
                   </div>
                 </GlassCard>
               );
@@ -405,15 +405,15 @@ export default function AdminPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <Badge variant="outline" className="text-[10px]">{g.modality}</Badge>
-                          <span className="text-[10px] text-muted-foreground">
+                          <span className="hs-small !mb-0 text-muted-foreground">
                             {u?.name || `使用者 #${g.userId}`}
                           </span>
-                          <span className="text-[10px] text-muted-foreground ml-auto">
+                          <span className="hs-small !mb-0 text-muted-foreground ml-auto">
                             {new Date(g.createdAt).toLocaleString("zh-TW")}
                           </span>
                         </div>
                         {g.prompt && (
-                          <p className="text-[11px] text-muted-foreground mt-1 line-clamp-2">{g.prompt}</p>
+                          <p className="hs-small !mb-0 text-muted-foreground mt-1 line-clamp-2">{g.prompt}</p>
                         )}
                         <div className="flex items-center gap-2 mt-1">
                           {g.costCredits > 0 && (
@@ -460,23 +460,23 @@ export default function AdminPage() {
                         <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${statusColors[job.status] || ""}`}>
                           {job.status}
                         </span>
-                        <span className="text-[10px] text-muted-foreground">
+                        <span className="hs-small !mb-0 text-muted-foreground">
                           {u?.name || `使用者 #${job.userId}`}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 mt-1">
-                        <span className="text-[10px] text-muted-foreground">
+                        <span className="hs-small !mb-0 text-muted-foreground">
                           進度: {job.progress}%
                         </span>
                         {job.progressMessage && (
-                          <span className="text-[10px] text-muted-foreground truncate">— {job.progressMessage}</span>
+                          <span className="hs-small !mb-0 text-muted-foreground truncate">— {job.progressMessage}</span>
                         )}
-                        <span className="text-[10px] text-muted-foreground ml-auto">
+                        <span className="hs-small !mb-0 text-muted-foreground ml-auto">
                           {new Date(job.createdAt).toLocaleString("zh-TW")}
                         </span>
                       </div>
                       {job.errorMessage && (
-                        <p className="text-[10px] text-red-500 mt-1 flex items-center gap-1">
+                        <p className="hs-small !mb-0 text-red-500 mt-1 flex items-center gap-1">
                           <AlertTriangle className="w-3 h-3" /> {job.errorMessage}
                         </p>
                       )}
@@ -613,7 +613,7 @@ function AiSiteResearchPanel() {
           </div>
           <div>
             <h3 className="text-sm font-semibold">AI 全站自動研究系統</h3>
-            <p className="text-[10px] text-muted-foreground">
+            <p className="hs-small !mb-0 text-muted-foreground">
               自動掃描程式碼缺陷、思考優化方案，經管理員同意後可自動連結 GitHub 建立 Issue / PR 修正
             </p>
           </div>
@@ -623,16 +623,16 @@ function AiSiteResearchPanel() {
         {summary && (
           <div className="grid grid-cols-3 gap-3 mb-4">
             <div className="text-center p-2 rounded-lg bg-muted/30">
-              <p className="text-lg font-semibold">{summary.pendingProposals}</p>
-              <p className="text-[10px] text-muted-foreground">待審核提案</p>
+              <p className="hs-h3-lg !mb-0">{summary.pendingProposals}</p>
+              <p className="hs-small !mb-0 text-muted-foreground">待審核提案</p>
             </div>
             <div className="text-center p-2 rounded-lg bg-muted/30">
-              <p className="text-lg font-semibold">{summary.totalResearch}</p>
-              <p className="text-[10px] text-muted-foreground">研究資料</p>
+              <p className="hs-h3-lg !mb-0">{summary.totalResearch}</p>
+              <p className="hs-small !mb-0 text-muted-foreground">研究資料</p>
             </div>
             <div className="text-center p-2 rounded-lg bg-muted/30">
-              <p className="text-lg font-semibold">{summary.unresolvedErrors}</p>
-              <p className="text-[10px] text-muted-foreground">未解決錯誤</p>
+              <p className="hs-h3-lg !mb-0">{summary.unresolvedErrors}</p>
+              <p className="hs-small !mb-0 text-muted-foreground">未解決錯誤</p>
             </div>
           </div>
         )}
@@ -678,7 +678,7 @@ function AiSiteResearchPanel() {
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="text-xs font-medium">{p.title}</p>
-                      <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{p.description}</p>
+                      <p className="hs-small !mb-0 text-muted-foreground mt-0.5 line-clamp-2">{p.description}</p>
                     </div>
                     <Badge
                       variant="outline"
@@ -691,7 +691,7 @@ function AiSiteResearchPanel() {
                       {p.status === "pending" ? "待審核" : p.status === "approved" ? "已核准" : "已拒絕"}
                     </Badge>
                   </div>
-                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                  <div className="flex items-center gap-1.5 hs-small !mb-0 text-muted-foreground">
                     <Badge variant="secondary" className="text-[9px]">{p.category}</Badge>
                     <span>{new Date(p.createdAt).toLocaleString("zh-TW")}</span>
                   </div>
@@ -718,7 +718,7 @@ function AiSiteResearchPanel() {
                     </div>
                   )}
                   {p.status === "approved" && (
-                    <div className="flex items-center gap-1.5 text-[10px] text-green-600">
+                    <div className="flex items-center gap-1.5 hs-small !mb-0 text-green-600">
                       <CheckCircle2 className="w-3 h-3" />
                       已核准 — 系統將自動建立 GitHub Issue 追蹤修正
                     </div>
@@ -746,10 +746,10 @@ function AiSiteResearchPanel() {
                   <a href={r.url} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-primary hover:underline line-clamp-1">
                     {r.title}
                   </a>
-                  <p className="text-[10px] text-muted-foreground line-clamp-1">{r.summary}</p>
+                  <p className="hs-small !mb-0 text-muted-foreground line-clamp-1">{r.summary}</p>
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <Badge variant="secondary" className="text-[9px]">{r.source}</Badge>
-                    <span className="text-[9px] text-muted-foreground">相關度: {r.relevance}%</span>
+                    <span className="hs-small !mb-0 text-muted-foreground">相關度: {r.relevance}%</span>
                   </div>
                 </div>
                 {!r.addedToLearnHub && (
