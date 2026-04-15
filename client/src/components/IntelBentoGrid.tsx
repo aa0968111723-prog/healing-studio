@@ -155,6 +155,7 @@ interface SceneStyles {
   tabsBg: string;
   tabsActiveBg: string;
   tabsActiveText: string;
+  dividerColor: string;
 }
 
 const SCENE_CARD_STYLES: Record<SceneId, SceneStyles> = {
@@ -167,6 +168,7 @@ const SCENE_CARD_STYLES: Record<SceneId, SceneStyles> = {
     tabsBg: "rgba(20,25,60,0.5)",
     tabsActiveBg: "rgba(80,90,180,0.25)",
     tabsActiveText: "text-indigo-200",
+    dividerColor: "rgba(100,120,200,0.15)",
   },
   morning: {
     cardBg: "rgba(255,248,240,0.55)",
@@ -177,6 +179,7 @@ const SCENE_CARD_STYLES: Record<SceneId, SceneStyles> = {
     tabsBg: "rgba(255,240,220,0.5)",
     tabsActiveBg: "rgba(245,190,100,0.2)",
     tabsActiveText: "text-amber-800",
+    dividerColor: "rgba(210,170,120,0.2)",
   },
   cafe: {
     cardBg: "rgba(248,242,232,0.55)",
@@ -187,6 +190,7 @@ const SCENE_CARD_STYLES: Record<SceneId, SceneStyles> = {
     tabsBg: "rgba(240,230,215,0.5)",
     tabsActiveBg: "rgba(180,160,130,0.2)",
     tabsActiveText: "text-stone-800",
+    dividerColor: "rgba(180,150,120,0.18)",
   },
   deepSea: {
     cardBg: "rgba(8,30,55,0.5)",
@@ -197,6 +201,7 @@ const SCENE_CARD_STYLES: Record<SceneId, SceneStyles> = {
     tabsBg: "rgba(10,40,70,0.5)",
     tabsActiveBg: "rgba(40,120,160,0.25)",
     tabsActiveText: "text-cyan-200",
+    dividerColor: "rgba(60,140,180,0.15)",
   },
 };
 
@@ -624,9 +629,9 @@ const IntelBentoGrid = memo(function IntelBentoGrid({ sceneId }: IntelBentoGridP
       <div className="max-w-5xl mx-auto">
         {/* Soft gradient divider */}
         <div
-          className="mx-auto max-w-3xl mb-12 h-px"
+          className="mx-auto max-w-3xl mb-10 sm:mb-12 h-px"
           style={{
-            background: `linear-gradient(90deg, transparent, ${styles.cardBorder}, transparent)`,
+            background: `linear-gradient(90deg, transparent, ${styles.dividerColor}, transparent)`,
           }}
         />
         {/* Section header */}
@@ -635,37 +640,37 @@ const IntelBentoGrid = memo(function IntelBentoGrid({ sceneId }: IntelBentoGridP
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-80px" }}
           transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-          className="text-center mb-12"
+          className="text-center mb-10 sm:mb-12"
         >
           <h2
-            className={`text-2xl sm:text-3xl font-bold tracking-tight transition-colors duration-700 ${styles.textPrimary}`}
+            className={`text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight transition-colors duration-1000 ${styles.textPrimary}`}
           >
             情報站
           </h2>
-          <p className={`mt-3 text-sm max-w-md mx-auto transition-colors duration-700 ${styles.textMuted}`}>
+          <p className={`mt-3 text-xs sm:text-sm max-w-md mx-auto transition-colors duration-1000 ${styles.textMuted}`}>
             AI 與創作領域的最新脈動，以溫暖視角重新詮釋
           </p>
           {/* Healing divider */}
           <div
-            className="mx-auto mt-8 w-16 h-[1px] rounded-full"
+            className="mx-auto mt-6 sm:mt-8 w-16 h-[1px] rounded-full"
             style={{
-              background: `linear-gradient(90deg, transparent, ${styles.cardBorder}, transparent)`,
+              background: `linear-gradient(90deg, transparent, ${styles.dividerColor}, transparent)`,
             }}
           />
         </motion.div>
 
         {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-8">
-          <div className="flex justify-center">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6 sm:mb-8">
+          <div className="flex justify-center overflow-x-auto scrollbar-hide">
             <TabsList
-              className="h-10 rounded-xl border-0 p-1 backdrop-blur-md"
+              className="h-9 sm:h-10 rounded-xl border-0 p-1 backdrop-blur-md"
               style={{ background: styles.tabsBg }}
             >
               {TABS.map((tab) => (
                 <TabsTrigger
                   key={tab.value}
                   value={tab.value}
-                  className={`rounded-lg px-4 text-xs font-medium border-0 transition-all duration-200
+                  className={`rounded-lg px-3 sm:px-4 text-[11px] sm:text-xs font-medium border-0 transition-all duration-200
                     data-[state=active]:shadow-none
                     ${styles.textMuted}
                   `}

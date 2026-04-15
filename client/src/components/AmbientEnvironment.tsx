@@ -504,7 +504,7 @@ function AmbientEnvironmentInner({ forceScene, className }: AmbientEnvironmentPr
         // Cross-fade between scenes
         const fromScene = SCENES[trans.from];
         const toScene = SCENES[trans.to];
-        trans.progress = Math.min(1, trans.progress + 0.008); // ~2s transition
+        trans.progress = Math.min(1, trans.progress + 0.006); // ~2.5s transition — smooth scene handoff
 
         drawGradient(fromScene.gradientStops, 1 - trans.progress);
         ctx!.globalCompositeOperation = "source-over";

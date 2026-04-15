@@ -196,7 +196,7 @@ export default function OarsGreeting({
     <div className={`text-center ${className}`}>
       {/* Main Headline — Typewriter */}
       <h1
-        className={`text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight leading-tight transition-colors duration-700 ${textPrimary}`}
+        className={`text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-bold tracking-tight leading-tight transition-colors duration-1000 ${textPrimary}`}
       >
         <span>{typedHeadline}</span>
         <span
@@ -217,7 +217,7 @@ export default function OarsGreeting({
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-            className={`mt-5 text-base sm:text-lg max-w-xl mx-auto leading-relaxed transition-colors duration-700 ${textMuted}`}
+            className={`mt-4 sm:mt-5 text-sm sm:text-base lg:text-lg max-w-xl mx-auto leading-relaxed transition-colors duration-1000 ${textMuted}`}
           >
             {subtext}
           </motion.p>
@@ -229,7 +229,7 @@ export default function OarsGreeting({
         initial={{ opacity: 0 }}
         animate={{ opacity: 0.5 }}
         transition={{ duration: 1.2, delay: 2 }}
-        className={`mt-3 text-xs tracking-widest uppercase transition-colors duration-700 ${textMuted}`}
+        className={`mt-2 sm:mt-3 text-[10px] sm:text-xs tracking-widest uppercase transition-colors duration-1000 ${textMuted}`}
         style={{ opacity: 0.4 }}
       >
         Healing Studio · AI 多模態創作平台
