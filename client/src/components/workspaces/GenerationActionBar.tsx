@@ -21,7 +21,7 @@ interface GenerationActionBarProps {
   isGenerating: boolean;
   hasResult: boolean;
   /** When true, render a bigger more prominent generate button (zen mode) */
-  zenMode?: boolean;
+  simpleMode?: boolean;
 }
 
 const actionModes = [
@@ -90,13 +90,13 @@ export function GenerationActionBar({
   onGenerate,
   isGenerating,
   hasResult,
-  zenMode = false,
+  simpleMode = false,
 }: GenerationActionBarProps) {
   const current = actionModes.find((a) => a.mode === actionMode) ?? actionModes[0];
   const currentWsMode = workspaceModes.find((w) => w.mode === workspaceMode) ?? workspaceModes[0];
 
   /* Zen mode: only show the big generate button */
-  if (zenMode) {
+  if (simpleMode) {
     return (
       <div className="space-y-2">
         <Button

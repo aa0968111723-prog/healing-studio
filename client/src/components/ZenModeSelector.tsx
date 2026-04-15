@@ -8,27 +8,27 @@ const CREATIVE_MODE_KEY = "hs-creative-mode";
 export function loadCreativeMode(): CreativeMode {
   try {
     const stored = localStorage.getItem(CREATIVE_MODE_KEY);
-    if (stored === "zen" || stored === "standard" || stored === "pro") return stored;
+    if (stored === "simple" || stored === "standard" || stored === "pro") return stored;
   } catch { /* ignore */ }
-  return "zen";
+  return "simple";
 }
 
 export function saveCreativeMode(mode: CreativeMode) {
   try { localStorage.setItem(CREATIVE_MODE_KEY, mode); } catch { /* ignore */ }
 }
 
-interface ZenModeSelectorProps {
+interface CreativeModeSelectorProps {
   value: CreativeMode;
   onChange: (mode: CreativeMode) => void;
 }
 
 const modes: { mode: CreativeMode; label: string; labelZh: string; Icon: typeof Leaf; description: string }[] = [
-  { mode: "zen", label: "Zen", labelZh: "靈感", Icon: Leaf, description: "極簡直覺，放鬆探索" },
+  { mode: "simple", label: "Simple", labelZh: "靈感", Icon: Leaf, description: "極簡直覺，放鬆探索" },
   { mode: "standard", label: "Standard", labelZh: "標準", Icon: Sparkles, description: "模態工作區與積木" },
   { mode: "pro", label: "Pro", labelZh: "專業", Icon: Focus, description: "完整控制與進階編輯" },
 ];
 
-export function ZenModeSelector({ value, onChange }: ZenModeSelectorProps) {
+export function CreativeModeSelector({ value, onChange }: CreativeModeSelectorProps) {
   return (
     <div className="flex items-center gap-0.5 rounded-xl p-0.5"
       style={{
@@ -52,7 +52,7 @@ export function ZenModeSelector({ value, onChange }: ZenModeSelectorProps) {
           >
             {active && (
               <motion.div
-                layoutId="zen-mode-pill"
+                layoutId="creative-mode-pill"
                 className="absolute inset-0 rounded-lg bg-white shadow-sm"
                 transition={{ type: "spring", stiffness: 400, damping: 30 }}
               />
@@ -69,7 +69,7 @@ export function ZenModeSelector({ value, onChange }: ZenModeSelectorProps) {
 }
 
 /** Descriptive subtitle for the current creative mode */
-export function ZenModeDescription({ mode }: { mode: CreativeMode }) {
+export function CreativeModeDescription({ mode }: { mode: CreativeMode }) {
   const m = modes.find(m => m.mode === mode);
   if (!m) return null;
   return (
