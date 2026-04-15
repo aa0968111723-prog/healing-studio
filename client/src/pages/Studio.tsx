@@ -315,8 +315,6 @@ export default function Studio() {
   const [leftDrawerOpen, setLeftDrawerOpen] = useState(false);
   const [leftDrawerTab, setLeftDrawerTab] = useState<"vault" | "assets" | "models">("vault");
   const [rightDrawerOpen, setRightDrawerOpen] = useState(false);
-  const [controlsSheetOpen, setControlsSheetOpen] = useState(false);
-  const [mobileDrawerSheet, setMobileDrawerSheet] = useState<"left" | "right" | null>(null);
   const [toolboxSheetOpen, setToolboxSheetOpen] = useState(false);
   const [toolboxTab, setToolboxTab] = useState<"vault" | "assets" | "models" | "history" | "controls">("vault");
   const [resultUrl, setResultUrl] = useState<string | null>(null);
@@ -1025,7 +1023,7 @@ export default function Studio() {
     } else if (activeModality === "voice") {
       toast.success(`已綁定「${item.name}」角色特徵至語音生成`);
     }
-    if (isMobile) setMobileDrawerSheet(null);
+    if (isMobile) setToolboxSheetOpen(false);
   }, [activeModality, videoState, imageState, isMobile]);
 
   // ── History → Studio handler (MiniHistoryPanel in right drawer) ──
@@ -1229,14 +1227,13 @@ export default function Studio() {
 
           {/* Unified Toolbox button (replaces separate vault/settings/history) */}
           <Button
-            variant={toolboxSheetOpen || leftDrawerOpen || rightDrawerOpen ? "default" : "outline"}
+            variant={toolboxSheetOpen || leftDrawerOpen ? "default" : "outline"}
             size="sm"
             className="rounded-xl gap-1.5 text-xs h-8"
             onClick={() => {
               if (isMobile) {
                 setToolboxSheetOpen(true);
               } else {
-                // Toggle left drawer as primary desktop action
                 setLeftDrawerOpen(!leftDrawerOpen);
               }
             }}
@@ -1244,6 +1241,19 @@ export default function Studio() {
             <Briefcase className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">工具箱</span>
           </Button>
+
+          {/* History drawer toggle (desktop only, not in simple mode) */}
+          {!isMobile && !isSimple && (
+            <Button
+              variant={rightDrawerOpen ? "default" : "outline"}
+              size="sm"
+              className="rounded-xl gap-1.5 text-xs h-8"
+              onClick={() => setRightDrawerOpen(!rightDrawerOpen)}
+            >
+              <Clock className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">歷史</span>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -1435,7 +1445,7 @@ export default function Studio() {
               </div>
               )}
 
-              {/* ── Inspiration Quick Panel (簡約模式) ── */}
+              {/* ── Inspiration Quick Panel (simple mode) ── */}
               {isSimple && (
                 <div className="mt-4">
                   <InspirationQuickPanel
@@ -2046,77 +2056,6 @@ export default function Studio() {
               />
             )}
             {toolboxTab === "history" && <MiniHistoryPanel onSendToStudio={handleHistoryToStudio} />}
-          </BottomSheet>
-
-          {/* Legacy mobile sheets (still used by desktop drawer toggles if not on mobile) */}
-          <BottomSheet
-            open={controlsSheetOpen}
-            onClose={() => setControlsSheetOpen(false)}
-            title="生成參數"
-          >
-            <GenerationControls
-              temperature={temperature}
-              onTemperatureChange={setTemperature}
-              seed={seed}
-              onSeedChange={setSeed}
-              mode={mode}
-              onModeChange={setMode}
-              loraWeight={loraWeight}
-              onLoraWeightChange={setLoraWeight}
-              showLoraWeight={showLoraWeight}
-            />
-          </BottomSheet>
-
-          <BottomSheet
-            open={mobileDrawerSheet === "left"}
-            onClose={() => setMobileDrawerSheet(null)}
-            title="素材庫"
-          >
-            <div className="flex gap-1 p-2 mb-2">
-              <button
-                onClick={() => setLeftDrawerTab("vault")}
-                className={`flex-1 text-xs py-2 rounded-lg transition-colors ${
-                  leftDrawerTab === "vault" ? "bg-primary text-primary-foreground" : "bg-muted/30 text-muted-foreground"
-                }`}
-              >
-                保險庫
-              </button>
-              <button
-                onClick={() => setLeftDrawerTab("assets")}
-                className={`flex-1 text-xs py-2 rounded-lg transition-colors ${
-                  leftDrawerTab === "assets" ? "bg-primary text-primary-foreground" : "bg-muted/30 text-muted-foreground"
-                }`}
-              >
-                資產
-              </button>
-              <button
-                onClick={() => setLeftDrawerTab("models")}
-                className={`flex-1 text-xs py-2 rounded-lg transition-colors ${
-                  leftDrawerTab === "models" ? "bg-primary text-primary-foreground" : "bg-muted/30 text-muted-foreground"
-                }`}
-              >
-                模型
-              </button>
-            </div>
-            {leftDrawerTab === "vault" ? (
-              <ConsistencyVault onSelect={handleVaultSelect} />
-            ) : leftDrawerTab === "models" ? (
-              <MiniModelsPanel
-                activeModelId={fineTunedModelId}
-                onApply={(id, name) => { setFineTunedModelId(id); setFineTunedModelName(name); toast.success(`已套用模型「${name}」`); }}
-                onRemove={() => { setFineTunedModelId(undefined); setFineTunedModelName(undefined); toast.info("已移除微調模型"); }}
-              />
-            ) : (
-              <MiniAssetsPanel />
-            )}
-          </BottomSheet>
-
-          <BottomSheet
-            open={mobileDrawerSheet === "right"}
-            onClose={() => setMobileDrawerSheet(null)}
-            title="生成歷史"
-          >
-            <MiniHistoryPanel onSendToStudio={handleHistoryToStudio} />
           </BottomSheet>
         </>
       )}
