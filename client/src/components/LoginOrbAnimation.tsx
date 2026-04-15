@@ -18,7 +18,7 @@
  *   - 效能：will-change 提示 GPU 加速，memoize 靜態元素
  */
 
-import { useState, useEffect, useCallback, useMemo, memo } from "react";
+import { useState, useEffect, useCallback, useMemo, useId, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePersonality } from "@/contexts/PersonalityContext";
 import type { Personality } from "@/contexts/PersonalityContext";
@@ -27,7 +27,8 @@ import type { Personality } from "@/contexts/PersonalityContext";
 
 const TOTAL_DURATION_MS = 5800;
 const FADEOUT_DURATION_S = 1.4;
-const Z_INDEX_ANIMATION_OVERLAY = 9999;
+/** Above OfflineBanner/OnboardingTour (9999), below AuthExpiredModal (10000) */
+const Z_INDEX_ANIMATION_OVERLAY = 10050;
 const STAR_LAYERS = [
   { count: 35, sizeMin: 1, sizeMax: 1.5, opacityMin: 0.15, opacityMax: 0.4,  driftSpeed: 6 },
   { count: 20, sizeMin: 1.5, sizeMax: 2.5, opacityMin: 0.2,  opacityMax: 0.55, driftSpeed: 8 },
@@ -153,38 +154,50 @@ const ORB_FLIGHTS: OrbFlight[] = [
 function FlyingOrb({
   flight,
   palette,
+  containerSize,
 }: {
   flight: OrbFlight;
   palette: PaletteConfig;
+  /** [width, height] of the overlay container in px for %-to-px conversion */
+  containerSize: [number, number];
 }) {
   const color = palette.orbs[flight.colorIdx] ?? palette.orbs[0];
   const mid = getCurvedMidpoint(flight.startX, flight.startY, flight.curveOffset);
+
+  // Convert % to px for transform-based (GPU-composited) animation
+  const [cw, ch] = containerSize;
+  const toPx = (pctX: number, pctY: number) => [cw * pctX / 100, ch * pctY / 100] as const;
+
+  const [startPxX, startPxY] = toPx(flight.startX, flight.startY);
+  const [midPxX, midPxY] = toPx(mid.x, mid.y);
+  const [endPxX, endPxY] = toPx(50, 50);
 
   // Trail ghost: smaller, delayed, lower opacity copy
   const trailCount = flight.size >= 12 ? 2 : 1;
 
   return (
     <>
-      {/* Trailing afterglow copies */}
+      {/* Trailing afterglow copies — GPU-composited via x/y transforms */}
       {Array.from({ length: trailCount }).map((_, ti) => (
         <motion.div
           key={`trail-${flight.id}-${ti}`}
           className="absolute rounded-full pointer-events-none"
           style={{
+            left: 0,
+            top: 0,
             width: flight.size * (0.6 - ti * 0.15),
             height: flight.size * (0.6 - ti * 0.15),
             background: `radial-gradient(circle, ${color.glow} 0%, transparent 70%)`,
             filter: `blur(${flight.size * 0.3 + ti * 2}px)`,
-            willChange: "transform, opacity",
           }}
           initial={{
-            left: `${flight.startX}%`,
-            top: `${flight.startY}%`,
+            x: startPxX,
+            y: startPxY,
             opacity: 0,
           }}
           animate={{
-            left: [`${flight.startX}%`, `${mid.x}%`, "50%"],
-            top: [`${flight.startY}%`, `${mid.y}%`, "50%"],
+            x: [startPxX, midPxX, endPxX],
+            y: [startPxY, midPxY, endPxY],
             opacity: [0, 0.35 - ti * 0.1, 0],
           }}
           transition={{
@@ -195,26 +208,27 @@ function FlyingOrb({
         />
       ))}
 
-      {/* Main orb */}
+      {/* Main orb — GPU-composited via x/y transforms */}
       <motion.div
         className="absolute rounded-full pointer-events-none"
         style={{
+          left: 0,
+          top: 0,
           width: flight.size,
           height: flight.size,
           background: `radial-gradient(circle, ${color.color} 0%, transparent 70%)`,
           boxShadow: `0 0 ${flight.size * 2.5}px ${color.glow}, 0 0 ${flight.size * 5}px ${color.glow}`,
           filter: `blur(${Math.max(0.5, flight.size * 0.12)}px)`,
-          willChange: "transform, opacity",
         }}
         initial={{
-          left: `${flight.startX}%`,
-          top: `${flight.startY}%`,
+          x: startPxX,
+          y: startPxY,
           scale: 0.2,
           opacity: 0,
         }}
         animate={{
-          left: [`${flight.startX}%`, `${mid.x}%`, "50%"],
-          top: [`${flight.startY}%`, `${mid.y}%`, "50%"],
+          x: [startPxX, midPxX, endPxX],
+          y: [startPxY, midPxY, endPxY],
           scale: [0.2, 1.15, 0.5],
           opacity: [0, 0.85, 0.6],
         }}
@@ -322,27 +336,29 @@ function ConvergenceFlash() {
 
 // ─── Central converged orb — multi-layered, organic, breathing ──────────────
 
-function CentralOrb({ palette }: { palette: PaletteConfig }) {
+function CentralOrb({ palette, filterId }: { palette: PaletteConfig; filterId: string }) {
+  const turbId = `orb-turb-${filterId}`;
+  const glowId = `orb-glow-${filterId}`;
   return (
     <motion.div
       className="absolute pointer-events-none"
       style={{
         left: "50%",
         top: "50%",
-        transform: "translate(-50%, -50%)",
+        /* x/y offset handled by Framer Motion to avoid transform conflict */
       }}
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
+      initial={{ opacity: 0, x: "-50%", y: "-50%" }}
+      animate={{ opacity: 1, x: "-50%", y: "-50%" }}
       transition={{ duration: 0.8, ease: "easeOut" }}
     >
-      {/* SVG Filters — turbulence for organic texture */}
+      {/* SVG Filters — turbulence for organic texture (unique IDs) */}
       <svg width="0" height="0" className="absolute" aria-hidden="true">
         <defs>
-          <filter id="orb-turbulence">
+          <filter id={turbId}>
             <feTurbulence type="fractalNoise" baseFrequency="0.015" numOctaves="4" result="noise" seed="42" />
             <feDisplacementMap in="SourceGraphic" in2="noise" scale="8" />
           </filter>
-          <filter id="orb-soft-glow">
+          <filter id={glowId}>
             <feGaussianBlur stdDeviation="18" result="blur" />
             <feMerge>
               <feMergeNode in="blur" />
@@ -422,7 +438,7 @@ function CentralOrb({ palette }: { palette: PaletteConfig }) {
           left: -70,
           top: -70,
           background: `radial-gradient(circle, ${palette.haloInner} 0%, rgba(255,210,170,0.15) 45%, transparent 75%)`,
-          filter: "url(#orb-soft-glow)",
+          filter: `url(#${glowId})`,
         }}
         initial={{ scale: 0, opacity: 0 }}
         animate={{
@@ -441,7 +457,7 @@ function CentralOrb({ palette }: { palette: PaletteConfig }) {
           left: -35,
           top: -35,
           background: "radial-gradient(circle, rgba(255,230,200,0.5) 0%, rgba(255,200,160,0.25) 50%, transparent 80%)",
-          filter: "url(#orb-turbulence)",
+          filter: `url(#${turbId})`,
         }}
         initial={{ scale: 0, opacity: 0 }}
         animate={{
@@ -610,10 +626,14 @@ function ReducedMotionOverlay({ onDone }: { onDone: () => void }) {
 
   return (
     <motion.div
-      className="fixed inset-0 flex items-center justify-center cursor-pointer"
+      className="fixed inset-0 flex items-center justify-center cursor-pointer overflow-hidden"
       style={{
         zIndex: Z_INDEX_ANIMATION_OVERLAY,
         background: "radial-gradient(ellipse at 50% 50%, rgba(20,15,30,0.9) 0%, rgba(10,8,20,0.95) 100%)",
+        isolation: "isolate",
+        contain: "layout paint style",
+        width: "100vw",
+        height: "100vh",
       }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -648,6 +668,14 @@ export default function LoginOrbAnimation() {
   const [show, setShow] = useState(false);
   const [phase, setPhase] = useState<"stars" | "flying" | "converged" | "fadeout">("stars");
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  /** Container size [w, h] for %-to-px conversion (GPU-composited orb animation) */
+  const [containerSize, setContainerSize] = useState<[number, number]>([
+    typeof window !== "undefined" ? window.innerWidth : 1920,
+    typeof window !== "undefined" ? window.innerHeight : 1080,
+  ]);
+
+  // Unique ID for SVG filters to prevent collisions across mounts / Strict Mode
+  const filterId = useId();
 
   // Read personality for color adaptation (always inside PersonalityProvider)
   const { personality } = usePersonality();
@@ -676,6 +704,23 @@ export default function LoginOrbAnimation() {
 
     setShow(true);
   }, []);
+
+  // Lock body scroll while the overlay is visible to prevent layout shifts
+  useEffect(() => {
+    if (!show) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [show]);
+
+  // Track viewport size (handles resize / mobile address bar changes)
+  useEffect(() => {
+    if (!show) return;
+    const onResize = () => setContainerSize([window.innerWidth, window.innerHeight]);
+    window.addEventListener("resize", onResize);
+    onResize(); // sync immediately
+    return () => window.removeEventListener("resize", onResize);
+  }, [show]);
 
   // Phase transitions — carefully timed sequence
   useEffect(() => {
@@ -710,12 +755,12 @@ export default function LoginOrbAnimation() {
     setShow(false);
   }, []);
 
-  // Memoize orb elements
+  // Memoize orb elements (depend on palette + containerSize)
   const orbElements = useMemo(
     () => ORB_FLIGHTS.map((flight) => (
-      <FlyingOrb key={flight.id} flight={flight} palette={palette} />
+      <FlyingOrb key={flight.id} flight={flight} palette={palette} containerSize={containerSize} />
     )),
-    [palette],
+    [palette, containerSize],
   );
 
   if (!show) return null;
@@ -729,6 +774,8 @@ export default function LoginOrbAnimation() {
     );
   }
 
+  const isFading = phase === "fadeout";
+
   return (
     <AnimatePresence>
       {show && (
@@ -736,16 +783,27 @@ export default function LoginOrbAnimation() {
           role="button"
           tabIndex={0}
           aria-label="跳過登入動畫"
-          className="fixed inset-0 pointer-events-auto cursor-pointer overflow-hidden"
+          className="fixed inset-0 overflow-hidden"
           style={{
             zIndex: Z_INDEX_ANIMATION_OVERLAY,
             background: "radial-gradient(ellipse at 50% 45%, rgba(18,14,32,0.93) 0%, rgba(8,6,18,0.97) 100%)",
+            /* CSS containment prevents layout bleed into the rest of the page */
+            isolation: "isolate",
+            contain: "layout paint style",
+            /* Disable pointer events during fadeout so underlying page is interactive */
+            pointerEvents: isFading ? "none" : "auto",
+            cursor: isFading ? "default" : "pointer",
+            /* Explicit dimensions guard against inset-0 edge cases on some browsers */
+            width: "100vw",
+            height: "100vh",
+            /* Ensure no sub-pixel rendering shifts */
+            backfaceVisibility: "hidden",
           }}
           initial={{ opacity: 0 }}
-          animate={{ opacity: phase === "fadeout" ? 0 : 1 }}
+          animate={{ opacity: isFading ? 0 : 1 }}
           exit={{ opacity: 0 }}
           transition={{
-            duration: phase === "fadeout" ? FADEOUT_DURATION_S : 0.7,
+            duration: isFading ? FADEOUT_DURATION_S : 0.7,
             ease: "easeInOut",
           }}
           onClick={handleSkip}
@@ -770,7 +828,7 @@ export default function LoginOrbAnimation() {
 
           {/* Central merged orb — appears after convergence */}
           {(phase === "converged" || phase === "fadeout") && (
-            <CentralOrb palette={palette} />
+            <CentralOrb palette={palette} filterId={filterId} />
           )}
         </motion.div>
       )}
