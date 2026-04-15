@@ -354,7 +354,7 @@ function BentoCard({
         {/* Title */}
         <h3
           className={`font-semibold leading-snug tracking-tight transition-colors duration-300 ${styles.textPrimary} ${
-            isHero ? "text-lg sm:text-xl mb-3" : isMedium ? "text-sm sm:text-base mb-2" : "text-xs sm:text-sm mb-2 line-clamp-2"
+            isHero ? "hs-h3 sm:!text-xl mb-3" : isMedium ? "hs-h3 mb-2" : "hs-small !font-semibold mb-2 line-clamp-2"
           }`}
         >
           {item.title}
@@ -643,11 +643,11 @@ const IntelBentoGrid = memo(function IntelBentoGrid({ sceneId }: IntelBentoGridP
           className="text-center mb-10 sm:mb-12"
         >
           <h2
-            className={`text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight transition-colors duration-1000 ${styles.textPrimary}`}
+            className={`hs-h2 !mb-0 transition-colors duration-1000 ${styles.textPrimary}`}
           >
             情報站
           </h2>
-          <p className={`mt-3 text-xs sm:text-sm max-w-md mx-auto transition-colors duration-1000 ${styles.textMuted}`}>
+          <p className={`mt-3 hs-small !mb-0 max-w-md mx-auto transition-colors duration-1000 ${styles.textMuted}`}>
             AI 與創作領域的最新脈動，以溫暖視角重新詮釋
           </p>
           {/* Healing divider */}

@@ -371,7 +371,7 @@ function MasonryCard({
 
         {/* Title */}
         <h4
-          className={`text-sm font-semibold leading-snug tracking-tight line-clamp-2 ${styles.textPrimary}`}
+          className={`hs-h3 !mb-0 leading-snug line-clamp-2 ${styles.textPrimary}`}
         >
           {item.title}
         </h4>
@@ -778,11 +778,11 @@ export default function ShowcaseMasonry({
           className="text-center mb-10 sm:mb-12"
         >
           <h2
-            className={`text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight transition-colors duration-1000 ${styles.titleColor}`}
+            className={`hs-h2 !mb-0 transition-colors duration-1000 ${styles.titleColor}`}
           >
             精選作品
           </h2>
-          <p className={`mt-3 sm:mt-4 text-xs sm:text-sm transition-colors duration-1000 ${styles.subtitleColor}`}>
+          <p className={`mt-3 sm:mt-4 hs-small !mb-0 transition-colors duration-1000 ${styles.subtitleColor}`}>
             社群創作者的靈感結晶，探索多模態 AI 的無限可能
           </p>
           {/* Healing divider */}
