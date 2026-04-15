@@ -345,7 +345,7 @@ function DashboardLayoutContent({
       document.body.style.cursor = "col-resize";
       document.body.style.userSelect = "none";
       // -webkit-user-select needed for Safari on iPad during touch-resize
-      (document.body.style as Record<string, string>).webkitUserSelect = "none";
+      (document.body.style as unknown as Record<string, string>).webkitUserSelect = "none";
     }
     return () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
@@ -356,7 +356,7 @@ function DashboardLayoutContent({
       document.removeEventListener("touchcancel", handleEnd);
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
-      (document.body.style as Record<string, string>).webkitUserSelect = "";
+      (document.body.style as unknown as Record<string, string>).webkitUserSelect = "";
     };
   }, [isResizing, setSidebarWidth]);
 
