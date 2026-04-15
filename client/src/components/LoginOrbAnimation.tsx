@@ -19,6 +19,8 @@ import { motion, AnimatePresence } from "framer-motion";
 // ─── Constants ──────────────────────────────────────────────────────────────
 
 const TOTAL_DURATION_MS = 4200; // Total animation duration before fade-out
+const DUST_PARTICLE_COUNT = 20;
+const Z_INDEX_ANIMATION_OVERLAY = 9999;
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -292,8 +294,9 @@ export default function LoginOrbAnimation() {
     <AnimatePresence>
       {show && (
         <motion.div
-          className="fixed inset-0 z-[9999] pointer-events-auto cursor-pointer"
+          className="fixed inset-0 pointer-events-auto cursor-pointer"
           style={{
+            zIndex: Z_INDEX_ANIMATION_OVERLAY,
             background: "radial-gradient(ellipse at 50% 50%, rgba(20,15,30,0.92) 0%, rgba(10,8,20,0.96) 100%)",
           }}
           initial={{ opacity: 0 }}
@@ -306,7 +309,7 @@ export default function LoginOrbAnimation() {
           onClick={handleSkip}
         >
           {/* Ambient background particles — very subtle floating dust */}
-          {[...Array(20)].map((_, i) => (
+          {[...Array(DUST_PARTICLE_COUNT)].map((_, i) => (
             <motion.div
               key={`dust-${i}`}
               className="absolute rounded-full pointer-events-none"
