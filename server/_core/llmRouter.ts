@@ -34,7 +34,7 @@ import { ENV } from "./env";
 
 // ─── 引擎類型 ──────────────────────────────────────────────────────────────
 
-export type LLMEngine = "gemini" | "vertex" | "forge" | "minimax" | "auto";
+export type LLMEngine = "gemini" | "vertex" | "forge" | "nvidia" | "auto";
 
 export interface EngineConfig {
   name: string;
@@ -163,8 +163,8 @@ export function detectAvailableEngines(): Array<{ engine: LLMEngine; reason: str
   if (ENV.forgeApiKey && ENV.forgeApiUrl) {
     available.push({ engine: "forge", reason: "BUILT_IN_FORGE_API_KEY 已設定（Manus 相容模式）" });
   }
-  if (serverEnv.NVIDA_API) {
-    available.push({ engine: "minimax", reason: "NVIDA_API 已設定（MiniMax M2.7 via NVIDIA NIM 代理人引擎）" });
+  if (process.env.NVIDIA_API) {
+    available.push({ engine: "nvidia", reason: "NVIDIA_API 已設定（NVIDIA NIM 代理人引擎）" });
   }
 
   return available;
@@ -172,7 +172,7 @@ export function detectAvailableEngines(): Array<{ engine: LLMEngine; reason: str
 
 /**
  * 解析當前應使用的引擎設定
- * 健康感知優先順序（auto 模式）：gemini > minimax > vertex > forge
+ * 健康感知優先順序（auto 模式）：gemini > nvidia > vertex > forge
  * 含斷路器判斷 — 跳過不健康的引擎
  */
 export function resolveEngineConfig(forceEngine?: LLMEngine): EngineConfig {
@@ -184,8 +184,8 @@ export function resolveEngineConfig(forceEngine?: LLMEngine): EngineConfig {
   }
 
   // ── Auto 模式 — 健康感知路由 ───────────────────────────────
-  // 優先順序：gemini > minimax > vertex > forge
-  const autoOrder: LLMEngine[] = ["gemini", "minimax", "vertex", "forge"];
+  // 優先順序：gemini > nvidia > vertex > forge
+  const autoOrder: LLMEngine[] = ["gemini", "nvidia", "vertex", "forge"];
 
   for (const engine of autoOrder) {
     if (!isEngineAvailable(engine)) continue;
@@ -207,7 +207,7 @@ export function resolveEngineConfig(forceEngine?: LLMEngine): EngineConfig {
   }
 
   throw new Error(
-    "沒有可用的 LLM 引擎！請在 .env 中設定 GEMINI_API_KEY（推薦）、NVIDA_API（MiniMax M2.7）或 BUILT_IN_FORGE_API_KEY（Manus 相容）"
+    "沒有可用的 LLM 引擎！請在 .env 中設定 GEMINI_API_KEY（推薦）、NVIDIA_API（NVIDIA NIM）或 BUILT_IN_FORGE_API_KEY（Manus 相容）"
   );
 }
 
@@ -216,7 +216,7 @@ export function resolveEngineConfig(forceEngine?: LLMEngine): EngineConfig {
  * 回傳從首選引擎開始的所有可用引擎列表（不含首選自身）
  */
 export function getEngineFallbackChain(primaryEngine: LLMEngine): EngineConfig[] {
-  const allOrder: LLMEngine[] = ["gemini", "minimax", "vertex", "forge"];
+  const allOrder: LLMEngine[] = ["gemini", "nvidia", "vertex", "forge"];
   const fallbacks: EngineConfig[] = [];
 
   for (const engine of allOrder) {
@@ -272,19 +272,21 @@ function resolveSpecificEngine(engine: LLMEngine): EngineConfig {
       };
     }
 
-    case "minimax":
-      if (!serverEnv.NVIDA_API) throw new Error("Engine 'minimax' 指定但 NVIDA_API 未設定");
+    case "nvidia": {
+      const nvidiaKey = process.env.NVIDIA_API;
+      if (!nvidiaKey) throw new Error("Engine 'nvidia' 指定但 NVIDIA_API 未設定");
       return {
-        name: "MiniMax M2.7 (NVIDIA NIM)",
-        engine: "minimax",
+        name: "NVIDIA NIM (MiniMax M2.7)",
+        engine: "nvidia",
         url: "https://integrate.api.nvidia.com/v1/chat/completions",
-        apiKey: serverEnv.NVIDA_API,
-        model: "minimaxai/minimax-m2.7",
-        supportsThinking: false,
+        apiKey: nvidiaKey,
+        model: "minimax/minimax-01",
+        supportsThinking: true,
         supportsGrounding: false,
-        supportsLongContext: true,  // 200K context
+        supportsLongContext: true,
         supportsToolCalling: true,
       };
+    }
 
     case "forge":
       if (!ENV.forgeApiKey || !ENV.forgeApiUrl) throw new Error("Engine 'forge' 指定但 BUILT_IN_FORGE_API_KEY 未設定");

@@ -423,7 +423,8 @@ export const videoStudioRouter = router({
       strength:    z.number().min(0.1).max(1.0).default(0.7),
     }))
     .mutation(async ({ input }) => {
-      const result = await falQueueRun("fal-ai/wan-t2v", {
+      // DEF-09 修正：改用正確的影生影端點（wan-t2v 是文生影，不接受 video_url）
+      const result = await falQueueRun("fal-ai/wan-ai/wan2.1-v2v-480p", {
         prompt: input.prompt,
         video_url: input.videoUrl,
         strength: input.strength,

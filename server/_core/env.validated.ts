@@ -121,6 +121,10 @@ const multimodalSchema = z.object({
 
   // ── 姿勢估測 ─────────────────────────────────────────────
   OPENPOSE_API_KEY: z.string().min(1).optional().default(""),
+
+  // ── NVIDIA NIM（MiniMax M2.7 等第三方模型） ────────────────────────
+  // DEF-13 修正：統一定義 NVIDIA_API（注意：Railway 變數名稱必須為 NVIDIA_API，而非 NVIDA_API）
+  NVIDIA_API: z.string().min(1).optional().default(""),
 });
 
 // Combined schema

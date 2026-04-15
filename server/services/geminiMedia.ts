@@ -187,6 +187,44 @@ export const GEMINI_TTS_VOICES = [
   { voiceId: "Orus", label: "Orus（平靜）", gender: "male" },
 ] as const;
 
+// ─── LangSmith 追蹤（Gemini 多媒體模型深度整合）──────────────────────────────
+
+let _geminiLSClient: import("langsmith").Client | null = null;
+async function getGeminiLSClient(): Promise<import("langsmith").Client | null> {
+  const key = process.env.LANGSMITH_API_KEY;
+  if (!key) return null;
+  if (_geminiLSClient) return _geminiLSClient;
+  try {
+    const { Client } = await import("langsmith");
+    _geminiLSClient = new Client({ apiKey: key, apiUrl: process.env.LANGCHAIN_ENDPOINT || "https://api.smith.langchain.com" });
+    return _geminiLSClient;
+  } catch { return null; }
+}
+
+async function trackGeminiMedia(opts: {
+  runName: string; model: string; inputs: Record<string, unknown>;
+  outputKeys?: string[]; error?: string; durationMs: number;
+}): Promise<void> {
+  const client = await getGeminiLSClient();
+  if (!client) return;
+  const projectName = process.env.LANGSMITH_PROJECT || "healing-studio";
+  const endTime = Date.now();
+  try {
+    await client.createRun({
+      id: `gemini-${endTime}-${Math.random().toString(36).slice(2, 8)}`,
+      name: opts.runName,
+      run_type: "tool",
+      project_name: projectName,
+      start_time: endTime - opts.durationMs,
+      end_time: endTime,
+      inputs: opts.inputs,
+      outputs: opts.outputKeys ? { output_keys: opts.outputKeys } : {},
+      error: opts.error,
+      extra: { metadata: { provider: "gemini", model: opts.model, duration_ms: opts.durationMs } },
+    });
+  } catch { /* 追蹤失敗不影響主流程 */ }
+}
+
 // ─── Gemini Media Client ───────────────────────────────────────────────────
 
 export class GeminiMediaClient {
@@ -207,6 +245,7 @@ export class GeminiMediaClient {
   async generateImage(params: GeminiImageParams): Promise<GeminiImageResult> {
     const model = params.model ?? "imagen-3.0-generate-002";
     const url = `${this.baseUrl}/v1beta/models/${model}:predict?key=${this.apiKey}`;
+    const startMs = Date.now();
 
     const body: Record<string, unknown> = {
       instances: [
@@ -233,11 +272,14 @@ export class GeminiMediaClient {
 
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
-      throw new Error(`Gemini Imagen 錯誤 ${res.status}: ${errText}`);
+      const errMsg = `Gemini Imagen 錯誤 ${res.status}: ${errText}`;
+      trackGeminiMedia({ runName: `gemini/imagen/${model}`, model, inputs: { prompt: params.prompt, numImages: params.numImages, aspectRatio: params.aspectRatio }, error: errMsg, durationMs: Date.now() - startMs }).catch(() => {});
+      throw new Error(errMsg);
     }
 
     const data = await res.json() as any;
     const predictions = data.predictions ?? [];
+    trackGeminiMedia({ runName: `gemini/imagen/${model}`, model, inputs: { prompt: params.prompt, numImages: params.numImages, aspectRatio: params.aspectRatio }, outputKeys: ["images"], durationMs: Date.now() - startMs }).catch(() => {});
 
     return {
       images: predictions.map((p: any) => ({
@@ -253,6 +295,7 @@ export class GeminiMediaClient {
   async generateVideo(params: GeminiVideoParams): Promise<GeminiVideoResult> {
     const model = params.model ?? "veo-2.0-generate-001";
     const url = `${this.baseUrl}/v1beta/models/${model}:predictLongRunning?key=${this.apiKey}`;
+    const startMs = Date.now();
 
     const instance: Record<string, unknown> = {
       prompt: params.prompt,
@@ -260,13 +303,26 @@ export class GeminiMediaClient {
 
     // 圖生影：加入首幀圖片
     if (params.imageUrl) {
-      // 若為 base64 data URL 或 HTTP URL
       if (params.imageUrl.startsWith("data:")) {
+        // data URL → 直接解析 base64
         const [mimeMatch, b64] = params.imageUrl.split(",");
         const mimeType = mimeMatch.replace("data:", "").replace(";base64", "");
         instance.image = { bytesBase64Encoded: b64, mimeType };
-      } else {
+      } else if (params.imageUrl.startsWith("gs://")) {
+        // GCS URI → 直接傳 gcsUri
         instance.image = { gcsUri: params.imageUrl };
+      } else {
+        // DEF-11 修正：HTTP URL 需下載轉 base64（gcsUri 只接受 gs:// 不接受 https://）
+        try {
+          const imgRes = await fetch(params.imageUrl, { signal: AbortSignal.timeout(30_000) });
+          if (!imgRes.ok) throw new Error(`無法下載圖片 ${imgRes.status}`);
+          const mimeType = imgRes.headers.get("content-type") ?? "image/jpeg";
+          const arrayBuf = await imgRes.arrayBuffer();
+          const b64 = Buffer.from(arrayBuf).toString("base64");
+          instance.image = { bytesBase64Encoded: b64, mimeType };
+        } catch (e) {
+          throw new Error(`圖生影圖片下載失敗（DEF-11）：${e instanceof Error ? e.message : String(e)}`);
+        }
       }
     }
 
@@ -290,10 +346,13 @@ export class GeminiMediaClient {
 
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
-      throw new Error(`Gemini Veo 錯誤 ${res.status}: ${errText}`);
+      const errMsg = `Gemini Veo 錯誤 ${res.status}: ${errText}`;
+      trackGeminiMedia({ runName: `gemini/veo/${model}`, model, inputs: { prompt: params.prompt, imageUrl: params.imageUrl ? "[provided]" : undefined, duration: params.duration }, error: errMsg, durationMs: Date.now() - startMs }).catch(() => {});
+      throw new Error(errMsg);
     }
 
     const data = await res.json() as any;
+    trackGeminiMedia({ runName: `gemini/veo/${model}`, model, inputs: { prompt: params.prompt, imageUrl: params.imageUrl ? "[provided]" : undefined, duration: params.duration }, outputKeys: ["operationName"], durationMs: Date.now() - startMs }).catch(() => {});
     return {
       operationName: data.name ?? "",
       status: "processing",
@@ -357,6 +416,7 @@ export class GeminiMediaClient {
   async generateAudio(params: GeminiAudioParams): Promise<GeminiAudioResult> {
     const model = params.model ?? "lyria-002";
     const url = `${this.baseUrl}/v1beta/models/${model}:predict?key=${this.apiKey}`;
+    const startMs = Date.now();
 
     const body = {
       instances: [{ prompt: params.prompt }],
@@ -376,11 +436,14 @@ export class GeminiMediaClient {
 
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
-      throw new Error(`Gemini Audio 錯誤 ${res.status}: ${errText}`);
+      const errMsg = `Gemini Audio 錯誤 ${res.status}: ${errText}`;
+      trackGeminiMedia({ runName: `gemini/audio/${model}`, model, inputs: { prompt: params.prompt, duration: params.duration }, error: errMsg, durationMs: Date.now() - startMs }).catch(() => {});
+      throw new Error(errMsg);
     }
 
     const data = await res.json() as any;
     const prediction = data.predictions?.[0] ?? {};
+    trackGeminiMedia({ runName: `gemini/audio/${model}`, model, inputs: { prompt: params.prompt, duration: params.duration }, outputKeys: ["audioBase64"], durationMs: Date.now() - startMs }).catch(() => {});
 
     return {
       audioBase64: prediction.bytesBase64Encoded ?? prediction.audioContent ?? "",

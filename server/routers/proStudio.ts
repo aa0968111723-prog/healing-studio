@@ -366,9 +366,11 @@ export const proStudioRouter = router({
     }))
     .mutation(async ({ input }) => {
       const modelId = "fal-ai/qwen-3-tts/text-to-speech/1.7b";
+      // DEF-04 修正：voice 與 speaker_voice_embedding_file_url 不能同時為空，否則 422
+      const resolvedVoice = input.voice ?? (input.speaker_voice_embedding_file_url ? undefined : "Vivian");
       const { request_id } = await falQueueSubmit(modelId, {
         text:                             input.text,
-        voice:                            input.voice,
+        voice:                            resolvedVoice,
         speaker_voice_embedding_file_url: input.speaker_voice_embedding_file_url,
         reference_text:                   input.reference_text,
         language:                         input.language,
@@ -472,8 +474,10 @@ export const proStudioRouter = router({
     }))
     .mutation(async ({ input }) => {
       const modelId = "fal-ai/dia-tts/voice-clone";
+      // DEF-07 修正：Dia TTS 要求 [S1]/[S2] 說話者標籤格式，純文字會 422
+      const formattedText = /\[S\d\]/.test(input.text) ? input.text : `[S1] ${input.text}`;
       const { request_id } = await falQueueSubmit(modelId, {
-        text: input.text,
+        text: formattedText,
       });
       return { request_id, model: modelId, is_async_polling: true };
     }),

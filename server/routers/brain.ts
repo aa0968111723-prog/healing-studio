@@ -81,6 +81,8 @@ export const REASONING_MODEL_CATALOG = {
       // ── Vertex AI 模型 ──
       { value: "vertex/gemini-2.5-pro", label: "Vertex Gemini 2.5 Pro 🔷", tier: "premium" },
       { value: "vertex/llama-3.2-90b", label: "Vertex Llama 3.2 90B", tier: "premium" },
+      // ── DEF-13 修正：新增 NVIDIA NIM / MiniMax M2.7 ──
+      { value: "nvidia/minimax-m2.7", label: "MiniMax M2.7 (NVIDIA NIM) 🟠", tier: "premium" },
     ],
   },
   analyst: {
@@ -153,7 +155,7 @@ export const GENERATION_ENGINE_CATALOG = {
     options: [
       // ── Fal.ai 文字轉影片 ──
       { value: "fal/kling-v2.1-pro-t2v", label: "Kling V2.1 Pro ✦", tier: "premium" },
-      { value: "fal/kling-v1.5-pro-t2v", label: "Kling V1.5 Pro", tier: "premium" },
+      // DEF-05 修正：移除 Kling v1.5（已確認 422 錯誤，答商已更新 API）
       { value: "fal/minimax-t2v", label: "MiniMax Hailuo", tier: "standard" },
       { value: "fal/luma-dream-machine-t2v", label: "Luma Dream Machine", tier: "premium" },
       { value: "fal/wan-t2v-v2.1", label: "WAN T2V 2.1", tier: "standard" },
@@ -196,7 +198,7 @@ export const GENERATION_ENGINE_CATALOG = {
       { value: "elevenlabs/turbo-v2.5", label: "ElevenLabs Turbo V2.5 ⚡", tier: "fast" },
       { value: "elevenlabs/flash-v2.5", label: "ElevenLabs Flash V2.5 ⚡", tier: "fast" },
       // ── Fal.ai TTS ──
-      { value: "fal/metavoice-v1", label: "MetaVoice V1 (Fal)", tier: "premium" },
+      // DEF-06 修正：移除 MetaVoice v1（對應 fal-ai/metavoice-v1 API 已變更，422 錯誤）
       { value: "fal/playai-tts", label: "PlayAI TTS (Fal)", tier: "premium" },
       { value: "fal/kokoro", label: "Kokoro TTS (Fal) ⚡", tier: "fast" },
       { value: "fal/orpheus-tts", label: "Orpheus TTS (Fal)", tier: "standard" },
