@@ -14,10 +14,9 @@ import { GenerationControls } from "@/components/GenerationControls";
 import { ZenProgressOverlay, GlassCard, BottomSheet } from "@/components/ZenCoPilot";
 import { toast } from "sonner";
 import {
-  Image, Video, Music, Mic, Wand2, Download, Copy,
-  PanelLeftOpen, PanelLeftClose, PanelRightOpen, PanelRightClose,
-  Layers, Settings2, Clock, Package, X, Star, Bookmark, BookmarkCheck,
-  Send, RefreshCw, StickyNote, Cpu, Check,
+  Image, Video, Music, Mic, Download, Copy,
+  Layers, Clock, Package, X, Star, Bookmark, BookmarkCheck,
+  Send, RefreshCw, StickyNote, Cpu, Check, Briefcase,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useIsMobile } from "@/hooks/useMobile";
@@ -37,6 +36,12 @@ import OnboardingTour from "@/components/OnboardingTour";
 import { useNotesDrawer } from "@/contexts/NotesDrawerContext";
 import { requireAuth } from "@/components/AuthExpiredModal";
 
+// ─── Creative Mode ───────────────────────────────────────────────────────────
+import { CreativeModeSelector, loadCreativeMode } from "@/components/CreativeModeSelector";
+import { InspirationQuickPanel, type InspirationBlocks } from "@/components/InspirationQuickPanel";
+import type { CreativeMode } from "@/stores/workspaceStore";
+import { cn } from "@/lib/utils";
+
 // ─── New Workspace Components ────────────────────────────────────────────────
 import {
   type Modality,
@@ -51,7 +56,7 @@ import {
   getDefaultBlocks,
   getDefaultThoughtIslands,
 } from "@/stores/workspaceStore";
-import { ModalitySwitcher } from "@/components/workspaces/ModalitySwitcher";
+
 import { ThoughtIslandsPanel } from "@/components/workspaces/ThoughtIslandsPanel";
 import { PromptStrengthControl } from "@/components/workspaces/PromptStrengthControl";
 import { AdvancedPromptPanel } from "@/components/workspaces/AdvancedPromptPanel";
@@ -306,18 +311,26 @@ export default function Studio() {
   const [fineTunedModelName, setFineTunedModelName] = useState<string | undefined>(undefined);
 
   // ── UI state ──
+  const [creativeMode, setCreativeMode] = useState<CreativeMode>(loadCreativeMode);
   const [leftDrawerOpen, setLeftDrawerOpen] = useState(false);
   const [leftDrawerTab, setLeftDrawerTab] = useState<"vault" | "assets" | "models">("vault");
   const [rightDrawerOpen, setRightDrawerOpen] = useState(false);
-  const [controlsSheetOpen, setControlsSheetOpen] = useState(false);
-  const [mobileDrawerSheet, setMobileDrawerSheet] = useState<"left" | "right" | null>(null);
+  const [toolboxSheetOpen, setToolboxSheetOpen] = useState(false);
+  const [toolboxTab, setToolboxTab] = useState<"vault" | "assets" | "models" | "history" | "controls">("vault");
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [resultData, setResultData] = useState<Record<string, unknown> | null>(null);
   const [thoughtChain, setThoughtChain] = useState<ThoughtNode[]>([]);
 
   // ── Multi-Modal Workspace State (new) ──
   const modalityKey = (activeModality === "audio" ? "music" : activeModality) as Modality;
+  // Derive workspaceMode from creativeMode for backward compat
+  const derivedWorkspaceMode: WSMode = creativeMode === "pro" ? "advanced" : "beginner";
   const [workspaceMode, setWorkspaceMode] = useState<WSMode>("beginner");
+  // Sync workspaceMode when creativeMode changes
+  useEffect(() => { setWorkspaceMode(derivedWorkspaceMode); }, [derivedWorkspaceMode]);
+  const isSimple = creativeMode === "simple";
+  const isStandard = creativeMode === "standard";
+  const isPro = creativeMode === "pro";
   const [actionMode, setActionMode] = useState<ActionMode>("generate");
   const [promptStrength, setPromptStrength] = useState<PromptStrengthLevel>("medium");
   const [structuredBlocks, setStructuredBlocks] = useState<Record<string, StructuredBlock[]>>({
@@ -1010,7 +1023,7 @@ export default function Studio() {
     } else if (activeModality === "voice") {
       toast.success(`已綁定「${item.name}」角色特徵至語音生成`);
     }
-    if (isMobile) setMobileDrawerSheet(null);
+    if (isMobile) setToolboxSheetOpen(false);
   }, [activeModality, videoState, imageState, isMobile]);
 
   // ── History → Studio handler (MiniHistoryPanel in right drawer) ──
@@ -1189,11 +1202,11 @@ export default function Studio() {
         message={progressMessage}
       />
 
-      {/* ── Header with drawer toggles ── */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      {/* ── Header with Creative Mode Selector + Toolbox ── */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-3 min-w-0">
           <VisualSoul size="sm" state={aiState} personality={personality} />
-          <div>
+          <div className="min-w-0">
             <h1 className="hs-h3-lg !mb-0 text-foreground">創作工作室</h1>
             <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
               配額 <span className="tabular-nums font-medium">{user?.remainingGenerations ?? 0}</span>
@@ -1201,40 +1214,46 @@ export default function Studio() {
           </div>
         </div>
 
+        {/* Center: Mode selector */}
+        <div className="hidden sm:flex">
+          <CreativeModeSelector value={creativeMode} onChange={setCreativeMode} />
+        </div>
+
         <div className="flex items-center gap-1.5">
-          {/* Left drawer toggle: Vault + Assets */}
+          {/* Mobile-only mode selector */}
+          <div className="sm:hidden">
+            <CreativeModeSelector value={creativeMode} onChange={setCreativeMode} />
+          </div>
+
+          {/* Unified Toolbox button (replaces separate vault/settings/history) */}
           <Button
-            variant={leftDrawerOpen ? "default" : "outline"}
+            variant={toolboxSheetOpen || leftDrawerOpen ? "default" : "outline"}
             size="sm"
             className="rounded-xl gap-1.5 text-xs h-8"
-            onClick={() => isMobile ? setMobileDrawerSheet("left") : setLeftDrawerOpen(!leftDrawerOpen)}
+            onClick={() => {
+              if (isMobile) {
+                setToolboxSheetOpen(true);
+              } else {
+                setLeftDrawerOpen(!leftDrawerOpen);
+              }
+            }}
           >
-            {leftDrawerOpen ? <PanelLeftClose className="w-3.5 h-3.5" /> : <PanelLeftOpen className="w-3.5 h-3.5" />}
-            <span className="hidden sm:inline">素材庫</span>
+            <Briefcase className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">工具箱</span>
           </Button>
 
-          {/* Controls (mobile only) */}
-          {isMobile && (
+          {/* History drawer toggle (desktop only, not in simple mode) */}
+          {!isMobile && !isSimple && (
             <Button
-              variant="outline"
+              variant={rightDrawerOpen ? "default" : "outline"}
               size="sm"
               className="rounded-xl gap-1.5 text-xs h-8"
-              onClick={() => setControlsSheetOpen(true)}
+              onClick={() => setRightDrawerOpen(!rightDrawerOpen)}
             >
-              <Settings2 className="w-3.5 h-3.5" />
+              <Clock className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">歷史</span>
             </Button>
           )}
-
-          {/* Right drawer toggle: History */}
-          <Button
-            variant={rightDrawerOpen ? "default" : "outline"}
-            size="sm"
-            className="rounded-xl gap-1.5 text-xs h-8"
-            onClick={() => isMobile ? setMobileDrawerSheet("right") : setRightDrawerOpen(!rightDrawerOpen)}
-          >
-            {rightDrawerOpen ? <PanelRightClose className="w-3.5 h-3.5" /> : <PanelRightOpen className="w-3.5 h-3.5" />}
-            <span className="hidden sm:inline">歷史</span>
-          </Button>
         </div>
       </div>
 
@@ -1324,46 +1343,52 @@ export default function Studio() {
         )}
 
         {/* ── Center: Main Canvas ── */}
-        <div className="flex-1 space-y-4 sm:space-y-5 min-w-0">
-          {/* Modality Tabs */}
-          <Tabs
-            value={activeModality}
-            onValueChange={(v) => setActiveModality(v as GenerationType)}
-          >
-            <TabsList id="modality-tabs" className="w-full grid grid-cols-4 h-auto rounded-xl p-1 bg-white/40 border border-white/50 backdrop-blur-sm">
-              {MODALITY_TABS.map((t) => (
-                <TabsTrigger
-                  key={t.value}
-                  value={t.value}
-                  className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm flex items-center gap-1.5 text-xs py-2.5 transition-all"
-                >
-                  {t.icon}
-                  <span className="hidden sm:inline">{t.label}</span>
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
+        <div className={cn("flex-1 min-w-0", isSimple ? "space-y-6" : "space-y-4 sm:space-y-5")}>
+          {/* Modality Tabs — hidden in simple mode mode */}
+          {!isSimple && (
+            <Tabs
+              value={activeModality}
+              onValueChange={(v) => setActiveModality(v as GenerationType)}
+            >
+              <TabsList id="modality-tabs" className="w-full grid grid-cols-4 h-auto rounded-xl p-1 bg-white/40 border border-white/50 backdrop-blur-sm">
+                {MODALITY_TABS.map((t) => (
+                  <TabsTrigger
+                    key={t.value}
+                    value={t.value}
+                    className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm flex items-center gap-1.5 text-xs py-2.5 transition-all"
+                  >
+                    {t.icon}
+                    <span className="hidden sm:inline">{t.label}</span>
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+          )}
 
-          {/* ── Thought Islands (User-visible creative planner) ── */}
-          <GlassCard hover={false}>
-            <ThoughtIslandsPanel
-              islands={thoughtIslands[modalityKey] || []}
-              onChange={handleThoughtIslandsChange}
-              modality={modalityKey}
-            />
-          </GlassCard>
+          {/* ── Thought Islands (Pro mode only) ── */}
+          {isPro && (
+            <GlassCard hover={false}>
+              <ThoughtIslandsPanel
+                islands={thoughtIslands[modalityKey] || []}
+                onChange={handleThoughtIslandsChange}
+                modality={modalityKey}
+              />
+            </GlassCard>
+          )}
 
           {/* Progressive Prompt Builder — z-20 ensures Self-Attention sliders stay above ThoughtIslandChain D3 canvas */}
           {activeModality !== "voice" && (
-            <GlassCard hover={false} id="prompt-builder-area" className="relative z-20">
+            <GlassCard hover={false} id="prompt-builder-area" className={cn("relative z-20", isSimple && "p-6 sm:p-8")}>
               <ProgressivePromptBuilder
                 value={promptBuilder}
                 onChange={setPromptBuilder}
                 modality={activeModality}
                 onType={(len) => { reportTyping(len); notifyTyping(); }}
+                simpleMode={isSimple}
               />
-              <div className="mt-3 pt-3 border-t border-border/20">
-                <PromptStrengthBar
+              {!isSimple && (
+                <div className="mt-3 pt-3 border-t border-border/20">
+                  <PromptStrengthBar
                   prompt={promptBuilder.compiledPrompt || promptBuilder.rawPrompt}
                   modality={activeModality as "image" | "video" | "audio" | "voice"}
                   onApplyOptimized={(optimized) => {
@@ -1418,11 +1443,31 @@ export default function Studio() {
                   }}
                 />
               </div>
+              )}
+
+              {/* ── Inspiration Quick Panel (simple mode) ── */}
+              {isSimple && (
+                <div className="mt-4">
+                  <InspirationQuickPanel
+                    onApply={(blocks) => {
+                      const parts = Object.entries(blocks)
+                        .filter(([_, v]) => v)
+                        .map(([_, label]) => label as string);
+                      const inspirationPrompt = parts.join(', ');
+                      const separator = promptBuilder.rawPrompt.trim() ? ', ' : '';
+                      const newRaw = promptBuilder.rawPrompt.trim() + separator + inspirationPrompt;
+                      setPromptBuilder(prev => ({ ...prev, rawPrompt: newRaw, compiledPrompt: newRaw }));
+                      toast.success("已套用靈感 ✨");
+                    }}
+                  />
+                </div>
+              )}
             </GlassCard>
           )}
 
-          {/* Modality-Specific Workspace / Personality Selector */}
-          <GlassCard hover={false} id="personality-selector">
+          {/* Modality-Specific Workspace / Personality Selector — hidden in simple mode */}
+          {!isSimple && (
+            <GlassCard hover={false} id="personality-selector">
             <div className="space-y-1">
               <h3 className="hs-h3 !mb-0 text-foreground flex items-center gap-2">
                 {activeModality === "image" && <><Image className="w-4 h-4 text-primary" /> 圖片工作區</>}
@@ -1461,28 +1506,33 @@ export default function Studio() {
               )}
             </div>
           </GlassCard>
+          )}
 
-          {/* ── Structured Prompt Blocks ── */}
-          <GlassCard hover={false}>
-            <StructuredBlocksEditor
-              blocks={structuredBlocks[modalityKey] || []}
-              onChange={handleBlocksChange}
-              modality={modalityKey}
-              workspaceMode={workspaceMode}
-            />
-          </GlassCard>
+          {/* ── Structured Prompt Blocks — hidden in simple mode ── */}
+          {!isSimple && (
+            <GlassCard hover={false}>
+              <StructuredBlocksEditor
+                blocks={structuredBlocks[modalityKey] || []}
+                onChange={handleBlocksChange}
+                modality={modalityKey}
+                workspaceMode={workspaceMode}
+              />
+            </GlassCard>
+          )}
 
-          {/* ── Prompt Strength Control ── */}
-          <GlassCard hover={false}>
-            <PromptStrengthControl
-              value={promptStrength}
-              onChange={setPromptStrength}
-              modality={modalityKey}
-            />
-          </GlassCard>
+          {/* ── Prompt Strength Control — hidden in simple mode ── */}
+          {!isSimple && (
+            <GlassCard hover={false}>
+              <PromptStrengthControl
+                value={promptStrength}
+                onChange={setPromptStrength}
+                modality={modalityKey}
+              />
+            </GlassCard>
+          )}
 
-          {/* ── Reference Materials ── */}
-          {workspaceMode === "advanced" && (
+          {/* ── Reference Materials (pro only) ── */}
+          {isPro && (
             <GlassCard hover={false}>
               <ReferencePanel
                 references={references[modalityKey] || []}
@@ -1492,20 +1542,22 @@ export default function Studio() {
             </GlassCard>
           )}
 
-          {/* ── Advanced Prompt Panel ── */}
-          <AdvancedPromptPanel
-            compiledPrompt={compileResult.compiledPrompt}
-            advancedPrompt={advancedPrompt[modalityKey] || ""}
-            onAdvancedPromptChange={(val) => setAdvancedPrompt(prev => ({ ...prev, [modalityKey]: val }))}
-            override={advancedPromptOverride[modalityKey] || false}
-            onOverrideChange={(val) => setAdvancedPromptOverride(prev => ({ ...prev, [modalityKey]: val }))}
-            negativePrompt={negativePrompts[modalityKey] || ""}
-            onNegativePromptChange={(val) => setNegativePrompts(prev => ({ ...prev, [modalityKey]: val }))}
-            modality={modalityKey}
-          />
+          {/* ── Advanced Prompt Panel (pro only) ── */}
+          {isPro && (
+            <AdvancedPromptPanel
+              compiledPrompt={compileResult.compiledPrompt}
+              advancedPrompt={advancedPrompt[modalityKey] || ""}
+              onAdvancedPromptChange={(val) => setAdvancedPrompt(prev => ({ ...prev, [modalityKey]: val }))}
+              override={advancedPromptOverride[modalityKey] || false}
+              onOverrideChange={(val) => setAdvancedPromptOverride(prev => ({ ...prev, [modalityKey]: val }))}
+              negativePrompt={negativePrompts[modalityKey] || ""}
+              onNegativePromptChange={(val) => setNegativePrompts(prev => ({ ...prev, [modalityKey]: val }))}
+              modality={modalityKey}
+            />
+          )}
 
-          {/* ── Prompt Compiler Preview ── */}
-          {workspaceMode === "advanced" && (
+          {/* ── Prompt Compiler Preview (pro only) ── */}
+          {isPro && (
             <PromptCompilerPreview
               compiledPrompt={compileResult.compiledPrompt}
               warnings={promptWarnings}
@@ -1514,16 +1566,16 @@ export default function Studio() {
             />
           )}
 
-          {/* ── Refine Quick Actions (when in refine mode with result) ── */}
-          {actionMode === "refine" && resultUrl && (
+          {/* ── Refine Quick Actions (when in refine mode with result, not simple) ── */}
+          {!isSimple && actionMode === "refine" && resultUrl && (
             <RefineQuickActions
               modality={modalityKey}
               onApplyRefine={handleRefineAction}
             />
           )}
 
-          {/* Engine + Cost Preview Badge */}
-          {currentEngine && !generateMutation.isPending && (
+          {/* Engine + Cost Preview Badge — hidden in simple mode */}
+          {!isSimple && currentEngine && !generateMutation.isPending && (
             <div className="flex items-center justify-between text-[11px] text-muted-foreground px-1">
               <span className="flex items-center gap-1">
                 <Cpu className="w-3 h-3" />
@@ -1545,11 +1597,10 @@ export default function Studio() {
           <GenerationActionBar
             actionMode={actionMode}
             onActionModeChange={setActionMode}
-            workspaceMode={workspaceMode}
-            onWorkspaceModeChange={setWorkspaceMode}
             onGenerate={handleGenerate}
             isGenerating={generateMutation.isPending || prepareJobMutation.isPending}
             hasResult={!!resultUrl}
+            simpleMode={isSimple}
           />
 
           {/* Thought Island Chain — z-10 below PromptBuilder's z-20 */}
@@ -1903,8 +1954,8 @@ export default function Studio() {
           </AnimatePresence>
         </div>
 
-        {/* ── Right Panel: Controls + Version History + Recipes (desktop) ── */}
-        {!isMobile && (
+        {/* ── Right Panel: Controls + Version History + Recipes (desktop, hidden in simple mode) ── */}
+        {!isMobile && !isSimple && (
           <div className="hidden lg:block w-72 shrink-0 space-y-4 max-h-[calc(100vh-8rem)] overflow-y-auto">
             <GlassCard hover={false}>
               <GenerationControls
@@ -1960,74 +2011,51 @@ export default function Studio() {
       {/* ── Mobile Bottom Sheets ── */}
       {isMobile && (
         <>
+          {/* Unified Toolbox bottom sheet */}
           <BottomSheet
-            open={controlsSheetOpen}
-            onClose={() => setControlsSheetOpen(false)}
-            title="生成參數"
+            open={toolboxSheetOpen}
+            onClose={() => setToolboxSheetOpen(false)}
+            title="🗂️ 工具箱"
           >
-            <GenerationControls
-              temperature={temperature}
-              onTemperatureChange={setTemperature}
-              seed={seed}
-              onSeedChange={setSeed}
-              mode={mode}
-              onModeChange={setMode}
-              loraWeight={loraWeight}
-              onLoraWeightChange={setLoraWeight}
-              showLoraWeight={showLoraWeight}
-            />
-          </BottomSheet>
-
-          <BottomSheet
-            open={mobileDrawerSheet === "left"}
-            onClose={() => setMobileDrawerSheet(null)}
-            title="素材庫"
-          >
-            <div className="flex gap-1 p-2 mb-2">
-              <button
-                onClick={() => setLeftDrawerTab("vault")}
-                className={`flex-1 text-xs py-2 rounded-lg transition-colors ${
-                  leftDrawerTab === "vault" ? "bg-primary text-primary-foreground" : "bg-muted/30 text-muted-foreground"
-                }`}
-              >
-                保險庫
-              </button>
-              <button
-                onClick={() => setLeftDrawerTab("assets")}
-                className={`flex-1 text-xs py-2 rounded-lg transition-colors ${
-                  leftDrawerTab === "assets" ? "bg-primary text-primary-foreground" : "bg-muted/30 text-muted-foreground"
-                }`}
-              >
-                資產
-              </button>
-              <button
-                onClick={() => setLeftDrawerTab("models")}
-                className={`flex-1 text-xs py-2 rounded-lg transition-colors ${
-                  leftDrawerTab === "models" ? "bg-primary text-primary-foreground" : "bg-muted/30 text-muted-foreground"
-                }`}
-              >
-                模型
-              </button>
+            <div className="flex gap-1 p-2 mb-2 flex-wrap">
+              {(["vault", "assets", "models", "controls", "history"] as const).map((tab) => {
+                const labels: Record<string, string> = { vault: "保險庫", assets: "資產", models: "模型", controls: "參數", history: "歷史" };
+                return (
+                  <button
+                    key={tab}
+                    onClick={() => setToolboxTab(tab)}
+                    className={`flex-1 text-xs py-2 rounded-lg transition-colors min-w-[60px] ${
+                      toolboxTab === tab ? "bg-primary text-primary-foreground" : "bg-muted/30 text-muted-foreground"
+                    }`}
+                  >
+                    {labels[tab]}
+                  </button>
+                );
+              })}
             </div>
-            {leftDrawerTab === "vault" ? (
-              <ConsistencyVault onSelect={handleVaultSelect} />
-            ) : leftDrawerTab === "models" ? (
+            {toolboxTab === "vault" && <ConsistencyVault onSelect={handleVaultSelect} />}
+            {toolboxTab === "assets" && <MiniAssetsPanel />}
+            {toolboxTab === "models" && (
               <MiniModelsPanel
                 activeModelId={fineTunedModelId}
                 onApply={(id, name) => { setFineTunedModelId(id); setFineTunedModelName(name); toast.success(`已套用模型「${name}」`); }}
                 onRemove={() => { setFineTunedModelId(undefined); setFineTunedModelName(undefined); toast.info("已移除微調模型"); }}
               />
-            ) : (
-              <MiniAssetsPanel />
             )}
-          </BottomSheet>
-
-          <BottomSheet
-            open={mobileDrawerSheet === "right"}
-            onClose={() => setMobileDrawerSheet(null)}
-            title="生成歷史"
-          >
-            <MiniHistoryPanel onSendToStudio={handleHistoryToStudio} />
+            {toolboxTab === "controls" && (
+              <GenerationControls
+                temperature={temperature}
+                onTemperatureChange={setTemperature}
+                seed={seed}
+                onSeedChange={setSeed}
+                mode={mode}
+                onModeChange={setMode}
+                loraWeight={loraWeight}
+                onLoraWeightChange={setLoraWeight}
+                showLoraWeight={showLoraWeight}
+              />
+            )}
+            {toolboxTab === "history" && <MiniHistoryPanel onSendToStudio={handleHistoryToStudio} />}
           </BottomSheet>
         </>
       )}

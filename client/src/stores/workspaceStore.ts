@@ -4,6 +4,7 @@ import React, { createContext, useContext, useReducer, type ReactNode } from 're
 
 export type Modality = 'image' | 'video' | 'music' | 'voice';
 export type WorkspaceMode = 'beginner' | 'advanced';
+export type CreativeMode = 'simple' | 'standard' | 'pro';
 export type PromptStrengthLevel = 'low' | 'medium' | 'high' | 'locked';
 export type ActionMode = 'generate' | 'refine' | 'branch';
 
