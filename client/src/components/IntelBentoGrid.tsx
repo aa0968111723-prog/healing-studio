@@ -354,7 +354,7 @@ function BentoCard({
         {/* Title */}
         <h3
           className={`font-semibold leading-snug tracking-tight transition-colors duration-300 ${styles.textPrimary} ${
-            isHero ? "hs-h3 sm:!text-xl mb-3" : isMedium ? "hs-h3 mb-2" : "hs-small !font-semibold mb-2 line-clamp-2"
+            isHero ? "hs-h3-lg mb-3" : isMedium ? "hs-h3 mb-2" : "hs-small !font-semibold mb-2 line-clamp-2"
           }`}
         >
           {item.title}

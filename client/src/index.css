@@ -497,6 +497,20 @@
     }
   }
 
+  /* h3 large variant — hero-sized card titles (e.g. IntelBentoGrid hero card) */
+  .hs-h3-lg {
+    font-size: 1.125rem;        /* 18px */
+    line-height: 1.35;
+    margin-bottom: 0.75rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  @media (min-width: 640px) {
+    .hs-h3-lg {
+      font-size: 1.25rem;       /* 20px */
+    }
+  }
+
   /* p — Body text (leading-relaxed for readability) */
   .hs-p {
     font-size: 0.875rem;        /* 14px */
@@ -517,6 +531,11 @@
     line-height: 1.5;           /* leading-normal */
     margin-bottom: 0.5rem;
     letter-spacing: 0.01em;
+  }
+  @media (min-width: 640px) {
+    .hs-small {
+      font-size: 0.8125rem;     /* 13px */
+    }
   }
 
   /* Soft divider line — healing separator */
