@@ -1665,7 +1665,7 @@ export default function ImageStudio() {
           <div className="min-w-0">
             <h1 className="hs-h2 !mb-0">圖片創作室</h1>
             <p className="hs-small !mb-0 text-muted-foreground mt-0.5 line-clamp-2 sm:line-clamp-none">
-              用文字描述，讓 AI 幫你創作圖片 ✨
+              用文字描述，讓 AI 幫你創作圖片 ✨ <span className="hidden sm:inline text-muted-foreground/50">· 文字生圖・圖片編輯・影像放大・SD・3D</span>
             </p>
           </div>
         </div>
@@ -1808,7 +1808,7 @@ export default function ImageStudio() {
                 </div>
                 {model.supportsNeg && (
                   <div>
-                    <Label className="text-xs text-muted-foreground mb-1 block">負向提示詞（不想出現的元素）</Label>
+                    <Label className="text-xs text-muted-foreground mb-1 block">負向提示詞</Label>
                     <Textarea value={negPrompt} onChange={e => setNegPrompt(e.target.value)}
                       placeholder="例如：模糊、低品質、扭曲的手指" className="resize-none min-h-[3.5rem] text-xs" />
                   </div>
@@ -1828,7 +1828,7 @@ export default function ImageStudio() {
                         <div>
                           <Label className="text-xs text-muted-foreground mb-1 block">種子碼（Seed）</Label>
                           <Input value={seed} onChange={e => setSeed(e.target.value)} placeholder="留空隨機生成" className="text-sm" />
-                          <p className="text-[9px] text-muted-foreground/60 mt-0.5">相同種子碼可復現相同結果</p>
+                          <p className="text-[9px] text-muted-foreground/60 mt-0.5">固定這個數字，每次都會生成一樣的結果</p>
                         </div>
                         {model.supportsMultiRef && (
                           <div>
