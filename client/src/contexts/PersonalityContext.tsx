@@ -34,7 +34,7 @@ import { useAIState } from "@/contexts/AIStateContext";
 // ─── 人格定義 ──────────────────────────────────────────────────────────────
 
 export type Personality = "calm" | "creative" | "technical";
-export type AIState = "idle" | "thinking" | "generating";
+export type AIState = "idle" | "thinking" | "generating" | "listening" | "acting";
 
 export interface PersonalityConfig {
   name: string;

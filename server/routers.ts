@@ -6,6 +6,7 @@ import { isDemoMode } from "./_core/googleAuth";
 import { z } from "zod";
 import * as db from "./db";
 import { invokeLLM } from "./_core/llm";
+import { serverEnv } from "./_core/env.validated";
 // imageGeneration.ts no longer used directly — all 4 modalities go through falDispatcher
 import { storagePut } from "./storage";
 import { TRPCError } from "@trpc/server";
@@ -2296,7 +2297,7 @@ export const appRouter = router({
       }),
   }),
 
-  // ─── AI 光球聊天（含上下文） ──────────────────────────────────────────────
+  // ─── AI 光球聊天（含上下文 + AI 代理人行為） ────────────────────────────────
 
   ai: router({
     chat: protectedProcedure
@@ -2311,18 +2312,33 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         const systemPrompt = buildOrbSystemPrompt(input.personality, input.context ?? undefined);
 
+        // Prefer MiniMax M2.7 via NVIDIA NIM for orb agent, fallback to default
+        const enginePreference = serverEnv.NVIDA_API ? "minimax" as const : undefined;
+
         const result = await withTimeout(invokeLLM({
           messages: [
             { role: "system", content: systemPrompt },
             ...input.messages.map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
           ],
+          engine: enginePreference,
+          runName: "orb-agent-chat",
         }), 20_000, "光球聊天");
 
-        const reply = typeof result.choices[0]?.message?.content === "string"
+        const rawReply = typeof result.choices[0]?.message?.content === "string"
           ? result.choices[0].message.content
           : "抱歉，我剛才走神了。你說什麼？";
 
-        return { reply };
+        // Parse agent actions from reply (format: [ACTION:type:payload] at end of message)
+        const actionPattern = /\[ACTION:(\w+):([^\]]*)\]/g;
+        const actions: Array<{ type: string; payload: string }> = [];
+        let reply = rawReply;
+        let match;
+        while ((match = actionPattern.exec(rawReply)) !== null) {
+          actions.push({ type: match[1], payload: match[2] });
+          reply = reply.replace(match[0], "").trim();
+        }
+
+        return { reply, actions };
       }),
   }),
 

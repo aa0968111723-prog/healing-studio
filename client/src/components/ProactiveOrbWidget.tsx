@@ -7,7 +7,8 @@ import VisualSoul from "./VisualSoul";
 import {
   X, Sparkles, Lightbulb, Palette, Shuffle, MessageCircle,
   Send, Heart, Music, Video, Image, Mic, BookOpen, RotateCcw,
-  Loader2, Leaf,
+  Loader2, Leaf, VolumeX, Volume2, Bot, Zap, ArrowRight,
+  Navigation,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useFocusFlow } from "@/contexts/FocusFlowContext";
@@ -25,6 +26,8 @@ type Props = {
   onApplyInspiration?: (blocks: { subject?: string; style?: string; lighting?: string; color?: string; mood?: string }) => void;
   /** Switch modality tab */
   onSwitchModality?: (modality: "image" | "video" | "audio" | "voice") => void;
+  /** Navigate to a page (agent action) */
+  onNavigate?: (path: string) => void;
 };
 
 const POSITION_KEY = "proactive-orb-position";
@@ -108,19 +111,22 @@ const INSPIRATION_PRESETS: InspirationPreset[] = [
 
 const MOOD_GREETINGS: Record<string, string[]> = {
   calm: [
-    "今天想創作什麼樣的畫面呢？",
-    "深呼吸，讓靈感自然浮現。",
-    "不急，慢慢來，好的作品值得等待。",
+    "🌿 今天想創作什麼呢？不急，慢慢想。",
+    "✨ 深呼吸，讓靈感像風一樣自然流過。",
+    "🌸 好的作品不需要趕，享受過程就好。",
+    "💫 你的創意空間已準備好了，隨時開始。",
   ],
   creative: [
-    "靈感來了！試試看隨機組合？",
-    "今天的你，想要什麼顏色的心情？",
-    "大膽嘗試，每個意外都可能是驚喜。",
+    "✨ 今天的心情是什麼顏色呢？",
+    "🎨 想像一下你心中最美的畫面⋯⋯",
+    "💫 每個靈感都值得被看見，試試看吧！",
+    "🌈 大膽嘗試，這裡沒有對錯，只有探索。",
   ],
   technical: [
-    "需要我幫你分析構圖嗎？",
-    "試試調整權重，看看效果有什麼變化。",
-    "精確的參數，帶來精確的表達。",
+    "🔧 需要參數建議嗎？我來幫你。",
+    "✨ 找到最適合的設定，讓創作更順暢。",
+    "💡 技術細節交給我，你專注在靈感上。",
+    "🌿 精確和放鬆可以並存，慢慢調整就好。",
   ],
 };
 
@@ -128,54 +134,54 @@ const MOOD_GREETINGS: Record<string, string[]> = {
 
 const PAGE_GREETINGS: Record<string, string[]> = {
   "image-studio": [
-    "想生成什麼圖片呢？我可以幫你推薦模型和參數！",
-    "要不要試試 NanoBanana2 的新功能？速度快又高品質。",
-    "圖片編輯、文字生圖、3D 轉換——選一個開始吧！",
+    "🎨 想創作什麼畫面呢？慢慢想，我在這陪你。",
+    "✨ 從一個情緒或顏色開始，剩下的讓 AI 來。",
+    "🌸 圖片是心靈的窗戶，畫出你此刻的感受吧。",
   ],
   "video-studio": [
-    "影片生成需要多一點時間，但結果絕對值得等待。",
-    "Kling 2.1 和 Veo 3 是目前最強的影片模型，要試試嗎？",
-    "可以用圖片當首幀，控制影片的開頭畫面喔！",
+    "🎬 影片是會動的詩，想像你要的畫面流動起來⋯⋯",
+    "✨ 不用著急，好的影片值得等待。",
+    "💫 用文字描述一個場景，讓 AI 把它變成現實。",
   ],
   "pro-studio": [
-    "音樂、配音還是音效？告訴我你的需求！",
-    "試試 Sonauto 生成音樂，支援自訂歌詞和風格。",
-    "聲音克隆只需要幾秒鐘的參考音頻就能完成。",
+    "🎵 想聽什麼樣的聲音呢？告訴我你的心情。",
+    "🌿 音樂是最溫柔的療癒，試試看吧。",
+    "✨ 從旋律到配音，這裡都可以幫你完成。",
   ],
   "lora-trainer": [
-    "訓練自己的 AI 模型？我可以幫你選擇最佳參數。",
-    "記得準備多角度的訓練圖片，效果會更好。",
-    "LoRA 訓練通常需要 10-30 分鐘，我會幫你追蹤進度。",
+    "🌱 訓練自己的 AI 模型，就像培育一顆種子。",
+    "✨ 準備好素材了嗎？不確定的話我可以幫你。",
+    "💡 好的訓練不需要很多圖片，品質比數量重要。",
   ],
   "learn": [
-    "有什麼不懂的嗎？這裡有超過 38 篇教學文件。",
-    "新手推薦從「快速開始」分類開始閱讀！",
-    "每篇文件都有難度標示，可以按程度選擇。",
+    "📚 想學什麼呢？我可以推薦適合你的內容。",
+    "🌿 慢慢學，每一步都算數。",
+    "✨ 這裡有豐富的教學資源，享受學習的過程。",
   ],
   "shared": [
-    "看看大家的作品，說不定能找到靈感！",
-    "分享你的創作也能獲得配額獎勵喔。",
-    "探索社群作品，看看別人怎麼使用 AI 創作。",
+    "🌈 看看大家的創作，也許能遇見靈感。",
+    "✨ 每個作品背後都有一個故事。",
+    "💫 分享是一種療癒，你的作品也能溫暖別人。",
   ],
   "dashboard": [
-    "這是你的總覽儀表板，可以一覽所有創作數據。",
-    "看看你最近的創作成果——有沒有什麼新靈感？",
-    "配額快用完了嗎？我可以幫你規劃最佳使用策略。",
+    "🌿 這是你的創作空間總覽，看看最近的成果吧。",
+    "✨ 每次創作都是一次小旅行。",
+    "💫 不用比較，享受自己的創作節奏就好。",
   ],
   "history": [
-    "你的創作歷史都在這裡，可以隨時重新使用參數！",
-    "試試收藏功能，把滿意的作品標記起來。",
-    "找到喜歡的作品了嗎？可以直接下載或分享。",
+    "📖 回顧過去的創作，每一個都是你的足跡。",
+    "✨ 找到喜歡的作品了嗎？可以隨時重新使用。",
+    "🌸 每次嘗試都值得珍惜。",
   ],
   "models": [
-    "這裡列出了所有可用的 AI 模型，按需求挑選吧！",
-    "每個模型有不同的特長，需要我幫你比較嗎？",
-    "自己訓練的模型也會出現在這裡喔。",
+    "🔧 這裡有各種 AI 模型，需要我幫你挑選嗎？",
+    "✨ 每個模型有不同的個性，慢慢認識它們。",
+    "💡 不確定用哪個？告訴我你想做什麼，我來推薦。",
   ],
   "brain-settings": [
-    "這是 AI 大腦的設定中心，可以監控和調整 AI 行為。",
-    "錯誤追蹤功能能幫你快速定位問題所在。",
-    "自動修復系統會主動偵測並修正 API 問題。",
+    "🧠 AI 大腦的設定中心，技術細節都在這裡。",
+    "🔧 有任何異常我會幫你注意的。",
+    "✨ 這些工具是為了讓你的創作更順暢。",
   ],
 };
 
@@ -190,8 +196,8 @@ interface QuickAction {
 
 const QUICK_ACTIONS: QuickAction[] = [
   { icon: <Shuffle className="w-4 h-4" />, label: "隨機靈感", description: "讓我幫你隨機組合一組靈感積木", action: "random" },
-  { icon: <MessageCircle className="w-4 h-4" />, label: "聊聊心情", description: "告訴我你現在的感受", action: "chat" },
-  { icon: <BookOpen className="w-4 h-4" />, label: "重新導覽", description: "再看一次新手引導", action: "tour" },
+  { icon: <MessageCircle className="w-4 h-4" />, label: "聊聊天", description: "分享你的心情或想法", action: "chat" },
+  { icon: <Heart className="w-4 h-4" />, label: "療癒推薦", description: "根據心情推薦創作方向", action: "chat-healing" },
 ];
 
 // ─── Page-specific quick actions (contextual AI agent capabilities) ────────
@@ -254,8 +260,9 @@ export default function ProactiveOrbWidget({
   onRestartTour,
   onApplyInspiration,
   onSwitchModality,
+  onNavigate,
 }: Props) {
-  const { aiState, proactiveMessage, dismissProactive, pageContext } = useAIState();
+  const { aiState, proactiveMessage, dismissProactive, pageContext, quietMode, setQuietMode } = useAIState();
   const { personality, setPersonality, isManual, resetToAuto, config: personalityConfig } = usePersonality();
   const { isAnyTimerRunning, activeMode, pomodoroRemaining, healingRemaining, pomodoroPhase } = useFocusFlow();
   const orbControls = useAnimation();
@@ -541,6 +548,13 @@ export default function ProactiveOrbWidget({
           text: greeting,
         }]);
         break;
+      case "chat-healing":
+        setPanelView("chat");
+        setChatMessages([
+          { role: "orb", text: "🌿 告訴我你現在的心情，我來幫你找到適合的創作方向。" },
+        ]);
+        setChatInput("我現在的心情是⋯⋯");
+        break;
       case "tour":
         setShowPanel(false);
         onRestartTour?.();
@@ -558,7 +572,7 @@ export default function ProactiveOrbWidget({
             "chat-training-tips": "訓練 LoRA 模型有什麼建議？",
             "chat-learning-path": "推薦適合新手的學習路徑",
           };
-          const seedMsg = topicHints[action] ?? "有什麼可以幫你的嗎？";
+          const seedMsg = topicHints[action] ?? "有什麼想聊的嗎？";
           setPanelView("chat");
           setChatMessages([
             { role: "orb", text: greeting },
@@ -615,15 +629,39 @@ export default function ProactiveOrbWidget({
         context: contextStr,
       });
       setChatMessages((prev) => [...prev, { role: "orb", text: data.reply }]);
+
+      // Handle agent actions from LLM response
+      if (data.actions && Array.isArray(data.actions)) {
+        for (const action of data.actions) {
+          switch (action.type) {
+            case "navigate":
+              onNavigate?.(action.payload);
+              break;
+            case "modality":
+              if (["image", "video", "audio", "voice"].includes(action.payload)) {
+                onSwitchModality?.(action.payload as "image" | "video" | "audio" | "voice");
+              }
+              break;
+            case "preset": {
+              const preset = INSPIRATION_PRESETS.find(p => p.label === action.payload);
+              if (preset) {
+                onApplyInspiration?.(preset.blocks);
+                showFeedback(`已套用「${preset.label}」靈感 ${preset.emoji}`);
+              }
+              break;
+            }
+          }
+        }
+      }
     } catch {
       setChatMessages((prev) => [
         ...prev,
-        { role: "orb", text: "抱歉，我剛才斷線了一下。能再說一次嗎？" },
+        { role: "orb", text: "🌸 抱歉，我剛才有點恍神。再說一次好嗎？" },
       ]);
     } finally {
       setIsChatLoading(false);
     }
-  }, [chatInput, chatMessages, isChatLoading, personality, greeting, aiChatMutation, onSwitchModality, pageContext]);
+  }, [chatInput, chatMessages, isChatLoading, personality, greeting, aiChatMutation, onSwitchModality, pageContext, onNavigate, onApplyInspiration, showFeedback]);
 
   // ─── Apply inspiration preset ────────────────────────────────────────
 
@@ -749,29 +787,53 @@ export default function ProactiveOrbWidget({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 20, scale: 0.9 }}
               transition={{ type: "spring", stiffness: 300, damping: 25 }}
-              className="w-72 sm:w-80 rounded-2xl border border-gray-200/60 bg-white/95 backdrop-blur-xl shadow-2xl overflow-hidden"
+              className="w-72 sm:w-80 rounded-2xl overflow-hidden"
+              style={{
+                background: "rgba(255, 255, 255, 0.92)",
+                backdropFilter: "blur(24px) saturate(180%)",
+                WebkitBackdropFilter: "blur(24px) saturate(180%)",
+                border: "1px solid rgba(255, 255, 255, 0.5)",
+                boxShadow: "0 8px 40px rgba(0, 0, 0, 0.08), 0 2px 12px rgba(0, 0, 0, 0.04)",
+              }}
               onClick={(e) => e.stopPropagation()}
             >
               {/* Panel Header */}
               <div className="px-4 pt-4 pb-2 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <VisualSoul state={aiState} personality={personality} size="sm" className="!w-6 !h-6" />
+                  <div className="relative">
+                    <VisualSoul state={aiState} personality={personality} size="sm" className="!w-6 !h-6" />
+                    {/* Agent badge */}
+                    <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border border-white" title="AI 代理人模式" />
+                  </div>
                   <span className="text-sm font-semibold text-gray-800">
-                    {panelView === "chat" ? "聊聊天" : panelView === "inspiration" ? "靈感推薦" : panelView === "focus-flow" ? "專注流" : pageContext ? `AI 助手 · ${pageContext.pageLabel}` : "你的創作夥伴"}
+                    {panelView === "chat" ? "💬 對話" : panelView === "inspiration" ? "✨ 靈感" : panelView === "focus-flow" ? "🌿 專注" : "🌸 光球"}
                   </span>
+                  {pageContext && panelView === "main" && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium">
+                      {pageContext.pageLabel}
+                    </span>
+                  )}
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-0.5">
+                  {/* Quiet mode toggle */}
+                  <button
+                    onClick={() => setQuietMode(!quietMode)}
+                    className={`p-1.5 rounded-full transition-colors ${quietMode ? "bg-amber-50 text-amber-500" : "hover:bg-gray-100 text-gray-400"}`}
+                    title={quietMode ? "開啟提示（目前靜音中）" : "靜音模式（不再主動提示）"}
+                  >
+                    {quietMode ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+                  </button>
                   {panelView !== "main" && (
                     <button
                       onClick={() => setPanelView("main")}
-                      className="p-1 rounded-full hover:bg-gray-100 transition-colors"
+                      className="p-1.5 rounded-full hover:bg-gray-100 transition-colors"
                     >
                       <RotateCcw className="w-3.5 h-3.5 text-gray-400" />
                     </button>
                   )}
                   <button
                     onClick={() => setShowPanel(false)}
-                    className="p-1 rounded-full hover:bg-gray-100 transition-colors"
+                    className="p-1.5 rounded-full hover:bg-gray-100 transition-colors"
                   >
                     <X className="w-3.5 h-3.5 text-gray-400" />
                   </button>
@@ -788,12 +850,15 @@ export default function ProactiveOrbWidget({
                     exit={{ opacity: 0, x: 10 }}
                     className="px-4 pb-4"
                   >
-                    {/* Greeting */}
-                    <p className="text-xs text-gray-500 mb-3 leading-relaxed">
-                      {greeting}
-                    </p>
+                    {/* Greeting with agent badge */}
+                    <div className="flex items-start gap-2 mb-3">
+                      <Bot className="w-3.5 h-3.5 mt-0.5 shrink-0 text-emerald-500" />
+                      <p className="text-xs text-gray-500 leading-relaxed">
+                        {greeting}
+                      </p>
+                    </div>
 
-                    {/* Quick Actions */}
+                    {/* Quick Actions — redesigned as compact cards */}
                     <div className="space-y-1.5 mb-3">
                       {[...QUICK_ACTIONS, ...(pageContext?.pageId ? (PAGE_QUICK_ACTIONS[pageContext.pageId] ?? []) : [])].map((qa) => (
                         <button
@@ -818,7 +883,7 @@ export default function ProactiveOrbWidget({
                       className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-gradient-to-r from-amber-50 to-pink-50 border border-amber-200/40 hover:from-amber-100 hover:to-pink-100 transition-all text-sm font-medium text-amber-700"
                     >
                       <Lightbulb className="w-4 h-4" />
-                      瀏覽靈感推薦
+                      ✨ 靈感探索
                     </button>
 
                     {/* Focus Flow Button */}
@@ -827,7 +892,7 @@ export default function ProactiveOrbWidget({
                       className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-gradient-to-r from-green-50 to-indigo-50 border border-green-200/40 hover:from-green-100 hover:to-indigo-100 transition-all text-sm font-medium text-green-700 mt-2"
                     >
                       <Leaf className="w-4 h-4" />
-                      專注流（邊做邊用）
+                      🌿 療癒專注流
                     </button>
                   </motion.div>
                 )}
@@ -842,29 +907,53 @@ export default function ProactiveOrbWidget({
                     className="flex flex-col"
                   >
                     {/* Chat Messages */}
-                    <div className="px-4 py-2 max-h-48 overflow-y-auto space-y-2">
+                    <div className="px-4 py-2 max-h-56 overflow-y-auto space-y-2.5">
                       {chatMessages.map((msg, i) => (
                         <div
                           key={i}
                           className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                         >
                           <div
-                            className={`max-w-[85%] px-3 py-2 rounded-2xl text-xs leading-relaxed ${
+                            className={`max-w-[85%] px-3.5 py-2.5 text-xs leading-relaxed ${
                               msg.role === "user"
-                                ? `${personalityAccentBtn[personality]} rounded-br-md`
-                                : "bg-gray-100 text-gray-700 rounded-bl-md"
+                                ? `${personalityAccentBtn[personality]} rounded-2xl rounded-br-md`
+                                : "bg-gradient-to-br from-gray-50 to-gray-100/80 text-gray-700 rounded-2xl rounded-bl-md border border-gray-100/60"
                             }`}
                           >
                             {msg.text}
                           </div>
                         </div>
                       ))}
+                      {/* Typing indicator */}
+                      {isChatLoading && (
+                        <div className="flex justify-start">
+                          <div className="bg-gradient-to-br from-gray-50 to-gray-100/80 rounded-2xl rounded-bl-md px-4 py-3 border border-gray-100/60">
+                            <div className="flex items-center gap-1">
+                              <motion.div
+                                className="w-1.5 h-1.5 rounded-full bg-gray-400"
+                                animate={{ opacity: [0.3, 1, 0.3] }}
+                                transition={{ duration: 1.2, repeat: Infinity, delay: 0 }}
+                              />
+                              <motion.div
+                                className="w-1.5 h-1.5 rounded-full bg-gray-400"
+                                animate={{ opacity: [0.3, 1, 0.3] }}
+                                transition={{ duration: 1.2, repeat: Infinity, delay: 0.2 }}
+                              />
+                              <motion.div
+                                className="w-1.5 h-1.5 rounded-full bg-gray-400"
+                                animate={{ opacity: [0.3, 1, 0.3] }}
+                                transition={{ duration: 1.2, repeat: Infinity, delay: 0.4 }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
                       <div ref={chatEndRef} />
                     </div>
 
                     {/* Chat Input */}
-                    <div className="px-3 py-3 border-t border-gray-100">
-                      <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2">
+                    <div className="px-3 py-3 border-t border-gray-100/60">
+                      <div className="flex items-center gap-2 rounded-xl border border-gray-200/60 bg-gray-50/50 px-3 py-2 focus-within:border-gray-300 transition-colors">
                         <input
                           type="text"
                           value={chatInput}
@@ -875,14 +964,14 @@ export default function ProactiveOrbWidget({
                               handleChatSend();
                             }
                           }}
-                          placeholder="說說你的心情..."
+                          placeholder="分享你的想法，或問我任何事⋯⋯"
                           className="bg-transparent text-sm text-gray-700 placeholder:text-gray-400 outline-none flex-1 min-w-0"
                           autoFocus
                         />
                         <button
                           onClick={handleChatSend}
                           disabled={!chatInput.trim() || isChatLoading}
-                          className="p-1.5 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-30"
+                          className="p-1.5 rounded-lg hover:bg-gray-200/60 transition-colors disabled:opacity-30"
                         >
                           {isChatLoading
                             ? <Loader2 className="w-3.5 h-3.5 text-gray-500 animate-spin" />
@@ -997,7 +1086,7 @@ export default function ProactiveOrbWidget({
           whileHover={guiding ? undefined : { scale: 1.1 }}
           whileTap={guiding ? undefined : { scale: 0.95 }}
           className="relative cursor-pointer"
-          title={guiding ? "引導中..." : "點擊我開啟互動面板"}
+          title={guiding ? "引導中..." : "🌸 點我開始對話"}
           onClick={(e) => {
             e.stopPropagation();
             if (!guiding) handleOrbClick();
@@ -1040,31 +1129,31 @@ export default function ProactiveOrbWidget({
             )}
           </AnimatePresence>
 
-          {/* Neon glow ring */}
+          {/* Neon glow ring — softer, healing-like breathing */}
           <motion.div
             className="absolute inset-0 rounded-full"
             animate={{
               boxShadow: guiding
                 ? [
-                    `0 0 20px ${personalityGlowColors[personality]}, 0 0 50px ${personalityGlowColors[personality].replace("0.8", "0.5")}`,
-                    `0 0 30px ${personalityGlowColors[personality]}, 0 0 70px ${personalityGlowColors[personality].replace("0.8", "0.7")}`,
-                    `0 0 20px ${personalityGlowColors[personality]}, 0 0 50px ${personalityGlowColors[personality].replace("0.8", "0.5")}`,
+                    `0 0 16px ${personalityGlowColors[personality]}, 0 0 40px ${personalityGlowColors[personality].replace("0.8", "0.35")}`,
+                    `0 0 24px ${personalityGlowColors[personality]}, 0 0 56px ${personalityGlowColors[personality].replace("0.8", "0.5")}`,
+                    `0 0 16px ${personalityGlowColors[personality]}, 0 0 40px ${personalityGlowColors[personality].replace("0.8", "0.35")}`,
                   ]
                 : showPanel
-                ? [`0 0 25px ${personalityGlowColors[personality]}, 0 0 50px ${personalityGlowColors[personality].replace("0.8", "0.5")}`]
+                ? [`0 0 18px ${personalityGlowColors[personality]}, 0 0 36px ${personalityGlowColors[personality].replace("0.8", "0.35")}`]
                 : [
-                    `0 0 12px ${personalityGlowColors[personality]}, 0 0 24px ${personalityGlowColors[personality].replace("0.8", "0.3")}`,
-                    `0 0 20px ${personalityGlowColors[personality]}, 0 0 40px ${personalityGlowColors[personality].replace("0.8", "0.5")}`,
-                    `0 0 12px ${personalityGlowColors[personality]}, 0 0 24px ${personalityGlowColors[personality].replace("0.8", "0.3")}`,
+                    `0 0 8px ${personalityGlowColors[personality].replace("0.8", "0.2")}, 0 0 16px ${personalityGlowColors[personality].replace("0.8", "0.1")}`,
+                    `0 0 14px ${personalityGlowColors[personality].replace("0.8", "0.35")}, 0 0 28px ${personalityGlowColors[personality].replace("0.8", "0.15")}`,
+                    `0 0 8px ${personalityGlowColors[personality].replace("0.8", "0.2")}, 0 0 16px ${personalityGlowColors[personality].replace("0.8", "0.1")}`,
                   ],
             }}
-            transition={{ duration: guiding ? 0.8 : 2, repeat: Infinity, ease: "easeInOut" }}
+            transition={{ duration: guiding ? 1 : 3.5, repeat: Infinity, ease: "easeInOut" }}
             style={{ margin: "-4px", borderRadius: "50%" }}
           />
 
           {/* Phase 10: 升級為 3D 光球 (size=lg → WebGL) */}
           <VisualSoul
-            state={guiding ? "thinking" : showPanel ? "generating" : aiState}
+            state={guiding ? "thinking" : showPanel ? "listening" : aiState}
             personality={personality}
             size="lg"
             className="!w-12 !h-12"
