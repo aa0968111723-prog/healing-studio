@@ -69,6 +69,7 @@ interface MasonrySceneStyles {
   glowColor: string;
   skeletonBg: string;
   skeletonShimmer: string;
+  dividerColor: string;
 }
 
 const SCENE_MASONRY_STYLES: Record<SceneId, MasonrySceneStyles> = {
@@ -86,6 +87,7 @@ const SCENE_MASONRY_STYLES: Record<SceneId, MasonrySceneStyles> = {
     glowColor: "rgba(120, 120, 255, 0.08)",
     skeletonBg: "bg-indigo-900/30",
     skeletonShimmer: "via-indigo-700/20",
+    dividerColor: "rgba(100,120,200,0.15)",
   },
   morning: {
     sectionBg: "rgba(255, 245, 235, 0.4)",
@@ -101,6 +103,7 @@ const SCENE_MASONRY_STYLES: Record<SceneId, MasonrySceneStyles> = {
     glowColor: "rgba(255, 180, 80, 0.08)",
     skeletonBg: "bg-amber-100/50",
     skeletonShimmer: "via-amber-200/30",
+    dividerColor: "rgba(210,170,120,0.2)",
   },
   cafe: {
     sectionBg: "rgba(40, 25, 15, 0.4)",
@@ -116,6 +119,7 @@ const SCENE_MASONRY_STYLES: Record<SceneId, MasonrySceneStyles> = {
     glowColor: "rgba(200, 140, 60, 0.08)",
     skeletonBg: "bg-orange-900/30",
     skeletonShimmer: "via-orange-700/20",
+    dividerColor: "rgba(180,150,120,0.18)",
   },
   deepSea: {
     sectionBg: "rgba(5, 20, 35, 0.4)",
@@ -131,6 +135,7 @@ const SCENE_MASONRY_STYLES: Record<SceneId, MasonrySceneStyles> = {
     glowColor: "rgba(60, 180, 220, 0.08)",
     skeletonBg: "bg-cyan-900/30",
     skeletonShimmer: "via-cyan-700/20",
+    dividerColor: "rgba(60,140,180,0.15)",
   },
 };
 
@@ -482,7 +487,7 @@ function ModalityTabs({
   ];
 
   return (
-    <div className="flex items-center gap-2 flex-wrap justify-center">
+    <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-center">
       {tabs.map((tab) => {
         const isActive = active === tab.key;
         const TabIcon = tab.icon;
@@ -493,7 +498,7 @@ function ModalityTabs({
             whileHover={{ scale: 1.04 }}
             whileTap={{ scale: 0.97 }}
             transition={{ duration: 0.25, ease: SOFT_BOUNCE }}
-            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-300 ${
+            className={`inline-flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-medium transition-all duration-300 ${
               isActive
                 ? `${styles.badgeBg} ${styles.badgeText} ring-1 ring-current/20`
                 : `${styles.textMuted} hover:${styles.textSecondary}`
@@ -751,14 +756,17 @@ export default function ShowcaseMasonry({
     <section
       ref={sectionScrollRef}
       className="section-breathing px-4 relative z-10"
-      style={{ background: styles.sectionBg }}
+      style={{
+        background: styles.sectionBg,
+        transition: "background 1s ease",
+      }}
     >
       <div className="max-w-5xl mx-auto">
         {/* Soft gradient divider */}
         <div
-          className="mx-auto max-w-3xl mb-12 h-px"
+          className="mx-auto max-w-3xl mb-10 sm:mb-12 h-px"
           style={{
-            background: `linear-gradient(90deg, transparent, ${styles.cardBorder}, transparent)`,
+            background: `linear-gradient(90deg, transparent, ${styles.dividerColor}, transparent)`,
           }}
         />
         {/* Section header */}
@@ -767,21 +775,21 @@ export default function ShowcaseMasonry({
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: "-100px" }}
           transition={{ duration: 0.7, ease: SOFT_BOUNCE }}
-          className="text-center mb-12"
+          className="text-center mb-10 sm:mb-12"
         >
           <h2
-            className={`text-2xl sm:text-3xl font-bold tracking-tight ${styles.titleColor}`}
+            className={`text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight transition-colors duration-1000 ${styles.titleColor}`}
           >
             精選作品
           </h2>
-          <p className={`mt-4 text-sm ${styles.subtitleColor}`}>
+          <p className={`mt-3 sm:mt-4 text-xs sm:text-sm transition-colors duration-1000 ${styles.subtitleColor}`}>
             社群創作者的靈感結晶，探索多模態 AI 的無限可能
           </p>
           {/* Healing divider */}
           <div
-            className="mx-auto mt-8 w-16 h-[1px] rounded-full"
+            className="mx-auto mt-6 sm:mt-8 w-16 h-[1px] rounded-full"
             style={{
-              background: `linear-gradient(90deg, transparent, ${styles.cardBorder}, transparent)`,
+              background: `linear-gradient(90deg, transparent, ${styles.dividerColor}, transparent)`,
             }}
           />
         </motion.div>
