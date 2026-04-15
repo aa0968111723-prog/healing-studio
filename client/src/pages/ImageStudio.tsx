@@ -29,7 +29,7 @@ import {
   Settings2, X, ChevronDown, ChevronUp, Zap, Check,
   Paintbrush, ImagePlus, RefreshCw, Trash2, Eye, Grid3x3,
   SlidersHorizontal, Plus, Box, Scan, ArrowUpCircle,
-  Brain, Layers, Camera, Upload, Cpu,
+  Brain, Layers, Camera, Upload, Cpu, Lightbulb, HelpCircle, Rocket,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { uploadFileToS3 } from "@/lib/upload";
@@ -65,6 +65,12 @@ type ModelInfo = {
   supportsLora?: boolean;
   fast?: boolean;
   outputType?: "image" | "3d" | "pose";
+  /** Best use case for this model */
+  bestFor?: string;
+  /** Practical tip for using this model */
+  tip?: string;
+  /** Mark as recommended starter model */
+  recommended?: boolean;
 };
 
 type ColorKey =
@@ -92,27 +98,35 @@ const MODELS: ModelInfo[] = [
   // ── 文字生圖 ──
   {
     id: "nanoBanana2", falId: "fal-ai/nano-banana-2",
-    name: "Nano Banana 2", desc: "Gemini 3.1 Flash • 文字渲染 • 14圖參考",
+    name: "Nano Banana 2", desc: "快速生成 • 支援文字渲染 • 可加入參考圖",
     badge: "Gemini Flash", category: "t2i", color: "purple",
-    supportsMultiRef: true, fast: true,
+    supportsMultiRef: true, fast: true, recommended: true,
+    bestFor: "🚀 快速創作、嘗試各種想法",
+    tip: "速度最快的模型，適合快速試驗想法。支援最多 14 張參考圖，可以用參考圖引導風格。",
   },
   {
     id: "nanoBananaPro", falId: "fal-ai/nano-banana-pro",
-    name: "Nano Banana Pro", desc: "Gemini 3 Pro • 最高品質 • 商業授權",
+    name: "Nano Banana Pro", desc: "最高品質 • 商業授權 • 精細控制",
     badge: "Gemini Pro", category: "t2i", color: "indigo",
     supportsMultiRef: true,
+    bestFor: "💎 高品質成品、商業用途",
+    tip: "品質最高的模型，適合需要精細成品的場景。可加入參考圖，商業授權友善。",
   },
   {
     id: "seedreamV4", falId: "fal-ai/bytedance/seedream/v4/text-to-image",
-    name: "SeeDream v4", desc: "ByteDance • 高品質 • 支援中文描述",
+    name: "SeeDream v4", desc: "支援中文描述 • 高品質 • 多風格",
     badge: "ByteDance", category: "t2i", color: "orange",
     supportsNeg: true,
+    bestFor: "🀄 中文描述、東方美學風格",
+    tip: "可以直接用中文寫提示詞！例如「一位穿旗袍的女孩站在竹林中」。支援負向提示詞排除不想要的元素。",
   },
   {
     id: "imagen4", falId: "fal-ai/imagen4/preview",
-    name: "Imagen 4 Preview", desc: "Google • 超真實感 • 細節豐富",
+    name: "Imagen 4 Preview", desc: "超真實感 • 細節豐富 • Google 出品",
     badge: "Google Imagen", category: "t2i", color: "blue",
     supportsNeg: true,
+    bestFor: "📸 寫實照片、超逼真場景",
+    tip: "擅長生成接近真實照片的圖片，細節非常豐富。適合風景、人像等寫實題材。",
   },
 
   // ── 圖片編輯 ──
@@ -297,6 +311,11 @@ const PROMPT_BUILDER_BLOCKS = {
   detail:   ["超精細細節", "景深效果", "8K解析度", "電影感色調", "高動態範圍", "清晰銳利"],
 };
 
+const T2I_GUIDE_KEY = "imageStudio_t2i_guide_dismissed";
+
+/** One-click try prompt for newcomers */
+const QUICK_TRY_PROMPT = "一隻可愛的小貓咪坐在窗台上，陽光灑進來，溫暖的午後氛圍，水彩插畫風格";
+
 const CONTROLNET_PATHS = [
   { value: "diffusers/controlnet-canny-sdxl-1.0",         label: "Canny 邊緣" },
   { value: "diffusers/controlnet-depth-sdxl-1.0",         label: "深度圖" },
@@ -361,6 +380,56 @@ function addToHistory(item: Omit<HistoryItem, "id" | "timestamp" | "bookmarked">
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
+
+function T2iQuickStartGuide({ onQuickTry }: { onQuickTry: () => void }) {
+  const [dismissed, setDismissed] = useState(() => localStorage.getItem(T2I_GUIDE_KEY) === "true");
+  if (dismissed) return null;
+  const dismiss = () => { setDismissed(true); localStorage.setItem(T2I_GUIDE_KEY, "true"); };
+  return (
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+      className="rounded-2xl border border-violet-200/50 dark:border-violet-800/40 bg-gradient-to-br from-violet-50/80 to-purple-50/60 dark:from-violet-950/30 dark:to-purple-950/20 p-4 relative">
+      <button onClick={dismiss} className="absolute top-2.5 right-2.5 p-1 rounded-lg hover:bg-violet-200/40 text-muted-foreground hover:text-foreground transition-colors">
+        <X className="w-3.5 h-3.5" />
+      </button>
+      <div className="flex items-center gap-2 mb-3">
+        <div className="p-1.5 rounded-xl bg-violet-100 dark:bg-violet-900/40">
+          <Lightbulb className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+        </div>
+        <p className="text-sm font-semibold text-violet-800 dark:text-violet-300">🌿 第一次使用？三步輕鬆開始</p>
+      </div>
+      <div className="grid grid-cols-3 gap-2 mb-3">
+        {[
+          { step: "1", label: "選模型", hint: "先選一個喜歡的模型" },
+          { step: "2", label: "寫描述", hint: "用文字描述想要的畫面" },
+          { step: "3", label: "點生成", hint: "按下按鈕等待 AI 創作" },
+        ].map(s => (
+          <div key={s.step} className="text-center p-2 rounded-xl bg-white/60 dark:bg-white/5 border border-violet-100/50 dark:border-violet-800/30">
+            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-violet-500 text-white text-[10px] font-bold mb-1">{s.step}</span>
+            <p className="text-[11px] font-medium text-foreground">{s.label}</p>
+            <p className="text-[9px] text-muted-foreground leading-tight">{s.hint}</p>
+          </div>
+        ))}
+      </div>
+      <button onClick={onQuickTry}
+        className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-purple-700 text-white text-xs font-medium shadow-sm hover:opacity-90 transition-all">
+        <Rocket className="w-3.5 h-3.5" /> 一鍵嘗試 — 自動填入範例馬上體驗 ✨
+      </button>
+    </motion.div>
+  );
+}
+
+function ModelTipCard({ model }: { model: ModelInfo }) {
+  if (!model.tip) return null;
+  return (
+    <div className="rounded-xl border border-border/30 bg-background/60 px-3 py-2.5 flex items-start gap-2">
+      <HelpCircle className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
+      <div className="min-w-0">
+        {model.bestFor && <p className="text-[11px] font-medium text-foreground mb-0.5">{model.bestFor}</p>}
+        <p className="text-[11px] text-muted-foreground leading-relaxed">{model.tip}</p>
+      </div>
+    </div>
+  );
+}
 
 function ApiKeyBanner() {
   const q = trpc.imageStudio.checkApiKey.useQuery();
@@ -1244,9 +1313,19 @@ export default function ImageStudio() {
   const [showHistory, setShowHistory] = useState(false);
   const [viewMode, setViewMode] = useState<"single" | "grid">("single");
   const [showSettings, setShowSettings] = useState(true);
+  const [showAdvancedT2i, setShowAdvancedT2i] = useState(false);
 
   const model = MODELS.find(m => m.id === selectedModelId) ?? MODELS[0];
   const tabModels = MODELS.filter(m => m.category === activeTab);
+
+  /** Quick-try: fill in a sample prompt so newcomers can experience generation immediately */
+  const handleQuickTry = useCallback(() => {
+    setActiveTab("t2i");
+    setSelectedModelId("seedreamV4"); // Chinese-friendly model for the Chinese sample prompt
+    setPrompt(QUICK_TRY_PROMPT);
+    setVibeIds(["watercolor"]);
+    toast.success("🌿 已填入範例，按下「開始生成」即可體驗！");
+  }, []);
 
   // ── AI Agent: broadcast page context so the orb knows where user is ──
   useEffect(() => {
@@ -1586,7 +1665,7 @@ export default function ImageStudio() {
           <div className="min-w-0">
             <h1 className="hs-h2 !mb-0">圖片創作室</h1>
             <p className="hs-small !mb-0 text-muted-foreground mt-0.5 line-clamp-2 sm:line-clamp-none">
-              fal.ai 23 大模型 — 文字生圖・圖片編輯・影像放大・骨骼姿勢・<span className="hidden sm:inline">Stable Diffusion</span><span className="sm:hidden" title="Stable Diffusion">SD</span>・3D
+              用文字描述，讓 AI 幫你創作圖片 ✨
             </p>
           </div>
         </div>
@@ -1646,12 +1725,16 @@ export default function ImageStudio() {
                       ? `bg-gradient-to-br ${colorClass(m.color)} border-primary/40 shadow-sm`
                       : "bg-background border-border/30 hover:bg-accent/30"
                   }`}>
-                  {m.fast && <span className="absolute top-1.5 right-1.5"><Zap className="w-2.5 h-2.5 text-amber-500" /></span>}
+                  <div className="absolute top-1.5 right-1.5 flex items-center gap-1">
+                    {m.recommended && <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 font-medium">推薦</span>}
+                    {m.fast && <Zap className="w-2.5 h-2.5 text-amber-500" />}
+                  </div>
                   <div className="flex items-center gap-1.5 mb-0.5">
                     <p className="text-xs font-semibold leading-tight">{m.name}</p>
                     {selectedModelId === m.id && <Check className="w-3 h-3 text-primary ml-auto shrink-0" />}
                   </div>
                   <p className="hs-small !mb-0 text-muted-foreground leading-snug">{m.desc}</p>
+                  {m.bestFor && <p className="text-[10px] text-primary/80 mt-1 leading-snug">{m.bestFor}</p>}
                   <div className="flex items-center gap-1 mt-1.5">
                     <Badge variant="secondary" className="text-[9px] px-1.5 py-0">{m.badge}</Badge>
                     <a href={`https://fal.ai/models/${m.falId}`} target="_blank" rel="noopener noreferrer"
@@ -1665,11 +1748,17 @@ export default function ImageStudio() {
             </div>
           </div>
 
+          {/* Model Tip — contextual guidance for selected model */}
+          {activeTab === "t2i" && <ModelTipCard model={model} />}
+
           {/* Tab-specific panels */}
 
-          {/* T2I — Prompt + Settings */}
+          {/* T2I — Quick Start Guide + Prompt + Settings */}
           {activeTab === "t2i" && (
             <>
+              {/* Newcomer Quick Start Guide */}
+              <T2iQuickStartGuide onQuickTry={handleQuickTry} />
+
               {/* Applied Model Banner */}
               {appliedModelName && (
                 <div className="rounded-xl border border-amber-200/60 bg-amber-50/60 dark:bg-amber-900/20 px-3 py-2 flex items-center justify-between gap-2">
@@ -1688,6 +1777,8 @@ export default function ImageStudio() {
               <div className="rounded-2xl border border-border/30 p-4 bg-background/60">
                 <PromptBuilder value={prompt} onChange={setPrompt} vibeIds={vibeIds} onVibeChange={setVibeIds} />
               </div>
+
+              {/* Basic Settings — always visible */}
               <div className="rounded-2xl border border-border/30 p-4 bg-background/60 space-y-3">
                 <p className="hs-small !mb-0 text-foreground flex items-center gap-1.5">
                   <Settings2 className="w-3.5 h-3.5 text-muted-foreground" /> 生成設定
@@ -1717,36 +1808,54 @@ export default function ImageStudio() {
                 </div>
                 {model.supportsNeg && (
                   <div>
-                    <Label className="text-xs text-muted-foreground mb-1 block">負向提示詞</Label>
+                    <Label className="text-xs text-muted-foreground mb-1 block">負向提示詞（不想出現的元素）</Label>
                     <Textarea value={negPrompt} onChange={e => setNegPrompt(e.target.value)}
-                      placeholder="描述不想出現的元素" className="resize-none min-h-[3.5rem] text-xs" />
+                      placeholder="例如：模糊、低品質、扭曲的手指" className="resize-none min-h-[3.5rem] text-xs" />
                   </div>
                 )}
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-1 block">種子碼（Seed）</Label>
-                  <Input value={seed} onChange={e => setSeed(e.target.value)} placeholder="留空隨機生成" className="text-sm" />
-                </div>
-                {model.supportsMultiRef && (
-                  <div className="mt-2">
-                    <Label className="text-xs text-muted-foreground mb-1 block">多圖參考（選填，最多 14 張）</Label>
-                    {extraRefUrls.map((url, i) => (
-                      <div key={i} className="flex gap-1.5 mb-1">
-                        <Input value={url} onChange={e => { const n = [...extraRefUrls]; n[i] = e.target.value; setExtraRefUrls(n); }}
-                          placeholder={`參考圖 ${i + 1}`} className="text-xs flex-1" />
-                        <button onClick={() => setExtraRefUrls(extraRefUrls.filter((_, j) => j !== i))}
-                          className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive">
-                          <X className="w-3.5 h-3.5" />
-                        </button>
+
+                {/* Advanced Settings — collapsed by default */}
+                <button onClick={() => setShowAdvancedT2i(!showAdvancedT2i)}
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors w-full p-2 rounded-lg hover:bg-accent/30">
+                  <SlidersHorizontal className="w-3.5 h-3.5" /> 進階設定
+                  {showAdvancedT2i ? <ChevronUp className="w-3 h-3 ml-auto" /> : <ChevronDown className="w-3 h-3 ml-auto" />}
+                </button>
+                <AnimatePresence>
+                  {showAdvancedT2i && (
+                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden">
+                      <div className="space-y-3 pt-1">
+                        <div>
+                          <Label className="text-xs text-muted-foreground mb-1 block">種子碼（Seed）</Label>
+                          <Input value={seed} onChange={e => setSeed(e.target.value)} placeholder="留空隨機生成" className="text-sm" />
+                          <p className="text-[9px] text-muted-foreground/60 mt-0.5">相同種子碼可復現相同結果</p>
+                        </div>
+                        {model.supportsMultiRef && (
+                          <div>
+                            <Label className="text-xs text-muted-foreground mb-1 block">多圖參考（選填，最多 14 張）</Label>
+                            <p className="text-[9px] text-muted-foreground/60 mb-1.5">提供參考圖片讓 AI 學習風格或內容</p>
+                            {extraRefUrls.map((url, i) => (
+                              <div key={i} className="flex gap-1.5 mb-1">
+                                <Input value={url} onChange={e => { const n = [...extraRefUrls]; n[i] = e.target.value; setExtraRefUrls(n); }}
+                                  placeholder={`參考圖 ${i + 1}`} className="text-xs flex-1" />
+                                <button onClick={() => setExtraRefUrls(extraRefUrls.filter((_, j) => j !== i))}
+                                  className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive">
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                            {extraRefUrls.length < 14 && (
+                              <button onClick={() => setExtraRefUrls([...extraRefUrls, ""])}
+                                className="w-full text-xs py-1.5 rounded-xl border border-dashed border-border/60 text-muted-foreground hover:border-primary/40 flex items-center justify-center gap-1.5 transition-colors">
+                                <Plus className="w-3 h-3" /> 新增參考圖
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    ))}
-                    {extraRefUrls.length < 14 && (
-                      <button onClick={() => setExtraRefUrls([...extraRefUrls, ""])}
-                        className="w-full text-xs py-1.5 rounded-xl border border-dashed border-border/60 text-muted-foreground hover:border-primary/40 flex items-center justify-center gap-1.5 transition-colors">
-                        <Plus className="w-3 h-3" /> 新增參考圖
-                      </button>
-                    )}
-                  </div>
-                )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </>
           )}
