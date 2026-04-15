@@ -564,7 +564,8 @@ function MusicTab() {
   const [lyrics, setLyrics] = useState("");
   const [instrumental, setInstrumental] = useState(false);
   const [tags, setTags] = useState("");
-  const [musicModel, setMusicModel] = useState<"sonauto" | "ace-step" | "stable-audio" | "musicgen">("sonauto");
+  // DEF-14 修正：預設改為 ACE-Step（Sonauto v2 在 fal.ai 上不穩定，除非話概可用時才切回）
+  const [musicModel, setMusicModel] = useState<"sonauto" | "ace-step" | "stable-audio" | "musicgen">("ace-step");
   const [duration, setDuration] = useState(30);
   const [result, setResult] = useState<AudioResult | null>(null);
 
@@ -1261,8 +1262,9 @@ function CloneTab() {
   ];
 
   const isKlingDisabled = mode === "kling" && (!refAudio.trim() || !klingName.trim());
-  // dia only needs text; qwen needs both audio + text
-  const isOtherDisabled = mode === "qwen" && (!text.trim() || !refAudio.trim())
+  // DEF-08 修正：Qwen 必須有效的 HTTPS URL（空字串或未上傳完成會造成 422）
+  const qwenAudioValid = mode !== "qwen" || (refAudio.trim().startsWith("https://"));
+  const isOtherDisabled = (mode === "qwen" && (!text.trim() || !qwenAudioValid))
     || mode === "dia" && !text.trim();
   const isDesignDisabled = mode === "design" && !voiceDesc.trim();
   const submitDisabled = isPending || isKlingDisabled || isOtherDisabled || isDesignDisabled;
@@ -1313,6 +1315,19 @@ function CloneTab() {
               {mode === "qwen" && (
                 <>
                   <FileUploadInput label="參考音訊" value={refAudio} onChange={setRefAudio} required accept="audio/*" placeholder="貼上 3-10 秒高品質音訊（mp3/wav/flac）" hint="建議：安靜環境錄製的清晰人聲，3-10 秒，最大 16MB" />
+                  {/* DEF-08 修正：未上傳成功時顯示警告，避免送出空字串 audio_url 造成 422 */}
+                  {refAudio && !refAudio.startsWith("https://") && (
+                    <div className="flex items-center gap-1.5 text-[10px] text-amber-600 bg-amber-50 border border-amber-200/60 rounded-lg px-2.5 py-1.5">
+                      <AlertCircle className="w-3 h-3 shrink-0" />
+                      <span>請使用「上傳」按鈕將音訊檔上傳，或貼上 <code className="bg-amber-100 px-0.5 rounded">https://</code> 開頭的 URL</span>
+                    </div>
+                  )}
+                  {!refAudio && (
+                    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/70 rounded-lg px-1">
+                      <AlertCircle className="w-3 h-3 shrink-0" />
+                      <span>必填：請上傳參考音訊才能開始克隆</span>
+                    </div>
+                  )}
                   <div>
                     <Label className="text-xs text-muted-foreground">參考音訊文字稿（選填，可提升克隆品質）</Label>
                     <Textarea

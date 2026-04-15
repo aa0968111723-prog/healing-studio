@@ -129,10 +129,11 @@ async function falQueueRun(
 
 /** 可用的音樂生成模型 */
 const MUSIC_MODELS = [
-  { id: "sonauto",      label: "Sonauto v2",     description: "完整歌曲生成，支援歌詞 & 風格標籤（1-3 分鐘）", badge: "預設", tier: "premium" as const },
-  { id: "ace-step",     label: "ACE-Step",        description: "高品質音樂生成，支援自訂時長", badge: "推薦", tier: "premium" as const },
-  { id: "stable-audio", label: "Stable Audio",    description: "高品質音樂/音效（最長 3 分鐘）", badge: "", tier: "premium" as const },
-  { id: "musicgen",     label: "MusicGen (Meta)", description: "Meta 開源音樂模型，輕量快速", badge: "快速", tier: "standard" as const },
+  // DEF-14 修正：ACE-Step 設為預設（Sonauto v2 目前 fal.ai 不穩定）
+  { id: "ace-step",     label: "ACE-Step",        description: "高品質音樂生成，支援自訂時長", badge: "預設", tier: "premium" as const },
+  { id: "sonauto",      label: "Sonauto v2",       description: "完整歌曲生成，支援歌詞 & 風格標籤（1-3 分鐘）", badge: "歌詞支援", tier: "premium" as const },
+  { id: "stable-audio", label: "Stable Audio",     description: "高品質音樂/音效（最長 3 分鐘）", badge: "", tier: "premium" as const },
+  { id: "musicgen",     label: "MusicGen (Meta)",  description: "Meta 開源音樂模型，輕量快速", badge: "快速", tier: "standard" as const },
 ];
 
 /** 可用的音效生成模型 */
