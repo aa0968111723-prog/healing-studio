@@ -18,7 +18,7 @@
  *   - 效能：will-change 提示 GPU 加速，memoize 靜態元素
  */
 
-import { useState, useEffect, useCallback, useMemo, useId, memo } from "react";
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, useId, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePersonality } from "@/contexts/PersonalityContext";
 import type { Personality } from "@/contexts/PersonalityContext";
@@ -27,7 +27,7 @@ import type { Personality } from "@/contexts/PersonalityContext";
 
 const TOTAL_DURATION_MS = 5800;
 const FADEOUT_DURATION_S = 1.4;
-/** Above OfflineBanner/OnboardingTour (9999), below AuthExpiredModal (10000) */
+/** Above OfflineBanner/OnboardingTour (9999) and AuthExpiredModal (10000/10001) — topmost ephemeral overlay */
 const Z_INDEX_ANIMATION_OVERLAY = 10050;
 const STAR_LAYERS = [
   { count: 35, sizeMin: 1, sizeMax: 1.5, opacityMin: 0.15, opacityMax: 0.4,  driftSpeed: 6 },
@@ -669,10 +669,8 @@ export default function LoginOrbAnimation() {
   const [phase, setPhase] = useState<"stars" | "flying" | "converged" | "fadeout">("stars");
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   /** Container size [w, h] for %-to-px conversion (GPU-composited orb animation) */
-  const [containerSize, setContainerSize] = useState<[number, number]>([
-    typeof window !== "undefined" ? window.innerWidth : 1920,
-    typeof window !== "undefined" ? window.innerHeight : 1080,
-  ]);
+  const [containerSize, setContainerSize] = useState<[number, number]>([0, 0]);
+  const resizeRaf = useRef(0);
 
   // Unique ID for SVG filters to prevent collisions across mounts / Strict Mode
   const filterId = useId();
@@ -681,6 +679,11 @@ export default function LoginOrbAnimation() {
   const { personality } = usePersonality();
 
   const palette = useMemo(() => buildPalette(personality), [personality]);
+
+  // Sync container size before first paint
+  useLayoutEffect(() => {
+    setContainerSize([window.innerWidth, window.innerHeight]);
+  }, []);
 
   // Detect prefers-reduced-motion
   useEffect(() => {
@@ -713,13 +716,21 @@ export default function LoginOrbAnimation() {
     return () => { document.body.style.overflow = prev; };
   }, [show]);
 
-  // Track viewport size (handles resize / mobile address bar changes)
+  // Track viewport size (throttled via rAF to avoid excessive re-renders)
   useEffect(() => {
     if (!show) return;
-    const onResize = () => setContainerSize([window.innerWidth, window.innerHeight]);
+    const onResize = () => {
+      cancelAnimationFrame(resizeRaf.current);
+      resizeRaf.current = requestAnimationFrame(() => {
+        setContainerSize([window.innerWidth, window.innerHeight]);
+      });
+    };
     window.addEventListener("resize", onResize);
     onResize(); // sync immediately
-    return () => window.removeEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      cancelAnimationFrame(resizeRaf.current);
+    };
   }, [show]);
 
   // Phase transitions — carefully timed sequence
