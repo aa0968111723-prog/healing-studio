@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { trpc } from "@/lib/trpc";
@@ -36,6 +36,33 @@ import ProactiveOrbWidget from "@/components/ProactiveOrbWidget";
 import OnboardingTour from "@/components/OnboardingTour";
 import { useNotesDrawer } from "@/contexts/NotesDrawerContext";
 import { requireAuth } from "@/components/AuthExpiredModal";
+
+// ─── New Workspace Components ────────────────────────────────────────────────
+import {
+  type Modality,
+  type WorkspaceMode as WSMode,
+  type PromptStrengthLevel,
+  type ActionMode,
+  type ThoughtIsland,
+  type StructuredBlock,
+  type ReferenceItem,
+  type VersionEntry,
+  type SavedRecipe,
+  getDefaultBlocks,
+  getDefaultThoughtIslands,
+} from "@/stores/workspaceStore";
+import { ModalitySwitcher } from "@/components/workspaces/ModalitySwitcher";
+import { ThoughtIslandsPanel } from "@/components/workspaces/ThoughtIslandsPanel";
+import { PromptStrengthControl } from "@/components/workspaces/PromptStrengthControl";
+import { AdvancedPromptPanel } from "@/components/workspaces/AdvancedPromptPanel";
+import { StructuredBlocksEditor } from "@/components/workspaces/StructuredBlocksEditor";
+import { PromptCompilerPreview } from "@/components/workspaces/PromptCompilerPreview";
+import { GenerationActionBar } from "@/components/workspaces/GenerationActionBar";
+import { VersionHistoryPanel } from "@/components/workspaces/VersionHistoryPanel";
+import { RecipeLibraryPanel } from "@/components/workspaces/RecipeLibraryPanel";
+import { ReferencePanel } from "@/components/workspaces/ReferencePanel";
+import { RefineQuickActions } from "@/components/workspaces/RefineQuickActions";
+import { compilePrompt, lintPrompt, diffBlocks, type PromptWarning } from "@/components/workspaces/PromptCompiler";
 
 // ─── Tab Config ─────────────────────────────────────────────────────────────
 
@@ -288,6 +315,58 @@ export default function Studio() {
   const [resultData, setResultData] = useState<Record<string, unknown> | null>(null);
   const [thoughtChain, setThoughtChain] = useState<ThoughtNode[]>([]);
 
+  // ── Multi-Modal Workspace State (new) ──
+  const modalityKey = (activeModality === "audio" ? "music" : activeModality) as Modality;
+  const [workspaceMode, setWorkspaceMode] = useState<WSMode>("beginner");
+  const [actionMode, setActionMode] = useState<ActionMode>("generate");
+  const [promptStrength, setPromptStrength] = useState<PromptStrengthLevel>("medium");
+  const [structuredBlocks, setStructuredBlocks] = useState<Record<string, StructuredBlock[]>>({
+    image: getDefaultBlocks("image"),
+    video: getDefaultBlocks("video"),
+    music: getDefaultBlocks("music"),
+    voice: getDefaultBlocks("voice"),
+  });
+  const [thoughtIslands, setThoughtIslands] = useState<Record<string, ThoughtIsland[]>>({
+    image: getDefaultThoughtIslands("image"),
+    video: getDefaultThoughtIslands("video"),
+    music: getDefaultThoughtIslands("music"),
+    voice: getDefaultThoughtIslands("voice"),
+  });
+  const [advancedPrompt, setAdvancedPrompt] = useState<Record<string, string>>({ image: "", video: "", music: "", voice: "" });
+  const [advancedPromptOverride, setAdvancedPromptOverride] = useState<Record<string, boolean>>({ image: false, video: false, music: false, voice: false });
+  const [negativePrompts, setNegativePrompts] = useState<Record<string, string>>({ image: "", video: "", music: "", voice: "" });
+  const [references, setReferences] = useState<Record<string, ReferenceItem[]>>({ image: [], video: [], music: [], voice: [] });
+  const [versions, setVersions] = useState<VersionEntry[]>([]);
+  const [pinnedVersionId, setPinnedVersionId] = useState<string | null>(null);
+  const [savedRecipes, setSavedRecipes] = useState<SavedRecipe[]>([]);
+  const previousBlocksRef = useRef<StructuredBlock[]>([]);
+
+  // ── Compiled prompt (derived from structured blocks) ──
+  const compileResult = useMemo(() => {
+    const blocks = structuredBlocks[modalityKey] || [];
+    const islands = thoughtIslands[modalityKey] || [];
+    const advP = advancedPrompt[modalityKey] || "";
+    const advO = advancedPromptOverride[modalityKey] || false;
+    const negP = negativePrompts[modalityKey] || "";
+    return compilePrompt(modalityKey, blocks, islands, promptStrength, advP, advO, negP, previousBlocksRef.current);
+  }, [modalityKey, structuredBlocks, thoughtIslands, promptStrength, advancedPrompt, advancedPromptOverride, negativePrompts]);
+
+  const promptWarnings = useMemo(() => {
+    const blocks = structuredBlocks[modalityKey] || [];
+    const negP = negativePrompts[modalityKey] || "";
+    return lintPrompt(modalityKey, blocks, negP);
+  }, [modalityKey, structuredBlocks, negativePrompts]);
+
+  // Sync compiled prompt to promptBuilder for backward compatibility
+  useEffect(() => {
+    if (compileResult.compiledPrompt && workspaceMode === "advanced") {
+      setPromptBuilder(prev => ({
+        ...prev,
+        compiledPrompt: compileResult.compiledPrompt,
+      }));
+    }
+  }, [compileResult.compiledPrompt, workspaceMode]);
+
   // ── Progress ──
   const [progress, setProgress] = useState(0);
   const [progressMessage, setProgressMessage] = useState("");
@@ -324,6 +403,28 @@ export default function Studio() {
       toast.success("生成完成");
       reportSuccess();
       utils.auth.me.invalidate();
+      // Save version entry
+      const currentBlocks = structuredBlocks[modalityKey] || [];
+      const currentIslands = thoughtIslands[modalityKey] || [];
+      const newVersion: VersionEntry = {
+        id: `v-${Date.now()}`,
+        timestamp: Date.now(),
+        modality: modalityKey,
+        blocks: [...currentBlocks],
+        thoughtIslands: [...currentIslands],
+        promptStrength,
+        advancedPrompt: advancedPrompt[modalityKey] || "",
+        compiledPrompt: compileResult.compiledPrompt,
+        changedFields: compileResult.changedFields,
+        references: references[modalityKey] || [],
+        generationSettings: { temperature, seed, mode, loraWeight },
+        outputUrl: data.resultUrl || null,
+        pinned: false,
+        actionMode,
+      };
+      setVersions(prev => [newVersion, ...prev]);
+      previousBlocksRef.current = [...currentBlocks];
+      // resultUrl is set above, which enables Refine/Branch via hasResult prop
       // Close SSE connection
       if (sseRef.current) { sseRef.current.close(); sseRef.current = null; }
     },
@@ -1000,6 +1101,86 @@ export default function Studio() {
     ? !!(imageState.styleReferenceUrl)
     : false;
 
+  // ── Handlers for new workspace components ──
+
+  const handleBlocksChange = useCallback((newBlocks: StructuredBlock[]) => {
+    setStructuredBlocks(prev => ({ ...prev, [modalityKey]: newBlocks }));
+  }, [modalityKey]);
+
+  const handleThoughtIslandsChange = useCallback((newIslands: ThoughtIsland[]) => {
+    setThoughtIslands(prev => ({ ...prev, [modalityKey]: newIslands }));
+  }, [modalityKey]);
+
+  const handleReferencesChange = useCallback((newRefs: ReferenceItem[]) => {
+    setReferences(prev => ({ ...prev, [modalityKey]: newRefs }));
+  }, [modalityKey]);
+
+  const handleVersionPin = useCallback((versionId: string) => {
+    setPinnedVersionId(prev => prev === versionId ? null : versionId);
+  }, []);
+
+  const handleVersionRestore = useCallback((versionId: string) => {
+    const version = versions.find(v => v.id === versionId);
+    if (!version) return;
+    setStructuredBlocks(prev => ({ ...prev, [version.modality]: version.blocks }));
+    setThoughtIslands(prev => ({ ...prev, [version.modality]: version.thoughtIslands }));
+    setPromptStrength(version.promptStrength);
+    setAdvancedPrompt(prev => ({ ...prev, [version.modality]: version.advancedPrompt }));
+    setReferences(prev => ({ ...prev, [version.modality]: version.references }));
+    if (version.modality !== modalityKey) {
+      setActiveModality(version.modality === "music" ? "audio" : version.modality);
+    }
+    toast.success("已還原版本設定");
+  }, [versions, modalityKey]);
+
+  const handleSaveRecipe = useCallback((name: string) => {
+    const recipe: SavedRecipe = {
+      id: `recipe-${Date.now()}`,
+      name,
+      modality: modalityKey,
+      blocks: structuredBlocks[modalityKey] || [],
+      thoughtIslands: thoughtIslands[modalityKey] || [],
+      promptStrength,
+      advancedPrompt: advancedPrompt[modalityKey] || "",
+      references: references[modalityKey] || [],
+      generationParams: { temperature, seed, mode, loraWeight },
+      createdAt: Date.now(),
+    };
+    setSavedRecipes(prev => [recipe, ...prev]);
+    toast.success(`已保存配方「${name}」`);
+  }, [modalityKey, structuredBlocks, thoughtIslands, promptStrength, advancedPrompt, references, temperature, seed, mode, loraWeight]);
+
+  const handleApplyRecipe = useCallback((recipe: SavedRecipe) => {
+    setStructuredBlocks(prev => ({ ...prev, [recipe.modality]: recipe.blocks }));
+    setThoughtIslands(prev => ({ ...prev, [recipe.modality]: recipe.thoughtIslands }));
+    setPromptStrength(recipe.promptStrength);
+    setAdvancedPrompt(prev => ({ ...prev, [recipe.modality]: recipe.advancedPrompt }));
+    setReferences(prev => ({ ...prev, [recipe.modality]: recipe.references }));
+    if (recipe.modality !== modalityKey) {
+      setActiveModality(recipe.modality === "music" ? "audio" : recipe.modality);
+    }
+    toast.success(`已套用配方「${recipe.name}」`);
+  }, [modalityKey]);
+
+  const handleDeleteRecipe = useCallback((recipeId: string) => {
+    setSavedRecipes(prev => prev.filter(r => r.id !== recipeId));
+    toast.success("已刪除配方");
+  }, []);
+
+  const handleRefineAction = useCallback((blockUpdates: { fieldKey: string; instruction: string }[]) => {
+    setStructuredBlocks(prev => {
+      const currentBlocks = [...(prev[modalityKey] || [])];
+      for (const update of blockUpdates) {
+        const idx = currentBlocks.findIndex(b => b.fieldKey === update.fieldKey);
+        if (idx >= 0) {
+          currentBlocks[idx] = { ...currentBlocks[idx], value: update.instruction, enabled: true };
+        }
+      }
+      return { ...prev, [modalityKey]: currentBlocks };
+    });
+    toast.success("已套用精修動作");
+  }, [modalityKey]);
+
   return (
     <div className="space-y-4">
       <ZenProgressOverlay
@@ -1163,6 +1344,15 @@ export default function Studio() {
             </TabsList>
           </Tabs>
 
+          {/* ── Thought Islands (User-visible creative planner) ── */}
+          <GlassCard hover={false}>
+            <ThoughtIslandsPanel
+              islands={thoughtIslands[modalityKey] || []}
+              onChange={handleThoughtIslandsChange}
+              modality={modalityKey}
+            />
+          </GlassCard>
+
           {/* Progressive Prompt Builder — z-20 ensures Self-Attention sliders stay above ThoughtIslandChain D3 canvas */}
           {activeModality !== "voice" && (
             <GlassCard hover={false} id="prompt-builder-area" className="relative z-20">
@@ -1272,6 +1462,66 @@ export default function Studio() {
             </div>
           </GlassCard>
 
+          {/* ── Structured Prompt Blocks ── */}
+          <GlassCard hover={false}>
+            <StructuredBlocksEditor
+              blocks={structuredBlocks[modalityKey] || []}
+              onChange={handleBlocksChange}
+              modality={modalityKey}
+              workspaceMode={workspaceMode}
+            />
+          </GlassCard>
+
+          {/* ── Prompt Strength Control ── */}
+          <GlassCard hover={false}>
+            <PromptStrengthControl
+              value={promptStrength}
+              onChange={setPromptStrength}
+              modality={modalityKey}
+            />
+          </GlassCard>
+
+          {/* ── Reference Materials ── */}
+          {workspaceMode === "advanced" && (
+            <GlassCard hover={false}>
+              <ReferencePanel
+                references={references[modalityKey] || []}
+                onChange={handleReferencesChange}
+                modality={modalityKey}
+              />
+            </GlassCard>
+          )}
+
+          {/* ── Advanced Prompt Panel ── */}
+          <AdvancedPromptPanel
+            compiledPrompt={compileResult.compiledPrompt}
+            advancedPrompt={advancedPrompt[modalityKey] || ""}
+            onAdvancedPromptChange={(val) => setAdvancedPrompt(prev => ({ ...prev, [modalityKey]: val }))}
+            override={advancedPromptOverride[modalityKey] || false}
+            onOverrideChange={(val) => setAdvancedPromptOverride(prev => ({ ...prev, [modalityKey]: val }))}
+            negativePrompt={negativePrompts[modalityKey] || ""}
+            onNegativePromptChange={(val) => setNegativePrompts(prev => ({ ...prev, [modalityKey]: val }))}
+            modality={modalityKey}
+          />
+
+          {/* ── Prompt Compiler Preview ── */}
+          {workspaceMode === "advanced" && (
+            <PromptCompilerPreview
+              compiledPrompt={compileResult.compiledPrompt}
+              warnings={promptWarnings}
+              changedFields={compileResult.changedFields}
+              summary={compileResult.summary}
+            />
+          )}
+
+          {/* ── Refine Quick Actions (when in refine mode with result) ── */}
+          {actionMode === "refine" && resultUrl && (
+            <RefineQuickActions
+              modality={modalityKey}
+              onApplyRefine={handleRefineAction}
+            />
+          )}
+
           {/* Engine + Cost Preview Badge */}
           {currentEngine && !generateMutation.isPending && (
             <div className="flex items-center justify-between text-[11px] text-muted-foreground px-1">
@@ -1291,17 +1541,16 @@ export default function Studio() {
             </div>
           )}
 
-          {/* Generate Button */}
-          <Button
-            id="generate-button"
-            onClick={handleGenerate}
-            disabled={generateMutation.isPending || prepareJobMutation.isPending || !isOnline}
-            title={!isOnline ? "目前處於離線狀態，無法生成" : undefined}
-            className="w-full h-11 sm:h-12 rounded-xl text-sm font-medium gap-2 shadow-md hover:shadow-lg transition-all"
-          >
-            <Wand2 className="w-4 h-4" />
-            {prepareJobMutation.isPending ? "準備中..." : generateMutation.isPending ? "生成中..." : "開始創作"}
-          </Button>
+          {/* Generate / Refine / Branch + Mode Toggle */}
+          <GenerationActionBar
+            actionMode={actionMode}
+            onActionModeChange={setActionMode}
+            workspaceMode={workspaceMode}
+            onWorkspaceModeChange={setWorkspaceMode}
+            onGenerate={handleGenerate}
+            isGenerating={generateMutation.isPending || prepareJobMutation.isPending}
+            hasResult={!!resultUrl}
+          />
 
           {/* Thought Island Chain — z-10 below PromptBuilder's z-20 */}
           <AnimatePresence>
@@ -1654,9 +1903,9 @@ export default function Studio() {
           </AnimatePresence>
         </div>
 
-        {/* ── Right Panel: Controls (desktop) ── */}
+        {/* ── Right Panel: Controls + Version History + Recipes (desktop) ── */}
         {!isMobile && (
-          <div className="hidden lg:block w-64 shrink-0 space-y-4">
+          <div className="hidden lg:block w-72 shrink-0 space-y-4 max-h-[calc(100vh-8rem)] overflow-y-auto">
             <GlassCard hover={false}>
               <GenerationControls
                 temperature={temperature}
@@ -1668,6 +1917,27 @@ export default function Studio() {
                 loraWeight={loraWeight}
                 onLoraWeightChange={setLoraWeight}
                 showLoraWeight={showLoraWeight}
+              />
+            </GlassCard>
+
+            {/* Version History */}
+            <GlassCard hover={false}>
+              <VersionHistoryPanel
+                versions={versions}
+                onPin={handleVersionPin}
+                onRestore={handleVersionRestore}
+                pinnedVersionId={pinnedVersionId}
+              />
+            </GlassCard>
+
+            {/* Recipe Library */}
+            <GlassCard hover={false}>
+              <RecipeLibraryPanel
+                modality={modalityKey}
+                savedRecipes={savedRecipes}
+                onApplyRecipe={handleApplyRecipe}
+                onSaveRecipe={handleSaveRecipe}
+                onDeleteRecipe={handleDeleteRecipe}
               />
             </GlassCard>
           </div>
