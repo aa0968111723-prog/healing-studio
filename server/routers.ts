@@ -82,6 +82,7 @@ async function checkSafety(text: string): Promise<{ safe: boolean; reason?: stri
         },
         { role: "user", content: text },
       ],
+      runName: "safety-moderation",
       maxTokens: 256,
       response_format: {
         type: "json_schema",
@@ -177,6 +178,7 @@ async function compileElitePrompt(payload: {
         },
         { role: "user", content: payload.prompt },
       ],
+      runName: "prompt-compiler",
       maxTokens: 2048,
       // Inject brain model & parameters when available
       ...(payload.brainModel ? { model: payload.brainModel } : {}),
@@ -1286,6 +1288,7 @@ export const appRouter = router({
       }))
       .mutation(async ({ input }) => {
         const result = await withTimeout(invokeLLM({
+          runName: "prompt-judge",
           messages: [
             {
               role: "system",
@@ -1377,6 +1380,7 @@ export const appRouter = router({
       }))
       .mutation(async ({ input }) => {
         const result = await withTimeout(invokeLLM({
+          runName: "inspiration-chips",
           messages: [
             {
               role: "system",
@@ -1902,6 +1906,7 @@ export const appRouter = router({
         for (const img of input.images) {
           try {
             const result = await withTimeout(invokeLLM({
+              runName: "lora-image-captioner",
               messages: [
                 {
                   role: "system",
