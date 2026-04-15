@@ -11,6 +11,7 @@ import DashboardLayout from "./components/DashboardLayout";
 import ProjectNotesDrawer from "./components/ProjectNotesDrawer";
 import OfflineBanner from "./components/OfflineBanner";
 import AuthExpiredModal from "./components/AuthExpiredModal";
+import LoginOrbAnimation from "./components/LoginOrbAnimation";
 import { ShowcaseTransferProvider } from "./contexts/ShowcaseTransferContext";
 import { SiteOnboardingProvider } from "./contexts/SiteOnboardingContext";
 import { FocusFlowProvider } from "./contexts/FocusFlowContext";
@@ -172,6 +173,7 @@ function App() {
                 <Toaster />
                 <OfflineBanner />
                 <AuthExpiredModal />
+                <LoginOrbAnimation />
                 <Router />
                 <ProjectNotesDrawer />
                 <SiteOnboardingOverlay />

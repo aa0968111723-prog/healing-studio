@@ -126,7 +126,9 @@ export function registerOAuthRoutes(app: Express) {
         }
       }
 
-      res.redirect(302, redirectTo);
+      // Append welcome flag so the client can show a login orb animation
+      const separator = redirectTo.includes("?") ? "&" : "?";
+      res.redirect(302, `${redirectTo}${separator}welcome=1`);
     } catch (error) {
       console.error("[OAuth] Callback failed", error);
       res.status(500).json({ error: "OAuth 認證失敗，請稍後再試" });
@@ -163,7 +165,7 @@ export function registerOAuthRoutes(app: Express) {
         ...cookieOptions,
         maxAge: ONE_YEAR_MS,
       });
-      res.redirect(302, "/studio");
+      res.redirect(302, "/studio?welcome=1");
     } catch (error) {
       console.error("[Demo OAuth] Failed", error);
       res.status(500).json({ error: "Demo 登入失敗" });
