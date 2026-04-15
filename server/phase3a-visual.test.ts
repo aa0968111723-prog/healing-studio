@@ -4,7 +4,9 @@ import type { TrpcContext } from "./_core/context";
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
-function createMockUser(overrides: Partial<AuthenticatedUser> = {}): AuthenticatedUser {
+function createMockUser(
+  overrides: Partial<AuthenticatedUser> = {}
+): AuthenticatedUser {
   return {
     id: 1,
     openId: "test-user-001",
@@ -41,18 +43,50 @@ describe("Phase 3-A: Branding & Visual", () => {
   describe("Thought Chain", () => {
     it("thoughtChain nodes should have correct structure", () => {
       const sampleNodes = [
-        { id: "safety_check", label: "安全檢查", status: "completed", detail: "內容安全", duration: 120 },
-        { id: "prompt_compile", label: "提示詞編譯", status: "completed", detail: "Elite prompt compiled", duration: 80 },
-        { id: "visual_weight", label: "視覺權重計算", status: "completed", detail: "weight: 0.5", duration: 30 },
-        { id: "generation", label: "AI 生成", status: "completed", detail: "image generated", duration: 5000 },
-        { id: "history_save", label: "歷史保存", status: "completed", detail: "saved", duration: 50 },
+        {
+          id: "safety_check",
+          label: "安全檢查",
+          status: "completed",
+          detail: "內容安全",
+          duration: 120,
+        },
+        {
+          id: "prompt_compile",
+          label: "提示詞編譯",
+          status: "completed",
+          detail: "Elite prompt compiled",
+          duration: 80,
+        },
+        {
+          id: "visual_weight",
+          label: "視覺權重計算",
+          status: "completed",
+          detail: "weight: 0.5",
+          duration: 30,
+        },
+        {
+          id: "generation",
+          label: "AI 生成",
+          status: "completed",
+          detail: "image generated",
+          duration: 5000,
+        },
+        {
+          id: "history_save",
+          label: "歷史保存",
+          status: "completed",
+          detail: "saved",
+          duration: 50,
+        },
       ];
       expect(sampleNodes.length).toBe(5);
-      sampleNodes.forEach((node) => {
+      sampleNodes.forEach(node => {
         expect(node).toHaveProperty("id");
         expect(node).toHaveProperty("label");
         expect(node).toHaveProperty("status");
-        expect(["pending", "active", "completed", "error"]).toContain(node.status);
+        expect(["pending", "active", "completed", "error"]).toContain(
+          node.status
+        );
         expect(typeof node.duration).toBe("number");
       });
     });
@@ -86,7 +120,8 @@ describe("Phase 3-A: Branding & Visual", () => {
       const caller = appRouter.createCaller(ctx);
       try {
         const result = await caller.evaluate.prompt({
-          prompt: "一隻貓在窗台上曬太陽，午後金色光線灑落，背景是模糊的城市天際線",
+          prompt:
+            "一隻貓在窗台上曬太陽，午後金色光線灑落，背景是模糊的城市天際線",
           modality: "image",
         });
         expect(result).toHaveProperty("score");
@@ -221,7 +256,7 @@ describe("Phase 3-A: Branding & Visual", () => {
     it("should define three valid states for VisualSoul", () => {
       const validStates = ["idle", "thinking", "generating"];
       expect(validStates).toHaveLength(3);
-      validStates.forEach((state) => {
+      validStates.forEach(state => {
         expect(typeof state).toBe("string");
         expect(["idle", "thinking", "generating"]).toContain(state);
       });
@@ -234,11 +269,19 @@ describe("Phase 3-A: Branding & Visual", () => {
         { from: "idle", to: "thinking", trigger: "director.chat" },
         { from: "thinking", to: "idle", trigger: "director.chat.success" },
         { from: "idle", to: "generating", trigger: "generate.multimodal" },
-        { from: "generating", to: "idle", trigger: "generate.multimodal.success" },
-        { from: "generating", to: "idle", trigger: "generate.multimodal.error" },
+        {
+          from: "generating",
+          to: "idle",
+          trigger: "generate.multimodal.success",
+        },
+        {
+          from: "generating",
+          to: "idle",
+          trigger: "generate.multimodal.error",
+        },
       ];
       expect(transitions).toHaveLength(5);
-      transitions.forEach((t) => {
+      transitions.forEach(t => {
         expect(["idle", "thinking", "generating"]).toContain(t.from);
         expect(["idle", "thinking", "generating"]).toContain(t.to);
       });
@@ -255,7 +298,9 @@ describe("Phase 3-A: Branding & Visual", () => {
       };
       expect(payload).toHaveProperty("prompt");
       expect(payload).toHaveProperty("generationType");
-      expect(["image", "video", "audio", "voice"]).toContain(payload.generationType);
+      expect(["image", "video", "audio", "voice"]).toContain(
+        payload.generationType
+      );
     });
 
     it("sendToStudio payload for image-to-video should include referenceImageUrl", () => {

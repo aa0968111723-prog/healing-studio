@@ -14,7 +14,12 @@
  */
 
 import { z } from "zod";
-import { protectedProcedure, publicProcedure, adminProcedure, router } from "../_core/trpc";
+import {
+  protectedProcedure,
+  publicProcedure,
+  adminProcedure,
+  router,
+} from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 
 // ─── 靜態種子文件資料 ─────────────────────────────────────────────────────────
@@ -32,19 +37,18 @@ export interface LearnDoc {
   category: DocCategory;
   title: string;
   summary: string;
-  content: string;        // Markdown content
+  content: string; // Markdown content
   tags: string[];
   difficulty: "beginner" | "intermediate" | "advanced";
   readingMinutes: number;
-  publishedAt: string;    // ISO date string
+  publishedAt: string; // ISO date string
   updatedAt: string;
   featured: boolean;
-  externalUrl?: string;   // If linking to external resource
+  externalUrl?: string; // If linking to external resource
   authorName?: string;
 }
 
 const SEED_DOCS: LearnDoc[] = [
-
   // ══════════════════════════════════════════════════════
   // 入門指南
   // ══════════════════════════════════════════════════════
@@ -277,7 +281,8 @@ LoRA 微調模型管理中心：
     id: "gs-003",
     category: "getting-started",
     title: "環境變數設定完整指南",
-    summary: "所有必要和可選的環境變數完整說明，包含 Google OAuth、AI API Keys 和資料庫設定。",
+    summary:
+      "所有必要和可選的環境變數完整說明，包含 Google OAuth、AI API Keys 和資料庫設定。",
     content: `# 環境變數設定完整指南
 
 ## 必要環境變數（核心平台）
@@ -366,7 +371,8 @@ cp .env.example .env
     id: "gs-004",
     category: "getting-started",
     title: "Google OAuth 2.0 登入設定教學",
-    summary: "設定 Google OAuth 讓用戶可以用 Google 帳號登入 Healing Studio，以及 Demo 模式的使用方法。",
+    summary:
+      "設定 Google OAuth 讓用戶可以用 Google 帳號登入 Healing Studio，以及 Demo 模式的使用方法。",
     content: `# Google OAuth 2.0 登入設定
 
 ## 登入系統架構
@@ -446,7 +452,8 @@ getDemoLoginUrl() // 返回 /api/oauth/demo/start
     id: "mg-001",
     category: "model-guide",
     title: "影片工作室全模型完整目錄（21 個模型）",
-    summary: "影片工作室所有 21 個 fal.ai 模型的詳細說明，包含參數、適用場景和費率。",
+    summary:
+      "影片工作室所有 21 個 fal.ai 模型的詳細說明，包含參數、適用場景和費率。",
     content: `# 影片工作室全模型完整目錄
 
 ## 📹 文生影（Text-to-Video，T2V）
@@ -577,7 +584,16 @@ getDemoLoginUrl() // 返回 /api/oauth/demo/start
 - **FAL 模型：** \`fal-ai/vidu/q1/reference-to-video\`
 - **特點：** 多參考圖融合生成，角色一致性強
 `,
-    tags: ["影片生成", "Kling", "Wan", "Runway", "Veo 3", "Sora", "fal.ai", "模型目錄"],
+    tags: [
+      "影片生成",
+      "Kling",
+      "Wan",
+      "Runway",
+      "Veo 3",
+      "Sora",
+      "fal.ai",
+      "模型目錄",
+    ],
     difficulty: "intermediate",
     readingMinutes: 12,
     publishedAt: "2026-04-05T00:00:00Z",
@@ -590,7 +606,8 @@ getDemoLoginUrl() // 返回 /api/oauth/demo/start
     id: "mg-002",
     category: "model-guide",
     title: "圖片創作室全模型完整目錄（23 個模型）",
-    summary: "圖片創作室所有 23 種模型的詳細說明，包含文字生圖、圖片編輯、3D 建模等完整分類。",
+    summary:
+      "圖片創作室所有 23 種模型的詳細說明，包含文字生圖、圖片編輯、3D 建模等完整分類。",
     content: `# 圖片創作室全模型完整目錄
 
 ## 📸 文字生圖（Text-to-Image）
@@ -724,7 +741,15 @@ getDemoLoginUrl() // 返回 /api/oauth/demo/start
 - **FAL 模型：** \`fal-ai/hunyuan_world/image-to-world\`
 - **特點：** 將單張圖片擴展為完整 3D 世界場景
 `,
-    tags: ["圖片生成", "Flux", "GPT Image", "Seedream", "ControlNet", "3D 建模", "模型目錄"],
+    tags: [
+      "圖片生成",
+      "Flux",
+      "GPT Image",
+      "Seedream",
+      "ControlNet",
+      "3D 建模",
+      "模型目錄",
+    ],
     difficulty: "intermediate",
     readingMinutes: 12,
     publishedAt: "2026-04-06T00:00:00Z",
@@ -737,7 +762,8 @@ getDemoLoginUrl() // 返回 /api/oauth/demo/start
     id: "mg-003",
     category: "model-guide",
     title: "音樂配音創作室完整功能說明（20+ 工具）",
-    summary: "專業創作室所有功能的完整說明，包含 TTS、音樂生成、聲音克隆、說話頭像等。",
+    summary:
+      "專業創作室所有功能的完整說明，包含 TTS、音樂生成、聲音克隆、說話頭像等。",
     content: `# 音樂配音創作室完整功能說明
 
 ## 🎵 文字生音樂
@@ -854,7 +880,15 @@ getDemoLoginUrl() // 返回 /api/oauth/demo/start
 - \`trpc.proStudio.jobStatus\`：查詢任務狀態（pending/processing/completed/failed）
 - \`trpc.proStudio.checkApiKey\`：確認 API Key 是否設定
 `,
-    tags: ["TTS", "音樂生成", "聲音克隆", "說話頭像", "Demucs", "ElevenLabs", "音訊分離"],
+    tags: [
+      "TTS",
+      "音樂生成",
+      "聲音克隆",
+      "說話頭像",
+      "Demucs",
+      "ElevenLabs",
+      "音訊分離",
+    ],
     difficulty: "intermediate",
     readingMinutes: 14,
     publishedAt: "2026-04-07T00:00:00Z",
@@ -867,7 +901,8 @@ getDemoLoginUrl() // 返回 /api/oauth/demo/start
     id: "mg-004",
     category: "model-guide",
     title: "AI Brain 配置系統：5 大引擎維度詳細說明",
-    summary: "了解 AI Brain 的 5 個維度配置，以及如何根據需求選擇最適合的 LLM 引擎組合。",
+    summary:
+      "了解 AI Brain 的 5 個維度配置，以及如何根據需求選擇最適合的 LLM 引擎組合。",
     content: `# AI Brain 配置系統
 
 ## 什麼是 AI Brain？
@@ -961,7 +996,8 @@ AI Brain 是 Healing Studio 的智能核心配置，讓你為平台的不同 AI 
     id: "api-001",
     category: "api-docs",
     title: "tRPC API 完整端點目錄（100+ 端點）",
-    summary: "Healing Studio 所有 tRPC API 端點的完整文件，包含輸入參數、回傳值和使用範例。",
+    summary:
+      "Healing Studio 所有 tRPC API 端點的完整文件，包含輸入參數、回傳值和使用範例。",
     content: `# tRPC API 完整端點目錄
 
 ## 架構說明
@@ -1179,7 +1215,8 @@ Healing Studio 使用 **tRPC v10** 作為 API 層，前後端共享型別，無�
     id: "api-002",
     category: "api-docs",
     title: "資料庫 Schema 完整說明（15 張資料表）",
-    summary: "Healing Studio 所有資料庫資料表的詳細欄位說明，以 MySQL + Drizzle ORM 實作。",
+    summary:
+      "Healing Studio 所有資料庫資料表的詳細欄位說明，以 MySQL + Drizzle ORM 實作。",
     content: `# 資料庫 Schema 完整說明
 
 ## 技術棧
@@ -1424,7 +1461,8 @@ npx drizzle-kit introspect:mysql
     id: "api-003",
     category: "api-docs",
     title: "fal.ai API 架構與最佳實踐",
-    summary: "了解 fal.ai API 的 Queue 架構、認證、代理下載白名單和錯誤處理，快速整合 AI 模型。",
+    summary:
+      "了解 fal.ai API 的 Queue 架構、認證、代理下載白名單和錯誤處理，快速整合 AI 模型。",
     content: `# fal.ai API 架構與最佳實踐
 
 ## API 架構
@@ -1552,7 +1590,8 @@ NOT_FOUND             // 找不到資源
     id: "tech-001",
     category: "technique",
     title: "提詞工程（Prompt Engineering）完全指南",
-    summary: "掌握提詞技術，讓你的 AI 生成效果提升 10 倍。從基礎到進階的完整教學。",
+    summary:
+      "掌握提詞技術，讓你的 AI 生成效果提升 10 倍。從基礎到進階的完整教學。",
     content: `# 提詞工程完全指南
 
 ## 提詞的基本結構
@@ -1762,7 +1801,8 @@ trpc.generate.multimodal.mutate({
     id: "tech-003",
     category: "technique",
     title: "ControlNet 進階控制：OpenPose、Canny、Depth 完全教學",
-    summary: "使用 ControlNet 精確控制圖片的姿勢、構圖和風格，讓 AI 按你的要求生成。",
+    summary:
+      "使用 ControlNet 精確控制圖片的姿勢、構圖和風格，讓 AI 按你的要求生成。",
     content: `# ControlNet 進階控制教學
 
 ## 什麼是 ControlNet？
@@ -1851,7 +1891,8 @@ ControlNet 是一種讓你精確控制 AI 生成結果的技術。透過提供�
     id: "tech-004",
     category: "technique",
     title: "LoRA 模型訓練：角色鍛造所完整教學",
-    summary: "從上傳訓練資料到取得可用的 LoRA 模型，完整說明角色鍛造所的訓練流程。",
+    summary:
+      "從上傳訓練資料到取得可用的 LoRA 模型，完整說明角色鍛造所的訓練流程。",
     content: `# LoRA 模型訓練完整教學
 
 ## 什麼是 LoRA？
@@ -1980,7 +2021,8 @@ REPLICATE_API_TOKEN=r8_your_token_here
     id: "wf-001",
     category: "workflow",
     title: "完整影片創作流程：從概念到成品",
-    summary: "從創意發想到最終影片輸出，使用 Healing Studio 完成一個完整影片創作項目的全流程指引。",
+    summary:
+      "從創意發想到最終影片輸出，使用 Healing Studio 完成一個完整影片創作項目的全流程指引。",
     content: `# 完整影片創作流程
 
 ## 全流程概覽（約 1.5 小時）
@@ -2113,7 +2155,8 @@ REPLICATE_API_TOKEN=r8_your_token_here
     id: "wf-002",
     category: "workflow",
     title: "圖片系列創作工作流程：保持角色一致性",
-    summary: "如何使用保險庫 + LoRA + 多圖參考的組合，在系列圖片中保持完美的角色一致性。",
+    summary:
+      "如何使用保險庫 + LoRA + 多圖參考的組合，在系列圖片中保持完美的角色一致性。",
     content: `# 圖片系列創作：角色一致性工作流程
 
 ## 適用場景
@@ -2224,7 +2267,8 @@ trpc.imageStudio.nanoBananaPro.mutate({
     id: "news-001",
     category: "ai-news",
     title: "Google Veo 3 發布：首個原生音頻影片模型",
-    summary: "Google 最新影片生成模型 Veo 3 支援原生音頻生成，生成的影片自帶配音和音效。",
+    summary:
+      "Google 最新影片生成模型 Veo 3 支援原生音頻生成，生成的影片自帶配音和音效。",
     content: `# Google Veo 3 發布
 
 ## 重大突破：原生音頻生成
@@ -2321,7 +2365,8 @@ Kling v2.1 對中文提詞的理解能力大幅提升，更能準確抓住中文
     id: "news-003",
     category: "ai-news",
     title: "3D 建模新世代：Trellis 2、HunYuan3D v3、Rodin 全面整合",
-    summary: "Healing Studio 圖片創作室整合 5 種最新 3D 建模模型，從單張圖片生成電影級 3D 模型。",
+    summary:
+      "Healing Studio 圖片創作室整合 5 種最新 3D 建模模型，從單張圖片生成電影級 3D 模型。",
     content: `# 3D 建模新世代
 
 ## Healing Studio 整合的 5 種 3D 模型
@@ -2392,7 +2437,8 @@ Kling v2.1 對中文提詞的理解能力大幅提升，更能準確抓住中文
     id: "gs-005",
     category: "getting-started",
     title: "全站關鍵元件說明：光球夥伴、視覺靈魂、思維島鏈",
-    summary: "Healing Studio 獨特的 UI/UX 元件完整說明，包含光球夥伴、生成進度動畫、環境音效系統。",
+    summary:
+      "Healing Studio 獨特的 UI/UX 元件完整說明，包含光球夥伴、生成進度動畫、環境音效系統。",
     content: `# 全站關鍵元件說明
 
 ## 🔮 光球夥伴（ProactiveOrbWidget）
@@ -2509,7 +2555,8 @@ Kling v2.1 對中文提詞的理解能力大幅提升，更能準確抓住中文
     id: "wf-003",
     category: "workflow",
     title: "首頁精選展示系統：如何提交和管理精選作品",
-    summary: "了解首頁精選（ShowcaseMasonry）的完整運作機制，以及如何將你的最佳作品展示給所有訪客。",
+    summary:
+      "了解首頁精選（ShowcaseMasonry）的完整運作機制，以及如何將你的最佳作品展示給所有訪客。",
     content: `# 首頁精選展示系統
 
 ## 什麼是首頁精選？
@@ -2629,7 +2676,8 @@ Kling v2.1 對中文提詞的理解能力大幅提升，更能準確抓住中文
     id: "api-004",
     category: "api-docs",
     title: "部署指南：Railway + Google Cloud 完整步驟",
-    summary: "從零到一部署 Healing Studio 到生產環境，包含資料庫、Google OAuth、FAL API 等完整設定步驟。",
+    summary:
+      "從零到一部署 Healing Studio 到生產環境，包含資料庫、Google OAuth、FAL API 等完整設定步驟。",
     content: `# 部署指南：Railway + Google Cloud
 
 ## 技術棧概覽
@@ -2781,7 +2829,8 @@ http://localhost:3000/api/oauth/callback  (開發用)
     id: "mg-full-models",
     category: "model-guide",
     title: "全模型完整對照表：圖片 / 影片 / 音頻 / 語音 / 3D",
-    summary: "Healing Studio 所有 AI 生成模型的完整規格對照，包含點數費用、等級、特點與最佳使用場景。",
+    summary:
+      "Healing Studio 所有 AI 生成模型的完整規格對照，包含點數費用、等級、特點與最佳使用場景。",
     content: `# 全模型完整對照表
 
 本文件列出 Healing Studio 平台上所有可用的 AI 生成模型，幫助你選擇最適合的模型。
@@ -2946,7 +2995,8 @@ http://localhost:3000/api/oauth/callback  (開發用)
     id: "wf-full-workflows",
     category: "workflow",
     title: "五大創作工作流程完整指南",
-    summary: "從影片製作到品牌內容，詳解五種核心工作流程，教你如何串聯各工作室完成專案。",
+    summary:
+      "從影片製作到品牌內容，詳解五種核心工作流程，教你如何串聯各工作室完成專案。",
     content: `# 五大創作工作流程完整指南
 
 學會這五種工作流程，你就能充分利用 Healing Studio 的所有功能。
@@ -3137,7 +3187,8 @@ http://localhost:3000/api/oauth/callback  (開發用)
     id: "gs-full-sitemap",
     category: "getting-started",
     title: "全站功能地圖：21 個頁面完整介紹",
-    summary: "Healing Studio 所有頁面功能的完整索引，從創作工作室到管理後台一覽無遺。",
+    summary:
+      "Healing Studio 所有頁面功能的完整索引，從創作工作室到管理後台一覽無遺。",
     content: `# 全站功能地圖
 
 Healing Studio 包含 21 個功能頁面，涵蓋創作、管理、協作、學習的完整生態系。
@@ -3310,7 +3361,8 @@ Bug 回報、功能建議。
     id: "tech-prompt-mastery",
     category: "technique",
     title: "提示詞大師班：四大模態的提示詞撰寫秘訣",
-    summary: "從圖片到語音，手把手教你寫出高品質的 AI 提示詞，附上大量實際範例。",
+    summary:
+      "從圖片到語音，手把手教你寫出高品質的 AI 提示詞，附上大量實際範例。",
     content: `# 提示詞大師班
 
 掌握提示詞是使用 AI 生成工具最重要的技能。本文涵蓋四大模態的提示詞撰寫技巧。
@@ -3456,7 +3508,8 @@ Bug 回報、功能建議。
     id: "deep-director",
     category: "technique",
     title: "導演 AI 深度指南：CO-STAR 框架、雙引擎 RAG 與人格系統",
-    summary: "深入了解導演 AI 的雙引擎架構、三種人格模式、CO-STAR 腳本框架，以及如何用它規劃完整的多模態創作專案。",
+    summary:
+      "深入了解導演 AI 的雙引擎架構、三種人格模式、CO-STAR 腳本框架，以及如何用它規劃完整的多模態創作專案。",
     content: `# 導演 AI 深度指南
 
 ## 系統架構概覽
@@ -3629,7 +3682,8 @@ CO-STAR 是導演 AI 輸出的結構化腳本格式：
     id: "deep-dashboard",
     category: "getting-started",
     title: "儀表板與數據分析完整教學",
-    summary: "了解如何使用儀表板追蹤你的創作數據，包含配額管理、成本分析、每日趨勢和模態分佈圖表。",
+    summary:
+      "了解如何使用儀表板追蹤你的創作數據，包含配額管理、成本分析、每日趨勢和模態分佈圖表。",
     content: `# 儀表板與數據分析完整教學
 
 ## 進入儀表板
@@ -3732,7 +3786,8 @@ CO-STAR 是導演 AI 輸出的結構化腳本格式：
     id: "deep-focus-flow",
     category: "getting-started",
     title: "專注流完整教學：番茄鐘 × 療癒呼吸 × 想法捕捉",
-    summary: "Healing Studio 獨有的身心靈功能，結合番茄鐘工作法、4-7-8 引導式呼吸和靈感碎片捕捉。",
+    summary:
+      "Healing Studio 獨有的身心靈功能，結合番茄鐘工作法、4-7-8 引導式呼吸和靈感碎片捕捉。",
     content: `# 專注流完整教學
 
 ## 什麼是專注流？
@@ -3868,7 +3923,8 @@ CO-STAR 是導演 AI 輸出的結構化腳本格式：
     id: "deep-assets",
     category: "getting-started",
     title: "數位資產庫完整教學：上傳、管理與分享你的創作素材",
-    summary: "學會使用數位資產庫統一管理所有圖片、影片、音訊、語音和腳本檔案，支援團隊共享和批量管理。",
+    summary:
+      "學會使用數位資產庫統一管理所有圖片、影片、音訊、語音和腳本檔案，支援團隊共享和批量管理。",
     content: `# 數位資產庫完整教學
 
 ## 什麼是數位資產庫？
@@ -3986,7 +4042,8 @@ CO-STAR 是導演 AI 輸出的結構化腳本格式：
     id: "deep-shared",
     category: "workflow",
     title: "團隊協作完整指南：共享空間、資產分享與協作最佳實踐",
-    summary: "了解如何使用共享空間進行團隊協作，包含資產共享、模型共享、貢獻統計和協作策略。",
+    summary:
+      "了解如何使用共享空間進行團隊協作，包含資產共享、模型共享、貢獻統計和協作策略。",
     content: `# 團隊協作完整指南
 
 ## 共享空間概覽
@@ -4102,7 +4159,8 @@ CO-STAR 是導演 AI 輸出的結構化腳本格式：
     id: "deep-notes-calendar",
     category: "getting-started",
     title: "專案筆記與創作排程完整教學",
-    summary: "使用專案筆記記錄創作靈感和腳本，搭配創作排程日曆管理專案時程，支援 Google Calendar 整合。",
+    summary:
+      "使用專案筆記記錄創作靈感和腳本，搭配創作排程日曆管理專案時程，支援 Google Calendar 整合。",
     content: `# 專案筆記與創作排程完整教學
 
 ## 專案筆記（/notes）
@@ -4212,7 +4270,8 @@ CO-STAR 是導演 AI 輸出的結構化腳本格式：
     id: "deep-admin",
     category: "api-docs",
     title: "管理員後台完整教學：用戶管理、系統監控與回饋處理",
-    summary: "管理員專屬的完整操作指南，包含用戶配額管理、系統統計、API 健康狀態監控和回饋報告處理。",
+    summary:
+      "管理員專屬的完整操作指南，包含用戶配額管理、系統統計、API 健康狀態監控和回饋報告處理。",
     content: `# 管理員後台完整教學
 
 ## 存取條件
@@ -4343,7 +4402,8 @@ CO-STAR 是導演 AI 輸出的結構化腳本格式：
     id: "deep-lora-trainer",
     category: "model-guide",
     title: "LoRA 訓練中心深度教學：六種模型類型與進階訓練參數",
-    summary: "深入了解 LoRA 訓練中心的四步驟精靈、六種訓練類型、雙引擎架構和進階超參數調整。",
+    summary:
+      "深入了解 LoRA 訓練中心的四步驟精靈、六種訓練類型、雙引擎架構和進階超參數調整。",
     content: `# LoRA 訓練中心深度教學
 
 ## 概覽
@@ -4494,7 +4554,8 @@ LoRA 訓練中心（/lora-trainer）是 Healing Studio 的進階模型微調系�
     id: "deep-voice-avatar",
     category: "technique",
     title: "聲音克隆與說話頭像完整教學",
-    summary: "從聲音樣本克隆到生成說話頭像影片，完整教你使用 Qwen、Dia TTS、EchoMimic 和 Stable Avatar 等工具。",
+    summary:
+      "從聲音樣本克隆到生成說話頭像影片，完整教你使用 Qwen、Dia TTS、EchoMimic 和 Stable Avatar 等工具。",
     content: `# 聲音克隆與說話頭像完整教學
 
 ## 第一部分：聲音克隆
@@ -4620,7 +4681,8 @@ LoRA 訓練中心（/lora-trainer）是 Healing Studio 的進階模型微調系�
     id: "deep-3d-modeling",
     category: "technique",
     title: "3D 建模深度教學：從單張圖片到完整 3D 世界",
-    summary: "深入了解 Healing Studio 的 5 種 3D 建模工具，從物件重建到世界場景生成的完整教學。",
+    summary:
+      "深入了解 Healing Studio 的 5 種 3D 建模工具，從物件重建到世界場景生成的完整教學。",
     content: `# 3D 建模深度教學
 
 ## 概覽
@@ -4808,7 +4870,8 @@ Healing Studio 圖片創作室整合了 5 種最先進的 3D 建模 AI 模型，
     id: "deep-cross-modal",
     category: "technique",
     title: "跨模態工作流串聯：圖 × 影 × 音 × 聲的進階組合技",
-    summary: "深入學習如何串聯圖片、影片、音訊和語音四大模態，打造完整的多媒體作品。",
+    summary:
+      "深入學習如何串聯圖片、影片、音訊和語音四大模態，打造完整的多媒體作品。",
     content: `# 跨模態工作流串聯
 
 ## 什麼是跨模態串聯？
@@ -4963,7 +5026,8 @@ Healing Studio 的四大工作室（創作、圖片、影片、音樂配音）�
     id: "deep-langsmith",
     category: "api-docs",
     title: "AI 監控中心（LangSmith）完整教學：追蹤、比較與微調",
-    summary: "了解如何使用 LangSmith 監控 AI 行為、追蹤 LLM 調用鏈、比較模型效能和匯出微調資料。",
+    summary:
+      "了解如何使用 LangSmith 監控 AI 行為、追蹤 LLM 調用鏈、比較模型效能和匯出微調資料。",
     content: `# AI 監控中心完整教學
 
 ## 什麼是 AI 監控中心？
@@ -5089,7 +5153,8 @@ AI 監控中心（/langsmith）是 Healing Studio 整合 LangSmith 的進階 AI 
     id: "deep-cost-optimization",
     category: "technique",
     title: "點數與費用優化完全策略",
-    summary: "學會如何以最少的點數獲得最佳的創作效果，包含模型選擇策略、漸進式生成和預算管理。",
+    summary:
+      "學會如何以最少的點數獲得最佳的創作效果，包含模型選擇策略、漸進式生成和預算管理。",
     content: `# 點數與費用優化完全策略
 
 ## 計費系統概覽
@@ -5240,7 +5305,8 @@ AI 監控中心（/langsmith）是 Healing Studio 整合 LangSmith 的進階 AI 
     id: "deep-faq",
     category: "getting-started",
     title: "常見問題與疑難排解（FAQ）",
-    summary: "彙整 Healing Studio 使用過程中最常遇到的問題和解決方案，涵蓋登入、生成、訓練和系統問題。",
+    summary:
+      "彙整 Healing Studio 使用過程中最常遇到的問題和解決方案，涵蓋登入、生成、訓練和系統問題。",
     content: `# 常見問題與疑難排解
 
 ## 登入相關
@@ -5390,7 +5456,8 @@ AI 監控中心（/langsmith）是 Healing Studio 整合 LangSmith 的進階 AI 
     id: "deep-security",
     category: "api-docs",
     title: "安全性與隱私保護說明",
-    summary: "Healing Studio 的安全架構說明，包含認證機制、API 限流、內容安全策略和資料保護措施。",
+    summary:
+      "Healing Studio 的安全架構說明，包含認證機制、API 限流、內容安全策略和資料保護措施。",
     content: `# 安全性與隱私保護說明
 
 ## 認證與授權
@@ -5534,7 +5601,8 @@ www.soundhelix.com (Demo)
     id: "deep-settings",
     category: "getting-started",
     title: "個人設定與 AI 大腦配置完整教學",
-    summary: "了解如何自訂導演 AI 偏好、調整 AI 大腦的 5 維度推理引擎和 4 種生成引擎配置。",
+    summary:
+      "了解如何自訂導演 AI 偏好、調整 AI 大腦的 5 維度推理引擎和 4 種生成引擎配置。",
     content: `# 個人設定與 AI 大腦配置完整教學
 
 ## 個人設定（/settings）
@@ -5661,7 +5729,8 @@ AI 大腦是 Healing Studio 的智能核心，讓你為不同功能指定最適�
     id: "gs-credits-system",
     category: "getting-started",
     title: "積分加扣分機制完整說明",
-    summary: "詳細說明 Healing Studio 的積分系統，包含取得方式、扣除規則、退還機制與各模型費率表。本平台不使用信用卡或真實金錢，所有操作皆以平台積分計費。",
+    summary:
+      "詳細說明 Healing Studio 的積分系統，包含取得方式、扣除規則、退還機制與各模型費率表。本平台不使用信用卡或真實金錢，所有操作皆以平台積分計費。",
     content: `# 🎯 積分加扣分機制完整說明
 
 > **重要聲明：** Healing Studio 平台 **不使用信用卡或任何真實金錢**。所有生成操作均以「平台積分（Points）」計費，積分由平台免費發放與獎勵，無需任何付費。
@@ -5875,7 +5944,6 @@ A: 側邊欄下方的「剩餘配額」卡片即可即時查看，也可前往�
     featured: true,
     authorName: "Healing Studio Team",
   },
-
 ];
 
 // ─── In-memory store（後端無 DB 表時使用） ────────────────────────────────
@@ -5890,7 +5958,7 @@ export function addLearnDoc(doc: LearnDoc): void {
   docs.unshift(doc);
 }
 export function hasLearnDoc(id: string): boolean {
-  return docs.some((d) => d.id === id);
+  return docs.some(d => d.id === id);
 }
 export function getLearnDocCount(): number {
   return docs.length;
@@ -5899,17 +5967,18 @@ export function getLearnDocCount(): number {
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 export const learnHubRouter = router({
-
   /** 列出所有文件（支援分類篩選、搜尋、精選篩選） */
   list: publicProcedure
-    .input(z.object({
-      category:    z.string().optional(),
-      search:      z.string().optional(),
-      featured:    z.boolean().optional(),
-      difficulty:  z.enum(["beginner", "intermediate", "advanced"]).optional(),
-      limit:       z.number().min(1).max(100).default(50),
-      offset:      z.number().min(0).default(0),
-    }))
+    .input(
+      z.object({
+        category: z.string().optional(),
+        search: z.string().optional(),
+        featured: z.boolean().optional(),
+        difficulty: z.enum(["beginner", "intermediate", "advanced"]).optional(),
+        limit: z.number().min(1).max(100).default(50),
+        offset: z.number().min(0).default(0),
+      })
+    )
     .query(({ input }) => {
       let result = [...docs];
 
@@ -5924,10 +5993,11 @@ export const learnHubRouter = router({
       }
       if (input.search) {
         const q = input.search.toLowerCase();
-        result = result.filter(d =>
-          d.title.toLowerCase().includes(q) ||
-          d.summary.toLowerCase().includes(q) ||
-          d.tags.some(t => t.toLowerCase().includes(q))
+        result = result.filter(
+          d =>
+            d.title.toLowerCase().includes(q) ||
+            d.summary.toLowerCase().includes(q) ||
+            d.tags.some(t => t.toLowerCase().includes(q))
         );
       }
 
@@ -5935,7 +6005,9 @@ export const learnHubRouter = router({
       result.sort((a, b) => {
         if (a.featured && !b.featured) return -1;
         if (!a.featured && b.featured) return 1;
-        return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
+        return (
+          new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
+        );
       });
 
       const total = result.length;
@@ -5949,7 +6021,8 @@ export const learnHubRouter = router({
     .input(z.object({ id: z.string() }))
     .query(({ input }) => {
       const doc = docs.find(d => d.id === input.id);
-      if (!doc) throw new TRPCError({ code: "NOT_FOUND", message: "文件不存在" });
+      if (!doc)
+        throw new TRPCError({ code: "NOT_FOUND", message: "文件不存在" });
       return doc;
     }),
 
@@ -5964,18 +6037,29 @@ export const learnHubRouter = router({
 
   /** 管理員：新增文件 */
   create: adminProcedure
-    .input(z.object({
-      category:      z.enum(["getting-started", "model-guide", "api-docs", "technique", "ai-news", "workflow"]),
-      title:         z.string().min(1).max(200),
-      summary:       z.string().min(1).max(500),
-      content:       z.string().min(1),
-      tags:          z.array(z.string()).default([]),
-      difficulty:    z.enum(["beginner", "intermediate", "advanced"]).default("beginner"),
-      readingMinutes: z.number().min(1).max(120).default(5),
-      featured:      z.boolean().default(false),
-      externalUrl:   z.string().url().optional(),
-      authorName:    z.string().max(100).optional(),
-    }))
+    .input(
+      z.object({
+        category: z.enum([
+          "getting-started",
+          "model-guide",
+          "api-docs",
+          "technique",
+          "ai-news",
+          "workflow",
+        ]),
+        title: z.string().min(1).max(200),
+        summary: z.string().min(1).max(500),
+        content: z.string().min(1),
+        tags: z.array(z.string()).default([]),
+        difficulty: z
+          .enum(["beginner", "intermediate", "advanced"])
+          .default("beginner"),
+        readingMinutes: z.number().min(1).max(120).default(5),
+        featured: z.boolean().default(false),
+        externalUrl: z.string().url().optional(),
+        authorName: z.string().max(100).optional(),
+      })
+    )
     .mutation(({ input }) => {
       const now = new Date().toISOString();
       const newDoc: LearnDoc = {
@@ -5990,22 +6074,38 @@ export const learnHubRouter = router({
 
   /** 管理員：更新文件 */
   update: adminProcedure
-    .input(z.object({
-      id:      z.string(),
-      title:   z.string().min(1).max(200).optional(),
-      summary: z.string().min(1).max(500).optional(),
-      content: z.string().min(1).optional(),
-      tags:    z.array(z.string()).optional(),
-      featured: z.boolean().optional(),
-      category: z.enum(["getting-started", "model-guide", "api-docs", "technique", "ai-news", "workflow"]).optional(),
-      difficulty: z.enum(["beginner", "intermediate", "advanced"]).optional(),
-      readingMinutes: z.number().min(1).max(120).optional(),
-    }))
+    .input(
+      z.object({
+        id: z.string(),
+        title: z.string().min(1).max(200).optional(),
+        summary: z.string().min(1).max(500).optional(),
+        content: z.string().min(1).optional(),
+        tags: z.array(z.string()).optional(),
+        featured: z.boolean().optional(),
+        category: z
+          .enum([
+            "getting-started",
+            "model-guide",
+            "api-docs",
+            "technique",
+            "ai-news",
+            "workflow",
+          ])
+          .optional(),
+        difficulty: z.enum(["beginner", "intermediate", "advanced"]).optional(),
+        readingMinutes: z.number().min(1).max(120).optional(),
+      })
+    )
     .mutation(({ input }) => {
       const idx = docs.findIndex(d => d.id === input.id);
-      if (idx === -1) throw new TRPCError({ code: "NOT_FOUND", message: "文件不存在" });
+      if (idx === -1)
+        throw new TRPCError({ code: "NOT_FOUND", message: "文件不存在" });
       const { id, ...updates } = input;
-      docs[idx] = { ...docs[idx], ...updates, updatedAt: new Date().toISOString() };
+      docs[idx] = {
+        ...docs[idx],
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      };
       return docs[idx];
     }),
 
@@ -6014,7 +6114,8 @@ export const learnHubRouter = router({
     .input(z.object({ id: z.string() }))
     .mutation(({ input }) => {
       const idx = docs.findIndex(d => d.id === input.id);
-      if (idx === -1) throw new TRPCError({ code: "NOT_FOUND", message: "文件不存在" });
+      if (idx === -1)
+        throw new TRPCError({ code: "NOT_FOUND", message: "文件不存在" });
       docs.splice(idx, 1);
       return { success: true };
     }),

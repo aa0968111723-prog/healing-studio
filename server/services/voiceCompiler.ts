@@ -53,7 +53,14 @@ export interface ScriptSegment {
   /** 段落文字 */
   text: string;
   /** 段落類型 */
-  type: "narration" | "dialogue" | "emphasis" | "whisper" | "exclamation" | "question" | "pause";
+  type:
+    | "narration"
+    | "dialogue"
+    | "emphasis"
+    | "whisper"
+    | "exclamation"
+    | "question"
+    | "pause";
   /** 情緒覆寫（可選，覆蓋全域情緒） */
   emotionOverride?: string;
 }
@@ -295,14 +302,38 @@ const EMOTION_KEYWORDS: Record<string, string[]> = {
   serene: ["平靜", "寧靜", "安詳", "calm", "serene", "peaceful", "tranquil"],
   warm: ["溫暖", "溫馨", "舒適", "warm", "cozy", "comfort"],
   dreamy: ["夢幻", "夢境", "如夢", "dreamy", "fantasy", "ethereal"],
-  joyful: ["歡樂", "快樂", "喜悅", "活力", "joy", "happy", "cheerful", "energetic"],
+  joyful: [
+    "歡樂",
+    "快樂",
+    "喜悅",
+    "活力",
+    "joy",
+    "happy",
+    "cheerful",
+    "energetic",
+  ],
   mystical: ["神秘", "深邃", "奧秘", "mysterious", "enigmatic", "dark"],
   melancholy: ["憂鬱", "悲傷", "哀愁", "sad", "melancholy", "sorrow", "grief"],
   dramatic: ["戲劇", "震撼", "壯闘", "dramatic", "intense", "powerful", "epic"],
   tender: ["柔情", "溫柔", "親密", "tender", "gentle", "intimate", "soft"],
   anxious: ["焦慮", "緊張", "不安", "anxious", "nervous", "tense", "urgent"],
-  contemplative: ["沉思", "思考", "冥想", "thoughtful", "contemplative", "meditative"],
-  hopeful: ["希望", "光明", "期待", "hopeful", "optimistic", "bright", "promising"],
+  contemplative: [
+    "沉思",
+    "思考",
+    "冥想",
+    "thoughtful",
+    "contemplative",
+    "meditative",
+  ],
+  hopeful: [
+    "希望",
+    "光明",
+    "期待",
+    "hopeful",
+    "optimistic",
+    "bright",
+    "promising",
+  ],
   nature: ["自然", "森林", "海洋", "nature", "forest", "ocean", "earth"],
   vintage: ["復古", "懷舊", "經典", "vintage", "retro", "classic", "nostalgic"],
   minimal: ["極簡", "簡約", "純粹", "minimal", "simple", "clean", "pure"],
@@ -359,16 +390,19 @@ const EXCLAMATION_PATTERN = /[！!]+/;
 /** 疑問句 */
 const QUESTION_PATTERN = /[？?]+/;
 
-function splitIntoSegments(text: string, customBreakpoints?: string[]): ScriptSegment[] {
+function splitIntoSegments(
+  text: string,
+  customBreakpoints?: string[]
+): ScriptSegment[] {
   const segments: ScriptSegment[] = [];
-  
+
   // Step 1: 按段落分割
   const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim());
 
   for (const paragraph of paragraphs) {
     // Step 2: 先保護引號內容不被拆分
     const quoteProtected: Array<{ placeholder: string; original: string }> = [];
-    let protectedText = paragraph.replace(/[「『"](.*?)[」』"]/g, (match) => {
+    let protectedText = paragraph.replace(/[「『"](.*?)[」』"]/g, match => {
       const placeholder = `__QUOTE_${quoteProtected.length}__`;
       quoteProtected.push({ placeholder, original: match });
       return placeholder;
@@ -414,7 +448,9 @@ function splitIntoSegments(text: string, customBreakpoints?: string[]): ScriptSe
       // 檢查自訂斷點
       if (customBreakpoints?.some(bp => trimmed.includes(bp))) {
         // 在自訂斷點處插入 pause 段落
-        const parts = trimmed.split(new RegExp(`(${customBreakpoints.map(escapeRegex).join("|")})`));
+        const parts = trimmed.split(
+          new RegExp(`(${customBreakpoints.map(escapeRegex).join("|")})`)
+        );
         for (let i = 0; i < parts.length; i++) {
           const part = parts[i].trim();
           if (!part) continue;
@@ -434,7 +470,10 @@ function splitIntoSegments(text: string, customBreakpoints?: string[]): ScriptSe
   }
 
   // 移除末尾多餘的 pause
-  while (segments.length > 0 && segments[segments.length - 1].type === "pause") {
+  while (
+    segments.length > 0 &&
+    segments[segments.length - 1].type === "pause"
+  ) {
     segments.pop();
   }
 
@@ -460,9 +499,12 @@ function escapeSSML(text: string): string {
 }
 
 /** 將引號內容包裹為 emphasis */
-function wrapEmphasis(text: string, level: EmotionProfile["emphasisLevel"]): string {
+function wrapEmphasis(
+  text: string,
+  level: EmotionProfile["emphasisLevel"]
+): string {
   if (level === "none") return escapeSSML(text);
-  
+
   return text.replace(EMPHASIS_PATTERN, (_, content) => {
     return `<emphasis level="${level}">${escapeSSML(content)}</emphasis>`;
   });
@@ -511,33 +553,45 @@ function compileSegment(
   switch (segment.type) {
     case "exclamation":
       // 感嘆句：提高音量和音高
-      return `<prosody rate="${profile.rate}" pitch="+15%" volume="loud">${content}</prosody>` +
-        `<break time="${profile.sentenceBreakMs}ms"/>`;
+      return (
+        `<prosody rate="${profile.rate}" pitch="+15%" volume="loud">${content}</prosody>` +
+        `<break time="${profile.sentenceBreakMs}ms"/>`
+      );
 
     case "question":
       // 疑問句：句末升調
-      return `<prosody rate="${profile.rate}" pitch="+10%" volume="${profile.volume}">${content}</prosody>` +
-        `<break time="${Math.round(profile.sentenceBreakMs * 1.2)}ms"/>`;
+      return (
+        `<prosody rate="${profile.rate}" pitch="+10%" volume="${profile.volume}">${content}</prosody>` +
+        `<break time="${Math.round(profile.sentenceBreakMs * 1.2)}ms"/>`
+      );
 
     case "whisper":
       // 耳語：降低音量和語速
-      return `<prosody rate="80%" pitch="-15%" volume="x-soft">${content}</prosody>` +
-        `<break time="${profile.sentenceBreakMs}ms"/>`;
+      return (
+        `<prosody rate="80%" pitch="-15%" volume="x-soft">${content}</prosody>` +
+        `<break time="${profile.sentenceBreakMs}ms"/>`
+      );
 
     case "emphasis":
       // 強調段：使用 emphasis 標籤已在 wrapEmphasis 處理
-      return `<prosody rate="${profile.rate}" pitch="${profile.pitch}" volume="${profile.volume}">${content}</prosody>` +
-        `<break time="${profile.sentenceBreakMs}ms"/>`;
+      return (
+        `<prosody rate="${profile.rate}" pitch="${profile.pitch}" volume="${profile.volume}">${content}</prosody>` +
+        `<break time="${profile.sentenceBreakMs}ms"/>`
+      );
 
     case "dialogue":
       // 對白：稍微加速，更自然
-      return `<prosody rate="105%" pitch="+3%" volume="${profile.volume}">${content}</prosody>` +
-        `<break time="${Math.round(profile.sentenceBreakMs * 0.8)}ms"/>`;
+      return (
+        `<prosody rate="105%" pitch="+3%" volume="${profile.volume}">${content}</prosody>` +
+        `<break time="${Math.round(profile.sentenceBreakMs * 0.8)}ms"/>`
+      );
 
     default:
       // 旁白/敘述：使用全域情緒設定
-      return `<prosody rate="${profile.rate}" pitch="${profile.pitch}" volume="${profile.volume}">${content}</prosody>` +
-        `<break time="${profile.sentenceBreakMs}ms"/>`;
+      return (
+        `<prosody rate="${profile.rate}" pitch="${profile.pitch}" volume="${profile.volume}">${content}</prosody>` +
+        `<break time="${profile.sentenceBreakMs}ms"/>`
+      );
   }
 }
 
@@ -550,14 +604,20 @@ export class VoiceCompiler {
    * 解析情緒設定檔
    * 優先順序：moodBlock.blockId → moodBlock.prompt 推導 → vibeCardIds → 預設
    */
-  resolveEmotion(input: VoiceCompilerInput): { profile: EmotionProfile; source: string } {
+  resolveEmotion(input: VoiceCompilerInput): {
+    profile: EmotionProfile;
+    source: string;
+  } {
     const log: string[] = [];
 
     // 1. 從 moodBlock.blockId 直接匹配
     if (input.moodBlock?.blockId) {
       const profile = EMOTION_PROFILES[input.moodBlock.blockId];
       if (profile) {
-        return { profile, source: `moodBlock.blockId: ${input.moodBlock.blockId}` };
+        return {
+          profile,
+          source: `moodBlock.blockId: ${input.moodBlock.blockId}`,
+        };
       }
     }
 
@@ -566,7 +626,10 @@ export class VoiceCompiler {
       const labelLower = input.moodBlock.label.toLowerCase();
       for (const [key, profile] of Object.entries(EMOTION_PROFILES)) {
         if (labelLower.includes(key) || labelLower.includes(profile.name)) {
-          return { profile, source: `moodBlock.label: ${input.moodBlock.label} → ${key}` };
+          return {
+            profile,
+            source: `moodBlock.label: ${input.moodBlock.label} → ${key}`,
+          };
         }
       }
     }
@@ -575,7 +638,10 @@ export class VoiceCompiler {
     if (input.moodBlock?.prompt) {
       const inferred = inferEmotionFromPrompt(input.moodBlock.prompt);
       if (inferred && EMOTION_PROFILES[inferred]) {
-        return { profile: EMOTION_PROFILES[inferred], source: `moodBlock.prompt inferred: ${inferred}` };
+        return {
+          profile: EMOTION_PROFILES[inferred],
+          source: `moodBlock.prompt inferred: ${inferred}`,
+        };
       }
     }
 
@@ -584,7 +650,10 @@ export class VoiceCompiler {
       for (const vibeId of input.vibeCardIds) {
         const emotionKey = VIBE_TO_EMOTION[vibeId];
         if (emotionKey && EMOTION_PROFILES[emotionKey]) {
-          return { profile: EMOTION_PROFILES[emotionKey], source: `vibeCard: ${vibeId} → ${emotionKey}` };
+          return {
+            profile: EMOTION_PROFILES[emotionKey],
+            source: `vibeCard: ${vibeId} → ${emotionKey}`,
+          };
         }
       }
     }
@@ -593,7 +662,10 @@ export class VoiceCompiler {
     if (input.script) {
       const inferred = inferEmotionFromPrompt(input.script);
       if (inferred && EMOTION_PROFILES[inferred]) {
-        return { profile: EMOTION_PROFILES[inferred], source: `script content inferred: ${inferred}` };
+        return {
+          profile: EMOTION_PROFILES[inferred],
+          source: `script content inferred: ${inferred}`,
+        };
       }
     }
 
@@ -612,7 +684,9 @@ export class VoiceCompiler {
 
     // Step 1: 解析情緒
     const { profile, source } = this.resolveEmotion(input);
-    compilationLog.push(`[VoiceCompiler] 🎭 情緒解析: ${profile.name} (${source})`);
+    compilationLog.push(
+      `[VoiceCompiler] 🎭 情緒解析: ${profile.name} (${source})`
+    );
 
     // Step 2: 應用語速覆寫
     const effectiveProfile = { ...profile };
@@ -630,7 +704,11 @@ export class VoiceCompiler {
     let breakCount = 0;
 
     for (const segment of segments) {
-      const compiled = compileSegment(segment, effectiveProfile, enableHesitation);
+      const compiled = compileSegment(
+        segment,
+        effectiveProfile,
+        enableHesitation
+      );
       ssmlParts.push(compiled);
 
       // 計算 break 數量
@@ -642,7 +720,9 @@ export class VoiceCompiler {
     const innerSSML = ssmlParts.join("\n");
     const ssml = `<speak>\n${innerSSML}\n</speak>`;
 
-    compilationLog.push(`[VoiceCompiler] 🔧 SSML 編譯完成: ${breakCount} 個停頓點`);
+    compilationLog.push(
+      `[VoiceCompiler] 🔧 SSML 編譯完成: ${breakCount} 個停頓點`
+    );
 
     // Step 6: 計算純文字和預估時長
     const plainText = input.script;
@@ -655,9 +735,13 @@ export class VoiceCompiler {
       if (seg.type === "pause") return sum + effectiveProfile.paragraphBreakMs;
       return sum + effectiveProfile.sentenceBreakMs;
     }, 0);
-    const estimatedDurationSec = Math.round((charCount / charsPerSecond) + (totalBreakMs / 1000));
+    const estimatedDurationSec = Math.round(
+      charCount / charsPerSecond + totalBreakMs / 1000
+    );
 
-    compilationLog.push(`[VoiceCompiler] ⏱️ 預估時長: ${estimatedDurationSec}s (${charCount} 字, ${rateMultiplier}x 語速)`);
+    compilationLog.push(
+      `[VoiceCompiler] ⏱️ 預估時長: ${estimatedDurationSec}s (${charCount} 字, ${rateMultiplier}x 語速)`
+    );
     compilationLog.push(`[VoiceCompiler] ✅ 編譯完成`);
 
     return {
@@ -691,7 +775,11 @@ export class VoiceCompiler {
   /**
    * 取得所有可用情緒設定檔
    */
-  getAvailableEmotions(): Array<{ id: string; name: string; styleHint: string }> {
+  getAvailableEmotions(): Array<{
+    id: string;
+    name: string;
+    styleHint: string;
+  }> {
     return Object.entries(EMOTION_PROFILES).map(([id, profile]) => ({
       id,
       name: profile.name,

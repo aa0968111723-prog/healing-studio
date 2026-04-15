@@ -42,7 +42,7 @@
   --color-sidebar-ring: var(--sidebar-ring);
   /* Zen Morandi palette — healing tones */
   --color-zen-oat: oklch(0.965 0.008 75);
-  --color-zen-smoke: oklch(0.50 0.01 60);
+  --color-zen-smoke: oklch(0.5 0.01 60);
   --color-zen-blush: oklch(0.85 0.04 30);
   --color-zen-sage: oklch(0.84 0.04 145);
   --color-zen-lavender: oklch(0.82 0.04 300);
@@ -68,15 +68,15 @@
   --card-foreground: oklch(0.28 0.01 60);
   --popover: oklch(0.99 0.003 75 / 0.85);
   --popover-foreground: oklch(0.28 0.01 60);
-  --primary: oklch(0.40 0.02 60);
+  --primary: oklch(0.4 0.02 60);
   --primary-foreground: oklch(0.98 0.005 75);
   --secondary: oklch(0.93 0.01 75);
   --secondary-foreground: oklch(0.35 0.01 60);
   --muted: oklch(0.94 0.008 75);
-  --muted-foreground: oklch(0.50 0.015 60);
+  --muted-foreground: oklch(0.5 0.015 60);
   --accent: oklch(0.91 0.015 300);
   --accent-foreground: oklch(0.35 0.02 300);
-  --destructive: oklch(0.60 0.15 25);
+  --destructive: oklch(0.6 0.15 25);
   --destructive-foreground: oklch(0.97 0.006 75);
   --border: oklch(0.91 0.01 75);
   --input: oklch(0.93 0.008 75);
@@ -88,7 +88,7 @@
   --chart-5: oklch(0.82 0.04 80);
   --sidebar: oklch(0.96 0.006 75 / 0.8);
   --sidebar-foreground: oklch(0.28 0.01 60);
-  --sidebar-primary: oklch(0.40 0.02 60);
+  --sidebar-primary: oklch(0.4 0.02 60);
   --sidebar-primary-foreground: oklch(0.98 0.005 75);
   --sidebar-accent: oklch(0.93 0.01 75);
   --sidebar-accent-foreground: oklch(0.28 0.01 60);
@@ -102,7 +102,9 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1;
     /* Healing typography: generous line-height for breathing room */
     line-height: 1.7;
     letter-spacing: 0.01em;
@@ -215,12 +217,21 @@
 
   /* ─── Shimmer Animation ──────────────────────────────────────────── */
   @keyframes shimmer {
-    0% { background-position: -200% 0; }
-    100% { background-position: 200% 0; }
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
   }
 
   .skeleton-shimmer {
-    background: linear-gradient(90deg, rgba(245,243,240,0.6) 25%, rgba(234,201,193,0.15) 50%, rgba(245,243,240,0.6) 75%);
+    background: linear-gradient(
+      90deg,
+      rgba(245, 243, 240, 0.6) 25%,
+      rgba(234, 201, 193, 0.15) 50%,
+      rgba(245, 243, 240, 0.6) 75%
+    );
     background-size: 200% 100%;
     animation: shimmer 1.5s ease-in-out infinite;
   }
@@ -255,8 +266,17 @@
 
   /* ─── Zen Orb Glow — gentler healing pulse ───────────────────────── */
   @keyframes orb-breathe {
-    0%, 100% { box-shadow: 0 0 16px rgba(212, 197, 226, 0.25), 0 0 40px rgba(212, 197, 226, 0.08); }
-    50% { box-shadow: 0 0 28px rgba(212, 197, 226, 0.45), 0 0 60px rgba(212, 197, 226, 0.15); }
+    0%,
+    100% {
+      box-shadow:
+        0 0 16px rgba(212, 197, 226, 0.25),
+        0 0 40px rgba(212, 197, 226, 0.08);
+    }
+    50% {
+      box-shadow:
+        0 0 28px rgba(212, 197, 226, 0.45),
+        0 0 60px rgba(212, 197, 226, 0.15);
+    }
   }
 
   .orb-breathe {
@@ -265,13 +285,16 @@
 
   /* ─── Vibe Card Selection ────────────────────────────────────────── */
   .vibe-selected {
-    box-shadow: 0 0 0 2px rgba(108, 108, 108, 0.3), 0 4px 16px rgba(108, 108, 108, 0.1);
+    box-shadow:
+      0 0 0 2px rgba(108, 108, 108, 0.3),
+      0 4px 16px rgba(108, 108, 108, 0.1);
   }
 
   /* ─── Workspace Ambient Background — healing gradient mesh ──────── */
   /* Subtle breathing gradient mesh for the studio workspace area */
   @keyframes workspace-gradient-shift {
-    0%, 100% {
+    0%,
+    100% {
       background-position: 0% 50%;
     }
     25% {
@@ -287,17 +310,35 @@
 
   .workspace-ambient-bg {
     background:
-      radial-gradient(ellipse 65% 55% at 12% 18%, rgba(212, 197, 226, 0.14) 0%, transparent 70%),
-      radial-gradient(ellipse 55% 65% at 88% 82%, rgba(200, 213, 224, 0.12) 0%, transparent 70%),
-      radial-gradient(ellipse 45% 45% at 50% 50%, rgba(234, 201, 193, 0.09) 0%, transparent 60%),
-      radial-gradient(ellipse 30% 30% at 75% 25%, rgba(196, 223, 207, 0.07) 0%, transparent 50%);
+      radial-gradient(
+        ellipse 65% 55% at 12% 18%,
+        rgba(212, 197, 226, 0.14) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        ellipse 55% 65% at 88% 82%,
+        rgba(200, 213, 224, 0.12) 0%,
+        transparent 70%
+      ),
+      radial-gradient(
+        ellipse 45% 45% at 50% 50%,
+        rgba(234, 201, 193, 0.09) 0%,
+        transparent 60%
+      ),
+      radial-gradient(
+        ellipse 30% 30% at 75% 25%,
+        rgba(196, 223, 207, 0.07) 0%,
+        transparent 50%
+      );
     background-size: 200% 200%;
-    animation: workspace-gradient-shift 24s cubic-bezier(0.37, 0, 0.63, 1) infinite;
+    animation: workspace-gradient-shift 24s cubic-bezier(0.37, 0, 0.63, 1)
+      infinite;
   }
 
   /* Floating decorative orb (pure CSS) — softer, slower */
   @keyframes workspace-orb-float {
-    0%, 100% {
+    0%,
+    100% {
       transform: translate(0, 0) scale(1);
       opacity: 0.2;
     }
@@ -325,7 +366,12 @@
     height: 220px;
     top: 6%;
     right: 8%;
-    background: radial-gradient(circle, rgba(212, 197, 226, 0.28) 0%, rgba(212, 197, 226, 0.05) 60%, transparent 75%);
+    background: radial-gradient(
+      circle,
+      rgba(212, 197, 226, 0.28) 0%,
+      rgba(212, 197, 226, 0.05) 60%,
+      transparent 75%
+    );
     animation-duration: 22s;
   }
 
@@ -334,7 +380,12 @@
     height: 180px;
     bottom: 12%;
     left: 4%;
-    background: radial-gradient(circle, rgba(234, 201, 193, 0.22) 0%, rgba(234, 201, 193, 0.04) 60%, transparent 75%);
+    background: radial-gradient(
+      circle,
+      rgba(234, 201, 193, 0.22) 0%,
+      rgba(234, 201, 193, 0.04) 60%,
+      transparent 75%
+    );
     animation-duration: 28s;
     animation-delay: -8s;
   }
@@ -344,7 +395,12 @@
     height: 140px;
     top: 45%;
     left: 40%;
-    background: radial-gradient(circle, rgba(196, 223, 207, 0.18) 0%, rgba(196, 223, 207, 0.03) 60%, transparent 75%);
+    background: radial-gradient(
+      circle,
+      rgba(196, 223, 207, 0.18) 0%,
+      rgba(196, 223, 207, 0.03) 60%,
+      transparent 75%
+    );
     animation-duration: 32s;
     animation-delay: -16s;
   }
@@ -356,7 +412,12 @@
     left: 0;
     right: 0;
     height: 160px;
-    background: linear-gradient(180deg, rgba(212, 197, 226, 0.06) 0%, rgba(234, 201, 193, 0.03) 40%, transparent 100%);
+    background: linear-gradient(
+      180deg,
+      rgba(212, 197, 226, 0.06) 0%,
+      rgba(234, 201, 193, 0.03) 40%,
+      transparent 100%
+    );
     pointer-events: none;
   }
 
@@ -373,24 +434,39 @@
     transform: translateX(-50%);
     width: 50%;
     height: 1px;
-    background: linear-gradient(90deg, transparent 0%, rgba(212, 197, 226, 0.35) 30%, rgba(234, 201, 193, 0.2) 70%, transparent 100%);
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(212, 197, 226, 0.35) 30%,
+      rgba(234, 201, 193, 0.2) 70%,
+      transparent 100%
+    );
     pointer-events: none;
   }
 
   /* Quota card with zen gradient overlay — warmer healing tones */
   .quota-card-zen {
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.55) 0%, rgba(212, 197, 226, 0.12) 50%, rgba(196, 223, 207, 0.08) 100%);
+    background: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.55) 0%,
+      rgba(212, 197, 226, 0.12) 50%,
+      rgba(196, 223, 207, 0.08) 100%
+    );
   }
 
   /* ─── Healing Utility Classes ─────────────────────────────────── */
 
   /* Gentle hover lift — for cards and interactive elements */
   .hover-lift {
-    transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94), box-shadow 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    transition:
+      transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+      box-shadow 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   }
   .hover-lift:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 30px rgba(108, 108, 108, 0.08), 0 4px 12px rgba(212, 197, 226, 0.1);
+    box-shadow:
+      0 8px 30px rgba(108, 108, 108, 0.08),
+      0 4px 12px rgba(212, 197, 226, 0.1);
   }
 
   /* Healing button press — subtle scale-down feedback */
@@ -441,65 +517,65 @@
 
   /* h1 — Hero / page-level headings */
   .hs-h1 {
-    font-size: 1.875rem;        /* 30px */
-    line-height: 1.25;          /* tight */
-    margin-bottom: 1rem;        /* 16px */
+    font-size: 1.875rem; /* 30px */
+    line-height: 1.25; /* tight */
+    margin-bottom: 1rem; /* 16px */
     font-weight: 700;
     letter-spacing: -0.02em;
   }
   @media (min-width: 640px) {
     .hs-h1 {
-      font-size: 2.25rem;       /* 36px */
+      font-size: 2.25rem; /* 36px */
       line-height: 1.2;
       margin-bottom: 1.25rem;
     }
   }
   @media (min-width: 1024px) {
     .hs-h1 {
-      font-size: 3rem;          /* 48px */
+      font-size: 3rem; /* 48px */
       margin-bottom: 1.5rem;
     }
   }
 
   /* h2 — Section headings */
   .hs-h2 {
-    font-size: 1.25rem;         /* 20px */
+    font-size: 1.25rem; /* 20px */
     line-height: 1.3;
-    margin-bottom: 0.75rem;     /* 12px */
+    margin-bottom: 0.75rem; /* 12px */
     font-weight: 600;
     letter-spacing: -0.01em;
   }
   @media (min-width: 640px) {
     .hs-h2 {
-      font-size: 1.5rem;        /* 24px */
+      font-size: 1.5rem; /* 24px */
       margin-bottom: 1rem;
     }
   }
   @media (min-width: 1024px) {
     .hs-h2 {
-      font-size: 1.875rem;      /* 30px */
+      font-size: 1.875rem; /* 30px */
       margin-bottom: 1.25rem;
     }
   }
 
   /* h3 — Card titles / subsection headings */
   .hs-h3 {
-    font-size: 0.875rem;        /* 14px */
+    font-size: 0.875rem; /* 14px */
     line-height: 1.4;
-    margin-bottom: 0.5rem;      /* 8px */
+    margin-bottom: 0.5rem; /* 8px */
     font-weight: 600;
     letter-spacing: -0.005em;
   }
   @media (min-width: 640px) {
     .hs-h3 {
-      font-size: 1rem;          /* 16px */
+      font-size: 1rem; /* 16px */
       margin-bottom: 0.625rem;
     }
   }
 
   /* h3 large variant — hero-sized card titles (e.g. IntelBentoGrid hero card) */
   .hs-h3-lg {
-    font-size: 1.125rem;        /* 18px */
+    font-size: 1.125rem; /* 18px */
     line-height: 1.35;
     margin-bottom: 0.75rem;
     font-weight: 600;
@@ -507,41 +583,48 @@
   }
   @media (min-width: 640px) {
     .hs-h3-lg {
-      font-size: 1.25rem;       /* 20px */
+      font-size: 1.25rem; /* 20px */
     }
   }
 
   /* p — Body text (leading-relaxed for readability) */
   .hs-p {
-    font-size: 0.875rem;        /* 14px */
-    line-height: 1.625;         /* leading-relaxed */
+    font-size: 0.875rem; /* 14px */
+    line-height: 1.625; /* leading-relaxed */
     margin-bottom: 1rem;
     letter-spacing: 0.01em;
   }
   @media (min-width: 1024px) {
     .hs-p {
-      font-size: 1rem;          /* 16px */
-      line-height: 1.75;        /* leading-relaxed at larger size */
+      font-size: 1rem; /* 16px */
+      line-height: 1.75; /* leading-relaxed at larger size */
     }
   }
 
   /* small — Captions, metadata, fine print */
   .hs-small {
-    font-size: 0.75rem;         /* 12px */
-    line-height: 1.5;           /* leading-normal */
+    font-size: 0.75rem; /* 12px */
+    line-height: 1.5; /* leading-normal */
     margin-bottom: 0.5rem;
     letter-spacing: 0.01em;
   }
   @media (min-width: 640px) {
     .hs-small {
-      font-size: 0.8125rem;     /* 13px */
+      font-size: 0.8125rem; /* 13px */
     }
   }
 
   /* Soft divider line — healing separator */
   .divider-healing {
     height: 1px;
-    background: linear-gradient(90deg, transparent 0%, rgba(212, 197, 226, 0.25) 20%, rgba(234, 201, 193, 0.2) 50%, rgba(196, 223, 207, 0.15) 80%, transparent 100%);
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(212, 197, 226, 0.25) 20%,
+      rgba(234, 201, 193, 0.2) 50%,
+      rgba(196, 223, 207, 0.15) 80%,
+      transparent 100%
+    );
     border: none;
   }
 
@@ -567,13 +650,16 @@
   .card-healing {
     backdrop-filter: blur(20px) saturate(150%);
     -webkit-backdrop-filter: blur(20px) saturate(150%);
-    transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94),
-                box-shadow 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94),
-                border-color 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    transition:
+      transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+      box-shadow 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+      border-color 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   }
   .card-healing:hover {
     transform: translateY(-3px);
-    box-shadow: 0 12px 40px rgba(108, 108, 108, 0.06), 0 4px 16px rgba(212, 197, 226, 0.08);
+    box-shadow:
+      0 12px 40px rgba(108, 108, 108, 0.06),
+      0 4px 16px rgba(212, 197, 226, 0.08);
   }
 
   /* Ambient glow pulse — for active/focused elements */
@@ -581,14 +667,24 @@
     animation: glowPulse 4s ease-in-out infinite;
   }
   @keyframes glowPulse {
-    0%, 100% { box-shadow: 0 0 20px rgba(212, 197, 226, 0.1), 0 0 40px rgba(212, 197, 226, 0.05); }
-    50% { box-shadow: 0 0 30px rgba(212, 197, 226, 0.2), 0 0 60px rgba(212, 197, 226, 0.08); }
+    0%,
+    100% {
+      box-shadow:
+        0 0 20px rgba(212, 197, 226, 0.1),
+        0 0 40px rgba(212, 197, 226, 0.05);
+    }
+    50% {
+      box-shadow:
+        0 0 30px rgba(212, 197, 226, 0.2),
+        0 0 60px rgba(212, 197, 226, 0.08);
+    }
   }
 
   /* Image reveal on hover — gentle zoom for showcase cards */
   .img-healing {
-    transition: transform 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94),
-                filter 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    transition:
+      transform 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+      filter 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   }
   .group:hover .img-healing {
     transform: scale(1.04);
@@ -718,14 +814,17 @@
     }
 
     /* Larger touch targets on mobile */
-    button, [role="button"], a {
+    button,
+    [role="button"],
+    a {
       min-height: 36px;
     }
   }
 
   /* ─── Healing Ambient Keyframe — gentle color wash ──────────── */
   @keyframes healing-wash {
-    0%, 100% {
+    0%,
+    100% {
       background-position: 0% 50%;
       opacity: 0.6;
     }
@@ -736,7 +835,8 @@
   }
 
   .healing-wash-bg {
-    background: linear-gradient(135deg,
+    background: linear-gradient(
+      135deg,
       rgba(212, 197, 226, 0.08) 0%,
       rgba(234, 201, 193, 0.06) 25%,
       rgba(196, 223, 207, 0.07) 50%,

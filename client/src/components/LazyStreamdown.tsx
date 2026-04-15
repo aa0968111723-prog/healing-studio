@@ -10,7 +10,7 @@
 import { lazy, Suspense, type ReactNode } from "react";
 
 const StreamdownLazy = lazy(() =>
-  import("streamdown").then((mod) => ({ default: mod.Streamdown }))
+  import("streamdown").then(mod => ({ default: mod.Streamdown }))
 );
 
 interface LazyStreamdownProps {

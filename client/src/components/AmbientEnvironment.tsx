@@ -28,7 +28,12 @@ interface SceneConfig {
   updateParticle: (p: Particle, w: number, h: number, t: number) => void;
   drawParticle: (ctx: CanvasRenderingContext2D, p: Particle, t: number) => void;
   /** Optional overlay effects (bokeh, ripples, etc.) */
-  drawOverlay?: (ctx: CanvasRenderingContext2D, w: number, h: number, t: number) => void;
+  drawOverlay?: (
+    ctx: CanvasRenderingContext2D,
+    w: number,
+    h: number,
+    t: number
+  ) => void;
 }
 
 interface Particle {
@@ -116,7 +121,8 @@ const nightSky: SceneConfig = {
       const progress = p.life / p.maxLife;
       const fadeOut = progress > 0.7 ? 1 - (progress - 0.7) / 0.3 : 1;
       const grad = ctx.createLinearGradient(
-        p.x, p.y,
+        p.x,
+        p.y,
         p.x - p.vx * p.extra.tailLength * 0.5,
         p.y - p.vy * p.extra.tailLength * 0.5
       );
@@ -134,7 +140,10 @@ const nightSky: SceneConfig = {
       );
       ctx.stroke();
     } else {
-      const twinkle = 0.4 + 0.6 * Math.abs(Math.sin(t * p.extra.twinkleSpeed + p.extra.twinkleOffset));
+      const twinkle =
+        0.4 +
+        0.6 *
+          Math.abs(Math.sin(t * p.extra.twinkleSpeed + p.extra.twinkleOffset));
       const alpha = p.opacity * twinkle;
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
@@ -144,7 +153,14 @@ const nightSky: SceneConfig = {
       if (p.size > 1.2) {
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size * 3, 0, Math.PI * 2);
-        const glow = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 3);
+        const glow = ctx.createRadialGradient(
+          p.x,
+          p.y,
+          0,
+          p.x,
+          p.y,
+          p.size * 3
+        );
         glow.addColorStop(0, `rgba(200,210,255,${alpha * 0.3})`);
         glow.addColorStop(1, `rgba(200,210,255,0)`);
         ctx.fillStyle = glow;
@@ -195,9 +211,13 @@ const morning: SceneConfig = {
     };
   },
   updateParticle(p, w, h, t) {
-    p.x += p.vx + Math.sin(t * 0.001 + p.extra.driftPhase) * p.extra.driftAmp * 0.02;
+    p.x +=
+      p.vx + Math.sin(t * 0.001 + p.extra.driftPhase) * p.extra.driftAmp * 0.02;
     p.y += p.vy;
-    if (p.y < -20) { p.y = h + 10; p.x = rand(0, w); }
+    if (p.y < -20) {
+      p.y = h + 10;
+      p.x = rand(0, w);
+    }
     if (p.x < -20) p.x = w + 10;
     if (p.x > w + 20) p.x = -10;
   },
@@ -210,7 +230,14 @@ const morning: SceneConfig = {
     ctx.fillStyle = `rgba(255,210,170,${alpha})`;
     ctx.fill();
     // Soft halo
-    const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.extra.glowSize);
+    const grad = ctx.createRadialGradient(
+      p.x,
+      p.y,
+      0,
+      p.x,
+      p.y,
+      p.extra.glowSize
+    );
     grad.addColorStop(0, `rgba(255,200,150,${alpha * 0.25})`);
     grad.addColorStop(1, "rgba(255,200,150,0)");
     ctx.beginPath();
@@ -329,7 +356,9 @@ const deepSea: SceneConfig = {
     };
   },
   updateParticle(p, w, h, t) {
-    p.x += p.vx + Math.sin(t * 0.001 + p.extra.wobblePhase) * p.extra.wobbleAmp * 0.03;
+    p.x +=
+      p.vx +
+      Math.sin(t * 0.001 + p.extra.wobblePhase) * p.extra.wobbleAmp * 0.03;
     p.y += p.vy;
     if (p.y < -20) {
       p.y = h + rand(10, 40);
@@ -338,7 +367,8 @@ const deepSea: SceneConfig = {
     }
   },
   drawParticle(ctx, p, t) {
-    const shimmer = 0.5 + 0.5 * Math.sin(t * p.extra.shimmer + p.extra.wobblePhase);
+    const shimmer =
+      0.5 + 0.5 * Math.sin(t * p.extra.shimmer + p.extra.wobblePhase);
     const alpha = p.opacity * shimmer;
     // Bubble body
     ctx.beginPath();
@@ -350,7 +380,13 @@ const deepSea: SceneConfig = {
     ctx.stroke();
     // Inner highlight
     ctx.beginPath();
-    ctx.arc(p.x - p.size * 0.25, p.y - p.size * 0.25, p.size * 0.3, 0, Math.PI * 2);
+    ctx.arc(
+      p.x - p.size * 0.25,
+      p.y - p.size * 0.25,
+      p.size * 0.3,
+      0,
+      Math.PI * 2
+    );
     ctx.fillStyle = `rgba(200,240,255,${alpha * 0.5})`;
     ctx.fill();
   },
@@ -373,7 +409,12 @@ const deepSea: SceneConfig = {
 
 // ─── Scene Map ──────────────────────────────────────────────────────────────
 
-const SCENES: Record<SceneId, SceneConfig> = { nightSky, morning, cafe, deepSea };
+const SCENES: Record<SceneId, SceneConfig> = {
+  nightSky,
+  morning,
+  cafe,
+  deepSea,
+};
 
 function getSceneForHour(hour: number): SceneId {
   if (hour >= 22 || hour < 5) return "nightSky";
@@ -390,12 +431,19 @@ interface AmbientEnvironmentProps {
   className?: string;
 }
 
-function AmbientEnvironmentInner({ forceScene, className }: AmbientEnvironmentProps) {
+function AmbientEnvironmentInner({
+  forceScene,
+  className,
+}: AmbientEnvironmentProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animRef = useRef<number>(0);
   const particlesRef = useRef<Particle[]>([]);
   const prevSceneRef = useRef<SceneId | null>(null);
-  const transitionRef = useRef<{ from: SceneId; to: SceneId; progress: number } | null>(null);
+  const transitionRef = useRef<{
+    from: SceneId;
+    to: SceneId;
+    progress: number;
+  } | null>(null);
   const [currentScene, setCurrentScene] = useState<SceneId>(
     forceScene ?? getSceneForHour(new Date().getHours())
   );
@@ -405,7 +453,7 @@ function AmbientEnvironmentInner({ forceScene, className }: AmbientEnvironmentPr
     if (forceScene) return;
     const interval = setInterval(() => {
       const newScene = getSceneForHour(new Date().getHours());
-      setCurrentScene((prev) => {
+      setCurrentScene(prev => {
         if (prev !== newScene) return newScene;
         return prev;
       });
@@ -565,7 +613,9 @@ export function useCurrentScene(forceScene?: SceneId) {
     try {
       const saved = localStorage.getItem("hs-scene-override");
       if (saved && saved in SCENES) return saved as SceneId;
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     return null;
   });
 
@@ -590,7 +640,9 @@ export function useCurrentScene(forceScene?: SceneId) {
       } else {
         localStorage.removeItem("hs-scene-override");
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   };
 
   const activeScene = override ?? autoScene;

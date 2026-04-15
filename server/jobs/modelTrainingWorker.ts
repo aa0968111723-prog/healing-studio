@@ -33,7 +33,12 @@ interface ModelConfigJson {
   triggerWord?: string;
   epochs?: number;
   learningRate?: number;
-  datasetImages?: Array<{ url: string; fileKey?: string; angle?: string; caption?: string }>;
+  datasetImages?: Array<{
+    url: string;
+    fileKey?: string;
+    angle?: string;
+    caption?: string;
+  }>;
 }
 
 // ─── State ──────────────────────────────────────────────────────────────────
@@ -72,7 +77,10 @@ async function processQueuedTrainingJobs(): Promise<void> {
       const modelId = resultJson.modelId;
 
       if (!modelId) {
-        logWorker("warn", `任務 #${job.id} — resultJson 缺少 modelId，標記為 failed`);
+        logWorker(
+          "warn",
+          `任務 #${job.id} — resultJson 缺少 modelId，標記為 failed`
+        );
         await updateBackgroundJob(job.id, {
           status: "failed",
           errorMessage: "resultJson 缺少 modelId",
@@ -83,7 +91,10 @@ async function processQueuedTrainingJobs(): Promise<void> {
       // Fetch model record
       const model = await getFineTunedModel(modelId);
       if (!model) {
-        logWorker("warn", `任務 #${job.id} — 模型 #${modelId} 不存在，標記為 failed`);
+        logWorker(
+          "warn",
+          `任務 #${job.id} — 模型 #${modelId} 不存在，標記為 failed`
+        );
         await updateBackgroundJob(job.id, {
           status: "failed",
           errorMessage: `模型 #${modelId} 不存在`,
@@ -96,7 +107,10 @@ async function processQueuedTrainingJobs(): Promise<void> {
       const datasetImages = config.datasetImages;
 
       if (!datasetImages || datasetImages.length < 3) {
-        logWorker("warn", `任務 #${job.id} — 模型 #${modelId} 訓練圖片不足 3 張，標記為 failed`);
+        logWorker(
+          "warn",
+          `任務 #${job.id} — 模型 #${modelId} 訓練圖片不足 3 張，標記為 failed`
+        );
         await updateBackgroundJob(job.id, {
           status: "failed",
           errorMessage: "訓練圖片不足 3 張",
@@ -107,7 +121,10 @@ async function processQueuedTrainingJobs(): Promise<void> {
 
       // Check REPLICATE_API_TOKEN
       if (!process.env.REPLICATE_API_TOKEN) {
-        logWorker("warn", `REPLICATE_API_TOKEN 未設定，跳過任務 #${job.id}（保持 queued）`);
+        logWorker(
+          "warn",
+          `REPLICATE_API_TOKEN 未設定，跳過任務 #${job.id}（保持 queued）`
+        );
         continue;
       }
 
@@ -127,7 +144,7 @@ async function processQueuedTrainingJobs(): Promise<void> {
         triggerWord: config.triggerWord || "",
         epochs: config.epochs ?? 20,
         learningRate: config.learningRate ?? 0.0001,
-        imageUrls: datasetImages.map((img) => img.url),
+        imageUrls: datasetImages.map(img => img.url),
       };
 
       // Fire-and-forget: dynamic import, do NOT await runLoraTrainingJob
@@ -137,7 +154,10 @@ async function processQueuedTrainingJobs(): Promise<void> {
         });
       });
 
-      logWorker("info", `已啟動任務 #${job.id} → 模型 #${modelId} "${trainingInput.modelName}" (${trainingInput.imageUrls.length} 張圖片)`);
+      logWorker(
+        "info",
+        `已啟動任務 #${job.id} → 模型 #${modelId} "${trainingInput.modelName}" (${trainingInput.imageUrls.length} 張圖片)`
+      );
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       logWorker("error", `處理任務 #${job.id} 時發生錯誤: ${message}`);
@@ -160,7 +180,10 @@ async function recoverStuckTrainingJobs(): Promise<void> {
 
   if (stuckJobs.length === 0) return;
 
-  logWorker("warn", `發現 ${stuckJobs.length} 個卡住的訓練任務（超過 15 分鐘未更新）`);
+  logWorker(
+    "warn",
+    `發現 ${stuckJobs.length} 個卡住的訓練任務（超過 15 分鐘未更新）`
+  );
 
   for (const job of stuckJobs) {
     try {
@@ -170,7 +193,10 @@ async function recoverStuckTrainingJobs(): Promise<void> {
 
       if (predictionId && process.env.REPLICATE_API_TOKEN) {
         // Has predictionId — try to recover by checking Replicate status
-        logWorker("info", `任務 #${job.id} — 嘗試恢復 Replicate 預測 ${predictionId}`);
+        logWorker(
+          "info",
+          `任務 #${job.id} — 嘗試恢復 Replicate 預測 ${predictionId}`
+        );
 
         try {
           const replicate = getReplicateClient();
@@ -179,7 +205,10 @@ async function recoverStuckTrainingJobs(): Promise<void> {
           if (prediction.status === "succeeded") {
             // Training completed while we were down — extract output
             const output = prediction.output as string | undefined;
-            logWorker("info", `任務 #${job.id} — Replicate 訓練已成功完成！output: ${output}`);
+            logWorker(
+              "info",
+              `任務 #${job.id} — Replicate 訓練已成功完成！output: ${output}`
+            );
 
             if (modelId) {
               await updateFineTunedModel(modelId, {
@@ -192,9 +221,15 @@ async function recoverStuckTrainingJobs(): Promise<void> {
               progress: 100,
               progressMessage: "訓練完成（Worker 恢復）",
             });
-          } else if (prediction.status === "failed" || prediction.status === "canceled") {
+          } else if (
+            prediction.status === "failed" ||
+            prediction.status === "canceled"
+          ) {
             const errorDetail = prediction.error || prediction.status;
-            logWorker("warn", `任務 #${job.id} — Replicate 訓練 ${prediction.status}: ${errorDetail}`);
+            logWorker(
+              "warn",
+              `任務 #${job.id} — Replicate 訓練 ${prediction.status}: ${errorDetail}`
+            );
 
             if (modelId) {
               await updateFineTunedModel(modelId, { status: "failed" });
@@ -204,23 +239,38 @@ async function recoverStuckTrainingJobs(): Promise<void> {
               errorMessage: `Replicate ${prediction.status}: ${errorDetail}`,
               progressMessage: `訓練${prediction.status === "failed" ? "失敗" : "已取消"}`,
             });
-          } else if (prediction.status === "starting" || prediction.status === "processing") {
+          } else if (
+            prediction.status === "starting" ||
+            prediction.status === "processing"
+          ) {
             // Still running — reset the stuck timer by touching updatedAt
-            logWorker("info", `任務 #${job.id} — Replicate 仍在 ${prediction.status}，重置計時器`);
+            logWorker(
+              "info",
+              `任務 #${job.id} — Replicate 仍在 ${prediction.status}，重置計時器`
+            );
             await updateBackgroundJob(job.id, {
               progressMessage: `訓練中（${prediction.status}，Worker 已確認仍在執行）`,
             });
           }
         } catch (replicateErr: unknown) {
-          const msg = replicateErr instanceof Error ? replicateErr.message : String(replicateErr);
-          logWorker("error", `任務 #${job.id} — Replicate API 查詢失敗: ${msg}`);
+          const msg =
+            replicateErr instanceof Error
+              ? replicateErr.message
+              : String(replicateErr);
+          logWorker(
+            "error",
+            `任務 #${job.id} — Replicate API 查詢失敗: ${msg}`
+          );
           // Don't mark as failed — might be a transient error, let next tick retry
           continue;
         }
       } else {
         // No predictionId — job got stuck before submitting to Replicate
         // Reset to queued so processQueuedTrainingJobs picks it up next tick
-        logWorker("warn", `任務 #${job.id} — 無 predictionId，重置為 queued 等待重試`);
+        logWorker(
+          "warn",
+          `任務 #${job.id} — 無 predictionId，重置為 queued 等待重試`
+        );
         await updateBackgroundJob(job.id, {
           status: "queued" as any,
           progress: 0,
@@ -245,14 +295,17 @@ async function runModelTrainingWorker(): Promise<void> {
 
   // Circuit breaker: stop hammering Replicate when it's down
   if (!replicateBreaker.canExecute()) {
-    logWorker("warn", `Circuit breaker OPEN（狀態: ${replicateBreaker.getState()}），跳過本次排程。`);
+    logWorker(
+      "warn",
+      `Circuit breaker OPEN（狀態: ${replicateBreaker.getState()}），跳過本次排程。`
+    );
     return;
   }
 
   isWorkerRunning = true;
   logWorker("info", "═══ 模型訓練 Worker 開始執行 ═══");
   try {
-    await recoverStuckTrainingJobs();  // 先恢復卡住任務
+    await recoverStuckTrainingJobs(); // 先恢復卡住任務
     await processQueuedTrainingJobs(); // 再處理新任務
     replicateBreaker.recordSuccess();
     logWorker("info", "═══ 模型訓練 Worker 完成 ═══");

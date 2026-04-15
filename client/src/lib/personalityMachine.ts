@@ -47,122 +47,120 @@ export interface PersonalityMachineContext {
 // auto 子狀態：calm | creative | technical
 // 跨狀態觸發的 aiState 由 Context 記錄（不需要獨立狀態節點）
 
-export const personalityMachine = createMachine(
-  {
-    id: "personality",
-    types: {} as {
-      context: PersonalityMachineContext;
-      events: PersonalityEvent;
-    },
-    initial: "auto",
-    context: {
-      personality: "calm",
-      isManual: false,
-      failCount: 0,
-      lastTypingWpm: 0,
-    },
+export const personalityMachine = createMachine({
+  id: "personality",
+  types: {} as {
+    context: PersonalityMachineContext;
+    events: PersonalityEvent;
+  },
+  initial: "auto",
+  context: {
+    personality: "calm",
+    isManual: false,
+    failCount: 0,
+    lastTypingWpm: 0,
+  },
 
-    // ── 全域事件（任何狀態都可觸發）────────────────────────────────────────
-    on: {
-      MANUAL_SET: {
-        target: ".manual",
-        actions: assign({
-          personality: ({ event }) => event.personality,
-          isManual: () => true,
-        }),
-      },
-      MANUAL_RESET: {
-        target: ".auto.calm",
-        actions: assign({
-          isManual: () => false,
-          failCount: () => 0,
-        }),
-      },
+  // ── 全域事件（任何狀態都可觸發）────────────────────────────────────────
+  on: {
+    MANUAL_SET: {
+      target: ".manual",
+      actions: assign({
+        personality: ({ event }) => event.personality,
+        isManual: () => true,
+      }),
     },
+    MANUAL_RESET: {
+      target: ".auto.calm",
+      actions: assign({
+        isManual: () => false,
+        failCount: () => 0,
+      }),
+    },
+  },
 
-    states: {
-      // ── 自動模式 ──────────────────────────────────────────────────────────
-      auto: {
-        initial: "calm",
-        states: {
-          calm: {
-            entry: assign({ personality: () => "calm" as Personality }),
-            on: {
-              TYPING: [
-                {
-                  // WPM > 60 → creative
-                  guard: ({ event }) => event.wpm > 60,
-                  target: "creative",
-                  actions: assign({
-                    lastTypingWpm: ({ event }) => event.wpm,
-                  }),
-                },
-              ],
-              ADVANCED_PARAMS: { target: "technical" },
-              GENERATION_START: {
-                actions: assign({ personality: () => "creative" as Personality }),
+  states: {
+    // ── 自動模式 ──────────────────────────────────────────────────────────
+    auto: {
+      initial: "calm",
+      states: {
+        calm: {
+          entry: assign({ personality: () => "calm" as Personality }),
+          on: {
+            TYPING: [
+              {
+                // WPM > 60 → creative
+                guard: ({ event }) => event.wpm > 60,
+                target: "creative",
+                actions: assign({
+                  lastTypingWpm: ({ event }) => event.wpm,
+                }),
               },
-              GENERATION_FAIL: {
+            ],
+            ADVANCED_PARAMS: { target: "technical" },
+            GENERATION_START: {
+              actions: assign({ personality: () => "creative" as Personality }),
+            },
+            GENERATION_FAIL: {
+              actions: assign({
+                failCount: ({ context }) => context.failCount + 1,
+              }),
+            },
+          },
+        },
+
+        creative: {
+          entry: assign({ personality: () => "creative" as Personality }),
+          on: {
+            IDLE: { target: "calm" },
+            ADVANCED_PARAMS: { target: "technical" },
+            GENERATION_FAIL: [
+              {
+                // 失敗 >= 3 次 → calm（降壓）
+                guard: ({ context }) => context.failCount + 1 >= 3,
+                target: "calm",
+                actions: assign({
+                  failCount: () => 0,
+                }),
+              },
+              {
                 actions: assign({
                   failCount: ({ context }) => context.failCount + 1,
                 }),
               },
-            },
-          },
-
-          creative: {
-            entry: assign({ personality: () => "creative" as Personality }),
-            on: {
-              IDLE: { target: "calm" },
-              ADVANCED_PARAMS: { target: "technical" },
-              GENERATION_FAIL: [
-                {
-                  // 失敗 >= 3 次 → calm（降壓）
-                  guard: ({ context }) => context.failCount + 1 >= 3,
-                  target: "calm",
-                  actions: assign({
-                    failCount: () => 0,
-                  }),
-                },
-                {
-                  actions: assign({
-                    failCount: ({ context }) => context.failCount + 1,
-                  }),
-                },
-              ],
-              GENERATION_DONE: {
-                actions: assign({ failCount: () => 0 }),
-              },
-            },
-          },
-
-          technical: {
-            entry: assign({ personality: () => "technical" as Personality }),
-            on: {
-              IDLE: { target: "calm" },
-              TYPING: [
-                {
-                  guard: ({ event }) => event.wpm > 60,
-                  target: "creative",
-                },
-              ],
+            ],
+            GENERATION_DONE: {
+              actions: assign({ failCount: () => 0 }),
             },
           },
         },
-      },
 
-      // ── 手動模式（鎖定人格，忽略自動觸發）────────────────────────────────
-      manual: {
-        entry: assign({ isManual: () => true }),
-        on: {
-          // 保留 GENERATION / THINKING 事件以更新 context
-          GENERATION_START: {
-            actions: assign({ failCount: ({ context }) => context.failCount }),
+        technical: {
+          entry: assign({ personality: () => "technical" as Personality }),
+          on: {
+            IDLE: { target: "calm" },
+            TYPING: [
+              {
+                guard: ({ event }) => event.wpm > 60,
+                target: "creative",
+              },
+            ],
           },
         },
       },
     },
-  }
-);
+
+    // ── 手動模式（鎖定人格，忽略自動觸發）────────────────────────────────
+    manual: {
+      entry: assign({ isManual: () => true }),
+      on: {
+        // 保留 GENERATION / THINKING 事件以更新 context
+        GENERATION_START: {
+          actions: assign({ failCount: ({ context }) => context.failCount }),
+        },
+      },
+    },
+  },
+});
 
 export type PersonalityMachineState = typeof personalityMachine;

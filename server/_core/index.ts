@@ -13,10 +13,22 @@ import { serveStatic, setupVite } from "./vite";
 import { uploadRouter } from "../uploadRoute";
 import { sseRouter } from "../sseRoute";
 import { initNewsFetcherCron, stopNewsFetcherCron } from "../jobs/newsFetcher";
-import { initModelTrainingWorkerCron, stopModelTrainingWorkerCron } from "../jobs/modelTrainingWorker";
-import { initLearnDocSyncerCron, stopLearnDocSyncerCron } from "../jobs/learnDocSyncer";
-import { initApiHealthMonitorCron, stopApiHealthMonitorCron } from "../jobs/apiHealthMonitor";
-import { initBraveLearnFetcherCron, stopBraveLearnFetcherCron } from "../jobs/braveLearnFetcher";
+import {
+  initModelTrainingWorkerCron,
+  stopModelTrainingWorkerCron,
+} from "../jobs/modelTrainingWorker";
+import {
+  initLearnDocSyncerCron,
+  stopLearnDocSyncerCron,
+} from "../jobs/learnDocSyncer";
+import {
+  initApiHealthMonitorCron,
+  stopApiHealthMonitorCron,
+} from "../jobs/apiHealthMonitor";
+import {
+  initBraveLearnFetcherCron,
+  stopBraveLearnFetcherCron,
+} from "../jobs/braveLearnFetcher";
 import { detectStorageBackend } from "../storage";
 import { closeDb } from "../db";
 import { langsmithRouter } from "../routes/langsmith";
@@ -42,7 +54,9 @@ const PROXY_ALLOWED_HOSTS = [
 function isProxyAllowed(urlStr: string): boolean {
   try {
     const u = new URL(urlStr);
-    return PROXY_ALLOWED_HOSTS.some(h => u.hostname === h || u.hostname.endsWith("." + h));
+    return PROXY_ALLOWED_HOSTS.some(
+      h => u.hostname === h || u.hostname.endsWith("." + h)
+    );
   } catch {
     return false;
   }
@@ -72,18 +86,20 @@ async function startServer() {
   const server = createServer(app);
 
   // ── Security headers ─────────────────────────────────────────────────────
-  app.use(helmet({
-    contentSecurityPolicy: false,  // CSP managed separately (inline scripts, CDNs)
-    crossOriginEmbedderPolicy: false, // Allow cross-origin media assets
-  }));
+  app.use(
+    helmet({
+      contentSecurityPolicy: false, // CSP managed separately (inline scripts, CDNs)
+      crossOriginEmbedderPolicy: false, // Allow cross-origin media assets
+    })
+  );
 
   // ── Gzip/Brotli compression (60-80% smaller text/JSON responses) ────────
   app.use(compression({ threshold: 1024 }));
 
   // ── Rate limiting for API endpoints ─────────────────────────────────────
   const apiLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,  // 15 minutes
-    max: 300,                   // limit each IP to 300 requests per window
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 300, // limit each IP to 300 requests per window
     standardHeaders: true,
     legacyHeaders: false,
     message: { error: "Too many requests, please try again later." },
@@ -106,17 +122,22 @@ async function startServer() {
   // GET /api/proxy-download?url=<encodedUrl>
   app.get("/api/proxy-download", async (req, res) => {
     const raw = req.query.url as string | undefined;
-    if (!raw) { res.status(400).json({ error: "Missing url parameter" }); return; }
+    if (!raw) {
+      res.status(400).json({ error: "Missing url parameter" });
+      return;
+    }
 
     let targetUrl: string;
     try {
       targetUrl = decodeURIComponent(raw);
     } catch {
-      res.status(400).json({ error: "Invalid url encoding" }); return;
+      res.status(400).json({ error: "Invalid url encoding" });
+      return;
     }
 
     if (!isProxyAllowed(targetUrl)) {
-      res.status(403).json({ error: "URL not in allowlist" }); return;
+      res.status(403).json({ error: "URL not in allowlist" });
+      return;
     }
 
     try {
@@ -124,9 +145,13 @@ async function startServer() {
         headers: { "User-Agent": "HealingStudio/1.0 AssetProxy" },
       });
       if (!upstream.ok) {
-        res.status(upstream.status).json({ error: `Upstream returned ${upstream.status}` }); return;
+        res
+          .status(upstream.status)
+          .json({ error: `Upstream returned ${upstream.status}` });
+        return;
       }
-      const contentType = upstream.headers.get("content-type") || "application/octet-stream";
+      const contentType =
+        upstream.headers.get("content-type") || "application/octet-stream";
       const contentLength = upstream.headers.get("content-length");
       res.setHeader("Content-Type", contentType);
       res.setHeader("Cache-Control", "public, max-age=86400"); // 24h cache
@@ -138,16 +163,25 @@ async function startServer() {
         const pump = async () => {
           while (true) {
             const { done, value } = await reader.read();
-            if (done) { res.end(); return; }
+            if (done) {
+              res.end();
+              return;
+            }
             if (!res.write(value)) {
               // Handle backpressure
               await new Promise<void>(resolve => res.once("drain", resolve));
             }
           }
         };
-        pump().catch((err) => {
-          console.error("[proxy-download] Stream error for", targetUrl, ":", err);
-          if (!res.headersSent) res.status(500).json({ error: "Stream failed" });
+        pump().catch(err => {
+          console.error(
+            "[proxy-download] Stream error for",
+            targetUrl,
+            ":",
+            err
+          );
+          if (!res.headersSent)
+            res.status(500).json({ error: "Stream failed" });
           else res.end();
         });
       } else {
@@ -187,9 +221,10 @@ async function startServer() {
   // In production (Railway), always use the PORT env var directly and bind 0.0.0.0
   // In development, scan for an available port starting from 3000
   const preferredPort = parseInt(process.env.PORT || "3000");
-  const port = process.env.NODE_ENV === "production"
-    ? preferredPort
-    : await findAvailablePort(preferredPort);
+  const port =
+    process.env.NODE_ENV === "production"
+      ? preferredPort
+      : await findAvailablePort(preferredPort);
 
   if (process.env.NODE_ENV !== "production" && port !== preferredPort) {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
@@ -202,15 +237,19 @@ async function startServer() {
     try {
       const backend = detectStorageBackend();
       const backendLabels: Record<string, string> = {
-        s3:    "✅ S3 / Cloudflare R2（S3_ENDPOINT + S3_ACCESS_KEY_ID + S3_SECRET_ACCESS_KEY + S3_BUCKET_NAME）",
-        gcs:   "✅ Google Cloud Storage（GCS_BUCKET_NAME + GOOGLE_APPLICATION_CREDENTIALS_JSON）",
-        manus: "✅ Manus Storage Proxy（BUILT_IN_FORGE_API_URL + BUILT_IN_FORGE_API_KEY）",
-        none:  "❌ 未設定任何儲存後端！請在 Railway 環境變數中設定以下任一組合：\n" +
-               "   ▸ 方案A（推薦）Cloudflare R2：S3_ENDPOINT + S3_ACCESS_KEY_ID + S3_SECRET_ACCESS_KEY + S3_BUCKET_NAME\n" +
-               "   ▸ 方案B Google GCS：GCS_BUCKET_NAME + GOOGLE_APPLICATION_CREDENTIALS_JSON\n" +
-               "   ▸ 方案C Manus Proxy：BUILT_IN_FORGE_API_URL + BUILT_IN_FORGE_API_KEY",
+        s3: "✅ S3 / Cloudflare R2（S3_ENDPOINT + S3_ACCESS_KEY_ID + S3_SECRET_ACCESS_KEY + S3_BUCKET_NAME）",
+        gcs: "✅ Google Cloud Storage（GCS_BUCKET_NAME + GOOGLE_APPLICATION_CREDENTIALS_JSON）",
+        manus:
+          "✅ Manus Storage Proxy（BUILT_IN_FORGE_API_URL + BUILT_IN_FORGE_API_KEY）",
+        none:
+          "❌ 未設定任何儲存後端！請在 Railway 環境變數中設定以下任一組合：\n" +
+          "   ▸ 方案A（推薦）Cloudflare R2：S3_ENDPOINT + S3_ACCESS_KEY_ID + S3_SECRET_ACCESS_KEY + S3_BUCKET_NAME\n" +
+          "   ▸ 方案B Google GCS：GCS_BUCKET_NAME + GOOGLE_APPLICATION_CREDENTIALS_JSON\n" +
+          "   ▸ 方案C Manus Proxy：BUILT_IN_FORGE_API_URL + BUILT_IN_FORGE_API_KEY",
       };
-      console.log(`[Storage] 目前使用的儲存後端：${backendLabels[backend] ?? backend}`);
+      console.log(
+        `[Storage] 目前使用的儲存後端：${backendLabels[backend] ?? backend}`
+      );
     } catch (e) {
       console.warn("[Storage] 無法偵測儲存後端：", e);
     }

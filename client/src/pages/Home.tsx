@@ -1,4 +1,12 @@
-import { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from "react";
+import {
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+  useCallback,
+  lazy,
+  Suspense,
+} from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { getLoginUrl, getDemoLoginUrl } from "@/const";
@@ -6,14 +14,38 @@ import { useLocation } from "wouter";
 import { GlassCard } from "@/components/ZenCoPilot";
 import VisualSoul from "@/components/VisualSoul";
 const OnboardingFlow = lazy(() => import("@/components/OnboardingFlow"));
-import { motion, AnimatePresence, useScroll, useTransform, useMotionValueEvent } from "framer-motion";
 import {
-  Wand2, Clapperboard, Package, Cpu, ArrowRight, Sparkles, Shield, Users,
-  Moon, Sun, Coffee, Waves, Play, Pause, Volume2, VolumeX,
-  ChevronLeft, ChevronRight,
+  motion,
+  AnimatePresence,
+  useScroll,
+  useTransform,
+  useMotionValueEvent,
+} from "framer-motion";
+import {
+  Wand2,
+  Clapperboard,
+  Package,
+  Cpu,
+  ArrowRight,
+  Sparkles,
+  Shield,
+  Users,
+  Moon,
+  Sun,
+  Coffee,
+  Waves,
+  Play,
+  Pause,
+  Volume2,
+  VolumeX,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { useAIState } from "@/contexts/AIStateContext";
-import { AmbientEnvironment, useCurrentScene } from "@/components/AmbientEnvironment";
+import {
+  AmbientEnvironment,
+  useCurrentScene,
+} from "@/components/AmbientEnvironment";
 import type { SceneId } from "@/components/AmbientEnvironment";
 import SceneSwitcher from "@/components/SceneSwitcher";
 import { useAmbientSound, SoundControl } from "@/components/AmbientSoundEngine";
@@ -36,29 +68,32 @@ const ShowcaseMasonry = lazy(() => import("@/components/ShowcaseMasonry"));
 
 // ─── Scene-Adaptive Style Maps ──────────────────────────────────────────────
 
-const SCENE_STYLES: Record<SceneId, {
-  navBg: string;
-  navBorder: string;
-  textPrimary: string;
-  textSecondary: string;
-  textMuted: string;
-  cardBg: string;
-  cardBorder: string;
-  btnPrimary: string;
-  btnPrimaryText: string;
-  btnOutline: string;
-  btnOutlineText: string;
-  featureBg: string;
-  footerBorder: string;
-  icon: typeof Moon;
-  greeting: string;
-  /** Scene-matched glow color for orb auras */
-  glowColor: string;
-  /** Scene-adaptive divider color (replaces hardcoded lavender/indigo) */
-  dividerColor: string;
-  /** Scene-adaptive full-page gradient background */
-  pageBg: string;
-}> = {
+const SCENE_STYLES: Record<
+  SceneId,
+  {
+    navBg: string;
+    navBorder: string;
+    textPrimary: string;
+    textSecondary: string;
+    textMuted: string;
+    cardBg: string;
+    cardBorder: string;
+    btnPrimary: string;
+    btnPrimaryText: string;
+    btnOutline: string;
+    btnOutlineText: string;
+    featureBg: string;
+    footerBorder: string;
+    icon: typeof Moon;
+    greeting: string;
+    /** Scene-matched glow color for orb auras */
+    glowColor: string;
+    /** Scene-adaptive divider color (replaces hardcoded lavender/indigo) */
+    dividerColor: string;
+    /** Scene-adaptive full-page gradient background */
+    pageBg: string;
+  }
+> = {
   nightSky: {
     navBg: "rgba(10,12,35,0.7)",
     navBorder: "rgba(100,120,200,0.15)",
@@ -77,7 +112,8 @@ const SCENE_STYLES: Record<SceneId, {
     greeting: "夜深了，讓靈感在星空下綻放",
     glowColor: "rgba(100,120,220,0.45)",
     dividerColor: "rgba(100,120,200,0.18)",
-    pageBg: "linear-gradient(180deg, rgba(10,12,35,0.95) 0%, rgba(15,20,50,0.9) 40%, rgba(10,12,35,0.95) 100%)",
+    pageBg:
+      "linear-gradient(180deg, rgba(10,12,35,0.95) 0%, rgba(15,20,50,0.9) 40%, rgba(10,12,35,0.95) 100%)",
   },
   morning: {
     navBg: "rgba(255,235,215,0.75)",
@@ -97,7 +133,8 @@ const SCENE_STYLES: Record<SceneId, {
     greeting: "早安，用晨光喚醒你的創造力",
     glowColor: "rgba(240,180,100,0.4)",
     dividerColor: "rgba(210,170,120,0.25)",
-    pageBg: "linear-gradient(180deg, rgba(255,235,210,0.6) 0%, rgba(255,245,230,0.4) 30%, rgba(255,250,240,0.3) 60%, rgba(255,245,235,0.5) 100%)",
+    pageBg:
+      "linear-gradient(180deg, rgba(255,235,210,0.6) 0%, rgba(255,245,230,0.4) 30%, rgba(255,250,240,0.3) 60%, rgba(255,245,235,0.5) 100%)",
   },
   cafe: {
     navBg: "rgba(235,220,200,0.75)",
@@ -117,7 +154,8 @@ const SCENE_STYLES: Record<SceneId, {
     greeting: "午後時光，來杯咖啡配靈感",
     glowColor: "rgba(200,175,140,0.4)",
     dividerColor: "rgba(180,150,120,0.2)",
-    pageBg: "linear-gradient(180deg, rgba(235,220,200,0.6) 0%, rgba(245,235,220,0.4) 30%, rgba(250,245,235,0.3) 60%, rgba(245,235,220,0.5) 100%)",
+    pageBg:
+      "linear-gradient(180deg, rgba(235,220,200,0.6) 0%, rgba(245,235,220,0.4) 30%, rgba(250,245,235,0.3) 60%, rgba(245,235,220,0.5) 100%)",
   },
   deepSea: {
     navBg: "rgba(5,25,50,0.7)",
@@ -137,7 +175,8 @@ const SCENE_STYLES: Record<SceneId, {
     greeting: "傍晚了，潛入深海尋找靈感珍珠",
     glowColor: "rgba(60,160,200,0.4)",
     dividerColor: "rgba(60,140,180,0.18)",
-    pageBg: "linear-gradient(180deg, rgba(5,20,45,0.95) 0%, rgba(8,30,60,0.9) 40%, rgba(5,20,45,0.95) 100%)",
+    pageBg:
+      "linear-gradient(180deg, rgba(5,20,45,0.95) 0%, rgba(8,30,60,0.9) 40%, rgba(5,20,45,0.95) 100%)",
   },
 };
 
@@ -148,7 +187,8 @@ const VIDEO_DEMOS = [
     id: "text-to-image",
     icon: Wand2,
     title: "AI 圖片生成",
-    description: "輸入文字描述，即刻生成高品質影像。支援多種風格與精準的參數調校。",
+    description:
+      "輸入文字描述，即刻生成高品質影像。支援多種風格與精準的參數調校。",
     tag: "圖片",
     color: "rgba(168,85,247,0.10)",
     borderColor: "rgba(168,85,247,0.20)",
@@ -168,7 +208,8 @@ const VIDEO_DEMOS = [
     id: "text-to-music",
     icon: Sparkles,
     title: "AI 音樂生成",
-    description: "描述曲風情境，自動產生原創配樂。從電子氛圍到古典管弦皆可駕馭。",
+    description:
+      "描述曲風情境，自動產生原創配樂。從電子氛圍到古典管弦皆可駕馭。",
     tag: "音樂",
     color: "rgba(236,72,153,0.10)",
     borderColor: "rgba(236,72,153,0.20)",
@@ -178,7 +219,8 @@ const VIDEO_DEMOS = [
     id: "director-ai",
     icon: Cpu,
     title: "導演 AI 編排",
-    description: "智慧腳本分析與多媒體編排，自動拆解段落並生成對應的圖、影、音。",
+    description:
+      "智慧腳本分析與多媒體編排，自動拆解段落並生成對應的圖、影、音。",
     tag: "導演",
     color: "rgba(34,197,94,0.10)",
     borderColor: "rgba(34,197,94,0.20)",
@@ -231,8 +273,8 @@ function CarouselDots({
                 ? "bg-white/50"
                 : "bg-black/25"
               : isDark
-              ? "bg-white/12 hover:bg-white/20"
-              : "bg-black/6 hover:bg-black/12"
+                ? "bg-white/12 hover:bg-white/20"
+                : "bg-black/6 hover:bg-black/12"
           }`}
           animate={{
             width: i === current ? 28 : 8,
@@ -248,7 +290,13 @@ function CarouselDots({
 
 // ─── Scene Badge ────────────────────────────────────────────────────────────
 
-function SceneBadge({ sceneId, isDark }: { sceneId: SceneId; isDark: boolean }) {
+function SceneBadge({
+  sceneId,
+  isDark,
+}: {
+  sceneId: SceneId;
+  isDark: boolean;
+}) {
   const style = SCENE_STYLES[sceneId];
   const Icon = style.icon;
   return (
@@ -280,7 +328,9 @@ function ScrollIndicator({ isDark }: { isDark: boolean }) {
       transition={{ delay: 2.0, duration: 1.0 }}
       className="flex flex-col items-center gap-2 sm:gap-3 mt-12 sm:mt-16"
     >
-      <span className={`text-[10px] tracking-[0.2em] uppercase ${isDark ? "text-white/25" : "text-black/20"}`}>
+      <span
+        className={`text-[10px] tracking-[0.2em] uppercase ${isDark ? "text-white/25" : "text-black/20"}`}
+      >
         向下探索
       </span>
       <motion.div
@@ -294,7 +344,15 @@ function ScrollIndicator({ isDark }: { isDark: boolean }) {
           fill="none"
           className={isDark ? "text-white/20" : "text-black/15"}
         >
-          <rect x="1" y="1" width="14" height="26" rx="7" stroke="currentColor" strokeWidth="1" />
+          <rect
+            x="1"
+            y="1"
+            width="14"
+            height="26"
+            rx="7"
+            stroke="currentColor"
+            strokeWidth="1"
+          />
           <motion.circle
             cx="8"
             cy="8"
@@ -316,7 +374,8 @@ export default function Home() {
   const { personality } = useAIState();
   const [, navigate] = useLocation();
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const { sceneId, isDark, override, setOverride, allScenes } = useCurrentScene();
+  const { sceneId, isDark, override, setOverride, allScenes } =
+    useCurrentScene();
   const s = useMemo(() => SCENE_STYLES[sceneId], [sceneId]);
   const soundControls = useAmbientSound(sceneId);
 
@@ -324,8 +383,13 @@ export default function Home() {
   const [featureApi, setFeatureApi] = useState<CarouselApi>();
   const [featureCurrent, setFeatureCurrent] = useState(0);
   const featureAutoplay = useMemo(
-    () => Autoplay({ delay: 4000, stopOnInteraction: true, stopOnMouseEnter: true }),
-    [],
+    () =>
+      Autoplay({
+        delay: 4000,
+        stopOnInteraction: true,
+        stopOnMouseEnter: true,
+      }),
+    []
   );
 
   useEffect(() => {
@@ -333,22 +397,25 @@ export default function Home() {
     const onSelect = () => setFeatureCurrent(featureApi.selectedScrollSnap());
     featureApi.on("select", onSelect);
     onSelect();
-    return () => { featureApi.off("select", onSelect); };
+    return () => {
+      featureApi.off("select", onSelect);
+    };
   }, [featureApi]);
 
   const featureScrollTo = useCallback(
     (idx: number) => featureApi?.scrollTo(idx),
-    [featureApi],
+    [featureApi]
   );
 
   // ─── Sense Engine + Intent Inference ─────────────────────────────
   const senseEngine = useSenseEngine({ enabled: true });
-  const { result: intentResult, isInferring: isIntentInferring } = useIntentInference(senseEngine, {
-    minEvents: 5,
-    minSessionMs: 30_000,
-    maxInferences: 3,
-    cooldownMs: 60_000,
-  });
+  const { result: intentResult, isInferring: isIntentInferring } =
+    useIntentInference(senseEngine, {
+      minEvents: 5,
+      minSessionMs: 30_000,
+      maxInferences: 3,
+      cooldownMs: 60_000,
+    });
 
   // ─── Scrollytelling: useScroll + useTransform ─────────────────────
   // heroRef marks the Hero section. As user scrolls past it,
@@ -372,7 +439,7 @@ export default function Home() {
 
   // Track scroll state for conditional rendering optimizations
   const [isAmbientVisible, setIsAmbientVisible] = useState(true);
-  useMotionValueEvent(ambientOpacity, "change", (latest) => {
+  useMotionValueEvent(ambientOpacity, "change", latest => {
     setIsAmbientVisible(latest > 0.01);
   });
 
@@ -388,10 +455,22 @@ export default function Home() {
 
   if (showOnboarding && isAuthenticated) {
     return (
-      <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><VisualSoul state="thinking" /></div>}>
+      <Suspense
+        fallback={
+          <div className="min-h-screen flex items-center justify-center">
+            <VisualSoul state="thinking" />
+          </div>
+        }
+      >
         <OnboardingFlow
-          onComplete={() => { setShowOnboarding(false); navigate("/studio"); }}
-          onSkip={() => { setShowOnboarding(false); navigate("/studio"); }}
+          onComplete={() => {
+            setShowOnboarding(false);
+            navigate("/studio");
+          }}
+          onSkip={() => {
+            setShowOnboarding(false);
+            navigate("/studio");
+          }}
         />
       </Suspense>
     );
@@ -418,11 +497,7 @@ export default function Home() {
       >
         {isAmbientVisible && (
           <>
-            <AmbientVideo
-              src=""
-              overlayOpacity={0.35}
-              fadeInDuration={1200}
-            />
+            <AmbientVideo src="" overlayOpacity={0.35} fadeInDuration={1200} />
             <AmbientEnvironment />
           </>
         )}
@@ -442,7 +517,9 @@ export default function Home() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-full flex items-center justify-between">
           <div className="flex items-center gap-3">
             <VisualSoul size="sm" personality={personality} />
-            <span className={`font-semibold tracking-tight transition-colors duration-1000 ${s.textPrimary}`}>
+            <span
+              className={`font-semibold tracking-tight transition-colors duration-1000 ${s.textPrimary}`}
+            >
               AI Director
             </span>
           </div>
@@ -468,7 +545,9 @@ export default function Home() {
               </Button>
             ) : (
               <Button
-                onClick={() => { window.location.href = getLoginUrl(); }}
+                onClick={() => {
+                  window.location.href = getLoginUrl();
+                }}
                 className={`rounded-2xl text-sm h-10 px-4 sm:px-6 btn-healing ${s.btnPrimary} ${s.btnPrimaryText}`}
               >
                 登入
@@ -498,7 +577,11 @@ export default function Home() {
               className="flex justify-center mb-8 sm:mb-10"
               initial={{ opacity: 0, y: -12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              transition={{
+                duration: 0.8,
+                delay: 0.2,
+                ease: [0.16, 1, 0.3, 1],
+              }}
             >
               <SceneBadge sceneId={sceneId} isDark={isDark} />
             </motion.div>
@@ -515,7 +598,11 @@ export default function Home() {
                   scale: [1, 1.08, 1],
                   opacity: [0.25, 0.4, 0.25],
                 }}
-                transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+                transition={{
+                  duration: 8,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
               />
               {/* Orb with subtle scene-matched aura */}
               <motion.div
@@ -527,9 +614,17 @@ export default function Home() {
                     `drop-shadow(0 0 16px ${s.glowColor})`,
                   ],
                 }}
-                transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+                transition={{
+                  duration: 6,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
               >
-                <VisualSoul size="md" personality={personality} className="sm:!w-16 sm:!h-16" />
+                <VisualSoul
+                  size="md"
+                  personality={personality}
+                  className="sm:!w-16 sm:!h-16"
+                />
               </motion.div>
             </div>
 
@@ -537,7 +632,11 @@ export default function Home() {
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              transition={{
+                duration: 0.8,
+                delay: 0.4,
+                ease: [0.16, 1, 0.3, 1],
+              }}
             >
               <OarsGreeting
                 sceneId={sceneId}
@@ -550,7 +649,11 @@ export default function Home() {
               className="mt-10 sm:mt-14 flex items-center justify-center gap-4"
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 0.6, ease: [0.16, 1, 0.3, 1] }}
+              transition={{
+                duration: 0.7,
+                delay: 0.6,
+                ease: [0.16, 1, 0.3, 1],
+              }}
             >
               {isAuthenticated ? (
                 <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto px-4 sm:px-0">
@@ -576,7 +679,9 @@ export default function Home() {
                 <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto px-4 sm:px-0">
                   <Button
                     size="lg"
-                    onClick={() => { window.location.href = getLoginUrl(); }}
+                    onClick={() => {
+                      window.location.href = getLoginUrl();
+                    }}
                     className={`rounded-2xl h-11 sm:h-12 px-6 sm:px-10 gap-2 text-sm shadow-lg hover:shadow-xl btn-healing ${s.btnPrimary} ${s.btnPrimaryText}`}
                   >
                     立即開始
@@ -585,7 +690,9 @@ export default function Home() {
                   <Button
                     size="lg"
                     variant="outline"
-                    onClick={() => { window.location.href = getDemoLoginUrl(); }}
+                    onClick={() => {
+                      window.location.href = getDemoLoginUrl();
+                    }}
                     className={`rounded-2xl h-11 sm:h-12 px-6 sm:px-8 gap-2 text-sm border-dashed btn-healing ${s.btnOutline} ${s.btnOutlineText}`}
                   >
                     ✨ 訪客體驗
@@ -630,14 +737,23 @@ export default function Home() {
               <Package className="w-3 h-3" />
               Core Capabilities
             </motion.div>
-            <h2 className={`hs-h2 !mb-0 transition-colors duration-1000 ${s.textPrimary}`}>
+            <h2
+              className={`hs-h2 !mb-0 transition-colors duration-1000 ${s.textPrimary}`}
+            >
               多模態 AI 創作引擎
             </h2>
-            <p className={`mt-4 sm:mt-5 hs-p !mb-0 max-w-lg mx-auto transition-colors duration-1000 ${s.textMuted}`}>
+            <p
+              className={`mt-4 sm:mt-5 hs-p !mb-0 max-w-lg mx-auto transition-colors duration-1000 ${s.textMuted}`}
+            >
               從圖片、影片到音樂與配音，一站式覆蓋你的所有創作需求
             </p>
             {/* Healing divider */}
-            <div className="mx-auto mt-8 w-16 h-[1px] rounded-full" style={{ background: `linear-gradient(90deg, transparent, ${s.dividerColor}, transparent)` }} />
+            <div
+              className="mx-auto mt-8 w-16 h-[1px] rounded-full"
+              style={{
+                background: `linear-gradient(90deg, transparent, ${s.dividerColor}, transparent)`,
+              }}
+            />
           </motion.div>
 
           <motion.div
@@ -654,7 +770,10 @@ export default function Home() {
             >
               <CarouselContent className="-ml-5">
                 {VIDEO_DEMOS.map((demo, idx) => (
-                  <CarouselItem key={demo.id} className="pl-5 basis-full sm:basis-1/2 lg:basis-1/3">
+                  <CarouselItem
+                    key={demo.id}
+                    className="pl-5 basis-full sm:basis-1/2 lg:basis-1/3"
+                  >
                     <motion.div
                       whileHover={{ y: -5 }}
                       transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
@@ -665,7 +784,9 @@ export default function Home() {
                           background: s.cardBg,
                           border: `1px solid ${s.cardBorder}`,
                         }}
-                        onClick={() => navigate(isAuthenticated ? "/studio" : "/")}
+                        onClick={() =>
+                          navigate(isAuthenticated ? "/studio" : "/")
+                        }
                       >
                         {/* Preview area with refined layered gradients */}
                         <div
@@ -679,7 +800,11 @@ export default function Home() {
                               background: `radial-gradient(circle at 30% 30%, ${demo.accentColor}15 0%, transparent 50%), radial-gradient(circle at 70% 70%, ${demo.accentColor}0a 0%, transparent 50%)`,
                             }}
                             animate={{ opacity: [0.5, 0.8, 0.5] }}
-                            transition={{ duration: 6 + idx * 0.5, repeat: Infinity, ease: "easeInOut" }}
+                            transition={{
+                              duration: 6 + idx * 0.5,
+                              repeat: Infinity,
+                              ease: "easeInOut",
+                            }}
                           />
                           {/* Center icon — refined glass container */}
                           <div className="relative z-10 flex flex-col items-center gap-3">
@@ -691,9 +816,15 @@ export default function Home() {
                                 backdropFilter: "blur(16px)",
                               }}
                               whileHover={{ scale: 1.08, rotate: 2 }}
-                              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                              transition={{
+                                duration: 0.4,
+                                ease: [0.16, 1, 0.3, 1],
+                              }}
                             >
-                              <demo.icon className="w-6 h-6" style={{ color: demo.accentColor }} />
+                              <demo.icon
+                                className="w-6 h-6"
+                                style={{ color: demo.accentColor }}
+                              />
                             </motion.div>
                             <motion.div
                               className="w-9 h-9 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-1000"
@@ -703,7 +834,10 @@ export default function Home() {
                                 backdropFilter: "blur(12px)",
                               }}
                             >
-                              <Play className="w-3.5 h-3.5 ml-0.5" style={{ color: demo.accentColor }} />
+                              <Play
+                                className="w-3.5 h-3.5 ml-0.5"
+                                style={{ color: demo.accentColor }}
+                              />
                             </motion.div>
                           </div>
                           {/* Tag badge — refined positioning */}
@@ -726,15 +860,21 @@ export default function Home() {
                               className="w-1 h-4 rounded-full"
                               style={{ background: `${demo.accentColor}40` }}
                             />
-                            <h3 className={`hs-h3 !mb-0 transition-colors duration-1000 ${s.textPrimary}`}>
+                            <h3
+                              className={`hs-h3 !mb-0 transition-colors duration-1000 ${s.textPrimary}`}
+                            >
                               {demo.title}
                             </h3>
                           </div>
-                          <p className={`hs-small !mb-0 leading-relaxed transition-colors duration-1000 ${s.textMuted}`}>
+                          <p
+                            className={`hs-small !mb-0 leading-relaxed transition-colors duration-1000 ${s.textMuted}`}
+                          >
                             {demo.description}
                           </p>
                           {/* Subtle "explore" hint on hover */}
-                          <div className={`mt-3 flex items-center gap-1.5 text-[10px] tracking-wide opacity-0 group-hover:opacity-60 transition-opacity duration-500 ${s.textMuted}`}>
+                          <div
+                            className={`mt-3 flex items-center gap-1.5 text-[10px] tracking-wide opacity-0 group-hover:opacity-60 transition-opacity duration-500 ${s.textMuted}`}
+                          >
                             <span>探索功能</span>
                             <ArrowRight className="w-3 h-3" />
                           </div>
@@ -777,28 +917,37 @@ export default function Home() {
                   className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
                   style={{ background: s.featureBg }}
                 >
-                  <Sparkles className={`w-4 h-4 transition-colors duration-1000 ${s.textSecondary}`} />
+                  <Sparkles
+                    className={`w-4 h-4 transition-colors duration-1000 ${s.textSecondary}`}
+                  />
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className={`text-xs font-medium transition-colors duration-1000 ${s.textSecondary}`}>
+                    <span
+                      className={`text-xs font-medium transition-colors duration-1000 ${s.textSecondary}`}
+                    >
                       {intentResult.intentLabel}
                     </span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full transition-colors duration-1000 ${s.textMuted}`}
+                    <span
+                      className={`text-[10px] px-1.5 py-0.5 rounded-full transition-colors duration-1000 ${s.textMuted}`}
                       style={{ background: s.featureBg }}
                     >
                       {Math.round(intentResult.confidence * 100)}% 信心度
                     </span>
                   </div>
-                  <p className={`hs-p !mb-0 leading-relaxed transition-colors duration-1000 ${s.textPrimary}`}>
+                  <p
+                    className={`hs-p !mb-0 leading-relaxed transition-colors duration-1000 ${s.textPrimary}`}
+                  >
                     {intentResult.psychologicalInsight}
                   </p>
-                  <p className={`hs-small !mb-0 mt-2 transition-colors duration-1000 ${s.textMuted}`}>
+                  <p
+                    className={`hs-small !mb-0 mt-2 transition-colors duration-1000 ${s.textMuted}`}
+                  >
                     {intentResult.actionDetail}
                   </p>
                   {intentResult.detectedAesthetics.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 mt-2">
-                      {intentResult.detectedAesthetics.map((tag) => (
+                      {intentResult.detectedAesthetics.map(tag => (
                         <span
                           key={tag}
                           className={`text-[10px] px-2 py-0.5 rounded-full transition-colors duration-1000 ${s.textMuted}`}
@@ -817,23 +966,35 @@ export default function Home() {
       )}
 
       {/* ── Intel Bento Grid (情報站) ── */}
-      <Suspense fallback={<div className="flex items-center justify-center py-20"><div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" /></div>}>
+      <Suspense
+        fallback={
+          <div className="flex items-center justify-center py-20">
+            <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+          </div>
+        }
+      >
         <IntelBentoGrid sceneId={sceneId} />
       </Suspense>
 
       {/* ── Showcase Masonry (精選作品瀑布流) ── */}
-      <Suspense fallback={<div className="flex items-center justify-center py-20"><div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" /></div>}>
-        <ShowcaseMasonry
-        sceneId={sceneId}
-        aestheticOverride={
-          intentResult &&
-          intentResult.confidence > 0.5 &&
-          intentResult.intentType === "aesthetic_preference" &&
-          intentResult.detectedAesthetics.length > 0
-            ? intentResult.detectedAesthetics
-            : null
+      <Suspense
+        fallback={
+          <div className="flex items-center justify-center py-20">
+            <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+          </div>
         }
-      />
+      >
+        <ShowcaseMasonry
+          sceneId={sceneId}
+          aestheticOverride={
+            intentResult &&
+            intentResult.confidence > 0.5 &&
+            intentResult.intentType === "aesthetic_preference" &&
+            intentResult.detectedAesthetics.length > 0
+              ? intentResult.detectedAesthetics
+              : null
+          }
+        />
       </Suspense>
 
       {/* ── Soft gradient divider before CTA ── */}
@@ -867,17 +1028,25 @@ export default function Home() {
                   background: `radial-gradient(ellipse at 50% 0%, ${s.glowColor} 0%, transparent 55%)`,
                 }}
                 animate={{ opacity: [0.2, 0.35, 0.2] }}
-                transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+                transition={{
+                  duration: 8,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
               />
               {/* Decorative top accent line */}
               <div
                 className="absolute top-0 left-1/2 -translate-x-1/2 h-[1px] w-1/2 rounded-full"
-                style={{ background: `linear-gradient(90deg, transparent, ${s.glowColor}, transparent)` }}
+                style={{
+                  background: `linear-gradient(90deg, transparent, ${s.glowColor}, transparent)`,
+                }}
               />
               <div className="relative z-10">
                 <motion.div
                   className={`inline-flex items-center gap-2 px-3 sm:px-4 py-1 sm:py-1.5 rounded-full text-[9px] sm:text-[10px] tracking-[0.15em] uppercase mb-6 sm:mb-8 ${
-                    isDark ? "bg-white/6 text-white/40" : "bg-black/3 text-black/30"
+                    isDark
+                      ? "bg-white/6 text-white/40"
+                      : "bg-black/3 text-black/30"
                   }`}
                   initial={{ opacity: 0, y: 8 }}
                   whileInView={{ opacity: 1, y: 0 }}
@@ -887,14 +1056,23 @@ export default function Home() {
                   <Sparkles className="w-3 h-3" />
                   Healing Studio
                 </motion.div>
-                <h2 className={`hs-h2 !mb-0 transition-colors duration-1000 ${s.textPrimary}`}>
+                <h2
+                  className={`hs-h2 !mb-0 transition-colors duration-1000 ${s.textPrimary}`}
+                >
                   準備好開始創作了嗎？
                 </h2>
-                <p className={`mt-4 sm:mt-5 hs-p !mb-0 max-w-lg mx-auto transition-colors duration-1000 ${s.textMuted}`}>
+                <p
+                  className={`mt-4 sm:mt-5 hs-p !mb-0 max-w-lg mx-auto transition-colors duration-1000 ${s.textMuted}`}
+                >
                   登入後即可使用所有功能，每位使用者享有初始免費配額
                 </p>
                 {/* Healing divider */}
-                <div className="mx-auto mt-6 sm:mt-8 mb-8 sm:mb-10 w-12 h-[1px] rounded-full" style={{ background: `linear-gradient(90deg, transparent, ${s.dividerColor}, transparent)` }} />
+                <div
+                  className="mx-auto mt-6 sm:mt-8 mb-8 sm:mb-10 w-12 h-[1px] rounded-full"
+                  style={{
+                    background: `linear-gradient(90deg, transparent, ${s.dividerColor}, transparent)`,
+                  }}
+                />
                 <div>
                   {isAuthenticated ? (
                     <Button
@@ -908,7 +1086,9 @@ export default function Home() {
                   ) : (
                     <Button
                       size="lg"
-                      onClick={() => { window.location.href = getLoginUrl(); }}
+                      onClick={() => {
+                        window.location.href = getLoginUrl();
+                      }}
                       className={`rounded-2xl h-11 sm:h-12 px-8 sm:px-10 gap-2 text-sm btn-healing ${s.btnPrimary} ${s.btnPrimaryText}`}
                     >
                       免費開始
@@ -931,9 +1111,7 @@ export default function Home() {
       />
 
       {/* ── Footer — healing minimal ── */}
-      <footer
-        className="py-10 sm:py-12 lg:py-14 px-4 sm:px-6 transition-colors duration-1000 relative z-10 mt-auto"
-      >
+      <footer className="py-10 sm:py-12 lg:py-14 px-4 sm:px-6 transition-colors duration-1000 relative z-10 mt-auto">
         {/* Breathing divider line */}
         <div
           className="max-w-4xl mx-auto mb-8 sm:mb-10 h-px"
@@ -944,9 +1122,15 @@ export default function Home() {
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-0 text-xs">
           <div className="flex items-center gap-3">
             <VisualSoul size="sm" personality={personality} />
-            <span className={`transition-colors duration-1000 tracking-wide ${s.textMuted}`}>AI Director</span>
+            <span
+              className={`transition-colors duration-1000 tracking-wide ${s.textMuted}`}
+            >
+              AI Director
+            </span>
           </div>
-          <span className={`transition-colors duration-1000 tracking-wide ${s.textMuted}`}>
+          <span
+            className={`transition-colors duration-1000 tracking-wide ${s.textMuted}`}
+          >
             Healing Creative Platform
           </span>
         </div>

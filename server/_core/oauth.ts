@@ -55,7 +55,9 @@ export function registerOAuthRoutes(app: Express) {
       res.redirect(302, authUrl);
     } catch (error) {
       console.error("[OAuth] Failed to build Google auth URL", error);
-      res.status(500).json({ error: "OAuth 設定錯誤，請檢查 GOOGLE_CLIENT_ID" });
+      res
+        .status(500)
+        .json({ error: "OAuth 設定錯誤，請檢查 GOOGLE_CLIENT_ID" });
     }
   });
 

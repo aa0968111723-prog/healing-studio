@@ -2,18 +2,33 @@ import { useState, useEffect } from "react";
 import { useIsMobile } from "@/hooks/useMobile";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
-  StickyNote, X, Plus, Trash2, Image as ImageIcon,
-  Sparkles, Clock, Tag, Save, ExternalLink,
+  StickyNote,
+  X,
+  Plus,
+  Trash2,
+  Image as ImageIcon,
+  Sparkles,
+  Clock,
+  Tag,
+  Save,
+  ExternalLink,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
-import { useNotesDrawer, type NotePayload } from "@/contexts/NotesDrawerContext";
+import {
+  useNotesDrawer,
+  type NotePayload,
+} from "@/contexts/NotesDrawerContext";
 import { cn } from "@/lib/utils";
 
 // ─── Note Card ──────────────────────────────────────────────────────────────
@@ -34,11 +49,12 @@ function NoteCard({
   onDelete: (id: number) => void;
 }) {
   const isMobile = useIsMobile();
-  const typeColor = note.noteType === "script"
-    ? "bg-purple-500/20 text-purple-300 border-purple-500/30"
-    : note.noteType === "calendar_event"
-    ? "bg-amber-500/20 text-amber-300 border-amber-500/30"
-    : "bg-cyan-500/20 text-cyan-300 border-cyan-500/30";
+  const typeColor =
+    note.noteType === "script"
+      ? "bg-purple-500/20 text-purple-300 border-purple-500/30"
+      : note.noteType === "calendar_event"
+        ? "bg-amber-500/20 text-amber-300 border-amber-500/30"
+        : "bg-cyan-500/20 text-cyan-300 border-cyan-500/30";
 
   return (
     <motion.div
@@ -51,18 +67,33 @@ function NoteCard({
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0", typeColor)}>
-              {note.noteType === "script" ? "腳本" : note.noteType === "calendar_event" ? "排程" : "筆記"}
+            <Badge
+              variant="outline"
+              className={cn("text-[10px] px-1.5 py-0", typeColor)}
+            >
+              {note.noteType === "script"
+                ? "腳本"
+                : note.noteType === "calendar_event"
+                  ? "排程"
+                  : "筆記"}
             </Badge>
-            <h4 className="text-sm font-medium text-foreground/90 truncate">{note.title}</h4>
+            <h4 className="text-sm font-medium text-foreground/90 truncate">
+              {note.title}
+            </h4>
           </div>
           {note.content && (
-            <p className="text-xs text-muted-foreground/70 line-clamp-2 mt-1">{note.content}</p>
+            <p className="text-xs text-muted-foreground/70 line-clamp-2 mt-1">
+              {note.content}
+            </p>
           )}
           <div className="flex items-center gap-2 mt-2 flex-wrap">
-            {note.tags?.map((tag) => (
-              <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/10 text-muted-foreground/60">
-                <Tag className="w-2.5 h-2.5 inline mr-0.5" />{tag}
+            {note.tags?.map(tag => (
+              <span
+                key={tag}
+                className="text-[10px] px-1.5 py-0.5 rounded-full bg-white/10 text-muted-foreground/60"
+              >
+                <Tag className="w-2.5 h-2.5 inline mr-0.5" />
+                {tag}
               </span>
             ))}
             <span className="text-[10px] text-muted-foreground/40 ml-auto">
@@ -136,28 +167,43 @@ function QuickSaveForm({
         <Sparkles className="w-4 h-4" />
         <span>快速釘選至筆記</span>
         {payload.sourceType && (
-          <Badge variant="outline" className="text-[10px] ml-auto border-cyan-500/30 text-cyan-400/70">
-            來自 {payload.sourceType === "studio" ? "工作室" : payload.sourceType === "thought-chain" ? "思維鏈" : payload.sourceType === "orb" ? "光球" : "手動"}
+          <Badge
+            variant="outline"
+            className="text-[10px] ml-auto border-cyan-500/30 text-cyan-400/70"
+          >
+            來自{" "}
+            {payload.sourceType === "studio"
+              ? "工作室"
+              : payload.sourceType === "thought-chain"
+                ? "思維鏈"
+                : payload.sourceType === "orb"
+                  ? "光球"
+                  : "手動"}
           </Badge>
         )}
       </div>
 
       {payload.resultUrl && (
         <div className="rounded-lg overflow-hidden border border-white/10 bg-black/20">
-          <img src={payload.resultUrl} alt="preview" className="w-full h-24 object-cover" loading="lazy" />
+          <img
+            src={payload.resultUrl}
+            alt="preview"
+            className="w-full h-24 object-cover"
+            loading="lazy"
+          />
         </div>
       )}
 
       <Input
         value={title}
-        onChange={(e) => setTitle(e.target.value)}
+        onChange={e => setTitle(e.target.value)}
         placeholder="筆記標題"
         className="bg-white/5 border-white/10 text-sm"
       />
 
       <Textarea
         value={content}
-        onChange={(e) => setContent(e.target.value)}
+        onChange={e => setContent(e.target.value)}
         placeholder="筆記內容..."
         rows={4}
         className="bg-white/5 border-white/10 text-xs resize-none"
@@ -166,8 +212,8 @@ function QuickSaveForm({
       <div className="flex items-center gap-2">
         <Input
           value={tagInput}
-          onChange={(e) => setTagInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addTag())}
+          onChange={e => setTagInput(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && (e.preventDefault(), addTag())}
           placeholder="新增標籤..."
           className="bg-white/5 border-white/10 text-xs flex-1"
         />
@@ -178,8 +224,13 @@ function QuickSaveForm({
 
       {tags.length > 0 && (
         <div className="flex flex-wrap gap-1">
-          {tags.map((tag) => (
-            <Badge key={tag} variant="secondary" className="text-[10px] gap-1 cursor-pointer" onClick={() => setTags(tags.filter(t => t !== tag))}>
+          {tags.map(tag => (
+            <Badge
+              key={tag}
+              variant="secondary"
+              className="text-[10px] gap-1 cursor-pointer"
+              onClick={() => setTags(tags.filter(t => t !== tag))}
+            >
               {tag} <X className="w-2.5 h-2.5" />
             </Badge>
           ))}
@@ -221,7 +272,12 @@ export default function ProjectNotesDrawer() {
   }, [pendingPayload]);
 
   return (
-    <Sheet open={isOpen} onOpenChange={(open) => { if (!open) closeDrawer(); }}>
+    <Sheet
+      open={isOpen}
+      onOpenChange={open => {
+        if (!open) closeDrawer();
+      }}
+    >
       <SheetContent
         side="right"
         className="w-[380px] sm:w-[420px] bg-background/80 backdrop-blur-2xl border-l border-white/10 p-0 overflow-hidden"
@@ -279,22 +335,27 @@ export default function ProjectNotesDrawer() {
             {notesQuery.isLoading ? (
               <div className="space-y-3">
                 {[1, 2, 3].map(i => (
-                  <div key={i} className="h-20 rounded-xl bg-white/5 animate-pulse" />
+                  <div
+                    key={i}
+                    className="h-20 rounded-xl bg-white/5 animate-pulse"
+                  />
                 ))}
               </div>
             ) : notesQuery.data?.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-muted-foreground/40">
                 <StickyNote className="w-10 h-10 mb-3 opacity-30" />
                 <p className="text-sm">還沒有筆記</p>
-                <p className="text-xs mt-1">從工作室釘選靈感，或拖曳元素到光球</p>
+                <p className="text-xs mt-1">
+                  從工作室釘選靈感，或拖曳元素到光球
+                </p>
               </div>
             ) : (
               <AnimatePresence mode="popLayout">
-                {notesQuery.data?.map((note) => (
+                {notesQuery.data?.map(note => (
                   <NoteCard
                     key={note.id}
                     note={note}
-                    onDelete={(id) => deleteNote.mutate({ id })}
+                    onDelete={id => deleteNote.mutate({ id })}
                   />
                 ))}
               </AnimatePresence>
@@ -306,7 +367,7 @@ export default function ProjectNotesDrawer() {
             <div className="flex items-center justify-between text-xs text-muted-foreground/40">
               <span>{notesQuery.data?.length ?? 0} 則筆記</span>
               <button
-                onClick={() => window.location.href = "/notes"}
+                onClick={() => (window.location.href = "/notes")}
                 className="flex items-center gap-1 hover:text-foreground/70 transition-colors"
               >
                 <ExternalLink className="w-3 h-3" />

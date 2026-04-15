@@ -4,7 +4,7 @@ import { describe, it, expect, vi } from "vitest";
 let noteIdCounter = 100;
 const notesStore: any[] = [];
 
-vi.mock("./db", async (importOriginal) => {
+vi.mock("./db", async importOriginal => {
   const actual = await importOriginal<typeof import("./db")>();
   return {
     ...actual,
@@ -21,17 +21,21 @@ vi.mock("./db", async (importOriginal) => {
       });
       return id;
     }),
-    getProjectNotesByUser: vi.fn().mockImplementation(async (userId: number) => {
-      return notesStore.filter((n) => n.userId === userId);
-    }),
+    getProjectNotesByUser: vi
+      .fn()
+      .mockImplementation(async (userId: number) => {
+        return notesStore.filter(n => n.userId === userId);
+      }),
     deleteProjectNote: vi.fn().mockImplementation(async (id: number) => {
-      const idx = notesStore.findIndex((n) => n.id === id);
+      const idx = notesStore.findIndex(n => n.id === id);
       if (idx !== -1) notesStore.splice(idx, 1);
     }),
-    updateProjectNote: vi.fn().mockImplementation(async (id: number, data: any) => {
-      const note = notesStore.find((n) => n.id === id);
-      if (note) Object.assign(note, data);
-    }),
+    updateProjectNote: vi
+      .fn()
+      .mockImplementation(async (id: number, data: any) => {
+        const note = notesStore.find(n => n.id === id);
+        if (note) Object.assign(note, data);
+      }),
     deductUserQuota: vi.fn().mockResolvedValue(true),
     deductUserPoints: vi.fn().mockResolvedValue(true),
     refundUserQuota: vi.fn().mockResolvedValue(undefined),
@@ -45,14 +49,21 @@ import type { TrpcContext } from "./_core/context";
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
-function createMockUser(overrides: Partial<AuthenticatedUser> = {}): AuthenticatedUser {
+function createMockUser(
+  overrides: Partial<AuthenticatedUser> = {}
+): AuthenticatedUser {
   return {
     id: 1,
     openId: "test-phase9-user",
     name: "Phase9 Tester",
     role: "user",
     createdAt: new Date(),
-    remainingGenerations: JSON.stringify({ image: 10, video: 5, audio: 5, voice: 5 }),
+    remainingGenerations: JSON.stringify({
+      image: 10,
+      video: 5,
+      audio: 5,
+      voice: 5,
+    }),
     ...overrides,
   } as AuthenticatedUser;
 }
@@ -66,7 +77,6 @@ function mockCtx(userId = 1) {
 }
 
 describe("Phase 9: Agentic Connectivity + Knowledge Management + Onboarding", () => {
-
   // ─── Task 1: Notes API for Orb/Studio Integration ───────────────────────
 
   describe("Notes API for Orb/Studio pin-to-notes", () => {
@@ -74,7 +84,8 @@ describe("Phase 9: Agentic Connectivity + Knowledge Management + Onboarding", ()
       const caller = appRouter.createCaller(mockCtx());
       const note = await caller.notes.create({
         title: "圖片生成結果",
-        content: "提示詞：a serene landscape\n\n結果：https://example.com/img.png",
+        content:
+          "提示詞：a serene landscape\n\n結果：https://example.com/img.png",
         noteType: "note",
       });
       expect(note).toBeDefined();
@@ -150,8 +161,10 @@ describe("Phase 9: Agentic Connectivity + Knowledge Management + Onboarding", ()
       // Backend just receives the parsed timestamp
       const caller = appRouter.createCaller(mockCtx());
       const nextFriday = new Date();
-      nextFriday.setDate(nextFriday.getDate() + ((5 - nextFriday.getDay() + 7) % 7 || 7));
-      
+      nextFriday.setDate(
+        nextFriday.getDate() + ((5 - nextFriday.getDay() + 7) % 7 || 7)
+      );
+
       const note = await caller.notes.create({
         title: "排程到下週五",
         content: "自然語言解析結果",
@@ -181,7 +194,12 @@ describe("Phase 9: Agentic Connectivity + Knowledge Management + Onboarding", ()
     });
 
     it("should have valid target element IDs matching Studio page", () => {
-      const requiredIds = ["prompt-input", "personality-selector", "generate-button", "storyboard-panel"];
+      const requiredIds = [
+        "prompt-input",
+        "personality-selector",
+        "generate-button",
+        "storyboard-panel",
+      ];
       requiredIds.forEach(id => {
         expect(typeof id).toBe("string");
         expect(id.length).toBeGreaterThan(0);
@@ -209,7 +227,7 @@ describe("Phase 9: Agentic Connectivity + Knowledge Management + Onboarding", ()
       if (lower.includes("下週五") || lower.includes("下周五")) {
         const d = new Date(now);
         const dayOfWeek = d.getDay();
-        const daysUntilNextFriday = ((5 - dayOfWeek + 7) % 7) || 7;
+        const daysUntilNextFriday = (5 - dayOfWeek + 7) % 7 || 7;
         d.setDate(d.getDate() + daysUntilNextFriday);
         return d;
       }
@@ -260,9 +278,24 @@ describe("Phase 9: Agentic Connectivity + Knowledge Management + Onboarding", ()
     // Test command type detection
     function parseOrbCommand(text: string): { type: string } {
       const lower = text.toLowerCase();
-      if (lower.includes("筆記") || lower.includes("記錄") || lower.includes("釘選")) return { type: "notes" };
-      if (lower.includes("排程") || lower.includes("日曆") || lower.includes("行事曆")) return { type: "calendar" };
-      if (lower.includes("導覽") || lower.includes("引導") || lower.includes("教學")) return { type: "tour" };
+      if (
+        lower.includes("筆記") ||
+        lower.includes("記錄") ||
+        lower.includes("釘選")
+      )
+        return { type: "notes" };
+      if (
+        lower.includes("排程") ||
+        lower.includes("日曆") ||
+        lower.includes("行事曆")
+      )
+        return { type: "calendar" };
+      if (
+        lower.includes("導覽") ||
+        lower.includes("引導") ||
+        lower.includes("教學")
+      )
+        return { type: "tour" };
       return { type: "unknown" };
     }
 
@@ -292,7 +325,11 @@ describe("Phase 9: Agentic Connectivity + Knowledge Management + Onboarding", ()
 
   describe("Drag and drop data format validation", () => {
     it("should handle note drag payload format", () => {
-      const payload = JSON.stringify({ noteId: 1, title: "測試筆記", type: "note" });
+      const payload = JSON.stringify({
+        noteId: 1,
+        title: "測試筆記",
+        type: "note",
+      });
       const parsed = JSON.parse(payload);
       expect(parsed.noteId).toBe(1);
       expect(parsed.title).toBe("測試筆記");

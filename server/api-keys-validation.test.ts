@@ -11,7 +11,9 @@ describe("API Keys Validation", () => {
   it("NEWS_API_KEY should be set", () => {
     const key = process.env.NEWS_API_KEY;
     if (!key) {
-      console.warn("⚠️  NEWS_API_KEY not set — skipping (set in .env for production)");
+      console.warn(
+        "⚠️  NEWS_API_KEY not set — skipping (set in .env for production)"
+      );
       return;
     }
     expect(key).toBeTruthy();
@@ -34,7 +36,9 @@ describe("API Keys Validation", () => {
   it("NEWSDATA_API_KEY should be set", () => {
     const key = process.env.NEWSDATA_API_KEY;
     if (!key) {
-      console.warn("⚠️  NEWSDATA_API_KEY not set — skipping (set in .env for production)");
+      console.warn(
+        "⚠️  NEWSDATA_API_KEY not set — skipping (set in .env for production)"
+      );
       return;
     }
     expect(key).toBeTruthy();
@@ -56,7 +60,9 @@ describe("API Keys Validation", () => {
   it("FAL_API_KEY should be set", () => {
     const key = process.env.FAL_API_KEY;
     if (!key) {
-      console.warn("⚠️  FAL_API_KEY not set — skipping (set in .env for production)");
+      console.warn(
+        "⚠️  FAL_API_KEY not set — skipping (set in .env for production)"
+      );
       return;
     }
     expect(key).toBeTruthy();
@@ -79,7 +85,9 @@ describe("API Keys Validation", () => {
   it("LANGSMITH_API_KEY should be set", () => {
     const key = process.env.LANGSMITH_API_KEY;
     if (!key) {
-      console.warn("⚠️  LANGSMITH_API_KEY not set — skipping (set in .env for production)");
+      console.warn(
+        "⚠️  LANGSMITH_API_KEY not set — skipping (set in .env for production)"
+      );
       return;
     }
     expect(key).toBeTruthy();
@@ -90,7 +98,9 @@ describe("API Keys Validation", () => {
   it("PINECONE_API_KEY should be set", () => {
     const key = process.env.PINECONE_API_KEY;
     if (!key) {
-      console.warn("⚠️  PINECONE_API_KEY not set — skipping (set in .env for production)");
+      console.warn(
+        "⚠️  PINECONE_API_KEY not set — skipping (set in .env for production)"
+      );
       return;
     }
     expect(key).toBeTruthy();
@@ -114,7 +124,9 @@ describe("API Keys Validation", () => {
   it("ELEVENLABS_API_KEY should be set", () => {
     const key = process.env.ELEVENLABS_API_KEY;
     if (!key) {
-      console.warn("⚠️  ELEVENLABS_API_KEY not set — skipping (set in .env for production)");
+      console.warn(
+        "⚠️  ELEVENLABS_API_KEY not set — skipping (set in .env for production)"
+      );
       return;
     }
     expect(key).toBeTruthy();
@@ -133,7 +145,9 @@ describe("API Keys Validation", () => {
       const data = await res.json();
       expect(data.subscription).toBeDefined();
     } else {
-      console.warn("⚠️ ElevenLabs key returned 401 — may be expired or free-tier limited");
+      console.warn(
+        "⚠️ ElevenLabs key returned 401 — may be expired or free-tier limited"
+      );
     }
   }, 15000);
 
@@ -141,7 +155,9 @@ describe("API Keys Validation", () => {
   it("SUNO_API_KEY should be set", () => {
     const key = process.env.SUNO_API_KEY;
     if (!key) {
-      console.warn("⚠️  SUNO_API_KEY not set — skipping (set in .env for production)");
+      console.warn(
+        "⚠️  SUNO_API_KEY not set — skipping (set in .env for production)"
+      );
       return;
     }
     expect(key).toBeTruthy();
@@ -152,7 +168,9 @@ describe("API Keys Validation", () => {
   it("REPLICATE_API_TOKEN should be set", () => {
     const key = process.env.REPLICATE_API_TOKEN;
     if (!key) {
-      console.warn("⚠️  REPLICATE_API_TOKEN not set — skipping (set in .env for production)");
+      console.warn(
+        "⚠️  REPLICATE_API_TOKEN not set — skipping (set in .env for production)"
+      );
       return;
     }
     expect(key).toBeTruthy();

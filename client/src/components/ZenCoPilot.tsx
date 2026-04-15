@@ -25,7 +25,8 @@ export function ZenOrb({
       animate={{ opacity: 1, scale: 1 }}
       className={`${sizeMap[size]} rounded-full relative`}
       style={{
-        background: "radial-gradient(circle at 35% 35%, rgba(212, 197, 226, 0.8), rgba(200, 213, 224, 0.6), rgba(234, 201, 193, 0.4))",
+        background:
+          "radial-gradient(circle at 35% 35%, rgba(212, 197, 226, 0.8), rgba(200, 213, 224, 0.6), rgba(234, 201, 193, 0.4))",
         boxShadow: `0 0 ${glowMap[size]} rgba(212, 197, 226, 0.5), inset 0 0 ${glowMap[size]} rgba(255, 255, 255, 0.3)`,
       }}
     >
@@ -107,14 +108,19 @@ export function ZenTooltip({
               backdropFilter: "blur(20px) saturate(180%)",
               WebkitBackdropFilter: "blur(20px) saturate(180%)",
               border: "1px solid rgba(255, 255, 255, 0.4)",
-              boxShadow: "0 8px 32px rgba(108, 108, 108, 0.12), 0 2px 8px rgba(108, 108, 108, 0.06)",
+              boxShadow:
+                "0 8px 32px rgba(108, 108, 108, 0.12), 0 2px 8px rgba(108, 108, 108, 0.06)",
             }}
           >
             <div className="flex items-center gap-2 mb-2">
               <ZenOrb size="sm" />
-              <h4 className="text-sm font-semibold text-foreground">{tooltip.title}</h4>
+              <h4 className="text-sm font-semibold text-foreground">
+                {tooltip.title}
+              </h4>
             </div>
-            <p className="text-xs leading-relaxed text-muted-foreground">{tooltip.description}</p>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              {tooltip.description}
+            </p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -139,7 +145,8 @@ export function ZenSkeleton({
           className="h-4 rounded-lg animate-pulse"
           style={{
             width: i === lines - 1 ? "60%" : "100%",
-            background: "linear-gradient(90deg, rgba(245,243,240,0.6) 25%, rgba(234,201,193,0.2) 50%, rgba(245,243,240,0.6) 75%)",
+            background:
+              "linear-gradient(90deg, rgba(245,243,240,0.6) 25%, rgba(234,201,193,0.2) 50%, rgba(245,243,240,0.6) 75%)",
             backgroundSize: "200% 100%",
             animation: "shimmer 1.5s ease-in-out infinite",
           }}
@@ -193,7 +200,8 @@ export function ZenProgressOverlay({
             }}
             transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
             style={{
-              background: "radial-gradient(circle at 35% 35%, rgba(212, 197, 226, 0.8), rgba(200, 213, 224, 0.6), rgba(234, 201, 193, 0.4))",
+              background:
+                "radial-gradient(circle at 35% 35%, rgba(212, 197, 226, 0.8), rgba(200, 213, 224, 0.6), rgba(234, 201, 193, 0.4))",
             }}
           />
 
@@ -203,7 +211,8 @@ export function ZenProgressOverlay({
               <motion.div
                 className="h-full rounded-full"
                 style={{
-                  background: "linear-gradient(90deg, #D4C5E2, #C8D5E0, #EAC9C1)",
+                  background:
+                    "linear-gradient(90deg, #D4C5E2, #C8D5E0, #EAC9C1)",
                 }}
                 initial={{ width: "0%" }}
                 animate={{ width: `${progress}%` }}
@@ -212,7 +221,9 @@ export function ZenProgressOverlay({
             </div>
             <div className="flex justify-between items-center mt-3">
               <p className="text-sm text-foreground font-medium">{message}</p>
-              <span className="text-sm text-muted-foreground tabular-nums">{progress}%</span>
+              <span className="text-sm text-muted-foreground tabular-nums">
+                {progress}%
+              </span>
             </div>
           </div>
         </motion.div>
@@ -243,7 +254,8 @@ export function GlassCard({
         backdropFilter: "blur(16px) saturate(180%)",
         WebkitBackdropFilter: "blur(16px) saturate(180%)",
         border: "1px solid rgba(255, 255, 255, 0.4)",
-        boxShadow: "0 4px 24px rgba(108, 108, 108, 0.08), 0 1px 4px rgba(108, 108, 108, 0.04)",
+        boxShadow:
+          "0 4px 24px rgba(108, 108, 108, 0.08), 0 1px 4px rgba(108, 108, 108, 0.04)",
       }}
     >
       {children}
@@ -304,7 +316,9 @@ export function BottomSheet({
               <div className="w-10 h-1 rounded-full bg-border" />
             </div>
             <div className="px-5 pb-2">
-              <h3 className="text-base font-semibold text-foreground">{title}</h3>
+              <h3 className="text-base font-semibold text-foreground">
+                {title}
+              </h3>
             </div>
             <div className="px-5 pb-6">{children}</div>
           </motion.div>

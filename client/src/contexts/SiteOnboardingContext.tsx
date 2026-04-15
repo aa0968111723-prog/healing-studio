@@ -37,7 +37,7 @@ export interface TourStep {
 }
 
 export type PageId =
-  | "welcome"          // 全站 Welcome（首次登入）
+  | "welcome" // 全站 Welcome（首次登入）
   | "studio"
   | "pro-studio"
   | "image-studio"
@@ -69,7 +69,6 @@ interface TourDefinition {
 // ─── All Tour Definitions ────────────────────────────────────────────────────
 
 const TOUR_DEFINITIONS: Record<PageId, TourDefinition> = {
-
   welcome: {
     pageId: "welcome",
     storageKey: "site-tour-welcome-v2",
@@ -227,7 +226,8 @@ const TOUR_DEFINITIONS: Record<PageId, TourDefinition> = {
       {
         targetId: "pro-tab-music",
         title: "音樂生成",
-        description: "使用 Sonauto、ElevenLabs Music 生成完整歌曲或純音樂。支援歌詞輸入、風格標籤和 BPM 設定。",
+        description:
+          "使用 Sonauto、ElevenLabs Music 生成完整歌曲或純音樂。支援歌詞輸入、風格標籤和 BPM 設定。",
         tip: "純音樂模式不需要歌詞，開啟「純音樂」開關即可。",
         icon: "🎼",
         position: "bottom",
@@ -235,7 +235,8 @@ const TOUR_DEFINITIONS: Record<PageId, TourDefinition> = {
       {
         targetId: "pro-tab-voice",
         title: "語音合成與克隆",
-        description: "多種 TTS 引擎支援中文、英文等多語言。聲音克隆功能可以用幾秒的錄音克隆任意聲音風格。",
+        description:
+          "多種 TTS 引擎支援中文、英文等多語言。聲音克隆功能可以用幾秒的錄音克隆任意聲音風格。",
         tip: "Qwen TTS 對中文語音效果最佳。",
         icon: "🎙️",
         position: "bottom",
@@ -243,7 +244,8 @@ const TOUR_DEFINITIONS: Record<PageId, TourDefinition> = {
       {
         targetId: "pro-tab-avatar",
         title: "AI 形像影片",
-        description: "上傳人像圖片，配合音訊生成說話頭像影片。支援 Wan、EchoMimic、Stable Avatar 等多種模型。",
+        description:
+          "上傳人像圖片，配合音訊生成說話頭像影片。支援 Wan、EchoMimic、Stable Avatar 等多種模型。",
         tip: "圖片主體越清晰，生成效果越好。",
         icon: "🤖",
         position: "bottom",
@@ -267,7 +269,8 @@ const TOUR_DEFINITIONS: Record<PageId, TourDefinition> = {
       {
         targetId: "image-api-key-banner",
         title: "API Key 設定",
-        description: "部分功能需要設定 FAL_API_KEY。前往 fal.ai 免費申請，然後在設定頁面或 Railway 環境變數中填入。",
+        description:
+          "部分功能需要設定 FAL_API_KEY。前往 fal.ai 免費申請，然後在設定頁面或 Railway 環境變數中填入。",
         tip: "沒有 Key 也可以先瀏覽功能，設定後就能立即使用！",
         icon: "🔑",
         position: "bottom",
@@ -350,7 +353,8 @@ const TOUR_DEFINITIONS: Record<PageId, TourDefinition> = {
       {
         targetId: "models-dataset-tab",
         title: "資料集準備",
-        description: "上傳角色的多角度圖片（正面、側面、背面、表情等），系統會自動幫你標記和描述每張圖片。",
+        description:
+          "上傳角色的多角度圖片（正面、側面、背面、表情等），系統會自動幫你標記和描述每張圖片。",
         tip: "圖片品質比數量更重要，清晰的圖片才能訓練出好模型。",
         icon: "📸",
         position: "bottom",
@@ -374,7 +378,8 @@ const TOUR_DEFINITIONS: Record<PageId, TourDefinition> = {
       {
         targetId: "history-search",
         title: "搜尋作品",
-        description: "輸入提詞關鍵字快速找到你想要的作品。也可以用上方的統計欄篩選不同類型的生成記錄。",
+        description:
+          "輸入提詞關鍵字快速找到你想要的作品。也可以用上方的統計欄篩選不同類型的生成記錄。",
         tip: "按收藏數量排序，快速找到你最喜愛的作品！",
         icon: "🔍",
         position: "bottom",
@@ -534,7 +539,8 @@ const TOUR_DEFINITIONS: Record<PageId, TourDefinition> = {
       {
         targetId: "learn-category-filter",
         title: "分類篩選",
-        description: "按分類瀏覽：入門指南、模型說明、API 文件、技術教學、AI 新聞等。",
+        description:
+          "按分類瀏覽：入門指南、模型說明、API 文件、技術教學、AI 新聞等。",
         tip: "新手建議從「入門指南」分類開始！",
         icon: "🏷️",
         position: "bottom",
@@ -574,7 +580,8 @@ const TOUR_DEFINITIONS: Record<PageId, TourDefinition> = {
       {
         targetId: "focus-flow-tabs",
         title: "三合一切換",
-        description: "可以自由切換番茄鐘、療癒時間、聚焦時間三種模式，也可以按照建議流程依序進行。",
+        description:
+          "可以自由切換番茄鐘、療癒時間、聚焦時間三種模式，也可以按照建議流程依序進行。",
         tip: "上方的步驟條會顯示你目前在哪個階段。",
         icon: "🔄",
         position: "bottom",
@@ -660,7 +667,9 @@ interface SiteOnboardingContextValue {
   resetAllTours: () => void;
 }
 
-const SiteOnboardingContext = createContext<SiteOnboardingContextValue | null>(null);
+const SiteOnboardingContext = createContext<SiteOnboardingContextValue | null>(
+  null
+);
 
 // ─── Provider ────────────────────────────────────────────────────────────────
 
@@ -676,7 +685,9 @@ export function SiteOnboardingProvider({ children }: { children: ReactNode }) {
 
   const hasSeen = useCallback((pageId: PageId): boolean => {
     try {
-      return localStorage.getItem(TOUR_DEFINITIONS[pageId].storageKey) === "true";
+      return (
+        localStorage.getItem(TOUR_DEFINITIONS[pageId].storageKey) === "true"
+      );
     } catch {
       return false;
     }
@@ -685,7 +696,9 @@ export function SiteOnboardingProvider({ children }: { children: ReactNode }) {
   const markSeen = useCallback((pageId: PageId) => {
     try {
       localStorage.setItem(TOUR_DEFINITIONS[pageId].storageKey, "true");
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   const resetAllTours = useCallback(() => {
@@ -693,19 +706,24 @@ export function SiteOnboardingProvider({ children }: { children: ReactNode }) {
       Object.values(TOUR_DEFINITIONS).forEach(def => {
         localStorage.removeItem(def.storageKey);
       });
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, []);
 
-  const startTour = useCallback((pageId: PageId, force = false) => {
-    const def = getTourDef(pageId);
-    if (!def) return;
+  const startTour = useCallback(
+    (pageId: PageId, force = false) => {
+      const def = getTourDef(pageId);
+      if (!def) return;
 
-    if (!force && hasSeen(pageId)) return;
+      if (!force && hasSeen(pageId)) return;
 
-    setCurrentPageId(pageId);
-    setCurrentStep(0);
-    setIsActive(true);
-  }, [getTourDef, hasSeen]);
+      setCurrentPageId(pageId);
+      setCurrentStep(0);
+      setIsActive(true);
+    },
+    [getTourDef, hasSeen]
+  );
 
   const stopTour = useCallback(() => {
     if (currentPageId) {
@@ -750,24 +768,36 @@ export function SiteOnboardingProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("site-tour-start", handler);
   }, [startTour]);
 
-  const value = useMemo<SiteOnboardingContextValue>(() => ({
-    startTour,
-    stopTour,
-    isActive,
-    currentPageId,
-    currentStep,
-    totalSteps,
-    currentStepData,
-    nextStep,
-    prevStep,
-    markSeen,
-    hasSeen,
-    resetAllTours,
-  }), [
-    startTour, stopTour, isActive, currentPageId,
-    currentStep, totalSteps, currentStepData,
-    nextStep, prevStep, markSeen, hasSeen, resetAllTours,
-  ]);
+  const value = useMemo<SiteOnboardingContextValue>(
+    () => ({
+      startTour,
+      stopTour,
+      isActive,
+      currentPageId,
+      currentStep,
+      totalSteps,
+      currentStepData,
+      nextStep,
+      prevStep,
+      markSeen,
+      hasSeen,
+      resetAllTours,
+    }),
+    [
+      startTour,
+      stopTour,
+      isActive,
+      currentPageId,
+      currentStep,
+      totalSteps,
+      currentStepData,
+      nextStep,
+      prevStep,
+      markSeen,
+      hasSeen,
+      resetAllTours,
+    ]
+  );
 
   return (
     <SiteOnboardingContext.Provider value={value}>
@@ -780,7 +810,10 @@ export function SiteOnboardingProvider({ children }: { children: ReactNode }) {
 
 export function useSiteOnboarding() {
   const ctx = useContext(SiteOnboardingContext);
-  if (!ctx) throw new Error("useSiteOnboarding must be used within SiteOnboardingProvider");
+  if (!ctx)
+    throw new Error(
+      "useSiteOnboarding must be used within SiteOnboardingProvider"
+    );
   return ctx;
 }
 

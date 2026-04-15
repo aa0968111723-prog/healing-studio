@@ -11,10 +11,7 @@
 import JSZip from "jszip";
 import { getReplicateClient } from "./replicateClient.js";
 import { storagePut } from "../storage.js";
-import {
-  updateFineTunedModel,
-  updateBackgroundJob,
-} from "../db.js";
+import { updateFineTunedModel, updateBackgroundJob } from "../db.js";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -26,7 +23,7 @@ export interface LoraTrainingJobInput {
   triggerWord: string;
   epochs: number;
   learningRate: number;
-  imageUrls: string[];  // 已上傳至 S3 的圖片 URL 陣列
+  imageUrls: string[]; // 已上傳至 S3 的圖片 URL 陣列
 }
 
 // ─── Logger ─────────────────────────────────────────────────────────────────
@@ -58,7 +55,12 @@ async function buildZipBuffer(imageUrls: string[]): Promise<Buffer> {
     try {
       const pathname = new URL(url).pathname;
       const urlExt = pathname.substring(pathname.lastIndexOf("."));
-      if (urlExt && [".jpg", ".jpeg", ".png", ".webp", ".bmp"].includes(urlExt.toLowerCase())) {
+      if (
+        urlExt &&
+        [".jpg", ".jpeg", ".png", ".webp", ".bmp"].includes(
+          urlExt.toLowerCase()
+        )
+      ) {
         ext = urlExt.toLowerCase();
       }
     } catch {
@@ -73,7 +75,10 @@ async function buildZipBuffer(imageUrls: string[]): Promise<Buffer> {
       }
       const arrayBuffer = await response.arrayBuffer();
       zip.file(fileName, arrayBuffer);
-      log("info", `  ✓ ${fileName} (${Math.round(arrayBuffer.byteLength / 1024)} KB)`);
+      log(
+        "info",
+        `  ✓ ${fileName} (${Math.round(arrayBuffer.byteLength / 1024)} KB)`
+      );
     } catch (err: any) {
       log("warn", `  ✗ Failed to download ${url}: ${err.message}`);
       // Skip failed images but continue with the rest
@@ -125,7 +130,10 @@ async function submitReplicateTraining(params: {
   const replicate = getReplicateClient();
   const steps = Math.min(Math.max(params.epochs * 30, 200), 2000);
 
-  log("info", `Submitting Replicate training: model=ostris/flux-dev-lora-trainer, steps=${steps}, lr=${params.learningRate}, trigger="${params.triggerWord}"`);
+  log(
+    "info",
+    `Submitting Replicate training: model=ostris/flux-dev-lora-trainer, steps=${steps}, lr=${params.learningRate}, trigger="${params.triggerWord}"`
+  );
 
   const prediction = await replicate.predictions.create({
     model: "ostris/flux-dev-lora-trainer",
@@ -148,10 +156,24 @@ async function submitReplicateTraining(params: {
  * Main entry point — runs the full LoRA training pipeline in the background.
  * All errors are caught and written to DB; this function never throws.
  */
-export async function runLoraTrainingJob(input: LoraTrainingJobInput): Promise<void> {
-  const { userId, modelId, jobId, modelName, triggerWord, epochs, learningRate, imageUrls } = input;
+export async function runLoraTrainingJob(
+  input: LoraTrainingJobInput
+): Promise<void> {
+  const {
+    userId,
+    modelId,
+    jobId,
+    modelName,
+    triggerWord,
+    epochs,
+    learningRate,
+    imageUrls,
+  } = input;
   log("info", `═══ Starting LoRA training job ═══`);
-  log("info", `  modelId=${modelId}, jobId=${jobId}, name="${modelName}", images=${imageUrls.length}`);
+  log(
+    "info",
+    `  modelId=${modelId}, jobId=${jobId}, name="${modelName}", images=${imageUrls.length}`
+  );
 
   try {
     // ── 步驟 1：啟動狀態 ──
@@ -208,12 +230,15 @@ export async function runLoraTrainingJob(input: LoraTrainingJobInput): Promise<v
     });
 
     // ── 步驟 5：輪詢迴圈 ──
-    const MAX_POLL_MS = 3_600_000;   // 60 minutes
+    const MAX_POLL_MS = 3_600_000; // 60 minutes
     const POLL_INTERVAL_MS = 30_000; // 30 seconds
     const pollStart = Date.now();
     const replicate = getReplicateClient();
 
-    log("info", `[步驟 5] Starting polling loop (interval=${POLL_INTERVAL_MS / 1000}s, max=${MAX_POLL_MS / 1000}s)...`);
+    log(
+      "info",
+      `[步驟 5] Starting polling loop (interval=${POLL_INTERVAL_MS / 1000}s, max=${MAX_POLL_MS / 1000}s)...`
+    );
 
     while (Date.now() - pollStart < MAX_POLL_MS) {
       await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
@@ -232,11 +257,12 @@ export async function runLoraTrainingJob(input: LoraTrainingJobInput): Promise<v
 
       if (prediction.status === "succeeded") {
         // 提取輸出 URL（LoRA weights .safetensors 或 .tar）
-        const outputUrl = typeof prediction.output === "string"
-          ? prediction.output
-          : Array.isArray(prediction.output)
-            ? prediction.output[0]
-            : null;
+        const outputUrl =
+          typeof prediction.output === "string"
+            ? prediction.output
+            : Array.isArray(prediction.output)
+              ? prediction.output[0]
+              : null;
 
         await updateFineTunedModel(modelId, {
           status: "ready",
@@ -263,11 +289,13 @@ export async function runLoraTrainingJob(input: LoraTrainingJobInput): Promise<v
       }
 
       if (prediction.status === "failed" || prediction.status === "canceled") {
-        const errorMsg = prediction.error || `Replicate 任務 ${prediction.status}`;
+        const errorMsg =
+          prediction.error || `Replicate 任務 ${prediction.status}`;
         await updateFineTunedModel(modelId, { status: "failed" });
         await updateBackgroundJob(jobId, {
           status: "failed",
-          errorMessage: typeof errorMsg === "string" ? errorMsg : JSON.stringify(errorMsg),
+          errorMessage:
+            typeof errorMsg === "string" ? errorMsg : JSON.stringify(errorMsg),
           progress: 0,
           progressMessage: "訓練失敗",
         });
@@ -276,12 +304,18 @@ export async function runLoraTrainingJob(input: LoraTrainingJobInput): Promise<v
       }
 
       // 仍在處理中：線性估算進度（30%~90%）
-      const progressEstimate = Math.min(30 + Math.floor((elapsedMs / MAX_POLL_MS) * 60), 90);
+      const progressEstimate = Math.min(
+        30 + Math.floor((elapsedMs / MAX_POLL_MS) * 60),
+        90
+      );
       await updateBackgroundJob(jobId, {
         progress: progressEstimate,
         progressMessage: `訓練中... (${elapsedMin}m ${elapsedSec}s)`,
       });
-      log("info", `模型 ${modelId} 輪詢中 [${prediction.status}] ${elapsedMin}m ${elapsedSec}s`);
+      log(
+        "info",
+        `模型 ${modelId} 輪詢中 [${prediction.status}] ${elapsedMin}m ${elapsedSec}s`
+      );
     }
 
     // ── 超時處理 ──
@@ -292,7 +326,6 @@ export async function runLoraTrainingJob(input: LoraTrainingJobInput): Promise<v
       progressMessage: "訓練超時",
     });
     log("error", `模型 ${modelId} 訓練超時（超過 1 小時）`);
-
   } catch (err) {
     // ── Global catch: any unhandled error ──
     const errMsg = err instanceof Error ? err.message : String(err);

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 
 // Mock DB before importing routers
-vi.mock("./db", async (importOriginal) => {
+vi.mock("./db", async importOriginal => {
   const actual = await importOriginal<typeof import("./db")>();
   let noteIdCounter = 1;
   const notesStore: any[] = [];
@@ -20,11 +20,13 @@ vi.mock("./db", async (importOriginal) => {
       });
       return id;
     }),
-    getProjectNotesByUser: vi.fn().mockImplementation(async (userId: number) => {
-      return notesStore.filter((n) => n.userId === userId);
-    }),
+    getProjectNotesByUser: vi
+      .fn()
+      .mockImplementation(async (userId: number) => {
+        return notesStore.filter(n => n.userId === userId);
+      }),
     deleteProjectNote: vi.fn().mockImplementation(async (id: number) => {
-      const idx = notesStore.findIndex((n) => n.id === id);
+      const idx = notesStore.findIndex(n => n.id === id);
       if (idx !== -1) notesStore.splice(idx, 1);
     }),
     deductUserQuota: vi.fn().mockResolvedValue(true),
@@ -40,7 +42,9 @@ import type { TrpcContext } from "./_core/context";
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
-function createMockUser(overrides: Partial<AuthenticatedUser> = {}): AuthenticatedUser {
+function createMockUser(
+  overrides: Partial<AuthenticatedUser> = {}
+): AuthenticatedUser {
   return {
     id: 1,
     openId: "test-user-001",
@@ -137,7 +141,7 @@ describe("Phase 7: Hidden Fields & Download Features", () => {
 
       // Verify the note appears in the list with all fields
       const notes = await caller.notes.list();
-      const created = notes.find((n) => n.id === createResult.id);
+      const created = notes.find(n => n.id === createResult.id);
       expect(created).toBeDefined();
       if (created) {
         expect(created.title).toBe("Test Note with Tags");

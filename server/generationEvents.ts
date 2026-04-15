@@ -39,7 +39,10 @@ class GenerationEventBus {
   }
 
   /** Subscribe to events for a specific job. Returns unsubscribe function. */
-  subscribe(jobId: number, listener: (event: GenerationEvent) => void): () => void {
+  subscribe(
+    jobId: number,
+    listener: (event: GenerationEvent) => void
+  ): () => void {
     const channel = `job:${jobId}`;
     this.emitter.on(channel, listener);
     return () => {

@@ -97,21 +97,38 @@ const DIRECTOR_INTENT_PROMPT = `你是「療癒工作室」的 Director AI，一
 
 // ─── Timeout Utility ───────────────────────────────────────────────────────
 
-function withTimeout<T>(promise: Promise<T>, ms: number, label = "API"): Promise<T> {
+function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  label = "API"
+): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
-      reject(new Error(`${label} 回應超時（${Math.round(ms / 1000)}秒），請稍後再試`));
+      reject(
+        new Error(`${label} 回應超時（${Math.round(ms / 1000)}秒），請稍後再試`)
+      );
     }, ms);
     promise
-      .then((val) => { clearTimeout(timer); resolve(val); })
-      .catch((err) => { clearTimeout(timer); reject(err); });
+      .then(val => {
+        clearTimeout(timer);
+        resolve(val);
+      })
+      .catch(err => {
+        clearTimeout(timer);
+        reject(err);
+      });
   });
 }
 
 // ─── Core Inference Function ───────────────────────────────────────────────
 
 async function inferUserIntent(
-  events: Array<{ type: string; timestamp: number; targetId: string; meta: Record<string, unknown> }>,
+  events: Array<{
+    type: string;
+    timestamp: number;
+    targetId: string;
+    meta: Record<string, unknown>;
+  }>,
   summary: {
     totalEvents: number;
     dwellCount: number;
@@ -122,10 +139,10 @@ async function inferUserIntent(
     abortCount: number;
     rapidScanCount: number;
     sessionStartedAt: number;
-  },
+  }
 ) {
   const sessionDurationMs = Date.now() - summary.sessionStartedAt;
-  const sessionDurationMin = Math.round(sessionDurationMs / 60000 * 10) / 10;
+  const sessionDurationMin = Math.round((sessionDurationMs / 60000) * 10) / 10;
 
   // 構建行為摘要文本
   const behaviorReport = `
@@ -136,34 +153,43 @@ async function inferUserIntent(
 
 ### 停留行為
 - 長時間停留次數: ${summary.dwellCount}
-${summary.highIntentCards.length > 0
+${
+  summary.highIntentCards.length > 0
     ? `- 高意圖卡片:\n${summary.highIntentCards.map(c => `  - 「${c.title}」(意圖分數: ${c.score})`).join("\n")}`
-    : "- 無明顯高意圖卡片"}
+    : "- 無明顯高意圖卡片"
+}
 
 ### 猶豫行為
 - 滾動猶豫次數: ${summary.hesitationCount}
 - 點擊放棄次數: ${summary.abortCount}
-${summary.hesitationSections.length > 0
+${
+  summary.hesitationSections.length > 0
     ? `- 猶豫區域:\n${summary.hesitationSections.map(s => `  - ${s.section} (方向變化: ${s.directionChanges}次)`).join("\n")}`
-    : "- 無明顯猶豫區域"}
+    : "- 無明顯猶豫區域"
+}
 
 ### 瀏覽模式
 - 快速掃過次數: ${summary.rapidScanCount}
 
 ### 模態偏好
-${Object.keys(summary.modalityPreference).length > 0
+${
+  Object.keys(summary.modalityPreference).length > 0
     ? Object.entries(summary.modalityPreference)
-      .sort(([, a], [, b]) => b - a)
-      .map(([mod, count]) => `- ${mod}: ${count} 次停留`)
-      .join("\n")
-    : "- 尚無明確模態偏好"}
+        .sort(([, a], [, b]) => b - a)
+        .map(([mod, count]) => `- ${mod}: ${count} 次停留`)
+        .join("\n")
+    : "- 尚無明確模態偏好"
+}
 
 ### 最近事件序列（最新 10 筆）
-${events.slice(-10).map(e => {
+${events
+  .slice(-10)
+  .map(e => {
     const time = new Date(e.timestamp).toLocaleTimeString("zh-TW");
     const metaStr = e.meta.cardTitle ? `「${e.meta.cardTitle}」` : e.targetId;
     return `- [${time}] ${e.type}: ${metaStr}`;
-  }).join("\n")}
+  })
+  .join("\n")}
 `;
 
   const result = await withTimeout(
@@ -195,7 +221,8 @@ ${events.slice(-10).map(e => {
               },
               intentLabel: {
                 type: "string",
-                description: "心理判定的繁中顯示標籤（如「選擇困難症」「明顯偏好某美學」）",
+                description:
+                  "心理判定的繁中顯示標籤（如「選擇困難症」「明顯偏好某美學」）",
               },
               confidence: {
                 type: "number",
@@ -203,7 +230,8 @@ ${events.slice(-10).map(e => {
               },
               psychologicalInsight: {
                 type: "string",
-                description: "OARS 風格的心理洞察，溫暖且非評判（繁中，50-100字）",
+                description:
+                  "OARS 風格的心理洞察，溫暖且非評判（繁中，50-100字）",
               },
               suggestedAction: {
                 type: "string",
@@ -224,11 +252,13 @@ ${events.slice(-10).map(e => {
               detectedAesthetics: {
                 type: "array",
                 items: { type: "string" },
-                description: "偵測到的美學偏好標籤（如 cyberpunk, minimalist, dreamy 等）",
+                description:
+                  "偵測到的美學偏好標籤（如 cyberpunk, minimalist, dreamy 等）",
               },
               preferredModality: {
                 type: "string",
-                description: "推測偏好的創作模態（image/video/music/voice/unknown）",
+                description:
+                  "推測偏好的創作模態（image/video/music/voice/unknown）",
               },
             },
             required: [
@@ -247,7 +277,7 @@ ${events.slice(-10).map(e => {
       },
     }),
     30_000,
-    "意圖推論",
+    "意圖推論"
   );
 
   const content = result.choices[0]?.message?.content;
@@ -269,9 +299,11 @@ ${events.slice(-10).map(e => {
     intentType: "exploration_mode" as IntentType,
     intentLabel: "探索模式",
     confidence: 0.3,
-    psychologicalInsight: "目前行為數據不足以進行深入分析，但您的每一次瀏覽都在為靈感鋪路。",
+    psychologicalInsight:
+      "目前行為數據不足以進行深入分析，但您的每一次瀏覽都在為靈感鋪路。",
     suggestedAction: "encourage_exploration",
-    actionDetail: "繼續自由探索，當您找到感興趣的作品時，不妨點擊進入工作室體驗。",
+    actionDetail:
+      "繼續自由探索，當您找到感興趣的作品時，不妨點擊進入工作室體驗。",
     detectedAesthetics: [],
     preferredModality: "unknown",
   };

@@ -3,14 +3,17 @@
  * Prevents storage-config paragraphs from flooding the UI.
  */
 export function shortErrorMsg(raw: unknown, maxLen = 60): string {
-  const msg = typeof raw === "string" ? raw : (raw as any)?.message || "未知錯誤";
+  const msg =
+    typeof raw === "string" ? raw : (raw as any)?.message || "未知錯誤";
   return msg.length > maxLen ? msg.slice(0, maxLen) + "…" : msg;
 }
 
 /**
  * Shared file upload helper — uploads a File to S3 via /api/upload
  */
-export async function uploadFileToS3(file: File): Promise<{ url: string; fileKey: string }> {
+export async function uploadFileToS3(
+  file: File
+): Promise<{ url: string; fileKey: string }> {
   const reader = new FileReader();
   const base64 = await new Promise<string>((resolve, reject) => {
     reader.onload = () => {

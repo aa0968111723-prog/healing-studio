@@ -24,22 +24,30 @@ const IMAGE_ACTIONS: RefineAction[] = [
   {
     emoji: "🏞️",
     label: "保留角色，換背景",
-    updates: [{ fieldKey: "scene", instruction: "keep character, change background" }],
+    updates: [
+      { fieldKey: "scene", instruction: "keep character, change background" },
+    ],
   },
   {
     emoji: "🎨",
     label: "保留構圖，換風格",
-    updates: [{ fieldKey: "style", instruction: "keep composition, change style" }],
+    updates: [
+      { fieldKey: "style", instruction: "keep composition, change style" },
+    ],
   },
   {
     emoji: "💡",
     label: "保留角色，換光線",
-    updates: [{ fieldKey: "lighting", instruction: "keep character, change lighting" }],
+    updates: [
+      { fieldKey: "lighting", instruction: "keep character, change lighting" },
+    ],
   },
   {
     emoji: "🔍",
     label: "提升細節",
-    updates: [{ fieldKey: "style", instruction: "enhance details, 8K resolution" }],
+    updates: [
+      { fieldKey: "style", instruction: "enhance details, 8K resolution" },
+    ],
   },
   {
     emoji: "⬆️",
@@ -52,27 +60,46 @@ const VIDEO_ACTIONS: RefineAction[] = [
   {
     emoji: "🎥",
     label: "保留場景，換鏡頭運動",
-    updates: [{ fieldKey: "cameraMovement", instruction: "keep scene, change camera movement" }],
+    updates: [
+      {
+        fieldKey: "cameraMovement",
+        instruction: "keep scene, change camera movement",
+      },
+    ],
   },
   {
     emoji: "🏃",
     label: "保留主體，換動作節奏",
-    updates: [{ fieldKey: "motionPacing", instruction: "keep subject, change motion pacing" }],
+    updates: [
+      {
+        fieldKey: "motionPacing",
+        instruction: "keep subject, change motion pacing",
+      },
+    ],
   },
   {
     emoji: "📷",
     label: "降低晃動",
-    updates: [{ fieldKey: "cameraMovement", instruction: "steady, stabilized" }],
+    updates: [
+      { fieldKey: "cameraMovement", instruction: "steady, stabilized" },
+    ],
   },
   {
     emoji: "🔒",
     label: "固定鏡頭",
-    updates: [{ fieldKey: "cameraMovement", instruction: "static camera, fixed shot" }],
+    updates: [
+      { fieldKey: "cameraMovement", instruction: "static camera, fixed shot" },
+    ],
   },
   {
     emoji: "🔗",
     label: "增加連續性",
-    updates: [{ fieldKey: "continuity", instruction: "improve continuity between shots" }],
+    updates: [
+      {
+        fieldKey: "continuity",
+        instruction: "improve continuity between shots",
+      },
+    ],
   },
 ];
 
@@ -80,7 +107,12 @@ const MUSIC_ACTIONS: RefineAction[] = [
   {
     emoji: "🎸",
     label: "保留節奏，換樂器",
-    updates: [{ fieldKey: "instrumentation", instruction: "keep rhythm, change instruments" }],
+    updates: [
+      {
+        fieldKey: "instrumentation",
+        instruction: "keep rhythm, change instruments",
+      },
+    ],
   },
   {
     emoji: "🎵",
@@ -95,7 +127,9 @@ const MUSIC_ACTIONS: RefineAction[] = [
   {
     emoji: "🎤",
     label: "移除人聲",
-    updates: [{ fieldKey: "vocalInstrumental", instruction: "instrumental only" }],
+    updates: [
+      { fieldKey: "vocalInstrumental", instruction: "instrumental only" },
+    ],
   },
   {
     emoji: "⏩",
@@ -108,7 +142,9 @@ const VOICE_ACTIONS: RefineAction[] = [
   {
     emoji: "🎭",
     label: "保留聲線，換情緒",
-    updates: [{ fieldKey: "tone", instruction: "keep voice character, change emotion" }],
+    updates: [
+      { fieldKey: "tone", instruction: "keep voice character, change emotion" },
+    ],
   },
   {
     emoji: "🐢",
@@ -123,7 +159,9 @@ const VOICE_ACTIONS: RefineAction[] = [
   {
     emoji: "🔤",
     label: "更清晰",
-    updates: [{ fieldKey: "deliveryStyle", instruction: "clearer enunciation" }],
+    updates: [
+      { fieldKey: "deliveryStyle", instruction: "clearer enunciation" },
+    ],
   },
   {
     emoji: "🎬",
@@ -139,7 +177,10 @@ const ACTIONS_BY_MODALITY: Record<Modality, RefineAction[]> = {
   voice: VOICE_ACTIONS,
 };
 
-export function RefineQuickActions({ modality, onApplyRefine }: RefineQuickActionsProps) {
+export function RefineQuickActions({
+  modality,
+  onApplyRefine,
+}: RefineQuickActionsProps) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const actions = ACTIONS_BY_MODALITY[modality];
 
@@ -150,7 +191,7 @@ export function RefineQuickActions({ modality, onApplyRefine }: RefineQuickActio
       // Reset active state after animation
       setTimeout(() => setActiveIndex(null), 300);
     },
-    [onApplyRefine],
+    [onApplyRefine]
   );
 
   return (
@@ -170,9 +211,13 @@ export function RefineQuickActions({ modality, onApplyRefine }: RefineQuickActio
               "bg-white/40 border border-white/60",
               "hover:bg-primary/10 hover:border-primary/30",
               "transition-all whitespace-nowrap shrink-0",
-              "cursor-pointer select-none",
+              "cursor-pointer select-none"
             )}
-            animate={activeIndex === index ? { scale: [1, 0.92, 1.05, 1] } : { scale: 1 }}
+            animate={
+              activeIndex === index
+                ? { scale: [1, 0.92, 1.05, 1] }
+                : { scale: 1 }
+            }
             transition={{ duration: 0.3 }}
             onClick={() => handleClick(action, index)}
           >

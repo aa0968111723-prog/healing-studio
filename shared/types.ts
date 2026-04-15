@@ -9,7 +9,12 @@ export * from "./_core/errors";
 
 export type GenerationMode = "lightning" | "deep_precision";
 
-export type GenerationType = "image" | "video" | "audio" | "voice" | "multimodal";
+export type GenerationType =
+  | "image"
+  | "video"
+  | "audio"
+  | "voice"
+  | "multimodal";
 
 // ─── Vibe Cards (Professional, realistic thumbnails) ────────────────────────
 
@@ -23,14 +28,70 @@ export type VibeCard = {
 };
 
 export const VIBE_CARDS: VibeCard[] = [
-  { id: "serene", label: "Serene", labelZh: "寧靜", description: "平靜、柔和的氛圍", color: "#C8D5E0", icon: "cloud" },
-  { id: "warm", label: "Warm", labelZh: "溫暖", description: "溫馨、舒適的感覺", color: "#EAC9C1", icon: "sun" },
-  { id: "dreamy", label: "Dreamy", labelZh: "夢幻", description: "如夢似幻的意境", color: "#D4C5E2", icon: "moon" },
-  { id: "nature", label: "Nature", labelZh: "自然", description: "大自然的安定力量", color: "#C5D5C0", icon: "leaf" },
-  { id: "vintage", label: "Vintage", labelZh: "復古", description: "懷舊、經典的風格", color: "#D4C4A8", icon: "camera" },
-  { id: "minimal", label: "Minimal", labelZh: "極簡", description: "簡約、純粹的美學", color: "#E8E4E0", icon: "square" },
-  { id: "joyful", label: "Joyful", labelZh: "歡愉", description: "充滿活力與喜悅", color: "#F0D5A8", icon: "sparkles" },
-  { id: "mystical", label: "Mystical", labelZh: "神秘", description: "神秘、深邃的氣息", color: "#A8B5C8", icon: "star" },
+  {
+    id: "serene",
+    label: "Serene",
+    labelZh: "寧靜",
+    description: "平靜、柔和的氛圍",
+    color: "#C8D5E0",
+    icon: "cloud",
+  },
+  {
+    id: "warm",
+    label: "Warm",
+    labelZh: "溫暖",
+    description: "溫馨、舒適的感覺",
+    color: "#EAC9C1",
+    icon: "sun",
+  },
+  {
+    id: "dreamy",
+    label: "Dreamy",
+    labelZh: "夢幻",
+    description: "如夢似幻的意境",
+    color: "#D4C5E2",
+    icon: "moon",
+  },
+  {
+    id: "nature",
+    label: "Nature",
+    labelZh: "自然",
+    description: "大自然的安定力量",
+    color: "#C5D5C0",
+    icon: "leaf",
+  },
+  {
+    id: "vintage",
+    label: "Vintage",
+    labelZh: "復古",
+    description: "懷舊、經典的風格",
+    color: "#D4C4A8",
+    icon: "camera",
+  },
+  {
+    id: "minimal",
+    label: "Minimal",
+    labelZh: "極簡",
+    description: "簡約、純粹的美學",
+    color: "#E8E4E0",
+    icon: "square",
+  },
+  {
+    id: "joyful",
+    label: "Joyful",
+    labelZh: "歡愉",
+    description: "充滿活力與喜悅",
+    color: "#F0D5A8",
+    icon: "sparkles",
+  },
+  {
+    id: "mystical",
+    label: "Mystical",
+    labelZh: "神秘",
+    description: "神秘、深邃的氣息",
+    color: "#A8B5C8",
+    icon: "star",
+  },
 ];
 
 // ─── CO-STAR Script ─────────────────────────────────────────────────────────
@@ -121,7 +182,13 @@ export type QuickAction = {
   category: "visual" | "audio" | "narrative" | "technical" | "mood";
 };
 
-export type ScriptExportFormat = "json" | "csv" | "markdown" | "fdx" | "srt" | "custom";
+export type ScriptExportFormat =
+  | "json"
+  | "csv"
+  | "markdown"
+  | "fdx"
+  | "srt"
+  | "custom";
 
 export type ScriptExportOptions = {
   format: ScriptExportFormat;
@@ -154,7 +221,13 @@ export type DirectorTemplate = {
   id: string;
   label: string;
   description: string;
-  category: "short-film" | "ad" | "meditation" | "music-video" | "tutorial" | "brand";
+  category:
+    | "short-film"
+    | "ad"
+    | "meditation"
+    | "music-video"
+    | "tutorial"
+    | "brand";
   prompt: string;
   personality: "calm" | "creative" | "technical";
 };
@@ -291,13 +364,19 @@ export const TRAINING_CATEGORIES: TrainingCategory[] = [
 ];
 
 /** 依 modelType 取得訓練類別設定 */
-export function getTrainingCategory(type: TrainingModelType): TrainingCategory | undefined {
+export function getTrainingCategory(
+  type: TrainingModelType
+): TrainingCategory | undefined {
   return TRAINING_CATEGORIES.find(c => c.type === type);
 }
 
 // ─── Character Forge (Fine-Tuning) ──────────────────────────────────────────
 
-export type CharacterForgeStep = "dataset" | "captioning" | "hyperparams" | "training";
+export type CharacterForgeStep =
+  | "dataset"
+  | "captioning"
+  | "hyperparams"
+  | "training";
 
 export type DatasetImage = {
   url: string;
@@ -313,34 +392,44 @@ export type DatasetVideo = {
 
 // ─── Zen Co-Pilot Tooltip Definitions ───────────────────────────────────────
 
-export const ZEN_TOOLTIPS: Record<string, { title: string; description: string }> = {
+export const ZEN_TOOLTIPS: Record<
+  string,
+  { title: string; description: string }
+> = {
   temperature: {
     title: "創意溫度",
-    description: "控制 AI 的創造力程度。數值越低，結果越精確穩定；數值越高，AI 越大膽創新。建議初次使用設定 0.5。",
+    description:
+      "控制 AI 的創造力程度。數值越低，結果越精確穩定；數值越高，AI 越大膽創新。建議初次使用設定 0.5。",
   },
   seed: {
     title: "種子碼",
-    description: "相同的種子碼會產生相似的結果，方便你微調同一個創作方向。留空則每次隨機生成。",
+    description:
+      "相同的種子碼會產生相似的結果，方便你微調同一個創作方向。留空則每次隨機生成。",
   },
   loraWeight: {
     title: "LoRA 權重",
-    description: "控制微調角色特徵的套用強度。0.5 為自然融合，1.0 為完全套用角色特徵。",
+    description:
+      "控制微調角色特徵的套用強度。0.5 為自然融合，1.0 為完全套用角色特徵。",
   },
   mode: {
     title: "生成模式",
-    description: "閃電模式使用 Gemini Flash，速度快但細節較少。深度精修模式使用 Gemini Pro + CO-STAR 框架，品質更高但需要更多時間。",
+    description:
+      "閃電模式使用 Gemini Flash，速度快但細節較少。深度精修模式使用 Gemini Pro + CO-STAR 框架，品質更高但需要更多時間。",
   },
   epochs: {
     title: "訓練輪數",
-    description: "模型學習資料集的完整次數。更多輪數可提高品質，但過多可能導致過擬合。建議 10-30 輪。",
+    description:
+      "模型學習資料集的完整次數。更多輪數可提高品質，但過多可能導致過擬合。建議 10-30 輪。",
   },
   learningRate: {
     title: "學習率",
-    description: "模型每次更新的步幅大小。較小的值學習更穩定但更慢，較大的值學習更快但可能不穩定。",
+    description:
+      "模型每次更新的步幅大小。較小的值學習更穩定但更慢，較大的值學習更快但可能不穩定。",
   },
   batchSize: {
     title: "批次大小",
-    description: "每次訓練步驟處理的圖片數量。較大的批次需要更多記憶體，但訓練更穩定。",
+    description:
+      "每次訓練步驟處理的圖片數量。較大的批次需要更多記憶體，但訓練更穩定。",
   },
 };
 

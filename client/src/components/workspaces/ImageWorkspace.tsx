@@ -41,22 +41,31 @@ const NEGATIVE_CHIPS = [
 
 // ─── Style description quick presets ──────────────────────────────────────
 const STYLE_PRESETS = [
-  { label: "🖼️ 油畫",    value: "oil painting style, impasto brushwork" },
-  { label: "📷 寫實",    value: "photorealistic, 8K, cinematic lighting" },
-  { label: "✏️ 手繪",    value: "hand-drawn illustration, pencil sketch" },
-  { label: "🎨 水彩",    value: "watercolor painting, soft edges" },
-  { label: "🌸 動漫",    value: "anime style, vibrant colors, clean lines" },
-  { label: "🏙️ 賽博龐克", value: "cyberpunk aesthetic, neon lights, futuristic" },
-  { label: "🌿 吉卜力",  value: "Studio Ghibli inspired, soft lighting, lush" },
-  { label: "🖤 暗黑",    value: "dark fantasy, moody, dramatic shadows" },
+  { label: "🖼️ 油畫", value: "oil painting style, impasto brushwork" },
+  { label: "📷 寫實", value: "photorealistic, 8K, cinematic lighting" },
+  { label: "✏️ 手繪", value: "hand-drawn illustration, pencil sketch" },
+  { label: "🎨 水彩", value: "watercolor painting, soft edges" },
+  { label: "🌸 動漫", value: "anime style, vibrant colors, clean lines" },
+  {
+    label: "🏙️ 賽博龐克",
+    value: "cyberpunk aesthetic, neon lights, futuristic",
+  },
+  { label: "🌿 吉卜力", value: "Studio Ghibli inspired, soft lighting, lush" },
+  { label: "🖤 暗黑", value: "dark fantasy, moody, dramatic shadows" },
 ];
 
 export function createDefaultImageState(): ImageWorkspaceState {
-  return { aspectRatio: "16:9", negativePrompt: "", styleReferenceUrl: null, vibeReferenceUrl: null };
+  return {
+    aspectRatio: "16:9",
+    negativePrompt: "",
+    styleReferenceUrl: null,
+    vibeReferenceUrl: null,
+  };
 }
 
 export function ImageWorkspace({ value, onChange }: ImageWorkspaceProps) {
-  const update = (partial: Partial<ImageWorkspaceState>) => onChange({ ...value, ...partial });
+  const update = (partial: Partial<ImageWorkspaceState>) =>
+    onChange({ ...value, ...partial });
 
   // Append a negative chip (avoid duplicates)
   const appendNegativeChip = (chip: string) => {
@@ -70,10 +79,12 @@ export function ImageWorkspace({ value, onChange }: ImageWorkspaceProps) {
       {/* Aspect Ratio */}
       <div className="space-y-2">
         <ZenTooltip tooltipKey="aspectRatio">
-          <Label className="text-xs font-medium text-muted-foreground">畫面比例</Label>
+          <Label className="text-xs font-medium text-muted-foreground">
+            畫面比例
+          </Label>
         </ZenTooltip>
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
-          {ASPECT_RATIOS.map((ar) => (
+          {ASPECT_RATIOS.map(ar => (
             <button
               key={ar.value}
               onClick={() => update({ aspectRatio: ar.value })}
@@ -91,18 +102,20 @@ export function ImageWorkspace({ value, onChange }: ImageWorkspaceProps) {
 
       {/* Style & Vibe Reference */}
       <div className="space-y-2">
-        <Label className="text-xs font-medium text-muted-foreground">參考圖片</Label>
+        <Label className="text-xs font-medium text-muted-foreground">
+          參考圖片
+        </Label>
         <div className="grid grid-cols-2 gap-3">
           <VaultDropzone
             label="風格參考 (Style)"
             value={value.styleReferenceUrl}
-            onDrop={(url) => update({ styleReferenceUrl: url })}
+            onDrop={url => update({ styleReferenceUrl: url })}
             onClear={() => update({ styleReferenceUrl: null })}
           />
           <VaultDropzone
             label="氛圍參考 (Vibe)"
             value={value.vibeReferenceUrl}
-            onDrop={(url) => update({ vibeReferenceUrl: url })}
+            onDrop={url => update({ vibeReferenceUrl: url })}
             onClear={() => update({ vibeReferenceUrl: null })}
           />
         </div>
@@ -113,14 +126,19 @@ export function ImageWorkspace({ value, onChange }: ImageWorkspaceProps) {
 
       {/* Style Description Quick Presets */}
       <div className="space-y-2">
-        <Label className="text-xs font-medium text-muted-foreground">風格描述快選</Label>
+        <Label className="text-xs font-medium text-muted-foreground">
+          風格描述快選
+        </Label>
         <div className="flex flex-wrap gap-1.5">
-          {STYLE_PRESETS.map((preset) => (
+          {STYLE_PRESETS.map(preset => (
             <button
               key={preset.value}
-              onClick={(e) => {
+              onClick={e => {
                 // Dispatch a custom event so Studio/parent can inject this into the prompt
-                const event = new CustomEvent("apply-style-preset", { detail: preset.value, bubbles: true });
+                const event = new CustomEvent("apply-style-preset", {
+                  detail: preset.value,
+                  bubbles: true,
+                });
                 (e.currentTarget as HTMLElement).dispatchEvent(event);
               }}
               title={preset.value}
@@ -139,11 +157,13 @@ export function ImageWorkspace({ value, onChange }: ImageWorkspaceProps) {
       {/* Negative Prompt */}
       <div className="space-y-2">
         <ZenTooltip tooltipKey="negativePrompt">
-          <Label className="text-xs font-medium text-muted-foreground">排除描述 (Negative Prompt)</Label>
+          <Label className="text-xs font-medium text-muted-foreground">
+            排除描述 (Negative Prompt)
+          </Label>
         </ZenTooltip>
         {/* Quick chips */}
         <div className="flex flex-wrap gap-1">
-          {NEGATIVE_CHIPS.map((chip) => {
+          {NEGATIVE_CHIPS.map(chip => {
             const active = value.negativePrompt.includes(chip);
             return (
               <button
@@ -165,7 +185,7 @@ export function ImageWorkspace({ value, onChange }: ImageWorkspaceProps) {
         <Textarea
           placeholder="描述你不想出現的元素（例：模糊、變形、低品質）"
           value={value.negativePrompt}
-          onChange={(e) => update({ negativePrompt: e.target.value })}
+          onChange={e => update({ negativePrompt: e.target.value })}
           rows={2}
           className="rounded-xl bg-white/40 border-white/60 resize-none text-xs placeholder:text-muted-foreground/35"
         />

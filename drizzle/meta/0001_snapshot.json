@@ -119,9 +119,7 @@
       "compositePrimaryKeys": {
         "api_usage_logs_id": {
           "name": "api_usage_logs_id",
-          "columns": [
-            "id"
-          ]
+          "columns": ["id"]
         }
       },
       "uniqueConstraints": {},
@@ -211,9 +209,7 @@
       "compositePrimaryKeys": {
         "background_jobs_id": {
           "name": "background_jobs_id",
-          "columns": [
-            "id"
-          ]
+          "columns": ["id"]
         }
       },
       "uniqueConstraints": {},
@@ -346,9 +342,7 @@
       "compositePrimaryKeys": {
         "digital_asset_library_id": {
           "name": "digital_asset_library_id",
-          "columns": [
-            "id"
-          ]
+          "columns": ["id"]
         }
       },
       "uniqueConstraints": {},
@@ -452,9 +446,7 @@
       "compositePrimaryKeys": {
         "fine_tuned_models_id": {
           "name": "fine_tuned_models_id",
-          "columns": [
-            "id"
-          ]
+          "columns": ["id"]
         }
       },
       "uniqueConstraints": {},
@@ -543,9 +535,7 @@
       "compositePrimaryKeys": {
         "project_notes_calendar_id": {
           "name": "project_notes_calendar_id",
-          "columns": [
-            "id"
-          ]
+          "columns": ["id"]
         }
       },
       "uniqueConstraints": {},
@@ -629,9 +619,7 @@
       "compositePrimaryKeys": {
         "user_feedback_reports_id": {
           "name": "user_feedback_reports_id",
-          "columns": [
-            "id"
-          ]
+          "columns": ["id"]
         }
       },
       "uniqueConstraints": {},
@@ -722,17 +710,13 @@
       "compositePrimaryKeys": {
         "users_id": {
           "name": "users_id",
-          "columns": [
-            "id"
-          ]
+          "columns": ["id"]
         }
       },
       "uniqueConstraints": {
         "users_openId_unique": {
           "name": "users_openId_unique",
-          "columns": [
-            "openId"
-          ]
+          "columns": ["openId"]
         }
       },
       "checkConstraint": {}

@@ -8,7 +8,9 @@ describe("Replicate API Token Validation", () => {
   it("REPLICATE_API_TOKEN should be set", () => {
     const key = process.env.REPLICATE_API_TOKEN;
     if (!key) {
-      console.warn("⚠️  REPLICATE_API_TOKEN not set — skipping (set in .env for production)");
+      console.warn(
+        "⚠️  REPLICATE_API_TOKEN not set — skipping (set in .env for production)"
+      );
       return;
     }
     expect(key).toBeTruthy();

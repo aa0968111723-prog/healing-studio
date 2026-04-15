@@ -150,8 +150,8 @@ export interface VertexLLMParams {
   topP?: number;
   stream?: boolean;
   systemInstruction?: string;
-  enableGrounding?: boolean;     // Google Search Grounding
-  thinkingBudget?: number;       // Thinking token budget
+  enableGrounding?: boolean; // Google Search Grounding
+  thinkingBudget?: number; // Thinking token budget
 }
 
 export interface VertexLLMResult {
@@ -173,13 +173,21 @@ export interface VertexImageParams {
   negativePrompt?: string;
   seed?: number;
   personGeneration?: "allow_adult" | "allow_all" | "dont_allow";
-  safetyFilterLevel?: "block_low_and_above" | "block_medium_and_above" | "block_only_high";
+  safetyFilterLevel?:
+    | "block_low_and_above"
+    | "block_medium_and_above"
+    | "block_only_high";
 }
 
 export interface VertexEmbeddingParams {
   text: string;
   model?: string;
-  taskType?: "RETRIEVAL_DOCUMENT" | "RETRIEVAL_QUERY" | "SEMANTIC_SIMILARITY" | "CLASSIFICATION" | "CLUSTERING";
+  taskType?:
+    | "RETRIEVAL_DOCUMENT"
+    | "RETRIEVAL_QUERY"
+    | "SEMANTIC_SIMILARITY"
+    | "CLASSIFICATION"
+    | "CLUSTERING";
 }
 
 // ─── Vertex AI Client ─────────────────────────────────────────────────────
@@ -197,7 +205,9 @@ export class VertexAIClient {
 
   get isAvailable(): boolean {
     // 支援兩種認證方式：Gemini API Key 或 GOOGLE_APPLICATION_CREDENTIALS_JSON
-    return !!(this.geminiApiKey || serverEnv.GOOGLE_APPLICATION_CREDENTIALS_JSON);
+    return !!(
+      this.geminiApiKey || serverEnv.GOOGLE_APPLICATION_CREDENTIALS_JSON
+    );
   }
 
   /** 取得 Vertex AI OpenAI 相容端點 base URL */
@@ -272,12 +282,15 @@ export class VertexAIClient {
 
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
-      throw new Error(`Vertex AI LLM 錯誤 ${res.status}: ${errText.slice(0, 300)}`);
+      throw new Error(
+        `Vertex AI LLM 錯誤 ${res.status}: ${errText.slice(0, 300)}`
+      );
     }
 
-    const data = await res.json() as any;
+    const data = (await res.json()) as any;
     const candidate = data.candidates?.[0];
-    const content = candidate?.content?.parts?.map((p: any) => p.text ?? "").join("") ?? "";
+    const content =
+      candidate?.content?.parts?.map((p: any) => p.text ?? "").join("") ?? "";
     const usage = data.usageMetadata ?? {};
 
     return {
@@ -304,14 +317,18 @@ export class VertexAIClient {
       instances: [
         {
           prompt: params.prompt,
-          ...(params.negativePrompt && { negativePrompt: params.negativePrompt }),
+          ...(params.negativePrompt && {
+            negativePrompt: params.negativePrompt,
+          }),
         },
       ],
       parameters: {
         sampleCount: params.numImages ?? 1,
         ...(params.aspectRatio && { aspectRatio: params.aspectRatio }),
         ...(params.seed != null && { seed: params.seed }),
-        ...(params.personGeneration && { personGeneration: params.personGeneration }),
+        ...(params.personGeneration && {
+          personGeneration: params.personGeneration,
+        }),
       },
     };
 
@@ -323,10 +340,12 @@ export class VertexAIClient {
 
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
-      throw new Error(`Vertex Imagen 錯誤 ${res.status}: ${errText.slice(0, 300)}`);
+      throw new Error(
+        `Vertex Imagen 錯誤 ${res.status}: ${errText.slice(0, 300)}`
+      );
     }
 
-    const data = await res.json() as any;
+    const data = (await res.json()) as any;
     return {
       images: (data.predictions ?? []).map((p: any) => ({
         base64: p.bytesBase64Encoded ?? "",
@@ -355,10 +374,12 @@ export class VertexAIClient {
 
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
-      throw new Error(`Vertex Embedding 錯誤 ${res.status}: ${errText.slice(0, 300)}`);
+      throw new Error(
+        `Vertex Embedding 錯誤 ${res.status}: ${errText.slice(0, 300)}`
+      );
     }
 
-    const data = await res.json() as any;
+    const data = (await res.json()) as any;
     return data.embedding?.values ?? [];
   }
 }

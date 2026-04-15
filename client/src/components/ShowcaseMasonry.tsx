@@ -28,8 +28,15 @@ import {
 import { useLocation } from "wouter";
 import type { SceneId } from "./AmbientEnvironment";
 import RippleTransition, { useRippleTransition } from "./RippleTransition";
-import { useShowcaseTransfer, type ShowcaseTransferPayload } from "@/contexts/ShowcaseTransferContext";
-import { useSenseEngine, useCardSenseProps, useSectionScrollSense } from "@/hooks/useSenseEngine";
+import {
+  useShowcaseTransfer,
+  type ShowcaseTransferPayload,
+} from "@/contexts/ShowcaseTransferContext";
+import {
+  useSenseEngine,
+  useCardSenseProps,
+  useSectionScrollSense,
+} from "@/hooks/useSenseEngine";
 import {
   Carousel,
   CarouselContent,
@@ -284,7 +291,7 @@ function MasonryCard({
     senseEngine,
     `showcase-${item.id}`,
     item.title,
-    item.modality,
+    item.modality
   );
 
   // Track visibility for silent reconstruction
@@ -313,9 +320,15 @@ function MasonryCard({
       exit={{ opacity: 0, y: -10 }}
       whileHover={{ y: -3 }}
       transition={{ duration: 0.5, ease: SOFT_BOUNCE }}
-      onHoverStart={() => { setIsHovered(true); senseProps.onMouseEnter({} as React.MouseEvent); }}
-      onHoverEnd={() => { setIsHovered(false); senseProps.onMouseLeave(); }}
-      onMouseMove={(e) => senseProps.onMouseMove(e)}
+      onHoverStart={() => {
+        setIsHovered(true);
+        senseProps.onMouseEnter({} as React.MouseEvent);
+      }}
+      onHoverEnd={() => {
+        setIsHovered(false);
+        senseProps.onMouseLeave();
+      }}
+      onMouseMove={e => senseProps.onMouseMove(e)}
       onMouseDown={() => senseProps.onMouseDown()}
       onMouseUp={() => senseProps.onMouseUp()}
       className="break-inside-avoid mb-4 rounded-xl overflow-hidden cursor-pointer group card-healing"
@@ -325,7 +338,7 @@ function MasonryCard({
         contain: "layout style paint",
         willChange: "transform",
       }}
-      onClick={(e) => {
+      onClick={e => {
         senseEngine.trackScrollClick();
         onCardClick(e, item.id);
       }}
@@ -488,7 +501,7 @@ function ModalityTabs({
 
   return (
     <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-center">
-      {tabs.map((tab) => {
+      {tabs.map(tab => {
         const isActive = active === tab.key;
         const TabIcon = tab.icon;
         return (
@@ -538,8 +551,13 @@ export default function ShowcaseMasonry({
   const [showcaseSlide, setShowcaseSlide] = useState(0);
   const [showcaseSlideCount, setShowcaseSlideCount] = useState(0);
   const showcaseAutoplay = useMemo(
-    () => Autoplay({ delay: 4500, stopOnInteraction: true, stopOnMouseEnter: true }),
-    [],
+    () =>
+      Autoplay({
+        delay: 4500,
+        stopOnInteraction: true,
+        stopOnMouseEnter: true,
+      }),
+    []
   );
 
   useEffect(() => {
@@ -560,47 +578,60 @@ export default function ShowcaseMasonry({
 
   const showcaseScrollTo = useCallback(
     (idx: number) => showcaseApi?.scrollTo(idx),
-    [showcaseApi],
+    [showcaseApi]
   );
 
   // Sense Engine: micro-behavior tracking
-  const senseEngine = useSenseEngine({ dwellThreshold: 5000, scrollHesitationThreshold: 3 });
-  const sectionScrollRef = useSectionScrollSense(senseEngine, "showcase-masonry");
-  const { rippleActive, rippleOrigin, triggerRipple, resetRipple } = useRippleTransition();
+  const senseEngine = useSenseEngine({
+    dwellThreshold: 5000,
+    scrollHesitationThreshold: 3,
+  });
+  const sectionScrollRef = useSectionScrollSense(
+    senseEngine,
+    "showcase-masonry"
+  );
+  const { rippleActive, rippleOrigin, triggerRipple, resetRipple } =
+    useRippleTransition();
   const { setPayload, setIsLoading } = useShowcaseTransfer();
   const utils = trpc.useUtils();
   const prefetchReady = useRef(false);
   const pendingItemId = useRef<number | null>(null);
 
-  const handleCardClick = useCallback((e: React.MouseEvent, itemId: number) => {
-    triggerRipple(e);
-    prefetchReady.current = false;
-    pendingItemId.current = itemId;
-    setIsLoading(true);
+  const handleCardClick = useCallback(
+    (e: React.MouseEvent, itemId: number) => {
+      triggerRipple(e);
+      prefetchReady.current = false;
+      pendingItemId.current = itemId;
+      setIsLoading(true);
 
-    // Background prefetch full deconstructed data during ripple animation
-    utils.showcase.getById.fetch({ id: itemId })
-      .then((detail) => {
-        const payload: ShowcaseTransferPayload = {
-          showcaseId: detail.id,
-          generatedItemId: detail.generatedItemId,
-          title: detail.title,
-          deconstructedBlocks: detail.completelyDeconstructedBlocks as ShowcaseTransferPayload["deconstructedBlocks"],
-          vibeParameters: detail.vibeParameters as ShowcaseTransferPayload["vibeParameters"],
-          originalPrompt: detail.originalPrompt,
-          imageUrl: detail.imageUrl,
-          modality: detail.modality as "image" | "video" | "audio" | "voice",
-        };
-        setPayload(payload);
-        prefetchReady.current = true;
-        setIsLoading(false);
-      })
-      .catch(() => {
-        // Even if prefetch fails, still navigate — Studio will work without pre-loaded data
-        prefetchReady.current = true;
-        setIsLoading(false);
-      });
-  }, [triggerRipple, utils.showcase.getById, setPayload, setIsLoading]);
+      // Background prefetch full deconstructed data during ripple animation
+      utils.showcase.getById
+        .fetch({ id: itemId })
+        .then(detail => {
+          const payload: ShowcaseTransferPayload = {
+            showcaseId: detail.id,
+            generatedItemId: detail.generatedItemId,
+            title: detail.title,
+            deconstructedBlocks:
+              detail.completelyDeconstructedBlocks as ShowcaseTransferPayload["deconstructedBlocks"],
+            vibeParameters:
+              detail.vibeParameters as ShowcaseTransferPayload["vibeParameters"],
+            originalPrompt: detail.originalPrompt,
+            imageUrl: detail.imageUrl,
+            modality: detail.modality as "image" | "video" | "audio" | "voice",
+          };
+          setPayload(payload);
+          prefetchReady.current = true;
+          setIsLoading(false);
+        })
+        .catch(() => {
+          // Even if prefetch fails, still navigate — Studio will work without pre-loaded data
+          prefetchReady.current = true;
+          setIsLoading(false);
+        });
+    },
+    [triggerRipple, utils.showcase.getById, setPayload, setIsLoading]
+  );
 
   const handleRippleComplete = useCallback(() => {
     // If prefetch is ready, navigate immediately
@@ -621,7 +652,9 @@ export default function ShowcaseMasonry({
   }, [navigate, resetRipple]);
 
   // ───  // ─── Silent Reconstruction State ───────────────────────────────
-  const [reconstructedItems, setReconstructedItems] = useState<ShowcaseItem[]>([]);
+  const [reconstructedItems, setReconstructedItems] = useState<ShowcaseItem[]>(
+    []
+  );
   const [isReconstructing, setIsReconstructing] = useState(false);
   const reconstructedRef = useRef(false);
   const visibleIdsRef = useRef<Set<number>>(new Set());
@@ -638,16 +671,18 @@ export default function ShowcaseMasonry({
   } = trpc.showcase.list.useInfiniteQuery(
     {
       limit: 12,
-      ...(modality ? { modality: modality as "image" | "video" | "audio" | "voice" } : {}),
+      ...(modality
+        ? { modality: modality as "image" | "video" | "audio" | "voice" }
+        : {}),
     },
     {
-      getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+      getNextPageParam: lastPage => lastPage.nextCursor ?? undefined,
       staleTime: 60_000,
     }
   );
 
   const originalItems = useMemo(
-    () => data?.pages.flatMap((p) => p.items) ?? [],
+    () => data?.pages.flatMap(p => p.items) ?? [],
     [data]
   );
 
@@ -665,7 +700,8 @@ export default function ShowcaseMasonry({
       aestheticOverride.length === 0 ||
       reconstructedRef.current ||
       isReconstructing
-    ) return;
+    )
+      return;
 
     // Prevent duplicate reconstruction for same aesthetics
     const sortedKey = [...aestheticOverride].sort();
@@ -685,7 +721,7 @@ export default function ShowcaseMasonry({
         limit: 24,
         excludeIds,
       })
-      .then((result) => {
+      .then(result => {
         if (result.items.length > 0) {
           setReconstructedItems(result.items as ShowcaseItem[]);
         }
@@ -709,14 +745,14 @@ export default function ShowcaseMasonry({
     } else {
       // Keep items that are already visible (in viewport)
       const visibleIds = visibleIdsRef.current;
-      const keptItems = originalItems.filter((item) => visibleIds.has(item.id));
+      const keptItems = originalItems.filter(item => visibleIds.has(item.id));
 
       // Append reconstructed items (already excludes visible IDs from backend)
       const merged = [...keptItems, ...reconstructedItems];
 
       // Deduplicate by ID
       const seen = new Set<number>();
-      items = merged.filter((item) => {
+      items = merged.filter(item => {
         if (seen.has(item.id)) return false;
         seen.add(item.id);
         return true;
@@ -728,7 +764,11 @@ export default function ShowcaseMasonry({
 
   // ─── Infinite Scroll: IntersectionObserver sentinel ─────────────────
   const loadMore = useCallback(() => {
-    if (hasNextPage && !isFetchingNextPage && originalItems.length < MAX_DISPLAY_ITEMS) {
+    if (
+      hasNextPage &&
+      !isFetchingNextPage &&
+      originalItems.length < MAX_DISPLAY_ITEMS
+    ) {
       fetchNextPage();
     }
   }, [hasNextPage, isFetchingNextPage, fetchNextPage, originalItems.length]);
@@ -782,7 +822,9 @@ export default function ShowcaseMasonry({
           >
             精選作品
           </h2>
-          <p className={`mt-3 sm:mt-4 hs-small !mb-0 transition-colors duration-1000 ${styles.subtitleColor}`}>
+          <p
+            className={`mt-3 sm:mt-4 hs-small !mb-0 transition-colors duration-1000 ${styles.subtitleColor}`}
+          >
             社群創作者的靈感結晶，探索多模態 AI 的無限可能
           </p>
           {/* Healing divider */}
@@ -838,7 +880,9 @@ export default function ShowcaseMasonry({
               animate={{ scale: [1, 1.08, 1], opacity: [0.4, 0.7, 0.4] }}
               transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
             >
-              <Sparkles className={`w-10 h-10 mx-auto mb-5 ${styles.textMuted}`} />
+              <Sparkles
+                className={`w-10 h-10 mx-auto mb-5 ${styles.textMuted}`}
+              />
             </motion.div>
             <p className={`text-sm ${styles.textMuted}`}>
               暫無精選作品，敬請期待
@@ -857,8 +901,11 @@ export default function ShowcaseMasonry({
             >
               <CarouselContent className="-ml-5">
                 {/* Cap at 24 items for carousel performance — prevents excessive DOM nodes and keeps navigation snappy */}
-                {allItems.slice(0, 24).map((item) => (
-                  <CarouselItem key={item.id} className="pl-5 basis-full sm:basis-1/2 lg:basis-1/3">
+                {allItems.slice(0, 24).map(item => (
+                  <CarouselItem
+                    key={item.id}
+                    className="pl-5 basis-full sm:basis-1/2 lg:basis-1/3"
+                  >
                     <MasonryCard
                       item={item}
                       styles={styles}
@@ -874,7 +921,9 @@ export default function ShowcaseMasonry({
             {/* Carousel dot indicators */}
             {showcaseSlideCount > 1 && (
               <div className="flex items-center justify-center gap-2.5 mt-10">
-                {Array.from({ length: Math.min(showcaseSlideCount, MAX_VISIBLE_DOTS) }).map((_, i) => (
+                {Array.from({
+                  length: Math.min(showcaseSlideCount, MAX_VISIBLE_DOTS),
+                }).map((_, i) => (
                   <motion.button
                     key={i}
                     onClick={() => showcaseScrollTo(i)}

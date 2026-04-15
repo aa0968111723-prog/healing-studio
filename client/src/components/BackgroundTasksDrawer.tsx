@@ -5,11 +5,24 @@
  * 固定在側邊欄底部，點擊 badge 展開/收起。
  */
 
-import { useBackgroundTasks, type BackgroundTask, type StudioJobType } from "@/contexts/BackgroundTasksContext";
+import {
+  useBackgroundTasks,
+  type BackgroundTask,
+  type StudioJobType,
+} from "@/contexts/BackgroundTasksContext";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  Image, Film, Music, Mic, CheckCircle2, XCircle,
-  Loader2, ChevronUp, ChevronDown, ExternalLink, Clock,
+  Image,
+  Film,
+  Music,
+  Mic,
+  CheckCircle2,
+  XCircle,
+  Loader2,
+  ChevronUp,
+  ChevronDown,
+  ExternalLink,
+  Clock,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,12 +44,35 @@ const STUDIO_LABEL: Record<StudioJobType, string> = {
   voice: "語音",
 };
 
-const STATUS_CONFIG: Record<string, { icon: React.ReactNode; className: string; label: string }> = {
-  queued:     { icon: <Clock className="w-3.5 h-3.5" />,                   className: "text-muted-foreground", label: "等待中" },
-  processing: { icon: <Loader2 className="w-3.5 h-3.5 animate-spin" />,   className: "text-primary",         label: "生成中" },
-  completed:  { icon: <CheckCircle2 className="w-3.5 h-3.5" />,           className: "text-green-500",       label: "已完成" },
-  failed:     { icon: <XCircle className="w-3.5 h-3.5" />,                className: "text-destructive",     label: "失敗" },
-  cancelled:  { icon: <XCircle className="w-3.5 h-3.5" />,                className: "text-muted-foreground", label: "已取消" },
+const STATUS_CONFIG: Record<
+  string,
+  { icon: React.ReactNode; className: string; label: string }
+> = {
+  queued: {
+    icon: <Clock className="w-3.5 h-3.5" />,
+    className: "text-muted-foreground",
+    label: "等待中",
+  },
+  processing: {
+    icon: <Loader2 className="w-3.5 h-3.5 animate-spin" />,
+    className: "text-primary",
+    label: "生成中",
+  },
+  completed: {
+    icon: <CheckCircle2 className="w-3.5 h-3.5" />,
+    className: "text-green-500",
+    label: "已完成",
+  },
+  failed: {
+    icon: <XCircle className="w-3.5 h-3.5" />,
+    className: "text-destructive",
+    label: "失敗",
+  },
+  cancelled: {
+    icon: <XCircle className="w-3.5 h-3.5" />,
+    className: "text-muted-foreground",
+    label: "已取消",
+  },
 };
 
 function formatTime(iso?: string) {
@@ -67,10 +103,13 @@ function TaskRow({ task }: { task: BackgroundTask }) {
       {/* Info */}
       <div className="flex-1 min-w-0">
         <p className="text-xs font-medium truncate">
-          {task.label || `${STUDIO_LABEL[task.studioType] ?? task.studioType} 生成`}
+          {task.label ||
+            `${STUDIO_LABEL[task.studioType] ?? task.studioType} 生成`}
         </p>
         <div className="flex items-center gap-1.5 mt-0.5">
-          <span className={`flex items-center gap-1 text-[10px] ${cfg.className}`}>
+          <span
+            className={`flex items-center gap-1 text-[10px] ${cfg.className}`}
+          >
             {cfg.icon}
             {cfg.label}
           </span>
@@ -98,7 +137,10 @@ function TaskRow({ task }: { task: BackgroundTask }) {
       {/* Progress bar for processing */}
       {task.status === "processing" && (
         <div className="w-8 h-1 rounded-full bg-muted overflow-hidden flex-shrink-0">
-          <div className="h-full bg-primary rounded-full animate-pulse" style={{ width: "60%" }} />
+          <div
+            className="h-full bg-primary rounded-full animate-pulse"
+            style={{ width: "60%" }}
+          />
         </div>
       )}
     </div>
@@ -108,13 +150,21 @@ function TaskRow({ task }: { task: BackgroundTask }) {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function BackgroundTasksDrawer() {
-  const { tasks, activeCount, drawerOpen, setDrawerOpen } = useBackgroundTasks();
+  const { tasks, activeCount, drawerOpen, setDrawerOpen } =
+    useBackgroundTasks();
 
   // 不顯示 badge 如果沒有任何任務
   if (tasks.length === 0 && !drawerOpen) return null;
 
-  const activeTasks = tasks.filter((t) => t.status === "queued" || t.status === "processing");
-  const completedTasks = tasks.filter((t) => t.status === "completed" || t.status === "failed" || t.status === "cancelled");
+  const activeTasks = tasks.filter(
+    t => t.status === "queued" || t.status === "processing"
+  );
+  const completedTasks = tasks.filter(
+    t =>
+      t.status === "completed" ||
+      t.status === "failed" ||
+      t.status === "cancelled"
+  );
 
   return (
     <div className="w-full">
@@ -124,16 +174,25 @@ export default function BackgroundTasksDrawer() {
         className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg hover:bg-accent/50 transition-colors text-left"
       >
         <div className="flex items-center gap-2 min-w-0">
-          <Loader2 className={`w-4 h-4 flex-shrink-0 ${activeCount > 0 ? "animate-spin text-primary" : "text-muted-foreground"}`} />
+          <Loader2
+            className={`w-4 h-4 flex-shrink-0 ${activeCount > 0 ? "animate-spin text-primary" : "text-muted-foreground"}`}
+          />
           <span className="text-sm font-medium truncate">背景任務</span>
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
           {activeCount > 0 && (
-            <Badge variant="default" className="h-5 px-1.5 text-[10px] font-bold">
+            <Badge
+              variant="default"
+              className="h-5 px-1.5 text-[10px] font-bold"
+            >
               {activeCount}
             </Badge>
           )}
-          {drawerOpen ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" />}
+          {drawerOpen ? (
+            <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+          ) : (
+            <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" />
+          )}
         </div>
       </button>
 
@@ -154,7 +213,7 @@ export default function BackgroundTasksDrawer() {
                   <p className="px-3 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                     進行中 ({activeTasks.length})
                   </p>
-                  {activeTasks.map((t) => (
+                  {activeTasks.map(t => (
                     <TaskRow key={t.jobId} task={t} />
                   ))}
                 </div>
@@ -166,7 +225,7 @@ export default function BackgroundTasksDrawer() {
                   <p className="px-3 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                     最近完成 ({completedTasks.length})
                   </p>
-                  {completedTasks.map((t) => (
+                  {completedTasks.map(t => (
                     <TaskRow key={t.jobId} task={t} />
                   ))}
                 </div>

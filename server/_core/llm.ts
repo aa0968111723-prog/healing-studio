@@ -14,12 +14,21 @@
  */
 
 import { serverEnv } from "./env.validated";
-import { resolveEngineConfig, getEngineFallbackChain, recordEngineSuccess, recordEngineFailure, type LLMEngine, type EngineConfig } from "./llmRouter";
+import {
+  resolveEngineConfig,
+  getEngineFallbackChain,
+  recordEngineSuccess,
+  recordEngineFailure,
+  type LLMEngine,
+  type EngineConfig,
+} from "./llmRouter";
 
 // ─── LangSmith SDK 初始化（當 API Key 存在時） ───────────────────────────────
 let langSmithClient: import("langsmith").Client | null = null;
 
-async function getLangSmithClient(): Promise<import("langsmith").Client | null> {
+async function getLangSmithClient(): Promise<
+  import("langsmith").Client | null
+> {
   if (!serverEnv.LANGSMITH_API_KEY) return null;
   if (langSmithClient) return langSmithClient;
   try {
@@ -55,7 +64,12 @@ export type FileContent = {
   type: "file_url";
   file_url: {
     url: string;
-    mime_type?: "audio/mpeg" | "audio/wav" | "application/pdf" | "audio/mp4" | "video/mp4";
+    mime_type?:
+      | "audio/mpeg"
+      | "audio/wav"
+      | "application/pdf"
+      | "audio/mp4"
+      | "video/mp4";
   };
 };
 
@@ -163,12 +177,20 @@ export type ResponseFormat =
 
 // ─── 內部工具函數 ──────────────────────────────────────────────────────────
 
-const ensureArray = (value: MessageContent | MessageContent[]): MessageContent[] =>
-  Array.isArray(value) ? value : [value];
+const ensureArray = (
+  value: MessageContent | MessageContent[]
+): MessageContent[] => (Array.isArray(value) ? value : [value]);
 
-const normalizeContentPart = (part: MessageContent): TextContent | ImageContent | FileContent => {
+const normalizeContentPart = (
+  part: MessageContent
+): TextContent | ImageContent | FileContent => {
   if (typeof part === "string") return { type: "text", text: part };
-  if (part.type === "text" || part.type === "image_url" || part.type === "file_url") return part;
+  if (
+    part.type === "text" ||
+    part.type === "image_url" ||
+    part.type === "file_url"
+  )
+    return part;
   throw new Error("Unsupported message content part");
 };
 
@@ -196,16 +218,24 @@ const normalizeToolChoice = (
   if (!toolChoice) return undefined;
   if (toolChoice === "none" || toolChoice === "auto") return toolChoice;
   if (toolChoice === "required") {
-    if (!tools || tools.length === 0) throw new Error("tool_choice 'required' but no tools provided");
-    if (tools.length > 1) throw new Error("tool_choice 'required' with multiple tools: specify name explicitly");
+    if (!tools || tools.length === 0)
+      throw new Error("tool_choice 'required' but no tools provided");
+    if (tools.length > 1)
+      throw new Error(
+        "tool_choice 'required' with multiple tools: specify name explicitly"
+      );
     return { type: "function", function: { name: tools[0].function.name } };
   }
-  if ("name" in toolChoice) return { type: "function", function: { name: toolChoice.name } };
+  if ("name" in toolChoice)
+    return { type: "function", function: { name: toolChoice.name } };
   return toolChoice;
 };
 
 const normalizeResponseFormat = ({
-  responseFormat, response_format, outputSchema, output_schema,
+  responseFormat,
+  response_format,
+  outputSchema,
+  output_schema,
 }: {
   responseFormat?: ResponseFormat;
   response_format?: ResponseFormat;
@@ -214,36 +244,50 @@ const normalizeResponseFormat = ({
 }): ResponseFormat | undefined => {
   const explicitFormat = responseFormat || response_format;
   if (explicitFormat) {
-    if (explicitFormat.type === "json_schema" && !explicitFormat.json_schema?.schema) {
-      throw new Error("responseFormat json_schema requires a defined schema object");
+    if (
+      explicitFormat.type === "json_schema" &&
+      !explicitFormat.json_schema?.schema
+    ) {
+      throw new Error(
+        "responseFormat json_schema requires a defined schema object"
+      );
     }
     return explicitFormat;
   }
   const schema = outputSchema || output_schema;
   if (!schema) return undefined;
-  if (!schema.name || !schema.schema) throw new Error("outputSchema requires both name and schema");
+  if (!schema.name || !schema.schema)
+    throw new Error("outputSchema requires both name and schema");
   return {
     type: "json_schema",
-    json_schema: { name: schema.name, schema: schema.schema, ...(typeof schema.strict === "boolean" ? { strict: schema.strict } : {}) },
+    json_schema: {
+      name: schema.name,
+      schema: schema.schema,
+      ...(typeof schema.strict === "boolean" ? { strict: schema.strict } : {}),
+    },
   };
 };
 
 // ─── 估算 Token 成本（USD） ──────────────────────────────────────────────────
 
-function estimateTokenCostUsd(model: string, usage?: InvokeResult["usage"]): number {
+function estimateTokenCostUsd(
+  model: string,
+  usage?: InvokeResult["usage"]
+): number {
   if (!usage) return 0;
   // Approximate pricing (USD per 1M tokens)
   const PRICING: Record<string, { input: number; output: number }> = {
-    "gemini-2.5-pro":   { input: 1.25,  output: 5.00 },
-    "gemini-2.5-flash": { input: 0.075, output: 0.30 },
-    "gemini-1.5-pro":   { input: 1.25,  output: 5.00 },
-    "gemini-1.5-flash": { input: 0.075, output: 0.30 },
-    "gpt-4o":           { input: 2.50,  output: 10.0 },
-    "gpt-4o-mini":      { input: 0.15,  output: 0.60 },
-    "MiniMax-M2.7":     { input: 0.30,  output: 1.20 },
-    "minimaxai/minimax-m2.7": { input: 0.30, output: 1.20 },
+    "gemini-2.5-pro": { input: 1.25, output: 5.0 },
+    "gemini-2.5-flash": { input: 0.075, output: 0.3 },
+    "gemini-1.5-pro": { input: 1.25, output: 5.0 },
+    "gemini-1.5-flash": { input: 0.075, output: 0.3 },
+    "gpt-4o": { input: 2.5, output: 10.0 },
+    "gpt-4o-mini": { input: 0.15, output: 0.6 },
+    "MiniMax-M2.7": { input: 0.3, output: 1.2 },
+    "minimaxai/minimax-m2.7": { input: 0.3, output: 1.2 },
   };
-  const key = Object.keys(PRICING).find(k => model.includes(k)) ?? "gemini-2.5-flash";
+  const key =
+    Object.keys(PRICING).find(k => model.includes(k)) ?? "gemini-2.5-flash";
   const p = PRICING[key];
   return (
     (usage.prompt_tokens / 1_000_000) * p.input +
@@ -262,7 +306,7 @@ async function trackLangSmithSDK(
   error: Error | null,
   durationMs: number,
   engineName: string,
-  parentRunId?: string,
+  parentRunId?: string
 ): Promise<void> {
   const client = await getLangSmithClient();
   if (!client) return;
@@ -270,7 +314,9 @@ async function trackLangSmithSDK(
   const projectName = serverEnv.LANGSMITH_PROJECT || "healing-studio";
   const startTime = new Date(Date.now() - durationMs);
   const endTime = new Date();
-  const costUsd = result ? estimateTokenCostUsd(result.model || "", result.usage) : 0;
+  const costUsd = result
+    ? estimateTokenCostUsd(result.model || "", result.usage)
+    : 0;
 
   try {
     if (error || !result) {
@@ -285,7 +331,10 @@ async function trackLangSmithSDK(
         inputs: {
           messages: messages.map(m => ({
             role: m.role,
-            content: typeof m.content === "string" ? m.content.slice(0, 500) : "[multimodal]",
+            content:
+              typeof m.content === "string"
+                ? m.content.slice(0, 500)
+                : "[multimodal]",
           })),
           model: payload.model,
           temperature: payload.temperature,
@@ -314,7 +363,10 @@ async function trackLangSmithSDK(
         inputs: {
           messages: messages.map(m => ({
             role: m.role,
-            content: typeof m.content === "string" ? m.content.slice(0, 2000) : "[multimodal]",
+            content:
+              typeof m.content === "string"
+                ? m.content.slice(0, 2000)
+                : "[multimodal]",
           })),
           model: payload.model,
           temperature: payload.temperature,
@@ -322,7 +374,10 @@ async function trackLangSmithSDK(
           max_tokens: payload.max_tokens,
         },
         outputs: {
-          content: typeof outputContent === "string" ? outputContent.slice(0, 2000) : "[structured]",
+          content:
+            typeof outputContent === "string"
+              ? outputContent.slice(0, 2000)
+              : "[structured]",
           finish_reason: result.choices[0]?.finish_reason,
           usage: result.usage,
         },
@@ -356,22 +411,22 @@ async function trackLangSmithSDK(
  */
 const GEMINI_MODEL_REMAP: Record<string, string> = {
   // OpenAI → Gemini 等效對應
-  "gpt-4o":              "gemini-2.5-pro",
-  "gpt-4o-mini":         "gemini-2.5-flash",
-  "gpt-4-turbo":         "gemini-2.5-pro",
-  "gpt-4":               "gemini-1.5-pro",
-  "gpt-3.5-turbo":       "gemini-2.5-flash",
-  "gpt-3.5-turbo-16k":   "gemini-1.5-flash",
+  "gpt-4o": "gemini-2.5-pro",
+  "gpt-4o-mini": "gemini-2.5-flash",
+  "gpt-4-turbo": "gemini-2.5-pro",
+  "gpt-4": "gemini-1.5-pro",
+  "gpt-3.5-turbo": "gemini-2.5-flash",
+  "gpt-3.5-turbo-16k": "gemini-1.5-flash",
   // Anthropic Claude → Gemini 等效對應
-  "claude-3-opus":       "gemini-2.5-pro",
-  "claude-3.5-sonnet":   "gemini-2.5-pro",
-  "claude-3-sonnet":     "gemini-1.5-pro",
-  "claude-3-haiku":      "gemini-2.5-flash",
-  "claude-instant-1":    "gemini-2.5-flash",
+  "claude-3-opus": "gemini-2.5-pro",
+  "claude-3.5-sonnet": "gemini-2.5-pro",
+  "claude-3-sonnet": "gemini-1.5-pro",
+  "claude-3-haiku": "gemini-2.5-flash",
+  "claude-instant-1": "gemini-2.5-flash",
   // Mistral → Gemini
-  "mistral-large":       "gemini-2.5-pro",
-  "mistral-medium":      "gemini-1.5-pro",
-  "mistral-small":       "gemini-2.5-flash",
+  "mistral-large": "gemini-2.5-pro",
+  "mistral-medium": "gemini-1.5-pro",
+  "mistral-small": "gemini-2.5-flash",
 };
 
 /**
@@ -381,7 +436,8 @@ const GEMINI_MODEL_REMAP: Record<string, string> = {
  *   - Forge/其他代理 API：不做任何修改（代理層自行處理）
  */
 function normalizeModelForEngine(model: string, engineName: string): string {
-  const isGeminiEndpoint = engineName.includes("Gemini") || engineName.includes("Vertex");
+  const isGeminiEndpoint =
+    engineName.includes("Gemini") || engineName.includes("Vertex");
   if (!isGeminiEndpoint) return model;
 
   // 處理 "vertex/gemini-2.5-pro" 路徑格式
@@ -394,7 +450,7 @@ function normalizeModelForEngine(model: string, engineName: string): string {
 }
 
 // ─── LLM retry constants ───────────────────────────────────────────────────
-const LLM_REQUEST_TIMEOUT_MS = 60_000;  // 60 seconds
+const LLM_REQUEST_TIMEOUT_MS = 60_000; // 60 seconds
 const LLM_MAX_RETRIES = 3;
 const LLM_MAX_RETRY_DELAY_MS = 8_000;
 
@@ -406,10 +462,22 @@ function getRetryDelayMs(attempt: number): number {
 
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   const {
-    messages, tools, toolChoice, tool_choice,
-    maxTokens, max_tokens,
-    outputSchema, output_schema, responseFormat, response_format,
-    runName, parentRunId, engine, temperature, topP, model: overrideModel,
+    messages,
+    tools,
+    toolChoice,
+    tool_choice,
+    maxTokens,
+    max_tokens,
+    outputSchema,
+    output_schema,
+    responseFormat,
+    response_format,
+    runName,
+    parentRunId,
+    engine,
+    temperature,
+    topP,
+    model: overrideModel,
   } = params;
 
   // ── 透過路由器取得引擎設定 ───────────────────────────────
@@ -428,10 +496,21 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   for (const engineConfig of engineConfigs) {
     try {
       const result = await invokeSingleEngine(engineConfig, {
-        messages, tools, toolChoice, tool_choice,
-        maxTokens, max_tokens,
-        outputSchema, output_schema, responseFormat, response_format,
-        runName, parentRunId, temperature, topP, overrideModel,
+        messages,
+        tools,
+        toolChoice,
+        tool_choice,
+        maxTokens,
+        max_tokens,
+        outputSchema,
+        output_schema,
+        responseFormat,
+        response_format,
+        runName,
+        parentRunId,
+        temperature,
+        topP,
+        overrideModel,
       });
 
       // 成功 — 更新斷路器
@@ -479,13 +558,24 @@ async function invokeSingleEngine(
     temperature?: number;
     topP?: number;
     overrideModel?: string;
-  },
+  }
 ): Promise<InvokeResult> {
   const {
-    messages, tools, toolChoice, tool_choice,
-    maxTokens, max_tokens,
-    outputSchema, output_schema, responseFormat, response_format,
-    runName, parentRunId, temperature, topP, overrideModel,
+    messages,
+    tools,
+    toolChoice,
+    tool_choice,
+    maxTokens,
+    max_tokens,
+    outputSchema,
+    output_schema,
+    responseFormat,
+    response_format,
+    runName,
+    parentRunId,
+    temperature,
+    topP,
+    overrideModel,
   } = params;
 
   // ── 解析最終模型名稱（含 engine 相容性正規化）───────────
@@ -513,13 +603,20 @@ async function invokeSingleEngine(
 
   if (tools && tools.length > 0) payload.tools = tools;
 
-  const normalizedToolChoice = normalizeToolChoice(toolChoice || tool_choice, tools);
+  const normalizedToolChoice = normalizeToolChoice(
+    toolChoice || tool_choice,
+    tools
+  );
   if (normalizedToolChoice) payload.tool_choice = normalizedToolChoice;
 
   const normalizedResponseFormat = normalizeResponseFormat({
-    responseFormat, response_format, outputSchema, output_schema,
+    responseFormat,
+    response_format,
+    outputSchema,
+    output_schema,
   });
-  if (normalizedResponseFormat) payload.response_format = normalizedResponseFormat;
+  if (normalizedResponseFormat)
+    payload.response_format = normalizedResponseFormat;
 
   const startTime = Date.now();
   const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -530,7 +627,10 @@ async function invokeSingleEngine(
     for (let attempt = 1; attempt <= LLM_MAX_RETRIES; attempt++) {
       try {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), LLM_REQUEST_TIMEOUT_MS);
+        const timeout = setTimeout(
+          () => controller.abort(),
+          LLM_REQUEST_TIMEOUT_MS
+        );
         const response = await fetch(engineConfig.url, {
           method: "POST",
           headers: {
@@ -548,13 +648,26 @@ async function invokeSingleEngine(
             `[${engineConfig.name}] LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
           );
           // Retry on 5xx server errors or 429 rate limit
-          if ((response.status >= 500 || response.status === 429) && attempt < LLM_MAX_RETRIES) {
+          if (
+            (response.status >= 500 || response.status === 429) &&
+            attempt < LLM_MAX_RETRIES
+          ) {
             lastError = err;
             await new Promise(r => setTimeout(r, getRetryDelayMs(attempt)));
             continue;
           }
           const durationMs = Date.now() - startTime;
-          trackLangSmithSDK(runId, runName || "llm-invoke", messages, payload, null, err, durationMs, engineConfig.name, parentRunId).catch(() => {});
+          trackLangSmithSDK(
+            runId,
+            runName || "llm-invoke",
+            messages,
+            payload,
+            null,
+            err,
+            durationMs,
+            engineConfig.name,
+            parentRunId
+          ).catch(() => {});
           throw err;
         }
 
@@ -564,7 +677,8 @@ async function invokeSingleEngine(
       } catch (err: unknown) {
         const error = err instanceof Error ? err : new Error(String(err));
         lastError = error;
-        const isRetryable = error.name === "AbortError" || error.message.includes("fetch failed");
+        const isRetryable =
+          error.name === "AbortError" || error.message.includes("fetch failed");
         if (isRetryable && attempt < LLM_MAX_RETRIES) {
           await new Promise(r => setTimeout(r, getRetryDelayMs(attempt)));
           continue;
@@ -576,14 +690,34 @@ async function invokeSingleEngine(
   } catch (err: unknown) {
     const durationMs = Date.now() - startTime;
     const error = err instanceof Error ? err : new Error(String(err));
-    trackLangSmithSDK(runId, runName || "llm-invoke", messages, payload, null, error, durationMs, engineConfig.name, parentRunId).catch(() => {});
+    trackLangSmithSDK(
+      runId,
+      runName || "llm-invoke",
+      messages,
+      payload,
+      null,
+      error,
+      durationMs,
+      engineConfig.name,
+      parentRunId
+    ).catch(() => {});
     throw err;
   }
 
   if (!result) throw new Error("[LLM] Unexpected: no result after retry loop");
 
   const durationMs = Date.now() - startTime;
-  trackLangSmithSDK(runId, runName || "llm-invoke", messages, payload, result, null, durationMs, engineConfig.name, parentRunId).catch(() => {});
+  trackLangSmithSDK(
+    runId,
+    runName || "llm-invoke",
+    messages,
+    payload,
+    result,
+    null,
+    durationMs,
+    engineConfig.name,
+    parentRunId
+  ).catch(() => {});
 
   return result;
 }

@@ -1,6 +1,7 @@
 # 禪意多模態 AI 工作室 - Project TODO
 
 ## PART 1: UI/UX 高階禪意設計
+
 - [x] 移除所有卡通吉祥物 (熊/鳥/兔)，替換為 Zen Co-Pilot 發光球體
 - [x] 實作 Glassmorphism 毛玻璃效果全局樣式
 - [x] 升級 Morandi/Zen 調色盤 (#F5F3F0, #6C6C6C)
@@ -10,6 +11,7 @@
 - [x] Vibe Cards 使用高品質寫實縮圖
 
 ## PART 2: 深度角色塑造與互聯工作流
+
 - [x] /models 重構為「角色鍛造所」多步驟精靈
 - [x] 多角度資料集 UI（正面/側面/背面/表情）
 - [x] 自動標註 + 觸發詞設定
@@ -20,18 +22,21 @@
 - [x] Director AI「發送到工作室」按鈕自動填充 Canvas
 
 ## PART 3: 雙引擎 RAG 與多模態調度
+
 - [x] Director AI 分割畫面（左：聊天 / 右：Storyboard）
 - [x] 雙引擎 Agent (Perplexity + Gemini Pro CO-STAR)
 - [x] 多模態平行調度 + 正面解剖學約束
 - [x] ZIP 一鍵匯出 (.mp4, .mp3, .wav, .txt) — JSZip 實作完成
 
 ## PART 4: 企業級 RBAC 與成本控制
+
 - [x] 精確成本追蹤器 UI（tokens/seconds/characters → USD）
 - [x] 企業共享資產網格 + 標籤系統
 - [x] 共享獎勵配額機制
 - [x] 持久「回報問題」按鈕
 
 ## PART 5: 基礎設施與可靠性
+
 - [x] 背景任務佇列 SSE 進度串流
 - [x] 安全中間件 Gemini Flash 預檢
 - [x] 部分失敗回滾（不扣配額）
@@ -41,6 +46,7 @@
 - [x] Vitest 測試更新 (28 tests passed)
 
 ## 已完成（v1 基礎版）
+
 - [x] 資料庫 Schema 設計與遷移
 - [x] 後端 tRPC 路由
 - [x] 基礎前端頁面
@@ -49,22 +55,26 @@
 ## Phase 2 Critical Refactoring
 
 ### Pillar 1: Dynamic Zen Co-Pilot & Glassmorphism
+
 - [x] Enforce strict Glassmorphism (blur backdrop, semi-transparent panels, no harsh borders)
 - [x] Zen Co-Pilot orb with framer-motion breathing pulse animation
 - [x] New user onboarding overlay (Zen Orb floats to UI elements with healing language)
 
 ### Pillar 2: Modality-Specific Workspaces
+
 - [x] Image Workspace (Aspect Ratio, Style/Vibe Reference uploads, Negative Prompts)
 - [x] Video Workspace (First/Last Frame dropzones, Camera Motion controls: Pan/Zoom/Tilt)
 - [x] Audio Workspace (Instrumental vs Vocal toggle, Lyrics text area)
 - [x] Voice Workspace (Voice Actor dropdown, Emotion sliders, Speed controls)
 
 ### Pillar 3: Progressive Disclosure Prompt Builder
+
 - [x] Top level: Visual Vibe Cards selection
 - [x] Advanced accordion: Subject, Action, Environment, Lighting, Camera Angle fields
 - [x] Auto-concatenation into elite system prompt
 
 ### Pillar 4: Consistency Vault
+
 - [x] Dedicated Consistency Vault panel for Character/Scene reference images
 - [x] Upload and save Character Reference Images
 - [x] Upload and save Scene Reference Images
@@ -72,16 +82,19 @@
 - [x] Backend passes references as strict reference_image parameters
 
 ### Testing & Verification
+
 - [x] Updated Vitest tests for new workspace params (32 tests passed)
 - [x] TypeScript zero errors
 - [x] All 4 workspaces verified in browser
 
 ## 文字清理
+
 - [x] 移除所有「禪意」、「企業」、「禪」相關字眼
 
 ## Phase 1: 地基修復 (Foundation Repair)
 
 ### Task 1: 資料庫架構補齊
+
 - [x] 新增 consistency_vault 資料表
 - [x] 新增 subscription_plans 資料表
 - [x] 新增 ai_director_preferences 資料表
@@ -91,12 +104,14 @@
 - [x] 更新 server/db.ts 查詢函數
 
 ### Task 2: 真實檔案上傳管線
+
 - [x] 新增 Express /api/upload 路由
 - [x] 整合 storagePut 上傳至 S3
 - [x] 更新 ConsistencyVault.tsx 使用真實上傳 API
 - [x] 更新 ModelsPage.tsx 使用真實上傳 API
 
 ### Task 3: 介面動線修正
+
 - [x] 首頁第 6 區塊替換為「共享空間」
 - [x] 側邊欄新增 Consistency Vault 獨立入口
 - [x] 側邊欄新增共享空間入口
@@ -105,6 +120,7 @@
 ## Phase 2: 地基修復 - tRPC 路由與 UI 修正
 
 ### tRPC 路由新增
+
 - [x] vault.list / vault.create / vault.update / vault.delete 路由
 - [x] directorPreferences.get / directorPreferences.update 路由
 - [x] history.list / history.bookmarked / history.toggleBookmark / history.rate / history.delete 路由
@@ -112,6 +128,7 @@
 - [x] profile.updateQuotaJson / profile.updateOnboarding 路由
 
 ### 前端更新
+
 - [x] ConsistencyVault.tsx 改用真實 /api/upload + vault tRPC 路由
 - [x] 新增 VaultPage.tsx 獨立頁面
 - [x] 新增 SharedSpace.tsx 共享空間頁面
@@ -120,6 +137,7 @@
 - [x] DashboardLayout.tsx 側邊欄新增 Vault / 共享空間 / 設定入口
 
 ### 測試
+
 - [x] phase2.test.ts 28 個測試全部通過
 - [x] 全部 60 個測試通過（3 個測試檔案）
 - [x] TypeScript 零錯誤
@@ -127,21 +145,25 @@
 ## Phase 3: 全站核心功能「活化」與「邏輯對齊」審計
 
 ### 1. 模型訓練審計
+
 - [x] 檢查角色鍛造所所有按鈕（上傳、下一步、開始訓練）
 - [x] 移除所有 mockLoading / fakeSuccess 邏輯（確認無 mock 邏輯殘留）
 - [x] 確保訓練按鈕觸發後端任務並寫入資料庫（models.create → backgroundJobs + fineTunedModels）
 
 ### 2. 提示詞工程符合性檢查
+
 - [x] 審計 compileElitePrompt 函數（新增 referenceImages 參數 + visualWeight 計算）
 - [x] 檢查視覺權重計算與 ControlNet 參數傳遞（visualWeight 0.3~0.7 + controlNetParams 注入）
 - [x] 確保參考圖上傳後正確轉化為模型參數（styleRef/vibeRef/charRef → generateImage originalImages）
 
 ### 3. 跨模態動線驗證
+
 - [x] 驗證腳本生成後「發送到配音/圖片工作區」按鈕（DirectorAI sendToStudio → Studio 接收 prompt + audioScript）
 - [x] 確保側邊欄所有入口為真實路由無死連結（11 個側邊欄路由 = 11 個頁面檔案）
 - [x] 驗證 Director AI「發送到工作室」功能
 
 ### 4. 測試與報告
+
 - [x] 新增 phase3-audit.test.ts（32 個測試）
 - [x] 回報死按鈕→功能按鈕轉換清單
 - [x] 確認系統準備好承載 Phase 2 AI 人格評估
@@ -149,6 +171,7 @@
 ## Phase 4: 注入 AI 靈魂 (AI Soul Injection)
 
 ### 1. 生成歷史頁面 (/history)
+
 - [x] 建立 HistoryPage.tsx 頁面元件
 - [x] 從 generation_history 資料庫讀取歷史紀錄
 - [x] 支援多模態縮圖顯示（圖片/影片/音樂/語音）
@@ -156,18 +179,21 @@
 - [x] 新增 /history 路由至 App.tsx 與側邊欄
 
 ### 2. AI Director 人格系統與主動介入
+
 - [x] 根據 ai_director_preferences 切換沉穩/創意/技術人格
 - [x] 實作三種人格的差異化系統提示詞
 - [x] 實作主動介入邏輯（停頓偵測、設定不足提醒）
 - [x] 前端 DirectorAI 頁面整合人格切換 UI
 
 ### 3. 提示詞強度評估條 (LLM-as-a-Judge)
+
 - [x] 後端實作 evaluatePrompt tRPC 路由
 - [x] 呼叫 LLM 進行即時提示詞分析
 - [x] 返回 0-100 分數 + 具體優化建議
 - [x] Studio 前端新增即時分數條 UI
 
 ### 4. 測試與驗證
+
 - [x] 新增 phase4-soul.test.ts（18 個測試）
 - [x] 全部 110 個測試通過（5 個測試檔案）
 - [x] 展示三種人格回覆範例
@@ -175,26 +201,31 @@
 ## Phase 2 Final Polish: 介面極簡化與真實數據連動
 
 ### Task 1: 移除訂閱模組
+
 - [x] 移除 SettingsPage 中訂閱方案 UI 區塊
 - [x] 保留帳號資訊與導演 AI 偏好
 
 ### Task 2: 真實餘額 API 連動
+
 - [x] 側邊欄配額數字改為真實 API 讀取（user.remainingGenerations）
 - [x] 儀表板配額數字改為真實 API 讀取（dashboard.myStats）
 - [x] 後端生成任務成功後扣除資料庫配額（deductUserQuota + refundUserQuota）
 - [x] 移除前端寫死的假配額數字（全站皆讀 user.remainingGenerations）
 
 ### Task 3: AI 人格與評估引擎驗證
+
 - [x] 展示三種人格對「畫一隻貓」的差異回覆
 - [x] 展示 evaluatePrompt 對「一隻貓」的評分與建議
 
 ### Task 4: Phase 3 啟動宣告
+
 - [x] 正式宣告第二階段完工
 - [x] 簡述第三階段技術框架
 
 ## Phase 3-A: 品牌更迭與思維鏈可視化
 
 ### Task 1: 品牌名稱更迭
+
 - [x] 全站文本替換 Healing Studio → AI Director
 - [x] Navbar Logo 更新
 - [x] 網頁 title 更新
@@ -203,12 +234,14 @@
 - [x] 確認無死角（僅 dist/ 建構產物殘留，重建後消失）
 
 ### Task 2: AI 思維島鏈 (D3.js)
+
 - [x] 安裝 d3.js + framer-motion 依賴
 - [x] 後端 CoT 數據擷取與回傳（generate.multimodal 回傳 thoughtChain 陣列）
 - [x] ThoughtIslandChain 元件建立（D3.js 互動式樹狀圖）
 - [x] Studio 生成結果旁渲染思維樹狀圖
 
 ### Task 3: 3D 光球化身 (Visual Soul)
+
 - [x] CSS 3D transforms + Framer Motion + SVG 濾鏡
 - [x] 待機狀態：緩慢呼吸光暈
 - [x] 思考中狀態：快速閃爍多色漸變
@@ -216,17 +249,20 @@
 - [x] 導航列/首頁光球與 AI 全域狀態綁定（AIStateContext + useAIState）
 
 ### Task 4: 跨模態快捷操作
+
 - [x] 歷史頁面結果卡片新增快捷按鈕（重新生成/發送到影片工作區/發送到音樂工作區）
 - [x] Studio 結果卡片新增快捷按鈕（透過 ThoughtIslandChain 展示推導軌跡）
 - [x] 點擊後攜帶參數無縫跳轉（sessionStorage sendToStudio）
 
 ### 測試與驗證
+
 - [x] 新增 phase3a-visual.test.ts（16 個測試）
 - [x] 全部 126 個測試通過（6 個測試檔案）
 
 ## Phase 3-B: UX 大重構 - 光球引導 + 一體化工作區
 
 ### Task 1: 光球引導型黃金 90 秒 Onboarding
+
 - [x] 將 VisualSoul 光球移至首頁/Studio 視覺焦點位置
 - [x] 建立 OnboardingFlow 元件（對話式引導 + 打字機特效）
 - [x] 步驟一：光球問「今天想創作什麼畫面？」
@@ -235,6 +271,7 @@
 - [x] 首次登入偵測邏輯（localStorage hasCompletedOnboarding）
 
 ### Task 2: 一體化工作區 (Unified Workspace)
+
 - [x] Studio 設為核心主戰場
 - [x] 左側抽屜：一致性保險庫 (Vault) + 數位資產 (Assets)
 - [x] 右側抽屜：生成歷史 (History)
@@ -242,37 +279,44 @@
 - [x] 側邊欄精簡至 6 個頂級入口（工作室/導演AI/角色鍛造所/共享空間/儀表板/設定）
 
 ### Task 3: 思維島鏈視覺層級
+
 - [x] 生成等待期間優雅展開思維樹狀圖（hasProcessing 自動展開 + 發光邊框）
 - [x] 光球互動時同步展示推導過程（OnboardingFlow 整合 ThoughtIslandChain）
 - [x] 確保不被背景遮擋（border-primary/40 + shadow-lg + z-index）
 
 ### 驗證
+
 - [x] TypeScript 零錯誤
 - [x] 全部 126 個 vitest 測試通過
 
 ## Phase 3-C: 全功能地毯式生存測試
 
 ### Test A: 首頁與引導
+
 - [x] 移除首頁所有靜態介紹卡片，光球佔據中央
 - [x] Onboarding 狀態機：光球主動問話引導
 - [x] 主動建議：輸入「寧靜」時跳出 Choice Chips 標籤
 
 ### Test B: Studio 與思維島
+
 - [x] D3.js 思維島鏈真實生長（非偽造數據）
 - [x] 展示推理 JSON 數據結構
 - [x] Token 權重調整確實傳遞至後端 Payload
 
 ### Test C: 保險庫與資產整合
+
 - [x] 移除側邊欄「保險庫」與「歷史」獨立入口
 - [x] Studio 左右抽屜面板正常運作
 - [x] 一鍵呼叫：從抽屜點擊角色帶入 Prompt
 
 ### Test D: 跨模態工作流
+
 - [x] 圖片生成後「發送到影片」按鈕生效
 - [x] 轉換時自動帶入風格、比例與 Seed
 - [x] ZIP 匯出功能實作（JSZip 打包）
 
 ### 驗證
+
 - [x] TypeScript 零錯誤
 - [x] 全部 vitest 測試通過
 - [x] 5 位人格滿意度報告
@@ -280,11 +324,13 @@
 ## Phase 3-D: 實機地毯式全功能測試 + GenAI 專家稽核
 
 ### Task 1: GenAI 專家稽核
+
 - [x] Prompt 演化精度：最終 Prompt 符合 SD/MJ 高效語法
 - [x] 跨模態參數對齊：Seed/CFG/Style 100% 繼承
 - [x] CoT 真實含金量：JSON 為 LLM 真實推理，非固定拆分
 
 ### Task 2: 7 人格實機測試
+
 - [x] 小白：OnboardingFlow Choice Chips 由 LLM 分析產生
 - [x] 阿強：D3.js 島鏈根據真實推理 JSON 生長
 - [x] 艾導：抽屜角色點擊 100% 填入 Prompt Builder
@@ -292,6 +338,7 @@
 - [x] ZIP 匯出包完整（JSZip 實作）
 
 ### Task 3: UI 與 GenAI 品質修正
+
 - [x] Framer Motion 動效優化
 - [x] 後端 Prompt 模板升級（SD/MJ 語法）
 - [x] TypeScript 零錯誤
@@ -300,6 +347,7 @@
 ## Phase 4: PDF 合規性稽核修復
 
 ### 技術合規性修復
+
 - [x] VisualSoul 人格顏色系統：Calm(電藍)/Creative(霓虹粉)/Technical(螢光綠) 三色切換
 - [x] DirectorEngine 狀態機：根據打字速度、停頓時間、失敗次數自動切換人格
 - [x] 光球主動介入 UI：Studio 浮動提示氣泡（ProactiveOrbWidget）
@@ -307,22 +355,26 @@
 - [x] ThoughtIslandChain 節點介入功能（修剪/擴充/重新引導按鈕）
 
 ### 產品哲學合規性修復
+
 - [x] AIStateContext 擴充：加入 personality 狀態與自動切換邏輯
 - [x] Studio 光球常駐顯示：右下角固定位置 Widget（ProactiveOrbWidget）
 - [x] 光球呼吸頻率與人格綁定（Calm=6s, Creative=4s, Technical=8s）
 
 ### 視覺合規性
+
 - [x] Pro/快速模式切換 UI 標籤優化
 
 ## Phase 5: 顯示隱藏欄位 + 下載功能
 
 ### 隱藏欄位顯示
+
 - [x] Studio 頁面：顯示所有隱藏的參數欄位（專案筆記、進階設定等）
 - [x] History 頁面：展開卡片時顯示完整欄位（compiledPrompt、thoughtChain、parameterSnapshot 等）
 - [x] Notes 頁面：確認所有筆記欄位可見（tags、scheduledDate、updatedAt、scriptJson）
 - [x] Settings 頁面：確認所有設定欄位可見
 
 ### 下載功能
+
 - [x] Studio 生成結果：加入 PNG/MP4/MP3 下載按鈕
 - [x] History 頁面：每筆紀錄加入下載按鈕（根據模態下載對應格式）
 - [x] Assets 頁面：資產卡片加入下載按鈕（含展開詳情面板）
@@ -345,23 +397,27 @@
 ## Phase 8: Proactive Agentic 創作流水線
 
 ### 任務一：自注意力 UI (Self-Attention UI)
+
 - [x] Token 解析器：正則拆解 Prompt 為獨立 Token 標籤
 - [x] 視覺化滑桿（Radix Slider）：0.5~2.0 權重控制
 - [x] 視覺回饋：權重>1.2 橘色發光，<0.8 半透明淡出
 - [x] 回寫機制：自動回寫為 (token: weight) 語法
 
 ### 任務二：思維島鏈語意縮放 (Semantic Zoom)
+
 - [x] D3.js d3-zoom 整合：畫布拖曳與滾輪縮放
 - [x] 三視角層次：縮略圖(<0.75)/標準(0.75-1.2)/專家(>=1.2)
 - [x] Agentic 介入按鈕：修剪/擴充/重新引導
 
 ### 任務三：視覺積木引導 (Onboarding Blocks)
+
 - [x] 6 大分類積木面板：主體/風格/氛圍/場景/光線/鏡頭
 - [x] 顏色編碼：每分類專屬色系
 - [x] 已選組合區：點擊積木後上方顯示
 - [x] 無縫串接：積木→Token→自注意力→生成→思維島鏈
 
 ### 任務四：Studio 主介面整合
+
 - [x] PromptBuilder 佔據上半部主導視覺
 - [x] ThoughtIslandChain 於生成按鈕下方 Framer Motion 滑出
 - [x] Z-index 防呆：自注意力滑桿不被 D3 畫布蓋住
@@ -370,12 +426,14 @@
 ## Phase 9: Agentic 實體連動 + 知識管理 + 新手引導
 
 ### 任務一：光球進階互動 (Floating Orb)
+
 - [x] 全局拖曳接收區 (Drop Zone)：圖片卡片/思維節點可拖入光球
 - [x] 拖入時閃爍光球顏色 + 「已成功擷取元素」提示
 - [x] handleOrbCommand 串接真實 API：「存到筆記」→ saveToNotesContext
 - [x] handleOrbCommand 串接真實 API：「加入排程」→ addToCalendar
 
 ### 任務二：筆記與日曆系統
+
 - [x] ProjectNotesDrawer 右側滑出抽屜（Sheet/Radix）
 - [x] ThoughtIslandChain「釘選至筆記」按鈕
 - [x] Studio 生成圖片旁「釘選至筆記」按鈕
@@ -385,6 +443,7 @@
 - [x] 自然語言排程：光球輸入「排程到下週五」解析時間
 
 ### 任務三：全域新手引導 (Onboarding Tour)
+
 - [x] OnboardingTour.tsx Spotlight 導覽元件
 - [x] Step 1: 聚焦視覺化積木
 - [x] Step 2: 聚焦自注意力滑桿
@@ -396,30 +455,36 @@
 ## Phase 10: 創作者工作室 UI/UX 易用性升級
 
 ### 1. Studio 技術名詞淡化
+
 - [x] 將工作區標題中的技術商標（如 Veo 3.1）藏到 tooltip 或淡化字體
 - [x] 降低新手認知負擔
 
 ### 2. 動態靈感積木 (Contextual Blocks)
+
 - [x] ProgressivePromptBuilder 根據 modality 動態顯示不同積木
 - [x] 圖片/影片：移除「氛圍」類別（與 Vibe Cards 重疊）
 - [x] 音樂：建立專屬積木（樂器/曲風/節奏/環境質感）
 - [x] 積木點擊正確反映到 rawPrompt
 
 ### 3. 影片時間軸引導優化
+
 - [x] VideoWorkspace 首幀/末幀說明文案改為新手友善版本
 - [x] ArrowRight 旁增加「過渡動態」小字提示
 
 ### 4. 語音常用語境預設 (Quick Presets)
+
 - [x] VoiceWorkspace 新增冥想引導/故事旁白/熱情廣告快捷按鈕
 - [x] 點擊自動填寫 text, speed, emotionType, emotionIntensity, voiceActorId
 
 ### 5. 光球對話框亮度調整
+
 - [x] ProactiveOrbWidget 對話框背景改為亮色系
 - [x] 確保文字清晰易讀 + Glassmorphism 一致性
 
 ## Phase 11: 靈感積木自訂與收藏功能
 
 ### 1. 資料庫與後端 API
+
 - [x] custom_blocks 資料表（modality, category, label, prompt, emoji）
 - [x] block_combos 資料表（name, modality, blockIds, customBlockIds, vibeCardIds）
 - [x] customBlocks tRPC router（create, list, delete）
@@ -427,8 +492,9 @@
 - [x] db.ts helpers（CRUD 函式）
 
 ### 2. 前端 UI
+
 - [x] 「自訂積木」按鈕 + 建立 Dialog（類別選擇、標籤、英文提示詞）
-- [x] 自訂積木以 * 前綴顯示在對應類別中
+- [x] 自訂積木以 \* 前綴顯示在對應類別中
 - [x] 長按自訂積木可刪除
 - [x] 「我的組合」按鈕 + Popover 面板（儲存/套用/重命名/刪除組合）
 - [x] 一鍵儲存當前選取積木為組合
@@ -437,6 +503,7 @@
 - [x] 音樂模態專屬類別（樂器/曲風/節奏/環境質感）支援自訂積木
 
 ### 3. 測試
+
 - [x] 11 個新增 Vitest 測試全部通過（custom blocks CRUD + block combos CRUD）
 - [x] 全部 184 個測試通過
 
@@ -526,9 +593,9 @@
 
 - [x] 分析現有 env.ts 架構與所有環境變數引用（9 個檔案 45 處引用）
 - [x] zod 已預裝（tRPC 依賴）
-- [x] 建立 server/_core/env.validated.ts（core + multimodal Zod schema + OARS 柔性警告 + assertApiKey/getApiKey 工具）
-- [x] 建立 client/src/lib/env.validated.ts（VITE_ 變數 Zod schema + 前端 styled console 警告）
-- [x] 更新 server/_core/env.ts 從 validated 模組 re-export，保持 ENV 形狀向後相容
+- [x] 建立 server/\_core/env.validated.ts（core + multimodal Zod schema + OARS 柔性警告 + assertApiKey/getApiKey 工具）
+- [x] 建立 client/src/lib/env.validated.ts（VITE\_ 變數 Zod schema + 前端 styled console 警告）
+- [x] 更新 server/\_core/env.ts 從 validated 模組 re-export，保持 ENV 形狀向後相容
 - [x] 缺少金鑰時 console.warn OARS 格式而非 crash（開發環境顯示多模態金鑰狀態摘要）
 
 ## 拔除舊有 Mock 引信
@@ -557,7 +624,7 @@
 - [x] 安裝 node-cron + @types/node-cron 依賴
 - [x] 設定 NEWS_API_KEY 與 NEWSDATA_API_KEY 環境變數（已透過 webdev_request_secrets 注入）
 - [x] 實作 server/jobs/newsFetcher.ts（NewsAPI→NewsData 雙活備援 + OARS 摘要 + 分類標籤 + 超時保護）
-- [x] 整合 cron 排程至 server/_core/index.ts（每 6 小時 + 啟動後 30s 首次抓取）
+- [x] 整合 cron 排程至 server/\_core/index.ts（每 6 小時 + 啟動後 30s 首次抓取）
 - [x] TypeScript 編譯零錯誤
 - [x] 伺服器啟動正常，日誌確認「新聞抓取排程已註冊」
 
@@ -950,7 +1017,7 @@
 
 - [x] 任務 1：db.ts 新增 getQueuedJobsByType 和 getStuckJobsByType
 - [x] 任務 2：建立 server/jobs/modelTrainingWorker.ts（cron 每 5 分鐘消費 queued + 恢復 stuck）
-- [x] 任務 3：在 server/_core/index.ts 註冊 initModelTrainingWorkerCron()
+- [x] 任務 3：在 server/\_core/index.ts 註冊 initModelTrainingWorkerCron()
 - [x] 修復 IntelBentoGrid ScrollArea 680px 限高導致遮蔽 ShowcaseMasonry
 
 ## 重寫 modelTrainingWorker.ts（詳細規格版）
@@ -985,10 +1052,12 @@
 ## 影片生成實測 + LoRA SDK 重寫 + 歷史頁面播放器
 
 ### 任務 1：實測影片生成
+
 - [x] 在 Studio 影片模態觸發生成，驗證 Gemini Veo API 完整管線（48s 完成，1 個影片生成成功）
 - [x] 確認 API Key 配額足夠，Veo 2.0 正常運作
 
 ### 任務 2：loraTrainer.ts Replicate SDK 重寫
+
 - [x] 改用 Replicate SDK（replicate.predictions.create/get）取代 raw fetch（已在先前開發中完成）
 - [x] 調整日誌格式為 [LoraTrainer] ISO ✅/⚠️/❌（已完成）
 - [x] 調整進度百分比（5→15→25→30→30-90→100）（已完成）
@@ -996,18 +1065,21 @@
 - [x] 輪詢使用 replicate.predictions.get（已完成）
 
 ### 任務 3：歷史頁面播放器
+
 - [x] HistoryPage 結果縮圖根據模態條件渲染 <video>/<audio>/<img>
 - [x] 展開詳情時也使用對應播放器（下載按鈕已支援 MP4/MP3）
 
 ## 光球（VisualSoul）優化
 
 ### 任務 1：強化光球引導邏輯
+
 - [x] 分析現有光球互動時機與觸發條件（降低信心門檻 0.4→0.3，延遲 2.5s→1.8s，再觸發間隔 30s→45s）
 - [x] 優化光球情感回應（新增首次造訪歡迎語、回訪問候、時段感知問候）
 - [x] 改善光球引導文案（優化 OARS 模板觸發條件，降低 aesthetic_preference 門檻）
 - [x] 增強光球狀態轉換（新增歡迎訊息浮層動畫，帶尾巴指向光球）
 
 ### 任務 2：修復與優化光球 AI 代理連結頁面
+
 - [x] 修復人格選擇器同步到全域 AIStateContext（setGlobalPersonality）
 - [x] 修正 Storyboard 版本標籤（Veo 3.1→Veo 2.0，Suno V5→Suno V4）
 - [x] 新增導演 AI 思考狀態光球指示器（聊天區上方顯示光球 + 「導演 AI 正在思考中...」）
@@ -1027,11 +1099,13 @@
 ## 光球引導優化（第二輪）
 
 ### 新手引導細膩化
+
 - [x] 重寫新手引導步驟文案（4 步驟：靈感積木→創作模態→開始創作→你的創作夥伴）
 - [x] 每步增加 encouragement 微文案（「沒有對錯，跟著直覺走就好」等）
 - [x] Spotlight 高亮 + 呼吸光暈動畫 + 位置自適應
 
 ### 光球點擊互動修復
+
 - [x] 修復光球點擊無反應（onClick 取代 onDoubleClick）
 - [x] 設計互動面板：隨機靈感（4 模態各有靈感池，自動填入積木）
 - [x] 設計互動面板：聊聊心情（情緒引導對話入口）
@@ -1041,6 +1115,7 @@
 - [x] 互動面板自動關閉 + 光球顯示鼓勵訊息
 
 ### 光球互動測試
+
 - [x] 測試光球點擊展開面板功能（瀏覽器實測通過）
 - [x] 測試光球快捷指令能實際操作積木（隨機靈感填入「城市, 賽博龐克, 霓虹燈, 高飽和, 未來感」）
 - [x] 測試光球引導流程完整性（OnboardingTour 4 步驟 + Spotlight 正常）
@@ -1048,22 +1123,26 @@
 ## 四大區域前後端連結與 API 檢查
 
 ### 1. 角色鍛鍊所 / 一致性保險箱
+
 - [x] 檢查前端頁面與後端 tRPC 路由連結 → ✅ 完整（models.myModels/teamModels/create/captionImages/toggleVisibility/delete + vault.list/create/update/delete）
 - [x] 檢查 LoRA 訓練 API（Replicate）連結狀態 → ✅ REPLICATE_API_TOKEN 已配置
 - [x] 檢查一致性保險箱功能連結狀態 → ✅ CRUD 完整，無外部 API 依賴
 - [x] API 狀態：✅ 正常（LoRA 需 REPLICATE_API_TOKEN，已配置；圖片標註用內建 invokeLLM）
 
 ### 2. 專案筆記
+
 - [x] 檢查前端頁面與後端 tRPC 路由連結 → ✅ 完整（notes.list/create/update/delete）
 - [x] 檢查筆記 CRUD API 連結狀態 → ✅ 純 CRUD，無外部 API
 - [x] API 狀態：✅ 正常（無外部 API 依賴）
 
 ### 3. 創意排程
+
 - [x] 檢查前端頁面與後端 tRPC 路由連結 → ✅ 完整（共用 notes router）
 - [x] 檢查排程 CRUD API 連結狀態 → ⚠️ 已修復 Bug：notes.update 新增 scheduledDate 欄位，handleDrop 正確傳遞 date.getTime()
 - [x] API 狀態：✅ 正常（無外部 API 依賴，Bug 已修復）
 
 ### 4. 共享空間
+
 - [x] 檢查前端頁面與後端 tRPC 路由連結 → ✅ 完整（assets.teamAssets + models.teamModels）
 - [x] 檢查共享/社群 API 連結狀態 → ✅ 純 CRUD + 前端過濾，無外部 API
 - [x] API 狀態：✅ 正常（無外部 API 依賴，共享獎勵機制已實作）
@@ -1071,18 +1150,21 @@
 ## LoRA 實測 + 排程拖曳回饋 + 共享空間一鍵使用
 
 ### 任務 1：實測 LoRA 訓練
+
 - [x] 檢查 Replicate API Token 有效性 → ❌ Token 無效（401 Unauthenticated），需更新
 - [ ] 測試 models.create 觸發 LoRA 訓練流程（待 Token 更新後測試）
 - [ ] 驗證訓練狀態輪詢與進度更新（待 Token 更新後測試）
 - [x] 標註 API 狀態 → ❌ REPLICATE_API_TOKEN 已過期，需前往 replicate.com 重新取得
 
 ### 任務 2：創意排程拖曳視覺回饋
+
 - [x] 拖曳筆記到日期時目標日期高亮（ring-2 ring-amber-400 + scale-110 + shadow-lg）
 - [x] 拖曳完成後顯示 toast 提示（含日期資訊 + CheckCircle2 圖示）
 - [x] 拖曳離開時移除高亮（dragCounter 精確追蹤巢狀元素進出）
 - [x] 新增拖曳提示橫幅（動態顯示目標日期）
 
 ### 任務 3：共享空間「一鍵使用」
+
 - [x] 共享素材卡片新增「一鍵使用」按鈕（hover overlay + 底部「帶入工作室」按鈕）
 - [x] 點擊後帶入 Studio 作為參考圖片或靈感描述（sessionStorage sendToStudio）
 - [x] 支援不同模態的素材（圖片→styleRef、影片→firstFrame、音樂/語音→prompt）
@@ -1091,12 +1173,14 @@
 - [x] 20 個 vitest 測試全部通過（calendar-sharedspace.test.ts）
 
 ## Replicate API Token 更新
+
 - [x] 更新 REPLICATE_API_TOKEN 環境變數
 - [x] 驗證 Token 有效性（API 認證成功）
 - [x] 驗證可存取 LoRA 訓練模型（ostris/flux-dev-lora-trainer）
 - [x] 3 個 vitest 測試全部通過（replicate-token-validation.test.ts）
 
 ## 首頁背景切換功能
+
 - [x] 設計多種背景主題（夜空/晨光/咖啡廳/深海 4 種場景）
 - [x] 新增背景切換按鈕 UI（導航列按鈕 + 下拉選擇面板 + 漸層預覽）
 - [x] 實作背景切換邏輯（localStorage 持久化 + 自動模式恢復）
@@ -1104,6 +1188,7 @@
 - [x] 撰寫 vitest 測試（19 個測試全部通過）
 
 ## 光球新增意見回饋與功能詢問
+
 - [x] 光球互動選單新增「意見回饋」入口（Quick Action Menu）
 - [x] 光球互動選單新增「功能詢問」入口（Quick Action Menu）
 - [x] 實作回饋/詢問 Dialog UI（FeedbackDialog 元件，含類型選擇/標題/描述/優先級）
@@ -1112,6 +1197,7 @@
 - [x] 撰寫 vitest 測試（26 個測試全部通過）
 
 ## PostHog 追蹤碼
+
 - [x] 在 HTML head 加入 PostHog 追蹤腳本（token + api_host + identified_only）
 - [x] 修復 GitHub 拉入的 schema.ts 轉義引號語法錯誤
 - [x] 撰寫 vitest 測試（6 個測試全部通過）

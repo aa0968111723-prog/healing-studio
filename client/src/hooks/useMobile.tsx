@@ -29,7 +29,9 @@ export function useViewMode() {
     try {
       const saved = localStorage.getItem(VIEW_MODE_KEY);
       if (saved === "desktop" || saved === "mobile") return saved;
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     return "auto";
   });
 
@@ -41,7 +43,9 @@ export function useViewMode() {
       } else {
         localStorage.setItem(VIEW_MODE_KEY, mode);
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     // Apply viewport meta tag change for desktop mode on mobile devices
     const metaViewport = document.querySelector('meta[name="viewport"]');
@@ -49,7 +53,10 @@ export function useViewMode() {
       if (mode === "desktop") {
         metaViewport.setAttribute("content", "width=1280, initial-scale=0.35");
       } else {
-        metaViewport.setAttribute("content", "width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover");
+        metaViewport.setAttribute(
+          "content",
+          "width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover"
+        );
       }
     }
   }, []);
@@ -60,7 +67,10 @@ export function useViewMode() {
       const metaViewport = document.querySelector('meta[name="viewport"]');
       if (metaViewport) {
         if (viewMode === "desktop") {
-          metaViewport.setAttribute("content", "width=1280, initial-scale=0.35");
+          metaViewport.setAttribute(
+            "content",
+            "width=1280, initial-scale=0.35"
+          );
         }
       }
     }

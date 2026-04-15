@@ -53,7 +53,8 @@ interface BackgroundTasksContextValue {
   setDrawerOpen: (open: boolean) => void;
 }
 
-const BackgroundTasksContext = createContext<BackgroundTasksContextValue | null>(null);
+const BackgroundTasksContext =
+  createContext<BackgroundTasksContextValue | null>(null);
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
@@ -75,11 +76,12 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
 
   const tasks: BackgroundTask[] = useMemo(() => {
     const jobs = activeJobsQuery.data ?? [];
-    return jobs.map((j) => {
+    return jobs.map(j => {
       const meta = j.resultJson as Record<string, unknown> | null;
       return {
         jobId: j.id,
-        studioType: (meta?.studioType as StudioJobType) ?? (j.jobType as StudioJobType),
+        studioType:
+          (meta?.studioType as StudioJobType) ?? (j.jobType as StudioJobType),
         label: meta?.label as string | undefined,
         status: j.status,
         progress: j.progress,
@@ -87,14 +89,18 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
         resultUrl: meta?.resultUrl as string | undefined,
         resultJson: meta ?? undefined,
         errorMessage: j.errorMessage ?? undefined,
-        createdAt: j.createdAt ? new Date(j.createdAt).toISOString() : undefined,
+        createdAt: j.createdAt
+          ? new Date(j.createdAt).toISOString()
+          : undefined,
       };
     });
   }, [activeJobsQuery.data]);
 
   const activeCount = useMemo(
-    () => tasks.filter((t) => t.status === "queued" || t.status === "processing").length,
-    [tasks],
+    () =>
+      tasks.filter(t => t.status === "queued" || t.status === "processing")
+        .length,
+    [tasks]
   );
 
   // ─── 逐一輪詢進行中任務（觸發 server 端 fal.ai 狀態同步）──────────────────
@@ -102,8 +108,8 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const processing = tasks
-      .filter((t) => t.status === "queued" || t.status === "processing")
-      .map((t) => t.jobId);
+      .filter(t => t.status === "queued" || t.status === "processing")
+      .map(t => t.jobId);
     setActiveJobIds(processing);
   }, [tasks]);
 
@@ -169,7 +175,7 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
         return null;
       }
     },
-    [submitMutation, activeJobsQuery],
+    [submitMutation, activeJobsQuery]
   );
 
   const value = useMemo<BackgroundTasksContextValue>(
@@ -180,7 +186,7 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
       drawerOpen,
       setDrawerOpen,
     }),
-    [tasks, activeCount, submitTask, drawerOpen],
+    [tasks, activeCount, submitTask, drawerOpen]
   );
 
   return (
@@ -194,7 +200,10 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
 
 export function useBackgroundTasks() {
   const ctx = useContext(BackgroundTasksContext);
-  if (!ctx) throw new Error("useBackgroundTasks must be used within BackgroundTasksProvider");
+  if (!ctx)
+    throw new Error(
+      "useBackgroundTasks must be used within BackgroundTasksProvider"
+    );
   return ctx;
 }
 
@@ -205,11 +214,7 @@ export function useBackgroundTasks() {
 export function useRegisterBgTask() {
   const ctx = useContext(BackgroundTasksContext);
   return useCallback(
-    async (
-      result: unknown,
-      studioType: StudioJobType,
-      label?: string,
-    ) => {
+    async (result: unknown, studioType: StudioJobType, label?: string) => {
       if (!ctx) return;
       const r = result as Record<string, unknown> | null;
       // 提取 request_id 和 model_id（支援直接和 raw 嵌套格式）
@@ -226,6 +231,6 @@ export function useRegisterBgTask() {
         await ctx.submitTask({ studioType, requestId, modelId, label });
       }
     },
-    [ctx],
+    [ctx]
   );
 }

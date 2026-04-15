@@ -7,7 +7,7 @@ const customBlocksStore: any[] = [];
 const blockCombosStore: any[] = [];
 
 // Mock the DB module with in-memory implementations
-vi.mock("./db", async (importOriginal) => {
+vi.mock("./db", async importOriginal => {
   const actual = await importOriginal<typeof import("./db")>();
   return {
     ...actual,
@@ -24,33 +24,54 @@ vi.mock("./db", async (importOriginal) => {
       customBlocksStore.push({ id, ...data, createdAt: new Date() });
       return id;
     }),
-    getCustomBlocksByUser: vi.fn().mockImplementation(async (userId: number, modality?: string) => {
-      return customBlocksStore.filter(
-        (b) => b.userId === userId && (!modality || b.modality === modality)
-      );
-    }),
-    deleteCustomBlock: vi.fn().mockImplementation(async (id: number, userId: number) => {
-      const idx = customBlocksStore.findIndex((b) => b.id === id && b.userId === userId);
-      if (idx !== -1) customBlocksStore.splice(idx, 1);
-    }),
+    getCustomBlocksByUser: vi
+      .fn()
+      .mockImplementation(async (userId: number, modality?: string) => {
+        return customBlocksStore.filter(
+          b => b.userId === userId && (!modality || b.modality === modality)
+        );
+      }),
+    deleteCustomBlock: vi
+      .fn()
+      .mockImplementation(async (id: number, userId: number) => {
+        const idx = customBlocksStore.findIndex(
+          b => b.id === id && b.userId === userId
+        );
+        if (idx !== -1) customBlocksStore.splice(idx, 1);
+      }),
     createBlockCombo: vi.fn().mockImplementation(async (data: any) => {
       const id = comboIdCounter++;
-      blockCombosStore.push({ id, ...data, createdAt: new Date(), updatedAt: new Date() });
+      blockCombosStore.push({
+        id,
+        ...data,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
       return id;
     }),
-    getBlockCombosByUser: vi.fn().mockImplementation(async (userId: number, modality?: string) => {
-      return blockCombosStore.filter(
-        (c) => c.userId === userId && (!modality || c.modality === modality)
-      );
-    }),
-    renameBlockCombo: vi.fn().mockImplementation(async (id: number, userId: number, name: string) => {
-      const combo = blockCombosStore.find((c) => c.id === id && c.userId === userId);
-      if (combo) combo.name = name;
-    }),
-    deleteBlockCombo: vi.fn().mockImplementation(async (id: number, userId: number) => {
-      const idx = blockCombosStore.findIndex((c) => c.id === id && c.userId === userId);
-      if (idx !== -1) blockCombosStore.splice(idx, 1);
-    }),
+    getBlockCombosByUser: vi
+      .fn()
+      .mockImplementation(async (userId: number, modality?: string) => {
+        return blockCombosStore.filter(
+          c => c.userId === userId && (!modality || c.modality === modality)
+        );
+      }),
+    renameBlockCombo: vi
+      .fn()
+      .mockImplementation(async (id: number, userId: number, name: string) => {
+        const combo = blockCombosStore.find(
+          c => c.id === id && c.userId === userId
+        );
+        if (combo) combo.name = name;
+      }),
+    deleteBlockCombo: vi
+      .fn()
+      .mockImplementation(async (id: number, userId: number) => {
+        const idx = blockCombosStore.findIndex(
+          c => c.id === id && c.userId === userId
+        );
+        if (idx !== -1) blockCombosStore.splice(idx, 1);
+      }),
   };
 });
 

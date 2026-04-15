@@ -83,7 +83,10 @@ interface BraveSearchResult {
   description: string;
 }
 
-async function searchBrave(query: string, count: number): Promise<BraveSearchResult[]> {
+async function searchBrave(
+  query: string,
+  count: number
+): Promise<BraveSearchResult[]> {
   const apiKey = ENV.braveSearchApiKey;
   if (!apiKey) {
     logFetch("warn", "BRAVE_SEARCH_API_KEY 未設定，跳過搜尋");
@@ -106,7 +109,7 @@ async function searchBrave(query: string, count: number): Promise<BraveSearchRes
     throw new Error(`Brave Search API 回傳 ${res.status}: ${res.statusText}`);
   }
 
-  const data = await res.json() as {
+  const data = (await res.json()) as {
     web?: {
       results?: Array<{
         title?: string;
@@ -120,7 +123,7 @@ async function searchBrave(query: string, count: number): Promise<BraveSearchRes
     .filter((r): r is { title: string; description: string; url: string } =>
       Boolean(r.title && r.url && r.description)
     )
-    .map((r) => ({
+    .map(r => ({
       title: r.title,
       url: r.url,
       description: r.description,
@@ -129,15 +132,17 @@ async function searchBrave(query: string, count: number): Promise<BraveSearchRes
 
 // ─── LLM Synthesis ──────────────────────────────────────────────────────────
 
-async function synthesizeArticles(articles: BraveSearchResult[]): Promise<Array<{
-  title: string;
-  summary: string;
-  content: string;
-  tags: string[];
-  category: string;
-  difficulty: string;
-  readingMinutes: number;
-}>> {
+async function synthesizeArticles(articles: BraveSearchResult[]): Promise<
+  Array<{
+    title: string;
+    summary: string;
+    content: string;
+    tags: string[];
+    category: string;
+    difficulty: string;
+    readingMinutes: number;
+  }>
+> {
   if (articles.length === 0) return [];
 
   const articlesSummary = articles
@@ -188,9 +193,10 @@ ${articlesSummary}
 
   // Extract text from result
   const firstChoice = result.choices?.[0];
-  const raw = typeof firstChoice?.message?.content === "string"
-    ? firstChoice.message.content
-    : "";
+  const raw =
+    typeof firstChoice?.message?.content === "string"
+      ? firstChoice.message.content
+      : "";
 
   // Parse JSON from response
   const jsonMatch = raw.match(/\[[\s\S]*\]/);
@@ -211,8 +217,8 @@ ${articlesSummary}
     }>;
 
     return parsed
-      .filter((d) => d.title && d.content)
-      .map((d) => ({
+      .filter(d => d.title && d.content)
+      .map(d => ({
         title: (d.title ?? "").slice(0, MAX_TITLE_LENGTH),
         summary: (d.summary ?? d.title ?? "").slice(0, MAX_SUMMARY_LENGTH),
         content: d.content ?? "",
@@ -229,15 +235,17 @@ ${articlesSummary}
 
 // ─── Import to LearnHub ─────────────────────────────────────────────────────
 
-function importToLearnHub(docs: Array<{
-  title: string;
-  summary: string;
-  content: string;
-  tags: string[];
-  category: string;
-  difficulty: string;
-  readingMinutes: number;
-}>): number {
+function importToLearnHub(
+  docs: Array<{
+    title: string;
+    summary: string;
+    content: string;
+    tags: string[];
+    category: string;
+    difficulty: string;
+    readingMinutes: number;
+  }>
+): number {
   let imported = 0;
   for (const doc of docs) {
     const hash = createHash("md5").update(doc.title).digest("hex").slice(0, 12);
@@ -291,7 +299,10 @@ async function runBraveLearnFetchJob(): Promise<void> {
 
   try {
     // Pick today's topic (rotate through topics by day of year)
-    const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 1).getTime()) / 86400000);
+    const dayOfYear = Math.floor(
+      (Date.now() - new Date(new Date().getFullYear(), 0, 1).getTime()) /
+        86400000
+    );
     const topic = SEARCH_TOPICS[dayOfYear % SEARCH_TOPICS.length];
 
     logFetch("info", `今日搜尋主題: ${topic}`);
@@ -342,7 +353,7 @@ export function initBraveLearnFetcherCron(): void {
 
   logFetch(
     "info",
-    "每日 Brave Search 學習文件搜尋排程已註冊 — 每天 04:00 UTC 執行",
+    "每日 Brave Search 學習文件搜尋排程已註冊 — 每天 04:00 UTC 執行"
   );
 
   // Initial fetch after 2 min delay (let server warm up)

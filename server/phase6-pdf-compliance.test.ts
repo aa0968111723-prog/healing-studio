@@ -1,16 +1,28 @@
 import { describe, it, expect, vi } from "vitest";
 
 // Mock LLM to avoid API key requirement
-vi.mock("./_core/llm", async (importOriginal) => {
+vi.mock("./_core/llm", async importOriginal => {
   const actual = await importOriginal<typeof import("./_core/llm")>();
-  const mockOptimizedPrompt = "a cat sitting by the window watching the rain, cinematic lighting, high quality, 8k resolution, detailed fur texture, masterpiece, best quality";
+  const mockOptimizedPrompt =
+    "a cat sitting by the window watching the rain, cinematic lighting, high quality, 8k resolution, detailed fur texture, masterpiece, best quality";
   const mockEvalResult = JSON.stringify({
     score: 72,
-    dimensions: { subjectClarity: 15, actionNarrative: 12, environment: 15, lightingTone: 15, technicalSpecs: 15 },
+    dimensions: {
+      subjectClarity: 15,
+      actionNarrative: 12,
+      environment: 15,
+      lightingTone: 15,
+      technicalSpecs: 15,
+    },
     strengths: "主體清晰，場景生動",
     weaknesses: "缺乏技術參數和光線細節",
     suggestions: [
-      { label: "加入電影感光線", actionType: "append_prompt", actionPayload: "cinematic lighting, warm golden hour", reason: "提升畫面氛圍感" }
+      {
+        label: "加入電影感光線",
+        actionType: "append_prompt",
+        actionPayload: "cinematic lighting, warm golden hour",
+        reason: "提升畫面氛圍感",
+      },
     ],
     optimizedPrompt: mockOptimizedPrompt,
   });
@@ -23,7 +35,7 @@ vi.mock("./_core/llm", async (importOriginal) => {
 });
 
 // Mock DB
-vi.mock("./db", async (importOriginal) => {
+vi.mock("./db", async importOriginal => {
   const actual = await importOriginal<typeof import("./db")>();
   return {
     ...actual,
@@ -41,7 +53,9 @@ import type { TrpcContext } from "./_core/context";
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
-function createMockUser(overrides: Partial<AuthenticatedUser> = {}): AuthenticatedUser {
+function createMockUser(
+  overrides: Partial<AuthenticatedUser> = {}
+): AuthenticatedUser {
   return {
     id: 1,
     openId: "test-user-001",
@@ -74,7 +88,6 @@ function createMockContext(user: AuthenticatedUser | null = null): TrpcContext {
 // ─── Phase 6: PDF Compliance Audit Tests ──────────────────────────────────
 
 describe("Phase 6: PDF Compliance Audit", () => {
-
   // ─── 1. Personality Color System (VisualSoul) ─────────────────────────────
 
   describe("Personality Color System", () => {
@@ -82,21 +95,34 @@ describe("Phase 6: PDF Compliance Audit", () => {
       // Verify the personality type contract matches PDF requirements
       type Personality = "calm" | "creative" | "technical";
 
-      const personalityColors: Record<Personality, { primary: string; glow: string }> = {
-        calm: { primary: "#1E3A5F", glow: "rgba(30,58,95,0.4)" },       // Deep Blue
-        creative: { primary: "#D4760A", glow: "rgba(212,118,10,0.4)" },  // Warm Orange
+      const personalityColors: Record<
+        Personality,
+        { primary: string; glow: string }
+      > = {
+        calm: { primary: "#1E3A5F", glow: "rgba(30,58,95,0.4)" }, // Deep Blue
+        creative: { primary: "#D4760A", glow: "rgba(212,118,10,0.4)" }, // Warm Orange
         technical: { primary: "#6B21A8", glow: "rgba(107,33,168,0.4)" }, // Electric Purple
       };
 
-      expect(Object.keys(personalityColors)).toEqual(["calm", "creative", "technical"]);
+      expect(Object.keys(personalityColors)).toEqual([
+        "calm",
+        "creative",
+        "technical",
+      ]);
       expect(personalityColors.calm.primary).toMatch(/^#/);
       expect(personalityColors.creative.primary).toMatch(/^#/);
       expect(personalityColors.technical.primary).toMatch(/^#/);
 
       // All three should be distinct
-      expect(personalityColors.calm.primary).not.toBe(personalityColors.creative.primary);
-      expect(personalityColors.creative.primary).not.toBe(personalityColors.technical.primary);
-      expect(personalityColors.calm.primary).not.toBe(personalityColors.technical.primary);
+      expect(personalityColors.calm.primary).not.toBe(
+        personalityColors.creative.primary
+      );
+      expect(personalityColors.creative.primary).not.toBe(
+        personalityColors.technical.primary
+      );
+      expect(personalityColors.calm.primary).not.toBe(
+        personalityColors.technical.primary
+      );
     });
 
     it("VisualSoul should accept personality prop", () => {
@@ -145,38 +171,47 @@ describe("Phase 6: PDF Compliance Audit", () => {
       }
 
       // Test: High fail count → Calm (soothing)
-      expect(computePersonality({
-        personality: "creative",
-        typingSpeed: 3,
-        idleTime: 0,
-        failCount: 3,
-        successCount: 0,
-      })).toBe("calm");
+      expect(
+        computePersonality({
+          personality: "creative",
+          typingSpeed: 3,
+          idleTime: 0,
+          failCount: 3,
+          successCount: 0,
+        })
+      ).toBe("calm");
 
       // Test: Fast typing → Technical (expert)
-      expect(computePersonality({
-        personality: "calm",
-        typingSpeed: 8,
-        idleTime: 0,
-        failCount: 0,
-        successCount: 5,
-      })).toBe("technical");
+      expect(
+        computePersonality({
+          personality: "calm",
+          typingSpeed: 8,
+          idleTime: 0,
+          failCount: 0,
+          successCount: 5,
+        })
+      ).toBe("technical");
 
       // Test: Long idle → Creative (inspiring)
-      expect(computePersonality({
-        personality: "calm",
-        typingSpeed: 2,
-        idleTime: 15000,
-        failCount: 0,
-        successCount: 0,
-      })).toBe("creative");
+      expect(
+        computePersonality({
+          personality: "calm",
+          typingSpeed: 2,
+          idleTime: 15000,
+          failCount: 0,
+          successCount: 0,
+        })
+      ).toBe("creative");
     });
 
     it("should track typing speed and idle time", () => {
       // Simulate typing speed calculation
       const keyTimestamps = [100, 200, 350, 500, 600, 750, 900];
-      const intervals = keyTimestamps.slice(1).map((t, i) => t - keyTimestamps[i]);
-      const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+      const intervals = keyTimestamps
+        .slice(1)
+        .map((t, i) => t - keyTimestamps[i]);
+      const avgInterval =
+        intervals.reduce((a, b) => a + b, 0) / intervals.length;
       const charsPerSecond = 1000 / avgInterval;
 
       expect(charsPerSecond).toBeGreaterThan(0);
@@ -197,10 +232,22 @@ describe("Phase 6: PDF Compliance Audit", () => {
       }
 
       const triggers: InterventionTrigger[] = [
-        { type: "idle", threshold: 15000, message: "需要靈感嗎？試試看這些風格..." },
+        {
+          type: "idle",
+          threshold: 15000,
+          message: "需要靈感嗎？試試看這些風格...",
+        },
         { type: "struggling", threshold: 2, message: "讓我幫你優化提示詞..." },
-        { type: "fast_typing", threshold: 5, message: "偵測到專業模式，已切換至技術人格" },
-        { type: "success_streak", threshold: 3, message: "連續成功！解鎖進階功能" },
+        {
+          type: "fast_typing",
+          threshold: 5,
+          message: "偵測到專業模式，已切換至技術人格",
+        },
+        {
+          type: "success_streak",
+          threshold: 3,
+          message: "連續成功！解鎖進階功能",
+        },
       ];
 
       expect(triggers.length).toBe(4);
@@ -221,9 +268,24 @@ describe("Phase 6: PDF Compliance Audit", () => {
       };
 
       const states: ProactiveOrbWidgetState[] = [
-        { visible: true, message: "試試加入光影描述", personality: "creative", actionType: "suggestion" },
-        { visible: true, message: "提示詞可能需要更多細節", personality: "calm", actionType: "warning" },
-        { visible: true, message: "連續三次成功！", personality: "technical", actionType: "celebration" },
+        {
+          visible: true,
+          message: "試試加入光影描述",
+          personality: "creative",
+          actionType: "suggestion",
+        },
+        {
+          visible: true,
+          message: "提示詞可能需要更多細節",
+          personality: "calm",
+          actionType: "warning",
+        },
+        {
+          visible: true,
+          message: "連續三次成功！",
+          personality: "technical",
+          actionType: "celebration",
+        },
       ];
 
       for (const state of states) {
@@ -296,10 +358,25 @@ describe("Phase 6: PDF Compliance Audit", () => {
       });
 
       // Optimized prompt should be longer and more detailed than input
-      expect(result.optimizedPrompt.length).toBeGreaterThan("一隻貓坐在窗邊看雨".length);
+      expect(result.optimizedPrompt.length).toBeGreaterThan(
+        "一隻貓坐在窗邊看雨".length
+      );
 
       // Should contain technical terms common in SD/MJ prompts
-      const technicalTerms = ["quality", "lighting", "detail", "resolution", "8k", "4k", "cinematic", "masterpiece", "best quality", "光", "細節", "高品質"];
+      const technicalTerms = [
+        "quality",
+        "lighting",
+        "detail",
+        "resolution",
+        "8k",
+        "4k",
+        "cinematic",
+        "masterpiece",
+        "best quality",
+        "光",
+        "細節",
+        "高品質",
+      ];
       const hasAnyTechnicalTerm = technicalTerms.some(term =>
         result.optimizedPrompt.toLowerCase().includes(term.toLowerCase())
       );

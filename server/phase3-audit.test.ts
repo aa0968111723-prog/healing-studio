@@ -4,7 +4,9 @@ import type { TrpcContext } from "./_core/context";
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
-function createMockUser(overrides: Partial<AuthenticatedUser> = {}): AuthenticatedUser {
+function createMockUser(
+  overrides: Partial<AuthenticatedUser> = {}
+): AuthenticatedUser {
   return {
     id: 1,
     openId: "test-user-001",
@@ -51,14 +53,22 @@ describe("models.captionImages route", () => {
     const caller = appRouter.createCaller(ctx);
     await expect(
       caller.models.captionImages({
-        images: [{ url: "https://example.com/img.png", angle: "invalid_angle" as any }],
+        images: [
+          { url: "https://example.com/img.png", angle: "invalid_angle" as any },
+        ],
       })
     ).rejects.toThrow();
   });
 
   it("accepts valid angle values", async () => {
     // This test verifies the input schema accepts all valid angles
-    const validAngles = ["front", "side", "back", "expression", "other"] as const;
+    const validAngles = [
+      "front",
+      "side",
+      "back",
+      "expression",
+      "other",
+    ] as const;
     for (const angle of validAngles) {
       const input = { images: [{ url: "https://example.com/img.png", angle }] };
       // Schema validation should pass (we can't call the actual LLM in tests)
@@ -91,7 +101,11 @@ describe("models.create with datasetImages", () => {
       caller.models.create({
         name: "Test Model",
         datasetImages: [
-          { url: "https://example.com/1.png", fileKey: "k1", angle: "invalid" as any },
+          {
+            url: "https://example.com/1.png",
+            fileKey: "k1",
+            angle: "invalid" as any,
+          },
         ],
       })
     ).rejects.toThrow();
@@ -295,7 +309,12 @@ describe("profile routes", () => {
     const ctx = createMockContext(null);
     const caller = appRouter.createCaller(ctx);
     await expect(
-      caller.profile.updateQuotaJson({ image: 10, video: 5, audio: 5, voice: 5 })
+      caller.profile.updateQuotaJson({
+        image: 10,
+        video: 5,
+        audio: 5,
+        voice: 5,
+      })
     ).rejects.toThrow();
   });
 
@@ -303,7 +322,12 @@ describe("profile routes", () => {
     const ctx = createMockContext(createMockUser());
     const caller = appRouter.createCaller(ctx);
     await expect(
-      caller.profile.updateQuotaJson({ image: -1, video: 5, audio: 5, voice: 5 })
+      caller.profile.updateQuotaJson({
+        image: -1,
+        video: 5,
+        audio: 5,
+        voice: 5,
+      })
     ).rejects.toThrow();
   });
 

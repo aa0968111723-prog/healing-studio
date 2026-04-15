@@ -53,7 +53,10 @@ export function useComposition<
     // In Safari, keyDown may fire right after compositionEnd with ~0ms gap.
     // Use timeStamp comparison as an extra safeguard.
     const isJustAfterComposition =
-      c.current || (compositionEndTimeRef.current > 0 && Math.abs(e.timeStamp - compositionEndTimeRef.current) < COMPOSITION_END_GRACE_MS);
+      c.current ||
+      (compositionEndTimeRef.current > 0 &&
+        Math.abs(e.timeStamp - compositionEndTimeRef.current) <
+          COMPOSITION_END_GRACE_MS);
 
     if (
       isJustAfterComposition &&

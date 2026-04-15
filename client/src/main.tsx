@@ -1,5 +1,5 @@
 import { trpc } from "@/lib/trpc";
-import { UNAUTHED_ERR_MSG } from '@shared/const';
+import { UNAUTHED_ERR_MSG } from "@shared/const";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink, TRPCClientError } from "@trpc/client";
 import { createRoot } from "react-dom/client";
@@ -20,7 +20,7 @@ const queryClient = new QueryClient({
       refetchOnReconnect: true,
       // 失敗時最多重試 1 次（避免過多無效請求）
       retry: 1,
-      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10_000),
+      retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 10_000),
     },
     mutations: {
       // mutation 失敗不自動重試

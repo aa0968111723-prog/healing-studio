@@ -68,7 +68,7 @@ export async function generateImage(
   }
 
   // Attach reference image if provided (use first valid URL)
-  const refImageUrl = options.originalImages?.find((img) => img.url)?.url;
+  const refImageUrl = options.originalImages?.find(img => img.url)?.url;
   if (refImageUrl) {
     falInput.image_url = refImageUrl;
   }
@@ -85,7 +85,9 @@ export async function generateImage(
   });
 
   // Extract image URL from fal.ai response
-  const images = (result.data as any)?.images as Array<{ url: string }> | undefined;
+  const images = (result.data as any)?.images as
+    | Array<{ url: string }>
+    | undefined;
   const firstImage = images?.[0];
 
   if (!firstImage?.url) {

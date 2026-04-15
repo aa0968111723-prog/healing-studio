@@ -100,7 +100,10 @@ class ErrorBoundary extends Component<Props, State> {
 
           {/* Zero-anxiety credit assurance */}
           <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-800/40 mb-6">
-            <ShieldCheck size={16} className="text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
+            <ShieldCheck
+              size={16}
+              className="text-emerald-600 dark:text-emerald-400 flex-shrink-0"
+            />
             <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
               我們並未扣除您的積分，請放心
             </span>

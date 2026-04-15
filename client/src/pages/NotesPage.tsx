@@ -5,12 +5,38 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
-  Plus, FileText, Clapperboard, Calendar, Trash2, ChevronDown, ChevronRight,
-  Tag, Clock, Download, Pencil, Check, X, Search, Filter, StickyNote,
+  Plus,
+  FileText,
+  Clapperboard,
+  Calendar,
+  Trash2,
+  ChevronDown,
+  ChevronRight,
+  Tag,
+  Clock,
+  Download,
+  Pencil,
+  Check,
+  X,
+  Search,
+  Filter,
+  StickyNote,
 } from "lucide-react";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import VisualSoul from "@/components/VisualSoul";
@@ -20,10 +46,25 @@ import { useAIState } from "@/contexts/AIStateContext";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
-const noteTypeInfo: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
-  note:           { label: "筆記",   icon: <FileText className="w-4 h-4" />,    color: "bg-zen-sage/20"     },
-  script:         { label: "腳本",   icon: <Clapperboard className="w-4 h-4" />, color: "bg-zen-lavender/20" },
-  calendar_event: { label: "行事曆", icon: <Calendar className="w-4 h-4" />,    color: "bg-zen-sky/20"      },
+const noteTypeInfo: Record<
+  string,
+  { label: string; icon: React.ReactNode; color: string }
+> = {
+  note: {
+    label: "筆記",
+    icon: <FileText className="w-4 h-4" />,
+    color: "bg-zen-sage/20",
+  },
+  script: {
+    label: "腳本",
+    icon: <Clapperboard className="w-4 h-4" />,
+    color: "bg-zen-lavender/20",
+  },
+  calendar_event: {
+    label: "行事曆",
+    icon: <Calendar className="w-4 h-4" />,
+    color: "bg-zen-sky/20",
+  },
 };
 
 const NOTE_TYPES = ["all", "note", "script", "calendar_event"] as const;
@@ -33,9 +74,9 @@ type NoteTypeFilter = (typeof NOTE_TYPES)[number];
 
 function downloadTextFile(content: string, filename: string) {
   const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement("a");
-  a.href     = url;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
   a.download = filename;
   document.body.appendChild(a);
   a.click();
@@ -51,22 +92,24 @@ export default function NotesPage() {
   usePageTour("notes");
 
   // ── Create dialog state ──
-  const [showCreate, setShowCreate]     = useState(false);
-  const [newTitle, setNewTitle]         = useState("");
-  const [newContent, setNewContent]     = useState("");
-  const [newType, setNewType]           = useState<"note" | "script" | "calendar_event">("note");
-  const [newTags, setNewTags]           = useState("");
+  const [showCreate, setShowCreate] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newContent, setNewContent] = useState("");
+  const [newType, setNewType] = useState<"note" | "script" | "calendar_event">(
+    "note"
+  );
+  const [newTags, setNewTags] = useState("");
 
   // ── View state ──
-  const [search, setSearch]             = useState("");
-  const [typeFilter, setTypeFilter]     = useState<NoteTypeFilter>("all");
-  const [expandedId, setExpandedId]     = useState<number | null>(null);
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState<NoteTypeFilter>("all");
+  const [expandedId, setExpandedId] = useState<number | null>(null);
 
   // ── Edit state ──
-  const [editingId, setEditingId]       = useState<number | null>(null);
-  const [editTitle, setEditTitle]       = useState("");
-  const [editContent, setEditContent]   = useState("");
-  const [editTags, setEditTags]         = useState("");
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editContent, setEditContent] = useState("");
+  const [editTags, setEditTags] = useState("");
 
   // ── Data ──
   const notesQuery = trpc.notes.list.useQuery(undefined, { retry: false });
@@ -75,14 +118,20 @@ export default function NotesPage() {
     onSuccess: () => {
       notesQuery.refetch();
       setShowCreate(false);
-      setNewTitle(""); setNewContent(""); setNewTags(""); setNewType("note");
+      setNewTitle("");
+      setNewContent("");
+      setNewTags("");
+      setNewType("note");
       toast.success("筆記已建立");
     },
-    onError: (e) => toast.error(e.message),
+    onError: e => toast.error(e.message),
   });
 
   const deleteNote = trpc.notes.delete.useMutation({
-    onSuccess: () => { notesQuery.refetch(); toast.success("已刪除"); },
+    onSuccess: () => {
+      notesQuery.refetch();
+      toast.success("已刪除");
+    },
   });
 
   const updateNote = trpc.notes.update.useMutation({
@@ -91,7 +140,7 @@ export default function NotesPage() {
       setEditingId(null);
       toast.success("筆記已更新");
     },
-    onError: (e) => toast.error(e.message),
+    onError: e => toast.error(e.message),
   });
 
   // ── Computed / filtered ──
@@ -104,10 +153,13 @@ export default function NotesPage() {
     }
     if (search.trim()) {
       const q = search.toLowerCase();
-      result = result.filter(n =>
-        n.title.toLowerCase().includes(q) ||
-        (n.content || "").toLowerCase().includes(q) ||
-        ((n.tags as string[] | null) || []).some(t => t.toLowerCase().includes(q))
+      result = result.filter(
+        n =>
+          n.title.toLowerCase().includes(q) ||
+          (n.content || "").toLowerCase().includes(q) ||
+          ((n.tags as string[] | null) || []).some(t =>
+            t.toLowerCase().includes(q)
+          )
       );
     }
     return result;
@@ -122,7 +174,12 @@ export default function NotesPage() {
   }, [allNotes]);
 
   // ── Handlers ──
-  const startEditing = (note: { id: number; title: string; content?: string | null; tags?: string[] | null }) => {
+  const startEditing = (note: {
+    id: number;
+    title: string;
+    content?: string | null;
+    tags?: string[] | null;
+  }) => {
     setEditingId(note.id);
     setEditTitle(note.title);
     setEditContent(note.content || "");
@@ -130,11 +187,21 @@ export default function NotesPage() {
     setExpandedId(note.id);
   };
 
-  const cancelEditing = () => { setEditingId(null); setEditTitle(""); setEditContent(""); setEditTags(""); };
+  const cancelEditing = () => {
+    setEditingId(null);
+    setEditTitle("");
+    setEditContent("");
+    setEditTags("");
+  };
 
   const saveEditing = () => {
     if (!editTitle.trim() || editingId === null) return;
-    const tags = editTags.trim() ? editTags.split(",").map(t => t.trim()).filter(Boolean) : [];
+    const tags = editTags.trim()
+      ? editTags
+          .split(",")
+          .map(t => t.trim())
+          .filter(Boolean)
+      : [];
     updateNote.mutate({
       id: editingId,
       title: editTitle.trim(),
@@ -144,9 +211,22 @@ export default function NotesPage() {
   };
 
   const handleCreate = () => {
-    if (!newTitle.trim()) { toast.error("請輸入標題"); return; }
-    const tags = newTags.trim() ? newTags.split(",").map(t => t.trim()).filter(Boolean) : undefined;
-    createNote.mutate({ title: newTitle, content: newContent || undefined, noteType: newType, tags });
+    if (!newTitle.trim()) {
+      toast.error("請輸入標題");
+      return;
+    }
+    const tags = newTags.trim()
+      ? newTags
+          .split(",")
+          .map(t => t.trim())
+          .filter(Boolean)
+      : undefined;
+    createNote.mutate({
+      title: newTitle,
+      content: newContent || undefined,
+      noteType: newType,
+      tags,
+    });
   };
 
   return (
@@ -156,7 +236,9 @@ export default function NotesPage() {
         <div className="flex items-center gap-3">
           <StickyNote className="w-5 h-5 text-muted-foreground" />
           <h1 className="hs-h2 !mb-0">專案筆記</h1>
-          <Badge variant="secondary" className="rounded-lg text-xs">{allNotes.length} 篇</Badge>
+          <Badge variant="secondary" className="rounded-lg text-xs">
+            {allNotes.length} 篇
+          </Badge>
         </div>
         <Dialog open={showCreate} onOpenChange={setShowCreate}>
           <DialogTrigger asChild>
@@ -181,7 +263,9 @@ export default function NotesPage() {
               />
               {/* Type selector */}
               <div className="space-y-1.5">
-                <span className="text-xs text-muted-foreground font-medium">類型</span>
+                <span className="text-xs text-muted-foreground font-medium">
+                  類型
+                </span>
                 <div className="flex gap-2">
                   {(["note", "script", "calendar_event"] as const).map(t => {
                     const info = noteTypeInfo[t];
@@ -195,7 +279,8 @@ export default function NotesPage() {
                             : "border-border/30 bg-muted/20 text-muted-foreground hover:bg-muted/40"
                         }`}
                       >
-                        {info.icon}{info.label}
+                        {info.icon}
+                        {info.label}
                       </button>
                     );
                   })}
@@ -233,7 +318,9 @@ export default function NotesPage() {
         </Dialog>
       </div>
 
-      <p className="hs-small !mb-0 text-muted-foreground">記錄創作靈感與導演 AI 生成的 CO-STAR 腳本。支援標籤分類與全文搜尋。</p>
+      <p className="hs-small !mb-0 text-muted-foreground">
+        記錄創作靈感與導演 AI 生成的 CO-STAR 腳本。支援標籤分類與全文搜尋。
+      </p>
 
       {/* ── Search + Type Filter ── */}
       <div className="flex flex-col sm:flex-row gap-2">
@@ -247,7 +334,10 @@ export default function NotesPage() {
             className="pl-8 h-8 text-xs rounded-lg"
           />
           {search && (
-            <button className="absolute right-2 top-1/2 -translate-y-1/2" onClick={() => setSearch("")}>
+            <button
+              className="absolute right-2 top-1/2 -translate-y-1/2"
+              onClick={() => setSearch("")}
+            >
               <X className="w-3 h-3 text-muted-foreground" />
             </button>
           )}
@@ -266,8 +356,14 @@ export default function NotesPage() {
                     : "bg-muted/40 text-muted-foreground hover:bg-muted/60"
                 }`}
               >
-                {t === "all" ? <Filter className="w-3 h-3" /> : noteTypeInfo[t]?.icon}
-                {t === "all" ? `全部 (${count})` : `${noteTypeInfo[t]?.label} (${count})`}
+                {t === "all" ? (
+                  <Filter className="w-3 h-3" />
+                ) : (
+                  noteTypeInfo[t]?.icon
+                )}
+                {t === "all"
+                  ? `全部 (${count})`
+                  : `${noteTypeInfo[t]?.label} (${count})`}
               </button>
             );
           })}
@@ -277,16 +373,20 @@ export default function NotesPage() {
       {/* ── Notes List ── */}
       {notesQuery.isLoading ? (
         <div className="space-y-3">
-          {[1, 2, 3].map(i => <GlassCard key={i} hover={false}><ZenSkeleton lines={3} /></GlassCard>)}
+          {[1, 2, 3].map(i => (
+            <GlassCard key={i} hover={false}>
+              <ZenSkeleton lines={3} />
+            </GlassCard>
+          ))}
         </div>
       ) : filtered.length > 0 ? (
         <div className="space-y-3">
           <AnimatePresence mode="popLayout">
             {filtered.map((note, idx) => {
-              const info      = noteTypeInfo[note.noteType] || noteTypeInfo.note;
+              const info = noteTypeInfo[note.noteType] || noteTypeInfo.note;
               const isExpanded = expandedId === note.id;
-              const isEditing  = editingId  === note.id;
-              const tags       = (note.tags as string[] | null) || [];
+              const isEditing = editingId === note.id;
+              const tags = (note.tags as string[] | null) || [];
 
               return (
                 <motion.div
@@ -301,9 +401,13 @@ export default function NotesPage() {
                     {/* ── Row header ── */}
                     <div
                       className="flex items-center gap-3 cursor-pointer"
-                      onClick={() => !isEditing && setExpandedId(isExpanded ? null : note.id)}
+                      onClick={() =>
+                        !isEditing && setExpandedId(isExpanded ? null : note.id)
+                      }
                     >
-                      <div className={`w-9 h-9 rounded-lg ${info.color} flex items-center justify-center shrink-0`}>
+                      <div
+                        className={`w-9 h-9 rounded-lg ${info.color} flex items-center justify-center shrink-0`}
+                      >
                         {info.icon}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -313,7 +417,10 @@ export default function NotesPage() {
                             onChange={e => setEditTitle(e.target.value)}
                             className="h-7 text-sm rounded-lg"
                             onClick={e => e.stopPropagation()}
-                            onKeyDown={e => { if (e.key === "Enter") saveEditing(); if (e.key === "Escape") cancelEditing(); }}
+                            onKeyDown={e => {
+                              if (e.key === "Enter") saveEditing();
+                              if (e.key === "Escape") cancelEditing();
+                            }}
                             autoFocus
                           />
                         ) : (
@@ -324,18 +431,23 @@ export default function NotesPage() {
                                 {info.label}
                               </span>
                               <span className="text-[11px] text-muted-foreground">
-                                {new Date(note.createdAt).toLocaleDateString("zh-TW")}
+                                {new Date(note.createdAt).toLocaleDateString(
+                                  "zh-TW"
+                                )}
                               </span>
                               {tags.slice(0, 3).map(tag => (
                                 <span
                                   key={tag}
                                   className="text-[10px] px-1.5 py-0.5 rounded-md bg-zen-lavender/15 text-zen-lavender font-medium flex items-center gap-0.5"
                                 >
-                                  <Tag className="w-2.5 h-2.5" />{tag}
+                                  <Tag className="w-2.5 h-2.5" />
+                                  {tag}
                                 </span>
                               ))}
                               {tags.length > 3 && (
-                                <span className="text-[10px] text-muted-foreground">+{tags.length - 3}</span>
+                                <span className="text-[10px] text-muted-foreground">
+                                  +{tags.length - 3}
+                                </span>
                               )}
                             </div>
                           </>
@@ -347,34 +459,59 @@ export default function NotesPage() {
                         {isEditing ? (
                           <>
                             <Button
-                              variant="ghost" size="sm"
+                              variant="ghost"
+                              size="sm"
                               className="h-7 w-7 p-0 rounded-lg text-green-600"
-                              onClick={e => { e.stopPropagation(); saveEditing(); }}
+                              onClick={e => {
+                                e.stopPropagation();
+                                saveEditing();
+                              }}
                               disabled={updateNote.isPending}
-                            ><Check className="w-3.5 h-3.5" /></Button>
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                            </Button>
                             <Button
-                              variant="ghost" size="sm"
+                              variant="ghost"
+                              size="sm"
                               className="h-7 w-7 p-0 rounded-lg"
-                              onClick={e => { e.stopPropagation(); cancelEditing(); }}
-                            ><X className="w-3.5 h-3.5" /></Button>
+                              onClick={e => {
+                                e.stopPropagation();
+                                cancelEditing();
+                              }}
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </Button>
                           </>
                         ) : (
                           <>
                             <Button
-                              variant="ghost" size="sm"
+                              variant="ghost"
+                              size="sm"
                               className="h-7 w-7 p-0 rounded-lg text-muted-foreground"
-                              onClick={e => { e.stopPropagation(); startEditing(note); }}
+                              onClick={e => {
+                                e.stopPropagation();
+                                startEditing(note);
+                              }}
                               title="編輯"
-                            ><Pencil className="w-3.5 h-3.5" /></Button>
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </Button>
                             <Button
-                              variant="ghost" size="sm"
+                              variant="ghost"
+                              size="sm"
                               className="h-7 w-7 p-0 rounded-lg text-destructive"
-                              onClick={e => { e.stopPropagation(); deleteNote.mutate({ id: note.id }); }}
-                            ><Trash2 className="w-3.5 h-3.5" /></Button>
-                            {isExpanded
-                              ? <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                              : <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                            }
+                              onClick={e => {
+                                e.stopPropagation();
+                                deleteNote.mutate({ id: note.id });
+                              }}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                            {isExpanded ? (
+                              <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                            ) : (
+                              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                            )}
                           </>
                         )}
                       </div>
@@ -415,29 +552,48 @@ export default function NotesPage() {
                                 </div>
                                 <div className="flex gap-2">
                                   <Button
-                                    size="sm" className="flex-1 text-xs rounded-lg"
-                                    onClick={e => { e.stopPropagation(); saveEditing(); }}
-                                    disabled={!editTitle.trim() || updateNote.isPending}
+                                    size="sm"
+                                    className="flex-1 text-xs rounded-lg"
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      saveEditing();
+                                    }}
+                                    disabled={
+                                      !editTitle.trim() || updateNote.isPending
+                                    }
                                   >
-                                    {updateNote.isPending ? "儲存中..." : "儲存變更"}
+                                    {updateNote.isPending
+                                      ? "儲存中..."
+                                      : "儲存變更"}
                                   </Button>
                                   <Button
-                                    variant="outline" size="sm" className="text-xs rounded-lg"
-                                    onClick={e => { e.stopPropagation(); cancelEditing(); }}
-                                  >取消</Button>
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-xs rounded-lg"
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      cancelEditing();
+                                    }}
+                                  >
+                                    取消
+                                  </Button>
                                 </div>
                               </>
                             ) : (
                               <>
                                 {/* Markdown content */}
                                 <div className="prose prose-sm max-w-none text-foreground">
-                                  <LazyStreamdown>{note.content || "（無內容）"}</LazyStreamdown>
+                                  <LazyStreamdown>
+                                    {note.content || "（無內容）"}
+                                  </LazyStreamdown>
                                 </div>
 
                                 {/* CO-STAR JSON */}
                                 {note.scriptJson != null && (
                                   <div className="p-3 bg-muted/20 rounded-lg text-xs">
-                                    <p className="hs-small !mb-0 text-muted-foreground">CO-STAR 腳本</p>
+                                    <p className="hs-small !mb-0 text-muted-foreground">
+                                      CO-STAR 腳本
+                                    </p>
                                     <pre className="whitespace-pre-wrap text-muted-foreground font-mono text-[11px] leading-relaxed">
                                       {JSON.stringify(note.scriptJson, null, 2)}
                                     </pre>
@@ -455,7 +611,9 @@ export default function NotesPage() {
                                         <span
                                           key={tag}
                                           className="text-[10px] px-2 py-0.5 rounded-full bg-zen-lavender/15 text-zen-lavender font-medium"
-                                        >{tag}</span>
+                                        >
+                                          {tag}
+                                        </span>
                                       ))}
                                     </div>
                                   </div>
@@ -465,8 +623,14 @@ export default function NotesPage() {
                                 {note.scheduledDate && (
                                   <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                                     <Calendar className="w-3 h-3" />
-                                    <span className="font-medium text-foreground">排程日期：</span>
-                                    <span>{new Date(note.scheduledDate).toLocaleString("zh-TW")}</span>
+                                    <span className="font-medium text-foreground">
+                                      排程日期：
+                                    </span>
+                                    <span>
+                                      {new Date(
+                                        note.scheduledDate
+                                      ).toLocaleString("zh-TW")}
+                                    </span>
                                   </div>
                                 )}
 
@@ -474,12 +638,18 @@ export default function NotesPage() {
                                 <div className="flex flex-wrap gap-3 text-[10px] text-muted-foreground">
                                   <span className="flex items-center gap-1">
                                     <Clock className="w-3 h-3" />
-                                    建立：{new Date(note.createdAt).toLocaleString("zh-TW")}
+                                    建立：
+                                    {new Date(note.createdAt).toLocaleString(
+                                      "zh-TW"
+                                    )}
                                   </span>
                                   {note.updatedAt && (
                                     <span className="flex items-center gap-1">
                                       <Clock className="w-3 h-3" />
-                                      更新：{new Date(note.updatedAt).toLocaleString("zh-TW")}
+                                      更新：
+                                      {new Date(note.updatedAt).toLocaleString(
+                                        "zh-TW"
+                                      )}
                                     </span>
                                   )}
                                 </div>
@@ -487,25 +657,36 @@ export default function NotesPage() {
                                 {/* Action row */}
                                 <div className="flex gap-2">
                                   <Button
-                                    variant="outline" size="sm"
+                                    variant="outline"
+                                    size="sm"
                                     className="h-7 text-xs gap-1 rounded-lg"
-                                    onClick={e => { e.stopPropagation(); startEditing(note); }}
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      startEditing(note);
+                                    }}
                                   >
                                     <Pencil className="w-3 h-3" /> 編輯
                                   </Button>
                                   <Button
-                                    variant="outline" size="sm"
+                                    variant="outline"
+                                    size="sm"
                                     className="h-7 text-xs gap-1 rounded-lg"
                                     onClick={e => {
                                       e.stopPropagation();
                                       let content = `# ${note.title}\n\n`;
                                       content += `類型：${info.label}\n`;
                                       content += `建立時間：${new Date(note.createdAt).toLocaleString("zh-TW")}\n`;
-                                      if (note.scheduledDate) content += `排程日期：${new Date(note.scheduledDate).toLocaleString("zh-TW")}\n`;
-                                      if (tags.length > 0) content += `標籤：${tags.join(", ")}\n`;
+                                      if (note.scheduledDate)
+                                        content += `排程日期：${new Date(note.scheduledDate).toLocaleString("zh-TW")}\n`;
+                                      if (tags.length > 0)
+                                        content += `標籤：${tags.join(", ")}\n`;
                                       content += `\n---\n\n${note.content || ""}`;
-                                      if (note.scriptJson) content += `\n\n---\n\nCO-STAR 腳本：\n${JSON.stringify(note.scriptJson, null, 2)}`;
-                                      downloadTextFile(content, `${note.title.replace(/[^a-zA-Z0-9\u4e00-\u9fff]/g, "_")}.md`);
+                                      if (note.scriptJson)
+                                        content += `\n\n---\n\nCO-STAR 腳本：\n${JSON.stringify(note.scriptJson, null, 2)}`;
+                                      downloadTextFile(
+                                        content,
+                                        `${note.title.replace(/[^a-zA-Z0-9\u4e00-\u9fff]/g, "_")}.md`
+                                      );
                                     }}
                                   >
                                     <Download className="w-3 h-3" /> 下載

@@ -14,7 +14,10 @@
 
 import * as cron from "node-cron";
 import { CircuitBreaker } from "./circuitBreaker.js";
-import { runHealthPatrol, runAllAccuracyTests } from "../services/brainAutoRepair.js";
+import {
+  runHealthPatrol,
+  runAllAccuracyTests,
+} from "../services/brainAutoRepair.js";
 
 // ─── State ──────────────────────────────────────────────────────────────────
 
@@ -48,7 +51,9 @@ async function runMonitorCycle(): Promise<void> {
     return;
   }
   if (isRunning) {
-    console.log("[ApiHealthMonitor] ⏭️  Previous cycle still running, skipping.");
+    console.log(
+      "[ApiHealthMonitor] ⏭️  Previous cycle still running, skipping."
+    );
     return;
   }
   if (!monitorBreaker.canExecute()) {
@@ -75,15 +80,19 @@ async function runMonitorCycle(): Promise<void> {
 
     // Periodic accuracy tests (every ~60 min)
     tickCount++;
-    const accuracyInterval = Math.max(1, Math.round(60 / monitorIntervalMinutes));
+    const accuracyInterval = Math.max(
+      1,
+      Math.round(60 / monitorIntervalMinutes)
+    );
     if (tickCount >= accuracyInterval) {
       tickCount = 0;
       console.log("[ApiHealthMonitor] 🎯 開始精準度抽測...");
       try {
         const tests = await runAllAccuracyTests();
-        const avgScore = tests.length > 0
-          ? Math.round(tests.reduce((s, t) => s + t.score, 0) / tests.length)
-          : 0;
+        const avgScore =
+          tests.length > 0
+            ? Math.round(tests.reduce((s, t) => s + t.score, 0) / tests.length)
+            : 0;
         console.log(
           `[ApiHealthMonitor] 🎯 精準度抽測完成：${tests.length} 項，平均分數 ${avgScore}/100`
         );
@@ -111,18 +120,22 @@ function recreateCron(): void {
   }
 
   if (!autoRepairEnabled) {
-    console.log("[ApiHealthMonitor] 🔴 Auto-repair disabled, cron not started.");
+    console.log(
+      "[ApiHealthMonitor] 🔴 Auto-repair disabled, cron not started."
+    );
     return;
   }
 
   const cronExpr = `*/${monitorIntervalMinutes} * * * *`;
   cronTask = cron.schedule(cronExpr, () => {
-    runMonitorCycle().catch((e) =>
+    runMonitorCycle().catch(e =>
       console.error("[ApiHealthMonitor] Cron error:", e)
     );
   });
 
-  console.log(`[ApiHealthMonitor] ✅ Cron re-initialized (every ${monitorIntervalMinutes} min)`);
+  console.log(
+    `[ApiHealthMonitor] ✅ Cron re-initialized (every ${monitorIntervalMinutes} min)`
+  );
 }
 
 // ─── Public API: Toggle & Interval ──────────────────────────────────────────
@@ -149,7 +162,9 @@ export function setAutoRepairEnabled(enabled: boolean): {
 } {
   autoRepairEnabled = enabled;
   recreateCron();
-  console.log(`[ApiHealthMonitor] Auto-repair ${enabled ? "ENABLED ✅" : "DISABLED 🔴"}`);
+  console.log(
+    `[ApiHealthMonitor] Auto-repair ${enabled ? "ENABLED ✅" : "DISABLED 🔴"}`
+  );
   return getAutoRepairConfig();
 }
 
@@ -184,7 +199,7 @@ export function initApiHealthMonitorCron(): void {
 
   // Delayed first run
   setTimeout(() => {
-    runMonitorCycle().catch((e) =>
+    runMonitorCycle().catch(e =>
       console.error("[ApiHealthMonitor] Initial run error:", e)
     );
   }, 30_000);
@@ -192,12 +207,14 @@ export function initApiHealthMonitorCron(): void {
   // Schedule with current interval
   const cronExpr = `*/${monitorIntervalMinutes} * * * *`;
   cronTask = cron.schedule(cronExpr, () => {
-    runMonitorCycle().catch((e) =>
+    runMonitorCycle().catch(e =>
       console.error("[ApiHealthMonitor] Cron error:", e)
     );
   });
 
-  console.log(`[ApiHealthMonitor] ✅ Cron initialized (every ${monitorIntervalMinutes} min)`);
+  console.log(
+    `[ApiHealthMonitor] ✅ Cron initialized (every ${monitorIntervalMinutes} min)`
+  );
 }
 
 /**

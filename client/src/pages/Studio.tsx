@@ -4,25 +4,73 @@ import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ProgressivePromptBuilder, createEmptyPromptOutput, type PromptBuilderOutput } from "@/components/ProgressivePromptBuilder";
-import { ImageWorkspace, createDefaultImageState, type ImageWorkspaceState } from "@/components/workspaces/ImageWorkspace";
-import { VideoWorkspace, createDefaultVideoState, type VideoWorkspaceState } from "@/components/workspaces/VideoWorkspace";
-import { AudioWorkspace, createDefaultAudioState, type AudioWorkspaceState } from "@/components/workspaces/AudioWorkspace";
-import { VoiceWorkspace, createDefaultVoiceState, type VoiceWorkspaceState } from "@/components/workspaces/VoiceWorkspace";
-import { ConsistencyVault, type VaultItem } from "@/components/ConsistencyVault";
+import {
+  ProgressivePromptBuilder,
+  createEmptyPromptOutput,
+  type PromptBuilderOutput,
+} from "@/components/ProgressivePromptBuilder";
+import {
+  ImageWorkspace,
+  createDefaultImageState,
+  type ImageWorkspaceState,
+} from "@/components/workspaces/ImageWorkspace";
+import {
+  VideoWorkspace,
+  createDefaultVideoState,
+  type VideoWorkspaceState,
+} from "@/components/workspaces/VideoWorkspace";
+import {
+  AudioWorkspace,
+  createDefaultAudioState,
+  type AudioWorkspaceState,
+} from "@/components/workspaces/AudioWorkspace";
+import {
+  VoiceWorkspace,
+  createDefaultVoiceState,
+  type VoiceWorkspaceState,
+} from "@/components/workspaces/VoiceWorkspace";
+import {
+  ConsistencyVault,
+  type VaultItem,
+} from "@/components/ConsistencyVault";
 import { GenerationControls } from "@/components/GenerationControls";
-import { ZenProgressOverlay, GlassCard, BottomSheet } from "@/components/ZenCoPilot";
+import {
+  ZenProgressOverlay,
+  GlassCard,
+  BottomSheet,
+} from "@/components/ZenCoPilot";
 import { toast } from "sonner";
 import {
-  Image, Video, Music, Mic, Download, Copy,
-  Layers, Clock, Package, X, Star, Bookmark, BookmarkCheck,
-  Send, RefreshCw, StickyNote, Cpu, Check, Briefcase,
+  Image,
+  Video,
+  Music,
+  Mic,
+  Download,
+  Copy,
+  Layers,
+  Clock,
+  Package,
+  X,
+  Star,
+  Bookmark,
+  BookmarkCheck,
+  Send,
+  RefreshCw,
+  StickyNote,
+  Cpu,
+  Check,
+  Briefcase,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useIsMobile } from "@/hooks/useMobile";
 import { PROGRESS_MESSAGES } from "@shared/types";
-import { PromptStrengthBar, type SuggestionAction } from "@/components/PromptStrengthBar";
-import ThoughtIslandChain, { type ThoughtNode } from "@/components/ThoughtIslandChain";
+import {
+  PromptStrengthBar,
+  type SuggestionAction,
+} from "@/components/PromptStrengthBar";
+import ThoughtIslandChain, {
+  type ThoughtNode,
+} from "@/components/ThoughtIslandChain";
 import { useAIState } from "@/contexts/AIStateContext";
 import { usePersonality } from "@/contexts/PersonalityContext";
 import VisualSoul from "@/components/VisualSoul";
@@ -37,8 +85,14 @@ import { useNotesDrawer } from "@/contexts/NotesDrawerContext";
 import { requireAuth } from "@/components/AuthExpiredModal";
 
 // ─── Creative Mode ───────────────────────────────────────────────────────────
-import { CreativeModeSelector, loadCreativeMode } from "@/components/CreativeModeSelector";
-import { InspirationQuickPanel, type InspirationBlocks } from "@/components/InspirationQuickPanel";
+import {
+  CreativeModeSelector,
+  loadCreativeMode,
+} from "@/components/CreativeModeSelector";
+import {
+  InspirationQuickPanel,
+  type InspirationBlocks,
+} from "@/components/InspirationQuickPanel";
 import type { CreativeMode } from "@/stores/workspaceStore";
 import { cn } from "@/lib/utils";
 
@@ -67,11 +121,20 @@ import { VersionHistoryPanel } from "@/components/workspaces/VersionHistoryPanel
 import { RecipeLibraryPanel } from "@/components/workspaces/RecipeLibraryPanel";
 import { ReferencePanel } from "@/components/workspaces/ReferencePanel";
 import { RefineQuickActions } from "@/components/workspaces/RefineQuickActions";
-import { compilePrompt, lintPrompt, diffBlocks, type PromptWarning } from "@/components/workspaces/PromptCompiler";
+import {
+  compilePrompt,
+  lintPrompt,
+  diffBlocks,
+  type PromptWarning,
+} from "@/components/workspaces/PromptCompiler";
 
 // ─── Tab Config ─────────────────────────────────────────────────────────────
 
-const MODALITY_TABS: { value: GenerationType; label: string; icon: React.ReactNode }[] = [
+const MODALITY_TABS: {
+  value: GenerationType;
+  label: string;
+  icon: React.ReactNode;
+}[] = [
   { value: "image", label: "圖片", icon: <Image className="w-4 h-4" /> },
   { value: "video", label: "影片", icon: <Video className="w-4 h-4" /> },
   { value: "audio", label: "音樂", icon: <Music className="w-4 h-4" /> },
@@ -80,7 +143,15 @@ const MODALITY_TABS: { value: GenerationType; label: string; icon: React.ReactNo
 
 // ─── Mini History Panel (embedded in right drawer) ──────────────────────────
 
-function MiniHistoryPanel({ onSendToStudio }: { onSendToStudio: (prompt: string, type: GenerationType, parameterSnapshot?: Record<string, unknown>) => void }) {
+function MiniHistoryPanel({
+  onSendToStudio,
+}: {
+  onSendToStudio: (
+    prompt: string,
+    type: GenerationType,
+    parameterSnapshot?: Record<string, unknown>
+  ) => void;
+}) {
   const historyQuery = trpc.history.list.useQuery(
     { limit: 20 },
     { retry: false }
@@ -102,7 +173,7 @@ function MiniHistoryPanel({ onSendToStudio }: { onSendToStudio: (prompt: string,
   if (historyQuery.isLoading) {
     return (
       <div className="p-3 space-y-2">
-        {[1, 2, 3].map((i) => (
+        {[1, 2, 3].map(i => (
           <div key={i} className="h-16 rounded-lg bg-muted/30 animate-pulse" />
         ))}
       </div>
@@ -116,7 +187,9 @@ function MiniHistoryPanel({ onSendToStudio }: { onSendToStudio: (prompt: string,
       <div className="p-6 text-center">
         <Clock className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
         <p className="text-xs text-muted-foreground">尚無生成歷史</p>
-        <p className="text-xs text-muted-foreground/60 mt-1">開始創作後，歷史紀錄將顯示在這裡</p>
+        <p className="text-xs text-muted-foreground/60 mt-1">
+          開始創作後，歷史紀錄將顯示在這裡
+        </p>
       </div>
     );
   }
@@ -139,7 +212,9 @@ function MiniHistoryPanel({ onSendToStudio }: { onSendToStudio: (prompt: string,
               />
             ) : (
               <div className="w-10 h-10 rounded-md bg-muted/30 flex items-center justify-center shrink-0">
-                {MODALITY_ICONS[item.generationType] || <Image className="w-3 h-3" />}
+                {MODALITY_ICONS[item.generationType] || (
+                  <Image className="w-3 h-3" />
+                )}
               </div>
             )}
 
@@ -163,9 +238,12 @@ function MiniHistoryPanel({ onSendToStudio }: { onSendToStudio: (prompt: string,
             {/* Actions */}
             <div className="flex items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
               <button
-                onClick={(e) => {
+                onClick={e => {
                   e.stopPropagation();
-                  toggleBookmark.mutate({ id: item.id, isBookmarked: !item.bookmarked });
+                  toggleBookmark.mutate({
+                    id: item.id,
+                    isBookmarked: !item.bookmarked,
+                  });
                 }}
                 className="p-1.5 rounded hover:bg-accent/50 active:bg-accent/70 transition-colors"
                 title={item.bookmarked ? "取消收藏" : "收藏"}
@@ -177,9 +255,15 @@ function MiniHistoryPanel({ onSendToStudio }: { onSendToStudio: (prompt: string,
                 )}
               </button>
               <button
-                onClick={(e) => {
+                onClick={e => {
                   e.stopPropagation();
-                  onSendToStudio(item.prompt || "", item.generationType as GenerationType, item.parameterSnapshot as Record<string, unknown> | undefined);
+                  onSendToStudio(
+                    item.prompt || "",
+                    item.generationType as GenerationType,
+                    item.parameterSnapshot as
+                      | Record<string, unknown>
+                      | undefined
+                  );
                 }}
                 className="p-1.5 rounded hover:bg-accent/50 active:bg-accent/70 transition-colors"
                 title="重新生成"
@@ -221,9 +305,7 @@ function DrawerPanel({
           transition={{ duration: 0.25, ease: "easeInOut" }}
           className={`shrink-0 overflow-hidden ${side === "left" ? "order-first" : "order-last"}`}
         >
-          <div
-            className="h-full rounded-xl overflow-hidden flex flex-col bg-white/50 backdrop-blur-md border border-white/50"
-          >
+          <div className="h-full rounded-xl overflow-hidden flex flex-col bg-white/50 backdrop-blur-md border border-white/50">
             {/* Header */}
             <div className="flex items-center justify-between px-3 py-2.5 border-b border-border/20">
               <div className="flex items-center gap-2 text-sm font-medium text-foreground">
@@ -239,9 +321,7 @@ function DrawerPanel({
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto">
-              {children}
-            </div>
+            <div className="flex-1 overflow-y-auto">{children}</div>
           </div>
         </motion.div>
       )}
@@ -284,71 +364,128 @@ export default function Studio() {
       toast.success("已套用風格描述");
     };
     window.addEventListener("apply-style-preset", handleStylePreset);
-    return () => window.removeEventListener("apply-style-preset", handleStylePreset);
+    return () =>
+      window.removeEventListener("apply-style-preset", handleStylePreset);
   }, []);
-  const { aiState, setAIState, personality, reportTyping, reportFailure, reportSuccess, resetIdle } = useAIState();
-  const { onGenerationStart: notifyGenStart, onGenerationDone: notifyGenDone, onGenerationFail: notifyGenFail, onTyping: notifyTyping, onAdvancedParams: notifyAdvancedParams } = usePersonality();
+  const {
+    aiState,
+    setAIState,
+    personality,
+    reportTyping,
+    reportFailure,
+    reportSuccess,
+    resetIdle,
+  } = useAIState();
+  const {
+    onGenerationStart: notifyGenStart,
+    onGenerationDone: notifyGenDone,
+    onGenerationFail: notifyGenFail,
+    onTyping: notifyTyping,
+    onAdvancedParams: notifyAdvancedParams,
+  } = usePersonality();
   const [, navigate] = useLocation();
 
   // ── Shared state ──
   const [activeModality, setActiveModality] = useState<GenerationType>("image");
   const [mode, setMode] = useState<GenerationMode>("lightning");
-  const [promptBuilder, setPromptBuilder] = useState<PromptBuilderOutput>(createEmptyPromptOutput);
+  const [promptBuilder, setPromptBuilder] = useState<PromptBuilderOutput>(
+    createEmptyPromptOutput
+  );
   const [temperature, setTemperature] = useState(0.5);
   const [seed, setSeed] = useState("");
   const [loraWeight, setLoraWeight] = useState(0.7);
 
   // ── Modality-specific state ──
-  const [imageState, setImageState] = useState<ImageWorkspaceState>(createDefaultImageState);
-  const [videoState, setVideoState] = useState<VideoWorkspaceState>(createDefaultVideoState);
+  const [imageState, setImageState] = useState<ImageWorkspaceState>(
+    createDefaultImageState
+  );
+  const [videoState, setVideoState] = useState<VideoWorkspaceState>(
+    createDefaultVideoState
+  );
   const [audioState, setAudioState] = useState(createDefaultAudioState);
   const [voiceState, setVoiceState] = useState(createDefaultVoiceState);
 
   // ── Vault & Model injection state ──
-  const [vaultCharacterId, setVaultCharacterId] = useState<number | undefined>(undefined);
-  const [vaultSceneId, setVaultSceneId] = useState<number | undefined>(undefined);
-  const [fineTunedModelId, setFineTunedModelId] = useState<number | undefined>(undefined);
-  const [fineTunedModelName, setFineTunedModelName] = useState<string | undefined>(undefined);
+  const [vaultCharacterId, setVaultCharacterId] = useState<number | undefined>(
+    undefined
+  );
+  const [vaultSceneId, setVaultSceneId] = useState<number | undefined>(
+    undefined
+  );
+  const [fineTunedModelId, setFineTunedModelId] = useState<number | undefined>(
+    undefined
+  );
+  const [fineTunedModelName, setFineTunedModelName] = useState<
+    string | undefined
+  >(undefined);
 
   // ── UI state ──
-  const [creativeMode, setCreativeMode] = useState<CreativeMode>(loadCreativeMode);
+  const [creativeMode, setCreativeMode] =
+    useState<CreativeMode>(loadCreativeMode);
   const [leftDrawerOpen, setLeftDrawerOpen] = useState(false);
-  const [leftDrawerTab, setLeftDrawerTab] = useState<"vault" | "assets" | "models">("vault");
+  const [leftDrawerTab, setLeftDrawerTab] = useState<
+    "vault" | "assets" | "models"
+  >("vault");
   const [rightDrawerOpen, setRightDrawerOpen] = useState(false);
   const [toolboxSheetOpen, setToolboxSheetOpen] = useState(false);
-  const [toolboxTab, setToolboxTab] = useState<"vault" | "assets" | "models" | "history" | "controls">("vault");
+  const [toolboxTab, setToolboxTab] = useState<
+    "vault" | "assets" | "models" | "history" | "controls"
+  >("vault");
   const [resultUrl, setResultUrl] = useState<string | null>(null);
-  const [resultData, setResultData] = useState<Record<string, unknown> | null>(null);
+  const [resultData, setResultData] = useState<Record<string, unknown> | null>(
+    null
+  );
   const [thoughtChain, setThoughtChain] = useState<ThoughtNode[]>([]);
 
   // ── Multi-Modal Workspace State (new) ──
-  const modalityKey = (activeModality === "audio" ? "music" : activeModality) as Modality;
+  const modalityKey = (
+    activeModality === "audio" ? "music" : activeModality
+  ) as Modality;
   // Derive workspaceMode from creativeMode for backward compat
-  const derivedWorkspaceMode: WSMode = creativeMode === "pro" ? "advanced" : "beginner";
+  const derivedWorkspaceMode: WSMode =
+    creativeMode === "pro" ? "advanced" : "beginner";
   const [workspaceMode, setWorkspaceMode] = useState<WSMode>("beginner");
   // Sync workspaceMode when creativeMode changes
-  useEffect(() => { setWorkspaceMode(derivedWorkspaceMode); }, [derivedWorkspaceMode]);
+  useEffect(() => {
+    setWorkspaceMode(derivedWorkspaceMode);
+  }, [derivedWorkspaceMode]);
   const isSimple = creativeMode === "simple";
   const isStandard = creativeMode === "standard";
   const isPro = creativeMode === "pro";
   const [actionMode, setActionMode] = useState<ActionMode>("generate");
-  const [promptStrength, setPromptStrength] = useState<PromptStrengthLevel>("medium");
-  const [structuredBlocks, setStructuredBlocks] = useState<Record<string, StructuredBlock[]>>({
+  const [promptStrength, setPromptStrength] =
+    useState<PromptStrengthLevel>("medium");
+  const [structuredBlocks, setStructuredBlocks] = useState<
+    Record<string, StructuredBlock[]>
+  >({
     image: getDefaultBlocks("image"),
     video: getDefaultBlocks("video"),
     music: getDefaultBlocks("music"),
     voice: getDefaultBlocks("voice"),
   });
-  const [thoughtIslands, setThoughtIslands] = useState<Record<string, ThoughtIsland[]>>({
+  const [thoughtIslands, setThoughtIslands] = useState<
+    Record<string, ThoughtIsland[]>
+  >({
     image: getDefaultThoughtIslands("image"),
     video: getDefaultThoughtIslands("video"),
     music: getDefaultThoughtIslands("music"),
     voice: getDefaultThoughtIslands("voice"),
   });
-  const [advancedPrompt, setAdvancedPrompt] = useState<Record<string, string>>({ image: "", video: "", music: "", voice: "" });
-  const [advancedPromptOverride, setAdvancedPromptOverride] = useState<Record<string, boolean>>({ image: false, video: false, music: false, voice: false });
-  const [negativePrompts, setNegativePrompts] = useState<Record<string, string>>({ image: "", video: "", music: "", voice: "" });
-  const [references, setReferences] = useState<Record<string, ReferenceItem[]>>({ image: [], video: [], music: [], voice: [] });
+  const [advancedPrompt, setAdvancedPrompt] = useState<Record<string, string>>({
+    image: "",
+    video: "",
+    music: "",
+    voice: "",
+  });
+  const [advancedPromptOverride, setAdvancedPromptOverride] = useState<
+    Record<string, boolean>
+  >({ image: false, video: false, music: false, voice: false });
+  const [negativePrompts, setNegativePrompts] = useState<
+    Record<string, string>
+  >({ image: "", video: "", music: "", voice: "" });
+  const [references, setReferences] = useState<Record<string, ReferenceItem[]>>(
+    { image: [], video: [], music: [], voice: [] }
+  );
   const [versions, setVersions] = useState<VersionEntry[]>([]);
   const [pinnedVersionId, setPinnedVersionId] = useState<string | null>(null);
   const [savedRecipes, setSavedRecipes] = useState<SavedRecipe[]>([]);
@@ -361,8 +498,25 @@ export default function Studio() {
     const advP = advancedPrompt[modalityKey] || "";
     const advO = advancedPromptOverride[modalityKey] || false;
     const negP = negativePrompts[modalityKey] || "";
-    return compilePrompt(modalityKey, blocks, islands, promptStrength, advP, advO, negP, previousBlocksRef.current);
-  }, [modalityKey, structuredBlocks, thoughtIslands, promptStrength, advancedPrompt, advancedPromptOverride, negativePrompts]);
+    return compilePrompt(
+      modalityKey,
+      blocks,
+      islands,
+      promptStrength,
+      advP,
+      advO,
+      negP,
+      previousBlocksRef.current
+    );
+  }, [
+    modalityKey,
+    structuredBlocks,
+    thoughtIslands,
+    promptStrength,
+    advancedPrompt,
+    advancedPromptOverride,
+    negativePrompts,
+  ]);
 
   const promptWarnings = useMemo(() => {
     const blocks = structuredBlocks[modalityKey] || [];
@@ -386,10 +540,16 @@ export default function Studio() {
 
   // ── Brain Pricing Summary (show engine name + cost in UI) ──
   const pricingSummaryQuery = trpc.brain.pricingSummary.useQuery(
-    { durationSec: parseInt(videoState.duration) || 5, charCount: voiceState.text?.length || 100 },
+    {
+      durationSec: parseInt(videoState.duration) || 5,
+      charCount: voiceState.text?.length || 100,
+    },
     { retry: false, staleTime: 30_000 }
   );
-  const currentEngine = pricingSummaryQuery.data?.[activeModality as "image" | "video" | "audio" | "voice"];
+  const currentEngine =
+    pricingSummaryQuery.data?.[
+      activeModality as "image" | "video" | "audio" | "voice"
+    ];
 
   // ── Mutation ──
   const utils = trpc.useUtils();
@@ -403,7 +563,7 @@ export default function Studio() {
       setProgressMessage("初始化...");
       setThoughtChain([]);
     },
-    onSuccess: (data) => {
+    onSuccess: data => {
       setResultUrl(data.resultUrl || null);
       setResultData(data.resultData);
       // Final thoughtChain from server (authoritative) — merge with SSE updates
@@ -412,7 +572,11 @@ export default function Studio() {
       }
       setProgress(100);
       setProgressMessage("生成完成");
-      setTimeout(() => { setProgress(0); setAIState("idle"); notifyGenDone(); }, 1500);
+      setTimeout(() => {
+        setProgress(0);
+        setAIState("idle");
+        notifyGenDone();
+      }, 1500);
       toast.success("生成完成");
       reportSuccess();
       utils.auth.me.invalidate();
@@ -439,38 +603,56 @@ export default function Studio() {
       previousBlocksRef.current = [...currentBlocks];
       // resultUrl is set above, which enables Refine/Branch via hasResult prop
       // Close SSE connection
-      if (sseRef.current) { sseRef.current.close(); sseRef.current = null; }
+      if (sseRef.current) {
+        sseRef.current.close();
+        sseRef.current = null;
+      }
     },
-    onError: (error) => {
+    onError: error => {
       setProgress(0);
       setProgressMessage("");
       setAIState("idle");
       notifyGenFail();
       // Zero-Anxiety error handling: classify error and show friendly message
       const msg = error.message || "";
-      const isTimeout = /timeout|timed? ?out|ETIMEDOUT|aborted|abort/i.test(msg);
-      const isNetwork = /network|fetch|ECONNREFUSED|ENOTFOUND|ERR_CONNECTION/i.test(msg);
+      const isTimeout = /timeout|timed? ?out|ETIMEDOUT|aborted|abort/i.test(
+        msg
+      );
+      const isNetwork =
+        /network|fetch|ECONNREFUSED|ENOTFOUND|ERR_CONNECTION/i.test(msg);
       const isQuota = /配額|不足|積分/i.test(msg);
       if (isQuota) {
         toast.error(msg);
       } else if (isTimeout) {
-        toast.error("AI 服務回應超時\n\n我們並未扣除您的積分，請稍後重試", { duration: 6000 });
+        toast.error("AI 服務回應超時\n\n我們並未扣除您的積分，請稍後重試", {
+          duration: 6000,
+        });
       } else if (isNetwork) {
-        toast.error("網路連線稍微異常\n\n我們並未扣除您的積分，請檢查網路後重試", { duration: 6000 });
+        toast.error(
+          "網路連線稍微異常\n\n我們並未扣除您的積分，請檢查網路後重試",
+          { duration: 6000 }
+        );
       } else {
-        toast.error(`AI 服務連線稍微異常\n\n我們並未扣除您的積分，請稍後重試`, { duration: 6000 });
+        toast.error(`AI 服務連線稍微異常\n\n我們並未扣除您的積分，請稍後重試`, {
+          duration: 6000,
+        });
       }
       reportFailure();
-      if (sseRef.current) { sseRef.current.close(); sseRef.current = null; }
+      if (sseRef.current) {
+        sseRef.current.close();
+        sseRef.current = null;
+      }
     },
   });
 
   // ── SSE connection for real-time thought chain updates ──
   const connectSSE = useCallback((jobId: number) => {
-    if (sseRef.current) { sseRef.current.close(); }
+    if (sseRef.current) {
+      sseRef.current.close();
+    }
     const es = new EventSource(`/api/generation-events/${jobId}`);
     sseRef.current = es;
-    es.onmessage = (evt) => {
+    es.onmessage = evt => {
       try {
         const event = JSON.parse(evt.data);
         if (event.type === "thought-update" && event.node) {
@@ -490,7 +672,9 @@ export default function Studio() {
           es.close();
           sseRef.current = null;
         }
-      } catch { /* ignore parse errors */ }
+      } catch {
+        /* ignore parse errors */
+      }
     };
     es.onerror = () => {
       // SSE connection lost — fall back to mutation result
@@ -501,7 +685,11 @@ export default function Studio() {
 
   // Clean up SSE on unmount
   useEffect(() => {
-    return () => { if (sseRef.current) { sseRef.current.close(); } };
+    return () => {
+      if (sseRef.current) {
+        sseRef.current.close();
+      }
+    };
   }, []);
 
   // ── Populate from Showcase Transfer (完全解構 JSON 還原) ──
@@ -513,8 +701,14 @@ export default function Studio() {
       setActiveModality(showcaseData.modality);
 
       // Restore compiled prompt
-      if (showcaseData.originalPrompt || showcaseData.deconstructedBlocks?.compiledPrompt) {
-        const prompt = showcaseData.deconstructedBlocks?.compiledPrompt || showcaseData.originalPrompt || "";
+      if (
+        showcaseData.originalPrompt ||
+        showcaseData.deconstructedBlocks?.compiledPrompt
+      ) {
+        const prompt =
+          showcaseData.deconstructedBlocks?.compiledPrompt ||
+          showcaseData.originalPrompt ||
+          "";
         setPromptBuilder(prev => ({
           ...prev,
           rawPrompt: prompt,
@@ -531,24 +725,33 @@ export default function Studio() {
       }
 
       // Restore negative prompt for image modality
-      if (showcaseData.modality === "image" && showcaseData.deconstructedBlocks?.negativePrompt) {
+      if (
+        showcaseData.modality === "image" &&
+        showcaseData.deconstructedBlocks?.negativePrompt
+      ) {
         setImageState(prev => ({
           ...prev,
           negativePrompt: showcaseData.deconstructedBlocks!.negativePrompt,
           // Use showcase image as style reference
-          ...(showcaseData.imageUrl && { styleReferenceUrl: showcaseData.imageUrl }),
+          ...(showcaseData.imageUrl && {
+            styleReferenceUrl: showcaseData.imageUrl,
+          }),
         }));
       }
 
       // Restore video first frame from showcase image
       if (showcaseData.modality === "video" && showcaseData.imageUrl) {
-        setVideoState(prev => ({ ...prev, firstFrameUrl: showcaseData.imageUrl }));
+        setVideoState(prev => ({
+          ...prev,
+          firstFrameUrl: showcaseData.imageUrl,
+        }));
       }
 
       // Restore technical parameters from deconstructed blocks
       if (showcaseData.deconstructedBlocks?.parameters) {
         const params = showcaseData.deconstructedBlocks.parameters;
-        if (params.temperature != null) setTemperature(Number(params.temperature));
+        if (params.temperature != null)
+          setTemperature(Number(params.temperature));
         if (params.seed != null) setSeed(String(params.seed));
         if (params.loraWeight != null) setLoraWeight(Number(params.loraWeight));
         if (params.mode === "lightning" || params.mode === "deep_precision") {
@@ -558,15 +761,21 @@ export default function Studio() {
         if (showcaseData.modality === "image") {
           setImageState(prev => ({
             ...prev,
-            ...(params.aspectRatio != null && { aspectRatio: String(params.aspectRatio) }),
+            ...(params.aspectRatio != null && {
+              aspectRatio: String(params.aspectRatio),
+            }),
           }));
         }
         // Audio-specific
         if (showcaseData.modality === "audio") {
           setAudioState(prev => ({
             ...prev,
-            ...(params.musicStyle != null && { musicStyle: String(params.musicStyle) }),
-            ...(params.isInstrumental != null && { isInstrumental: Boolean(params.isInstrumental) }),
+            ...(params.musicStyle != null && {
+              musicStyle: String(params.musicStyle),
+            }),
+            ...(params.isInstrumental != null && {
+              isInstrumental: Boolean(params.isInstrumental),
+            }),
             ...(params.lyrics != null && { lyrics: String(params.lyrics) }),
           }));
         }
@@ -579,10 +788,12 @@ export default function Studio() {
         }
       }
 
-      toast.success(`已載入「${showcaseData.title}」的完整配方`, { duration: 4000 });
+      toast.success(`已載入「${showcaseData.title}」的完整配方`, {
+        duration: 4000,
+      });
       return; // Skip sendToStudio check if showcase data was consumed
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Populate from Director AI ──
@@ -600,40 +811,59 @@ export default function Studio() {
           }));
         }
         if (data.generationType) setActiveModality(data.generationType);
-        if (data.musicStyle) setAudioState(prev => ({ ...prev, musicStyle: data.musicStyle }));
-        if (data.voiceText) setVoiceState(prev => ({ ...prev, text: data.voiceText }));
-        if (data.audioScript) setVoiceState(prev => ({ ...prev, text: data.audioScript }));
+        if (data.musicStyle)
+          setAudioState(prev => ({ ...prev, musicStyle: data.musicStyle }));
+        if (data.voiceText)
+          setVoiceState(prev => ({ ...prev, text: data.voiceText }));
+        if (data.audioScript)
+          setVoiceState(prev => ({ ...prev, text: data.audioScript }));
 
         // ── Restore full parameter snapshot from history (cross-modal, 100% fidelity) ──
         if (data.parameterSnapshot) {
           const snap = data.parameterSnapshot as Record<string, unknown>;
 
           // ── Common params ──
-          if (snap.temperature != null) setTemperature(Number(snap.temperature));
+          if (snap.temperature != null)
+            setTemperature(Number(snap.temperature));
           if (snap.seed != null) setSeed(String(snap.seed));
           if (snap.vibeCardIds && Array.isArray(snap.vibeCardIds)) {
-            setPromptBuilder(prev => ({ ...prev, vibeCardIds: snap.vibeCardIds as string[] }));
+            setPromptBuilder(prev => ({
+              ...prev,
+              vibeCardIds: snap.vibeCardIds as string[],
+            }));
           }
-          if (snap.mode === "lightning" || snap.mode === "deep_precision") setMode(snap.mode as GenerationMode);
+          if (snap.mode === "lightning" || snap.mode === "deep_precision")
+            setMode(snap.mode as GenerationMode);
           // ── LoRA weight ──
           if (snap.loraWeight != null) setLoraWeight(Number(snap.loraWeight));
           // ── Fine-tuned model embedded in snapshot ──
           if (snap.fineTunedModelId != null) {
             setFineTunedModelId(Number(snap.fineTunedModelId));
-            if (snap.fineTunedModelName != null) setFineTunedModelName(String(snap.fineTunedModelName));
+            if (snap.fineTunedModelName != null)
+              setFineTunedModelName(String(snap.fineTunedModelName));
           }
           // ── Consistency Vault IDs ──
-          if (snap.vaultCharacterId != null) setVaultCharacterId(Number(snap.vaultCharacterId));
-          if (snap.vaultSceneId != null) setVaultSceneId(Number(snap.vaultSceneId));
+          if (snap.vaultCharacterId != null)
+            setVaultCharacterId(Number(snap.vaultCharacterId));
+          if (snap.vaultSceneId != null)
+            setVaultSceneId(Number(snap.vaultSceneId));
 
           // ── Image-specific params ──
           if (data.generationType === "image") {
             setImageState(prev => ({
               ...prev,
-              ...(snap.aspectRatio != null && { aspectRatio: String(snap.aspectRatio) }),
-              ...(snap.negativePrompt != null && { negativePrompt: String(snap.negativePrompt) }),
-              ...(snap.styleReferenceUrl != null && { styleReferenceUrl: String(snap.styleReferenceUrl) }),
-              ...(snap.vibeReferenceUrl != null && { vibeReferenceUrl: String(snap.vibeReferenceUrl) }),
+              ...(snap.aspectRatio != null && {
+                aspectRatio: String(snap.aspectRatio),
+              }),
+              ...(snap.negativePrompt != null && {
+                negativePrompt: String(snap.negativePrompt),
+              }),
+              ...(snap.styleReferenceUrl != null && {
+                styleReferenceUrl: String(snap.styleReferenceUrl),
+              }),
+              ...(snap.vibeReferenceUrl != null && {
+                vibeReferenceUrl: String(snap.vibeReferenceUrl),
+              }),
             }));
           }
 
@@ -641,11 +871,26 @@ export default function Studio() {
           if (data.generationType === "video") {
             setVideoState(prev => ({
               ...prev,
-              ...(snap.videoDurationSeconds != null && { duration: String(snap.videoDurationSeconds) }),
-              ...(snap.firstFrameUrl != null && { firstFrameUrl: String(snap.firstFrameUrl) }),
-              ...(snap.lastFrameUrl != null && { lastFrameUrl: String(snap.lastFrameUrl) }),
-              ...(snap.characterRefUrl != null && { characterRefUrl: String(snap.characterRefUrl) }),
-              ...(snap.cameraMotion != null && typeof snap.cameraMotion === "object" && { cameraMotion: snap.cameraMotion as { pan: number; zoom: number; tilt: number } }),
+              ...(snap.videoDurationSeconds != null && {
+                duration: String(snap.videoDurationSeconds),
+              }),
+              ...(snap.firstFrameUrl != null && {
+                firstFrameUrl: String(snap.firstFrameUrl),
+              }),
+              ...(snap.lastFrameUrl != null && {
+                lastFrameUrl: String(snap.lastFrameUrl),
+              }),
+              ...(snap.characterRefUrl != null && {
+                characterRefUrl: String(snap.characterRefUrl),
+              }),
+              ...(snap.cameraMotion != null &&
+                typeof snap.cameraMotion === "object" && {
+                  cameraMotion: snap.cameraMotion as {
+                    pan: number;
+                    zoom: number;
+                    tilt: number;
+                  },
+                }),
             }));
           }
 
@@ -653,11 +898,19 @@ export default function Studio() {
           if (data.generationType === "audio") {
             setAudioState(prev => ({
               ...prev,
-              ...(snap.musicStyle != null && { musicStyle: String(snap.musicStyle) }),
-              ...(snap.isInstrumental != null && { isInstrumental: Boolean(snap.isInstrumental) }),
+              ...(snap.musicStyle != null && {
+                musicStyle: String(snap.musicStyle),
+              }),
+              ...(snap.isInstrumental != null && {
+                isInstrumental: Boolean(snap.isInstrumental),
+              }),
               ...(snap.lyrics != null && { lyrics: String(snap.lyrics) }),
-              ...(snap.audioDuration != null && { duration: Number(snap.audioDuration) }),
-              ...(snap.audioEnergy != null && { energy: Number(snap.audioEnergy) }),
+              ...(snap.audioDuration != null && {
+                duration: Number(snap.audioDuration),
+              }),
+              ...(snap.audioEnergy != null && {
+                energy: Number(snap.audioEnergy),
+              }),
             }));
           }
 
@@ -665,40 +918,60 @@ export default function Studio() {
           if (data.generationType === "voice") {
             setVoiceState(prev => ({
               ...prev,
-              ...(snap.voiceModelId != null && { voiceActorId: String(snap.voiceModelId) }),
+              ...(snap.voiceModelId != null && {
+                voiceActorId: String(snap.voiceModelId),
+              }),
               ...(snap.voiceText != null && { text: String(snap.voiceText) }),
-              ...(snap.voiceSpeed != null && { speed: Number(snap.voiceSpeed) }),
-              ...(snap.voiceStability != null && { stability: Number(snap.voiceStability) }),
-              ...(snap.voiceEmotionType != null && { emotionType: String(snap.voiceEmotionType) }),
-              ...(snap.voiceEmotionIntensity != null && { emotionIntensity: Number(snap.voiceEmotionIntensity) }),
+              ...(snap.voiceSpeed != null && {
+                speed: Number(snap.voiceSpeed),
+              }),
+              ...(snap.voiceStability != null && {
+                stability: Number(snap.voiceStability),
+              }),
+              ...(snap.voiceEmotionType != null && {
+                emotionType: String(snap.voiceEmotionType),
+              }),
+              ...(snap.voiceEmotionIntensity != null && {
+                emotionIntensity: Number(snap.voiceEmotionIntensity),
+              }),
             }));
           }
         }
 
         // ── Restore video first frame from cross-modal reference ──
         if (data.referenceImageUrl && data.generationType === "video") {
-          setVideoState(prev => ({ ...prev, firstFrameUrl: data.referenceImageUrl }));
+          setVideoState(prev => ({
+            ...prev,
+            firstFrameUrl: data.referenceImageUrl,
+          }));
         }
 
         // ── Restore image style reference from shared space ──
         if (data.referenceImageUrl && data.generationType === "image") {
-          setImageState(prev => ({ ...prev, styleReferenceUrl: data.referenceImageUrl }));
+          setImageState(prev => ({
+            ...prev,
+            styleReferenceUrl: data.referenceImageUrl,
+          }));
         }
 
         // ── Restore fine-tuned model from top-level data (shared space / history) ──
         if (data.fineTunedModelId) {
           setFineTunedModelId(Number(data.fineTunedModelId));
-          if (data.fineTunedModelName) setFineTunedModelName(String(data.fineTunedModelName));
+          if (data.fineTunedModelName)
+            setFineTunedModelName(String(data.fineTunedModelName));
         }
 
         sessionStorage.removeItem("sendToStudio");
-        const sourceLabel = data.source === "shared_space"
-          ? "已從共享空間載入素材"
-          : data.source === "history" || data.source === "history_cross"
-          ? "已 100% 還原生成配置，可直接重新生成"
-          : "已載入參數與提示詞";
+        const sourceLabel =
+          data.source === "shared_space"
+            ? "已從共享空間載入素材"
+            : data.source === "history" || data.source === "history_cross"
+              ? "已 100% 還原生成配置，可直接重新生成"
+              : "已載入參數與提示詞";
         toast.success(sourceLabel);
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
   }, []);
 
@@ -715,13 +988,19 @@ export default function Studio() {
           if (data.triggerWord) {
             setPromptBuilder(prev => ({
               ...prev,
-              rawPrompt: prev.rawPrompt ? `${data.triggerWord}, ${prev.rawPrompt}` : data.triggerWord,
+              rawPrompt: prev.rawPrompt
+                ? `${data.triggerWord}, ${prev.rawPrompt}`
+                : data.triggerWord,
             }));
           }
         }
         sessionStorage.removeItem("applyModel");
-        toast.success(`已套用模型「${data.name || "模型"}」，觸發詞已加入提示詞`);
-      } catch { /* ignore */ }
+        toast.success(
+          `已套用模型「${data.name || "模型"}」，觸發詞已加入提示詞`
+        );
+      } catch {
+        /* ignore */
+      }
     }
   }, []);
 
@@ -738,7 +1017,11 @@ export default function Studio() {
       // 設定模態
       if (presetModality) {
         const modalityMap: Record<string, GenerationType> = {
-          image: "image", video: "video", music: "audio", audio: "audio", voice: "voice",
+          image: "image",
+          video: "video",
+          music: "audio",
+          audio: "audio",
+          voice: "voice",
         };
         const target = modalityMap[presetModality.toLowerCase()];
         if (target) setActiveModality(target);
@@ -754,19 +1037,36 @@ export default function Studio() {
 
       // 映射美學標籤到 Vibe Cards
       if (presetAesthetics) {
-        const tags = decodeURIComponent(presetAesthetics).split(",").map(t => t.trim().toLowerCase());
+        const tags = decodeURIComponent(presetAesthetics)
+          .split(",")
+          .map(t => t.trim().toLowerCase());
         const aestheticVibeMap: Record<string, string> = {
-          serene: "serene", calm: "serene", warm: "warm", cozy: "warm",
-          dreamy: "dreamy", ethereal: "dreamy", nature: "nature", organic: "nature",
-          vintage: "vintage", retro: "vintage", minimal: "minimal", clean: "minimal",
-          joyful: "joyful", happy: "joyful", mystical: "mystical", cosmic: "mystical",
+          serene: "serene",
+          calm: "serene",
+          warm: "warm",
+          cozy: "warm",
+          dreamy: "dreamy",
+          ethereal: "dreamy",
+          nature: "nature",
+          organic: "nature",
+          vintage: "vintage",
+          retro: "vintage",
+          minimal: "minimal",
+          clean: "minimal",
+          joyful: "joyful",
+          happy: "joyful",
+          mystical: "mystical",
+          cosmic: "mystical",
         };
         const vibeIds = new Set<string>();
         for (const tag of tags) {
           if (aestheticVibeMap[tag]) vibeIds.add(aestheticVibeMap[tag]);
         }
         if (vibeIds.size > 0) {
-          setPromptBuilder(prev => ({ ...prev, vibeCardIds: Array.from(vibeIds) }));
+          setPromptBuilder(prev => ({
+            ...prev,
+            vibeCardIds: Array.from(vibeIds),
+          }));
         }
       }
 
@@ -815,20 +1115,56 @@ export default function Studio() {
       //    將推論出的美學標籤與 VIBE_CARDS 的 id/label/labelZh 做模糊匹配
       const aestheticToVibeMap: Record<string, string> = {
         // 直接匹配
-        serene: "serene", calm: "serene", peaceful: "serene", tranquil: "serene",
-        warm: "warm", cozy: "warm", comfortable: "warm", soft: "warm",
-        dreamy: "dreamy", ethereal: "dreamy", surreal: "dreamy", fantasy: "dreamy",
-        nature: "nature", organic: "nature", botanical: "nature", natural: "nature",
-        vintage: "vintage", retro: "vintage", nostalgic: "vintage", classic: "vintage",
-        minimal: "minimal", clean: "minimal", simple: "minimal", minimalist: "minimal",
-        joyful: "joyful", happy: "joyful", vibrant: "joyful", colorful: "joyful", bright: "joyful",
-        mystical: "mystical", mysterious: "mystical", dark: "mystical", gothic: "mystical", cosmic: "mystical",
+        serene: "serene",
+        calm: "serene",
+        peaceful: "serene",
+        tranquil: "serene",
+        warm: "warm",
+        cozy: "warm",
+        comfortable: "warm",
+        soft: "warm",
+        dreamy: "dreamy",
+        ethereal: "dreamy",
+        surreal: "dreamy",
+        fantasy: "dreamy",
+        nature: "nature",
+        organic: "nature",
+        botanical: "nature",
+        natural: "nature",
+        vintage: "vintage",
+        retro: "vintage",
+        nostalgic: "vintage",
+        classic: "vintage",
+        minimal: "minimal",
+        clean: "minimal",
+        simple: "minimal",
+        minimalist: "minimal",
+        joyful: "joyful",
+        happy: "joyful",
+        vibrant: "joyful",
+        colorful: "joyful",
+        bright: "joyful",
+        mystical: "mystical",
+        mysterious: "mystical",
+        dark: "mystical",
+        gothic: "mystical",
+        cosmic: "mystical",
         // 中文匹配
-        "寧靜": "serene", "溫暖": "warm", "夢幻": "dreamy", "自然": "nature",
-        "復古": "vintage", "極簡": "minimal", "歡愉": "joyful", "神秘": "mystical",
+        寧靜: "serene",
+        溫暖: "warm",
+        夢幻: "dreamy",
+        自然: "nature",
+        復古: "vintage",
+        極簡: "minimal",
+        歡愉: "joyful",
+        神秘: "mystical",
         // 擴展匹配
-        cyberpunk: "mystical", neon: "joyful", cinematic: "mystical",
-        watercolor: "dreamy", pastel: "serene", golden: "warm",
+        cyberpunk: "mystical",
+        neon: "joyful",
+        cinematic: "mystical",
+        watercolor: "dreamy",
+        pastel: "serene",
+        golden: "warm",
       };
 
       const matchedVibeIds = new Set<string>();
@@ -840,7 +1176,9 @@ export default function Studio() {
             matchedVibeIds.add(aestheticToVibeMap[lower]);
           } else {
             // 模糊匹配：檢查標籤是否包含 vibe card 關鍵字
-            for (const [keyword, vibeId] of Object.entries(aestheticToVibeMap)) {
+            for (const [keyword, vibeId] of Object.entries(
+              aestheticToVibeMap
+            )) {
               if (lower.includes(keyword) || keyword.includes(lower)) {
                 matchedVibeIds.add(vibeId);
                 break;
@@ -889,14 +1227,31 @@ export default function Studio() {
 
       // 5. 歡迎 Toast
       const cardMention = payload.cardTitle ? `「${payload.cardTitle}」` : "";
-      const vibeNames = Array.from(matchedVibeIds).map(id => {
-        const card = ["serene","warm","dreamy","nature","vintage","minimal","joyful","mystical"];
-        const zhMap: Record<string, string> = {
-          serene: "寧靜", warm: "溫暖", dreamy: "夢幻", nature: "自然",
-          vintage: "復古", minimal: "極簡", joyful: "歡愉", mystical: "神秘",
-        };
-        return zhMap[id] || id;
-      }).join("、");
+      const vibeNames = Array.from(matchedVibeIds)
+        .map(id => {
+          const card = [
+            "serene",
+            "warm",
+            "dreamy",
+            "nature",
+            "vintage",
+            "minimal",
+            "joyful",
+            "mystical",
+          ];
+          const zhMap: Record<string, string> = {
+            serene: "寧靜",
+            warm: "溫暖",
+            dreamy: "夢幻",
+            nature: "自然",
+            vintage: "復古",
+            minimal: "極簡",
+            joyful: "歡愉",
+            mystical: "神秘",
+          };
+          return zhMap[id] || id;
+        })
+        .join("、");
 
       const toastMsg = cardMention
         ? `光球已為你準備好${cardMention}的創作起點${vibeNames ? ` · ${vibeNames}風格` : ""}`
@@ -935,7 +1290,11 @@ export default function Studio() {
       mode,
       vibeCardIds: promptBuilder.vibeCardIds,
       temperature,
-      seed: seed.trim() ? (isNaN(parseInt(seed)) ? undefined : parseInt(seed)) : undefined,
+      seed: seed.trim()
+        ? isNaN(parseInt(seed))
+          ? undefined
+          : parseInt(seed)
+        : undefined,
       ...(activeModality === "image" && {
         aspectRatio: imageState.aspectRatio,
         negativePrompt: imageState.negativePrompt || undefined,
@@ -976,10 +1335,16 @@ export default function Studio() {
       const { jobId } = await prepareJobMutation.mutateAsync({
         generationType: activeModality,
         // Pass duration/charCount for more accurate cost estimation at deduction time
-        durationSec: activeModality === "video" ? parseInt(videoState.duration) || 5
-          : activeModality === "audio" ? (audioState as any).duration || 30
-          : undefined,
-        charCount: activeModality === "voice" ? voiceState.text?.length || undefined : undefined,
+        durationSec:
+          activeModality === "video"
+            ? parseInt(videoState.duration) || 5
+            : activeModality === "audio"
+              ? (audioState as any).duration || 30
+              : undefined,
+        charCount:
+          activeModality === "voice"
+            ? voiceState.text?.length || undefined
+            : undefined,
       });
 
       // Step 2: Connect SSE immediately so we receive real-time thought chain events
@@ -990,209 +1355,352 @@ export default function Studio() {
     } catch {
       // Errors are handled by onError callbacks in the mutations
     }
-  }, [promptBuilder, activeModality, mode, temperature, seed, imageState, videoState, audioState, voiceState, generateMutation, prepareJobMutation, connectSSE, vaultCharacterId, vaultSceneId, fineTunedModelId]);
+  }, [
+    promptBuilder,
+    activeModality,
+    mode,
+    temperature,
+    seed,
+    imageState,
+    videoState,
+    audioState,
+    voiceState,
+    generateMutation,
+    prepareJobMutation,
+    connectSSE,
+    vaultCharacterId,
+    vaultSceneId,
+    fineTunedModelId,
+  ]);
 
   // ── Vault select handler ──
-  const handleVaultSelect = useCallback((item: VaultItem) => {
-    // Set vault ID for backend injection
-    if (item.type === "character") {
-      setVaultCharacterId(item.id);
-    } else if (item.type === "scene") {
-      setVaultSceneId(item.id);
-    }
+  const handleVaultSelect = useCallback(
+    (item: VaultItem) => {
+      // Set vault ID for backend injection
+      if (item.type === "character") {
+        setVaultCharacterId(item.id);
+      } else if (item.type === "scene") {
+        setVaultSceneId(item.id);
+      }
 
-    if (activeModality === "video") {
-      if (!videoState.firstFrameUrl) {
-        setVideoState(prev => ({ ...prev, firstFrameUrl: item.imageUrl }));
-        toast.success(`已將「${item.name}」設為首幀（角色特徵將注入生成）`);
-      } else if (!videoState.characterRefUrl) {
-        setVideoState(prev => ({ ...prev, characterRefUrl: item.imageUrl }));
-        toast.success(`已將「${item.name}」設為角色參考`);
-      } else {
-        toast.info("首幀和角色參考已設定，請先清除再載入");
+      if (activeModality === "video") {
+        if (!videoState.firstFrameUrl) {
+          setVideoState(prev => ({ ...prev, firstFrameUrl: item.imageUrl }));
+          toast.success(`已將「${item.name}」設為首幀（角色特徵將注入生成）`);
+        } else if (!videoState.characterRefUrl) {
+          setVideoState(prev => ({ ...prev, characterRefUrl: item.imageUrl }));
+          toast.success(`已將「${item.name}」設為角色參考`);
+        } else {
+          toast.info("首幀和角色參考已設定，請先清除再載入");
+        }
+      } else if (activeModality === "image") {
+        if (!imageState.styleReferenceUrl) {
+          setImageState(prev => ({
+            ...prev,
+            styleReferenceUrl: item.imageUrl,
+          }));
+          toast.success(
+            `已將「${item.name}」設為風格參考（角色特徵將注入生成）`
+          );
+        } else {
+          toast.info("風格參考已設定，請先清除再載入");
+        }
+      } else if (activeModality === "audio") {
+        toast.success(`已綁定「${item.name}」角色特徵至音樂生成`);
+      } else if (activeModality === "voice") {
+        toast.success(`已綁定「${item.name}」角色特徵至語音生成`);
       }
-    } else if (activeModality === "image") {
-      if (!imageState.styleReferenceUrl) {
-        setImageState(prev => ({ ...prev, styleReferenceUrl: item.imageUrl }));
-        toast.success(`已將「${item.name}」設為風格參考（角色特徵將注入生成）`);
-      } else {
-        toast.info("風格參考已設定，請先清除再載入");
-      }
-    } else if (activeModality === "audio") {
-      toast.success(`已綁定「${item.name}」角色特徵至音樂生成`);
-    } else if (activeModality === "voice") {
-      toast.success(`已綁定「${item.name}」角色特徵至語音生成`);
-    }
-    if (isMobile) setToolboxSheetOpen(false);
-  }, [activeModality, videoState, imageState, isMobile]);
+      if (isMobile) setToolboxSheetOpen(false);
+    },
+    [activeModality, videoState, imageState, isMobile]
+  );
 
   // ── History → Studio handler (MiniHistoryPanel in right drawer) ──
-  const handleHistoryToStudio = useCallback((prompt: string, type: GenerationType, parameterSnapshot?: Record<string, unknown>) => {
-    setPromptBuilder(prev => ({
-      ...prev,
-      rawPrompt: prompt,
-      compiledPrompt: prompt,
-    }));
-    setActiveModality(type);
-    if (parameterSnapshot) {
-      const snap = parameterSnapshot;
-      // ── Common params ──
-      if (snap.temperature != null) setTemperature(Number(snap.temperature));
-      if (snap.seed != null) setSeed(String(snap.seed));
-      if (snap.vibeCardIds && Array.isArray(snap.vibeCardIds)) {
-        setPromptBuilder(prev => ({ ...prev, vibeCardIds: snap.vibeCardIds as string[] }));
-      }
-      if (snap.mode === "lightning" || snap.mode === "deep_precision") {
-        setMode(snap.mode as GenerationMode);
-      }
-      // ── LoRA weight ──
-      if (snap.loraWeight != null) setLoraWeight(Number(snap.loraWeight));
-      // ── Fine-tuned model embedded in snapshot ──
-      if (snap.fineTunedModelId != null) {
-        setFineTunedModelId(Number(snap.fineTunedModelId));
-        if (snap.fineTunedModelName != null) setFineTunedModelName(String(snap.fineTunedModelName));
-      }
-      // ── Consistency Vault IDs ──
-      if (snap.vaultCharacterId != null) setVaultCharacterId(Number(snap.vaultCharacterId));
-      if (snap.vaultSceneId != null) setVaultSceneId(Number(snap.vaultSceneId));
+  const handleHistoryToStudio = useCallback(
+    (
+      prompt: string,
+      type: GenerationType,
+      parameterSnapshot?: Record<string, unknown>
+    ) => {
+      setPromptBuilder(prev => ({
+        ...prev,
+        rawPrompt: prompt,
+        compiledPrompt: prompt,
+      }));
+      setActiveModality(type);
+      if (parameterSnapshot) {
+        const snap = parameterSnapshot;
+        // ── Common params ──
+        if (snap.temperature != null) setTemperature(Number(snap.temperature));
+        if (snap.seed != null) setSeed(String(snap.seed));
+        if (snap.vibeCardIds && Array.isArray(snap.vibeCardIds)) {
+          setPromptBuilder(prev => ({
+            ...prev,
+            vibeCardIds: snap.vibeCardIds as string[],
+          }));
+        }
+        if (snap.mode === "lightning" || snap.mode === "deep_precision") {
+          setMode(snap.mode as GenerationMode);
+        }
+        // ── LoRA weight ──
+        if (snap.loraWeight != null) setLoraWeight(Number(snap.loraWeight));
+        // ── Fine-tuned model embedded in snapshot ──
+        if (snap.fineTunedModelId != null) {
+          setFineTunedModelId(Number(snap.fineTunedModelId));
+          if (snap.fineTunedModelName != null)
+            setFineTunedModelName(String(snap.fineTunedModelName));
+        }
+        // ── Consistency Vault IDs ──
+        if (snap.vaultCharacterId != null)
+          setVaultCharacterId(Number(snap.vaultCharacterId));
+        if (snap.vaultSceneId != null)
+          setVaultSceneId(Number(snap.vaultSceneId));
 
-      // ── Image-specific params ──
-      if (type === "image") {
-        setImageState(prev => ({
-          ...prev,
-          ...(snap.aspectRatio != null && { aspectRatio: String(snap.aspectRatio) }),
-          ...(snap.negativePrompt != null && { negativePrompt: String(snap.negativePrompt) }),
-          ...(snap.styleReferenceUrl != null && { styleReferenceUrl: String(snap.styleReferenceUrl) }),
-          ...(snap.vibeReferenceUrl != null && { vibeReferenceUrl: String(snap.vibeReferenceUrl) }),
-        }));
-      }
+        // ── Image-specific params ──
+        if (type === "image") {
+          setImageState(prev => ({
+            ...prev,
+            ...(snap.aspectRatio != null && {
+              aspectRatio: String(snap.aspectRatio),
+            }),
+            ...(snap.negativePrompt != null && {
+              negativePrompt: String(snap.negativePrompt),
+            }),
+            ...(snap.styleReferenceUrl != null && {
+              styleReferenceUrl: String(snap.styleReferenceUrl),
+            }),
+            ...(snap.vibeReferenceUrl != null && {
+              vibeReferenceUrl: String(snap.vibeReferenceUrl),
+            }),
+          }));
+        }
 
-      // ── Video-specific params ──
-      if (type === "video") {
-        setVideoState(prev => ({
-          ...prev,
-          ...(snap.videoDurationSeconds != null && { duration: String(snap.videoDurationSeconds) }),
-          ...(snap.firstFrameUrl != null && { firstFrameUrl: String(snap.firstFrameUrl) }),
-          ...(snap.lastFrameUrl != null && { lastFrameUrl: String(snap.lastFrameUrl) }),
-          ...(snap.characterRefUrl != null && { characterRefUrl: String(snap.characterRefUrl) }),
-          ...(snap.cameraMotion != null && typeof snap.cameraMotion === "object" && { cameraMotion: snap.cameraMotion as { pan: number; zoom: number; tilt: number } }),
-        }));
-      }
+        // ── Video-specific params ──
+        if (type === "video") {
+          setVideoState(prev => ({
+            ...prev,
+            ...(snap.videoDurationSeconds != null && {
+              duration: String(snap.videoDurationSeconds),
+            }),
+            ...(snap.firstFrameUrl != null && {
+              firstFrameUrl: String(snap.firstFrameUrl),
+            }),
+            ...(snap.lastFrameUrl != null && {
+              lastFrameUrl: String(snap.lastFrameUrl),
+            }),
+            ...(snap.characterRefUrl != null && {
+              characterRefUrl: String(snap.characterRefUrl),
+            }),
+            ...(snap.cameraMotion != null &&
+              typeof snap.cameraMotion === "object" && {
+                cameraMotion: snap.cameraMotion as {
+                  pan: number;
+                  zoom: number;
+                  tilt: number;
+                },
+              }),
+          }));
+        }
 
-      // ── Audio-specific params ──
-      if (type === "audio") {
-        setAudioState(prev => ({
-          ...prev,
-          ...(snap.musicStyle != null && { musicStyle: String(snap.musicStyle) }),
-          ...(snap.isInstrumental != null && { isInstrumental: Boolean(snap.isInstrumental) }),
-          ...(snap.lyrics != null && { lyrics: String(snap.lyrics) }),
-          ...(snap.audioDuration != null && { duration: Number(snap.audioDuration) }),
-          ...(snap.audioEnergy != null && { energy: Number(snap.audioEnergy) }),
-        }));
-      }
+        // ── Audio-specific params ──
+        if (type === "audio") {
+          setAudioState(prev => ({
+            ...prev,
+            ...(snap.musicStyle != null && {
+              musicStyle: String(snap.musicStyle),
+            }),
+            ...(snap.isInstrumental != null && {
+              isInstrumental: Boolean(snap.isInstrumental),
+            }),
+            ...(snap.lyrics != null && { lyrics: String(snap.lyrics) }),
+            ...(snap.audioDuration != null && {
+              duration: Number(snap.audioDuration),
+            }),
+            ...(snap.audioEnergy != null && {
+              energy: Number(snap.audioEnergy),
+            }),
+          }));
+        }
 
-      // ── Voice-specific params ──
-      if (type === "voice") {
-        setVoiceState(prev => ({
-          ...prev,
-          ...(snap.voiceModelId != null && { voiceActorId: String(snap.voiceModelId) }),
-          ...(snap.voiceText != null && { text: String(snap.voiceText) }),
-          ...(snap.voiceSpeed != null && { speed: Number(snap.voiceSpeed) }),
-          ...(snap.voiceStability != null && { stability: Number(snap.voiceStability) }),
-          ...(snap.voiceEmotionType != null && { emotionType: String(snap.voiceEmotionType) }),
-          ...(snap.voiceEmotionIntensity != null && { emotionIntensity: Number(snap.voiceEmotionIntensity) }),
-        }));
+        // ── Voice-specific params ──
+        if (type === "voice") {
+          setVoiceState(prev => ({
+            ...prev,
+            ...(snap.voiceModelId != null && {
+              voiceActorId: String(snap.voiceModelId),
+            }),
+            ...(snap.voiceText != null && { text: String(snap.voiceText) }),
+            ...(snap.voiceSpeed != null && { speed: Number(snap.voiceSpeed) }),
+            ...(snap.voiceStability != null && {
+              stability: Number(snap.voiceStability),
+            }),
+            ...(snap.voiceEmotionType != null && {
+              emotionType: String(snap.voiceEmotionType),
+            }),
+            ...(snap.voiceEmotionIntensity != null && {
+              emotionIntensity: Number(snap.voiceEmotionIntensity),
+            }),
+          }));
+        }
       }
-    }
-    setRightDrawerOpen(false);
-    toast.success("已 100% 還原歷史參數與提示詞");
-  }, []);
+      setRightDrawerOpen(false);
+      toast.success("已 100% 還原歷史參數與提示詞");
+    },
+    []
+  );
 
-  const showLoraWeight = activeModality === "video"
-    ? !!(videoState.firstFrameUrl || videoState.characterRefUrl)
-    : activeModality === "image"
-    ? !!(imageState.styleReferenceUrl)
-    : false;
+  const showLoraWeight =
+    activeModality === "video"
+      ? !!(videoState.firstFrameUrl || videoState.characterRefUrl)
+      : activeModality === "image"
+        ? !!imageState.styleReferenceUrl
+        : false;
 
   // ── Handlers for new workspace components ──
 
-  const handleBlocksChange = useCallback((newBlocks: StructuredBlock[]) => {
-    setStructuredBlocks(prev => ({ ...prev, [modalityKey]: newBlocks }));
-  }, [modalityKey]);
+  const handleBlocksChange = useCallback(
+    (newBlocks: StructuredBlock[]) => {
+      setStructuredBlocks(prev => ({ ...prev, [modalityKey]: newBlocks }));
+    },
+    [modalityKey]
+  );
 
-  const handleThoughtIslandsChange = useCallback((newIslands: ThoughtIsland[]) => {
-    setThoughtIslands(prev => ({ ...prev, [modalityKey]: newIslands }));
-  }, [modalityKey]);
+  const handleThoughtIslandsChange = useCallback(
+    (newIslands: ThoughtIsland[]) => {
+      setThoughtIslands(prev => ({ ...prev, [modalityKey]: newIslands }));
+    },
+    [modalityKey]
+  );
 
-  const handleReferencesChange = useCallback((newRefs: ReferenceItem[]) => {
-    setReferences(prev => ({ ...prev, [modalityKey]: newRefs }));
-  }, [modalityKey]);
+  const handleReferencesChange = useCallback(
+    (newRefs: ReferenceItem[]) => {
+      setReferences(prev => ({ ...prev, [modalityKey]: newRefs }));
+    },
+    [modalityKey]
+  );
 
   const handleVersionPin = useCallback((versionId: string) => {
-    setPinnedVersionId(prev => prev === versionId ? null : versionId);
+    setPinnedVersionId(prev => (prev === versionId ? null : versionId));
   }, []);
 
-  const handleVersionRestore = useCallback((versionId: string) => {
-    const version = versions.find(v => v.id === versionId);
-    if (!version) return;
-    setStructuredBlocks(prev => ({ ...prev, [version.modality]: version.blocks }));
-    setThoughtIslands(prev => ({ ...prev, [version.modality]: version.thoughtIslands }));
-    setPromptStrength(version.promptStrength);
-    setAdvancedPrompt(prev => ({ ...prev, [version.modality]: version.advancedPrompt }));
-    setReferences(prev => ({ ...prev, [version.modality]: version.references }));
-    if (version.modality !== modalityKey) {
-      setActiveModality(version.modality === "music" ? "audio" : version.modality);
-    }
-    toast.success("已還原版本設定");
-  }, [versions, modalityKey]);
+  const handleVersionRestore = useCallback(
+    (versionId: string) => {
+      const version = versions.find(v => v.id === versionId);
+      if (!version) return;
+      setStructuredBlocks(prev => ({
+        ...prev,
+        [version.modality]: version.blocks,
+      }));
+      setThoughtIslands(prev => ({
+        ...prev,
+        [version.modality]: version.thoughtIslands,
+      }));
+      setPromptStrength(version.promptStrength);
+      setAdvancedPrompt(prev => ({
+        ...prev,
+        [version.modality]: version.advancedPrompt,
+      }));
+      setReferences(prev => ({
+        ...prev,
+        [version.modality]: version.references,
+      }));
+      if (version.modality !== modalityKey) {
+        setActiveModality(
+          version.modality === "music" ? "audio" : version.modality
+        );
+      }
+      toast.success("已還原版本設定");
+    },
+    [versions, modalityKey]
+  );
 
-  const handleSaveRecipe = useCallback((name: string) => {
-    const recipe: SavedRecipe = {
-      id: `recipe-${Date.now()}`,
-      name,
-      modality: modalityKey,
-      blocks: structuredBlocks[modalityKey] || [],
-      thoughtIslands: thoughtIslands[modalityKey] || [],
+  const handleSaveRecipe = useCallback(
+    (name: string) => {
+      const recipe: SavedRecipe = {
+        id: `recipe-${Date.now()}`,
+        name,
+        modality: modalityKey,
+        blocks: structuredBlocks[modalityKey] || [],
+        thoughtIslands: thoughtIslands[modalityKey] || [],
+        promptStrength,
+        advancedPrompt: advancedPrompt[modalityKey] || "",
+        references: references[modalityKey] || [],
+        generationParams: { temperature, seed, mode, loraWeight },
+        createdAt: Date.now(),
+      };
+      setSavedRecipes(prev => [recipe, ...prev]);
+      toast.success(`已保存配方「${name}」`);
+    },
+    [
+      modalityKey,
+      structuredBlocks,
+      thoughtIslands,
       promptStrength,
-      advancedPrompt: advancedPrompt[modalityKey] || "",
-      references: references[modalityKey] || [],
-      generationParams: { temperature, seed, mode, loraWeight },
-      createdAt: Date.now(),
-    };
-    setSavedRecipes(prev => [recipe, ...prev]);
-    toast.success(`已保存配方「${name}」`);
-  }, [modalityKey, structuredBlocks, thoughtIslands, promptStrength, advancedPrompt, references, temperature, seed, mode, loraWeight]);
+      advancedPrompt,
+      references,
+      temperature,
+      seed,
+      mode,
+      loraWeight,
+    ]
+  );
 
-  const handleApplyRecipe = useCallback((recipe: SavedRecipe) => {
-    setStructuredBlocks(prev => ({ ...prev, [recipe.modality]: recipe.blocks }));
-    setThoughtIslands(prev => ({ ...prev, [recipe.modality]: recipe.thoughtIslands }));
-    setPromptStrength(recipe.promptStrength);
-    setAdvancedPrompt(prev => ({ ...prev, [recipe.modality]: recipe.advancedPrompt }));
-    setReferences(prev => ({ ...prev, [recipe.modality]: recipe.references }));
-    if (recipe.modality !== modalityKey) {
-      setActiveModality(recipe.modality === "music" ? "audio" : recipe.modality);
-    }
-    toast.success(`已套用配方「${recipe.name}」`);
-  }, [modalityKey]);
+  const handleApplyRecipe = useCallback(
+    (recipe: SavedRecipe) => {
+      setStructuredBlocks(prev => ({
+        ...prev,
+        [recipe.modality]: recipe.blocks,
+      }));
+      setThoughtIslands(prev => ({
+        ...prev,
+        [recipe.modality]: recipe.thoughtIslands,
+      }));
+      setPromptStrength(recipe.promptStrength);
+      setAdvancedPrompt(prev => ({
+        ...prev,
+        [recipe.modality]: recipe.advancedPrompt,
+      }));
+      setReferences(prev => ({
+        ...prev,
+        [recipe.modality]: recipe.references,
+      }));
+      if (recipe.modality !== modalityKey) {
+        setActiveModality(
+          recipe.modality === "music" ? "audio" : recipe.modality
+        );
+      }
+      toast.success(`已套用配方「${recipe.name}」`);
+    },
+    [modalityKey]
+  );
 
   const handleDeleteRecipe = useCallback((recipeId: string) => {
     setSavedRecipes(prev => prev.filter(r => r.id !== recipeId));
     toast.success("已刪除配方");
   }, []);
 
-  const handleRefineAction = useCallback((blockUpdates: { fieldKey: string; instruction: string }[]) => {
-    setStructuredBlocks(prev => {
-      const currentBlocks = [...(prev[modalityKey] || [])];
-      for (const update of blockUpdates) {
-        const idx = currentBlocks.findIndex(b => b.fieldKey === update.fieldKey);
-        if (idx >= 0) {
-          currentBlocks[idx] = { ...currentBlocks[idx], value: update.instruction, enabled: true };
+  const handleRefineAction = useCallback(
+    (blockUpdates: { fieldKey: string; instruction: string }[]) => {
+      setStructuredBlocks(prev => {
+        const currentBlocks = [...(prev[modalityKey] || [])];
+        for (const update of blockUpdates) {
+          const idx = currentBlocks.findIndex(
+            b => b.fieldKey === update.fieldKey
+          );
+          if (idx >= 0) {
+            currentBlocks[idx] = {
+              ...currentBlocks[idx],
+              value: update.instruction,
+              enabled: true,
+            };
+          }
         }
-      }
-      return { ...prev, [modalityKey]: currentBlocks };
-    });
-    toast.success("已套用精修動作");
-  }, [modalityKey]);
+        return { ...prev, [modalityKey]: currentBlocks };
+      });
+      toast.success("已套用精修動作");
+    },
+    [modalityKey]
+  );
 
   return (
     <div className="space-y-4">
@@ -1209,20 +1717,29 @@ export default function Studio() {
           <div className="min-w-0">
             <h1 className="hs-h3-lg !mb-0 text-foreground">創作工作室</h1>
             <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
-              配額 <span className="tabular-nums font-medium">{user?.remainingGenerations ?? 0}</span>
+              配額{" "}
+              <span className="tabular-nums font-medium">
+                {user?.remainingGenerations ?? 0}
+              </span>
             </p>
           </div>
         </div>
 
         {/* Center: Mode selector */}
         <div className="hidden sm:flex">
-          <CreativeModeSelector value={creativeMode} onChange={setCreativeMode} />
+          <CreativeModeSelector
+            value={creativeMode}
+            onChange={setCreativeMode}
+          />
         </div>
 
         <div className="flex items-center gap-1.5">
           {/* Mobile-only mode selector */}
           <div className="sm:hidden">
-            <CreativeModeSelector value={creativeMode} onChange={setCreativeMode} />
+            <CreativeModeSelector
+              value={creativeMode}
+              onChange={setCreativeMode}
+            />
           </div>
 
           {/* Unified Toolbox button (replaces separate vault/settings/history) */}
@@ -1264,8 +1781,22 @@ export default function Studio() {
           <DrawerPanel
             open={leftDrawerOpen}
             side="left"
-            title={leftDrawerTab === "vault" ? "一致性保險庫" : leftDrawerTab === "models" ? "角色鍛造所" : "數位資產"}
-            icon={leftDrawerTab === "vault" ? <Layers className="w-4 h-4 text-primary" /> : leftDrawerTab === "models" ? <Cpu className="w-4 h-4 text-primary" /> : <Package className="w-4 h-4 text-primary" />}
+            title={
+              leftDrawerTab === "vault"
+                ? "一致性保險庫"
+                : leftDrawerTab === "models"
+                  ? "角色鍛造所"
+                  : "數位資產"
+            }
+            icon={
+              leftDrawerTab === "vault" ? (
+                <Layers className="w-4 h-4 text-primary" />
+              ) : leftDrawerTab === "models" ? (
+                <Cpu className="w-4 h-4 text-primary" />
+              ) : (
+                <Package className="w-4 h-4 text-primary" />
+              )
+            }
             onClose={() => setLeftDrawerOpen(false)}
           >
             {/* Tab switcher inside drawer */}
@@ -1274,7 +1805,9 @@ export default function Studio() {
                 <button
                   onClick={() => setLeftDrawerTab("vault")}
                   className={`flex-1 text-xs py-1.5 rounded-md transition-colors ${
-                    leftDrawerTab === "vault" ? "bg-white shadow-sm text-foreground font-medium" : "text-muted-foreground hover:text-foreground"
+                    leftDrawerTab === "vault"
+                      ? "bg-white shadow-sm text-foreground font-medium"
+                      : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   <Layers className="w-3 h-3 inline mr-1" />
@@ -1283,7 +1816,9 @@ export default function Studio() {
                 <button
                   onClick={() => setLeftDrawerTab("assets")}
                   className={`flex-1 text-xs py-1.5 rounded-md transition-colors ${
-                    leftDrawerTab === "assets" ? "bg-white shadow-sm text-foreground font-medium" : "text-muted-foreground hover:text-foreground"
+                    leftDrawerTab === "assets"
+                      ? "bg-white shadow-sm text-foreground font-medium"
+                      : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   <Package className="w-3 h-3 inline mr-1" />
@@ -1292,7 +1827,9 @@ export default function Studio() {
                 <button
                   onClick={() => setLeftDrawerTab("models")}
                   className={`flex-1 text-xs py-1.5 rounded-md transition-colors ${
-                    leftDrawerTab === "models" ? "bg-white shadow-sm text-foreground font-medium" : "text-muted-foreground hover:text-foreground"
+                    leftDrawerTab === "models"
+                      ? "bg-white shadow-sm text-foreground font-medium"
+                      : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   <Cpu className="w-3 h-3 inline mr-1" />
@@ -1308,20 +1845,38 @@ export default function Studio() {
                   {vaultCharacterId && (
                     <span className="inline-flex items-center gap-1 text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full">
                       角色已綁定
-                      <button onClick={() => setVaultCharacterId(undefined)} className="hover:text-destructive"><X className="w-2.5 h-2.5" /></button>
+                      <button
+                        onClick={() => setVaultCharacterId(undefined)}
+                        className="hover:text-destructive"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
                     </span>
                   )}
                   {vaultSceneId && (
                     <span className="inline-flex items-center gap-1 text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full">
                       場景已綁定
-                      <button onClick={() => setVaultSceneId(undefined)} className="hover:text-destructive"><X className="w-2.5 h-2.5" /></button>
+                      <button
+                        onClick={() => setVaultSceneId(undefined)}
+                        className="hover:text-destructive"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
                     </span>
                   )}
                   {fineTunedModelId && (
                     <span className="inline-flex items-center gap-1 text-[10px] bg-amber-500/10 text-amber-700 px-2 py-0.5 rounded-full">
                       <Cpu className="w-2.5 h-2.5" />
                       {fineTunedModelName || "微調模型"}
-                      <button onClick={() => { setFineTunedModelId(undefined); setFineTunedModelName(undefined); }} className="hover:text-destructive"><X className="w-2.5 h-2.5" /></button>
+                      <button
+                        onClick={() => {
+                          setFineTunedModelId(undefined);
+                          setFineTunedModelName(undefined);
+                        }}
+                        className="hover:text-destructive"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
                     </span>
                   )}
                 </div>
@@ -1333,8 +1888,16 @@ export default function Studio() {
             ) : leftDrawerTab === "models" ? (
               <MiniModelsPanel
                 activeModelId={fineTunedModelId}
-                onApply={(id, name) => { setFineTunedModelId(id); setFineTunedModelName(name); toast.success(`已套用模型「${name}」的觸發詞`); }}
-                onRemove={() => { setFineTunedModelId(undefined); setFineTunedModelName(undefined); toast.info("已移除微調模型"); }}
+                onApply={(id, name) => {
+                  setFineTunedModelId(id);
+                  setFineTunedModelName(name);
+                  toast.success(`已套用模型「${name}」的觸發詞`);
+                }}
+                onRemove={() => {
+                  setFineTunedModelId(undefined);
+                  setFineTunedModelName(undefined);
+                  toast.info("已移除微調模型");
+                }}
               />
             ) : (
               <MiniAssetsPanel />
@@ -1343,15 +1906,23 @@ export default function Studio() {
         )}
 
         {/* ── Center: Main Canvas ── */}
-        <div className={cn("flex-1 min-w-0", isSimple ? "space-y-6" : "space-y-4 sm:space-y-5")}>
+        <div
+          className={cn(
+            "flex-1 min-w-0",
+            isSimple ? "space-y-6" : "space-y-4 sm:space-y-5"
+          )}
+        >
           {/* Modality Tabs — hidden in simple mode mode */}
           {!isSimple && (
             <Tabs
               value={activeModality}
-              onValueChange={(v) => setActiveModality(v as GenerationType)}
+              onValueChange={v => setActiveModality(v as GenerationType)}
             >
-              <TabsList id="modality-tabs" className="w-full grid grid-cols-4 h-auto rounded-xl p-1 bg-white/40 border border-white/50 backdrop-blur-sm">
-                {MODALITY_TABS.map((t) => (
+              <TabsList
+                id="modality-tabs"
+                className="w-full grid grid-cols-4 h-auto rounded-xl p-1 bg-white/40 border border-white/50 backdrop-blur-sm"
+              >
+                {MODALITY_TABS.map(t => (
                   <TabsTrigger
                     key={t.value}
                     value={t.value}
@@ -1378,85 +1949,118 @@ export default function Studio() {
 
           {/* Progressive Prompt Builder — z-20 ensures Self-Attention sliders stay above ThoughtIslandChain D3 canvas */}
           {activeModality !== "voice" && (
-            <GlassCard hover={false} id="prompt-builder-area" className={cn("relative z-20", isSimple && "p-6 sm:p-8")}>
+            <GlassCard
+              hover={false}
+              id="prompt-builder-area"
+              className={cn("relative z-20", isSimple && "p-6 sm:p-8")}
+            >
               <ProgressivePromptBuilder
                 value={promptBuilder}
                 onChange={setPromptBuilder}
                 modality={activeModality}
-                onType={(len) => { reportTyping(len); notifyTyping(); }}
+                onType={len => {
+                  reportTyping(len);
+                  notifyTyping();
+                }}
                 simpleMode={isSimple}
               />
               {!isSimple && (
                 <div className="mt-3 pt-3 border-t border-border/20">
                   <PromptStrengthBar
-                  prompt={promptBuilder.compiledPrompt || promptBuilder.rawPrompt}
-                  modality={activeModality as "image" | "video" | "audio" | "voice"}
-                  onApplyOptimized={(optimized) => {
-                    setPromptBuilder(prev => ({
-                      ...prev,
-                      rawPrompt: optimized,
-                      compiledPrompt: optimized,
-                    }));
-                    toast.success("已套用 AI 優化提示詞");
-                  }}
-                  onApplyAction={(action: SuggestionAction) => {
-                    switch (action.actionType) {
-                      case "append_prompt": {
-                        const separator = promptBuilder.rawPrompt.trim() ? ", " : "";
-                        const newPrompt = promptBuilder.rawPrompt.trim() + separator + action.actionPayload;
-                        setPromptBuilder(prev => ({
-                          ...prev,
-                          rawPrompt: newPrompt,
-                          compiledPrompt: newPrompt,
-                        }));
-                        break;
-                      }
-                      case "replace_prompt": {
-                        setPromptBuilder(prev => ({
-                          ...prev,
-                          rawPrompt: action.actionPayload,
-                          compiledPrompt: action.actionPayload,
-                        }));
-                        break;
-                      }
-                      case "add_negative": {
-                        if (activeModality === "image") {
-                          setImageState(prev => ({
-                            ...prev,
-                            negativePrompt: prev.negativePrompt
-                              ? prev.negativePrompt + ", " + action.actionPayload
-                              : action.actionPayload,
-                          }));
-                        } else {
-                          // For non-image modalities, append as negative context to prompt
-                          const separator = promptBuilder.rawPrompt.trim() ? ", " : "";
-                          const newPrompt = promptBuilder.rawPrompt.trim() + separator + "avoid: " + action.actionPayload;
+                    prompt={
+                      promptBuilder.compiledPrompt || promptBuilder.rawPrompt
+                    }
+                    modality={
+                      activeModality as "image" | "video" | "audio" | "voice"
+                    }
+                    onApplyOptimized={optimized => {
+                      setPromptBuilder(prev => ({
+                        ...prev,
+                        rawPrompt: optimized,
+                        compiledPrompt: optimized,
+                      }));
+                      toast.success("已套用 AI 優化提示詞");
+                    }}
+                    onApplyAction={(action: SuggestionAction) => {
+                      switch (action.actionType) {
+                        case "append_prompt": {
+                          const separator = promptBuilder.rawPrompt.trim()
+                            ? ", "
+                            : "";
+                          const newPrompt =
+                            promptBuilder.rawPrompt.trim() +
+                            separator +
+                            action.actionPayload;
                           setPromptBuilder(prev => ({
                             ...prev,
                             rawPrompt: newPrompt,
                             compiledPrompt: newPrompt,
                           }));
+                          break;
                         }
-                        break;
+                        case "replace_prompt": {
+                          setPromptBuilder(prev => ({
+                            ...prev,
+                            rawPrompt: action.actionPayload,
+                            compiledPrompt: action.actionPayload,
+                          }));
+                          break;
+                        }
+                        case "add_negative": {
+                          if (activeModality === "image") {
+                            setImageState(prev => ({
+                              ...prev,
+                              negativePrompt: prev.negativePrompt
+                                ? prev.negativePrompt +
+                                  ", " +
+                                  action.actionPayload
+                                : action.actionPayload,
+                            }));
+                          } else {
+                            // For non-image modalities, append as negative context to prompt
+                            const separator = promptBuilder.rawPrompt.trim()
+                              ? ", "
+                              : "";
+                            const newPrompt =
+                              promptBuilder.rawPrompt.trim() +
+                              separator +
+                              "avoid: " +
+                              action.actionPayload;
+                            setPromptBuilder(prev => ({
+                              ...prev,
+                              rawPrompt: newPrompt,
+                              compiledPrompt: newPrompt,
+                            }));
+                          }
+                          break;
+                        }
                       }
-                    }
-                  }}
-                />
-              </div>
+                    }}
+                  />
+                </div>
               )}
 
               {/* ── Inspiration Quick Panel (simple mode) ── */}
               {isSimple && (
                 <div className="mt-4">
                   <InspirationQuickPanel
-                    onApply={(blocks) => {
+                    onApply={blocks => {
                       const parts = Object.entries(blocks)
                         .filter(([_, v]) => v)
                         .map(([_, label]) => label as string);
-                      const inspirationPrompt = parts.join(', ');
-                      const separator = promptBuilder.rawPrompt.trim() ? ', ' : '';
-                      const newRaw = promptBuilder.rawPrompt.trim() + separator + inspirationPrompt;
-                      setPromptBuilder(prev => ({ ...prev, rawPrompt: newRaw, compiledPrompt: newRaw }));
+                      const inspirationPrompt = parts.join(", ");
+                      const separator = promptBuilder.rawPrompt.trim()
+                        ? ", "
+                        : "";
+                      const newRaw =
+                        promptBuilder.rawPrompt.trim() +
+                        separator +
+                        inspirationPrompt;
+                      setPromptBuilder(prev => ({
+                        ...prev,
+                        rawPrompt: newRaw,
+                        compiledPrompt: newRaw,
+                      }));
                       toast.success("已套用靈感 ✨");
                     }}
                   />
@@ -1468,44 +2072,63 @@ export default function Studio() {
           {/* Modality-Specific Workspace / Personality Selector — hidden in simple mode */}
           {!isSimple && (
             <GlassCard hover={false} id="personality-selector">
-            <div className="space-y-1">
-              <h3 className="hs-h3 !mb-0 text-foreground flex items-center gap-2">
-                {activeModality === "image" && <><Image className="w-4 h-4 text-primary" /> 圖片工作區</>}
+              <div className="space-y-1">
+                <h3 className="hs-h3 !mb-0 text-foreground flex items-center gap-2">
+                  {activeModality === "image" && (
+                    <>
+                      <Image className="w-4 h-4 text-primary" /> 圖片工作區
+                    </>
+                  )}
+                  {activeModality === "video" && (
+                    <>
+                      <Video className="w-4 h-4 text-primary" /> 影片工作區
+                      <span
+                        className="text-[10px] text-muted-foreground/40 font-normal"
+                        title="Powered by Veo 3.1"
+                      >
+                        Veo 3.1
+                      </span>
+                    </>
+                  )}
+                  {activeModality === "audio" && (
+                    <>
+                      <Music className="w-4 h-4 text-primary" /> 音樂工作區
+                      <span
+                        className="text-[10px] text-muted-foreground/40 font-normal"
+                        title="Powered by Suno"
+                      >
+                        Suno
+                      </span>
+                    </>
+                  )}
+                  {activeModality === "voice" && (
+                    <>
+                      <Mic className="w-4 h-4 text-primary" /> 語音工作區
+                      <span
+                        className="text-[10px] text-muted-foreground/40 font-normal"
+                        title="Powered by ElevenLabs"
+                      >
+                        ElevenLabs
+                      </span>
+                    </>
+                  )}
+                </h3>
+                <div className="h-px bg-border/30 my-3" />
+
+                {activeModality === "image" && (
+                  <ImageWorkspace value={imageState} onChange={setImageState} />
+                )}
                 {activeModality === "video" && (
-                  <>
-                    <Video className="w-4 h-4 text-primary" /> 影片工作區
-                    <span className="text-[10px] text-muted-foreground/40 font-normal" title="Powered by Veo 3.1">Veo 3.1</span>
-                  </>
+                  <VideoWorkspace value={videoState} onChange={setVideoState} />
                 )}
                 {activeModality === "audio" && (
-                  <>
-                    <Music className="w-4 h-4 text-primary" /> 音樂工作區
-                    <span className="text-[10px] text-muted-foreground/40 font-normal" title="Powered by Suno">Suno</span>
-                  </>
+                  <AudioWorkspace value={audioState} onChange={setAudioState} />
                 )}
                 {activeModality === "voice" && (
-                  <>
-                    <Mic className="w-4 h-4 text-primary" /> 語音工作區
-                    <span className="text-[10px] text-muted-foreground/40 font-normal" title="Powered by ElevenLabs">ElevenLabs</span>
-                  </>
+                  <VoiceWorkspace value={voiceState} onChange={setVoiceState} />
                 )}
-              </h3>
-              <div className="h-px bg-border/30 my-3" />
-
-              {activeModality === "image" && (
-                <ImageWorkspace value={imageState} onChange={setImageState} />
-              )}
-              {activeModality === "video" && (
-                <VideoWorkspace value={videoState} onChange={setVideoState} />
-              )}
-              {activeModality === "audio" && (
-                <AudioWorkspace value={audioState} onChange={setAudioState} />
-              )}
-              {activeModality === "voice" && (
-                <VoiceWorkspace value={voiceState} onChange={setVoiceState} />
-              )}
-            </div>
-          </GlassCard>
+              </div>
+            </GlassCard>
           )}
 
           {/* ── Structured Prompt Blocks — hidden in simple mode ── */}
@@ -1547,11 +2170,20 @@ export default function Studio() {
             <AdvancedPromptPanel
               compiledPrompt={compileResult.compiledPrompt}
               advancedPrompt={advancedPrompt[modalityKey] || ""}
-              onAdvancedPromptChange={(val) => setAdvancedPrompt(prev => ({ ...prev, [modalityKey]: val }))}
+              onAdvancedPromptChange={val =>
+                setAdvancedPrompt(prev => ({ ...prev, [modalityKey]: val }))
+              }
               override={advancedPromptOverride[modalityKey] || false}
-              onOverrideChange={(val) => setAdvancedPromptOverride(prev => ({ ...prev, [modalityKey]: val }))}
+              onOverrideChange={val =>
+                setAdvancedPromptOverride(prev => ({
+                  ...prev,
+                  [modalityKey]: val,
+                }))
+              }
               negativePrompt={negativePrompts[modalityKey] || ""}
-              onNegativePromptChange={(val) => setNegativePrompts(prev => ({ ...prev, [modalityKey]: val }))}
+              onNegativePromptChange={val =>
+                setNegativePrompts(prev => ({ ...prev, [modalityKey]: val }))
+              }
               modality={modalityKey}
             />
           )}
@@ -1581,10 +2213,15 @@ export default function Studio() {
                 <Cpu className="w-3 h-3" />
                 {currentEngine.label}
               </span>
-              <span className={`flex items-center gap-1 font-medium ${
-                currentEngine.estimatedPoints >= 30 ? "text-amber-500" :
-                currentEngine.estimatedPoints >= 10 ? "text-blue-500" : "text-green-600"
-              }`}>
+              <span
+                className={`flex items-center gap-1 font-medium ${
+                  currentEngine.estimatedPoints >= 30
+                    ? "text-amber-500"
+                    : currentEngine.estimatedPoints >= 10
+                      ? "text-blue-500"
+                      : "text-green-600"
+                }`}
+              >
                 {currentEngine.estimatedPoints} pts
                 {!currentEngine.available && (
                   <span className="text-destructive ml-1">（不可用）</span>
@@ -1598,7 +2235,9 @@ export default function Studio() {
             actionMode={actionMode}
             onActionModeChange={setActionMode}
             onGenerate={handleGenerate}
-            isGenerating={generateMutation.isPending || prepareJobMutation.isPending}
+            isGenerating={
+              generateMutation.isPending || prepareJobMutation.isPending
+            }
             hasResult={!!resultUrl}
             simpleMode={isSimple}
           />
@@ -1614,13 +2253,35 @@ export default function Studio() {
                 transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
               >
                 <ThoughtIslandChain
-                  nodes={thoughtChain.length > 0 ? thoughtChain : [
-                    { id: "safety", label: "安全檢查", status: "processing", detail: "正在驗證...", timestamp: Date.now() },
-                    { id: "compile", label: "提示詞編譯", status: "queued", detail: "等待中...", timestamp: Date.now() },
-                    { id: "generate", label: "AI 生成", status: "queued", detail: "等待中...", timestamp: Date.now() },
-                  ]}
+                  nodes={
+                    thoughtChain.length > 0
+                      ? thoughtChain
+                      : [
+                          {
+                            id: "safety",
+                            label: "安全檢查",
+                            status: "processing",
+                            detail: "正在驗證...",
+                            timestamp: Date.now(),
+                          },
+                          {
+                            id: "compile",
+                            label: "提示詞編譯",
+                            status: "queued",
+                            detail: "等待中...",
+                            timestamp: Date.now(),
+                          },
+                          {
+                            id: "generate",
+                            label: "AI 生成",
+                            status: "queued",
+                            detail: "等待中...",
+                            timestamp: Date.now(),
+                          },
+                        ]
+                  }
                   isVisible={true}
-                  onPinToNotes={(node) => {
+                  onPinToNotes={node => {
                     const notesEvent = new CustomEvent("pin-to-notes", {
                       detail: {
                         title: `思維節點：${node.label}`,
@@ -1656,10 +2317,15 @@ export default function Studio() {
                           playsInline
                           className="w-full rounded-xl max-h-64 sm:max-h-80 lg:max-h-[400px]"
                         />
-                      ) : activeModality === "audio" || activeModality === "voice" ? (
+                      ) : activeModality === "audio" ||
+                        activeModality === "voice" ? (
                         <div className="p-4 flex flex-col items-center gap-3">
                           <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500/20 to-cyan-500/20 flex items-center justify-center">
-                            {activeModality === "audio" ? <Music className="w-8 h-8 text-purple-400" /> : <Mic className="w-8 h-8 text-cyan-400" />}
+                            {activeModality === "audio" ? (
+                              <Music className="w-8 h-8 text-purple-400" />
+                            ) : (
+                              <Mic className="w-8 h-8 text-cyan-400" />
+                            )}
                           </div>
                           <audio
                             src={resultUrl}
@@ -1669,7 +2335,12 @@ export default function Studio() {
                           />
                         </div>
                       ) : (
-                        <img src={resultUrl} alt="Generated" className="w-full object-cover max-h-[400px] sm:max-h-[500px] lg:max-h-[600px]" loading="lazy" />
+                        <img
+                          src={resultUrl}
+                          alt="Generated"
+                          className="w-full object-cover max-h-[400px] sm:max-h-[500px] lg:max-h-[600px]"
+                          loading="lazy"
+                        />
                       )}
                     </div>
                   )}
@@ -1707,21 +2378,40 @@ export default function Studio() {
 
                   {/* ── Generation Details (all fields visible) ── */}
                   <div className="text-xs text-muted-foreground space-y-1 p-3 rounded-lg bg-muted/10 border border-border/20">
-                    <p className="font-medium text-foreground text-[11px] mb-2">生成詳情</p>
+                    <p className="font-medium text-foreground text-[11px] mb-2">
+                      生成詳情
+                    </p>
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                      <span>模態：{activeModality === "image" ? "圖片" : activeModality === "video" ? "影片" : activeModality === "audio" ? "音樂" : "語音"}</span>
-                      <span>模式：{mode === "lightning" ? "閃電" : "深度精磆"}</span>
+                      <span>
+                        模態：
+                        {activeModality === "image"
+                          ? "圖片"
+                          : activeModality === "video"
+                            ? "影片"
+                            : activeModality === "audio"
+                              ? "音樂"
+                              : "語音"}
+                      </span>
+                      <span>
+                        模式：{mode === "lightning" ? "閃電" : "深度精磆"}
+                      </span>
                       <span>Temperature：{temperature}</span>
                       <span>Seed：{seed || "random"}</span>
                       <span>LoRA 權重：{loraWeight}</span>
                       {promptBuilder.vibeCardIds.length > 0 && (
-                        <span className="col-span-2">Vibe Cards：{promptBuilder.vibeCardIds.join(", ")}</span>
+                        <span className="col-span-2">
+                          Vibe Cards：{promptBuilder.vibeCardIds.join(", ")}
+                        </span>
                       )}
                     </div>
                     {promptBuilder.compiledPrompt && (
                       <div className="mt-2 pt-2 border-t border-border/20">
-                        <p className="font-medium text-foreground text-[11px] mb-1">編譯後提示詞</p>
-                        <p className="text-[11px] leading-relaxed whitespace-pre-wrap">{promptBuilder.compiledPrompt}</p>
+                        <p className="font-medium text-foreground text-[11px] mb-1">
+                          編譯後提示詞
+                        </p>
+                        <p className="text-[11px] leading-relaxed whitespace-pre-wrap">
+                          {promptBuilder.compiledPrompt}
+                        </p>
                       </div>
                     )}
                   </div>
@@ -1738,10 +2428,22 @@ export default function Studio() {
                           const resp = await fetch(proxyUrl);
                           if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
                           const blob = await resp.blob();
-                          const ext = activeModality === "image" ? (blob.type.includes("png") ? "png" : blob.type.includes("webp") ? "webp" : "jpg")
-                            : activeModality === "video" ? "mp4"
-                            : activeModality === "audio" ? (blob.type.includes("wav") ? "wav" : "mp3")
-                            : (blob.type.includes("wav") ? "wav" : "mp3");
+                          const ext =
+                            activeModality === "image"
+                              ? blob.type.includes("png")
+                                ? "png"
+                                : blob.type.includes("webp")
+                                  ? "webp"
+                                  : "jpg"
+                              : activeModality === "video"
+                                ? "mp4"
+                                : activeModality === "audio"
+                                  ? blob.type.includes("wav")
+                                    ? "wav"
+                                    : "mp3"
+                                  : blob.type.includes("wav")
+                                    ? "wav"
+                                    : "mp3";
                           const objectUrl = URL.createObjectURL(blob);
                           const a = document.createElement("a");
                           a.href = objectUrl;
@@ -1758,7 +2460,12 @@ export default function Studio() {
                       }}
                     >
                       <Download className="w-4 h-4" />
-                      下載 {activeModality === "image" ? "PNG" : activeModality === "video" ? "MP4" : "MP3"}
+                      下載{" "}
+                      {activeModality === "image"
+                        ? "PNG"
+                        : activeModality === "video"
+                          ? "MP4"
+                          : "MP3"}
                     </Button>
                   )}
 
@@ -1818,10 +2525,18 @@ export default function Studio() {
                     onClick={async () => {
                       try {
                         const zip = new JSZip();
-                        const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+                        const timestamp = new Date()
+                          .toISOString()
+                          .replace(/[:.]/g, "-")
+                          .slice(0, 19);
 
                         // Determine file extension by modality
-                        const extMap: Record<string, string> = { image: "png", video: "mp4", audio: "mp3", voice: "mp3" };
+                        const extMap: Record<string, string> = {
+                          image: "png",
+                          video: "mp4",
+                          audio: "mp3",
+                          voice: "mp3",
+                        };
                         const defaultExt = extMap[activeModality] || "bin";
 
                         // Download and add the generated asset (via proxy to avoid CORS)
@@ -1829,17 +2544,32 @@ export default function Studio() {
                           try {
                             const proxyUrl = `/api/proxy-download?url=${encodeURIComponent(resultUrl)}`;
                             const resp = await fetch(proxyUrl);
-                            if (!resp.ok) throw new Error(`proxy ${resp.status}`);
+                            if (!resp.ok)
+                              throw new Error(`proxy ${resp.status}`);
                             const blob = await resp.blob();
                             let ext = defaultExt;
                             if (activeModality === "image") {
-                              ext = blob.type.includes("png") ? "png" : blob.type.includes("webp") ? "webp" : "jpg";
+                              ext = blob.type.includes("png")
+                                ? "png"
+                                : blob.type.includes("webp")
+                                  ? "webp"
+                                  : "jpg";
                             } else if (activeModality === "video") {
                               ext = blob.type.includes("webm") ? "webm" : "mp4";
-                            } else if (activeModality === "audio" || activeModality === "voice") {
-                              ext = blob.type.includes("wav") ? "wav" : blob.type.includes("ogg") ? "ogg" : "mp3";
+                            } else if (
+                              activeModality === "audio" ||
+                              activeModality === "voice"
+                            ) {
+                              ext = blob.type.includes("wav")
+                                ? "wav"
+                                : blob.type.includes("ogg")
+                                  ? "ogg"
+                                  : "mp3";
                             }
-                            zip.file(`generated-${activeModality}.${ext}`, blob);
+                            zip.file(
+                              `generated-${activeModality}.${ext}`,
+                              blob
+                            );
                           } catch {
                             // Fallback: include URL as text file
                             zip.file("asset-url.txt", resultUrl);
@@ -1852,18 +2582,30 @@ export default function Studio() {
                         lines.push("  AI Director — 生成參數說明");
                         lines.push("═══════════════════════════════════════");
                         lines.push("");
-                        lines.push(`生成時間：${new Date().toLocaleString("zh-TW")}`);
-                        lines.push(`模態：${activeModality === "image" ? "圖片" : activeModality === "video" ? "影片" : activeModality === "audio" ? "音樂" : "語音"}`);
-                        lines.push(`模式：${mode === "lightning" ? "閃電模式 (Flash)" : "專業模式 (Pro)"}`);
+                        lines.push(
+                          `生成時間：${new Date().toLocaleString("zh-TW")}`
+                        );
+                        lines.push(
+                          `模態：${activeModality === "image" ? "圖片" : activeModality === "video" ? "影片" : activeModality === "audio" ? "音樂" : "語音"}`
+                        );
+                        lines.push(
+                          `模式：${mode === "lightning" ? "閃電模式 (Flash)" : "專業模式 (Pro)"}`
+                        );
                         lines.push(`創意溫度：${temperature}`);
                         lines.push(`種子碼：${seed || "隨機"}`);
                         lines.push(`LoRA 權重：${loraWeight}`);
                         lines.push("");
                         lines.push("── 提示詞 ──");
-                        lines.push(`原始輸入：${promptBuilder.rawPrompt || "(空)"}`);
-                        lines.push(`編譯結果：${promptBuilder.compiledPrompt || "(未編譯)"}`);
+                        lines.push(
+                          `原始輸入：${promptBuilder.rawPrompt || "(空)"}`
+                        );
+                        lines.push(
+                          `編譯結果：${promptBuilder.compiledPrompt || "(未編譯)"}`
+                        );
                         if (promptBuilder.vibeCardIds.length > 0) {
-                          lines.push(`Vibe Cards：${promptBuilder.vibeCardIds.join(", ")}`);
+                          lines.push(
+                            `Vibe Cards：${promptBuilder.vibeCardIds.join(", ")}`
+                          );
                         }
                         lines.push("");
 
@@ -1871,28 +2613,48 @@ export default function Studio() {
                         if (activeModality === "image") {
                           lines.push("── 圖片參數 ──");
                           lines.push(`長寬比：${imageState.aspectRatio}`);
-                          lines.push(`負面提示詞：${imageState.negativePrompt || "(無)"}`);
-                          lines.push(`風格參考圖：${imageState.styleReferenceUrl || "(無)"}`);
-                          lines.push(`氛圍參考圖：${imageState.vibeReferenceUrl || "(無)"}`);
+                          lines.push(
+                            `負面提示詞：${imageState.negativePrompt || "(無)"}`
+                          );
+                          lines.push(
+                            `風格參考圖：${imageState.styleReferenceUrl || "(無)"}`
+                          );
+                          lines.push(
+                            `氛圍參考圖：${imageState.vibeReferenceUrl || "(無)"}`
+                          );
                         } else if (activeModality === "video") {
                           lines.push("── 影片參數 ──");
                           lines.push(`時長：${videoState.duration}`);
-                          lines.push(`鏡頭運動：${videoState.cameraMotion || "(無)"}`);
-                          lines.push(`首幀圖片：${videoState.firstFrameUrl || "(無)"}`);
-                          lines.push(`末幀圖片：${videoState.lastFrameUrl || "(無)"}`);
-                          lines.push(`角色參考：${videoState.characterRefUrl || "(無)"}`);
+                          lines.push(
+                            `鏡頭運動：${videoState.cameraMotion || "(無)"}`
+                          );
+                          lines.push(
+                            `首幀圖片：${videoState.firstFrameUrl || "(無)"}`
+                          );
+                          lines.push(
+                            `末幀圖片：${videoState.lastFrameUrl || "(無)"}`
+                          );
+                          lines.push(
+                            `角色參考：${videoState.characterRefUrl || "(無)"}`
+                          );
                         } else if (activeModality === "audio") {
                           lines.push("── 音樂參數 ──");
                           lines.push(`音樂風格：${audioState.musicStyle}`);
                           lines.push(`能量等級：${audioState.energy}`);
-                          lines.push(`純樂器：${audioState.isInstrumental ? "是" : "否"}`);
-                          lines.push(`自訂歌詞：${audioState.lyrics || "(無)"}`);
+                          lines.push(
+                            `純樂器：${audioState.isInstrumental ? "是" : "否"}`
+                          );
+                          lines.push(
+                            `自訂歌詞：${audioState.lyrics || "(無)"}`
+                          );
                         } else if (activeModality === "voice") {
                           lines.push("── 語音參數 ──");
                           lines.push(`語音角色：${voiceState.voiceActorId}`);
                           lines.push(`語速：${voiceState.speed}`);
                           lines.push(`情緒類型：${voiceState.emotionType}`);
-                          lines.push(`情緒強度：${voiceState.emotionIntensity}`);
+                          lines.push(
+                            `情緒強度：${voiceState.emotionIntensity}`
+                          );
                           lines.push(`穩定度：${voiceState.stability}`);
                           lines.push(`文案：${voiceState.text || "(空)"}`);
                         }
@@ -1902,7 +2664,9 @@ export default function Studio() {
                           lines.push("");
                           lines.push("── AI 推理鏈 ──");
                           thoughtChain.forEach(n => {
-                            lines.push(`[${n.status.toUpperCase()}] ${n.label}：${n.detail}`);
+                            lines.push(
+                              `[${n.status.toUpperCase()}] ${n.label}：${n.detail}`
+                            );
                           });
                         }
 
@@ -1915,18 +2679,35 @@ export default function Studio() {
                           temperature,
                           seed: seed || "random",
                           loraWeight,
-                          prompt: { raw: promptBuilder.rawPrompt, compiled: promptBuilder.compiledPrompt, vibeCardIds: promptBuilder.vibeCardIds },
-                          ...(activeModality === "image" ? { imageParams: imageState } : {}),
-                          ...(activeModality === "video" ? { videoParams: videoState } : {}),
-                          ...(activeModality === "audio" ? { audioParams: audioState } : {}),
-                          ...(activeModality === "voice" ? { voiceParams: voiceState } : {}),
+                          prompt: {
+                            raw: promptBuilder.rawPrompt,
+                            compiled: promptBuilder.compiledPrompt,
+                            vibeCardIds: promptBuilder.vibeCardIds,
+                          },
+                          ...(activeModality === "image"
+                            ? { imageParams: imageState }
+                            : {}),
+                          ...(activeModality === "video"
+                            ? { videoParams: videoState }
+                            : {}),
+                          ...(activeModality === "audio"
+                            ? { audioParams: audioState }
+                            : {}),
+                          ...(activeModality === "voice"
+                            ? { voiceParams: voiceState }
+                            : {}),
                           resultUrl,
                           thoughtChain,
                           generatedAt: new Date().toISOString(),
                         };
-                        zip.file("metadata.json", JSON.stringify(metadata, null, 2));
+                        zip.file(
+                          "metadata.json",
+                          JSON.stringify(metadata, null, 2)
+                        );
 
-                        const content = await zip.generateAsync({ type: "blob" });
+                        const content = await zip.generateAsync({
+                          type: "blob",
+                        });
                         if (content.size === 0) {
                           toast.error("ZIP 檔案為空，請稍後再試");
                           return;
@@ -1960,11 +2741,20 @@ export default function Studio() {
             <GlassCard hover={false}>
               <GenerationControls
                 temperature={temperature}
-                onTemperatureChange={(v) => { setTemperature(v); notifyAdvancedParams(); }}
+                onTemperatureChange={v => {
+                  setTemperature(v);
+                  notifyAdvancedParams();
+                }}
                 seed={seed}
-                onSeedChange={(v) => { setSeed(v); notifyAdvancedParams(); }}
+                onSeedChange={v => {
+                  setSeed(v);
+                  notifyAdvancedParams();
+                }}
                 mode={mode}
-                onModeChange={(v) => { setMode(v); notifyAdvancedParams(); }}
+                onModeChange={v => {
+                  setMode(v);
+                  notifyAdvancedParams();
+                }}
                 loraWeight={loraWeight}
                 onLoraWeightChange={setLoraWeight}
                 showLoraWeight={showLoraWeight}
@@ -2018,14 +2808,24 @@ export default function Studio() {
             title="🗂️ 工具箱"
           >
             <div className="flex gap-1 p-2 mb-2 flex-wrap">
-              {(["vault", "assets", "models", "controls", "history"] as const).map((tab) => {
-                const labels: Record<string, string> = { vault: "保險庫", assets: "資產", models: "模型", controls: "參數", history: "歷史" };
+              {(
+                ["vault", "assets", "models", "controls", "history"] as const
+              ).map(tab => {
+                const labels: Record<string, string> = {
+                  vault: "保險庫",
+                  assets: "資產",
+                  models: "模型",
+                  controls: "參數",
+                  history: "歷史",
+                };
                 return (
                   <button
                     key={tab}
                     onClick={() => setToolboxTab(tab)}
                     className={`flex-1 text-xs py-2 rounded-lg transition-colors min-w-[60px] ${
-                      toolboxTab === tab ? "bg-primary text-primary-foreground" : "bg-muted/30 text-muted-foreground"
+                      toolboxTab === tab
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted/30 text-muted-foreground"
                     }`}
                   >
                     {labels[tab]}
@@ -2033,13 +2833,23 @@ export default function Studio() {
                 );
               })}
             </div>
-            {toolboxTab === "vault" && <ConsistencyVault onSelect={handleVaultSelect} />}
+            {toolboxTab === "vault" && (
+              <ConsistencyVault onSelect={handleVaultSelect} />
+            )}
             {toolboxTab === "assets" && <MiniAssetsPanel />}
             {toolboxTab === "models" && (
               <MiniModelsPanel
                 activeModelId={fineTunedModelId}
-                onApply={(id, name) => { setFineTunedModelId(id); setFineTunedModelName(name); toast.success(`已套用模型「${name}」`); }}
-                onRemove={() => { setFineTunedModelId(undefined); setFineTunedModelName(undefined); toast.info("已移除微調模型"); }}
+                onApply={(id, name) => {
+                  setFineTunedModelId(id);
+                  setFineTunedModelName(name);
+                  toast.success(`已套用模型「${name}」`);
+                }}
+                onRemove={() => {
+                  setFineTunedModelId(undefined);
+                  setFineTunedModelName(undefined);
+                  toast.info("已移除微調模型");
+                }}
               />
             )}
             {toolboxTab === "controls" && (
@@ -2055,7 +2865,9 @@ export default function Studio() {
                 showLoraWeight={showLoraWeight}
               />
             )}
-            {toolboxTab === "history" && <MiniHistoryPanel onSendToStudio={handleHistoryToStudio} />}
+            {toolboxTab === "history" && (
+              <MiniHistoryPanel onSendToStudio={handleHistoryToStudio} />
+            )}
           </BottomSheet>
         </>
       )}
@@ -2065,38 +2877,47 @@ export default function Studio() {
 
       {/* Floating Proactive Orb Widget */}
       <ProactiveOrbWidget
-        onSaveToNotes={(payload) => {
-          const notesEvent = new CustomEvent("pin-to-notes", { detail: payload });
+        onSaveToNotes={payload => {
+          const notesEvent = new CustomEvent("pin-to-notes", {
+            detail: payload,
+          });
           window.dispatchEvent(notesEvent);
         }}
         onOpenNotes={() => {
           window.dispatchEvent(new CustomEvent("open-notes-drawer"));
         }}
         onOpenCalendar={() => {
-          window.dispatchEvent(new CustomEvent("navigate-to", { detail: "/calendar" }));
+          window.dispatchEvent(
+            new CustomEvent("navigate-to", { detail: "/calendar" })
+          );
         }}
-        onAddToCalendar={(payload) => {
-          window.dispatchEvent(new CustomEvent("add-to-calendar", { detail: payload }));
+        onAddToCalendar={payload => {
+          window.dispatchEvent(
+            new CustomEvent("add-to-calendar", { detail: payload })
+          );
         }}
         onRestartTour={() => {
           // 觸發全站引導 for studio
-          window.dispatchEvent(new CustomEvent("site-tour-start", { detail: { pageId: "studio" } }));
+          window.dispatchEvent(
+            new CustomEvent("site-tour-start", { detail: { pageId: "studio" } })
+          );
         }}
-        onApplyInspiration={(blocks) => {
+        onApplyInspiration={blocks => {
           // Build a prompt string from inspiration blocks
           const parts = Object.entries(blocks)
             .filter(([_, v]) => v)
             .map(([_, label]) => label as string);
-          const inspirationPrompt = parts.join(', ');
-          const separator = promptBuilder.rawPrompt.trim() ? ', ' : '';
-          const newRaw = promptBuilder.rawPrompt.trim() + separator + inspirationPrompt;
-          setPromptBuilder((prev) => ({
+          const inspirationPrompt = parts.join(", ");
+          const separator = promptBuilder.rawPrompt.trim() ? ", " : "";
+          const newRaw =
+            promptBuilder.rawPrompt.trim() + separator + inspirationPrompt;
+          setPromptBuilder(prev => ({
             ...prev,
             rawPrompt: newRaw,
             compiledPrompt: newRaw,
           }));
         }}
-        onSwitchModality={(modality) => {
+        onSwitchModality={modality => {
           setActiveModality(modality);
         }}
       />
@@ -2107,12 +2928,14 @@ export default function Studio() {
 // ─── Mini Assets Panel (embedded in left drawer) ────────────────────────────
 
 function MiniAssetsPanel() {
-  const myAssetsQuery = trpc.assets.myAssets.useQuery(undefined, { retry: false });
+  const myAssetsQuery = trpc.assets.myAssets.useQuery(undefined, {
+    retry: false,
+  });
 
   if (myAssetsQuery.isLoading) {
     return (
       <div className="p-3 space-y-2">
-        {[1, 2, 3].map((i) => (
+        {[1, 2, 3].map(i => (
           <div key={i} className="h-12 rounded-lg bg-muted/30 animate-pulse" />
         ))}
       </div>
@@ -2126,7 +2949,9 @@ function MiniAssetsPanel() {
       <div className="p-6 text-center">
         <Package className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
         <p className="text-xs text-muted-foreground">尚無數位資產</p>
-        <p className="text-xs text-muted-foreground/60 mt-1">生成作品後會自動保存至此</p>
+        <p className="text-xs text-muted-foreground/60 mt-1">
+          生成作品後會自動保存至此
+        </p>
       </div>
     );
   }
@@ -2146,14 +2971,21 @@ function MiniAssetsPanel() {
           className="flex items-center gap-2 p-2 rounded-lg hover:bg-accent/30 transition-colors cursor-pointer"
         >
           {asset.thumbnailUrl ? (
-            <img src={asset.thumbnailUrl} alt="" className="w-8 h-8 rounded object-cover shrink-0" loading="lazy" />
+            <img
+              src={asset.thumbnailUrl}
+              alt=""
+              className="w-8 h-8 rounded object-cover shrink-0"
+              loading="lazy"
+            />
           ) : (
             <div className="w-8 h-8 rounded bg-muted/30 flex items-center justify-center shrink-0">
               {ASSET_ICONS[asset.type] || <Package className="w-3 h-3" />}
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <p className="text-xs text-foreground truncate">{asset.name || "未命名"}</p>
+            <p className="text-xs text-foreground truncate">
+              {asset.name || "未命名"}
+            </p>
             <p className="text-[10px] text-muted-foreground">{asset.type}</p>
           </div>
         </div>
@@ -2161,7 +2993,6 @@ function MiniAssetsPanel() {
     </div>
   );
 }
-
 
 // ─── Mini Models Panel (embedded in left drawer) ──────────────────────────
 
@@ -2174,12 +3005,14 @@ function MiniModelsPanel({
   onApply: (id: number, name: string) => void;
   onRemove: () => void;
 }) {
-  const myModelsQuery = trpc.models.myModels.useQuery(undefined, { retry: false });
+  const myModelsQuery = trpc.models.myModels.useQuery(undefined, {
+    retry: false,
+  });
 
   if (myModelsQuery.isLoading) {
     return (
       <div className="p-3 space-y-2">
-        {[1, 2, 3].map((i) => (
+        {[1, 2, 3].map(i => (
           <div key={i} className="h-12 rounded-lg bg-muted/30 animate-pulse" />
         ))}
       </div>
@@ -2193,7 +3026,9 @@ function MiniModelsPanel({
       <div className="p-6 text-center">
         <Cpu className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
         <p className="text-xs text-muted-foreground">尚無微調模型</p>
-        <p className="text-xs text-muted-foreground/60 mt-1">前往「角色鍛造所」訓練你的專屬模型</p>
+        <p className="text-xs text-muted-foreground/60 mt-1">
+          前往「角色鍛造所」訓練你的專屬模型
+        </p>
       </div>
     );
   }
@@ -2217,16 +3052,22 @@ function MiniModelsPanel({
           <div
             key={model.id}
             className={`flex items-center gap-2 p-2 rounded-lg transition-colors ${
-              isActive ? "bg-primary/10 ring-1 ring-primary/30" : "hover:bg-accent/30"
+              isActive
+                ? "bg-primary/10 ring-1 ring-primary/30"
+                : "hover:bg-accent/30"
             }`}
           >
             <div className="w-8 h-8 rounded bg-muted/30 flex items-center justify-center shrink-0">
               <Cpu className="w-3.5 h-3.5 text-muted-foreground" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs text-foreground truncate font-medium">{model.name}</p>
+              <p className="text-xs text-foreground truncate font-medium">
+                {model.name}
+              </p>
               <div className="flex items-center gap-1.5 mt-0.5">
-                <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${statusInfo.color}`}>
+                <span
+                  className={`text-[10px] px-1.5 py-0.5 rounded-full ${statusInfo.color}`}
+                >
                   {statusInfo.label}
                 </span>
                 {triggerWord && (
@@ -2238,7 +3079,9 @@ function MiniModelsPanel({
             </div>
             {isReady && (
               <button
-                onClick={() => isActive ? onRemove() : onApply(model.id, model.name)}
+                onClick={() =>
+                  isActive ? onRemove() : onApply(model.id, model.name)
+                }
                 className={`shrink-0 text-[10px] px-2 py-1 rounded-md transition-colors ${
                   isActive
                     ? "bg-destructive/10 text-destructive hover:bg-destructive/20"
@@ -2246,9 +3089,15 @@ function MiniModelsPanel({
                 }`}
               >
                 {isActive ? (
-                  <><X className="w-2.5 h-2.5 inline mr-0.5" />移除</>
+                  <>
+                    <X className="w-2.5 h-2.5 inline mr-0.5" />
+                    移除
+                  </>
                 ) : (
-                  <><Check className="w-2.5 h-2.5 inline mr-0.5" />套用</>
+                  <>
+                    <Check className="w-2.5 h-2.5 inline mr-0.5" />
+                    套用
+                  </>
                 )}
               </button>
             )}

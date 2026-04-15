@@ -33,7 +33,7 @@ function getJwtSecret(): Uint8Array {
 }
 
 export type SessionPayload = {
-  sub: string;   // Google sub (openId)
+  sub: string; // Google sub (openId)
   name: string;
   email?: string;
   iat?: number;
@@ -54,7 +54,9 @@ export async function createSessionToken(
     .sign(secret);
 }
 
-export async function verifySessionToken(token: string): Promise<SessionPayload | null> {
+export async function verifySessionToken(
+  token: string
+): Promise<SessionPayload | null> {
   try {
     const secret = getJwtSecret();
     const { payload } = await jwtVerify(token, secret);
@@ -70,8 +72,11 @@ export function buildGoogleAuthUrl(redirectAfter?: string): string {
   const clientId = ENV.googleClientId;
   if (!clientId) throw new Error("GOOGLE_CLIENT_ID 未設定");
 
-  const redirectUri = ENV.googleRedirectUri || "http://localhost:3000/api/oauth/callback";
-  const state = redirectAfter ? Buffer.from(redirectAfter).toString("base64") : "";
+  const redirectUri =
+    ENV.googleRedirectUri || "http://localhost:3000/api/oauth/callback";
+  const state = redirectAfter
+    ? Buffer.from(redirectAfter).toString("base64")
+    : "";
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -101,7 +106,8 @@ export async function exchangeCodeForTokens(
 ): Promise<GoogleTokenResponse> {
   const clientId = ENV.googleClientId;
   const clientSecret = ENV.googleClientSecret;
-  const redirectUri = ENV.googleRedirectUri || "http://localhost:3000/api/oauth/callback";
+  const redirectUri =
+    ENV.googleRedirectUri || "http://localhost:3000/api/oauth/callback";
 
   if (!clientId || !clientSecret) {
     throw new Error("GOOGLE_CLIENT_ID 或 GOOGLE_CLIENT_SECRET 未設定");
@@ -121,7 +127,9 @@ export async function exchangeCodeForTokens(
 
   if (!response.ok) {
     const error = await response.text();
-    throw new Error(`Google token exchange failed: ${response.status} — ${error}`);
+    throw new Error(
+      `Google token exchange failed: ${response.status} — ${error}`
+    );
   }
 
   return response.json() as Promise<GoogleTokenResponse>;
@@ -130,14 +138,16 @@ export async function exchangeCodeForTokens(
 // ─── 取得 Google 用戶資訊 ──────────────────────────────────────────────────
 
 export interface GoogleUserInfo {
-  sub: string;       // Google 唯一 ID（用作 openId）
+  sub: string; // Google 唯一 ID（用作 openId）
   name?: string;
   email?: string;
   picture?: string;
   email_verified?: boolean;
 }
 
-export async function getGoogleUserInfo(accessToken: string): Promise<GoogleUserInfo> {
+export async function getGoogleUserInfo(
+  accessToken: string
+): Promise<GoogleUserInfo> {
   const response = await fetch(GOOGLE_USERINFO_URL, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });

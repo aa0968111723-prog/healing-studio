@@ -43,8 +43,8 @@ export type FalCategory =
   | "video-to-video";
 
 export interface FalModelConfig {
-  modelId: string;           // fal-ai/xxx model ID
-  label: string;             // 顯示名稱
+  modelId: string; // fal-ai/xxx model ID
+  label: string; // 顯示名稱
   category: FalCategory;
   tier: "premium" | "standard" | "fast";
   description: string;
@@ -65,8 +65,8 @@ export interface FalInputSchema {
   imageSize?: boolean;
   aspectRatio?: boolean;
   duration?: boolean;
-  strength?: boolean;          // i2i strength
-  loraUrl?: boolean;           // lora weights
+  strength?: boolean; // i2i strength
+  loraUrl?: boolean; // lora weights
   loraScale?: boolean;
   numFrames?: boolean;
   fps?: boolean;
@@ -86,7 +86,7 @@ export interface FalOutputSchema {
   videoUrl?: boolean;
   audioUrl?: boolean;
   modelUrl?: boolean;
-  objectUrl?: boolean;          // 3D object
+  objectUrl?: boolean; // 3D object
   text?: boolean;
   json?: boolean;
   seed?: boolean;
@@ -95,7 +95,6 @@ export interface FalOutputSchema {
 // ─── 16大類 × 5-6個模型目錄 ───────────────────────────────────────────────
 
 export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
-
   // ════════════════════════════════════════════════════════
   // 2-1  影像轉3D  image-to-3d
   // ════════════════════════════════════════════════════════
@@ -162,7 +161,13 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       category: "image-to-image",
       tier: "premium",
       description: "Flux Dev 圖像風格轉換，保留結構細節",
-      inputSchema: { imageUrl: true, prompt: true, strength: true, seed: true, numInferenceSteps: true },
+      inputSchema: {
+        imageUrl: true,
+        prompt: true,
+        strength: true,
+        seed: true,
+        numInferenceSteps: true,
+      },
       outputSchema: { images: true, seed: true },
       timeoutMs: 180_000,
     },
@@ -172,7 +177,13 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       category: "image-to-image",
       tier: "standard",
       description: "Stable Diffusion 3 圖生圖",
-      inputSchema: { imageUrl: true, prompt: true, strength: true, seed: true, negativePrompt: true },
+      inputSchema: {
+        imageUrl: true,
+        prompt: true,
+        strength: true,
+        seed: true,
+        negativePrompt: true,
+      },
       outputSchema: { images: true, seed: true },
       timeoutMs: 120_000,
     },
@@ -192,7 +203,13 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       category: "image-to-image",
       tier: "standard",
       description: "多控制網路圖生圖（姿勢/深度/邊緣）",
-      inputSchema: { imageUrl: true, prompt: true, negativePrompt: true, seed: true, guidanceScale: true },
+      inputSchema: {
+        imageUrl: true,
+        prompt: true,
+        negativePrompt: true,
+        seed: true,
+        guidanceScale: true,
+      },
       outputSchema: { images: true },
       timeoutMs: 180_000,
     },
@@ -284,7 +301,13 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       category: "image-to-video",
       tier: "premium",
       description: "Kling最新版高品質圖生影（5s/10s）",
-      inputSchema: { imageUrl: true, prompt: true, duration: true, aspectRatio: true, seed: true },
+      inputSchema: {
+        imageUrl: true,
+        prompt: true,
+        duration: true,
+        aspectRatio: true,
+        seed: true,
+      },
       outputSchema: { videoUrl: true },
       timeoutMs: 300_000,
     },
@@ -314,7 +337,13 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       category: "image-to-video",
       tier: "standard",
       description: "SVD 圖生影，動態幀數控制",
-      inputSchema: { imageUrl: true, motionBucketId: true, condAugmentation: true, numFrames: true, fps: true },
+      inputSchema: {
+        imageUrl: true,
+        motionBucketId: true,
+        condAugmentation: true,
+        numFrames: true,
+        fps: true,
+      },
       outputSchema: { videoUrl: true },
       timeoutMs: 240_000,
     },
@@ -334,7 +363,12 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       category: "image-to-video",
       tier: "premium",
       description: "Luma AI 高真實感圖生影",
-      inputSchema: { imageUrl: true, prompt: true, duration: true, aspectRatio: true },
+      inputSchema: {
+        imageUrl: true,
+        prompt: true,
+        duration: true,
+        aspectRatio: true,
+      },
       outputSchema: { videoUrl: true },
       timeoutMs: 300_000,
     },
@@ -343,7 +377,7 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
   // ════════════════════════════════════════════════════════
   // 2-5  JSON  structured output generation
   // ════════════════════════════════════════════════════════
-  "json": [
+  json: [
     {
       modelId: "fal-ai/any-llm",
       label: "Any LLM JSON Mode",
@@ -389,7 +423,7 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
   // ════════════════════════════════════════════════════════
   // 2-6  大型語言模型  LLM
   // ════════════════════════════════════════════════════════
-  "llm": [
+  llm: [
     {
       modelId: "fal-ai/any-llm",
       label: "Any LLM Router",
@@ -508,7 +542,12 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       category: "text-to-audio",
       tier: "premium",
       description: "Stable Audio 高品質音效生成（可達3分鐘）",
-      inputSchema: { prompt: true, duration: true, seed: true, negativePrompt: true },
+      inputSchema: {
+        prompt: true,
+        duration: true,
+        seed: true,
+        negativePrompt: true,
+      },
       outputSchema: { audioUrl: true },
       timeoutMs: 120_000,
     },
@@ -518,7 +557,13 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       category: "text-to-audio",
       tier: "standard",
       description: "AudioLDM2 音頻潛在擴散模型",
-      inputSchema: { prompt: true, duration: true, seed: true, numInferenceSteps: true, guidanceScale: true },
+      inputSchema: {
+        prompt: true,
+        duration: true,
+        seed: true,
+        numInferenceSteps: true,
+        guidanceScale: true,
+      },
       outputSchema: { audioUrl: true },
       timeoutMs: 60_000,
     },
@@ -528,7 +573,12 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       category: "text-to-audio",
       tier: "standard",
       description: "MMAudio V2 多模態音頻生成",
-      inputSchema: { prompt: true, duration: true, seed: true, negativePrompt: true },
+      inputSchema: {
+        prompt: true,
+        duration: true,
+        seed: true,
+        negativePrompt: true,
+      },
       outputSchema: { audioUrl: true },
       timeoutMs: 60_000,
     },
@@ -564,7 +614,14 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       category: "text-to-image",
       tier: "premium",
       description: "Flux Pro 最新版旗艦文生圖模型",
-      inputSchema: { prompt: true, imageSize: true, seed: true, negativePrompt: true, numInferenceSteps: true, guidanceScale: true },
+      inputSchema: {
+        prompt: true,
+        imageSize: true,
+        seed: true,
+        negativePrompt: true,
+        numInferenceSteps: true,
+        guidanceScale: true,
+      },
       outputSchema: { images: true, seed: true },
       timeoutMs: 180_000,
     },
@@ -574,7 +631,14 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       category: "text-to-image",
       tier: "premium",
       description: "Flux Dev 開發版高品質生成",
-      inputSchema: { prompt: true, imageSize: true, seed: true, negativePrompt: true, numInferenceSteps: true, guidanceScale: true },
+      inputSchema: {
+        prompt: true,
+        imageSize: true,
+        seed: true,
+        negativePrompt: true,
+        numInferenceSteps: true,
+        guidanceScale: true,
+      },
       outputSchema: { images: true, seed: true },
       timeoutMs: 120_000,
     },
@@ -584,7 +648,12 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       category: "text-to-image",
       tier: "fast",
       description: "Flux Schnell 極速生成（4步）",
-      inputSchema: { prompt: true, imageSize: true, seed: true, numInferenceSteps: true },
+      inputSchema: {
+        prompt: true,
+        imageSize: true,
+        seed: true,
+        numInferenceSteps: true,
+      },
       outputSchema: { images: true, seed: true },
       timeoutMs: 30_000,
     },
@@ -594,7 +663,14 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       category: "text-to-image",
       tier: "standard",
       description: "Stable Diffusion 3 中型版本",
-      inputSchema: { prompt: true, imageSize: true, seed: true, negativePrompt: true, numInferenceSteps: true, guidanceScale: true },
+      inputSchema: {
+        prompt: true,
+        imageSize: true,
+        seed: true,
+        negativePrompt: true,
+        numInferenceSteps: true,
+        guidanceScale: true,
+      },
       outputSchema: { images: true, seed: true },
       timeoutMs: 120_000,
     },
@@ -604,7 +680,14 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       category: "text-to-image",
       tier: "standard",
       description: "AuraFlow 開源高品質生成模型",
-      inputSchema: { prompt: true, imageSize: true, seed: true, negativePrompt: true, numInferenceSteps: true, guidanceScale: true },
+      inputSchema: {
+        prompt: true,
+        imageSize: true,
+        seed: true,
+        negativePrompt: true,
+        numInferenceSteps: true,
+        guidanceScale: true,
+      },
       outputSchema: { images: true, seed: true },
       timeoutMs: 120_000,
     },
@@ -614,7 +697,12 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       category: "text-to-image",
       tier: "premium",
       description: "Ideogram V2 精準文字嵌入圖像",
-      inputSchema: { prompt: true, imageSize: true, seed: true, negativePrompt: true },
+      inputSchema: {
+        prompt: true,
+        imageSize: true,
+        seed: true,
+        negativePrompt: true,
+      },
       outputSchema: { images: true },
       timeoutMs: 120_000,
     },
@@ -696,7 +784,12 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       category: "text-to-speech",
       tier: "standard",
       description: "Dia 對話式TTS，自然情感表達",
-      inputSchema: { prompt: true, voiceId: true, exaggeration: true, speed: true },
+      inputSchema: {
+        prompt: true,
+        voiceId: true,
+        exaggeration: true,
+        speed: true,
+      },
       outputSchema: { audioUrl: true },
       timeoutMs: 60_000,
     },
@@ -732,7 +825,13 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       category: "text-to-video",
       tier: "premium",
       description: "Kling V2.1 旗艦文生影（5s/10s）",
-      inputSchema: { prompt: true, duration: true, aspectRatio: true, seed: true, negativePrompt: true },
+      inputSchema: {
+        prompt: true,
+        duration: true,
+        aspectRatio: true,
+        seed: true,
+        negativePrompt: true,
+      },
       outputSchema: { videoUrl: true },
       timeoutMs: 300_000,
     },
@@ -742,7 +841,12 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       category: "text-to-video",
       tier: "premium",
       description: "Kling V2.1 文生影（標準版）",
-      inputSchema: { prompt: true, duration: true, aspectRatio: true, seed: true },
+      inputSchema: {
+        prompt: true,
+        duration: true,
+        aspectRatio: true,
+        seed: true,
+      },
       outputSchema: { videoUrl: true },
       timeoutMs: 300_000,
     },
@@ -762,7 +866,12 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       category: "text-to-video",
       tier: "premium",
       description: "Luma Dream Machine 高真實感文生影",
-      inputSchema: { prompt: true, duration: true, aspectRatio: true, seed: true },
+      inputSchema: {
+        prompt: true,
+        duration: true,
+        aspectRatio: true,
+        seed: true,
+      },
       outputSchema: { videoUrl: true },
       timeoutMs: 300_000,
     },
@@ -772,7 +881,13 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       category: "text-to-video",
       tier: "standard",
       description: "WAN T2V 高品質開源文生影",
-      inputSchema: { prompt: true, duration: true, aspectRatio: true, seed: true, negativePrompt: true },
+      inputSchema: {
+        prompt: true,
+        duration: true,
+        aspectRatio: true,
+        seed: true,
+        negativePrompt: true,
+      },
       outputSchema: { videoUrl: true },
       timeoutMs: 300_000,
     },
@@ -782,7 +897,12 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       category: "text-to-video",
       tier: "standard",
       description: "CogVideoX 5B 文生影模型",
-      inputSchema: { prompt: true, duration: true, seed: true, numInferenceSteps: true },
+      inputSchema: {
+        prompt: true,
+        duration: true,
+        seed: true,
+        numInferenceSteps: true,
+      },
       outputSchema: { videoUrl: true },
       timeoutMs: 300_000,
     },
@@ -791,14 +911,19 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
   // ════════════════════════════════════════════════════════
   // 2-13 訓練  training
   // ════════════════════════════════════════════════════════
-  "training": [
+  training: [
     {
       modelId: "fal-ai/flux-lora-fast-training",
       label: "Flux LoRA 快速訓練",
       category: "training",
       tier: "premium",
       description: "Flux LoRA 快速微調（15分鐘/概念）",
-      inputSchema: { imageUrl: true, prompt: true, trainingSteps: true, learningRate: true },
+      inputSchema: {
+        imageUrl: true,
+        prompt: true,
+        trainingSteps: true,
+        learningRate: true,
+      },
       outputSchema: { modelUrl: true },
       timeoutMs: 1_800_000,
     },
@@ -884,7 +1009,12 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       category: "video-to-audio",
       tier: "premium",
       description: "MMAudio 視頻同步音效生成",
-      inputSchema: { videoUrl: true, prompt: true, negativePrompt: true, seed: true },
+      inputSchema: {
+        videoUrl: true,
+        prompt: true,
+        negativePrompt: true,
+        seed: true,
+      },
       outputSchema: { audioUrl: true, videoUrl: true },
       timeoutMs: 180_000,
     },
@@ -1006,7 +1136,13 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       category: "video-to-video",
       tier: "standard",
       description: "WAN 影片到影片風格遷移",
-      inputSchema: { videoUrl: true, prompt: true, strength: true, seed: true, negativePrompt: true },
+      inputSchema: {
+        videoUrl: true,
+        prompt: true,
+        strength: true,
+        seed: true,
+        negativePrompt: true,
+      },
       outputSchema: { videoUrl: true },
       timeoutMs: 300_000,
     },
@@ -1056,14 +1192,16 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
 // ─── 便利查詢函數 ──────────────────────────────────────────────────────────
 
 /** 取得某類別所有模型 */
-export function getFalModelsByCategory(category: FalCategory): FalModelConfig[] {
+export function getFalModelsByCategory(
+  category: FalCategory
+): FalModelConfig[] {
   return FAL_MODEL_CATALOG[category] ?? [];
 }
 
 /** 依 modelId 查詢模型設定 */
 export function getFalModelById(modelId: string): FalModelConfig | undefined {
   for (const models of Object.values(FAL_MODEL_CATALOG)) {
-    const found = models.find((m) => m.modelId === modelId);
+    const found = models.find(m => m.modelId === modelId);
     if (found) return found;
   }
   return undefined;
@@ -1071,21 +1209,21 @@ export function getFalModelById(modelId: string): FalModelConfig | undefined {
 
 /** 取得所有類別標籤（繁中） */
 export const FAL_CATEGORY_LABELS: Record<FalCategory, string> = {
-  "image-to-3d":    "影像轉3D",
+  "image-to-3d": "影像轉3D",
   "image-to-image": "影像到影像",
-  "image-to-json":  "圖像轉JSON",
+  "image-to-json": "圖像轉JSON",
   "image-to-video": "圖片轉視頻",
-  "json":           "JSON",
-  "llm":            "大型語言模型",
-  "text-to-3d":     "文字轉3D",
-  "text-to-audio":  "文字轉音頻",
-  "text-to-image":  "文字轉圖像",
-  "text-to-json":   "文字轉JSON",
+  json: "JSON",
+  llm: "大型語言模型",
+  "text-to-3d": "文字轉3D",
+  "text-to-audio": "文字轉音頻",
+  "text-to-image": "文字轉圖像",
+  "text-to-json": "文字轉JSON",
   "text-to-speech": "文字轉語音",
-  "text-to-video":  "文字轉視頻",
-  "training":       "訓練",
+  "text-to-video": "文字轉視頻",
+  training: "訓練",
   "video-to-audio": "視訊轉音訊",
-  "video-to-text":  "影片轉文字",
+  "video-to-text": "影片轉文字",
   "video-to-video": "影片對影片",
 };
 
@@ -1107,7 +1245,9 @@ export interface FalCallResult {
  * 統一 Fal.ai 模型呼叫介面
  * 支援所有 16 大類模型
  */
-export async function callFalModel(params: FalCallInput): Promise<FalCallResult> {
+export async function callFalModel(
+  params: FalCallInput
+): Promise<FalCallResult> {
   const apiKey = process.env.FAL_API_KEY;
   if (!apiKey) throw new Error("FAL_API_KEY 未設定");
 
@@ -1120,7 +1260,10 @@ export async function callFalModel(params: FalCallInput): Promise<FalCallResult>
       logs: false,
     }),
     new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`Fal.ai 超時：${params.modelId}`)), params.timeoutMs ?? 300_000)
+      setTimeout(
+        () => reject(new Error(`Fal.ai 超時：${params.modelId}`)),
+        params.timeoutMs ?? 300_000
+      )
     ),
   ]);
 

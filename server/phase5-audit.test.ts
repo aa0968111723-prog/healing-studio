@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 
 // Mock LLM for evaluatePrompt tests
 // NOTE: vi.mock factory is hoisted, so inline the value (no top-level variable references)
-vi.mock("./_core/llm", async (importOriginal) => {
+vi.mock("./_core/llm", async importOriginal => {
   const actual = await importOriginal<typeof import("./_core/llm")>();
   return {
     ...actual,
@@ -25,7 +25,8 @@ vi.mock("./_core/llm", async (importOriginal) => {
                 {
                   label: "加入電影感光線",
                   actionType: "append_prompt",
-                  actionPayload: "cinematic lighting, warm golden hour, soft shadows",
+                  actionPayload:
+                    "cinematic lighting, warm golden hour, soft shadows",
                   reason: "提升畫面的電影感和氛圍",
                 },
               ],
@@ -44,7 +45,9 @@ import type { TrpcContext } from "./_core/context";
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
-function createMockUser(overrides: Partial<AuthenticatedUser> = {}): AuthenticatedUser {
+function createMockUser(
+  overrides: Partial<AuthenticatedUser> = {}
+): AuthenticatedUser {
   return {
     id: 1,
     openId: "test-user-001",
@@ -77,7 +80,6 @@ function createMockContext(user: AuthenticatedUser | null = null): TrpcContext {
 // ─── Tests ─────────────────────────────────────────────────────────────────
 
 describe("Phase 5: 7-Persona Audit Fixes", () => {
-
   // ─── ISSUE-01: ThoughtChain Real Timestamps ──────────────────────────────
 
   describe("ThoughtChain Real Timestamps", () => {
@@ -95,9 +97,11 @@ describe("Phase 5: 7-Persona Audit Fixes", () => {
       const ctx = createMockContext(user);
       const caller = appRouter.createCaller(ctx);
 
-      await expect(caller.generate.prepareJob({
-        generationType: "image",
-      })).rejects.toThrow();
+      await expect(
+        caller.generate.prepareJob({
+          generationType: "image",
+        })
+      ).rejects.toThrow();
 
       spy.mockRestore();
     });
@@ -113,12 +117,48 @@ describe("Phase 5: 7-Persona Audit Fixes", () => {
       };
 
       const mockChain: ThoughtNode[] = [
-        { id: "safety", label: "安全檢查", status: "passed", detail: "內容安全檢查通過（150ms）", timestamp: Date.now() - 4000 },
-        { id: "compile", label: "提示詞編譯", status: "completed", detail: "編譯後提示詞長度: 120 字元（800ms）", timestamp: Date.now() - 3000 },
-        { id: "weight", label: "視覺權重計算", status: "completed", detail: "visualWeight: 0.75, controlNet: {}", timestamp: Date.now() - 2500 },
-        { id: "generate", label: "圖像生成", status: "completed", detail: "生成成功（3500ms）", timestamp: Date.now() - 1000 },
-        { id: "quota", label: "配額扣除", status: "completed", detail: "扣除 1 次生成配額", timestamp: Date.now() - 100 },
-        { id: "history", label: "歷史紀錄", status: "completed", detail: "已儲存至生成歷史", timestamp: Date.now() },
+        {
+          id: "safety",
+          label: "安全檢查",
+          status: "passed",
+          detail: "內容安全檢查通過（150ms）",
+          timestamp: Date.now() - 4000,
+        },
+        {
+          id: "compile",
+          label: "提示詞編譯",
+          status: "completed",
+          detail: "編譯後提示詞長度: 120 字元（800ms）",
+          timestamp: Date.now() - 3000,
+        },
+        {
+          id: "weight",
+          label: "視覺權重計算",
+          status: "completed",
+          detail: "visualWeight: 0.75, controlNet: {}",
+          timestamp: Date.now() - 2500,
+        },
+        {
+          id: "generate",
+          label: "圖像生成",
+          status: "completed",
+          detail: "生成成功（3500ms）",
+          timestamp: Date.now() - 1000,
+        },
+        {
+          id: "quota",
+          label: "配額扣除",
+          status: "completed",
+          detail: "扣除 1 次生成配額",
+          timestamp: Date.now() - 100,
+        },
+        {
+          id: "history",
+          label: "歷史紀錄",
+          status: "completed",
+          detail: "已儲存至生成歷史",
+          timestamp: Date.now(),
+        },
       ];
 
       // Verify all nodes have required fields
@@ -178,13 +218,15 @@ describe("Phase 5: 7-Persona Audit Fixes", () => {
       const caller = appRouter.createCaller(ctx);
 
       // Invalid mode should be rejected at input validation
-      await expect(caller.generate.multimodal({
-        prompt: "test",
-        generationType: "image",
-        mode: "balanced" as any,
-        vibeCardIds: [],
-        temperature: 0.5,
-      })).rejects.toThrow();
+      await expect(
+        caller.generate.multimodal({
+          prompt: "test",
+          generationType: "image",
+          mode: "balanced" as any,
+          vibeCardIds: [],
+          temperature: 0.5,
+        })
+      ).rejects.toThrow();
     });
   });
 
@@ -235,25 +277,41 @@ describe("Phase 5: 7-Persona Audit Fixes", () => {
       // Mock safety check (LLM returns unsafe) and refundUserPoints should be called
       const dbModule = await import("./db");
       const llmModule = await import("./_core/llm");
-      const refundSpy = vi.spyOn(dbModule, "refundUserPoints").mockResolvedValue(undefined);
-      const createLogSpy = vi.spyOn(dbModule, "createApiUsageLog").mockResolvedValue(1);
-      const updateJobSpy = vi.spyOn(dbModule, "updateBackgroundJob").mockResolvedValue(undefined);
+      const refundSpy = vi
+        .spyOn(dbModule, "refundUserPoints")
+        .mockResolvedValue(undefined);
+      const createLogSpy = vi
+        .spyOn(dbModule, "createApiUsageLog")
+        .mockResolvedValue(1);
+      const updateJobSpy = vi
+        .spyOn(dbModule, "updateBackgroundJob")
+        .mockResolvedValue(undefined);
       const llmSpy = vi.spyOn(llmModule, "invokeLLM").mockResolvedValueOnce({
-        choices: [{ message: { content: JSON.stringify({ safe: false, reason: "内容不安全" }) }, finish_reason: "stop", index: 0 }],
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ safe: false, reason: "内容不安全" }),
+            },
+            finish_reason: "stop",
+            index: 0,
+          },
+        ],
       } as any);
 
       const user = createMockUser();
       const ctx = createMockContext(user);
       const caller = appRouter.createCaller(ctx);
 
-      await expect(caller.generate.multimodal({
-        jobId: 99,
-        prompt: "暴力血腥的恐怖场景",
-        generationType: "image",
-        mode: "lightning",
-        vibeCardIds: [],
-        temperature: 0.5,
-      })).rejects.toThrow("小兔子提醒你");
+      await expect(
+        caller.generate.multimodal({
+          jobId: 99,
+          prompt: "暴力血腥的恐怖场景",
+          generationType: "image",
+          mode: "lightning",
+          vibeCardIds: [],
+          temperature: 0.5,
+        })
+      ).rejects.toThrow("小兔子提醒你");
 
       // Verify refundUserPoints was called since safety blocked (model-based billing)
       expect(refundSpy).toHaveBeenCalledTimes(1);

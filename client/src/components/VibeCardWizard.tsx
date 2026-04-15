@@ -1,6 +1,15 @@
 import { VIBE_CARDS } from "@shared/types";
 import { motion } from "framer-motion";
-import { Cloud, Sun, Moon, Leaf, Camera, Square, Sparkles, Star } from "lucide-react";
+import {
+  Cloud,
+  Sun,
+  Moon,
+  Leaf,
+  Camera,
+  Square,
+  Sparkles,
+  Star,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -22,9 +31,11 @@ type VibeCardWizardProps = {
 export function VibeCardWizard({ selectedIds, onToggle }: VibeCardWizardProps) {
   return (
     <div className="space-y-3">
-      <h3 className="text-sm font-medium text-muted-foreground">氛圍卡片精靈</h3>
+      <h3 className="text-sm font-medium text-muted-foreground">
+        氛圍卡片精靈
+      </h3>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {VIBE_CARDS.map((card) => {
+        {VIBE_CARDS.map(card => {
           const isSelected = selectedIds.includes(card.id);
           const Icon = iconMap[card.icon] || Sparkles;
           return (
@@ -51,8 +62,12 @@ export function VibeCardWizard({ selectedIds, onToggle }: VibeCardWizardProps) {
                   <Icon className="w-4 h-4 text-muted-foreground" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-foreground">{card.labelZh}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5 hidden sm:block">{card.description}</p>
+                  <p className="text-sm font-medium text-foreground">
+                    {card.labelZh}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5 hidden sm:block">
+                    {card.description}
+                  </p>
                 </div>
               </div>
               {isSelected && (
@@ -61,8 +76,18 @@ export function VibeCardWizard({ selectedIds, onToggle }: VibeCardWizardProps) {
                   animate={{ scale: 1 }}
                   className="absolute top-2 right-2 w-5 h-5 rounded-full bg-primary flex items-center justify-center"
                 >
-                  <svg className="w-3 h-3 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  <svg
+                    className="w-3 h-3 text-primary-foreground"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={3}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M5 13l4 4L19 7"
+                    />
                   </svg>
                 </motion.div>
               )}

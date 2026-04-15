@@ -74,13 +74,19 @@ describe("Brain Context Middleware", () => {
 
       // 5 reasoning brains
       const brainSlots: ReasoningBrainSlot[] = [
-        "director", "analyst", "storyteller", "technician", "curator",
+        "director",
+        "analyst",
+        "storyteller",
+        "technician",
+        "curator",
       ];
       for (const slot of brainSlots) {
         const config = brain.getBrain(slot);
         expect(config.slot).toBe(slot);
         expect(config.model).toBe(DEFAULT_REASONING_BRAINS[slot].model);
-        expect(config.temperature).toBe(DEFAULT_REASONING_BRAINS[slot].temperature);
+        expect(config.temperature).toBe(
+          DEFAULT_REASONING_BRAINS[slot].temperature
+        );
         expect(config.topP).toBe(DEFAULT_REASONING_BRAINS[slot].topP);
         expect(config.enabled).toBe(true);
         expect(config.systemPrompt).toBeNull();
@@ -88,7 +94,10 @@ describe("Brain Context Middleware", () => {
 
       // 4 generation engines
       const engineSlots: GenerationEngineSlot[] = [
-        "imageEngine", "videoEngine", "audioEngine", "voiceEngine",
+        "imageEngine",
+        "videoEngine",
+        "audioEngine",
+        "voiceEngine",
       ];
       for (const slot of engineSlots) {
         const config = brain.getEngine(slot);
@@ -185,7 +194,9 @@ describe("Brain Context Middleware", () => {
       expect(brain.getBrain("director").model).toBe("claude-3.5-sonnet");
       expect(brain.getBrain("director").temperature).toBe(0.5);
       expect(brain.getBrain("director").topP).toBe(0.85);
-      expect(brain.getBrain("director").systemPrompt).toBe("You are a film director.");
+      expect(brain.getBrain("director").systemPrompt).toBe(
+        "You are a film director."
+      );
       expect(brain.getBrain("storyteller").enabled).toBe(false);
       expect(brain.getEngine("imageEngine").engine).toBe("dall-e-3");
       expect(brain.getEngine("imageEngine").params).toEqual({ steps: 50 });
@@ -321,7 +332,7 @@ describe("Brain Context Middleware", () => {
       // Degradation summary should have 1 event
       expect(brain.degradationSummary.length).toBeGreaterThanOrEqual(1);
       const imgDeg = brain.degradationSummary.find(
-        (d) => d.slot === "imageEngine"
+        d => d.slot === "imageEngine"
       );
       expect(imgDeg).toBeDefined();
       expect(imgDeg!.originalModel).toBe("fal-ai/flux/dev");
@@ -342,12 +353,8 @@ describe("Brain Context Middleware", () => {
       expect(logSpy).toHaveBeenCalledWith(
         expect.stringContaining("[BrainContext]")
       );
-      expect(logSpy).toHaveBeenCalledWith(
-        expect.stringContaining("userId=42")
-      );
-      expect(logSpy).toHaveBeenCalledWith(
-        expect.stringContaining("custom")
-      );
+      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("userId=42"));
+      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("custom"));
       logSpy.mockRestore();
     });
 
@@ -363,9 +370,7 @@ describe("Brain Context Middleware", () => {
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining("DEGRADATION")
       );
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining("dall-e-3")
-      );
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("dall-e-3"));
       warnSpy.mockRestore();
     });
 
@@ -375,9 +380,7 @@ describe("Brain Context Middleware", () => {
       expect(errorSpy).toHaveBeenCalledWith(
         expect.stringContaining("ENGINE_FAILURE")
       );
-      expect(errorSpy).toHaveBeenCalledWith(
-        expect.stringContaining("suno-v4")
-      );
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("suno-v4"));
       errorSpy.mockRestore();
     });
 

@@ -1,4 +1,11 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+  useMemo,
+} from "react";
 
 /**
  * Resolved theme applied to the DOM — always "light" or "dark".
@@ -37,9 +44,12 @@ const APPEARANCE_STORAGE_KEY = "hs-appearance-mode";
 function isSceneDark(): boolean {
   try {
     const sceneOverride = localStorage.getItem("hs-scene-override");
-    if (sceneOverride === "nightSky" || sceneOverride === "deepSea") return true;
+    if (sceneOverride === "nightSky" || sceneOverride === "deepSea")
+      return true;
     if (sceneOverride === "morning" || sceneOverride === "cafe") return false;
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   // Fallback: check time of day (same logic as AmbientEnvironment)
   const h = new Date().getHours();
   return h >= 17 || h < 5;
@@ -48,16 +58,23 @@ function isSceneDark(): boolean {
 /** Determine resolved theme from mode */
 function resolveTheme(mode: AppearanceMode): ResolvedTheme {
   switch (mode) {
-    case "light": return "light";
-    case "dark": return "dark";
-    case "auto": return isSceneDark() ? "dark" : "light";
+    case "light":
+      return "light";
+    case "dark":
+      return "dark";
+    case "auto":
+      return isSceneDark() ? "dark" : "light";
     case "system": {
-      if (typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)").matches) {
+      if (
+        typeof window !== "undefined" &&
+        window.matchMedia?.("(prefers-color-scheme: dark)").matches
+      ) {
         return "dark";
       }
       return "light";
     }
-    default: return "light";
+    default:
+      return "light";
   }
 }
 
@@ -72,21 +89,35 @@ export function ThemeProvider({
   defaultTheme = "light",
   switchable = true,
 }: ThemeProviderProps) {
-  const [appearanceMode, setAppearanceModeRaw] = useState<AppearanceMode>(() => {
-    try {
-      const saved = localStorage.getItem(APPEARANCE_STORAGE_KEY);
-      if (saved === "light" || saved === "dark" || saved === "auto" || saved === "system") return saved;
-    } catch { /* ignore */ }
-    // Migrate legacy "theme" key → appearance mode
-    try {
-      const legacyTheme = localStorage.getItem("theme");
-      if (legacyTheme === "dark") return "dark";
-      if (legacyTheme === "light") return "light";
-    } catch { /* ignore */ }
-    return defaultTheme === "dark" ? "dark" : "light";
-  });
+  const [appearanceMode, setAppearanceModeRaw] = useState<AppearanceMode>(
+    () => {
+      try {
+        const saved = localStorage.getItem(APPEARANCE_STORAGE_KEY);
+        if (
+          saved === "light" ||
+          saved === "dark" ||
+          saved === "auto" ||
+          saved === "system"
+        )
+          return saved;
+      } catch {
+        /* ignore */
+      }
+      // Migrate legacy "theme" key → appearance mode
+      try {
+        const legacyTheme = localStorage.getItem("theme");
+        if (legacyTheme === "dark") return "dark";
+        if (legacyTheme === "light") return "light";
+      } catch {
+        /* ignore */
+      }
+      return defaultTheme === "dark" ? "dark" : "light";
+    }
+  );
 
-  const [theme, setTheme] = useState<ResolvedTheme>(() => resolveTheme(appearanceMode));
+  const [theme, setTheme] = useState<ResolvedTheme>(() =>
+    resolveTheme(appearanceMode)
+  );
 
   // Re-resolve when mode changes
   useEffect(() => {
@@ -106,14 +137,19 @@ export function ThemeProvider({
       }
     }
     window.addEventListener("storage", onStorage);
-    return () => { clearInterval(interval); window.removeEventListener("storage", onStorage); };
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("storage", onStorage);
+    };
   }, [appearanceMode]);
 
   // For "system" mode: listen to OS preference changes
   useEffect(() => {
     if (appearanceMode !== "system") return;
     const mql = window.matchMedia("(prefers-color-scheme: dark)");
-    function onChange() { setTheme(resolveTheme("system")); }
+    function onChange() {
+      setTheme(resolveTheme("system"));
+    }
     mql.addEventListener("change", onChange);
     return () => mql.removeEventListener("change", onChange);
   }, [appearanceMode]);
@@ -132,7 +168,9 @@ export function ThemeProvider({
     setAppearanceModeRaw(mode);
     try {
       localStorage.setItem(APPEARANCE_STORAGE_KEY, mode);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   const toggleTheme = useCallback(() => {
@@ -141,9 +179,16 @@ export function ThemeProvider({
     setAppearanceMode(newMode);
   }, [switchable, theme, setAppearanceMode]);
 
-  const contextValue = useMemo(() => ({
-    theme, appearanceMode, setAppearanceMode, toggleTheme: switchable ? toggleTheme : undefined, switchable,
-  }), [theme, appearanceMode, setAppearanceMode, toggleTheme, switchable]);
+  const contextValue = useMemo(
+    () => ({
+      theme,
+      appearanceMode,
+      setAppearanceMode,
+      toggleTheme: switchable ? toggleTheme : undefined,
+      switchable,
+    }),
+    [theme, appearanceMode, setAppearanceMode, toggleTheme, switchable]
+  );
 
   return (
     <ThemeContext.Provider value={contextValue}>

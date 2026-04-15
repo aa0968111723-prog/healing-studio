@@ -1,9 +1,23 @@
 import { useState, useRef, useCallback, useEffect, useMemo, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Shield, Cpu, Sparkles, Palette, Zap, CheckCircle2,
-  Scissors, Maximize2, RotateCcw, ZoomIn, ZoomOut,
-  ChevronDown, ChevronUp, Eye, Code, Layers, StickyNote,
+  Shield,
+  Cpu,
+  Sparkles,
+  Palette,
+  Zap,
+  CheckCircle2,
+  Scissors,
+  Maximize2,
+  RotateCcw,
+  ZoomIn,
+  ZoomOut,
+  ChevronDown,
+  ChevronUp,
+  Eye,
+  Code,
+  Layers,
+  StickyNote,
 } from "lucide-react";
 import * as d3 from "d3";
 import { cn } from "@/lib/utils";
@@ -27,7 +41,10 @@ type ZoomLevel = "overview" | "detail" | "json";
 type Props = {
   nodes: ThoughtNode[];
   isVisible: boolean;
-  onIntervene?: (nodeId: string, action: "trim" | "expand" | "redirect") => void;
+  onIntervene?: (
+    nodeId: string,
+    action: "trim" | "expand" | "redirect"
+  ) => void;
   onPinToNotes?: (node: ThoughtNode) => void;
 };
 
@@ -72,7 +89,10 @@ const STATUS_GLOW: Record<string, string> = {
   error: "rgba(239, 68, 68, 0.25)",
 };
 
-const NODE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+const NODE_ICONS: Record<
+  string,
+  React.ComponentType<{ className?: string }>
+> = {
   safety: Shield,
   compile: Cpu,
   generate: Sparkles,
@@ -80,10 +100,25 @@ const NODE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   enhance: Zap,
 };
 
-const ZOOM_LABELS: Record<ZoomLevel, { label: string; icon: React.ReactNode; desc: string }> = {
-  overview: { label: "總覽", icon: <Layers className="w-3.5 h-3.5" />, desc: "島鏈全景" },
-  detail: { label: "細節", icon: <Eye className="w-3.5 h-3.5" />, desc: "節點推理" },
-  json: { label: "JSON", icon: <Code className="w-3.5 h-3.5" />, desc: "原始數據" },
+const ZOOM_LABELS: Record<
+  ZoomLevel,
+  { label: string; icon: React.ReactNode; desc: string }
+> = {
+  overview: {
+    label: "總覽",
+    icon: <Layers className="w-3.5 h-3.5" />,
+    desc: "島鏈全景",
+  },
+  detail: {
+    label: "細節",
+    icon: <Eye className="w-3.5 h-3.5" />,
+    desc: "節點推理",
+  },
+  json: {
+    label: "JSON",
+    icon: <Code className="w-3.5 h-3.5" />,
+    desc: "原始數據",
+  },
 };
 
 // ─── D3 Island Visualization ───────────────────────────────────────────────
@@ -127,16 +162,26 @@ const D3IslandCanvas = memo(function D3IslandCanvas({
 
     // Glow filter
     const glow = defs.append("filter").attr("id", "node-glow");
-    glow.append("feGaussianBlur").attr("stdDeviation", "4").attr("result", "blur");
-    glow.append("feMerge").selectAll("feMergeNode")
+    glow
+      .append("feGaussianBlur")
+      .attr("stdDeviation", "4")
+      .attr("result", "blur");
+    glow
+      .append("feMerge")
+      .selectAll("feMergeNode")
       .data(["blur", "SourceGraphic"])
       .join("feMergeNode")
       .attr("in", d => d);
 
     // Processing pulse filter
     const pulse = defs.append("filter").attr("id", "pulse-glow");
-    pulse.append("feGaussianBlur").attr("stdDeviation", "6").attr("result", "blur");
-    pulse.append("feMerge").selectAll("feMergeNode")
+    pulse
+      .append("feGaussianBlur")
+      .attr("stdDeviation", "6")
+      .attr("result", "blur");
+    pulse
+      .append("feMerge")
+      .selectAll("feMergeNode")
       .data(["blur", "SourceGraphic"])
       .join("feMergeNode")
       .attr("in", d => d);
@@ -145,9 +190,10 @@ const D3IslandCanvas = memo(function D3IslandCanvas({
     const g = svg.append("g");
 
     // Setup zoom behavior
-    const zoom = d3.zoom<SVGSVGElement, unknown>()
+    const zoom = d3
+      .zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.5, 4])
-      .on("zoom", (event) => {
+      .on("zoom", event => {
         g.attr("transform", event.transform.toString());
       });
 
@@ -177,21 +223,23 @@ const D3IslandCanvas = memo(function D3IslandCanvas({
         .attr("filter", "url(#node-glow)");
 
       // Main path
-      const path = g.append("path")
+      const path = g
+        .append("path")
         .attr("d", pathData)
         .attr("fill", "none")
         .attr("stroke", STATUS_COLORS[nodes[i].status])
         .attr("stroke-width", 1.5)
         .attr("stroke-opacity", 0.5)
-        .attr("stroke-dasharray", function() {
+        .attr("stroke-dasharray", function () {
           return (this as SVGPathElement).getTotalLength();
         })
-        .attr("stroke-dashoffset", function() {
+        .attr("stroke-dashoffset", function () {
           return (this as SVGPathElement).getTotalLength();
         });
 
       // Animate path drawing
-      path.transition()
+      path
+        .transition()
         .delay(i * 200)
         .duration(600)
         .ease(d3.easeCubicOut)
@@ -206,13 +254,15 @@ const D3IslandCanvas = memo(function D3IslandCanvas({
       const color = STATUS_COLORS[node.status];
       const glowColor = STATUS_GLOW[node.status];
 
-      const nodeGroup = g.append("g")
+      const nodeGroup = g
+        .append("g")
         .attr("transform", `translate(${cx}, ${cy})`)
         .attr("cursor", "pointer")
         .on("click", () => onSelectNode(isSelected ? null : node.id));
 
       // Outer glow ring
-      nodeGroup.append("circle")
+      nodeGroup
+        .append("circle")
         .attr("r", 0)
         .attr("fill", "none")
         .attr("stroke", color)
@@ -226,7 +276,8 @@ const D3IslandCanvas = memo(function D3IslandCanvas({
         .attr("r", isSelected ? 28 : 24);
 
       // Background circle
-      nodeGroup.append("circle")
+      nodeGroup
+        .append("circle")
         .attr("r", 0)
         .attr("fill", glowColor)
         .attr("stroke", color)
@@ -240,7 +291,8 @@ const D3IslandCanvas = memo(function D3IslandCanvas({
 
       // Processing pulse animation
       if (node.status === "processing") {
-        const pulseCircle = nodeGroup.append("circle")
+        const pulseCircle = nodeGroup
+          .append("circle")
           .attr("r", 20)
           .attr("fill", "none")
           .attr("stroke", color)
@@ -269,7 +321,8 @@ const D3IslandCanvas = memo(function D3IslandCanvas({
         style: "🎨",
         enhance: "⚡",
       };
-      nodeGroup.append("text")
+      nodeGroup
+        .append("text")
         .attr("text-anchor", "middle")
         .attr("dominant-baseline", "central")
         .attr("font-size", "14px")
@@ -281,7 +334,8 @@ const D3IslandCanvas = memo(function D3IslandCanvas({
         .attr("opacity", 1);
 
       // Label below
-      nodeGroup.append("text")
+      nodeGroup
+        .append("text")
         .attr("y", 36)
         .attr("text-anchor", "middle")
         .attr("font-size", "11px")
@@ -296,7 +350,8 @@ const D3IslandCanvas = memo(function D3IslandCanvas({
 
       // Timestamp below label
       if (node.timestamp > 0 && zoomLevel !== "overview") {
-        nodeGroup.append("text")
+        nodeGroup
+          .append("text")
           .attr("y", 50)
           .attr("text-anchor", "middle")
           .attr("font-size", "9px")
@@ -311,12 +366,15 @@ const D3IslandCanvas = memo(function D3IslandCanvas({
     });
 
     // Auto-zoom to fit
-    const initialScale = zoomLevel === "json" ? 1.5 : zoomLevel === "detail" ? 1.2 : 1;
-    svg.transition().duration(500).call(
-      zoom.transform,
-      d3.zoomIdentity.translate(0, 0).scale(initialScale)
-    );
-
+    const initialScale =
+      zoomLevel === "json" ? 1.5 : zoomLevel === "detail" ? 1.2 : 1;
+    svg
+      .transition()
+      .duration(500)
+      .call(
+        zoom.transform,
+        d3.zoomIdentity.translate(0, 0).scale(initialScale)
+      );
   }, [nodes, zoomLevel, selectedNode, onSelectNode]);
 
   // Handle scroll-to-zoom
@@ -348,7 +406,12 @@ const D3IslandCanvas = memo(function D3IslandCanvas({
 // ─── Main Component ────────────────────────────────────────────────────────
 
 // ─── Wrapped with React.memo to prevent re-renders when nodes haven't changed ─
-const ThoughtIslandChain = memo(function ThoughtIslandChain({ nodes, isVisible, onIntervene, onPinToNotes }: Props) {
+const ThoughtIslandChain = memo(function ThoughtIslandChain({
+  nodes,
+  isVisible,
+  onIntervene,
+  onPinToNotes,
+}: Props) {
   const [zoomLevel, setZoomLevel] = useState<ZoomLevel>("overview");
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(true);
@@ -369,11 +432,14 @@ const ThoughtIslandChain = memo(function ThoughtIslandChain({ nodes, isVisible, 
     [nodes]
   );
 
-  const handleIntervene = useCallback((action: "trim" | "expand" | "redirect") => {
-    if (selectedNode && onIntervene) {
-      onIntervene(selectedNode, action);
-    }
-  }, [selectedNode, onIntervene]);
+  const handleIntervene = useCallback(
+    (action: "trim" | "expand" | "redirect") => {
+      if (selectedNode && onIntervene) {
+        onIntervene(selectedNode, action);
+      }
+    },
+    [selectedNode, onIntervene]
+  );
 
   const cycleZoom = useCallback(() => {
     const levels: ZoomLevel[] = ["overview", "detail", "json"];
@@ -408,7 +474,9 @@ const ThoughtIslandChain = memo(function ThoughtIslandChain({ nodes, isVisible, 
               <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
             )}
           </div>
-          <span className="text-sm font-semibold text-foreground">思維島鏈</span>
+          <span className="text-sm font-semibold text-foreground">
+            思維島鏈
+          </span>
           <span className="text-[10px] text-muted-foreground/60">
             {completedCount}/{nodes.length} 完成
           </span>
@@ -416,7 +484,7 @@ const ThoughtIslandChain = memo(function ThoughtIslandChain({ nodes, isVisible, 
 
         <div className="flex items-center gap-1.5">
           {/* Zoom level tabs */}
-          {(["overview", "detail", "json"] as ZoomLevel[]).map((level) => (
+          {(["overview", "detail", "json"] as ZoomLevel[]).map(level => (
             <button
               key={level}
               onClick={() => setZoomLevel(level)}
@@ -436,7 +504,11 @@ const ThoughtIslandChain = memo(function ThoughtIslandChain({ nodes, isVisible, 
             onClick={() => setIsExpanded(!isExpanded)}
             className="p-1 rounded-md text-muted-foreground/50 hover:text-muted-foreground hover:bg-white/5 transition-colors ml-1"
           >
-            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            {isExpanded ? (
+              <ChevronUp className="w-4 h-4" />
+            ) : (
+              <ChevronDown className="w-4 h-4" />
+            )}
           </button>
         </div>
       </div>
@@ -446,7 +518,9 @@ const ThoughtIslandChain = memo(function ThoughtIslandChain({ nodes, isVisible, 
         <motion.div
           className="h-full rounded-full bg-gradient-to-r from-primary/60 to-emerald-500/60"
           initial={{ width: "0%" }}
-          animate={{ width: `${(completedCount / Math.max(nodes.length, 1)) * 100}%` }}
+          animate={{
+            width: `${(completedCount / Math.max(nodes.length, 1)) * 100}%`,
+          }}
           transition={{ duration: 0.5, ease: "easeOut" }}
         />
       </div>
@@ -488,40 +562,74 @@ const ThoughtIslandChain = memo(function ThoughtIslandChain({ nodes, isVisible, 
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         {(() => {
-                          const Icon = NODE_ICONS[selectedNodeData.id] || CheckCircle2;
-                          return <span style={{ color: STATUS_COLORS[selectedNodeData.status] }}><Icon className="w-4 h-4" /></span>;
+                          const Icon =
+                            NODE_ICONS[selectedNodeData.id] || CheckCircle2;
+                          return (
+                            <span
+                              style={{
+                                color: STATUS_COLORS[selectedNodeData.status],
+                              }}
+                            >
+                              <Icon className="w-4 h-4" />
+                            </span>
+                          );
                         })()}
-                        <span className="text-sm font-medium text-foreground">{selectedNodeData.label}</span>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{
-                          background: `${STATUS_COLORS[selectedNodeData.status]}20`,
-                          color: STATUS_COLORS[selectedNodeData.status],
-                        }}>
-                          {selectedNodeData.status === "completed" ? "完成" :
-                           selectedNodeData.status === "processing" ? "處理中" :
-                           selectedNodeData.status === "error" ? "錯誤" : "等待中"}
+                        <span className="text-sm font-medium text-foreground">
+                          {selectedNodeData.label}
+                        </span>
+                        <span
+                          className="text-[10px] px-1.5 py-0.5 rounded-full"
+                          style={{
+                            background: `${STATUS_COLORS[selectedNodeData.status]}20`,
+                            color: STATUS_COLORS[selectedNodeData.status],
+                          }}
+                        >
+                          {selectedNodeData.status === "completed"
+                            ? "完成"
+                            : selectedNodeData.status === "processing"
+                              ? "處理中"
+                              : selectedNodeData.status === "error"
+                                ? "錯誤"
+                                : "等待中"}
                         </span>
                       </div>
                       {selectedNodeData.timestamp > 0 && (
-                        <span className="text-[10px] text-muted-foreground/50">{formatDuration(durationsRef.current.get(selectedNodeData.id) ?? 0)}</span>
+                        <span className="text-[10px] text-muted-foreground/50">
+                          {formatDuration(
+                            durationsRef.current.get(selectedNodeData.id) ?? 0
+                          )}
+                        </span>
                       )}
                     </div>
 
-                    <p className="text-xs text-foreground/70 leading-relaxed">{selectedNodeData.detail}</p>
+                    <p className="text-xs text-foreground/70 leading-relaxed">
+                      {selectedNodeData.detail}
+                    </p>
 
                     {/* Reasoning (Detail/JSON level) */}
                     {zoomLevel !== "overview" && selectedNodeData.reasoning && (
-                      <div className="p-2 rounded-md" style={{ background: "rgba(0,0,0,0.15)" }}>
-                        <p className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mb-1">推理過程</p>
-                        <p className="text-xs text-foreground/60 leading-relaxed">{selectedNodeData.reasoning}</p>
+                      <div
+                        className="p-2 rounded-md"
+                        style={{ background: "rgba(0,0,0,0.15)" }}
+                      >
+                        <p className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mb-1">
+                          推理過程
+                        </p>
+                        <p className="text-xs text-foreground/60 leading-relaxed">
+                          {selectedNodeData.reasoning}
+                        </p>
                       </div>
                     )}
 
                     {/* JSON Deep Dive */}
                     {zoomLevel === "json" && (
-                      <div className="p-2 rounded-md font-mono text-[10px] leading-relaxed overflow-x-auto" style={{
-                        background: "rgba(0,0,0,0.2)",
-                        border: "1px solid rgba(255,255,255,0.05)",
-                      }}>
+                      <div
+                        className="p-2 rounded-md font-mono text-[10px] leading-relaxed overflow-x-auto"
+                        style={{
+                          background: "rgba(0,0,0,0.2)",
+                          border: "1px solid rgba(255,255,255,0.05)",
+                        }}
+                      >
                         <pre className="text-emerald-400/80 whitespace-pre-wrap">
                           {JSON.stringify(selectedNodeData, null, 2)}
                         </pre>
@@ -591,10 +699,14 @@ const ThoughtIslandChain = memo(function ThoughtIslandChain({ nodes, isVisible, 
                       border: `1px solid ${STATUS_COLORS[node.status]}${isSelected ? "60" : "30"}`,
                     }}
                   >
-                    <span style={{ color: STATUS_COLORS[node.status] }}><Icon className="w-3 h-3" /></span>
+                    <span style={{ color: STATUS_COLORS[node.status] }}>
+                      <Icon className="w-3 h-3" />
+                    </span>
                     <span className="text-foreground/70">{node.label}</span>
                     {node.timestamp > 0 && (
-                      <span className="text-[9px] text-muted-foreground/50 ml-0.5">{formatDuration(durationsRef.current.get(node.id) ?? 0)}</span>
+                      <span className="text-[9px] text-muted-foreground/50 ml-0.5">
+                        {formatDuration(durationsRef.current.get(node.id) ?? 0)}
+                      </span>
                     )}
                   </motion.button>
                 );

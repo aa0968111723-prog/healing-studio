@@ -15,51 +15,68 @@ import LoginOrbAnimation from "./components/LoginOrbAnimation";
 import { ShowcaseTransferProvider } from "./contexts/ShowcaseTransferContext";
 import { SiteOnboardingProvider } from "./contexts/SiteOnboardingContext";
 import { FocusFlowProvider } from "./contexts/FocusFlowContext";
-const SiteOnboardingOverlay = lazy(() => import("./components/SiteOnboardingOverlay"));
+const SiteOnboardingOverlay = lazy(
+  () => import("./components/SiteOnboardingOverlay")
+);
 
 // ─── 首頁直接載入（不延遲，確保首屏最快） ─────────────────────────────────
 import Home from "./pages/Home";
 
 // ─── 其他頁面使用 lazy() 延遲載入，按需拆分 bundle ────────────────────────
-const Studio           = lazy(() => import("./pages/Studio"));
-const DirectorAI       = lazy(() => import("./pages/DirectorAI"));
-const AssetsLibrary    = lazy(() => import("./pages/AssetsLibrary"));
-const ModelsPage       = lazy(() => import("./pages/ModelsPage"));
-const VaultPage        = lazy(() => import("./pages/VaultPage"));
-const SharedSpace      = lazy(() => import("./pages/SharedSpace"));
-const NotesPage        = lazy(() => import("./pages/NotesPage"));
-const CalendarPage     = lazy(() => import("./pages/CalendarPage"));
-const DashboardPage    = lazy(() => import("./pages/DashboardPage"));
-const FeedbackPage     = lazy(() => import("./pages/FeedbackPage"));
-const AiBrainSettings  = lazy(() => import("./pages/AiBrainSettings"));
-const SettingsPage     = lazy(() => import("./pages/SettingsPage"));
-const HistoryPage      = lazy(() => import("./pages/HistoryPage"));
-const AdminPage        = lazy(() => import("./pages/AdminPage"));
-const ProStudio        = lazy(() => import("./pages/ProStudio"));
-const ImageStudio      = lazy(() => import("./pages/ImageStudio"));
-const VideoStudio      = lazy(() => import("./pages/VideoStudio"));
-const LearnHub         = lazy(() => import("./pages/LearnHub"));
-const LoraTrainer      = lazy(() => import("./pages/LoraTrainer"));
-const FocusFlowPage    = lazy(() => import("./pages/FocusFlowPage"));
-const LangSmithPage    = lazy(() => import("./pages/LangSmithPage"));
+const Studio = lazy(() => import("./pages/Studio"));
+const DirectorAI = lazy(() => import("./pages/DirectorAI"));
+const AssetsLibrary = lazy(() => import("./pages/AssetsLibrary"));
+const ModelsPage = lazy(() => import("./pages/ModelsPage"));
+const VaultPage = lazy(() => import("./pages/VaultPage"));
+const SharedSpace = lazy(() => import("./pages/SharedSpace"));
+const NotesPage = lazy(() => import("./pages/NotesPage"));
+const CalendarPage = lazy(() => import("./pages/CalendarPage"));
+const DashboardPage = lazy(() => import("./pages/DashboardPage"));
+const FeedbackPage = lazy(() => import("./pages/FeedbackPage"));
+const AiBrainSettings = lazy(() => import("./pages/AiBrainSettings"));
+const SettingsPage = lazy(() => import("./pages/SettingsPage"));
+const HistoryPage = lazy(() => import("./pages/HistoryPage"));
+const AdminPage = lazy(() => import("./pages/AdminPage"));
+const ProStudio = lazy(() => import("./pages/ProStudio"));
+const ImageStudio = lazy(() => import("./pages/ImageStudio"));
+const VideoStudio = lazy(() => import("./pages/VideoStudio"));
+const LearnHub = lazy(() => import("./pages/LearnHub"));
+const LoraTrainer = lazy(() => import("./pages/LoraTrainer"));
+const FocusFlowPage = lazy(() => import("./pages/FocusFlowPage"));
+const LangSmithPage = lazy(() => import("./pages/LangSmithPage"));
 const BackgroundTasksPage = lazy(() => import("./pages/BackgroundTasksPage"));
-const CreditsInfoPage    = lazy(() => import("./pages/CreditsInfoPage"));
+const CreditsInfoPage = lazy(() => import("./pages/CreditsInfoPage"));
+
+import { Skeleton } from "@/components/ui/skeleton";
 
 // ─── 頁面載入中的通用 Skeleton ─────────────────────────────────────────────
 function PageSkeleton() {
   return (
-    <div className="flex items-center justify-center h-full min-h-[60vh]">
-      <div className="flex flex-col items-center gap-3">
-        <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-        <p className="text-sm text-muted-foreground">載入中...</p>
+    <div className="flex-1 p-6 sm:p-8 space-y-6 w-full animate-in fade-in duration-500">
+      <div className="flex items-center gap-4 mb-8">
+        <Skeleton className="h-12 w-12 rounded-full" />
+        <div className="space-y-2">
+          <Skeleton className="h-6 w-32" />
+          <Skeleton className="h-4 w-48" />
+        </div>
       </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Skeleton className="h-48 rounded-2xl glass-card-static" />
+        <Skeleton className="h-48 rounded-2xl glass-card-static" />
+        <Skeleton className="h-48 rounded-2xl glass-card-static" />
+      </div>
+      <Skeleton className="h-64 mt-6 w-full rounded-2xl glass-card-static" />
     </div>
   );
 }
 
 // ─── 路由包裝元件 ─────────────────────────────────────────────────────────
 
-function DashboardRoute({ component: Component }: { component: React.ComponentType }) {
+function DashboardRoute({
+  component: Component,
+}: {
+  component: React.ComponentType;
+}) {
   return (
     <DashboardLayout>
       <Suspense fallback={<PageSkeleton />}>
@@ -69,7 +86,11 @@ function DashboardRoute({ component: Component }: { component: React.ComponentTy
   );
 }
 
-function ProtectedDashboardRoute({ component: Component }: { component: React.ComponentType }) {
+function ProtectedDashboardRoute({
+  component: Component,
+}: {
+  component: React.ComponentType;
+}) {
   return (
     <DashboardLayout>
       <ErrorBoundary inline>
@@ -116,7 +137,7 @@ function Router() {
         <DashboardRoute component={FeedbackPage} />
       </Route>
       <Route path="/settings/ai-brain">
-        <ProtectedDashboardRoute component={AdminPage} />
+        <ProtectedDashboardRoute component={AiBrainSettings} />
       </Route>
       <Route path="/settings">
         <DashboardRoute component={SettingsPage} />
@@ -165,25 +186,25 @@ function App() {
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light" switchable>
         <PersonalityProvider>
-        <NotesDrawerProvider>
-          <ShowcaseTransferProvider>
-            <SiteOnboardingProvider>
-              <FocusFlowProvider>
-              <TooltipProvider>
-                <Toaster />
-                <OfflineBanner />
-                <AuthExpiredModal />
-                <LoginOrbAnimation />
-                <Router />
-                <ProjectNotesDrawer />
-                <Suspense fallback={null}>
-                  <SiteOnboardingOverlay />
-                </Suspense>
-              </TooltipProvider>
-              </FocusFlowProvider>
-            </SiteOnboardingProvider>
-          </ShowcaseTransferProvider>
-        </NotesDrawerProvider>
+          <NotesDrawerProvider>
+            <ShowcaseTransferProvider>
+              <SiteOnboardingProvider>
+                <FocusFlowProvider>
+                  <TooltipProvider>
+                    <Toaster />
+                    <OfflineBanner />
+                    <AuthExpiredModal />
+                    <LoginOrbAnimation />
+                    <Router />
+                    <ProjectNotesDrawer />
+                    <Suspense fallback={null}>
+                      <SiteOnboardingOverlay />
+                    </Suspense>
+                  </TooltipProvider>
+                </FocusFlowProvider>
+              </SiteOnboardingProvider>
+            </ShowcaseTransferProvider>
+          </NotesDrawerProvider>
         </PersonalityProvider>
       </ThemeProvider>
     </ErrorBoundary>

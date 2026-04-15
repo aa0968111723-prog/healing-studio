@@ -128,19 +128,23 @@ export function useSenseEngine(options: SenseEngineOptions = {}) {
     pendingFlushRef.current = null;
   }, []);
 
-  const emit = useCallback((event: SenseEvent) => {
-    if (!isEnabledRef.current) return;
+  const emit = useCallback(
+    (event: SenseEvent) => {
+      if (!isEnabledRef.current) return;
 
-    // 使用 requestIdleCallback 避免阻塞主線程
-    const schedule = window.requestIdleCallback || ((cb: () => void) => setTimeout(cb, 1));
-    schedule(() => {
-      eventsRef.current = [...eventsRef.current, event].slice(-MAX_EVENTS);
-      // Batch: schedule a flush if not already pending
-      if (!pendingFlushRef.current) {
-        pendingFlushRef.current = setTimeout(flushToStorage, FLUSH_INTERVAL);
-      }
-    });
-  }, [flushToStorage]);
+      // 使用 requestIdleCallback 避免阻塞主線程
+      const schedule =
+        window.requestIdleCallback || ((cb: () => void) => setTimeout(cb, 1));
+      schedule(() => {
+        eventsRef.current = [...eventsRef.current, event].slice(-MAX_EVENTS);
+        // Batch: schedule a flush if not already pending
+        if (!pendingFlushRef.current) {
+          pendingFlushRef.current = setTimeout(flushToStorage, FLUSH_INTERVAL);
+        }
+      });
+    },
+    [flushToStorage]
+  );
 
   // ── Get all events ──
   const getEvents = useCallback((): SenseEvent[] => {
@@ -165,7 +169,9 @@ export function useSenseEngine(options: SenseEngineOptions = {}) {
     const modalityCounts: Record<string, number> = {};
     dwells.forEach(e => {
       const m = e.meta as unknown as CardDwellMeta;
-      if (m.cardModality) modalityCounts[m.cardModality] = (modalityCounts[m.cardModality] || 0) + 1;
+      if (m.cardModality)
+        modalityCounts[m.cardModality] =
+          (modalityCounts[m.cardModality] || 0) + 1;
     });
 
     // 提取高意圖卡片
@@ -212,33 +218,43 @@ export function useSenseEngine(options: SenseEngineOptions = {}) {
   // Card Dwell Tracker
   // ═══════════════════════════════════════════════════════════════════════════
 
-  const cardTimers = useRef<Map<string, { timer: ReturnType<typeof setTimeout>; enteredAt: number }>>(new Map());
+  const cardTimers = useRef<
+    Map<string, { timer: ReturnType<typeof setTimeout>; enteredAt: number }>
+  >(new Map());
 
-  const trackCardEnter = useCallback((cardId: string, cardTitle: string, cardModality?: string, cardTags?: string[]) => {
-    if (!isEnabledRef.current) return;
+  const trackCardEnter = useCallback(
+    (
+      cardId: string,
+      cardTitle: string,
+      cardModality?: string,
+      cardTags?: string[]
+    ) => {
+      if (!isEnabledRef.current) return;
 
-    // 清除舊計時器
-    const existing = cardTimers.current.get(cardId);
-    if (existing) clearTimeout(existing.timer);
+      // 清除舊計時器
+      const existing = cardTimers.current.get(cardId);
+      if (existing) clearTimeout(existing.timer);
 
-    const enteredAt = Date.now();
-    const timer = setTimeout(() => {
-      const dwellMs = Date.now() - enteredAt;
-      emit({
-        type: "cardDwell",
-        timestamp: Date.now(),
-        targetId: cardId,
-        meta: {
-          dwellMs,
-          cardTitle,
-          cardModality,
-          cardTags,
-        } satisfies CardDwellMeta,
-      });
-    }, dwellThreshold);
+      const enteredAt = Date.now();
+      const timer = setTimeout(() => {
+        const dwellMs = Date.now() - enteredAt;
+        emit({
+          type: "cardDwell",
+          timestamp: Date.now(),
+          targetId: cardId,
+          meta: {
+            dwellMs,
+            cardTitle,
+            cardModality,
+            cardTags,
+          } satisfies CardDwellMeta,
+        });
+      }, dwellThreshold);
 
-    cardTimers.current.set(cardId, { timer, enteredAt });
-  }, [dwellThreshold, emit]);
+      cardTimers.current.set(cardId, { timer, enteredAt });
+    },
+    [dwellThreshold, emit]
+  );
 
   const trackCardLeave = useCallback((cardId: string) => {
     const existing = cardTimers.current.get(cardId);
@@ -294,7 +310,10 @@ export function useSenseEngine(options: SenseEngineOptions = {}) {
       state.directionChanges++;
 
       // 達到閾值且未點擊 → 記錄猶豫事件
-      if (state.directionChanges >= scrollHesitationThreshold && !state.hasClicked) {
+      if (
+        state.directionChanges >= scrollHesitationThreshold &&
+        !state.hasClicked
+      ) {
         emit({
           type: "scrollHesitation",
           timestamp: Date.now(),
@@ -331,29 +350,37 @@ export function useSenseEngine(options: SenseEngineOptions = {}) {
   // Hover Intent Tracker
   // ═══════════════════════════════════════════════════════════════════════════
 
-  const hoverState = useRef<Map<string, {
-    enteredAt: number;
-    startX: number;
-    startY: number;
-    totalTravel: number;
-    lastX: number;
-    lastY: number;
-    cardTitle: string;
-  }>>(new Map());
+  const hoverState = useRef<
+    Map<
+      string,
+      {
+        enteredAt: number;
+        startX: number;
+        startY: number;
+        totalTravel: number;
+        lastX: number;
+        lastY: number;
+        cardTitle: string;
+      }
+    >
+  >(new Map());
 
-  const trackHoverStart = useCallback((cardId: string, cardTitle: string, x: number, y: number) => {
-    if (!isEnabledRef.current) return;
+  const trackHoverStart = useCallback(
+    (cardId: string, cardTitle: string, x: number, y: number) => {
+      if (!isEnabledRef.current) return;
 
-    hoverState.current.set(cardId, {
-      enteredAt: Date.now(),
-      startX: x,
-      startY: y,
-      totalTravel: 0,
-      lastX: x,
-      lastY: y,
-      cardTitle,
-    });
-  }, []);
+      hoverState.current.set(cardId, {
+        enteredAt: Date.now(),
+        startX: x,
+        startY: y,
+        totalTravel: 0,
+        lastX: x,
+        lastY: y,
+        cardTitle,
+      });
+    },
+    []
+  );
 
   const trackHoverMove = useCallback((cardId: string, x: number, y: number) => {
     const state = hoverState.current.get(cardId);
@@ -366,41 +393,47 @@ export function useSenseEngine(options: SenseEngineOptions = {}) {
     state.lastY = y;
   }, []);
 
-  const trackHoverEnd = useCallback((cardId: string) => {
-    const state = hoverState.current.get(cardId);
-    if (!state) return;
+  const trackHoverEnd = useCallback(
+    (cardId: string) => {
+      const state = hoverState.current.get(cardId);
+      if (!state) return;
 
-    const hoverMs = Date.now() - state.enteredAt;
-    hoverState.current.delete(cardId);
+      const hoverMs = Date.now() - state.enteredAt;
+      hoverState.current.delete(cardId);
 
-    // 只記錄有意義的 hover（>500ms）
-    if (hoverMs < 500) return;
+      // 只記錄有意義的 hover（>500ms）
+      if (hoverMs < 500) return;
 
-    // 意圖分數：停留越久 + 移動越少 = 越高意圖
-    const timeScore = Math.min(hoverMs / hoverIntentThreshold, 1);
-    // 低移動距離 = 高意圖（凝視），高移動距離 = 低意圖（掃過）
-    const travelNorm = Math.min(state.totalTravel / 500, 1);
-    const travelScore = 1 - travelNorm;
-    const intentScore = Math.round((timeScore * 0.6 + travelScore * 0.4) * 100) / 100;
+      // 意圖分數：停留越久 + 移動越少 = 越高意圖
+      const timeScore = Math.min(hoverMs / hoverIntentThreshold, 1);
+      // 低移動距離 = 高意圖（凝視），高移動距離 = 低意圖（掃過）
+      const travelNorm = Math.min(state.totalTravel / 500, 1);
+      const travelScore = 1 - travelNorm;
+      const intentScore =
+        Math.round((timeScore * 0.6 + travelScore * 0.4) * 100) / 100;
 
-    emit({
-      type: "hoverIntent",
-      timestamp: Date.now(),
-      targetId: cardId,
-      meta: {
-        hoverMs,
-        mouseTravel: Math.round(state.totalTravel),
-        intentScore,
-        cardTitle: state.cardTitle,
-      } satisfies HoverIntentMeta,
-    });
-  }, [hoverIntentThreshold, emit]);
+      emit({
+        type: "hoverIntent",
+        timestamp: Date.now(),
+        targetId: cardId,
+        meta: {
+          hoverMs,
+          mouseTravel: Math.round(state.totalTravel),
+          intentScore,
+          cardTitle: state.cardTitle,
+        } satisfies HoverIntentMeta,
+      });
+    },
+    [hoverIntentThreshold, emit]
+  );
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Click Abort Tracker
   // ═══════════════════════════════════════════════════════════════════════════
 
-  const clickAbortState = useRef<Map<string, { downAt: number; cardTitle: string }>>(new Map());
+  const clickAbortState = useRef<
+    Map<string, { downAt: number; cardTitle: string }>
+  >(new Map());
 
   const trackMouseDown = useCallback((cardId: string, cardTitle: string) => {
     if (!isEnabledRef.current) return;
@@ -411,26 +444,29 @@ export function useSenseEngine(options: SenseEngineOptions = {}) {
     clickAbortState.current.delete(cardId);
   }, []);
 
-  const trackMouseLeaveWhileDown = useCallback((cardId: string) => {
-    const state = clickAbortState.current.get(cardId);
-    if (!state) return;
+  const trackMouseLeaveWhileDown = useCallback(
+    (cardId: string) => {
+      const state = clickAbortState.current.get(cardId);
+      if (!state) return;
 
-    const holdMs = Date.now() - state.downAt;
-    clickAbortState.current.delete(cardId);
+      const holdMs = Date.now() - state.downAt;
+      clickAbortState.current.delete(cardId);
 
-    // 只記錄有意義的猶豫（>200ms 按住後離開）
-    if (holdMs < 200) return;
+      // 只記錄有意義的猶豫（>200ms 按住後離開）
+      if (holdMs < 200) return;
 
-    emit({
-      type: "clickAbort",
-      timestamp: Date.now(),
-      targetId: cardId,
-      meta: {
-        holdMs,
-        cardTitle: state.cardTitle,
-      } satisfies ClickAbortMeta,
-    });
-  }, [emit]);
+      emit({
+        type: "clickAbort",
+        timestamp: Date.now(),
+        targetId: cardId,
+        meta: {
+          holdMs,
+          cardTitle: state.cardTitle,
+        } satisfies ClickAbortMeta,
+      });
+    },
+    [emit]
+  );
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Rapid Scan Tracker (快速掃過多張卡片)
@@ -439,36 +475,40 @@ export function useSenseEngine(options: SenseEngineOptions = {}) {
   const scanBuffer = useRef<{ cardId: string; enteredAt: number }[]>([]);
   const scanTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const trackRapidScanEnter = useCallback((cardId: string) => {
-    if (!isEnabledRef.current) return;
+  const trackRapidScanEnter = useCallback(
+    (cardId: string) => {
+      if (!isEnabledRef.current) return;
 
-    scanBuffer.current.push({ cardId, enteredAt: Date.now() });
+      scanBuffer.current.push({ cardId, enteredAt: Date.now() });
 
-    // 重置掃描視窗計時器
-    if (scanTimer.current) clearTimeout(scanTimer.current);
-    scanTimer.current = setTimeout(() => {
-      const buf = scanBuffer.current;
-      if (buf.length >= 4) {
-        const totalMs = (buf[buf.length - 1]?.enteredAt || 0) - (buf[0]?.enteredAt || 0);
-        const avgDwell = totalMs / buf.length;
+      // 重置掃描視窗計時器
+      if (scanTimer.current) clearTimeout(scanTimer.current);
+      scanTimer.current = setTimeout(() => {
+        const buf = scanBuffer.current;
+        if (buf.length >= 4) {
+          const totalMs =
+            (buf[buf.length - 1]?.enteredAt || 0) - (buf[0]?.enteredAt || 0);
+          const avgDwell = totalMs / buf.length;
 
-        // 快速掃過 = 平均停留 <2s 且掃過 4+ 張
-        if (avgDwell < 2000) {
-          emit({
-            type: "rapidScan",
-            timestamp: Date.now(),
-            targetId: "showcase-masonry",
-            meta: {
-              cardsScanned: buf.length,
-              scanDurationMs: totalMs,
-              avgDwellMs: Math.round(avgDwell),
-            } satisfies RapidScanMeta,
-          });
+          // 快速掃過 = 平均停留 <2s 且掃過 4+ 張
+          if (avgDwell < 2000) {
+            emit({
+              type: "rapidScan",
+              timestamp: Date.now(),
+              targetId: "showcase-masonry",
+              meta: {
+                cardsScanned: buf.length,
+                scanDurationMs: totalMs,
+                avgDwellMs: Math.round(avgDwell),
+              } satisfies RapidScanMeta,
+            });
+          }
         }
-      }
-      scanBuffer.current = [];
-    }, 3000);
-  }, [emit]);
+        scanBuffer.current = [];
+      }, 3000);
+    },
+    [emit]
+  );
 
   // ── Cleanup ──
   useEffect(() => {
@@ -479,7 +519,8 @@ export function useSenseEngine(options: SenseEngineOptions = {}) {
       hoverState.current.clear();
       clickAbortState.current.clear();
       if (scanTimer.current) clearTimeout(scanTimer.current);
-      if (scrollState.current?.debounceTimer) clearTimeout(scrollState.current.debounceTimer);
+      if (scrollState.current?.debounceTimer)
+        clearTimeout(scrollState.current.debounceTimer);
       // Flush any pending batched events to sessionStorage
       if (pendingFlushRef.current) {
         clearTimeout(pendingFlushRef.current);
@@ -531,17 +572,23 @@ export function useCardSenseProps(
   cardId: string,
   cardTitle: string,
   cardModality?: string,
-  cardTags?: string[],
+  cardTags?: string[]
 ) {
-  const handleMouseEnter = useCallback((e: React.MouseEvent) => {
-    engine.trackCardEnter(cardId, cardTitle, cardModality, cardTags);
-    engine.trackHoverStart(cardId, cardTitle, e.clientX, e.clientY);
-    engine.trackRapidScanEnter(cardId);
-  }, [engine, cardId, cardTitle, cardModality, cardTags]);
+  const handleMouseEnter = useCallback(
+    (e: React.MouseEvent) => {
+      engine.trackCardEnter(cardId, cardTitle, cardModality, cardTags);
+      engine.trackHoverStart(cardId, cardTitle, e.clientX, e.clientY);
+      engine.trackRapidScanEnter(cardId);
+    },
+    [engine, cardId, cardTitle, cardModality, cardTags]
+  );
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    engine.trackHoverMove(cardId, e.clientX, e.clientY);
-  }, [engine, cardId]);
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      engine.trackHoverMove(cardId, e.clientX, e.clientY);
+    },
+    [engine, cardId]
+  );
 
   const handleMouseLeave = useCallback(() => {
     engine.trackCardLeave(cardId);
@@ -574,55 +621,58 @@ export function useCardSenseProps(
  */
 export function useSectionScrollSense(
   engine: ReturnType<typeof useSenseEngine>,
-  sectionName: string,
+  sectionName: string
 ) {
   const observerRef = useRef<IntersectionObserver | null>(null);
   const scrollHandlerRef = useRef<(() => void) | null>(null);
   const isInViewRef = useRef(false);
 
-  const refCallback = useCallback((node: HTMLElement | null) => {
-    // 清除舊的 observer
-    if (observerRef.current) {
-      observerRef.current.disconnect();
-      observerRef.current = null;
-    }
-    if (scrollHandlerRef.current) {
-      window.removeEventListener("scroll", scrollHandlerRef.current);
-      scrollHandlerRef.current = null;
-    }
+  const refCallback = useCallback(
+    (node: HTMLElement | null) => {
+      // 清除舊的 observer
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+        observerRef.current = null;
+      }
+      if (scrollHandlerRef.current) {
+        window.removeEventListener("scroll", scrollHandlerRef.current);
+        scrollHandlerRef.current = null;
+      }
 
-    if (!node) return;
+      if (!node) return;
 
-    // 偵測區塊是否在視野中
-    observerRef.current = new IntersectionObserver(
-      ([entry]) => {
-        if (entry?.isIntersecting && !isInViewRef.current) {
-          isInViewRef.current = true;
-          engine.trackScrollStart(sectionName);
+      // 偵測區塊是否在視野中
+      observerRef.current = new IntersectionObserver(
+        ([entry]) => {
+          if (entry?.isIntersecting && !isInViewRef.current) {
+            isInViewRef.current = true;
+            engine.trackScrollStart(sectionName);
 
-          // 開始監聽滾動
-          const handler = () => {
-            if (isInViewRef.current) {
-              engine.trackScrollMove();
+            // 開始監聽滾動
+            const handler = () => {
+              if (isInViewRef.current) {
+                engine.trackScrollMove();
+              }
+            };
+            scrollHandlerRef.current = handler;
+            window.addEventListener("scroll", handler, { passive: true });
+          } else if (!entry?.isIntersecting && isInViewRef.current) {
+            isInViewRef.current = false;
+            engine.trackScrollEnd();
+
+            if (scrollHandlerRef.current) {
+              window.removeEventListener("scroll", scrollHandlerRef.current);
+              scrollHandlerRef.current = null;
             }
-          };
-          scrollHandlerRef.current = handler;
-          window.addEventListener("scroll", handler, { passive: true });
-        } else if (!entry?.isIntersecting && isInViewRef.current) {
-          isInViewRef.current = false;
-          engine.trackScrollEnd();
-
-          if (scrollHandlerRef.current) {
-            window.removeEventListener("scroll", scrollHandlerRef.current);
-            scrollHandlerRef.current = null;
           }
-        }
-      },
-      { threshold: 0.2 },
-    );
+        },
+        { threshold: 0.2 }
+      );
 
-    observerRef.current.observe(node);
-  }, [engine, sectionName]);
+      observerRef.current.observe(node);
+    },
+    [engine, sectionName]
+  );
 
   // Cleanup on unmount
   useEffect(() => {

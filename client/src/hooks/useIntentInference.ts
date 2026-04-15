@@ -86,7 +86,7 @@ function incrementInferenceCount() {
 
 export function useIntentInference(
   engine: ReturnType<typeof useSenseEngine>,
-  options: UseIntentInferenceOptions = {},
+  options: UseIntentInferenceOptions = {}
 ) {
   const {
     minEvents = 5,
@@ -146,7 +146,16 @@ export function useIntentInference(
     } finally {
       setIsInferring(false);
     }
-  }, [enabled, isInferring, cooldownMs, maxInferences, engine, minEvents, minSessionMs, inferMutation]);
+  }, [
+    enabled,
+    isInferring,
+    cooldownMs,
+    maxInferences,
+    engine,
+    minEvents,
+    minSessionMs,
+    inferMutation,
+  ]);
 
   // ── Auto-trigger: periodic check ──
   useEffect(() => {
@@ -170,7 +179,7 @@ export function useIntentInference(
 
       // Condition 2: High-signal events detected (scrollHesitation or clickAbort)
       const highSignalEvents = events.filter(
-        (e) => e.type === "scrollHesitation" || e.type === "clickAbort"
+        e => e.type === "scrollHesitation" || e.type === "clickAbort"
       );
       const hasHighSignal = highSignalEvents.length >= 1;
 
@@ -179,7 +188,10 @@ export function useIntentInference(
       const sessionLongEnough = sessionDuration >= minSessionMs;
 
       // Trigger if: (enough events AND session long enough) OR high signal detected
-      if ((hasEnoughEvents && sessionLongEnough) || (hasHighSignal && events.length >= 3)) {
+      if (
+        (hasEnoughEvents && sessionLongEnough) ||
+        (hasHighSignal && events.length >= 3)
+      ) {
         runInference();
       }
     }, 10_000);
@@ -189,7 +201,16 @@ export function useIntentInference(
         clearInterval(checkIntervalRef.current);
       }
     };
-  }, [enabled, isInferring, cooldownMs, maxInferences, minEvents, minSessionMs, engine, runInference]);
+  }, [
+    enabled,
+    isInferring,
+    cooldownMs,
+    maxInferences,
+    minEvents,
+    minSessionMs,
+    engine,
+    runInference,
+  ]);
 
   // ── Manual trigger ──
   const triggerInference = useCallback(() => {

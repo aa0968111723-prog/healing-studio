@@ -31,10 +31,16 @@ interface HistoryItem {
  * Determines what HTML element type should be rendered for a history item.
  * This mirrors the conditional rendering logic in HistoryPage.tsx.
  */
-function getMediaElementType(item: HistoryItem): "img" | "video" | "audio" | "icon" {
+function getMediaElementType(
+  item: HistoryItem
+): "img" | "video" | "audio" | "icon" {
   if (item.resultUrl && item.modality === "image") return "img";
   if (item.resultUrl && item.modality === "video") return "video";
-  if (item.resultUrl && (item.modality === "audio" || item.modality === "voice")) return "audio";
+  if (
+    item.resultUrl &&
+    (item.modality === "audio" || item.modality === "voice")
+  )
+    return "audio";
   return "icon"; // fallback icon placeholder
 }
 
@@ -58,25 +64,67 @@ function getDownloadExtension(modality: Modality, blobType?: string): string {
 
 describe("HistoryPage Media Rendering Logic", () => {
   it("renders <img> for image modality with resultUrl", () => {
-    expect(getMediaElementType({ modality: "image", resultUrl: "https://cdn.example.com/img.png", thumbnailUrl: null })).toBe("img");
+    expect(
+      getMediaElementType({
+        modality: "image",
+        resultUrl: "https://cdn.example.com/img.png",
+        thumbnailUrl: null,
+      })
+    ).toBe("img");
   });
 
   it("renders <video> for video modality with resultUrl", () => {
-    expect(getMediaElementType({ modality: "video", resultUrl: "https://cdn.example.com/vid.mp4", thumbnailUrl: null })).toBe("video");
+    expect(
+      getMediaElementType({
+        modality: "video",
+        resultUrl: "https://cdn.example.com/vid.mp4",
+        thumbnailUrl: null,
+      })
+    ).toBe("video");
   });
 
   it("renders <audio> for audio modality with resultUrl", () => {
-    expect(getMediaElementType({ modality: "audio", resultUrl: "https://cdn.example.com/music.mp3", thumbnailUrl: null })).toBe("audio");
+    expect(
+      getMediaElementType({
+        modality: "audio",
+        resultUrl: "https://cdn.example.com/music.mp3",
+        thumbnailUrl: null,
+      })
+    ).toBe("audio");
   });
 
   it("renders <audio> for voice modality with resultUrl", () => {
-    expect(getMediaElementType({ modality: "voice", resultUrl: "https://cdn.example.com/voice.mp3", thumbnailUrl: null })).toBe("audio");
+    expect(
+      getMediaElementType({
+        modality: "voice",
+        resultUrl: "https://cdn.example.com/voice.mp3",
+        thumbnailUrl: null,
+      })
+    ).toBe("audio");
   });
 
   it("renders icon placeholder when resultUrl is null", () => {
-    expect(getMediaElementType({ modality: "video", resultUrl: null, thumbnailUrl: null })).toBe("icon");
-    expect(getMediaElementType({ modality: "audio", resultUrl: null, thumbnailUrl: null })).toBe("icon");
-    expect(getMediaElementType({ modality: "image", resultUrl: null, thumbnailUrl: null })).toBe("icon");
+    expect(
+      getMediaElementType({
+        modality: "video",
+        resultUrl: null,
+        thumbnailUrl: null,
+      })
+    ).toBe("icon");
+    expect(
+      getMediaElementType({
+        modality: "audio",
+        resultUrl: null,
+        thumbnailUrl: null,
+      })
+    ).toBe("icon");
+    expect(
+      getMediaElementType({
+        modality: "image",
+        resultUrl: null,
+        thumbnailUrl: null,
+      })
+    ).toBe("icon");
   });
 });
 

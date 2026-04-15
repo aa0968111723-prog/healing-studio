@@ -6,12 +6,18 @@ import { motion, AnimatePresence } from "framer-motion";
  * Floating scroll-to-top button that appears when user scrolls past threshold.
  * Attaches to the nearest scrollable parent or window.
  */
-export default function ScrollToTop({ threshold = 400 }: { threshold?: number }) {
+export default function ScrollToTop({
+  threshold = 400,
+}: {
+  threshold?: number;
+}) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     // Find the scrollable parent — the SidebarInset main content area
-    const scrollParent = document.querySelector("[data-scroll-area]") as HTMLElement | null;
+    const scrollParent = document.querySelector(
+      "[data-scroll-area]"
+    ) as HTMLElement | null;
     const target = scrollParent || window;
 
     const handleScroll = () => {
@@ -27,7 +33,9 @@ export default function ScrollToTop({ threshold = 400 }: { threshold?: number })
   }, [threshold]);
 
   const scrollToTop = useCallback(() => {
-    const scrollParent = document.querySelector("[data-scroll-area]") as HTMLElement | null;
+    const scrollParent = document.querySelector(
+      "[data-scroll-area]"
+    ) as HTMLElement | null;
     if (scrollParent) {
       scrollParent.scrollTo({ top: 0, behavior: "smooth" });
     } else {

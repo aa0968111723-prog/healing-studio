@@ -15,10 +15,7 @@
 import JSZip from "jszip";
 import { createFalClient } from "@fal-ai/client";
 import { storagePut } from "../storage.js";
-import {
-  updateFineTunedModel,
-  updateBackgroundJob,
-} from "../db.js";
+import { updateFineTunedModel, updateBackgroundJob } from "../db.js";
 import type { TrainingModelType } from "../../shared/types.js";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -35,7 +32,7 @@ export interface FalTrainingJobInput {
   isStyle?: boolean;
   imageUrls: string[];
   videoUrls?: string[];
-  falModelId: string;   // e.g. "fal-ai/flux-lora-fast-training"
+  falModelId: string; // e.g. "fal-ai/flux-lora-fast-training"
 }
 
 // ─── Logger ─────────────────────────────────────────────────────────────────
@@ -83,7 +80,20 @@ async function buildZipBuffer(urls: string[]): Promise<Buffer> {
     try {
       const pathname = new URL(url).pathname;
       const urlExt = pathname.substring(pathname.lastIndexOf("."));
-      if (urlExt && [".jpg", ".jpeg", ".png", ".webp", ".bmp", ".mp4", ".mov", ".avi", ".webm"].includes(urlExt.toLowerCase())) {
+      if (
+        urlExt &&
+        [
+          ".jpg",
+          ".jpeg",
+          ".png",
+          ".webp",
+          ".bmp",
+          ".mp4",
+          ".mov",
+          ".avi",
+          ".webm",
+        ].includes(urlExt.toLowerCase())
+      ) {
         ext = urlExt.toLowerCase();
       }
     } catch {
@@ -96,7 +106,10 @@ async function buildZipBuffer(urls: string[]): Promise<Buffer> {
       if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
       const arrayBuffer = await response.arrayBuffer();
       zip.file(fileName, arrayBuffer);
-      log("info", `  ✓ ${fileName} (${Math.round(arrayBuffer.byteLength / 1024)} KB)`);
+      log(
+        "info",
+        `  ✓ ${fileName} (${Math.round(arrayBuffer.byteLength / 1024)} KB)`
+      );
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       log("warn", `  ✗ Failed to download ${url}: ${msg}`);
@@ -114,7 +127,11 @@ async function buildZipBuffer(urls: string[]): Promise<Buffer> {
 
 // ─── Upload ZIP ─────────────────────────────────────────────────────────────
 
-async function uploadZipToStorage(buffer: Buffer, userId: number, modelId: number): Promise<string> {
+async function uploadZipToStorage(
+  buffer: Buffer,
+  userId: number,
+  modelId: number
+): Promise<string> {
   const key = `lora-datasets/${userId}/${modelId}-fal-${Date.now()}.zip`;
   log("info", `Uploading ZIP to S3: ${key}`);
   const { url } = await storagePut(key, buffer, "application/zip");
@@ -137,7 +154,10 @@ async function submitFalTraining(params: {
 
   const client = createFalClient({ credentials: apiKey });
 
-  log("info", `Submitting Fal.ai training: model=${params.falModelId}, steps=${params.steps}, lr=${params.learningRate}, trigger="${params.triggerWord}"`);
+  log(
+    "info",
+    `Submitting Fal.ai training: model=${params.falModelId}, steps=${params.steps}, lr=${params.learningRate}, trigger="${params.triggerWord}"`
+  );
 
   const input: Record<string, unknown> = {
     images_data_url: params.zipUrl,
@@ -152,14 +172,17 @@ async function submitFalTraining(params: {
   }
 
   // For video-based models, enable auto-captioning
-  if (params.falModelId.includes("video") || params.falModelId.includes("hunyuan")) {
+  if (
+    params.falModelId.includes("video") ||
+    params.falModelId.includes("hunyuan")
+  ) {
     input.do_caption = true;
   }
 
-  const result = await client.subscribe(params.falModelId, {
+  const result = (await client.subscribe(params.falModelId, {
     input,
     logs: false,
-  }) as { data?: Record<string, unknown>; requestId?: string };
+  })) as { data?: Record<string, unknown>; requestId?: string };
 
   // Extract the request/prediction ID
   const requestId = result.requestId || "fal-" + Date.now();
@@ -173,10 +196,28 @@ async function submitFalTraining(params: {
  * Main entry point — runs the full Fal.ai training pipeline in the background.
  * All errors are caught and written to DB; this function never throws.
  */
-export async function runFalTrainingJob(input: FalTrainingJobInput): Promise<void> {
-  const { userId, modelId, jobId, modelName, modelType, triggerWord, steps, learningRate, isStyle, imageUrls, videoUrls, falModelId } = input;
+export async function runFalTrainingJob(
+  input: FalTrainingJobInput
+): Promise<void> {
+  const {
+    userId,
+    modelId,
+    jobId,
+    modelName,
+    modelType,
+    triggerWord,
+    steps,
+    learningRate,
+    isStyle,
+    imageUrls,
+    videoUrls,
+    falModelId,
+  } = input;
   log("info", `═══ Starting Fal.ai training job ═══`);
-  log("info", `  modelId=${modelId}, jobId=${jobId}, name="${modelName}", type=${modelType}, images=${imageUrls.length}, videos=${videoUrls?.length ?? 0}`);
+  log(
+    "info",
+    `  modelId=${modelId}, jobId=${jobId}, name="${modelName}", type=${modelType}, images=${imageUrls.length}, videos=${videoUrls?.length ?? 0}`
+  );
 
   try {
     // ── Step 1: Mark as training ──
@@ -249,12 +290,16 @@ export async function runFalTrainingJob(input: FalTrainingJobInput): Promise<voi
     const trainingStartTime = Date.now();
     const progressInterval = setInterval(async () => {
       try {
-        const elapsedMin = Math.round((Date.now() - trainingStartTime) / 60_000);
+        const elapsedMin = Math.round(
+          (Date.now() - trainingStartTime) / 60_000
+        );
         await updateBackgroundJob(jobId, {
           progress: Math.min(85, 30 + Math.floor(Math.random() * 40)),
           progressMessage: `Fal.ai 訓練進行中...（已耗時 ${elapsedMin} 分鐘）`,
         });
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }, 30_000);
 
     let result: Record<string, unknown>;
@@ -262,10 +307,16 @@ export async function runFalTrainingJob(input: FalTrainingJobInput): Promise<voi
       const response = await Promise.race([
         client.subscribe(falModelId, { input: falInput, logs: false }),
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("Fal.ai 訓練超時（60 分鐘）")), 3_600_000)
+          setTimeout(
+            () => reject(new Error("Fal.ai 訓練超時（60 分鐘）")),
+            3_600_000
+          )
         ),
       ]);
-      result = (response as { data?: Record<string, unknown> }).data ?? (response as Record<string, unknown>) ?? {};
+      result =
+        (response as { data?: Record<string, unknown> }).data ??
+        (response as Record<string, unknown>) ??
+        {};
     } finally {
       clearInterval(progressInterval);
     }
@@ -276,7 +327,9 @@ export async function runFalTrainingJob(input: FalTrainingJobInput): Promise<voi
       (result.diffusers_lora_file as { url?: string })?.url ??
       (result.config_file as { url?: string })?.url ??
       (typeof result.model_url === "string" ? result.model_url : null) ??
-      (typeof result.lora_file_url === "string" ? result.lora_file_url : null) ??
+      (typeof result.lora_file_url === "string"
+        ? result.lora_file_url
+        : null) ??
       (typeof result.output === "string" ? result.output : null) ??
       (Array.isArray(result.output) ? (result.output as string[])[0] : null);
 
@@ -301,12 +354,21 @@ export async function runFalTrainingJob(input: FalTrainingJobInput): Promise<voi
         status: "completed",
         progress: 100,
         progressMessage: "訓練完成！模型已就緒。",
-        resultJson: { modelId, modelName, engine: "fal", falModelId, outputUrl },
+        resultJson: {
+          modelId,
+          modelName,
+          engine: "fal",
+          falModelId,
+          outputUrl,
+        },
       });
       log("info", `模型 ${modelId} Fal.ai 訓練完成！輸出：${outputUrl}`);
     } else {
       // No output URL found — treat as completed but warn
-      log("warn", `模型 ${modelId} Fal.ai 訓練完成但未找到輸出 URL。結果：${JSON.stringify(result).slice(0, 500)}`);
+      log(
+        "warn",
+        `模型 ${modelId} Fal.ai 訓練完成但未找到輸出 URL。結果：${JSON.stringify(result).slice(0, 500)}`
+      );
       await updateFineTunedModel(modelId, {
         status: "ready",
         configJson: {
@@ -325,10 +387,15 @@ export async function runFalTrainingJob(input: FalTrainingJobInput): Promise<voi
         status: "completed",
         progress: 100,
         progressMessage: "訓練完成（輸出待確認）",
-        resultJson: { modelId, modelName, engine: "fal", falModelId, rawOutput: result },
+        resultJson: {
+          modelId,
+          modelName,
+          engine: "fal",
+          falModelId,
+          rawOutput: result,
+        },
       });
     }
-
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
     log("error", `Fal.ai 訓練流程異常：${errMsg}`);

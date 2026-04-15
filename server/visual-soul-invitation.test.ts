@@ -34,7 +34,8 @@ function shouldTriggerInvitation(intent: IntentResult | null): boolean {
   const mediumTriggerTypes = ["aesthetic_preference"];
 
   if (highTriggerTypes.includes(intent.intentType)) return true;
-  if (mediumTriggerTypes.includes(intent.intentType) && intent.confidence > 0.5) return true;
+  if (mediumTriggerTypes.includes(intent.intentType) && intent.confidence > 0.5)
+    return true;
   if (intent.confidence > 0.7) return true;
 
   return false;
@@ -59,7 +60,7 @@ interface InvitationTemplate {
 const INVITATION_TEMPLATES: Record<string, InvitationTemplate[]> = {
   choice_paralysis: [
     {
-      message: (title) =>
+      message: title =>
         title
           ? `我注意到你在好幾張作品之間猶豫，其中「${title}」似乎特別吸引你的目光。要不要讓我幫你把參數調好，我們直接去創作室試試看？`
           : `看起來你正在尋找最對味的靈感。不如讓我幫你挑一個起點，我們一起去試試看？`,

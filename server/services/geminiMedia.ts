@@ -14,12 +14,18 @@
 
 export interface GeminiImageParams {
   prompt: string;
-  model?: "imagen-3.0-generate-002" | "imagen-3.0-fast-generate-001" | "imagen-2.0";
+  model?:
+    | "imagen-3.0-generate-002"
+    | "imagen-3.0-fast-generate-001"
+    | "imagen-2.0";
   aspectRatio?: "1:1" | "3:4" | "4:3" | "9:16" | "16:9";
   numImages?: number;
   negativePrompt?: string;
   seed?: number;
-  safetyFilterLevel?: "block_low_and_above" | "block_medium_and_above" | "block_only_high";
+  safetyFilterLevel?:
+    | "block_low_and_above"
+    | "block_medium_and_above"
+    | "block_only_high";
   personGeneration?: "allow_adult" | "allow_all" | "dont_allow";
   addWatermark?: boolean;
 }
@@ -28,7 +34,7 @@ export interface GeminiImageResult {
   images: Array<{
     base64: string;
     mimeType: string;
-    url?: string;  // 若上傳到 Storage 後填入
+    url?: string; // 若上傳到 Storage 後填入
   }>;
   model: string;
   generationParams: Record<string, unknown>;
@@ -37,9 +43,9 @@ export interface GeminiImageResult {
 export interface GeminiVideoParams {
   prompt: string;
   model?: "veo-2.0-generate-001" | "veo-3.0-generate-preview";
-  imageUrl?: string;          // 首幀圖片（圖生影）
-  lastImageUrl?: string;      // 末幀圖片
-  duration?: number;          // 秒數（5 或 8）
+  imageUrl?: string; // 首幀圖片（圖生影）
+  lastImageUrl?: string; // 末幀圖片
+  duration?: number; // 秒數（5 或 8）
   aspectRatio?: "16:9" | "9:16";
   negativePrompt?: string;
   seed?: number;
@@ -48,7 +54,7 @@ export interface GeminiVideoParams {
 }
 
 export interface GeminiVideoResult {
-  operationName: string;      // 長時間操作名稱
+  operationName: string; // 長時間操作名稱
   videos?: Array<{
     uri: string;
     mimeType: string;
@@ -59,7 +65,7 @@ export interface GeminiVideoResult {
 export interface GeminiAudioParams {
   prompt: string;
   model?: "lyria-002" | "musicfx-001";
-  duration?: number;          // 秒數，最多30s
+  duration?: number; // 秒數，最多30s
   seed?: number;
   temperature?: number;
   topP?: number;
@@ -75,10 +81,10 @@ export interface GeminiAudioResult {
 export interface GeminiTTSParams {
   text: string;
   model?: "gemini-2.5-flash-preview-tts" | "gemini-2.5-pro-preview-tts";
-  voiceName?: string;         // 語音名稱
-  language?: string;          // BCP-47 語言代碼
-  speakingRate?: number;      // 0.25 ~ 4.0
-  pitch?: number;             // -20.0 ~ 20.0
+  voiceName?: string; // 語音名稱
+  language?: string; // BCP-47 語言代碼
+  speakingRate?: number; // 0.25 ~ 4.0
+  pitch?: number; // -20.0 ~ 20.0
 }
 
 export interface GeminiTTSResult {
@@ -163,7 +169,16 @@ export const GEMINI_TTS_MODELS = [
     tier: "fast" as const,
     description: "Gemini 2.5 Flash 自然語音合成",
     supportsMultiSpeaker: true,
-    languages: ["zh-TW", "zh-CN", "en-US", "ja-JP", "ko-KR", "fr-FR", "de-DE", "es-ES"],
+    languages: [
+      "zh-TW",
+      "zh-CN",
+      "en-US",
+      "ja-JP",
+      "ko-KR",
+      "fr-FR",
+      "de-DE",
+      "es-ES",
+    ],
   },
   {
     value: "gemini-2.5-pro-preview-tts",
@@ -171,7 +186,16 @@ export const GEMINI_TTS_MODELS = [
     tier: "premium" as const,
     description: "Gemini 2.5 Pro 高品質情感語音合成",
     supportsMultiSpeaker: true,
-    languages: ["zh-TW", "zh-CN", "en-US", "ja-JP", "ko-KR", "fr-FR", "de-DE", "es-ES"],
+    languages: [
+      "zh-TW",
+      "zh-CN",
+      "en-US",
+      "ja-JP",
+      "ko-KR",
+      "fr-FR",
+      "de-DE",
+      "es-ES",
+    ],
   },
 ] as const;
 
@@ -196,14 +220,24 @@ async function getGeminiLSClient(): Promise<import("langsmith").Client | null> {
   if (_geminiLSClient) return _geminiLSClient;
   try {
     const { Client } = await import("langsmith");
-    _geminiLSClient = new Client({ apiKey: key, apiUrl: process.env.LANGCHAIN_ENDPOINT || "https://api.smith.langchain.com" });
+    _geminiLSClient = new Client({
+      apiKey: key,
+      apiUrl:
+        process.env.LANGCHAIN_ENDPOINT || "https://api.smith.langchain.com",
+    });
     return _geminiLSClient;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 async function trackGeminiMedia(opts: {
-  runName: string; model: string; inputs: Record<string, unknown>;
-  outputKeys?: string[]; error?: string; durationMs: number;
+  runName: string;
+  model: string;
+  inputs: Record<string, unknown>;
+  outputKeys?: string[];
+  error?: string;
+  durationMs: number;
 }): Promise<void> {
   const client = await getGeminiLSClient();
   if (!client) return;
@@ -220,9 +254,17 @@ async function trackGeminiMedia(opts: {
       inputs: opts.inputs,
       outputs: opts.outputKeys ? { output_keys: opts.outputKeys } : {},
       error: opts.error,
-      extra: { metadata: { provider: "gemini", model: opts.model, duration_ms: opts.durationMs } },
+      extra: {
+        metadata: {
+          provider: "gemini",
+          model: opts.model,
+          duration_ms: opts.durationMs,
+        },
+      },
     });
-  } catch { /* 追蹤失敗不影響主流程 */ }
+  } catch {
+    /* 追蹤失敗不影響主流程 */
+  }
 }
 
 // ─── Gemini Media Client ───────────────────────────────────────────────────
@@ -251,16 +293,24 @@ export class GeminiMediaClient {
       instances: [
         {
           prompt: params.prompt,
-          ...(params.negativePrompt && { negativePrompt: params.negativePrompt }),
+          ...(params.negativePrompt && {
+            negativePrompt: params.negativePrompt,
+          }),
         },
       ],
       parameters: {
         sampleCount: params.numImages ?? 1,
         ...(params.aspectRatio && { aspectRatio: params.aspectRatio }),
         ...(params.seed != null && { seed: params.seed }),
-        ...(params.safetyFilterLevel && { safetySetting: params.safetyFilterLevel }),
-        ...(params.personGeneration && { personGeneration: params.personGeneration }),
-        ...(params.addWatermark != null && { addWatermark: params.addWatermark }),
+        ...(params.safetyFilterLevel && {
+          safetySetting: params.safetyFilterLevel,
+        }),
+        ...(params.personGeneration && {
+          personGeneration: params.personGeneration,
+        }),
+        ...(params.addWatermark != null && {
+          addWatermark: params.addWatermark,
+        }),
       },
     };
 
@@ -273,13 +323,33 @@ export class GeminiMediaClient {
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
       const errMsg = `Gemini Imagen 錯誤 ${res.status}: ${errText}`;
-      trackGeminiMedia({ runName: `gemini/imagen/${model}`, model, inputs: { prompt: params.prompt, numImages: params.numImages, aspectRatio: params.aspectRatio }, error: errMsg, durationMs: Date.now() - startMs }).catch(() => {});
+      trackGeminiMedia({
+        runName: `gemini/imagen/${model}`,
+        model,
+        inputs: {
+          prompt: params.prompt,
+          numImages: params.numImages,
+          aspectRatio: params.aspectRatio,
+        },
+        error: errMsg,
+        durationMs: Date.now() - startMs,
+      }).catch(() => {});
       throw new Error(errMsg);
     }
 
-    const data = await res.json() as any;
+    const data = (await res.json()) as any;
     const predictions = data.predictions ?? [];
-    trackGeminiMedia({ runName: `gemini/imagen/${model}`, model, inputs: { prompt: params.prompt, numImages: params.numImages, aspectRatio: params.aspectRatio }, outputKeys: ["images"], durationMs: Date.now() - startMs }).catch(() => {});
+    trackGeminiMedia({
+      runName: `gemini/imagen/${model}`,
+      model,
+      inputs: {
+        prompt: params.prompt,
+        numImages: params.numImages,
+        aspectRatio: params.aspectRatio,
+      },
+      outputKeys: ["images"],
+      durationMs: Date.now() - startMs,
+    }).catch(() => {});
 
     return {
       images: predictions.map((p: any) => ({
@@ -314,14 +384,18 @@ export class GeminiMediaClient {
       } else {
         // DEF-11 修正：HTTP URL 需下載轉 base64（gcsUri 只接受 gs:// 不接受 https://）
         try {
-          const imgRes = await fetch(params.imageUrl, { signal: AbortSignal.timeout(30_000) });
+          const imgRes = await fetch(params.imageUrl, {
+            signal: AbortSignal.timeout(30_000),
+          });
           if (!imgRes.ok) throw new Error(`無法下載圖片 ${imgRes.status}`);
           const mimeType = imgRes.headers.get("content-type") ?? "image/jpeg";
           const arrayBuf = await imgRes.arrayBuffer();
           const b64 = Buffer.from(arrayBuf).toString("base64");
           instance.image = { bytesBase64Encoded: b64, mimeType };
         } catch (e) {
-          throw new Error(`圖生影圖片下載失敗（DEF-11）：${e instanceof Error ? e.message : String(e)}`);
+          throw new Error(
+            `圖生影圖片下載失敗（DEF-11）：${e instanceof Error ? e.message : String(e)}`
+          );
         }
       }
     }
@@ -347,12 +421,32 @@ export class GeminiMediaClient {
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
       const errMsg = `Gemini Veo 錯誤 ${res.status}: ${errText}`;
-      trackGeminiMedia({ runName: `gemini/veo/${model}`, model, inputs: { prompt: params.prompt, imageUrl: params.imageUrl ? "[provided]" : undefined, duration: params.duration }, error: errMsg, durationMs: Date.now() - startMs }).catch(() => {});
+      trackGeminiMedia({
+        runName: `gemini/veo/${model}`,
+        model,
+        inputs: {
+          prompt: params.prompt,
+          imageUrl: params.imageUrl ? "[provided]" : undefined,
+          duration: params.duration,
+        },
+        error: errMsg,
+        durationMs: Date.now() - startMs,
+      }).catch(() => {});
       throw new Error(errMsg);
     }
 
-    const data = await res.json() as any;
-    trackGeminiMedia({ runName: `gemini/veo/${model}`, model, inputs: { prompt: params.prompt, imageUrl: params.imageUrl ? "[provided]" : undefined, duration: params.duration }, outputKeys: ["operationName"], durationMs: Date.now() - startMs }).catch(() => {});
+    const data = (await res.json()) as any;
+    trackGeminiMedia({
+      runName: `gemini/veo/${model}`,
+      model,
+      inputs: {
+        prompt: params.prompt,
+        imageUrl: params.imageUrl ? "[provided]" : undefined,
+        duration: params.duration,
+      },
+      outputKeys: ["operationName"],
+      durationMs: Date.now() - startMs,
+    }).catch(() => {});
     return {
       operationName: data.name ?? "",
       status: "processing",
@@ -372,7 +466,7 @@ export class GeminiMediaClient {
       throw new Error(`Gemini 操作查詢錯誤 ${res.status}: ${errText}`);
     }
 
-    const data = await res.json() as any;
+    const data = (await res.json()) as any;
 
     if (data.done) {
       if (data.error) {
@@ -398,7 +492,7 @@ export class GeminiMediaClient {
     const pollInterval = 5_000;
 
     while (Date.now() - startTime < maxWaitMs) {
-      await new Promise((r) => setTimeout(r, pollInterval));
+      await new Promise(r => setTimeout(r, pollInterval));
       const result = await this.pollVideoOperation(initResult.operationName);
 
       if (result.status === "completed" && result.videos?.length) {
@@ -437,16 +531,29 @@ export class GeminiMediaClient {
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
       const errMsg = `Gemini Audio 錯誤 ${res.status}: ${errText}`;
-      trackGeminiMedia({ runName: `gemini/audio/${model}`, model, inputs: { prompt: params.prompt, duration: params.duration }, error: errMsg, durationMs: Date.now() - startMs }).catch(() => {});
+      trackGeminiMedia({
+        runName: `gemini/audio/${model}`,
+        model,
+        inputs: { prompt: params.prompt, duration: params.duration },
+        error: errMsg,
+        durationMs: Date.now() - startMs,
+      }).catch(() => {});
       throw new Error(errMsg);
     }
 
-    const data = await res.json() as any;
+    const data = (await res.json()) as any;
     const prediction = data.predictions?.[0] ?? {};
-    trackGeminiMedia({ runName: `gemini/audio/${model}`, model, inputs: { prompt: params.prompt, duration: params.duration }, outputKeys: ["audioBase64"], durationMs: Date.now() - startMs }).catch(() => {});
+    trackGeminiMedia({
+      runName: `gemini/audio/${model}`,
+      model,
+      inputs: { prompt: params.prompt, duration: params.duration },
+      outputKeys: ["audioBase64"],
+      durationMs: Date.now() - startMs,
+    }).catch(() => {});
 
     return {
-      audioBase64: prediction.bytesBase64Encoded ?? prediction.audioContent ?? "",
+      audioBase64:
+        prediction.bytesBase64Encoded ?? prediction.audioContent ?? "",
       mimeType: prediction.mimeType ?? "audio/wav",
       duration: params.duration ?? 15,
     };
@@ -488,7 +595,7 @@ export class GeminiMediaClient {
       throw new Error(`Gemini TTS 錯誤 ${res.status}: ${errText}`);
     }
 
-    const data = await res.json() as any;
+    const data = (await res.json()) as any;
     const part = data.candidates?.[0]?.content?.parts?.[0];
     const inlineData = part?.inlineData;
 

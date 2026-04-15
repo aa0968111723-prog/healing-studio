@@ -14,7 +14,13 @@ describe("Brain Router — Model Catalog", () => {
     const slots = Object.keys(REASONING_MODEL_CATALOG);
     expect(slots).toHaveLength(5);
     expect(slots).toEqual(
-      expect.arrayContaining(["director", "analyst", "storyteller", "technician", "curator"])
+      expect.arrayContaining([
+        "director",
+        "analyst",
+        "storyteller",
+        "technician",
+        "curator",
+      ])
     );
   });
 
@@ -22,7 +28,12 @@ describe("Brain Router — Model Catalog", () => {
     const slots = Object.keys(GENERATION_ENGINE_CATALOG);
     expect(slots).toHaveLength(4);
     expect(slots).toEqual(
-      expect.arrayContaining(["imageEngine", "videoEngine", "audioEngine", "voiceEngine"])
+      expect.arrayContaining([
+        "imageEngine",
+        "videoEngine",
+        "audioEngine",
+        "voiceEngine",
+      ])
     );
   });
 
@@ -54,56 +65,69 @@ describe("Brain Router — Model Catalog", () => {
 
   it("director slot should contain Gemini Pro and Claude Sonnet options", () => {
     const director = REASONING_MODEL_CATALOG.director;
-    const values = director.options.map((o) => o.value);
+    const values = director.options.map(o => o.value);
     // Check for Gemini Pro variants (2.5 pro or 1.5 pro)
-    expect(values.some((v) => v.includes("gemini") && v.includes("pro"))).toBe(true);
+    expect(values.some(v => v.includes("gemini") && v.includes("pro"))).toBe(
+      true
+    );
     // Check for at least one premium reasoning model
-    const premiumOptions = director.options.filter((o) => o.tier === "premium");
+    const premiumOptions = director.options.filter(o => o.tier === "premium");
     expect(premiumOptions.length).toBeGreaterThanOrEqual(1);
   });
 
   it("analyst slot should contain Flash/Mini tier options", () => {
     const analyst = REASONING_MODEL_CATALOG.analyst;
-    const fastOptions = analyst.options.filter((o) => o.tier === "fast");
+    const fastOptions = analyst.options.filter(o => o.tier === "fast");
     expect(fastOptions.length).toBeGreaterThanOrEqual(1);
   });
 
   it("imageEngine should contain Flux dev, Flux schnell, and SDXL", () => {
     const img = GENERATION_ENGINE_CATALOG.imageEngine;
-    const values = img.options.map((o) => o.value);
+    const values = img.options.map(o => o.value);
     // Check for Flux variants (pro, dev, or schnell)
-    expect(values.some((v) => v.includes("flux"))).toBe(true);
+    expect(values.some(v => v.includes("flux"))).toBe(true);
     // Check for Flux Schnell fast model
-    expect(values.some((v) => v.includes("schnell"))).toBe(true);
+    expect(values.some(v => v.includes("schnell"))).toBe(true);
     // Check for Stable Diffusion or other image models
     expect(values.length).toBeGreaterThanOrEqual(3);
   });
 
   it("videoEngine should contain Veo 3.1 (Kling), Luma (Runway), and Kling V1", () => {
     const vid = GENERATION_ENGINE_CATALOG.videoEngine;
-    const values = vid.options.map((o) => o.value);
+    const values = vid.options.map(o => o.value);
     // Check for Kling video models
-    expect(values.some((v) => v.includes("kling"))).toBe(true);
+    expect(values.some(v => v.includes("kling"))).toBe(true);
     // Check for Runway or Luma models
-    expect(values.some((v) => v.includes("runway") || v.includes("luma"))).toBe(true);
+    expect(values.some(v => v.includes("runway") || v.includes("luma"))).toBe(
+      true
+    );
     // Check sufficient video engine options
     expect(values.length).toBeGreaterThanOrEqual(3);
   });
 
   it("audioEngine should contain Suno and Udio", () => {
     const aud = GENERATION_ENGINE_CATALOG.audioEngine;
-    const values = aud.options.map((o) => o.value);
+    const values = aud.options.map(o => o.value);
     // Check for Suno music model
-    expect(values.some((v) => v.startsWith("suno"))).toBe(true);
+    expect(values.some(v => v.startsWith("suno"))).toBe(true);
     // Check for at least one alternative audio engine (Stable Audio, ElevenLabs, etc.)
-    expect(values.some((v) => v.includes("stable-audio") || v.includes("elevenlabs") || v.includes("musicgen") || v.includes("lyria") || v.includes("udio"))).toBe(true);
+    expect(
+      values.some(
+        v =>
+          v.includes("stable-audio") ||
+          v.includes("elevenlabs") ||
+          v.includes("musicgen") ||
+          v.includes("lyria") ||
+          v.includes("udio")
+      )
+    ).toBe(true);
   });
 
   it("voiceEngine should contain ElevenLabs and TTS", () => {
     const voice = GENERATION_ENGINE_CATALOG.voiceEngine;
-    const values = voice.options.map((o) => o.value);
-    expect(values.some((v) => v.startsWith("elevenlabs"))).toBe(true);
-    expect(values.some((v) => v.includes("tts"))).toBe(true);
+    const values = voice.options.map(o => o.value);
+    expect(values.some(v => v.startsWith("elevenlabs"))).toBe(true);
+    expect(values.some(v => v.includes("tts"))).toBe(true);
   });
 
   it("no duplicate model values within any single slot", () => {
@@ -193,7 +217,9 @@ describe("Live Preview — Soul Messages", () => {
 
   it("should have messages for claude-3.5-sonnet", () => {
     expect(SOUL_PREVIEW_MESSAGES["claude-3.5-sonnet"]).toBeDefined();
-    expect(SOUL_PREVIEW_MESSAGES["claude-3.5-sonnet"].length).toBeGreaterThanOrEqual(1);
+    expect(
+      SOUL_PREVIEW_MESSAGES["claude-3.5-sonnet"].length
+    ).toBeGreaterThanOrEqual(1);
   });
 
   it("messages should be non-empty strings", () => {

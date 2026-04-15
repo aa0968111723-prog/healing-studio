@@ -10,9 +10,26 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import {
-  Settings, User, RotateCcw, Brain, ChevronRight, Shield, Sun, Moon,
-  Clapperboard, Eye, Bell, Palette, BarChart3, Coins, Activity,
-  Monitor, Coffee, Waves, ExternalLink, Sparkles,
+  Settings,
+  User,
+  RotateCcw,
+  Brain,
+  ChevronRight,
+  Shield,
+  Sun,
+  Moon,
+  Clapperboard,
+  Eye,
+  Bell,
+  Palette,
+  BarChart3,
+  Coins,
+  Activity,
+  Monitor,
+  Coffee,
+  Waves,
+  ExternalLink,
+  Sparkles,
 } from "lucide-react";
 import { useTheme, type AppearanceMode } from "@/contexts/ThemeContext";
 import { useCurrentScene } from "@/components/AmbientEnvironment";
@@ -135,16 +152,28 @@ export default function SettingsPage() {
   const { user } = useAuth();
   usePageTour("settings");
   const { theme, appearanceMode, setAppearanceMode } = useTheme();
-  const { sceneId, override: sceneOverride, setOverride: setSceneOverride } = useCurrentScene();
+  const {
+    sceneId,
+    override: sceneOverride,
+    setOverride: setSceneOverride,
+  } = useCurrentScene();
   const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState("profile");
 
   // ─── Notification preference (localStorage) ───────────────────────────────
   const [soundEnabled, setSoundEnabled] = useState(() => {
-    try { return localStorage.getItem("settings-sound") !== "false"; } catch { return true; }
+    try {
+      return localStorage.getItem("settings-sound") !== "false";
+    } catch {
+      return true;
+    }
   });
   const [desktopNotif, setDesktopNotif] = useState(() => {
-    try { return localStorage.getItem("settings-desktop-notif") === "true"; } catch { return false; }
+    try {
+      return localStorage.getItem("settings-desktop-notif") === "true";
+    } catch {
+      return false;
+    }
   });
 
   useEffect(() => {
@@ -153,7 +182,11 @@ export default function SettingsPage() {
 
   useEffect(() => {
     localStorage.setItem("settings-desktop-notif", String(desktopNotif));
-    if (desktopNotif && "Notification" in window && Notification.permission === "default") {
+    if (
+      desktopNotif &&
+      "Notification" in window &&
+      Notification.permission === "default"
+    ) {
       Notification.requestPermission();
     }
   }, [desktopNotif]);
@@ -162,7 +195,9 @@ export default function SettingsPage() {
     localStorage.removeItem("ai-director-onboarded");
     localStorage.removeItem("hasSeenTour");
     localStorage.removeItem("onboarded");
-    window.dispatchEvent(new CustomEvent("site-tour-start", { detail: { pageId: "welcome" } }));
+    window.dispatchEvent(
+      new CustomEvent("site-tour-start", { detail: { pageId: "welcome" } })
+    );
     toast.success("已重置引導狀態，全站引導即將開始...");
   };
 
@@ -183,20 +218,35 @@ export default function SettingsPage() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="rounded-xl bg-muted/40 p-1 flex-nowrap overflow-x-auto h-auto gap-1 w-full justify-start">
-          <TabsTrigger value="profile" className="rounded-lg gap-1 text-xs shrink-0">
+          <TabsTrigger
+            value="profile"
+            className="rounded-lg gap-1 text-xs shrink-0"
+          >
             <User className="w-3 h-3" /> 個人資料
           </TabsTrigger>
-          <TabsTrigger value="appearance" className="rounded-lg gap-1 text-xs shrink-0">
+          <TabsTrigger
+            value="appearance"
+            className="rounded-lg gap-1 text-xs shrink-0"
+          >
             <Palette className="w-3 h-3" /> 外觀
           </TabsTrigger>
-          <TabsTrigger value="notifications" className="rounded-lg gap-1 text-xs shrink-0">
+          <TabsTrigger
+            value="notifications"
+            className="rounded-lg gap-1 text-xs shrink-0"
+          >
             <Bell className="w-3 h-3" /> 通知
           </TabsTrigger>
-          <TabsTrigger value="onboarding" className="rounded-lg gap-1 text-xs shrink-0">
+          <TabsTrigger
+            value="onboarding"
+            className="rounded-lg gap-1 text-xs shrink-0"
+          >
             <Eye className="w-3 h-3" /> 引導
           </TabsTrigger>
           {isAdmin && (
-            <TabsTrigger value="admin" className="rounded-lg gap-1 text-xs shrink-0">
+            <TabsTrigger
+              value="admin"
+              className="rounded-lg gap-1 text-xs shrink-0"
+            >
               <Shield className="w-3 h-3" /> 管理員
             </TabsTrigger>
           )}
@@ -212,11 +262,17 @@ export default function SettingsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label className="text-xs text-muted-foreground">名稱</Label>
-                <p className="text-sm font-medium text-foreground mt-1">{user?.name || "未設定"}</p>
+                <p className="text-sm font-medium text-foreground mt-1">
+                  {user?.name || "未設定"}
+                </p>
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground">電子郵件</Label>
-                <p className="text-sm font-medium text-foreground mt-1">{user?.email || "未設定"}</p>
+                <Label className="text-xs text-muted-foreground">
+                  電子郵件
+                </Label>
+                <p className="text-sm font-medium text-foreground mt-1">
+                  {user?.email || "未設定"}
+                </p>
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground">角色</Label>
@@ -225,7 +281,9 @@ export default function SettingsPage() {
                 </p>
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground">剩餘配額</Label>
+                <Label className="text-xs text-muted-foreground">
+                  剩餘配額
+                </Label>
                 <p className="text-sm font-medium text-foreground mt-1 tabular-nums">
                   {user?.remainingGenerations ?? 0} 次
                 </p>
@@ -285,10 +343,13 @@ export default function SettingsPage() {
               外觀模式
             </h2>
             <p className="hs-small !mb-0 text-muted-foreground mb-4">
-              選擇主題切換策略 — 目前：<span className="font-medium">{theme === "dark" ? "深色" : "亮色"}</span>
+              選擇主題切換策略 — 目前：
+              <span className="font-medium">
+                {theme === "dark" ? "深色" : "亮色"}
+              </span>
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {APPEARANCE_MODES.map((mode) => {
+              {APPEARANCE_MODES.map(mode => {
                 const Icon = mode.icon;
                 const isActive = appearanceMode === mode.id;
                 return (
@@ -300,9 +361,10 @@ export default function SettingsPage() {
                     }}
                     className={`
                       relative rounded-xl p-3 text-left transition-all border overflow-hidden group
-                      ${isActive
-                        ? "ring-2 ring-primary/40 border-primary/30 shadow-sm"
-                        : "border-border/40 hover:border-border/60 hover:shadow-sm"
+                      ${
+                        isActive
+                          ? "ring-2 ring-primary/40 border-primary/30 shadow-sm"
+                          : "border-border/40 hover:border-border/60 hover:shadow-sm"
                       }
                     `}
                   >
@@ -313,12 +375,16 @@ export default function SettingsPage() {
                     />
                     <div className="relative z-10">
                       <div className="flex items-center gap-2 mb-1.5">
-                        <Icon className={`w-4 h-4 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
+                        <Icon
+                          className={`w-4 h-4 ${isActive ? "text-primary" : "text-muted-foreground"}`}
+                        />
                         {isActive && (
                           <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
                         )}
                       </div>
-                      <p className={`hs-small !mb-0 font-semibold ${isActive ? "text-primary" : "text-foreground"}`}>
+                      <p
+                        className={`hs-small !mb-0 font-semibold ${isActive ? "text-primary" : "text-foreground"}`}
+                      >
                         {mode.label}
                       </p>
                       <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
@@ -338,13 +404,25 @@ export default function SettingsPage() {
               背景場景
             </h2>
             <p className="hs-small !mb-0 text-muted-foreground mb-4">
-              {sceneOverride
-                ? <>已手動鎖定場景 · <button onClick={() => { setSceneOverride(null); toast.success("已恢復自動場景"); }} className="text-primary hover:underline">恢復自動</button></>
-                : "依時間自動切換 · 也可手動鎖定"
-              }
+              {sceneOverride ? (
+                <>
+                  已手動鎖定場景 ·{" "}
+                  <button
+                    onClick={() => {
+                      setSceneOverride(null);
+                      toast.success("已恢復自動場景");
+                    }}
+                    className="text-primary hover:underline"
+                  >
+                    恢復自動
+                  </button>
+                </>
+              ) : (
+                "依時間自動切換 · 也可手動鎖定"
+              )}
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {SCENE_OPTIONS.map((scene) => {
+              {SCENE_OPTIONS.map(scene => {
                 const Icon = scene.icon;
                 const isActive = sceneId === scene.id;
                 const isOverridden = sceneOverride === scene.id;
@@ -357,9 +435,10 @@ export default function SettingsPage() {
                     }}
                     className={`
                       relative rounded-xl overflow-hidden transition-all border group
-                      ${isActive
-                        ? "ring-2 ring-primary/40 border-primary/30 shadow-sm"
-                        : "border-border/40 hover:border-border/60 hover:shadow-sm"
+                      ${
+                        isActive
+                          ? "ring-2 ring-primary/40 border-primary/30 shadow-sm"
+                          : "border-border/40 hover:border-border/60 hover:shadow-sm"
                       }
                     `}
                   >
@@ -370,8 +449,12 @@ export default function SettingsPage() {
                     />
                     <div className="p-2.5">
                       <div className="flex items-center gap-1.5 mb-0.5">
-                        <Icon className={`w-3 h-3 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
-                        <span className={`hs-small !mb-0 font-semibold ${isActive ? "text-primary" : "text-foreground"}`}>
+                        <Icon
+                          className={`w-3 h-3 ${isActive ? "text-primary" : "text-muted-foreground"}`}
+                        />
+                        <span
+                          className={`hs-small !mb-0 font-semibold ${isActive ? "text-primary" : "text-foreground"}`}
+                        >
                           {scene.label}
                         </span>
                         {isOverridden && (
@@ -401,7 +484,7 @@ export default function SettingsPage() {
               探索更多視覺靈感與背景素材
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {WALLPAPER_RESOURCES.map((res) => (
+              {WALLPAPER_RESOURCES.map(res => (
                 <a
                   key={res.name}
                   href={res.url}
@@ -435,17 +518,31 @@ export default function SettingsPage() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-foreground">音效提示</p>
-                  <p className="hs-small !mb-0 text-muted-foreground">生成完成時播放提示音</p>
+                  <p className="text-sm font-medium text-foreground">
+                    音效提示
+                  </p>
+                  <p className="hs-small !mb-0 text-muted-foreground">
+                    生成完成時播放提示音
+                  </p>
                 </div>
-                <Switch checked={soundEnabled} onCheckedChange={setSoundEnabled} />
+                <Switch
+                  checked={soundEnabled}
+                  onCheckedChange={setSoundEnabled}
+                />
               </div>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-foreground">桌面通知</p>
-                  <p className="hs-small !mb-0 text-muted-foreground">背景任務完成時發送系統通知</p>
+                  <p className="text-sm font-medium text-foreground">
+                    桌面通知
+                  </p>
+                  <p className="hs-small !mb-0 text-muted-foreground">
+                    背景任務完成時發送系統通知
+                  </p>
                 </div>
-                <Switch checked={desktopNotif} onCheckedChange={setDesktopNotif} />
+                <Switch
+                  checked={desktopNotif}
+                  onCheckedChange={setDesktopNotif}
+                />
               </div>
             </div>
           </GlassCard>
@@ -517,7 +614,9 @@ export default function SettingsPage() {
                       <Brain className="w-4 h-4 text-primary" />
                     </div>
                     <div className="text-left">
-                      <h3 className="hs-h3 !mb-0 text-foreground">AI 大腦組態</h3>
+                      <h3 className="hs-h3 !mb-0 text-foreground">
+                        AI 大腦組態
+                      </h3>
                       <p className="hs-small !mb-0 text-muted-foreground">
                         5 種推理大腦與 4 種生成引擎的模型選擇與參數配置
                       </p>
@@ -536,7 +635,9 @@ export default function SettingsPage() {
                       <BarChart3 className="w-4 h-4 text-orange-600" />
                     </div>
                     <div className="text-left">
-                      <h3 className="hs-h3 !mb-0 text-foreground">成本與用量</h3>
+                      <h3 className="hs-h3 !mb-0 text-foreground">
+                        成本與用量
+                      </h3>
                       <p className="hs-small !mb-0 text-muted-foreground">
                         API 呼叫統計、費用趨勢、使用紀錄
                       </p>
@@ -555,7 +656,9 @@ export default function SettingsPage() {
                       <Activity className="w-4 h-4 text-emerald-600" />
                     </div>
                     <div className="text-left">
-                      <h3 className="hs-h3 !mb-0 text-foreground">AI 監控中心</h3>
+                      <h3 className="hs-h3 !mb-0 text-foreground">
+                        AI 監控中心
+                      </h3>
                       <p className="hs-small !mb-0 text-muted-foreground">
                         LangSmith 追蹤、LLM 呼叫分析
                       </p>

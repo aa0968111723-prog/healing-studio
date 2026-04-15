@@ -19,8 +19,11 @@ describe("Gemini Audio Migration", () => {
       wavHeader.writeUInt16LE(1, 20);
       wavHeader.writeUInt16LE(numChannels, 22);
       wavHeader.writeUInt32LE(sampleRate, 24);
-      wavHeader.writeUInt32LE(sampleRate * numChannels * bitsPerSample / 8, 28);
-      wavHeader.writeUInt16LE(numChannels * bitsPerSample / 8, 32);
+      wavHeader.writeUInt32LE(
+        (sampleRate * numChannels * bitsPerSample) / 8,
+        28
+      );
+      wavHeader.writeUInt16LE((numChannels * bitsPerSample) / 8, 32);
       wavHeader.writeUInt16LE(bitsPerSample, 34);
       wavHeader.write("data", 36);
       wavHeader.writeUInt32LE(dataSize, 40);
@@ -74,9 +77,22 @@ describe("Gemini Audio Migration", () => {
 
     it("should map all emotion types to valid Gemini voices", () => {
       const validVoices = [
-        "Zephyr", "Puck", "Charon", "Kore", "Fenrir", "Leda",
-        "Orus", "Aoede", "Callirrhoe", "Autonoe", "Enceladus",
-        "Iapetus", "Umbriel", "Algieba", "Despina", "Erinome",
+        "Zephyr",
+        "Puck",
+        "Charon",
+        "Kore",
+        "Fenrir",
+        "Leda",
+        "Orus",
+        "Aoede",
+        "Callirrhoe",
+        "Autonoe",
+        "Enceladus",
+        "Iapetus",
+        "Umbriel",
+        "Algieba",
+        "Despina",
+        "Erinome",
         "Algenib",
       ];
       for (const [emotion, voice] of Object.entries(voiceMap)) {
@@ -108,20 +124,23 @@ describe("Gemini Audio Migration", () => {
     it("should add speed instruction for slow speed", () => {
       const text = "歡迎來到療癒工作室";
       const speed = 0.7;
-      const speedDesc = speed < 0.8 ? "slowly" : speed > 1.2 ? "quickly" : "at moderate pace";
+      const speedDesc =
+        speed < 0.8 ? "slowly" : speed > 1.2 ? "quickly" : "at moderate pace";
       const prompt = `Say ${speedDesc}:\n${text}`;
       expect(prompt).toContain("Say slowly");
     });
 
     it("should add speed instruction for fast speed", () => {
       const speed = 1.5;
-      const speedDesc = speed < 0.8 ? "slowly" : speed > 1.2 ? "quickly" : "at moderate pace";
+      const speedDesc =
+        speed < 0.8 ? "slowly" : speed > 1.2 ? "quickly" : "at moderate pace";
       expect(speedDesc).toBe("quickly");
     });
 
     it("should use moderate pace for normal speed", () => {
       const speed = 1.0;
-      const speedDesc = speed < 0.8 ? "slowly" : speed > 1.2 ? "quickly" : "at moderate pace";
+      const speedDesc =
+        speed < 0.8 ? "slowly" : speed > 1.2 ? "quickly" : "at moderate pace";
       expect(speedDesc).toBe("at moderate pace");
     });
   });
@@ -131,21 +150,27 @@ describe("Gemini Audio Migration", () => {
     it("should use clip model for short durations (<=35s)", () => {
       const duration = 30;
       const useProModel = (duration || 30) > 35;
-      const modelId = useProModel ? "lyria-3-pro-preview" : "lyria-3-clip-preview";
+      const modelId = useProModel
+        ? "lyria-3-pro-preview"
+        : "lyria-3-clip-preview";
       expect(modelId).toBe("lyria-3-clip-preview");
     });
 
     it("should use pro model for long durations (>35s)", () => {
       const duration = 120;
       const useProModel = (duration || 30) > 35;
-      const modelId = useProModel ? "lyria-3-pro-preview" : "lyria-3-clip-preview";
+      const modelId = useProModel
+        ? "lyria-3-pro-preview"
+        : "lyria-3-clip-preview";
       expect(modelId).toBe("lyria-3-pro-preview");
     });
 
     it("should default to clip model when no duration specified", () => {
       const duration = undefined;
       const useProModel = (duration || 30) > 35;
-      const modelId = useProModel ? "lyria-3-pro-preview" : "lyria-3-clip-preview";
+      const modelId = useProModel
+        ? "lyria-3-pro-preview"
+        : "lyria-3-clip-preview";
       expect(modelId).toBe("lyria-3-clip-preview");
     });
   });

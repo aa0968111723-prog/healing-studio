@@ -121,8 +121,8 @@ async function fetchRecentNews(): Promise<NewsRow[]> {
     .where(
       and(
         eq(newsArticles.isPublished, true),
-        gte(newsArticles.publishedAt, since),
-      ),
+        gte(newsArticles.publishedAt, since)
+      )
     )
     .orderBy(desc(newsArticles.publishedAt))
     .limit(20);
@@ -133,7 +133,7 @@ async function fetchRecentNews(): Promise<NewsRow[]> {
 // ─── Step 2: Synthesize deep-dive docs via Gemini ───────────────────────────
 
 async function synthesizeDeepDiveDocs(
-  newsItems: NewsRow[],
+  newsItems: NewsRow[]
 ): Promise<SynthesizedDoc[]> {
   if (newsItems.length === 0) return [];
 
@@ -141,7 +141,7 @@ async function synthesizeDeepDiveDocs(
   const newsSummary = newsItems
     .map(
       (n, i) =>
-        `${i + 1}. 【${n.category}】${n.title}\n   摘要：${n.oarsSummary}\n   標籤：${(n.tags ?? []).join(", ")}`,
+        `${i + 1}. 【${n.category}】${n.title}\n   摘要：${n.oarsSummary}\n   標籤：${(n.tags ?? []).join(", ")}`
     )
     .join("\n\n");
 
@@ -190,7 +190,10 @@ ${newsSummary}
 
     // Apply timeout to prevent indefinite hangs
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`LLM 呼叫逾時（${LLM_TIMEOUT_MS}ms）`)), LLM_TIMEOUT_MS),
+      setTimeout(
+        () => reject(new Error(`LLM 呼叫逾時（${LLM_TIMEOUT_MS}ms）`)),
+        LLM_TIMEOUT_MS
+      )
     );
 
     const result = await Promise.race([llmPromise, timeoutPromise]);
@@ -227,7 +230,7 @@ ${newsSummary}
           d.title &&
           d.summary &&
           d.content &&
-          validCategories.includes(d.category),
+          validCategories.includes(d.category)
       )
       .map((d: any) => ({
         title: String(d.title).substring(0, MAX_TITLE_LENGTH),
@@ -239,7 +242,13 @@ ${newsSummary}
         difficulty: validDifficulties.includes(d.difficulty)
           ? (d.difficulty as SynthesizedDoc["difficulty"])
           : "intermediate",
-        readingMinutes: Math.max(MIN_READING_MINUTES, Math.min(MAX_READING_MINUTES, Number(d.readingMinutes) || DEFAULT_READING_MINUTES)),
+        readingMinutes: Math.max(
+          MIN_READING_MINUTES,
+          Math.min(
+            MAX_READING_MINUTES,
+            Number(d.readingMinutes) || DEFAULT_READING_MINUTES
+          )
+        ),
         category: d.category as DocCategory,
       }))
       .slice(0, MAX_DOCS_PER_RUN);
@@ -306,7 +315,7 @@ export async function runLearnDocSyncJob(): Promise<void> {
   if (!llmBreaker.canExecute()) {
     logSync(
       "warn",
-      `Circuit breaker OPEN（狀態: ${llmBreaker.getState()}），跳過本次排程。`,
+      `Circuit breaker OPEN（狀態: ${llmBreaker.getState()}），跳過本次排程。`
     );
     return;
   }
@@ -340,7 +349,7 @@ export async function runLearnDocSyncJob(): Promise<void> {
     const imported = importDocsToLearnHub(synthesized);
     logSync(
       "info",
-      `成功匯入 ${imported} 篇新文件（跳過 ${synthesized.length - imported} 篇已存在的文件）`,
+      `成功匯入 ${imported} 篇新文件（跳過 ${synthesized.length - imported} 篇已存在的文件）`
     );
 
     llmBreaker.recordSuccess();
@@ -373,7 +382,7 @@ export function initLearnDocSyncerCron(): void {
 
   logSync(
     "info",
-    "學習文件自動同步排程已註冊 — 每週一 03:00 UTC 執行（從新聞合成深度學習文件）",
+    "學習文件自動同步排程已註冊 — 每週一 03:00 UTC 執行（從新聞合成深度學習文件）"
   );
 
   // Initial sync after 60s delay (let DB, news fetcher, and server warm up)

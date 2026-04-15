@@ -8,8 +8,19 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import {
-  User, Mountain, Upload, GripVertical, X, Plus, Search,
-  ImagePlus, Layers, Trash2, Loader2, Link, Check,
+  User,
+  Mountain,
+  Upload,
+  GripVertical,
+  X,
+  Plus,
+  Search,
+  ImagePlus,
+  Layers,
+  Trash2,
+  Loader2,
+  Link,
+  Check,
 } from "lucide-react";
 import { ZenSkeleton } from "./ZenCoPilot";
 
@@ -31,7 +42,9 @@ type ConsistencyVaultProps = {
 
 // ─── Upload Helper ──────────────────────────────────────────────────────────
 
-async function uploadFileToS3(file: File): Promise<{ url: string; fileKey: string }> {
+async function uploadFileToS3(
+  file: File
+): Promise<{ url: string; fileKey: string }> {
   const reader = new FileReader();
   const base64 = await new Promise<string>((resolve, reject) => {
     reader.onload = () => {
@@ -85,10 +98,13 @@ function VaultItemCard({
       whileHover={{ scale: 1.02 }}
       whileTap={{ scale: 0.97 }}
       draggable
-      onDragStart={(e) => {
+      onDragStart={e => {
         const dragEvent = e as unknown as React.DragEvent;
         if (dragEvent.dataTransfer) {
-          dragEvent.dataTransfer.setData("application/vault-item", JSON.stringify(item));
+          dragEvent.dataTransfer.setData(
+            "application/vault-item",
+            JSON.stringify(item)
+          );
           dragEvent.dataTransfer.setData("text/plain", item.imageUrl);
           dragEvent.dataTransfer.effectAllowed = "copy";
         }
@@ -127,14 +143,19 @@ function VaultItemCard({
         <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
           <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between">
             <GripVertical className="w-4 h-4 text-white/80" />
-            <span className="text-[10px] text-white/80 font-medium">拖放至工作區</span>
+            <span className="text-[10px] text-white/80 font-medium">
+              拖放至工作區
+            </span>
           </div>
         </div>
 
         {/* Delete button — always visible on mobile, hover-only on desktop */}
         {onDelete && (
           <button
-            onClick={(e) => { e.stopPropagation(); onDelete(item.id); }}
+            onClick={e => {
+              e.stopPropagation();
+              onDelete(item.id);
+            }}
             className={`absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-red-500/80 text-white flex items-center justify-center transition-opacity hover:bg-red-600 ${
               isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100"
             }`}
@@ -145,11 +166,14 @@ function VaultItemCard({
 
         {/* Type badge */}
         <div className="absolute top-1.5 left-1.5">
-          <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full ${
-            item.type === "character"
-              ? "bg-violet-500/20 text-violet-700"
-              : "bg-emerald-500/20 text-emerald-700"
-          }`} style={{ backdropFilter: "blur(8px)" }}>
+          <span
+            className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full ${
+              item.type === "character"
+                ? "bg-violet-500/20 text-violet-700"
+                : "bg-emerald-500/20 text-emerald-700"
+            }`}
+            style={{ backdropFilter: "blur(8px)" }}
+          >
             {item.type === "character" ? "角色" : "場景"}
           </span>
         </div>
@@ -158,11 +182,16 @@ function VaultItemCard({
       {/* Info */}
       {!compact && (
         <div className="p-2.5">
-          <p className="text-xs font-medium text-foreground truncate">{item.name}</p>
+          <p className="text-xs font-medium text-foreground truncate">
+            {item.name}
+          </p>
           {item.tags && item.tags.length > 0 && (
             <div className="flex gap-1 mt-1 flex-wrap">
-              {item.tags.slice(0, 3).map((tag) => (
-                <span key={tag} className="text-[9px] text-muted-foreground bg-muted/30 px-1.5 py-0.5 rounded-full">
+              {item.tags.slice(0, 3).map(tag => (
+                <span
+                  key={tag}
+                  className="text-[9px] text-muted-foreground bg-muted/30 px-1.5 py-0.5 rounded-full"
+                >
                   {tag}
                 </span>
               ))}
@@ -198,8 +227,10 @@ function UploadPanel({
       setTags("");
       onSuccess();
     },
-    onError: (err) => {
-      toast.error("儲存失敗：" + shortErrorMsg(err.message), { duration: 5000 });
+    onError: err => {
+      toast.error("儲存失敗：" + shortErrorMsg(err.message), {
+        duration: 5000,
+      });
     },
   });
 
@@ -229,7 +260,12 @@ function UploadPanel({
       const { url, fileKey } = await uploadFileToS3(file);
 
       // Step 2: Save vault item via tRPC
-      const tagList = tags.trim() ? tags.split(",").map(t => t.trim()).filter(Boolean) : undefined;
+      const tagList = tags.trim()
+        ? tags
+            .split(",")
+            .map(t => t.trim())
+            .filter(Boolean)
+        : undefined;
       await createVaultItem.mutateAsync({
         name: name.trim(),
         itemType,
@@ -245,26 +281,40 @@ function UploadPanel({
   };
 
   return (
-    <div className="space-y-3 p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.3)", border: "1px solid rgba(255,255,255,0.5)" }}>
+    <div
+      className="space-y-3 p-3 rounded-xl"
+      style={{
+        background: "rgba(255,255,255,0.3)",
+        border: "1px solid rgba(255,255,255,0.5)",
+      }}
+    >
       <Input
         placeholder={itemType === "character" ? "角色名稱" : "場景名稱"}
         value={name}
-        onChange={(e) => setName(e.target.value)}
+        onChange={e => setName(e.target.value)}
         className="h-8 text-xs rounded-lg bg-white/40 border-white/60"
       />
 
       <Input
         placeholder="標籤（逗號分隔）"
         value={tags}
-        onChange={(e) => setTags(e.target.value)}
+        onChange={e => setTags(e.target.value)}
         className="h-8 text-xs rounded-lg bg-white/40 border-white/60"
       />
 
       {preview ? (
         <div className="relative aspect-video rounded-lg overflow-hidden">
-          <img src={preview} alt="預覽" className="w-full h-full object-cover" loading="lazy" />
+          <img
+            src={preview}
+            alt="預覽"
+            className="w-full h-full object-cover"
+            loading="lazy"
+          />
           <button
-            onClick={() => { setFile(null); setPreview(null); }}
+            onClick={() => {
+              setFile(null);
+              setPreview(null);
+            }}
             className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-white/80 flex items-center justify-center hover:bg-white"
           >
             <X className="w-3 h-3" />
@@ -273,12 +323,14 @@ function UploadPanel({
       ) : (
         <label className="flex flex-col items-center justify-center gap-1.5 p-4 rounded-lg border-2 border-dashed border-border/40 hover:border-border/60 cursor-pointer transition-colors">
           <Upload className="w-5 h-5 text-muted-foreground/40" />
-          <span className="text-[11px] text-muted-foreground">點擊選擇圖片</span>
+          <span className="text-[11px] text-muted-foreground">
+            點擊選擇圖片
+          </span>
           <input
             type="file"
             accept="image/*"
             className="hidden"
-            onChange={(e) => {
+            onChange={e => {
               const f = e.target.files?.[0];
               if (f) handleFileSelect(f);
             }}
@@ -310,8 +362,14 @@ function UploadPanel({
 
 // ─── Main Consistency Vault ─────────────────────────────────────────────────
 
-export function ConsistencyVault({ onDragStart, onSelect, compact = false }: ConsistencyVaultProps) {
-  const [activeTab, setActiveTab] = useState<"character" | "scene">("character");
+export function ConsistencyVault({
+  onDragStart,
+  onSelect,
+  compact = false,
+}: ConsistencyVaultProps) {
+  const [activeTab, setActiveTab] = useState<"character" | "scene">(
+    "character"
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [showUpload, setShowUpload] = useState(false);
 
@@ -325,7 +383,7 @@ export function ConsistencyVault({ onDragStart, onSelect, compact = false }: Con
       toast.success("已刪除");
       utils.vault.list.invalidate();
     },
-    onError: (err) => {
+    onError: err => {
       toast.error("刪除失敗：" + err.message);
     },
   });
@@ -344,7 +402,9 @@ export function ConsistencyVault({ onDragStart, onSelect, compact = false }: Con
 
   const items = activeTab === "character" ? characterItems : sceneItems;
   const filteredItems = searchQuery
-    ? items.filter(i => i.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    ? items.filter(i =>
+        i.name.toLowerCase().includes(searchQuery.toLowerCase())
+      )
     : items;
 
   const handleDelete = (id: number) => {
@@ -359,7 +419,9 @@ export function ConsistencyVault({ onDragStart, onSelect, compact = false }: Con
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Layers className="w-4 h-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold text-foreground">一致性保險庫</h3>
+          <h3 className="text-sm font-semibold text-foreground">
+            一致性保險庫
+          </h3>
         </div>
         <Button
           variant="ghost"
@@ -397,13 +459,22 @@ export function ConsistencyVault({ onDragStart, onSelect, compact = false }: Con
       </AnimatePresence>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "character" | "scene")}>
+      <Tabs
+        value={activeTab}
+        onValueChange={v => setActiveTab(v as "character" | "scene")}
+      >
         <TabsList className="w-full grid grid-cols-2 h-8 rounded-lg bg-muted/30 p-0.5">
-          <TabsTrigger value="character" className="rounded-md text-xs h-7 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+          <TabsTrigger
+            value="character"
+            className="rounded-md text-xs h-7 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+          >
             <User className="w-3 h-3 mr-1" />
             角色 ({characterItems.length})
           </TabsTrigger>
-          <TabsTrigger value="scene" className="rounded-md text-xs h-7 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+          <TabsTrigger
+            value="scene"
+            className="rounded-md text-xs h-7 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+          >
             <Mountain className="w-3 h-3 mr-1" />
             場景 ({sceneItems.length})
           </TabsTrigger>
@@ -415,7 +486,7 @@ export function ConsistencyVault({ onDragStart, onSelect, compact = false }: Con
           <Input
             placeholder="搜尋..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={e => setSearchQuery(e.target.value)}
             className="pl-8 h-8 text-xs rounded-lg bg-white/40 border-white/60"
           />
         </div>
@@ -482,7 +553,7 @@ function VaultGrid({
 
   return (
     <div className={`grid gap-2 ${compact ? "grid-cols-2" : "grid-cols-2"}`}>
-      {items.map((item) => (
+      {items.map(item => (
         <VaultItemCard
           key={`${item.type}-${item.id}`}
           item={item}
@@ -516,34 +587,39 @@ export function VaultDropzone({
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [urlInput, setUrlInput] = useState("");
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragOver(false);
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setIsDragOver(false);
 
-    // Try vault item first
-    const vaultData = e.dataTransfer.getData("application/vault-item");
-    if (vaultData) {
-      try {
-        const item: VaultItem = JSON.parse(vaultData);
-        onDrop(item.imageUrl, item);
-        toast.success(`已載入「${item.name}」`);
+      // Try vault item first
+      const vaultData = e.dataTransfer.getData("application/vault-item");
+      if (vaultData) {
+        try {
+          const item: VaultItem = JSON.parse(vaultData);
+          onDrop(item.imageUrl, item);
+          toast.success(`已載入「${item.name}」`);
+          return;
+        } catch {
+          /* fallthrough */
+        }
+      }
+
+      // Try plain URL
+      const url = e.dataTransfer.getData("text/plain");
+      if (url) {
+        onDrop(url);
         return;
-      } catch { /* fallthrough */ }
-    }
+      }
 
-    // Try plain URL
-    const url = e.dataTransfer.getData("text/plain");
-    if (url) {
-      onDrop(url);
-      return;
-    }
-
-    // Try file - upload to S3
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith("image/")) {
-      handleFileUpload(file);
-    }
-  }, [onDrop]);
+      // Try file - upload to S3
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith("image/")) {
+        handleFileUpload(file);
+      }
+    },
+    [onDrop]
+  );
 
   const handleFileUpload = async (file: File) => {
     if (file.size > 16 * 1024 * 1024) {
@@ -566,7 +642,7 @@ export function VaultDropzone({
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "image/*";
-    input.onchange = (e) => {
+    input.onchange = e => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (file) {
         handleFileUpload(file);
@@ -595,26 +671,40 @@ export function VaultDropzone({
         isDragOver
           ? "border-primary/50 bg-primary/5 scale-[1.02]"
           : value
-          ? "border-transparent"
-          : "border-border/40 hover:border-border/60"
+            ? "border-transparent"
+            : "border-border/40 hover:border-border/60"
       } ${className}`}
-      onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+      onDragOver={e => {
+        e.preventDefault();
+        setIsDragOver(true);
+      }}
       onDragLeave={() => setIsDragOver(false)}
       onDrop={handleDrop}
     >
       {value ? (
         <div className="relative aspect-video">
-          <img src={value} alt={label} className="w-full h-full object-cover rounded-xl" loading="lazy" />
+          <img
+            src={value}
+            alt={label}
+            className="w-full h-full object-cover rounded-xl"
+            loading="lazy"
+          />
           <Button
             variant="outline"
             size="icon"
             className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-white/80 hover:bg-white shadow-sm"
-            onClick={(e) => { e.stopPropagation(); onClear(); }}
+            onClick={e => {
+              e.stopPropagation();
+              onClear();
+            }}
           >
             <X className="w-3 h-3" />
           </Button>
           <div className="absolute bottom-1.5 left-1.5">
-            <span className="text-[10px] font-medium text-white bg-black/40 px-2 py-0.5 rounded-full" style={{ backdropFilter: "blur(4px)" }}>
+            <span
+              className="text-[10px] font-medium text-white bg-black/40 px-2 py-0.5 rounded-full"
+              style={{ backdropFilter: "blur(4px)" }}
+            >
               {label}
             </span>
           </div>
@@ -626,10 +716,13 @@ export function VaultDropzone({
             <input
               type="url"
               value={urlInput}
-              onChange={(e) => setUrlInput(e.target.value)}
-              onKeyDown={(e) => {
+              onChange={e => setUrlInput(e.target.value)}
+              onKeyDown={e => {
                 if (e.key === "Enter") handleUrlSubmit();
-                if (e.key === "Escape") { setShowUrlInput(false); setUrlInput(""); }
+                if (e.key === "Escape") {
+                  setShowUrlInput(false);
+                  setUrlInput("");
+                }
               }}
               placeholder="貼上圖片 URL..."
               autoFocus
@@ -643,13 +736,18 @@ export function VaultDropzone({
               <Check className="w-3.5 h-3.5 text-primary" />
             </button>
             <button
-              onClick={() => { setShowUrlInput(false); setUrlInput(""); }}
+              onClick={() => {
+                setShowUrlInput(false);
+                setUrlInput("");
+              }}
               className="p-1.5 rounded-lg hover:bg-muted/20 transition-colors"
             >
               <X className="w-3.5 h-3.5 text-muted-foreground" />
             </button>
           </div>
-          <span className="text-[10px] text-muted-foreground/50">按 Enter 確認，Esc 取消</span>
+          <span className="text-[10px] text-muted-foreground/50">
+            按 Enter 確認，Esc 取消
+          </span>
         </div>
       ) : (
         <div className="w-full aspect-video flex flex-col items-center justify-center gap-1 p-3">
@@ -661,13 +759,19 @@ export function VaultDropzone({
             {uploading ? (
               <>
                 <Loader2 className="w-5 h-5 text-muted-foreground/40 animate-spin" />
-                <span className="text-[11px] text-muted-foreground font-medium">上傳中...</span>
+                <span className="text-[11px] text-muted-foreground font-medium">
+                  上傳中...
+                </span>
               </>
             ) : (
               <>
                 <Upload className="w-5 h-5 text-muted-foreground/40" />
-                <span className="text-[11px] text-muted-foreground font-medium">{label}</span>
-                <span className="text-[10px] text-muted-foreground/50">拖放或點擊上傳</span>
+                <span className="text-[11px] text-muted-foreground font-medium">
+                  {label}
+                </span>
+                <span className="text-[10px] text-muted-foreground/50">
+                  拖放或點擊上傳
+                </span>
               </>
             )}
           </button>

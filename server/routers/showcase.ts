@@ -80,11 +80,7 @@ export const showcaseRouter = router({
   list: publicProcedure
     .input(
       z.object({
-        limit: z
-          .number()
-          .min(1)
-          .max(MAX_PAGE_SIZE)
-          .default(DEFAULT_PAGE_SIZE),
+        limit: z.number().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
         cursor: z.number().nullish(),
         modality: z.enum(MODALITIES).optional(),
       })
@@ -140,7 +136,11 @@ export const showcaseRouter = router({
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       const db = await tryDb();
-      if (!db) throw new TRPCError({ code: "NOT_FOUND", message: "資料庫暫時無法連線，找不到此作品。" });
+      if (!db)
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "資料庫暫時無法連線，找不到此作品。",
+        });
 
       const results = await db
         .select()
@@ -206,11 +206,7 @@ export const showcaseRouter = router({
     .input(
       z.object({
         modality: z.enum(MODALITIES),
-        limit: z
-          .number()
-          .min(1)
-          .max(MAX_PAGE_SIZE)
-          .default(DEFAULT_PAGE_SIZE),
+        limit: z.number().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
         cursor: z.number().nullish(),
       })
     )
@@ -232,10 +228,7 @@ export const showcaseRouter = router({
         .select(LIST_FIELDS)
         .from(featuredShowcase)
         .where(and(...conditions))
-        .orderBy(
-          desc(featuredShowcase.sortWeight),
-          desc(featuredShowcase.id)
-        )
+        .orderBy(desc(featuredShowcase.sortWeight), desc(featuredShowcase.id))
         .limit(limit + 1);
 
       let nextCursor: number | undefined;
@@ -263,11 +256,7 @@ export const showcaseRouter = router({
     .input(
       z.object({
         aesthetics: z.array(z.string()).min(1).max(20),
-        limit: z
-          .number()
-          .min(1)
-          .max(MAX_PAGE_SIZE)
-          .default(DEFAULT_PAGE_SIZE),
+        limit: z.number().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
         cursor: z.number().nullish(),
         excludeIds: z.array(z.number()).max(100).default([]),
       })
@@ -278,7 +267,7 @@ export const showcaseRouter = router({
       const { aesthetics, limit, cursor, excludeIds } = input;
 
       // Build LIKE conditions for each aesthetic tag across searchable fields
-      const likeConditions = aesthetics.map((tag) => {
+      const likeConditions = aesthetics.map(tag => {
         const pattern = `%${tag}%`;
         return sql`(
           ${featuredShowcase.title} LIKE ${pattern}
@@ -290,7 +279,7 @@ export const showcaseRouter = router({
       // Match score: count how many aesthetic tags match
       const matchScore = sql<number>`(
         ${sql.join(
-          aesthetics.map((tag) => {
+          aesthetics.map(tag => {
             const pattern = `%${tag}%`;
             return sql`(
               (${featuredShowcase.title} LIKE ${pattern}) +
@@ -304,7 +293,7 @@ export const showcaseRouter = router({
 
       const conditions = [
         eq(featuredShowcase.isActive, true),
-        sql`(${sql.join(likeConditions, sql` OR `)})`
+        sql`(${sql.join(likeConditions, sql` OR `)})`,
       ];
 
       if (cursor) {
@@ -315,7 +304,7 @@ export const showcaseRouter = router({
       if (excludeIds.length > 0) {
         conditions.push(
           sql`${featuredShowcase.id} NOT IN (${sql.join(
-            excludeIds.map((id) => sql`${id}`),
+            excludeIds.map(id => sql`${id}`),
             sql`, `
           )})`
         );
@@ -417,7 +406,11 @@ export const showcaseRouter = router({
       }
 
       // Determine modality
-      const modality = (historyItem.modality ?? "image") as "image" | "video" | "audio" | "voice";
+      const modality = (historyItem.modality ?? "image") as
+        | "image"
+        | "video"
+        | "audio"
+        | "voice";
 
       // Insert into featured showcase
       await db.insert(featuredShowcase).values({
@@ -514,12 +507,14 @@ export const showcaseRouter = router({
       .select({
         modality: featuredShowcase.modality,
         count: sql<number>`COUNT(*)`.as("count"),
-        totalLikes: sql<number>`COALESCE(SUM(${featuredShowcase.likeCount}), 0)`.as(
-          "totalLikes"
-        ),
-        totalForks: sql<number>`COALESCE(SUM(${featuredShowcase.forkCount}), 0)`.as(
-          "totalForks"
-        ),
+        totalLikes:
+          sql<number>`COALESCE(SUM(${featuredShowcase.likeCount}), 0)`.as(
+            "totalLikes"
+          ),
+        totalForks:
+          sql<number>`COALESCE(SUM(${featuredShowcase.forkCount}), 0)`.as(
+            "totalForks"
+          ),
       })
       .from(featuredShowcase)
       .where(eq(featuredShowcase.isActive, true))
@@ -532,7 +527,7 @@ export const showcaseRouter = router({
       voice: "語音",
     };
 
-    return modalityCounts.map((m) => ({
+    return modalityCounts.map(m => ({
       key: m.modality,
       label: modalityLabels[m.modality] || m.modality,
       count: Number(m.count),

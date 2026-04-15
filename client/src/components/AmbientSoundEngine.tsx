@@ -38,24 +38,34 @@ function loadPrefs(): SoundPrefs {
     if (raw) {
       const parsed = JSON.parse(raw);
       return {
-        volume: typeof parsed.volume === "number" ? Math.max(0, Math.min(1, parsed.volume)) : DEFAULT_VOLUME,
+        volume:
+          typeof parsed.volume === "number"
+            ? Math.max(0, Math.min(1, parsed.volume))
+            : DEFAULT_VOLUME,
         muted: typeof parsed.muted === "boolean" ? parsed.muted : true,
       };
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return { volume: DEFAULT_VOLUME, muted: true };
 }
 
 function savePrefs(prefs: SoundPrefs) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 // ─── Procedural Sound Generators ────────────────────────────────────────────
 
 /** Create a white noise buffer */
-function createNoiseBuffer(ctx: AudioContext, duration: number = 2): AudioBuffer {
+function createNoiseBuffer(
+  ctx: AudioContext,
+  duration: number = 2
+): AudioBuffer {
   const sampleRate = ctx.sampleRate;
   const length = sampleRate * duration;
   const buffer = ctx.createBuffer(1, length, sampleRate);
@@ -67,7 +77,10 @@ function createNoiseBuffer(ctx: AudioContext, duration: number = 2): AudioBuffer
 }
 
 /** Create a brown noise buffer (low-frequency weighted) */
-function createBrownNoiseBuffer(ctx: AudioContext, duration: number = 2): AudioBuffer {
+function createBrownNoiseBuffer(
+  ctx: AudioContext,
+  duration: number = 2
+): AudioBuffer {
   const sampleRate = ctx.sampleRate;
   const length = sampleRate * duration;
   const buffer = ctx.createBuffer(1, length, sampleRate);
@@ -82,20 +95,29 @@ function createBrownNoiseBuffer(ctx: AudioContext, duration: number = 2): AudioB
 }
 
 /** Create a pink noise buffer */
-function createPinkNoiseBuffer(ctx: AudioContext, duration: number = 2): AudioBuffer {
+function createPinkNoiseBuffer(
+  ctx: AudioContext,
+  duration: number = 2
+): AudioBuffer {
   const sampleRate = ctx.sampleRate;
   const length = sampleRate * duration;
   const buffer = ctx.createBuffer(1, length, sampleRate);
   const data = buffer.getChannelData(0);
-  let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+  let b0 = 0,
+    b1 = 0,
+    b2 = 0,
+    b3 = 0,
+    b4 = 0,
+    b5 = 0,
+    b6 = 0;
   for (let i = 0; i < length; i++) {
     const white = Math.random() * 2 - 1;
     b0 = 0.99886 * b0 + white * 0.0555179;
     b1 = 0.99332 * b1 + white * 0.0750759;
-    b2 = 0.96900 * b2 + white * 0.1538520;
-    b3 = 0.86650 * b3 + white * 0.3104856;
-    b4 = 0.55000 * b4 + white * 0.5329522;
-    b5 = -0.7616 * b5 - white * 0.0168980;
+    b2 = 0.969 * b2 + white * 0.153852;
+    b3 = 0.8665 * b3 + white * 0.3104856;
+    b4 = 0.55 * b4 + white * 0.5329522;
+    b5 = -0.7616 * b5 - white * 0.016898;
     data[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
     b6 = white * 0.115926;
   }
@@ -106,7 +128,10 @@ function createPinkNoiseBuffer(ctx: AudioContext, duration: number = 2): AudioBu
 
 interface SoundLayer {
   /** Create and connect nodes, return a gain node for volume control */
-  create: (ctx: AudioContext, dest: AudioNode) => { gain: GainNode; cleanup: () => void };
+  create: (
+    ctx: AudioContext,
+    dest: AudioNode
+  ) => { gain: GainNode; cleanup: () => void };
 }
 
 /** Night Sky: soft white noise + low drone + cricket chirps */
@@ -126,7 +151,14 @@ function createNightSkyLayers(ctx: AudioContext, dest: AudioNode) {
   noiseGain.gain.value = 0.12;
   noiseSrc.connect(noiseFilter).connect(noiseGain).connect(dest);
   noiseSrc.start();
-  layers.push({ gain: noiseGain, cleanup: () => { try { noiseSrc.stop(); } catch {} } });
+  layers.push({
+    gain: noiseGain,
+    cleanup: () => {
+      try {
+        noiseSrc.stop();
+      } catch {}
+    },
+  });
 
   // Layer 2: Low frequency drone (warm hum)
   const drone = ctx.createOscillator();
@@ -139,7 +171,14 @@ function createNightSkyLayers(ctx: AudioContext, dest: AudioNode) {
   droneFilter.frequency.value = 200;
   drone.connect(droneFilter).connect(droneGain).connect(dest);
   drone.start();
-  layers.push({ gain: droneGain, cleanup: () => { try { drone.stop(); } catch {} } });
+  layers.push({
+    gain: droneGain,
+    cleanup: () => {
+      try {
+        drone.stop();
+      } catch {}
+    },
+  });
 
   // Layer 3: Cricket chirps (periodic oscillator bursts)
   let cricketInterval: ReturnType<typeof setInterval> | null = null;
@@ -147,25 +186,30 @@ function createNightSkyLayers(ctx: AudioContext, dest: AudioNode) {
   cricketGain.gain.value = 0.03;
   cricketGain.connect(dest);
 
-  cricketInterval = setInterval(() => {
-    if (Math.random() > 0.4) return; // Only chirp sometimes
-    const osc = ctx.createOscillator();
-    osc.type = "sine";
-    osc.frequency.value = 3800 + Math.random() * 800;
-    const env = ctx.createGain();
-    env.gain.value = 0;
-    const now = ctx.currentTime;
-    env.gain.setValueAtTime(0, now);
-    env.gain.linearRampToValueAtTime(0.6, now + 0.02);
-    env.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
-    osc.connect(env).connect(cricketGain);
-    osc.start(now);
-    osc.stop(now + 0.1);
-  }, 2000 + Math.random() * 3000);
+  cricketInterval = setInterval(
+    () => {
+      if (Math.random() > 0.4) return; // Only chirp sometimes
+      const osc = ctx.createOscillator();
+      osc.type = "sine";
+      osc.frequency.value = 3800 + Math.random() * 800;
+      const env = ctx.createGain();
+      env.gain.value = 0;
+      const now = ctx.currentTime;
+      env.gain.setValueAtTime(0, now);
+      env.gain.linearRampToValueAtTime(0.6, now + 0.02);
+      env.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+      osc.connect(env).connect(cricketGain);
+      osc.start(now);
+      osc.stop(now + 0.1);
+    },
+    2000 + Math.random() * 3000
+  );
 
   layers.push({
     gain: cricketGain,
-    cleanup: () => { if (cricketInterval) clearInterval(cricketInterval); },
+    cleanup: () => {
+      if (cricketInterval) clearInterval(cricketInterval);
+    },
   });
 
   return layers;
@@ -188,13 +232,21 @@ function createMorningLayers(ctx: AudioContext, dest: AudioNode) {
   breezeGain.gain.value = 0.08;
   breezeSrc.connect(breezeFilter).connect(breezeGain).connect(dest);
   breezeSrc.start();
-  layers.push({ gain: breezeGain, cleanup: () => { try { breezeSrc.stop(); } catch {} } });
+  layers.push({
+    gain: breezeGain,
+    cleanup: () => {
+      try {
+        breezeSrc.stop();
+      } catch {}
+    },
+  });
 
   // Layer 2: Warm pad (layered sine waves)
   const padGain = ctx.createGain();
   padGain.gain.value = 0.025;
   const padOscs: OscillatorNode[] = [];
-  [261.6, 329.6, 392.0].forEach((freq) => { // C4 major chord
+  [261.6, 329.6, 392.0].forEach(freq => {
+    // C4 major chord
     const osc = ctx.createOscillator();
     osc.type = "sine";
     osc.frequency.value = freq;
@@ -205,7 +257,15 @@ function createMorningLayers(ctx: AudioContext, dest: AudioNode) {
     padOscs.push(osc);
   });
   padGain.connect(dest);
-  layers.push({ gain: padGain, cleanup: () => padOscs.forEach((o) => { try { o.stop(); } catch {} }) });
+  layers.push({
+    gain: padGain,
+    cleanup: () =>
+      padOscs.forEach(o => {
+        try {
+          o.stop();
+        } catch {}
+      }),
+  });
 
   // Layer 3: Bird chirps
   let birdInterval: ReturnType<typeof setInterval> | null = null;
@@ -213,30 +273,35 @@ function createMorningLayers(ctx: AudioContext, dest: AudioNode) {
   birdGain.gain.value = 0.05;
   birdGain.connect(dest);
 
-  birdInterval = setInterval(() => {
-    if (Math.random() > 0.5) return;
-    const baseFreq = 1800 + Math.random() * 1200;
-    const chirpCount = 2 + Math.floor(Math.random() * 3);
-    for (let c = 0; c < chirpCount; c++) {
-      const osc = ctx.createOscillator();
-      osc.type = "sine";
-      const env = ctx.createGain();
-      const startTime = ctx.currentTime + c * 0.12;
-      osc.frequency.setValueAtTime(baseFreq, startTime);
-      osc.frequency.linearRampToValueAtTime(baseFreq * 1.3, startTime + 0.05);
-      osc.frequency.linearRampToValueAtTime(baseFreq * 0.9, startTime + 0.08);
-      env.gain.setValueAtTime(0, startTime);
-      env.gain.linearRampToValueAtTime(0.4, startTime + 0.015);
-      env.gain.exponentialRampToValueAtTime(0.001, startTime + 0.1);
-      osc.connect(env).connect(birdGain);
-      osc.start(startTime);
-      osc.stop(startTime + 0.12);
-    }
-  }, 3000 + Math.random() * 4000);
+  birdInterval = setInterval(
+    () => {
+      if (Math.random() > 0.5) return;
+      const baseFreq = 1800 + Math.random() * 1200;
+      const chirpCount = 2 + Math.floor(Math.random() * 3);
+      for (let c = 0; c < chirpCount; c++) {
+        const osc = ctx.createOscillator();
+        osc.type = "sine";
+        const env = ctx.createGain();
+        const startTime = ctx.currentTime + c * 0.12;
+        osc.frequency.setValueAtTime(baseFreq, startTime);
+        osc.frequency.linearRampToValueAtTime(baseFreq * 1.3, startTime + 0.05);
+        osc.frequency.linearRampToValueAtTime(baseFreq * 0.9, startTime + 0.08);
+        env.gain.setValueAtTime(0, startTime);
+        env.gain.linearRampToValueAtTime(0.4, startTime + 0.015);
+        env.gain.exponentialRampToValueAtTime(0.001, startTime + 0.1);
+        osc.connect(env).connect(birdGain);
+        osc.start(startTime);
+        osc.stop(startTime + 0.12);
+      }
+    },
+    3000 + Math.random() * 4000
+  );
 
   layers.push({
     gain: birdGain,
-    cleanup: () => { if (birdInterval) clearInterval(birdInterval); },
+    cleanup: () => {
+      if (birdInterval) clearInterval(birdInterval);
+    },
   });
 
   return layers;
@@ -259,7 +324,14 @@ function createCafeLayers(ctx: AudioContext, dest: AudioNode) {
   lofiGain.gain.value = 0.1;
   lofiSrc.connect(lofiFilter).connect(lofiGain).connect(dest);
   lofiSrc.start();
-  layers.push({ gain: lofiGain, cleanup: () => { try { lofiSrc.stop(); } catch {} } });
+  layers.push({
+    gain: lofiGain,
+    cleanup: () => {
+      try {
+        lofiSrc.stop();
+      } catch {}
+    },
+  });
 
   // Layer 2: Murmur (filtered pink noise simulating distant voices)
   const murmurBuffer = createPinkNoiseBuffer(ctx, 4);
@@ -285,8 +357,12 @@ function createCafeLayers(ctx: AudioContext, dest: AudioNode) {
   layers.push({
     gain: murmurGain,
     cleanup: () => {
-      try { murmurSrc.stop(); } catch {}
-      try { murmurLFO.stop(); } catch {}
+      try {
+        murmurSrc.stop();
+      } catch {}
+      try {
+        murmurLFO.stop();
+      } catch {}
     },
   });
 
@@ -296,27 +372,32 @@ function createCafeLayers(ctx: AudioContext, dest: AudioNode) {
   clinkGain.gain.value = 0.03;
   clinkGain.connect(dest);
 
-  clinkInterval = setInterval(() => {
-    if (Math.random() > 0.3) return;
-    const osc = ctx.createOscillator();
-    osc.type = "triangle";
-    osc.frequency.value = 2000 + Math.random() * 2000;
-    const env = ctx.createGain();
-    const now = ctx.currentTime;
-    env.gain.setValueAtTime(0, now);
-    env.gain.linearRampToValueAtTime(0.3, now + 0.005);
-    env.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
-    const clinkFilter = ctx.createBiquadFilter();
-    clinkFilter.type = "highpass";
-    clinkFilter.frequency.value = 1500;
-    osc.connect(env).connect(clinkFilter).connect(clinkGain);
-    osc.start(now);
-    osc.stop(now + 0.2);
-  }, 4000 + Math.random() * 6000);
+  clinkInterval = setInterval(
+    () => {
+      if (Math.random() > 0.3) return;
+      const osc = ctx.createOscillator();
+      osc.type = "triangle";
+      osc.frequency.value = 2000 + Math.random() * 2000;
+      const env = ctx.createGain();
+      const now = ctx.currentTime;
+      env.gain.setValueAtTime(0, now);
+      env.gain.linearRampToValueAtTime(0.3, now + 0.005);
+      env.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+      const clinkFilter = ctx.createBiquadFilter();
+      clinkFilter.type = "highpass";
+      clinkFilter.frequency.value = 1500;
+      osc.connect(env).connect(clinkFilter).connect(clinkGain);
+      osc.start(now);
+      osc.stop(now + 0.2);
+    },
+    4000 + Math.random() * 6000
+  );
 
   layers.push({
     gain: clinkGain,
-    cleanup: () => { if (clinkInterval) clearInterval(clinkInterval); },
+    cleanup: () => {
+      if (clinkInterval) clearInterval(clinkInterval);
+    },
   });
 
   return layers;
@@ -350,8 +431,12 @@ function createDeepSeaLayers(ctx: AudioContext, dest: AudioNode) {
   layers.push({
     gain: waterGain,
     cleanup: () => {
-      try { waterSrc.stop(); } catch {}
-      try { waterLFO.stop(); } catch {}
+      try {
+        waterSrc.stop();
+      } catch {}
+      try {
+        waterLFO.stop();
+      } catch {}
     },
   });
 
@@ -359,7 +444,7 @@ function createDeepSeaLayers(ctx: AudioContext, dest: AudioNode) {
   const resGain = ctx.createGain();
   resGain.gain.value = 0.035;
   const resOscs: OscillatorNode[] = [];
-  [40, 60].forEach((freq) => {
+  [40, 60].forEach(freq => {
     const osc = ctx.createOscillator();
     osc.type = "sine";
     osc.frequency.value = freq;
@@ -370,7 +455,15 @@ function createDeepSeaLayers(ctx: AudioContext, dest: AudioNode) {
     resOscs.push(osc);
   });
   resGain.connect(dest);
-  layers.push({ gain: resGain, cleanup: () => resOscs.forEach((o) => { try { o.stop(); } catch {} }) });
+  layers.push({
+    gain: resGain,
+    cleanup: () =>
+      resOscs.forEach(o => {
+        try {
+          o.stop();
+        } catch {}
+      }),
+  });
 
   // Layer 3: Bubble sounds
   let bubbleInterval: ReturnType<typeof setInterval> | null = null;
@@ -378,29 +471,37 @@ function createDeepSeaLayers(ctx: AudioContext, dest: AudioNode) {
   bubbleGain.gain.value = 0.04;
   bubbleGain.connect(dest);
 
-  bubbleInterval = setInterval(() => {
-    const bubbleCount = 1 + Math.floor(Math.random() * 3);
-    for (let b = 0; b < bubbleCount; b++) {
-      const delay = b * (0.1 + Math.random() * 0.2);
-      const osc = ctx.createOscillator();
-      osc.type = "sine";
-      const startFreq = 200 + Math.random() * 400;
-      const env = ctx.createGain();
-      const startTime = ctx.currentTime + delay;
-      osc.frequency.setValueAtTime(startFreq, startTime);
-      osc.frequency.exponentialRampToValueAtTime(startFreq * 2.5, startTime + 0.06);
-      env.gain.setValueAtTime(0, startTime);
-      env.gain.linearRampToValueAtTime(0.25, startTime + 0.01);
-      env.gain.exponentialRampToValueAtTime(0.001, startTime + 0.12);
-      osc.connect(env).connect(bubbleGain);
-      osc.start(startTime);
-      osc.stop(startTime + 0.15);
-    }
-  }, 2000 + Math.random() * 3000);
+  bubbleInterval = setInterval(
+    () => {
+      const bubbleCount = 1 + Math.floor(Math.random() * 3);
+      for (let b = 0; b < bubbleCount; b++) {
+        const delay = b * (0.1 + Math.random() * 0.2);
+        const osc = ctx.createOscillator();
+        osc.type = "sine";
+        const startFreq = 200 + Math.random() * 400;
+        const env = ctx.createGain();
+        const startTime = ctx.currentTime + delay;
+        osc.frequency.setValueAtTime(startFreq, startTime);
+        osc.frequency.exponentialRampToValueAtTime(
+          startFreq * 2.5,
+          startTime + 0.06
+        );
+        env.gain.setValueAtTime(0, startTime);
+        env.gain.linearRampToValueAtTime(0.25, startTime + 0.01);
+        env.gain.exponentialRampToValueAtTime(0.001, startTime + 0.12);
+        osc.connect(env).connect(bubbleGain);
+        osc.start(startTime);
+        osc.stop(startTime + 0.15);
+      }
+    },
+    2000 + Math.random() * 3000
+  );
 
   layers.push({
     gain: bubbleGain,
-    cleanup: () => { if (bubbleInterval) clearInterval(bubbleInterval); },
+    cleanup: () => {
+      if (bubbleInterval) clearInterval(bubbleInterval);
+    },
   });
 
   return layers;
@@ -410,7 +511,10 @@ function createDeepSeaLayers(ctx: AudioContext, dest: AudioNode) {
 
 const SCENE_SOUND_FACTORIES: Record<
   SceneId,
-  (ctx: AudioContext, dest: AudioNode) => Array<{ gain: GainNode; cleanup: () => void }>
+  (
+    ctx: AudioContext,
+    dest: AudioNode
+  ) => Array<{ gain: GainNode; cleanup: () => void }>
 > = {
   nightSky: createNightSkyLayers,
   morning: createMorningLayers,
@@ -537,7 +641,9 @@ export function useAmbientSound(sceneId: SceneId): AmbientSoundControls {
       layersRef.current.forEach(({ cleanup }) => cleanup());
       layersRef.current = [];
       if (ctxRef.current) {
-        try { ctxRef.current.close(); } catch {}
+        try {
+          ctxRef.current.close();
+        } catch {}
         ctxRef.current = null;
       }
     };
@@ -555,16 +661,17 @@ export function useAmbientSound(sceneId: SceneId): AmbientSoundControls {
       }
     }
     document.addEventListener("visibilitychange", handleVisibility);
-    return () => document.removeEventListener("visibilitychange", handleVisibility);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibility);
   }, [prefs.muted, isUnlocked]);
 
   const toggleMute = useCallback(() => {
-    setPrefs((prev) => ({ ...prev, muted: !prev.muted }));
+    setPrefs(prev => ({ ...prev, muted: !prev.muted }));
   }, []);
 
   const setVolume = useCallback((v: number) => {
     const clamped = Math.max(0, Math.min(1, v));
-    setPrefs((prev) => ({ ...prev, volume: clamped, muted: clamped === 0 }));
+    setPrefs(prev => ({ ...prev, volume: clamped, muted: clamped === 0 }));
   }, []);
 
   return {
@@ -585,15 +692,29 @@ interface SoundControlProps {
   isDark: boolean;
 }
 
-export const SoundControl = memo(function SoundControl({ controls, isDark }: SoundControlProps) {
-  const { isPlaying, isMuted, volume, isUnlocked, toggleMute, setVolume, unlock } = controls;
+export const SoundControl = memo(function SoundControl({
+  controls,
+  isDark,
+}: SoundControlProps) {
+  const {
+    isPlaying,
+    isMuted,
+    volume,
+    isUnlocked,
+    toggleMute,
+    setVolume,
+    unlock,
+  } = controls;
   const [showSlider, setShowSlider] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Close slider on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
         setShowSlider(false);
       }
     }
@@ -613,7 +734,9 @@ export const SoundControl = memo(function SoundControl({ controls, isDark }: Sou
     toggleMute();
   };
 
-  const bgClass = isDark ? "bg-white/10 hover:bg-white/15" : "bg-black/5 hover:bg-black/10";
+  const bgClass = isDark
+    ? "bg-white/10 hover:bg-white/15"
+    : "bg-black/5 hover:bg-black/10";
   const textClass = isDark ? "text-white/80" : "text-black/60";
   const sliderBg = isDark ? "bg-white/10" : "bg-black/5";
   const sliderFill = isDark ? "bg-white/60" : "bg-black/30";
@@ -630,7 +753,7 @@ export const SoundControl = memo(function SoundControl({ controls, isDark }: Sou
             min="0"
             max="100"
             value={Math.round(volume * 100)}
-            onChange={(e) => setVolume(Number(e.target.value) / 100)}
+            onChange={e => setVolume(Number(e.target.value) / 100)}
             className="w-16 h-1 appearance-none rounded-full cursor-pointer"
             style={{
               background: `linear-gradient(to right, ${isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.3)"} ${volume * 100}%, ${isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.08)"} ${volume * 100}%)`,
@@ -645,11 +768,13 @@ export const SoundControl = memo(function SoundControl({ controls, isDark }: Sou
       {/* Main button */}
       <button
         onClick={handleMainClick}
-        onContextMenu={(e) => {
+        onContextMenu={e => {
           e.preventDefault();
-          if (isUnlocked) setShowSlider((v) => !v);
+          if (isUnlocked) setShowSlider(v => !v);
         }}
-        onMouseEnter={() => { if (isUnlocked) setShowSlider(true); }}
+        onMouseEnter={() => {
+          if (isUnlocked) setShowSlider(true);
+        }}
         className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full backdrop-blur-md transition-all duration-300 ${bgClass} ${textClass} cursor-pointer`}
         title={!isUnlocked ? "點擊啟動環境音效" : isMuted ? "取消靜音" : "靜音"}
       >
@@ -672,8 +797,14 @@ export const SoundControl = memo(function SoundControl({ controls, isDark }: Sou
             </>
           ) : (
             <>
-              <path d="M15.54 8.46a5 5 0 0 1 0 7.07" opacity={volume > 0.3 ? 1 : 0.3} />
-              <path d="M19.07 4.93a10 10 0 0 1 0 14.14" opacity={volume > 0.6 ? 1 : 0.3} />
+              <path
+                d="M15.54 8.46a5 5 0 0 1 0 7.07"
+                opacity={volume > 0.3 ? 1 : 0.3}
+              />
+              <path
+                d="M19.07 4.93a10 10 0 0 1 0 14.14"
+                opacity={volume > 0.6 ? 1 : 0.3}
+              />
             </>
           )}
         </svg>

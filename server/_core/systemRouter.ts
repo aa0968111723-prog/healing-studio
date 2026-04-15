@@ -6,9 +6,11 @@ import { getEngineStatus } from "./llmRouter";
 export const systemRouter = router({
   health: publicProcedure
     .input(
-      z.object({
-        timestamp: z.number().min(0, "timestamp cannot be negative"),
-      }).optional()
+      z
+        .object({
+          timestamp: z.number().min(0, "timestamp cannot be negative"),
+        })
+        .optional()
     )
     .query(() => ({
       ok: true,

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 // Mock DB before importing routers
-vi.mock("./db", async (importOriginal) => {
+vi.mock("./db", async importOriginal => {
   const actual = await importOriginal<typeof import("./db")>();
   return {
     ...actual,
@@ -24,7 +24,9 @@ import type { TrpcContext } from "./_core/context";
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
-function createMockUser(overrides: Partial<AuthenticatedUser> = {}): AuthenticatedUser {
+function createMockUser(
+  overrides: Partial<AuthenticatedUser> = {}
+): AuthenticatedUser {
   return {
     id: 1,
     openId: "test-user-001",
@@ -231,18 +233,14 @@ describe("history routes", () => {
     const user = createMockUser();
     const ctx = createMockContext(user);
     const caller = appRouter.createCaller(ctx);
-    await expect(
-      caller.history.rate({ id: 1, rating: 0 })
-    ).rejects.toThrow();
+    await expect(caller.history.rate({ id: 1, rating: 0 })).rejects.toThrow();
   });
 
   it("validates history.rate rating range (max 5)", async () => {
     const user = createMockUser();
     const ctx = createMockContext(user);
     const caller = appRouter.createCaller(ctx);
-    await expect(
-      caller.history.rate({ id: 1, rating: 6 })
-    ).rejects.toThrow();
+    await expect(caller.history.rate({ id: 1, rating: 6 })).rejects.toThrow();
   });
 
   it("accepts valid history.list with custom limit", async () => {
@@ -270,7 +268,9 @@ describe("plans routes", () => {
     // Should not throw on auth, may return null if plan doesn't exist
     const result = await caller.plans.getById({ id: 999 });
     // Either null or an object
-    expect(result === null || result === undefined || typeof result === "object").toBe(true);
+    expect(
+      result === null || result === undefined || typeof result === "object"
+    ).toBe(true);
   });
 });
 
@@ -281,7 +281,12 @@ describe("profile routes", () => {
     const ctx = createMockContext(null);
     const caller = appRouter.createCaller(ctx);
     await expect(
-      caller.profile.updateQuotaJson({ image: 10, video: 5, audio: 5, voice: 5 })
+      caller.profile.updateQuotaJson({
+        image: 10,
+        video: 5,
+        audio: 5,
+        voice: 5,
+      })
     ).rejects.toThrow();
   });
 
@@ -298,7 +303,12 @@ describe("profile routes", () => {
     const ctx = createMockContext(user);
     const caller = appRouter.createCaller(ctx);
     await expect(
-      caller.profile.updateQuotaJson({ image: -1, video: 5, audio: 5, voice: 5 })
+      caller.profile.updateQuotaJson({
+        image: -1,
+        video: 5,
+        audio: 5,
+        voice: 5,
+      })
     ).rejects.toThrow();
   });
 

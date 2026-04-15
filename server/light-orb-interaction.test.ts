@@ -79,13 +79,13 @@ describe("OnboardingTour (rewritten)", () => {
   });
 
   it("all steps have non-empty encouragement messages", () => {
-    TOUR_STEPS.forEach((step) => {
+    TOUR_STEPS.forEach(step => {
       expect(step.encouragement.length).toBeGreaterThan(0);
     });
   });
 
   it("all targetIds are unique", () => {
-    const ids = TOUR_STEPS.map((s) => s.targetId);
+    const ids = TOUR_STEPS.map(s => s.targetId);
     expect(new Set(ids).size).toBe(ids.length);
   });
 
@@ -150,7 +150,7 @@ describe("ProactiveOrbWidget interaction panel", () => {
   it("all inspirations have prompt and mood fields", () => {
     Object.values(INSPIRATION_POOLS)
       .flat()
-      .forEach((item) => {
+      .forEach(item => {
         expect(item.prompt).toBeTruthy();
         expect(item.mood).toBeTruthy();
         expect(item.prompt.length).toBeGreaterThan(5);
@@ -159,7 +159,11 @@ describe("ProactiveOrbWidget interaction panel", () => {
 
   // Test interaction panel menu items
   const MENU_ITEMS = [
-    { id: "random-inspiration", label: "隨機靈感", description: "讓我幫你隨機組合一組靈感積木" },
+    {
+      id: "random-inspiration",
+      label: "隨機靈感",
+      description: "讓我幫你隨機組合一組靈感積木",
+    },
     { id: "chat-mood", label: "聊聊心情", description: "告訴我你現在的感受" },
     { id: "restart-tour", label: "重新導覽", description: "再看一次新手引導" },
     { id: "browse-inspiration", label: "瀏覽靈感推薦", description: "" },
@@ -170,25 +174,25 @@ describe("ProactiveOrbWidget interaction panel", () => {
   });
 
   it("random-inspiration menu item exists", () => {
-    const item = MENU_ITEMS.find((m) => m.id === "random-inspiration");
+    const item = MENU_ITEMS.find(m => m.id === "random-inspiration");
     expect(item).toBeDefined();
     expect(item!.label).toBe("隨機靈感");
   });
 
   it("chat-mood menu item exists", () => {
-    const item = MENU_ITEMS.find((m) => m.id === "chat-mood");
+    const item = MENU_ITEMS.find(m => m.id === "chat-mood");
     expect(item).toBeDefined();
     expect(item!.label).toBe("聊聊心情");
   });
 
   it("restart-tour menu item exists", () => {
-    const item = MENU_ITEMS.find((m) => m.id === "restart-tour");
+    const item = MENU_ITEMS.find(m => m.id === "restart-tour");
     expect(item).toBeDefined();
     expect(item!.label).toBe("重新導覽");
   });
 
   it("browse-inspiration menu item exists", () => {
-    const item = MENU_ITEMS.find((m) => m.id === "browse-inspiration");
+    const item = MENU_ITEMS.find(m => m.id === "browse-inspiration");
     expect(item).toBeDefined();
     expect(item!.label).toBe("瀏覽靈感推薦");
   });
@@ -207,11 +211,13 @@ describe("Orb click behavior", () => {
   it("interaction panel should be closeable by clicking orb again", () => {
     // Toggle behavior: click opens, click again closes
     let panelOpen = false;
-    const togglePanel = () => { panelOpen = !panelOpen; };
-    
+    const togglePanel = () => {
+      panelOpen = !panelOpen;
+    };
+
     togglePanel(); // first click
     expect(panelOpen).toBe(true);
-    
+
     togglePanel(); // second click
     expect(panelOpen).toBe(false);
   });
@@ -219,8 +225,10 @@ describe("Orb click behavior", () => {
   it("random inspiration should auto-close the panel", () => {
     // After applying inspiration, panel should close
     let panelOpen = true;
-    const applyInspiration = () => { panelOpen = false; };
-    
+    const applyInspiration = () => {
+      panelOpen = false;
+    };
+
     applyInspiration();
     expect(panelOpen).toBe(false);
   });
@@ -242,7 +250,7 @@ describe("Encouragement messages", () => {
   });
 
   it("all messages are non-empty and warm in tone", () => {
-    ENCOURAGEMENTS.forEach((msg) => {
+    ENCOURAGEMENTS.forEach(msg => {
       expect(msg.length).toBeGreaterThan(5);
       expect(msg).toMatch(/。$/); // ends with Chinese period
     });

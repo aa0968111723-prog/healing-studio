@@ -48,7 +48,7 @@ export function GenerationControls({
           </ZenTooltip>
           <Switch
             checked={mode === "deep_precision"}
-            onCheckedChange={(checked) =>
+            onCheckedChange={checked =>
               onModeChange(checked ? "deep_precision" : "lightning")
             }
           />
@@ -126,7 +126,7 @@ export function GenerationControls({
           type="text"
           placeholder="留空則隨機生成"
           value={seed}
-          onChange={(e) => onSeedChange(e.target.value)}
+          onChange={e => onSeedChange(e.target.value)}
           className="rounded-xl bg-muted/30 border-border/50 text-sm"
         />
       </div>

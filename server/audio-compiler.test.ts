@@ -330,7 +330,8 @@ describe("AudioCompiler", () => {
       const result = compiler.compile({
         blocks: [mkBlock("genre", "pop music")],
         forceStructure: "pop",
-        lyrics: "First verse lyrics here\n\nSecond verse lyrics\n\nChorus lyrics go here",
+        lyrics:
+          "First verse lyrics here\n\nSecond verse lyrics\n\nChorus lyrics go here",
       });
 
       expect(result.prompt).toContain("First verse lyrics here");
@@ -460,7 +461,9 @@ describe("AudioCompiler", () => {
 
       expect(result.compilationLog.length).toBeGreaterThanOrEqual(4);
       expect(result.compilationLog[0]).toContain("開始編譯");
-      expect(result.compilationLog[result.compilationLog.length - 1]).toContain("編譯完成");
+      expect(result.compilationLog[result.compilationLog.length - 1]).toContain(
+        "編譯完成"
+      );
     });
 
     it("should log conflict resolution", () => {
@@ -471,7 +474,9 @@ describe("AudioCompiler", () => {
         ],
       });
 
-      expect(result.compilationLog.some(l => l.includes("衝突調和"))).toBe(true);
+      expect(result.compilationLog.some(l => l.includes("衝突調和"))).toBe(
+        true
+      );
     });
   });
 

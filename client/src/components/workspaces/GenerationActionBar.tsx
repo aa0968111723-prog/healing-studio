@@ -92,8 +92,10 @@ export function GenerationActionBar({
   hasResult,
   simpleMode = false,
 }: GenerationActionBarProps) {
-  const current = actionModes.find((a) => a.mode === actionMode) ?? actionModes[0];
-  const currentWsMode = workspaceModes.find((w) => w.mode === workspaceMode) ?? workspaceModes[0];
+  const current =
+    actionModes.find(a => a.mode === actionMode) ?? actionModes[0];
+  const currentWsMode =
+    workspaceModes.find(w => w.mode === workspaceMode) ?? workspaceModes[0];
 
   /* Zen mode: only show the big generate button */
   if (simpleMode) {
@@ -119,27 +121,29 @@ export function GenerationActionBar({
     <div className="space-y-3">
       {/* Action mode selector */}
       <div className="flex gap-1.5 rounded-xl bg-white/5 backdrop-blur-sm p-1">
-        {actionModes.map(({ mode, label, Icon, activeColor, alwaysEnabled }) => {
-          const enabled = alwaysEnabled || hasResult;
-          const active = actionMode === mode;
-          return (
-            <button
-              key={mode}
-              disabled={!enabled}
-              onClick={() => onActionModeChange(mode)}
-              className={cn(
-                "flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-all",
-                active
-                  ? cn(activeColor, "shadow-sm")
-                  : "text-white/60 hover:text-white/90 hover:bg-white/10",
-                !enabled && "opacity-40 cursor-not-allowed",
-              )}
-            >
-              <Icon className="h-3.5 w-3.5" />
-              {label}
-            </button>
-          );
-        })}
+        {actionModes.map(
+          ({ mode, label, Icon, activeColor, alwaysEnabled }) => {
+            const enabled = alwaysEnabled || hasResult;
+            const active = actionMode === mode;
+            return (
+              <button
+                key={mode}
+                disabled={!enabled}
+                onClick={() => onActionModeChange(mode)}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-all",
+                  active
+                    ? cn(activeColor, "shadow-sm")
+                    : "text-white/60 hover:text-white/90 hover:bg-white/10",
+                  !enabled && "opacity-40 cursor-not-allowed"
+                )}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {label}
+              </button>
+            );
+          }
+        )}
       </div>
 
       {/* Description */}
@@ -153,7 +157,7 @@ export function GenerationActionBar({
           "w-full h-11 rounded-xl text-sm font-medium shadow-md hover:shadow-lg transition-all",
           actionMode === "generate" && "bg-emerald-600 hover:bg-emerald-500",
           actionMode === "refine" && "bg-blue-600 hover:bg-blue-500",
-          actionMode === "branch" && "bg-violet-600 hover:bg-violet-500",
+          actionMode === "branch" && "bg-violet-600 hover:bg-violet-500"
         )}
         disabled={isGenerating}
         onClick={onGenerate}
@@ -180,7 +184,7 @@ export function GenerationActionBar({
                     "flex-1 flex items-center justify-center gap-1 rounded-md px-2 py-1.5 text-[11px] font-medium transition-all",
                     active
                       ? "bg-white/15 text-white shadow-sm"
-                      : "text-white/50 hover:text-white/80 hover:bg-white/5",
+                      : "text-white/50 hover:text-white/80 hover:bg-white/5"
                   )}
                 >
                   <Icon className="h-3 w-3" />

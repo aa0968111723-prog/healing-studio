@@ -55,13 +55,13 @@ export function ThoughtIslandsPanel({
   const [open, setOpen] = useState(false);
 
   const sortedIslands = CATEGORY_ORDER.reduce<ThoughtIsland[]>((acc, cat) => {
-    const island = islands.find((i) => i.category === cat);
+    const island = islands.find(i => i.category === cat);
     if (island) acc.push(island);
     return acc;
   }, []);
 
   function handleContentChange(id: string, content: string) {
-    onChange(islands.map((i) => (i.id === id ? { ...i, content } : i)));
+    onChange(islands.map(i => (i.id === id ? { ...i, content } : i)));
   }
 
   return (
@@ -69,12 +69,12 @@ export function ThoughtIslandsPanel({
       {/* Toggle */}
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen(v => !v)}
         className={cn(
           "flex w-full items-center justify-between rounded-lg px-3 py-2",
           "bg-white/30 backdrop-blur-sm border border-white/50",
           "text-xs font-medium text-muted-foreground",
-          "hover:bg-white/40 transition-colors",
+          "hover:bg-white/40 transition-colors"
         )}
       >
         <span>思維島鏈 — {modality}</span>
@@ -97,7 +97,7 @@ export function ThoughtIslandsPanel({
             className="overflow-hidden"
           >
             <div className="space-y-2 pt-1">
-              {sortedIslands.map((island) => {
+              {sortedIslands.map(island => {
                 const meta = CATEGORY_META[island.category];
                 const Icon = meta.icon;
 
@@ -106,7 +106,7 @@ export function ThoughtIslandsPanel({
                     key={island.id}
                     className={cn(
                       "bg-white/30 backdrop-blur-sm border border-white/50 rounded-xl",
-                      "p-3 space-y-1.5",
+                      "p-3 space-y-1.5"
                     )}
                   >
                     {/* Header */}
@@ -121,13 +121,13 @@ export function ThoughtIslandsPanel({
                     <Textarea
                       placeholder={island.hint}
                       value={island.content}
-                      onChange={(e) =>
+                      onChange={e =>
                         handleContentChange(island.id, e.target.value)
                       }
                       rows={2}
                       className={cn(
                         "resize-none text-xs",
-                        "placeholder:text-[10px] placeholder:text-muted-foreground/60",
+                        "placeholder:text-[10px] placeholder:text-muted-foreground/60"
                       )}
                     />
                   </div>

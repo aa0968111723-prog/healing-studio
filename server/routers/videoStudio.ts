@@ -28,11 +28,16 @@ import { recordErrorTrace } from "../services/brainAutoRepair";
 // ─── fal.ai 呼叫工具（與 proStudio 相同模式） ────────────────────────────────
 
 const FAL_QUEUE_BASE = "https://queue.fal.run";
-const FAL_RUN_BASE   = "https://fal.run";
+const FAL_RUN_BASE = "https://fal.run";
 
 function getFalKey(): string {
   const key = process.env.FAL_API_KEY;
-  if (!key) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "FAL_API_KEY 未設定，請在 Railway → Environment Variables 中新增" });
+  if (!key)
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message:
+        "FAL_API_KEY 未設定，請在 Railway → Environment Variables 中新增",
+    });
   return key;
 }
 
@@ -44,47 +49,96 @@ async function falQueueSubmit(
   const key = getFalKey();
   const res = await fetch(`${FAL_QUEUE_BASE}/${modelId}`, {
     method: "POST",
-    headers: { "Authorization": `Key ${key}`, "Content-Type": "application/json" },
+    headers: {
+      Authorization: `Key ${key}`,
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify(input),
   });
   if (!res.ok) {
     const err = await res.text();
-    recordErrorTrace({ userId: 0, modality: "video", engine: modelId, prompt: "[falQueueSubmit]", errorMessage: err.slice(0, 500), errorCode: "FAL_SUBMIT_ERROR" });
-    throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `fal.ai submit 錯誤 [${modelId}]: ${err}` });
+    recordErrorTrace({
+      userId: 0,
+      modality: "video",
+      engine: modelId,
+      prompt: "[falQueueSubmit]",
+      errorMessage: err.slice(0, 500),
+      errorCode: "FAL_SUBMIT_ERROR",
+    });
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: `fal.ai submit 錯誤 [${modelId}]: ${err}`,
+    });
   }
   return res.json();
 }
 
-async function falQueueStatus(requestId: string, modelId: string): Promise<unknown> {
+async function falQueueStatus(
+  requestId: string,
+  modelId: string
+): Promise<unknown> {
   const key = getFalKey();
-  const res = await fetch(`${FAL_QUEUE_BASE}/${modelId}/requests/${requestId}/status`, {
-    headers: { "Authorization": `Key ${key}` },
-  });
-  if (!res.ok) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "查詢狀態失敗" });
+  const res = await fetch(
+    `${FAL_QUEUE_BASE}/${modelId}/requests/${requestId}/status`,
+    {
+      headers: { Authorization: `Key ${key}` },
+    }
+  );
+  if (!res.ok)
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "查詢狀態失敗",
+    });
   return res.json();
 }
 
-async function falQueueResult(requestId: string, modelId: string): Promise<unknown> {
+async function falQueueResult(
+  requestId: string,
+  modelId: string
+): Promise<unknown> {
   const key = getFalKey();
-  const res = await fetch(`${FAL_QUEUE_BASE}/${modelId}/requests/${requestId}`, {
-    headers: { "Authorization": `Key ${key}` },
-  });
-  if (!res.ok) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "取得結果失敗" });
+  const res = await fetch(
+    `${FAL_QUEUE_BASE}/${modelId}/requests/${requestId}`,
+    {
+      headers: { Authorization: `Key ${key}` },
+    }
+  );
+  if (!res.ok)
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "取得結果失敗",
+    });
   return res.json();
 }
 
-async function falRun(modelId: string, input: Record<string, unknown>): Promise<unknown> {
+async function falRun(
+  modelId: string,
+  input: Record<string, unknown>
+): Promise<unknown> {
   const key = getFalKey();
   const res = await fetch(`${FAL_RUN_BASE}/${modelId}`, {
     method: "POST",
-    headers: { "Authorization": `Key ${key}`, "Content-Type": "application/json" },
+    headers: {
+      Authorization: `Key ${key}`,
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify(input),
     signal: AbortSignal.timeout(120_000),
   });
   if (!res.ok) {
     const err = await res.text();
-    recordErrorTrace({ userId: 0, modality: "video", engine: modelId, prompt: "[falRun]", errorMessage: err.slice(0, 500), errorCode: "FAL_RUN_ERROR" });
-    throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `fal.ai 錯誤 [${modelId}]: ${err}` });
+    recordErrorTrace({
+      userId: 0,
+      modality: "video",
+      engine: modelId,
+      prompt: "[falRun]",
+      errorMessage: err.slice(0, 500),
+      errorCode: "FAL_RUN_ERROR",
+    });
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: `fal.ai 錯誤 [${modelId}]: ${err}`,
+    });
   }
   return res.json();
 }
@@ -116,7 +170,6 @@ function extractVideoUrl(result: any): string | null {
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 export const videoStudioRouter = router({
-
   /** FAL_API_KEY 是否設定（前端用來顯示提示） */
   checkApiKey: publicProcedure.query(() => {
     return { configured: !!process.env.FAL_API_KEY };
@@ -132,15 +185,17 @@ export const videoStudioRouter = router({
    * 業界頂尖中文語意理解，5s/10s，支援 16:9 / 9:16 / 1:1
    */
   klingTextToVideo: protectedProcedure
-    .input(z.object({
-      prompt:        z.string().min(1).max(2500),
-      negativePrompt: z.string().max(1000).optional(),
-      duration:      z.enum(["5", "10"]).default("5"),
-      aspectRatio:   z.enum(["16:9", "9:16", "1:1"]).default("16:9"),
-      cfgScale:      z.number().min(0).max(1).default(0.5),
-      /** 動態強度 — 0=靜態畫面, 1=高動態，預設 0.5 均衡 */
-      motionIntensity: z.number().min(0).max(1).optional(),
-    }))
+    .input(
+      z.object({
+        prompt: z.string().min(1).max(2500),
+        negativePrompt: z.string().max(1000).optional(),
+        duration: z.enum(["5", "10"]).default("5"),
+        aspectRatio: z.enum(["16:9", "9:16", "1:1"]).default("16:9"),
+        cfgScale: z.number().min(0).max(1).default(0.5),
+        /** 動態強度 — 0=靜態畫面, 1=高動態，預設 0.5 均衡 */
+        motionIntensity: z.number().min(0).max(1).optional(),
+      })
+    )
     .mutation(async ({ input }) => {
       const payload: Record<string, unknown> = {
         prompt: input.prompt,
@@ -149,10 +204,19 @@ export const videoStudioRouter = router({
         cfg_scale: input.cfgScale,
       };
       if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
-      if (input.motionIntensity !== undefined) payload.motion_intensity = input.motionIntensity;
+      if (input.motionIntensity !== undefined)
+        payload.motion_intensity = input.motionIntensity;
 
-      const result = await falQueueRun("fal-ai/kling-video/v2.1/standard/text-to-video", payload, 300) as any;
-      return { video_url: extractVideoUrl(result), request_id: result?.request_id ?? null, raw: result };
+      const result = (await falQueueRun(
+        "fal-ai/kling-video/v2.1/standard/text-to-video",
+        payload,
+        300
+      )) as any;
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   /**
@@ -161,13 +225,15 @@ export const videoStudioRouter = router({
    * 開源最強影片生成，720p 高畫質，多語言提詞
    */
   wanTextToVideo: protectedProcedure
-    .input(z.object({
-      prompt:        z.string().min(1).max(2500),
-      negativePrompt: z.string().max(1000).optional(),
-      numFrames:     z.number().min(16).max(81).default(81),
-      resolution:    z.enum(["480p", "720p"]).default("720p"),
-      enableSafety:  z.boolean().default(false),
-    }))
+    .input(
+      z.object({
+        prompt: z.string().min(1).max(2500),
+        negativePrompt: z.string().max(1000).optional(),
+        numFrames: z.number().min(16).max(81).default(81),
+        resolution: z.enum(["480p", "720p"]).default("720p"),
+        enableSafety: z.boolean().default(false),
+      })
+    )
     .mutation(async ({ input }) => {
       const modelId = "fal-ai/wan-t2v";
 
@@ -178,8 +244,12 @@ export const videoStudioRouter = router({
       };
       if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
 
-      const result = await falQueueRun(modelId, payload, 300) as any;
-      return { video_url: extractVideoUrl(result), request_id: result?.request_id ?? null, raw: result };
+      const result = (await falQueueRun(modelId, payload, 300)) as any;
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   /**
@@ -188,38 +258,46 @@ export const videoStudioRouter = router({
    * MiniMax 旗艦影片模型，電影級動態，6s
    */
   minimaxTextToVideo: protectedProcedure
-    .input(z.object({
-      prompt:      z.string().min(1).max(2000),
-      promptOptimizer: z.boolean().default(true),
-    }))
+    .input(
+      z.object({
+        prompt: z.string().min(1).max(2000),
+        promptOptimizer: z.boolean().default(true),
+      })
+    )
     .mutation(async ({ input }) => {
       const payload: Record<string, unknown> = {
         prompt: input.prompt,
         prompt_optimizer: input.promptOptimizer,
       };
       // MiniMax Hailuo-02 升級版端點（原 video-01 已升級）
-      const result = await falQueueRun("fal-ai/minimax/hailuo-02/pro/text-to-video", payload, 300) as any;
+      const result = (await falQueueRun(
+        "fal-ai/minimax/hailuo-02/pro/text-to-video",
+        payload,
+        300
+      )) as any;
       return { video_url: extractVideoUrl(result), raw: result };
     }),
 
-      /**
-       * Google Veo 3 Flash Text-to-Video
-       * fal-ai/veo3
-       * Google 最新旗艦影片模型，8s，具備原生音頻生成
-       */
+  /**
+   * Google Veo 3 Flash Text-to-Video
+   * fal-ai/veo3
+   * Google 最新旗艦影片模型，8s，具備原生音頻生成
+   */
   veo3TextToVideo: protectedProcedure
-    .input(z.object({
-      prompt:       z.string().min(1).max(3000),
-      aspectRatio:  z.enum(["16:9", "9:16"]).default("16:9"),
-      generateAudio: z.boolean().default(true),
-    }))
+    .input(
+      z.object({
+        prompt: z.string().min(1).max(3000),
+        aspectRatio: z.enum(["16:9", "9:16"]).default("16:9"),
+        generateAudio: z.boolean().default(true),
+      })
+    )
     .mutation(async ({ input }) => {
       const payload: Record<string, unknown> = {
         prompt: input.prompt,
         aspect_ratio: input.aspectRatio,
         generate_audio: input.generateAudio,
       };
-      const result = await falQueueRun("fal-ai/veo3", payload, 480) as any;
+      const result = (await falQueueRun("fal-ai/veo3", payload, 480)) as any;
       return { video_url: extractVideoUrl(result), raw: result };
     }),
 
@@ -229,16 +307,18 @@ export const videoStudioRouter = router({
    * Lightricks 開源旗艦，超快速蒸餾版，720p
    */
   ltxTextToVideo: protectedProcedure
-    .input(z.object({
-      prompt:         z.string().min(1).max(2000),
-      negativePrompt: z.string().max(500).optional(),
-      numFrames:      z.number().min(25).max(257).default(121),
-      fps:            z.number().min(8).max(30).default(25),
-      height:         z.number().min(256).max(720).default(480),
-      width:          z.number().min(256).max(1280).default(848),
-      guidanceScale:  z.number().min(1).max(5).default(3),
-      seed:           z.number().optional(),
-    }))
+    .input(
+      z.object({
+        prompt: z.string().min(1).max(2000),
+        negativePrompt: z.string().max(500).optional(),
+        numFrames: z.number().min(25).max(257).default(121),
+        fps: z.number().min(8).max(30).default(25),
+        height: z.number().min(256).max(720).default(480),
+        width: z.number().min(256).max(1280).default(848),
+        guidanceScale: z.number().min(1).max(5).default(3),
+        seed: z.number().optional(),
+      })
+    )
     .mutation(async ({ input }) => {
       const payload: Record<string, unknown> = {
         prompt: input.prompt,
@@ -251,7 +331,11 @@ export const videoStudioRouter = router({
       if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
       if (input.seed !== undefined) payload.seed = input.seed;
 
-      const result = await falQueueRun("fal-ai/ltx-video-13b-distilled", payload, 240) as any;
+      const result = (await falQueueRun(
+        "fal-ai/ltx-video-13b-distilled",
+        payload,
+        240
+      )) as any;
       return { video_url: extractVideoUrl(result), raw: result };
     }),
 
@@ -261,12 +345,14 @@ export const videoStudioRouter = router({
    * 此端點如失效將自動降級到 LTX-Video 13B
    */
   soraTextToVideo: protectedProcedure
-    .input(z.object({
-      prompt:      z.string().min(1).max(4000),
-      duration:    z.number().min(5).max(20).default(10),
-      resolution:  z.enum(["480p", "720p", "1080p"]).default("720p"),
-      aspectRatio: z.enum(["16:9", "9:16", "1:1"]).default("16:9"),
-    }))
+    .input(
+      z.object({
+        prompt: z.string().min(1).max(4000),
+        duration: z.number().min(5).max(20).default(10),
+        resolution: z.enum(["480p", "720p", "1080p"]).default("720p"),
+        aspectRatio: z.enum(["16:9", "9:16", "1:1"]).default("16:9"),
+      })
+    )
     .mutation(async ({ input }) => {
       const payload: Record<string, unknown> = {
         prompt: input.prompt,
@@ -276,7 +362,7 @@ export const videoStudioRouter = router({
       };
       // 嘗試 Sora 端點如失效則降級到 LTX-Video
       try {
-        const result = await falQueueRun("fal-ai/sora", payload, 480) as any;
+        const result = (await falQueueRun("fal-ai/sora", payload, 480)) as any;
         return { video_url: extractVideoUrl(result), raw: result };
       } catch (e: any) {
         if (e?.message?.includes("404") || e?.message?.includes("not found")) {
@@ -288,8 +374,16 @@ export const videoStudioRouter = router({
             height: 480,
             width: 848,
           };
-          const result = await falQueueRun("fal-ai/ltx-video-13b-distilled", fallbackPayload, 300) as any;
-          return { video_url: extractVideoUrl(result), raw: result, degraded: true };
+          const result = (await falQueueRun(
+            "fal-ai/ltx-video-13b-distilled",
+            fallbackPayload,
+            300
+          )) as any;
+          return {
+            video_url: extractVideoUrl(result),
+            raw: result,
+            degraded: true,
+          };
         }
         throw e;
       }
@@ -305,14 +399,16 @@ export const videoStudioRouter = router({
    * 最自然的圖片動態化，支援起始幀 + 結束幀
    */
   klingImageToVideo: protectedProcedure
-    .input(z.object({
-      prompt:        z.string().min(1).max(2500),
-      imageUrl:      z.string().url(),
-      tailImageUrl:  z.string().url().optional(),
-      negativePrompt: z.string().max(1000).optional(),
-      duration:      z.enum(["5", "10"]).default("5"),
-      cfgScale:      z.number().min(0).max(1).default(0.5),
-    }))
+    .input(
+      z.object({
+        prompt: z.string().min(1).max(2500),
+        imageUrl: z.string().url(),
+        tailImageUrl: z.string().url().optional(),
+        negativePrompt: z.string().max(1000).optional(),
+        duration: z.enum(["5", "10"]).default("5"),
+        cfgScale: z.number().min(0).max(1).default(0.5),
+      })
+    )
     .mutation(async ({ input }) => {
       const payload: Record<string, unknown> = {
         prompt: input.prompt,
@@ -323,7 +419,11 @@ export const videoStudioRouter = router({
       if (input.tailImageUrl) payload.tail_image_url = input.tailImageUrl;
       if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
 
-      const result = await falQueueRun("fal-ai/kling-video/v2.1/standard/image-to-video", payload, 300) as any;
+      const result = (await falQueueRun(
+        "fal-ai/kling-video/v2.1/standard/image-to-video",
+        payload,
+        300
+      )) as any;
       return { video_url: extractVideoUrl(result), raw: result };
     }),
 
@@ -333,12 +433,14 @@ export const videoStudioRouter = router({
    * 開源最強圖生影，720p，靈活參數控制
    */
   wanImageToVideo: protectedProcedure
-    .input(z.object({
-      prompt:       z.string().min(1).max(2500),
-      imageUrl:     z.string().url(),
-      numFrames:    z.number().min(16).max(81).default(81),
-      resolution:   z.enum(["480p", "720p"]).default("720p"),
-    }))
+    .input(
+      z.object({
+        prompt: z.string().min(1).max(2500),
+        imageUrl: z.string().url(),
+        numFrames: z.number().min(16).max(81).default(81),
+        resolution: z.enum(["480p", "720p"]).default("720p"),
+      })
+    )
     .mutation(async ({ input }) => {
       // Wan i2v 正確 endpoint
       const modelId = "fal-ai/wan-i2v";
@@ -348,8 +450,12 @@ export const videoStudioRouter = router({
         image_url: input.imageUrl,
         num_frames: input.numFrames,
       };
-      const result = await falQueueRun(modelId, payload, 300) as any;
-      return { video_url: extractVideoUrl(result), request_id: result?.request_id ?? null, raw: result };
+      const result = (await falQueueRun(modelId, payload, 300)) as any;
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   /**
@@ -358,12 +464,23 @@ export const videoStudioRouter = router({
    * Runway Gen4，電影級品質，5s/10s
    */
   runwayImageToVideo: protectedProcedure
-    .input(z.object({
-      prompt:      z.string().min(1).max(2000),
-      imageUrl:    z.string().url(),
-      duration:    z.enum(["5", "10"]).default("5"),
-      ratio:       z.enum(["1280:720", "720:1280", "1104:832", "832:1104", "960:960", "1584:672"]).default("1280:720"),
-    }))
+    .input(
+      z.object({
+        prompt: z.string().min(1).max(2000),
+        imageUrl: z.string().url(),
+        duration: z.enum(["5", "10"]).default("5"),
+        ratio: z
+          .enum([
+            "1280:720",
+            "720:1280",
+            "1104:832",
+            "832:1104",
+            "960:960",
+            "1584:672",
+          ])
+          .default("1280:720"),
+      })
+    )
     .mutation(async ({ input }) => {
       const payload: Record<string, unknown> = {
         prompt: input.prompt,
@@ -371,7 +488,11 @@ export const videoStudioRouter = router({
         duration: parseInt(input.duration),
         ratio: input.ratio,
       };
-      const result = await falQueueRun("fal-ai/runway-gen4-turbo/image-to-video", payload, 300) as any;
+      const result = (await falQueueRun(
+        "fal-ai/runway-gen4-turbo/image-to-video",
+        payload,
+        300
+      )) as any;
       return { video_url: extractVideoUrl(result), raw: result };
     }),
 
@@ -381,14 +502,16 @@ export const videoStudioRouter = router({
    * PixVerse 旗艦，強大的物理動態，支援特效模板
    */
   pixverseImageToVideo: protectedProcedure
-    .input(z.object({
-      prompt:      z.string().min(1).max(2000),
-      imageUrl:    z.string().url(),
-      negativePrompt: z.string().max(500).optional(),
-      duration:    z.enum(["4", "8"]).default("4"),
-      quality:     z.enum(["360p", "540p", "720p", "1080p"]).default("720p"),
-      motionMode:  z.enum(["normal", "fast"]).default("normal"),
-    }))
+    .input(
+      z.object({
+        prompt: z.string().min(1).max(2000),
+        imageUrl: z.string().url(),
+        negativePrompt: z.string().max(500).optional(),
+        duration: z.enum(["4", "8"]).default("4"),
+        quality: z.enum(["360p", "540p", "720p", "1080p"]).default("720p"),
+        motionMode: z.enum(["normal", "fast"]).default("normal"),
+      })
+    )
     .mutation(async ({ input }) => {
       const payload: Record<string, unknown> = {
         prompt: input.prompt,
@@ -399,7 +522,11 @@ export const videoStudioRouter = router({
       };
       if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
 
-      const result = await falQueueRun("fal-ai/pixverse/v4.5/image-to-video", payload, 300) as any;
+      const result = (await falQueueRun(
+        "fal-ai/pixverse/v4.5/image-to-video",
+        payload,
+        300
+      )) as any;
       return { video_url: extractVideoUrl(result), raw: result };
     }),
 
@@ -409,11 +536,13 @@ export const videoStudioRouter = router({
    * MiniMax 圖生影，超強首幀固定效果
    */
   minimaxImageToVideo: protectedProcedure
-    .input(z.object({
-      prompt:      z.string().min(1).max(2000),
-      imageUrl:    z.string().url(),
-      promptOptimizer: z.boolean().default(true),
-    }))
+    .input(
+      z.object({
+        prompt: z.string().min(1).max(2000),
+        imageUrl: z.string().url(),
+        promptOptimizer: z.boolean().default(true),
+      })
+    )
     .mutation(async ({ input }) => {
       const payload: Record<string, unknown> = {
         prompt: input.prompt,
@@ -421,7 +550,11 @@ export const videoStudioRouter = router({
         prompt_optimizer: input.promptOptimizer,
       };
       // MiniMax Hailuo-02 升級版端點
-      const result = await falQueueRun("fal-ai/minimax/hailuo-02/pro/image-to-video", payload, 300) as any;
+      const result = (await falQueueRun(
+        "fal-ai/minimax/hailuo-02/pro/image-to-video",
+        payload,
+        300
+      )) as any;
       return { video_url: extractVideoUrl(result), raw: result };
     }),
 
@@ -435,18 +568,24 @@ export const videoStudioRouter = router({
    * 將現有影片依照提詞重新渲染風格
    */
   wanVideoToVideo: protectedProcedure
-    .input(z.object({
-      prompt:      z.string().min(1).max(2500),
-      videoUrl:    z.string().url(),
-      strength:    z.number().min(0.1).max(1.0).default(0.7),
-    }))
+    .input(
+      z.object({
+        prompt: z.string().min(1).max(2500),
+        videoUrl: z.string().url(),
+        strength: z.number().min(0.1).max(1.0).default(0.7),
+      })
+    )
     .mutation(async ({ input }) => {
       // DEF-09 修正：改用正確的影生影端點（wan-t2v 是文生影，不接受 video_url）
-      const result = await falQueueRun("fal-ai/wan-ai/wan2.1-v2v-480p", {
-        prompt: input.prompt,
-        video_url: input.videoUrl,
-        strength: input.strength,
-      }, 300) as any;
+      const result = (await falQueueRun(
+        "fal-ai/wan-ai/wan2.1-v2v-480p",
+        {
+          prompt: input.prompt,
+          video_url: input.videoUrl,
+          strength: input.strength,
+        },
+        300
+      )) as any;
       return { video_url: extractVideoUrl(result), raw: result };
     }),
 
@@ -456,18 +595,24 @@ export const videoStudioRouter = router({
    * Kling 高品質影片重繪，保持原始動態
    */
   klingVideoToVideo: protectedProcedure
-    .input(z.object({
-      prompt:     z.string().min(1).max(2500),
-      videoUrl:   z.string().url(),
-      cfgScale:   z.number().min(0).max(1).default(0.5),
-    }))
+    .input(
+      z.object({
+        prompt: z.string().min(1).max(2500),
+        videoUrl: z.string().url(),
+        cfgScale: z.number().min(0).max(1).default(0.5),
+      })
+    )
     .mutation(async ({ input }) => {
       const payload: Record<string, unknown> = {
         prompt: input.prompt,
         video_url: input.videoUrl,
         cfg_scale: input.cfgScale,
       };
-      const result = await falQueueRun("fal-ai/kling-video/v2.1/standard/video-to-video", payload, 300) as any;
+      const result = (await falQueueRun(
+        "fal-ai/kling-video/v2.1/standard/video-to-video",
+        payload,
+        300
+      )) as any;
       return { video_url: extractVideoUrl(result), raw: result };
     }),
 
@@ -477,15 +622,17 @@ export const videoStudioRouter = router({
    * 以圖片為關鍵幀生成流暢影片動態
    */
   ltxImageToVideo: protectedProcedure
-    .input(z.object({
-      prompt:         z.string().min(1).max(2000),
-      imageUrl:       z.string().url(),
-      negativePrompt: z.string().max(500).optional(),
-      numFrames:      z.number().min(25).max(257).default(121),
-      fps:            z.number().min(8).max(30).default(25),
-      guidanceScale:  z.number().min(1).max(5).default(3),
-      seed:           z.number().optional(),
-    }))
+    .input(
+      z.object({
+        prompt: z.string().min(1).max(2000),
+        imageUrl: z.string().url(),
+        negativePrompt: z.string().max(500).optional(),
+        numFrames: z.number().min(25).max(257).default(121),
+        fps: z.number().min(8).max(30).default(25),
+        guidanceScale: z.number().min(1).max(5).default(3),
+        seed: z.number().optional(),
+      })
+    )
     .mutation(async ({ input }) => {
       const payload: Record<string, unknown> = {
         prompt: input.prompt,
@@ -497,7 +644,11 @@ export const videoStudioRouter = router({
       if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
       if (input.seed !== undefined) payload.seed = input.seed;
 
-      const result = await falQueueRun("fal-ai/ltx-video/image-to-video", payload, 240) as any;
+      const result = (await falQueueRun(
+        "fal-ai/ltx-video/image-to-video",
+        payload,
+        240
+      )) as any;
       return { video_url: extractVideoUrl(result), raw: result };
     }),
 
@@ -511,16 +662,22 @@ export const videoStudioRouter = router({
    * 業界頂尖影片超分辨率，2x 或 4x 放大
    */
   videoUpscale: protectedProcedure
-    .input(z.object({
-      videoUrl:      z.string().url(),
-      upscaleFactor: z.enum(["2", "4"]).default("2"),
-    }))
+    .input(
+      z.object({
+        videoUrl: z.string().url(),
+        upscaleFactor: z.enum(["2", "4"]).default("2"),
+      })
+    )
     .mutation(async ({ input }) => {
       const payload: Record<string, unknown> = {
         video_url: input.videoUrl,
         upscale_factor: parseInt(input.upscaleFactor),
       };
-      const result = await falQueueRun("fal-ai/bytedance/upscaler/video", payload, 300) as any;
+      const result = (await falQueueRun(
+        "fal-ai/bytedance/upscaler/video",
+        payload,
+        300
+      )) as any;
       return { video_url: extractVideoUrl(result), raw: result };
     }),
 
@@ -530,18 +687,24 @@ export const videoStudioRouter = router({
    * RIFE v4.6 高品質補幀，2x/4x 幀率提升
    */
   frameInterpolation: protectedProcedure
-    .input(z.object({
-      videoUrl:     z.string().url(),
-      multiplier:   z.enum(["2", "4"]).default("2"),
-      outputFps:    z.number().min(24).max(120).default(60),
-    }))
+    .input(
+      z.object({
+        videoUrl: z.string().url(),
+        multiplier: z.enum(["2", "4"]).default("2"),
+        outputFps: z.number().min(24).max(120).default(60),
+      })
+    )
     .mutation(async ({ input }) => {
       const payload: Record<string, unknown> = {
         video_url: input.videoUrl,
         multiplier: parseInt(input.multiplier),
         output_fps: input.outputFps,
       };
-      const result = await falQueueRun("fal-ai/rife-v4.6/video", payload, 240) as any;
+      const result = (await falQueueRun(
+        "fal-ai/rife-v4.6/video",
+        payload,
+        240
+      )) as any;
       return { video_url: extractVideoUrl(result), raw: result };
     }),
 
@@ -551,18 +714,26 @@ export const videoStudioRouter = router({
    * Topaz Labs 專業影片降噪 + 超解析
    */
   topazEnhance: protectedProcedure
-    .input(z.object({
-      videoUrl:     z.string().url(),
-      model:        z.enum(["iris", "artemis", "theia", "gaia", "nyx"]).default("iris"),
-      outputScale:  z.number().min(1).max(4).default(2),
-    }))
+    .input(
+      z.object({
+        videoUrl: z.string().url(),
+        model: z
+          .enum(["iris", "artemis", "theia", "gaia", "nyx"])
+          .default("iris"),
+        outputScale: z.number().min(1).max(4).default(2),
+      })
+    )
     .mutation(async ({ input }) => {
       const payload: Record<string, unknown> = {
         video_url: input.videoUrl,
         model: input.model,
         output_scale: input.outputScale,
       };
-      const result = await falQueueRun("fal-ai/topaz/video-enhance", payload, 600) as any;
+      const result = (await falQueueRun(
+        "fal-ai/topaz/video-enhance",
+        payload,
+        600
+      )) as any;
       return { video_url: extractVideoUrl(result), raw: result };
     }),
 
@@ -576,17 +747,34 @@ export const videoStudioRouter = router({
    * 精確鏡頭運動控制（推拉搖移旋轉），基於圖生影
    */
   camMaster: protectedProcedure
-    .input(z.object({
-      prompt:      z.string().min(1).max(2000),
-      imageUrl:    z.string().url(),
-      cameraMotion: z.enum([
-        "static", "move_left", "move_right", "move_up", "move_down",
-        "push_in", "pull_out", "pan_left", "pan_right",
-        "tilt_up", "tilt_down", "roll_clockwise", "roll_counterclockwise",
-        "orbit_left", "orbit_right", "crane_up", "crane_down",
-      ]).default("push_in"),
-      duration:    z.number().min(3).max(10).default(5),
-    }))
+    .input(
+      z.object({
+        prompt: z.string().min(1).max(2000),
+        imageUrl: z.string().url(),
+        cameraMotion: z
+          .enum([
+            "static",
+            "move_left",
+            "move_right",
+            "move_up",
+            "move_down",
+            "push_in",
+            "pull_out",
+            "pan_left",
+            "pan_right",
+            "tilt_up",
+            "tilt_down",
+            "roll_clockwise",
+            "roll_counterclockwise",
+            "orbit_left",
+            "orbit_right",
+            "crane_up",
+            "crane_down",
+          ])
+          .default("push_in"),
+        duration: z.number().min(3).max(10).default(5),
+      })
+    )
     .mutation(async ({ input }) => {
       const payload: Record<string, unknown> = {
         prompt: input.prompt,
@@ -594,7 +782,11 @@ export const videoStudioRouter = router({
         camera_motion: input.cameraMotion,
         duration: input.duration,
       };
-      const result = await falQueueRun("fal-ai/cammaster", payload, 300) as any;
+      const result = (await falQueueRun(
+        "fal-ai/cammaster",
+        payload,
+        300
+      )) as any;
       return { video_url: extractVideoUrl(result), raw: result };
     }),
 
@@ -604,15 +796,19 @@ export const videoStudioRouter = router({
    * 基於骨架姿勢 / Canny 邊緣精確控制影片動作
    */
   animateDiff: protectedProcedure
-    .input(z.object({
-      prompt:         z.string().min(1).max(2000),
-      negativePrompt: z.string().max(500).optional(),
-      videoUrl:       z.string().url(),
-      controlNet:     z.enum(["openpose", "canny", "depth", "none"]).default("openpose"),
-      guidanceScale:  z.number().min(1).max(20).default(7.5),
-      numSteps:       z.number().min(10).max(50).default(25),
-      seed:           z.number().optional(),
-    }))
+    .input(
+      z.object({
+        prompt: z.string().min(1).max(2000),
+        negativePrompt: z.string().max(500).optional(),
+        videoUrl: z.string().url(),
+        controlNet: z
+          .enum(["openpose", "canny", "depth", "none"])
+          .default("openpose"),
+        guidanceScale: z.number().min(1).max(20).default(7.5),
+        numSteps: z.number().min(10).max(50).default(25),
+        seed: z.number().optional(),
+      })
+    )
     .mutation(async ({ input }) => {
       const payload: Record<string, unknown> = {
         prompt: input.prompt,
@@ -629,7 +825,11 @@ export const videoStudioRouter = router({
         payload.controlnet_type = input.controlNet;
       }
 
-      const result = await falQueueRun("fal-ai/animatediff-v2v", payload, 300) as any;
+      const result = (await falQueueRun(
+        "fal-ai/animatediff-v2v",
+        payload,
+        300
+      )) as any;
       return { video_url: extractVideoUrl(result), raw: result };
     }),
 
@@ -639,13 +839,15 @@ export const videoStudioRouter = router({
    * 從單目影片重建深度時序，用於 3D 視差效果
    */
   depthCrafter: protectedProcedure
-    .input(z.object({
-      videoUrl:     z.string().url(),
-      numDenoising: z.number().min(1).max(25).default(25),
-      guidance:     z.number().min(1).max(20).default(1.0),
-      windowSize:   z.number().min(4).max(110).default(110),
-      overlap:      z.number().min(1).max(25).default(25),
-    }))
+    .input(
+      z.object({
+        videoUrl: z.string().url(),
+        numDenoising: z.number().min(1).max(25).default(25),
+        guidance: z.number().min(1).max(20).default(1.0),
+        windowSize: z.number().min(4).max(110).default(110),
+        overlap: z.number().min(1).max(25).default(25),
+      })
+    )
     .mutation(async ({ input }) => {
       const payload: Record<string, unknown> = {
         video_url: input.videoUrl,
@@ -655,7 +857,11 @@ export const videoStudioRouter = router({
         overlap: input.overlap,
         max_res: 1024,
       };
-      const result = await falQueueRun("fal-ai/depthcrafter", payload, 300) as any;
+      const result = (await falQueueRun(
+        "fal-ai/depthcrafter",
+        payload,
+        300
+      )) as any;
       return { video_url: extractVideoUrl(result), raw: result };
     }),
 
@@ -665,13 +871,15 @@ export const videoStudioRouter = router({
    * 保持角色外觀一致性，最多 3 參考圖
    */
   viduReferenceToVideo: protectedProcedure
-    .input(z.object({
-      prompt:       z.string().min(1).max(2000),
-      imageUrls:    z.array(z.string().url()).min(1).max(3),
-      duration:     z.enum(["4", "8"]).default("4"),
-      aspectRatio:  z.enum(["16:9", "9:16", "1:1"]).default("16:9"),
-      resolution:   z.enum(["720p", "1080p"]).default("720p"),
-    }))
+    .input(
+      z.object({
+        prompt: z.string().min(1).max(2000),
+        imageUrls: z.array(z.string().url()).min(1).max(3),
+        duration: z.enum(["4", "8"]).default("4"),
+        aspectRatio: z.enum(["16:9", "9:16", "1:1"]).default("16:9"),
+        resolution: z.enum(["720p", "1080p"]).default("720p"),
+      })
+    )
     .mutation(async ({ input }) => {
       const payload: Record<string, unknown> = {
         prompt: input.prompt,
@@ -680,7 +888,11 @@ export const videoStudioRouter = router({
         aspect_ratio: input.aspectRatio,
         resolution: input.resolution,
       };
-      const result = await falQueueRun("fal-ai/vidu/q1/reference-to-video", payload, 300) as any;
+      const result = (await falQueueRun(
+        "fal-ai/vidu/q1/reference-to-video",
+        payload,
+        300
+      )) as any;
       return { video_url: extractVideoUrl(result), raw: result };
     }),
 
@@ -691,12 +903,17 @@ export const videoStudioRouter = router({
    * 前端可用 request_id 輪詢進度
    */
   jobStatus: protectedProcedure
-    .input(z.object({
-      requestId: z.string(),
-      modelId:   z.string(),
-    }))
+    .input(
+      z.object({
+        requestId: z.string(),
+        modelId: z.string(),
+      })
+    )
     .query(async ({ input }) => {
-      const status = await falQueueStatus(input.requestId, input.modelId) as any;
+      const status = (await falQueueStatus(
+        input.requestId,
+        input.modelId
+      )) as any;
       return {
         status: status?.status ?? status?.state ?? "UNKNOWN",
         progress: status?.progress ?? null,
@@ -709,20 +926,28 @@ export const videoStudioRouter = router({
    * 若已完成則回傳影片 URL，若失敗則丟出錯誤
    */
   checkVideoStatus: protectedProcedure
-    .input(z.object({
-      requestId: z.string().min(1),
-      modelId:   z.string().min(1),
-    }))
+    .input(
+      z.object({
+        requestId: z.string().min(1),
+        modelId: z.string().min(1),
+      })
+    )
     .query(async ({ input }) => {
-      const status = await falQueueStatus(input.requestId, input.modelId) as any;
+      const status = (await falQueueStatus(
+        input.requestId,
+        input.modelId
+      )) as any;
       const s = status?.status ?? status?.state;
 
       if (s === "COMPLETED") {
-        const result = await falQueueResult(input.requestId, input.modelId) as any;
+        const result = (await falQueueResult(
+          input.requestId,
+          input.modelId
+        )) as any;
         return {
-          status:    "COMPLETED" as const,
+          status: "COMPLETED" as const,
           video_url: extractVideoUrl(result),
-          raw:       result,
+          raw: result,
         };
       }
 
@@ -737,7 +962,10 @@ export const videoStudioRouter = router({
           errorMessage: errMsg,
           errorCode: "FAL_TASK_FAILED",
         });
-        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `影片任務失敗 [${input.modelId}]: ${errMsg}` });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `影片任務失敗 [${input.modelId}]: ${errMsg}`,
+        });
       }
 
       return { status: "IN_PROGRESS" as const, video_url: null, raw: null };

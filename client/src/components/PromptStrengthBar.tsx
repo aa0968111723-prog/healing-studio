@@ -4,8 +4,17 @@ import { Button } from "@/components/ui/button";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import {
-  Sparkles, ChevronDown, ChevronUp, Zap, Lightbulb,
-  AlertTriangle, CheckCircle2, ArrowUpRight, Plus, Replace, ShieldMinus,
+  Sparkles,
+  ChevronDown,
+  ChevronUp,
+  Zap,
+  Lightbulb,
+  AlertTriangle,
+  CheckCircle2,
+  ArrowUpRight,
+  Plus,
+  Replace,
+  ShieldMinus,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -106,12 +115,22 @@ function getScoreIcon(score: number) {
 
 // ─── Dimension Bar ─────────────────────────────────────────────────────────
 
-function DimensionBar({ label, icon, score }: { label: string; icon: string; score: number }) {
+function DimensionBar({
+  label,
+  icon,
+  score,
+}: {
+  label: string;
+  icon: string;
+  score: number;
+}) {
   const pct = Math.min(100, Math.max(0, score * 5));
   return (
     <div className="flex items-center gap-2">
       <span className="text-xs w-5 text-center">{icon}</span>
-      <span className="text-[10px] text-muted-foreground w-20 shrink-0">{label}</span>
+      <span className="text-[10px] text-muted-foreground w-20 shrink-0">
+        {label}
+      </span>
       <div className="flex-1 h-1.5 rounded-full bg-muted/30 overflow-hidden">
         <motion.div
           initial={{ width: 0 }}
@@ -119,10 +138,13 @@ function DimensionBar({ label, icon, score }: { label: string; icon: string; sco
           transition={{ duration: 0.5, ease: "easeOut" }}
           className={cn(
             "h-full rounded-full bg-gradient-to-r",
-            pct >= 80 ? "from-emerald-400 to-teal-400" :
-            pct >= 60 ? "from-blue-400 to-indigo-400" :
-            pct >= 40 ? "from-amber-400 to-orange-400" :
-            "from-red-400 to-rose-400",
+            pct >= 80
+              ? "from-emerald-400 to-teal-400"
+              : pct >= 60
+                ? "from-blue-400 to-indigo-400"
+                : pct >= 40
+                  ? "from-amber-400 to-orange-400"
+                  : "from-red-400 to-rose-400"
           )}
         />
       </div>
@@ -158,16 +180,19 @@ function ActionableChip({
       <div
         className={cn(
           "group rounded-xl border transition-all duration-200 overflow-hidden",
-          config.bgColor,
+          config.bgColor
         )}
       >
         {/* Main chip row */}
         <div className="flex items-center gap-2 px-3 py-2">
           {/* Action type badge */}
-          <span className={cn(
-            "shrink-0 flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md",
-            config.activeBg, config.color,
-          )}>
+          <span
+            className={cn(
+              "shrink-0 flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md",
+              config.activeBg,
+              config.color
+            )}
+          >
             <Icon className="w-3 h-3" />
             {config.label}
           </span>
@@ -184,7 +209,10 @@ function ActionableChip({
 
           {/* Preview toggle */}
           <button
-            onClick={(e) => { e.stopPropagation(); setShowPayload(!showPayload); }}
+            onClick={e => {
+              e.stopPropagation();
+              setShowPayload(!showPayload);
+            }}
             className="shrink-0 p-1 rounded-md hover:bg-white/20 transition-colors"
             title="預覽內容"
           >
@@ -201,7 +229,8 @@ function ActionableChip({
             size="sm"
             className={cn(
               "shrink-0 h-7 text-[10px] gap-1 rounded-lg font-semibold",
-              config.color, "hover:bg-white/30",
+              config.color,
+              "hover:bg-white/30"
             )}
             onClick={() => {
               onApply({
@@ -241,14 +270,19 @@ function ActionableChip({
 
 // ─── Main Component ────────────────────────────────────────────────────────
 
-export function PromptStrengthBar({ prompt, modality, onApplyOptimized, onApplyAction }: PromptStrengthBarProps) {
+export function PromptStrengthBar({
+  prompt,
+  modality,
+  onApplyOptimized,
+  onApplyAction,
+}: PromptStrengthBarProps) {
   const [result, setResult] = useState<EvalResult | null>(null);
   const [expanded, setExpanded] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastEvaluatedRef = useRef<string>("");
 
   const evaluateMutation = trpc.evaluate.prompt.useMutation({
-    onSuccess: (data) => {
+    onSuccess: data => {
       setResult(data as EvalResult);
     },
   });
@@ -271,23 +305,29 @@ export function PromptStrengthBar({ prompt, modality, onApplyOptimized, onApplyA
     };
   }, [prompt, triggerEvaluate]);
 
-  const handleApplyAction = useCallback((action: SuggestionAction) => {
-    if (onApplyAction) {
-      onApplyAction(action);
-    } else if (onApplyOptimized) {
-      // Fallback: just append or replace via the old callback
-      if (action.actionType === "replace_prompt") {
-        onApplyOptimized(action.actionPayload);
-      } else {
-        onApplyOptimized(prompt.trim() + ", " + action.actionPayload);
+  const handleApplyAction = useCallback(
+    (action: SuggestionAction) => {
+      if (onApplyAction) {
+        onApplyAction(action);
+      } else if (onApplyOptimized) {
+        // Fallback: just append or replace via the old callback
+        if (action.actionType === "replace_prompt") {
+          onApplyOptimized(action.actionPayload);
+        } else {
+          onApplyOptimized(prompt.trim() + ", " + action.actionPayload);
+        }
       }
-    }
-    toast.success(`已套用：${action.label}`, {
-      description: action.actionType === "append_prompt" ? "已追加至提示詞"
-        : action.actionType === "replace_prompt" ? "已替換提示詞"
-        : "已加入負面提示詞",
-    });
-  }, [onApplyAction, onApplyOptimized, prompt]);
+      toast.success(`已套用：${action.label}`, {
+        description:
+          action.actionType === "append_prompt"
+            ? "已追加至提示詞"
+            : action.actionType === "replace_prompt"
+              ? "已替換提示詞"
+              : "已加入負面提示詞",
+      });
+    },
+    [onApplyAction, onApplyOptimized, prompt]
+  );
 
   // No prompt yet
   if (prompt.trim().length < 10 && !result) {
@@ -302,38 +342,58 @@ export function PromptStrengthBar({ prompt, modality, onApplyOptimized, onApplyA
         <div className="relative">
           <svg className="w-10 h-10 -rotate-90" viewBox="0 0 36 36">
             <circle
-              cx="18" cy="18" r="15"
+              cx="18"
+              cy="18"
+              r="15"
               fill="none"
               stroke="currentColor"
               strokeWidth="2"
               className="text-muted/20"
             />
             <motion.circle
-              cx="18" cy="18" r="15"
+              cx="18"
+              cy="18"
+              r="15"
               fill="none"
               stroke="url(#scoreGrad)"
               strokeWidth="2.5"
               strokeLinecap="round"
               strokeDasharray={`${(result?.score || 0) * 0.942} 94.2`}
               initial={{ strokeDasharray: "0 94.2" }}
-              animate={{ strokeDasharray: `${(result?.score || 0) * 0.942} 94.2` }}
+              animate={{
+                strokeDasharray: `${(result?.score || 0) * 0.942} 94.2`,
+              }}
               transition={{ duration: 0.8, ease: "easeOut" }}
             />
             <defs>
               <linearGradient id="scoreGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" className={cn(
-                  result && result.score >= 60 ? "text-emerald-500" : "text-amber-500"
-                )} stopColor="currentColor" />
-                <stop offset="100%" className={cn(
-                  result && result.score >= 60 ? "text-teal-500" : "text-orange-500"
-                )} stopColor="currentColor" />
+                <stop
+                  offset="0%"
+                  className={cn(
+                    result && result.score >= 60
+                      ? "text-emerald-500"
+                      : "text-amber-500"
+                  )}
+                  stopColor="currentColor"
+                />
+                <stop
+                  offset="100%"
+                  className={cn(
+                    result && result.score >= 60
+                      ? "text-teal-500"
+                      : "text-orange-500"
+                  )}
+                  stopColor="currentColor"
+                />
               </linearGradient>
             </defs>
           </svg>
-          <span className={cn(
-            "absolute inset-0 flex items-center justify-center text-[10px] font-bold tabular-nums",
-            result ? getScoreColor(result.score) : "text-muted-foreground",
-          )}>
+          <span
+            className={cn(
+              "absolute inset-0 flex items-center justify-center text-[10px] font-bold tabular-nums",
+              result ? getScoreColor(result.score) : "text-muted-foreground"
+            )}
+          >
             {evaluateMutation.isPending ? "..." : (result?.score ?? "—")}
           </span>
         </div>
@@ -342,15 +402,17 @@ export function PromptStrengthBar({ prompt, modality, onApplyOptimized, onApplyA
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             {result && getScoreIcon(result.score)}
-            <span className={cn(
-              "text-xs font-semibold",
-              result ? getScoreColor(result.score) : "text-muted-foreground",
-            )}>
+            <span
+              className={cn(
+                "text-xs font-semibold",
+                result ? getScoreColor(result.score) : "text-muted-foreground"
+              )}
+            >
               {evaluateMutation.isPending
                 ? "分析中..."
                 : result
-                ? `提示詞強度：${getScoreLabel(result.score)}`
-                : "等待輸入..."}
+                  ? `提示詞強度：${getScoreLabel(result.score)}`
+                  : "等待輸入..."}
             </span>
           </div>
           {result && (
@@ -403,7 +465,7 @@ export function PromptStrengthBar({ prompt, modality, onApplyOptimized, onApplyA
                 <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                   五維評估
                 </span>
-                {DIMENSIONS.map((d) => (
+                {DIMENSIONS.map(d => (
                   <DimensionBar
                     key={d.key}
                     label={d.label}

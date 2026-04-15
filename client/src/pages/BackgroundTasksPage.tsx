@@ -13,16 +13,38 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import {
-  Image, Film, Music, Mic, Cpu, CheckCircle2, XCircle,
-  Loader2, Clock, Search, RefreshCw, ExternalLink,
-  AlertCircle, Filter, LayoutGrid, List,
+  Image,
+  Film,
+  Music,
+  Mic,
+  Cpu,
+  CheckCircle2,
+  XCircle,
+  Loader2,
+  Clock,
+  Search,
+  RefreshCw,
+  ExternalLink,
+  AlertCircle,
+  Filter,
+  LayoutGrid,
+  List,
   Download,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 // ─── Types & Constants ────────────────────────────────────────────────────────
 
-type JobFilter = "all" | "active" | "completed" | "failed" | "image" | "video" | "audio" | "voice" | "model_training";
+type JobFilter =
+  | "all"
+  | "active"
+  | "completed"
+  | "failed"
+  | "image"
+  | "video"
+  | "audio"
+  | "voice"
+  | "model_training";
 
 interface JobRow {
   id: number;
@@ -36,44 +58,88 @@ interface JobRow {
   updatedAt: string;
 }
 
-const FILTER_TABS: { value: JobFilter; label: string; icon: React.ReactNode }[] = [
-  { value: "all",            label: "全部",   icon: <LayoutGrid className="w-3.5 h-3.5" /> },
-  { value: "active",         label: "進行中", icon: <Loader2 className="w-3.5 h-3.5" /> },
-  { value: "completed",      label: "已完成", icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
-  { value: "failed",         label: "失敗",   icon: <XCircle className="w-3.5 h-3.5" /> },
-  { value: "image",          label: "圖片",   icon: <Image className="w-3.5 h-3.5" /> },
-  { value: "video",          label: "影片",   icon: <Film className="w-3.5 h-3.5" /> },
-  { value: "audio",          label: "音樂",   icon: <Music className="w-3.5 h-3.5" /> },
-  { value: "voice",          label: "語音",   icon: <Mic className="w-3.5 h-3.5" /> },
-  { value: "model_training", label: "模型訓練", icon: <Cpu className="w-3.5 h-3.5" /> },
+const FILTER_TABS: {
+  value: JobFilter;
+  label: string;
+  icon: React.ReactNode;
+}[] = [
+  { value: "all", label: "全部", icon: <LayoutGrid className="w-3.5 h-3.5" /> },
+  {
+    value: "active",
+    label: "進行中",
+    icon: <Loader2 className="w-3.5 h-3.5" />,
+  },
+  {
+    value: "completed",
+    label: "已完成",
+    icon: <CheckCircle2 className="w-3.5 h-3.5" />,
+  },
+  { value: "failed", label: "失敗", icon: <XCircle className="w-3.5 h-3.5" /> },
+  { value: "image", label: "圖片", icon: <Image className="w-3.5 h-3.5" /> },
+  { value: "video", label: "影片", icon: <Film className="w-3.5 h-3.5" /> },
+  { value: "audio", label: "音樂", icon: <Music className="w-3.5 h-3.5" /> },
+  { value: "voice", label: "語音", icon: <Mic className="w-3.5 h-3.5" /> },
+  {
+    value: "model_training",
+    label: "模型訓練",
+    icon: <Cpu className="w-3.5 h-3.5" />,
+  },
 ];
 
 const JOB_TYPE_ICON: Record<string, React.ReactNode> = {
-  image:          <Image className="w-5 h-5" />,
-  video:          <Film className="w-5 h-5" />,
-  audio:          <Music className="w-5 h-5" />,
-  voice:          <Mic className="w-5 h-5" />,
-  multimodal:     <LayoutGrid className="w-5 h-5" />,
+  image: <Image className="w-5 h-5" />,
+  video: <Film className="w-5 h-5" />,
+  audio: <Music className="w-5 h-5" />,
+  voice: <Mic className="w-5 h-5" />,
+  multimodal: <LayoutGrid className="w-5 h-5" />,
   model_training: <Cpu className="w-5 h-5" />,
-  zip_export:     <Download className="w-5 h-5" />,
+  zip_export: <Download className="w-5 h-5" />,
 };
 
 const JOB_TYPE_LABEL: Record<string, string> = {
-  image:          "圖片生成",
-  video:          "影片生成",
-  audio:          "音樂生成",
-  voice:          "語音生成",
-  multimodal:     "多模態生成",
+  image: "圖片生成",
+  video: "影片生成",
+  audio: "音樂生成",
+  voice: "語音生成",
+  multimodal: "多模態生成",
   model_training: "模型訓練",
-  zip_export:     "匯出",
+  zip_export: "匯出",
 };
 
-const STATUS_CONFIG: Record<string, { color: string; bgColor: string; label: string; icon: React.ReactNode }> = {
-  queued:     { color: "text-amber-600",     bgColor: "bg-amber-50 border-amber-200",     label: "排隊中", icon: <Clock className="w-4 h-4" /> },
-  processing: { color: "text-blue-600",       bgColor: "bg-blue-50 border-blue-200",       label: "處理中", icon: <Loader2 className="w-4 h-4 animate-spin" /> },
-  completed:  { color: "text-green-600",      bgColor: "bg-green-50 border-green-200",     label: "已完成", icon: <CheckCircle2 className="w-4 h-4" /> },
-  failed:     { color: "text-red-600",        bgColor: "bg-red-50 border-red-200",         label: "失敗",   icon: <XCircle className="w-4 h-4" /> },
-  cancelled:  { color: "text-muted-foreground", bgColor: "bg-muted/50 border-muted",       label: "已取消", icon: <XCircle className="w-4 h-4" /> },
+const STATUS_CONFIG: Record<
+  string,
+  { color: string; bgColor: string; label: string; icon: React.ReactNode }
+> = {
+  queued: {
+    color: "text-amber-600",
+    bgColor: "bg-amber-50 border-amber-200",
+    label: "排隊中",
+    icon: <Clock className="w-4 h-4" />,
+  },
+  processing: {
+    color: "text-blue-600",
+    bgColor: "bg-blue-50 border-blue-200",
+    label: "處理中",
+    icon: <Loader2 className="w-4 h-4 animate-spin" />,
+  },
+  completed: {
+    color: "text-green-600",
+    bgColor: "bg-green-50 border-green-200",
+    label: "已完成",
+    icon: <CheckCircle2 className="w-4 h-4" />,
+  },
+  failed: {
+    color: "text-red-600",
+    bgColor: "bg-red-50 border-red-200",
+    label: "失敗",
+    icon: <XCircle className="w-4 h-4" />,
+  },
+  cancelled: {
+    color: "text-muted-foreground",
+    bgColor: "bg-muted/50 border-muted",
+    label: "已取消",
+    icon: <XCircle className="w-4 h-4" />,
+  },
 };
 
 function formatDateTime(iso: string) {
@@ -149,7 +215,12 @@ function ResultPreview({ job }: { job: JobRow }) {
   if ((job.jobType === "audio" || job.jobType === "voice") && audioUrl) {
     return (
       <div className="mt-3">
-        <audio src={audioUrl} controls className="w-full max-w-sm" preload="metadata" />
+        <audio
+          src={audioUrl}
+          controls
+          className="w-full max-w-sm"
+          preload="metadata"
+        />
       </div>
     );
   }
@@ -159,7 +230,12 @@ function ResultPreview({ job }: { job: JobRow }) {
     return (
       <div className="mt-3 text-xs text-muted-foreground">
         <span className="font-medium">模型:</span> {String(meta.modelName)}
-        {!!meta.engine && <> · <span className="font-medium">引擎:</span> {String(meta.engine)}</>}
+        {!!meta.engine && (
+          <>
+            {" "}
+            · <span className="font-medium">引擎:</span> {String(meta.engine)}
+          </>
+        )}
       </div>
     );
   }
@@ -169,9 +245,16 @@ function ResultPreview({ job }: { job: JobRow }) {
 
 // ─── Job Card Component ───────────────────────────────────────────────────────
 
-function JobCard({ job, onCheckStatus }: { job: JobRow; onCheckStatus: (jobId: number) => void }) {
+function JobCard({
+  job,
+  onCheckStatus,
+}: {
+  job: JobRow;
+  onCheckStatus: (jobId: number) => void;
+}) {
   const meta = job.resultJson as Record<string, unknown> | null;
-  const label = (meta?.label as string) || JOB_TYPE_LABEL[job.jobType] || job.jobType;
+  const label =
+    (meta?.label as string) || JOB_TYPE_LABEL[job.jobType] || job.jobType;
   const cfg = STATUS_CONFIG[job.status] ?? STATUS_CONFIG.processing;
   const resultUrl = (meta?.resultUrl as string) ?? null;
   const [expanded, setExpanded] = useState(false);
@@ -187,7 +270,9 @@ function JobCard({ job, onCheckStatus }: { job: JobRow; onCheckStatus: (jobId: n
       {/* Header */}
       <div className="flex items-start gap-3">
         {/* Icon */}
-        <div className={`flex-shrink-0 p-2 rounded-lg bg-background/80 ${cfg.color}`}>
+        <div
+          className={`flex-shrink-0 p-2 rounded-lg bg-background/80 ${cfg.color}`}
+        >
           {JOB_TYPE_ICON[job.jobType] ?? <LayoutGrid className="w-5 h-5" />}
         </div>
 
@@ -195,7 +280,10 @@ function JobCard({ job, onCheckStatus }: { job: JobRow; onCheckStatus: (jobId: n
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="hs-h3 !mb-0 truncate">{label}</h3>
-            <Badge variant="outline" className={`text-[10px] h-5 ${cfg.color} border-current/30`}>
+            <Badge
+              variant="outline"
+              className={`text-[10px] h-5 ${cfg.color} border-current/30`}
+            >
               {cfg.icon}
               <span className="ml-1">{cfg.label}</span>
             </Badge>
@@ -225,7 +313,11 @@ function JobCard({ job, onCheckStatus }: { job: JobRow; onCheckStatus: (jobId: n
                     ? "bg-amber-400 animate-pulse w-[15%]"
                     : "bg-blue-500"
                 }`}
-                style={job.status === "processing" ? { width: `${Math.max(job.progress, 10)}%` } : undefined}
+                style={
+                  job.status === "processing"
+                    ? { width: `${Math.max(job.progress, 10)}%` }
+                    : undefined
+                }
               />
             </div>
           )}
@@ -261,7 +353,9 @@ function JobCard({ job, onCheckStatus }: { job: JobRow; onCheckStatus: (jobId: n
               variant="ghost"
               size="icon"
               className="h-7 w-7"
-              onClick={() => window.open(resultUrl, "_blank", "noopener,noreferrer")}
+              onClick={() =>
+                window.open(resultUrl, "_blank", "noopener,noreferrer")
+              }
               title="開啟結果"
             >
               <ExternalLink className="w-3.5 h-3.5" />
@@ -300,7 +394,7 @@ function JobCard({ job, onCheckStatus }: { job: JobRow; onCheckStatus: (jobId: n
                   {JSON.stringify(
                     { ...meta, result: meta.result ? "(已省略)" : undefined },
                     null,
-                    2,
+                    2
                   )}
                 </pre>
               </details>
@@ -342,16 +436,51 @@ function StatsBar({ jobs }: { jobs: JobRow[] }) {
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
-      <StatCard label="全部任務" count={stats.total} icon={<LayoutGrid className="w-4 h-4" />} color="text-foreground" />
-      <StatCard label="進行中" count={stats.active} icon={<Loader2 className="w-4 h-4 animate-spin" />} color="text-blue-600" />
-      <StatCard label="已完成" count={stats.completed} icon={<CheckCircle2 className="w-4 h-4" />} color="text-green-600" />
-      <StatCard label="失敗" count={stats.failed} icon={<XCircle className="w-4 h-4" />} color="text-red-600" />
-      <StatCard label="模型訓練" count={stats.model_training} icon={<Cpu className="w-4 h-4" />} color="text-purple-600" />
+      <StatCard
+        label="全部任務"
+        count={stats.total}
+        icon={<LayoutGrid className="w-4 h-4" />}
+        color="text-foreground"
+      />
+      <StatCard
+        label="進行中"
+        count={stats.active}
+        icon={<Loader2 className="w-4 h-4 animate-spin" />}
+        color="text-blue-600"
+      />
+      <StatCard
+        label="已完成"
+        count={stats.completed}
+        icon={<CheckCircle2 className="w-4 h-4" />}
+        color="text-green-600"
+      />
+      <StatCard
+        label="失敗"
+        count={stats.failed}
+        icon={<XCircle className="w-4 h-4" />}
+        color="text-red-600"
+      />
+      <StatCard
+        label="模型訓練"
+        count={stats.model_training}
+        icon={<Cpu className="w-4 h-4" />}
+        color="text-purple-600"
+      />
     </div>
   );
 }
 
-function StatCard({ label, count, icon, color }: { label: string; count: number; icon: React.ReactNode; color: string }) {
+function StatCard({
+  label,
+  count,
+  icon,
+  color,
+}: {
+  label: string;
+  count: number;
+  icon: React.ReactNode;
+  color: string;
+}) {
   return (
     <div className="rounded-xl border bg-background/50 p-3 flex items-center gap-3">
       <div className={`${color}`}>{icon}</div>
@@ -414,20 +543,22 @@ export default function BackgroundTasksPage() {
     // Filter by tab
     switch (filter) {
       case "active":
-        list = list.filter((j) => j.status === "queued" || j.status === "processing");
+        list = list.filter(
+          j => j.status === "queued" || j.status === "processing"
+        );
         break;
       case "completed":
-        list = list.filter((j) => j.status === "completed");
+        list = list.filter(j => j.status === "completed");
         break;
       case "failed":
-        list = list.filter((j) => j.status === "failed");
+        list = list.filter(j => j.status === "failed");
         break;
       case "image":
       case "video":
       case "audio":
       case "voice":
       case "model_training":
-        list = list.filter((j) => j.jobType === filter);
+        list = list.filter(j => j.jobType === filter);
         break;
       default:
         break;
@@ -436,7 +567,7 @@ export default function BackgroundTasksPage() {
     // Search
     if (search.trim()) {
       const q = search.toLowerCase();
-      list = list.filter((j) => {
+      list = list.filter(j => {
         const meta = j.resultJson as Record<string, unknown> | null;
         const label = ((meta?.label as string) || "").toLowerCase();
         const modelId = ((meta?.modelId as string) || "").toLowerCase();
@@ -456,20 +587,26 @@ export default function BackgroundTasksPage() {
   }, [allJobs, filter, search]);
 
   // ── Check individual job status ─────────────────────────────────────────
-  const handleCheckStatus = useCallback(async (jobId: number) => {
-    try {
-      await utils.generate.checkStudioJob.fetch({ jobId });
-      activeJobsQuery.refetch();
-      toast.success("狀態已更新");
-    } catch {
-      toast.error("查詢狀態失敗");
-    }
-  }, [utils, activeJobsQuery]);
+  const handleCheckStatus = useCallback(
+    async (jobId: number) => {
+      try {
+        await utils.generate.checkStudioJob.fetch({ jobId });
+        activeJobsQuery.refetch();
+        toast.success("狀態已更新");
+      } catch {
+        toast.error("查詢狀態失敗");
+      }
+    },
+    [utils, activeJobsQuery]
+  );
 
   // ── Poll active jobs ────────────────────────────────────────────────────
   const activeJobIds = useMemo(
-    () => allJobs.filter((j) => j.status === "queued" || j.status === "processing").map((j) => j.id),
-    [allJobs],
+    () =>
+      allJobs
+        .filter(j => j.status === "queued" || j.status === "processing")
+        .map(j => j.id),
+    [allJobs]
   );
 
   useEffect(() => {
@@ -508,7 +645,9 @@ export default function BackgroundTasksPage() {
           disabled={activeJobsQuery.isFetching}
           className="h-9"
         >
-          <RefreshCw className={`w-4 h-4 mr-1.5 ${activeJobsQuery.isFetching ? "animate-spin" : ""}`} />
+          <RefreshCw
+            className={`w-4 h-4 mr-1.5 ${activeJobsQuery.isFetching ? "animate-spin" : ""}`}
+          />
           重新整理
         </Button>
       </div>
@@ -520,7 +659,7 @@ export default function BackgroundTasksPage() {
       <div className="flex flex-col sm:flex-row gap-3">
         {/* Tab filters */}
         <div className="flex flex-wrap gap-1.5">
-          {FILTER_TABS.map((tab) => (
+          {FILTER_TABS.map(tab => (
             <button
               key={tab.value}
               onClick={() => setFilter(tab.value)}
@@ -542,7 +681,7 @@ export default function BackgroundTasksPage() {
           <Input
             placeholder="搜尋任務..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={e => setSearch(e.target.value)}
             className="pl-9 h-9"
           />
         </div>
@@ -552,14 +691,18 @@ export default function BackgroundTasksPage() {
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          <p className="hs-small !mb-0 text-muted-foreground">載入任務列表...</p>
+          <p className="hs-small !mb-0 text-muted-foreground">
+            載入任務列表...
+          </p>
         </div>
       ) : filteredJobs.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
           <Filter className="w-10 h-10 text-muted-foreground/40" />
           <div>
             <p className="hs-small !mb-0 font-medium text-muted-foreground">
-              {filter === "all" && !search ? "目前沒有任何背景任務" : "沒有符合條件的任務"}
+              {filter === "all" && !search
+                ? "目前沒有任何背景任務"
+                : "沒有符合條件的任務"}
             </p>
             <p className="hs-small !mb-0 text-muted-foreground/70 mt-1">
               在創作工作室或專業工作室提交生成任務，即可在此追蹤進度
@@ -578,7 +721,7 @@ export default function BackgroundTasksPage() {
           </p>
 
           <AnimatePresence mode="popLayout">
-            {filteredJobs.map((job) => (
+            {filteredJobs.map(job => (
               <JobCard
                 key={job.id}
                 job={job}

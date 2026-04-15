@@ -38,13 +38,13 @@ export type LLMEngine = "gemini" | "vertex" | "forge" | "nvidia" | "auto";
 
 export interface EngineConfig {
   name: string;
-  engine: LLMEngine;           // 引擎識別符
+  engine: LLMEngine; // 引擎識別符
   url: string;
   apiKey: string;
   model: string;
-  supportsThinking: boolean;    // extended reasoning budget_tokens
-  supportsGrounding: boolean;   // Google Search grounding
-  supportsLongContext: boolean;  // >1M token context
+  supportsThinking: boolean; // extended reasoning budget_tokens
+  supportsGrounding: boolean; // Google Search grounding
+  supportsLongContext: boolean; // >1M token context
   supportsToolCalling: boolean; // function calling / tool use
 }
 
@@ -63,7 +63,7 @@ interface CircuitBreakerEntry {
   failures: number;
   lastFailureAt: number;
   lastSuccessAt: number;
-  openedAt: number;            // 進入 OPEN 狀態的時間
+  openedAt: number; // 進入 OPEN 狀態的時間
 }
 
 /** 連續失敗幾次後斷路 */
@@ -128,13 +128,21 @@ export function recordEngineFailure(engine: LLMEngine): void {
   } else if (cb.failures >= CIRCUIT_FAILURE_THRESHOLD) {
     cb.state = "OPEN";
     cb.openedAt = Date.now();
-    console.warn(`[CircuitBreaker] 🔴 ${engine} 連續失敗 ${cb.failures} 次，斷路中（冷卻 ${CIRCUIT_COOLDOWN_MS / 1000}s）`);
+    console.warn(
+      `[CircuitBreaker] 🔴 ${engine} 連續失敗 ${cb.failures} 次，斷路中（冷卻 ${CIRCUIT_COOLDOWN_MS / 1000}s）`
+    );
   }
 }
 
 /** 取得所有斷路器狀態（供 debug / health endpoint 使用） */
-export function getCircuitBreakerStatus(): Record<string, { state: CircuitState; failures: number; available: boolean }> {
-  const result: Record<string, { state: CircuitState; failures: number; available: boolean }> = {};
+export function getCircuitBreakerStatus(): Record<
+  string,
+  { state: CircuitState; failures: number; available: boolean }
+> {
+  const result: Record<
+    string,
+    { state: CircuitState; failures: number; available: boolean }
+  > = {};
   for (const [engine, cb] of Array.from(circuitBreakers.entries())) {
     result[engine] = {
       state: cb.state,
@@ -151,20 +159,35 @@ export function getCircuitBreakerStatus(): Record<string, { state: CircuitState;
  * 偵測可用的引擎，回傳優先順序列表
  * 呼叫端可以用來顯示「目前使用哪個引擎」的 debug info
  */
-export function detectAvailableEngines(): Array<{ engine: LLMEngine; reason: string }> {
+export function detectAvailableEngines(): Array<{
+  engine: LLMEngine;
+  reason: string;
+}> {
   const available: Array<{ engine: LLMEngine; reason: string }> = [];
 
   if (ENV.geminiApiKey) {
     available.push({ engine: "gemini", reason: "GEMINI_API_KEY 已設定" });
   }
-  if (serverEnv.GOOGLE_APPLICATION_CREDENTIALS_JSON && serverEnv.GOOGLE_CLOUD_PROJECT_ID) {
-    available.push({ engine: "vertex", reason: "GOOGLE_APPLICATION_CREDENTIALS_JSON + PROJECT_ID 已設定" });
+  if (
+    serverEnv.GOOGLE_APPLICATION_CREDENTIALS_JSON &&
+    serverEnv.GOOGLE_CLOUD_PROJECT_ID
+  ) {
+    available.push({
+      engine: "vertex",
+      reason: "GOOGLE_APPLICATION_CREDENTIALS_JSON + PROJECT_ID 已設定",
+    });
   }
   if (ENV.forgeApiKey && ENV.forgeApiUrl) {
-    available.push({ engine: "forge", reason: "BUILT_IN_FORGE_API_KEY 已設定（Manus 相容模式）" });
+    available.push({
+      engine: "forge",
+      reason: "BUILT_IN_FORGE_API_KEY 已設定（Manus 相容模式）",
+    });
   }
   if (process.env.NVIDIA_API) {
-    available.push({ engine: "nvidia", reason: "NVIDIA_API 已設定（NVIDIA NIM 代理人引擎）" });
+    available.push({
+      engine: "nvidia",
+      reason: "NVIDIA_API 已設定（NVIDIA NIM 代理人引擎）",
+    });
   }
 
   return available;
@@ -176,7 +199,8 @@ export function detectAvailableEngines(): Array<{ engine: LLMEngine; reason: str
  * 含斷路器判斷 — 跳過不健康的引擎
  */
 export function resolveEngineConfig(forceEngine?: LLMEngine): EngineConfig {
-  const preferred = forceEngine ?? (serverEnv.LLM_ENGINE as LLMEngine) ?? "auto";
+  const preferred =
+    forceEngine ?? (serverEnv.LLM_ENGINE as LLMEngine) ?? "auto";
 
   // ── 強制指定引擎 — 不受斷路器影響（用戶明確選擇）─────────
   if (preferred !== "auto") {
@@ -215,7 +239,9 @@ export function resolveEngineConfig(forceEngine?: LLMEngine): EngineConfig {
  * 取得 auto 模式下的引擎降級鏈（供 invokeLLM 自動降級使用）
  * 回傳從首選引擎開始的所有可用引擎列表（不含首選自身）
  */
-export function getEngineFallbackChain(primaryEngine: LLMEngine): EngineConfig[] {
+export function getEngineFallbackChain(
+  primaryEngine: LLMEngine
+): EngineConfig[] {
   const allOrder: LLMEngine[] = ["gemini", "nvidia", "vertex", "forge"];
   const fallbacks: EngineConfig[] = [];
 
@@ -238,7 +264,8 @@ export function getEngineFallbackChain(primaryEngine: LLMEngine): EngineConfig[]
 function resolveSpecificEngine(engine: LLMEngine): EngineConfig {
   switch (engine) {
     case "gemini":
-      if (!ENV.geminiApiKey) throw new Error("Engine 'gemini' 指定但 GEMINI_API_KEY 未設定");
+      if (!ENV.geminiApiKey)
+        throw new Error("Engine 'gemini' 指定但 GEMINI_API_KEY 未設定");
       return {
         name: "Gemini API (Direct)",
         engine: "gemini",
@@ -256,9 +283,12 @@ function resolveSpecificEngine(engine: LLMEngine): EngineConfig {
       const credentials = serverEnv.GOOGLE_APPLICATION_CREDENTIALS_JSON;
       const location = serverEnv.GOOGLE_CLOUD_LOCATION || "us-central1";
       if (!projectId || !credentials) {
-        throw new Error("Engine 'vertex' 指定但 GOOGLE_CLOUD_PROJECT_ID 或 GOOGLE_APPLICATION_CREDENTIALS_JSON 未設定");
+        throw new Error(
+          "Engine 'vertex' 指定但 GOOGLE_CLOUD_PROJECT_ID 或 GOOGLE_APPLICATION_CREDENTIALS_JSON 未設定"
+        );
       }
-      if (!ENV.geminiApiKey) throw new Error("Vertex AI 需要 GEMINI_API_KEY 或服務帳號 Token");
+      if (!ENV.geminiApiKey)
+        throw new Error("Vertex AI 需要 GEMINI_API_KEY 或服務帳號 Token");
       return {
         name: "Vertex AI (via Gemini Key)",
         engine: "vertex",
@@ -274,7 +304,8 @@ function resolveSpecificEngine(engine: LLMEngine): EngineConfig {
 
     case "nvidia": {
       const nvidiaKey = process.env.NVIDIA_API;
-      if (!nvidiaKey) throw new Error("Engine 'nvidia' 指定但 NVIDIA_API 未設定");
+      if (!nvidiaKey)
+        throw new Error("Engine 'nvidia' 指定但 NVIDIA_API 未設定");
       return {
         name: "NVIDIA NIM (MiniMax M2.7)",
         engine: "nvidia",
@@ -289,7 +320,8 @@ function resolveSpecificEngine(engine: LLMEngine): EngineConfig {
     }
 
     case "forge":
-      if (!ENV.forgeApiKey || !ENV.forgeApiUrl) throw new Error("Engine 'forge' 指定但 BUILT_IN_FORGE_API_KEY 未設定");
+      if (!ENV.forgeApiKey || !ENV.forgeApiUrl)
+        throw new Error("Engine 'forge' 指定但 BUILT_IN_FORGE_API_KEY 未設定");
       return {
         name: "Manus Forge API (Legacy)",
         engine: "forge",
@@ -321,9 +353,11 @@ export function getEngineStatus(): EngineStatus {
   const missing: string[] = [];
 
   if (!ENV.geminiApiKey) missing.push("GEMINI_API_KEY（推薦）");
-  if (!serverEnv.GOOGLE_APPLICATION_CREDENTIALS_JSON) missing.push("GOOGLE_APPLICATION_CREDENTIALS_JSON（Vertex AI）");
+  if (!serverEnv.GOOGLE_APPLICATION_CREDENTIALS_JSON)
+    missing.push("GOOGLE_APPLICATION_CREDENTIALS_JSON（Vertex AI）");
   if (!ENV.forgeApiKey) missing.push("BUILT_IN_FORGE_API_KEY（Manus 相容）");
-  if (!process.env.NVIDIA_API) missing.push("NVIDIA_API（MiniMax M2.7 via NVIDIA NIM）");
+  if (!process.env.NVIDIA_API)
+    missing.push("NVIDIA_API（MiniMax M2.7 via NVIDIA NIM）");
 
   let currentName = "無可用引擎";
   try {
@@ -343,13 +377,14 @@ export function getEngineStatus(): EngineStatus {
     current: currentName,
     available: available.map(a => `${a.engine}: ${a.reason}`),
     missing,
-    recommendation: available.length === 0
-      ? "請設定 GEMINI_API_KEY 以啟用 LLM 功能"
-      : cbInfo
-        ? `引擎部分斷路中：${cbInfo}`
-        : available[0].engine === "forge"
-          ? "建議設定 GEMINI_API_KEY 以取得更好的效能與穩定性"
-          : "引擎設定正常",
+    recommendation:
+      available.length === 0
+        ? "請設定 GEMINI_API_KEY 以啟用 LLM 功能"
+        : cbInfo
+          ? `引擎部分斷路中：${cbInfo}`
+          : available[0].engine === "forge"
+            ? "建議設定 GEMINI_API_KEY 以取得更好的效能與穩定性"
+            : "引擎設定正常",
   };
 }
 
@@ -391,12 +426,14 @@ export function resolveMultimodalEndpoint(
 ): MultimodalEndpoint {
   const projectId = serverEnv.GOOGLE_CLOUD_PROJECT_ID;
   const location = serverEnv.GOOGLE_CLOUD_LOCATION || "us-central1";
-  const hasVertex = !!(projectId && serverEnv.GOOGLE_APPLICATION_CREDENTIALS_JSON);
+  const hasVertex = !!(
+    projectId && serverEnv.GOOGLE_APPLICATION_CREDENTIALS_JSON
+  );
   const hasGemini = !!ENV.geminiApiKey;
 
   // 決定提供者
-  const provider: "gemini" | "vertex" = forceProvider
-    ?? (hasVertex ? "vertex" : "gemini");
+  const provider: "gemini" | "vertex" =
+    forceProvider ?? (hasVertex ? "vertex" : "gemini");
 
   // 模型名稱映射
   const modelNames: Record<MultimodalModelType, string> = {
@@ -410,7 +447,8 @@ export function resolveMultimodalEndpoint(
 
   if (provider === "vertex") {
     if (!projectId) throw new Error("Vertex AI 需要 GOOGLE_CLOUD_PROJECT_ID");
-    if (!ENV.geminiApiKey) throw new Error("Vertex AI 端點需要 GEMINI_API_KEY 作為認證");
+    if (!ENV.geminiApiKey)
+      throw new Error("Vertex AI 端點需要 GEMINI_API_KEY 作為認證");
 
     return {
       name: `${modelName} (Vertex AI)`,
@@ -422,7 +460,8 @@ export function resolveMultimodalEndpoint(
   }
 
   // Google AI Studio（Gemini API）
-  if (!ENV.geminiApiKey) throw new Error("Google AI Studio 需要 GEMINI_API_KEY");
+  if (!ENV.geminiApiKey)
+    throw new Error("Google AI Studio 需要 GEMINI_API_KEY");
 
   return {
     name: `${modelName} (AI Studio)`,

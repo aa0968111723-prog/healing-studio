@@ -18,7 +18,13 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
-import { ArrowRight, X, Sparkles, MessageSquarePlus, Lightbulb } from "lucide-react";
+import {
+  ArrowRight,
+  X,
+  Sparkles,
+  MessageSquarePlus,
+  Lightbulb,
+} from "lucide-react";
 import VisualSoul from "./VisualSoul";
 import type { Personality } from "./VisualSoul";
 import type { SceneId } from "./AmbientEnvironment";
@@ -94,21 +100,21 @@ const INVITATION_TEMPLATES: Record<string, InvitationTemplate[]> = {
   // 選擇困難 — 幫助簡化決策
   choice_paralysis: [
     {
-      message: (title) =>
+      message: title =>
         title
           ? `我注意到你在好幾張作品之間猶豫，其中「${title}」似乎特別吸引你的目光。要不要讓我幫你把參數調好，我們直接去創作室試試看？`
           : `看起來你正在尋找最對味的靈感。不如讓我幫你挑一個起點，我們一起去試試看？`,
       cta: "好，一起去試試",
     },
     {
-      message: (title) =>
+      message: title =>
         title
           ? `「${title}」的光影和構圖很有意思，對吧？有時候最好的方式就是直接動手。我可以幫你準備好一切，你只需要按下開始。`
           : `選擇太多反而讓人停下腳步，這很正常。讓我幫你從一個簡單的起點開始？`,
       cta: "幫我準備好",
     },
     {
-      message: (title) =>
+      message: title =>
         title
           ? `你在「${title}」這裡停留了好一會兒，我猜你心裡已經有想法了。要不要我幫你把這個想法變成現實？`
           : `有時候靈感就在猶豫的那一刻。讓我幫你跨出第一步？`,
@@ -126,7 +132,7 @@ const INVITATION_TEMPLATES: Record<string, InvitationTemplate[]> = {
       cta: "給我一個起點",
     },
     {
-      message: (title) =>
+      message: title =>
         title
           ? `「${title}」的風格很特別，你似乎被它吸引了。想不想用類似的風格，創造屬於你自己的版本？`
           : `每個人都有獨特的審美直覺。讓我根據你的瀏覽軌跡，推薦一個適合你的創作方向？`,
@@ -142,7 +148,7 @@ const INVITATION_TEMPLATES: Record<string, InvitationTemplate[]> = {
       cta: "我準備好了",
     },
     {
-      message: (title) =>
+      message: title =>
         title
           ? `「${title}」似乎引起了你的注意。有時候，最好的創作就是從一個讓你心動的作品開始。想試試看嗎？`
           : `慢慢來，沒有壓力。當你找到感興趣的東西時，我可以幫你快速開始。`,
@@ -160,7 +166,7 @@ const INVITATION_TEMPLATES: Record<string, InvitationTemplate[]> = {
       cta: "調好參數，開始！",
     },
     {
-      message: (title) =>
+      message: title =>
         title
           ? `「${title}」的色調和氛圍確實很迷人。我可以幫你用類似的美學設定，創造一個全新的作品。`
           : `你對特定的視覺風格有很好的直覺。讓我把這個偏好帶進創作室，為你量身打造一個起點。`,
@@ -180,7 +186,7 @@ const INVITATION_TEMPLATES: Record<string, InvitationTemplate[]> = {
   // 目標導向 — 快速通道
   goal_oriented: [
     {
-      message: (title) =>
+      message: title =>
         title
           ? `看起來你已經知道自己想要什麼了。「${title}」是個很好的參考，要不要直接進入創作室？`
           : `你的目標很明確，讓我幫你快速進入創作室，省去多餘的步驟。`,
@@ -207,7 +213,8 @@ function shouldTriggerInvitation(intent: IntentResult | null): boolean {
   const mediumTriggerTypes = ["aesthetic_preference"];
 
   if (highTriggerTypes.includes(intent.intentType)) return true;
-  if (mediumTriggerTypes.includes(intent.intentType) && intent.confidence > 0.4) return true;
+  if (mediumTriggerTypes.includes(intent.intentType) && intent.confidence > 0.4)
+    return true;
 
   // 低觸發：探索模式 / 目標導向（中等信心即觸發）
   if (intent.confidence > 0.55) return true;
@@ -266,21 +273,24 @@ export default function VisualSoulInvitation({
     localStorage.setItem(VISIT_KEY, String(visitCount));
     localStorage.setItem(LAST_VISIT_KEY, String(now));
 
-    const hoursSinceLastVisit = lastVisit > 0 ? (now - lastVisit) / (1000 * 60 * 60) : 999;
+    const hoursSinceLastVisit =
+      lastVisit > 0 ? (now - lastVisit) / (1000 * 60 * 60) : 999;
     const hour = new Date().getHours();
 
     let greeting: string | null = null;
 
     if (visitCount === 1) {
       // 首次造訪
-      greeting = hour < 12
-        ? "早安，歡迎來到 Healing Studio。這裡是你的創意安全地帶，慢慢探索，沒有壓力。"
-        : hour < 18
-        ? "你好，歡迎來到 Healing Studio。讓我陳伴你開始一段創作旅程吧。"
-        : "晚安，歡迎來到 Healing Studio。夜晚是靈感最活躍的時刻。";
+      greeting =
+        hour < 12
+          ? "早安，歡迎來到 Healing Studio。這裡是你的創意安全地帶，慢慢探索，沒有壓力。"
+          : hour < 18
+            ? "你好，歡迎來到 Healing Studio。讓我陳伴你開始一段創作旅程吧。"
+            : "晚安，歡迎來到 Healing Studio。夜晚是靈感最活躍的時刻。";
     } else if (hoursSinceLastVisit > 24) {
       // 超過一天沒來
-      greeting = "好久不見！你的創作空間一直在這裡等你。準備好繼續上次的靈感了嗎？";
+      greeting =
+        "好久不見！你的創作空間一直在這裡等你。準備好繼續上次的靈感了嗎？";
     } else if (hoursSinceLastVisit > 4) {
       // 幾小時後回來
       greeting = "歡迎回來！休息過後的靈感往往更清晰。想從哪裡開始？";
@@ -366,7 +376,10 @@ export default function VisualSoulInvitation({
         confidence: intentResult.confidence,
       };
       try {
-        sessionStorage.setItem("soul_invitation_payload", JSON.stringify(transferData));
+        sessionStorage.setItem(
+          "soul_invitation_payload",
+          JSON.stringify(transferData)
+        );
       } catch {
         // silent
       }
@@ -375,16 +388,27 @@ export default function VisualSoulInvitation({
     setIsExpanded(false);
     // Build URL query params for direct preset
     const queryParts: string[] = [];
-    if (intentResult?.preferredModality) queryParts.push(`preset_modality=${encodeURIComponent(intentResult.preferredModality)}`);
-    if (intentResult?.suggestedAction) queryParts.push(`preset_prompt=${encodeURIComponent(intentResult.suggestedAction)}`);
-    if (intentResult?.detectedAesthetics?.length) queryParts.push(`preset_aesthetics=${encodeURIComponent(intentResult.detectedAesthetics.join(","))}`);
+    if (intentResult?.preferredModality)
+      queryParts.push(
+        `preset_modality=${encodeURIComponent(intentResult.preferredModality)}`
+      );
+    if (intentResult?.suggestedAction)
+      queryParts.push(
+        `preset_prompt=${encodeURIComponent(intentResult.suggestedAction)}`
+      );
+    if (intentResult?.detectedAesthetics?.length)
+      queryParts.push(
+        `preset_aesthetics=${encodeURIComponent(intentResult.detectedAesthetics.join(","))}`
+      );
     const queryString = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
     navigate(`/studio${queryString}`);
   }, [intentResult, navigate]);
 
   // ── Quick Action Menu ──
   const [showQuickMenu, setShowQuickMenu] = useState(false);
-  const [feedbackMode, setFeedbackMode] = useState<"feedback" | "feature">("feedback");
+  const [feedbackMode, setFeedbackMode] = useState<"feedback" | "feature">(
+    "feedback"
+  );
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const { isAuthenticated } = useAuth();
   const quickMenuRef = useRef<HTMLDivElement>(null);
@@ -393,7 +417,10 @@ export default function VisualSoulInvitation({
   useEffect(() => {
     if (!showQuickMenu) return;
     function handleClickOutside(e: MouseEvent) {
-      if (quickMenuRef.current && !quickMenuRef.current.contains(e.target as Node)) {
+      if (
+        quickMenuRef.current &&
+        !quickMenuRef.current.contains(e.target as Node)
+      ) {
         setShowQuickMenu(false);
       }
     }
@@ -415,7 +442,7 @@ export default function VisualSoulInvitation({
       setIsExpanded(true);
     } else {
       // No invitation available: toggle quick action menu
-      setShowQuickMenu((prev) => !prev);
+      setShowQuickMenu(prev => !prev);
     }
   }, [isExpanded, invitation, handleDismiss]);
 
@@ -445,7 +472,11 @@ export default function VisualSoulInvitation({
               }}
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.15, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              transition={{
+                delay: 0.15,
+                duration: 0.4,
+                ease: [0.16, 1, 0.3, 1],
+              }}
             >
               {/* Close button */}
               <button
@@ -460,12 +491,18 @@ export default function VisualSoulInvitation({
               <div className="flex items-center gap-2 mb-3">
                 <motion.div
                   animate={{ rotate: [0, 15, -15, 0] }}
-                  transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                  transition={{
+                    duration: 3,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
                 >
                   <Sparkles className={`w-4 h-4 ${bubbleStyle.textMuted}`} />
                 </motion.div>
                 {intentResult && (
-                  <span className={`hs-small !mb-0 tracking-wide uppercase ${bubbleStyle.textMuted}`}>
+                  <span
+                    className={`hs-small !mb-0 tracking-wide uppercase ${bubbleStyle.textMuted}`}
+                  >
                     {intentResult.intentLabel}
                   </span>
                 )}
@@ -479,7 +516,7 @@ export default function VisualSoulInvitation({
               {/* Detected aesthetics tags */}
               {intentResult && intentResult.detectedAesthetics.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mt-3">
-                  {intentResult.detectedAesthetics.slice(0, 3).map((tag) => (
+                  {intentResult.detectedAesthetics.slice(0, 3).map(tag => (
                     <span
                       key={tag}
                       className={`text-[10px] px-2 py-0.5 rounded-full ${bubbleStyle.textMuted}`}
@@ -595,7 +632,9 @@ export default function VisualSoulInvitation({
                   }}
                 >
                   {/* Menu header */}
-                  <div className={`px-3.5 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider ${bubbleStyle.textMuted}`}>
+                  <div
+                    className={`px-3.5 pt-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider ${bubbleStyle.textMuted}`}
+                  >
                     快速操作
                   </div>
 
@@ -605,20 +644,32 @@ export default function VisualSoulInvitation({
                       onClick={() => handleOpenFeedback("feedback")}
                       className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left transition-all duration-200 hover:bg-white/8 group`}
                     >
-                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
-                        sceneId === "nightSky" || sceneId === "deepSea"
-                          ? "bg-indigo-500/15 group-hover:bg-indigo-500/25"
-                          : "bg-stone-800/8 group-hover:bg-stone-800/12"
-                      }`}>
-                        <MessageSquarePlus className={`w-3.5 h-3.5 ${
+                      <div
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
                           sceneId === "nightSky" || sceneId === "deepSea"
-                            ? "text-indigo-400"
-                            : "text-stone-600"
-                        }`} />
+                            ? "bg-indigo-500/15 group-hover:bg-indigo-500/25"
+                            : "bg-stone-800/8 group-hover:bg-stone-800/12"
+                        }`}
+                      >
+                        <MessageSquarePlus
+                          className={`w-3.5 h-3.5 ${
+                            sceneId === "nightSky" || sceneId === "deepSea"
+                              ? "text-indigo-400"
+                              : "text-stone-600"
+                          }`}
+                        />
                       </div>
                       <div className="min-w-0">
-                        <div className={`text-xs font-medium ${bubbleStyle.text}`}>意見回饋</div>
-                        <div className={`hs-small !mb-0 ${bubbleStyle.textMuted}`}>回報問題或分享想法</div>
+                        <div
+                          className={`text-xs font-medium ${bubbleStyle.text}`}
+                        >
+                          意見回饋
+                        </div>
+                        <div
+                          className={`hs-small !mb-0 ${bubbleStyle.textMuted}`}
+                        >
+                          回報問題或分享想法
+                        </div>
                       </div>
                     </button>
 
@@ -626,20 +677,32 @@ export default function VisualSoulInvitation({
                       onClick={() => handleOpenFeedback("feature")}
                       className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left transition-all duration-200 hover:bg-white/8 group`}
                     >
-                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
-                        sceneId === "nightSky" || sceneId === "deepSea"
-                          ? "bg-amber-500/15 group-hover:bg-amber-500/25"
-                          : "bg-amber-500/10 group-hover:bg-amber-500/15"
-                      }`}>
-                        <Lightbulb className={`w-3.5 h-3.5 ${
+                      <div
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
                           sceneId === "nightSky" || sceneId === "deepSea"
-                            ? "text-amber-400"
-                            : "text-amber-600"
-                        }`} />
+                            ? "bg-amber-500/15 group-hover:bg-amber-500/25"
+                            : "bg-amber-500/10 group-hover:bg-amber-500/15"
+                        }`}
+                      >
+                        <Lightbulb
+                          className={`w-3.5 h-3.5 ${
+                            sceneId === "nightSky" || sceneId === "deepSea"
+                              ? "text-amber-400"
+                              : "text-amber-600"
+                          }`}
+                        />
                       </div>
                       <div className="min-w-0">
-                        <div className={`text-xs font-medium ${bubbleStyle.text}`}>功能詢問</div>
-                        <div className={`hs-small !mb-0 ${bubbleStyle.textMuted}`}>告訴我們你想要什麼</div>
+                        <div
+                          className={`text-xs font-medium ${bubbleStyle.text}`}
+                        >
+                          功能詢問
+                        </div>
+                        <div
+                          className={`hs-small !mb-0 ${bubbleStyle.textMuted}`}
+                        >
+                          告訴我們你想要什麼
+                        </div>
                       </div>
                     </button>
                   </div>
@@ -682,15 +745,20 @@ export default function VisualSoulInvitation({
                 <motion.div
                   className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full z-10"
                   style={{
-                    background: sceneId === "morning" || sceneId === "cafe"
-                      ? "rgb(239,68,68)"
-                      : "rgb(96,165,250)",
+                    background:
+                      sceneId === "morning" || sceneId === "cafe"
+                        ? "rgb(239,68,68)"
+                        : "rgb(96,165,250)",
                   }}
                   animate={{
                     scale: [1, 1.3, 1],
                     opacity: [1, 0.7, 1],
                   }}
-                  transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                  transition={{
+                    duration: 1.5,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
                 />
               )}
 

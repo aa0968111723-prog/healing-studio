@@ -13,28 +13,28 @@ import { z } from "zod";
 // ─── Schema ────────────────────────────────────────────────────────────────
 
 const clientSchema = z.object({
-  VITE_APP_ID:                  z.string().min(1).optional().default(""),
-  VITE_APP_TITLE:               z.string().optional().default(""),
-  VITE_APP_LOGO:                z.string().optional().default(""),
-  VITE_OAUTH_PORTAL_URL:        z.string().optional().default(""),
-  VITE_FRONTEND_FORGE_API_KEY:  z.string().min(1).optional().default(""),
-  VITE_FRONTEND_FORGE_API_URL:  z.string().optional().default(""),
-  VITE_ANALYTICS_ENDPOINT:      z.string().optional().default(""),
-  VITE_ANALYTICS_WEBSITE_ID:    z.string().optional().default(""),
+  VITE_APP_ID: z.string().min(1).optional().default(""),
+  VITE_APP_TITLE: z.string().optional().default(""),
+  VITE_APP_LOGO: z.string().optional().default(""),
+  VITE_OAUTH_PORTAL_URL: z.string().optional().default(""),
+  VITE_FRONTEND_FORGE_API_KEY: z.string().min(1).optional().default(""),
+  VITE_FRONTEND_FORGE_API_URL: z.string().optional().default(""),
+  VITE_ANALYTICS_ENDPOINT: z.string().optional().default(""),
+  VITE_ANALYTICS_WEBSITE_ID: z.string().optional().default(""),
 });
 
 // ─── Validation ────────────────────────────────────────────────────────────
 
 function validateClientEnv() {
   const raw = {
-    VITE_APP_ID:                  import.meta.env.VITE_APP_ID,
-    VITE_APP_TITLE:               import.meta.env.VITE_APP_TITLE,
-    VITE_APP_LOGO:                import.meta.env.VITE_APP_LOGO,
-    VITE_OAUTH_PORTAL_URL:        import.meta.env.VITE_OAUTH_PORTAL_URL,
-    VITE_FRONTEND_FORGE_API_KEY:  import.meta.env.VITE_FRONTEND_FORGE_API_KEY,
-    VITE_FRONTEND_FORGE_API_URL:  import.meta.env.VITE_FRONTEND_FORGE_API_URL,
-    VITE_ANALYTICS_ENDPOINT:      import.meta.env.VITE_ANALYTICS_ENDPOINT,
-    VITE_ANALYTICS_WEBSITE_ID:    import.meta.env.VITE_ANALYTICS_WEBSITE_ID,
+    VITE_APP_ID: import.meta.env.VITE_APP_ID,
+    VITE_APP_TITLE: import.meta.env.VITE_APP_TITLE,
+    VITE_APP_LOGO: import.meta.env.VITE_APP_LOGO,
+    VITE_OAUTH_PORTAL_URL: import.meta.env.VITE_OAUTH_PORTAL_URL,
+    VITE_FRONTEND_FORGE_API_KEY: import.meta.env.VITE_FRONTEND_FORGE_API_KEY,
+    VITE_FRONTEND_FORGE_API_URL: import.meta.env.VITE_FRONTEND_FORGE_API_URL,
+    VITE_ANALYTICS_ENDPOINT: import.meta.env.VITE_ANALYTICS_ENDPOINT,
+    VITE_ANALYTICS_WEBSITE_ID: import.meta.env.VITE_ANALYTICS_WEBSITE_ID,
   };
 
   const result = clientSchema.safeParse(raw);
@@ -42,9 +42,13 @@ function validateClientEnv() {
 
   // Warn about critical missing client vars
   const criticalVars: Array<[string, string, string]> = [
-    ["VITE_APP_ID",                 env.VITE_APP_ID,                 "OAuth 登入功能"],
-    ["VITE_OAUTH_PORTAL_URL",       env.VITE_OAUTH_PORTAL_URL,       "OAuth 登入跳轉"],
-    ["VITE_FRONTEND_FORGE_API_KEY", env.VITE_FRONTEND_FORGE_API_KEY, "前端 AI 功能（地圖等）"],
+    ["VITE_APP_ID", env.VITE_APP_ID, "OAuth 登入功能"],
+    ["VITE_OAUTH_PORTAL_URL", env.VITE_OAUTH_PORTAL_URL, "OAuth 登入跳轉"],
+    [
+      "VITE_FRONTEND_FORGE_API_KEY",
+      env.VITE_FRONTEND_FORGE_API_KEY,
+      "前端 AI 功能（地圖等）",
+    ],
   ];
 
   const missing = criticalVars.filter(([, value]) => !value);

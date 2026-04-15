@@ -85,12 +85,19 @@ const STORAGE_KEY = "showcase-transfer-payload";
 
 // ─── Context ────────────────────────────────────────────────────────────────
 
-const ShowcaseTransferContext = createContext<ShowcaseTransferContextValue | null>(null);
+const ShowcaseTransferContext =
+  createContext<ShowcaseTransferContextValue | null>(null);
 
 // ─── Provider ───────────────────────────────────────────────────────────────
 
-export function ShowcaseTransferProvider({ children }: { children: ReactNode }) {
-  const [payload, setPayloadState] = useState<ShowcaseTransferPayload | null>(null);
+export function ShowcaseTransferProvider({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  const [payload, setPayloadState] = useState<ShowcaseTransferPayload | null>(
+    null
+  );
   const [isLoading, setIsLoading] = useState(false);
 
   const setPayload = useCallback((p: ShowcaseTransferPayload) => {
@@ -109,7 +116,9 @@ export function ShowcaseTransferProvider({ children }: { children: ReactNode }) 
       setPayloadState(null);
       try {
         sessionStorage.removeItem(STORAGE_KEY);
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
       return payload;
     }
 
@@ -120,14 +129,23 @@ export function ShowcaseTransferProvider({ children }: { children: ReactNode }) 
         sessionStorage.removeItem(STORAGE_KEY);
         return JSON.parse(stored) as ShowcaseTransferPayload;
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     return null;
   }, [payload]);
 
-  const contextValue = useMemo(() => ({
-    payload, setPayload, consumePayload, isLoading, setIsLoading,
-  }), [payload, setPayload, consumePayload, isLoading, setIsLoading]);
+  const contextValue = useMemo(
+    () => ({
+      payload,
+      setPayload,
+      consumePayload,
+      isLoading,
+      setIsLoading,
+    }),
+    [payload, setPayload, consumePayload, isLoading, setIsLoading]
+  );
 
   return (
     <ShowcaseTransferContext.Provider value={contextValue}>
@@ -141,7 +159,9 @@ export function ShowcaseTransferProvider({ children }: { children: ReactNode }) 
 export function useShowcaseTransfer() {
   const ctx = useContext(ShowcaseTransferContext);
   if (!ctx) {
-    throw new Error("useShowcaseTransfer must be used within ShowcaseTransferProvider");
+    throw new Error(
+      "useShowcaseTransfer must be used within ShowcaseTransferProvider"
+    );
   }
   return ctx;
 }

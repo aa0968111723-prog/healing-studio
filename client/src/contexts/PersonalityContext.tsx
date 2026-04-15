@@ -35,13 +35,18 @@ import { useAIState } from "@/contexts/AIStateContext";
 // ─── 人格定義 ──────────────────────────────────────────────────────────────
 
 export type Personality = "calm" | "creative" | "technical";
-export type AIState = "idle" | "thinking" | "generating" | "listening" | "acting";
+export type AIState =
+  | "idle"
+  | "thinking"
+  | "generating"
+  | "listening"
+  | "acting";
 
 export interface PersonalityConfig {
   name: string;
-  color: string;          // 3D 光球顏色
-  glowColor: string;      // CSS glow 顏色
-  breathSpeed: number;    // 呼吸週期（秒）
+  color: string; // 3D 光球顏色
+  glowColor: string; // CSS glow 顏色
+  breathSpeed: number; // 呼吸週期（秒）
   pulseIntensity: number; // 脈動強度 0~1
   emissiveIntensity: number;
   description: string;
@@ -112,7 +117,11 @@ const PersonalityContext = createContext<PersonalityContextValue | null>(null);
 
 // ─── Provider ─────────────────────────────────────────────────────────────
 
-export function PersonalityProvider({ children }: { children: React.ReactNode }) {
+export function PersonalityProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   // XState 狀態機（人格自動切換引擎）
   const [machineState, send] = useMachine(personalityMachine);
 
@@ -123,7 +132,9 @@ export function PersonalityProvider({ children }: { children: React.ReactNode })
 
   // 打字速度追蹤
   const typingTimestamps = useRef<number[]>([]);
-  const idleTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const idleTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined
+  );
 
   // 從狀態機讀取人格
   const personality = machineState.context.personality;
@@ -154,9 +165,12 @@ export function PersonalityProvider({ children }: { children: React.ReactNode })
   }, [aiState, send]);
 
   // ── 手動設定人格 ────────────────────────────────────────────────────────
-  const setPersonality = useCallback((p: Personality) => {
-    send({ type: "MANUAL_SET", personality: p });
-  }, [send]);
+  const setPersonality = useCallback(
+    (p: Personality) => {
+      send({ type: "MANUAL_SET", personality: p });
+    },
+    [send]
+  );
 
   // ── 重置為自動 ──────────────────────────────────────────────────────────
   const resetToAuto = useCallback(() => {
@@ -170,7 +184,7 @@ export function PersonalityProvider({ children }: { children: React.ReactNode })
 
     // 只保留過去 5 秒的打字記錄
     typingTimestamps.current = typingTimestamps.current.filter(
-      (t) => now - t < 5000
+      t => now - t < 5000
     );
 
     // WPM 估算：5 秒內字數 × 12 換算成每分鐘
@@ -227,26 +241,38 @@ export function PersonalityProvider({ children }: { children: React.ReactNode })
 
   const config = PERSONALITY_CONFIGS[personality];
 
-  const contextValue = useMemo(() => ({
-    personality,
-    config,
-    isManual,
-    aiState,
-    setPersonality,
-    resetToAuto,
-    onTyping,
-    onAdvancedParams,
-    onGenerationStart,
-    onGenerationDone,
-    onGenerationFail,
-    onThinkingStart,
-    onThinkingDone,
-  }), [
-    personality, config, isManual, aiState,
-    setPersonality, resetToAuto, onTyping, onAdvancedParams,
-    onGenerationStart, onGenerationDone, onGenerationFail,
-    onThinkingStart, onThinkingDone,
-  ]);
+  const contextValue = useMemo(
+    () => ({
+      personality,
+      config,
+      isManual,
+      aiState,
+      setPersonality,
+      resetToAuto,
+      onTyping,
+      onAdvancedParams,
+      onGenerationStart,
+      onGenerationDone,
+      onGenerationFail,
+      onThinkingStart,
+      onThinkingDone,
+    }),
+    [
+      personality,
+      config,
+      isManual,
+      aiState,
+      setPersonality,
+      resetToAuto,
+      onTyping,
+      onAdvancedParams,
+      onGenerationStart,
+      onGenerationDone,
+      onGenerationFail,
+      onThinkingStart,
+      onThinkingDone,
+    ]
+  );
 
   return (
     <PersonalityContext.Provider value={contextValue}>
@@ -257,6 +283,7 @@ export function PersonalityProvider({ children }: { children: React.ReactNode })
 
 export function usePersonality(): PersonalityContextValue {
   const ctx = useContext(PersonalityContext);
-  if (!ctx) throw new Error("usePersonality must be used within PersonalityProvider");
+  if (!ctx)
+    throw new Error("usePersonality must be used within PersonalityProvider");
   return ctx;
 }

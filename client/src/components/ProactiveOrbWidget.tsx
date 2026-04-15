@@ -1,13 +1,39 @@
 import { useState, useEffect, useCallback, useRef, useMemo, memo } from "react";
-import { motion, AnimatePresence, type PanInfo, useAnimation } from "framer-motion";
+import {
+  motion,
+  AnimatePresence,
+  type PanInfo,
+  useAnimation,
+} from "framer-motion";
 import { useAIState } from "@/contexts/AIStateContext";
-import { usePersonality, PERSONALITY_CONFIGS } from "@/contexts/PersonalityContext";
+import {
+  usePersonality,
+  PERSONALITY_CONFIGS,
+} from "@/contexts/PersonalityContext";
 import type { Personality } from "@/contexts/PersonalityContext";
 import VisualSoul from "./VisualSoul";
 import {
-  X, Sparkles, Lightbulb, Palette, Shuffle, MessageCircle,
-  Send, Heart, Music, Video, Image, Mic, BookOpen, RotateCcw,
-  Loader2, Leaf, VolumeX, Volume2, Bot, Zap, ArrowRight,
+  X,
+  Sparkles,
+  Lightbulb,
+  Palette,
+  Shuffle,
+  MessageCircle,
+  Send,
+  Heart,
+  Music,
+  Video,
+  Image,
+  Mic,
+  BookOpen,
+  RotateCcw,
+  Loader2,
+  Leaf,
+  VolumeX,
+  Volume2,
+  Bot,
+  Zap,
+  ArrowRight,
   Navigation,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
@@ -17,13 +43,27 @@ import FocusFlowMini from "./FocusFlowMini";
 type Props = {
   className?: string;
   enableOnboarding?: boolean;
-  onSaveToNotes?: (payload: { title: string; content?: string; sourceType?: string }) => void;
-  onAddToCalendar?: (payload: { title: string; description?: string; date: Date }) => void;
+  onSaveToNotes?: (payload: {
+    title: string;
+    content?: string;
+    sourceType?: string;
+  }) => void;
+  onAddToCalendar?: (payload: {
+    title: string;
+    description?: string;
+    date: Date;
+  }) => void;
   onOpenNotes?: () => void;
   onOpenCalendar?: () => void;
   onRestartTour?: () => void;
   /** Apply inspiration blocks to the prompt builder */
-  onApplyInspiration?: (blocks: { subject?: string; style?: string; lighting?: string; color?: string; mood?: string }) => void;
+  onApplyInspiration?: (blocks: {
+    subject?: string;
+    style?: string;
+    lighting?: string;
+    color?: string;
+    mood?: string;
+  }) => void;
   /** Switch modality tab */
   onSwitchModality?: (modality: "image" | "video" | "audio" | "voice") => void;
   /** Navigate to a page (agent action) */
@@ -40,22 +80,37 @@ function loadPosition(): { x: number; y: number } | null {
     const raw = localStorage.getItem(POSITION_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (typeof parsed.x === "number" && typeof parsed.y === "number") return parsed;
+      if (typeof parsed.x === "number" && typeof parsed.y === "number")
+        return parsed;
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return null;
 }
 
 function savePosition(x: number, y: number) {
-  try { localStorage.setItem(POSITION_KEY, JSON.stringify({ x, y })); } catch { /* ignore */ }
+  try {
+    localStorage.setItem(POSITION_KEY, JSON.stringify({ x, y }));
+  } catch {
+    /* ignore */
+  }
 }
 
 function isOnboarded(): boolean {
-  try { return localStorage.getItem(ONBOARDED_KEY) === "true"; } catch { return true; }
+  try {
+    return localStorage.getItem(ONBOARDED_KEY) === "true";
+  } catch {
+    return true;
+  }
 }
 
 function markOnboarded() {
-  try { localStorage.setItem(ONBOARDED_KEY, "true"); } catch { /* ignore */ }
+  try {
+    localStorage.setItem(ONBOARDED_KEY, "true");
+  } catch {
+    /* ignore */
+  }
 }
 
 // ─── Inspiration presets ─────────────────────────────────────────────────
@@ -64,7 +119,13 @@ interface InspirationPreset {
   label: string;
   emoji: string;
   mood: string;
-  blocks: { subject?: string; style?: string; lighting?: string; color?: string; mood?: string };
+  blocks: {
+    subject?: string;
+    style?: string;
+    lighting?: string;
+    color?: string;
+    mood?: string;
+  };
   modality?: "image" | "video" | "audio" | "voice";
 }
 
@@ -73,37 +134,73 @@ const INSPIRATION_PRESETS: InspirationPreset[] = [
     label: "寧靜森林",
     emoji: "🌿",
     mood: "平靜",
-    blocks: { subject: "森林", style: "水彩畫", lighting: "柔光", color: "冷色調", mood: "寧靜" },
+    blocks: {
+      subject: "森林",
+      style: "水彩畫",
+      lighting: "柔光",
+      color: "冷色調",
+      mood: "寧靜",
+    },
   },
   {
     label: "星空冒險",
     emoji: "✨",
     mood: "期待",
-    blocks: { subject: "星空", style: "賽博龐克", lighting: "霓虹燈", color: "高飽和", mood: "神秘" },
+    blocks: {
+      subject: "星空",
+      style: "賽博龐克",
+      lighting: "霓虹燈",
+      color: "高飽和",
+      mood: "神秘",
+    },
   },
   {
     label: "溫暖日落",
     emoji: "🌅",
     mood: "溫暖",
-    blocks: { subject: "海邊", style: "油畫", lighting: "黃金時刻", color: "暖色調", mood: "懷舊" },
+    blocks: {
+      subject: "海邊",
+      style: "油畫",
+      lighting: "黃金時刻",
+      color: "暖色調",
+      mood: "懷舊",
+    },
   },
   {
     label: "夢幻花園",
     emoji: "🌸",
     mood: "浪漫",
-    blocks: { subject: "花朵", style: "浮世繪", lighting: "柔光", color: "低飽和", mood: "夢幻" },
+    blocks: {
+      subject: "花朵",
+      style: "浮世繪",
+      lighting: "柔光",
+      color: "低飽和",
+      mood: "夢幻",
+    },
   },
   {
     label: "雨天咖啡",
     emoji: "☕",
     mood: "放鬆",
-    blocks: { subject: "咖啡廳", style: "水彩畫", lighting: "燭光", color: "暖色調", mood: "慵懶" },
+    blocks: {
+      subject: "咖啡廳",
+      style: "水彩畫",
+      lighting: "燭光",
+      color: "暖色調",
+      mood: "慵懶",
+    },
   },
   {
     label: "科幻都市",
     emoji: "🏙️",
     mood: "興奮",
-    blocks: { subject: "城市", style: "賽博龐克", lighting: "霓虹燈", color: "高飽和", mood: "未來感" },
+    blocks: {
+      subject: "城市",
+      style: "賽博龐克",
+      lighting: "霓虹燈",
+      color: "高飽和",
+      mood: "未來感",
+    },
   },
 ];
 
@@ -153,27 +250,27 @@ const PAGE_GREETINGS: Record<string, string[]> = {
     "✨ 準備好素材了嗎？不確定的話我可以幫你。",
     "💡 好的訓練不需要很多圖片，品質比數量重要。",
   ],
-  "learn": [
+  learn: [
     "📚 想學什麼呢？我可以推薦適合你的內容。",
     "🌿 慢慢學，每一步都算數。",
     "✨ 這裡有豐富的教學資源，享受學習的過程。",
   ],
-  "shared": [
+  shared: [
     "🌈 看看大家的創作，也許能遇見靈感。",
     "✨ 每個作品背後都有一個故事。",
     "💫 分享是一種療癒，你的作品也能溫暖別人。",
   ],
-  "dashboard": [
+  dashboard: [
     "🌿 這是你的創作空間總覽，看看最近的成果吧。",
     "✨ 每次創作都是一次小旅行。",
     "💫 不用比較，享受自己的創作節奏就好。",
   ],
-  "history": [
+  history: [
     "📖 回顧過去的創作，每一個都是你的足跡。",
     "✨ 找到喜歡的作品了嗎？可以隨時重新使用。",
     "🌸 每次嘗試都值得珍惜。",
   ],
-  "models": [
+  models: [
     "🔧 這裡有各種 AI 模型，需要我幫你挑選嗎？",
     "✨ 每個模型有不同的個性，慢慢認識它們。",
     "💡 不確定用哪個？告訴我你想做什麼，我來推薦。",
@@ -195,31 +292,86 @@ interface QuickAction {
 }
 
 const QUICK_ACTIONS: QuickAction[] = [
-  { icon: <Shuffle className="w-4 h-4" />, label: "隨機靈感", description: "讓我幫你隨機組合一組靈感積木", action: "random" },
-  { icon: <MessageCircle className="w-4 h-4" />, label: "聊聊天", description: "分享你的心情或想法", action: "chat" },
-  { icon: <Heart className="w-4 h-4" />, label: "療癒推薦", description: "根據心情推薦創作方向", action: "chat-healing" },
+  {
+    icon: <Shuffle className="w-4 h-4" />,
+    label: "隨機靈感",
+    description: "讓我幫你隨機組合一組靈感積木",
+    action: "random",
+  },
+  {
+    icon: <MessageCircle className="w-4 h-4" />,
+    label: "聊聊天",
+    description: "分享你的心情或想法",
+    action: "chat",
+  },
+  {
+    icon: <Heart className="w-4 h-4" />,
+    label: "療癒推薦",
+    description: "根據心情推薦創作方向",
+    action: "chat-healing",
+  },
 ];
 
 // ─── Page-specific quick actions (contextual AI agent capabilities) ────────
 
 const PAGE_QUICK_ACTIONS: Record<string, QuickAction[]> = {
   "image-studio": [
-    { icon: <Image className="w-4 h-4" />, label: "模型推薦", description: "根據你的需求推薦最適合的圖片模型", action: "chat-model-recommend" },
-    { icon: <Sparkles className="w-4 h-4" />, label: "提詞優化", description: "讓 AI 幫你改進提示詞", action: "chat-prompt-optimize" },
+    {
+      icon: <Image className="w-4 h-4" />,
+      label: "模型推薦",
+      description: "根據你的需求推薦最適合的圖片模型",
+      action: "chat-model-recommend",
+    },
+    {
+      icon: <Sparkles className="w-4 h-4" />,
+      label: "提詞優化",
+      description: "讓 AI 幫你改進提示詞",
+      action: "chat-prompt-optimize",
+    },
   ],
   "video-studio": [
-    { icon: <Video className="w-4 h-4" />, label: "模型比較", description: "幫你比較 Kling / Veo / Sora 等影片模型", action: "chat-model-compare" },
-    { icon: <Sparkles className="w-4 h-4" />, label: "影片提詞技巧", description: "教你寫出更好的影片生成提示詞", action: "chat-video-tips" },
+    {
+      icon: <Video className="w-4 h-4" />,
+      label: "模型比較",
+      description: "幫你比較 Kling / Veo / Sora 等影片模型",
+      action: "chat-model-compare",
+    },
+    {
+      icon: <Sparkles className="w-4 h-4" />,
+      label: "影片提詞技巧",
+      description: "教你寫出更好的影片生成提示詞",
+      action: "chat-video-tips",
+    },
   ],
   "pro-studio": [
-    { icon: <Music className="w-4 h-4" />, label: "音樂風格建議", description: "推薦適合你的音樂風格和模型", action: "chat-music-style" },
-    { icon: <Mic className="w-4 h-4" />, label: "配音技巧", description: "語音合成和聲音克隆的最佳實踐", action: "chat-voice-tips" },
+    {
+      icon: <Music className="w-4 h-4" />,
+      label: "音樂風格建議",
+      description: "推薦適合你的音樂風格和模型",
+      action: "chat-music-style",
+    },
+    {
+      icon: <Mic className="w-4 h-4" />,
+      label: "配音技巧",
+      description: "語音合成和聲音克隆的最佳實踐",
+      action: "chat-voice-tips",
+    },
   ],
   "lora-trainer": [
-    { icon: <Sparkles className="w-4 h-4" />, label: "訓練建議", description: "如何準備最佳的訓練資料集", action: "chat-training-tips" },
+    {
+      icon: <Sparkles className="w-4 h-4" />,
+      label: "訓練建議",
+      description: "如何準備最佳的訓練資料集",
+      action: "chat-training-tips",
+    },
   ],
-  "learn": [
-    { icon: <BookOpen className="w-4 h-4" />, label: "學習路徑", description: "推薦適合你程度的學習文件", action: "chat-learning-path" },
+  learn: [
+    {
+      icon: <BookOpen className="w-4 h-4" />,
+      label: "學習路徑",
+      description: "推薦適合你程度的學習文件",
+      action: "chat-learning-path",
+    },
   ],
 };
 
@@ -233,10 +385,30 @@ interface OnboardingStep {
 }
 
 const ONBOARDING_STEPS: OnboardingStep[] = [
-  { elementId: "prompt-builder-area", message: "試著點選幾個喜歡的積木",        startSec: 0,  endSec: 15 },
-  { elementId: "modality-tabs",       message: "切換不同的創作模態",            startSec: 15, endSec: 30 },
-  { elementId: "generate-button",     message: "準備好了就按下生成",            startSec: 30, endSec: 50 },
-  { elementId: "proactive-orb-anchor", message: "隨時點我，我會陪你一起創作",   startSec: 50, endSec: 70 },
+  {
+    elementId: "prompt-builder-area",
+    message: "試著點選幾個喜歡的積木",
+    startSec: 0,
+    endSec: 15,
+  },
+  {
+    elementId: "modality-tabs",
+    message: "切換不同的創作模態",
+    startSec: 15,
+    endSec: 30,
+  },
+  {
+    elementId: "generate-button",
+    message: "準備好了就按下生成",
+    startSec: 30,
+    endSec: 50,
+  },
+  {
+    elementId: "proactive-orb-anchor",
+    message: "隨時點我，我會陪你一起創作",
+    startSec: 50,
+    endSec: 70,
+  },
 ];
 
 const GUIDE_EASE: [number, number, number, number] = [0.16, 1, 0.3, 1];
@@ -262,13 +434,34 @@ export default memo(function ProactiveOrbWidget({
   onSwitchModality,
   onNavigate,
 }: Props) {
-  const { aiState, proactiveMessage, dismissProactive, pageContext, quietMode, setQuietMode } = useAIState();
-  const { personality, setPersonality, isManual, resetToAuto, config: personalityConfig } = usePersonality();
-  const { isAnyTimerRunning, activeMode, pomodoroRemaining, healingRemaining, pomodoroPhase } = useFocusFlow();
+  const {
+    aiState,
+    proactiveMessage,
+    dismissProactive,
+    pageContext,
+    quietMode,
+    setQuietMode,
+  } = useAIState();
+  const {
+    personality,
+    setPersonality,
+    isManual,
+    resetToAuto,
+    config: personalityConfig,
+  } = usePersonality();
+  const {
+    isAnyTimerRunning,
+    activeMode,
+    pomodoroRemaining,
+    healingRemaining,
+    pomodoroPhase,
+  } = useFocusFlow();
   const orbControls = useAnimation();
 
   // Drag position state
-  const [position, setPosition] = useState<{ x: number; y: number }>(() => loadPosition() || { x: 0, y: 0 });
+  const [position, setPosition] = useState<{ x: number; y: number }>(
+    () => loadPosition() || { x: 0, y: 0 }
+  );
   const [hasDragged, setHasDragged] = useState(() => !!loadPosition());
 
   // Onboarding state
@@ -284,9 +477,13 @@ export default memo(function ProactiveOrbWidget({
 
   // Interaction panel state
   const [showPanel, setShowPanel] = useState(false);
-  const [panelView, setPanelView] = useState<"main" | "chat" | "inspiration" | "focus-flow">("main");
+  const [panelView, setPanelView] = useState<
+    "main" | "chat" | "inspiration" | "focus-flow"
+  >("main");
   const [chatInput, setChatInput] = useState("");
-  const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "orb"; text: string }>>([]);
+  const [chatMessages, setChatMessages] = useState<
+    Array<{ role: "user" | "orb"; text: string }>
+  >([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
 
@@ -296,75 +493,81 @@ export default memo(function ProactiveOrbWidget({
   // Random greeting based on personality + page context
   const greeting = useMemo(() => {
     // Prefer page-specific greetings when available
-    const pageGreetings = pageContext?.pageId ? PAGE_GREETINGS[pageContext.pageId] : null;
-    const greetings = pageGreetings ?? MOOD_GREETINGS[personality] ?? MOOD_GREETINGS.calm;
+    const pageGreetings = pageContext?.pageId
+      ? PAGE_GREETINGS[pageContext.pageId]
+      : null;
+    const greetings =
+      pageGreetings ?? MOOD_GREETINGS[personality] ?? MOOD_GREETINGS.calm;
     return greetings[Math.floor(Math.random() * greetings.length)];
   }, [personality, showPanel, pageContext?.pageId]);
 
   // ─── guideTo method ───────────────────────────────────────────────────
 
-  const guideTo = useCallback(async (elementId: string, message: string) => {
-    if (abortRef.current) return;
+  const guideTo = useCallback(
+    async (elementId: string, message: string) => {
+      if (abortRef.current) return;
 
-    const el = document.getElementById(elementId);
-    if (!el) return;
+      const el = document.getElementById(elementId);
+      if (!el) return;
 
-    setGuiding(true);
-    setGuideMessage(message);
+      setGuiding(true);
+      setGuideMessage(message);
 
-    const rect = el.getBoundingClientRect();
-    const viewportW = window.innerWidth;
-    const viewportH = window.innerHeight;
+      const rect = el.getBoundingClientRect();
+      const viewportW = window.innerWidth;
+      const viewportH = window.innerHeight;
 
-    const orbAnchorX = viewportW - 24 - 24;
-    const orbAnchorY = viewportH - 24 - 24;
+      const orbAnchorX = viewportW - 24 - 24;
+      const orbAnchorY = viewportH - 24 - 24;
 
-    const targetX = rect.left - 60;
-    const targetY = rect.top + rect.height / 2 - 24;
+      const targetX = rect.left - 60;
+      const targetY = rect.top + rect.height / 2 - 24;
 
-    const deltaX = targetX - orbAnchorX;
-    const deltaY = targetY - orbAnchorY;
+      const deltaX = targetX - orbAnchorX;
+      const deltaY = targetY - orbAnchorY;
 
-    await orbControls.start({
-      x: deltaX,
-      y: deltaY,
-      transition: { duration: 0.8, ease: GUIDE_EASE },
-    });
+      await orbControls.start({
+        x: deltaX,
+        y: deltaY,
+        transition: { duration: 0.8, ease: GUIDE_EASE },
+      });
 
-    if (abortRef.current) return;
+      if (abortRef.current) return;
 
-    for (let i = 0; i < 2; i++) {
-      if (abortRef.current) break;
-      await orbControls.start({ scale: 1.2, transition: { duration: 0.15 } });
-      await orbControls.start({ scale: 1, transition: { duration: 0.15 } });
-    }
+      for (let i = 0; i < 2; i++) {
+        if (abortRef.current) break;
+        await orbControls.start({ scale: 1.2, transition: { duration: 0.15 } });
+        await orbControls.start({ scale: 1, transition: { duration: 0.15 } });
+      }
 
-    if (abortRef.current) return;
+      if (abortRef.current) return;
 
-    el.style.transition = "box-shadow 0.3s ease, outline 0.3s ease";
-    el.style.outline = "2px solid rgba(255,180,120,0.6)";
-    el.style.boxShadow = "0 0 20px rgba(255,180,120,0.3)";
+      el.style.transition = "box-shadow 0.3s ease, outline 0.3s ease";
+      el.style.outline = "2px solid rgba(255,180,120,0.6)";
+      el.style.boxShadow = "0 0 20px rgba(255,180,120,0.3)";
 
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(resolve, 1500);
-      onboardingTimerRef.current.push(timer);
-    });
+      await new Promise<void>(resolve => {
+        const timer = setTimeout(resolve, 1500);
+        onboardingTimerRef.current.push(timer);
+      });
 
-    if (abortRef.current) return;
+      if (abortRef.current) return;
 
-    el.style.outline = "";
-    el.style.boxShadow = "";
+      el.style.outline = "";
+      el.style.boxShadow = "";
 
-    setGuideMessage(null);
-    await orbControls.start({
-      x: homePositionRef.current.x,
-      y: homePositionRef.current.y,
-      scale: 1,
-      transition: { duration: 0.6, ease: GUIDE_EASE },
-    });
+      setGuideMessage(null);
+      await orbControls.start({
+        x: homePositionRef.current.x,
+        y: homePositionRef.current.y,
+        scale: 1,
+        transition: { duration: 0.6, ease: GUIDE_EASE },
+      });
 
-    setGuiding(false);
-  }, [orbControls]);
+      setGuiding(false);
+    },
+    [orbControls]
+  );
 
   // ─── 90-second onboarding sequence ────────────────────────────────────
 
@@ -384,7 +587,7 @@ export default memo(function ProactiveOrbWidget({
           const waitTime = Math.max(0, step.startSec - elapsed);
 
           if (waitTime > 0) {
-            await new Promise<void>((resolve) => {
+            await new Promise<void>(resolve => {
               const timer = setTimeout(resolve, waitTime * 1000);
               onboardingTimerRef.current.push(timer);
             });
@@ -435,11 +638,17 @@ export default memo(function ProactiveOrbWidget({
 
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
 
-  function handleDragStart(_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) {
+  function handleDragStart(
+    _: MouseEvent | TouchEvent | PointerEvent,
+    info: PanInfo
+  ) {
     dragStartRef.current = { x: info.point.x, y: info.point.y };
   }
 
-  function handleDragEnd(_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) {
+  function handleDragEnd(
+    _: MouseEvent | TouchEvent | PointerEvent,
+    info: PanInfo
+  ) {
     if (guiding) return;
 
     // Detect if it was a tap (very small movement)
@@ -464,7 +673,7 @@ export default memo(function ProactiveOrbWidget({
   // Re-clamp on window resize
   useEffect(() => {
     function handleResize() {
-      setPosition((prev) => {
+      setPosition(prev => {
         const clamped = {
           x: Math.max(-(window.innerWidth - 80), Math.min(0, prev.x)),
           y: Math.max(-(window.innerHeight - 80), Math.min(0, prev.y)),
@@ -491,29 +700,36 @@ export default memo(function ProactiveOrbWidget({
     setIsDropTarget(false);
   }, []);
 
-  const handleNativeDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDropTarget(false);
+  const handleNativeDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDropTarget(false);
 
-    try {
-      const raw = e.dataTransfer.getData("text/plain");
-      let data: any;
-      try { data = JSON.parse(raw); } catch { data = { text: raw }; }
+      try {
+        const raw = e.dataTransfer.getData("text/plain");
+        let data: any;
+        try {
+          data = JSON.parse(raw);
+        } catch {
+          data = { text: raw };
+        }
 
-      setDropFlash(personality);
-      setTimeout(() => setDropFlash(null), 800);
+        setDropFlash(personality);
+        setTimeout(() => setDropFlash(null), 800);
 
-      onSaveToNotes?.({
-        title: data.title || data.prompt?.slice(0, 30) || "拖曳內容",
-        content: data.content || data.text || JSON.stringify(data),
-        sourceType: "orb",
-      });
-      showFeedback("已擷取至筆記 ✓");
-    } catch {
-      showFeedback("無法解析拖曳內容");
-    }
-  }, [personality, onSaveToNotes]);
+        onSaveToNotes?.({
+          title: data.title || data.prompt?.slice(0, 30) || "拖曳內容",
+          content: data.content || data.text || JSON.stringify(data),
+          sourceType: "orb",
+        });
+        showFeedback("已擷取至筆記 ✓");
+      } catch {
+        showFeedback("無法解析拖曳內容");
+      }
+    },
+    [personality, onSaveToNotes]
+  );
 
   // ─── Feedback helper ─────────────────────────────────────────────────
 
@@ -526,62 +742,71 @@ export default memo(function ProactiveOrbWidget({
 
   const handleOrbClick = useCallback(() => {
     if (guiding) return;
-    setShowPanel((prev) => !prev);
+    setShowPanel(prev => !prev);
     setPanelView("main");
   }, [guiding]);
 
   // ─── Quick action handlers ───────────────────────────────────────────
 
-  const handleQuickAction = useCallback((action: string) => {
-    switch (action) {
-      case "random": {
-        const preset = INSPIRATION_PRESETS[Math.floor(Math.random() * INSPIRATION_PRESETS.length)];
-        onApplyInspiration?.(preset.blocks);
-        showFeedback(`已套用「${preset.label}」靈感 ${preset.emoji}`);
-        setShowPanel(false);
-        break;
-      }
-      case "chat":
-        setPanelView("chat");
-        setChatMessages([{
-          role: "orb",
-          text: greeting,
-        }]);
-        break;
-      case "chat-healing":
-        setPanelView("chat");
-        setChatMessages([
-          { role: "orb", text: "🌿 告訴我你現在的心情，我來幫你找到適合的創作方向。" },
-        ]);
-        setChatInput("我現在的心情是⋯⋯");
-        break;
-      case "tour":
-        setShowPanel(false);
-        onRestartTour?.();
-        break;
-      default:
-        // Handle page-specific chat actions (chat-model-recommend, chat-prompt-optimize, etc.)
-        if (action.startsWith("chat-")) {
-          const topicHints: Record<string, string> = {
-            "chat-model-recommend": "請推薦適合我的模型",
-            "chat-prompt-optimize": "請幫我優化提示詞",
-            "chat-model-compare": "請幫我比較影片模型的差異",
-            "chat-video-tips": "影片提示詞有什麼技巧？",
-            "chat-music-style": "請推薦適合的音樂風格",
-            "chat-voice-tips": "聲音克隆有什麼注意事項？",
-            "chat-training-tips": "訓練 LoRA 模型有什麼建議？",
-            "chat-learning-path": "推薦適合新手的學習路徑",
-          };
-          const seedMsg = topicHints[action] ?? "有什麼想聊的嗎？";
+  const handleQuickAction = useCallback(
+    (action: string) => {
+      switch (action) {
+        case "random": {
+          const preset =
+            INSPIRATION_PRESETS[
+              Math.floor(Math.random() * INSPIRATION_PRESETS.length)
+            ];
+          onApplyInspiration?.(preset.blocks);
+          showFeedback(`已套用「${preset.label}」靈感 ${preset.emoji}`);
+          setShowPanel(false);
+          break;
+        }
+        case "chat":
           setPanelView("chat");
           setChatMessages([
-            { role: "orb", text: greeting },
+            {
+              role: "orb",
+              text: greeting,
+            },
           ]);
-          setChatInput(seedMsg);
-        }
-        break;
-    }
-  }, [onApplyInspiration, onRestartTour, greeting, showFeedback]);
+          break;
+        case "chat-healing":
+          setPanelView("chat");
+          setChatMessages([
+            {
+              role: "orb",
+              text: "🌿 告訴我你現在的心情，我來幫你找到適合的創作方向。",
+            },
+          ]);
+          setChatInput("我現在的心情是⋯⋯");
+          break;
+        case "tour":
+          setShowPanel(false);
+          onRestartTour?.();
+          break;
+        default:
+          // Handle page-specific chat actions (chat-model-recommend, chat-prompt-optimize, etc.)
+          if (action.startsWith("chat-")) {
+            const topicHints: Record<string, string> = {
+              "chat-model-recommend": "請推薦適合我的模型",
+              "chat-prompt-optimize": "請幫我優化提示詞",
+              "chat-model-compare": "請幫我比較影片模型的差異",
+              "chat-video-tips": "影片提示詞有什麼技巧？",
+              "chat-music-style": "請推薦適合的音樂風格",
+              "chat-voice-tips": "聲音克隆有什麼注意事項？",
+              "chat-training-tips": "訓練 LoRA 模型有什麼建議？",
+              "chat-learning-path": "推薦適合新手的學習路徑",
+            };
+            const seedMsg = topicHints[action] ?? "有什麼想聊的嗎？";
+            setPanelView("chat");
+            setChatMessages([{ role: "orb", text: greeting }]);
+            setChatInput(seedMsg);
+          }
+          break;
+      }
+    },
+    [onApplyInspiration, onRestartTour, greeting, showFeedback]
+  );
 
   // ─── AI chat mutation ─────────────────────────────────────────────────
   const aiChatMutation = trpc.ai.chat.useMutation();
@@ -592,16 +817,27 @@ export default memo(function ProactiveOrbWidget({
     if (!chatInput.trim() || isChatLoading) return;
 
     const userMsg = chatInput.trim();
-    const updatedMessages = [...chatMessages, { role: "user" as const, text: userMsg }];
+    const updatedMessages = [
+      ...chatMessages,
+      { role: "user" as const, text: userMsg },
+    ];
     setChatMessages(updatedMessages);
     setChatInput("");
     setIsChatLoading(true);
 
     // Check for modality keywords to trigger UI side effects
     const lower = userMsg.toLowerCase();
-    if (lower.includes("影片") || lower.includes("視頻") || lower.includes("動畫")) {
+    if (
+      lower.includes("影片") ||
+      lower.includes("視頻") ||
+      lower.includes("動畫")
+    ) {
       onSwitchModality?.("video");
-    } else if (lower.includes("音樂") || lower.includes("歌曲") || lower.includes("譜曲")) {
+    } else if (
+      lower.includes("音樂") ||
+      lower.includes("歌曲") ||
+      lower.includes("譜曲")
+    ) {
       onSwitchModality?.("audio");
     } else if (lower.includes("配音") || lower.includes("語音合成")) {
       onSwitchModality?.("voice");
@@ -610,25 +846,29 @@ export default memo(function ProactiveOrbWidget({
     try {
       // Build history for the LLM (exclude the greeting from orb since it's not part of the real history)
       const llmMessages = updatedMessages
-        .filter((m) => !(m.role === "orb" && chatMessages.indexOf(m) === 0)) // skip initial greeting
-        .map((m) => ({
-          role: m.role === "user" ? "user" as const : "assistant" as const,
+        .filter(m => !(m.role === "orb" && chatMessages.indexOf(m) === 0)) // skip initial greeting
+        .map(m => ({
+          role: m.role === "user" ? ("user" as const) : ("assistant" as const),
           content: m.text,
         }))
-        .filter((m) => m.role === "user" || m.content !== greeting); // skip greeting bubble
+        .filter(m => m.role === "user" || m.content !== greeting); // skip greeting bubble
 
       // Build page context string for LLM
       const contextParts = [pageContext?.pageLabel];
-      if (pageContext?.activeModel) contextParts.push(`模型: ${pageContext.activeModel}`);
-      if (pageContext?.activeTab) contextParts.push(`分頁: ${pageContext.activeTab}`);
-      const contextStr = pageContext ? contextParts.filter(Boolean).join(" · ") : undefined;
+      if (pageContext?.activeModel)
+        contextParts.push(`模型: ${pageContext.activeModel}`);
+      if (pageContext?.activeTab)
+        contextParts.push(`分頁: ${pageContext.activeTab}`);
+      const contextStr = pageContext
+        ? contextParts.filter(Boolean).join(" · ")
+        : undefined;
 
       const data = await aiChatMutation.mutateAsync({
         messages: llmMessages,
         personality,
         context: contextStr,
       });
-      setChatMessages((prev) => [...prev, { role: "orb", text: data.reply }]);
+      setChatMessages(prev => [...prev, { role: "orb", text: data.reply }]);
 
       // Handle agent actions from LLM response
       if (data.actions && Array.isArray(data.actions)) {
@@ -638,12 +878,18 @@ export default memo(function ProactiveOrbWidget({
               onNavigate?.(action.payload);
               break;
             case "modality":
-              if (["image", "video", "audio", "voice"].includes(action.payload)) {
-                onSwitchModality?.(action.payload as "image" | "video" | "audio" | "voice");
+              if (
+                ["image", "video", "audio", "voice"].includes(action.payload)
+              ) {
+                onSwitchModality?.(
+                  action.payload as "image" | "video" | "audio" | "voice"
+                );
               }
               break;
             case "preset": {
-              const preset = INSPIRATION_PRESETS.find(p => p.label === action.payload);
+              const preset = INSPIRATION_PRESETS.find(
+                p => p.label === action.payload
+              );
               if (preset) {
                 onApplyInspiration?.(preset.blocks);
                 showFeedback(`已套用「${preset.label}」靈感 ${preset.emoji}`);
@@ -654,25 +900,40 @@ export default memo(function ProactiveOrbWidget({
         }
       }
     } catch {
-      setChatMessages((prev) => [
+      setChatMessages(prev => [
         ...prev,
         { role: "orb", text: "🌸 抱歉，我剛才有點恍神。再說一次好嗎？" },
       ]);
     } finally {
       setIsChatLoading(false);
     }
-  }, [chatInput, chatMessages, isChatLoading, personality, greeting, aiChatMutation, onSwitchModality, pageContext, onNavigate, onApplyInspiration, showFeedback]);
+  }, [
+    chatInput,
+    chatMessages,
+    isChatLoading,
+    personality,
+    greeting,
+    aiChatMutation,
+    onSwitchModality,
+    pageContext,
+    onNavigate,
+    onApplyInspiration,
+    showFeedback,
+  ]);
 
   // ─── Apply inspiration preset ────────────────────────────────────────
 
-  const handleApplyPreset = useCallback((preset: InspirationPreset) => {
-    onApplyInspiration?.(preset.blocks);
-    if (preset.modality) {
-      onSwitchModality?.(preset.modality);
-    }
-    showFeedback(`已套用「${preset.label}」靈感 ${preset.emoji}`);
-    setShowPanel(false);
-  }, [onApplyInspiration, onSwitchModality, showFeedback]);
+  const handleApplyPreset = useCallback(
+    (preset: InspirationPreset) => {
+      onApplyInspiration?.(preset.blocks);
+      if (preset.modality) {
+        onSwitchModality?.(preset.modality);
+      }
+      showFeedback(`已套用「${preset.label}」靈感 ${preset.emoji}`);
+      setShowPanel(false);
+    },
+    [onApplyInspiration, onSwitchModality, showFeedback]
+  );
 
   // ─── Personality theme maps ───────────────────────────────────────────
 
@@ -722,7 +983,10 @@ export default memo(function ProactiveOrbWidget({
     if (!showPanel) return;
     const handler = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      if (!target.closest("[data-orb-panel]") && !target.closest("[data-orb-trigger]")) {
+      if (
+        !target.closest("[data-orb-panel]") &&
+        !target.closest("[data-orb-trigger]")
+      ) {
         setShowPanel(false);
       }
     };
@@ -793,20 +1057,35 @@ export default memo(function ProactiveOrbWidget({
                 backdropFilter: "blur(24px) saturate(180%)",
                 WebkitBackdropFilter: "blur(24px) saturate(180%)",
                 border: "1px solid rgba(255, 255, 255, 0.5)",
-                boxShadow: "0 8px 40px rgba(0, 0, 0, 0.08), 0 2px 12px rgba(0, 0, 0, 0.04)",
+                boxShadow:
+                  "0 8px 40px rgba(0, 0, 0, 0.08), 0 2px 12px rgba(0, 0, 0, 0.04)",
               }}
-              onClick={(e) => e.stopPropagation()}
+              onClick={e => e.stopPropagation()}
             >
               {/* Panel Header */}
               <div className="px-4 pt-4 pb-2 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="relative">
-                    <VisualSoul state={aiState} personality={personality} size="sm" className="!w-6 !h-6" />
+                    <VisualSoul
+                      state={aiState}
+                      personality={personality}
+                      size="sm"
+                      className="!w-6 !h-6"
+                    />
                     {/* Agent badge */}
-                    <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border border-white" title="AI 代理人模式" />
+                    <div
+                      className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border border-white"
+                      title="AI 代理人模式"
+                    />
                   </div>
                   <span className="text-sm font-semibold text-gray-800">
-                    {panelView === "chat" ? "💬 對話" : panelView === "inspiration" ? "✨ 靈感" : panelView === "focus-flow" ? "🌿 專注" : "🌸 光球"}
+                    {panelView === "chat"
+                      ? "💬 對話"
+                      : panelView === "inspiration"
+                        ? "✨ 靈感"
+                        : panelView === "focus-flow"
+                          ? "🌿 專注"
+                          : "🌸 光球"}
                   </span>
                   {pageContext && panelView === "main" && (
                     <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium">
@@ -819,9 +1098,17 @@ export default memo(function ProactiveOrbWidget({
                   <button
                     onClick={() => setQuietMode(!quietMode)}
                     className={`p-1.5 rounded-full transition-colors ${quietMode ? "bg-amber-50 text-amber-500" : "hover:bg-gray-100 text-gray-400"}`}
-                    title={quietMode ? "開啟提示（目前靜音中）" : "靜音模式（不再主動提示）"}
+                    title={
+                      quietMode
+                        ? "開啟提示（目前靜音中）"
+                        : "靜音模式（不再主動提示）"
+                    }
                   >
-                    {quietMode ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+                    {quietMode ? (
+                      <VolumeX className="w-3.5 h-3.5" />
+                    ) : (
+                      <Volume2 className="w-3.5 h-3.5" />
+                    )}
                   </button>
                   {panelView !== "main" && (
                     <button
@@ -860,18 +1147,29 @@ export default memo(function ProactiveOrbWidget({
 
                     {/* Quick Actions — redesigned as compact cards */}
                     <div className="space-y-1.5 mb-3">
-                      {[...QUICK_ACTIONS, ...(pageContext?.pageId ? (PAGE_QUICK_ACTIONS[pageContext.pageId] ?? []) : [])].map((qa) => (
+                      {[
+                        ...QUICK_ACTIONS,
+                        ...(pageContext?.pageId
+                          ? (PAGE_QUICK_ACTIONS[pageContext.pageId] ?? [])
+                          : []),
+                      ].map(qa => (
                         <button
                           key={qa.action}
                           onClick={() => handleQuickAction(qa.action)}
                           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-left group"
                         >
-                          <div className={`p-1.5 rounded-lg ${personalityAccent[personality]} transition-colors`}>
+                          <div
+                            className={`p-1.5 rounded-lg ${personalityAccent[personality]} transition-colors`}
+                          >
                             {qa.icon}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-700">{qa.label}</p>
-                            <p className="text-xs text-gray-400 truncate">{qa.description}</p>
+                            <p className="text-sm font-medium text-gray-700">
+                              {qa.label}
+                            </p>
+                            <p className="text-xs text-gray-400 truncate">
+                              {qa.description}
+                            </p>
                           </div>
                         </button>
                       ))}
@@ -882,8 +1180,7 @@ export default memo(function ProactiveOrbWidget({
                       onClick={() => setPanelView("inspiration")}
                       className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-gradient-to-r from-amber-50 to-pink-50 border border-amber-200/40 hover:from-amber-100 hover:to-pink-100 transition-all text-sm font-medium text-amber-700"
                     >
-                      <Lightbulb className="w-4 h-4" />
-                      ✨ 靈感探索
+                      <Lightbulb className="w-4 h-4" />✨ 靈感探索
                     </button>
 
                     {/* Focus Flow Button */}
@@ -932,17 +1229,29 @@ export default memo(function ProactiveOrbWidget({
                               <motion.div
                                 className="w-1.5 h-1.5 rounded-full bg-gray-400"
                                 animate={{ opacity: [0.3, 1, 0.3] }}
-                                transition={{ duration: 1.2, repeat: Infinity, delay: 0 }}
+                                transition={{
+                                  duration: 1.2,
+                                  repeat: Infinity,
+                                  delay: 0,
+                                }}
                               />
                               <motion.div
                                 className="w-1.5 h-1.5 rounded-full bg-gray-400"
                                 animate={{ opacity: [0.3, 1, 0.3] }}
-                                transition={{ duration: 1.2, repeat: Infinity, delay: 0.2 }}
+                                transition={{
+                                  duration: 1.2,
+                                  repeat: Infinity,
+                                  delay: 0.2,
+                                }}
                               />
                               <motion.div
                                 className="w-1.5 h-1.5 rounded-full bg-gray-400"
                                 animate={{ opacity: [0.3, 1, 0.3] }}
-                                transition={{ duration: 1.2, repeat: Infinity, delay: 0.4 }}
+                                transition={{
+                                  duration: 1.2,
+                                  repeat: Infinity,
+                                  delay: 0.4,
+                                }}
                               />
                             </div>
                           </div>
@@ -957,8 +1266,8 @@ export default memo(function ProactiveOrbWidget({
                         <input
                           type="text"
                           value={chatInput}
-                          onChange={(e) => setChatInput(e.target.value)}
-                          onKeyDown={(e) => {
+                          onChange={e => setChatInput(e.target.value)}
+                          onKeyDown={e => {
                             if (e.key === "Enter" && !e.shiftKey) {
                               e.preventDefault();
                               handleChatSend();
@@ -973,10 +1282,11 @@ export default memo(function ProactiveOrbWidget({
                           disabled={!chatInput.trim() || isChatLoading}
                           className="p-1.5 rounded-lg hover:bg-gray-200/60 transition-colors disabled:opacity-30"
                         >
-                          {isChatLoading
-                            ? <Loader2 className="w-3.5 h-3.5 text-gray-500 animate-spin" />
-                            : <Send className="w-3.5 h-3.5 text-gray-500" />
-                          }
+                          {isChatLoading ? (
+                            <Loader2 className="w-3.5 h-3.5 text-gray-500 animate-spin" />
+                          ) : (
+                            <Send className="w-3.5 h-3.5 text-gray-500" />
+                          )}
                         </button>
                       </div>
                     </div>
@@ -996,7 +1306,7 @@ export default memo(function ProactiveOrbWidget({
                       選一個喜歡的主題，積木會自動填入。
                     </p>
                     <div className="grid grid-cols-2 gap-2">
-                      {INSPIRATION_PRESETS.map((preset) => (
+                      {INSPIRATION_PRESETS.map(preset => (
                         <button
                           key={preset.label}
                           onClick={() => handleApplyPreset(preset)}
@@ -1046,7 +1356,11 @@ export default memo(function ProactiveOrbWidget({
                 <Sparkles className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
                 <div className="flex-1">
                   <p className="text-xs font-medium text-gray-500 mb-1">
-                    {isFeedback ? "完成" : isGuideMsg ? "引導中" : personalityLabels[personality]}
+                    {isFeedback
+                      ? "完成"
+                      : isGuideMsg
+                        ? "引導中"
+                        : personalityLabels[personality]}
                   </p>
                   <p className="text-sm text-gray-800 leading-relaxed font-medium">
                     {activeMessage}
@@ -1068,7 +1382,10 @@ export default memo(function ProactiveOrbWidget({
                 </div>
                 {!isGuideMsg && !isFeedback && (
                   <button
-                    onClick={(e) => { e.stopPropagation(); dismissProactive(); }}
+                    onClick={e => {
+                      e.stopPropagation();
+                      dismissProactive();
+                    }}
                     className="shrink-0 p-0.5 rounded-full hover:bg-gray-200/50 transition-colors"
                   >
                     <X className="w-3.5 h-3.5 text-gray-400" />
@@ -1087,7 +1404,7 @@ export default memo(function ProactiveOrbWidget({
           whileTap={guiding ? undefined : { scale: 0.95 }}
           className="relative cursor-pointer"
           title={guiding ? "引導中..." : "🌸 點我開始對話"}
-          onClick={(e) => {
+          onClick={e => {
             e.stopPropagation();
             if (!guiding) handleOrbClick();
           }}
@@ -1140,14 +1457,20 @@ export default memo(function ProactiveOrbWidget({
                     `0 0 16px ${personalityGlowColors[personality]}, 0 0 40px ${personalityGlowColors[personality].replace("0.8", "0.35")}`,
                   ]
                 : showPanel
-                ? [`0 0 18px ${personalityGlowColors[personality]}, 0 0 36px ${personalityGlowColors[personality].replace("0.8", "0.35")}`]
-                : [
-                    `0 0 8px ${personalityGlowColors[personality].replace("0.8", "0.2")}, 0 0 16px ${personalityGlowColors[personality].replace("0.8", "0.1")}`,
-                    `0 0 14px ${personalityGlowColors[personality].replace("0.8", "0.35")}, 0 0 28px ${personalityGlowColors[personality].replace("0.8", "0.15")}`,
-                    `0 0 8px ${personalityGlowColors[personality].replace("0.8", "0.2")}, 0 0 16px ${personalityGlowColors[personality].replace("0.8", "0.1")}`,
-                  ],
+                  ? [
+                      `0 0 18px ${personalityGlowColors[personality]}, 0 0 36px ${personalityGlowColors[personality].replace("0.8", "0.35")}`,
+                    ]
+                  : [
+                      `0 0 8px ${personalityGlowColors[personality].replace("0.8", "0.2")}, 0 0 16px ${personalityGlowColors[personality].replace("0.8", "0.1")}`,
+                      `0 0 14px ${personalityGlowColors[personality].replace("0.8", "0.35")}, 0 0 28px ${personalityGlowColors[personality].replace("0.8", "0.15")}`,
+                      `0 0 8px ${personalityGlowColors[personality].replace("0.8", "0.2")}, 0 0 16px ${personalityGlowColors[personality].replace("0.8", "0.1")}`,
+                    ],
             }}
-            transition={{ duration: guiding ? 1 : 3.5, repeat: Infinity, ease: "easeInOut" }}
+            transition={{
+              duration: guiding ? 1 : 3.5,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
             style={{ margin: "-4px", borderRadius: "50%" }}
           />
 
@@ -1186,10 +1509,21 @@ export default memo(function ProactiveOrbWidget({
                   className="w-1.5 h-1.5 rounded-full"
                   animate={{ opacity: [1, 0.3, 1] }}
                   transition={{ duration: 1, repeat: Infinity }}
-                  style={{ backgroundColor: activeMode === "pomodoro" ? (pomodoroPhase === "work" ? "#ef4444" : "#22c55e") : "#ec4899" }}
+                  style={{
+                    backgroundColor:
+                      activeMode === "pomodoro"
+                        ? pomodoroPhase === "work"
+                          ? "#ef4444"
+                          : "#22c55e"
+                        : "#ec4899",
+                  }}
                 />
                 <span className="text-[9px] font-bold tabular-nums text-gray-600">
-                  {formatTimerBadge(activeMode === "pomodoro" ? pomodoroRemaining : healingRemaining)}
+                  {formatTimerBadge(
+                    activeMode === "pomodoro"
+                      ? pomodoroRemaining
+                      : healingRemaining
+                  )}
                 </span>
               </motion.div>
             )}

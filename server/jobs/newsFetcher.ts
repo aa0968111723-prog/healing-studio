@@ -69,7 +69,8 @@ type NewsCategory =
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
-const FETCH_KEYWORDS = "AI art OR AI image generation OR generative AI OR AI creative tools";
+const FETCH_KEYWORDS =
+  "AI art OR AI image generation OR generative AI OR AI creative tools";
 const MAX_ARTICLES_PER_FETCH = 10;
 const FETCH_TIMEOUT_MS = 15_000;
 const GEMINI_BATCH_TIMEOUT_MS = 60_000;
@@ -155,7 +156,9 @@ async function fetchFromNewsAPI(apiKey: string): Promise<FetchResult> {
   const data = await response.json();
 
   if (data.status !== "ok" || !Array.isArray(data.articles)) {
-    throw new Error(`PARSE_ERROR: NewsAPI.org 回傳格式異常 — status: ${data.status}`);
+    throw new Error(
+      `PARSE_ERROR: NewsAPI.org 回傳格式異常 — status: ${data.status}`
+    );
   }
 
   const articles: RawNewsItem[] = data.articles.map((a: any) => ({
@@ -273,11 +276,35 @@ async function fetchNewsWithFailover(): Promise<FetchResult | null> {
  * Gemini 會被指示將它們轉譯為啟發性語氣。
  */
 const FEAR_WORDS_BLACKLIST = [
-  "失業", "淘汰", "取代", "威脅", "末日", "崩潰", "消滅", "毀滅",
-  "恐慌", "危機", "滅亡", "被取代", "搶走工作", "人類末日",
-  "job loss", "replace humans", "threat", "apocalypse", "doom",
-  "eliminate jobs", "obsolete", "extinction", "destroy", "crisis",
-  "layoff", "fired", "unemployed", "displacement", "disruption",
+  "失業",
+  "淘汰",
+  "取代",
+  "威脅",
+  "末日",
+  "崩潰",
+  "消滅",
+  "毀滅",
+  "恐慌",
+  "危機",
+  "滅亡",
+  "被取代",
+  "搶走工作",
+  "人類末日",
+  "job loss",
+  "replace humans",
+  "threat",
+  "apocalypse",
+  "doom",
+  "eliminate jobs",
+  "obsolete",
+  "extinction",
+  "destroy",
+  "crisis",
+  "layoff",
+  "fired",
+  "unemployed",
+  "displacement",
+  "disruption",
 ];
 
 /**
@@ -315,7 +342,10 @@ async function batchOarsSoften(
 ): Promise<OarsSoftened[]> {
   if (articles.length === 0) return [];
 
-  logOars("info", `啟動 Gemini Flash OARS NLP 柔化器 — 處理 ${articles.length} 篇文章...`);
+  logOars(
+    "info",
+    `啟動 Gemini Flash OARS NLP 柔化器 — 處理 ${articles.length} 篇文章...`
+  );
 
   // 構建批次輸入
   const articlesPayload = articles.map((a, i) => ({
@@ -400,8 +430,15 @@ ${JSON.stringify(articlesPayload, null, 2)}
                     type: "object",
                     properties: {
                       index: { type: "integer", description: "Article index" },
-                      softenedTitle: { type: "string", description: "OARS-softened title in Traditional Chinese" },
-                      tldr: { type: "string", description: "TL;DR summary, 50-80 chars, warm tone" },
+                      softenedTitle: {
+                        type: "string",
+                        description:
+                          "OARS-softened title in Traditional Chinese",
+                      },
+                      tldr: {
+                        type: "string",
+                        description: "TL;DR summary, 50-80 chars, warm tone",
+                      },
                       weightLabel: {
                         type: "string",
                         enum: [
@@ -432,7 +469,14 @@ ${JSON.stringify(articlesPayload, null, 2)}
                         description: "Article category",
                       },
                     },
-                    required: ["index", "softenedTitle", "tldr", "weightLabel", "tags", "category"],
+                    required: [
+                      "index",
+                      "softenedTitle",
+                      "tldr",
+                      "weightLabel",
+                      "tags",
+                      "category",
+                    ],
                     additionalProperties: false,
                   },
                 },
@@ -463,19 +507,29 @@ ${JSON.stringify(articlesPayload, null, 2)}
       throw new Error("Gemini 回傳格式非陣列");
     }
 
-    logOars("info", `Gemini Flash OARS 柔化完成 — 成功處理 ${results.length} 篇`);
+    logOars(
+      "info",
+      `Gemini Flash OARS 柔化完成 — 成功處理 ${results.length} 篇`
+    );
 
     // Map results back to OarsSoftened array, maintaining original order
     const softenedMap = new Map<number, OarsSoftened>();
     for (const r of results) {
-      const validLabel = isValidWeightLabel(r.weightLabel) ? r.weightLabel : "General Update";
+      const validLabel = isValidWeightLabel(r.weightLabel)
+        ? r.weightLabel
+        : "General Update";
       const validCategory = CATEGORY_MAP[r.category] || "industry_news";
 
       softenedMap.set(r.index, {
-        softenedTitle: typeof r.softenedTitle === "string" ? r.softenedTitle : articles[r.index]?.title || "Untitled",
+        softenedTitle:
+          typeof r.softenedTitle === "string"
+            ? r.softenedTitle
+            : articles[r.index]?.title || "Untitled",
         tldr: typeof r.tldr === "string" ? r.tldr : "",
         weightLabel: validLabel,
-        tags: Array.isArray(r.tags) ? r.tags.filter((t: any) => typeof t === "string") : [],
+        tags: Array.isArray(r.tags)
+          ? r.tags.filter((t: any) => typeof t === "string")
+          : [],
         category: validCategory,
       });
     }
@@ -489,7 +543,10 @@ ${JSON.stringify(articlesPayload, null, 2)}
       return createFallbackSoftened(article);
     });
   } catch (err: any) {
-    logOars("warn", `Gemini Flash 批次柔化失敗：${err.message}。啟動本地 fallback 柔化器...`);
+    logOars(
+      "warn",
+      `Gemini Flash 批次柔化失敗：${err.message}。啟動本地 fallback 柔化器...`
+    );
     // Fallback: use local softener for all articles
     return articles.map(createFallbackSoftened);
   }
@@ -516,7 +573,9 @@ function isValidWeightLabel(label: any): label is WeightLabel {
  */
 function createFallbackSoftened(article: RawNewsItem): OarsSoftened {
   const title = localSoftenText(article.title);
-  const desc = article.description ? localSoftenText(article.description) : title;
+  const desc = article.description
+    ? localSoftenText(article.description)
+    : title;
 
   return {
     softenedTitle: title,
@@ -533,7 +592,10 @@ function createFallbackSoftened(article: RawNewsItem): OarsSoftened {
 function localSoftenText(text: string): string {
   const replacements: [RegExp, string][] = [
     [/replace\s*humans?/gi, "collaborate with creators"],
-    [/job\s*loss(es)?|layoffs?|fired|unemploy(ed|ment)/gi, "industry transformation"],
+    [
+      /job\s*loss(es)?|layoffs?|fired|unemploy(ed|ment)/gi,
+      "industry transformation",
+    ],
     [/threat(en)?s?/gi, "new possibilities"],
     [/apocalypse|doom|extinction|destroy/gi, "significant evolution"],
     [/crisis|panic|collapse/gi, "important transition"],
@@ -558,16 +620,25 @@ function localSoftenText(text: string): string {
 /**
  * 本地權重標籤分類（Gemini 不可用時的 fallback）
  */
-function classifyWeightLabel(title: string, description: string | null): WeightLabel {
+function classifyWeightLabel(
+  title: string,
+  description: string | null
+): WeightLabel {
   const text = `${title} ${description || ""}`.toLowerCase();
 
-  if (/breakthrough|sota|state.of.the.art|new model|gpt|claude|gemini|llama/i.test(text)) {
+  if (
+    /breakthrough|sota|state.of.the.art|new model|gpt|claude|gemini|llama/i.test(
+      text
+    )
+  ) {
     return "Model Breakthrough";
   }
   if (/tip|trick|prompt|workflow|technique|how to/i.test(text)) {
     return "Inspiration Tip";
   }
-  if (/industry|market|policy|regulation|billion|funding|acquisition/i.test(text)) {
+  if (
+    /industry|market|policy|regulation|billion|funding|acquisition/i.test(text)
+  ) {
     return "Industry Shift";
   }
   if (/tool|app|platform|release|update|feature|launch/i.test(text)) {
@@ -585,7 +656,10 @@ function classifyWeightLabel(title: string, description: string | null): WeightL
 /**
  * 本地分類器（Gemini 不可用時的 fallback）
  */
-function classifyCategory(title: string, description: string | null): NewsCategory {
+function classifyCategory(
+  title: string,
+  description: string | null
+): NewsCategory {
   const text = `${title} ${description || ""}`.toLowerCase();
 
   if (/tutorial|how to|guide|learn|step.by.step|beginner/i.test(text)) {
@@ -651,7 +725,7 @@ async function writeArticlesToDb(result: FetchResult): Promise<number> {
 
   // Filter valid articles first
   const validArticles = result.articles.filter(
-    (a) => a.title && a.title !== "[Removed]" && a.title.length >= 5
+    a => a.title && a.title !== "[Removed]" && a.title.length >= 5
   );
 
   if (validArticles.length === 0) {
@@ -660,7 +734,10 @@ async function writeArticlesToDb(result: FetchResult): Promise<number> {
   }
 
   // ── Gemini Flash 批次 OARS NLP 柔化 ──
-  logOars("info", `準備對 ${validArticles.length} 篇有效文章進行 OARS NLP 柔化處理...`);
+  logOars(
+    "info",
+    `準備對 ${validArticles.length} 篇有效文章進行 OARS NLP 柔化處理...`
+  );
   const softenedResults = await batchOarsSoften(validArticles);
 
   let written = 0;
@@ -686,7 +763,9 @@ async function writeArticlesToDb(result: FetchResult): Promise<number> {
         tags: uniqueTags,
         isPinned: softened.weightLabel === "Model Breakthrough", // Auto-pin breakthroughs
         isPublished: true,
-        publishedAt: article.publishedAt ? new Date(article.publishedAt) : new Date(),
+        publishedAt: article.publishedAt
+          ? new Date(article.publishedAt)
+          : new Date(),
         authorUserId: null,
         viewCount: 0,
       });
@@ -697,7 +776,10 @@ async function writeArticlesToDb(result: FetchResult): Promise<number> {
         `  ✅ [${softened.weightLabel}] ${softened.softenedTitle.substring(0, 40)}...`
       );
     } catch (err: any) {
-      logOars("warn", `寫入文章「${article.title?.substring(0, 30)}...」失敗：${err.message}`);
+      logOars(
+        "warn",
+        `寫入文章「${article.title?.substring(0, 30)}...」失敗：${err.message}`
+      );
     }
   }
 
@@ -725,7 +807,10 @@ export async function runNewsFetchJob(): Promise<void> {
 
   // Circuit breaker: stop hammering failed APIs
   if (!newsApiBreaker.canExecute()) {
-    logOars("warn", `Circuit breaker OPEN（狀態: ${newsApiBreaker.getState()}），跳過本次排程。`);
+    logOars(
+      "warn",
+      `Circuit breaker OPEN（狀態: ${newsApiBreaker.getState()}），跳過本次排程。`
+    );
     return;
   }
 
@@ -789,7 +874,10 @@ export function initNewsFetcherCron(): void {
     }
   });
 
-  logOars("info", "新聞抓取排程已註冊 — 每 6 小時執行一次 (含 Gemini Flash OARS NLP 柔化)");
+  logOars(
+    "info",
+    "新聞抓取排程已註冊 — 每 6 小時執行一次 (含 Gemini Flash OARS NLP 柔化)"
+  );
 
   // Initial fetch after 30s delay (let DB and server warm up)
   setTimeout(async () => {

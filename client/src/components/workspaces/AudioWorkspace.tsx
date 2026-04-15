@@ -1,6 +1,12 @@
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { ZenTooltip } from "@/components/ZenCoPilot";
@@ -43,16 +49,19 @@ export function createDefaultAudioState(): AudioWorkspaceState {
 }
 
 export function AudioWorkspace({ value, onChange }: AudioWorkspaceProps) {
-  const update = (partial: Partial<AudioWorkspaceState>) => onChange({ ...value, ...partial });
+  const update = (partial: Partial<AudioWorkspaceState>) =>
+    onChange({ ...value, ...partial });
 
   return (
     <div className="space-y-5">
       {/* Instrumental vs Vocal Toggle */}
       <div className="flex items-center justify-between p-3 rounded-xl bg-white/35 border border-white/50">
         <div className="flex items-center gap-3">
-          <div className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
-            value.isInstrumental ? "bg-primary/10" : "bg-violet-500/10"
-          }`}>
+          <div
+            className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
+              value.isInstrumental ? "bg-primary/10" : "bg-violet-500/10"
+            }`}
+          >
             {value.isInstrumental ? (
               <Music className="w-4 h-4 text-primary" />
             ) : (
@@ -70,18 +79,22 @@ export function AudioWorkspace({ value, onChange }: AudioWorkspaceProps) {
         </div>
         <Switch
           checked={!value.isInstrumental}
-          onCheckedChange={(checked) => update({ isInstrumental: !checked })}
+          onCheckedChange={checked => update({ isInstrumental: !checked })}
         />
       </div>
 
       {/* Lyrics (shown when vocal) */}
       {!value.isInstrumental && (
         <div className="space-y-2">
-          <Label className="text-xs font-medium text-muted-foreground">歌詞</Label>
+          <Label className="text-xs font-medium text-muted-foreground">
+            歌詞
+          </Label>
           <Textarea
-            placeholder={"[Verse 1]\n在寧靜的夜晚\n星光灑落在窗前\n\n[Chorus]\n讓音樂帶我飛翔\n穿越時空的彼岸"}
+            placeholder={
+              "[Verse 1]\n在寧靜的夜晚\n星光灑落在窗前\n\n[Chorus]\n讓音樂帶我飛翔\n穿越時空的彼岸"
+            }
             value={value.lyrics}
-            onChange={(e) => update({ lyrics: e.target.value })}
+            onChange={e => update({ lyrics: e.target.value })}
             rows={6}
             className="rounded-xl bg-white/40 border-white/60 resize-none text-xs font-mono placeholder:text-muted-foreground/35 leading-relaxed"
           />
@@ -93,9 +106,11 @@ export function AudioWorkspace({ value, onChange }: AudioWorkspaceProps) {
 
       {/* Music Style */}
       <div className="space-y-2">
-        <Label className="text-xs font-medium text-muted-foreground">音樂風格</Label>
+        <Label className="text-xs font-medium text-muted-foreground">
+          音樂風格
+        </Label>
         <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
-          {MUSIC_STYLES.map((style) => (
+          {MUSIC_STYLES.map(style => (
             <button
               key={style.value}
               onClick={() => update({ musicStyle: style.value })}
@@ -116,9 +131,13 @@ export function AudioWorkspace({ value, onChange }: AudioWorkspaceProps) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <Clock className="w-3.5 h-3.5 text-muted-foreground" />
-            <Label className="text-xs font-medium text-muted-foreground">曲目長度</Label>
+            <Label className="text-xs font-medium text-muted-foreground">
+              曲目長度
+            </Label>
           </div>
-          <span className="text-[11px] text-muted-foreground tabular-nums font-mono">{value.duration}s</span>
+          <span className="text-[11px] text-muted-foreground tabular-nums font-mono">
+            {value.duration}s
+          </span>
         </div>
         <Slider
           value={[value.duration]}
@@ -137,8 +156,12 @@ export function AudioWorkspace({ value, onChange }: AudioWorkspaceProps) {
       {/* Energy Level */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label className="text-xs font-medium text-muted-foreground">能量強度</Label>
-          <span className="text-[11px] text-muted-foreground tabular-nums font-mono">{value.energy}%</span>
+          <Label className="text-xs font-medium text-muted-foreground">
+            能量強度
+          </Label>
+          <span className="text-[11px] text-muted-foreground tabular-nums font-mono">
+            {value.energy}%
+          </span>
         </div>
         <Slider
           value={[value.energy]}

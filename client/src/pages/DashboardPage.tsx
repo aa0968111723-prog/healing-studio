@@ -6,14 +6,34 @@ import { useAIState } from "@/contexts/AIStateContext";
 import VisualSoul from "@/components/VisualSoul";
 import { Badge } from "@/components/ui/badge";
 import {
-  BarChart3, Zap, DollarSign, Clock, TrendingUp, LayoutDashboard,
-  Image, Video, Music, Mic, Activity,
+  BarChart3,
+  Zap,
+  DollarSign,
+  Clock,
+  TrendingUp,
+  LayoutDashboard,
+  Image,
+  Video,
+  Music,
+  Mic,
+  Activity,
 } from "lucide-react";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import { motion } from "framer-motion";
 import {
-  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
 } from "recharts";
 
 // ─── Label maps ─────────────────────────────────────────────────────────────
@@ -29,20 +49,20 @@ const requestTypeLabels: Record<string, string> = {
 };
 
 const MODALITY_COLORS: Record<string, string> = {
-  image_generation:  "#818cf8",
-  video_generation:  "#34d399",
-  audio_generation:  "#fb923c",
-  voice_dubbing:     "#f472b6",
-  prompt_expansion:  "#60a5fa",
-  safety_check:      "#a78bfa",
-  director_ai:       "#facc15",
+  image_generation: "#818cf8",
+  video_generation: "#34d399",
+  audio_generation: "#fb923c",
+  voice_dubbing: "#f472b6",
+  prompt_expansion: "#60a5fa",
+  safety_check: "#a78bfa",
+  director_ai: "#facc15",
 };
 
 const MODALITY_ICONS: Record<string, React.ReactNode> = {
-  image_generation:  <Image className="w-3 h-3" />,
-  video_generation:  <Video className="w-3 h-3" />,
-  audio_generation:  <Music className="w-3 h-3" />,
-  voice_dubbing:     <Mic className="w-3 h-3" />,
+  image_generation: <Image className="w-3 h-3" />,
+  video_generation: <Video className="w-3 h-3" />,
+  audio_generation: <Music className="w-3 h-3" />,
+  voice_dubbing: <Mic className="w-3 h-3" />,
 };
 
 // ─── Custom Tooltip ──────────────────────────────────────────────────────────
@@ -68,7 +88,15 @@ function CustomPieLabel({ cx, cy, midAngle, outerRadius, percent, name }: any) {
   const x = cx + radius * Math.cos(-midAngle * RADIAN);
   const y = cy + radius * Math.sin(-midAngle * RADIAN);
   return (
-    <text x={x} y={y} fill="currentColor" textAnchor={x > cx ? "start" : "end"} dominantBaseline="central" fontSize={10} className="fill-muted-foreground">
+    <text
+      x={x}
+      y={y}
+      fill="currentColor"
+      textAnchor={x > cx ? "start" : "end"}
+      dominantBaseline="central"
+      fontSize={10}
+      className="fill-muted-foreground"
+    >
       {name} {(percent * 100).toFixed(0)}%
     </text>
   );
@@ -89,7 +117,9 @@ export default function DashboardPage() {
     return () => setPageContext(null);
   }, [setPageContext]);
 
-  const statsQuery = trpc.dashboard.myStats.useQuery(undefined, { retry: false });
+  const statsQuery = trpc.dashboard.myStats.useQuery(undefined, {
+    retry: false,
+  });
   const stats = statsQuery.data;
 
   const statCards = [
@@ -162,7 +192,9 @@ export default function DashboardPage() {
         <LayoutDashboard className="w-5 h-5 text-muted-foreground" />
         <h1 className="hs-h2 !mb-0">儀表板</h1>
       </div>
-      <p className="hs-small !mb-0 text-muted-foreground -mt-4">查看個人使用統計、配額餘額與成本分析。</p>
+      <p className="hs-small !mb-0 text-muted-foreground -mt-4">
+        查看個人使用統計、配額餘額與成本分析。
+      </p>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -174,12 +206,20 @@ export default function DashboardPage() {
             transition={{ delay: idx * 0.08 }}
           >
             <GlassCard>
-              <div className={`w-9 h-9 rounded-lg ${card.color} flex items-center justify-center mb-3`}>
+              <div
+                className={`w-9 h-9 rounded-lg ${card.color} flex items-center justify-center mb-3`}
+              >
                 <card.icon className={`w-4 h-4 ${card.textColor}`} />
               </div>
-              <p className="hs-small !mb-0 text-muted-foreground">{card.label}</p>
-              <p className={`text-xl font-semibold mt-1 ${card.textColor}`}>{card.value}</p>
-              <p className="hs-small !mb-0 text-muted-foreground mt-0.5">{card.unit}</p>
+              <p className="hs-small !mb-0 text-muted-foreground">
+                {card.label}
+              </p>
+              <p className={`text-xl font-semibold mt-1 ${card.textColor}`}>
+                {card.value}
+              </p>
+              <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
+                {card.unit}
+              </p>
             </GlassCard>
           </motion.div>
         ))}
@@ -188,8 +228,12 @@ export default function DashboardPage() {
       {/* Charts Row */}
       {statsQuery.isLoading ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <GlassCard hover={false}><ZenSkeleton lines={6} /></GlassCard>
-          <GlassCard hover={false}><ZenSkeleton lines={6} /></GlassCard>
+          <GlassCard hover={false}>
+            <ZenSkeleton lines={6} />
+          </GlassCard>
+          <GlassCard hover={false}>
+            <ZenSkeleton lines={6} />
+          </GlassCard>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -205,12 +249,29 @@ export default function DashboardPage() {
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={180}>
-                <BarChart data={dailyChartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#94a3b8" }} />
-                  <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} allowDecimals={false} />
+                <BarChart
+                  data={dailyChartData}
+                  margin={{ top: 4, right: 4, left: -20, bottom: 0 }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="rgba(255,255,255,0.05)"
+                  />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 10, fill: "#94a3b8" }}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 10, fill: "#94a3b8" }}
+                    allowDecimals={false}
+                  />
                   <Tooltip content={<CustomBarTooltip />} />
-                  <Bar dataKey="請求數" fill="#818cf8" radius={[4, 4, 0, 0]} maxBarSize={32} />
+                  <Bar
+                    dataKey="請求數"
+                    fill="#818cf8"
+                    radius={[4, 4, 0, 0]}
+                    maxBarSize={32}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -249,16 +310,31 @@ export default function DashboardPage() {
                         `${v} 次 ($${props.payload.cost.toFixed(4)})`,
                         name,
                       ]}
-                      contentStyle={{ fontSize: 11, borderRadius: 8, background: "rgba(0,0,0,0.75)", border: "none" }}
+                      contentStyle={{
+                        fontSize: 11,
+                        borderRadius: 8,
+                        background: "rgba(0,0,0,0.75)",
+                        border: "none",
+                      }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="flex-1 space-y-1.5">
-                  {pieData.map((entry) => (
-                    <div key={entry.key} className="flex items-center gap-2 text-xs">
-                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: entry.fill }} />
-                      <span className="text-foreground/80 truncate flex-1">{entry.name}</span>
-                      <span className="tabular-nums text-muted-foreground shrink-0">{entry.value}</span>
+                  {pieData.map(entry => (
+                    <div
+                      key={entry.key}
+                      className="flex items-center gap-2 text-xs"
+                    >
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{ background: entry.fill }}
+                      />
+                      <span className="text-foreground/80 truncate flex-1">
+                        {entry.name}
+                      </span>
+                      <span className="tabular-nums text-muted-foreground shrink-0">
+                        {entry.value}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -276,13 +352,27 @@ export default function DashboardPage() {
             <h2 className="hs-h3 !mb-0">近 7 天費用趨勢 (USD)</h2>
           </div>
           <ResponsiveContainer width="100%" height={160}>
-            <LineChart data={dailyChartData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+            <LineChart
+              data={dailyChartData}
+              margin={{ top: 4, right: 8, left: -20, bottom: 0 }}
+            >
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="rgba(255,255,255,0.05)"
+              />
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#94a3b8" }} />
-              <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} tickFormatter={(v) => `$${v.toFixed(3)}`} />
+              <YAxis
+                tick={{ fontSize: 10, fill: "#94a3b8" }}
+                tickFormatter={v => `$${v.toFixed(3)}`}
+              />
               <Tooltip
                 formatter={(v: number) => [`$${v.toFixed(5)}`, "費用"]}
-                contentStyle={{ fontSize: 11, borderRadius: 8, background: "rgba(0,0,0,0.75)", border: "none" }}
+                contentStyle={{
+                  fontSize: 11,
+                  borderRadius: 8,
+                  background: "rgba(0,0,0,0.75)",
+                  border: "none",
+                }}
               />
               <Line
                 type="monotone"
@@ -306,20 +396,26 @@ export default function DashboardPage() {
         {statsQuery.isLoading ? (
           <ZenSkeleton lines={5} />
         ) : !stats?.recentLogs || stats.recentLogs.length === 0 ? (
-          <p className="hs-small !mb-0 text-muted-foreground text-center py-8">還沒有使用紀錄</p>
+          <p className="hs-small !mb-0 text-muted-foreground text-center py-8">
+            還沒有使用紀錄
+          </p>
         ) : (
           <div className="space-y-2">
-            {stats.recentLogs.map((log) => (
+            {stats.recentLogs.map(log => (
               <div
                 key={log.id}
                 className="flex items-center gap-3 p-3 rounded-lg bg-muted/10 hover:bg-muted/20 transition-colors"
               >
                 <div
                   className="w-6 h-6 rounded-md flex items-center justify-center shrink-0"
-                  style={{ background: MODALITY_COLORS[log.requestType] + "30" }}
+                  style={{
+                    background: MODALITY_COLORS[log.requestType] + "30",
+                  }}
                 >
                   <span style={{ color: MODALITY_COLORS[log.requestType] }}>
-                    {MODALITY_ICONS[log.requestType] ?? <Activity className="w-3 h-3" />}
+                    {MODALITY_ICONS[log.requestType] ?? (
+                      <Activity className="w-3 h-3" />
+                    )}
                   </span>
                 </div>
                 <div className="flex-1 min-w-0">
@@ -328,18 +424,23 @@ export default function DashboardPage() {
                       {requestTypeLabels[log.requestType] || log.requestType}
                     </span>
                     <Badge
-                      variant={log.responseStatus === "success" ? "secondary" : "destructive"}
+                      variant={
+                        log.responseStatus === "success"
+                          ? "secondary"
+                          : "destructive"
+                      }
                       className="text-[10px] rounded-md"
                     >
                       {log.responseStatus === "success"
                         ? "成功"
                         : log.responseStatus === "blocked"
-                        ? "已攔截"
-                        : "失敗"}
+                          ? "已攔截"
+                          : "失敗"}
                     </Badge>
                   </div>
                   <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
-                    {log.apiProvider} | {log.tokensUsed ?? 0} tokens | ${log.estimatedCostUsd ?? "0"}
+                    {log.apiProvider} | {log.tokensUsed ?? 0} tokens | $
+                    {log.estimatedCostUsd ?? "0"}
                   </p>
                 </div>
                 <span className="hs-small !mb-0 text-muted-foreground shrink-0">

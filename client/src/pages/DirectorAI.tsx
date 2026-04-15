@@ -11,16 +11,50 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
-  Clapperboard, Send, Image, Music, Mic,
-  Brain, Palette, Wrench, MessageCircleQuestion,
-  BookTemplate, Save, FolderOpen, Trash2,
-  Pencil, Copy, ChevronDown, ChevronUp, X,
-  Upload, FileText, Download, CheckCircle2,
-  MessageSquare, Zap, Heart, Timer, Shuffle,
-  Settings, Wand2, Sun, Volume2, Headphones,
-  Camera, Sparkles, Eye, Play, ChevronRight,
-  BarChart3, ArrowUp, ArrowDown, Layers, Users,
-  MapPin, Tag,
+  Clapperboard,
+  Send,
+  Image,
+  Music,
+  Mic,
+  Brain,
+  Palette,
+  Wrench,
+  MessageCircleQuestion,
+  BookTemplate,
+  Save,
+  FolderOpen,
+  Trash2,
+  Pencil,
+  Copy,
+  ChevronDown,
+  ChevronUp,
+  X,
+  Upload,
+  FileText,
+  Download,
+  CheckCircle2,
+  MessageSquare,
+  Zap,
+  Heart,
+  Timer,
+  Shuffle,
+  Settings,
+  Wand2,
+  Sun,
+  Volume2,
+  Headphones,
+  Camera,
+  Sparkles,
+  Eye,
+  Play,
+  ChevronRight,
+  BarChart3,
+  ArrowUp,
+  ArrowDown,
+  Layers,
+  Users,
+  MapPin,
+  Tag,
 } from "lucide-react";
 import { GlassCard } from "@/components/ZenCoPilot";
 import VisualSoul from "@/components/VisualSoul";
@@ -29,7 +63,12 @@ import { useIsMobile } from "@/hooks/useMobile";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import type { CoStarScript, ScriptSegment, ScriptOverview, QuickAction } from "@shared/types";
+import type {
+  CoStarScript,
+  ScriptSegment,
+  ScriptOverview,
+  QuickAction,
+} from "@shared/types";
 
 // ─── Personality Config ────────────────────────────────────────────────────
 
@@ -69,16 +108,19 @@ type Personality = "calm" | "creative" | "technical";
 
 const CATEGORY_LABELS: Record<string, string> = {
   "short-film": "短片",
-  "ad": "廣告",
-  "meditation": "冥想",
+  ad: "廣告",
+  meditation: "冥想",
   "music-video": "MV",
-  "tutorial": "教學",
-  "brand": "品牌",
+  tutorial: "教學",
+  brand: "品牌",
 };
 
 // ─── Quick Action Icon Map ──────────────────────────────────────────────────
 
-const QUICK_ACTION_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+const QUICK_ACTION_ICONS: Record<
+  string,
+  React.ComponentType<{ className?: string }>
+> = {
   image: Image,
   video: Camera,
   palette: Palette,
@@ -96,7 +138,10 @@ const QUICK_ACTION_ICONS: Record<string, React.ComponentType<{ className?: strin
   eye: Eye,
 };
 
-const QUICK_ACTION_CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
+const QUICK_ACTION_CATEGORY_LABELS: Record<
+  string,
+  { label: string; color: string }
+> = {
   visual: { label: "視覺", color: "bg-blue-100 text-blue-700" },
   audio: { label: "音頻", color: "bg-purple-100 text-purple-700" },
   narrative: { label: "敘事", color: "bg-amber-100 text-amber-700" },
@@ -104,11 +149,26 @@ const QUICK_ACTION_CATEGORY_LABELS: Record<string, { label: string; color: strin
   mood: { label: "氛圍", color: "bg-pink-100 text-pink-700" },
 };
 
-const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ComponentType<{ className?: string }> }> = {
+const STATUS_CONFIG: Record<
+  string,
+  {
+    label: string;
+    color: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }
+> = {
   pending: { label: "待分析", color: "bg-gray-100 text-gray-600", icon: Timer },
-  draft: { label: "草稿", color: "bg-yellow-100 text-yellow-700", icon: Pencil },
+  draft: {
+    label: "草稿",
+    color: "bg-yellow-100 text-yellow-700",
+    icon: Pencil,
+  },
   refined: { label: "已優化", color: "bg-blue-100 text-blue-700", icon: Eye },
-  approved: { label: "已確認", color: "bg-green-100 text-green-700", icon: CheckCircle2 },
+  approved: {
+    label: "已確認",
+    color: "bg-green-100 text-green-700",
+    icon: CheckCircle2,
+  },
 };
 
 const FORMAT_OPTIONS = [
@@ -146,33 +206,38 @@ const ScriptImportPanel = memo(function ScriptImportPanel({
   const [sourceFormat, setSourceFormat] = useState("plaintext");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const text = ev.target?.result;
-      if (typeof text === "string") {
-        setScriptContent(text);
-        if (!scriptTitle) {
-          // Extract filename without extension, handling edge cases like hidden files
-          const dotIdx = file.name.lastIndexOf(".");
-          const baseName = dotIdx > 0 ? file.name.slice(0, dotIdx) : file.name;
-          setScriptTitle(baseName || "未命名腳本");
+  const handleFileUpload = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const text = ev.target?.result;
+        if (typeof text === "string") {
+          setScriptContent(text);
+          if (!scriptTitle) {
+            // Extract filename without extension, handling edge cases like hidden files
+            const dotIdx = file.name.lastIndexOf(".");
+            const baseName =
+              dotIdx > 0 ? file.name.slice(0, dotIdx) : file.name;
+            setScriptTitle(baseName || "未命名腳本");
+          }
+          // Auto-detect format
+          if (file.name.endsWith(".srt")) setSourceFormat("srt");
+          else if (file.name.endsWith(".fdx")) setSourceFormat("fdx");
+          else if (file.name.endsWith(".fountain"))
+            setSourceFormat("screenplay");
+          toast.success(`已載入 ${file.name}`);
         }
-        // Auto-detect format
-        if (file.name.endsWith(".srt")) setSourceFormat("srt");
-        else if (file.name.endsWith(".fdx")) setSourceFormat("fdx");
-        else if (file.name.endsWith(".fountain")) setSourceFormat("screenplay");
-        toast.success(`已載入 ${file.name}`);
-      }
-    };
-    reader.onerror = () => {
-      toast.error("檔案讀取失敗，請確認檔案格式正確");
-    };
-    reader.readAsText(file);
-    e.target.value = "";
-  }, [scriptTitle]);
+      };
+      reader.onerror = () => {
+        toast.error("檔案讀取失敗，請確認檔案格式正確");
+      };
+      reader.readAsText(file);
+      e.target.value = "";
+    },
+    [scriptTitle]
+  );
 
   const handleSubmit = useCallback(() => {
     if (!scriptContent.trim()) {
@@ -204,7 +269,7 @@ const ScriptImportPanel = memo(function ScriptImportPanel({
         <input
           type="text"
           value={scriptTitle}
-          onChange={(e) => setScriptTitle(e.target.value)}
+          onChange={e => setScriptTitle(e.target.value)}
           placeholder="例：品牌宣傳短片 V2"
           className="w-full rounded-lg border border-border/50 bg-white/50 px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
@@ -214,7 +279,7 @@ const ScriptImportPanel = memo(function ScriptImportPanel({
       <div className="space-y-1.5">
         <Label className="text-xs">來源格式</Label>
         <div className="flex flex-wrap gap-1.5">
-          {FORMAT_OPTIONS.map((fmt) => (
+          {FORMAT_OPTIONS.map(fmt => (
             <button
               key={fmt.value}
               onClick={() => setSourceFormat(fmt.value)}
@@ -222,7 +287,7 @@ const ScriptImportPanel = memo(function ScriptImportPanel({
                 "px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-all",
                 sourceFormat === fmt.value
                   ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-white/50 border-border/50 hover:bg-white/80 text-muted-foreground",
+                  : "bg-white/50 border-border/50 hover:bg-white/80 text-muted-foreground"
               )}
             >
               {fmt.label}
@@ -259,7 +324,7 @@ const ScriptImportPanel = memo(function ScriptImportPanel({
         </div>
         <Textarea
           value={scriptContent}
-          onChange={(e) => setScriptContent(e.target.value)}
+          onChange={e => setScriptContent(e.target.value)}
           placeholder="貼上你的腳本內容... 可以是任何格式的長腳本文字"
           className="min-h-[200px] text-xs leading-relaxed resize-y bg-white/50"
         />
@@ -309,7 +374,7 @@ const QuickActionChip = memo(function QuickActionChip({
         "hover:shadow-sm hover:scale-[1.02] active:scale-[0.98]",
         disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
         catConfig?.color ?? "bg-gray-100 text-gray-700",
-        "border-current/10",
+        "border-current/10"
       )}
       title={action.promptTemplate}
     >
@@ -343,15 +408,18 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
   isGeneratingCostar?: boolean;
 }) {
   const [inputMessage, setInputMessage] = useState("");
-  const [selectedAction, setSelectedAction] = useState<QuickAction | null>(null);
+  const [selectedAction, setSelectedAction] = useState<QuickAction | null>(
+    null
+  );
   const [showAllActions, setShowAllActions] = useState(false);
   const [showGenPipeline, setShowGenPipeline] = useState(false);
   const [showCostar, setShowCostar] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const config = PERSONALITIES.find((p) => p.id === personality) ?? PERSONALITIES[1];
+  const config =
+    PERSONALITIES.find(p => p.id === personality) ?? PERSONALITIES[1];
 
   const discussMut = trpc.director.discussSegment.useMutation({
-    onSuccess: (data) => {
+    onSuccess: data => {
       const newDiscussionEntry: ScriptSegment["discussion"][number] = {
         role: "assistant",
         content: data.reply,
@@ -367,7 +435,7 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
       onUpdateSegment(updatedSegment);
       setSelectedAction(null);
     },
-    onError: (e) => toast.error("討論失敗：" + e.message),
+    onError: e => toast.error("討論失敗：" + e.message),
   });
 
   const handleSend = useCallback(() => {
@@ -394,42 +462,73 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
       message: inputMessage || "",
       personality,
       quickActionId: selectedAction?.id,
-      prevSegment: adjacentSegments?.prev ? { index: adjacentSegments.prev.index, storyboard: adjacentSegments.prev.storyboard } : undefined,
-      nextSegment: adjacentSegments?.next ? { index: adjacentSegments.next.index, storyboard: adjacentSegments.next.storyboard } : undefined,
+      prevSegment: adjacentSegments?.prev
+        ? {
+            index: adjacentSegments.prev.index,
+            storyboard: adjacentSegments.prev.storyboard,
+          }
+        : undefined,
+      nextSegment: adjacentSegments?.next
+        ? {
+            index: adjacentSegments.next.index,
+            storyboard: adjacentSegments.next.storyboard,
+          }
+        : undefined,
     });
 
     setInputMessage("");
     setSelectedAction(null);
-  }, [inputMessage, selectedAction, segment, personality, discussMut, onUpdateSegment, adjacentSegments]);
+  }, [
+    inputMessage,
+    selectedAction,
+    segment,
+    personality,
+    discussMut,
+    onUpdateSegment,
+    adjacentSegments,
+  ]);
 
-  const handleQuickAction = useCallback((action: QuickAction) => {
-    setSelectedAction(action);
-    // Auto-send if no extra message needed
-    const userEntry: ScriptSegment["discussion"][number] = {
-      role: "user",
-      content: action.labelZh,
-      quickAction: action.id,
-      timestamp: new Date().toISOString(),
-    };
+  const handleQuickAction = useCallback(
+    (action: QuickAction) => {
+      setSelectedAction(action);
+      // Auto-send if no extra message needed
+      const userEntry: ScriptSegment["discussion"][number] = {
+        role: "user",
+        content: action.labelZh,
+        quickAction: action.id,
+        timestamp: new Date().toISOString(),
+      };
 
-    const updatedSeg: ScriptSegment = {
-      ...segment,
-      discussion: [...segment.discussion, userEntry],
-    };
-    onUpdateSegment(updatedSeg);
+      const updatedSeg: ScriptSegment = {
+        ...segment,
+        discussion: [...segment.discussion, userEntry],
+      };
+      onUpdateSegment(updatedSeg);
 
-    discussMut.mutate({
-      segment: {
-        ...updatedSeg,
-        status: updatedSeg.status,
-      },
-      message: "",
-      personality,
-      quickActionId: action.id,
-      prevSegment: adjacentSegments?.prev ? { index: adjacentSegments.prev.index, storyboard: adjacentSegments.prev.storyboard } : undefined,
-      nextSegment: adjacentSegments?.next ? { index: adjacentSegments.next.index, storyboard: adjacentSegments.next.storyboard } : undefined,
-    });
-  }, [segment, personality, discussMut, onUpdateSegment, adjacentSegments]);
+      discussMut.mutate({
+        segment: {
+          ...updatedSeg,
+          status: updatedSeg.status,
+        },
+        message: "",
+        personality,
+        quickActionId: action.id,
+        prevSegment: adjacentSegments?.prev
+          ? {
+              index: adjacentSegments.prev.index,
+              storyboard: adjacentSegments.prev.storyboard,
+            }
+          : undefined,
+        nextSegment: adjacentSegments?.next
+          ? {
+              index: adjacentSegments.next.index,
+              storyboard: adjacentSegments.next.storyboard,
+            }
+          : undefined,
+      });
+    },
+    [segment, personality, discussMut, onUpdateSegment, adjacentSegments]
+  );
 
   // Group quick actions by category
   const groupedActions = useMemo(() => {
@@ -441,11 +540,16 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
     return groups;
   }, [quickActions]);
 
-  const displayedActions = showAllActions ? quickActions : quickActions.slice(0, 6);
+  const displayedActions = showAllActions
+    ? quickActions
+    : quickActions.slice(0, 6);
   const statusCfg = STATUS_CONFIG[segment.status];
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+    scrollRef.current?.scrollTo({
+      top: scrollRef.current.scrollHeight,
+      behavior: "smooth",
+    });
   }, [segment.discussion.length]);
 
   return (
@@ -473,10 +577,19 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
               </button>
             </div>
           )}
-          <span className="text-xs font-bold text-muted-foreground">#{segment.index + 1}</span>
-          <span className="text-sm font-semibold truncate max-w-[200px]">{segment.storyboard.sceneHeading}</span>
+          <span className="text-xs font-bold text-muted-foreground">
+            #{segment.index + 1}
+          </span>
+          <span className="text-sm font-semibold truncate max-w-[200px]">
+            {segment.storyboard.sceneHeading}
+          </span>
           {statusCfg && (
-            <span className={cn("inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-medium", statusCfg.color)}>
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-medium",
+                statusCfg.color
+              )}
+            >
               <statusCfg.icon className="w-3 h-3" />
               {statusCfg.label}
             </span>
@@ -491,7 +604,7 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
                 "text-[10px] px-2 py-0.5 rounded-md border transition-all",
                 segment.status === s
                   ? STATUS_CONFIG[s].color + " border-current/20"
-                  : "text-muted-foreground/50 border-transparent hover:border-border/50",
+                  : "text-muted-foreground/50 border-transparent hover:border-border/50"
               )}
             >
               {STATUS_CONFIG[s].label}
@@ -501,16 +614,25 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
       </div>
 
       {/* Character & location tags */}
-      {((segment.characters?.length ?? 0) > 0 || (segment.locations?.length ?? 0) > 0) && (
+      {((segment.characters?.length ?? 0) > 0 ||
+        (segment.locations?.length ?? 0) > 0) && (
         <div className="flex flex-wrap gap-1.5">
           {segment.characters?.map(c => (
-            <span key={c} className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
-              <Users className="w-2.5 h-2.5" />{c}
+            <span
+              key={c}
+              className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200"
+            >
+              <Users className="w-2.5 h-2.5" />
+              {c}
             </span>
           ))}
           {segment.locations?.map(l => (
-            <span key={l} className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200">
-              <MapPin className="w-2.5 h-2.5" />{l}
+            <span
+              key={l}
+              className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200"
+            >
+              <MapPin className="w-2.5 h-2.5" />
+              {l}
             </span>
           ))}
         </div>
@@ -519,18 +641,41 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
       {/* Storyboard info */}
       <div className="grid grid-cols-2 gap-2 text-[11px]">
         {[
-          { label: "視覺", value: segment.storyboard.visualDescription, icon: Eye },
-          { label: "對白", value: segment.storyboard.dialogue, icon: MessageSquare },
-          { label: "音效", value: segment.storyboard.soundDesign, icon: Volume2 },
-          { label: "鏡頭", value: segment.storyboard.cameraDirection, icon: Camera },
+          {
+            label: "視覺",
+            value: segment.storyboard.visualDescription,
+            icon: Eye,
+          },
+          {
+            label: "對白",
+            value: segment.storyboard.dialogue,
+            icon: MessageSquare,
+          },
+          {
+            label: "音效",
+            value: segment.storyboard.soundDesign,
+            icon: Volume2,
+          },
+          {
+            label: "鏡頭",
+            value: segment.storyboard.cameraDirection,
+            icon: Camera,
+          },
           { label: "時長", value: segment.storyboard.duration, icon: Timer },
           { label: "氛圍", value: segment.storyboard.mood, icon: Heart },
-        ].map((item) => (
-          <div key={item.label} className="flex items-start gap-1.5 p-2 rounded-lg bg-muted/20">
+        ].map(item => (
+          <div
+            key={item.label}
+            className="flex items-start gap-1.5 p-2 rounded-lg bg-muted/20"
+          >
             <item.icon className="w-3 h-3 mt-0.5 text-muted-foreground shrink-0" />
             <div>
-              <span className="text-muted-foreground font-medium">{item.label}</span>
-              <p className="hs-p !mb-0 text-foreground/80 line-clamp-2">{item.value || "—"}</p>
+              <span className="text-muted-foreground font-medium">
+                {item.label}
+              </span>
+              <p className="hs-p !mb-0 text-foreground/80 line-clamp-2">
+                {item.value || "—"}
+              </p>
             </div>
           </div>
         ))}
@@ -546,11 +691,25 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
             <Layers className="w-3 h-3" />
             CO-STAR 結構
             {segment.costar ? (
-              <Badge variant="secondary" className="text-[8px] h-4 px-1 bg-green-100 text-green-700">已生成</Badge>
+              <Badge
+                variant="secondary"
+                className="text-[8px] h-4 px-1 bg-green-100 text-green-700"
+              >
+                已生成
+              </Badge>
             ) : (
-              <Badge variant="outline" className="text-[8px] h-4 px-1 text-amber-600 border-amber-300">未生成</Badge>
+              <Badge
+                variant="outline"
+                className="text-[8px] h-4 px-1 text-amber-600 border-amber-300"
+              >
+                未生成
+              </Badge>
             )}
-            {showCostar ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            {showCostar ? (
+              <ChevronUp className="w-3 h-3" />
+            ) : (
+              <ChevronDown className="w-3 h-3" />
+            )}
           </button>
           {onGenerateCostar && (
             <Button
@@ -585,23 +744,38 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
                   { label: "S 風格", value: segment.costar.task },
                   { label: "T 語調", value: segment.costar.action },
                   { label: "A 觀眾", value: segment.costar.result },
-                  { label: "R 回應", value: segment.costar.proactiveQuestion ?? "" },
-                ].map((item) => (
+                  {
+                    label: "R 回應",
+                    value: segment.costar.proactiveQuestion ?? "",
+                  },
+                ].map(item => (
                   <div key={item.label} className="flex gap-2 text-[10px]">
-                    <span className="font-bold text-primary/70 w-12 shrink-0">{item.label}</span>
-                    <span className="text-foreground/70 leading-relaxed line-clamp-2">{item.value || "—"}</span>
+                    <span className="font-bold text-primary/70 w-12 shrink-0">
+                      {item.label}
+                    </span>
+                    <span className="text-foreground/70 leading-relaxed line-clamp-2">
+                      {item.value || "—"}
+                    </span>
                   </div>
                 ))}
                 {segment.costar.visualPrompt && (
                   <div className="p-2 rounded-lg bg-blue-50/50 border border-blue-100 mt-1">
-                    <span className="text-[9px] font-bold text-blue-600 block mb-0.5">Visual Prompt</span>
-                    <p className="hs-small !mb-0 text-blue-800/70 line-clamp-3">{segment.costar.visualPrompt}</p>
+                    <span className="text-[9px] font-bold text-blue-600 block mb-0.5">
+                      Visual Prompt
+                    </span>
+                    <p className="hs-small !mb-0 text-blue-800/70 line-clamp-3">
+                      {segment.costar.visualPrompt}
+                    </p>
                   </div>
                 )}
                 {segment.costar.musicVibe && (
                   <div className="p-2 rounded-lg bg-purple-50/50 border border-purple-100">
-                    <span className="text-[9px] font-bold text-purple-600 block mb-0.5">Music Vibe</span>
-                    <p className="hs-small !mb-0 text-purple-800/70 line-clamp-2">{segment.costar.musicVibe}</p>
+                    <span className="text-[9px] font-bold text-purple-600 block mb-0.5">
+                      Music Vibe
+                    </span>
+                    <p className="hs-small !mb-0 text-purple-800/70 line-clamp-2">
+                      {segment.costar.musicVibe}
+                    </p>
                   </div>
                 )}
               </div>
@@ -613,7 +787,9 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
       {/* Quick actions */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">快選動作</span>
+          <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+            快選動作
+          </span>
           <button
             onClick={() => setShowAllActions(!showAllActions)}
             className="text-[10px] text-primary hover:underline"
@@ -628,7 +804,12 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
               const catCfg = QUICK_ACTION_CATEGORY_LABELS[cat];
               return (
                 <div key={cat}>
-                  <span className={cn("text-[10px] font-medium px-1.5 py-0.5 rounded mb-1 inline-block", catCfg?.color)}>
+                  <span
+                    className={cn(
+                      "text-[10px] font-medium px-1.5 py-0.5 rounded mb-1 inline-block",
+                      catCfg?.color
+                    )}
+                  >
                     {catCfg?.label}
                   </span>
                   <div className="flex flex-wrap gap-1 mt-1">
@@ -672,7 +853,7 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
                 "rounded-lg p-2.5 text-xs leading-relaxed",
                 d.role === "user"
                   ? "bg-primary/5 border border-primary/10 ml-4"
-                  : "bg-muted/30 border border-border/30 mr-4",
+                  : "bg-muted/30 border border-border/30 mr-4"
               )}
             >
               <div className="flex items-center gap-1.5 mb-1">
@@ -690,7 +871,11 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
           ))}
           {discussMut.isPending && (
             <div className="flex items-center gap-2 p-2 text-xs text-muted-foreground animate-pulse">
-              <VisualSoul size="sm" personality={personality} state="thinking" />
+              <VisualSoul
+                size="sm"
+                personality={personality}
+                state="thinking"
+              />
               導演 AI 思考中...
             </div>
           )}
@@ -702,8 +887,13 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
         <input
           type="text"
           value={inputMessage}
-          onChange={(e) => setInputMessage(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+          onChange={e => setInputMessage(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              handleSend();
+            }
+          }}
           placeholder="輸入討論內容，或直接點擊快選動作..."
           disabled={discussMut.isPending}
           className="flex-1 rounded-lg border border-border/50 bg-white/50 px-3 py-2 text-xs placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
@@ -711,7 +901,9 @@ const SegmentDiscussionPanel = memo(function SegmentDiscussionPanel({
         <Button
           size="sm"
           onClick={handleSend}
-          disabled={discussMut.isPending || (!inputMessage.trim() && !selectedAction)}
+          disabled={
+            discussMut.isPending || (!inputMessage.trim() && !selectedAction)
+          }
           className="rounded-lg h-9 px-3"
         >
           <Send className="w-3.5 h-3.5" />
@@ -785,7 +977,9 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
   const [, navigate] = useLocation();
 
   // Model selections per modality
-  const [selectedModels, setSelectedModels] = useState<Record<string, string>>({});
+  const [selectedModels, setSelectedModels] = useState<Record<string, string>>(
+    {}
+  );
   const [enabledTasks, setEnabledTasks] = useState<Record<string, boolean>>({
     image: true,
     video: false,
@@ -848,17 +1042,20 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
       video: data["text-to-video"] ?? [],
       audio: data["text-to-audio"] ?? [],
       voice: data["text-to-speech"] ?? [],
-    } as Record<string, Array<{
-      modelId: string;
-      label: string;
-      provider: string;
-      tier: string;
-      basePoints: number;
-      unit: string;
-      available: boolean;
-      pointsPerSecond?: number;
-      pointsPer1kChars?: number;
-    }>>;
+    } as Record<
+      string,
+      Array<{
+        modelId: string;
+        label: string;
+        provider: string;
+        tier: string;
+        basePoints: number;
+        unit: string;
+        available: boolean;
+        pointsPerSecond?: number;
+        pointsPer1kChars?: number;
+      }>
+    >;
   }, [modelsQuery.data]);
 
   // Get estimated total cost
@@ -891,34 +1088,42 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
     }
   }, [modelsQuery.data, modelOptions]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleGenerate = useCallback((task: GenerationTask) => {
-    if (!task.prompt.trim()) {
-      toast.error(`${task.labelZh}缺少提示詞內容`);
-      return;
-    }
-    const modelId = selectedModels[task.modality];
-    if (!modelId) {
-      toast.error(`請先選擇${task.labelZh}模型`);
-      return;
-    }
+  const handleGenerate = useCallback(
+    (task: GenerationTask) => {
+      if (!task.prompt.trim()) {
+        toast.error(`${task.labelZh}缺少提示詞內容`);
+        return;
+      }
+      const modelId = selectedModels[task.modality];
+      if (!modelId) {
+        toast.error(`請先選擇${task.labelZh}模型`);
+        return;
+      }
 
-    // Send to studio with the specific model override
-    sessionStorage.setItem("sendToStudio", JSON.stringify({
-      prompt: task.prompt,
-      generationType: task.modality,
-      overrideEngine: modelId,
-      // Include context metadata for studio
-      musicStyle: task.modality === "audio" ? task.prompt : undefined,
-      audioScript: task.modality === "voice" ? task.prompt : undefined,
-      segmentContext: {
-        sceneHeading: segment.storyboard.sceneHeading,
-        mood: segment.storyboard.mood,
-        duration: segment.storyboard.duration,
-      },
-    }));
-    navigate("/studio");
-    toast.success(`已發送「${task.labelZh}」到工作室（${selectedModels[task.modality]}）`);
-  }, [selectedModels, segment, navigate]);
+      // Send to studio with the specific model override
+      sessionStorage.setItem(
+        "sendToStudio",
+        JSON.stringify({
+          prompt: task.prompt,
+          generationType: task.modality,
+          overrideEngine: modelId,
+          // Include context metadata for studio
+          musicStyle: task.modality === "audio" ? task.prompt : undefined,
+          audioScript: task.modality === "voice" ? task.prompt : undefined,
+          segmentContext: {
+            sceneHeading: segment.storyboard.sceneHeading,
+            mood: segment.storyboard.mood,
+            duration: segment.storyboard.duration,
+          },
+        })
+      );
+      navigate("/studio");
+      toast.success(
+        `已發送「${task.labelZh}」到工作室（${selectedModels[task.modality]}）`
+      );
+    },
+    [selectedModels, segment, navigate]
+  );
 
   const handleGenerateAll = useCallback(() => {
     const activeTasks = tasks.filter(t => t.enabled && t.prompt.trim());
@@ -936,19 +1141,22 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
       audioScript: t.modality === "voice" ? t.prompt : undefined,
     }));
 
-    sessionStorage.setItem("sendToStudio", JSON.stringify({
-      prompt: activeTasks[0].prompt,
-      generationType: activeTasks[0].modality,
-      overrideEngine: selectedModels[activeTasks[0].modality],
-      musicStyle: activeTasks.find(t => t.modality === "audio")?.prompt,
-      audioScript: activeTasks.find(t => t.modality === "voice")?.prompt,
-      batchTasks: batch,
-      segmentContext: {
-        sceneHeading: segment.storyboard.sceneHeading,
-        mood: segment.storyboard.mood,
-        duration: segment.storyboard.duration,
-      },
-    }));
+    sessionStorage.setItem(
+      "sendToStudio",
+      JSON.stringify({
+        prompt: activeTasks[0].prompt,
+        generationType: activeTasks[0].modality,
+        overrideEngine: selectedModels[activeTasks[0].modality],
+        musicStyle: activeTasks.find(t => t.modality === "audio")?.prompt,
+        audioScript: activeTasks.find(t => t.modality === "voice")?.prompt,
+        batchTasks: batch,
+        segmentContext: {
+          sceneHeading: segment.storyboard.sceneHeading,
+          mood: segment.storyboard.mood,
+          duration: segment.storyboard.duration,
+        },
+      })
+    );
     navigate("/studio");
     toast.success(`已發送 ${activeTasks.length} 個任務到工作室`);
   }, [tasks, selectedModels, segment, navigate]);
@@ -962,7 +1170,10 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
           <Zap className="w-3.5 h-3.5 text-amber-500" />
           快速生成管道
         </h4>
-        <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+        <button
+          onClick={onClose}
+          className="text-muted-foreground hover:text-foreground"
+        >
           <X className="w-3.5 h-3.5" />
         </button>
       </div>
@@ -971,10 +1182,14 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
       <div className="flex items-center gap-2 text-[10px] text-muted-foreground bg-muted/20 rounded-lg px-2.5 py-1.5">
         <Clapperboard className="w-3 h-3 shrink-0" />
         <span className="truncate">
-          #{segment.index + 1} {segment.storyboard.sceneHeading} · {segment.storyboard.mood} · {segment.storyboard.duration}
+          #{segment.index + 1} {segment.storyboard.sceneHeading} ·{" "}
+          {segment.storyboard.mood} · {segment.storyboard.duration}
         </span>
         {!segment.costar && (
-          <Badge variant="outline" className="text-[8px] h-4 px-1 shrink-0 text-amber-600 border-amber-300">
+          <Badge
+            variant="outline"
+            className="text-[8px] h-4 px-1 shrink-0 text-amber-600 border-amber-300"
+          >
             建議先生成 CO-STAR
           </Badge>
         )}
@@ -982,10 +1197,12 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
 
       {/* Generation tasks */}
       <div className="space-y-2.5">
-        {tasks.map((task) => {
+        {tasks.map(task => {
           const TaskIcon = task.icon;
           const models = modelOptions[task.modality] ?? [];
-          const selectedModel = models.find(m => m.modelId === selectedModels[task.modality]);
+          const selectedModel = models.find(
+            m => m.modelId === selectedModels[task.modality]
+          );
           const hasPrompt = !!task.prompt.trim();
 
           return (
@@ -995,19 +1212,24 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
                 "rounded-xl border p-3 transition-all",
                 task.enabled
                   ? "border-border/50 bg-white/40"
-                  : "border-transparent bg-muted/10 opacity-50",
+                  : "border-transparent bg-muted/10 opacity-50"
               )}
             >
               {/* Task header */}
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setEnabledTasks(prev => ({ ...prev, [task.modality]: !prev[task.modality] }))}
+                    onClick={() =>
+                      setEnabledTasks(prev => ({
+                        ...prev,
+                        [task.modality]: !prev[task.modality],
+                      }))
+                    }
                     className={cn(
                       "w-5 h-5 rounded-md border flex items-center justify-center transition-all",
                       task.enabled
                         ? "bg-primary border-primary text-primary-foreground"
-                        : "border-border/50 bg-white/30",
+                        : "border-border/50 bg-white/30"
                     )}
                   >
                     {task.enabled && <CheckCircle2 className="w-3 h-3" />}
@@ -1019,7 +1241,12 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
                   )}
                 </div>
                 {task.enabled && selectedModel && (
-                  <span className={cn("text-[10px] font-medium", TIER_COLORS[selectedModel.tier] ?? "text-muted-foreground")}>
+                  <span
+                    className={cn(
+                      "text-[10px] font-medium",
+                      TIER_COLORS[selectedModel.tier] ?? "text-muted-foreground"
+                    )}
+                  >
                     {selectedModel.basePoints} pts
                   </span>
                 )}
@@ -1036,17 +1263,27 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
 
                   {/* Model selector */}
                   <div className="space-y-1">
-                    <Label className="text-[10px] text-muted-foreground">選擇模型</Label>
+                    <Label className="text-[10px] text-muted-foreground">
+                      選擇模型
+                    </Label>
                     {modelsQuery.isLoading ? (
-                      <div className="text-[10px] text-muted-foreground animate-pulse">載入模型中...</div>
+                      <div className="text-[10px] text-muted-foreground animate-pulse">
+                        載入模型中...
+                      </div>
                     ) : (
                       <div className="flex flex-wrap gap-1">
                         {models.map(m => {
-                          const isSelected = selectedModels[task.modality] === m.modelId;
+                          const isSelected =
+                            selectedModels[task.modality] === m.modelId;
                           return (
                             <button
                               key={m.modelId}
-                              onClick={() => setSelectedModels(prev => ({ ...prev, [task.modality]: m.modelId }))}
+                              onClick={() =>
+                                setSelectedModels(prev => ({
+                                  ...prev,
+                                  [task.modality]: m.modelId,
+                                }))
+                              }
                               disabled={!m.available}
                               className={cn(
                                 "inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium border transition-all",
@@ -1054,12 +1291,17 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
                                   ? "bg-primary text-primary-foreground border-primary shadow-sm"
                                   : m.available
                                     ? "bg-white/50 border-border/40 hover:bg-white/80 text-muted-foreground hover:text-foreground"
-                                    : "bg-muted/20 border-border/20 text-muted-foreground/40 cursor-not-allowed line-through",
+                                    : "bg-muted/20 border-border/20 text-muted-foreground/40 cursor-not-allowed line-through"
                               )}
                               title={`${m.label} — ${m.basePoints} pts/${m.unit}${!m.available ? " (不可用)" : ""}`}
                             >
                               <span>{m.label}</span>
-                              <span className={cn("text-[9px]", TIER_COLORS[m.tier] ?? "")}>
+                              <span
+                                className={cn(
+                                  "text-[9px]",
+                                  TIER_COLORS[m.tier] ?? ""
+                                )}
+                              >
                                 {m.basePoints}pt
                               </span>
                             </button>
@@ -1092,8 +1334,8 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
       {/* Footer: total cost + batch generate */}
       <div className="flex items-center justify-between pt-2 border-t border-border/30">
         <div className="text-[11px] text-muted-foreground">
-          <span className="font-medium">{enabledCount}</span> 個任務 ·
-          預估 <span className="font-semibold text-foreground">{totalCost}</span> pts
+          <span className="font-medium">{enabledCount}</span> 個任務 · 預估{" "}
+          <span className="font-semibold text-foreground">{totalCost}</span> pts
         </div>
         <Button
           size="sm"
@@ -1135,10 +1377,12 @@ const ExportPanel = memo(function ExportPanel({
   ]);
 
   const exportMut = trpc.director.exportScript.useMutation({
-    onSuccess: (data) => {
+    onSuccess: data => {
       const fmtInfo = EXPORT_FORMATS.find(f => f.value === data.format);
       const ext = fmtInfo?.ext ?? ".txt";
-      const blob = new Blob([data.content], { type: "text/plain;charset=utf-8" });
+      const blob = new Blob([data.content], {
+        type: "text/plain;charset=utf-8",
+      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -1149,19 +1393,33 @@ const ExportPanel = memo(function ExportPanel({
       URL.revokeObjectURL(url);
       toast.success(`已匯出為 ${fmtInfo?.label ?? data.format} 格式`);
     },
-    onError: (e) => toast.error("匯出失敗：" + e.message),
+    onError: e => toast.error("匯出失敗：" + e.message),
   });
 
   const handleExport = useCallback(() => {
     exportMut.mutate({
       segments,
-      format: selectedFormat as "json" | "csv" | "markdown" | "fdx" | "srt" | "custom",
+      format: selectedFormat as
+        | "json"
+        | "csv"
+        | "markdown"
+        | "fdx"
+        | "srt"
+        | "custom",
       includeDiscussion,
       includeCostar,
       ...(selectedFormat === "custom" ? { customTemplate } : {}),
       ...(selectedFormat === "csv" ? { customColumns } : {}),
     });
-  }, [segments, selectedFormat, includeDiscussion, includeCostar, customTemplate, customColumns, exportMut]);
+  }, [
+    segments,
+    selectedFormat,
+    includeDiscussion,
+    includeCostar,
+    customTemplate,
+    customColumns,
+    exportMut,
+  ]);
 
   return (
     <GlassCard hover={false} className="space-y-4">
@@ -1170,7 +1428,10 @@ const ExportPanel = memo(function ExportPanel({
           <Download className="w-4 h-4" />
           匯出腳本
         </h3>
-        <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+        <button
+          onClick={onClose}
+          className="text-muted-foreground hover:text-foreground"
+        >
           <X className="w-4 h-4" />
         </button>
       </div>
@@ -1179,7 +1440,7 @@ const ExportPanel = memo(function ExportPanel({
       <div className="space-y-1.5">
         <Label className="text-xs">匯出格式</Label>
         <div className="flex flex-wrap gap-1.5">
-          {EXPORT_FORMATS.map((fmt) => (
+          {EXPORT_FORMATS.map(fmt => (
             <button
               key={fmt.value}
               onClick={() => setSelectedFormat(fmt.value)}
@@ -1187,7 +1448,7 @@ const ExportPanel = memo(function ExportPanel({
                 "px-2.5 py-1.5 rounded-lg text-[11px] font-medium border transition-all",
                 selectedFormat === fmt.value
                   ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-white/50 border-border/50 hover:bg-white/80 text-muted-foreground",
+                  : "bg-white/50 border-border/50 hover:bg-white/80 text-muted-foreground"
               )}
             >
               {fmt.label} ({fmt.ext})
@@ -1204,7 +1465,9 @@ const ExportPanel = memo(function ExportPanel({
             checked={includeDiscussion}
             onCheckedChange={setIncludeDiscussion}
           />
-          <Label htmlFor="inc-discussion" className="text-xs">含討論紀錄</Label>
+          <Label htmlFor="inc-discussion" className="text-xs">
+            含討論紀錄
+          </Label>
         </div>
         <div className="flex items-center gap-2">
           <Switch
@@ -1212,17 +1475,25 @@ const ExportPanel = memo(function ExportPanel({
             checked={includeCostar}
             onCheckedChange={setIncludeCostar}
           />
-          <Label htmlFor="inc-costar" className="text-xs">含 CO-STAR</Label>
+          <Label htmlFor="inc-costar" className="text-xs">
+            含 CO-STAR
+          </Label>
         </div>
       </div>
 
       {/* Custom template editor */}
       {selectedFormat === "custom" && (
         <div className="space-y-1.5">
-          <Label className="text-xs">自訂模板（可用變數：{'{{index}}, {{sceneHeading}}, {{visualDescription}}, {{dialogue}}, {{soundDesign}}, {{cameraDirection}}, {{duration}}, {{mood}}'}）</Label>
+          <Label className="text-xs">
+            自訂模板（可用變數：
+            {
+              "{{index}}, {{sceneHeading}}, {{visualDescription}}, {{dialogue}}, {{soundDesign}}, {{cameraDirection}}, {{duration}}, {{mood}}"
+            }
+            ）
+          </Label>
           <Textarea
             value={customTemplate}
-            onChange={(e) => setCustomTemplate(e.target.value)}
+            onChange={e => setCustomTemplate(e.target.value)}
             className="text-xs min-h-[100px] bg-white/50"
           />
         </div>
@@ -1238,7 +1509,7 @@ const ExportPanel = memo(function ExportPanel({
                 <input
                   type="text"
                   value={col.header}
-                  onChange={(e) => {
+                  onChange={e => {
                     const next = [...customColumns];
                     next[i] = { ...next[i], header: e.target.value };
                     setCustomColumns(next);
@@ -1250,7 +1521,7 @@ const ExportPanel = memo(function ExportPanel({
                 <input
                   type="text"
                   value={col.field}
-                  onChange={(e) => {
+                  onChange={e => {
                     const next = [...customColumns];
                     next[i] = { ...next[i], field: e.target.value };
                     setCustomColumns(next);
@@ -1259,7 +1530,9 @@ const ExportPanel = memo(function ExportPanel({
                   placeholder="欄位名（如 sceneHeading）"
                 />
                 <button
-                  onClick={() => setCustomColumns(customColumns.filter((_, j) => j !== i))}
+                  onClick={() =>
+                    setCustomColumns(customColumns.filter((_, j) => j !== i))
+                  }
                   className="text-muted-foreground hover:text-red-500"
                 >
                   <X className="w-3 h-3" />
@@ -1267,7 +1540,9 @@ const ExportPanel = memo(function ExportPanel({
               </div>
             ))}
             <button
-              onClick={() => setCustomColumns([...customColumns, { header: "", field: "" }])}
+              onClick={() =>
+                setCustomColumns([...customColumns, { header: "", field: "" }])
+              }
               className="text-[10px] text-primary hover:underline"
             >
               + 新增欄位
@@ -1301,38 +1576,41 @@ const ProactiveQuestionBubble = memo(function ProactiveQuestionBubble({
   onDismiss: () => void;
   onUse: (q: string) => void;
 }) {
-  const config = PERSONALITIES.find((p) => p.id === personality) ?? PERSONALITIES[1];
+  const config =
+    PERSONALITIES.find(p => p.id === personality) ?? PERSONALITIES[1];
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 10, scale: 0.95 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -10, scale: 0.95 }}
-      className={cn(
-        "rounded-xl p-3.5 border shadow-sm",
-        config.bgActive,
-      )}
+      className={cn("rounded-xl p-3.5 border shadow-sm", config.bgActive)}
     >
       <div className="flex items-start gap-2.5">
-        <div className={cn(
-          "w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-gradient-to-br text-white",
-          config.color,
-        )}>
+        <div
+          className={cn(
+            "w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-gradient-to-br text-white",
+            config.color
+          )}
+        >
           <MessageCircleQuestion className="w-3.5 h-3.5" />
         </div>
         <div className="flex-1 min-w-0">
-          <span className={cn("text-[10px] font-semibold uppercase tracking-wider", config.textColor)}>
+          <span
+            className={cn(
+              "text-[10px] font-semibold uppercase tracking-wider",
+              config.textColor
+            )}
+          >
             導演主動提問
           </span>
-          <p className="hs-small !mb-0 text-foreground/80 mt-1">
-            {question}
-          </p>
+          <p className="hs-small !mb-0 text-foreground/80 mt-1">{question}</p>
           <button
             onClick={() => onUse(question)}
             className={cn(
               "mt-2 text-[10px] font-medium px-2 py-0.5 rounded-md border transition-colors",
               "hover:bg-white/60 border-current/20",
-              config.textColor,
+              config.textColor
             )}
           >
             用這個問題繼續對話 →
@@ -1376,7 +1654,11 @@ const ScriptCard = memo(function ScriptCard({
           className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
         >
           腳本 #{index + 1}
-          {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+          {expanded ? (
+            <ChevronUp className="w-3 h-3" />
+          ) : (
+            <ChevronDown className="w-3 h-3" />
+          )}
         </button>
         <div className="flex items-center gap-1">
           <Button
@@ -1426,10 +1708,14 @@ const ScriptCard = memo(function ScriptCard({
                 { label: "任務", value: script.task },
                 { label: "行動", value: script.action },
                 { label: "結果", value: script.result },
-              ].map((item) => (
+              ].map(item => (
                 <div key={item.label} className="flex gap-2">
-                  <span className="text-[11px] font-medium text-muted-foreground w-8 shrink-0">{item.label}</span>
-                  <span className="text-xs text-foreground leading-relaxed">{item.value}</span>
+                  <span className="text-[11px] font-medium text-muted-foreground w-8 shrink-0">
+                    {item.label}
+                  </span>
+                  <span className="text-xs text-foreground leading-relaxed">
+                    {item.value}
+                  </span>
                 </div>
               ))}
             </div>
@@ -1437,8 +1723,12 @@ const ScriptCard = memo(function ScriptCard({
             {/* Visual prompt preview */}
             {script.visualPrompt && (
               <div className="mt-2 p-2 rounded-lg bg-muted/30 border border-border/30">
-                <span className="text-[10px] font-medium text-muted-foreground block mb-1">Visual Prompt</span>
-                <p className="hs-small !mb-0 text-foreground/70 line-clamp-3">{script.visualPrompt}</p>
+                <span className="text-[10px] font-medium text-muted-foreground block mb-1">
+                  Visual Prompt
+                </span>
+                <p className="hs-small !mb-0 text-foreground/70 line-clamp-3">
+                  {script.visualPrompt}
+                </p>
               </div>
             )}
 
@@ -1477,40 +1767,59 @@ export default function DirectorAI() {
   // 全站新手引導
   usePageTour("director");
   const [, navigate] = useLocation();
-  const { setAIState, personality: globalPersonality, setPersonality: setGlobalPersonality } = useAIState();
-  const [personality, setPersonality] = useState<Personality>(globalPersonality);
+  const {
+    setAIState,
+    personality: globalPersonality,
+    setPersonality: setGlobalPersonality,
+  } = useAIState();
+  const [personality, setPersonality] =
+    useState<Personality>(globalPersonality);
 
   // ─── Preferences persistence (DB) ─────────────────────────────────────────
-  const prefsQuery = trpc.director.preferences.get.useQuery(undefined, { retry: false });
+  const prefsQuery = trpc.director.preferences.get.useQuery(undefined, {
+    retry: false,
+  });
   const updatePrefs = trpc.director.preferences.update.useMutation({
     onSuccess: () => prefsQuery.refetch(),
-    onError: (err) => toast.error(`偏好儲存失敗：${err.message}`),
+    onError: err => toast.error(`偏好儲存失敗：${err.message}`),
   });
-  const [preferredFormat, setPreferredFormat] = useState<"co-star" | "sslcm" | "selcm" | "free">("co-star");
+  const [preferredFormat, setPreferredFormat] = useState<
+    "co-star" | "sslcm" | "selcm" | "free"
+  >("co-star");
 
   // Sync DB → local state on first load
   useEffect(() => {
     if (prefsQuery.data) {
-      const dbPersonality = (prefsQuery.data.personality as Personality) || "creative";
+      const dbPersonality =
+        (prefsQuery.data.personality as Personality) || "creative";
       setPersonality(dbPersonality);
       setGlobalPersonality(dbPersonality);
-      setPreferredFormat((prefsQuery.data.preferredFormat as typeof preferredFormat) || "co-star");
+      setPreferredFormat(
+        (prefsQuery.data.preferredFormat as typeof preferredFormat) || "co-star"
+      );
     }
   }, [prefsQuery.data, setGlobalPersonality]);
 
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "system",
-      content: PERSONALITY_SYSTEM_PROMPTS[globalPersonality] ?? PERSONALITY_SYSTEM_PROMPTS.creative,
+      content:
+        PERSONALITY_SYSTEM_PROMPTS[globalPersonality] ??
+        PERSONALITY_SYSTEM_PROMPTS.creative,
     },
   ]);
 
   // When personality changes, update the system prompt
   useEffect(() => {
-    setMessages((prev) => {
-      const nonSystem = prev.filter((m) => m.role !== "system");
+    setMessages(prev => {
+      const nonSystem = prev.filter(m => m.role !== "system");
       return [
-        { role: "system", content: PERSONALITY_SYSTEM_PROMPTS[personality] ?? PERSONALITY_SYSTEM_PROMPTS.creative },
+        {
+          role: "system",
+          content:
+            PERSONALITY_SYSTEM_PROMPTS[personality] ??
+            PERSONALITY_SYSTEM_PROMPTS.creative,
+        },
         ...nonSystem,
       ];
     });
@@ -1519,7 +1828,9 @@ export default function DirectorAI() {
   const [saveToNotes, setSaveToNotes] = useState(false);
   const [scripts, setScripts] = useState<CoStarScript[]>([]);
   const [showStoryboard, setShowStoryboard] = useState(!isMobile);
-  const [proactiveQuestion, setProactiveQuestion] = useState<string | null>(null);
+  const [proactiveQuestion, setProactiveQuestion] = useState<string | null>(
+    null
+  );
   const [showTemplates, setShowTemplates] = useState(false);
   const [showSessions, setShowSessions] = useState(false);
   const [refiningIdx, setRefiningIdx] = useState<number | null>(null);
@@ -1528,21 +1839,29 @@ export default function DirectorAI() {
   const [activeTab, setActiveTab] = useState<string>("chat");
   const [importedSegments, setImportedSegments] = useState<ScriptSegment[]>([]);
   const [importedTitle, setImportedTitle] = useState("");
-  const [selectedSegmentIdx, setSelectedSegmentIdx] = useState<number | null>(null);
+  const [selectedSegmentIdx, setSelectedSegmentIdx] = useState<number | null>(
+    null
+  );
   const [showExport, setShowExport] = useState(false);
-  const [scriptOverview, setScriptOverview] = useState<ScriptOverview | null>(null);
+  const [scriptOverview, setScriptOverview] = useState<ScriptOverview | null>(
+    null
+  );
   const [showOverview, setShowOverview] = useState(false);
 
   // ─── tRPC hooks ──────────────────────────────────────────────────────────
 
-  const templatesQuery = trpc.director.templates.useQuery(undefined, { staleTime: Infinity });
-  const sessionsQuery = trpc.director.listSessions.useQuery(undefined, { enabled: showSessions });
+  const templatesQuery = trpc.director.templates.useQuery(undefined, {
+    staleTime: Infinity,
+  });
+  const sessionsQuery = trpc.director.listSessions.useQuery(undefined, {
+    enabled: showSessions,
+  });
   const saveSessionMut = trpc.director.saveSession.useMutation({
     onSuccess: () => {
       toast.success("對話已儲存");
       sessionsQuery.refetch();
     },
-    onError: (e) => toast.error("儲存失敗：" + e.message),
+    onError: e => toast.error("儲存失敗：" + e.message),
   });
   const deleteSessionMut = trpc.director.deleteSession.useMutation({
     onSuccess: () => sessionsQuery.refetch(),
@@ -1554,62 +1873,69 @@ export default function DirectorAI() {
     enabled: activeTab === "script",
   });
   const importScriptMut = trpc.director.importScript.useMutation({
-    onSuccess: (data) => {
+    onSuccess: data => {
       setImportedSegments(data.segments);
       setImportedTitle(data.title);
       if (data.segments.length > 0) {
         setSelectedSegmentIdx(0);
       }
-      toast.success(`已匯入「${data.title}」— 分析出 ${data.segments.length} 個分鏡段落`);
+      toast.success(
+        `已匯入「${data.title}」— 分析出 ${data.segments.length} 個分鏡段落`
+      );
     },
-    onError: (e) => toast.error("匯入失敗：" + e.message),
+    onError: e => toast.error("匯入失敗：" + e.message),
   });
 
   // CO-STAR generation for individual segments
   const generateCostarMut = trpc.director.generateSegmentCostar.useMutation({
     onSuccess: (data, vars) => {
-      setImportedSegments(prev => prev.map(s =>
-        s.id === vars.segment.id ? { ...s, costar: data as CoStarScript } : s
-      ));
+      setImportedSegments(prev =>
+        prev.map(s =>
+          s.id === vars.segment.id ? { ...s, costar: data as CoStarScript } : s
+        )
+      );
       toast.success("CO-STAR 已生成");
     },
-    onError: (e) => toast.error("CO-STAR 生成失敗：" + e.message),
+    onError: e => toast.error("CO-STAR 生成失敗：" + e.message),
   });
 
   // Batch CO-STAR generation
   const batchCostarMut = trpc.director.batchGenerateCostar.useMutation({
-    onSuccess: (data) => {
+    onSuccess: data => {
       const results = data.results ?? {};
-      setImportedSegments(prev => prev.map(s => {
-        const entry = results[s.id];
-        if (!entry || typeof entry !== "object" || !("context" in entry)) return s;
-        return { ...s, costar: entry as unknown as CoStarScript };
-      }));
+      setImportedSegments(prev =>
+        prev.map(s => {
+          const entry = results[s.id];
+          if (!entry || typeof entry !== "object" || !("context" in entry))
+            return s;
+          return { ...s, costar: entry as unknown as CoStarScript };
+        })
+      );
       const count = Object.keys(results).length;
       toast.success(`已批次生成 ${count} 個 CO-STAR`);
     },
-    onError: (e) => toast.error("批次生成失敗：" + e.message),
+    onError: e => toast.error("批次生成失敗：" + e.message),
   });
 
   // Script overview analysis
   const overviewMut = trpc.director.analyzeScriptOverview.useMutation({
-    onSuccess: (data) => {
+    onSuccess: data => {
       setScriptOverview(data as ScriptOverview);
       setShowOverview(true);
       toast.success("腳本全局分析完成");
     },
-    onError: (e) => toast.error("分析失敗：" + e.message),
+    onError: e => toast.error("分析失敗：" + e.message),
   });
 
   const chatMutation = trpc.director.chat.useMutation({
     onMutate: () => setAIState("thinking"),
-    onSuccess: (data) => {
+    onSuccess: data => {
       setAIState("idle");
       const scriptSummary = data.script
         ? `\n\n---\n**CO-STAR 腳本已生成**\n\n| 欄位 | 內容 |\n|------|------|\n| 背景 | ${data.script.context} |\n| 情境 | ${data.script.situation} |\n| 任務 | ${data.script.task} |\n| 行動 | ${data.script.action} |\n| 結果 | ${data.script.result} |\n\n**視覺提示詞：** ${data.script.visualPrompt}\n\n**語音腳本：** ${data.script.audioScript}\n\n**音樂風格：** ${data.script.musicVibe}`
         : "";
 
-      setMessages((prev) => [
+      setMessages(prev => [
         ...prev,
         {
           role: "assistant",
@@ -1617,7 +1943,7 @@ export default function DirectorAI() {
         },
       ]);
       if (data.script) {
-        setScripts((prev) => [...prev, data.script as CoStarScript]);
+        setScripts(prev => [...prev, data.script as CoStarScript]);
         if (!showStoryboard && !isMobile) setShowStoryboard(true);
         if (data.script.proactiveQuestion) {
           setProactiveQuestion(data.script.proactiveQuestion);
@@ -1627,7 +1953,7 @@ export default function DirectorAI() {
         toast.success("腳本已儲存至專案筆記");
       }
     },
-    onError: (error) => {
+    onError: error => {
       setAIState("idle");
       toast.error(error.message);
     },
@@ -1636,7 +1962,7 @@ export default function DirectorAI() {
   const refineMutation = trpc.director.refineScript.useMutation({
     onSuccess: (data, vars) => {
       if (refiningIdx !== null) {
-        setScripts((prev) => {
+        setScripts(prev => {
           const next = [...prev];
           next[refiningIdx] = data as CoStarScript;
           return next;
@@ -1645,7 +1971,7 @@ export default function DirectorAI() {
       }
       setRefiningIdx(null);
     },
-    onError: (e) => {
+    onError: e => {
       toast.error("微調失敗：" + e.message);
       setRefiningIdx(null);
     },
@@ -1653,39 +1979,50 @@ export default function DirectorAI() {
 
   // ─── Handlers ────────────────────────────────────────────────────────────
 
-  const handleSend = useCallback((content: string) => {
-    setProactiveQuestion(null);
-    const newMessages: Message[] = [
-      ...messages,
-      { role: "user", content },
-    ];
-    setMessages(newMessages);
-    chatMutation.mutate({
-      messages: newMessages
-        .filter((m) => m.role !== "system")
-        .map((m) => ({ role: m.role, content: m.content })),
-      saveToNotes,
-      personality,
-    });
-  }, [messages, saveToNotes, personality, chatMutation]);
+  const handleSend = useCallback(
+    (content: string) => {
+      setProactiveQuestion(null);
+      const newMessages: Message[] = [...messages, { role: "user", content }];
+      setMessages(newMessages);
+      chatMutation.mutate({
+        messages: newMessages
+          .filter(m => m.role !== "system")
+          .map(m => ({ role: m.role, content: m.content })),
+        saveToNotes,
+        personality,
+      });
+    },
+    [messages, saveToNotes, personality, chatMutation]
+  );
 
-  const handleSendToStudio = useCallback((script: CoStarScript) => {
-    sessionStorage.setItem("sendToStudio", JSON.stringify({
-      prompt: script.visualPrompt,
-      generationType: "multimodal",
-      musicStyle: script.musicVibe,
-      audioScript: script.audioScript,
-    }));
-    navigate("/studio");
-    toast.success("腳本已發送到工作室");
-  }, [navigate]);
+  const handleSendToStudio = useCallback(
+    (script: CoStarScript) => {
+      sessionStorage.setItem(
+        "sendToStudio",
+        JSON.stringify({
+          prompt: script.visualPrompt,
+          generationType: "multimodal",
+          musicStyle: script.musicVibe,
+          audioScript: script.audioScript,
+        })
+      );
+      navigate("/studio");
+      toast.success("腳本已發送到工作室");
+    },
+    [navigate]
+  );
 
-  const handleRefineScript = useCallback((script: CoStarScript, idx: number) => {
-    const instruction = window.prompt("請輸入修改指示（例如：讓氛圍更溫暖、加入慢動作鏡頭）");
-    if (!instruction?.trim()) return;
-    setRefiningIdx(idx);
-    refineMutation.mutate({ script, instruction, personality });
-  }, [personality, refineMutation]);
+  const handleRefineScript = useCallback(
+    (script: CoStarScript, idx: number) => {
+      const instruction = window.prompt(
+        "請輸入修改指示（例如：讓氛圍更溫暖、加入慢動作鏡頭）"
+      );
+      if (!instruction?.trim()) return;
+      setRefiningIdx(idx);
+      refineMutation.mutate({ script, instruction, personality });
+    },
+    [personality, refineMutation]
+  );
 
   const handleCopyScript = useCallback((script: CoStarScript) => {
     const text = [
@@ -1698,11 +2035,16 @@ export default function DirectorAI() {
       `【語音腳本】${script.audioScript}`,
       `【音樂風格】${script.musicVibe}`,
     ].join("\n");
-    navigator.clipboard.writeText(text).then(() => toast.success("已複製到剪貼簿"));
+    navigator.clipboard
+      .writeText(text)
+      .then(() => toast.success("已複製到剪貼簿"));
   }, []);
 
   const handleSaveSession = useCallback(() => {
-    const title = window.prompt("為這段對話命名", `導演對話 ${new Date().toLocaleDateString("zh-TW")}`);
+    const title = window.prompt(
+      "為這段對話命名",
+      `導演對話 ${new Date().toLocaleDateString("zh-TW")}`
+    );
     if (!title?.trim()) return;
     const sessionData = JSON.stringify({
       messages: messages.filter(m => m.role !== "system"),
@@ -1712,81 +2054,111 @@ export default function DirectorAI() {
     saveSessionMut.mutate({ title, sessionData, personality });
   }, [messages, scripts, personality, saveSessionMut]);
 
-  const handleLoadSession = useCallback((sessionData: string) => {
-    try {
-      const data = JSON.parse(sessionData);
-      if (data.personality) {
-        setPersonality(data.personality);
-        setGlobalPersonality(data.personality);
+  const handleLoadSession = useCallback(
+    (sessionData: string) => {
+      try {
+        const data = JSON.parse(sessionData);
+        if (data.personality) {
+          setPersonality(data.personality);
+          setGlobalPersonality(data.personality);
+        }
+        if (Array.isArray(data.messages)) {
+          setMessages([
+            {
+              role: "system",
+              content:
+                PERSONALITY_SYSTEM_PROMPTS[data.personality as Personality] ??
+                PERSONALITY_SYSTEM_PROMPTS.creative,
+            },
+            ...data.messages,
+          ]);
+        }
+        if (Array.isArray(data.scripts)) {
+          setScripts(data.scripts);
+        }
+        setShowSessions(false);
+        toast.success("對話已載入");
+      } catch {
+        toast.error("載入失敗");
       }
-      if (Array.isArray(data.messages)) {
-        setMessages([
-          { role: "system", content: PERSONALITY_SYSTEM_PROMPTS[data.personality as Personality] ?? PERSONALITY_SYSTEM_PROMPTS.creative },
-          ...data.messages,
-        ]);
-      }
-      if (Array.isArray(data.scripts)) {
-        setScripts(data.scripts);
-      }
-      setShowSessions(false);
-      toast.success("對話已載入");
-    } catch {
-      toast.error("載入失敗");
-    }
-  }, [setGlobalPersonality]);
+    },
+    [setGlobalPersonality]
+  );
 
-  const handleUseTemplate = useCallback((prompt: string, templatePersonality: Personality) => {
-    setPersonality(templatePersonality);
-    setGlobalPersonality(templatePersonality);
-    setShowTemplates(false);
-    // Trigger send after a short delay so personality state settles
-    setTimeout(() => handleSend(prompt), 50);
-  }, [setGlobalPersonality, handleSend]);
+  const handleUseTemplate = useCallback(
+    (prompt: string, templatePersonality: Personality) => {
+      setPersonality(templatePersonality);
+      setGlobalPersonality(templatePersonality);
+      setShowTemplates(false);
+      // Trigger send after a short delay so personality state settles
+      setTimeout(() => handleSend(prompt), 50);
+    },
+    [setGlobalPersonality, handleSend]
+  );
 
   // ─── Script Analysis Handlers ───────────────────────────────────────────
 
-  const handleImportScript = useCallback((content: string, title: string, format: string) => {
-    importScriptMut.mutate({
-      rawContent: content,
-      title,
-      sourceFormat: format,
-      personality,
-    });
-  }, [personality, importScriptMut]);
+  const handleImportScript = useCallback(
+    (content: string, title: string, format: string) => {
+      importScriptMut.mutate({
+        rawContent: content,
+        title,
+        sourceFormat: format,
+        personality,
+      });
+    },
+    [personality, importScriptMut]
+  );
 
   const handleUpdateSegment = useCallback((updated: ScriptSegment) => {
-    setImportedSegments(prev => prev.map(s => s.id === updated.id ? updated : s));
+    setImportedSegments(prev =>
+      prev.map(s => (s.id === updated.id ? updated : s))
+    );
   }, []);
 
-  const handleSegmentStatusChange = useCallback((segId: string, status: ScriptSegment["status"]) => {
-    setImportedSegments(prev => prev.map(s => s.id === segId ? { ...s, status } : s));
-  }, []);
+  const handleSegmentStatusChange = useCallback(
+    (segId: string, status: ScriptSegment["status"]) => {
+      setImportedSegments(prev =>
+        prev.map(s => (s.id === segId ? { ...s, status } : s))
+      );
+    },
+    []
+  );
 
-  const handleNavigateSegment = useCallback((direction: "prev" | "next") => {
-    setSelectedSegmentIdx(prev => {
-      if (prev === null) return null;
-      const next = direction === "prev" ? prev - 1 : prev + 1;
-      if (next < 0 || next >= importedSegments.length) return prev;
-      return next;
-    });
-  }, [importedSegments.length]);
+  const handleNavigateSegment = useCallback(
+    (direction: "prev" | "next") => {
+      setSelectedSegmentIdx(prev => {
+        if (prev === null) return null;
+        const next = direction === "prev" ? prev - 1 : prev + 1;
+        if (next < 0 || next >= importedSegments.length) return prev;
+        return next;
+      });
+    },
+    [importedSegments.length]
+  );
 
-  const handleGenerateCostar = useCallback((segmentId: string) => {
-    const seg = importedSegments.find(s => s.id === segmentId);
-    if (!seg) return;
-    generateCostarMut.mutate({
-      segment: {
-        id: seg.id,
-        index: seg.index,
-        rawText: seg.rawText,
-        storyboard: seg.storyboard,
-        discussion: seg.discussion.map(d => ({ role: d.role, content: d.content })),
-        characters: seg.characters,
-        locations: seg.locations,
-      },
-      personality,
-    });
-  }, [importedSegments, personality, generateCostarMut]);
+  const handleGenerateCostar = useCallback(
+    (segmentId: string) => {
+      const seg = importedSegments.find(s => s.id === segmentId);
+      if (!seg) return;
+      generateCostarMut.mutate({
+        segment: {
+          id: seg.id,
+          index: seg.index,
+          rawText: seg.rawText,
+          storyboard: seg.storyboard,
+          discussion: seg.discussion.map(d => ({
+            role: d.role,
+            content: d.content,
+          })),
+          characters: seg.characters,
+          locations: seg.locations,
+        },
+        personality,
+      });
+    },
+    [importedSegments, personality, generateCostarMut]
+  );
 
   const handleBatchCostar = useCallback(() => {
     const segmentsWithoutCostar = importedSegments.filter(s => !s.costar);
@@ -1817,25 +2189,30 @@ export default function DirectorAI() {
     });
   }, [importedSegments, personality, overviewMut]);
 
-  const handleMoveSegment = useCallback((fromIdx: number, direction: "up" | "down") => {
-    const toIdx = direction === "up" ? fromIdx - 1 : fromIdx + 1;
-    if (toIdx < 0 || toIdx >= importedSegments.length) return;
-    setImportedSegments(prev => {
-      const next = [...prev];
-      [next[fromIdx], next[toIdx]] = [next[toIdx], next[fromIdx]];
-      // Reassign indices
-      return next.map((s, i) => ({ ...s, index: i }));
-    });
-    // Follow selection
-    if (selectedSegmentIdx === fromIdx) setSelectedSegmentIdx(toIdx);
-    else if (selectedSegmentIdx === toIdx) setSelectedSegmentIdx(fromIdx);
-  }, [importedSegments.length, selectedSegmentIdx]);
+  const handleMoveSegment = useCallback(
+    (fromIdx: number, direction: "up" | "down") => {
+      const toIdx = direction === "up" ? fromIdx - 1 : fromIdx + 1;
+      if (toIdx < 0 || toIdx >= importedSegments.length) return;
+      setImportedSegments(prev => {
+        const next = [...prev];
+        [next[fromIdx], next[toIdx]] = [next[toIdx], next[fromIdx]];
+        // Reassign indices
+        return next.map((s, i) => ({ ...s, index: i }));
+      });
+      // Follow selection
+      if (selectedSegmentIdx === fromIdx) setSelectedSegmentIdx(toIdx);
+      else if (selectedSegmentIdx === toIdx) setSelectedSegmentIdx(fromIdx);
+    },
+    [importedSegments.length, selectedSegmentIdx]
+  );
 
   // ─── Memoized values ─────────────────────────────────────────────────────
 
   const scriptStats = useMemo(() => {
     if (importedSegments.length === 0) return null;
-    const approved = importedSegments.filter(s => s.status === "approved").length;
+    const approved = importedSegments.filter(
+      s => s.status === "approved"
+    ).length;
     const refined = importedSegments.filter(s => s.status === "refined").length;
     const withCostar = importedSegments.filter(s => !!s.costar).length;
     const moods = new Map<string, number>();
@@ -1843,19 +2220,28 @@ export default function DirectorAI() {
       const m = s.storyboard.mood;
       if (m) moods.set(m, (moods.get(m) ?? 0) + 1);
     });
-    return { approved, refined, withCostar, total: importedSegments.length, moods };
+    return {
+      approved,
+      refined,
+      withCostar,
+      total: importedSegments.length,
+      moods,
+    };
   }, [importedSegments]);
 
   const currentPersonality = useMemo(
-    () => PERSONALITIES.find((p) => p.id === personality) ?? PERSONALITIES[1],
-    [personality],
+    () => PERSONALITIES.find(p => p.id === personality) ?? PERSONALITIES[1],
+    [personality]
   );
 
-  const suggestedPrompts = useMemo(() => [
-    "幫我構思一部創意短片",
-    "我想製作一段冥想引導音頻",
-    "設計一個品牌宣傳影片腳本",
-  ], []);
+  const suggestedPrompts = useMemo(
+    () => [
+      "幫我構思一部創意短片",
+      "我想製作一段冥想引導音頻",
+      "設計一個品牌宣傳影片腳本",
+    ],
+    []
+  );
 
   const hasConversation = messages.filter(m => m.role !== "system").length > 0;
 
@@ -1866,10 +2252,13 @@ export default function DirectorAI() {
         <div className="flex items-center gap-3">
           <Clapperboard className="w-5 h-5 text-muted-foreground" />
           <h1 className="hs-h2 !mb-0">導演 AI</h1>
-          <span className={cn(
-            "inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full",
-            currentPersonality.bgActive, currentPersonality.textColor,
-          )}>
+          <span
+            className={cn(
+              "inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full",
+              currentPersonality.bgActive,
+              currentPersonality.textColor
+            )}
+          >
             <currentPersonality.icon className="w-3 h-3" />
             {currentPersonality.label}
           </span>
@@ -1880,7 +2269,10 @@ export default function DirectorAI() {
             variant="outline"
             size="sm"
             className="rounded-xl text-xs gap-1"
-            onClick={() => { setShowTemplates(!showTemplates); setShowSessions(false); }}
+            onClick={() => {
+              setShowTemplates(!showTemplates);
+              setShowSessions(false);
+            }}
           >
             <BookTemplate className="w-3.5 h-3.5" />
             {isMobile ? "" : "模板"}
@@ -1890,7 +2282,10 @@ export default function DirectorAI() {
             variant="outline"
             size="sm"
             className="rounded-xl text-xs gap-1"
-            onClick={() => { setShowSessions(!showSessions); setShowTemplates(false); }}
+            onClick={() => {
+              setShowSessions(!showSessions);
+              setShowTemplates(false);
+            }}
           >
             <FolderOpen className="w-3.5 h-3.5" />
             {isMobile ? "" : "對話紀錄"}
@@ -1945,24 +2340,42 @@ export default function DirectorAI() {
                   <BookTemplate className="w-4 h-4" />
                   模板庫 — 快速開始
                 </h3>
-                <button onClick={() => setShowTemplates(false)} className="text-muted-foreground hover:text-foreground">
+                <button
+                  onClick={() => setShowTemplates(false)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
                   <X className="w-4 h-4" />
                 </button>
               </div>
-              <div className={cn("grid gap-2", isMobile ? "grid-cols-1" : "grid-cols-2 lg:grid-cols-3")}>
-                {(templatesQuery.data ?? []).map((t) => {
-                  const pConfig = PERSONALITIES.find(p => p.id === t.personality) ?? PERSONALITIES[1];
+              <div
+                className={cn(
+                  "grid gap-2",
+                  isMobile ? "grid-cols-1" : "grid-cols-2 lg:grid-cols-3"
+                )}
+              >
+                {(templatesQuery.data ?? []).map(t => {
+                  const pConfig =
+                    PERSONALITIES.find(p => p.id === t.personality) ??
+                    PERSONALITIES[1];
                   return (
                     <button
                       key={t.id}
-                      onClick={() => handleUseTemplate(t.prompt, t.personality as Personality)}
+                      onClick={() =>
+                        handleUseTemplate(
+                          t.prompt,
+                          t.personality as Personality
+                        )
+                      }
                       className="text-left rounded-xl border border-border/50 p-3 hover:bg-white/60 transition-all group"
                     >
                       <div className="flex items-center gap-2 mb-1.5">
-                        <span className={cn(
-                          "text-[10px] font-medium px-1.5 py-0.5 rounded",
-                          pConfig.bgActive, pConfig.textColor,
-                        )}>
+                        <span
+                          className={cn(
+                            "text-[10px] font-medium px-1.5 py-0.5 rounded",
+                            pConfig.bgActive,
+                            pConfig.textColor
+                          )}
+                        >
                           {CATEGORY_LABELS[t.category] ?? t.category}
                         </span>
                         <span className="text-xs font-semibold group-hover:text-primary transition-colors">
@@ -1996,12 +2409,17 @@ export default function DirectorAI() {
                   <FolderOpen className="w-4 h-4" />
                   已儲存對話
                 </h3>
-                <button onClick={() => setShowSessions(false)} className="text-muted-foreground hover:text-foreground">
+                <button
+                  onClick={() => setShowSessions(false)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
                   <X className="w-4 h-4" />
                 </button>
               </div>
               {sessionsQuery.isLoading && (
-                <p className="hs-small !mb-0 text-muted-foreground py-4 text-center">載入中...</p>
+                <p className="hs-small !mb-0 text-muted-foreground py-4 text-center">
+                  載入中...
+                </p>
               )}
               {sessionsQuery.data?.length === 0 && (
                 <p className="hs-small !mb-0 text-muted-foreground py-4 text-center">
@@ -2009,12 +2427,12 @@ export default function DirectorAI() {
                 </p>
               )}
               <div className="space-y-2 max-h-48 overflow-y-auto">
-                {(sessionsQuery.data ?? []).map((s) => (
+                {(sessionsQuery.data ?? []).map(s => (
                   <SessionItem
                     key={s.id}
                     session={s}
                     onLoad={handleLoadSession}
-                    onDelete={(id) => deleteSessionMut.mutate({ id })}
+                    onDelete={id => deleteSessionMut.mutate({ id })}
                   />
                 ))}
               </div>
@@ -2030,7 +2448,7 @@ export default function DirectorAI() {
           導演偏好
         </h3>
         <div className={cn("flex gap-2", isMobile && "flex-col")}>
-          {PERSONALITIES.map((p) => {
+          {PERSONALITIES.map(p => {
             const isActive = personality === p.id;
             const Icon = p.icon;
             return (
@@ -2045,20 +2463,24 @@ export default function DirectorAI() {
                   "flex-1 rounded-xl p-3 transition-all border text-left",
                   isActive
                     ? cn(p.bgActive, "ring-2 shadow-sm")
-                    : "bg-white/40 border-white/60 hover:bg-white/60",
+                    : "bg-white/40 border-white/60 hover:bg-white/60"
                 )}
               >
                 <div className="flex items-center gap-2 mb-1">
-                  <div className={cn(
-                    "w-6 h-6 rounded-lg flex items-center justify-center bg-gradient-to-br text-white",
-                    p.color,
-                  )}>
+                  <div
+                    className={cn(
+                      "w-6 h-6 rounded-lg flex items-center justify-center bg-gradient-to-br text-white",
+                      p.color
+                    )}
+                  >
                     <Icon className="w-3.5 h-3.5" />
                   </div>
-                  <span className={cn(
-                    "text-xs font-semibold",
-                    isActive ? p.textColor : "text-foreground",
-                  )}>
+                  <span
+                    className={cn(
+                      "text-xs font-semibold",
+                      isActive ? p.textColor : "text-foreground"
+                    )}
+                  >
                     {p.label}
                   </span>
                 </div>
@@ -2072,14 +2494,18 @@ export default function DirectorAI() {
 
         {/* Preferred Framework */}
         <div>
-          <span className="text-[10px] font-medium text-muted-foreground block mb-2">偏好框架</span>
+          <span className="text-[10px] font-medium text-muted-foreground block mb-2">
+            偏好框架
+          </span>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {([
-              { value: "co-star", label: "CO-STAR" },
-              { value: "sslcm", label: "SSLCM" },
-              { value: "selcm", label: "SELCM" },
-              { value: "free", label: "自由格式" },
-            ] as const).map((opt) => (
+            {(
+              [
+                { value: "co-star", label: "CO-STAR" },
+                { value: "sslcm", label: "SSLCM" },
+                { value: "selcm", label: "SELCM" },
+                { value: "free", label: "自由格式" },
+              ] as const
+            ).map(opt => (
               <button
                 key={opt.value}
                 onClick={() => {
@@ -2090,7 +2516,7 @@ export default function DirectorAI() {
                   "p-2.5 rounded-lg text-center text-xs font-medium transition-all border",
                   preferredFormat === opt.value
                     ? "bg-primary/10 text-primary border-primary/30"
-                    : "bg-white/30 text-muted-foreground border-white/50 hover:bg-white/50",
+                    : "bg-white/30 text-muted-foreground border-white/50 hover:bg-white/50"
                 )}
               >
                 {opt.label}
@@ -2101,17 +2527,28 @@ export default function DirectorAI() {
       </GlassCard>
 
       <p className="hs-small !mb-0 text-muted-foreground">
-        雙引擎 RAG（事實研究 + CO-STAR 創意編排）— 腳本可一鍵發送到工作室，也可微調修改
+        雙引擎 RAG（事實研究 + CO-STAR 創意編排）—
+        腳本可一鍵發送到工作室，也可微調修改
       </p>
 
       {/* Main Tab System */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      <Tabs
+        value={activeTab}
+        onValueChange={setActiveTab}
+        className="space-y-4"
+      >
         <TabsList className="bg-white/50 border border-border/30 rounded-xl p-1">
-          <TabsTrigger value="chat" className="rounded-lg text-xs gap-1.5 data-[state=active]:shadow-sm">
+          <TabsTrigger
+            value="chat"
+            className="rounded-lg text-xs gap-1.5 data-[state=active]:shadow-sm"
+          >
             <MessageSquare className="w-3.5 h-3.5" />
             對話模式
           </TabsTrigger>
-          <TabsTrigger value="script" className="rounded-lg text-xs gap-1.5 data-[state=active]:shadow-sm">
+          <TabsTrigger
+            value="script"
+            className="rounded-lg text-xs gap-1.5 data-[state=active]:shadow-sm"
+          >
             <FileText className="w-3.5 h-3.5" />
             腳本分析
             {importedSegments.length > 0 && (
@@ -2131,7 +2568,10 @@ export default function DirectorAI() {
                 question={proactiveQuestion}
                 personality={personality}
                 onDismiss={() => setProactiveQuestion(null)}
-                onUse={(q) => { setProactiveQuestion(null); handleSend(q); }}
+                onUse={q => {
+                  setProactiveQuestion(null);
+                  handleSend(q);
+                }}
               />
             )}
           </AnimatePresence>
@@ -2139,7 +2579,9 @@ export default function DirectorAI() {
           {/* Split-Screen Layout */}
           <div className="flex gap-5">
             {/* Left: Chat Panel */}
-            <div className={`flex-1 transition-all ${showStoryboard && !isMobile ? "max-w-[55%]" : ""}`}>
+            <div
+              className={`flex-1 transition-all ${showStoryboard && !isMobile ? "max-w-[55%]" : ""}`}
+            >
               {/* Orb thinking indicator above chat */}
               {chatMutation.isPending && (
                 <motion.div
@@ -2148,8 +2590,14 @@ export default function DirectorAI() {
                   exit={{ opacity: 0 }}
                   className="flex items-center gap-2 mb-2 px-1"
                 >
-                  <VisualSoul size="sm" personality={personality} state="thinking" />
-                  <span className="text-xs text-muted-foreground animate-pulse">導演 AI 正在思考中...</span>
+                  <VisualSoul
+                    size="sm"
+                    personality={personality}
+                    state="thinking"
+                  />
+                  <span className="text-xs text-muted-foreground animate-pulse">
+                    導演 AI 正在思考中...
+                  </span>
                 </motion.div>
               )}
               <AIChatBox
@@ -2157,7 +2605,9 @@ export default function DirectorAI() {
                 onSendMessage={handleSend}
                 isLoading={chatMutation.isPending}
                 placeholder="描述你的創作構想...（Ctrl+Enter 發送）"
-                height={isMobile ? "calc(100vh - 480px)" : "calc(100vh - 400px)"}
+                height={
+                  isMobile ? "calc(100vh - 480px)" : "calc(100vh - 400px)"
+                }
                 emptyStateMessage="告訴導演 AI 你的創作構想，或從模板庫選擇一個起點"
                 suggestedPrompts={suggestedPrompts}
               />
@@ -2203,7 +2653,9 @@ export default function DirectorAI() {
                               onSendToStudio={handleSendToStudio}
                               onRefine={handleRefineScript}
                               onCopy={handleCopyScript}
-                              isRefining={refiningIdx === idx && refineMutation.isPending}
+                              isRefining={
+                                refiningIdx === idx && refineMutation.isPending
+                              }
                             />
                           ))}
                         </div>
@@ -2260,10 +2712,16 @@ export default function DirectorAI() {
                   </Badge>
                   {scriptStats && (
                     <>
-                      <Badge variant="outline" className="text-[10px] bg-green-50 text-green-700 border-green-200">
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] bg-green-50 text-green-700 border-green-200"
+                      >
                         {scriptStats.approved} 已確認
                       </Badge>
-                      <Badge variant="outline" className="text-[10px] bg-purple-50 text-purple-700 border-purple-200">
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] bg-purple-50 text-purple-700 border-purple-200"
+                      >
                         {scriptStats.withCostar}/{scriptStats.total} CO-STAR
                       </Badge>
                     </>
@@ -2341,48 +2799,83 @@ export default function DirectorAI() {
                           <BarChart3 className="w-4 h-4" />
                           全局分析
                         </h3>
-                        <button onClick={() => setShowOverview(false)} className="text-muted-foreground hover:text-foreground">
+                        <button
+                          onClick={() => setShowOverview(false)}
+                          className="text-muted-foreground hover:text-foreground"
+                        >
                           <X className="w-4 h-4" />
                         </button>
                       </div>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-[11px]">
                         <div className="p-2 rounded-lg bg-blue-50/50 border border-blue-100">
-                          <span className="text-blue-600 font-semibold block text-[10px]">總時長</span>
-                          <span className="text-blue-800 font-bold">{scriptOverview.totalDuration}</span>
+                          <span className="text-blue-600 font-semibold block text-[10px]">
+                            總時長
+                          </span>
+                          <span className="text-blue-800 font-bold">
+                            {scriptOverview.totalDuration}
+                          </span>
                         </div>
                         <div className="p-2 rounded-lg bg-purple-50/50 border border-purple-100">
-                          <span className="text-purple-600 font-semibold block text-[10px]">核心主題</span>
-                          <span className="text-purple-800">{scriptOverview.themes.join("、")}</span>
+                          <span className="text-purple-600 font-semibold block text-[10px]">
+                            核心主題
+                          </span>
+                          <span className="text-purple-800">
+                            {scriptOverview.themes.join("、")}
+                          </span>
                         </div>
                         <div className="p-2 rounded-lg bg-green-50/50 border border-green-100">
-                          <span className="text-green-600 font-semibold block text-[10px]">角色數</span>
-                          <span className="text-green-800 font-bold">{scriptOverview.characters.length}</span>
+                          <span className="text-green-600 font-semibold block text-[10px]">
+                            角色數
+                          </span>
+                          <span className="text-green-800 font-bold">
+                            {scriptOverview.characters.length}
+                          </span>
                         </div>
                         <div className="p-2 rounded-lg bg-amber-50/50 border border-amber-100">
-                          <span className="text-amber-600 font-semibold block text-[10px]">場景數</span>
-                          <span className="text-amber-800 font-bold">{scriptOverview.locations.length}</span>
+                          <span className="text-amber-600 font-semibold block text-[10px]">
+                            場景數
+                          </span>
+                          <span className="text-amber-800 font-bold">
+                            {scriptOverview.locations.length}
+                          </span>
                         </div>
                       </div>
                       {/* Characters */}
                       {scriptOverview.characters.length > 0 && (
                         <div className="space-y-1">
-                          <span className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1"><Users className="w-3 h-3" /> 角色分佈</span>
+                          <span className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1">
+                            <Users className="w-3 h-3" /> 角色分佈
+                          </span>
                           <div className="flex flex-wrap gap-1.5">
                             {scriptOverview.characters.map(c => (
-                              <span key={c.name} className="text-[10px] px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
-                                {c.name} <span className="text-blue-400">({c.segmentIndices.length}段)</span>
+                              <span
+                                key={c.name}
+                                className="text-[10px] px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200"
+                              >
+                                {c.name}{" "}
+                                <span className="text-blue-400">
+                                  ({c.segmentIndices.length}段)
+                                </span>
                               </span>
                             ))}
                           </div>
                         </div>
                       )}
                       {/* Mood distribution */}
-                      {Object.keys(scriptOverview.moodDistribution).length > 0 && (
+                      {Object.keys(scriptOverview.moodDistribution).length >
+                        0 && (
                         <div className="space-y-1">
-                          <span className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1"><Tag className="w-3 h-3" /> 氛圍分佈</span>
+                          <span className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1">
+                            <Tag className="w-3 h-3" /> 氛圍分佈
+                          </span>
                           <div className="flex flex-wrap gap-1.5">
-                            {Object.entries(scriptOverview.moodDistribution).map(([mood, count]) => (
-                              <span key={mood} className="text-[10px] px-2 py-0.5 rounded-md bg-pink-50 text-pink-700 border border-pink-200">
+                            {Object.entries(
+                              scriptOverview.moodDistribution
+                            ).map(([mood, count]) => (
+                              <span
+                                key={mood}
+                                className="text-[10px] px-2 py-0.5 rounded-md bg-pink-50 text-pink-700 border border-pink-200"
+                              >
                                 {mood} ×{count}
                               </span>
                             ))}
@@ -2392,14 +2885,18 @@ export default function DirectorAI() {
                       {/* Pacing notes */}
                       {scriptOverview.pacingNotes && (
                         <div className="p-2.5 rounded-lg bg-muted/20 text-[11px] leading-relaxed text-foreground/80">
-                          <span className="font-semibold text-muted-foreground block mb-1">節奏分析</span>
+                          <span className="font-semibold text-muted-foreground block mb-1">
+                            節奏分析
+                          </span>
                           {scriptOverview.pacingNotes}
                         </div>
                       )}
                       {/* Overall suggestion */}
                       {scriptOverview.overallSuggestion && (
                         <div className="p-2.5 rounded-lg bg-primary/5 border border-primary/10 text-[11px] leading-relaxed text-foreground/80">
-                          <span className="font-semibold text-primary/70 block mb-1">改善建議</span>
+                          <span className="font-semibold text-primary/70 block mb-1">
+                            改善建議
+                          </span>
                           {scriptOverview.overallSuggestion}
                         </div>
                       )}
@@ -2428,22 +2925,34 @@ export default function DirectorAI() {
               {/* Split layout: segment list + discussion */}
               <div className={cn("flex gap-4", isMobile && "flex-col")}>
                 {/* Left: Segment list */}
-                <div className={cn("shrink-0", isMobile ? "w-full" : "w-[280px]")}>
+                <div
+                  className={cn("shrink-0", isMobile ? "w-full" : "w-[280px]")}
+                >
                   <GlassCard hover={false} className="space-y-2">
                     <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                       分鏡列表
                     </h4>
-                    <ScrollArea className={isMobile ? "max-h-[200px]" : "h-[calc(100vh-420px)]"}>
+                    <ScrollArea
+                      className={
+                        isMobile ? "max-h-[200px]" : "h-[calc(100vh-420px)]"
+                      }
+                    >
                       <div className="space-y-1.5 pr-1">
                         {importedSegments.map((seg, idx) => {
                           const sCfg = STATUS_CONFIG[seg.status];
                           const isSelected = selectedSegmentIdx === idx;
                           return (
-                            <div key={seg.id} className="flex items-stretch gap-0.5">
+                            <div
+                              key={seg.id}
+                              className="flex items-stretch gap-0.5"
+                            >
                               {/* Reorder controls */}
                               <div className="flex flex-col justify-center gap-0.5 opacity-0 hover:opacity-100 transition-opacity">
                                 <button
-                                  onClick={(e) => { e.stopPropagation(); handleMoveSegment(idx, "up"); }}
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    handleMoveSegment(idx, "up");
+                                  }}
                                   disabled={idx === 0}
                                   className="p-0.5 rounded hover:bg-muted/40 disabled:opacity-20 text-muted-foreground"
                                   title="上移"
@@ -2451,7 +2960,10 @@ export default function DirectorAI() {
                                   <ArrowUp className="w-2.5 h-2.5" />
                                 </button>
                                 <button
-                                  onClick={(e) => { e.stopPropagation(); handleMoveSegment(idx, "down"); }}
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    handleMoveSegment(idx, "down");
+                                  }}
                                   disabled={idx === importedSegments.length - 1}
                                   className="p-0.5 rounded hover:bg-muted/40 disabled:opacity-20 text-muted-foreground"
                                   title="下移"
@@ -2465,7 +2977,7 @@ export default function DirectorAI() {
                                   "flex-1 text-left rounded-lg p-2.5 transition-all border",
                                   isSelected
                                     ? "bg-primary/5 border-primary/30 shadow-sm"
-                                    : "bg-white/30 border-transparent hover:bg-white/60 hover:border-border/30",
+                                    : "bg-white/30 border-transparent hover:bg-white/60 hover:border-border/30"
                                 )}
                               >
                                 <div className="flex items-center justify-between mb-1">
@@ -2474,27 +2986,44 @@ export default function DirectorAI() {
                                       #{idx + 1}
                                     </span>
                                     {seg.costar && (
-                                      <span title="已有 CO-STAR"><Layers className="w-2.5 h-2.5 text-green-500" /></span>
+                                      <span title="已有 CO-STAR">
+                                        <Layers className="w-2.5 h-2.5 text-green-500" />
+                                      </span>
                                     )}
                                   </div>
                                   {sCfg && (
-                                    <span className={cn("text-[9px] px-1.5 py-0.5 rounded-full font-medium", sCfg.color)}>
+                                    <span
+                                      className={cn(
+                                        "text-[9px] px-1.5 py-0.5 rounded-full font-medium",
+                                        sCfg.color
+                                      )}
+                                    >
                                       {sCfg.label}
                                     </span>
                                   )}
                                 </div>
-                                <p className="hs-small !mb-0 truncate">{seg.storyboard.sceneHeading}</p>
+                                <p className="hs-small !mb-0 truncate">
+                                  {seg.storyboard.sceneHeading}
+                                </p>
                                 <p className="hs-small !mb-0 text-muted-foreground truncate mt-0.5">
-                                  {seg.storyboard.mood} · {seg.storyboard.duration}
+                                  {seg.storyboard.mood} ·{" "}
+                                  {seg.storyboard.duration}
                                 </p>
                                 {/* Character tags in segment list */}
                                 {(seg.characters?.length ?? 0) > 0 && (
                                   <div className="flex flex-wrap gap-0.5 mt-1">
                                     {seg.characters!.slice(0, 3).map(c => (
-                                      <span key={c} className="text-[8px] px-1 py-0 rounded bg-blue-50 text-blue-600">{c}</span>
+                                      <span
+                                        key={c}
+                                        className="text-[8px] px-1 py-0 rounded bg-blue-50 text-blue-600"
+                                      >
+                                        {c}
+                                      </span>
                                     ))}
                                     {(seg.characters?.length ?? 0) > 3 && (
-                                      <span className="text-[8px] text-muted-foreground">+{seg.characters!.length - 3}</span>
+                                      <span className="text-[8px] text-muted-foreground">
+                                        +{seg.characters!.length - 3}
+                                      </span>
                                     )}
                                   </div>
                                 )}
@@ -2517,7 +3046,8 @@ export default function DirectorAI() {
 
                 {/* Right: Discussion panel */}
                 <div className="flex-1 min-w-0">
-                  {selectedSegmentIdx !== null && importedSegments[selectedSegmentIdx] ? (
+                  {selectedSegmentIdx !== null &&
+                  importedSegments[selectedSegmentIdx] ? (
                     <GlassCard hover={false}>
                       <SegmentDiscussionPanel
                         key={importedSegments[selectedSegmentIdx].id}
@@ -2525,15 +3055,28 @@ export default function DirectorAI() {
                         personality={personality}
                         quickActions={quickActionsQuery.data ?? []}
                         onUpdateSegment={handleUpdateSegment}
-                        onStatusChange={(status) =>
-                          handleSegmentStatusChange(importedSegments[selectedSegmentIdx].id, status)
+                        onStatusChange={status =>
+                          handleSegmentStatusChange(
+                            importedSegments[selectedSegmentIdx].id,
+                            status
+                          )
                         }
                         onNavigate={handleNavigateSegment}
                         adjacentSegments={{
-                          prev: selectedSegmentIdx > 0 ? importedSegments[selectedSegmentIdx - 1] : undefined,
-                          next: selectedSegmentIdx < importedSegments.length - 1 ? importedSegments[selectedSegmentIdx + 1] : undefined,
+                          prev:
+                            selectedSegmentIdx > 0
+                              ? importedSegments[selectedSegmentIdx - 1]
+                              : undefined,
+                          next:
+                            selectedSegmentIdx < importedSegments.length - 1
+                              ? importedSegments[selectedSegmentIdx + 1]
+                              : undefined,
                         }}
-                        onGenerateCostar={() => handleGenerateCostar(importedSegments[selectedSegmentIdx].id)}
+                        onGenerateCostar={() =>
+                          handleGenerateCostar(
+                            importedSegments[selectedSegmentIdx].id
+                          )
+                        }
                         isGeneratingCostar={generateCostarMut.isPending}
                       />
                     </GlassCard>
@@ -2573,7 +3116,7 @@ const SessionItem = memo(function SessionItem({
 }) {
   const loadQuery = trpc.director.loadSession.useQuery(
     { id: session.id },
-    { enabled: false },
+    { enabled: false }
   );
 
   const handleLoad = async () => {
@@ -2587,11 +3130,10 @@ const SessionItem = memo(function SessionItem({
 
   return (
     <div className="flex items-center justify-between p-2 rounded-lg hover:bg-white/40 transition-colors group">
-      <button
-        onClick={handleLoad}
-        className="flex-1 text-left min-w-0"
-      >
-        <span className="text-xs font-medium truncate block">{session.title}</span>
+      <button onClick={handleLoad} className="flex-1 text-left min-w-0">
+        <span className="text-xs font-medium truncate block">
+          {session.title}
+        </span>
         <span className="text-[10px] text-muted-foreground">
           {new Date(session.createdAt).toLocaleDateString("zh-TW")}
         </span>

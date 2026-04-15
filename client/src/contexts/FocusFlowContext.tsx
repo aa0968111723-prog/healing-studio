@@ -67,17 +67,25 @@ function loadPrefs(): TimerPrefs {
     if (raw) {
       const p = JSON.parse(raw) as Partial<TimerPrefs>;
       return {
-        pomodoroWorkMin: typeof p.pomodoroWorkMin === "number" ? p.pomodoroWorkMin : 25,
-        pomodoroBreakMin: typeof p.pomodoroBreakMin === "number" ? p.pomodoroBreakMin : 5,
+        pomodoroWorkMin:
+          typeof p.pomodoroWorkMin === "number" ? p.pomodoroWorkMin : 25,
+        pomodoroBreakMin:
+          typeof p.pomodoroBreakMin === "number" ? p.pomodoroBreakMin : 5,
         healingMin: typeof p.healingMin === "number" ? p.healingMin : 5,
       };
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return { pomodoroWorkMin: 25, pomodoroBreakMin: 5, healingMin: 5 };
 }
 
 function savePrefs(prefs: TimerPrefs) {
-  try { localStorage.setItem(PREFS_KEY, JSON.stringify(prefs)); } catch { /* ignore */ }
+  try {
+    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+  } catch {
+    /* ignore */
+  }
 }
 
 // ─── Context Type ───────────────────────────────────────────────────────────
@@ -145,13 +153,16 @@ export function FocusFlowProvider({ children }: { children: ReactNode }) {
   // ── Persisted preferences ──────────────────────────────────────────────
   const [prefs, setPrefs] = useState<TimerPrefs>(loadPrefs);
 
-  const updatePref = useCallback(<K extends keyof TimerPrefs>(key: K, value: TimerPrefs[K]) => {
-    setPrefs((prev) => {
-      const next = { ...prev, [key]: value };
-      savePrefs(next);
-      return next;
-    });
-  }, []);
+  const updatePref = useCallback(
+    <K extends keyof TimerPrefs>(key: K, value: TimerPrefs[K]) => {
+      setPrefs(prev => {
+        const next = { ...prev, [key]: value };
+        savePrefs(next);
+        return next;
+      });
+    },
+    []
+  );
 
   // Derived seconds from prefs
   const pomodoroWorkSec = prefs.pomodoroWorkMin * 60;
@@ -160,7 +171,9 @@ export function FocusFlowProvider({ children }: { children: ReactNode }) {
 
   // ── Pomodoro State ──────────────────────────────────────────────────────
   const [pomodoroPhase, setPomodoroPhase] = useState<PomodoroPhase>("work");
-  const [pomodoroRemaining, setPomodoroRemaining] = useState(prefs.pomodoroWorkMin * 60);
+  const [pomodoroRemaining, setPomodoroRemaining] = useState(
+    prefs.pomodoroWorkMin * 60
+  );
   const [pomodoroRunning, setPomodoroRunning] = useState(false);
   const [pomodoroRounds, setPomodoroRounds] = useState(0);
   const pomodoroRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -168,10 +181,14 @@ export function FocusFlowProvider({ children }: { children: ReactNode }) {
   const [totalFocusSeconds, setTotalFocusSeconds] = useState(0);
 
   // ── Healing State ───────────────────────────────────────────────────────
-  const [healingRemaining, setHealingRemaining] = useState(prefs.healingMin * 60);
+  const [healingRemaining, setHealingRemaining] = useState(
+    prefs.healingMin * 60
+  );
   const [healingRunning, setHealingRunning] = useState(false);
   const [breathPhaseIdx, setBreathPhaseIdx] = useState(0);
-  const [breathLabel, setBreathLabel] = useState<string>(BREATHING_PHASES[0].label);
+  const [breathLabel, setBreathLabel] = useState<string>(
+    BREATHING_PHASES[0].label
+  );
   const healingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const breathRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -184,24 +201,33 @@ export function FocusFlowProvider({ children }: { children: ReactNode }) {
   }, [thoughts]);
 
   // ── Duration setters (only allowed when timer not running) ─────────────
-  const setPomodoroWorkMin = useCallback((min: number) => {
-    updatePref("pomodoroWorkMin", min);
-    setPomodoroRemaining(min * 60);
-    setPomodoroPhase("work");
-    setPomodoroRunning(false);
-  }, [updatePref]);
+  const setPomodoroWorkMin = useCallback(
+    (min: number) => {
+      updatePref("pomodoroWorkMin", min);
+      setPomodoroRemaining(min * 60);
+      setPomodoroPhase("work");
+      setPomodoroRunning(false);
+    },
+    [updatePref]
+  );
 
-  const setPomodoroBreakMin = useCallback((min: number) => {
-    updatePref("pomodoroBreakMin", min);
-  }, [updatePref]);
+  const setPomodoroBreakMin = useCallback(
+    (min: number) => {
+      updatePref("pomodoroBreakMin", min);
+    },
+    [updatePref]
+  );
 
-  const setHealingMin = useCallback((min: number) => {
-    updatePref("healingMin", min);
-    setHealingRemaining(min * 60);
-    setHealingRunning(false);
-    setBreathPhaseIdx(0);
-    setBreathLabel(BREATHING_PHASES[0].label);
-  }, [updatePref]);
+  const setHealingMin = useCallback(
+    (min: number) => {
+      updatePref("healingMin", min);
+      setHealingRemaining(min * 60);
+      setHealingRunning(false);
+      setBreathPhaseIdx(0);
+      setBreathLabel(BREATHING_PHASES[0].label);
+    },
+    [updatePref]
+  );
 
   // ── Pomodoro Timer Effect ──────────────────────────────────────────────
   useEffect(() => {
@@ -214,7 +240,7 @@ export function FocusFlowProvider({ children }: { children: ReactNode }) {
     }
 
     pomodoroRef.current = setInterval(() => {
-      setPomodoroRemaining((prev) => {
+      setPomodoroRemaining(prev => {
         if (prev <= 1) {
           if (pomodoroRef.current) {
             clearInterval(pomodoroRef.current);
@@ -223,8 +249,8 @@ export function FocusFlowProvider({ children }: { children: ReactNode }) {
           setPomodoroRunning(false);
 
           if (pomodoroPhase === "work") {
-            setPomodoroRounds((r) => r + 1);
-            setTotalFocusSeconds((s) => s + pomodoroWorkSec);
+            setPomodoroRounds(r => r + 1);
+            setTotalFocusSeconds(s => s + pomodoroWorkSec);
             toast.success("🍅 專注時間結束！休息一下吧");
             setPomodoroPhase("break");
             return pomodoroBreakSec;
@@ -257,7 +283,7 @@ export function FocusFlowProvider({ children }: { children: ReactNode }) {
     }
 
     healingRef.current = setInterval(() => {
-      setHealingRemaining((prev) => {
+      setHealingRemaining(prev => {
         if (prev <= 1) {
           if (healingRef.current) {
             clearInterval(healingRef.current);
@@ -291,7 +317,7 @@ export function FocusFlowProvider({ children }: { children: ReactNode }) {
 
     const currentPhase = BREATHING_PHASES[breathPhaseIdx];
     breathRef.current = setTimeout(() => {
-      setBreathPhaseIdx((prev) => {
+      setBreathPhaseIdx(prev => {
         const next = (prev + 1) % BREATHING_PHASES.length;
         setBreathLabel(BREATHING_PHASES[next].label);
         return next;
@@ -310,7 +336,7 @@ export function FocusFlowProvider({ children }: { children: ReactNode }) {
 
   const startPomodoro = useCallback(() => setPomodoroRunning(true), []);
   const pausePomodoro = useCallback(() => setPomodoroRunning(false), []);
-  const togglePomodoro = useCallback(() => setPomodoroRunning((r) => !r), []);
+  const togglePomodoro = useCallback(() => setPomodoroRunning(r => !r), []);
   const resetPomodoro = useCallback(() => {
     setPomodoroRunning(false);
     setPomodoroPhase("work");
@@ -319,7 +345,7 @@ export function FocusFlowProvider({ children }: { children: ReactNode }) {
 
   const startHealing = useCallback(() => setHealingRunning(true), []);
   const pauseHealing = useCallback(() => setHealingRunning(false), []);
-  const toggleHealing = useCallback(() => setHealingRunning((r) => !r), []);
+  const toggleHealing = useCallback(() => setHealingRunning(r => !r), []);
   const resetHealing = useCallback(() => {
     setHealingRunning(false);
     setHealingRemaining(healingSec);
@@ -330,7 +356,7 @@ export function FocusFlowProvider({ children }: { children: ReactNode }) {
   const addThought = useCallback((text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
-    setThoughts((prev) => [
+    setThoughts(prev => [
       ...prev,
       { id: generateId(), text: trimmed, createdAt: Date.now() },
     ]);
@@ -338,7 +364,7 @@ export function FocusFlowProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const removeThought = useCallback((id: string) => {
-    setThoughts((prev) => prev.filter((t) => t.id !== id));
+    setThoughts(prev => prev.filter(t => t.id !== id));
   }, []);
 
   const clearThoughts = useCallback(() => {
@@ -353,48 +379,73 @@ export function FocusFlowProvider({ children }: { children: ReactNode }) {
       ? "healing"
       : null;
 
-  const value = useMemo<FocusFlowContextType>(() => ({
-    pomodoroPhase,
-    pomodoroRemaining,
-    pomodoroRunning,
-    pomodoroRounds,
-    pomodoroWorkMin: prefs.pomodoroWorkMin,
-    pomodoroBreakMin: prefs.pomodoroBreakMin,
-    setPomodoroWorkMin,
-    setPomodoroBreakMin,
-    startPomodoro,
-    pausePomodoro,
-    togglePomodoro,
-    resetPomodoro,
+  const value = useMemo<FocusFlowContextType>(
+    () => ({
+      pomodoroPhase,
+      pomodoroRemaining,
+      pomodoroRunning,
+      pomodoroRounds,
+      pomodoroWorkMin: prefs.pomodoroWorkMin,
+      pomodoroBreakMin: prefs.pomodoroBreakMin,
+      setPomodoroWorkMin,
+      setPomodoroBreakMin,
+      startPomodoro,
+      pausePomodoro,
+      togglePomodoro,
+      resetPomodoro,
 
-    healingRemaining,
-    healingRunning,
-    healingMin: prefs.healingMin,
-    setHealingMin,
-    breathPhaseIdx,
-    breathLabel,
-    startHealing,
-    pauseHealing,
-    toggleHealing,
-    resetHealing,
+      healingRemaining,
+      healingRunning,
+      healingMin: prefs.healingMin,
+      setHealingMin,
+      breathPhaseIdx,
+      breathLabel,
+      startHealing,
+      pauseHealing,
+      toggleHealing,
+      resetHealing,
 
-    thoughts,
-    addThought,
-    removeThought,
-    clearThoughts,
+      thoughts,
+      addThought,
+      removeThought,
+      clearThoughts,
 
-    isAnyTimerRunning,
-    activeMode,
-    totalFocusSeconds,
-  }), [
-    pomodoroPhase, pomodoroRemaining, pomodoroRunning, pomodoroRounds,
-    prefs.pomodoroWorkMin, prefs.pomodoroBreakMin, setPomodoroWorkMin, setPomodoroBreakMin,
-    startPomodoro, pausePomodoro, togglePomodoro, resetPomodoro,
-    healingRemaining, healingRunning, prefs.healingMin, setHealingMin,
-    breathPhaseIdx, breathLabel, startHealing, pauseHealing, toggleHealing, resetHealing,
-    thoughts, addThought, removeThought, clearThoughts,
-    isAnyTimerRunning, activeMode, totalFocusSeconds,
-  ]);
+      isAnyTimerRunning,
+      activeMode,
+      totalFocusSeconds,
+    }),
+    [
+      pomodoroPhase,
+      pomodoroRemaining,
+      pomodoroRunning,
+      pomodoroRounds,
+      prefs.pomodoroWorkMin,
+      prefs.pomodoroBreakMin,
+      setPomodoroWorkMin,
+      setPomodoroBreakMin,
+      startPomodoro,
+      pausePomodoro,
+      togglePomodoro,
+      resetPomodoro,
+      healingRemaining,
+      healingRunning,
+      prefs.healingMin,
+      setHealingMin,
+      breathPhaseIdx,
+      breathLabel,
+      startHealing,
+      pauseHealing,
+      toggleHealing,
+      resetHealing,
+      thoughts,
+      addThought,
+      removeThought,
+      clearThoughts,
+      isAnyTimerRunning,
+      activeMode,
+      totalFocusSeconds,
+    ]
+  );
 
   return (
     <FocusFlowContext.Provider value={value}>
@@ -407,6 +458,7 @@ export function FocusFlowProvider({ children }: { children: ReactNode }) {
 
 export function useFocusFlow(): FocusFlowContextType {
   const ctx = useContext(FocusFlowContext);
-  if (!ctx) throw new Error("useFocusFlow must be used within FocusFlowProvider");
+  if (!ctx)
+    throw new Error("useFocusFlow must be used within FocusFlowProvider");
   return ctx;
 }

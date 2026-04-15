@@ -29,33 +29,70 @@ import { Link } from "wouter";
 // ─── Tier Config ──────────────────────────────────────────────────────────────
 
 const TIER_LABELS: Record<string, { label: string; color: string }> = {
-  free: { label: "免費", color: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300" },
-  economy: { label: "經濟", color: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300" },
-  standard: { label: "標準", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300" },
-  premium: { label: "進階", color: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300" },
-  ultra: { label: "頂級", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300" },
+  free: {
+    label: "免費",
+    color: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
+  },
+  economy: {
+    label: "經濟",
+    color:
+      "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300",
+  },
+  standard: {
+    label: "標準",
+    color: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+  },
+  premium: {
+    label: "進階",
+    color:
+      "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
+  },
+  ultra: {
+    label: "頂級",
+    color:
+      "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+  },
 };
 
-const CATEGORY_META: Record<string, { label: string; icon: React.ReactNode }> = {
-  "text-to-image": { label: "文字生圖", icon: <Image className="w-4 h-4" /> },
-  "image-to-image": { label: "圖片轉換", icon: <Image className="w-4 h-4" /> },
-  "text-to-video": { label: "文字生影片", icon: <Film className="w-4 h-4" /> },
-  "image-to-video": { label: "圖片生影片", icon: <Film className="w-4 h-4" /> },
-  "video-to-video": { label: "影片轉換", icon: <Film className="w-4 h-4" /> },
-  "text-to-audio": { label: "音樂/音效生成", icon: <Music className="w-4 h-4" /> },
-  "video-to-audio": { label: "影片配音", icon: <Music className="w-4 h-4" /> },
-  "text-to-speech": { label: "語音合成 (TTS)", icon: <Mic className="w-4 h-4" /> },
-  "image-to-3d": { label: "圖片轉 3D", icon: <Box className="w-4 h-4" /> },
-  "text-to-3d": { label: "文字生 3D", icon: <Box className="w-4 h-4" /> },
-  "video-to-text": { label: "語音辨識", icon: <Mic className="w-4 h-4" /> },
-  training: { label: "模型訓練", icon: <Cpu className="w-4 h-4" /> },
-  reasoning: { label: "AI 推理", icon: <Brain className="w-4 h-4" /> },
-  llm: { label: "LLM 對話", icon: <Brain className="w-4 h-4" /> },
-  "image-to-json": { label: "圖片分析", icon: <Brain className="w-4 h-4" /> },
-  embedding: { label: "向量嵌入", icon: <Brain className="w-4 h-4" /> },
-  json: { label: "JSON 生成", icon: <Brain className="w-4 h-4" /> },
-  "text-to-json": { label: "文字分析", icon: <Brain className="w-4 h-4" /> },
-};
+const CATEGORY_META: Record<string, { label: string; icon: React.ReactNode }> =
+  {
+    "text-to-image": { label: "文字生圖", icon: <Image className="w-4 h-4" /> },
+    "image-to-image": {
+      label: "圖片轉換",
+      icon: <Image className="w-4 h-4" />,
+    },
+    "text-to-video": {
+      label: "文字生影片",
+      icon: <Film className="w-4 h-4" />,
+    },
+    "image-to-video": {
+      label: "圖片生影片",
+      icon: <Film className="w-4 h-4" />,
+    },
+    "video-to-video": { label: "影片轉換", icon: <Film className="w-4 h-4" /> },
+    "text-to-audio": {
+      label: "音樂/音效生成",
+      icon: <Music className="w-4 h-4" />,
+    },
+    "video-to-audio": {
+      label: "影片配音",
+      icon: <Music className="w-4 h-4" />,
+    },
+    "text-to-speech": {
+      label: "語音合成 (TTS)",
+      icon: <Mic className="w-4 h-4" />,
+    },
+    "image-to-3d": { label: "圖片轉 3D", icon: <Box className="w-4 h-4" /> },
+    "text-to-3d": { label: "文字生 3D", icon: <Box className="w-4 h-4" /> },
+    "video-to-text": { label: "語音辨識", icon: <Mic className="w-4 h-4" /> },
+    training: { label: "模型訓練", icon: <Cpu className="w-4 h-4" /> },
+    reasoning: { label: "AI 推理", icon: <Brain className="w-4 h-4" /> },
+    llm: { label: "LLM 對話", icon: <Brain className="w-4 h-4" /> },
+    "image-to-json": { label: "圖片分析", icon: <Brain className="w-4 h-4" /> },
+    embedding: { label: "向量嵌入", icon: <Brain className="w-4 h-4" /> },
+    json: { label: "JSON 生成", icon: <Brain className="w-4 h-4" /> },
+    "text-to-json": { label: "文字分析", icon: <Brain className="w-4 h-4" /> },
+  };
 
 // Priority order for categories
 const CATEGORY_ORDER = [
@@ -98,7 +135,10 @@ function CategoryTable({
   defaultOpen: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
-  const meta = CATEGORY_META[category] ?? { label: category, icon: <Sparkles className="w-4 h-4" /> };
+  const meta = CATEGORY_META[category] ?? {
+    label: category,
+    icon: <Sparkles className="w-4 h-4" />,
+  };
 
   return (
     <GlassCard className="overflow-hidden">
@@ -114,7 +154,11 @@ function CategoryTable({
             {models.length} 個模型
           </Badge>
         </div>
-        {open ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+        {open ? (
+          <ChevronUp className="w-4 h-4 text-muted-foreground" />
+        ) : (
+          <ChevronDown className="w-4 h-4 text-muted-foreground" />
+        )}
       </button>
       {open && (
         <div className="px-4 pb-4 overflow-x-auto">
@@ -126,38 +170,53 @@ function CategoryTable({
                 <th className="py-2 pr-3 text-right">基礎積分</th>
                 <th className="py-2 pr-3">單位</th>
                 <th className="py-2 pr-3 text-right">範圍</th>
-                {models.some((m) => m.pointsPerSecond) && <th className="py-2 pr-3 text-right">每秒加收</th>}
-                {models.some((m) => m.pointsPer1kChars) && <th className="py-2 pr-3 text-right">每千字符</th>}
-                {models.some((m) => m.pointsPerStep) && <th className="py-2 pr-3 text-right">每步驟</th>}
+                {models.some(m => m.pointsPerSecond) && (
+                  <th className="py-2 pr-3 text-right">每秒加收</th>
+                )}
+                {models.some(m => m.pointsPer1kChars) && (
+                  <th className="py-2 pr-3 text-right">每千字符</th>
+                )}
+                {models.some(m => m.pointsPerStep) && (
+                  <th className="py-2 pr-3 text-right">每步驟</th>
+                )}
               </tr>
             </thead>
             <tbody>
-              {models.map((m) => {
+              {models.map(m => {
                 const tier = TIER_LABELS[m.tier] ?? TIER_LABELS.standard;
                 return (
-                  <tr key={m.label} className="border-b border-border/30 hover:bg-accent/20 transition-colors">
+                  <tr
+                    key={m.label}
+                    className="border-b border-border/30 hover:bg-accent/20 transition-colors"
+                  >
                     <td className="py-2 pr-3 font-medium">{m.label}</td>
                     <td className="py-2 pr-3">
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${tier.color}`}>
+                      <span
+                        className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-medium ${tier.color}`}
+                      >
                         {tier.label}
                       </span>
                     </td>
-                    <td className="py-2 pr-3 text-right tabular-nums font-semibold">{m.basePoints}</td>
-                    <td className="py-2 pr-3 text-muted-foreground">{m.unit}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums font-semibold">
+                      {m.basePoints}
+                    </td>
+                    <td className="py-2 pr-3 text-muted-foreground">
+                      {m.unit}
+                    </td>
                     <td className="py-2 pr-3 text-right tabular-nums text-muted-foreground">
                       {m.minPoints}–{m.maxPoints}
                     </td>
-                    {models.some((m2) => m2.pointsPerSecond) && (
+                    {models.some(m2 => m2.pointsPerSecond) && (
                       <td className="py-2 pr-3 text-right tabular-nums">
                         {m.pointsPerSecond ? `${m.pointsPerSecond} pts/s` : "—"}
                       </td>
                     )}
-                    {models.some((m2) => m2.pointsPer1kChars) && (
+                    {models.some(m2 => m2.pointsPer1kChars) && (
                       <td className="py-2 pr-3 text-right tabular-nums">
                         {m.pointsPer1kChars ? `${m.pointsPer1kChars} pts` : "—"}
                       </td>
                     )}
-                    {models.some((m2) => m2.pointsPerStep) && (
+                    {models.some(m2 => m2.pointsPerStep) && (
                       <td className="py-2 pr-3 text-right tabular-nums">
                         {m.pointsPerStep ? `${m.pointsPerStep} pts` : "—"}
                       </td>
@@ -185,12 +244,14 @@ function FAQItem({ q, a }: { q: string; a: string }) {
         onClick={() => setOpen(!open)}
       >
         <span className="text-sm font-medium pr-4">{q}</span>
-        {open ? <ChevronUp className="w-4 h-4 mt-0.5 shrink-0 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 mt-0.5 shrink-0 text-muted-foreground" />}
+        {open ? (
+          <ChevronUp className="w-4 h-4 mt-0.5 shrink-0 text-muted-foreground" />
+        ) : (
+          <ChevronDown className="w-4 h-4 mt-0.5 shrink-0 text-muted-foreground" />
+        )}
       </button>
       {open && (
-        <div className="px-4 pb-3 text-sm text-muted-foreground">
-          {a}
-        </div>
+        <div className="px-4 pb-3 text-sm text-muted-foreground">{a}</div>
       )}
     </div>
   );
@@ -199,14 +260,19 @@ function FAQItem({ q, a }: { q: string; a: string }) {
 // ─── Main Page ─────────────────────────────────────────────────────────────
 
 export default function CreditsInfoPage() {
-  const { data: catalog, isLoading, error: catalogError } = trpc.credits.pricingCatalog.useQuery();
-  const { data: balance, isLoading: balanceLoading } = trpc.credits.myBalance.useQuery(undefined, {
-    retry: false,
-  });
+  const {
+    data: catalog,
+    isLoading,
+    error: catalogError,
+  } = trpc.credits.pricingCatalog.useQuery();
+  const { data: balance, isLoading: balanceLoading } =
+    trpc.credits.myBalance.useQuery(undefined, {
+      retry: false,
+    });
 
   const sortedCategories = catalog
-    ? CATEGORY_ORDER.filter((cat) => cat in catalog).concat(
-        Object.keys(catalog).filter((cat) => !CATEGORY_ORDER.includes(cat)),
+    ? CATEGORY_ORDER.filter(cat => cat in catalog).concat(
+        Object.keys(catalog).filter(cat => !CATEGORY_ORDER.includes(cat))
       )
     : [];
 
@@ -224,7 +290,10 @@ export default function CreditsInfoPage() {
         </div>
         <p className="hs-p !mb-0 text-muted-foreground">
           Healing Studio 使用「平台積分」作為所有 AI 生成的計費單位。
-          <strong className="text-foreground"> 不需要信用卡，不涉及任何真實金錢交易。</strong>
+          <strong className="text-foreground">
+            {" "}
+            不需要信用卡，不涉及任何真實金錢交易。
+          </strong>
         </p>
       </motion.div>
 
@@ -236,15 +305,22 @@ export default function CreditsInfoPage() {
       >
         <GlassCard className="p-5 flex items-center justify-between">
           <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wide">我的積分餘額</p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wide">
+              我的積分餘額
+            </p>
             {balanceLoading ? (
               <ZenSkeleton className="h-9 w-32 mt-1 rounded" />
             ) : balance != null ? (
               <p className="text-3xl font-bold tabular-nums mt-1 text-primary">
-                {balance.remaining} <span className="text-base font-medium text-muted-foreground">pts</span>
+                {balance.remaining}{" "}
+                <span className="text-base font-medium text-muted-foreground">
+                  pts
+                </span>
               </p>
             ) : (
-              <p className="text-sm text-muted-foreground mt-1">請登入後查看餘額</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                請登入後查看餘額
+              </p>
             )}
           </div>
           <Zap className="w-10 h-10 text-primary/30" />
@@ -266,15 +342,25 @@ export default function CreditsInfoPage() {
           <ul className="text-sm space-y-2 text-muted-foreground">
             <li className="flex items-start gap-2">
               <span className="text-primary font-bold mt-px">•</span>
-              <span>新帳號註冊：自動獲得 <strong className="text-foreground">50 積分</strong></span>
+              <span>
+                新帳號註冊：自動獲得{" "}
+                <strong className="text-foreground">50 積分</strong>
+              </span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-primary font-bold mt-px">•</span>
-              <span>首次分享數位資產：<strong className="text-foreground">+2 積分</strong></span>
+              <span>
+                首次分享數位資產：
+                <strong className="text-foreground">+2 積分</strong>
+              </span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-primary font-bold mt-px">•</span>
-              <span>首次分享訓練模型：<strong className="text-foreground">+3 積分</strong>（模型需已完成）</span>
+              <span>
+                首次分享訓練模型：
+                <strong className="text-foreground">+3 積分</strong>
+                （模型需已完成）
+              </span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-primary font-bold mt-px">•</span>
@@ -291,19 +377,31 @@ export default function CreditsInfoPage() {
           <ul className="text-sm space-y-2 text-muted-foreground">
             <li className="flex items-start gap-2">
               <span className="text-primary font-bold mt-px">•</span>
-              <span><strong className="text-foreground">先扣後生成</strong>：積分在生成前原子扣除</span>
+              <span>
+                <strong className="text-foreground">先扣後生成</strong>
+                ：積分在生成前原子扣除
+              </span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-primary font-bold mt-px">•</span>
-              <span><strong className="text-foreground">失敗全額退還</strong>：任何生成失敗自動退回積分</span>
+              <span>
+                <strong className="text-foreground">失敗全額退還</strong>
+                ：任何生成失敗自動退回積分
+              </span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-primary font-bold mt-px">•</span>
-              <span>最小扣除 <strong className="text-foreground">1 pts</strong>，安全上限 <strong className="text-foreground">500 pts</strong></span>
+              <span>
+                最小扣除 <strong className="text-foreground">1 pts</strong>
+                ，安全上限 <strong className="text-foreground">500 pts</strong>
+              </span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-primary font-bold mt-px">•</span>
-              <span>積分永久有效，<strong className="text-foreground">不需要信用卡</strong></span>
+              <span>
+                積分永久有效，
+                <strong className="text-foreground">不需要信用卡</strong>
+              </span>
             </li>
           </ul>
         </GlassCard>
@@ -337,12 +435,14 @@ export default function CreditsInfoPage() {
                   { scenario: "語音生成 API 錯誤", refund: true },
                   { scenario: "任務逾時（Timeout）", refund: true },
                   { scenario: "生成成功", refund: false },
-                ].map((row) => (
+                ].map(row => (
                   <tr key={row.scenario} className="border-b border-border/30">
                     <td className="py-2 pr-3">{row.scenario}</td>
                     <td className="py-2 text-center">
                       {row.refund ? (
-                        <span className="text-green-600 dark:text-green-400 font-medium">✅ 全額退還</span>
+                        <span className="text-green-600 dark:text-green-400 font-medium">
+                          ✅ 全額退還
+                        </span>
                       ) : (
                         <span className="text-muted-foreground">❌ 不退還</span>
                       )}
@@ -365,9 +465,12 @@ export default function CreditsInfoPage() {
           <div className="flex items-start gap-3">
             <Info className="w-5 h-5 text-primary mt-0.5 shrink-0" />
             <div className="text-sm">
-              <p className="font-semibold text-foreground mb-1">🚫 不使用真實金錢</p>
+              <p className="font-semibold text-foreground mb-1">
+                🚫 不使用真實金錢
+              </p>
               <p className="text-muted-foreground leading-relaxed">
-                Healing Studio 的積分系統完全獨立於真實貨幣。你不需要綁定信用卡、不需要付費購買積分。
+                Healing Studio
+                的積分系統完全獨立於真實貨幣。你不需要綁定信用卡、不需要付費購買積分。
                 所有積分均由平台免費發放（註冊贈送、分享獎勵、管理員調整）。
                 積分僅用於平衡平台 AI 資源的使用，確保每位用戶都能公平享用。
               </p>
@@ -393,7 +496,7 @@ export default function CreditsInfoPage() {
 
         {isLoading && (
           <div className="space-y-3">
-            {[1, 2, 3].map((i) => (
+            {[1, 2, 3].map(i => (
               <ZenSkeleton key={i} className="h-14 rounded-xl" />
             ))}
           </div>
@@ -432,7 +535,9 @@ export default function CreditsInfoPage() {
           </h3>
           <div className="bg-muted/50 rounded-lg p-3 font-mono text-xs leading-relaxed">
             <p>最終積分 = max(最低積分, min(最高積分,</p>
-            <p className="pl-4">基礎積分 + 時長加收 + 字符加收 + 批次加收 + 步驟加收</p>
+            <p className="pl-4">
+              基礎積分 + 時長加收 + 字符加收 + 批次加收 + 步驟加收
+            </p>
             <p>))</p>
           </div>
           <p className="hs-small !mb-0 text-muted-foreground mt-2">
@@ -488,9 +593,7 @@ export default function CreditsInfoPage() {
         className="text-center pt-4"
       >
         <Button variant="outline" size="sm" asChild>
-          <Link href="/learn">
-            前往學習文件中心查看更多說明 →
-          </Link>
+          <Link href="/learn">前往學習文件中心查看更多說明 →</Link>
         </Button>
       </motion.div>
     </div>

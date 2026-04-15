@@ -8,11 +8,25 @@ const uploadRouter = Router();
 // ── Allowed MIME types for upload ─────────────────────────────────────────
 const ALLOWED_MIME_TYPES = new Set([
   // Images
-  "image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml", "image/avif",
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "image/svg+xml",
+  "image/avif",
   // Audio
-  "audio/mpeg", "audio/wav", "audio/ogg", "audio/webm", "audio/mp4", "audio/aac", "audio/flac",
+  "audio/mpeg",
+  "audio/wav",
+  "audio/ogg",
+  "audio/webm",
+  "audio/mp4",
+  "audio/aac",
+  "audio/flac",
   // Video
-  "video/mp4", "video/webm", "video/ogg", "video/quicktime",
+  "video/mp4",
+  "video/webm",
+  "video/ogg",
+  "video/quicktime",
   // Documents
   "application/pdf",
 ]);
@@ -74,7 +88,10 @@ uploadRouter.post("/api/upload", async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error("[Upload] Error:", error);
-    if (error.message?.includes("authenticate") || error.message?.includes("Unauthorized")) {
+    if (
+      error.message?.includes("authenticate") ||
+      error.message?.includes("Unauthorized")
+    ) {
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
@@ -86,11 +103,14 @@ uploadRouter.post("/api/upload", async (req: Request, res: Response) => {
       error.message?.includes("Forge");
     if (isStorageError) {
       res.status(503).json({
-        error: "Storage 未設定：請聯絡管理員在 Railway 設定 S3/R2 儲存環境變數。",
+        error:
+          "Storage 未設定：請聯絡管理員在 Railway 設定 S3/R2 儲存環境變數。",
       });
       return;
     }
-    res.status(500).json({ error: "Upload failed: " + (error.message || "Unknown error") });
+    res
+      .status(500)
+      .json({ error: "Upload failed: " + (error.message || "Unknown error") });
   }
 });
 

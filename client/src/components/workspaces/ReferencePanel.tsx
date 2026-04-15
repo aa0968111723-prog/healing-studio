@@ -90,7 +90,7 @@ function ReferenceCard({
   const handleUsageToggle = (option: string, checked: boolean) => {
     const next = checked
       ? [...item.selectiveUsage, option]
-      : item.selectiveUsage.filter((u) => u !== option);
+      : item.selectiveUsage.filter(u => u !== option);
     onUpdate({ ...item, selectiveUsage: next });
   };
 
@@ -120,7 +120,7 @@ function ReferenceCard({
         <div className="flex items-center gap-1 shrink-0">
           <button
             type="button"
-            onClick={() => setExpanded((v) => !v)}
+            onClick={() => setExpanded(v => !v)}
             className="p-1 rounded-md text-muted-foreground hover:bg-white/40 transition-colors"
           >
             {expanded ? (
@@ -157,13 +157,13 @@ function ReferenceCard({
                 </Label>
                 <Select
                   value={item.type}
-                  onValueChange={(v) => onUpdate({ ...item, type: v })}
+                  onValueChange={v => onUpdate({ ...item, type: v })}
                 >
                   <SelectTrigger size="sm" className="h-8 text-xs bg-white/50">
                     <SelectValue placeholder="選擇類型" />
                   </SelectTrigger>
                   <SelectContent>
-                    {types.map((t) => (
+                    {types.map(t => (
                       <SelectItem key={t.value} value={t.value}>
                         {t.label}
                       </SelectItem>
@@ -172,12 +172,12 @@ function ReferenceCard({
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label className="text-[10px] text-muted-foreground">用途</Label>
+                <Label className="text-[10px] text-muted-foreground">
+                  用途
+                </Label>
                 <Input
                   value={item.purpose}
-                  onChange={(e) =>
-                    onUpdate({ ...item, purpose: e.target.value })
-                  }
+                  onChange={e => onUpdate({ ...item, purpose: e.target.value })}
                   placeholder="描述用途"
                   className="h-8 text-xs bg-white/50"
                 />
@@ -209,7 +209,7 @@ function ReferenceCard({
                 選擇性套用
               </Label>
               <div className="flex flex-wrap gap-2">
-                {usageOptions.map((option) => {
+                {usageOptions.map(option => {
                   const checked = item.selectiveUsage.includes(option);
                   return (
                     <label
@@ -218,12 +218,12 @@ function ReferenceCard({
                         "flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] transition-colors cursor-pointer",
                         checked
                           ? "bg-primary/10 text-primary"
-                          : "bg-white/40 text-muted-foreground hover:bg-white/60",
+                          : "bg-white/40 text-muted-foreground hover:bg-white/60"
                       )}
                     >
                       <Checkbox
                         checked={checked}
-                        onCheckedChange={(c) =>
+                        onCheckedChange={c =>
                           handleUsageToggle(option, c === true)
                         }
                         className="size-3"
@@ -296,8 +296,8 @@ export function ReferencePanel({
       <div className="flex items-center gap-2">
         <Input
           value={newUrl}
-          onChange={(e) => setNewUrl(e.target.value)}
-          onKeyDown={(e) => {
+          onChange={e => setNewUrl(e.target.value)}
+          onKeyDown={e => {
             if (e.key === "Enter") handleAdd();
           }}
           placeholder="輸入參考素材 URL…"
@@ -308,7 +308,7 @@ export function ReferencePanel({
             <SelectValue placeholder="類型" />
           </SelectTrigger>
           <SelectContent>
-            {types.map((t) => (
+            {types.map(t => (
               <SelectItem key={t.value} value={t.value}>
                 {t.label}
               </SelectItem>
@@ -334,7 +334,7 @@ export function ReferencePanel({
             key={ref.id}
             item={ref}
             modality={modality}
-            onUpdate={(updated) => handleUpdate(idx, updated)}
+            onUpdate={updated => handleUpdate(idx, updated)}
             onRemove={() => handleRemove(idx)}
           />
         ))}

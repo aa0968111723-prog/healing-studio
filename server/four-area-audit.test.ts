@@ -22,8 +22,12 @@ describe("Area 1: 角色鍛鍊所 / 一致性保險箱", () => {
         modelType: "image_subject",
         triggerWord: "sks",
         datasetImages: [
-          { url: "https://example.com/img.jpg", fileKey: "test/img.jpg", angle: "front" as const }
-        ]
+          {
+            url: "https://example.com/img.jpg",
+            fileKey: "test/img.jpg",
+            angle: "front" as const,
+          },
+        ],
       };
       expect(schema.datasetImages).toHaveLength(1);
       expect(schema.datasetImages[0].angle).toBe("front");
@@ -68,7 +72,9 @@ describe("Area 2: 專案筆記", () => {
 
     it("notes.create should accept noteType enum", () => {
       const validTypes = ["note", "script", "calendar_event"];
-      validTypes.forEach(t => expect(["note", "script", "calendar_event"]).toContain(t));
+      validTypes.forEach(t =>
+        expect(["note", "script", "calendar_event"]).toContain(t)
+      );
     });
 
     it("notes.create should accept scheduledDate as number", () => {
@@ -157,7 +163,9 @@ describe("Area 4: 共享空間", () => {
 
     it("assets.toggleVisibility should support private and team_shared", () => {
       const validVisibilities = ["private", "team_shared"];
-      validVisibilities.forEach(v => expect(["private", "team_shared"]).toContain(v));
+      validVisibilities.forEach(v =>
+        expect(["private", "team_shared"]).toContain(v)
+      );
     });
 
     it("Sharing assets should reward 2 credits via refundUserQuota", () => {
@@ -177,9 +185,10 @@ describe("Area 4: 共享空間", () => {
         { title: "sunset", promptUsed: "golden hour" },
       ];
       const query = "cat";
-      const filtered = assets.filter(a =>
-        a.title.toLowerCase().includes(query) ||
-        a.promptUsed.toLowerCase().includes(query)
+      const filtered = assets.filter(
+        a =>
+          a.title.toLowerCase().includes(query) ||
+          a.promptUsed.toLowerCase().includes(query)
       );
       expect(filtered).toHaveLength(1);
       expect(filtered[0].title).toBe("test image");

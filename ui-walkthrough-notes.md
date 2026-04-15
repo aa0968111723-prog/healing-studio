@@ -1,6 +1,7 @@
 # UI Walkthrough Notes - Phase 6
 
 ## Step 1: Homepage / Onboarding
+
 - Page loads with beautiful gradient background (warm peach → lavender → blue)
 - Light orb animation visible at center
 - Text: "你好！我是你的 AI 創作夥伴。"
@@ -9,6 +10,7 @@
 - Status: PASS - Orb + greeting visible
 
 ## Step 2: Onboarding Input Phase
+
 - Question: "今天想創作什麼畫面？"
 - Input field with placeholder: "例如：星空下的森林小屋、海邊的日落..."
 - 6 Choice Chips visible: 星空下的森林小屋, 海邊的金色日落, 未來城市的霓虹街道, 雪山上的孤獨旅人, 水彩風格的花園, 賽博龐克的東京夜景
@@ -17,6 +19,7 @@
 - Status: PASS - Choice Chips working, input ready
 
 ## Step 3: Choice Chip Click
+
 - Clicked "星空下的森林小屋" chip
 - Input field populated with "星空下的森林小屋"
 - Status text: "AI 正在分析選項..." (LLM evaluating the prompt)
@@ -25,6 +28,7 @@
 - Status: PASS - Choice Chip fills input, AI analysis triggered
 
 ## Step 4: Onboarding Generation In Progress
+
 - Text: "AI 正在為「星空下的森林小屋」構思..."
 - Orb turned orange/warm with green core (active state)
 - ThoughtIslandChain visible: "AI 思維島鏈 (2/3 節點完成)"
@@ -34,6 +38,7 @@
 - Status: PASS - ThoughtChain visualization working correctly
 
 ## Step 5: Onboarding Generation Complete
+
 - Title: "你的第一件作品完成了！"
 - Subtitle: "這就是 AI Director 的魔法"
 - Generated image: Beautiful starry sky with a forest cabin, warm light from windows, reflected in water
@@ -45,6 +50,7 @@
 - Status: PASS - Full generation pipeline working, ThoughtChain shows all 6 real steps
 
 ## Step 6: Studio Page - Full Workspace
+
 - Sidebar: AI Director, 創作工作室, 導演 AI, 角色鍛造所, 共享空間, 儀表板, 個人設定, 管理後台
 - User info: ruce B, aa0968111723@gmail.com, 剩餘配額 24
 - Modality tabs: 圖片, 影片, 音樂, 語音
@@ -60,11 +66,13 @@
 - Status: PASS - Full workspace with all controls visible
 
 ## Step 7: Prompt Input and PromptStrengthBar
+
 - Typed prompt: "一隻金色的貓咪坐在窗台上，窗外是下雨的城市街道，霓虹燈倒映在濕漉漉的路面上"
 - PromptStrengthBar activated: "分析中..." with loading indicator
 - Status: PASS - Auto-evaluation triggered on prompt input
 
 ## Step 8: PromptStrengthBar Evaluation Complete
+
 - Score circle: 72 (green ring)
 - Label: "提示詞強度：良好"
 - Detail text: "提示詞清楚地描述了主要物體（金色貓咪）及其位置，並具體描繪了窗外的雨夜城市景觀，包含霓虹燈倒映..."
@@ -72,6 +80,7 @@
 - Status: PASS - LLM-as-a-Judge evaluation working with real score and feedback
 
 ## Step 9: PromptStrengthBar Expanded Details
+
 - Score: 72 (良好)
 - Five dimensions visible with animated bars:
   - 主題清晰度: 15
@@ -89,6 +98,7 @@
 - Status: PASS - Full 5-dimension evaluation, clickable suggestions, optimized prompt all working
 
 ## Step 10: Studio Generation Complete
+
 - ThoughtIslandChain: "AI 思維島鏈 (6/6 節點完成)" - all 6 nodes green
 - Nodes: 安全檢查, 提示詞編譯, 視覺權重計算, 圖像生成, 配額扣除, 歷史紀錄
 - Generated image: Beautiful golden/orange tabby cat on windowsill, rain on window, neon lights visible
@@ -98,6 +108,7 @@
 - Status: PASS - Full generation pipeline working, image quality excellent
 
 ## Step 11: Video Tab (Cross-Modal)
+
 - Tab switched to 影片 (highlighted)
 - Prompt retained: same text from image generation
 - Video workspace visible: "影片工作區 (Veo 3.1)"
@@ -108,6 +119,7 @@
 - Status: PASS - Cross-modal tab switch preserves prompt and parameters
 
 ## Step 12: Audio Tab (Cross-Modal)
+
 - Tab switched to 音樂 (highlighted)
 - Prompt retained: same text from image generation
 - Audio workspace: "音樂工作區 (Suno)"
@@ -117,6 +129,7 @@
 - Status: PASS - Cross-modal switch preserves all parameters
 
 ## Step 13: History Page
+
 - Title: "生成歷史 共 5 筆紀錄"
 - Filter tabs: 全部 5, 圖片 5, 影片 0, 音樂 0, 語音 0, 收藏 0
 - Search bar: "搜尋提示詞..."
@@ -126,6 +139,7 @@
 - Status: PASS - History page showing all generations correctly
 
 ## Step 14: History Card Expanded
+
 - Card expanded showing full details:
   - Compiled prompt: "A captivating image of a majestic golden cat, perfectly symmetrical anatomy and flawless proportions, seated gracefully on a weathered wooden windowsill..."
   - Parameter snapshot: mode: lightning, temperature: 0.5, visual weight: 0
@@ -137,6 +151,7 @@
 - Status: PASS - History card shows compiled prompt, parameters, and cross-modal actions
 
 ## Step 15: Cross-Modal "Send to Video" - CRITICAL TEST
+
 - Navigated from History → Studio Video tab automatically
 - Prompt inherited: "一隻金色的貓咪坐在窗台上，窗外是下雨的城市街道，霓虹燈倒映在濕漉漉的路面上"
 - Video tab active (影片 highlighted)
@@ -148,6 +163,7 @@
 - Status: PASS - Cross-modal parameter inheritance working! Image → Video with full context
 
 ## Step 16: Director AI Page
+
 - Title: "導演 AI"
 - 3 personality modes: 沉穩型 (重邏輯), 創意型 (重氛圍, selected), 技術型 (重參數)
 - Subtitle: "雙引擎 RAG（事實研究 + CO-STAR 創意編排）— 生成的腳本可一鍵發送到工作室"
@@ -159,11 +175,13 @@
 - Status: PASS - Director AI with dual-engine RAG, personality modes, and Storyboard
 
 ## Step 17: Character Forge (角色鍛造所)
+
 - Sidebar link "角色鍛造所" → /models (not /forge)
 - Route exists at /models, mapped to ModelsPage component
 - Status: PASS - Route works via sidebar, /forge is not a valid URL (expected behavior)
 
 ## Step 18: Character Forge (角色鍛造所) Page
+
 - Title: "角色鍛造所"
 - "新增角色" button top-right
 - Subtitle: "訓練專屬角色模型，確保跨場景的角色一致性。模型就緒後可在工作室的素材抽屜中直接使用。"
@@ -173,6 +191,7 @@
 - Status: PASS - Character Forge page functional with model grid
 
 ## Step 19: Dashboard Page
+
 - Title: "儀表板"
 - 4 stat cards: 剩餘配額 23, 總請求數 10, 預估成本 $0.050, 效率指標 0.0050 USD/次
 - Recent usage log: 10 entries showing image generation and voice dubbing
@@ -180,6 +199,7 @@
 - Status: PASS - Dashboard with real usage data
 
 ## Step 20: Shared Space (共享空間)
+
 - Title: "共享空間"
 - Subtitle: "探索社群創作、分享你的作品，獲得配額獎勵"
 - Stats: 2 共享素材, 3 共享模型, — 你的貢獻, — 獲得獎勵
@@ -189,6 +209,7 @@
 - Status: PASS - Community sharing space functional
 
 ## Step 21: Settings Page (個人設定)
+
 - Account info: ruce B, aa0968111723@gmail.com, 管理員, 23次配額
 - AI Director preferences:
   - AI 個性風格: 沉穩, 創意 (selected), 技術

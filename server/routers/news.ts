@@ -142,10 +142,7 @@ export const newsRouter = router({
         .select()
         .from(newsArticles)
         .where(
-          and(
-            eq(newsArticles.id, input.id),
-            eq(newsArticles.isPublished, true)
-          )
+          and(eq(newsArticles.id, input.id), eq(newsArticles.isPublished, true))
         )
         .limit(1);
 
@@ -191,10 +188,7 @@ export const newsRouter = router({
       })
       .from(newsArticles)
       .where(
-        and(
-          eq(newsArticles.isPinned, true),
-          eq(newsArticles.isPublished, true)
-        )
+        and(eq(newsArticles.isPinned, true), eq(newsArticles.isPublished, true))
       )
       .orderBy(desc(newsArticles.publishedAt))
       .limit(PINNED_LIMIT);
@@ -226,7 +220,7 @@ export const newsRouter = router({
       tips_and_tricks: "技巧心法",
     };
 
-    return counts.map((c) => ({
+    return counts.map(c => ({
       key: c.category,
       label: categoryLabels[c.category] || c.category,
       count: Number(c.count),

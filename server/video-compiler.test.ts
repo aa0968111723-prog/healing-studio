@@ -35,7 +35,11 @@ describe("VideoCompiler", () => {
       const map = compiler.translateEmotion("joy");
       expect(map.actionVerbs).toContain("blooming");
       expect(map.actionVerbs).toContain("sparkling");
-      expect(map.subjectBehaviors.some((b) => b.includes("sunflower") || b.includes("cherry blossom"))).toBe(true);
+      expect(
+        map.subjectBehaviors.some(
+          b => b.includes("sunflower") || b.includes("cherry blossom")
+        )
+      ).toBe(true);
     });
 
     it("should translate all 14 supported emotions", () => {
@@ -62,7 +66,11 @@ describe("VideoCompiler", () => {
     });
 
     it("should batch translate multiple emotions", () => {
-      const translations = compiler.translateEmotions(["sadness", "joy", "wonder"]);
+      const translations = compiler.translateEmotions([
+        "sadness",
+        "joy",
+        "wonder",
+      ]);
       expect(translations.length).toBe(3);
       expect(translations[0].from).toBe("sadness");
       expect(translations[0].to.length).toBeGreaterThan(0);
@@ -95,17 +103,27 @@ describe("VideoCompiler", () => {
 
     it("should block illegal camera transitions (jump prevention)", () => {
       // handheld → aerial_ascent is not in allowedTransitions
-      const result = compiler.validateCameraTransition("handheld", "aerial_ascent");
+      const result = compiler.validateCameraTransition(
+        "handheld",
+        "aerial_ascent"
+      );
       expect(result.valid).toBe(false);
       expect(result.reason).toContain("視角跳躍阻擋");
     });
 
     it("should plan safe camera sequences", () => {
-      const plan = compiler.planCameraSequence("static", ["dolly_in", "orbit", "static"]);
+      const plan = compiler.planCameraSequence("static", [
+        "dolly_in",
+        "orbit",
+        "static",
+      ]);
       expect(plan.sequence.length).toBeGreaterThanOrEqual(2);
       // All transitions in the sequence should be valid
       for (let i = 1; i < plan.sequence.length; i++) {
-        const v = compiler.validateCameraTransition(plan.sequence[i - 1], plan.sequence[i]);
+        const v = compiler.validateCameraTransition(
+          plan.sequence[i - 1],
+          plan.sequence[i]
+        );
         expect(v.valid).toBe(true);
       }
     });
@@ -120,14 +138,22 @@ describe("VideoCompiler", () => {
 
     it("should suggest camera mode based on emotion", () => {
       const sadCamera = compiler.suggestCameraMode("sadness");
-      expect(["dolly_out", "crane_down", "static", "tilt_down"]).toContain(sadCamera);
+      expect(["dolly_out", "crane_down", "static", "tilt_down"]).toContain(
+        sadCamera
+      );
 
       const joyCamera = compiler.suggestCameraMode("joy");
-      expect(["dolly_in", "crane_up", "orbit", "tracking"]).toContain(joyCamera);
+      expect(["dolly_in", "crane_up", "orbit", "tracking"]).toContain(
+        joyCamera
+      );
     });
 
     it("should generate camera stability report", () => {
-      const report = compiler.getCameraStabilityReport(["static", "dolly_in", "orbit"]);
+      const report = compiler.getCameraStabilityReport([
+        "static",
+        "dolly_in",
+        "orbit",
+      ]);
       expect(report.averageStability).toBeGreaterThan(0);
       expect(report.transitions.length).toBe(2);
       expect(report.transitions[0].from).toBe("static");
@@ -184,7 +210,9 @@ describe("VideoCompiler", () => {
         lastFrameDesc: "Fade to soft light",
       });
       expect(result.firstFrameAnchor).toBeDefined();
-      expect(result.firstFrameAnchor!.imageUrl).toBe("https://example.com/first.jpg");
+      expect(result.firstFrameAnchor!.imageUrl).toBe(
+        "https://example.com/first.jpg"
+      );
       expect(result.lastFrameAnchor).toBeDefined();
       expect(result.lastFrameAnchor!.description).toBe("Fade to soft light");
     });
@@ -277,7 +305,9 @@ describe("VideoCompiler", () => {
         freePrompt: "ethereal and dreamlike quality",
       });
 
-      expect(result.prompt).toContain("[Additional Direction] ethereal and dreamlike quality");
+      expect(result.prompt).toContain(
+        "[Additional Direction] ethereal and dreamlike quality"
+      );
     });
   });
 
@@ -347,7 +377,10 @@ describe("VideoCompiler", () => {
         targetDurationSec: 20,
       });
 
-      const totalDuration = result.shots.reduce((sum, s) => sum + s.durationSec, 0);
+      const totalDuration = result.shots.reduce(
+        (sum, s) => sum + s.durationSec,
+        0
+      );
       expect(totalDuration).toBeCloseTo(20, 0);
     });
 
@@ -358,7 +391,9 @@ describe("VideoCompiler", () => {
       });
 
       expect(result.shots[0].frameAnchor?.type).toBe("first");
-      expect(result.shots[result.shots.length - 1].frameAnchor?.type).toBe("last");
+      expect(result.shots[result.shots.length - 1].frameAnchor?.type).toBe(
+        "last"
+      );
     });
   });
 
@@ -392,7 +427,9 @@ describe("VideoCompiler", () => {
         freePrompt: "sad and melancholic atmosphere",
       });
 
-      expect(["sadness", "melancholy"]).toContain(result.emotionTranslations[0].from);
+      expect(["sadness", "melancholy"]).toContain(
+        result.emotionTranslations[0].from
+      );
     });
 
     it("should default to serenity when no emotion cues", () => {
@@ -512,10 +549,18 @@ describe("VideoCompiler", () => {
 
       expect(result.compilationLog.length).toBeGreaterThanOrEqual(5);
       expect(result.compilationLog[0]).toContain("開始編譯");
-      expect(result.compilationLog.some((l) => l.includes("情緒解析"))).toBe(true);
-      expect(result.compilationLog.some((l) => l.includes("動作翻譯"))).toBe(true);
-      expect(result.compilationLog.some((l) => l.includes("相機模式"))).toBe(true);
-      expect(result.compilationLog[result.compilationLog.length - 1]).toContain("編譯完成");
+      expect(result.compilationLog.some(l => l.includes("情緒解析"))).toBe(
+        true
+      );
+      expect(result.compilationLog.some(l => l.includes("動作翻譯"))).toBe(
+        true
+      );
+      expect(result.compilationLog.some(l => l.includes("相機模式"))).toBe(
+        true
+      );
+      expect(result.compilationLog[result.compilationLog.length - 1]).toContain(
+        "編譯完成"
+      );
     });
   });
 });

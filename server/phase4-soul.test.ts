@@ -3,18 +3,61 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // ─── Mock LLM ──────────────────────────────────────────────────────────────
 
 const mockInvokeLLM = vi.fn();
-vi.mock("./server/_core/llm", () => ({ invokeLLM: (...args: unknown[]) => mockInvokeLLM(...args) }));
+vi.mock("./server/_core/llm", () => ({
+  invokeLLM: (...args: unknown[]) => mockInvokeLLM(...args),
+}));
 
 // ─── Mock DB ───────────────────────────────────────────────────────────────
 
 const mockDb = {
   getHistoryByUser: vi.fn().mockResolvedValue([
-    { id: 1, userId: 1, modality: "image", prompt: "test prompt", compiledPrompt: "compiled", resultUrl: "https://example.com/img.png", thumbnailUrl: "https://example.com/thumb.png", isBookmarked: false, userRating: null, costCredits: 1, parameterSnapshot: { mode: "balanced" }, createdAt: new Date() },
-    { id: 2, userId: 1, modality: "video", prompt: "video prompt", compiledPrompt: "compiled video", resultUrl: null, thumbnailUrl: null, isBookmarked: true, userRating: 4, costCredits: 2, parameterSnapshot: { mode: "creative" }, createdAt: new Date() },
+    {
+      id: 1,
+      userId: 1,
+      modality: "image",
+      prompt: "test prompt",
+      compiledPrompt: "compiled",
+      resultUrl: "https://example.com/img.png",
+      thumbnailUrl: "https://example.com/thumb.png",
+      isBookmarked: false,
+      userRating: null,
+      costCredits: 1,
+      parameterSnapshot: { mode: "balanced" },
+      createdAt: new Date(),
+    },
+    {
+      id: 2,
+      userId: 1,
+      modality: "video",
+      prompt: "video prompt",
+      compiledPrompt: "compiled video",
+      resultUrl: null,
+      thumbnailUrl: null,
+      isBookmarked: true,
+      userRating: 4,
+      costCredits: 2,
+      parameterSnapshot: { mode: "creative" },
+      createdAt: new Date(),
+    },
   ]),
-  getBookmarkedHistory: vi.fn().mockResolvedValue([
-    { id: 2, userId: 1, modality: "video", prompt: "video prompt", compiledPrompt: "compiled video", resultUrl: null, thumbnailUrl: null, isBookmarked: true, userRating: 4, costCredits: 2, parameterSnapshot: { mode: "creative" }, createdAt: new Date() },
-  ]),
+  getBookmarkedHistory: vi
+    .fn()
+    .mockResolvedValue([
+      {
+        id: 2,
+        userId: 1,
+        modality: "video",
+        prompt: "video prompt",
+        compiledPrompt: "compiled video",
+        resultUrl: null,
+        thumbnailUrl: null,
+        isBookmarked: true,
+        userRating: 4,
+        costCredits: 2,
+        parameterSnapshot: { mode: "creative" },
+        createdAt: new Date(),
+      },
+    ]),
   updateHistoryEntry: vi.fn().mockResolvedValue(undefined),
   deleteHistoryEntry: vi.fn().mockResolvedValue(undefined),
   createHistoryEntry: vi.fn().mockResolvedValue(1),
@@ -28,7 +71,6 @@ vi.mock("./server/db.ts", () => ({ default: mockDb, ...mockDb }));
 // ─── Tests ─────────────────────────────────────────────────────────────────
 
 describe("Phase 4: AI Soul Injection", () => {
-
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -49,7 +91,8 @@ describe("Phase 4: AI Soul Injection", () => {
         strengths: "主體描述清晰，環境設定有層次",
         weaknesses: "缺乏光影描述和技術參數",
         suggestions: ["加入 golden hour 光線描述", "指定鏡頭角度如 low angle"],
-        optimizedPrompt: "A woman in white dress walking through lavender fields at golden hour, low angle shot, cinematic lighting",
+        optimizedPrompt:
+          "A woman in white dress walking through lavender fields at golden hour, low angle shot, cinematic lighting",
       };
 
       mockInvokeLLM.mockResolvedValueOnce({
@@ -78,15 +121,21 @@ describe("Phase 4: AI Soul Injection", () => {
 
     it("should handle score range 0-100 correctly", () => {
       const scores = [0, 25, 50, 75, 100];
-      scores.forEach((score) => {
+      scores.forEach(score => {
         expect(score).toBeGreaterThanOrEqual(0);
         expect(score).toBeLessThanOrEqual(100);
       });
     });
 
     it("each dimension should be 0-20", () => {
-      const dims = { subjectClarity: 15, actionNarrative: 12, environment: 18, lightingTone: 10, technicalSpecs: 5 };
-      Object.values(dims).forEach((v) => {
+      const dims = {
+        subjectClarity: 15,
+        actionNarrative: 12,
+        environment: 18,
+        lightingTone: 10,
+        technicalSpecs: 5,
+      };
+      Object.values(dims).forEach(v => {
         expect(v).toBeGreaterThanOrEqual(0);
         expect(v).toBeLessThanOrEqual(20);
       });
@@ -99,9 +148,21 @@ describe("Phase 4: AI Soul Injection", () => {
 
   describe("Director AI Personality System", () => {
     const PERSONALITY_PROMPTS = {
-      calm: { researchStyle: "沉穩", directorStyle: "邏輯", proactiveHint: "目標觀眾" },
-      creative: { researchStyle: "靈感", directorStyle: "氛圍", proactiveHint: "情緒高潮" },
-      technical: { researchStyle: "技術", directorStyle: "參數", proactiveHint: "解析度" },
+      calm: {
+        researchStyle: "沉穩",
+        directorStyle: "邏輯",
+        proactiveHint: "目標觀眾",
+      },
+      creative: {
+        researchStyle: "靈感",
+        directorStyle: "氛圍",
+        proactiveHint: "情緒高潮",
+      },
+      technical: {
+        researchStyle: "技術",
+        directorStyle: "參數",
+        proactiveHint: "解析度",
+      },
     };
 
     it("should have 3 distinct personalities", () => {
@@ -127,7 +188,7 @@ describe("Phase 4: AI Soul Injection", () => {
     });
 
     it("each personality should have proactive intervention hints", () => {
-      Object.values(PERSONALITY_PROMPTS).forEach((p) => {
+      Object.values(PERSONALITY_PROMPTS).forEach(p => {
         expect(p.proactiveHint).toBeTruthy();
         expect(p.proactiveHint.length).toBeGreaterThan(0);
       });
@@ -147,14 +208,22 @@ describe("Phase 4: AI Soul Injection", () => {
       };
 
       mockInvokeLLM
-        .mockResolvedValueOnce({ choices: [{ message: { content: "研究結果" } }] })
-        .mockResolvedValueOnce({ choices: [{ message: { content: JSON.stringify(scriptResult) } }] });
+        .mockResolvedValueOnce({
+          choices: [{ message: { content: "研究結果" } }],
+        })
+        .mockResolvedValueOnce({
+          choices: [{ message: { content: JSON.stringify(scriptResult) } }],
+        });
 
       // Simulate the personality-aware call
-      const researchResult = await mockInvokeLLM({ messages: [{ role: "system", content: "沉穩" }] });
+      const researchResult = await mockInvokeLLM({
+        messages: [{ role: "system", content: "沉穩" }],
+      });
       expect(researchResult.choices[0].message.content).toBe("研究結果");
 
-      const directorResult = await mockInvokeLLM({ messages: [{ role: "system", content: "邏輯" }] });
+      const directorResult = await mockInvokeLLM({
+        messages: [{ role: "system", content: "邏輯" }],
+      });
       const script = JSON.parse(directorResult.choices[0].message.content);
       expect(script.proactiveQuestion).toBeTruthy();
       expect(script.proactiveQuestion).toContain("情緒");
@@ -188,12 +257,16 @@ describe("Phase 4: AI Soul Injection", () => {
 
     it("should toggle bookmark status", async () => {
       await mockDb.updateHistoryEntry(1, { isBookmarked: true });
-      expect(mockDb.updateHistoryEntry).toHaveBeenCalledWith(1, { isBookmarked: true });
+      expect(mockDb.updateHistoryEntry).toHaveBeenCalledWith(1, {
+        isBookmarked: true,
+      });
     });
 
     it("should update user rating", async () => {
       await mockDb.updateHistoryEntry(1, { userRating: 5 });
-      expect(mockDb.updateHistoryEntry).toHaveBeenCalledWith(1, { userRating: 5 });
+      expect(mockDb.updateHistoryEntry).toHaveBeenCalledWith(1, {
+        userRating: 5,
+      });
     });
 
     it("should delete history entry", async () => {
@@ -222,7 +295,12 @@ describe("Phase 4: AI Soul Injection", () => {
     });
 
     it("history entry should include parameter snapshot", async () => {
-      const snapshot = { mode: "balanced", temperature: 0.7, vibeCardIds: ["serene"], seed: 42 };
+      const snapshot = {
+        mode: "balanced",
+        temperature: 0.7,
+        vibeCardIds: ["serene"],
+        seed: 42,
+      };
       await mockDb.createHistoryEntry({
         userId: 1,
         modality: "image",

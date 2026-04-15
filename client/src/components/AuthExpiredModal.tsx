@@ -131,7 +131,9 @@ export default function AuthExpiredModal() {
                 </Button>
                 <Button
                   variant="outline"
-                  onClick={() => { window.location.href = getDemoLoginUrl(); }}
+                  onClick={() => {
+                    window.location.href = getDemoLoginUrl();
+                  }}
                   className="w-full h-11 rounded-xl gap-2 border-dashed border-muted-foreground/30 hover:bg-muted/30 hover:shadow-md transition-all duration-200"
                 >
                   ✨ 訪客體驗（免登入）

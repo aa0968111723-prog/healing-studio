@@ -105,7 +105,11 @@ const SCENE_GREETINGS: Record<SceneId, GreetingSet> = {
 
 // ─── Typewriter Hook ────────────────────────────────────────────────────────
 
-function useTypewriter(text: string, speed: number = 60, startDelay: number = 300) {
+function useTypewriter(
+  text: string,
+  speed: number = 60,
+  startDelay: number = 300
+) {
   const [displayed, setDisplayed] = useState("");
   const [isComplete, setIsComplete] = useState(false);
 
@@ -138,7 +142,9 @@ function useTypewriter(text: string, speed: number = 60, startDelay: number = 30
 function useStableRandom<T>(items: T[], seed?: string): T {
   return useMemo(() => {
     // Use a simple hash of the seed (or current minute) for stability
-    const s = seed || `${new Date().getHours()}-${Math.floor(new Date().getMinutes() / 10)}`;
+    const s =
+      seed ||
+      `${new Date().getHours()}-${Math.floor(new Date().getMinutes() / 10)}`;
     let hash = 0;
     for (let i = 0; i < s.length; i++) {
       hash = ((hash << 5) - hash + s.charCodeAt(i)) | 0;
@@ -171,7 +177,11 @@ export default function OarsGreeting({
   const subtext = useStableRandom(greetings.subtexts, `sub-${sceneId}`);
 
   // Typewriter animation for the headline
-  const { displayed: typedHeadline, isComplete } = useTypewriter(headline, 55, 500);
+  const { displayed: typedHeadline, isComplete } = useTypewriter(
+    headline,
+    55,
+    500
+  );
 
   // Cursor blink
   const [showCursor, setShowCursor] = useState(true);
@@ -180,7 +190,7 @@ export default function OarsGreeting({
       // Blink a few times then hide
       let count = 0;
       const interval = setInterval(() => {
-        setShowCursor((prev) => !prev);
+        setShowCursor(prev => !prev);
         count++;
         if (count >= 6) {
           clearInterval(interval);
@@ -195,9 +205,7 @@ export default function OarsGreeting({
   return (
     <div className={`text-center ${className}`}>
       {/* Main Headline — Typewriter */}
-      <h1
-        className={`hs-h1 transition-colors duration-1000 ${textPrimary}`}
-      >
+      <h1 className={`hs-h1 transition-colors duration-1000 ${textPrimary}`}>
         <span>{typedHeadline}</span>
         <span
           className={`inline-block w-[2px] h-[1em] ml-1 align-middle transition-opacity duration-200 ${

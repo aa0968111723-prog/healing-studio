@@ -13,8 +13,23 @@
  *   - 結合 Radix ScrollArea 可捲動區域
  */
 
-import { useMemo, useState, useCallback, useEffect, useRef, lazy, Suspense, memo } from "react";
-import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from "framer-motion";
+import {
+  useMemo,
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  lazy,
+  Suspense,
+  memo,
+} from "react";
+import {
+  motion,
+  AnimatePresence,
+  useMotionValue,
+  useTransform,
+  useSpring,
+} from "framer-motion";
 import { trpc } from "@/lib/trpc";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
@@ -25,11 +40,24 @@ import {
 } from "@/components/ui/carousel";
 import Autoplay from "embla-carousel-autoplay";
 import {
-  Zap, Lightbulb, TrendingUp, Wrench, Users, BookOpen, Newspaper,
-  ExternalLink, Eye, Clock, ChevronRight,
+  Zap,
+  Lightbulb,
+  TrendingUp,
+  Wrench,
+  Users,
+  BookOpen,
+  Newspaper,
+  ExternalLink,
+  Eye,
+  Clock,
+  ChevronRight,
 } from "lucide-react";
 import type { SceneId } from "@/components/AmbientEnvironment";
-import { useSenseEngine, useCardSenseProps, useSectionScrollSense } from "@/hooks/useSenseEngine";
+import {
+  useSenseEngine,
+  useCardSenseProps,
+  useSectionScrollSense,
+} from "@/hooks/useSenseEngine";
 import ArticleDialog from "@/components/ArticleDialog";
 
 // ─── Weight Label Config ────────────────────────────────────────────────────
@@ -262,7 +290,7 @@ function BentoCard({
     `news-${item.id}`,
     item.title,
     undefined,
-    item.tags ?? undefined,
+    item.tags ?? undefined
   );
 
   // ─── Mouse-tracking fluid glow ─────────────────────────────────────────
@@ -292,11 +320,20 @@ function BentoCard({
       exit={{ opacity: 0, scale: 0.97 }}
       whileHover={{ scale: 1.015, y: -2 }}
       transition={{ duration: 0.5, ease: SOFT_BOUNCE }}
-      onHoverStart={() => { setIsHovered(true); senseProps.onMouseEnter({} as React.MouseEvent); }}
-      onHoverEnd={() => { setIsHovered(false); senseProps.onMouseLeave(); }}
+      onHoverStart={() => {
+        setIsHovered(true);
+        senseProps.onMouseEnter({} as React.MouseEvent);
+      }}
+      onHoverEnd={() => {
+        setIsHovered(false);
+        senseProps.onMouseLeave();
+      }}
       onMouseDown={() => senseProps.onMouseDown()}
       onMouseUp={() => senseProps.onMouseUp()}
-      onMouseMove={(e) => { handleMouseMove(e); senseProps.onMouseMove(e); }}
+      onMouseMove={e => {
+        handleMouseMove(e);
+        senseProps.onMouseMove(e);
+      }}
       onClick={() => onCardClick(item.id)}
       className="group relative rounded-2xl overflow-hidden cursor-pointer h-full card-healing"
       style={{
@@ -334,7 +371,9 @@ function BentoCard({
         transition={{ duration: 0.3 }}
       />
 
-      <div className={`relative z-10 flex flex-col h-full ${isHero ? "p-7 sm:p-8" : isMedium ? "p-5 sm:p-6" : "p-4 sm:p-5"}`}>
+      <div
+        className={`relative z-10 flex flex-col h-full ${isHero ? "p-7 sm:p-8" : isMedium ? "p-5 sm:p-6" : "p-4 sm:p-5"}`}
+      >
         {/* Header: weight badge + time */}
         <div className="flex items-center justify-between mb-3">
           <motion.span
@@ -345,7 +384,9 @@ function BentoCard({
             <Icon className="w-3 h-3" />
             {config.label}
           </motion.span>
-          <span className={`text-[10px] flex items-center gap-1 ${styles.textMuted}`}>
+          <span
+            className={`text-[10px] flex items-center gap-1 ${styles.textMuted}`}
+          >
             <Clock className="w-2.5 h-2.5" />
             {formatRelativeTime(item.publishedAt)}
           </span>
@@ -354,7 +395,11 @@ function BentoCard({
         {/* Title */}
         <h3
           className={`font-semibold leading-snug tracking-tight transition-colors duration-300 ${styles.textPrimary} ${
-            isHero ? "hs-h3-lg mb-3" : isMedium ? "hs-h3 mb-2" : "hs-small !font-semibold mb-2 line-clamp-2"
+            isHero
+              ? "hs-h3-lg mb-3"
+              : isMedium
+                ? "hs-h3 mb-2"
+                : "hs-small !font-semibold mb-2 line-clamp-2"
           }`}
         >
           {item.title}
@@ -397,12 +442,16 @@ function BentoCard({
           animate={{ opacity: isHovered ? 1 : 0.7, y: isHovered ? 0 : 2 }}
           transition={{ duration: 0.3, ease: SOFT_BOUNCE }}
         >
-          <span className={`text-[10px] ${styles.textMuted} truncate max-w-[60%]`}>
+          <span
+            className={`text-[10px] ${styles.textMuted} truncate max-w-[60%]`}
+          >
             {item.sourceName}
           </span>
           <div className="flex items-center gap-3">
             {item.viewCount > 0 && (
-              <span className={`text-[10px] flex items-center gap-1 ${styles.textMuted}`}>
+              <span
+                className={`text-[10px] flex items-center gap-1 ${styles.textMuted}`}
+              >
                 <Eye className="w-2.5 h-2.5" />
                 {item.viewCount}
               </span>
@@ -413,7 +462,7 @@ function BentoCard({
                 target="_blank"
                 rel="noopener noreferrer"
                 className={`text-[10px] flex items-center gap-0.5 ${styles.textMuted} hover:opacity-80 transition-colors`}
-                onClick={(e) => e.stopPropagation()}
+                onClick={e => e.stopPropagation()}
               >
                 <ExternalLink className="w-2.5 h-2.5" />
               </a>
@@ -439,7 +488,11 @@ function BentoCard({
                   閱讀完整報導
                   <motion.span
                     animate={{ x: [0, 3, 0] }}
-                    transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
+                    transition={{
+                      duration: 1.2,
+                      repeat: Infinity,
+                      ease: "easeInOut",
+                    }}
                   >
                     <ChevronRight className="w-3 h-3" />
                   </motion.span>
@@ -501,17 +554,19 @@ function BentoSkeleton({ styles }: { styles: SceneStyles }) {
 
 // ─── Bento Grid Layout Engine ───────────────────────────────────────────────
 
-function layoutBentoItems(items: NewsItem[]): Array<{ item: NewsItem; config: WeightConfig }> {
+function layoutBentoItems(
+  items: NewsItem[]
+): Array<{ item: NewsItem; config: WeightConfig }> {
   // Sort: hero items first, then medium, then small
-  const withConfig = items.map((item) => {
+  const withConfig = items.map(item => {
     const weightLabel = getWeightLabel(item.tags);
     return { item, config: WEIGHT_CONFIG[weightLabel] };
   });
 
   // Separate by size
-  const heroes = withConfig.filter((x) => x.config.size === "hero");
-  const mediums = withConfig.filter((x) => x.config.size === "medium");
-  const smalls = withConfig.filter((x) => x.config.size === "small");
+  const heroes = withConfig.filter(x => x.config.size === "hero");
+  const mediums = withConfig.filter(x => x.config.size === "medium");
+  const smalls = withConfig.filter(x => x.config.size === "small");
 
   // Layout: hero first (max 1), then interleave medium and small
   const result: typeof withConfig = [];
@@ -523,7 +578,10 @@ function layoutBentoItems(items: NewsItem[]): Array<{ item: NewsItem; config: We
 
   // Fill remaining heroes as medium (downgrade)
   for (let i = 1; i < heroes.length; i++) {
-    mediums.push({ ...heroes[i], config: { ...heroes[i].config, size: "medium" } });
+    mediums.push({
+      ...heroes[i],
+      config: { ...heroes[i].config, size: "medium" },
+    });
   }
 
   // Interleave: for every medium, add 2 smalls after
@@ -551,7 +609,9 @@ interface IntelBentoGridProps {
   sceneId: SceneId;
 }
 
-const IntelBentoGrid = memo(function IntelBentoGrid({ sceneId }: IntelBentoGridProps) {
+const IntelBentoGrid = memo(function IntelBentoGrid({
+  sceneId,
+}: IntelBentoGridProps) {
   const styles = useMemo(() => SCENE_CARD_STYLES[sceneId], [sceneId]);
   const [activeTab, setActiveTab] = useState("all");
   const [selectedNewsId, setSelectedNewsId] = useState<number | null>(null);
@@ -561,8 +621,13 @@ const IntelBentoGrid = memo(function IntelBentoGrid({ sceneId }: IntelBentoGridP
   const [currentSlide, setCurrentSlide] = useState(0);
   const [slideCount, setSlideCount] = useState(0);
   const autoplayPlugin = useMemo(
-    () => Autoplay({ delay: 5000, stopOnInteraction: true, stopOnMouseEnter: true }),
-    [],
+    () =>
+      Autoplay({
+        delay: 5000,
+        stopOnInteraction: true,
+        stopOnMouseEnter: true,
+      }),
+    []
   );
 
   useEffect(() => {
@@ -583,7 +648,7 @@ const IntelBentoGrid = memo(function IntelBentoGrid({ sceneId }: IntelBentoGridP
 
   const scrollTo = useCallback(
     (idx: number) => carouselApi?.scrollTo(idx),
-    [carouselApi],
+    [carouselApi]
   );
 
   const handleCardClick = useCallback((id: number) => {
@@ -595,8 +660,14 @@ const IntelBentoGrid = memo(function IntelBentoGrid({ sceneId }: IntelBentoGridP
   }, []);
 
   // Sense Engine: micro-behavior tracking
-  const senseEngine = useSenseEngine({ dwellThreshold: 5000, scrollHesitationThreshold: 3 });
-  const sectionScrollRef = useSectionScrollSense(senseEngine, "intel-bento-grid");
+  const senseEngine = useSenseEngine({
+    dwellThreshold: 5000,
+    scrollHesitationThreshold: 3,
+  });
+  const sectionScrollRef = useSectionScrollSense(
+    senseEngine,
+    "intel-bento-grid"
+  );
 
   // Fetch news from tRPC
   const { data, isLoading } = trpc.news.list.useQuery(
@@ -610,22 +681,28 @@ const IntelBentoGrid = memo(function IntelBentoGrid({ sceneId }: IntelBentoGridP
   const filteredItems = useMemo(() => {
     if (activeTab === "all") return items;
     if (activeTab === "other") {
-      return items.filter((item) => {
+      return items.filter(item => {
         const wl = getWeightLabel(item.tags);
         return wl !== "Model Breakthrough" && wl !== "Inspiration Tip";
       });
     }
-    return items.filter((item) => {
+    return items.filter(item => {
       const wl = getWeightLabel(item.tags);
       return wl === activeTab;
     });
   }, [items, activeTab]);
 
   // Layout engine
-  const layoutItems = useMemo(() => layoutBentoItems(filteredItems), [filteredItems]);
+  const layoutItems = useMemo(
+    () => layoutBentoItems(filteredItems),
+    [filteredItems]
+  );
 
   return (
-    <section ref={sectionScrollRef} className="section-breathing px-4 relative z-10">
+    <section
+      ref={sectionScrollRef}
+      className="section-breathing px-4 relative z-10"
+    >
       <div className="max-w-5xl mx-auto">
         {/* Soft gradient divider */}
         <div
@@ -647,7 +724,9 @@ const IntelBentoGrid = memo(function IntelBentoGrid({ sceneId }: IntelBentoGridP
           >
             情報站
           </h2>
-          <p className={`mt-3 hs-small !mb-0 max-w-md mx-auto transition-colors duration-1000 ${styles.textMuted}`}>
+          <p
+            className={`mt-3 hs-small !mb-0 max-w-md mx-auto transition-colors duration-1000 ${styles.textMuted}`}
+          >
             AI 與創作領域的最新脈動，以溫暖視角重新詮釋
           </p>
           {/* Healing divider */}
@@ -660,13 +739,17 @@ const IntelBentoGrid = memo(function IntelBentoGrid({ sceneId }: IntelBentoGridP
         </motion.div>
 
         {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6 sm:mb-8">
+        <Tabs
+          value={activeTab}
+          onValueChange={setActiveTab}
+          className="mb-6 sm:mb-8"
+        >
           <div className="flex justify-center overflow-x-auto scrollbar-hide">
             <TabsList
               className="h-9 sm:h-10 rounded-xl border-0 p-1 backdrop-blur-md"
               style={{ background: styles.tabsBg }}
             >
-              {TABS.map((tab) => (
+              {TABS.map(tab => (
                 <TabsTrigger
                   key={tab.value}
                   value={tab.value}
@@ -687,7 +770,7 @@ const IntelBentoGrid = memo(function IntelBentoGrid({ sceneId }: IntelBentoGridP
           </div>
 
           {/* Tab content — mount points for Radix Tabs */}
-          {TABS.map((tab) => (
+          {TABS.map(tab => (
             <TabsContent key={tab.value} value={tab.value} className="mt-0" />
           ))}
         </Tabs>
@@ -715,8 +798,8 @@ const IntelBentoGrid = memo(function IntelBentoGrid({ sceneId }: IntelBentoGridP
                       config.size === "hero"
                         ? "basis-full sm:basis-2/3"
                         : config.size === "medium"
-                        ? "basis-full sm:basis-1/2"
-                        : "basis-full sm:basis-1/2 lg:basis-1/3"
+                          ? "basis-full sm:basis-1/2"
+                          : "basis-full sm:basis-1/2 lg:basis-1/3"
                     }`}
                   >
                     <BentoCard
@@ -734,12 +817,16 @@ const IntelBentoGrid = memo(function IntelBentoGrid({ sceneId }: IntelBentoGridP
             {/* Carousel dot indicators */}
             {slideCount > 1 && (
               <div className="flex items-center justify-center gap-2.5 mt-10">
-                {Array.from({ length: Math.min(slideCount, MAX_VISIBLE_DOTS) }).map((_, i) => (
+                {Array.from({
+                  length: Math.min(slideCount, MAX_VISIBLE_DOTS),
+                }).map((_, i) => (
                   <motion.button
                     key={i}
                     onClick={() => scrollTo(i)}
                     className={`rounded-full transition-all duration-700 ${
-                      i === currentSlide ? "opacity-50" : "opacity-[0.12] hover:opacity-20"
+                      i === currentSlide
+                        ? "opacity-50"
+                        : "opacity-[0.12] hover:opacity-20"
                     }`}
                     style={{ background: SCENE_DOT_COLORS[sceneId] }}
                     animate={{

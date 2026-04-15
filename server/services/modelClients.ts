@@ -74,19 +74,36 @@ function isRetryableError(error: unknown): boolean {
   if (error instanceof Error) {
     const msg = error.message.toLowerCase();
     // Rate limit
-    if (msg.includes("rate limit") || msg.includes("429") || msg.includes("too many requests")) {
+    if (
+      msg.includes("rate limit") ||
+      msg.includes("429") ||
+      msg.includes("too many requests")
+    ) {
       return true;
     }
     // Timeout
-    if (msg.includes("timeout") || msg.includes("timed out") || msg.includes("econnreset")) {
+    if (
+      msg.includes("timeout") ||
+      msg.includes("timed out") ||
+      msg.includes("econnreset")
+    ) {
       return true;
     }
     // Server errors (5xx)
-    if (msg.includes("500") || msg.includes("502") || msg.includes("503") || msg.includes("504")) {
+    if (
+      msg.includes("500") ||
+      msg.includes("502") ||
+      msg.includes("503") ||
+      msg.includes("504")
+    ) {
       return true;
     }
     // Network errors
-    if (msg.includes("econnrefused") || msg.includes("enotfound") || msg.includes("fetch failed")) {
+    if (
+      msg.includes("econnrefused") ||
+      msg.includes("enotfound") ||
+      msg.includes("fetch failed")
+    ) {
       return true;
     }
   }
@@ -142,13 +159,19 @@ export async function safeApiCall<T>(
       const result = await Promise.race([
         fn(),
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error(`[${label}] Timeout after ${cfg.timeoutMs}ms`)), cfg.timeoutMs)
+          setTimeout(
+            () =>
+              reject(new Error(`[${label}] Timeout after ${cfg.timeoutMs}ms`)),
+            cfg.timeoutMs
+          )
         ),
       ]);
 
       const durationMs = Date.now() - startTime;
       if (attempt > 0) {
-        console.log(`[SafeApiCaller] ✅ ${label} succeeded after ${attempt} retries (${durationMs}ms)`);
+        console.log(
+          `[SafeApiCaller] ✅ ${label} succeeded after ${attempt} retries (${durationMs}ms)`
+        );
       }
       return { data: result, retries: attempt, durationMs };
     } catch (error) {
@@ -162,15 +185,15 @@ export async function safeApiCall<T>(
 
         console.warn(
           `[SafeApiCaller] ⚠️ ${label} attempt ${attempt + 1}/${cfg.maxRetries + 1} failed ` +
-          `(${durationMs}ms). Retrying in ${Math.round(delayMs)}ms... ` +
-          `Error: ${error instanceof Error ? error.message : String(error)}`
+            `(${durationMs}ms). Retrying in ${Math.round(delayMs)}ms... ` +
+            `Error: ${error instanceof Error ? error.message : String(error)}`
         );
 
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        await new Promise(resolve => setTimeout(resolve, delayMs));
       } else {
         console.error(
           `[SafeApiCaller] ❌ ${label} failed permanently after ${attempt + 1} attempts ` +
-          `(${durationMs}ms). Error: ${error instanceof Error ? error.message : String(error)}`
+            `(${durationMs}ms). Error: ${error instanceof Error ? error.message : String(error)}`
         );
         break;
       }
@@ -215,8 +238,12 @@ export class FalClient {
     guidanceScale?: number;
     seed?: number;
     negativePrompt?: string;
-  }): Promise<{ images: Array<{ url: string; width: number; height: number }>; seed: number }> {
-    if (!this.initialized) throw new Error("FalClient not initialized — FAL_API_KEY missing");
+  }): Promise<{
+    images: Array<{ url: string; width: number; height: number }>;
+    seed: number;
+  }> {
+    if (!this.initialized)
+      throw new Error("FalClient not initialized — FAL_API_KEY missing");
 
     const modelMap: Record<string, string> = {
       "flux-pro": "fal-ai/flux-pro/v1.1",
@@ -224,20 +251,26 @@ export class FalClient {
       "stable-diffusion-xl": "fal-ai/stable-diffusion-xl",
     };
 
-    const modelId = modelMap[params.model || "flux-pro"] || modelMap["flux-pro"];
+    const modelId =
+      modelMap[params.model || "flux-pro"] || modelMap["flux-pro"];
 
     const { data, retries, durationMs } = await safeApiCall(
       async () => {
         const result = await this.client!.subscribe(modelId, {
           input: {
             prompt: params.prompt,
-            image_size: params.width && params.height
-              ? { width: params.width, height: params.height }
-              : "landscape_16_9",
+            image_size:
+              params.width && params.height
+                ? { width: params.width, height: params.height }
+                : "landscape_16_9",
             num_images: params.numImages || 1,
-            ...(params.guidanceScale && { guidance_scale: params.guidanceScale }),
+            ...(params.guidanceScale && {
+              guidance_scale: params.guidanceScale,
+            }),
             ...(params.seed && { seed: params.seed }),
-            ...(params.negativePrompt && { negative_prompt: params.negativePrompt }),
+            ...(params.negativePrompt && {
+              negative_prompt: params.negativePrompt,
+            }),
           },
           logs: false,
         });
@@ -247,7 +280,9 @@ export class FalClient {
       { timeoutMs: 180000 } // 3 min for image gen
     );
 
-    console.log(`[FalClient] 🖼️ Image generated in ${durationMs}ms (${retries} retries)`);
+    console.log(
+      `[FalClient] 🖼️ Image generated in ${durationMs}ms (${retries} retries)`
+    );
 
     const result = data as any;
     return {
@@ -270,7 +305,8 @@ export class FalClient {
     aspectRatio?: string;
     imageUrl?: string; // 首幀圖片
   }): Promise<{ videoUrl: string; durationSec: number }> {
-    if (!this.initialized) throw new Error("FalClient not initialized — FAL_API_KEY missing");
+    if (!this.initialized)
+      throw new Error("FalClient not initialized — FAL_API_KEY missing");
 
     const modelMap: Record<string, string> = {
       "kling-v1-5": "fal-ai/kling-video/v1.5/pro/image-to-video",
@@ -278,7 +314,8 @@ export class FalClient {
       "kling-v1": "fal-ai/kling-video/v1/standard/text-to-video",
     };
 
-    const modelId = modelMap[params.model || "kling-v1"] || modelMap["kling-v1"];
+    const modelId =
+      modelMap[params.model || "kling-v1"] || modelMap["kling-v1"];
 
     const { data, retries, durationMs } = await safeApiCall(
       async () => {
@@ -303,7 +340,9 @@ export class FalClient {
       { timeoutMs: 300000 } // 5 min for video gen
     );
 
-    console.log(`[FalClient] 🎬 Video generated in ${durationMs}ms (${retries} retries)`);
+    console.log(
+      `[FalClient] 🎬 Video generated in ${durationMs}ms (${retries} retries)`
+    );
 
     const result = data as any;
     return {
@@ -319,7 +358,12 @@ export class FalClient {
     const start = Date.now();
     try {
       if (!this.initialized) {
-        return { status: "offline", lastChecked: start, latencyMs: null, errorMessage: "FAL_API_KEY not set" };
+        return {
+          status: "offline",
+          lastChecked: start,
+          latencyMs: null,
+          errorMessage: "FAL_API_KEY not set",
+        };
       }
       // Lightweight check — just verify credentials
       // Fal doesn't have a dedicated health endpoint, so we check init status
@@ -373,7 +417,8 @@ export class SunoClient {
     customMode?: boolean;
     lyrics?: string;
   }): Promise<{ taskId: string; status: string }> {
-    if (!this.apiKey) throw new Error("SunoClient not initialized — SUNO_API_KEY missing");
+    if (!this.apiKey)
+      throw new Error("SunoClient not initialized — SUNO_API_KEY missing");
 
     const { data, retries, durationMs } = await safeApiCall(
       async () => {
@@ -401,10 +446,13 @@ export class SunoClient {
 
         if (!res.ok) {
           const errText = await res.text().catch(() => "");
-          throw Object.assign(new Error(`Suno API error: ${res.status} ${errText}`), {
-            status: res.status,
-            headers: res.headers,
-          });
+          throw Object.assign(
+            new Error(`Suno API error: ${res.status} ${errText}`),
+            {
+              status: res.status,
+              headers: res.headers,
+            }
+          );
         }
 
         return res.json();
@@ -413,7 +461,9 @@ export class SunoClient {
       { timeoutMs: 60000 }
     );
 
-    console.log(`[SunoClient] 🎵 Music generation initiated in ${durationMs}ms (${retries} retries)`);
+    console.log(
+      `[SunoClient] 🎵 Music generation initiated in ${durationMs}ms (${retries} retries)`
+    );
 
     const result = data as any;
     return {
@@ -433,9 +483,12 @@ export class SunoClient {
 
     const { data } = await safeApiCall(
       async () => {
-        const res = await fetch(`${this.baseUrl}/api/v1/generate/record?taskId=${taskId}`, {
-          headers: { Authorization: `Bearer ${this.apiKey}` },
-        });
+        const res = await fetch(
+          `${this.baseUrl}/api/v1/generate/record?taskId=${taskId}`,
+          {
+            headers: { Authorization: `Bearer ${this.apiKey}` },
+          }
+        );
         if (!res.ok) throw new Error(`Suno status check failed: ${res.status}`);
         return res.json();
       },
@@ -463,7 +516,12 @@ export class SunoClient {
     const start = Date.now();
     try {
       if (!this.apiKey) {
-        return { status: "offline", lastChecked: start, latencyMs: null, errorMessage: "SUNO_API_KEY not set" };
+        return {
+          status: "offline",
+          lastChecked: start,
+          latencyMs: null,
+          errorMessage: "SUNO_API_KEY not set",
+        };
       }
       return {
         status: "online",
@@ -495,7 +553,9 @@ export class ElevenLabsClient {
     if (this.apiKey) {
       console.log("[ElevenLabsClient] ✅ Initialized with ELEVENLABS_API_KEY");
     } else {
-      console.warn("[ElevenLabsClient] ⚠️ ELEVENLABS_API_KEY not set — client disabled");
+      console.warn(
+        "[ElevenLabsClient] ⚠️ ELEVENLABS_API_KEY not set — client disabled"
+      );
     }
   }
 
@@ -514,7 +574,10 @@ export class ElevenLabsClient {
     similarityBoost?: number;
     speed?: number;
   }): Promise<{ audioBuffer: Buffer; contentType: string }> {
-    if (!this.apiKey) throw new Error("ElevenLabsClient not initialized — ELEVENLABS_API_KEY missing");
+    if (!this.apiKey)
+      throw new Error(
+        "ElevenLabsClient not initialized — ELEVENLABS_API_KEY missing"
+      );
 
     const voiceId = params.voiceId || "21m00Tcm4TlvDq8ikWAM"; // Rachel (default)
     const modelId = params.modelId || "eleven_multilingual_v2";
@@ -540,10 +603,13 @@ export class ElevenLabsClient {
 
         if (!res.ok) {
           const errText = await res.text().catch(() => "");
-          throw Object.assign(new Error(`ElevenLabs TTS error: ${res.status} ${errText}`), {
-            status: res.status,
-            headers: res.headers,
-          });
+          throw Object.assign(
+            new Error(`ElevenLabs TTS error: ${res.status} ${errText}`),
+            {
+              status: res.status,
+              headers: res.headers,
+            }
+          );
         }
 
         const arrayBuffer = await res.arrayBuffer();
@@ -556,14 +622,18 @@ export class ElevenLabsClient {
       { timeoutMs: 60000 }
     );
 
-    console.log(`[ElevenLabsClient] 🎙️ TTS generated in ${durationMs}ms (${retries} retries, ${data.audioBuffer.length} bytes)`);
+    console.log(
+      `[ElevenLabsClient] 🎙️ TTS generated in ${durationMs}ms (${retries} retries, ${data.audioBuffer.length} bytes)`
+    );
     return data;
   }
 
   /**
    * 取得可用語音列表
    */
-  async listVoices(): Promise<Array<{ voiceId: string; name: string; category: string }>> {
+  async listVoices(): Promise<
+    Array<{ voiceId: string; name: string; category: string }>
+  > {
     if (!this.apiKey) throw new Error("ElevenLabsClient not initialized");
 
     const { data } = await safeApiCall(
@@ -571,7 +641,11 @@ export class ElevenLabsClient {
         const res = await fetch(`${this.baseUrl}/voices`, {
           headers: { "xi-api-key": this.apiKey! },
         });
-        if (!res.ok) throw Object.assign(new Error(`ElevenLabs voices error: ${res.status}`), { status: res.status });
+        if (!res.ok)
+          throw Object.assign(
+            new Error(`ElevenLabs voices error: ${res.status}`),
+            { status: res.status }
+          );
         return res.json();
       },
       "ElevenLabs:Voices",
@@ -593,18 +667,38 @@ export class ElevenLabsClient {
     const start = Date.now();
     try {
       if (!this.apiKey) {
-        return { status: "offline", lastChecked: start, latencyMs: null, errorMessage: "ELEVENLABS_API_KEY not set" };
+        return {
+          status: "offline",
+          lastChecked: start,
+          latencyMs: null,
+          errorMessage: "ELEVENLABS_API_KEY not set",
+        };
       }
       const res = await fetch(`${this.baseUrl}/user`, {
         headers: { "xi-api-key": this.apiKey },
       });
       const latencyMs = Date.now() - start;
       if (res.status === 200) {
-        return { status: "online", lastChecked: Date.now(), latencyMs, errorMessage: null };
+        return {
+          status: "online",
+          lastChecked: Date.now(),
+          latencyMs,
+          errorMessage: null,
+        };
       } else if (res.status === 401) {
-        return { status: "degraded", lastChecked: Date.now(), latencyMs, errorMessage: "API key expired or invalid (free tier)" };
+        return {
+          status: "degraded",
+          lastChecked: Date.now(),
+          latencyMs,
+          errorMessage: "API key expired or invalid (free tier)",
+        };
       } else {
-        return { status: "degraded", lastChecked: Date.now(), latencyMs, errorMessage: `HTTP ${res.status}` };
+        return {
+          status: "degraded",
+          lastChecked: Date.now(),
+          latencyMs,
+          errorMessage: `HTTP ${res.status}`,
+        };
       }
     } catch (error) {
       return {
@@ -630,7 +724,9 @@ export class ReplicateClient {
       this.client = new Replicate({ auth: token });
       console.log("[ReplicateClient] ✅ Initialized with REPLICATE_API_TOKEN");
     } else {
-      console.warn("[ReplicateClient] ⚠️ REPLICATE_API_TOKEN not set — client disabled");
+      console.warn(
+        "[ReplicateClient] ⚠️ REPLICATE_API_TOKEN not set — client disabled"
+      );
     }
   }
 
@@ -645,18 +741,25 @@ export class ReplicateClient {
     model: `${string}/${string}` | `${string}/${string}:${string}`;
     input: Record<string, unknown>;
   }): Promise<{ output: unknown; durationMs: number }> {
-    if (!this.client) throw new Error("ReplicateClient not initialized — REPLICATE_API_TOKEN missing");
+    if (!this.client)
+      throw new Error(
+        "ReplicateClient not initialized — REPLICATE_API_TOKEN missing"
+      );
 
     const { data, retries, durationMs } = await safeApiCall(
       async () => {
-        const output = await this.client!.run(params.model, { input: params.input });
+        const output = await this.client!.run(params.model, {
+          input: params.input,
+        });
         return output;
       },
       `Replicate:${params.model}`,
       { timeoutMs: 300000 } // 5 min
     );
 
-    console.log(`[ReplicateClient] 🔧 Model ${params.model} completed in ${durationMs}ms (${retries} retries)`);
+    console.log(
+      `[ReplicateClient] 🔧 Model ${params.model} completed in ${durationMs}ms (${retries} retries)`
+    );
     return { output: data, durationMs };
   }
 
@@ -667,7 +770,12 @@ export class ReplicateClient {
     const start = Date.now();
     try {
       if (!this.client) {
-        return { status: "offline", lastChecked: start, latencyMs: null, errorMessage: "REPLICATE_API_TOKEN not set" };
+        return {
+          status: "offline",
+          lastChecked: start,
+          latencyMs: null,
+          errorMessage: "REPLICATE_API_TOKEN not set",
+        };
       }
       // Lightweight check — get account info
       const account = await this.client.accounts.current();
@@ -720,9 +828,11 @@ export class ModelOrchestrator {
             width: (request.params?.width as number) || undefined,
             height: (request.params?.height as number) || undefined,
             numImages: (request.params?.numImages as number) || 1,
-            guidanceScale: (request.params?.guidanceScale as number) || undefined,
+            guidanceScale:
+              (request.params?.guidanceScale as number) || undefined,
             seed: (request.params?.seed as number) || undefined,
-            negativePrompt: (request.params?.negativePrompt as string) || undefined,
+            negativePrompt:
+              (request.params?.negativePrompt as string) || undefined,
           });
           return {
             success: true,
@@ -777,7 +887,8 @@ export class ModelOrchestrator {
             voiceId: (request.params?.voiceId as string) || undefined,
             modelId: (request.params?.modelId as string) || undefined,
             stability: (request.params?.stability as number) || undefined,
-            similarityBoost: (request.params?.similarityBoost as number) || undefined,
+            similarityBoost:
+              (request.params?.similarityBoost as number) || undefined,
             speed: (request.params?.speed as number) || undefined,
           });
           return {
@@ -813,12 +924,13 @@ export class ModelOrchestrator {
    * 全引擎健康檢查
    */
   async healthCheckAll(): Promise<Record<Modality, ClientHealth>> {
-    const [falHealth, sunoHealth, elevenHealth, replicateHealth] = await Promise.allSettled([
-      this.fal.healthCheck(),
-      this.suno.healthCheck(),
-      this.elevenlabs.healthCheck(),
-      this.replicate.healthCheck(),
-    ]);
+    const [falHealth, sunoHealth, elevenHealth, replicateHealth] =
+      await Promise.allSettled([
+        this.fal.healthCheck(),
+        this.suno.healthCheck(),
+        this.elevenlabs.healthCheck(),
+        this.replicate.healthCheck(),
+      ]);
 
     const defaultOffline: ClientHealth = {
       status: "offline",
@@ -828,10 +940,16 @@ export class ModelOrchestrator {
     };
 
     return {
-      image: falHealth.status === "fulfilled" ? falHealth.value : defaultOffline,
-      video: falHealth.status === "fulfilled" ? falHealth.value : defaultOffline,
-      music: sunoHealth.status === "fulfilled" ? sunoHealth.value : defaultOffline,
-      voice: elevenHealth.status === "fulfilled" ? elevenHealth.value : defaultOffline,
+      image:
+        falHealth.status === "fulfilled" ? falHealth.value : defaultOffline,
+      video:
+        falHealth.status === "fulfilled" ? falHealth.value : defaultOffline,
+      music:
+        sunoHealth.status === "fulfilled" ? sunoHealth.value : defaultOffline,
+      voice:
+        elevenHealth.status === "fulfilled"
+          ? elevenHealth.value
+          : defaultOffline,
     };
   }
 
@@ -871,5 +989,7 @@ export function getOrchestrator(): ModelOrchestrator {
  */
 export function resetOrchestrator(): void {
   _orchestrator = null;
-  console.log("[ModelOrchestrator] 🔄 Reset — will reinitialize on next access");
+  console.log(
+    "[ModelOrchestrator] 🔄 Reset — will reinitialize on next access"
+  );
 }

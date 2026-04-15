@@ -91,14 +91,14 @@ describe("Scene Switcher", () => {
 
   describe("Scene Metadata", () => {
     it("all scenes should have labels", () => {
-      ALL_SCENES.forEach((id) => {
+      ALL_SCENES.forEach(id => {
         expect(SCENE_META[id].label).toBeTruthy();
         expect(typeof SCENE_META[id].label).toBe("string");
       });
     });
 
     it("all scenes should have descriptions", () => {
-      ALL_SCENES.forEach((id) => {
+      ALL_SCENES.forEach(id => {
         expect(SCENE_META[id].description).toBeTruthy();
         expect(typeof SCENE_META[id].description).toBe("string");
       });

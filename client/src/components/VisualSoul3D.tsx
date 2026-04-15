@@ -134,35 +134,38 @@ const FRAGMENT_SHADER = /* glsl */ `
 
 // ─── Personality → Shader Uniforms ────────────────────────────────────────
 
-const PERSONALITY_UNIFORMS: Record<Personality, {
-  colorPrimary: [number, number, number];
-  colorSecondary: [number, number, number];
-  colorAccent: [number, number, number];
-  breathSpeed: number;
-  pulseIntensity: number;
-  emissiveIntensity: number;
-}> = {
+const PERSONALITY_UNIFORMS: Record<
+  Personality,
+  {
+    colorPrimary: [number, number, number];
+    colorSecondary: [number, number, number];
+    colorAccent: [number, number, number];
+    breathSpeed: number;
+    pulseIntensity: number;
+    emissiveIntensity: number;
+  }
+> = {
   calm: {
-    colorPrimary:   [0.00, 0.82, 1.00],   // 亮青 #00D2FF
-    colorSecondary: [0.39, 0.94, 1.00],   // 天藍白 #64EFFF
-    colorAccent:    [0.78, 1.00, 1.00],   // 冰白青 #C8FFFF
-    breathSpeed:    0.7,
+    colorPrimary: [0.0, 0.82, 1.0], // 亮青 #00D2FF
+    colorSecondary: [0.39, 0.94, 1.0], // 天藍白 #64EFFF
+    colorAccent: [0.78, 1.0, 1.0], // 冰白青 #C8FFFF
+    breathSpeed: 0.7,
     pulseIntensity: 0.4,
     emissiveIntensity: 2.2,
   },
   creative: {
-    colorPrimary:   [1.00, 0.31, 0.71],   // 亮粉 #FF50B5
-    colorSecondary: [1.00, 0.63, 0.24],   // 橘粉 #FFA03D
-    colorAccent:    [1.00, 0.90, 0.00],   // 亮黃 #FFE600
-    breathSpeed:    1.8,
+    colorPrimary: [1.0, 0.31, 0.71], // 亮粉 #FF50B5
+    colorSecondary: [1.0, 0.63, 0.24], // 橘粉 #FFA03D
+    colorAccent: [1.0, 0.9, 0.0], // 亮黃 #FFE600
+    breathSpeed: 1.8,
     pulseIntensity: 0.8,
     emissiveIntensity: 2.4,
   },
   technical: {
-    colorPrimary:   [0.31, 1.00, 0.71],   // 亮綠 #50FFB5
-    colorSecondary: [0.00, 0.78, 0.47],   // 翠綠 #00C778
-    colorAccent:    [0.59, 1.00, 0.78],   // 薄荷 #96FFC7
-    breathSpeed:    2.5,
+    colorPrimary: [0.31, 1.0, 0.71], // 亮綠 #50FFB5
+    colorSecondary: [0.0, 0.78, 0.47], // 翠綠 #00C778
+    colorAccent: [0.59, 1.0, 0.78], // 薄荷 #96FFC7
+    breathSpeed: 2.5,
     pulseIntensity: 0.6,
     emissiveIntensity: 2.2,
   },
@@ -190,14 +193,14 @@ function OrbMesh({
 
   const uniforms = useMemo(
     () => ({
-      uTime:             { value: 0 },
-      uState:            { value: STATE_VALUE[state] },
-      uBreathSpeed:      { value: cfg.breathSpeed },
-      uPulseIntensity:   { value: cfg.pulseIntensity },
-      uEmissiveIntensity:{ value: cfg.emissiveIntensity },
-      uColorPrimary:     { value: new THREE.Color(...cfg.colorPrimary) },
-      uColorSecondary:   { value: new THREE.Color(...cfg.colorSecondary) },
-      uColorAccent:      { value: new THREE.Color(...cfg.colorAccent) },
+      uTime: { value: 0 },
+      uState: { value: STATE_VALUE[state] },
+      uBreathSpeed: { value: cfg.breathSpeed },
+      uPulseIntensity: { value: cfg.pulseIntensity },
+      uEmissiveIntensity: { value: cfg.emissiveIntensity },
+      uColorPrimary: { value: new THREE.Color(...cfg.colorPrimary) },
+      uColorSecondary: { value: new THREE.Color(...cfg.colorSecondary) },
+      uColorAccent: { value: new THREE.Color(...cfg.colorAccent) },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [personality]
@@ -213,7 +216,8 @@ function OrbMesh({
     // Slow rotation
     if (meshRef.current) {
       meshRef.current.rotation.y = clock.getElapsedTime() * 0.25;
-      meshRef.current.rotation.x = Math.sin(clock.getElapsedTime() * 0.15) * 0.1;
+      meshRef.current.rotation.x =
+        Math.sin(clock.getElapsedTime() * 0.15) * 0.1;
     }
   });
 
@@ -319,18 +323,19 @@ export default function VisualSoul3D({
   // Pause rendering when tab is hidden to save GPU/CPU
   const [frameloop, setFrameloop] = useState<"always" | "never">("always");
   useEffect(() => {
-    const onVisibility = () => setFrameloop(document.hidden ? "never" : "always");
+    const onVisibility = () =>
+      setFrameloop(document.hidden ? "never" : "always");
     document.addEventListener("visibilitychange", onVisibility);
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, []);
 
   const glowColor = PERSONALITY_UNIFORMS[personality].colorPrimary
-    .map((v) => Math.round(v * 255))
+    .map(v => Math.round(v * 255))
     .join(", ");
 
   // 多層光暈強化亮色感
   const accentColor = PERSONALITY_UNIFORMS[personality].colorAccent
-    .map((v) => Math.round(v * 255))
+    .map(v => Math.round(v * 255))
     .join(", ");
 
   return (
@@ -357,9 +362,25 @@ export default function VisualSoul3D({
         frameloop={frameloop}
       >
         <ambientLight intensity={0.8} />
-        <pointLight position={[2, 3, 4]} intensity={2.0} color={new THREE.Color(1, 1, 1)} />
-        <pointLight position={[-2, -1, -3]} intensity={1.2} color={new THREE.Color(...PERSONALITY_UNIFORMS[personality].colorAccent)} />
-        <pointLight position={[0, 2, 2]} intensity={1.5} color={new THREE.Color(...PERSONALITY_UNIFORMS[personality].colorPrimary)} />
+        <pointLight
+          position={[2, 3, 4]}
+          intensity={2.0}
+          color={new THREE.Color(1, 1, 1)}
+        />
+        <pointLight
+          position={[-2, -1, -3]}
+          intensity={1.2}
+          color={
+            new THREE.Color(...PERSONALITY_UNIFORMS[personality].colorAccent)
+          }
+        />
+        <pointLight
+          position={[0, 2, 2]}
+          intensity={1.5}
+          color={
+            new THREE.Color(...PERSONALITY_UNIFORMS[personality].colorPrimary)
+          }
+        />
 
         <Suspense fallback={null}>
           <OrbMesh personality={personality} state={state} />

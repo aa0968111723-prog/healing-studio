@@ -41,7 +41,7 @@ export function FrameTimeline({
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "image/*";
-    input.onchange = (e) => {
+    input.onchange = e => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (file) handleFileUpload(slot, file);
     };
@@ -62,7 +62,9 @@ export function FrameTimeline({
     <motion.div
       whileTap={{ scale: 0.97 }}
       className={`relative flex-1 aspect-video rounded-[25px] border-2 border-dashed transition-all overflow-hidden ${
-        activeSlot === slot ? "border-primary bg-primary/5" : "border-border bg-muted/30"
+        activeSlot === slot
+          ? "border-primary bg-primary/5"
+          : "border-border bg-muted/30"
       } ${frame ? "border-solid" : ""}`}
       onClick={() => {
         if (isMobile && !frame) {
@@ -70,14 +72,14 @@ export function FrameTimeline({
           handleFileSelect(slot);
         }
       }}
-      onDragOver={(e) => {
+      onDragOver={e => {
         if (!isMobile) {
           e.preventDefault();
           setActiveSlot(slot);
         }
       }}
       onDragLeave={() => setActiveSlot(null)}
-      onDrop={(e) => {
+      onDrop={e => {
         if (!isMobile) {
           e.preventDefault();
           setActiveSlot(null);
@@ -93,12 +95,17 @@ export function FrameTimeline({
         </div>
       ) : frame ? (
         <>
-          <img src={frame} alt={label} className="w-full h-full object-cover" loading="lazy" />
+          <img
+            src={frame}
+            alt={label}
+            className="w-full h-full object-cover"
+            loading="lazy"
+          />
           <Button
             variant="outline"
             size="icon"
             className="absolute top-2 right-2 w-6 h-6 rounded-full bg-white/80"
-            onClick={(e) => {
+            onClick={e => {
               e.stopPropagation();
               onClear();
             }}
@@ -109,7 +116,9 @@ export function FrameTimeline({
       ) : (
         <div className="flex flex-col items-center justify-center h-full gap-1 p-2">
           <ImagePlus className="w-6 h-6 text-muted-foreground" />
-          <span className="text-xs text-muted-foreground text-center">{label}</span>
+          <span className="text-xs text-muted-foreground text-center">
+            {label}
+          </span>
           {!isMobile && (
             <button
               onClick={() => handleFileSelect(slot)}
@@ -149,7 +158,9 @@ export function FrameTimeline({
         />
       </div>
       <p className="text-xs text-muted-foreground">
-        {isMobile ? "點擊選擇首幀和末幀圖片" : "拖放或點擊上傳首幀和末幀圖片，AI 會在兩者之間生成過渡影片"}
+        {isMobile
+          ? "點擊選擇首幀和末幀圖片"
+          : "拖放或點擊上傳首幀和末幀圖片，AI 會在兩者之間生成過渡影片"}
       </p>
     </div>
   );

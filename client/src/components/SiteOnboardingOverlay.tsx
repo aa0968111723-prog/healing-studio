@@ -14,9 +14,19 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, ChevronRight, ChevronLeft, Heart, Sparkles, BookOpen } from "lucide-react";
+import {
+  X,
+  ChevronRight,
+  ChevronLeft,
+  Heart,
+  Sparkles,
+  BookOpen,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useSiteOnboarding, type TourStep } from "@/contexts/SiteOnboardingContext";
+import {
+  useSiteOnboarding,
+  type TourStep,
+} from "@/contexts/SiteOnboardingContext";
 import VisualSoul from "./VisualSoul";
 
 // ─── Spotlight SVG Overlay ───────────────────────────────────────────────────
@@ -44,27 +54,43 @@ function SpotlightOverlay({ targetRect }: { targetRect: DOMRect | null }) {
       </defs>
       {/* Dark overlay */}
       <rect
-        x="0" y="0" width="100%" height="100%"
+        x="0"
+        y="0"
+        width="100%"
+        height="100%"
         fill="rgba(0,0,0,0.62)"
         mask="url(#site-spotlight-mask)"
       />
       {/* Glow border */}
       <rect
-        x={x} y={y} width={w} height={h}
-        rx={r} ry={r}
+        x={x}
+        y={y}
+        width={w}
+        height={h}
+        rx={r}
+        ry={r}
         fill="none"
         stroke="rgba(255,180,80,0.55)"
         strokeWidth="2"
       />
       {/* Pulse animation */}
       <rect
-        x={x - 3} y={y - 3} width={w + 6} height={h + 6}
-        rx={r + 3} ry={r + 3}
+        x={x - 3}
+        y={y - 3}
+        width={w + 6}
+        height={h + 6}
+        rx={r + 3}
+        ry={r + 3}
         fill="none"
         stroke="rgba(255,180,80,0.25)"
         strokeWidth="3"
       >
-        <animate attributeName="opacity" values="0.2;0.7;0.2" dur="2.2s" repeatCount="indefinite" />
+        <animate
+          attributeName="opacity"
+          values="0.2;0.7;0.2"
+          dur="2.2s"
+          repeatCount="indefinite"
+        />
       </rect>
     </svg>
   );
@@ -191,7 +217,9 @@ function TourCard({
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
-              <h3 className="text-base font-bold text-gray-800 mt-1.5">{step.title}</h3>
+              <h3 className="text-base font-bold text-gray-800 mt-1.5">
+                {step.title}
+              </h3>
             </div>
           </div>
 
@@ -204,7 +232,9 @@ function TourCard({
           {step.tip && (
             <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50/80 border border-amber-100 mb-4">
               <Heart className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" />
-              <p className="text-xs text-amber-700 leading-relaxed italic">{step.tip}</p>
+              <p className="text-xs text-amber-700 leading-relaxed italic">
+                {step.tip}
+              </p>
             </div>
           )}
 
@@ -248,9 +278,15 @@ function TourCard({
                 className="text-xs h-8 px-5 gap-1 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white rounded-full shadow-md shadow-amber-500/25 border-0"
               >
                 {isLastStep ? (
-                  <><Sparkles className="w-3.5 h-3.5" />開始探索</>
+                  <>
+                    <Sparkles className="w-3.5 h-3.5" />
+                    開始探索
+                  </>
                 ) : (
-                  <>下一步<ChevronRight className="w-3.5 h-3.5" /></>
+                  <>
+                    下一步
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </>
                 )}
               </Button>
             </div>

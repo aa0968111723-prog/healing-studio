@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
 // Mock the DB module before importing routers
-vi.mock("./db", async (importOriginal) => {
+vi.mock("./db", async importOriginal => {
   const actual = await importOriginal<typeof import("./db")>();
   return {
     ...actual,
@@ -24,7 +24,9 @@ import type { TrpcContext } from "./_core/context";
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
-function createMockUser(overrides: Partial<AuthenticatedUser> = {}): AuthenticatedUser {
+function createMockUser(
+  overrides: Partial<AuthenticatedUser> = {}
+): AuthenticatedUser {
   return {
     id: 1,
     openId: "test-user-001",
@@ -139,7 +141,9 @@ describe("admin route access control", () => {
     const user = createMockUser({ role: "user" });
     const ctx = createMockContext(user);
     const caller = appRouter.createCaller(ctx);
-    await expect(caller.admin.updateQuota({ userId: 2, amount: 100 })).rejects.toThrow();
+    await expect(
+      caller.admin.updateQuota({ userId: 2, amount: 100 })
+    ).rejects.toThrow();
   });
 
   it("rejects non-admin access to admin.teamCostSummary", async () => {
@@ -160,7 +164,9 @@ describe("admin route access control", () => {
     const user = createMockUser({ role: "user" });
     const ctx = createMockContext(user);
     const caller = appRouter.createCaller(ctx);
-    await expect(caller.feedback.updateStatus({ id: 1, status: "resolved" })).rejects.toThrow();
+    await expect(
+      caller.feedback.updateStatus({ id: 1, status: "resolved" })
+    ).rejects.toThrow();
   });
 });
 
@@ -268,15 +274,35 @@ describe("input validation", () => {
     // Mock atomic deduction and LLM to prevent real API calls
     const dbModule = await import("./db");
     const llmModule = await import("./_core/llm");
-    const spy = vi.spyOn(dbModule, "deductUserQuota").mockResolvedValueOnce(true);
-    const refundSpy = vi.spyOn(dbModule, "refundUserQuota").mockResolvedValue(undefined);
-    const createJobSpy = vi.spyOn(dbModule, "createBackgroundJob").mockResolvedValue(1);
-    const updateJobSpy = vi.spyOn(dbModule, "updateBackgroundJob").mockResolvedValue(undefined);
-    const createLogSpy = vi.spyOn(dbModule, "createApiUsageLog").mockResolvedValue(1);
-    const createAssetSpy = vi.spyOn(dbModule, "createDigitalAsset").mockResolvedValue(1);
-    const createHistorySpy = vi.spyOn(dbModule, "createHistoryEntry").mockResolvedValue(1);
+    const spy = vi
+      .spyOn(dbModule, "deductUserQuota")
+      .mockResolvedValueOnce(true);
+    const refundSpy = vi
+      .spyOn(dbModule, "refundUserQuota")
+      .mockResolvedValue(undefined);
+    const createJobSpy = vi
+      .spyOn(dbModule, "createBackgroundJob")
+      .mockResolvedValue(1);
+    const updateJobSpy = vi
+      .spyOn(dbModule, "updateBackgroundJob")
+      .mockResolvedValue(undefined);
+    const createLogSpy = vi
+      .spyOn(dbModule, "createApiUsageLog")
+      .mockResolvedValue(1);
+    const createAssetSpy = vi
+      .spyOn(dbModule, "createDigitalAsset")
+      .mockResolvedValue(1);
+    const createHistorySpy = vi
+      .spyOn(dbModule, "createHistoryEntry")
+      .mockResolvedValue(1);
     const llmSpy = vi.spyOn(llmModule, "invokeLLM").mockResolvedValue({
-      choices: [{ message: { content: JSON.stringify({ safe: true }) }, finish_reason: "stop", index: 0 }],
+      choices: [
+        {
+          message: { content: JSON.stringify({ safe: true }) },
+          finish_reason: "stop",
+          index: 0,
+        },
+      ],
     } as any);
     const user = createMockUser();
     const ctx = createMockContext(user);
@@ -298,23 +324,48 @@ describe("input validation", () => {
       // Should NOT be a validation error
       expect(e.message).not.toMatch(/validation/i);
     }
-    spy.mockRestore(); refundSpy.mockRestore(); createJobSpy.mockRestore();
-    updateJobSpy.mockRestore(); createLogSpy.mockRestore(); llmSpy.mockRestore();
-    createAssetSpy.mockRestore(); createHistorySpy.mockRestore();
+    spy.mockRestore();
+    refundSpy.mockRestore();
+    createJobSpy.mockRestore();
+    updateJobSpy.mockRestore();
+    createLogSpy.mockRestore();
+    llmSpy.mockRestore();
+    createAssetSpy.mockRestore();
+    createHistorySpy.mockRestore();
   });
 
   it("accepts video workspace params (cameraMotion, frames)", async () => {
     const dbModule = await import("./db");
     const llmModule = await import("./_core/llm");
-    const spy = vi.spyOn(dbModule, "deductUserQuota").mockResolvedValueOnce(true);
-    const refundSpy = vi.spyOn(dbModule, "refundUserQuota").mockResolvedValue(undefined);
-    const createJobSpy = vi.spyOn(dbModule, "createBackgroundJob").mockResolvedValue(1);
-    const updateJobSpy = vi.spyOn(dbModule, "updateBackgroundJob").mockResolvedValue(undefined);
-    const createLogSpy = vi.spyOn(dbModule, "createApiUsageLog").mockResolvedValue(1);
-    const createAssetSpy = vi.spyOn(dbModule, "createDigitalAsset").mockResolvedValue(1);
-    const createHistorySpy = vi.spyOn(dbModule, "createHistoryEntry").mockResolvedValue(1);
+    const spy = vi
+      .spyOn(dbModule, "deductUserQuota")
+      .mockResolvedValueOnce(true);
+    const refundSpy = vi
+      .spyOn(dbModule, "refundUserQuota")
+      .mockResolvedValue(undefined);
+    const createJobSpy = vi
+      .spyOn(dbModule, "createBackgroundJob")
+      .mockResolvedValue(1);
+    const updateJobSpy = vi
+      .spyOn(dbModule, "updateBackgroundJob")
+      .mockResolvedValue(undefined);
+    const createLogSpy = vi
+      .spyOn(dbModule, "createApiUsageLog")
+      .mockResolvedValue(1);
+    const createAssetSpy = vi
+      .spyOn(dbModule, "createDigitalAsset")
+      .mockResolvedValue(1);
+    const createHistorySpy = vi
+      .spyOn(dbModule, "createHistoryEntry")
+      .mockResolvedValue(1);
     const llmSpy = vi.spyOn(llmModule, "invokeLLM").mockResolvedValue({
-      choices: [{ message: { content: JSON.stringify({ safe: true }) }, finish_reason: "stop", index: 0 }],
+      choices: [
+        {
+          message: { content: JSON.stringify({ safe: true }) },
+          finish_reason: "stop",
+          index: 0,
+        },
+      ],
     } as any);
     const user = createMockUser();
     const ctx = createMockContext(user);
@@ -335,23 +386,48 @@ describe("input validation", () => {
     } catch (e: any) {
       expect(e.message).not.toMatch(/validation/i);
     }
-    spy.mockRestore(); refundSpy.mockRestore(); createJobSpy.mockRestore();
-    updateJobSpy.mockRestore(); createLogSpy.mockRestore(); llmSpy.mockRestore();
-    createAssetSpy.mockRestore(); createHistorySpy.mockRestore();
+    spy.mockRestore();
+    refundSpy.mockRestore();
+    createJobSpy.mockRestore();
+    updateJobSpy.mockRestore();
+    createLogSpy.mockRestore();
+    llmSpy.mockRestore();
+    createAssetSpy.mockRestore();
+    createHistorySpy.mockRestore();
   });
 
   it("accepts audio workspace params (instrumental, lyrics)", async () => {
     const dbModule = await import("./db");
     const llmModule = await import("./_core/llm");
-    const spy = vi.spyOn(dbModule, "deductUserQuota").mockResolvedValueOnce(true);
-    const refundSpy = vi.spyOn(dbModule, "refundUserQuota").mockResolvedValue(undefined);
-    const createJobSpy = vi.spyOn(dbModule, "createBackgroundJob").mockResolvedValue(1);
-    const updateJobSpy = vi.spyOn(dbModule, "updateBackgroundJob").mockResolvedValue(undefined);
-    const createLogSpy = vi.spyOn(dbModule, "createApiUsageLog").mockResolvedValue(1);
-    const createAssetSpy = vi.spyOn(dbModule, "createDigitalAsset").mockResolvedValue(1);
-    const createHistorySpy = vi.spyOn(dbModule, "createHistoryEntry").mockResolvedValue(1);
+    const spy = vi
+      .spyOn(dbModule, "deductUserQuota")
+      .mockResolvedValueOnce(true);
+    const refundSpy = vi
+      .spyOn(dbModule, "refundUserQuota")
+      .mockResolvedValue(undefined);
+    const createJobSpy = vi
+      .spyOn(dbModule, "createBackgroundJob")
+      .mockResolvedValue(1);
+    const updateJobSpy = vi
+      .spyOn(dbModule, "updateBackgroundJob")
+      .mockResolvedValue(undefined);
+    const createLogSpy = vi
+      .spyOn(dbModule, "createApiUsageLog")
+      .mockResolvedValue(1);
+    const createAssetSpy = vi
+      .spyOn(dbModule, "createDigitalAsset")
+      .mockResolvedValue(1);
+    const createHistorySpy = vi
+      .spyOn(dbModule, "createHistoryEntry")
+      .mockResolvedValue(1);
     const llmSpy = vi.spyOn(llmModule, "invokeLLM").mockResolvedValue({
-      choices: [{ message: { content: JSON.stringify({ safe: true }) }, finish_reason: "stop", index: 0 }],
+      choices: [
+        {
+          message: { content: JSON.stringify({ safe: true }) },
+          finish_reason: "stop",
+          index: 0,
+        },
+      ],
     } as any);
     const user = createMockUser();
     const ctx = createMockContext(user);
@@ -371,23 +447,48 @@ describe("input validation", () => {
     } catch (e: any) {
       expect(e.message).not.toMatch(/validation/i);
     }
-    spy.mockRestore(); refundSpy.mockRestore(); createJobSpy.mockRestore();
-    updateJobSpy.mockRestore(); createLogSpy.mockRestore(); llmSpy.mockRestore();
-    createAssetSpy.mockRestore(); createHistorySpy.mockRestore();
+    spy.mockRestore();
+    refundSpy.mockRestore();
+    createJobSpy.mockRestore();
+    updateJobSpy.mockRestore();
+    createLogSpy.mockRestore();
+    llmSpy.mockRestore();
+    createAssetSpy.mockRestore();
+    createHistorySpy.mockRestore();
   });
 
   it("accepts voice workspace params (speed, stability, emotion)", async () => {
     const dbModule = await import("./db");
     const llmModule = await import("./_core/llm");
-    const spy = vi.spyOn(dbModule, "deductUserQuota").mockResolvedValueOnce(true);
-    const refundSpy = vi.spyOn(dbModule, "refundUserQuota").mockResolvedValue(undefined);
-    const createJobSpy = vi.spyOn(dbModule, "createBackgroundJob").mockResolvedValue(1);
-    const updateJobSpy = vi.spyOn(dbModule, "updateBackgroundJob").mockResolvedValue(undefined);
-    const createLogSpy = vi.spyOn(dbModule, "createApiUsageLog").mockResolvedValue(1);
-    const createAssetSpy = vi.spyOn(dbModule, "createDigitalAsset").mockResolvedValue(1);
-    const createHistorySpy = vi.spyOn(dbModule, "createHistoryEntry").mockResolvedValue(1);
+    const spy = vi
+      .spyOn(dbModule, "deductUserQuota")
+      .mockResolvedValueOnce(true);
+    const refundSpy = vi
+      .spyOn(dbModule, "refundUserQuota")
+      .mockResolvedValue(undefined);
+    const createJobSpy = vi
+      .spyOn(dbModule, "createBackgroundJob")
+      .mockResolvedValue(1);
+    const updateJobSpy = vi
+      .spyOn(dbModule, "updateBackgroundJob")
+      .mockResolvedValue(undefined);
+    const createLogSpy = vi
+      .spyOn(dbModule, "createApiUsageLog")
+      .mockResolvedValue(1);
+    const createAssetSpy = vi
+      .spyOn(dbModule, "createDigitalAsset")
+      .mockResolvedValue(1);
+    const createHistorySpy = vi
+      .spyOn(dbModule, "createHistoryEntry")
+      .mockResolvedValue(1);
     const llmSpy = vi.spyOn(llmModule, "invokeLLM").mockResolvedValue({
-      choices: [{ message: { content: JSON.stringify({ safe: true }) }, finish_reason: "stop", index: 0 }],
+      choices: [
+        {
+          message: { content: JSON.stringify({ safe: true }) },
+          finish_reason: "stop",
+          index: 0,
+        },
+      ],
     } as any);
     const user = createMockUser();
     const ctx = createMockContext(user);
@@ -409,9 +510,14 @@ describe("input validation", () => {
     } catch (e: any) {
       expect(e.message).not.toMatch(/validation/i);
     }
-    spy.mockRestore(); refundSpy.mockRestore(); createJobSpy.mockRestore();
-    updateJobSpy.mockRestore(); createLogSpy.mockRestore(); llmSpy.mockRestore();
-    createAssetSpy.mockRestore(); createHistorySpy.mockRestore();
+    spy.mockRestore();
+    refundSpy.mockRestore();
+    createJobSpy.mockRestore();
+    updateJobSpy.mockRestore();
+    createLogSpy.mockRestore();
+    llmSpy.mockRestore();
+    createAssetSpy.mockRestore();
+    createHistorySpy.mockRestore();
   });
 });
 
@@ -477,7 +583,16 @@ describe("shared types - Zen palette and constants", () => {
     const types = await import("../shared/types");
     expect(types).toBeDefined();
     // Verify CoStarScript has all required fields
-    const scriptKeys = ["context", "situation", "task", "action", "result", "visualPrompt", "audioScript", "musicVibe"];
+    const scriptKeys = [
+      "context",
+      "situation",
+      "task",
+      "action",
+      "result",
+      "visualPrompt",
+      "audioScript",
+      "musicVibe",
+    ];
     // We can't directly test types at runtime, but we verify the module exports
     expect(typeof types.VIBE_CARDS).toBe("object");
     expect(typeof types.ZEN_COLORS).toBe("object");

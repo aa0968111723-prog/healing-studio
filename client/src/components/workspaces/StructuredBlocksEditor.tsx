@@ -1,5 +1,9 @@
 import { useState, useMemo } from "react";
-import type { StructuredBlock, Modality, WorkspaceMode } from "@/stores/workspaceStore";
+import type {
+  StructuredBlock,
+  Modality,
+  WorkspaceMode,
+} from "@/stores/workspaceStore";
 import { cn } from "@/lib/utils";
 import {
   Blocks,
@@ -32,9 +36,21 @@ interface CategoryMeta {
 }
 
 const CATEGORIES: CategoryMeta[] = [
-  { key: "required", label: "必要條件", icon: <Blocks className="h-3.5 w-3.5" /> },
-  { key: "control", label: "控制條件", icon: <ToggleLeft className="h-3.5 w-3.5" /> },
-  { key: "correction", label: "修正條件", icon: <ToggleRight className="h-3.5 w-3.5" /> },
+  {
+    key: "required",
+    label: "必要條件",
+    icon: <Blocks className="h-3.5 w-3.5" />,
+  },
+  {
+    key: "control",
+    label: "控制條件",
+    icon: <ToggleLeft className="h-3.5 w-3.5" />,
+  },
+  {
+    key: "correction",
+    label: "修正條件",
+    icon: <ToggleRight className="h-3.5 w-3.5" />,
+  },
 ];
 
 const PLACEHOLDER_MAP: Record<Modality, Record<string, string>> = {
@@ -72,7 +88,12 @@ const PLACEHOLDER_MAP: Record<Modality, Record<string, string>> = {
   },
 };
 
-const LONG_TEXT_FIELDS = new Set(["subject", "scene", "subjectAction", "script"]);
+const LONG_TEXT_FIELDS = new Set([
+  "subject",
+  "scene",
+  "subjectAction",
+  "script",
+]);
 
 function getPlaceholder(modality: Modality, fieldKey: string): string {
   return PLACEHOLDER_MAP[modality]?.[fieldKey] ?? "";
@@ -106,25 +127,26 @@ export function StructuredBlocksEditor({
 
   const visibleCategories = useMemo(() => {
     if (workspaceMode === "beginner") {
-      return CATEGORIES.filter((c) => c.key === "required");
+      return CATEGORIES.filter(c => c.key === "required");
     }
     return CATEGORIES;
   }, [workspaceMode]);
 
-  function updateBlock(blockId: string, patch: Partial<Pick<StructuredBlock, "value" | "enabled">>) {
-    const next = blocks.map((b) =>
-      b.id === blockId ? { ...b, ...patch } : b,
-    );
+  function updateBlock(
+    blockId: string,
+    patch: Partial<Pick<StructuredBlock, "value" | "enabled">>
+  ) {
+    const next = blocks.map(b => (b.id === blockId ? { ...b, ...patch } : b));
     onChange(next);
   }
 
   function toggleSection(key: CategoryKey) {
-    setCollapsedSections((prev) => ({ ...prev, [key]: !prev[key] }));
+    setCollapsedSections(prev => ({ ...prev, [key]: !prev[key] }));
   }
 
   return (
     <div className="space-y-4">
-      {visibleCategories.map((category) => {
+      {visibleCategories.map(category => {
         const categoryBlocks = grouped[category.key];
         if (categoryBlocks.length === 0) return null;
 
@@ -139,8 +161,9 @@ export function StructuredBlocksEditor({
               onClick={() => isCollapsible && toggleSection(category.key)}
               className={cn(
                 "flex w-full items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider",
-                isCollapsible && "cursor-pointer hover:text-foreground transition-colors",
-                !isCollapsible && "cursor-default",
+                isCollapsible &&
+                  "cursor-pointer hover:text-foreground transition-colors",
+                !isCollapsible && "cursor-default"
               )}
             >
               {category.icon}
@@ -167,17 +190,15 @@ export function StructuredBlocksEditor({
                   className="overflow-hidden"
                 >
                   <div className="space-y-1.5">
-                    {categoryBlocks.map((block) => (
+                    {categoryBlocks.map(block => (
                       <BlockRow
                         key={block.id}
                         block={block}
                         modality={modality}
-                        onValueChange={(value) =>
+                        onValueChange={value =>
                           updateBlock(block.id, { value })
                         }
-                        onToggle={(enabled) =>
-                          updateBlock(block.id, { enabled })
-                        }
+                        onToggle={enabled => updateBlock(block.id, { enabled })}
                       />
                     ))}
                   </div>
@@ -207,7 +228,7 @@ function BlockRow({ block, modality, onValueChange, onToggle }: BlockRowProps) {
     <div
       className={cn(
         "p-2 rounded-lg hover:bg-white/20 transition-colors",
-        !block.enabled && "opacity-50",
+        !block.enabled && "opacity-50"
       )}
     >
       <div className="flex items-center gap-2 mb-1.5">
@@ -215,7 +236,7 @@ function BlockRow({ block, modality, onValueChange, onToggle }: BlockRowProps) {
           htmlFor={inputId}
           className={cn(
             "text-xs font-medium flex-1 cursor-pointer",
-            !block.enabled && "text-muted-foreground",
+            !block.enabled && "text-muted-foreground"
           )}
         >
           {block.enabled ? (
@@ -236,7 +257,7 @@ function BlockRow({ block, modality, onValueChange, onToggle }: BlockRowProps) {
         <Textarea
           id={inputId}
           value={block.value}
-          onChange={(e) => onValueChange(e.target.value)}
+          onChange={e => onValueChange(e.target.value)}
           placeholder={placeholder}
           disabled={!block.enabled}
           rows={2}
@@ -246,7 +267,7 @@ function BlockRow({ block, modality, onValueChange, onToggle }: BlockRowProps) {
         <Input
           id={inputId}
           value={block.value}
-          onChange={(e) => onValueChange(e.target.value)}
+          onChange={e => onValueChange(e.target.value)}
           placeholder={placeholder}
           disabled={!block.enabled}
           className="rounded-xl bg-white/40 border-white/60 text-xs"

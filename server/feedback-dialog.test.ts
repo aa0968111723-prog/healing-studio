@@ -19,7 +19,12 @@ const CATEGORY_LABELS: Record<string, string> = {
   general: "一般意見",
 };
 
-const VALID_CATEGORIES = ["bug", "feature_request", "quality_issue", "general"] as const;
+const VALID_CATEGORIES = [
+  "bug",
+  "feature_request",
+  "quality_issue",
+  "general",
+] as const;
 const VALID_PRIORITIES = ["low", "medium", "high", "critical"] as const;
 
 // ─── Notification Content Builder (mirrors routers.ts logic) ───────────────
@@ -53,7 +58,7 @@ function shouldShowQuickMenu(
 describe("Feedback Dialog & Quick Menu", () => {
   describe("Category Labels", () => {
     it("all valid categories should have Chinese labels", () => {
-      VALID_CATEGORIES.forEach((cat) => {
+      VALID_CATEGORIES.forEach(cat => {
         expect(CATEGORY_LABELS[cat]).toBeTruthy();
         expect(typeof CATEGORY_LABELS[cat]).toBe("string");
       });
@@ -83,7 +88,10 @@ describe("Feedback Dialog & Quick Menu", () => {
     });
 
     it("should generate correct notification title for feature_request", () => {
-      const title = buildNotificationTitle("feature_request", "希望支援批次生成");
+      const title = buildNotificationTitle(
+        "feature_request",
+        "希望支援批次生成"
+      );
       expect(title).toBe("新功能詢問：希望支援批次生成");
     });
 
@@ -93,7 +101,12 @@ describe("Feedback Dialog & Quick Menu", () => {
     });
 
     it("should include user name in notification content", () => {
-      const content = buildNotificationContent("Alice", "bug", "high", "詳細描述");
+      const content = buildNotificationContent(
+        "Alice",
+        "bug",
+        "high",
+        "詳細描述"
+      );
       expect(content).toContain("來自 Alice");
       expect(content).toContain("類別：錯誤回報");
       expect(content).toContain("優先級：high");
@@ -101,13 +114,23 @@ describe("Feedback Dialog & Quick Menu", () => {
     });
 
     it("should use 匿名使用者 when name is null", () => {
-      const content = buildNotificationContent(null, "general", "low", undefined);
+      const content = buildNotificationContent(
+        null,
+        "general",
+        "low",
+        undefined
+      );
       expect(content).toContain("來自 匿名使用者");
       expect(content).toContain("(無詳細說明)");
     });
 
     it("should handle empty description", () => {
-      const content = buildNotificationContent("Bob", "feature_request", "medium", undefined);
+      const content = buildNotificationContent(
+        "Bob",
+        "feature_request",
+        "medium",
+        undefined
+      );
       expect(content).toContain("(無詳細說明)");
     });
   });
@@ -140,7 +163,7 @@ describe("Feedback Dialog & Quick Menu", () => {
     });
 
     it("all priority values should be valid", () => {
-      VALID_PRIORITIES.forEach((p) => {
+      VALID_PRIORITIES.forEach(p => {
         expect(["low", "medium", "high", "critical"]).toContain(p);
       });
     });
@@ -164,13 +187,15 @@ describe("Feedback Dialog & Quick Menu", () => {
   describe("FeedbackDialog Mode", () => {
     it("feedback mode should default to general category", () => {
       const mode = "feedback";
-      const defaultCategory = mode === "feature" ? "feature_request" : "general";
+      const defaultCategory =
+        mode === "feature" ? "feature_request" : "general";
       expect(defaultCategory).toBe("general");
     });
 
     it("feature mode should default to feature_request category", () => {
       const mode = "feature";
-      const defaultCategory = mode === "feature" ? "feature_request" : "general";
+      const defaultCategory =
+        mode === "feature" ? "feature_request" : "general";
       expect(defaultCategory).toBe("feature_request");
     });
 
@@ -190,7 +215,7 @@ describe("Feedback Dialog & Quick Menu", () => {
   describe("Scene-Adaptive Styling", () => {
     it("dark scenes should use dark dialog style", () => {
       const darkScenes = ["nightSky", "deepSea"];
-      darkScenes.forEach((scene) => {
+      darkScenes.forEach(scene => {
         const isDark = scene === "nightSky" || scene === "deepSea";
         expect(isDark).toBe(true);
       });
@@ -198,7 +223,7 @@ describe("Feedback Dialog & Quick Menu", () => {
 
     it("light scenes should use light dialog style", () => {
       const lightScenes = ["morning", "cafe"];
-      lightScenes.forEach((scene) => {
+      lightScenes.forEach(scene => {
         const isDark = scene === "nightSky" || scene === "deepSea";
         expect(isDark).toBe(false);
       });

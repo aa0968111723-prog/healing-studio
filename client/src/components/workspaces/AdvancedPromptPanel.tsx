@@ -43,7 +43,7 @@ export function AdvancedPromptPanel({
       {/* Header / Toggle */}
       <button
         type="button"
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={() => setOpen(prev => !prev)}
         className={cn(
           "flex w-full items-center justify-between px-3 py-2",
           "text-xs text-muted-foreground hover:bg-white/60 transition-colors rounded-xl"
@@ -52,9 +52,7 @@ export function AdvancedPromptPanel({
         <span className="flex items-center gap-1.5 font-medium">
           <Code className="h-3.5 w-3.5" />
           進階提示詞
-          {override && (
-            <Eye className="h-3 w-3 text-amber-600" />
-          )}
+          {override && <Eye className="h-3 w-3 text-amber-600" />}
         </span>
         {open ? (
           <ChevronUp className="h-3.5 w-3.5" />
@@ -120,7 +118,7 @@ export function AdvancedPromptPanel({
                 <Textarea
                   placeholder="在此輸入額外的提示詞修飾或完全自訂提示詞..."
                   value={advancedPrompt}
-                  onChange={(e) => onAdvancedPromptChange(e.target.value)}
+                  onChange={e => onAdvancedPromptChange(e.target.value)}
                   rows={3}
                   className="rounded-xl bg-white/40 border-white/60 text-xs resize-none"
                 />
@@ -134,7 +132,7 @@ export function AdvancedPromptPanel({
                 <Textarea
                   placeholder={negativePromptPlaceholders[modality]}
                   value={negativePrompt}
-                  onChange={(e) => onNegativePromptChange(e.target.value)}
+                  onChange={e => onNegativePromptChange(e.target.value)}
                   rows={2}
                   className="rounded-xl bg-white/40 border-white/60 text-xs resize-none"
                 />
@@ -148,7 +146,7 @@ export function AdvancedPromptPanel({
                 <Textarea
                   placeholder="權重筆記、風格參考或其他備忘..."
                   value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
+                  onChange={e => setNotes(e.target.value)}
                   rows={2}
                   className="rounded-xl bg-white/40 border-white/60 text-xs resize-none"
                 />

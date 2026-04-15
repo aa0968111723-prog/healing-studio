@@ -64,8 +64,10 @@ export async function ensurePineconeIndex(): Promise<void> {
   const listResp = await fetch(`${PINECONE_API_BASE}/indexes`, { headers });
   if (!listResp.ok) return;
 
-  const { indexes } = (await listResp.json()) as { indexes: Array<{ name: string }> };
-  const exists = indexes.some((idx) => idx.name === INDEX_NAME);
+  const { indexes } = (await listResp.json()) as {
+    indexes: Array<{ name: string }>;
+  };
+  const exists = indexes.some(idx => idx.name === INDEX_NAME);
 
   if (!exists) {
     // 建立 serverless index（免費層）
@@ -92,7 +94,9 @@ export async function ensurePineconeIndex(): Promise<void> {
 
 async function getIndexHost(): Promise<string> {
   const headers = getPineconeHeaders();
-  const resp = await fetch(`${PINECONE_API_BASE}/indexes/${INDEX_NAME}`, { headers });
+  const resp = await fetch(`${PINECONE_API_BASE}/indexes/${INDEX_NAME}`, {
+    headers,
+  });
   if (!resp.ok) throw new Error(`無法取得 Pinecone index 資訊: ${resp.status}`);
   const data = (await resp.json()) as { host: string };
   return `https://${data.host}`;
@@ -104,8 +108,8 @@ export interface MemoryRecord {
   userId: number;
   generationId: number;
   prompt: string;
-  generationType: string;  // image / video / audio / voice
-  resultSummary?: string;  // 生成結果摘要
+  generationType: string; // image / video / audio / voice
+  resultSummary?: string; // 生成結果摘要
   vibeCardIds?: string[];
   rating?: number;
 }
@@ -119,9 +123,13 @@ export async function upsertMemory(record: MemoryRecord): Promise<void> {
     const textToEmbed = [
       record.prompt,
       record.generationType ? `模態：${record.generationType}` : "",
-      record.vibeCardIds?.length ? `風格：${record.vibeCardIds.join(", ")}` : "",
+      record.vibeCardIds?.length
+        ? `風格：${record.vibeCardIds.join(", ")}`
+        : "",
       record.resultSummary ? `結果：${record.resultSummary}` : "",
-    ].filter(Boolean).join("\n");
+    ]
+      .filter(Boolean)
+      .join("\n");
 
     const embedding = await getEmbedding(textToEmbed);
     const host = await getIndexHost();
@@ -201,7 +209,7 @@ export async function queryMemories(
       }>;
     };
 
-    return data.matches.map((m) => ({
+    return data.matches.map(m => ({
       id: m.id,
       score: m.score,
       prompt: String(m.metadata.prompt || ""),

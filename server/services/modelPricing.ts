@@ -26,16 +26,38 @@
 
 export type PricingTier = "free" | "economy" | "standard" | "premium" | "ultra";
 export type ModelCategory =
-  | "audio-to-text" | "image-to-3d" | "image-to-image" | "image-to-json" | "image-to-video"
-  | "json" | "llm" | "text-to-3d" | "text-to-audio" | "text-to-image"
-  | "text-to-json" | "text-to-speech" | "text-to-video" | "training"
-  | "video-to-audio" | "video-to-text" | "video-to-video"
-  | "reasoning" | "embedding";
+  | "audio-to-text"
+  | "image-to-3d"
+  | "image-to-image"
+  | "image-to-json"
+  | "image-to-video"
+  | "json"
+  | "llm"
+  | "text-to-3d"
+  | "text-to-audio"
+  | "text-to-image"
+  | "text-to-json"
+  | "text-to-speech"
+  | "text-to-video"
+  | "training"
+  | "video-to-audio"
+  | "video-to-text"
+  | "video-to-video"
+  | "reasoning"
+  | "embedding";
 
 export interface ModelPricing {
   modelId: string;
   label: string;
-  provider: "fal" | "gemini" | "vertex" | "elevenlabs" | "suno" | "openai" | "anthropic" | "nvidia";
+  provider:
+    | "fal"
+    | "gemini"
+    | "vertex"
+    | "elevenlabs"
+    | "suno"
+    | "openai"
+    | "anthropic"
+    | "nvidia";
   category: ModelCategory;
   tier: PricingTier;
 
@@ -87,7 +109,6 @@ export interface PointsEstimate {
 // ─── Pricing Catalog ──────────────────────────────────────────────────────────
 
 export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
-
   // ═══════════════════════════════════════════════════════════
   // TEXT-TO-IMAGE
   // ═══════════════════════════════════════════════════════════
@@ -318,7 +339,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     provider: "fal",
     category: "text-to-video",
     tier: "ultra",
-    basePoints: 49,   // 5s base
+    basePoints: 49, // 5s base
     baseCostUsd: 0.49,
     unit: "每5秒",
     pointsPerSecond: 9.8,
@@ -333,8 +354,8 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     provider: "fal",
     category: "text-to-video",
     tier: "premium",
-    basePoints: 30,   // 5s base — Standard 比 Pro 便宜
-    baseCostUsd: 0.30,
+    basePoints: 30, // 5s base — Standard 比 Pro 便宜
+    baseCostUsd: 0.3,
     unit: "每5秒",
     pointsPerSecond: 6,
     minPoints: 30,
@@ -350,7 +371,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     category: "text-to-video",
     tier: "premium",
     basePoints: 30,
-    baseCostUsd: 0.30,
+    baseCostUsd: 0.3,
     unit: "每5秒",
     pointsPerSecond: 6,
     minPoints: 30,
@@ -365,7 +386,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     category: "text-to-video",
     tier: "standard",
     basePoints: 20,
-    baseCostUsd: 0.20,
+    baseCostUsd: 0.2,
     unit: "每6秒",
     pointsPerSecond: 3.3,
     minPoints: 20,
@@ -380,7 +401,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     category: "text-to-video",
     tier: "premium",
     basePoints: 30,
-    baseCostUsd: 0.30,
+    baseCostUsd: 0.3,
     unit: "每5秒",
     pointsPerSecond: 6,
     minPoints: 30,
@@ -440,7 +461,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     category: "text-to-video",
     tier: "ultra",
     basePoints: 50,
-    baseCostUsd: 0.50,
+    baseCostUsd: 0.5,
     unit: "每5秒",
     pointsPerSecond: 10,
     minPoints: 50,
@@ -507,7 +528,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     category: "image-to-video",
     tier: "premium",
     basePoints: 40,
-    baseCostUsd: 0.40,
+    baseCostUsd: 0.4,
     unit: "每5秒",
     pointsPerSecond: 8,
     minPoints: 40,
@@ -647,7 +668,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     category: "text-to-audio",
     tier: "premium",
     basePoints: 10,
-    baseCostUsd: 0.10,
+    baseCostUsd: 0.1,
     unit: "每首歌曲",
     minPoints: 10,
     maxPoints: 50,
@@ -690,7 +711,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     category: "text-to-audio",
     tier: "premium",
     basePoints: 10,
-    baseCostUsd: 0.10,
+    baseCostUsd: 0.1,
     unit: "每30秒",
     pointsPerSecond: 0.33,
     minPoints: 10,
@@ -894,7 +915,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     category: "image-to-3d",
     tier: "premium",
     basePoints: 10,
-    baseCostUsd: 0.10,
+    baseCostUsd: 0.1,
     unit: "每次3D生成",
     minPoints: 10,
     maxPoints: 50,
@@ -983,7 +1004,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     category: "text-to-3d",
     tier: "premium",
     basePoints: 20,
-    baseCostUsd: 0.20,
+    baseCostUsd: 0.2,
     unit: "每次3D生成",
     minPoints: 20,
     maxPoints: 100,
@@ -1159,7 +1180,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     category: "video-to-video",
     tier: "standard",
     basePoints: 10,
-    baseCostUsd: 0.10,
+    baseCostUsd: 0.1,
     unit: "每分鐘影片",
     pointsPerSecond: 0.17,
     minPoints: 10,
@@ -1189,7 +1210,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     category: "video-to-video",
     tier: "premium",
     basePoints: 20,
-    baseCostUsd: 0.20,
+    baseCostUsd: 0.2,
     unit: "每分鐘影片",
     pointsPerSecond: 0.33,
     minPoints: 20,
@@ -1391,7 +1412,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     category: "image-to-video",
     tier: "standard",
     basePoints: 20,
-    baseCostUsd: 0.20,
+    baseCostUsd: 0.2,
     unit: "每5秒",
     pointsPerSecond: 4,
     minPoints: 20,
@@ -1406,7 +1427,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     category: "text-to-video",
     tier: "standard",
     basePoints: 20,
-    baseCostUsd: 0.20,
+    baseCostUsd: 0.2,
     unit: "每6秒",
     pointsPerSecond: 3.3,
     minPoints: 20,
@@ -1421,7 +1442,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     category: "image-to-video",
     tier: "standard",
     basePoints: 20,
-    baseCostUsd: 0.20,
+    baseCostUsd: 0.2,
     unit: "每6秒",
     pointsPerSecond: 3.3,
     minPoints: 20,
@@ -1483,7 +1504,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     category: "training",
     tier: "ultra",
     basePoints: 200,
-    baseCostUsd: 2.00,
+    baseCostUsd: 2.0,
     unit: "每次訓練任務",
     pointsPerStep: 0.1,
     minPoints: 200,
@@ -1499,7 +1520,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     category: "training",
     tier: "ultra",
     basePoints: 250,
-    baseCostUsd: 2.50,
+    baseCostUsd: 2.5,
     unit: "每次訓練任務",
     pointsPerStep: 0.12,
     minPoints: 250,
@@ -1514,7 +1535,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     category: "training",
     tier: "ultra",
     basePoints: 300,
-    baseCostUsd: 3.00,
+    baseCostUsd: 3.0,
     unit: "每次訓練任務",
     pointsPerStep: 0.15,
     minPoints: 300,
@@ -1529,7 +1550,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     category: "training",
     tier: "premium",
     basePoints: 150,
-    baseCostUsd: 1.50,
+    baseCostUsd: 1.5,
     unit: "每次訓練任務",
     pointsPerStep: 0.08,
     minPoints: 150,
@@ -1544,7 +1565,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     category: "training",
     tier: "ultra",
     basePoints: 500,
-    baseCostUsd: 5.00,
+    baseCostUsd: 5.0,
     unit: "每次訓練任務",
     pointsPerStep: 0.2,
     minPoints: 500,
@@ -1559,7 +1580,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     category: "training",
     tier: "ultra",
     basePoints: 400,
-    baseCostUsd: 4.00,
+    baseCostUsd: 4.0,
     unit: "每次訓練任務",
     pointsPerStep: 0.18,
     minPoints: 400,
@@ -1574,7 +1595,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     category: "training",
     tier: "ultra",
     basePoints: 250,
-    baseCostUsd: 2.50,
+    baseCostUsd: 2.5,
     unit: "每次訓練任務",
     pointsPerStep: 0.12,
     minPoints: 250,
@@ -1589,7 +1610,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     category: "training",
     tier: "premium",
     basePoints: 100,
-    baseCostUsd: 1.00,
+    baseCostUsd: 1.0,
     unit: "每次訓練任務",
     pointsPerStep: 0.05,
     minPoints: 100,
@@ -1732,7 +1753,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     category: "text-to-video",
     tier: "premium",
     basePoints: 30,
-    baseCostUsd: 0.30,
+    baseCostUsd: 0.3,
     unit: "每5秒",
     pointsPerSecond: 6,
     minPoints: 30,
@@ -1747,7 +1768,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     category: "text-to-video",
     tier: "ultra",
     basePoints: 40,
-    baseCostUsd: 0.40,
+    baseCostUsd: 0.4,
     unit: "每5秒",
     pointsPerSecond: 8,
     minPoints: 40,
@@ -1778,7 +1799,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     category: "text-to-audio",
     tier: "premium",
     basePoints: 10,
-    baseCostUsd: 0.10,
+    baseCostUsd: 0.1,
     unit: "每30秒",
     pointsPerSecond: 0.33,
     minPoints: 10,
@@ -1793,7 +1814,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     category: "text-to-audio",
     tier: "premium",
     basePoints: 10,
-    baseCostUsd: 0.10,
+    baseCostUsd: 0.1,
     unit: "每30秒",
     pointsPerSecond: 0.33,
     minPoints: 10,
@@ -1946,7 +1967,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     category: "text-to-video",
     tier: "premium",
     basePoints: 40,
-    baseCostUsd: 0.40,
+    baseCostUsd: 0.4,
     unit: "每5秒",
     pointsPerSecond: 8,
     minPoints: 40,
@@ -1961,7 +1982,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     category: "image-to-video",
     tier: "standard",
     basePoints: 20,
-    baseCostUsd: 0.20,
+    baseCostUsd: 0.2,
     unit: "每5秒",
     pointsPerSecond: 4,
     minPoints: 20,
@@ -2084,10 +2105,10 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
 export function estimatePoints(
   modelId: string,
   params: {
-    durationSec?: number;       // 影片/音頻時長（秒）
-    charCount?: number;          // 文字字符數
-    imageCount?: number;         // 圖片張數
-    trainingSteps?: number;      // 訓練步驟數
+    durationSec?: number; // 影片/音頻時長（秒）
+    charCount?: number; // 文字字符數
+    imageCount?: number; // 圖片張數
+    trainingSteps?: number; // 訓練步驟數
   } = {}
 ): PointsEstimate {
   const pricing = MODEL_PRICING_CATALOG[modelId];
@@ -2114,16 +2135,22 @@ export function estimatePoints(
       const diff = extra - pricing.basePoints;
       total = extra;
       multipliers.duration = params.durationSec;
-      breakdownParts.push(`時長 ${params.durationSec}s × ${pricing.pointsPerSecond} pts/s = ${extra} pts`);
+      breakdownParts.push(
+        `時長 ${params.durationSec}s × ${pricing.pointsPerSecond} pts/s = ${extra} pts`
+      );
     }
   }
 
   // 字符數計費（TTS/LLM）
   if (params.charCount && pricing.pointsPer1kChars) {
-    const charPoints = Math.ceil((params.charCount / 1000) * pricing.pointsPer1kChars);
+    const charPoints = Math.ceil(
+      (params.charCount / 1000) * pricing.pointsPer1kChars
+    );
     total = Math.max(total, charPoints);
     multipliers.charCount = params.charCount;
-    breakdownParts.push(`${params.charCount} 字符 × ${pricing.pointsPer1kChars} pts/1k = ${charPoints} pts`);
+    breakdownParts.push(
+      `${params.charCount} 字符 × ${pricing.pointsPer1kChars} pts/1k = ${charPoints} pts`
+    );
   }
 
   // 批次圖片計費
@@ -2131,7 +2158,9 @@ export function estimatePoints(
     const imgExtra = pricing.pointsPerImage * (params.imageCount - 1);
     total += imgExtra;
     multipliers.imageCount = params.imageCount;
-    breakdownParts.push(`額外 ${params.imageCount - 1} 張 × ${pricing.pointsPerImage} pts = ${imgExtra} pts`);
+    breakdownParts.push(
+      `額外 ${params.imageCount - 1} 張 × ${pricing.pointsPerImage} pts = ${imgExtra} pts`
+    );
   }
 
   // 訓練步驟計費
@@ -2139,7 +2168,9 @@ export function estimatePoints(
     const stepPoints = Math.round(params.trainingSteps * pricing.pointsPerStep);
     total += stepPoints;
     multipliers.trainingSteps = params.trainingSteps;
-    breakdownParts.push(`${params.trainingSteps} 步驟 × ${pricing.pointsPerStep} pts/步 = ${stepPoints} pts`);
+    breakdownParts.push(
+      `${params.trainingSteps} 步驟 × ${pricing.pointsPerStep} pts/步 = ${stepPoints} pts`
+    );
   }
 
   // 套用上下限
@@ -2194,9 +2225,15 @@ export function getModalityPricingSummary(brainConfig: {
   videoEngine: string;
   audioEngine: string;
   voiceEngine: string;
-}): Record<string, { modelId: string; label: string; pointsRange: string; available: boolean }> {
+}): Record<
+  string,
+  { modelId: string; label: string; pointsRange: string; available: boolean }
+> {
   const entries = Object.entries(brainConfig) as Array<[string, string]>;
-  const result: Record<string, { modelId: string; label: string; pointsRange: string; available: boolean }> = {};
+  const result: Record<
+    string,
+    { modelId: string; label: string; pointsRange: string; available: boolean }
+  > = {};
 
   for (const [slot, modelId] of entries) {
     const p = MODEL_PRICING_CATALOG[modelId];
@@ -2226,7 +2263,10 @@ export function pointsToUsd(points: number): string {
 /**
  * 所有模型按分類的費率摘要（供 UI 展示）
  */
-export function getAllPricingByCategory(): Record<ModelCategory, ModelPricing[]> {
+export function getAllPricingByCategory(): Record<
+  ModelCategory,
+  ModelPricing[]
+> {
   const result = {} as Record<ModelCategory, ModelPricing[]>;
   for (const p of Object.values(MODEL_PRICING_CATALOG)) {
     if (!result[p.category]) result[p.category] = [];

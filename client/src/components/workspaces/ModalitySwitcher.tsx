@@ -27,7 +27,7 @@ type ModalitySwitcherProps = {
 export function ModalitySwitcher({ value, onChange }: ModalitySwitcherProps) {
   return (
     <div className="grid grid-cols-4 h-auto rounded-xl p-1 bg-white/40 border border-white/50 backdrop-blur-sm">
-      {TABS.map((tab) => {
+      {TABS.map(tab => {
         const isActive = value === tab.key;
         const Icon = tab.icon;
         return (
@@ -39,7 +39,7 @@ export function ModalitySwitcher({ value, onChange }: ModalitySwitcherProps) {
               "rounded-lg flex items-center justify-center gap-1.5 text-xs py-2.5 transition-all cursor-pointer",
               isActive
                 ? "bg-white shadow-sm text-primary font-medium"
-                : "text-muted-foreground hover:text-foreground hover:bg-white/30",
+                : "text-muted-foreground hover:text-foreground hover:bg-white/30"
             )}
           >
             <Icon className="w-4 h-4" />

@@ -1,6 +1,12 @@
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { ZenTooltip } from "@/components/ZenCoPilot";
 import { trpc } from "@/lib/trpc";
@@ -110,11 +116,16 @@ export function createDefaultVoiceState(): VoiceWorkspaceState {
 }
 
 export function VoiceWorkspace({ value, onChange }: VoiceWorkspaceProps) {
-  const update = (partial: Partial<VoiceWorkspaceState>) => onChange({ ...value, ...partial });
+  const update = (partial: Partial<VoiceWorkspaceState>) =>
+    onChange({ ...value, ...partial });
 
   // Fetch user's custom voice models
-  const modelsQuery = trpc.models.myModels.useQuery(undefined, { retry: false });
-  const voiceModels = (modelsQuery.data || []).filter(m => m.modelType === "voice_clone" && m.status === "ready");
+  const modelsQuery = trpc.models.myModels.useQuery(undefined, {
+    retry: false,
+  });
+  const voiceModels = (modelsQuery.data || []).filter(
+    m => m.modelType === "voice_clone" && m.status === "ready"
+  );
 
   const applyPreset = (preset: QuickPreset) => {
     onChange({ ...value, ...preset.state });
@@ -129,7 +140,7 @@ export function VoiceWorkspace({ value, onChange }: VoiceWorkspaceProps) {
           常用語境預設
         </Label>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {QUICK_PRESETS.map((preset) => (
+          {QUICK_PRESETS.map(preset => (
             <motion.button
               key={preset.id}
               whileTap={{ scale: 0.95 }}
@@ -138,18 +149,25 @@ export function VoiceWorkspace({ value, onChange }: VoiceWorkspaceProps) {
               style={{
                 background: "rgba(255,255,255,0.06)",
               }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLElement).style.background = `rgba(${preset.glowRgb}, 0.1)`;
-                (e.currentTarget as HTMLElement).style.boxShadow = `0 0 16px rgba(${preset.glowRgb}, 0.15)`;
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLElement).style.background =
+                  `rgba(${preset.glowRgb}, 0.1)`;
+                (e.currentTarget as HTMLElement).style.boxShadow =
+                  `0 0 16px rgba(${preset.glowRgb}, 0.15)`;
               }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.06)";
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLElement).style.background =
+                  "rgba(255,255,255,0.06)";
                 (e.currentTarget as HTMLElement).style.boxShadow = "none";
               }}
             >
               <span className="text-xl">{preset.icon}</span>
-              <span className="text-[11px] font-medium text-foreground">{preset.label}</span>
-              <span className="text-[9px] text-muted-foreground/60 leading-tight text-center">{preset.description}</span>
+              <span className="text-[11px] font-medium text-foreground">
+                {preset.label}
+              </span>
+              <span className="text-[9px] text-muted-foreground/60 leading-tight text-center">
+                {preset.description}
+              </span>
             </motion.button>
           ))}
         </div>
@@ -160,11 +178,13 @@ export function VoiceWorkspace({ value, onChange }: VoiceWorkspaceProps) {
 
       {/* Voice Actor Selection */}
       <div className="space-y-2">
-        <Label className="text-xs font-medium text-muted-foreground">語音角色</Label>
+        <Label className="text-xs font-medium text-muted-foreground">
+          語音角色
+        </Label>
         <div className="space-y-1.5">
           {/* Preset voices */}
           <div className="grid grid-cols-1 gap-1.5">
-            {PRESET_VOICES.map((voice) => (
+            {PRESET_VOICES.map(voice => (
               <button
                 key={voice.id}
                 onClick={() => update({ voiceActorId: voice.id })}
@@ -174,14 +194,22 @@ export function VoiceWorkspace({ value, onChange }: VoiceWorkspaceProps) {
                     : "bg-white/30 hover:bg-white/50"
                 }`}
               >
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                  value.voiceActorId === voice.id ? "bg-primary/20" : "bg-muted/30"
-                }`}>
+                <div
+                  className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                    value.voiceActorId === voice.id
+                      ? "bg-primary/20"
+                      : "bg-muted/30"
+                  }`}
+                >
                   <Mic className="w-4 h-4 text-muted-foreground" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-foreground">{voice.name}</p>
-                  <p className="text-[10px] text-muted-foreground">{voice.description}</p>
+                  <p className="text-xs font-medium text-foreground">
+                    {voice.name}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {voice.description}
+                  </p>
                 </div>
                 {value.voiceActorId === voice.id && (
                   <div className="w-2 h-2 rounded-full bg-primary shrink-0" />
@@ -195,10 +223,12 @@ export function VoiceWorkspace({ value, onChange }: VoiceWorkspaceProps) {
             <>
               <div className="flex items-center gap-2 pt-2">
                 <div className="h-px flex-1 bg-border/30" />
-                <span className="text-[9px] text-muted-foreground uppercase tracking-wider">自訂語音模型</span>
+                <span className="text-[9px] text-muted-foreground uppercase tracking-wider">
+                  自訂語音模型
+                </span>
                 <div className="h-px flex-1 bg-border/30" />
               </div>
-              {voiceModels.map((model) => (
+              {voiceModels.map(model => (
                 <button
                   key={model.id}
                   onClick={() => update({ voiceActorId: `custom-${model.id}` })}
@@ -212,8 +242,12 @@ export function VoiceWorkspace({ value, onChange }: VoiceWorkspaceProps) {
                     <Volume2 className="w-4 h-4 text-violet-600" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-foreground">{model.name}</p>
-                    <p className="text-[10px] text-muted-foreground">自訂克隆語音</p>
+                    <p className="text-xs font-medium text-foreground">
+                      {model.name}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      自訂克隆語音
+                    </p>
                   </div>
                 </button>
               ))}
@@ -224,11 +258,13 @@ export function VoiceWorkspace({ value, onChange }: VoiceWorkspaceProps) {
 
       {/* Text Input */}
       <div className="space-y-2">
-        <Label className="text-xs font-medium text-muted-foreground">語音文字</Label>
+        <Label className="text-xs font-medium text-muted-foreground">
+          語音文字
+        </Label>
         <Textarea
           placeholder="輸入要轉換為語音的文字內容..."
           value={value.text}
-          onChange={(e) => update({ text: e.target.value })}
+          onChange={e => update({ text: e.target.value })}
           rows={4}
           className="rounded-xl bg-white/40 border-white/60 resize-none text-xs placeholder:text-muted-foreground/35 leading-relaxed"
         />
@@ -239,9 +275,11 @@ export function VoiceWorkspace({ value, onChange }: VoiceWorkspaceProps) {
 
       {/* Emotion Type */}
       <div className="space-y-2">
-        <Label className="text-xs font-medium text-muted-foreground">情感類型</Label>
+        <Label className="text-xs font-medium text-muted-foreground">
+          情感類型
+        </Label>
         <div className="grid grid-cols-3 gap-1.5">
-          {EMOTION_TYPES.map((emo) => (
+          {EMOTION_TYPES.map(emo => (
             <button
               key={emo.value}
               onClick={() => update({ emotionType: emo.value })}
@@ -262,7 +300,9 @@ export function VoiceWorkspace({ value, onChange }: VoiceWorkspaceProps) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <Heart className="w-3.5 h-3.5 text-muted-foreground" />
-            <Label className="text-xs font-medium text-muted-foreground">情感強度</Label>
+            <Label className="text-xs font-medium text-muted-foreground">
+              情感強度
+            </Label>
           </div>
           <span className="text-[11px] text-muted-foreground tabular-nums font-mono">
             {Math.round(value.emotionIntensity * 100)}%
@@ -287,7 +327,9 @@ export function VoiceWorkspace({ value, onChange }: VoiceWorkspaceProps) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <Gauge className="w-3.5 h-3.5 text-muted-foreground" />
-            <Label className="text-xs font-medium text-muted-foreground">語速</Label>
+            <Label className="text-xs font-medium text-muted-foreground">
+              語速
+            </Label>
           </div>
           <span className="text-[11px] text-muted-foreground tabular-nums font-mono">
             {value.speed.toFixed(1)}x
@@ -313,7 +355,9 @@ export function VoiceWorkspace({ value, onChange }: VoiceWorkspaceProps) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <Zap className="w-3.5 h-3.5 text-muted-foreground" />
-            <Label className="text-xs font-medium text-muted-foreground">穩定性</Label>
+            <Label className="text-xs font-medium text-muted-foreground">
+              穩定性
+            </Label>
           </div>
           <span className="text-[11px] text-muted-foreground tabular-nums font-mono">
             {Math.round(value.stability * 100)}%

@@ -86,7 +86,7 @@ export function PromptCompilerPreview({
       {/* Changed fields tags */}
       {changedFields.length > 0 && (
         <div className="flex flex-wrap gap-1">
-          {changedFields.map((field) => (
+          {changedFields.map(field => (
             <span
               key={field}
               className="text-[10px] px-1.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-700"
@@ -101,7 +101,7 @@ export function PromptCompilerPreview({
       <div className="relative">
         <button
           type="button"
-          onClick={() => setExpanded((prev) => !prev)}
+          onClick={() => setExpanded(prev => !prev)}
           className="w-full text-left"
         >
           <pre
@@ -116,7 +116,7 @@ export function PromptCompilerPreview({
         {compiledPrompt.length > 0 && (
           <button
             type="button"
-            onClick={() => setExpanded((prev) => !prev)}
+            onClick={() => setExpanded(prev => !prev)}
             className="mt-1 flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-foreground/70 transition-colors"
           >
             {expanded ? (
@@ -139,7 +139,7 @@ export function PromptCompilerPreview({
         <div className="space-y-1.5">
           <button
             type="button"
-            onClick={() => setWarningsOpen((prev) => !prev)}
+            onClick={() => setWarningsOpen(prev => !prev)}
             className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground/70 transition-colors"
           >
             {warningsOpen ? (
@@ -171,7 +171,10 @@ export function PromptCompilerPreview({
                       )}
                     >
                       <IconComponent
-                        className={cn("h-3.5 w-3.5 mt-px shrink-0", config.color)}
+                        className={cn(
+                          "h-3.5 w-3.5 mt-px shrink-0",
+                          config.color
+                        )}
                       />
                       <div className="min-w-0">
                         <span className="text-foreground/80">

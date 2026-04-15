@@ -11,7 +11,12 @@ describe("VoiceCompiler", () => {
     it("should resolve emotion from moodBlock.blockId", () => {
       const input: VoiceCompilerInput = {
         script: "測試文字",
-        moodBlock: { blockId: "serene", label: "寧靜", prompt: "", isCustom: false },
+        moodBlock: {
+          blockId: "serene",
+          label: "寧靜",
+          prompt: "",
+          isCustom: false,
+        },
       };
       const { profile, source } = compiler.resolveEmotion(input);
       expect(profile.name).toBe("寧靜");
@@ -21,7 +26,12 @@ describe("VoiceCompiler", () => {
     it("should resolve emotion from moodBlock.label when blockId not found", () => {
       const input: VoiceCompilerInput = {
         script: "測試文字",
-        moodBlock: { blockId: "custom_123", label: "joyful energy", prompt: "", isCustom: true },
+        moodBlock: {
+          blockId: "custom_123",
+          label: "joyful energy",
+          prompt: "",
+          isCustom: true,
+        },
       };
       const { profile } = compiler.resolveEmotion(input);
       expect(profile.name).toBe("歡愉");
@@ -30,7 +40,12 @@ describe("VoiceCompiler", () => {
     it("should infer emotion from moodBlock.prompt keywords", () => {
       const input: VoiceCompilerInput = {
         script: "測試文字",
-        moodBlock: { blockId: "custom_456", label: "my custom mood", prompt: "悲傷的憂鬱氛圍", isCustom: true },
+        moodBlock: {
+          blockId: "custom_456",
+          label: "my custom mood",
+          prompt: "悲傷的憂鬱氛圍",
+          isCustom: true,
+        },
       };
       const { profile, source } = compiler.resolveEmotion(input);
       expect(profile.name).toBe("憂鬱");
@@ -71,7 +86,12 @@ describe("VoiceCompiler", () => {
     it("should produce valid SSML with <speak> wrapper", () => {
       const result = compiler.compile({
         script: "你好，歡迎來到療癒工作室。",
-        moodBlock: { blockId: "warm", label: "溫暖", prompt: "", isCustom: false },
+        moodBlock: {
+          blockId: "warm",
+          label: "溫暖",
+          prompt: "",
+          isCustom: false,
+        },
       });
       expect(result.ssml).toMatch(/^<speak>/);
       expect(result.ssml).toMatch(/<\/speak>$/);
@@ -80,7 +100,12 @@ describe("VoiceCompiler", () => {
     it("should inject break tags for sentence boundaries", () => {
       const result = compiler.compile({
         script: "第一句話。第二句話。第三句話。",
-        moodBlock: { blockId: "serene", label: "寧靜", prompt: "", isCustom: false },
+        moodBlock: {
+          blockId: "serene",
+          label: "寧靜",
+          prompt: "",
+          isCustom: false,
+        },
       });
       expect(result.ssml).toContain("<break time=");
       expect(result.breakCount).toBeGreaterThanOrEqual(3);
@@ -117,7 +142,12 @@ describe("VoiceCompiler", () => {
     it("should handle paragraph breaks with longer pauses", () => {
       const result = compiler.compile({
         script: "第一段的內容。\n\n第二段的內容。",
-        moodBlock: { blockId: "serene", label: "寧靜", prompt: "", isCustom: false },
+        moodBlock: {
+          blockId: "serene",
+          label: "寧靜",
+          prompt: "",
+          isCustom: false,
+        },
       });
       // 段落間停頓應比句間停頓長
       expect(result.ssml).toContain("1500ms");
@@ -142,7 +172,12 @@ describe("VoiceCompiler", () => {
     it("should wrap quoted text in emphasis tags", () => {
       const result = compiler.compile({
         script: "她說「你好美」然後離開了。",
-        moodBlock: { blockId: "warm", label: "溫暖", prompt: "", isCustom: false },
+        moodBlock: {
+          blockId: "warm",
+          label: "溫暖",
+          prompt: "",
+          isCustom: false,
+        },
       });
       expect(result.ssml).toContain("<emphasis");
       expect(result.ssml).toContain("你好美");
@@ -189,7 +224,12 @@ describe("VoiceCompiler", () => {
     it("should estimate duration based on character count and rate", () => {
       const result = compiler.compile({
         script: "這是一段大約二十個字的測試文字用來計算時長。",
-        moodBlock: { blockId: "serene", label: "寧靜", prompt: "", isCustom: false },
+        moodBlock: {
+          blockId: "serene",
+          label: "寧靜",
+          prompt: "",
+          isCustom: false,
+        },
       });
       expect(result.estimatedDurationSec).toBeGreaterThan(0);
     });
@@ -200,7 +240,9 @@ describe("VoiceCompiler", () => {
       });
       expect(result.compilationLog.length).toBeGreaterThanOrEqual(4);
       expect(result.compilationLog[0]).toContain("開始編譯");
-      expect(result.compilationLog[result.compilationLog.length - 1]).toContain("編譯完成");
+      expect(result.compilationLog[result.compilationLog.length - 1]).toContain(
+        "編譯完成"
+      );
     });
 
     it("should escape SSML special characters in text", () => {

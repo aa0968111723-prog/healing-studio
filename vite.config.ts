@@ -56,7 +56,7 @@ function writeToLogFile(source: LogSource, entries: unknown[]) {
   const logPath = path.join(LOG_DIR, `${source}.log`);
 
   // Format entries with timestamps
-  const lines = entries.map((entry) => {
+  const lines = entries.map(entry => {
     const ts = new Date().toISOString();
     return `[${ts}] ${JSON.stringify(entry)}`;
   });
@@ -132,7 +132,7 @@ function vitePluginManusDebugCollector(): Plugin {
         }
 
         let body = "";
-        req.on("data", (chunk) => {
+        req.on("data", chunk => {
           body += chunk.toString();
         });
 
@@ -150,7 +150,13 @@ function vitePluginManusDebugCollector(): Plugin {
   };
 }
 
-const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime(), vitePluginManusDebugCollector()];
+const plugins = [
+  react(),
+  tailwindcss(),
+  jsxLocPlugin(),
+  vitePluginManusRuntime(),
+  vitePluginManusDebugCollector(),
+];
 
 export default defineConfig({
   plugins,
@@ -180,23 +186,32 @@ export default defineConfig({
         assetFileNames: "assets/[ext]/[name]-[hash].[ext]",
         manualChunks: (id: string) => {
           // ── React 核心（最優先，幾乎每個 chunk 都需要）
-          if (id.includes("node_modules/react/") ||
-              id.includes("node_modules/react-dom/") ||
-              id.includes("node_modules/scheduler/")) return "vendor-react";
+          if (
+            id.includes("node_modules/react/") ||
+            id.includes("node_modules/react-dom/") ||
+            id.includes("node_modules/scheduler/")
+          )
+            return "vendor-react";
 
           // ── D3.js — 思維島鏈視覺化（重型 ~500KB，獨立）
           if (id.includes("node_modules/d3")) return "vendor-d3";
 
           // ── Three.js — 3D 光球（Phase 10，重型，按需載入）
-          if (id.includes("node_modules/three") ||
-              id.includes("node_modules/@react-three")) return "vendor-three";
+          if (
+            id.includes("node_modules/three") ||
+            id.includes("node_modules/@react-three")
+          )
+            return "vendor-three";
 
           // ── Framer Motion — 動畫系統
           if (id.includes("node_modules/framer-motion")) return "vendor-motion";
 
           // ── Recharts — 儀表板圖表
-          if (id.includes("node_modules/recharts") ||
-              id.includes("node_modules/victory-vendor")) return "vendor-charts";
+          if (
+            id.includes("node_modules/recharts") ||
+            id.includes("node_modules/victory-vendor")
+          )
+            return "vendor-charts";
 
           // ── JSZip — 匯出功能（只在 Studio/History 用）
           if (id.includes("node_modules/jszip")) return "vendor-jszip";
@@ -205,54 +220,66 @@ export default defineConfig({
           if (id.includes("node_modules/@radix-ui")) return "vendor-radix";
 
           // ── TanStack Query + tRPC — 資料層
-          if (id.includes("node_modules/@tanstack") ||
-              id.includes("node_modules/@trpc")) return "vendor-query";
+          if (
+            id.includes("node_modules/@tanstack") ||
+            id.includes("node_modules/@trpc")
+          )
+            return "vendor-query";
 
           // ── Fal.ai SDK（只在生成流程用）
           if (id.includes("node_modules/@fal-ai")) return "vendor-fal";
 
           // ── XState — Phase 10 人格狀態機引擎
-          if (id.includes("node_modules/xstate") ||
-              id.includes("node_modules/@xstate")) return "vendor-xstate";
+          if (
+            id.includes("node_modules/xstate") ||
+            id.includes("node_modules/@xstate")
+          )
+            return "vendor-xstate";
 
           // ── Lucide React — 圖示庫（大型，獨立 chunk）
           if (id.includes("node_modules/lucide-react")) return "vendor-lucide";
 
           // ── Date-fns — 日期處理（大型，獨立 chunk）
-          if (id.includes("node_modules/date-fns") ||
-              id.includes("node_modules/@date-fns")) return "vendor-date";
+          if (
+            id.includes("node_modules/date-fns") ||
+            id.includes("node_modules/@date-fns")
+          )
+            return "vendor-date";
 
           // ── Streamdown + 所有 Markdown 渲染依賴 + Mermaid 子依賴
           // 合一 chunk 避免循環依賴（vendor-misc ↔ vendor-markdown）
           // 包含：cytoscape（mermaid 圖形）、langium/chevrotain（@mermaid-js/parser 語法解析）
-          if (id.includes("node_modules/streamdown") ||
-              id.includes("node_modules/mermaid") ||
-              id.includes("node_modules/@mermaid-js") ||
-              id.includes("node_modules/katex") ||
-              id.includes("node_modules/rehype-katex") ||
-              id.includes("node_modules/remark-math") ||
-              id.includes("node_modules/shiki") ||
-              id.includes("node_modules/@shikijs") ||
-              id.includes("node_modules/hast") ||
-              id.includes("node_modules/rehype") ||
-              id.includes("node_modules/remark") ||
-              id.includes("node_modules/unified") ||
-              id.includes("node_modules/marked") ||
-              id.includes("node_modules/micromark") ||
-              id.includes("node_modules/mdast") ||
-              id.includes("node_modules/unist") ||
-              id.includes("node_modules/remend") ||
-              id.includes("node_modules/html-url-attributes") ||
-              id.includes("node_modules/cytoscape") ||
-              id.includes("node_modules/langium") ||
-              id.includes("node_modules/chevrotain") ||
-              id.includes("node_modules/@chevrotain") ||
-              id.includes("node_modules/vscode-languageserver") ||
-              id.includes("node_modules/vscode-uri") ||
-              id.includes("node_modules/vfile") ||
-              id.includes("node_modules/character-reference-invalid") ||
-              id.includes("node_modules/html-void-elements") ||
-              id.includes("node_modules/property-information")) return "vendor-markdown";
+          if (
+            id.includes("node_modules/streamdown") ||
+            id.includes("node_modules/mermaid") ||
+            id.includes("node_modules/@mermaid-js") ||
+            id.includes("node_modules/katex") ||
+            id.includes("node_modules/rehype-katex") ||
+            id.includes("node_modules/remark-math") ||
+            id.includes("node_modules/shiki") ||
+            id.includes("node_modules/@shikijs") ||
+            id.includes("node_modules/hast") ||
+            id.includes("node_modules/rehype") ||
+            id.includes("node_modules/remark") ||
+            id.includes("node_modules/unified") ||
+            id.includes("node_modules/marked") ||
+            id.includes("node_modules/micromark") ||
+            id.includes("node_modules/mdast") ||
+            id.includes("node_modules/unist") ||
+            id.includes("node_modules/remend") ||
+            id.includes("node_modules/html-url-attributes") ||
+            id.includes("node_modules/cytoscape") ||
+            id.includes("node_modules/langium") ||
+            id.includes("node_modules/chevrotain") ||
+            id.includes("node_modules/@chevrotain") ||
+            id.includes("node_modules/vscode-languageserver") ||
+            id.includes("node_modules/vscode-uri") ||
+            id.includes("node_modules/vfile") ||
+            id.includes("node_modules/character-reference-invalid") ||
+            id.includes("node_modules/html-void-elements") ||
+            id.includes("node_modules/property-information")
+          )
+            return "vendor-markdown";
 
           // ── 其餘 node_modules 統一歸入 vendor-misc
           if (id.includes("node_modules")) return "vendor-misc";

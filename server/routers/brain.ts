@@ -29,10 +29,7 @@ import {
   getSystemSummary,
   ERROR_CATEGORY_LABELS,
 } from "../services/brainAutoRepair";
-import {
-  userAiBrain,
-  userModelSwitchLogs,
-} from "../../drizzle/schema";
+import { userAiBrain, userModelSwitchLogs } from "../../drizzle/schema";
 import {
   getHealthStatus,
   getHealthSnapshot,
@@ -56,7 +53,10 @@ import {
   getAllPricingByCategory,
   pointsToUsd,
 } from "../services/modelPricing";
-import { resolveFalEnginesFromRow, DEFAULT_FAL_ENGINES } from "../services/falDispatcher";
+import {
+  resolveFalEnginesFromRow,
+  DEFAULT_FAL_ENGINES,
+} from "../services/falDispatcher";
 import {
   getAutoRepairConfig,
   setAutoRepairEnabled,
@@ -79,10 +79,22 @@ export const REASONING_MODEL_CATALOG = {
       { value: "gemini-1.5-pro", label: "Gemini 1.5 Pro", tier: "premium" },
       { value: "gemini-1.5-flash", label: "Gemini 1.5 Flash", tier: "fast" },
       // ── Vertex AI 模型 ──
-      { value: "vertex/gemini-2.5-pro", label: "Vertex Gemini 2.5 Pro 🔷", tier: "premium" },
-      { value: "vertex/llama-3.2-90b", label: "Vertex Llama 3.2 90B", tier: "premium" },
+      {
+        value: "vertex/gemini-2.5-pro",
+        label: "Vertex Gemini 2.5 Pro 🔷",
+        tier: "premium",
+      },
+      {
+        value: "vertex/llama-3.2-90b",
+        label: "Vertex Llama 3.2 90B",
+        tier: "premium",
+      },
       // ── DEF-13 修正：新增 NVIDIA NIM / MiniMax M2.7 ──
-      { value: "nvidia/minimax-m2.7", label: "MiniMax M2.7 (NVIDIA NIM) 🟠", tier: "premium" },
+      {
+        value: "nvidia/minimax-m2.7",
+        label: "MiniMax M2.7 (NVIDIA NIM) 🟠",
+        tier: "premium",
+      },
     ],
   },
   analyst: {
@@ -92,8 +104,16 @@ export const REASONING_MODEL_CATALOG = {
       { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash ⚡", tier: "fast" },
       { value: "gemini-1.5-flash", label: "Gemini 1.5 Flash", tier: "fast" },
       { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", tier: "premium" },
-      { value: "vertex/gemini-2.5-flash", label: "Vertex Gemini 2.5 Flash 🔷", tier: "fast" },
-      { value: "vertex/llama-3.1-405b", label: "Vertex Llama 3.1 405B", tier: "premium" },
+      {
+        value: "vertex/gemini-2.5-flash",
+        label: "Vertex Gemini 2.5 Flash 🔷",
+        tier: "fast",
+      },
+      {
+        value: "vertex/llama-3.1-405b",
+        label: "Vertex Llama 3.1 405B",
+        tier: "premium",
+      },
     ],
   },
   storyteller: {
@@ -103,8 +123,16 @@ export const REASONING_MODEL_CATALOG = {
       { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro ✦", tier: "premium" },
       { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash ⚡", tier: "fast" },
       { value: "gemini-1.5-pro", label: "Gemini 1.5 Pro", tier: "premium" },
-      { value: "vertex/gemini-2.5-pro", label: "Vertex Gemini 2.5 Pro 🔷", tier: "premium" },
-      { value: "vertex/mistral-nemo", label: "Vertex Mistral NeMo", tier: "standard" },
+      {
+        value: "vertex/gemini-2.5-pro",
+        label: "Vertex Gemini 2.5 Pro 🔷",
+        tier: "premium",
+      },
+      {
+        value: "vertex/mistral-nemo",
+        label: "Vertex Mistral NeMo",
+        tier: "standard",
+      },
     ],
   },
   technician: {
@@ -114,7 +142,11 @@ export const REASONING_MODEL_CATALOG = {
       { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash ⚡", tier: "fast" },
       { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", tier: "premium" },
       { value: "gemini-1.5-flash", label: "Gemini 1.5 Flash", tier: "fast" },
-      { value: "vertex/gemini-2.5-flash", label: "Vertex Gemini 2.5 Flash 🔷", tier: "fast" },
+      {
+        value: "vertex/gemini-2.5-flash",
+        label: "Vertex Gemini 2.5 Flash 🔷",
+        tier: "fast",
+      },
     ],
   },
   curator: {
@@ -124,7 +156,11 @@ export const REASONING_MODEL_CATALOG = {
       { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash ⚡", tier: "fast" },
       { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", tier: "premium" },
       { value: "gemini-1.5-pro", label: "Gemini 1.5 Pro", tier: "premium" },
-      { value: "vertex/gemini-2.5-pro", label: "Vertex Gemini 2.5 Pro 🔷", tier: "premium" },
+      {
+        value: "vertex/gemini-2.5-pro",
+        label: "Vertex Gemini 2.5 Pro 🔷",
+        tier: "premium",
+      },
     ],
   },
 } as const;
@@ -139,14 +175,30 @@ export const GENERATION_ENGINE_CATALOG = {
       { value: "fal/flux-pro-1.1", label: "Flux Pro 1.1 ✦", tier: "premium" },
       { value: "fal/flux-dev", label: "Flux Dev", tier: "premium" },
       { value: "fal/flux-schnell", label: "Flux Schnell ⚡", tier: "fast" },
-      { value: "fal/sd3-medium", label: "Stable Diffusion 3", tier: "standard" },
+      {
+        value: "fal/sd3-medium",
+        label: "Stable Diffusion 3",
+        tier: "standard",
+      },
       { value: "fal/ideogram-v2", label: "Ideogram V2", tier: "premium" },
       { value: "fal/aura-flow", label: "AuraFlow", tier: "standard" },
       // ── Gemini Imagen ──
-      { value: "gemini/imagen-3", label: "Imagen 3 (Gemini) 🔵", tier: "premium" },
-      { value: "gemini/imagen-3-fast", label: "Imagen 3 Fast (Gemini) ⚡", tier: "fast" },
+      {
+        value: "gemini/imagen-3",
+        label: "Imagen 3 (Gemini) 🔵",
+        tier: "premium",
+      },
+      {
+        value: "gemini/imagen-3-fast",
+        label: "Imagen 3 Fast (Gemini) ⚡",
+        tier: "fast",
+      },
       // ── Vertex Imagen ──
-      { value: "vertex/imagen-3", label: "Imagen 3 (Vertex) 🔷", tier: "premium" },
+      {
+        value: "vertex/imagen-3",
+        label: "Imagen 3 (Vertex) 🔷",
+        tier: "premium",
+      },
     ],
   },
   videoEngine: {
@@ -154,18 +206,42 @@ export const GENERATION_ENGINE_CATALOG = {
     description: "AI 影片生成（文字/圖片轉視頻）",
     options: [
       // ── Fal.ai 文字轉影片 ──
-      { value: "fal/kling-v2.1-pro-t2v", label: "Kling V2.1 Pro ✦", tier: "premium" },
+      {
+        value: "fal/kling-v2.1-pro-t2v",
+        label: "Kling V2.1 Pro ✦",
+        tier: "premium",
+      },
       // DEF-05 修正：移除 Kling v1.5（已確認 422 錯誤，答商已更新 API）
       { value: "fal/minimax-t2v", label: "MiniMax Hailuo", tier: "standard" },
-      { value: "fal/luma-dream-machine-t2v", label: "Luma Dream Machine", tier: "premium" },
+      {
+        value: "fal/luma-dream-machine-t2v",
+        label: "Luma Dream Machine",
+        tier: "premium",
+      },
       { value: "fal/wan-t2v-v2.1", label: "WAN T2V 2.1", tier: "standard" },
-      { value: "fal/cogvideox-5b-t2v", label: "CogVideoX 5B", tier: "standard" },
+      {
+        value: "fal/cogvideox-5b-t2v",
+        label: "CogVideoX 5B",
+        tier: "standard",
+      },
       // ── Fal.ai 圖片轉影片 ──
-      { value: "fal/kling-v2.1-pro-i2v", label: "Kling V2.1 i2v ✦", tier: "premium" },
-      { value: "fal/runway-gen3-i2v", label: "Runway Gen3 Turbo i2v", tier: "premium" },
+      {
+        value: "fal/kling-v2.1-pro-i2v",
+        label: "Kling V2.1 i2v ✦",
+        tier: "premium",
+      },
+      {
+        value: "fal/runway-gen3-i2v",
+        label: "Runway Gen3 Turbo i2v",
+        tier: "premium",
+      },
       // ── Gemini Veo ──
       { value: "gemini/veo-2", label: "Veo 2 (Gemini) 🔵", tier: "premium" },
-      { value: "gemini/veo-3", label: "Veo 3 Preview (Gemini) 🔵", tier: "premium" },
+      {
+        value: "gemini/veo-3",
+        label: "Veo 3 Preview (Gemini) 🔵",
+        tier: "premium",
+      },
     ],
   },
   audioEngine: {
@@ -176,16 +252,36 @@ export const GENERATION_ENGINE_CATALOG = {
       { value: "suno-v4", label: "Suno V4 ✦", tier: "premium" },
       { value: "suno-v3.5", label: "Suno V3.5", tier: "standard" },
       // ── Fal.ai 音頻 ──
-      { value: "fal/stable-audio", label: "Stable Audio (Fal)", tier: "premium" },
+      {
+        value: "fal/stable-audio",
+        label: "Stable Audio (Fal)",
+        tier: "premium",
+      },
       { value: "fal/musicgen", label: "MusicGen (Meta)", tier: "standard" },
       { value: "fal/ace-step", label: "ACE-Step", tier: "premium" },
       { value: "fal/audioldm2", label: "AudioLDM 2", tier: "standard" },
       // ── Gemini Lyria ──
-      { value: "gemini/lyria-2", label: "Lyria 2 (Gemini) 🔵", tier: "premium" },
-      { value: "gemini/musicfx", label: "MusicFX (Gemini) 🔵", tier: "standard" },
+      {
+        value: "gemini/lyria-2",
+        label: "Lyria 2 (Gemini) 🔵",
+        tier: "premium",
+      },
+      {
+        value: "gemini/musicfx",
+        label: "MusicFX (Gemini) 🔵",
+        tier: "standard",
+      },
       // ── ElevenLabs ──
-      { value: "elevenlabs/music", label: "ElevenLabs Music 🎵", tier: "premium" },
-      { value: "elevenlabs/sound-effects", label: "ElevenLabs 音效 🎵", tier: "standard" },
+      {
+        value: "elevenlabs/music",
+        label: "ElevenLabs Music 🎵",
+        tier: "premium",
+      },
+      {
+        value: "elevenlabs/sound-effects",
+        label: "ElevenLabs 音效 🎵",
+        tier: "standard",
+      },
     ],
   },
   voiceEngine: {
@@ -193,18 +289,42 @@ export const GENERATION_ENGINE_CATALOG = {
     description: "AI 語音合成（文字轉語音）",
     options: [
       // ── ElevenLabs ──
-      { value: "elevenlabs/eleven-v3", label: "ElevenLabs V3 ✦", tier: "premium" },
-      { value: "elevenlabs/multilingual-v2", label: "ElevenLabs Multilingual V2", tier: "premium" },
-      { value: "elevenlabs/turbo-v2.5", label: "ElevenLabs Turbo V2.5 ⚡", tier: "fast" },
-      { value: "elevenlabs/flash-v2.5", label: "ElevenLabs Flash V2.5 ⚡", tier: "fast" },
+      {
+        value: "elevenlabs/eleven-v3",
+        label: "ElevenLabs V3 ✦",
+        tier: "premium",
+      },
+      {
+        value: "elevenlabs/multilingual-v2",
+        label: "ElevenLabs Multilingual V2",
+        tier: "premium",
+      },
+      {
+        value: "elevenlabs/turbo-v2.5",
+        label: "ElevenLabs Turbo V2.5 ⚡",
+        tier: "fast",
+      },
+      {
+        value: "elevenlabs/flash-v2.5",
+        label: "ElevenLabs Flash V2.5 ⚡",
+        tier: "fast",
+      },
       // ── Fal.ai TTS ──
       // DEF-06 修正：移除 MetaVoice v1（對應 fal-ai/metavoice-v1 API 已變更，422 錯誤）
       { value: "fal/playai-tts", label: "PlayAI TTS (Fal)", tier: "premium" },
       { value: "fal/kokoro", label: "Kokoro TTS (Fal) ⚡", tier: "fast" },
-      { value: "fal/orpheus-tts", label: "Orpheus TTS (Fal)", tier: "standard" },
+      {
+        value: "fal/orpheus-tts",
+        label: "Orpheus TTS (Fal)",
+        tier: "standard",
+      },
       { value: "fal/dia-tts", label: "Dia TTS (Fal)", tier: "standard" },
       // ── Gemini TTS ──
-      { value: "gemini/tts-flash", label: "Gemini TTS Flash 🔵 ⚡", tier: "fast" },
+      {
+        value: "gemini/tts-flash",
+        label: "Gemini TTS Flash 🔵 ⚡",
+        tier: "fast",
+      },
       { value: "gemini/tts-pro", label: "Gemini TTS Pro 🔵", tier: "premium" },
     ],
   },
@@ -219,7 +339,11 @@ export const FAL_TASK_ENGINE_CATALOG = {
       { value: "fal/trellis", label: "Trellis 3D ✦", tier: "premium" },
       { value: "fal/triposr", label: "TripoSR ⚡", tier: "standard" },
       { value: "fal/zero123plus", label: "Zero123++", tier: "standard" },
-      { value: "fal/stable-zero123", label: "Stable Zero123", tier: "standard" },
+      {
+        value: "fal/stable-zero123",
+        label: "Stable Zero123",
+        tier: "standard",
+      },
       { value: "fal/mv-adapter", label: "MV-Adapter", tier: "premium" },
     ],
   },
@@ -228,9 +352,21 @@ export const FAL_TASK_ENGINE_CATALOG = {
     description: "圖片風格轉換/超解析度",
     options: [
       { value: "fal/flux-dev-i2i", label: "Flux Dev i2i ✦", tier: "premium" },
-      { value: "fal/sd3-medium-i2i", label: "SD3 Medium i2i", tier: "standard" },
-      { value: "fal/ip-adapter-faceid", label: "IP-Adapter FaceID", tier: "premium" },
-      { value: "fal/controlnet-union", label: "ControlNet Union", tier: "standard" },
+      {
+        value: "fal/sd3-medium-i2i",
+        label: "SD3 Medium i2i",
+        tier: "standard",
+      },
+      {
+        value: "fal/ip-adapter-faceid",
+        label: "IP-Adapter FaceID",
+        tier: "premium",
+      },
+      {
+        value: "fal/controlnet-union",
+        label: "ControlNet Union",
+        tier: "standard",
+      },
       { value: "fal/aura-sr", label: "AuraSR 超解析度 ⚡", tier: "fast" },
       { value: "fal/rembg", label: "RemBG 去背 ⚡", tier: "fast" },
     ],
@@ -251,10 +387,18 @@ export const FAL_TASK_ENGINE_CATALOG = {
     description: "為影片生成配樂音效",
     options: [
       { value: "fal/mmaudio-v2", label: "MMAudio V2 ✦", tier: "premium" },
-      { value: "fal/stable-audio-v2a", label: "Stable Audio v2a", tier: "standard" },
+      {
+        value: "fal/stable-audio-v2a",
+        label: "Stable Audio v2a",
+        tier: "standard",
+      },
       { value: "fal/audioldm2-v2a", label: "AudioLDM2 v2a", tier: "standard" },
       { value: "fal/sync-lipsync", label: "Sync Lipsync", tier: "premium" },
-      { value: "fal/elevenlabs-sound", label: "ElevenLabs 音效", tier: "standard" },
+      {
+        value: "fal/elevenlabs-sound",
+        label: "ElevenLabs 音效",
+        tier: "standard",
+      },
     ],
   },
   videoToText: {
@@ -263,28 +407,56 @@ export const FAL_TASK_ENGINE_CATALOG = {
     options: [
       { value: "fal/whisper", label: "Whisper ✦", tier: "standard" },
       { value: "fal/wizper", label: "Wizper ⚡", tier: "fast" },
-      { value: "fal/any-llm-video", label: "Any LLM 影片分析", tier: "premium" },
-      { value: "fal/llava-next-video", label: "LLaVA-Next 影片", tier: "standard" },
+      {
+        value: "fal/any-llm-video",
+        label: "Any LLM 影片分析",
+        tier: "premium",
+      },
+      {
+        value: "fal/llava-next-video",
+        label: "LLaVA-Next 影片",
+        tier: "standard",
+      },
     ],
   },
   videoToVideo: {
     label: "影片對影片",
     description: "影片風格轉換/增強",
     options: [
-      { value: "fal/kling-v2.1-v2v", label: "Kling V2.1 V2V ✦", tier: "premium" },
+      {
+        value: "fal/kling-v2.1-v2v",
+        label: "Kling V2.1 V2V ✦",
+        tier: "premium",
+      },
       { value: "fal/wan-v2v", label: "WAN V2V", tier: "standard" },
       { value: "fal/cogvideox-v2v", label: "CogVideoX V2V", tier: "standard" },
       { value: "fal/topaz-video", label: "Topaz 超解析度", tier: "premium" },
-      { value: "fal/stable-video-upscaler", label: "SVD 超解析度", tier: "standard" },
+      {
+        value: "fal/stable-video-upscaler",
+        label: "SVD 超解析度",
+        tier: "standard",
+      },
     ],
   },
   training: {
     label: "模型訓練",
     description: "LoRA/DreamBooth 微調訓練",
     options: [
-      { value: "fal/flux-lora-fast", label: "Flux LoRA 快速訓練 ✦", tier: "premium" },
-      { value: "fal/flux-lora-portrait", label: "Flux LoRA 人像", tier: "premium" },
-      { value: "fal/dreambooth-flux", label: "DreamBooth Flux", tier: "premium" },
+      {
+        value: "fal/flux-lora-fast",
+        label: "Flux LoRA 快速訓練 ✦",
+        tier: "premium",
+      },
+      {
+        value: "fal/flux-lora-portrait",
+        label: "Flux LoRA 人像",
+        tier: "premium",
+      },
+      {
+        value: "fal/dreambooth-flux",
+        label: "DreamBooth Flux",
+        tier: "premium",
+      },
       { value: "fal/sd3-lora", label: "SD3 LoRA", tier: "standard" },
       { value: "fal/cogvideox-lora", label: "CogVideoX LoRA", tier: "premium" },
     ],
@@ -302,12 +474,12 @@ export const brainRouter = router({
     generation: GENERATION_ENGINE_CATALOG,
     /** Fal.ai 16大類任務引擎（每類 5-6 模型） */
     falTasks: Object.fromEntries(
-      (Object.keys(FAL_MODEL_CATALOG) as FalCategory[]).map((cat) => [
+      (Object.keys(FAL_MODEL_CATALOG) as FalCategory[]).map(cat => [
         cat,
         {
           label: FAL_CATEGORY_LABELS[cat],
           description: FAL_MODEL_CATALOG[cat][0]?.description ?? "",
-          options: FAL_MODEL_CATALOG[cat].map((m) => ({
+          options: FAL_MODEL_CATALOG[cat].map(m => ({
             value: m.modelId,
             label: m.label,
             tier: m.tier,
@@ -317,20 +489,23 @@ export const brainRouter = router({
           })),
         },
       ])
-    ) as Record<FalCategory, {
-      label: string;
-      description: string;
-      options: Array<{
-        value: string;
+    ) as Record<
+      FalCategory,
+      {
         label: string;
-        tier: string;
         description: string;
-        inputSchema: Record<string, boolean | undefined>;
-        outputSchema: Record<string, boolean | undefined>;
-      }>;
-    }>,
+        options: Array<{
+          value: string;
+          label: string;
+          tier: string;
+          description: string;
+          inputSchema: Record<string, boolean | undefined>;
+          outputSchema: Record<string, boolean | undefined>;
+        }>;
+      }
+    >,
     /** ElevenLabs TTS 模型目錄 */
-    elevenLabsModels: ELEVENLABS_TTS_MODELS.map((m) => ({
+    elevenLabsModels: ELEVENLABS_TTS_MODELS.map(m => ({
       value: m.value,
       label: m.label,
       tier: m.tier,
@@ -355,21 +530,42 @@ export const brainRouter = router({
           .limit(1);
         row = (rows[0] ?? null) as Record<string, unknown> | null;
       }
-    } catch { /* fallback to defaults */ }
+    } catch {
+      /* fallback to defaults */
+    }
 
     // 組裝回傳結構（不暴露任何 API Key）
-    const reasoningSlots: ReasoningBrainSlot[] = ["director", "analyst", "storyteller", "technician", "curator"];
-    const engineSlots: GenerationEngineSlot[] = ["imageEngine", "videoEngine", "audioEngine", "voiceEngine"];
+    const reasoningSlots: ReasoningBrainSlot[] = [
+      "director",
+      "analyst",
+      "storyteller",
+      "technician",
+      "curator",
+    ];
+    const engineSlots: GenerationEngineSlot[] = [
+      "imageEngine",
+      "videoEngine",
+      "audioEngine",
+      "voiceEngine",
+    ];
 
     const reasoning: Record<string, unknown> = {};
     for (const slot of reasoningSlots) {
       const defaults = DEFAULT_REASONING_BRAINS[slot];
-      const model = row ? String((row as any)[`${slot}Model`] ?? defaults.model) : defaults.model;
+      const model = row
+        ? String((row as any)[`${slot}Model`] ?? defaults.model)
+        : defaults.model;
       reasoning[slot] = {
         model,
-        temperature: row ? Number((row as any)[`${slot}Temperature`] ?? defaults.temperature) : defaults.temperature,
-        topP: row ? Number((row as any)[`${slot}TopP`] ?? defaults.topP) : defaults.topP,
-        systemPrompt: row ? (row as any)[`${slot}SystemPrompt`] ?? null : null,
+        temperature: row
+          ? Number((row as any)[`${slot}Temperature`] ?? defaults.temperature)
+          : defaults.temperature,
+        topP: row
+          ? Number((row as any)[`${slot}TopP`] ?? defaults.topP)
+          : defaults.topP,
+        systemPrompt: row
+          ? ((row as any)[`${slot}SystemPrompt`] ?? null)
+          : null,
         enabled: row ? Boolean((row as any)[`${slot}Enabled`] ?? true) : true,
         healthy: getHealthStatus(model),
       };
@@ -378,10 +574,12 @@ export const brainRouter = router({
     const generation: Record<string, unknown> = {};
     for (const slot of engineSlots) {
       const defaults = DEFAULT_GENERATION_ENGINES[slot];
-      const engine = row ? String((row as any)[slot] ?? defaults.engine) : defaults.engine;
+      const engine = row
+        ? String((row as any)[slot] ?? defaults.engine)
+        : defaults.engine;
       generation[slot] = {
         engine,
-        params: row ? (row as any)[`${slot}Params`] ?? null : null,
+        params: row ? ((row as any)[`${slot}Params`] ?? null) : null,
         enabled: row ? Boolean((row as any)[`${slot}Enabled`] ?? true) : true,
         healthy: getHealthStatus(engine),
       };
@@ -426,16 +624,28 @@ export const brainRouter = router({
         curatorEnabled: z.boolean().optional(),
         // 生成引擎
         imageEngine: z.string().optional(),
-        imageEngineParams: z.record(z.string(), z.unknown()).nullable().optional(),
+        imageEngineParams: z
+          .record(z.string(), z.unknown())
+          .nullable()
+          .optional(),
         imageEngineEnabled: z.boolean().optional(),
         videoEngine: z.string().optional(),
-        videoEngineParams: z.record(z.string(), z.unknown()).nullable().optional(),
+        videoEngineParams: z
+          .record(z.string(), z.unknown())
+          .nullable()
+          .optional(),
         videoEngineEnabled: z.boolean().optional(),
         audioEngine: z.string().optional(),
-        audioEngineParams: z.record(z.string(), z.unknown()).nullable().optional(),
+        audioEngineParams: z
+          .record(z.string(), z.unknown())
+          .nullable()
+          .optional(),
         audioEngineEnabled: z.boolean().optional(),
         voiceEngine: z.string().optional(),
-        voiceEngineParams: z.record(z.string(), z.unknown()).nullable().optional(),
+        voiceEngineParams: z
+          .record(z.string(), z.unknown())
+          .nullable()
+          .optional(),
         voiceEngineEnabled: z.boolean().optional(),
         // Fal.ai 16大類任務引擎
         falImageTo3dEngine: z.string().optional(),
@@ -458,7 +668,11 @@ export const brainRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "資料庫不可用" });
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "資料庫不可用",
+        });
 
       // Build update set from non-undefined fields
       const updateSet: Record<string, unknown> = {};
@@ -507,12 +721,18 @@ export const brainRouter = router({
         fromModel: z.string(),
         toModel: z.string(),
         reason: z.string().optional(),
-        switchSource: z.enum(["manual", "soul_recommendation", "auto_fallback", "ab_test"]).default("manual"),
+        switchSource: z
+          .enum(["manual", "soul_recommendation", "auto_fallback", "ab_test"])
+          .default("manual"),
       })
     )
     .mutation(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "資料庫不可用" });
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "資料庫不可用",
+        });
 
       // 寫入切換日誌
       await db.insert(userModelSwitchLogs).values({
@@ -542,10 +762,14 @@ export const brainRouter = router({
    * 供 Studio 頁面顯示「本次生成預估費用」
    */
   pricingSummary: protectedProcedure
-    .input(z.object({
-      durationSec: z.number().optional(),
-      charCount: z.number().optional(),
-    }).optional())
+    .input(
+      z
+        .object({
+          durationSec: z.number().optional(),
+          charCount: z.number().optional(),
+        })
+        .optional()
+    )
     .query(async ({ ctx, input }) => {
       const userId = ctx.user.id;
       // Demo mode (no DB): use default engines
@@ -560,16 +784,30 @@ export const brainRouter = router({
             .limit(1);
           brainRow = (rows[0] ?? null) as Record<string, unknown> | null;
         }
-      } catch { /* fallback to defaults */ }
+      } catch {
+        /* fallback to defaults */
+      }
       const falEngines = resolveFalEnginesFromRow(brainRow);
 
       // 四模態引擎
-      const imageEngine  = String(brainRow?.imageEngine  ?? falEngines.textToImage);
-      const videoEngine  = String(brainRow?.videoEngine  ?? falEngines.textToVideo);
-      const audioEngine  = String(brainRow?.audioEngine  ?? falEngines.textToAudio);
-      const voiceEngine  = String(brainRow?.voiceEngine  ?? falEngines.textToSpeech);
+      const imageEngine = String(
+        brainRow?.imageEngine ?? falEngines.textToImage
+      );
+      const videoEngine = String(
+        brainRow?.videoEngine ?? falEngines.textToVideo
+      );
+      const audioEngine = String(
+        brainRow?.audioEngine ?? falEngines.textToAudio
+      );
+      const voiceEngine = String(
+        brainRow?.voiceEngine ?? falEngines.textToSpeech
+      );
 
-      const buildEntry = (modelId: string, durationSec?: number, charCount?: number) => {
+      const buildEntry = (
+        modelId: string,
+        durationSec?: number,
+        charCount?: number
+      ) => {
         const p = getModelPricing(modelId);
         const est = estimatePoints(modelId, { durationSec, charCount });
         const avail = checkModelAvailability(modelId);
@@ -624,7 +862,10 @@ export const brainRouter = router({
       }
     }
 
-    const status: Record<string, { healthy: boolean; consecutiveFailures: number; lastError?: string }> = {};
+    const status: Record<
+      string,
+      { healthy: boolean; consecutiveFailures: number; lastError?: string }
+    > = {};
     for (const model of Array.from(allModels)) {
       const cached = snapshot[model];
       status[model] = {
@@ -736,36 +977,34 @@ export const brainRouter = router({
       }
     }
 
-    // Gemini — list models endpoint (no auth = 400/401 but confirms reachability)
+    // Execute all ping tasks concurrently
     const geminiKey = process.env.GEMINI_API_KEY;
-    await ping(
-      "gemini",
-      geminiKey
-        ? `https://generativelanguage.googleapis.com/v1beta/models?key=${geminiKey}&pageSize=1`
-        : "https://generativelanguage.googleapis.com/v1beta/models",
-      { method: "GET" }
-    );
-
-    // Fal.ai — queue status endpoint
-    await ping("fal", "https://queue.fal.run/fal-ai/flux/requests", {
-      method: "GET",
-      headers: process.env.FAL_API_KEY
-        ? { Authorization: `Key ${process.env.FAL_API_KEY}` }
-        : {},
-    });
-
-    // ElevenLabs — user info (returns 401 if key missing but confirms service alive)
-    await ping("elevenlabs", "https://api.elevenlabs.io/v1/user", {
-      method: "GET",
-      headers: process.env.ELEVENLABS_API_KEY
-        ? { "xi-api-key": process.env.ELEVENLABS_API_KEY }
-        : {},
-    });
+    await Promise.all([
+      ping(
+        "gemini",
+        geminiKey
+          ? `https://generativelanguage.googleapis.com/v1beta/models?key=${geminiKey}&pageSize=1`
+          : "https://generativelanguage.googleapis.com/v1beta/models",
+        { method: "GET" }
+      ),
+      ping("fal", "https://queue.fal.run/fal-ai/flux/requests", {
+        method: "GET",
+        headers: process.env.FAL_API_KEY
+          ? { Authorization: `Key ${process.env.FAL_API_KEY}` }
+          : {},
+      }),
+      ping("elevenlabs", "https://api.elevenlabs.io/v1/user", {
+        method: "GET",
+        headers: process.env.ELEVENLABS_API_KEY
+          ? { "xi-api-key": process.env.ELEVENLABS_API_KEY }
+          : {},
+      }),
+    ]);
 
     // Vertex AI — not directly pingable from client; mark as unknown unless credential present
     results["vertex"] = {
       latencyMs: null,
-      ok: !!(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON),
+      ok: !!process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON,
       error: process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON
         ? undefined
         : "GOOGLE_APPLICATION_CREDENTIALS_JSON 未設定",
@@ -808,7 +1047,9 @@ export const brainRouter = router({
 
   /** 取得 API 警報清單 */
   alerts: protectedProcedure
-    .input(z.object({ limit: z.number().min(1).max(200).default(50) }).optional())
+    .input(
+      z.object({ limit: z.number().min(1).max(200).default(50) }).optional()
+    )
     .query(({ input }) => getAlerts(input?.limit ?? 50)),
 
   /** 管理員關閉警報 */
@@ -816,7 +1057,8 @@ export const brainRouter = router({
     .input(z.object({ alertId: z.string() }))
     .mutation(({ ctx, input }) => {
       const ok = dismissAlert(input.alertId, ctx.user.id);
-      if (!ok) throw new TRPCError({ code: "NOT_FOUND", message: "警報不存在" });
+      if (!ok)
+        throw new TRPCError({ code: "NOT_FOUND", message: "警報不存在" });
       return { success: true };
     }),
 
@@ -824,22 +1066,30 @@ export const brainRouter = router({
 
   /** 取得錯誤線索 */
   errorTraces: protectedProcedure
-    .input(z.object({
-      limit: z.number().min(1).max(200).default(50),
-      modality: z.enum(["image", "video", "audio", "voice", "llm"]).optional(),
-    }).optional())
+    .input(
+      z
+        .object({
+          limit: z.number().min(1).max(200).default(50),
+          modality: z
+            .enum(["image", "video", "audio", "voice", "llm"])
+            .optional(),
+        })
+        .optional()
+    )
     .query(({ input }) => getErrorTraces(input?.limit ?? 50, input?.modality)),
 
   /** 記錄一個生成錯誤（供其他 router 呼叫，或管理員手動回報） */
   reportError: protectedProcedure
-    .input(z.object({
-      modality: z.enum(["image", "video", "audio", "voice", "llm"]),
-      engine: z.string(),
-      prompt: z.string().max(2000),
-      errorMessage: z.string().max(2000),
-      errorCode: z.string().optional(),
-      stackHint: z.string().max(1000).optional(),
-    }))
+    .input(
+      z.object({
+        modality: z.enum(["image", "video", "audio", "voice", "llm"]),
+        engine: z.string(),
+        prompt: z.string().max(2000),
+        errorMessage: z.string().max(2000),
+        errorCode: z.string().optional(),
+        stackHint: z.string().max(1000).optional(),
+      })
+    )
     .mutation(({ ctx, input }) => {
       return recordErrorTrace({ ...input, userId: ctx.user.id });
     }),
@@ -849,7 +1099,8 @@ export const brainRouter = router({
     .input(z.object({ traceId: z.string(), resolution: z.string().max(1000) }))
     .mutation(({ input }) => {
       const ok = resolveErrorTrace(input.traceId, input.resolution);
-      if (!ok) throw new TRPCError({ code: "NOT_FOUND", message: "錯誤線索不存在" });
+      if (!ok)
+        throw new TRPCError({ code: "NOT_FOUND", message: "錯誤線索不存在" });
       return { success: true };
     }),
 
@@ -858,51 +1109,75 @@ export const brainRouter = router({
     .input(z.object({ traceId: z.string() }))
     .query(({ input }) => {
       const diagnosis = diagnoseError(input.traceId);
-      if (!diagnosis) throw new TRPCError({ code: "NOT_FOUND", message: "錯誤線索不存在" });
+      if (!diagnosis)
+        throw new TRPCError({ code: "NOT_FOUND", message: "錯誤線索不存在" });
       return diagnosis;
     }),
 
   /** 取得錯誤分類標籤對照表 */
-  errorCategoryLabels: protectedProcedure
-    .query(() => ERROR_CATEGORY_LABELS),
+  errorCategoryLabels: protectedProcedure.query(() => ERROR_CATEGORY_LABELS),
 
   // ─── 3. 回饋自我反省優化系統 ─────────────────────────────────────────
 
   /** 取得優化提案清單 */
   proposals: protectedProcedure
-    .input(z.object({
-      status: z.enum(["pending", "approved", "rejected"]).optional(),
-    }).optional())
+    .input(
+      z
+        .object({
+          status: z.enum(["pending", "approved", "rejected"]).optional(),
+        })
+        .optional()
+    )
     .query(({ input }) => getProposals(input?.status)),
 
   /** 手動建立優化提案 */
   createProposal: protectedProcedure
-    .input(z.object({
-      category: z.enum(["prompt_optimization", "engine_switch", "param_tuning", "fallback_update", "accuracy_fix"]),
-      title: z.string().min(2).max(200),
-      description: z.string().max(2000),
-      currentValue: z.string().max(500),
-      proposedValue: z.string().max(500),
-      reasoning: z.string().max(2000),
-      confidence: z.number().min(0).max(100),
-    }))
+    .input(
+      z.object({
+        category: z.enum([
+          "prompt_optimization",
+          "engine_switch",
+          "param_tuning",
+          "fallback_update",
+          "accuracy_fix",
+        ]),
+        title: z.string().min(2).max(200),
+        description: z.string().max(2000),
+        currentValue: z.string().max(500),
+        proposedValue: z.string().max(500),
+        reasoning: z.string().max(2000),
+        confidence: z.number().min(0).max(100),
+      })
+    )
     .mutation(({ input }) => createReflectionProposal(input)),
 
   /** 管理員批准提案 */
   approveProposal: adminProcedure
-    .input(z.object({ proposalId: z.string(), note: z.string().max(500).optional() }))
+    .input(
+      z.object({ proposalId: z.string(), note: z.string().max(500).optional() })
+    )
     .mutation(({ ctx, input }) => {
       const ok = approveProposal(input.proposalId, ctx.user.id, input.note);
-      if (!ok) throw new TRPCError({ code: "NOT_FOUND", message: "提案不存在或已處理" });
+      if (!ok)
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "提案不存在或已處理",
+        });
       return { success: true };
     }),
 
   /** 管理員拒絕提案 */
   rejectProposal: adminProcedure
-    .input(z.object({ proposalId: z.string(), note: z.string().max(500).optional() }))
+    .input(
+      z.object({ proposalId: z.string(), note: z.string().max(500).optional() })
+    )
     .mutation(({ ctx, input }) => {
       const ok = rejectProposal(input.proposalId, ctx.user.id, input.note);
-      if (!ok) throw new TRPCError({ code: "NOT_FOUND", message: "提案不存在或已處理" });
+      if (!ok)
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "提案不存在或已處理",
+        });
       return { success: true };
     }),
 
@@ -910,17 +1185,21 @@ export const brainRouter = router({
 
   /** 執行爬網搜尋 */
   webSearch: protectedProcedure
-    .input(z.object({
-      query: z.string().min(2).max(200),
-      maxResults: z.number().min(1).max(10).default(5),
-    }))
+    .input(
+      z.object({
+        query: z.string().min(2).max(200),
+        maxResults: z.number().min(1).max(10).default(5),
+      })
+    )
     .mutation(async ({ input }) => {
       return webSearch(input.query, input.maxResults);
     }),
 
   /** 取得歷史研究結果 */
   researchResults: protectedProcedure
-    .input(z.object({ limit: z.number().min(1).max(200).default(50) }).optional())
+    .input(
+      z.object({ limit: z.number().min(1).max(200).default(50) }).optional()
+    )
     .query(({ input }) => getResearchResults(input?.limit ?? 50)),
 
   /** 將研究結果加入 LearnHub */
@@ -928,7 +1207,11 @@ export const brainRouter = router({
     .input(z.object({ researchId: z.string() }))
     .mutation(({ input }) => {
       const ok = addResearchToLearnHub(input.researchId);
-      if (!ok) throw new TRPCError({ code: "NOT_FOUND", message: "研究結果不存在或已加入" });
+      if (!ok)
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "研究結果不存在或已加入",
+        });
       return { success: true };
     }),
 
@@ -936,24 +1219,37 @@ export const brainRouter = router({
 
   /** 取得測試結果歷史 */
   accuracyTests: protectedProcedure
-    .input(z.object({ limit: z.number().min(1).max(200).default(50) }).optional())
+    .input(
+      z.object({ limit: z.number().min(1).max(200).default(50) }).optional()
+    )
     .query(({ input }) => getAccuracyTests(input?.limit ?? 50)),
 
   /** 執行單一精準度測試 */
   runAccuracyTest: adminProcedure
-    .input(z.object({
-      engine: z.string(),
-      testType: z.enum(["response_quality", "latency", "consistency", "error_rate"]),
-      testPrompt: z.string().min(1).max(500),
-      expectedBehavior: z.string().min(1).max(500),
-    }))
+    .input(
+      z.object({
+        engine: z.string(),
+        testType: z.enum([
+          "response_quality",
+          "latency",
+          "consistency",
+          "error_rate",
+        ]),
+        testPrompt: z.string().min(1).max(500),
+        expectedBehavior: z.string().min(1).max(500),
+      })
+    )
     .mutation(async ({ input }) => {
-      return runAccuracyTest(input.engine, input.testType, input.testPrompt, input.expectedBehavior);
+      return runAccuracyTest(
+        input.engine,
+        input.testType,
+        input.testPrompt,
+        input.expectedBehavior
+      );
     }),
 
   /** 執行全部預定義測試 */
-  runAllAccuracyTests: adminProcedure
-    .mutation(async () => {
-      return runAllAccuracyTests();
-    }),
+  runAllAccuracyTests: adminProcedure.mutation(async () => {
+    return runAllAccuracyTests();
+  }),
 });

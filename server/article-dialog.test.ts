@@ -140,11 +140,17 @@ const overlayVariants = {
 const contentVariants = {
   hidden: { opacity: 0, scale: 0.92, y: 40, filter: "blur(8px)" },
   visible: {
-    opacity: 1, scale: 1, y: 0, filter: "blur(0px)",
+    opacity: 1,
+    scale: 1,
+    y: 0,
+    filter: "blur(0px)",
     transition: { type: "spring", damping: 28, stiffness: 300, mass: 0.8 },
   },
   exit: {
-    opacity: 0, scale: 0.95, y: 20, filter: "blur(4px)",
+    opacity: 0,
+    scale: 0.95,
+    y: 20,
+    filter: "blur(4px)",
     transition: { duration: 0.2, ease: [0.16, 1, 0.3, 1] },
   },
 };
@@ -157,7 +163,9 @@ describe("getWeightLabel — 權重標籤解析", () => {
   });
 
   it("returns first known tag when multiple present", () => {
-    expect(getWeightLabel(["unknown", "Inspiration Tip", "Model Breakthrough"])).toBe("Inspiration Tip");
+    expect(
+      getWeightLabel(["unknown", "Inspiration Tip", "Model Breakthrough"])
+    ).toBe("Inspiration Tip");
   });
 
   it("returns 'General Update' for null tags", () => {
@@ -218,9 +226,18 @@ describe("formatDate — 日期格式化", () => {
 describe("DIALOG_SCENE_STYLES — 場景樣式完整性", () => {
   const scenes: SceneId[] = ["nightSky", "morning", "cafe", "deepSea"];
   const requiredKeys: (keyof DialogSceneStyles)[] = [
-    "overlayBg", "panelBg", "panelBorder", "headerBg",
-    "textPrimary", "textSecondary", "textMuted", "accentColor",
-    "closeBtnBg", "closeBtnHover", "divider", "proseClass",
+    "overlayBg",
+    "panelBg",
+    "panelBorder",
+    "headerBg",
+    "textPrimary",
+    "textSecondary",
+    "textMuted",
+    "accentColor",
+    "closeBtnBg",
+    "closeBtnHover",
+    "divider",
+    "proseClass",
   ];
 
   for (const scene of scenes) {
@@ -239,7 +256,9 @@ describe("DIALOG_SCENE_STYLES — 場景樣式完整性", () => {
   });
 
   it("light scenes do not use prose-invert", () => {
-    expect(DIALOG_SCENE_STYLES.morning.proseClass).not.toContain("prose-invert");
+    expect(DIALOG_SCENE_STYLES.morning.proseClass).not.toContain(
+      "prose-invert"
+    );
     expect(DIALOG_SCENE_STYLES.cafe.proseClass).not.toContain("prose-invert");
   });
 });

@@ -312,7 +312,10 @@ export const WORKFLOW_KNOWLEDGE = `
  * 為光球（Orb）打造的完整系統提示詞
  * 包含全站知識 + 親切的光球人格
  */
-export function buildOrbSystemPrompt(personality: "calm" | "creative" | "technical", pageContext?: string): string {
+export function buildOrbSystemPrompt(
+  personality: "calm" | "creative" | "technical",
+  pageContext?: string
+): string {
   const personalityPrompts: Record<string, string> = {
     calm: `你是「光球」，Healing Studio 的療癒創作夥伴。你溫柔、沉穩、充滿同理心，像一位溫暖的老朋友。
 你用繁體中文回覆，語氣柔和平靜，帶著一絲微笑。你相信每個人內在都有創造力，你的角色是陪伴而不是催促。
@@ -327,8 +330,11 @@ export function buildOrbSystemPrompt(personality: "calm" | "creative" | "technic
 你會主動提供最佳參數建議，同時提醒使用者「沒有完美的設定，重要的是享受過程」。`,
   };
 
-  const personalityPrompt = personalityPrompts[personality] ?? personalityPrompts.creative;
-  const contextNote = pageContext ? `\n\n【使用者目前在：${pageContext}】\n根據使用者所在頁面，提供貼心的相關建議。` : "";
+  const personalityPrompt =
+    personalityPrompts[personality] ?? personalityPrompts.creative;
+  const contextNote = pageContext
+    ? `\n\n【使用者目前在：${pageContext}】\n根據使用者所在頁面，提供貼心的相關建議。`
+    : "";
 
   return `${personalityPrompt}
 
@@ -391,7 +397,9 @@ ${contextNote}
  * 為導演 AI 打造的完整系統提示詞
  * 包含全站知識 + 導演人格 + CO-STAR 框架
  */
-export function buildDirectorSystemPrompt(personality: "calm" | "creative" | "technical"): string {
+export function buildDirectorSystemPrompt(
+  personality: "calm" | "creative" | "technical"
+): string {
   const personalityDirectorPrompts: Record<string, string> = {
     calm: `你是「導演 AI」（沉穩型），Healing Studio 的創意導演。
 你注重邏輯、結構與可行性分析，先確認使用者的核心意圖再展開創作。
@@ -409,7 +417,9 @@ export function buildDirectorSystemPrompt(personality: "calm" | "creative" | "te
 腳本包含具體的技術參數與生成策略。`,
   };
 
-  const personalityPrompt = personalityDirectorPrompts[personality] ?? personalityDirectorPrompts.creative;
+  const personalityPrompt =
+    personalityDirectorPrompts[personality] ??
+    personalityDirectorPrompts.creative;
 
   return `${personalityPrompt}
 

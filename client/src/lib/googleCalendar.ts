@@ -32,7 +32,10 @@ function formatDateOnly(d: Date): string {
  * Format a Date to Google Calendar's datetime format: YYYYMMDDTHHmmSSZ
  */
 function formatDateTime(d: Date): string {
-  return d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  return d
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.\d{3}/, "");
 }
 
 /**
@@ -41,8 +44,16 @@ function formatDateTime(d: Date): string {
  * Opens the user's Google Calendar in a new tab with the event
  * pre-filled. The user confirms and saves it themselves.
  */
-export function buildGoogleCalendarUrl(params: GoogleCalendarEventParams): string {
-  const { title, description, date, durationMinutes = 60, allDay = true } = params;
+export function buildGoogleCalendarUrl(
+  params: GoogleCalendarEventParams
+): string {
+  const {
+    title,
+    description,
+    date,
+    durationMinutes = 60,
+    allDay = true,
+  } = params;
 
   const url = new URL("https://www.google.com/calendar/render");
   url.searchParams.set("action", "TEMPLATE");

@@ -44,7 +44,9 @@ export class CircuitBreaker {
       const elapsed = Date.now() - this.lastFailureTime;
       if (elapsed >= this.cooldownMs) {
         this.state = "HALF_OPEN";
-        console.info(`[CircuitBreaker:${this.name}] Transitioning to HALF_OPEN (cooldown elapsed).`);
+        console.info(
+          `[CircuitBreaker:${this.name}] Transitioning to HALF_OPEN (cooldown elapsed).`
+        );
         return true; // allow one probe
       }
       return false;
@@ -57,7 +59,9 @@ export class CircuitBreaker {
   /** Record a successful operation. Resets the breaker to CLOSED. */
   recordSuccess(): void {
     if (this.state !== "CLOSED") {
-      console.info(`[CircuitBreaker:${this.name}] Success recorded. Resetting to CLOSED.`);
+      console.info(
+        `[CircuitBreaker:${this.name}] Success recorded. Resetting to CLOSED.`
+      );
     }
     this.consecutiveFailures = 0;
     this.state = "CLOSED";
@@ -68,11 +72,14 @@ export class CircuitBreaker {
     this.consecutiveFailures++;
     this.lastFailureTime = Date.now();
 
-    if (this.consecutiveFailures >= this.failureThreshold || this.state === "HALF_OPEN") {
+    if (
+      this.consecutiveFailures >= this.failureThreshold ||
+      this.state === "HALF_OPEN"
+    ) {
       this.state = "OPEN";
       console.warn(
         `[CircuitBreaker:${this.name}] OPEN after ${this.consecutiveFailures} consecutive failures. ` +
-        `Will retry in ${(this.cooldownMs / 1000).toFixed(0)}s.`
+          `Will retry in ${(this.cooldownMs / 1000).toFixed(0)}s.`
       );
     }
   }

@@ -77,14 +77,18 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
   const lastChipQueryRef = useRef<string>("");
 
   // Current greeting message typewriter
-  const currentGreeting = step === "greeting" ? GREETING_MESSAGES[greetingIndex] : "";
-  const { displayed: greetingText, done: greetingDone } = useTypewriter(currentGreeting, 35);
+  const currentGreeting =
+    step === "greeting" ? GREETING_MESSAGES[greetingIndex] : "";
+  const { displayed: greetingText, done: greetingDone } = useTypewriter(
+    currentGreeting,
+    35
+  );
 
   // Auto-advance greeting messages
   useEffect(() => {
     if (step !== "greeting" || !greetingDone) return;
     if (greetingIndex < GREETING_MESSAGES.length - 1) {
-      const timer = setTimeout(() => setGreetingIndex((i) => i + 1), 800);
+      const timer = setTimeout(() => setGreetingIndex(i => i + 1), 800);
       return () => clearTimeout(timer);
     } else {
       const timer = setTimeout(() => {
@@ -104,7 +108,7 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
 
   // ─── Dedicated LLM-powered Choice Chips via evaluate.suggestChips ─────────
   const suggestChipsMutation = trpc.evaluate.suggestChips.useMutation({
-    onSuccess: (data) => {
+    onSuccess: data => {
       if (data.chips && data.chips.length > 0) {
         setChoiceChips(data.chips);
         setChipsSource("ai");
@@ -146,13 +150,13 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
   const prepareJobMutation = trpc.generate.prepareJob.useMutation();
   const generateMutation = trpc.generate.multimodal.useMutation({
     onMutate: () => setAIState("generating"),
-    onSuccess: (data) => {
+    onSuccess: data => {
       setResultUrl(data.resultUrl || null);
       setThoughtChain((data as any).thoughtChain || []);
       setAIState("idle");
       setStep("result");
     },
-    onError: (err) => {
+    onError: err => {
       setAIState("idle");
       toast.error(err.message);
       setStep("input");
@@ -167,27 +171,51 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
 
     // Build simulated thought chain for the thinking phase
     const thinkingNodes: ThoughtNode[] = [
-      { id: "safety", label: "安全檢查", status: "processing", detail: "正在驗證內容安全性...", timestamp: Date.now() },
-      { id: "compile", label: "提示詞編譯", status: "queued", detail: "等待編譯...", timestamp: Date.now() },
-      { id: "generate", label: "AI 生成", status: "queued", detail: "等待生成...", timestamp: Date.now() },
+      {
+        id: "safety",
+        label: "安全檢查",
+        status: "processing",
+        detail: "正在驗證內容安全性...",
+        timestamp: Date.now(),
+      },
+      {
+        id: "compile",
+        label: "提示詞編譯",
+        status: "queued",
+        detail: "等待編譯...",
+        timestamp: Date.now(),
+      },
+      {
+        id: "generate",
+        label: "AI 生成",
+        status: "queued",
+        detail: "等待生成...",
+        timestamp: Date.now(),
+      },
     ];
     setThoughtChain(thinkingNodes);
 
     // Animate thought chain progression
     setTimeout(() => {
-      setThoughtChain((prev) =>
-        prev.map((n) =>
-          n.id === "safety" ? { ...n, status: "completed" as const, detail: "內容安全 ✓" } :
-          n.id === "compile" ? { ...n, status: "processing", detail: "正在編譯提示詞..." } : n
+      setThoughtChain(prev =>
+        prev.map(n =>
+          n.id === "safety"
+            ? { ...n, status: "completed" as const, detail: "內容安全 ✓" }
+            : n.id === "compile"
+              ? { ...n, status: "processing", detail: "正在編譯提示詞..." }
+              : n
         )
       );
     }, 800);
 
     setTimeout(() => {
-      setThoughtChain((prev) =>
-        prev.map((n) =>
-          n.id === "compile" ? { ...n, status: "completed", detail: "提示詞已優化 ✓" } :
-          n.id === "generate" ? { ...n, status: "processing", detail: "AI 正在創作..." } : n
+      setThoughtChain(prev =>
+        prev.map(n =>
+          n.id === "compile"
+            ? { ...n, status: "completed", detail: "提示詞已優化 ✓" }
+            : n.id === "generate"
+              ? { ...n, status: "processing", detail: "AI 正在創作..." }
+              : n
         )
       );
       setAIState("generating");
@@ -196,7 +224,9 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
     // Actually trigger generation (two-step: prepareJob -> multimodal)
     setTimeout(async () => {
       try {
-        const { jobId } = await prepareJobMutation.mutateAsync({ generationType: "image" });
+        const { jobId } = await prepareJobMutation.mutateAsync({
+          generationType: "image",
+        });
         generateMutation.mutate({
           jobId,
           prompt: userInput,
@@ -224,9 +254,11 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
   }, []);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center"
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center"
       style={{
-        background: "linear-gradient(135deg, #F5F3F0 0%, #EAC9C1 25%, #D4C5E2 50%, #C8D5E0 75%, #F5F3F0 100%)",
+        background:
+          "linear-gradient(135deg, #F5F3F0 0%, #EAC9C1 25%, #D4C5E2 50%, #C8D5E0 75%, #F5F3F0 100%)",
       }}
     >
       {/* Skip button */}
@@ -254,7 +286,13 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
         >
           <VisualSoul
             size="lg"
-            state={step === "thinking" ? "thinking" : step === "result" ? "generating" : "idle"}
+            state={
+              step === "thinking"
+                ? "thinking"
+                : step === "result"
+                  ? "generating"
+                  : "idle"
+            }
             personality={personality}
             className="!w-24 !h-24"
           />
@@ -286,7 +324,9 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
               {/* Previous messages (faded) */}
               <div className="mt-4 space-y-1">
                 {GREETING_MESSAGES.slice(0, greetingIndex).map((msg, i) => (
-                  <p key={i} className="text-sm text-muted-foreground/60">{msg}</p>
+                  <p key={i} className="text-sm text-muted-foreground/60">
+                    {msg}
+                  </p>
                 ))}
               </div>
             </motion.div>
@@ -310,8 +350,8 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
                   ref={inputRef}
                   type="text"
                   value={userInput}
-                  onChange={(e) => setUserInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+                  onChange={e => setUserInput(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && handleSubmit()}
                   placeholder="例如：星空下的森林小屋、海邊的日落..."
                   className="w-full h-14 px-5 pr-14 rounded-2xl text-base text-foreground placeholder:text-muted-foreground/50 transition-all focus:outline-none focus:ring-2 focus:ring-primary/30"
                   style={{
@@ -355,55 +395,65 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
                 {/* Chips grid */}
                 <div className="flex flex-wrap justify-center gap-2">
                   <AnimatePresence mode="popLayout">
-                    {loadingChips ? (
-                      // Skeleton loading chips
-                      Array.from({ length: 4 }).map((_, i) => (
-                        <motion.div
-                          key={`skeleton-${i}`}
-                          initial={{ opacity: 0, scale: 0.8 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.8 }}
-                          transition={{ delay: i * 0.05 }}
-                          className="h-8 rounded-full animate-pulse"
-                          style={{
-                            width: `${80 + Math.random() * 40}px`,
-                            background: "rgba(255,255,255,0.4)",
-                            border: "1px solid rgba(255,255,255,0.3)",
-                          }}
-                        />
-                      ))
-                    ) : (
-                      choiceChips.map((chip, i) => (
-                        <motion.button
-                          key={`${chip}-${i}`}
-                          layout
-                          initial={{ opacity: 0, scale: 0.85, y: 6 }}
-                          animate={{ opacity: 1, scale: 1, y: 0 }}
-                          exit={{ opacity: 0, scale: 0.85, y: -6 }}
-                          transition={{ delay: i * 0.06, type: "spring", stiffness: 400, damping: 25 }}
-                          onClick={() => handleChipClick(chip)}
-                          className="group px-3.5 py-1.5 rounded-full text-xs font-medium transition-all hover:scale-105 active:scale-95 cursor-pointer"
-                          style={{
-                            background: chipsSource === "ai"
-                              ? "rgba(255,255,255,0.75)"
-                              : "rgba(255,255,255,0.6)",
-                            backdropFilter: "blur(8px)",
-                            border: chipsSource === "ai"
-                              ? "1px solid rgba(var(--primary-rgb, 139,92,246),0.25)"
-                              : "1px solid rgba(255,255,255,0.5)",
-                            color: "hsl(var(--foreground))",
-                            boxShadow: chipsSource === "ai"
-                              ? "0 2px 12px rgba(139,92,246,0.08)"
-                              : "0 2px 8px rgba(0,0,0,0.04)",
-                          }}
-                        >
-                          <Sparkles className={`w-3 h-3 inline mr-1 transition-opacity ${
-                            chipsSource === "ai" ? "opacity-70 text-primary" : "opacity-50"
-                          }`} />
-                          {chip}
-                        </motion.button>
-                      ))
-                    )}
+                    {loadingChips
+                      ? // Skeleton loading chips
+                        Array.from({ length: 4 }).map((_, i) => (
+                          <motion.div
+                            key={`skeleton-${i}`}
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.8 }}
+                            transition={{ delay: i * 0.05 }}
+                            className="h-8 rounded-full animate-pulse"
+                            style={{
+                              width: `${80 + Math.random() * 40}px`,
+                              background: "rgba(255,255,255,0.4)",
+                              border: "1px solid rgba(255,255,255,0.3)",
+                            }}
+                          />
+                        ))
+                      : choiceChips.map((chip, i) => (
+                          <motion.button
+                            key={`${chip}-${i}`}
+                            layout
+                            initial={{ opacity: 0, scale: 0.85, y: 6 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.85, y: -6 }}
+                            transition={{
+                              delay: i * 0.06,
+                              type: "spring",
+                              stiffness: 400,
+                              damping: 25,
+                            }}
+                            onClick={() => handleChipClick(chip)}
+                            className="group px-3.5 py-1.5 rounded-full text-xs font-medium transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                            style={{
+                              background:
+                                chipsSource === "ai"
+                                  ? "rgba(255,255,255,0.75)"
+                                  : "rgba(255,255,255,0.6)",
+                              backdropFilter: "blur(8px)",
+                              border:
+                                chipsSource === "ai"
+                                  ? "1px solid rgba(var(--primary-rgb, 139,92,246),0.25)"
+                                  : "1px solid rgba(255,255,255,0.5)",
+                              color: "hsl(var(--foreground))",
+                              boxShadow:
+                                chipsSource === "ai"
+                                  ? "0 2px 12px rgba(139,92,246,0.08)"
+                                  : "0 2px 8px rgba(0,0,0,0.04)",
+                            }}
+                          >
+                            <Sparkles
+                              className={`w-3 h-3 inline mr-1 transition-opacity ${
+                                chipsSource === "ai"
+                                  ? "opacity-70 text-primary"
+                                  : "opacity-50"
+                              }`}
+                            />
+                            {chip}
+                          </motion.button>
+                        ))}
                   </AnimatePresence>
                 </div>
               </motion.div>
@@ -467,7 +517,12 @@ export default function OnboardingFlow({ onComplete, onSkip }: Props) {
                   className="max-w-sm mx-auto mb-6 rounded-2xl overflow-hidden shadow-xl"
                   style={{ border: "2px solid rgba(255,255,255,0.5)" }}
                 >
-                  <img src={resultUrl} alt="Your first creation" className="w-full" loading="lazy" />
+                  <img
+                    src={resultUrl}
+                    alt="Your first creation"
+                    className="w-full"
+                    loading="lazy"
+                  />
                 </motion.div>
               )}
 

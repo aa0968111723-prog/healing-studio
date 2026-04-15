@@ -36,18 +36,54 @@ function mapModality(preferredModality: string): GenerationType | null {
 
 /** Aesthetic → Vibe Card mapping table */
 const AESTHETIC_TO_VIBE: Record<string, string> = {
-  serene: "serene", calm: "serene", peaceful: "serene", tranquil: "serene",
-  warm: "warm", cozy: "warm", comfortable: "warm", soft: "warm",
-  dreamy: "dreamy", ethereal: "dreamy", surreal: "dreamy", fantasy: "dreamy",
-  nature: "nature", organic: "nature", botanical: "nature", natural: "nature",
-  vintage: "vintage", retro: "vintage", nostalgic: "vintage", classic: "vintage",
-  minimal: "minimal", clean: "minimal", simple: "minimal", minimalist: "minimal",
-  joyful: "joyful", happy: "joyful", vibrant: "joyful", colorful: "joyful", bright: "joyful",
-  mystical: "mystical", mysterious: "mystical", dark: "mystical", gothic: "mystical", cosmic: "mystical",
-  "寧靜": "serene", "溫暖": "warm", "夢幻": "dreamy", "自然": "nature",
-  "復古": "vintage", "極簡": "minimal", "歡愉": "joyful", "神秘": "mystical",
-  cyberpunk: "mystical", neon: "joyful", cinematic: "mystical",
-  watercolor: "dreamy", pastel: "serene", golden: "warm",
+  serene: "serene",
+  calm: "serene",
+  peaceful: "serene",
+  tranquil: "serene",
+  warm: "warm",
+  cozy: "warm",
+  comfortable: "warm",
+  soft: "warm",
+  dreamy: "dreamy",
+  ethereal: "dreamy",
+  surreal: "dreamy",
+  fantasy: "dreamy",
+  nature: "nature",
+  organic: "nature",
+  botanical: "nature",
+  natural: "nature",
+  vintage: "vintage",
+  retro: "vintage",
+  nostalgic: "vintage",
+  classic: "vintage",
+  minimal: "minimal",
+  clean: "minimal",
+  simple: "minimal",
+  minimalist: "minimal",
+  joyful: "joyful",
+  happy: "joyful",
+  vibrant: "joyful",
+  colorful: "joyful",
+  bright: "joyful",
+  mystical: "mystical",
+  mysterious: "mystical",
+  dark: "mystical",
+  gothic: "mystical",
+  cosmic: "mystical",
+  寧靜: "serene",
+  溫暖: "warm",
+  夢幻: "dreamy",
+  自然: "nature",
+  復古: "vintage",
+  極簡: "minimal",
+  歡愉: "joyful",
+  神秘: "mystical",
+  cyberpunk: "mystical",
+  neon: "joyful",
+  cinematic: "mystical",
+  watercolor: "dreamy",
+  pastel: "serene",
+  golden: "warm",
 };
 
 /** Intent → default Vibe Card fallback */
@@ -63,7 +99,7 @@ const INTENT_DEFAULT_VIBE: Record<string, string> = {
 /** Map aesthetics array to Vibe Card IDs */
 function mapAestheticsToVibes(
   aesthetics: string[],
-  intentType: string,
+  intentType: string
 ): string[] {
   const matched = new Set<string>();
 
@@ -101,11 +137,17 @@ function cleanActionDetail(actionDetail: string): string {
 /** Generate toast message */
 function generateToastMessage(
   cardTitle: string | null | undefined,
-  vibeIds: string[],
+  vibeIds: string[]
 ): string {
   const zhMap: Record<string, string> = {
-    serene: "寧靜", warm: "溫暖", dreamy: "夢幻", nature: "自然",
-    vintage: "復古", minimal: "極簡", joyful: "歡愉", mystical: "神秘",
+    serene: "寧靜",
+    warm: "溫暖",
+    dreamy: "夢幻",
+    nature: "自然",
+    vintage: "復古",
+    minimal: "極簡",
+    joyful: "歡愉",
+    mystical: "神秘",
   };
   const vibeNames = vibeIds.map(id => zhMap[id] || id).join("、");
   const cardMention = cardTitle ? `「${cardTitle}」` : "";
@@ -155,7 +197,10 @@ describe("mapAestheticsToVibes — 美學標籤 → Vibe Card 映射", () => {
   });
 
   it("maps Chinese tags", () => {
-    const result = mapAestheticsToVibes(["夢幻", "神秘"], "aesthetic_preference");
+    const result = mapAestheticsToVibes(
+      ["夢幻", "神秘"],
+      "aesthetic_preference"
+    );
     expect(result).toContain("dreamy");
     expect(result).toContain("mystical");
   });
@@ -187,12 +232,18 @@ describe("mapAestheticsToVibes — 美學標籤 → Vibe Card 映射", () => {
   });
 
   it("deduplicates matched vibes", () => {
-    const result = mapAestheticsToVibes(["calm", "serene", "peaceful"], "choice_paralysis");
+    const result = mapAestheticsToVibes(
+      ["calm", "serene", "peaceful"],
+      "choice_paralysis"
+    );
     expect(result).toEqual(["serene"]);
   });
 
   it("maps multiple distinct aesthetics to multiple vibes", () => {
-    const result = mapAestheticsToVibes(["cyberpunk", "watercolor", "golden"], "exploration_mode");
+    const result = mapAestheticsToVibes(
+      ["cyberpunk", "watercolor", "golden"],
+      "exploration_mode"
+    );
     expect(result).toContain("mystical");
     expect(result).toContain("dreamy");
     expect(result).toContain("warm");
@@ -200,7 +251,10 @@ describe("mapAestheticsToVibes — 美學標籤 → Vibe Card 映射", () => {
   });
 
   it("handles fuzzy matching (tag contains keyword)", () => {
-    const result = mapAestheticsToVibes(["dreamy-landscape"], "choice_paralysis");
+    const result = mapAestheticsToVibes(
+      ["dreamy-landscape"],
+      "choice_paralysis"
+    );
     expect(result).toContain("dreamy");
   });
 });
@@ -281,7 +335,10 @@ describe("Full payload integration — 完整 payload 整合", () => {
     expect(mapModality(payload.preferredModality)).toBe("image");
 
     // Vibes
-    const vibes = mapAestheticsToVibes(payload.detectedAesthetics, payload.intentType);
+    const vibes = mapAestheticsToVibes(
+      payload.detectedAesthetics,
+      payload.intentType
+    );
     expect(vibes).toContain("dreamy");
     expect(vibes.length).toBe(1); // dreamy and ethereal both map to dreamy
 
@@ -310,7 +367,10 @@ describe("Full payload integration — 完整 payload 整合", () => {
 
     expect(mapModality(payload.preferredModality)).toBe("audio");
 
-    const vibes = mapAestheticsToVibes(payload.detectedAesthetics, payload.intentType);
+    const vibes = mapAestheticsToVibes(
+      payload.detectedAesthetics,
+      payload.intentType
+    );
     expect(vibes).toContain("warm");
     expect(vibes).toContain("vintage"); // nostalgic → vintage
 

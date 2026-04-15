@@ -144,7 +144,9 @@ describe("Generation mutation quota flow", () => {
       remainingAfter: 0,
     });
 
-    const caller = appRouter.createCaller(makeCtx(makeUser({ remainingGenerations: 0 })));
+    const caller = appRouter.createCaller(
+      makeCtx(makeUser({ remainingGenerations: 0 }))
+    );
 
     await expect(
       caller.generate.prepareJob({ generationType: "image" })
@@ -156,17 +158,25 @@ describe("Generation mutation quota flow", () => {
   it("should succeed prepareJob when deductUserPoints returns success", async () => {
     const dbModule = await import("./db");
     // Mock deductUserPoints to return success
-    const deductSpy = vi.spyOn(dbModule, "deductUserPoints").mockResolvedValueOnce({
-      success: true,
-      actualDeducted: 4,
-      remainingBefore: 50,
-      remainingAfter: 46,
+    const deductSpy = vi
+      .spyOn(dbModule, "deductUserPoints")
+      .mockResolvedValueOnce({
+        success: true,
+        actualDeducted: 4,
+        remainingBefore: 50,
+        remainingAfter: 46,
+      });
+    const createJobSpy = vi
+      .spyOn(dbModule, "createBackgroundJob")
+      .mockResolvedValueOnce(1);
+
+    const caller = appRouter.createCaller(
+      makeCtx(makeUser({ remainingGenerations: 50 }))
+    );
+
+    const result = await caller.generate.prepareJob({
+      generationType: "image",
     });
-    const createJobSpy = vi.spyOn(dbModule, "createBackgroundJob").mockResolvedValueOnce(1);
-
-    const caller = appRouter.createCaller(makeCtx(makeUser({ remainingGenerations: 50 })));
-
-    const result = await caller.generate.prepareJob({ generationType: "image" });
     expect(result.jobId).toBe(1);
     expect(result.pointsCost).toBeGreaterThan(0);
     expect(typeof result.selectedEngine).toBe("string");
@@ -180,23 +190,36 @@ describe("Generation mutation quota flow", () => {
     const dbModule = await import("./db");
 
     // multimodal requires jobId — we need to set up for that
-    const refundSpy = vi.spyOn(dbModule, "refundUserPoints").mockResolvedValue(undefined);
-    const createLogSpy = vi.spyOn(dbModule, "createApiUsageLog").mockResolvedValue(1);
-    const updateJobSpy = vi.spyOn(dbModule, "updateBackgroundJob").mockResolvedValue(undefined);
+    const refundSpy = vi
+      .spyOn(dbModule, "refundUserPoints")
+      .mockResolvedValue(undefined);
+    const createLogSpy = vi
+      .spyOn(dbModule, "createApiUsageLog")
+      .mockResolvedValue(1);
+    const updateJobSpy = vi
+      .spyOn(dbModule, "updateBackgroundJob")
+      .mockResolvedValue(undefined);
 
     // Mock checkSafety to block the request via LLM
     const llmModule = await import("./_core/llm");
     const llmSpy = vi.spyOn(llmModule, "invokeLLM").mockResolvedValueOnce({
-      choices: [{
-        message: {
-          content: JSON.stringify({ safe: false, reason: "Test block reason" }),
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              safe: false,
+              reason: "Test block reason",
+            }),
+          },
+          finish_reason: "stop",
+          index: 0,
         },
-        finish_reason: "stop",
-        index: 0,
-      }],
+      ],
     } as any);
 
-    const caller = appRouter.createCaller(makeCtx(makeUser({ remainingGenerations: 5 })));
+    const caller = appRouter.createCaller(
+      makeCtx(makeUser({ remainingGenerations: 5 }))
+    );
 
     await expect(
       caller.generate.multimodal({

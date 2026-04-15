@@ -9,8 +9,20 @@ import { Badge } from "@/components/ui/badge";
 import { GlassCard } from "@/components/ZenCoPilot";
 import { toast } from "sonner";
 import {
-  CalendarDays, Plus, Trash2, Clock, Image, Video, Music, Mic,
-  ChevronLeft, ChevronRight, GripVertical, X, CheckCircle2, ExternalLink,
+  CalendarDays,
+  Plus,
+  Trash2,
+  Clock,
+  Image,
+  Video,
+  Music,
+  Mic,
+  ChevronLeft,
+  ChevronRight,
+  GripVertical,
+  X,
+  CheckCircle2,
+  ExternalLink,
 } from "lucide-react";
 import { openGoogleCalendar } from "@/lib/googleCalendar";
 import { motion, AnimatePresence } from "framer-motion";
@@ -54,12 +66,14 @@ function EventCard({
     note.noteType === "calendar_event"
       ? "border-amber-500/30 bg-amber-500/10"
       : note.noteType === "script"
-      ? "border-purple-500/30 bg-purple-500/10"
-      : "border-cyan-500/30 bg-cyan-500/10";
+        ? "border-purple-500/30 bg-purple-500/10"
+        : "border-cyan-500/30 bg-cyan-500/10";
 
   const handleAddToGoogleCalendar = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const eventDate = note.scheduledDate ? new Date(note.scheduledDate) : new Date();
+    const eventDate = note.scheduledDate
+      ? new Date(note.scheduledDate)
+      : new Date();
     openGoogleCalendar({
       title: note.title,
       description: note.content ?? undefined,
@@ -82,14 +96,19 @@ function EventCard({
       )}
       draggable
       onDragStart={(e: any) => {
-        e.dataTransfer?.setData("text/plain", JSON.stringify({ noteId: note.id, title: note.title }));
+        e.dataTransfer?.setData(
+          "text/plain",
+          JSON.stringify({ noteId: note.id, title: note.title })
+        );
         e.dataTransfer.effectAllowed = "move";
       }}
     >
       <div className="flex items-start justify-between gap-1">
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
           <GripVertical className="w-3 h-3 text-muted-foreground/30 shrink-0" />
-          <span className="truncate font-medium text-foreground/80">{note.title}</span>
+          <span className="truncate font-medium text-foreground/80">
+            {note.title}
+          </span>
         </div>
         <div className="flex items-center gap-0.5 shrink-0">
           {note.scheduledDate && (
@@ -102,7 +121,10 @@ function EventCard({
             </button>
           )}
           <button
-            onClick={(e) => { e.stopPropagation(); onDelete(note.id); }}
+            onClick={e => {
+              e.stopPropagation();
+              onDelete(note.id);
+            }}
             className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 p-0.5 rounded hover:bg-red-500/20 text-muted-foreground/40 hover:text-red-400 transition-all"
           >
             <Trash2 className="w-2.5 h-2.5" />
@@ -110,7 +132,9 @@ function EventCard({
         </div>
       </div>
       {!compact && note.content && (
-        <p className="text-muted-foreground/60 line-clamp-1 mt-1 ml-4.5">{note.content}</p>
+        <p className="text-muted-foreground/60 line-clamp-1 mt-1 ml-4.5">
+          {note.content}
+        </p>
       )}
     </motion.div>
   );
@@ -143,9 +167,11 @@ function NewEventForm({
       }
       onCreated();
       onClose();
-      toast.success(addToGoogle ? "排程已建立，已開啟 Google 日曆" : "排程已建立");
+      toast.success(
+        addToGoogle ? "排程已建立，已開啟 Google 日曆" : "排程已建立"
+      );
     },
-    onError: (e) => toast.error(e.message),
+    onError: e => toast.error(e.message),
   });
 
   return (
@@ -167,14 +193,14 @@ function NewEventForm({
 
       <Input
         value={title}
-        onChange={(e) => setTitle(e.target.value)}
+        onChange={e => setTitle(e.target.value)}
         placeholder="排程標題"
         className="bg-white/5 border-white/10 text-sm"
       />
 
       <Textarea
         value={content}
-        onChange={(e) => setContent(e.target.value)}
+        onChange={e => setContent(e.target.value)}
         placeholder="描述（選填）"
         rows={2}
         className="bg-white/5 border-white/10 text-xs resize-none"
@@ -184,7 +210,7 @@ function NewEventForm({
         <input
           type="checkbox"
           checked={addToGoogle}
-          onChange={(e) => setAddToGoogle(e.target.checked)}
+          onChange={e => setAddToGoogle(e.target.checked)}
           className="rounded border-white/20 bg-white/5 h-3.5 w-3.5 accent-blue-500"
         />
         <ExternalLink className="w-3 h-3" />
@@ -203,7 +229,10 @@ function NewEventForm({
         <Button
           size="sm"
           onClick={() => {
-            if (!title.trim()) { toast.error("請輸入標題"); return; }
+            if (!title.trim()) {
+              toast.error("請輸入標題");
+              return;
+            }
             createNote.mutate({
               title: title.trim(),
               content: content.trim() || undefined,
@@ -229,7 +258,9 @@ export default function CalendarPage() {
   // 全站新手引導
   usePageTour("calendar");
 
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(
+    new Date()
+  );
   const [showNewEvent, setShowNewEvent] = useState(false);
   const [month, setMonth] = useState(new Date());
 
@@ -293,7 +324,9 @@ export default function CalendarPage() {
 
   // Unscheduled notes (available for drag)
   const unscheduledNotes = useMemo(() => {
-    return (notesQuery.data || []).filter((n: CalendarNote) => !n.scheduledDate);
+    return (notesQuery.data || []).filter(
+      (n: CalendarNote) => !n.scheduledDate
+    );
   }, [notesQuery.data]);
 
   // Dates that have events (for calendar dot indicators)
@@ -302,22 +335,25 @@ export default function CalendarPage() {
   }, [notesByDate]);
 
   // Handle drop on calendar date
-  const handleDrop = useCallback((e: React.DragEvent, date: Date) => {
-    e.preventDefault();
-    setDragOverDate(null);
-    dragCounterRef.current.clear();
-    try {
-      const data = JSON.parse(e.dataTransfer.getData("text/plain"));
-      if (data.noteId) {
-        updateNote.mutate({
-          id: data.noteId,
-          scheduledDate: date.getTime(),
-        });
+  const handleDrop = useCallback(
+    (e: React.DragEvent, date: Date) => {
+      e.preventDefault();
+      setDragOverDate(null);
+      dragCounterRef.current.clear();
+      try {
+        const data = JSON.parse(e.dataTransfer.getData("text/plain"));
+        if (data.noteId) {
+          updateNote.mutate({
+            id: data.noteId,
+            scheduledDate: date.getTime(),
+          });
+        }
+      } catch {
+        // Not a valid drag payload
       }
-    } catch {
-      // Not a valid drag payload
-    }
-  }, [updateNote]);
+    },
+    [updateNote]
+  );
 
   // Handle drag over on the calendar container — detect which date cell is being hovered
   const handleCalendarDragOver = useCallback((e: React.DragEvent) => {
@@ -344,39 +380,48 @@ export default function CalendarPage() {
     return null;
   }, []);
 
-  const handleCellDragEnter = useCallback((e: React.DragEvent) => {
-    const date = getDateFromTarget(e.target);
-    if (date) {
-      const key = date.toDateString();
-      const counter = dragCounterRef.current.get(key) || 0;
-      dragCounterRef.current.set(key, counter + 1);
-      setDragOverDate(key);
-    }
-  }, [getDateFromTarget]);
-
-  const handleCellDragLeave = useCallback((e: React.DragEvent) => {
-    const date = getDateFromTarget(e.target);
-    if (date) {
-      const key = date.toDateString();
-      const counter = (dragCounterRef.current.get(key) || 1) - 1;
-      if (counter <= 0) {
-        dragCounterRef.current.delete(key);
-        // Only clear if no other cell is being hovered
-        if (dragOverDate === key) {
-          setDragOverDate(null);
-        }
-      } else {
-        dragCounterRef.current.set(key, counter);
+  const handleCellDragEnter = useCallback(
+    (e: React.DragEvent) => {
+      const date = getDateFromTarget(e.target);
+      if (date) {
+        const key = date.toDateString();
+        const counter = dragCounterRef.current.get(key) || 0;
+        dragCounterRef.current.set(key, counter + 1);
+        setDragOverDate(key);
       }
-    }
-  }, [dragOverDate]);
+    },
+    [getDateFromTarget]
+  );
 
-  const handleCellDrop = useCallback((e: React.DragEvent) => {
-    const date = getDateFromTarget(e.target);
-    if (date) {
-      handleDrop(e, date);
-    }
-  }, [getDateFromTarget, handleDrop]);
+  const handleCellDragLeave = useCallback(
+    (e: React.DragEvent) => {
+      const date = getDateFromTarget(e.target);
+      if (date) {
+        const key = date.toDateString();
+        const counter = (dragCounterRef.current.get(key) || 1) - 1;
+        if (counter <= 0) {
+          dragCounterRef.current.delete(key);
+          // Only clear if no other cell is being hovered
+          if (dragOverDate === key) {
+            setDragOverDate(null);
+          }
+        } else {
+          dragCounterRef.current.set(key, counter);
+        }
+      }
+    },
+    [dragOverDate]
+  );
+
+  const handleCellDrop = useCallback(
+    (e: React.DragEvent) => {
+      const date = getDateFromTarget(e.target);
+      if (date) {
+        handleDrop(e, date);
+      }
+    },
+    [getDateFromTarget, handleDrop]
+  );
 
   return (
     <div className="space-y-6">
@@ -395,7 +440,11 @@ export default function CalendarPage() {
           <Button
             size="sm"
             variant="outline"
-            onClick={() => { const t = new Date(); setSelectedDate(t); setMonth(t); }}
+            onClick={() => {
+              const t = new Date();
+              setSelectedDate(t);
+              setMonth(t);
+            }}
             className="gap-1.5 text-xs"
           >
             今天
@@ -429,12 +478,13 @@ export default function CalendarPage() {
               onMonthChange={setMonth}
               modifiers={{ hasEvent: eventDates }}
               modifiersClassNames={{
-                hasEvent: "relative after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1 after:h-1 after:rounded-full after:bg-amber-400",
+                hasEvent:
+                  "relative after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1 after:h-1 after:rounded-full after:bg-amber-400",
               }}
               className="w-full"
               classNames={{
                 day: cn(
-                  "relative w-full h-full p-0 text-center group/day aspect-square select-none transition-all duration-200",
+                  "relative w-full h-full p-0 text-center group/day aspect-square select-none transition-all duration-200"
                 ),
               }}
               components={{
@@ -453,7 +503,8 @@ export default function CalendarPage() {
                       }
                       className={cn(
                         "data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground flex aspect-square size-auto w-full min-w-(--cell-size) flex-col gap-1 leading-none font-normal [&>span]:text-xs [&>span]:opacity-70",
-                        isDragTarget && "ring-2 ring-amber-400 bg-amber-400/20 scale-110 shadow-lg shadow-amber-400/30 rounded-lg",
+                        isDragTarget &&
+                          "ring-2 ring-amber-400 bg-amber-400/20 scale-110 shadow-lg shadow-amber-400/30 rounded-lg",
                         className
                       )}
                       {...props}
@@ -491,7 +542,11 @@ export default function CalendarPage() {
               <div className="flex items-center justify-between mb-3">
                 <h3 className="hs-h3 !mb-0 text-foreground flex items-center gap-2">
                   <Clock className="w-3.5 h-3.5 text-amber-400" />
-                  {selectedDate.toLocaleDateString("zh-TW", { month: "long", day: "numeric", weekday: "long" })}
+                  {selectedDate.toLocaleDateString("zh-TW", {
+                    month: "long",
+                    day: "numeric",
+                    weekday: "long",
+                  })}
                 </h3>
                 <div className="flex items-center gap-2">
                   {selectedDateEvents.length > 0 && (
@@ -502,7 +557,9 @@ export default function CalendarPage() {
                       onClick={() => {
                         if (selectedDateEvents.length === 1) {
                           const note = selectedDateEvents[0];
-                          const eventDate = note.scheduledDate ? new Date(note.scheduledDate) : selectedDate;
+                          const eventDate = note.scheduledDate
+                            ? new Date(note.scheduledDate)
+                            : selectedDate;
                           openGoogleCalendar({
                             title: note.title,
                             description: note.content ?? undefined,
@@ -515,7 +572,10 @@ export default function CalendarPage() {
                           // to avoid popup blockers from opening multiple tabs
                           const combinedTitle = `${selectedDate.toLocaleDateString("zh-TW")} 創作排程（${selectedDateEvents.length} 項）`;
                           const combinedDescription = selectedDateEvents
-                            .map((n, i) => `${i + 1}. ${n.title}${n.content ? `\n   ${n.content}` : ""}`)
+                            .map(
+                              (n, i) =>
+                                `${i + 1}. ${n.title}${n.content ? `\n   ${n.content}` : ""}`
+                            )
                             .join("\n\n");
                           openGoogleCalendar({
                             title: combinedTitle,
@@ -523,7 +583,9 @@ export default function CalendarPage() {
                             date: selectedDate,
                             allDay: true,
                           });
-                          toast.success(`已將 ${selectedDateEvents.length} 個排程匯出至 Google 日曆`);
+                          toast.success(
+                            `已將 ${selectedDateEvents.length} 個排程匯出至 Google 日曆`
+                          );
                         }
                       }}
                     >
@@ -549,9 +611,26 @@ export default function CalendarPage() {
 
               <div
                 className="space-y-2 mt-2 min-h-[60px] rounded-lg border border-dashed border-white/10 p-2 transition-colors"
-                onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add("border-amber-400/40", "bg-amber-500/5"); }}
-                onDragLeave={(e) => { e.currentTarget.classList.remove("border-amber-400/40", "bg-amber-500/5"); }}
-                onDrop={(e) => { e.currentTarget.classList.remove("border-amber-400/40", "bg-amber-500/5"); handleDrop(e, selectedDate); }}
+                onDragOver={e => {
+                  e.preventDefault();
+                  e.currentTarget.classList.add(
+                    "border-amber-400/40",
+                    "bg-amber-500/5"
+                  );
+                }}
+                onDragLeave={e => {
+                  e.currentTarget.classList.remove(
+                    "border-amber-400/40",
+                    "bg-amber-500/5"
+                  );
+                }}
+                onDrop={e => {
+                  e.currentTarget.classList.remove(
+                    "border-amber-400/40",
+                    "bg-amber-500/5"
+                  );
+                  handleDrop(e, selectedDate);
+                }}
               >
                 {selectedDateEvents.length === 0 ? (
                   <p className="hs-small !mb-0 text-muted-foreground/40 text-center py-4">
@@ -563,7 +642,7 @@ export default function CalendarPage() {
                       <EventCard
                         key={note.id}
                         note={note}
-                        onDelete={(id) => deleteNote.mutate({ id })}
+                        onDelete={id => deleteNote.mutate({ id })}
                       />
                     ))}
                   </AnimatePresence>
@@ -587,13 +666,18 @@ export default function CalendarPage() {
             {notesQuery.isLoading ? (
               <div className="space-y-2">
                 {[1, 2, 3].map(i => (
-                  <div key={i} className="h-10 rounded-lg bg-white/5 animate-pulse" />
+                  <div
+                    key={i}
+                    className="h-10 rounded-lg bg-white/5 animate-pulse"
+                  />
                 ))}
               </div>
             ) : unscheduledNotes.length === 0 ? (
               <div className="text-center py-6">
                 <CalendarDays className="w-8 h-8 text-muted-foreground/20 mx-auto mb-2" />
-                <p className="hs-small !mb-0 text-muted-foreground/40">所有筆記已排程</p>
+                <p className="hs-small !mb-0 text-muted-foreground/40">
+                  所有筆記已排程
+                </p>
               </div>
             ) : (
               <div className="space-y-1.5 max-h-[400px] overflow-y-auto">
@@ -602,7 +686,7 @@ export default function CalendarPage() {
                     <EventCard
                       key={note.id}
                       note={note}
-                      onDelete={(id) => deleteNote.mutate({ id })}
+                      onDelete={id => deleteNote.mutate({ id })}
                       compact
                     />
                   ))}
@@ -617,15 +701,22 @@ export default function CalendarPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 p-3 text-center">
                 <p className="hs-h3-lg !mb-0 text-amber-400 tabular-nums">
-                  {Array.from(notesByDate.values()).reduce((sum, arr) => sum + arr.length, 0)}
+                  {Array.from(notesByDate.values()).reduce(
+                    (sum, arr) => sum + arr.length,
+                    0
+                  )}
                 </p>
-                <p className="hs-small !mb-0 text-muted-foreground/60">已排程</p>
+                <p className="hs-small !mb-0 text-muted-foreground/60">
+                  已排程
+                </p>
               </div>
               <div className="rounded-lg bg-cyan-500/10 border border-cyan-500/20 p-3 text-center">
                 <p className="hs-h3-lg !mb-0 text-cyan-400 tabular-nums">
                   {unscheduledNotes.length}
                 </p>
-                <p className="hs-small !mb-0 text-muted-foreground/60">待排程</p>
+                <p className="hs-small !mb-0 text-muted-foreground/60">
+                  待排程
+                </p>
               </div>
             </div>
           </GlassCard>

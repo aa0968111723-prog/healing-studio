@@ -244,7 +244,13 @@ const EMOTION_ACTION_MAP: EmotionActionMap[] = [
   },
   {
     emotion: "wonder",
-    actionVerbs: ["expanding", "revealing", "illuminating", "unfolding", "transforming"],
+    actionVerbs: [
+      "expanding",
+      "revealing",
+      "illuminating",
+      "unfolding",
+      "transforming",
+    ],
     subjectBehaviors: [
       "a vast starfield slowly rotating",
       "bioluminescent organisms pulsing in dark water",
@@ -280,7 +286,13 @@ const EMOTION_ACTION_MAP: EmotionActionMap[] = [
   },
   {
     emotion: "hope",
-    actionVerbs: ["emerging", "brightening", "sprouting", "ascending", "warming"],
+    actionVerbs: [
+      "emerging",
+      "brightening",
+      "sprouting",
+      "ascending",
+      "warming",
+    ],
     subjectBehaviors: [
       "first rays of sunrise breaking over a horizon",
       "a seedling pushing through cracked earth",
@@ -316,7 +328,13 @@ const EMOTION_ACTION_MAP: EmotionActionMap[] = [
   },
   {
     emotion: "energy",
-    actionVerbs: ["exploding", "surging", "pulsating", "accelerating", "igniting"],
+    actionVerbs: [
+      "exploding",
+      "surging",
+      "pulsating",
+      "accelerating",
+      "igniting",
+    ],
     subjectBehaviors: [
       "lightning bolts branching across a dark sky",
       "waves crashing against rocks with spray",
@@ -352,7 +370,13 @@ const EMOTION_ACTION_MAP: EmotionActionMap[] = [
   },
   {
     emotion: "awe",
-    actionVerbs: ["towering", "encompassing", "overwhelming", "stretching", "resonating"],
+    actionVerbs: [
+      "towering",
+      "encompassing",
+      "overwhelming",
+      "stretching",
+      "resonating",
+    ],
     subjectBehaviors: [
       "camera revealing a vast mountain landscape",
       "a massive whale breaching the ocean surface",
@@ -370,7 +394,13 @@ const EMOTION_ACTION_MAP: EmotionActionMap[] = [
   },
   {
     emotion: "intimacy",
-    actionVerbs: ["touching", "embracing", "whispering", "connecting", "sheltering"],
+    actionVerbs: [
+      "touching",
+      "embracing",
+      "whispering",
+      "connecting",
+      "sheltering",
+    ],
     subjectBehaviors: [
       "two hands slowly reaching toward each other",
       "a close-up of eyes reflecting warm light",
@@ -435,15 +465,30 @@ const CAMERA_VECTORS: Record<CameraModeId, CameraVector> = {
     labelZh: "靜止",
     promptFragment: "static camera, locked-off shot, no camera movement",
     stabilityScore: 5,
-    allowedTransitions: ["dolly_in", "dolly_out", "pan_left", "pan_right", "tilt_up", "tilt_down", "push_in"],
-    suggestedMoods: ["serenity", "tranquility", "sadness", "melancholy", "loneliness"],
+    allowedTransitions: [
+      "dolly_in",
+      "dolly_out",
+      "pan_left",
+      "pan_right",
+      "tilt_up",
+      "tilt_down",
+      "push_in",
+    ],
+    suggestedMoods: [
+      "serenity",
+      "tranquility",
+      "sadness",
+      "melancholy",
+      "loneliness",
+    ],
     speedModifier: "slow",
   },
   dolly_in: {
     id: "dolly_in",
     label: "Dolly In",
     labelZh: "推進",
-    promptFragment: "smooth dolly in, camera slowly moving forward toward subject",
+    promptFragment:
+      "smooth dolly in, camera slowly moving forward toward subject",
     stabilityScore: 4,
     allowedTransitions: ["static", "dolly_out", "orbit", "push_in"],
     suggestedMoods: ["wonder", "intimacy", "hope", "mystery"],
@@ -473,7 +518,8 @@ const CAMERA_VECTORS: Record<CameraModeId, CameraVector> = {
     id: "pan_right",
     label: "Pan Right",
     labelZh: "右搖",
-    promptFragment: "smooth horizontal pan to the right, steady camera rotation",
+    promptFragment:
+      "smooth horizontal pan to the right, steady camera rotation",
     stabilityScore: 4,
     allowedTransitions: ["static", "pan_left", "dolly_in", "tracking"],
     suggestedMoods: ["tranquility", "nostalgia", "wonder"],
@@ -503,7 +549,8 @@ const CAMERA_VECTORS: Record<CameraModeId, CameraVector> = {
     id: "orbit",
     label: "Orbit",
     labelZh: "環繞",
-    promptFragment: "smooth orbital camera movement circling around the subject",
+    promptFragment:
+      "smooth orbital camera movement circling around the subject",
     stabilityScore: 3,
     allowedTransitions: ["static", "dolly_in", "dolly_out", "crane_up"],
     suggestedMoods: ["wonder", "joy", "energy", "awe"],
@@ -513,7 +560,8 @@ const CAMERA_VECTORS: Record<CameraModeId, CameraVector> = {
     id: "crane_up",
     label: "Crane Up",
     labelZh: "升起",
-    promptFragment: "smooth crane shot rising vertically, revealing wider scene",
+    promptFragment:
+      "smooth crane shot rising vertically, revealing wider scene",
     stabilityScore: 3,
     allowedTransitions: ["static", "crane_down", "dolly_out", "aerial_ascent"],
     suggestedMoods: ["hope", "wonder", "awe", "freedom"],
@@ -523,7 +571,8 @@ const CAMERA_VECTORS: Record<CameraModeId, CameraVector> = {
     id: "crane_down",
     label: "Crane Down",
     labelZh: "降落",
-    promptFragment: "smooth crane shot descending vertically, closing in on scene",
+    promptFragment:
+      "smooth crane shot descending vertically, closing in on scene",
     stabilityScore: 3,
     allowedTransitions: ["static", "crane_up", "dolly_in", "push_in"],
     suggestedMoods: ["sadness", "intimacy", "tranquility"],
@@ -535,7 +584,13 @@ const CAMERA_VECTORS: Record<CameraModeId, CameraVector> = {
     labelZh: "跟蹤",
     promptFragment: "smooth tracking shot following the subject's movement",
     stabilityScore: 3,
-    allowedTransitions: ["static", "dolly_in", "dolly_out", "pan_left", "pan_right"],
+    allowedTransitions: [
+      "static",
+      "dolly_in",
+      "dolly_out",
+      "pan_left",
+      "pan_right",
+    ],
     suggestedMoods: ["energy", "joy", "freedom", "wonder"],
     speedModifier: "medium",
   },
@@ -553,7 +608,8 @@ const CAMERA_VECTORS: Record<CameraModeId, CameraVector> = {
     id: "aerial_descent",
     label: "Aerial Descent",
     labelZh: "空中下降",
-    promptFragment: "aerial camera slowly descending from above, bird's eye to eye level",
+    promptFragment:
+      "aerial camera slowly descending from above, bird's eye to eye level",
     stabilityScore: 3,
     allowedTransitions: ["static", "aerial_ascent", "dolly_in", "tracking"],
     suggestedMoods: ["serenity", "tranquility", "wonder"],
@@ -583,7 +639,8 @@ const CAMERA_VECTORS: Record<CameraModeId, CameraVector> = {
     id: "pull_out",
     label: "Pull Out",
     labelZh: "退離",
-    promptFragment: "dramatic pull out from subject, revealing surrounding context",
+    promptFragment:
+      "dramatic pull out from subject, revealing surrounding context",
     stabilityScore: 3,
     allowedTransitions: ["static", "push_in", "dolly_in", "crane_up"],
     suggestedMoods: ["loneliness", "awe", "nostalgia", "sadness"],
@@ -618,20 +675,81 @@ const VIBE_TO_EMOTION: Record<string, string> = {
 // ─── 情緒推斷 ────────────────────────────────────────────────
 
 const EMOTION_KEYWORDS: Record<string, string[]> = {
-  sadness: ["sad", "sorrow", "grief", "tears", "crying", "loss", "悲傷", "哀愁", "淚"],
-  joy: ["happy", "joy", "cheerful", "delight", "celebrate", "快樂", "歡喜", "喜悅"],
-  serenity: ["calm", "peaceful", "serene", "quiet", "still", "平靜", "寧靜", "安詳"],
-  nostalgia: ["memory", "past", "remember", "old", "vintage", "回憶", "懷舊", "往事"],
+  sadness: [
+    "sad",
+    "sorrow",
+    "grief",
+    "tears",
+    "crying",
+    "loss",
+    "悲傷",
+    "哀愁",
+    "淚",
+  ],
+  joy: [
+    "happy",
+    "joy",
+    "cheerful",
+    "delight",
+    "celebrate",
+    "快樂",
+    "歡喜",
+    "喜悅",
+  ],
+  serenity: [
+    "calm",
+    "peaceful",
+    "serene",
+    "quiet",
+    "still",
+    "平靜",
+    "寧靜",
+    "安詳",
+  ],
+  nostalgia: [
+    "memory",
+    "past",
+    "remember",
+    "old",
+    "vintage",
+    "回憶",
+    "懷舊",
+    "往事",
+  ],
   wonder: ["amazing", "wonder", "magical", "fantastic", "奇幻", "驚奇", "魔幻"],
-  melancholy: ["melancholy", "bittersweet", "wistful", "longing", "惆悵", "感傷"],
+  melancholy: [
+    "melancholy",
+    "bittersweet",
+    "wistful",
+    "longing",
+    "惆悵",
+    "感傷",
+  ],
   hope: ["hope", "dawn", "new", "begin", "future", "希望", "曙光", "未來"],
   mystery: ["mystery", "secret", "hidden", "unknown", "dark", "神秘", "未知"],
-  energy: ["energy", "power", "dynamic", "intense", "vibrant", "活力", "能量", "動感"],
+  energy: [
+    "energy",
+    "power",
+    "dynamic",
+    "intense",
+    "vibrant",
+    "活力",
+    "能量",
+    "動感",
+  ],
   tranquility: ["zen", "meditation", "peace", "harmony", "禪", "冥想", "和諧"],
   awe: ["epic", "grand", "majestic", "vast", "壯觀", "宏偉", "浩瀚"],
   intimacy: ["close", "intimate", "tender", "gentle", "親密", "溫柔", "細膩"],
   freedom: ["free", "fly", "soar", "open", "wild", "自由", "飛翔", "遼闊"],
-  loneliness: ["alone", "lonely", "solitary", "isolated", "孤獨", "寂寞", "獨處"],
+  loneliness: [
+    "alone",
+    "lonely",
+    "solitary",
+    "isolated",
+    "孤獨",
+    "寂寞",
+    "獨處",
+  ],
 };
 
 function inferEmotion(text: string): string {
@@ -668,7 +786,7 @@ export class VideoCompiler {
 
   translateEmotion(emotion: string): EmotionActionMap {
     const found = EMOTION_ACTION_MAP.find(
-      (e) => e.emotion === emotion.toLowerCase()
+      e => e.emotion === emotion.toLowerCase()
     );
     if (found) return found;
 
@@ -698,7 +816,7 @@ export class VideoCompiler {
 
     // 預設回退 serenity
     return (
-      EMOTION_ACTION_MAP.find((e) => e.emotion === "serenity") ||
+      EMOTION_ACTION_MAP.find(e => e.emotion === "serenity") ||
       EMOTION_ACTION_MAP[0]
     );
   }
@@ -706,14 +824,15 @@ export class VideoCompiler {
   /**
    * 批量翻譯：將多個抽象情感翻譯為具體 Action Verbs
    */
-  translateEmotions(
-    emotions: string[]
-  ): Array<{ from: string; to: string[] }> {
-    return emotions.map((em) => {
+  translateEmotions(emotions: string[]): Array<{ from: string; to: string[] }> {
+    return emotions.map(em => {
       const map = this.translateEmotion(em);
       return {
         from: em,
-        to: [...map.actionVerbs.slice(0, 3), ...map.subjectBehaviors.slice(0, 2)],
+        to: [
+          ...map.actionVerbs.slice(0, 3),
+          ...map.subjectBehaviors.slice(0, 2),
+        ],
       };
     });
   }
@@ -755,9 +874,16 @@ export class VideoCompiler {
   planCameraSequence(
     startMode: CameraModeId,
     desiredModes: CameraModeId[]
-  ): { sequence: CameraModeId[]; blocked: Array<{ from: CameraModeId; to: CameraModeId; reason: string }> } {
+  ): {
+    sequence: CameraModeId[];
+    blocked: Array<{ from: CameraModeId; to: CameraModeId; reason: string }>;
+  } {
     const sequence: CameraModeId[] = [startMode];
-    const blocked: Array<{ from: CameraModeId; to: CameraModeId; reason: string }> = [];
+    const blocked: Array<{
+      from: CameraModeId;
+      to: CameraModeId;
+      reason: string;
+    }> = [];
     let current = startMode;
 
     for (const desired of desiredModes.slice(0, this.maxCameraTransitions)) {
@@ -766,7 +892,11 @@ export class VideoCompiler {
         sequence.push(desired);
         current = desired;
       } else {
-        blocked.push({ from: current, to: desired, reason: validation.reason || "" });
+        blocked.push({
+          from: current,
+          to: desired,
+          reason: validation.reason || "",
+        });
         // 嘗試找到一個中間轉場
         const bridge = this.findBridgeTransition(current, desired);
         if (bridge) {
@@ -813,8 +943,13 @@ export class VideoCompiler {
   /**
    * 取得所有可用的相機模式
    */
-  getAvailableCameraModes(): Array<{ id: CameraModeId; label: string; labelZh: string; stabilityScore: number }> {
-    return Object.values(CAMERA_VECTORS).map((v) => ({
+  getAvailableCameraModes(): Array<{
+    id: CameraModeId;
+    label: string;
+    labelZh: string;
+    stabilityScore: number;
+  }> {
+    return Object.values(CAMERA_VECTORS).map(v => ({
       id: v.id,
       label: v.label,
       labelZh: v.labelZh,
@@ -827,21 +962,30 @@ export class VideoCompiler {
   /**
    * 建立首幀錨定
    */
-  buildFirstFrameAnchor(input: VideoCompilerInput, emotion: string): FrameAnchor {
+  buildFirstFrameAnchor(
+    input: VideoCompilerInput,
+    emotion: string
+  ): FrameAnchor {
     const map = this.translateEmotion(emotion);
-    const camera = this.getCameraVector(input.forceCameraMode || this.suggestCameraMode(emotion));
+    const camera = this.getCameraVector(
+      input.forceCameraMode || this.suggestCameraMode(emotion)
+    );
 
     if (input.firstFrameUrl) {
       return {
         type: "first",
         imageUrl: input.firstFrameUrl,
-        description: input.firstFrameDesc || `Opening frame anchored to reference image`,
+        description:
+          input.firstFrameDesc || `Opening frame anchored to reference image`,
         cameraPosition: `${camera.promptFragment}, starting position`,
         lightingState: map.environmentalCues[0] || "natural ambient lighting",
       };
     }
 
-    const desc = input.firstFrameDesc || map.subjectBehaviors[0] || "establishing shot of the scene";
+    const desc =
+      input.firstFrameDesc ||
+      map.subjectBehaviors[0] ||
+      "establishing shot of the scene";
     return {
       type: "first",
       description: desc,
@@ -853,9 +997,14 @@ export class VideoCompiler {
   /**
    * 建立尾幀錨定
    */
-  buildLastFrameAnchor(input: VideoCompilerInput, emotion: string): FrameAnchor {
+  buildLastFrameAnchor(
+    input: VideoCompilerInput,
+    emotion: string
+  ): FrameAnchor {
     const map = this.translateEmotion(emotion);
-    const camera = this.getCameraVector(input.forceCameraMode || this.suggestCameraMode(emotion));
+    const camera = this.getCameraVector(
+      input.forceCameraMode || this.suggestCameraMode(emotion)
+    );
 
     // 尾幀傾向使用反向或靜止運鏡
     const endCameraMode = this.getEndingCameraMode(camera.id);
@@ -865,18 +1014,26 @@ export class VideoCompiler {
       return {
         type: "last",
         imageUrl: input.lastFrameUrl,
-        description: input.lastFrameDesc || `Closing frame anchored to reference image`,
+        description:
+          input.lastFrameDesc || `Closing frame anchored to reference image`,
         cameraPosition: `${endCamera.promptFragment}, final position`,
-        lightingState: map.environmentalCues[map.environmentalCues.length - 1] || "fading ambient light",
+        lightingState:
+          map.environmentalCues[map.environmentalCues.length - 1] ||
+          "fading ambient light",
       };
     }
 
-    const desc = input.lastFrameDesc || map.subjectBehaviors[map.subjectBehaviors.length - 1] || "closing shot of the scene";
+    const desc =
+      input.lastFrameDesc ||
+      map.subjectBehaviors[map.subjectBehaviors.length - 1] ||
+      "closing shot of the scene";
     return {
       type: "last",
       description: desc,
       cameraPosition: `${endCamera.promptFragment}, final resting position`,
-      lightingState: map.environmentalCues[map.environmentalCues.length - 1] || "fading ambient light",
+      lightingState:
+        map.environmentalCues[map.environmentalCues.length - 1] ||
+        "fading ambient light",
     };
   }
 
@@ -917,15 +1074,22 @@ export class VideoCompiler {
     // Step 2: 情感→動作翻譯
     const emotionMap = this.translateEmotion(emotion);
     const emotionTranslations = this.translateEmotions([emotion]);
-    log.push(`[VideoCompiler] 動作翻譯: ${emotionMap.actionVerbs.slice(0, 3).join(", ")}`);
+    log.push(
+      `[VideoCompiler] 動作翻譯: ${emotionMap.actionVerbs.slice(0, 3).join(", ")}`
+    );
 
     // Step 3: 解析相機模式
     const cameraMode = input.forceCameraMode || this.suggestCameraMode(emotion);
     const cameraVector = this.getCameraVector(cameraMode);
-    log.push(`[VideoCompiler] 相機模式: ${cameraVector.labelZh} (${cameraMode}) | 穩定性: ${cameraVector.stabilityScore}/5`);
+    log.push(
+      `[VideoCompiler] 相機模式: ${cameraVector.labelZh} (${cameraMode}) | 穩定性: ${cameraVector.stabilityScore}/5`
+    );
 
     // Step 4: 解析積木元素
-    const { subject, action, environment, style } = this.parseBlocks(input, emotionMap);
+    const { subject, action, environment, style } = this.parseBlocks(
+      input,
+      emotionMap
+    );
     log.push(`[VideoCompiler] 主體: ${subject}`);
     log.push(`[VideoCompiler] 動作: ${action}`);
     log.push(`[VideoCompiler] 環境: ${environment}`);
@@ -933,11 +1097,25 @@ export class VideoCompiler {
     // Step 5: 建立首尾幀錨定
     const firstFrameAnchor = this.buildFirstFrameAnchor(input, emotion);
     const lastFrameAnchor = this.buildLastFrameAnchor(input, emotion);
-    log.push(`[VideoCompiler] 首幀錨定: ${firstFrameAnchor.description.slice(0, 50)}...`);
-    log.push(`[VideoCompiler] 尾幀錨定: ${lastFrameAnchor.description.slice(0, 50)}...`);
+    log.push(
+      `[VideoCompiler] 首幀錨定: ${firstFrameAnchor.description.slice(0, 50)}...`
+    );
+    log.push(
+      `[VideoCompiler] 尾幀錨定: ${lastFrameAnchor.description.slice(0, 50)}...`
+    );
 
     // Step 6: 組裝分鏡
-    const shots = this.buildShots(input, emotionMap, cameraVector, subject, action, environment, style, firstFrameAnchor, lastFrameAnchor);
+    const shots = this.buildShots(
+      input,
+      emotionMap,
+      cameraVector,
+      subject,
+      action,
+      environment,
+      style,
+      firstFrameAnchor,
+      lastFrameAnchor
+    );
     let jumpBlockCount = 0;
 
     // Step 7: 驗證鏡頭序列連續性
@@ -945,10 +1123,15 @@ export class VideoCompiler {
       const prevCamera = this.extractCameraMode(shots[i - 1].cameraMotion);
       const currCamera = this.extractCameraMode(shots[i].cameraMotion);
       if (prevCamera && currCamera) {
-        const validation = this.validateCameraTransition(prevCamera, currCamera);
+        const validation = this.validateCameraTransition(
+          prevCamera,
+          currCamera
+        );
         if (!validation.valid) {
           jumpBlockCount++;
-          log.push(`[VideoCompiler] ⚠️ 視角跳躍阻擋 Shot ${i}: ${validation.reason}`);
+          log.push(
+            `[VideoCompiler] ⚠️ 視角跳躍阻擋 Shot ${i}: ${validation.reason}`
+          );
           // 修正為安全轉場
           shots[i].cameraMotion = cameraVector.promptFragment;
         }
@@ -963,7 +1146,9 @@ export class VideoCompiler {
     // Step 9: 建立風格標籤
     const styleTag = this.buildStyleTag(emotion, style, cameraVector);
 
-    log.push(`[VideoCompiler] 編譯完成 | 鏡頭數: ${shots.length} | 預估時長: ${estimatedDurationSec}s | 視角跳躍阻擋: ${jumpBlockCount}`);
+    log.push(
+      `[VideoCompiler] 編譯完成 | 鏡頭數: ${shots.length} | 預估時長: ${estimatedDurationSec}s | 視角跳躍阻擋: ${jumpBlockCount}`
+    );
 
     return {
       prompt,
@@ -986,7 +1171,7 @@ export class VideoCompiler {
 
   private resolveEmotion(input: VideoCompilerInput): string {
     // 優先級：mood blocks → moodKeywords → freePrompt → 預設
-    const moodBlock = input.blocks.find((b) => b.category === "mood");
+    const moodBlock = input.blocks.find(b => b.category === "mood");
     if (moodBlock) {
       const vibeEmotion = VIBE_TO_EMOTION[moodBlock.prompt.toLowerCase()];
       if (vibeEmotion) return vibeEmotion;
@@ -1012,29 +1197,35 @@ export class VideoCompiler {
     input: VideoCompilerInput,
     emotionMap: EmotionActionMap
   ): { subject: string; action: string; environment: string; style: string } {
-    const subjectBlocks = input.blocks.filter((b) => b.category === "subject");
-    const actionBlocks = input.blocks.filter((b) => b.category === "action");
-    const envBlocks = input.blocks.filter((b) => b.category === "environment");
-    const styleBlocks = input.blocks.filter((b) => b.category === "style");
+    const subjectBlocks = input.blocks.filter(b => b.category === "subject");
+    const actionBlocks = input.blocks.filter(b => b.category === "action");
+    const envBlocks = input.blocks.filter(b => b.category === "environment");
+    const styleBlocks = input.blocks.filter(b => b.category === "style");
 
     // 主體：積木 → 情感映射 → 預設
-    const subject = subjectBlocks.length > 0
-      ? subjectBlocks.map((b) => b.prompt).join(", ")
-      : emotionMap.subjectBehaviors[0];
+    const subject =
+      subjectBlocks.length > 0
+        ? subjectBlocks.map(b => b.prompt).join(", ")
+        : emotionMap.subjectBehaviors[0];
 
     // 動作：積木 → 情感動作動詞 → 預設
-    const action = actionBlocks.length > 0
-      ? actionBlocks.map((b) => b.prompt).join(", ")
-      : emotionMap.actionVerbs.slice(0, 2).join(", ");
+    const action =
+      actionBlocks.length > 0
+        ? actionBlocks.map(b => b.prompt).join(", ")
+        : emotionMap.actionVerbs.slice(0, 2).join(", ");
 
     // 環境：積木 → 情感環境線索 → 預設
-    const environment = envBlocks.length > 0
-      ? envBlocks.map((b) => b.prompt).join(", ")
-      : emotionMap.environmentalCues[0];
+    const environment =
+      envBlocks.length > 0
+        ? envBlocks.map(b => b.prompt).join(", ")
+        : emotionMap.environmentalCues[0];
 
     // 風格：積木 → 覆寫 → 預設
-    const style = input.styleOverride
-      || (styleBlocks.length > 0 ? styleBlocks.map((b) => b.prompt).join(", ") : "cinematic");
+    const style =
+      input.styleOverride ||
+      (styleBlocks.length > 0
+        ? styleBlocks.map(b => b.prompt).join(", ")
+        : "cinematic");
 
     return { subject, action, environment, style };
   }
@@ -1061,7 +1252,14 @@ export class VideoCompiler {
         subject,
         action,
         environment,
-        prompt: this.formatShotPrompt(cameraVector.promptFragment, subject, action, environment, style, input.slowMotion),
+        prompt: this.formatShotPrompt(
+          cameraVector.promptFragment,
+          subject,
+          action,
+          environment,
+          style,
+          input.slowMotion
+        ),
         durationSec: totalDuration,
         frameAnchor: firstAnchor,
       });
@@ -1079,11 +1277,18 @@ export class VideoCompiler {
         // 選擇動作和主體的變化
         const shotAction = isFirst
           ? action
-          : emotionMap.actionVerbs[Math.min(i, emotionMap.actionVerbs.length - 1)];
+          : emotionMap.actionVerbs[
+              Math.min(i, emotionMap.actionVerbs.length - 1)
+            ];
         const shotSubject = isFirst
           ? subject
-          : emotionMap.subjectBehaviors[Math.min(i, emotionMap.subjectBehaviors.length - 1)];
-        const shotEnv = emotionMap.environmentalCues[Math.min(i, emotionMap.environmentalCues.length - 1)] || environment;
+          : emotionMap.subjectBehaviors[
+              Math.min(i, emotionMap.subjectBehaviors.length - 1)
+            ];
+        const shotEnv =
+          emotionMap.environmentalCues[
+            Math.min(i, emotionMap.environmentalCues.length - 1)
+          ] || environment;
 
         // 選擇相機運動（首尾鏡頭特殊處理）
         let shotCamera: string;
@@ -1101,7 +1306,14 @@ export class VideoCompiler {
           subject: shotSubject,
           action: shotAction,
           environment: shotEnv,
-          prompt: this.formatShotPrompt(shotCamera, shotSubject, shotAction, shotEnv, style, input.slowMotion),
+          prompt: this.formatShotPrompt(
+            shotCamera,
+            shotSubject,
+            shotAction,
+            shotEnv,
+            style,
+            input.slowMotion
+          ),
           durationSec: shotDuration,
           frameAnchor: isFirst ? firstAnchor : isLast ? lastAnchor : undefined,
         });
@@ -1190,7 +1402,11 @@ export class VideoCompiler {
     return lines.join("\n");
   }
 
-  private buildStyleTag(emotion: string, style: string, camera: CameraVector): string {
+  private buildStyleTag(
+    emotion: string,
+    style: string,
+    camera: CameraVector
+  ): string {
     const parts = [style, emotion, camera.labelZh];
     return parts.slice(0, 3).join(", ");
   }
@@ -1210,14 +1426,16 @@ export class VideoCompiler {
    * 取得所有支援的情緒列表
    */
   getSupportedEmotions(): string[] {
-    return EMOTION_ACTION_MAP.map((e) => e.emotion);
+    return EMOTION_ACTION_MAP.map(e => e.emotion);
   }
 
   /**
    * 預覽某個情緒的翻譯結果
    */
   previewEmotionTranslation(emotion: string): EmotionActionMap | null {
-    const found = EMOTION_ACTION_MAP.find((e) => e.emotion === emotion.toLowerCase());
+    const found = EMOTION_ACTION_MAP.find(
+      e => e.emotion === emotion.toLowerCase()
+    );
     return found || null;
   }
 
@@ -1226,15 +1444,26 @@ export class VideoCompiler {
    */
   getCameraStabilityReport(modes: CameraModeId[]): {
     averageStability: number;
-    transitions: Array<{ from: CameraModeId; to: CameraModeId; valid: boolean }>;
+    transitions: Array<{
+      from: CameraModeId;
+      to: CameraModeId;
+      valid: boolean;
+    }>;
   } {
     let totalStability = 0;
-    const transitions: Array<{ from: CameraModeId; to: CameraModeId; valid: boolean }> = [];
+    const transitions: Array<{
+      from: CameraModeId;
+      to: CameraModeId;
+      valid: boolean;
+    }> = [];
 
     for (let i = 0; i < modes.length; i++) {
-      totalStability += (CAMERA_VECTORS[modes[i]]?.stabilityScore || 0);
+      totalStability += CAMERA_VECTORS[modes[i]]?.stabilityScore || 0;
       if (i > 0) {
-        const validation = this.validateCameraTransition(modes[i - 1], modes[i]);
+        const validation = this.validateCameraTransition(
+          modes[i - 1],
+          modes[i]
+        );
         transitions.push({
           from: modes[i - 1],
           to: modes[i],

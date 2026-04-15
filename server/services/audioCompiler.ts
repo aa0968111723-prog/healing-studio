@@ -81,17 +81,26 @@ export interface AudioCompileResult {
 // ═══════════════════════════════════════════════════════════════════════════
 
 export type StructureTemplateId =
-  | "pop"        // 流行曲式
-  | "ambient"    // 環境音樂
-  | "edm"        // 電子舞曲
-  | "ballad"     // 抒情慢歌
-  | "cinematic"  // 電影配樂
-  | "lofi"       // Lo-Fi
-  | "minimal";   // 極簡
+  | "pop" // 流行曲式
+  | "ambient" // 環境音樂
+  | "edm" // 電子舞曲
+  | "ballad" // 抒情慢歌
+  | "cinematic" // 電影配樂
+  | "lofi" // Lo-Fi
+  | "minimal"; // 極簡
 
 interface StructureSection {
   tag: string;
-  role: "intro" | "verse" | "prechorus" | "chorus" | "bridge" | "drop" | "breakdown" | "outro" | "interlude";
+  role:
+    | "intro"
+    | "verse"
+    | "prechorus"
+    | "chorus"
+    | "bridge"
+    | "drop"
+    | "breakdown"
+    | "outro"
+    | "interlude";
   /** 該段落的時長佔比（0~1） */
   durationWeight: number;
   /** 該段落的能量等級 1~5 */
@@ -102,57 +111,291 @@ interface StructureSection {
 
 const STRUCTURE_TEMPLATES: Record<StructureTemplateId, StructureSection[]> = {
   pop: [
-    { tag: "[Intro]",     role: "intro",     durationWeight: 0.08, energy: 2, preferCategories: ["ambiance", "instrument"] },
-    { tag: "[Verse 1]",   role: "verse",     durationWeight: 0.18, energy: 3, preferCategories: ["instrument", "genre"] },
-    { tag: "[Pre-Chorus]", role: "prechorus", durationWeight: 0.08, energy: 3, preferCategories: ["tempo", "ambiance"] },
-    { tag: "[Chorus]",    role: "chorus",    durationWeight: 0.18, energy: 5, preferCategories: ["instrument", "genre", "ambiance"] },
-    { tag: "[Verse 2]",   role: "verse",     durationWeight: 0.15, energy: 3, preferCategories: ["instrument", "genre"] },
-    { tag: "[Chorus]",    role: "chorus",    durationWeight: 0.18, energy: 5, preferCategories: ["instrument", "genre", "ambiance"] },
-    { tag: "[Outro]",     role: "outro",     durationWeight: 0.15, energy: 2, preferCategories: ["ambiance", "instrument"] },
+    {
+      tag: "[Intro]",
+      role: "intro",
+      durationWeight: 0.08,
+      energy: 2,
+      preferCategories: ["ambiance", "instrument"],
+    },
+    {
+      tag: "[Verse 1]",
+      role: "verse",
+      durationWeight: 0.18,
+      energy: 3,
+      preferCategories: ["instrument", "genre"],
+    },
+    {
+      tag: "[Pre-Chorus]",
+      role: "prechorus",
+      durationWeight: 0.08,
+      energy: 3,
+      preferCategories: ["tempo", "ambiance"],
+    },
+    {
+      tag: "[Chorus]",
+      role: "chorus",
+      durationWeight: 0.18,
+      energy: 5,
+      preferCategories: ["instrument", "genre", "ambiance"],
+    },
+    {
+      tag: "[Verse 2]",
+      role: "verse",
+      durationWeight: 0.15,
+      energy: 3,
+      preferCategories: ["instrument", "genre"],
+    },
+    {
+      tag: "[Chorus]",
+      role: "chorus",
+      durationWeight: 0.18,
+      energy: 5,
+      preferCategories: ["instrument", "genre", "ambiance"],
+    },
+    {
+      tag: "[Outro]",
+      role: "outro",
+      durationWeight: 0.15,
+      energy: 2,
+      preferCategories: ["ambiance", "instrument"],
+    },
   ],
   ambient: [
-    { tag: "[Intro]",      role: "intro",      durationWeight: 0.15, energy: 1, preferCategories: ["ambiance"] },
-    { tag: "[Movement 1]", role: "verse",      durationWeight: 0.25, energy: 2, preferCategories: ["instrument", "ambiance"] },
-    { tag: "[Transition]", role: "interlude",  durationWeight: 0.10, energy: 1, preferCategories: ["ambiance"] },
-    { tag: "[Movement 2]", role: "verse",      durationWeight: 0.25, energy: 3, preferCategories: ["instrument", "ambiance"] },
-    { tag: "[Fade Out]",   role: "outro",      durationWeight: 0.25, energy: 1, preferCategories: ["ambiance"] },
+    {
+      tag: "[Intro]",
+      role: "intro",
+      durationWeight: 0.15,
+      energy: 1,
+      preferCategories: ["ambiance"],
+    },
+    {
+      tag: "[Movement 1]",
+      role: "verse",
+      durationWeight: 0.25,
+      energy: 2,
+      preferCategories: ["instrument", "ambiance"],
+    },
+    {
+      tag: "[Transition]",
+      role: "interlude",
+      durationWeight: 0.1,
+      energy: 1,
+      preferCategories: ["ambiance"],
+    },
+    {
+      tag: "[Movement 2]",
+      role: "verse",
+      durationWeight: 0.25,
+      energy: 3,
+      preferCategories: ["instrument", "ambiance"],
+    },
+    {
+      tag: "[Fade Out]",
+      role: "outro",
+      durationWeight: 0.25,
+      energy: 1,
+      preferCategories: ["ambiance"],
+    },
   ],
   edm: [
-    { tag: "[Intro]",      role: "intro",      durationWeight: 0.08, energy: 2, preferCategories: ["ambiance", "instrument"] },
-    { tag: "[Build Up]",   role: "prechorus",  durationWeight: 0.12, energy: 4, preferCategories: ["tempo", "instrument"] },
-    { tag: "[Drop]",       role: "drop",       durationWeight: 0.20, energy: 5, preferCategories: ["instrument", "genre", "tempo"] },
-    { tag: "[Breakdown]",  role: "breakdown",  durationWeight: 0.12, energy: 2, preferCategories: ["ambiance"] },
-    { tag: "[Build Up 2]", role: "prechorus",  durationWeight: 0.10, energy: 4, preferCategories: ["tempo", "instrument"] },
-    { tag: "[Drop 2]",     role: "drop",       durationWeight: 0.22, energy: 5, preferCategories: ["instrument", "genre", "tempo"] },
-    { tag: "[Outro]",      role: "outro",      durationWeight: 0.16, energy: 2, preferCategories: ["ambiance"] },
+    {
+      tag: "[Intro]",
+      role: "intro",
+      durationWeight: 0.08,
+      energy: 2,
+      preferCategories: ["ambiance", "instrument"],
+    },
+    {
+      tag: "[Build Up]",
+      role: "prechorus",
+      durationWeight: 0.12,
+      energy: 4,
+      preferCategories: ["tempo", "instrument"],
+    },
+    {
+      tag: "[Drop]",
+      role: "drop",
+      durationWeight: 0.2,
+      energy: 5,
+      preferCategories: ["instrument", "genre", "tempo"],
+    },
+    {
+      tag: "[Breakdown]",
+      role: "breakdown",
+      durationWeight: 0.12,
+      energy: 2,
+      preferCategories: ["ambiance"],
+    },
+    {
+      tag: "[Build Up 2]",
+      role: "prechorus",
+      durationWeight: 0.1,
+      energy: 4,
+      preferCategories: ["tempo", "instrument"],
+    },
+    {
+      tag: "[Drop 2]",
+      role: "drop",
+      durationWeight: 0.22,
+      energy: 5,
+      preferCategories: ["instrument", "genre", "tempo"],
+    },
+    {
+      tag: "[Outro]",
+      role: "outro",
+      durationWeight: 0.16,
+      energy: 2,
+      preferCategories: ["ambiance"],
+    },
   ],
   ballad: [
-    { tag: "[Intro]",      role: "intro",      durationWeight: 0.10, energy: 1, preferCategories: ["instrument"] },
-    { tag: "[Verse 1]",    role: "verse",      durationWeight: 0.22, energy: 2, preferCategories: ["instrument", "ambiance"] },
-    { tag: "[Chorus]",     role: "chorus",     durationWeight: 0.20, energy: 4, preferCategories: ["instrument", "genre"] },
-    { tag: "[Verse 2]",    role: "verse",      durationWeight: 0.18, energy: 2, preferCategories: ["instrument", "ambiance"] },
-    { tag: "[Chorus]",     role: "chorus",     durationWeight: 0.18, energy: 4, preferCategories: ["instrument", "genre"] },
-    { tag: "[Outro]",      role: "outro",      durationWeight: 0.12, energy: 1, preferCategories: ["ambiance", "instrument"] },
+    {
+      tag: "[Intro]",
+      role: "intro",
+      durationWeight: 0.1,
+      energy: 1,
+      preferCategories: ["instrument"],
+    },
+    {
+      tag: "[Verse 1]",
+      role: "verse",
+      durationWeight: 0.22,
+      energy: 2,
+      preferCategories: ["instrument", "ambiance"],
+    },
+    {
+      tag: "[Chorus]",
+      role: "chorus",
+      durationWeight: 0.2,
+      energy: 4,
+      preferCategories: ["instrument", "genre"],
+    },
+    {
+      tag: "[Verse 2]",
+      role: "verse",
+      durationWeight: 0.18,
+      energy: 2,
+      preferCategories: ["instrument", "ambiance"],
+    },
+    {
+      tag: "[Chorus]",
+      role: "chorus",
+      durationWeight: 0.18,
+      energy: 4,
+      preferCategories: ["instrument", "genre"],
+    },
+    {
+      tag: "[Outro]",
+      role: "outro",
+      durationWeight: 0.12,
+      energy: 1,
+      preferCategories: ["ambiance", "instrument"],
+    },
   ],
   cinematic: [
-    { tag: "[Opening]",     role: "intro",     durationWeight: 0.12, energy: 2, preferCategories: ["ambiance", "instrument"] },
-    { tag: "[Rising]",      role: "verse",     durationWeight: 0.20, energy: 3, preferCategories: ["instrument", "genre"] },
-    { tag: "[Climax]",      role: "chorus",    durationWeight: 0.22, energy: 5, preferCategories: ["instrument", "genre", "tempo"] },
-    { tag: "[Resolution]",  role: "bridge",    durationWeight: 0.18, energy: 3, preferCategories: ["instrument", "ambiance"] },
-    { tag: "[Denouement]",  role: "outro",     durationWeight: 0.28, energy: 1, preferCategories: ["ambiance"] },
+    {
+      tag: "[Opening]",
+      role: "intro",
+      durationWeight: 0.12,
+      energy: 2,
+      preferCategories: ["ambiance", "instrument"],
+    },
+    {
+      tag: "[Rising]",
+      role: "verse",
+      durationWeight: 0.2,
+      energy: 3,
+      preferCategories: ["instrument", "genre"],
+    },
+    {
+      tag: "[Climax]",
+      role: "chorus",
+      durationWeight: 0.22,
+      energy: 5,
+      preferCategories: ["instrument", "genre", "tempo"],
+    },
+    {
+      tag: "[Resolution]",
+      role: "bridge",
+      durationWeight: 0.18,
+      energy: 3,
+      preferCategories: ["instrument", "ambiance"],
+    },
+    {
+      tag: "[Denouement]",
+      role: "outro",
+      durationWeight: 0.28,
+      energy: 1,
+      preferCategories: ["ambiance"],
+    },
   ],
   lofi: [
-    { tag: "[Intro]",       role: "intro",     durationWeight: 0.10, energy: 1, preferCategories: ["ambiance"] },
-    { tag: "[Loop A]",      role: "verse",     durationWeight: 0.25, energy: 2, preferCategories: ["instrument", "ambiance"] },
-    { tag: "[Variation]",   role: "bridge",    durationWeight: 0.15, energy: 2, preferCategories: ["instrument", "genre"] },
-    { tag: "[Loop B]",      role: "verse",     durationWeight: 0.25, energy: 2, preferCategories: ["instrument", "ambiance"] },
-    { tag: "[Fade Out]",    role: "outro",     durationWeight: 0.25, energy: 1, preferCategories: ["ambiance"] },
+    {
+      tag: "[Intro]",
+      role: "intro",
+      durationWeight: 0.1,
+      energy: 1,
+      preferCategories: ["ambiance"],
+    },
+    {
+      tag: "[Loop A]",
+      role: "verse",
+      durationWeight: 0.25,
+      energy: 2,
+      preferCategories: ["instrument", "ambiance"],
+    },
+    {
+      tag: "[Variation]",
+      role: "bridge",
+      durationWeight: 0.15,
+      energy: 2,
+      preferCategories: ["instrument", "genre"],
+    },
+    {
+      tag: "[Loop B]",
+      role: "verse",
+      durationWeight: 0.25,
+      energy: 2,
+      preferCategories: ["instrument", "ambiance"],
+    },
+    {
+      tag: "[Fade Out]",
+      role: "outro",
+      durationWeight: 0.25,
+      energy: 1,
+      preferCategories: ["ambiance"],
+    },
   ],
   minimal: [
-    { tag: "[Begin]",       role: "intro",     durationWeight: 0.15, energy: 1, preferCategories: ["instrument"] },
-    { tag: "[Develop]",     role: "verse",     durationWeight: 0.35, energy: 2, preferCategories: ["instrument", "ambiance"] },
-    { tag: "[Peak]",        role: "chorus",    durationWeight: 0.25, energy: 3, preferCategories: ["instrument", "tempo"] },
-    { tag: "[Dissolve]",    role: "outro",     durationWeight: 0.25, energy: 1, preferCategories: ["ambiance"] },
+    {
+      tag: "[Begin]",
+      role: "intro",
+      durationWeight: 0.15,
+      energy: 1,
+      preferCategories: ["instrument"],
+    },
+    {
+      tag: "[Develop]",
+      role: "verse",
+      durationWeight: 0.35,
+      energy: 2,
+      preferCategories: ["instrument", "ambiance"],
+    },
+    {
+      tag: "[Peak]",
+      role: "chorus",
+      durationWeight: 0.25,
+      energy: 3,
+      preferCategories: ["instrument", "tempo"],
+    },
+    {
+      tag: "[Dissolve]",
+      role: "outro",
+      durationWeight: 0.25,
+      energy: 1,
+      preferCategories: ["ambiance"],
+    },
   ],
 };
 
@@ -163,15 +406,15 @@ const STRUCTURE_TEMPLATES: Record<StructureTemplateId, StructureSection[]> = {
 /** 互斥風格對：同時出現時需要調和 */
 const STYLE_CONFLICTS: Array<[string, string, string]> = [
   // [風格A prompt片段, 風格B prompt片段, 調和建議]
-  ["fast tempo",      "slow tempo",      "moderate tempo"],
-  ["upbeat",          "adagio",          "moderate tempo"],
-  ["electronic",      "classical",       "electronic classical fusion"],
-  ["lo-fi",           "crystal clear",   "lo-fi"],
-  ["heavy metal",     "ambient",         "post-rock ambient"],
-  ["punk",            "classical",       "neo-classical"],
-  ["deep bass",       "bright mix",      "balanced mix with sub-bass"],
-  ["fast tempo",      "rubato",          "flexible tempo"],
-  ["drums and percussion", "ethereal",   "soft percussion, ethereal"],
+  ["fast tempo", "slow tempo", "moderate tempo"],
+  ["upbeat", "adagio", "moderate tempo"],
+  ["electronic", "classical", "electronic classical fusion"],
+  ["lo-fi", "crystal clear", "lo-fi"],
+  ["heavy metal", "ambient", "post-rock ambient"],
+  ["punk", "classical", "neo-classical"],
+  ["deep bass", "bright mix", "balanced mix with sub-bass"],
+  ["fast tempo", "rubato", "flexible tempo"],
+  ["drums and percussion", "ethereal", "soft percussion, ethereal"],
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -183,10 +426,10 @@ const MAX_ELEMENTS_PER_SECTION = 4;
 
 /** 元素優先級（越小越優先保留） */
 const CATEGORY_PRIORITY: Record<AudioBlock["category"], number> = {
-  genre: 1,       // 曲風最重要，定義整體方向
-  instrument: 2,  // 樂器其次
-  tempo: 3,       // 節奏第三
-  ambiance: 4,    // 環境質感最後
+  genre: 1, // 曲風最重要，定義整體方向
+  instrument: 2, // 樂器其次
+  tempo: 3, // 節奏第三
+  ambiance: 4, // 環境質感最後
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -194,21 +437,28 @@ const CATEGORY_PRIORITY: Record<AudioBlock["category"], number> = {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /** 根據積木內容推斷最佳結構模板 */
-function inferStructureTemplate(blocks: AudioBlock[], moodKeywords?: string[]): StructureTemplateId {
+function inferStructureTemplate(
+  blocks: AudioBlock[],
+  moodKeywords?: string[]
+): StructureTemplateId {
   const prompts = blocks.map(b => b.prompt.toLowerCase()).join(" ");
   const moods = (moodKeywords || []).join(" ").toLowerCase();
   const combined = `${prompts} ${moods}`;
 
   // EDM 特徵
-  if (/electronic|synth|edm|dance|techno|house|trance/.test(combined)) return "edm";
+  if (/electronic|synth|edm|dance|techno|house|trance/.test(combined))
+    return "edm";
   // Lo-Fi 特徵
   if (/lo-fi|lofi|chill|vinyl|crackle/.test(combined)) return "lofi";
   // 環境音特徵
-  if (/ambient|ethereal|spacious|drone|meditation/.test(combined)) return "ambient";
+  if (/ambient|ethereal|spacious|drone|meditation/.test(combined))
+    return "ambient";
   // 電影配樂特徵
-  if (/orchestral|cinematic|epic|film|soundtrack|dramatic/.test(combined)) return "cinematic";
+  if (/orchestral|cinematic|epic|film|soundtrack|dramatic/.test(combined))
+    return "cinematic";
   // 抒情特徵
-  if (/ballad|slow|adagio|piano.*soft|gentle|tender/.test(combined)) return "ballad";
+  if (/ballad|slow|adagio|piano.*soft|gentle|tender/.test(combined))
+    return "ballad";
   // 極簡特徵
   if (/minimal|simple|sparse|solo/.test(combined)) return "minimal";
   // 預設流行
@@ -234,7 +484,9 @@ export class AudioCompiler {
     const conflictLog: string[] = [];
     const targetDuration = input.targetDurationSec || 120;
 
-    log.push(`[開始編譯] 積木數量: ${input.blocks.length}, 目標時長: ${targetDuration}s`);
+    log.push(
+      `[開始編譯] 積木數量: ${input.blocks.length}, 目標時長: ${targetDuration}s`
+    );
 
     // Step 1: 風格衝突偵測與調和
     const { resolvedBlocks, conflicts } = this.resolveConflicts(input.blocks);
@@ -244,23 +496,36 @@ export class AudioCompiler {
     }
 
     // Step 2: 推斷或使用指定的結構模板
-    const templateId = input.forceStructure || inferStructureTemplate(resolvedBlocks, input.moodKeywords);
+    const templateId =
+      input.forceStructure ||
+      inferStructureTemplate(resolvedBlocks, input.moodKeywords);
     const template = STRUCTURE_TEMPLATES[templateId];
     log.push(`[結構選擇] 使用模板: ${templateId} (${template.length} 段落)`);
 
     // Step 3: 分類積木
     const categorized = this.categorizeBlocks(resolvedBlocks);
-    log.push(`[積木分類] 樂器: ${categorized.instrument.length}, 曲風: ${categorized.genre.length}, 節奏: ${categorized.tempo.length}, 環境: ${categorized.ambiance.length}`);
+    log.push(
+      `[積木分類] 樂器: ${categorized.instrument.length}, 曲風: ${categorized.genre.length}, 節奏: ${categorized.tempo.length}, 環境: ${categorized.ambiance.length}`
+    );
 
     // Step 4: 為每個段落分配元素 + Tag Stacking Limit
     const sections: CompiledSection[] = [];
     for (const section of template) {
-      const sectionDuration = Math.round(targetDuration * section.durationWeight);
-      const rawElements = this.selectElementsForSection(section, categorized, input.moodKeywords);
+      const sectionDuration = Math.round(
+        targetDuration * section.durationWeight
+      );
+      const rawElements = this.selectElementsForSection(
+        section,
+        categorized,
+        input.moodKeywords
+      );
       const rawCount = rawElements.length;
 
       // Tag Stacking Limit 裁剪
-      const { trimmed, wasTrimmed } = this.applyStackingLimit(rawElements, section.tag);
+      const { trimmed, wasTrimmed } = this.applyStackingLimit(
+        rawElements,
+        section.tag
+      );
       if (wasTrimmed) {
         stackingLog.push(
           `${section.tag} 堆疊裁剪: ${rawCount} → ${trimmed.length} 元素 (上限 ${this.maxElementsPerSection})`
@@ -276,13 +541,17 @@ export class AudioCompiler {
       });
     }
 
-    log.push(`[堆疊防禦] ${stackingLog.length > 0 ? `${stackingLog.length} 個段落被裁剪` : "所有段落均在上限內"}`);
+    log.push(
+      `[堆疊防禦] ${stackingLog.length > 0 ? `${stackingLog.length} 個段落被裁剪` : "所有段落均在上限內"}`
+    );
 
     // Step 5: 組裝最終提示詞
     const prompt = this.assemblePrompt(sections, input);
     const styleTag = this.buildStyleTag(resolvedBlocks, input);
 
-    log.push(`[編譯完成] 總段落: ${sections.length}, 預估時長: ${targetDuration}s, 風格標籤: ${styleTag}`);
+    log.push(
+      `[編譯完成] 總段落: ${sections.length}, 預估時長: ${targetDuration}s, 風格標籤: ${styleTag}`
+    );
 
     return {
       prompt,
@@ -299,7 +568,10 @@ export class AudioCompiler {
 
   // ─── 風格衝突偵測與調和 ──────────────────────────────────────
 
-  resolveConflicts(blocks: AudioBlock[]): { resolvedBlocks: AudioBlock[]; conflicts: string[] } {
+  resolveConflicts(blocks: AudioBlock[]): {
+    resolvedBlocks: AudioBlock[];
+    conflicts: string[];
+  } {
     const conflicts: string[] = [];
     const resolved = [...blocks];
     const prompts = resolved.map(b => b.prompt.toLowerCase());
@@ -328,7 +600,9 @@ export class AudioCompiler {
 
   // ─── 積木分類 ────────────────────────────────────────────────
 
-  categorizeBlocks(blocks: AudioBlock[]): Record<AudioBlock["category"], AudioBlock[]> {
+  categorizeBlocks(
+    blocks: AudioBlock[]
+  ): Record<AudioBlock["category"], AudioBlock[]> {
     const result: Record<AudioBlock["category"], AudioBlock[]> = {
       instrument: [],
       genre: [],
@@ -360,7 +634,12 @@ export class AudioCompiler {
     }
 
     // 加入非偏好類別的元素（低優先）
-    const allCategories: AudioBlock["category"][] = ["genre", "instrument", "tempo", "ambiance"];
+    const allCategories: AudioBlock["category"][] = [
+      "genre",
+      "instrument",
+      "tempo",
+      "ambiance",
+    ];
     for (const cat of allCategories) {
       if (!section.preferCategories.includes(cat)) {
         for (const block of categorized[cat]) {
@@ -373,7 +652,9 @@ export class AudioCompiler {
 
     // 根據能量等級調整：低能量段落移除高能量元素
     if (section.energy <= 2) {
-      return elements.filter(e => !/fast tempo|upbeat|heavy|loud|aggressive/.test(e.toLowerCase()));
+      return elements.filter(
+        e => !/fast tempo|upbeat|heavy|loud|aggressive/.test(e.toLowerCase())
+      );
     }
 
     // 高能量段落可以加入能量修飾
@@ -409,7 +690,9 @@ export class AudioCompiler {
     scored.sort((a, b) => a.priority - b.priority);
 
     // 裁剪至上限
-    const trimmed = scored.slice(0, this.maxElementsPerSection).map(s => s.element);
+    const trimmed = scored
+      .slice(0, this.maxElementsPerSection)
+      .map(s => s.element);
 
     return { trimmed, wasTrimmed: true };
   }
@@ -419,15 +702,27 @@ export class AudioCompiler {
     const lower = element.toLowerCase();
 
     // 曲風關鍵字
-    if (/pop|jazz|rock|classical|electronic|folk|r&b|hip-hop|ambient|lo-fi|edm|metal|punk|blues|soul|reggae|country/.test(lower)) {
+    if (
+      /pop|jazz|rock|classical|electronic|folk|r&b|hip-hop|ambient|lo-fi|edm|metal|punk|blues|soul|reggae|country/.test(
+        lower
+      )
+    ) {
       return CATEGORY_PRIORITY.genre;
     }
     // 樂器關鍵字
-    if (/piano|guitar|violin|flute|drums|bass|synth|harp|cello|trumpet|saxophone|organ|percussion|ensemble|orchestral/.test(lower)) {
+    if (
+      /piano|guitar|violin|flute|drums|bass|synth|harp|cello|trumpet|saxophone|organ|percussion|ensemble|orchestral/.test(
+        lower
+      )
+    ) {
       return CATEGORY_PRIORITY.instrument;
     }
     // 節奏關鍵字
-    if (/tempo|bpm|beat|rhythm|adagio|allegro|swing|rubato|fast|slow|moderate|accelerat/.test(lower)) {
+    if (
+      /tempo|bpm|beat|rhythm|adagio|allegro|swing|rubato|fast|slow|moderate|accelerat/.test(
+        lower
+      )
+    ) {
       return CATEGORY_PRIORITY.tempo;
     }
     // 環境質感
@@ -436,7 +731,10 @@ export class AudioCompiler {
 
   // ─── 提示詞組裝 ─────────────────────────────────────────────
 
-  assemblePrompt(sections: CompiledSection[], input: AudioCompilerInput): string {
+  assemblePrompt(
+    sections: CompiledSection[],
+    input: AudioCompilerInput
+  ): string {
     const lines: string[] = [];
 
     // 全局修飾
@@ -461,7 +759,10 @@ export class AudioCompiler {
 
       // 如果有歌詞且是 verse/chorus 段落，插入歌詞佔位
       if (input.lyrics && /Verse|Chorus|Hook/.test(section.tag)) {
-        const lyricsSegment = this.extractLyricsForSection(section.tag, input.lyrics);
+        const lyricsSegment = this.extractLyricsForSection(
+          section.tag,
+          input.lyrics
+        );
         if (lyricsSegment) {
           lines.push(lyricsSegment);
         }
@@ -486,7 +787,10 @@ export class AudioCompiler {
 
   // ─── 歌詞段落提取 ───────────────────────────────────────────
 
-  private extractLyricsForSection(sectionTag: string, lyrics: string): string | null {
+  private extractLyricsForSection(
+    sectionTag: string,
+    lyrics: string
+  ): string | null {
     const paragraphs = lyrics.split(/\n\s*\n/).filter(p => p.trim());
     if (paragraphs.length === 0) return null;
 
@@ -562,13 +866,25 @@ export class AudioCompiler {
   /** 從 prompt 文字推斷積木類別 */
   private inferCategory(prompt: string): AudioBlock["category"] {
     const lower = prompt.toLowerCase();
-    if (/piano|guitar|violin|flute|drums|bass|synth|harp|cello|trumpet|saxophone|organ|percussion|ensemble|orchestral/.test(lower)) {
+    if (
+      /piano|guitar|violin|flute|drums|bass|synth|harp|cello|trumpet|saxophone|organ|percussion|ensemble|orchestral/.test(
+        lower
+      )
+    ) {
       return "instrument";
     }
-    if (/pop|jazz|rock|classical|electronic|folk|r&b|hip-hop|ambient|lo-fi|edm|metal|punk|blues|soul/.test(lower)) {
+    if (
+      /pop|jazz|rock|classical|electronic|folk|r&b|hip-hop|ambient|lo-fi|edm|metal|punk|blues|soul/.test(
+        lower
+      )
+    ) {
       return "genre";
     }
-    if (/tempo|bpm|beat|rhythm|adagio|allegro|swing|rubato|fast|slow|moderate/.test(lower)) {
+    if (
+      /tempo|bpm|beat|rhythm|adagio|allegro|swing|rubato|fast|slow|moderate/.test(
+        lower
+      )
+    ) {
       return "tempo";
     }
     return "ambiance";
@@ -577,14 +893,21 @@ export class AudioCompiler {
   // ─── 工具方法 ────────────────────────────────────────────────
 
   /** 取得所有可用的結構模板 */
-  getAvailableTemplates(): Array<{ id: StructureTemplateId; sectionCount: number; sections: string[] }> {
-    return (Object.entries(STRUCTURE_TEMPLATES) as [StructureTemplateId, StructureSection[]][]).map(
-      ([id, sections]) => ({
-        id,
-        sectionCount: sections.length,
-        sections: sections.map(s => s.tag),
-      })
-    );
+  getAvailableTemplates(): Array<{
+    id: StructureTemplateId;
+    sectionCount: number;
+    sections: string[];
+  }> {
+    return (
+      Object.entries(STRUCTURE_TEMPLATES) as [
+        StructureTemplateId,
+        StructureSection[],
+      ][]
+    ).map(([id, sections]) => ({
+      id,
+      sectionCount: sections.length,
+      sections: sections.map(s => s.tag),
+    }));
   }
 
   /** 預覽指定模板的結構 */
@@ -598,7 +921,10 @@ export class AudioCompiler {
   }
 
   /** 驗證積木組合是否有衝突 */
-  validateBlocks(blocks: AudioBlock[]): { valid: boolean; conflicts: string[] } {
+  validateBlocks(blocks: AudioBlock[]): {
+    valid: boolean;
+    conflicts: string[];
+  } {
     const { conflicts } = this.resolveConflicts(blocks);
     return { valid: conflicts.length === 0, conflicts };
   }

@@ -43,14 +43,20 @@ function getProjectName(): string {
 
 // ─── TTL Cache for expensive aggregation queries ────────────────────────────
 
-interface CacheEntry<T> { data: T; expiry: number }
+interface CacheEntry<T> {
+  data: T;
+  expiry: number;
+}
 const queryCache = new Map<string, CacheEntry<unknown>>();
 const CACHE_TTL_MS = 60_000; // 60 seconds
 
 function getCached<T>(key: string): T | null {
   const entry = queryCache.get(key) as CacheEntry<T> | undefined;
   if (!entry) return null;
-  if (Date.now() > entry.expiry) { queryCache.delete(key); return null; }
+  if (Date.now() > entry.expiry) {
+    queryCache.delete(key);
+    return null;
+  }
   return entry.data;
 }
 
@@ -64,9 +70,12 @@ function computeLatencyMs(run: Record<string, unknown>): number | null {
   // Prefer metadata.duration_ms → then compute from start_time/end_time
   const extra = run.extra as Record<string, unknown> | undefined;
   const meta = extra?.metadata as Record<string, unknown> | undefined;
-  if (meta?.duration_ms && typeof meta.duration_ms === "number") return meta.duration_ms;
+  if (meta?.duration_ms && typeof meta.duration_ms === "number")
+    return meta.duration_ms;
   if (run.start_time && run.end_time) {
-    const diff = new Date(String(run.end_time)).getTime() - new Date(String(run.start_time)).getTime();
+    const diff =
+      new Date(String(run.end_time)).getTime() -
+      new Date(String(run.start_time)).getTime();
     if (diff >= 0) return diff;
   }
   return null;
@@ -82,14 +91,23 @@ function serializeRun(run: Record<string, unknown>) {
     start_time: run.start_time ? String(run.start_time) : null,
     end_time: run.end_time ? String(run.end_time) : null,
     latency: computeLatencyMs(run),
-    total_tokens: typeof run.total_tokens === "number" ? run.total_tokens : null,
-    prompt_tokens: typeof run.prompt_tokens === "number" ? run.prompt_tokens : null,
-    completion_tokens: typeof run.completion_tokens === "number" ? run.completion_tokens : null,
-    inputs: run.inputs ? summarizeObj(run.inputs as Record<string, unknown>) : null,
-    outputs: run.outputs ? summarizeObj(run.outputs as Record<string, unknown>) : null,
+    total_tokens:
+      typeof run.total_tokens === "number" ? run.total_tokens : null,
+    prompt_tokens:
+      typeof run.prompt_tokens === "number" ? run.prompt_tokens : null,
+    completion_tokens:
+      typeof run.completion_tokens === "number" ? run.completion_tokens : null,
+    inputs: run.inputs
+      ? summarizeObj(run.inputs as Record<string, unknown>)
+      : null,
+    outputs: run.outputs
+      ? summarizeObj(run.outputs as Record<string, unknown>)
+      : null,
     feedback_stats: run.feedback_stats ?? null,
     tags: Array.isArray(run.tags) ? run.tags.map(String) : [],
-    extra: run.extra ? extractMetadata(run.extra as Record<string, unknown>) : null,
+    extra: run.extra
+      ? extractMetadata(run.extra as Record<string, unknown>)
+      : null,
     parent_run_id: run.parent_run_id ? String(run.parent_run_id) : null,
   };
 }
@@ -99,7 +117,11 @@ function summarizeObj(obj: Record<string, unknown>): Record<string, unknown> {
   for (const [key, value] of Object.entries(obj)) {
     if (typeof value === "string") {
       result[key] = value.length > 500 ? value.slice(0, 500) + "…" : value;
-    } else if (typeof value === "number" || typeof value === "boolean" || value === null) {
+    } else if (
+      typeof value === "number" ||
+      typeof value === "boolean" ||
+      value === null
+    ) {
       result[key] = value;
     } else if (Array.isArray(value)) {
       result[key] = `[Array(${value.length})]`;
@@ -110,7 +132,9 @@ function summarizeObj(obj: Record<string, unknown>): Record<string, unknown> {
   return result;
 }
 
-function extractMetadata(extra: Record<string, unknown>): Record<string, unknown> {
+function extractMetadata(
+  extra: Record<string, unknown>
+): Record<string, unknown> {
   const meta = extra.metadata as Record<string, unknown> | undefined;
   if (!meta) return {};
   return {
@@ -126,12 +150,34 @@ function extractMetadata(extra: Record<string, unknown>): Record<string, unknown
 
 /** Categorize error strings into human-readable labels */
 function categorizeError(errMsg: string): string {
-  if (errMsg.includes("timeout") || errMsg.includes("Timeout") || errMsg.includes("ETIMEDOUT")) return "API 逾時";
-  if (errMsg.includes("JSON") || errMsg.includes("parse")) return "JSON 解析失敗";
-  if (errMsg.includes("prompt") || errMsg.includes("Prompt")) return "Prompt 錯誤";
-  if (errMsg.includes("rate") || errMsg.includes("429") || errMsg.includes("quota")) return "速率限制";
-  if (errMsg.includes("500") || errMsg.includes("502") || errMsg.includes("503")) return "伺服器錯誤";
-  if (errMsg.includes("auth") || errMsg.includes("401") || errMsg.includes("403")) return "認證失敗";
+  if (
+    errMsg.includes("timeout") ||
+    errMsg.includes("Timeout") ||
+    errMsg.includes("ETIMEDOUT")
+  )
+    return "API 逾時";
+  if (errMsg.includes("JSON") || errMsg.includes("parse"))
+    return "JSON 解析失敗";
+  if (errMsg.includes("prompt") || errMsg.includes("Prompt"))
+    return "Prompt 錯誤";
+  if (
+    errMsg.includes("rate") ||
+    errMsg.includes("429") ||
+    errMsg.includes("quota")
+  )
+    return "速率限制";
+  if (
+    errMsg.includes("500") ||
+    errMsg.includes("502") ||
+    errMsg.includes("503")
+  )
+    return "伺服器錯誤";
+  if (
+    errMsg.includes("auth") ||
+    errMsg.includes("401") ||
+    errMsg.includes("403")
+  )
+    return "認證失敗";
   return "其他";
 }
 
@@ -144,7 +190,11 @@ export const langsmithRouter = router({
   status: protectedProcedure.query(async () => {
     const client = await getClient();
     if (!client) {
-      return { connected: false, project: null, message: "LANGSMITH_API_KEY 未設定" };
+      return {
+        connected: false,
+        project: null,
+        message: "LANGSMITH_API_KEY 未設定",
+      };
     }
     try {
       // Quick health check: try to list runs (limit 1)
@@ -159,7 +209,11 @@ export const langsmithRouter = router({
       return { connected: true, project: getProjectName(), message: "已連線" };
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      return { connected: false, project: getProjectName(), message: `連線失敗: ${msg}` };
+      return {
+        connected: false,
+        project: getProjectName(),
+        message: `連線失敗: ${msg}`,
+      };
     }
   }),
 
@@ -171,13 +225,15 @@ export const langsmithRouter = router({
    * 列出最近的 runs（支援過濾：類型、錯誤、自定義標籤、搜尋）
    */
   listRuns: protectedProcedure
-    .input(z.object({
-      limit: z.number().min(1).max(100).default(20),
-      runType: z.enum(["llm", "chain", "tool", "retriever"]).optional(),
-      errorOnly: z.boolean().default(false),
-      search: z.string().optional(),
-      tag: z.string().optional(),
-    }))
+    .input(
+      z.object({
+        limit: z.number().min(1).max(100).default(20),
+        runType: z.enum(["llm", "chain", "tool", "retriever"]).optional(),
+        errorOnly: z.boolean().default(false),
+        search: z.string().optional(),
+        tag: z.string().optional(),
+      })
+    )
     .query(async ({ input }) => {
       const client = await getClient();
       if (!client) return { runs: [], total: 0 };
@@ -187,8 +243,10 @@ export const langsmithRouter = router({
         // Build LangSmith filter string
         const filters: string[] = [];
         if (input.errorOnly) filters.push('eq(status, "error")');
-        if (input.search) filters.push(`search("${input.search.replace(/"/g, '\\"')}")`);
-        if (input.tag) filters.push(`has(tags, "${input.tag.replace(/"/g, '\\"')}")`);
+        if (input.search)
+          filters.push(`search("${input.search.replace(/"/g, '\\"')}")`);
+        if (input.tag)
+          filters.push(`has(tags, "${input.tag.replace(/"/g, '\\"')}")`);
         const filter = filters.length > 0 ? filters.join(" and ") : undefined;
 
         for await (const run of client.listRuns({
@@ -243,7 +301,12 @@ export const langsmithRouter = router({
         totalTokens: number;
         totalCostUsd: number;
         errorBreakdown: Record<string, number>;
-        recentErrors: Array<{ id: string; name: string; error: string; time: string | null }>;
+        recentErrors: Array<{
+          id: string;
+          name: string;
+          error: string;
+          time: string | null;
+        }>;
         hourlyTraffic: Array<{ hour: string; count: number; errors: number }>;
       };
 
@@ -255,8 +318,13 @@ export const langsmithRouter = router({
       if (!client) {
         return {
           connected: false,
-          total: 0, success: 0, errors: 0, successRate: 0,
-          avgLatencyMs: 0, totalTokens: 0, totalCostUsd: 0,
+          total: 0,
+          success: 0,
+          errors: 0,
+          successRate: 0,
+          avgLatencyMs: 0,
+          totalTokens: 0,
+          totalCostUsd: 0,
           errorBreakdown: {} as Record<string, number>,
           recentErrors: [] as HealthResult["recentErrors"],
           hourlyTraffic: [] as HealthResult["hourlyTraffic"],
@@ -313,13 +381,18 @@ export const langsmithRouter = router({
 
           // Latency — use unified helper
           const lat = computeLatencyMs(r);
-          if (lat !== null) { totalLatency += lat; latencyCount++; }
+          if (lat !== null) {
+            totalLatency += lat;
+            latencyCount++;
+          }
 
           // Tokens & cost from metadata
           const extra = r.extra as Record<string, unknown> | undefined;
           const meta = extra?.metadata as Record<string, unknown> | undefined;
-          if (meta?.total_tokens && typeof meta.total_tokens === "number") totalTokens += meta.total_tokens;
-          if (meta?.cost_usd && typeof meta.cost_usd === "number") totalCostUsd += meta.cost_usd;
+          if (meta?.total_tokens && typeof meta.total_tokens === "number")
+            totalTokens += meta.total_tokens;
+          if (meta?.cost_usd && typeof meta.cost_usd === "number")
+            totalCostUsd += meta.cost_usd;
         }
       } catch {
         // LangSmith unavailable
@@ -335,8 +408,10 @@ export const langsmithRouter = router({
         total,
         success,
         errors,
-        successRate: total > 0 ? Math.round((success / total) * 10000) / 100 : 0,
-        avgLatencyMs: latencyCount > 0 ? Math.round(totalLatency / latencyCount) : 0,
+        successRate:
+          total > 0 ? Math.round((success / total) * 10000) / 100 : 0,
+        avgLatencyMs:
+          latencyCount > 0 ? Math.round(totalLatency / latencyCount) : 0,
         totalTokens,
         totalCostUsd: Math.round(totalCostUsd * 100000) / 100000,
         errorBreakdown,
@@ -356,12 +431,14 @@ export const langsmithRouter = router({
    * 對某個 run 建立回饋（點讚/點踩）
    */
   createFeedback: protectedProcedure
-    .input(z.object({
-      runId: z.string().min(1),
-      score: z.number().min(0).max(1),
-      comment: z.string().optional(),
-      feedbackKey: z.string().default("user-rating"),
-    }))
+    .input(
+      z.object({
+        runId: z.string().min(1),
+        score: z.number().min(0).max(1),
+        comment: z.string().optional(),
+        feedbackKey: z.string().default("user-rating"),
+      })
+    )
     .mutation(async ({ ctx, input }) => {
       const client = await getClient();
       if (!client) return { success: false, message: "LangSmith 未連線" };
@@ -438,7 +515,8 @@ export const langsmithRouter = router({
           name: String(d.name ?? ""),
           description: d.description ? String(d.description) : null,
           created_at: d.created_at ? String(d.created_at) : null,
-          example_count: typeof d.example_count === "number" ? d.example_count : 0,
+          example_count:
+            typeof d.example_count === "number" ? d.example_count : 0,
         });
       }
     } catch {
@@ -451,17 +529,22 @@ export const langsmithRouter = router({
    * 將某個 run 的輸入/輸出存入 dataset（案例提取）
    */
   addRunToDataset: adminProcedure
-    .input(z.object({
-      runId: z.string().min(1),
-      datasetName: z.string().min(1),
-    }))
+    .input(
+      z.object({
+        runId: z.string().min(1),
+        datasetName: z.string().min(1),
+      })
+    )
     .mutation(async ({ input }) => {
       const client = await getClient();
       if (!client) return { success: false, message: "LangSmith 未連線" };
 
       try {
         // 1. Read the run
-        const run = await client.readRun(input.runId) as unknown as Record<string, unknown>;
+        const run = (await client.readRun(input.runId)) as unknown as Record<
+          string,
+          unknown
+        >;
         const inputs = run.inputs as Record<string, unknown> | undefined;
         const outputs = run.outputs as Record<string, unknown> | undefined;
 
@@ -470,13 +553,15 @@ export const langsmithRouter = router({
         // 2. Ensure dataset exists
         let dataset: { id: string } | undefined;
         try {
-          const d = await client.readDataset({ datasetName: input.datasetName }) as unknown as Record<string, unknown>;
+          const d = (await client.readDataset({
+            datasetName: input.datasetName,
+          })) as unknown as Record<string, unknown>;
           dataset = { id: String(d.id) };
         } catch {
           // Dataset doesn't exist — create it
-          const d = await client.createDataset(input.datasetName, {
+          const d = (await client.createDataset(input.datasetName, {
             description: `Auto-created from run ${input.runId}`,
-          }) as unknown as Record<string, unknown>;
+          })) as unknown as Record<string, unknown>;
           dataset = { id: String(d.id) };
         }
 
@@ -485,7 +570,10 @@ export const langsmithRouter = router({
           datasetId: dataset.id,
         });
 
-        return { success: true, message: `已加入 Dataset: ${input.datasetName}` };
+        return {
+          success: true,
+          message: `已加入 Dataset: ${input.datasetName}`,
+        };
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
         return { success: false, message: `失敗: ${msg}` };
@@ -527,16 +615,19 @@ export const langsmithRouter = router({
       if (!client) return { models: [], totalRuns: 0 };
 
       // Group runs by model name
-      const modelMap = new Map<string, {
-        runs: number;
-        errors: number;
-        totalLatencyMs: number;
-        latencyCount: number;
-        totalTokens: number;
-        totalCostUsd: number;
-        positiveScores: number;
-        totalScored: number;
-      }>();
+      const modelMap = new Map<
+        string,
+        {
+          runs: number;
+          errors: number;
+          totalLatencyMs: number;
+          latencyCount: number;
+          totalTokens: number;
+          totalCostUsd: number;
+          positiveScores: number;
+          totalScored: number;
+        }
+      >();
 
       let totalRuns = 0;
       try {
@@ -554,9 +645,14 @@ export const langsmithRouter = router({
 
           if (!modelMap.has(model)) {
             modelMap.set(model, {
-              runs: 0, errors: 0, totalLatencyMs: 0, latencyCount: 0,
-              totalTokens: 0, totalCostUsd: 0,
-              positiveScores: 0, totalScored: 0,
+              runs: 0,
+              errors: 0,
+              totalLatencyMs: 0,
+              latencyCount: 0,
+              totalTokens: 0,
+              totalCostUsd: 0,
+              positiveScores: 0,
+              totalScored: 0,
             });
           }
           const entry = modelMap.get(model)!;
@@ -565,15 +661,24 @@ export const langsmithRouter = router({
           if (String(r.status ?? "") === "error") entry.errors++;
 
           const lat = computeLatencyMs(r);
-          if (lat !== null) { entry.totalLatencyMs += lat; entry.latencyCount++; }
+          if (lat !== null) {
+            entry.totalLatencyMs += lat;
+            entry.latencyCount++;
+          }
 
-          if (meta?.total_tokens && typeof meta.total_tokens === "number") entry.totalTokens += meta.total_tokens;
-          if (meta?.cost_usd && typeof meta.cost_usd === "number") entry.totalCostUsd += meta.cost_usd;
+          if (meta?.total_tokens && typeof meta.total_tokens === "number")
+            entry.totalTokens += meta.total_tokens;
+          if (meta?.cost_usd && typeof meta.cost_usd === "number")
+            entry.totalCostUsd += meta.cost_usd;
 
           // Check feedback stats
-          const fbStats = r.feedback_stats as Record<string, unknown> | undefined;
+          const fbStats = r.feedback_stats as
+            | Record<string, unknown>
+            | undefined;
           if (fbStats) {
-            const rating = fbStats["user-rating"] as Record<string, unknown> | undefined;
+            const rating = fbStats["user-rating"] as
+              | Record<string, unknown>
+              | undefined;
             if (rating && typeof rating.avg === "number") {
               entry.totalScored++;
               if (rating.avg >= 0.5) entry.positiveScores++;
@@ -584,19 +689,35 @@ export const langsmithRouter = router({
         // LangSmith unavailable
       }
 
-      const models = Array.from(modelMap.entries()).map(([name, data]) => ({
-        model: name,
-        runs: data.runs,
-        errors: data.errors,
-        successRate: data.runs > 0 ? Math.round(((data.runs - data.errors) / data.runs) * 10000) / 100 : 0,
-        avgLatencyMs: data.latencyCount > 0 ? Math.round(data.totalLatencyMs / data.latencyCount) : 0,
-        totalTokens: data.totalTokens,
-        avgTokensPerRun: data.runs > 0 ? Math.round(data.totalTokens / data.runs) : 0,
-        totalCostUsd: Math.round(data.totalCostUsd * 100000) / 100000,
-        avgCostPerRun: data.runs > 0 ? Math.round((data.totalCostUsd / data.runs) * 1000000) / 1000000 : 0,
-        qualityScore: data.totalScored > 0 ? Math.round((data.positiveScores / data.totalScored) * 100) : null,
-        scoredRuns: data.totalScored,
-      })).sort((a, b) => b.runs - a.runs);
+      const models = Array.from(modelMap.entries())
+        .map(([name, data]) => ({
+          model: name,
+          runs: data.runs,
+          errors: data.errors,
+          successRate:
+            data.runs > 0
+              ? Math.round(((data.runs - data.errors) / data.runs) * 10000) /
+                100
+              : 0,
+          avgLatencyMs:
+            data.latencyCount > 0
+              ? Math.round(data.totalLatencyMs / data.latencyCount)
+              : 0,
+          totalTokens: data.totalTokens,
+          avgTokensPerRun:
+            data.runs > 0 ? Math.round(data.totalTokens / data.runs) : 0,
+          totalCostUsd: Math.round(data.totalCostUsd * 100000) / 100000,
+          avgCostPerRun:
+            data.runs > 0
+              ? Math.round((data.totalCostUsd / data.runs) * 1000000) / 1000000
+              : 0,
+          qualityScore:
+            data.totalScored > 0
+              ? Math.round((data.positiveScores / data.totalScored) * 100)
+              : null,
+          scoredRuns: data.totalScored,
+        }))
+        .sort((a, b) => b.runs - a.runs);
 
       const result = { models, totalRuns };
       setCache(cacheKey, result);
@@ -612,11 +733,13 @@ export const langsmithRouter = router({
    * 篩選標準：score >= threshold 的 runs
    */
   exportFineTuningData: protectedProcedure
-    .input(z.object({
-      limit: z.number().min(1).max(500).default(100),
-      minScore: z.number().min(0).max(1).default(0.5),
-      format: z.enum(["openai", "jsonl"]).default("openai"),
-    }))
+    .input(
+      z.object({
+        limit: z.number().min(1).max(500).default(100),
+        minScore: z.number().min(0).max(1).default(0.5),
+        format: z.enum(["openai", "jsonl"]).default("openai"),
+      })
+    )
     .query(async ({ input }) => {
       const client = await getClient();
       if (!client) return { records: [], total: 0, format: input.format };
@@ -649,11 +772,15 @@ export const langsmithRouter = router({
           const r = run as unknown as Record<string, unknown>;
           const extra = r.extra as Record<string, unknown> | undefined;
           const meta = extra?.metadata as Record<string, unknown> | undefined;
-          const fbStats = r.feedback_stats as Record<string, unknown> | undefined;
+          const fbStats = r.feedback_stats as
+            | Record<string, unknown>
+            | undefined;
 
           let score: number | null = null;
           if (fbStats) {
-            const rating = fbStats["user-rating"] as Record<string, unknown> | undefined;
+            const rating = fbStats["user-rating"] as
+              | Record<string, unknown>
+              | undefined;
             if (rating && typeof rating.avg === "number") {
               score = rating.avg;
             }
@@ -675,7 +802,9 @@ export const langsmithRouter = router({
 
         // Format into export records
         for (const entry of runsWithMeta) {
-          const inputMessages = entry.inputs.messages as Array<{ role: string; content: string }> | undefined;
+          const inputMessages = entry.inputs.messages as
+            | Array<{ role: string; content: string }>
+            | undefined;
           const outputContent = String(entry.outputs.content ?? "");
 
           if (!inputMessages || !outputContent) continue;
@@ -706,7 +835,11 @@ export const langsmithRouter = router({
             { role: "assistant", content: r.assistantResponse },
           ],
         }));
-        return { records: formatted, total: formatted.length, format: "openai" as const };
+        return {
+          records: formatted,
+          total: formatted.length,
+          format: "openai" as const,
+        };
       }
 
       // JSONL format — each line is a separate JSON object
@@ -715,6 +848,10 @@ export const langsmithRouter = router({
         completion: r.assistantResponse,
         metadata: { runId: r.runId, model: r.model, score: r.score },
       }));
-      return { records: formatted, total: formatted.length, format: "jsonl" as const };
+      return {
+        records: formatted,
+        total: formatted.length,
+        format: "jsonl" as const,
+      };
     }),
 });

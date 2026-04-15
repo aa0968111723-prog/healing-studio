@@ -57,7 +57,7 @@ describe("Calendar Drag Scheduling", () => {
     ];
 
     const map = new Map<string, typeof notes>();
-    notes.forEach((note) => {
+    notes.forEach(note => {
       if (note.scheduledDate) {
         const key = new Date(note.scheduledDate).toDateString();
         const existing = map.get(key) || [];
@@ -78,7 +78,7 @@ describe("Calendar Drag Scheduling", () => {
       { id: 3, scheduledDate: undefined, title: "Unscheduled 2" },
     ];
 
-    const unscheduled = notes.filter((n) => !n.scheduledDate);
+    const unscheduled = notes.filter(n => !n.scheduledDate);
     expect(unscheduled.length).toBe(2);
     expect(unscheduled[0].title).toBe("Unscheduled 1");
   });
@@ -155,8 +155,12 @@ describe("SharedSpace One-Click Use", () => {
     expect(studioData.prompt).toBe("golden hour sunset over mountains");
     expect(studioData.generationType).toBe("image");
     expect(studioData.source).toBe("shared_space");
-    expect(studioData.referenceImageUrl).toBe("https://cdn.example.com/sunset.png");
-    expect((studioData.parameterSnapshot as any).styleReferenceUrl).toBe("https://cdn.example.com/sunset.png");
+    expect(studioData.referenceImageUrl).toBe(
+      "https://cdn.example.com/sunset.png"
+    );
+    expect((studioData.parameterSnapshot as any).styleReferenceUrl).toBe(
+      "https://cdn.example.com/sunset.png"
+    );
   });
 
   it("should build correct studio data for video asset", () => {
@@ -181,7 +185,9 @@ describe("SharedSpace One-Click Use", () => {
     }
 
     expect(studioData.generationType).toBe("video");
-    expect((studioData.parameterSnapshot as any).firstFrameUrl).toBe("https://cdn.example.com/bg.mp4");
+    expect((studioData.parameterSnapshot as any).firstFrameUrl).toBe(
+      "https://cdn.example.com/bg.mp4"
+    );
   });
 
   it("should build correct studio data for audio asset", () => {
@@ -217,19 +223,42 @@ describe("SharedSpace One-Click Use", () => {
   });
 
   it("should map non-standard asset types to image", () => {
-    const assetTypes = ["image", "video", "audio", "voice", "script", "zip_bundle"];
-    const results = assetTypes.map((type) => {
-      return ["image", "video", "audio", "voice"].includes(type) ? type : "image";
+    const assetTypes = [
+      "image",
+      "video",
+      "audio",
+      "voice",
+      "script",
+      "zip_bundle",
+    ];
+    const results = assetTypes.map(type => {
+      return ["image", "video", "audio", "voice"].includes(type)
+        ? type
+        : "image";
     });
 
-    expect(results).toEqual(["image", "video", "audio", "voice", "image", "image"]);
+    expect(results).toEqual([
+      "image",
+      "video",
+      "audio",
+      "voice",
+      "image",
+      "image",
+    ]);
   });
 
   it("should identify usable asset types", () => {
     const usableTypes = ["image", "video", "audio", "voice"];
-    const allTypes = ["image", "video", "audio", "voice", "script", "zip_bundle"];
+    const allTypes = [
+      "image",
+      "video",
+      "audio",
+      "voice",
+      "script",
+      "zip_bundle",
+    ];
 
-    allTypes.forEach((type) => {
+    allTypes.forEach(type => {
       const canUse = usableTypes.includes(type);
       if (type === "script" || type === "zip_bundle") {
         expect(canUse).toBe(false);
@@ -295,7 +324,9 @@ describe("SharedSpace One-Click Use", () => {
     expect(deserialized.referenceImageUrl).toBe(original.referenceImageUrl);
     expect(deserialized.fineTunedModelId).toBe(42);
     expect(deserialized.fineTunedModelName).toBe("TestModel");
-    expect(deserialized.parameterSnapshot.styleReferenceUrl).toBe(original.referenceImageUrl);
+    expect(deserialized.parameterSnapshot.styleReferenceUrl).toBe(
+      original.referenceImageUrl
+    );
   });
 });
 
@@ -313,7 +344,7 @@ describe("SharedSpace Modality Labels", () => {
 
   it("should have labels for all asset types", () => {
     const types = ["image", "video", "audio", "voice", "script", "zip_bundle"];
-    types.forEach((type) => {
+    types.forEach(type => {
       expect(MODALITY_LABELS[type]).toBeTruthy();
     });
   });

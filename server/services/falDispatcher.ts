@@ -14,14 +14,21 @@
  *  3. 所有呼叫返回統一的 FalDispatchResult 結構
  */
 
-import { callFalModel, getFalModelById, getFalModelsByCategory, type FalCallInput } from "./falModels";
+import {
+  callFalModel,
+  getFalModelById,
+  getFalModelsByCategory,
+  type FalCallInput,
+} from "./falModels";
 import { estimatePoints, getModelPricing } from "./modelPricing";
 
 // ─── LangSmith 追蹤（fal.ai 多模態模型深度整合）──────────────────────────────
 
 let _langSmithClient: import("langsmith").Client | null = null;
 
-async function getFalLangSmithClient(): Promise<import("langsmith").Client | null> {
+async function getFalLangSmithClient(): Promise<
+  import("langsmith").Client | null
+> {
   const apiKey = process.env.LANGSMITH_API_KEY;
   if (!apiKey) return null;
   if (_langSmithClient) return _langSmithClient;
@@ -29,7 +36,8 @@ async function getFalLangSmithClient(): Promise<import("langsmith").Client | nul
     const { Client } = await import("langsmith");
     _langSmithClient = new Client({
       apiKey,
-      apiUrl: process.env.LANGCHAIN_ENDPOINT || "https://api.smith.langchain.com",
+      apiUrl:
+        process.env.LANGCHAIN_ENDPOINT || "https://api.smith.langchain.com",
     });
     return _langSmithClient;
   } catch {
@@ -88,7 +96,9 @@ async function trackFalLangSmith(opts: {
             data_keys: Object.keys(opts.result),
             points_deducted: opts.pointsDeducted,
             degraded: opts.degraded,
-            ...(opts.originalModel ? { original_model: opts.originalModel } : {}),
+            ...(opts.originalModel
+              ? { original_model: opts.originalModel }
+              : {}),
           }
         : {},
       error: opts.error ?? undefined,
@@ -109,7 +119,6 @@ async function trackFalLangSmith(opts: {
   }
 }
 
-
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
 // ═══════════════════════════════════════════════════════════════════════════
@@ -124,8 +133,8 @@ export interface FalDispatchResult {
   pointsDeducted: number;
   pointsBreakdown: string;
   error?: string;
-  degraded?: boolean;       // true if fell back to alternative model
-  originalModel?: string;   // model that was requested before fallback
+  degraded?: boolean; // true if fell back to alternative model
+  originalModel?: string; // model that was requested before fallback
 }
 
 export interface FalDispatchInput {
@@ -235,38 +244,15 @@ const FALLBACK_CHAINS: Record<string, string[]> = {
     "fal-ai/stable-zero123",
     "fal-ai/zero123plus",
   ],
-  "text-to-3d": [
-    "fal-ai/shap-e",
-    "fal-ai/dreamgaussian",
-  ],
-  "video-to-audio": [
-    "fal-ai/audioldm2",
-    "fal-ai/mmaudio-v2",
-  ],
-  "video-to-text": [
-    "fal-ai/wizper",
-    "fal-ai/whisper",
-  ],
-  "video-to-video": [
-    "fal-ai/wan-v2v",
-    "fal-ai/cogvideox-5b/video-to-video",
-  ],
-  "training": [
-    "fal-ai/flux-lora-fast-training",
-  ],
-  "llm": [
-    "fal-ai/any-llm",
-  ],
-  "json": [
-    "fal-ai/any-llm",
-  ],
-  "text-to-json": [
-    "fal-ai/any-llm",
-  ],
-  "image-to-json": [
-    "fal-ai/llava-next",
-    "fal-ai/moondream",
-  ],
+  "text-to-3d": ["fal-ai/shap-e", "fal-ai/dreamgaussian"],
+  "video-to-audio": ["fal-ai/audioldm2", "fal-ai/mmaudio-v2"],
+  "video-to-text": ["fal-ai/wizper", "fal-ai/whisper"],
+  "video-to-video": ["fal-ai/wan-v2v", "fal-ai/cogvideox-5b/video-to-video"],
+  training: ["fal-ai/flux-lora-fast-training"],
+  llm: ["fal-ai/any-llm"],
+  json: ["fal-ai/any-llm"],
+  "text-to-json": ["fal-ai/any-llm"],
+  "image-to-json": ["fal-ai/llava-next", "fal-ai/moondream"],
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -276,7 +262,9 @@ const FALLBACK_CHAINS: Record<string, string[]> = {
 /**
  * 統一分派函數 — 根據 AI 大腦選定的模型執行 Fal.ai 任務
  */
-export async function dispatchFalTask(input: FalDispatchInput): Promise<FalDispatchResult> {
+export async function dispatchFalTask(
+  input: FalDispatchInput
+): Promise<FalDispatchResult> {
   const { modelId, category, durationSec, charCount } = input;
   // 每次呼叫產生唯一的追蹤 ID
   const runId = `fal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -289,7 +277,9 @@ export async function dispatchFalTask(input: FalDispatchInput): Promise<FalDispa
 
   if (!modelConfig) {
     // 模型不存在，降級到分類的預設降級鏈
-    console.warn(`[FalDispatcher] Model ${targetModelId} not found in catalog, using fallback chain`);
+    console.warn(
+      `[FalDispatcher] Model ${targetModelId} not found in catalog, using fallback chain`
+    );
     const fallbackChain = FALLBACK_CHAINS[category] ?? [];
     const fallback = fallbackChain[0];
     if (fallback) {
@@ -320,7 +310,19 @@ export async function dispatchFalTask(input: FalDispatchInput): Promise<FalDispa
       ...(degraded && { degraded, originalModel }),
     };
     // LangSmith 追蹤：模型不存在
-    trackFalLangSmith({ runId, modelId: targetModelId, category, prompt: input.prompt, inputs: {}, result: null, error: failResult.error!, durationMs: 0, pointsDeducted: estimate.totalPoints, degraded: !!degraded, originalModel }).catch(() => {});
+    trackFalLangSmith({
+      runId,
+      modelId: targetModelId,
+      category,
+      prompt: input.prompt,
+      inputs: {},
+      result: null,
+      error: failResult.error!,
+      durationMs: 0,
+      pointsDeducted: estimate.totalPoints,
+      degraded: !!degraded,
+      originalModel,
+    }).catch(() => {});
     return failResult;
   }
 
@@ -331,12 +333,16 @@ export async function dispatchFalTask(input: FalDispatchInput): Promise<FalDispa
   if (input.imageUrl !== undefined) falInput.image_url = input.imageUrl;
   if (input.videoUrl !== undefined) falInput.video_url = input.videoUrl;
   if (input.audioUrl !== undefined) falInput.audio_url = input.audioUrl;
-  if (input.negativePrompt !== undefined) falInput.negative_prompt = input.negativePrompt;
+  if (input.negativePrompt !== undefined)
+    falInput.negative_prompt = input.negativePrompt;
   if (input.seed !== undefined) falInput.seed = input.seed;
-  if (input.numInferenceSteps !== undefined) falInput.num_inference_steps = input.numInferenceSteps;
-  if (input.guidanceScale !== undefined) falInput.guidance_scale = input.guidanceScale;
+  if (input.numInferenceSteps !== undefined)
+    falInput.num_inference_steps = input.numInferenceSteps;
+  if (input.guidanceScale !== undefined)
+    falInput.guidance_scale = input.guidanceScale;
   if (input.imageSize !== undefined) falInput.image_size = input.imageSize;
-  if (input.aspectRatio !== undefined) falInput.aspect_ratio = input.aspectRatio;
+  if (input.aspectRatio !== undefined)
+    falInput.aspect_ratio = input.aspectRatio;
   if (input.durationSec !== undefined) falInput.duration = input.durationSec;
   if (input.strength !== undefined) falInput.strength = input.strength;
   if (input.loraUrl !== undefined) falInput.lora_url = input.loraUrl;
@@ -345,16 +351,23 @@ export async function dispatchFalTask(input: FalDispatchInput): Promise<FalDispa
   if (input.fps !== undefined) falInput.fps = input.fps;
   if (input.voiceId !== undefined) falInput.voice_id = input.voiceId;
   if (input.speed !== undefined) falInput.speed = input.speed;
-  if (input.exaggeration !== undefined) falInput.exaggeration = input.exaggeration;
-  if (input.trainingSteps !== undefined) falInput.training_steps = input.trainingSteps;
-  if (input.learningRate !== undefined) falInput.learning_rate = input.learningRate;
-  if (input.stylePrompt !== undefined) falInput.style_prompt = input.stylePrompt;
-  if (input.motionBucketId !== undefined) falInput.motion_bucket_id = input.motionBucketId;
-  if (input.condAugmentation !== undefined) falInput.cond_augmentation = input.condAugmentation;
+  if (input.exaggeration !== undefined)
+    falInput.exaggeration = input.exaggeration;
+  if (input.trainingSteps !== undefined)
+    falInput.training_steps = input.trainingSteps;
+  if (input.learningRate !== undefined)
+    falInput.learning_rate = input.learningRate;
+  if (input.stylePrompt !== undefined)
+    falInput.style_prompt = input.stylePrompt;
+  if (input.motionBucketId !== undefined)
+    falInput.motion_bucket_id = input.motionBucketId;
+  if (input.condAugmentation !== undefined)
+    falInput.cond_augmentation = input.condAugmentation;
 
   // ── Step 4: 呼叫 Fal 模型（含完整降級鏈重試） ──
   const startMs = Date.now();
-  const resolvedTimeout = TIMEOUT_OVERRIDES[targetModelId] ?? modelConfig.timeoutMs ?? 120_000;
+  const resolvedTimeout =
+    TIMEOUT_OVERRIDES[targetModelId] ?? modelConfig.timeoutMs ?? 120_000;
   try {
     const result = await callFalModel({
       modelId: targetModelId,
@@ -396,7 +409,9 @@ export async function dispatchFalTask(input: FalDispatchInput): Promise<FalDispa
 
     // ── 4xx 客戶端錯誤不重試（參數錯誤、認證失敗等）──
     if (!isRetryableError(err)) {
-      console.error(`[FalDispatcher] Non-retryable error for ${targetModelId}: ${errMsg}`);
+      console.error(
+        `[FalDispatcher] Non-retryable error for ${targetModelId}: ${errMsg}`
+      );
       const errResult: FalDispatchResult = {
         success: false,
         modelId: targetModelId,
@@ -410,7 +425,19 @@ export async function dispatchFalTask(input: FalDispatchInput): Promise<FalDispa
         ...(degraded && { degraded, originalModel }),
       };
       // LangSmith 追蹤：4xx 不可重試錯誤
-      trackFalLangSmith({ runId, modelId: targetModelId, category, prompt: input.prompt, inputs: falInput, result: null, error: errMsg, durationMs, pointsDeducted: estimate.totalPoints, degraded: !!degraded, originalModel }).catch(() => {});
+      trackFalLangSmith({
+        runId,
+        modelId: targetModelId,
+        category,
+        prompt: input.prompt,
+        inputs: falInput,
+        result: null,
+        error: errMsg,
+        durationMs,
+        pointsDeducted: estimate.totalPoints,
+        degraded: !!degraded,
+        originalModel,
+      }).catch(() => {});
       return errResult;
     }
 
@@ -428,18 +455,36 @@ export async function dispatchFalTask(input: FalDispatchInput): Promise<FalDispa
       const backoffMs = Math.min(1000 * Math.pow(2, i), 8000);
       await new Promise(r => setTimeout(r, backoffMs));
 
-      console.warn(`[FalDispatcher] Primary ${targetModelId} failed, trying fallback ${candidate} (${i + 1}/${fallbackChain.length})`);
+      console.warn(
+        `[FalDispatcher] Primary ${targetModelId} failed, trying fallback ${candidate} (${i + 1}/${fallbackChain.length})`
+      );
       try {
-        const candidateTimeout = TIMEOUT_OVERRIDES[candidate] ?? candidateConfig.timeoutMs ?? 120_000;
+        const candidateTimeout =
+          TIMEOUT_OVERRIDES[candidate] ?? candidateConfig.timeoutMs ?? 120_000;
         const retryResult = await callFalModel({
           modelId: candidate,
           input: falInput,
           timeoutMs: candidateTimeout,
         });
-        const retryEstimate = estimatePoints(candidate, { durationSec, charCount });
+        const retryEstimate = estimatePoints(candidate, {
+          durationSec,
+          charCount,
+        });
         // LangSmith 追蹤：降級成功
         const retryDuration = Date.now() - startMs;
-        trackFalLangSmith({ runId, modelId: candidate, category, prompt: input.prompt, inputs: falInput, result: retryResult.data, error: null, durationMs: retryDuration, pointsDeducted: retryEstimate.totalPoints, degraded: true, originalModel: modelId }).catch(() => {});
+        trackFalLangSmith({
+          runId,
+          modelId: candidate,
+          category,
+          prompt: input.prompt,
+          inputs: falInput,
+          result: retryResult.data,
+          error: null,
+          durationMs: retryDuration,
+          pointsDeducted: retryEstimate.totalPoints,
+          degraded: true,
+          originalModel: modelId,
+        }).catch(() => {});
         return {
           success: true,
           modelId: candidate,
@@ -453,20 +498,37 @@ export async function dispatchFalTask(input: FalDispatchInput): Promise<FalDispa
           originalModel: modelId,
         };
       } catch (retryErr) {
-        lastFallbackError = retryErr instanceof Error ? retryErr.message : String(retryErr);
+        lastFallbackError =
+          retryErr instanceof Error ? retryErr.message : String(retryErr);
         // 如果候選模型也是不可重試錯誤，跳過剩餘候選
         if (!isRetryableError(retryErr)) {
-          console.error(`[FalDispatcher] Fallback ${candidate} non-retryable: ${lastFallbackError}`);
+          console.error(
+            `[FalDispatcher] Fallback ${candidate} non-retryable: ${lastFallbackError}`
+          );
           break;
         }
-        console.warn(`[FalDispatcher] Fallback ${candidate} also failed: ${lastFallbackError}`);
+        console.warn(
+          `[FalDispatcher] Fallback ${candidate} also failed: ${lastFallbackError}`
+        );
       }
     }
 
     // LangSmith 追蹤：所有降級連鎖失敗
     const finalDuration = Date.now() - startMs;
     const finalErrMsg = `${errMsg} (all ${fallbackChain.length} fallbacks exhausted: ${lastFallbackError})`;
-    trackFalLangSmith({ runId, modelId: targetModelId, category, prompt: input.prompt, inputs: falInput, result: null, error: finalErrMsg, durationMs: finalDuration, pointsDeducted: estimate.totalPoints, degraded: !!degraded, originalModel }).catch(() => {});
+    trackFalLangSmith({
+      runId,
+      modelId: targetModelId,
+      category,
+      prompt: input.prompt,
+      inputs: falInput,
+      result: null,
+      error: finalErrMsg,
+      durationMs: finalDuration,
+      pointsDeducted: estimate.totalPoints,
+      degraded: !!degraded,
+      originalModel,
+    }).catch(() => {});
     return {
       success: false,
       modelId: targetModelId,
@@ -494,7 +556,7 @@ export async function dispatchImageGeneration(params: {
   modelId: string;
   prompt: string;
   negativePrompt?: string;
-  imageUrl?: string;   // 若有，使用 image-to-image
+  imageUrl?: string; // 若有，使用 image-to-image
   seed?: number;
   numInferenceSteps?: number;
   guidanceScale?: number;
@@ -524,7 +586,7 @@ export async function dispatchImageGeneration(params: {
 export async function dispatchVideoGeneration(params: {
   modelId: string;
   prompt: string;
-  imageUrl?: string;    // 若有，使用 image-to-video
+  imageUrl?: string; // 若有，使用 image-to-video
   negativePrompt?: string;
   durationSec?: number;
   aspectRatio?: string;
@@ -721,46 +783,74 @@ export interface BrainFalEngines {
 
 /** 預設 Fal 引擎（對應 DB schema 預設值） */
 export const DEFAULT_FAL_ENGINES: BrainFalEngines = {
-  imageToThreeD:  "fal-ai/trellis-2",
-  imageToImage:   "fal-ai/flux/dev/image-to-image",
-  imageToJson:    "fal-ai/any-llm",
-  imageToVideo:   "fal-ai/kling-video/v2.1/pro/image-to-video",
-  json:           "fal-ai/any-llm",
-  llm:            "fal-ai/any-llm",
-  textToThreeD:   "fal-ai/hyper3d/rodin",
-  textToAudio:    "fal-ai/stable-audio",
-  textToImage:    "fal-ai/flux-pro/v1.1",
-  textToJson:     "fal-ai/any-llm",
-  textToSpeech:   "fal-ai/elevenlabs/tts/turbo-v2.5",
-  textToVideo:    "fal-ai/kling-video/v2.1/pro/text-to-video",
-  training:       "fal-ai/flux-lora-fast-training",
-  videoToAudio:   "fal-ai/mmaudio-v2/video-to-audio",
-  videoToText:    "fal-ai/nemotron/asr/stream",
-  videoToVideo:   "fal-ai/kling-video/v2.1/standard/video-to-video",
+  imageToThreeD: "fal-ai/trellis-2",
+  imageToImage: "fal-ai/flux/dev/image-to-image",
+  imageToJson: "fal-ai/any-llm",
+  imageToVideo: "fal-ai/kling-video/v2.1/pro/image-to-video",
+  json: "fal-ai/any-llm",
+  llm: "fal-ai/any-llm",
+  textToThreeD: "fal-ai/hyper3d/rodin",
+  textToAudio: "fal-ai/stable-audio",
+  textToImage: "fal-ai/flux-pro/v1.1",
+  textToJson: "fal-ai/any-llm",
+  textToSpeech: "fal-ai/elevenlabs/tts/turbo-v2.5",
+  textToVideo: "fal-ai/kling-video/v2.1/pro/text-to-video",
+  training: "fal-ai/flux-lora-fast-training",
+  videoToAudio: "fal-ai/mmaudio-v2/video-to-audio",
+  videoToText: "fal-ai/nemotron/asr/stream",
+  videoToVideo: "fal-ai/kling-video/v2.1/standard/video-to-video",
 };
 
 /**
  * 從 DB row 解析 Fal 引擎選擇，不存在則使用預設值
  */
-export function resolveFalEnginesFromRow(row: Record<string, unknown> | null): BrainFalEngines {
+export function resolveFalEnginesFromRow(
+  row: Record<string, unknown> | null
+): BrainFalEngines {
   if (!row) return DEFAULT_FAL_ENGINES;
   return {
-    imageToThreeD:  String(row.falImageTo3dEngine  ?? DEFAULT_FAL_ENGINES.imageToThreeD),
-    imageToImage:   String(row.falImageToImageEngine ?? DEFAULT_FAL_ENGINES.imageToImage),
-    imageToJson:    String(row.falImageToJsonEngine  ?? DEFAULT_FAL_ENGINES.imageToJson),
-    imageToVideo:   String(row.falImageToVideoEngine ?? DEFAULT_FAL_ENGINES.imageToVideo),
-    json:           String(row.falJsonEngine         ?? DEFAULT_FAL_ENGINES.json),
-    llm:            String(row.falLlmEngine           ?? DEFAULT_FAL_ENGINES.llm),
-    textToThreeD:   String(row.falTextTo3dEngine     ?? DEFAULT_FAL_ENGINES.textToThreeD),
-    textToAudio:    String(row.falTextToAudioEngine  ?? DEFAULT_FAL_ENGINES.textToAudio),
-    textToImage:    String(row.falTextToImageEngine  ?? DEFAULT_FAL_ENGINES.textToImage),
-    textToJson:     String(row.falTextToJsonEngine   ?? DEFAULT_FAL_ENGINES.textToJson),
-    textToSpeech:   String(row.falTextToSpeechEngine ?? DEFAULT_FAL_ENGINES.textToSpeech),
-    textToVideo:    String(row.falTextToVideoEngine  ?? DEFAULT_FAL_ENGINES.textToVideo),
-    training:       String(row.falTrainingEngine     ?? DEFAULT_FAL_ENGINES.training),
-    videoToAudio:   String(row.falVideoToAudioEngine ?? DEFAULT_FAL_ENGINES.videoToAudio),
-    videoToText:    String(row.falVideoToTextEngine  ?? DEFAULT_FAL_ENGINES.videoToText),
-    videoToVideo:   String(row.falVideoToVideoEngine ?? DEFAULT_FAL_ENGINES.videoToVideo),
+    imageToThreeD: String(
+      row.falImageTo3dEngine ?? DEFAULT_FAL_ENGINES.imageToThreeD
+    ),
+    imageToImage: String(
+      row.falImageToImageEngine ?? DEFAULT_FAL_ENGINES.imageToImage
+    ),
+    imageToJson: String(
+      row.falImageToJsonEngine ?? DEFAULT_FAL_ENGINES.imageToJson
+    ),
+    imageToVideo: String(
+      row.falImageToVideoEngine ?? DEFAULT_FAL_ENGINES.imageToVideo
+    ),
+    json: String(row.falJsonEngine ?? DEFAULT_FAL_ENGINES.json),
+    llm: String(row.falLlmEngine ?? DEFAULT_FAL_ENGINES.llm),
+    textToThreeD: String(
+      row.falTextTo3dEngine ?? DEFAULT_FAL_ENGINES.textToThreeD
+    ),
+    textToAudio: String(
+      row.falTextToAudioEngine ?? DEFAULT_FAL_ENGINES.textToAudio
+    ),
+    textToImage: String(
+      row.falTextToImageEngine ?? DEFAULT_FAL_ENGINES.textToImage
+    ),
+    textToJson: String(
+      row.falTextToJsonEngine ?? DEFAULT_FAL_ENGINES.textToJson
+    ),
+    textToSpeech: String(
+      row.falTextToSpeechEngine ?? DEFAULT_FAL_ENGINES.textToSpeech
+    ),
+    textToVideo: String(
+      row.falTextToVideoEngine ?? DEFAULT_FAL_ENGINES.textToVideo
+    ),
+    training: String(row.falTrainingEngine ?? DEFAULT_FAL_ENGINES.training),
+    videoToAudio: String(
+      row.falVideoToAudioEngine ?? DEFAULT_FAL_ENGINES.videoToAudio
+    ),
+    videoToText: String(
+      row.falVideoToTextEngine ?? DEFAULT_FAL_ENGINES.videoToText
+    ),
+    videoToVideo: String(
+      row.falVideoToVideoEngine ?? DEFAULT_FAL_ENGINES.videoToVideo
+    ),
   };
 }
 

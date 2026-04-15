@@ -20,13 +20,14 @@ export const loraTrainerRouter = router({
   stats: protectedProcedure.query(async ({ ctx }) => {
     const models = await db.getFineTunedModelsByUser(ctx.user.id);
     const total = models.length;
-    const ready = models.filter((m) => m.status === "ready").length;
-    const training = models.filter((m) => m.status === "training").length;
-    const failed = models.filter((m) => m.status === "failed").length;
-    const pending = models.filter((m) => m.status === "pending").length;
+    const ready = models.filter(m => m.status === "ready").length;
+    const training = models.filter(m => m.status === "training").length;
+    const failed = models.filter(m => m.status === "failed").length;
+    const pending = models.filter(m => m.status === "pending").length;
     const totalUsage = models.reduce(
-      (sum, m) => sum + ((m as Record<string, unknown>).usageCount as number ?? 0),
-      0,
+      (sum, m) =>
+        sum + (((m as Record<string, unknown>).usageCount as number) ?? 0),
+      0
     );
 
     // 各類型統計
@@ -51,9 +52,13 @@ export const loraTrainerRouter = router({
 
     if (replicateToken) {
       try {
-        const { getReplicateClient } = await import("../services/replicateClient.js");
+        const { getReplicateClient } =
+          await import("../services/replicateClient.js");
         const replicate = getReplicateClient(replicateToken);
-        const model = await replicate.models.get("ostris", "flux-dev-lora-trainer");
+        const model = await replicate.models.get(
+          "ostris",
+          "flux-dev-lora-trainer"
+        );
         const modelObj = model as unknown as Record<string, unknown> | null;
         replicateConnected = true;
         replicateMsg = "Replicate API 連線正常";
@@ -71,13 +76,14 @@ export const loraTrainerRouter = router({
 
     return {
       connected: replicateConnected || falConnected,
-      message: replicateConnected && falConnected
-        ? "Replicate + Fal.ai 雙引擎就緒"
-        : replicateConnected
-        ? replicateMsg
-        : falConnected
-        ? falMsg
-        : "未設定任何訓練引擎 API Key",
+      message:
+        replicateConnected && falConnected
+          ? "Replicate + Fal.ai 雙引擎就緒"
+          : replicateConnected
+            ? replicateMsg
+            : falConnected
+              ? falMsg
+              : "未設定任何訓練引擎 API Key",
       trainingModel,
       engines: {
         replicate: { connected: replicateConnected, message: replicateMsg },
@@ -92,7 +98,7 @@ export const loraTrainerRouter = router({
   trainingHistory: protectedProcedure.query(async ({ ctx }) => {
     const models = await db.getFineTunedModelsByUser(ctx.user.id);
 
-    return models.map((m) => {
+    return models.map(m => {
       const config = m.configJson as Record<string, unknown> | null;
       return {
         id: m.id,
@@ -105,10 +111,15 @@ export const loraTrainerRouter = router({
         learningRate: (config?.learningRate as number) ?? 0,
         steps: (config?.steps as number) ?? 0,
         isStyle: (config?.isStyle as boolean) ?? false,
-        predictionId: m.replicatePredictionId || (config?.predictionId as string) || null,
+        predictionId:
+          m.replicatePredictionId || (config?.predictionId as string) || null,
         falModelId: (config?.falModelId as string) || null,
-        trainingEngine: (m as Record<string, unknown>).trainingEngine as string ?? "replicate",
-        trainedLoraUrl: (m as Record<string, unknown>).trainedLoraUrl as string | null,
+        trainingEngine:
+          ((m as Record<string, unknown>).trainingEngine as string) ??
+          "replicate",
+        trainedLoraUrl: (m as Record<string, unknown>).trainedLoraUrl as
+          | string
+          | null,
         datasetImageCount: Array.isArray(config?.datasetImages)
           ? (config.datasetImages as unknown[]).length
           : 0,
@@ -117,7 +128,7 @@ export const loraTrainerRouter = router({
           : 0,
         submittedAt: (config?.submittedAt as number) || null,
         completedAt: (config?.completedAt as number) || null,
-        usageCount: (m as Record<string, unknown>).usageCount as number ?? 0,
+        usageCount: ((m as Record<string, unknown>).usageCount as number) ?? 0,
         visibility: m.visibility,
         createdAt: m.createdAt,
         updatedAt: m.updatedAt,
@@ -145,10 +156,11 @@ export const loraTrainerRouter = router({
 
       if (predictionId && process.env.REPLICATE_API_TOKEN) {
         try {
-          const { getReplicateClient } = await import("../services/replicateClient.js");
+          const { getReplicateClient } =
+            await import("../services/replicateClient.js");
           const replicate = getReplicateClient();
           const prediction = (await replicate.predictions.get(
-            predictionId,
+            predictionId
           )) as unknown as Record<string, unknown>;
           replicateInfo = {
             id: prediction.id,
@@ -184,7 +196,8 @@ export const loraTrainerRouter = router({
         datasetImages: (config?.datasetImages as unknown[]) || [],
         submittedAt: (config?.submittedAt as number) || null,
         completedAt: (config?.completedAt as number) || null,
-        usageCount: (model as Record<string, unknown>).usageCount as number ?? 0,
+        usageCount:
+          ((model as Record<string, unknown>).usageCount as number) ?? 0,
         visibility: model.visibility,
         createdAt: model.createdAt,
         updatedAt: model.updatedAt,

@@ -1,6 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, ChevronRight, ChevronLeft, Sparkles, RotateCcw, Heart } from "lucide-react";
+import {
+  X,
+  ChevronRight,
+  ChevronLeft,
+  Sparkles,
+  RotateCcw,
+  Heart,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 // ─── Tour Step Definition ──────────────────────────────────────────────────
@@ -177,8 +184,10 @@ function TooltipCard({
 
   // If out of viewport, try fallback
   if (
-    (top < 16 || top + tooltipH > window.innerHeight - 16 ||
-      left < 16 || left + tooltipW > window.innerWidth - 16) &&
+    (top < 16 ||
+      top + tooltipH > window.innerHeight - 16 ||
+      left < 16 ||
+      left + tooltipW > window.innerWidth - 16) &&
     step.fallbackPosition
   ) {
     ({ top, left } = calcPosition(step.fallbackPosition));
@@ -217,7 +226,9 @@ function TooltipCard({
         </div>
 
         {/* Content */}
-        <h3 className="text-base font-semibold text-gray-800 mb-2">{step.title}</h3>
+        <h3 className="text-base font-semibold text-gray-800 mb-2">
+          {step.title}
+        </h3>
         <p className="text-sm text-gray-600 leading-relaxed mb-2">
           {step.description}
         </p>
@@ -238,8 +249,8 @@ function TooltipCard({
                     i === stepIndex
                       ? "rgb(245, 158, 11)"
                       : i < stepIndex
-                      ? "rgba(245, 158, 11, 0.4)"
-                      : "rgba(0, 0, 0, 0.08)",
+                        ? "rgba(245, 158, 11, 0.4)"
+                        : "rgba(0, 0, 0, 0.08)",
                 }}
                 className="w-2 h-2 rounded-full"
               />
@@ -300,7 +311,9 @@ export default function OnboardingTour({
         const timer = setTimeout(() => setActive(true), 1500);
         return () => clearTimeout(timer);
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, [forceStart]);
 
   // Listen for restart-tour event
@@ -347,7 +360,11 @@ export default function OnboardingTour({
     setActive(false);
     setCurrentStep(0);
     setTargetRect(null);
-    try { localStorage.setItem(STORAGE_KEY, "true"); } catch { /* ignore */ }
+    try {
+      localStorage.setItem(STORAGE_KEY, "true");
+    } catch {
+      /* ignore */
+    }
     onComplete?.();
   }, [onComplete]);
 
@@ -355,12 +372,12 @@ export default function OnboardingTour({
     if (currentStep >= TOUR_STEPS.length - 1) {
       completeTour();
     } else {
-      setCurrentStep((prev) => prev + 1);
+      setCurrentStep(prev => prev + 1);
     }
   }, [currentStep, completeTour]);
 
   const handlePrev = useCallback(() => {
-    setCurrentStep((prev) => Math.max(0, prev - 1));
+    setCurrentStep(prev => Math.max(0, prev - 1));
   }, []);
 
   const handleSkip = useCallback(() => {
@@ -400,7 +417,11 @@ export function RestartTourButton() {
       size="sm"
       className="gap-2 text-xs"
       onClick={() => {
-        try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+        try {
+          localStorage.removeItem(STORAGE_KEY);
+        } catch {
+          /* ignore */
+        }
         window.dispatchEvent(new CustomEvent("restart-tour"));
       }}
     >

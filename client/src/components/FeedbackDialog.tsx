@@ -10,8 +10,14 @@
 import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  X, MessageSquarePlus, Lightbulb, Bug, Star, Send,
-  CheckCircle2, Loader2,
+  X,
+  MessageSquarePlus,
+  Lightbulb,
+  Bug,
+  Star,
+  Send,
+  CheckCircle2,
+  Loader2,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import type { SceneId } from "@/components/AmbientEnvironment";
@@ -73,9 +79,24 @@ const DIALOG_STYLES: Record<"dark" | "light", DialogStyle> = {
 // ─── Category Options ──────────────────────────────────────────────────────
 
 const FEEDBACK_CATEGORIES = [
-  { value: "bug" as const, label: "錯誤回報", icon: Bug, description: "功能異常或錯誤" },
-  { value: "quality_issue" as const, label: "品質建議", icon: Star, description: "使用體驗改善" },
-  { value: "general" as const, label: "一般意見", icon: MessageSquarePlus, description: "其他想法或建議" },
+  {
+    value: "bug" as const,
+    label: "錯誤回報",
+    icon: Bug,
+    description: "功能異常或錯誤",
+  },
+  {
+    value: "quality_issue" as const,
+    label: "品質建議",
+    icon: Star,
+    description: "使用體驗改善",
+  },
+  {
+    value: "general" as const,
+    label: "一般意見",
+    icon: MessageSquarePlus,
+    description: "其他想法或建議",
+  },
 ];
 
 const PRIORITY_OPTIONS = [
@@ -96,9 +117,9 @@ export default function FeedbackDialog({
   const s = DIALOG_STYLES[isDark ? "dark" : "light"];
 
   // Form state
-  const [category, setCategory] = useState<"bug" | "feature_request" | "quality_issue" | "general">(
-    mode === "feature" ? "feature_request" : "general"
-  );
+  const [category, setCategory] = useState<
+    "bug" | "feature_request" | "quality_issue" | "general"
+  >(mode === "feature" ? "feature_request" : "general");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<"low" | "medium" | "high">("medium");
@@ -151,7 +172,7 @@ export default function FeedbackDialog({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.97 }}
             transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-            onClick={(e) => e.stopPropagation()}
+            onClick={e => e.stopPropagation()}
           >
             {/* ── Success State ── */}
             {submitted ? (
@@ -161,9 +182,11 @@ export default function FeedbackDialog({
                   animate={{ scale: 1 }}
                   transition={{ type: "spring", stiffness: 300, damping: 20 }}
                 >
-                  <CheckCircle2 className={`w-12 h-12 mx-auto mb-4 ${
-                    isDark ? "text-emerald-400" : "text-emerald-600"
-                  }`} />
+                  <CheckCircle2
+                    className={`w-12 h-12 mx-auto mb-4 ${
+                      isDark ? "text-emerald-400" : "text-emerald-600"
+                    }`}
+                  />
                 </motion.div>
                 <h3 className={`hs-h3-lg mb-2 ${s.text}`}>
                   感謝你的{mode === "feature" ? "詢問" : "回饋"}！
@@ -186,9 +209,13 @@ export default function FeedbackDialog({
                 <div className="flex items-center justify-between px-6 pt-5 pb-3">
                   <div className="flex items-center gap-2.5">
                     {mode === "feature" ? (
-                      <Lightbulb className={`w-5 h-5 ${isDark ? "text-amber-400" : "text-amber-600"}`} />
+                      <Lightbulb
+                        className={`w-5 h-5 ${isDark ? "text-amber-400" : "text-amber-600"}`}
+                      />
                     ) : (
-                      <MessageSquarePlus className={`w-5 h-5 ${isDark ? "text-indigo-400" : "text-stone-600"}`} />
+                      <MessageSquarePlus
+                        className={`w-5 h-5 ${isDark ? "text-indigo-400" : "text-stone-600"}`}
+                      />
                     )}
                     <h2 className={`text-base font-semibold ${s.text}`}>
                       {mode === "feature" ? "功能詢問" : "意見回饋"}
@@ -208,11 +235,13 @@ export default function FeedbackDialog({
                   {/* Category selector (only for feedback mode) */}
                   {mode === "feedback" && (
                     <div>
-                      <label className={`text-[11px] font-medium uppercase tracking-wide mb-2 block ${s.textMuted}`}>
+                      <label
+                        className={`text-[11px] font-medium uppercase tracking-wide mb-2 block ${s.textMuted}`}
+                      >
                         回饋類型
                       </label>
                       <div className="flex gap-2">
-                        {FEEDBACK_CATEGORIES.map((cat) => {
+                        {FEEDBACK_CATEGORIES.map(cat => {
                           const Icon = cat.icon;
                           const isActive = category === cat.value;
                           return (
@@ -238,14 +267,20 @@ export default function FeedbackDialog({
 
                   {/* Title */}
                   <div>
-                    <label className={`text-[11px] font-medium uppercase tracking-wide mb-1.5 block ${s.textMuted}`}>
+                    <label
+                      className={`text-[11px] font-medium uppercase tracking-wide mb-1.5 block ${s.textMuted}`}
+                    >
                       {mode === "feature" ? "你想要什麼功能？" : "標題"}
                     </label>
                     <input
                       type="text"
                       value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      placeholder={mode === "feature" ? "例如：希望能支援批次生成圖片" : "簡短描述你的回饋"}
+                      onChange={e => setTitle(e.target.value)}
+                      placeholder={
+                        mode === "feature"
+                          ? "例如：希望能支援批次生成圖片"
+                          : "簡短描述你的回饋"
+                      }
                       className={`w-full px-3.5 py-2.5 rounded-xl text-sm border outline-none transition-colors ${s.inputBg} ${s.inputBorder} ${s.text}`}
                       maxLength={200}
                     />
@@ -253,15 +288,22 @@ export default function FeedbackDialog({
 
                   {/* Description */}
                   <div>
-                    <label className={`text-[11px] font-medium uppercase tracking-wide mb-1.5 block ${s.textMuted}`}>
-                      詳細說明 <span className={`font-normal ${s.textMuted}`}>(選填)</span>
+                    <label
+                      className={`text-[11px] font-medium uppercase tracking-wide mb-1.5 block ${s.textMuted}`}
+                    >
+                      詳細說明{" "}
+                      <span className={`font-normal ${s.textMuted}`}>
+                        (選填)
+                      </span>
                     </label>
                     <textarea
                       value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      placeholder={mode === "feature"
-                        ? "描述你的使用場景和期望的效果..."
-                        : "提供更多細節幫助我們理解..."}
+                      onChange={e => setDescription(e.target.value)}
+                      placeholder={
+                        mode === "feature"
+                          ? "描述你的使用場景和期望的效果..."
+                          : "提供更多細節幫助我們理解..."
+                      }
                       rows={3}
                       className={`w-full px-3.5 py-2.5 rounded-xl text-sm border outline-none transition-colors resize-none ${s.inputBg} ${s.inputBorder} ${s.text}`}
                       maxLength={2000}
@@ -270,11 +312,13 @@ export default function FeedbackDialog({
 
                   {/* Priority (compact) */}
                   <div className="flex items-center gap-3">
-                    <span className={`text-[11px] font-medium uppercase tracking-wide ${s.textMuted}`}>
+                    <span
+                      className={`text-[11px] font-medium uppercase tracking-wide ${s.textMuted}`}
+                    >
                       重要程度
                     </span>
                     <div className="flex gap-1.5">
-                      {PRIORITY_OPTIONS.map((p) => (
+                      {PRIORITY_OPTIONS.map(p => (
                         <button
                           key={p.value}
                           onClick={() => setPriority(p.value)}

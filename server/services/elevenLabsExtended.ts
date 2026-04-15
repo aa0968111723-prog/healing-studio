@@ -62,21 +62,111 @@ export const ELEVENLABS_TTS_MODELS = [
 ] as const;
 
 export const ELEVENLABS_BUILTIN_VOICES = [
-  { voiceId: "21m00Tcm4TlvDq8ikWAM", name: "Rachel", gender: "female", accent: "American", description: "平靜、年輕，適合敘事" },
-  { voiceId: "AZnzlk1XvdvUeBnXmlld", name: "Domi", gender: "female", accent: "American", description: "強勢、自信" },
-  { voiceId: "EXAVITQu4vr4xnSDxMaL", name: "Bella", gender: "female", accent: "American", description: "柔和、溫暖" },
-  { voiceId: "ErXwobaYiN019PkySvjV", name: "Antoni", gender: "male", accent: "American", description: "溫暖正向，適合對話" },
-  { voiceId: "MF3mGyEYCl7XYWbV9V6O", name: "Elli", gender: "female", accent: "American", description: "情感豐富，年輕" },
-  { voiceId: "TxGEqnHWrfWFTfGW9XjX", name: "Josh", gender: "male", accent: "American", description: "低沉、成熟" },
-  { voiceId: "VR6AewLTigWG4xSOukaG", name: "Arnold", gender: "male", accent: "American", description: "成熟男性，有份量" },
-  { voiceId: "pNInz6obpgDQGcFmaJgB", name: "Adam", gender: "male", accent: "American", description: "深沉，紀錄片敘事" },
-  { voiceId: "yoZ06aMxZJJ28mfd3POQ", name: "Sam", gender: "male", accent: "American", description: "理性平穩" },
-  { voiceId: "g5CIjZEefAph4nQFvHAz", name: "Ethan", gender: "male", accent: "American", description: "年輕熱情" },
-  { voiceId: "jBpfuIE2acCO8z3wKNLl", name: "Freya", gender: "female", accent: "British", description: "優雅英式口音" },
-  { voiceId: "oWAxZDx7w5VEj9dCyTzz", name: "Grace", gender: "female", accent: "British", description: "溫柔英式" },
-  { voiceId: "z9fAnlkpzviPz146aGWa", name: "Glinda", gender: "female", accent: "American", description: "甜美、魔法感" },
-  { voiceId: "piTKgcLEGmPE4e6mEKli", name: "Nicole", gender: "female", accent: "American", description: "耳語質感，ASMR" },
-  { voiceId: "onwK4e9ZLuTAKqWW03F9", name: "Daniel", gender: "male", accent: "British", description: "英式男性，新聞主播感" },
+  {
+    voiceId: "21m00Tcm4TlvDq8ikWAM",
+    name: "Rachel",
+    gender: "female",
+    accent: "American",
+    description: "平靜、年輕，適合敘事",
+  },
+  {
+    voiceId: "AZnzlk1XvdvUeBnXmlld",
+    name: "Domi",
+    gender: "female",
+    accent: "American",
+    description: "強勢、自信",
+  },
+  {
+    voiceId: "EXAVITQu4vr4xnSDxMaL",
+    name: "Bella",
+    gender: "female",
+    accent: "American",
+    description: "柔和、溫暖",
+  },
+  {
+    voiceId: "ErXwobaYiN019PkySvjV",
+    name: "Antoni",
+    gender: "male",
+    accent: "American",
+    description: "溫暖正向，適合對話",
+  },
+  {
+    voiceId: "MF3mGyEYCl7XYWbV9V6O",
+    name: "Elli",
+    gender: "female",
+    accent: "American",
+    description: "情感豐富，年輕",
+  },
+  {
+    voiceId: "TxGEqnHWrfWFTfGW9XjX",
+    name: "Josh",
+    gender: "male",
+    accent: "American",
+    description: "低沉、成熟",
+  },
+  {
+    voiceId: "VR6AewLTigWG4xSOukaG",
+    name: "Arnold",
+    gender: "male",
+    accent: "American",
+    description: "成熟男性，有份量",
+  },
+  {
+    voiceId: "pNInz6obpgDQGcFmaJgB",
+    name: "Adam",
+    gender: "male",
+    accent: "American",
+    description: "深沉，紀錄片敘事",
+  },
+  {
+    voiceId: "yoZ06aMxZJJ28mfd3POQ",
+    name: "Sam",
+    gender: "male",
+    accent: "American",
+    description: "理性平穩",
+  },
+  {
+    voiceId: "g5CIjZEefAph4nQFvHAz",
+    name: "Ethan",
+    gender: "male",
+    accent: "American",
+    description: "年輕熱情",
+  },
+  {
+    voiceId: "jBpfuIE2acCO8z3wKNLl",
+    name: "Freya",
+    gender: "female",
+    accent: "British",
+    description: "優雅英式口音",
+  },
+  {
+    voiceId: "oWAxZDx7w5VEj9dCyTzz",
+    name: "Grace",
+    gender: "female",
+    accent: "British",
+    description: "溫柔英式",
+  },
+  {
+    voiceId: "z9fAnlkpzviPz146aGWa",
+    name: "Glinda",
+    gender: "female",
+    accent: "American",
+    description: "甜美、魔法感",
+  },
+  {
+    voiceId: "piTKgcLEGmPE4e6mEKli",
+    name: "Nicole",
+    gender: "female",
+    accent: "American",
+    description: "耳語質感，ASMR",
+  },
+  {
+    voiceId: "onwK4e9ZLuTAKqWW03F9",
+    name: "Daniel",
+    gender: "male",
+    accent: "British",
+    description: "英式男性，新聞主播感",
+  },
 ] as const;
 
 // ─── Types ────────────────────────────────────────────────────────────────
@@ -85,35 +175,35 @@ export interface ElevenLabsTTSV3Params {
   text: string;
   voiceId?: string;
   modelId?: string;
-  stability?: number;           // 0~1
-  similarityBoost?: number;     // 0~1
-  style?: number;               // 0~1 (style exaggeration)
+  stability?: number; // 0~1
+  similarityBoost?: number; // 0~1
+  style?: number; // 0~1 (style exaggeration)
   useSpeakerBoost?: boolean;
-  speed?: number;               // 0.7~1.2
-  emotionTags?: string[];       // ["[excited]", "[whispers]", etc.]
+  speed?: number; // 0.7~1.2
+  emotionTags?: string[]; // ["[excited]", "[whispers]", etc.]
 }
 
 export interface ElevenLabsSoundEffectParams {
   text: string;
-  durationSeconds?: number;     // 0.5~22
-  promptInfluence?: number;     // 0~1
+  durationSeconds?: number; // 0.5~22
+  promptInfluence?: number; // 0~1
 }
 
 export interface ElevenLabsMusicParams {
   prompt: string;
-  durationSeconds?: number;     // 10~300
+  durationSeconds?: number; // 10~300
 }
 
 export interface ElevenLabsVoiceCloneParams {
   name: string;
-  audioUrls: string[];          // 1-25 audio samples
+  audioUrls: string[]; // 1-25 audio samples
   description?: string;
   removeBackgroundNoise?: boolean;
 }
 
 export interface ElevenLabsDubbingParams {
   videoUrl: string;
-  targetLanguage: string;       // BCP-47
+  targetLanguage: string; // BCP-47
   sourceLanguage?: string;
   numSpeakers?: number;
   watermark?: boolean;
@@ -143,14 +233,19 @@ export class ElevenLabsExtendedClient {
     return !!this.apiKey;
   }
 
-  private async fetch(path: string, options: RequestInit = {}): Promise<Response> {
+  private async fetch(
+    path: string,
+    options: RequestInit = {}
+  ): Promise<Response> {
     if (!this.apiKey) throw new Error("ELEVENLABS_API_KEY 未設定");
 
     const res = await fetch(`${this.baseUrl}${path}`, {
       ...options,
       headers: {
         "xi-api-key": this.apiKey,
-        ...(options.body && typeof options.body === "string" ? { "Content-Type": "application/json" } : {}),
+        ...(options.body && typeof options.body === "string"
+          ? { "Content-Type": "application/json" }
+          : {}),
         ...options.headers,
       },
     });
@@ -183,7 +278,9 @@ export class ElevenLabsExtendedClient {
           stability: params.stability ?? 0.5,
           similarity_boost: params.similarityBoost ?? 0.75,
           ...(params.style != null && { style: params.style }),
-          ...(params.useSpeakerBoost != null && { use_speaker_boost: params.useSpeakerBoost }),
+          ...(params.useSpeakerBoost != null && {
+            use_speaker_boost: params.useSpeakerBoost,
+          }),
           ...(params.speed != null && { speed: params.speed }),
         },
       }),
@@ -193,7 +290,9 @@ export class ElevenLabsExtendedClient {
   }
 
   // ── TTS with streaming（低延遲） ─────────────────────────────────────────
-  async textToSpeechStream(params: ElevenLabsTTSV3Params): Promise<ReadableStream> {
+  async textToSpeechStream(
+    params: ElevenLabsTTSV3Params
+  ): Promise<ReadableStream> {
     const voiceId = params.voiceId ?? "21m00Tcm4TlvDq8ikWAM";
     const modelId = params.modelId ?? "eleven_turbo_v2_5";
 
@@ -213,13 +312,19 @@ export class ElevenLabsExtendedClient {
   }
 
   // ── Sound Effects ────────────────────────────────────────────────────────
-  async generateSoundEffect(params: ElevenLabsSoundEffectParams): Promise<Buffer> {
+  async generateSoundEffect(
+    params: ElevenLabsSoundEffectParams
+  ): Promise<Buffer> {
     const res = await this.fetch("/sound-generation", {
       method: "POST",
       body: JSON.stringify({
         text: params.text,
-        ...(params.durationSeconds && { duration_seconds: params.durationSeconds }),
-        ...(params.promptInfluence != null && { prompt_influence: params.promptInfluence }),
+        ...(params.durationSeconds && {
+          duration_seconds: params.durationSeconds,
+        }),
+        ...(params.promptInfluence != null && {
+          prompt_influence: params.promptInfluence,
+        }),
       }),
     });
 
@@ -232,7 +337,9 @@ export class ElevenLabsExtendedClient {
       method: "POST",
       body: JSON.stringify({
         text: params.prompt,
-        ...(params.durationSeconds && { duration_seconds: params.durationSeconds }),
+        ...(params.durationSeconds && {
+          duration_seconds: params.durationSeconds,
+        }),
       }),
     });
 
@@ -240,12 +347,17 @@ export class ElevenLabsExtendedClient {
   }
 
   // ── Voice Cloning ────────────────────────────────────────────────────────
-  async cloneVoice(params: ElevenLabsVoiceCloneParams): Promise<{ voiceId: string; name: string }> {
+  async cloneVoice(
+    params: ElevenLabsVoiceCloneParams
+  ): Promise<{ voiceId: string; name: string }> {
     const formData = new FormData();
     formData.append("name", params.name);
     if (params.description) formData.append("description", params.description);
     if (params.removeBackgroundNoise != null) {
-      formData.append("remove_background_noise", String(params.removeBackgroundNoise));
+      formData.append(
+        "remove_background_noise",
+        String(params.removeBackgroundNoise)
+      );
     }
 
     // Fetch audio files and append
@@ -258,22 +370,29 @@ export class ElevenLabsExtendedClient {
     const res = await this.fetch("/voices/add", {
       method: "POST",
       body: formData,
-      headers: {},  // let browser set Content-Type with boundary
+      headers: {}, // let browser set Content-Type with boundary
     });
 
-    const data = await res.json() as any;
+    const data = (await res.json()) as any;
     return { voiceId: data.voice_id, name: params.name };
   }
 
   // ── Dubbing ──────────────────────────────────────────────────────────────
-  async createDubbing(params: ElevenLabsDubbingParams): Promise<{ dubbingId: string; expectedDurationSec: number }> {
+  async createDubbing(
+    params: ElevenLabsDubbingParams
+  ): Promise<{ dubbingId: string; expectedDurationSec: number }> {
     const formData = new FormData();
     formData.append("target_lang", params.targetLanguage);
-    if (params.sourceLanguage) formData.append("source_lang", params.sourceLanguage);
-    if (params.numSpeakers != null) formData.append("num_speakers", String(params.numSpeakers));
-    if (params.watermark != null) formData.append("watermark", String(params.watermark));
-    if (params.startTime != null) formData.append("start_time", String(params.startTime));
-    if (params.endTime != null) formData.append("end_time", String(params.endTime));
+    if (params.sourceLanguage)
+      formData.append("source_lang", params.sourceLanguage);
+    if (params.numSpeakers != null)
+      formData.append("num_speakers", String(params.numSpeakers));
+    if (params.watermark != null)
+      formData.append("watermark", String(params.watermark));
+    if (params.startTime != null)
+      formData.append("start_time", String(params.startTime));
+    if (params.endTime != null)
+      formData.append("end_time", String(params.endTime));
     formData.append("mode", "automatic");
 
     // Fetch video
@@ -287,7 +406,7 @@ export class ElevenLabsExtendedClient {
       headers: {},
     });
 
-    const data = await res.json() as any;
+    const data = (await res.json()) as any;
     return {
       dubbingId: data.dubbing_id,
       expectedDurationSec: data.expected_duration_sec ?? 60,
@@ -295,9 +414,11 @@ export class ElevenLabsExtendedClient {
   }
 
   /** 查詢配音狀態 */
-  async getDubbingStatus(dubbingId: string): Promise<{ status: string; error?: string }> {
+  async getDubbingStatus(
+    dubbingId: string
+  ): Promise<{ status: string; error?: string }> {
     const res = await this.fetch(`/dubbing/${dubbingId}`);
-    const data = await res.json() as any;
+    const data = (await res.json()) as any;
     return { status: data.status, error: data.error };
   }
 
@@ -310,12 +431,19 @@ export class ElevenLabsExtendedClient {
   // ── Transcription (Scribe) ───────────────────────────────────────────────
   async transcribe(params: ElevenLabsTranscriptionParams): Promise<{
     text: string;
-    words: Array<{ text: string; start: number; end: number; speaker?: string }>;
+    words: Array<{
+      text: string;
+      start: number;
+      end: number;
+      speaker?: string;
+    }>;
   }> {
     const formData = new FormData();
     formData.append("model_id", params.modelId ?? "scribe_v1");
-    if (params.languageCode) formData.append("language_code", params.languageCode);
-    if (params.diarize != null) formData.append("diarize", String(params.diarize));
+    if (params.languageCode)
+      formData.append("language_code", params.languageCode);
+    if (params.diarize != null)
+      formData.append("diarize", String(params.diarize));
     if (params.timestampsGranularity) {
       formData.append("timestamps_granularity", params.timestampsGranularity);
     }
@@ -331,7 +459,7 @@ export class ElevenLabsExtendedClient {
       headers: {},
     });
 
-    const data = await res.json() as any;
+    const data = (await res.json()) as any;
     return {
       text: data.text ?? "",
       words: (data.words ?? []).map((w: any) => ({
@@ -344,16 +472,18 @@ export class ElevenLabsExtendedClient {
   }
 
   // ── List Voices ──────────────────────────────────────────────────────────
-  async listVoices(): Promise<Array<{
-    voiceId: string;
-    name: string;
-    category: string;
-    description: string;
-    previewUrl: string;
-    labels: Record<string, string>;
-  }>> {
+  async listVoices(): Promise<
+    Array<{
+      voiceId: string;
+      name: string;
+      category: string;
+      description: string;
+      previewUrl: string;
+      labels: Record<string, string>;
+    }>
+  > {
     const res = await this.fetch("/voices");
-    const data = await res.json() as any;
+    const data = (await res.json()) as any;
 
     return (data.voices ?? []).map((v: any) => ({
       voiceId: v.voice_id,
@@ -366,15 +496,17 @@ export class ElevenLabsExtendedClient {
   }
 
   // ── Get Models ───────────────────────────────────────────────────────────
-  async listModels(): Promise<Array<{
-    modelId: string;
-    name: string;
-    description: string;
-    canBeFineTuned: boolean;
-    languages: Array<{ languageId: string; name: string }>;
-  }>> {
+  async listModels(): Promise<
+    Array<{
+      modelId: string;
+      name: string;
+      description: string;
+      canBeFineTuned: boolean;
+      languages: Array<{ languageId: string; name: string }>;
+    }>
+  > {
     const res = await this.fetch("/models");
-    const data = await res.json() as any;
+    const data = (await res.json()) as any;
 
     return (Array.isArray(data) ? data : []).map((m: any) => ({
       modelId: m.model_id,

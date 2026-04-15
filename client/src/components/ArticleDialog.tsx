@@ -14,9 +14,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { trpc } from "@/lib/trpc";
 import LazyStreamdown from "@/components/LazyStreamdown";
-import {
-  X, ExternalLink, Clock, Eye, Loader2, Newspaper,
-} from "lucide-react";
+import { X, ExternalLink, Clock, Eye, Loader2, Newspaper } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { SceneId } from "@/components/AmbientEnvironment";
@@ -51,7 +49,8 @@ const DIALOG_SCENE_STYLES: Record<SceneId, DialogSceneStyles> = {
     closeBtnBg: "bg-white/5 hover:bg-white/10",
     closeBtnHover: "hover:text-white",
     divider: "border-white/5",
-    proseClass: "prose-invert prose-p:text-slate-300 prose-headings:text-white prose-a:text-indigo-300 prose-strong:text-white prose-blockquote:border-indigo-400/30 prose-blockquote:text-slate-400 prose-code:text-indigo-200 prose-code:bg-indigo-900/30",
+    proseClass:
+      "prose-invert prose-p:text-slate-300 prose-headings:text-white prose-a:text-indigo-300 prose-strong:text-white prose-blockquote:border-indigo-400/30 prose-blockquote:text-slate-400 prose-code:text-indigo-200 prose-code:bg-indigo-900/30",
   },
   morning: {
     overlayBg: "rgba(255,240,220,0.6)",
@@ -65,7 +64,8 @@ const DIALOG_SCENE_STYLES: Record<SceneId, DialogSceneStyles> = {
     closeBtnBg: "bg-amber-100/50 hover:bg-amber-100",
     closeBtnHover: "hover:text-amber-900",
     divider: "border-amber-200/30",
-    proseClass: "prose-amber prose-p:text-amber-900 prose-headings:text-amber-950 prose-a:text-amber-600 prose-strong:text-amber-950 prose-blockquote:border-amber-300 prose-blockquote:text-amber-700 prose-code:text-amber-800 prose-code:bg-amber-50",
+    proseClass:
+      "prose-amber prose-p:text-amber-900 prose-headings:text-amber-950 prose-a:text-amber-600 prose-strong:text-amber-950 prose-blockquote:border-amber-300 prose-blockquote:text-amber-700 prose-code:text-amber-800 prose-code:bg-amber-50",
   },
   cafe: {
     overlayBg: "rgba(240,230,215,0.6)",
@@ -79,7 +79,8 @@ const DIALOG_SCENE_STYLES: Record<SceneId, DialogSceneStyles> = {
     closeBtnBg: "bg-stone-100/50 hover:bg-stone-200/70",
     closeBtnHover: "hover:text-stone-900",
     divider: "border-stone-200/30",
-    proseClass: "prose-stone prose-p:text-stone-700 prose-headings:text-stone-900 prose-a:text-stone-600 prose-strong:text-stone-900 prose-blockquote:border-stone-300 prose-blockquote:text-stone-500 prose-code:text-stone-800 prose-code:bg-stone-100",
+    proseClass:
+      "prose-stone prose-p:text-stone-700 prose-headings:text-stone-900 prose-a:text-stone-600 prose-strong:text-stone-900 prose-blockquote:border-stone-300 prose-blockquote:text-stone-500 prose-code:text-stone-800 prose-code:bg-stone-100",
   },
   deepSea: {
     overlayBg: "rgba(5,20,40,0.75)",
@@ -93,7 +94,8 @@ const DIALOG_SCENE_STYLES: Record<SceneId, DialogSceneStyles> = {
     closeBtnBg: "bg-white/5 hover:bg-white/10",
     closeBtnHover: "hover:text-cyan-50",
     divider: "border-cyan-500/10",
-    proseClass: "prose-invert prose-p:text-cyan-200 prose-headings:text-cyan-50 prose-a:text-cyan-300 prose-strong:text-cyan-50 prose-blockquote:border-cyan-400/30 prose-blockquote:text-cyan-300/60 prose-code:text-cyan-200 prose-code:bg-cyan-900/30",
+    proseClass:
+      "prose-invert prose-p:text-cyan-200 prose-headings:text-cyan-50 prose-a:text-cyan-300 prose-strong:text-cyan-50 prose-blockquote:border-cyan-400/30 prose-blockquote:text-cyan-300/60 prose-code:text-cyan-200 prose-code:bg-cyan-900/30",
   },
 };
 
@@ -189,13 +191,21 @@ interface ArticleDialogProps {
   sceneId: SceneId;
 }
 
-export default function ArticleDialog({ newsId, onClose, sceneId }: ArticleDialogProps) {
+export default function ArticleDialog({
+  newsId,
+  onClose,
+  sceneId,
+}: ArticleDialogProps) {
   const isOpen = newsId !== null;
   const styles = DIALOG_SCENE_STYLES[sceneId];
   const contentRef = useRef<HTMLDivElement>(null);
 
   // Lazy fetch: only when dialog is open
-  const { data: article, isLoading, error } = trpc.news.getById.useQuery(
+  const {
+    data: article,
+    isLoading,
+    error,
+  } = trpc.news.getById.useQuery(
     { id: newsId! },
     {
       enabled: isOpen && newsId !== null,
@@ -220,7 +230,8 @@ export default function ArticleDialog({ newsId, onClose, sceneId }: ArticleDialo
 
   const weightLabel = article ? getWeightLabel(article.tags) : "General Update";
   const weightLabelZh = WEIGHT_LABEL_ZH[weightLabel] || "一般更新";
-  const weightLabelColor = WEIGHT_LABEL_COLOR[weightLabel] || "text-slate-400 bg-slate-400/10";
+  const weightLabelColor =
+    WEIGHT_LABEL_COLOR[weightLabel] || "text-slate-400 bg-slate-400/10";
 
   return (
     <DialogPrimitive.Root open={isOpen} onOpenChange={handleOpenChange}>
@@ -241,7 +252,11 @@ export default function ArticleDialog({ newsId, onClose, sceneId }: ArticleDialo
             </DialogPrimitive.Overlay>
 
             {/* ── Animated Content ── */}
-            <DialogPrimitive.Content asChild forceMount onOpenAutoFocus={(e) => e.preventDefault()}>
+            <DialogPrimitive.Content
+              asChild
+              forceMount
+              onOpenAutoFocus={e => e.preventDefault()}
+            >
               <motion.div
                 className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-8"
                 variants={contentVariants}
@@ -272,19 +287,29 @@ export default function ArticleDialog({ newsId, onClose, sceneId }: ArticleDialo
                     <div className="flex flex-col items-center justify-center py-24 gap-4">
                       <motion.div
                         animate={{ rotate: 360 }}
-                        transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
+                        transition={{
+                          duration: 1.2,
+                          repeat: Infinity,
+                          ease: "linear",
+                        }}
                       >
                         <Loader2 className={`w-8 h-8 ${styles.textMuted}`} />
                       </motion.div>
-                      <p className={`text-sm ${styles.textMuted}`}>載入文章中...</p>
+                      <p className={`text-sm ${styles.textMuted}`}>
+                        載入文章中...
+                      </p>
                     </div>
                   )}
 
                   {/* ── Error State ── */}
                   {error && !isLoading && (
                     <div className="flex flex-col items-center justify-center py-24 gap-4">
-                      <Newspaper className={`w-10 h-10 ${styles.textMuted} opacity-40`} />
-                      <p className={`text-sm ${styles.textMuted}`}>無法載入文章內容</p>
+                      <Newspaper
+                        className={`w-10 h-10 ${styles.textMuted} opacity-40`}
+                      />
+                      <p className={`text-sm ${styles.textMuted}`}>
+                        無法載入文章內容
+                      </p>
                       <Button
                         variant="outline"
                         size="sm"
@@ -311,7 +336,9 @@ export default function ArticleDialog({ newsId, onClose, sceneId }: ArticleDialo
                           >
                             {weightLabelZh}
                           </span>
-                          <span className={`hs-small !mb-0 flex items-center gap-1 ${styles.textMuted}`}>
+                          <span
+                            className={`hs-small !mb-0 flex items-center gap-1 ${styles.textMuted}`}
+                          >
                             <Clock className="w-3 h-3" />
                             {formatDate(article.publishedAt)}
                           </span>
@@ -325,8 +352,12 @@ export default function ArticleDialog({ newsId, onClose, sceneId }: ArticleDialo
                         </DialogPrimitive.Title>
 
                         {/* Meta row */}
-                        <div className={`flex items-center gap-4 mt-3 hs-small !mb-0 ${styles.textMuted}`}>
-                          <span className="truncate max-w-[200px]">{article.sourceName}</span>
+                        <div
+                          className={`flex items-center gap-4 mt-3 hs-small !mb-0 ${styles.textMuted}`}
+                        >
+                          <span className="truncate max-w-[200px]">
+                            {article.sourceName}
+                          </span>
                           {article.viewCount > 0 && (
                             <span className="flex items-center gap-1">
                               <Eye className="w-3 h-3" />
@@ -349,19 +380,29 @@ export default function ArticleDialog({ newsId, onClose, sceneId }: ArticleDialo
                       </div>
 
                       {/* Divider */}
-                      <div className={`mx-6 sm:mx-8 border-t ${styles.divider}`} />
+                      <div
+                        className={`mx-6 sm:mx-8 border-t ${styles.divider}`}
+                      />
 
                       {/* Body */}
                       <ScrollArea className="flex-1 min-h-0" ref={contentRef}>
                         <motion.div
                           initial={{ opacity: 0, y: 12 }}
                           animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 0.2, duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                          transition={{
+                            delay: 0.2,
+                            duration: 0.5,
+                            ease: [0.16, 1, 0.3, 1],
+                          }}
                           className="px-6 sm:px-8 py-6"
                         >
                           {article.bodyMarkdown ? (
-                            <div className={`prose prose-sm max-w-none ${styles.proseClass} prose-p:leading-relaxed prose-headings:tracking-tight prose-img:rounded-xl prose-pre:rounded-xl`}>
-                              <LazyStreamdown>{article.bodyMarkdown}</LazyStreamdown>
+                            <div
+                              className={`prose prose-sm max-w-none ${styles.proseClass} prose-p:leading-relaxed prose-headings:tracking-tight prose-img:rounded-xl prose-pre:rounded-xl`}
+                            >
+                              <LazyStreamdown>
+                                {article.bodyMarkdown}
+                              </LazyStreamdown>
                             </div>
                           ) : (
                             <div className="flex flex-col items-center py-8 gap-3">

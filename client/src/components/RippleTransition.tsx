@@ -213,7 +213,10 @@ export default function RippleTransition({
 
   // Generate particle angles
   const particleAngles = useRef(
-    Array.from({ length: 8 }, (_, i) => (i * Math.PI * 2) / 8 + (Math.random() - 0.5) * 0.4)
+    Array.from(
+      { length: 8 },
+      (_, i) => (i * Math.PI * 2) / 8 + (Math.random() - 0.5) * 0.4
+    )
   );
 
   return (
@@ -338,7 +341,7 @@ export function useRippleTransition() {
   }, []);
 
   const resetRipple = useCallback(() => {
-    setRippleState((prev) => ({ ...prev, active: false }));
+    setRippleState(prev => ({ ...prev, active: false }));
   }, []);
 
   return {

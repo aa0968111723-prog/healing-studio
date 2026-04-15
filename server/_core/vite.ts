@@ -58,17 +58,19 @@ export function serveStatic(app: Express) {
     );
   }
 
-  app.use(express.static(distPath, {
-    // Hashed filenames (assets/js/[name]-[hash].js) → cache for 1 year
-    maxAge: "1y",
-    immutable: true,
-    setHeaders(res, filePath) {
-      // index.html must not be cached (so new deploys take effect)
-      if (filePath.endsWith(".html")) {
-        res.setHeader("Cache-Control", "no-cache");
-      }
-    },
-  }));
+  app.use(
+    express.static(distPath, {
+      // Hashed filenames (assets/js/[name]-[hash].js) → cache for 1 year
+      maxAge: "1y",
+      immutable: true,
+      setHeaders(res, filePath) {
+        // index.html must not be cached (so new deploys take effect)
+        if (filePath.endsWith(".html")) {
+          res.setHeader("Cache-Control", "no-cache");
+        }
+      },
+    })
+  );
 
   // fall through to index.html if the file doesn't exist (SPA catch-all)
   app.use("*", (_req, res) => {

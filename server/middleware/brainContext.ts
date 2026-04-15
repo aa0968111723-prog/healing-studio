@@ -108,11 +108,11 @@ export const DEFAULT_REASONING_BRAINS: Record<
   ReasoningBrainSlot,
   { model: string; temperature: number; topP: number }
 > = {
-  director:    { model: "gemini-2.5-pro",   temperature: 0.7,  topP: 0.9  },
-  analyst:     { model: "gemini-2.5-flash",  temperature: 0.3,  topP: 0.8  },
-  storyteller: { model: "gemini-2.5-pro",   temperature: 0.9,  topP: 0.95 },
-  technician:  { model: "gemini-2.5-flash",  temperature: 0.2,  topP: 0.7  },
-  curator:     { model: "gemini-2.5-flash",  temperature: 0.8,  topP: 0.9  },
+  director: { model: "gemini-2.5-pro", temperature: 0.7, topP: 0.9 },
+  analyst: { model: "gemini-2.5-flash", temperature: 0.3, topP: 0.8 },
+  storyteller: { model: "gemini-2.5-pro", temperature: 0.9, topP: 0.95 },
+  technician: { model: "gemini-2.5-flash", temperature: 0.2, topP: 0.7 },
+  curator: { model: "gemini-2.5-flash", temperature: 0.8, topP: 0.9 },
 };
 
 export const DEFAULT_GENERATION_ENGINES: Record<
@@ -120,7 +120,10 @@ export const DEFAULT_GENERATION_ENGINES: Record<
   { engine: string; params: Record<string, unknown> | null }
 > = {
   imageEngine: { engine: "fal-ai/flux-pro/v1.1", params: null },
-  videoEngine: { engine: "fal-ai/kling-video/v2.1/standard/text-to-video", params: null },
+  videoEngine: {
+    engine: "fal-ai/kling-video/v2.1/standard/text-to-video",
+    params: null,
+  },
   audioEngine: { engine: "fal-ai/sonauto", params: null },
   voiceEngine: { engine: "fal-ai/elevenlabs/tts/turbo-v2.5", params: null },
 };
@@ -128,41 +131,66 @@ export const DEFAULT_GENERATION_ENGINES: Record<
 /** 每個引擎的備援候選清單（按優先順序） */
 const ENGINE_FALLBACK_CHAIN: Record<string, string[]> = {
   // 推理大腦（Gemini 模型族）
-  "gemini-2.5-pro":   ["gemini-2.5-flash", "gemini-1.5-pro"],
+  "gemini-2.5-pro": ["gemini-2.5-flash", "gemini-1.5-pro"],
   "gemini-2.5-flash": ["gemini-1.5-flash", "gemini-2.5-pro"],
-  "gemini-1.5-pro":   ["gemini-2.5-pro",   "gemini-1.5-flash"],
-  "gemini-1.5-flash": ["gemini-2.5-flash",  "gemini-1.5-pro"],
+  "gemini-1.5-pro": ["gemini-2.5-pro", "gemini-1.5-flash"],
+  "gemini-1.5-flash": ["gemini-2.5-flash", "gemini-1.5-pro"],
   // MiniMax M2.7（NVIDIA NIM 代理人引擎）→ 降級到 Gemini
   "minimaxai/minimax-m2.7": ["gemini-2.5-flash", "gemini-2.5-pro"],
   // OpenAI 模型名稱 → Gemini fallback（向後相容，防止舊設定觸發 404）
-  "gpt-4o":           ["gemini-2.5-pro",   "gemini-2.5-flash"],
-  "gpt-4o-mini":      ["gemini-2.5-flash",  "gemini-1.5-flash"],
-  "gpt-3.5-turbo":    ["gemini-2.5-flash",  "gemini-1.5-flash"],
-  "claude-3.5-sonnet":["gemini-2.5-pro",   "gemini-2.5-flash"],
-  "claude-3-opus":    ["gemini-2.5-pro",   "gemini-1.5-pro"],
-  "claude-3-haiku":   ["gemini-2.5-flash",  "gemini-1.5-flash"],
+  "gpt-4o": ["gemini-2.5-pro", "gemini-2.5-flash"],
+  "gpt-4o-mini": ["gemini-2.5-flash", "gemini-1.5-flash"],
+  "gpt-3.5-turbo": ["gemini-2.5-flash", "gemini-1.5-flash"],
+  "claude-3.5-sonnet": ["gemini-2.5-pro", "gemini-2.5-flash"],
+  "claude-3-opus": ["gemini-2.5-pro", "gemini-1.5-pro"],
+  "claude-3-haiku": ["gemini-2.5-flash", "gemini-1.5-flash"],
   // Vertex AI 路徑 → 直接 Gemini fallback
-  "vertex/gemini-2.5-pro":   ["gemini-2.5-pro",   "gemini-2.5-flash"],
-  "vertex/gemini-2.5-flash":  ["gemini-2.5-flash",  "gemini-1.5-flash"],
+  "vertex/gemini-2.5-pro": ["gemini-2.5-pro", "gemini-2.5-flash"],
+  "vertex/gemini-2.5-flash": ["gemini-2.5-flash", "gemini-1.5-flash"],
   // 圖像引擎（實際 Fal.ai 模型 ID）
-  "fal-ai/flux-pro/v1.1": ["fal-ai/fast-sdxl", "fal-ai/stable-diffusion-v35-large"],
+  "fal-ai/flux-pro/v1.1": [
+    "fal-ai/fast-sdxl",
+    "fal-ai/stable-diffusion-v35-large",
+  ],
   "fal-ai/nano-banana-2": ["fal-ai/nano-banana-pro", "fal-ai/flux-pro/v1.1"],
   "fal-ai/nano-banana-pro": ["fal-ai/nano-banana-2", "fal-ai/flux-pro/v1.1"],
   "fal-ai/imagen4/preview": ["fal-ai/nano-banana-2", "fal-ai/flux-pro/v1.1"],
-  "fal-ai/fast-sdxl": ["fal-ai/flux-pro/v1.1", "fal-ai/stable-diffusion-v35-large"],
+  "fal-ai/fast-sdxl": [
+    "fal-ai/flux-pro/v1.1",
+    "fal-ai/stable-diffusion-v35-large",
+  ],
   // 圖像引擎（向後相容舊別名）
   "flux-pro": ["fal-ai/flux-pro/v1.1", "flux-schnell", "dall-e-3"],
   "flux-schnell": ["flux-pro", "dall-e-3"],
   "dall-e-3": ["flux-pro", "flux-schnell"],
   "stable-diffusion-xl": ["flux-pro", "dall-e-3"],
   // 影片引擎（實際 Fal.ai 模型 ID）
-  "fal-ai/kling-video/v2.1/standard/text-to-video": ["fal-ai/wan/v2.2-14b", "fal-ai/minimax/video-01"],
-  "fal-ai/kling-video/v2.1/standard/image-to-video": ["fal-ai/minimax/video-01/image-to-video", "fal-ai/pixverse/v4.5/image-to-video"],
-  "fal-ai/wan/v2.2-14b": ["fal-ai/kling-video/v2.1/standard/text-to-video", "fal-ai/minimax/video-01"],
-  "fal-ai/veo3": ["fal-ai/kling-video/v2.1/standard/text-to-video", "fal-ai/wan/v2.2-14b"],
-  "fal-ai/minimax/video-01": ["fal-ai/kling-video/v2.1/standard/text-to-video", "fal-ai/wan/v2.2-14b"],
+  "fal-ai/kling-video/v2.1/standard/text-to-video": [
+    "fal-ai/wan/v2.2-14b",
+    "fal-ai/minimax/video-01",
+  ],
+  "fal-ai/kling-video/v2.1/standard/image-to-video": [
+    "fal-ai/minimax/video-01/image-to-video",
+    "fal-ai/pixverse/v4.5/image-to-video",
+  ],
+  "fal-ai/wan/v2.2-14b": [
+    "fal-ai/kling-video/v2.1/standard/text-to-video",
+    "fal-ai/minimax/video-01",
+  ],
+  "fal-ai/veo3": [
+    "fal-ai/kling-video/v2.1/standard/text-to-video",
+    "fal-ai/wan/v2.2-14b",
+  ],
+  "fal-ai/minimax/video-01": [
+    "fal-ai/kling-video/v2.1/standard/text-to-video",
+    "fal-ai/wan/v2.2-14b",
+  ],
   // 影片引擎（向後相容舊別名）
-  "kling-v1": ["fal-ai/kling-video/v2.1/standard/text-to-video", "kling-v1-5", "minimax-video"],
+  "kling-v1": [
+    "fal-ai/kling-video/v2.1/standard/text-to-video",
+    "kling-v1-5",
+    "minimax-video",
+  ],
   "kling-v1-5": ["kling-v1", "minimax-video"],
   "minimax-video": ["fal-ai/minimax/video-01", "kling-v1", "kling-v1-5"],
   // 音樂引擎（實際 Fal.ai 模型 ID）
@@ -174,11 +202,24 @@ const ENGINE_FALLBACK_CHAIN: Record<string, string[]> = {
   "suno-v3.5": ["suno-v4", "udio-v1"],
   "udio-v1": ["suno-v4", "suno-v3.5"],
   // 語音引擎（實際 Fal.ai 模型 ID）
-  "fal-ai/elevenlabs/tts/turbo-v2.5": ["fal-ai/qwen-3-tts/text-to-speech/1.7b", "fal-ai/dia-tts/voice-clone"],
-  "fal-ai/qwen-3-tts/text-to-speech/1.7b": ["fal-ai/elevenlabs/tts/turbo-v2.5", "fal-ai/dia-tts/voice-clone"],
-  "fal-ai/dia-tts/voice-clone": ["fal-ai/elevenlabs/tts/turbo-v2.5", "fal-ai/qwen-3-tts/text-to-speech/1.7b"],
+  "fal-ai/elevenlabs/tts/turbo-v2.5": [
+    "fal-ai/qwen-3-tts/text-to-speech/1.7b",
+    "fal-ai/dia-tts/voice-clone",
+  ],
+  "fal-ai/qwen-3-tts/text-to-speech/1.7b": [
+    "fal-ai/elevenlabs/tts/turbo-v2.5",
+    "fal-ai/dia-tts/voice-clone",
+  ],
+  "fal-ai/dia-tts/voice-clone": [
+    "fal-ai/elevenlabs/tts/turbo-v2.5",
+    "fal-ai/qwen-3-tts/text-to-speech/1.7b",
+  ],
   // 語音引擎（向後相容舊別名）
-  "elevenlabs-v2": ["fal-ai/elevenlabs/tts/turbo-v2.5", "elevenlabs-v1", "azure-tts"],
+  "elevenlabs-v2": [
+    "fal-ai/elevenlabs/tts/turbo-v2.5",
+    "elevenlabs-v1",
+    "azure-tts",
+  ],
   "elevenlabs-v1": ["elevenlabs-v2", "azure-tts"],
   "azure-tts": ["elevenlabs-v2", "elevenlabs-v1"],
 };
@@ -315,8 +356,8 @@ const KNOWN_MODELS = new Set([
   "fal-ai/stable-diffusion-v3-medium",
   "fal-ai/aura-flow",
   "fal-ai/ideogram/v2",
-  "flux-pro",       // 向後相容短名稱
-  "flux-schnell",   // 向後相容短名稱
+  "flux-pro", // 向後相容短名稱
+  "flux-schnell", // 向後相容短名稱
   // 圖像編輯 / ControlNet / IP-Adapter
   "fal-ai/flux/dev/image-to-image",
   "fal-ai/stable-diffusion-v3-medium/image-to-image",
@@ -345,7 +386,7 @@ const KNOWN_MODELS = new Set([
   "fal-ai/video-to-video",
   "fal-ai/topaz-upscale-video",
   "fal-ai/stable-video-upscaler",
-  "kling-v1",       // 向後相容短名稱
+  "kling-v1", // 向後相容短名稱
   // 音樂引擎（fal.ai）
   "fal-ai/stable-audio",
   "fal-ai/ace-step",
@@ -354,8 +395,8 @@ const KNOWN_MODELS = new Set([
   "fal-ai/mmaudio-v2/video-to-audio",
   "fal-ai/audioldm2",
   "fal-ai/elevenlabs/sound-effects",
-  "suno-v4",        // 向後相容短名稱
-  "suno-v3.5",      // 向後相容短名稱
+  "suno-v4", // 向後相容短名稱
+  "suno-v3.5", // 向後相容短名稱
   // 語音引擎（fal.ai TTS）
   "fal-ai/metavoice-v1",
   "fal-ai/kokoro",
@@ -365,7 +406,7 @@ const KNOWN_MODELS = new Set([
   "fal-ai/whisper",
   "fal-ai/wizper",
   "fal-ai/sync-lipsync",
-  "elevenlabs-v2",  // 向後相容短名稱
+  "elevenlabs-v2", // 向後相容短名稱
   // 3D 引擎
   "fal-ai/trellis",
   "fal-ai/triposr",
@@ -625,12 +666,8 @@ export async function buildBrainContext(userId: number): Promise<BrainContext> {
     const topP = dbRow
       ? Number(dbRow[topPKey] ?? defaults.topP)
       : defaults.topP;
-    const systemPrompt = dbRow
-      ? (dbRow[promptKey] as string | null)
-      : null;
-    const enabled = dbRow
-      ? Boolean(dbRow[enabledKey] ?? true)
-      : true;
+    const systemPrompt = dbRow ? (dbRow[promptKey] as string | null) : null;
+    const enabled = dbRow ? Boolean(dbRow[enabledKey] ?? true) : true;
 
     // Health Ping + Graceful Degradation
     const healthy = getHealthStatus(model);
@@ -692,9 +729,7 @@ export async function buildBrainContext(userId: number): Promise<BrainContext> {
     const params = dbRow
       ? (dbRow[paramsKey] as Record<string, unknown> | null)
       : defaults.params;
-    const enabled = dbRow
-      ? Boolean(dbRow[enabledKey] ?? true)
-      : true;
+    const enabled = dbRow ? Boolean(dbRow[enabledKey] ?? true) : true;
 
     // Health Ping + Graceful Degradation
     const healthy = getHealthStatus(engine);
@@ -737,8 +772,8 @@ export async function buildBrainContext(userId: number): Promise<BrainContext> {
   BrainAuditLogger.requestSummary(
     userId,
     degradationSummary.length,
-    Object.values(reasoning).filter((b) => b.healthy && b.enabled).length,
-    Object.values(generation).filter((e) => e.healthy && e.enabled).length
+    Object.values(reasoning).filter(b => b.healthy && b.enabled).length,
+    Object.values(generation).filter(e => e.healthy && e.enabled).length
   );
 
   const brainCtx: BrainContext = {
@@ -756,11 +791,11 @@ export async function buildBrainContext(userId: number): Promise<BrainContext> {
     },
 
     getHealthyBrains() {
-      return Object.values(reasoning).filter((b) => b.healthy && b.enabled);
+      return Object.values(reasoning).filter(b => b.healthy && b.enabled);
     },
 
     getHealthyEngines() {
-      return Object.values(generation).filter((e) => e.healthy && e.enabled);
+      return Object.values(generation).filter(e => e.healthy && e.enabled);
     },
   };
 

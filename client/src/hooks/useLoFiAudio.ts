@@ -128,7 +128,11 @@ export function useLoFiAudio(): LoFiControls {
       // 淡出後停止
       gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 1.5);
       setTimeout(() => {
-        try { source.stop(); } catch { /* ignore */ }
+        try {
+          source.stop();
+        } catch {
+          /* ignore */
+        }
         nodesRef.current = null;
       }, 1600);
     }
@@ -139,7 +143,10 @@ export function useLoFiAudio(): LoFiControls {
     setVolumeState(v);
     if (nodesRef.current && ctxRef.current) {
       const ctx = ctxRef.current;
-      nodesRef.current.gainNode.gain.linearRampToValueAtTime(v, ctx.currentTime + 0.3);
+      nodesRef.current.gainNode.gain.linearRampToValueAtTime(
+        v,
+        ctx.currentTime + 0.3
+      );
     }
   }, []);
 
@@ -159,7 +166,9 @@ export function useLoFiAudio(): LoFiControls {
       try {
         nodesRef.current?.source.stop();
         ctxRef.current?.close();
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     };
   }, []);
 

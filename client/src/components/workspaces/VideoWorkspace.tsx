@@ -1,14 +1,20 @@
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { VaultDropzone } from "@/components/ConsistencyVault";
 import { ZenTooltip } from "@/components/ZenCoPilot";
 import { MoveHorizontal, ZoomIn, RotateCw, ArrowRight } from "lucide-react";
 
 export type CameraMotion = {
-  pan: number;       // -100 to 100 (left to right)
-  zoom: number;      // -100 to 100 (out to in)
-  tilt: number;      // -100 to 100 (down to up)
+  pan: number; // -100 to 100 (left to right)
+  zoom: number; // -100 to 100 (out to in)
+  tilt: number; // -100 to 100 (down to up)
 };
 
 export type VideoWorkspaceState = {
@@ -35,13 +41,32 @@ export function createDefaultVideoState(): VideoWorkspaceState {
 }
 
 const CAMERA_CONTROLS = [
-  { key: "pan" as const, label: "平移 (Pan)", icon: MoveHorizontal, leftLabel: "左", rightLabel: "右" },
-  { key: "zoom" as const, label: "縮放 (Zoom)", icon: ZoomIn, leftLabel: "推遠", rightLabel: "拉近" },
-  { key: "tilt" as const, label: "傾斜 (Tilt)", icon: RotateCw, leftLabel: "下", rightLabel: "上" },
+  {
+    key: "pan" as const,
+    label: "平移 (Pan)",
+    icon: MoveHorizontal,
+    leftLabel: "左",
+    rightLabel: "右",
+  },
+  {
+    key: "zoom" as const,
+    label: "縮放 (Zoom)",
+    icon: ZoomIn,
+    leftLabel: "推遠",
+    rightLabel: "拉近",
+  },
+  {
+    key: "tilt" as const,
+    label: "傾斜 (Tilt)",
+    icon: RotateCw,
+    leftLabel: "下",
+    rightLabel: "上",
+  },
 ];
 
 export function VideoWorkspace({ value, onChange }: VideoWorkspaceProps) {
-  const update = (partial: Partial<VideoWorkspaceState>) => onChange({ ...value, ...partial });
+  const update = (partial: Partial<VideoWorkspaceState>) =>
+    onChange({ ...value, ...partial });
   const updateCamera = (key: keyof CameraMotion, val: number) =>
     update({ cameraMotion: { ...value.cameraMotion, [key]: val } });
 
@@ -49,13 +74,15 @@ export function VideoWorkspace({ value, onChange }: VideoWorkspaceProps) {
     <div className="space-y-5">
       {/* First & Last Frame Dropzones */}
       <div className="space-y-2">
-        <Label className="text-xs font-medium text-muted-foreground">影片時間軸</Label>
+        <Label className="text-xs font-medium text-muted-foreground">
+          影片時間軸
+        </Label>
         <div className="flex items-center gap-3">
           <div className="flex-1">
             <VaultDropzone
               label="首幀 (Start)"
               value={value.firstFrameUrl}
-              onDrop={(url) => update({ firstFrameUrl: url })}
+              onDrop={url => update({ firstFrameUrl: url })}
               onClear={() => update({ firstFrameUrl: null })}
             />
           </div>
@@ -64,7 +91,9 @@ export function VideoWorkspace({ value, onChange }: VideoWorkspaceProps) {
           <div className="flex flex-col items-center gap-0.5 shrink-0 py-4">
             <div className="w-0.5 h-2 bg-border/50" />
             <ArrowRight className="w-4 h-4 text-primary/60" />
-            <span className="text-[9px] text-primary/50 font-medium whitespace-nowrap">過渡動態</span>
+            <span className="text-[9px] text-primary/50 font-medium whitespace-nowrap">
+              過渡動態
+            </span>
             <div className="w-0.5 h-2 bg-border/50" />
           </div>
 
@@ -72,7 +101,7 @@ export function VideoWorkspace({ value, onChange }: VideoWorkspaceProps) {
             <VaultDropzone
               label="末幀 (End)"
               value={value.lastFrameUrl}
-              onDrop={(url) => update({ lastFrameUrl: url })}
+              onDrop={url => update({ lastFrameUrl: url })}
               onClear={() => update({ lastFrameUrl: null })}
             />
           </div>
@@ -84,11 +113,13 @@ export function VideoWorkspace({ value, onChange }: VideoWorkspaceProps) {
 
       {/* Character Reference for Consistency */}
       <div className="space-y-2">
-        <Label className="text-xs font-medium text-muted-foreground">角色一致性參考</Label>
+        <Label className="text-xs font-medium text-muted-foreground">
+          角色一致性參考
+        </Label>
         <VaultDropzone
           label="角色參考圖 (Character Ref)"
           value={value.characterRefUrl}
-          onDrop={(url) => update({ characterRefUrl: url })}
+          onDrop={url => update({ characterRefUrl: url })}
           onClear={() => update({ characterRefUrl: null })}
           className="max-w-[50%]"
         />
@@ -99,14 +130,16 @@ export function VideoWorkspace({ value, onChange }: VideoWorkspaceProps) {
 
       {/* Duration */}
       <div className="space-y-2">
-        <Label className="text-xs font-medium text-muted-foreground">影片長度</Label>
+        <Label className="text-xs font-medium text-muted-foreground">
+          影片長度
+        </Label>
         <div className="grid grid-cols-4 gap-1.5">
           {[
             { value: "4", label: "4 秒" },
             { value: "8", label: "8 秒" },
             { value: "16", label: "16 秒" },
             { value: "30", label: "30 秒" },
-          ].map((d) => (
+          ].map(d => (
             <button
               key={d.value}
               onClick={() => update({ duration: d.value })}
@@ -118,7 +151,9 @@ export function VideoWorkspace({ value, onChange }: VideoWorkspaceProps) {
             >
               {d.label}
               {parseInt(d.value) > 8 && (
-                <span className="block text-[9px] opacity-70 mt-0.5">遞迴生成</span>
+                <span className="block text-[9px] opacity-70 mt-0.5">
+                  遞迴生成
+                </span>
               )}
             </button>
           ))}
@@ -127,37 +162,47 @@ export function VideoWorkspace({ value, onChange }: VideoWorkspaceProps) {
 
       {/* Camera Motion Controls */}
       <div className="space-y-3">
-        <Label className="text-xs font-medium text-muted-foreground">鏡頭運動</Label>
-        <div className="space-y-3 p-3 rounded-xl" style={{
-          background: "rgba(255,255,255,0.3)",
-          border: "1px solid rgba(255,255,255,0.5)",
-        }}>
-          {CAMERA_CONTROLS.map(({ key, label, icon: Icon, leftLabel, rightLabel }) => (
-            <div key={key} className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
-                  <Icon className="w-3.5 h-3.5 text-muted-foreground" />
-                  <span className="text-[11px] font-medium text-foreground">{label}</span>
+        <Label className="text-xs font-medium text-muted-foreground">
+          鏡頭運動
+        </Label>
+        <div
+          className="space-y-3 p-3 rounded-xl"
+          style={{
+            background: "rgba(255,255,255,0.3)",
+            border: "1px solid rgba(255,255,255,0.5)",
+          }}
+        >
+          {CAMERA_CONTROLS.map(
+            ({ key, label, icon: Icon, leftLabel, rightLabel }) => (
+              <div key={key} className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Icon className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span className="text-[11px] font-medium text-foreground">
+                      {label}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground tabular-nums font-mono">
+                    {value.cameraMotion[key] > 0 ? "+" : ""}
+                    {value.cameraMotion[key]}
+                  </span>
                 </div>
-                <span className="text-[10px] text-muted-foreground tabular-nums font-mono">
-                  {value.cameraMotion[key] > 0 ? "+" : ""}{value.cameraMotion[key]}
-                </span>
+                <Slider
+                  value={[value.cameraMotion[key]]}
+                  onValueChange={([val]) => updateCamera(key, val)}
+                  min={-100}
+                  max={100}
+                  step={5}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-[9px] text-muted-foreground/50">
+                  <span>{leftLabel}</span>
+                  <span>靜止</span>
+                  <span>{rightLabel}</span>
+                </div>
               </div>
-              <Slider
-                value={[value.cameraMotion[key]]}
-                onValueChange={([val]) => updateCamera(key, val)}
-                min={-100}
-                max={100}
-                step={5}
-                className="w-full"
-              />
-              <div className="flex justify-between text-[9px] text-muted-foreground/50">
-                <span>{leftLabel}</span>
-                <span>靜止</span>
-                <span>{rightLabel}</span>
-              </div>
-            </div>
-          ))}
+            )
+          )}
         </div>
       </div>
     </div>

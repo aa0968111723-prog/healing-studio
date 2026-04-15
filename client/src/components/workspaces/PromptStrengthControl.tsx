@@ -1,4 +1,7 @@
-import { type PromptStrengthLevel, type Modality } from "@/stores/workspaceStore";
+import {
+  type PromptStrengthLevel,
+  type Modality,
+} from "@/stores/workspaceStore";
 import { cn } from "@/lib/utils";
 import { Gauge, Lock } from "lucide-react";
 import {
@@ -53,7 +56,10 @@ const LEVELS: LevelMeta[] = [
 ];
 
 // ─── Per-modality descriptions ────────────────────────────────────────────
-const MODALITY_DESCRIPTIONS: Record<Modality, Record<PromptStrengthLevel, string>> = {
+const MODALITY_DESCRIPTIONS: Record<
+  Modality,
+  Record<PromptStrengthLevel, string>
+> = {
   image: {
     low: "自由發揮構圖與風格",
     medium: "遵守主體與風格",
@@ -105,7 +111,7 @@ export function PromptStrengthControl({
 
       {/* Level buttons */}
       <div className="flex items-center gap-1.5">
-        {LEVELS.map((level) => {
+        {LEVELS.map(level => {
           const isActive = value === level.key;
           return (
             <Tooltip key={level.key}>
@@ -118,7 +124,7 @@ export function PromptStrengthControl({
                     "flex items-center gap-1.5",
                     isActive
                       ? cn(level.activeBg, level.activeShadow)
-                      : "bg-white/40 text-muted-foreground hover:bg-white/60",
+                      : "bg-white/40 text-muted-foreground hover:bg-white/60"
                   )}
                 >
                   {level.key === "locked" ? (
@@ -127,7 +133,7 @@ export function PromptStrengthControl({
                     <span
                       className={cn(
                         "w-1.5 h-1.5 rounded-full",
-                        level.indicator,
+                        level.indicator
                       )}
                     />
                   )}
