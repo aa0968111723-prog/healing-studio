@@ -370,6 +370,49 @@ function DashboardLayoutContent({
     setSidebarWidth(DEFAULT_WIDTH);
   }, [setSidebarWidth]);
 
+  // ── Memoized ProactiveOrbWidget callbacks ──────────────────────────────
+  const handleOrbRestartTour = useCallback(() => {
+    const pathToPageId: Record<string, PageId> = {
+      "/pro-studio":   "pro-studio",
+      "/image-studio": "image-studio",
+      "/video-studio": "video-studio",
+      "/director":     "director",
+      "/models":       "models",
+      "/history":      "history",
+      "/assets":       "assets",
+      "/vault":        "vault",
+      "/notes":        "notes",
+      "/calendar":     "calendar",
+      "/shared":       "shared",
+      "/dashboard":    "dashboard",
+      "/feedback":     "feedback",
+      "/settings":     "settings",
+      "/settings/ai-brain": "settings",
+      "/learn":        "learn",
+      "/focus-flow":   "focus-flow",
+      "/langsmith":    "langsmith",
+      "/background-tasks": "background-tasks",
+    };
+    const pageId = pathToPageId[location] ?? "welcome";
+    window.dispatchEvent(new CustomEvent("site-tour-start", { detail: { pageId } }));
+  }, [location]);
+
+  const handleOrbSaveToNotes = useCallback((payload: { title: string; content?: string; sourceType?: string }) => {
+    window.dispatchEvent(new CustomEvent("pin-to-notes", { detail: payload }));
+  }, []);
+
+  const handleOrbOpenNotes = useCallback(() => {
+    window.dispatchEvent(new CustomEvent("open-notes-drawer"));
+  }, []);
+
+  const handleOrbOpenCalendar = useCallback(() => {
+    window.dispatchEvent(new CustomEvent("navigate-to", { detail: "/calendar" }));
+  }, []);
+
+  const handleOrbAddToCalendar = useCallback((payload: { title: string; description?: string; date: Date }) => {
+    window.dispatchEvent(new CustomEvent("add-to-calendar", { detail: payload }));
+  }, []);
+
   return (
     <>
       <div className="relative" ref={sidebarRef}>
@@ -689,44 +732,11 @@ function DashboardLayoutContent({
       {/* 全站光球常駐協助（Studio 頁面內已有自己的光球，不需要重複） */}
       {user && location !== "/studio" && (
         <ProactiveOrbWidget
-          onRestartTour={() => {
-            // 根據當前路徑尋找對應的 pageId
-            const pathToPageId: Record<string, PageId> = {
-              "/pro-studio":   "pro-studio",
-              "/image-studio": "image-studio",
-              "/video-studio": "video-studio",
-              "/director":     "director",
-              "/models":       "models",
-              "/history":      "history",
-              "/assets":       "assets",
-              "/vault":        "vault",
-              "/notes":        "notes",
-              "/calendar":     "calendar",
-              "/shared":       "shared",
-              "/dashboard":    "dashboard",
-              "/feedback":     "feedback",
-              "/settings":     "settings",
-              "/settings/ai-brain": "settings",
-              "/learn":        "learn",
-              "/focus-flow":   "focus-flow",
-              "/langsmith":    "langsmith",
-              "/background-tasks": "background-tasks",
-            };
-            const pageId = pathToPageId[location] ?? "welcome";
-            window.dispatchEvent(new CustomEvent("site-tour-start", { detail: { pageId } }));
-          }}
-          onSaveToNotes={(payload) => {
-            window.dispatchEvent(new CustomEvent("pin-to-notes", { detail: payload }));
-          }}
-          onOpenNotes={() => {
-            window.dispatchEvent(new CustomEvent("open-notes-drawer"));
-          }}
-          onOpenCalendar={() => {
-            window.dispatchEvent(new CustomEvent("navigate-to", { detail: "/calendar" }));
-          }}
-          onAddToCalendar={(payload) => {
-            window.dispatchEvent(new CustomEvent("add-to-calendar", { detail: payload }));
-          }}
+          onRestartTour={handleOrbRestartTour}
+          onSaveToNotes={handleOrbSaveToNotes}
+          onOpenNotes={handleOrbOpenNotes}
+          onOpenCalendar={handleOrbOpenCalendar}
+          onAddToCalendar={handleOrbAddToCalendar}
         />
       )}
     </>
