@@ -282,22 +282,22 @@ function BentoCard({
 
   return (
     <motion.article
-      initial={{ opacity: 0, scale: 0.96 }}
+      initial={{ opacity: 0, scale: 0.97 }}
       animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.96 }}
-      whileHover={{ scale: 1.02 }}
-      transition={{ duration: 0.4, ease: SOFT_BOUNCE }}
+      exit={{ opacity: 0, scale: 0.97 }}
+      whileHover={{ scale: 1.015, y: -2 }}
+      transition={{ duration: 0.5, ease: SOFT_BOUNCE }}
       onHoverStart={() => { setIsHovered(true); senseProps.onMouseEnter({} as React.MouseEvent); }}
       onHoverEnd={() => { setIsHovered(false); senseProps.onMouseLeave(); }}
       onMouseDown={() => senseProps.onMouseDown()}
       onMouseUp={() => senseProps.onMouseUp()}
       onMouseMove={(e) => { handleMouseMove(e); senseProps.onMouseMove(e); }}
       onClick={() => onCardClick(item.id)}
-      className="group relative rounded-2xl overflow-hidden cursor-pointer h-full"
+      className="group relative rounded-2xl overflow-hidden cursor-pointer h-full card-healing"
       style={{
         background: styles.cardBg,
         border: `1px solid ${styles.cardBorder}`,
-      minHeight: isHero ? "280px" : isMedium ? "220px" : "180px", // Carousel card min-heights for visual consistency
+        minHeight: isHero ? "280px" : isMedium ? "220px" : "180px",
       }}
     >
       {/* ── Glassmorphism fluid glow overlay (mouse-tracking) ── */}
@@ -620,27 +620,34 @@ const IntelBentoGrid = memo(function IntelBentoGrid({ sceneId }: IntelBentoGridP
   const layoutItems = useMemo(() => layoutBentoItems(filteredItems), [filteredItems]);
 
   return (
-    <section ref={sectionScrollRef} className="py-20 px-4 relative z-10">
+    <section ref={sectionScrollRef} className="section-breathing px-4 relative z-10">
       <div className="max-w-5xl mx-auto">
+        {/* Soft gradient divider */}
+        <div
+          className="mx-auto max-w-3xl mb-12 h-px"
+          style={{
+            background: `linear-gradient(90deg, transparent, ${styles.cardBorder}, transparent)`,
+          }}
+        />
         {/* Section header */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-60px" }}
-          transition={{ duration: 0.5 }}
-          className="text-center mb-10"
+          viewport={{ once: true, margin: "-80px" }}
+          transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+          className="text-center mb-12"
         >
           <h2
             className={`text-2xl sm:text-3xl font-bold tracking-tight transition-colors duration-700 ${styles.textPrimary}`}
           >
             情報站
           </h2>
-          <p className={`mt-2 text-sm max-w-md mx-auto transition-colors duration-700 ${styles.textMuted}`}>
+          <p className={`mt-3 text-sm max-w-md mx-auto transition-colors duration-700 ${styles.textMuted}`}>
             AI 與創作領域的最新脈動，以溫暖視角重新詮釋
           </p>
           {/* Healing divider */}
           <div
-            className="mx-auto mt-6 w-12 h-[2px] rounded-full"
+            className="mx-auto mt-8 w-16 h-[1px] rounded-full"
             style={{
               background: `linear-gradient(90deg, transparent, ${styles.cardBorder}, transparent)`,
             }}
@@ -693,13 +700,13 @@ const IntelBentoGrid = memo(function IntelBentoGrid({ sceneId }: IntelBentoGridP
               setApi={setCarouselApi}
               plugins={[autoplayPlugin]}
               opts={{ align: "start", loop: true }}
-              className="w-full"
+              className="w-full carousel-fade-edge"
             >
-              <CarouselContent className="-ml-4">
+              <CarouselContent className="-ml-5">
                 {layoutItems.map(({ item, config }) => (
                   <CarouselItem
                     key={item.id}
-                    className={`pl-4 ${
+                    className={`pl-5 ${
                       config.size === "hero"
                         ? "basis-full sm:basis-2/3"
                         : config.size === "medium"
@@ -721,20 +728,20 @@ const IntelBentoGrid = memo(function IntelBentoGrid({ sceneId }: IntelBentoGridP
 
             {/* Carousel dot indicators */}
             {slideCount > 1 && (
-              <div className="flex items-center justify-center gap-2 mt-8">
+              <div className="flex items-center justify-center gap-2.5 mt-10">
                 {Array.from({ length: Math.min(slideCount, MAX_VISIBLE_DOTS) }).map((_, i) => (
                   <motion.button
                     key={i}
                     onClick={() => scrollTo(i)}
-                    className={`rounded-full transition-all duration-500 ${
-                      i === currentSlide ? "opacity-60" : "opacity-15 hover:opacity-25"
+                    className={`rounded-full transition-all duration-700 ${
+                      i === currentSlide ? "opacity-50" : "opacity-12 hover:opacity-20"
                     }`}
                     style={{ background: SCENE_DOT_COLORS[sceneId] }}
                     animate={{
-                      width: i === currentSlide ? 24 : 8,
+                      width: i === currentSlide ? 28 : 8,
                       height: 8,
                     }}
-                    transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
+                    transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
                     aria-label={`Go to slide ${i + 1}`}
                   />
                 ))}

@@ -210,25 +210,25 @@ function CarouselDots({
   isDark: boolean;
 }) {
   return (
-    <div className="flex items-center justify-center gap-2 mt-8">
+    <div className="flex items-center justify-center gap-2.5 mt-10">
       {Array.from({ length: count }).map((_, i) => (
         <motion.button
           key={i}
           onClick={() => onSelect(i)}
-          className={`rounded-full transition-all duration-500 ${
+          className={`rounded-full transition-all duration-700 ${
             i === current
               ? isDark
-                ? "bg-white/60"
-                : "bg-black/30"
+                ? "bg-white/50"
+                : "bg-black/25"
               : isDark
-              ? "bg-white/15 hover:bg-white/25"
-              : "bg-black/8 hover:bg-black/15"
+              ? "bg-white/12 hover:bg-white/20"
+              : "bg-black/6 hover:bg-black/12"
           }`}
           animate={{
-            width: i === current ? 24 : 8,
+            width: i === current ? 28 : 8,
             height: 8,
           }}
-          transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
+          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
           aria-label={`Go to slide ${i + 1}`}
         />
       ))}
@@ -267,31 +267,31 @@ function ScrollIndicator({ isDark }: { isDark: boolean }) {
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      transition={{ delay: 1.5, duration: 0.8 }}
-      className="flex flex-col items-center gap-2 mt-12"
+      transition={{ delay: 2.0, duration: 1.0 }}
+      className="flex flex-col items-center gap-3 mt-16"
     >
-      <span className={`text-[10px] tracking-widest uppercase ${isDark ? "text-white/30" : "text-black/25"}`}>
+      <span className={`text-[10px] tracking-[0.2em] uppercase ${isDark ? "text-white/25" : "text-black/20"}`}>
         向下探索
       </span>
       <motion.div
-        animate={{ y: [0, 6, 0] }}
-        transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+        animate={{ y: [0, 8, 0] }}
+        transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
       >
         <svg
           width="16"
-          height="24"
-          viewBox="0 0 16 24"
+          height="28"
+          viewBox="0 0 16 28"
           fill="none"
-          className={isDark ? "text-white/25" : "text-black/20"}
+          className={isDark ? "text-white/20" : "text-black/15"}
         >
-          <rect x="1" y="1" width="14" height="22" rx="7" stroke="currentColor" strokeWidth="1.5" />
+          <rect x="1" y="1" width="14" height="26" rx="7" stroke="currentColor" strokeWidth="1" />
           <motion.circle
             cx="8"
             cy="8"
             r="2"
             fill="currentColor"
-            animate={{ cy: [7, 14, 7] }}
-            transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+            animate={{ cy: [8, 18, 8] }}
+            transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
           />
         </svg>
       </motion.div>
@@ -471,7 +471,7 @@ export default function Home() {
       {/* ── Hero Section (Scrollytelling anchor) — healing breathing space ── */}
       <motion.section
         ref={heroRef}
-        className="pt-28 sm:pt-36 pb-20 sm:pb-28 px-4 sm:px-6 relative z-10 min-h-[88vh] flex items-center"
+        className="pt-28 sm:pt-40 pb-24 sm:pb-32 px-4 sm:px-6 relative z-10 min-h-[90vh] flex items-center"
         style={{ y: heroY }}
       >
         <motion.div
@@ -479,17 +479,34 @@ export default function Home() {
           style={{ opacity: heroContentOpacity }}
         >
           <motion.div
-            initial={{ opacity: 0, y: 24 }}
+            initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: [0.25, 0.46, 0.45, 0.94] }}
+            transition={{ duration: 1.0, ease: [0.16, 1, 0.3, 1] }}
           >
             {/* Scene Badge */}
-            <div className="flex justify-center mb-8">
+            <motion.div
+              className="flex justify-center mb-10"
+              initial={{ opacity: 0, y: -12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            >
               <SceneBadge sceneId={sceneId} isDark={isDark} />
-            </div>
+            </motion.div>
 
             {/* Central Orb — larger, more ethereal, connected to personal settings */}
-            <div className="flex flex-col items-center mb-10">
+            <div className="flex flex-col items-center mb-12">
+              {/* Ambient glow ring behind orb — soft, scene-linked */}
+              <motion.div
+                className="absolute w-48 h-48 sm:w-64 sm:h-64 rounded-full pointer-events-none"
+                style={{
+                  background: `radial-gradient(circle, ${PERSONALITY_LABELS[personality]?.color ?? "rgba(255,80,180,0.15)"} 0%, transparent 70%)`,
+                }}
+                animate={{
+                  scale: [1, 1.15, 1],
+                  opacity: [0.3, 0.5, 0.3],
+                }}
+                transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+              />
               {/* Orb glow aura — scene-linked ambient ring */}
               <motion.div
                 className="relative"
@@ -508,19 +525,19 @@ export default function Home() {
               <AnimatePresence mode="wait">
                 <motion.div
                   key={personality}
-                  initial={{ opacity: 0, y: 6, scale: 0.95 }}
+                  initial={{ opacity: 0, y: 8, scale: 0.9 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -6, scale: 0.95 }}
-                  transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
-                  className={`mt-4 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] tracking-wider backdrop-blur-md ${
+                  exit={{ opacity: 0, y: -8, scale: 0.9 }}
+                  transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+                  className={`mt-5 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[10px] tracking-wider backdrop-blur-md ${
                     isDark ? "bg-white/8 text-white/50" : "bg-black/4 text-black/40"
                   }`}
                 >
                   <motion.div
                     className="w-1.5 h-1.5 rounded-full"
                     style={{ background: PERSONALITY_LABELS[personality]?.color }}
-                    animate={{ scale: [1, 1.3, 1], opacity: [0.7, 1, 0.7] }}
-                    transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+                    animate={{ scale: [1, 1.4, 1], opacity: [0.6, 1, 0.6] }}
+                    transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
                   />
                   {PERSONALITY_LABELS[personality]?.label ?? "創意模式"}
                 </motion.div>
@@ -528,13 +545,24 @@ export default function Home() {
             </div>
 
             {/* OARS Contextual Greeting — replaces static title */}
-            <OarsGreeting
-              sceneId={sceneId}
-              textPrimary={`transition-colors duration-700 heading-healing ${s.textPrimary}`}
-              textMuted={`transition-colors duration-700 body-healing ${s.textMuted}`}
-            />
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
+            >
+              <OarsGreeting
+                sceneId={sceneId}
+                textPrimary={`transition-colors duration-700 heading-healing ${s.textPrimary}`}
+                textMuted={`transition-colors duration-700 body-healing ${s.textMuted}`}
+              />
+            </motion.div>
 
-            <div className="mt-12 flex items-center justify-center gap-4">
+            <motion.div
+              className="mt-14 flex items-center justify-center gap-4"
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, delay: 0.6, ease: [0.16, 1, 0.3, 1] }}
+            >
               {isAuthenticated ? (
                 <div className="flex flex-col sm:flex-row items-center gap-3">
                   <Button
@@ -575,7 +603,7 @@ export default function Home() {
                   </Button>
                 </div>
               )}
-            </div>
+            </motion.div>
 
             {/* Scroll indicator — gentle invitation */}
             <ScrollIndicator isDark={isDark} />
@@ -583,98 +611,111 @@ export default function Home() {
         </motion.div>
       </motion.section>
 
+      {/* ── Soft gradient divider between Hero and Features ── */}
+      <div
+        className="relative z-10 h-px mx-auto max-w-3xl"
+        style={{
+          background: `linear-gradient(90deg, transparent, ${isDark ? "rgba(100,120,200,0.12)" : "rgba(212,197,226,0.25)"}, transparent)`,
+        }}
+      />
+
       {/* ── Video Demo Showcase (影片功能展示區域) — healing carousel ── */}
-      <section className="section-healing px-4 sm:px-6 relative z-10">
+      <section className="section-breathing px-4 sm:px-6 relative z-10">
         <div className="max-w-5xl mx-auto">
           <motion.div
-            initial={{ opacity: 0, y: 24 }}
+            initial={{ opacity: 0, y: 28 }}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-80px" }}
-            transition={{ duration: 0.7, ease: [0.25, 0.46, 0.45, 0.94] }}
-            className="text-center mb-12"
+            viewport={{ once: true, margin: "-100px" }}
+            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+            className="text-center mb-14"
           >
             <h2 className={`text-2xl sm:text-3xl heading-healing transition-colors duration-700 ${s.textPrimary}`}>
               功能展示
             </h2>
-            <p className={`mt-4 text-sm max-w-md mx-auto body-healing transition-colors duration-700 ${s.textMuted}`}>
+            <p className={`mt-5 text-sm max-w-md mx-auto body-healing transition-colors duration-700 ${s.textMuted}`}>
               體驗 AI Director 的核心創作能力
             </p>
             {/* Healing divider */}
-            <div className="mx-auto mt-6 w-12 h-[2px] rounded-full" style={{ background: `linear-gradient(90deg, transparent, ${isDark ? "rgba(100,120,200,0.3)" : "rgba(212,197,226,0.5)"}, transparent)` }} />
+            <div className="mx-auto mt-8 w-16 h-[1px] rounded-full" style={{ background: `linear-gradient(90deg, transparent, ${isDark ? "rgba(100,120,200,0.3)" : "rgba(212,197,226,0.5)"}, transparent)` }} />
           </motion.div>
 
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 24 }}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-40px" }}
-            transition={{ duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] }}
+            viewport={{ once: true, margin: "-60px" }}
+            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
           >
             <Carousel
               setApi={setFeatureApi}
               plugins={[featureAutoplay]}
               opts={{ align: "start", loop: true }}
-              className="w-full"
+              className="w-full carousel-fade-edge"
             >
-              <CarouselContent className="-ml-4">
+              <CarouselContent className="-ml-5">
                 {VIDEO_DEMOS.map((demo) => (
-                  <CarouselItem key={demo.id} className="pl-4 basis-full sm:basis-1/2 lg:basis-1/3">
-                    <div
-                      className="group h-full rounded-2xl overflow-hidden backdrop-blur-md transition-all duration-500 hover:scale-[1.015] cursor-pointer hover-lift"
-                      style={{
-                        background: s.cardBg,
-                        border: `1px solid ${s.cardBorder}`,
-                      }}
-                      onClick={() => navigate(isAuthenticated ? "/studio" : "/")}
+                  <CarouselItem key={demo.id} className="pl-5 basis-full sm:basis-1/2 lg:basis-1/3">
+                    <motion.div
+                      whileHover={{ y: -4 }}
+                      transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
                     >
-                      {/* Preview area with play overlay */}
                       <div
-                        className="relative aspect-[16/10] flex items-center justify-center overflow-hidden"
-                        style={{ background: demo.color }}
+                        className="group h-full rounded-2xl overflow-hidden card-healing cursor-pointer"
+                        style={{
+                          background: s.cardBg,
+                          border: `1px solid ${s.cardBorder}`,
+                        }}
+                        onClick={() => navigate(isAuthenticated ? "/studio" : "/")}
                       >
-                        {/* Animated gradient — gentle breathing */}
-                        <motion.div
-                          className="absolute inset-0"
-                          style={{
-                            background: `radial-gradient(circle at 30% 40%, ${demo.accentColor}18 0%, transparent 60%), radial-gradient(circle at 70% 60%, ${demo.accentColor}0d 0%, transparent 50%)`,
-                          }}
-                          animate={{ opacity: [0.5, 0.8, 0.5] }}
-                          transition={{ duration: 4, repeat: Infinity, ease: [0.37, 0, 0.63, 1] }}
-                        />
-                        {/* Center icon + play */}
-                        <div className="relative z-10 flex flex-col items-center gap-4">
-                          <motion.div
-                            className="w-16 h-16 rounded-2xl flex items-center justify-center"
-                            style={{ background: `${demo.accentColor}20`, border: `1px solid ${demo.accentColor}25`, backdropFilter: "blur(8px)" }}
-                            whileHover={{ scale: 1.08 }}
-                            transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
-                          >
-                            <demo.icon className="w-7 h-7" style={{ color: demo.accentColor }} />
-                          </motion.div>
-                          <motion.div
-                            className="w-10 h-10 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-500"
-                            style={{ background: `${demo.accentColor}15`, border: `1px solid ${demo.accentColor}20`, backdropFilter: "blur(8px)" }}
-                          >
-                            <Play className="w-4 h-4 ml-0.5" style={{ color: demo.accentColor }} />
-                          </motion.div>
-                        </div>
-                        {/* Tag badge */}
+                        {/* Preview area with play overlay */}
                         <div
-                          className="absolute top-3.5 left-3.5 px-3 py-1 rounded-full text-[10px] font-medium tracking-wide"
-                          style={{ background: `${demo.accentColor}15`, color: demo.accentColor, border: `1px solid ${demo.accentColor}20`, backdropFilter: "blur(8px)" }}
+                          className="relative aspect-[16/10] flex items-center justify-center overflow-hidden"
+                          style={{ background: demo.color }}
                         >
-                          {demo.tag}
+                          {/* Animated gradient — gentle breathing */}
+                          <motion.div
+                            className="absolute inset-0"
+                            style={{
+                              background: `radial-gradient(circle at 30% 40%, ${demo.accentColor}18 0%, transparent 60%), radial-gradient(circle at 70% 60%, ${demo.accentColor}0d 0%, transparent 50%)`,
+                            }}
+                            animate={{ opacity: [0.4, 0.75, 0.4] }}
+                            transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+                          />
+                          {/* Center icon + play */}
+                          <div className="relative z-10 flex flex-col items-center gap-4">
+                            <motion.div
+                              className="w-16 h-16 rounded-2xl flex items-center justify-center"
+                              style={{ background: `${demo.accentColor}20`, border: `1px solid ${demo.accentColor}20`, backdropFilter: "blur(12px)" }}
+                              whileHover={{ scale: 1.06 }}
+                              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                            >
+                              <demo.icon className="w-7 h-7" style={{ color: demo.accentColor }} />
+                            </motion.div>
+                            <motion.div
+                              className="w-10 h-10 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-700"
+                              style={{ background: `${demo.accentColor}12`, border: `1px solid ${demo.accentColor}18`, backdropFilter: "blur(12px)" }}
+                            >
+                              <Play className="w-4 h-4 ml-0.5" style={{ color: demo.accentColor }} />
+                            </motion.div>
+                          </div>
+                          {/* Tag badge */}
+                          <div
+                            className="absolute top-3.5 left-3.5 px-3 py-1 rounded-full text-[10px] font-medium tracking-wide"
+                            style={{ background: `${demo.accentColor}12`, color: demo.accentColor, border: `1px solid ${demo.accentColor}18`, backdropFilter: "blur(12px)" }}
+                          >
+                            {demo.tag}
+                          </div>
+                        </div>
+                        {/* Text content — healing spacing */}
+                        <div className="px-5 py-5 sm:px-6 sm:py-6">
+                          <h3 className={`text-sm font-semibold mb-2.5 transition-colors duration-700 ${s.textPrimary}`}>
+                            {demo.title}
+                          </h3>
+                          <p className={`text-xs leading-relaxed body-healing transition-colors duration-700 ${s.textMuted}`}>
+                            {demo.description}
+                          </p>
                         </div>
                       </div>
-                      {/* Text content — healing spacing */}
-                      <div className="px-5 py-4 sm:px-6 sm:py-5">
-                        <h3 className={`text-sm font-semibold mb-2 transition-colors duration-700 ${s.textPrimary}`}>
-                          {demo.title}
-                        </h3>
-                        <p className={`text-xs leading-relaxed body-healing transition-colors duration-700 ${s.textMuted}`}>
-                          {demo.description}
-                        </p>
-                      </div>
-                    </div>
+                    </motion.div>
                   </CarouselItem>
                 ))}
               </CarouselContent>
@@ -770,62 +811,81 @@ export default function Home() {
       />
       </Suspense>
 
+      {/* ── Soft gradient divider before CTA ── */}
+      <div
+        className="relative z-10 h-px mx-auto max-w-3xl"
+        style={{
+          background: `linear-gradient(90deg, transparent, ${isDark ? "rgba(100,120,200,0.12)" : "rgba(212,197,226,0.25)"}, transparent)`,
+        }}
+      />
+
       {/* ── CTA Section — healing invitation ── */}
-      <section className="section-healing px-4 sm:px-6 relative z-10">
+      <section className="section-breathing px-4 sm:px-6 relative z-10">
         <div className="max-w-3xl mx-auto">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 24 }}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-60px" }}
-            transition={{ duration: 0.7, ease: [0.25, 0.46, 0.45, 0.94] }}
+            viewport={{ once: true, margin: "-80px" }}
+            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
           >
             <div
-              className="text-center py-12 sm:py-16 px-6 sm:px-10 rounded-3xl backdrop-blur-md transition-all duration-700"
+              className="relative text-center py-14 sm:py-20 px-6 sm:px-12 rounded-3xl card-healing overflow-hidden"
               style={{
                 background: s.cardBg,
                 border: `1px solid ${s.cardBorder}`,
               }}
             >
-              <div className="flex flex-col items-center">
-                <motion.div
-                  animate={{
-                    filter: [
-                      `drop-shadow(0 0 20px ${PERSONALITY_LABELS[personality]?.color ?? "rgba(255,80,180,0.3)"})`,
-                      `drop-shadow(0 0 35px ${PERSONALITY_LABELS[personality]?.color ?? "rgba(255,80,180,0.5)"})`,
-                      `drop-shadow(0 0 20px ${PERSONALITY_LABELS[personality]?.color ?? "rgba(255,80,180,0.3)"})`,
-                    ],
-                  }}
-                  transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
-                >
-                  <VisualSoul size="lg" personality={personality} />
-                </motion.div>
-              </div>
-              <h2 className={`text-2xl heading-healing mt-8 transition-colors duration-700 ${s.textPrimary}`}>
-                準備好開始創作了嗎？
-              </h2>
-              <p className={`mt-4 text-sm max-w-md mx-auto body-healing transition-colors duration-700 ${s.textMuted}`}>
-                登入後即可使用所有功能，每位使用者享有初始免費配額
-              </p>
-              <div className="mt-10">
-                {isAuthenticated ? (
-                  <Button
-                    size="lg"
-                    onClick={() => navigate("/studio")}
-                    className={`rounded-2xl h-12 px-10 gap-2 text-sm btn-healing ${s.btnPrimary} ${s.btnPrimaryText}`}
+              {/* Subtle ambient glow behind CTA */}
+              <motion.div
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  background: `radial-gradient(ellipse at 50% 30%, ${PERSONALITY_LABELS[personality]?.color ?? "rgba(255,80,180,0.08)"} 0%, transparent 60%)`,
+                }}
+                animate={{ opacity: [0.3, 0.6, 0.3] }}
+                transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+              />
+              <div className="relative z-10">
+                <div className="flex flex-col items-center">
+                  <motion.div
+                    animate={{
+                      filter: [
+                        `drop-shadow(0 0 20px ${PERSONALITY_LABELS[personality]?.color ?? "rgba(255,80,180,0.3)"})`,
+                        `drop-shadow(0 0 40px ${PERSONALITY_LABELS[personality]?.color ?? "rgba(255,80,180,0.5)"})`,
+                        `drop-shadow(0 0 20px ${PERSONALITY_LABELS[personality]?.color ?? "rgba(255,80,180,0.3)"})`,
+                      ],
+                    }}
+                    transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
                   >
-                    進入工作室
-                    <ArrowRight className="w-4 h-4" />
-                  </Button>
-                ) : (
-                  <Button
-                    size="lg"
-                    onClick={() => { window.location.href = getLoginUrl(); }}
-                    className={`rounded-2xl h-12 px-10 gap-2 text-sm btn-healing ${s.btnPrimary} ${s.btnPrimaryText}`}
-                  >
-                    免費開始
-                    <ArrowRight className="w-4 h-4" />
-                  </Button>
-                )}
+                    <VisualSoul size="lg" personality={personality} />
+                  </motion.div>
+                </div>
+                <h2 className={`text-2xl heading-healing mt-10 transition-colors duration-700 ${s.textPrimary}`}>
+                  準備好開始創作了嗎？
+                </h2>
+                <p className={`mt-5 text-sm max-w-md mx-auto body-healing transition-colors duration-700 ${s.textMuted}`}>
+                  登入後即可使用所有功能，每位使用者享有初始免費配額
+                </p>
+                <div className="mt-12">
+                  {isAuthenticated ? (
+                    <Button
+                      size="lg"
+                      onClick={() => navigate("/studio")}
+                      className={`rounded-2xl h-12 px-10 gap-2 text-sm btn-healing ${s.btnPrimary} ${s.btnPrimaryText}`}
+                    >
+                      進入工作室
+                      <ArrowRight className="w-4 h-4" />
+                    </Button>
+                  ) : (
+                    <Button
+                      size="lg"
+                      onClick={() => { window.location.href = getLoginUrl(); }}
+                      className={`rounded-2xl h-12 px-10 gap-2 text-sm btn-healing ${s.btnPrimary} ${s.btnPrimaryText}`}
+                    >
+                      免費開始
+                      <ArrowRight className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           </motion.div>
@@ -842,11 +902,17 @@ export default function Home() {
 
       {/* ── Footer — healing minimal ── */}
       <footer
-        className="py-10 px-4 sm:px-6 transition-colors duration-700 relative z-10 mt-auto"
-        style={{ borderTop: `1px solid ${s.footerBorder}` }}
+        className="py-12 sm:py-14 px-4 sm:px-6 transition-colors duration-700 relative z-10 mt-auto"
       >
+        {/* Breathing divider line */}
+        <div
+          className="max-w-4xl mx-auto mb-10 h-px"
+          style={{
+            background: `linear-gradient(90deg, transparent, ${s.footerBorder}, transparent)`,
+          }}
+        />
         <div className="max-w-6xl mx-auto flex items-center justify-between text-xs">
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-3">
             <VisualSoul size="sm" personality={personality} />
             <span className={`transition-colors duration-700 tracking-wide ${s.textMuted}`}>AI Director</span>
           </div>
