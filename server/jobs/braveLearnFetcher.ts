@@ -177,6 +177,7 @@ ${articlesSummary}
 - 僅回傳 JSON 陣列，不要包含其他文字`;
 
   const result = await invokeLLM({
+    runName: "brave-learn-summarize",
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },

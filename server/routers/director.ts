@@ -235,6 +235,7 @@ async function parseScriptIntoSegments(
   const formatInstruction = formatHints[sourceFormat] ?? formatHints.plaintext;
 
   const result = await withTimeout(invokeLLM({
+    runName: "director-script-split",
     messages: [
       {
         role: "system",
@@ -419,6 +420,7 @@ async function discussSegmentWithAI(
     : userMessage;
 
   const result = await withTimeout(invokeLLM({
+    runName: "director-segment-chat",
     messages: [
       {
         role: "system",
@@ -655,6 +657,7 @@ async function runDirectorAI(
 
   // Step 1: Factual grounding with personality-aware research style + full platform knowledge
   const researchResult = await withTimeout(invokeLLM({
+    runName: "director-research",
     messages: [
       {
         role: "system",
@@ -673,6 +676,7 @@ ${memorySection}`,
 
   // Step 2: Creative orchestration with CO-STAR framework + full director knowledge
   const scriptResult = await withTimeout(invokeLLM({
+    runName: "director-costar-generate",
     messages: [
       {
         role: "system",
@@ -776,6 +780,7 @@ export const directorRouter = router({
       const fullPrompt = buildDirectorSystemPrompt(input.personality);
 
       const result = await withTimeout(invokeLLM({
+        runName: "director-costar-refine",
         messages: [
           {
             role: "system",
@@ -1124,6 +1129,7 @@ export const directorRouter = router({
         ? `\n地點：${input.segment.locations!.join("、")}` : "";
 
       const result = await withTimeout(invokeLLM({
+        runName: "director-segment-costar",
         messages: [
           {
             role: "system",
@@ -1218,6 +1224,7 @@ ${persona.proactiveHint}
       ).join("\n\n---\n\n");
 
       const result = await withTimeout(invokeLLM({
+        runName: "director-batch-costar",
         messages: [
           {
             role: "system",
@@ -1327,6 +1334,7 @@ ${persona.proactiveHint}
       const totalSec = Math.round(totalDurationSec % 60);
 
       const result = await withTimeout(invokeLLM({
+        runName: "director-global-analysis",
         messages: [
           {
             role: "system",

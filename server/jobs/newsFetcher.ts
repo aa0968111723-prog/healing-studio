@@ -381,6 +381,7 @@ ${JSON.stringify(articlesPayload, null, 2)}
   try {
     const response = await Promise.race([
       invokeLLM({
+        runName: "news-oars-batch",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
