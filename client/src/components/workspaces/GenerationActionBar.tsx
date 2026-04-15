@@ -20,7 +20,7 @@ interface GenerationActionBarProps {
   onGenerate: () => void;
   isGenerating: boolean;
   hasResult: boolean;
-  /** When true, render a bigger more prominent generate button (zen mode) */
+  /** When true, render a bigger more prominent generate button (simple mode) */
   simpleMode?: boolean;
 }
 

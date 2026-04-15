@@ -1,6 +1,6 @@
-import { useRef, useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Dice5, Sparkles } from "lucide-react";
+import { Dice5 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ─── Inspiration Presets (shared with ProactiveOrbWidget) ───────────────────
@@ -79,7 +79,6 @@ interface InspirationQuickPanelProps {
 }
 
 export function InspirationQuickPanel({ onApply, className }: InspirationQuickPanelProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const handleRandom = useCallback(() => {

@@ -1167,7 +1167,7 @@ export const ProgressivePromptBuilder = memo(function ProgressivePromptBuilder({
         </div>
       )}
 
-      {/* ═══ Section 3+ : Blocks, Self-Attention, Advanced — hidden in zen mode ═══ */}
+      {/* ═══ Section 3+ : Blocks, Self-Attention, Advanced — hidden in simple mode ═══ */}
       {!simpleMode && (
         <>
       <div className="rounded-xl overflow-hidden" style={{

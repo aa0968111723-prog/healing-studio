@@ -14,9 +14,8 @@ import { GenerationControls } from "@/components/GenerationControls";
 import { ZenProgressOverlay, GlassCard, BottomSheet } from "@/components/ZenCoPilot";
 import { toast } from "sonner";
 import {
-  Image, Video, Music, Mic, Wand2, Download, Copy,
-  PanelLeftOpen, PanelLeftClose, PanelRightOpen, PanelRightClose,
-  Layers, Settings2, Clock, Package, X, Star, Bookmark, BookmarkCheck,
+  Image, Video, Music, Mic, Download, Copy,
+  Layers, Clock, Package, X, Star, Bookmark, BookmarkCheck,
   Send, RefreshCw, StickyNote, Cpu, Check, Briefcase,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -37,8 +36,8 @@ import OnboardingTour from "@/components/OnboardingTour";
 import { useNotesDrawer } from "@/contexts/NotesDrawerContext";
 import { requireAuth } from "@/components/AuthExpiredModal";
 
-// ─── Creative Mode / Creative Mode ────────────────────────────────────────────────
-import { CreativeModeSelector, loadCreativeMode } from "@/components/ZenModeSelector";
+// ─── Creative Mode ───────────────────────────────────────────────────────────
+import { CreativeModeSelector, loadCreativeMode } from "@/components/CreativeModeSelector";
 import { InspirationQuickPanel, type InspirationBlocks } from "@/components/InspirationQuickPanel";
 import type { CreativeMode } from "@/stores/workspaceStore";
 import { cn } from "@/lib/utils";
@@ -57,7 +56,7 @@ import {
   getDefaultBlocks,
   getDefaultThoughtIslands,
 } from "@/stores/workspaceStore";
-import { ModalitySwitcher } from "@/components/workspaces/ModalitySwitcher";
+
 import { ThoughtIslandsPanel } from "@/components/workspaces/ThoughtIslandsPanel";
 import { PromptStrengthControl } from "@/components/workspaces/PromptStrengthControl";
 import { AdvancedPromptPanel } from "@/components/workspaces/AdvancedPromptPanel";
