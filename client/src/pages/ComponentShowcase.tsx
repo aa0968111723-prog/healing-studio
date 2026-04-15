@@ -229,7 +229,7 @@ export default function ComponentsShowcase() {
     <div className="min-h-screen bg-background text-foreground">
       <main className="container max-w-6xl mx-auto">
         <div className="space-y-2 justify-between flex">
-          <h2 className="text-3xl font-bold tracking-tight mb-6">
+          <h2 className="hs-h1 mb-6">
             Shadcn/ui Component Library
           </h2>
           <Button variant="outline" size="icon" onClick={toggleTheme}>
@@ -244,7 +244,7 @@ export default function ComponentsShowcase() {
         <div className="space-y-12">
           {/* Text Colors Section */}
           <section className="space-y-4">
-            <h3 className="text-2xl font-semibold">Text Colors</h3>
+            <h3 className="hs-h2 !mb-0">Text Colors</h3>
             <Card>
               <CardContent className="pt-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -323,7 +323,7 @@ export default function ComponentsShowcase() {
 
           {/* Color Combinations Section */}
           <section className="space-y-4">
-            <h3 className="text-2xl font-semibold">Color Combinations</h3>
+            <h3 className="hs-h2 !mb-0">Color Combinations</h3>
             <Card>
               <CardContent className="pt-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -382,7 +382,7 @@ export default function ComponentsShowcase() {
 
           {/* Buttons Section */}
           <section className="space-y-4">
-            <h3 className="text-2xl font-semibold">Buttons</h3>
+            <h3 className="hs-h2 !mb-0">Buttons</h3>
             <Card>
               <CardContent className="pt-6">
                 <div className="flex flex-wrap gap-4">
@@ -404,7 +404,7 @@ export default function ComponentsShowcase() {
 
           {/* Form Inputs Section */}
           <section className="space-y-4">
-            <h3 className="text-2xl font-semibold">Form Inputs</h3>
+            <h3 className="hs-h2 !mb-0">Form Inputs</h3>
             <Card>
               <CardContent className="pt-6 space-y-6">
                 <div className="space-y-2">
@@ -678,7 +678,7 @@ export default function ComponentsShowcase() {
 
           {/* Data Display Section */}
           <section className="space-y-4">
-            <h3 className="text-2xl font-semibold">Data Display</h3>
+            <h3 className="hs-h2 !mb-0">Data Display</h3>
             <Card>
               <CardContent className="pt-6 space-y-6">
                 <div className="space-y-2">
@@ -867,7 +867,7 @@ export default function ComponentsShowcase() {
 
           {/* Alerts Section */}
           <section className="space-y-4">
-            <h3 className="text-2xl font-semibold">Alerts</h3>
+            <h3 className="hs-h2 !mb-0">Alerts</h3>
             <div className="space-y-4">
               <Alert>
                 <AlertCircle className="h-4 w-4" />
@@ -888,7 +888,7 @@ export default function ComponentsShowcase() {
 
           {/* Tabs Section */}
           <section className="space-y-4">
-            <h3 className="text-2xl font-semibold">Tabs</h3>
+            <h3 className="hs-h2 !mb-0">Tabs</h3>
             <Tabs defaultValue="account" className="w-full">
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="account">Account</TabsTrigger>
@@ -957,7 +957,7 @@ export default function ComponentsShowcase() {
 
           {/* Accordion Section */}
           <section className="space-y-4">
-            <h3 className="text-2xl font-semibold">Accordion</h3>
+            <h3 className="hs-h2 !mb-0">Accordion</h3>
             <Accordion type="single" collapsible className="w-full">
               <AccordionItem value="item-1">
                 <AccordionTrigger>Is it accessible?</AccordionTrigger>
@@ -984,7 +984,7 @@ export default function ComponentsShowcase() {
 
           {/* Collapsible Section */}
           <section className="space-y-4">
-            <h3 className="text-2xl font-semibold">Collapsible</h3>
+            <h3 className="hs-h2 !mb-0">Collapsible</h3>
             <Collapsible>
               <Card>
                 <CardHeader>
@@ -1015,7 +1015,7 @@ export default function ComponentsShowcase() {
 
           {/* Dialog, Sheet, Drawer Section */}
           <section className="space-y-4">
-            <h3 className="text-2xl font-semibold">Overlays</h3>
+            <h3 className="hs-h2 !mb-0">Overlays</h3>
             <Card>
               <CardContent className="pt-6">
                 <div className="flex flex-wrap gap-4">
@@ -1119,7 +1119,7 @@ export default function ComponentsShowcase() {
 
           {/* Menus Section */}
           <section className="space-y-4">
-            <h3 className="text-2xl font-semibold">Menus</h3>
+            <h3 className="hs-h2 !mb-0">Menus</h3>
             <Card>
               <CardContent className="pt-6">
                 <div className="flex flex-wrap gap-4">
@@ -1170,7 +1170,7 @@ export default function ComponentsShowcase() {
 
           {/* Calendar Section */}
           <section className="space-y-4">
-            <h3 className="text-2xl font-semibold">Calendar</h3>
+            <h3 className="hs-h2 !mb-0">Calendar</h3>
             <Card>
               <CardContent className="pt-6 flex justify-center">
                 <Calendar
@@ -1185,7 +1185,7 @@ export default function ComponentsShowcase() {
 
           {/* Carousel Section */}
           <section className="space-y-4">
-            <h3 className="text-2xl font-semibold">Carousel</h3>
+            <h3 className="hs-h2 !mb-0">Carousel</h3>
             <Card>
               <CardContent className="pt-6">
                 <Carousel className="w-full max-w-xs mx-auto">
@@ -1213,7 +1213,7 @@ export default function ComponentsShowcase() {
 
           {/* Toggle Section */}
           <section className="space-y-4">
-            <h3 className="text-2xl font-semibold">Toggle</h3>
+            <h3 className="hs-h2 !mb-0">Toggle</h3>
             <Card>
               <CardContent className="pt-6 space-y-4">
                 <div className="space-y-2">
@@ -1254,7 +1254,7 @@ export default function ComponentsShowcase() {
 
           {/* Aspect Ratio & Scroll Area Section */}
           <section className="space-y-4">
-            <h3 className="text-2xl font-semibold">Layout Components</h3>
+            <h3 className="hs-h2 !mb-0">Layout Components</h3>
             <Card>
               <CardContent className="pt-6 space-y-6">
                 <div className="space-y-2">
@@ -1286,7 +1286,7 @@ export default function ComponentsShowcase() {
 
           {/* Resizable Section */}
           <section className="space-y-4">
-            <h3 className="text-2xl font-semibold">Resizable Panels</h3>
+            <h3 className="hs-h2 !mb-0">Resizable Panels</h3>
             <Card>
               <CardContent className="pt-6">
                 <ResizablePanelGroup
@@ -1311,7 +1311,7 @@ export default function ComponentsShowcase() {
 
           {/* Toast Section */}
           <section className="space-y-4">
-            <h3 className="text-2xl font-semibold">Toast</h3>
+            <h3 className="hs-h2 !mb-0">Toast</h3>
             <Card>
               <CardContent className="pt-6 space-y-4">
                 <div className="space-y-2">
@@ -1392,7 +1392,7 @@ export default function ComponentsShowcase() {
 
           {/* AI ChatBox Section */}
           <section className="space-y-4">
-            <h3 className="text-2xl font-semibold">AI ChatBox</h3>
+            <h3 className="hs-h2 !mb-0">AI ChatBox</h3>
             <Card>
               <CardContent className="pt-6">
                 <div className="space-y-4">
