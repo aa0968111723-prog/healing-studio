@@ -2022,7 +2022,7 @@ export default function ImageStudio() {
               <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
                 className={viewMode === "grid" && resultImages.length > 1 ? "grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4" : "space-y-3 sm:space-y-4"}>
                 {resultImages.map((url, i) => (
-                  <ResultImage key={i} url={url} prompt={prompt} onDownload={() => downloadImage(url)} />
+                  <ResultImage key={url} url={url} prompt={prompt} onDownload={() => downloadImage(url)} />
                 ))}
               </motion.div>
             )}
