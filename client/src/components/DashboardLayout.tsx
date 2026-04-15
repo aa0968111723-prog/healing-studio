@@ -181,6 +181,10 @@ const DEFAULT_WIDTH = 260;
 const MIN_WIDTH = 200;
 const MAX_WIDTH = 400;
 
+/** Tablet breakpoint range — auto-collapse to icon mode */
+const TABLET_MIN_PX = 768;
+const TABLET_MAX_PX = 1024;
+
 export default function DashboardLayout({
   children,
 }: {
@@ -273,7 +277,7 @@ function DashboardLayoutContent({
 
   // ── Tablet auto-collapse: icon mode for 768–1024 px ───────────────────
   useEffect(() => {
-    const mql = window.matchMedia("(min-width: 768px) and (max-width: 1024px)");
+    const mql = window.matchMedia(`(min-width: ${TABLET_MIN_PX}px) and (max-width: ${TABLET_MAX_PX}px)`);
     const handleChange = (e: MediaQueryListEvent | MediaQueryList) => {
       if (e.matches) setOpen(false);   // collapse to icon mode
     };
@@ -340,7 +344,8 @@ function DashboardLayoutContent({
       document.addEventListener("touchcancel", handleEnd);
       document.body.style.cursor = "col-resize";
       document.body.style.userSelect = "none";
-      document.body.style.webkitUserSelect = "none";
+      // -webkit-user-select needed for Safari on iPad during touch-resize
+      (document.body.style as Record<string, string>).webkitUserSelect = "none";
     }
     return () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
@@ -351,7 +356,7 @@ function DashboardLayoutContent({
       document.removeEventListener("touchcancel", handleEnd);
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
-      document.body.style.webkitUserSelect = "";
+      (document.body.style as Record<string, string>).webkitUserSelect = "";
     };
   }, [isResizing, setSidebarWidth]);
 
