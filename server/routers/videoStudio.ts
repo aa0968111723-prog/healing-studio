@@ -169,7 +169,6 @@ export const videoStudioRouter = router({
       enableSafety:  z.boolean().default(false),
     }))
     .mutation(async ({ input }) => {
-      // Wan t2v 正確 endpoint（fal.ai 2025年最新）
       const modelId = "fal-ai/wan-t2v";
 
       const payload: Record<string, unknown> = {
@@ -180,7 +179,7 @@ export const videoStudioRouter = router({
       if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
 
       const result = await falQueueRun(modelId, payload, 300) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return { video_url: extractVideoUrl(result), request_id: result?.request_id ?? null, raw: result };
     }),
 
   /**
@@ -198,15 +197,16 @@ export const videoStudioRouter = router({
         prompt: input.prompt,
         prompt_optimizer: input.promptOptimizer,
       };
-      const result = await falQueueRun("fal-ai/minimax/video-01", payload, 300) as any;
+      // MiniMax Hailuo-02 升級版端點（原 video-01 已升級）
+      const result = await falQueueRun("fal-ai/minimax/hailuo-02/pro/text-to-video", payload, 300) as any;
       return { video_url: extractVideoUrl(result), raw: result };
     }),
 
-  /**
-   * Google Veo 3 Flash Text-to-Video
-   * fal-ai/veo3
-   * Google 最新旗艦影片模型，8s，具備原生音頻生成
-   */
+      /**
+       * Google Veo 3 Flash Text-to-Video
+       * fal-ai/veo3
+       * Google 最新旗艦影片模型，8s，具備原生音頻生成
+       */
   veo3TextToVideo: protectedProcedure
     .input(z.object({
       prompt:       z.string().min(1).max(3000),
@@ -257,8 +257,8 @@ export const videoStudioRouter = router({
 
   /**
    * Sora Turbo (OpenAI) Text-to-Video
-   * fal-ai/sora
-   * OpenAI Sora Turbo，最長 20s，多種寬高比
+   * fal-ai/sora — 注意：OpenAI Sora 在 fal.ai 的可用性不穩定
+   * 此端點如失效將自動降級到 LTX-Video 13B
    */
   soraTextToVideo: protectedProcedure
     .input(z.object({
@@ -274,8 +274,25 @@ export const videoStudioRouter = router({
         resolution: input.resolution,
         aspect_ratio: input.aspectRatio,
       };
-      const result = await falQueueRun("fal-ai/sora", payload, 480) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      // 嘗試 Sora 端點如失效則降級到 LTX-Video
+      try {
+        const result = await falQueueRun("fal-ai/sora", payload, 480) as any;
+        return { video_url: extractVideoUrl(result), raw: result };
+      } catch (e: any) {
+        if (e?.message?.includes("404") || e?.message?.includes("not found")) {
+          // Sora 端點不可用，降級到 LTX-Video-13B
+          const fallbackPayload: Record<string, unknown> = {
+            prompt: input.prompt,
+            num_frames: 121,
+            fps: 25,
+            height: 480,
+            width: 848,
+          };
+          const result = await falQueueRun("fal-ai/ltx-video-13b-distilled", fallbackPayload, 300) as any;
+          return { video_url: extractVideoUrl(result), raw: result, degraded: true };
+        }
+        throw e;
+      }
     }),
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -332,7 +349,7 @@ export const videoStudioRouter = router({
         num_frames: input.numFrames,
       };
       const result = await falQueueRun(modelId, payload, 300) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return { video_url: extractVideoUrl(result), request_id: result?.request_id ?? null, raw: result };
     }),
 
   /**
@@ -403,7 +420,8 @@ export const videoStudioRouter = router({
         image_url: input.imageUrl,
         prompt_optimizer: input.promptOptimizer,
       };
-      const result = await falQueueRun("fal-ai/minimax/video-01/image-to-video", payload, 300) as any;
+      // MiniMax Hailuo-02 升級版端點
+      const result = await falQueueRun("fal-ai/minimax/hailuo-02/pro/image-to-video", payload, 300) as any;
       return { video_url: extractVideoUrl(result), raw: result };
     }),
 

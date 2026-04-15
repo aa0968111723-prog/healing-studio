@@ -280,7 +280,7 @@ function resolveSpecificEngine(engine: LLMEngine): EngineConfig {
         engine: "nvidia",
         url: "https://integrate.api.nvidia.com/v1/chat/completions",
         apiKey: nvidiaKey,
-        model: "minimax/minimax-01",
+        model: "minimax/minimax-m2.7",
         supportsThinking: true,
         supportsGrounding: false,
         supportsLongContext: true,
@@ -323,7 +323,7 @@ export function getEngineStatus(): EngineStatus {
   if (!ENV.geminiApiKey) missing.push("GEMINI_API_KEY（推薦）");
   if (!serverEnv.GOOGLE_APPLICATION_CREDENTIALS_JSON) missing.push("GOOGLE_APPLICATION_CREDENTIALS_JSON（Vertex AI）");
   if (!ENV.forgeApiKey) missing.push("BUILT_IN_FORGE_API_KEY（Manus 相容）");
-  if (!serverEnv.NVIDA_API) missing.push("NVIDA_API（MiniMax M2.7 via NVIDIA NIM）");
+  if (!process.env.NVIDIA_API) missing.push("NVIDIA_API（MiniMax M2.7 via NVIDIA NIM）");
 
   let currentName = "無可用引擎";
   try {

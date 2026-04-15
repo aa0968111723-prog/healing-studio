@@ -181,10 +181,11 @@ export const proStudioRouter = router({
       instrumental: z.boolean().optional(),        // true → 傳空字串歌詞（純音樂）
       bpm:          z.number().min(40).max(300).optional(),
       duration:     z.number().min(1).max(300).optional(), // 秒數（非 Sonauto 模型用）
-      model:        z.enum(["sonauto", "ace-step", "stable-audio", "musicgen"]).optional().default("sonauto"),
+      model:        z.enum(["sonauto", "ace-step", "stable-audio", "musicgen"]).optional().default("ace-step"),
     }))
     .mutation(async ({ input }) => {
-      const modelChoice = input.model ?? "sonauto";
+      // DEF-14 同步修正：後端預設模型改為 ace-step
+      const modelChoice = input.model ?? "ace-step";
 
       // ── Sonauto v2（預設）─────────────────────────────────────
       if (modelChoice === "sonauto") {
@@ -639,12 +640,14 @@ export const proStudioRouter = router({
       num_frames: z.number().min(16).max(200).optional(),
     }))
     .mutation(async ({ input }) => {
-      const { request_id } = await falQueueSubmit("fal-ai/wan/v2.2-14b/speech-to-video", {
+      // 過濾 undefined 鍾開候送入 fal.ai 造成 422
+      const falPayload: Record<string, unknown> = {
         image_url:  input.image_url,
         audio_url:  input.audio_url,
-        prompt:     input.prompt,
-        num_frames: input.num_frames,
-      });
+      };
+      if (input.prompt)     falPayload.prompt     = input.prompt;
+      if (input.num_frames) falPayload.num_frames  = input.num_frames;
+      const { request_id } = await falQueueSubmit("fal-ai/wan/v2.2-14b/speech-to-video", falPayload);
       return { request_id, model: "fal-ai/wan/v2.2-14b/speech-to-video" };
     }),
 
@@ -691,6 +694,10 @@ export const proStudioRouter = router({
       watermark:       z.boolean().optional().default(false),
     }))
     .mutation(async ({ input }) => {
+      // 驗證：video_url 和 audio_url 必須至少存在一個
+      if (!input.video_url && !input.audio_url) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "請提供 video_url 或 audio_url （必選其一）" });
+      }
       const { request_id } = await falQueueSubmit("fal-ai/elevenlabs/dubbing", {
         video_url:       input.video_url,
         audio_url:       input.audio_url,
