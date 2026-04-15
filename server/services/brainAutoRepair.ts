@@ -259,8 +259,8 @@ const ENGINE_PROVIDER_MAP: Record<string, string> = {
 /** 備援鏈 */
 const REPAIR_FALLBACK: Record<string, string[]> = {
   // ── 推理大腦 ──
-  "gemini-2.5-pro": ["gemini-2.5-flash", "gemini-1.5-pro"],
-  "gemini-2.5-flash": ["gemini-1.5-flash", "gemini-2.5-pro"],
+  "gemini-2.5-pro": ["gemini-2.5-flash", "minimaxai/minimax-m2.7", "gemini-1.5-pro"],
+  "gemini-2.5-flash": ["gemini-1.5-flash", "minimaxai/minimax-m2.7", "gemini-2.5-pro"],
   // ── MiniMax M2.7（NVIDIA NIM 代理人引擎）──
   "minimaxai/minimax-m2.7": ["gemini-2.5-flash", "gemini-2.5-pro"],
   // ── 圖像生成 ──

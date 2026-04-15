@@ -176,7 +176,7 @@ export function detectAvailableEngines(): Array<{ engine: LLMEngine; reason: str
  * 含斷路器判斷 — 跳過不健康的引擎
  */
 export function resolveEngineConfig(forceEngine?: LLMEngine): EngineConfig {
-  const preferred = forceEngine ?? (process.env.LLM_ENGINE as LLMEngine | undefined) ?? "auto";
+  const preferred = forceEngine ?? (serverEnv.LLM_ENGINE as LLMEngine) ?? "auto";
 
   // ── 強制指定引擎 — 不受斷路器影響（用戶明確選擇）─────────
   if (preferred !== "auto") {
