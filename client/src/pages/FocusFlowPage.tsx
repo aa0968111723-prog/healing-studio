@@ -237,7 +237,7 @@ function PomodoroTimer() {
                 colorClass="bg-green-500"
               />
               {running && (
-                <p className="text-[10px] text-muted-foreground text-center">⏸ 暫停後才能更改時間設定</p>
+                <p className="hs-small !mb-0 text-muted-foreground text-center">⏸ 暫停後才能更改時間設定</p>
               )}
             </div>
           </motion.div>
@@ -359,7 +359,7 @@ function HealingTimer() {
                 colorClass="bg-pink-500"
               />
               {running && (
-                <p className="text-[10px] text-muted-foreground text-center">⏸ 暫停後才能更改時間設定</p>
+                <p className="hs-small !mb-0 text-muted-foreground text-center">⏸ 暫停後才能更改時間設定</p>
               )}
             </div>
           </motion.div>
@@ -385,7 +385,7 @@ function FocusCollector() {
 
   return (
     <div className="flex flex-col gap-5 w-full">
-      <p className="text-sm text-muted-foreground text-center">
+      <p className="hs-small !mb-0 text-muted-foreground text-center">
         把腦中零散的想法寫下來，最後一起整理
       </p>
 
@@ -453,7 +453,7 @@ function FocusCollector() {
             <GlassCard className="mt-2">
               <div className="flex items-center gap-2 mb-3">
                 <Brain className="h-4 w-4 text-indigo-500" />
-                <h4 className="text-sm font-semibold text-foreground">想法彙整</h4>
+                <h4 className="hs-h3 !mb-0 text-foreground">想法彙整</h4>
                 <Badge variant="secondary" className="ml-auto text-xs">{thoughts.length} 則</Badge>
               </div>
               <ol className="space-y-2 list-decimal list-inside">
@@ -560,10 +560,10 @@ export default function FocusFlowPage() {
     <div className="max-w-2xl mx-auto space-y-6">
       {/* Header */}
       <div className="text-center" id="focus-flow-header">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">
+        <h1 className="hs-h1 !mb-0 text-foreground">
           專注流
         </h1>
-        <p className="text-sm text-muted-foreground mt-1">
+        <p className="hs-small !mb-0 text-muted-foreground mt-1">
           放鬆 → 專注 → 聚焦想法
         </p>
       </div>
@@ -591,9 +591,9 @@ export default function FocusFlowPage() {
             <GlassCard hover={false} id="focus-flow-pomodoro">
               <div className="flex items-center gap-2 mb-1">
                 <Coffee className="h-4 w-4 text-red-400" />
-                <h3 className="text-sm font-semibold text-foreground">番茄鐘</h3>
+                <h3 className="hs-h3 !mb-0 text-foreground">番茄鐘</h3>
               </div>
-              <p className="text-xs text-muted-foreground mb-6">{MODE_CONFIG.pomodoro.description}</p>
+              <p className="hs-small !mb-0 text-muted-foreground mb-6">{MODE_CONFIG.pomodoro.description}</p>
               <PomodoroTimer />
             </GlassCard>
           </TabsContent>
@@ -602,9 +602,9 @@ export default function FocusFlowPage() {
             <GlassCard hover={false} id="focus-flow-healing">
               <div className="flex items-center gap-2 mb-1">
                 <Wind className="h-4 w-4 text-pink-400" />
-                <h3 className="text-sm font-semibold text-foreground">療癒時間</h3>
+                <h3 className="hs-h3 !mb-0 text-foreground">療癒時間</h3>
               </div>
-              <p className="text-xs text-muted-foreground mb-6">{MODE_CONFIG.healing.description}</p>
+              <p className="hs-small !mb-0 text-muted-foreground mb-6">{MODE_CONFIG.healing.description}</p>
               <HealingTimer />
             </GlassCard>
           </TabsContent>
@@ -613,9 +613,9 @@ export default function FocusFlowPage() {
             <GlassCard hover={false} id="focus-flow-focus">
               <div className="flex items-center gap-2 mb-1">
                 <Brain className="h-4 w-4 text-indigo-400" />
-                <h3 className="text-sm font-semibold text-foreground">聚焦時間</h3>
+                <h3 className="hs-h3 !mb-0 text-foreground">聚焦時間</h3>
               </div>
-              <p className="text-xs text-muted-foreground mb-6">{MODE_CONFIG.focus.description}</p>
+              <p className="hs-small !mb-0 text-muted-foreground mb-6">{MODE_CONFIG.focus.description}</p>
               <FocusCollector />
             </GlassCard>
           </TabsContent>
@@ -624,10 +624,10 @@ export default function FocusFlowPage() {
 
       {/* Suggested flow card */}
       <GlassCard className="text-center">
-        <p className="text-xs text-muted-foreground">
+        <p className="hs-small !mb-0 text-muted-foreground">
           💡 建議流程：先用<strong>療癒時間</strong>放鬆身心，再用<strong>番茄鐘</strong>專注工作，最後在<strong>聚焦時間</strong>整理想法
         </p>
-        <p className="text-xs text-muted-foreground mt-2">
+        <p className="hs-small !mb-0 text-muted-foreground mt-2">
           🌟 計時器已全站同步 — 切換頁面不會中斷，也可透過右下角<strong>光球</strong>隨時操作
         </p>
       </GlassCard>
