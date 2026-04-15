@@ -105,7 +105,7 @@ function AsyncAudioPoller({ result, onUpdate, label }: {
       <Loader2 className="w-6 h-6 text-primary animate-spin" />
       <div className="text-center">
         <p className="text-sm font-semibold">{label ?? "音訊"} 背景生成中...</p>
-        <p className="text-xs text-muted-foreground mt-0.5">
+        <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
           已轉入背景任務，完成後會自動通知你<br />
           <span className="text-primary/70">你可以關閉此面板繼續其他操作</span>
         </p>
@@ -519,14 +519,14 @@ function ToolCard({
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="font-semibold text-sm text-foreground">{title}</h3>
+            <h3 className="hs-h3 !mb-0 text-foreground">{title}</h3>
             {badge && (
               <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
                 {badge}
               </Badge>
             )}
           </div>
-          <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
+          <p className="hs-small !mb-0 text-muted-foreground mt-0.5">{description}</p>
           {modelId && (
             <a
               href={`https://fal.ai/models/${modelId}`}
@@ -1162,7 +1162,7 @@ function TTSTab() {
           {/* Qwen 語音說明 */}
           {engine === "qwen" && (
             <div className="p-3 rounded-lg bg-blue-50/40 border border-blue-200/30">
-              <p className="text-[10px] text-blue-700 leading-relaxed">
+              <p className="hs-small !mb-0 text-blue-700">
                 💡 <strong>Qwen3-TTS</strong> 支援中文、英文、日文等多語言，自動偵測語言。<br />
                 • 預設語音為系統自動選擇<br />
                 • 語音名稱（如 Vivian、Dylan）為 Qwen 內建的人聲風格<br />
@@ -1326,7 +1326,7 @@ function CloneTab() {
               )}
               {mode === "dia" && (
                 <div className="p-3 rounded-lg bg-pink-50/60 border border-pink-200/40">
-                  <p className="text-[11px] text-pink-700 leading-relaxed">
+                  <p className="hs-small !mb-0 text-pink-700">
                     💡 <strong>Dia TTS</strong> 不需要參考音訊。<br />
                     用 <code className="bg-pink-100 px-1 rounded">[S1]</code> / <code className="bg-pink-100 px-1 rounded">[S2]</code> 標記不同說話者，AI 會自動分配不同音色。<br />
                     例如：<code className="bg-pink-100 px-1 rounded text-[10px]">[S1] 你好，我是第一位說話者。 [S2] 我是第二位。</code>
@@ -1419,7 +1419,7 @@ function CloneTab() {
               {/* 使用說明 */}
               <div className="p-3 rounded-lg bg-indigo-50/60 border border-indigo-200/40">
                 <p className="text-xs font-medium text-indigo-700 mb-1">📋 用途說明</p>
-                <p className="text-[11px] text-indigo-600 leading-relaxed">
+                <p className="hs-small !mb-0 text-indigo-600">
                   此功能建立「語音配置」供 Kling 影片生成使用。上傳 3-30 秒的清晰人聲音訊，
                   建立後可在 Kling 的影片生成中指定此語音 ID，讓 AI 影片角色用你的聲音說話。
                 </p>
@@ -1836,7 +1836,7 @@ function ASRTab() {
                 <Copy className="w-3 h-3 mr-1" /> 複製
               </Button>
             </div>
-            <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{text}</p>
+            <p className="hs-p !mb-0 text-foreground whitespace-pre-wrap">{text}</p>
           </div>
         )}
       </ToolCard>
@@ -2127,8 +2127,8 @@ export default function ProStudio() {
           <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
         </div>
         <div className="flex-1 min-w-0">
-          <h1 className="text-lg sm:text-xl font-bold tracking-tight text-foreground">音樂配音創作室</h1>
-          <p className="text-[11px] sm:text-xs text-muted-foreground mt-0.5">
+          <h1 className="hs-h2 !mb-0 text-foreground">音樂配音創作室</h1>
+          <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
             音樂創作・配音制作・聲音克隆・AI 形像影片 — fal.ai 頂尖模型整合
           </p>
           <div className="flex flex-wrap gap-1 sm:gap-1.5 mt-2">
