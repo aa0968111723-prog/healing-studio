@@ -203,7 +203,7 @@ export default function DashboardLayout({
           <div className="flex justify-center mb-8">
             <VisualSoul size="xl" state="idle" personality="creative" />
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground heading-healing">
+          <h1 className="hs-h1 !mb-0 text-foreground">
             AI Director 創作平台
           </h1>
           <p className="text-sm text-muted-foreground mt-4 max-w-sm mx-auto body-healing leading-relaxed">
@@ -440,18 +440,18 @@ function DashboardLayoutContent({
             {!isCollapsed && (
               <Link href="/credits" className="block cursor-pointer group" aria-label="查看積分說明">
                 <div className="glass-card-static quota-card-zen px-3 py-2.5 mb-2 text-center transition-colors group-hover:bg-accent/40">
-                  <p className="text-[11px] text-muted-foreground tracking-wide uppercase">剩餘配額</p>
-                  <p className="text-xl font-semibold text-foreground tabular-nums mt-0.5">
+                  <p className="hs-small !mb-0 text-muted-foreground tracking-wide uppercase">剩餘配額</p>
+                  <p className="hs-h2 !mb-0 text-foreground tabular-nums mt-0.5">
                     {user?.remainingGenerations ?? 0}
                   </p>
-                  <p className="text-[10px] text-muted-foreground/70 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">點擊查看積分說明</p>
+                  <p className="hs-small !mb-0 text-muted-foreground/70 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity">點擊查看積分說明</p>
                 </div>
               </Link>
             )}
             {/* Desktop/Mobile view toggle */}
             {!isCollapsed && (
               <div className="flex items-center justify-between px-1 py-1.5 mb-1 rounded-lg bg-muted/40">
-                <span className="text-[11px] text-muted-foreground ml-1">檢視模式</span>
+                <span className="hs-small !mb-0 text-muted-foreground ml-1">檢視模式</span>
                 <div className="flex gap-0.5">
                   <button
                     onClick={() => setViewMode("auto")}

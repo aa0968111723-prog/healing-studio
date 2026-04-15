@@ -165,7 +165,7 @@ export default function FeedbackDialog({
                     isDark ? "text-emerald-400" : "text-emerald-600"
                   }`} />
                 </motion.div>
-                <h3 className={`text-lg font-semibold mb-2 ${s.text}`}>
+                <h3 className={`hs-h3-lg mb-2 ${s.text}`}>
                   感謝你的{mode === "feature" ? "詢問" : "回饋"}！
                 </h3>
                 <p className={`text-sm ${s.textMuted}`}>
