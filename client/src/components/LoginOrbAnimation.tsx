@@ -584,7 +584,7 @@ function CentralOrb({ palette }: { palette: PaletteConfig }) {
         }}
       >
         <span
-          className="text-sm tracking-[0.2em] font-light select-none"
+          className="text-sm tracking-[0.2em] font-light"
           style={{
             background: `linear-gradient(135deg, rgba(255,255,255,0.8), ${palette.textGlow}, rgba(255,255,255,0.6))`,
             WebkitBackgroundClip: "text",
@@ -634,7 +634,7 @@ function ReducedMotionOverlay({ onDone }: { onDone: () => void }) {
             boxShadow: "0 0 40px rgba(255,200,140,0.4)",
           }}
         />
-        <span className="text-sm tracking-[0.2em] text-white/60 font-light select-none">
+        <span className="text-sm tracking-[0.2em] text-white/60 font-light">
           歡迎回來
         </span>
       </motion.div>
@@ -733,6 +733,9 @@ export default function LoginOrbAnimation() {
     <AnimatePresence>
       {show && (
         <motion.div
+          role="button"
+          tabIndex={0}
+          aria-label="跳過登入動畫"
           className="fixed inset-0 pointer-events-auto cursor-pointer overflow-hidden"
           style={{
             zIndex: Z_INDEX_ANIMATION_OVERLAY,
@@ -746,6 +749,7 @@ export default function LoginOrbAnimation() {
             ease: "easeInOut",
           }}
           onClick={handleSkip}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " " || e.key === "Escape") handleSkip(); }}
         >
           {/* Deep star field — three depth layers */}
           <StarField />
