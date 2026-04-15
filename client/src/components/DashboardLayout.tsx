@@ -42,7 +42,6 @@ import {
   Settings,
   StickyNote,
   CalendarDays,
-  Sparkles,
   Image,
   Clock,
   Package,
@@ -55,14 +54,14 @@ import {
   Radar,
   ChevronRight,
   Palette,
-  Boxes,
   FolderOpen,
-  Wrench,
   ListChecks,
   Coins,
   Monitor,
   Smartphone,
   Brain,
+  Music,
+  GripVertical,
 } from "lucide-react";
 import { BackgroundTasksProvider } from "@/contexts/BackgroundTasksContext";
 import BackgroundTasksDrawer from "./BackgroundTasksDrawer";
@@ -102,64 +101,69 @@ function isGroup(entry: SidebarEntry): entry is SidebarGroupItem {
   return "children" in entry;
 }
 
-/** Hierarchical sidebar structure (for rendering) */
+/**
+ * Sidebar menu hierarchy — organised by healing-creative workflow:
+ *
+ *  ① 創作靈感 (Create)  — the core creative tools, top-level for quick access
+ *  ② 素材與模型 (Assets & Models) — manage what you've made / trained
+ *  ③ 規劃筆記 (Plan & Organise) — notes, calendar, focus flow
+ *  ④ 數據洞察 (Insights) — dashboard, monitoring, credits
+ *  ⑤ 學習成長 (Learn & Grow) — docs, feedback
+ *  ⑥ 設定 (Settings) — personal settings (bottom)
+ */
 const sidebarStructure: SidebarEntry[] = [
-  // 1. 創作工作室
+  // ─── ① 創作靈感 ───────────────────────────────────
   { icon: Wand2, label: "創作工作室", path: "/studio", id: "sidebar-studio-link" },
-  // 2. 專業工作室
   {
-    icon: Palette, label: "專業工作室",
+    icon: Palette, label: "專業創作室",
     children: [
-      { icon: Sparkles, label: "音樂配音創作室", path: "/pro-studio", id: "sidebar-pro-studio-link" },
-      { icon: Image, label: "圖片創作室", path: "/image-studio", id: "sidebar-image-studio-link" },
-      { icon: Film, label: "影片專業工作室", path: "/video-studio", id: "sidebar-video-studio-link" },
+      { icon: Image,    label: "圖片創作室",   path: "/image-studio", id: "sidebar-image-studio-link" },
+      { icon: Film,     label: "影片創作室",   path: "/video-studio", id: "sidebar-video-studio-link" },
+      { icon: Music,    label: "音樂配音創作室", path: "/pro-studio",   id: "sidebar-pro-studio-link" },
     ],
   },
-  // 3. 導演 AI
   { icon: Clapperboard, label: "導演 AI", path: "/director", id: "sidebar-director-link" },
-  // 4. 模型訓練
+
+  // ─── ② 素材與模型 ─────────────────────────────────
   {
-    icon: Boxes, label: "模型訓練",
+    icon: FolderOpen, label: "素材與模型",
     children: [
-      { icon: Cpu, label: "角色鍛造所", path: "/models", id: "sidebar-models-link" },
-      { icon: Zap, label: "AI 模型訓練中心", path: "/lora-trainer", id: "sidebar-lora-trainer-link" },
-      { icon: Layers, label: "一致性保險庫", path: "/vault", id: "sidebar-vault-link" },
+      { icon: Package,   label: "數位資產庫",     path: "/assets",           id: "sidebar-assets-link" },
+      { icon: Clock,     label: "生成歷史",       path: "/history",          id: "sidebar-history-link" },
+      { icon: Users,     label: "共享空間",       path: "/shared",           id: "sidebar-shared-link" },
+      { icon: Cpu,       label: "角色鍛造所",     path: "/models",           id: "sidebar-models-link" },
+      { icon: Zap,       label: "模型訓練中心",   path: "/lora-trainer",     id: "sidebar-lora-trainer-link" },
+      { icon: Layers,    label: "一致性保險庫",   path: "/vault",            id: "sidebar-vault-link" },
+      { icon: ListChecks, label: "背景任務中心",  path: "/background-tasks", id: "sidebar-background-tasks-link" },
     ],
   },
-  // 5. 紀錄
+
+  // ─── ③ 規劃筆記 ───────────────────────────────────
   {
-    icon: FolderOpen, label: "紀錄",
+    icon: StickyNote, label: "規劃筆記",
     children: [
-      { icon: Clock, label: "生成歷史", path: "/history", id: "sidebar-history-link" },
-      { icon: ListChecks, label: "背景任務中心", path: "/background-tasks", id: "sidebar-background-tasks-link" },
-      { icon: Package, label: "數位資產庫", path: "/assets", id: "sidebar-assets-link" },
-      { icon: Users, label: "共享空間", path: "/shared", id: "sidebar-shared-link" },
+      { icon: StickyNote,  label: "專案筆記", path: "/notes",      id: "sidebar-notes-link" },
+      { icon: CalendarDays, label: "創作排程", path: "/calendar",   id: "sidebar-calendar-link" },
+      { icon: Leaf,        label: "專注流",   path: "/focus-flow", id: "sidebar-focus-flow-link" },
     ],
   },
-  // 6. 筆記與排程
+
+  // ─── ④ 數據洞察 ───────────────────────────────────
   {
-    icon: StickyNote, label: "筆記與排程",
+    icon: BarChart3, label: "數據洞察",
     children: [
-      { icon: StickyNote, label: "專案筆記", path: "/notes", id: "sidebar-notes-link" },
-      { icon: CalendarDays, label: "創作排程", path: "/calendar", id: "sidebar-calendar-link" },
+      { icon: BarChart3, label: "儀表板",       path: "/dashboard", id: "sidebar-dashboard-link" },
+      { icon: Radar,     label: "AI 監控中心",  path: "/langsmith",  id: "sidebar-langsmith-link" },
+      { icon: Coins,     label: "積分說明",     path: "/credits",    id: "sidebar-credits-link" },
     ],
   },
-  // 7. 儀表板與監控
-  { icon: BarChart3, label: "儀表板", path: "/dashboard", id: "sidebar-dashboard-link" },
-  { icon: Radar, label: "AI 監控中心", path: "/langsmith", id: "sidebar-langsmith-link" },
-  // 8. 學習文件中心
+
+  // ─── ⑤ 學習成長 ───────────────────────────────────
   { icon: BookOpen, label: "學習文件中心", path: "/learn", id: "sidebar-learn-link" },
-  // 8b. 積分說明
-  { icon: Coins, label: "積分說明", path: "/credits", id: "sidebar-credits-link" },
-  // 9. 回饋與設定
-  {
-    icon: Wrench, label: "回饋與設定",
-    children: [
-      { icon: MessageSquare, label: "回饋中心", path: "/feedback", id: "sidebar-feedback-link" },
-      { icon: Settings, label: "個人設定", path: "/settings", id: "sidebar-settings-link" },
-      { icon: Leaf, label: "專注流", path: "/focus-flow", id: "sidebar-focus-flow-link" },
-    ],
-  },
+  { icon: MessageSquare, label: "回饋中心", path: "/feedback", id: "sidebar-feedback-link" },
+
+  // ─── ⑥ 設定 ──────────────────────────────────────
+  { icon: Settings, label: "個人設定", path: "/settings", id: "sidebar-settings-link" },
 ];
 
 /** Flat list of all navigable items (for lookups like active-page label) */
@@ -254,9 +258,10 @@ function DashboardLayoutContent({
 }: DashboardLayoutContentProps) {
   const { user, logout } = useAuth();
   const [location, setLocation] = useLocation();
-  const { state, toggleSidebar } = useSidebar();
+  const { state, toggleSidebar, setOpen } = useSidebar();
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
+  const [resizeDisplayWidth, setResizeDisplayWidth] = useState<number | null>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const activeMenuItem = [...flatMenuItems, ...adminItems].find(
     (item) => item.path === location
@@ -265,6 +270,17 @@ function DashboardLayoutContent({
   const { viewMode, setViewMode } = useViewMode();
 
   const isAdmin = user?.role === "admin";
+
+  // ── Tablet auto-collapse: icon mode for 768–1024 px ───────────────────
+  useEffect(() => {
+    const mql = window.matchMedia("(min-width: 768px) and (max-width: 1024px)");
+    const handleChange = (e: MediaQueryListEvent | MediaQueryList) => {
+      if (e.matches) setOpen(false);   // collapse to icon mode
+    };
+    handleChange(mql); // check on mount
+    mql.addEventListener("change", handleChange);
+    return () => mql.removeEventListener("change", handleChange);
+  }, [setOpen]);
 
   // ── 全站 Welcome Tour（首次登入時自動觸發）────────────────────────────
   const { startTour, hasSeen } = useSiteOnboarding();
@@ -282,39 +298,72 @@ function DashboardLayoutContent({
     if (isCollapsed) setIsResizing(false);
   }, [isCollapsed]);
 
+  // ── Unified resize handler (mouse + touch) ───────────────────────────
   useEffect(() => {
-    // Throttle mousemove to ~60fps via rAF to avoid excessive re-renders during resize.
-    // Store the latest clientX so we never drop the most recent position.
     let rafId: number | null = null;
     let latestClientX = 0;
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isResizing) return;
-      latestClientX = e.clientX;
-      if (rafId !== null) return; // rAF already scheduled; it will use the latest value
-      rafId = requestAnimationFrame(() => {
-        rafId = null;
-        const sidebarLeft = sidebarRef.current?.getBoundingClientRect().left ?? 0;
-        const newWidth = latestClientX - sidebarLeft;
-        if (newWidth >= MIN_WIDTH && newWidth <= MAX_WIDTH) {
-          setSidebarWidth(newWidth);
-        }
-      });
+
+    const applyResize = () => {
+      rafId = null;
+      const sidebarLeft = sidebarRef.current?.getBoundingClientRect().left ?? 0;
+      const newWidth = latestClientX - sidebarLeft;
+      if (newWidth >= MIN_WIDTH && newWidth <= MAX_WIDTH) {
+        setSidebarWidth(newWidth);
+        setResizeDisplayWidth(Math.round(newWidth));
+      }
     };
-    const handleMouseUp = () => setIsResizing(false);
+
+    const handlePointerMove = (clientX: number) => {
+      if (!isResizing) return;
+      latestClientX = clientX;
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(applyResize);
+    };
+
+    const handleMouseMove = (e: MouseEvent) => handlePointerMove(e.clientX);
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        e.preventDefault(); // prevent page scroll while resizing
+        handlePointerMove(e.touches[0].clientX);
+      }
+    };
+    const handleEnd = () => {
+      setIsResizing(false);
+      setResizeDisplayWidth(null);
+    };
+
     if (isResizing) {
       document.addEventListener("mousemove", handleMouseMove);
-      document.addEventListener("mouseup", handleMouseUp);
+      document.addEventListener("mouseup", handleEnd);
+      document.addEventListener("touchmove", handleTouchMove, { passive: false });
+      document.addEventListener("touchend", handleEnd);
+      document.addEventListener("touchcancel", handleEnd);
       document.body.style.cursor = "col-resize";
       document.body.style.userSelect = "none";
+      document.body.style.webkitUserSelect = "none";
     }
     return () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
       document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
+      document.removeEventListener("mouseup", handleEnd);
+      document.removeEventListener("touchmove", handleTouchMove);
+      document.removeEventListener("touchend", handleEnd);
+      document.removeEventListener("touchcancel", handleEnd);
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
+      document.body.style.webkitUserSelect = "";
     };
   }, [isResizing, setSidebarWidth]);
+
+  /** Start resize from mouse or touch */
+  const startResize = useCallback(() => {
+    if (!isCollapsed) setIsResizing(true);
+  }, [isCollapsed]);
+
+  /** Double-click / double-tap resets sidebar to default width */
+  const resetWidth = useCallback(() => {
+    setSidebarWidth(DEFAULT_WIDTH);
+  }, [setSidebarWidth]);
 
   return (
     <>
@@ -514,11 +563,51 @@ function DashboardLayoutContent({
             </DropdownMenu>
           </SidebarFooter>
         </Sidebar>
-        <div
-          className={`absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/20 transition-colors ${isCollapsed ? "hidden" : ""}`}
-          onMouseDown={() => { if (!isCollapsed) setIsResizing(true); }}
-          style={{ zIndex: 50 }}
-        />
+        {/* ── Resize handle: mouse + touch, wider hit area ── */}
+        {!isCollapsed && (
+          <div
+            className="absolute top-0 right-0 w-[6px] h-full cursor-col-resize group/resize-handle select-none touch-none"
+            onMouseDown={startResize}
+            onTouchStart={startResize}
+            onDoubleClick={resetWidth}
+            style={{ zIndex: 50 }}
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="調整側邊欄寬度（雙擊重設）"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") resetWidth();
+            }}
+          >
+            {/* Visual line — appears on hover / during resize */}
+            <div
+              className={`absolute inset-y-0 left-1/2 -translate-x-1/2 w-[2px] rounded-full transition-colors duration-200 ${
+                isResizing
+                  ? "bg-primary/40"
+                  : "bg-transparent group-hover/resize-handle:bg-primary/20"
+              }`}
+            />
+            {/* Grip dots — visible on hover */}
+            <div
+              className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-opacity duration-200 ${
+                isResizing
+                  ? "opacity-60"
+                  : "opacity-0 group-hover/resize-handle:opacity-40"
+              }`}
+            >
+              <GripVertical className="w-3 h-3 text-muted-foreground" />
+            </div>
+          </div>
+        )}
+        {/* ── Width indicator tooltip during resize ── */}
+        {isResizing && resizeDisplayWidth !== null && (
+          <div
+            className="fixed top-1/2 -translate-y-1/2 pointer-events-none z-[100] px-2 py-1 rounded-md bg-foreground/80 text-background text-xs font-mono tabular-nums shadow-lg"
+            style={{ left: `${resizeDisplayWidth + 8}px` }}
+          >
+            {resizeDisplayWidth}px
+          </div>
+        )}
       </div>
 
       <SidebarInset className="flex flex-col min-h-0 overflow-hidden relative">
