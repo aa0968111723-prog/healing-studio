@@ -68,8 +68,8 @@
   --card-foreground: oklch(0.28 0.01 60);
   --popover: oklch(0.99 0.003 75 / 0.85);
   --popover-foreground: oklch(0.28 0.01 60);
-  --primary: oklch(0.50 0.01 60);
-  --primary-foreground: oklch(0.97 0.006 75);
+  --primary: oklch(0.40 0.02 60);
+  --primary-foreground: oklch(0.98 0.005 75);
   --secondary: oklch(0.93 0.01 75);
   --secondary-foreground: oklch(0.35 0.01 60);
   --muted: oklch(0.94 0.008 75);
@@ -88,8 +88,8 @@
   --chart-5: oklch(0.82 0.04 80);
   --sidebar: oklch(0.96 0.006 75 / 0.8);
   --sidebar-foreground: oklch(0.28 0.01 60);
-  --sidebar-primary: oklch(0.50 0.01 60);
-  --sidebar-primary-foreground: oklch(0.97 0.006 75);
+  --sidebar-primary: oklch(0.40 0.02 60);
+  --sidebar-primary-foreground: oklch(0.98 0.005 75);
   --sidebar-accent: oklch(0.93 0.01 75);
   --sidebar-accent-foreground: oklch(0.28 0.01 60);
   --sidebar-border: oklch(0.91 0.01 75);
@@ -395,15 +395,15 @@
 
   /* Healing button press — subtle scale-down feedback */
   .btn-healing {
-    transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   }
   .btn-healing:hover {
     transform: translateY(-1px);
-    box-shadow: 0 4px 20px rgba(108, 108, 108, 0.1);
+    box-shadow: 0 6px 24px rgba(108, 108, 108, 0.15);
   }
   .btn-healing:active {
     transform: translateY(0) scale(0.98);
-    box-shadow: 0 2px 8px rgba(108, 108, 108, 0.06);
+    box-shadow: 0 2px 8px rgba(108, 108, 108, 0.08);
   }
 
   /* Healing page section — breathing spacing */
