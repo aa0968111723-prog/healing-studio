@@ -194,7 +194,7 @@ function JobCard({ job, onCheckStatus }: { job: JobRow; onCheckStatus: (jobId: n
         {/* Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="text-sm font-semibold truncate">{label}</h3>
+            <h3 className="hs-h3 !mb-0 truncate">{label}</h3>
             <Badge variant="outline" className={`text-[10px] h-5 ${cfg.color} border-current/30`}>
               {cfg.icon}
               <span className="ml-1">{cfg.label}</span>
@@ -203,7 +203,7 @@ function JobCard({ job, onCheckStatus }: { job: JobRow; onCheckStatus: (jobId: n
 
           {/* Progress message */}
           {job.progressMessage && (
-            <p className="text-xs text-muted-foreground mt-1 truncate">
+            <p className="hs-small !mb-0 text-muted-foreground mt-1 truncate">
               {job.progressMessage}
             </p>
           )}
@@ -356,8 +356,8 @@ function StatCard({ label, count, icon, color }: { label: string; count: number;
     <div className="rounded-xl border bg-background/50 p-3 flex items-center gap-3">
       <div className={`${color}`}>{icon}</div>
       <div>
-        <p className="text-lg font-bold tabular-nums">{count}</p>
-        <p className="text-[10px] text-muted-foreground">{label}</p>
+        <p className="hs-h3-lg !mb-0 tabular-nums">{count}</p>
+        <p className="hs-small !mb-0 text-muted-foreground">{label}</p>
       </div>
     </div>
   );
@@ -490,11 +490,11 @@ export default function BackgroundTasksPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+          <h1 className="hs-h1 !mb-0 flex items-center gap-2">
             <Loader2 className="w-6 h-6 text-primary" />
             背景任務中心
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="hs-small !mb-0 text-muted-foreground mt-1">
             所有生成與訓練任務一覽，支援背景執行與即時追蹤
           </p>
         </div>
@@ -552,23 +552,23 @@ export default function BackgroundTasksPage() {
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          <p className="text-sm text-muted-foreground">載入任務列表...</p>
+          <p className="hs-small !mb-0 text-muted-foreground">載入任務列表...</p>
         </div>
       ) : filteredJobs.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
           <Filter className="w-10 h-10 text-muted-foreground/40" />
           <div>
-            <p className="text-sm font-medium text-muted-foreground">
+            <p className="hs-small !mb-0 font-medium text-muted-foreground">
               {filter === "all" && !search ? "目前沒有任何背景任務" : "沒有符合條件的任務"}
             </p>
-            <p className="text-xs text-muted-foreground/70 mt-1">
+            <p className="hs-small !mb-0 text-muted-foreground/70 mt-1">
               在創作工作室或專業工作室提交生成任務，即可在此追蹤進度
             </p>
           </div>
         </div>
       ) : (
         <div className="space-y-3">
-          <p className="text-xs text-muted-foreground">
+          <p className="hs-small !mb-0 text-muted-foreground">
             共 {filteredJobs.length} 筆任務
             {activeJobIds.length > 0 && (
               <span className="ml-2 text-primary font-medium">
