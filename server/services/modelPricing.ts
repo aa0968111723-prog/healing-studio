@@ -35,7 +35,7 @@ export type ModelCategory =
 export interface ModelPricing {
   modelId: string;
   label: string;
-  provider: "fal" | "gemini" | "vertex" | "elevenlabs" | "suno" | "openai" | "anthropic";
+  provider: "fal" | "gemini" | "vertex" | "elevenlabs" | "suno" | "openai" | "anthropic" | "nvidia";
   category: ModelCategory;
   tier: PricingTier;
 

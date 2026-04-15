@@ -198,6 +198,8 @@ const ENGINE_PROVIDER_MAP: Record<string, string> = {
   "gemini-2.5-pro": "gemini", "gemini-2.5-flash": "gemini",
   "gemini-1.5-pro": "gemini", "gemini-1.5-flash": "gemini",
   "vertex/gemini-2.5-pro": "gemini", "vertex/gemini-2.5-flash": "gemini",
+  // ── MiniMax M2.7 via NVIDIA NIM（代理人推理引擎）──
+  "minimaxai/minimax-m2.7": "nvidia",
   // ── 圖像生成（Fal.ai） ──
   "fal-ai/nano-banana-2": "fal", "fal-ai/nano-banana-pro": "fal",
   "fal-ai/nano-banana/edit": "fal", "fal-ai/nano-banana-2/edit": "fal",
@@ -259,6 +261,8 @@ const REPAIR_FALLBACK: Record<string, string[]> = {
   // ── 推理大腦 ──
   "gemini-2.5-pro": ["gemini-2.5-flash", "gemini-1.5-pro"],
   "gemini-2.5-flash": ["gemini-1.5-flash", "gemini-2.5-pro"],
+  // ── MiniMax M2.7（NVIDIA NIM 代理人引擎）──
+  "minimaxai/minimax-m2.7": ["gemini-2.5-flash", "gemini-2.5-pro"],
   // ── 圖像生成 ──
   "fal-ai/nano-banana-2": ["fal-ai/nano-banana-pro", "fal-ai/flux-pro/v1.1"],
   "fal-ai/nano-banana-pro": ["fal-ai/nano-banana-2", "fal-ai/flux-pro/v1.1"],
@@ -302,7 +306,7 @@ function inferModality(engine: string): ErrorTrace["modality"] {
   if (videoPatterns.some((p) => e.includes(p))) return "video";
 
   // LLM 推理
-  const llmPatterns = ["gemini", "vertex", "llm", "any-llm"];
+  const llmPatterns = ["gemini", "vertex", "llm", "any-llm", "minimaxai", "minimax-m2"];
   if (llmPatterns.some((p) => e.includes(p))) return "llm";
 
   return "image"; // 圖像生成為預設
@@ -1114,6 +1118,18 @@ const ACCURACY_TEST_CASES: Array<{
     testType: "consistency",
     testPrompt: "用 JSON 格式回傳 {\"status\": \"ok\"}",
     expectedBehavior: "回傳合法 JSON 且包含 status 欄位",
+  },
+  {
+    engine: "minimaxai/minimax-m2.7",
+    testType: "response_quality",
+    testPrompt: "用 30 字描述一朵花",
+    expectedBehavior: "回傳包含花卉相關描述的繁體中文或英文文字，字數接近 30",
+  },
+  {
+    engine: "minimaxai/minimax-m2.7",
+    testType: "latency",
+    testPrompt: "回答 2+2=?",
+    expectedBehavior: "在 5 秒內回傳包含 '4' 的回應",
   },
 ];
 
