@@ -725,7 +725,7 @@ export const brainRouter = router({
         });
         results[name] = {
           latencyMs: Date.now() - start,
-          ok: res.ok || res.status === 401 || res.status === 403, // key-gated = service alive
+          ok: res.ok || (res.status >= 400 && res.status < 500), // 4xx = service alive but auth/schema failed
         };
       } catch (e: unknown) {
         results[name] = {

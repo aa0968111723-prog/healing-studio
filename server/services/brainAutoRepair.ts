@@ -174,7 +174,10 @@ const PROVIDER_ENDPOINTS: Record<string, { url: string; method: string; headers?
   nvidia: {
     url: "https://integrate.api.nvidia.com/v1/models",
     method: "GET",
-    headers: (): Record<string, string> => (serverEnv.NVIDA_API ? { Authorization: `Bearer ${serverEnv.NVIDA_API}` } : {}),
+    headers: (): Record<string, string> => {
+      const key = serverEnv.NVIDIA_API || serverEnv.NVIDA_API;
+      return key ? { Authorization: `Bearer ${key}` } : {};
+    },
   },
   fal: {
     url: "https://queue.fal.run/fal-ai/flux/requests",
@@ -348,8 +351,8 @@ async function pingProvider(provider: string): Promise<{ ok: boolean; latencyMs:
       signal: AbortSignal.timeout(8_000),
     });
     const latencyMs = Date.now() - start;
-    // 401/403 = service alive but key issue
-    const ok = res.ok || res.status === 401 || res.status === 403;
+    // 4xx errors mean the service is reachable but authentication or request method failed.
+    const ok = res.ok || (res.status >= 400 && res.status < 500);
     return { ok, latencyMs };
   } catch (e) {
     return {
