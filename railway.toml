@@ -1,0 +1,13 @@
+[build]
+# Use DOCKERFILE builder so Railway uses our Dockerfile instead of Nixpacks
+# This prevents the auto-injected `npm ci` that causes build failures
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand = "node dist/index.js"
+# Use the plain HTTP /api/health endpoint (not tRPC — tRPC requires query params)
+healthcheckPath = "/api/health"
+healthcheckTimeout = 120
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

@@ -1,0 +1,28 @@
+{
+  "query": "SELECT id, openId, name, remainingGenerations FROM users LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2fCSGbgaXNaYhdA.c8da999e308a --database aASgFdZpkh6ZcSsaMk5fyX --execute SELECT id, openId, name, remainingGenerations FROM users LIMIT 5;",
+  "rows": [
+    {
+      "id": "1",
+      "openId": "PTXUd9Gw7CfSshkQwzqUiM",
+      "name": "ruce B",
+      "remainingGenerations": "25"
+    },
+    {
+      "id": "60001",
+      "openId": "d4nwu8Rt7sxpHLMmhJYSm2",
+      "name": "柏能 陳",
+      "remainingGenerations": "46"
+    },
+    {
+      "id": "480001",
+      "openId": "SUGAZVL5uPWyfwM56aMe9p",
+      "name": "叁 陳",
+      "remainingGenerations": "53"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\topenId\tname\tremainingGenerations\n1\tPTXUd9Gw7CfSshkQwzqUiM\truce B\t25\n60001\td4nwu8Rt7sxpHLMmhJYSm2\t柏能 陳\t46\n480001\tSUGAZVL5uPWyfwM56aMe9p\t叁 陳\t53\n",
+  "stderr": "",
+  "execution_time_ms": 1607
+}

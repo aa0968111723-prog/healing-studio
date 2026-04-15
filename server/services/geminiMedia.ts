@@ -1,0 +1,461 @@
+/**
+ * geminiMedia.ts — Gemini API 多媒體生成服務
+ *
+ * 功能：
+ *   - 生圖  : Gemini Imagen 3 / Imagen 2 文字生成圖片
+ *   - 生影  : Veo 2 / Veo 3 文字/圖片生成影片
+ *   - 生音樂: Lyria RealTime / MusicFX 音樂生成
+ *   - 配音  : Gemini TTS / Chirp 語音合成
+ *
+ * 所有端點均透過 Google AI Studio / Gemini API Key
+ */
+
+// ─── Types ────────────────────────────────────────────────────────────────
+
+export interface GeminiImageParams {
+  prompt: string;
+  model?: "imagen-3.0-generate-002" | "imagen-3.0-fast-generate-001" | "imagen-2.0";
+  aspectRatio?: "1:1" | "3:4" | "4:3" | "9:16" | "16:9";
+  numImages?: number;
+  negativePrompt?: string;
+  seed?: number;
+  safetyFilterLevel?: "block_low_and_above" | "block_medium_and_above" | "block_only_high";
+  personGeneration?: "allow_adult" | "allow_all" | "dont_allow";
+  addWatermark?: boolean;
+}
+
+export interface GeminiImageResult {
+  images: Array<{
+    base64: string;
+    mimeType: string;
+    url?: string;  // 若上傳到 Storage 後填入
+  }>;
+  model: string;
+  generationParams: Record<string, unknown>;
+}
+
+export interface GeminiVideoParams {
+  prompt: string;
+  model?: "veo-2.0-generate-001" | "veo-3.0-generate-preview";
+  imageUrl?: string;          // 首幀圖片（圖生影）
+  lastImageUrl?: string;      // 末幀圖片
+  duration?: number;          // 秒數（5 或 8）
+  aspectRatio?: "16:9" | "9:16";
+  negativePrompt?: string;
+  seed?: number;
+  fps?: number;
+  sampleCount?: number;
+}
+
+export interface GeminiVideoResult {
+  operationName: string;      // 長時間操作名稱
+  videos?: Array<{
+    uri: string;
+    mimeType: string;
+  }>;
+  status: "processing" | "completed" | "failed";
+}
+
+export interface GeminiAudioParams {
+  prompt: string;
+  model?: "lyria-002" | "musicfx-001";
+  duration?: number;          // 秒數，最多30s
+  seed?: number;
+  temperature?: number;
+  topP?: number;
+  guidance?: number;
+}
+
+export interface GeminiAudioResult {
+  audioBase64: string;
+  mimeType: string;
+  duration: number;
+}
+
+export interface GeminiTTSParams {
+  text: string;
+  model?: "gemini-2.5-flash-preview-tts" | "gemini-2.5-pro-preview-tts";
+  voiceName?: string;         // 語音名稱
+  language?: string;          // BCP-47 語言代碼
+  speakingRate?: number;      // 0.25 ~ 4.0
+  pitch?: number;             // -20.0 ~ 20.0
+}
+
+export interface GeminiTTSResult {
+  audioBase64: string;
+  mimeType: string;
+  duration?: number;
+}
+
+// ─── Gemini 模型目錄 ───────────────────────────────────────────────────────
+
+export const GEMINI_IMAGE_MODELS = [
+  {
+    value: "imagen-3.0-generate-002",
+    label: "Imagen 3.0 (旗艦)",
+    tier: "premium" as const,
+    description: "Imagen 3 最高品質，支援人臉生成",
+    maxImages: 4,
+    supportsNegativePrompt: true,
+  },
+  {
+    value: "imagen-3.0-fast-generate-001",
+    label: "Imagen 3.0 Fast",
+    tier: "fast" as const,
+    description: "Imagen 3 快速版，適合即時預覽",
+    maxImages: 4,
+    supportsNegativePrompt: true,
+  },
+  {
+    value: "imagen-2.0",
+    label: "Imagen 2.0",
+    tier: "standard" as const,
+    description: "Imagen 2 穩定版，高品質寫實風格",
+    maxImages: 4,
+    supportsNegativePrompt: false,
+  },
+] as const;
+
+export const GEMINI_VIDEO_MODELS = [
+  {
+    value: "veo-2.0-generate-001",
+    label: "Veo 2",
+    tier: "premium" as const,
+    description: "Veo 2 高品質影片生成，支援圖生影",
+    maxDuration: 8,
+    supportsI2V: true,
+    aspectRatios: ["16:9", "9:16"] as string[],
+  },
+  {
+    value: "veo-3.0-generate-preview",
+    label: "Veo 3 (預覽)",
+    tier: "premium" as const,
+    description: "Veo 3 最新預覽版，原生音效生成",
+    maxDuration: 8,
+    supportsI2V: false,
+    aspectRatios: ["16:9"] as string[],
+  },
+] as const;
+
+export const GEMINI_AUDIO_MODELS = [
+  {
+    value: "lyria-002",
+    label: "Lyria 2 音樂生成",
+    tier: "premium" as const,
+    description: "Google Lyria 2 高品質 AI 音樂生成",
+    maxDuration: 30,
+    supportsInstrumental: true,
+  },
+  {
+    value: "musicfx-001",
+    label: "MusicFX",
+    tier: "standard" as const,
+    description: "Google MusicFX 快速音效/音樂生成",
+    maxDuration: 30,
+    supportsInstrumental: true,
+  },
+] as const;
+
+export const GEMINI_TTS_MODELS = [
+  {
+    value: "gemini-2.5-flash-preview-tts",
+    label: "Gemini 2.5 Flash TTS",
+    tier: "fast" as const,
+    description: "Gemini 2.5 Flash 自然語音合成",
+    supportsMultiSpeaker: true,
+    languages: ["zh-TW", "zh-CN", "en-US", "ja-JP", "ko-KR", "fr-FR", "de-DE", "es-ES"],
+  },
+  {
+    value: "gemini-2.5-pro-preview-tts",
+    label: "Gemini 2.5 Pro TTS",
+    tier: "premium" as const,
+    description: "Gemini 2.5 Pro 高品質情感語音合成",
+    supportsMultiSpeaker: true,
+    languages: ["zh-TW", "zh-CN", "en-US", "ja-JP", "ko-KR", "fr-FR", "de-DE", "es-ES"],
+  },
+] as const;
+
+// 可用語音名稱（Gemini TTS）
+export const GEMINI_TTS_VOICES = [
+  { voiceId: "Zephyr", label: "Zephyr（亮麗）", gender: "female" },
+  { voiceId: "Puck", label: "Puck（活潑）", gender: "male" },
+  { voiceId: "Charon", label: "Charon（沉穩）", gender: "male" },
+  { voiceId: "Kore", label: "Kore（堅定）", gender: "female" },
+  { voiceId: "Fenrir", label: "Fenrir（激昂）", gender: "male" },
+  { voiceId: "Aoede", label: "Aoede（悅耳）", gender: "female" },
+  { voiceId: "Leda", label: "Leda（年輕）", gender: "female" },
+  { voiceId: "Orus", label: "Orus（平靜）", gender: "male" },
+] as const;
+
+// ─── Gemini Media Client ───────────────────────────────────────────────────
+
+export class GeminiMediaClient {
+  private apiKey: string;
+  private baseUrl = "https://generativelanguage.googleapis.com";
+
+  constructor() {
+    const key = process.env.GEMINI_API_KEY;
+    if (!key) throw new Error("GEMINI_API_KEY 未設定");
+    this.apiKey = key;
+  }
+
+  get isAvailable(): boolean {
+    return !!process.env.GEMINI_API_KEY;
+  }
+
+  // ── 圖片生成（Imagen） ───────────────────────────────────────────────────
+  async generateImage(params: GeminiImageParams): Promise<GeminiImageResult> {
+    const model = params.model ?? "imagen-3.0-generate-002";
+    const url = `${this.baseUrl}/v1beta/models/${model}:predict?key=${this.apiKey}`;
+
+    const body: Record<string, unknown> = {
+      instances: [
+        {
+          prompt: params.prompt,
+          ...(params.negativePrompt && { negativePrompt: params.negativePrompt }),
+        },
+      ],
+      parameters: {
+        sampleCount: params.numImages ?? 1,
+        ...(params.aspectRatio && { aspectRatio: params.aspectRatio }),
+        ...(params.seed != null && { seed: params.seed }),
+        ...(params.safetyFilterLevel && { safetySetting: params.safetyFilterLevel }),
+        ...(params.personGeneration && { personGeneration: params.personGeneration }),
+        ...(params.addWatermark != null && { addWatermark: params.addWatermark }),
+      },
+    };
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      throw new Error(`Gemini Imagen 錯誤 ${res.status}: ${errText}`);
+    }
+
+    const data = await res.json() as any;
+    const predictions = data.predictions ?? [];
+
+    return {
+      images: predictions.map((p: any) => ({
+        base64: p.bytesBase64Encoded ?? "",
+        mimeType: p.mimeType ?? "image/png",
+      })),
+      model,
+      generationParams: params as unknown as Record<string, unknown>,
+    };
+  }
+
+  // ── 影片生成（Veo） ──────────────────────────────────────────────────────
+  async generateVideo(params: GeminiVideoParams): Promise<GeminiVideoResult> {
+    const model = params.model ?? "veo-2.0-generate-001";
+    const url = `${this.baseUrl}/v1beta/models/${model}:predictLongRunning?key=${this.apiKey}`;
+
+    const instance: Record<string, unknown> = {
+      prompt: params.prompt,
+    };
+
+    // 圖生影：加入首幀圖片
+    if (params.imageUrl) {
+      if (params.imageUrl.startsWith("data:")) {
+        // data URL → 直接解析 base64
+        const [mimeMatch, b64] = params.imageUrl.split(",");
+        const mimeType = mimeMatch.replace("data:", "").replace(";base64", "");
+        instance.image = { bytesBase64Encoded: b64, mimeType };
+      } else if (params.imageUrl.startsWith("gs://")) {
+        // GCS URI → 直接傳 gcsUri
+        instance.image = { gcsUri: params.imageUrl };
+      } else {
+        // DEF-11 修正：HTTP URL 需下載轉 base64（gcsUri 只接受 gs:// 不接受 https://）
+        try {
+          const imgRes = await fetch(params.imageUrl, { signal: AbortSignal.timeout(30_000) });
+          if (!imgRes.ok) throw new Error(`無法下載圖片 ${imgRes.status}`);
+          const mimeType = imgRes.headers.get("content-type") ?? "image/jpeg";
+          const arrayBuf = await imgRes.arrayBuffer();
+          const b64 = Buffer.from(arrayBuf).toString("base64");
+          instance.image = { bytesBase64Encoded: b64, mimeType };
+        } catch (e) {
+          throw new Error(`圖生影圖片下載失敗（DEF-11）：${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+    }
+
+    const body = {
+      instances: [instance],
+      parameters: {
+        ...(params.duration && { durationSeconds: params.duration }),
+        ...(params.aspectRatio && { aspectRatio: params.aspectRatio }),
+        ...(params.negativePrompt && { negativePrompt: params.negativePrompt }),
+        ...(params.seed != null && { seed: params.seed }),
+        ...(params.fps && { fps: params.fps }),
+        sampleCount: params.sampleCount ?? 1,
+      },
+    };
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      throw new Error(`Gemini Veo 錯誤 ${res.status}: ${errText}`);
+    }
+
+    const data = await res.json() as any;
+    return {
+      operationName: data.name ?? "",
+      status: "processing",
+    };
+  }
+
+  /** 查詢 Veo 長時間操作狀態 */
+  async pollVideoOperation(operationName: string): Promise<GeminiVideoResult> {
+    const url = `${this.baseUrl}/v1beta/${operationName}?key=${this.apiKey}`;
+
+    const res = await fetch(url, {
+      headers: { "Content-Type": "application/json" },
+    });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      throw new Error(`Gemini 操作查詢錯誤 ${res.status}: ${errText}`);
+    }
+
+    const data = await res.json() as any;
+
+    if (data.done) {
+      if (data.error) {
+        throw new Error(`Veo 生成失敗: ${JSON.stringify(data.error)}`);
+      }
+      const videos = (data.response?.predictions ?? []).map((p: any) => ({
+        uri: p.video?.uri ?? p.gcsUri ?? "",
+        mimeType: p.video?.mimeType ?? "video/mp4",
+      }));
+      return { operationName, videos, status: "completed" };
+    }
+
+    return { operationName, status: "processing" };
+  }
+
+  /** Veo 生成 + 輪詢（最長5分鐘） */
+  async generateVideoSync(
+    params: GeminiVideoParams,
+    maxWaitMs = 300_000
+  ): Promise<{ videoUrl: string; mimeType: string }> {
+    const initResult = await this.generateVideo(params);
+    const startTime = Date.now();
+    const pollInterval = 5_000;
+
+    while (Date.now() - startTime < maxWaitMs) {
+      await new Promise((r) => setTimeout(r, pollInterval));
+      const result = await this.pollVideoOperation(initResult.operationName);
+
+      if (result.status === "completed" && result.videos?.length) {
+        return {
+          videoUrl: result.videos[0].uri,
+          mimeType: result.videos[0].mimeType,
+        };
+      }
+    }
+
+    throw new Error(`Veo 影片生成超時（${maxWaitMs / 1000}s）`);
+  }
+
+  // ── 音樂生成（Lyria / MusicFX） ──────────────────────────────────────────
+  async generateAudio(params: GeminiAudioParams): Promise<GeminiAudioResult> {
+    const model = params.model ?? "lyria-002";
+    const url = `${this.baseUrl}/v1beta/models/${model}:predict?key=${this.apiKey}`;
+
+    const body = {
+      instances: [{ prompt: params.prompt }],
+      parameters: {
+        ...(params.duration && { durationSeconds: params.duration }),
+        ...(params.seed != null && { seed: params.seed }),
+        ...(params.temperature != null && { temperature: params.temperature }),
+        ...(params.guidance != null && { guidanceScale: params.guidance }),
+      },
+    };
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      throw new Error(`Gemini Audio 錯誤 ${res.status}: ${errText}`);
+    }
+
+    const data = await res.json() as any;
+    const prediction = data.predictions?.[0] ?? {};
+
+    return {
+      audioBase64: prediction.bytesBase64Encoded ?? prediction.audioContent ?? "",
+      mimeType: prediction.mimeType ?? "audio/wav",
+      duration: params.duration ?? 15,
+    };
+  }
+
+  // ── 語音合成（Gemini TTS） ────────────────────────────────────────────────
+  async textToSpeech(params: GeminiTTSParams): Promise<GeminiTTSResult> {
+    const model = params.model ?? "gemini-2.5-flash-preview-tts";
+    const url = `${this.baseUrl}/v1beta/models/${model}:generateContent?key=${this.apiKey}`;
+
+    // Gemini TTS 使用 generateContent API，但加上 responseModalities
+    const body = {
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: params.text }],
+        },
+      ],
+      generationConfig: {
+        responseModalities: ["AUDIO"],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: {
+              voiceName: params.voiceName ?? "Zephyr",
+            },
+          },
+        },
+      },
+    };
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      throw new Error(`Gemini TTS 錯誤 ${res.status}: ${errText}`);
+    }
+
+    const data = await res.json() as any;
+    const part = data.candidates?.[0]?.content?.parts?.[0];
+    const inlineData = part?.inlineData;
+
+    return {
+      audioBase64: inlineData?.data ?? "",
+      mimeType: inlineData?.mimeType ?? "audio/wav",
+    };
+  }
+}
+
+// ─── Singleton ─────────────────────────────────────────────────────────────
+
+let _geminiMedia: GeminiMediaClient | null = null;
+
+export function getGeminiMediaClient(): GeminiMediaClient {
+  if (!_geminiMedia) {
+    _geminiMedia = new GeminiMediaClient();
+  }
+  return _geminiMedia;
+}

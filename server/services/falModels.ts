@@ -1,0 +1,1132 @@
+/**
+ * falModels.ts — Fal.ai 16大類模型目錄 + 統一呼叫介面
+ *
+ * 類別對照：
+ *  2-1  影像轉3D       image-to-3d
+ *  2-2  影像到影像     image-to-image
+ *  2-3  圖像轉JSON    image-to-json
+ *  2-4  圖片轉視頻     image-to-video
+ *  2-5  JSON           json (structured output)
+ *  2-6  大型語言模型   llm
+ *  2-7  文字轉3D       text-to-3d
+ *  2-8  文字轉音頻     text-to-audio
+ *  2-9  文字轉圖像     text-to-image
+ *  2-10 文字轉JSON    text-to-json
+ *  2-11 文字轉語音     text-to-speech
+ *  2-12 文字轉視頻     text-to-video
+ *  2-13 訓練           training
+ *  2-14 視訊轉音訊    video-to-audio
+ *  2-15 影片轉文字     video-to-text
+ *  2-16 影片對影片     video-to-video
+ */
+
+import { createFalClient } from "@fal-ai/client";
+
+// ─── 模型類別定義 ─────────────────────────────────────────────────────────
+
+export type FalCategory =
+  | "image-to-3d"
+  | "image-to-image"
+  | "image-to-json"
+  | "image-to-video"
+  | "json"
+  | "llm"
+  | "text-to-3d"
+  | "text-to-audio"
+  | "text-to-image"
+  | "text-to-json"
+  | "text-to-speech"
+  | "text-to-video"
+  | "training"
+  | "video-to-audio"
+  | "video-to-text"
+  | "video-to-video";
+
+export interface FalModelConfig {
+  modelId: string;           // fal-ai/xxx model ID
+  label: string;             // 顯示名稱
+  category: FalCategory;
+  tier: "premium" | "standard" | "fast";
+  description: string;
+  inputSchema: FalInputSchema;
+  outputSchema: FalOutputSchema;
+  timeoutMs: number;
+}
+
+export interface FalInputSchema {
+  prompt?: boolean;
+  imageUrl?: boolean;
+  videoUrl?: boolean;
+  audioUrl?: boolean;
+  negativePrompt?: boolean;
+  seed?: boolean;
+  numInferenceSteps?: boolean;
+  guidanceScale?: boolean;
+  imageSize?: boolean;
+  aspectRatio?: boolean;
+  duration?: boolean;
+  strength?: boolean;          // i2i strength
+  loraUrl?: boolean;           // lora weights
+  loraScale?: boolean;
+  numFrames?: boolean;
+  fps?: boolean;
+  motionBucketId?: boolean;
+  condAugmentation?: boolean;
+  voiceId?: boolean;
+  speed?: boolean;
+  exaggeration?: boolean;
+  trainingSteps?: boolean;
+  learningRate?: boolean;
+  stylePrompt?: boolean;
+}
+
+export interface FalOutputSchema {
+  imageUrl?: boolean;
+  images?: boolean;
+  videoUrl?: boolean;
+  audioUrl?: boolean;
+  modelUrl?: boolean;
+  objectUrl?: boolean;          // 3D object
+  text?: boolean;
+  json?: boolean;
+  seed?: boolean;
+}
+
+// ─── 16大類 × 5-6個模型目錄 ───────────────────────────────────────────────
+
+export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
+
+  // ════════════════════════════════════════════════════════
+  // 2-1  影像轉3D  image-to-3d
+  // ════════════════════════════════════════════════════════
+  "image-to-3d": [
+    {
+      modelId: "fal-ai/trellis",
+      label: "Trellis 3D",
+      category: "image-to-3d",
+      tier: "premium",
+      description: "高品質圖片轉3D模型，支援GLB/OBJ輸出",
+      inputSchema: { imageUrl: true, seed: true },
+      outputSchema: { objectUrl: true },
+      timeoutMs: 300_000,
+    },
+    {
+      modelId: "fal-ai/triposr",
+      label: "TripoSR",
+      category: "image-to-3d",
+      tier: "standard",
+      description: "快速單張圖片3D重建",
+      inputSchema: { imageUrl: true, seed: true },
+      outputSchema: { objectUrl: true },
+      timeoutMs: 120_000,
+    },
+    {
+      modelId: "fal-ai/stable-zero123",
+      label: "Stable Zero123",
+      category: "image-to-3d",
+      tier: "standard",
+      description: "Stable Diffusion驅動的3D視角生成",
+      inputSchema: { imageUrl: true, seed: true, numInferenceSteps: true },
+      outputSchema: { images: true },
+      timeoutMs: 180_000,
+    },
+    {
+      modelId: "fal-ai/zero123plus",
+      label: "Zero123++",
+      category: "image-to-3d",
+      tier: "standard",
+      description: "多視角3D圖像生成",
+      inputSchema: { imageUrl: true, seed: true, numInferenceSteps: true },
+      outputSchema: { images: true },
+      timeoutMs: 180_000,
+    },
+    {
+      modelId: "fal-ai/mv-adapter",
+      label: "MV-Adapter",
+      category: "image-to-3d",
+      tier: "premium",
+      description: "多視圖適配器，精確3D重建",
+      inputSchema: { imageUrl: true, seed: true },
+      outputSchema: { images: true, objectUrl: true },
+      timeoutMs: 300_000,
+    },
+  ],
+
+  // ════════════════════════════════════════════════════════
+  // 2-2  影像到影像  image-to-image
+  // ════════════════════════════════════════════════════════
+  "image-to-image": [
+    {
+      modelId: "fal-ai/flux/dev/image-to-image",
+      label: "Flux Dev i2i",
+      category: "image-to-image",
+      tier: "premium",
+      description: "Flux Dev 圖像風格轉換，保留結構細節",
+      inputSchema: { imageUrl: true, prompt: true, strength: true, seed: true, numInferenceSteps: true },
+      outputSchema: { images: true, seed: true },
+      timeoutMs: 180_000,
+    },
+    {
+      modelId: "fal-ai/stable-diffusion-v3-medium/image-to-image",
+      label: "SD3 Medium i2i",
+      category: "image-to-image",
+      tier: "standard",
+      description: "Stable Diffusion 3 圖生圖",
+      inputSchema: { imageUrl: true, prompt: true, strength: true, seed: true, negativePrompt: true },
+      outputSchema: { images: true, seed: true },
+      timeoutMs: 120_000,
+    },
+    {
+      modelId: "fal-ai/ip-adapter-face-id",
+      label: "IP-Adapter FaceID",
+      category: "image-to-image",
+      tier: "premium",
+      description: "臉部特徵保留風格遷移",
+      inputSchema: { imageUrl: true, prompt: true, strength: true, seed: true },
+      outputSchema: { images: true },
+      timeoutMs: 180_000,
+    },
+    {
+      modelId: "fal-ai/controlnet-union",
+      label: "ControlNet Union",
+      category: "image-to-image",
+      tier: "standard",
+      description: "多控制網路圖生圖（姿勢/深度/邊緣）",
+      inputSchema: { imageUrl: true, prompt: true, negativePrompt: true, seed: true, guidanceScale: true },
+      outputSchema: { images: true },
+      timeoutMs: 180_000,
+    },
+    {
+      modelId: "fal-ai/aura-sr",
+      label: "AuraSR 超解析度",
+      category: "image-to-image",
+      tier: "fast",
+      description: "AI 圖像超解析度增強（4x放大）",
+      inputSchema: { imageUrl: true },
+      outputSchema: { imageUrl: true },
+      timeoutMs: 60_000,
+    },
+    {
+      modelId: "fal-ai/imageutils/rembg",
+      label: "RemBG 去背",
+      category: "image-to-image",
+      tier: "fast",
+      description: "AI 智能去除圖片背景",
+      inputSchema: { imageUrl: true },
+      outputSchema: { imageUrl: true },
+      timeoutMs: 30_000,
+    },
+  ],
+
+  // ════════════════════════════════════════════════════════
+  // 2-3  圖像轉JSON  image-to-json
+  // ════════════════════════════════════════════════════════
+  "image-to-json": [
+    {
+      modelId: "fal-ai/any-llm",
+      label: "Any LLM Vision→JSON",
+      category: "image-to-json",
+      tier: "premium",
+      description: "多模態LLM視覺理解輸出結構化JSON",
+      inputSchema: { imageUrl: true, prompt: true },
+      outputSchema: { json: true, text: true },
+      timeoutMs: 60_000,
+    },
+    {
+      modelId: "fal-ai/llava-next",
+      label: "LLaVA-Next",
+      category: "image-to-json",
+      tier: "standard",
+      description: "視覺語言模型圖像分析",
+      inputSchema: { imageUrl: true, prompt: true },
+      outputSchema: { text: true, json: true },
+      timeoutMs: 60_000,
+    },
+    {
+      modelId: "fal-ai/moondream",
+      label: "Moondream 2",
+      category: "image-to-json",
+      tier: "fast",
+      description: "輕量圖像問答模型",
+      inputSchema: { imageUrl: true, prompt: true },
+      outputSchema: { text: true },
+      timeoutMs: 30_000,
+    },
+    {
+      modelId: "fal-ai/doctr",
+      label: "DocTR OCR",
+      category: "image-to-json",
+      tier: "fast",
+      description: "文件OCR文字識別輸出JSON",
+      inputSchema: { imageUrl: true },
+      outputSchema: { json: true, text: true },
+      timeoutMs: 30_000,
+    },
+    {
+      modelId: "fal-ai/sam2",
+      label: "SAM2 分割",
+      category: "image-to-json",
+      tier: "standard",
+      description: "圖像語義分割輸出JSON標注",
+      inputSchema: { imageUrl: true, prompt: true },
+      outputSchema: { json: true, images: true },
+      timeoutMs: 60_000,
+    },
+  ],
+
+  // ════════════════════════════════════════════════════════
+  // 2-4  圖片轉視頻  image-to-video
+  // ════════════════════════════════════════════════════════
+  "image-to-video": [
+    {
+      modelId: "fal-ai/kling-video/v2.1/pro/image-to-video",
+      label: "Kling V2.1 Pro i2v",
+      category: "image-to-video",
+      tier: "premium",
+      description: "Kling最新版高品質圖生影（5s/10s）",
+      inputSchema: { imageUrl: true, prompt: true, duration: true, aspectRatio: true, seed: true },
+      outputSchema: { videoUrl: true },
+      timeoutMs: 300_000,
+    },
+    {
+      modelId: "fal-ai/kling-video/v2.1/standard/image-to-video",
+      label: "Kling V2.1 Standard i2v",
+      category: "image-to-video",
+      tier: "premium",
+      description: "Kling V2.1 圖生影（標準版）",
+      inputSchema: { imageUrl: true, prompt: true, duration: true, seed: true },
+      outputSchema: { videoUrl: true },
+      timeoutMs: 300_000,
+    },
+    {
+      modelId: "fal-ai/runway-gen3/turbo/image-to-video",
+      label: "Runway Gen3 Turbo i2v",
+      category: "image-to-video",
+      tier: "premium",
+      description: "Runway Gen-3 Alpha Turbo 圖生影",
+      inputSchema: { imageUrl: true, prompt: true, duration: true, seed: true },
+      outputSchema: { videoUrl: true },
+      timeoutMs: 300_000,
+    },
+    {
+      modelId: "fal-ai/stable-video",
+      label: "Stable Video Diffusion",
+      category: "image-to-video",
+      tier: "standard",
+      description: "SVD 圖生影，動態幀數控制",
+      inputSchema: { imageUrl: true, motionBucketId: true, condAugmentation: true, numFrames: true, fps: true },
+      outputSchema: { videoUrl: true },
+      timeoutMs: 240_000,
+    },
+    {
+      modelId: "fal-ai/minimax-video/image-to-video",
+      label: "MiniMax i2v",
+      category: "image-to-video",
+      tier: "standard",
+      description: "MiniMax Hailuo 圖生影",
+      inputSchema: { imageUrl: true, prompt: true, duration: true },
+      outputSchema: { videoUrl: true },
+      timeoutMs: 300_000,
+    },
+    {
+      modelId: "fal-ai/luma-dream-machine/image-to-video",
+      label: "Luma Dream Machine i2v",
+      category: "image-to-video",
+      tier: "premium",
+      description: "Luma AI 高真實感圖生影",
+      inputSchema: { imageUrl: true, prompt: true, duration: true, aspectRatio: true },
+      outputSchema: { videoUrl: true },
+      timeoutMs: 300_000,
+    },
+  ],
+
+  // ════════════════════════════════════════════════════════
+  // 2-5  JSON  structured output generation
+  // ════════════════════════════════════════════════════════
+  "json": [
+    {
+      modelId: "fal-ai/any-llm",
+      label: "Any LLM JSON Mode",
+      category: "json",
+      tier: "premium",
+      description: "多模型JSON結構化輸出路由",
+      inputSchema: { prompt: true },
+      outputSchema: { json: true, text: true },
+      timeoutMs: 60_000,
+    },
+    {
+      modelId: "fal-ai/lmstudio",
+      label: "LMStudio 本地模型",
+      category: "json",
+      tier: "fast",
+      description: "本地 LMStudio 模型 JSON 輸出",
+      inputSchema: { prompt: true },
+      outputSchema: { json: true, text: true },
+      timeoutMs: 60_000,
+    },
+    {
+      modelId: "fal-ai/wizardcoder",
+      label: "WizardCoder JSON",
+      category: "json",
+      tier: "standard",
+      description: "程式碼/JSON 生成專用模型",
+      inputSchema: { prompt: true },
+      outputSchema: { text: true, json: true },
+      timeoutMs: 60_000,
+    },
+    {
+      modelId: "fal-ai/outlines",
+      label: "Outlines 結構化生成",
+      category: "json",
+      tier: "fast",
+      description: "保證 Schema 合規的結構化文字生成",
+      inputSchema: { prompt: true },
+      outputSchema: { json: true },
+      timeoutMs: 30_000,
+    },
+  ],
+
+  // ════════════════════════════════════════════════════════
+  // 2-6  大型語言模型  LLM
+  // ════════════════════════════════════════════════════════
+  "llm": [
+    {
+      modelId: "fal-ai/any-llm",
+      label: "Any LLM Router",
+      category: "llm",
+      tier: "premium",
+      description: "自動路由到最佳可用LLM（GPT/Claude/Gemini/Llama）",
+      inputSchema: { prompt: true },
+      outputSchema: { text: true },
+      timeoutMs: 60_000,
+    },
+    {
+      modelId: "fal-ai/meta-llama/llama-3.2-90b-vision-instruct",
+      label: "Llama 3.2 90B Vision",
+      category: "llm",
+      tier: "premium",
+      description: "Meta Llama 3.2 90B 視覺語言模型",
+      inputSchema: { prompt: true, imageUrl: true },
+      outputSchema: { text: true },
+      timeoutMs: 60_000,
+    },
+    {
+      modelId: "fal-ai/meta-llama/llama-3.1-8b-instruct",
+      label: "Llama 3.1 8B",
+      category: "llm",
+      tier: "fast",
+      description: "Meta Llama 3.1 8B 高速推理",
+      inputSchema: { prompt: true },
+      outputSchema: { text: true },
+      timeoutMs: 30_000,
+    },
+    {
+      modelId: "fal-ai/wizardlm-2-8x22b",
+      label: "WizardLM 2 8×22B",
+      category: "llm",
+      tier: "premium",
+      description: "WizardLM 2 混合專家模型",
+      inputSchema: { prompt: true },
+      outputSchema: { text: true },
+      timeoutMs: 60_000,
+    },
+    {
+      modelId: "fal-ai/dolphin-2.9.2-qwen2-72b",
+      label: "Dolphin Qwen2 72B",
+      category: "llm",
+      tier: "standard",
+      description: "Dolphin 無過濾創意寫作模型",
+      inputSchema: { prompt: true },
+      outputSchema: { text: true },
+      timeoutMs: 60_000,
+    },
+  ],
+
+  // ════════════════════════════════════════════════════════
+  // 2-7  文字轉3D  text-to-3d
+  // ════════════════════════════════════════════════════════
+  "text-to-3d": [
+    {
+      modelId: "fal-ai/shap-e",
+      label: "Shap-E",
+      category: "text-to-3d",
+      tier: "standard",
+      description: "OpenAI Shap-E 文字生成3D模型",
+      inputSchema: { prompt: true, seed: true, numInferenceSteps: true },
+      outputSchema: { objectUrl: true },
+      timeoutMs: 180_000,
+    },
+    {
+      modelId: "fal-ai/dreamgaussian",
+      label: "DreamGaussian",
+      category: "text-to-3d",
+      tier: "standard",
+      description: "高斯噴濺快速3D生成",
+      inputSchema: { prompt: true, seed: true },
+      outputSchema: { objectUrl: true, images: true },
+      timeoutMs: 300_000,
+    },
+    {
+      modelId: "fal-ai/fantasia3d",
+      label: "Fantasia3D",
+      category: "text-to-3d",
+      tier: "premium",
+      description: "高品質文字到3D資產生成",
+      inputSchema: { prompt: true, seed: true, numInferenceSteps: true },
+      outputSchema: { objectUrl: true },
+      timeoutMs: 300_000,
+    },
+    {
+      modelId: "fal-ai/hyper3d/rodin",
+      label: "Hyper3D Rodin",
+      category: "text-to-3d",
+      tier: "premium",
+      description: "Hyper3D 高精度3D資產生成",
+      inputSchema: { prompt: true, seed: true },
+      outputSchema: { objectUrl: true },
+      timeoutMs: 300_000,
+    },
+    {
+      modelId: "fal-ai/meshy-4",
+      label: "Meshy 4",
+      category: "text-to-3d",
+      tier: "premium",
+      description: "Meshy AI 遊戲級3D模型生成",
+      inputSchema: { prompt: true, stylePrompt: true, seed: true },
+      outputSchema: { objectUrl: true },
+      timeoutMs: 300_000,
+    },
+  ],
+
+  // ════════════════════════════════════════════════════════
+  // 2-8  文字轉音頻  text-to-audio
+  // ════════════════════════════════════════════════════════
+  "text-to-audio": [
+    {
+      modelId: "fal-ai/stable-audio",
+      label: "Stable Audio",
+      category: "text-to-audio",
+      tier: "premium",
+      description: "Stable Audio 高品質音效生成（可達3分鐘）",
+      inputSchema: { prompt: true, duration: true, seed: true, negativePrompt: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 120_000,
+    },
+    {
+      modelId: "fal-ai/audioldm2",
+      label: "AudioLDM 2",
+      category: "text-to-audio",
+      tier: "standard",
+      description: "AudioLDM2 音頻潛在擴散模型",
+      inputSchema: { prompt: true, duration: true, seed: true, numInferenceSteps: true, guidanceScale: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 60_000,
+    },
+    {
+      modelId: "fal-ai/mmaudio-v2",
+      label: "MMAudio V2",
+      category: "text-to-audio",
+      tier: "standard",
+      description: "MMAudio V2 多模態音頻生成",
+      inputSchema: { prompt: true, duration: true, seed: true, negativePrompt: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 60_000,
+    },
+    {
+      modelId: "fal-ai/ace-step",
+      label: "ACE-Step 音樂",
+      category: "text-to-audio",
+      tier: "premium",
+      description: "ACE-Step 高品質音樂生成",
+      inputSchema: { prompt: true, duration: true, seed: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 120_000,
+    },
+    {
+      modelId: "fal-ai/musicgen",
+      label: "MusicGen",
+      category: "text-to-audio",
+      tier: "standard",
+      description: "Meta MusicGen 文字生成音樂",
+      inputSchema: { prompt: true, duration: true, seed: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 120_000,
+    },
+  ],
+
+  // ════════════════════════════════════════════════════════
+  // 2-9  文字轉圖像  text-to-image
+  // ════════════════════════════════════════════════════════
+  "text-to-image": [
+    {
+      modelId: "fal-ai/flux-pro/v1.1",
+      label: "Flux Pro 1.1",
+      category: "text-to-image",
+      tier: "premium",
+      description: "Flux Pro 最新版旗艦文生圖模型",
+      inputSchema: { prompt: true, imageSize: true, seed: true, negativePrompt: true, numInferenceSteps: true, guidanceScale: true },
+      outputSchema: { images: true, seed: true },
+      timeoutMs: 180_000,
+    },
+    {
+      modelId: "fal-ai/flux/dev",
+      label: "Flux Dev",
+      category: "text-to-image",
+      tier: "premium",
+      description: "Flux Dev 開發版高品質生成",
+      inputSchema: { prompt: true, imageSize: true, seed: true, negativePrompt: true, numInferenceSteps: true, guidanceScale: true },
+      outputSchema: { images: true, seed: true },
+      timeoutMs: 120_000,
+    },
+    {
+      modelId: "fal-ai/flux/schnell",
+      label: "Flux Schnell",
+      category: "text-to-image",
+      tier: "fast",
+      description: "Flux Schnell 極速生成（4步）",
+      inputSchema: { prompt: true, imageSize: true, seed: true, numInferenceSteps: true },
+      outputSchema: { images: true, seed: true },
+      timeoutMs: 30_000,
+    },
+    {
+      modelId: "fal-ai/stable-diffusion-v3-medium",
+      label: "SD3 Medium",
+      category: "text-to-image",
+      tier: "standard",
+      description: "Stable Diffusion 3 中型版本",
+      inputSchema: { prompt: true, imageSize: true, seed: true, negativePrompt: true, numInferenceSteps: true, guidanceScale: true },
+      outputSchema: { images: true, seed: true },
+      timeoutMs: 120_000,
+    },
+    {
+      modelId: "fal-ai/aura-flow",
+      label: "AuraFlow",
+      category: "text-to-image",
+      tier: "standard",
+      description: "AuraFlow 開源高品質生成模型",
+      inputSchema: { prompt: true, imageSize: true, seed: true, negativePrompt: true, numInferenceSteps: true, guidanceScale: true },
+      outputSchema: { images: true, seed: true },
+      timeoutMs: 120_000,
+    },
+    {
+      modelId: "fal-ai/ideogram/v2",
+      label: "Ideogram V2",
+      category: "text-to-image",
+      tier: "premium",
+      description: "Ideogram V2 精準文字嵌入圖像",
+      inputSchema: { prompt: true, imageSize: true, seed: true, negativePrompt: true },
+      outputSchema: { images: true },
+      timeoutMs: 120_000,
+    },
+  ],
+
+  // ════════════════════════════════════════════════════════
+  // 2-10 文字轉JSON  text-to-json
+  // ════════════════════════════════════════════════════════
+  "text-to-json": [
+    {
+      modelId: "fal-ai/any-llm",
+      label: "Any LLM t2json",
+      category: "text-to-json",
+      tier: "premium",
+      description: "多模型路由文字轉結構化JSON",
+      inputSchema: { prompt: true },
+      outputSchema: { json: true },
+      timeoutMs: 60_000,
+    },
+    {
+      modelId: "fal-ai/outlines",
+      label: "Outlines t2json",
+      category: "text-to-json",
+      tier: "fast",
+      description: "Schema 約束的結構化輸出",
+      inputSchema: { prompt: true },
+      outputSchema: { json: true },
+      timeoutMs: 30_000,
+    },
+    {
+      modelId: "fal-ai/meta-llama/llama-3.1-8b-instruct",
+      label: "Llama 3.1 t2json",
+      category: "text-to-json",
+      tier: "fast",
+      description: "Llama 3.1 快速 JSON 輸出",
+      inputSchema: { prompt: true },
+      outputSchema: { json: true, text: true },
+      timeoutMs: 30_000,
+    },
+    {
+      modelId: "fal-ai/wizardcoder",
+      label: "WizardCoder t2json",
+      category: "text-to-json",
+      tier: "standard",
+      description: "程式碼導向JSON結構生成",
+      inputSchema: { prompt: true },
+      outputSchema: { json: true },
+      timeoutMs: 60_000,
+    },
+  ],
+
+  // ════════════════════════════════════════════════════════
+  // 2-11 文字轉語音  text-to-speech
+  // ════════════════════════════════════════════════════════
+  "text-to-speech": [
+    {
+      modelId: "fal-ai/metavoice-v1",
+      label: "MetaVoice V1",
+      category: "text-to-speech",
+      tier: "premium",
+      description: "高品質逼真語音合成",
+      inputSchema: { prompt: true, voiceId: true, speed: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 60_000,
+    },
+    {
+      modelId: "fal-ai/playai-tts",
+      label: "PlayAI TTS",
+      category: "text-to-speech",
+      tier: "premium",
+      description: "PlayAI 自然語音合成，多語言支援",
+      inputSchema: { prompt: true, voiceId: true, speed: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 60_000,
+    },
+    {
+      modelId: "fal-ai/dia-tts",
+      label: "Dia TTS",
+      category: "text-to-speech",
+      tier: "standard",
+      description: "Dia 對話式TTS，自然情感表達",
+      inputSchema: { prompt: true, voiceId: true, exaggeration: true, speed: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 60_000,
+    },
+    {
+      modelId: "fal-ai/kokoro",
+      label: "Kokoro TTS",
+      category: "text-to-speech",
+      tier: "fast",
+      description: "Kokoro 輕量高速 TTS",
+      inputSchema: { prompt: true, voiceId: true, speed: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 30_000,
+    },
+    {
+      modelId: "fal-ai/orpheus-tts",
+      label: "Orpheus TTS",
+      category: "text-to-speech",
+      tier: "standard",
+      description: "Orpheus 情感豐富語音合成",
+      inputSchema: { prompt: true, voiceId: true, speed: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 60_000,
+    },
+  ],
+
+  // ════════════════════════════════════════════════════════
+  // 2-12 文字轉視頻  text-to-video
+  // ════════════════════════════════════════════════════════
+  "text-to-video": [
+    {
+      modelId: "fal-ai/kling-video/v2.1/pro/text-to-video",
+      label: "Kling V2.1 Pro t2v",
+      category: "text-to-video",
+      tier: "premium",
+      description: "Kling V2.1 旗艦文生影（5s/10s）",
+      inputSchema: { prompt: true, duration: true, aspectRatio: true, seed: true, negativePrompt: true },
+      outputSchema: { videoUrl: true },
+      timeoutMs: 300_000,
+    },
+    {
+      modelId: "fal-ai/kling-video/v2.1/standard/text-to-video",
+      label: "Kling V2.1 Standard t2v",
+      category: "text-to-video",
+      tier: "premium",
+      description: "Kling V2.1 文生影（標準版）",
+      inputSchema: { prompt: true, duration: true, aspectRatio: true, seed: true },
+      outputSchema: { videoUrl: true },
+      timeoutMs: 300_000,
+    },
+    {
+      modelId: "fal-ai/minimax-video/text-to-video",
+      label: "MiniMax Hailuo t2v",
+      category: "text-to-video",
+      tier: "standard",
+      description: "MiniMax Hailuo AI 文生影",
+      inputSchema: { prompt: true, duration: true, aspectRatio: true },
+      outputSchema: { videoUrl: true },
+      timeoutMs: 300_000,
+    },
+    {
+      modelId: "fal-ai/luma-dream-machine",
+      label: "Luma Dream Machine t2v",
+      category: "text-to-video",
+      tier: "premium",
+      description: "Luma Dream Machine 高真實感文生影",
+      inputSchema: { prompt: true, duration: true, aspectRatio: true, seed: true },
+      outputSchema: { videoUrl: true },
+      timeoutMs: 300_000,
+    },
+    {
+      modelId: "fal-ai/wan-t2v-v2.1",
+      label: "WAN T2V 2.1",
+      category: "text-to-video",
+      tier: "standard",
+      description: "WAN T2V 高品質開源文生影",
+      inputSchema: { prompt: true, duration: true, aspectRatio: true, seed: true, negativePrompt: true },
+      outputSchema: { videoUrl: true },
+      timeoutMs: 300_000,
+    },
+    {
+      modelId: "fal-ai/cogvideox-5b",
+      label: "CogVideoX 5B",
+      category: "text-to-video",
+      tier: "standard",
+      description: "CogVideoX 5B 文生影模型",
+      inputSchema: { prompt: true, duration: true, seed: true, numInferenceSteps: true },
+      outputSchema: { videoUrl: true },
+      timeoutMs: 300_000,
+    },
+  ],
+
+  // ════════════════════════════════════════════════════════
+  // 2-13 訓練  training
+  // ════════════════════════════════════════════════════════
+  "training": [
+    {
+      modelId: "fal-ai/flux-lora-fast-training",
+      label: "Flux LoRA 快速訓練",
+      category: "training",
+      tier: "premium",
+      description: "Flux LoRA 快速微調（15分鐘/概念）",
+      inputSchema: { imageUrl: true, prompt: true, trainingSteps: true, learningRate: true },
+      outputSchema: { modelUrl: true },
+      timeoutMs: 1_800_000,
+    },
+    {
+      modelId: "fal-ai/flux-lora-portrait-trainer",
+      label: "Flux LoRA 人像訓練",
+      category: "training",
+      tier: "premium",
+      description: "Flux LoRA 人像專用訓練器",
+      inputSchema: { imageUrl: true, trainingSteps: true, learningRate: true },
+      outputSchema: { modelUrl: true },
+      timeoutMs: 1_800_000,
+    },
+    {
+      modelId: "fal-ai/dreambooth-flux",
+      label: "DreamBooth Flux",
+      category: "training",
+      tier: "premium",
+      description: "DreamBooth 個人化概念微調",
+      inputSchema: { imageUrl: true, prompt: true, trainingSteps: true },
+      outputSchema: { modelUrl: true },
+      timeoutMs: 3_600_000,
+    },
+    {
+      modelId: "fal-ai/sd3-lora-training",
+      label: "SD3 LoRA 訓練",
+      category: "training",
+      tier: "standard",
+      description: "Stable Diffusion 3 LoRA 微調",
+      inputSchema: { imageUrl: true, trainingSteps: true, learningRate: true },
+      outputSchema: { modelUrl: true },
+      timeoutMs: 3_600_000,
+    },
+    {
+      modelId: "fal-ai/cogvideox-lora-training",
+      label: "CogVideoX LoRA 訓練",
+      category: "training",
+      tier: "premium",
+      description: "CogVideoX 影片風格LoRA微調",
+      inputSchema: { videoUrl: true, trainingSteps: true, learningRate: true },
+      outputSchema: { modelUrl: true },
+      timeoutMs: 3_600_000,
+    },
+    {
+      modelId: "fal-ai/hunyuan-video-lora-training",
+      label: "Hunyuan 影片 LoRA 訓練",
+      category: "training",
+      tier: "premium",
+      description: "混元影片 LoRA 微調，支援自動標註與影片風格學習",
+      inputSchema: { imageUrl: true, trainingSteps: true, learningRate: true },
+      outputSchema: { modelUrl: true },
+      timeoutMs: 3_600_000,
+    },
+    {
+      modelId: "fal-ai/flux-2-trainer",
+      label: "FLUX.2 LoRA 訓練",
+      category: "training",
+      tier: "premium",
+      description: "FLUX.2 模型 LoRA 微調，支援高解析度與多域訓練",
+      inputSchema: { imageUrl: true, trainingSteps: true, learningRate: true },
+      outputSchema: { modelUrl: true },
+      timeoutMs: 3_600_000,
+    },
+    {
+      modelId: "fal-ai/turbo-flux-trainer",
+      label: "Turbo Flux 快速訓練",
+      category: "training",
+      tier: "fast",
+      description: "極速 Flux LoRA 訓練，效能最佳化版本",
+      inputSchema: { imageUrl: true, trainingSteps: true, learningRate: true },
+      outputSchema: { modelUrl: true },
+      timeoutMs: 1_800_000,
+    },
+  ],
+
+  // ════════════════════════════════════════════════════════
+  // 2-14 視訊轉音訊  video-to-audio
+  // ════════════════════════════════════════════════════════
+  "video-to-audio": [
+    {
+      modelId: "fal-ai/mmaudio-v2/video-to-audio",
+      label: "MMAudio V2 v2a",
+      category: "video-to-audio",
+      tier: "premium",
+      description: "MMAudio 視頻同步音效生成",
+      inputSchema: { videoUrl: true, prompt: true, negativePrompt: true, seed: true },
+      outputSchema: { audioUrl: true, videoUrl: true },
+      timeoutMs: 180_000,
+    },
+    {
+      modelId: "fal-ai/stable-audio",
+      label: "Stable Audio v2a",
+      category: "video-to-audio",
+      tier: "standard",
+      description: "從影片內容生成配樂音效",
+      inputSchema: { videoUrl: true, prompt: true, duration: true, seed: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 120_000,
+    },
+    {
+      modelId: "fal-ai/audioldm2",
+      label: "AudioLDM2 v2a",
+      category: "video-to-audio",
+      tier: "standard",
+      description: "AudioLDM2 視頻音效生成",
+      inputSchema: { videoUrl: true, prompt: true, duration: true, seed: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 60_000,
+    },
+    {
+      modelId: "fal-ai/sync-lipsync",
+      label: "Sync.so Lipsync",
+      category: "video-to-audio",
+      tier: "premium",
+      description: "AI唇形同步音頻對齊",
+      inputSchema: { videoUrl: true, audioUrl: true },
+      outputSchema: { videoUrl: true },
+      timeoutMs: 300_000,
+    },
+    {
+      modelId: "fal-ai/elevenlabs/sound-effects",
+      label: "ElevenLabs 音效",
+      category: "video-to-audio",
+      tier: "standard",
+      description: "ElevenLabs 影片配音效生成",
+      inputSchema: { videoUrl: true, prompt: true, duration: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 60_000,
+    },
+  ],
+
+  // ════════════════════════════════════════════════════════
+  // 2-15 影片轉文字  video-to-text
+  // ════════════════════════════════════════════════════════
+  "video-to-text": [
+    {
+      modelId: "fal-ai/whisper",
+      label: "Whisper (影片)",
+      category: "video-to-text",
+      tier: "standard",
+      description: "OpenAI Whisper 影片語音轉文字",
+      inputSchema: { videoUrl: true },
+      outputSchema: { text: true, json: true },
+      timeoutMs: 180_000,
+    },
+    {
+      modelId: "fal-ai/wizper",
+      label: "Wizper 快速轉錄",
+      category: "video-to-text",
+      tier: "fast",
+      description: "快速影片字幕轉錄",
+      inputSchema: { videoUrl: true },
+      outputSchema: { text: true, json: true },
+      timeoutMs: 60_000,
+    },
+    {
+      modelId: "fal-ai/any-llm",
+      label: "Any LLM 影片分析",
+      category: "video-to-text",
+      tier: "premium",
+      description: "LLM 多模態影片內容理解分析",
+      inputSchema: { videoUrl: true, prompt: true },
+      outputSchema: { text: true, json: true },
+      timeoutMs: 120_000,
+    },
+    {
+      modelId: "fal-ai/moondream",
+      label: "Moondream 影片",
+      category: "video-to-text",
+      tier: "fast",
+      description: "輕量影片幀理解問答",
+      inputSchema: { videoUrl: true, prompt: true },
+      outputSchema: { text: true },
+      timeoutMs: 60_000,
+    },
+    {
+      modelId: "fal-ai/llava-next",
+      label: "LLaVA-Next 影片",
+      category: "video-to-text",
+      tier: "standard",
+      description: "LLaVA 視覺語言模型影片分析",
+      inputSchema: { videoUrl: true, prompt: true },
+      outputSchema: { text: true },
+      timeoutMs: 120_000,
+    },
+  ],
+
+  // ════════════════════════════════════════════════════════
+  // 2-16 影片對影片  video-to-video
+  // ════════════════════════════════════════════════════════
+  "video-to-video": [
+    {
+      modelId: "fal-ai/kling-video/v2.1/standard/video-to-video",
+      label: "Kling V2.1 v2v",
+      category: "video-to-video",
+      tier: "premium",
+      description: "Kling V2.1 影片風格轉換",
+      inputSchema: { videoUrl: true, prompt: true, strength: true, seed: true },
+      outputSchema: { videoUrl: true },
+      timeoutMs: 300_000,
+    },
+    {
+      modelId: "fal-ai/wan-v2v",
+      label: "WAN V2V",
+      category: "video-to-video",
+      tier: "standard",
+      description: "WAN 影片到影片風格遷移",
+      inputSchema: { videoUrl: true, prompt: true, strength: true, seed: true, negativePrompt: true },
+      outputSchema: { videoUrl: true },
+      timeoutMs: 300_000,
+    },
+    {
+      modelId: "fal-ai/cogvideox-5b/video-to-video",
+      label: "CogVideoX V2V",
+      category: "video-to-video",
+      tier: "standard",
+      description: "CogVideoX 影片編輯轉換",
+      inputSchema: { videoUrl: true, prompt: true, strength: true, seed: true },
+      outputSchema: { videoUrl: true },
+      timeoutMs: 300_000,
+    },
+    {
+      modelId: "fal-ai/video-to-video",
+      label: "Fal.ai V2V",
+      category: "video-to-video",
+      tier: "standard",
+      description: "Fal.ai 通用影片風格轉換",
+      inputSchema: { videoUrl: true, prompt: true, strength: true, seed: true },
+      outputSchema: { videoUrl: true },
+      timeoutMs: 300_000,
+    },
+    {
+      modelId: "fal-ai/topaz-upscale-video",
+      label: "Topaz 影片超解析度",
+      category: "video-to-video",
+      tier: "premium",
+      description: "Topaz AI 影片品質提升",
+      inputSchema: { videoUrl: true },
+      outputSchema: { videoUrl: true },
+      timeoutMs: 600_000,
+    },
+    {
+      modelId: "fal-ai/stable-video-upscaler",
+      label: "SVD 超解析度",
+      category: "video-to-video",
+      tier: "standard",
+      description: "Stable Video Diffusion 影片上採樣",
+      inputSchema: { videoUrl: true },
+      outputSchema: { videoUrl: true },
+      timeoutMs: 300_000,
+    },
+  ],
+};
+
+// ─── 便利查詢函數 ──────────────────────────────────────────────────────────
+
+/** 取得某類別所有模型 */
+export function getFalModelsByCategory(category: FalCategory): FalModelConfig[] {
+  return FAL_MODEL_CATALOG[category] ?? [];
+}
+
+/** 依 modelId 查詢模型設定 */
+export function getFalModelById(modelId: string): FalModelConfig | undefined {
+  for (const models of Object.values(FAL_MODEL_CATALOG)) {
+    const found = models.find((m) => m.modelId === modelId);
+    if (found) return found;
+  }
+  return undefined;
+}
+
+/** 取得所有類別標籤（繁中） */
+export const FAL_CATEGORY_LABELS: Record<FalCategory, string> = {
+  "image-to-3d":    "影像轉3D",
+  "image-to-image": "影像到影像",
+  "image-to-json":  "圖像轉JSON",
+  "image-to-video": "圖片轉視頻",
+  "json":           "JSON",
+  "llm":            "大型語言模型",
+  "text-to-3d":     "文字轉3D",
+  "text-to-audio":  "文字轉音頻",
+  "text-to-image":  "文字轉圖像",
+  "text-to-json":   "文字轉JSON",
+  "text-to-speech": "文字轉語音",
+  "text-to-video":  "文字轉視頻",
+  "training":       "訓練",
+  "video-to-audio": "視訊轉音訊",
+  "video-to-text":  "影片轉文字",
+  "video-to-video": "影片對影片",
+};
+
+// ─── Fal.ai 統一呼叫器 ─────────────────────────────────────────────────────
+
+export interface FalCallInput {
+  modelId: string;
+  input: Record<string, unknown>;
+  timeoutMs?: number;
+}
+
+export interface FalCallResult {
+  data: Record<string, unknown>;
+  durationMs: number;
+  modelId: string;
+}
+
+/**
+ * 統一 Fal.ai 模型呼叫介面
+ * 支援所有 16 大類模型
+ */
+export async function callFalModel(params: FalCallInput): Promise<FalCallResult> {
+  const apiKey = process.env.FAL_API_KEY;
+  if (!apiKey) throw new Error("FAL_API_KEY 未設定");
+
+  const client = createFalClient({ credentials: apiKey });
+  const start = Date.now();
+
+  const result = await Promise.race([
+    client.subscribe(params.modelId, {
+      input: params.input,
+      logs: false,
+    }),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Fal.ai 超時：${params.modelId}`)), params.timeoutMs ?? 300_000)
+    ),
+  ]);
+
+  return {
+    data: (result as any).data ?? result ?? {},
+    durationMs: Date.now() - start,
+    modelId: params.modelId,
+  };
+}

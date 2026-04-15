@@ -1,0 +1,40 @@
+Phase 10 UI/UX Optimization - Screenshot Findings
+===================================================
+
+Screenshot 1: Studio page (image modality)
+- Blocks show: 主體, 風格, 場景, 光線, 鏡頭 (5 categories, no "氛圍")
+- "氛圍" category removed successfully - Vibe Cards section visible below
+- All working correctly
+
+Screenshot 2: Audio modality (after clicking 音樂 tab)
+- Title changed to "音樂靈感積木" ✓
+- Blocks now show AUDIO-SPECIFIC categories:
+  - 🎹 樂器: 鋼琴, 吉他, 合成器, 管弦樂, 小提琴, 長笛, 鼓組, 豎琴 ✓
+  - 🎵 曲風: 環境音, Lo-Fi, 流行, 爵士, 古典, 電子, 民謠, R&B ✓
+  - ⏱️ 節奏: 慢板, 中等, 快節奏, 漸快, 自由節奏, 搖擺 ✓
+  - 🌊 環境質感: 空間感, 溫暖, 復古雜音, 空靈, 深沉, 清透 ✓
+- Textarea placeholder: "描述你想要的音樂風格與情感...或從上方積木拼出靈感" ✓
+- Vibe Cards section NOT shown for audio (correct!) ✓
+- "音樂工作區 Suno" - tech brand name faded ✓
+
+Screenshot 3: Orb widget
+- Bright white background visible on the proactive message bubble ✓
+- Text is dark gray/black for readability ✓
+
+Screenshot 3: Voice modality (語音 tab)
+- Quick Presets section visible at top: 冥想引導, 故事旁白, 熱情廣告 ✓
+- Each preset shows description (e.g. 輕柔語調、平靜情緒) ✓
+- Voice actors list: 溫暖女聲, 沉穩男聲, 明亮女聲, 旁白男聲, 童聲 ✓
+- Emotion types: 中性, 愉悅, 感傷, 興奮, 平靜, 嚴肅 ✓
+
+Screenshot 4: Video modality (影片 tab)
+- Timeline section shows: 首幀 (Start) → 過渡動態 → 末幀 (End) ✓
+- Arrow with 過渡動態 label between frames ✓
+- Helper text: 上傳首尾幀圖片與末幀，AI 將為您自動生成兩幀之間平滑的過渡動態影片 ✓
+- Tech brand 'Veo 3.1' shown in faded text next to 影片工作區 ✓
+
+Screenshot 5: Orb widget
+- Bright white/light background on proactive message bubble ✓
+- Text dark and readable ✓
+
+All 173 tests pass. TypeScript zero errors.

@@ -1,0 +1,749 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  /* Zen Morandi palette — healing tones */
+  --color-zen-oat: oklch(0.965 0.008 75);
+  --color-zen-smoke: oklch(0.50 0.01 60);
+  --color-zen-blush: oklch(0.85 0.04 30);
+  --color-zen-sage: oklch(0.84 0.04 145);
+  --color-zen-lavender: oklch(0.82 0.04 300);
+  --color-zen-sky: oklch(0.86 0.03 230);
+  --color-zen-sand: oklch(0.82 0.04 80);
+  --color-zen-peach: oklch(0.88 0.06 75);
+  --color-zen-rose: oklch(0.75 0.05 15);
+  --font-sans: "Noto Sans TC", "Inter", system-ui, sans-serif;
+  /* Healing animation timing tokens */
+  --ease-healing: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --ease-breath: cubic-bezier(0.37, 0, 0.63, 1);
+  --duration-gentle: 0.4s;
+  --duration-breath: 4s;
+  --duration-ambient: 20s;
+}
+
+:root {
+  --radius: 1rem;
+  /* Zen Professional Palette — warm oat base */
+  --background: oklch(0.97 0.006 75);
+  --foreground: oklch(0.28 0.01 60);
+  --card: oklch(0.99 0.003 75 / 0.65);
+  --card-foreground: oklch(0.28 0.01 60);
+  --popover: oklch(0.99 0.003 75 / 0.85);
+  --popover-foreground: oklch(0.28 0.01 60);
+  --primary: oklch(0.40 0.02 60);
+  --primary-foreground: oklch(0.98 0.005 75);
+  --secondary: oklch(0.93 0.01 75);
+  --secondary-foreground: oklch(0.35 0.01 60);
+  --muted: oklch(0.94 0.008 75);
+  --muted-foreground: oklch(0.50 0.015 60);
+  --accent: oklch(0.91 0.015 300);
+  --accent-foreground: oklch(0.35 0.02 300);
+  --destructive: oklch(0.60 0.15 25);
+  --destructive-foreground: oklch(0.97 0.006 75);
+  --border: oklch(0.91 0.01 75);
+  --input: oklch(0.93 0.008 75);
+  --ring: oklch(0.55 0.04 60);
+  --chart-1: oklch(0.85 0.04 30);
+  --chart-2: oklch(0.84 0.04 145);
+  --chart-3: oklch(0.82 0.04 300);
+  --chart-4: oklch(0.86 0.03 230);
+  --chart-5: oklch(0.82 0.04 80);
+  --sidebar: oklch(0.96 0.006 75 / 0.8);
+  --sidebar-foreground: oklch(0.28 0.01 60);
+  --sidebar-primary: oklch(0.40 0.02 60);
+  --sidebar-primary-foreground: oklch(0.98 0.005 75);
+  --sidebar-accent: oklch(0.93 0.01 75);
+  --sidebar-accent-foreground: oklch(0.28 0.01 60);
+  --sidebar-border: oklch(0.91 0.01 75);
+  --sidebar-ring: oklch(0.55 0.04 60);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    /* Healing typography: generous line-height for breathing room */
+    line-height: 1.7;
+    letter-spacing: 0.01em;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* Smooth scroll for therapeutic page flow */
+    scroll-behavior: smooth;
+  }
+  /* Healing selection color */
+  ::selection {
+    background: oklch(0.82 0.04 300 / 0.2);
+    color: oklch(0.28 0.01 60);
+  }
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [type="button"]:not(:disabled),
+  [type="submit"]:not(:disabled),
+  [type="reset"]:not(:disabled),
+  a[href],
+  select:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled) {
+    @apply cursor-pointer;
+  }
+  /* Healing focus ring — soft lavender glow instead of harsh outline */
+  :focus-visible {
+    outline: 2px solid oklch(0.82 0.04 300 / 0.5);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  /* Smoother scrollbar for healing feel */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: oklch(0.82 0.04 300 / 0.2);
+    border-radius: 99px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: oklch(0.82 0.04 300 / 0.35);
+  }
+}
+
+@layer components {
+  .container {
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .flex {
+    min-height: 0;
+    min-width: 0;
+  }
+
+  @media (min-width: 640px) {
+    .container {
+      padding-left: 1.5rem;
+      padding-right: 1.5rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .container {
+      padding-left: 2rem;
+      padding-right: 2rem;
+      max-width: 1280px;
+    }
+  }
+
+  /* ─── Glassmorphism Card — healing soft glass ────────────────────── */
+  .glass-card {
+    background: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    border-radius: 1.25rem;
+    box-shadow:
+      0 1px 2px rgba(108, 108, 108, 0.03),
+      0 4px 16px rgba(108, 108, 108, 0.06),
+      0 8px 32px rgba(212, 197, 226, 0.06);
+    transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+
+  .glass-card:hover {
+    box-shadow:
+      0 2px 4px rgba(108, 108, 108, 0.04),
+      0 8px 24px rgba(108, 108, 108, 0.08),
+      0 16px 48px rgba(212, 197, 226, 0.1);
+    transform: translateY(-2px);
+    border-color: rgba(212, 197, 226, 0.3);
+  }
+
+  .glass-card-static {
+    background: rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.45);
+    border-radius: 1.25rem;
+    box-shadow:
+      0 1px 2px rgba(108, 108, 108, 0.03),
+      0 4px 16px rgba(108, 108, 108, 0.06);
+  }
+
+  /* ─── Shimmer Animation ──────────────────────────────────────────── */
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
+  .skeleton-shimmer {
+    background: linear-gradient(90deg, rgba(245,243,240,0.6) 25%, rgba(234,201,193,0.15) 50%, rgba(245,243,240,0.6) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+  }
+
+  /* ─── Reduced Motion: disable animations for accessibility ─────── */
+  @media (prefers-reduced-motion: reduce) {
+    .glass-card {
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      background: rgba(255, 255, 255, 0.85);
+      transition: none;
+    }
+
+    .glass-card:hover {
+      transform: none;
+    }
+
+    .glass-card-static {
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      background: rgba(255, 255, 255, 0.85);
+    }
+
+    .skeleton-shimmer {
+      animation: none;
+    }
+
+    .orb-breathe {
+      animation: none;
+    }
+  }
+
+  /* ─── Zen Orb Glow — gentler healing pulse ───────────────────────── */
+  @keyframes orb-breathe {
+    0%, 100% { box-shadow: 0 0 16px rgba(212, 197, 226, 0.25), 0 0 40px rgba(212, 197, 226, 0.08); }
+    50% { box-shadow: 0 0 28px rgba(212, 197, 226, 0.45), 0 0 60px rgba(212, 197, 226, 0.15); }
+  }
+
+  .orb-breathe {
+    animation: orb-breathe 4s cubic-bezier(0.37, 0, 0.63, 1) infinite;
+  }
+
+  /* ─── Vibe Card Selection ────────────────────────────────────────── */
+  .vibe-selected {
+    box-shadow: 0 0 0 2px rgba(108, 108, 108, 0.3), 0 4px 16px rgba(108, 108, 108, 0.1);
+  }
+
+  /* ─── Workspace Ambient Background — healing gradient mesh ──────── */
+  /* Subtle breathing gradient mesh for the studio workspace area */
+  @keyframes workspace-gradient-shift {
+    0%, 100% {
+      background-position: 0% 50%;
+    }
+    25% {
+      background-position: 50% 0%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+    75% {
+      background-position: 50% 100%;
+    }
+  }
+
+  .workspace-ambient-bg {
+    background:
+      radial-gradient(ellipse 65% 55% at 12% 18%, rgba(212, 197, 226, 0.14) 0%, transparent 70%),
+      radial-gradient(ellipse 55% 65% at 88% 82%, rgba(200, 213, 224, 0.12) 0%, transparent 70%),
+      radial-gradient(ellipse 45% 45% at 50% 50%, rgba(234, 201, 193, 0.09) 0%, transparent 60%),
+      radial-gradient(ellipse 30% 30% at 75% 25%, rgba(196, 223, 207, 0.07) 0%, transparent 50%);
+    background-size: 200% 200%;
+    animation: workspace-gradient-shift 24s cubic-bezier(0.37, 0, 0.63, 1) infinite;
+  }
+
+  /* Floating decorative orb (pure CSS) — softer, slower */
+  @keyframes workspace-orb-float {
+    0%, 100% {
+      transform: translate(0, 0) scale(1);
+      opacity: 0.2;
+    }
+    33% {
+      transform: translate(10px, -15px) scale(1.04);
+      opacity: 0.3;
+    }
+    66% {
+      transform: translate(-6px, 8px) scale(0.98);
+      opacity: 0.18;
+    }
+  }
+
+  .workspace-orb {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+    filter: blur(50px);
+    animation: workspace-orb-float 18s cubic-bezier(0.37, 0, 0.63, 1) infinite;
+    will-change: transform, opacity;
+  }
+
+  .workspace-orb-1 {
+    width: 220px;
+    height: 220px;
+    top: 6%;
+    right: 8%;
+    background: radial-gradient(circle, rgba(212, 197, 226, 0.28) 0%, rgba(212, 197, 226, 0.05) 60%, transparent 75%);
+    animation-duration: 22s;
+  }
+
+  .workspace-orb-2 {
+    width: 180px;
+    height: 180px;
+    bottom: 12%;
+    left: 4%;
+    background: radial-gradient(circle, rgba(234, 201, 193, 0.22) 0%, rgba(234, 201, 193, 0.04) 60%, transparent 75%);
+    animation-duration: 28s;
+    animation-delay: -8s;
+  }
+
+  .workspace-orb-3 {
+    width: 140px;
+    height: 140px;
+    top: 45%;
+    left: 40%;
+    background: radial-gradient(circle, rgba(196, 223, 207, 0.18) 0%, rgba(196, 223, 207, 0.03) 60%, transparent 75%);
+    animation-duration: 32s;
+    animation-delay: -16s;
+  }
+
+  /* Subtle top-edge glow for the workspace — softer gradient */
+  .workspace-top-glow {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 160px;
+    background: linear-gradient(180deg, rgba(212, 197, 226, 0.06) 0%, rgba(234, 201, 193, 0.03) 40%, transparent 100%);
+    pointer-events: none;
+  }
+
+  /* Enhanced sidebar glass effect for workspace — healing glow line */
+  .sidebar-zen-glow {
+    position: relative;
+  }
+
+  .sidebar-zen-glow::before {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 50%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, rgba(212, 197, 226, 0.35) 30%, rgba(234, 201, 193, 0.2) 70%, transparent 100%);
+    pointer-events: none;
+  }
+
+  /* Quota card with zen gradient overlay — warmer healing tones */
+  .quota-card-zen {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.55) 0%, rgba(212, 197, 226, 0.12) 50%, rgba(196, 223, 207, 0.08) 100%);
+  }
+
+  /* ─── Healing Utility Classes ─────────────────────────────────── */
+
+  /* Gentle hover lift — for cards and interactive elements */
+  .hover-lift {
+    transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94), box-shadow 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(108, 108, 108, 0.08), 0 4px 12px rgba(212, 197, 226, 0.1);
+  }
+
+  /* Healing button press — subtle scale-down feedback */
+  .btn-healing {
+    transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  .btn-healing:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 24px rgba(108, 108, 108, 0.15);
+  }
+  .btn-healing:active {
+    transform: translateY(0) scale(0.98);
+    box-shadow: 0 2px 8px rgba(108, 108, 108, 0.08);
+  }
+
+  /* Healing page section — breathing spacing */
+  .section-healing {
+    padding-top: 2.5rem;
+    padding-bottom: 2.5rem;
+  }
+  @media (min-width: 640px) {
+    .section-healing {
+      padding-top: 3.5rem;
+      padding-bottom: 3.5rem;
+    }
+  }
+
+  /* Healing text hierarchy */
+  .heading-healing {
+    letter-spacing: -0.01em;
+    line-height: 1.3;
+    font-weight: 600;
+  }
+  .body-healing {
+    line-height: 1.75;
+    letter-spacing: 0.01em;
+  }
+
+  /* ─── Typographic Scale — consistent heading/body/small classes ─── */
+  /*
+   * Usage in React components:
+   *   <h1 className="hs-h1">Page Title</h1>
+   *   <h2 className="hs-h2">Section Title</h2>
+   *   <h3 className="hs-h3">Card / Subsection Title</h3>
+   *   <p  className="hs-p">Body paragraph text</p>
+   *   <small className="hs-small">Caption or fine print</small>
+   */
+
+  /* h1 — Hero / page-level headings */
+  .hs-h1 {
+    font-size: 1.875rem;        /* 30px */
+    line-height: 1.25;          /* tight */
+    margin-bottom: 1rem;        /* 16px */
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  @media (min-width: 640px) {
+    .hs-h1 {
+      font-size: 2.25rem;       /* 36px */
+      line-height: 1.2;
+      margin-bottom: 1.25rem;
+    }
+  }
+  @media (min-width: 1024px) {
+    .hs-h1 {
+      font-size: 3rem;          /* 48px */
+      margin-bottom: 1.5rem;
+    }
+  }
+
+  /* h2 — Section headings */
+  .hs-h2 {
+    font-size: 1.25rem;         /* 20px */
+    line-height: 1.3;
+    margin-bottom: 0.75rem;     /* 12px */
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  @media (min-width: 640px) {
+    .hs-h2 {
+      font-size: 1.5rem;        /* 24px */
+      margin-bottom: 1rem;
+    }
+  }
+  @media (min-width: 1024px) {
+    .hs-h2 {
+      font-size: 1.875rem;      /* 30px */
+      margin-bottom: 1.25rem;
+    }
+  }
+
+  /* h3 — Card titles / subsection headings */
+  .hs-h3 {
+    font-size: 0.875rem;        /* 14px */
+    line-height: 1.4;
+    margin-bottom: 0.5rem;      /* 8px */
+    font-weight: 600;
+    letter-spacing: -0.005em;
+  }
+  @media (min-width: 640px) {
+    .hs-h3 {
+      font-size: 1rem;          /* 16px */
+      margin-bottom: 0.625rem;
+    }
+  }
+
+  /* h3 large variant — hero-sized card titles (e.g. IntelBentoGrid hero card) */
+  .hs-h3-lg {
+    font-size: 1.125rem;        /* 18px */
+    line-height: 1.35;
+    margin-bottom: 0.75rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  @media (min-width: 640px) {
+    .hs-h3-lg {
+      font-size: 1.25rem;       /* 20px */
+    }
+  }
+
+  /* p — Body text (leading-relaxed for readability) */
+  .hs-p {
+    font-size: 0.875rem;        /* 14px */
+    line-height: 1.625;         /* leading-relaxed */
+    margin-bottom: 1rem;
+    letter-spacing: 0.01em;
+  }
+  @media (min-width: 1024px) {
+    .hs-p {
+      font-size: 1rem;          /* 16px */
+      line-height: 1.75;        /* leading-relaxed at larger size */
+    }
+  }
+
+  /* small — Captions, metadata, fine print */
+  .hs-small {
+    font-size: 0.75rem;         /* 12px */
+    line-height: 1.5;           /* leading-normal */
+    margin-bottom: 0.5rem;
+    letter-spacing: 0.01em;
+  }
+  @media (min-width: 640px) {
+    .hs-small {
+      font-size: 0.8125rem;     /* 13px */
+    }
+  }
+
+  /* Soft divider line — healing separator */
+  .divider-healing {
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, rgba(212, 197, 226, 0.25) 20%, rgba(234, 201, 193, 0.2) 50%, rgba(196, 223, 207, 0.15) 80%, transparent 100%);
+    border: none;
+  }
+
+  /* ─── Deep Healing Section — generous breathing whitespace ──── */
+  .section-breathing {
+    padding-top: 3rem;
+    padding-bottom: 3rem;
+  }
+  @media (min-width: 640px) {
+    .section-breathing {
+      padding-top: 4.5rem;
+      padding-bottom: 4.5rem;
+    }
+  }
+  @media (min-width: 1024px) {
+    .section-breathing {
+      padding-top: 5.5rem;
+      padding-bottom: 5.5rem;
+    }
+  }
+
+  /* Card glass healing — delicate frosted glass effect */
+  .card-healing {
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                box-shadow 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                border-color 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  .card-healing:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 40px rgba(108, 108, 108, 0.06), 0 4px 16px rgba(212, 197, 226, 0.08);
+  }
+
+  /* Ambient glow pulse — for active/focused elements */
+  .glow-healing {
+    animation: glowPulse 4s ease-in-out infinite;
+  }
+  @keyframes glowPulse {
+    0%, 100% { box-shadow: 0 0 20px rgba(212, 197, 226, 0.1), 0 0 40px rgba(212, 197, 226, 0.05); }
+    50% { box-shadow: 0 0 30px rgba(212, 197, 226, 0.2), 0 0 60px rgba(212, 197, 226, 0.08); }
+  }
+
+  /* Image reveal on hover — gentle zoom for showcase cards */
+  .img-healing {
+    transition: transform 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                filter 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  .group:hover .img-healing {
+    transform: scale(1.04);
+  }
+
+  /* Fade-in edge mask for carousel — soft fade at edges */
+  .carousel-fade-edge {
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      #000 3%,
+      #000 97%,
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      #000 3%,
+      #000 97%,
+      transparent 100%
+    );
+  }
+
+  /* ─── Workspace Reduced Motion — respect user preference ──────── */
+  @media (prefers-reduced-motion: reduce) {
+    .workspace-ambient-bg {
+      animation: none;
+    }
+
+    .workspace-orb {
+      animation: none;
+      opacity: 0.12;
+    }
+  }
+
+  /* ─── Studio Layout Utilities ──────────────────────────────── */
+
+  /* Horizontal scroll container with fade hints on edges */
+  .scroll-fade-x {
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      #000 12px,
+      #000 calc(100% - 12px),
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      #000 12px,
+      #000 calc(100% - 12px),
+      transparent 100%
+    );
+  }
+
+  /* Consistent studio section card */
+  .studio-card {
+    @apply rounded-2xl border border-border/30 bg-background/60 p-4;
+  }
+
+  /* Studio panel spacing: consistent vertical rhythm */
+  .studio-panel-stack {
+    @apply space-y-4;
+  }
+
+  /* Studio footer info card */
+  .studio-footer {
+    @apply mt-6 p-3 rounded-2xl bg-muted/40 text-xs text-muted-foreground space-y-1;
+  }
+  @media (min-width: 640px) {
+    .studio-footer {
+      @apply mt-8 p-4;
+    }
+  }
+
+  /* ─── Mobile Optimizations — healing touch experience ────────── */
+
+  /* Hide scrollbar but keep scroll functional */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Mobile-friendly touch targets: minimum 44x44 active area */
+  .touch-target {
+    position: relative;
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .touch-target::after {
+    content: "";
+    position: absolute;
+    inset: -6px;
+    /* Ensure at least 44px tappable area on small icons/buttons */
+  }
+
+  /* ─── Mobile: Gentle orb adjustments for performance ─────────── */
+  @media (max-width: 640px) {
+    .workspace-orb-1 {
+      width: 120px;
+      height: 120px;
+      filter: blur(40px);
+    }
+    .workspace-orb-2 {
+      width: 90px;
+      height: 90px;
+      filter: blur(35px);
+    }
+    .workspace-orb-3 {
+      width: 70px;
+      height: 70px;
+      filter: blur(30px);
+    }
+
+    /* Prevent horizontal overflow on mobile */
+    .container {
+      overflow-x: hidden;
+    }
+
+    /* Gentler scrollbar on mobile */
+    ::-webkit-scrollbar {
+      width: 3px;
+      height: 3px;
+    }
+
+    /* Larger touch targets on mobile */
+    button, [role="button"], a {
+      min-height: 36px;
+    }
+  }
+
+  /* ─── Healing Ambient Keyframe — gentle color wash ──────────── */
+  @keyframes healing-wash {
+    0%, 100% {
+      background-position: 0% 50%;
+      opacity: 0.6;
+    }
+    50% {
+      background-position: 100% 50%;
+      opacity: 0.8;
+    }
+  }
+
+  .healing-wash-bg {
+    background: linear-gradient(135deg,
+      rgba(212, 197, 226, 0.08) 0%,
+      rgba(234, 201, 193, 0.06) 25%,
+      rgba(196, 223, 207, 0.07) 50%,
+      rgba(200, 213, 224, 0.06) 75%,
+      rgba(212, 197, 226, 0.08) 100%
+    );
+    background-size: 300% 300%;
+    animation: healing-wash 30s cubic-bezier(0.37, 0, 0.63, 1) infinite;
+  }
+}

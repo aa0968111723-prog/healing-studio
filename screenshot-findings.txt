@@ -1,0 +1,18 @@
+Screenshot findings from browser walkthrough:
+1. OnboardingTour Step 1/4 is showing correctly with spotlight effect
+2. "視覺化積木" step is displayed with correct text and navigation buttons
+3. Sidebar shows new entries: 專案筆記, 創作排程
+4. The tour tooltip has proper styling with step indicator dots
+5. The orb widget is visible in bottom-right corner
+
+6. CalendarPage renders correctly with March 2026 calendar
+7. Today (March 17) is highlighted
+8. Right sidebar shows "待排程筆記" with existing notes (思維節點, 圖片生成結果, etc.)
+9. Right sidebar shows "排程統計" with 12 已排程 and 10 待排程
+10. "新增排程" button is visible in top-right
+11. Sidebar navigation correctly shows 專案筆記 and 創作排程 entries
+
+12. Studio page: OnboardingTour Step 1/4 "視覺化積木" visible with spotlight
+13. Bottom-right shows orb widget with 3 action buttons: 開啟筆記, 開啟日曆, 輸入指令
+14. All sidebar entries visible: 專案筆記, 創作排程
+15. Notes page shows existing notes with types (筆記, 行事曆, 腳本)

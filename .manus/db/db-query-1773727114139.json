@@ -1,0 +1,34 @@
+{
+  "query": "SHOW TABLES;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway04.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2fCSGbgaXNaYhdA.c8da999e308a --database aASgFdZpkh6ZcSsaMk5fyX --execute SHOW TABLES;",
+  "rows": [
+    {
+      "Tables_in_aASgFdZpkh6ZcSsaMk5fyX": "__drizzle_migrations"
+    },
+    {
+      "Tables_in_aASgFdZpkh6ZcSsaMk5fyX": "api_usage_logs"
+    },
+    {
+      "Tables_in_aASgFdZpkh6ZcSsaMk5fyX": "background_jobs"
+    },
+    {
+      "Tables_in_aASgFdZpkh6ZcSsaMk5fyX": "digital_asset_library"
+    },
+    {
+      "Tables_in_aASgFdZpkh6ZcSsaMk5fyX": "fine_tuned_models"
+    },
+    {
+      "Tables_in_aASgFdZpkh6ZcSsaMk5fyX": "project_notes_calendar"
+    },
+    {
+      "Tables_in_aASgFdZpkh6ZcSsaMk5fyX": "user_feedback_reports"
+    },
+    {
+      "Tables_in_aASgFdZpkh6ZcSsaMk5fyX": "users"
+    }
+  ],
+  "messages": [],
+  "stdout": "Tables_in_aASgFdZpkh6ZcSsaMk5fyX\n__drizzle_migrations\napi_usage_logs\nbackground_jobs\ndigital_asset_library\nfine_tuned_models\nproject_notes_calendar\nuser_feedback_reports\nusers\n",
+  "stderr": "",
+  "execution_time_ms": 1633
+}
