@@ -106,6 +106,11 @@ interface OrbFlight {
   colorIdx: number;
 }
 
+/**
+ * Compute a curved midpoint between a start position and center (50, 50).
+ * The midpoint is offset perpendicular to the straight-line path,
+ * creating a natural arc for orb flight trajectories.
+ */
 function getCurvedMidpoint(startX: number, startY: number, offset: number) {
   const cx = 50, cy = 50;
   const mx = (startX + cx) / 2;
@@ -128,11 +133,17 @@ const ORB_FLIGHTS: OrbFlight[] = [
 
 // ─── Pre-computed star data (computed once at module load) ───────────────────
 
+/** Pre-computed star positioning and CSS animation data (computed once at module load). */
 interface StarData {
   x: number; y: number; size: number; layer: number;
-  twinkleDur: number; driftDur: number;
+  /** Duration in seconds for the twinkle (opacity) CSS animation */
+  twinkleDur: number;
+  /** Duration in seconds for the drift (vertical float) CSS animation */
+  driftDur: number;
   twinkleDelay: number; driftDelay: number;
+  /** Pre-computed CSS background value */
   bg: string;
+  /** Pre-computed CSS box-shadow value */
   shadow: string;
 }
 
@@ -191,6 +202,11 @@ const StarField = memo(function StarField() {
 
 // ─── Flying orbs (CSS @keyframes + translate3d GPU compositing) ─────────────
 
+/**
+ * Generate CSS @keyframes strings for orb flight animations.
+ * Converts percentage-based orb positions to pixel coordinates based on container size,
+ * producing GPU-composited translate3d keyframes for each orb's curved flight path.
+ */
 function buildOrbKeyframes(cw: number, ch: number): string {
   if (cw === 0 || ch === 0) return "";
   return ORB_FLIGHTS.map((f) => {
