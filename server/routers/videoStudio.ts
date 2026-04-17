@@ -230,7 +230,7 @@ export const videoStudioRouter = router({
 
   /**
    * Wan v2.1 Text-to-Video（阿里 Wan）
-   * fal-ai/wan-ai/wan2.1-t2v-720p
+   * fal-ai/wan-t2v
    * 開源最強影片生成，720p 高畫質，多語言提詞
    */
   wanTextToVideo: protectedProcedure
@@ -244,7 +244,7 @@ export const videoStudioRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const modelId = "fal-ai/wan-ai/wan2.1-t2v-720p";
+      const modelId = "fal-ai/wan-t2v";
 
       const payload: Record<string, unknown> = {
         prompt: input.prompt,
@@ -438,7 +438,7 @@ export const videoStudioRouter = router({
 
   /**
    * Wan 2.1 Image-to-Video
-   * fal-ai/wan-ai/wan2.1-i2v-720p
+   * fal-ai/wan-i2v
    * 開源最強圖生影，720p，靈活參數控制
    */
   wanImageToVideo: protectedProcedure
@@ -451,8 +451,8 @@ export const videoStudioRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      // Wan i2v 正確 endpoint
-      const modelId = "fal-ai/wan-ai/wan2.1-i2v-720p";
+      // Wan i2v 正確 endpoint（已驗證 200）
+      const modelId = "fal-ai/wan-i2v";
 
       const payload: Record<string, unknown> = {
         prompt: input.prompt,
@@ -573,7 +573,7 @@ export const videoStudioRouter = router({
 
   /**
    * Wan Video-to-Video（影片風格化）
-   * fal-ai/wan-ai/wan2.1-v2v-480p
+   * fal-ai/wan/v2.1/video-to-video
    * 將現有影片依照提詞重新渲染風格
    */
   wanVideoToVideo: protectedProcedure
@@ -585,9 +585,9 @@ export const videoStudioRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      // DEF-09 修正：改用正確的影生影端點（wan-t2v 是文生影，不接受 video_url）
+      // DEF-09 修正：正確 WAN V2V endpoint（已驗證 fal-ai/wan/v2.1/video-to-video = 200）
       const result = (await falQueueRun(
-        "fal-ai/wan-ai/wan2.1-v2v-480p",
+        "fal-ai/wan/v2.1/video-to-video",
         {
           prompt: input.prompt,
           video_url: input.videoUrl,

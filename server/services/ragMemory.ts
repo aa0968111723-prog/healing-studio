@@ -18,9 +18,9 @@ import { serverEnv } from "../_core/env.validated";
 const PINECONE_API_BASE = "https://api.pinecone.io";
 const INDEX_NAME = serverEnv.PINECONE_INDEX_NAME || "ai-director-memories";
 // ⚠️ 重要：dimension 必須與 Pinecone index 建立時的設定一致
-// 用戶選擇 llama-text-embed-v2（Pinecone index `ai-director-memories` dimension=1024）
-// Gemini text-embedding-004 原生 768，但使用 Pinecone 內建的 llama-text-embed-v2 來生成 embedding
-const EMBEDDING_DIM = 1024; // llama-text-embed-v2 維度（Pinecone index: ai-director-memories）
+// 使用 Gemini gemini-embedding-001（正式版），原生輸出 3072 維
+// Pinecone index `ai-director-memories` 必須建立為 dimension=3072, metric=cosine
+const EMBEDDING_DIM = 3072; // gemini-embedding-001 維度（Pinecone index: ai-director-memories）
 
 function getPineconeHeaders() {
   const apiKey = serverEnv.PINECONE_API_KEY;
@@ -37,16 +37,15 @@ async function getEmbedding(text: string): Promise<number[]> {
   const apiKey = serverEnv.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY 未設定，無法生成向量");
 
-  // 優先使用 Gemini text-embedding-004（768 維），若 Pinecone index 為 1024 維
-  // 則使用 Gemini text-embedding-004 並以零填充至 1024 維度來確保相容性
-  // TODO: 未來可改用 Pinecone Inference API 直接呼叫 llama-text-embed-v2
+  // 使用 Gemini gemini-embedding-001（正式版，輸出 3072 維）
+  // text-embedding-004 已廢棄（返回 404），請勿使用
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=${apiKey}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "models/text-embedding-004",
+        model: "models/gemini-embedding-001",
         content: { parts: [{ text: text.slice(0, 2000) }] }, // 限制長度
       }),
     }
@@ -58,9 +57,10 @@ async function getEmbedding(text: string): Promise<number[]> {
   }
 
   const data = (await response.json()) as { embedding: { values: number[] } };
-  const raw = data.embedding.values; // 768 維
+  const raw = data.embedding.values; // 3072 維（gemini-embedding-001 原生輸出）
 
-  // 若 index dimension 為 1024，在後面補零至 1024 維
+  // gemini-embedding-001 原生輸出恰好 3072 維，理論上不需要補零或截斷
+  // 保留防禦性程式碼以應對邊緣情況
   if (EMBEDDING_DIM > raw.length) {
     return [...raw, ...new Array(EMBEDDING_DIM - raw.length).fill(0)];
   }
