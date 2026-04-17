@@ -168,6 +168,12 @@ export default defineConfig({
     },
   },
   envDir: path.resolve(import.meta.dirname),
+  // 確保 VITE_SITE_URL 在 build 時被正確替換（index.html og:url / canonical）
+  define: {
+    "import.meta.env.VITE_SITE_URL": JSON.stringify(
+      process.env.VITE_SITE_URL ?? "https://healing-studio-production.up.railway.app"
+    ),
+  },
   root: path.resolve(import.meta.dirname, "client"),
   publicDir: path.resolve(import.meta.dirname, "client", "public"),
   build: {

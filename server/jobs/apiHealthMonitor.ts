@@ -19,6 +19,33 @@ import {
   runAllAccuracyTests,
 } from "../services/brainAutoRepair.js";
 
+// ─── Discord Webhook 告警 ────────────────────────────────────────────────────
+
+async function sendDiscordAlert(message: string): Promise<void> {
+  const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+  if (!webhookUrl) return; // 未設定時靜默跳過
+  try {
+    await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: "Healing Studio 健康巡檢",
+        content: message,
+        embeds: [
+          {
+            color: 0xff4444, // 紅色警示
+            description: message,
+            timestamp: new Date().toISOString(),
+            footer: { text: "ApiHealthMonitor" },
+          },
+        ],
+      }),
+    });
+  } catch (err) {
+    console.warn("[ApiHealthMonitor] Discord alert failed:", err);
+  }
+}
+
 // ─── State ──────────────────────────────────────────────────────────────────
 
 let cronTask: cron.ScheduledTask | null = null;
@@ -69,9 +96,12 @@ async function runMonitorCycle(): Promise<void> {
     monitorBreaker.recordSuccess();
 
     if (result.alerts > 0) {
+      const alertMsg = `⚠️ **Healing Studio API 告警**\n巡檢發現 **${result.alerts}** 個問題（共檢查 ${result.checked} 個服務）\n時間：${new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei" })}`;
       console.warn(
         `[ApiHealthMonitor] ⚠️  巡檢完成：checked=${result.checked}, alerts=${result.alerts}`
       );
+      // 送出 Discord 告警（若設定了 DISCORD_WEBHOOK_URL）
+      sendDiscordAlert(alertMsg).catch(() => {});
     } else {
       console.log(
         `[ApiHealthMonitor] ✅ 巡檢完成：checked=${result.checked}, 全部正常`

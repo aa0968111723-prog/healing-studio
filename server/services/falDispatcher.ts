@@ -29,7 +29,7 @@ let _langSmithClient: import("langsmith").Client | null = null;
 async function getFalLangSmithClient(): Promise<
   import("langsmith").Client | null
 > {
-  const apiKey = process.env.LANGSMITH_API_KEY;
+  const apiKey = process.env.LANGSMITH_API_KEY?.trim();
   if (!apiKey) return null;
   if (_langSmithClient) return _langSmithClient;
   try {

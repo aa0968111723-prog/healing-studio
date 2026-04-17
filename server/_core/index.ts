@@ -32,6 +32,7 @@ import {
 import { detectStorageBackend } from "../storage";
 import { closeDb } from "../db";
 import { langsmithRouter } from "../routes/langsmith";
+import { falWebhookRouter } from "../routes/webhookFal";
 
 // ─── Allowlist helpers for proxy-download ─────────────────────────────────
 const PROXY_ALLOWED_HOSTS = [
@@ -117,6 +118,7 @@ async function startServer() {
   app.use(sseRouter);
   // LangSmith observability stats
   app.use(langsmithRouter);
+  app.use(falWebhookRouter);
 
   // ── 後端代理下載（解決前端直接 fetch CDN 時的 CORS 問題）──────────────────
   // GET /api/proxy-download?url=<encodedUrl>

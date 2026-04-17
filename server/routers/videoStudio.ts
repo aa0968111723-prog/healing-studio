@@ -235,7 +235,7 @@ export const videoStudioRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const modelId = "fal-ai/wan-t2v";
+      const modelId = "fal-ai/wan-ai/wan2.1-t2v-720p";
 
       const payload: Record<string, unknown> = {
         prompt: input.prompt,
@@ -443,7 +443,7 @@ export const videoStudioRouter = router({
     )
     .mutation(async ({ input }) => {
       // Wan i2v 正確 endpoint
-      const modelId = "fal-ai/wan-i2v";
+      const modelId = "fal-ai/wan-ai/wan2.1-i2v-720p";
 
       const payload: Record<string, unknown> = {
         prompt: input.prompt,

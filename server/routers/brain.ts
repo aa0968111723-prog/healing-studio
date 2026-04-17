@@ -76,8 +76,6 @@ export const REASONING_MODEL_CATALOG = {
       // ── Gemini / Vertex AI ──
       { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro ✦", tier: "premium" },
       { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash ⚡", tier: "fast" },
-      { value: "gemini-1.5-pro", label: "Gemini 1.5 Pro", tier: "premium" },
-      { value: "gemini-1.5-flash", label: "Gemini 1.5 Flash", tier: "fast" },
       // ── Vertex AI 模型 ──
       {
         value: "vertex/gemini-2.5-pro",
@@ -102,7 +100,6 @@ export const REASONING_MODEL_CATALOG = {
     description: "數據分析、趨勢洞察、新聞摘要",
     options: [
       { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash ⚡", tier: "fast" },
-      { value: "gemini-1.5-flash", label: "Gemini 1.5 Flash", tier: "fast" },
       { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", tier: "premium" },
       {
         value: "vertex/gemini-2.5-flash",
@@ -122,7 +119,6 @@ export const REASONING_MODEL_CATALOG = {
     options: [
       { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro ✦", tier: "premium" },
       { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash ⚡", tier: "fast" },
-      { value: "gemini-1.5-pro", label: "Gemini 1.5 Pro", tier: "premium" },
       {
         value: "vertex/gemini-2.5-pro",
         label: "Vertex Gemini 2.5 Pro 🔷",
@@ -141,7 +137,6 @@ export const REASONING_MODEL_CATALOG = {
     options: [
       { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash ⚡", tier: "fast" },
       { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", tier: "premium" },
-      { value: "gemini-1.5-flash", label: "Gemini 1.5 Flash", tier: "fast" },
       {
         value: "vertex/gemini-2.5-flash",
         label: "Vertex Gemini 2.5 Flash 🔷",
@@ -155,7 +150,6 @@ export const REASONING_MODEL_CATALOG = {
     options: [
       { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash ⚡", tier: "fast" },
       { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", tier: "premium" },
-      { value: "gemini-1.5-pro", label: "Gemini 1.5 Pro", tier: "premium" },
       {
         value: "vertex/gemini-2.5-pro",
         label: "Vertex Gemini 2.5 Pro 🔷",
@@ -336,7 +330,7 @@ export const FAL_TASK_ENGINE_CATALOG = {
     label: "影像轉3D",
     description: "從圖片生成3D模型",
     options: [
-      { value: "fal/trellis", label: "Trellis 3D ✦", tier: "premium" },
+      { value: "fal-ai/trellis", label: "Trellis 3D ✦", tier: "premium" },
       { value: "fal/triposr", label: "TripoSR ⚡", tier: "standard" },
       { value: "fal/zero123plus", label: "Zero123++", tier: "standard" },
       {
