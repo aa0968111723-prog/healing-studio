@@ -99,6 +99,11 @@ async function trackFalLangSmith(opts: {
             ...(opts.originalModel
               ? { original_model: opts.originalModel }
               : {}),
+            token_usage: {
+              prompt_tokens: 0,
+              completion_tokens: 0,
+              total_tokens: opts.pointsDeducted,
+            },
           }
         : {},
       error: opts.error ?? undefined,

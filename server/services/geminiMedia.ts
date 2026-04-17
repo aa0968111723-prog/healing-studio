@@ -238,6 +238,7 @@ async function trackGeminiMedia(opts: {
   outputKeys?: string[];
   error?: string;
   durationMs: number;
+  tokenUsage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number };
 }): Promise<void> {
   const client = await getGeminiLSClient();
   if (!client) return;
@@ -252,7 +253,14 @@ async function trackGeminiMedia(opts: {
       start_time: endTime - opts.durationMs,
       end_time: endTime,
       inputs: opts.inputs,
-      outputs: opts.outputKeys ? { output_keys: opts.outputKeys } : {},
+      outputs: {
+        ...(opts.outputKeys ? { output_keys: opts.outputKeys } : {}),
+        token_usage: {
+          prompt_tokens: opts.tokenUsage?.promptTokens ?? 0,
+          completion_tokens: opts.tokenUsage?.completionTokens ?? 0,
+          total_tokens: opts.tokenUsage?.totalTokens ?? 0,
+        },
+      },
       error: opts.error,
       extra: {
         metadata: {

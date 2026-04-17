@@ -183,7 +183,7 @@ export function detectAvailableEngines(): Array<{
       reason: "BUILT_IN_FORGE_API_KEY 已設定（Manus 相容模式）",
     });
   }
-  if (process.env.NVIDIA_API) {
+  if (process.env.NVIDIA_API || process.env.NVIDA_API) {
     available.push({
       engine: "nvidia",
       reason: "NVIDIA_API 已設定（NVIDIA NIM 代理人引擎）",
@@ -303,9 +303,10 @@ function resolveSpecificEngine(engine: LLMEngine): EngineConfig {
     }
 
     case "nvidia": {
-      const nvidiaKey = process.env.NVIDIA_API;
+      // DEF-A 修復：兼容歷史拼字錯誤 NVIDA_API（Railway 舊環境變數名稱）
+      const nvidiaKey = process.env.NVIDIA_API || process.env.NVIDA_API;
       if (!nvidiaKey)
-        throw new Error("Engine 'nvidia' 指定但 NVIDIA_API 未設定");
+        throw new Error("Engine 'nvidia' 指定但 NVIDIA_API（或 NVIDA_API）未設定");
       return {
         name: "NVIDIA NIM (MiniMax M2.7)",
         engine: "nvidia",
@@ -356,7 +357,7 @@ export function getEngineStatus(): EngineStatus {
   if (!serverEnv.GOOGLE_APPLICATION_CREDENTIALS_JSON)
     missing.push("GOOGLE_APPLICATION_CREDENTIALS_JSON（Vertex AI）");
   if (!ENV.forgeApiKey) missing.push("BUILT_IN_FORGE_API_KEY（Manus 相容）");
-  if (!process.env.NVIDIA_API)
+  if (!process.env.NVIDIA_API && !process.env.NVIDA_API)
     missing.push("NVIDIA_API（MiniMax M2.7 via NVIDIA NIM）");
 
   let currentName = "無可用引擎";

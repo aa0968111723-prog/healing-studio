@@ -108,7 +108,7 @@ export const DEFAULT_REASONING_BRAINS: Record<
   ReasoningBrainSlot,
   { model: string; temperature: number; topP: number }
 > = {
-  director: { model: "gemini-2.5-pro", temperature: 0.7, topP: 0.9 },
+  director: { model: "gemini-2.5-pro", temperature: 0.4, topP: 0.9 },
   analyst: { model: "gemini-2.5-flash", temperature: 0.3, topP: 0.8 },
   storyteller: { model: "gemini-2.5-pro", temperature: 0.9, topP: 0.95 },
   technician: { model: "gemini-2.5-flash", temperature: 0.2, topP: 0.7 },

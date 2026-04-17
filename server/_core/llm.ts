@@ -380,6 +380,11 @@ async function trackLangSmithSDK(
               : "[structured]",
           finish_reason: result.choices[0]?.finish_reason,
           usage: result.usage,
+          token_usage: {
+            prompt_tokens: result.usage?.prompt_tokens ?? 0,
+            completion_tokens: result.usage?.completion_tokens ?? 0,
+            total_tokens: result.usage?.total_tokens ?? 0,
+          },
         },
         extra: {
           metadata: {
