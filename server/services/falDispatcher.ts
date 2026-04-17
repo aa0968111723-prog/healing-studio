@@ -186,7 +186,7 @@ const TIMEOUT_OVERRIDES: Record<string, number> = {
   "fal-ai/kling-video/v2.1/standard/text-to-video": 240_000,
   "fal-ai/kling-video/v2.1/pro/image-to-video": 240_000,
   "fal-ai/kling-video/v2.1/standard/video-to-video": 240_000,
-  "fal-ai/wan-t2v-v2.1": 200_000,
+  "fal-ai/wan": 200_000,
   "fal-ai/minimax-video/text-to-video": 200_000,
   "fal-ai/cogvideox-5b": 180_000,
   "fal-ai/flux-pro/v1.1": 90_000,
@@ -222,7 +222,7 @@ const FALLBACK_CHAINS: Record<string, string[]> = {
   ],
   "text-to-video": [
     "fal-ai/kling-video/v2.1/pro/text-to-video",
-    "fal-ai/wan-t2v-v2.1",
+    "fal-ai/wan",
     "fal-ai/minimax-video/text-to-video",
     "fal-ai/cogvideox-5b",
   ],

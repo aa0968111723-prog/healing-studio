@@ -126,8 +126,6 @@ const multimodalSchema = z.object({
     .default("auto"),
 
   // ── MiniMax M2.7 via NVIDIA NIM（光球 AI 代理人引擎）──────────────────────
-  // ⚠️ 注意：env var 名稱為 NVIDA_API（Railway 歷史相容，非筆誤）
-  NVIDA_API: z.string().min(1).optional().default(""),
 
   // ── Brave Search API ──────────────────────────────────────
   BRAVE_SEARCH_API_KEY: z.string().min(1).optional().default(""),

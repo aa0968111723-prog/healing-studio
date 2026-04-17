@@ -18,7 +18,7 @@ import * as cron from "node-cron";
 import { getDb } from "../db";
 import { newsArticles } from "../../drizzle/schema";
 import { invokeLLM } from "../_core/llm";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { CircuitBreaker } from "./circuitBreaker";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -724,14 +724,43 @@ async function writeArticlesToDb(result: FetchResult): Promise<number> {
   }
 
   // Filter valid articles first
-  const validArticles = result.articles.filter(
+  const rawValid = result.articles.filter(
     a => a.title && a.title !== "[Removed]" && a.title.length >= 5
   );
 
-  if (validArticles.length === 0) {
+  if (rawValid.length === 0) {
     logOars("warn", "所有文章均不符合品質標準，跳過寫入。");
     return 0;
   }
+
+  // ── 去重：過濾資料庫中已存在的 sourceUrl ──
+  const candidateUrls = rawValid
+    .map(a => a.url)
+    .filter((u): u is string => !!u);
+
+  let existingUrls = new Set<string>();
+  if (candidateUrls.length > 0) {
+    try {
+      const existing = await db
+        .select({ sourceUrl: newsArticles.sourceUrl })
+        .from(newsArticles)
+        .where(inArray(newsArticles.sourceUrl as any, candidateUrls));
+      existingUrls = new Set(existing.map(r => r.sourceUrl).filter(Boolean) as string[]);
+    } catch {
+      // 查詢失敗時不阻擋寫入，最多重複寫入
+    }
+  }
+
+  const validArticles = rawValid.filter(
+    a => !a.url || !existingUrls.has(a.url)
+  );
+
+  if (validArticles.length === 0) {
+    logOars("info", "所有文章均已在資料庫中，跳過寫入。");
+    return 0;
+  }
+
+  logOars("info", `去重後：${rawValid.length} 篇 → ${validArticles.length} 篇新文章需寫入`);
 
   // ── Gemini Flash 批次 OARS NLP 柔化 ──
   logOars(

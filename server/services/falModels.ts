@@ -876,7 +876,7 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       timeoutMs: 300_000,
     },
     {
-      modelId: "fal-ai/wan-t2v-v2.1",
+      modelId: "fal-ai/wan",
       label: "WAN T2V 2.1",
       category: "text-to-video",
       tier: "standard",

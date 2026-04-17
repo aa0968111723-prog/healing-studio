@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /settings/
+Disallow: /background-tasks
+
+Sitemap: https://healing-studio-production.up.railway.app/sitemap.xml

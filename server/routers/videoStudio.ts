@@ -44,10 +44,19 @@ function getFalKey(): string {
 /** 使用 queue 非同步提交任務，立即回傳 request_id */
 async function falQueueSubmit(
   modelId: string,
-  input: Record<string, unknown>
+  input: Record<string, unknown>,
+  jobId?: number
 ): Promise<{ request_id: string }> {
   const key = getFalKey();
-  const res = await fetch(`${FAL_QUEUE_BASE}/${modelId}`, {
+  // 若設定了 VITE_SITE_URL 且有 jobId，加入 webhook 回呼讓後端持久化結果
+  const siteUrl = process.env.VITE_SITE_URL?.trim();
+  const webhookUrl =
+    siteUrl && jobId
+      ? `${siteUrl}/api/webhook/fal`
+      : undefined;
+  const body: Record<string, unknown> = { ...input };
+  if (webhookUrl) body._webhookUrl = webhookUrl;
+  const res = await fetch(`${FAL_QUEUE_BASE}/${modelId}${webhookUrl ? `?fal_webhook=${encodeURIComponent(webhookUrl)}` : ""}`, {
     method: "POST",
     headers: {
       Authorization: `Key ${key}`,
