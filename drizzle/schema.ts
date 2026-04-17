@@ -8,6 +8,8 @@ import {
   json,
   boolean,
   decimal,
+  bigint,
+  date,
   index,
 } from "drizzle-orm/mysql-core";
 
@@ -1149,3 +1151,88 @@ export const customBlocksCombo = mysqlTable("custom_blocks_combo", {
 
 export type CustomBlocksComboItem = typeof customBlocksCombo.$inferSelect;
 export type InsertCustomBlocksComboItem = typeof customBlocksCombo.$inferInsert;
+
+// ─── Prompt Library（提示詞庫）────────────────────────────────────────────
+export const promptLibrary = mysqlTable(
+  "prompt_library",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    title: varchar("title", { length: 256 }).notNull(),
+    content: text("content").notNull(),           // 完整提示詞內容
+    category: varchar("category", { length: 64 }).default("general").notNull(), // image/video/audio/voice/general
+    tags: json("tags").$type<string[]>(),
+    isFavorite: boolean("isFavorite").default(false).notNull(),
+    isPublic: boolean("isPublic").default(false).notNull(),
+    useCount: int("useCount").default(0).notNull(),
+    modelHint: varchar("modelHint", { length: 128 }),  // 建議使用的模型 ID
+    language: varchar("language", { length: 8 }).default("zh").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    userIdIdx: index("pl_userId_idx").on(table.userId),
+    categoryIdx: index("pl_category_idx").on(table.category),
+  })
+);
+
+export type PromptLibraryItem = typeof promptLibrary.$inferSelect;
+export type InsertPromptLibraryItem = typeof promptLibrary.$inferInsert;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NEW TABLES — Roadmap (外部服務訂閱 / R2 快照 / 用戶訂閱)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ─── External Service Subscriptions（外部服務訂閱管理）──────────────────────
+export const externalServiceSubscriptions = mysqlTable("external_service_subscriptions", {
+  id: int("id").autoincrement().primaryKey(),
+  serviceName: varchar("serviceName", { length: 64 }).notNull(),
+  planName: varchar("planName", { length: 128 }),
+  monthlyCostUsd: decimal("monthlyCostUsd", { precision: 10, scale: 2 }),
+  billingCycle: mysqlEnum("billingCycle", ["monthly", "annual", "pay-as-you-go"]),
+  nextRenewalDate: date("nextRenewalDate"),
+  apiKeyEnvVar: varchar("apiKeyEnvVar", { length: 64 }),
+  apiKeyStatus: mysqlEnum("apiKeyStatus", ["valid", "invalid", "unknown"]).default("unknown"),
+  workspaceName: varchar("workspaceName", { length: 128 }),
+  ownerEmail: varchar("ownerEmail", { length: 320 }),
+  riskLevel: mysqlEnum("riskLevel", ["low", "medium", "high"]).default("medium"),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ExternalServiceSubscription = typeof externalServiceSubscriptions.$inferSelect;
+export type InsertExternalServiceSubscription = typeof externalServiceSubscriptions.$inferInsert;
+
+// ─── R2 Storage Snapshots（R2 儲存空間每日快照）────────────────────────────
+export const r2StorageSnapshots = mysqlTable("r2_storage_snapshots", {
+  id: int("id").autoincrement().primaryKey(),
+  snapshotDate: date("snapshotDate").notNull(),
+  totalBytes: bigint("totalBytes", { mode: "number" }).default(0),
+  totalObjects: int("totalObjects").default(0),
+  bytesByType: json("bytesByType").$type<Record<string, number>>(),
+  objectsByType: json("objectsByType").$type<Record<string, number>>(),
+  estimatedMonthlyCostUsd: decimal("estimatedMonthlyCostUsd", { precision: 10, scale: 4 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type R2StorageSnapshot = typeof r2StorageSnapshots.$inferSelect;
+export type InsertR2StorageSnapshot = typeof r2StorageSnapshots.$inferInsert;
+
+// ─── User Subscriptions（用戶訂閱，Stripe 用）────────────────────────────────
+export const userSubscriptions = mysqlTable("user_subscriptions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(),
+  stripeCustomerId: varchar("stripeCustomerId", { length: 64 }),
+  stripeSubscriptionId: varchar("stripeSubscriptionId", { length: 64 }),
+  planId: varchar("planId", { length: 64 }).default("free").notNull(),
+  status: mysqlEnum("status", ["active", "past_due", "cancelled", "trialing"]).default("active"),
+  currentPeriodStart: timestamp("currentPeriodStart"),
+  currentPeriodEnd: timestamp("currentPeriodEnd"),
+  cancelAtPeriodEnd: boolean("cancelAtPeriodEnd").default(false),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type UserSubscription = typeof userSubscriptions.$inferSelect;
+export type InsertUserSubscription = typeof userSubscriptions.$inferInsert;

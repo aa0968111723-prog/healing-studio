@@ -33,6 +33,11 @@ import { detectStorageBackend } from "../storage";
 import { closeDb } from "../db";
 import { langsmithRouter } from "../routes/langsmith";
 import { falWebhookRouter } from "../routes/webhookFal";
+import { stripeWebhookRouter } from "../routes/stripeWebhook";
+import {
+  initR2SnapshotCron,
+  stopR2SnapshotCron,
+} from "../jobs/r2SnapshotJob";
 
 // ─── Allowlist helpers for proxy-download ─────────────────────────────────
 const PROXY_ALLOWED_HOSTS = [
@@ -119,6 +124,7 @@ async function startServer() {
   // LangSmith observability stats
   app.use(langsmithRouter);
   app.use(falWebhookRouter);
+  app.use(stripeWebhookRouter);
 
   // ── 後端代理下載（解決前端直接 fetch CDN 時的 CORS 問題）──────────────────
   // GET /api/proxy-download?url=<encodedUrl>
@@ -262,6 +268,7 @@ async function startServer() {
     initLearnDocSyncerCron();
     initApiHealthMonitorCron();
     initBraveLearnFetcherCron();
+    initR2SnapshotCron();
   });
 
   // ── Graceful Shutdown ────────────────────────────────────────────────────
@@ -272,6 +279,7 @@ async function startServer() {
     stopLearnDocSyncerCron();
     stopApiHealthMonitorCron();
     stopBraveLearnFetcherCron();
+    stopR2SnapshotCron();
     server.close(async () => {
       await closeDb();
       console.log("[Server] All resources released. Exiting.");

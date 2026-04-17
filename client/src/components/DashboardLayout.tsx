@@ -50,6 +50,7 @@ import {
   Zap,
   Film,
   BookOpen,
+  BookMarked,
   Leaf,
   Radar,
   ChevronRight,
@@ -176,6 +177,12 @@ const sidebarStructure: SidebarEntry[] = [
         label: "生成歷史",
         path: "/history",
         id: "sidebar-history-link",
+      },
+      {
+        icon: BookMarked,
+        label: "提示詞庫",
+        path: "/prompt-library",
+        id: "sidebar-prompt-library-link",
       },
       {
         icon: Users,

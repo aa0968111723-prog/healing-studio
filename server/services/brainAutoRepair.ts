@@ -183,7 +183,7 @@ const PROVIDER_ENDPOINTS: Record<
     url: "https://integrate.api.nvidia.com/v1/models",
     method: "GET",
     headers: (): Record<string, string> => {
-      const key = serverEnv.NVIDIA_API || serverEnv.NVIDA_API;
+      const key = serverEnv.NVIDIA_API;
       return key ? { Authorization: `Bearer ${key}` } : {};
     },
   },

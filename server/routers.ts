@@ -28,6 +28,8 @@ import { learnHubRouter } from "./routers/learnHub";
 import { loraTrainerRouter } from "./routers/loraTrainer";
 import { directorRouter } from "./routers/director";
 import { langsmithRouter } from "./routers/langsmith";
+import { promptLibraryRouter } from "./routers/promptLibrary";
+import { externalServicesRouter } from "./routers/externalServices";
 import { getOrchestrator } from "./services/modelClients";
 // voiceCompiler, audioCompiler, videoCompiler are no longer used — all modalities route through falDispatcher
 import { buildMemoryContext, upsertMemory } from "./services/ragMemory";
@@ -251,6 +253,8 @@ export const appRouter = router({
   videoStudio: videoStudioRouter,
   learnHub: learnHubRouter,
   loraTrainer: loraTrainerRouter,
+  promptLibrary: promptLibraryRouter,
+  externalServices: externalServicesRouter,
 
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
@@ -3149,7 +3153,7 @@ export const appRouter = router({
 
         // Prefer MiniMax M2.7 via NVIDIA NIM for orb agent, fallback to default
         const enginePreference =
-          serverEnv.NVIDIA_API || serverEnv.NVIDA_API
+          serverEnv.NVIDIA_API
             ? ("nvidia" as const)
             : undefined;
 

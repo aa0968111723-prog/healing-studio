@@ -46,6 +46,7 @@ const FocusFlowPage = lazy(() => import("./pages/FocusFlowPage"));
 const LangSmithPage = lazy(() => import("./pages/LangSmithPage"));
 const BackgroundTasksPage = lazy(() => import("./pages/BackgroundTasksPage"));
 const CreditsInfoPage = lazy(() => import("./pages/CreditsInfoPage"));
+const PromptLibraryPage = lazy(() => import("./pages/PromptLibraryPage"));
 
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -174,6 +175,9 @@ function Router() {
       </Route>
       <Route path="/credits">
         <DashboardRoute component={CreditsInfoPage} />
+      </Route>
+      <Route path="/prompt-library">
+        <DashboardRoute component={PromptLibraryPage} />
       </Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
