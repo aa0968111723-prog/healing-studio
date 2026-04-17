@@ -5944,6 +5944,980 @@ A: 側邊欄下方的「剩餘配額」卡片即可即時查看，也可前往�
     featured: true,
     authorName: "Healing Studio Team",
   },
+  {
+    id: "api-prompt-library",
+    category: "api-docs",
+    title: "提示詞庫系統完整說明",
+    summary: "提示詞庫（Prompt Library）的 DB schema、tRPC API、前端使用方式完整指南。",
+    content: `# 提示詞庫系統說明
+
+## 概覽
+
+提示詞庫（/prompt-library）是用來管理、收藏和分享 AI 提示詞的系統。支援個人提示詞管理和公開社群廣場。
+
+---
+
+## DB Schema：prompt_library 表
+
+\`\`\`sql
+CREATE TABLE prompt_library (
+  id            INT AUTO_INCREMENT PRIMARY KEY,
+  userId        INT NOT NULL,
+  title         VARCHAR(256) NOT NULL,
+  content       TEXT NOT NULL,           -- 完整提示詞內容
+  category      VARCHAR(64) DEFAULT 'general',  -- image/video/audio/voice/story/system/general
+  tags          JSON,                    -- string[]
+  isFavorite    BOOLEAN DEFAULT FALSE,
+  isPublic      BOOLEAN DEFAULT FALSE,
+  useCount      INT DEFAULT 0,
+  modelHint     VARCHAR(128),            -- 建議使用的模型 ID（e.g. fal-ai/wan）
+  language      VARCHAR(8) DEFAULT 'zh',
+  createdAt     TIMESTAMP DEFAULT NOW(),
+  updatedAt     TIMESTAMP DEFAULT NOW() ON UPDATE NOW(),
+  INDEX pl_userId_idx (userId),
+  INDEX pl_category_idx (category)
+);
+\`\`\`
+
+---
+
+## tRPC API 端點
+
+所有端點掛載於 \`trpc.promptLibrary.*\`，均需登入（protectedProcedure）。
+
+| 端點 | 說明 |
+|------|------|
+| \`list\` | 分頁列出我的提示詞（支援 category/search/favoritesOnly 篩選） |
+| \`listPublic\` | 公開廣場（依 useCount 熱門排序） |
+| \`getById\` | 取得單一提示詞 |
+| \`create\` | 新增提示詞 |
+| \`update\` | 更新（限本人） |
+| \`delete\` | 刪除（限本人） |
+| \`toggleFavorite\` | 切換收藏 |
+| \`incrementUseCount\` | 使用次數 +1（複製時呼叫） |
+| \`adminSeed\` | 管理員批次種子（admin only） |
+
+---
+
+## 前端頁面：/prompt-library
+
+- **我的提示詞** tab：搜尋 + 分類篩選 + 只看收藏 toggle
+- **公開廣場** tab：熱門提示詞排行
+- **新增/編輯 Dialog**：標題、內容、分類、標籤、公開 switch、建議模型
+- 複製按鈕：複製到剪貼簿 + 自動呼叫 incrementUseCount
+
+---
+
+## 使用範例
+
+\`\`\`typescript
+// 新增提示詞
+const result = await trpc.promptLibrary.create.mutate({
+  title: "電影感人像",
+  content: "cinematic portrait, golden hour lighting, shallow depth of field, 8K",
+  category: "image",
+  tags: ["電影感", "人像", "黃金時刻"],
+  isPublic: true,
+  modelHint: "fal-ai/flux/schnell",
+});
+
+// 列出我的收藏提示詞
+const data = await trpc.promptLibrary.list.query({
+  favoritesOnly: true,
+  page: 1,
+  pageSize: 20,
+});
+\`\`\`
+`,
+    tags: ["提示詞庫", "prompt-library", "schema", "tRPC", "API"],
+    difficulty: "intermediate",
+    readingMinutes: 8,
+    publishedAt: "2026-04-17T00:00:00Z",
+    updatedAt: "2026-04-17T00:00:00Z",
+    featured: true,
+    authorName: "Healing Studio Team",
+  },
+  {
+    id: "api-pinecone-rag",
+    category: "api-docs",
+    title: "Pinecone RAG 向量記憶系統",
+    summary: "AI 如何用 Pinecone 記住你的創作風格偏好，dimension=1024，llama-text-embed-v2。",
+    content: `# Pinecone RAG 向量記憶系統
+
+## 概覽
+
+RAG（Retrieval-Augmented Generation）記憶系統讓 AI 能夠記住用戶的創作歷史和偏好，在每次生成前從 Pinecone 檢索最相關的 3 筆記憶，並注入 System Prompt。
+
+---
+
+## 設定資訊
+
+| 項目 | 值 |
+|------|-----|
+| **Index 名稱** | \`ai-director-memories\` |
+| **Dimension** | **1024**（llama-text-embed-v2） |
+| **Metric** | cosine |
+| **Cloud** | AWS us-east-1（Serverless Free Tier） |
+| **Embedding 模型** | Gemini text-embedding-004（768 維 → 補零至 1024） |
+
+> ⚠️ **重要**：Index dimension 必須與 Pinecone 建立時設定一致（1024）。
+> 目前使用 Gemini embedding（768 維）補零至 1024 維以確保相容。
+> 未來可改用 Pinecone Inference API 直接呼叫 llama-text-embed-v2。
+
+---
+
+## 環境變數
+
+\`\`\`env
+PINECONE_API_KEY=pcsk_Thp6j_...
+PINECONE_INDEX_NAME=ai-director-memories
+PINECONE_ENVIRONMENT=us-east-1
+\`\`\`
+
+---
+
+## 核心檔案：server/services/ragMemory.ts
+
+### 主要函式
+
+| 函式 | 說明 |
+|------|------|
+| \`upsertMemory(record)\` | 儲存生成記憶到 Pinecone |
+| \`queryMemories(userId, prompt, topK)\` | 檢索最相關的 K 筆記憶 |
+| \`buildMemoryContext(userId, prompt)\` | 生成注入 System Prompt 的記憶摘要 |
+| \`ensurePineconeIndex()\` | 確保 index 存在（啟動時呼叫） |
+
+### 記憶觸發時機
+
+1. 用戶生成圖片/影片/音訊/語音完成後 → \`upsertMemory()\` 自動記錄
+2. 下次生成前 → \`buildMemoryContext()\` 注入前 3 筆相關記憶
+3. 記憶失敗時靜默降級，不影響主生成流程
+
+---
+
+## 向量化的內容
+
+每筆記憶向量化的文字包含：
+- 提示詞內容（前 2000 字）
+- 生成模態（image/video/audio/voice）
+- 靈感積木 ID（vibeCardIds）
+- 生成結果摘要
+
+Pinecone metadata 欄位：userId, generationId, prompt, generationType, vibeCardIds, rating, timestamp
+`,
+    tags: ["Pinecone", "RAG", "向量", "記憶", "embedding", "llama"],
+    difficulty: "advanced",
+    readingMinutes: 10,
+    publishedAt: "2026-04-17T00:00:00Z",
+    updatedAt: "2026-04-17T00:00:00Z",
+    featured: true,
+    authorName: "Healing Studio Team",
+  },
+  {
+    id: "api-fal-webhook",
+    category: "api-docs",
+    title: "fal.ai Webhook 持久化機制",
+    summary: "fal.ai 非同步生成完成後如何透過 Webhook 持久化結果到資料庫。",
+    content: `# fal.ai Webhook 持久化機制
+
+## 概覽
+
+fal.ai 支援長時間生成任務（影片生成可能需要 2-5 分鐘），透過 Webhook 在任務完成時主動通知後端，避免 client 長時間 polling。
+
+---
+
+## Webhook 端點
+
+\`\`\`
+POST /api/webhook/fal
+\`\`\`
+
+實作位置：\`server/routes/webhookFal.ts\`
+掛載位置：\`server/_core/index.ts\` → \`app.use(falWebhookRouter)\`
+
+---
+
+## 環境變數設定
+
+\`\`\`env
+# 完整的 Webhook URL，告訴 fal.ai 回傳結果到哪裡
+VITE_SITE_URL=https://healing-studio-production.up.railway.app
+\`\`\`
+
+fal.ai 呼叫時自動組合：\`\${VITE_SITE_URL}/api/webhook/fal\`
+
+---
+
+## 請求流程
+
+\`\`\`
+[用戶點擊生成]
+    ↓
+[後端呼叫 falQueueSubmit()]
+    ↓ （帶入 webhookUrl）
+[fal.ai 接受任務，回傳 requestId]
+    ↓ （2-5 分鐘後）
+[fal.ai POST /api/webhook/fal]
+    ↓
+[webhookFal.ts 接收]
+    ↓
+[查詢 backgroundJobs 表，更新 status=completed, resultJson]
+    ↓
+[前端 SSE/polling 偵測到完成，顯示結果]
+\`\`\`
+
+---
+
+## Webhook Payload 格式
+
+\`\`\`json
+{
+  "request_id": "fal-xxx-yyy",
+  "status": "COMPLETED",
+  "payload": {
+    "images": [{ "url": "https://..." }],
+    "videos": [{ "url": "https://..." }]
+  }
+}
+\`\`\`
+
+---
+
+## 核心程式碼
+
+\`\`\`typescript
+// server/services/falDispatcher.ts
+const webhookUrl = serverEnv.VITE_SITE_URL
+  ? \`\${serverEnv.VITE_SITE_URL}/api/webhook/fal\`
+  : undefined;
+
+await falQueueSubmit(modelId, input, { webhookUrl });
+\`\`\`
+
+> ⚠️ **注意**：\`VITE_SITE_URL\` 需在 Railway 手動設定為正式網域，
+> 本地開發時 fal.ai 無法回呼 localhost，需用 ngrok 等工具。
+`,
+    tags: ["fal.ai", "webhook", "非同步", "持久化", "生成"],
+    difficulty: "intermediate",
+    readingMinutes: 7,
+    publishedAt: "2026-04-17T00:00:00Z",
+    updatedAt: "2026-04-17T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+  {
+    id: "gs-env-vars",
+    category: "getting-started",
+    title: "環境變數完整設定指南（Railway）",
+    summary: "Healing Studio 所有環境變數的說明、設定位置與注意事項。",
+    content: `# 環境變數完整設定指南
+
+## 設定位置
+
+所有環境變數在 **Railway Dashboard** → 你的專案 → Variables 中設定。
+GitHub push 後會自動重新部署並套用新變數。
+
+---
+
+## 必填變數
+
+### 資料庫
+\`\`\`env
+DATABASE_URL=mysql://root:password@mainline.proxy.rlwy.net:32933/railway
+\`\`\`
+
+### Google OAuth
+\`\`\`env
+GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-xxx
+GOOGLE_REDIRECT_URI=https://your-domain.up.railway.app/api/auth/google/callback
+\`\`\`
+
+### JWT
+\`\`\`env
+JWT_SECRET=（至少 32 字元的隨機字串）
+\`\`\`
+
+---
+
+## AI 服務 API Keys
+
+| 變數名稱 | 服務 | 說明 |
+|----------|------|------|
+| \`FAL_KEY\` | fal.ai | 主要生成 API（圖片/影片/音訊） |
+| \`GEMINI_API_KEY\` | Google Gemini | LLM + Embedding |
+| \`ELEVENLABS_API_KEY\` | ElevenLabs | TTS 語音合成（需關閉「限制鍵」） |
+| \`PINECONE_API_KEY\` | Pinecone | RAG 向量記憶 |
+| \`PINECONE_INDEX_NAME\` | Pinecone | 固定值：\`ai-director-memories\` |
+| \`PINECONE_ENVIRONMENT\` | Pinecone | 固定值：\`us-east-1\` |
+| \`REPLICATE_API_TOKEN\` | Replicate | 備用模型平台 |
+| \`LANGSMITH_API_KEY\` | LangSmith | LLM 追蹤分析 |
+| \`LANGSMITH_PROJECT\` | LangSmith | 固定值：\`網站\` |
+| \`NVIDIA_API\` | NVIDIA NIM | Orb AI 代理人（備用） |
+| \`BRAVE_SEARCH_API_KEY\` | Brave Search | Learn Hub 文章搜尋 |
+
+---
+
+## Cloudflare R2 儲存
+
+\`\`\`env
+S3_ENDPOINT=https://481637fcf27f301c0dc03b8e40a6f645.r2.cloudflarestorage.com
+S3_BUCKET_NAME=bruce
+S3_ACCESS_KEY_ID=（R2 API Token 的 Access Key）
+S3_SECRET_ACCESS_KEY=（R2 API Token 的 Secret Key）
+S3_PUBLIC_DOMAIN=https://pub-1d17422fbdc74137aec6c99f88a78ee2.r2.dev
+\`\`\`
+
+---
+
+## 網站設定
+
+\`\`\`env
+VITE_SITE_URL=https://healing-studio-production.up.railway.app
+# fal.ai webhook 會使用此 URL，必須為公開可訪問的網域
+# 本地開發時可省略（webhook 功能會降級為 polling）
+\`\`\`
+
+---
+
+## Stripe（Roadmap，尚未啟用）
+
+\`\`\`env
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+# 設定後 stripeWebhookRouter (/api/webhooks/stripe) 才會執行 HMAC 驗證
+\`\`\`
+
+---
+
+## 常見問題
+
+**Q: ElevenLabs 回傳 401 或 403？**
+A: 登入 ElevenLabs → API Keys → 確認該 Key 未開啟「限制鍵」toggle，否則 text_to_speech 無權限。
+
+**Q: Pinecone upsert 失敗？**
+A: 確認 index 已在 Pinecone Dashboard 建立，名稱為 \`ai-director-memories\`，dimension=1024。
+
+**Q: fal.ai webhook 沒有觸發？**
+A: 確認 \`VITE_SITE_URL\` 已設定為正式網域（不能是 localhost），且 /api/webhook/fal 端點可公開訪問。
+`,
+    tags: ["環境變數", "Railway", "設定", "API Key", "入門"],
+    difficulty: "beginner",
+    readingMinutes: 10,
+    publishedAt: "2026-04-17T00:00:00Z",
+    updatedAt: "2026-04-17T00:00:00Z",
+    featured: true,
+    authorName: "Healing Studio Team",
+  },
+  {
+    id: "api-db-schema",
+    category: "api-docs",
+    title: "完整資料庫 Schema 說明（23 張表）",
+    summary: "Healing Studio 所有資料庫表的欄位定義、用途說明和關聯關係。",
+    content: `# 完整資料庫 Schema 說明
+
+資料庫：MySQL（Railway）
+ORM：Drizzle ORM
+連線：透過 \`getDb()\` 取得 lazy-initialized connection pool
+
+---
+
+## 表一覽（23 張）
+
+### 核心用戶
+
+**users** — 用戶帳號
+\`\`\`
+id, openId（Google/GitHub）, name, email, loginMethod,
+role（user/admin）, quotaJson, remainingGenerations,
+onboardingDone, createdAt, updatedAt, lastSignedIn
+\`\`\`
+
+**userAiBrain** — AI 大腦組態
+\`\`\`
+id, userId（unique）, modelConfig JSON, vibeConfig JSON,
+systemPrompt, createdAt, updatedAt
+\`\`\`
+
+**userModelSwitchLogs** — 模型切換歷史
+\`\`\`
+id, userId, fromModel, toModel, reason, createdAt
+\`\`\`
+
+**aiDirectorPreferences** — 導演 AI 偏好
+\`\`\`
+id, userId（unique）, stylePresets JSON, colorPalette JSON,
+narrativeStyle, updatedAt
+\`\`\`
+
+---
+
+### 生成與資產
+
+**generationHistory** — 生成歷史
+\`\`\`
+id, userId, modality（image/video/audio/voice）,
+prompt, modelId, resultUrl, metadata JSON,
+backgroundJobId, rating, createdAt
+\`\`\`
+
+**backgroundJobs** — 後台非同步任務
+\`\`\`
+id, userId, jobType, status（queued/processing/completed/failed/cancelled）,
+progress, progressMessage, resultJson, errorMessage, createdAt, updatedAt
+索引：userId_status_idx, userId_createdAt_idx
+\`\`\`
+
+**digitalAssetLibrary** — 數位資產庫
+\`\`\`
+id, userId, title, description, assetType, fileUrl,
+thumbnailUrl, metadata JSON, tags JSON, isPublic,
+downloadCount, createdAt, updatedAt
+\`\`\`
+
+---
+
+### 一致性保險庫
+
+**consistencyVault** — 角色/場景一致性卡片
+\`\`\`
+id, userId, name, type（character/scene/style）,
+imageUrl, description, traits JSON, createdAt, updatedAt
+\`\`\`
+
+---
+
+### 提示詞與積木
+
+**promptLibrary** — 提示詞庫（新增）
+\`\`\`
+id, userId, title, content, category, tags JSON,
+isFavorite, isPublic, useCount, modelHint, language,
+createdAt, updatedAt
+索引：pl_userId_idx, pl_category_idx
+\`\`\`
+
+**customBlocks** — 自定義靈感積木
+\`\`\`
+id, userId, label, emoji, prompt, category,
+likeCount, useCount, tags JSON, createdAt, updatedAt
+\`\`\`
+
+**customBlocksCombo** — 積木組合
+\`\`\`
+id, userId, name, description, blockIds JSON,
+likeCount, useCount, tags JSON, createdAt, updatedAt
+\`\`\`
+
+---
+
+### 模型訓練
+
+**fineTunedModels** — LoRA 訓練模型
+\`\`\`
+id, userId, name, description, baseModel,
+status（pending/training/completed/failed）,
+replicateTrainingId, modelUrl, triggerWord,
+sampleImages JSON, createdAt, updatedAt
+\`\`\`
+
+---
+
+### 訂閱與金流
+
+**subscriptionPlans** — 訂閱方案定義
+\`\`\`
+id, planId（unique）, name, monthlyCredits,
+priceUsd, features JSON, isActive, createdAt
+\`\`\`
+
+**userSubscriptions** — 用戶訂閱（Stripe，新增）
+\`\`\`
+id, userId（unique）, stripeCustomerId, stripeSubscriptionId,
+planId, status, currentPeriodStart, currentPeriodEnd,
+cancelAtPeriodEnd, createdAt, updatedAt
+\`\`\`
+
+---
+
+### 運營監控
+
+**apiUsageLogs** — API 使用量記錄
+\`\`\`
+id, userId, service, endpoint, tokens, cost,
+statusCode, createdAt
+\`\`\`
+
+**externalServiceSubscriptions** — 外部服務訂閱管理（新增）
+\`\`\`
+id, serviceName, planName, monthlyCostUsd,
+billingCycle, nextRenewalDate, apiKeyEnvVar,
+apiKeyStatus（valid/invalid/unknown）, workspaceName,
+ownerEmail, riskLevel, notes, createdAt, updatedAt
+\`\`\`
+
+**r2StorageSnapshots** — R2 儲存每日快照（新增）
+\`\`\`
+id, snapshotDate, totalBytes, totalObjects,
+bytesByType JSON, objectsByType JSON,
+estimatedMonthlyCostUsd, createdAt
+\`\`\`
+
+**systemSettings** — 系統全域設定
+\`\`\`
+id, key（unique）, value JSON, description, updatedAt
+\`\`\`
+
+---
+
+### 內容與社群
+
+**newsArticles** — AI 新聞文章
+\`\`\`
+id, title, summary, content, sourceUrl（unique）,
+source, publishedAt, imageUrl, tags JSON, createdAt
+索引：publishedAt_idx, sourceUrl_idx
+\`\`\`
+
+**featuredShowcase** — 精選展示牆
+\`\`\`
+id, userId, title, description, imageUrl,
+videoUrl, modality, likes, createdAt
+\`\`\`
+
+**projectNotesCalendar** — 筆記日曆
+\`\`\`
+id, userId, title, content, date, type,
+tags JSON, createdAt, updatedAt
+\`\`\`
+
+**userFeedbackReports** — 用戶回饋
+\`\`\`
+id, userId, type, title, description,
+status（open/in-progress/resolved）,
+priority, createdAt, updatedAt
+\`\`\`
+`,
+    tags: ["資料庫", "schema", "MySQL", "Drizzle", "表結構"],
+    difficulty: "advanced",
+    readingMinutes: 15,
+    publishedAt: "2026-04-17T00:00:00Z",
+    updatedAt: "2026-04-17T00:00:00Z",
+    featured: true,
+    authorName: "Healing Studio Team",
+  },
+  {
+    id: "api-endpoints-catalog",
+    category: "api-docs",
+    title: "完整 API 端點目錄（tRPC + REST）",
+    summary: "Healing Studio 所有 tRPC router 端點和 REST 端點的完整目錄與說明。",
+    content: `# 完整 API 端點目錄
+
+## tRPC（主要 API）
+
+基礎路徑：\`/trpc/\`
+認證：所有 protectedProcedure 需要有效 JWT cookie（登入後自動設定）
+
+### trpc.brain.*（大腦組態）
+| 端點 | 類型 | 說明 |
+|------|------|------|
+| catalog | query | 取得所有模型目錄 |
+| get | query | 取得用戶大腦組態 |
+| upsert | mutation | 更新大腦組態 |
+| healthStatus | query | 所有 AI 服務健康狀態 |
+| pingProviders | query | 即時 ping 所有 AI 提供商 |
+| monitorSummary | query | 監控摘要 |
+| webSearch | query | Brave 搜尋 |
+| adminSeed | mutation | 管理員種子資料（admin） |
+
+### trpc.promptLibrary.*（提示詞庫）
+| 端點 | 類型 | 說明 |
+|------|------|------|
+| list | query | 分頁列出我的提示詞 |
+| listPublic | query | 公開廣場 |
+| getById | query | 取得單一提示詞 |
+| create | mutation | 新增 |
+| update | mutation | 更新（限本人） |
+| delete | mutation | 刪除（限本人） |
+| toggleFavorite | mutation | 切換收藏 |
+| incrementUseCount | mutation | 使用次數 +1 |
+| adminSeed | mutation | 批次種子（admin） |
+
+### trpc.externalServices.*（外部服務管理）
+| 端點 | 類型 | 說明 |
+|------|------|------|
+| list | query | 列出所有服務（admin） |
+| summary | query | 月費摘要 + 狀態統計（admin） |
+| upsert | mutation | 新增或更新服務（admin） |
+| delete | mutation | 刪除服務（admin） |
+| updateApiKeyStatus | mutation | 更新 key 健康狀態（admin） |
+| seedDefaults | mutation | 種子預設服務清單（admin） |
+
+### trpc.imageStudio.*
+| 端點 | 類型 | 說明 |
+|------|------|------|
+| generate | mutation | 生成圖片（fal.ai Flux/Kontext） |
+| styles | query | 可用風格列表 |
+| aspectRatios | query | 可用比例列表 |
+
+### trpc.videoStudio.*
+| 端點 | 類型 | 說明 |
+|------|------|------|
+| generateT2V | mutation | 文生影片（fal-ai/wan-ai/wan2.1-t2v-720p） |
+| generateI2V | mutation | 圖生影片（fal-ai/wan-ai/wan2.1-i2v-720p） |
+
+### trpc.learnHub.*（學習文件）
+| 端點 | 類型 | 說明 |
+|------|------|------|
+| list | query | 列出文件（支援篩選/搜尋） |
+| getById | query | 取得單篇文件 |
+| featured | query | 精選文件 |
+| create | mutation | 新增文件（admin） |
+| update | mutation | 更新文件（admin） |
+| delete | mutation | 刪除文件（admin） |
+
+### trpc.news.*
+| 端點 | 類型 | 說明 |
+|------|------|------|
+| list | query | 列出新聞（分頁） |
+| fetch | mutation | 手動觸發新聞抓取（admin） |
+
+---
+
+## REST 端點
+
+| 路徑 | 方法 | 說明 |
+|------|------|------|
+| \`/api/health\` | GET | 服務健康狀態（公開） |
+| \`/api/webhook/fal\` | POST | fal.ai 生成完成回呼 |
+| \`/api/webhooks/stripe\` | POST | Stripe 支付 webhook（骨架） |
+| \`/api/auth/google\` | GET | Google OAuth 登入 |
+| \`/api/auth/google/callback\` | GET | OAuth 回呼 |
+| \`/api/events\` | GET | SSE 生成進度串流 |
+
+---
+
+## 認證機制
+
+- **主要**：Google OAuth（/api/auth/google）
+- **Session**：JWT 存在 HttpOnly Cookie（\`healing-studio-session\`）
+- **示範模式**：\`/api/auth/demo-login\`（無需 Google 帳號）
+- **tRPC ctx.user**：所有 protectedProcedure 均可透過 \`ctx.user\` 取得當前用戶
+`,
+    tags: ["API", "端點", "tRPC", "REST", "認證"],
+    difficulty: "intermediate",
+    readingMinutes: 12,
+    publishedAt: "2026-04-17T00:00:00Z",
+    updatedAt: "2026-04-17T00:00:00Z",
+    featured: true,
+    authorName: "Healing Studio Team",
+  },
+  {
+    id: "api-r2-snapshot",
+    category: "api-docs",
+    title: "R2 儲存空間每日快照系統",
+    summary: "每日凌晨 2 點自動掃描 Cloudflare R2 bucket，統計用量並估算費用。",
+    content: `# R2 儲存空間每日快照系統
+
+## 概覽
+
+\`server/jobs/r2SnapshotJob.ts\` 是每日執行一次的 cron job，負責掃描 Cloudflare R2 bucket，統計各類型媒體的儲存量，並將結果寫入 \`r2_storage_snapshots\` 資料表。
+
+---
+
+## 執行時間
+
+| 設定 | 值 |
+|------|-----|
+| Cron 表達式 | \`0 18 * * *\` |
+| UTC 時間 | 每天 18:00 UTC |
+| 台灣時間 | 每天凌晨 02:00 UTC+8 |
+
+---
+
+## 環境變數
+
+\`\`\`env
+S3_ENDPOINT=https://481637fcf27f301c0dc03b8e40a6f645.r2.cloudflarestorage.com
+S3_ACCESS_KEY_ID=（R2 API Token Access Key）
+S3_SECRET_ACCESS_KEY=（R2 API Token Secret Key）
+S3_BUCKET_NAME=bruce
+\`\`\`
+
+> 若任一變數未設定，job 自動跳過並輸出警告。
+
+---
+
+## 分類規則
+
+| 路徑前綴 | 分類 |
+|----------|------|
+| \`images/\` | images |
+| \`videos/\` | videos |
+| \`audio/\` | audio |
+| \`voice/\` | voice |
+| \`models/\` | models |
+| 其他 | other |
+
+---
+
+## R2 定價
+
+| 項目 | 費率 |
+|------|------|
+| 儲存 | $0.015/GB/月 |
+| Class A 操作 | $0.36/百萬次 |
+| Class B 操作 | $0.036/百萬次 |
+| 前 10GB | **免費** |
+
+---
+
+## DB 記錄：r2_storage_snapshots
+
+\`\`\`sql
+snapshotDate         DATE        -- 快照日期
+totalBytes           BIGINT      -- 總位元組數
+totalObjects         INT         -- 總物件數
+bytesByType          JSON        -- 各類型位元組數
+objectsByType        JSON        -- 各類型物件數
+estimatedMonthlyCostUsd DECIMAL  -- 估算月費（USD）
+\`\`\`
+
+---
+
+## 手動觸發（開發測試）
+
+\`\`\`typescript
+import { takeR2Snapshot } from "./jobs/r2SnapshotJob";
+await takeR2Snapshot(); // 立即執行一次快照
+\`\`\`
+
+---
+
+## 匯出函式
+
+| 函式 | 說明 |
+|------|------|
+| \`takeR2Snapshot()\` | 執行一次快照 |
+| \`initR2SnapshotCron()\` | 啟動每日 cron |
+| \`stopR2SnapshotCron()\` | 停止 cron |
+`,
+    tags: ["R2", "Cloudflare", "快照", "儲存", "監控", "cron"],
+    difficulty: "intermediate",
+    readingMinutes: 6,
+    publishedAt: "2026-04-17T00:00:00Z",
+    updatedAt: "2026-04-17T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+  {
+    id: "workflow-stripe-roadmap",
+    category: "workflow",
+    title: "Stripe 金流整合 Roadmap",
+    summary: "Healing Studio Stripe 訂閱金流的完整整合計畫，從骨架到正式上線。",
+    content: `# Stripe 金流整合 Roadmap
+
+## 現狀（骨架已建立）
+
+\`server/routes/stripeWebhook.ts\` — POST /api/webhooks/stripe
+
+目前骨架已處理 5 個事件（僅 log，不執行業務邏輯）：
+- \`checkout.session.completed\`
+- \`invoice.paid\`
+- \`invoice.payment_failed\`
+- \`customer.subscription.updated\`
+- \`customer.subscription.deleted\`
+
+---
+
+## 整合步驟
+
+### Step 1：設定 Stripe 帳號
+1. 前往 [stripe.com](https://stripe.com) 建立帳號
+2. 建立訂閱方案（Products + Prices）
+3. 取得 \`STRIPE_SECRET_KEY\` 和 \`STRIPE_PUBLISHABLE_KEY\`
+
+### Step 2：設定 Webhook
+1. Stripe Dashboard → Developers → Webhooks → Add endpoint
+2. URL：\`https://healing-studio-production.up.railway.app/api/webhooks/stripe\`
+3. 監聽事件：選擇上述 5 個事件
+4. 取得 \`STRIPE_WEBHOOK_SECRET\`（whsec_...）
+
+### Step 3：Railway 環境變數
+\`\`\`env
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+\`\`\`
+
+### Step 4：完善 Webhook 骨架
+
+在 \`stripeWebhook.ts\` 中，將各處理函式的 TODO 替換為實際業務邏輯：
+
+\`\`\`typescript
+// checkout.session.completed → 建立/更新 userSubscriptions
+async function handleCheckoutSessionCompleted(session) {
+  const db = await getDb();
+  await db.insert(userSubscriptions).values({
+    userId: session.metadata.userId,
+    stripeCustomerId: session.customer,
+    stripeSubscriptionId: session.subscription,
+    planId: session.metadata.planId,
+    status: "active",
+  });
+}
+\`\`\`
+
+### Step 5：前端結帳頁面
+- 建立 \`/pricing\` 頁面，展示方案列表
+- 使用 Stripe.js 的 \`redirectToCheckout()\` 跳轉到 Stripe Checkout
+- 結帳成功後 Stripe 通知 webhook，自動開通訂閱
+
+### Step 6：HMAC 驗證
+
+重要：需換成原始 body 才能驗證簽名：
+
+\`\`\`typescript
+// 在 stripeWebhook.ts 路由前加入
+app.use("/api/webhooks/stripe", express.raw({ type: "application/json" }));
+
+// 然後用 stripe SDK 驗證
+const event = stripe.webhooks.constructEvent(
+  req.body,  // raw Buffer
+  req.headers["stripe-signature"],
+  process.env.STRIPE_WEBHOOK_SECRET
+);
+\`\`\`
+
+---
+
+## DB Schema（已建立）
+
+**userSubscriptions** 表已在 drizzle/schema.ts 中建立：
+\`stripeCustomerId, stripeSubscriptionId, planId, status, currentPeriodStart, currentPeriodEnd, cancelAtPeriodEnd\`
+
+---
+
+## 預估整合時間
+
+| 步驟 | 估計時間 |
+|------|----------|
+| Stripe 帳號設定 | 30 分鐘 |
+| Webhook 完善 | 2-4 小時 |
+| 前端結帳頁面 | 4-8 小時 |
+| 測試 + 上線 | 2-4 小時 |
+| **合計** | **約 1-2 天** |
+`,
+    tags: ["Stripe", "金流", "訂閱", "webhook", "roadmap"],
+    difficulty: "advanced",
+    readingMinutes: 12,
+    publishedAt: "2026-04-17T00:00:00Z",
+    updatedAt: "2026-04-17T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+  {
+    id: "api-discord-alerts",
+    category: "api-docs",
+    title: "Discord 健康告警設定說明",
+    summary: "API 服務異常時如何透過 Discord Webhook 即時告警，設定方式與告警格式。",
+    content: `# Discord 健康告警設定說明
+
+## 概覽
+
+\`server/jobs/apiHealthMonitor.ts\` 定期監控所有 AI 服務（fal.ai、Gemini、ElevenLabs、Pinecone 等），當服務異常時透過 Discord Webhook 發送即時告警。
+
+---
+
+## 設定 Discord Webhook
+
+1. 在 Discord 伺服器中，選擇你想接收告警的頻道
+2. 頻道設定 → 整合 → Webhooks → 建立 Webhook
+3. 複製 Webhook URL
+4. 在 Railway 設定環境變數：
+
+\`\`\`env
+DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/xxx/yyy
+\`\`\`
+
+---
+
+## 監控的服務
+
+| 服務 | 監控方式 | 告警觸發條件 |
+|------|----------|------------|
+| fal.ai | HTTP GET /health | 非 2xx 回應 |
+| Google Gemini | 輕量 API 呼叫 | 非 2xx 或 timeout |
+| ElevenLabs | HTTP HEAD | 非 2xx 回應 |
+| Pinecone | GET /indexes | 非 2xx 回應 |
+| NVIDIA NIM | GET /v1/models | 非 2xx 回應 |
+| Replicate | GET /v1/models | 非 2xx 回應 |
+
+---
+
+## 告警格式
+
+Discord 訊息格式（Embed）：
+
+\`\`\`json
+{
+  "embeds": [{
+    "title": "⚠️ Healing Studio API 告警",
+    "color": 16711680,
+    "fields": [
+      { "name": "服務", "value": "ElevenLabs" },
+      { "name": "狀態", "value": "❌ 連線失敗（503）" },
+      { "name": "時間", "value": "2026-04-17 18:00:00 UTC" }
+    ]
+  }]
+}
+\`\`\`
+
+---
+
+## 監控頻率
+
+預設每 5 分鐘執行一次健康檢查。
+可在 \`apiHealthMonitor.ts\` 調整 cron 時間：
+
+\`\`\`typescript
+// 每 5 分鐘
+cron.schedule("*/5 * * * *", runHealthCheck);
+// 每 10 分鐘
+cron.schedule("*/10 * * * *", runHealthCheck);
+\`\`\`
+
+---
+
+## 告警降噪
+
+為避免連續告警（服務間歇性異常），系統只在：
+1. 服務從「正常」變「異常」時發送告警
+2. 服務從「異常」恢復「正常」時發送恢復通知
+
+同一服務連續異常不重複發送。
+
+---
+
+## 測試告警
+
+\`\`\`typescript
+import { sendDiscordAlert } from "./jobs/apiHealthMonitor";
+
+await sendDiscordAlert({
+  service: "測試服務",
+  status: "offline",
+  message: "這是一條測試告警",
+});
+\`\`\`
+`,
+    tags: ["Discord", "告警", "監控", "webhook", "健康檢查"],
+    difficulty: "intermediate",
+    readingMinutes: 8,
+    publishedAt: "2026-04-17T00:00:00Z",
+    updatedAt: "2026-04-17T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
 ];
 
 // ─── In-memory store（後端無 DB 表時使用） ────────────────────────────────
