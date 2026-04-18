@@ -662,6 +662,48 @@
       0 4px 16px rgba(212, 197, 226, 0.08);
   }
 
+  /* Feature showcase card — refined gradient border + accent-color hover glow.
+     Uses a CSS custom property (--accent) set inline so each card's glow
+     matches its own theme color. */
+  .card-feature-refined {
+    position: relative;
+    transition:
+      transform 0.55s cubic-bezier(0.16, 1, 0.3, 1),
+      box-shadow 0.55s cubic-bezier(0.16, 1, 0.3, 1),
+      border-color 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .card-feature-refined::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      135deg,
+      var(--accent, rgba(255, 255, 255, 0.4)) 0%,
+      transparent 40%,
+      transparent 60%,
+      var(--accent, rgba(255, 255, 255, 0.2)) 100%
+    );
+    opacity: 0.4;
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+    transition: opacity 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .card-feature-refined:hover {
+    transform: translateY(-6px);
+    box-shadow:
+      0 24px 48px -20px color-mix(in oklab, var(--accent, #888) 45%, transparent),
+      0 8px 24px -8px color-mix(in oklab, var(--accent, #888) 25%, transparent);
+  }
+  .card-feature-refined:hover::before {
+    opacity: 1;
+  }
+
   /* Ambient glow pulse — for active/focused elements */
   .glow-healing {
     animation: glowPulse 4s ease-in-out infinite;

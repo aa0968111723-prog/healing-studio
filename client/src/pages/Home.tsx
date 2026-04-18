@@ -54,13 +54,9 @@ import { AmbientVideo } from "@/components/AmbientVideo";
 import { useSenseEngine } from "@/hooks/useSenseEngine";
 import { useIntentInference } from "@/hooks/useIntentInference";
 import VisualSoulInvitation from "@/components/VisualSoulInvitation";
-import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  type CarouselApi,
-} from "@/components/ui/carousel";
-import Autoplay from "embla-carousel-autoplay";
+import FeatureDetailDialog, {
+  type FeatureDetail,
+} from "@/components/FeatureDetailDialog";
 
 // ─── Heavy components: lazy load to reduce initial bundle ───────────────────
 const IntelBentoGrid = lazy(() => import("@/components/IntelBentoGrid"));
@@ -182,13 +178,21 @@ const SCENE_STYLES: Record<
 
 // ─── Video Demo Showcase Data ────────────────────────────────────────────
 
-const VIDEO_DEMOS = [
+const VIDEO_DEMOS: FeatureDetail[] = [
   {
     id: "text-to-image",
     icon: Wand2,
     title: "AI 圖片生成",
     description:
       "輸入文字描述，即刻生成高品質影像。支援多種風格與精準的參數調校。",
+    longDescription:
+      "從一段描述出發，快速產出可商用等級的影像。內建多種美學預設與細節調校，讓你在分鐘內完成從概念到視覺成品的跳躍。",
+    features: [
+      "多風格預設：寫實 / 插畫 / 電影感 / 日系",
+      "精準參數：光影、構圖、色調、鏡頭語言",
+      "高解析輸出：支援 2K / 4K 放大",
+      "風格參考：上傳 reference 自動擷取氛圍",
+    ],
     tag: "圖片",
     color: "rgba(168,85,247,0.10)",
     borderColor: "rgba(168,85,247,0.20)",
@@ -199,6 +203,14 @@ const VIDEO_DEMOS = [
     icon: Clapperboard,
     title: "AI 影片創作",
     description: "從文字一鍵生成流暢動態影片，適用於短片、動畫與創意敘事。",
+    longDescription:
+      "自動化從腳本到成片的全流程。鏡頭運動、轉場節奏、角色一致性都幫你處理好，你只需要專注在敘事本身。",
+    features: [
+      "鏡頭運動自動編排：推拉搖移一鍵套用",
+      "多尺寸輸出：9:16 / 16:9 / 1:1 同步生成",
+      "角色一致性：跨鏡頭維持同一人物樣貌",
+      "音畫同步：自動對齊配樂節奏",
+    ],
     tag: "影片",
     color: "rgba(59,130,246,0.10)",
     borderColor: "rgba(59,130,246,0.20)",
@@ -210,6 +222,14 @@ const VIDEO_DEMOS = [
     title: "AI 音樂生成",
     description:
       "描述曲風情境，自動產生原創配樂。從電子氛圍到古典管弦皆可駕馭。",
+    longDescription:
+      "說出你想要的情緒、節奏與樂器，AI 會產出可直接使用的原創配樂。支援多段落結構與情緒轉折，適合 podcast、短影音、廣告。",
+    features: [
+      "情境式 prompt：「冷冽、雨夜、慢板鋼琴」",
+      "多樂器編制：電子、管弦、民謠、氛圍",
+      "段落結構：前奏 / 主歌 / 副歌可分段生成",
+      "商用授權：所有輸出可直接發佈",
+    ],
     tag: "音樂",
     color: "rgba(236,72,153,0.10)",
     borderColor: "rgba(236,72,153,0.20)",
@@ -221,6 +241,14 @@ const VIDEO_DEMOS = [
     title: "導演 AI 編排",
     description:
       "智慧腳本分析與多媒體編排，自動拆解段落並生成對應的圖、影、音。",
+    longDescription:
+      "把一份腳本丟進來，導演 AI 會幫你拆解場景、分配鏡頭、挑選配樂，並呼叫對應的生成引擎組合出完整作品。",
+    features: [
+      "腳本自動分鏡：段落 → 場景 → shot list",
+      "跨模態編排：圖、影、音、字幕一次到位",
+      "節奏調校：自動對齊時間軸與敘事張力",
+      "一鍵重跑：單一場景可獨立重新生成",
+    ],
     tag: "導演",
     color: "rgba(34,197,94,0.10)",
     borderColor: "rgba(34,197,94,0.20)",
@@ -231,6 +259,14 @@ const VIDEO_DEMOS = [
     icon: Users,
     title: "語音克隆",
     description: "上傳語音樣本，精確複製說話風格與音色，適用於配音與旁白製作。",
+    longDescription:
+      "只需 30 秒的聲音樣本，即可建立專屬語音模型。支援多語言、多情緒演繹，適合 podcast、旁白、有聲書與角色配音。",
+    features: [
+      "低樣本建模：30 秒樣本即可開始",
+      "多語言輸出：中英日韓自然切換",
+      "情緒控制：平靜、激昂、溫柔、嚴肅",
+      "倫理保護：需本人授權 + 浮水印追溯",
+    ],
     tag: "語音",
     color: "rgba(249,115,22,0.10)",
     borderColor: "rgba(249,115,22,0.20)",
@@ -241,52 +277,20 @@ const VIDEO_DEMOS = [
     icon: Shield,
     title: "角色訓練 LoRA",
     description: "訓練專屬角色模型，確保跨作品的視覺風格一致性與角色辨識度。",
+    longDescription:
+      "為你的 IP 角色或個人風格訓練專屬 LoRA 模型，在後續所有生成任務中保持一致的視覺特徵，不再為「角色又不像」煩惱。",
+    features: [
+      "少量樣本訓練：10–20 張即可開始",
+      "跨媒介一致：圖、影、3D 全部通用",
+      "版本管理：可保留多個風格 checkpoint",
+      "私有部署：訓練資料不外流",
+    ],
     tag: "訓練",
     color: "rgba(14,165,233,0.10)",
     borderColor: "rgba(14,165,233,0.20)",
     accentColor: "rgb(14,165,233)",
   },
 ];
-
-// ─── Carousel Dot Indicator ─────────────────────────────────────────────────
-
-function CarouselDots({
-  count,
-  current,
-  onSelect,
-  isDark,
-}: {
-  count: number;
-  current: number;
-  onSelect: (idx: number) => void;
-  isDark: boolean;
-}) {
-  return (
-    <div className="flex items-center justify-center gap-2.5 mt-10">
-      {Array.from({ length: count }).map((_, i) => (
-        <motion.button
-          key={i}
-          onClick={() => onSelect(i)}
-          className={`rounded-full transition-all duration-1000 ${
-            i === current
-              ? isDark
-                ? "bg-white/50"
-                : "bg-black/25"
-              : isDark
-                ? "bg-white/12 hover:bg-white/20"
-                : "bg-black/6 hover:bg-black/12"
-          }`}
-          animate={{
-            width: i === current ? 28 : 8,
-            height: 8,
-          }}
-          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-          aria-label={`Go to slide ${i + 1}`}
-        />
-      ))}
-    </div>
-  );
-}
 
 // ─── Scene Badge ────────────────────────────────────────────────────────────
 
@@ -379,33 +383,16 @@ export default function Home() {
   const s = useMemo(() => SCENE_STYLES[sceneId], [sceneId]);
   const soundControls = useAmbientSound(sceneId);
 
-  // ─── Feature Carousel State ─────────────────────────────────────
-  const [featureApi, setFeatureApi] = useState<CarouselApi>();
-  const [featureCurrent, setFeatureCurrent] = useState(0);
-  const featureAutoplay = useMemo(
-    () =>
-      Autoplay({
-        delay: 4000,
-        stopOnInteraction: true,
-        stopOnMouseEnter: true,
-      }),
-    []
+  // ─── Feature Detail Dialog State ─────────────────────────────────
+  const [activeFeature, setActiveFeature] = useState<FeatureDetail | null>(
+    null
   );
+  const [featureDialogOpen, setFeatureDialogOpen] = useState(false);
 
-  useEffect(() => {
-    if (!featureApi) return;
-    const onSelect = () => setFeatureCurrent(featureApi.selectedScrollSnap());
-    featureApi.on("select", onSelect);
-    onSelect();
-    return () => {
-      featureApi.off("select", onSelect);
-    };
-  }, [featureApi]);
-
-  const featureScrollTo = useCallback(
-    (idx: number) => featureApi?.scrollTo(idx),
-    [featureApi]
-  );
+  const openFeature = useCallback((feature: FeatureDetail) => {
+    setActiveFeature(feature);
+    setFeatureDialogOpen(true);
+  }, []);
 
   // ─── Sense Engine + Intent Inference ─────────────────────────────
   const senseEngine = useSenseEngine({ enabled: true });
@@ -761,136 +748,163 @@ export default function Home() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-60px" }}
             transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6"
           >
-            <Carousel
-              setApi={setFeatureApi}
-              plugins={[featureAutoplay]}
-              opts={{ align: "start", loop: true }}
-              className="w-full carousel-fade-edge"
-            >
-              <CarouselContent className="-ml-5">
-                {VIDEO_DEMOS.map((demo, idx) => (
-                  <CarouselItem
-                    key={demo.id}
-                    className="pl-5 basis-full sm:basis-1/2 lg:basis-1/3"
-                  >
+            {VIDEO_DEMOS.map((demo, idx) => (
+              <motion.button
+                key={demo.id}
+                type="button"
+                onClick={() => openFeature(demo)}
+                aria-label={`查看 ${demo.title} 詳情`}
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-40px" }}
+                transition={{
+                  duration: 0.6,
+                  delay: idx * 0.06,
+                  ease: [0.16, 1, 0.3, 1],
+                }}
+                className="group relative text-left h-full rounded-2xl overflow-hidden card-feature-refined focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                style={
+                  {
+                    background: s.cardBg,
+                    border: `1px solid ${s.cardBorder}`,
+                    ["--accent" as any]: demo.accentColor,
+                  } as React.CSSProperties
+                }
+              >
+                {/* Preview area */}
+                <div
+                  className="relative aspect-[16/10] flex items-center justify-center overflow-hidden"
+                  style={{ background: demo.color }}
+                >
+                  <motion.div
+                    className="absolute inset-0"
+                    style={{
+                      background: `radial-gradient(circle at 30% 30%, ${demo.accentColor}18 0%, transparent 55%), radial-gradient(circle at 70% 70%, ${demo.accentColor}0c 0%, transparent 55%)`,
+                    }}
+                    animate={{ opacity: [0.45, 0.85, 0.45] }}
+                    transition={{
+                      duration: 6 + idx * 0.5,
+                      repeat: Infinity,
+                      ease: "easeInOut",
+                    }}
+                  />
+                  {/* Sheen sweep on hover */}
+                  <div
+                    className="pointer-events-none absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-[1400ms] ease-out"
+                    style={{
+                      background: `linear-gradient(115deg, transparent 30%, ${demo.accentColor}18 50%, transparent 70%)`,
+                    }}
+                  />
+                  {/* Center icon */}
+                  <div className="relative z-10 flex flex-col items-center gap-3">
                     <motion.div
-                      whileHover={{ y: -5 }}
-                      transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                      className="w-14 h-14 rounded-xl flex items-center justify-center transition-transform duration-500 group-hover:scale-110 group-hover:rotate-2"
+                      style={{
+                        background: `${demo.accentColor}18`,
+                        border: `1px solid ${demo.accentColor}22`,
+                        backdropFilter: "blur(16px)",
+                      }}
                     >
-                      <div
-                        className="group h-full rounded-2xl overflow-hidden card-healing cursor-pointer"
-                        style={{
-                          background: s.cardBg,
-                          border: `1px solid ${s.cardBorder}`,
-                        }}
-                        onClick={() =>
-                          navigate(isAuthenticated ? "/studio" : "/")
-                        }
-                      >
-                        {/* Preview area with refined layered gradients */}
-                        <div
-                          className="relative aspect-[16/10] flex items-center justify-center overflow-hidden"
-                          style={{ background: demo.color }}
-                        >
-                          {/* Multi-layer ambient gradient */}
-                          <motion.div
-                            className="absolute inset-0"
-                            style={{
-                              background: `radial-gradient(circle at 30% 30%, ${demo.accentColor}15 0%, transparent 50%), radial-gradient(circle at 70% 70%, ${demo.accentColor}0a 0%, transparent 50%)`,
-                            }}
-                            animate={{ opacity: [0.5, 0.8, 0.5] }}
-                            transition={{
-                              duration: 6 + idx * 0.5,
-                              repeat: Infinity,
-                              ease: "easeInOut",
-                            }}
-                          />
-                          {/* Center icon — refined glass container */}
-                          <div className="relative z-10 flex flex-col items-center gap-3">
-                            <motion.div
-                              className="w-14 h-14 rounded-xl flex items-center justify-center"
-                              style={{
-                                background: `${demo.accentColor}15`,
-                                border: `1px solid ${demo.accentColor}18`,
-                                backdropFilter: "blur(16px)",
-                              }}
-                              whileHover={{ scale: 1.08, rotate: 2 }}
-                              transition={{
-                                duration: 0.4,
-                                ease: [0.16, 1, 0.3, 1],
-                              }}
-                            >
-                              <demo.icon
-                                className="w-6 h-6"
-                                style={{ color: demo.accentColor }}
-                              />
-                            </motion.div>
-                            <motion.div
-                              className="w-9 h-9 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-1000"
-                              style={{
-                                background: `${demo.accentColor}10`,
-                                border: `1px solid ${demo.accentColor}15`,
-                                backdropFilter: "blur(12px)",
-                              }}
-                            >
-                              <Play
-                                className="w-3.5 h-3.5 ml-0.5"
-                                style={{ color: demo.accentColor }}
-                              />
-                            </motion.div>
-                          </div>
-                          {/* Tag badge — refined positioning */}
-                          <div
-                            className="absolute top-3 left-3 px-2.5 py-0.5 rounded-full text-[9px] font-medium tracking-wider uppercase"
-                            style={{
-                              background: `${demo.accentColor}10`,
-                              color: demo.accentColor,
-                              border: `1px solid ${demo.accentColor}15`,
-                              backdropFilter: "blur(12px)",
-                            }}
-                          >
-                            {demo.tag}
-                          </div>
-                        </div>
-                        {/* Text content — refined healing spacing with accent line */}
-                        <div className="px-5 py-5 sm:px-6 sm:py-6">
-                          <div className="flex items-center gap-2 mb-3">
-                            <div
-                              className="w-1 h-4 rounded-full"
-                              style={{ background: `${demo.accentColor}40` }}
-                            />
-                            <h3
-                              className={`hs-h3 !mb-0 transition-colors duration-1000 ${s.textPrimary}`}
-                            >
-                              {demo.title}
-                            </h3>
-                          </div>
-                          <p
-                            className={`hs-small !mb-0 leading-relaxed transition-colors duration-1000 ${s.textMuted}`}
-                          >
-                            {demo.description}
-                          </p>
-                          {/* Subtle "explore" hint on hover */}
-                          <div
-                            className={`mt-3 flex items-center gap-1.5 text-[10px] tracking-wide opacity-0 group-hover:opacity-60 transition-opacity duration-500 ${s.textMuted}`}
-                          >
-                            <span>探索功能</span>
-                            <ArrowRight className="w-3 h-3" />
-                          </div>
-                        </div>
-                      </div>
+                      <demo.icon
+                        className="w-6 h-6"
+                        style={{ color: demo.accentColor }}
+                      />
                     </motion.div>
-                  </CarouselItem>
-                ))}
-              </CarouselContent>
-            </Carousel>
-            <CarouselDots
-              count={VIDEO_DEMOS.length}
-              current={featureCurrent}
-              onSelect={featureScrollTo}
-              isDark={isDark}
-            />
+                    <div
+                      className="w-9 h-9 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+                      style={{
+                        background: `${demo.accentColor}12`,
+                        border: `1px solid ${demo.accentColor}20`,
+                        backdropFilter: "blur(12px)",
+                      }}
+                    >
+                      <Play
+                        className="w-3.5 h-3.5 ml-0.5"
+                        style={{ color: demo.accentColor }}
+                      />
+                    </div>
+                  </div>
+                  {/* Tag badge */}
+                  <div
+                    className="absolute top-3 left-3 px-2.5 py-0.5 rounded-full text-[9px] font-medium tracking-wider uppercase"
+                    style={{
+                      background: `${demo.accentColor}12`,
+                      color: demo.accentColor,
+                      border: `1px solid ${demo.accentColor}20`,
+                      backdropFilter: "blur(12px)",
+                    }}
+                  >
+                    {demo.tag}
+                  </div>
+                </div>
+                {/* Text content */}
+                <div className="px-5 py-5 sm:px-6 sm:py-6">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div
+                      className="w-1 h-4 rounded-full"
+                      style={{ background: `${demo.accentColor}55` }}
+                    />
+                    <h3
+                      className={`hs-h3 !mb-0 transition-colors duration-1000 ${s.textPrimary}`}
+                    >
+                      {demo.title}
+                    </h3>
+                  </div>
+                  <p
+                    className={`hs-small !mb-0 leading-relaxed transition-colors duration-1000 ${s.textMuted}`}
+                  >
+                    {demo.description}
+                  </p>
+                  {/* Dual CTA footer */}
+                  <div
+                    className={`mt-4 pt-4 flex items-center justify-between gap-2 border-t ${
+                      isDark ? "border-white/8" : "border-black/5"
+                    }`}
+                  >
+                    <span
+                      className={`text-[11px] tracking-wide flex items-center gap-1 ${s.textMuted}`}
+                    >
+                      查看詳情
+                      <ArrowRight className="w-3 h-3 transition-transform duration-500 group-hover:translate-x-0.5" />
+                    </span>
+                    <span
+                      onClick={e => {
+                        e.stopPropagation();
+                        if (!isAuthenticated) {
+                          window.location.href = getLoginUrl();
+                        } else {
+                          navigate(demo.ctaHref ?? "/studio");
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={e => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (!isAuthenticated) {
+                            window.location.href = getLoginUrl();
+                          } else {
+                            navigate(demo.ctaHref ?? "/studio");
+                          }
+                        }
+                      }}
+                      className="text-[11px] font-medium px-2.5 py-1 rounded-full flex items-center gap-1 transition-all hover:shadow-md cursor-pointer"
+                      style={{
+                        background: `${demo.accentColor}18`,
+                        color: demo.accentColor,
+                        border: `1px solid ${demo.accentColor}30`,
+                      }}
+                    >
+                      <Play className="w-2.5 h-2.5 fill-current" />
+                      試用
+                    </span>
+                  </div>
+                </div>
+              </motion.button>
+            ))}
           </motion.div>
         </div>
       </section>
@@ -1135,6 +1149,14 @@ export default function Home() {
           </span>
         </div>
       </footer>
+
+      <FeatureDetailDialog
+        feature={activeFeature}
+        open={featureDialogOpen}
+        onOpenChange={setFeatureDialogOpen}
+        isAuthenticated={isAuthenticated}
+        isDark={isDark}
+      />
     </div>
   );
 }
