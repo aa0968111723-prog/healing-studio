@@ -42,13 +42,11 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useAIState } from "@/contexts/AIStateContext";
-import {
-  AmbientEnvironment,
-  useCurrentScene,
-} from "@/components/AmbientEnvironment";
+import { AmbientEnvironment } from "@/components/AmbientEnvironment";
 import type { SceneId } from "@/components/AmbientEnvironment";
 import SceneSwitcher from "@/components/SceneSwitcher";
-import { useAmbientSound, SoundControl } from "@/components/AmbientSoundEngine";
+import { SoundControl } from "@/components/AmbientSoundEngine";
+import { useAmbient } from "@/contexts/AmbientSoundContext";
 import OarsGreeting from "@/components/OarsGreeting";
 import { AmbientVideo } from "@/components/AmbientVideo";
 import { useSenseEngine } from "@/hooks/useSenseEngine";
@@ -378,10 +376,9 @@ export default function Home() {
   const { personality } = useAIState();
   const [, navigate] = useLocation();
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const { sceneId, isDark, override, setOverride, allScenes } =
-    useCurrentScene();
+  const ambient = useAmbient();
+  const { sceneId, isDark, override, setOverride, allScenes } = ambient;
   const s = useMemo(() => SCENE_STYLES[sceneId], [sceneId]);
-  const soundControls = useAmbientSound(sceneId);
 
   // ─── Feature Detail Dialog State ─────────────────────────────────
   const [activeFeature, setActiveFeature] = useState<FeatureDetail | null>(
@@ -519,7 +516,10 @@ export default function Home() {
                 onSelect={setOverride}
                 isDark={isDark}
               />
-              <SoundControl controls={soundControls} isDark={isDark} />
+              <SoundControl controls={ambient} isDark={isDark} />
+            </div>
+            <div className="flex sm:hidden">
+              <SoundControl controls={ambient} isDark={isDark} compact />
             </div>
             {isAuthenticated ? (
               <Button
