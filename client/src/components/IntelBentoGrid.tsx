@@ -283,6 +283,8 @@ function BentoCard({
   const isHero = config.size === "hero";
   const isMedium = config.size === "medium";
   const [isHovered, setIsHovered] = useState(false);
+  const [imgError, setImgError] = useState(false);
+  const showImage = !!item.coverImageUrl && !imgError;
 
   // Sense Engine: card-level micro-behavior tracking
   const senseProps = useCardSenseProps(
@@ -366,14 +368,67 @@ function BentoCard({
 
       {/* Accent stripe */}
       <motion.div
-        className={`absolute top-0 left-0 right-0 h-[2px] ${config.accentBg}`}
+        className={`absolute top-0 left-0 right-0 h-[2px] ${config.accentBg} z-[2]`}
         animate={{ opacity: isHovered ? 1 : 0.6 }}
         transition={{ duration: 0.3 }}
       />
 
-      <div
-        className={`relative z-10 flex flex-col h-full ${isHero ? "p-7 sm:p-8" : isMedium ? "p-5 sm:p-6" : "p-4 sm:p-5"}`}
-      >
+      <div className="relative z-10 flex flex-col h-full">
+        {/* ── Cover image banner (with placeholder fallback) ───────────── */}
+        <div
+          className={`relative w-full overflow-hidden flex-shrink-0 ${
+            isHero
+              ? "aspect-[16/9]"
+              : isMedium
+                ? "aspect-[16/9]"
+                : "aspect-[16/10]"
+          }`}
+        >
+          {showImage ? (
+            <>
+              <img
+                src={item.coverImageUrl!}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                referrerPolicy="no-referrer"
+                onError={() => setImgError(true)}
+                className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
+              />
+              {/* Readability gradient on top edge for overlay badges */}
+              <div
+                aria-hidden="true"
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  background:
+                    "linear-gradient(180deg, rgba(0,0,0,0.15) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.12) 100%)",
+                }}
+              />
+            </>
+          ) : (
+            // Placeholder: gradient backdrop + category icon
+            <div
+              aria-hidden="true"
+              className={`absolute inset-0 flex items-center justify-center ${config.accentBg}`}
+            >
+              <div
+                className="absolute inset-0"
+                style={{
+                  background: `radial-gradient(circle at 30% 35%, currentColor 0%, transparent 55%), radial-gradient(circle at 75% 70%, currentColor 0%, transparent 55%)`,
+                  opacity: 0.12,
+                }}
+              />
+              <Icon
+                className={`relative w-10 h-10 opacity-40 ${config.accentColor}`}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* ── Padded content ─────────────────────────────────────────── */}
+        <div
+          className={`relative flex flex-col flex-1 ${isHero ? "p-6 sm:p-7" : isMedium ? "p-4 sm:p-5" : "p-4"}`}
+        >
         {/* Header: weight badge + time */}
         <div className="flex items-center justify-between mb-3">
           <motion.span
@@ -501,6 +556,7 @@ function BentoCard({
             )}
           </AnimatePresence>
         )}
+        </div>
       </div>
     </motion.article>
   );
@@ -669,13 +725,25 @@ const IntelBentoGrid = memo(function IntelBentoGrid({
     "intel-bento-grid"
   );
 
-  // Fetch news from tRPC
-  const { data, isLoading } = trpc.news.list.useQuery(
+  // Fetch news from tRPC (infinite pagination drives "探索更多情報")
+  const {
+    data,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = trpc.news.list.useInfiniteQuery(
     { limit: 20 },
-    { staleTime: 60_000 }
+    {
+      getNextPageParam: lastPage => lastPage.nextCursor ?? undefined,
+      staleTime: 60_000,
+    }
   );
 
-  const items = data?.items ?? [];
+  const items = useMemo(
+    () => data?.pages.flatMap(p => p.items) ?? [],
+    [data]
+  );
 
   // Filter by tab
   const filteredItems = useMemo(() => {
@@ -842,19 +910,29 @@ const IntelBentoGrid = memo(function IntelBentoGrid({
           </div>
         )}
 
-        {/* "See more" link */}
-        {data?.nextCursor && (
+        {/* "See more" — loads next page inline */}
+        {hasNextPage && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="flex justify-center mt-6"
           >
             <button
-              className={`inline-flex items-center gap-1.5 text-xs font-medium px-4 py-2 rounded-full backdrop-blur-md transition-all duration-300 hover:scale-105 ${styles.textMuted}`}
+              type="button"
+              onClick={() => {
+                if (!isFetchingNextPage) fetchNextPage();
+              }}
+              disabled={isFetchingNextPage}
+              className={`inline-flex items-center gap-1.5 text-xs font-medium px-4 py-2 rounded-full backdrop-blur-md transition-all duration-300 hover:scale-105 disabled:opacity-60 disabled:cursor-wait ${styles.textMuted}`}
               style={{ background: styles.tabsBg }}
+              aria-label="載入更多情報"
             >
-              探索更多情報
-              <ChevronRight className="w-3 h-3" />
+              {isFetchingNextPage ? "載入中…" : "探索更多情報"}
+              <ChevronRight
+                className={`w-3 h-3 transition-transform ${
+                  isFetchingNextPage ? "animate-pulse" : ""
+                }`}
+              />
             </button>
           </motion.div>
         )}
