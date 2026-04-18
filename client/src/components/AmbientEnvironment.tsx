@@ -448,6 +448,14 @@ function AmbientEnvironmentInner({
     forceScene ?? getSceneForHour(new Date().getHours())
   );
 
+  // Sync with external override: when forceScene prop changes (e.g. user picks
+  // a scene in SceneSwitcher), adopt it immediately.
+  useEffect(() => {
+    if (forceScene) {
+      setCurrentScene(prev => (prev === forceScene ? prev : forceScene));
+    }
+  }, [forceScene]);
+
   // Check time every 30 seconds
   useEffect(() => {
     if (forceScene) return;

@@ -498,7 +498,7 @@ export default function Home() {
         {isAmbientVisible && (
           <>
             <AmbientVideo src="" overlayOpacity={0.35} fadeInDuration={1200} />
-            <AmbientEnvironment />
+            <AmbientEnvironment forceScene={sceneId} />
           </>
         )}
       </motion.div>
