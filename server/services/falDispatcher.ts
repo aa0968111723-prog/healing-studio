@@ -336,6 +336,29 @@ export async function dispatchFalTask(
   const falInput: Record<string, unknown> = {};
 
   if (input.prompt !== undefined) falInput.prompt = input.prompt;
+
+  // ── TTS 特殊處理：dia-tts / playai-tts / orpheus-tts 等只接受 `text` 欄位而非 `prompt`
+  // 且 dia-tts 要求 [S1]/[S2] 說話者標籤
+  if (input.prompt !== undefined && category === "text-to-speech") {
+    const TTS_TEXT_FIELD_MODELS = [
+      "fal-ai/dia-tts",
+      "fal-ai/dia-tts/voice-clone",
+      "fal-ai/playai-tts",
+      "fal-ai/orpheus-tts",
+      "fal-ai/kokoro",
+      "fal-ai/qwen-3-tts/text-to-speech/1.7b",
+    ];
+    if (TTS_TEXT_FIELD_MODELS.includes(targetModelId)) {
+      // dia-tts 需要 [S1]/[S2] 說話者標籤，否則會 422
+      const text =
+        targetModelId.startsWith("fal-ai/dia-tts") && !/\[S\d\]/.test(input.prompt)
+          ? `[S1] ${input.prompt}`
+          : input.prompt;
+      falInput.text = text;
+      delete falInput.prompt; // 移除 prompt，dia-tts 不接受此欄位
+    }
+  }
+
   if (input.imageUrl !== undefined) falInput.image_url = input.imageUrl;
   if (input.videoUrl !== undefined) falInput.video_url = input.videoUrl;
   if (input.audioUrl !== undefined) falInput.audio_url = input.audioUrl;

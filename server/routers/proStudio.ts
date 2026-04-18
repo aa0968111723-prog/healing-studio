@@ -55,10 +55,21 @@ function getFalKey(): string {
   return key;
 }
 
+/**
+ * fal.ai ElevenLabs proxy 需要將 ElevenLabs key 以
+ * `x-fal-client-credentials` header 傳入，否則會得到 401
+ */
+function getElevenLabsProxyHeaders(): Record<string, string> {
+  const key = process.env.ELEVENLABS_API_KEY;
+  if (!key) return {}; // key 未設定時讓 fal.ai 自記錄 401，不在此層拋錯
+  return { "x-fal-client-credentials": key };
+}
+
 /** 使用 queue 非同步提交任務，立即回傳 request_id */
 async function falQueueSubmit(
   modelId: string,
-  input: Record<string, unknown>
+  input: Record<string, unknown>,
+  extraHeaders?: Record<string, string>
 ): Promise<{ request_id: string }> {
   const key = getFalKey();
   const res = await fetch(`${FAL_QUEUE_BASE}/${modelId}`, {
@@ -66,6 +77,7 @@ async function falQueueSubmit(
     headers: {
       Authorization: `Key ${key}`,
       "Content-Type": "application/json",
+      ...extraHeaders,
     },
     body: JSON.stringify(input),
   });
@@ -441,7 +453,7 @@ export const proStudioRouter = router({
           ? Math.min(input.duration_seconds, 22)
           : undefined,
         prompt_influence: input.prompt_influence,
-      });
+      }, getElevenLabsProxyHeaders());  // 需要 ElevenLabs key 認證
       return { request_id, model: falModelId, is_async_polling: true };
     }),
 
@@ -474,7 +486,7 @@ export const proStudioRouter = router({
           style: input.style,
         },
         language_code: input.language_code,
-      });
+      }, getElevenLabsProxyHeaders());  // 需要 ElevenLabs key 認證
       return { request_id, model: modelId, is_async_polling: true };
     }),
 
@@ -754,7 +766,7 @@ export const proStudioRouter = router({
       const modelId = "fal-ai/elevenlabs/audio-isolation";
       const { request_id } = await falQueueSubmit(modelId, {
         audio_url: input.audio_url,
-      });
+      }, getElevenLabsProxyHeaders());  // 需要 ElevenLabs key 認證
       return { request_id, model: modelId, is_async_polling: true };
     }),
 
@@ -797,7 +809,7 @@ export const proStudioRouter = router({
         audio_url: input.audio_url,
         voice_id: input.voice_id,
         remove_background_noise: input.remove_background_noise,
-      });
+      }, getElevenLabsProxyHeaders());  // 需要 ElevenLabs key 認證
       return { request_id, model: modelId, is_async_polling: true };
     }),
 
@@ -934,7 +946,7 @@ export const proStudioRouter = router({
         target_language: input.target_language,
         num_speakers: input.num_speakers,
         watermark: input.watermark,
-      });
+      }, getElevenLabsProxyHeaders());  // 需要 ElevenLabs key 認證
       return { request_id, model: "fal-ai/elevenlabs/dubbing" };
     }),
 
