@@ -906,3 +906,17 @@ export function estimateGenerationPoints(params: {
     modelLabel: pricing?.label ?? params.modelId,
   };
 }
+
+/**
+ * submitToFalQueue — 直接提交任務到 fal.ai queue 並立即回傳 request_id。
+ * 不等待生成完成，供背景任務模式使用。
+ * 用法：前端拿到 request_id 後呼叫 submitTask() 登錄到 BackgroundTasksContext。
+ */
+export async function submitToFalQueue(
+  modelId: string,
+  input: Record<string, unknown>
+): Promise<{ request_id: string; modelId: string }> {
+  const { falQueueSubmitModel } = await import("./falModels.js");
+  const result = await falQueueSubmitModel(modelId, input);
+  return { request_id: result.request_id, modelId };
+}

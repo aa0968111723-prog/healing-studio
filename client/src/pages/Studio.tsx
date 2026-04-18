@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { trpc } from "@/lib/trpc";
+import { useBackgroundTasks } from "@/contexts/BackgroundTasksContext";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -35,7 +36,6 @@ import {
 } from "@/components/ConsistencyVault";
 import { GenerationControls } from "@/components/GenerationControls";
 import {
-  ZenProgressOverlay,
   GlassCard,
   BottomSheet,
 } from "@/components/ZenCoPilot";
@@ -534,9 +534,8 @@ export default function Studio() {
     }
   }, [compileResult.compiledPrompt, workspaceMode]);
 
-  // ── Progress ──
-  const [progress, setProgress] = useState(0);
-  const [progressMessage, setProgressMessage] = useState("");
+  // ── Background Tasks ──
+  const { submitTask, setDrawerOpen } = useBackgroundTasks();
 
   // ── Brain Pricing Summary (show engine name + cost in UI) ──
   const pricingSummaryQuery = trpc.brain.pricingSummary.useQuery(
@@ -553,144 +552,46 @@ export default function Studio() {
 
   // ── Mutation ──
   const utils = trpc.useUtils();
-  const sseRef = useRef<EventSource | null>(null);
-  const prepareJobMutation = trpc.generate.prepareJob.useMutation();
-  const generateMutation = trpc.generate.multimodal.useMutation({
+  // ── Async submit mutation (背景任務模式，不阻塞 UI) ──
+  const submitAsyncMutation = trpc.generate.submitMultimodalAsync.useMutation({
     onMutate: () => {
       setAIState("generating");
       notifyGenStart();
-      setProgress(2);
-      setProgressMessage("初始化...");
-      setThoughtChain([]);
     },
-    onSuccess: data => {
-      setResultUrl(data.resultUrl || null);
-      setResultData(data.resultData);
-      // Final thoughtChain from server (authoritative) — merge with SSE updates
-      if ((data as any).thoughtChain?.length) {
-        setThoughtChain((data as any).thoughtChain);
-      }
-      setProgress(100);
-      setProgressMessage("生成完成");
-      setTimeout(() => {
-        setProgress(0);
-        setAIState("idle");
-        notifyGenDone();
-      }, 1500);
-      toast.success("生成完成");
-      reportSuccess();
+    onSuccess: (data) => {
+      // 立刻登錄到背景任務系統，讓 BackgroundTasksDrawer 追蹤
+      submitTask({
+        studioType: activeModality as any,
+        requestId: data.request_id,
+        modelId: data.modelId,
+        label: data.label,
+      });
+      setAIState("idle");
+      notifyGenDone();
+      toast.success(`${data.label} 已提交背景執行`, {
+        description: "完成後將自動通知您",
+        action: {
+          label: "查看任務",
+          onClick: () => setDrawerOpen(true),
+        },
+      });
       utils.auth.me.invalidate();
-      // Save version entry
-      const currentBlocks = structuredBlocks[modalityKey] || [];
-      const currentIslands = thoughtIslands[modalityKey] || [];
-      const newVersion: VersionEntry = {
-        id: `v-${Date.now()}`,
-        timestamp: Date.now(),
-        modality: modalityKey,
-        blocks: [...currentBlocks],
-        thoughtIslands: [...currentIslands],
-        promptStrength,
-        advancedPrompt: advancedPrompt[modalityKey] || "",
-        compiledPrompt: compileResult.compiledPrompt,
-        changedFields: compileResult.changedFields,
-        references: references[modalityKey] || [],
-        generationSettings: { temperature, seed, mode, loraWeight },
-        outputUrl: data.resultUrl || null,
-        pinned: false,
-        actionMode,
-      };
-      setVersions(prev => [newVersion, ...prev]);
-      previousBlocksRef.current = [...currentBlocks];
-      // resultUrl is set above, which enables Refine/Branch via hasResult prop
-      // Close SSE connection
-      if (sseRef.current) {
-        sseRef.current.close();
-        sseRef.current = null;
-      }
     },
-    onError: error => {
-      setProgress(0);
-      setProgressMessage("");
+    onError: (error) => {
       setAIState("idle");
       notifyGenFail();
-      // Zero-Anxiety error handling: classify error and show friendly message
       const msg = error.message || "";
-      const isTimeout = /timeout|timed? ?out|ETIMEDOUT|aborted|abort/i.test(
-        msg
-      );
-      const isNetwork =
-        /network|fetch|ECONNREFUSED|ENOTFOUND|ERR_CONNECTION/i.test(msg);
-      const isQuota = /配額|不足|積分/i.test(msg);
+      const isQuota = /配額|不足|積分/.test(msg);
       if (isQuota) {
         toast.error(msg);
-      } else if (isTimeout) {
-        toast.error("AI 服務回應超時\n\n我們並未扣除您的積分，請稍後重試", {
-          duration: 6000,
-        });
-      } else if (isNetwork) {
-        toast.error(
-          "網路連線稍微異常\n\n我們並未扣除您的積分，請檢查網路後重試",
-          { duration: 6000 }
-        );
       } else {
-        toast.error(`AI 服務連線稍微異常\n\n我們並未扣除您的積分，請稍後重試`, {
-          duration: 6000,
-        });
+        toast.error(`提交失敗：${msg || "請稍後重試"}`);
       }
       reportFailure();
-      if (sseRef.current) {
-        sseRef.current.close();
-        sseRef.current = null;
-      }
     },
   });
 
-  // ── SSE connection for real-time thought chain updates ──
-  const connectSSE = useCallback((jobId: number) => {
-    if (sseRef.current) {
-      sseRef.current.close();
-    }
-    const es = new EventSource(`/api/generation-events/${jobId}`);
-    sseRef.current = es;
-    es.onmessage = evt => {
-      try {
-        const event = JSON.parse(evt.data);
-        if (event.type === "thought-update" && event.node) {
-          setThoughtChain(prev => {
-            const idx = prev.findIndex(n => n.id === event.node.id);
-            if (idx >= 0) {
-              const updated = [...prev];
-              updated[idx] = event.node;
-              return updated;
-            }
-            return [...prev, event.node];
-          });
-        } else if (event.type === "progress") {
-          setProgress(event.progress);
-          setProgressMessage(event.message);
-        } else if (event.type === "complete" || event.type === "error") {
-          es.close();
-          sseRef.current = null;
-        }
-      } catch {
-        /* ignore parse errors */
-      }
-    };
-    es.onerror = () => {
-      // SSE connection lost — fall back to mutation result
-      es.close();
-      sseRef.current = null;
-    };
-  }, []);
 
-  // Clean up SSE on unmount
-  useEffect(() => {
-    return () => {
-      if (sseRef.current) {
-        sseRef.current.close();
-      }
-    };
-  }, []);
 
   // ── Populate from Showcase Transfer (完全解構 JSON 還原) ──
   const { consumePayload } = useShowcaseTransfer();
@@ -1331,29 +1232,42 @@ export default function Studio() {
     };
 
     try {
-      // Step 1: Pre-flight — create job + deduct points (model-based cost)
-      const { jobId } = await prepareJobMutation.mutateAsync({
-        generationType: activeModality,
-        // Pass duration/charCount for more accurate cost estimation at deduction time
-        durationSec:
-          activeModality === "video"
-            ? parseInt(videoState.duration) || 5
-            : activeModality === "audio"
-              ? (audioState as any).duration || 30
-              : undefined,
-        charCount:
-          activeModality === "voice"
-            ? voiceState.text?.length || undefined
-            : undefined,
+      // 背景任務模式：提交到 fal.ai queue，立刻回傳，不阻塞 UI
+      await submitAsyncMutation.mutateAsync({
+        prompt: mutationInput.prompt,
+        generationType: activeModality as "image" | "video" | "audio" | "voice",
+        mode,
+        seed: mutationInput.seed,
+        ...(activeModality === "image" && {
+          aspectRatio: imageState.aspectRatio,
+          negativePrompt: imageState.negativePrompt || undefined,
+          styleReferenceUrl: imageState.styleReferenceUrl,
+          vibeReferenceUrl: imageState.vibeReferenceUrl,
+        }),
+        ...(activeModality === "video" && {
+          videoDurationSeconds: parseInt(videoState.duration) || 5,
+          firstFrameUrl: videoState.firstFrameUrl,
+          lastFrameUrl: videoState.lastFrameUrl,
+          characterRefUrl: videoState.characterRefUrl,
+        }),
+        ...(activeModality === "audio" && {
+          musicStyle: audioState.musicStyle,
+          isInstrumental: audioState.isInstrumental,
+          audioDuration: audioState.duration,
+        }),
+        ...(activeModality === "voice" && {
+          voiceModelId: voiceState.voiceActorId,
+          voiceText: voiceState.text,
+          voiceSpeed: voiceState.speed,
+          voiceStability: voiceState.stability,
+          voiceEmotionType: voiceState.emotionType,
+          voiceEmotionIntensity: voiceState.emotionIntensity,
+        }),
+        fineTunedModelId,
+        loraWeight,
       });
-
-      // Step 2: Connect SSE immediately so we receive real-time thought chain events
-      connectSSE(jobId);
-
-      // Step 3: Fire the actual generation mutation (SSE events stream during this call)
-      await generateMutation.mutateAsync({ ...mutationInput, jobId });
     } catch {
-      // Errors are handled by onError callbacks in the mutations
+      // Errors are handled by onError callback in the mutation
     }
   }, [
     promptBuilder,
@@ -1365,9 +1279,9 @@ export default function Studio() {
     videoState,
     audioState,
     voiceState,
-    generateMutation,
-    prepareJobMutation,
-    connectSSE,
+    submitAsyncMutation,
+    submitTask,
+    setDrawerOpen,
     vaultCharacterId,
     vaultSceneId,
     fineTunedModelId,
@@ -1704,11 +1618,7 @@ export default function Studio() {
 
   return (
     <div className="space-y-4">
-      <ZenProgressOverlay
-        visible={generateMutation.isPending}
-        progress={progress}
-        message={progressMessage}
-      />
+
 
       {/* ── Header with Creative Mode Selector + Toolbox ── */}
       <div className="flex items-center justify-between gap-2">
@@ -2207,7 +2117,7 @@ export default function Studio() {
           )}
 
           {/* Engine + Cost Preview Badge — hidden in simple mode */}
-          {!isSimple && currentEngine && !generateMutation.isPending && (
+          {!isSimple && currentEngine && !submitAsyncMutation.isPending && (
             <div className="flex items-center justify-between text-[11px] text-muted-foreground px-1">
               <span className="flex items-center gap-1">
                 <Cpu className="w-3 h-3" />
@@ -2236,7 +2146,7 @@ export default function Studio() {
             onActionModeChange={setActionMode}
             onGenerate={handleGenerate}
             isGenerating={
-              generateMutation.isPending || prepareJobMutation.isPending
+              submitAsyncMutation.isPending || submitAsyncMutation.isPending
             }
             hasResult={!!resultUrl}
             simpleMode={isSimple}
@@ -2244,7 +2154,7 @@ export default function Studio() {
 
           {/* Thought Island Chain — z-10 below PromptBuilder's z-20 */}
           <AnimatePresence>
-            {(thoughtChain.length > 0 || generateMutation.isPending) && (
+            {(thoughtChain.length > 0 || submitAsyncMutation.isPending) && (
               <motion.div
                 className="relative z-10"
                 initial={{ opacity: 0, y: 20, scale: 0.96 }}

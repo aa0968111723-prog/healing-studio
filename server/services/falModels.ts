@@ -1273,3 +1273,26 @@ export async function callFalModel(
     modelId: params.modelId,
   };
 }
+
+/**
+ * falQueueSubmitModel — 送出任務到 fal.ai queue，立即回傳 request_id（不等待結果）。
+ * 用於背景任務模式：前端收到 request_id 後立刻登錄到 BackgroundTasksContext。
+ */
+export async function falQueueSubmitModel(
+  modelId: string,
+  input: Record<string, unknown>,
+  extraHeaders?: Record<string, string>
+): Promise<{ request_id: string }> {
+  const apiKey = process.env.FAL_API_KEY;
+  if (!apiKey) throw new Error("FAL_API_KEY 未設定");
+
+  const client = createFalClient({ credentials: apiKey });
+
+  // 使用 endpointId 格式提交到 queue（不等待完成）
+  const status = await client.queue.submit(modelId as any, {
+    input,
+    ...(extraHeaders ? { headers: extraHeaders } : {}),
+  });
+
+  return { request_id: status.request_id };
+}

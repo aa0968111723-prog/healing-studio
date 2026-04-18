@@ -48,6 +48,7 @@ import {
   resolveFalEnginesFromRow,
   DEFAULT_FAL_ENGINES,
   estimateGenerationPoints,
+  submitToFalQueue,
 } from "./services/falDispatcher";
 import { eq } from "drizzle-orm";
 import { userAiBrain } from "../drizzle/schema";
@@ -1589,6 +1590,201 @@ export const appRouter = router({
     }),
 
     // ─── Background Studio Job Management ──────────────────────────────
+
+    /**
+     * submitMultimodalAsync — 創作工作室四模態「背景任務」模式。
+     *
+     * 流程：
+     *   1. 輕量安全檢查（prompt 審核）
+     *   2. 從 AI 大腦組態選定引擎
+     *   3. prepareJob 扣點 + 建 backgroundJob 記錄
+     *   4. 直接送 fal.ai queue（不等待結果）
+     *   5. 回傳 { jobId, request_id, modelId, label }
+     *
+     * 前端收到後呼叫 submitTask() 登錄到 BackgroundTasksContext，
+     * 背景輪詢結果，完成後 toast 通知。
+     */
+    submitMultimodalAsync: protectedProcedure
+      .input(
+        z.object({
+          prompt: z.string().min(1),
+          generationType: z.enum(["image", "video", "audio", "voice"]),
+          mode: z.enum(["lightning", "deep_precision"]),
+          seed: z.number().optional(),
+          // Image params
+          aspectRatio: z.string().optional(),
+          negativePrompt: z.string().optional(),
+          styleReferenceUrl: z.string().nullable().optional(),
+          vibeReferenceUrl: z.string().nullable().optional(),
+          // Video params
+          videoDurationSeconds: z.number().optional(),
+          firstFrameUrl: z.string().nullable().optional(),
+          lastFrameUrl: z.string().nullable().optional(),
+          characterRefUrl: z.string().nullable().optional(),
+          // Audio params
+          musicStyle: z.string().optional(),
+          isInstrumental: z.boolean().optional(),
+          audioDuration: z.number().optional(),
+          // Voice params
+          voiceModelId: z.string().optional(),
+          voiceText: z.string().optional(),
+          voiceSpeed: z.number().optional(),
+          voiceStability: z.number().optional(),
+          voiceEmotionType: z.string().optional(),
+          voiceEmotionIntensity: z.number().optional(),
+          // Vault & Model
+          fineTunedModelId: z.number().optional(),
+          loraWeight: z.number().min(0).max(1).optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const userId = ctx.user.id;
+
+        // ── 1. 安全檢查 ────────────────────────────────────────────────
+        const safetyResult = await checkSafety(
+          input.generationType === "voice" && input.voiceText
+            ? input.voiceText
+            : input.prompt
+        );
+        if (!safetyResult.safe) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: safetyResult.reason || "內容不符合安全規範",
+          });
+        }
+
+        // ── 2. 讀取 AI 大腦選定引擎 ────────────────────────────────────
+        let brainRow: Record<string, unknown> | null = null;
+        try {
+          const database = await getDb();
+          if (database) {
+            const rows = await database
+              .select()
+              .from(userAiBrain)
+              .where(eq(userAiBrain.userId, userId))
+              .limit(1);
+            brainRow = (rows[0] ?? null) as Record<string, unknown> | null;
+          }
+        } catch { /* use defaults */ }
+        const falEngines = resolveFalEnginesFromRow(brainRow);
+
+        // ── 3. 決定 modelId 和 fal input ───────────────────────────────
+        let modelId: string;
+        let falInput: Record<string, unknown> = {};
+        const modalityLabel =
+          input.generationType === "image" ? "圖像" :
+          input.generationType === "video" ? "影片" :
+          input.generationType === "audio" ? "音樂" : "語音";
+
+        if (input.generationType === "image") {
+          const refUrl = input.styleReferenceUrl || input.vibeReferenceUrl;
+          modelId = refUrl ? falEngines.imageToImage : falEngines.textToImage;
+          falInput = {
+            prompt: input.prompt,
+            ...(input.aspectRatio && { aspect_ratio: input.aspectRatio }),
+            ...(input.negativePrompt && { negative_prompt: input.negativePrompt }),
+            ...(refUrl && { image_url: refUrl }),
+            ...(input.seed != null && { seed: input.seed }),
+          };
+        } else if (input.generationType === "video") {
+          const hasFirstFrame = !!input.firstFrameUrl;
+          modelId = hasFirstFrame ? falEngines.imageToVideo : falEngines.textToVideo;
+          falInput = {
+            prompt: input.prompt,
+            ...(input.videoDurationSeconds && { duration: String(input.videoDurationSeconds) }),
+            ...(input.firstFrameUrl && { image_url: input.firstFrameUrl }),
+            ...(input.lastFrameUrl && { last_image_url: input.lastFrameUrl }),
+            ...(input.characterRefUrl && { character_ref_url: input.characterRefUrl }),
+            ...(input.seed != null && { seed: input.seed }),
+          };
+        } else if (input.generationType === "audio") {
+          modelId = falEngines.textToAudio;
+          falInput = {
+            prompt: input.prompt,
+            ...(input.audioDuration && { seconds_total: input.audioDuration }),
+            ...(input.musicStyle && { music_style: input.musicStyle }),
+            ...(input.isInstrumental != null && { instrumental: input.isInstrumental }),
+            ...(input.seed != null && { seed: input.seed }),
+          };
+        } else {
+          // voice
+          const voicePrompt = input.voiceText ?? input.prompt;
+          modelId = falEngines.textToSpeech;
+          // TTS 模型用 text 欄位
+          falInput = {
+            text: voicePrompt,
+            ...(input.voiceModelId && { voice: input.voiceModelId }),
+            ...(input.voiceSpeed != null && { speed: input.voiceSpeed }),
+            ...(input.voiceStability != null && { stability: input.voiceStability }),
+            ...(input.seed != null && { seed: input.seed }),
+          };
+        }
+
+        // ── 4. prepareJob：扣點 + 建 backgroundJob 記錄 ────────────────
+        const durationSec =
+          input.generationType === "video" ? input.videoDurationSeconds :
+          input.generationType === "audio" ? input.audioDuration : undefined;
+        const charCount =
+          input.generationType === "voice" ? (input.voiceText?.length) : undefined;
+
+        const estimate = estimatePoints(modelId, { durationSec, charCount });
+        const points = estimate.totalPoints;
+
+        if (!isDemoMode()) {
+          const deductResult = await db.deductUserPoints(userId, points);
+          if (!deductResult.success) {
+            throw new TRPCError({
+              code: "FORBIDDEN",
+              message: `積分不足（需要 ${points} pts，目前 ${deductResult.remainingBefore} pts）`,
+            });
+          }
+        }
+
+        // 建立 background_job 記錄（先 processing，拿到 request_id 後更新）
+        const label = `${modalityLabel}生成`;
+        const jobId = await db.createBackgroundJob({
+          userId,
+          jobType: input.generationType as any,
+          status: "processing",
+          progress: 5,
+          progressMessage: `${label} 已提交佇列...`,
+          resultJson: {
+            studioType: input.generationType,
+            label,
+            modelId,
+          },
+        });
+
+        // ── 5. 送 fal.ai queue（fire-and-forget） ──────────────────────
+        try {
+          const { request_id } = await submitToFalQueue(modelId, falInput);
+
+          // 更新 job 記錄，加入 requestId（checkStudioJob 輪詢需要）
+          await db.updateBackgroundJob(jobId, {
+            resultJson: {
+              studioType: input.generationType,
+              label,
+              modelId,
+              requestId: request_id,
+            } as any,
+          });
+
+          return { jobId, request_id, modelId, label };
+        } catch (err) {
+          // queue submit 失敗 → 退款 + 標記失敗
+          if (!isDemoMode()) {
+            await db.refundUserPoints(userId, points);
+          }
+          await db.updateBackgroundJob(jobId, {
+            status: "failed",
+            errorMessage: err instanceof Error ? err.message : "提交失敗",
+          });
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: `${modalityLabel}生成提交失敗：${err instanceof Error ? err.message : "未知錯誤"}`,
+          });
+        }
+      }),
 
     /**
      * submitStudioJob — 將專業工作室的非同步任務（Image / Video / Audio）
