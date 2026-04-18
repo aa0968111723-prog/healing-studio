@@ -193,7 +193,10 @@ const TIMEOUT_OVERRIDES: Record<string, number> = {
   "fal-ai/flux-pro/v1.1": 90_000,
   "fal-ai/flux/schnell": 60_000,
   "fal-ai/triposr": 180_000,
-  "fal-ai/stable-zero123": 180_000,
+  "fal-ai/tripo3d": 180_000,
+  "fal-ai/trellis": 180_000,
+  "fal-ai/mmaudio-v2": 90_000,
+  "fal-ai/hyper3d/rodin": 300_000,
 };
 
 /** 判斷錯誤是否可重試（4xx 客戶端錯誤不應重試） */
@@ -217,7 +220,7 @@ const FALLBACK_CHAINS: Record<string, string[]> = {
   "image-to-image": [
     "fal-ai/flux/dev/image-to-image",
     "fal-ai/stable-diffusion-v3-medium/image-to-image",
-    "fal-ai/controlnet-union",
+    "fal-ai/flux/dev/controlnet",
     "fal-ai/ip-adapter-face-id",
     "fal-ai/aura-sr",
   ],
@@ -242,16 +245,15 @@ const FALLBACK_CHAINS: Record<string, string[]> = {
   "text-to-audio": [
     "fal-ai/stable-audio",
     "fal-ai/mmaudio-v2",
-    "fal-ai/audioldm2",
     "fal-ai/musicgen",
   ],
   "image-to-3d": [
     "fal-ai/triposr",
-    "fal-ai/stable-zero123",
-    "fal-ai/zero123plus",
+    "fal-ai/tripo3d",
+    "fal-ai/trellis",
   ],
-  "text-to-3d": ["fal-ai/shap-e", "fal-ai/dreamgaussian"],
-  "video-to-audio": ["fal-ai/audioldm2", "fal-ai/mmaudio-v2"],
+  "text-to-3d": ["fal-ai/tripo3d", "fal-ai/trellis", "fal-ai/hyper3d/rodin"],
+  "video-to-audio": ["fal-ai/mmaudio-v2", "fal-ai/stable-audio"],
   "video-to-text": ["fal-ai/wizper", "fal-ai/whisper"],
   "video-to-video": ["fal-ai/wan/v2.1/video-to-video", "fal-ai/cogvideox-5b/video-to-video"],
   training: ["fal-ai/flux-lora-fast-training"],

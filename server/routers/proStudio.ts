@@ -400,7 +400,7 @@ export const proStudioRouter = router({
    *
    * 可用模型：
    *  1. fal-ai/stable-audio（預設）— 真正的環境音效/Foley 音效，非語音
-   *  2. fal-ai/audioldm2          — 音頻潛在擴散模型，擅長環境音效
+   *  2. fal-ai/mmaudio-v2         — MMAudio 多模態音頻生成，擅長環境音效
    *  3. fal-ai/elevenlabs/sound-effects/v2 — ElevenLabs（備用，部分描述可能產生語音）
    *
    * ⚠️ 原先使用 ElevenLabs Sound Effects 會產生「配音說話」而非音效，
@@ -434,11 +434,11 @@ export const proStudioRouter = router({
 
       // ── AudioLDM2 ── 音頻潛在擴散，擅長環境音效 ────────────────
       if (modelChoice === "audioldm2") {
-        const falModelId = "fal-ai/audioldm2";
+        const falModelId = "fal-ai/mmaudio-v2";
         const payload: Record<string, unknown> = {
           prompt: input.text,
           ...(input.duration_seconds
-            ? { audio_length_in_s: input.duration_seconds }
+            ? { duration: input.duration_seconds }
             : {}),
         };
         const { request_id } = await falQueueSubmit(falModelId, payload);
