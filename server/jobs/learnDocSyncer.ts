@@ -185,6 +185,7 @@ ${newsSummary}
         { role: "user", content: prompt },
       ],
       temperature: 0.7,
+      maxTokens: 8192,  // 防止 Gemini MAX_TOKENS 截斷導致 JSON 不完整（原省略，預設 8192 够容納 3 篇文件）
       runName: "learn-doc-syncer-weekly",
     });
 
@@ -207,7 +208,26 @@ ${newsSummary}
       .replace(/\s*```\s*$/, "")
       .trim();
 
-    const parsed = JSON.parse(cleaned);
+    // JSON 修復：如果 Gemini 回傳被 MAX_TOKENS 截斷，嘗試修復截斷的 JSON
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch {
+      // 嘗試截取到最後一個完整的 } 來修復截斷 JSON
+      const lastBrace = cleaned.lastIndexOf("}");
+      if (lastBrace > 0) {
+        try {
+          parsed = JSON.parse(cleaned.slice(0, lastBrace + 1) + "]");
+          logSync("warn", "Gemini JSON 被截斷，已自動修復");
+        } catch {
+          logSync("warn", "× Gemini 合成學習文件失敗: 回傳 JSON 無法解析就算修復");
+          return [];
+        }
+      } else {
+        logSync("warn", "× Gemini 合成學習文件失敗: 回傳 JSON 無法解析");
+        return [];
+      }
+    }
 
     if (!Array.isArray(parsed)) {
       logSync("warn", "Gemini 回覆不是陣列格式");

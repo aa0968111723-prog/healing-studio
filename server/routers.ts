@@ -1831,8 +1831,9 @@ export const appRouter = router({
         // 已完成/失敗 → 直接回傳
         if (job.status !== "processing") return job;
 
-        // ── 超時偵測：超過 10 分鐘未完成 → 自動標記失敗 ─────────
-        const STALE_JOB_TIMEOUT_MS = 10 * 60 * 1000; // 10 分鐘
+        // ── 超時偵測：超過 30 分鐘未完成 → 自動標記失敗 ─────────
+        // 影片、3D、音樂等重型生成任務最多需要 20–25 分鐘，留 30 分鐘緩衝
+        const STALE_JOB_TIMEOUT_MS = 30 * 60 * 1000; // 30 分鐘
         const createdTime = job.createdAt
           ? new Date(job.createdAt).getTime()
           : 0;
@@ -1841,7 +1842,7 @@ export const appRouter = router({
           Date.now() - createdTime > STALE_JOB_TIMEOUT_MS
         ) {
           const timeoutMsg =
-            "任務已超時（超過 10 分鐘），請嘗試更換模型或簡化描述後重試";
+            "任務已超時（超過 30 分鐘），請嘗試更換模型或簡化描述後重試";
           await db.updateBackgroundJob(job.id, {
             status: "failed",
             errorMessage: timeoutMsg,

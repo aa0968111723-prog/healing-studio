@@ -237,12 +237,13 @@ const FALLBACK_CHAINS: Record<string, string[]> = {
     "fal-ai/stable-video",
   ],
   "text-to-speech": [
-    "fal-ai/playai-tts",
+    "fal-ai/f5-tts",  // playai-tts Not Found, replaced with f5-tts
     "fal-ai/orpheus-tts",
     "fal-ai/dia-tts",
     "fal-ai/kokoro",
   ],
   "text-to-audio": [
+    "fal-ai/ace-step",
     "fal-ai/stable-audio",
     "fal-ai/mmaudio-v2",
     "fal-ai/musicgen",
@@ -345,7 +346,7 @@ export async function dispatchFalTask(
     const TTS_TEXT_FIELD_MODELS = [
       "fal-ai/dia-tts",
       "fal-ai/dia-tts/voice-clone",
-      "fal-ai/playai-tts",
+      "fal-ai/f5-tts",  // playai-tts Not Found, replaced with f5-tts
       "fal-ai/orpheus-tts",
       "fal-ai/kokoro",
       "fal-ai/qwen-3-tts/text-to-speech/1.7b",

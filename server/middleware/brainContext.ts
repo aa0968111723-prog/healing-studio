@@ -124,7 +124,7 @@ export const DEFAULT_GENERATION_ENGINES: Record<
     engine: "fal-ai/kling-video/v2.1/standard/text-to-video",
     params: null,
   },
-  audioEngine: { engine: "fal-ai/sonauto", params: null },
+  audioEngine: { engine: "fal-ai/ace-step", params: null },
   voiceEngine: { engine: "fal-ai/elevenlabs/tts/turbo-v2.5", params: null },
 };
 
@@ -194,11 +194,11 @@ const ENGINE_FALLBACK_CHAIN: Record<string, string[]> = {
   "kling-v1-5": ["kling-v1", "minimax-video"],
   "minimax-video": ["fal-ai/minimax/video-01", "kling-v1", "kling-v1-5"],
   // 音樂引擎（實際 Fal.ai 模型 ID）
-  "fal-ai/sonauto": ["fal-ai/ace-step", "fal-ai/stable-audio"],
-  "fal-ai/ace-step": ["fal-ai/sonauto", "fal-ai/musicgen"],
-  "fal-ai/stable-audio": ["fal-ai/sonauto", "fal-ai/musicgen"],
+  "fal-ai/sonauto": ["fal-ai/ace-step", "fal-ai/stable-audio"],  // sonauto Not Found, ace-step is primary
+  "fal-ai/ace-step": ["fal-ai/stable-audio", "fal-ai/musicgen"],
+  "fal-ai/stable-audio": ["fal-ai/ace-step", "fal-ai/musicgen"],
   // 音樂引擎（向後相容舊別名）
-  "suno-v4": ["fal-ai/sonauto", "suno-v3.5", "udio-v1"],
+  "suno-v4": ["fal-ai/ace-step", "suno-v3.5", "udio-v1"],
   "suno-v3.5": ["suno-v4", "udio-v1"],
   "udio-v1": ["suno-v4", "suno-v3.5"],
   // 語音引擎（實際 Fal.ai 模型 ID）
@@ -401,7 +401,7 @@ const KNOWN_MODELS = new Set([
   "fal-ai/metavoice-v1",
   "fal-ai/kokoro",
   "fal-ai/dia-tts",
-  "fal-ai/playai-tts",
+  "fal-ai/f5-tts",  // playai-tts Not Found, replaced with f5-tts
   "fal-ai/orpheus-tts",
   "fal-ai/whisper",
   "fal-ai/wizper",

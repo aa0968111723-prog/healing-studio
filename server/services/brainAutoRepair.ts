@@ -1733,7 +1733,7 @@ const ACCURACY_TEST_CASES: Array<{
   expectedBehavior: string;
 }> = [
   {
-    engine: "gemini-2.5-pro",
+    engine: "gemini-2.5-flash", // 原為 gemini-2.5-pro，因 pro 輸出 MAX_TOKENS 結構導致非預期回傳，改用 flash
     testType: "response_quality",
     testPrompt: "用 30 字描述一棵樹",
     expectedBehavior: "回傳包含樹木相關描述的繁體中文文字，字數接近 30",
@@ -1745,7 +1745,7 @@ const ACCURACY_TEST_CASES: Array<{
     expectedBehavior: "在 3 秒內回傳包含 '2' 的回應",
   },
   {
-    engine: "gemini-2.5-pro",
+    engine: "gemini-2.5-flash", // 原為 gemini-2.5-pro，區別 JSON 一致性測試不需要 pro 等級
     testType: "consistency",
     testPrompt: '用 JSON 格式回傳 {"status": "ok"}',
     expectedBehavior: "回傳合法 JSON 且包含 status 欄位",
@@ -1787,7 +1787,11 @@ export async function runAccuracyTest(
       score = 0;
       suggestions.push("請設定 GEMINI_API_KEY 環境變數以啟用精準度測試");
     } else {
-      const model = engine.startsWith("vertex/") ? "gemini-2.5-flash" : engine;
+      // 精準度測試使用 flash：pro 回傳 MAX_TOKENS 截斷結構導致非預期結果
+      const model =
+        engine.startsWith("vertex/") || engine === "gemini-2.5-pro"
+          ? "gemini-2.5-flash"
+          : engine;
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
       const res = await fetch(url, {
         method: "POST",

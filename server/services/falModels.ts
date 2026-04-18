@@ -769,7 +769,7 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       timeoutMs: 60_000,
     },
     {
-      modelId: "fal-ai/playai-tts",
+      modelId: "fal-ai/f5-tts",  // playai-tts Not Found → f5-tts
       label: "PlayAI TTS",
       category: "text-to-speech",
       tier: "premium",

@@ -312,7 +312,7 @@ function resolveSpecificEngine(engine: LLMEngine): EngineConfig {
         engine: "nvidia",
         url: "https://integrate.api.nvidia.com/v1/chat/completions",
         apiKey: nvidiaKey,
-        model: "minimax/minimax-m2.7",
+        model: "minimaxai/minimax-m2.7", // 修復：原為 minimax/minimax-m2.7 導致 NVIDIA NIM 404，正確路徑為 minimaxai/minimax-m2.7
         supportsThinking: true,
         supportsGrounding: false,
         supportsLongContext: true,
