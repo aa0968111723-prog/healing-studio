@@ -418,6 +418,10 @@ export default function Studio() {
   const [fineTunedModelName, setFineTunedModelName] = useState<
     string | undefined
   >(undefined);
+  // Model override injected by Director AI (cleared after each generation)
+  const [directorModelOverride, setDirectorModelOverride] = useState<
+    string | undefined
+  >(undefined);
 
   // ── UI state ──
   const [creativeMode, setCreativeMode] =
@@ -712,6 +716,7 @@ export default function Studio() {
           }));
         }
         if (data.generationType) setActiveModality(data.generationType);
+        if (data.overrideEngine) setDirectorModelOverride(data.overrideEngine);
         if (data.musicStyle)
           setAudioState(prev => ({ ...prev, musicStyle: data.musicStyle }));
         if (data.voiceText)
@@ -863,12 +868,17 @@ export default function Studio() {
         }
 
         sessionStorage.removeItem("sendToStudio");
+        const segCtx = data.segmentContext as
+          | { sceneHeading?: string; mood?: string }
+          | undefined;
         const sourceLabel =
-          data.source === "shared_space"
-            ? "已從共享空間載入素材"
-            : data.source === "history" || data.source === "history_cross"
-              ? "已 100% 還原生成配置，可直接重新生成"
-              : "已載入參數與提示詞";
+          data.source === "director"
+            ? `已從導演 AI 載入「${segCtx?.sceneHeading ?? "場景"}」${data.overrideEngine ? `（模型：${data.overrideEngine}）` : ""}`
+            : data.source === "shared_space"
+              ? "已從共享空間載入素材"
+              : data.source === "history" || data.source === "history_cross"
+                ? "已 100% 還原生成配置，可直接重新生成"
+                : "已載入參數與提示詞";
         toast.success(sourceLabel);
       } catch {
         /* ignore */
@@ -1265,7 +1275,10 @@ export default function Studio() {
         }),
         fineTunedModelId,
         loraWeight,
+        overrideModelId: directorModelOverride,
       });
+      // Clear Director AI override after it has been consumed
+      setDirectorModelOverride(undefined);
     } catch {
       // Errors are handled by onError callback in the mutation
     }
@@ -1285,6 +1298,7 @@ export default function Studio() {
     vaultCharacterId,
     vaultSceneId,
     fineTunedModelId,
+    directorModelOverride,
   ]);
 
   // ── Vault select handler ──

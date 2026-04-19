@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, memo, useRef } from "react";
 import { trpc } from "@/lib/trpc";
+import { useBackgroundTasks } from "@/contexts/BackgroundTasksContext";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { AIChatBox, type Message } from "@/components/AIChatBox";
 import { Button } from "@/components/ui/button";
@@ -975,6 +976,9 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
   onClose: () => void;
 }) {
   const [, navigate] = useLocation();
+  const { submitTask } = useBackgroundTasks();
+
+  const submitAsyncMutation = trpc.generate.submitMultimodalAsync.useMutation();
 
   // Model selections per modality
   const [selectedModels, setSelectedModels] = useState<Record<string, string>>(
@@ -1104,10 +1108,10 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
       sessionStorage.setItem(
         "sendToStudio",
         JSON.stringify({
+          source: "director",
           prompt: task.prompt,
           generationType: task.modality,
           overrideEngine: modelId,
-          // Include context metadata for studio
           musicStyle: task.modality === "audio" ? task.prompt : undefined,
           audioScript: task.modality === "voice" ? task.prompt : undefined,
           segmentContext: {
@@ -1125,41 +1129,45 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
     [selectedModels, segment, navigate]
   );
 
-  const handleGenerateAll = useCallback(() => {
+  const handleGenerateAll = useCallback(async () => {
     const activeTasks = tasks.filter(t => t.enabled && t.prompt.trim());
     if (activeTasks.length === 0) {
       toast.error("沒有可生成的任務");
       return;
     }
 
-    // Pack all tasks for studio
-    const batch = activeTasks.map(t => ({
-      prompt: t.prompt,
-      generationType: t.modality,
-      overrideEngine: selectedModels[t.modality],
-      musicStyle: t.modality === "audio" ? t.prompt : undefined,
-      audioScript: t.modality === "voice" ? t.prompt : undefined,
-    }));
+    let submitted = 0;
+    for (const t of activeTasks) {
+      const modelId = selectedModels[t.modality];
+      if (!modelId) {
+        toast.error(`${t.labelZh}尚未選擇模型，已略過`);
+        continue;
+      }
+      try {
+        const result = await submitAsyncMutation.mutateAsync({
+          prompt: t.prompt,
+          generationType: t.modality as "image" | "video" | "audio" | "voice",
+          mode: "lightning",
+          overrideModelId: modelId,
+          ...(t.modality === "audio" && { musicStyle: t.prompt }),
+          ...(t.modality === "voice" && { voiceText: t.prompt }),
+        });
+        submitTask({
+          studioType: t.modality as any,
+          requestId: result.request_id,
+          modelId: result.modelId,
+          label: result.label,
+        });
+        submitted++;
+      } catch {
+        toast.error(`${t.labelZh}提交失敗`);
+      }
+    }
 
-    sessionStorage.setItem(
-      "sendToStudio",
-      JSON.stringify({
-        prompt: activeTasks[0].prompt,
-        generationType: activeTasks[0].modality,
-        overrideEngine: selectedModels[activeTasks[0].modality],
-        musicStyle: activeTasks.find(t => t.modality === "audio")?.prompt,
-        audioScript: activeTasks.find(t => t.modality === "voice")?.prompt,
-        batchTasks: batch,
-        segmentContext: {
-          sceneHeading: segment.storyboard.sceneHeading,
-          mood: segment.storyboard.mood,
-          duration: segment.storyboard.duration,
-        },
-      })
-    );
-    navigate("/studio");
-    toast.success(`已發送 ${activeTasks.length} 個任務到工作室`);
-  }, [tasks, selectedModels, segment, navigate]);
+    if (submitted > 0) {
+      toast.success(`已提交 ${submitted} 個任務到背景佇列，完成後將自動通知`);
+    }
+  }, [tasks, selectedModels, submitAsyncMutation, submitTask]);
 
   const enabledCount = tasks.filter(t => t.enabled && t.prompt.trim()).length;
 
@@ -2000,8 +2008,9 @@ export default function DirectorAI() {
       sessionStorage.setItem(
         "sendToStudio",
         JSON.stringify({
+          source: "director",
           prompt: script.visualPrompt,
-          generationType: "multimodal",
+          generationType: "image",
           musicStyle: script.musicVibe,
           audioScript: script.audioScript,
         })

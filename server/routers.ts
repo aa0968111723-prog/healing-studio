@@ -1635,6 +1635,8 @@ export const appRouter = router({
           // Vault & Model
           fineTunedModelId: z.number().optional(),
           loraWeight: z.number().min(0).max(1).optional(),
+          // Director AI model override
+          overrideModelId: z.string().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -1678,7 +1680,7 @@ export const appRouter = router({
 
         if (input.generationType === "image") {
           const refUrl = input.styleReferenceUrl || input.vibeReferenceUrl;
-          modelId = refUrl ? falEngines.imageToImage : falEngines.textToImage;
+          modelId = input.overrideModelId ?? (refUrl ? falEngines.imageToImage : falEngines.textToImage);
           falInput = {
             prompt: input.prompt,
             ...(input.aspectRatio && { aspect_ratio: input.aspectRatio }),
@@ -1688,7 +1690,7 @@ export const appRouter = router({
           };
         } else if (input.generationType === "video") {
           const hasFirstFrame = !!input.firstFrameUrl;
-          modelId = hasFirstFrame ? falEngines.imageToVideo : falEngines.textToVideo;
+          modelId = input.overrideModelId ?? (hasFirstFrame ? falEngines.imageToVideo : falEngines.textToVideo);
           falInput = {
             prompt: input.prompt,
             ...(input.videoDurationSeconds && { duration: String(input.videoDurationSeconds) }),
@@ -1698,7 +1700,7 @@ export const appRouter = router({
             ...(input.seed != null && { seed: input.seed }),
           };
         } else if (input.generationType === "audio") {
-          modelId = falEngines.textToAudio;
+          modelId = input.overrideModelId ?? falEngines.textToAudio;
           falInput = {
             prompt: input.prompt,
             ...(input.audioDuration && { seconds_total: input.audioDuration }),
@@ -1709,7 +1711,7 @@ export const appRouter = router({
         } else {
           // voice
           const voicePrompt = input.voiceText ?? input.prompt;
-          modelId = falEngines.textToSpeech;
+          modelId = input.overrideModelId ?? falEngines.textToSpeech;
           // TTS 模型用 text 欄位
           falInput = {
             text: voicePrompt,
