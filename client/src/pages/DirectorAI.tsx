@@ -59,6 +59,12 @@ import {
 import { GlassCard } from "@/components/ZenCoPilot";
 import VisualSoul from "@/components/VisualSoul";
 import { useAIState } from "@/contexts/AIStateContext";
+import {
+  useRegisterPageAgent,
+  type AgentAction,
+  type AgentActionResult,
+  type AgentCapability,
+} from "@/contexts/PageAgentContext";
 import { useIsMobile } from "@/hooks/useMobile";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
@@ -2244,6 +2250,155 @@ export default function DirectorAI() {
   );
 
   const hasConversation = messages.filter(m => m.role !== "system").length > 0;
+
+  // ── 光球代理人：導演 AI ────────────────────────────────────────────────
+  const FORMAT_PRESETS = [
+    { id: "format:co-star", label: "CO-STAR 格式", description: "脈絡/目的/風格/語氣/受眾/回應格式" },
+    { id: "format:sslcm", label: "SSLCM 格式", description: "敘事結構框架" },
+    { id: "format:selcm", label: "SELCM 格式", description: "情緒敘事框架" },
+    { id: "format:free", label: "自由格式", description: "不套用結構、自由發揮" },
+  ];
+  const PERSONALITY_PRESETS = PERSONALITIES.map(p => ({
+    id: `personality:${p.id}`,
+    label: `${p.label}型導演`,
+    description: p.description,
+  }));
+  const templateOptions = (templatesQuery.data ?? []).slice(0, 20).map(t => ({
+    id: `template:${t.id}`,
+    label: t.label,
+    description: t.category ? CATEGORY_LABELS[t.category] ?? t.category : undefined,
+  }));
+
+  const directorCaps: AgentCapability[] = [
+    {
+      action: "setTab",
+      label: "分頁",
+      currentId: activeTab,
+      options: [
+        { id: "chat", label: "對話討論" },
+        { id: "script", label: "腳本分析" },
+      ],
+      hint: "chat = 自由對話；script = 匯入劇本分段分析",
+    },
+    {
+      action: "applyPreset",
+      label: "預設（導演個性 + 回應格式 + 靈感模板）",
+      currentId: `personality:${personality}`,
+      options: [...PERSONALITY_PRESETS, ...FORMAT_PRESETS, ...templateOptions],
+      hint: "presetId=personality:calm/creative/technical 切換導演個性；format:co-star/sslcm/selcm/free 切換回應格式；template:<id> 載入靈感模板",
+    },
+    {
+      action: "fillPrompt",
+      label: "直接提問",
+      hint: "fillPrompt 會直接送出訊息給導演（不需再按送出），使用者會看到自己的發言",
+    },
+    {
+      action: "setParam",
+      label: "偏好參數",
+      hint: "key=saveToNotes(boolean) / showStoryboard(boolean) / selectedSegmentIdx(number|null)",
+    },
+  ];
+
+  useRegisterPageAgent({
+    pageId: "director-ai",
+    pageLabel: "導演 AI",
+    pagePath: "/director",
+    capabilities: directorCaps,
+    state: {
+      activeTab,
+      personality,
+      preferredFormat,
+      segments: importedSegments.length,
+      messageCount: messages.filter(m => m.role !== "system").length,
+      isChatting: chatMutation.isPending,
+    },
+    handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      switch (action.type) {
+        case "setTab": {
+          if (action.tabId !== "chat" && action.tabId !== "script") {
+            return { ok: false, reason: `unknown tabId: ${action.tabId}` };
+          }
+          setActiveTab(action.tabId);
+          return { ok: true };
+        }
+        case "fillPrompt": {
+          if (!action.text.trim()) return { ok: false, reason: "empty text" };
+          handleSend(action.text);
+          return { ok: true, message: "已替你問導演" };
+        }
+        case "applyPreset": {
+          const id = action.presetId;
+          if (id.startsWith("personality:")) {
+            const p = id.slice("personality:".length) as Personality;
+            if (p === "calm" || p === "creative" || p === "technical") {
+              setPersonality(p);
+              setGlobalPersonality(p);
+              updatePrefs.mutate({ personality: p });
+              return { ok: true, message: `已切到「${p}」型導演` };
+            }
+            return { ok: false, reason: `unknown personality: ${p}` };
+          }
+          if (id.startsWith("format:")) {
+            const f = id.slice("format:".length) as typeof preferredFormat;
+            if (f === "co-star" || f === "sslcm" || f === "selcm" || f === "free") {
+              setPreferredFormat(f);
+              updatePrefs.mutate({ preferredFormat: f });
+              return { ok: true, message: `已切到「${f}」格式` };
+            }
+            return { ok: false, reason: `unknown format: ${f}` };
+          }
+          if (id.startsWith("template:")) {
+            const tid = id.slice("template:".length);
+            const tpl = (templatesQuery.data ?? []).find(t => t.id === tid);
+            if (!tpl) return { ok: false, reason: `unknown template: ${tid}` };
+            setShowTemplates(true);
+            return { ok: true, message: `已打開模板「${tpl.label}」` };
+          }
+          return { ok: false, reason: `unknown presetId: ${id}` };
+        }
+        case "setParam": {
+          const { key, value } = action;
+          switch (key) {
+            case "saveToNotes":
+              if (typeof value === "boolean") setSaveToNotes(value);
+              return { ok: true };
+            case "showStoryboard":
+              if (typeof value === "boolean") setShowStoryboard(value);
+              return { ok: true };
+            case "selectedSegmentIdx":
+              if (value === null || typeof value === "number") {
+                setSelectedSegmentIdx(value as number | null);
+              }
+              return { ok: true };
+            default:
+              return { ok: false, reason: `unknown key: ${key}` };
+          }
+        }
+        case "submit":
+          return {
+            ok: false,
+            reason: "導演 AI 的送出透過 fillPrompt 直接送出；不需要獨立 submit",
+          };
+        case "reset":
+          setMessages([
+            {
+              role: "system",
+              content:
+                PERSONALITY_SYSTEM_PROMPTS[personality] ??
+                PERSONALITY_SYSTEM_PROMPTS.creative,
+            },
+          ]);
+          setImportedSegments([]);
+          setImportedTitle("");
+          setSelectedSegmentIdx(null);
+          return { ok: true };
+        case "focusElement":
+          return { ok: true };
+        default:
+          return { ok: false, reason: "unsupported action" };
+      }
+    },
+  });
 
   return (
     <div className="space-y-4">

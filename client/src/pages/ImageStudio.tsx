@@ -67,6 +67,12 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { uploadFileToS3 } from "@/lib/upload";
 import { useRegisterBgTask } from "@/contexts/BackgroundTasksContext";
+import {
+  useRegisterPageAgent,
+  type AgentAction,
+  type AgentActionResult,
+  type AgentCapability,
+} from "@/contexts/PageAgentContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -2765,6 +2771,180 @@ export default function ImageStudio() {
   };
 
   const gradientBtn = `bg-gradient-to-r ${tabColor(activeTab)} hover:opacity-90`;
+
+  // ── 光球代理人：註冊頁面能力 ─────────────────────────────────────────
+  const agentCapabilities: AgentCapability[] = [
+    {
+      action: "setTab",
+      label: "分頁",
+      currentId: activeTab,
+      options: TABS.map(t => ({
+        id: t.id,
+        label: t.label,
+        meta: { count: t.count },
+      })),
+      hint: "切換不同類型的創作（文字生圖 / 編輯 / 放大 / 骨骼 / SD / 3D）",
+    },
+    {
+      action: "setModel",
+      label: "模型",
+      currentId: selectedModelId,
+      options: MODELS.map(m => ({
+        id: m.id,
+        label: m.name,
+        description: m.desc,
+        meta: {
+          category: m.category,
+          badge: m.badge,
+          fast: m.fast,
+          recommended: m.recommended,
+        },
+      })),
+      hint: "切換模型會自動切到對應分頁；部分模型支援中文提示詞（seedreamV4）",
+    },
+    {
+      action: "fillPrompt",
+      label: "提示詞",
+      hint: "slot=prompt 是主要提示詞；slot=negativePrompt 會填到負向欄位（僅 SD / seedream / imagen 支援）",
+    },
+    {
+      action: "applyPreset",
+      label: "氛圍卡",
+      options: VIBE_CARDS.map(v => ({
+        id: v.id,
+        label: v.labelZh,
+        description: v.keywords,
+      })),
+      hint: "套用後會把氛圍關鍵字附加到生成時的 prompt",
+    },
+    {
+      action: "submit",
+      label: "送出生成",
+      hint: "需要使用者確認才執行；未填提示詞會失敗",
+    },
+    {
+      action: "reset",
+      label: "重設",
+      hint: "清空提示詞、氛圍、參考圖、結果",
+    },
+    {
+      action: "setParam",
+      label: "參數",
+      hint: "可調 key: aspectRatio / numImages / seed / strength / guidance / inferSteps / negPrompt",
+    },
+  ];
+
+  useRegisterPageAgent({
+    pageId: "image-studio",
+    pageLabel: "圖片創作室",
+    pagePath: "/image-studio",
+    capabilities: agentCapabilities,
+    state: {
+      activeTab,
+      selectedModelId,
+      modelName: model.name,
+      promptLength: prompt.length,
+      vibeCount: vibeIds.length,
+      hasRefImage: !!refImageUrl,
+      isGenerating,
+    },
+    handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      switch (action.type) {
+        case "fillPrompt": {
+          const slot = action.slot ?? "prompt";
+          const setter =
+            slot === "negativePrompt"
+              ? setNegPrompt
+              : slot === "prompt3d"
+                ? setPrompt3d
+                : setPrompt;
+          if (action.append) {
+            setter(prev => (prev ? `${prev}, ${action.text}` : action.text));
+          } else {
+            setter(action.text);
+          }
+          return { ok: true };
+        }
+        case "setTab": {
+          const tab = TABS.find(t => t.id === action.tabId);
+          if (!tab) return { ok: false, reason: `unknown tabId: ${action.tabId}` };
+          setActiveTab(tab.id);
+          return { ok: true };
+        }
+        case "setModel": {
+          const m = MODELS.find(x => x.id === action.modelId);
+          if (!m) return { ok: false, reason: `unknown modelId: ${action.modelId}` };
+          setSelectedModelId(m.id);
+          if (m.category !== activeTab) setActiveTab(m.category);
+          return { ok: true };
+        }
+        case "applyPreset": {
+          const vibe = VIBE_CARDS.find(v => v.id === action.presetId);
+          if (!vibe) return { ok: false, reason: `unknown presetId: ${action.presetId}` };
+          setVibeIds(prev =>
+            prev.includes(vibe.id) ? prev : [...prev, vibe.id]
+          );
+          return { ok: true, message: `已加入氛圍「${vibe.labelZh}」` };
+        }
+        case "setParam": {
+          const { key, value } = action;
+          switch (key) {
+            case "aspectRatio":
+              if (typeof value === "string") setAspectRatio(value);
+              return { ok: true };
+            case "numImages":
+              if (typeof value === "number") setNumImages(value);
+              return { ok: true };
+            case "seed":
+              if (typeof value === "string" || typeof value === "number")
+                setSeed(String(value));
+              return { ok: true };
+            case "strength":
+              if (typeof value === "number") setStrength(value);
+              return { ok: true };
+            case "guidance":
+              if (typeof value === "number") setGuidance(value);
+              return { ok: true };
+            case "inferSteps":
+              if (typeof value === "number") setInferSteps(value);
+              return { ok: true };
+            case "negPrompt":
+              if (typeof value === "string") setNegPrompt(value);
+              return { ok: true };
+            case "outputSize":
+              if (typeof value === "string") setOutputSize(value);
+              return { ok: true };
+            default:
+              return { ok: false, reason: `unknown param key: ${key}` };
+          }
+        }
+        case "submit": {
+          if (isGenerating) return { ok: false, reason: "already generating" };
+          if (action.delayMs && action.delayMs > 0) {
+            await new Promise(r => setTimeout(r, action.delayMs));
+          }
+          void handleGenerate();
+          return { ok: true, message: "已送出生成" };
+        }
+        case "reset": {
+          setPrompt("");
+          setVibeIds([]);
+          setRefImageUrl("");
+          setExtraRefUrls([]);
+          setMaskUrl("");
+          setNegPrompt("");
+          setResultImages([]);
+          setResult3d(null);
+          setResultPose(null);
+          return { ok: true };
+        }
+        case "focusElement":
+          return { ok: true };
+        default:
+          return { ok: false, reason: `unsupported action` };
+      }
+    },
+  });
 
   return (
     <div className="max-w-6xl mx-auto px-3 sm:px-4 space-y-5 sm:space-y-6 pb-10">
