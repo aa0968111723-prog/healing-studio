@@ -314,6 +314,12 @@ interface OrbGuideContextType {
   // 到達目標頁面後，光球說的第一句話
   arrivedMessage: string | null;
   clearArrivedMessage: () => void;
+  // Phase 3d-hybrid：LLM 改寫了 orbMessage / autoFillPrompt 後，
+  // Panel 呼叫這個把 plan 補上軟化後的文字。
+  patchPlan: (patch: {
+    orbMessage?: string;
+    autoFillPrompt?: string;
+  }) => void;
 }
 
 // ─── Context ─────────────────────────────────────────────────────────────────
@@ -332,6 +338,7 @@ const OrbGuideContext = createContext<OrbGuideContextType>({
   reset: () => {},
   arrivedMessage: null,
   clearArrivedMessage: () => {},
+  patchPlan: () => {},
 });
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
@@ -435,6 +442,23 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
     setStep("idle");
   }, []);
 
+  const patchPlan = useCallback(
+    (patch: { orbMessage?: string; autoFillPrompt?: string }) => {
+      setPlan(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          orbMessage: patch.orbMessage ?? prev.orbMessage,
+          autoFillPrompt:
+            patch.autoFillPrompt !== undefined
+              ? patch.autoFillPrompt || undefined
+              : prev.autoFillPrompt,
+        };
+      });
+    },
+    []
+  );
+
   const value = useMemo(
     () => ({
       step,
@@ -450,6 +474,7 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
       reset,
       arrivedMessage,
       clearArrivedMessage,
+      patchPlan,
     }),
     [
       step,
@@ -465,6 +490,7 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
       reset,
       arrivedMessage,
       clearArrivedMessage,
+      patchPlan,
     ]
   );
 

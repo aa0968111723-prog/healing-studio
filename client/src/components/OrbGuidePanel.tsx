@@ -11,13 +11,15 @@
  *   在 ProactiveOrbWidget 的 showPanel 時 render 此元件
  */
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Sparkles, X, RotateCcw } from "lucide-react";
+import { ArrowRight, Sparkles, X, RotateCcw, FastForward } from "lucide-react";
 import { useOrbGuide, INTENT_CONFIGS, type GuideIntent } from "@/contexts/OrbGuideContext";
 import VisualSoul from "./VisualSoul";
 import { useAIState } from "@/contexts/AIStateContext";
 import { usePersonality } from "@/contexts/PersonalityContext";
+import { trpc } from "@/lib/trpc";
+import type { OrbGuideStepRewrite } from "../../../shared/agent-actions";
 import { cn } from "@/lib/utils";
 
 // ─── Typewriter hook ──────────────────────────────────────────────────────────
@@ -136,6 +138,7 @@ export default function OrbGuidePanel({ onClose }: OrbGuidePanelProps) {
     submitAnswer,
     confirmAndNavigate,
     reset,
+    patchPlan,
   } = useOrbGuide();
   const { aiState } = useAIState();
   const { personality } = usePersonality();
@@ -155,6 +158,104 @@ export default function OrbGuidePanel({ onClose }: OrbGuidePanelProps) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [step, currentQuestionIndex]);
+
+  // ── Phase 3d-hybrid：LLM 軟化 / 補選項 / 跳題 ──
+  // 每個 step 有一個 cache key，避免重複 fire；LLM 任何失敗都 fallback 到 stock。
+  const stepKey = intent
+    ? step === "confirming"
+      ? `${intent}:final`
+      : currentQuestion
+      ? `${intent}:${currentQuestion.id}`
+      : null
+    : null;
+  const [rewriteByKey, setRewriteByKey] = useState<
+    Record<string, OrbGuideStepRewrite>
+  >({});
+  const rewrite = stepKey ? rewriteByKey[stepKey] : undefined;
+  const firedKeysRef = useRef<Set<string>>(new Set());
+
+  const stepMutation = trpc.orbGuide.step.useMutation({
+    onError: () => {
+      /* stay on stock, no UX disruption */
+    },
+  });
+
+  useEffect(() => {
+    if (!intent || !stepKey) return;
+    if (firedKeysRef.current.has(stepKey)) return;
+    firedKeysRef.current.add(stepKey);
+
+    const cfg = INTENT_CONFIGS[intent];
+    if (!cfg) return;
+    const answeredSoFar = Object.entries(answers).map(([qid, val]) => {
+      // 找該答案在該題 options 裡對應的中文 label（幫 LLM 讀懂）
+      const q = cfg.questions.find(x => x.id === qid);
+      const opt = q?.options.find(o => o.value === val);
+      return { questionId: qid, value: val, label: opt?.label };
+    });
+    const isFinalStep = step === "confirming";
+
+    stepMutation.mutate(
+      {
+        intent,
+        intentLabel: cfg.label,
+        targetLabel: cfg.targetLabel,
+        personality,
+        answeredSoFar,
+        currentQuestion:
+          !isFinalStep && currentQuestion
+            ? {
+                id: currentQuestion.id,
+                stockText: currentQuestion.text,
+                stockOptions: currentQuestion.options,
+              }
+            : undefined,
+        isFinalStep,
+        stockOrbMessage: isFinalStep ? plan?.orbMessage : undefined,
+        stockPromptHint: isFinalStep ? plan?.autoFillPrompt : undefined,
+      },
+      {
+        onSuccess: (data: OrbGuideStepRewrite) => {
+          setRewriteByKey(prev => ({ ...prev, [stepKey]: data }));
+          // 收尾步驟：LLM 有改寫的話，把 plan 同步 patch 掉，讓 autoFillPrompt 真的送到目標頁
+          if (isFinalStep && (data.orbMessageOverride || data.promptHintOverride)) {
+            patchPlan({
+              orbMessage: data.orbMessageOverride,
+              autoFillPrompt: data.promptHintOverride,
+            });
+          }
+        },
+      }
+    );
+    // 只在 stepKey 變動時重 fire；stepMutation 來自 hook，身份會變但內部有 guard
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stepKey]);
+
+  // 清 cache：reset / 換 intent 時，清掉已發射的 key
+  useEffect(() => {
+    if (!intent) {
+      firedKeysRef.current.clear();
+      setRewriteByKey({});
+    }
+  }, [intent]);
+
+  // 當前題目合併 stock + LLM 補的 options
+  const mergedOptions = useMemo(() => {
+    if (!currentQuestion) return [];
+    const stock = currentQuestion.options;
+    const extra = rewrite?.extraOptions ?? [];
+    return [...stock, ...extra];
+  }, [currentQuestion, rewrite]);
+
+  // 如果 LLM 建議可跳題，露出「直接帶你走」按鈕（不自動跳）
+  // 實作：用當前題目的第一個 stock option 當預設，推進到下一題/確認步驟。
+  // 這樣 buildPromptHint 仍會收到合法答案值，prompt 不會壞掉。
+  const canSkipNext = !!rewrite?.skipNext && !!currentQuestion;
+  const handleSkipNext = () => {
+    if (!currentQuestion || !currentQuestion.options.length) return;
+    const defaultValue = currentQuestion.options[0].value;
+    submitAnswer(currentQuestion.id, defaultValue);
+  };
 
   // ── Intents to show (ordered for best UX) ──
   const intentOrder: Exclude<GuideIntent, null>[] = [
@@ -265,10 +366,12 @@ export default function OrbGuidePanel({ onClose }: OrbGuidePanelProps) {
                 </span>
               </div>
 
-              <OrbSpeechBubble text={currentQuestion.text} />
+              <OrbSpeechBubble
+                text={rewrite?.softenedQuestion || currentQuestion.text}
+              />
 
               <div className="space-y-2 pt-1">
-                {currentQuestion.options.map((opt, i) => (
+                {mergedOptions.map((opt, i) => (
                   <AnswerOption
                     key={opt.value}
                     label={opt.label}
@@ -277,6 +380,25 @@ export default function OrbGuidePanel({ onClose }: OrbGuidePanelProps) {
                     onSelect={() => submitAnswer(currentQuestion.id, opt.value)}
                   />
                 ))}
+
+                {canSkipNext && (
+                  <motion.button
+                    onClick={handleSkipNext}
+                    className={cn(
+                      "flex items-center gap-2 px-3 py-2 rounded-xl w-full text-left",
+                      "bg-white/4 hover:bg-white/10 border border-white/8 hover:border-white/20",
+                      "transition-all text-xs text-white/60 hover:text-white/85"
+                    )}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: mergedOptions.length * 0.06 + 0.1 }}
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    <FastForward className="w-3 h-3" />
+                    <span>光球覺得資訊夠了，直接帶你走</span>
+                  </motion.button>
+                )}
               </div>
             </motion.div>
           )}

@@ -518,6 +518,225 @@ export interface OrbChatResponse {
   suggestions?: string[];
 }
 
+// ─── Phase 3d-hybrid：OrbGuide 逐題 LLM 軟化 / 擴充 / 跳題 ────────────────
+//
+// 規則 skeleton 繼續由 INTENT_CONFIGS 提供（哪個 intent → 哪幾題、預設選項、
+// 預設 orbMessage / promptHint）。Phase 3d-hybrid 讓 MiniMax 在每一步多做幾件事：
+//   - 把當前題目的開場白軟化（softenedQuestion）
+//   - 視答案情境補 0–2 個貼情境的額外選項
+//   - 若答案已收斂可建議跳過下一題
+//   - 最後一題時，可改寫 orbMessage / promptHint（但 schema 由規則端決定）
+//
+// LLM 任何欄位缺失、超長、格式錯 → fallback 回 stock，使用者無感。
+// 所有型別與解析器都放在這層純函式，vitest 可直接測。
+
+export type OrbGuidePersonality = "calm" | "creative" | "technical";
+
+export interface OrbGuideAnsweredEntry {
+  questionId: string;
+  value: string;
+  /** 選項中文 label（給 LLM 更易讀） */
+  label?: string;
+}
+
+export interface OrbGuideStockOption {
+  label: string;
+  value: string;
+  emoji: string;
+}
+
+export interface OrbGuideStepContext {
+  /** intent id，例如 "image" / "video" */
+  intent: string;
+  /** intent 顯示名稱，例如 "生成圖像" */
+  intentLabel: string;
+  /** 要去的頁面標籤 */
+  targetLabel: string;
+  /** 當前個性 */
+  personality: OrbGuidePersonality;
+  /** 使用者已回答過的 Q/A */
+  answeredSoFar: OrbGuideAnsweredEntry[];
+  /** 當前題目（若 isFinalStep=true 時可能為 undefined） */
+  currentQuestion?: {
+    id: string;
+    stockText: string;
+    stockOptions: OrbGuideStockOption[];
+  };
+  /** 這題是不是收尾那題（用來決定 LLM 是否可改寫 finalOverrides） */
+  isFinalStep: boolean;
+  /** 收尾時規則端算好的 orb message / prompt hint，給 LLM 當參考 */
+  stockOrbMessage?: string;
+  stockPromptHint?: string;
+}
+
+export interface OrbGuideStepRewrite {
+  /** 軟化後的開場白；空字串 = 沿用 stockText */
+  softenedQuestion?: string;
+  /** 情境額外選項，最多 2 個 */
+  extraOptions?: OrbGuideStockOption[];
+  /** true = 可以跳過下一題（由 UI 自行決定要不要採納） */
+  skipNext?: boolean;
+  /** 收尾用的 orb message 改寫 */
+  orbMessageOverride?: string;
+  /** 收尾用的 prompt hint 改寫（英文，會餵進生成模型） */
+  promptHintOverride?: string;
+}
+
+const ORB_GUIDE_LIMITS = {
+  /** 單題開場白最大長度（超過會被裁掉） */
+  questionMaxLen: 80,
+  /** 最多幾個 LLM 額外選項 */
+  extraOptionsCap: 2,
+  /** 選項 label / emoji / value 長度 */
+  optionLabelMaxLen: 12,
+  optionValueMaxLen: 32,
+  orbMessageMaxLen: 120,
+  promptHintMaxLen: 240,
+} as const;
+
+/** 回給 LLM 的 system prompt；純函式，可直接 snapshot-test */
+export function buildOrbGuideStepPrompt(ctx: OrbGuideStepContext): string {
+  const toneGuide = ctx.personality === "calm"
+    ? "語氣溫柔、平靜、不壓迫"
+    : ctx.personality === "technical"
+    ? "語氣直接、清晰、不囉嗦"
+    : "語氣活潑、有創意感、友善";
+
+  const answeredBlock = ctx.answeredSoFar.length
+    ? ctx.answeredSoFar
+        .map(e => `- ${e.questionId} = ${e.label ?? e.value}`)
+        .join("\n")
+    : "（還沒回答任何題目）";
+
+  const currentBlock = ctx.currentQuestion
+    ? [
+        `這題 id：${ctx.currentQuestion.id}`,
+        `這題預設開場白：「${ctx.currentQuestion.stockText}」`,
+        `這題預設選項（你不用重複這些，只補情境額外的）：`,
+        ...ctx.currentQuestion.stockOptions.map(
+          o => `  - ${o.label} (${o.value})`
+        ),
+      ].join("\n")
+    : "（這步已沒有題目，收尾中）";
+
+  const finalBlock = ctx.isFinalStep
+    ? `\n這一步是收尾。規則端算好的草稿是：
+- orb_message 草稿：「${ctx.stockOrbMessage ?? ""}」
+- prompt_hint 草稿：「${ctx.stockPromptHint ?? ""}」
+你可以改寫這兩句，讓它更貼使用者的答案與個性；prompt_hint 請保持英文、技術關鍵字。`
+    : "\n這一步還沒到收尾，請把 final_overrides 留空。";
+
+  return [
+    "你是一個引導式創作助手「光球」的一部分，每一步只做「軟化問題 + 補選項 + 決定是否跳題」。",
+    `你正在陪使用者走「${ctx.intentLabel}」的流程，最終會帶他去「${ctx.targetLabel}」。`,
+    `當前個性：${ctx.personality}（${toneGuide}）。`,
+    "",
+    "【已收集到的答案】",
+    answeredBlock,
+    "",
+    "【當前題目】",
+    currentBlock,
+    finalBlock,
+    "",
+    "你只回 JSON，不要加任何解釋或 markdown。欄位：",
+    "- softened_question: 這題的開場白重寫（繁中，80 字內，沿用預設意思但更軟更貼答案）",
+    "- extra_options: 情境額外選項（最多 2 個；不要跟預設重複；label 中文 12 字內）",
+    "- skip_next: 如果答案已經足夠收斂，可以提議跳過下一題（true/false）",
+    "- final_overrides: 只在收尾步驟填；非收尾時請回 null",
+    "任何欄位不確定就省略或回空字串／null，絕不編造事實或連結。",
+  ].join("\n");
+}
+
+/**
+ * 解析 LLM 回傳的 JSON（字串或已 parse 的物件都接），嚴格 sanitize。
+ * 任何異常 / 超出限制 / 格式不對 → 對應欄位留空，caller 退回 stock。
+ */
+export function parseOrbGuideStepReply(
+  raw: string | unknown,
+  ctx: OrbGuideStepContext
+): OrbGuideStepRewrite {
+  const parsed = typeof raw === "string" ? tryParseJson(raw) : raw;
+  if (!parsed || typeof parsed !== "object") return {};
+  const obj = parsed as Record<string, any>;
+
+  const out: OrbGuideStepRewrite = {};
+
+  // softened_question
+  const sq = cleanString(obj.softened_question ?? obj.softenedQuestion);
+  if (sq) {
+    out.softenedQuestion = truncate(sq, ORB_GUIDE_LIMITS.questionMaxLen);
+  }
+
+  // extra_options
+  const rawOpts = obj.extra_options ?? obj.extraOptions;
+  if (Array.isArray(rawOpts)) {
+    const seenValues = new Set(
+      (ctx.currentQuestion?.stockOptions ?? []).map(o => o.value)
+    );
+    const cleaned: OrbGuideStockOption[] = [];
+    for (const item of rawOpts) {
+      if (!item || typeof item !== "object") continue;
+      const label = cleanString((item as any).label);
+      const value = cleanString((item as any).value);
+      const emoji = cleanString((item as any).emoji);
+      if (!label || !value || !emoji) continue;
+      if (seenValues.has(value)) continue;
+      seenValues.add(value);
+      cleaned.push({
+        label: truncate(label, ORB_GUIDE_LIMITS.optionLabelMaxLen),
+        value: truncate(value, ORB_GUIDE_LIMITS.optionValueMaxLen),
+        emoji: truncate(emoji, 4),
+      });
+      if (cleaned.length >= ORB_GUIDE_LIMITS.extraOptionsCap) break;
+    }
+    if (cleaned.length) out.extraOptions = cleaned;
+  }
+
+  // skip_next
+  const skip = obj.skip_next ?? obj.skipNext;
+  if (typeof skip === "boolean" && skip && ctx.answeredSoFar.length > 0 && !ctx.isFinalStep) {
+    out.skipNext = true;
+  }
+
+  // final_overrides — 只在 isFinalStep 才接
+  if (ctx.isFinalStep) {
+    const fo = obj.final_overrides ?? obj.finalOverrides;
+    if (fo && typeof fo === "object") {
+      const om = cleanString((fo as any).orb_message ?? (fo as any).orbMessage);
+      if (om) out.orbMessageOverride = truncate(om, ORB_GUIDE_LIMITS.orbMessageMaxLen);
+      const ph = cleanString((fo as any).prompt_hint ?? (fo as any).promptHint);
+      if (ph) out.promptHintOverride = truncate(ph, ORB_GUIDE_LIMITS.promptHintMaxLen);
+    }
+  }
+
+  return out;
+}
+
+function tryParseJson(raw: string): unknown {
+  if (!raw) return null;
+  const trimmed = raw.trim().replace(/^\uFEFF/, "");
+  if (!trimmed) return null;
+  // MiniMax 偶爾會用 ```json … ``` 包起來，先剝掉
+  const stripped = trimmed
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+  try {
+    return JSON.parse(stripped);
+  } catch {
+    return null;
+  }
+}
+
+function cleanString(v: unknown): string {
+  if (typeof v !== "string") return "";
+  return v.replace(/[\u0000-\u001F\u007F]/g, "").trim();
+}
+
+function truncate(v: string, max: number): string {
+  return v.length <= max ? v : v.slice(0, max);
+}
+
 /** 兩個 action 是否指向同一個「槽位」（用於 enqueue 去重） */
 function sameSlot(a: AgentAction, b: AgentAction): boolean {
   if (a.type !== b.type) return false;
