@@ -18,6 +18,7 @@
  */
 
 import { useRef, useEffect, useCallback, useState, memo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import type { SceneId } from "./AmbientEnvironment";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -690,128 +691,169 @@ export function useAmbientSound(sceneId: SceneId): AmbientSoundControls {
 interface SoundControlProps {
   controls: AmbientSoundControls;
   isDark: boolean;
+  /** Mobile compact mode — icon only, no text label */
+  compact?: boolean;
 }
 
 export const SoundControl = memo(function SoundControl({
   controls,
   isDark,
+  compact = false,
 }: SoundControlProps) {
-  const {
-    isPlaying,
-    isMuted,
-    volume,
-    isUnlocked,
-    toggleMute,
-    setVolume,
-    unlock,
-  } = controls;
+  const { isPlaying, isMuted, volume, isUnlocked, toggleMute, setVolume, unlock } =
+    controls;
   const [showSlider, setShowSlider] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Close slider on outside click
   useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(e.target as Node)
-      ) {
+    function handleOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setShowSlider(false);
       }
     }
     if (showSlider) {
-      document.addEventListener("mousedown", handleClick);
-      return () => document.removeEventListener("mousedown", handleClick);
+      document.addEventListener("mousedown", handleOutside);
+      return () => document.removeEventListener("mousedown", handleOutside);
     }
   }, [showSlider]);
 
-  const handleMainClick = () => {
+  const handleClick = () => {
     if (!isUnlocked) {
       unlock();
-      // Auto-unmute on first unlock
       if (isMuted) toggleMute();
       return;
     }
     toggleMute();
   };
 
-  const bgClass = isDark
-    ? "bg-white/10 hover:bg-white/15"
-    : "bg-black/5 hover:bg-black/10";
-  const textClass = isDark ? "text-white/80" : "text-black/60";
-  const sliderBg = isDark ? "bg-white/10" : "bg-black/5";
-  const sliderFill = isDark ? "bg-white/60" : "bg-black/30";
+  const isActive = isUnlocked && !isMuted;
+  const glowColor = isDark ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.12)";
+  const btnBase = isDark
+    ? "bg-white/10 hover:bg-white/15 text-white/80"
+    : "bg-black/5 hover:bg-black/10 text-black/60";
 
   return (
-    <div ref={containerRef} className="relative flex items-center gap-1">
-      {/* Volume slider (expandable) */}
-      {showSlider && isUnlocked && (
-        <div
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-full backdrop-blur-md ${sliderBg} transition-all duration-300`}
-        >
-          <input
-            type="range"
-            min="0"
-            max="100"
-            value={Math.round(volume * 100)}
-            onChange={e => setVolume(Number(e.target.value) / 100)}
-            className="w-16 h-1 appearance-none rounded-full cursor-pointer"
-            style={{
-              background: `linear-gradient(to right, ${isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.3)"} ${volume * 100}%, ${isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.08)"} ${volume * 100}%)`,
-            }}
-          />
-          <span className={`text-[10px] font-mono ${textClass} w-6 text-right`}>
-            {Math.round(volume * 100)}
-          </span>
-        </div>
-      )}
+    <div ref={containerRef} className="relative flex items-center gap-1.5">
+      {/* Volume slider — animated expand/collapse */}
+      <AnimatePresence>
+        {showSlider && isUnlocked && (
+          <motion.div
+            initial={{ opacity: 0, width: 0 }}
+            animate={{ opacity: 1, width: "auto" }}
+            exit={{ opacity: 0, width: 0 }}
+            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-full overflow-hidden backdrop-blur-md ${
+              isDark ? "bg-white/10" : "bg-black/5"
+            }`}
+          >
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={Math.round(volume * 100)}
+              onChange={e => setVolume(Number(e.target.value) / 100)}
+              className="w-16 h-1 appearance-none rounded-full cursor-pointer"
+              style={{
+                background: `linear-gradient(to right, ${
+                  isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.3)"
+                } ${volume * 100}%, ${
+                  isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.08)"
+                } ${volume * 100}%)`,
+              }}
+            />
+            <span
+              className={`text-[10px] font-mono w-6 text-right ${
+                isDark ? "text-white/60" : "text-black/40"
+              }`}
+            >
+              {Math.round(volume * 100)}
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* Main button */}
-      <button
-        onClick={handleMainClick}
-        onContextMenu={e => {
-          e.preventDefault();
-          if (isUnlocked) setShowSlider(v => !v);
-        }}
-        onMouseEnter={() => {
-          if (isUnlocked) setShowSlider(true);
-        }}
-        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full backdrop-blur-md transition-all duration-300 ${bgClass} ${textClass} cursor-pointer`}
-        title={!isUnlocked ? "點擊啟動環境音效" : isMuted ? "取消靜音" : "靜音"}
+      {/* Main button with breathing glow when playing */}
+      <motion.button
+        onClick={handleClick}
+        onMouseEnter={() => !compact && isUnlocked && setShowSlider(true)}
+        onMouseLeave={() => !compact && setShowSlider(false)}
+        animate={
+          isActive
+            ? {
+                boxShadow: [
+                  `0 0 0px ${glowColor}`,
+                  `0 0 10px ${glowColor}`,
+                  `0 0 0px ${glowColor}`,
+                ],
+              }
+            : { boxShadow: "0 0 0px transparent" }
+        }
+        transition={
+          isActive
+            ? { duration: 3, repeat: Infinity, ease: "easeInOut" }
+            : { duration: 0.4 }
+        }
+        className={`flex items-center gap-1.5 rounded-full backdrop-blur-md transition-colors duration-300 cursor-pointer select-none ${
+          compact ? "p-2" : "px-2.5 py-1.5"
+        } ${btnBase}`}
+        title={!isUnlocked ? "點擊啟動環境音" : isMuted ? "取消靜音" : "靜音"}
       >
-        {/* Sound icon */}
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+        {/* Animated waveform bars when playing, static icon otherwise */}
+        <div
+          className={`relative flex items-center justify-center ${
+            compact ? "w-4 h-4" : "w-3.5 h-3.5"
+          }`}
         >
-          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-          {!isUnlocked || isMuted ? (
-            <>
-              <line x1="23" y1="9" x2="17" y2="15" />
-              <line x1="17" y1="9" x2="23" y2="15" />
-            </>
+          {isActive ? (
+            <div className="flex items-end gap-[2px] w-full h-full">
+              {([0.5, 1, 0.65] as const).map((base, i) => (
+                <motion.div
+                  key={i}
+                  className={`flex-1 rounded-full ${
+                    isDark ? "bg-white/70" : "bg-black/50"
+                  }`}
+                  animate={{ scaleY: [base, 1, base * 0.4, 0.9, base] }}
+                  transition={{
+                    duration: 1.4 + i * 0.25,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                    delay: i * 0.18,
+                  }}
+                  style={{ transformOrigin: "bottom", height: "100%" }}
+                />
+              ))}
+            </div>
           ) : (
-            <>
-              <path
-                d="M15.54 8.46a5 5 0 0 1 0 7.07"
-                opacity={volume > 0.3 ? 1 : 0.3}
-              />
-              <path
-                d="M19.07 4.93a10 10 0 0 1 0 14.14"
-                opacity={volume > 0.6 ? 1 : 0.3}
-              />
-            </>
+            <svg
+              width="100%"
+              height="100%"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+              {!isUnlocked || isMuted ? (
+                <>
+                  <line x1="23" y1="9" x2="17" y2="15" />
+                  <line x1="17" y1="9" x2="23" y2="15" />
+                </>
+              ) : (
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+              )}
+            </svg>
           )}
-        </svg>
-        <span className="text-[10px] font-medium">
-          {!isUnlocked ? "環境音" : isMuted ? "靜音" : "播放中"}
-        </span>
-      </button>
+        </div>
+
+        {/* Text label — hidden in compact mode */}
+        {!compact && (
+          <span className="text-[10px] font-medium">
+            {!isUnlocked ? "環境音" : isMuted ? "靜音" : "播放中"}
+          </span>
+        )}
+      </motion.button>
     </div>
   );
 });

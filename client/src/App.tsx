@@ -15,6 +15,7 @@ import LoginOrbAnimation from "./components/LoginOrbAnimation";
 import { ShowcaseTransferProvider } from "./contexts/ShowcaseTransferContext";
 import { SiteOnboardingProvider } from "./contexts/SiteOnboardingContext";
 import { FocusFlowProvider } from "./contexts/FocusFlowContext";
+import { AmbientProvider } from "./contexts/AmbientSoundContext";
 const SiteOnboardingOverlay = lazy(
   () => import("./components/SiteOnboardingOverlay")
 );
@@ -194,6 +195,7 @@ function App() {
             <ShowcaseTransferProvider>
               <SiteOnboardingProvider>
                 <FocusFlowProvider>
+                  <AmbientProvider>
                   <TooltipProvider>
                     <Toaster />
                     <OfflineBanner />
@@ -205,6 +207,7 @@ function App() {
                       <SiteOnboardingOverlay />
                     </Suspense>
                   </TooltipProvider>
+                  </AmbientProvider>
                 </FocusFlowProvider>
               </SiteOnboardingProvider>
             </ShowcaseTransferProvider>
