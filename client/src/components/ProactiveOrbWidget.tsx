@@ -41,6 +41,8 @@ import { useFocusFlow } from "@/contexts/FocusFlowContext";
 import FocusFlowMini from "./FocusFlowMini";
 import { useOrbGuide } from "@/contexts/OrbGuideContext";
 import OrbGuidePanel from "./OrbGuidePanel";
+import { usePageAgent } from "@/contexts/PageAgentContext";
+import { parseLLMActions } from "../../../shared/agent-actions";
 
 type Props = {
   className?: string;
@@ -754,7 +756,10 @@ export default memo(function ProactiveOrbWidget({
     step: guideStep,
   } = useOrbGuide();
 
-  // 監聽 orb-guide-navigate 事件，執行導航
+  // ─── PageAgent bus（Phase 1：讓 autoFillPrompt / autoTabId 真的被消費） ──
+  const pageAgent = usePageAgent();
+
+  // 監聽 orb-guide-navigate 事件：導航 + 把 autoFillPrompt/autoTabId 丟進 bus
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail as {
@@ -763,10 +768,25 @@ export default memo(function ProactiveOrbWidget({
         autoTabId?: string;
       };
       onNavigate?.(detail.path);
+
+      // 目標頁還沒掛載 → PageAgentContext 會把動作先進 queue，
+      // 等頁面 register 時自動 drain。
+      if (detail.autoTabId) {
+        void pageAgent.dispatch({
+          type: "setTab",
+          tabId: detail.autoTabId,
+        });
+      }
+      if (detail.autoFillPrompt) {
+        void pageAgent.dispatch({
+          type: "fillPrompt",
+          text: detail.autoFillPrompt,
+        });
+      }
     };
     window.addEventListener("orb-guide-navigate", handler);
     return () => window.removeEventListener("orb-guide-navigate", handler);
-  }, [onNavigate]);
+  }, [onNavigate, pageAgent]);
 
   // 到達目標頁面後，顯示 arrivedMessage 作為 proactive
   useEffect(() => {
@@ -916,6 +936,7 @@ export default memo(function ProactiveOrbWidget({
 
       // Handle agent actions from LLM response
       if (data.actions && Array.isArray(data.actions)) {
+        // 先走既有的 callbacks（向後相容，不影響 Studio 舊路徑）
         for (const action of data.actions) {
           switch (action.type) {
             case "navigate":
@@ -942,6 +963,13 @@ export default memo(function ProactiveOrbWidget({
             }
           }
         }
+
+        // 同時把結構化 actions 丟進 PageAgent bus —— Phase 2 起各頁接入後才會真正生效；
+        // Phase 1 僅進 queue（無頁面註冊時），不會改變現行行為。
+        const structured = parseLLMActions(data.actions);
+        if (structured.length > 0) {
+          void pageAgent.dispatchMany(structured);
+        }
       }
     } catch {
       setChatMessages(prev => [
@@ -963,6 +991,7 @@ export default memo(function ProactiveOrbWidget({
     onNavigate,
     onApplyInspiration,
     showFeedback,
+    pageAgent,
   ]);
 
   // ─── Apply inspiration preset ────────────────────────────────────────
