@@ -86,6 +86,7 @@ import VisualSoul from "./VisualSoul";
 import { useAIState } from "@/contexts/AIStateContext";
 import ProactiveOrbWidget from "./ProactiveOrbWidget";
 import AgentIntentPreview from "./AgentIntentPreview";
+import AgentFocusSpotlight from "./AgentFocusSpotlight";
 
 // Isolated component that subscribes to AI state —
 // prevents the entire DashboardLayout from re-rendering when aiState/personality change.
@@ -946,6 +947,8 @@ function DashboardLayoutContent({
       )}
       {/* 破壞性動作執行前的柔軟確認卡片（全站都可觸發，含 /agent） */}
       {user && <AgentIntentPreview />}
+      {/* 光球「看這裡」視覺聚焦（focusElement 動作的畫面層） */}
+      {user && <AgentFocusSpotlight />}
     </>
   );
 }

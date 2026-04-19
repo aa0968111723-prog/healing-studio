@@ -171,6 +171,52 @@ describe("orb agent pipeline — parse → coerce → gate → feedback", () => 
     expect(prompt).toContain("completed");
   });
 
+  // ── Phase 3b：focusElement 視覺聚焦協議 ─────────────────────────────────
+
+  it("Phase 3b: [ACTION:focusElement:id] → focusElement + 預設非破壞性 + 不需確認", () => {
+    const { parsed, typed } = pipeToTypedActions(
+      "看這裡 [ACTION:focusElement:promptInput] 這就是提示詞輸入框"
+    );
+    expect(typed).toHaveLength(1);
+    expect(typed[0]).toMatchObject({
+      type: "focusElement",
+      elementId: "promptInput",
+    });
+    // focusElement 是純視覺提示，不該觸發確認閘
+    expect(isDestructiveAction(typed[0])).toBe(false);
+    expect(parsed.askBeforeAct).toBe(false);
+    // summarize 用於 orb-guide 的口語化指引；有 message 時優先用 message
+    expect(summarizeAction(typed[0])).toContain("promptInput");
+    expect(
+      summarizeAction({
+        type: "focusElement",
+        elementId: "promptInput",
+        message: "提示詞就打在這裡喔",
+      })
+    ).toBe("提示詞就打在這裡喔");
+  });
+
+  it("Phase 3b: 舊版 [ACTION:focus:xxx] 依然 coerce 成 focusElement", () => {
+    const { typed } = pipeToTypedActions("[ACTION:focus:sidebar-model-list]");
+    expect(typed).toEqual([
+      {
+        type: "focusElement",
+        elementId: "sidebar-model-list",
+        message: undefined,
+      },
+    ]);
+  });
+
+  it("Phase 3b: alwaysConfirm 不應該為 focusElement 打開確認閘", () => {
+    // 確認 gate 是「有任何動作 + alwaysConfirm」→ true；這是刻意的行為，
+    // 因此本測試記錄「若之後有人想豁免純視覺動作，要來改這條 assertion」。
+    const { parsed } = pipeToTypedActions(
+      "[ACTION:focusElement:promptInput]",
+      { alwaysConfirm: true }
+    );
+    expect(parsed.askBeforeAct).toBe(true);
+  });
+
   it("使用者取消破壞性動作時，feedback.status=cancelled 正確記錄", () => {
     const raw = "[ACTION:submit:]";
     const { parsed, typed } = pipeToTypedActions(raw);

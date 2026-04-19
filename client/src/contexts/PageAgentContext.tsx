@@ -106,6 +106,20 @@ export interface PendingConfirmation {
   createdAt: number;
 }
 
+/** Phase 3b：光球「看這裡」視覺聚焦的當前目標 */
+export interface AgentSpotlight {
+  id: string;
+  elementId: string;
+  message?: string;
+  /** 自動關閉時間（ms），0/undefined = 不自動關閉 */
+  autoHideMs?: number;
+  source?: DispatchOptions["source"];
+  createdAt: number;
+}
+
+/** focusElement 預設視覺聚焦保留時間（ms） */
+export const AGENT_SPOTLIGHT_DEFAULT_MS = 4500;
+
 interface PageAgentContextValue {
   /** 目前有頁面註冊 agent handler 嗎 */
   hasHandler: boolean;
@@ -139,6 +153,17 @@ interface PageAgentContextValue {
   }) => void;
   /** 最近的使用者回饋（最多 AGENT_FEEDBACK_HISTORY_CAP 筆）*/
   recentFeedback: AgentFeedbackEvent[];
+  // ── Phase 3b：視覺聚焦 bus（focusElement 的畫面層） ─────────
+  /** 目前要視覺聚焦的元素（null 代表沒有） */
+  spotlight: AgentSpotlight | null;
+  /** 光球/頁面用：主動要求聚焦某個元素（elementId 必填） */
+  showSpotlight: (
+    elementId: string,
+    message?: string,
+    opts?: { autoHideMs?: number; source?: DispatchOptions["source"] }
+  ) => void;
+  /** 使用者點背景或等待超時都會呼叫 */
+  dismissSpotlight: () => void;
 }
 
 const noop: PageAgentContextValue = {
@@ -153,6 +178,9 @@ const noop: PageAgentContextValue = {
   cancelPending: () => {},
   reportFeedback: () => {},
   recentFeedback: [],
+  spotlight: null,
+  showSpotlight: () => {},
+  dismissSpotlight: () => {},
 };
 
 const PageAgentContext = createContext<PageAgentContextValue>(noop);
@@ -182,6 +210,48 @@ export function PageAgentProvider({ children }: { children: ReactNode }) {
   const [recentFeedback, setRecentFeedback] = useState<AgentFeedbackEvent[]>(
     []
   );
+
+  // ── Phase 3b：focusElement 視覺聚焦 bus ─────────────────────────
+  const [spotlight, setSpotlight] = useState<AgentSpotlight | null>(null);
+  const spotlightTimerRef = useRef<number | null>(null);
+  const clearSpotlightTimer = useCallback(() => {
+    if (spotlightTimerRef.current !== null) {
+      window.clearTimeout(spotlightTimerRef.current);
+      spotlightTimerRef.current = null;
+    }
+  }, []);
+  const dismissSpotlight = useCallback(() => {
+    clearSpotlightTimer();
+    setSpotlight(null);
+  }, [clearSpotlightTimer]);
+  const showSpotlight = useCallback(
+    (
+      elementId: string,
+      message?: string,
+      opts?: { autoHideMs?: number; source?: DispatchOptions["source"] }
+    ) => {
+      if (!elementId) return;
+      clearSpotlightTimer();
+      const autoHide = opts?.autoHideMs ?? AGENT_SPOTLIGHT_DEFAULT_MS;
+      setSpotlight({
+        id: `sp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        elementId,
+        message,
+        autoHideMs: autoHide,
+        source: opts?.source,
+        createdAt: Date.now(),
+      });
+      if (autoHide > 0) {
+        spotlightTimerRef.current = window.setTimeout(() => {
+          setSpotlight(null);
+          spotlightTimerRef.current = null;
+        }, autoHide);
+      }
+    },
+    [clearSpotlightTimer]
+  );
+  // 元件卸載時把計時器清掉，避免 memory leak / 漏到下一個 route
+  useEffect(() => () => clearSpotlightTimer(), [clearSpotlightTimer]);
   /** dispatch 真正執行的內部核心，不走確認閘 */
   const runDispatchRef = useRef<
     ((action: AgentAction, opts: DispatchOptions) => Promise<AgentActionResult>)
@@ -224,6 +294,17 @@ export function PageAgentProvider({ children }: { children: ReactNode }) {
         return { ok: false, reason: "navigate handled by orb layer" };
       }
 
+      // Phase 3b：focusElement 在 bus 層先點亮畫面 spotlight，再交給頁面
+      // handler（頁面可以額外做自己的事，像展開收合、滾動列表）。
+      // 若沒頁面註冊，spotlight 仍然成立（純視覺 hint，不進 pending queue）。
+      if (action.type === "focusElement") {
+        showSpotlight(action.elementId, action.message, { source: opts.source });
+        if (!page) {
+          reportFeedback({ status: "completed", actionType: "focusElement" });
+          return { ok: true, message: "spotlight shown without page handler" };
+        }
+      }
+
       const pageMatches =
         page && (!targetPageId || page.snapshot.pageId === targetPageId);
 
@@ -261,7 +342,7 @@ export function PageAgentProvider({ children }: { children: ReactNode }) {
 
       return { ok: false, reason: "no matching page handler" };
     },
-    [syncPending, reportFeedback]
+    [syncPending, reportFeedback, showSpotlight]
   );
   runDispatchRef.current = runDispatch;
 
@@ -380,6 +461,9 @@ export function PageAgentProvider({ children }: { children: ReactNode }) {
       cancelPending,
       reportFeedback,
       recentFeedback,
+      spotlight,
+      showSpotlight,
+      dismissSpotlight,
     }),
     [
       snapshot,
@@ -392,6 +476,9 @@ export function PageAgentProvider({ children }: { children: ReactNode }) {
       cancelPending,
       reportFeedback,
       recentFeedback,
+      spotlight,
+      showSpotlight,
+      dismissSpotlight,
     ]
   );
 
