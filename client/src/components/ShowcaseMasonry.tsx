@@ -44,6 +44,10 @@ import {
   type CarouselApi,
 } from "@/components/ui/carousel";
 import Autoplay from "embla-carousel-autoplay";
+import PortfolioDetailDialog, {
+  type PortfolioBasicItem,
+  type PortfolioDetailData,
+} from "./PortfolioDetailDialog";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -278,7 +282,7 @@ function MasonryCard({
 }: {
   item: ShowcaseItem;
   styles: MasonrySceneStyles;
-  onCardClick: (e: React.MouseEvent, itemId: number) => void;
+  onCardClick: (e: React.MouseEvent, item: ShowcaseItem) => void;
   senseEngine: ReturnType<typeof useSenseEngine>;
   onVisibilityChange?: (id: number, isVisible: boolean) => void;
 }) {
@@ -340,7 +344,7 @@ function MasonryCard({
       }}
       onClick={e => {
         senseEngine.trackScrollClick();
-        onCardClick(e, item.id);
+        onCardClick(e, item);
       }}
     >
       {/* Hover glow overlay */}
@@ -597,16 +601,41 @@ export default function ShowcaseMasonry({
   const prefetchReady = useRef(false);
   const pendingItemId = useRef<number | null>(null);
 
+  // ─── Detail Modal state ─────────────────────────────────────────
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailBasic, setDetailBasic] = useState<PortfolioBasicItem | null>(
+    null
+  );
+  const [detailData, setDetailData] = useState<PortfolioDetailData | null>(
+    null
+  );
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+  const pendingRippleEventRef = useRef<{
+    clientX: number;
+    clientY: number;
+  } | null>(null);
+
   const handleCardClick = useCallback(
-    (e: React.MouseEvent, itemId: number) => {
-      triggerRipple(e);
+    (e: React.MouseEvent, item: ShowcaseItem) => {
+      // Open detail modal immediately with the basic fields we already have
+      setDetailBasic(item);
+      setDetailData(null);
+      setDetailOpen(true);
+      setIsLoadingDetail(true);
+
+      // Remember where the click originated, so "Enter Studio" can ripple from it
+      pendingRippleEventRef.current = {
+        clientX: e.clientX,
+        clientY: e.clientY,
+      };
+
+      // Reset transfer readiness and preload the full record in the background
       prefetchReady.current = false;
-      pendingItemId.current = itemId;
+      pendingItemId.current = item.id;
       setIsLoading(true);
 
-      // Background prefetch full deconstructed data during ripple animation
       utils.showcase.getById
-        .fetch({ id: itemId })
+        .fetch({ id: item.id })
         .then(detail => {
           const payload: ShowcaseTransferPayload = {
             showcaseId: detail.id,
@@ -621,17 +650,41 @@ export default function ShowcaseMasonry({
             modality: detail.modality as "image" | "video" | "audio" | "voice",
           };
           setPayload(payload);
+          setDetailData({
+            originalPrompt: detail.originalPrompt,
+            completelyDeconstructedBlocks:
+              detail.completelyDeconstructedBlocks as PortfolioDetailData["completelyDeconstructedBlocks"],
+          });
           prefetchReady.current = true;
-          setIsLoading(false);
         })
         .catch(() => {
-          // Even if prefetch fails, still navigate — Studio will work without pre-loaded data
+          // Even if prefetch fails, still allow navigation — Studio handles empty payload
           prefetchReady.current = true;
+        })
+        .finally(() => {
           setIsLoading(false);
+          setIsLoadingDetail(false);
         });
     },
-    [triggerRipple, utils.showcase.getById, setPayload, setIsLoading]
+    [utils.showcase.getById, setPayload, setIsLoading]
   );
+
+  const handleEnterStudio = useCallback(() => {
+    setDetailOpen(false);
+    const origin = pendingRippleEventRef.current;
+    if (origin) {
+      triggerRipple({
+        clientX: origin.clientX,
+        clientY: origin.clientY,
+      } as React.MouseEvent);
+    } else {
+      // Fallback: ripple from viewport centre
+      triggerRipple({
+        clientX: window.innerWidth / 2,
+        clientY: window.innerHeight / 2,
+      } as React.MouseEvent);
+    }
+  }, [triggerRipple]);
 
   const handleRippleComplete = useCallback(() => {
     // If prefetch is ready, navigate immediately
@@ -909,7 +962,7 @@ export default function ShowcaseMasonry({
                     <MasonryCard
                       item={item}
                       styles={styles}
-                      onCardClick={handleCardClick as any}
+                      onCardClick={handleCardClick}
                       senseEngine={senseEngine}
                       onVisibilityChange={trackVisibility}
                     />
@@ -964,6 +1017,17 @@ export default function ShowcaseMasonry({
           </motion.div>
         )}
       </div>
+
+      {/* Portfolio Detail Modal */}
+      <PortfolioDetailDialog
+        basic={detailBasic}
+        detail={detailData}
+        isLoadingDetail={isLoadingDetail}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        onEnterStudio={handleEnterStudio}
+        isDark={sceneId !== "morning"}
+      />
 
       {/* Ripple Transition Overlay */}
       <RippleTransition

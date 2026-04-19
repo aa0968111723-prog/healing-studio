@@ -135,13 +135,74 @@ const WEIGHT_CONFIG: Record<WeightLabel, WeightConfig> = {
 const KNOWN_WEIGHT_LABELS = Object.keys(WEIGHT_CONFIG) as WeightLabel[];
 
 // ─── Tab definitions ────────────────────────────────────────────────────────
+//
+// Each tab maps to a *bucket of weight labels*. Using positive membership lists
+// (instead of negative "NOT X AND NOT Y" filters) ensures every label is
+// routed to exactly one tab, so tabs never end up empty just because the OARS
+// classifier skewed toward a single label.
 
-const TABS = [
+type TabValue = "all" | "breakthrough" | "tips" | "industry";
+
+const TAB_BUCKETS: Record<Exclude<TabValue, "all">, readonly WeightLabel[]> = {
+  breakthrough: ["Model Breakthrough"],
+  tips: ["Inspiration Tip", "Tutorial Guide", "Community Spotlight"],
+  industry: ["Industry Shift", "Creative Tool", "General Update"],
+};
+
+const TABS: ReadonlyArray<{ value: TabValue; label: string }> = [
   { value: "all", label: "全部" },
-  { value: "Model Breakthrough", label: "模型突破" },
-  { value: "Inspiration Tip", label: "靈感技巧" },
-  { value: "other", label: "產業與工具" },
-] as const;
+  { value: "breakthrough", label: "模型突破" },
+  { value: "tips", label: "靈感技巧" },
+  { value: "industry", label: "產業與工具" },
+];
+
+/**
+ * Keyword fallback: when an article's weight label is "General Update" (the
+ * server-side default when Gemini returns something unrecognized), try to
+ * derive a better bucket from the title/summary text. Prevents the 靈感技巧
+ * tab from starving when upstream classification is noisy.
+ */
+function deriveBucketFromText(
+  title: string,
+  summary: string | null | undefined
+): Exclude<TabValue, "all"> | null {
+  const text = `${title} ${summary ?? ""}`.toLowerCase();
+  if (
+    /tip|trick|prompt|workflow|tutorial|guide|how to|技巧|心法|教學|入門|指南/.test(
+      text
+    )
+  ) {
+    return "tips";
+  }
+  if (
+    /launch|release|platform|tool|update|feature|roll ?out|發佈|推出|上線|更新|工具|平台/.test(
+      text
+    )
+  ) {
+    return "industry";
+  }
+  if (/breakthrough|model|release of|sota|突破|發表/.test(text)) {
+    return "breakthrough";
+  }
+  return null;
+}
+
+function bucketForItem(item: NewsItem): Exclude<TabValue, "all"> {
+  const wl = getWeightLabel(item.tags);
+  // 1. Trust the server label first, unless it's the catch-all
+  if (wl !== "General Update") {
+    for (const [bucket, labels] of Object.entries(TAB_BUCKETS) as Array<
+      [Exclude<TabValue, "all">, readonly WeightLabel[]]
+    >) {
+      if (labels.includes(wl)) return bucket;
+    }
+  }
+  // 2. Keyword fallback for General Update
+  const guessed = deriveBucketFromText(item.title, item.oarsSummary);
+  if (guessed) return guessed;
+  // 3. Final fallback: treat as industry news
+  return "industry";
+}
 
 // ─── Helper: extract weight label from tags ─────────────────────────────────
 
@@ -283,6 +344,8 @@ function BentoCard({
   const isHero = config.size === "hero";
   const isMedium = config.size === "medium";
   const [isHovered, setIsHovered] = useState(false);
+  const [imgError, setImgError] = useState(false);
+  const showImage = !!item.coverImageUrl && !imgError;
 
   // Sense Engine: card-level micro-behavior tracking
   const senseProps = useCardSenseProps(
@@ -366,14 +429,67 @@ function BentoCard({
 
       {/* Accent stripe */}
       <motion.div
-        className={`absolute top-0 left-0 right-0 h-[2px] ${config.accentBg}`}
+        className={`absolute top-0 left-0 right-0 h-[2px] ${config.accentBg} z-[2]`}
         animate={{ opacity: isHovered ? 1 : 0.6 }}
         transition={{ duration: 0.3 }}
       />
 
-      <div
-        className={`relative z-10 flex flex-col h-full ${isHero ? "p-7 sm:p-8" : isMedium ? "p-5 sm:p-6" : "p-4 sm:p-5"}`}
-      >
+      <div className="relative z-10 flex flex-col h-full">
+        {/* ── Cover image banner (with placeholder fallback) ───────────── */}
+        <div
+          className={`relative w-full overflow-hidden flex-shrink-0 ${
+            isHero
+              ? "aspect-[16/9]"
+              : isMedium
+                ? "aspect-[16/9]"
+                : "aspect-[16/10]"
+          }`}
+        >
+          {showImage ? (
+            <>
+              <img
+                src={item.coverImageUrl!}
+                alt=""
+                loading="lazy"
+                decoding="async"
+                referrerPolicy="no-referrer"
+                onError={() => setImgError(true)}
+                className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
+              />
+              {/* Readability gradient on top edge for overlay badges */}
+              <div
+                aria-hidden="true"
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  background:
+                    "linear-gradient(180deg, rgba(0,0,0,0.15) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.12) 100%)",
+                }}
+              />
+            </>
+          ) : (
+            // Placeholder: gradient backdrop + category icon
+            <div
+              aria-hidden="true"
+              className={`absolute inset-0 flex items-center justify-center ${config.accentBg}`}
+            >
+              <div
+                className="absolute inset-0"
+                style={{
+                  background: `radial-gradient(circle at 30% 35%, currentColor 0%, transparent 55%), radial-gradient(circle at 75% 70%, currentColor 0%, transparent 55%)`,
+                  opacity: 0.12,
+                }}
+              />
+              <Icon
+                className={`relative w-10 h-10 opacity-40 ${config.accentColor}`}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* ── Padded content ─────────────────────────────────────────── */}
+        <div
+          className={`relative flex flex-col flex-1 ${isHero ? "p-6 sm:p-7" : isMedium ? "p-4 sm:p-5" : "p-4"}`}
+        >
         {/* Header: weight badge + time */}
         <div className="flex items-center justify-between mb-3">
           <motion.span
@@ -501,6 +617,7 @@ function BentoCard({
             )}
           </AnimatePresence>
         )}
+        </div>
       </div>
     </motion.article>
   );
@@ -508,11 +625,40 @@ function BentoCard({
 
 // ─── Empty State ────────────────────────────────────────────────────────────
 
-function EmptyState({ styles }: { styles: SceneStyles }) {
+function EmptyState({
+  styles,
+  activeTab,
+  onResetTab,
+  hasAnyItems,
+}: {
+  styles: SceneStyles;
+  activeTab?: TabValue;
+  onResetTab?: () => void;
+  hasAnyItems?: boolean;
+}) {
+  // Tab-specific empty message when other tabs do have content
+  const showFallback = hasAnyItems && activeTab && activeTab !== "all";
+  const tabLabel = TABS.find(t => t.value === activeTab)?.label ?? "";
+
   return (
     <div className="col-span-full flex flex-col items-center justify-center py-20">
       <Newspaper className={`w-10 h-10 mb-4 ${styles.textMuted} opacity-40`} />
-      <p className={`text-sm ${styles.textMuted}`}>暫無情報，敬請期待</p>
+      <p className={`text-sm ${styles.textMuted}`}>
+        {showFallback
+          ? `目前「${tabLabel}」尚無新情報`
+          : "暫無情報，敬請期待"}
+      </p>
+      {showFallback && (
+        <button
+          type="button"
+          onClick={onResetTab}
+          className={`mt-4 inline-flex items-center gap-1.5 text-xs font-medium px-4 py-2 rounded-full backdrop-blur-md transition-all duration-300 hover:scale-105 ${styles.textMuted}`}
+          style={{ background: styles.tabsBg }}
+        >
+          查看全部
+          <ChevronRight className="w-3 h-3" />
+        </button>
+      )}
     </div>
   );
 }
@@ -613,7 +759,7 @@ const IntelBentoGrid = memo(function IntelBentoGrid({
   sceneId,
 }: IntelBentoGridProps) {
   const styles = useMemo(() => SCENE_CARD_STYLES[sceneId], [sceneId]);
-  const [activeTab, setActiveTab] = useState("all");
+  const [activeTab, setActiveTab] = useState<TabValue>("all");
   const [selectedNewsId, setSelectedNewsId] = useState<number | null>(null);
 
   // ─── Carousel state ─────────────────────────────────────────────
@@ -669,27 +815,31 @@ const IntelBentoGrid = memo(function IntelBentoGrid({
     "intel-bento-grid"
   );
 
-  // Fetch news from tRPC
-  const { data, isLoading } = trpc.news.list.useQuery(
+  // Fetch news from tRPC (infinite pagination drives "探索更多情報")
+  const {
+    data,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = trpc.news.list.useInfiniteQuery(
     { limit: 20 },
-    { staleTime: 60_000 }
+    {
+      getNextPageParam: lastPage => lastPage.nextCursor ?? undefined,
+      staleTime: 60_000,
+    }
   );
 
-  const items = data?.items ?? [];
+  const items = useMemo(
+    () => data?.pages.flatMap(p => p.items) ?? [],
+    [data]
+  );
 
-  // Filter by tab
+  // Filter by tab — route each item into exactly one bucket, with keyword
+  // fallback for items the server couldn't classify.
   const filteredItems = useMemo(() => {
     if (activeTab === "all") return items;
-    if (activeTab === "other") {
-      return items.filter(item => {
-        const wl = getWeightLabel(item.tags);
-        return wl !== "Model Breakthrough" && wl !== "Inspiration Tip";
-      });
-    }
-    return items.filter(item => {
-      const wl = getWeightLabel(item.tags);
-      return wl === activeTab;
-    });
+    return items.filter(item => bucketForItem(item) === activeTab);
   }, [items, activeTab]);
 
   // Layout engine
@@ -741,7 +891,7 @@ const IntelBentoGrid = memo(function IntelBentoGrid({
         {/* Tabs */}
         <Tabs
           value={activeTab}
-          onValueChange={setActiveTab}
+          onValueChange={v => setActiveTab(v as TabValue)}
           className="mb-6 sm:mb-8"
         >
           <div className="flex justify-center overflow-x-auto scrollbar-hide">
@@ -781,7 +931,12 @@ const IntelBentoGrid = memo(function IntelBentoGrid({
             <BentoSkeleton styles={styles} />
           </div>
         ) : layoutItems.length === 0 ? (
-          <EmptyState styles={styles} />
+          <EmptyState
+            styles={styles}
+            activeTab={activeTab}
+            hasAnyItems={items.length > 0}
+            onResetTab={() => setActiveTab("all")}
+          />
         ) : (
           <div className="w-full">
             <Carousel
@@ -842,19 +997,29 @@ const IntelBentoGrid = memo(function IntelBentoGrid({
           </div>
         )}
 
-        {/* "See more" link */}
-        {data?.nextCursor && (
+        {/* "See more" — loads next page inline */}
+        {hasNextPage && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="flex justify-center mt-6"
           >
             <button
-              className={`inline-flex items-center gap-1.5 text-xs font-medium px-4 py-2 rounded-full backdrop-blur-md transition-all duration-300 hover:scale-105 ${styles.textMuted}`}
+              type="button"
+              onClick={() => {
+                if (!isFetchingNextPage) fetchNextPage();
+              }}
+              disabled={isFetchingNextPage}
+              className={`inline-flex items-center gap-1.5 text-xs font-medium px-4 py-2 rounded-full backdrop-blur-md transition-all duration-300 hover:scale-105 disabled:opacity-60 disabled:cursor-wait ${styles.textMuted}`}
               style={{ background: styles.tabsBg }}
+              aria-label="載入更多情報"
             >
-              探索更多情報
-              <ChevronRight className="w-3 h-3" />
+              {isFetchingNextPage ? "載入中…" : "探索更多情報"}
+              <ChevronRight
+                className={`w-3 h-3 transition-transform ${
+                  isFetchingNextPage ? "animate-pulse" : ""
+                }`}
+              />
             </button>
           </motion.div>
         )}
