@@ -20,6 +20,7 @@ import { useAIState } from "@/contexts/AIStateContext";
 import { usePersonality } from "@/contexts/PersonalityContext";
 import { trpc } from "@/lib/trpc";
 import type { OrbGuideStepRewrite } from "../../../shared/agent-actions";
+import { summarizeOrbGuideActions } from "../../../shared/orb-guide-plans";
 import { cn } from "@/lib/utils";
 
 // ─── Typewriter hook ──────────────────────────────────────────────────────────
@@ -430,6 +431,25 @@ export default function OrbGuidePanel({ onClose }: OrbGuidePanelProps) {
                     <p className="text-xs text-white/45">{plan.targetPath}</p>
                   </div>
                 </div>
+
+                {/* Phase 3e：列出到站會做的動作（setTab / fillPrompt…），讓使用者有預期 */}
+                {(() => {
+                  const preview = summarizeOrbGuideActions(plan.actions).filter(
+                    // fillPrompt 已有自己的區塊顯示完整內容，這邊的摘要就不重覆
+                    line => !line.startsWith("填入提示詞")
+                  );
+                  if (!preview.length) return null;
+                  return (
+                    <div className="pt-1 border-t border-white/8 space-y-1">
+                      <p className="text-xs text-white/40">到站會幫你做</p>
+                      <ul className="text-xs text-white/70 space-y-0.5 pl-1">
+                        {preview.map((line, i) => (
+                          <li key={i}>・{line}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                })()}
 
                 {plan.autoFillPrompt && (
                   <div className="pt-1 border-t border-white/8">

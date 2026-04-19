@@ -42,7 +42,7 @@ import FocusFlowMini from "./FocusFlowMini";
 import { useOrbGuide } from "@/contexts/OrbGuideContext";
 import OrbGuidePanel from "./OrbGuidePanel";
 import { usePageAgent } from "@/contexts/PageAgentContext";
-import { parseLLMActions } from "../../../shared/agent-actions";
+import { parseLLMActions, type AgentAction } from "../../../shared/agent-actions";
 
 type Props = {
   className?: string;
@@ -759,29 +759,34 @@ export default memo(function ProactiveOrbWidget({
   // ─── PageAgent bus（Phase 1：讓 autoFillPrompt / autoTabId 真的被消費） ──
   const pageAgent = usePageAgent();
 
-  // 監聽 orb-guide-navigate 事件：導航 + 把 autoFillPrompt/autoTabId 丟進 bus
+  // 監聽 orb-guide-navigate 事件：導航 + 把 Phase 3e 帶過來的 AgentAction[] 丟進 bus
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail as {
         path: string;
+        actions?: AgentAction[];
+        /** 舊版 fallback：只有 autoFillPrompt 字串時，組成一個 fillPrompt action */
         autoFillPrompt?: string;
         autoTabId?: string;
       };
       onNavigate?.(detail.path);
 
-      // 目標頁還沒掛載 → PageAgentContext 會把動作先進 queue，
-      // 等頁面 register 時自動 drain。
-      if (detail.autoTabId) {
-        void pageAgent.dispatch({
-          type: "setTab",
-          tabId: detail.autoTabId,
-        });
+      const fromArray = Array.isArray(detail.actions) ? detail.actions : [];
+      const fallback: AgentAction[] = [];
+      if (fromArray.length === 0) {
+        if (detail.autoTabId) {
+          fallback.push({ type: "setTab", tabId: detail.autoTabId });
+        }
+        if (detail.autoFillPrompt) {
+          fallback.push({ type: "fillPrompt", text: detail.autoFillPrompt });
+        }
       }
-      if (detail.autoFillPrompt) {
-        void pageAgent.dispatch({
-          type: "fillPrompt",
-          text: detail.autoFillPrompt,
-        });
+      const actions = fromArray.length ? fromArray : fallback;
+
+      // 目標頁還沒掛載 → PageAgentContext 會把動作 enqueueAction 暫存，
+      // 等頁面 register 時 drainActionsForPage 自動接棒。
+      if (actions.length) {
+        void pageAgent.dispatchMany(actions, { source: "orb-guide" });
       }
     };
     window.addEventListener("orb-guide-navigate", handler);
