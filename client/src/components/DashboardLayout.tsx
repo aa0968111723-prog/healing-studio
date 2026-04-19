@@ -85,6 +85,7 @@ import { Button } from "./ui/button";
 import VisualSoul from "./VisualSoul";
 import { useAIState } from "@/contexts/AIStateContext";
 import ProactiveOrbWidget from "./ProactiveOrbWidget";
+import AgentIntentPreview from "./AgentIntentPreview";
 
 // Isolated component that subscribes to AI state —
 // prevents the entire DashboardLayout from re-rendering when aiState/personality change.
@@ -933,14 +934,18 @@ function DashboardLayoutContent({
 
       {/* 全站光球常駐協助（Studio 頁面內已有自己的光球，不需要重複） */}
       {user && (
-        <ProactiveOrbWidget
-          onRestartTour={handleOrbRestartTour}
-          onSaveToNotes={handleOrbSaveToNotes}
-          onOpenNotes={handleOrbOpenNotes}
-          onOpenCalendar={handleOrbOpenCalendar}
-          onAddToCalendar={handleOrbAddToCalendar}
-          onNavigate={(path) => setLocation(path)}
-        />
+        <>
+          <ProactiveOrbWidget
+            onRestartTour={handleOrbRestartTour}
+            onSaveToNotes={handleOrbSaveToNotes}
+            onOpenNotes={handleOrbOpenNotes}
+            onOpenCalendar={handleOrbOpenCalendar}
+            onAddToCalendar={handleOrbAddToCalendar}
+            onNavigate={(path) => setLocation(path)}
+          />
+          {/* Phase 1.5：破壞性動作執行前的柔軟確認卡片 */}
+          <AgentIntentPreview />
+        </>
       )}
     </>
   );

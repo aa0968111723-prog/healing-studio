@@ -29,13 +29,21 @@ import {
   type ReactNode,
 } from "react";
 import {
+  AGENT_FEEDBACK_HISTORY_CAP,
   coerceAgentAction,
   drainActionsForPage,
   enqueueAction,
+  isDestructiveAction,
   parseLLMActions,
+  pushFeedback,
+  summarizeAction,
   type AgentAction,
   type AgentActionResult,
+  type AgentActionType,
   type AgentCapability,
+  type AgentFeedbackEvent,
+  type AgentFeedbackStatus,
+  type AgentIntent,
   type PageAgentSnapshot,
   type PendingAction,
 } from "../../../shared/agent-actions";
@@ -45,9 +53,16 @@ export type {
   AgentAction,
   AgentActionResult,
   AgentCapability,
+  AgentFeedbackEvent,
+  AgentIntent,
   PageAgentSnapshot,
 } from "../../../shared/agent-actions";
-export { parseLLMActions, coerceAgentAction } from "../../../shared/agent-actions";
+export {
+  parseLLMActions,
+  coerceAgentAction,
+  summarizeAction,
+  isDestructiveAction,
+} from "../../../shared/agent-actions";
 
 // ─── 內部型別 ─────────────────────────────────────────────────────────────
 
@@ -68,6 +83,27 @@ interface DispatchOptions {
    * 設為 false 會直接回傳 ok:false。
    */
   enqueueIfNoHandler?: boolean;
+  /**
+   * Phase 1.5：是否在執行前走「意圖預覽」確認流程。
+   *   - undefined（預設）→ 破壞性動作自動開啟（isDestructiveAction 判定）
+   *   - true              → 強制要求確認
+   *   - false             → 跳過確認，直接執行
+   */
+  requireConfirmation?: boolean;
+  /** 顯示在確認卡片上的 LLM 意圖摘要（可選） */
+  intentSummary?: string;
+  /** 動作來源，僅作紀錄 */
+  source?: "ai-chat" | "orb-guide" | "manual";
+}
+
+/** 正在等待使用者確認的單筆動作 */
+export interface PendingConfirmation {
+  id: string;
+  action: AgentAction;
+  summary: string;
+  intentSummary?: string;
+  source?: DispatchOptions["source"];
+  createdAt: number;
 }
 
 interface PageAgentContextValue {
@@ -89,6 +125,20 @@ interface PageAgentContextValue {
   registerPage: (page: RegisteredPage) => () => void;
   /** 目前 pending queue 長度（debug / 測試用） */
   pendingCount: number;
+  // ── Phase 1.5：確認 + 回饋基建 ───────────────────────────────
+  /** 目前等待使用者確認的動作（null 代表沒有）*/
+  pendingConfirmation: PendingConfirmation | null;
+  /** 使用者按下「好」→ 真正執行 pending 動作 */
+  confirmPending: () => Promise<AgentActionResult | null>;
+  /** 使用者按下「先不要」→ 丟掉 pending 動作，並記錄 cancelled feedback */
+  cancelPending: (note?: string) => void;
+  /** 由頁面或光球主動回報「執行完 / 失敗了 / 使用者改了」 */
+  reportFeedback: (event: Partial<AgentFeedbackEvent> & {
+    status: AgentFeedbackStatus;
+    actionType: AgentActionType | string;
+  }) => void;
+  /** 最近的使用者回饋（最多 AGENT_FEEDBACK_HISTORY_CAP 筆）*/
+  recentFeedback: AgentFeedbackEvent[];
 }
 
 const noop: PageAgentContextValue = {
@@ -98,6 +148,11 @@ const noop: PageAgentContextValue = {
   dispatchMany: async () => [],
   registerPage: () => () => {},
   pendingCount: 0,
+  pendingConfirmation: null,
+  confirmPending: async () => null,
+  cancelPending: () => {},
+  reportFeedback: () => {},
+  recentFeedback: [],
 };
 
 const PageAgentContext = createContext<PageAgentContextValue>(noop);
@@ -121,8 +176,42 @@ export function PageAgentProvider({ children }: { children: ReactNode }) {
     setPendingCount(queueRef.current.length);
   }, []);
 
-  // ─── dispatch：真正執行動作 ─────────────────────────────────────────
-  const dispatch = useCallback(
+  // ── Phase 1.5：確認閘 + 回饋 bus ────────────────────────────────
+  const [pendingConfirmation, setPendingConfirmation] =
+    useState<PendingConfirmation | null>(null);
+  const [recentFeedback, setRecentFeedback] = useState<AgentFeedbackEvent[]>(
+    []
+  );
+  /** dispatch 真正執行的內部核心，不走確認閘 */
+  const runDispatchRef = useRef<
+    ((action: AgentAction, opts: DispatchOptions) => Promise<AgentActionResult>)
+    | null
+  >(null);
+
+  const reportFeedback = useCallback(
+    (event: Partial<AgentFeedbackEvent> & {
+      status: AgentFeedbackStatus;
+      actionType: AgentActionType | string;
+    }) => {
+      setRecentFeedback(prev =>
+        pushFeedback(
+          prev,
+          {
+            at: event.at ?? Date.now(),
+            status: event.status,
+            actionType: event.actionType as AgentActionType,
+            note: event.note,
+            pageId: event.pageId ?? pageRef.current?.snapshot.pageId,
+          },
+          AGENT_FEEDBACK_HISTORY_CAP
+        )
+      );
+    },
+    []
+  );
+
+  // ─── dispatch 核心：真正執行動作（不含確認閘）──────────────────────
+  const runDispatch = useCallback(
     async (
       action: AgentAction,
       opts: DispatchOptions = {}
@@ -141,10 +230,21 @@ export function PageAgentProvider({ children }: { children: ReactNode }) {
       if (pageMatches && page) {
         try {
           const result = await page.handle(action);
-          return result ?? { ok: true };
+          const norm = result ?? { ok: true };
+          reportFeedback({
+            status: norm.ok ? "completed" : "failed",
+            actionType: action.type,
+            note: norm.ok ? undefined : (norm as { reason: string }).reason,
+          });
+          return norm;
         } catch (err: unknown) {
           const reason =
             err instanceof Error ? err.message : "handler threw unknown error";
+          reportFeedback({
+            status: "failed",
+            actionType: action.type,
+            note: reason,
+          });
           return { ok: false, reason };
         }
       }
@@ -161,7 +261,62 @@ export function PageAgentProvider({ children }: { children: ReactNode }) {
 
       return { ok: false, reason: "no matching page handler" };
     },
-    [syncPending]
+    [syncPending, reportFeedback]
+  );
+  runDispatchRef.current = runDispatch;
+
+  /** 對外的 dispatch：破壞性動作會先走確認閘 */
+  const dispatch = useCallback(
+    async (
+      action: AgentAction,
+      opts: DispatchOptions = {}
+    ): Promise<AgentActionResult> => {
+      const needConfirm =
+        opts.requireConfirmation ??
+        (isDestructiveAction(action) && pageRef.current !== null);
+      if (needConfirm) {
+        // 若已經有一張等待中的卡片，後到的直接覆蓋（last-write-wins）
+        setPendingConfirmation({
+          id: `pc-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          action,
+          summary: summarizeAction(action),
+          intentSummary: opts.intentSummary,
+          source: opts.source,
+          createdAt: Date.now(),
+        });
+        return { ok: true, message: "awaiting user confirmation" };
+      }
+      return runDispatch(action, opts);
+    },
+    [runDispatch]
+  );
+
+  const confirmPending = useCallback(async () => {
+    const pc = pendingConfirmation;
+    if (!pc) return null;
+    setPendingConfirmation(null);
+    reportFeedback({
+      status: "accepted",
+      actionType: pc.action.type,
+      note: pc.intentSummary,
+    });
+    const run = runDispatchRef.current;
+    if (!run) return null;
+    return run(pc.action, { source: pc.source });
+  }, [pendingConfirmation, reportFeedback]);
+
+  const cancelPending = useCallback(
+    (note?: string) => {
+      const pc = pendingConfirmation;
+      if (!pc) return;
+      setPendingConfirmation(null);
+      reportFeedback({
+        status: "cancelled",
+        actionType: pc.action.type,
+        note,
+      });
+    },
+    [pendingConfirmation, reportFeedback]
   );
 
   const dispatchMany = useCallback(
@@ -220,8 +375,24 @@ export function PageAgentProvider({ children }: { children: ReactNode }) {
       dispatchMany,
       registerPage,
       pendingCount,
+      pendingConfirmation,
+      confirmPending,
+      cancelPending,
+      reportFeedback,
+      recentFeedback,
     }),
-    [snapshot, dispatch, dispatchMany, registerPage, pendingCount]
+    [
+      snapshot,
+      dispatch,
+      dispatchMany,
+      registerPage,
+      pendingCount,
+      pendingConfirmation,
+      confirmPending,
+      cancelPending,
+      reportFeedback,
+      recentFeedback,
+    ]
   );
 
   return (

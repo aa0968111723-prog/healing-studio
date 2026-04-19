@@ -3339,13 +3339,70 @@ export const appRouter = router({
           personality: z
             .enum(["calm", "creative", "technical"])
             .default("creative"),
-          context: z.string().optional(), // current page / modality context
+          /** 舊版欄位：純文字頁面上下文，保留向後相容 */
+          context: z.string().optional(),
+          /**
+           * 新版：PageAgent 註冊時提供的結構化 snapshot。
+           * 帶入後 LLM 才能知道這頁有哪些 modelId / tabId / preset 可以 [ACTION:...]。
+           */
+          pageSnapshot: z
+            .object({
+              pageId: z.string(),
+              pageLabel: z.string(),
+              pagePath: z.string(),
+              capabilities: z
+                .array(
+                  z.object({
+                    action: z.string(),
+                    label: z.string(),
+                    currentId: z.string().optional(),
+                    hint: z.string().optional(),
+                    options: z
+                      .array(
+                        z.object({
+                          id: z.string(),
+                          label: z.string(),
+                          description: z.string().optional(),
+                        })
+                      )
+                      .optional(),
+                  })
+                )
+                .default([]),
+              state: z.record(z.string(), z.unknown()).optional(),
+            })
+            .optional(),
+          /** 使用者最近對光球建議的反應，給 LLM 學習偏好 */
+          recentFeedback: z
+            .array(
+              z.object({
+                at: z.number(),
+                status: z.enum([
+                  "accepted",
+                  "edited",
+                  "cancelled",
+                  "completed",
+                  "failed",
+                ]),
+                actionType: z.string(),
+                note: z.string().optional(),
+                pageId: z.string().optional(),
+              })
+            )
+            .optional(),
+          /** 強制要求：即使是非破壞性動作也要先確認 */
+          alwaysConfirm: z.boolean().optional(),
         })
       )
       .mutation(async ({ input }) => {
         const systemPrompt = buildOrbSystemPrompt(
           input.personality,
-          input.context ?? undefined
+          input.context ?? undefined,
+          {
+            pageSnapshot: input.pageSnapshot,
+            recentFeedback: input.recentFeedback,
+            alwaysConfirm: input.alwaysConfirm,
+          }
         );
 
         // Prefer MiniMax M2.7 via NVIDIA NIM for orb agent, fallback to default
@@ -3381,11 +3438,16 @@ export const appRouter = router({
             return {
               reply: "✨ 抱歉，我暫時無法回應。稍後再試試看吧～",
               actions: [],
+              intent: null,
+              askBeforeAct: false,
+              suggestions: [],
             };
           }
 
           // ── Parse & whitelist ACTION commands ──
+          // Phase 1.5：擴充白名單，讓 LLM 能直接輸出 PageAgent 理解的動作
           const ALLOWED_ACTIONS = new Set([
+            // Legacy（Studio 舊路徑仍在用）
             "navigate",
             "preset",
             "modality",
@@ -3393,6 +3455,17 @@ export const appRouter = router({
             "generate",
             "refine",
             "export",
+            // Phase 1 PageAgent bus
+            "fillPrompt",
+            "setModel",
+            "setTab",
+            "setMode",
+            "setModality",
+            "setParam",
+            "applyPreset",
+            "submit",
+            "reset",
+            "focusElement",
           ]);
           const actionPattern = /\[ACTION:(\w+):([^\]]*)\]/g;
           const actions: Array<{ type: string; payload: string }> = [];
@@ -3407,7 +3480,43 @@ export const appRouter = router({
             reply = reply.replace(match[0], "").trim();
           }
 
-          return { reply, actions };
+          // Phase 1.5：解析新 marker — 意圖摘要 / 確認旗標 / 快速回覆建議
+          let intent: string | null = null;
+          const intentMatch = /\[INTENT:([^\]]+)\]/.exec(reply);
+          if (intentMatch) {
+            intent = intentMatch[1].trim();
+            reply = reply.replace(intentMatch[0], "").trim();
+          }
+
+          let askBeforeAct = false;
+          const confirmMatch = /\[CONFIRM:(true|false)\]/i.exec(reply);
+          if (confirmMatch) {
+            askBeforeAct = confirmMatch[1].toLowerCase() === "true";
+            reply = reply.replace(confirmMatch[0], "").trim();
+          }
+
+          const suggestions: string[] = [];
+          const suggestMatch = /\[SUGGEST:([^\]]+)\]/.exec(reply);
+          if (suggestMatch) {
+            suggestMatch[1]
+              .split("|")
+              .map(s => s.trim())
+              .filter(s => s.length > 0 && s.length <= 20)
+              .slice(0, 4)
+              .forEach(s => suggestions.push(s));
+            reply = reply.replace(suggestMatch[0], "").trim();
+          }
+
+          // 破壞性動作預設要求確認（LLM 沒標 CONFIRM 時的保險絲）
+          const hasDestructive = actions.some(a =>
+            ["submit", "reset", "applyPreset", "preset", "generate"].includes(
+              a.type
+            )
+          );
+          if (!confirmMatch && hasDestructive) askBeforeAct = true;
+          if (input.alwaysConfirm && actions.length > 0) askBeforeAct = true;
+
+          return { reply, actions, intent, askBeforeAct, suggestions };
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : String(err);
           console.error("[Orb] Chat error:", errorMsg);
@@ -3416,6 +3525,9 @@ export const appRouter = router({
             reply:
               "🌿 抱歉，我剛才遇到了一點小狀況。請稍等一下再試試～如果問題持續，可以在設定頁檢查 API 設定唷。",
             actions: [],
+            intent: null,
+            askBeforeAct: false,
+            suggestions: [],
           };
         }
       }),

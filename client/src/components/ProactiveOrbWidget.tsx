@@ -931,8 +931,18 @@ export default memo(function ProactiveOrbWidget({
         messages: llmMessages,
         personality,
         context: contextStr,
+        // Phase 1.5：送上結構化頁面 snapshot + 最近回饋，讓 LLM 真正看懂這頁
+        pageSnapshot: pageAgent.snapshot ?? undefined,
+        recentFeedback: pageAgent.recentFeedback,
       });
       setChatMessages(prev => [...prev, { role: "orb", text: data.reply }]);
+
+      // Phase 1.5：若 LLM 附了 INTENT 摘要，先浮顯「光球想做什麼」給使用者看
+      const intentSummary =
+        typeof (data as { intent?: string | null }).intent === "string"
+          ? ((data as { intent?: string | null }).intent as string)
+          : undefined;
+      const askBeforeAct = (data as { askBeforeAct?: boolean }).askBeforeAct === true;
 
       // Handle agent actions from LLM response
       if (data.actions && Array.isArray(data.actions)) {
@@ -964,11 +974,21 @@ export default memo(function ProactiveOrbWidget({
           }
         }
 
-        // 同時把結構化 actions 丟進 PageAgent bus —— Phase 2 起各頁接入後才會真正生效；
-        // Phase 1 僅進 queue（無頁面註冊時），不會改變現行行為。
+        // 同時把結構化 actions 丟進 PageAgent bus。
+        // PageAgentContext.dispatch 內部會自動：
+        //   - 非破壞性動作（fillPrompt / setModel / setTab…）→ 直接執行
+        //   - 破壞性動作（submit / reset / applyPreset / setModality）→ 走確認閘，
+        //     由 AgentIntentPreview 卡片請使用者按「好啊」或「先不要」
         const structured = parseLLMActions(data.actions);
         if (structured.length > 0) {
-          void pageAgent.dispatchMany(structured);
+          for (const action of structured) {
+            void pageAgent.dispatch(action, {
+              source: "ai-chat",
+              intentSummary,
+              // 若 LLM 明說 askBeforeAct，所有動作一律先問；否則用內建破壞性判斷
+              requireConfirmation: askBeforeAct ? true : undefined,
+            });
+          }
         }
       }
     } catch {

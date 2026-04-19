@@ -293,6 +293,190 @@ function isModality(v: unknown): v is AgentModality {
   return v === "image" || v === "video" || v === "audio" || v === "voice";
 }
 
+// ─── Phase 1.5：意圖 / 回饋 / 確認 輔助層 ────────────────────────────────
+//
+// 這一層的目的是讓光球「裝載真正的代理人模型（MiniMax M2.7）」時，
+// 仍然能保留「不讓使用者焦慮」的核心原則：
+//   - 所有破壞性動作（submit / reset / applyPreset / setModality…）
+//     都要先請使用者確認
+//   - 使用者的接受 / 修改 / 拒絕會回流給下一輪 LLM，讓他學會你的偏好
+//   - 頁面能力 + 當前狀態以結構化形式送給 LLM，減少幻覺
+//
+// 都是純函式，可在 node / vitest 環境直接呼叫。
+
+/** 光球動作是否屬於「需要使用者確認」的類型 */
+export function isDestructiveAction(action: AgentAction): boolean {
+  switch (action.type) {
+    case "submit":
+    case "reset":
+    case "applyPreset":
+    case "setModality":
+      return true;
+    default:
+      return false;
+  }
+}
+
+/**
+ * 把動作轉成給使用者看的繁中摘要（放在確認卡片上）。
+ * 故意保持柔軟、邀請式語氣，不用命令句。
+ */
+export function summarizeAction(action: AgentAction): string {
+  switch (action.type) {
+    case "fillPrompt": {
+      const preview = action.text.length > 40
+        ? action.text.slice(0, 40) + "…"
+        : action.text;
+      const slotLabel =
+        action.slot === "negativePrompt"
+          ? "負面提示詞"
+          : action.slot === "lyrics"
+          ? "歌詞"
+          : "提示詞";
+      return action.append
+        ? `想把「${preview}」補到${slotLabel}後面`
+        : `想把${slotLabel}換成「${preview}」`;
+    }
+    case "setModel":
+      return `想把模型切到「${action.modelId}」`;
+    case "setTab":
+      return `想幫你切到「${action.tabId}」分頁`;
+    case "setMode":
+      return `想幫你切到「${action.modeId}」模式`;
+    case "setModality":
+      return `想幫你切到「${action.modality}」創作`;
+    case "setParam":
+      return `想把 ${action.key} 設成 ${JSON.stringify(action.value)}`;
+    case "applyPreset":
+      return `想套用「${action.presetId}」這組預設`;
+    case "submit":
+      return "想幫你送出這次生成";
+    case "reset":
+      return "想把這一頁的設定重置";
+    case "navigate":
+      return `想帶你去 ${action.path}`;
+    case "focusElement":
+      return action.message ?? `想指出「${action.elementId}」這個地方`;
+  }
+}
+
+/** 光球預覽/確認卡片會用到的 intent 結構 */
+export interface AgentIntent {
+  /** 簡潔的「我想怎麼做」 */
+  summary: string;
+  /** 可選：為什麼這樣建議 */
+  reason?: string;
+  /** 要執行的動作 */
+  action: AgentAction;
+  /** 派送來源：ai-chat / orb-guide / manual */
+  source?: "ai-chat" | "orb-guide" | "manual";
+}
+
+// ─── Feedback — 使用者對光球動作的回應 ──────────────────────────────────
+
+export type AgentFeedbackStatus =
+  | "accepted" // 使用者按了確認
+  | "edited" // 使用者改了再送
+  | "cancelled" // 使用者按了先不要
+  | "completed" // handler 回報成功
+  | "failed"; // handler 回報失敗 / 丟例外
+
+export interface AgentFeedbackEvent {
+  at: number;
+  status: AgentFeedbackStatus;
+  actionType: AgentActionType;
+  /** 可選：使用者說的話（從聊天輸入框擷取） */
+  note?: string;
+  /** 可選：頁面上下文（pageId） */
+  pageId?: string;
+}
+
+/** 最多保留幾筆近期回饋；太多會污染 prompt */
+export const AGENT_FEEDBACK_HISTORY_CAP = 8;
+
+/** 往尾端新增一筆回饋，超過上限則丟棄最舊的 */
+export function pushFeedback(
+  list: AgentFeedbackEvent[],
+  event: AgentFeedbackEvent,
+  cap: number = AGENT_FEEDBACK_HISTORY_CAP
+): AgentFeedbackEvent[] {
+  const next = [...list, event];
+  if (next.length <= cap) return next;
+  return next.slice(next.length - cap);
+}
+
+/** 把 feedback 歷史壓成給 LLM 的一行文字；空列回空字串 */
+export function serializeFeedbackForPrompt(
+  list: AgentFeedbackEvent[],
+  now: number = Date.now()
+): string {
+  if (!list.length) return "";
+  const lines = list.slice(-5).map(ev => {
+    const ageSec = Math.max(0, Math.round((now - ev.at) / 1000));
+    const note = ev.note ? `（${ev.note}）` : "";
+    return `- ${ev.actionType}: ${ev.status}${note}｜${ageSec}s 前`;
+  });
+  return `【使用者最近對光球建議的反應】\n${lines.join("\n")}`;
+}
+
+// ─── Snapshot 序列化 — 讓 LLM 真正看見頁面能力 ─────────────────────────
+
+/**
+ * 把頁面 snapshot 壓成 ~600 字內的繁中描述丟進 system prompt。
+ * LLM 看到這段後就能用正確的 modelId / tabId / presetId 回覆 [ACTION:...]。
+ */
+export function serializeSnapshotForPrompt(
+  snapshot: PageAgentSnapshot | null | undefined
+): string {
+  if (!snapshot) return "";
+  const lines: string[] = [];
+  lines.push(
+    `【使用者目前在「${snapshot.pageLabel}」（${snapshot.pagePath}，pageId=${snapshot.pageId}）】`
+  );
+  if (snapshot.capabilities.length > 0) {
+    lines.push("【此頁可用的代理人動作】");
+    for (const cap of snapshot.capabilities) {
+      const optCount = cap.options?.length ?? 0;
+      const current = cap.currentId ? `（目前=${cap.currentId}）` : "";
+      const head = `- ${cap.label} [${cap.action}]${current}`;
+      lines.push(head);
+      if (optCount > 0 && cap.options) {
+        const opts = cap.options
+          .slice(0, 12)
+          .map(o => o.id)
+          .join(", ");
+        const more = optCount > 12 ? `…+${optCount - 12} 個` : "";
+        lines.push(`  可選：${opts}${more}`);
+      }
+      if (cap.hint) lines.push(`  備註：${cap.hint}`);
+    }
+  }
+  if (snapshot.state && Object.keys(snapshot.state).length > 0) {
+    const stateKeys = Object.keys(snapshot.state).slice(0, 8);
+    const parts = stateKeys.map(k => {
+      const v = (snapshot.state as Record<string, unknown>)[k];
+      const s = typeof v === "string" ? v : JSON.stringify(v);
+      const trimmed = s && s.length > 40 ? s.slice(0, 40) + "…" : s;
+      return `${k}=${trimmed}`;
+    });
+    lines.push(`【即時狀態】${parts.join(" · ")}`);
+  }
+  return lines.join("\n");
+}
+
+// ─── OrbChatResponse — 新版 ai.chat 回傳形狀（向後相容） ───────────────
+
+export interface OrbChatResponse {
+  reply: string;
+  actions: Array<{ type: string; payload: string }>;
+  /** 新增：光球想做什麼的自然語言摘要（給確認卡片用） */
+  intent?: string | null;
+  /** 新增：使用者在執行前是否要先確認 */
+  askBeforeAct?: boolean;
+  /** 新增：快速回覆建議（「好啊」「再想想」「換個模型」） */
+  suggestions?: string[];
+}
+
 /** 兩個 action 是否指向同一個「槽位」（用於 enqueue 去重） */
 function sameSlot(a: AgentAction, b: AgentAction): boolean {
   if (a.type !== b.type) return false;
