@@ -1236,3 +1236,48 @@ export const userSubscriptions = mysqlTable("user_subscriptions", {
 
 export type UserSubscription = typeof userSubscriptions.$inferSelect;
 export type InsertUserSubscription = typeof userSubscriptions.$inferInsert;
+
+// ─── Orb Feedback Events（Phase 3c：光球跨 session 長期記憶）────────────────
+//
+// 使用者對光球建議的每一筆反應都寫進來（accepted / edited / cancelled /
+// completed / failed），LLM 下輪對話可讀回去，學會使用者的偏好。
+//
+// 設計上刻意輕量：一筆 reaction 只有 1 row，不做複雜的聚合 / 向量搜尋；
+// 讀取時 LIMIT 最新 N 筆，壓成繁中給 system prompt。
+export const orbFeedbackEvents = mysqlTable(
+  "orb_feedback_events",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    /** 來自哪一頁（ImageStudio / VideoStudio /…）；空代表全站情境 */
+    pageId: varchar("pageId", { length: 64 }),
+    /** 動作類型（setModel / applyPreset / submit …） */
+    actionType: varchar("actionType", { length: 32 }).notNull(),
+    /** accepted / edited / cancelled / completed / failed */
+    status: mysqlEnum("status", [
+      "accepted",
+      "edited",
+      "cancelled",
+      "completed",
+      "failed",
+    ]).notNull(),
+    /** 使用者的一句話（若有從聊天擷取）或 LLM 的意圖摘要 */
+    note: varchar("note", { length: 512 }),
+    /** 動作本身的 payload 摘要（modelId、presetId 之類的） */
+    actionSummary: varchar("actionSummary", { length: 256 }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    userIdCreatedAtIdx: index("ofe_userId_createdAt_idx").on(
+      table.userId,
+      table.createdAt
+    ),
+    userIdActionTypeIdx: index("ofe_userId_actionType_idx").on(
+      table.userId,
+      table.actionType
+    ),
+  })
+);
+
+export type OrbFeedbackEvent = typeof orbFeedbackEvents.$inferSelect;
+export type InsertOrbFeedbackEvent = typeof orbFeedbackEvents.$inferInsert;

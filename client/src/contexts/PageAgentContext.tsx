@@ -28,6 +28,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { trpc } from "@/lib/trpc";
 import {
   AGENT_FEEDBACK_HISTORY_CAP,
   coerceAgentAction,
@@ -258,11 +259,16 @@ export function PageAgentProvider({ children }: { children: ReactNode }) {
     | null
   >(null);
 
+  // Phase 3c：把 feedback 事件同步寫進 DB。fire-and-forget，失敗不影響 UX。
+  const persistMemory = trpc.orbMemory.append.useMutation();
+
   const reportFeedback = useCallback(
     (event: Partial<AgentFeedbackEvent> & {
       status: AgentFeedbackStatus;
       actionType: AgentActionType | string;
     }) => {
+      const resolvedPageId =
+        event.pageId ?? pageRef.current?.snapshot.pageId;
       setRecentFeedback(prev =>
         pushFeedback(
           prev,
@@ -271,13 +277,23 @@ export function PageAgentProvider({ children }: { children: ReactNode }) {
             status: event.status,
             actionType: event.actionType as AgentActionType,
             note: event.note,
-            pageId: event.pageId ?? pageRef.current?.snapshot.pageId,
+            pageId: resolvedPageId,
           },
           AGENT_FEEDBACK_HISTORY_CAP
         )
       );
+      // 非阻塞寫入 DB，錯誤吞掉以免汙染 console
+      persistMemory.mutate(
+        {
+          status: event.status,
+          actionType: String(event.actionType).slice(0, 32),
+          pageId: resolvedPageId ? String(resolvedPageId).slice(0, 64) : undefined,
+          note: event.note ? String(event.note).slice(0, 512) : undefined,
+        },
+        { onError: () => {} }
+      );
     },
-    []
+    [persistMemory]
   );
 
   // ─── dispatch 核心：真正執行動作（不含確認閘）──────────────────────

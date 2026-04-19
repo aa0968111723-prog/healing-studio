@@ -407,6 +407,45 @@ export function pushFeedback(
   return next.slice(next.length - cap);
 }
 
+/**
+ * Phase 3c：把「本 session 的 feedback」與「DB 長期記憶」合併成一份給 prompt 的清單。
+ *
+ * 規則：
+ *   - 兩邊以 at（timestamp ms）為基準合併
+ *   - 依時間新到舊排序
+ *   - 最多取 cap 筆，預設 12（比 session cap 8 多一點，給長期記憶一點空間）
+ *   - 同一筆事件（at + actionType + status 三合一完全相同）視為重複，去重
+ *
+ * 純函式，不動 DB／不動 state；適合在 server 側 ai.chat 組 prompt 時使用。
+ *
+ * 型別刻意寬鬆（actionType 收 string 而非 AgentActionType union），因為：
+ *   - server 從 DB / Zod 收到的是字串
+ *   - serializeFeedbackForPrompt 只會把它丟進 template，不做分支
+ *   - 未來 LLM 端新增動作時不用改這邊的 signature
+ */
+export type FeedbackEventLike = Omit<AgentFeedbackEvent, "actionType"> & {
+  actionType: string;
+};
+
+export function mergeFeedbackHistories<T extends FeedbackEventLike>(
+  sessionEvents: T[] | undefined,
+  dbEvents: T[] | undefined,
+  cap: number = 12
+): T[] {
+  const a = sessionEvents ?? [];
+  const b = dbEvents ?? [];
+  const seen = new Set<string>();
+  const merged: T[] = [];
+  for (const ev of [...a, ...b]) {
+    const key = `${ev.at}|${ev.actionType}|${ev.status}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(ev);
+  }
+  merged.sort((x, y) => y.at - x.at);
+  return merged.slice(0, Math.max(0, cap));
+}
+
 /** 把 feedback 歷史壓成給 LLM 的一行文字；空列回空字串 */
 export function serializeFeedbackForPrompt(
   list: AgentFeedbackEvent[],

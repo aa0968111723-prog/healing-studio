@@ -28,6 +28,9 @@ import {
   InsertBlockCombo,
   systemSettings,
   InsertSystemSetting,
+  orbFeedbackEvents,
+  InsertOrbFeedbackEvent,
+  OrbFeedbackEvent,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -1304,4 +1307,29 @@ export async function getAllBackgroundJobs(limit = 100) {
     .from(backgroundJobs)
     .orderBy(desc(backgroundJobs.createdAt))
     .limit(limit);
+}
+
+// ─── Orb Feedback Events（Phase 3c 長期記憶）────────────────────────────────
+
+/** 寫入一筆光球回饋事件；DB 不在時回 null（上層忽略即可） */
+export async function appendOrbFeedback(data: InsertOrbFeedbackEvent) {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db.insert(orbFeedbackEvents).values(data);
+  return result[0].insertId;
+}
+
+/** 取最近 N 筆（預設 20），依 createdAt 由新到舊 */
+export async function getRecentOrbFeedback(
+  userId: number,
+  limit = 20
+): Promise<OrbFeedbackEvent[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(orbFeedbackEvents)
+    .where(eq(orbFeedbackEvents.userId, userId))
+    .orderBy(desc(orbFeedbackEvents.createdAt))
+    .limit(Math.max(1, Math.min(50, limit)));
 }

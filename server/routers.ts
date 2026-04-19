@@ -35,6 +35,7 @@ import { getOrchestrator } from "./services/modelClients";
 import { buildMemoryContext, upsertMemory } from "./services/ragMemory";
 import { buildOrbSystemPrompt } from "./services/siteKnowledge";
 import { parseOrbReply } from "./services/orbReplyParser";
+import { mergeFeedbackHistories } from "../shared/agent-actions";
 import {
   estimatePoints,
   getModelPricing,
@@ -3395,13 +3396,38 @@ export const appRouter = router({
           alwaysConfirm: z.boolean().optional(),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        // Phase 3c：把 DB 裡的長期記憶跟前端 session 記憶合併給 prompt。
+        // 前端剛啟動時 recentFeedback 是空的，但使用者過去的接受/拒絕早已
+        // 寫進 orb_feedback_events；這裡讀最近 10 筆補上去。
+        const dbMemory = await db
+          .getRecentOrbFeedback(ctx.user.id, 10)
+          .catch(() => [] as Array<{
+            createdAt: Date;
+            status: "accepted" | "edited" | "cancelled" | "completed" | "failed";
+            actionType: string;
+            note: string | null;
+            pageId: string | null;
+          }>);
+        const dbEvents = dbMemory.map(row => ({
+          at: row.createdAt.getTime(),
+          status: row.status,
+          actionType: row.actionType,
+          note: row.note ?? undefined,
+          pageId: row.pageId ?? undefined,
+        }));
+        const mergedFeedback = mergeFeedbackHistories(
+          input.recentFeedback,
+          dbEvents,
+          12
+        );
+
         const systemPrompt = buildOrbSystemPrompt(
           input.personality,
           input.context ?? undefined,
           {
             pageSnapshot: input.pageSnapshot,
-            recentFeedback: input.recentFeedback,
+            recentFeedback: mergedFeedback,
             alwaysConfirm: input.alwaysConfirm,
           }
         );
@@ -3462,6 +3488,64 @@ export const appRouter = router({
             suggestions: [],
           };
         }
+      }),
+  }),
+
+  // ─── Orb Memory（Phase 3c：光球跨 session 長期記憶） ──────────────────────
+  //
+  // 前端 `PageAgentContext.reportFeedback` 會把使用者對光球建議的反應
+  // （accepted / edited / cancelled / completed / failed）寫進 DB，
+  // 下一次 ai.chat 會把這些記憶補進 system prompt，讓 LLM 學偏好。
+  orbMemory: router({
+    append: protectedProcedure
+      .input(
+        z.object({
+          status: z.enum([
+            "accepted",
+            "edited",
+            "cancelled",
+            "completed",
+            "failed",
+          ]),
+          actionType: z.string().max(32),
+          pageId: z.string().max(64).optional(),
+          note: z.string().max(512).optional(),
+          actionSummary: z.string().max(256).optional(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        await db.appendOrbFeedback({
+          userId: ctx.user.id,
+          status: input.status,
+          actionType: input.actionType,
+          pageId: input.pageId ?? null,
+          note: input.note ?? null,
+          actionSummary: input.actionSummary ?? null,
+        });
+        return { ok: true as const };
+      }),
+
+    recent: protectedProcedure
+      .input(
+        z
+          .object({
+            limit: z.number().int().min(1).max(50).default(20),
+          })
+          .optional()
+      )
+      .query(async ({ input, ctx }) => {
+        const rows = await db.getRecentOrbFeedback(
+          ctx.user.id,
+          input?.limit ?? 20
+        );
+        return rows.map(r => ({
+          at: r.createdAt.getTime(),
+          status: r.status,
+          actionType: r.actionType,
+          note: r.note ?? undefined,
+          pageId: r.pageId ?? undefined,
+          actionSummary: r.actionSummary ?? undefined,
+        }));
       }),
   }),
 
