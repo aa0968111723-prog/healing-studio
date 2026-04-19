@@ -6918,6 +6918,1958 @@ await sendDiscordAlert({
     featured: false,
     authorName: "Healing Studio Team",
   },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 新增 15 篇文件：全站階層式知識庫（2026-04-19）
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  {
+    id: "kb-background-tasks",
+    title: "背景任務中心完整指南",
+    category: "getting-started",
+    summary: "說明 /background-tasks 頁面的 9 種任務類型、狀態輪詢機制與結果預覽功能。",
+    content: `# 背景任務中心完整指南
+
+## 什麼是背景任務中心？
+
+**路徑**：\`/background-tasks\`
+
+背景任務中心讓所有耗時的 AI 生成工作在後台執行，使用者可以繼續使用網站，完成後再回來查看結果。
+
+---
+
+## 支援的 9 種任務類型
+
+| jobType | 說明 | 預估時間 |
+|---------|------|----------|
+| \`image_generation\` | 圖像生成（Flux / SDXL / Stable Diffusion） | 10–60 秒 |
+| \`video_generation\` | 影片生成（WAN / Hailuo / Kling） | 1–5 分鐘 |
+| \`audio_generation\` | 音頻生成（Suno / MusicGen） | 30–120 秒 |
+| \`voice_cloning\` | 語音克隆（ElevenLabs / F5-TTS） | 20–90 秒 |
+| \`3d_generation\` | 3D 模型生成（Tripo3D） | 2–5 分鐘 |
+| \`lora_training\` | LoRA 微調訓練 | 10–60 分鐘 |
+| \`video_script\` | 腳本分析與分鏡生成 | 30–60 秒 |
+| \`cross_modal\` | 跨模態轉換 | 1–3 分鐘 |
+| \`batch_export\` | 批量匯出資產 | 依數量而定 |
+
+---
+
+## 任務狀態流程
+
+\`\`\`
+pending → processing → completed
+                    ↘ failed
+                    ↘ cancelled
+\`\`\`
+
+- **pending**：已排隊等待執行
+- **processing**：正在執行中
+- **completed**：成功完成，可查看結果
+- **failed**：執行失敗，可查看錯誤訊息
+- **cancelled**：使用者手動取消
+
+---
+
+## 狀態輪詢機制
+
+前端每 **3 秒**自動呼叫 \`backgroundTask.getStatus\` API，直到任務狀態變為 \`completed\` 或 \`failed\`。
+
+\`\`\`typescript
+// 輪詢邏輯示例
+const { data } = trpc.backgroundTask.getStatus.useQuery(
+  { jobId },
+  { refetchInterval: 3000, enabled: status === 'processing' }
+);
+\`\`\`
+
+---
+
+## 超時機制
+
+- 所有背景任務最長執行時間：**30 分鐘**
+- 超時後自動標記為 \`failed\`，錯誤訊息為 \`"Task timeout after 30 minutes"\`
+
+---
+
+## 結果預覽
+
+任務完成後，\`resultJson\` 欄位儲存輸出結果：
+
+\`\`\`json
+{
+  "url": "https://cdn.example.com/output.mp4",
+  "thumbnailUrl": "https://cdn.example.com/thumb.jpg",
+  "duration": 15.3,
+  "metadata": { "width": 1920, "height": 1080 }
+}
+\`\`\`
+
+---
+
+## 如何使用
+
+1. 前往任意創作工具（圖像、影片、音頻等）
+2. 點擊「生成」按鈕，任務自動進入背景執行
+3. 頁面右上角出現任務通知圖示
+4. 點擊通知或前往 \`/background-tasks\` 查看進度
+5. 完成後點擊「查看結果」預覽並儲存到資產庫
+`,
+    tags: ["背景任務", "生成", "非同步", "狀態追蹤"],
+    difficulty: "beginner",
+    readingMinutes: 6,
+    publishedAt: "2026-04-19T00:00:00Z",
+    updatedAt: "2026-04-19T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+
+  {
+    id: "kb-prompt-library",
+    title: "提示詞庫完整指南",
+    category: "technique",
+    summary: "說明 /prompt-library 的 7 大分類、公開廣場、收藏與使用次數統計功能。",
+    content: `# 提示詞庫完整指南
+
+## 什麼是提示詞庫？
+
+**路徑**：\`/prompt-library\`
+
+提示詞庫是集中管理所有 AI 提示詞的地方，支援個人收藏、公開分享，以及按使用情境分類。
+
+---
+
+## 7 大分類
+
+| category | 說明 | 適用工具 |
+|----------|------|----------|
+| \`general\` | 通用提示詞 | 所有 AI 工具 |
+| \`image\` | 圖像生成提示詞 | 圖像工作室 |
+| \`video\` | 影片生成提示詞 | 影片工作室 |
+| \`audio\` | 音頻生成提示詞 | 音頻工作室 |
+| \`voice\` | 語音合成提示詞 | 語音複製 |
+| \`story\` | 故事創作提示詞 | Director AI |
+| \`system\` | 系統級提示詞 | AI Brain 設定 |
+
+---
+
+## 功能詳解
+
+### 建立提示詞
+
+1. 點擊「新增提示詞」按鈕
+2. 填寫標題、內容、分類標籤
+3. 選擇是否公開分享
+
+### 公開廣場
+
+- 切換到「廣場」Tab 可瀏覽所有公開提示詞
+- 按 \`useCount\`（使用次數）排序，熱門提示詞排在最前
+- 可直接「複製」或「收藏」他人的提示詞
+
+### 收藏功能
+
+- 點擊提示詞卡片上的 ★ 圖示即可收藏
+- 收藏的提示詞顯示在「我的收藏」Tab
+
+### 使用次數統計
+
+每次點擊「使用此提示詞」按鈕，\`useCount\` 自動 +1。這個數字反映了該提示詞的受歡迎程度。
+
+---
+
+## 搜尋與篩選
+
+- **關鍵字搜尋**：標題與內容全文搜尋
+- **分類篩選**：點擊分類 Tag 快速篩選
+- **排序方式**：最新建立 / 最多使用 / 最近更新
+
+---
+
+## 在工具中使用
+
+在任何創作工具的提示詞輸入框旁，點擊「從提示詞庫選取」按鈕，可直接從庫中選取並填入提示詞。
+
+---
+
+## 資料庫結構
+
+\`\`\`sql
+promptLibrary (
+  id, userId, title, content,
+  category ENUM('general','image','video','audio','voice','story','system'),
+  isPublic BOOLEAN,
+  useCount INT DEFAULT 0,
+  tags JSON,
+  createdAt, updatedAt
+)
+\`\`\`
+`,
+    tags: ["提示詞", "收藏", "廣場", "分類", "AI"],
+    difficulty: "beginner",
+    readingMinutes: 5,
+    publishedAt: "2026-04-19T00:00:00Z",
+    updatedAt: "2026-04-19T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+
+  {
+    id: "kb-showcase",
+    title: "首頁精選展示系統指南",
+    category: "getting-started",
+    summary: "說明 featuredShowcase 表的 promote 流程、sortWeight 排序、likeCount 互動與 Cursor 分頁。",
+    content: `# 首頁精選展示系統指南
+
+## 什麼是精選展示？
+
+首頁（\`/\`）的 Showcase Masonry 牆展示社群中最優秀的 AI 生成作品。作品由使用者自行申請加入精選，或由管理員直接設置。
+
+---
+
+## 精選展示資料庫結構
+
+\`\`\`sql
+featuredShowcase (
+  id, userId, title, description,
+  mediaUrl, thumbnailUrl,
+  modality ENUM('image','video','audio','3d'),
+  sortWeight INT DEFAULT 0,   -- 數字越大越靠前
+  likeCount INT DEFAULT 0,    -- 按讚數
+  isActive BOOLEAN DEFAULT true,
+  createdAt, updatedAt
+)
+\`\`\`
+
+---
+
+## Promote 流程（申請加入精選）
+
+1. 在資產庫（\`/assets\`）找到你的作品
+2. 點擊「申請精選」按鈕
+3. 填寫標題、說明
+4. 系統呼叫 \`showcase.promote\` API
+5. 作品以 \`sortWeight: 0\` 進入精選佇列
+6. 管理員可在後台調整 \`sortWeight\` 提高排序
+
+---
+
+## sortWeight 排序邏輯
+
+- \`sortWeight\` 越高，在 Masonry 牆越靠前
+- 同 \`sortWeight\` 的作品以 \`createdAt\` 倒序排列
+- 管理員可設定 1–1000 的排序權重
+
+---
+
+## likeCount 互動
+
+- 任何登入使用者都可以對精選作品按讚
+- 重複按讚會取消讚（Toggle 機制）
+- \`likeCount\` 即時更新，不刷頁
+
+---
+
+## Cursor 分頁
+
+精選展示使用 **Cursor 分頁**（非傳統 offset 分頁）：
+
+\`\`\`typescript
+// 請求第一頁
+trpc.showcase.list({ limit: 20 })
+
+// 請求下一頁（傳入上一頁最後一筆的 cursor）
+trpc.showcase.list({ limit: 20, cursor: lastItemId })
+\`\`\`
+
+這確保在高頻更新的情況下，分頁結果不會重複或遺漏。
+
+---
+
+## API 端點
+
+| 端點 | 說明 |
+|------|------|
+| \`showcase.list\` | 取得精選列表（Cursor 分頁） |
+| \`showcase.getById\` | 取得單一作品完整資訊 |
+| \`showcase.myItems\` | 取得我的精選申請 |
+| \`showcase.promote\` | 申請加入精選 |
+| \`showcase.stats\` | 取得展示統計（管理員） |
+`,
+    tags: ["精選", "首頁", "展示", "Masonry", "社群"],
+    difficulty: "beginner",
+    readingMinutes: 5,
+    publishedAt: "2026-04-19T00:00:00Z",
+    updatedAt: "2026-04-19T00:00:00Z",
+    featured: true,
+    authorName: "Healing Studio Team",
+  },
+
+  {
+    id: "kb-sense-engine",
+    title: "Sense Engine 意圖推論引擎指南",
+    category: "technique",
+    summary: "說明 Sense Engine 的 6 種行為事件監聽、OARS 框架與 6 種心理判定類型。",
+    content: `# Sense Engine 意圖推論引擎指南
+
+## 什麼是 Sense Engine？
+
+Sense Engine 是 Healing Studio 的**隱式意圖感知系統**，它透過監聽使用者在頁面上的行為模式，自動推論使用者當前的心理狀態，並據此提供個性化建議。
+
+---
+
+## 6 種行為事件
+
+| 事件 | 觸發條件 | 意義 |
+|------|----------|------|
+| \`cardDwell\` | 滑鼠停留在卡片上 > 2 秒 | 使用者對此內容感興趣 |
+| \`scrollHesitation\` | 滾動速度突然變慢 | 使用者看到感興趣的內容 |
+| \`hoverIntent\` | 滑鼠移向按鈕但未點擊 | 猶豫中，考慮行動 |
+| \`clickAbort\` | 開始點擊但中途放棄 | 決策障礙或改變主意 |
+| \`sectionVisit\` | 進入特定頁面區塊 | 主動探索某個功能 |
+| \`rapidScan\` | 快速上下滾動頁面 | 尋找特定內容 |
+
+---
+
+## OARS 框架
+
+Sense Engine 使用 **OARS** 框架分析行為序列：
+
+- **O**bserve（觀察）：記錄所有行為事件
+- **A**nalyze（分析）：統計事件頻率與模式
+- **R**eason（推理）：對應到心理狀態模型
+- **S**uggest（建議）：觸發個性化 UI 回應
+
+---
+
+## 6 種心理判定類型
+
+| 心理類型 | 觸發行為組合 | UI 回應 |
+|----------|-------------|---------|
+| \`choice_paralysis\` | 多次 clickAbort + hoverIntent | 顯示「為你推薦」精選 |
+| \`aesthetic_preference\` | 長時間 cardDwell 在視覺內容 | 推送相似風格作品 |
+| \`exploration_mode\` | rapidScan + sectionVisit 多區塊 | 顯示功能導覽地圖 |
+| \`goal_oriented\` | 快速點擊、少停留 | 減少干擾，簡化界面 |
+| \`inspiration_seeking\` | scrollHesitation 在創意內容 | 推送靈感 Gallery |
+| \`passive_browsing\` | 低互動、長時間停留 | 自動播放精選內容 |
+
+---
+
+## 首頁觸發示例
+
+在首頁（\`/\`），當 Sense Engine 判定使用者為 \`choice_paralysis\` 狀態時：
+1. 右下角彈出「不知道從哪開始？」提示卡
+2. 顯示根據歷史使用偏好的個性化功能入口
+3. Director AI 的歡迎訊息調整為引導式問題
+
+---
+
+## 隱私說明
+
+Sense Engine 的所有分析均在**本地瀏覽器端**執行，不上傳原始行為數據到伺服器。只有最終的心理判定結果（用於個性化推薦）才會存入使用者的 AI Brain 設定中。
+`,
+    tags: ["Sense Engine", "意圖推論", "個性化", "行為分析", "OARS"],
+    difficulty: "advanced",
+    readingMinutes: 8,
+    publishedAt: "2026-04-19T00:00:00Z",
+    updatedAt: "2026-04-19T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+
+  {
+    id: "kb-settings-complete",
+    title: "個人設定完整指南",
+    category: "getting-started",
+    summary: "說明 /settings 頁面的 5 個 Tab：個人資料、外觀、通知、引導設定、管理員面板。",
+    content: `# 個人設定完整指南
+
+## 設定頁面入口
+
+**路徑**：\`/settings\`（基本設定）、\`/settings/ai-brain\`（AI Brain 設定）
+
+---
+
+## Tab 1：個人資料（profile）
+
+- **顯示名稱**：最多 50 字元
+- **頭像**：上傳自訂頭像（最大 5MB，支援 JPG/PNG/WebP）
+- **個人簡介**：最多 200 字元
+- **電子郵件**：顯示目前登入的 Email（不可修改）
+- **帳號建立日期**：顯示資訊
+
+---
+
+## Tab 2：外觀（appearance）
+
+### 主題模式
+| 選項 | 說明 |
+|------|------|
+| 淺色模式 | 白底黑字，適合白天使用 |
+| 深色模式 | 黑底白字，護眼舒適 |
+| 系統自動 | 跟隨裝置系統設定 |
+
+### 場景氛圍
+| 場景 | 視覺風格 |
+|------|----------|
+| 療癒森林 | 綠色系，柔和自然 |
+| 星空冥想 | 深藍紫色，夢幻感 |
+| 晨光工作室 | 暖橘色，活力感 |
+| 極簡白空間 | 純白，專注工作 |
+
+### 字型大小
+- 小（14px）/ 標準（16px）/ 大（18px）/ 特大（20px）
+
+### 動畫效果
+- 開啟：完整過渡動畫與微互動
+- 關閉：靜態界面，適合低效能裝置
+
+---
+
+## Tab 3：通知設定（notifications）
+
+| 通知類型 | 說明 | 預設 |
+|----------|------|------|
+| 任務完成通知 | 背景任務完成時通知 | 開啟 |
+| 系統公告 | 新功能或維護通知 | 開啟 |
+| AI Brain 回覆 | Director AI 主動訊息 | 開啟 |
+| 促銷優惠 | 積分優惠或限時活動 | 關閉 |
+
+---
+
+## Tab 4：引導設定（onboarding）
+
+- 重置新手引導流程
+- 重新觀看功能介紹教學
+- 重置所有「不再顯示」的提示
+
+---
+
+## Tab 5：管理員面板（admin）
+
+**⚠️ 僅管理員帳號可見**
+
+- 系統全域設定
+- 使用者管理
+- 積分手動調整
+- 功能開關（Feature Flags）
+
+---
+
+## AI Brain 設定（\`/settings/ai-brain\`）
+
+此為獨立頁面，設定 Director AI 的個性化行為：
+- AI 人格風格（溫柔陪伴 / 專業效率 / 創意激發）
+- 記憶深度（保留最近 N 次對話的記憶）
+- 主動建議頻率
+- 禁用詞彙列表
+`,
+    tags: ["設定", "個人化", "主題", "外觀", "通知"],
+    difficulty: "beginner",
+    readingMinutes: 6,
+    publishedAt: "2026-04-19T00:00:00Z",
+    updatedAt: "2026-04-19T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+
+  {
+    id: "kb-director-script",
+    title: "Director AI 腳本分析模式指南",
+    category: "workflow",
+    summary: "說明 Director AI 的腳本分析 Tab（Tab 2）：腳本解析、分鏡表生成與 CO-STAR 框架。",
+    content: `# Director AI 腳本分析模式指南
+
+## Director AI 雙模式概覽
+
+**路徑**：\`/director\`
+
+Director AI 有兩個主要工作模式：
+
+| Tab | 模式 | 說明 |
+|-----|------|------|
+| Tab 1 | 對話模式（Chat） | 自由對話、創意發想、問答 |
+| Tab 2 | 腳本分析模式（Script） | 輸入腳本，自動解析生成分鏡表 |
+
+---
+
+## 腳本分析模式（Tab 2）詳解
+
+### 輸入區
+
+在腳本輸入框中貼入你的**影片腳本或故事大綱**。支援格式：
+- 純文字腳本
+- 場景描述段落
+- 對話劇本格式（角色名：台詞）
+
+### 分鏡表生成
+
+點擊「分析腳本」後，AI 自動解析並生成結構化分鏡表：
+
+\`\`\`
+┌─────────────────────────────────────────────────────────┐
+│ 分鏡 #1                                                  │
+│ 場景描述：森林中的小屋，黃昏光線                              │
+│ 攝影機角度：中景，微微仰角                                   │
+│ 人物動作：主角緩步走向小屋門口                               │
+│ 情緒氛圍：寧靜、期待                                        │
+│ 建議音效：輕柔的森林環境音                                   │
+│ 時長估計：3–5 秒                                           │
+└─────────────────────────────────────────────────────────┘
+\`\`\`
+
+### 分鏡表欄位定義
+
+| 欄位 | 說明 |
+|------|------|
+| 場景描述 | 畫面的視覺元素與環境 |
+| 攝影機角度 | 遠景/中景/近景/特寫，及攝影機位置 |
+| 人物動作 | 角色的肢體動作與表情 |
+| 情緒氛圍 | 此分鏡傳達的情感 |
+| 建議音效 | 背景音、對白或音樂提示 |
+| 時長估計 | 建議的分鏡持續秒數 |
+
+---
+
+## CO-STAR 框架
+
+Director AI 使用 **CO-STAR** 框架來確保腳本分析的一致性：
+
+| 字母 | 代表 | 說明 |
+|------|------|------|
+| **C** | Context（情境） | 故事的背景與世界觀設定 |
+| **O** | Objective（目標） | 這段腳本想傳達的核心訊息 |
+| **S** | Style（風格） | 視覺與敘事風格 |
+| **T** | Tone（語調） | 情感基調與氛圍 |
+| **A** | Audience（受眾） | 目標觀眾群 |
+| **R** | Response（呈現） | 期望觀眾產生的反應 |
+
+---
+
+## 匯出功能
+
+分鏡表可匯出為：
+- **JSON**：供程式介接使用
+- **PDF**：可列印的分鏡表文件
+- **Markdown**：在筆記或文件中使用
+
+---
+
+## 與創作工作室整合
+
+在分鏡表中，每個分鏡旁有「生成圖像」按鈕，點擊後直接以該分鏡描述為提示詞，在圖像工作室生成對應分鏡畫面。
+`,
+    tags: ["Director AI", "腳本", "分鏡", "CO-STAR", "影片"],
+    difficulty: "intermediate",
+    readingMinutes: 7,
+    publishedAt: "2026-04-19T00:00:00Z",
+    updatedAt: "2026-04-19T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+
+  {
+    id: "kb-langsmith-detail",
+    title: "LangSmith 監控頁面完整指南",
+    category: "api-docs",
+    summary: "說明 /langsmith 的 5 個 Tab：總覽、追蹤、比較、資料集、匯出，以及 Feedback 評分與資料集管理。",
+    content: `# LangSmith 監控頁面完整指南
+
+## 什麼是 LangSmith 頁面？
+
+**路徑**：\`/langsmith\`
+
+LangSmith 頁面整合了 LangSmith 的 LLM 追蹤與評估功能，讓開發者與進階使用者監控 AI 呼叫的品質與效能。
+
+---
+
+## 5 個功能 Tab
+
+### Tab 1：總覽（overview）
+
+- 今日 LLM 呼叫總次數
+- 平均回應延遲（ms）
+- 錯誤率統計圖表
+- 最常使用的模型排行
+
+### Tab 2：追蹤（traces）
+
+每筆 LLM 呼叫的詳細記錄：
+
+| 欄位 | 說明 |
+|------|------|
+| Trace ID | 唯一追蹤識別碼 |
+| 模型名稱 | 使用的 LLM 模型 |
+| 輸入 tokens | 提示詞消耗的 token 數 |
+| 輸出 tokens | 回應消耗的 token 數 |
+| 延遲 | 回應時間（毫秒） |
+| 狀態 | success / error |
+| 時間戳 | 呼叫發生的時間 |
+
+點擊任一追蹤記錄可展開查看完整的輸入輸出內容。
+
+### Tab 3：比較（comparison）
+
+- 選取 2–4 筆追蹤記錄進行並排比較
+- 可比較相同提示詞在不同模型下的輸出差異
+- 支援 A/B 測試工作流
+
+### Tab 4：資料集（datasets）
+
+建立與管理評估資料集：
+- 從追蹤記錄中選取樣本加入資料集
+- 為每個樣本標記「預期輸出」
+- 用於後續的模型評估與微調
+
+### Tab 5：匯出（export）
+
+支援兩種匯出格式：
+
+| 格式 | 用途 |
+|------|------|
+| **OpenAI Fine-tuning** | 直接用於 GPT 系列模型微調 |
+| **JSONL** | 通用格式，適用於其他訓練框架 |
+
+---
+
+## Feedback 評分系統
+
+在每筆追蹤記錄旁，可給予 1–5 星評分：
+- ⭐⭐⭐⭐⭐ 完美回應
+- ⭐⭐⭐ 可接受但有改進空間
+- ⭐ 錯誤或無用的回應
+
+這些評分被記錄為 \`userFeedbackReports\`，用於：
+1. 識別需要改進的提示詞
+2. 建立高品質的訓練資料集
+3. 監控模型退化現象
+
+---
+
+## 使用場景
+
+- **偵錯**：當某個 AI 功能回應異常時，在此查找根本原因
+- **效能優化**：找出高延遲的 LLM 呼叫並優化提示詞
+- **成本分析**：追蹤 token 消耗，找出高成本操作
+- **模型評估**：系統性比較不同模型的輸出品質
+`,
+    tags: ["LangSmith", "LLM追蹤", "監控", "評估", "Fine-tuning"],
+    difficulty: "advanced",
+    readingMinutes: 8,
+    publishedAt: "2026-04-19T00:00:00Z",
+    updatedAt: "2026-04-19T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+
+  {
+    id: "kb-focus-flow-complete",
+    title: "專注流（Focus Flow）完整指南",
+    category: "workflow",
+    summary: "說明 /focus-flow 的 3 個 Tab：番茄鐘、療癒時間、靈感捕捉，以及呼吸引導動畫與想法收集功能。",
+    content: `# 專注流（Focus Flow）完整指南
+
+## 什麼是專注流？
+
+**路徑**：\`/focus-flow\`
+
+專注流是一個身心整合的工作輔助工具，結合番茄鐘技術、冥想音療與創意捕捉，幫助使用者進入深度工作狀態。
+
+---
+
+## 3 個功能 Tab
+
+### Tab 1：番茄鐘（pomodoro）
+
+經典番茄工作法計時器，針對 Healing Studio 做了療癒化設計：
+
+**預設時間配置：**
+| 階段 | 時長 | 說明 |
+|------|------|------|
+| 專注工作 | 25 分鐘 | 深度工作期 |
+| 短暫休息 | 5 分鐘 | 放鬆恢復 |
+| 長休息 | 15 分鐘 | 每 4 輪番茄後 |
+
+**可自訂設定：**
+- 工作時間：10–60 分鐘
+- 短休息：3–15 分鐘
+- 長休息：10–30 分鐘
+- 背景音樂選擇（森林雨聲、咖啡廳、白噪音）
+
+**計時器操作：**
+- 開始 / 暫停 / 重置
+- 自動進入下一階段（可關閉）
+- 完成通知（聲音 + 瀏覽器通知）
+
+---
+
+### Tab 2：療癒時間（healing）
+
+引導式呼吸與冥想體驗：
+
+**呼吸引導動畫（BREATHING_PHASES）：**
+
+\`\`\`
+BREATHING_PHASES = [
+  { phase: "inhale",  duration: 4, label: "吸氣",  color: "#a8d8ea" },
+  { phase: "hold",    duration: 4, label: "屏息",  color: "#aa96da" },
+  { phase: "exhale",  duration: 6, label: "呼氣",  color: "#fcbad3" },
+  { phase: "rest",    duration: 2, label: "休息",  color: "#ffffd2" }
+]
+\`\`\`
+
+動畫是一個**會隨呼吸節律擴縮的圓形**，顏色隨階段改變。
+
+**療癒音頻選項：**
+- 頌缽聲（528Hz）
+- 自然環境音（海浪、森林、雨聲）
+- 引導冥想語音（繁體中文）
+
+**療癒計時：**
+- 設定療癒時長（5 / 10 / 15 / 20 分鐘）
+- 計時結束時播放溫柔提示音
+
+---
+
+### Tab 3：靈感捕捉（idea）
+
+工作中突然閃現的靈感，立即記錄：
+
+**快速輸入：**
+- 純文字輸入框（支援 Markdown）
+- 語音轉文字（點擊麥克風按鈕）
+- 最多 500 字元
+
+**標籤分類：**
+- 自由標籤（按 Enter 新增）
+- 常用標籤：創意、待辦、問題、參考
+
+**想法列表：**
+- 顯示今日捕捉的所有想法
+- 點擊可展開編輯
+- 星號標記重要想法
+- 「送到筆記」按鈕將想法儲存到 \`/notes\`
+
+---
+
+## FocusFlowContext 全域狀態
+
+專注流使用 React Context 管理跨組件狀態：
+
+\`\`\`typescript
+interface FocusFlowState {
+  activeTab: "pomodoro" | "healing" | "idea";
+  pomodoroState: "idle" | "working" | "break" | "longBreak";
+  secondsRemaining: number;
+  completedPomodoros: number;
+  ideas: IdeaNote[];
+}
+\`\`\`
+
+這表示即使切換 Tab，番茄鐘計時仍會繼續在後台運行。
+
+---
+
+## 使用建議
+
+1. 開始工作前先做 **5 分鐘呼吸療癒**，讓心靜下來
+2. 進入番茄鐘工作模式，專注 25 分鐘
+3. 休息時若有靈感，切到靈感捕捉 Tab 快速記錄
+4. 下班前查看今日靈感，整理到筆記中
+`,
+    tags: ["專注", "番茄鐘", "冥想", "呼吸", "靈感"],
+    difficulty: "beginner",
+    readingMinutes: 7,
+    publishedAt: "2026-04-19T00:00:00Z",
+    updatedAt: "2026-04-19T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+
+  {
+    id: "kb-lora-trainer-detail",
+    title: "LoRA 訓練器完整指南",
+    category: "model-guide",
+    summary: "說明 /lora-trainer 的訓練流程、6 種模型類型、狀態追蹤與訓練結果 zip 匯出。",
+    content: `# LoRA 訓練器完整指南
+
+## 什麼是 LoRA 訓練器？
+
+**路徑**：\`/lora-trainer\`
+
+LoRA（Low-Rank Adaptation）是一種高效的 AI 模型微調技術，讓你用少量圖片訓練專屬的個人化風格模型。
+
+---
+
+## 支援的 6 種模型類型
+
+| 模型類型 | 說明 | 建議訓練圖片數 |
+|----------|------|---------------|
+| \`flux-lora\` | Flux.1 LoRA，目前最高品質 | 15–30 張 |
+| \`sdxl-lora\` | SDXL LoRA，速度與品質平衡 | 20–50 張 |
+| \`sd15-lora\` | SD 1.5 LoRA，相容性最廣 | 20–50 張 |
+| \`face-lora\` | 人臉特化 LoRA，精準重現臉部特徵 | 10–20 張 |
+| \`style-lora\` | 藝術風格 LoRA，複刻插畫或繪畫風格 | 20–40 張 |
+| \`concept-lora\` | 概念/物體 LoRA，訓練特定物品或角色 | 15–30 張 |
+
+---
+
+## 訓練流程
+
+### 步驟 1：建立訓練集
+
+1. 點擊「新增訓練集」
+2. 上傳訓練圖片（支援 JPG/PNG，建議 512x512 以上）
+3. 為每張圖片加上描述性標籤（Caption）
+4. 系統自動裁切並預處理圖片
+
+### 步驟 2：設定訓練參數
+
+| 參數 | 說明 | 建議值 |
+|------|------|--------|
+| 訓練步數 | Gradient update 次數 | 1000–3000 步 |
+| 學習率 | 模型調整速率 | 0.0001（預設） |
+| LoRA Rank | 模型複雜度 | 16–64 |
+| Batch Size | 每次訓練的圖片數 | 1–4 |
+
+### 步驟 3：開始訓練
+
+- 點擊「開始訓練」，任務進入**背景任務佇列**
+- 訓練時間因步數而異（通常 10–60 分鐘）
+- 可在 \`/background-tasks\` 監控訓練進度
+
+### 步驟 4：取得訓練結果
+
+訓練完成後：
+1. 在 \`/lora-trainer\` 頁面看到「訓練完成」通知
+2. 點擊「下載模型」，取得 \`.zip\` 檔案
+3. 或點擊「直接使用」，在圖像工作室中套用此 LoRA
+
+---
+
+## 訓練狀態追蹤
+
+| 狀態 | 說明 |
+|------|------|
+| \`preparing\` | 正在預處理訓練圖片 |
+| \`training\` | 訓練進行中 |
+| \`validating\` | 生成驗證樣本，檢驗訓練效果 |
+| \`packaging\` | 打包輸出檔案 |
+| \`completed\` | 訓練完成，可下載使用 |
+| \`failed\` | 訓練失敗，查看錯誤日誌 |
+
+---
+
+## 資料庫儲存
+
+訓練完成的模型資訊儲存在 \`fineTunedModels\` 表：
+
+\`\`\`sql
+fineTunedModels (
+  id, userId, name, description,
+  modelType, baseModel,
+  trainingSteps, status,
+  downloadUrl, thumbnailUrl,
+  createdAt, updatedAt
+)
+\`\`\`
+
+---
+
+## 在圖像工作室中使用 LoRA
+
+在圖像工作室（\`/image-studio\`）的進階設定中：
+1. 展開「LoRA 模型」區塊
+2. 從你的模型列表中選取已訓練的 LoRA
+3. 調整 LoRA 強度（0.1–1.0）
+4. 生成圖像時系統自動套用 LoRA 風格
+`,
+    tags: ["LoRA", "微調", "訓練", "自訂模型", "Flux"],
+    difficulty: "advanced",
+    readingMinutes: 9,
+    publishedAt: "2026-04-19T00:00:00Z",
+    updatedAt: "2026-04-19T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+
+  {
+    id: "kb-credits-complete",
+    title: "積分系統完整指南",
+    category: "getting-started",
+    summary: "說明 /credits 頁面的所有模型費率、Tier 分級、Category 分類與點數計算方式。",
+    content: `# 積分系統完整指南
+
+## 什麼是積分？
+
+**路徑**：\`/credits\`
+
+積分（Credits）是 Healing Studio 的通用消耗貨幣，使用任何 AI 生成功能都會消耗積分。
+
+---
+
+## 積分取得方式
+
+| 來源 | 積分數量 | 說明 |
+|------|----------|------|
+| 免費新用戶 | 100 積分 | 每個新帳號贈送 |
+| 每日簽到 | 10 積分 | 每天登入即可領取 |
+| Pro 方案（月費） | 2,000 積分/月 | 訂閱包含積分 |
+| 單次購買 | 依方案而定 | 一次性積分包 |
+
+---
+
+## 費率 Tier 分級
+
+| Tier | 說明 | 代表模型 |
+|------|------|----------|
+| **Free** | 免費模型，不消耗積分 | 基礎文字對話 |
+| **Basic** | 低費率（1–5 積分/次） | SD 1.5 圖像生成 |
+| **Standard** | 標準費率（5–20 積分/次） | SDXL、Flux Schnell |
+| **Premium** | 高費率（20–50 積分/次） | Flux Pro、Midjourney 品質 |
+| **Ultra** | 頂級費率（50+ 積分/次） | Sora、最新旗艦模型 |
+
+---
+
+## 模型費率表（依 Category）
+
+### 文字生成（text-generation）
+| 模型 | 費率 |
+|------|------|
+| Gemini 1.5 Flash | 1 積分/1K tokens |
+| GPT-4o mini | 2 積分/1K tokens |
+| GPT-4o | 10 積分/1K tokens |
+| Claude 3 Opus | 15 積分/1K tokens |
+
+### 圖像生成（image-generation）
+| 模型 | 費率 |
+|------|------|
+| Flux Schnell | 5 積分/張 |
+| Flux Dev | 15 積分/張 |
+| Flux Pro | 30 積分/張 |
+| SDXL | 8 積分/張 |
+
+### 影片生成（video-generation）
+| 模型 | 費率 |
+|------|------|
+| WAN 2.1（5秒） | 50 積分/次 |
+| Hailuo（5秒） | 60 積分/次 |
+| Kling 1.6（5秒） | 55 積分/次 |
+
+### 語音合成（text-to-speech）
+| 模型 | 費率 |
+|------|------|
+| ElevenLabs | 2 積分/1K 字元 |
+| F5-TTS | 1 積分/1K 字元 |
+
+### 音樂生成（audio-generation）
+| 模型 | 費率 |
+|------|------|
+| Suno v4 | 20 積分/首 |
+| MusicGen | 10 積分/首 |
+
+### 3D 生成（3d-generation）
+| 模型 | 費率 |
+|------|------|
+| Tripo3D | 40 積分/個 |
+
+---
+
+## 積分計算規則
+
+\`\`\`
+消耗積分 = 基礎費率 × 品質係數 × 數量
+\`\`\`
+
+**品質係數：**
+- 標準品質：× 1.0
+- 高品質：× 1.5
+- 超高品質：× 2.0
+
+---
+
+## 積分不足時
+
+當積分不足以執行操作時：
+- 畫面顯示「積分不足」提示
+- 自動導向到積分購買頁面
+- 可選擇使用較低費率的替代模型繼續
+
+---
+
+## 積分歷史查詢
+
+在 \`/credits\` 頁面的「歷史記錄」Tab：
+- 查看所有積分消耗與獲得記錄
+- 按日期、模型、金額篩選
+- 匯出 CSV 供帳務對帳
+`,
+    tags: ["積分", "費率", "計費", "訂閱", "模型"],
+    difficulty: "beginner",
+    readingMinutes: 8,
+    publishedAt: "2026-04-19T00:00:00Z",
+    updatedAt: "2026-04-19T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+
+  {
+    id: "kb-schema-23tables",
+    title: "資料庫 Schema 完整 23 張表指南",
+    category: "api-docs",
+    summary: "完整說明所有 23 張資料庫表的欄位定義、用途與關聯關係。",
+    content: `# 資料庫 Schema 完整 23 張表指南
+
+## 資料庫連線資訊
+
+- **引擎**：MySQL（Railway 托管）
+- **ORM**：Drizzle ORM
+- **Schema 位置**：\`server/db/schema.ts\`
+
+---
+
+## 核心使用者表
+
+### users
+\`\`\`sql
+users (
+  id VARCHAR(36) PRIMARY KEY,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  name VARCHAR(100),
+  avatarUrl TEXT,
+  role ENUM('user','admin') DEFAULT 'user',
+  credits INT DEFAULT 100,
+  bio TEXT,
+  tier ENUM('free','pro','enterprise') DEFAULT 'free',
+  createdAt DATETIME,
+  updatedAt DATETIME
+)
+\`\`\`
+
+### userSubscriptions
+\`\`\`sql
+userSubscriptions (
+  id, userId, planId,
+  status ENUM('active','cancelled','expired','trial'),
+  currentPeriodStart DATETIME,
+  currentPeriodEnd DATETIME,
+  stripeSubscriptionId VARCHAR(255),
+  createdAt, updatedAt
+)
+\`\`\`
+
+### subscriptionPlans
+\`\`\`sql
+subscriptionPlans (
+  id, name, description,
+  price DECIMAL(10,2), currency VARCHAR(3),
+  creditsPerMonth INT,
+  features JSON,
+  stripePriceId VARCHAR(255),
+  isActive BOOLEAN DEFAULT true
+)
+\`\`\`
+
+### externalServiceSubscriptions
+\`\`\`sql
+externalServiceSubscriptions (
+  id, userId,
+  service ENUM('elevenlabs','pinecone','fal','openai','stability'),
+  tier VARCHAR(50),
+  apiKeyHash VARCHAR(255),  -- 加密儲存
+  usageLimit INT,
+  currentUsage INT DEFAULT 0,
+  resetDate DATETIME,
+  createdAt, updatedAt
+)
+\`\`\`
+
+---
+
+## 生成與資產表
+
+### generationHistory
+\`\`\`sql
+generationHistory (
+  id, userId,
+  modality ENUM('image','video','audio','voice','3d','text'),
+  modelId VARCHAR(100),
+  prompt TEXT,
+  outputUrl TEXT,
+  creditsUsed INT,
+  metadata JSON,
+  createdAt
+)
+\`\`\`
+
+### digitalAssetLibrary
+\`\`\`sql
+digitalAssetLibrary (
+  id, userId, title, description,
+  fileUrl TEXT, thumbnailUrl TEXT,
+  fileType VARCHAR(50), fileSize BIGINT,
+  modality ENUM('image','video','audio','voice','3d','document'),
+  tags JSON, isPublic BOOLEAN DEFAULT false,
+  r2Key VARCHAR(500),  -- Cloudflare R2 儲存路徑
+  createdAt, updatedAt
+)
+\`\`\`
+
+### r2StorageSnapshots
+\`\`\`sql
+r2StorageSnapshots (
+  id, userId,
+  bucketName VARCHAR(100),
+  totalFiles INT,
+  totalSizeBytes BIGINT,
+  snapshotData JSON,  -- 詳細檔案列表
+  takenAt DATETIME,
+  createdAt
+)
+\`\`\`
+
+---
+
+## AI 功能表
+
+### backgroundJobs
+\`\`\`sql
+backgroundJobs (
+  id VARCHAR(36) PRIMARY KEY,
+  userId VARCHAR(36),
+  jobType ENUM('image_generation','video_generation','audio_generation',
+               'voice_cloning','3d_generation','lora_training',
+               'video_script','cross_modal','batch_export'),
+  status ENUM('pending','processing','completed','failed','cancelled'),
+  inputJson JSON,   -- 任務輸入參數
+  resultJson JSON,  -- 任務輸出結果
+  errorMessage TEXT,
+  startedAt DATETIME,
+  completedAt DATETIME,
+  createdAt, updatedAt
+  -- 超時：30 分鐘自動標記 failed
+)
+\`\`\`
+
+### aiDirectorPreferences
+\`\`\`sql
+aiDirectorPreferences (
+  id, userId,
+  personality ENUM('gentle','professional','creative'),
+  memoryDepth INT DEFAULT 10,
+  suggestionFrequency ENUM('low','medium','high'),
+  blockedKeywords JSON,
+  customSystemPrompt TEXT,
+  updatedAt
+)
+\`\`\`
+
+### userAiBrain
+\`\`\`sql
+userAiBrain (
+  id, userId,
+  memories JSON,      -- 對話記憶摘要
+  preferences JSON,   -- 推斷的使用偏好
+  senseEngineProfile JSON,  -- Sense Engine 心理側寫
+  lastUpdated DATETIME
+)
+\`\`\`
+
+### consistencyVault
+\`\`\`sql
+consistencyVault (
+  id, userId, name, description,
+  referenceImages JSON,  -- 參考圖片 URL 陣列
+  characterSheet JSON,   -- 角色特徵描述
+  styleGuide TEXT,
+  createdAt, updatedAt
+)
+\`\`\`
+
+### fineTunedModels
+\`\`\`sql
+fineTunedModels (
+  id, userId, name, description,
+  modelType ENUM('flux-lora','sdxl-lora','sd15-lora',
+                 'face-lora','style-lora','concept-lora'),
+  baseModel VARCHAR(100),
+  trainingSteps INT,
+  status ENUM('preparing','training','validating','packaging','completed','failed'),
+  downloadUrl TEXT,
+  thumbnailUrl TEXT,
+  createdAt, updatedAt
+)
+\`\`\`
+
+---
+
+## 內容管理表
+
+### promptLibrary
+\`\`\`sql
+promptLibrary (
+  id, userId, title, content TEXT,
+  category ENUM('general','image','video','audio','voice','story','system'),
+  isPublic BOOLEAN DEFAULT false,
+  useCount INT DEFAULT 0,
+  tags JSON,
+  createdAt, updatedAt
+)
+\`\`\`
+
+### featuredShowcase
+\`\`\`sql
+featuredShowcase (
+  id, userId, title, description TEXT,
+  mediaUrl TEXT, thumbnailUrl TEXT,
+  modality ENUM('image','video','audio','3d'),
+  sortWeight INT DEFAULT 0,
+  likeCount INT DEFAULT 0,
+  isActive BOOLEAN DEFAULT true,
+  createdAt, updatedAt
+)
+\`\`\`
+
+### newsArticles
+\`\`\`sql
+newsArticles (
+  id, title, summary TEXT, content TEXT,
+  sourceUrl VARCHAR(500), sourceProvider VARCHAR(100),
+  category VARCHAR(50),
+  thumbnailUrl TEXT,
+  isPinned BOOLEAN DEFAULT false,
+  publishedAt DATETIME,
+  createdAt
+)
+\`\`\`
+
+### customBlocks
+\`\`\`sql
+customBlocks (
+  id, userId, name, description,
+  blockType VARCHAR(50),
+  config JSON,  -- 區塊設定
+  isPublic BOOLEAN DEFAULT false,
+  createdAt, updatedAt
+)
+\`\`\`
+
+### blockCombos（即 customBlocksCombo）
+\`\`\`sql
+customBlocksCombo (
+  id, userId, name, description,
+  blockIds JSON,  -- 組合的 block ID 陣列
+  workflow JSON,  -- 執行流程定義
+  createdAt, updatedAt
+)
+\`\`\`
+
+---
+
+## 筆記與日曆表
+
+### projectNotesCalendar
+\`\`\`sql
+projectNotesCalendar (
+  id, userId, title, content TEXT,
+  noteType ENUM('note','event','reminder','idea'),
+  scheduledAt DATETIME,  -- 日曆事件時間
+  tags JSON,
+  isCompleted BOOLEAN DEFAULT false,
+  createdAt, updatedAt
+)
+\`\`\`
+
+---
+
+## 系統監控表
+
+### apiUsageLogs
+\`\`\`sql
+apiUsageLogs (
+  id, userId,
+  service VARCHAR(100),  -- 'openai','fal','elevenlabs' 等
+  endpoint VARCHAR(255),
+  statusCode INT,
+  latencyMs INT,
+  inputTokens INT, outputTokens INT,
+  creditsCharged INT,
+  createdAt
+)
+\`\`\`
+
+### userModelSwitchLogs
+\`\`\`sql
+userModelSwitchLogs (
+  id, userId,
+  fromModel VARCHAR(100),
+  toModel VARCHAR(100),
+  reason TEXT,
+  modality VARCHAR(50),
+  createdAt
+)
+\`\`\`
+
+### userFeedbackReports
+\`\`\`sql
+userFeedbackReports (
+  id, userId,
+  feedbackType ENUM('bug','suggestion','rating','other'),
+  subject VARCHAR(255),
+  content TEXT,
+  rating INT,  -- 1-5 星（LangSmith 評分）
+  metadata JSON,
+  status ENUM('pending','reviewed','resolved'),
+  createdAt, updatedAt
+)
+\`\`\`
+
+### systemSettings
+\`\`\`sql
+systemSettings (
+  id, key VARCHAR(100) UNIQUE,
+  value JSON,
+  description TEXT,
+  updatedBy VARCHAR(36),  -- 管理員 userId
+  updatedAt
+)
+\`\`\`
+
+---
+
+## 表關聯圖
+
+\`\`\`
+users ─┬─ userSubscriptions → subscriptionPlans
+       ├─ externalServiceSubscriptions
+       ├─ generationHistory
+       ├─ digitalAssetLibrary → r2StorageSnapshots
+       ├─ backgroundJobs
+       ├─ aiDirectorPreferences
+       ├─ userAiBrain
+       ├─ consistencyVault
+       ├─ fineTunedModels
+       ├─ promptLibrary
+       ├─ featuredShowcase
+       ├─ customBlocks → customBlocksCombo
+       ├─ projectNotesCalendar
+       ├─ apiUsageLogs
+       ├─ userModelSwitchLogs
+       └─ userFeedbackReports
+\`\`\`
+`,
+    tags: ["資料庫", "Schema", "SQL", "MySQL", "Drizzle"],
+    difficulty: "advanced",
+    readingMinutes: 12,
+    publishedAt: "2026-04-19T00:00:00Z",
+    updatedAt: "2026-04-19T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+
+  {
+    id: "kb-news-system",
+    title: "AI 新聞系統完整指南",
+    category: "ai-news",
+    summary: "說明 /news 頁面的新聞抓取機制（BraveLearnFetcher）、定時任務、newsArticles 表與置頂功能。",
+    content: `# AI 新聞系統完整指南
+
+## 什麼是 AI 新聞系統？
+
+**路徑**：\`/news\`
+
+Healing Studio 內建 AI 新聞聚合系統，自動從多個來源抓取最新 AI 領域新聞，讓使用者不離開網站就能掌握行業動態。
+
+---
+
+## 新聞抓取機制
+
+### BraveLearnFetcher
+
+使用 **Brave Search API** 抓取 AI 相關新聞：
+
+\`\`\`typescript
+// 搜尋關鍵字
+const AI_NEWS_QUERIES = [
+  "artificial intelligence news",
+  "large language model update",
+  "generative AI breakthrough",
+  "AI image video generation",
+  "machine learning research"
+];
+\`\`\`
+
+每次抓取最多 **20 篇**新聞，去重後存入 \`newsArticles\` 表。
+
+### newsFetcher Cron 定時任務
+
+| 任務 | 頻率 | 說明 |
+|------|------|------|
+| 新聞抓取 | 每 6 小時 | 自動更新新聞列表 |
+| 舊聞清理 | 每天 00:00 | 刪除 30 天前的文章 |
+
+---
+
+## newsArticles 表結構
+
+\`\`\`sql
+newsArticles (
+  id, title,
+  summary TEXT,    -- AI 自動生成的摘要
+  content TEXT,    -- 完整內容（若可取得）
+  sourceUrl VARCHAR(500),
+  sourceProvider VARCHAR(100),  -- 'brave','openai-blog','anthropic' 等
+  category VARCHAR(50),
+  thumbnailUrl TEXT,
+  isPinned BOOLEAN DEFAULT false,  -- 管理員置頂
+  publishedAt DATETIME,
+  createdAt
+)
+\`\`\`
+
+---
+
+## 新聞分類（categories）
+
+| 分類 | 說明 |
+|------|------|
+| \`breakthrough\` | 重大技術突破 |
+| \`product\` | 新產品或功能發布 |
+| \`research\` | 學術研究論文 |
+| \`industry\` | 產業動態與商業新聞 |
+| \`tutorial\` | 教學與實踐指南 |
+| \`policy\` | AI 政策與法規 |
+
+---
+
+## 置頂功能（isPinned）
+
+管理員可在後台將重要新聞設為置頂：
+- 置頂文章始終顯示在列表最頂端
+- 置頂文章有醒目的視覺標記
+- 最多同時置頂 3 篇
+
+---
+
+## 前端功能
+
+### 新聞卡片
+
+每篇新聞顯示：
+- 縮圖
+- 標題（最多 2 行）
+- AI 摘要（最多 3 行）
+- 來源名稱與發布時間
+- 「閱讀原文」按鈕（外部連結）
+
+### 篩選與搜尋
+
+- **分類篩選**：點擊分類 Tag
+- **關鍵字搜尋**：標題全文搜尋
+- **時間篩選**：今日 / 本週 / 本月
+
+### 「加入 AI Brain」功能
+
+閱讀新聞時，點擊「讓 AI Brain 學習此文」按鈕：
+- AI 自動萃取文章重點
+- 存入使用者的 AI Brain 知識庫
+- 影響 Director AI 的後續建議
+
+---
+
+## 管理員功能
+
+- 手動觸發新聞抓取
+- 審核並刪除不適當內容
+- 設定置頂文章
+- 查看各分類文章數量統計
+`,
+    tags: ["新聞", "AI動態", "Brave", "自動抓取", "RSS"],
+    difficulty: "intermediate",
+    readingMinutes: 6,
+    publishedAt: "2026-04-19T00:00:00Z",
+    updatedAt: "2026-04-19T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+
+  {
+    id: "kb-health-monitoring",
+    title: "系統健康監控完整指南",
+    category: "api-docs",
+    summary: "說明 apiHealthMonitor、Circuit Breaker 熔斷機制與 BrainAutoRepair 自動修復系統。",
+    content: `# 系統健康監控完整指南
+
+## 監控系統架構
+
+Healing Studio 有三層監控機制，確保系統穩定性：
+
+1. **API 健康監控**（apiHealthMonitor）
+2. **Circuit Breaker 熔斷器**
+3. **BrainAutoRepair 自動修復**
+
+---
+
+## 1. API 健康監控（apiHealthMonitor）
+
+定期測試所有外部 API 的可用性：
+
+### 監控的服務
+
+| 服務 | 監控端點 | 頻率 |
+|------|----------|------|
+| OpenAI | \`/v1/models\` | 每 5 分鐘 |
+| FAL.ai | \`/queue/health\` | 每 5 分鐘 |
+| ElevenLabs | \`/v1/user\` | 每 10 分鐘 |
+| Pinecone | Index Stats | 每 10 分鐘 |
+| Gemini | \`/v1/models\` | 每 5 分鐘 |
+
+### 健康狀態定義
+
+| 狀態 | 說明 | 觸發條件 |
+|------|------|----------|
+| \`healthy\` | 正常運作 | 回應時間 < 2000ms |
+| \`degraded\` | 效能下降 | 回應時間 2000–5000ms |
+| \`down\` | 服務中斷 | 回應時間 > 5000ms 或錯誤 |
+
+### Discord 告警
+
+當任何服務狀態從 \`healthy\` 變為 \`down\` 時，系統自動發送 Discord Webhook 通知。
+
+---
+
+## 2. Circuit Breaker 熔斷器
+
+防止連鎖故障的保護機制：
+
+\`\`\`
+正常狀態 → 呼叫失敗 5 次 → 熔斷（Open）
+     ↑                              ↓
+ 恢復正常 ← 測試成功 ← 半開（Half-Open，30 秒後）
+\`\`\`
+
+### 熔斷設定
+
+| 參數 | 值 | 說明 |
+|------|----|----|
+| 失敗門檻 | 5 次 | 連續失敗 5 次觸發熔斷 |
+| 重置時間 | 30 秒 | 熔斷後等待時間 |
+| 半開測試 | 1 次請求 | 測試服務是否恢復 |
+
+### 熔斷時的行為
+
+- 熔斷器開啟期間，所有呼叫立即返回錯誤（不等待超時）
+- 前端顯示「此服務暫時不可用，系統正在自動修復」
+- 自動切換到備用模型（如果有的話）
+
+---
+
+## 3. BrainAutoRepair 自動修復
+
+當 AI Brain（Director AI）的回應品質下降時，自動進行修復：
+
+### 精準度測試機制
+
+\`\`\`typescript
+// 使用 Gemini Flash 進行精準度測試（非 Pro，以節省 token）
+const testResponse = await geminiFlash.generate({
+  prompt: ACCURACY_TEST_PROMPT,
+  maxTokens: 8192
+});
+const score = evaluateAccuracy(testResponse);
+\`\`\`
+
+### 修復觸發條件
+
+| 觸發條件 | 說明 |
+|----------|------|
+| 精準度分數 < 70% | AI 回應品質下降 |
+| 連續 3 次無法完成任務 | 系統性錯誤 |
+| 使用者 1 星評分率 > 20% | 使用者滿意度過低 |
+
+### 修復流程
+
+1. 分析最近 100 筆失敗記錄
+2. 識別問題模式（token 超出 / 格式錯誤 / 幻覺）
+3. 自動調整系統提示詞
+4. 重置對話記憶中的錯誤資訊
+5. 記錄修復操作到 \`systemSettings\`
+
+---
+
+## 管理員監控頁面（/admin）
+
+在管理員後台可查看：
+
+- 所有外部 API 的即時狀態
+- Circuit Breaker 狀態
+- BrainAutoRepair 最近觸發記錄
+- 系統整體健康分數（0–100）
+
+---
+
+## 緊急降級模式
+
+當多個關鍵服務同時不可用時，系統進入**降級模式**：
+- 只保留文字對話功能（使用本地模型）
+- 圖像/影片生成功能暫停
+- 頁面頂部顯示系統維護橫幅
+`,
+    tags: ["監控", "健康檢查", "Circuit Breaker", "自動修復", "穩定性"],
+    difficulty: "advanced",
+    readingMinutes: 9,
+    publishedAt: "2026-04-19T00:00:00Z",
+    updatedAt: "2026-04-19T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+
+  {
+    id: "kb-home-page",
+    title: "首頁完整功能指南",
+    category: "getting-started",
+    summary: "說明首頁（/）的 ShowcaseMasonry 展示牆、Sense Engine 觸發機制、功能卡展示區與 Demo 模式入口。",
+    content: `# 首頁完整功能指南
+
+## 首頁路徑
+
+**路徑**：\`/\`（根路徑）
+
+首頁是 Healing Studio 的門面，整合了社群展示、功能導航與智慧推薦。
+
+---
+
+## ShowcaseMasonry 展示牆
+
+首頁最醒目的區塊是 Masonry 瀑布流展示牆，展示精選的 AI 生成作品。
+
+### 展示牆特性
+
+- **瀑布流排版**：作品以不等高的 Masonry 格局呈現
+- **多媒體支援**：圖像、影片、音頻縮圖都可展示
+- **Cursor 分頁**：無限下滾載入更多作品
+- **按讚互動**：點擊愛心按鈕，likeCount 即時更新
+
+### 展示牆資料來源
+
+- 資料來自 \`featuredShowcase\` 資料庫表
+- 以 \`sortWeight DESC, createdAt DESC\` 排序
+- 只顯示 \`isActive = true\` 的作品
+
+---
+
+## Sense Engine 觸發區
+
+### 觸發機制
+
+當 Sense Engine 偵測到使用者的行為模式，首頁 UI 會自動調整：
+
+| 偵測到的心理狀態 | UI 變化 |
+|-----------------|---------|
+| \`choice_paralysis\` | 彈出「為你推薦」浮動卡片 |
+| \`exploration_mode\` | 展開完整功能地圖導覽 |
+| \`inspiration_seeking\` | 自動播放精選影片 Reel |
+| \`passive_browsing\` | 展示牆進入自動輪播模式 |
+
+### 觸發時機
+
+- 頁面停留超過 **30 秒**後開始分析行為
+- 收集到足夠事件（至少 3 種不同事件）後觸發判定
+
+---
+
+## 功能卡展示區
+
+首頁中段有一排功能入口卡片，讓使用者快速跳轉到各工具：
+
+| 功能卡 | 連結 | 說明 |
+|--------|------|------|
+| 創作工作室 | \`/studio\` | 四模態 AI 創作 |
+| Director AI | \`/director\` | 智慧對話與腳本 |
+| 圖像工作室 | \`/image-studio\` | 進階圖像生成 |
+| 影片工作室 | \`/video-studio\` | 影片生成與編輯 |
+| 語音複製 | \`/pro-studio\` | 聲音克隆與合成 |
+| 3D 建模 | \`/assets\`（3D Tab）| 3D 模型生成 |
+| LoRA 訓練 | \`/lora-trainer\` | 自訂模型訓練 |
+| 新聞中心 | \`/news\` | AI 產業動態 |
+
+### 個性化排序
+
+已登入使用者的功能卡會根據使用頻率自動排序——最常用的功能卡排在最前面。
+
+---
+
+## Demo 模式入口
+
+未登入的訪客可以使用 **Demo 模式**體驗核心功能：
+
+- Demo 模式按鈕位於首頁右上角
+- Demo 使用者有 **10 積分**的免費試用額度
+- Demo 積分不可累積，頁面重整後重置
+
+### Demo 支援的功能
+
+| 功能 | Demo 限制 |
+|------|-----------|
+| 圖像生成 | 最多 2 張，512x512 尺寸 |
+| 文字對話 | 最多 5 輪對話 |
+| 音頻生成 | 最多 30 秒音頻 |
+
+---
+
+## 頁首（Header）元素
+
+| 元素 | 說明 |
+|------|------|
+| Logo | 點擊返回首頁 |
+| 搜尋框 | 全站內容搜尋（快捷鍵 Cmd/Ctrl+K） |
+| 通知鈴鐺 | 背景任務完成通知 |
+| 積分顯示 | 當前積分餘額（紅色表示積分不足）|
+| 頭像選單 | 個人設定、登出等 |
+
+---
+
+## 頁尾（Footer）元素
+
+- 版本號
+- 服務條款與隱私政策連結
+- Discord 社群連結
+- API 狀態頁連結（顯示即時系統健康）
+`,
+    tags: ["首頁", "Masonry", "展示", "Demo", "導航"],
+    difficulty: "beginner",
+    readingMinutes: 7,
+    publishedAt: "2026-04-19T00:00:00Z",
+    updatedAt: "2026-04-19T00:00:00Z",
+    featured: true,
+    authorName: "Healing Studio Team",
+  },
+
+  {
+    id: "kb-background-jobs-db",
+    title: "backgroundJobs 資料表完整指南",
+    category: "api-docs",
+    summary: "說明 backgroundJobs 表的 jobType enum、status 狀態流程、resultJson 格式規範與 30 分鐘超時機制。",
+    content: `# backgroundJobs 資料表完整指南
+
+## 資料表定位
+
+\`backgroundJobs\` 是背景任務系統的核心資料表，記錄所有非同步 AI 生成任務的生命週期。
+
+---
+
+## 完整欄位定義
+
+\`\`\`sql
+CREATE TABLE backgroundJobs (
+  id            VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+  userId        VARCHAR(36) NOT NULL,
+  jobType       ENUM(
+                  'image_generation',
+                  'video_generation',
+                  'audio_generation',
+                  'voice_cloning',
+                  '3d_generation',
+                  'lora_training',
+                  'video_script',
+                  'cross_modal',
+                  'batch_export'
+                ) NOT NULL,
+  status        ENUM('pending','processing','completed','failed','cancelled')
+                DEFAULT 'pending',
+  inputJson     JSON,       -- 任務輸入參數（因模型不同而異）
+  resultJson    JSON,       -- 任務輸出結果（見下方格式說明）
+  errorMessage  TEXT,       -- 失敗時的錯誤訊息
+  priority      TINYINT DEFAULT 5,  -- 1（最高）到 10（最低）
+  startedAt     DATETIME,
+  completedAt   DATETIME,
+  createdAt     DATETIME DEFAULT NOW(),
+  updatedAt     DATETIME ON UPDATE NOW(),
+  INDEX idx_userId_status (userId, status),
+  INDEX idx_createdAt (createdAt)
+);
+\`\`\`
+
+---
+
+## jobType 各類型說明
+
+### image_generation
+
+\`\`\`json
+// inputJson 格式
+{
+  "modelId": "fal-ai/flux/dev",
+  "prompt": "a beautiful sunset over mountains",
+  "negativePrompt": "blur, distortion",
+  "width": 1024, "height": 1024,
+  "steps": 28, "guidance": 3.5,
+  "seed": 42,
+  "loraId": "optional-lora-id"
+}
+
+// resultJson 格式
+{
+  "imageUrl": "https://cdn.fal.ai/...",
+  "thumbnailUrl": "https://cdn.fal.ai/...thumb.jpg",
+  "seed": 42,
+  "width": 1024, "height": 1024
+}
+\`\`\`
+
+### video_generation
+
+\`\`\`json
+// inputJson 格式
+{
+  "modelId": "fal-ai/wan/t2v-turbo",
+  "prompt": "camera slowly panning over a forest",
+  "duration": 5,
+  "resolution": "720p"
+}
+
+// resultJson 格式
+{
+  "videoUrl": "https://cdn.fal.ai/....mp4",
+  "thumbnailUrl": "https://cdn.fal.ai/...thumb.jpg",
+  "duration": 5.2,
+  "fps": 24,
+  "width": 1280, "height": 720
+}
+\`\`\`
+
+### audio_generation
+
+\`\`\`json
+// inputJson 格式
+{
+  "modelId": "suno/bark",
+  "prompt": "peaceful meditation music with flute",
+  "duration": 60,
+  "style": "ambient"
+}
+
+// resultJson 格式
+{
+  "audioUrl": "https://cdn.fal.ai/....mp3",
+  "duration": 62.4,
+  "sampleRate": 44100
+}
+\`\`\`
+
+### voice_cloning
+
+\`\`\`json
+// inputJson 格式
+{
+  "text": "要轉換的文字內容",
+  "voiceId": "elevenlabs-voice-id",
+  "model": "eleven_multilingual_v2",
+  "speed": 1.0, "stability": 0.5
+}
+
+// resultJson 格式
+{
+  "audioUrl": "https://...",
+  "duration": 8.3,
+  "characterCount": 150
+}
+\`\`\`
+
+### lora_training
+
+\`\`\`json
+// inputJson 格式
+{
+  "modelType": "flux-lora",
+  "baseModel": "flux-dev",
+  "trainingSteps": 1500,
+  "learningRate": 0.0001,
+  "loraRank": 32,
+  "datasetId": "training-set-uuid"
+}
+
+// resultJson 格式
+{
+  "downloadUrl": "https://r2.example.com/loras/....zip",
+  "modelId": "fine-tuned-model-uuid",
+  "finalLoss": 0.0023,
+  "validationImages": ["url1", "url2", "url3"]
+}
+\`\`\`
+
+---
+
+## status 狀態流程
+
+\`\`\`
+建立任務
+    ↓
+pending ─────────────────── 排隊中（等待工作執行緒）
+    ↓
+processing ──────────────── 執行中（呼叫外部 API）
+    ↓              ↓
+completed        failed
+（儲存結果）    （儲存錯誤訊息）
+    
+任何狀態 → cancelled（使用者手動取消）
+\`\`\`
+
+---
+
+## 30 分鐘超時機制
+
+**超時邏輯**（\`server/routers.ts\`）：
+
+\`\`\`typescript
+// 定時任務：每 5 分鐘掃描超時任務
+const checkTimeouts = async () => {
+  const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+  
+  await db.update(backgroundJobs)
+    .set({
+      status: 'failed',
+      errorMessage: 'Task timeout after 30 minutes',
+      completedAt: new Date()
+    })
+    .where(
+      and(
+        eq(backgroundJobs.status, 'processing'),
+        lt(backgroundJobs.startedAt, thirtyMinutesAgo)
+      )
+    );
+};
+\`\`\`
+
+---
+
+## 查詢 API
+
+| API 端點 | 說明 |
+|----------|------|
+| \`backgroundTask.create\` | 建立新任務 |
+| \`backgroundTask.getStatus\` | 查詢任務狀態（前端輪詢用）|
+| \`backgroundTask.list\` | 取得使用者的任務列表 |
+| \`backgroundTask.cancel\` | 取消進行中的任務 |
+| \`backgroundTask.retry\` | 重試失敗的任務 |
+
+---
+
+## 資料清理策略
+
+- \`completed\` 且超過 **7 天**：保留 resultJson，清空 inputJson
+- \`failed\` 且超過 **30 天**：整筆刪除
+- \`cancelled\` 且超過 **3 天**：整筆刪除
+- 定時清理任務每天 02:00（UTC）執行
+`,
+    tags: ["backgroundJobs", "資料庫", "背景任務", "非同步", "Schema"],
+    difficulty: "advanced",
+    readingMinutes: 10,
+    publishedAt: "2026-04-19T00:00:00Z",
+    updatedAt: "2026-04-19T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+
 ];
 
 // ─── In-memory store（後端無 DB 表時使用） ────────────────────────────────
