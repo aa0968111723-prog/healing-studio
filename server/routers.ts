@@ -34,6 +34,7 @@ import { getOrchestrator } from "./services/modelClients";
 // voiceCompiler, audioCompiler, videoCompiler are no longer used — all modalities route through falDispatcher
 import { buildMemoryContext, upsertMemory } from "./services/ragMemory";
 import { buildOrbSystemPrompt } from "./services/siteKnowledge";
+import { parseOrbReply } from "./services/orbReplyParser";
 import {
   estimatePoints,
   getModelPricing,
@@ -3444,79 +3445,10 @@ export const appRouter = router({
             };
           }
 
-          // ── Parse & whitelist ACTION commands ──
-          // Phase 1.5：擴充白名單，讓 LLM 能直接輸出 PageAgent 理解的動作
-          const ALLOWED_ACTIONS = new Set([
-            // Legacy（Studio 舊路徑仍在用）
-            "navigate",
-            "preset",
-            "modality",
-            "focus",
-            "generate",
-            "refine",
-            "export",
-            // Phase 1 PageAgent bus
-            "fillPrompt",
-            "setModel",
-            "setTab",
-            "setMode",
-            "setModality",
-            "setParam",
-            "applyPreset",
-            "submit",
-            "reset",
-            "focusElement",
-          ]);
-          const actionPattern = /\[ACTION:(\w+):([^\]]*)\]/g;
-          const actions: Array<{ type: string; payload: string }> = [];
-          let reply = rawReply;
-          let match;
-          while ((match = actionPattern.exec(rawReply)) !== null) {
-            if (ALLOWED_ACTIONS.has(match[1])) {
-              actions.push({ type: match[1], payload: match[2] });
-            } else {
-              console.warn(`[Orb] Rejected unknown action type: ${match[1]}`);
-            }
-            reply = reply.replace(match[0], "").trim();
-          }
-
-          // Phase 1.5：解析新 marker — 意圖摘要 / 確認旗標 / 快速回覆建議
-          let intent: string | null = null;
-          const intentMatch = /\[INTENT:([^\]]+)\]/.exec(reply);
-          if (intentMatch) {
-            intent = intentMatch[1].trim();
-            reply = reply.replace(intentMatch[0], "").trim();
-          }
-
-          let askBeforeAct = false;
-          const confirmMatch = /\[CONFIRM:(true|false)\]/i.exec(reply);
-          if (confirmMatch) {
-            askBeforeAct = confirmMatch[1].toLowerCase() === "true";
-            reply = reply.replace(confirmMatch[0], "").trim();
-          }
-
-          const suggestions: string[] = [];
-          const suggestMatch = /\[SUGGEST:([^\]]+)\]/.exec(reply);
-          if (suggestMatch) {
-            suggestMatch[1]
-              .split("|")
-              .map(s => s.trim())
-              .filter(s => s.length > 0 && s.length <= 20)
-              .slice(0, 4)
-              .forEach(s => suggestions.push(s));
-            reply = reply.replace(suggestMatch[0], "").trim();
-          }
-
-          // 破壞性動作預設要求確認（LLM 沒標 CONFIRM 時的保險絲）
-          const hasDestructive = actions.some(a =>
-            ["submit", "reset", "applyPreset", "preset", "generate"].includes(
-              a.type
-            )
-          );
-          if (!confirmMatch && hasDestructive) askBeforeAct = true;
-          if (input.alwaysConfirm && actions.length > 0) askBeforeAct = true;
-
-          return { reply, actions, intent, askBeforeAct, suggestions };
+          // ── Parse LLM output：ACTION / INTENT / CONFIRM / SUGGEST markers ──
+          return parseOrbReply(rawReply, {
+            alwaysConfirm: input.alwaysConfirm,
+          });
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : String(err);
           console.error("[Orb] Chat error:", errorMsg);

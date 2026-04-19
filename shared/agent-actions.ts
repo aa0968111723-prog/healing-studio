@@ -232,14 +232,16 @@ export function coerceAgentAction(input: unknown): AgentAction | null {
   if (typeof type !== "string") return null;
 
   switch (type) {
-    case "fillPrompt":
-      if (typeof obj.text !== "string") return null;
+    case "fillPrompt": {
+      const text = typeof obj.text === "string" ? obj.text : obj.payload;
+      if (typeof text !== "string") return null;
       return {
         type: "fillPrompt",
-        text: obj.text,
+        text,
         append: obj.append === true,
         slot: typeof obj.slot === "string" ? obj.slot : undefined,
       };
+    }
     case "setModel":
       if (typeof (obj.modelId ?? obj.payload) !== "string") return null;
       return { type: "setModel", modelId: String(obj.modelId ?? obj.payload) };
