@@ -16,6 +16,7 @@ import { ShowcaseTransferProvider } from "./contexts/ShowcaseTransferContext";
 import { SiteOnboardingProvider } from "./contexts/SiteOnboardingContext";
 import { FocusFlowProvider } from "./contexts/FocusFlowContext";
 import { AmbientProvider } from "./contexts/AmbientSoundContext";
+import { OrbGuideProvider } from "./contexts/OrbGuideContext";
 const SiteOnboardingOverlay = lazy(
   () => import("./components/SiteOnboardingOverlay")
 );
@@ -196,6 +197,7 @@ function App() {
               <SiteOnboardingProvider>
                 <FocusFlowProvider>
                   <AmbientProvider>
+                  <OrbGuideProvider>
                   <TooltipProvider>
                     <Toaster />
                     <OfflineBanner />
@@ -207,6 +209,7 @@ function App() {
                       <SiteOnboardingOverlay />
                     </Suspense>
                   </TooltipProvider>
+                  </OrbGuideProvider>
                   </AmbientProvider>
                 </FocusFlowProvider>
               </SiteOnboardingProvider>

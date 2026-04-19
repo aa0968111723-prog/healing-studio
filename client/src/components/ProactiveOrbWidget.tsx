@@ -39,6 +39,8 @@ import {
 import { trpc } from "@/lib/trpc";
 import { useFocusFlow } from "@/contexts/FocusFlowContext";
 import FocusFlowMini from "./FocusFlowMini";
+import { useOrbGuide } from "@/contexts/OrbGuideContext";
+import OrbGuidePanel from "./OrbGuidePanel";
 
 type Props = {
   className?: string;
@@ -385,28 +387,32 @@ interface OnboardingStep {
 }
 
 const ONBOARDING_STEPS: OnboardingStep[] = [
-  {
-    elementId: "prompt-builder-area",
-    message: "試著點選幾個喜歡的積木",
-    startSec: 0,
-    endSec: 15,
-  },
-  {
-    elementId: "modality-tabs",
-    message: "切換不同的創作模態",
-    startSec: 15,
-    endSec: 30,
-  },
-  {
-    elementId: "generate-button",
-    message: "準備好了就按下生成",
-    startSec: 30,
-    endSec: 50,
-  },
+  // Step 1: 首先指向光球本身 — 告訴使用者光球是入口
   {
     elementId: "proactive-orb-anchor",
-    message: "隨時點我，我會陪你一起創作",
-    startSec: 50,
+    message: "我是你的 AI 光球助手 ✨ 點我輸入『今天想做什麼』，我帶你去！",
+    startSec: 0,
+    endSec: 18,
+  },
+  // Step 2: 指向 prompt builder
+  {
+    elementId: "prompt-builder-area",
+    message: "這裡可以建構你的想法，幾個字就行 🎨",
+    startSec: 18,
+    endSec: 35,
+  },
+  // Step 3: 指向模態切換
+  {
+    elementId: "modality-tabs",
+    message: "圖、影、音、聲 — 四種創作隨時切換 🎬",
+    startSec: 35,
+    endSec: 52,
+  },
+  // Step 4: 指向生成按鈕
+  {
+    elementId: "generate-button",
+    message: "準備好了？按下去，魔法即將發生 ✨",
+    startSec: 52,
     endSec: 70,
   },
 ];
@@ -738,13 +744,51 @@ export default memo(function ProactiveOrbWidget({
     setTimeout(() => setFeedbackMessage(null), 2500);
   }, []);
 
+  // ─── OrbGuide integration ─────────────────────────────────────────────
+  const {
+    isPanelOpen: isGuideOpen,
+    openPanel: openGuidePanel,
+    closePanel: closeGuidePanel,
+    arrivedMessage,
+    clearArrivedMessage,
+    step: guideStep,
+  } = useOrbGuide();
+
+  // 監聽 orb-guide-navigate 事件，執行導航
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as {
+        path: string;
+        autoFillPrompt?: string;
+        autoTabId?: string;
+      };
+      onNavigate?.(detail.path);
+    };
+    window.addEventListener("orb-guide-navigate", handler);
+    return () => window.removeEventListener("orb-guide-navigate", handler);
+  }, [onNavigate]);
+
+  // 到達目標頁面後，顯示 arrivedMessage 作為 proactive
+  useEffect(() => {
+    if (arrivedMessage) {
+      showFeedback(arrivedMessage);
+      clearArrivedMessage();
+    }
+  }, [arrivedMessage, clearArrivedMessage, showFeedback]);
+
   // ─── Orb click handler (single click opens panel) ────────────────────
 
   const handleOrbClick = useCallback(() => {
     if (guiding) return;
-    setShowPanel(prev => !prev);
-    setPanelView("main");
-  }, [guiding]);
+    // 如果 Guide Panel 是開的，關掉；否則優先開 Guide Panel
+    if (isGuideOpen) {
+      closeGuidePanel();
+      return;
+    }
+    // 首次或主動探索 → 開引導面板（取代舊的 main panel）
+    openGuidePanel();
+    setShowPanel(false);
+  }, [guiding, isGuideOpen, openGuidePanel, closeGuidePanel]);
 
   // ─── Quick action handlers ───────────────────────────────────────────
 
@@ -1042,6 +1086,15 @@ export default memo(function ProactiveOrbWidget({
         style={{ cursor: guiding ? "default" : "grab", touchAction: "none" }}
         id="proactive-orb-anchor"
       >
+        {/* ══ OrbGuide Panel — 新引導對話面板 ══ */}
+        <AnimatePresence>
+          {isGuideOpen && (
+            <div data-orb-panel>
+              <OrbGuidePanel onClose={closeGuidePanel} />
+            </div>
+          )}
+        </AnimatePresence>
+
         {/* Interaction Panel */}
         <AnimatePresence>
           {showPanel && (
@@ -1474,13 +1527,39 @@ export default memo(function ProactiveOrbWidget({
             style={{ margin: "-4px", borderRadius: "50%" }}
           />
 
-          {/* Phase 10: 升級為 3D 光球 (size=lg → WebGL) */}
+          {/* Phase 11: 升級為 3D 光球 — 整合 OrbGuide 引導狀態 */}
           <VisualSoul
-            state={guiding ? "thinking" : showPanel ? "listening" : aiState}
+            state={
+              guiding
+                ? "thinking"
+                : isGuideOpen
+                  ? "listening"
+                  : showPanel
+                    ? "listening"
+                    : aiState
+            }
             personality={personality}
             size="lg"
             className="!w-12 !h-12"
           />
+
+          {/* 引導模式的蒯腳文字浮標 */}
+          <AnimatePresence>
+            {!isGuideOpen && !showPanel && !guiding && !isAnyTimerRunning && (
+              <motion.div
+                initial={{ opacity: 0, y: 4, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 4, scale: 0.9 }}
+                transition={{ delay: 2, duration: 0.4 }}
+                className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap"
+              >
+                <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10">
+                  <Sparkles className="w-2.5 h-2.5 text-white/70" />
+                  <span className="text-[10px] text-white/80 font-medium">點我開始</span>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Personality indicator dot */}
           <motion.div

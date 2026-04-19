@@ -932,13 +932,14 @@ function DashboardLayoutContent({
       </SidebarInset>
 
       {/* 全站光球常駐協助（Studio 頁面內已有自己的光球，不需要重複） */}
-      {user && location !== "/studio" && (
+      {user && (
         <ProactiveOrbWidget
           onRestartTour={handleOrbRestartTour}
           onSaveToNotes={handleOrbSaveToNotes}
           onOpenNotes={handleOrbOpenNotes}
           onOpenCalendar={handleOrbOpenCalendar}
           onAddToCalendar={handleOrbAddToCalendar}
+          onNavigate={(path) => setLocation(path)}
         />
       )}
     </>
