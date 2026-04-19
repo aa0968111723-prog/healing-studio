@@ -932,21 +932,20 @@ function DashboardLayoutContent({
         </main>
       </SidebarInset>
 
-      {/* 全站光球常駐協助（Studio 頁面內已有自己的光球，不需要重複） */}
-      {user && (
-        <>
-          <ProactiveOrbWidget
-            onRestartTour={handleOrbRestartTour}
-            onSaveToNotes={handleOrbSaveToNotes}
-            onOpenNotes={handleOrbOpenNotes}
-            onOpenCalendar={handleOrbOpenCalendar}
-            onAddToCalendar={handleOrbAddToCalendar}
-            onNavigate={(path) => setLocation(path)}
-          />
-          {/* Phase 1.5：破壞性動作執行前的柔軟確認卡片 */}
-          <AgentIntentPreview />
-        </>
+      {/* 全站光球常駐協助（Studio 頁面內已有自己的光球，不需要重複）
+          Phase 2a：/agent 緩衝聊天頁已是全頁光球對話，浮球隱藏避免雙重 UI */}
+      {user && location !== "/agent" && (
+        <ProactiveOrbWidget
+          onRestartTour={handleOrbRestartTour}
+          onSaveToNotes={handleOrbSaveToNotes}
+          onOpenNotes={handleOrbOpenNotes}
+          onOpenCalendar={handleOrbOpenCalendar}
+          onAddToCalendar={handleOrbAddToCalendar}
+          onNavigate={(path) => setLocation(path)}
+        />
       )}
+      {/* 破壞性動作執行前的柔軟確認卡片（全站都可觸發，含 /agent） */}
+      {user && <AgentIntentPreview />}
     </>
   );
 }

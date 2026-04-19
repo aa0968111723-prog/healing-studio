@@ -50,6 +50,7 @@ const LangSmithPage = lazy(() => import("./pages/LangSmithPage"));
 const BackgroundTasksPage = lazy(() => import("./pages/BackgroundTasksPage"));
 const CreditsInfoPage = lazy(() => import("./pages/CreditsInfoPage"));
 const PromptLibraryPage = lazy(() => import("./pages/PromptLibraryPage"));
+const AgentChat = lazy(() => import("./pages/AgentChat"));
 
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -181,6 +182,9 @@ function Router() {
       </Route>
       <Route path="/prompt-library">
         <DashboardRoute component={PromptLibraryPage} />
+      </Route>
+      <Route path="/agent">
+        <DashboardRoute component={AgentChat} />
       </Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
