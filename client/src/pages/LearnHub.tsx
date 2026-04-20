@@ -724,11 +724,16 @@ function VideoCard({
 function getYouTubeEmbedUrl(url: string): string | null {
   try {
     const u = new URL(url);
-    if (u.hostname.includes("youtube.com")) {
+    const host = u.hostname;
+    if (
+      host === "www.youtube.com" ||
+      host === "youtube.com" ||
+      host === "m.youtube.com"
+    ) {
       const v = u.searchParams.get("v");
       if (v) return `https://www.youtube.com/embed/${encodeURIComponent(v)}`;
     }
-    if (u.hostname === "youtu.be") {
+    if (host === "youtu.be") {
       const id = u.pathname.slice(1);
       if (id) return `https://www.youtube.com/embed/${encodeURIComponent(id)}`;
     }
