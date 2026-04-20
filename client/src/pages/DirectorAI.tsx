@@ -1189,7 +1189,13 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
           },
         })
       );
-      navigate(task.modality === "image" ? "/image-studio" : "/studio");
+      const targetPath =
+        task.modality === "image"
+          ? "/image-studio"
+          : task.modality === "video"
+            ? "/video-studio"
+            : "/studio";
+      navigate(targetPath);
       toast.success(
         `已發送「${task.labelZh}」到工作室（${selectedModels[task.modality]}）`
       );
@@ -1232,7 +1238,8 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
       })
     );
     const onlyImage = activeTasks.every(t => t.modality === "image");
-    navigate(onlyImage ? "/image-studio" : "/studio");
+    const onlyVideo = activeTasks.every(t => t.modality === "video");
+    navigate(onlyImage ? "/image-studio" : onlyVideo ? "/video-studio" : "/studio");
     toast.success(`已發送 ${activeTasks.length} 個任務到工作室`);
   }, [tasks, selectedModels, segment, navigate]);
 
