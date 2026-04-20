@@ -77,6 +77,7 @@ import VisualSoul from "@/components/VisualSoul";
 import { useLocation } from "wouter";
 import { useShowcaseTransfer } from "@/contexts/ShowcaseTransferContext";
 import type { GenerationMode, GenerationType } from "@shared/types";
+import { normalizeEngineModelId } from "@shared/engineModelIds";
 import JSZip from "jszip";
 
 import ProactiveOrbWidget from "@/components/ProactiveOrbWidget";
@@ -146,6 +147,14 @@ const MODALITY_TABS: {
   { value: "audio", label: "音樂", icon: <Music className="w-4 h-4" /> },
   { value: "voice", label: "語音", icon: <Mic className="w-4 h-4" /> },
 ];
+
+interface DirectorBatchTaskPayload {
+  prompt: string;
+  generationType: "image" | "video" | "audio" | "voice";
+  overrideEngine?: string;
+  musicStyle?: string;
+  audioScript?: string;
+}
 
 // ─── Mini History Panel (embedded in right drawer) ──────────────────────────
 
@@ -424,6 +433,9 @@ export default function Studio() {
   const [fineTunedModelName, setFineTunedModelName] = useState<
     string | undefined
   >(undefined);
+  const [directorModelOverride, setDirectorModelOverride] = useState<
+    string | undefined
+  >(undefined);
 
   // ── UI state ──
   const [creativeMode, setCreativeMode] =
@@ -567,7 +579,7 @@ export default function Studio() {
     onSuccess: (data) => {
       // 立刻登錄到背景任務系統，讓 BackgroundTasksDrawer 追蹤
       submitTask({
-        studioType: activeModality as any,
+        studioType: (data as any).generationType ?? (activeModality as any),
         requestId: data.request_id,
         modelId: data.modelId,
         label: data.label,
@@ -596,6 +608,37 @@ export default function Studio() {
       reportFailure();
     },
   });
+
+  const submitDirectorBatch = useCallback(
+    async (tasks: DirectorBatchTaskPayload[]) => {
+      let ok = 0;
+      let failed = 0;
+      for (const task of tasks) {
+        try {
+          await submitAsyncMutation.mutateAsync({
+            prompt: task.prompt,
+            generationType: task.generationType,
+            mode,
+            ...(task.generationType === "audio" && {
+              musicStyle: task.musicStyle || task.prompt,
+            }),
+            ...(task.generationType === "voice" && {
+              voiceText: task.audioScript || task.prompt,
+            }),
+            overrideModelId: task.overrideEngine
+              ? normalizeEngineModelId(task.overrideEngine)
+              : undefined,
+          });
+          ok += 1;
+        } catch {
+          failed += 1;
+        }
+      }
+      if (ok > 0) toast.success(`導演批次任務已提交 ${ok} 筆`);
+      if (failed > 0) toast.error(`導演批次任務失敗 ${failed} 筆`);
+    },
+    [submitAsyncMutation, mode]
+  );
 
 
 
@@ -718,12 +761,26 @@ export default function Studio() {
           }));
         }
         if (data.generationType) setActiveModality(data.generationType);
+        setDirectorModelOverride(
+          data.overrideEngine ? String(data.overrideEngine) : undefined
+        );
         if (data.musicStyle)
           setAudioState(prev => ({ ...prev, musicStyle: data.musicStyle }));
         if (data.voiceText)
           setVoiceState(prev => ({ ...prev, text: data.voiceText }));
         if (data.audioScript)
           setVoiceState(prev => ({ ...prev, text: data.audioScript }));
+        if (Array.isArray(data.batchTasks) && data.batchTasks.length > 0) {
+          const tasks = data.batchTasks.filter(
+            (t: any) =>
+              t &&
+              typeof t.prompt === "string" &&
+              ["image", "video", "audio", "voice"].includes(t.generationType)
+          ) as DirectorBatchTaskPayload[];
+          if (tasks.length > 0) {
+            void submitDirectorBatch(tasks);
+          }
+        }
 
         // ── Restore full parameter snapshot from history (cross-modal, 100% fidelity) ──
         if (data.parameterSnapshot) {
@@ -872,6 +929,8 @@ export default function Studio() {
         const sourceLabel =
           data.source === "shared_space"
             ? "已從共享空間載入素材"
+            : data.source === "director_ai" && data.overrideEngine
+              ? `已從導演 AI 載入「${data.sceneName ?? "場景"}」（模型：${data.overrideEngine}）`
             : data.source === "history" || data.source === "history_cross"
               ? "已 100% 還原生成配置，可直接重新生成"
               : "已載入參數與提示詞";
@@ -880,7 +939,7 @@ export default function Studio() {
         /* ignore */
       }
     }
-  }, []);
+  }, [submitDirectorBatch]);
 
   // ── Apply model from ModelsPage (applyModel sessionStorage) ──
   useEffect(() => {
@@ -1271,7 +1330,11 @@ export default function Studio() {
         }),
         fineTunedModelId,
         loraWeight,
+        overrideModelId: directorModelOverride
+          ? normalizeEngineModelId(directorModelOverride)
+          : undefined,
       });
+      setDirectorModelOverride(undefined);
     } catch {
       // Errors are handled by onError callback in the mutation
     }
@@ -1291,6 +1354,7 @@ export default function Studio() {
     vaultCharacterId,
     vaultSceneId,
     fineTunedModelId,
+    directorModelOverride,
   ]);
 
   // ── Vault select handler ──
