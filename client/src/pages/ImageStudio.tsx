@@ -2328,6 +2328,56 @@ export default function ImageStudio() {
     }
   };
 
+  const persistGeneratedImageUrl = useCallback(async (url: string) => {
+    if (!/^https?:\/\//i.test(url)) return url;
+    if (typeof window !== "undefined" && url.includes(window.location.host)) {
+      return url;
+    }
+
+    const proxyUrl = `/api/proxy-download?url=${encodeURIComponent(url)}`;
+    const resp = await fetch(proxyUrl);
+    if (!resp.ok) throw new Error(`下載生成檔案失敗 (HTTP ${resp.status})`);
+
+    const blob = await resp.blob();
+    const mimeType = blob.type || "image/png";
+    const ext = mimeType.includes("png")
+      ? "png"
+      : mimeType.includes("webp")
+        ? "webp"
+        : mimeType.includes("gif")
+          ? "gif"
+          : "jpg";
+
+    const buffer = await blob.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    let binary = "";
+    const chunkSize = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      const chunk = bytes.subarray(i, i + chunkSize);
+      for (let j = 0; j < chunk.length; j += 1) {
+        binary += String.fromCharCode(chunk[j]);
+      }
+    }
+    const data = btoa(binary);
+
+    const uploadResp = await fetch("/api/upload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        fileName: `image-studio-${Date.now()}.${ext}`,
+        mimeType,
+        data,
+      }),
+    });
+    if (!uploadResp.ok) {
+      const err = await uploadResp.json().catch(() => ({}));
+      throw new Error(err?.error || `上傳內部儲存失敗 (HTTP ${uploadResp.status})`);
+    }
+    const payload = (await uploadResp.json()) as { url?: string };
+    if (!payload.url) throw new Error("上傳完成但未取得內部 URL");
+    return payload.url;
+  }, []);
+
   const handleGenerate = useCallback(async () => {
     setIsGenerating(true);
     setAIState("generating");
@@ -2643,7 +2693,8 @@ export default function ImageStudio() {
       if (model.category === "pose") {
         const poseUrl = result?.pose_image_url || null;
         if (poseUrl) {
-          setResultPose(poseUrl);
+          const internalPoseUrl = await persistGeneratedImageUrl(poseUrl);
+          setResultPose(internalPoseUrl);
           toast.success("骨骼姿勢圖生成完成！");
         } else {
           toast.error("未取得姿勢圖 URL");
@@ -2661,13 +2712,16 @@ export default function ImageStudio() {
         toast.success("📤 任務已提交！背景生成中，完成後會自動通知你");
         return;
       }
-      setResultImages(imgs);
+      const internalImgs = await Promise.all(
+        imgs.map(imgUrl => persistGeneratedImageUrl(imgUrl))
+      );
+      setResultImages(internalImgs);
       toast.success(`✨ 生成完成！（${imgs.length} 張）`);
       reportSuccess();
 
       addToHistory({
         prompt: fullPrompt || upscaleImageUrl || poseImageUrl || imageUrl3d,
-        imageUrl: imgs[0],
+        imageUrl: internalImgs[0],
         modelId: model.id,
         modelName: model.name,
         params: {
@@ -2731,6 +2785,7 @@ export default function ImageStudio() {
     labelsFg2,
     worldClasses,
     currentMutation,
+    persistGeneratedImageUrl,
     setAIState,
     reportSuccess,
     reportFailure,
