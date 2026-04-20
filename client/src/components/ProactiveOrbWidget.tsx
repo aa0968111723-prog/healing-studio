@@ -36,6 +36,7 @@ import {
   ArrowRight,
   Navigation,
   Layers,
+  Cpu,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useFocusFlow } from "@/contexts/FocusFlowContext";
@@ -344,6 +345,12 @@ const PAGE_QUICK_ACTIONS: Record<string, QuickAction[]> = {
       label: "模型推薦",
       description: "根據你的需求推薦最適合的圖片模型",
       action: "chat-model-recommend",
+    },
+    {
+      icon: <Cpu className="w-4 h-4" />,
+      label: "模型細節導覽",
+      description: "逐一解說模型長處、功能與適用任務",
+      action: "chat-image-model-deep-dive",
     },
     {
       icon: <Sparkles className="w-4 h-4" />,
@@ -987,6 +994,8 @@ export default memo(function ProactiveOrbWidget({
           if (action.startsWith("chat-")) {
             const topicHints: Record<string, string> = {
               "chat-model-recommend": "請推薦適合我的模型",
+              "chat-image-model-deep-dive":
+                "請詳細比較圖片創作室每個模型的長處、功能優勢與適用場景，並給我選型建議",
               "chat-prompt-optimize": "請幫我優化提示詞",
               "chat-model-compare": "請幫我比較影片模型的差異",
               "chat-video-tips": "影片提示詞有什麼技巧？",

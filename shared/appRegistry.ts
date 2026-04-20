@@ -121,6 +121,14 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
         prompt:
           "我想先討論圖片參數與感覺，幫我一步步調整風格、光線、構圖和細節強度。",
       },
+      {
+        id: "image-model-deep-dive",
+        label: "模型細膩導覽",
+        description: "逐一比較圖片模型的長處、功能優勢與適用場景",
+        path: "/image-studio",
+        prompt:
+          "請你細膩地帶我看圖片創作室每個模型的長處、功能優勢、限制與適用情境，最後給我選型建議。",
+      },
     ],
     orbHints: ["幫我生成一張圖片"],
   },

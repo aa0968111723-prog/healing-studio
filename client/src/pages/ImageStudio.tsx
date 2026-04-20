@@ -412,6 +412,123 @@ const MODELS: ModelInfo[] = [
   },
 ];
 
+type ModelCoaching = {
+  bestFor: string;
+  tip: string;
+  advantages: string[];
+};
+
+const MODEL_COACHING_MAP: Partial<Record<string, ModelCoaching>> = {
+  nanoBananaProEdit: {
+    bestFor: "🧪 複雜語意編修、多圖融合重構",
+    tip: "一句自然語言就能做大幅度重繪，特別適合「換場景、換服裝、改構圖」這類高階編修。",
+    advantages: ["語意理解強", "多參考圖融合穩定", "成品質感高"],
+  },
+  nanoBananaEdit: {
+    bestFor: "⚡ 日常快速改圖、批量微調",
+    tip: "需要快節奏反覆試稿時優先使用，先用它收斂方向，再切高品質模型做定稿。",
+    advantages: ["速度快", "成本友善", "改稿迭代效率高"],
+  },
+  nanoBanana2Edit: {
+    bestFor: "⚖️ 品質與速度平衡的編輯任務",
+    tip: "適合「先做 3–5 版比較」的工作流，挑到方向後再升級到 Pro 類模型。",
+    advantages: ["生成穩定", "速度良好", "多圖場景表現均衡"],
+  },
+  seedreamV45Edit: {
+    bestFor: "🎨 風格重塑與美術向精修",
+    tip: "搭配 strength 由低到高測試（0.25→0.45→0.65），更容易拿到自然過渡結果。",
+    advantages: ["風格遷移細膩", "色彩審美佳", "藝術感強"],
+  },
+  seedreamV5LiteEdit: {
+    bestFor: "📱 輕量快速編輯與即時回饋",
+    tip: "先用 Lite 版本快速確定語意，再切換高品質模型做最終輸出。",
+    advantages: ["速度快", "反應靈敏", "適合探索期"],
+  },
+  grokEdit: {
+    bestFor: "🧠 需要理解複雜敘述的語意改圖",
+    tip: "當你的需求包含多個條件（人物、場景、情緒、道具）時，Grok 類模型通常更穩。",
+    advantages: ["複合語意理解強", "上下文銜接好", "描述容錯高"],
+  },
+  gptImage15Edit: {
+    bestFor: "🪄 局部遮罩修圖、精準替換",
+    tip: "有局部修補需求（換背景、修手、改文字）時先畫遮罩，成功率會明顯上升。",
+    advantages: ["局部控制精準", "語意自然", "商用場景友善"],
+  },
+  fluxKontext: {
+    bestFor: "🎯 精準局部改動與一致性維持",
+    tip: "適合「保留主體只改局部」的任務，尤其是產品圖與角色細節修正。",
+    advantages: ["局部修改能力強", "原圖保留度高", "細節一致性好"],
+  },
+  flux2ProEdit: {
+    bestFor: "🖼️ 高真實感商業修圖",
+    tip: "多參考圖時先確保光線方向一致，可顯著提升融合自然度。",
+    advantages: ["寫實細節好", "高品質輸出", "多圖融合能力強"],
+  },
+  seedVRUpscale: {
+    bestFor: "🔍 低解析素材放大與細節補強",
+    tip: "先做 ×2 檢查細節，再決定是否 ×4，能避免過度銳化或假細節。",
+    advantages: ["放大品質穩定", "邊緣保持好", "適合老圖修復"],
+  },
+  dwPose: {
+    bestFor: "🕺 姿勢骨架抽取與動作參考",
+    tip: "先用骨架圖固定動作，再串到 SD/ControlNet，可大幅提升姿勢一致性。",
+    advantages: ["骨架精準", "手部臉部標記完整", "動畫前置很實用"],
+  },
+  stableDiffusion35: {
+    bestFor: "🧩 進階控制流（ControlNet + LoRA）",
+    tip: "需要可控性時首選：先用 ControlNet 固定構圖，再用 LoRA 強化風格。",
+    advantages: ["可控性高", "生態完整", "適合專業流程"],
+  },
+  fastSdxl: {
+    bestFor: "⚡ 快速試圖與 LoRA 草稿",
+    tip: "做風格探索和草稿非常快，確定方向後可切到高品質模型收斂。",
+    advantages: ["推理快", "LoRA 友好", "草稿效率高"],
+  },
+  sdLora: {
+    bestFor: "🧬 客製 LoRA 風格化任務",
+    tip: "配合 trigger word 與 loraScale（建議 0.6~1.0）可更穩定地喚出角色/風格。",
+    advantages: ["客製彈性高", "社群資源多", "角色一致性好"],
+  },
+  trellis2: {
+    bestFor: "🧱 高品質 3D 幾何與 GLB 輸出",
+    tip: "主體輪廓清楚、背景乾淨的圖片最容易得到完整可用的 3D 網格。",
+    advantages: ["幾何品質高", "輸出乾淨", "適合資產製作"],
+  },
+  sam3dObjects: {
+    bestFor: "📦 單物件精準 3D 重建",
+    tip: "先裁切到單一主體再轉換，通常會得到更完整的物件邊界與紋理。",
+    advantages: ["物件邊界準", "重建穩定", "適合產品類題材"],
+  },
+  hunyuan3d: {
+    bestFor: "🎬 高質感 PBR 3D 資產",
+    tip: "適合需要材質與幾何兼顧的場景，建議使用清晰主體圖並避免過度複雜背景。",
+    advantages: ["PBR 材質表現佳", "幾何細節完整", "可用於高質場景"],
+  },
+  rodin3d: {
+    bestFor: "🧠 文字/圖片混合驅動的 3D 生成",
+    tip: "若圖片資訊不足，可補一段 prompt 強化語意，能提升形體與材質方向一致性。",
+    advantages: ["圖文混合彈性高", "材質輸出完整", "適合概念驗證"],
+  },
+  hunyuanWorld: {
+    bestFor: "🌍 圖片到全景世界構建",
+    tip: "最適合場景探索與沉浸式概念提案，建議輸入具有明確前中後景的畫面。",
+    advantages: ["世界構建能力", "場景延展性好", "概念展示效果強"],
+  },
+};
+
+function getModelCoaching(model: ModelInfo): ModelCoaching | null {
+  const mapped = MODEL_COACHING_MAP[model.id];
+  if (mapped) return mapped;
+  if (model.tip) {
+    return {
+      bestFor: model.bestFor ?? "✨ 通用圖像創作",
+      tip: model.tip,
+      advantages: [],
+    };
+  }
+  return null;
+}
+
 const TABS: {
   id: StudioTab;
   label: string;
@@ -709,19 +826,32 @@ function T2iQuickStartGuide({ onQuickTry }: { onQuickTry: () => void }) {
 }
 
 function ModelTipCard({ model }: { model: ModelInfo }) {
-  if (!model.tip) return null;
+  const coaching = getModelCoaching(model);
+  if (!coaching) return null;
   return (
     <div className="rounded-xl border border-border/30 bg-background/60 px-3 py-2.5 flex items-start gap-2">
       <HelpCircle className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
       <div className="min-w-0">
-        {model.bestFor && (
+        {coaching.bestFor && (
           <p className="text-[11px] font-medium text-foreground mb-0.5">
-            {model.bestFor}
+            {coaching.bestFor}
           </p>
         )}
         <p className="text-[11px] text-muted-foreground leading-relaxed">
-          {model.tip}
+          {coaching.tip}
         </p>
+        {coaching.advantages.length > 0 && (
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {coaching.advantages.map(adv => (
+              <span
+                key={adv}
+                className="text-[10px] rounded-full border border-primary/20 bg-primary/5 px-1.5 py-0.5 text-primary/80"
+              >
+                {adv}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -3008,18 +3138,24 @@ export default function ImageStudio() {
       action: "setModel",
       label: "模型",
       currentId: selectedModelId,
-      options: MODELS.map(m => ({
-        id: m.id,
-        label: m.name,
-        description: m.desc,
-        meta: {
-          category: m.category,
-          badge: m.badge,
-          fast: m.fast,
-          recommended: m.recommended,
-        },
-      })),
-      hint: "切換模型會自動切到對應分頁；部分模型支援中文提示詞（seedreamV4）；推薦：nanoBanana2（快速預覽）/ nanoBananaPro（高品質）/ seedreamV4（中文）/ imagen4（寫實）",
+      options: MODELS.map(m => {
+        const coaching = getModelCoaching(m);
+        return {
+          id: m.id,
+          label: m.name,
+          description: m.desc,
+          meta: {
+            category: m.category,
+            badge: m.badge,
+            fast: m.fast,
+            recommended: m.recommended,
+            bestFor: coaching?.bestFor,
+            tip: coaching?.tip,
+            advantages: coaching?.advantages ?? [],
+          },
+        };
+      }),
+      hint: "切換模型會自動切到對應分頁。建議選型順序：先看任務（t2i/edit/upscale/pose/sd/3d）→ 再看速度與品質需求 → 最後看控制能力（遮罩/LoRA/ControlNet/多參考圖）。若不確定，先用 nanoBanana2 試方向，再切 nanoBananaPro 或 Imagen4 定稿。",
     },
     {
       action: "fillPrompt",
