@@ -8890,6 +8890,363 @@ export function getLearnDocCount(): number {
   return docs.length;
 }
 
+// ─── Video Types & Seed Data ─────────────────────────────────────────────────
+
+export type VideoCategory =
+  | "getting-started"
+  | "model-guide"
+  | "technique"
+  | "workflow"
+  | "ai-news";
+
+export interface LearnVideo {
+  id: string;
+  category: VideoCategory;
+  title: string;
+  summary: string;
+  videoUrl: string; // YouTube / external video URL
+  thumbnailUrl?: string;
+  tags: string[];
+  difficulty: "beginner" | "intermediate" | "advanced";
+  durationMinutes: number;
+  publishedAt: string;
+  updatedAt: string;
+  featured: boolean;
+  authorName?: string;
+}
+
+const SEED_VIDEOS: LearnVideo[] = [
+  {
+    id: "video-001",
+    category: "getting-started",
+    title: "Healing Studio 快速入門",
+    summary: "5 分鐘帶你了解 Healing Studio 的核心功能與操作方式",
+    videoUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    tags: ["入門", "教學", "快速上手"],
+    difficulty: "beginner",
+    durationMinutes: 5,
+    publishedAt: "2026-04-01T00:00:00Z",
+    updatedAt: "2026-04-01T00:00:00Z",
+    featured: true,
+    authorName: "Healing Studio Team",
+  },
+  {
+    id: "video-002",
+    category: "technique",
+    title: "AI 圖片生成技巧：Prompt 寫作進階",
+    summary: "深入了解如何撰寫有效的 Prompt 來生成高品質圖片",
+    videoUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    tags: ["Prompt", "圖片生成", "進階技巧"],
+    difficulty: "intermediate",
+    durationMinutes: 12,
+    publishedAt: "2026-04-05T00:00:00Z",
+    updatedAt: "2026-04-05T00:00:00Z",
+    featured: true,
+    authorName: "Healing Studio Team",
+  },
+  {
+    id: "video-003",
+    category: "model-guide",
+    title: "模型比較：選擇最適合你的 AI 模型",
+    summary: "比較不同 AI 模型的特點與適用場景",
+    videoUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    tags: ["模型", "比較", "選擇指南"],
+    difficulty: "beginner",
+    durationMinutes: 8,
+    publishedAt: "2026-04-08T00:00:00Z",
+    updatedAt: "2026-04-08T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+  {
+    id: "video-004",
+    category: "workflow",
+    title: "導演模式完整教學",
+    summary: "從零開始學會使用導演模式創作 AI 影片",
+    videoUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    tags: ["導演模式", "影片創作", "工作流程"],
+    difficulty: "intermediate",
+    durationMinutes: 15,
+    publishedAt: "2026-04-10T00:00:00Z",
+    updatedAt: "2026-04-10T00:00:00Z",
+    featured: true,
+    authorName: "Healing Studio Team",
+  },
+  {
+    id: "video-005",
+    category: "technique",
+    title: "LoRA 模型訓練實戰",
+    summary: "手把手教你訓練自己的 LoRA 模型",
+    videoUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    tags: ["LoRA", "模型訓練", "高級"],
+    difficulty: "advanced",
+    durationMinutes: 20,
+    publishedAt: "2026-04-12T00:00:00Z",
+    updatedAt: "2026-04-12T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+  {
+    id: "video-006",
+    category: "ai-news",
+    title: "2026 年 AI 創作趨勢展望",
+    summary: "回顧與展望 AI 創作技術的最新發展",
+    videoUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    tags: ["AI趨勢", "新聞", "展望"],
+    difficulty: "beginner",
+    durationMinutes: 10,
+    publishedAt: "2026-04-15T00:00:00Z",
+    updatedAt: "2026-04-15T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+];
+
+let videos: LearnVideo[] = [...SEED_VIDEOS];
+
+// ─── Quiz Types & Seed Data ──────────────────────────────────────────────────
+
+export type QuizCategory =
+  | "getting-started"
+  | "model-guide"
+  | "technique"
+  | "workflow";
+
+export interface QuizQuestion {
+  id: string;
+  question: string;
+  options: string[];
+  correctIndex: number;
+  explanation: string;
+}
+
+export interface LearnQuiz {
+  id: string;
+  category: QuizCategory;
+  title: string;
+  summary: string;
+  questions: QuizQuestion[];
+  tags: string[];
+  difficulty: "beginner" | "intermediate" | "advanced";
+  estimatedMinutes: number;
+  publishedAt: string;
+  updatedAt: string;
+  featured: boolean;
+  authorName?: string;
+}
+
+const SEED_QUIZZES: LearnQuiz[] = [
+  {
+    id: "quiz-001",
+    category: "getting-started",
+    title: "Healing Studio 基礎知識測驗",
+    summary: "測試你對 Healing Studio 基本操作的了解程度",
+    questions: [
+      {
+        id: "q1-1",
+        question: "Healing Studio 的核心理念是什麼？",
+        options: ["高效生產", "療癒放鬆創作", "競爭比賽", "快速輸出"],
+        correctIndex: 1,
+        explanation:
+          "Healing Studio 主打「療癒放鬆創作」，以人為本，不讓使用者焦慮。",
+      },
+      {
+        id: "q1-2",
+        question: "要生成一張 AI 圖片，首先應該前往哪個頁面？",
+        options: ["設定頁", "圖片工作室", "學習文件中心", "行事曆"],
+        correctIndex: 1,
+        explanation: "圖片工作室（Image Studio）是生成 AI 圖片的主要工作區。",
+      },
+      {
+        id: "q1-3",
+        question: "光球（Orb）助手可以幫你做什麼？",
+        options: [
+          "只能聊天",
+          "導航頁面、生成內容、提供創作靈感",
+          "只能搜尋文件",
+          "只能修改設定",
+        ],
+        correctIndex: 1,
+        explanation:
+          "光球助手是全站 AI Agent，可以導航頁面、協助創作、提供靈感等多種功能。",
+      },
+    ],
+    tags: ["入門", "基礎", "平台功能"],
+    difficulty: "beginner",
+    estimatedMinutes: 3,
+    publishedAt: "2026-04-01T00:00:00Z",
+    updatedAt: "2026-04-01T00:00:00Z",
+    featured: true,
+    authorName: "Healing Studio Team",
+  },
+  {
+    id: "quiz-002",
+    category: "technique",
+    title: "Prompt 寫作技巧測驗",
+    summary: "測試你對 AI Prompt 撰寫的掌握程度",
+    questions: [
+      {
+        id: "q2-1",
+        question: "以下哪種 Prompt 寫法最可能產生高品質的圖片？",
+        options: [
+          "一隻貓",
+          "一隻可愛的橘色貓咪，坐在窗台上，自然光照射，柔和散景背景",
+          "貓貓貓貓貓",
+          "cat",
+        ],
+        correctIndex: 1,
+        explanation:
+          "具體描述主體、場景、光線和風格的 Prompt 通常能產生更好的結果。",
+      },
+      {
+        id: "q2-2",
+        question: "負面提詞（Negative Prompt）的作用是什麼？",
+        options: [
+          "增加圖片亮度",
+          "告訴 AI 不要生成哪些元素",
+          "加速生成速度",
+          "改變圖片解析度",
+        ],
+        correctIndex: 1,
+        explanation:
+          "負面提詞告訴 AI 應該避免生成的元素，例如 'blurry, low quality' 等。",
+      },
+      {
+        id: "q2-3",
+        question: "提詞中的權重標記（如 (keyword:1.5)）有什麼作用？",
+        options: [
+          "改變圖片大小",
+          "增強或減弱某個關鍵詞的影響力",
+          "改變生成速度",
+          "不會有任何效果",
+        ],
+        correctIndex: 1,
+        explanation:
+          "權重標記可以調整特定關鍵詞對生成結果的影響程度，數值越高影響越大。",
+      },
+      {
+        id: "q2-4",
+        question: "以下哪個不是常見的圖片風格描述詞？",
+        options: ["photorealistic", "watercolor", "pixel art", "database"],
+        correctIndex: 3,
+        explanation:
+          "'database' 不是圖片風格描述詞，其他三個都是常用的風格關鍵詞。",
+      },
+    ],
+    tags: ["Prompt", "技巧", "圖片生成"],
+    difficulty: "intermediate",
+    estimatedMinutes: 5,
+    publishedAt: "2026-04-05T00:00:00Z",
+    updatedAt: "2026-04-05T00:00:00Z",
+    featured: true,
+    authorName: "Healing Studio Team",
+  },
+  {
+    id: "quiz-003",
+    category: "model-guide",
+    title: "AI 模型知識測驗",
+    summary: "了解你對不同 AI 模型的認知程度",
+    questions: [
+      {
+        id: "q3-1",
+        question: "LoRA 模型的主要用途是什麼？",
+        options: [
+          "訓練全新的 AI 模型",
+          "微調現有模型以適應特定風格或主題",
+          "壓縮圖片檔案",
+          "翻譯文件",
+        ],
+        correctIndex: 1,
+        explanation:
+          "LoRA（Low-Rank Adaptation）是一種輕量化的模型微調技術，可以讓現有模型學習特定風格。",
+      },
+      {
+        id: "q3-2",
+        question: "什麼是 CFG Scale（引導尺度）？",
+        options: [
+          "圖片的解析度設定",
+          "AI 遵循提詞的程度",
+          "模型的大小",
+          "生成速度的設定",
+        ],
+        correctIndex: 1,
+        explanation:
+          "CFG Scale 控制 AI 生成結果與你的提詞之間的一致性，數值越高越嚴格遵循提詞。",
+      },
+      {
+        id: "q3-3",
+        question: "以下哪個是影片生成模型？",
+        options: ["DALL-E", "Kling", "BERT", "GPT"],
+        correctIndex: 1,
+        explanation: "Kling 是一個 AI 影片生成模型，可以從文字或圖片生成影片。",
+      },
+    ],
+    tags: ["模型", "LoRA", "技術知識"],
+    difficulty: "intermediate",
+    estimatedMinutes: 4,
+    publishedAt: "2026-04-08T00:00:00Z",
+    updatedAt: "2026-04-08T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+  {
+    id: "quiz-004",
+    category: "workflow",
+    title: "創作流程進階測驗",
+    summary: "測試你對 Healing Studio 進階工作流程的理解",
+    questions: [
+      {
+        id: "q4-1",
+        question: "導演模式（Director AI）的主要功能是什麼？",
+        options: [
+          "寫程式碼",
+          "將劇本拆分為分鏡並生成影片",
+          "管理使用者帳號",
+          "壓縮檔案",
+        ],
+        correctIndex: 1,
+        explanation:
+          "導演模式可以自動將你的劇本拆分為多個分鏡，並為每個分鏡生成 AI 影片。",
+      },
+      {
+        id: "q4-2",
+        question: "一致性金庫（Consistency Vault）的作用是什麼？",
+        options: [
+          "儲存密碼",
+          "保存並重複使用角色外觀，確保跨場景的角色一致性",
+          "備份檔案",
+          "管理帳單",
+        ],
+        correctIndex: 1,
+        explanation:
+          "一致性金庫讓你儲存角色的參考圖片和描述，在不同場景中保持角色外觀一致。",
+      },
+      {
+        id: "q4-3",
+        question: "批次生成（Batch Generation）適合在什麼情境使用？",
+        options: [
+          "只需要一張圖時",
+          "需要同時生成多個變化版本時",
+          "只是瀏覽作品時",
+          "修改個人設定時",
+        ],
+        correctIndex: 1,
+        explanation:
+          "批次生成適合在你需要探索多個不同版本或大量生成素材的時候使用。",
+      },
+    ],
+    tags: ["工作流程", "導演模式", "進階"],
+    difficulty: "advanced",
+    estimatedMinutes: 4,
+    publishedAt: "2026-04-10T00:00:00Z",
+    updatedAt: "2026-04-10T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+];
+
+let quizzes: LearnQuiz[] = [...SEED_QUIZZES];
+
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 export const learnHubRouter = router({
@@ -9043,6 +9400,298 @@ export const learnHubRouter = router({
       if (idx === -1)
         throw new TRPCError({ code: "NOT_FOUND", message: "文件不存在" });
       docs.splice(idx, 1);
+      return { success: true };
+    }),
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🎬 影片學習區 (Video Learning)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /** 列出所有影片 */
+  videoList: publicProcedure
+    .input(
+      z.object({
+        category: z.string().optional(),
+        search: z.string().optional(),
+        difficulty: z.enum(["beginner", "intermediate", "advanced"]).optional(),
+        limit: z.number().min(1).max(100).default(50),
+        offset: z.number().min(0).default(0),
+      })
+    )
+    .query(({ input }) => {
+      let result = [...videos];
+
+      if (input.category) {
+        result = result.filter(v => v.category === input.category);
+      }
+      if (input.difficulty) {
+        result = result.filter(v => v.difficulty === input.difficulty);
+      }
+      if (input.search) {
+        const q = input.search.toLowerCase();
+        result = result.filter(
+          v =>
+            v.title.toLowerCase().includes(q) ||
+            v.summary.toLowerCase().includes(q) ||
+            v.tags.some(t => t.toLowerCase().includes(q))
+        );
+      }
+
+      result.sort((a, b) => {
+        if (a.featured && !b.featured) return -1;
+        if (!a.featured && b.featured) return 1;
+        return (
+          new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
+        );
+      });
+
+      const total = result.length;
+      const items = result.slice(input.offset, input.offset + input.limit);
+      return { items, total };
+    }),
+
+  /** 取得單部影片 */
+  videoGetById: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .query(({ input }) => {
+      const video = videos.find(v => v.id === input.id);
+      if (!video)
+        throw new TRPCError({ code: "NOT_FOUND", message: "影片不存在" });
+      return video;
+    }),
+
+  /** 管理員：新增影片 */
+  videoCreate: adminProcedure
+    .input(
+      z.object({
+        category: z.enum([
+          "getting-started",
+          "model-guide",
+          "technique",
+          "ai-news",
+          "workflow",
+        ]),
+        title: z.string().min(1).max(200),
+        summary: z.string().min(1).max(500),
+        videoUrl: z.string().url(),
+        thumbnailUrl: z.string().url().optional(),
+        tags: z.array(z.string()).default([]),
+        difficulty: z
+          .enum(["beginner", "intermediate", "advanced"])
+          .default("beginner"),
+        durationMinutes: z.number().min(1).max(600).default(10),
+        featured: z.boolean().default(false),
+        authorName: z.string().max(100).optional(),
+      })
+    )
+    .mutation(({ input }) => {
+      const now = new Date().toISOString();
+      const newVideo: LearnVideo = {
+        id: `video-${Date.now()}`,
+        ...input,
+        publishedAt: now,
+        updatedAt: now,
+      };
+      videos.unshift(newVideo);
+      return newVideo;
+    }),
+
+  /** 管理員：更新影片 */
+  videoUpdate: adminProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        title: z.string().min(1).max(200).optional(),
+        summary: z.string().min(1).max(500).optional(),
+        videoUrl: z.string().url().optional(),
+        thumbnailUrl: z.string().url().optional(),
+        tags: z.array(z.string()).optional(),
+        featured: z.boolean().optional(),
+        category: z
+          .enum([
+            "getting-started",
+            "model-guide",
+            "technique",
+            "ai-news",
+            "workflow",
+          ])
+          .optional(),
+        difficulty: z.enum(["beginner", "intermediate", "advanced"]).optional(),
+        durationMinutes: z.number().min(1).max(600).optional(),
+      })
+    )
+    .mutation(({ input }) => {
+      const idx = videos.findIndex(v => v.id === input.id);
+      if (idx === -1)
+        throw new TRPCError({ code: "NOT_FOUND", message: "影片不存在" });
+      const { id, ...updates } = input;
+      videos[idx] = {
+        ...videos[idx],
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      };
+      return videos[idx];
+    }),
+
+  /** 管理員：刪除影片 */
+  videoDelete: adminProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(({ input }) => {
+      const idx = videos.findIndex(v => v.id === input.id);
+      if (idx === -1)
+        throw new TRPCError({ code: "NOT_FOUND", message: "影片不存在" });
+      videos.splice(idx, 1);
+      return { success: true };
+    }),
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 📝 學習測驗區 (Learning Quiz)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /** 列出所有測驗 */
+  quizList: publicProcedure
+    .input(
+      z.object({
+        category: z.string().optional(),
+        search: z.string().optional(),
+        difficulty: z.enum(["beginner", "intermediate", "advanced"]).optional(),
+        limit: z.number().min(1).max(100).default(50),
+        offset: z.number().min(0).default(0),
+      })
+    )
+    .query(({ input }) => {
+      let result = [...quizzes];
+
+      if (input.category) {
+        result = result.filter(q => q.category === input.category);
+      }
+      if (input.difficulty) {
+        result = result.filter(q => q.difficulty === input.difficulty);
+      }
+      if (input.search) {
+        const q = input.search.toLowerCase();
+        result = result.filter(
+          quiz =>
+            quiz.title.toLowerCase().includes(q) ||
+            quiz.summary.toLowerCase().includes(q) ||
+            quiz.tags.some(t => t.toLowerCase().includes(q))
+        );
+      }
+
+      result.sort((a, b) => {
+        if (a.featured && !b.featured) return -1;
+        if (!a.featured && b.featured) return 1;
+        return (
+          new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
+        );
+      });
+
+      const total = result.length;
+      const items = result.slice(input.offset, input.offset + input.limit);
+      return { items, total };
+    }),
+
+  /** 取得單個測驗（含題目） */
+  quizGetById: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .query(({ input }) => {
+      const quiz = quizzes.find(q => q.id === input.id);
+      if (!quiz)
+        throw new TRPCError({ code: "NOT_FOUND", message: "測驗不存在" });
+      return quiz;
+    }),
+
+  /** 管理員：新增測驗 */
+  quizCreate: adminProcedure
+    .input(
+      z.object({
+        category: z.enum([
+          "getting-started",
+          "model-guide",
+          "technique",
+          "workflow",
+        ]),
+        title: z.string().min(1).max(200),
+        summary: z.string().min(1).max(500),
+        questions: z.array(
+          z.object({
+            id: z.string(),
+            question: z.string().min(1),
+            options: z.array(z.string()).min(2).max(6),
+            correctIndex: z.number().min(0),
+            explanation: z.string().min(1),
+          })
+        ).min(1),
+        tags: z.array(z.string()).default([]),
+        difficulty: z
+          .enum(["beginner", "intermediate", "advanced"])
+          .default("beginner"),
+        estimatedMinutes: z.number().min(1).max(60).default(5),
+        featured: z.boolean().default(false),
+        authorName: z.string().max(100).optional(),
+      })
+    )
+    .mutation(({ input }) => {
+      const now = new Date().toISOString();
+      const newQuiz: LearnQuiz = {
+        id: `quiz-${Date.now()}`,
+        ...input,
+        publishedAt: now,
+        updatedAt: now,
+      };
+      quizzes.unshift(newQuiz);
+      return newQuiz;
+    }),
+
+  /** 管理員：更新測驗 */
+  quizUpdate: adminProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        title: z.string().min(1).max(200).optional(),
+        summary: z.string().min(1).max(500).optional(),
+        questions: z
+          .array(
+            z.object({
+              id: z.string(),
+              question: z.string().min(1),
+              options: z.array(z.string()).min(2).max(6),
+              correctIndex: z.number().min(0),
+              explanation: z.string().min(1),
+            })
+          )
+          .min(1)
+          .optional(),
+        tags: z.array(z.string()).optional(),
+        featured: z.boolean().optional(),
+        category: z
+          .enum(["getting-started", "model-guide", "technique", "workflow"])
+          .optional(),
+        difficulty: z.enum(["beginner", "intermediate", "advanced"]).optional(),
+        estimatedMinutes: z.number().min(1).max(60).optional(),
+      })
+    )
+    .mutation(({ input }) => {
+      const idx = quizzes.findIndex(q => q.id === input.id);
+      if (idx === -1)
+        throw new TRPCError({ code: "NOT_FOUND", message: "測驗不存在" });
+      const { id, ...updates } = input;
+      quizzes[idx] = {
+        ...quizzes[idx],
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      };
+      return quizzes[idx];
+    }),
+
+  /** 管理員：刪除測驗 */
+  quizDelete: adminProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(({ input }) => {
+      const idx = quizzes.findIndex(q => q.id === input.id);
+      if (idx === -1)
+        throw new TRPCError({ code: "NOT_FOUND", message: "測驗不存在" });
+      quizzes.splice(idx, 1);
       return { success: true };
     }),
 });
