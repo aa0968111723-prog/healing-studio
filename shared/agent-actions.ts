@@ -95,6 +95,48 @@ export interface FocusElementAction {
   message?: string;
 }
 
+/** 開啟頁面上的對話框或面板（例如資產詳情、設定面板） */
+export interface OpenDialogAction {
+  type: "openDialog";
+  dialogId: string;
+  /** 可選：傳給對話框的參數 */
+  params?: Record<string, unknown>;
+}
+
+/** 在頁面內觸發搜尋（例如資產庫、歷史、提示詞庫的搜尋框） */
+export interface SearchAction {
+  type: "search";
+  query: string;
+}
+
+/** 切換二元設定（例如深色模式、自動儲存、靜音） */
+export interface ToggleSettingAction {
+  type: "toggleSetting";
+  key: string;
+  value?: boolean;
+}
+
+/** 複合任務：光球可以一次描述多步驟計畫，前端依序執行 */
+export interface RunWorkflowAction {
+  type: "runWorkflow";
+  /** 工作流程的人類可讀名稱 */
+  name: string;
+  /** 依序要執行的子步驟 */
+  steps: AgentWorkflowStep[];
+}
+
+/** 工作流程子步驟（簡化版，只包含 navigate + 單一動作） */
+export interface AgentWorkflowStep {
+  /** 目標頁面路徑（可選，不填表示在當頁執行） */
+  path?: string;
+  /** 到站後要執行的動作類型 */
+  actionType: string;
+  /** 動作參數 */
+  payload: string;
+  /** 給使用者看的步驟說明 */
+  label: string;
+}
+
 export type AgentAction =
   | FillPromptAction
   | SetModelAction
@@ -106,7 +148,11 @@ export type AgentAction =
   | SubmitAction
   | ResetAction
   | NavigateAction
-  | FocusElementAction;
+  | FocusElementAction
+  | OpenDialogAction
+  | SearchAction
+  | ToggleSettingAction
+  | RunWorkflowAction;
 
 export type AgentActionType = AgentAction["type"];
 
@@ -286,6 +332,46 @@ export function coerceAgentAction(input: unknown): AgentAction | null {
         elementId: String(obj.elementId ?? obj.payload),
         message: typeof obj.message === "string" ? obj.message : undefined,
       };
+    case "openDialog": {
+      const dialogId = obj.dialogId ?? obj.payload;
+      if (typeof dialogId !== "string") return null;
+      return {
+        type: "openDialog",
+        dialogId: String(dialogId),
+        params: obj.params && typeof obj.params === "object" ? obj.params : undefined,
+      };
+    }
+    case "search": {
+      const query = obj.query ?? obj.payload;
+      if (typeof query !== "string") return null;
+      return { type: "search", query: String(query) };
+    }
+    case "toggleSetting": {
+      const key = obj.key ?? obj.payload;
+      if (typeof key !== "string") return null;
+      return {
+        type: "toggleSetting",
+        key: String(key),
+        value: typeof obj.value === "boolean" ? obj.value : undefined,
+      };
+    }
+    case "runWorkflow": {
+      const name = obj.name ?? obj.payload;
+      if (typeof name !== "string") return null;
+      const steps = Array.isArray(obj.steps) ? obj.steps : [];
+      return {
+        type: "runWorkflow",
+        name: String(name),
+        steps: steps.filter(
+          (s: any) => s && typeof s === "object" && typeof s.actionType === "string"
+        ).map((s: any) => ({
+          path: typeof s.path === "string" ? s.path : undefined,
+          actionType: String(s.actionType),
+          payload: typeof s.payload === "string" ? s.payload : "",
+          label: typeof s.label === "string" ? s.label : `${s.actionType}`,
+        })),
+      };
+    }
     default:
       return null;
   }
@@ -313,6 +399,7 @@ export function isDestructiveAction(action: AgentAction): boolean {
     case "reset":
     case "applyPreset":
     case "setModality":
+    case "runWorkflow":
       return true;
     default:
       return false;
@@ -359,6 +446,18 @@ export function summarizeAction(action: AgentAction): string {
       return `想帶你去 ${action.path}`;
     case "focusElement":
       return action.message ?? `想指出「${action.elementId}」這個地方`;
+    case "openDialog":
+      return `想幫你打開「${action.dialogId}」面板`;
+    case "search":
+      return `想幫你搜尋「${action.query.length > 30 ? action.query.slice(0, 30) + "…" : action.query}」`;
+    case "toggleSetting":
+      return action.value !== undefined
+        ? `想把「${action.key}」${action.value ? "開啟" : "關閉"}`
+        : `想幫你切換「${action.key}」設定`;
+    case "runWorkflow": {
+      const stepCount = action.steps.length;
+      return `想幫你執行「${action.name}」計畫（共 ${stepCount} 步）`;
+    }
   }
 }
 

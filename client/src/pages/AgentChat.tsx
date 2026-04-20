@@ -102,9 +102,12 @@ export default function AgentChat() {
   const [, setLocation] = useLocation();
   const { openPanel: openOrbGuide, selectIntent: selectOrbIntent } = useOrbGuide();
 
+  // Ref to hold the latest `send` for use in handler (avoids stale closures)
+  const sendRef = useRef<(raw: string) => Promise<void>>();
+
   // ── 把 /agent 本身也登記成一個 PageAgent 頁面 ──────────────────────
   //
-  // 這頁自己的能力只有「帶你去別頁」——把 navigate 交給 handler 處理，
+  // 這頁自己的能力包括「帶你去別頁」和「搜尋」——
   // 其他結構化動作留給目的地頁面的 handler（透過 pending queue 傳遞）。
   useRegisterPageAgent({
     pageId: "agent-chat",
@@ -116,11 +119,21 @@ export default function AgentChat() {
         label: "前往頁面",
         hint: "使用者在聊天頁時，navigate 會直接帶他過去",
       },
+      {
+        action: "search",
+        label: "全站搜尋",
+        hint: "搜尋功能頁面、工作流程、模型名稱",
+      },
     ],
     handle: async action => {
       if (action.type === "navigate") {
         setLocation(action.path);
         return { ok: true, message: "navigated" };
+      }
+      if (action.type === "search") {
+        // 在聊天頁搜尋：用搜尋關鍵字自動送出一次 chat
+        void sendRef.current?.(`搜尋：${action.query}`);
+        return { ok: true, message: "searching" };
       }
       // 其他動作：這頁沒有工具可執行，讓 bus 自己 enqueue 給目標頁
       return { ok: false, reason: "not-applicable-on-agent-chat" };
@@ -234,6 +247,9 @@ export default function AgentChat() {
     },
     [aiChat, isSending, messages, pageAgent, personality, setLocation]
   );
+
+  // Keep sendRef in sync with the latest `send` callback
+  sendRef.current = send;
 
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {

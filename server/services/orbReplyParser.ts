@@ -50,6 +50,11 @@ export const ORB_ALLOWED_ACTIONS = new Set([
   "submit",
   "reset",
   "focusElement",
+  // Phase 4：全站代理人擴展
+  "openDialog",
+  "search",
+  "toggleSetting",
+  "runWorkflow",
 ]);
 
 /**
@@ -62,6 +67,7 @@ export const ORB_DESTRUCTIVE_ACTIONS = new Set([
   "applyPreset",
   "preset",
   "generate",
+  "runWorkflow",
 ]);
 
 /**
