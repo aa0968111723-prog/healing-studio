@@ -51,14 +51,11 @@ import {
   Film,
   BookOpen,
   BookMarked,
-  Leaf,
-  Radar,
   ChevronRight,
   Palette,
   FolderOpen,
   ListChecks,
   Coins,
-  Gauge,
   Monitor,
   Smartphone,
   Brain,
@@ -89,6 +86,10 @@ import { useAIState } from "@/contexts/AIStateContext";
 import ProactiveOrbWidget from "./ProactiveOrbWidget";
 import AgentIntentPreview from "./AgentIntentPreview";
 import AgentFocusSpotlight from "./AgentFocusSpotlight";
+import {
+  getSidebarGroups,
+  type AppPageRegistryItem,
+} from "@/config/appRegistry";
 
 // Isolated component that subscribes to AI state —
 // prevents the entire DashboardLayout from re-rendering when aiState/personality change.
@@ -116,199 +117,93 @@ function isGroup(entry: SidebarEntry): entry is SidebarGroupItem {
   return "children" in entry;
 }
 
-/**
- * Sidebar menu hierarchy — organised by healing-creative workflow:
- *
- *  ① 創作靈感 (Create)  — the core creative tools, top-level for quick access
- *  ② 素材與模型 (Assets & Models) — manage what you've made / trained
- *  ③ 規劃筆記 (Plan & Organise) — notes, calendar, focus flow
- *  ④ 數據洞察 (Insights) — dashboard, monitoring, credits
- *  ⑤ 學習成長 (Learn & Grow) — docs, feedback
- *  ⑥ 設定 (Settings) — personal settings (bottom)
- */
+const sidebarIconByPageId: Record<string, LucideIcon> = {
+  "agent-chat": Bot,
+  studio: Wand2,
+  "image-studio": Image,
+  "video-studio": Film,
+  "pro-studio": Music,
+  director: Clapperboard,
+  assets: Package,
+  history: Clock,
+  "prompt-library": BookMarked,
+  shared: Users,
+  models: Cpu,
+  "lora-trainer": Zap,
+  vault: Layers,
+  "background-tasks": ListChecks,
+  notes: StickyNote,
+  calendar: CalendarDays,
+  dashboard: BarChart3,
+  credits: Coins,
+  learn: BookOpen,
+  feedback: MessageSquare,
+  settings: Settings,
+};
+
+const groupIconByName: Record<string, LucideIcon> = {
+  "專業創作室": Palette,
+  "素材與模型": FolderOpen,
+  "規劃筆記": StickyNote,
+  "數據洞察": BarChart3,
+};
+
+const sidebarGroupsFromRegistry = getSidebarGroups();
+const sidebarPagesById = new Map(
+  sidebarGroupsFromRegistry.flatMap(group => group.pages.map(page => [page.id, page]))
+);
+
+const toLeafItem = (page: AppPageRegistryItem): SidebarLeafItem => ({
+  icon: sidebarIconByPageId[page.id] ?? BookOpen,
+  label: page.label,
+  path: page.path,
+  id: `sidebar-${page.id}-link`,
+});
+
+const createGroupEntry = (label: string, pageIds: string[]): SidebarGroupItem => ({
+  icon: groupIconByName[label] ?? FolderOpen,
+  label,
+  children: pageIds
+    .map(id => sidebarPagesById.get(id))
+    .filter((page): page is AppPageRegistryItem => Boolean(page))
+    .map(toLeafItem),
+});
+
 const sidebarStructure: SidebarEntry[] = [
-  // ─── ① 創作靈感 ───────────────────────────────────
-  {
-    icon: Wand2,
-    label: "創作工作室",
-    path: "/studio",
-    id: "sidebar-studio-link",
-  },
-  {
-    icon: Palette,
-    label: "專業創作室",
-    children: [
-      {
-        icon: Image,
-        label: "圖片創作室",
-        path: "/image-studio",
-        id: "sidebar-image-studio-link",
-      },
-      {
-        icon: Film,
-        label: "影片創作室",
-        path: "/video-studio",
-        id: "sidebar-video-studio-link",
-      },
-      {
-        icon: Music,
-        label: "音樂配音創作室",
-        path: "/pro-studio",
-        id: "sidebar-pro-studio-link",
-      },
-    ],
-  },
-  {
-    icon: Clapperboard,
-    label: "導演 AI",
-    path: "/director",
-    id: "sidebar-director-link",
-  },
-  {
-    icon: Bot,
-    label: "光球聊天",
-    path: "/agent",
-    id: "sidebar-agent-link",
-  },
+  "studio",
+  "director",
+  "agent-chat",
+]
+  .map(id => sidebarPagesById.get(id))
+  .filter((page): page is AppPageRegistryItem => Boolean(page))
+  .map(toLeafItem);
 
-  // ─── ② 素材與模型 ─────────────────────────────────
-  {
-    icon: FolderOpen,
-    label: "素材與模型",
-    children: [
-      {
-        icon: Package,
-        label: "數位資產庫",
-        path: "/assets",
-        id: "sidebar-assets-link",
-      },
-      {
-        icon: Clock,
-        label: "生成歷史",
-        path: "/history",
-        id: "sidebar-history-link",
-      },
-      {
-        icon: BookMarked,
-        label: "提示詞庫",
-        path: "/prompt-library",
-        id: "sidebar-prompt-library-link",
-      },
-      {
-        icon: Users,
-        label: "共享空間",
-        path: "/shared",
-        id: "sidebar-shared-link",
-      },
-      {
-        icon: Cpu,
-        label: "角色鍛造所",
-        path: "/models",
-        id: "sidebar-models-link",
-      },
-      {
-        icon: Zap,
-        label: "模型訓練中心",
-        path: "/lora-trainer",
-        id: "sidebar-lora-trainer-link",
-      },
-      {
-        icon: Layers,
-        label: "一致性保險庫",
-        path: "/vault",
-        id: "sidebar-vault-link",
-      },
-      {
-        icon: ListChecks,
-        label: "背景任務中心",
-        path: "/background-tasks",
-        id: "sidebar-background-tasks-link",
-      },
-    ],
-  },
+sidebarStructure.splice(
+  1,
+  0,
+  createGroupEntry("專業創作室", ["image-studio", "video-studio", "pro-studio"])
+);
+sidebarStructure.push(
+  createGroupEntry("素材與模型", [
+    "assets",
+    "history",
+    "prompt-library",
+    "shared",
+    "models",
+    "lora-trainer",
+    "vault",
+    "background-tasks",
+  ])
+);
+sidebarStructure.push(createGroupEntry("規劃筆記", ["notes", "calendar"]));
+sidebarStructure.push(createGroupEntry("數據洞察", ["dashboard", "credits"]));
+for (const tailId of ["learn", "feedback", "settings"]) {
+  const page = sidebarPagesById.get(tailId);
+  if (page) {
+    sidebarStructure.push(toLeafItem(page));
+  }
+}
 
-  // ─── ③ 規劃筆記 ───────────────────────────────────
-  {
-    icon: StickyNote,
-    label: "規劃筆記",
-    children: [
-      {
-        icon: StickyNote,
-        label: "專案筆記",
-        path: "/notes",
-        id: "sidebar-notes-link",
-      },
-      {
-        icon: CalendarDays,
-        label: "創作排程",
-        path: "/calendar",
-        id: "sidebar-calendar-link",
-      },
-      {
-        icon: Leaf,
-        label: "專注流",
-        path: "/focus-flow",
-        id: "sidebar-focus-flow-link",
-      },
-    ],
-  },
-
-  // ─── ④ 數據洞察 ───────────────────────────────────
-  {
-    icon: BarChart3,
-    label: "數據洞察",
-    children: [
-      {
-        icon: BarChart3,
-        label: "儀表板",
-        path: "/dashboard",
-        id: "sidebar-dashboard-link",
-      },
-      {
-        icon: Radar,
-        label: "AI 監控中心",
-        path: "/langsmith",
-        id: "sidebar-langsmith-link",
-      },
-      {
-        icon: Coins,
-        label: "積分說明",
-        path: "/credits",
-        id: "sidebar-credits-link",
-      },
-      {
-        icon: Gauge,
-        label: "API 用量管理",
-        path: "/admin/api-usage",
-        id: "sidebar-api-usage-link",
-      },
-    ],
-  },
-
-  // ─── ⑤ 學習成長 ───────────────────────────────────
-  {
-    icon: BookOpen,
-    label: "學習文件中心",
-    path: "/learn",
-    id: "sidebar-learn-link",
-  },
-  {
-    icon: MessageSquare,
-    label: "回饋中心",
-    path: "/feedback",
-    id: "sidebar-feedback-link",
-  },
-
-  // ─── ⑥ 設定 ──────────────────────────────────────
-  {
-    icon: Settings,
-    label: "個人設定",
-    path: "/settings",
-    id: "sidebar-settings-link",
-  },
-];
-
-/** Flat list of all navigable items (for lookups like active-page label) */
 const flatMenuItems: SidebarLeafItem[] = sidebarStructure.flatMap(entry =>
   isGroup(entry) ? entry.children : [entry]
 );
