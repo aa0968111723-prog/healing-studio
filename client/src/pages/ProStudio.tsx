@@ -5,7 +5,7 @@
  * 分類：音樂生成 / 音效生成 / 語音合成 / 聲音克隆 / Kling 語音 / 音訊處理 / 語音識別 / AI 形像影片
  */
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, createContext, useContext } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useAIState } from "@/contexts/AIStateContext";
@@ -68,6 +68,42 @@ import {
   type AgentActionResult,
   type AgentCapability,
 } from "@/contexts/PageAgentContext";
+
+// ─── Agent Bridge：讓光球代理人能深度控制各分頁參數 ─────────────────────────────
+
+/**
+ * 各分頁透過此介面向父層「註冊」自己的 state + setters，
+ * 讓光球代理人（PageAgent）能在對話中直接操作參數。
+ */
+interface ProStudioAgentBridge {
+  /** 填入主要文字輸入（prompt / text） */
+  fillPrompt?: (text: string) => void;
+  /** 設定參數 key=value */
+  setParam?: (key: string, value: string) => boolean;
+  /** 取得當前分頁的快照狀態 */
+  getState?: () => Record<string, unknown>;
+  /** 送出生成 */
+  submit?: () => boolean;
+}
+
+const AgentBridgeContext = createContext<React.MutableRefObject<ProStudioAgentBridge> | null>(null);
+
+/** 各子 Tab 用此 hook 註冊自己的 agent bridge */
+function useProStudioAgentBridge(bridge: ProStudioAgentBridge) {
+  const ref = useContext(AgentBridgeContext);
+  // 每次渲染都更新 ref 以保持最新閉包（bridge 每次都是新物件，含最新 state）
+  if (ref) {
+    ref.current = bridge;
+  }
+  useEffect(() => {
+    return () => {
+      if (ref) {
+        ref.current = {};
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+}
 
 // ─── 類型 ────────────────────────────────────────────────────────────────────
 
@@ -864,6 +900,27 @@ function MusicTab() {
   const [duration, setDuration] = useState(30);
   const [result, setResult] = useState<AudioResult | null>(null);
 
+  // ── Agent Bridge：讓光球能控制音樂分頁參數 ──
+  useProStudioAgentBridge({
+    fillPrompt: (text: string) => setPrompt(text),
+    setParam: (key: string, value: string) => {
+      switch (key) {
+        case "musicModel": case "model": {
+          const valid = ["sonauto", "ace-step", "stable-audio", "musicgen"];
+          if (valid.includes(value)) { setMusicModel(value as typeof musicModel); return true; }
+          return false;
+        }
+        case "duration": { const n = parseInt(value, 10); if (n >= 5 && n <= 180) { setDuration(n); return true; } return false; }
+        case "instrumental": { setInstrumental(value === "true"); return true; }
+        case "lyrics": { setLyrics(value); return true; }
+        case "tags": { setTags(value); return true; }
+        default: return false;
+      }
+    },
+    getState: () => ({ prompt, musicModel, duration, instrumental, lyrics, tags }),
+    submit: () => { if (!prompt.trim()) return false; return true; },
+  });
+
   // 載入可用模型清單
   const modelsQuery = trpc.proStudio.musicModels.useQuery();
   const models = modelsQuery.data ?? [];
@@ -1182,6 +1239,26 @@ function SoundEffectsTab() {
   >("stable-audio");
   const [result, setResult] = useState<AudioResult | null>(null);
 
+  // ── Agent Bridge：讓光球能控制音效分頁參數 ──
+  useProStudioAgentBridge({
+    fillPrompt: (t: string) => setText(t),
+    setParam: (key: string, value: string) => {
+      switch (key) {
+        case "sfxModel": case "model": {
+          const valid = ["stable-audio", "audioldm2", "elevenlabs"];
+          if (valid.includes(value)) { setSfxModel(value as typeof sfxModel); return true; }
+          return false;
+        }
+        case "duration": { const n = parseInt(value, 10); if (n >= 1 && n <= 180) { setDuration(n); setUseDuration(true); return true; } return false; }
+        case "useDuration": { setUseDuration(value === "true"); return true; }
+        case "influence": { const f = parseFloat(value); if (f >= 0 && f <= 1) { setInfluence(f); return true; } return false; }
+        default: return false;
+      }
+    },
+    getState: () => ({ text, sfxModel, duration, useDuration, influence }),
+    submit: () => { if (!text.trim()) return false; return true; },
+  });
+
   // 載入可用模型清單
   const modelsQuery = trpc.proStudio.sfxModels.useQuery();
   const models = modelsQuery.data ?? [];
@@ -1439,6 +1516,27 @@ function TTSTab() {
   const [similarity, setSimilarity] = useState(0.75);
   const [speed, setSpeed] = useState(1.0);
   const [result, setResult] = useState<AudioResult | null>(null);
+
+  // ── Agent Bridge：讓光球能控制語音合成分頁參數 ──
+  useProStudioAgentBridge({
+    fillPrompt: (t: string) => setText(t),
+    setParam: (key: string, value: string) => {
+      switch (key) {
+        case "engine": case "model": {
+          const valid = ["elevenlabs", "qwen"];
+          if (valid.includes(value)) { setEngine(value as typeof engine); return true; }
+          return false;
+        }
+        case "voiceId": case "voice_id": { setVoiceId(value); return true; }
+        case "stability": { const f = parseFloat(value); if (f >= 0 && f <= 1) { setStability(f); return true; } return false; }
+        case "similarity": { const f = parseFloat(value); if (f >= 0 && f <= 1) { setSimilarity(f); return true; } return false; }
+        case "speed": { const f = parseFloat(value); if (f >= 0.5 && f <= 2) { setSpeed(f); return true; } return false; }
+        default: return false;
+      }
+    },
+    getState: () => ({ text, engine, voiceId, stability, similarity, speed }),
+    submit: () => { if (!text.trim()) return false; return true; },
+  });
 
   const elevenMutation = trpc.proStudio.elevenLabsTTS.useMutation({
     onMutate: () => setAIState("generating"),
@@ -1845,6 +1943,27 @@ function CloneTab() {
   const [klingName, setKlingName] = useState("");
   const [klingResult, setKlingResult] = useState<any>(null);
   const [result, setResult] = useState<AudioResult | null>(null);
+
+  // ── Agent Bridge：讓光球能控制聲音克隆分頁參數 ──
+  useProStudioAgentBridge({
+    fillPrompt: (t: string) => setText(t),
+    setParam: (key: string, value: string) => {
+      switch (key) {
+        case "mode": case "model": {
+          const valid = ["qwen", "dia", "design", "kling"];
+          if (valid.includes(value)) { setMode(value as typeof mode); return true; }
+          return false;
+        }
+        case "refAudio": case "reference_audio": { setRefAudio(value); return true; }
+        case "refTranscript": case "reference_text": { setRefTranscript(value); return true; }
+        case "voiceDesc": case "voice_description": { setVoiceDesc(value); return true; }
+        case "klingName": case "name": { setKlingName(value); return true; }
+        default: return false;
+      }
+    },
+    getState: () => ({ text, mode, refAudio, refTranscript, voiceDesc, klingName }),
+    submit: () => { if (mode === "design" && !voiceDesc.trim()) return false; if ((mode === "qwen" || mode === "dia") && !text.trim()) return false; return true; },
+  });
 
   // qwenCloneAndSpeak: clone + TTS in one step (audio_url + text → audio)
   const qwenClone = trpc.proStudio.qwenCloneAndSpeak.useMutation({
@@ -2386,6 +2505,36 @@ function ProcessTab() {
   const [removeBgNoise, setRemoveBgNoise] = useState(false);
   const [result, setResult] = useState<any>(null);
 
+  // ── Agent Bridge：讓光球能控制音訊處理分頁參數 ──
+  useProStudioAgentBridge({
+    fillPrompt: (t: string) => setAudioUrl(t),
+    setParam: (key: string, value: string) => {
+      switch (key) {
+        case "tool": case "model": {
+          const valid = ["demucs", "isolation", "merge", "changer"];
+          if (valid.includes(value)) { setTool(value as typeof tool); return true; }
+          return false;
+        }
+        case "audioUrl": case "audio_url": { setAudioUrl(value); return true; }
+        case "demucsModel": { setDemucsModel(value); return true; }
+        case "mergeStrategy": {
+          if (value === "concatenate" || value === "mix") { setMergeStrategy(value); return true; }
+          return false;
+        }
+        case "voiceId": case "voice_id": { setVoiceId(value); return true; }
+        case "removeBgNoise": { setRemoveBgNoise(value === "true"); return true; }
+        default: return false;
+      }
+    },
+    getState: () => ({ tool, audioUrl, audioUrls, mergeStrategy, demucsModel, voiceId, removeBgNoise }),
+    submit: () => {
+      if (tool === "merge" && audioUrls.filter(Boolean).length < 2) return false;
+      if (tool === "changer" && (!audioUrl.trim() || !voiceId.trim())) return false;
+      if (tool !== "merge" && tool !== "changer" && !audioUrl.trim()) return false;
+      return true;
+    },
+  });
+
   const demucsMut = trpc.proStudio.demucs.useMutation({
     onMutate: () => setAIState("generating"),
     onSuccess: data => {
@@ -2786,6 +2935,24 @@ function ASRTab() {
   >("none");
   const [result, setResult] = useState<any>(null);
 
+  // ── Agent Bridge：讓光球能控制語音識別分頁參數 ──
+  useProStudioAgentBridge({
+    fillPrompt: (t: string) => setAudioUrl(t),
+    setParam: (key: string, value: string) => {
+      switch (key) {
+        case "audioUrl": case "audio_url": { setAudioUrl(value); return true; }
+        case "acceleration": {
+          const valid = ["none", "low", "medium", "high"];
+          if (valid.includes(value)) { setAcceleration(value as typeof acceleration); return true; }
+          return false;
+        }
+        default: return false;
+      }
+    },
+    getState: () => ({ audioUrl, acceleration }),
+    submit: () => { if (!audioUrl.trim()) return false; return true; },
+  });
+
   const mutation = trpc.proStudio.speechToText.useMutation({
     onMutate: () => setAIState("generating"),
     onSuccess: data => {
@@ -2919,6 +3086,35 @@ function AvatarVideoTab() {
     request_id: string;
     model: string;
   } | null>(null);
+
+  // ── Agent Bridge：讓光球能控制 AI 形像影片分頁參數 ──
+  useProStudioAgentBridge({
+    fillPrompt: (t: string) => setPrompt(t),
+    setParam: (key: string, value: string) => {
+      switch (key) {
+        case "model": {
+          const valid = ["wan", "echo", "stable", "longcat", "ltx", "dubbing"];
+          if (valid.includes(value)) { setModel(value as typeof model); return true; }
+          return false;
+        }
+        case "imageUrl": case "image_url": { setImageUrl(value); return true; }
+        case "audioUrl": case "audio_url": { setAudioUrl(value); return true; }
+        case "videoUrl": case "video_url": { setVideoUrl(value); return true; }
+        case "targetLang": case "target_language": { setTargetLang(value); return true; }
+        default: return false;
+      }
+    },
+    getState: () => ({ model, imageUrl, audioUrl, videoUrl, prompt, targetLang }),
+    submit: () => {
+      if (model === "wan" && (!imageUrl.trim() || !audioUrl.trim())) return false;
+      if (model === "echo" && !imageUrl.trim()) return false;
+      if (model === "stable" && (!imageUrl.trim() || !audioUrl.trim())) return false;
+      if (model === "longcat" && (!imageUrl.trim() || !audioUrl.trim())) return false;
+      if (model === "ltx" && (!prompt.trim() || !audioUrl.trim())) return false;
+      if (model === "dubbing" && !videoUrl.trim() && !audioUrl.trim()) return false;
+      return true;
+    },
+  });
 
   const modelConfig = {
     wan: {
@@ -3355,6 +3551,9 @@ export default function ProStudio() {
 
   const ActiveTab = TABS.find(t => t.id === tab)?.component ?? MusicTab;
 
+  // ── Agent Bridge Ref：子分頁註冊自己的 bridge，父層透過此 ref 呼叫 ──
+  const bridgeRef = useRef<ProStudioAgentBridge>({});
+
   // ── AI Agent: broadcast page context ──
   useEffect(() => {
     setPageContext({
@@ -3424,6 +3623,16 @@ export default function ProStudio() {
       hint: "音訊模型的提示詞 / 參考音檔由子元件管理；setModel 會自動切到對應分頁",
     },
     {
+      action: "fillPrompt",
+      label: "填入提示詞",
+      hint: "填入當前分頁的主要文字輸入（prompt / text / audio_url）",
+    },
+    {
+      action: "setParam",
+      label: "設定參數",
+      hint: "音樂: musicModel/duration/instrumental/lyrics/tags; 音效: sfxModel/duration/influence; TTS: engine/voiceId/stability/similarity/speed; 克隆: mode/refAudio/voiceDesc; 處理: tool/audioUrl/demucsModel/mergeStrategy/voiceId; ASR: audioUrl/acceleration; 影片: model/imageUrl/audioUrl/videoUrl/targetLang",
+    },
+    {
       action: "focusElement",
       label: "視覺指引",
       hint: "可用 elementId=pro-tab-music / pro-tab-tts 等引導使用者",
@@ -3435,7 +3644,11 @@ export default function ProStudio() {
     pageLabel: "音樂配音創作室",
     pagePath: "/pro-studio",
     capabilities: agentCapabilities,
-    state: { activeTab: tab, modelCount: PRO_MODELS.length },
+    state: {
+      activeTab: tab,
+      modelCount: PRO_MODELS.length,
+      ...(bridgeRef.current.getState?.() ?? {}),
+    },
     handle: async (action: AgentAction): Promise<AgentActionResult> => {
       switch (action.type) {
         case "setTab": {
@@ -3455,15 +3668,28 @@ export default function ProStudio() {
         }
         case "focusElement":
           return { ok: true };
-        case "fillPrompt":
-        case "submit":
+        case "fillPrompt": {
+          const fn = bridgeRef.current.fillPrompt;
+          if (!fn) return { ok: false, reason: "當前分頁尚未註冊 fillPrompt" };
+          fn(action.text);
+          return { ok: true };
+        }
+        case "setParam": {
+          const fn = bridgeRef.current.setParam;
+          if (!fn) return { ok: false, reason: "當前分頁尚未註冊 setParam" };
+          const ok = fn(action.key, String(action.value));
+          return ok ? { ok: true } : { ok: false, reason: `無法設定 ${action.key}=${action.value}` };
+        }
+        case "submit": {
+          const fn = bridgeRef.current.submit;
+          if (!fn) return { ok: false, reason: "當前分頁尚未註冊 submit" };
+          const ok = fn();
+          return ok ? { ok: true } : { ok: false, reason: "提交條件不足（缺少必填欄位）" };
+        }
         case "reset":
+          return { ok: true, message: "請手動重新整理分頁" };
         case "applyPreset":
-        case "setParam":
-          return {
-            ok: false,
-            reason: "音訊各分頁的參數由各自卡片管理，需要切到分頁後再操作",
-          };
+          return { ok: false, reason: "音訊創作室暫不支援 applyPreset" };
         default:
           return { ok: false, reason: "unsupported action" };
       }
@@ -3471,6 +3697,7 @@ export default function ProStudio() {
   });
 
   return (
+    <AgentBridgeContext.Provider value={bridgeRef}>
     <div className="max-w-5xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-5">
       {/* 標題 */}
       <div className="flex items-start gap-3 sm:gap-4">
@@ -3599,5 +3826,6 @@ export default function ProStudio() {
         </p>
       </div>
     </div>
+    </AgentBridgeContext.Provider>
   );
 }
