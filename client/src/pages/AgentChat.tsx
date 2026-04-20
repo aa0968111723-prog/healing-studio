@@ -251,7 +251,7 @@ export default function AgentChat() {
             先聊聊看就好 🌿
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md leading-relaxed">
-            不用急著做什麼，也不用記任何工具名稱。你只要說一句，我來幫你想下一步。
+            不用急著學工具，也不用先研究模型。先讓光球帶你快速操作；想深入時，再去「學習文件中心」慢慢學就好。
           </p>
           {isFirstTurn && (
             <div className="w-full mt-2">
@@ -334,17 +334,33 @@ export default function AgentChat() {
 
         {/* 快速回覆 / 起手式 */}
         {(isFirstTurn ? quickStarters : suggestions).length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {(isFirstTurn ? quickStarters : suggestions).map(s => (
-              <button
-                key={s}
-                onClick={() => void send(s)}
-                disabled={isSending}
-                className="text-xs px-3 py-1.5 rounded-full bg-white/80 dark:bg-slate-800/70 text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 hover:border-emerald-200 dark:hover:border-emerald-500/40 transition disabled:opacity-50"
-              >
-                {s}
-              </button>
-            ))}
+          <div className="space-y-2">
+            <div className="flex flex-wrap gap-2">
+              {(isFirstTurn ? quickStarters : suggestions).map(s => (
+                <button
+                  key={s}
+                  onClick={() => void send(s)}
+                  disabled={isSending}
+                  className="text-xs px-3 py-1.5 rounded-full bg-white/80 dark:bg-slate-800/70 text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 hover:border-emerald-200 dark:hover:border-emerald-500/40 transition disabled:opacity-50"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+            {isFirstTurn && (
+              <div className="flex items-center gap-2">
+                <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                  想系統化學習時，可以直接打開「學習文件中心」📚
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setLocation("/learn")}
+                  className="text-[11px] px-2 py-1 rounded-md border border-slate-200/70 text-slate-500 hover:text-slate-700 hover:border-slate-300 transition-colors"
+                >
+                  前往學習文件中心
+                </button>
+              </div>
+            )}
           </div>
         )}
 
