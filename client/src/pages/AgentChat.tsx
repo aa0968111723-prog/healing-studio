@@ -40,6 +40,20 @@ interface ChatMessage {
   intent?: string;
 }
 
+type StarterEntry = {
+  id: string;
+  label: string;
+  path: string;
+  description: string;
+  quickAction?: {
+    action?: AgentAction;
+    prompt?: string;
+    description?: string;
+  };
+  prompt?: string;
+  starterText: string;
+};
+
 // ─── 依人格挑選柔軟的開場問候 ───────────────────────────────────────────
 
 const GREETINGS: Record<string, string[]> = {
@@ -58,6 +72,26 @@ const GREETINGS: Record<string, string[]> = {
 };
 
 const AGENT_HOME_ENTRIES = getAgentHomeEntries();
+
+function buildStarterEntry(page: (typeof AGENT_HOME_ENTRIES)[number]): StarterEntry {
+  const primaryQuickAction = page.quickActions[0];
+  return {
+    id: page.id,
+    label: page.label,
+    path: page.path,
+    description: page.description,
+    quickAction: primaryQuickAction
+      ? {
+          action: primaryQuickAction.action,
+          prompt: primaryQuickAction.prompt,
+          description: primaryQuickAction.description,
+        }
+      : undefined,
+    prompt: primaryQuickAction?.prompt ?? page.orbHints[0],
+    starterText:
+      primaryQuickAction?.description ?? page.orbHints[0] ?? `帶我去${page.label}`,
+  };
+}
 
 // ─── 元件 ────────────────────────────────────────────────────────────────
 
@@ -109,16 +143,7 @@ export default function AgentChat() {
       AGENT_HOME_ENTRIES
         .filter(page => page.id !== "home")
         .slice(0, 6)
-        .map(page => ({
-          id: page.id,
-          label: page.label,
-          path: page.path,
-          description: page.description,
-          starterText:
-            page.quickActions[0]?.description ??
-            page.orbHints[0] ??
-            `帶我去${page.label}`,
-        })),
+        .map(buildStarterEntry),
     []
   );
 
@@ -223,6 +248,29 @@ export default function AgentChat() {
     () => starterEntries.map(entry => entry.starterText).slice(0, 4),
     [starterEntries]
   );
+  const handleStarterEntryClick = useCallback(
+    async (entry: StarterEntry) => {
+      // 1) 有 path -> 先導頁
+      if (entry.path && entry.path !== "/agent") {
+        setLocation(entry.path);
+      }
+      // 2) quickAction 有 action -> dispatch 第一個
+      if (entry.quickAction?.action) {
+        await pageAgent.dispatch(entry.quickAction.action, {
+          source: "manual",
+        });
+      }
+      // 3) 有 prompt -> 直接送出 chat
+      if (entry.prompt) {
+        await send(entry.prompt);
+        return;
+      }
+      if (entry.path === "/agent") {
+        await send(entry.starterText);
+      }
+    },
+    [pageAgent, send, setLocation]
+  );
 
   return (
     <div className="flex-1 flex flex-col items-center w-full min-h-full">
@@ -262,13 +310,7 @@ export default function AgentChat() {
                     key={entry.id}
                     type="button"
                     className="text-left rounded-xl border border-slate-200/70 bg-white/70 dark:bg-slate-900/40 px-3 py-2.5 hover:border-emerald-300 hover:shadow-sm transition-colors"
-                    onClick={() => {
-                      if (entry.path === "/agent") {
-                        void send(entry.starterText);
-                        return;
-                      }
-                      setLocation(entry.path);
-                    }}
+                    onClick={() => void handleStarterEntryClick(entry)}
                   >
                     <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
                       {entry.label}
