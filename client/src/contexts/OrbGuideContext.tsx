@@ -27,6 +27,7 @@ import {
   buildOrbGuideActions,
   type OrbGuideIntentId,
 } from "../../../shared/orb-guide-plans";
+import { getPageByPath } from "@/config/appRegistry";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -296,6 +297,24 @@ export const INTENT_CONFIGS: Record<Exclude<GuideIntent, null>, IntentConfig> = 
   },
 };
 
+function resolveIntentTarget(cfg: IntentConfig): {
+  targetPath: string;
+  targetLabel: string;
+} {
+  const registryPage = getPageByPath(cfg.targetPath);
+  // 下一步：改由 registry 驅動 intent 設定，逐步移除 INTENT_CONFIGS 內的 targetLabel/path 重複定義。
+  if (registryPage) {
+    return {
+      targetPath: registryPage.path,
+      targetLabel: registryPage.label,
+    };
+  }
+  return {
+    targetPath: cfg.targetPath,
+    targetLabel: cfg.targetLabel,
+  };
+}
+
 // ─── Context Type ─────────────────────────────────────────────────────────────
 
 interface OrbGuideContextType {
@@ -395,14 +414,15 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
           answers: newAnswers,
           promptHint,
         });
+        const target = resolveIntentTarget(cfg);
         const newPlan: GuidePlan = {
           intent,
           answers: Object.entries(newAnswers).map(([q, a]) => ({
             question: q,
             answer: a,
           })),
-          targetPath: cfg.targetPath,
-          targetLabel: cfg.targetLabel,
+          targetPath: target.targetPath,
+          targetLabel: target.targetLabel,
           orbMessage,
           autoFillPrompt: promptHint || undefined,
           actions,

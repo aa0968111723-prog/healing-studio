@@ -27,6 +27,7 @@ import {
   type AgentAction,
 } from "@/contexts/PageAgentContext";
 import { Button } from "@/components/ui/button";
+import { getAgentHomeEntries } from "@/config/appRegistry";
 
 // ─── 型別 ─────────────────────────────────────────────────────────────────
 
@@ -56,14 +57,7 @@ const GREETINGS: Record<string, string[]> = {
   ],
 };
 
-// ─── 通用快速起手式（永遠顯示在首次登入時）─────────────────────────────
-
-const QUICK_STARTERS = [
-  "我想做一張療癒的風景圖",
-  "幫我想一段適合冥想的音樂",
-  "我想做一段短短的影片",
-  "只是想看看平台有什麼",
-];
+const AGENT_HOME_ENTRIES = getAgentHomeEntries();
 
 // ─── 元件 ────────────────────────────────────────────────────────────────
 
@@ -110,6 +104,23 @@ export default function AgentChat() {
   const [isSending, setIsSending] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const starterEntries = useMemo(
+    () =>
+      AGENT_HOME_ENTRIES
+        .filter(page => page.id !== "home")
+        .slice(0, 6)
+        .map(page => ({
+          id: page.id,
+          label: page.label,
+          path: page.path,
+          description: page.description,
+          starterText:
+            page.quickActions[0]?.description ??
+            page.orbHints[0] ??
+            `帶我去${page.label}`,
+        })),
+    []
+  );
 
   const aiChat = trpc.ai.chat.useMutation();
 
@@ -208,6 +219,10 @@ export default function AgentChat() {
   );
 
   const isFirstTurn = messages.length <= 1;
+  const quickStarters = useMemo(
+    () => starterEntries.map(entry => entry.starterText).slice(0, 4),
+    [starterEntries]
+  );
 
   return (
     <div className="flex-1 flex flex-col items-center w-full min-h-full">
@@ -236,8 +251,36 @@ export default function AgentChat() {
             先聊聊看就好 🌿
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md leading-relaxed">
-            不用急著做什麼，也不用記任何工具名稱。你只要說一句，我來幫你想下一步。
+            不用急著學工具，也不用先研究模型。先讓光球帶你快速操作；想深入時，再去「學習文件中心」慢慢學就好。
           </p>
+          {isFirstTurn && (
+            <div className="w-full mt-2">
+              <p className="text-xs text-slate-500 mb-2">你也可以直接選一個入口：</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {starterEntries.map(entry => (
+                  <button
+                    key={entry.id}
+                    type="button"
+                    className="text-left rounded-xl border border-slate-200/70 bg-white/70 dark:bg-slate-900/40 px-3 py-2.5 hover:border-emerald-300 hover:shadow-sm transition-colors"
+                    onClick={() => {
+                      if (entry.path === "/agent") {
+                        void send(entry.starterText);
+                        return;
+                      }
+                      setLocation(entry.path);
+                    }}
+                  >
+                    <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
+                      {entry.label}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
+                      {entry.description}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 聊天區 */}
@@ -290,18 +333,34 @@ export default function AgentChat() {
         </div>
 
         {/* 快速回覆 / 起手式 */}
-        {(isFirstTurn ? QUICK_STARTERS : suggestions).length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {(isFirstTurn ? QUICK_STARTERS : suggestions).map(s => (
-              <button
-                key={s}
-                onClick={() => void send(s)}
-                disabled={isSending}
-                className="text-xs px-3 py-1.5 rounded-full bg-white/80 dark:bg-slate-800/70 text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 hover:border-emerald-200 dark:hover:border-emerald-500/40 transition disabled:opacity-50"
-              >
-                {s}
-              </button>
-            ))}
+        {(isFirstTurn ? quickStarters : suggestions).length > 0 && (
+          <div className="space-y-2">
+            <div className="flex flex-wrap gap-2">
+              {(isFirstTurn ? quickStarters : suggestions).map(s => (
+                <button
+                  key={s}
+                  onClick={() => void send(s)}
+                  disabled={isSending}
+                  className="text-xs px-3 py-1.5 rounded-full bg-white/80 dark:bg-slate-800/70 text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 hover:border-emerald-200 dark:hover:border-emerald-500/40 transition disabled:opacity-50"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+            {isFirstTurn && (
+              <div className="flex items-center gap-2">
+                <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                  想系統化學習時，可以直接打開「學習文件中心」📚
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setLocation("/learn")}
+                  className="text-[11px] px-2 py-1 rounded-md border border-slate-200/70 text-slate-500 hover:text-slate-700 hover:border-slate-300 transition-colors"
+                >
+                  前往學習文件中心
+                </button>
+              </div>
+            )}
           </div>
         )}
 
