@@ -894,6 +894,8 @@ function escapeXml(str: string): string {
 
 // ─── Planning Phase Prompts ─────────────────────────────────────────────────
 
+const MAX_PLANNING_DISCUSSION_MESSAGES = 12;
+
 const PLANNING_PHASE_PROMPTS: Record<
   PlanningPhase,
   {
@@ -1029,9 +1031,9 @@ async function discussPlanningPhase(
     contextParts.push(`【情感節拍分析】\n${beatsSummary}`);
   }
 
-  // Previous discussion for this phase (last 12 messages)
+  // Previous discussion for this phase
   const previousDiscussion = messages
-    .slice(-12)
+    .slice(-MAX_PLANNING_DISCUSSION_MESSAGES)
     .map(d => `${d.role === "user" ? "使用者" : "導演"}：${d.content}`)
     .join("\n");
 
