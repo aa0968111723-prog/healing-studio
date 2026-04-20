@@ -38,6 +38,15 @@ import {
   initR2SnapshotCron,
   stopR2SnapshotCron,
 } from "../jobs/r2SnapshotJob";
+import {
+  initProviderSnapshotCron,
+  stopProviderSnapshotCron,
+} from "../jobs/providerSnapshotJob";
+import {
+  initApiUsageAlertCron,
+  stopApiUsageAlertCron,
+} from "../jobs/apiUsageAlertJob";
+import { aiProxyRouter } from "../routes/aiProxy";
 
 // ─── Allowlist helpers for proxy-download ─────────────────────────────────
 const PROXY_ALLOWED_HOSTS = [
@@ -125,6 +134,8 @@ async function startServer() {
   app.use(langsmithRouter);
   app.use(falWebhookRouter);
   app.use(stripeWebhookRouter);
+  // AI Provider Proxy Gateway
+  app.use(aiProxyRouter);
 
   // ── 後端代理下載（解決前端直接 fetch CDN 時的 CORS 問題）──────────────────
   // GET /api/proxy-download?url=<encodedUrl>
@@ -269,6 +280,8 @@ async function startServer() {
     initApiHealthMonitorCron();
     initBraveLearnFetcherCron();
     initR2SnapshotCron();
+    initProviderSnapshotCron();
+    initApiUsageAlertCron();
   });
 
   // ── Graceful Shutdown ────────────────────────────────────────────────────
@@ -280,6 +293,8 @@ async function startServer() {
     stopApiHealthMonitorCron();
     stopBraveLearnFetcherCron();
     stopR2SnapshotCron();
+    stopProviderSnapshotCron();
+    stopApiUsageAlertCron();
     server.close(async () => {
       await closeDb();
       console.log("[Server] All resources released. Exiting.");

@@ -30,6 +30,7 @@ import { directorRouter } from "./routers/director";
 import { langsmithRouter } from "./routers/langsmith";
 import { promptLibraryRouter } from "./routers/promptLibrary";
 import { externalServicesRouter } from "./routers/externalServices";
+import { apiUsageRouter } from "./routers/apiUsage";
 import { getOrchestrator } from "./services/modelClients";
 // voiceCompiler, audioCompiler, videoCompiler are no longer used — all modalities route through falDispatcher
 import { buildMemoryContext, upsertMemory } from "./services/ragMemory";
@@ -256,6 +257,7 @@ export const appRouter = router({
   loraTrainer: loraTrainerRouter,
   promptLibrary: promptLibraryRouter,
   externalServices: externalServicesRouter,
+  apiUsage: apiUsageRouter,
 
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
