@@ -405,7 +405,7 @@ function ToolCard({
                   </Badge>
                 )}
                 {isNew && (
-                  <Badge className="text-[10px] px-1.5 py-0 bg-emerald-500 text-white animate-pulse">
+                  <Badge className="text-[10px] px-1.5 py-0 bg-emerald-500 text-white motion-safe:animate-pulse">
                     NEW
                   </Badge>
                 )}
@@ -541,7 +541,7 @@ function AsyncVideoPoller({
     return (
       <div className="mt-4 p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-primary/5 to-purple-500/5 border border-primary/20 flex flex-col items-center justify-center gap-3 relative overflow-hidden">
         {/* Subtle animated background shimmer */}
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/3 to-transparent animate-pulse pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/3 to-transparent motion-safe:animate-pulse pointer-events-none" />
         <button
           onClick={() => setDismissed(true)}
           className="absolute top-2 right-2 p-1.5 rounded-lg hover:bg-accent active:bg-accent/70 transition-colors z-10"
@@ -551,7 +551,7 @@ function AsyncVideoPoller({
         </button>
         <div className="relative">
           <Loader2 className="w-8 h-8 text-primary animate-spin" />
-          <div className="absolute inset-0 w-8 h-8 rounded-full border-2 border-primary/20 animate-ping" />
+          <div className="absolute inset-0 w-8 h-8 rounded-full border-2 border-primary/20 motion-safe:animate-ping" />
         </div>
         <div className="text-center relative z-10">
           <p className="text-sm font-semibold text-foreground">
