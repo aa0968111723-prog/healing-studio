@@ -424,6 +424,9 @@ export default function Studio() {
   const [fineTunedModelName, setFineTunedModelName] = useState<
     string | undefined
   >(undefined);
+  const [directorModelOverride, setDirectorModelOverride] = useState<
+    string | undefined
+  >(undefined);
 
   // ── UI state ──
   const [creativeMode, setCreativeMode] =
@@ -718,6 +721,9 @@ export default function Studio() {
           }));
         }
         if (data.generationType) setActiveModality(data.generationType);
+        if (data.overrideEngine) {
+          setDirectorModelOverride(String(data.overrideEngine));
+        }
         if (data.musicStyle)
           setAudioState(prev => ({ ...prev, musicStyle: data.musicStyle }));
         if (data.voiceText)
@@ -872,6 +878,8 @@ export default function Studio() {
         const sourceLabel =
           data.source === "shared_space"
             ? "已從共享空間載入素材"
+            : data.source === "director_ai" && data.overrideEngine
+              ? `已從導演 AI 載入「${data.sceneName ?? "場景"}」（模型：${data.overrideEngine}）`
             : data.source === "history" || data.source === "history_cross"
               ? "已 100% 還原生成配置，可直接重新生成"
               : "已載入參數與提示詞";
@@ -1271,7 +1279,9 @@ export default function Studio() {
         }),
         fineTunedModelId,
         loraWeight,
+        overrideModelId: directorModelOverride,
       });
+      setDirectorModelOverride(undefined);
     } catch {
       // Errors are handled by onError callback in the mutation
     }
@@ -1291,6 +1301,7 @@ export default function Studio() {
     vaultCharacterId,
     vaultSceneId,
     fineTunedModelId,
+    directorModelOverride,
   ]);
 
   // ── Vault select handler ──

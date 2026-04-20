@@ -1177,6 +1177,8 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
           prompt: task.prompt,
           generationType: task.modality,
           overrideEngine: modelId,
+          source: "director_ai",
+          sceneName: segment.storyboard.sceneHeading,
           // Include context metadata for studio
           musicStyle: task.modality === "audio" ? task.prompt : undefined,
           audioScript: task.modality === "voice" ? task.prompt : undefined,
@@ -1217,6 +1219,8 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
         prompt: activeTasks[0].prompt,
         generationType: activeTasks[0].modality,
         overrideEngine: selectedModels[activeTasks[0].modality],
+        source: "director_ai",
+        sceneName: segment.storyboard.sceneHeading,
         musicStyle: activeTasks.find(t => t.modality === "audio")?.prompt,
         audioScript: activeTasks.find(t => t.modality === "voice")?.prompt,
         batchTasks: batch,
@@ -2167,7 +2171,8 @@ export default function DirectorAI() {
         "sendToStudio",
         JSON.stringify({
           prompt: script.visualPrompt,
-          generationType: "multimodal",
+          generationType: "image",
+          source: "director_ai",
           musicStyle: script.musicVibe,
           audioScript: script.audioScript,
         })
