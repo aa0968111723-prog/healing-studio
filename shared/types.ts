@@ -232,6 +232,91 @@ export type DirectorTemplate = {
   personality: "calm" | "creative" | "technical";
 };
 
+// ─── Long Script Planning Mode ──────────────────────────────────────────────
+
+export type PlanningPhase =
+  | "concept"
+  | "outline"
+  | "scene-planning"
+  | "emotional-depth"
+  | "schedule";
+
+export type PlanningMessage = {
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+  /** Optional phase this message belongs to */
+  phase?: PlanningPhase;
+};
+
+export type PlanningPhaseData = {
+  phase: PlanningPhase;
+  status: "not-started" | "in-progress" | "completed";
+  /** AI-generated summary for this phase */
+  summary?: string;
+  /** Discussion thread for this phase */
+  discussion: PlanningMessage[];
+};
+
+export type EmotionalBeat = {
+  /** Which scene index this beat maps to (optional, for later linking) */
+  sceneIndex?: number;
+  label: string;
+  emotion: string;
+  intensity: number; // 1-10
+  warmthNote: string;
+};
+
+export type ScenePlan = {
+  id: string;
+  title: string;
+  description: string;
+  mood: string;
+  emotionalGoal: string;
+  characters: string[];
+  location: string;
+  duration: string;
+  notes: string;
+};
+
+export type ScriptPlanningSession = {
+  id: string;
+  title: string;
+  personality: "calm" | "creative" | "technical";
+  /** Core concept defined in phase 1 */
+  concept?: {
+    theme: string;
+    targetAudience: string;
+    coreEmotion: string;
+    vision: string;
+  };
+  /** Story outline from phase 2 */
+  outline?: {
+    synopsis: string;
+    emotionalArc: string;
+    keyTurningPoints: string[];
+    characters: Array<{ name: string; role: string; emotionalJourney: string }>;
+  };
+  /** Scene plans from phase 3 */
+  scenes: ScenePlan[];
+  /** Emotional depth analysis from phase 4 */
+  emotionalBeats: EmotionalBeat[];
+  warmthScore?: number; // 1-10 overall warmth rating
+  depthAnalysis?: string;
+  /** Scheduling milestones from phase 5 */
+  milestones: Array<{
+    id: string;
+    title: string;
+    targetDate?: string;
+    phase: PlanningPhase;
+    completed: boolean;
+  }>;
+  /** Per-phase data */
+  phases: PlanningPhaseData[];
+  createdAt: string;
+  updatedAt: string;
+};
+
 // ─── Generation Request ─────────────────────────────────────────────────────
 
 export type GenerationRequest = {
