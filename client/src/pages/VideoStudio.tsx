@@ -2935,7 +2935,7 @@ export default function VideoStudio() {
           <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
             整合 FAL.AI 頂尖影片生成模型，共{" "}
             {Object.values(MODEL_COUNT).reduce((a, b) => a + b, 0)} 個模型
-            <span className="hidden sm:inline text-muted-foreground/50">
+            <span className="text-muted-foreground/50">
               {" "}· 點擊卡片展開使用
             </span>
           </p>
