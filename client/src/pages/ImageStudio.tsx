@@ -6,7 +6,7 @@
  *  Stable Diffusion（3）/ 圖片轉3D（5）
  */
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useAIState } from "@/contexts/AIStateContext";
@@ -752,10 +752,14 @@ function ResultImage({
   url,
   prompt,
   onDownload,
+  onUseAsEdit,
+  genMeta,
 }: {
   url: string;
   prompt: string;
   onDownload: () => void;
+  onUseAsEdit?: (url: string) => void;
+  genMeta?: { modelName: string; duration: number; seed?: string } | null;
 }) {
   return (
     <motion.div
@@ -787,12 +791,37 @@ function ResultImage({
           >
             <Eye className="w-3.5 h-3.5" /> 全尺寸
           </Button>
+          {onUseAsEdit && (
+            <Button
+              size="sm"
+              variant="secondary"
+              className="gap-1.5"
+              onClick={() => onUseAsEdit(url)}
+            >
+              <Paintbrush className="w-3.5 h-3.5" /> 編輯
+            </Button>
+          )}
         </div>
       </div>
       <div className="p-3">
         <p className="hs-small !mb-0 text-muted-foreground line-clamp-2">
           {prompt}
         </p>
+        {genMeta && (
+          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+            <span className="text-[10px] text-muted-foreground/60 flex items-center gap-0.5">
+              <Cpu className="w-2.5 h-2.5" /> {genMeta.modelName}
+            </span>
+            <span className="text-[10px] text-muted-foreground/60">
+              · {genMeta.duration}s
+            </span>
+            {genMeta.seed && (
+              <span className="text-[10px] text-muted-foreground/60">
+                · seed: {genMeta.seed}
+              </span>
+            )}
+          </div>
+        )}
         <div className="flex items-center gap-2 mt-2">
           <Button
             variant="outline"
@@ -800,8 +829,19 @@ function ResultImage({
             className="flex-1 text-xs h-7 gap-1"
             onClick={onDownload}
           >
-            <Download className="w-3 h-3" /> 下載圖片
+            <Download className="w-3 h-3" /> 下載
           </Button>
+          {onUseAsEdit && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs h-7 gap-1"
+              onClick={() => onUseAsEdit(url)}
+              title="送到編輯模式"
+            >
+              <Paintbrush className="w-3 h-3" />
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -2104,6 +2144,81 @@ function ThreeDPanel({
   );
 }
 
+/** Compact results preview shown at top of mobile when results exist */
+function MobileResultsPreview({
+  resultImages,
+  result3d,
+  resultPose,
+  prompt,
+  viewMode,
+  setViewMode,
+  downloadImage,
+  onUseAsEdit,
+  lastGenMeta,
+  poseImageUrl,
+}: {
+  resultImages: string[];
+  result3d: { glbUrl: string | null; extras?: Record<string, string | null> } | null;
+  resultPose: string | null;
+  prompt: string;
+  viewMode: "single" | "grid";
+  setViewMode: (v: "single" | "grid") => void;
+  downloadImage: (url: string) => void;
+  onUseAsEdit: (url: string) => void;
+  lastGenMeta: { modelName: string; duration: number; seed?: string } | null;
+  poseImageUrl: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-border/20 bg-muted/20 overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border/20 bg-background/80">
+        <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+          <ImagePlus className="w-3.5 h-3.5" />
+          生成結果
+          {resultImages.length > 0 && (
+            <Badge variant="secondary" className="text-[9px] px-1.5 py-0 ml-1">
+              {resultImages.length} 張
+            </Badge>
+          )}
+        </p>
+        {resultImages.length > 1 && (
+          <button
+            onClick={() => setViewMode(viewMode === "single" ? "grid" : "single")}
+            className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground"
+          >
+            {viewMode === "single" ? (
+              <Grid3x3 className="w-3.5 h-3.5" />
+            ) : (
+              <Image className="w-3.5 h-3.5" />
+            )}
+          </button>
+        )}
+      </div>
+      <div className="p-3">
+        {resultImages.length > 0 && (
+          <div className={viewMode === "grid" && resultImages.length > 1 ? "grid grid-cols-2 gap-2" : "space-y-2"}>
+            {resultImages.map((url) => (
+              <ResultImage
+                key={url}
+                url={url}
+                prompt={prompt}
+                onDownload={() => downloadImage(url)}
+                onUseAsEdit={onUseAsEdit}
+                genMeta={lastGenMeta}
+              />
+            ))}
+          </div>
+        )}
+        {result3d && (
+          <Model3DResult glbUrl={result3d.glbUrl} extras={result3d.extras} />
+        )}
+        {resultPose && (
+          <PoseResult poseUrl={resultPose} prompt={poseImageUrl} />
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ImageStudio() {
@@ -2191,6 +2306,12 @@ export default function ImageStudio() {
   } | null>(null);
   const [resultPose, setResultPose] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [lastGenMeta, setLastGenMeta] = useState<{
+    modelName: string;
+    duration: number;
+    seed?: string;
+  } | null>(null);
+  const genStartRef = useRef<number>(0);
 
   // ── Applied Fine-tuned Model from ModelsPage ──
   const [appliedModelName, setAppliedModelName] = useState<string | null>(null);
@@ -2265,6 +2386,19 @@ export default function ImageStudio() {
     }
   }, []);
 
+  // ── Ctrl+Enter keyboard shortcut for generation ──
+  const handleGenerateRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && !isGenerating) {
+        e.preventDefault();
+        handleGenerateRef.current?.();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [isGenerating]);
+
   // ── tRPC mutations ──
   const mutations = {
     // T2I
@@ -2334,6 +2468,8 @@ export default function ImageStudio() {
     setResultImages([]);
     setResult3d(null);
     setResultPose(null);
+    setLastGenMeta(null);
+    genStartRef.current = Date.now();
 
     const vibeKw = vibeIds
       .map(id => VIBE_CARDS.find(v => v.id === id)?.keywords)
@@ -2634,6 +2770,10 @@ export default function ImageStudio() {
           glbUrl: glb,
           extras: Object.keys(extras).length ? extras : undefined,
         });
+        setLastGenMeta({
+          modelName: model.name,
+          duration: Math.round((Date.now() - genStartRef.current) / 1000),
+        });
         if (glb) toast.success("3D 模型生成完成！");
         else toast.warning("3D 生成完成，但未找到 GLB 檔案，請查看 extras");
         return;
@@ -2644,6 +2784,10 @@ export default function ImageStudio() {
         const poseUrl = result?.pose_image_url || null;
         if (poseUrl) {
           setResultPose(poseUrl);
+          setLastGenMeta({
+            modelName: model.name,
+            duration: Math.round((Date.now() - genStartRef.current) / 1000),
+          });
           toast.success("骨骼姿勢圖生成完成！");
         } else {
           toast.error("未取得姿勢圖 URL");
@@ -2664,6 +2808,11 @@ export default function ImageStudio() {
       setResultImages(imgs);
       toast.success(`✨ 生成完成！（${imgs.length} 張）`);
       reportSuccess();
+      setLastGenMeta({
+        modelName: model.name,
+        duration: Math.round((Date.now() - genStartRef.current) / 1000),
+        seed: seed || undefined,
+      });
 
       addToHistory({
         prompt: fullPrompt || upscaleImageUrl || poseImageUrl || imageUrl3d,
@@ -2756,12 +2905,22 @@ export default function ImageStudio() {
     toast.success("已載入歷史參數");
   };
 
+  // Wire ref so Ctrl+Enter can call handleGenerate
+  handleGenerateRef.current = handleGenerate;
+
+  /** Send result image to the Edit tab as reference */
+  const handleUseAsEditSource = useCallback((url: string) => {
+    setRefImageUrl(url);
+    setActiveTab("edit");
+    toast.success("已將圖片載入編輯模式");
+  }, []);
+
   const generateBtnLabel = () => {
-    if (isGenerating) return "AI 生成中，請稍候...";
+    if (isGenerating) return "AI 生成中...";
     if (activeTab === "upscale") return "開始放大";
-    if (activeTab === "pose") return "偵測骨骼姿勢";
-    if (activeTab === "3d") return "生成 3D 模型";
-    return `開始生成`;
+    if (activeTab === "pose") return "偵測骨骼";
+    if (activeTab === "3d") return "生成 3D";
+    return "開始生成";
   };
 
   const gradientBtn = `bg-gradient-to-r ${tabColor(activeTab)} hover:opacity-90`;
@@ -2852,8 +3011,26 @@ export default function ImageStudio() {
 
       {/* ── Two-Column Layout (lg+) ── */}
       <div className="mt-4 flex flex-col lg:flex-row gap-4 lg:gap-6">
+        {/* ── Mobile: Results at top when available ── */}
+        {hasResults && (
+          <div className="lg:hidden">
+            <MobileResultsPreview
+              resultImages={resultImages}
+              result3d={result3d}
+              resultPose={resultPose}
+              prompt={prompt}
+              viewMode={viewMode}
+              setViewMode={setViewMode}
+              downloadImage={downloadImage}
+              onUseAsEdit={handleUseAsEditSource}
+              lastGenMeta={lastGenMeta}
+              poseImageUrl={poseImageUrl}
+            />
+          </div>
+        )}
+
         {/* ── LEFT: Controls ── */}
-        <div className="w-full lg:w-[420px] xl:w-[460px] shrink-0 space-y-3 sm:space-y-4">
+        <div className="w-full lg:w-[420px] xl:w-[460px] shrink-0 lg:sticky lg:top-14 lg:self-start lg:overflow-y-auto lg:max-h-[calc(100vh-4.5rem)] space-y-3 sm:space-y-4 lg:pr-1 lg:pb-4 no-scrollbar">
           {/* Model Selection — compact horizontal-scrollable on small grids */}
           <div className="rounded-2xl border border-border/30 p-3 sm:p-4 bg-background/60">
             <div className="flex items-center justify-between mb-2">
@@ -2934,6 +3111,11 @@ export default function ImageStudio() {
                     <p className="text-[10px] text-muted-foreground leading-snug line-clamp-2">
                       {m.desc}
                     </p>
+                    {m.bestFor && (
+                      <p className="text-[10px] text-primary/70 leading-snug mt-0.5 line-clamp-1">
+                        {m.bestFor}
+                      </p>
+                    )}
                     <div className="flex items-center gap-1 mt-1.5">
                       <Badge
                         variant="secondary"
@@ -3381,7 +3563,7 @@ export default function ImageStudio() {
             <Button
               onClick={handleGenerate}
               disabled={isGenerating}
-              className={`w-full h-12 rounded-2xl text-sm font-semibold gap-2 shadow-lg hover:shadow-xl transition-all text-white ${gradientBtn}`}
+              className={`w-full h-12 rounded-2xl text-sm font-semibold gap-2 shadow-lg hover:shadow-xl transition-all text-white ${gradientBtn} ${!isGenerating ? "animate-[gentle-pulse_3s_ease-in-out_infinite]" : ""}`}
             >
               {isGenerating ? (
                 <>
@@ -3392,7 +3574,7 @@ export default function ImageStudio() {
                 <>
                   <Wand2 className="w-5 h-5" />
                   {generateBtnLabel()}
-                  <span className="opacity-60 text-xs ml-1">({model.name})</span>
+                  <kbd className="hidden xl:inline text-[10px] px-1.5 py-0.5 rounded bg-white/20 ml-1 font-mono">⌘↵</kbd>
                 </>
               )}
             </Button>
@@ -3472,6 +3654,8 @@ export default function ImageStudio() {
                               url={url}
                               prompt={prompt}
                               onDownload={() => downloadImage(url)}
+                              onUseAsEdit={handleUseAsEditSource}
+                              genMeta={lastGenMeta}
                             />
                           ))}
                         </div>
@@ -3492,16 +3676,39 @@ export default function ImageStudio() {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
-                      className="flex flex-col items-center justify-center py-16 sm:py-24 gap-3"
+                      className="flex flex-col items-center justify-center py-12 sm:py-20 gap-4"
                     >
                       <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/30 dark:to-purple-950/20 border border-violet-100/50 dark:border-violet-800/30 flex items-center justify-center">
                         <Sparkles className="w-8 h-8 text-violet-300 dark:text-violet-600" />
                       </div>
-                      <div className="text-center max-w-[220px]">
+                      <div className="text-center max-w-[260px]">
                         <p className="text-sm font-medium text-muted-foreground">等待你的靈感 ✨</p>
                         <p className="text-xs text-muted-foreground/60 mt-1 leading-relaxed">
-                          選擇模型、輸入描述，<br />讓 AI 幫你創作吧
+                          選擇模型、輸入描述，按下生成
                         </p>
+                      </div>
+                      <div className="flex flex-col sm:flex-row gap-2 mt-1">
+                        <button
+                          onClick={() => {
+                            setPrompt(QUICK_TRY_PROMPT);
+                            setActiveTab("t2i");
+                            setSelectedModelId("seedreamV4");
+                            toast.success("🌿 已填入範例提示詞");
+                          }}
+                          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-violet-100/80 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 text-xs font-medium hover:bg-violet-200/80 dark:hover:bg-violet-900/50 transition-colors"
+                        >
+                          <Rocket className="w-3.5 h-3.5" /> 一鍵填入範例
+                        </button>
+                        <button
+                          onClick={() => {
+                            const randomTemplate = PROMPT_TEMPLATES[Math.floor(Math.random() * PROMPT_TEMPLATES.length)];
+                            setPrompt(randomTemplate.text);
+                            toast.success(`已填入「${randomTemplate.title}」`);
+                          }}
+                          className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-border/40 text-muted-foreground text-xs font-medium hover:bg-accent transition-colors"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" /> 隨機靈感
+                        </button>
                       </div>
                     </motion.div>
                   )}
@@ -3540,25 +3747,29 @@ export default function ImageStudio() {
       </div>
 
       {/* ── Mobile Sticky Generate Bar ── */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 lg:hidden border-t border-border/30 bg-background/90 backdrop-blur-lg px-3 py-2.5 safe-area-pb">
-        <Button
-          onClick={handleGenerate}
-          disabled={isGenerating}
-          className={`w-full h-12 rounded-2xl text-sm font-semibold gap-2 shadow-lg transition-all text-white ${gradientBtn}`}
-        >
-          {isGenerating ? (
-            <>
-              <Loader2 className="w-5 h-5 animate-spin" />
-              {generateBtnLabel()}
-            </>
-          ) : (
-            <>
-              <Wand2 className="w-5 h-5" />
-              {generateBtnLabel()}
-              <span className="opacity-60 text-xs ml-1">({model.name})</span>
-            </>
-          )}
-        </Button>
+      <div className="fixed bottom-0 left-0 right-0 z-30 lg:hidden border-t border-border/30 bg-background/90 backdrop-blur-lg px-3 py-2 safe-area-pb">
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary" className="text-[9px] px-2 py-0.5 shrink-0 max-w-[80px] truncate">
+            {model.name}
+          </Badge>
+          <Button
+            onClick={handleGenerate}
+            disabled={isGenerating}
+            className={`flex-1 h-11 rounded-2xl text-sm font-semibold gap-2 shadow-lg transition-all text-white ${gradientBtn}`}
+          >
+            {isGenerating ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                生成中...
+              </>
+            ) : (
+              <>
+                <Wand2 className="w-4 h-4" />
+                {generateBtnLabel()}
+              </>
+            )}
+          </Button>
+        </div>
       </div>
 
       {/* ── Footer ── */}
