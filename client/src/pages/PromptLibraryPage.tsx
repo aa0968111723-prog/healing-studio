@@ -154,15 +154,22 @@ export default function PromptLibraryPage() {
   // 光球可幫使用者：切 mine/public 分頁、挑分類、搜尋、切只看收藏、清空條件。
   const TAB_OPTIONS = useMemo<AgentCapability["options"]>(
     () => [
-      { id: "mine", label: "我的" },
-      { id: "public", label: "公開" },
+      { id: "mine", label: "我的", meta: { bestFor: "個人模板沉澱", tip: "先整理高成功率模板" } },
+      { id: "public", label: "公開", meta: { bestFor: "靈感探索", tip: "先借鑑結構再客製化" } },
     ],
     []
   );
   const CATEGORY_OPTIONS = useMemo<AgentCapability["options"]>(
     () => [
-      { id: "all", label: "全部分類" },
-      ...CATEGORIES.map(c => ({ id: c.value, label: c.label })),
+      { id: "all", label: "全部分類", meta: { bestFor: "跨任務比對", tip: "觀察不同類型 prompt 結構差異" } },
+      ...CATEGORIES.map(c => ({
+        id: c.value,
+        label: c.label,
+        meta: {
+          bestFor: c.label,
+          tip: "可搭配負向詞與參數模板一起保存",
+        },
+      })),
     ],
     []
   );

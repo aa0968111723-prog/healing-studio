@@ -1841,11 +1841,21 @@ export default function Studio() {
           return { ok: true };
         }
         case "setMode": {
-          if (action.modeId !== "lightning" && action.modeId !== "deep_precision") {
-            return { ok: false, reason: `unknown modeId: ${action.modeId}` };
+          if (action.modeId === "lightning" || action.modeId === "deep_precision") {
+            setMode(action.modeId as GenerationMode);
+            return { ok: true };
           }
-          setMode(action.modeId as GenerationMode);
-          return { ok: true };
+          const creativeModeMap: Record<string, CreativeMode> = {
+            inspiration: "simple",
+            standard: "standard",
+            professional: "pro",
+          };
+          const mapped = creativeModeMap[action.modeId];
+          if (mapped) {
+            setCreativeMode(mapped);
+            return { ok: true, message: `已切換到 ${action.modeId} 模式` };
+          }
+          return { ok: false, reason: `unknown modeId: ${action.modeId}` };
         }
         case "applyPreset": {
           const id = action.presetId;
@@ -2002,6 +2012,47 @@ export default function Studio() {
           setResultUrl(null);
           setResultData(null);
           return { ok: true };
+        }
+        case "openDialog": {
+          const openToolbox = (tab: "vault" | "assets" | "models" | "history" | "controls") => {
+            setToolboxTab(tab);
+            setToolboxSheetOpen(true);
+            setLeftDrawerOpen(false);
+            setRightDrawerOpen(false);
+          };
+          if (action.dialogId === "toolbox") {
+            const tab =
+              action.params && typeof action.params.tab === "string"
+                ? action.params.tab
+                : "assets";
+            const normalized =
+              tab === "vault" ||
+              tab === "assets" ||
+              tab === "models" ||
+              tab === "history" ||
+              tab === "controls"
+                ? tab
+                : "assets";
+            openToolbox(normalized);
+            return { ok: true, message: `已開啟工具箱（${normalized}）` };
+          }
+          if (action.dialogId === "toolbox-assets") {
+            openToolbox("assets");
+            return { ok: true };
+          }
+          if (action.dialogId === "toolbox-models") {
+            openToolbox("models");
+            return { ok: true };
+          }
+          if (action.dialogId === "toolbox-vault") {
+            openToolbox("vault");
+            return { ok: true };
+          }
+          if (action.dialogId === "toolbox-controls") {
+            openToolbox("controls");
+            return { ok: true };
+          }
+          return { ok: false, reason: `unknown dialogId: ${action.dialogId}` };
         }
         case "focusElement":
           return { ok: true };

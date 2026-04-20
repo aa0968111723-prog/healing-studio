@@ -183,10 +183,10 @@ export default function NotesPage() {
   // 光球可幫使用者：切 type 篩選、下搜尋字串、清空條件。
   const NOTE_TYPE_OPTIONS = useMemo<AgentCapability["options"]>(
     () => [
-      { id: "all", label: "全部" },
-      { id: "note", label: "筆記" },
-      { id: "script", label: "腳本" },
-      { id: "calendar_event", label: "行事曆" },
+      { id: "all", label: "全部", meta: { bestFor: "全局盤點", tip: "先看未整理筆記再分群" } },
+      { id: "note", label: "筆記", meta: { bestFor: "靈感沉澱", tip: "補齊標籤與摘要更好檢索" } },
+      { id: "script", label: "腳本", meta: { bestFor: "敘事規劃", tip: "可連動導演 AI 分鏡流程" } },
+      { id: "calendar_event", label: "行事曆", meta: { bestFor: "排程轉換", tip: "把待辦轉成具體時程" } },
     ],
     []
   );
@@ -202,7 +202,7 @@ export default function NotesPage() {
       {
         action: "setParam",
         label: "搜尋字串",
-        hint: "用 setParam key='search' value=<關鍵字> 過濾標題/內容/標籤",
+        hint: "用 setParam key='search' value=<關鍵字> 過濾標題/內容/標籤；建議格式：主題 + 任務狀態 + 角色/場景",
       },
       {
         action: "reset",

@@ -245,8 +245,8 @@ export default function SharedSpace() {
   // ── PageAgent：光球可代操分頁、搜尋、類型篩選 ───────────────────
   const SHARED_TAB_OPTIONS = useMemo(
     () => [
-      { id: "assets", label: "共享素材" },
-      { id: "models", label: "共享模型" },
+      { id: "assets", label: "共享素材", meta: { bestFor: "素材協作復用", tip: "附註用途與授權狀態" } },
+      { id: "models", label: "共享模型", meta: { bestFor: "團隊模型共用", tip: "附上推薦參數與版本註記" } },
     ],
     []
   );
@@ -255,6 +255,10 @@ export default function SharedSpace() {
       ["all", "image", "video", "audio", "voice", "script"].map(t => ({
         id: t,
         label: t === "all" ? "全部" : MODALITY_LABELS[t] || t,
+        meta: {
+          bestFor: t === "all" ? "整體盤點" : `${MODALITY_LABELS[t] || t}資產篩選`,
+          tip: "可再搭配搜尋關鍵字縮小結果",
+        },
       })),
     []
   );

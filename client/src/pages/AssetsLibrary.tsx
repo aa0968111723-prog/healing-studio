@@ -381,20 +381,20 @@ export default function AssetsLibrary() {
   // 光球可：切 my/team 分頁、切資產類型、下搜尋字串、清空條件。
   const ASSETS_TAB_OPTIONS = useMemo<AgentCapability["options"]>(
     () => [
-      { id: "my", label: "我的資產" },
-      { id: "team", label: "團隊共享" },
+      { id: "my", label: "我的資產", meta: { bestFor: "個人素材管理", tip: "先做命名與標籤標準化" } },
+      { id: "team", label: "團隊共享", meta: { bestFor: "跨人協作復用", tip: "同步用途與授權說明" } },
     ],
     []
   );
   const ASSETS_TYPE_OPTIONS = useMemo<AgentCapability["options"]>(
     () => [
-      { id: "all", label: "全部" },
-      { id: "image", label: "圖片" },
-      { id: "video", label: "影片" },
-      { id: "audio", label: "音樂" },
-      { id: "voice", label: "語音" },
-      { id: "script", label: "腳本" },
-      { id: "zip_bundle", label: "打包" },
+      { id: "all", label: "全部", meta: { bestFor: "總覽盤點", tip: "先看跨模態可重用素材" } },
+      { id: "image", label: "圖片", meta: { bestFor: "視覺素材", tip: "優先補齊角色/場景關鍵圖" } },
+      { id: "video", label: "影片", meta: { bestFor: "鏡頭參考", tip: "補上時長與運鏡標記便於檢索" } },
+      { id: "audio", label: "音樂", meta: { bestFor: "配樂素材", tip: "加註 BPM 與情緒標籤" } },
+      { id: "voice", label: "語音", meta: { bestFor: "配音素材", tip: "加註語速/語氣/角色設定" } },
+      { id: "script", label: "腳本", meta: { bestFor: "敘事資產", tip: "與分鏡/提示詞建立關聯" } },
+      { id: "zip_bundle", label: "打包", meta: { bestFor: "交付封裝", tip: "用版本號管理交付包" } },
     ],
     []
   );
@@ -410,7 +410,7 @@ export default function AssetsLibrary() {
       {
         action: "setParam",
         label: "類型 / 搜尋",
-        hint: "setParam key='assetType' value=all|image|video|audio|voice|script|zip_bundle；key='search' value=<關鍵字>",
+        hint: "setParam key='assetType' value=all|image|video|audio|voice|script|zip_bundle；key='search' value=<關鍵字>。建議搜尋詞格式：用途 + 角色/場景 + 版本。",
       },
       {
         action: "reset",

@@ -296,6 +296,12 @@ export default function CreditsInfoPage() {
       {
         action: "navigate",
         label: "跳到相關頁面",
+        options: [
+          { id: "/learn", label: "學習文件中心", meta: { bestFor: "降耗學習", tip: "先學低成本試稿流程" } },
+          { id: "/dashboard", label: "儀表板", meta: { bestFor: "成本監控", tip: "追蹤單次生成成本變化" } },
+          { id: "/shared", label: "共享空間", meta: { bestFor: "分享賺積分", tip: "高品質可復用資產優先分享" } },
+          { id: "/assets", label: "數位資產庫", meta: { bestFor: "資產盤點", tip: "清理重複素材避免浪費生成" } },
+        ],
         hint: "navigate path='/learn'（文件）| '/dashboard'（看用量）| '/shared'（分享賺積分）| '/assets'（我的資產）",
       },
     ],

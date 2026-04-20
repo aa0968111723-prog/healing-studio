@@ -717,8 +717,8 @@ export default function ModelsPage() {
   // ── PageAgent（光球可以代操分頁切換與導航）──────────────────────
   const MODELS_TAB_OPTIONS = useMemo(
     () => [
-      { id: "my", label: "我的模型" },
-      { id: "team", label: "團隊共享" },
+      { id: "my", label: "我的模型", meta: { bestFor: "版本治理", tip: "依用途標記 stable / experimental" } },
+      { id: "team", label: "團隊共享", meta: { bestFor: "跨團隊復用", tip: "附註推薦參數與禁用情境" } },
     ],
     []
   );

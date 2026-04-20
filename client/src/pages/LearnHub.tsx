@@ -2080,18 +2080,28 @@ export default function LearnHub() {
   // 光球可：切 docs/videos/quizzes 子分頁、挑分類、挑難度、下搜尋、清空條件。
   const LEARN_TAB_OPTIONS = useMemo<AgentCapability["options"]>(
     () => [
-      { id: "docs", label: "文件中心" },
-      { id: "videos", label: "影片學習區" },
-      { id: "quizzes", label: "學習測驗區" },
+      { id: "docs", label: "文件中心", meta: { bestFor: "系統化學習", tip: "先讀核心概念再實作" } },
+      { id: "videos", label: "影片學習區", meta: { bestFor: "快速上手", tip: "搭配筆記同步整理重點" } },
+      { id: "quizzes", label: "學習測驗區", meta: { bestFor: "檢核理解", tip: "每學完一章就做測驗" } },
     ],
     []
   );
   const LEARN_CATEGORY_OPTIONS = useMemo<AgentCapability["options"]>(
-    () => CATEGORIES.map(c => ({ id: c.id, label: c.label })),
+    () =>
+      CATEGORIES.map(c => ({
+        id: c.id,
+        label: c.label,
+        meta: { bestFor: c.label, tip: "先選與當前任務最相關的類別" },
+      })),
     []
   );
   const LEARN_DIFFICULTY_OPTIONS = useMemo<AgentCapability["options"]>(
-    () => DIFFICULTIES.map(d => ({ id: d.id, label: d.label })),
+    () =>
+      DIFFICULTIES.map(d => ({
+        id: `difficulty:${d.id}`,
+        label: `難度：${d.label}`,
+        meta: { bestFor: `${d.label}程度`, tip: "依當前可投入時間選擇難度" },
+      })),
     []
   );
   const learnAgentCapabilities: AgentCapability[] = useMemo(
@@ -2106,7 +2116,7 @@ export default function LearnHub() {
       {
         action: "setParam",
         label: "分類 / 難度 / 搜尋",
-        options: LEARN_CATEGORY_OPTIONS,
+        options: [...(LEARN_CATEGORY_OPTIONS ?? []), ...(LEARN_DIFFICULTY_OPTIONS ?? [])],
         hint: "setParam key='category' value=<CategoryId>；key='difficulty' value=all|beginner|intermediate|advanced；key='search' value=<關鍵字>",
       },
       {

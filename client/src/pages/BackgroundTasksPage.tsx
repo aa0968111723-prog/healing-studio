@@ -8,6 +8,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
+import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -32,6 +33,7 @@ import {
   Download,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import type { AgentAction, AgentActionResult, AgentCapability } from "../../../shared/agent-actions";
 
 // ─── Types & Constants ────────────────────────────────────────────────────────
 
@@ -621,6 +623,87 @@ export default function BackgroundTasksPage() {
   }, [activeJobIds.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isLoading = activeJobsQuery.isLoading && allJobsQuery.isLoading;
+
+  const TASK_FILTER_OPTIONS = useMemo<AgentCapability["options"]>(
+    () =>
+      FILTER_TABS.map(tab => ({
+        id: tab.value,
+        label: tab.label,
+        meta: {
+          bestFor:
+            tab.value === "active"
+              ? "優先追蹤進行中任務"
+              : tab.value === "failed"
+                ? "快速排查異常"
+                : "任務盤點",
+          tip: "可再搭配搜尋欄輸入模型名或任務標籤",
+        },
+      })),
+    []
+  );
+
+  const tasksAgentCapabilities: AgentCapability[] = useMemo(
+    () => [
+      {
+        action: "setTab",
+        label: "任務篩選",
+        currentId: filter,
+        options: TASK_FILTER_OPTIONS,
+        hint: "切換 all/active/completed/failed/image/video/audio/voice/model_training",
+      },
+      {
+        action: "setParam",
+        label: "搜尋關鍵字",
+        hint: "setParam key='search' value=<關鍵字>；可搜模型名、任務類型、進度訊息",
+      },
+      {
+        action: "reset",
+        label: "重置篩選",
+        hint: "回到全部任務並清空搜尋字串",
+      },
+    ],
+    [filter, TASK_FILTER_OPTIONS]
+  );
+
+  useRegisterPageAgent({
+    pageId: "background-tasks",
+    pageLabel: "背景任務中心",
+    pagePath: "/background-tasks",
+    capabilities: tasksAgentCapabilities,
+    state: {
+      filter,
+      search,
+      activeCount: activeJobIds.length,
+      visibleCount: filteredJobs.length,
+      totalCount: allJobs.length,
+    },
+    handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      switch (action.type) {
+        case "setTab": {
+          const valid = FILTER_TABS.map(t => t.value);
+          if (!valid.includes(action.tabId as JobFilter)) {
+            return { ok: false, reason: `unknown tab: ${action.tabId}` };
+          }
+          setFilter(action.tabId as JobFilter);
+          return { ok: true, message: `切到「${action.tabId}」` };
+        }
+        case "setParam": {
+          if (action.key === "search") {
+            setSearch(typeof action.value === "string" ? action.value : "");
+            return { ok: true, message: "已套用搜尋" };
+          }
+          return { ok: false, reason: `unknown param key: ${action.key}` };
+        }
+        case "reset": {
+          setFilter("all");
+          setSearch("");
+          return { ok: true, message: "已重置條件" };
+        }
+        default:
+          return { ok: false, reason: `unsupported on background-tasks: ${action.type}` };
+      }
+    },
+  });
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto" id="background-tasks-page">

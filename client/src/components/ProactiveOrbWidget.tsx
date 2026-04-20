@@ -23,6 +23,7 @@ import {
   Heart,
   Music,
   Video,
+  Film,
   Image,
   Mic,
   BookOpen,
@@ -35,11 +36,21 @@ import {
   Zap,
   ArrowRight,
   Navigation,
+  Navigation2,
+  Layers,
+  Cpu,
+  Shield,
+  Users,
+  RefreshCw,
+  Clock,
+  BarChart3,
+  Coins,
+  Settings,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useFocusFlow } from "@/contexts/FocusFlowContext";
 import FocusFlowMini from "./FocusFlowMini";
-import { useOrbGuide } from "@/contexts/OrbGuideContext";
+import { useOrbGuide, type GuideIntent } from "@/contexts/OrbGuideContext";
 import OrbGuidePanel from "./OrbGuidePanel";
 import { usePageAgent } from "@/contexts/PageAgentContext";
 import { parseLLMActions, type AgentAction } from "../../../shared/agent-actions";
@@ -258,6 +269,11 @@ const PAGE_GREETINGS: Record<string, string[]> = {
     "✨ 準備好素材了嗎？不確定的話我可以幫你。",
     "💡 好的訓練不需要很多圖片，品質比數量重要。",
   ],
+  director: [
+    "🎬 導演模式啟動中，先把故事節奏抓好再選模型。",
+    "✨ 腳本、分鏡、配樂、旁白都能一起規劃，我陪你逐步拆解。",
+    "🧭 想先省成本還是先求品質？我可以幫你配一套生成管線。",
+  ],
   learn: [
     "📚 想學什麼呢？我可以推薦適合你的內容。",
     "🌿 慢慢學，每一步都算數。",
@@ -323,12 +339,32 @@ const QUICK_ACTIONS: QuickAction[] = [
 // ─── Page-specific quick actions (contextual AI agent capabilities) ────────
 
 const PAGE_QUICK_ACTIONS: Record<string, QuickAction[]> = {
+  studio: [
+    {
+      icon: <Sparkles className="w-4 h-4" />,
+      label: "建立工作流",
+      description: "先建立模態、模式，再進工具箱與素材",
+      action: "studio-workflow-bootstrap",
+    },
+    {
+      icon: <Layers className="w-4 h-4" />,
+      label: "頁面細節",
+      description: "改成頁面細節導引（取代空的靈感連接）",
+      action: "page-deep-dive",
+    },
+  ],
   "image-studio": [
     {
       icon: <Image className="w-4 h-4" />,
       label: "模型推薦",
       description: "根據你的需求推薦最適合的圖片模型",
       action: "chat-model-recommend",
+    },
+    {
+      icon: <Cpu className="w-4 h-4" />,
+      label: "模型細節導覽",
+      description: "逐一解說模型長處、功能與適用任務",
+      action: "chat-image-model-deep-dive",
     },
     {
       icon: <Sparkles className="w-4 h-4" />,
@@ -345,6 +381,12 @@ const PAGE_QUICK_ACTIONS: Record<string, QuickAction[]> = {
       action: "chat-model-compare",
     },
     {
+      icon: <Cpu className="w-4 h-4" />,
+      label: "模型細節導覽",
+      description: "逐一解說影片模型長處、功能優勢與取捨",
+      action: "chat-video-model-deep-dive",
+    },
+    {
       icon: <Sparkles className="w-4 h-4" />,
       label: "影片提詞技巧",
       description: "教你寫出更好的影片生成提示詞",
@@ -357,6 +399,12 @@ const PAGE_QUICK_ACTIONS: Record<string, QuickAction[]> = {
       label: "音樂風格建議",
       description: "推薦適合你的音樂風格和模型",
       action: "chat-music-style",
+    },
+    {
+      icon: <Cpu className="w-4 h-4" />,
+      label: "模型細節導覽",
+      description: "逐一解說音樂/配音模型長處、功能優勢與取捨",
+      action: "chat-pro-model-deep-dive",
     },
     {
       icon: <Mic className="w-4 h-4" />,
@@ -373,6 +421,108 @@ const PAGE_QUICK_ACTIONS: Record<string, QuickAction[]> = {
       action: "chat-training-tips",
     },
   ],
+  assets: [
+    {
+      icon: <Layers className="w-4 h-4" />,
+      label: "素材子項目導覽",
+      description: "深度整理圖片/影片/音訊素材與可重用策略",
+      action: "chat-assets-subitems-deep-dive",
+    },
+    {
+      icon: <Navigation2 className="w-4 h-4" />,
+      label: "8 子分頁工作流",
+      description: "一次串起素材與模型 8 個子分頁",
+      action: "chat-assets-model-workflow",
+    },
+  ],
+  history: [
+    {
+      icon: <Clock className="w-4 h-4" />,
+      label: "歷史反推導覽",
+      description: "從歷史紀錄反推模型選型與參數規律",
+      action: "chat-history-deep-dive",
+    },
+  ],
+  "prompt-library": [
+    {
+      icon: <BookOpen className="w-4 h-4" />,
+      label: "模板細膩導覽",
+      description: "解析提示詞模板、變體與模型對應",
+      action: "chat-prompt-library-deep-dive",
+    },
+  ],
+  models: [
+    {
+      icon: <Cpu className="w-4 h-4" />,
+      label: "模型版本導覽",
+      description: "比較版本用途、風險與參數起手式",
+      action: "chat-models-deep-dive",
+    },
+  ],
+  vault: [
+    {
+      icon: <Shield className="w-4 h-4" />,
+      label: "一致性規格導覽",
+      description: "建立角色/場景錨點與跨模型一致策略",
+      action: "chat-vault-deep-dive",
+    },
+  ],
+  shared: [
+    {
+      icon: <Users className="w-4 h-4" />,
+      label: "共享復用導覽",
+      description: "拆解共享素材/模型的團隊復用流程",
+      action: "chat-shared-deep-dive",
+    },
+  ],
+  "background-tasks": [
+    {
+      icon: <RefreshCw className="w-4 h-4" />,
+      label: "任務佇列導覽",
+      description: "判讀耗時、成功率與重試優先順序",
+      action: "chat-background-tasks-deep-dive",
+    },
+  ],
+  notes: [
+    {
+      icon: <BookOpen className="w-4 h-4" />,
+      label: "規劃筆記導覽",
+      description: "整理腳本、待辦與優先級執行清單",
+      action: "chat-notes-deep-dive",
+    },
+  ],
+  calendar: [
+    {
+      icon: <Clock className="w-4 h-4" />,
+      label: "創作排程導覽",
+      description: "安排一週素材、生成、訓練與交付節奏",
+      action: "chat-calendar-deep-dive",
+    },
+  ],
+  dashboard: [
+    {
+      icon: <BarChart3 className="w-4 h-4" />,
+      label: "數據洞察導覽",
+      description: "解讀請求量、成本與效率趨勢",
+      action: "chat-dashboard-deep-dive",
+    },
+  ],
+  credits: [
+    {
+      icon: <Coins className="w-4 h-4" />,
+      label: "積分規則導覽",
+      description: "比較費率、消耗與節省策略",
+      action: "chat-credits-deep-dive",
+    },
+  ],
+  settings: [
+    {
+      icon: <Settings className="w-4 h-4" />,
+      label: "個人設定導覽",
+      description: "逐項說明外觀、通知與場景設定",
+      action: "chat-settings-deep-dive",
+    },
+  ],
   learn: [
     {
       icon: <BookOpen className="w-4 h-4" />,
@@ -381,6 +531,15 @@ const PAGE_QUICK_ACTIONS: Record<string, QuickAction[]> = {
       action: "chat-learning-path",
     },
   ],
+};
+
+const PAGE_TO_GUIDE_INTENT: Partial<Record<string, GuideIntent>> = {
+  studio: "explore",
+  "image-studio": "image",
+  "video-studio": "video",
+  "pro-studio": "music",
+  director: "script",
+  "lora-trainer": "lora",
 };
 
 // ─── 90-second onboarding step definitions ────────────────────────────────
@@ -757,6 +916,7 @@ export default memo(function ProactiveOrbWidget({
     isPanelOpen: isGuideOpen,
     openPanel: openGuidePanel,
     closePanel: closeGuidePanel,
+    selectIntent: selectGuideIntent,
     arrivedMessage,
     clearArrivedMessage,
     step: guideStep,
@@ -853,15 +1013,31 @@ export default memo(function ProactiveOrbWidget({
     }
     // 首次或主動探索 → 開引導面板（取代舊的 main panel）
     openGuidePanel();
+    const pageIntent =
+      (pageContext?.pageId && PAGE_TO_GUIDE_INTENT[pageContext.pageId]) || null;
+    if (pageIntent) {
+      selectGuideIntent(pageIntent);
+    }
     setShowPanel(false);
-  }, [guiding, isGuideOpen, openGuidePanel, closeGuidePanel]);
+  }, [guiding, isGuideOpen, openGuidePanel, closeGuidePanel, pageContext?.pageId, selectGuideIntent]);
 
   // Bridge from OrbGuidePanel → interaction panel views
   const handleOpenInteraction = useCallback(
     (view: "inspiration" | "focus-flow" | "chat") => {
       if (view === "chat") {
+        const pageLabel = currentRegistryPage?.label ?? pageContext?.pageLabel;
         setPanelView("chat");
-        setChatMessages([{ role: "orb", text: greeting }]);
+        setChatMessages([
+          {
+            role: "orb",
+            text: pageLabel
+              ? `我現在用「${pageLabel}」頁面狀態陪你聊，想先調參數、流程還是素材？`
+              : greeting,
+          },
+        ]);
+        if (pageLabel) {
+          setChatInput(`請先告訴我「${pageLabel}」這頁的最佳起手步驟。`);
+        }
       } else if (view === "focus-flow") {
         setPanelView("focus-flow");
       } else {
@@ -869,13 +1045,13 @@ export default memo(function ProactiveOrbWidget({
       }
       setShowPanel(true);
     },
-    [greeting]
+    [greeting, currentRegistryPage?.label, pageContext?.pageLabel]
   );
 
   // ─── Quick action handlers ───────────────────────────────────────────
 
   const handleQuickAction = useCallback(
-    (action: string) => {
+    async (action: string) => {
       switch (action) {
         case "random": {
           const preset =
@@ -906,6 +1082,37 @@ export default memo(function ProactiveOrbWidget({
           ]);
           setChatInput("我現在的心情是⋯⋯");
           break;
+        case "page-deep-dive": {
+          const pageLabel = currentRegistryPage?.label ?? pageContext?.pageLabel ?? "這一頁";
+          setPanelView("chat");
+          setChatMessages([
+            {
+              role: "orb",
+              text: `我會用「${pageLabel}」當前狀態，給你這頁最重要的下一步與參數建議。`,
+            },
+          ]);
+          setChatInput(`請解說「${pageLabel}」這一頁，先做哪三步最有效。`);
+          break;
+        }
+        case "studio-workflow-bootstrap":
+          setPanelView("chat");
+          setChatMessages([
+            {
+              role: "orb",
+              text:
+                "好，先從創作工作室打底：我先切到圖片模態與快速模式，並打開工具箱素材頁，接著你再選模型與風格。",
+            },
+          ]);
+          setChatInput("接著帶我做：模態→模式→素材→模型→送出第一版。");
+          await pageAgent.dispatchMany(
+            [
+              { type: "setModality", modality: "image" },
+              { type: "setMode", modeId: "lightning" },
+              { type: "openDialog", dialogId: "toolbox", params: { tab: "assets" } },
+            ],
+            { source: "manual", requireConfirmation: false }
+          );
+          break;
         case "tour":
           setShowPanel(false);
           onRestartTour?.();
@@ -915,10 +1122,44 @@ export default memo(function ProactiveOrbWidget({
           if (action.startsWith("chat-")) {
             const topicHints: Record<string, string> = {
               "chat-model-recommend": "請推薦適合我的模型",
+              "chat-image-model-deep-dive":
+                "請詳細比較圖片創作室每個模型的長處、功能優勢與適用場景，並給我選型建議",
               "chat-prompt-optimize": "請幫我優化提示詞",
               "chat-model-compare": "請幫我比較影片模型的差異",
+              "chat-video-model-deep-dive":
+                "請細膩比較影片創作室每個模型的長處、功能優勢、成本與適用場景，最後給我選型建議",
               "chat-video-tips": "影片提示詞有什麼技巧？",
               "chat-music-style": "請推薦適合的音樂風格",
+              "chat-pro-model-deep-dive":
+                "請細膩比較音樂配音創作室每個模型的長處、功能優勢、限制與適用場景，最後給我選型建議",
+              "chat-director-model-deep-dive":
+                "請深度比較導演 AI 生成管線中的圖像/影片/音樂/語音模型長處、成本與適用場景，並給我分鏡選型策略",
+              "chat-assets-subitems-deep-dive":
+                "請深度整理數位資產庫的圖片/影片/音訊子項目，給我分類規格、命名規則、可重用建議與下一步。",
+              "chat-assets-model-workflow":
+                "請帶我走一套跨數位資產庫、生成歷史、提示詞庫、共享空間、角色鍛造所、模型訓練中心、一致性保險庫、背景任務中心的完整工作流，逐步說明每一步目的。",
+              "chat-history-deep-dive":
+                "請用我的生成歷史反推模型選型與參數調整規律，並整理成下次可直接套用的流程。",
+              "chat-prompt-library-deep-dive":
+                "請深度拆解提示詞庫模板：每種任務的 prompt 結構、可替換欄位、負向詞與模型搭配建議。",
+              "chat-models-deep-dive":
+                "請深度比較角色鍛造所模型版本差異、最佳用途、風險與推薦參數起手式。",
+              "chat-vault-deep-dive":
+                "請深度整理一致性保險庫：角色錨點、場景錨點、風格規範如何跨模型維持一致。",
+              "chat-shared-deep-dive":
+                "請深度拆解共享空間中的素材/模型復用流程，並給我團隊協作與回饋迭代建議。",
+              "chat-background-tasks-deep-dive":
+                "請深度解讀背景任務中心任務佇列，幫我建立耗時、成功率、失敗重試與排程優先順序策略。",
+              "chat-notes-deep-dive":
+                "請深度整理我的專案筆記，分成腳本、待辦、排程三類，並輸出可執行的下一步清單與優先序。",
+              "chat-calendar-deep-dive":
+                "請深度規劃我的創作排程，把素材整理、生成迭代、模型訓練、交付節點安排成一週節奏。",
+              "chat-dashboard-deep-dive":
+                "請深度解讀儀表板數據，拆解請求量、成本、模態分佈與效率，並給我可執行的優化策略。",
+              "chat-credits-deep-dive":
+                "請深度解讀積分規則，給我不同任務的耗點預估與低成本驗證到高品質定稿的流程。",
+              "chat-settings-deep-dive":
+                "請細膩導覽個人設定：外觀、場景、通知、引導、管理功能的用途、風險與推薦配置。",
               "chat-voice-tips": "聲音克隆有什麼注意事項？",
               "chat-training-tips": "訓練 LoRA 模型有什麼建議？",
               "chat-learning-path": "推薦適合新手的學習路徑",
@@ -931,7 +1172,7 @@ export default memo(function ProactiveOrbWidget({
           break;
       }
     },
-    [onApplyInspiration, onRestartTour, greeting, showFeedback]
+    [onApplyInspiration, onRestartTour, greeting, showFeedback, currentRegistryPage?.label, pageContext?.pageLabel, pageAgent]
   );
 
   const handleRegistryQuickAction = useCallback(
@@ -1375,10 +1616,10 @@ export default memo(function ProactiveOrbWidget({
                           </div>
                         ) : null}
                         <button
-                          onClick={() => setPanelView("inspiration")}
+                          onClick={() => void handleQuickAction("page-deep-dive")}
                           className="w-full flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-gradient-to-r from-amber-50 to-pink-50 border border-amber-200/40 hover:from-amber-100 hover:to-pink-100 transition-all text-sm font-medium text-amber-700"
                         >
-                          <Lightbulb className="w-4 h-4" />✨ 靈感探索
+                          <Lightbulb className="w-4 h-4" />🧭 頁面細節引導
                         </button>
                         <button
                           onClick={() => setPanelView("focus-flow")}
@@ -1695,10 +1936,10 @@ export default memo(function ProactiveOrbWidget({
 
                     {/* Inspiration Button */}
                     <button
-                      onClick={() => setPanelView("inspiration")}
+                      onClick={() => void handleQuickAction("page-deep-dive")}
                       className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-gradient-to-r from-amber-50 to-pink-50 border border-amber-200/40 hover:from-amber-100 hover:to-pink-100 transition-all text-sm font-medium text-amber-700"
                     >
-                      <Lightbulb className="w-4 h-4" />✨ 靈感探索
+                      <Lightbulb className="w-4 h-4" />🧭 頁面細節引導
                     </button>
 
                     {/* Focus Flow Button */}
