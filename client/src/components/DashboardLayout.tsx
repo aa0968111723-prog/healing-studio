@@ -64,6 +64,7 @@ import {
   Brain,
   Music,
   GripVertical,
+  Bot,
 } from "lucide-react";
 import { BackgroundTasksProvider } from "@/contexts/BackgroundTasksContext";
 import BackgroundTasksDrawer from "./BackgroundTasksDrawer";
@@ -162,6 +163,12 @@ const sidebarStructure: SidebarEntry[] = [
     label: "導演 AI",
     path: "/director",
     id: "sidebar-director-link",
+  },
+  {
+    icon: Bot,
+    label: "光球聊天",
+    path: "/agent",
+    id: "sidebar-agent-link",
   },
 
   // ─── ② 素材與模型 ─────────────────────────────────
