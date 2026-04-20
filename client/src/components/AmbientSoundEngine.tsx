@@ -1,11 +1,13 @@
 /**
- * AmbientSoundEngine.tsx — 環境白噪音系統
+ * AmbientSoundEngine.tsx — 環境音禪意音景系統
  *
- * 使用 Web Audio API 程序化生成 4 種場景音效：
- *   夜空 — 柔和白噪音 + 低頻嗡鳴 + 偶發蟋蟀聲
- *   晨光 — 鳥鳴模擬 + 輕柔風聲 + 溫暖 pad
- *   咖啡廳 — Lo-fi 環境音 + 杯碟輕響 + 低語人聲
- *   深海 — 深沉水流聲 + 氣泡音 + 低頻共鳴
+ * 使用 Web Audio API 程序化生成 4 種場景音效，
+ * 風格追求靜謐、空靈、帶有禪意 (Zen) 的療癒氛圍：
+ *
+ *   夜空 — 空靈五聲音階 Pad + 頌缽泛音微光 + 柔和夜風
+ *   晨光 — 溫暖七和弦 Pad + 輕柔鳥鳴 + 晨間微風
+ *   咖啡廳 — Lo-fi 棕噪音底噪 + 低語人聲模擬 + 輕巧杯碟聲
+ *   深海 — 雙重調變海流 + 鯨歌低頻共鳴 + 溫柔氣泡音
  *
  * OARS 心理學合規：
  *   - Open-ended：不強制播放，使用者自主選擇啟動
@@ -15,6 +17,9 @@
  *
  * 瀏覽器自動播放政策：需使用者互動後才啟動 AudioContext。
  * 使用者偏好（音量、靜音狀態）透過 localStorage 記憶。
+ *
+ * 音效設計靈感：禪意冥想音樂 — 五聲音階和聲、頌缽泛音、
+ * 有機調變的自然聲景，營造靜謐空靈的療癒空間。
  */
 
 import { useRef, useEffect, useCallback, useState, memo } from "react";
@@ -135,92 +140,144 @@ interface SoundLayer {
   ) => { gain: GainNode; cleanup: () => void };
 }
 
-/** Night Sky: soft white noise + low drone + cricket chirps */
+/**
+ * Night Sky: Zen 空靈氛圍 — ethereal pad + singing bowl shimmer + breathy wind
+ *
+ * 靈感來源：靜謐禪意冥想音樂
+ * - Layer 1: Ethereal pad — 五聲音階 (A pentatonic) 的微失諧正弦疊加，
+ *   產生空靈的和聲共鳴與自然的 beating 效果
+ * - Layer 2: Singing bowl shimmer — 模擬頌缽泛音，
+ *   週期性的清亮高頻微光，帶來禪意閃爍感
+ * - Layer 3: Breathy wind — 極柔和的棕噪音低通濾波，
+ *   模擬夜空微風，營造寧靜空間感
+ */
 function createNightSkyLayers(ctx: AudioContext, dest: AudioNode) {
   const layers: Array<{ gain: GainNode; cleanup: () => void }> = [];
 
-  // Layer 1: Soft filtered white noise (wind)
-  const noiseBuffer = createNoiseBuffer(ctx, 4);
-  const noiseSrc = ctx.createBufferSource();
-  noiseSrc.buffer = noiseBuffer;
-  noiseSrc.loop = true;
-  const noiseFilter = ctx.createBiquadFilter();
-  noiseFilter.type = "lowpass";
-  noiseFilter.frequency.value = 800;
-  noiseFilter.Q.value = 0.5;
-  const noiseGain = ctx.createGain();
-  noiseGain.gain.value = 0.12;
-  noiseSrc.connect(noiseFilter).connect(noiseGain).connect(dest);
-  noiseSrc.start();
-  layers.push({
-    gain: noiseGain,
-    cleanup: () => {
-      try {
-        noiseSrc.stop();
-      } catch {}
-    },
-  });
+  // Layer 1: Ethereal Zen pad — pentatonic A minor (A2, C3, D3, E3, G3)
+  // Each note uses two slightly detuned oscillators for organic beating effect
+  const padGain = ctx.createGain();
+  padGain.gain.value = 0.05;
+  const padFilter = ctx.createBiquadFilter();
+  padFilter.type = "lowpass";
+  padFilter.frequency.value = 1200;
+  padFilter.Q.value = 0.4;
+  // Slow tremolo LFO for breathing feel
+  const padLFO = ctx.createOscillator();
+  padLFO.type = "sine";
+  padLFO.frequency.value = 0.06; // Very slow breathing ~16s cycle
+  const padLFOGain = ctx.createGain();
+  padLFOGain.gain.value = 0.015;
+  padLFO.connect(padLFOGain).connect(padGain.gain);
+  padLFO.start();
 
-  // Layer 2: Low frequency drone (warm hum)
-  const drone = ctx.createOscillator();
-  drone.type = "sine";
-  drone.frequency.value = 55; // A1 — warm, grounding
-  const droneGain = ctx.createGain();
-  droneGain.gain.value = 0.04;
-  const droneFilter = ctx.createBiquadFilter();
-  droneFilter.type = "lowpass";
-  droneFilter.frequency.value = 200;
-  drone.connect(droneFilter).connect(droneGain).connect(dest);
-  drone.start();
-  layers.push({
-    gain: droneGain,
-    cleanup: () => {
-      try {
-        drone.stop();
-      } catch {}
-    },
-  });
-
-  // Layer 3: Cricket chirps (periodic oscillator bursts)
-  let cricketInterval: ReturnType<typeof setInterval> | null = null;
-  const cricketGain = ctx.createGain();
-  cricketGain.gain.value = 0.03;
-  cricketGain.connect(dest);
-
-  cricketInterval = setInterval(
-    () => {
-      if (Math.random() > 0.4) return; // Only chirp sometimes
+  const padOscs: OscillatorNode[] = [];
+  // A pentatonic: A2=110, C3=130.8, D3=146.8, E3=164.8, G3=196
+  const padFreqs = [110, 130.8, 146.8, 164.8, 196];
+  padFreqs.forEach(freq => {
+    // Two detuned oscillators per note for shimmering beating
+    [freq, freq * 1.003].forEach(f => {
       const osc = ctx.createOscillator();
       osc.type = "sine";
-      osc.frequency.value = 3800 + Math.random() * 800;
-      const env = ctx.createGain();
-      env.gain.value = 0;
-      const now = ctx.currentTime;
-      env.gain.setValueAtTime(0, now);
-      env.gain.linearRampToValueAtTime(0.6, now + 0.02);
-      env.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
-      osc.connect(env).connect(cricketGain);
-      osc.start(now);
-      osc.stop(now + 0.1);
+      osc.frequency.value = f;
+      const oscGain = ctx.createGain();
+      oscGain.gain.value = 0.15;
+      osc.connect(oscGain).connect(padFilter);
+      osc.start();
+      padOscs.push(osc);
+    });
+  });
+  padFilter.connect(padGain).connect(dest);
+  layers.push({
+    gain: padGain,
+    cleanup: () => {
+      padOscs.forEach(o => {
+        try { o.stop(); } catch {}
+      });
+      try { padLFO.stop(); } catch {}
     },
-    2000 + Math.random() * 3000
+  });
+
+  // Layer 2: Singing bowl shimmer — periodic high-frequency bell tones
+  let bowlInterval: ReturnType<typeof setInterval> | null = null;
+  const bowlGain = ctx.createGain();
+  bowlGain.gain.value = 0.02;
+  bowlGain.connect(dest);
+
+  bowlInterval = setInterval(
+    () => {
+      if (Math.random() > 0.35) return; // Sparse, meditative pacing
+      // Singing bowl overtone frequencies (harmonics of ~523 Hz, C5)
+      const baseFreq = 523 + Math.random() * 60;
+      const harmonics = [1, 2.01, 3.02, 4.98]; // Slightly inharmonic like real bowls
+      const now = ctx.currentTime;
+      harmonics.forEach((h, i) => {
+        const osc = ctx.createOscillator();
+        osc.type = "sine";
+        osc.frequency.value = baseFreq * h;
+        const env = ctx.createGain();
+        const attackTime = 0.08 + i * 0.02;
+        const decayTime = 2.5 + Math.random() * 2;
+        env.gain.setValueAtTime(0, now);
+        env.gain.linearRampToValueAtTime(0.2 / (i + 1), now + attackTime);
+        env.gain.exponentialRampToValueAtTime(0.001, now + decayTime);
+        osc.connect(env).connect(bowlGain);
+        osc.start(now);
+        osc.stop(now + decayTime + 0.1);
+      });
+    },
+    6000 + Math.random() * 8000 // Every 6–14 seconds
   );
 
   layers.push({
-    gain: cricketGain,
+    gain: bowlGain,
     cleanup: () => {
-      if (cricketInterval) clearInterval(cricketInterval);
+      if (bowlInterval) clearInterval(bowlInterval);
+    },
+  });
+
+  // Layer 3: Breathy wind — very gentle brown noise, heavy low-pass
+  const windBuffer = createBrownNoiseBuffer(ctx, 4);
+  const windSrc = ctx.createBufferSource();
+  windSrc.buffer = windBuffer;
+  windSrc.loop = true;
+  const windFilter = ctx.createBiquadFilter();
+  windFilter.type = "lowpass";
+  windFilter.frequency.value = 350;
+  windFilter.Q.value = 0.3;
+  // Slow modulation for organic wind movement
+  const windLFO = ctx.createOscillator();
+  windLFO.type = "sine";
+  windLFO.frequency.value = 0.08;
+  const windLFOGain = ctx.createGain();
+  windLFOGain.gain.value = 100;
+  windLFO.connect(windLFOGain).connect(windFilter.frequency);
+  windLFO.start();
+  const windGain = ctx.createGain();
+  windGain.gain.value = 0.06;
+  windSrc.connect(windFilter).connect(windGain).connect(dest);
+  windSrc.start();
+  layers.push({
+    gain: windGain,
+    cleanup: () => {
+      try { windSrc.stop(); } catch {}
+      try { windLFO.stop(); } catch {}
     },
   });
 
   return layers;
 }
 
-/** Morning: bird chirps + gentle breeze + warm pad */
+/**
+ * Morning: 溫暖晨光 — warm harmonic pad + gentle birdsong + soft breeze
+ *
+ * 優化：更溫暖的和弦（C major 7th），鳥鳴更柔和自然，
+ * 微風更輕盈，整體更具療癒感
+ */
 function createMorningLayers(ctx: AudioContext, dest: AudioNode) {
   const layers: Array<{ gain: GainNode; cleanup: () => void }> = [];
 
-  // Layer 1: Gentle breeze (pink noise, bandpassed)
+  // Layer 1: Gentle breeze (pink noise, bandpassed, with slow modulation)
   const pinkBuffer = createPinkNoiseBuffer(ctx, 4);
   const breezeSrc = ctx.createBufferSource();
   breezeSrc.buffer = pinkBuffer;
@@ -229,30 +286,44 @@ function createMorningLayers(ctx: AudioContext, dest: AudioNode) {
   breezeFilter.type = "bandpass";
   breezeFilter.frequency.value = 400;
   breezeFilter.Q.value = 0.3;
+  // Add gentle wind modulation
+  const breezeLFO = ctx.createOscillator();
+  breezeLFO.type = "sine";
+  breezeLFO.frequency.value = 0.12;
+  const breezeLFOGain = ctx.createGain();
+  breezeLFOGain.gain.value = 120;
+  breezeLFO.connect(breezeLFOGain).connect(breezeFilter.frequency);
+  breezeLFO.start();
   const breezeGain = ctx.createGain();
-  breezeGain.gain.value = 0.08;
+  breezeGain.gain.value = 0.07;
   breezeSrc.connect(breezeFilter).connect(breezeGain).connect(dest);
   breezeSrc.start();
   layers.push({
     gain: breezeGain,
     cleanup: () => {
-      try {
-        breezeSrc.stop();
-      } catch {}
+      try { breezeSrc.stop(); } catch {}
+      try { breezeLFO.stop(); } catch {}
     },
   });
 
-  // Layer 2: Warm pad (layered sine waves)
+  // Layer 2: Warm pad (C major 7th chord — C4, E4, G4, B4) with gentle tremolo
   const padGain = ctx.createGain();
-  padGain.gain.value = 0.025;
+  padGain.gain.value = 0.022;
+  const padLFO = ctx.createOscillator();
+  padLFO.type = "sine";
+  padLFO.frequency.value = 0.08;
+  const padLFOGain = ctx.createGain();
+  padLFOGain.gain.value = 0.008;
+  padLFO.connect(padLFOGain).connect(padGain.gain);
+  padLFO.start();
   const padOscs: OscillatorNode[] = [];
-  [261.6, 329.6, 392.0].forEach(freq => {
-    // C4 major chord
+  // Cmaj7: C4=261.6, E4=329.6, G4=392.0, B4=493.9
+  [261.6, 329.6, 392.0, 493.9].forEach(freq => {
     const osc = ctx.createOscillator();
     osc.type = "sine";
     osc.frequency.value = freq;
     const oscGain = ctx.createGain();
-    oscGain.gain.value = 0.3;
+    oscGain.gain.value = 0.25;
     osc.connect(oscGain).connect(padGain);
     osc.start();
     padOscs.push(osc);
@@ -260,42 +331,42 @@ function createMorningLayers(ctx: AudioContext, dest: AudioNode) {
   padGain.connect(dest);
   layers.push({
     gain: padGain,
-    cleanup: () =>
+    cleanup: () => {
       padOscs.forEach(o => {
-        try {
-          o.stop();
-        } catch {}
-      }),
+        try { o.stop(); } catch {}
+      });
+      try { padLFO.stop(); } catch {}
+    },
   });
 
-  // Layer 3: Bird chirps
+  // Layer 3: Gentle bird chirps (softer, more melodic than before)
   let birdInterval: ReturnType<typeof setInterval> | null = null;
   const birdGain = ctx.createGain();
-  birdGain.gain.value = 0.05;
+  birdGain.gain.value = 0.04;
   birdGain.connect(dest);
 
   birdInterval = setInterval(
     () => {
-      if (Math.random() > 0.5) return;
-      const baseFreq = 1800 + Math.random() * 1200;
-      const chirpCount = 2 + Math.floor(Math.random() * 3);
+      if (Math.random() > 0.45) return;
+      const baseFreq = 2000 + Math.random() * 800;
+      const chirpCount = 2 + Math.floor(Math.random() * 2);
       for (let c = 0; c < chirpCount; c++) {
         const osc = ctx.createOscillator();
         osc.type = "sine";
         const env = ctx.createGain();
-        const startTime = ctx.currentTime + c * 0.12;
+        const startTime = ctx.currentTime + c * 0.14;
         osc.frequency.setValueAtTime(baseFreq, startTime);
-        osc.frequency.linearRampToValueAtTime(baseFreq * 1.3, startTime + 0.05);
-        osc.frequency.linearRampToValueAtTime(baseFreq * 0.9, startTime + 0.08);
+        osc.frequency.linearRampToValueAtTime(baseFreq * 1.2, startTime + 0.04);
+        osc.frequency.linearRampToValueAtTime(baseFreq * 0.95, startTime + 0.07);
         env.gain.setValueAtTime(0, startTime);
-        env.gain.linearRampToValueAtTime(0.4, startTime + 0.015);
+        env.gain.linearRampToValueAtTime(0.3, startTime + 0.01);
         env.gain.exponentialRampToValueAtTime(0.001, startTime + 0.1);
         osc.connect(env).connect(birdGain);
         osc.start(startTime);
         osc.stop(startTime + 0.12);
       }
     },
-    3000 + Math.random() * 4000
+    4000 + Math.random() * 5000
   );
 
   layers.push({
@@ -308,29 +379,41 @@ function createMorningLayers(ctx: AudioContext, dest: AudioNode) {
   return layers;
 }
 
-/** Café: lo-fi ambience + cup clinks + murmur */
+/**
+ * Café: 溫馨午後 — warm lo-fi ambience + soft murmur + gentle cup clinks
+ *
+ * 優化：更柔和的低頻底噪，人聲模擬更自然，
+ * 杯碟聲更輕巧，整體氛圍更舒適放鬆
+ */
 function createCafeLayers(ctx: AudioContext, dest: AudioNode) {
   const layers: Array<{ gain: GainNode; cleanup: () => void }> = [];
 
-  // Layer 1: Lo-fi ambient noise (brown noise, heavily filtered)
+  // Layer 1: Lo-fi ambient noise (brown noise, heavily filtered, with subtle movement)
   const brownBuffer = createBrownNoiseBuffer(ctx, 4);
   const lofiSrc = ctx.createBufferSource();
   lofiSrc.buffer = brownBuffer;
   lofiSrc.loop = true;
   const lofiFilter = ctx.createBiquadFilter();
   lofiFilter.type = "lowpass";
-  lofiFilter.frequency.value = 600;
-  lofiFilter.Q.value = 0.8;
+  lofiFilter.frequency.value = 500;
+  lofiFilter.Q.value = 0.6;
+  // Subtle movement for organic feel
+  const lofiLFO = ctx.createOscillator();
+  lofiLFO.type = "sine";
+  lofiLFO.frequency.value = 0.15;
+  const lofiLFOGain = ctx.createGain();
+  lofiLFOGain.gain.value = 80;
+  lofiLFO.connect(lofiLFOGain).connect(lofiFilter.frequency);
+  lofiLFO.start();
   const lofiGain = ctx.createGain();
-  lofiGain.gain.value = 0.1;
+  lofiGain.gain.value = 0.09;
   lofiSrc.connect(lofiFilter).connect(lofiGain).connect(dest);
   lofiSrc.start();
   layers.push({
     gain: lofiGain,
     cleanup: () => {
-      try {
-        lofiSrc.stop();
-      } catch {}
+      try { lofiSrc.stop(); } catch {}
+      try { lofiLFO.stop(); } catch {}
     },
   });
 
@@ -404,53 +487,71 @@ function createCafeLayers(ctx: AudioContext, dest: AudioNode) {
   return layers;
 }
 
-/** Deep Sea: water flow + bubbles + low resonance */
+/**
+ * Deep Sea: 深海冥想 — oceanic flow + meditative low resonance + gentle bubbles
+ *
+ * 優化：水流聲更有機，低頻共鳴更具冥想感，
+ * 氣泡聲更輕柔稀疏，增加深海鯨歌般的低頻呼喚
+ */
 function createDeepSeaLayers(ctx: AudioContext, dest: AudioNode) {
   const layers: Array<{ gain: GainNode; cleanup: () => void }> = [];
 
-  // Layer 1: Deep water flow (brown noise, very low-passed)
+  // Layer 1: Deep water flow (brown noise with dual-LFO modulation for organic wave movement)
   const brownBuffer = createBrownNoiseBuffer(ctx, 4);
   const waterSrc = ctx.createBufferSource();
   waterSrc.buffer = brownBuffer;
   waterSrc.loop = true;
   const waterFilter = ctx.createBiquadFilter();
   waterFilter.type = "lowpass";
-  waterFilter.frequency.value = 300;
-  waterFilter.Q.value = 1;
-  // Slow modulation for wave-like movement
+  waterFilter.frequency.value = 280;
+  waterFilter.Q.value = 0.8;
+  // Primary wave movement
   const waterLFO = ctx.createOscillator();
   waterLFO.type = "sine";
-  waterLFO.frequency.value = 0.1;
+  waterLFO.frequency.value = 0.08;
   const waterLFOGain = ctx.createGain();
-  waterLFOGain.gain.value = 100;
+  waterLFOGain.gain.value = 80;
   waterLFO.connect(waterLFOGain).connect(waterFilter.frequency);
   waterLFO.start();
+  // Secondary slower swell
+  const waterLFO2 = ctx.createOscillator();
+  waterLFO2.type = "sine";
+  waterLFO2.frequency.value = 0.03;
+  const waterLFO2Gain = ctx.createGain();
+  waterLFO2Gain.gain.value = 50;
+  waterLFO2.connect(waterLFO2Gain).connect(waterFilter.frequency);
+  waterLFO2.start();
   const waterGain = ctx.createGain();
-  waterGain.gain.value = 0.15;
+  waterGain.gain.value = 0.12;
   waterSrc.connect(waterFilter).connect(waterGain).connect(dest);
   waterSrc.start();
   layers.push({
     gain: waterGain,
     cleanup: () => {
-      try {
-        waterSrc.stop();
-      } catch {}
-      try {
-        waterLFO.stop();
-      } catch {}
+      try { waterSrc.stop(); } catch {}
+      try { waterLFO.stop(); } catch {}
+      try { waterLFO2.stop(); } catch {}
     },
   });
 
-  // Layer 2: Low resonance drone
+  // Layer 2: Meditative low resonance — deeper, with slow pulsation (whale-song inspired)
   const resGain = ctx.createGain();
-  resGain.gain.value = 0.035;
+  resGain.gain.value = 0.03;
+  const resLFO = ctx.createOscillator();
+  resLFO.type = "sine";
+  resLFO.frequency.value = 0.05;
+  const resLFOGain = ctx.createGain();
+  resLFOGain.gain.value = 0.012;
+  resLFO.connect(resLFOGain).connect(resGain.gain);
+  resLFO.start();
   const resOscs: OscillatorNode[] = [];
-  [40, 60].forEach(freq => {
+  // Deeper sub-bass tones with slight detuning for organic quality
+  [38, 57, 57.5].forEach(freq => {
     const osc = ctx.createOscillator();
     osc.type = "sine";
     osc.frequency.value = freq;
     const oscGain = ctx.createGain();
-    oscGain.gain.value = 0.5;
+    oscGain.gain.value = 0.4;
     osc.connect(oscGain).connect(resGain);
     osc.start();
     resOscs.push(osc);
@@ -458,44 +559,45 @@ function createDeepSeaLayers(ctx: AudioContext, dest: AudioNode) {
   resGain.connect(dest);
   layers.push({
     gain: resGain,
-    cleanup: () =>
+    cleanup: () => {
       resOscs.forEach(o => {
-        try {
-          o.stop();
-        } catch {}
-      }),
+        try { o.stop(); } catch {}
+      });
+      try { resLFO.stop(); } catch {}
+    },
   });
 
-  // Layer 3: Bubble sounds
+  // Layer 3: Gentle bubble sounds (softer, sparser)
   let bubbleInterval: ReturnType<typeof setInterval> | null = null;
   const bubbleGain = ctx.createGain();
-  bubbleGain.gain.value = 0.04;
+  bubbleGain.gain.value = 0.025;
   bubbleGain.connect(dest);
 
   bubbleInterval = setInterval(
     () => {
-      const bubbleCount = 1 + Math.floor(Math.random() * 3);
+      if (Math.random() > 0.6) return; // Sparser bubbles
+      const bubbleCount = 1 + Math.floor(Math.random() * 2);
       for (let b = 0; b < bubbleCount; b++) {
-        const delay = b * (0.1 + Math.random() * 0.2);
+        const delay = b * (0.15 + Math.random() * 0.3);
         const osc = ctx.createOscillator();
         osc.type = "sine";
-        const startFreq = 200 + Math.random() * 400;
+        const startFreq = 250 + Math.random() * 300;
         const env = ctx.createGain();
         const startTime = ctx.currentTime + delay;
         osc.frequency.setValueAtTime(startFreq, startTime);
         osc.frequency.exponentialRampToValueAtTime(
-          startFreq * 2.5,
-          startTime + 0.06
+          startFreq * 2,
+          startTime + 0.08
         );
         env.gain.setValueAtTime(0, startTime);
-        env.gain.linearRampToValueAtTime(0.25, startTime + 0.01);
-        env.gain.exponentialRampToValueAtTime(0.001, startTime + 0.12);
+        env.gain.linearRampToValueAtTime(0.15, startTime + 0.015);
+        env.gain.exponentialRampToValueAtTime(0.001, startTime + 0.18);
         osc.connect(env).connect(bubbleGain);
         osc.start(startTime);
-        osc.stop(startTime + 0.15);
+        osc.stop(startTime + 0.2);
       }
     },
-    2000 + Math.random() * 3000
+    3000 + Math.random() * 4000
   );
 
   layers.push({
@@ -522,6 +624,69 @@ const SCENE_SOUND_FACTORIES: Record<
   cafe: createCafeLayers,
   deepSea: createDeepSeaLayers,
 };
+
+// ─── Audio File URL Map (hybrid: procedural + file-based) ───────────────────
+//
+// 可在此處配置每個場景的外部音頻檔案 URL。
+// 設定非空 URL 後，該場景會同時播放程序化音效與音頻檔案。
+// 佔位符 URL 可替換為實際的開源環境音連結。
+//
+// 推薦免費資源：
+//   - freesound.org (CC0 授權)
+//   - pixabay.com/music (免費商用)
+//   - BBC Sound Effects (RemArc 授權)
+
+export const SCENE_AUDIO_URLS: Record<SceneId, string> = {
+  nightSky: "", // 禪意冥想音樂 — 適合空靈夜空氛圍
+  morning: "",  // 晨間自然聲景 — 鳥鳴、溪流
+  cafe: "",     // 咖啡廳環境音 — lo-fi beats、輕柔人聲
+  deepSea: "",  // 深海環境音 — 水下聲景、鯨歌
+};
+
+/** 場景音頻檔案描述（供 UI 顯示使用） */
+export const SCENE_SOUND_LABELS: Record<SceneId, string> = {
+  nightSky: "禪意星夜",
+  morning: "溫暖晨光",
+  cafe: "慵懶午後",
+  deepSea: "深海冥想",
+};
+
+/**
+ * Create an HTML5 Audio-based layer routed through Web Audio API.
+ * Returns null if no URL is configured for the scene.
+ */
+function createAudioFileLayer(
+  ctx: AudioContext,
+  dest: AudioNode,
+  sceneId: SceneId
+): { gain: GainNode; cleanup: () => void } | null {
+  const url = SCENE_AUDIO_URLS[sceneId];
+  if (!url) return null;
+
+  const audio = new Audio(url);
+  audio.crossOrigin = "anonymous";
+  audio.loop = true;
+  audio.volume = 1; // Volume controlled via Web Audio gain node
+
+  const source = ctx.createMediaElementSource(audio);
+  const gain = ctx.createGain();
+  gain.gain.value = 0.3; // Blend with procedural sounds
+  source.connect(gain).connect(dest);
+
+  audio.play().catch(() => {
+    // Autoplay may fail — user interaction required
+    console.warn(`[AmbientSound] Audio file play failed for ${sceneId}`);
+  });
+
+  return {
+    gain,
+    cleanup: () => {
+      audio.pause();
+      audio.src = "";
+      audio.load();
+    },
+  };
+}
 
 // ─── Hook: useAmbientSound ─────────────────────────────────────────────────
 
@@ -601,9 +766,16 @@ export function useAmbientSound(sceneId: SceneId): AmbientSoundControls {
       });
     }
 
-    // Create new layers
+    // Create new layers (procedural + optional audio file)
     const factory = SCENE_SOUND_FACTORIES[sceneId];
     const newLayers = factory(ctx, masterGain);
+
+    // Add audio file layer if URL is configured
+    const audioFileLayer = createAudioFileLayer(ctx, masterGain, sceneId);
+    if (audioFileLayer) {
+      newLayers.push(audioFileLayer);
+    }
+
     layersRef.current = newLayers;
 
     // OARS gentle fade-in: if first activation, use longer fade; otherwise crossfade
@@ -693,12 +865,15 @@ interface SoundControlProps {
   isDark: boolean;
   /** Mobile compact mode — icon only, no text label */
   compact?: boolean;
+  /** Optional scene label to display (e.g. "禪意星夜") */
+  sceneLabel?: string;
 }
 
 export const SoundControl = memo(function SoundControl({
   controls,
   isDark,
   compact = false,
+  sceneLabel,
 }: SoundControlProps) {
   const { isPlaying, isMuted, volume, isUnlocked, toggleMute, setVolume, unlock } =
     controls;
@@ -723,7 +898,16 @@ export const SoundControl = memo(function SoundControl({
       if (isMuted) toggleMute();
       return;
     }
-    toggleMute();
+    // In compact mode, toggle slider visibility; in desktop mode, toggle mute
+    if (compact) {
+      if (showSlider) {
+        toggleMute();
+      } else {
+        setShowSlider(true);
+      }
+    } else {
+      toggleMute();
+    }
   };
 
   const isActive = isUnlocked && !isMuted;
@@ -734,7 +918,7 @@ export const SoundControl = memo(function SoundControl({
 
   return (
     <div ref={containerRef} className="relative flex items-center gap-1.5">
-      {/* Volume slider — animated expand/collapse */}
+      {/* Volume slider — animated expand/collapse (available in both modes) */}
       <AnimatePresence>
         {showSlider && isUnlocked && (
           <motion.div
@@ -849,8 +1033,12 @@ export const SoundControl = memo(function SoundControl({
 
         {/* Text label — hidden in compact mode */}
         {!compact && (
-          <span className="text-[10px] font-medium">
-            {!isUnlocked ? "環境音" : isMuted ? "靜音" : "播放中"}
+          <span className="text-[10px] font-medium whitespace-nowrap">
+            {!isUnlocked
+              ? "環境音"
+              : isMuted
+                ? "靜音"
+                : sceneLabel || "播放中"}
           </span>
         )}
       </motion.button>
