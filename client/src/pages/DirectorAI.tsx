@@ -1194,6 +1194,8 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
           ? "/image-studio"
           : task.modality === "video"
             ? "/video-studio"
+            : task.modality === "audio" || task.modality === "voice"
+              ? "/pro-studio"
             : "/studio";
       navigate(targetPath);
       toast.success(
@@ -1239,7 +1241,18 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
     );
     const onlyImage = activeTasks.every(t => t.modality === "image");
     const onlyVideo = activeTasks.every(t => t.modality === "video");
-    navigate(onlyImage ? "/image-studio" : onlyVideo ? "/video-studio" : "/studio");
+    const onlyAudioFamily = activeTasks.every(
+      t => t.modality === "audio" || t.modality === "voice"
+    );
+    navigate(
+      onlyImage
+        ? "/image-studio"
+        : onlyVideo
+          ? "/video-studio"
+          : onlyAudioFamily
+            ? "/pro-studio"
+            : "/studio"
+    );
     toast.success(`已發送 ${activeTasks.length} 個任務到工作室`);
   }, [tasks, selectedModels, segment, navigate]);
 
