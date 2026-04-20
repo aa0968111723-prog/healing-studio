@@ -43,6 +43,12 @@ import VisualSoul from "@/components/VisualSoul";
 import { motion, AnimatePresence } from "framer-motion";
 import LazyStreamdown from "@/components/LazyStreamdown";
 import { useAIState } from "@/contexts/AIStateContext";
+import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
+import type {
+  AgentAction,
+  AgentActionResult,
+  AgentCapability,
+} from "../../../shared/agent-actions";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -172,6 +178,79 @@ export default function NotesPage() {
     }
     return counts;
   }, [allNotes]);
+
+  // ─── PageAgent 註冊（Phase 4a：筆記頁接入光球） ────────────────────────
+  // 光球可幫使用者：切 type 篩選、下搜尋字串、清空條件。
+  const NOTE_TYPE_OPTIONS = useMemo<AgentCapability["options"]>(
+    () => [
+      { id: "all", label: "全部" },
+      { id: "note", label: "筆記" },
+      { id: "script", label: "腳本" },
+      { id: "calendar_event", label: "行事曆" },
+    ],
+    []
+  );
+  const agentCapabilities: AgentCapability[] = useMemo(
+    () => [
+      {
+        action: "setTab",
+        label: "類型篩選",
+        currentId: typeFilter,
+        options: NOTE_TYPE_OPTIONS,
+        hint: "切換只顯示某個 noteType（note/script/calendar_event）或全部",
+      },
+      {
+        action: "setParam",
+        label: "搜尋字串",
+        hint: "用 setParam key='search' value=<關鍵字> 過濾標題/內容/標籤",
+      },
+      {
+        action: "reset",
+        label: "清空條件",
+        hint: "typeFilter 還原成 all、清掉搜尋字串",
+      },
+    ],
+    [typeFilter, NOTE_TYPE_OPTIONS]
+  );
+
+  useRegisterPageAgent({
+    pageId: "notes",
+    pageLabel: "專案筆記",
+    pagePath: "/notes",
+    capabilities: agentCapabilities,
+    state: {
+      typeFilter,
+      search,
+      visibleCount: filtered.length,
+      totalCount: allNotes.length,
+    },
+    handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      switch (action.type) {
+        case "setTab": {
+          const allowed = NOTE_TYPE_OPTIONS?.map(o => o.id) ?? [];
+          if (!allowed.includes(action.tabId)) {
+            return { ok: false, reason: `unknown note type: ${action.tabId}` };
+          }
+          setTypeFilter(action.tabId as NoteTypeFilter);
+          return { ok: true, message: `切到「${action.tabId}」` };
+        }
+        case "setParam": {
+          if (action.key === "search") {
+            setSearch(typeof action.value === "string" ? action.value : "");
+            return { ok: true, message: "已套用搜尋" };
+          }
+          return { ok: false, reason: `unknown param key: ${action.key}` };
+        }
+        case "reset": {
+          setTypeFilter("all");
+          setSearch("");
+          return { ok: true, message: "已清空條件" };
+        }
+        default:
+          return { ok: false, reason: `unsupported on notes: ${action.type}` };
+      }
+    },
+  });
 
   // ── Handlers ──
   const startEditing = (note: {

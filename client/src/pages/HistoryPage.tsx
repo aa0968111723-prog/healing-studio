@@ -38,6 +38,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useAIState } from "@/contexts/AIStateContext";
 import { useIsMobile } from "@/hooks/useMobile";
+import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
+import type {
+  AgentAction,
+  AgentActionResult,
+  AgentCapability,
+} from "../../../shared/agent-actions";
 import {
   Dialog,
   DialogContent,
@@ -248,6 +254,83 @@ export default function HistoryPage() {
       bookmarked: all.filter(h => h.isBookmarked).length,
     };
   }, [allHistory]);
+
+  // ─── PageAgent 註冊（Phase 4a：歷史頁面接入光球） ────────────────────────
+  // 光球可幫使用者：切換 modality 篩選、設定搜尋字串、清空條件回到全部。
+  const HISTORY_FILTERS = useMemo<
+    AgentCapability["options"]
+  >(
+    () => [
+      { id: "all", label: "全部" },
+      { id: "image", label: "圖片" },
+      { id: "video", label: "影片" },
+      { id: "audio", label: "音樂" },
+      { id: "voice", label: "語音" },
+      { id: "bookmarked", label: "已收藏" },
+    ],
+    []
+  );
+  const agentCapabilities: AgentCapability[] = useMemo(
+    () => [
+      {
+        action: "setTab",
+        label: "篩選類型",
+        currentId: filter,
+        options: HISTORY_FILTERS,
+        hint: "切換目前列表只顯示某個 modality（image/video/audio/voice）或已收藏",
+      },
+      {
+        action: "setParam",
+        label: "搜尋字串",
+        hint: "用 setParam key='search' value=<關鍵字> 來過濾標題/提示詞",
+      },
+      {
+        action: "reset",
+        label: "清空條件",
+        hint: "把 filter 還原成 all、清掉 searchQuery",
+      },
+    ],
+    [filter, HISTORY_FILTERS]
+  );
+
+  useRegisterPageAgent({
+    pageId: "history",
+    pageLabel: "歷史記錄",
+    pagePath: "/history",
+    capabilities: agentCapabilities,
+    state: {
+      filter,
+      searchQuery,
+      visibleCount: filteredHistory.length,
+      totalCount: stats.total,
+    },
+    handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      switch (action.type) {
+        case "setTab": {
+          const allowed = HISTORY_FILTERS?.map(o => o.id) ?? [];
+          if (!allowed.includes(action.tabId)) {
+            return { ok: false, reason: `unknown filter: ${action.tabId}` };
+          }
+          setFilter(action.tabId as typeof filter);
+          return { ok: true, message: `切到「${action.tabId}」` };
+        }
+        case "setParam": {
+          if (action.key === "search") {
+            setSearchQuery(typeof action.value === "string" ? action.value : "");
+            return { ok: true, message: "已套用搜尋" };
+          }
+          return { ok: false, reason: `unknown param key: ${action.key}` };
+        }
+        case "reset": {
+          setFilter("all");
+          setSearchQuery("");
+          return { ok: true, message: "已清空條件" };
+        }
+        default:
+          return { ok: false, reason: `unsupported on history: ${action.type}` };
+      }
+    },
+  });
 
   if (isLoading) {
     return (
