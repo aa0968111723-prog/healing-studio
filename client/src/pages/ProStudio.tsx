@@ -62,6 +62,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRegisterBgTask } from "@/contexts/BackgroundTasksContext";
+import { normalizeEngineModelId } from "@shared/engineModelIds";
 import {
   useRegisterPageAgent,
   type AgentAction,
@@ -3364,6 +3365,48 @@ export default function ProStudio() {
     });
     return () => setPageContext(null);
   }, [tab, setPageContext]);
+
+  // ── Restore Director AI sendToStudio payload (audio/voice path) ──
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("sendToStudio");
+      if (!raw) return;
+      const data = JSON.parse(raw) as {
+        generationType?: string;
+        overrideEngine?: string;
+        source?: string;
+        sceneName?: string;
+      };
+      if (data.generationType !== "audio" && data.generationType !== "voice") {
+        return;
+      }
+
+      const canonical = data.overrideEngine
+        ? normalizeEngineModelId(data.overrideEngine)
+        : "";
+      if (data.generationType === "voice") {
+        setTab("tts");
+      } else if (
+        canonical.startsWith("fal-ai/stable-audio") ||
+        canonical.startsWith("fal-ai/musicgen") ||
+        canonical.startsWith("fal-ai/ace-step") ||
+        canonical.startsWith("fal-ai/sonauto")
+      ) {
+        setTab("music");
+      } else {
+        setTab("sfx");
+      }
+
+      sessionStorage.removeItem("sendToStudio");
+      toast.success(
+        data.source === "director_ai" && data.sceneName
+          ? `已從導演 AI 載入「${data.sceneName}」到音樂配音創作室`
+          : "已載入導演 AI 設定到音樂配音創作室"
+      );
+    } catch {
+      // silent
+    }
+  }, []);
 
   // ── 光球代理人：音訊創作室 ───────────────────────────────────────────
   // 7 分頁、24+ 模型分散在子元件。頁面層只做 setTab + 模型語意對照。

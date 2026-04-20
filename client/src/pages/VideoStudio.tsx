@@ -62,6 +62,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { uploadFileToS3 } from "@/lib/upload";
 import { useRegisterBgTask } from "@/contexts/BackgroundTasksContext";
+import { normalizeEngineModelId } from "@shared/engineModelIds";
 import {
   useRegisterPageAgent,
   type AgentAction,
@@ -93,6 +94,24 @@ const TABS = [
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
+
+const OVERRIDE_TAB_BY_ENGINE: Array<{ prefix: string; tab: TabId }> = [
+  { prefix: "fal-ai/kling-video/v2.1/pro/text-to-video", tab: "t2v" },
+  { prefix: "fal-ai/kling-video/v2.1/standard/text-to-video", tab: "t2v" },
+  { prefix: "fal-ai/wan-t2v", tab: "t2v" },
+  { prefix: "fal-ai/minimax-video/text-to-video", tab: "t2v" },
+  { prefix: "fal-ai/cogvideox-5b", tab: "t2v" },
+  { prefix: "fal-ai/ltx-video", tab: "t2v" },
+  { prefix: "fal-ai/kling-video/v2.1/pro/image-to-video", tab: "i2v" },
+  { prefix: "fal-ai/minimax-video/image-to-video", tab: "i2v" },
+  { prefix: "fal-ai/runway-gen3/turbo/image-to-video", tab: "i2v" },
+  { prefix: "fal-ai/luma-dream-machine/image-to-video", tab: "i2v" },
+  { prefix: "fal-ai/wan/v2.1/video-to-video", tab: "v2v" },
+  { prefix: "fal-ai/kling-video/v2.1/standard/video-to-video", tab: "v2v" },
+  { prefix: "fal-ai/cogvideox-5b/video-to-video", tab: "v2v" },
+  { prefix: "fal-ai/stable-video", tab: "enhance" },
+  { prefix: "fal-ai/topaz-video", tab: "enhance" },
+];
 
 // ─── 光球代理人 Agent Bus ────────────────────────────────────────────────────
 // Lightweight context enabling the parent page agent handler to dispatch
@@ -3338,6 +3357,40 @@ export default function VideoStudio() {
       }
     },
   });
+
+  // ── Restore Director AI sendToStudio payload (video path) ──
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("sendToStudio");
+      if (!raw) return;
+      const data = JSON.parse(raw) as {
+        generationType?: string;
+        overrideEngine?: string;
+        source?: string;
+        sceneName?: string;
+      };
+      if (data.generationType !== "video") return;
+
+      if (data.overrideEngine) {
+        const canonical = normalizeEngineModelId(data.overrideEngine);
+        const matched = OVERRIDE_TAB_BY_ENGINE.find(x =>
+          canonical.startsWith(x.prefix)
+        );
+        if (matched) {
+          setActiveTab(matched.tab);
+        }
+      }
+
+      sessionStorage.removeItem("sendToStudio");
+      toast.success(
+        data.source === "director_ai" && data.sceneName
+          ? `已從導演 AI 載入「${data.sceneName}」到影片創作室`
+          : "已載入導演 AI 設定到影片創作室"
+      );
+    } catch {
+      // silent
+    }
+  }, []);
 
   return (
     <VideoAgentBusContext.Provider value={agentBus}>

@@ -1177,6 +1177,8 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
           prompt: task.prompt,
           generationType: task.modality,
           overrideEngine: modelId,
+          source: "director_ai",
+          sceneName: segment.storyboard.sceneHeading,
           // Include context metadata for studio
           musicStyle: task.modality === "audio" ? task.prompt : undefined,
           audioScript: task.modality === "voice" ? task.prompt : undefined,
@@ -1187,7 +1189,15 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
           },
         })
       );
-      navigate("/studio");
+      const targetPath =
+        task.modality === "image"
+          ? "/image-studio"
+          : task.modality === "video"
+            ? "/video-studio"
+            : task.modality === "audio" || task.modality === "voice"
+              ? "/pro-studio"
+            : "/studio";
+      navigate(targetPath);
       toast.success(
         `已發送「${task.labelZh}」到工作室（${selectedModels[task.modality]}）`
       );
@@ -1217,6 +1227,8 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
         prompt: activeTasks[0].prompt,
         generationType: activeTasks[0].modality,
         overrideEngine: selectedModels[activeTasks[0].modality],
+        source: "director_ai",
+        sceneName: segment.storyboard.sceneHeading,
         musicStyle: activeTasks.find(t => t.modality === "audio")?.prompt,
         audioScript: activeTasks.find(t => t.modality === "voice")?.prompt,
         batchTasks: batch,
@@ -1227,7 +1239,20 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
         },
       })
     );
-    navigate("/studio");
+    const onlyImage = activeTasks.every(t => t.modality === "image");
+    const onlyVideo = activeTasks.every(t => t.modality === "video");
+    const onlyAudioFamily = activeTasks.every(
+      t => t.modality === "audio" || t.modality === "voice"
+    );
+    navigate(
+      onlyImage
+        ? "/image-studio"
+        : onlyVideo
+          ? "/video-studio"
+          : onlyAudioFamily
+            ? "/pro-studio"
+            : "/studio"
+    );
     toast.success(`已發送 ${activeTasks.length} 個任務到工作室`);
   }, [tasks, selectedModels, segment, navigate]);
 
@@ -2167,12 +2192,13 @@ export default function DirectorAI() {
         "sendToStudio",
         JSON.stringify({
           prompt: script.visualPrompt,
-          generationType: "multimodal",
+          generationType: "image",
+          source: "director_ai",
           musicStyle: script.musicVibe,
           audioScript: script.audioScript,
         })
       );
-      navigate("/studio");
+      navigate("/image-studio");
       toast.success("腳本已發送到工作室");
     },
     [navigate]
