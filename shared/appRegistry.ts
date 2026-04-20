@@ -14,8 +14,11 @@ export interface AppPageQuickAction {
   id: string;
   label: string;
   description: string;
+  /** Optional route jump for one-tap entry cards (/agent, orb widget). */
   path?: string;
+  /** Optional starter prompt to send into chat directly. */
   prompt?: string;
+  /** Optional structured action for PageAgent bus. */
   action?: AgentAction;
 }
 

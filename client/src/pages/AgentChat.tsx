@@ -40,6 +40,20 @@ interface ChatMessage {
   intent?: string;
 }
 
+type StarterEntry = {
+  id: string;
+  label: string;
+  path: string;
+  description: string;
+  quickAction?: {
+    action?: AgentAction;
+    prompt?: string;
+    description?: string;
+  };
+  prompt?: string;
+  starterText: string;
+};
+
 // ─── 依人格挑選柔軟的開場問候 ───────────────────────────────────────────
 
 const GREETINGS: Record<string, string[]> = {
@@ -58,6 +72,26 @@ const GREETINGS: Record<string, string[]> = {
 };
 
 const AGENT_HOME_ENTRIES = getAgentHomeEntries();
+
+function buildStarterEntry(page: (typeof AGENT_HOME_ENTRIES)[number]): StarterEntry {
+  const primaryQuickAction = page.quickActions[0];
+  return {
+    id: page.id,
+    label: page.label,
+    path: page.path,
+    description: page.description,
+    quickAction: primaryQuickAction
+      ? {
+          action: primaryQuickAction.action,
+          prompt: primaryQuickAction.prompt,
+          description: primaryQuickAction.description,
+        }
+      : undefined,
+    prompt: primaryQuickAction?.prompt ?? page.orbHints[0],
+    starterText:
+      primaryQuickAction?.description ?? page.orbHints[0] ?? `帶我去${page.label}`,
+  };
+}
 
 // ─── 元件 ────────────────────────────────────────────────────────────────
 
@@ -109,18 +143,7 @@ export default function AgentChat() {
       AGENT_HOME_ENTRIES
         .filter(page => page.id !== "home")
         .slice(0, 6)
-        .map(page => ({
-          id: page.id,
-          label: page.label,
-          path: page.path,
-          description: page.description,
-          quickAction: page.quickActions[0],
-          prompt: page.quickActions[0]?.prompt ?? page.orbHints[0],
-          starterText:
-            page.quickActions[0]?.description ??
-            page.orbHints[0] ??
-            `帶我去${page.label}`,
-        })),
+        .map(buildStarterEntry),
     []
   );
 
