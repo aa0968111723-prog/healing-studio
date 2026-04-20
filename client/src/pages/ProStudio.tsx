@@ -24,6 +24,11 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import {
   Music2,
@@ -166,20 +171,34 @@ function AudioPlayer({ url, label }: { url: string; label?: string }) {
   return (
     <div className="mt-4 p-4 rounded-xl bg-gradient-to-r from-primary/5 to-purple-500/5 border border-primary/20">
       {label && (
-        <p className="text-xs text-muted-foreground mb-2 font-medium">
+        <p className="text-xs text-muted-foreground mb-2 font-medium flex items-center gap-1.5">
+          <Volume2 className="w-3 h-3" />
           {label}
+          <span className="ml-auto text-[10px] text-emerald-600 font-semibold bg-emerald-500/10 px-1.5 py-0.5 rounded-full">✓ 完成</span>
         </p>
       )}
       <audio controls className="w-full" src={url}>
         <track kind="captions" />
       </audio>
-      <a
-        href={url}
-        download
-        className="mt-2 flex items-center gap-1 text-xs text-primary hover:underline"
-      >
-        <Download className="w-3 h-3" /> 下載音訊
-      </a>
+      <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+        <a
+          href={url}
+          download
+          className="inline-flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 px-2.5 py-1.5 rounded-lg hover:bg-primary/5 transition-all font-medium"
+        >
+          <Download className="w-3 h-3" /> 下載音訊
+        </a>
+        <button
+          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg hover:bg-accent transition-all"
+          onClick={() => {
+            navigator.clipboard.writeText(url);
+            toast.success("已複製音訊 URL");
+          }}
+        >
+          <Copy className="w-3 h-3" />
+          複製 URL
+        </button>
+      </div>
     </div>
   );
 }
@@ -188,20 +207,34 @@ function VideoPlayer({ url, label }: { url: string; label?: string }) {
   return (
     <div className="mt-4 p-4 rounded-xl bg-gradient-to-r from-primary/5 to-blue-500/5 border border-primary/20">
       {label && (
-        <p className="text-xs text-muted-foreground mb-2 font-medium">
+        <p className="text-xs text-muted-foreground mb-2 font-medium flex items-center gap-1.5">
+          <Film className="w-3 h-3" />
           {label}
+          <span className="ml-auto text-[10px] text-emerald-600 font-semibold bg-emerald-500/10 px-1.5 py-0.5 rounded-full">✓ 完成</span>
         </p>
       )}
       <video controls className="w-full rounded-lg max-h-64" src={url}>
         <track kind="captions" />
       </video>
-      <a
-        href={url}
-        download
-        className="mt-2 flex items-center gap-1 text-xs text-primary hover:underline"
-      >
-        <Download className="w-3 h-3" /> 下載影片
-      </a>
+      <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+        <a
+          href={url}
+          download
+          className="inline-flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 px-2.5 py-1.5 rounded-lg hover:bg-primary/5 transition-all font-medium"
+        >
+          <Download className="w-3 h-3" /> 下載影片
+        </a>
+        <button
+          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg hover:bg-accent transition-all"
+          onClick={() => {
+            navigator.clipboard.writeText(url);
+            toast.success("已複製影片 URL");
+          }}
+        >
+          <Copy className="w-3 h-3" />
+          複製 URL
+        </button>
+      </div>
     </div>
   );
 }
@@ -686,6 +719,7 @@ function ToolCard({
   badge,
   modelId,
   color = "purple",
+  defaultOpen = false,
   children,
 }: {
   icon: React.FC<React.SVGProps<SVGSVGElement>>;
@@ -694,16 +728,18 @@ function ToolCard({
   badge?: string;
   modelId?: string;
   color?: "purple" | "blue" | "green" | "orange" | "pink" | "cyan" | "indigo";
+  defaultOpen?: boolean;
   children: React.ReactNode;
 }) {
+  const [open, setOpen] = useState(defaultOpen);
   const colors = {
-    purple: "from-purple-500/10 to-violet-500/5 border-purple-200/50",
-    blue: "from-blue-500/10 to-cyan-500/5 border-blue-200/50",
-    green: "from-emerald-500/10 to-teal-500/5 border-emerald-200/50",
-    orange: "from-orange-500/10 to-amber-500/5 border-orange-200/50",
-    pink: "from-pink-500/10 to-rose-500/5 border-pink-200/50",
-    cyan: "from-cyan-500/10 to-sky-500/5 border-cyan-200/50",
-    indigo: "from-indigo-500/10 to-blue-500/5 border-indigo-200/50",
+    purple: "from-purple-500/10 to-violet-500/5 border-purple-200/50 dark:from-purple-500/15 dark:to-violet-500/8 dark:border-purple-700/30",
+    blue: "from-blue-500/10 to-cyan-500/5 border-blue-200/50 dark:from-blue-500/15 dark:to-cyan-500/8 dark:border-blue-700/30",
+    green: "from-emerald-500/10 to-teal-500/5 border-emerald-200/50 dark:from-emerald-500/15 dark:to-teal-500/8 dark:border-emerald-700/30",
+    orange: "from-orange-500/10 to-amber-500/5 border-orange-200/50 dark:from-orange-500/15 dark:to-amber-500/8 dark:border-orange-700/30",
+    pink: "from-pink-500/10 to-rose-500/5 border-pink-200/50 dark:from-pink-500/15 dark:to-rose-500/8 dark:border-pink-700/30",
+    cyan: "from-cyan-500/10 to-sky-500/5 border-cyan-200/50 dark:from-cyan-500/15 dark:to-sky-500/8 dark:border-cyan-700/30",
+    indigo: "from-indigo-500/10 to-blue-500/5 border-indigo-200/50 dark:from-indigo-500/15 dark:to-blue-500/8 dark:border-indigo-700/30",
   };
   const iconColors = {
     purple: "text-purple-500",
@@ -716,44 +752,59 @@ function ToolCard({
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={`rounded-2xl p-4 sm:p-5 bg-gradient-to-br ${colors[color]} border backdrop-blur-sm`}
-    >
-      <div className="flex items-start gap-2.5 sm:gap-3 mb-3 sm:mb-4">
-        <div
-          className={`p-1.5 sm:p-2 rounded-xl bg-white/60 shadow-sm ${iconColors[color]}`}
-        >
-          <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="hs-h3 !mb-0 text-foreground">{title}</h3>
-            {badge && (
-              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                {badge}
-              </Badge>
-            )}
-          </div>
-          <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
-            {description}
-          </p>
-          {modelId && (
-            <a
-              href={`https://fal.ai/models/${modelId}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-0.5 text-[10px] text-primary/60 hover:text-primary mt-0.5 transition-colors"
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className={`rounded-2xl bg-gradient-to-br ${colors[color]} border backdrop-blur-sm transition-all duration-300 ${open ? "shadow-md ring-1 ring-primary/10" : "shadow-sm hover:shadow-md hover:-translate-y-0.5"}`}
+      >
+        <CollapsibleTrigger asChild>
+          <button
+            className="w-full text-left p-3.5 sm:p-4 flex items-center gap-2.5 sm:gap-3 cursor-pointer group"
+          >
+            <div
+              className={`p-1.5 sm:p-2 rounded-xl bg-white/60 dark:bg-white/10 shadow-sm ${iconColors[color]} shrink-0 transition-transform duration-300 ${open ? "scale-110" : "group-hover:scale-105"}`}
             >
-              <ExternalLink className="w-2.5 h-2.5" />
-              {modelId}
-            </a>
-          )}
-        </div>
-      </div>
-      {children}
-    </motion.div>
+              <Icon className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-sm font-semibold text-foreground leading-tight">{title}</span>
+                {badge && (
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                    {badge}
+                  </Badge>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">
+                {description}
+              </p>
+            </div>
+            <div className={`p-1 rounded-lg transition-all duration-200 ${open ? "bg-primary/10" : "group-hover:bg-accent"}`}>
+              <ChevronDown
+                className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform duration-300 ${open ? "rotate-180 text-primary" : ""}`}
+              />
+            </div>
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:slide-in-from-top-1 data-[state=closed]:slide-out-to-top-1 overflow-hidden">
+          <div className="px-3.5 sm:px-4 pb-3.5 sm:pb-4 pt-0">
+            {modelId && (
+              <a
+                href={`https://fal.ai/models/${modelId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-0.5 text-[10px] text-primary/60 hover:text-primary mb-3 transition-colors"
+              >
+                <ExternalLink className="w-2.5 h-2.5" />
+                {modelId}
+              </a>
+            )}
+            {children}
+          </div>
+        </CollapsibleContent>
+      </motion.div>
+    </Collapsible>
   );
 }
 
@@ -852,6 +903,7 @@ function MusicTab() {
             : `fal-ai/${musicModel}`
         }
         color="purple"
+        defaultOpen
       >
         <div className="space-y-3">
           {/* 模型選擇 */}
@@ -1022,7 +1074,7 @@ function MusicTab() {
               })
             }
             disabled={mutation.isPending || !prompt.trim()}
-            className="w-full"
+            className="w-full btn-healing"
           >
             {mutation.isPending ? (
               <>
@@ -1170,6 +1222,7 @@ function SoundEffectsTab() {
             : `fal-ai/${sfxModel}`
         }
         color="orange"
+        defaultOpen
       >
         <div className="space-y-3">
           {/* 模型選擇 */}
@@ -1338,7 +1391,7 @@ function SoundEffectsTab() {
               })
             }
             disabled={mutation.isPending || !text.trim()}
-            className="w-full"
+            className="w-full btn-healing"
           >
             {mutation.isPending ? (
               <>
@@ -1496,6 +1549,7 @@ function TTSTab() {
         title="AI 語音合成 (TTS)"
         description="ElevenLabs Turbo v2.5 / Qwen3-TTS — 自然擬真的 AI 語音"
         color="blue"
+        defaultOpen
       >
         <div className="space-y-3">
           {/* 引擎選擇 */}
@@ -1741,7 +1795,7 @@ function TTSTab() {
           <Button
             onClick={handleGenerate}
             disabled={isPending || !text.trim()}
-            className="w-full"
+            className="w-full btn-healing"
           >
             {isPending ? (
               <>
@@ -1977,6 +2031,7 @@ function CloneTab() {
                 : "fal-ai/dia-tts/voice-clone"
             }
             color="pink"
+            defaultOpen
           >
             <div className="space-y-3">
               {/* Qwen 需要參考音訊；Dia 不支援參考音訊 */}
@@ -2059,7 +2114,7 @@ function CloneTab() {
               <Button
                 onClick={handleGenerate}
                 disabled={submitDisabled}
-                className="w-full"
+                className="w-full btn-healing"
               >
                 {isPending ? (
                   <>
@@ -2096,6 +2151,7 @@ function CloneTab() {
             badge="Qwen3 1.7B"
             modelId="fal-ai/qwen-3-tts/voice-design/1.7b"
             color="purple"
+            defaultOpen
           >
             <div className="space-y-3">
               <div>
@@ -2123,7 +2179,7 @@ function CloneTab() {
               <Button
                 onClick={handleGenerate}
                 disabled={submitDisabled}
-                className="w-full"
+                className="w-full btn-healing"
               >
                 {isPending ? (
                   <>
@@ -2160,6 +2216,7 @@ function CloneTab() {
             badge="Kling Video"
             modelId="fal-ai/kling-video/create-voice"
             color="indigo"
+            defaultOpen
           >
             <div className="space-y-3">
               {/* 使用說明 */}
@@ -2493,6 +2550,7 @@ function ProcessTab() {
                   : "fal-ai/elevenlabs/voice-changer"
           }
           color={cfg.color}
+          defaultOpen
         >
           <div className="space-y-3">
             {/* 音訊輸入 */}
@@ -2668,7 +2726,7 @@ function ProcessTab() {
             <Button
               onClick={handleProcess}
               disabled={submitDisabled}
-              className="w-full"
+              className="w-full btn-healing"
             >
               {isPending ? (
                 <>
@@ -2748,6 +2806,7 @@ function ASRTab() {
         badge="Nemotron"
         modelId="fal-ai/nemotron/asr/stream"
         color="green"
+        defaultOpen
       >
         <div className="space-y-3">
           <FileUploadInput
@@ -2793,7 +2852,7 @@ function ASRTab() {
               mutation.mutate({ audio_url: audioUrl, acceleration })
             }
             disabled={mutation.isPending || !audioUrl.trim()}
-            className="w-full"
+            className="w-full btn-healing"
           >
             {mutation.isPending ? (
               <>
@@ -3090,6 +3149,7 @@ function AvatarVideoTab() {
           badge={cfg.badge}
           modelId={modelIds[model]}
           color={cfg.color}
+          defaultOpen
         >
           <div className="space-y-3">
             {/* 圖片輸入 */}
@@ -3198,7 +3258,7 @@ function AvatarVideoTab() {
             <Button
               onClick={handleGenerate}
               disabled={isGenerateDisabled}
-              className="w-full"
+              className="w-full btn-healing"
             >
               {isPending ? (
                 <>
@@ -3267,13 +3327,13 @@ function AvatarVideoTab() {
 // ─── 主頁面 ───────────────────────────────────────────────────────────────────
 
 const TABS = [
-  { id: "music", label: "音樂生成", icon: Music2, component: MusicTab },
-  { id: "sfx", label: "音效生成", icon: Volume2, component: SoundEffectsTab },
-  { id: "tts", label: "語音合成", icon: Mic2, component: TTSTab },
-  { id: "clone", label: "聲音克隆", icon: UserRound, component: CloneTab },
-  { id: "process", label: "音訊處理", icon: Waves, component: ProcessTab },
-  { id: "asr", label: "語音識別", icon: FileText, component: ASRTab },
-  { id: "avatar", label: "AI 形像影片", icon: Film, component: AvatarVideoTab },
+  { id: "music", label: "音樂生成", icon: Music2, component: MusicTab, desc: "AI 作曲 · 多模型 · 風格標籤" },
+  { id: "sfx", label: "音效生成", icon: Volume2, component: SoundEffectsTab, desc: "環境音效 · Foley · 擬真聲音" },
+  { id: "tts", label: "語音合成", icon: Mic2, component: TTSTab, desc: "中英文 · 多語言 · 自然語音" },
+  { id: "clone", label: "聲音克隆", icon: UserRound, component: CloneTab, desc: "零次學習 · 多說話者 · 語音設計" },
+  { id: "process", label: "音訊處理", icon: Waves, component: ProcessTab, desc: "音幹分離 · 去噪 · 合併 · 變聲" },
+  { id: "asr", label: "語音識別", icon: FileText, component: ASRTab, desc: "多語言語音轉文字 · 高精度" },
+  { id: "avatar", label: "AI 形像影片", icon: Film, component: AvatarVideoTab, desc: "說話人 · 口型同步 · 配音翻譯" },
 ];
 
 export default function ProStudio() {
@@ -3300,16 +3360,19 @@ export default function ProStudio() {
   }, [tab, setPageContext]);
 
   return (
-    <div className="max-w-3xl mx-auto px-3 sm:px-4 space-y-5 sm:space-y-6">
+    <div className="max-w-5xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-5">
       {/* 標題 */}
-      <div className="flex items-start gap-2.5 sm:gap-3">
-        <div className="p-2 sm:p-2.5 rounded-2xl bg-gradient-to-br from-purple-500 to-violet-600 shadow-lg shrink-0">
-          <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+      <div className="flex items-start gap-3 sm:gap-4">
+        <div className="p-2.5 sm:p-3 rounded-2xl bg-gradient-to-br from-purple-500/20 to-violet-500/10 border border-purple-200/40 dark:border-purple-700/30 shrink-0">
+          <Sparkles className="w-6 h-6 sm:w-7 sm:h-7 text-purple-600 dark:text-purple-400" />
         </div>
         <div className="flex-1 min-w-0">
           <h1 className="hs-h2 !mb-0 text-foreground">音樂配音創作室</h1>
-          <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
-            音樂創作・配音制作・聲音克隆・AI 形像影片 — fal.ai 頂尖模型整合
+          <p className="hs-small !mb-0 text-muted-foreground mt-0.5 leading-relaxed">
+            音樂創作・配音制作・聲音克隆・AI 形像影片
+            <span className="text-muted-foreground/50">
+              {" "}· 點擊卡片展開使用
+            </span>
           </p>
           <div className="flex flex-wrap gap-1 sm:gap-1.5 mt-2">
             {(
@@ -3323,7 +3386,7 @@ export default function ProStudio() {
                 "Kling",
               ] as string[]
             ).map(tag => (
-              <Badge key={tag} variant="outline" className="text-[10px]">
+              <Badge key={tag} variant="outline" className="text-[10px] transition-colors hover:bg-accent">
                 {tag}
               </Badge>
             ))}
@@ -3369,22 +3432,28 @@ export default function ProStudio() {
         </div>
       )}
 
-      {/* Tab 選擇 */}
-      <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar scroll-fade-x -mx-1 px-1">
-        {TABS.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            onClick={() => setTab(id)}
-            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-2.5 sm:py-2 rounded-xl whitespace-nowrap text-xs font-medium transition-all border shrink-0 min-h-[44px] ${
-              tab === id
-                ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                : "bg-background text-muted-foreground hover:bg-accent active:bg-accent border-border"
-            }`}
-          >
-            <Icon className="w-3.5 h-3.5" />
-            {label}
-          </button>
-        ))}
+      {/* Tab 選擇 — 置頂吸附 */}
+      <div className="sticky top-0 z-10 bg-background/90 backdrop-blur-lg -mx-3 sm:-mx-4 px-3 sm:px-4 py-2.5 border-b border-border/30 shadow-sm">
+        <div className="flex overflow-x-auto gap-1.5 pb-0.5 no-scrollbar scroll-fade-x">
+          {TABS.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => setTab(id)}
+              className={`shrink-0 flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all duration-200 min-h-[40px] border ${
+                tab === id
+                  ? "bg-primary text-primary-foreground border-primary shadow-md scale-[1.02]"
+                  : "bg-background text-muted-foreground hover:bg-accent hover:text-foreground active:scale-[0.98] border-border/40"
+              }`}
+            >
+              <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              {label}
+            </button>
+          ))}
+        </div>
+        <p className="text-[11px] text-muted-foreground mt-1.5 flex items-center gap-1.5">
+          <span className="inline-block w-1 h-1 rounded-full bg-primary/40" />
+          {TABS.find(t => t.id === tab)?.desc}
+        </p>
       </div>
 
       {/* 活躍 Tab 內容 */}
@@ -3401,14 +3470,17 @@ export default function ProStudio() {
       </AnimatePresence>
 
       {/* 底部說明 */}
-      <div className="mt-6 sm:mt-8 p-3 sm:p-4 rounded-2xl bg-muted/40 text-xs text-muted-foreground space-y-1">
-        <p className="font-medium text-foreground text-sm">📋 使用說明</p>
-        <p>
-          • 音樂生成支援 Sonauto、ACE-Step、Stable Audio、MusicGen 四種模型。
+      <div className="mt-6 sm:mt-8 p-4 sm:p-5 rounded-2xl bg-muted/30 border border-border/20 text-xs text-muted-foreground">
+        <p className="font-medium text-foreground text-sm mb-2.5 flex items-center gap-2">
+          <span className="p-1 rounded-lg bg-primary/10"><AlertCircle className="w-3.5 h-3.5 text-primary" /></span>
+          使用說明
         </p>
-        <p>• 語音合成支援中英文，可調整語速、音調和情緒強度。</p>
-        <p>• 聲音克隆需上傳至少 30 秒的清晰語音樣本。</p>
-        <p>• AI 形像影片可由人像照片 + 音訊生成口型同步的說話影片。</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 leading-relaxed">
+          <p>🎵 音樂生成支援 Sonauto、ACE-Step、Stable Audio、MusicGen</p>
+          <p>🎤 語音合成支援中英文，可調整語速和情緒強度</p>
+          <p>🎭 聲音克隆需上傳 3-10 秒的清晰語音樣本</p>
+          <p>🎬 AI 形像影片可由照片 + 音訊生成口型同步影片</p>
+        </div>
       </div>
       <div className="text-center pb-2">
         <p className="text-[11px] text-muted-foreground/60">
