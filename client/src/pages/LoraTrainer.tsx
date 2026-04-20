@@ -633,7 +633,7 @@ export default function LoraTrainer() {
     {
       action: "setParam",
       label: "超參數",
-      hint: "key=epochs / learningRate / batchSize / trainingSteps",
+      hint: "key=epochs / learningRate / batchSize / trainingSteps。起手建議：先保守 epochs + 中等 learningRate，觀察 loss 再加訓練步數。",
     },
     {
       action: "submit",

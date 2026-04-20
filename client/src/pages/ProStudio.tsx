@@ -3571,36 +3571,39 @@ export default function ProStudio() {
     label: string;
     tab: string;
     desc: string;
+    bestFor?: string;
+    tip?: string;
+    advantages?: string[];
   }> = [
     // music (4)
-    { id: "sonauto", label: "Sonauto", tab: "music", desc: "AI 作曲、支援歌詞" },
-    { id: "ace-step", label: "ACE-Step", tab: "music", desc: "高品質音樂生成" },
-    { id: "stable-audio", label: "Stable Audio", tab: "music", desc: "Stability 音樂模型" },
-    { id: "musicgen", label: "MusicGen", tab: "music", desc: "Meta 音樂生成" },
+    { id: "sonauto", label: "Sonauto", tab: "music", desc: "AI 作曲、支援歌詞", bestFor: "快速從文字到完整歌曲", tip: "要快速做 demo 或旋律草稿，Sonauto 很省時間。", advantages: ["出歌快", "歌詞友善"] },
+    { id: "ace-step", label: "ACE-Step", tab: "music", desc: "高品質音樂生成", bestFor: "高品質成品導向", tip: "適合最終成片用配樂，先確定情緒再生成。", advantages: ["品質高", "層次感佳"] },
+    { id: "stable-audio", label: "Stable Audio", tab: "music", desc: "Stability 音樂模型", bestFor: "可控參數與穩定輸出", tip: "要做可重複測試的工作流，Stable Audio 很穩。", advantages: ["穩定", "可控"] },
+    { id: "musicgen", label: "MusicGen", tab: "music", desc: "Meta 音樂生成", bestFor: "研究與風格探索", tip: "先做多版風格探索，再挑方向精修。", advantages: ["探索彈性高", "迭代快"] },
     // sfx (1)
-    { id: "sfx", label: "Sound Effects", tab: "sfx", desc: "文字生音效" },
+    { id: "sfx", label: "Sound Effects", tab: "sfx", desc: "文字生音效", bestFor: "場景音效製作", tip: "描述要包含材質、距離與空間感，會更像真實 Foley。", advantages: ["擬真音效", "快速產出"] },
     // tts (2+)
-    { id: "eleven-tts", label: "ElevenLabs TTS", tab: "tts", desc: "多語言、多情緒" },
-    { id: "qwen-tts", label: "Qwen TTS", tab: "tts", desc: "中文友善、自然語氣" },
+    { id: "eleven-tts", label: "ElevenLabs TTS", tab: "tts", desc: "多語言、多情緒", bestFor: "商業配音與角色旁白", tip: "需要情緒與品牌聲線時，優先 ElevenLabs。", advantages: ["情緒表現強", "語種多"] },
+    { id: "qwen-tts", label: "Qwen TTS", tab: "tts", desc: "中文友善、自然語氣", bestFor: "中文敘事與口語自然度", tip: "中文長句表現穩，適合教學、導覽、解說。", advantages: ["中文自然", "語氣穩定"] },
     // clone (4)
-    { id: "qwen-clone", label: "Qwen 克隆並朗讀", tab: "clone", desc: "上傳樣本 → 用樣本聲朗讀" },
-    { id: "dia-clone", label: "Dia TTS 聲音克隆", tab: "clone", desc: "Dia TTS voice clone" },
-    { id: "voice-design", label: "Qwen 聲音設計", tab: "clone", desc: "自定義音色" },
-    { id: "kling-voice", label: "Kling 建立聲音", tab: "clone", desc: "Kling 聲音建檔" },
+    { id: "qwen-clone", label: "Qwen 克隆並朗讀", tab: "clone", desc: "上傳樣本 → 用樣本聲朗讀", bestFor: "快速個人聲線複製", tip: "樣本越乾淨、越少背景噪音，克隆穩定度越高。", advantages: ["上手快", "中文友善"] },
+    { id: "dia-clone", label: "Dia TTS 聲音克隆", tab: "clone", desc: "Dia TTS voice clone", bestFor: "清晰朗讀類任務", tip: "適合旁白與資訊播報型內容。", advantages: ["清晰度好", "穩定朗讀"] },
+    { id: "voice-design", label: "Qwen 聲音設計", tab: "clone", desc: "自定義音色", bestFor: "虛擬角色聲音設計", tip: "先明確角色年齡、情緒與語速，再生成更準。", advantages: ["可塑性高", "角色感強"] },
+    { id: "kling-voice", label: "Kling 建立聲音", tab: "clone", desc: "Kling 聲音建檔", bestFor: "Kling 生態內聲音資產", tip: "若後續會進 Kling 視訊流程，建議先建好聲音檔。", advantages: ["流程銜接好", "一致性高"] },
     // process (4)
-    { id: "demucs", label: "Demucs 分軌", tab: "process", desc: "人聲 / 樂器分離" },
-    { id: "iso", label: "Audio Isolation", tab: "process", desc: "去噪、單軌萃取" },
-    { id: "merge", label: "音訊合併", tab: "process", desc: "多軌混音" },
-    { id: "voice-changer", label: "變聲器", tab: "process", desc: "Voice Changer" },
+    { id: "demucs", label: "Demucs 分軌", tab: "process", desc: "人聲 / 樂器分離", bestFor: "Remix 與伴奏抽離", tip: "先分軌再做音效或混音，流程更乾淨。", advantages: ["分離效果好", "後製友善"] },
+    { id: "iso", label: "Audio Isolation", tab: "process", desc: "去噪、單軌萃取", bestFor: "口語去噪與收音修復", tip: "採訪與 vlog 類素材先做 isolation 成效很明顯。", advantages: ["降噪強", "人聲突出"] },
+    { id: "merge", label: "音訊合併", tab: "process", desc: "多軌混音", bestFor: "背景音樂 + 人聲整合", tip: "建議先統一音量再合併，避免爆音。", advantages: ["流程簡單", "快速混音"] },
+    { id: "voice-changer", label: "變聲器", tab: "process", desc: "Voice Changer", bestFor: "角色變聲與語氣轉換", tip: "先用短句測試，確認音色方向後再批量處理。", advantages: ["角色化效果", "變化明顯"] },
     // asr (1)
-    { id: "asr", label: "Speech to Text", tab: "asr", desc: "語音辨識、字幕" },
+    { id: "asr", label: "Speech to Text", tab: "asr", desc: "語音辨識、字幕", bestFor: "逐字稿與字幕初稿", tip: "口齒清晰與背景噪音低時，辨識準確率最佳。", advantages: ["轉錄快", "字幕友善"] },
     // avatar (6)
-    { id: "wan-s2v", label: "Wan Speech-to-Video", tab: "avatar", desc: "語音 → 角色說話影片" },
-    { id: "echo-mimic", label: "EchoMimic", tab: "avatar", desc: "口型同步" },
-    { id: "stable-avatar", label: "Stable Avatar", tab: "avatar", desc: "穩定人像動畫" },
-    { id: "longcat", label: "LongCat Avatar", tab: "avatar", desc: "長時間 avatar" },
-    { id: "ltx-a2v", label: "LTX 音訊轉影片", tab: "avatar", desc: "LTX audio-to-video" },
-    { id: "dubbing", label: "Dubbing 配音", tab: "avatar", desc: "影片配音" },
+    { id: "wan-s2v", label: "Wan Speech-to-Video", tab: "avatar", desc: "語音 → 角色說話影片", bestFor: "快速口播角色影片", tip: "語音節奏清楚時，嘴型同步更穩定。", advantages: ["轉影片快", "同步自然"] },
+    { id: "echo-mimic", label: "EchoMimic", tab: "avatar", desc: "口型同步", bestFor: "精準嘴型對齊", tip: "短句測試口型後再長段輸出，成功率更高。", advantages: ["口型精準", "表情連動佳"] },
+    { id: "stable-avatar", label: "Stable Avatar", tab: "avatar", desc: "穩定人像動畫", bestFor: "穩定主播型內容", tip: "同一角色反覆輸出時，Stable Avatar 很適合。", advantages: ["一致性高", "畫面穩定"] },
+    { id: "longcat", label: "LongCat Avatar", tab: "avatar", desc: "長時間 avatar", bestFor: "長時段講解影片", tip: "長片先分段生成再拼接，品質更可控。", advantages: ["長時長支援", "敘事友善"] },
+    { id: "ltx-a2v", label: "LTX 音訊轉影片", tab: "avatar", desc: "LTX audio-to-video", bestFor: "音訊驅動動態視覺", tip: "適合想保留音訊節奏並自動生成動態畫面的場景。", advantages: ["開源流程", "音訊驅動自然"] },
+    { id: "dubbing", label: "Dubbing 配音", tab: "avatar", desc: "影片配音", bestFor: "影片語言重配與本地化", tip: "先準備乾淨原始音軌與腳本，配音一致性更好。", advantages: ["本地化快", "配音流程完整"] },
   ];
 
   const agentCapabilities: AgentCapability[] = [
@@ -3618,9 +3621,14 @@ export default function ProStudio() {
         id: m.id,
         label: m.label,
         description: m.desc,
-        meta: { tab: m.tab },
+        meta: {
+          tab: m.tab,
+          bestFor: m.bestFor,
+          tip: m.tip,
+          advantages: m.advantages ?? [],
+        },
       })),
-      hint: "音訊模型的提示詞 / 參考音檔由子元件管理；setModel 會自動切到對應分頁",
+      hint: "音訊模型選型建議：先看任務類型（music/sfx/tts/clone/process/asr/avatar），再看你要速度、自然度、一致性或可控性。setModel 會自動切到對應分頁。",
     },
     {
       action: "fillPrompt",
@@ -3695,6 +3703,8 @@ export default function ProStudio() {
       }
     },
   });
+
+  const currentTabModels = PRO_MODELS.filter(m => m.tab === tab);
 
   return (
     <AgentBridgeContext.Provider value={bridgeRef}>
@@ -3792,6 +3802,37 @@ export default function ProStudio() {
           <span className="inline-block w-1 h-1 rounded-full bg-primary/40" />
           {TABS.find(t => t.id === tab)?.desc}
         </p>
+      </div>
+
+      {/* 模型細膩導覽（依當前分頁） */}
+      <div className="rounded-2xl border border-border/40 bg-gradient-to-br from-purple-500/5 to-blue-500/5 p-3 sm:p-4">
+        <p className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
+          <Bot className="w-3.5 h-3.5 text-primary" />
+          模型細膩導覽 · {TABS.find(t => t.id === tab)?.label}
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          {currentTabModels.map(model => (
+            <div key={model.id} className="rounded-xl border border-border/35 bg-background/70 px-3 py-2.5">
+              <p className="text-xs font-medium text-foreground">{model.label}</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">{model.desc}</p>
+              {model.bestFor && (
+                <p className="text-[11px] text-primary mt-1">適合：{model.bestFor}</p>
+              )}
+              {model.tip && (
+                <p className="text-[11px] text-muted-foreground/90 mt-0.5 leading-relaxed">建議：{model.tip}</p>
+              )}
+              {!!model.advantages?.length && (
+                <div className="flex flex-wrap gap-1 mt-1.5">
+                  {model.advantages.map(adv => (
+                    <span key={adv} className="text-[10px] rounded-full border border-primary/20 bg-primary/5 px-1.5 py-0.5 text-primary/80">
+                      {adv}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* 活躍 Tab 內容 */}

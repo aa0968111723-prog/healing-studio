@@ -1104,6 +1104,63 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
   }, [segment, enabledTasks]);
 
   // Get model options per category
+  type GenerationModelOption = {
+    modelId: string;
+    label: string;
+    provider: string;
+    tier: string;
+    basePoints: number;
+    unit: string;
+    available: boolean;
+    pointsPerSecond?: number;
+    pointsPer1kChars?: number;
+  };
+
+  const getModelCoaching = useCallback(
+    (modality: GenerationTask["modality"], model: GenerationModelOption) => {
+      const provider = model.provider.toLowerCase();
+      const label = model.label.toLowerCase();
+      const isPremium = model.tier === "premium" || model.tier === "ultra";
+      if (modality === "image") {
+        return {
+          bestFor: isPremium ? "高質感分鏡主視覺" : "快速分鏡草圖",
+          tip: isPremium
+            ? "用於關鍵鏡頭定稿；先用經濟模型草擬，再切高階模型可省成本。"
+            : "先大量出圖找構圖，再把入選鏡頭升級到高品質模型。",
+          advantages: [
+            provider.includes("openai") ? "語意理解強" : "生成穩定",
+            model.basePoints <= 3 ? "成本友善" : "畫質優先",
+          ],
+        };
+      }
+      if (modality === "video") {
+        return {
+          bestFor: isPremium ? "關鍵敘事鏡頭" : "節奏預演與動態草稿",
+          tip: label.includes("veo") || label.includes("sora")
+            ? "高階模型適合最終鏡頭，建議先用經濟模型確認節奏與運鏡。"
+            : "先用此模型確認動態方向，再上高階模型做成片。",
+          advantages: [
+            isPremium ? "敘事質感高" : "速度快",
+            model.basePoints <= 6 ? "迭代效率高" : "成片品質強",
+          ],
+        };
+      }
+      if (modality === "audio") {
+        return {
+          bestFor: "情緒配樂與聲音氛圍",
+          tip: "先明確 BPM/情緒關鍵字，可提升配樂貼合度。",
+          advantages: ["情緒導向", model.basePoints <= 2 ? "低成本試稿" : "細節層次佳"],
+        };
+      }
+      return {
+        bestFor: "角色旁白與台詞導演",
+        tip: "長句先測 1-2 句確認語氣，再批量生成可降低重工。",
+        advantages: ["口條穩定", provider.includes("eleven") ? "情緒表現佳" : "中文友善"],
+      };
+    },
+    []
+  );
+
   const modelOptions = useMemo(() => {
     const data = modelsQuery.data;
     if (!data) return {};
@@ -1112,20 +1169,7 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
       video: data["text-to-video"] ?? [],
       audio: data["text-to-audio"] ?? [],
       voice: data["text-to-speech"] ?? [],
-    } as Record<
-      string,
-      Array<{
-        modelId: string;
-        label: string;
-        provider: string;
-        tier: string;
-        basePoints: number;
-        unit: string;
-        available: boolean;
-        pointsPerSecond?: number;
-        pointsPer1kChars?: number;
-      }>
-    >;
+    } as Record<string, GenerationModelOption[]>;
   }, [modelsQuery.data]);
 
   // Get estimated total cost
@@ -1345,6 +1389,7 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
                         {models.map(m => {
                           const isSelected =
                             selectedModels[task.modality] === m.modelId;
+                          const coaching = getModelCoaching(task.modality, m);
                           return (
                             <button
                               key={m.modelId}
@@ -1363,7 +1408,7 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
                                     ? "bg-white/50 border-border/40 hover:bg-white/80 text-muted-foreground hover:text-foreground"
                                     : "bg-muted/20 border-border/20 text-muted-foreground/40 cursor-not-allowed line-through"
                               )}
-                              title={`${m.label} — ${m.basePoints} pts/${m.unit}${!m.available ? " (不可用)" : ""}`}
+                              title={`${m.label} · ${coaching.bestFor} · ${m.basePoints} pts/${m.unit}${!m.available ? " (不可用)" : ""}`}
                             >
                               <span>{m.label}</span>
                               <span
@@ -1377,6 +1422,36 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
                             </button>
                           );
                         })}
+                      </div>
+                    )}
+                    {selectedModel && (
+                      <div className="rounded-lg border border-primary/15 bg-primary/5 px-2.5 py-2 mt-2">
+                        {(() => {
+                          const coaching = getModelCoaching(
+                            task.modality,
+                            selectedModel
+                          );
+                          return (
+                            <>
+                              <p className="text-[10px] font-medium text-foreground">
+                                適合：{coaching.bestFor}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground mt-0.5 leading-relaxed">
+                                建議：{coaching.tip}
+                              </p>
+                              <div className="flex flex-wrap gap-1 mt-1.5">
+                                {coaching.advantages.map(adv => (
+                                  <span
+                                    key={adv}
+                                    className="text-[9px] rounded-full border border-primary/20 bg-white/70 px-1.5 py-0.5 text-primary/80"
+                                  >
+                                    {adv}
+                                  </span>
+                                ))}
+                              </div>
+                            </>
+                          );
+                        })()}
                       </div>
                     )}
                   </div>

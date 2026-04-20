@@ -113,6 +113,22 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
         action: { type: "setModality", modality: "image" },
         prompt: "幫我做一張療癒風景圖。",
       },
+      {
+        id: "image-params",
+        label: "討論參數",
+        description: "和光球聊風格、取景、光感與細節強度",
+        path: "/image-studio",
+        prompt:
+          "我想先討論圖片參數與感覺，幫我一步步調整風格、光線、構圖和細節強度。",
+      },
+      {
+        id: "image-model-deep-dive",
+        label: "模型細膩導覽",
+        description: "逐一比較圖片模型的長處、功能優勢與適用場景",
+        path: "/image-studio",
+        prompt:
+          "請你細膩地帶我看圖片創作室每個模型的長處、功能優勢、限制與適用情境，最後給我選型建議。",
+      },
     ],
     orbHints: ["幫我生成一張圖片"],
   },
@@ -134,6 +150,22 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
         description: "建立短片或動態片段",
         action: { type: "setModality", modality: "video" },
         prompt: "我想做一支 5 秒鐘療癒短片。",
+      },
+      {
+        id: "video-mood",
+        label: "調整氛圍",
+        description: "討論節奏、鏡位、運鏡與情緒風格",
+        path: "/video-studio",
+        prompt:
+          "我想要先討論影片感覺和參數，幫我調整節奏、鏡頭語言、運鏡和情緒。",
+      },
+      {
+        id: "video-model-deep-dive",
+        label: "模型細膩導覽",
+        description: "逐一比較影片模型長處、功能優勢與取捨",
+        path: "/video-studio",
+        prompt:
+          "請你細膩比較影片創作室每個模型的長處、功能優勢、限制、成本與適用場景，並給我選型建議。",
       },
     ],
     orbHints: ["我想做一支短影片"],
@@ -157,6 +189,22 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
         action: { type: "setModality", modality: "audio" },
         prompt: "幫我生成一段放鬆冥想音樂。",
       },
+      {
+        id: "pro-parameter-tuning",
+        label: "微調參數",
+        description: "用聊天方式調整音色、情緒、速度與混音方向",
+        path: "/pro-studio",
+        prompt:
+          "請你像 AI 代理人一樣，帶我討論音樂/語音參數，依我想要的感覺逐步微調。",
+      },
+      {
+        id: "pro-model-deep-dive",
+        label: "模型細膩導覽",
+        description: "逐一比較音樂/配音模型長處、功能優勢與取捨",
+        path: "/pro-studio",
+        prompt:
+          "請你細膩比較音樂配音創作室每個模型的長處、功能優勢、限制與適用情境，並給我選型建議。",
+      },
     ],
     orbHints: ["我想做配樂或配音"],
   },
@@ -178,6 +226,14 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
         description: "先產生故事與分鏡",
         prompt: "幫我規劃一段 30 秒故事腳本。",
       },
+      {
+        id: "director-model-deep-dive",
+        label: "模型細膩導覽",
+        description: "深度比較導演 AI 管線各模型優勢與成本",
+        path: "/director",
+        prompt:
+          "請細膩比較導演 AI 管線裡圖像、影片、音樂、語音模型的長處、成本與適用場景，並給我分鏡選型策略。",
+      },
     ],
     orbHints: ["幫我先整理腳本"],
   },
@@ -192,7 +248,17 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     showInAgentHome: true,
     agentEntryPriority: 12,
     supportsPageAgent: true,
-    quickActions: [{ id: "start-training", label: "開始訓練", description: "上傳資料啟動 LoRA 訓練" }],
+    quickActions: [
+      { id: "start-training", label: "開始訓練", description: "上傳資料啟動 LoRA 訓練" },
+      {
+        id: "trainer-model-deep-dive",
+        label: "模型細膩導覽",
+        description: "依訓練類型比較資料量、引擎與參數起手式",
+        path: "/lora-trainer",
+        prompt:
+          "請深度比較模型訓練中心各訓練類別（人物/風格/場景/影片/聲音）的資料量門檻、推薦引擎、超參數起手式與常見失敗點。",
+      },
+    ],
     orbHints: ["我要訓練自己的模型"],
   },
   {
@@ -203,10 +269,20 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     description: "使用統計與進度洞察",
     aliases: ["dashboard", "統計", "報表"],
     showInSidebar: true,
-    showInAgentHome: false,
+    showInAgentHome: true,
     agentEntryPriority: 30,
     supportsPageAgent: true,
-    quickActions: [{ id: "view-stats", label: "查看數據", description: "檢視生成與使用概況" }],
+    quickActions: [
+      { id: "view-stats", label: "查看數據", description: "檢視生成與使用概況" },
+      {
+        id: "dashboard-insight-deep-dive",
+        label: "數據洞察導覽",
+        description: "拆解請求量、成本、模態分佈與下一步優化",
+        path: "/dashboard",
+        prompt:
+          "請深度解讀儀表板數據：請求量、成本、模態分佈、單次成本效率，並給我下一步優化策略與優先順序。",
+      },
+    ],
     orbHints: ["幫我看看最近使用狀況"],
   },
   {
@@ -220,7 +296,17 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     showInAgentHome: true,
     agentEntryPriority: 20,
     supportsPageAgent: true,
-    quickActions: [{ id: "open-history", label: "查看歷史", description: "回顧過去作品與任務" }],
+    quickActions: [
+      { id: "open-history", label: "查看歷史", description: "回顧過去作品與任務" },
+      {
+        id: "history-model-deep-dive",
+        label: "模型細膩導覽",
+        description: "用歷史反推各模型成功樣式與參數策略",
+        path: "/history",
+        prompt:
+          "請帶我用生成歷史反推每個模型的成功樣式、常見失敗訊號與參數調整方向，並整理成可重複流程。",
+      },
+    ],
     orbHints: ["找我之前做的內容"],
   },
   {
@@ -231,10 +317,20 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     description: "筆記與專案整理",
     aliases: ["notes", "筆記"],
     showInSidebar: true,
-    showInAgentHome: false,
+    showInAgentHome: true,
     agentEntryPriority: 21,
     supportsPageAgent: true,
-    quickActions: [{ id: "save-note", label: "記錄想法", description: "把靈感存成筆記" }],
+    quickActions: [
+      { id: "save-note", label: "記錄想法", description: "把靈感存成筆記" },
+      {
+        id: "notes-planning-deep-dive",
+        label: "規劃筆記導覽",
+        description: "整理腳本、待辦、標籤與可執行下一步",
+        path: "/notes",
+        prompt:
+          "請深度整理我的專案筆記，按主題分群（腳本/待辦/排程）並輸出可執行的下一步清單與優先級。",
+      },
+    ],
     orbHints: ["幫我把這段記到筆記"],
   },
   {
@@ -245,10 +341,20 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     description: "帳戶與個人偏好設定",
     aliases: ["settings", "設定"],
     showInSidebar: true,
-    showInAgentHome: false,
+    showInAgentHome: true,
     agentEntryPriority: 90,
     supportsPageAgent: true,
-    quickActions: [{ id: "open-settings", label: "調整設定", description: "修改個人偏好與帳戶資訊" }],
+    quickActions: [
+      { id: "open-settings", label: "調整設定", description: "修改個人偏好與帳戶資訊" },
+      {
+        id: "settings-deep-dive",
+        label: "個人設定導覽",
+        description: "逐項說明外觀、通知、場景與管理設定取捨",
+        path: "/settings",
+        prompt:
+          "請細膩導覽個人設定：外觀模式、場景、通知、引導與管理功能的用途、風險與推薦配置。",
+      },
+    ],
     orbHints: ["我想調整我的設定"],
   },
   {
@@ -259,10 +365,20 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     description: "積分與方案說明",
     aliases: ["credits", "點數", "積分"],
     showInSidebar: true,
-    showInAgentHome: false,
+    showInAgentHome: true,
     agentEntryPriority: 31,
     supportsPageAgent: true,
-    quickActions: [{ id: "view-credits", label: "查看積分", description: "確認積分規則與餘額" }],
+    quickActions: [
+      { id: "view-credits", label: "查看積分", description: "確認積分規則與餘額" },
+      {
+        id: "credits-deep-dive",
+        label: "積分規則導覽",
+        description: "比較模型費率、積分消耗與節省策略",
+        path: "/credits",
+        prompt:
+          "請深度解讀積分說明：不同模型費率、常見任務耗點、如何用低成本流程先驗證再定稿。",
+      },
+    ],
     orbHints: ["我的點數怎麼算"],
   },
   {
@@ -276,7 +392,30 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     showInAgentHome: true,
     agentEntryPriority: 10,
     supportsPageAgent: true,
-    quickActions: [{ id: "browse-assets", label: "瀏覽素材", description: "管理與搜尋既有資產" }],
+    quickActions: [
+      {
+        id: "browse-assets",
+        label: "瀏覽素材",
+        description: "管理與搜尋既有資產",
+        path: "/assets",
+      },
+      {
+        id: "assets-subitems",
+        label: "整合素材子項目",
+        description: "逐類整理圖片 / 影片 / 音訊素材與關聯用途",
+        path: "/assets",
+        prompt:
+          "請帶我一頁一頁整理素材庫，包含圖片、影片、音訊與可重用子項目，並給我下一步建議。",
+      },
+      {
+        id: "assets-model-workflow",
+        label: "跨 8 子分頁工作流",
+        description: "一次串連素材與模型 8 個子分頁的最佳流程",
+        path: "/assets",
+        prompt:
+          "請帶我走一套跨「數位資產庫、生成歷史、提示詞庫、共享空間、角色鍛造所、模型訓練中心、一致性保險庫、背景任務中心」的完整工作流，逐步說明每一步目的與交接資料。",
+      },
+    ],
     orbHints: ["打開我的素材庫"],
   },
   {
@@ -287,10 +426,20 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     description: "提示詞模板與收藏",
     aliases: ["prompt", "提示詞", "library"],
     showInSidebar: true,
-    showInAgentHome: false,
+    showInAgentHome: true,
     agentEntryPriority: 22,
     supportsPageAgent: true,
-    quickActions: [{ id: "open-prompts", label: "找提示詞", description: "挑選可重用的提示詞模板" }],
+    quickActions: [
+      { id: "open-prompts", label: "找提示詞", description: "挑選可重用的提示詞模板" },
+      {
+        id: "prompt-model-deep-dive",
+        label: "模型細膩導覽",
+        description: "按任務拆解 prompt 模板、變體與參數搭配",
+        path: "/prompt-library",
+        prompt:
+          "請深度拆解提示詞庫模板：每種任務適合的 prompt 架構、可替換欄位、負向詞、以及模型/參數搭配建議。",
+      },
+    ],
     orbHints: ["給我一些提示詞靈感"],
   },
   {
@@ -301,10 +450,33 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     description: "模型管理與版本檢視",
     aliases: ["models", "模型", "角色"],
     showInSidebar: true,
-    showInAgentHome: false,
+    showInAgentHome: true,
     agentEntryPriority: 23,
     supportsPageAgent: true,
-    quickActions: [{ id: "open-models", label: "查看模型", description: "管理訓練後的模型資產" }],
+    quickActions: [
+      {
+        id: "open-models",
+        label: "查看模型",
+        description: "管理訓練後的模型資產",
+        path: "/models",
+      },
+      {
+        id: "model-subitems",
+        label: "整合模型子項目",
+        description: "比較模型版本、用途與最佳參數配置",
+        path: "/models",
+        prompt:
+          "請像真正的 AI 代理人一樣，帶我整理模型子項目，包含版本差異、適用場景與建議參數。",
+      },
+      {
+        id: "models-model-deep-dive",
+        label: "模型細膩導覽",
+        description: "逐版比較模型用途、品質穩定度與風險控管",
+        path: "/models",
+        prompt:
+          "請深度比較角色鍛造所中各模型版本的用途、品質穩定度、成本與風險，並給我版本管理策略。",
+      },
+    ],
     orbHints: ["我的模型在哪裡"],
   },
   {
@@ -315,10 +487,20 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     description: "角色與場景一致性素材管理",
     aliases: ["vault", "一致性", "保險庫"],
     showInSidebar: true,
-    showInAgentHome: false,
+    showInAgentHome: true,
     agentEntryPriority: 24,
     supportsPageAgent: true,
-    quickActions: [{ id: "open-vault", label: "管理一致性", description: "維護角色與風格一致設定" }],
+    quickActions: [
+      { id: "open-vault", label: "管理一致性", description: "維護角色與風格一致設定" },
+      {
+        id: "vault-model-deep-dive",
+        label: "模型細膩導覽",
+        description: "建立角色/場景一致性規格與跨模型套用策略",
+        path: "/vault",
+        prompt:
+          "請深度整理一致性保險庫：角色錨點、場景錨點、風格規範如何跨不同生成模型維持一致。",
+      },
+    ],
     orbHints: ["保持角色一致"],
   },
   {
@@ -329,10 +511,20 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     description: "專案時間排程",
     aliases: ["calendar", "排程", "行程"],
     showInSidebar: true,
-    showInAgentHome: false,
+    showInAgentHome: true,
     agentEntryPriority: 25,
     supportsPageAgent: true,
-    quickActions: [{ id: "open-calendar", label: "查看排程", description: "檢視與安排創作時程" }],
+    quickActions: [
+      { id: "open-calendar", label: "查看排程", description: "檢視與安排創作時程" },
+      {
+        id: "calendar-deep-dive",
+        label: "創作排程導覽",
+        description: "把素材、生成、訓練任務排成可執行節奏",
+        path: "/calendar",
+        prompt:
+          "請深度規劃創作排程：如何把素材整理、生成迭代、模型訓練、交付節點安排成一週節奏。",
+      },
+    ],
     orbHints: ["幫我排一下這週創作"],
   },
   {
@@ -343,10 +535,20 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     description: "團隊共享與展示",
     aliases: ["shared", "共享", "團隊"],
     showInSidebar: true,
-    showInAgentHome: false,
+    showInAgentHome: true,
     agentEntryPriority: 26,
     supportsPageAgent: true,
-    quickActions: [{ id: "open-shared", label: "打開共享", description: "查看團隊共享作品" }],
+    quickActions: [
+      { id: "open-shared", label: "打開共享", description: "查看團隊共享作品" },
+      {
+        id: "shared-model-deep-dive",
+        label: "模型細膩導覽",
+        description: "拆解團隊共享素材/模型如何復用與評分",
+        path: "/shared",
+        prompt:
+          "請深度拆解共享空間的素材與模型復用流程，包含命名規範、評分維度、回饋迭代與團隊協作建議。",
+      },
+    ],
     orbHints: ["看看團隊共享作品"],
   },
   {
@@ -360,7 +562,17 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     showInAgentHome: true,
     agentEntryPriority: 40,
     supportsPageAgent: true,
-    quickActions: [{ id: "open-learn", label: "學習教學", description: "瀏覽新手與進階教學" }],
+    quickActions: [
+      { id: "open-learn", label: "學習教學", description: "瀏覽新手與進階教學" },
+      {
+        id: "learn-deep-dive",
+        label: "學習路徑導覽",
+        description: "按程度與目標生成分階段學習計畫",
+        path: "/learn",
+        prompt:
+          "請深度規劃我的學習文件中心路徑，依新手到進階拆成階段，並附每階段建議練習與驗收方式。",
+      },
+    ],
     orbHints: ["有新手教學嗎"],
   },
   {
@@ -385,10 +597,20 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     description: "查看與管理背景任務",
     aliases: ["tasks", "背景任務", "queue"],
     showInSidebar: true,
-    showInAgentHome: false,
+    showInAgentHome: true,
     agentEntryPriority: 27,
     supportsPageAgent: true,
-    quickActions: [{ id: "open-background-tasks", label: "查看任務", description: "追蹤背景任務進度" }],
+    quickActions: [
+      { id: "open-background-tasks", label: "查看任務", description: "追蹤背景任務進度" },
+      {
+        id: "tasks-model-deep-dive",
+        label: "模型細膩導覽",
+        description: "用任務佇列判讀模型耗時、成功率與重試策略",
+        path: "/background-tasks",
+        prompt:
+          "請深度解讀背景任務中心的任務佇列，幫我建立模型耗時、成功率、失敗原因與重試優先順序的策略。",
+      },
+    ],
     orbHints: ["我有哪些背景任務"],
   },
 ];

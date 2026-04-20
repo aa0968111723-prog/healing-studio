@@ -261,12 +261,12 @@ export default function HistoryPage() {
     AgentCapability["options"]
   >(
     () => [
-      { id: "all", label: "全部" },
-      { id: "image", label: "圖片" },
-      { id: "video", label: "影片" },
-      { id: "audio", label: "音樂" },
-      { id: "voice", label: "語音" },
-      { id: "bookmarked", label: "已收藏" },
+      { id: "all", label: "全部", meta: { bestFor: "全局回顧", tip: "先看整體趨勢再鑽細節" } },
+      { id: "image", label: "圖片", meta: { bestFor: "圖像模型回顧", tip: "對照構圖與風格關鍵詞" } },
+      { id: "video", label: "影片", meta: { bestFor: "鏡頭節奏回顧", tip: "關注時長/運鏡/品質的取捨" } },
+      { id: "audio", label: "音樂", meta: { bestFor: "配樂任務復盤", tip: "比對 BPM 與情緒詞是否對齊" } },
+      { id: "voice", label: "語音", meta: { bestFor: "配音任務復盤", tip: "檢查語速、語氣與咬字一致性" } },
+      { id: "bookmarked", label: "已收藏", meta: { bestFor: "成功案例庫", tip: "優先萃取可重複參數模板" } },
     ],
     []
   );
@@ -282,7 +282,7 @@ export default function HistoryPage() {
       {
         action: "setParam",
         label: "搜尋字串",
-        hint: "用 setParam key='search' value=<關鍵字> 來過濾標題/提示詞",
+        hint: "用 setParam key='search' value=<關鍵字> 過濾標題/提示詞；建議可用『模型名 + 風格 + 失敗症狀』做回溯",
       },
       {
         action: "reset",

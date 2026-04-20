@@ -214,12 +214,14 @@ export default function SettingsPage() {
   // 套用外觀模式（light/dark/auto/system）、鎖定背景場景、跳到常用子頁。
   const SETTINGS_TAB_OPTIONS = useMemo<AgentCapability["options"]>(() => {
     const base = [
-      { id: "profile", label: "個人資料" },
-      { id: "appearance", label: "外觀" },
-      { id: "notifications", label: "通知" },
-      { id: "onboarding", label: "引導" },
+      { id: "profile", label: "個人資料", meta: { bestFor: "帳戶資訊管理", tip: "定期檢查顯示名稱與偏好" } },
+      { id: "appearance", label: "外觀", meta: { bestFor: "視覺舒適度", tip: "依作業時段切換明暗模式" } },
+      { id: "notifications", label: "通知", meta: { bestFor: "訊息節奏控管", tip: "保留關鍵通知避免干擾" } },
+      { id: "onboarding", label: "引導", meta: { bestFor: "流程重置", tip: "需求變動時可重新走引導" } },
     ];
-    return isAdmin ? [...base, { id: "admin", label: "管理員" }] : base;
+    return isAdmin
+      ? [...base, { id: "admin", label: "管理員", meta: { bestFor: "系統維運", tip: "僅在必要時調整高風險設定" } }]
+      : base;
   }, [isAdmin]);
   const APPEARANCE_IDS = useMemo(
     () => APPEARANCE_MODES.map(m => m.id),
@@ -249,6 +251,10 @@ export default function SettingsPage() {
       {
         action: "setParam",
         label: "外觀與場景",
+        options: [
+          { id: "appearanceMode", label: "外觀模式", meta: { bestFor: "閱讀舒適", tip: "夜間建議 dark/auto" } },
+          { id: "scene", label: "背景場景", meta: { bestFor: "專注氛圍", tip: "可先鎖定常用場景避免跳動" } },
+        ],
         hint: "setParam key='appearanceMode' value=light|dark|auto|system；key='scene' value=nightSky|morning|cafe|deepSea；key='scene' value='' 表示恢復自動",
       },
       {

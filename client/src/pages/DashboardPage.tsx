@@ -151,6 +151,15 @@ export default function DashboardPage() {
       {
         action: "navigate",
         label: "跳到常用頁面",
+        options: [
+          { id: "/history", label: "生成歷史", meta: { bestFor: "復盤結果", tip: "找高成功樣本回用" } },
+          { id: "/notes", label: "專案筆記", meta: { bestFor: "記錄洞察", tip: "把異常成本原因記下來" } },
+          { id: "/prompt-library", label: "提示詞庫", meta: { bestFor: "優化提詞", tip: "保存高效率模板" } },
+          { id: "/image", label: "圖片工作流", meta: { bestFor: "圖像任務", tip: "先低成本試稿" } },
+          { id: "/video", label: "影片工作流", meta: { bestFor: "影片任務", tip: "先短時長驗證鏡頭語言" } },
+          { id: "/pro-studio", label: "音樂配音工作流", meta: { bestFor: "音訊任務", tip: "先確定情緒/BPM 再生成" } },
+          { id: "/director-ai", label: "導演 AI", meta: { bestFor: "整體敘事規劃", tip: "先定分鏡再分派模型" } },
+        ],
         hint: "navigate path='/history' | '/notes' | '/prompt-library' | '/image' | '/video' | '/pro-studio' | '/director-ai'",
       },
     ],

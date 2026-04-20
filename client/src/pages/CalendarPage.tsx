@@ -353,11 +353,19 @@ export default function CalendarPage() {
       {
         action: "setParam",
         label: "切換月份",
+        options: [
+          { id: "selectToday", label: "回到今天", meta: { bestFor: "快速歸位", tip: "每日開始先回今天檢查任務" } },
+          { id: "monthOffset", label: "月份偏移", meta: { bestFor: "中期排程", tip: "用 ±1 檢視跨月負載" } },
+        ],
         hint: "setParam key='monthOffset' value=<number>（0=本月、1=下個月、-1=上個月）；key='selectToday' value=true 回到今天",
       },
       {
         action: "navigate",
         label: "跳到相關頁面",
+        options: [
+          { id: "/notes", label: "專案筆記", meta: { bestFor: "補計畫內容", tip: "先寫清任務再拖曳排程" } },
+          { id: "/dashboard", label: "儀表板", meta: { bestFor: "看產能與趨勢", tip: "依數據反調排程密度" } },
+        ],
         hint: "navigate path='/notes'（建立內容）| '/dashboard'",
       },
       {

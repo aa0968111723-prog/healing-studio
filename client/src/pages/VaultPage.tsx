@@ -25,6 +25,12 @@ export default function VaultPage() {
       {
         action: "navigate",
         label: "前往工作室或模型庫",
+        options: [
+          { id: "/studio", label: "創作工作室", meta: { bestFor: "快速套用一致性素材", tip: "先拖角色錨點再生成" } },
+          { id: "/image-studio", label: "圖片創作室", meta: { bestFor: "角色視覺定稿", tip: "先固定臉部與服裝特徵" } },
+          { id: "/models", label: "角色鍛造所", meta: { bestFor: "模型版本治理", tip: "保留穩定版避免回滾風險" } },
+          { id: "/assets", label: "數位資產庫", meta: { bestFor: "參考素材整理", tip: "先統一命名規則再批次標記" } },
+        ],
         hint: "/studio、/image-studio、/models、/assets",
       },
     ],
