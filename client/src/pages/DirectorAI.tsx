@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useMemo, memo, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { AIChatBox, type Message } from "@/components/AIChatBox";
+import LazyStreamdown from "@/components/LazyStreamdown";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -3675,7 +3676,7 @@ export default function DirectorAI() {
                               <span className="text-[10px] font-semibold text-muted-foreground block mb-1">
                                 {msg.role === "user" ? "你" : "導演 AI"}
                               </span>
-                              <LazyStreamdown text={msg.content} />
+                              <LazyStreamdown>{msg.content}</LazyStreamdown>
                             </motion.div>
                           )) ?? []}
 
