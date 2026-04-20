@@ -1,6 +1,12 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
+import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
+import type {
+  AgentAction,
+  AgentActionResult,
+  AgentCapability,
+} from "../../../shared/agent-actions";
 import { uploadFileToS3, shortErrorMsg } from "@/lib/upload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -707,6 +713,77 @@ export default function ModelsPage() {
   const models = tab === "my" ? myModelsQuery.data : teamModelsQuery.data;
   const isLoading =
     tab === "my" ? myModelsQuery.isLoading : teamModelsQuery.isLoading;
+
+  // ── PageAgent（光球可以代操分頁切換與導航）──────────────────────
+  const MODELS_TAB_OPTIONS = useMemo(
+    () => [
+      { id: "my", label: "我的模型" },
+      { id: "team", label: "團隊共享" },
+    ],
+    []
+  );
+  const MODELS_NAV_ALLOWLIST = useMemo<Set<string>>(
+    () => new Set(["/studio", "/image-studio", "/lora-trainer", "/assets"]),
+    []
+  );
+  const modelsAgentCapabilities: AgentCapability[] = useMemo(
+    () => [
+      {
+        action: "setTab",
+        label: "切換模型分頁",
+        currentId: tab,
+        options: MODELS_TAB_OPTIONS,
+        hint: "my（我的模型）或 team（團隊共享）",
+      },
+      {
+        action: "navigate",
+        label: "前往相關頁面",
+        hint: "可導航到 /studio、/image-studio、/lora-trainer、/assets",
+      },
+    ],
+    [tab, MODELS_TAB_OPTIONS]
+  );
+
+  useRegisterPageAgent({
+    pageId: "models",
+    pageLabel: "角色鍛造所",
+    pagePath: "/models",
+    capabilities: modelsAgentCapabilities,
+    state: {
+      tab,
+      myModelsCount: myModelsQuery.data?.length ?? 0,
+      teamModelsCount: teamModelsQuery.data?.length ?? 0,
+      trainingJobId,
+    },
+    handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      switch (action.type) {
+        case "setTab": {
+          if (action.tabId !== "my" && action.tabId !== "team") {
+            return { ok: false, reason: `unknown tab: ${action.tabId}` };
+          }
+          setTab(action.tabId);
+          return { ok: true, message: `切到「${action.tabId}」分頁` };
+        }
+        case "navigate": {
+          const path = action.path;
+          if (!MODELS_NAV_ALLOWLIST.has(path)) {
+            return { ok: false, reason: `navigation blocked: ${path}` };
+          }
+          navigate(path);
+          return { ok: true, message: `已導航到 ${path}` };
+        }
+        case "reset": {
+          setTab("my");
+          return { ok: true, message: "已回到我的模型" };
+        }
+        default:
+          return {
+            ok: false,
+            reason: `unsupported on models: ${action.type}`,
+          };
+      }
+    },
+  });
 
   return (
     <div className="space-y-6">

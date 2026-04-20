@@ -3501,7 +3501,7 @@ export const appRouter = router({
           }
         );
 
-        // Prefer MiniMax M2.7 via NVIDIA NIM for orb agent, fallback to default
+        // Prefer MiniMax M2.7 via NVIDIA NIM for orb agent；失敗自動降級到 Gemini/Vertex/Forge
         const enginePreference =
           serverEnv.NVIDIA_API
             ? ("nvidia" as const)
@@ -3517,7 +3517,7 @@ export const appRouter = router({
                   content: m.content,
                 })),
               ],
-              engine: enginePreference,
+              preferEngine: enginePreference,
               runName: "orb-agent-chat",
             }),
             20_000,
@@ -3664,7 +3664,7 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input }) => {
-        // MiniMax 只有在 NVIDIA_API 可用時才走 nvidia；否則退回預設 engine。
+        // MiniMax 只有在 NVIDIA_API 可用時才優先走 nvidia；失敗或未設定則自動降級。
         const enginePreference =
           serverEnv.NVIDIA_API ? ("nvidia" as const) : undefined;
 
@@ -3692,7 +3692,7 @@ export const appRouter = router({
                   content: "請只回 JSON，欄位照規格。",
                 },
               ],
-              engine: enginePreference,
+              preferEngine: enginePreference,
               runName: "orb-guide-step",
               maxTokens: 512,
               response_format: { type: "json_object" },
