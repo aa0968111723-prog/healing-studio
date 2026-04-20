@@ -2918,8 +2918,8 @@ export default function ImageStudio() {
   const generateBtnLabel = () => {
     if (isGenerating) return "AI 生成中...";
     if (activeTab === "upscale") return "開始放大";
-    if (activeTab === "pose") return "偵測骨骼";
-    if (activeTab === "3d") return "生成 3D";
+    if (activeTab === "pose") return "偵測骨骼姿勢";
+    if (activeTab === "3d") return "生成 3D 模型";
     return "開始生成";
   };
 
@@ -3030,7 +3030,7 @@ export default function ImageStudio() {
         )}
 
         {/* ── LEFT: Controls ── */}
-        <div className="w-full lg:w-[420px] xl:w-[460px] shrink-0 lg:sticky lg:top-14 lg:self-start lg:overflow-y-auto lg:max-h-[calc(100vh-4.5rem)] space-y-3 sm:space-y-4 lg:pr-1 lg:pb-4 no-scrollbar">
+        <div className="w-full lg:w-[420px] xl:w-[460px] shrink-0 lg:sticky lg:top-14 lg:self-start lg:overflow-y-auto lg:max-h-[calc(100vh-3.5rem)] space-y-3 sm:space-y-4 lg:pr-1 lg:pb-4 no-scrollbar">
           {/* Model Selection — compact horizontal-scrollable on small grids */}
           <div className="rounded-2xl border border-border/30 p-3 sm:p-4 bg-background/60">
             <div className="flex items-center justify-between mb-2">
@@ -3574,7 +3574,7 @@ export default function ImageStudio() {
                 <>
                   <Wand2 className="w-5 h-5" />
                   {generateBtnLabel()}
-                  <kbd className="hidden xl:inline text-[10px] px-1.5 py-0.5 rounded bg-white/20 ml-1 font-mono">⌘↵</kbd>
+                  <kbd className="hidden xl:inline text-[10px] px-1.5 py-0.5 rounded bg-white/20 ml-1 font-mono">{navigator.platform?.includes("Mac") ? "⌘" : "Ctrl"}+↵</kbd>
                 </>
               )}
             </Button>
