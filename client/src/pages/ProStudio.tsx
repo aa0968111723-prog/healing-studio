@@ -57,6 +57,12 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRegisterBgTask } from "@/contexts/BackgroundTasksContext";
+import {
+  useRegisterPageAgent,
+  type AgentAction,
+  type AgentActionResult,
+  type AgentCapability,
+} from "@/contexts/PageAgentContext";
 
 // ─── 類型 ────────────────────────────────────────────────────────────────────
 
@@ -3298,6 +3304,111 @@ export default function ProStudio() {
     });
     return () => setPageContext(null);
   }, [tab, setPageContext]);
+
+  // ── 光球代理人：音訊創作室 ───────────────────────────────────────────
+  // 7 分頁、24+ 模型分散在子元件。頁面層只做 setTab + 模型語意對照。
+  const PRO_MODELS: Array<{
+    id: string;
+    label: string;
+    tab: string;
+    desc: string;
+  }> = [
+    // music (4)
+    { id: "sonauto", label: "Sonauto", tab: "music", desc: "AI 作曲、支援歌詞" },
+    { id: "ace-step", label: "ACE-Step", tab: "music", desc: "高品質音樂生成" },
+    { id: "stable-audio", label: "Stable Audio", tab: "music", desc: "Stability 音樂模型" },
+    { id: "musicgen", label: "MusicGen", tab: "music", desc: "Meta 音樂生成" },
+    // sfx (1)
+    { id: "sfx", label: "Sound Effects", tab: "sfx", desc: "文字生音效" },
+    // tts (2+)
+    { id: "eleven-tts", label: "ElevenLabs TTS", tab: "tts", desc: "多語言、多情緒" },
+    { id: "qwen-tts", label: "Qwen TTS", tab: "tts", desc: "中文友善、自然語氣" },
+    // clone (4)
+    { id: "qwen-clone", label: "Qwen 克隆並朗讀", tab: "clone", desc: "上傳樣本 → 用樣本聲朗讀" },
+    { id: "dia-clone", label: "Dia TTS 聲音克隆", tab: "clone", desc: "Dia TTS voice clone" },
+    { id: "voice-design", label: "Qwen 聲音設計", tab: "clone", desc: "自定義音色" },
+    { id: "kling-voice", label: "Kling 建立聲音", tab: "clone", desc: "Kling 聲音建檔" },
+    // process (4)
+    { id: "demucs", label: "Demucs 分軌", tab: "process", desc: "人聲 / 樂器分離" },
+    { id: "iso", label: "Audio Isolation", tab: "process", desc: "去噪、單軌萃取" },
+    { id: "merge", label: "音訊合併", tab: "process", desc: "多軌混音" },
+    { id: "voice-changer", label: "變聲器", tab: "process", desc: "Voice Changer" },
+    // asr (1)
+    { id: "asr", label: "Speech to Text", tab: "asr", desc: "語音辨識、字幕" },
+    // avatar (6)
+    { id: "wan-s2v", label: "Wan Speech-to-Video", tab: "avatar", desc: "語音 → 角色說話影片" },
+    { id: "echo-mimic", label: "EchoMimic", tab: "avatar", desc: "口型同步" },
+    { id: "stable-avatar", label: "Stable Avatar", tab: "avatar", desc: "穩定人像動畫" },
+    { id: "longcat", label: "LongCat Avatar", tab: "avatar", desc: "長時間 avatar" },
+    { id: "ltx-a2v", label: "LTX 音訊轉影片", tab: "avatar", desc: "LTX audio-to-video" },
+    { id: "dubbing", label: "Dubbing 配音", tab: "avatar", desc: "影片配音" },
+  ];
+
+  const agentCapabilities: AgentCapability[] = [
+    {
+      action: "setTab",
+      label: "分頁",
+      currentId: tab,
+      options: TABS.map(t => ({ id: t.id, label: t.label })),
+      hint: "music / sfx / tts / clone / process / asr / avatar 七大音訊能力",
+    },
+    {
+      action: "setModel",
+      label: "模型（語意對照）",
+      options: PRO_MODELS.map(m => ({
+        id: m.id,
+        label: m.label,
+        description: m.desc,
+        meta: { tab: m.tab },
+      })),
+      hint: "音訊模型的提示詞 / 參考音檔由子元件管理；setModel 會自動切到對應分頁",
+    },
+    {
+      action: "focusElement",
+      label: "視覺指引",
+      hint: "可用 elementId=pro-tab-music / pro-tab-tts 等引導使用者",
+    },
+  ];
+
+  useRegisterPageAgent({
+    pageId: "pro-studio",
+    pageLabel: "音樂配音創作室",
+    pagePath: "/pro-studio",
+    capabilities: agentCapabilities,
+    state: { activeTab: tab, modelCount: PRO_MODELS.length },
+    handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      switch (action.type) {
+        case "setTab": {
+          const t = TABS.find(x => x.id === action.tabId);
+          if (!t) return { ok: false, reason: `unknown tabId: ${action.tabId}` };
+          setTab(t.id);
+          return { ok: true };
+        }
+        case "setModel": {
+          const m = PRO_MODELS.find(x => x.id === action.modelId);
+          if (!m) return { ok: false, reason: `unknown modelId: ${action.modelId}` };
+          setTab(m.tab);
+          return {
+            ok: true,
+            message: `已切到「${TABS.find(t => t.id === m.tab)?.label}」分頁，你可以用裡面的 ${m.label}`,
+          };
+        }
+        case "focusElement":
+          return { ok: true };
+        case "fillPrompt":
+        case "submit":
+        case "reset":
+        case "applyPreset":
+        case "setParam":
+          return {
+            ok: false,
+            reason: "音訊各分頁的參數由各自卡片管理，需要切到分頁後再操作",
+          };
+        default:
+          return { ok: false, reason: "unsupported action" };
+      }
+    },
+  });
 
   return (
     <div className="max-w-3xl mx-auto px-3 sm:px-4 space-y-5 sm:space-y-6">

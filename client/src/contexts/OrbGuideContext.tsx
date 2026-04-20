@@ -22,6 +22,11 @@ import {
   useMemo,
   type ReactNode,
 } from "react";
+import type { AgentAction } from "../../../shared/agent-actions";
+import {
+  buildOrbGuideActions,
+  type OrbGuideIntentId,
+} from "../../../shared/orb-guide-plans";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -55,8 +60,9 @@ export interface GuidePlan {
   targetPath: string;
   targetLabel: string;
   orbMessage: string;   // 光球說的話
-  autoTabId?: string;   // 到達後自動切換到哪個 Tab
-  autoFillPrompt?: string; // 到達後自動填入的提示詞
+  autoFillPrompt?: string; // 到達後自動填入的提示詞（legacy；鏡射 actions 裡的 fillPrompt）
+  /** Phase 3e：到站要執行的結構化動作清單（非破壞性：setTab / fillPrompt…） */
+  actions: AgentAction[];
 }
 
 // ─── 意圖對應的目標頁面與問題 ────────────────────────────────────────────────
@@ -314,6 +320,12 @@ interface OrbGuideContextType {
   // 到達目標頁面後，光球說的第一句話
   arrivedMessage: string | null;
   clearArrivedMessage: () => void;
+  // Phase 3d-hybrid：LLM 改寫了 orbMessage / autoFillPrompt 後，
+  // Panel 呼叫這個把 plan 補上軟化後的文字。
+  patchPlan: (patch: {
+    orbMessage?: string;
+    autoFillPrompt?: string;
+  }) => void;
 }
 
 // ─── Context ─────────────────────────────────────────────────────────────────
@@ -332,6 +344,7 @@ const OrbGuideContext = createContext<OrbGuideContextType>({
   reset: () => {},
   arrivedMessage: null,
   clearArrivedMessage: () => {},
+  patchPlan: () => {},
 });
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
@@ -376,7 +389,12 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
       // 所有問題都回答完了 → 進確認步驟
       if (nextIndex >= cfg.questions.length) {
         const orbMessage = cfg.buildOrbMessage(newAnswers);
-        const autoFillPrompt = cfg.buildPromptHint(newAnswers);
+        const promptHint = cfg.buildPromptHint(newAnswers);
+        const actions = buildOrbGuideActions({
+          intent: intent as OrbGuideIntentId,
+          answers: newAnswers,
+          promptHint,
+        });
         const newPlan: GuidePlan = {
           intent,
           answers: Object.entries(newAnswers).map(([q, a]) => ({
@@ -386,7 +404,8 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
           targetPath: cfg.targetPath,
           targetLabel: cfg.targetLabel,
           orbMessage,
-          autoFillPrompt: autoFillPrompt || undefined,
+          autoFillPrompt: promptHint || undefined,
+          actions,
         };
         setPlan(newPlan);
         setStep("confirming");
@@ -404,13 +423,15 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
     // 設定到達訊息，讓目標頁面的光球顯示
     setArrivedMessage(plan.orbMessage);
 
-    // 觸發導航
+    // 觸發導航：Phase 3e 起把完整 AgentAction[] 交給 widget listener，
+    // listener 再用 pageAgent.dispatchMany 丟進 bus。舊欄位 autoFillPrompt
+    // 仍保留作為 fallback（萬一 listener 更新版本不一致也能拿到提示詞）。
     window.dispatchEvent(
       new CustomEvent("orb-guide-navigate", {
         detail: {
           path: plan.targetPath,
+          actions: plan.actions,
           autoFillPrompt: plan.autoFillPrompt,
-          autoTabId: plan.autoTabId,
         },
       })
     );
@@ -435,6 +456,35 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
     setStep("idle");
   }, []);
 
+  const patchPlan = useCallback(
+    (patch: { orbMessage?: string; autoFillPrompt?: string }) => {
+      setPlan(prev => {
+        if (!prev) return prev;
+        const nextPrompt =
+          patch.autoFillPrompt !== undefined
+            ? patch.autoFillPrompt || undefined
+            : prev.autoFillPrompt;
+        // 若 autoFillPrompt 被 patch 到，同步把 actions 裡的 fillPrompt 也換掉，
+        // 這樣 Phase 3d-hybrid LLM 重寫的版本才會真的送到目標頁。
+        const nextActions =
+          patch.autoFillPrompt !== undefined
+            ? prev.actions.map(a =>
+                a.type === "fillPrompt"
+                  ? { ...a, text: patch.autoFillPrompt as string }
+                  : a
+              )
+            : prev.actions;
+        return {
+          ...prev,
+          orbMessage: patch.orbMessage ?? prev.orbMessage,
+          autoFillPrompt: nextPrompt,
+          actions: nextActions,
+        };
+      });
+    },
+    []
+  );
+
   const value = useMemo(
     () => ({
       step,
@@ -450,6 +500,7 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
       reset,
       arrivedMessage,
       clearArrivedMessage,
+      patchPlan,
     }),
     [
       step,
@@ -465,6 +516,7 @@ export function OrbGuideProvider({ children }: { children: ReactNode }) {
       reset,
       arrivedMessage,
       clearArrivedMessage,
+      patchPlan,
     ]
   );
 

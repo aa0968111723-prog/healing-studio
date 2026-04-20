@@ -41,6 +41,8 @@ import { useFocusFlow } from "@/contexts/FocusFlowContext";
 import FocusFlowMini from "./FocusFlowMini";
 import { useOrbGuide } from "@/contexts/OrbGuideContext";
 import OrbGuidePanel from "./OrbGuidePanel";
+import { usePageAgent } from "@/contexts/PageAgentContext";
+import { parseLLMActions, type AgentAction } from "../../../shared/agent-actions";
 
 type Props = {
   className?: string;
@@ -754,19 +756,42 @@ export default memo(function ProactiveOrbWidget({
     step: guideStep,
   } = useOrbGuide();
 
-  // 監聽 orb-guide-navigate 事件，執行導航
+  // ─── PageAgent bus（Phase 1：讓 autoFillPrompt / autoTabId 真的被消費） ──
+  const pageAgent = usePageAgent();
+
+  // 監聽 orb-guide-navigate 事件：導航 + 把 Phase 3e 帶過來的 AgentAction[] 丟進 bus
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail as {
         path: string;
+        actions?: AgentAction[];
+        /** 舊版 fallback：只有 autoFillPrompt 字串時，組成一個 fillPrompt action */
         autoFillPrompt?: string;
         autoTabId?: string;
       };
       onNavigate?.(detail.path);
+
+      const fromArray = Array.isArray(detail.actions) ? detail.actions : [];
+      const fallback: AgentAction[] = [];
+      if (fromArray.length === 0) {
+        if (detail.autoTabId) {
+          fallback.push({ type: "setTab", tabId: detail.autoTabId });
+        }
+        if (detail.autoFillPrompt) {
+          fallback.push({ type: "fillPrompt", text: detail.autoFillPrompt });
+        }
+      }
+      const actions = fromArray.length ? fromArray : fallback;
+
+      // 目標頁還沒掛載 → PageAgentContext 會把動作 enqueueAction 暫存，
+      // 等頁面 register 時 drainActionsForPage 自動接棒。
+      if (actions.length) {
+        void pageAgent.dispatchMany(actions, { source: "orb-guide" });
+      }
     };
     window.addEventListener("orb-guide-navigate", handler);
     return () => window.removeEventListener("orb-guide-navigate", handler);
-  }, [onNavigate]);
+  }, [onNavigate, pageAgent]);
 
   // 到達目標頁面後，顯示 arrivedMessage 作為 proactive
   useEffect(() => {
@@ -911,11 +936,22 @@ export default memo(function ProactiveOrbWidget({
         messages: llmMessages,
         personality,
         context: contextStr,
+        // Phase 1.5：送上結構化頁面 snapshot + 最近回饋，讓 LLM 真正看懂這頁
+        pageSnapshot: pageAgent.snapshot ?? undefined,
+        recentFeedback: pageAgent.recentFeedback,
       });
       setChatMessages(prev => [...prev, { role: "orb", text: data.reply }]);
 
+      // Phase 1.5：若 LLM 附了 INTENT 摘要，先浮顯「光球想做什麼」給使用者看
+      const intentSummary =
+        typeof (data as { intent?: string | null }).intent === "string"
+          ? ((data as { intent?: string | null }).intent as string)
+          : undefined;
+      const askBeforeAct = (data as { askBeforeAct?: boolean }).askBeforeAct === true;
+
       // Handle agent actions from LLM response
       if (data.actions && Array.isArray(data.actions)) {
+        // 先走既有的 callbacks（向後相容，不影響 Studio 舊路徑）
         for (const action of data.actions) {
           switch (action.type) {
             case "navigate":
@@ -942,6 +978,23 @@ export default memo(function ProactiveOrbWidget({
             }
           }
         }
+
+        // 同時把結構化 actions 丟進 PageAgent bus。
+        // PageAgentContext.dispatch 內部會自動：
+        //   - 非破壞性動作（fillPrompt / setModel / setTab…）→ 直接執行
+        //   - 破壞性動作（submit / reset / applyPreset / setModality）→ 走確認閘，
+        //     由 AgentIntentPreview 卡片請使用者按「好啊」或「先不要」
+        const structured = parseLLMActions(data.actions);
+        if (structured.length > 0) {
+          for (const action of structured) {
+            void pageAgent.dispatch(action, {
+              source: "ai-chat",
+              intentSummary,
+              // 若 LLM 明說 askBeforeAct，所有動作一律先問；否則用內建破壞性判斷
+              requireConfirmation: askBeforeAct ? true : undefined,
+            });
+          }
+        }
       }
     } catch {
       setChatMessages(prev => [
@@ -963,6 +1016,7 @@ export default memo(function ProactiveOrbWidget({
     onNavigate,
     onApplyInspiration,
     showFeedback,
+    pageAgent,
   ]);
 
   // ─── Apply inspiration preset ────────────────────────────────────────

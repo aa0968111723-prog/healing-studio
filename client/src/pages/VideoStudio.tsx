@@ -62,6 +62,12 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { uploadFileToS3 } from "@/lib/upload";
 import { useRegisterBgTask } from "@/contexts/BackgroundTasksContext";
+import {
+  useRegisterPageAgent,
+  type AgentAction,
+  type AgentActionResult,
+  type AgentCapability,
+} from "@/contexts/PageAgentContext";
 
 // ─── 類型 ────────────────────────────────────────────────────────────────────
 
@@ -2943,6 +2949,116 @@ export default function VideoStudio() {
     enhance: 3,
     control: 4,
   };
+
+  // ── 光球代理人：註冊頁面能力 ─────────────────────────────────────────
+  // VideoStudio 的子分頁各自維護 prompt/model 狀態，光球在這層可以：
+  //   1. 切分頁（setTab）
+  //   2. 告訴 LLM 每個分頁底下有哪些模型（讓 LLM 能用自然語言引導）
+  const VIDEO_MODELS: Array<{
+    id: string;
+    label: string;
+    tab: TabId;
+    desc: string;
+  }> = [
+    // t2v
+    { id: "kling-t2v", label: "Kling 2.1 文生影", tab: "t2v", desc: "高品質、支援 5/10s、負向提示詞、CFG" },
+    { id: "wan-t2v", label: "Wan 2.1 文生影", tab: "t2v", desc: "480p / 720p、可調 frames" },
+    { id: "minimax-t2v", label: "MiniMax Hailuo 文生影", tab: "t2v", desc: "快速原型、支援 prompt optimization" },
+    { id: "veo3-t2v", label: "Veo 3 文生影", tab: "t2v", desc: "Google Veo、可加音訊、16:9/9:16" },
+    { id: "ltx-t2v", label: "LTX 13B 文生影", tab: "t2v", desc: "開源高品質、支援負向提示詞" },
+    { id: "sora-t2v", label: "Sora 文生影", tab: "t2v", desc: "OpenAI Sora、480p/720p/1080p" },
+    // i2v
+    { id: "kling-i2v", label: "Kling 2.1 圖生影", tab: "i2v", desc: "首尾幀、5/10s" },
+    { id: "wan-i2v", label: "Wan 2.1 圖生影", tab: "i2v", desc: "480p / 720p" },
+    { id: "runway-i2v", label: "Runway Gen4 圖生影", tab: "i2v", desc: "5/10s、可設 aspect ratio" },
+    { id: "pixverse-i2v", label: "PixVerse 4.5 圖生影", tab: "i2v", desc: "4s/8s、多品質檔次" },
+    { id: "minimax-i2v", label: "MiniMax 圖生影", tab: "i2v", desc: "支援 prompt optimization" },
+    // v2v
+    { id: "wan-v2v", label: "Wan 2.1 影生影", tab: "v2v", desc: "風格轉換、strength 可調" },
+    { id: "kling-v2v", label: "Kling 影生影", tab: "v2v", desc: "CFG 控制原影片保留度" },
+    { id: "ltx-v2v", label: "LTX 影生影", tab: "v2v", desc: "開源、高品質" },
+    // enhance
+    { id: "video-upscale", label: "影片超解析", tab: "enhance", desc: "SeedVR 超解析、×2/×4" },
+    { id: "frame-interp", label: "RIFE 補幀", tab: "enhance", desc: "流暢度提升、60fps 化" },
+    { id: "topaz-enhance", label: "Topaz 畫質增強", tab: "enhance", desc: "去噪、去模糊、專業級" },
+    // control
+    { id: "cam-master", label: "CamMaster 運鏡控制", tab: "control", desc: "指定攝影機運動" },
+    { id: "animate-diff", label: "AnimateDiff", tab: "control", desc: "精準動作控制" },
+    { id: "depth-crafter", label: "DepthCrafter", tab: "control", desc: "深度圖生成、3D 感" },
+    { id: "vidu-ref", label: "Vidu Q1 參考生影", tab: "control", desc: "多參考圖、角色一致" },
+  ];
+
+  const agentCapabilities: AgentCapability[] = [
+    {
+      action: "setTab",
+      label: "分頁",
+      currentId: activeTab,
+      options: TABS.map(t => ({
+        id: t.id,
+        label: t.label,
+        description: t.desc,
+        meta: { count: MODEL_COUNT[t.id] },
+      })),
+      hint: "切換 t2v / i2v / v2v / enhance / control 五大影片能力分頁",
+    },
+    {
+      action: "setModel",
+      label: "模型（僅提示用途）",
+      options: VIDEO_MODELS.map(m => ({
+        id: m.id,
+        label: m.label,
+        description: m.desc,
+        meta: { tab: m.tab },
+      })),
+      hint: "影片工作室的模型 UI 為每分頁並列多個卡片，setModel 僅供 LLM 做語意對照；實際請透過 setTab + 自然語引導",
+    },
+    {
+      action: "focusElement",
+      label: "視覺指引",
+      hint: "可用 elementId=video-tab-t2v / video-tab-i2v 等 id，搭配 message 說明",
+    },
+  ];
+
+  useRegisterPageAgent({
+    pageId: "video-studio",
+    pageLabel: "影片專業工作室",
+    pagePath: "/video-studio",
+    capabilities: agentCapabilities,
+    state: { activeTab, modelCount: VIDEO_MODELS.length },
+    handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      switch (action.type) {
+        case "setTab": {
+          const tab = TABS.find(t => t.id === action.tabId);
+          if (!tab) return { ok: false, reason: `unknown tabId: ${action.tabId}` };
+          setActiveTab(tab.id);
+          return { ok: true };
+        }
+        case "setModel": {
+          const m = VIDEO_MODELS.find(x => x.id === action.modelId);
+          if (!m) return { ok: false, reason: `unknown modelId: ${action.modelId}` };
+          // 切到對應分頁；具體選模型由使用者在該分頁點選
+          setActiveTab(m.tab);
+          return {
+            ok: true,
+            message: `已切到「${TABS.find(t => t.id === m.tab)?.label}」分頁，你可以用裡面的 ${m.label}`,
+          };
+        }
+        case "focusElement":
+          return { ok: true };
+        case "fillPrompt":
+        case "submit":
+        case "reset":
+        case "applyPreset":
+        case "setParam":
+          return {
+            ok: false,
+            reason: "影片工作室的提示詞與參數由各模型卡片各自管理，無法從頁面層統一操作",
+          };
+        default:
+          return { ok: false, reason: "unsupported action" };
+      }
+    },
+  });
 
   return (
     <div className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-5">

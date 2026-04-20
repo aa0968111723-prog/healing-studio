@@ -17,6 +17,7 @@ import { SiteOnboardingProvider } from "./contexts/SiteOnboardingContext";
 import { FocusFlowProvider } from "./contexts/FocusFlowContext";
 import { AmbientProvider } from "./contexts/AmbientSoundContext";
 import { OrbGuideProvider } from "./contexts/OrbGuideContext";
+import { PageAgentProvider } from "./contexts/PageAgentContext";
 const SiteOnboardingOverlay = lazy(
   () => import("./components/SiteOnboardingOverlay")
 );
@@ -49,6 +50,7 @@ const LangSmithPage = lazy(() => import("./pages/LangSmithPage"));
 const BackgroundTasksPage = lazy(() => import("./pages/BackgroundTasksPage"));
 const CreditsInfoPage = lazy(() => import("./pages/CreditsInfoPage"));
 const PromptLibraryPage = lazy(() => import("./pages/PromptLibraryPage"));
+const AgentChat = lazy(() => import("./pages/AgentChat"));
 const AdminApiUsagePage = lazy(() => import("./pages/AdminApiUsagePage"));
 
 import { Skeleton } from "@/components/ui/skeleton";
@@ -185,6 +187,9 @@ function Router() {
       <Route path="/prompt-library">
         <DashboardRoute component={PromptLibraryPage} />
       </Route>
+      <Route path="/agent">
+        <DashboardRoute component={AgentChat} />
+      </Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
@@ -202,6 +207,7 @@ function App() {
                 <FocusFlowProvider>
                   <AmbientProvider>
                   <OrbGuideProvider>
+                  <PageAgentProvider>
                   <TooltipProvider>
                     <Toaster />
                     <OfflineBanner />
@@ -213,6 +219,7 @@ function App() {
                       <SiteOnboardingOverlay />
                     </Suspense>
                   </TooltipProvider>
+                  </PageAgentProvider>
                   </OrbGuideProvider>
                   </AmbientProvider>
                 </FocusFlowProvider>

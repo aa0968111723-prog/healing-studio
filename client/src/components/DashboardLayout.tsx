@@ -86,6 +86,8 @@ import { Button } from "./ui/button";
 import VisualSoul from "./VisualSoul";
 import { useAIState } from "@/contexts/AIStateContext";
 import ProactiveOrbWidget from "./ProactiveOrbWidget";
+import AgentIntentPreview from "./AgentIntentPreview";
+import AgentFocusSpotlight from "./AgentFocusSpotlight";
 
 // Isolated component that subscribes to AI state —
 // prevents the entire DashboardLayout from re-rendering when aiState/personality change.
@@ -938,8 +940,9 @@ function DashboardLayoutContent({
         </main>
       </SidebarInset>
 
-      {/* 全站光球常駐協助（Studio 頁面內已有自己的光球，不需要重複） */}
-      {user && (
+      {/* 全站光球常駐協助（Studio 頁面內已有自己的光球，不需要重複）
+          Phase 2a：/agent 緩衝聊天頁已是全頁光球對話，浮球隱藏避免雙重 UI */}
+      {user && location !== "/agent" && (
         <ProactiveOrbWidget
           onRestartTour={handleOrbRestartTour}
           onSaveToNotes={handleOrbSaveToNotes}
@@ -949,6 +952,10 @@ function DashboardLayoutContent({
           onNavigate={(path) => setLocation(path)}
         />
       )}
+      {/* 破壞性動作執行前的柔軟確認卡片（全站都可觸發，含 /agent） */}
+      {user && <AgentIntentPreview />}
+      {/* 光球「看這裡」視覺聚焦（focusElement 動作的畫面層） */}
+      {user && <AgentFocusSpotlight />}
     </>
   );
 }
