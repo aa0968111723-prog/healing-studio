@@ -631,6 +631,10 @@ const SCENE_SOUND_FACTORIES: Record<
 // 設定非空 URL 後，該場景會同時播放程序化音效與音頻檔案。
 // 佔位符 URL 可替換為實際的開源環境音連結。
 //
+// URL 格式：完整 HTTPS URL（例：https://cdn.example.com/audio/zen-night.mp3）
+//           或站內相對路徑（例：/audio/zen-night.mp3）
+// 支援格式：MP3, OGG, WAV, FLAC（瀏覽器原生支援的格式）
+//
 // 推薦免費資源：
 //   - freesound.org (CC0 授權)
 //   - pixabay.com/music (免費商用)
@@ -654,6 +658,7 @@ export const SCENE_SOUND_LABELS: Record<SceneId, string> = {
 /**
  * Create an HTML5 Audio-based layer routed through Web Audio API.
  * Returns null if no URL is configured for the scene.
+ * Only allows relative paths and HTTPS URLs for security.
  */
 function createAudioFileLayer(
   ctx: AudioContext,
@@ -662,6 +667,14 @@ function createAudioFileLayer(
 ): { gain: GainNode; cleanup: () => void } | null {
   const url = SCENE_AUDIO_URLS[sceneId];
   if (!url) return null;
+
+  // Security: only allow relative paths or HTTPS URLs
+  const isRelative = url.startsWith("/");
+  const isHttps = url.startsWith("https://");
+  if (!isRelative && !isHttps) {
+    console.warn(`[AmbientSound] Rejected non-HTTPS audio URL for ${sceneId}`);
+    return null;
+  }
 
   const audio = new Audio(url);
   audio.crossOrigin = "anonymous";
@@ -673,9 +686,9 @@ function createAudioFileLayer(
   gain.gain.value = 0.3; // Blend with procedural sounds
   source.connect(gain).connect(dest);
 
-  audio.play().catch(() => {
-    // Autoplay may fail — user interaction required
-    console.warn(`[AmbientSound] Audio file play failed for ${sceneId}`);
+  audio.play().catch((err) => {
+    // Autoplay may fail due to browser policy, network, or invalid URL
+    console.warn(`[AmbientSound] Audio file play failed for ${sceneId}:`, err);
   });
 
   return {
