@@ -2768,6 +2768,9 @@ export default function ImageStudio() {
 
   const hasResults = resultImages.length > 0 || !!result3d || !!resultPose;
 
+  /** Shared max-height for sticky right-side panels (results + history) */
+  const stickyPanelMaxH = "calc(100vh - 5rem)";
+
   return (
     <div className="max-w-[1400px] mx-auto px-3 sm:px-4 lg:px-6 pb-24 lg:pb-10">
       {/* ── Header ── */}
@@ -2779,7 +2782,7 @@ export default function ImageStudio() {
           <div className="min-w-0">
             <h1 className="hs-h2 !mb-0">圖片創作室</h1>
             <p className="hs-small !mb-0 text-muted-foreground mt-0.5 hidden sm:block">
-              23 個 AI 模型 · 文字生圖 · 圖片編輯 · 影像放大 · SD · 3D
+              {MODELS.length} 個 AI 模型 · 文字生圖 · 圖片編輯 · 影像放大 · SD · 3D
             </p>
           </div>
         </div>
@@ -2811,9 +2814,7 @@ export default function ImageStudio() {
                 : "border-border/40 hover:bg-accent active:bg-accent/70 text-muted-foreground"
             }`}
           >
-            <History className="w-3.5 h-3.5" />{" "}
-            <span className="hidden sm:inline">歷史</span>
-            <span className="sm:hidden">歷史</span>
+            <History className="w-3.5 h-3.5" /> 歷史
           </button>
         </div>
       </div>
@@ -3401,8 +3402,8 @@ export default function ImageStudio() {
         {/* ── RIGHT: Results / Preview + History ── */}
         <div className="flex-1 min-w-0 flex flex-col lg:flex-row gap-4 lg:gap-5">
           {/* Results Area */}
-          <div className="flex-1 min-w-0 lg:sticky lg:top-16 lg:self-start" style={{ maxHeight: "calc(100vh - 5rem)" }}>
-            <div className="rounded-2xl border border-border/20 bg-muted/20 lg:overflow-y-auto lg:h-full" style={{ maxHeight: "calc(100vh - 5rem)" }}>
+          <div className="flex-1 min-w-0 lg:sticky lg:top-16 lg:self-start" style={{ maxHeight: stickyPanelMaxH }}>
+            <div className="rounded-2xl border border-border/20 bg-muted/20 lg:overflow-y-auto lg:h-full" style={{ maxHeight: stickyPanelMaxH }}>
               {/* Results Header */}
               <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-2.5 border-b border-border/20 bg-background/80 backdrop-blur-sm rounded-t-2xl">
                 <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
@@ -3518,7 +3519,7 @@ export default function ImageStudio() {
                 exit={{ width: 0, opacity: 0 }}
                 transition={{ duration: 0.25, ease: "easeInOut" }}
                 className="shrink-0 overflow-hidden rounded-2xl border border-border/30 bg-background/60 flex flex-col lg:sticky lg:top-16 lg:self-start"
-                style={{ maxHeight: "calc(100vh - 5rem)" }}
+                style={{ maxHeight: stickyPanelMaxH }}
               >
                 <div className="flex items-center justify-between px-3 py-2.5 border-b border-border/20">
                   <div className="flex items-center gap-2 text-sm font-medium">
