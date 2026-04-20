@@ -2958,6 +2958,7 @@ export default function ImageStudio() {
             }
             className="p-2 sm:p-2.5 rounded-xl border border-border/40 hover:bg-accent active:bg-accent/70 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
             title="切換檢視"
+            aria-label={viewMode === "single" ? "切換為網格檢視" : "切換為單張檢視"}
           >
             {viewMode === "single" ? (
               <Grid3x3 className="w-4 h-4" />
@@ -2972,6 +2973,8 @@ export default function ImageStudio() {
                 ? "bg-primary text-primary-foreground border-primary"
                 : "border-border/40 hover:bg-accent active:bg-accent/70 text-muted-foreground"
             }`}
+            aria-label={showHistory ? "關閉歷史面板" : "開啟歷史面板"}
+            aria-pressed={showHistory}
           >
             <History className="w-3.5 h-3.5" /> 歷史
           </button>
@@ -2982,13 +2985,15 @@ export default function ImageStudio() {
 
       {/* ── Tab Bar — scrollable pill strip ── */}
       <div className="sticky top-0 z-20 -mx-3 sm:-mx-4 lg:-mx-6 px-3 sm:px-4 lg:px-6 py-2 bg-background/80 backdrop-blur-md border-b border-border/20">
-        <div className="flex gap-1 overflow-x-auto no-scrollbar scroll-fade-x -mx-1 px-1">
+        <div className="flex gap-1 overflow-x-auto no-scrollbar scroll-fade-x -mx-1 px-1" role="tablist" aria-label="圖片創作分頁">
           {TABS.map(tab => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
+                role="tab"
+                aria-selected={active}
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full whitespace-nowrap text-xs font-medium transition-all shrink-0 min-h-[36px] ${
                   active
@@ -3030,7 +3035,7 @@ export default function ImageStudio() {
         )}
 
         {/* ── LEFT: Controls ── */}
-        <div className="w-full lg:w-[420px] xl:w-[460px] shrink-0 lg:sticky lg:top-14 lg:self-start lg:overflow-y-auto lg:max-h-[calc(100vh-3.5rem)] space-y-3 sm:space-y-4 lg:pr-1 lg:pb-4 no-scrollbar">
+        <div className="w-full lg:w-[420px] xl:w-[460px] shrink-0 lg:sticky lg:top-14 lg:self-start lg:overflow-y-auto lg:max-h-[calc(100vh-4rem)] space-y-3 sm:space-y-4 lg:pr-1 lg:pb-4 no-scrollbar">
           {/* Model Selection — compact horizontal-scrollable on small grids */}
           <div className="rounded-2xl border border-border/30 p-3 sm:p-4 bg-background/60">
             <div className="flex items-center justify-between mb-2">
@@ -3563,6 +3568,7 @@ export default function ImageStudio() {
             <Button
               onClick={handleGenerate}
               disabled={isGenerating}
+              aria-busy={isGenerating}
               className={`w-full h-12 rounded-2xl text-sm font-semibold gap-2 shadow-lg hover:shadow-xl transition-all text-white ${gradientBtn} ${!isGenerating ? "animate-[gentle-pulse_3s_ease-in-out_infinite]" : ""}`}
             >
               {isGenerating ? (
@@ -3592,7 +3598,7 @@ export default function ImageStudio() {
                   <ImagePlus className="w-3.5 h-3.5" />
                   生成結果
                   {resultImages.length > 0 && (
-                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0 ml-1">
+                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0 ml-1" aria-live="polite">
                       {resultImages.length} 張
                     </Badge>
                   )}
@@ -3602,6 +3608,7 @@ export default function ImageStudio() {
                     onClick={() => setViewMode(v => (v === "single" ? "grid" : "single"))}
                     className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground transition-colors"
                     title="切換檢視模式"
+                    aria-label={viewMode === "single" ? "切換為網格檢視" : "切換為單張檢視"}
                   >
                     {viewMode === "single" ? (
                       <Grid3x3 className="w-3.5 h-3.5" />
@@ -3622,6 +3629,8 @@ export default function ImageStudio() {
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
                       className="flex flex-col items-center justify-center py-16 sm:py-24 gap-4"
+                      role="status"
+                      aria-label="AI 生成中"
                     >
                       <div className="relative">
                         <div className="w-16 h-16 rounded-full bg-gradient-to-br from-violet-100 to-purple-100 dark:from-violet-900/30 dark:to-purple-900/20 flex items-center justify-center">
@@ -3735,6 +3744,7 @@ export default function ImageStudio() {
                   <button
                     onClick={() => setShowHistory(false)}
                     className="p-2 sm:p-1 hover:bg-accent active:bg-accent/70 rounded-md"
+                    aria-label="關閉歷史面板"
                   >
                     <X className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-muted-foreground" />
                   </button>
@@ -3749,12 +3759,13 @@ export default function ImageStudio() {
       {/* ── Mobile Sticky Generate Bar ── */}
       <div className="fixed bottom-0 left-0 right-0 z-30 lg:hidden border-t border-border/30 bg-background/90 backdrop-blur-lg px-3 py-2 safe-area-pb">
         <div className="flex items-center gap-2">
-          <Badge variant="secondary" className="text-[9px] px-2 py-0.5 shrink-0 max-w-[80px] truncate">
+          <Badge variant="secondary" className="text-[9px] px-2 py-0.5 shrink-0 max-w-[100px] truncate" title={model.name}>
             {model.name}
           </Badge>
           <Button
             onClick={handleGenerate}
             disabled={isGenerating}
+            aria-busy={isGenerating}
             className={`flex-1 h-11 rounded-2xl text-sm font-semibold gap-2 shadow-lg transition-all text-white ${gradientBtn}`}
           >
             {isGenerating ? (
