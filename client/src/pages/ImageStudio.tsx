@@ -6,7 +6,7 @@
  *  Stable Diffusion（3）/ 圖片轉3D（5）
  */
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useAIState } from "@/contexts/AIStateContext";
@@ -758,10 +758,14 @@ function ResultImage({
   url,
   prompt,
   onDownload,
+  onUseAsEdit,
+  genMeta,
 }: {
   url: string;
   prompt: string;
   onDownload: () => void;
+  onUseAsEdit?: (url: string) => void;
+  genMeta?: { modelName: string; duration: number; seed?: string } | null;
 }) {
   return (
     <motion.div
@@ -793,12 +797,37 @@ function ResultImage({
           >
             <Eye className="w-3.5 h-3.5" /> 全尺寸
           </Button>
+          {onUseAsEdit && (
+            <Button
+              size="sm"
+              variant="secondary"
+              className="gap-1.5"
+              onClick={() => onUseAsEdit(url)}
+            >
+              <Paintbrush className="w-3.5 h-3.5" /> 編輯
+            </Button>
+          )}
         </div>
       </div>
       <div className="p-3">
         <p className="hs-small !mb-0 text-muted-foreground line-clamp-2">
           {prompt}
         </p>
+        {genMeta && (
+          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+            <span className="text-[10px] text-muted-foreground/60 flex items-center gap-0.5">
+              <Cpu className="w-2.5 h-2.5" /> {genMeta.modelName}
+            </span>
+            <span className="text-[10px] text-muted-foreground/60">
+              · {genMeta.duration}s
+            </span>
+            {genMeta.seed && (
+              <span className="text-[10px] text-muted-foreground/60">
+                · seed: {genMeta.seed}
+              </span>
+            )}
+          </div>
+        )}
         <div className="flex items-center gap-2 mt-2">
           <Button
             variant="outline"
@@ -806,8 +835,19 @@ function ResultImage({
             className="flex-1 text-xs h-7 gap-1"
             onClick={onDownload}
           >
-            <Download className="w-3 h-3" /> 下載圖片
+            <Download className="w-3 h-3" /> 下載
           </Button>
+          {onUseAsEdit && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs h-7 gap-1"
+              onClick={() => onUseAsEdit(url)}
+              title="送到編輯模式"
+            >
+              <Paintbrush className="w-3 h-3" />
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -2110,6 +2150,81 @@ function ThreeDPanel({
   );
 }
 
+/** Compact results preview shown at top of mobile when results exist */
+function MobileResultsPreview({
+  resultImages,
+  result3d,
+  resultPose,
+  prompt,
+  viewMode,
+  setViewMode,
+  downloadImage,
+  onUseAsEdit,
+  lastGenMeta,
+  poseImageUrl,
+}: {
+  resultImages: string[];
+  result3d: { glbUrl: string | null; extras?: Record<string, string | null> } | null;
+  resultPose: string | null;
+  prompt: string;
+  viewMode: "single" | "grid";
+  setViewMode: (v: "single" | "grid") => void;
+  downloadImage: (url: string) => void;
+  onUseAsEdit: (url: string) => void;
+  lastGenMeta: { modelName: string; duration: number; seed?: string } | null;
+  poseImageUrl: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-border/20 bg-muted/20 overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border/20 bg-background/80">
+        <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+          <ImagePlus className="w-3.5 h-3.5" />
+          生成結果
+          {resultImages.length > 0 && (
+            <Badge variant="secondary" className="text-[9px] px-1.5 py-0 ml-1">
+              {resultImages.length} 張
+            </Badge>
+          )}
+        </p>
+        {resultImages.length > 1 && (
+          <button
+            onClick={() => setViewMode(viewMode === "single" ? "grid" : "single")}
+            className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground"
+          >
+            {viewMode === "single" ? (
+              <Grid3x3 className="w-3.5 h-3.5" />
+            ) : (
+              <Image className="w-3.5 h-3.5" />
+            )}
+          </button>
+        )}
+      </div>
+      <div className="p-3">
+        {resultImages.length > 0 && (
+          <div className={viewMode === "grid" && resultImages.length > 1 ? "grid grid-cols-2 gap-2" : "space-y-2"}>
+            {resultImages.map((url) => (
+              <ResultImage
+                key={url}
+                url={url}
+                prompt={prompt}
+                onDownload={() => downloadImage(url)}
+                onUseAsEdit={onUseAsEdit}
+                genMeta={lastGenMeta}
+              />
+            ))}
+          </div>
+        )}
+        {result3d && (
+          <Model3DResult glbUrl={result3d.glbUrl} extras={result3d.extras} />
+        )}
+        {resultPose && (
+          <PoseResult poseUrl={resultPose} prompt={poseImageUrl} />
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ImageStudio() {
@@ -2197,6 +2312,12 @@ export default function ImageStudio() {
   } | null>(null);
   const [resultPose, setResultPose] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [lastGenMeta, setLastGenMeta] = useState<{
+    modelName: string;
+    duration: number;
+    seed?: string;
+  } | null>(null);
+  const genStartRef = useRef<number>(0);
 
   // ── Applied Fine-tuned Model from ModelsPage ──
   const [appliedModelName, setAppliedModelName] = useState<string | null>(null);
@@ -2270,6 +2391,19 @@ export default function ImageStudio() {
       // silent
     }
   }, []);
+
+  // ── Ctrl+Enter keyboard shortcut for generation ──
+  const handleGenerateRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && !isGenerating) {
+        e.preventDefault();
+        handleGenerateRef.current?.();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [isGenerating]);
 
   // ── tRPC mutations ──
   const mutations = {
@@ -2390,6 +2524,8 @@ export default function ImageStudio() {
     setResultImages([]);
     setResult3d(null);
     setResultPose(null);
+    setLastGenMeta(null);
+    genStartRef.current = Date.now();
 
     const vibeKw = vibeIds
       .map(id => VIBE_CARDS.find(v => v.id === id)?.keywords)
@@ -2690,6 +2826,10 @@ export default function ImageStudio() {
           glbUrl: glb,
           extras: Object.keys(extras).length ? extras : undefined,
         });
+        setLastGenMeta({
+          modelName: model.name,
+          duration: Math.round((Date.now() - genStartRef.current) / 1000),
+        });
         if (glb) toast.success("3D 模型生成完成！");
         else toast.warning("3D 生成完成，但未找到 GLB 檔案，請查看 extras");
         return;
@@ -2701,6 +2841,10 @@ export default function ImageStudio() {
         if (poseUrl) {
           const internalPoseUrl = await persistGeneratedImageUrl(poseUrl);
           setResultPose(internalPoseUrl);
+          setLastGenMeta({
+            modelName: model.name,
+            duration: Math.round((Date.now() - genStartRef.current) / 1000),
+          });
           toast.success("骨骼姿勢圖生成完成！");
         } else {
           toast.error("未取得姿勢圖 URL");
@@ -2724,6 +2868,11 @@ export default function ImageStudio() {
       setResultImages(internalImgs);
       toast.success(`✨ 生成完成！（${imgs.length} 張）`);
       reportSuccess();
+      setLastGenMeta({
+        modelName: model.name,
+        duration: Math.round((Date.now() - genStartRef.current) / 1000),
+        seed: seed || undefined,
+      });
 
       addToHistory({
         prompt: fullPrompt || upscaleImageUrl || poseImageUrl || imageUrl3d,
@@ -2817,15 +2966,30 @@ export default function ImageStudio() {
     toast.success("已載入歷史參數");
   };
 
+  // Wire ref so Ctrl+Enter can call handleGenerate
+  handleGenerateRef.current = handleGenerate;
+
+  /** Send result image to the Edit tab as reference */
+  const handleUseAsEditSource = useCallback((url: string) => {
+    setRefImageUrl(url);
+    setActiveTab("edit");
+    toast.success("已將圖片載入編輯模式");
+  }, []);
+
   const generateBtnLabel = () => {
-    if (isGenerating) return "AI 生成中，請稍候...";
+    if (isGenerating) return "AI 生成中...";
     if (activeTab === "upscale") return "開始放大";
     if (activeTab === "pose") return "偵測骨骼姿勢";
     if (activeTab === "3d") return "生成 3D 模型";
-    return `開始生成`;
+    return "開始生成";
   };
 
   const gradientBtn = `bg-gradient-to-r ${tabColor(activeTab)} hover:opacity-90`;
+
+  const hasResults = resultImages.length > 0 || !!result3d || !!resultPose;
+
+  /** Shared max-height for sticky right-side panels (results + history) */
+  const stickyPanelMaxH = "calc(100vh - 5rem)";
 
   // ── 光球代理人：註冊頁面能力 ─────────────────────────────────────────
   const agentCapabilities: AgentCapability[] = [
@@ -3002,20 +3166,17 @@ export default function ImageStudio() {
   });
 
   return (
-    <div className="max-w-6xl mx-auto px-3 sm:px-4 space-y-5 sm:space-y-6 pb-10">
+    <div className="max-w-[1400px] mx-auto px-3 sm:px-4 lg:px-6 pb-24 lg:pb-10">
       {/* ── Header ── */}
-      <div className="flex items-start justify-between gap-3 sm:gap-4">
-        <div className="flex items-center gap-2.5 sm:gap-3">
+      <div className="flex items-center justify-between gap-3 py-3 sm:py-4">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
           <div className="p-2 sm:p-2.5 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 shadow-lg shrink-0">
             <Image className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
           </div>
           <div className="min-w-0">
             <h1 className="hs-h2 !mb-0">圖片創作室</h1>
-            <p className="hs-small !mb-0 text-muted-foreground mt-0.5 line-clamp-2 sm:line-clamp-none">
-              用文字描述，讓 AI 幫你創作圖片 ✨{" "}
-              <span className="hidden sm:inline text-muted-foreground/50">
-                · 文字生圖・圖片編輯・影像放大・SD・3D
-              </span>
+            <p className="hs-small !mb-0 text-muted-foreground mt-0.5 hidden sm:block">
+              {MODELS.length} 個 AI 模型 · 文字生圖 · 圖片編輯 · 影像放大 · SD · 3D
             </p>
           </div>
         </div>
@@ -3032,6 +3193,7 @@ export default function ImageStudio() {
             }
             className="p-2 sm:p-2.5 rounded-xl border border-border/40 hover:bg-accent active:bg-accent/70 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
             title="切換檢視"
+            aria-label={viewMode === "single" ? "切換為網格檢視" : "切換為單張檢視"}
           >
             {viewMode === "single" ? (
               <Grid3x3 className="w-4 h-4" />
@@ -3046,110 +3208,166 @@ export default function ImageStudio() {
                 ? "bg-primary text-primary-foreground border-primary"
                 : "border-border/40 hover:bg-accent active:bg-accent/70 text-muted-foreground"
             }`}
+            aria-label={showHistory ? "關閉歷史面板" : "開啟歷史面板"}
+            aria-pressed={showHistory}
           >
-            <History className="w-3.5 h-3.5" />{" "}
-            <span className="hidden sm:inline">歷史 / 精選</span>
-            <span className="sm:hidden">歷史</span>
+            <History className="w-3.5 h-3.5" /> 歷史
           </button>
         </div>
       </div>
 
       <ApiKeyBanner />
 
-      {/* ── Tab Bar ── */}
-      <div className="flex gap-1.5 overflow-x-auto pb-0.5 no-scrollbar scroll-fade-x -mx-1 px-1">
-        {TABS.map(tab => {
-          const Icon = tab.icon;
-          const active = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 px-3 py-3 sm:py-2.5 rounded-2xl border whitespace-nowrap text-xs font-medium transition-all shrink-0 min-h-[44px] ${
-                active
-                  ? `bg-gradient-to-r ${tabColor(tab.id)} text-white border-transparent shadow-md`
-                  : "bg-background border-border/40 text-muted-foreground hover:bg-accent active:bg-accent"
-              }`}
-            >
-              <Icon className="w-3.5 h-3.5" />
-              {tab.label}
-              <span
-                className={`text-[10px] px-1.5 py-0.5 rounded-full ${active ? "bg-white/20" : "bg-muted text-muted-foreground"}`}
+      {/* ── Tab Bar — scrollable pill strip ── */}
+      <div className="sticky top-0 z-20 -mx-3 sm:-mx-4 lg:-mx-6 px-3 sm:px-4 lg:px-6 py-2 bg-background/80 backdrop-blur-md border-b border-border/20">
+        <div className="flex gap-1 overflow-x-auto no-scrollbar scroll-fade-x -mx-1 px-1" role="tablist" aria-label="圖片創作分頁">
+          {TABS.map(tab => {
+            const Icon = tab.icon;
+            const active = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                role="tab"
+                aria-selected={active}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full whitespace-nowrap text-xs font-medium transition-all shrink-0 min-h-[36px] ${
+                  active
+                    ? `bg-gradient-to-r ${tabColor(tab.id)} text-white shadow-md shadow-primary/10`
+                    : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
               >
-                {tab.count}
-              </span>
-            </button>
-          );
-        })}
+                <Icon className="w-3.5 h-3.5" />
+                {tab.label}
+                <span
+                  className={`text-[10px] px-1.5 py-0.5 rounded-full leading-none ${active ? "bg-white/20" : "bg-background/80 text-muted-foreground"}`}
+                >
+                  {tab.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {/* ── Main Layout ── */}
-      <div className="flex flex-col sm:flex-row gap-4 sm:gap-5">
-        {/* ── Left: Control Panel ── */}
-        <div className="flex-1 min-w-0 space-y-4 sm:space-y-5">
-          {/* Model Selection */}
+      {/* ── Two-Column Layout (lg+) ── */}
+      <div className="mt-4 flex flex-col lg:flex-row gap-4 lg:gap-6">
+        {/* ── Mobile: Results at top when available ── */}
+        {hasResults && (
+          <div className="lg:hidden">
+            <MobileResultsPreview
+              resultImages={resultImages}
+              result3d={result3d}
+              resultPose={resultPose}
+              prompt={prompt}
+              viewMode={viewMode}
+              setViewMode={setViewMode}
+              downloadImage={downloadImage}
+              onUseAsEdit={handleUseAsEditSource}
+              lastGenMeta={lastGenMeta}
+              poseImageUrl={poseImageUrl}
+            />
+          </div>
+        )}
+
+        {/* ── LEFT: Controls ── */}
+        <div className="w-full lg:w-[420px] xl:w-[460px] shrink-0 lg:sticky lg:top-14 lg:self-start lg:overflow-y-auto lg:max-h-[calc(100vh-4rem)] space-y-3 sm:space-y-4 lg:pr-1 lg:pb-4 no-scrollbar">
+          {/* Model Selection — compact horizontal-scrollable on small grids */}
           <div className="rounded-2xl border border-border/30 p-3 sm:p-4 bg-background/60">
-            <p className="text-xs font-medium text-muted-foreground mb-2 sm:mb-3">
-              選擇模型（{tabModels.length} 個）
-            </p>
-            <div
-              className={`grid gap-2 sm:gap-2.5 ${tabModels.length <= 2 ? "grid-cols-1 sm:grid-cols-2" : tabModels.length <= 4 ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3"}`}
-            >
-              {tabModels.map(m => (
-                <button
-                  key={m.id}
-                  onClick={() => setSelectedModelId(m.id)}
-                  className={`p-3 rounded-xl border text-left transition-all relative overflow-hidden ${
-                    selectedModelId === m.id
-                      ? `bg-gradient-to-br ${colorClass(m.color)} border-primary/40 shadow-sm`
-                      : "bg-background border-border/30 hover:bg-accent/30"
-                  }`}
-                >
-                  <div className="absolute top-1.5 right-1.5 flex items-center gap-1">
-                    {m.recommended && (
-                      <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 font-medium">
-                        推薦
-                      </span>
-                    )}
-                    {m.fast && <Zap className="w-2.5 h-2.5 text-amber-500" />}
-                  </div>
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    <p className="text-xs font-semibold leading-tight">
-                      {m.name}
-                    </p>
-                    {selectedModelId === m.id && (
-                      <Check className="w-3 h-3 text-primary ml-auto shrink-0" />
-                    )}
-                  </div>
-                  <p className="hs-small !mb-0 text-muted-foreground leading-snug">
-                    {m.desc}
-                  </p>
-                  {m.bestFor && (
-                    <p className="text-[10px] text-primary/80 mt-1 leading-snug">
-                      {m.bestFor}
-                    </p>
-                  )}
-                  <div className="flex items-center gap-1 mt-1.5">
-                    <Badge
-                      variant="secondary"
-                      className="text-[9px] px-1.5 py-0"
-                    >
-                      {m.badge}
-                    </Badge>
-                    <a
-                      href={`https://fal.ai/models/${m.falId}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={e => e.stopPropagation()}
-                      className="ml-auto text-[9px] text-muted-foreground/50 hover:text-primary transition-colors flex items-center gap-0.5"
-                    >
-                      <ExternalLink className="w-2 h-2" />
-                      文檔
-                    </a>
-                  </div>
-                </button>
-              ))}
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                <Camera className="w-3.5 h-3.5" />
+                模型（{tabModels.length}）
+              </p>
+              <Badge variant="secondary" className="text-[9px]">
+                {model.name}
+              </Badge>
             </div>
+            {tabModels.length <= 3 ? (
+              <div className="grid grid-cols-1 gap-2">
+                {tabModels.map(m => (
+                  <button
+                    key={m.id}
+                    onClick={() => setSelectedModelId(m.id)}
+                    className={`p-2.5 rounded-xl border text-left transition-all relative overflow-hidden ${
+                      selectedModelId === m.id
+                        ? `bg-gradient-to-br ${colorClass(m.color)} border-primary/40 shadow-sm ring-1 ring-primary/20`
+                        : "bg-background border-border/30 hover:bg-accent/30"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-xs font-semibold leading-tight truncate">
+                            {m.name}
+                          </p>
+                          {m.fast && <Zap className="w-2.5 h-2.5 text-amber-500 shrink-0" />}
+                          {m.recommended && (
+                            <span className="text-[8px] px-1 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 font-medium shrink-0">
+                              推薦
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-muted-foreground leading-snug mt-0.5 line-clamp-1">
+                          {m.desc}
+                        </p>
+                      </div>
+                      {selectedModelId === m.id && (
+                        <Check className="w-4 h-4 text-primary shrink-0" />
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div
+                className={`grid gap-2 ${tabModels.length <= 4 ? "grid-cols-2" : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-2"}`}
+              >
+                {tabModels.map(m => (
+                  <button
+                    key={m.id}
+                    onClick={() => setSelectedModelId(m.id)}
+                    className={`p-2.5 rounded-xl border text-left transition-all relative overflow-hidden ${
+                      selectedModelId === m.id
+                        ? `bg-gradient-to-br ${colorClass(m.color)} border-primary/40 shadow-sm ring-1 ring-primary/20`
+                        : "bg-background border-border/30 hover:bg-accent/30"
+                    }`}
+                  >
+                    <div className="absolute top-1.5 right-1.5 flex items-center gap-1">
+                      {m.recommended && (
+                        <span className="text-[8px] px-1 py-0.5 rounded-full bg-violet-100 dark:bg-violet-900/40 text-violet-600 dark:text-violet-400 font-medium">
+                          推薦
+                        </span>
+                      )}
+                      {m.fast && <Zap className="w-2.5 h-2.5 text-amber-500" />}
+                    </div>
+                    <div className="flex items-center gap-1.5 mb-0.5 pr-10">
+                      <p className="text-[11px] font-semibold leading-tight truncate">
+                        {m.name}
+                      </p>
+                      {selectedModelId === m.id && (
+                        <Check className="w-3 h-3 text-primary shrink-0" />
+                      )}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground leading-snug line-clamp-2">
+                      {m.desc}
+                    </p>
+                    {m.bestFor && (
+                      <p className="text-[10px] text-primary/70 leading-snug mt-0.5 line-clamp-1">
+                        {m.bestFor}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-1 mt-1.5">
+                      <Badge
+                        variant="secondary"
+                        className="text-[9px] px-1.5 py-0"
+                      >
+                        {m.badge}
+                      </Badge>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Model Tip — contextual guidance for selected model */}
@@ -3188,7 +3406,7 @@ export default function ImageStudio() {
                   </button>
                 </div>
               )}
-              <div className="rounded-2xl border border-border/30 p-4 bg-background/60">
+              <div className="rounded-2xl border border-border/30 p-3 sm:p-4 bg-background/60">
                 <PromptBuilder
                   value={prompt}
                   onChange={setPrompt}
@@ -3198,7 +3416,7 @@ export default function ImageStudio() {
               </div>
 
               {/* Basic Settings — always visible */}
-              <div className="rounded-2xl border border-border/30 p-4 bg-background/60 space-y-3">
+              <div className="rounded-2xl border border-border/30 p-3 sm:p-4 bg-background/60 space-y-3">
                 <p className="hs-small !mb-0 text-foreground flex items-center gap-1.5">
                   <Settings2 className="w-3.5 h-3.5 text-muted-foreground" />{" "}
                   生成設定
@@ -3212,7 +3430,7 @@ export default function ImageStudio() {
                       <button
                         key={ar.value}
                         onClick={() => setAspectRatio(ar.value)}
-                        className={`p-2 rounded-xl border text-center transition-all ${aspectRatio === ar.value ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border/40 hover:bg-accent text-muted-foreground"}`}
+                        className={`py-1.5 px-1 rounded-xl border text-center transition-all ${aspectRatio === ar.value ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border/40 hover:bg-accent text-muted-foreground"}`}
                       >
                         <p className="text-[11px] font-semibold">{ar.label}</p>
                         <p className="text-[9px] opacity-60">{ar.hint}</p>
@@ -3229,7 +3447,7 @@ export default function ImageStudio() {
                       <button
                         key={n}
                         onClick={() => setNumImages(n)}
-                        className={`flex-1 py-2 rounded-xl border text-xs font-semibold transition-all ${numImages === n ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border/40 text-muted-foreground hover:bg-accent"}`}
+                        className={`flex-1 py-1.5 rounded-xl border text-xs font-semibold transition-all ${numImages === n ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border/40 text-muted-foreground hover:bg-accent"}`}
                       >
                         {n} 張
                       </button>
@@ -3341,7 +3559,7 @@ export default function ImageStudio() {
           {activeTab === "edit" && (
             <>
               <div
-                className={`rounded-2xl border p-4 bg-gradient-to-br ${colorClass(model.color)}`}
+                className={`rounded-2xl border p-3 sm:p-4 bg-gradient-to-br ${colorClass(model.color)}`}
               >
                 <RefImageInput
                   label="原始圖片（待編輯）"
@@ -3366,7 +3584,7 @@ export default function ImageStudio() {
                   </div>
                 )}
               </div>
-              <div className="rounded-2xl border border-border/30 p-4 bg-background/60">
+              <div className="rounded-2xl border border-border/30 p-3 sm:p-4 bg-background/60">
                 <PromptBuilder
                   value={prompt}
                   onChange={setPrompt}
@@ -3374,7 +3592,7 @@ export default function ImageStudio() {
                   onVibeChange={setVibeIds}
                 />
               </div>
-              <div className="rounded-2xl border border-border/30 p-4 bg-background/60 space-y-3">
+              <div className="rounded-2xl border border-border/30 p-3 sm:p-4 bg-background/60 space-y-3">
                 <p className="hs-small !mb-0 text-foreground flex items-center gap-1.5">
                   <Settings2 className="w-3.5 h-3.5 text-muted-foreground" />{" "}
                   編輯設定
@@ -3466,7 +3684,7 @@ export default function ImageStudio() {
 
           {/* Upscale */}
           {activeTab === "upscale" && (
-            <div className="rounded-2xl border border-sky-200/50 p-4 bg-sky-50/20">
+            <div className="rounded-2xl border border-sky-200/50 p-3 sm:p-4 bg-sky-50/20 dark:bg-sky-950/10">
               <UpscalePanel
                 imageUrl={upscaleImageUrl}
                 setImageUrl={setUpscaleImageUrl}
@@ -3482,7 +3700,7 @@ export default function ImageStudio() {
 
           {/* Pose */}
           {activeTab === "pose" && (
-            <div className="rounded-2xl border border-lime-200/50 p-4 bg-lime-50/20">
+            <div className="rounded-2xl border border-lime-200/50 p-3 sm:p-4 bg-lime-50/20 dark:bg-lime-950/10">
               <PosePanel
                 imageUrl={poseImageUrl}
                 setImageUrl={setPoseImageUrl}
@@ -3495,7 +3713,7 @@ export default function ImageStudio() {
           {/* SD */}
           {activeTab === "sd" && (
             <>
-              <div className="rounded-2xl border border-border/30 p-4 bg-background/60">
+              <div className="rounded-2xl border border-border/30 p-3 sm:p-4 bg-background/60">
                 <PromptBuilder
                   value={prompt}
                   onChange={setPrompt}
@@ -3503,7 +3721,7 @@ export default function ImageStudio() {
                   onVibeChange={setVibeIds}
                 />
               </div>
-              <div className="rounded-2xl border border-cyan-200/50 p-4 bg-cyan-50/20">
+              <div className="rounded-2xl border border-cyan-200/50 p-3 sm:p-4 bg-cyan-50/20 dark:bg-cyan-950/10">
                 <SDPanel
                   imageSize={sdImageSize}
                   setImageSize={setSdImageSize}
@@ -3528,12 +3746,28 @@ export default function ImageStudio() {
                   modelId={selectedModelId}
                 />
               </div>
+              <div className="rounded-2xl border border-border/30 p-3 bg-background/60">
+                <Label className="text-xs font-medium text-muted-foreground mb-1.5 block">
+                  生成數量
+                </Label>
+                <div className="flex gap-1.5">
+                  {[1, 2, 4].map(n => (
+                    <button
+                      key={n}
+                      onClick={() => setNumImages(n)}
+                      className={`flex-1 py-1.5 rounded-xl border text-xs font-semibold transition-all ${numImages === n ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border/40 text-muted-foreground hover:bg-accent"}`}
+                    >
+                      {n} 張
+                    </button>
+                  ))}
+                </div>
+              </div>
             </>
           )}
 
           {/* 3D */}
           {activeTab === "3d" && (
-            <div className="rounded-2xl border border-orange-200/50 p-4 bg-orange-50/20">
+            <div className="rounded-2xl border border-orange-200/50 p-3 sm:p-4 bg-orange-50/20 dark:bg-orange-950/10">
               <ThreeDPanel
                 imageUrl={imageUrl3d}
                 setImageUrl={setImageUrl3d}
@@ -3564,116 +3798,231 @@ export default function ImageStudio() {
             </div>
           )}
 
-          {/* SD num images */}
-          {activeTab === "sd" && (
-            <div className="rounded-2xl border border-border/30 p-3 bg-background/60">
-              <Label className="text-xs font-medium text-muted-foreground mb-1.5 block">
-                生成數量
-              </Label>
-              <div className="flex gap-1.5">
-                {[1, 2, 4].map(n => (
+          {/* Generate Button — visible in-flow on desktop */}
+          <div className="hidden lg:block">
+            <Button
+              onClick={handleGenerate}
+              disabled={isGenerating}
+              aria-busy={isGenerating}
+              className={`w-full h-12 rounded-2xl text-sm font-semibold gap-2 shadow-lg hover:shadow-xl transition-all text-white ${gradientBtn} ${!isGenerating ? "animate-[gentle-pulse_3s_ease-in-out_infinite]" : ""}`}
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  {generateBtnLabel()}
+                </>
+              ) : (
+                <>
+                  <Wand2 className="w-5 h-5" />
+                  {generateBtnLabel()}
+                  <kbd className="hidden xl:inline text-[10px] px-1.5 py-0.5 rounded bg-white/20 ml-1 font-mono">{navigator.platform?.includes("Mac") ? "⌘" : "Ctrl"}+↵</kbd>
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+
+        {/* ── RIGHT: Results / Preview + History ── */}
+        <div className="flex-1 min-w-0 flex flex-col lg:flex-row gap-4 lg:gap-5">
+          {/* Results Area */}
+          <div className="flex-1 min-w-0 lg:sticky lg:top-16 lg:self-start" style={{ maxHeight: stickyPanelMaxH }}>
+            <div className="rounded-2xl border border-border/20 bg-muted/20 lg:overflow-y-auto lg:h-full" style={{ maxHeight: stickyPanelMaxH }}>
+              {/* Results Header */}
+              <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-2.5 border-b border-border/20 bg-background/80 backdrop-blur-sm rounded-t-2xl">
+                <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                  <ImagePlus className="w-3.5 h-3.5" />
+                  生成結果
+                  {resultImages.length > 0 && (
+                    <Badge variant="secondary" className="text-[9px] px-1.5 py-0 ml-1" aria-live="polite">
+                      {resultImages.length} 張
+                    </Badge>
+                  )}
+                </p>
+                {resultImages.length > 1 && (
                   <button
-                    key={n}
-                    onClick={() => setNumImages(n)}
-                    className={`flex-1 py-2 rounded-xl border text-xs font-semibold transition-all ${numImages === n ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border/40 text-muted-foreground hover:bg-accent"}`}
+                    onClick={() => setViewMode(v => (v === "single" ? "grid" : "single"))}
+                    className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground transition-colors"
+                    title="切換檢視模式"
+                    aria-label={viewMode === "single" ? "切換為網格檢視" : "切換為單張檢視"}
                   >
-                    {n} 張
+                    {viewMode === "single" ? (
+                      <Grid3x3 className="w-3.5 h-3.5" />
+                    ) : (
+                      <Image className="w-3.5 h-3.5" />
+                    )}
                   </button>
-                ))}
+                )}
+              </div>
+
+              {/* Content Area */}
+              <div className="p-3 sm:p-4">
+                <AnimatePresence mode="wait">
+                  {isGenerating ? (
+                    <motion.div
+                      key="generating"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="flex flex-col items-center justify-center py-16 sm:py-24 gap-4"
+                      role="status"
+                      aria-label="AI 生成中"
+                    >
+                      <div className="relative">
+                        <div className="w-16 h-16 rounded-full bg-gradient-to-br from-violet-100 to-purple-100 dark:from-violet-900/30 dark:to-purple-900/20 flex items-center justify-center">
+                          <Loader2 className="w-7 h-7 text-violet-500 animate-spin" />
+                        </div>
+                        <div className="absolute inset-0 rounded-full border-2 border-violet-200/50 dark:border-violet-800/30 animate-ping" />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-sm font-medium text-foreground">AI 正在創作中...</p>
+                        <p className="text-xs text-muted-foreground mt-1">使用 {model.name} 生成</p>
+                      </div>
+                    </motion.div>
+                  ) : hasResults ? (
+                    <motion.div
+                      key="results"
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                    >
+                      {resultImages.length > 0 && (
+                        <div
+                          className={
+                            viewMode === "grid" && resultImages.length > 1
+                              ? "grid grid-cols-2 gap-3"
+                              : "space-y-3"
+                          }
+                        >
+                          {resultImages.map((url) => (
+                            <ResultImage
+                              key={url}
+                              url={url}
+                              prompt={prompt}
+                              onDownload={() => downloadImage(url)}
+                              onUseAsEdit={handleUseAsEditSource}
+                              genMeta={lastGenMeta}
+                            />
+                          ))}
+                        </div>
+                      )}
+                      {result3d && (
+                        <Model3DResult
+                          glbUrl={result3d.glbUrl}
+                          extras={result3d.extras}
+                        />
+                      )}
+                      {resultPose && (
+                        <PoseResult poseUrl={resultPose} prompt={poseImageUrl} />
+                      )}
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="empty"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="flex flex-col items-center justify-center py-12 sm:py-20 gap-4"
+                    >
+                      <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/30 dark:to-purple-950/20 border border-violet-100/50 dark:border-violet-800/30 flex items-center justify-center">
+                        <Sparkles className="w-8 h-8 text-violet-300 dark:text-violet-600" />
+                      </div>
+                      <div className="text-center max-w-[260px]">
+                        <p className="text-sm font-medium text-muted-foreground">等待你的靈感 ✨</p>
+                        <p className="text-xs text-muted-foreground/60 mt-1 leading-relaxed">
+                          選擇模型、輸入描述，按下生成
+                        </p>
+                      </div>
+                      <div className="flex flex-col sm:flex-row gap-2 mt-1">
+                        <button
+                          onClick={() => {
+                            setPrompt(QUICK_TRY_PROMPT);
+                            setActiveTab("t2i");
+                            setSelectedModelId("seedreamV4");
+                            toast.success("🌿 已填入範例提示詞");
+                          }}
+                          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-violet-100/80 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 text-xs font-medium hover:bg-violet-200/80 dark:hover:bg-violet-900/50 transition-colors"
+                        >
+                          <Rocket className="w-3.5 h-3.5" /> 一鍵填入範例
+                        </button>
+                        <button
+                          onClick={() => {
+                            const randomTemplate = PROMPT_TEMPLATES[Math.floor(Math.random() * PROMPT_TEMPLATES.length)];
+                            setPrompt(randomTemplate.text);
+                            toast.success(`已填入「${randomTemplate.title}」`);
+                          }}
+                          className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-border/40 text-muted-foreground text-xs font-medium hover:bg-accent transition-colors"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" /> 隨機靈感
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </div>
-          )}
+          </div>
 
-          {/* Generate Button */}
-          <Button
-            onClick={handleGenerate}
-            disabled={isGenerating}
-            className={`w-full h-12 sm:h-14 rounded-2xl text-sm sm:text-base font-semibold gap-2 sm:gap-3 shadow-lg hover:shadow-xl transition-all text-white ${gradientBtn}`}
-          >
-            {isGenerating ? (
-              <>
-                <Loader2 className="w-5 h-5 animate-spin" />
-                {generateBtnLabel()}
-              </>
-            ) : (
-              <>
-                <Wand2 className="w-5 h-5" />
-                {generateBtnLabel()}
-                <span className="opacity-60 text-sm ml-1">({model.name})</span>
-              </>
-            )}
-          </Button>
-
-          {/* Results */}
+          {/* History Sidebar */}
           <AnimatePresence>
-            {resultImages.length > 0 && (
+            {showHistory && (
               <motion.div
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={
-                  viewMode === "grid" && resultImages.length > 1
-                    ? "grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4"
-                    : "space-y-3 sm:space-y-4"
-                }
+                initial={{ width: 0, opacity: 0 }}
+                animate={{ width: 260, opacity: 1 }}
+                exit={{ width: 0, opacity: 0 }}
+                transition={{ duration: 0.25, ease: "easeInOut" }}
+                className="shrink-0 overflow-hidden rounded-2xl border border-border/30 bg-background/60 flex flex-col lg:sticky lg:top-16 lg:self-start"
+                style={{ maxHeight: stickyPanelMaxH }}
               >
-                {resultImages.map((url, i) => (
-                  <ResultImage
-                    key={url}
-                    url={url}
-                    prompt={prompt}
-                    onDownload={() => downloadImage(url)}
-                  />
-                ))}
+                <div className="flex items-center justify-between px-3 py-2.5 border-b border-border/20">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <History className="w-4 h-4 text-primary" /> 歷史
+                  </div>
+                  <button
+                    onClick={() => setShowHistory(false)}
+                    className="p-2 sm:p-1 hover:bg-accent active:bg-accent/70 rounded-md"
+                    aria-label="關閉歷史面板"
+                  >
+                    <X className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-muted-foreground" />
+                  </button>
+                </div>
+                <HistoryPanel onReuse={handleReuseHistory} />
               </motion.div>
-            )}
-            {result3d && (
-              <Model3DResult
-                glbUrl={result3d.glbUrl}
-                extras={result3d.extras}
-              />
-            )}
-            {resultPose && (
-              <PoseResult poseUrl={resultPose} prompt={poseImageUrl} />
             )}
           </AnimatePresence>
         </div>
+      </div>
 
-        {/* ── Right: History Panel ── */}
-        <AnimatePresence>
-          {showHistory && (
-            <motion.div
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: "min(280px, 85vw)", opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.25, ease: "easeInOut" }}
-              className="shrink-0 overflow-hidden rounded-2xl border border-border/30 bg-background/60 flex flex-col sm:sticky sm:top-4"
-              style={{ maxHeight: "min(calc(100vh - 10rem), 700px)" }}
-            >
-              <div className="flex items-center justify-between px-3 py-2.5 border-b border-border/20">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <History className="w-4 h-4 text-primary" /> 歷史 / 精選
-                </div>
-                <button
-                  onClick={() => setShowHistory(false)}
-                  className="p-2 sm:p-1 hover:bg-accent active:bg-accent/70 rounded-md"
-                >
-                  <X className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-muted-foreground" />
-                </button>
-              </div>
-              <HistoryPanel onReuse={handleReuseHistory} />
-            </motion.div>
-          )}
-        </AnimatePresence>
+      {/* ── Mobile Sticky Generate Bar ── */}
+      <div className="fixed bottom-0 left-0 right-0 z-30 lg:hidden border-t border-border/30 bg-background/90 backdrop-blur-lg px-3 py-2 safe-area-pb">
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary" className="text-[9px] px-2 py-0.5 shrink-0 max-w-[100px] truncate" title={model.name}>
+            {model.name}
+          </Badge>
+          <Button
+            onClick={handleGenerate}
+            disabled={isGenerating}
+            aria-busy={isGenerating}
+            className={`flex-1 h-11 rounded-2xl text-sm font-semibold gap-2 shadow-lg transition-all text-white ${gradientBtn}`}
+          >
+            {isGenerating ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                生成中...
+              </>
+            ) : (
+              <>
+                <Wand2 className="w-4 h-4" />
+                {generateBtnLabel()}
+              </>
+            )}
+          </Button>
+        </div>
       </div>
 
       {/* ── Footer ── */}
-      <div className="text-center py-4 border-t border-border/40">
-        <p className="hs-small !mb-0 text-muted-foreground/60">
+      <div className="text-center py-4 mt-6 border-t border-border/20">
+        <p className="hs-small !mb-0 text-muted-foreground/50">
           Powered by fal.ai · Gemini · FLUX · SeeDream · Imagen4 · Grok · GPT
           Image · Stable Diffusion · Trellis · SAM3D · HunyuanWorld
-        </p>
-        <p className="hs-small !mb-0 text-muted-foreground/40 mt-1">
-          歷史記錄儲存於瀏覽器本地（最多 50 筆）· 23 個 fal.ai 模型
         </p>
       </div>
     </div>
