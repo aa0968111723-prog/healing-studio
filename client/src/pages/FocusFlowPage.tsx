@@ -12,9 +12,16 @@
  * 也可透過光球 (ProactiveOrbWidget) 的迷你面板使用。
  */
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
+import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
+import type {
+  AgentAction,
+  AgentActionResult,
+  AgentCapability,
+} from "../../../shared/agent-actions";
 import { GlassCard } from "@/components/ZenCoPilot";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -628,6 +635,7 @@ function FlowStepper({
 
 export default function FocusFlowPage() {
   usePageTour("focus-flow");
+  const [, navigate] = useLocation();
 
   const [activeTab, setActiveTab] = useState<FlowMode>("healing");
   const [flowStep, setFlowStep] = useState(0);
@@ -639,6 +647,97 @@ export default function FocusFlowPage() {
     setFlowStep(step);
     setActiveTab(stepToMode[step]);
   };
+
+  // ── PageAgent：光球可切換節奏、推進步驟、跳到相關頁面 ─────────────
+  const FOCUS_TAB_OPTIONS = useMemo(
+    () => [
+      { id: "healing", label: "療癒時間", description: "呼吸放鬆" },
+      { id: "pomodoro", label: "番茄鐘", description: "25/5 專注" },
+      { id: "focus", label: "聚焦時間", description: "整理想法" },
+    ],
+    []
+  );
+  const FOCUS_NAV_ALLOWLIST = useMemo<Set<string>>(
+    () => new Set(["/notes", "/dashboard", "/calendar"]),
+    []
+  );
+  const focusAgentCapabilities: AgentCapability[] = useMemo(
+    () => [
+      {
+        action: "setTab",
+        label: "切換節奏",
+        currentId: activeTab,
+        options: FOCUS_TAB_OPTIONS,
+        hint: "healing（療癒）| pomodoro（番茄鐘）| focus（聚焦）",
+      },
+      {
+        action: "setParam",
+        label: "推進流程步驟",
+        hint: "setParam key='flowStep' value=0..2（0=療癒→1=番茄→2=聚焦）",
+      },
+      {
+        action: "navigate",
+        label: "前往筆記 / 儀表板",
+        hint: "/notes、/dashboard、/calendar",
+      },
+    ],
+    [activeTab, FOCUS_TAB_OPTIONS]
+  );
+
+  useRegisterPageAgent({
+    pageId: "focus-flow",
+    pageLabel: "專注流",
+    pagePath: "/focus-flow",
+    capabilities: focusAgentCapabilities,
+    state: { activeTab, flowStep },
+    handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      switch (action.type) {
+        case "setTab": {
+          const valid: FlowMode[] = ["healing", "pomodoro", "focus"];
+          if (!valid.includes(action.tabId as FlowMode)) {
+            return { ok: false, reason: `unknown tab: ${action.tabId}` };
+          }
+          const next = action.tabId as FlowMode;
+          setActiveTab(next);
+          const step = stepToMode.indexOf(next);
+          if (step >= 0) setFlowStep(step);
+          return { ok: true, message: `切到「${next}」` };
+        }
+        case "setParam": {
+          if (action.key === "flowStep") {
+            const n = Number(action.value);
+            if (!Number.isInteger(n) || n < 0 || n > 2) {
+              return { ok: false, reason: "flowStep 必須是 0、1、2" };
+            }
+            setFlowStep(n);
+            setActiveTab(stepToMode[n]);
+            return { ok: true, message: `跳到步驟 ${n + 1}` };
+          }
+          return { ok: false, reason: `unknown param key: ${action.key}` };
+        }
+        case "navigate": {
+          if (!FOCUS_NAV_ALLOWLIST.has(action.path)) {
+            return {
+              ok: false,
+              reason: `navigation blocked: ${action.path}`,
+            };
+          }
+          navigate(action.path);
+          return { ok: true, message: `已導航到 ${action.path}` };
+        }
+        case "reset": {
+          setActiveTab("healing");
+          setFlowStep(0);
+          return { ok: true, message: "已回到療癒起點" };
+        }
+        default:
+          return {
+            ok: false,
+            reason: `unsupported on focus-flow: ${action.type}`,
+          };
+      }
+    },
+  });
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">

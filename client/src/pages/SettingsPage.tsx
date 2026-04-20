@@ -1,5 +1,11 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
+import type {
+  AgentAction,
+  AgentActionResult,
+  AgentCapability,
+} from "../../../shared/agent-actions";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { ResetAllToursButton } from "@/components/SiteOnboardingOverlay";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -202,6 +208,143 @@ export default function SettingsPage() {
   };
 
   const isAdmin = user?.role === "admin";
+
+  // ─── PageAgent 註冊（Phase 4b：個人設定接入光球） ────────────────────────
+  // 光球可幫：切分頁（profile/appearance/notifications/onboarding/admin）、
+  // 套用外觀模式（light/dark/auto/system）、鎖定背景場景、跳到常用子頁。
+  const SETTINGS_TAB_OPTIONS = useMemo<AgentCapability["options"]>(() => {
+    const base = [
+      { id: "profile", label: "個人資料" },
+      { id: "appearance", label: "外觀" },
+      { id: "notifications", label: "通知" },
+      { id: "onboarding", label: "引導" },
+    ];
+    return isAdmin ? [...base, { id: "admin", label: "管理員" }] : base;
+  }, [isAdmin]);
+  const APPEARANCE_IDS = useMemo(
+    () => APPEARANCE_MODES.map(m => m.id),
+    []
+  );
+  const SCENE_IDS = useMemo(() => SCENE_OPTIONS.map(s => s.id), []);
+  const SETTINGS_NAV_ALLOWLIST = useMemo<Set<string>>(
+    () =>
+      new Set([
+        "/director",
+        "/credits",
+        "/admin",
+        "/settings/ai-brain",
+        "/langsmith",
+      ]),
+    []
+  );
+  const settingsAgentCapabilities: AgentCapability[] = useMemo(
+    () => [
+      {
+        action: "setTab",
+        label: "切換設定分頁",
+        currentId: activeTab,
+        options: SETTINGS_TAB_OPTIONS,
+        hint: "切到 profile / appearance / notifications / onboarding（admin 限管理員）",
+      },
+      {
+        action: "setParam",
+        label: "外觀與場景",
+        hint: "setParam key='appearanceMode' value=light|dark|auto|system；key='scene' value=nightSky|morning|cafe|deepSea；key='scene' value='' 表示恢復自動",
+      },
+      {
+        action: "navigate",
+        label: "跳到相關子頁",
+        hint: "navigate path='/director' | '/credits' | '/admin'（限管理員）| '/settings/ai-brain'（限管理員）| '/langsmith'（限管理員）",
+      },
+      {
+        action: "reset",
+        label: "回到個人資料分頁",
+        hint: "activeTab 還原為 profile",
+      },
+    ],
+    [activeTab, SETTINGS_TAB_OPTIONS]
+  );
+
+  useRegisterPageAgent({
+    pageId: "settings",
+    pageLabel: "個人設定",
+    pagePath: "/settings",
+    capabilities: settingsAgentCapabilities,
+    state: {
+      activeTab,
+      appearanceMode,
+      theme,
+      sceneId,
+      sceneOverridden: sceneOverride !== null,
+      soundEnabled,
+      desktopNotif,
+      isAdmin,
+    },
+    handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      switch (action.type) {
+        case "setTab": {
+          const allowed = SETTINGS_TAB_OPTIONS?.map(o => o.id) ?? [];
+          if (!allowed.includes(action.tabId)) {
+            return {
+              ok: false,
+              reason: `unknown tab or admin-only: ${action.tabId}`,
+            };
+          }
+          setActiveTab(action.tabId);
+          return { ok: true, message: `切到「${action.tabId}」` };
+        }
+        case "setParam": {
+          if (action.key === "appearanceMode") {
+            const v = String(action.value ?? "");
+            if (!APPEARANCE_IDS.includes(v as AppearanceMode)) {
+              return { ok: false, reason: `unknown appearanceMode: ${v}` };
+            }
+            setAppearanceMode(v as AppearanceMode);
+            return { ok: true, message: `外觀切到「${v}」` };
+          }
+          if (action.key === "scene") {
+            const v = action.value;
+            if (v === null || v === "" || v === undefined) {
+              setSceneOverride(null);
+              return { ok: true, message: "已恢復自動場景" };
+            }
+            const s = String(v);
+            if (!SCENE_IDS.includes(s as SceneId)) {
+              return { ok: false, reason: `unknown scene: ${s}` };
+            }
+            setSceneOverride(s as SceneId);
+            return { ok: true, message: `場景鎖定為「${s}」` };
+          }
+          return { ok: false, reason: `unknown param key: ${action.key}` };
+        }
+        case "navigate": {
+          const path = String(action.path ?? "");
+          if (!SETTINGS_NAV_ALLOWLIST.has(path)) {
+            return { ok: false, reason: `不在允許跳轉清單：${path}` };
+          }
+          if (
+            !isAdmin &&
+            (path === "/admin" ||
+              path === "/settings/ai-brain" ||
+              path === "/langsmith")
+          ) {
+            return { ok: false, reason: "此路徑僅開放管理員" };
+          }
+          navigate(path);
+          return { ok: true, message: `跳到 ${path}` };
+        }
+        case "reset": {
+          setActiveTab("profile");
+          return { ok: true, message: "分頁回到個人資料" };
+        }
+        default:
+          return {
+            ok: false,
+            reason: `unsupported on settings: ${action.type}`,
+          };
+      }
+    },
+  });
 
   return (
     <div className="space-y-6 max-w-3xl">

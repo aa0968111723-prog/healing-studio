@@ -19,6 +19,7 @@ import {
   getEngineFallbackChain,
   recordEngineSuccess,
   recordEngineFailure,
+  isEngineAvailable,
   type LLMEngine,
   type EngineConfig,
 } from "./llmRouter";
@@ -119,9 +120,16 @@ export type InvokeParams = {
   /** LangSmith parent run ID（用於建立 chain 巢狀追蹤） */
   parentRunId?: string;
   /**
-   * 強制指定使用哪個 LLM 引擎（覆蓋 auto 路由）
+   * 強制指定使用哪個 LLM 引擎（覆蓋 auto 路由）。
+   * 指定後不會自動降級到其他引擎 — 用於 debug 或明確需要特定能力時。
    */
   engine?: LLMEngine;
+  /**
+   * 偏好引擎：先嘗試此引擎，失敗時自動降級到備援鏈。
+   * 適合 UI 層想用特定引擎（例如光球偏好 MiniMax）但仍要容錯的場景。
+   * 與 engine 互斥 — 若同時提供，engine 優先（表示明確要強制）。
+   */
+  preferEngine?: LLMEngine;
   /**
    * 創意溫度（0.0–1.0）。注入來自 ctx.brain.reasoning.storyteller.temperature
    */
@@ -480,19 +488,43 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     runName,
     parentRunId,
     engine,
+    preferEngine,
     temperature,
     topP,
     model: overrideModel,
   } = params;
 
   // ── 透過路由器取得引擎設定 ───────────────────────────────
-  const primaryConfig = resolveEngineConfig(engine);
+  // engine（強制）優先；其次 preferEngine（偏好，允許降級）；否則 auto。
+  const resolvedPrimary = engine ?? preferEngine ?? "auto";
+
+  // preferEngine 且斷路器 OPEN → 直接跳過，從健康的備援鏈開始
+  const skipPreferDueToCircuit =
+    preferEngine &&
+    !engine &&
+    preferEngine !== "auto" &&
+    !isEngineAvailable(preferEngine);
+
+  let primaryConfig: EngineConfig;
+  try {
+    primaryConfig = resolveEngineConfig(
+      skipPreferDueToCircuit ? "auto" : resolvedPrimary
+    );
+  } catch (err) {
+    // 偏好引擎不可用（例如 API 金鑰未設定）→ 降級到 auto
+    if (preferEngine && !engine) {
+      primaryConfig = resolveEngineConfig("auto");
+    } else {
+      throw err;
+    }
+  }
 
   // ── 嘗試主引擎 + 自動降級到備援引擎 ───────────────────────
   const engineConfigs: EngineConfig[] = [primaryConfig];
 
-  // auto 模式下，加入備援引擎鏈（手動指定引擎不降級）
-  if (!engine || engine === "auto") {
+  // 允許降級的情境：auto、未指定、或 preferEngine（偏好但可降級）
+  const allowFallback = !engine || engine === "auto" || !!preferEngine;
+  if (allowFallback) {
     engineConfigs.push(...getEngineFallbackChain(primaryConfig.engine));
   }
 

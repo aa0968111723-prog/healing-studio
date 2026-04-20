@@ -62,6 +62,13 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { useAIState } from "@/contexts/AIStateContext";
 import VisualSoul from "@/components/VisualSoul";
+import { useLocation } from "wouter";
+import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
+import type {
+  AgentAction,
+  AgentActionResult,
+  AgentCapability,
+} from "../../../shared/agent-actions";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
@@ -839,6 +846,87 @@ export default function AiBrainSettings() {
   const [expandedDiagnosisId, setExpandedDiagnosisId] = useState<string | null>(
     null
   );
+
+  // ── PageAgent：光球可切換七大分頁 ───────────────────────────────
+  const [, navigateToPath] = useLocation();
+  const BRAIN_TAB_OPTIONS = useMemo(
+    () => [
+      { id: "config", label: "組態" },
+      { id: "alerts", label: "警報" },
+      { id: "errors", label: "錯誤追蹤" },
+      { id: "proposals", label: "優化提案" },
+      { id: "research", label: "研究" },
+      { id: "accuracy", label: "準確度" },
+      { id: "langsmith", label: "LangSmith" },
+    ],
+    []
+  );
+  const BRAIN_NAV_ALLOWLIST = useMemo<Set<string>>(
+    () => new Set(["/settings", "/langsmith", "/admin"]),
+    []
+  );
+  const brainAgentCapabilities: AgentCapability[] = useMemo(
+    () => [
+      {
+        action: "setTab",
+        label: "切換 AI 大腦分頁",
+        currentId: activeTab,
+        options: BRAIN_TAB_OPTIONS,
+        hint: "config | alerts | errors | proposals | research | accuracy | langsmith",
+      },
+      {
+        action: "navigate",
+        label: "前往相關頁面",
+        hint: "/settings、/langsmith、/admin",
+      },
+    ],
+    [activeTab, BRAIN_TAB_OPTIONS]
+  );
+
+  useRegisterPageAgent({
+    pageId: "brain-settings",
+    pageLabel: "AI 大腦設定",
+    pagePath: "/settings/ai-brain",
+    capabilities: brainAgentCapabilities,
+    state: { activeTab, expandedDiagnosisId },
+    handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      switch (action.type) {
+        case "setTab": {
+          const valid: TabId[] = [
+            "config",
+            "alerts",
+            "errors",
+            "proposals",
+            "research",
+            "accuracy",
+            "langsmith",
+          ];
+          if (!valid.includes(action.tabId as TabId)) {
+            return { ok: false, reason: `unknown tab: ${action.tabId}` };
+          }
+          setActiveTab(action.tabId as TabId);
+          return { ok: true, message: `切到「${action.tabId}」分頁` };
+        }
+        case "navigate": {
+          if (!BRAIN_NAV_ALLOWLIST.has(action.path)) {
+            return { ok: false, reason: `navigation blocked: ${action.path}` };
+          }
+          navigateToPath(action.path);
+          return { ok: true, message: `已導航到 ${action.path}` };
+        }
+        case "reset": {
+          setActiveTab("config");
+          setExpandedDiagnosisId(null);
+          return { ok: true, message: "已回到組態分頁" };
+        }
+        default:
+          return {
+            ok: false,
+            reason: `unsupported on brain-settings: ${action.type}`,
+          };
+      }
+    },
+  });
 
   const brainQuery = trpc.brain.get.useQuery(undefined, { retry: false });
   const catalogQuery = trpc.brain.catalog.useQuery(undefined, {
