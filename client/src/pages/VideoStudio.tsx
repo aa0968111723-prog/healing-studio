@@ -2961,40 +2961,6 @@ export default function VideoStudio() {
     }
   }, []);
 
-  // ── Restore Director AI sendToStudio payload (video path) ──
-  useEffect(() => {
-    try {
-      const raw = sessionStorage.getItem("sendToStudio");
-      if (!raw) return;
-      const data = JSON.parse(raw) as {
-        generationType?: string;
-        overrideEngine?: string;
-        source?: string;
-        sceneName?: string;
-      };
-      if (data.generationType !== "video") return;
-
-      if (data.overrideEngine) {
-        const canonical = normalizeEngineModelId(data.overrideEngine);
-        const matched = OVERRIDE_TAB_BY_ENGINE.find(x =>
-          canonical.startsWith(x.prefix)
-        );
-        if (matched) {
-          setActiveTab(matched.tab);
-        }
-      }
-
-      sessionStorage.removeItem("sendToStudio");
-      toast.success(
-        data.source === "director_ai" && data.sceneName
-          ? `已從導演 AI 載入「${data.sceneName}」到影片創作室`
-          : "已載入導演 AI 設定到影片創作室"
-      );
-    } catch {
-      // silent
-    }
-  }, []);
-
   const MODEL_COUNT = {
     t2v: 6,
     i2v: 5,
@@ -3112,6 +3078,40 @@ export default function VideoStudio() {
       }
     },
   });
+
+  // ── Restore Director AI sendToStudio payload (video path) ──
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("sendToStudio");
+      if (!raw) return;
+      const data = JSON.parse(raw) as {
+        generationType?: string;
+        overrideEngine?: string;
+        source?: string;
+        sceneName?: string;
+      };
+      if (data.generationType !== "video") return;
+
+      if (data.overrideEngine) {
+        const canonical = normalizeEngineModelId(data.overrideEngine);
+        const matched = OVERRIDE_TAB_BY_ENGINE.find(x =>
+          canonical.startsWith(x.prefix)
+        );
+        if (matched) {
+          setActiveTab(matched.tab);
+        }
+      }
+
+      sessionStorage.removeItem("sendToStudio");
+      toast.success(
+        data.source === "director_ai" && data.sceneName
+          ? `已從導演 AI 載入「${data.sceneName}」到影片創作室`
+          : "已載入導演 AI 設定到影片創作室"
+      );
+    } catch {
+      // silent
+    }
+  }, []);
 
   return (
     <div className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-5">
