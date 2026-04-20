@@ -2633,6 +2633,7 @@ export default function ImageStudio() {
     const uploadResp = await fetch("/api/upload", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({
         fileName: `image-studio-${Date.now()}.${ext}`,
         mimeType,
