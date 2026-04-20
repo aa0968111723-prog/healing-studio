@@ -1,0 +1,28 @@
+{
+  "_description": "AI provider endpoint pricing table. Costs are in USD per unit.",
+  "_lastUpdated": "2026-04-20",
+  "fal_ai": {
+    "fal-ai/flux-pro/v1.1": { "unitType": "image", "costPerUnit": 0.05 },
+    "fal-ai/flux-dev": { "unitType": "image", "costPerUnit": 0.025 },
+    "fal-ai/flux-schnell": { "unitType": "image", "costPerUnit": 0.003 },
+    "fal-ai/minimax-video/video-01-live": { "unitType": "second", "costPerUnit": 0.08 },
+    "fal-ai/kling-video/v1.5/pro": { "unitType": "second", "costPerUnit": 0.07 },
+    "fal-ai/hunyuan-video": { "unitType": "second", "costPerUnit": 0.06 },
+    "fal-ai/lora-training": { "unitType": "request", "costPerUnit": 2.0 }
+  },
+  "gemini": {
+    "gemini-2.5-pro": { "unitType": "token", "costPerUnit": 0.00000125 },
+    "gemini-2.5-flash": { "unitType": "token", "costPerUnit": 0.000000075 },
+    "gemini-2.0-flash": { "unitType": "token", "costPerUnit": 0.0000001 },
+    "imagen-4": { "unitType": "image", "costPerUnit": 0.04 },
+    "veo-2": { "unitType": "second", "costPerUnit": 0.05 }
+  },
+  "elevenlabs": {
+    "text-to-speech": { "unitType": "character", "costPerUnit": 0.00003 },
+    "voice-clone": { "unitType": "request", "costPerUnit": 0.0 },
+    "sound-effects": { "unitType": "second", "costPerUnit": 0.001 }
+  },
+  "suno": {
+    "music-generation": { "unitType": "credit", "costPerUnit": 0.05 }
+  }
+}
