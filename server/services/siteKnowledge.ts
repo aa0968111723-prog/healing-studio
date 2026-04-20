@@ -6,6 +6,14 @@
  *
  * 目的：讓 AI 助手能徹底了解整個平台並給出具體、精準的指引。
  */
+import {
+  serializeRegistryForSiteKnowledge,
+  type SerializableAppRegistryItem,
+} from "../../shared/appRegistry";
+
+export function getSerializedAppRegistryKnowledge(): SerializableAppRegistryItem[] {
+  return serializeRegistryForSiteKnowledge();
+}
 
 // ─── 全站頁面功能知識 ──────────────────────────────────────────────────────
 
