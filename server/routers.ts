@@ -1819,7 +1819,13 @@ export const appRouter = router({
             } as any,
           });
 
-          return { jobId, request_id, modelId, label };
+          return {
+            jobId,
+            request_id,
+            modelId,
+            label,
+            generationType: input.generationType,
+          };
         } catch (err) {
           // queue submit 失敗 → 退款 + 標記失敗
           if (!isDemoMode()) {
