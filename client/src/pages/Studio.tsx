@@ -1786,7 +1786,7 @@ export default function Studio() {
     }
 
     return caps;
-  }, [activeModality, mode, creativeMode, imageState.aspectRatio, videoState.duration, audioState.musicStyle, voiceState.voiceActorId, voiceState.emotionType]);
+  }, [activeModality, mode, creativeMode, imageState, videoState, audioState, voiceState]);
 
   useRegisterPageAgent({
     pageId: "studio",
@@ -1924,7 +1924,8 @@ export default function Studio() {
               setImageState(prev => ({ ...prev, negativePrompt: String(value) }));
               return { ok: true, message: "負面提示詞已更新" };
 
-            // ── 影片專屬 ──
+            // ── 影片/音樂共用：duration ──
+            // VideoWorkspaceState.duration 是 string（如 "8"），AudioWorkspaceState.duration 是 number
             case "duration":
               if (activeModality === "video") {
                 setVideoState(prev => ({ ...prev, duration: String(value) }));

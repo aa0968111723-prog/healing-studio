@@ -364,8 +364,11 @@ export function coerceAgentAction(input: unknown): AgentAction | null {
         name: String(name),
         steps: steps
           .filter(
-            (s: unknown): s is Record<string, unknown> =>
-              !!s && typeof s === "object" && typeof (s as Record<string, unknown>).actionType === "string"
+            (s: unknown): s is Record<string, unknown> => {
+              if (!s || typeof s !== "object") return false;
+              const rec = s as Record<string, unknown>;
+              return typeof rec.actionType === "string";
+            }
           )
           .map((s) => ({
             path: typeof s.path === "string" ? s.path : undefined,
