@@ -69,6 +69,7 @@ import type {
   AgentActionResult,
   AgentCapability,
 } from "../../../shared/agent-actions";
+import { normalizeEngineModelId } from "../../../shared/engineModelIds";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
@@ -195,29 +196,6 @@ const FAL_TASK_DEFAULTS: Record<FalTaskKey, string> = {
   "video-to-text": "fal-ai/nemotron/asr/stream",
   "video-to-video": "fal-ai/kling-video/v2.1/standard/video-to-video",
 };
-
-/** 舊版 fal/xxx alias -> fal-ai/xxx canonical id（前端防呆） */
-const LEGACY_FAL_ALIAS_MAP: Record<string, string> = {
-  "fal/flux-pro-1.1": "fal-ai/flux-pro/v1.1",
-  "fal/flux-dev": "fal-ai/flux/dev",
-  "fal/flux-schnell": "fal-ai/flux/schnell",
-  "fal/sd3-medium": "fal-ai/stable-diffusion-v3-medium",
-  "fal/ideogram-v2": "fal-ai/ideogram/v2",
-  "fal/aura-flow": "fal-ai/aura-flow",
-  "fal/kling-v2.1-pro-t2v": "fal-ai/kling-video/v2.1/pro/text-to-video",
-  "fal/minimax-t2v": "fal-ai/minimax-video/text-to-video",
-  "fal/luma-dream-machine-t2v": "fal-ai/luma-dream-machine",
-  "fal/wan-t2v-v2.1": "fal-ai/wan-t2v",
-  "fal/cogvideox-5b-t2v": "fal-ai/cogvideox-5b",
-  "fal/kling-v2.1-pro-i2v": "fal-ai/kling-video/v2.1/pro/image-to-video",
-  "fal/runway-gen3-i2v": "fal-ai/runway-gen3/turbo/image-to-video",
-  "fal/stable-audio": "fal-ai/stable-audio",
-  "fal/musicgen": "fal-ai/musicgen",
-  "fal/ace-step": "fal-ai/ace-step",
-};
-
-const normalizeEngineModelId = (value: string): string =>
-  LEGACY_FAL_ALIAS_MAP[value] ?? value;
 
 // Icons for each Fal task category
 const FAL_TASK_ICONS: Record<

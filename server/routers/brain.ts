@@ -57,6 +57,7 @@ import {
   resolveFalEnginesFromRow,
   DEFAULT_FAL_ENGINES,
 } from "../services/falDispatcher";
+import { normalizeEngineModelId } from "../../shared/engineModelIds";
 import {
   getAutoRepairConfig,
   setAutoRepairEnabled,
@@ -347,68 +348,6 @@ export const FAL_TASK_ENGINE_CATALOG = Object.fromEntries(
   }
 >;
 
-// 舊版 fal/xxx alias -> fal-ai/xxx canonical id（避免舊設定或舊前端值寫入後失效）
-const LEGACY_FAL_ALIAS_MAP: Record<string, string> = {
-  "fal/flux-pro-1.1": "fal-ai/flux-pro/v1.1",
-  "fal/flux-dev": "fal-ai/flux/dev",
-  "fal/flux-schnell": "fal-ai/flux/schnell",
-  "fal/sd3-medium": "fal-ai/stable-diffusion-v3-medium",
-  "fal/ideogram-v2": "fal-ai/ideogram/v2",
-  "fal/aura-flow": "fal-ai/aura-flow",
-  "fal/kling-v2.1-pro-t2v": "fal-ai/kling-video/v2.1/pro/text-to-video",
-  "fal/minimax-t2v": "fal-ai/minimax-video/text-to-video",
-  "fal/luma-dream-machine-t2v": "fal-ai/luma-dream-machine",
-  "fal/wan-t2v-v2.1": "fal-ai/wan-t2v",
-  "fal/cogvideox-5b-t2v": "fal-ai/cogvideox-5b",
-  "fal/kling-v2.1-pro-i2v": "fal-ai/kling-video/v2.1/pro/image-to-video",
-  "fal/runway-gen3-i2v": "fal-ai/runway-gen3/turbo/image-to-video",
-  "fal/stable-audio": "fal-ai/stable-audio",
-  "fal/musicgen": "fal-ai/musicgen",
-  "fal/ace-step": "fal-ai/ace-step",
-  "fal/audioldm2": "fal-ai/audioldm2",
-  "fal/playai-tts": "fal-ai/f5-tts",
-  "fal/kokoro": "fal-ai/kokoro",
-  "fal/orpheus-tts": "fal-ai/orpheus-tts",
-  "fal/dia-tts": "fal-ai/dia-tts",
-  "fal/triposr": "fal-ai/triposr",
-  "fal/zero123plus": "fal-ai/tripo3d",
-  "fal/stable-zero123": "fal-ai/tripo3d",
-  "fal/mv-adapter": "fal-ai/mv-adapter",
-  "fal/flux-dev-i2i": "fal-ai/flux/dev/image-to-image",
-  "fal/sd3-medium-i2i": "fal-ai/stable-diffusion-v3-medium/image-to-image",
-  "fal/ip-adapter-faceid": "fal-ai/ip-adapter-face-id",
-  "fal/controlnet-union": "fal-ai/flux/dev/controlnet",
-  "fal/aura-sr": "fal-ai/aura-sr",
-  "fal/rembg": "fal-ai/rembg",
-  "fal/meshy-4": "fal-ai/trellis",
-  "fal/hyper3d-rodin": "fal-ai/hyper3d/rodin",
-  "fal/shap-e": "fal-ai/tripo3d",
-  "fal/dreamgaussian": "fal-ai/triposr",
-  "fal/fantasia3d": "fal-ai/trellis",
-  "fal/mmaudio-v2": "fal-ai/mmaudio-v2",
-  "fal/stable-audio-v2a": "fal-ai/stable-audio",
-  "fal/audioldm2-v2a": "fal-ai/audioldm2",
-  "fal/sync-lipsync": "fal-ai/sync-lipsync",
-  "fal/elevenlabs-sound": "fal-ai/elevenlabs/tts/turbo-v2.5",
-  "fal/whisper": "fal-ai/whisper",
-  "fal/wizper": "fal-ai/wizper",
-  "fal/any-llm-video": "fal-ai/any-llm",
-  "fal/llava-next-video": "fal-ai/llava-next",
-  "fal/kling-v2.1-v2v": "fal-ai/kling-video/v2.1/standard/video-to-video",
-  "fal/wan-v2v": "fal-ai/wan/v2.1/video-to-video",
-  "fal/cogvideox-v2v": "fal-ai/cogvideox-5b/video-to-video",
-  "fal/topaz-video": "fal-ai/topaz-video",
-  "fal/stable-video-upscaler": "fal-ai/stable-video",
-  "fal/flux-lora-fast": "fal-ai/flux-lora-fast-training",
-  "fal/flux-lora-portrait": "fal-ai/flux-lora-fast-training",
-  "fal/dreambooth-flux": "fal-ai/flux-lora-fast-training",
-  "fal/sd3-lora": "fal-ai/flux-lora-fast-training",
-  "fal/cogvideox-lora": "fal-ai/flux-lora-fast-training",
-};
-
-const normalizeEngineModelId = (value: string): string =>
-  LEGACY_FAL_ALIAS_MAP[value] ?? value;
-
 const REASONING_MODEL_ALLOWLIST = Object.fromEntries(
   (
     Object.keys(REASONING_MODEL_CATALOG) as Array<keyof typeof REASONING_MODEL_CATALOG>
@@ -568,9 +507,9 @@ export const brainRouter = router({
     const generation: Record<string, unknown> = {};
     for (const slot of engineSlots) {
       const defaults = DEFAULT_GENERATION_ENGINES[slot];
-      const engine = row
-        ? String((row as any)[slot] ?? defaults.engine)
-        : defaults.engine;
+      const engine = normalizeEngineModelId(
+        row ? String((row as any)[slot] ?? defaults.engine) : defaults.engine
+      );
       generation[slot] = {
         engine,
         params: row ? ((row as any)[`${slot}Params`] ?? null) : null,
@@ -1022,17 +961,17 @@ export const brainRouter = router({
       const falEngines = resolveFalEnginesFromRow(brainRow);
 
       // 四模態引擎
-      const imageEngine = String(
-        brainRow?.imageEngine ?? falEngines.textToImage
+      const imageEngine = normalizeEngineModelId(
+        String(brainRow?.imageEngine ?? falEngines.textToImage)
       );
-      const videoEngine = String(
-        brainRow?.videoEngine ?? falEngines.textToVideo
+      const videoEngine = normalizeEngineModelId(
+        String(brainRow?.videoEngine ?? falEngines.textToVideo)
       );
-      const audioEngine = String(
-        brainRow?.audioEngine ?? falEngines.textToAudio
+      const audioEngine = normalizeEngineModelId(
+        String(brainRow?.audioEngine ?? falEngines.textToAudio)
       );
-      const voiceEngine = String(
-        brainRow?.voiceEngine ?? falEngines.textToSpeech
+      const voiceEngine = normalizeEngineModelId(
+        String(brainRow?.voiceEngine ?? falEngines.textToSpeech)
       );
 
       const buildEntry = (
