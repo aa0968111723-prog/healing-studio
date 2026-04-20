@@ -35,6 +35,9 @@ import type {
   ScriptSegment,
   ScriptOverview,
   QuickAction,
+  PlanningPhase,
+  PlanningMessage,
+  ScriptPlanningSession,
 } from "../../shared/types";
 
 // ─── Timeout Utility ────────────────────────────────────────────────────────
@@ -887,6 +890,313 @@ function escapeXml(str: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&apos;");
+}
+
+// ─── Planning Phase Prompts ─────────────────────────────────────────────────
+
+const PLANNING_PHASE_PROMPTS: Record<
+  PlanningPhase,
+  {
+    systemGuide: string;
+    warmthFocus: string;
+  }
+> = {
+  concept: {
+    systemGuide: `你正在幫助使用者進行「核心概念」階段的討論。
+這是整個長腳本規劃的第一步，目標是釐清：
+1. 核心主題 — 這個作品要傳達什麼？
+2. 目標觀眾 — 誰最需要這個故事？
+3. 核心情感 — 觀眾看完後應該帶走什麼感受？
+4. 創作願景 — 你希望這個作品呈現什麼樣的風貌？
+
+引導使用者慢慢思考，不要急著下結論。用溫暖的語氣探索他們內心真正想表達的東西。`,
+    warmthFocus: `注意：在概念探索階段特別關注「溫度」— 這個故事背後有什麼個人經歷或感受？是什麼驅動了創作慾望？幫助使用者挖掘最真誠的動機。`,
+  },
+  outline: {
+    systemGuide: `你正在幫助使用者進行「故事大綱」階段的討論。
+在這個階段，需要建構：
+1. 故事梗概 — 完整的故事弧線（開端→發展→高潮→結尾）
+2. 情感弧線 — 觀眾的情緒旅程設計
+3. 關鍵轉折點 — 讓故事有記憶點的轉折
+4. 角色設計 — 每個角色的情感旅程
+
+重點是讓故事有「呼吸感」，不要太密也不要太鬆。每個情節轉折都要有情感理由。`,
+    warmthFocus: `注意：在大綱階段注重「深層敘事」— 每個角色行為背後的真實動機是什麼？觀眾什麼時候會產生共鳴？什麼場景能讓人「感同身受」？強調人性的溫柔面向。`,
+  },
+  "scene-planning": {
+    systemGuide: `你正在幫助使用者進行「場景規劃」階段的討論。
+逐場景深入設計：
+1. 場景標題與描述
+2. 情緒氛圍目標
+3. 角色互動細節
+4. 場景地點與時間
+5. 預估時長
+6. 特殊備註
+
+每個場景都要服務於整體情感弧線。思考場景之間的過渡是否自然。`,
+    warmthFocus: `注意：在場景規劃中特別關注「細節的溫度」— 一個角色的小動作、一束光線、一段沉默…這些微小的細節往往最能打動人心。鼓勵使用者思考每個場景中最「人性化」的一刻。`,
+  },
+  "emotional-depth": {
+    systemGuide: `你正在幫助使用者進行「情感深度」分析與優化。
+這是最重要的規劃階段，需要：
+1. 情感節拍分析 — 每個場景的情感強度（1-10 分）
+2. 溫度評估 — 故事整體的「溫暖感」是否足夠？
+3. 深度洞察 — 哪些地方可以更深入？
+4. 共鳴點識別 — 哪些場景最容易引起觀眾共鳴？
+5. 療癒元素建議 — 如何加入更多療癒和撫慰的力量？
+
+你的角色是一位富有同理心的戲劇顧問，幫助使用者讓作品更有溫度、更打動人心。`,
+    warmthFocus: `核心任務：分析並增強「作品溫度」。溫度來自：
+- 真實的情感表達（不是表面的煽情）
+- 角色之間真誠的連結
+- 給觀眾留下思考和感受的空間
+- 不完美中的美好
+- 安靜但有力量的時刻
+提供具體、可執行的溫度提升建議。`,
+  },
+  schedule: {
+    systemGuide: `你正在幫助使用者進行「排程整合」階段的規劃。
+將前面所有的規劃成果轉化為可執行的製作排程：
+1. 拆分製作里程碑
+2. 估算每個階段所需時間
+3. 識別優先順序和依賴關係
+4. 建議團隊分工（如果適用）
+5. 設定品質檢查點
+
+排程應該留有充裕的創意調整空間，不要讓時間壓力犧牲作品品質。`,
+    warmthFocus: `注意：排程規劃也要保持「療癒」精神 — 避免過度緊迫的時間安排，留出反思和調整的空間。好的作品需要沉澱的時間。建議加入「靈感休息日」。`,
+  },
+};
+
+async function discussPlanningPhase(
+  phase: PlanningPhase,
+  messages: PlanningMessage[],
+  userMessage: string,
+  personality: "calm" | "creative" | "technical",
+  sessionContext?: {
+    concept?: ScriptPlanningSession["concept"];
+    outline?: ScriptPlanningSession["outline"];
+    scenes?: ScriptPlanningSession["scenes"];
+    emotionalBeats?: ScriptPlanningSession["emotionalBeats"];
+  }
+): Promise<{ reply: string; phaseSummary?: string }> {
+  const persona =
+    PERSONALITY_PROMPTS[personality] ?? PERSONALITY_PROMPTS.creative;
+  const phaseConfig = PLANNING_PHASE_PROMPTS[phase];
+  const fullDirectorPrompt = buildDirectorSystemPrompt(personality);
+
+  // Build context from previous phases
+  const contextParts: string[] = [];
+
+  if (sessionContext?.concept) {
+    const c = sessionContext.concept;
+    contextParts.push(`【已確立的核心概念】
+主題：${c.theme}
+目標觀眾：${c.targetAudience}
+核心情感：${c.coreEmotion}
+創作願景：${c.vision}`);
+  }
+
+  if (sessionContext?.outline) {
+    const o = sessionContext.outline;
+    contextParts.push(`【已建構的故事大綱】
+梗概：${o.synopsis}
+情感弧線：${o.emotionalArc}
+關鍵轉折：${o.keyTurningPoints.join("→")}
+角色：${o.characters.map(ch => `${ch.name}（${ch.role}）`).join("、")}`);
+  }
+
+  if (sessionContext?.scenes && sessionContext.scenes.length > 0) {
+    const sceneSummary = sessionContext.scenes
+      .map(
+        (s, i) =>
+          `#${i + 1} ${s.title}（${s.mood}）— ${s.emotionalGoal}`
+      )
+      .join("\n");
+    contextParts.push(`【已規劃的場景列表】\n${sceneSummary}`);
+  }
+
+  if (
+    sessionContext?.emotionalBeats &&
+    sessionContext.emotionalBeats.length > 0
+  ) {
+    const beatsSummary = sessionContext.emotionalBeats
+      .map(
+        b =>
+          `${b.label}：${b.emotion}（強度 ${b.intensity}/10）— ${b.warmthNote}`
+      )
+      .join("\n");
+    contextParts.push(`【情感節拍分析】\n${beatsSummary}`);
+  }
+
+  // Previous discussion for this phase (last 12 messages)
+  const previousDiscussion = messages
+    .slice(-12)
+    .map(d => `${d.role === "user" ? "使用者" : "導演"}：${d.content}`)
+    .join("\n");
+
+  if (previousDiscussion) {
+    contextParts.push(`\n【本階段先前的討論紀錄】\n${previousDiscussion}`);
+  }
+
+  const result = await withTimeout(
+    invokeLLM({
+      runName: "director-planning-discuss",
+      messages: [
+        {
+          role: "system",
+          content: `${fullDirectorPrompt}
+
+【長腳本規劃模式 — ${phase} 階段】
+
+${phaseConfig.systemGuide}
+
+${phaseConfig.warmthFocus}
+
+${contextParts.length > 0 ? contextParts.join("\n\n") : "（這是規劃的開始，尚無先前資訊）"}
+
+${persona.proactiveHint}
+
+回覆規則：
+1. 用溫暖、鼓勵的語氣引導使用者深入思考
+2. 提供具體、可執行的建議，不要空泛
+3. 適時提出引導性問題，幫助使用者挖掘更深層的想法
+4. 如果使用者的想法可以更深入，溫和地引導他們思考「為什麼」
+5. 慶祝每一個靈感的誕生，每一個想法都值得被珍惜
+6. 回覆末尾如果有適合生成的摘要結構（如核心概念、大綱等），用 \`\`\`json 包裹`,
+        },
+        {
+          role: "user",
+          content: userMessage,
+        },
+      ],
+      maxTokens: 4096,
+    }),
+    45_000,
+    "規劃討論"
+  );
+
+  const replyText =
+    typeof result.choices[0]?.message?.content === "string"
+      ? result.choices[0].message.content
+      : "";
+
+  // Try to extract structured summary from the reply
+  let phaseSummary: string | undefined;
+  const jsonMatch = replyText.match(/```json\s*([\s\S]*?)\s*```/);
+  if (jsonMatch) {
+    phaseSummary = jsonMatch[1];
+  }
+
+  return { reply: replyText, phaseSummary };
+}
+
+async function analyzeEmotionalDepth(
+  scenes: ScriptPlanningSession["scenes"],
+  concept: ScriptPlanningSession["concept"],
+  outline: ScriptPlanningSession["outline"],
+  personality: "calm" | "creative" | "technical"
+): Promise<{
+  emotionalBeats: ScriptPlanningSession["emotionalBeats"];
+  warmthScore: number;
+  depthAnalysis: string;
+}> {
+  const persona =
+    PERSONALITY_PROMPTS[personality] ?? PERSONALITY_PROMPTS.creative;
+
+  const sceneSummary = scenes
+    .map(
+      (s, i) =>
+        `#${i + 1} 「${s.title}」\n描述：${s.description}\n氛圍：${s.mood}\n情感目標：${s.emotionalGoal}\n角色：${s.characters.join("、")}\n地點：${s.location}`
+    )
+    .join("\n\n");
+
+  const conceptStr = concept
+    ? `主題：${concept.theme}，核心情感：${concept.coreEmotion}，目標觀眾：${concept.targetAudience}`
+    : "尚未定義";
+
+  const outlineStr = outline
+    ? `梗概：${outline.synopsis}\n情感弧線：${outline.emotionalArc}`
+    : "尚未定義";
+
+  const result = await withTimeout(
+    invokeLLM({
+      runName: "director-emotional-analysis",
+      messages: [
+        {
+          role: "system",
+          content: `${persona.directorStyle}
+
+你是一位專精於「情感深度分析」的戲劇顧問。你的任務是分析一個長腳本規劃案的情感結構，評估其「溫度」和「深度」。
+
+【核心概念】${conceptStr}
+【故事大綱】${outlineStr}
+
+【場景列表】
+${sceneSummary}
+
+請分析：
+1. 每個場景的情感節拍（emotion、intensity 1-10、warmthNote 溫度建議）
+2. 整體 warmthScore（1-10，10 是最溫暖）
+3. 深度分析報告（哪些地方可以更深入、更有溫度）`,
+        },
+        {
+          role: "user",
+          content: "請為這個作品進行完整的情感深度分析。",
+        },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "emotional_depth_analysis",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              emotionalBeats: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    sceneIndex: { type: "number" },
+                    label: { type: "string" },
+                    emotion: { type: "string" },
+                    intensity: { type: "number" },
+                    warmthNote: { type: "string" },
+                  },
+                  required: [
+                    "label",
+                    "emotion",
+                    "intensity",
+                    "warmthNote",
+                  ],
+                  additionalProperties: false,
+                },
+              },
+              warmthScore: { type: "number" },
+              depthAnalysis: { type: "string" },
+            },
+            required: ["emotionalBeats", "warmthScore", "depthAnalysis"],
+            additionalProperties: false,
+          },
+        },
+      },
+    }),
+    45_000,
+    "情感深度分析"
+  );
+
+  const content = result.choices[0]?.message?.content;
+  try {
+    const parsed = typeof content === "string" ? JSON.parse(content) : content;
+    return {
+      emotionalBeats: parsed.emotionalBeats ?? [],
+      warmthScore: parsed.warmthScore ?? 5,
+      depthAnalysis: parsed.depthAnalysis ?? "",
+    };
+  } catch {
+    return { emotionalBeats: [], warmthScore: 5, depthAnalysis: "" };
+  }
 }
 
 // ─── Core Director AI Logic ─────────────────────────────────────────────────
@@ -1999,5 +2309,254 @@ ${segmentSummaries}
           availabilityNote: avail.reason,
         };
       });
+    }),
+
+  // ─── Long Script Planning Mode ──────────────────────────────────────────
+
+  /** Discuss within a specific planning phase with AI */
+  planningDiscuss: protectedProcedure
+    .input(
+      z.object({
+        phase: z.enum([
+          "concept",
+          "outline",
+          "scene-planning",
+          "emotional-depth",
+          "schedule",
+        ]),
+        message: z.string().min(1),
+        personality: z
+          .enum(["calm", "creative", "technical"])
+          .default("creative"),
+        previousMessages: z
+          .array(
+            z.object({
+              role: z.enum(["user", "assistant"]),
+              content: z.string(),
+              timestamp: z.string(),
+              phase: z
+                .enum([
+                  "concept",
+                  "outline",
+                  "scene-planning",
+                  "emotional-depth",
+                  "schedule",
+                ])
+                .optional(),
+            })
+          )
+          .default([]),
+        sessionContext: z
+          .object({
+            concept: z
+              .object({
+                theme: z.string(),
+                targetAudience: z.string(),
+                coreEmotion: z.string(),
+                vision: z.string(),
+              })
+              .optional(),
+            outline: z
+              .object({
+                synopsis: z.string(),
+                emotionalArc: z.string(),
+                keyTurningPoints: z.array(z.string()),
+                characters: z.array(
+                  z.object({
+                    name: z.string(),
+                    role: z.string(),
+                    emotionalJourney: z.string(),
+                  })
+                ),
+              })
+              .optional(),
+            scenes: z
+              .array(
+                z.object({
+                  id: z.string(),
+                  title: z.string(),
+                  description: z.string(),
+                  mood: z.string(),
+                  emotionalGoal: z.string(),
+                  characters: z.array(z.string()),
+                  location: z.string(),
+                  duration: z.string(),
+                  notes: z.string(),
+                })
+              )
+              .optional(),
+            emotionalBeats: z
+              .array(
+                z.object({
+                  sceneIndex: z.number().optional(),
+                  label: z.string(),
+                  emotion: z.string(),
+                  intensity: z.number(),
+                  warmthNote: z.string(),
+                })
+              )
+              .optional(),
+          })
+          .default({}),
+      })
+    )
+    .mutation(async ({ input }) => {
+      return discussPlanningPhase(
+        input.phase,
+        input.previousMessages as PlanningMessage[],
+        input.message,
+        input.personality,
+        input.sessionContext
+      );
+    }),
+
+  /** Analyze emotional depth of the planned scenes */
+  planningAnalyzeDepth: protectedProcedure
+    .input(
+      z.object({
+        scenes: z.array(
+          z.object({
+            id: z.string(),
+            title: z.string(),
+            description: z.string(),
+            mood: z.string(),
+            emotionalGoal: z.string(),
+            characters: z.array(z.string()),
+            location: z.string(),
+            duration: z.string(),
+            notes: z.string(),
+          })
+        ),
+        concept: z
+          .object({
+            theme: z.string(),
+            targetAudience: z.string(),
+            coreEmotion: z.string(),
+            vision: z.string(),
+          })
+          .optional(),
+        outline: z
+          .object({
+            synopsis: z.string(),
+            emotionalArc: z.string(),
+            keyTurningPoints: z.array(z.string()),
+            characters: z.array(
+              z.object({
+                name: z.string(),
+                role: z.string(),
+                emotionalJourney: z.string(),
+              })
+            ),
+          })
+          .optional(),
+        personality: z
+          .enum(["calm", "creative", "technical"])
+          .default("creative"),
+      })
+    )
+    .mutation(async ({ input }) => {
+      return analyzeEmotionalDepth(
+        input.scenes,
+        input.concept,
+        input.outline,
+        input.personality
+      );
+    }),
+
+  /** Save a planning session to project notes */
+  savePlanningSession: protectedProcedure
+    .input(
+      z.object({
+        title: z.string().min(1).max(255),
+        sessionData: z.string(), // JSON stringified ScriptPlanningSession
+        personality: z
+          .enum(["calm", "creative", "technical"])
+          .default("creative"),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const id = await db.createProjectNote({
+        userId: ctx.user.id,
+        title: `[長腳本規劃] ${input.title}`,
+        content: input.sessionData,
+        noteType: "script",
+        tags: ["planning-session", input.personality, "long-script"],
+      });
+      return { id };
+    }),
+
+  /** List saved planning sessions */
+  listPlanningSessions: protectedProcedure.query(async ({ ctx }) => {
+    const notes = await db.getProjectNotesByUser(ctx.user.id);
+    return notes
+      .filter(
+        n => n.noteType === "script" && n.title.startsWith("[長腳本規劃]")
+      )
+      .map(n => ({
+        id: n.id,
+        title: n.title.replace("[長腳本規劃] ", ""),
+        createdAt: n.createdAt,
+        updatedAt: n.updatedAt,
+      }));
+  }),
+
+  /** Load a saved planning session */
+  loadPlanningSession: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const note = await db.getProjectNote(input.id);
+      if (!note || note.userId !== ctx.user.id) return null;
+      return {
+        id: note.id,
+        title: note.title.replace("[長腳本規劃] ", ""),
+        sessionData: note.content,
+        createdAt: note.createdAt,
+      };
+    }),
+
+  /** Delete a saved planning session */
+  deletePlanningSession: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const note = await db.getProjectNote(input.id);
+      if (!note || note.userId !== ctx.user.id) return { success: false };
+      await db.deleteProjectNote(input.id);
+      return { success: true };
+    }),
+
+  /** Create calendar milestones from planning session */
+  planningCreateMilestones: protectedProcedure
+    .input(
+      z.object({
+        milestones: z.array(
+          z.object({
+            title: z.string(),
+            targetDate: z.number(), // timestamp
+            phase: z.enum([
+              "concept",
+              "outline",
+              "scene-planning",
+              "emotional-depth",
+              "schedule",
+            ]),
+          })
+        ),
+        planningTitle: z.string(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const ids: number[] = [];
+      for (const m of input.milestones) {
+        const id = await db.createProjectNote({
+          userId: ctx.user.id,
+          title: `[規劃里程碑] ${input.planningTitle} — ${m.title}`,
+          content: `規劃階段：${m.phase}\n來自長腳本規劃：${input.planningTitle}`,
+          noteType: "calendar_event",
+          scheduledDate: new Date(m.targetDate),
+          tags: ["planning-milestone", m.phase],
+        });
+        ids.push(id);
+      }
+      return { ids };
     }),
 });
