@@ -855,6 +855,18 @@ export default memo(function ProactiveOrbWidget({
     setShowPanel(false);
   }, [guiding, isGuideOpen, openGuidePanel, closeGuidePanel]);
 
+  // Bridge from OrbGuidePanel → interaction panel views
+  const handleOpenInteraction = useCallback(
+    (view: "inspiration" | "focus-flow" | "chat") => {
+      setPanelView(view === "chat" ? "chat" : view === "focus-flow" ? "focus-flow" : "inspiration");
+      if (view === "chat") {
+        setChatMessages([{ role: "orb", text: greeting }]);
+      }
+      setShowPanel(true);
+    },
+    [greeting]
+  );
+
   // ─── Quick action handlers ───────────────────────────────────────────
 
   const handleQuickAction = useCallback(
@@ -1140,11 +1152,11 @@ export default memo(function ProactiveOrbWidget({
   const isFeedback = !!feedbackMessage;
   const isGuideMsg = !!guideMessage;
 
-  // Close panel when clicking outside
+  // Close panel when clicking/tapping outside
   useEffect(() => {
     if (!showPanel) return;
-    const handler = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
+    const handler = (e: MouseEvent | TouchEvent) => {
+      const target = (e instanceof TouchEvent ? e.target : e.target) as HTMLElement;
       if (
         !target.closest("[data-orb-panel]") &&
         !target.closest("[data-orb-trigger]")
@@ -1152,8 +1164,9 @@ export default memo(function ProactiveOrbWidget({
         setShowPanel(false);
       }
     };
-    document.addEventListener("click", handler, true);
-    return () => document.removeEventListener("click", handler, true);
+    // Use pointerdown for unified mouse+touch handling
+    document.addEventListener("pointerdown", handler as EventListener, true);
+    return () => document.removeEventListener("pointerdown", handler as EventListener, true);
   }, [showPanel]);
 
   // Auto-scroll chat
@@ -1185,7 +1198,7 @@ export default memo(function ProactiveOrbWidget({
         <AnimatePresence>
           {isGuideOpen && (
             <div className="pointer-events-auto">
-              <OrbGuidePanel onClose={closeGuidePanel} fullscreen />
+              <OrbGuidePanel onClose={closeGuidePanel} fullscreen onOpenInteraction={handleOpenInteraction} />
             </div>
           )}
         </AnimatePresence>
@@ -1467,7 +1480,7 @@ export default memo(function ProactiveOrbWidget({
         <AnimatePresence>
           {isGuideOpen && (
             <div data-orb-panel>
-              <OrbGuidePanel onClose={closeGuidePanel} />
+              <OrbGuidePanel onClose={closeGuidePanel} onOpenInteraction={handleOpenInteraction} />
             </div>
           )}
         </AnimatePresence>

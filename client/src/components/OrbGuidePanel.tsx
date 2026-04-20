@@ -13,7 +13,7 @@
 
 import { useRef, useEffect, useMemo, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Sparkles, X, RotateCcw, FastForward, MessageCircle, Navigation2, Send, Loader2, ChevronDown } from "lucide-react";
+import { ArrowRight, Sparkles, X, RotateCcw, FastForward, MessageCircle, Navigation2, Send, Loader2, ChevronDown, Lightbulb, Leaf } from "lucide-react";
 import { useOrbGuide, INTENT_CONFIGS, type GuideIntent } from "@/contexts/OrbGuideContext";
 import VisualSoul from "./VisualSoul";
 import { useAIState } from "@/contexts/AIStateContext";
@@ -130,9 +130,11 @@ interface OrbGuidePanelProps {
   onClose: () => void;
   /** When true, renders as a full-screen bottom sheet overlay (mobile responsive) */
   fullscreen?: boolean;
+  /** Callback to open the interaction panel with a specific view */
+  onOpenInteraction?: (view: "inspiration" | "focus-flow" | "chat") => void;
 }
 
-export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp }: OrbGuidePanelProps) {
+export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onOpenInteraction }: OrbGuidePanelProps) {
   const isMobile = useIsMobile();
   const fullscreen = fullscreenProp ?? isMobile;
   const {
@@ -487,15 +489,21 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp }: O
                   void handleChatSend();
                 }
               }}
-              placeholder="說一句話就好…"
-              className="flex-1 bg-transparent text-xs text-white placeholder:text-white/30 outline-none"
+              placeholder={fullscreen ? "輸入你的問題或想法…" : "說一句話就好…"}
+              className={cn(
+                "flex-1 bg-transparent text-white placeholder:text-white/30 outline-none",
+                fullscreen ? "text-sm" : "text-xs"
+              )}
             />
             <button
               onClick={() => void handleChatSend()}
               disabled={!chatInput.trim() || isChatLoading}
-              className="p-1 rounded-lg hover:bg-white/10 disabled:opacity-30 transition-all"
+              className={cn(
+                "rounded-lg hover:bg-white/10 disabled:opacity-30 transition-all",
+                fullscreen ? "p-1.5" : "p-1"
+              )}
             >
-              <Send className="w-3 h-3 text-white/70" />
+              <Send className={fullscreen ? "w-4 h-4 text-white/70" : "w-3 h-3 text-white/70"} />
             </button>
           </div>
         </div>
@@ -541,6 +549,44 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp }: O
                   </motion.div>
                 ))}
               </div>
+
+              {/* ── Quick-access: inspiration & focus-flow ── */}
+              {onOpenInteraction && (
+                <div className={cn("flex gap-2", fullscreen ? "pt-3" : "pt-2")}>
+                  <motion.button
+                    onClick={() => { onClose(); onOpenInteraction("inspiration"); }}
+                    className={cn(
+                      "flex-1 flex items-center justify-center gap-1.5 rounded-xl",
+                      "bg-white/6 hover:bg-white/12 border border-white/10 hover:border-white/20",
+                      "transition-all text-white/60 hover:text-white/90",
+                      fullscreen ? "py-2.5 text-sm" : "py-2 text-xs"
+                    )}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.35 }}
+                    whileTap={{ scale: 0.97 }}
+                  >
+                    <Lightbulb className={fullscreen ? "w-4 h-4" : "w-3 h-3"} />
+                    靈感探索
+                  </motion.button>
+                  <motion.button
+                    onClick={() => { onClose(); onOpenInteraction("focus-flow"); }}
+                    className={cn(
+                      "flex-1 flex items-center justify-center gap-1.5 rounded-xl",
+                      "bg-white/6 hover:bg-white/12 border border-white/10 hover:border-white/20",
+                      "transition-all text-white/60 hover:text-white/90",
+                      fullscreen ? "py-2.5 text-sm" : "py-2 text-xs"
+                    )}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 }}
+                    whileTap={{ scale: 0.97 }}
+                  >
+                    <Leaf className={fullscreen ? "w-4 h-4" : "w-3 h-3"} />
+                    專注流
+                  </motion.button>
+                </div>
+              )}
             </motion.div>
           )}
 
