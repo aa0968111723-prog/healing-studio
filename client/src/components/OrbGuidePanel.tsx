@@ -13,7 +13,7 @@
 
 import { useRef, useEffect, useMemo, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Sparkles, X, RotateCcw, FastForward, MessageCircle, Navigation2, Send, Loader2 } from "lucide-react";
+import { ArrowRight, Sparkles, X, RotateCcw, FastForward, MessageCircle, Navigation2, Send, Loader2, ChevronDown } from "lucide-react";
 import { useOrbGuide, INTENT_CONFIGS, type GuideIntent } from "@/contexts/OrbGuideContext";
 import VisualSoul from "./VisualSoul";
 import { useAIState } from "@/contexts/AIStateContext";
@@ -22,6 +22,7 @@ import { trpc } from "@/lib/trpc";
 import type { OrbGuideStepRewrite } from "../../../shared/agent-actions";
 import { summarizeOrbGuideActions } from "../../../shared/orb-guide-plans";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/useMobile";
 
 // ─── Typewriter hook ──────────────────────────────────────────────────────────
 
@@ -127,9 +128,13 @@ function OrbSpeechBubble({ text, small = false }: { text: string; small?: boolea
 
 interface OrbGuidePanelProps {
   onClose: () => void;
+  /** When true, renders as a full-screen bottom sheet overlay (mobile responsive) */
+  fullscreen?: boolean;
 }
 
-export default function OrbGuidePanel({ onClose }: OrbGuidePanelProps) {
+export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp }: OrbGuidePanelProps) {
+  const isMobile = useIsMobile();
+  const fullscreen = fullscreenProp ?? isMobile;
   const {
     step,
     intent,
@@ -312,85 +317,119 @@ export default function OrbGuidePanel({ onClose }: OrbGuidePanelProps) {
     "image", "video", "music", "voice", "script", "lora", "explore",
   ];
 
-  return (
+  // ── Fullscreen (mobile bottom-sheet) wrapper ──
+  const panelContent = (
     <motion.div
       className={cn(
         "relative flex flex-col overflow-hidden",
-        "w-[320px] max-h-[520px]",
-        "rounded-3xl border border-white/15",
+        fullscreen
+          ? "w-full h-full rounded-t-3xl sm:rounded-3xl"
+          : "w-[320px] max-h-[520px] rounded-3xl",
+        "border border-white/15",
         "bg-gradient-to-b from-black/75 via-black/65 to-black/75",
         "backdrop-blur-2xl shadow-2xl shadow-black/50"
       )}
-      initial={{ opacity: 0, scale: 0.9, y: 16 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.88, y: 10 }}
-      transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+      initial={fullscreen ? { opacity: 0, y: "100%" } : { opacity: 0, scale: 0.9, y: 16 }}
+      animate={fullscreen ? { opacity: 1, y: 0 } : { opacity: 1, scale: 1, y: 0 }}
+      exit={fullscreen ? { opacity: 0, y: "60%" } : { opacity: 0, scale: 0.88, y: 10 }}
+      transition={fullscreen ? { type: "spring", stiffness: 300, damping: 30 } : { duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
     >
       {/* ── 頂部光暈裝飾 ── */}
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
 
+      {/* ── Mobile drag indicator ── */}
+      {fullscreen && (
+        <div className="flex justify-center pt-3 pb-1 shrink-0">
+          <div className="w-10 h-1 rounded-full bg-white/25" />
+        </div>
+      )}
+
       {/* ── Header ── */}
-      <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
+      <div className={cn(
+        "flex items-center justify-between shrink-0",
+        fullscreen ? "px-5 pt-3 pb-2" : "px-4 pt-4 pb-2"
+      )}>
         <div className="flex items-center gap-2.5">
           <VisualSoul
             state={step === "confirming" ? "acting" : step === "ask_detail" ? "thinking" : panelMode === "chat" && isChatLoading ? "thinking" : "idle"}
             personality={personality}
-            size="sm"
+            size={fullscreen ? "md" : "sm"}
           />
-          <span className="text-xs font-medium text-white/60 tracking-wide">光球助手</span>
+          <span className={cn(
+            "font-medium text-white/60 tracking-wide",
+            fullscreen ? "text-sm" : "text-xs"
+          )}>光球助手</span>
         </div>
         <div className="flex items-center gap-1">
           {panelMode === "guide" && step !== "ask_intent" && (
             <motion.button
               onClick={reset}
-              className="p-1.5 rounded-full hover:bg-white/10 text-white/40 hover:text-white/70 transition-all"
+              className={cn(
+                "rounded-full hover:bg-white/10 text-white/40 hover:text-white/70 transition-all",
+                fullscreen ? "p-2" : "p-1.5"
+              )}
               whileTap={{ scale: 0.9 }}
               title="重新選擇"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
+              <RotateCcw className={fullscreen ? "w-4 h-4" : "w-3.5 h-3.5"} />
             </motion.button>
           )}
           <motion.button
             onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-white/10 text-white/40 hover:text-white/70 transition-all"
+            className={cn(
+              "rounded-full hover:bg-white/10 text-white/40 hover:text-white/70 transition-all",
+              fullscreen ? "p-2" : "p-1.5"
+            )}
             whileTap={{ scale: 0.9 }}
           >
-            <X className="w-3.5 h-3.5" />
+            {fullscreen ? (
+              <ChevronDown className="w-5 h-5" />
+            ) : (
+              <X className="w-3.5 h-3.5" />
+            )}
           </motion.button>
         </div>
       </div>
 
       {/* ── Mode Tabs ── */}
-      <div className="flex items-center gap-1 px-4 pb-3 shrink-0">
+      <div className={cn(
+        "flex items-center gap-1 shrink-0",
+        fullscreen ? "px-5 pb-3" : "px-4 pb-3"
+      )}>
         <button
           onClick={() => setPanelMode("guide")}
           className={cn(
-            "flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl text-xs font-medium transition-all",
+            "flex-1 flex items-center justify-center gap-1.5 rounded-xl font-medium transition-all",
+            fullscreen ? "py-2.5 text-sm" : "py-1.5 text-xs",
             panelMode === "guide"
               ? "bg-white/15 text-white"
               : "text-white/40 hover:text-white/70 hover:bg-white/8"
           )}
         >
-          <Navigation2 className="w-3 h-3" />
+          <Navigation2 className={fullscreen ? "w-4 h-4" : "w-3 h-3"} />
           引導帶路
         </button>
         <button
           onClick={() => setPanelMode("chat")}
           className={cn(
-            "flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl text-xs font-medium transition-all",
+            "flex-1 flex items-center justify-center gap-1.5 rounded-xl font-medium transition-all",
+            fullscreen ? "py-2.5 text-sm" : "py-1.5 text-xs",
             panelMode === "chat"
               ? "bg-white/15 text-white"
               : "text-white/40 hover:text-white/70 hover:bg-white/8"
           )}
         >
-          <MessageCircle className="w-3 h-3" />
+          <MessageCircle className={fullscreen ? "w-4 h-4" : "w-3 h-3"} />
           自由聊天
         </button>
       </div>
 
       {/* ── Chat Mode ── */}
       {panelMode === "chat" && (
-        <div className="flex flex-col flex-1 overflow-hidden px-4 pb-3 gap-2">
+        <div className={cn(
+          "flex flex-col flex-1 overflow-hidden gap-2",
+          fullscreen ? "px-5 pb-4" : "px-4 pb-3"
+        )}>
           {/* Chat messages */}
           <div className="flex-1 overflow-y-auto space-y-2 scrollbar-thin scrollbar-thumb-white/10">
             {chatMessages.length === 0 && (
@@ -409,7 +448,8 @@ export default function OrbGuidePanel({ onClose }: OrbGuidePanelProps) {
               >
                 <div
                   className={cn(
-                    "max-w-[88%] px-3 py-2 rounded-2xl text-xs leading-relaxed",
+                    "max-w-[88%] px-3 py-2 rounded-2xl leading-relaxed",
+                    fullscreen ? "text-sm" : "text-xs",
                     msg.role === "user"
                       ? "bg-white/20 text-white rounded-br-sm"
                       : "bg-white/8 text-white/85 rounded-bl-sm border border-white/10"
@@ -421,7 +461,10 @@ export default function OrbGuidePanel({ onClose }: OrbGuidePanelProps) {
             ))}
             {isChatLoading && (
               <div className="flex justify-start">
-                <div className="px-3 py-2 rounded-2xl rounded-bl-sm bg-white/8 border border-white/10 text-white/50 text-xs flex items-center gap-1.5">
+                <div className={cn(
+                  "px-3 py-2 rounded-2xl rounded-bl-sm bg-white/8 border border-white/10 text-white/50 flex items-center gap-1.5",
+                  fullscreen ? "text-sm" : "text-xs"
+                )}>
                   <Loader2 className="w-3 h-3 animate-spin" />
                   思考中…
                 </div>
@@ -430,7 +473,10 @@ export default function OrbGuidePanel({ onClose }: OrbGuidePanelProps) {
             <div ref={chatEndRef} />
           </div>
           {/* Chat input */}
-          <div className="flex items-center gap-2 bg-white/8 rounded-2xl border border-white/10 px-3 py-2 shrink-0">
+          <div className={cn(
+            "flex items-center gap-2 bg-white/8 rounded-2xl border border-white/10 shrink-0",
+            fullscreen ? "px-4 py-3" : "px-3 py-2"
+          )}>
             <input
               ref={chatInputRef}
               value={chatInput}
@@ -459,7 +505,10 @@ export default function OrbGuidePanel({ onClose }: OrbGuidePanelProps) {
       {panelMode === "guide" && (
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto px-4 pb-4 space-y-3 scrollbar-thin scrollbar-thumb-white/10"
+        className={cn(
+          "flex-1 overflow-y-auto space-y-3 scrollbar-thin scrollbar-thumb-white/10",
+          fullscreen ? "px-5 pb-5" : "px-4 pb-4"
+        )}
       >
         <AnimatePresence mode="wait">
 
@@ -474,7 +523,10 @@ export default function OrbGuidePanel({ onClose }: OrbGuidePanelProps) {
             >
               <OrbSpeechBubble text="嘿 👋 今天想做什麼？選一個，我帶你去。" />
 
-              <div className="grid grid-cols-1 gap-2 pt-1">
+              <div className={cn(
+                "gap-2 pt-1",
+                fullscreen ? "grid grid-cols-2" : "grid grid-cols-1"
+              )}>
                 {intentOrder.map((id, i) => (
                   <motion.div
                     key={id}
@@ -635,6 +687,38 @@ export default function OrbGuidePanel({ onClose }: OrbGuidePanelProps) {
 
       {/* ── 底部光暈線 ── */}
       <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+
+      {/* ── 底部安全區 (mobile fullscreen) ── */}
+      {fullscreen && (
+        <div className="shrink-0" style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }} />
+      )}
     </motion.div>
   );
+
+  // ── Fullscreen: wrap in fixed overlay; Desktop: return panel directly ──
+  if (fullscreen) {
+    return (
+      <>
+        {/* Backdrop */}
+        <motion.div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70]"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={onClose}
+        />
+        {/* Bottom sheet container */}
+        <div
+          className="fixed inset-x-0 bottom-0 z-[71] flex flex-col"
+          style={{
+            maxHeight: "calc(92vh - env(safe-area-inset-top, 0px))",
+          }}
+        >
+          {panelContent}
+        </div>
+      </>
+    );
+  }
+
+  return panelContent;
 }
