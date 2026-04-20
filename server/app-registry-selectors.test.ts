@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   getAgentHomeEntries,
+  getPrimaryQuickAction,
   getPageById,
   getPageByPath,
   getSidebarGroups,
@@ -32,5 +33,10 @@ describe("appRegistry selectors", () => {
     expect(entries[0]?.agentEntryPriority).toBeLessThanOrEqual(
       entries[1]?.agentEntryPriority ?? Number.MAX_SAFE_INTEGER
     );
+  });
+
+  it("reads primary quick action by page id", () => {
+    const quickAction = getPrimaryQuickAction("agent-chat");
+    expect(quickAction?.id).toBe("start-guided-flow");
   });
 });

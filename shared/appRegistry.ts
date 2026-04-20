@@ -1,3 +1,5 @@
+import type { AgentAction } from "./agent-actions";
+
 export type AppPageGroupId =
   | "orb"
   | "create"
@@ -12,6 +14,12 @@ export interface AppPageQuickAction {
   id: string;
   label: string;
   description: string;
+  /** Optional route jump for one-tap entry cards (/agent, orb widget). */
+  path?: string;
+  /** Optional starter prompt to send into chat directly. */
+  prompt?: string;
+  /** Optional structured action for PageAgent bus. */
+  action?: AgentAction;
 }
 
 export interface AppPageRegistryItem {
@@ -55,7 +63,14 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     showInAgentHome: true,
     agentEntryPriority: 1,
     supportsPageAgent: true,
-    quickActions: [{ id: "start-guided-flow", label: "幫我開始", description: "用一句話開始任務導引" }],
+    quickActions: [
+      {
+        id: "start-guided-flow",
+        label: "幫我開始",
+        description: "用一句話開始任務導引",
+        prompt: "我不知道從哪開始，請一步步帶我。",
+      },
+    ],
     orbHints: ["我不知道從哪裡開始", "請你帶我做第一步"],
   },
   {
@@ -69,7 +84,14 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     showInAgentHome: true,
     agentEntryPriority: 2,
     supportsPageAgent: true,
-    quickActions: [{ id: "open-studio", label: "開始創作", description: "進入統一創作入口" }],
+    quickActions: [
+      {
+        id: "open-studio",
+        label: "開始創作",
+        description: "進入統一創作入口",
+        path: "/studio",
+      },
+    ],
     orbHints: ["我想快速做一個作品"],
   },
   {
@@ -83,7 +105,15 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     showInAgentHome: true,
     agentEntryPriority: 3,
     supportsPageAgent: true,
-    quickActions: [{ id: "image-generate", label: "生成圖片", description: "用提示詞建立新圖片" }],
+    quickActions: [
+      {
+        id: "image-generate",
+        label: "生成圖片",
+        description: "用提示詞建立新圖片",
+        action: { type: "setModality", modality: "image" },
+        prompt: "幫我做一張療癒風景圖。",
+      },
+    ],
     orbHints: ["幫我生成一張圖片"],
   },
   {
@@ -97,7 +127,15 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     showInAgentHome: true,
     agentEntryPriority: 4,
     supportsPageAgent: true,
-    quickActions: [{ id: "video-generate", label: "生成影片", description: "建立短片或動態片段" }],
+    quickActions: [
+      {
+        id: "video-generate",
+        label: "生成影片",
+        description: "建立短片或動態片段",
+        action: { type: "setModality", modality: "video" },
+        prompt: "我想做一支 5 秒鐘療癒短片。",
+      },
+    ],
     orbHints: ["我想做一支短影片"],
   },
   {
@@ -111,7 +149,15 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     showInAgentHome: true,
     agentEntryPriority: 5,
     supportsPageAgent: true,
-    quickActions: [{ id: "music-generate", label: "生成音樂", description: "建立背景音樂或語音" }],
+    quickActions: [
+      {
+        id: "music-generate",
+        label: "生成音樂",
+        description: "建立背景音樂或語音",
+        action: { type: "setModality", modality: "audio" },
+        prompt: "幫我生成一段放鬆冥想音樂。",
+      },
+    ],
     orbHints: ["我想做配樂或配音"],
   },
   {
@@ -125,7 +171,14 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     showInAgentHome: true,
     agentEntryPriority: 6,
     supportsPageAgent: true,
-    quickActions: [{ id: "script-plan", label: "規劃腳本", description: "先產生故事與分鏡" }],
+    quickActions: [
+      {
+        id: "script-plan",
+        label: "規劃腳本",
+        description: "先產生故事與分鏡",
+        prompt: "幫我規劃一段 30 秒故事腳本。",
+      },
+    ],
     orbHints: ["幫我先整理腳本"],
   },
   {
@@ -383,6 +436,9 @@ export const getAgentHomeEntries = () =>
   APP_PAGE_REGISTRY
     .filter(page => page.showInAgentHome)
     .sort((a, b) => a.agentEntryPriority - b.agentEntryPriority);
+
+export const getPrimaryQuickAction = (pageId: string) =>
+  getPageById(pageId)?.quickActions[0];
 
 export interface SerializableAppRegistryItem {
   id: string;

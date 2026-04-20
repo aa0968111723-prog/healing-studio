@@ -43,6 +43,8 @@ import { useOrbGuide } from "@/contexts/OrbGuideContext";
 import OrbGuidePanel from "./OrbGuidePanel";
 import { usePageAgent } from "@/contexts/PageAgentContext";
 import { parseLLMActions, type AgentAction } from "../../../shared/agent-actions";
+import { useLocation } from "wouter";
+import { getPageByPath } from "@/config/appRegistry";
 
 type Props = {
   className?: string;
@@ -758,6 +760,12 @@ export default memo(function ProactiveOrbWidget({
 
   // ─── PageAgent bus（Phase 1：讓 autoFillPrompt / autoTabId 真的被消費） ──
   const pageAgent = usePageAgent();
+  const [locationPath] = useLocation();
+  const currentRegistryPage = useMemo(
+    () => getPageByPath(locationPath),
+    [locationPath]
+  );
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 監聽 orb-guide-navigate 事件：導航 + 把 Phase 3e 帶過來的 AgentAction[] 丟進 bus
   useEffect(() => {
@@ -800,6 +808,35 @@ export default memo(function ProactiveOrbWidget({
       clearArrivedMessage();
     }
   }, [arrivedMessage, clearArrivedMessage, showFeedback]);
+
+  // 30 秒無操作時，給一個柔和提示
+  useEffect(() => {
+    const resetIdleTimer = () => {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = setTimeout(() => {
+        showFeedback("要不要我幫你開始？");
+      }, 30_000);
+    };
+
+    const activityEvents: Array<keyof WindowEventMap> = [
+      "pointerdown",
+      "mousemove",
+      "keydown",
+      "touchstart",
+      "scroll",
+    ];
+    activityEvents.forEach(event =>
+      window.addEventListener(event, resetIdleTimer, { passive: true })
+    );
+    resetIdleTimer();
+
+    return () => {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      activityEvents.forEach(event =>
+        window.removeEventListener(event, resetIdleTimer)
+      );
+    };
+  }, [showFeedback]);
 
   // ─── Orb click handler (single click opens panel) ────────────────────
 
@@ -875,6 +912,30 @@ export default memo(function ProactiveOrbWidget({
       }
     },
     [onApplyInspiration, onRestartTour, greeting, showFeedback]
+  );
+
+  const handleRegistryQuickAction = useCallback(
+    async (quickAction: {
+      path?: string;
+      action?: AgentAction;
+      prompt?: string;
+      label: string;
+    }) => {
+      if (quickAction.path) {
+        onNavigate?.(quickAction.path);
+      }
+      if (quickAction.action) {
+        await pageAgent.dispatch(quickAction.action, {
+          source: "manual",
+        });
+      }
+      if (quickAction.prompt) {
+        setPanelView("chat");
+        setChatInput(quickAction.prompt);
+      }
+      showFeedback(`已開始：${quickAction.label}`);
+    },
+    [onNavigate, pageAgent, showFeedback]
   );
 
   // ─── AI chat mutation ─────────────────────────────────────────────────
@@ -1251,6 +1312,13 @@ export default memo(function ProactiveOrbWidget({
                         {greeting}
                       </p>
                     </div>
+                    {currentRegistryPage?.orbHints?.length ? (
+                      <div className="mb-3 rounded-xl border border-emerald-100 bg-emerald-50/40 px-3 py-2">
+                        <p className="text-[11px] text-emerald-700 leading-relaxed">
+                          💡 {currentRegistryPage.orbHints[0]}
+                        </p>
+                      </div>
+                    ) : null}
 
                     {/* Quick Actions — redesigned as compact cards */}
                     <div className="space-y-1.5 mb-3">
@@ -1281,6 +1349,38 @@ export default memo(function ProactiveOrbWidget({
                         </button>
                       ))}
                     </div>
+
+                    {currentRegistryPage?.quickActions?.length ? (
+                      <div className="space-y-1.5 mb-3">
+                        <p className="text-[11px] text-gray-400 px-1">
+                          這頁可直接開始：
+                        </p>
+                        {currentRegistryPage.quickActions.map(action => (
+                          <button
+                            key={action.id}
+                            onClick={() =>
+                              void handleRegistryQuickAction({
+                                path: action.path,
+                                action: action.action,
+                                prompt: action.prompt,
+                                label: action.label,
+                              })
+                            }
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200/70 bg-white/70 hover:bg-gray-50 transition-colors text-left"
+                          >
+                            <Navigation className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                            <div className="min-w-0">
+                              <p className="text-xs font-medium text-gray-700 truncate">
+                                {action.label}
+                              </p>
+                              <p className="text-[11px] text-gray-400 truncate">
+                                {action.description}
+                              </p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
 
                     {/* Inspiration Button */}
                     <button
