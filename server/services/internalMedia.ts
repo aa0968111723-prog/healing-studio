@@ -74,15 +74,35 @@ function classifyByKey(key: string): PersistOptions["category"] {
   return "binary";
 }
 
+function hasMediaHint(path: string[]): boolean {
+  return path.some(part =>
+    /(image|images|video|videos|audio|voice|thumbnail|mask|texture|pose|poster|preview|cover|media|asset|file|output|result)/i.test(
+      part
+    )
+  );
+}
+
+function lastPathSegmentSupportsUrl(lastKey: string): boolean {
+  return /(url|uri|href|src|image|images|video|videos|audio|voice|thumbnail|mask|texture|pose|poster|preview|cover|media|asset|file|output|result)/i.test(
+    lastKey
+  );
+}
+
+function shouldLocalizeUrl(path: string[]): boolean {
+  if (path.length === 0) return false;
+  const lastKey = path[path.length - 1] || "";
+  return hasMediaHint(path) && lastPathSegmentSupportsUrl(lastKey);
+}
+
 export async function localizeResultUrls(
   value: unknown,
   prefix = "generated/result"
 ): Promise<unknown> {
-  const walk = async (node: unknown, keyHint = ""): Promise<unknown> => {
+  const walk = async (node: unknown, path: string[] = []): Promise<unknown> => {
     if (typeof node === "string") {
-      if (/^https?:\/\//i.test(node)) {
+      if (/^https?:\/\//i.test(node) && shouldLocalizeUrl(path)) {
         return persistExternalMediaUrl(node, {
-          category: classifyByKey(keyHint),
+          category: classifyByKey(path[path.length - 1] || ""),
           prefix,
         }).catch(() => node);
       }
@@ -90,14 +110,14 @@ export async function localizeResultUrls(
     }
 
     if (Array.isArray(node)) {
-      const next = await Promise.all(node.map(v => walk(v, keyHint)));
+      const next = await Promise.all(node.map(v => walk(v, path)));
       return next;
     }
 
     if (node && typeof node === "object") {
       const entries = Object.entries(node as Record<string, unknown>);
       const next = await Promise.all(
-        entries.map(async ([k, v]) => [k, await walk(v, k)] as const)
+        entries.map(async ([k, v]) => [k, await walk(v, [...path, k])] as const)
       );
       return Object.fromEntries(next);
     }
