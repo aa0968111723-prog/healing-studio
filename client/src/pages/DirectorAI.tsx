@@ -1189,7 +1189,7 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
           },
         })
       );
-      navigate("/studio");
+      navigate(task.modality === "image" ? "/image-studio" : "/studio");
       toast.success(
         `已發送「${task.labelZh}」到工作室（${selectedModels[task.modality]}）`
       );
@@ -1231,7 +1231,8 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
         },
       })
     );
-    navigate("/studio");
+    const onlyImage = activeTasks.every(t => t.modality === "image");
+    navigate(onlyImage ? "/image-studio" : "/studio");
     toast.success(`已發送 ${activeTasks.length} 個任務到工作室`);
   }, [tasks, selectedModels, segment, navigate]);
 
@@ -2177,7 +2178,7 @@ export default function DirectorAI() {
           audioScript: script.audioScript,
         })
       );
-      navigate("/studio");
+      navigate("/image-studio");
       toast.success("腳本已發送到工作室");
     },
     [navigate]

@@ -67,6 +67,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { uploadFileToS3 } from "@/lib/upload";
 import { useRegisterBgTask } from "@/contexts/BackgroundTasksContext";
+import { normalizeEngineModelId } from "@shared/engineModelIds";
 import {
   useRegisterPageAgent,
   type AgentAction,
@@ -2387,6 +2388,44 @@ export default function ImageStudio() {
           sessionStorage.removeItem("applyModel");
         }
       }
+    } catch {
+      // silent
+    }
+  }, []);
+
+  // ── Restore Director AI sendToStudio payload (image path) ──
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("sendToStudio");
+      if (!raw) return;
+      const data = JSON.parse(raw) as {
+        prompt?: string;
+        generationType?: string;
+        overrideEngine?: string;
+        source?: string;
+        sceneName?: string;
+      };
+      if (data.generationType !== "image") return;
+
+      if (typeof data.prompt === "string" && data.prompt.trim()) {
+        setPrompt(data.prompt);
+      }
+
+      if (data.overrideEngine) {
+        const canonical = normalizeEngineModelId(data.overrideEngine);
+        const matched = MODELS.find(m => m.falId === canonical);
+        if (matched) {
+          setActiveTab(matched.category);
+          setSelectedModelId(matched.id);
+        }
+      }
+
+      sessionStorage.removeItem("sendToStudio");
+      toast.success(
+        data.source === "director_ai" && data.sceneName
+          ? `已從導演 AI 載入「${data.sceneName}」到圖片創作室`
+          : "已載入導演 AI 設定到圖片創作室"
+      );
     } catch {
       // silent
     }
