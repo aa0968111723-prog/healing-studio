@@ -438,6 +438,25 @@ const FAL_ENGINE_ALLOWLIST = new Set(
     .map(m => m.modelId)
 );
 
+const FAL_TASK_FIELD_ALLOWLIST = new Set([
+  "falImageTo3dEngine",
+  "falImageToImageEngine",
+  "falImageToJsonEngine",
+  "falImageToVideoEngine",
+  "falJsonEngine",
+  "falLlmEngine",
+  "falTextTo3dEngine",
+  "falTextToAudioEngine",
+  "falTextToImageEngine",
+  "falTextToJsonEngine",
+  "falTextToSpeechEngine",
+  "falTextToVideoEngine",
+  "falTrainingEngine",
+  "falVideoToAudioEngine",
+  "falVideoToTextEngine",
+  "falVideoToVideoEngine",
+]);
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Router
 // ═══════════════════════════════════════════════════════════════════════════
@@ -560,10 +579,30 @@ export const brainRouter = router({
       };
     }
 
+    const falEngines = resolveFalEnginesFromRow(row);
+
     return {
       hasCustomConfig: row !== null,
       reasoning,
       generation,
+      falTasks: {
+        imageTo3d: normalizeEngineModelId(falEngines.imageToThreeD),
+        imageToImage: normalizeEngineModelId(falEngines.imageToImage),
+        imageToJson: normalizeEngineModelId(falEngines.imageToJson),
+        imageToVideo: normalizeEngineModelId(falEngines.imageToVideo),
+        json: normalizeEngineModelId(falEngines.json),
+        llm: normalizeEngineModelId(falEngines.llm),
+        textTo3d: normalizeEngineModelId(falEngines.textToThreeD),
+        textToAudio: normalizeEngineModelId(falEngines.textToAudio),
+        textToImage: normalizeEngineModelId(falEngines.textToImage),
+        textToJson: normalizeEngineModelId(falEngines.textToJson),
+        textToSpeech: normalizeEngineModelId(falEngines.textToSpeech),
+        textToVideo: normalizeEngineModelId(falEngines.textToVideo),
+        training: normalizeEngineModelId(falEngines.training),
+        videoToAudio: normalizeEngineModelId(falEngines.videoToAudio),
+        videoToText: normalizeEngineModelId(falEngines.videoToText),
+        videoToVideo: normalizeEngineModelId(falEngines.videoToVideo),
+      },
     };
   }),
 
@@ -879,25 +918,73 @@ export const brainRouter = router({
           message: "資料庫不可用",
         });
 
+      const rawUpdateField = input.brainSlot.endsWith("Engine")
+        ? input.brainSlot
+        : `${input.brainSlot}Model`;
+
+      let nextModel = normalizeEngineModelId(input.toModel);
+
+      if (rawUpdateField.endsWith("Model")) {
+        const slot = rawUpdateField.replace("Model", "");
+        const allowlist =
+          REASONING_MODEL_ALLOWLIST[
+            slot as keyof typeof REASONING_MODEL_ALLOWLIST
+          ];
+        if (!allowlist || !allowlist.has(nextModel)) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `不支援的模型：${nextModel}`,
+          });
+        }
+      } else if (rawUpdateField.endsWith("Engine")) {
+        if (
+          FAL_TASK_FIELD_ALLOWLIST.has(rawUpdateField)
+            ? !FAL_ENGINE_ALLOWLIST.has(nextModel)
+            : !GENERATION_ENGINE_ALLOWLIST[
+                rawUpdateField as keyof typeof GENERATION_ENGINE_ALLOWLIST
+              ]?.has(nextModel)
+        ) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `不支援的引擎：${nextModel}`,
+          });
+        }
+      } else {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `不支援的 brainSlot：${input.brainSlot}`,
+        });
+      }
+
       // 寫入切換日誌
       await db.insert(userModelSwitchLogs).values({
         userId: ctx.user.id,
         brainSlot: input.brainSlot as any,
         fromModel: input.fromModel,
-        toModel: input.toModel,
+        toModel: nextModel,
         reason: input.reason ?? `手動切換 ${input.brainSlot}`,
         switchSource: input.switchSource as any,
       } as any);
 
-      // 更新對應的模型欄位
-      const updateField = input.brainSlot.endsWith("Engine")
-        ? input.brainSlot
-        : `${input.brainSlot}Model`;
+      // 更新對應的模型欄位（不存在則自動建立 row）
+      const updateField = rawUpdateField;
+      const existing = await db
+        .select({ id: userAiBrain.id })
+        .from(userAiBrain)
+        .where(eq(userAiBrain.userId, ctx.user.id))
+        .limit(1);
 
-      await db
-        .update(userAiBrain)
-        .set({ [updateField]: input.toModel } as any)
-        .where(eq(userAiBrain.userId, ctx.user.id));
+      if (existing.length > 0) {
+        await db
+          .update(userAiBrain)
+          .set({ [updateField]: nextModel } as any)
+          .where(eq(userAiBrain.userId, ctx.user.id));
+      } else {
+        await db.insert(userAiBrain).values({
+          userId: ctx.user.id,
+          [updateField]: nextModel,
+        } as any);
+      }
 
       return { success: true };
     }),

@@ -196,6 +196,29 @@ const FAL_TASK_DEFAULTS: Record<FalTaskKey, string> = {
   "video-to-video": "fal-ai/kling-video/v2.1/standard/video-to-video",
 };
 
+/** 舊版 fal/xxx alias -> fal-ai/xxx canonical id（前端防呆） */
+const LEGACY_FAL_ALIAS_MAP: Record<string, string> = {
+  "fal/flux-pro-1.1": "fal-ai/flux-pro/v1.1",
+  "fal/flux-dev": "fal-ai/flux/dev",
+  "fal/flux-schnell": "fal-ai/flux/schnell",
+  "fal/sd3-medium": "fal-ai/stable-diffusion-v3-medium",
+  "fal/ideogram-v2": "fal-ai/ideogram/v2",
+  "fal/aura-flow": "fal-ai/aura-flow",
+  "fal/kling-v2.1-pro-t2v": "fal-ai/kling-video/v2.1/pro/text-to-video",
+  "fal/minimax-t2v": "fal-ai/minimax-video/text-to-video",
+  "fal/luma-dream-machine-t2v": "fal-ai/luma-dream-machine",
+  "fal/wan-t2v-v2.1": "fal-ai/wan-t2v",
+  "fal/cogvideox-5b-t2v": "fal-ai/cogvideox-5b",
+  "fal/kling-v2.1-pro-i2v": "fal-ai/kling-video/v2.1/pro/image-to-video",
+  "fal/runway-gen3-i2v": "fal-ai/runway-gen3/turbo/image-to-video",
+  "fal/stable-audio": "fal-ai/stable-audio",
+  "fal/musicgen": "fal-ai/musicgen",
+  "fal/ace-step": "fal-ai/ace-step",
+};
+
+const normalizeEngineModelId = (value: string): string =>
+  LEGACY_FAL_ALIAS_MAP[value] ?? value;
+
 // Icons for each Fal task category
 const FAL_TASK_ICONS: Record<
   FalTaskKey,
@@ -1167,7 +1190,7 @@ export default function AiBrainSettings() {
     "fal-ai/kling-video/v2.1/standard/text-to-video"
   );
   const [videoEnabled, setVideoEnabled] = useState(true);
-  const [audioEngine, setAudioEngine] = useState("fal-ai/sonauto");
+  const [audioEngine, setAudioEngine] = useState("fal-ai/stable-audio");
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [voiceEngine, setVoiceEngine] = useState(
     "fal-ai/elevenlabs/tts/turbo-v2.5"
@@ -1220,20 +1243,64 @@ export default function AiBrainSettings() {
       setCuratorEnabled(r.curator.enabled);
     }
     if (g.imageEngine) {
-      setImageEngine(g.imageEngine.engine);
+      setImageEngine(normalizeEngineModelId(g.imageEngine.engine));
       setImageEnabled(g.imageEngine.enabled);
     }
     if (g.videoEngine) {
-      setVideoEngine(g.videoEngine.engine);
+      setVideoEngine(normalizeEngineModelId(g.videoEngine.engine));
       setVideoEnabled(g.videoEngine.enabled);
     }
     if (g.audioEngine) {
-      setAudioEngine(g.audioEngine.engine);
+      setAudioEngine(normalizeEngineModelId(g.audioEngine.engine));
       setAudioEnabled(g.audioEngine.enabled);
     }
     if (g.voiceEngine) {
-      setVoiceEngine(g.voiceEngine.engine);
+      setVoiceEngine(normalizeEngineModelId(g.voiceEngine.engine));
       setVoiceEnabled(g.voiceEngine.enabled);
+    }
+    const fal = (brainQuery.data as any).falTasks;
+    if (fal) {
+      setFalTaskEngines(prev => ({
+        ...prev,
+        "image-to-3d": normalizeEngineModelId(fal.imageTo3d ?? prev["image-to-3d"]),
+        "image-to-image": normalizeEngineModelId(
+          fal.imageToImage ?? prev["image-to-image"]
+        ),
+        "image-to-json": normalizeEngineModelId(
+          fal.imageToJson ?? prev["image-to-json"]
+        ),
+        "image-to-video": normalizeEngineModelId(
+          fal.imageToVideo ?? prev["image-to-video"]
+        ),
+        json: normalizeEngineModelId(fal.json ?? prev.json),
+        llm: normalizeEngineModelId(fal.llm ?? prev.llm),
+        "text-to-3d": normalizeEngineModelId(fal.textTo3d ?? prev["text-to-3d"]),
+        "text-to-audio": normalizeEngineModelId(
+          fal.textToAudio ?? prev["text-to-audio"]
+        ),
+        "text-to-image": normalizeEngineModelId(
+          fal.textToImage ?? prev["text-to-image"]
+        ),
+        "text-to-json": normalizeEngineModelId(
+          fal.textToJson ?? prev["text-to-json"]
+        ),
+        "text-to-speech": normalizeEngineModelId(
+          fal.textToSpeech ?? prev["text-to-speech"]
+        ),
+        "text-to-video": normalizeEngineModelId(
+          fal.textToVideo ?? prev["text-to-video"]
+        ),
+        training: normalizeEngineModelId(fal.training ?? prev.training),
+        "video-to-audio": normalizeEngineModelId(
+          fal.videoToAudio ?? prev["video-to-audio"]
+        ),
+        "video-to-text": normalizeEngineModelId(
+          fal.videoToText ?? prev["video-to-text"]
+        ),
+        "video-to-video": normalizeEngineModelId(
+          fal.videoToVideo ?? prev["video-to-video"]
+        ),
+      }));
     }
   }, [brainQuery.data]);
 
@@ -1241,7 +1308,9 @@ export default function AiBrainSettings() {
   const handleSave = useCallback(() => {
     const falTaskPayload: Record<string, string> = {};
     for (const key of FAL_TASK_KEYS) {
-      falTaskPayload[FAL_TASK_UPSERT_KEY[key]] = falTaskEngines[key];
+      falTaskPayload[FAL_TASK_UPSERT_KEY[key]] = normalizeEngineModelId(
+        falTaskEngines[key]
+      );
     }
 
     upsertMutation.mutate({
@@ -1265,13 +1334,13 @@ export default function AiBrainSettings() {
       curatorTemperature: curatorTemp,
       curatorTopP,
       curatorEnabled,
-      imageEngine,
+      imageEngine: normalizeEngineModelId(imageEngine),
       imageEngineEnabled: imageEnabled,
-      videoEngine,
+      videoEngine: normalizeEngineModelId(videoEngine),
       videoEngineEnabled: videoEnabled,
-      audioEngine,
+      audioEngine: normalizeEngineModelId(audioEngine),
       audioEngineEnabled: audioEnabled,
-      voiceEngine,
+      voiceEngine: normalizeEngineModelId(voiceEngine),
       voiceEngineEnabled: voiceEnabled,
       ...falTaskPayload,
     } as any);
