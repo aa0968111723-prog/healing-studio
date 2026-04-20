@@ -91,16 +91,18 @@ const AgentBridgeContext = createContext<React.MutableRefObject<ProStudioAgentBr
 /** 各子 Tab 用此 hook 註冊自己的 agent bridge */
 function useProStudioAgentBridge(bridge: ProStudioAgentBridge) {
   const ref = useContext(AgentBridgeContext);
+  // 每次渲染都更新 ref 以保持最新閉包（bridge 每次都是新物件，含最新 state）
+  if (ref) {
+    ref.current = bridge;
+  }
   useEffect(() => {
-    if (ref) {
-      ref.current = bridge;
-    }
     return () => {
       if (ref) {
         ref.current = {};
       }
     };
-  });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 }
 
 // ─── 類型 ────────────────────────────────────────────────────────────────────
