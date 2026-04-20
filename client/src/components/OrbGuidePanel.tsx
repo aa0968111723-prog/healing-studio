@@ -550,11 +550,11 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
                 ))}
               </div>
 
-              {/* ── Quick-access: inspiration & focus-flow ── */}
+              {/* ── Quick-access: page detail chat & focus-flow ── */}
               {onOpenInteraction && (
                 <div className={cn("flex gap-2", fullscreen ? "pt-3" : "pt-2")}>
                   <motion.button
-                    onClick={() => { onClose(); onOpenInteraction("inspiration"); }}
+                    onClick={() => { onClose(); onOpenInteraction("chat"); }}
                     className={cn(
                       "flex-1 flex items-center justify-center gap-1.5 rounded-xl",
                       "bg-white/6 hover:bg-white/12 border border-white/10 hover:border-white/20",
@@ -567,7 +567,7 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
                     whileTap={{ scale: 0.97 }}
                   >
                     <Lightbulb className={fullscreen ? "w-4 h-4" : "w-3 h-3"} />
-                    靈感探索
+                    頁面細節
                   </motion.button>
                   <motion.button
                     onClick={() => { onClose(); onOpenInteraction("focus-flow"); }}

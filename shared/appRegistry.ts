@@ -113,6 +113,14 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
         action: { type: "setModality", modality: "image" },
         prompt: "幫我做一張療癒風景圖。",
       },
+      {
+        id: "image-params",
+        label: "討論參數",
+        description: "和光球聊風格、取景、光感與細節強度",
+        path: "/image-studio",
+        prompt:
+          "我想先討論圖片參數與感覺，幫我一步步調整風格、光線、構圖和細節強度。",
+      },
     ],
     orbHints: ["幫我生成一張圖片"],
   },
@@ -135,6 +143,14 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
         action: { type: "setModality", modality: "video" },
         prompt: "我想做一支 5 秒鐘療癒短片。",
       },
+      {
+        id: "video-mood",
+        label: "調整氛圍",
+        description: "討論節奏、鏡位、運鏡與情緒風格",
+        path: "/video-studio",
+        prompt:
+          "我想要先討論影片感覺和參數，幫我調整節奏、鏡頭語言、運鏡和情緒。",
+      },
     ],
     orbHints: ["我想做一支短影片"],
   },
@@ -156,6 +172,14 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
         description: "建立背景音樂或語音",
         action: { type: "setModality", modality: "audio" },
         prompt: "幫我生成一段放鬆冥想音樂。",
+      },
+      {
+        id: "pro-parameter-tuning",
+        label: "微調參數",
+        description: "用聊天方式調整音色、情緒、速度與混音方向",
+        path: "/pro-studio",
+        prompt:
+          "請你像 AI 代理人一樣，帶我討論音樂/語音參數，依我想要的感覺逐步微調。",
       },
     ],
     orbHints: ["我想做配樂或配音"],
@@ -276,7 +300,22 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     showInAgentHome: true,
     agentEntryPriority: 10,
     supportsPageAgent: true,
-    quickActions: [{ id: "browse-assets", label: "瀏覽素材", description: "管理與搜尋既有資產" }],
+    quickActions: [
+      {
+        id: "browse-assets",
+        label: "瀏覽素材",
+        description: "管理與搜尋既有資產",
+        path: "/assets",
+      },
+      {
+        id: "assets-subitems",
+        label: "整合素材子項目",
+        description: "逐類整理圖片 / 影片 / 音訊素材與關聯用途",
+        path: "/assets",
+        prompt:
+          "請帶我一頁一頁整理素材庫，包含圖片、影片、音訊與可重用子項目，並給我下一步建議。",
+      },
+    ],
     orbHints: ["打開我的素材庫"],
   },
   {
@@ -304,7 +343,22 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     showInAgentHome: false,
     agentEntryPriority: 23,
     supportsPageAgent: true,
-    quickActions: [{ id: "open-models", label: "查看模型", description: "管理訓練後的模型資產" }],
+    quickActions: [
+      {
+        id: "open-models",
+        label: "查看模型",
+        description: "管理訓練後的模型資產",
+        path: "/models",
+      },
+      {
+        id: "model-subitems",
+        label: "整合模型子項目",
+        description: "比較模型版本、用途與最佳參數配置",
+        path: "/models",
+        prompt:
+          "請像真正的 AI 代理人一樣，帶我整理模型子項目，包含版本差異、適用場景與建議參數。",
+      },
+    ],
     orbHints: ["我的模型在哪裡"],
   },
   {

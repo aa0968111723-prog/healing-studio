@@ -35,11 +35,12 @@ import {
   Zap,
   ArrowRight,
   Navigation,
+  Layers,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useFocusFlow } from "@/contexts/FocusFlowContext";
 import FocusFlowMini from "./FocusFlowMini";
-import { useOrbGuide } from "@/contexts/OrbGuideContext";
+import { useOrbGuide, type GuideIntent } from "@/contexts/OrbGuideContext";
 import OrbGuidePanel from "./OrbGuidePanel";
 import { usePageAgent } from "@/contexts/PageAgentContext";
 import { parseLLMActions, type AgentAction } from "../../../shared/agent-actions";
@@ -323,6 +324,20 @@ const QUICK_ACTIONS: QuickAction[] = [
 // ─── Page-specific quick actions (contextual AI agent capabilities) ────────
 
 const PAGE_QUICK_ACTIONS: Record<string, QuickAction[]> = {
+  studio: [
+    {
+      icon: <Sparkles className="w-4 h-4" />,
+      label: "建立工作流",
+      description: "先建立模態、模式，再進工具箱與素材",
+      action: "studio-workflow-bootstrap",
+    },
+    {
+      icon: <Layers className="w-4 h-4" />,
+      label: "頁面細節",
+      description: "改成頁面細節導引（取代空的靈感連接）",
+      action: "page-deep-dive",
+    },
+  ],
   "image-studio": [
     {
       icon: <Image className="w-4 h-4" />,
@@ -381,6 +396,15 @@ const PAGE_QUICK_ACTIONS: Record<string, QuickAction[]> = {
       action: "chat-learning-path",
     },
   ],
+};
+
+const PAGE_TO_GUIDE_INTENT: Partial<Record<string, GuideIntent>> = {
+  studio: "explore",
+  "image-studio": "image",
+  "video-studio": "video",
+  "pro-studio": "music",
+  director: "script",
+  "lora-trainer": "lora",
 };
 
 // ─── 90-second onboarding step definitions ────────────────────────────────
@@ -757,6 +781,7 @@ export default memo(function ProactiveOrbWidget({
     isPanelOpen: isGuideOpen,
     openPanel: openGuidePanel,
     closePanel: closeGuidePanel,
+    selectIntent: selectGuideIntent,
     arrivedMessage,
     clearArrivedMessage,
     step: guideStep,
@@ -853,15 +878,31 @@ export default memo(function ProactiveOrbWidget({
     }
     // 首次或主動探索 → 開引導面板（取代舊的 main panel）
     openGuidePanel();
+    const pageIntent =
+      (pageContext?.pageId && PAGE_TO_GUIDE_INTENT[pageContext.pageId]) || null;
+    if (pageIntent) {
+      selectGuideIntent(pageIntent);
+    }
     setShowPanel(false);
-  }, [guiding, isGuideOpen, openGuidePanel, closeGuidePanel]);
+  }, [guiding, isGuideOpen, openGuidePanel, closeGuidePanel, pageContext?.pageId, selectGuideIntent]);
 
   // Bridge from OrbGuidePanel → interaction panel views
   const handleOpenInteraction = useCallback(
     (view: "inspiration" | "focus-flow" | "chat") => {
       if (view === "chat") {
+        const pageLabel = currentRegistryPage?.label ?? pageContext?.pageLabel;
         setPanelView("chat");
-        setChatMessages([{ role: "orb", text: greeting }]);
+        setChatMessages([
+          {
+            role: "orb",
+            text: pageLabel
+              ? `我現在用「${pageLabel}」頁面狀態陪你聊，想先調參數、流程還是素材？`
+              : greeting,
+          },
+        ]);
+        if (pageLabel) {
+          setChatInput(`請先告訴我「${pageLabel}」這頁的最佳起手步驟。`);
+        }
       } else if (view === "focus-flow") {
         setPanelView("focus-flow");
       } else {
@@ -869,13 +910,13 @@ export default memo(function ProactiveOrbWidget({
       }
       setShowPanel(true);
     },
-    [greeting]
+    [greeting, currentRegistryPage?.label, pageContext?.pageLabel]
   );
 
   // ─── Quick action handlers ───────────────────────────────────────────
 
   const handleQuickAction = useCallback(
-    (action: string) => {
+    async (action: string) => {
       switch (action) {
         case "random": {
           const preset =
@@ -906,6 +947,37 @@ export default memo(function ProactiveOrbWidget({
           ]);
           setChatInput("我現在的心情是⋯⋯");
           break;
+        case "page-deep-dive": {
+          const pageLabel = currentRegistryPage?.label ?? pageContext?.pageLabel ?? "這一頁";
+          setPanelView("chat");
+          setChatMessages([
+            {
+              role: "orb",
+              text: `我會用「${pageLabel}」當前狀態，給你這頁最重要的下一步與參數建議。`,
+            },
+          ]);
+          setChatInput(`請解說「${pageLabel}」這一頁，先做哪三步最有效。`);
+          break;
+        }
+        case "studio-workflow-bootstrap":
+          setPanelView("chat");
+          setChatMessages([
+            {
+              role: "orb",
+              text:
+                "好，先從創作工作室打底：我先切到圖片模態與快速模式，並打開工具箱素材頁，接著你再選模型與風格。",
+            },
+          ]);
+          setChatInput("接著帶我做：模態→模式→素材→模型→送出第一版。");
+          await pageAgent.dispatchMany(
+            [
+              { type: "setModality", modality: "image" },
+              { type: "setMode", modeId: "lightning" },
+              { type: "openDialog", dialogId: "toolbox", params: { tab: "assets" } },
+            ],
+            { source: "manual", requireConfirmation: false }
+          );
+          break;
         case "tour":
           setShowPanel(false);
           onRestartTour?.();
@@ -931,7 +1003,7 @@ export default memo(function ProactiveOrbWidget({
           break;
       }
     },
-    [onApplyInspiration, onRestartTour, greeting, showFeedback]
+    [onApplyInspiration, onRestartTour, greeting, showFeedback, currentRegistryPage?.label, pageContext?.pageLabel, pageAgent]
   );
 
   const handleRegistryQuickAction = useCallback(
@@ -1375,10 +1447,10 @@ export default memo(function ProactiveOrbWidget({
                           </div>
                         ) : null}
                         <button
-                          onClick={() => setPanelView("inspiration")}
+                          onClick={() => void handleQuickAction("page-deep-dive")}
                           className="w-full flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-gradient-to-r from-amber-50 to-pink-50 border border-amber-200/40 hover:from-amber-100 hover:to-pink-100 transition-all text-sm font-medium text-amber-700"
                         >
-                          <Lightbulb className="w-4 h-4" />✨ 靈感探索
+                          <Lightbulb className="w-4 h-4" />🧭 頁面細節引導
                         </button>
                         <button
                           onClick={() => setPanelView("focus-flow")}
@@ -1695,10 +1767,10 @@ export default memo(function ProactiveOrbWidget({
 
                     {/* Inspiration Button */}
                     <button
-                      onClick={() => setPanelView("inspiration")}
+                      onClick={() => void handleQuickAction("page-deep-dive")}
                       className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-gradient-to-r from-amber-50 to-pink-50 border border-amber-200/40 hover:from-amber-100 hover:to-pink-100 transition-all text-sm font-medium text-amber-700"
                     >
-                      <Lightbulb className="w-4 h-4" />✨ 靈感探索
+                      <Lightbulb className="w-4 h-4" />🧭 頁面細節引導
                     </button>
 
                     {/* Focus Flow Button */}

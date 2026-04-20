@@ -41,16 +41,23 @@ interface ChatMessage {
   intent?: string;
 }
 
+type StarterQuickAction = {
+  id: string;
+  label: string;
+  description: string;
+  path?: string;
+  action?: AgentAction;
+  prompt?: string;
+};
+
 type StarterEntry = {
   id: string;
   label: string;
   path: string;
   description: string;
-  quickAction?: {
-    action?: AgentAction;
-    prompt?: string;
-    description?: string;
-  };
+  group: "create" | "train" | "project" | "assets" | "learn" | "orb" | "settings" | "admin";
+  quickAction?: StarterQuickAction;
+  quickActions: StarterQuickAction[];
   prompt?: string;
   starterText: string;
 };
@@ -81,13 +88,25 @@ function buildStarterEntry(page: (typeof AGENT_HOME_ENTRIES)[number]): StarterEn
     label: page.label,
     path: page.path,
     description: page.description,
+    group: page.group,
     quickAction: primaryQuickAction
       ? {
+          id: primaryQuickAction.id,
+          label: primaryQuickAction.label,
+          description: primaryQuickAction.description,
+          path: primaryQuickAction.path,
           action: primaryQuickAction.action,
           prompt: primaryQuickAction.prompt,
-          description: primaryQuickAction.description,
         }
       : undefined,
+    quickActions: page.quickActions.map(action => ({
+      id: action.id,
+      label: action.label,
+      description: action.description,
+      path: action.path,
+      action: action.action,
+      prompt: action.prompt,
+    })),
     prompt: primaryQuickAction?.prompt ?? page.orbHints[0],
     starterText:
       primaryQuickAction?.description ?? page.orbHints[0] ?? `帶我去${page.label}`,
@@ -161,9 +180,17 @@ export default function AgentChat() {
     () =>
       AGENT_HOME_ENTRIES
         .filter(page => page.id !== "home")
-        .slice(0, 6)
+        .slice(0, 9)
         .map(buildStarterEntry),
     []
+  );
+  const groupedStarterEntries = useMemo(
+    () => ({
+      create: starterEntries.filter(entry => entry.group === "create"),
+      assets: starterEntries.filter(entry => entry.group === "assets"),
+      train: starterEntries.filter(entry => entry.group === "train"),
+    }),
+    [starterEntries]
   );
 
   const aiChat = trpc.ai.chat.useMutation();
@@ -293,6 +320,22 @@ export default function AgentChat() {
     },
     [pageAgent, send, setLocation]
   );
+  const handleStarterQuickAction = useCallback(
+    async (entry: StarterEntry, action: StarterQuickAction) => {
+      if (action.path && action.path !== "/agent") {
+        setLocation(action.path);
+      }
+      if (action.action) {
+        await pageAgent.dispatch(action.action, { source: "manual" });
+      }
+      if (action.prompt) {
+        await send(action.prompt);
+        return;
+      }
+      await send(`請帶我在「${entry.label}」處理「${action.label}」。`);
+    },
+    [pageAgent, send, setLocation]
+  );
 
   return (
     <div className="flex-1 flex flex-col items-center w-full min-h-full">
@@ -384,6 +427,69 @@ export default function AgentChat() {
                 <p className="text-[11px] text-slate-400 dark:text-slate-500 text-center">
                   或是直接在下方輸入框說說你的想法 ✨
                 </p>
+                <div className="space-y-2 pt-1">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    一頁一頁深度整合（含參數、感覺、素材與模型子項目）：
+                  </p>
+                  {([
+                    ["create", "創作工作流"],
+                    ["assets", "素材 / 模型整合"],
+                    ["train", "訓練流程"],
+                  ] as const).map(([groupKey, groupLabel]) => {
+                    const entries = groupedStarterEntries[groupKey];
+                    if (!entries.length) return null;
+                    return (
+                      <div
+                        key={groupKey}
+                        className="rounded-xl border border-slate-200/70 dark:border-slate-700/50 bg-white/75 dark:bg-slate-900/40 p-2.5"
+                      >
+                        <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-2">
+                          {groupLabel}
+                        </p>
+                        <div className="space-y-2">
+                          {entries.map(entry => (
+                            <div
+                              key={entry.id}
+                              className="rounded-lg border border-slate-200/70 dark:border-slate-700/60 p-2"
+                            >
+                              <button
+                                type="button"
+                                onClick={() => void handleStarterEntryClick(entry)}
+                                className="w-full flex items-center justify-between gap-2 text-left"
+                              >
+                                <div>
+                                  <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
+                                    {entry.label}
+                                  </p>
+                                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                    {entry.description}
+                                  </p>
+                                </div>
+                                <ArrowRight className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                              </button>
+                              {entry.quickActions.length > 0 && (
+                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                  {entry.quickActions.slice(0, 3).map(action => (
+                                    <button
+                                      type="button"
+                                      key={action.id}
+                                      onClick={() =>
+                                        void handleStarterQuickAction(entry, action)
+                                      }
+                                      className="text-[11px] px-2 py-1 rounded-full border border-emerald-200/80 text-emerald-700 bg-emerald-50/70 hover:bg-emerald-100/80 transition-colors"
+                                    >
+                                      {action.label}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </motion.div>
             </AnimatePresence>
           )}
