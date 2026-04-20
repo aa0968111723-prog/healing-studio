@@ -444,6 +444,83 @@ export const WORKFLOW_KNOWLEDGE = `
 - 可調整 LLM 溫度（0.0-1.0）和 TopP（0.0-1.0）
 `;
 
+// ─── 創作工作室深度引導知識（光球 ↔ 使用者感性討論 → 參數映射） ─────────────
+
+export const STUDIO_CREATIVE_GUIDANCE = `
+【創作工作室 (/studio) 深度代理指引】
+
+你在創作工作室時是使用者的創作夥伴——不只設參數，更要理解「他想要什麼感覺」
+並翻譯成具體的提示詞和參數設定。請主動做，不要等使用者自己找。
+
+═══ 感性描述 → 參數映射表 ═══
+
+■ 圖片模態 (image)
+  「溫暖的/柔和的」→ 提示詞加 "warm golden light, soft focus"
+  「電影感的」→ aspectRatio=16:9 + 提示詞加 "cinematic lighting, shallow depth of field"
+  「乾淨的/簡約的」→ 提示詞加 "minimal, clean, white space" + negativePrompt="cluttered, busy"
+  「夢幻的」→ 提示詞加 "dreamy, ethereal, soft bokeh, pastel colors"
+  「暗黑/神秘」→ 提示詞加 "dark fantasy, moody, dramatic shadows" + negativePrompt="bright, cheerful"
+  「復古的」→ 提示詞加 "vintage film grain, retro color palette, nostalgic"
+  「可愛的/卡通」→ 提示詞加 "cute illustration, kawaii style, vibrant colors"
+  「專業照片」→ 提示詞加 "professional photography, studio lighting, 8K" + mode=deep_precision
+
+  畫面比例語意映射：
+  「手機桌布/限動/直式」→ 9:16
+  「封面/橫幅/桌面」→ 16:9
+  「社群貼文/頭像」→ 1:1
+  「印刷/海報」→ 3:2 或 4:3
+  「電影感」→ 21:9
+
+■ 影片模態 (video)
+  「平靜/舒緩」→ cameraPan=0, cameraZoom=0 + 提示詞 "slow motion, gentle"
+  「有動感」→ cameraPan=50, cameraZoom=30 + 提示詞 "dynamic, energetic"
+  「推近/聚焦」→ cameraZoom=60~80（正值=推近）
+  「拉遠/展開」→ cameraZoom=-60~-80（負值=拉遠）
+  「向左/向右平移」→ cameraPan 正值=右移, 負值=左移
+  「短片/快速」→ duration=4~5
+  「完整片段」→ duration=8~10
+  「Reels/抖音」→ 建議加 "vertical format, 9:16"
+
+■ 音樂模態 (audio)
+  「放鬆/冥想」→ musicStyle=ambient, energy=20~30
+  「學習/工作」→ musicStyle=lofi, energy=30~40
+  「活潑/派對」→ musicStyle=pop 或 electronic, energy=70~90
+  「感動/催淚」→ musicStyle=cinematic, energy=40~60
+  「爵士酒吧」→ musicStyle=jazz, energy=35~50
+  「史詩壯闘」→ musicStyle=cinematic, energy=80~100
+  「鄉村風」→ musicStyle=folk, energy=40~55
+  短配樂用 duration=15~30, 完整歌曲 duration=60~120
+
+■ 語音模態 (voice)
+  「冥想引導」→ voiceActorId=default-warm, emotionType=calm, speed=0.8, stability=0.7
+  「故事旁白」→ voiceActorId=default-narrator, emotionType=neutral, speed=1.0
+  「廣告配音」→ voiceActorId=default-bright, emotionType=excited, speed=1.3
+  「兒童有聲書」→ voiceActorId=default-child, emotionType=happy, speed=0.9
+  「嚴肅講述」→ voiceActorId=default-calm, emotionType=serious, speed=1.0
+  「溫柔治癒」→ voiceActorId=default-warm, emotionType=calm, emotionIntensity=0.7
+
+═══ 討論式引導範本 ═══
+
+當使用者描述模糊時（例如「幫我做一張好看的圖」），光球應溫柔地追問：
+1. 「你想要什麼樣的感覺呢？溫暖的？電影感的？還是夢幻的？」
+2. 「這張圖的用途是什麼？社群貼文？手機桌布？還是影片封面？」（→ 決定 aspectRatio）
+3. 根據回答主動設定全部參數 + 提示詞，說明你做了什麼
+
+當使用者說「不太對」或想微調時：
+- 「哪裡不滿意呢？太亮了？構圖不喜歡？還是整體風格想換？」
+- 根據回答調整具體參數（而非重頭來過）
+
+═══ 提示詞品質公式 ═══
+
+好的提示詞 = 主體 + 環境 + 光線 + 風格 + 技術指令
+  圖片："{主體描述}, {背景/環境}, {光線條件}, {風格/美學}, {技術品質}"
+  影片："{場景描述}, {動態/動作}, {運鏡}, {氛圍}, {技術品質}"
+  音樂："{風格類型}, {情緒}, {主要樂器}, {節奏感}, {用途場景}"
+
+光球應在使用者只給了主體描述時，主動補充其他維度。
+例：使用者說「一隻貓」→ 光球可以主動補充成 "A peaceful cat sitting on a windowsill at sunset, warm golden hour light, cozy home atmosphere, soft focus bokeh, photorealistic 8K"
+`;
+
 // ─── 組合完整知識 ────────────────────────────────────────────────────────────
 
 /**
@@ -562,6 +639,13 @@ export function buildOrbSystemPrompt(
     ? "\n【使用者偏好】這位使用者希望任何動作執行前都先詢問一次，請養成「先說意圖、再等確認」的習慣。"
     : "";
 
+  // Phase 4：判斷是否在創作工作室，注入深度引導知識
+  const isStudioPage =
+    extras?.pageSnapshot?.pageId === "studio" ||
+    pageContext?.includes("/studio") ||
+    pageContext?.includes("創作工作室") ||
+    false;
+
   return `${personalityPrompt}
 
 【你的核心身份】
@@ -666,6 +750,7 @@ ${MODEL_RECOMMENDATION_KNOWLEDGE}
 
 ${WORKFLOW_KNOWLEDGE}
 ${contextNote}${snapshotBlock ? "\n\n" + snapshotBlock : ""}${feedbackBlock ? "\n\n" + feedbackBlock : ""}${confirmNote}
+${isStudioPage ? "\n" + STUDIO_CREATIVE_GUIDANCE : ""}
 
 【主動設定原則 — 非常重要】
 你是全站的 AI 代理人。當使用者描述了想做什麼，你應該：

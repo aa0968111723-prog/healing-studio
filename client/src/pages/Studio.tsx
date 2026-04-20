@@ -1625,60 +1625,168 @@ export default function Studio() {
   // ── 光球代理人：Studio 總控 ───────────────────────────────────────────
   // Studio 是 4 模態 × 2 模式 × 3 創作層級的核心頁；把最外層控制
   // 完整交給光球，讓使用者用自然語就能「切到影片、用專業模式」。
-  const studioCaps: AgentCapability[] = [
-    {
-      action: "setModality",
-      label: "模態",
-      currentId: activeModality,
-      options: MODALITY_TABS.map(t => ({ id: t.value, label: t.label })),
-      hint: "image / video / audio(=music) / voice — audio 的 modalityKey 會被映射成 music",
-    },
-    {
-      action: "setMode",
-      label: "生成模式",
-      currentId: mode,
-      options: [
-        { id: "lightning", label: "閃電", description: "快、便宜、適合試草稿" },
+  //
+  // Phase 4：深度整合 — 每個模態的所有可調參數都暴露給光球，
+  // 包括選項列表 (options) 和目前值 (currentId)，讓 LLM 能主動
+  // 幫使用者設定參數、討論「想要什麼感覺」→ 映射到具體參數。
+  const studioCaps: AgentCapability[] = useMemo(() => {
+    const caps: AgentCapability[] = [
+      {
+        action: "setModality",
+        label: "模態",
+        currentId: activeModality,
+        options: MODALITY_TABS.map(t => ({ id: t.value, label: t.label })),
+        hint: "image / video / audio(=music) / voice — audio 的 modalityKey 會被映射成 music",
+      },
+      {
+        action: "setMode",
+        label: "生成模式",
+        currentId: mode,
+        options: [
+          { id: "lightning", label: "閃電", description: "快、便宜、適合試草稿" },
+          {
+            id: "deep_precision",
+            label: "深度精磆",
+            description: "高品質、較慢、專業用",
+          },
+        ],
+        hint: "只接受 lightning | deep_precision",
+      },
+      {
+        action: "applyPreset",
+        label: "創作層級",
+        currentId: `creative:${creativeMode}`,
+        options: [
+          { id: "creative:simple", label: "輕鬆模式", description: "只有提示詞，一鍵生成" },
+          { id: "creative:standard", label: "標準模式", description: "顯示氛圍卡、品質控制" },
+          { id: "creative:pro", label: "專業模式", description: "結構化 prompt、參考圖、進階參數" },
+        ],
+        hint: "以 creative:<simple|standard|pro> 切換創作界面複雜度",
+      },
+      {
+        action: "fillPrompt",
+        label: "提示詞",
+        hint: "slot=prompt 填入主要提示詞；slot=negativePrompt 填入負面提示詞；slot=voice 填入語音文字；slot=lyrics 填入歌詞。append=true 可追加而非覆蓋。",
+      },
+      {
+        action: "setParam",
+        label: "進階參數",
+        hint: [
+          "全域: temperature(0~1)、seed(字串或數字)、loraWeight(0~1)",
+          activeModality === "image"
+            ? "圖片: aspectRatio(1:1/16:9/9:16/4:3/3:2/21:9)、negativePrompt(文字)"
+            : "",
+          activeModality === "video"
+            ? "影片: duration(秒數字串,如\"5\"或\"8\"或\"10\")、cameraPan(-100~100)、cameraZoom(-100~100)、cameraTilt(-100~100)"
+            : "",
+          activeModality === "audio"
+            ? "音樂: musicStyle(ambient/lofi/classical/electronic/jazz/cinematic/pop/rnb/folk/hiphop)、duration(秒數,10~180)、energy(0~100)、isInstrumental(true/false)、lyrics(文字)"
+            : "",
+          activeModality === "voice"
+            ? "語音: voiceActorId(default-warm/default-calm/default-bright/default-narrator/default-child)、speed(0.5~2.0)、stability(0~1)、emotionType(neutral/happy/sad/excited/calm/serious)、emotionIntensity(0~1)"
+            : "",
+        ].filter(Boolean).join("；"),
+      },
+      {
+        action: "submit",
+        label: "送出生成",
+        hint: "提示詞空或語音模態未填文字會失敗",
+      },
+      {
+        action: "reset",
+        label: "重設",
+        hint: "清空提示詞與結果",
+      },
+    ];
+
+    // ── 根據當前模態追加模態專屬選項 ──
+    if (activeModality === "image") {
+      caps.push({
+        action: "setParam",
+        label: "畫面比例",
+        currentId: imageState.aspectRatio,
+        options: [
+          { id: "1:1", label: "1:1 正方形", description: "頭像、社群貼文" },
+          { id: "16:9", label: "16:9 寬螢幕", description: "封面、影片縮圖、電影感" },
+          { id: "9:16", label: "9:16 直式", description: "手機桌布、IG 限動、Reels" },
+          { id: "4:3", label: "4:3 傳統", description: "傳統照片比例" },
+          { id: "3:2", label: "3:2 相片", description: "經典攝影比例" },
+          { id: "21:9", label: "21:9 超寬", description: "電影寬幅、橫幅" },
+        ],
+        hint: "用 [ACTION:setParam:aspectRatio=16:9] 設定；使用者說「我想要直式的」→ 9:16、「橫幅」→ 16:9、「正方形」→ 1:1",
+      });
+    }
+
+    if (activeModality === "video") {
+      caps.push({
+        action: "setParam",
+        label: "影片時長",
+        currentId: videoState.duration,
+        options: [
+          { id: "4", label: "4 秒", description: "快速預覽、GIF 感" },
+          { id: "5", label: "5 秒", description: "短影片" },
+          { id: "8", label: "8 秒", description: "標準長度（預設）" },
+          { id: "10", label: "10 秒", description: "較長片段" },
+        ],
+        hint: "用 [ACTION:setParam:duration=8] 設定影片秒數",
+      });
+    }
+
+    if (activeModality === "audio") {
+      caps.push({
+        action: "setParam",
+        label: "音樂風格",
+        currentId: audioState.musicStyle,
+        options: [
+          { id: "ambient", label: "環境音樂", description: "放鬆、冥想、背景音" },
+          { id: "lofi", label: "Lo-Fi", description: "學習、工作、咖啡廳氣氛" },
+          { id: "classical", label: "古典", description: "優雅、莊重" },
+          { id: "electronic", label: "電子", description: "節奏感、現代" },
+          { id: "jazz", label: "爵士", description: "慵懶、成熟" },
+          { id: "cinematic", label: "電影配樂", description: "史詩感、情緒張力" },
+          { id: "pop", label: "流行", description: "朗朗上口、大眾" },
+          { id: "rnb", label: "R&B", description: "情感豐富、節奏" },
+          { id: "folk", label: "民謠", description: "溫暖、自然" },
+          { id: "hiphop", label: "嘻哈", description: "節拍強烈、韻律" },
+        ],
+        hint: "用 [ACTION:setParam:musicStyle=ambient] 設定。使用者說「放鬆的」→ ambient、「學習用」→ lofi、「有氣勢的」→ cinematic",
+      });
+    }
+
+    if (activeModality === "voice") {
+      caps.push(
         {
-          id: "deep_precision",
-          label: "深度精磆",
-          description: "高品質、較慢、專業用",
+          action: "setParam",
+          label: "語音角色",
+          currentId: voiceState.voiceActorId,
+          options: [
+            { id: "default-warm", label: "溫暖女聲", description: "柔和、治癒感" },
+            { id: "default-calm", label: "沉穩男聲", description: "深沉、可靠" },
+            { id: "default-bright", label: "明亮女聲", description: "活潑、清晰" },
+            { id: "default-narrator", label: "旁白男聲", description: "專業、敘事感" },
+            { id: "default-child", label: "童聲", description: "天真、可愛" },
+          ],
+          hint: "用 [ACTION:setParam:voiceActorId=default-warm] 設定。使用者說「溫柔的」→ default-warm、「專業的」→ default-narrator",
         },
-      ],
-      hint: "只接受 lightning | deep_precision",
-    },
-    {
-      action: "applyPreset",
-      label: "創作層級",
-      currentId: `creative:${creativeMode}`,
-      options: [
-        { id: "creative:simple", label: "輕鬆模式", description: "只有提示詞，一鍵生成" },
-        { id: "creative:standard", label: "標準模式", description: "顯示氛圍卡、品質控制" },
-        { id: "creative:pro", label: "專業模式", description: "結構化 prompt、參考圖、進階參數" },
-      ],
-      hint: "以 creative:<simple|standard|pro> 切換創作界面複雜度",
-    },
-    {
-      action: "fillPrompt",
-      label: "提示詞",
-      hint: "slot=prompt 填入主要提示詞；slot=voice 填入語音模態的文字",
-    },
-    {
-      action: "setParam",
-      label: "進階參數",
-      hint: "key=temperature(0-1) / seed(string|number) / loraWeight(0-1)",
-    },
-    {
-      action: "submit",
-      label: "送出生成",
-      hint: "提示詞空或語音模態未填文字會失敗",
-    },
-    {
-      action: "reset",
-      label: "重設",
-      hint: "清空提示詞與結果",
-    },
-  ];
+        {
+          action: "setParam",
+          label: "語音情緒",
+          currentId: voiceState.emotionType,
+          options: [
+            { id: "neutral", label: "中性", description: "客觀平衡" },
+            { id: "happy", label: "愉悅", description: "開心、陽光" },
+            { id: "sad", label: "感傷", description: "低沉、感性" },
+            { id: "excited", label: "興奮", description: "激動、熱情" },
+            { id: "calm", label: "平靜", description: "安穩、舒緩" },
+            { id: "serious", label: "嚴肅", description: "正式、權威" },
+          ],
+          hint: "用 [ACTION:setParam:emotionType=calm] 設定。使用者說「冥想引導」→ calm + default-warm、「廣告」→ excited + default-bright",
+        }
+      );
+    }
+
+    return caps;
+  }, [activeModality, mode, creativeMode, imageState.aspectRatio, videoState.duration, audioState.musicStyle, voiceState.voiceActorId, voiceState.emotionType]);
 
   useRegisterPageAgent({
     pageId: "studio",
@@ -1690,7 +1798,37 @@ export default function Studio() {
       mode,
       creativeMode,
       promptLength: promptBuilder.rawPrompt.length,
+      promptPreview: promptBuilder.rawPrompt.slice(0, 120) || "(空)",
       hasResult: resultUrl !== null,
+      // 模態專屬參數快照 — 讓 LLM 看到使用者目前的完整設定
+      ...(activeModality === "image" && {
+        aspectRatio: imageState.aspectRatio,
+        negativePrompt: imageState.negativePrompt || "(無)",
+      }),
+      ...(activeModality === "video" && {
+        duration: videoState.duration,
+        cameraPan: videoState.cameraMotion.pan,
+        cameraZoom: videoState.cameraMotion.zoom,
+        cameraTilt: videoState.cameraMotion.tilt,
+      }),
+      ...(activeModality === "audio" && {
+        musicStyle: audioState.musicStyle,
+        duration: audioState.duration,
+        energy: audioState.energy,
+        isInstrumental: audioState.isInstrumental,
+        hasLyrics: audioState.lyrics.length > 0,
+      }),
+      ...(activeModality === "voice" && {
+        voiceActorId: voiceState.voiceActorId,
+        speed: voiceState.speed,
+        stability: voiceState.stability,
+        emotionType: voiceState.emotionType,
+        emotionIntensity: voiceState.emotionIntensity,
+        voiceTextLength: voiceState.text.length,
+      }),
+      temperature,
+      seed: seed || "(隨機)",
+      loraWeight,
     },
     handle: async (action: AgentAction): Promise<AgentActionResult> => {
       switch (action.type) {
@@ -1727,7 +1865,15 @@ export default function Studio() {
               ...prev,
               text: action.append ? `${prev.text}${prev.text ? " " : ""}${action.text}` : action.text,
             }));
-            return { ok: true };
+            return { ok: true, message: "已填入語音文字" };
+          }
+          if (slot === "lyrics") {
+            setAudioState(prev => ({
+              ...prev,
+              lyrics: action.append ? `${prev.lyrics}${prev.lyrics ? "\n" : ""}${action.text}` : action.text,
+              isInstrumental: false,
+            }));
+            return { ok: true, message: "已填入歌詞" };
           }
           if (slot === "negativePrompt") {
             if (activeModality === "image") {
@@ -1745,7 +1891,7 @@ export default function Studio() {
                   : action.text,
               }));
             }
-            return { ok: true };
+            return { ok: true, message: "已填入負面提示詞" };
           }
           setPromptBuilder(prev => {
             const next = action.append && prev.rawPrompt.trim()
@@ -1753,21 +1899,92 @@ export default function Studio() {
               : action.text;
             return { ...prev, rawPrompt: next, compiledPrompt: next };
           });
-          return { ok: true };
+          return { ok: true, message: "已填入提示詞" };
         }
         case "setParam": {
           const { key, value } = action;
           switch (key) {
+            // ── 全域參數 ──
             case "temperature":
               if (typeof value === "number") setTemperature(value);
-              return { ok: true };
+              return { ok: true, message: `溫度已設為 ${value}` };
             case "seed":
               if (typeof value === "string" || typeof value === "number")
                 setSeed(String(value));
-              return { ok: true };
+              return { ok: true, message: `種子碼已設為 ${value}` };
             case "loraWeight":
               if (typeof value === "number") setLoraWeight(value);
+              return { ok: true, message: `LoRA 權重已設為 ${value}` };
+
+            // ── 圖片專屬 ──
+            case "aspectRatio":
+              setImageState(prev => ({ ...prev, aspectRatio: String(value) }));
+              return { ok: true, message: `畫面比例已設為 ${value}` };
+            case "negativePrompt":
+              setImageState(prev => ({ ...prev, negativePrompt: String(value) }));
+              return { ok: true, message: "負面提示詞已更新" };
+
+            // ── 影片專屬 ──
+            case "duration":
+              if (activeModality === "video") {
+                setVideoState(prev => ({ ...prev, duration: String(value) }));
+                return { ok: true, message: `影片時長已設為 ${value} 秒` };
+              }
+              if (activeModality === "audio") {
+                setAudioState(prev => ({ ...prev, duration: Number(value) }));
+                return { ok: true, message: `音樂時長已設為 ${value} 秒` };
+              }
               return { ok: true };
+            case "cameraPan":
+              setVideoState(prev => ({
+                ...prev,
+                cameraMotion: { ...prev.cameraMotion, pan: Number(value) },
+              }));
+              return { ok: true, message: `鏡頭平移已設為 ${value}` };
+            case "cameraZoom":
+              setVideoState(prev => ({
+                ...prev,
+                cameraMotion: { ...prev.cameraMotion, zoom: Number(value) },
+              }));
+              return { ok: true, message: `鏡頭縮放已設為 ${value}` };
+            case "cameraTilt":
+              setVideoState(prev => ({
+                ...prev,
+                cameraMotion: { ...prev.cameraMotion, tilt: Number(value) },
+              }));
+              return { ok: true, message: `鏡頭俯仰已設為 ${value}` };
+
+            // ── 音樂專屬 ──
+            case "musicStyle":
+              setAudioState(prev => ({ ...prev, musicStyle: String(value) }));
+              return { ok: true, message: `音樂風格已設為 ${value}` };
+            case "energy":
+              setAudioState(prev => ({ ...prev, energy: Number(value) }));
+              return { ok: true, message: `音樂能量已設為 ${value}` };
+            case "isInstrumental":
+              setAudioState(prev => ({ ...prev, isInstrumental: Boolean(value) }));
+              return { ok: true, message: value ? "切為純音樂（無人聲）" : "切為含人聲歌曲" };
+            case "lyrics":
+              setAudioState(prev => ({ ...prev, lyrics: String(value), isInstrumental: false }));
+              return { ok: true, message: "歌詞已填入" };
+
+            // ── 語音專屬 ──
+            case "voiceActorId":
+              setVoiceState(prev => ({ ...prev, voiceActorId: String(value) }));
+              return { ok: true, message: `語音角色已切換為 ${value}` };
+            case "speed":
+              setVoiceState(prev => ({ ...prev, speed: Number(value) }));
+              return { ok: true, message: `語速已設為 ${value}` };
+            case "stability":
+              setVoiceState(prev => ({ ...prev, stability: Number(value) }));
+              return { ok: true, message: `穩定度已設為 ${value}` };
+            case "emotionType":
+              setVoiceState(prev => ({ ...prev, emotionType: String(value) }));
+              return { ok: true, message: `情緒已設為 ${value}` };
+            case "emotionIntensity":
+              setVoiceState(prev => ({ ...prev, emotionIntensity: Number(value) }));
+              return { ok: true, message: `情緒強度已設為 ${value}` };
+
             default:
               return { ok: false, reason: `unknown param key: ${key}` };
           }
