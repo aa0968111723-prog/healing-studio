@@ -3197,33 +3197,36 @@ export default function VideoStudio() {
     label: string;
     tab: TabId;
     desc: string;
+    bestFor?: string;
+    tip?: string;
+    advantages?: string[];
   }> = [
     // t2v
-    { id: "kling-t2v", label: "Kling 2.1 文生影", tab: "t2v", desc: "高品質、支援 5/10s、負向提示詞、CFG" },
-    { id: "wan-t2v", label: "Wan 2.1 文生影", tab: "t2v", desc: "480p / 720p、可調 frames" },
-    { id: "minimax-t2v", label: "MiniMax Hailuo 文生影", tab: "t2v", desc: "快速原型、支援 prompt optimization" },
-    { id: "veo3-t2v", label: "Veo 3 文生影", tab: "t2v", desc: "Google Veo、可加音訊、16:9/9:16" },
-    { id: "ltx-t2v", label: "LTX 13B 文生影", tab: "t2v", desc: "開源高品質、支援負向提示詞" },
-    { id: "sora-t2v", label: "Sora 文生影", tab: "t2v", desc: "OpenAI Sora、480p/720p/1080p" },
+    { id: "kling-t2v", label: "Kling 2.1 文生影", tab: "t2v", desc: "高品質、支援 5/10s、負向提示詞、CFG", bestFor: "電影感敘事短片", tip: "想要穩定畫質和鏡頭語言時先選 Kling。", advantages: ["品質穩定", "可控性高"] },
+    { id: "wan-t2v", label: "Wan 2.1 文生影", tab: "t2v", desc: "480p / 720p、可調 frames", bestFor: "預覽與迭代", tip: "先用 Wan 快速試節奏與構圖，再切高成本模型定稿。", advantages: ["速度快", "成本友好"] },
+    { id: "minimax-t2v", label: "MiniMax Hailuo 文生影", tab: "t2v", desc: "快速原型、支援 prompt optimization", bestFor: "提詞探索", tip: "不確定怎麼下 prompt 時，先開 prompt optimization。", advantages: ["上手容易", "優化能力"] },
+    { id: "veo3-t2v", label: "Veo 3 文生影", tab: "t2v", desc: "Google Veo、可加音訊、16:9/9:16", bestFor: "高規廣告感片段", tip: "需要聲畫一致或高擬真時優先考慮 Veo 3。", advantages: ["擬真強", "可含音訊"] },
+    { id: "ltx-t2v", label: "LTX 13B 文生影", tab: "t2v", desc: "開源高品質、支援負向提示詞", bestFor: "可重現工作流", tip: "重視可重現性與可移植流程時可選 LTX。", advantages: ["開源可控", "品質不錯"] },
+    { id: "sora-t2v", label: "Sora 文生影", tab: "t2v", desc: "OpenAI Sora、480p/720p/1080p", bestFor: "高階敘事鏡頭", tip: "複雜場景與運鏡敘事可用 Sora，但建議先做低成本預演。", advantages: ["敘事能力強", "解析度選項多"] },
     // i2v
-    { id: "kling-i2v", label: "Kling 2.1 圖生影", tab: "i2v", desc: "首尾幀、5/10s" },
-    { id: "wan-i2v", label: "Wan 2.1 圖生影", tab: "i2v", desc: "480p / 720p" },
-    { id: "runway-i2v", label: "Runway Gen4 圖生影", tab: "i2v", desc: "5/10s、可設 aspect ratio" },
-    { id: "pixverse-i2v", label: "PixVerse 4.5 圖生影", tab: "i2v", desc: "4s/8s、多品質檔次" },
-    { id: "minimax-i2v", label: "MiniMax 圖生影", tab: "i2v", desc: "支援 prompt optimization" },
+    { id: "kling-i2v", label: "Kling 2.1 圖生影", tab: "i2v", desc: "首尾幀、5/10s", bestFor: "角色一致性動態", tip: "有首尾幀需求時，Kling i2v 很實用。", advantages: ["首尾幀支援", "一致性高"] },
+    { id: "wan-i2v", label: "Wan 2.1 圖生影", tab: "i2v", desc: "480p / 720p", bestFor: "快速動態草稿", tip: "先用 Wan 看動作方向，再升級品質模型。", advantages: ["速度快", "操作直接"] },
+    { id: "runway-i2v", label: "Runway Gen4 圖生影", tab: "i2v", desc: "5/10s、可設 aspect ratio", bestFor: "商業視覺動效", tip: "要精準版型比例和成片感，可優先 Runway。", advantages: ["成片感佳", "比例控制"] },
+    { id: "pixverse-i2v", label: "PixVerse 4.5 圖生影", tab: "i2v", desc: "4s/8s、多品質檔次", bestFor: "社群短片節奏", tip: "短時長快節奏內容可先用 PixVerse。", advantages: ["節奏感好", "品質檔位彈性"] },
+    { id: "minimax-i2v", label: "MiniMax 圖生影", tab: "i2v", desc: "支援 prompt optimization", bestFor: "描述修正型任務", tip: "需求還在變動時，MiniMax 的優化機制很省時間。", advantages: ["優化提示詞", "迭代順手"] },
     // v2v
-    { id: "wan-v2v", label: "Wan 2.1 影生影", tab: "v2v", desc: "風格轉換、strength 可調" },
-    { id: "kling-v2v", label: "Kling 影生影", tab: "v2v", desc: "CFG 控制原影片保留度" },
-    { id: "ltx-v2v", label: "LTX 影生影", tab: "v2v", desc: "開源、高品質" },
+    { id: "wan-v2v", label: "Wan 2.1 影生影", tab: "v2v", desc: "風格轉換、strength 可調", bestFor: "快速風格化", tip: "strength 建議從 0.35 起試，可兼顧原片與新風格。", advantages: ["速度快", "風格化自然"] },
+    { id: "kling-v2v", label: "Kling 影生影", tab: "v2v", desc: "CFG 控制原影片保留度", bestFor: "高可控風格改造", tip: "想保留原片運鏡與主體時，先降低 CFG 慢慢加。", advantages: ["保留度可控", "畫質穩"] },
+    { id: "ltx-v2v", label: "LTX 影生影", tab: "v2v", desc: "開源、高品質", bestFor: "可重現轉換流程", tip: "需要可重複測試和分享流程時，LTX 是不錯選擇。", advantages: ["開源可重現", "品質穩定"] },
     // enhance
-    { id: "video-upscale", label: "影片超解析", tab: "enhance", desc: "SeedVR 超解析、×2/×4" },
-    { id: "frame-interp", label: "RIFE 補幀", tab: "enhance", desc: "流暢度提升、60fps 化" },
-    { id: "topaz-enhance", label: "Topaz 畫質增強", tab: "enhance", desc: "去噪、去模糊、專業級" },
+    { id: "video-upscale", label: "影片超解析", tab: "enhance", desc: "SeedVR 超解析、×2/×4", bestFor: "低清素材升級", tip: "先 ×2 檢查細節，再決定是否 ×4 以避免過銳。", advantages: ["解析提升明顯", "邊緣保留較好"] },
+    { id: "frame-interp", label: "RIFE 補幀", tab: "enhance", desc: "流暢度提升、60fps 化", bestFor: "動作流暢化", tip: "快動作鏡頭先補幀再放大，畫面通常更穩。", advantages: ["流暢提升", "運動連續性好"] },
+    { id: "topaz-enhance", label: "Topaz 畫質增強", tab: "enhance", desc: "去噪、去模糊、專業級", bestFor: "商業後製強化", tip: "素材偏糊或噪點高時，Topaz 通常比一般超分更有感。", advantages: ["去噪強", "細節修復好"] },
     // control
-    { id: "cam-master", label: "CamMaster 運鏡控制", tab: "control", desc: "指定攝影機運動" },
-    { id: "animate-diff", label: "AnimateDiff", tab: "control", desc: "精準動作控制" },
-    { id: "depth-crafter", label: "DepthCrafter", tab: "control", desc: "深度圖生成、3D 感" },
-    { id: "vidu-ref", label: "Vidu Q1 參考生影", tab: "control", desc: "多參考圖、角色一致" },
+    { id: "cam-master", label: "CamMaster 運鏡控制", tab: "control", desc: "指定攝影機運動", bestFor: "導演式運鏡規劃", tip: "想先定鏡頭語言（推、拉、搖、移）時先用 CamMaster。", advantages: ["運鏡可控", "敘事感強"] },
+    { id: "animate-diff", label: "AnimateDiff", tab: "control", desc: "精準動作控制", bestFor: "角色動作一致", tip: "動作節奏明確時可搭配參考序列，避免姿勢飄移。", advantages: ["動作控制精準", "角色一致性好"] },
+    { id: "depth-crafter", label: "DepthCrafter", tab: "control", desc: "深度圖生成、3D 感", bestFor: "景深與空間層次", tip: "前中後景分明素材最能發揮 DepthCrafter 的空間感。", advantages: ["3D 空間感", "層次更立體"] },
+    { id: "vidu-ref", label: "Vidu Q1 參考生影", tab: "control", desc: "多參考圖、角色一致", bestFor: "角色/風格一致連續鏡頭", tip: "參考圖先固定角色關鍵特徵（髮型、服裝、配色）效果最好。", advantages: ["多參考圖", "一致性高"] },
   ];
 
   const agentCapabilities: AgentCapability[] = [
@@ -3246,9 +3249,14 @@ export default function VideoStudio() {
         id: m.id,
         label: m.label,
         description: m.desc,
-        meta: { tab: m.tab },
+        meta: {
+          tab: m.tab,
+          bestFor: m.bestFor,
+          tip: m.tip,
+          advantages: m.advantages ?? [],
+        },
       })),
-      hint: "setModel 會自動切到對應分頁，並告訴使用者建議用哪張卡片",
+      hint: "setModel 會自動切到對應分頁。選型原則：先依任務（文生影/圖生影/影生影/優化/控制）挑模型，再依需求選速度、可控性、畫質。可參考每個模型的 bestFor / tip / advantages。",
     },
     {
       action: "fillPrompt",
@@ -3338,6 +3346,8 @@ export default function VideoStudio() {
       }
     },
   });
+
+  const currentTabModels = VIDEO_MODELS.filter(m => m.tab === activeTab);
 
   return (
     <VideoAgentBusContext.Provider value={agentBus}>
@@ -3445,6 +3455,45 @@ export default function VideoStudio() {
           <span className="inline-block w-1 h-1 rounded-full bg-primary/40" />
           {TABS.find(t => t.id === activeTab)?.desc}
         </p>
+      </div>
+
+      {/* 模型細膩導覽（依當前分頁） */}
+      <div className="rounded-2xl border border-border/40 bg-gradient-to-br from-blue-500/5 to-purple-500/5 p-3 sm:p-4">
+        <p className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
+          <Cpu className="w-3.5 h-3.5 text-primary" />
+          模型細膩導覽 · {TABS.find(t => t.id === activeTab)?.label}
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          {currentTabModels.map(model => (
+            <div
+              key={model.id}
+              className="rounded-xl border border-border/35 bg-background/70 px-3 py-2.5"
+            >
+              <p className="text-xs font-medium text-foreground">{model.label}</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">{model.desc}</p>
+              {model.bestFor && (
+                <p className="text-[11px] text-primary mt-1">適合：{model.bestFor}</p>
+              )}
+              {model.tip && (
+                <p className="text-[11px] text-muted-foreground/90 mt-0.5 leading-relaxed">
+                  建議：{model.tip}
+                </p>
+              )}
+              {!!model.advantages?.length && (
+                <div className="flex flex-wrap gap-1 mt-1.5">
+                  {model.advantages.map(adv => (
+                    <span
+                      key={adv}
+                      className="text-[10px] rounded-full border border-primary/20 bg-primary/5 px-1.5 py-0.5 text-primary/80"
+                    >
+                      {adv}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* 標籤內容 */}

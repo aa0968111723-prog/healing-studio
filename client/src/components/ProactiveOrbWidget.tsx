@@ -367,6 +367,12 @@ const PAGE_QUICK_ACTIONS: Record<string, QuickAction[]> = {
       action: "chat-model-compare",
     },
     {
+      icon: <Cpu className="w-4 h-4" />,
+      label: "模型細節導覽",
+      description: "逐一解說影片模型長處、功能優勢與取捨",
+      action: "chat-video-model-deep-dive",
+    },
+    {
       icon: <Sparkles className="w-4 h-4" />,
       label: "影片提詞技巧",
       description: "教你寫出更好的影片生成提示詞",
@@ -998,6 +1004,8 @@ export default memo(function ProactiveOrbWidget({
                 "請詳細比較圖片創作室每個模型的長處、功能優勢與適用場景，並給我選型建議",
               "chat-prompt-optimize": "請幫我優化提示詞",
               "chat-model-compare": "請幫我比較影片模型的差異",
+              "chat-video-model-deep-dive":
+                "請細膩比較影片創作室每個模型的長處、功能優勢、成本與適用場景，最後給我選型建議",
               "chat-video-tips": "影片提示詞有什麼技巧？",
               "chat-music-style": "請推薦適合的音樂風格",
               "chat-voice-tips": "聲音克隆有什麼注意事項？",

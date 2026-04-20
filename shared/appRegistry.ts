@@ -159,6 +159,14 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
         prompt:
           "我想要先討論影片感覺和參數，幫我調整節奏、鏡頭語言、運鏡和情緒。",
       },
+      {
+        id: "video-model-deep-dive",
+        label: "模型細膩導覽",
+        description: "逐一比較影片模型長處、功能優勢與取捨",
+        path: "/video-studio",
+        prompt:
+          "請你細膩比較影片創作室每個模型的長處、功能優勢、限制、成本與適用場景，並給我選型建議。",
+      },
     ],
     orbHints: ["我想做一支短影片"],
   },
