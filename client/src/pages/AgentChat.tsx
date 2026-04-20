@@ -17,7 +17,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Sparkles, Loader2 } from "lucide-react";
+import { Send, Sparkles, Loader2, ArrowRight, Navigation2, MessageCircle } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { usePersonality } from "@/contexts/PersonalityContext";
 import {
@@ -26,6 +26,7 @@ import {
   useRegisterPageAgent,
   type AgentAction,
 } from "@/contexts/PageAgentContext";
+import { useOrbGuide, INTENT_CONFIGS, type GuideIntent } from "@/contexts/OrbGuideContext";
 import { Button } from "@/components/ui/button";
 import { getAgentHomeEntries } from "@/config/appRegistry";
 
@@ -99,6 +100,7 @@ export default function AgentChat() {
   const { personality } = usePersonality();
   const pageAgent = usePageAgent();
   const [, setLocation] = useLocation();
+  const { openPanel: openOrbGuide, selectIntent: selectOrbIntent } = useOrbGuide();
 
   // ── 把 /agent 本身也登記成一個 PageAgent 頁面 ──────────────────────
   //
@@ -301,27 +303,69 @@ export default function AgentChat() {
           <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md leading-relaxed">
             不用急著學工具，也不用先研究模型。先讓光球帶你快速操作；想深入時，再去「學習文件中心」慢慢學就好。
           </p>
+
+          {/* ── 第一輪：意圖選擇 grid ── */}
           {isFirstTurn && (
-            <div className="w-full mt-2">
-              <p className="text-xs text-slate-500 mb-2">你也可以直接選一個入口：</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {starterEntries.map(entry => (
-                  <button
-                    key={entry.id}
-                    type="button"
-                    className="text-left rounded-xl border border-slate-200/70 bg-white/70 dark:bg-slate-900/40 px-3 py-2.5 hover:border-emerald-300 hover:shadow-sm transition-colors"
-                    onClick={() => void handleStarterEntryClick(entry)}
-                  >
-                    <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
-                      {entry.label}
-                    </p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
-                      {entry.description}
-                    </p>
-                  </button>
-                ))}
-              </div>
-            </div>
+            <AnimatePresence>
+              <motion.div
+                key="intent-grid"
+                className="w-full mt-2 space-y-3"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: 0.2 }}
+              >
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  你想做什麼？選一個，光球帶你去：
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {(["image", "video", "music", "voice", "script", "lora", "explore"] as Exclude<GuideIntent, null>[]).map((intentId, i) => {
+                    const cfg = INTENT_CONFIGS[intentId];
+                    return (
+                      <motion.div
+                        key={intentId}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.25 + i * 0.05 }}
+                        className="group relative flex flex-col gap-1 rounded-xl border border-slate-200/70 dark:border-slate-700/50 bg-white/70 dark:bg-slate-900/40 px-3 py-2.5 text-left hover:border-emerald-300 dark:hover:border-emerald-600 hover:shadow-sm transition-all"
+                      >
+                        {/* 意圖主體：點擊 → 開啟引導流程 */}
+                        <button
+                          type="button"
+                          className="flex items-center gap-2 w-full"
+                          onClick={() => {
+                            selectOrbIntent(intentId);
+                            openOrbGuide();
+                          }}
+                        >
+                          <span className="text-lg leading-none">{cfg.emoji}</span>
+                          <div className="flex-1 text-left">
+                            <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
+                              {cfg.label}
+                            </p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1">
+                              {cfg.description}
+                            </p>
+                          </div>
+                          <Navigation2 className="w-3.5 h-3.5 text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                        </button>
+                        {/* 聊天捷徑：點擊 → 在聊天中問這個意圖 */}
+                        <button
+                          type="button"
+                          className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors pl-7"
+                          onClick={() => void send(`我想要${cfg.label}`)}
+                        >
+                          <MessageCircle className="w-3 h-3" />
+                          先聊聊這個
+                        </button>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+                <p className="text-[11px] text-slate-400 dark:text-slate-500 text-center">
+                  或是直接在下方輸入框說說你的想法 ✨
+                </p>
+              </motion.div>
+            </AnimatePresence>
           )}
         </div>
 
@@ -374,35 +418,34 @@ export default function AgentChat() {
           </AnimatePresence>
         </div>
 
-        {/* 快速回覆 / 起手式 */}
-        {(isFirstTurn ? quickStarters : suggestions).length > 0 && (
-          <div className="space-y-2">
-            <div className="flex flex-wrap gap-2">
-              {(isFirstTurn ? quickStarters : suggestions).map(s => (
-                <button
-                  key={s}
-                  onClick={() => void send(s)}
-                  disabled={isSending}
-                  className="text-xs px-3 py-1.5 rounded-full bg-white/80 dark:bg-slate-800/70 text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 hover:border-emerald-200 dark:hover:border-emerald-500/40 transition disabled:opacity-50"
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-            {isFirstTurn && (
-              <div className="flex items-center gap-2">
-                <p className="text-[11px] text-slate-400 dark:text-slate-500">
-                  想系統化學習時，可以直接打開「學習文件中心」📚
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setLocation("/learn")}
-                  className="text-[11px] px-2 py-1 rounded-md border border-slate-200/70 text-slate-500 hover:text-slate-700 hover:border-slate-300 transition-colors"
-                >
-                  前往學習文件中心
-                </button>
-              </div>
-            )}
+        {/* 快速回覆（對話中途的建議） */}
+        {!isFirstTurn && suggestions.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {suggestions.map(s => (
+              <button
+                key={s}
+                onClick={() => void send(s)}
+                disabled={isSending}
+                className="text-xs px-3 py-1.5 rounded-full bg-white/80 dark:bg-slate-800/70 text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 hover:border-emerald-200 dark:hover:border-emerald-500/40 transition disabled:opacity-50"
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        )}
+        {/* 學習中心捷徑（對話中途顯示） */}
+        {!isFirstTurn && (
+          <div className="flex items-center gap-2">
+            <p className="text-[11px] text-slate-400 dark:text-slate-500">
+              想系統化學習 📚
+            </p>
+            <button
+              type="button"
+              onClick={() => setLocation("/learn")}
+              className="text-[11px] px-2 py-1 rounded-md border border-slate-200/70 text-slate-500 hover:text-slate-700 hover:border-slate-300 transition-colors"
+            >
+              學習文件中心
+            </button>
           </div>
         )}
 

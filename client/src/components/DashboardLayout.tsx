@@ -170,16 +170,16 @@ const createGroupEntry = (label: string, pageIds: string[]): SidebarGroupItem =>
 });
 
 const sidebarStructure: SidebarEntry[] = [
+  "agent-chat",
   "studio",
   "director",
-  "agent-chat",
 ]
   .map(id => sidebarPagesById.get(id))
   .filter((page): page is AppPageRegistryItem => Boolean(page))
   .map(toLeafItem);
 
 sidebarStructure.splice(
-  1,
+  2,
   0,
   createGroupEntry("專業創作室", ["image-studio", "video-studio", "pro-studio"])
 );

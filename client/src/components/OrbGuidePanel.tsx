@@ -11,9 +11,9 @@
  *   在 ProactiveOrbWidget 的 showPanel 時 render 此元件
  */
 
-import { useRef, useEffect, useMemo, useState } from "react";
+import { useRef, useEffect, useMemo, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Sparkles, X, RotateCcw, FastForward } from "lucide-react";
+import { ArrowRight, Sparkles, X, RotateCcw, FastForward, MessageCircle, Navigation2, Send, Loader2 } from "lucide-react";
 import { useOrbGuide, INTENT_CONFIGS, type GuideIntent } from "@/contexts/OrbGuideContext";
 import VisualSoul from "./VisualSoul";
 import { useAIState } from "@/contexts/AIStateContext";
@@ -143,6 +143,55 @@ export default function OrbGuidePanel({ onClose }: OrbGuidePanelProps) {
   } = useOrbGuide();
   const { aiState } = useAIState();
   const { personality } = usePersonality();
+
+  // ── Panel mode: guided flow or free chat ──────────────────────────────────
+  const [panelMode, setPanelMode] = useState<"guide" | "chat">("guide");
+  const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "orb"; text: string }>>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatInputRef = useRef<HTMLInputElement>(null);
+
+  const aiChatMutation = trpc.ai.chat.useMutation();
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages]);
+
+  useEffect(() => {
+    if (panelMode === "chat") {
+      setTimeout(() => chatInputRef.current?.focus(), 100);
+    }
+  }, [panelMode]);
+
+  const handleChatSend = useCallback(async () => {
+    if (!chatInput.trim() || isChatLoading) return;
+    const userMsg = chatInput.trim();
+    const updated = [...chatMessages, { role: "user" as const, text: userMsg }];
+    setChatMessages(updated);
+    setChatInput("");
+    setIsChatLoading(true);
+    try {
+      const contextParts = ["光球引導面板"];
+      if (intent) contextParts.push(`意圖: ${INTENT_CONFIGS[intent].label}`);
+      const data = await aiChatMutation.mutateAsync({
+        messages: updated.map(m => ({
+          role: m.role === "user" ? ("user" as const) : ("assistant" as const),
+          content: m.text,
+        })),
+        personality,
+        context: contextParts.join(" · "),
+      });
+      setChatMessages(prev => [...prev, { role: "orb", text: data.reply }]);
+    } catch {
+      setChatMessages(prev => [
+        ...prev,
+        { role: "orb", text: "🌸 剛才有點問題，再說一次好嗎？" },
+      ]);
+    } finally {
+      setIsChatLoading(false);
+    }
+  }, [chatInput, chatMessages, isChatLoading, personality, intent, aiChatMutation]);
 
   // Current question index based on answers already collected
   const currentQuestionIndex = intent
@@ -284,14 +333,14 @@ export default function OrbGuidePanel({ onClose }: OrbGuidePanelProps) {
       <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
         <div className="flex items-center gap-2.5">
           <VisualSoul
-            state={step === "confirming" ? "acting" : step === "ask_detail" ? "thinking" : "idle"}
+            state={step === "confirming" ? "acting" : step === "ask_detail" ? "thinking" : panelMode === "chat" && isChatLoading ? "thinking" : "idle"}
             personality={personality}
             size="sm"
           />
           <span className="text-xs font-medium text-white/60 tracking-wide">光球助手</span>
         </div>
         <div className="flex items-center gap-1">
-          {step !== "ask_intent" && (
+          {panelMode === "guide" && step !== "ask_intent" && (
             <motion.button
               onClick={reset}
               className="p-1.5 rounded-full hover:bg-white/10 text-white/40 hover:text-white/70 transition-all"
@@ -311,7 +360,103 @@ export default function OrbGuidePanel({ onClose }: OrbGuidePanelProps) {
         </div>
       </div>
 
-      {/* ── Scrollable Content ── */}
+      {/* ── Mode Tabs ── */}
+      <div className="flex items-center gap-1 px-4 pb-3 shrink-0">
+        <button
+          onClick={() => setPanelMode("guide")}
+          className={cn(
+            "flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl text-xs font-medium transition-all",
+            panelMode === "guide"
+              ? "bg-white/15 text-white"
+              : "text-white/40 hover:text-white/70 hover:bg-white/8"
+          )}
+        >
+          <Navigation2 className="w-3 h-3" />
+          引導帶路
+        </button>
+        <button
+          onClick={() => setPanelMode("chat")}
+          className={cn(
+            "flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl text-xs font-medium transition-all",
+            panelMode === "chat"
+              ? "bg-white/15 text-white"
+              : "text-white/40 hover:text-white/70 hover:bg-white/8"
+          )}
+        >
+          <MessageCircle className="w-3 h-3" />
+          自由聊天
+        </button>
+      </div>
+
+      {/* ── Chat Mode ── */}
+      {panelMode === "chat" && (
+        <div className="flex flex-col flex-1 overflow-hidden px-4 pb-3 gap-2">
+          {/* Chat messages */}
+          <div className="flex-1 overflow-y-auto space-y-2 scrollbar-thin scrollbar-thumb-white/10">
+            {chatMessages.length === 0 && (
+              <OrbSpeechBubble
+                text={
+                  intent
+                    ? `說說你想要的${INTENT_CONFIGS[intent].label}作品？隨便說幾個字就好，我來幫你規劃。`
+                    : "有任何問題都可以直接問我，或是告訴我你想做什麼 ✨"
+                }
+              />
+            )}
+            {chatMessages.map((msg, i) => (
+              <div
+                key={i}
+                className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}
+              >
+                <div
+                  className={cn(
+                    "max-w-[88%] px-3 py-2 rounded-2xl text-xs leading-relaxed",
+                    msg.role === "user"
+                      ? "bg-white/20 text-white rounded-br-sm"
+                      : "bg-white/8 text-white/85 rounded-bl-sm border border-white/10"
+                  )}
+                >
+                  {msg.text}
+                </div>
+              </div>
+            ))}
+            {isChatLoading && (
+              <div className="flex justify-start">
+                <div className="px-3 py-2 rounded-2xl rounded-bl-sm bg-white/8 border border-white/10 text-white/50 text-xs flex items-center gap-1.5">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  思考中…
+                </div>
+              </div>
+            )}
+            <div ref={chatEndRef} />
+          </div>
+          {/* Chat input */}
+          <div className="flex items-center gap-2 bg-white/8 rounded-2xl border border-white/10 px-3 py-2 shrink-0">
+            <input
+              ref={chatInputRef}
+              value={chatInput}
+              onChange={e => setChatInput(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  void handleChatSend();
+                }
+              }}
+              placeholder="說一句話就好…"
+              className="flex-1 bg-transparent text-xs text-white placeholder:text-white/30 outline-none"
+            />
+            <button
+              onClick={() => void handleChatSend()}
+              disabled={!chatInput.trim() || isChatLoading}
+              className="p-1 rounded-lg hover:bg-white/10 disabled:opacity-30 transition-all"
+            >
+              <Send className="w-3 h-3 text-white/70" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Guide Mode (Scrollable Content) ── */}
+      {panelMode === "guide" && (
       <div
         ref={scrollRef}
         className="flex-1 overflow-y-auto px-4 pb-4 space-y-3 scrollbar-thin scrollbar-thumb-white/10"
@@ -486,6 +631,7 @@ export default function OrbGuidePanel({ onClose }: OrbGuidePanelProps) {
 
         </AnimatePresence>
       </div>
+      )}
 
       {/* ── 底部光暈線 ── */}
       <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
