@@ -858,9 +858,13 @@ export default memo(function ProactiveOrbWidget({
   // Bridge from OrbGuidePanel → interaction panel views
   const handleOpenInteraction = useCallback(
     (view: "inspiration" | "focus-flow" | "chat") => {
-      setPanelView(view === "chat" ? "chat" : view === "focus-flow" ? "focus-flow" : "inspiration");
       if (view === "chat") {
+        setPanelView("chat");
         setChatMessages([{ role: "orb", text: greeting }]);
+      } else if (view === "focus-flow") {
+        setPanelView("focus-flow");
+      } else {
+        setPanelView("inspiration");
       }
       setShowPanel(true);
     },
@@ -1155,8 +1159,8 @@ export default memo(function ProactiveOrbWidget({
   // Close panel when clicking/tapping outside
   useEffect(() => {
     if (!showPanel) return;
-    const handler = (e: MouseEvent | TouchEvent) => {
-      const target = (e instanceof TouchEvent ? e.target : e.target) as HTMLElement;
+    const handler = (e: Event) => {
+      const target = e.target as HTMLElement;
       if (
         !target.closest("[data-orb-panel]") &&
         !target.closest("[data-orb-trigger]")
@@ -1164,9 +1168,8 @@ export default memo(function ProactiveOrbWidget({
         setShowPanel(false);
       }
     };
-    // Use pointerdown for unified mouse+touch handling
-    document.addEventListener("pointerdown", handler as EventListener, true);
-    return () => document.removeEventListener("pointerdown", handler as EventListener, true);
+    document.addEventListener("pointerdown", handler, true);
+    return () => document.removeEventListener("pointerdown", handler, true);
   }, [showPanel]);
 
   // Auto-scroll chat
