@@ -197,6 +197,14 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
         prompt:
           "請你像 AI 代理人一樣，帶我討論音樂/語音參數，依我想要的感覺逐步微調。",
       },
+      {
+        id: "pro-model-deep-dive",
+        label: "模型細膩導覽",
+        description: "逐一比較音樂/配音模型長處、功能優勢與取捨",
+        path: "/pro-studio",
+        prompt:
+          "請你細膩比較音樂配音創作室每個模型的長處、功能優勢、限制與適用情境，並給我選型建議。",
+      },
     ],
     orbHints: ["我想做配樂或配音"],
   },

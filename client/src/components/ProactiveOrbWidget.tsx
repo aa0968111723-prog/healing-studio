@@ -387,6 +387,12 @@ const PAGE_QUICK_ACTIONS: Record<string, QuickAction[]> = {
       action: "chat-music-style",
     },
     {
+      icon: <Cpu className="w-4 h-4" />,
+      label: "模型細節導覽",
+      description: "逐一解說音樂/配音模型長處、功能優勢與取捨",
+      action: "chat-pro-model-deep-dive",
+    },
+    {
       icon: <Mic className="w-4 h-4" />,
       label: "配音技巧",
       description: "語音合成和聲音克隆的最佳實踐",
@@ -1008,6 +1014,8 @@ export default memo(function ProactiveOrbWidget({
                 "請細膩比較影片創作室每個模型的長處、功能優勢、成本與適用場景，最後給我選型建議",
               "chat-video-tips": "影片提示詞有什麼技巧？",
               "chat-music-style": "請推薦適合的音樂風格",
+              "chat-pro-model-deep-dive":
+                "請細膩比較音樂配音創作室每個模型的長處、功能優勢、限制與適用場景，最後給我選型建議",
               "chat-voice-tips": "聲音克隆有什麼注意事項？",
               "chat-training-tips": "訓練 LoRA 模型有什麼建議？",
               "chat-learning-path": "推薦適合新手的學習路徑",
