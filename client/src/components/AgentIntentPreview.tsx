@@ -19,10 +19,12 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Check, X, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { usePageAgent } from "@/contexts/PageAgentContext";
+import { useIsMobile } from "@/hooks/useMobile";
 
 export default function AgentIntentPreview() {
   const { pendingConfirmation, confirmPending, cancelPending } =
     usePageAgent();
+  const isMobile = useIsMobile();
 
   return (
     <AnimatePresence>
@@ -35,7 +37,11 @@ export default function AgentIntentPreview() {
           transition={{ type: "spring", stiffness: 220, damping: 24 }}
           role="dialog"
           aria-label="光球意圖確認"
-          className="fixed z-[60] right-6 bottom-28 max-w-[22rem] w-[min(22rem,calc(100vw-3rem))] pointer-events-auto"
+          className={
+            isMobile
+              ? "fixed z-[60] inset-x-4 bottom-20 max-w-none pointer-events-auto"
+              : "fixed z-[60] right-6 bottom-28 max-w-[22rem] w-[min(22rem,calc(100vw-3rem))] pointer-events-auto"
+          }
         >
           <div className="relative rounded-2xl border border-emerald-200/60 dark:border-emerald-400/30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl shadow-2xl overflow-hidden">
             {/* 柔和光暈 */}

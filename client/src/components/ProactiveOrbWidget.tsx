@@ -45,6 +45,8 @@ import { usePageAgent } from "@/contexts/PageAgentContext";
 import { parseLLMActions, type AgentAction } from "../../../shared/agent-actions";
 import { useLocation } from "wouter";
 import { getPageByPath } from "@/config/appRegistry";
+import { useIsMobile } from "@/hooks/useMobile";
+import { cn } from "@/lib/utils";
 
 type Props = {
   className?: string;
@@ -467,6 +469,7 @@ export default memo(function ProactiveOrbWidget({
     pomodoroPhase,
   } = useFocusFlow();
   const orbControls = useAnimation();
+  const isMobile = useIsMobile();
 
   // Drag position state
   const [position, setPosition] = useState<{ x: number; y: number }>(
@@ -852,6 +855,22 @@ export default memo(function ProactiveOrbWidget({
     setShowPanel(false);
   }, [guiding, isGuideOpen, openGuidePanel, closeGuidePanel]);
 
+  // Bridge from OrbGuidePanel → interaction panel views
+  const handleOpenInteraction = useCallback(
+    (view: "inspiration" | "focus-flow" | "chat") => {
+      if (view === "chat") {
+        setPanelView("chat");
+        setChatMessages([{ role: "orb", text: greeting }]);
+      } else if (view === "focus-flow") {
+        setPanelView("focus-flow");
+      } else {
+        setPanelView("inspiration");
+      }
+      setShowPanel(true);
+    },
+    [greeting]
+  );
+
   // ─── Quick action handlers ───────────────────────────────────────────
 
   const handleQuickAction = useCallback(
@@ -1137,10 +1156,10 @@ export default memo(function ProactiveOrbWidget({
   const isFeedback = !!feedbackMessage;
   const isGuideMsg = !!guideMessage;
 
-  // Close panel when clicking outside
+  // Close panel when clicking/tapping outside
   useEffect(() => {
     if (!showPanel) return;
-    const handler = (e: MouseEvent) => {
+    const handler = (e: Event) => {
       const target = e.target as HTMLElement;
       if (
         !target.closest("[data-orb-panel]") &&
@@ -1149,8 +1168,8 @@ export default memo(function ProactiveOrbWidget({
         setShowPanel(false);
       }
     };
-    document.addEventListener("click", handler, true);
-    return () => document.removeEventListener("click", handler, true);
+    document.addEventListener("pointerdown", handler, true);
+    return () => document.removeEventListener("pointerdown", handler, true);
   }, [showPanel]);
 
   // Auto-scroll chat
@@ -1177,9 +1196,262 @@ export default memo(function ProactiveOrbWidget({
         )}
       </AnimatePresence>
 
+      {/* ══ OrbGuide Panel — mobile: fixed overlay outside drag container ══ */}
+      {isMobile && (
+        <AnimatePresence>
+          {isGuideOpen && (
+            <div className="pointer-events-auto">
+              <OrbGuidePanel onClose={closeGuidePanel} fullscreen onOpenInteraction={handleOpenInteraction} />
+            </div>
+          )}
+        </AnimatePresence>
+      )}
+
+      {/* ══ Mobile interaction panel — fullscreen bottom sheet ══ */}
+      {isMobile && (
+        <AnimatePresence>
+          {showPanel && (
+            <>
+              <motion.div
+                className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[55] pointer-events-auto"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setShowPanel(false)}
+              />
+              <motion.div
+                data-orb-panel
+                initial={{ opacity: 0, y: "100%" }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: "60%" }}
+                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                className="fixed inset-x-0 bottom-0 z-[56] pointer-events-auto rounded-t-3xl overflow-hidden"
+                style={{
+                  maxHeight: "85vh",
+                  background: "rgba(255, 255, 255, 0.96)",
+                  backdropFilter: "blur(24px) saturate(180%)",
+                  WebkitBackdropFilter: "blur(24px) saturate(180%)",
+                  border: "1px solid rgba(255, 255, 255, 0.5)",
+                  boxShadow: "0 -8px 40px rgba(0, 0, 0, 0.12), 0 -2px 12px rgba(0, 0, 0, 0.06)",
+                  paddingBottom: "env(safe-area-inset-bottom, 0px)",
+                }}
+                onClick={e => e.stopPropagation()}
+              >
+                {/* Drag handle */}
+                <div className="flex justify-center pt-3 pb-1">
+                  <div className="w-10 h-1 rounded-full bg-gray-300" />
+                </div>
+
+                {/* Panel Header (mobile) */}
+                <div className="px-5 pt-2 pb-2 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <VisualSoul
+                        state={aiState}
+                        personality={personality}
+                        size="sm"
+                        className="!w-7 !h-7"
+                      />
+                      <div
+                        className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border border-white"
+                        title="AI 代理人模式"
+                      />
+                    </div>
+                    <span className="text-base font-semibold text-gray-800">
+                      {panelView === "chat"
+                        ? "💬 對話"
+                        : panelView === "inspiration"
+                          ? "✨ 靈感"
+                          : panelView === "focus-flow"
+                            ? "🌿 專注"
+                            : "🌸 光球"}
+                    </span>
+                    {pageContext && panelView === "main" && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-medium">
+                        {pageContext.pageLabel}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setQuietMode(!quietMode)}
+                      className={`p-2 rounded-full transition-colors ${quietMode ? "bg-amber-50 text-amber-500" : "hover:bg-gray-100 text-gray-400"}`}
+                      title={quietMode ? "開啟提示" : "靜音模式"}
+                    >
+                      {quietMode ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                    </button>
+                    {panelView !== "main" && (
+                      <button
+                        onClick={() => setPanelView("main")}
+                        className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                      >
+                        <RotateCcw className="w-4 h-4 text-gray-400" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setShowPanel(false)}
+                      className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                    >
+                      <X className="w-4 h-4 text-gray-400" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Mobile panel views reuse same AnimatePresence content */}
+                <div className="overflow-y-auto" style={{ maxHeight: "calc(85vh - 100px)" }}>
+                  <AnimatePresence mode="wait">
+                    {panelView === "main" && (
+                      <motion.div
+                        key="main-mobile"
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 10 }}
+                        className="px-5 pb-5"
+                      >
+                        <div className="flex items-start gap-2 mb-3">
+                          <Bot className="w-4 h-4 mt-0.5 shrink-0 text-emerald-500" />
+                          <p className="text-sm text-gray-500 leading-relaxed">{greeting}</p>
+                        </div>
+                        {currentRegistryPage?.orbHints?.length ? (
+                          <div className="mb-3 rounded-xl border border-emerald-100 bg-emerald-50/40 px-3 py-2.5">
+                            <p className="text-xs text-emerald-700 leading-relaxed">
+                              💡 {currentRegistryPage.orbHints[0]}
+                            </p>
+                          </div>
+                        ) : null}
+                        <div className="space-y-1.5 mb-3">
+                          {[
+                            ...QUICK_ACTIONS,
+                            ...(pageContext?.pageId ? (PAGE_QUICK_ACTIONS[pageContext.pageId] ?? []) : []),
+                          ].map(qa => (
+                            <button
+                              key={qa.action}
+                              onClick={() => handleQuickAction(qa.action)}
+                              className="w-full flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-gray-50 transition-colors text-left group"
+                            >
+                              <div className={`p-2 rounded-lg ${personalityAccent[personality]} transition-colors`}>
+                                {qa.icon}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-700">{qa.label}</p>
+                                <p className="text-xs text-gray-400 truncate">{qa.description}</p>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                        {currentRegistryPage?.quickActions?.length ? (
+                          <div className="space-y-1.5 mb-3">
+                            <p className="text-xs text-gray-400 px-1">這頁可直接開始：</p>
+                            {currentRegistryPage.quickActions.map(action => (
+                              <button
+                                key={action.id}
+                                onClick={() => void handleRegistryQuickAction({ path: action.path, action: action.action, prompt: action.prompt, label: action.label })}
+                                className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl border border-gray-200/70 bg-white/70 hover:bg-gray-50 transition-colors text-left"
+                              >
+                                <Navigation className="w-4 h-4 text-emerald-500 shrink-0" />
+                                <div className="min-w-0">
+                                  <p className="text-sm font-medium text-gray-700 truncate">{action.label}</p>
+                                  <p className="text-xs text-gray-400 truncate">{action.description}</p>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+                        <button
+                          onClick={() => setPanelView("inspiration")}
+                          className="w-full flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-gradient-to-r from-amber-50 to-pink-50 border border-amber-200/40 hover:from-amber-100 hover:to-pink-100 transition-all text-sm font-medium text-amber-700"
+                        >
+                          <Lightbulb className="w-4 h-4" />✨ 靈感探索
+                        </button>
+                        <button
+                          onClick={() => setPanelView("focus-flow")}
+                          className="w-full flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-gradient-to-r from-green-50 to-indigo-50 border border-green-200/40 hover:from-green-100 hover:to-indigo-100 transition-all text-sm font-medium text-green-700 mt-2"
+                        >
+                          <Leaf className="w-4 h-4" />🌿 療癒專注流
+                        </button>
+                      </motion.div>
+                    )}
+                    {panelView === "chat" && (
+                      <motion.div
+                        key="chat-mobile"
+                        initial={{ opacity: 0, x: 10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -10 }}
+                        className="flex flex-col"
+                      >
+                        <div className="px-5 py-2 max-h-[60vh] overflow-y-auto space-y-2.5">
+                          {chatMessages.map((msg, i) => (
+                            <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                              <div className={`max-w-[85%] px-3.5 py-2.5 text-sm leading-relaxed ${
+                                msg.role === "user"
+                                  ? `${personalityAccentBtn[personality]} rounded-2xl rounded-br-md`
+                                  : "bg-gradient-to-br from-gray-50 to-gray-100/80 text-gray-700 rounded-2xl rounded-bl-md border border-gray-100/60"
+                              }`}>
+                                {msg.text}
+                              </div>
+                            </div>
+                          ))}
+                          {isChatLoading && (
+                            <div className="flex justify-start">
+                              <div className="bg-gradient-to-br from-gray-50 to-gray-100/80 rounded-2xl rounded-bl-md px-4 py-3 border border-gray-100/60">
+                                <div className="flex items-center gap-1">
+                                  <motion.div className="w-1.5 h-1.5 rounded-full bg-gray-400" animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, delay: 0 }} />
+                                  <motion.div className="w-1.5 h-1.5 rounded-full bg-gray-400" animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, delay: 0.2 }} />
+                                  <motion.div className="w-1.5 h-1.5 rounded-full bg-gray-400" animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity, delay: 0.4 }} />
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          <div ref={chatEndRef} />
+                        </div>
+                        <div className="px-4 py-3 border-t border-gray-100/60">
+                          <div className="flex items-center gap-2 rounded-xl border border-gray-200/60 bg-gray-50/50 px-4 py-3 focus-within:border-gray-300 transition-colors">
+                            <input
+                              type="text"
+                              value={chatInput}
+                              onChange={e => setChatInput(e.target.value)}
+                              onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleChatSend(); } }}
+                              placeholder="分享你的想法，或問我任何事⋯⋯"
+                              className="bg-transparent text-sm text-gray-700 placeholder:text-gray-400 outline-none flex-1 min-w-0"
+                              autoFocus
+                            />
+                            <button onClick={handleChatSend} disabled={!chatInput.trim() || isChatLoading} className="p-2 rounded-lg hover:bg-gray-200/60 transition-colors disabled:opacity-30">
+                              {isChatLoading ? <Loader2 className="w-4 h-4 text-gray-500 animate-spin" /> : <Send className="w-4 h-4 text-gray-500" />}
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                    {panelView === "inspiration" && (
+                      <motion.div key="inspiration-mobile" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} className="px-5 pb-5">
+                        <p className="text-sm text-gray-500 mb-3">選一個喜歡的主題，積木會自動填入。</p>
+                        <div className="grid grid-cols-2 gap-2.5">
+                          {INSPIRATION_PRESETS.map(preset => (
+                            <button key={preset.label} onClick={() => handleApplyPreset(preset)} className="flex flex-col items-start gap-1 px-3 py-3 rounded-xl border border-gray-100 hover:border-amber-200 hover:bg-amber-50/50 transition-all text-left group">
+                              <span className="text-xl">{preset.emoji}</span>
+                              <span className="text-sm font-medium text-gray-700 group-hover:text-amber-700">{preset.label}</span>
+                              <span className="text-xs text-gray-400">{preset.mood}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                    {panelView === "focus-flow" && (
+                      <motion.div key="focus-flow-mobile" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }}>
+                        <FocusFlowMini />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+      )}
+
       {/* Draggable orb container */}
       <motion.div
-        drag={!guiding && !showPanel}
+        drag={!isMobile && !guiding && !showPanel}
         dragElastic={0.1}
         dragMomentum={false}
         dragConstraints={{
@@ -1190,27 +1462,35 @@ export default memo(function ProactiveOrbWidget({
         }}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
-        whileDrag={{
+        whileDrag={isMobile ? undefined : {
           scale: 1.15,
           boxShadow: `0 0 40px ${personalityGlowColors[personality]}`,
         }}
-        initial={hasDragged ? position : { x: 0, y: 0 }}
-        animate={guiding ? undefined : position}
+        initial={!isMobile && hasDragged ? position : { x: 0, y: 0 }}
+        animate={guiding ? undefined : (isMobile ? { x: 0, y: 0 } : position)}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        className="absolute bottom-6 right-6 pointer-events-auto flex flex-col items-end gap-3"
-        style={{ cursor: guiding ? "default" : "grab", touchAction: "none" }}
+        className={cn(
+          "pointer-events-auto flex flex-col items-end gap-3",
+          isMobile
+            ? "absolute bottom-4 right-4"
+            : "absolute bottom-6 right-6"
+        )}
+        style={{ cursor: isMobile ? "pointer" : (guiding ? "default" : "grab"), touchAction: "none" }}
         id="proactive-orb-anchor"
       >
-        {/* ══ OrbGuide Panel — 新引導對話面板 ══ */}
+        {/* ══ OrbGuide Panel — desktop only (mobile renders outside drag container) ══ */}
+        {!isMobile && (
         <AnimatePresence>
           {isGuideOpen && (
             <div data-orb-panel>
-              <OrbGuidePanel onClose={closeGuidePanel} />
+              <OrbGuidePanel onClose={closeGuidePanel} onOpenInteraction={handleOpenInteraction} />
             </div>
           )}
         </AnimatePresence>
+        )}
 
-        {/* Interaction Panel */}
+        {/* Interaction Panel — desktop only (mobile renders as bottom sheet above) */}
+        {!isMobile && (
         <AnimatePresence>
           {showPanel && (
             <motion.div
@@ -1547,6 +1827,7 @@ export default memo(function ProactiveOrbWidget({
             </motion.div>
           )}
         </AnimatePresence>
+        )}
 
         {/* Message bubble (feedback / guide / proactive) */}
         <AnimatePresence mode="wait">
