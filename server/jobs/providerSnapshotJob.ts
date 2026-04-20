@@ -118,13 +118,13 @@ async function runSnapshotAndAggregation(): Promise<void> {
         } else if (provider === "suno") {
           snapshotData = await pollSuno();
         } else if (provider === "fal_ai") {
-          // fal.ai — stub, will record placeholder
+          // TODO: Implement fal.ai usage API polling when pricing/estimate endpoint is available
           snapshotData = {
             tier: "pay-as-you-go",
             extraData: { note: "fal.ai usage tracked via proxy gateway" },
           };
         } else if (provider === "gemini") {
-          // Gemini — stub, tracked via GCP billing
+          // TODO: Implement GCP Cloud Billing API polling for Gemini costs
           snapshotData = {
             tier: "pay-as-you-go",
             extraData: { note: "Gemini usage tracked via GCP billing" },

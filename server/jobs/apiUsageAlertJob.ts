@@ -37,6 +37,7 @@ function shouldAlert(key: string): boolean {
 // ─── Alert Channels ──────────────────────────────────────────────────────────
 
 async function sendSlackAlert(message: string): Promise<void> {
+  // ALERT_SLACK_WEBHOOK is optional and not in serverEnv validated schema
   const webhookUrl = process.env.ALERT_SLACK_WEBHOOK;
   if (!webhookUrl) return;
 
@@ -63,6 +64,7 @@ async function checkBudgetAlert(): Promise<void> {
   const db = await getDb();
   if (!db) return;
 
+  // AI_MONTHLY_BUDGET_USD is optional and not in serverEnv validated schema
   const monthlyBudget = Number(process.env.AI_MONTHLY_BUDGET_USD ?? 500);
   const now = new Date();
   const dayOfMonth = now.getDate();

@@ -11,7 +11,7 @@ import { Router, type Request, type Response } from "express";
 import { serverEnv } from "../_core/env.validated";
 import { getDb } from "../db";
 import { aiUsageEvents, rateLimitRules } from "../../drizzle/schema";
-import { eq, and, gte, sql } from "drizzle-orm";
+import { eq, and, gte, sql, or, isNull } from "drizzle-orm";
 
 // ─── Provider Config ─────────────────────────────────────────────────────────
 
@@ -56,6 +56,7 @@ const VALID_PROVIDERS = new Set(Object.keys(PROVIDER_CONFIG));
 // ─── PostHog Dual-Write ──────────────────────────────────────────────────────
 
 async function postHogCapture(event: Record<string, unknown>): Promise<void> {
+  // POSTHOG_API_KEY / POSTHOG_HOST are optional and not in serverEnv validated schema
   const apiKey = process.env.POSTHOG_API_KEY;
   const host = process.env.POSTHOG_HOST || "https://us.i.posthog.com";
   if (!apiKey) return;
@@ -93,7 +94,11 @@ async function checkRateLimit(
       .where(
         and(
           eq(rateLimitRules.isActive, true),
-          sql`(${rateLimitRules.provider} = ${provider} OR ${rateLimitRules.provider} = 'all' OR ${rateLimitRules.provider} IS NULL)`
+          or(
+            eq(rateLimitRules.provider, provider),
+            eq(rateLimitRules.provider, "all"),
+            isNull(rateLimitRules.provider)
+          )
         )
       );
 
@@ -188,7 +193,7 @@ aiProxyRouter.all("/api/ai/:provider/*", async (req: Request, res: Response) => 
   const config = PROVIDER_CONFIG[providerKey];
   const apiKey = serverEnv[config.keyEnvVar];
 
-  if (!apiKey || String(apiKey).trim().length === 0) {
+  if (!apiKey || (typeof apiKey === "string" && apiKey.trim().length === 0)) {
     res.status(503).json({
       error: `Provider ${provider} is not configured. Missing ${config.keyEnvVar}.`,
     });
@@ -222,10 +227,23 @@ aiProxyRouter.all("/api/ai/:provider/*", async (req: Request, res: Response) => 
     return;
   }
 
-  // Build upstream URL
-  const pathSuffix = req.params[0] || "";
+  // Build upstream URL — sanitize path to prevent SSRF
+  const pathSuffix = (req.params[0] || "").replace(/\.\./g, "").replace(/[^a-zA-Z0-9\-_\/.:@=&?%+,]/g, "");
   const queryStr = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
   const upstreamUrl = `${config.baseUrl}/${pathSuffix}${queryStr}`;
+
+  // Validate the resolved URL stays within the expected base URL
+  try {
+    const resolved = new URL(upstreamUrl);
+    const expected = new URL(config.baseUrl);
+    if (resolved.hostname !== expected.hostname) {
+      res.status(400).json({ error: "Invalid upstream URL: hostname mismatch" });
+      return;
+    }
+  } catch {
+    res.status(400).json({ error: "Invalid URL construction" });
+    return;
+  }
 
   // Build headers (strip hop-by-hop, inject API key)
   const forwardHeaders: Record<string, string> = {};
@@ -278,7 +296,8 @@ aiProxyRouter.all("/api/ai/:provider/*", async (req: Request, res: Response) => 
     const buffer = await upstreamRes.arrayBuffer();
     res.send(Buffer.from(buffer));
   } catch (err: unknown) {
-    if (err instanceof DOMException && err.name === "AbortError") {
+    const isAbortError = err instanceof Error && err.name === "AbortError";
+    if (isAbortError) {
       status = "timeout";
       errorMessage = "Request timed out (120s)";
       if (!res.headersSent) res.status(504).json({ error: "Gateway timeout" });
