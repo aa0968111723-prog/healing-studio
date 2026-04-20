@@ -65,6 +65,7 @@ import {
 import { eq } from "drizzle-orm";
 import { userAiBrain } from "../drizzle/schema";
 import { getDb } from "./db";
+import { normalizeEngineModelId } from "../shared/engineModelIds";
 
 // ─── Dev-only debug logger (no-ops in production) ─────────────────────────
 const isDev = process.env.NODE_ENV !== "production";
@@ -359,6 +360,9 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         const userId = ctx.user.id;
         const demoMode = isDemoMode();
+        const overrideEngine = input.overrideEngine
+          ? normalizeEngineModelId(input.overrideEngine)
+          : undefined;
 
         // ── Step 1: 讀取使用者大腦組態 ──
         let brainRow: Record<string, unknown> | null = null;
@@ -381,19 +385,19 @@ export const appRouter = router({
         // ── Step 2: 選定本次任務的引擎 ──
         const modalityEngineMap: Record<string, string> = {
           image:
-            input.overrideEngine ??
+            overrideEngine ??
             String(brainRow?.imageEngine ?? falEngines.textToImage),
           video:
-            input.overrideEngine ??
+            overrideEngine ??
             String(brainRow?.videoEngine ?? falEngines.textToVideo),
           audio:
-            input.overrideEngine ??
+            overrideEngine ??
             String(brainRow?.audioEngine ?? falEngines.textToAudio),
           voice:
-            input.overrideEngine ??
+            overrideEngine ??
             String(brainRow?.voiceEngine ?? falEngines.textToSpeech),
           multimodal:
-            input.overrideEngine ??
+            overrideEngine ??
             String(brainRow?.imageEngine ?? falEngines.textToImage),
         };
         const selectedEngine =
@@ -1672,6 +1676,8 @@ export const appRouter = router({
           // Vault & Model
           fineTunedModelId: z.number().optional(),
           loraWeight: z.number().min(0).max(1).optional(),
+          // Director AI can override engine model for this request
+          overrideModelId: z.string().optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -1708,6 +1714,9 @@ export const appRouter = router({
         // ── 3. 決定 modelId 和 fal input ───────────────────────────────
         let modelId: string;
         let falInput: Record<string, unknown> = {};
+        const overrideModelId = input.overrideModelId
+          ? normalizeEngineModelId(input.overrideModelId)
+          : undefined;
         const modalityLabel =
           input.generationType === "image" ? "圖像" :
           input.generationType === "video" ? "影片" :
@@ -1715,7 +1724,9 @@ export const appRouter = router({
 
         if (input.generationType === "image") {
           const refUrl = input.styleReferenceUrl || input.vibeReferenceUrl;
-          modelId = refUrl ? falEngines.imageToImage : falEngines.textToImage;
+          modelId =
+            overrideModelId ??
+            (refUrl ? falEngines.imageToImage : falEngines.textToImage);
           falInput = {
             prompt: input.prompt,
             ...(input.aspectRatio && { aspect_ratio: input.aspectRatio }),
@@ -1725,7 +1736,9 @@ export const appRouter = router({
           };
         } else if (input.generationType === "video") {
           const hasFirstFrame = !!input.firstFrameUrl;
-          modelId = hasFirstFrame ? falEngines.imageToVideo : falEngines.textToVideo;
+          modelId =
+            overrideModelId ??
+            (hasFirstFrame ? falEngines.imageToVideo : falEngines.textToVideo);
           falInput = {
             prompt: input.prompt,
             ...(input.videoDurationSeconds && { duration: String(input.videoDurationSeconds) }),
@@ -1735,7 +1748,7 @@ export const appRouter = router({
             ...(input.seed != null && { seed: input.seed }),
           };
         } else if (input.generationType === "audio") {
-          modelId = falEngines.textToAudio;
+          modelId = overrideModelId ?? falEngines.textToAudio;
           falInput = {
             prompt: input.prompt,
             ...(input.audioDuration && { seconds_total: input.audioDuration }),
@@ -1746,7 +1759,7 @@ export const appRouter = router({
         } else {
           // voice
           const voicePrompt = input.voiceText ?? input.prompt;
-          modelId = falEngines.textToSpeech;
+          modelId = overrideModelId ?? falEngines.textToSpeech;
           // TTS 模型用 text 欄位
           falInput = {
             text: voicePrompt,
@@ -1806,7 +1819,13 @@ export const appRouter = router({
             } as any,
           });
 
-          return { jobId, request_id, modelId, label };
+          return {
+            jobId,
+            request_id,
+            modelId,
+            label,
+            generationType: input.generationType,
+          };
         } catch (err) {
           // queue submit 失敗 → 退款 + 標記失敗
           if (!isDemoMode()) {
