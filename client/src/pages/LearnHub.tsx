@@ -63,6 +63,7 @@ import {
   ClipboardCheck,
   Trophy,
   XCircle,
+  Box,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
@@ -1015,7 +1016,7 @@ const QUIZ_FILTER_CATEGORIES = [
   { id: "workflow", label: "創作流程", icon: Workflow },
   { id: "pro-studio", label: "音訊影片", icon: Video },
   { id: "director-ai", label: "導演模式", icon: FileText },
-  { id: "3d-modeling", label: "3D 建模", icon: Workflow },
+  { id: "3d-modeling", label: "3D 建模", icon: Box },
   { id: "tools-features", label: "工具功能", icon: ClipboardCheck },
   { id: "safety-privacy", label: "安全隱私", icon: Info },
 ] as const;
