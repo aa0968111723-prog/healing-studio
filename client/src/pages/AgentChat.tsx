@@ -132,7 +132,11 @@ export default function AgentChat() {
       }
       if (action.type === "search") {
         // 在聊天頁搜尋：用搜尋關鍵字自動送出一次 chat
-        void sendRef.current?.(`搜尋：${action.query}`);
+        try {
+          void sendRef.current?.(`搜尋：${action.query}`);
+        } catch {
+          console.warn("[AgentChat] search dispatch failed for:", action.query);
+        }
         return { ok: true, message: "searching" };
       }
       // 其他動作：這頁沒有工具可執行，讓 bus 自己 enqueue 給目標頁

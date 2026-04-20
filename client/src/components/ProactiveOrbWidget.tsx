@@ -1121,6 +1121,15 @@ export default memo(function ProactiveOrbWidget({
     [onApplyInspiration, onSwitchModality, showFeedback]
   );
 
+  // ─── Quick-reply suggestion handler ───────────────────────────────────
+  const handleSuggestionClick = useCallback(
+    (text: string) => {
+      setChatInput(text);
+      setChatSuggestions([]);
+    },
+    []
+  );
+
   // ─── Personality theme maps ───────────────────────────────────────────
 
   const personalityLabels: Record<string, string> = {
@@ -1418,7 +1427,7 @@ export default memo(function ProactiveOrbWidget({
                             {chatSuggestions.map(s => (
                               <button
                                 key={s}
-                                onClick={() => { setChatInput(s); setChatSuggestions([]); }}
+                                onClick={() => handleSuggestionClick(s)}
                                 className="text-xs px-2.5 py-1 rounded-full bg-white/80 text-gray-600 border border-gray-200/60 hover:bg-emerald-50 hover:border-emerald-200 transition"
                               >
                                 {s}
@@ -1775,7 +1784,7 @@ export default memo(function ProactiveOrbWidget({
                         {chatSuggestions.map(s => (
                           <button
                             key={s}
-                            onClick={() => { setChatInput(s); setChatSuggestions([]); }}
+                            onClick={() => handleSuggestionClick(s)}
                             className="text-[11px] px-2 py-0.5 rounded-full bg-white/80 text-gray-600 border border-gray-200/60 hover:bg-emerald-50 hover:border-emerald-200 transition"
                           >
                             {s}

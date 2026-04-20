@@ -362,14 +362,17 @@ export function coerceAgentAction(input: unknown): AgentAction | null {
       return {
         type: "runWorkflow",
         name: String(name),
-        steps: steps.filter(
-          (s: any) => s && typeof s === "object" && typeof s.actionType === "string"
-        ).map((s: any) => ({
-          path: typeof s.path === "string" ? s.path : undefined,
-          actionType: String(s.actionType),
-          payload: typeof s.payload === "string" ? s.payload : "",
-          label: typeof s.label === "string" ? s.label : `${s.actionType}`,
-        })),
+        steps: steps
+          .filter(
+            (s: unknown): s is Record<string, unknown> =>
+              !!s && typeof s === "object" && typeof (s as Record<string, unknown>).actionType === "string"
+          )
+          .map((s) => ({
+            path: typeof s.path === "string" ? s.path : undefined,
+            actionType: String(s.actionType),
+            payload: typeof s.payload === "string" ? s.payload : "",
+            label: typeof s.label === "string" ? s.label : `${String(s.actionType)}`,
+          })),
       };
     }
     default:
