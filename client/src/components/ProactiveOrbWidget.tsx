@@ -498,6 +498,7 @@ export default memo(function ProactiveOrbWidget({
     Array<{ role: "user" | "orb"; text: string }>
   >([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const [chatSuggestions, setChatSuggestions] = useState<string[]>([]);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
 
   // Home position
@@ -972,6 +973,7 @@ export default memo(function ProactiveOrbWidget({
     ];
     setChatMessages(updatedMessages);
     setChatInput("");
+    setChatSuggestions([]);
     setIsChatLoading(true);
 
     // Check for modality keywords to trigger UI side effects
@@ -1021,6 +1023,12 @@ export default memo(function ProactiveOrbWidget({
         recentFeedback: pageAgent.recentFeedback,
       });
       setChatMessages(prev => [...prev, { role: "orb", text: data.reply }]);
+
+      // Capture quick-reply suggestions from LLM response
+      const llmSuggestions = (data as { suggestions?: string[] }).suggestions ?? [];
+      if (llmSuggestions.length > 0) {
+        setChatSuggestions(llmSuggestions.slice(0, 4));
+      }
 
       // Phase 1.5：若 LLM 附了 INTENT 摘要，先浮顯「光球想做什麼」給使用者看
       const intentSummary =
@@ -1111,6 +1119,15 @@ export default memo(function ProactiveOrbWidget({
       setShowPanel(false);
     },
     [onApplyInspiration, onSwitchModality, showFeedback]
+  );
+
+  // ─── Quick-reply suggestion handler ───────────────────────────────────
+  const handleSuggestionClick = useCallback(
+    (text: string) => {
+      setChatInput(text);
+      setChatSuggestions([]);
+    },
+    []
   );
 
   // ─── Personality theme maps ───────────────────────────────────────────
@@ -1404,6 +1421,20 @@ export default memo(function ProactiveOrbWidget({
                           )}
                           <div ref={chatEndRef} />
                         </div>
+                        {/* Quick-reply suggestions */}
+                        {chatSuggestions.length > 0 && !isChatLoading && (
+                          <div className="px-4 py-1.5 flex flex-wrap gap-1.5">
+                            {chatSuggestions.map(s => (
+                              <button
+                                key={s}
+                                onClick={() => handleSuggestionClick(s)}
+                                className="text-xs px-2.5 py-1 rounded-full bg-white/80 text-gray-600 border border-gray-200/60 hover:bg-emerald-50 hover:border-emerald-200 transition"
+                              >
+                                {s}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                         <div className="px-4 py-3 border-t border-gray-100/60">
                           <div className="flex items-center gap-2 rounded-xl border border-gray-200/60 bg-gray-50/50 px-4 py-3 focus-within:border-gray-300 transition-colors">
                             <input
@@ -1746,6 +1777,21 @@ export default memo(function ProactiveOrbWidget({
                       )}
                       <div ref={chatEndRef} />
                     </div>
+
+                    {/* Quick-reply suggestions (desktop) */}
+                    {chatSuggestions.length > 0 && !isChatLoading && (
+                      <div className="px-3 py-1 flex flex-wrap gap-1">
+                        {chatSuggestions.map(s => (
+                          <button
+                            key={s}
+                            onClick={() => handleSuggestionClick(s)}
+                            className="text-[11px] px-2 py-0.5 rounded-full bg-white/80 text-gray-600 border border-gray-200/60 hover:bg-emerald-50 hover:border-emerald-200 transition"
+                          >
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    )}
 
                     {/* Chat Input */}
                     <div className="px-3 py-3 border-t border-gray-100/60">

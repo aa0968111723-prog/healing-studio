@@ -66,16 +66,20 @@ export function buildOrbGuideActions(
       const t = input.answers.type;
       const tabId = t === "clone" ? "clone" : "tts";
       actions.push({ type: "setTab", tabId });
-      break;
-    }
-    case "script": {
-      // Director AI 沒有我們已知的 setTab，只填 prompt
       if (hint) actions.push({ type: "fillPrompt", text: hint });
       break;
     }
-    case "lora":
+    case "script": {
+      // Director AI：填 prompt 進對話分頁
+      if (hint) actions.push({ type: "fillPrompt", text: hint });
+      break;
+    }
+    case "lora": {
+      // LoRA 需要使用者上傳檔案，不自動做事
+      break;
+    }
     case "explore":
-      // LoRA 需要使用者上傳檔案，explore 刻意不自動做事
+      // explore 刻意不自動做事，讓使用者自由瀏覽
       break;
   }
 
@@ -106,9 +110,26 @@ export function summarizeOrbGuideActions(actions: AgentAction[]): string[] {
       case "applyPreset":
         lines.push(`套用預設「${action.presetId}」`);
         break;
+      case "setParam":
+        lines.push(`設定 ${action.key} = ${JSON.stringify(action.value)}`);
+        break;
+      case "navigate":
+        lines.push(`前往「${action.path}」`);
+        break;
+      case "search":
+        lines.push(`搜尋「${action.query}」`);
+        break;
+      case "openDialog":
+        lines.push(`打開「${action.dialogId}」面板`);
+        break;
+      case "toggleSetting":
+        lines.push(`切換「${action.key}」設定`);
+        break;
+      case "runWorkflow":
+        lines.push(`執行「${action.name}」（${action.steps.length} 步驟）`);
+        break;
       default:
-        // 其它動作（submit / reset…）在 3e 不會出現在到站計畫，
-        // 真的有就用通用敘述。
+        // 其它動作用通用敘述
         lines.push(`執行 ${action.type}`);
     }
   }

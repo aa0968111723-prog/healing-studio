@@ -6,7 +6,7 @@
  *  🎬 文生影 | 🖼️ 圖生影 | 🎞️ 影生影 | ✨ 畫質優化 | 🎛️ 進階控制
  */
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, createContext, useContext } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useAIState } from "@/contexts/AIStateContext";
@@ -93,6 +93,32 @@ const TABS = [
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
+
+// ─── 光球代理人 Agent Bus ────────────────────────────────────────────────────
+// Lightweight context enabling the parent page agent handler to dispatch
+// fillPrompt / setParam / submit / reset actions to the currently active tab.
+
+interface VideoAgentCommand {
+  type: "fillPrompt" | "setParam" | "submit" | "reset";
+  payload?: Record<string, unknown>;
+}
+
+interface VideoAgentBusValue {
+  /** Subscribe: child calls this in useEffect to register its handler */
+  subscribe: (tabId: TabId, handler: (cmd: VideoAgentCommand) => boolean) => () => void;
+  /** Dispatch: parent agent handler calls this */
+  dispatch: (cmd: VideoAgentCommand) => boolean;
+  /** Report state: child reports its active prompt/params back */
+  reportState: (tabId: TabId, state: Record<string, unknown>) => void;
+  /** Get state reported by active child */
+  getChildState: () => Record<string, unknown> | null;
+}
+
+const VideoAgentBusContext = createContext<VideoAgentBusValue | null>(null);
+
+function useVideoAgentBus() {
+  return useContext(VideoAgentBusContext);
+}
 
 // ─── 子元件：影片播放器 ──────────────────────────────────────────────────────
 
@@ -584,6 +610,7 @@ function AsyncVideoPoller({
 function TextToVideoTab() {
   const registerBgTask = useRegisterBgTask();
   const { setAIState, reportSuccess, reportFailure } = useAIState();
+  const bus = useVideoAgentBus();
   // ─ Kling
   const [klingPrompt, setKlingPrompt] = useState("");
   const [klingNeg, setKlingNeg] = useState("");
@@ -644,6 +671,93 @@ function TextToVideoTab() {
     onError: e => toast.error(e.message),
   });
 
+  // ── Agent Bus subscription: allow parent to fill prompts & set params ──
+  const runKlingRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    if (!bus) return;
+    const unsub = bus.subscribe("t2v", (cmd) => {
+      if (cmd.type === "fillPrompt") {
+        const text = (cmd.payload?.text as string) ?? "";
+        const slot = (cmd.payload?.slot as string) ?? "prompt";
+        if (slot === "negativePrompt") {
+          setKlingNeg(text);
+          setWanNeg(text);
+          setLtxNeg(text);
+        } else {
+          // Fill all model prompts so whichever the user launches gets it
+          setKlingPrompt(text);
+          setWanPrompt(text);
+          setMmPrompt(text);
+          setVeoPrompt(text);
+          setLtxPrompt(text);
+          setSoraPrompt(text);
+        }
+        return true;
+      }
+      if (cmd.type === "setParam") {
+        const key = cmd.payload?.key as string;
+        const value = cmd.payload?.value;
+        switch (key) {
+          case "duration":
+            if (value === "5" || value === "10") { setKlingDuration(value); setSoraDuration(Number(value)); }
+            else if (typeof value === "number") setSoraDuration(value);
+            return true;
+          case "aspectRatio":
+            if (typeof value === "string") {
+              const v = value as "16:9" | "9:16" | "1:1";
+              setKlingAspect(v);
+              if (v === "16:9" || v === "9:16") setVeoAspect(v);
+              setSoraAspect(v);
+            }
+            return true;
+          case "cfgScale":
+            if (typeof value === "number") setKlingCfg(value);
+            return true;
+          case "resolution":
+            if (value === "480p" || value === "720p") setWanRes(value);
+            if (value === "480p" || value === "720p" || value === "1080p") setSoraRes(value);
+            return true;
+          case "numFrames":
+            if (typeof value === "number") setWanFrames(value);
+            return true;
+          case "negativePrompt":
+            if (typeof value === "string") { setKlingNeg(value); setWanNeg(value); setLtxNeg(value); }
+            return true;
+          case "promptOptimizer":
+            if (typeof value === "boolean") setMmOptimize(value);
+            return true;
+          case "generateAudio":
+            if (typeof value === "boolean") setVeoAudio(value);
+            return true;
+          default:
+            return true;
+        }
+      }
+      if (cmd.type === "submit") {
+        runKlingRef.current();
+        return true;
+      }
+      if (cmd.type === "reset") {
+        setKlingPrompt(""); setKlingNeg(""); setKlingDuration("5"); setKlingAspect("16:9"); setKlingCfg(0.5);
+        setWanPrompt(""); setWanNeg(""); setWanRes("720p"); setWanFrames(81);
+        setMmPrompt(""); setMmOptimize(true);
+        setVeoPrompt(""); setVeoAspect("16:9"); setVeoAudio(true);
+        setLtxPrompt(""); setLtxNeg("");
+        setSoraPrompt(""); setSoraDuration(10); setSoraRes("720p"); setSoraAspect("16:9");
+        return true;
+      }
+      return false;
+    });
+    // Report active state
+    bus.reportState("t2v", {
+      promptPreview: klingPrompt.slice(0, 100) || "(空)",
+      duration: klingDuration,
+      aspectRatio: klingAspect,
+      cfgScale: klingCfg,
+    });
+    return unsub;
+  });
+
   async function runKling() {
     if (!klingPrompt.trim()) return toast.error("請輸入提詞");
     setAIState("generating");
@@ -665,6 +779,7 @@ function TextToVideoTab() {
       setAIState("idle");
     }
   }
+  runKlingRef.current = runKling;
 
   async function runWan() {
     if (!wanPrompt.trim()) return toast.error("請輸入提詞");
@@ -1266,6 +1381,7 @@ function TextToVideoTab() {
 function ImageToVideoTab() {
   const registerBgTask = useRegisterBgTask();
   const { setAIState, reportSuccess, reportFailure } = useAIState();
+  const bus = useVideoAgentBus();
   const [klingPrompt, setKlingPrompt] = useState("");
   const [klingImage, setKlingImage] = useState("");
   const [klingTail, setKlingTail] = useState("");
@@ -1310,6 +1426,57 @@ function ImageToVideoTab() {
   });
   const mmMut = trpc.videoStudio.minimaxImageToVideo.useMutation({
     onError: e => toast.error(e.message),
+  });
+
+  // ── Agent Bus subscription (i2v) ──
+  useEffect(() => {
+    if (!bus) return;
+    const unsub = bus.subscribe("i2v", (cmd) => {
+      if (cmd.type === "fillPrompt") {
+        const text = (cmd.payload?.text as string) ?? "";
+        setKlingPrompt(text); setWanPrompt(text); setRunwayPrompt(text); setPvPrompt(text); setMmPrompt(text);
+        return true;
+      }
+      if (cmd.type === "setParam") {
+        const key = cmd.payload?.key as string;
+        const value = cmd.payload?.value;
+        switch (key) {
+          case "imageUrl":
+            if (typeof value === "string") { setKlingImage(value); setWanImage(value); setRunwayImage(value); setPvImage(value); setMmImage(value); }
+            return true;
+          case "tailImageUrl":
+            if (typeof value === "string") setKlingTail(value);
+            return true;
+          case "duration":
+            if (value === "5" || value === "10") { setKlingDuration(value); setRunwayDuration(value); }
+            if (value === "4" || value === "8") setPvDuration(value);
+            return true;
+          case "resolution":
+            if (value === "480p" || value === "720p") setWanRes(value);
+            if (value === "360p" || value === "540p" || value === "720p" || value === "1080p") setPvQuality(value as any);
+            return true;
+          case "aspectRatio":
+            if (typeof value === "string") setRunwayRatio(value === "16:9" ? "1280:720" : value === "9:16" ? "720:1280" : value);
+            return true;
+          default: return true;
+        }
+      }
+      if (cmd.type === "reset") {
+        setKlingPrompt(""); setKlingImage(""); setKlingTail(""); setKlingDuration("5");
+        setWanPrompt(""); setWanImage(""); setWanRes("720p");
+        setRunwayPrompt(""); setRunwayImage(""); setRunwayDuration("5"); setRunwayRatio("1280:720");
+        setPvPrompt(""); setPvImage(""); setPvDuration("4"); setPvQuality("720p");
+        setMmPrompt(""); setMmImage(""); setMmOptimize(true);
+        return true;
+      }
+      return false;
+    });
+    bus.reportState("i2v", {
+      promptPreview: klingPrompt.slice(0, 100) || "(空)",
+      hasImage: !!klingImage,
+      duration: klingDuration,
+    });
+    return unsub;
   });
 
   async function runKling() {
@@ -1818,6 +1985,7 @@ function ImageToVideoTab() {
 function VideoToVideoTab() {
   const registerBgTask = useRegisterBgTask();
   const { setAIState, reportSuccess, reportFailure } = useAIState();
+  const bus = useVideoAgentBus();
   const [wanPrompt, setWanPrompt] = useState("");
   const [wanVideo, setWanVideo] = useState("");
   const [wanStrength, setWanStrength] = useState(0.7);
@@ -1841,6 +2009,55 @@ function VideoToVideoTab() {
   });
   const ltxMut = trpc.videoStudio.ltxImageToVideo.useMutation({
     onError: e => toast.error(e.message),
+  });
+
+  // ── Agent Bus subscription (v2v) ──
+  useEffect(() => {
+    if (!bus) return;
+    const unsub = bus.subscribe("v2v", (cmd) => {
+      if (cmd.type === "fillPrompt") {
+        const text = (cmd.payload?.text as string) ?? "";
+        const slot = (cmd.payload?.slot as string) ?? "prompt";
+        if (slot === "negativePrompt") { setLtxNeg(text); }
+        else { setWanPrompt(text); setKlingPrompt(text); setLtxPrompt(text); }
+        return true;
+      }
+      if (cmd.type === "setParam") {
+        const key = cmd.payload?.key as string;
+        const value = cmd.payload?.value;
+        switch (key) {
+          case "videoUrl":
+            if (typeof value === "string") { setWanVideo(value); setKlingVideo(value); }
+            return true;
+          case "imageUrl":
+            if (typeof value === "string") setLtxImage(value);
+            return true;
+          case "strength":
+            if (typeof value === "number") setWanStrength(value);
+            return true;
+          case "cfgScale":
+            if (typeof value === "number") setKlingCfg(value);
+            return true;
+          case "negativePrompt":
+            if (typeof value === "string") setLtxNeg(value);
+            return true;
+          default: return true;
+        }
+      }
+      if (cmd.type === "reset") {
+        setWanPrompt(""); setWanVideo(""); setWanStrength(0.7);
+        setKlingPrompt(""); setKlingVideo(""); setKlingCfg(0.5);
+        setLtxPrompt(""); setLtxImage(""); setLtxNeg("");
+        return true;
+      }
+      return false;
+    });
+    bus.reportState("v2v", {
+      promptPreview: wanPrompt.slice(0, 100) || "(空)",
+      hasVideo: !!wanVideo,
+      strength: wanStrength,
+    });
+    return unsub;
   });
 
   async function runWan() {
@@ -2914,6 +3131,27 @@ export default function VideoStudio() {
     null
   );
 
+  // ── Video Agent Bus: enables parent agent handler to dispatch to child tabs ──
+  const childHandlerRef = useRef<{ tabId: TabId; handler: (cmd: VideoAgentCommand) => boolean } | null>(null);
+  const childStateRef = useRef<{ tabId: TabId; state: Record<string, unknown> } | null>(null);
+
+  const agentBus = useRef<VideoAgentBusValue>({
+    subscribe: (tabId, handler) => {
+      childHandlerRef.current = { tabId, handler };
+      return () => {
+        if (childHandlerRef.current?.tabId === tabId) childHandlerRef.current = null;
+      };
+    },
+    dispatch: (cmd) => {
+      if (!childHandlerRef.current) return false;
+      return childHandlerRef.current.handler(cmd);
+    },
+    reportState: (tabId, state) => {
+      childStateRef.current = { tabId, state };
+    },
+    getChildState: () => childStateRef.current?.state ?? null,
+  }).current;
+
   // ── AI Agent: broadcast page context ──
   useEffect(() => {
     setPageContext({
@@ -3003,14 +3241,34 @@ export default function VideoStudio() {
     },
     {
       action: "setModel",
-      label: "模型（僅提示用途）",
+      label: "模型",
       options: VIDEO_MODELS.map(m => ({
         id: m.id,
         label: m.label,
         description: m.desc,
         meta: { tab: m.tab },
       })),
-      hint: "影片工作室的模型 UI 為每分頁並列多個卡片，setModel 僅供 LLM 做語意對照；實際請透過 setTab + 自然語引導",
+      hint: "setModel 會自動切到對應分頁，並告訴使用者建議用哪張卡片",
+    },
+    {
+      action: "fillPrompt",
+      label: "提示詞",
+      hint: "填入當前分頁第一個模型的提示詞欄位；slot=negativePrompt 填負向提詞",
+    },
+    {
+      action: "setParam",
+      label: "參數",
+      hint: "可調 key: duration / aspectRatio / cfgScale / resolution / numFrames / strength / negativePrompt / promptOptimizer / generateAudio / upscaleFactor / targetFps / cameraMotion / imageUrl / videoUrl / tailImageUrl",
+    },
+    {
+      action: "submit",
+      label: "送出生成",
+      hint: "觸發當前分頁第一個模型的生成（破壞性，需確認）",
+    },
+    {
+      action: "reset",
+      label: "重設",
+      hint: "清空當前分頁所有提示詞和參數",
     },
     {
       action: "focusElement",
@@ -3024,36 +3282,57 @@ export default function VideoStudio() {
     pageLabel: "影片專業工作室",
     pagePath: "/video-studio",
     capabilities: agentCapabilities,
-    state: { activeTab, modelCount: VIDEO_MODELS.length },
+    state: {
+      activeTab,
+      activeTabLabel: TABS.find(t => t.id === activeTab)?.label ?? "",
+      modelCount: VIDEO_MODELS.length,
+      ...(agentBus.getChildState() ?? {}),
+    },
     handle: async (action: AgentAction): Promise<AgentActionResult> => {
       switch (action.type) {
         case "setTab": {
           const tab = TABS.find(t => t.id === action.tabId);
           if (!tab) return { ok: false, reason: `unknown tabId: ${action.tabId}` };
           setActiveTab(tab.id);
-          return { ok: true };
+          return { ok: true, message: `已切到「${tab.label}」` };
         }
         case "setModel": {
           const m = VIDEO_MODELS.find(x => x.id === action.modelId);
           if (!m) return { ok: false, reason: `unknown modelId: ${action.modelId}` };
-          // 切到對應分頁；具體選模型由使用者在該分頁點選
           setActiveTab(m.tab);
           return {
             ok: true,
-            message: `已切到「${TABS.find(t => t.id === m.tab)?.label}」分頁，你可以用裡面的 ${m.label}`,
+            message: `已切到「${TABS.find(t => t.id === m.tab)?.label}」分頁，建議使用 ${m.label}`,
           };
+        }
+        case "fillPrompt": {
+          const dispatched = agentBus.dispatch({
+            type: "fillPrompt",
+            payload: { text: action.text, slot: action.slot, append: action.append },
+          });
+          if (!dispatched) return { ok: false, reason: "當前分頁尚未就緒，請稍候重試" };
+          return { ok: true, message: "提示詞已填入" };
+        }
+        case "setParam": {
+          const dispatched = agentBus.dispatch({
+            type: "setParam",
+            payload: { key: action.key, value: action.value },
+          });
+          if (!dispatched) return { ok: false, reason: "當前分頁尚未就緒" };
+          return { ok: true, message: `已設定 ${action.key}` };
+        }
+        case "submit": {
+          const dispatched = agentBus.dispatch({ type: "submit" });
+          if (!dispatched) return { ok: false, reason: "當前分頁尚未就緒" };
+          return { ok: true, message: "已送出生成" };
+        }
+        case "reset": {
+          const dispatched = agentBus.dispatch({ type: "reset" });
+          if (!dispatched) return { ok: false, reason: "當前分頁尚未就緒" };
+          return { ok: true, message: "已重設" };
         }
         case "focusElement":
           return { ok: true };
-        case "fillPrompt":
-        case "submit":
-        case "reset":
-        case "applyPreset":
-        case "setParam":
-          return {
-            ok: false,
-            reason: "影片工作室的提示詞與參數由各模型卡片各自管理，無法從頁面層統一操作",
-          };
         default:
           return { ok: false, reason: "unsupported action" };
       }
@@ -3061,6 +3340,7 @@ export default function VideoStudio() {
   });
 
   return (
+    <VideoAgentBusContext.Provider value={agentBus}>
     <div className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-5">
       {/* 頁面標題 */}
       <div className="flex items-start gap-3 sm:gap-4">
@@ -3198,5 +3478,6 @@ export default function VideoStudio() {
         </div>
       </div>
     </div>
+    </VideoAgentBusContext.Provider>
   );
 }
