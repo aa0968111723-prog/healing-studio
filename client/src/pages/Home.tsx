@@ -45,7 +45,7 @@ import { useAIState } from "@/contexts/AIStateContext";
 import { AmbientEnvironment } from "@/components/AmbientEnvironment";
 import type { SceneId } from "@/components/AmbientEnvironment";
 import SceneSwitcher from "@/components/SceneSwitcher";
-import { SoundControl } from "@/components/AmbientSoundEngine";
+import { SoundControl, SCENE_SOUND_LABELS } from "@/components/AmbientSoundEngine";
 import { useAmbient } from "@/contexts/AmbientSoundContext";
 import OarsGreeting from "@/components/OarsGreeting";
 import { AmbientVideo } from "@/components/AmbientVideo";
@@ -516,10 +516,10 @@ export default function Home() {
                 onSelect={setOverride}
                 isDark={isDark}
               />
-              <SoundControl controls={ambient} isDark={isDark} />
+              <SoundControl controls={ambient} isDark={isDark} sceneLabel={SCENE_SOUND_LABELS[sceneId]} />
             </div>
             <div className="flex sm:hidden">
-              <SoundControl controls={ambient} isDark={isDark} compact />
+              <SoundControl controls={ambient} isDark={isDark} compact sceneLabel={SCENE_SOUND_LABELS[sceneId]} />
             </div>
             {isAuthenticated ? (
               <Button
