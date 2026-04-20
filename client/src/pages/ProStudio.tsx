@@ -5,7 +5,7 @@
  * 分類：音樂生成 / 音效生成 / 語音合成 / 聲音克隆 / Kling 語音 / 音訊處理 / 語音識別 / AI 形像影片
  */
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, createContext, useContext } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useAIState } from "@/contexts/AIStateContext";
@@ -68,6 +68,40 @@ import {
   type AgentActionResult,
   type AgentCapability,
 } from "@/contexts/PageAgentContext";
+
+// ─── Agent Bridge：讓光球代理人能深度控制各分頁參數 ─────────────────────────────
+
+/**
+ * 各分頁透過此介面向父層「註冊」自己的 state + setters，
+ * 讓光球代理人（PageAgent）能在對話中直接操作參數。
+ */
+interface ProStudioAgentBridge {
+  /** 填入主要文字輸入（prompt / text） */
+  fillPrompt?: (text: string) => void;
+  /** 設定參數 key=value */
+  setParam?: (key: string, value: string) => boolean;
+  /** 取得當前分頁的快照狀態 */
+  getState?: () => Record<string, unknown>;
+  /** 送出生成 */
+  submit?: () => boolean;
+}
+
+const AgentBridgeContext = createContext<React.MutableRefObject<ProStudioAgentBridge> | null>(null);
+
+/** 各子 Tab 用此 hook 註冊自己的 agent bridge */
+function useProStudioAgentBridge(bridge: ProStudioAgentBridge) {
+  const ref = useContext(AgentBridgeContext);
+  useEffect(() => {
+    if (ref) {
+      ref.current = bridge;
+    }
+    return () => {
+      if (ref) {
+        ref.current = {};
+      }
+    };
+  });
+}
 
 // ─── 類型 ────────────────────────────────────────────────────────────────────
 
@@ -863,6 +897,27 @@ function MusicTab() {
   >("ace-step");
   const [duration, setDuration] = useState(30);
   const [result, setResult] = useState<AudioResult | null>(null);
+
+  // ── Agent Bridge：讓光球能控制音樂分頁參數 ──
+  useProStudioAgentBridge({
+    fillPrompt: (text: string) => setPrompt(text),
+    setParam: (key: string, value: string) => {
+      switch (key) {
+        case "musicModel": case "model": {
+          const valid = ["sonauto", "ace-step", "stable-audio", "musicgen"];
+          if (valid.includes(value)) { setMusicModel(value as typeof musicModel); return true; }
+          return false;
+        }
+        case "duration": { const n = parseInt(value, 10); if (n >= 5 && n <= 180) { setDuration(n); return true; } return false; }
+        case "instrumental": { setInstrumental(value === "true"); return true; }
+        case "lyrics": { setLyrics(value); return true; }
+        case "tags": { setTags(value); return true; }
+        default: return false;
+      }
+    },
+    getState: () => ({ prompt, musicModel, duration, instrumental, lyrics, tags }),
+    submit: () => { if (!prompt.trim()) return false; return true; },
+  });
 
   // 載入可用模型清單
   const modelsQuery = trpc.proStudio.musicModels.useQuery();
