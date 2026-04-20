@@ -63,6 +63,7 @@ import {
   ClipboardCheck,
   Trophy,
   XCircle,
+  Box,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
@@ -1005,6 +1006,23 @@ function AdminVideoForm({
   );
 }
 
+// ─── Quiz Category Config ─────────────────────────────────────────────────────
+
+const QUIZ_FILTER_CATEGORIES = [
+  { id: "all", label: "全部", icon: BookOpen },
+  { id: "getting-started", label: "入門指南", icon: GraduationCap },
+  { id: "model-guide", label: "模型說明", icon: Cpu },
+  { id: "technique", label: "生成技術", icon: Zap },
+  { id: "workflow", label: "創作流程", icon: Workflow },
+  { id: "pro-studio", label: "音訊影片", icon: Video },
+  { id: "director-ai", label: "導演模式", icon: FileText },
+  { id: "3d-modeling", label: "3D 建模", icon: Box },
+  { id: "tools-features", label: "工具功能", icon: ClipboardCheck },
+  { id: "safety-privacy", label: "安全隱私", icon: Info },
+] as const;
+
+type QuizCategoryId = (typeof QUIZ_FILTER_CATEGORIES)[number]["id"];
+
 // ─── QuizCard ─────────────────────────────────────────────────────────────────
 
 function QuizCard({
@@ -1086,7 +1104,7 @@ function QuizCard({
         <div className="flex items-center justify-between pt-2 border-t border-gray-100">
           <div className="flex items-center gap-2 text-[11px] text-gray-400">
             <ClipboardCheck className="w-3 h-3" />
-            學習測驗
+            {QUIZ_FILTER_CATEGORIES.find(c => c.id === quiz.category)?.label ?? "學習測驗"}
           </div>
           <div className="flex items-center gap-1">
             {isAdmin && (
@@ -1372,6 +1390,11 @@ function AdminQuizForm({
     { id: "model-guide", label: "模型說明" },
     { id: "technique", label: "生成技術" },
     { id: "workflow", label: "創作流程" },
+    { id: "pro-studio", label: "音訊影片" },
+    { id: "director-ai", label: "導演模式" },
+    { id: "3d-modeling", label: "3D 建模" },
+    { id: "tools-features", label: "工具功能" },
+    { id: "safety-privacy", label: "安全隱私" },
   ];
 
   const handleSave = () => {
@@ -1745,12 +1768,16 @@ function QuizLearningTab({ isAdmin }: { isAdmin: boolean }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDifficulty, setSelectedDifficulty] =
     useState<DifficultyId>("all");
+  const [selectedCategory, setSelectedCategory] =
+    useState<QuizCategoryId>("all");
   const [openQuizId, setOpenQuizId] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingQuiz, setEditingQuiz] = useState<any | null>(null);
 
   const { data, isLoading, refetch } = trpc.learnHub.quizList.useQuery({
     search: searchQuery || undefined,
+    category:
+      selectedCategory === "all" ? undefined : selectedCategory,
     difficulty:
       selectedDifficulty === "all" ? undefined : (selectedDifficulty as any),
     limit: 50,
@@ -1826,6 +1853,27 @@ function QuizLearningTab({ isAdmin }: { isAdmin: boolean }) {
             ✕
           </button>
         )}
+      </div>
+
+      {/* Category filter */}
+      <div className="flex gap-2 flex-wrap">
+        {QUIZ_FILTER_CATEGORIES.map(c => {
+          const Icon = c.icon;
+          return (
+            <button
+              key={c.id}
+              onClick={() => setSelectedCategory(c.id as QuizCategoryId)}
+              className={`text-xs px-3 py-1.5 rounded-full transition-all font-medium flex items-center gap-1.5 ${
+                selectedCategory === c.id
+                  ? "bg-green-600 text-white"
+                  : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+              }`}
+            >
+              <Icon className="w-3 h-3" />
+              {c.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Difficulty filter */}

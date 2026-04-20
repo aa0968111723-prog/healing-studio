@@ -9010,7 +9010,12 @@ export type QuizCategory =
   | "getting-started"
   | "model-guide"
   | "technique"
-  | "workflow";
+  | "workflow"
+  | "pro-studio"
+  | "director-ai"
+  | "3d-modeling"
+  | "tools-features"
+  | "safety-privacy";
 
 export interface QuizQuestion {
   id: string;
@@ -9240,6 +9245,1617 @@ const SEED_QUIZZES: LearnQuiz[] = [
     estimatedMinutes: 4,
     publishedAt: "2026-04-10T00:00:00Z",
     updatedAt: "2026-04-10T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+
+  // ══════════════════════════════════════════════════════
+  // 圖片工作室模型深度測驗
+  // ══════════════════════════════════════════════════════
+  {
+    id: "quiz-005",
+    category: "model-guide",
+    title: "圖片工作室模型深度測驗",
+    summary: "深入考驗你對 23 種圖片生成模型的了解程度",
+    questions: [
+      {
+        id: "q5-1",
+        question: "Nano Banana 2 和 Nano Banana 2 Pro 的主要差異是什麼？",
+        options: [
+          "只有名稱不同",
+          "Pro 版本支援更高解析度與更精緻的細節表現",
+          "Pro 版本只能生成黑白圖片",
+          "兩者完全相同",
+        ],
+        correctIndex: 1,
+        explanation:
+          "Nano Banana 2 Pro 是進階版本，在解析度和細節品質上都有顯著提升。",
+      },
+      {
+        id: "q5-2",
+        question: "Seedream v4 模型的最大特色是什麼？",
+        options: [
+          "只能生成風景照",
+          "支援中英文雙語提詞，擅長東亞美學風格",
+          "只支援英文提詞",
+          "是一個影片生成模型",
+        ],
+        correctIndex: 1,
+        explanation:
+          "Seedream v4 是字節跳動開發的模型，支援中英文提詞，特別擅長東亞美學風格的圖片生成。",
+      },
+      {
+        id: "q5-3",
+        question: "Flux Kontext 模型的核心功能是什麼？",
+        options: [
+          "文字生成圖片",
+          "基於參考圖片進行上下文感知編輯",
+          "3D 模型生成",
+          "音樂生成",
+        ],
+        correctIndex: 1,
+        explanation:
+          "Flux Kontext 是 Black Forest Labs 的圖片編輯模型，能理解圖片上下文並進行精確編輯。",
+      },
+      {
+        id: "q5-4",
+        question: "SeedVR Upscale 的主要用途是什麼？",
+        options: [
+          "降低圖片品質",
+          "將低解析度圖片放大至高解析度，同時保持或提升畫質",
+          "裁切圖片",
+          "添加浮水印",
+        ],
+        correctIndex: 1,
+        explanation:
+          "SeedVR Upscale 是超分辨率工具，可以將圖片放大同時保持甚至提升畫質。",
+      },
+      {
+        id: "q5-5",
+        question: "DWPose 骨架偵測在創作流程中扮演什麼角色？",
+        options: [
+          "生成隨機圖片",
+          "偵測人體姿勢骨架，作為 ControlNet 的控制條件",
+          "壓縮圖片檔案大小",
+          "自動添加文字到圖片",
+        ],
+        correctIndex: 1,
+        explanation:
+          "DWPose 可以從參考圖片中偵測出人體骨架姿勢，搭配 ControlNet 使用來精確控制生成圖片的人物姿態。",
+      },
+      {
+        id: "q5-6",
+        question: "以下哪個不是圖片工作室中的「圖片編輯」類模型？",
+        options: [
+          "GPT Image 1.5",
+          "Grok Edit",
+          "Imagen 4",
+          "Seedream v4.5 Edit",
+        ],
+        correctIndex: 2,
+        explanation:
+          "Imagen 4 是 Google 的文字生圖模型，不是圖片編輯模型。GPT Image 1.5、Grok Edit 和 Seedream v4.5 Edit 都屬於圖片編輯類別。",
+      },
+    ],
+    tags: ["圖片模型", "Image Studio", "模型比較"],
+    difficulty: "intermediate",
+    estimatedMinutes: 6,
+    publishedAt: "2026-04-11T00:00:00Z",
+    updatedAt: "2026-04-11T00:00:00Z",
+    featured: true,
+    authorName: "Healing Studio Team",
+  },
+
+  // ══════════════════════════════════════════════════════
+  // 影片工作室模型深度測驗
+  // ══════════════════════════════════════════════════════
+  {
+    id: "quiz-006",
+    category: "model-guide",
+    title: "影片工作室模型深度測驗",
+    summary: "考驗你對 21 種影片生成模型的細節掌握",
+    questions: [
+      {
+        id: "q6-1",
+        question: "Kling v2.1 與前代版本相比，最大改進是什麼？",
+        options: [
+          "生成速度減慢",
+          "動態表現力和物理一致性大幅提升",
+          "只支援黑白影片",
+          "取消了圖片轉影片功能",
+        ],
+        correctIndex: 1,
+        explanation:
+          "Kling v2.1 在動態表現力和物理一致性方面有顯著提升，讓生成的影片更自然流暢。",
+      },
+      {
+        id: "q6-2",
+        question: "Google Veo 3 的獨特之處是什麼？",
+        options: [
+          "只能生成靜態圖片",
+          "是首個支援原生音頻的影片生成模型",
+          "不支援文字提詞",
+          "只能生成 3 秒影片",
+        ],
+        correctIndex: 1,
+        explanation:
+          "Veo 3 是 Google 推出的首個原生音頻影片生成模型，能同時生成影片和對應的音效。",
+      },
+      {
+        id: "q6-3",
+        question: "MiniMax video-01 模型最擅長什麼類型的影片？",
+        options: [
+          "只能做 3D 動畫",
+          "擅長電影級品質的長片段生成",
+          "只能做簡單動畫",
+          "只能做靜態幻燈片",
+        ],
+        correctIndex: 1,
+        explanation:
+          "MiniMax video-01 擅長生成電影級品質的影片，在長片段生成上表現優異。",
+      },
+      {
+        id: "q6-4",
+        question: "Wan 2.1 影片模型有幾種變體？",
+        options: [
+          "只有 1 種",
+          "有 1.3B 和 14B 兩種參數規模的變體",
+          "有 10 種變體",
+          "沒有不同變體",
+        ],
+        correctIndex: 1,
+        explanation:
+          "Wan 2.1 提供 1.3B（輕量快速）和 14B（高品質）兩種參數規模的變體。",
+      },
+      {
+        id: "q6-5",
+        question: "使用「圖片轉影片」功能時，最重要的注意事項是什麼？",
+        options: [
+          "輸入圖片的解析度無所謂",
+          "確保輸入圖片品質高且構圖清晰，提詞描述預期的動態效果",
+          "只能使用黑白圖片",
+          "不需要任何提詞",
+        ],
+        correctIndex: 1,
+        explanation:
+          "高品質的輸入圖片加上清楚描述預期動態的提詞，能讓圖片轉影片的效果最佳。",
+      },
+      {
+        id: "q6-6",
+        question: "LTX Video v0.9.7 的特點是什麼？",
+        options: [
+          "品質最高但速度最慢",
+          "速度極快，適合快速原型和預覽",
+          "只支援 4K 解析度",
+          "不支援文字提詞",
+        ],
+        correctIndex: 1,
+        explanation:
+          "LTX Video 系列以生成速度快著稱，非常適合快速迭代和預覽概念。",
+      },
+    ],
+    tags: ["影片模型", "Video Studio", "Kling", "Veo"],
+    difficulty: "intermediate",
+    estimatedMinutes: 6,
+    publishedAt: "2026-04-11T00:00:00Z",
+    updatedAt: "2026-04-11T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+
+  // ══════════════════════════════════════════════════════
+  // 音樂配音創作室完整測驗
+  // ══════════════════════════════════════════════════════
+  {
+    id: "quiz-007",
+    category: "pro-studio",
+    title: "音樂配音創作室完整測驗",
+    summary: "測試你對 Pro Studio 8 大功能和 20+ 工具的掌握",
+    questions: [
+      {
+        id: "q7-1",
+        question: "Sonauto 音樂生成工具支援哪些進階參數控制？",
+        options: [
+          "只能輸入文字描述",
+          "支援 MIDI 風格選擇和 BPM 控制",
+          "只能調整音量",
+          "不支援任何參數控制",
+        ],
+        correctIndex: 1,
+        explanation:
+          "Sonauto 支援 MIDI 風格選擇和 BPM（每分鐘節拍數）控制，讓你精確調整音樂風格和節奏。",
+      },
+      {
+        id: "q7-2",
+        question: "ElevenLabs 音效生成的時長範圍是多少？",
+        options: [
+          "只能生成 1 秒",
+          "0.5 至 22 秒",
+          "1 至 60 秒",
+          "沒有時長限制",
+        ],
+        correctIndex: 1,
+        explanation:
+          "ElevenLabs 音效生成支援 0.5 至 22 秒的精確時長控制。",
+      },
+      {
+        id: "q7-3",
+        question: "Demucs 音訊分離工具的主要功能是什麼？",
+        options: [
+          "合成新的音樂",
+          "將音訊分離為人聲和背景音樂等獨立軌道",
+          "壓縮音訊檔案",
+          "轉換音訊格式",
+        ],
+        correctIndex: 1,
+        explanation:
+          "Demucs 可以將混合音訊分離為獨立的人聲、鼓、低音、其他樂器等軌道。",
+      },
+      {
+        id: "q7-4",
+        question: "以下哪個工具支援聲音克隆功能？",
+        options: [
+          "Sonauto",
+          "Qwen Clone + Dia TTS",
+          "WhisperX",
+          "Demucs",
+        ],
+        correctIndex: 1,
+        explanation:
+          "Qwen Clone 和 Dia TTS 支援上傳聲音樣本來複製聲紋，實現聲音克隆功能。",
+      },
+      {
+        id: "q7-5",
+        question: "WhisperX 的主要功能是什麼？",
+        options: [
+          "生成音樂",
+          "語音轉文字並生成精確的時間戳字幕",
+          "生成影片",
+          "聲音克隆",
+        ],
+        correctIndex: 1,
+        explanation:
+          "WhisperX 是語音轉文字工具，能精確辨識語音內容並生成帶有時間戳的字幕。",
+      },
+      {
+        id: "q7-6",
+        question: "說話頭像（Talking Head）功能使用了哪些技術？",
+        options: [
+          "只使用 GPT",
+          "EchoMimic、Stable Avatar 和 Longcat Avatar 等模型",
+          "只使用基本動畫",
+          "只使用靜態圖片疊加",
+        ],
+        correctIndex: 1,
+        explanation:
+          "說話頭像功能整合了 EchoMimic、Stable Avatar 和 Longcat Avatar 等多個模型來實現逼真的口型同步效果。",
+      },
+      {
+        id: "q7-7",
+        question: "ElevenLabs Dubbing（影片配音）能做到什麼？",
+        options: [
+          "只能添加背景音樂",
+          "自動翻譯並為影片重新配音",
+          "只能錄製原始配音",
+          "只能去除影片中的聲音",
+        ],
+        correctIndex: 1,
+        explanation:
+          "ElevenLabs Dubbing 可以自動將影片中的語音翻譯成其他語言並重新配音。",
+      },
+    ],
+    tags: ["Pro Studio", "音樂", "配音", "語音"],
+    difficulty: "intermediate",
+    estimatedMinutes: 7,
+    publishedAt: "2026-04-12T00:00:00Z",
+    updatedAt: "2026-04-12T00:00:00Z",
+    featured: true,
+    authorName: "Healing Studio Team",
+  },
+
+  // ══════════════════════════════════════════════════════
+  // 導演模式 CO-STAR 深度測驗
+  // ══════════════════════════════════════════════════════
+  {
+    id: "quiz-008",
+    category: "director-ai",
+    title: "導演模式 CO-STAR 深度測驗",
+    summary: "深入測試你對 Director AI 的 CO-STAR 框架和雙引擎 RAG 的了解",
+    questions: [
+      {
+        id: "q8-1",
+        question: "CO-STAR 框架中的 C、O、S、T、A、R 分別代表什麼？",
+        options: [
+          "Color, Object, Size, Time, Area, Range",
+          "Context, Objective, Style, Tone, Audience, Response",
+          "Camera, Operation, Scene, Take, Action, Result",
+          "Create, Optimize, Share, Test, Analyze, Repeat",
+        ],
+        correctIndex: 1,
+        explanation:
+          "CO-STAR 是 Context（上下文）、Objective（目標）、Style（風格）、Tone（語調）、Audience（受眾）、Response（回應格式）的縮寫，用於結構化提詞設計。",
+      },
+      {
+        id: "q8-2",
+        question: "導演模式的「劇本拆分」功能如何運作？",
+        options: [
+          "手動逐句分割",
+          "AI 自動分析劇本結構，將其拆分為多個分鏡段落",
+          "只能按照段落分割",
+          "需要手動標記每個分鏡的起止點",
+        ],
+        correctIndex: 1,
+        explanation:
+          "導演模式的 AI 會自動分析劇本內容，根據場景轉換、情緒變化等因素智能拆分為多個分鏡段落。",
+      },
+      {
+        id: "q8-3",
+        question: "Director AI 的「段落聊天」(Segment Chat) 功能有什麼作用？",
+        options: [
+          "只是普通聊天機器人",
+          "針對單個分鏡段落進行 AI 輔助的 CO-STAR 提詞生成與微調",
+          "只能翻譯字幕",
+          "只能調整影片長度",
+        ],
+        correctIndex: 1,
+        explanation:
+          "段落聊天讓你與 AI 就單個分鏡段落進行深入對話，協助生成和優化該段落的 CO-STAR 提詞。",
+      },
+      {
+        id: "q8-4",
+        question: "Director AI 的「全局分析」(Global Analysis) 有什麼功能？",
+        options: [
+          "只分析單一分鏡",
+          "綜合分析所有分鏡的一致性、節奏和整體敘事結構",
+          "只檢查拼寫錯誤",
+          "只計算影片總時長",
+        ],
+        correctIndex: 1,
+        explanation:
+          "全局分析會綜合檢視所有分鏡，確保風格一致性、節奏合理性和整體敘事結構的完整性。",
+      },
+      {
+        id: "q8-5",
+        question: "導演模式支援的「批次 CO-STAR」(Batch COSTAR) 是什麼？",
+        options: [
+          "一次刪除所有分鏡",
+          "一次為所有分鏡自動生成 CO-STAR 框架提詞",
+          "批量下載影片",
+          "批量添加音效",
+        ],
+        correctIndex: 1,
+        explanation:
+          "批次 CO-STAR 可以一次為劇本中所有分鏡段落自動生成 CO-STAR 框架的結構化提詞。",
+      },
+      {
+        id: "q8-6",
+        question: "Director AI 使用的「雙引擎 RAG」指的是什麼？",
+        options: [
+          "兩個不同的聊天機器人",
+          "結合向量搜尋和關鍵字搜尋的雙重檢索增強生成系統",
+          "兩個不同的影片生成引擎",
+          "兩種不同的字幕格式",
+        ],
+        correctIndex: 1,
+        explanation:
+          "雙引擎 RAG 結合了向量語義搜尋和傳統關鍵字搜尋，確保 AI 能找到最相關的知識來輔助創作。",
+      },
+    ],
+    tags: ["導演模式", "CO-STAR", "RAG", "分鏡"],
+    difficulty: "advanced",
+    estimatedMinutes: 7,
+    publishedAt: "2026-04-12T00:00:00Z",
+    updatedAt: "2026-04-12T00:00:00Z",
+    featured: true,
+    authorName: "Healing Studio Team",
+  },
+
+  // ══════════════════════════════════════════════════════
+  // LoRA 訓練進階測驗
+  // ══════════════════════════════════════════════════════
+  {
+    id: "quiz-009",
+    category: "technique",
+    title: "LoRA 訓練進階測驗",
+    summary: "深入測試你對 LoRA 模型訓練六種類型和進階參數的理解",
+    questions: [
+      {
+        id: "q9-1",
+        question: "Healing Studio 的角色鍛造所支援幾種 LoRA 模型訓練類型？",
+        options: ["2 種", "4 種", "6 種", "10 種"],
+        correctIndex: 2,
+        explanation:
+          "角色鍛造所支援 6 種 LoRA 訓練類型，涵蓋不同的風格學習和角色一致性需求。",
+      },
+      {
+        id: "q9-2",
+        question: "訓練 LoRA 模型時，「訓練步數」(Training Steps) 設定太高會怎樣？",
+        options: [
+          "品質一定會提升",
+          "可能導致過擬合（Overfitting），模型失去創造力",
+          "完全沒有影響",
+          "生成速度會加快",
+        ],
+        correctIndex: 1,
+        explanation:
+          "訓練步數過高容易導致過擬合，模型會過度記憶訓練圖片而失去泛化能力和創造力。",
+      },
+      {
+        id: "q9-3",
+        question: "準備 LoRA 訓練資料集時，以下哪項最重要？",
+        options: [
+          "圖片數量越多越好，品質無所謂",
+          "高品質、多角度、一致風格的圖片，搭配精確的標註描述",
+          "只需要一張圖片就夠了",
+          "圖片的解析度越低越好",
+        ],
+        correctIndex: 1,
+        explanation:
+          "高品質資料集需要多角度、一致風格的圖片配合精確的文字標註，這是訓練成功的關鍵。",
+      },
+      {
+        id: "q9-4",
+        question: "LoRA 的「Rank」(秩) 參數設定會影響什麼？",
+        options: [
+          "只影響檔案名稱",
+          "控制模型的學習容量，Rank 越高表示模型可以學到更多細節",
+          "只影響生成速度",
+          "完全不影響訓練結果",
+        ],
+        correctIndex: 1,
+        explanation:
+          "Rank（秩）控制 LoRA 矩陣的維度，Rank 越高模型可以學到更複雜的特徵，但也更容易過擬合。",
+      },
+      {
+        id: "q9-5",
+        question: "使用 LoRA 模型生成圖片時，「觸發詞」(Trigger Word) 的作用是什麼？",
+        options: [
+          "只是裝飾性文字",
+          "在提詞中加入觸發詞來啟用 LoRA 學到的特定風格或角色",
+          "用來暫停生成",
+          "用來改變圖片解析度",
+        ],
+        correctIndex: 1,
+        explanation:
+          "觸發詞是訓練時設定的關鍵詞，在生成提詞中加入觸發詞才能讓 LoRA 發揮其學到的風格效果。",
+      },
+      {
+        id: "q9-6",
+        question: "LoRA 模型與完整微調 (Full Fine-Tuning) 的主要差異是什麼？",
+        options: [
+          "沒有差異",
+          "LoRA 只修改少量參數，檔案小且訓練快，Full Fine-Tuning 修改全部參數",
+          "LoRA 品質一定比較差",
+          "Full Fine-Tuning 不需要 GPU",
+        ],
+        correctIndex: 1,
+        explanation:
+          "LoRA 透過低秩分解只修改少量附加參數，模型檔案很小，而 Full Fine-Tuning 修改所有參數，需要更多資源。",
+      },
+    ],
+    tags: ["LoRA", "模型訓練", "過擬合", "資料集"],
+    difficulty: "advanced",
+    estimatedMinutes: 7,
+    publishedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-04-13T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+
+  // ══════════════════════════════════════════════════════
+  // 3D 建模工具測驗
+  // ══════════════════════════════════════════════════════
+  {
+    id: "quiz-010",
+    category: "3d-modeling",
+    title: "3D 建模工具完整測驗",
+    summary: "測試你對 Trellis 2、HunYuan3D v3、SAM 3D 等 3D 工具的認識",
+    questions: [
+      {
+        id: "q10-1",
+        question: "Trellis 2 的主要功能是什麼？",
+        options: [
+          "文字聊天",
+          "從單張圖片生成 3D 模型",
+          "剪輯影片",
+          "生成音樂",
+        ],
+        correctIndex: 1,
+        explanation:
+          "Trellis 2 可以從單張 2D 圖片生成完整的 3D 模型。",
+      },
+      {
+        id: "q10-2",
+        question: "HunYuan3D v3 與其他 3D 模型相比的優勢是什麼？",
+        options: [
+          "只能生成簡單形狀",
+          "支援生成帶有高品質材質和紋理的精緻 3D 模型",
+          "只支援線框模型",
+          "不能從圖片生成",
+        ],
+        correctIndex: 1,
+        explanation:
+          "HunYuan3D v3 是騰訊開發的進階 3D 生成模型，能生成具有高品質材質和紋理的精緻模型。",
+      },
+      {
+        id: "q10-3",
+        question: "SAM 3D 的核心技術基礎是什麼？",
+        options: [
+          "基於 GPT 語言模型",
+          "基於 Segment Anything Model 的 3D 分割技術",
+          "基於音訊處理技術",
+          "基於 CSS 動畫",
+        ],
+        correctIndex: 1,
+        explanation:
+          "SAM 3D 建立在 Meta 的 Segment Anything Model 之上，將 2D 分割能力擴展到 3D 空間。",
+      },
+      {
+        id: "q10-4",
+        question: "Rodin 3D 模型生成工具最適合什麼場景？",
+        options: [
+          "只能做平面設計",
+          "生成高品質的角色和物件 3D 模型，適合遊戲和動畫場景",
+          "只能做文字排版",
+          "只能做 2D 插畫",
+        ],
+        correctIndex: 1,
+        explanation:
+          "Rodin 擅長生成適用於遊戲和動畫的高品質角色與物件 3D 模型。",
+      },
+      {
+        id: "q10-5",
+        question: "HunYuan World 與一般 3D 模型生成有何不同？",
+        options: [
+          "完全相同",
+          "能生成完整的 3D 場景世界，而不只是單一物件",
+          "只能做 2D 背景",
+          "只能做文字效果",
+        ],
+        correctIndex: 1,
+        explanation:
+          "HunYuan World 專注於場景級別的 3D 生成，可以創建完整的 3D 世界和環境場景。",
+      },
+    ],
+    tags: ["3D", "Trellis", "HunYuan3D", "建模"],
+    difficulty: "intermediate",
+    estimatedMinutes: 5,
+    publishedAt: "2026-04-13T00:00:00Z",
+    updatedAt: "2026-04-13T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+
+  // ══════════════════════════════════════════════════════
+  // 一致性保險庫進階測驗
+  // ══════════════════════════════════════════════════════
+  {
+    id: "quiz-011",
+    category: "technique",
+    title: "一致性保險庫進階使用測驗",
+    summary: "深入了解 Consistency Vault 的角色和場景一致性管理技巧",
+    questions: [
+      {
+        id: "q11-1",
+        question: "一致性保險庫（Consistency Vault）能儲存哪些類型的參考資料？",
+        options: [
+          "只能儲存文字",
+          "角色參考圖片、場景描述、風格設定和視覺特徵",
+          "只能儲存音訊",
+          "只能儲存影片",
+        ],
+        correctIndex: 1,
+        explanation:
+          "一致性保險庫支援儲存角色參考圖片、場景描述、風格設定和各種視覺特徵，確保跨場景一致性。",
+      },
+      {
+        id: "q11-2",
+        question: "在創作工作室中，如何使用保險庫中的角色？",
+        options: [
+          "需要手動複製貼上所有描述",
+          "直接從保險庫注入角色參考圖至提詞，AI 自動保持一致性",
+          "只能在設定頁面使用",
+          "需要每次重新上傳圖片",
+        ],
+        correctIndex: 1,
+        explanation:
+          "保險庫與創作工作室深度整合，可以一鍵注入角色/場景參考圖到提詞中。",
+      },
+      {
+        id: "q11-3",
+        question: "使用保險庫保持角色一致性時，以下哪個做法最有效？",
+        options: [
+          "只上傳一張模糊的圖片",
+          "上傳多角度、多表情的高品質參考圖，並撰寫詳細的角色描述",
+          "不需要任何參考圖片",
+          "只寫一個詞的描述",
+        ],
+        correctIndex: 1,
+        explanation:
+          "多角度、多表情的參考圖配合詳細文字描述，能讓 AI 更準確地在不同場景中重現角色特徵。",
+      },
+      {
+        id: "q11-4",
+        question: "保險庫在導演模式中扮演什麼角色？",
+        options: [
+          "沒有任何作用",
+          "為所有分鏡提供統一的角色和場景參考，確保敘事一致性",
+          "只能在導演模式外使用",
+          "只用來儲存導演的個人資料",
+        ],
+        correctIndex: 1,
+        explanation:
+          "在導演模式中，保險庫為所有分鏡段落提供統一的角色和場景參考，是保持視覺敘事一致性的核心工具。",
+      },
+      {
+        id: "q11-5",
+        question: "一致性保險庫支援哪種類型的場景管理？",
+        options: [
+          "只能管理室內場景",
+          "支援管理各種場景的光線、色調、構圖風格等視覺一致性要素",
+          "只能管理黑白場景",
+          "不支援場景管理",
+        ],
+        correctIndex: 1,
+        explanation:
+          "保險庫的場景管理涵蓋光線、色調、構圖風格等多個視覺要素，確保同一場景的多個鏡頭風格一致。",
+      },
+    ],
+    tags: ["一致性保險庫", "角色一致性", "Consistency Vault"],
+    difficulty: "intermediate",
+    estimatedMinutes: 5,
+    publishedAt: "2026-04-14T00:00:00Z",
+    updatedAt: "2026-04-14T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+
+  // ══════════════════════════════════════════════════════
+  // 提示詞四大模態進階測驗
+  // ══════════════════════════════════════════════════════
+  {
+    id: "quiz-012",
+    category: "technique",
+    title: "提示詞四大模態進階測驗",
+    summary: "考驗你對圖片、影片、音訊、語音四種模態提詞撰寫的精細掌握",
+    questions: [
+      {
+        id: "q12-1",
+        question: "撰寫影片生成提詞時，與圖片提詞最大的不同是什麼？",
+        options: [
+          "完全相同，沒有差異",
+          "需要描述動態過程、鏡頭運動和時間推移",
+          "影片提詞越短越好",
+          "影片不需要提詞",
+        ],
+        correctIndex: 1,
+        explanation:
+          "影片提詞需要額外描述動態元素：鏡頭移動方向、物體運動軌跡、時間推移效果等，這些是圖片提詞不需要的。",
+      },
+      {
+        id: "q12-2",
+        question: "音樂生成提詞中，以下哪些元素最能影響結果品質？",
+        options: [
+          "只寫「好聽的音樂」",
+          "風格、BPM、樂器組合、情緒氛圍、節奏型態",
+          "只寫音樂長度",
+          "只寫作者名字",
+        ],
+        correctIndex: 1,
+        explanation:
+          "好的音樂提詞需要明確指定風格（如 Lo-fi Hip Hop）、BPM、樂器組合、情緒氛圍和節奏型態。",
+      },
+      {
+        id: "q12-3",
+        question: "使用 TTS（文字轉語音）時，如何控制語音的情感表現？",
+        options: [
+          "無法控制",
+          "透過標記語調（如興奮、平靜、悲傷）和語速設定來調整",
+          "只能選擇男聲或女聲",
+          "只能調整音量",
+        ],
+        correctIndex: 1,
+        explanation:
+          "TTS 系統支援透過情感標記和語速設定來控制語音表現，讓合成語音更自然有感情。",
+      },
+      {
+        id: "q12-4",
+        question: "以下哪個圖片提詞技巧可以提升生成品質？",
+        options: [
+          "用越多重複詞越好",
+          "加入光線描述（如 golden hour、soft ambient light）和品質關鍵詞（如 8K、masterpiece）",
+          "只用單字描述",
+          "故意寫錯字",
+        ],
+        correctIndex: 1,
+        explanation:
+          "光線描述和品質關鍵詞能引導 AI 生成更有氛圍和更高品質的圖片結果。",
+      },
+      {
+        id: "q12-5",
+        question: "在音效（Sound Effect）生成提詞中，最重要的要素是什麼？",
+        options: [
+          "顏色描述",
+          "聲音的來源、環境、質感和時間特性（如漸入漸出）",
+          "圖片風格",
+          "人物外貌",
+        ],
+        correctIndex: 1,
+        explanation:
+          "音效提詞需要精確描述聲音來源（如雨滴、風聲）、環境（室內/室外）、質感和時間變化特性。",
+      },
+      {
+        id: "q12-6",
+        question: "靈感積木系統如何幫助你撰寫更好的提詞？",
+        options: [
+          "靈感積木會自動生成完整提詞，不需要你做任何事",
+          "透過點選預設積木快速組合提詞結構，支援自定義積木和積木組合",
+          "靈感積木只是裝飾元素",
+          "靈感積木只能用在音樂生成",
+        ],
+        correctIndex: 1,
+        explanation:
+          "靈感積木系統提供預設的風格、主題、場景等積木，點選即可組合成結構化提詞，還支援自定義積木。",
+      },
+    ],
+    tags: ["提示詞", "多模態", "Prompt 技巧"],
+    difficulty: "advanced",
+    estimatedMinutes: 7,
+    publishedAt: "2026-04-14T00:00:00Z",
+    updatedAt: "2026-04-14T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+
+  // ══════════════════════════════════════════════════════
+  // 靈感積木與創作工作室測驗
+  // ══════════════════════════════════════════════════════
+  {
+    id: "quiz-013",
+    category: "getting-started",
+    title: "靈感積木與創作工作室測驗",
+    summary: "測試你對靈感積木系統和創作工作室核心功能的掌握",
+    questions: [
+      {
+        id: "q13-1",
+        question: "創作工作室（Studio）支援哪四種創作模態？",
+        options: [
+          "文字、表格、簡報、試算表",
+          "圖片、影片、音訊、語音",
+          "3D、VR、AR、MR",
+          "網頁、App、遊戲、外掛",
+        ],
+        correctIndex: 1,
+        explanation:
+          "創作工作室支援圖片、影片、音訊和語音四種創作模態。",
+      },
+      {
+        id: "q13-2",
+        question: "靈感積木系統中的「積木組合」是什麼功能？",
+        options: [
+          "拼圖遊戲",
+          "將多個常用積木組合為一套，一鍵載入整組提詞設定",
+          "積木的顏色設定",
+          "積木的刪除功能",
+        ],
+        correctIndex: 1,
+        explanation:
+          "積木組合可以把你常用的多個靈感積木打包成一套，下次創作時一鍵載入完整的提詞結構。",
+      },
+      {
+        id: "q13-3",
+        question: "ZenCoPilot 在創作工作室中的作用是什麼？",
+        options: [
+          "只是一個計時器",
+          "AI 即時建議、提詞優化和靈感晶片推薦",
+          "只能聊天",
+          "只能搜尋網頁",
+        ],
+        correctIndex: 1,
+        explanation:
+          "ZenCoPilot 是創作工作室內建的 AI 助手，能即時提供提詞建議、優化建議和靈感晶片推薦。",
+      },
+      {
+        id: "q13-4",
+        question: "視覺靈魂（Visual Soul）在創作工作室中展示什麼？",
+        options: [
+          "天氣預報",
+          "生成結果的 3D 動態展示效果",
+          "系統使用說明",
+          "使用者的個人資料",
+        ],
+        correctIndex: 1,
+        explanation:
+          "視覺靈魂以 3D 動態的方式展示 AI 生成的結果，為創作過程增添療癒感。",
+      },
+      {
+        id: "q13-5",
+        question: "創作工作室中的 AI 模型自動選擇機制是如何運作的？",
+        options: [
+          "隨機選擇模型",
+          "根據你的提詞內容和創作模態，自動推薦最適合的 AI 模型",
+          "永遠使用同一個模型",
+          "需要使用者手動查詢所有模型的文件後自行選擇",
+        ],
+        correctIndex: 1,
+        explanation:
+          "創作工作室會分析你的提詞內容和選擇的模態，智能推薦最適合的 AI 模型來生成作品。",
+      },
+    ],
+    tags: ["靈感積木", "創作工作室", "ZenCoPilot"],
+    difficulty: "beginner",
+    estimatedMinutes: 5,
+    publishedAt: "2026-04-14T00:00:00Z",
+    updatedAt: "2026-04-14T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+
+  // ══════════════════════════════════════════════════════
+  // 點數與費用管理測驗
+  // ══════════════════════════════════════════════════════
+  {
+    id: "quiz-014",
+    category: "tools-features",
+    title: "點數系統與費用優化測驗",
+    summary: "了解 Healing Studio 積分制度和費用節省策略",
+    questions: [
+      {
+        id: "q14-1",
+        question: "Healing Studio 的點數系統如何運作？",
+        options: [
+          "完全免費，不需要點數",
+          "每次生成內容消耗對應點數，不同模型和模態消耗不同",
+          "只有 VIP 才需要點數",
+          "點數只能用來購買裝飾品",
+        ],
+        correctIndex: 1,
+        explanation:
+          "每次 AI 生成會消耗點數，消耗量因模型複雜度、解析度、時長等因素而異。",
+      },
+      {
+        id: "q14-2",
+        question: "以下哪個策略可以有效節省點數？",
+        options: [
+          "每次都用最高解析度",
+          "先用低成本模型測試概念，確認方向後再用高品質模型精修",
+          "同時開啟所有模型生成",
+          "不使用任何功能",
+        ],
+        correctIndex: 1,
+        explanation:
+          "先用低成本快速模型驗證創意方向，確認滿意後再投入更多點數使用高品質模型，是最有效的省點策略。",
+      },
+      {
+        id: "q14-3",
+        question: "影片生成通常比圖片生成消耗更多點數的原因是什麼？",
+        options: [
+          "影片模型都比較貴",
+          "影片需要生成多幀畫面，計算量遠大於單張圖片",
+          "這是系統錯誤",
+          "影片和圖片消耗相同",
+        ],
+        correctIndex: 1,
+        explanation:
+          "影片是由多幀畫面組成，AI 需要確保幀間的連貫性，計算量遠大於單張圖片生成。",
+      },
+      {
+        id: "q14-4",
+        question: "Healing Studio 的積分加分機制包含哪些？",
+        options: [
+          "沒有任何加分機制",
+          "每日登入獎勵、創作活躍度獎勵、學習完成獎勵等",
+          "只能購買積分",
+          "積分只會減少不會增加",
+        ],
+        correctIndex: 1,
+        explanation:
+          "系統有多種積分加分機制，包括每日登入獎勵、活躍創作獎勵和完成學習測驗獎勵等。",
+      },
+      {
+        id: "q14-5",
+        question: "如何在儀表板查看點數使用趨勢？",
+        options: [
+          "無法查看",
+          "在儀表板的數據分析頁面查看按天/週/月的使用量趨勢圖表",
+          "只能查看總餘額",
+          "需要聯繫客服",
+        ],
+        correctIndex: 1,
+        explanation:
+          "儀表板提供視覺化的點數使用趨勢圖表，可按不同時間維度查看消耗分佈。",
+      },
+    ],
+    tags: ["點數", "積分", "費用", "優化"],
+    difficulty: "beginner",
+    estimatedMinutes: 5,
+    publishedAt: "2026-04-15T00:00:00Z",
+    updatedAt: "2026-04-15T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+
+  // ══════════════════════════════════════════════════════
+  // 專注流與創作規劃測驗
+  // ══════════════════════════════════════════════════════
+  {
+    id: "quiz-015",
+    category: "tools-features",
+    title: "專注流與創作規劃測驗",
+    summary: "測試你對番茄鐘、療癒呼吸和想法捕捉系統的理解",
+    questions: [
+      {
+        id: "q15-1",
+        question: "專注流（Focus Flow）整合了哪些功能？",
+        options: [
+          "只有計時器",
+          "番茄鐘定時器、療癒呼吸引導和想法捕捉系統",
+          "只有音樂播放",
+          "只有筆記功能",
+        ],
+        correctIndex: 1,
+        explanation:
+          "專注流結合番茄鐘計時、療癒呼吸引導和快速想法捕捉，打造完整的專注創作環境。",
+      },
+      {
+        id: "q15-2",
+        question: "療癒呼吸引導的設計理念是什麼？",
+        options: [
+          "增加使用者的緊張感",
+          "透過有節奏的呼吸引導幫助創作者放鬆，符合平台療癒放鬆的核心理念",
+          "只是裝飾功能",
+          "用來測量心跳",
+        ],
+        correctIndex: 1,
+        explanation:
+          "療癒呼吸引導體現了 Healing Studio「療癒放鬆創作」的核心理念，在專注創作間隙提供放鬆時刻。",
+      },
+      {
+        id: "q15-3",
+        question: "想法捕捉（Idea Capture）系統的用途是什麼？",
+        options: [
+          "自動截圖",
+          "在創作過程中快速記錄靈感閃現的想法，避免中斷心流狀態",
+          "只能記錄文字",
+          "只能在離線時使用",
+        ],
+        correctIndex: 1,
+        explanation:
+          "想法捕捉讓你在專注創作時快速記錄腦中浮現的靈感，不打斷當前的心流狀態。",
+      },
+      {
+        id: "q15-4",
+        question: "創作行事曆（Calendar）可以做什麼？",
+        options: [
+          "只能顯示日期",
+          "規劃創作排程、設定截止日期和追蹤創作進度",
+          "只能設定鬧鐘",
+          "只能看天氣預報",
+        ],
+        correctIndex: 1,
+        explanation:
+          "創作行事曆讓你規劃創作排程、設定專案截止日期，並追蹤整體創作進度。",
+      },
+      {
+        id: "q15-5",
+        question: "專案筆記（Notes）與一般筆記應用有什麼不同？",
+        options: [
+          "完全相同",
+          "與 AI 創作工具深度整合，可以直接從筆記啟動創作、引用素材",
+          "只能輸入純文字",
+          "不支援搜尋",
+        ],
+        correctIndex: 1,
+        explanation:
+          "專案筆記與 Healing Studio 的創作工具深度整合，筆記中的想法可以直接轉化為創作行動。",
+      },
+    ],
+    tags: ["專注流", "番茄鐘", "療癒呼吸", "創作規劃"],
+    difficulty: "beginner",
+    estimatedMinutes: 5,
+    publishedAt: "2026-04-15T00:00:00Z",
+    updatedAt: "2026-04-15T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+
+  // ══════════════════════════════════════════════════════
+  // 安全性與帳號管理測驗
+  // ══════════════════════════════════════════════════════
+  {
+    id: "quiz-016",
+    category: "safety-privacy",
+    title: "安全性與帳號管理測驗",
+    summary: "了解 Healing Studio 的安全機制和隱私保護措施",
+    questions: [
+      {
+        id: "q16-1",
+        question: "Healing Studio 使用什麼登入驗證方式？",
+        options: [
+          "帳號密碼",
+          "Google OAuth 2.0 安全登入",
+          "手機簡訊驗證",
+          "指紋辨識",
+        ],
+        correctIndex: 1,
+        explanation:
+          "Healing Studio 使用 Google OAuth 2.0 進行安全身份驗證，不儲存使用者密碼。",
+      },
+      {
+        id: "q16-2",
+        question: "AI 生成內容的安全審核機制是如何運作的？",
+        options: [
+          "沒有任何審核",
+          "使用 Safety Moderation 系統自動檢測並過濾不適當的輸入和輸出",
+          "全部由人工審核",
+          "只檢查檔案大小",
+        ],
+        correctIndex: 1,
+        explanation:
+          "系統內建 Safety Moderation 模組，會自動檢測提詞和生成結果中的不適當內容。",
+      },
+      {
+        id: "q16-3",
+        question: "使用者的創作資料儲存在哪裡？",
+        options: [
+          "使用者的本機電腦",
+          "安全的雲端儲存空間（Cloudflare R2），並有定期備份",
+          "公開的網路空間",
+          "不會儲存任何資料",
+        ],
+        correctIndex: 1,
+        explanation:
+          "創作素材儲存在 Cloudflare R2 安全雲端空間，系統會進行定期快照備份以確保資料安全。",
+      },
+      {
+        id: "q16-4",
+        question: "登入逾期（Auth Expired）時系統會如何處理？",
+        options: [
+          "直接刪除使用者帳號",
+          "顯示提示 Modal 引導重新登入，不會遺失未保存的創作",
+          "強制關閉瀏覽器",
+          "沒有任何提示",
+        ],
+        correctIndex: 1,
+        explanation:
+          "登入逾期時系統會顯示提示對話框引導使用者重新登入，並盡可能保護未保存的創作進度。",
+      },
+      {
+        id: "q16-5",
+        question: "Healing Studio 的隱私保護原則包括哪些？",
+        options: [
+          "會分享使用者資料給第三方",
+          "不儲存敏感個人資訊、不分享創作資料給第三方、定期安全審計",
+          "沒有隱私保護",
+          "只有付費使用者才有隱私保護",
+        ],
+        correctIndex: 1,
+        explanation:
+          "Healing Studio 遵循嚴格的隱私保護原則：最小化資料收集、不分享第三方、定期安全審計。",
+      },
+    ],
+    tags: ["安全", "隱私", "OAuth", "帳號管理"],
+    difficulty: "beginner",
+    estimatedMinutes: 5,
+    publishedAt: "2026-04-16T00:00:00Z",
+    updatedAt: "2026-04-16T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+
+  // ══════════════════════════════════════════════════════
+  // 跨模態創作工作流測驗
+  // ══════════════════════════════════════════════════════
+  {
+    id: "quiz-017",
+    category: "workflow",
+    title: "跨模態創作工作流進階測驗",
+    summary: "測試你對圖×影×音×聲串聯創作流程的深度理解",
+    questions: [
+      {
+        id: "q17-1",
+        question: "「圖片 → 影片 → 配音」的跨模態工作流中，第一步應該注意什麼？",
+        options: [
+          "隨便生成一張圖就好",
+          "生成高品質的關鍵幀圖片，確保構圖和風格適合後續影片化",
+          "先生成影片再截圖",
+          "不需要注意任何事",
+        ],
+        correctIndex: 1,
+        explanation:
+          "第一步的圖片品質和構圖會直接影響後續影片生成的效果，需要特別注意構圖適合動態轉換。",
+      },
+      {
+        id: "q17-2",
+        question: "在跨模態工作流中，如何確保音樂和影片的節奏同步？",
+        options: [
+          "無法同步",
+          "先確定影片的節奏和場景轉換點，再生成匹配 BPM 和情緒的配樂",
+          "隨機搭配",
+          "只能使用預設音樂",
+        ],
+        correctIndex: 1,
+        explanation:
+          "先分析影片的場景節奏和轉換點，再根據這些時間點生成 BPM 和情緒匹配的配樂，確保視聽同步。",
+      },
+      {
+        id: "q17-3",
+        question: "以下哪個是完整跨模態工作流的正確順序？",
+        options: [
+          "音樂 → 3D → 文字 → 圖片",
+          "概念構思 → 圖片生成 → 影片化 → 音效/音樂 → 配音/字幕",
+          "配音 → 圖片 → 刪除 → 重來",
+          "影片 → 圖片 → 音樂 → 3D",
+        ],
+        correctIndex: 1,
+        explanation:
+          "標準流程是：先構思概念，生成關鍵圖片，將圖片影片化，添加音效配樂，最後配音和字幕。",
+      },
+      {
+        id: "q17-4",
+        question: "使用 Demucs 分離出的人聲，可以搭配什麼工具進行後續處理？",
+        options: [
+          "無法進行任何後續處理",
+          "使用 ElevenLabs 進行聲音克隆，或用 WhisperX 生成精確字幕",
+          "只能直接刪除",
+          "只能轉換為 MIDI",
+        ],
+        correctIndex: 1,
+        explanation:
+          "Demucs 分離出的乾淨人聲可以作為 ElevenLabs 聲音克隆的素材，或用 WhisperX 生成字幕。",
+      },
+      {
+        id: "q17-5",
+        question: "在跨模態工作流中，「一致性保險庫」在哪個環節最關鍵？",
+        options: [
+          "只在最後一步有用",
+          "在圖片和影片生成的每個環節都需要，確保角色外觀跨場景一致",
+          "只在音效生成時用到",
+          "不需要使用保險庫",
+        ],
+        correctIndex: 1,
+        explanation:
+          "一致性保險庫在圖片和影片生成的每個環節都至關重要，確保同一角色在所有場景中外觀一致。",
+      },
+      {
+        id: "q17-6",
+        question: "批次生成在跨模態工作流中有什麼優勢？",
+        options: [
+          "沒有任何優勢",
+          "可以一次生成多個版本進行比較，快速找到最佳的視覺方向",
+          "只會浪費點數",
+          "只能用於文字生成",
+        ],
+        correctIndex: 1,
+        explanation:
+          "批次生成讓你在創作初期快速探索多個視覺方向，從多個版本中挑選最佳方案，提升工作流效率。",
+      },
+    ],
+    tags: ["跨模態", "工作流", "串聯創作"],
+    difficulty: "advanced",
+    estimatedMinutes: 7,
+    publishedAt: "2026-04-16T00:00:00Z",
+    updatedAt: "2026-04-16T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+
+  // ══════════════════════════════════════════════════════
+  // 儀表板與數據分析測驗
+  // ══════════════════════════════════════════════════════
+  {
+    id: "quiz-018",
+    category: "tools-features",
+    title: "儀表板與數據分析測驗",
+    summary: "測試你對 Dashboard 數據分析和 LangSmith 追蹤功能的了解",
+    questions: [
+      {
+        id: "q18-1",
+        question: "儀表板（Dashboard）提供哪些核心數據？",
+        options: [
+          "只顯示日期",
+          "生成次數統計、點數使用趨勢、模型使用分佈和創作活躍度",
+          "只顯示帳號資訊",
+          "只顯示天氣",
+        ],
+        correctIndex: 1,
+        explanation:
+          "儀表板提供全方位的創作數據：生成次數、點數消耗趨勢、各模型使用分佈和個人創作活躍度分析。",
+      },
+      {
+        id: "q18-2",
+        question: "LangSmith 監控中心可以追蹤什麼？",
+        options: [
+          "只追蹤頁面瀏覽量",
+          "AI 模型的每次調用鏈路、延遲、成本和輸入輸出內容",
+          "只追蹤使用者登入",
+          "只追蹤網路速度",
+        ],
+        correctIndex: 1,
+        explanation:
+          "LangSmith 可以追蹤每次 AI 調用的完整鏈路，包括延遲、成本估算和輸入輸出內容。",
+      },
+      {
+        id: "q18-3",
+        question: "如何利用儀表板數據來改善創作效率？",
+        options: [
+          "數據沒有實際用途",
+          "分析哪些模型最常用且效果最好，哪些時段創作最活躍，據此調整工作策略",
+          "只能截圖分享",
+          "只能匯出為 PDF",
+        ],
+        correctIndex: 1,
+        explanation:
+          "通過分析模型使用效率和個人創作節奏，可以有針對性地調整模型選擇和創作時間安排。",
+      },
+      {
+        id: "q18-4",
+        question: "儀表板的「模型使用分佈」可以幫助你了解什麼？",
+        options: [
+          "模型的程式碼結構",
+          "你最常使用哪些模型，以及各模型的使用頻率比例",
+          "模型的技術文件",
+          "模型的開發團隊",
+        ],
+        correctIndex: 1,
+        explanation:
+          "模型使用分佈圖表讓你清楚看到自己的模型使用偏好，有助於發現可能被忽略的優質模型。",
+      },
+      {
+        id: "q18-5",
+        question: "對管理員來說，儀表板額外提供了什麼功能？",
+        options: [
+          "與普通使用者完全相同",
+          "系統整體使用量統計、用戶活躍度排行和系統健康狀態監控",
+          "只多了一個按鈕",
+          "管理員不能使用儀表板",
+        ],
+        correctIndex: 1,
+        explanation:
+          "管理員版儀表板額外提供系統整體統計、用戶活躍排行和系統健康狀態等管理功能。",
+      },
+    ],
+    tags: ["儀表板", "數據分析", "LangSmith", "Dashboard"],
+    difficulty: "intermediate",
+    estimatedMinutes: 5,
+    publishedAt: "2026-04-17T00:00:00Z",
+    updatedAt: "2026-04-17T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+
+  // ══════════════════════════════════════════════════════
+  // 光球助手深度測驗
+  // ══════════════════════════════════════════════════════
+  {
+    id: "quiz-019",
+    category: "getting-started",
+    title: "光球助手深度操作測驗",
+    summary: "考驗你對光球（Orb）AI Agent 的 7 種指令和互動模式的掌握",
+    questions: [
+      {
+        id: "q19-1",
+        question: "光球助手（Orb）支援哪些 ACTION 指令類型？",
+        options: [
+          "只有聊天功能",
+          "navigate（導航）、preset（預設）、modality（模態切換）、focus（聚焦）、generate（生成）、refine（優化）、export（匯出）",
+          "只有搜尋功能",
+          "只有設定功能",
+        ],
+        correctIndex: 1,
+        explanation:
+          "光球支援 7 種 ACTION 指令：navigate、preset、modality、focus、generate、refine 和 export，涵蓋全站操作。",
+      },
+      {
+        id: "q19-2",
+        question: "光球的「主動模式」(Proactive Mode) 會在什麼時候觸發？",
+        options: [
+          "每秒鐘都觸發",
+          "偵測到使用者閒置 90 秒或 180 秒時，主動提供靈感和提示",
+          "永遠不會主動觸發",
+          "只在使用者登出時觸發",
+        ],
+        correctIndex: 1,
+        explanation:
+          "主動模式設定了 90 秒和 180 秒的閒置閾值，在使用者可能卡關時溫柔地提供靈感和操作建議。",
+      },
+      {
+        id: "q19-3",
+        question: "光球的視覺狀態有哪些？",
+        options: [
+          "只有一種狀態",
+          "idle（待機）、thinking（思考中）、generating（生成中）、listening（聆聽中）、acting（執行中）",
+          "只有開和關兩種",
+          "沒有視覺反饋",
+        ],
+        correctIndex: 1,
+        explanation:
+          "光球有 5 種視覺狀態：idle、thinking、generating、listening 和 acting，讓使用者清楚知道 AI 的當前狀態。",
+      },
+      {
+        id: "q19-4",
+        question: "光球在使用者遇到錯誤時會如何反應？",
+        options: [
+          "顯示錯誤代碼",
+          "以療癒的語氣提供解決方案，鼓勵使用者不要焦慮",
+          "關閉系統",
+          "完全沒有反應",
+        ],
+        correctIndex: 1,
+        explanation:
+          "光球的錯誤處理遵循療癒設計原則：不讓使用者焦慮，用溫暖的語氣引導解決問題。",
+      },
+      {
+        id: "q19-5",
+        question: "光球助手使用的 AI 後端是什麼？",
+        options: [
+          "只使用規則系統",
+          "MiniMax M2.7 via NVIDIA NIM 作為主要引擎，Gemini 作為後備",
+          "只使用 GPT-3",
+          "不使用任何 AI",
+        ],
+        correctIndex: 1,
+        explanation:
+          "光球使用 MiniMax M2.7（透過 NVIDIA NIM）作為主要 AI 引擎，並以 Gemini 作為後備確保服務穩定。",
+      },
+    ],
+    tags: ["光球", "Orb", "AI Agent", "主動模式"],
+    difficulty: "intermediate",
+    estimatedMinutes: 5,
+    publishedAt: "2026-04-17T00:00:00Z",
+    updatedAt: "2026-04-17T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+
+  // ══════════════════════════════════════════════════════
+  // 素材庫與歷史紀錄測驗
+  // ══════════════════════════════════════════════════════
+  {
+    id: "quiz-020",
+    category: "tools-features",
+    title: "素材庫與歷史紀錄管理測驗",
+    summary: "測試你對數位資產庫、歷史紀錄和素材管理的了解",
+    questions: [
+      {
+        id: "q20-1",
+        question: "數位資產庫（Asset Library）支援管理哪些類型的檔案？",
+        options: [
+          "只支援文字檔",
+          "AI 生成的圖片、影片、音訊、3D 模型和使用者上傳的素材",
+          "只支援圖片",
+          "不支援使用者上傳",
+        ],
+        correctIndex: 1,
+        explanation:
+          "數位資產庫支援所有類型的創作素材：AI 生成的各種內容以及使用者自行上傳的檔案。",
+      },
+      {
+        id: "q20-2",
+        question: "歷史紀錄（History）頁面可以做什麼？",
+        options: [
+          "只能查看日期",
+          "回顧所有生成歷史、重複使用之前的提詞設定、重新生成作品",
+          "只能刪除記錄",
+          "不能進行任何操作",
+        ],
+        correctIndex: 1,
+        explanation:
+          "歷史紀錄讓你回顧所有生成的作品，可以重複使用之前的提詞設定或對作品進行再次生成。",
+      },
+      {
+        id: "q20-3",
+        question: "在資產庫中，如何有效組織大量素材？",
+        options: [
+          "全部放在同一個資料夾",
+          "使用標籤分類、建立資料夾結構、善用搜尋和篩選功能",
+          "不需要組織",
+          "只能按日期排序",
+        ],
+        correctIndex: 1,
+        explanation:
+          "善用標籤系統、資料夾結構和搜尋篩選功能，可以讓大量素材保持井然有序。",
+      },
+      {
+        id: "q20-4",
+        question: "素材庫與創作工作室之間的整合體現在哪裡？",
+        options: [
+          "完全獨立，沒有整合",
+          "可以直接從素材庫選取素材注入到創作提詞中作為參考或編輯",
+          "只能手動下載後重新上傳",
+          "只能在設定中連結",
+        ],
+        correctIndex: 1,
+        explanation:
+          "素材庫與創作工具深度整合，可以直接從庫中選取素材作為圖片編輯的輸入或角色參考。",
+      },
+      {
+        id: "q20-5",
+        question: "雲端儲存空間（R2）的素材備份機制是什麼？",
+        options: [
+          "不會備份",
+          "每日自動快照備份，確保素材不會意外遺失",
+          "只在週末備份",
+          "需要使用者手動備份",
+        ],
+        correctIndex: 1,
+        explanation:
+          "Cloudflare R2 儲存空間搭配每日自動快照機制，確保所有素材都有定期備份保護。",
+      },
+    ],
+    tags: ["素材庫", "歷史紀錄", "資產管理", "R2"],
+    difficulty: "intermediate",
+    estimatedMinutes: 5,
+    publishedAt: "2026-04-18T00:00:00Z",
+    updatedAt: "2026-04-18T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+
+  // ══════════════════════════════════════════════════════
+  // ControlNet 進階操控測驗
+  // ══════════════════════════════════════════════════════
+  {
+    id: "quiz-021",
+    category: "technique",
+    title: "ControlNet 精細控制技術測驗",
+    summary: "深入測試你對 OpenPose、Canny、Depth 等 ControlNet 模式的掌握",
+    questions: [
+      {
+        id: "q21-1",
+        question: "ControlNet 的核心概念是什麼？",
+        options: [
+          "讓 AI 完全隨機生成",
+          "透過額外的控制條件（姿勢、邊緣、深度圖等）精確引導 AI 生成結果",
+          "只是一種圖片濾鏡",
+          "只用來調整亮度",
+        ],
+        correctIndex: 1,
+        explanation:
+          "ControlNet 讓你透過姿勢骨架、邊緣圖、深度圖等額外條件精確控制 AI 生成的構圖和形態。",
+      },
+      {
+        id: "q21-2",
+        question: "OpenPose 控制模式適合什麼場景？",
+        options: [
+          "只適合風景圖",
+          "需要精確控制人物姿態和動作的圖片生成",
+          "只適合建築圖",
+          "只適合抽象藝術",
+        ],
+        correctIndex: 1,
+        explanation:
+          "OpenPose 通過人體骨架偵測來控制生成圖片中人物的精確姿態和動作。",
+      },
+      {
+        id: "q21-3",
+        question: "Canny 邊緣偵測控制適合什麼場景？",
+        options: [
+          "只適合模糊圖片",
+          "需要保持原圖輪廓結構但改變風格或內容的場景",
+          "只適合文字生成",
+          "不適合任何場景",
+        ],
+        correctIndex: 1,
+        explanation:
+          "Canny 邊緣偵測提取圖片的輪廓線條，讓 AI 在保持結構的同時改變風格、顏色或內容。",
+      },
+      {
+        id: "q21-4",
+        question: "Depth 深度圖控制有什麼優勢？",
+        options: [
+          "只能生成平面圖",
+          "可以控制圖片的前後景深關係，讓空間感更準確",
+          "只能改變顏色",
+          "會降低圖片品質",
+        ],
+        correctIndex: 1,
+        explanation:
+          "深度圖控制能精確引導圖片中的空間層次關係，讓近景和遠景的深度效果更加準確自然。",
+      },
+      {
+        id: "q21-5",
+        question: "SD 3.5 + ControlNet 組合在 Healing Studio 中如何使用？",
+        options: [
+          "需要安裝額外軟體",
+          "直接在圖片工作室中選擇控制工具，上傳參考圖片即可",
+          "只能在命令列使用",
+          "不支援 ControlNet",
+        ],
+        correctIndex: 1,
+        explanation:
+          "Healing Studio 將 SD 3.5 + ControlNet 整合到圖片工作室的介面中，上傳參考圖片並選擇控制模式即可。",
+      },
+    ],
+    tags: ["ControlNet", "OpenPose", "Canny", "Depth"],
+    difficulty: "advanced",
+    estimatedMinutes: 5,
+    publishedAt: "2026-04-18T00:00:00Z",
+    updatedAt: "2026-04-18T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+
+  // ══════════════════════════════════════════════════════
+  // AI Brain 設定精細測驗
+  // ══════════════════════════════════════════════════════
+  {
+    id: "quiz-022",
+    category: "tools-features",
+    title: "AI Brain 配置系統精細測驗",
+    summary: "測試你對 AI 大腦 5 大引擎維度和個人化設定的深度了解",
+    questions: [
+      {
+        id: "q22-1",
+        question: "AI Brain 系統有哪 5 大引擎維度？",
+        options: [
+          "只有 1 個引擎",
+          "安全引擎、創意引擎、效率引擎、個性引擎、學習引擎",
+          "只有速度和品質兩個維度",
+          "沒有可調整的維度",
+        ],
+        correctIndex: 1,
+        explanation:
+          "AI Brain 提供 5 大引擎維度，讓使用者可以根據個人需求全方位調整 AI 的行為表現。",
+      },
+      {
+        id: "q22-2",
+        question: "LLM_ENGINE 設定中的 'auto' 模式如何運作？",
+        options: [
+          "隨機選擇一個引擎",
+          "依照優先順序自動選擇可用的 AI 引擎，加上斷路器健康檢查",
+          "永遠使用同一個引擎",
+          "不使用任何引擎",
+        ],
+        correctIndex: 1,
+        explanation:
+          "auto 模式依照 gemini > minimax > vertex > forge 的優先順序，搭配斷路器健康檢查自動選擇最佳可用引擎。",
+      },
+      {
+        id: "q22-3",
+        question: "Healing Studio 支援哪些 LLM 引擎？",
+        options: [
+          "只支援一種",
+          "Gemini API、Vertex AI、Manus Forge、MiniMax M2.7（via NVIDIA NIM）",
+          "只支援 GPT",
+          "不使用 LLM",
+        ],
+        correctIndex: 1,
+        explanation:
+          "系統支援四種 LLM 引擎：Gemini API（引擎 A）、Vertex AI（B）、Manus Forge（C）和 MiniMax M2.7（D）。",
+      },
+      {
+        id: "q22-4",
+        question: "個人化設定中的「個性」(Personality) 選擇會影響什麼？",
+        options: [
+          "只影響背景顏色",
+          "光球助手的對話語氣、建議風格和視覺靈魂的呈現效果",
+          "只影響字型大小",
+          "完全沒有影響",
+        ],
+        correctIndex: 1,
+        explanation:
+          "個性設定會影響光球的對話風格、建議口吻，以及視覺靈魂的色彩和動態效果。",
+      },
+      {
+        id: "q22-5",
+        question: "「安靜模式」(Quiet Mode) 開啟後會有什麼效果？",
+        options: [
+          "關閉所有聲音",
+          "減少光球的主動互動頻率，讓創作者不被打擾",
+          "提高音量",
+          "加快生成速度",
+        ],
+        correctIndex: 1,
+        explanation:
+          "安靜模式減少光球的主動彈出頻率，讓偏好專注不受打擾的創作者可以安靜地工作。",
+      },
+    ],
+    tags: ["AI Brain", "LLM", "個人化", "設定"],
+    difficulty: "intermediate",
+    estimatedMinutes: 5,
+    publishedAt: "2026-04-19T00:00:00Z",
+    updatedAt: "2026-04-19T00:00:00Z",
     featured: false,
     authorName: "Healing Studio Team",
   },
@@ -9610,6 +11226,11 @@ export const learnHubRouter = router({
           "model-guide",
           "technique",
           "workflow",
+          "pro-studio",
+          "director-ai",
+          "3d-modeling",
+          "tools-features",
+          "safety-privacy",
         ]),
         title: z.string().min(1).max(200),
         summary: z.string().min(1).max(500),
@@ -9665,7 +11286,17 @@ export const learnHubRouter = router({
         tags: z.array(z.string()).optional(),
         featured: z.boolean().optional(),
         category: z
-          .enum(["getting-started", "model-guide", "technique", "workflow"])
+          .enum([
+            "getting-started",
+            "model-guide",
+            "technique",
+            "workflow",
+            "pro-studio",
+            "director-ai",
+            "3d-modeling",
+            "tools-features",
+            "safety-privacy",
+          ])
           .optional(),
         difficulty: z.enum(["beginner", "intermediate", "advanced"]).optional(),
         estimatedMinutes: z.number().min(1).max(60).optional(),
