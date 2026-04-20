@@ -248,6 +248,29 @@ export default function AgentChat() {
     () => starterEntries.map(entry => entry.starterText).slice(0, 4),
     [starterEntries]
   );
+  const handleStarterEntryClick = useCallback(
+    async (entry: StarterEntry) => {
+      // 1) 有 path -> 先導頁
+      if (entry.path && entry.path !== "/agent") {
+        setLocation(entry.path);
+      }
+      // 2) quickAction 有 action -> dispatch 第一個
+      if (entry.quickAction?.action) {
+        await pageAgent.dispatch(entry.quickAction.action, {
+          source: "manual",
+        });
+      }
+      // 3) 有 prompt -> 直接送出 chat
+      if (entry.prompt) {
+        await send(entry.prompt);
+        return;
+      }
+      if (entry.path === "/agent") {
+        await send(entry.starterText);
+      }
+    },
+    [pageAgent, send, setLocation]
+  );
 
   return (
     <div className="flex-1 flex flex-col items-center w-full min-h-full">
@@ -287,26 +310,7 @@ export default function AgentChat() {
                     key={entry.id}
                     type="button"
                     className="text-left rounded-xl border border-slate-200/70 bg-white/70 dark:bg-slate-900/40 px-3 py-2.5 hover:border-emerald-300 hover:shadow-sm transition-colors"
-                    onClick={() => {
-                      // 1) 有 path -> 先導頁
-                      if (entry.path && entry.path !== "/agent") {
-                        setLocation(entry.path);
-                      }
-                      // 2) quickAction 有 action -> dispatch 第一個
-                      if (entry.quickAction?.action) {
-                        void pageAgent.dispatch(entry.quickAction.action, {
-                          source: "manual",
-                        });
-                      }
-                      // 3) 有 prompt -> 直接送出 chat
-                      if (entry.prompt) {
-                        void send(entry.prompt);
-                        return;
-                      }
-                      if (entry.path === "/agent") {
-                        void send(entry.starterText);
-                      }
-                    }}
+                    onClick={() => void handleStarterEntryClick(entry)}
                   >
                     <p className="text-sm font-medium text-slate-800 dark:text-slate-100">
                       {entry.label}

@@ -437,6 +437,9 @@ export const getAgentHomeEntries = () =>
     .filter(page => page.showInAgentHome)
     .sort((a, b) => a.agentEntryPriority - b.agentEntryPriority);
 
+export const getPrimaryQuickAction = (pageId: string) =>
+  getPageById(pageId)?.quickActions[0];
+
 export interface SerializableAppRegistryItem {
   id: string;
   label: string;
