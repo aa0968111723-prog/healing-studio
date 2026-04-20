@@ -7,7 +7,9 @@ import { describe, it, expect } from "vitest";
 import {
   REASONING_MODEL_CATALOG,
   GENERATION_ENGINE_CATALOG,
+  FAL_TASK_ENGINE_CATALOG,
 } from "./routers/brain";
+import { FAL_MODEL_CATALOG } from "./services/falModels";
 
 describe("Brain Router — Model Catalog", () => {
   it("should have 5 reasoning brain slots", () => {
@@ -139,6 +141,22 @@ describe("Brain Router — Model Catalog", () => {
       const values = config.options.map((o: any) => o.value);
       const unique = new Set(values);
       expect(unique.size).toBe(values.length);
+    }
+  });
+
+  it("FAL task catalog should be fully derived from canonical FAL_MODEL_CATALOG", () => {
+    const taskKeys = Object.keys(FAL_TASK_ENGINE_CATALOG).sort();
+    const modelKeys = Object.keys(FAL_MODEL_CATALOG).sort();
+    expect(taskKeys).toEqual(modelKeys);
+
+    for (const [category, slot] of Object.entries(FAL_TASK_ENGINE_CATALOG)) {
+      const canonical = FAL_MODEL_CATALOG[category as keyof typeof FAL_MODEL_CATALOG];
+      const canonicalIds = new Set(canonical.map(m => m.modelId));
+      expect(slot.options.length).toBe(canonical.length);
+      for (const option of slot.options) {
+        expect(option.value.startsWith("fal-ai/")).toBe(true);
+        expect(canonicalIds.has(option.value)).toBe(true);
+      }
     }
   });
 });

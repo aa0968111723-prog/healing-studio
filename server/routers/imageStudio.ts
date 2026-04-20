@@ -41,6 +41,11 @@ import { z } from "zod";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { recordErrorTrace } from "../services/brainAutoRepair";
+import { localizeResultUrls } from "../services/internalMedia";
+import * as db from "../db";
+import { getDb } from "../db";
+import { generationHistory } from "../../drizzle/schema";
+import { and, eq } from "drizzle-orm";
 
 // ─── fal.ai 呼叫工具（與 proStudio 相同架構）──────────────────────────────────
 
@@ -1192,7 +1197,13 @@ export const imageStudioRouter = router({
 
   jobResult: protectedProcedure
     .input(z.object({ request_id: z.string(), model: z.string() }))
-    .query(async ({ input }) => falQueueResult(input.request_id, input.model)),
+    .query(async ({ input }) => {
+      const raw = await falQueueResult(input.request_id, input.model);
+      return localizeResultUrls(
+        raw,
+        `generated/image-studio/${input.model.replace(/[^\w/-]+/g, "_")}`
+      );
+    }),
 
   /**
    * 通用圖片輪詢 API：每 3 秒輪詢一次直到完成
@@ -1205,7 +1216,7 @@ export const imageStudioRouter = router({
         modelId: z.string().min(1),
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       const status = (await falQueueStatus(
         input.requestId,
         input.modelId
@@ -1217,14 +1228,71 @@ export const imageStudioRouter = router({
           input.requestId,
           input.modelId
         )) as any;
+        const localized = (await localizeResultUrls(
+          result,
+          `generated/image-studio/${input.modelId.replace(/[^\w/-]+/g, "_")}`
+        )) as any;
+
+        const primaryUrl =
+          extractImageUrl(localized) ||
+          localized?.model_glb?.url ||
+          localized?.model_mesh?.url ||
+          null;
+        const dedupeMarker = `[imageStudio:${input.modelId}:${input.requestId}]`;
+        if (primaryUrl) {
+          const database = await getDb();
+          const existed = database
+            ? await database
+                .select({ id: generationHistory.id })
+                .from(generationHistory)
+                .where(
+                  and(
+                    eq(generationHistory.userId, ctx.user.id),
+                    eq(generationHistory.compiledPrompt, dedupeMarker)
+                  )
+                )
+                .limit(1)
+            : [];
+          if (!existed.length) {
+            await db.createDigitalAsset({
+              userId: ctx.user.id,
+              title: `Image Studio - ${input.modelId}`.slice(0, 100),
+              assetType: "image",
+              fileUrl: primaryUrl,
+              thumbnailUrl: extractImageUrl(localized) || primaryUrl,
+              promptUsed:
+                typeof localized?.prompt === "string"
+                  ? localized.prompt
+                  : undefined,
+            });
+            await db.createHistoryEntry({
+              userId: ctx.user.id,
+              modality: "image",
+              prompt:
+                typeof localized?.prompt === "string"
+                  ? localized.prompt
+                  : `Image Studio ${input.modelId}`,
+              compiledPrompt: dedupeMarker,
+              parameterSnapshot: {
+                source: "image_studio",
+                modelId: input.modelId,
+                requestId: input.requestId,
+              },
+              resultUrl: primaryUrl,
+              thumbnailUrl: extractImageUrl(localized) || primaryUrl,
+              costCredits: 1,
+            });
+          }
+        }
+
         return {
           status: "COMPLETED",
-          image_url: extractImageUrl(result),
-          images: extractAllImageUrls(result),
+          image_url: extractImageUrl(localized),
+          images: extractAllImageUrls(localized),
           // 3D 模型輸出
           model_glb_url:
-            result?.model_glb?.url || result?.model_mesh?.url || null,
-          raw: result,
+            localized?.model_glb?.url || localized?.model_mesh?.url || null,
+          raw: localized,
         };
       }
 

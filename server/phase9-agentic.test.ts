@@ -26,6 +26,9 @@ vi.mock("./db", async importOriginal => {
       .mockImplementation(async (userId: number) => {
         return notesStore.filter(n => n.userId === userId);
       }),
+    getProjectNote: vi.fn().mockImplementation(async (id: number) => {
+      return notesStore.find(n => n.id === id) ?? null;
+    }),
     deleteProjectNote: vi.fn().mockImplementation(async (id: number) => {
       const idx = notesStore.findIndex(n => n.id === id);
       if (idx !== -1) notesStore.splice(idx, 1);

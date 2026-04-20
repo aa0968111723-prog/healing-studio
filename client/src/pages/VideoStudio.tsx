@@ -25,6 +25,11 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import {
   Film,
@@ -52,6 +57,7 @@ import {
   Upload,
   X,
   Link,
+  Copy,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { uploadFileToS3 } from "@/lib/upload";
@@ -74,16 +80,16 @@ interface VideoResult {
 // ─── 常數：標籤定義 ──────────────────────────────────────────────────────────
 
 const TABS = [
-  { id: "t2v", label: "文生影", icon: Film, desc: "Text-to-Video" },
-  { id: "i2v", label: "圖生影", icon: Image, desc: "Image-to-Video" },
-  { id: "v2v", label: "影生影", icon: Video, desc: "Video-to-Video" },
+  { id: "t2v", label: "文生影", icon: Film, desc: "用文字描述生成影片 · Text-to-Video" },
+  { id: "i2v", label: "圖生影", icon: Image, desc: "用圖片生成動態影片 · Image-to-Video" },
+  { id: "v2v", label: "影生影", icon: Video, desc: "將影片重新風格化 · Video-to-Video" },
   {
     id: "enhance",
     label: "畫質優化",
     icon: ArrowUpCircle,
-    desc: "Upscale & Enhance",
+    desc: "超解析度 · 補幀 · 降噪增強",
   },
-  { id: "control", label: "進階控制", icon: Wand2, desc: "Advanced Control" },
+  { id: "control", label: "進階控制", icon: Wand2, desc: "鏡頭運動 · 骨架控制 · 深度圖" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -97,6 +103,7 @@ function VideoPlayer({ url, label }: { url: string; label?: string }) {
         <p className="text-xs text-muted-foreground mb-2 font-medium flex items-center gap-1.5">
           <Film className="w-3 h-3" />
           {label}
+          <span className="ml-auto text-[10px] text-emerald-600 font-semibold bg-emerald-500/10 px-1.5 py-0.5 rounded-full">✓ 完成</span>
         </p>
       )}
       <video
@@ -107,9 +114,9 @@ function VideoPlayer({ url, label }: { url: string; label?: string }) {
       >
         <track kind="captions" />
       </video>
-      <div className="mt-2 flex items-center gap-2">
+      <div className="mt-2 flex items-center gap-1.5 flex-wrap">
         <button
-          className="inline-flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 hover:underline transition-colors"
+          className="inline-flex items-center gap-1.5 text-xs text-primary hover:text-primary/80 px-2.5 py-1.5 rounded-lg hover:bg-primary/5 transition-all font-medium"
           onClick={async () => {
             try {
               // Use server proxy to bypass CORS on CDN URLs
@@ -135,14 +142,24 @@ function VideoPlayer({ url, label }: { url: string; label?: string }) {
           <Download className="w-3 h-3" />
           下載 MP4
         </button>
+        <button
+          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg hover:bg-accent transition-all"
+          onClick={() => {
+            navigator.clipboard.writeText(url);
+            toast.success("已複製影片 URL");
+          }}
+        >
+          <Copy className="w-3 h-3" />
+          複製 URL
+        </button>
         <a
           href={url}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors"
+          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground px-2.5 py-1.5 rounded-lg hover:bg-accent transition-all"
         >
           <ExternalLink className="w-3 h-3" />
-          在新分頁開啟
+          新分頁
         </a>
       </div>
     </div>
@@ -313,35 +330,35 @@ type CardColor =
 
 const CARD_COLORS: Record<CardColor, { bg: string; icon: string }> = {
   blue: {
-    bg: "from-blue-500/10 to-sky-500/5 border-blue-200/50",
+    bg: "from-blue-500/10 to-sky-500/5 border-blue-200/50 dark:from-blue-500/15 dark:to-sky-500/8 dark:border-blue-700/30",
     icon: "text-blue-500",
   },
   purple: {
-    bg: "from-purple-500/10 to-violet-500/5 border-purple-200/50",
+    bg: "from-purple-500/10 to-violet-500/5 border-purple-200/50 dark:from-purple-500/15 dark:to-violet-500/8 dark:border-purple-700/30",
     icon: "text-purple-500",
   },
   green: {
-    bg: "from-emerald-500/10 to-teal-500/5 border-emerald-200/50",
+    bg: "from-emerald-500/10 to-teal-500/5 border-emerald-200/50 dark:from-emerald-500/15 dark:to-teal-500/8 dark:border-emerald-700/30",
     icon: "text-emerald-500",
   },
   orange: {
-    bg: "from-orange-500/10 to-amber-500/5 border-orange-200/50",
+    bg: "from-orange-500/10 to-amber-500/5 border-orange-200/50 dark:from-orange-500/15 dark:to-amber-500/8 dark:border-orange-700/30",
     icon: "text-orange-500",
   },
   pink: {
-    bg: "from-pink-500/10 to-rose-500/5 border-pink-200/50",
+    bg: "from-pink-500/10 to-rose-500/5 border-pink-200/50 dark:from-pink-500/15 dark:to-rose-500/8 dark:border-pink-700/30",
     icon: "text-pink-500",
   },
   cyan: {
-    bg: "from-cyan-500/10 to-sky-500/5 border-cyan-200/50",
+    bg: "from-cyan-500/10 to-sky-500/5 border-cyan-200/50 dark:from-cyan-500/15 dark:to-sky-500/8 dark:border-cyan-700/30",
     icon: "text-cyan-500",
   },
   indigo: {
-    bg: "from-indigo-500/10 to-blue-500/5 border-indigo-200/50",
+    bg: "from-indigo-500/10 to-blue-500/5 border-indigo-200/50 dark:from-indigo-500/15 dark:to-blue-500/8 dark:border-indigo-700/30",
     icon: "text-indigo-500",
   },
   rose: {
-    bg: "from-rose-500/10 to-pink-500/5 border-rose-200/50",
+    bg: "from-rose-500/10 to-pink-500/5 border-rose-200/50 dark:from-rose-500/15 dark:to-pink-500/8 dark:border-rose-700/30",
     icon: "text-rose-500",
   },
 };
@@ -354,6 +371,7 @@ function ToolCard({
   modelId,
   color = "blue",
   isNew,
+  defaultOpen = false,
   children,
 }: {
   icon: React.FC<React.SVGProps<SVGSVGElement>>;
@@ -363,53 +381,70 @@ function ToolCard({
   modelId?: string;
   color?: CardColor;
   isNew?: boolean;
+  defaultOpen?: boolean;
   children: React.ReactNode;
 }) {
+  const [open, setOpen] = useState(defaultOpen);
   const c = CARD_COLORS[color];
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={`rounded-2xl p-4 sm:p-5 bg-gradient-to-br ${c.bg} border backdrop-blur-sm`}
-    >
-      <div className="flex items-start gap-2.5 sm:gap-3 mb-3 sm:mb-4">
-        <div
-          className={`p-1.5 sm:p-2 rounded-xl bg-white/60 shadow-sm ${c.icon} shrink-0`}
-        >
-          <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="hs-h3 !mb-0 text-foreground">{title}</h3>
-            {badge && (
-              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                {badge}
-              </Badge>
-            )}
-            {isNew && (
-              <Badge className="text-[10px] px-1.5 py-0 bg-emerald-500 text-white">
-                NEW
-              </Badge>
-            )}
-          </div>
-          <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
-            {description}
-          </p>
-          {modelId && (
-            <a
-              href={`https://fal.ai/models/${modelId}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-0.5 text-[10px] text-primary/60 hover:text-primary mt-0.5 transition-colors"
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className={`rounded-2xl bg-gradient-to-br ${c.bg} border backdrop-blur-sm transition-all duration-300 ${open ? "shadow-md ring-1 ring-primary/10" : "shadow-sm hover:shadow-md hover:-translate-y-0.5"}`}
+      >
+        <CollapsibleTrigger asChild>
+          <button
+            className="w-full text-left p-3.5 sm:p-4 flex items-center gap-2.5 sm:gap-3 cursor-pointer group"
+          >
+            <div
+              className={`p-1.5 sm:p-2 rounded-xl bg-white/60 dark:bg-white/10 shadow-sm ${c.icon} shrink-0 transition-transform duration-300 ${open ? "scale-110" : "group-hover:scale-105"}`}
             >
-              <ExternalLink className="w-2.5 h-2.5" />
-              {modelId}
-            </a>
-          )}
-        </div>
-      </div>
-      {children}
-    </motion.div>
+              <Icon className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-sm font-semibold text-foreground leading-tight">{title}</span>
+                {badge && (
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                    {badge}
+                  </Badge>
+                )}
+                {isNew && (
+                  <Badge className="text-[10px] px-1.5 py-0 bg-emerald-500 text-white motion-safe:animate-pulse">
+                    NEW
+                  </Badge>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">
+                {description}
+              </p>
+            </div>
+            <div className={`p-1 rounded-lg transition-all duration-200 ${open ? "bg-primary/10" : "group-hover:bg-accent"}`}>
+              <ChevronDown
+                className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform duration-300 ${open ? "rotate-180 text-primary" : ""}`}
+              />
+            </div>
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:slide-in-from-top-1 data-[state=closed]:slide-out-to-top-1 overflow-hidden">
+          <div className="px-3.5 sm:px-4 pb-3.5 sm:pb-4 pt-0">
+            {modelId && (
+              <a
+                href={`https://fal.ai/models/${modelId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-0.5 text-[10px] text-primary/60 hover:text-primary mb-3 transition-colors"
+              >
+                <ExternalLink className="w-2.5 h-2.5" />
+                {modelId}
+              </a>
+            )}
+            {children}
+          </div>
+        </CollapsibleContent>
+      </motion.div>
+    </Collapsible>
   );
 }
 
@@ -510,25 +545,29 @@ function AsyncVideoPoller({
   // 等待中（有 request_id 但沒有 video_url）— 可關閉
   if (result.request_id && !result.video_url) {
     return (
-      <div className="mt-4 p-6 rounded-2xl bg-gradient-to-br from-primary/5 to-purple-500/5 border border-primary/20 flex flex-col items-center justify-center gap-3 relative">
+      <div className="mt-4 p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-primary/5 to-purple-500/5 border border-primary/20 flex flex-col items-center justify-center gap-3 relative overflow-hidden">
+        {/* Subtle animated background shimmer */}
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/3 to-transparent motion-safe:animate-pulse pointer-events-none" />
         <button
           onClick={() => setDismissed(true)}
-          className="absolute top-2 right-2 p-1.5 rounded-lg hover:bg-accent active:bg-accent/70 transition-colors"
+          className="absolute top-2 right-2 p-1.5 rounded-lg hover:bg-accent active:bg-accent/70 transition-colors z-10"
           title="隱藏等待畫面（背景任務會繼續）"
         >
           <X className="w-4 h-4 text-muted-foreground" />
         </button>
-        <Loader2 className="w-7 h-7 text-primary animate-spin" />
-        <div className="text-center">
+        <div className="relative">
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
+          <div className="absolute inset-0 w-8 h-8 rounded-full border-2 border-primary/20 motion-safe:animate-ping" />
+        </div>
+        <div className="text-center relative z-10">
           <p className="text-sm font-semibold text-foreground">
-            {label ?? "影片"} 背景生成中...
+            🎬 {label ?? "影片"} 背景生成中...
           </p>
-          <p className="hs-small !mb-0 text-muted-foreground mt-1">
+          <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
             已轉入背景任務，完成後會自動通知你
-            <br />
-            <span className="text-primary/70">
-              你可以關閉此面板繼續其他操作
-            </span>
+          </p>
+          <p className="text-[11px] text-primary/70 mt-1">
+            💡 你可以關閉此面板繼續其他操作，不影響生成進度
           </p>
         </div>
       </div>
@@ -728,7 +767,7 @@ function TextToVideoTab() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
       {/* Kling v2.1 */}
       <ToolCard
         icon={Clapperboard}
@@ -738,6 +777,7 @@ function TextToVideoTab() {
         modelId="fal-ai/kling-video/v2.1/standard/text-to-video"
         color="purple"
         isNew
+        defaultOpen
       >
         <div className="space-y-3">
           <div>
@@ -749,6 +789,9 @@ function TextToVideoTab() {
               className="mt-1 text-sm resize-none"
               rows={3}
             />
+            {klingPrompt.length > 0 && (
+              <p className="text-[10px] text-muted-foreground/60 mt-1 text-right">{klingPrompt.length} 字</p>
+            )}
           </div>
           <div>
             <Label className="text-xs text-muted-foreground">
@@ -812,7 +855,7 @@ function TextToVideoTab() {
           <Button
             onClick={runKling}
             disabled={klingMut.isPending}
-            className="w-full"
+            className="w-full btn-healing"
           >
             {klingMut.isPending ? (
               <>
@@ -900,7 +943,7 @@ function TextToVideoTab() {
           <Button
             onClick={runWan}
             disabled={wanMut.isPending}
-            className="w-full"
+            className="w-full btn-healing"
             variant="secondary"
           >
             {wanMut.isPending ? (
@@ -958,7 +1001,7 @@ function TextToVideoTab() {
           <Button
             onClick={runMinimax}
             disabled={mmMut.isPending}
-            className="w-full"
+            className="w-full btn-healing"
             variant="secondary"
           >
             {mmMut.isPending ? (
@@ -1034,7 +1077,7 @@ function TextToVideoTab() {
           <Button
             onClick={runVeo3}
             disabled={veoMut.isPending}
-            className="w-full"
+            className="w-full btn-healing"
             variant="secondary"
           >
             {veoMut.isPending ? (
@@ -1093,7 +1136,7 @@ function TextToVideoTab() {
           <Button
             onClick={runLtx}
             disabled={ltxMut.isPending}
-            className="w-full"
+            className="w-full btn-healing"
             variant="secondary"
           >
             {ltxMut.isPending ? (
@@ -1188,7 +1231,7 @@ function TextToVideoTab() {
           <Button
             onClick={runSora}
             disabled={soraMut.isPending}
-            className="w-full"
+            className="w-full btn-healing"
             variant="secondary"
           >
             {soraMut.isPending ? (
@@ -1378,7 +1421,7 @@ function ImageToVideoTab() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
       {/* Kling i2v */}
       <ToolCard
         icon={Clapperboard}
@@ -1387,6 +1430,7 @@ function ImageToVideoTab() {
         badge="Kling 2.1"
         modelId="fal-ai/kling-video/v2.1/standard/image-to-video"
         color="purple"
+        defaultOpen
       >
         <div className="space-y-3">
           <div>
@@ -1430,7 +1474,7 @@ function ImageToVideoTab() {
           <Button
             onClick={runKling}
             disabled={klingMut.isPending}
-            className="w-full"
+            className="w-full btn-healing"
           >
             {klingMut.isPending ? (
               <>
@@ -1499,7 +1543,7 @@ function ImageToVideoTab() {
           <Button
             onClick={runWan}
             disabled={wanMut.isPending}
-            className="w-full"
+            className="w-full btn-healing"
             variant="secondary"
           >
             {wanMut.isPending ? (
@@ -1585,7 +1629,7 @@ function ImageToVideoTab() {
           <Button
             onClick={runRunway}
             disabled={runwayMut.isPending}
-            className="w-full"
+            className="w-full btn-healing"
             variant="secondary"
           >
             {runwayMut.isPending ? (
@@ -1674,7 +1718,7 @@ function ImageToVideoTab() {
           <Button
             onClick={runPixverse}
             disabled={pvMut.isPending}
-            className="w-full"
+            className="w-full btn-healing"
             variant="secondary"
           >
             {pvMut.isPending ? (
@@ -1739,7 +1783,7 @@ function ImageToVideoTab() {
           <Button
             onClick={runMinimax}
             disabled={mmMut.isPending}
-            className="w-full"
+            className="w-full btn-healing"
             variant="secondary"
           >
             {mmMut.isPending ? (
@@ -1863,7 +1907,7 @@ function VideoToVideoTab() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
       {/* Wan v2v */}
       <ToolCard
         icon={RefreshCw}
@@ -1872,6 +1916,7 @@ function VideoToVideoTab() {
         badge="Wan 2.1"
         modelId="fal-ai/wan-ai/wan2.1-v2v-480p"
         color="blue"
+        defaultOpen
       >
         <div className="space-y-3">
           <div>
@@ -1908,7 +1953,7 @@ function VideoToVideoTab() {
           <Button
             onClick={runWan}
             disabled={wanMut.isPending}
-            className="w-full"
+            className="w-full btn-healing"
           >
             {wanMut.isPending ? (
               <>
@@ -1974,7 +2019,7 @@ function VideoToVideoTab() {
           <Button
             onClick={runKling}
             disabled={klingMut.isPending}
-            className="w-full"
+            className="w-full btn-healing"
             variant="secondary"
           >
             {klingMut.isPending ? (
@@ -2040,7 +2085,7 @@ function VideoToVideoTab() {
           <Button
             onClick={runLtx}
             disabled={ltxMut.isPending}
-            className="w-full"
+            className="w-full btn-healing"
             variant="secondary"
           >
             {ltxMut.isPending ? (
@@ -2161,7 +2206,7 @@ function EnhancementTab() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
       {/* ByteDance Upscaler */}
       <ToolCard
         icon={Maximize2}
@@ -2170,6 +2215,7 @@ function EnhancementTab() {
         badge="ByteDance"
         modelId="fal-ai/bytedance/upscaler/video"
         color="orange"
+        defaultOpen
       >
         <div className="space-y-3">
           <UrlInput
@@ -2196,7 +2242,7 @@ function EnhancementTab() {
           <Button
             onClick={runUpscale}
             disabled={upscaleMut.isPending}
-            className="w-full"
+            className="w-full btn-healing"
           >
             {upscaleMut.isPending ? (
               <>
@@ -2269,7 +2315,7 @@ function EnhancementTab() {
           <Button
             onClick={runRife}
             disabled={rifeMut.isPending}
-            className="w-full"
+            className="w-full btn-healing"
             variant="secondary"
           >
             {rifeMut.isPending ? (
@@ -2346,7 +2392,7 @@ function EnhancementTab() {
           <Button
             onClick={runTopaz}
             disabled={topazMut.isPending}
-            className="w-full"
+            className="w-full btn-healing"
             variant="secondary"
           >
             {topazMut.isPending ? (
@@ -2521,7 +2567,7 @@ function AdvancedControlTab() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
       {/* CamMaster */}
       <ToolCard
         icon={Camera}
@@ -2531,6 +2577,7 @@ function AdvancedControlTab() {
         modelId="fal-ai/cammaster"
         color="purple"
         isNew
+        defaultOpen
       >
         <div className="space-y-3">
           <div>
@@ -2583,7 +2630,7 @@ function AdvancedControlTab() {
           <Button
             onClick={runCam}
             disabled={camMut.isPending}
-            className="w-full"
+            className="w-full btn-healing"
           >
             {camMut.isPending ? (
               <>
@@ -2681,7 +2728,7 @@ function AdvancedControlTab() {
           <Button
             onClick={runAnimateDiff}
             disabled={adMut.isPending}
-            className="w-full"
+            className="w-full btn-healing"
             variant="secondary"
           >
             {adMut.isPending ? (
@@ -2729,7 +2776,7 @@ function AdvancedControlTab() {
           <Button
             onClick={runDepthCrafter}
             disabled={dcMut.isPending}
-            className="w-full"
+            className="w-full btn-healing"
             variant="secondary"
           >
             {dcMut.isPending ? (
@@ -2816,7 +2863,7 @@ function AdvancedControlTab() {
           <Button
             onClick={runVidu}
             disabled={viduMut.isPending}
-            className="w-full"
+            className="w-full btn-healing"
             variant="secondary"
           >
             {viduMut.isPending ? (
@@ -3014,17 +3061,20 @@ export default function VideoStudio() {
   });
 
   return (
-    <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-5 sm:space-y-6">
+    <div className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-5">
       {/* 頁面標題 */}
       <div className="flex items-start gap-3 sm:gap-4">
-        <div className="p-2.5 sm:p-3 rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-500/10 border border-blue-200/40 shrink-0">
-          <Film className="w-6 h-6 sm:w-7 sm:h-7 text-blue-600" />
+        <div className="p-2.5 sm:p-3 rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-500/10 border border-blue-200/40 dark:border-blue-700/30 shrink-0">
+          <Film className="w-6 h-6 sm:w-7 sm:h-7 text-blue-600 dark:text-blue-400" />
         </div>
         <div className="flex-1 min-w-0">
           <h1 className="hs-h2 !mb-0 text-foreground">影片專業工作室</h1>
-          <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
+          <p className="hs-small !mb-0 text-muted-foreground mt-0.5 leading-relaxed">
             整合 FAL.AI 頂尖影片生成模型，共{" "}
-            {Object.values(MODEL_COUNT).reduce((a, b) => a + b, 0)} 個模型
+            <span className="font-semibold text-foreground/80">{Object.values(MODEL_COUNT).reduce((a, b) => a + b, 0)}</span>{" "}個模型
+            <span className="text-muted-foreground/50">
+              {" "}· 點擊卡片展開使用
+            </span>
           </p>
           <div className="flex flex-wrap gap-1 sm:gap-1.5 mt-2">
             {(
@@ -3046,7 +3096,7 @@ export default function VideoStudio() {
               <Badge
                 key={tag}
                 variant="outline"
-                className="text-[10px] sm:text-[10px]"
+                className="text-[10px] transition-colors hover:bg-accent"
               >
                 {tag}
               </Badge>
@@ -3081,40 +3131,40 @@ export default function VideoStudio() {
       )}
 
       {/* 標籤列 */}
-      <div className="flex overflow-x-auto gap-1.5 pb-1 -mx-1 px-1 no-scrollbar scroll-fade-x">
-        {TABS.map(tab => {
-          const Icon = tab.icon;
-          const count = MODEL_COUNT[tab.id];
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`
-                shrink-0 flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-3 sm:py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all min-h-[44px] border
-                ${
-                  isActive
-                    ? "bg-primary text-primary-foreground border-primary shadow-md"
-                    : "bg-background text-muted-foreground hover:bg-accent hover:text-foreground active:bg-accent border-border/40"
-                }
-              `}
-            >
-              <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span>{tab.label}</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.5 rounded-full ${isActive ? "bg-white/20" : "bg-primary/10 text-primary"}`}
+      <div className="sticky top-0 z-10 bg-background/90 backdrop-blur-lg -mx-3 sm:-mx-4 px-3 sm:px-4 py-2.5 border-b border-border/30 shadow-sm">
+        <div className="flex overflow-x-auto gap-1.5 pb-0.5 no-scrollbar scroll-fade-x">
+          {TABS.map(tab => {
+            const Icon = tab.icon;
+            const count = MODEL_COUNT[tab.id];
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`
+                  shrink-0 flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all duration-200 min-h-[40px] border
+                  ${
+                    isActive
+                      ? "bg-primary text-primary-foreground border-primary shadow-md scale-[1.02]"
+                      : "bg-background text-muted-foreground hover:bg-accent hover:text-foreground active:scale-[0.98] border-border/40"
+                  }
+                `}
               >
-                {count}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* 標籤說明 */}
-      <div className="text-[11px] sm:text-xs text-muted-foreground px-1 flex items-center gap-1.5">
-        <span className="inline-block w-1 h-1 rounded-full bg-primary/40"></span>
-        {TABS.find(t => t.id === activeTab)?.desc}
+                <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <span>{tab.label}</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.5 rounded-full leading-none ${isActive ? "bg-white/20" : "bg-primary/10 text-primary"}`}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-[11px] text-muted-foreground mt-1.5 flex items-center gap-1.5">
+          <span className="inline-block w-1 h-1 rounded-full bg-primary/40" />
+          {TABS.find(t => t.id === activeTab)?.desc}
+        </p>
       </div>
 
       {/* 標籤內容 */}
@@ -3135,16 +3185,17 @@ export default function VideoStudio() {
       </AnimatePresence>
 
       {/* 頁腳說明 */}
-      <div className="mt-6 sm:mt-8 p-3 sm:p-4 rounded-2xl bg-muted/40 text-xs text-muted-foreground space-y-1">
-        <p className="font-medium text-foreground text-sm">📋 使用說明</p>
-        <p>
-          • 所有影片生成任務均為非同步處理，通常需要 1-10 分鐘，請耐心等待。
+      <div className="mt-6 sm:mt-8 p-4 sm:p-5 rounded-2xl bg-muted/30 border border-border/20 text-xs text-muted-foreground">
+        <p className="font-medium text-foreground text-sm mb-2.5 flex items-center gap-2">
+          <span className="p-1 rounded-lg bg-primary/10"><AlertCircle className="w-3.5 h-3.5 text-primary" /></span>
+          使用說明
         </p>
-        <p>
-          • 提詞（Prompt）建議使用英文以獲得最佳效果，Kling 模型對中文有優化。
-        </p>
-        <p>• 影片 URL 需為公開可存取的直連URL，建議使用 CDN 託管的資源。</p>
-        <p>• Veo 3 和 Sora 模型費用較高，建議在確認需求後再生成。</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 leading-relaxed">
+          <p>🔄 所有影片生成任務為非同步處理，通常需 1-10 分鐘</p>
+          <p>🌏 提詞建議使用英文，Kling 模型對中文有優化</p>
+          <p>🔗 影片 URL 需為公開可存取的直連 URL</p>
+          <p>💰 Veo 3 和 Sora 費用較高，建議確認需求後再生成</p>
+        </div>
       </div>
     </div>
   );

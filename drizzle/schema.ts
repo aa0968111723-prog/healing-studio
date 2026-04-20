@@ -1281,3 +1281,117 @@ export const orbFeedbackEvents = mysqlTable(
 
 export type OrbFeedbackEvent = typeof orbFeedbackEvents.$inferSelect;
 export type InsertOrbFeedbackEvent = typeof orbFeedbackEvents.$inferInsert;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NEW TABLES — Admin API Usage & Cost Management
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** AI Provider enum values — easy to extend with new providers */
+export const AI_PROVIDERS = ["fal_ai", "gemini", "elevenlabs", "suno"] as const;
+const USAGE_STATUSES = ["success", "failed", "timeout", "rate_limited"] as const;
+const UNIT_TYPES = ["token", "character", "credit", "second", "image", "request"] as const;
+
+// ─── AI Usage Events（AI API 呼叫事件紀錄）─────────────────────────────────────
+export const aiUsageEvents = mysqlTable(
+  "ai_usage_events",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    provider: mysqlEnum("provider", AI_PROVIDERS).notNull(),
+    endpoint: varchar("endpoint", { length: 256 }).notNull(),
+    userId: int("userId"),
+    apiKeyId: varchar("apiKeyId", { length: 128 }),
+    status: mysqlEnum("status", USAGE_STATUSES).default("success").notNull(),
+    units: decimal("units", { precision: 12, scale: 4 }).default("0"),
+    unitType: mysqlEnum("unitType", UNIT_TYPES).default("request"),
+    costUsd: decimal("costUsd", { precision: 12, scale: 6 }).default("0"),
+    latencyMs: int("latencyMs"),
+    requestMeta: json("requestMeta").$type<Record<string, unknown>>(),
+    errorMessage: text("errorMessage"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    providerCreatedAtIdx: index("aue_provider_createdAt_idx").on(table.provider, table.createdAt),
+    userIdCreatedAtIdx: index("aue_userId_createdAt_idx").on(table.userId, table.createdAt),
+    statusCreatedAtIdx: index("aue_status_createdAt_idx").on(table.status, table.createdAt),
+  })
+);
+
+export type AiUsageEvent = typeof aiUsageEvents.$inferSelect;
+export type InsertAiUsageEvent = typeof aiUsageEvents.$inferInsert;
+
+// ─── Provider Snapshots（每小時供應商狀態快照）─────────────────────────────────
+export const providerSnapshots = mysqlTable(
+  "provider_snapshots",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    provider: mysqlEnum("provider", AI_PROVIDERS).notNull(),
+    tier: varchar("tier", { length: 64 }),
+    quota: decimal("quota", { precision: 14, scale: 2 }),
+    remaining: decimal("remaining", { precision: 14, scale: 2 }),
+    nextInvoice: json("nextInvoice").$type<{ amountUsd?: number; dueDate?: string }>(),
+    balanceUsd: decimal("balanceUsd", { precision: 12, scale: 2 }),
+    concurrency: int("concurrency"),
+    extraData: json("extraData").$type<Record<string, unknown>>(),
+    snapshotAt: timestamp("snapshotAt").defaultNow().notNull(),
+  },
+  table => ({
+    providerSnapshotAtIdx: index("ps_provider_snapshotAt_idx").on(table.provider, table.snapshotAt),
+  })
+);
+
+export type ProviderSnapshot = typeof providerSnapshots.$inferSelect;
+export type InsertProviderSnapshot = typeof providerSnapshots.$inferInsert;
+
+// ─── Cost Aggregations（每日費用聚合）────────────────────────────────────────
+export const costAggregations = mysqlTable(
+  "cost_aggregations",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    provider: mysqlEnum("provider", AI_PROVIDERS).notNull(),
+    endpoint: varchar("endpoint", { length: 256 }).notNull(),
+    date: date("date").notNull(),
+    callCount: int("callCount").default(0).notNull(),
+    totalUnits: decimal("totalUnits", { precision: 14, scale: 4 }).default("0"),
+    totalCostUsd: decimal("totalCostUsd", { precision: 14, scale: 6 }).default("0"),
+  },
+  table => ({
+    providerDateIdx: index("ca_provider_date_idx").on(table.provider, table.date),
+    dateIdx: index("ca_date_idx").on(table.date),
+  })
+);
+
+export type CostAggregation = typeof costAggregations.$inferSelect;
+export type InsertCostAggregation = typeof costAggregations.$inferInsert;
+
+// ─── Rate Limit Rules（速率限制規則）───────────────────────────────────────
+export const rateLimitRules = mysqlTable("rate_limit_rules", {
+  id: int("id").autoincrement().primaryKey(),
+  ruleType: mysqlEnum("ruleType", ["per_user", "per_api_key", "global"]).notNull(),
+  targetId: varchar("targetId", { length: 128 }),
+  provider: varchar("provider", { length: 32 }),
+  dailyCallLimit: int("dailyCallLimit"),
+  dailyCostLimitUsd: decimal("dailyCostLimitUsd", { precision: 10, scale: 2 }),
+  monthlyCostLimitUsd: decimal("monthlyCostLimitUsd", { precision: 10, scale: 2 }),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type RateLimitRule = typeof rateLimitRules.$inferSelect;
+export type InsertRateLimitRule = typeof rateLimitRules.$inferInsert;
+
+// ─── Alert Configs（告警設定）──────────────────────────────────────────────
+export const alertConfigs = mysqlTable("alert_configs", {
+  id: int("id").autoincrement().primaryKey(),
+  alertType: mysqlEnum("alertType", ["budget", "quota", "anomaly"]).notNull(),
+  provider: varchar("provider", { length: 32 }),
+  thresholdPct: decimal("thresholdPct", { precision: 5, scale: 2 }),
+  monthlyBudgetUsd: decimal("monthlyBudgetUsd", { precision: 10, scale: 2 }),
+  isActive: boolean("isActive").default(true).notNull(),
+  lastTriggeredAt: timestamp("lastTriggeredAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AlertConfig = typeof alertConfigs.$inferSelect;
+export type InsertAlertConfig = typeof alertConfigs.$inferInsert;

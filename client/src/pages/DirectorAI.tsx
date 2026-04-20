@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useMemo, memo, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { AIChatBox, type Message } from "@/components/AIChatBox";
+import LazyStreamdown from "@/components/LazyStreamdown";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -55,6 +56,13 @@ import {
   Users,
   MapPin,
   Tag,
+  Lightbulb,
+  BookOpen,
+  Film,
+  ThermometerSun,
+  CalendarDays,
+  CircleDot,
+  Milestone,
 } from "lucide-react";
 import { GlassCard } from "@/components/ZenCoPilot";
 import VisualSoul from "@/components/VisualSoul";
@@ -74,6 +82,10 @@ import type {
   ScriptSegment,
   ScriptOverview,
   QuickAction,
+  PlanningPhase,
+  PlanningMessage,
+  ScriptPlanningSession,
+  EmotionalBeat,
 } from "@shared/types";
 
 // ─── Personality Config ────────────────────────────────────────────────────
@@ -176,6 +188,58 @@ const STATUS_CONFIG: Record<
     icon: CheckCircle2,
   },
 };
+
+// ─── Planning Phase Config ──────────────────────────────────────────────────
+
+const PLANNING_PHASES: Array<{
+  id: PlanningPhase;
+  label: string;
+  description: string;
+  icon: React.ComponentType<{ className?: string }>;
+  color: string;
+  activeColor: string;
+}> = [
+  {
+    id: "concept",
+    label: "核心概念",
+    description: "釐清主題、觀眾、核心情感與願景",
+    icon: Lightbulb,
+    color: "text-amber-500",
+    activeColor: "bg-amber-50 ring-amber-300 text-amber-700",
+  },
+  {
+    id: "outline",
+    label: "故事大綱",
+    description: "建構故事弧線、角色與轉折點",
+    icon: BookOpen,
+    color: "text-blue-500",
+    activeColor: "bg-blue-50 ring-blue-300 text-blue-700",
+  },
+  {
+    id: "scene-planning",
+    label: "場景規劃",
+    description: "逐場景設計細節、氛圍與情感目標",
+    icon: Film,
+    color: "text-purple-500",
+    activeColor: "bg-purple-50 ring-purple-300 text-purple-700",
+  },
+  {
+    id: "emotional-depth",
+    label: "情感深度",
+    description: "分析溫度、共鳴點、療癒元素",
+    icon: ThermometerSun,
+    color: "text-rose-500",
+    activeColor: "bg-rose-50 ring-rose-300 text-rose-700",
+  },
+  {
+    id: "schedule",
+    label: "排程整合",
+    description: "建立製作里程碑與時間規劃",
+    icon: CalendarDays,
+    color: "text-teal-500",
+    activeColor: "bg-teal-50 ring-teal-300 text-teal-700",
+  },
+];
 
 const FORMAT_OPTIONS = [
   { value: "plaintext", label: "純文字" },
@@ -1854,6 +1918,13 @@ export default function DirectorAI() {
   );
   const [showOverview, setShowOverview] = useState(false);
 
+  // ─── Planning Mode State ────────────────────────────────────────────────
+  const [planningSession, setPlanningSession] =
+    useState<ScriptPlanningSession | null>(null);
+  const [planningPhase, setPlanningPhase] = useState<PlanningPhase>("concept");
+  const [planningInput, setPlanningInput] = useState("");
+  const [showPlanningSessions, setShowPlanningSessions] = useState(false);
+
   // ─── tRPC hooks ──────────────────────────────────────────────────────────
 
   const templatesQuery = trpc.director.templates.useQuery(undefined, {
@@ -1932,6 +2003,95 @@ export default function DirectorAI() {
     },
     onError: e => toast.error("分析失敗：" + e.message),
   });
+
+  // ─── Planning Mode Hooks ────────────────────────────────────────────────
+  const planningDiscussMut = trpc.director.planningDiscuss.useMutation({
+    onSuccess: data => {
+      if (!planningSession) return;
+      const aiMsg: PlanningMessage = {
+        role: "assistant",
+        content: data.reply,
+        timestamp: new Date().toISOString(),
+        phase: planningPhase,
+      };
+      setPlanningSession(prev => {
+        if (!prev) return prev;
+        const updated = { ...prev, updatedAt: new Date().toISOString() };
+        updated.phases = updated.phases.map(p =>
+          p.phase === planningPhase
+            ? {
+                ...p,
+                status: "in-progress" as const,
+                discussion: [...p.discussion, aiMsg],
+                summary: data.phaseSummary ?? p.summary,
+              }
+            : p
+        );
+        // Try to extract structured data from phaseSummary
+        if (data.phaseSummary) {
+          try {
+            const parsed = JSON.parse(data.phaseSummary);
+            if (planningPhase === "concept" && parsed.theme) {
+              updated.concept = parsed;
+            } else if (planningPhase === "outline" && parsed.synopsis) {
+              updated.outline = parsed;
+            } else if (
+              planningPhase === "scene-planning" &&
+              Array.isArray(parsed.scenes)
+            ) {
+              updated.scenes = parsed.scenes;
+            }
+          } catch {
+            // Not structured — just text summary
+          }
+        }
+        return updated;
+      });
+    },
+    onError: e => toast.error("規劃討論失敗：" + e.message),
+  });
+
+  const planningDepthMut = trpc.director.planningAnalyzeDepth.useMutation({
+    onSuccess: data => {
+      setPlanningSession(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          emotionalBeats: data.emotionalBeats as EmotionalBeat[],
+          warmthScore: data.warmthScore,
+          depthAnalysis: data.depthAnalysis,
+          updatedAt: new Date().toISOString(),
+        };
+      });
+      toast.success("情感深度分析完成 🌿");
+    },
+    onError: e => toast.error("分析失敗：" + e.message),
+  });
+
+  const savePlanningMut = trpc.director.savePlanningSession.useMutation({
+    onSuccess: () => {
+      toast.success("規劃已儲存 ✨");
+      planningSessionsQuery.refetch();
+    },
+    onError: e => toast.error("儲存失敗：" + e.message),
+  });
+
+  const planningSessionsQuery = trpc.director.listPlanningSessions.useQuery(
+    undefined,
+    { enabled: showPlanningSessions }
+  );
+
+  const deletePlanningMut = trpc.director.deletePlanningSession.useMutation({
+    onSuccess: () => planningSessionsQuery.refetch(),
+  });
+
+  const planningMilestonesMut =
+    trpc.director.planningCreateMilestones.useMutation({
+      onSuccess: data => {
+        toast.success(`已建立 ${data.ids.length} 個里程碑到行事曆 📅`);
+      },
+      onError: e => toast.error("建立里程碑失敗：" + e.message),
+    });
 
   const chatMutation = trpc.director.chat.useMutation({
     onMutate: () => setAIState("thinking"),
@@ -2100,6 +2260,135 @@ export default function DirectorAI() {
       setTimeout(() => handleSend(prompt), 50);
     },
     [setGlobalPersonality, handleSend]
+  );
+
+  // ─── Planning Mode Handlers ─────────────────────────────────────────────
+
+  const handleStartPlanning = useCallback(() => {
+    const newSession: ScriptPlanningSession = {
+      id: `plan-${Date.now()}`,
+      title: "新規劃",
+      personality,
+      scenes: [],
+      emotionalBeats: [],
+      milestones: [],
+      phases: PLANNING_PHASES.map(p => ({
+        phase: p.id,
+        status: "not-started" as const,
+        discussion: [],
+      })),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setPlanningSession(newSession);
+    setPlanningPhase("concept");
+  }, [personality]);
+
+  const handlePlanningSubmit = useCallback(() => {
+    if (!planningInput.trim() || !planningSession) return;
+
+    const userMsg: PlanningMessage = {
+      role: "user",
+      content: planningInput,
+      timestamp: new Date().toISOString(),
+      phase: planningPhase,
+    };
+
+    // Add user message immediately
+    setPlanningSession(prev => {
+      if (!prev) return prev;
+      const updated = { ...prev };
+      updated.phases = updated.phases.map(p =>
+        p.phase === planningPhase
+          ? { ...p, discussion: [...p.discussion, userMsg] }
+          : p
+      );
+      return updated;
+    });
+
+    const currentPhaseData = planningSession.phases.find(
+      p => p.phase === planningPhase
+    );
+
+    planningDiscussMut.mutate({
+      phase: planningPhase,
+      message: planningInput,
+      personality,
+      previousMessages: (currentPhaseData?.discussion ?? []).map(d => ({
+        role: d.role,
+        content: d.content,
+        timestamp: d.timestamp,
+        phase: d.phase,
+      })),
+      sessionContext: {
+        concept: planningSession.concept,
+        outline: planningSession.outline,
+        scenes: planningSession.scenes,
+        emotionalBeats: planningSession.emotionalBeats,
+      },
+    });
+
+    setPlanningInput("");
+  }, [
+    planningInput,
+    planningSession,
+    planningPhase,
+    personality,
+    planningDiscussMut,
+  ]);
+
+  const handlePlanningCompletePhase = useCallback(() => {
+    setPlanningSession(prev => {
+      if (!prev) return prev;
+      const updated = { ...prev, updatedAt: new Date().toISOString() };
+      updated.phases = updated.phases.map(p =>
+        p.phase === planningPhase ? { ...p, status: "completed" as const } : p
+      );
+      return updated;
+    });
+    toast.success("階段完成 ✨");
+  }, [planningPhase]);
+
+  const handleAnalyzeDepth = useCallback(() => {
+    if (!planningSession || planningSession.scenes.length === 0) {
+      toast.error("請先完成場景規劃");
+      return;
+    }
+    planningDepthMut.mutate({
+      scenes: planningSession.scenes,
+      concept: planningSession.concept,
+      outline: planningSession.outline,
+      personality,
+    });
+  }, [planningSession, personality, planningDepthMut]);
+
+  const handleSavePlanning = useCallback(() => {
+    if (!planningSession) return;
+    const title =
+      planningSession.concept?.theme || planningSession.title || "新規劃";
+    savePlanningMut.mutate({
+      title,
+      sessionData: JSON.stringify(planningSession),
+      personality,
+    });
+  }, [planningSession, personality, savePlanningMut]);
+
+  const handleLoadPlanningSession = useCallback(
+    (sessionData: string) => {
+      try {
+        const data = JSON.parse(sessionData) as ScriptPlanningSession;
+        setPlanningSession(data);
+        if (data.personality) {
+          setPersonality(data.personality as Personality);
+          setGlobalPersonality(data.personality as Personality);
+        }
+        setShowPlanningSessions(false);
+        toast.success("規劃已載入");
+      } catch {
+        toast.error("載入失敗");
+      }
+    },
+    [setGlobalPersonality]
   );
 
   // ─── Script Analysis Handlers ───────────────────────────────────────────
@@ -2712,6 +3001,18 @@ export default function DirectorAI() {
               </Badge>
             )}
           </TabsTrigger>
+          <TabsTrigger
+            value="planning"
+            className="rounded-lg text-xs gap-1.5 data-[state=active]:shadow-sm"
+          >
+            <Lightbulb className="w-3.5 h-3.5" />
+            規劃模式
+            {planningSession && (
+              <Badge variant="secondary" className="text-[9px] h-4 px-1 ml-1">
+                {planningSession.phases.filter(p => p.status === "completed").length}/{planningSession.phases.length}
+              </Badge>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         {/* ═══ Tab 1: Chat Mode (existing) ═══ */}
@@ -3253,6 +3554,550 @@ export default function DirectorAI() {
             </div>
           )}
         </TabsContent>
+
+        {/* ═══ Tab 3: Planning Mode ═══ */}
+        <TabsContent value="planning" className="space-y-4 mt-0">
+          {!planningSession ? (
+            /* ── Start / Load Planning Session ── */
+            <GlassCard hover={false} className="space-y-6">
+              <div className="text-center py-8">
+                <VisualSoul size="md" personality={personality} />
+                <h3 className="hs-h3 mt-4">長腳本規劃模式</h3>
+                <p className="hs-p text-muted-foreground max-w-lg mx-auto">
+                  透過五個階段的深度對話，與 AI
+                  一起打造更有溫度、更有深度的腳本。
+                  <br />
+                  每個階段都專注於不同面向，讓創作自然而然地成長
+                  🌿
+                </p>
+
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-6">
+                  <Button
+                    onClick={handleStartPlanning}
+                    className="rounded-xl gap-2"
+                  >
+                    <Lightbulb className="w-4 h-4" />
+                    開始新規劃
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="rounded-xl gap-2"
+                    onClick={() =>
+                      setShowPlanningSessions(!showPlanningSessions)
+                    }
+                  >
+                    <FolderOpen className="w-4 h-4" />
+                    載入規劃
+                  </Button>
+                </div>
+
+                {/* Planning phase overview */}
+                <div
+                  className={cn(
+                    "grid gap-3 mt-8",
+                    isMobile ? "grid-cols-1" : "grid-cols-5"
+                  )}
+                >
+                  {PLANNING_PHASES.map((phase, i) => (
+                    <div
+                      key={phase.id}
+                      className="p-3 rounded-xl border border-border/40 bg-white/40 text-left"
+                    >
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <phase.icon
+                          className={cn("w-4 h-4", phase.color)}
+                        />
+                        <span className="text-xs font-semibold">
+                          {i + 1}. {phase.label}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed">
+                        {phase.description}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Saved planning sessions */}
+              <AnimatePresence>
+                {showPlanningSessions && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="border-t pt-4 space-y-3">
+                      <h4 className="text-sm font-semibold flex items-center gap-2">
+                        <FolderOpen className="w-4 h-4" />
+                        已儲存的規劃
+                      </h4>
+                      {planningSessionsQuery.isLoading && (
+                        <p className="hs-small !mb-0 text-muted-foreground text-center py-4">
+                          載入中...
+                        </p>
+                      )}
+                      {planningSessionsQuery.data?.length === 0 && (
+                        <p className="hs-small !mb-0 text-muted-foreground text-center py-4">
+                          還沒有儲存的規劃
+                        </p>
+                      )}
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {(planningSessionsQuery.data ?? []).map(s => (
+                          <PlanningSessionItem
+                            key={s.id}
+                            session={s}
+                            onLoad={handleLoadPlanningSession}
+                            onDelete={id =>
+                              deletePlanningMut.mutate({ id })
+                            }
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </GlassCard>
+          ) : (
+            /* ── Active Planning Workspace ── */
+            <div className="space-y-4">
+              {/* Planning header */}
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <Lightbulb className="w-4 h-4 text-amber-500" />
+                  <span className="text-sm font-semibold">
+                    {planningSession.concept?.theme ||
+                      planningSession.title}
+                  </span>
+                  {planningSession.warmthScore != null && (
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] bg-rose-50 text-rose-700 border-rose-200 gap-1"
+                    >
+                      <ThermometerSun className="w-3 h-3" />
+                      溫度 {planningSession.warmthScore}/10
+                    </Badge>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-xl text-xs gap-1"
+                    onClick={handleSavePlanning}
+                    disabled={savePlanningMut.isPending}
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    儲存
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-xl text-xs gap-1 text-red-500 hover:text-red-600"
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          "確定要結束目前的規劃嗎？未儲存的內容將遺失。"
+                        )
+                      ) {
+                        setPlanningSession(null);
+                      }
+                    }}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    結束
+                  </Button>
+                </div>
+              </div>
+
+              {/* Phase navigation */}
+              <div
+                className={cn(
+                  "flex gap-1.5 overflow-x-auto pb-1",
+                  isMobile && "flex-nowrap"
+                )}
+              >
+                {PLANNING_PHASES.map((phase, i) => {
+                  const phaseData = planningSession.phases.find(
+                    p => p.phase === phase.id
+                  );
+                  const isActive = planningPhase === phase.id;
+                  const isCompleted = phaseData?.status === "completed";
+                  return (
+                    <button
+                      key={phase.id}
+                      onClick={() => setPlanningPhase(phase.id)}
+                      className={cn(
+                        "flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[11px] font-medium transition-all whitespace-nowrap",
+                        isActive
+                          ? cn("ring-1 shadow-sm", phase.activeColor)
+                          : isCompleted
+                            ? "bg-green-50 border-green-200 text-green-700"
+                            : "bg-white/50 border-border/40 text-muted-foreground hover:bg-white/80"
+                      )}
+                    >
+                      {isCompleted ? (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+                      ) : (
+                        <phase.icon className="w-3.5 h-3.5" />
+                      )}
+                      {!isMobile && `${i + 1}.`} {phase.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Phase content area */}
+              <div className={cn("flex gap-4", isMobile && "flex-col")}>
+                {/* Left: Discussion panel */}
+                <div
+                  className={cn(
+                    "flex-1",
+                    !isMobile &&
+                      planningPhase === "emotional-depth" &&
+                      "max-w-[60%]"
+                  )}
+                >
+                  <GlassCard hover={false} className="space-y-3">
+                    {(() => {
+                      const phaseConfig = PLANNING_PHASES.find(
+                        p => p.id === planningPhase
+                      );
+                      return (
+                        <div className="flex items-center justify-between">
+                          <h3 className="hs-h3 !mb-0 flex items-center gap-2">
+                            {phaseConfig && (
+                              <phaseConfig.icon
+                                className={cn("w-4 h-4", phaseConfig.color)}
+                              />
+                            )}
+                            {phaseConfig?.label ?? "規劃"}
+                          </h3>
+                          <div className="flex items-center gap-2">
+                            {planningPhase === "emotional-depth" &&
+                              planningSession.scenes.length > 0 && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="rounded-xl text-xs gap-1"
+                                  onClick={handleAnalyzeDepth}
+                                  disabled={planningDepthMut.isPending}
+                                >
+                                  {planningDepthMut.isPending ? (
+                                    <div className="w-3.5 h-3.5 border-2 border-current/30 border-t-current rounded-full animate-spin" />
+                                  ) : (
+                                    <ThermometerSun className="w-3.5 h-3.5" />
+                                  )}
+                                  分析溫度
+                                </Button>
+                              )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="rounded-xl text-xs gap-1 text-green-600"
+                              onClick={handlePlanningCompletePhase}
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              完成此階段
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    <p className="hs-small !mb-0 text-muted-foreground">
+                      {PLANNING_PHASES.find(p => p.id === planningPhase)?.description}
+                    </p>
+
+                    {/* Discussion messages */}
+                    <ScrollArea className="h-[calc(100vh-520px)] min-h-[300px]">
+                      <div className="space-y-3 pr-2">
+                        {planningSession.phases
+                          .find(p => p.phase === planningPhase)
+                          ?.discussion.map((msg, i) => (
+                            <motion.div
+                              key={i}
+                              initial={{ opacity: 0, y: 5 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              className={cn(
+                                "rounded-xl p-3 text-[12px] leading-relaxed",
+                                msg.role === "user"
+                                  ? "bg-primary/5 border border-primary/10 ml-8"
+                                  : "bg-muted/30 border border-border/30 mr-8"
+                              )}
+                            >
+                              <span className="text-[10px] font-semibold text-muted-foreground block mb-1">
+                                {msg.role === "user" ? "你" : "導演 AI"}
+                              </span>
+                              <LazyStreamdown>{msg.content}</LazyStreamdown>
+                            </motion.div>
+                          )) ?? []}
+
+                        {planningDiscussMut.isPending && (
+                          <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            className="flex items-center gap-2 p-3"
+                          >
+                            <VisualSoul
+                              size="sm"
+                              personality={personality}
+                              state="thinking"
+                            />
+                            <span className="text-xs text-muted-foreground animate-pulse">
+                              導演 AI 正在思考中...
+                            </span>
+                          </motion.div>
+                        )}
+                      </div>
+                    </ScrollArea>
+
+                    {/* Input area */}
+                    <div className="flex gap-2">
+                      <Textarea
+                        value={planningInput}
+                        onChange={e => setPlanningInput(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                            e.preventDefault();
+                            handlePlanningSubmit();
+                          }
+                        }}
+                        placeholder={
+                          planningPhase === "concept"
+                            ? "告訴我你想創作什麼…你的靈感來自哪裡？"
+                            : planningPhase === "outline"
+                              ? "描述你的故事走向…主角會經歷什麼？"
+                              : planningPhase === "scene-planning"
+                                ? "讓我們一起設計場景…這個場景的氛圍是？"
+                                : planningPhase === "emotional-depth"
+                                  ? "哪些地方需要更多溫度？哪個時刻最打動你？"
+                                  : "讓我們來安排製作時程…"
+                        }
+                        className="flex-1 min-h-[60px] max-h-[120px] rounded-xl resize-none text-[12px]"
+                        disabled={planningDiscussMut.isPending}
+                      />
+                      <Button
+                        onClick={handlePlanningSubmit}
+                        disabled={
+                          !planningInput.trim() || planningDiscussMut.isPending
+                        }
+                        size="sm"
+                        className="rounded-xl self-end"
+                      >
+                        <Send className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </GlassCard>
+                </div>
+
+                {/* Right: Context panel (desktop) */}
+                {!isMobile && (
+                  <div className="w-[40%] space-y-4">
+                    {/* Concept summary */}
+                    {planningSession.concept && (
+                      <GlassCard hover={false} className="space-y-2">
+                        <h4 className="text-xs font-semibold flex items-center gap-1.5">
+                          <Lightbulb className="w-3.5 h-3.5 text-amber-500" />
+                          核心概念
+                        </h4>
+                        <div className="space-y-1 text-[11px]">
+                          <div className="p-2 rounded-lg bg-amber-50/50">
+                            <span className="text-amber-600 font-medium">主題：</span>
+                            {planningSession.concept.theme}
+                          </div>
+                          <div className="p-2 rounded-lg bg-amber-50/50">
+                            <span className="text-amber-600 font-medium">核心情感：</span>
+                            {planningSession.concept.coreEmotion}
+                          </div>
+                          <div className="p-2 rounded-lg bg-amber-50/50">
+                            <span className="text-amber-600 font-medium">目標觀眾：</span>
+                            {planningSession.concept.targetAudience}
+                          </div>
+                        </div>
+                      </GlassCard>
+                    )}
+
+                    {/* Outline summary */}
+                    {planningSession.outline && (
+                      <GlassCard hover={false} className="space-y-2">
+                        <h4 className="text-xs font-semibold flex items-center gap-1.5">
+                          <BookOpen className="w-3.5 h-3.5 text-blue-500" />
+                          故事大綱
+                        </h4>
+                        <p className="text-[11px] text-muted-foreground leading-relaxed">
+                          {planningSession.outline.synopsis}
+                        </p>
+                        {planningSession.outline.keyTurningPoints.length > 0 && (
+                          <div className="space-y-1">
+                            <span className="text-[10px] font-semibold text-muted-foreground">
+                              關鍵轉折
+                            </span>
+                            <div className="flex flex-wrap gap-1">
+                              {planningSession.outline.keyTurningPoints.map(
+                                (tp, i) => (
+                                  <span
+                                    key={i}
+                                    className="text-[10px] px-2 py-0.5 rounded-md bg-blue-50 text-blue-700"
+                                  >
+                                    {tp}
+                                  </span>
+                                )
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </GlassCard>
+                    )}
+
+                    {/* Scenes list */}
+                    {planningSession.scenes.length > 0 && (
+                      <GlassCard hover={false} className="space-y-2">
+                        <h4 className="text-xs font-semibold flex items-center gap-1.5">
+                          <Film className="w-3.5 h-3.5 text-purple-500" />
+                          場景列表 ({planningSession.scenes.length})
+                        </h4>
+                        <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                          {planningSession.scenes.map((scene, i) => (
+                            <div
+                              key={scene.id}
+                              className="p-2 rounded-lg bg-purple-50/40 text-[11px]"
+                            >
+                              <span className="font-medium">
+                                #{i + 1} {scene.title}
+                              </span>
+                              <span className="text-muted-foreground ml-1.5">
+                                — {scene.mood}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </GlassCard>
+                    )}
+
+                    {/* Emotional depth analysis */}
+                    {planningSession.warmthScore != null && (
+                      <GlassCard hover={false} className="space-y-2">
+                        <h4 className="text-xs font-semibold flex items-center gap-1.5">
+                          <ThermometerSun className="w-3.5 h-3.5 text-rose-500" />
+                          情感深度分析
+                        </h4>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-muted-foreground">溫度</span>
+                          <div className="flex-1 h-2 rounded-full bg-gray-100 overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-gradient-to-r from-rose-300 to-rose-500 transition-all"
+                              style={{
+                                width: `${(planningSession.warmthScore / 10) * 100}%`,
+                              }}
+                            />
+                          </div>
+                          <span className="text-xs font-bold text-rose-600">
+                            {planningSession.warmthScore}/10
+                          </span>
+                        </div>
+                        {planningSession.emotionalBeats.length > 0 && (
+                          <div className="space-y-1 max-h-32 overflow-y-auto">
+                            {planningSession.emotionalBeats.map((beat, i) => (
+                              <div
+                                key={i}
+                                className="flex items-center gap-2 text-[10px] p-1.5 rounded bg-rose-50/40"
+                              >
+                                <CircleDot className="w-3 h-3 text-rose-400 shrink-0" />
+                                <span className="font-medium">{beat.label}</span>
+                                <span className="text-muted-foreground">{beat.emotion}</span>
+                                <span className="ml-auto text-rose-600 font-bold">
+                                  {beat.intensity}/10
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {planningSession.depthAnalysis && (
+                          <p className="text-[11px] text-muted-foreground leading-relaxed p-2 rounded-lg bg-muted/20">
+                            {planningSession.depthAnalysis}
+                          </p>
+                        )}
+                      </GlassCard>
+                    )}
+
+                    {/* Milestones */}
+                    {planningSession.milestones.length > 0 && (
+                      <GlassCard hover={false} className="space-y-2">
+                        <h4 className="text-xs font-semibold flex items-center gap-1.5">
+                          <Milestone className="w-3.5 h-3.5 text-teal-500" />
+                          里程碑
+                        </h4>
+                        <div className="space-y-1.5">
+                          {planningSession.milestones.map(m => (
+                            <div
+                              key={m.id}
+                              className="flex items-center gap-2 text-[11px]"
+                            >
+                              {m.completed ? (
+                                <CheckCircle2 className="w-3 h-3 text-green-500" />
+                              ) : (
+                                <CircleDot className="w-3 h-3 text-teal-400" />
+                              )}
+                              <span
+                                className={
+                                  m.completed
+                                    ? "line-through text-muted-foreground"
+                                    : ""
+                                }
+                              >
+                                {m.title}
+                              </span>
+                              {m.targetDate && (
+                                <span className="text-[10px] text-muted-foreground ml-auto">
+                                  {new Date(m.targetDate).toLocaleDateString("zh-TW")}
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </GlassCard>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Mobile: Context panels below discussion */}
+              {isMobile && planningSession.concept && (
+                <GlassCard hover={false} className="space-y-2">
+                  <h4 className="text-xs font-semibold flex items-center gap-1.5">
+                    <Lightbulb className="w-3.5 h-3.5 text-amber-500" />
+                    概念摘要
+                  </h4>
+                  <div className="text-[11px] space-y-1">
+                    <div>
+                      <span className="font-medium text-amber-600">主題：</span>
+                      {planningSession.concept.theme}
+                    </div>
+                    <div>
+                      <span className="font-medium text-amber-600">核心情感：</span>
+                      {planningSession.concept.coreEmotion}
+                    </div>
+                  </div>
+                </GlassCard>
+              )}
+
+              {isMobile && planningSession.warmthScore != null && (
+                <GlassCard hover={false} className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <ThermometerSun className="w-4 h-4 text-rose-500" />
+                    <span className="text-xs font-semibold">溫度分數</span>
+                    <span className="text-sm font-bold text-rose-600 ml-auto">
+                      {planningSession.warmthScore}/10
+                    </span>
+                  </div>
+                </GlassCard>
+              )}
+            </div>
+          )}
+        </TabsContent>
       </Tabs>
     </div>
   );
@@ -3280,6 +4125,52 @@ const SessionItem = memo(function SessionItem({
       onLoad(result.data.sessionData);
     } else {
       toast.error("無法載入對話");
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-between p-2 rounded-lg hover:bg-white/40 transition-colors group">
+      <button onClick={handleLoad} className="flex-1 text-left min-w-0">
+        <span className="text-xs font-medium truncate block">
+          {session.title}
+        </span>
+        <span className="text-[10px] text-muted-foreground">
+          {new Date(session.createdAt).toLocaleDateString("zh-TW")}
+        </span>
+      </button>
+      <button
+        onClick={() => onDelete(session.id)}
+        className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 transition-all shrink-0"
+        title="刪除"
+      >
+        <Trash2 className="w-3 h-3" />
+      </button>
+    </div>
+  );
+});
+
+// ─── Planning Session Item ──────────────────────────────────────────────────
+
+const PlanningSessionItem = memo(function PlanningSessionItem({
+  session,
+  onLoad,
+  onDelete,
+}: {
+  session: { id: number; title: string; createdAt: Date | string };
+  onLoad: (data: string) => void;
+  onDelete: (id: number) => void;
+}) {
+  const loadQuery = trpc.director.loadPlanningSession.useQuery(
+    { id: session.id },
+    { enabled: false }
+  );
+
+  const handleLoad = async () => {
+    const result = await loadQuery.refetch();
+    if (result.data?.sessionData) {
+      onLoad(result.data.sessionData);
+    } else {
+      toast.error("無法載入規劃");
     }
   };
 

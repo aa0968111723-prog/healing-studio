@@ -30,6 +30,7 @@ import { directorRouter } from "./routers/director";
 import { langsmithRouter } from "./routers/langsmith";
 import { promptLibraryRouter } from "./routers/promptLibrary";
 import { externalServicesRouter } from "./routers/externalServices";
+import { apiUsageRouter } from "./routers/apiUsage";
 import { getOrchestrator } from "./services/modelClients";
 // voiceCompiler, audioCompiler, videoCompiler are no longer used — all modalities route through falDispatcher
 import { buildMemoryContext, upsertMemory } from "./services/ragMemory";
@@ -57,6 +58,10 @@ import {
   estimateGenerationPoints,
   submitToFalQueue,
 } from "./services/falDispatcher";
+import {
+  localizeResultUrls,
+  persistExternalMediaUrl,
+} from "./services/internalMedia";
 import { eq } from "drizzle-orm";
 import { userAiBrain } from "../drizzle/schema";
 import { getDb } from "./db";
@@ -263,6 +268,7 @@ export const appRouter = router({
   loraTrainer: loraTrainerRouter,
   promptLibrary: promptLibraryRouter,
   externalServices: externalServicesRouter,
+  apiUsage: apiUsageRouter,
 
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
@@ -1045,6 +1051,12 @@ export const appRouter = router({
                   (imageDispatch.data as any)?.images?.[0]?.url ??
                   (imageDispatch.data as any)?.image?.url ??
                   ((imageDispatch.data as any)?.url as string | undefined);
+                if (imageUrl) {
+                  imageUrl = await persistExternalMediaUrl(imageUrl, {
+                    category: "image",
+                    prefix: `generated/studio/${userId}/image`,
+                  });
+                }
                 debug(
                   `[Fal] Image generation completed: ${imageUrl} (${imageDispatch.durationMs}ms, model: ${imageDispatch.modelId})`
                 );
@@ -1110,6 +1122,12 @@ export const appRouter = router({
                   (videoDispatch.data as any)?.video?.url ??
                   (videoDispatch.data as any)?.videos?.[0]?.url ??
                   ((videoDispatch.data as any)?.url as string | undefined);
+                if (videoUrl) {
+                  videoUrl = await persistExternalMediaUrl(videoUrl, {
+                    category: "video",
+                    prefix: `generated/studio/${userId}/video`,
+                  });
+                }
                 debug(
                   `[Fal] Video generation completed: ${videoUrl} (${videoDispatch.durationMs}ms, model: ${videoDispatch.modelId})`
                 );
@@ -1182,6 +1200,12 @@ export const appRouter = router({
                   (audioDispatch.data as any)?.audio?.url ??
                   (audioDispatch.data as any)?.audio_url ??
                   ((audioDispatch.data as any)?.url as string | undefined);
+                if (audioUrl) {
+                  audioUrl = await persistExternalMediaUrl(audioUrl, {
+                    category: "audio",
+                    prefix: `generated/studio/${userId}/audio`,
+                  });
+                }
                 debug(
                   `[Fal] Audio generation completed: ${audioUrl} (${audioDispatch.durationMs}ms, model: ${audioDispatch.modelId})`
                 );
@@ -1259,6 +1283,12 @@ export const appRouter = router({
                   (voiceDispatch.data as any)?.audio?.url ??
                   (voiceDispatch.data as any)?.audio_url ??
                   ((voiceDispatch.data as any)?.url as string | undefined);
+                if (voiceUrl) {
+                  voiceUrl = await persistExternalMediaUrl(voiceUrl, {
+                    category: "voice",
+                    prefix: `generated/studio/${userId}/voice`,
+                  });
+                }
                 debug(
                   `[Fal] Voice generation completed: ${voiceUrl} (${voiceDispatch.durationMs}ms, model: ${voiceDispatch.modelId})`
                 );
@@ -1893,7 +1923,11 @@ export const appRouter = router({
             const resultData = resultRes.ok ? await resultRes.json() : null;
 
             // 從結果中提取 URL（嘗試所有已知路徑）
-            const r = resultData as Record<string, unknown> | null;
+            const localizedResult = (await localizeResultUrls(
+              resultData,
+              `generated/studio/${ctx.user.id}/background/${modelId.replace(/[^\w/-]+/g, "_")}`
+            )) as Record<string, unknown> | null;
+            const r = localizedResult;
             const resultUrl =
               // 圖片
               (r?.images as any)?.[0]?.url ??
@@ -1926,14 +1960,14 @@ export const appRouter = router({
               status: "completed",
               progress: 100,
               progressMessage: "生成完成",
-              resultJson: { ...meta, resultUrl, result: resultData },
+              resultJson: { ...meta, resultUrl, result: localizedResult },
             });
             return {
               ...job,
               status: "completed" as const,
               progress: 100,
               progressMessage: "生成完成",
-              resultJson: { ...meta, resultUrl, result: resultData },
+              resultJson: { ...meta, resultUrl, result: localizedResult },
             };
           }
 
@@ -2974,6 +3008,36 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         await db.incrementModelUsage(input.id);
         return { success: true };
+      }),
+  }),
+
+  // ─── Director Preferences ────────────────────────────────────────────────
+
+  directorPreferences: router({
+    get: protectedProcedure.query(async ({ ctx }) => {
+      const pref = await db.getDirectorPreferences(ctx.user.id);
+      if (pref) return pref;
+      return {
+        id: 0,
+        userId: ctx.user.id,
+        personality: "creative" as const,
+        preferredFormat: "co-star" as const,
+        updatedAt: new Date(),
+      };
+    }),
+
+    update: protectedProcedure
+      .input(
+        z.object({
+          personality: z.enum(["calm", "creative", "technical"]).optional(),
+          preferredFormat: z
+            .enum(["co-star", "sslcm", "selcm", "free"])
+            .optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const id = await db.upsertDirectorPreferences(ctx.user.id, input);
+        return { id };
       }),
   }),
 

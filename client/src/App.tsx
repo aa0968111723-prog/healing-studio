@@ -51,6 +51,7 @@ const BackgroundTasksPage = lazy(() => import("./pages/BackgroundTasksPage"));
 const CreditsInfoPage = lazy(() => import("./pages/CreditsInfoPage"));
 const PromptLibraryPage = lazy(() => import("./pages/PromptLibraryPage"));
 const AgentChat = lazy(() => import("./pages/AgentChat"));
+const AdminApiUsagePage = lazy(() => import("./pages/AdminApiUsagePage"));
 
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -152,6 +153,9 @@ function Router() {
       </Route>
       <Route path="/admin">
         <DashboardRoute component={AdminPage} />
+      </Route>
+      <Route path="/admin/api-usage">
+        <DashboardRoute component={AdminApiUsagePage} />
       </Route>
       <Route path="/pro-studio">
         <ProtectedDashboardRoute component={ProStudio} />
