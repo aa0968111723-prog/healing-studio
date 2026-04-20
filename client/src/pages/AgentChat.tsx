@@ -103,7 +103,7 @@ export default function AgentChat() {
   const { openPanel: openOrbGuide, selectIntent: selectOrbIntent } = useOrbGuide();
 
   // Ref to hold the latest `send` for use in handler (avoids stale closures)
-  const sendRef = useRef<(raw: string) => Promise<void>>();
+  const sendRef = useRef<(raw: string) => Promise<void>>(undefined);
 
   // ── 把 /agent 本身也登記成一個 PageAgent 頁面 ──────────────────────
   //
