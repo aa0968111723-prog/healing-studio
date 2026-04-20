@@ -3058,12 +3058,12 @@ export default function ImageStudio() {
           recommended: m.recommended,
         },
       })),
-      hint: "切換模型會自動切到對應分頁；部分模型支援中文提示詞（seedreamV4）",
+      hint: "切換模型會自動切到對應分頁；部分模型支援中文提示詞（seedreamV4）；推薦：nanoBanana2（快速預覽）/ nanoBananaPro（高品質）/ seedreamV4（中文）/ imagen4（寫實）",
     },
     {
       action: "fillPrompt",
       label: "提示詞",
-      hint: "slot=prompt 是主要提示詞；slot=negativePrompt 會填到負向欄位（僅 SD / seedream / imagen 支援）",
+      hint: "slot=prompt 是主要提示詞（t2i/edit/sd 使用）；slot=negativePrompt 會填到負向欄位（SD / seedream / imagen）；slot=prompt3d 給 3D 分頁。支援 append=true 追加模式。好的提示詞 = 主體 + 環境 + 光線 + 風格 + 品質",
     },
     {
       action: "applyPreset",
@@ -3073,12 +3073,12 @@ export default function ImageStudio() {
         label: v.labelZh,
         description: v.keywords,
       })),
-      hint: "套用後會把氛圍關鍵字附加到生成時的 prompt",
+      hint: "套用後會把氛圍關鍵字附加到生成時的 prompt。可多選組合。電影感=cinematic / 夢幻=dreamy / 極簡=minimal / 暗黑=dark / 動漫=anime / 寫實=photo / 水彩=watercolor / 復古=vintage",
     },
     {
       action: "submit",
       label: "送出生成",
-      hint: "需要使用者確認才執行；未填提示詞會失敗",
+      hint: "需要使用者確認才執行；未填提示詞會失敗；已在生成中也會失敗",
     },
     {
       action: "reset",
@@ -3088,7 +3088,17 @@ export default function ImageStudio() {
     {
       action: "setParam",
       label: "參數",
-      hint: "可調 key: aspectRatio / numImages / seed / strength / guidance / inferSteps / negPrompt",
+      hint: activeTab === "t2i"
+        ? "t2i 可調: aspectRatio(1:1/16:9/9:16/4:3/3:4/3:2/2:3/auto) / numImages(1~4) / seed"
+        : activeTab === "edit"
+          ? "edit 可調: strength(0.1~1.0，越高改變越大) / guidance(1~20) / inferSteps(10~50) / negPrompt / outputSize"
+          : activeTab === "sd"
+            ? "sd 可調: sdImageSize / sdGuidance(1~20) / sdInferSteps(10~50) / sdSeed / negPrompt / loraPath / loraScale(0~2) / controlnetScale(0~2)"
+            : activeTab === "upscale"
+              ? "upscale 可調: upscaleFactor(2/4) / upscaleMode(factor/target)"
+              : activeTab === "3d"
+                ? "3d 可調: trellisResolution / trellisTextureSize / enablePbr(bool) / hunyuanGenType(Normal/LowPoly/Geometry) / rodinQuality(high/medium/low) / rodinMaterial(PBR/Shaded)"
+                : "可調 key: aspectRatio / numImages / seed / strength / guidance / inferSteps / negPrompt / outputSize / sdGuidance / sdInferSteps / loraScale / controlnetScale / upscaleFactor / enablePbr / hunyuanGenType / rodinQuality",
     },
   ];
 
@@ -3101,10 +3111,44 @@ export default function ImageStudio() {
       activeTab,
       selectedModelId,
       modelName: model.name,
+      promptPreview: prompt.slice(0, 150) || "(空)",
       promptLength: prompt.length,
+      appliedVibes: vibeIds.join(", ") || "(無)",
       vibeCount: vibeIds.length,
+      aspectRatio,
+      numImages,
       hasRefImage: !!refImageUrl,
       isGenerating,
+      hasResult: resultImages.length > 0 || !!result3d || !!resultPose,
+      resultCount: resultImages.length,
+      // Tab-specific state
+      ...(activeTab === "edit" && {
+        strength,
+        guidance,
+        inferSteps,
+        outputSize,
+      }),
+      ...(activeTab === "sd" && {
+        negPrompt: negPrompt.slice(0, 80) || "(空)",
+        sdGuidance,
+        sdInferSteps,
+        sdImageSize,
+        hasLora: !!loraPath,
+        loraScale,
+        hasControlnet: !!controlnetImageUrl,
+        controlnetScale,
+      }),
+      ...(activeTab === "upscale" && {
+        upscaleMode,
+        upscaleFactor,
+        hasUpscaleImage: !!upscaleImageUrl,
+      }),
+      ...(activeTab === "3d" && {
+        has3dImage: !!imageUrl3d,
+        enablePbr,
+        hunyuanGenType,
+        rodinQuality,
+      }),
     },
     handle: async (action: AgentAction): Promise<AgentActionResult> => {
       switch (action.type) {
@@ -3147,30 +3191,81 @@ export default function ImageStudio() {
         case "setParam": {
           const { key, value } = action;
           switch (key) {
+            // ── Common params ──
             case "aspectRatio":
               if (typeof value === "string") setAspectRatio(value);
-              return { ok: true };
+              return { ok: true, message: `比例已設為 ${value}` };
             case "numImages":
-              if (typeof value === "number") setNumImages(value);
-              return { ok: true };
+              if (typeof value === "number") setNumImages(Math.min(4, Math.max(1, value)));
+              return { ok: true, message: `生成數量已設為 ${value}` };
             case "seed":
               if (typeof value === "string" || typeof value === "number")
                 setSeed(String(value));
               return { ok: true };
+            // ── Edit tab params ──
             case "strength":
-              if (typeof value === "number") setStrength(value);
-              return { ok: true };
+              if (typeof value === "number") setStrength(Math.min(1, Math.max(0, value)));
+              return { ok: true, message: `強度已設為 ${value}` };
             case "guidance":
               if (typeof value === "number") setGuidance(value);
-              return { ok: true };
+              return { ok: true, message: `引導值已設為 ${value}` };
             case "inferSteps":
               if (typeof value === "number") setInferSteps(value);
-              return { ok: true };
+              return { ok: true, message: `推理步數已設為 ${value}` };
             case "negPrompt":
               if (typeof value === "string") setNegPrompt(value);
-              return { ok: true };
+              return { ok: true, message: "負面提示詞已更新" };
             case "outputSize":
               if (typeof value === "string") setOutputSize(value);
+              return { ok: true };
+            // ── SD tab params ──
+            case "sdGuidance":
+              if (typeof value === "number") setSdGuidance(value);
+              return { ok: true, message: `SD 引導值已設為 ${value}` };
+            case "sdInferSteps":
+              if (typeof value === "number") setSdInferSteps(value);
+              return { ok: true, message: `SD 步數已設為 ${value}` };
+            case "sdSeed":
+              if (typeof value === "string" || typeof value === "number")
+                setSdSeed(String(value));
+              return { ok: true };
+            case "sdImageSize":
+              if (typeof value === "string") setSdImageSize(value);
+              return { ok: true, message: `SD 圖片尺寸已設為 ${value}` };
+            case "loraPath":
+              if (typeof value === "string") setLoraPath(value);
+              return { ok: true, message: "LoRA 路徑已設定" };
+            case "loraScale":
+              if (typeof value === "number") setLoraScale(Math.min(2, Math.max(0, value)));
+              return { ok: true, message: `LoRA 強度已設為 ${value}` };
+            case "controlnetScale":
+              if (typeof value === "number") setControlnetScale(Math.min(2, Math.max(0, value)));
+              return { ok: true, message: `ControlNet 強度已設為 ${value}` };
+            // ── Upscale tab params ──
+            case "upscaleFactor":
+              if (typeof value === "number") setUpscaleFactor(value);
+              return { ok: true, message: `放大倍率已設為 ${value}x` };
+            case "upscaleMode":
+              if (typeof value === "string") setUpscaleMode(value as "factor" | "target");
+              return { ok: true };
+            // ── 3D tab params ──
+            case "trellisResolution":
+              if (typeof value === "string") setTrellisResolution(value);
+              return { ok: true, message: `3D 解析度已設為 ${value}` };
+            case "trellisTextureSize":
+              if (typeof value === "string") setTrellisTextureSize(value);
+              return { ok: true };
+            case "enablePbr":
+              if (typeof value === "boolean") setEnablePbr(value);
+              return { ok: true, message: value ? "已開啟 PBR 材質" : "已關閉 PBR 材質" };
+            case "hunyuanGenType":
+              if (typeof value === "string") setHunyuanGenType(value as "Normal" | "LowPoly" | "Geometry");
+              return { ok: true, message: `3D 類型已設為 ${value}` };
+            case "rodinQuality":
+              if (typeof value === "string") setRodinQuality(value as "high" | "medium" | "low" | "extra-low");
+              return { ok: true, message: `3D 品質已設為 ${value}` };
+            case "rodinMaterial":
+              if (typeof value === "string") setRodinMaterial(value as "PBR" | "Shaded");
               return { ok: true };
             default:
               return { ok: false, reason: `unknown param key: ${key}` };
