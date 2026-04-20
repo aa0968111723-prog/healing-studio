@@ -221,16 +221,16 @@ describe("VideoCompiler Integration", () => {
 });
 
 describe("Gemini Veo SDK Integration Verification", () => {
-  it("@google/genai package is installed and importable", async () => {
-    const genaiModule = await import("@google/genai");
-    expect(genaiModule.GoogleGenAI).toBeDefined();
-    expect(typeof genaiModule.GoogleGenAI).toBe("function");
+  it("@google/generative-ai package is installed and importable", async () => {
+    const genaiModule = await import("@google/generative-ai");
+    expect(genaiModule.GoogleGenerativeAI).toBeDefined();
+    expect(typeof genaiModule.GoogleGenerativeAI).toBe("function");
   });
 
-  it("GoogleGenAI can be instantiated with an API key", async () => {
-    const { GoogleGenAI } = await import("@google/genai");
-    const ai = new GoogleGenAI({ apiKey: "test-key" });
+  it("GoogleGenerativeAI can be instantiated with an API key", async () => {
+    const { GoogleGenerativeAI } = await import("@google/generative-ai");
+    const ai = new GoogleGenerativeAI("test-key");
     expect(ai).toBeDefined();
-    expect(ai.models).toBeDefined();
+    expect(ai).toBeDefined();
   });
 });

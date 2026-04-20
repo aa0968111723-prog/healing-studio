@@ -177,6 +177,11 @@ export const DEMO_USER = {
 };
 
 export function isDemoMode(): boolean {
+  // 在測試環境中強制關閉 demo mode，避免略過扣點/建任務等真實流程
+  // 導致整合測試與生產邏輯漂移。
+  if (process.env.NODE_ENV === "test" || process.env.VITEST === "true") {
+    return false;
+  }
   return !process.env.DATABASE_URL;
 }
 

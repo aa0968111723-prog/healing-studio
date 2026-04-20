@@ -12,10 +12,16 @@
  *  - 整合 usePageTour（自動觸發新手引導）
  */
 
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useAIState } from "@/contexts/AIStateContext";
+import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
+import type {
+  AgentAction,
+  AgentActionResult,
+  AgentCapability,
+} from "../../../shared/agent-actions";
 import VisualSoul from "@/components/VisualSoul";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -2069,6 +2075,113 @@ export default function LearnHub() {
 
   // Featured docs for hero section
   const featuredDocs = docs.filter(d => d.featured).slice(0, 3);
+
+  // ─── PageAgent 註冊（Phase 4b：學習中心接入光球） ────────────────────────
+  // 光球可：切 docs/videos/quizzes 子分頁、挑分類、挑難度、下搜尋、清空條件。
+  const LEARN_TAB_OPTIONS = useMemo<AgentCapability["options"]>(
+    () => [
+      { id: "docs", label: "文件中心" },
+      { id: "videos", label: "影片學習區" },
+      { id: "quizzes", label: "學習測驗區" },
+    ],
+    []
+  );
+  const LEARN_CATEGORY_OPTIONS = useMemo<AgentCapability["options"]>(
+    () => CATEGORIES.map(c => ({ id: c.id, label: c.label })),
+    []
+  );
+  const LEARN_DIFFICULTY_OPTIONS = useMemo<AgentCapability["options"]>(
+    () => DIFFICULTIES.map(d => ({ id: d.id, label: d.label })),
+    []
+  );
+  const learnAgentCapabilities: AgentCapability[] = useMemo(
+    () => [
+      {
+        action: "setTab",
+        label: "切換子頁",
+        currentId: activeTab,
+        options: LEARN_TAB_OPTIONS,
+        hint: "切到 docs / videos / quizzes",
+      },
+      {
+        action: "setParam",
+        label: "分類 / 難度 / 搜尋",
+        options: LEARN_CATEGORY_OPTIONS,
+        hint: "setParam key='category' value=<CategoryId>；key='difficulty' value=all|beginner|intermediate|advanced；key='search' value=<關鍵字>",
+      },
+      {
+        action: "reset",
+        label: "清空條件",
+        hint: "分類還原 all、難度還原 all、搜尋清空",
+      },
+    ],
+    [activeTab, LEARN_TAB_OPTIONS, LEARN_CATEGORY_OPTIONS]
+  );
+
+  useRegisterPageAgent({
+    pageId: "learn",
+    pageLabel: "學習文件中心",
+    pagePath: "/learn",
+    capabilities: learnAgentCapabilities,
+    state: {
+      activeTab,
+      selectedCategory,
+      selectedDifficulty,
+      searchQuery,
+      totalDocs: total,
+      visibleDocs: docs.length,
+    },
+    handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      switch (action.type) {
+        case "setTab": {
+          const allowed = ["docs", "videos", "quizzes"];
+          if (!allowed.includes(action.tabId)) {
+            return { ok: false, reason: `unknown tab: ${action.tabId}` };
+          }
+          setActiveTab(action.tabId);
+          return { ok: true, message: `切到「${action.tabId}」` };
+        }
+        case "setParam": {
+          if (action.key === "category") {
+            const v = String(action.value ?? "");
+            const allowed = CATEGORIES.map(c => c.id);
+            if (!allowed.includes(v as CategoryId)) {
+              return { ok: false, reason: `unknown category: ${v}` };
+            }
+            setSelectedCategory(v as CategoryId);
+            return { ok: true, message: `分類切到「${v}」` };
+          }
+          if (action.key === "difficulty") {
+            const v = String(action.value ?? "");
+            const allowed = DIFFICULTIES.map(d => d.id);
+            if (!allowed.includes(v as DifficultyId)) {
+              return { ok: false, reason: `unknown difficulty: ${v}` };
+            }
+            setSelectedDifficulty(v as DifficultyId);
+            return { ok: true, message: `難度切到「${v}」` };
+          }
+          if (action.key === "search") {
+            setSearchQuery(
+              typeof action.value === "string" ? action.value : ""
+            );
+            return { ok: true, message: "已套用搜尋" };
+          }
+          return { ok: false, reason: `unknown param key: ${action.key}` };
+        }
+        case "reset": {
+          setSelectedCategory("all");
+          setSelectedDifficulty("all");
+          setSearchQuery("");
+          return { ok: true, message: "已清空條件" };
+        }
+        default:
+          return {
+            ok: false,
+            reason: `unsupported on learn: ${action.type}`,
+          };
+      }
+    },
+  });
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">

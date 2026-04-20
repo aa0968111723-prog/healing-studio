@@ -3,8 +3,14 @@
  * 路由：/prompt-library
  */
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
+import type {
+  AgentAction,
+  AgentActionResult,
+  AgentCapability,
+} from "../../../shared/agent-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -143,6 +149,106 @@ export default function PromptLibraryPage() {
   });
 
   const incUseMut = trpc.promptLibrary.incrementUseCount.useMutation();
+
+  // ─── PageAgent 註冊（Phase 4a：提示詞庫接入光球） ────────────────────────
+  // 光球可幫使用者：切 mine/public 分頁、挑分類、搜尋、切只看收藏、清空條件。
+  const TAB_OPTIONS = useMemo<AgentCapability["options"]>(
+    () => [
+      { id: "mine", label: "我的" },
+      { id: "public", label: "公開" },
+    ],
+    []
+  );
+  const CATEGORY_OPTIONS = useMemo<AgentCapability["options"]>(
+    () => [
+      { id: "all", label: "全部分類" },
+      ...CATEGORIES.map(c => ({ id: c.value, label: c.label })),
+    ],
+    []
+  );
+  const agentCapabilities: AgentCapability[] = useMemo(
+    () => [
+      {
+        action: "setTab",
+        label: "切換分頁",
+        currentId: tab,
+        options: TAB_OPTIONS,
+        hint: "切換我的提示詞 / 公開提示詞",
+      },
+      {
+        action: "setParam",
+        label: "分類 / 搜尋 / 只看收藏",
+        hint: "setParam key='category' value=<id>；key='search' value=<關鍵字>；key='favoritesOnly' value=true|false",
+      },
+      {
+        action: "reset",
+        label: "清空條件",
+        hint: "分類還原 all、搜尋清空、favoritesOnly=false、page=1",
+      },
+    ],
+    [tab, TAB_OPTIONS]
+  );
+
+  useRegisterPageAgent({
+    pageId: "prompt-library",
+    pageLabel: "提示詞庫",
+    pagePath: "/prompt-library",
+    capabilities: agentCapabilities,
+    state: {
+      tab,
+      filterCategory,
+      search,
+      favoritesOnly,
+      page,
+    },
+    handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      switch (action.type) {
+        case "setTab": {
+          if (action.tabId !== "mine" && action.tabId !== "public") {
+            return { ok: false, reason: `unknown tab: ${action.tabId}` };
+          }
+          setTab(action.tabId);
+          setPage(1);
+          return { ok: true, message: `切到「${action.tabId}」` };
+        }
+        case "setParam": {
+          if (action.key === "search") {
+            setSearch(typeof action.value === "string" ? action.value : "");
+            setPage(1);
+            return { ok: true, message: "已套用搜尋" };
+          }
+          if (action.key === "category") {
+            const allowed = ["all", ...CATEGORIES.map(c => c.value)];
+            const v = String(action.value ?? "");
+            if (!allowed.includes(v)) {
+              return { ok: false, reason: `unknown category: ${v}` };
+            }
+            setFilterCategory(v as Category | "all");
+            setPage(1);
+            return { ok: true, message: `分類切到「${v}」` };
+          }
+          if (action.key === "favoritesOnly") {
+            setFavoritesOnly(Boolean(action.value));
+            setPage(1);
+            return { ok: true, message: "已套用收藏篩選" };
+          }
+          return { ok: false, reason: `unknown param key: ${action.key}` };
+        }
+        case "reset": {
+          setFilterCategory("all");
+          setSearch("");
+          setFavoritesOnly(false);
+          setPage(1);
+          return { ok: true, message: "已清空條件" };
+        }
+        default:
+          return {
+            ok: false,
+            reason: `unsupported on prompt-library: ${action.type}`,
+          };
+      }
+    },
+  });
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 

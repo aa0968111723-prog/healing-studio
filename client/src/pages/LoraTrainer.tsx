@@ -51,6 +51,12 @@ import type {
   TrainingEngine,
 } from "@shared/types";
 import { TRAINING_CATEGORIES, getTrainingCategory } from "@shared/types";
+import {
+  useRegisterPageAgent,
+  type AgentAction,
+  type AgentActionResult,
+  type AgentCapability,
+} from "@/contexts/PageAgentContext";
 
 // ── Type alias for dataset images from training detail ──────────────────────
 
@@ -588,6 +594,149 @@ export default function LoraTrainer() {
     setSelectedModelId(modelId);
     setTab("detail");
   };
+
+  // ── 光球代理人：LoRA 訓練中心 ────────────────────────────────────────
+  const loraCaps: AgentCapability[] = [
+    {
+      action: "setTab",
+      label: "分頁",
+      currentId: tab,
+      options: [
+        { id: "train", label: "訓練新模型" },
+        { id: "overview", label: "概覽" },
+        { id: "history", label: "歷史訓練" },
+        { id: "detail", label: "模型詳情" },
+      ],
+      hint: "detail 需要 selectedModelId；其他分頁可直接切換",
+    },
+    {
+      action: "applyPreset",
+      label: "訓練類別",
+      currentId: `type:${selectedTrainingType}`,
+      options: TRAINING_CATEGORIES.map(c => ({
+        id: `type:${c.type}`,
+        label: c.labelZh,
+        description: c.description,
+        meta: {
+          engine: c.defaultEngine,
+          min: c.minDatasetSize,
+          max: c.maxDatasetSize,
+        },
+      })),
+      hint: "presetId=type:image_subject | portrait_lora | style_lora | scene_lora | video_lora | voice_clone",
+    },
+    {
+      action: "fillPrompt",
+      label: "文字欄位",
+      hint: "slot=modelName 模型名稱；slot=triggerWord 觸發詞；slot=description 描述",
+    },
+    {
+      action: "setParam",
+      label: "超參數",
+      hint: "key=epochs / learningRate / batchSize / trainingSteps",
+    },
+    {
+      action: "submit",
+      label: "開始訓練",
+      hint: "等同按下「開始訓練」；會檢查資料筆數是否達標",
+    },
+  ];
+
+  useRegisterPageAgent({
+    pageId: "lora-trainer",
+    pageLabel: "AI 模型訓練中心",
+    pagePath: "/lora-trainer",
+    capabilities: loraCaps,
+    state: {
+      activeTab: tab,
+      selectedTrainingType,
+      trainingEngine,
+      datasetCount: totalDataCount,
+      step,
+      hasModelName: modelName.trim().length > 0,
+      hasTriggerWord: triggerWord.trim().length > 0,
+    },
+    handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      switch (action.type) {
+        case "setTab": {
+          if (
+            action.tabId === "train" ||
+            action.tabId === "overview" ||
+            action.tabId === "history" ||
+            action.tabId === "detail"
+          ) {
+            setTab(action.tabId);
+            return { ok: true };
+          }
+          return { ok: false, reason: `unknown tabId: ${action.tabId}` };
+        }
+        case "applyPreset": {
+          const id = action.presetId;
+          if (id.startsWith("type:")) {
+            const t = id.slice("type:".length) as TrainingModelType;
+            const cat = getTrainingCategory(t);
+            if (!cat) return { ok: false, reason: `unknown training type: ${t}` };
+            setSelectedTrainingType(t);
+            return { ok: true, message: `已切到「${cat.labelZh}」訓練類別` };
+          }
+          return { ok: false, reason: `unknown presetId: ${id}` };
+        }
+        case "fillPrompt": {
+          const slot = action.slot ?? "modelName";
+          const setter =
+            slot === "triggerWord"
+              ? setTriggerWord
+              : slot === "description"
+                ? setDescription
+                : setModelName;
+          if (action.append) {
+            setter(prev => (prev ? `${prev} ${action.text}` : action.text));
+          } else {
+            setter(action.text);
+          }
+          return { ok: true };
+        }
+        case "setParam": {
+          const { key, value } = action;
+          switch (key) {
+            case "epochs":
+              if (typeof value === "number") setEpochs(value);
+              return { ok: true };
+            case "learningRate":
+              if (typeof value === "number") setLearningRate(value);
+              return { ok: true };
+            case "batchSize":
+              if (typeof value === "number") setBatchSize(value);
+              return { ok: true };
+            case "trainingSteps":
+              if (typeof value === "number") setTrainingSteps(value);
+              return { ok: true };
+            default:
+              return { ok: false, reason: `unknown key: ${key}` };
+          }
+        }
+        case "submit": {
+          if (action.delayMs && action.delayMs > 0) {
+            await new Promise(r => setTimeout(r, action.delayMs));
+          }
+          handleStartTraining();
+          return { ok: true, message: "已觸發訓練流程" };
+        }
+        case "reset": {
+          setModelName("");
+          setTriggerWord("");
+          setDescription("");
+          setDatasetImages([]);
+          setDatasetVideos([]);
+          return { ok: true };
+        }
+        case "focusElement":
+          return { ok: true };
+        default:
+          return { ok: false, reason: "unsupported action" };
+      }
+    },
+  });
 
   return (
     <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-5 sm:space-y-6">

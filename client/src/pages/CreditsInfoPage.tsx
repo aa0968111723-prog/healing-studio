@@ -1,5 +1,12 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { useLocation } from "wouter";
+import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
+import type {
+  AgentAction,
+  AgentActionResult,
+  AgentCapability,
+} from "../../../shared/agent-actions";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import { motion } from "framer-motion";
 import {
@@ -260,6 +267,7 @@ function FAQItem({ q, a }: { q: string; a: string }) {
 // ─── Main Page ─────────────────────────────────────────────────────────────
 
 export default function CreditsInfoPage() {
+  const [, navigate] = useLocation();
   const {
     data: catalog,
     isLoading,
@@ -275,6 +283,50 @@ export default function CreditsInfoPage() {
         Object.keys(catalog).filter(cat => !CATEGORY_ORDER.includes(cat))
       )
     : [];
+
+  // ─── PageAgent 註冊（Phase 4b：積分說明接入光球） ────────────────────────
+  // 積分頁本身唯讀，光球主要用處：把 remaining / 模型費率摘要送進 LLM 上下文，
+  // 另外提供「前往學習文件」「前往儀表板」「前往分享空間賺積分」快捷 navigate。
+  const CREDITS_NAV_ALLOWLIST = useMemo<Set<string>>(
+    () => new Set(["/learn", "/dashboard", "/shared", "/assets"]),
+    []
+  );
+  const creditsAgentCapabilities: AgentCapability[] = useMemo(
+    () => [
+      {
+        action: "navigate",
+        label: "跳到相關頁面",
+        hint: "navigate path='/learn'（文件）| '/dashboard'（看用量）| '/shared'（分享賺積分）| '/assets'（我的資產）",
+      },
+    ],
+    []
+  );
+
+  useRegisterPageAgent({
+    pageId: "credits",
+    pageLabel: "積分說明",
+    pagePath: "/credits",
+    capabilities: creditsAgentCapabilities,
+    state: {
+      remainingCredits: balance?.remaining ?? null,
+      categoriesLoaded: sortedCategories.length,
+      hasCatalog: !!catalog,
+    },
+    handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      if (action.type === "navigate") {
+        const path = String(action.path ?? "");
+        if (!CREDITS_NAV_ALLOWLIST.has(path)) {
+          return { ok: false, reason: `不在允許跳轉清單：${path}` };
+        }
+        navigate(path);
+        return { ok: true, message: `跳到 ${path}` };
+      }
+      return {
+        ok: false,
+        reason: `unsupported on credits: ${action.type}`,
+      };
+    },
+  });
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-16">

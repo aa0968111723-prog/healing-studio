@@ -1,6 +1,12 @@
-import { useState, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
+import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
+import type {
+  AgentAction,
+  AgentActionResult,
+  AgentCapability,
+} from "../../../shared/agent-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -370,6 +376,100 @@ export default function AssetsLibrary() {
   const isLoading =
     tab === "my" ? myAssetsQuery.isLoading : teamAssetsQuery.isLoading;
   const totalMyAssets = myAssetsQuery.data?.length ?? 0;
+
+  // ─── PageAgent 註冊（Phase 4b：資產庫接入光球） ──────────────────────────
+  // 光球可：切 my/team 分頁、切資產類型、下搜尋字串、清空條件。
+  const ASSETS_TAB_OPTIONS = useMemo<AgentCapability["options"]>(
+    () => [
+      { id: "my", label: "我的資產" },
+      { id: "team", label: "團隊共享" },
+    ],
+    []
+  );
+  const ASSETS_TYPE_OPTIONS = useMemo<AgentCapability["options"]>(
+    () => [
+      { id: "all", label: "全部" },
+      { id: "image", label: "圖片" },
+      { id: "video", label: "影片" },
+      { id: "audio", label: "音樂" },
+      { id: "voice", label: "語音" },
+      { id: "script", label: "腳本" },
+      { id: "zip_bundle", label: "打包" },
+    ],
+    []
+  );
+  const assetsAgentCapabilities: AgentCapability[] = useMemo(
+    () => [
+      {
+        action: "setTab",
+        label: "切換分頁",
+        currentId: tab,
+        options: ASSETS_TAB_OPTIONS,
+        hint: "切到 my（我的資產）或 team（團隊共享）",
+      },
+      {
+        action: "setParam",
+        label: "類型 / 搜尋",
+        hint: "setParam key='assetType' value=all|image|video|audio|voice|script|zip_bundle；key='search' value=<關鍵字>",
+      },
+      {
+        action: "reset",
+        label: "清空條件",
+        hint: "類型還原 all、搜尋清空",
+      },
+    ],
+    [tab, ASSETS_TAB_OPTIONS]
+  );
+
+  useRegisterPageAgent({
+    pageId: "assets",
+    pageLabel: "數位資產庫",
+    pagePath: "/assets",
+    capabilities: assetsAgentCapabilities,
+    state: {
+      tab,
+      typeFilter,
+      search,
+      visibleCount: assets?.length ?? 0,
+      myTotal: totalMyAssets,
+    },
+    handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      switch (action.type) {
+        case "setTab": {
+          if (action.tabId !== "my" && action.tabId !== "team") {
+            return { ok: false, reason: `unknown tab: ${action.tabId}` };
+          }
+          setTab(action.tabId);
+          return { ok: true, message: `切到「${action.tabId}」` };
+        }
+        case "setParam": {
+          if (action.key === "assetType") {
+            const v = String(action.value ?? "");
+            if (!ASSET_TYPES.includes(v as AssetTypeFilter)) {
+              return { ok: false, reason: `unknown assetType: ${v}` };
+            }
+            setTypeFilter(v as AssetTypeFilter);
+            return { ok: true, message: `類型切到「${v}」` };
+          }
+          if (action.key === "search") {
+            setSearch(typeof action.value === "string" ? action.value : "");
+            return { ok: true, message: "已套用搜尋" };
+          }
+          return { ok: false, reason: `unknown param key: ${action.key}` };
+        }
+        case "reset": {
+          setTypeFilter("all");
+          setSearch("");
+          return { ok: true, message: "已清空條件" };
+        }
+        default:
+          return {
+            ok: false,
+            reason: `unsupported on assets: ${action.type}`,
+          };
+      }
+    },
+  });
 
   return (
     <div className="space-y-6">

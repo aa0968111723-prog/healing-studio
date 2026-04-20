@@ -6,6 +6,14 @@
  *
  * 目的：讓 AI 助手能徹底了解整個平台並給出具體、精準的指引。
  */
+import {
+  serializeRegistryForSiteKnowledge,
+  type SerializableAppRegistryItem,
+} from "../../shared/appRegistry";
+
+export function getSerializedAppRegistryKnowledge(): SerializableAppRegistryItem[] {
+  return serializeRegistryForSiteKnowledge();
+}
 
 // ─── 全站頁面功能知識 ──────────────────────────────────────────────────────
 
@@ -309,12 +317,93 @@ export const WORKFLOW_KNOWLEDGE = `
 // ─── 組合完整知識 ────────────────────────────────────────────────────────────
 
 /**
+ * Phase 1.5：動態 pageSnapshot / recentFeedback 注入結構
+ * 定義在 server 端避免跨層引入 shared（ai.chat 已自行序列化即可）。
+ */
+export interface OrbPromptExtras {
+  pageSnapshot?: {
+    pageId: string;
+    pageLabel: string;
+    pagePath: string;
+    capabilities: Array<{
+      action: string;
+      label: string;
+      currentId?: string;
+      hint?: string;
+      options?: Array<{ id: string; label: string; description?: string }>;
+    }>;
+    state?: Record<string, unknown>;
+  };
+  recentFeedback?: Array<{
+    at: number;
+    status: "accepted" | "edited" | "cancelled" | "completed" | "failed";
+    actionType: string;
+    note?: string;
+    pageId?: string;
+  }>;
+  alwaysConfirm?: boolean;
+}
+
+function serializeSnapshotBlock(
+  snap: OrbPromptExtras["pageSnapshot"]
+): string {
+  if (!snap) return "";
+  const lines: string[] = [];
+  lines.push(
+    `【使用者目前在「${snap.pageLabel}」（${snap.pagePath}，pageId=${snap.pageId}）】`
+  );
+  if (snap.capabilities.length > 0) {
+    lines.push("【此頁可用的代理人動作（請只從這些 id 中挑選）】");
+    for (const cap of snap.capabilities) {
+      const current = cap.currentId ? `（目前=${cap.currentId}）` : "";
+      lines.push(`- ${cap.label} [${cap.action}]${current}`);
+      if (cap.options && cap.options.length > 0) {
+        const opts = cap.options
+          .slice(0, 16)
+          .map(o => o.id)
+          .join(", ");
+        const more =
+          cap.options.length > 16 ? `…+${cap.options.length - 16} 個` : "";
+        lines.push(`  可選：${opts}${more}`);
+      }
+      if (cap.hint) lines.push(`  備註：${cap.hint}`);
+    }
+  }
+  if (snap.state && Object.keys(snap.state).length > 0) {
+    const keys = Object.keys(snap.state).slice(0, 8);
+    const parts = keys.map(k => {
+      const v = snap.state![k];
+      const s = typeof v === "string" ? v : JSON.stringify(v);
+      const t = s && s.length > 40 ? s.slice(0, 40) + "…" : s;
+      return `${k}=${t}`;
+    });
+    lines.push(`【即時狀態】${parts.join(" · ")}`);
+  }
+  return lines.join("\n");
+}
+
+function serializeFeedbackBlock(
+  list: OrbPromptExtras["recentFeedback"],
+  now: number = Date.now()
+): string {
+  if (!list || list.length === 0) return "";
+  const recent = list.slice(-5);
+  const lines = recent.map(ev => {
+    const ageSec = Math.max(0, Math.round((now - ev.at) / 1000));
+    const note = ev.note ? `（${ev.note}）` : "";
+    return `- ${ev.actionType}: ${ev.status}${note}｜${ageSec}s 前`;
+  });
+  return `【使用者最近對光球建議的反應（請參考並調整語氣）】\n${lines.join("\n")}`;
+}
+
+/**
  * 為光球（Orb）打造的完整系統提示詞
  * 包含全站知識 + 親切的光球人格
  */
 export function buildOrbSystemPrompt(
   personality: "calm" | "creative" | "technical",
-  pageContext?: string
+  pageContext?: string,
+  extras?: OrbPromptExtras
 ): string {
   const personalityPrompts: Record<string, string> = {
     calm: `你是「光球」，Healing Studio 的療癒創作夥伴。你溫柔、沉穩、充滿同理心，像一位溫暖的老朋友。
@@ -336,6 +425,13 @@ export function buildOrbSystemPrompt(
     ? `\n\n【使用者目前在：${pageContext}】\n根據使用者所在頁面，提供貼心的相關建議。`
     : "";
 
+  // Phase 1.5：動態頁面能力 + 最近回饋
+  const snapshotBlock = serializeSnapshotBlock(extras?.pageSnapshot);
+  const feedbackBlock = serializeFeedbackBlock(extras?.recentFeedback);
+  const confirmNote = extras?.alwaysConfirm
+    ? "\n【使用者偏好】這位使用者希望任何動作執行前都先詢問一次，請養成「先說意圖、再等確認」的習慣。"
+    : "";
+
   return `${personalityPrompt}
 
 【你的核心身份】
@@ -350,14 +446,34 @@ Healing Studio 是一個療癒放鬆的創作空間，使用者來這裡是為�
 - 建議輕鬆的創作流程，不製造壓力
 - 幫助優化提示詞，讓創作更順暢
 - 說明點數費用，幫使用者做最適合的選擇
-- 當使用者明確請求時，附加行動指令：
-  [ACTION:navigate:頁面路徑] — 導航到指定頁面
-  [ACTION:preset:預設名稱] — 套用靈感預設
-  [ACTION:modality:image|video|audio|voice] — 切換創作模態
-  [ACTION:focus:pomodoro|healing] — 啟動專注模式
-  [ACTION:generate:模態:提示詞] — 直接啟動生成（例：[ACTION:generate:image:一隻在花園裡的貓]）
-  [ACTION:refine:面向] — 優化上一個生成結果（例：[ACTION:refine:color]、[ACTION:refine:detail]）
-  [ACTION:export:格式] — 導出資產（例：[ACTION:export:png]、[ACTION:export:mp4]）
+
+【光球代理人指令（PageAgent bus，Phase 1.5）】
+當使用者清楚表達想讓你做什麼時，你可以在回覆最末端附上結構化指令。
+格式統一為 [ACTION:類型:參數]，每行一個：
+  [ACTION:navigate:/path]         — 前往頁面
+  [ACTION:fillPrompt:文字]         — 填入當頁主要提示詞
+  [ACTION:setModel:modelId]        — 切換當頁模型（modelId 必須在「此頁可用動作」列表中）
+  [ACTION:setTab:tabId]            — 切換分頁
+  [ACTION:setMode:modeId]          — 切換模式（例：inspiration / standard / professional）
+  [ACTION:setModality:image|video|audio|voice] — 切換創作模態
+  [ACTION:setParam:key=value]      — 設定參數（例：cfg=3、steps=20）
+  [ACTION:applyPreset:presetId]    — 套用預設
+  [ACTION:submit:]                 — 送出生成（破壞性，必定要求確認）
+  [ACTION:reset:]                  — 重置表單（破壞性，必定要求確認）
+  [ACTION:focusElement:id]         — 指出頁面上的元素
+  [ACTION:focus:pomodoro|healing]  — 啟動專注模式（舊版兼容）
+
+【反焦慮協定（非常重要）】
+在輸出任何 [ACTION:...] 前：
+1. 先用一句話說明你打算做什麼 — 例：「我打算幫你切到 Flux Pro 這個模型 🌿」
+2. 若是破壞性動作（submit / reset / applyPreset / setModality），附上 [CONFIRM:true]，等使用者說「好」你才繼續
+3. 非破壞性動作（fillPrompt / setModel / setTab…）可直接執行，但仍要先告知
+4. 同一輪最多附 3 個動作，不要一次塞太多讓使用者困惑
+
+【輔助 marker（可選，都會被解析）】
+  [INTENT:我打算⋯⋯的一句話摘要]   — 若寫了會顯示在確認卡片上
+  [CONFIRM:true]                    — 要求使用者確認
+  [SUGGEST:選項A|選項B|選項C]       — 給使用者的快速回覆按鈕（最多 4 個）
 
 【錯誤恢復指引】
 當使用者遇到生成失敗時，不要只說「出錯了」，請溫柔地建議替代方案：
@@ -382,7 +498,7 @@ ${SITE_PAGES_KNOWLEDGE}
 ${GENERATION_MODALITIES_KNOWLEDGE}
 
 ${WORKFLOW_KNOWLEDGE}
-${contextNote}
+${contextNote}${snapshotBlock ? "\n\n" + snapshotBlock : ""}${feedbackBlock ? "\n\n" + feedbackBlock : ""}${confirmNote}
 
 【回覆風格】
 - 溫柔簡潔，每次回覆控制在 120 字以內（除非使用者要求詳細說明）
@@ -390,7 +506,8 @@ ${contextNote}
 - 適當使用 emoji（🌿✨🎨💫🌸）增加親和力，但不過度
 - 遇到不確定的問題誠實說「我不太確定，讓我幫你想想」
 - 提到功能時說明位置，但不要一次丟出太多資訊
-- 只在使用者明確請求行動時才使用 [ACTION:...] 指令`;
+- 只在使用者明確請求行動時才使用 [ACTION:...] 指令
+- 若「此頁可用的代理人動作」列表存在，setModel/setTab 的參數必須從該列表挑，不要自己發明 id`;
 }
 
 /**

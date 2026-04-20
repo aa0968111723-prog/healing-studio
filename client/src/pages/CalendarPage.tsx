@@ -1,6 +1,13 @@
 import { useState, useMemo, useCallback, useRef } from "react";
+import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
+import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
+import type {
+  AgentAction,
+  AgentActionResult,
+  AgentCapability,
+} from "../../../shared/agent-actions";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -254,6 +261,7 @@ function NewEventForm({
 
 export default function CalendarPage() {
   const { personality } = useAIState();
+  const [, navigate] = useLocation();
 
   // 全站新手引導
   usePageTour("calendar");
@@ -333,6 +341,92 @@ export default function CalendarPage() {
   const eventDates = useMemo(() => {
     return Array.from(notesByDate.keys()).map(d => new Date(d));
   }, [notesByDate]);
+
+  // ─── PageAgent 註冊（Phase 4b：行事曆接入光球） ──────────────────────────
+  // 光球可：回到今天、前進 / 後退一個月、跳到筆記頁建立內容。
+  const CALENDAR_NAV_ALLOWLIST = useMemo<Set<string>>(
+    () => new Set(["/notes", "/dashboard"]),
+    []
+  );
+  const calendarAgentCapabilities: AgentCapability[] = useMemo(
+    () => [
+      {
+        action: "setParam",
+        label: "切換月份",
+        hint: "setParam key='monthOffset' value=<number>（0=本月、1=下個月、-1=上個月）；key='selectToday' value=true 回到今天",
+      },
+      {
+        action: "navigate",
+        label: "跳到相關頁面",
+        hint: "navigate path='/notes'（建立內容）| '/dashboard'",
+      },
+      {
+        action: "reset",
+        label: "回到本月並選今天",
+        hint: "month、selectedDate 都還原為今天",
+      },
+    ],
+    []
+  );
+
+  useRegisterPageAgent({
+    pageId: "calendar",
+    pageLabel: "創作行事曆",
+    pagePath: "/calendar",
+    capabilities: calendarAgentCapabilities,
+    state: {
+      month: month.toISOString(),
+      selectedDate: selectedDate?.toISOString() ?? null,
+      selectedEventsCount: selectedDateEvents.length,
+      totalScheduled: eventDates.length,
+      unscheduledCount: unscheduledNotes.length,
+    },
+    handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      switch (action.type) {
+        case "setParam": {
+          if (action.key === "selectToday") {
+            if (action.value) {
+              const today = new Date();
+              setMonth(today);
+              setSelectedDate(today);
+              return { ok: true, message: "已回到今天" };
+            }
+            return { ok: false, reason: "selectToday=false 沒意義" };
+          }
+          if (action.key === "monthOffset") {
+            const offset = Number(action.value);
+            if (!Number.isFinite(offset)) {
+              return { ok: false, reason: "monthOffset 必須為整數" };
+            }
+            const next = new Date();
+            next.setMonth(next.getMonth() + Math.trunc(offset));
+            setMonth(next);
+            return { ok: true, message: `月份切換 offset=${offset}` };
+          }
+          return { ok: false, reason: `unknown param key: ${action.key}` };
+        }
+        case "navigate": {
+          const path = String(action.path ?? "");
+          if (!CALENDAR_NAV_ALLOWLIST.has(path)) {
+            return { ok: false, reason: `不在允許跳轉清單：${path}` };
+          }
+          navigate(path);
+          return { ok: true, message: `跳到 ${path}` };
+        }
+        case "reset": {
+          const today = new Date();
+          setMonth(today);
+          setSelectedDate(today);
+          return { ok: true, message: "已回到今天" };
+        }
+        default:
+          return {
+            ok: false,
+            reason: `unsupported on calendar: ${action.type}`,
+          };
+      }
+    },
+  });
 
   // Handle drop on calendar date
   const handleDrop = useCallback(

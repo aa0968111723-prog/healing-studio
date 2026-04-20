@@ -41,6 +41,10 @@ import { useFocusFlow } from "@/contexts/FocusFlowContext";
 import FocusFlowMini from "./FocusFlowMini";
 import { useOrbGuide } from "@/contexts/OrbGuideContext";
 import OrbGuidePanel from "./OrbGuidePanel";
+import { usePageAgent } from "@/contexts/PageAgentContext";
+import { parseLLMActions, type AgentAction } from "../../../shared/agent-actions";
+import { useLocation } from "wouter";
+import { getPageByPath } from "@/config/appRegistry";
 
 type Props = {
   className?: string;
@@ -754,19 +758,48 @@ export default memo(function ProactiveOrbWidget({
     step: guideStep,
   } = useOrbGuide();
 
-  // 監聽 orb-guide-navigate 事件，執行導航
+  // ─── PageAgent bus（Phase 1：讓 autoFillPrompt / autoTabId 真的被消費） ──
+  const pageAgent = usePageAgent();
+  const [locationPath] = useLocation();
+  const currentRegistryPage = useMemo(
+    () => getPageByPath(locationPath),
+    [locationPath]
+  );
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 監聽 orb-guide-navigate 事件：導航 + 把 Phase 3e 帶過來的 AgentAction[] 丟進 bus
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail as {
         path: string;
+        actions?: AgentAction[];
+        /** 舊版 fallback：只有 autoFillPrompt 字串時，組成一個 fillPrompt action */
         autoFillPrompt?: string;
         autoTabId?: string;
       };
       onNavigate?.(detail.path);
+
+      const fromArray = Array.isArray(detail.actions) ? detail.actions : [];
+      const fallback: AgentAction[] = [];
+      if (fromArray.length === 0) {
+        if (detail.autoTabId) {
+          fallback.push({ type: "setTab", tabId: detail.autoTabId });
+        }
+        if (detail.autoFillPrompt) {
+          fallback.push({ type: "fillPrompt", text: detail.autoFillPrompt });
+        }
+      }
+      const actions = fromArray.length ? fromArray : fallback;
+
+      // 目標頁還沒掛載 → PageAgentContext 會把動作 enqueueAction 暫存，
+      // 等頁面 register 時 drainActionsForPage 自動接棒。
+      if (actions.length) {
+        void pageAgent.dispatchMany(actions, { source: "orb-guide" });
+      }
     };
     window.addEventListener("orb-guide-navigate", handler);
     return () => window.removeEventListener("orb-guide-navigate", handler);
-  }, [onNavigate]);
+  }, [onNavigate, pageAgent]);
 
   // 到達目標頁面後，顯示 arrivedMessage 作為 proactive
   useEffect(() => {
@@ -775,6 +808,35 @@ export default memo(function ProactiveOrbWidget({
       clearArrivedMessage();
     }
   }, [arrivedMessage, clearArrivedMessage, showFeedback]);
+
+  // 30 秒無操作時，給一個柔和提示
+  useEffect(() => {
+    const resetIdleTimer = () => {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = setTimeout(() => {
+        showFeedback("要不要我幫你開始？");
+      }, 30_000);
+    };
+
+    const activityEvents: Array<keyof WindowEventMap> = [
+      "pointerdown",
+      "mousemove",
+      "keydown",
+      "touchstart",
+      "scroll",
+    ];
+    activityEvents.forEach(event =>
+      window.addEventListener(event, resetIdleTimer, { passive: true })
+    );
+    resetIdleTimer();
+
+    return () => {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      activityEvents.forEach(event =>
+        window.removeEventListener(event, resetIdleTimer)
+      );
+    };
+  }, [showFeedback]);
 
   // ─── Orb click handler (single click opens panel) ────────────────────
 
@@ -852,6 +914,30 @@ export default memo(function ProactiveOrbWidget({
     [onApplyInspiration, onRestartTour, greeting, showFeedback]
   );
 
+  const handleRegistryQuickAction = useCallback(
+    async (quickAction: {
+      path?: string;
+      action?: AgentAction;
+      prompt?: string;
+      label: string;
+    }) => {
+      if (quickAction.path) {
+        onNavigate?.(quickAction.path);
+      }
+      if (quickAction.action) {
+        await pageAgent.dispatch(quickAction.action, {
+          source: "manual",
+        });
+      }
+      if (quickAction.prompt) {
+        setPanelView("chat");
+        setChatInput(quickAction.prompt);
+      }
+      showFeedback(`已開始：${quickAction.label}`);
+    },
+    [onNavigate, pageAgent, showFeedback]
+  );
+
   // ─── AI chat mutation ─────────────────────────────────────────────────
   const aiChatMutation = trpc.ai.chat.useMutation();
 
@@ -911,11 +997,22 @@ export default memo(function ProactiveOrbWidget({
         messages: llmMessages,
         personality,
         context: contextStr,
+        // Phase 1.5：送上結構化頁面 snapshot + 最近回饋，讓 LLM 真正看懂這頁
+        pageSnapshot: pageAgent.snapshot ?? undefined,
+        recentFeedback: pageAgent.recentFeedback,
       });
       setChatMessages(prev => [...prev, { role: "orb", text: data.reply }]);
 
+      // Phase 1.5：若 LLM 附了 INTENT 摘要，先浮顯「光球想做什麼」給使用者看
+      const intentSummary =
+        typeof (data as { intent?: string | null }).intent === "string"
+          ? ((data as { intent?: string | null }).intent as string)
+          : undefined;
+      const askBeforeAct = (data as { askBeforeAct?: boolean }).askBeforeAct === true;
+
       // Handle agent actions from LLM response
       if (data.actions && Array.isArray(data.actions)) {
+        // 先走既有的 callbacks（向後相容，不影響 Studio 舊路徑）
         for (const action of data.actions) {
           switch (action.type) {
             case "navigate":
@@ -942,6 +1039,23 @@ export default memo(function ProactiveOrbWidget({
             }
           }
         }
+
+        // 同時把結構化 actions 丟進 PageAgent bus。
+        // PageAgentContext.dispatch 內部會自動：
+        //   - 非破壞性動作（fillPrompt / setModel / setTab…）→ 直接執行
+        //   - 破壞性動作（submit / reset / applyPreset / setModality）→ 走確認閘，
+        //     由 AgentIntentPreview 卡片請使用者按「好啊」或「先不要」
+        const structured = parseLLMActions(data.actions);
+        if (structured.length > 0) {
+          for (const action of structured) {
+            void pageAgent.dispatch(action, {
+              source: "ai-chat",
+              intentSummary,
+              // 若 LLM 明說 askBeforeAct，所有動作一律先問；否則用內建破壞性判斷
+              requireConfirmation: askBeforeAct ? true : undefined,
+            });
+          }
+        }
       }
     } catch {
       setChatMessages(prev => [
@@ -963,6 +1077,7 @@ export default memo(function ProactiveOrbWidget({
     onNavigate,
     onApplyInspiration,
     showFeedback,
+    pageAgent,
   ]);
 
   // ─── Apply inspiration preset ────────────────────────────────────────
@@ -1197,6 +1312,13 @@ export default memo(function ProactiveOrbWidget({
                         {greeting}
                       </p>
                     </div>
+                    {currentRegistryPage?.orbHints?.length ? (
+                      <div className="mb-3 rounded-xl border border-emerald-100 bg-emerald-50/40 px-3 py-2">
+                        <p className="text-[11px] text-emerald-700 leading-relaxed">
+                          💡 {currentRegistryPage.orbHints[0]}
+                        </p>
+                      </div>
+                    ) : null}
 
                     {/* Quick Actions — redesigned as compact cards */}
                     <div className="space-y-1.5 mb-3">
@@ -1227,6 +1349,38 @@ export default memo(function ProactiveOrbWidget({
                         </button>
                       ))}
                     </div>
+
+                    {currentRegistryPage?.quickActions?.length ? (
+                      <div className="space-y-1.5 mb-3">
+                        <p className="text-[11px] text-gray-400 px-1">
+                          這頁可直接開始：
+                        </p>
+                        {currentRegistryPage.quickActions.map(action => (
+                          <button
+                            key={action.id}
+                            onClick={() =>
+                              void handleRegistryQuickAction({
+                                path: action.path,
+                                action: action.action,
+                                prompt: action.prompt,
+                                label: action.label,
+                              })
+                            }
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200/70 bg-white/70 hover:bg-gray-50 transition-colors text-left"
+                          >
+                            <Navigation className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                            <div className="min-w-0">
+                              <p className="text-xs font-medium text-gray-700 truncate">
+                                {action.label}
+                              </p>
+                              <p className="text-[11px] text-gray-400 truncate">
+                                {action.description}
+                              </p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
 
                     {/* Inspiration Button */}
                     <button

@@ -325,137 +325,118 @@ export const GENERATION_ENGINE_CATALOG = {
 } as const;
 
 /** Fal.ai 16大類專用引擎（可在大腦設定中為特定任務指定） */
-export const FAL_TASK_ENGINE_CATALOG = {
-  imageTo3d: {
-    label: "影像轉3D",
-    description: "從圖片生成3D模型",
-    options: [
-      { value: "fal-ai/trellis", label: "Trellis 3D ✦", tier: "premium" },
-      { value: "fal/triposr", label: "TripoSR ⚡", tier: "standard" },
-      { value: "fal/zero123plus", label: "Zero123++", tier: "standard" },
-      {
-        value: "fal/stable-zero123",
-        label: "Stable Zero123",
-        tier: "standard",
-      },
-      { value: "fal/mv-adapter", label: "MV-Adapter", tier: "premium" },
-    ],
-  },
-  imageToImage: {
-    label: "影像到影像",
-    description: "圖片風格轉換/超解析度",
-    options: [
-      { value: "fal/flux-dev-i2i", label: "Flux Dev i2i ✦", tier: "premium" },
-      {
-        value: "fal/sd3-medium-i2i",
-        label: "SD3 Medium i2i",
-        tier: "standard",
-      },
-      {
-        value: "fal/ip-adapter-faceid",
-        label: "IP-Adapter FaceID",
-        tier: "premium",
-      },
-      {
-        value: "fal/controlnet-union",
-        label: "ControlNet Union",
-        tier: "standard",
-      },
-      { value: "fal/aura-sr", label: "AuraSR 超解析度 ⚡", tier: "fast" },
-      { value: "fal/rembg", label: "RemBG 去背 ⚡", tier: "fast" },
-    ],
-  },
-  textTo3d: {
-    label: "文字轉3D",
-    description: "從文字描述生成3D模型",
-    options: [
-      { value: "fal/meshy-4", label: "Meshy 4 ✦", tier: "premium" },
-      { value: "fal/hyper3d-rodin", label: "Hyper3D Rodin", tier: "premium" },
-      { value: "fal/shap-e", label: "Shap-E", tier: "standard" },
-      { value: "fal/dreamgaussian", label: "DreamGaussian", tier: "standard" },
-      { value: "fal/fantasia3d", label: "Fantasia3D", tier: "premium" },
-    ],
-  },
-  videoToAudio: {
-    label: "視訊轉音訊",
-    description: "為影片生成配樂音效",
-    options: [
-      { value: "fal/mmaudio-v2", label: "MMAudio V2 ✦", tier: "premium" },
-      {
-        value: "fal/stable-audio-v2a",
-        label: "Stable Audio v2a",
-        tier: "standard",
-      },
-      { value: "fal/audioldm2-v2a", label: "AudioLDM2 v2a", tier: "standard" },
-      { value: "fal/sync-lipsync", label: "Sync Lipsync", tier: "premium" },
-      {
-        value: "fal/elevenlabs-sound",
-        label: "ElevenLabs 音效",
-        tier: "standard",
-      },
-    ],
-  },
-  videoToText: {
-    label: "影片轉文字",
-    description: "影片語音轉錄/內容分析",
-    options: [
-      { value: "fal/whisper", label: "Whisper ✦", tier: "standard" },
-      { value: "fal/wizper", label: "Wizper ⚡", tier: "fast" },
-      {
-        value: "fal/any-llm-video",
-        label: "Any LLM 影片分析",
-        tier: "premium",
-      },
-      {
-        value: "fal/llava-next-video",
-        label: "LLaVA-Next 影片",
-        tier: "standard",
-      },
-    ],
-  },
-  videoToVideo: {
-    label: "影片對影片",
-    description: "影片風格轉換/增強",
-    options: [
-      {
-        value: "fal/kling-v2.1-v2v",
-        label: "Kling V2.1 V2V ✦",
-        tier: "premium",
-      },
-      { value: "fal/wan-v2v", label: "WAN V2V", tier: "standard" },
-      { value: "fal/cogvideox-v2v", label: "CogVideoX V2V", tier: "standard" },
-      { value: "fal/topaz-video", label: "Topaz 超解析度", tier: "premium" },
-      {
-        value: "fal/stable-video-upscaler",
-        label: "SVD 超解析度",
-        tier: "standard",
-      },
-    ],
-  },
-  training: {
-    label: "模型訓練",
-    description: "LoRA/DreamBooth 微調訓練",
-    options: [
-      {
-        value: "fal/flux-lora-fast",
-        label: "Flux LoRA 快速訓練 ✦",
-        tier: "premium",
-      },
-      {
-        value: "fal/flux-lora-portrait",
-        label: "Flux LoRA 人像",
-        tier: "premium",
-      },
-      {
-        value: "fal/dreambooth-flux",
-        label: "DreamBooth Flux",
-        tier: "premium",
-      },
-      { value: "fal/sd3-lora", label: "SD3 LoRA", tier: "standard" },
-      { value: "fal/cogvideox-lora", label: "CogVideoX LoRA", tier: "premium" },
-    ],
-  },
-} as const;
+export const FAL_TASK_ENGINE_CATALOG = Object.fromEntries(
+  (Object.keys(FAL_MODEL_CATALOG) as FalCategory[]).map(cat => [
+    cat,
+    {
+      label: FAL_CATEGORY_LABELS[cat],
+      description: FAL_MODEL_CATALOG[cat][0]?.description ?? "",
+      options: FAL_MODEL_CATALOG[cat].map(m => ({
+        value: m.modelId,
+        label: m.label,
+        tier: m.tier,
+      })),
+    },
+  ])
+) as Record<
+  FalCategory,
+  {
+    label: string;
+    description: string;
+    options: Array<{ value: string; label: string; tier: string }>;
+  }
+>;
+
+// 舊版 fal/xxx alias -> fal-ai/xxx canonical id（避免舊設定或舊前端值寫入後失效）
+const LEGACY_FAL_ALIAS_MAP: Record<string, string> = {
+  "fal/flux-pro-1.1": "fal-ai/flux-pro/v1.1",
+  "fal/flux-dev": "fal-ai/flux/dev",
+  "fal/flux-schnell": "fal-ai/flux/schnell",
+  "fal/sd3-medium": "fal-ai/stable-diffusion-v3-medium",
+  "fal/ideogram-v2": "fal-ai/ideogram/v2",
+  "fal/aura-flow": "fal-ai/aura-flow",
+  "fal/kling-v2.1-pro-t2v": "fal-ai/kling-video/v2.1/pro/text-to-video",
+  "fal/minimax-t2v": "fal-ai/minimax-video/text-to-video",
+  "fal/luma-dream-machine-t2v": "fal-ai/luma-dream-machine",
+  "fal/wan-t2v-v2.1": "fal-ai/wan-t2v",
+  "fal/cogvideox-5b-t2v": "fal-ai/cogvideox-5b",
+  "fal/kling-v2.1-pro-i2v": "fal-ai/kling-video/v2.1/pro/image-to-video",
+  "fal/runway-gen3-i2v": "fal-ai/runway-gen3/turbo/image-to-video",
+  "fal/stable-audio": "fal-ai/stable-audio",
+  "fal/musicgen": "fal-ai/musicgen",
+  "fal/ace-step": "fal-ai/ace-step",
+  "fal/audioldm2": "fal-ai/audioldm2",
+  "fal/playai-tts": "fal-ai/f5-tts",
+  "fal/kokoro": "fal-ai/kokoro",
+  "fal/orpheus-tts": "fal-ai/orpheus-tts",
+  "fal/dia-tts": "fal-ai/dia-tts",
+  "fal/triposr": "fal-ai/triposr",
+  "fal/zero123plus": "fal-ai/tripo3d",
+  "fal/stable-zero123": "fal-ai/tripo3d",
+  "fal/mv-adapter": "fal-ai/mv-adapter",
+  "fal/flux-dev-i2i": "fal-ai/flux/dev/image-to-image",
+  "fal/sd3-medium-i2i": "fal-ai/stable-diffusion-v3-medium/image-to-image",
+  "fal/ip-adapter-faceid": "fal-ai/ip-adapter-face-id",
+  "fal/controlnet-union": "fal-ai/flux/dev/controlnet",
+  "fal/aura-sr": "fal-ai/aura-sr",
+  "fal/rembg": "fal-ai/rembg",
+  "fal/meshy-4": "fal-ai/trellis",
+  "fal/hyper3d-rodin": "fal-ai/hyper3d/rodin",
+  "fal/shap-e": "fal-ai/tripo3d",
+  "fal/dreamgaussian": "fal-ai/triposr",
+  "fal/fantasia3d": "fal-ai/trellis",
+  "fal/mmaudio-v2": "fal-ai/mmaudio-v2",
+  "fal/stable-audio-v2a": "fal-ai/stable-audio",
+  "fal/audioldm2-v2a": "fal-ai/audioldm2",
+  "fal/sync-lipsync": "fal-ai/sync-lipsync",
+  "fal/elevenlabs-sound": "fal-ai/elevenlabs/tts/turbo-v2.5",
+  "fal/whisper": "fal-ai/whisper",
+  "fal/wizper": "fal-ai/wizper",
+  "fal/any-llm-video": "fal-ai/any-llm",
+  "fal/llava-next-video": "fal-ai/llava-next",
+  "fal/kling-v2.1-v2v": "fal-ai/kling-video/v2.1/standard/video-to-video",
+  "fal/wan-v2v": "fal-ai/wan/v2.1/video-to-video",
+  "fal/cogvideox-v2v": "fal-ai/cogvideox-5b/video-to-video",
+  "fal/topaz-video": "fal-ai/topaz-video",
+  "fal/stable-video-upscaler": "fal-ai/stable-video",
+  "fal/flux-lora-fast": "fal-ai/flux-lora-fast-training",
+  "fal/flux-lora-portrait": "fal-ai/flux-lora-fast-training",
+  "fal/dreambooth-flux": "fal-ai/flux-lora-fast-training",
+  "fal/sd3-lora": "fal-ai/flux-lora-fast-training",
+  "fal/cogvideox-lora": "fal-ai/flux-lora-fast-training",
+};
+
+const normalizeEngineModelId = (value: string): string =>
+  LEGACY_FAL_ALIAS_MAP[value] ?? value;
+
+const REASONING_MODEL_ALLOWLIST = Object.fromEntries(
+  (
+    Object.keys(REASONING_MODEL_CATALOG) as Array<keyof typeof REASONING_MODEL_CATALOG>
+  ).map(slot => [
+    slot,
+    new Set(REASONING_MODEL_CATALOG[slot].options.map(opt => opt.value)),
+  ])
+) as Record<keyof typeof REASONING_MODEL_CATALOG, Set<string>>;
+
+const GENERATION_ENGINE_ALLOWLIST = Object.fromEntries(
+  (
+    Object.keys(GENERATION_ENGINE_CATALOG) as Array<keyof typeof GENERATION_ENGINE_CATALOG>
+  ).map(slot => [
+    slot,
+    new Set([
+      ...GENERATION_ENGINE_CATALOG[slot].options.map(opt =>
+        normalizeEngineModelId(opt.value)
+      ),
+      normalizeEngineModelId(DEFAULT_GENERATION_ENGINES[slot].engine),
+    ]),
+  ])
+) as Record<keyof typeof GENERATION_ENGINE_CATALOG, Set<string>>;
+
+const FAL_ENGINE_ALLOWLIST = new Set(
+  Object.values(FAL_MODEL_CATALOG)
+    .flat()
+    .map(m => m.modelId)
+);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Router
@@ -591,73 +572,243 @@ export const brainRouter = router({
     .input(
       z.object({
         // 推理大腦
-        directorModel: z.string().optional(),
+        directorModel: z
+          .string()
+          .trim()
+          .refine(v => REASONING_MODEL_ALLOWLIST.director.has(v), {
+            message: "不支援的 director 模型",
+          })
+          .optional(),
         directorTemperature: z.number().min(0).max(1).optional(),
         directorTopP: z.number().min(0).max(1).optional(),
         directorSystemPrompt: z.string().nullable().optional(),
         directorEnabled: z.boolean().optional(),
-        analystModel: z.string().optional(),
+        analystModel: z
+          .string()
+          .trim()
+          .refine(v => REASONING_MODEL_ALLOWLIST.analyst.has(v), {
+            message: "不支援的 analyst 模型",
+          })
+          .optional(),
         analystTemperature: z.number().min(0).max(1).optional(),
         analystTopP: z.number().min(0).max(1).optional(),
         analystSystemPrompt: z.string().nullable().optional(),
         analystEnabled: z.boolean().optional(),
-        storytellerModel: z.string().optional(),
+        storytellerModel: z
+          .string()
+          .trim()
+          .refine(v => REASONING_MODEL_ALLOWLIST.storyteller.has(v), {
+            message: "不支援的 storyteller 模型",
+          })
+          .optional(),
         storytellerTemperature: z.number().min(0).max(1).optional(),
         storytellerTopP: z.number().min(0).max(1).optional(),
         storytellerSystemPrompt: z.string().nullable().optional(),
         storytellerEnabled: z.boolean().optional(),
-        technicianModel: z.string().optional(),
+        technicianModel: z
+          .string()
+          .trim()
+          .refine(v => REASONING_MODEL_ALLOWLIST.technician.has(v), {
+            message: "不支援的 technician 模型",
+          })
+          .optional(),
         technicianTemperature: z.number().min(0).max(1).optional(),
         technicianTopP: z.number().min(0).max(1).optional(),
         technicianSystemPrompt: z.string().nullable().optional(),
         technicianEnabled: z.boolean().optional(),
-        curatorModel: z.string().optional(),
+        curatorModel: z
+          .string()
+          .trim()
+          .refine(v => REASONING_MODEL_ALLOWLIST.curator.has(v), {
+            message: "不支援的 curator 模型",
+          })
+          .optional(),
         curatorTemperature: z.number().min(0).max(1).optional(),
         curatorTopP: z.number().min(0).max(1).optional(),
         curatorSystemPrompt: z.string().nullable().optional(),
         curatorEnabled: z.boolean().optional(),
         // 生成引擎
-        imageEngine: z.string().optional(),
+        imageEngine: z
+          .string()
+          .trim()
+          .transform(normalizeEngineModelId)
+          .refine(v => GENERATION_ENGINE_ALLOWLIST.imageEngine.has(v), {
+            message: "不支援的 imageEngine",
+          })
+          .optional(),
         imageEngineParams: z
           .record(z.string(), z.unknown())
           .nullable()
           .optional(),
         imageEngineEnabled: z.boolean().optional(),
-        videoEngine: z.string().optional(),
+        videoEngine: z
+          .string()
+          .trim()
+          .transform(normalizeEngineModelId)
+          .refine(v => GENERATION_ENGINE_ALLOWLIST.videoEngine.has(v), {
+            message: "不支援的 videoEngine",
+          })
+          .optional(),
         videoEngineParams: z
           .record(z.string(), z.unknown())
           .nullable()
           .optional(),
         videoEngineEnabled: z.boolean().optional(),
-        audioEngine: z.string().optional(),
+        audioEngine: z
+          .string()
+          .trim()
+          .transform(normalizeEngineModelId)
+          .refine(v => GENERATION_ENGINE_ALLOWLIST.audioEngine.has(v), {
+            message: "不支援的 audioEngine",
+          })
+          .optional(),
         audioEngineParams: z
           .record(z.string(), z.unknown())
           .nullable()
           .optional(),
         audioEngineEnabled: z.boolean().optional(),
-        voiceEngine: z.string().optional(),
+        voiceEngine: z
+          .string()
+          .trim()
+          .transform(normalizeEngineModelId)
+          .refine(v => GENERATION_ENGINE_ALLOWLIST.voiceEngine.has(v), {
+            message: "不支援的 voiceEngine",
+          })
+          .optional(),
         voiceEngineParams: z
           .record(z.string(), z.unknown())
           .nullable()
           .optional(),
         voiceEngineEnabled: z.boolean().optional(),
         // Fal.ai 16大類任務引擎
-        falImageTo3dEngine: z.string().optional(),
-        falImageToImageEngine: z.string().optional(),
-        falImageToJsonEngine: z.string().optional(),
-        falImageToVideoEngine: z.string().optional(),
-        falJsonEngine: z.string().optional(),
-        falLlmEngine: z.string().optional(),
-        falTextTo3dEngine: z.string().optional(),
-        falTextToAudioEngine: z.string().optional(),
-        falTextToImageEngine: z.string().optional(),
-        falTextToJsonEngine: z.string().optional(),
-        falTextToSpeechEngine: z.string().optional(),
-        falTextToVideoEngine: z.string().optional(),
-        falTrainingEngine: z.string().optional(),
-        falVideoToAudioEngine: z.string().optional(),
-        falVideoToTextEngine: z.string().optional(),
-        falVideoToVideoEngine: z.string().optional(),
+        falImageTo3dEngine: z
+          .string()
+          .trim()
+          .transform(normalizeEngineModelId)
+          .refine(v => FAL_ENGINE_ALLOWLIST.has(v), {
+            message: "不支援的 falImageTo3dEngine",
+          })
+          .optional(),
+        falImageToImageEngine: z
+          .string()
+          .trim()
+          .transform(normalizeEngineModelId)
+          .refine(v => FAL_ENGINE_ALLOWLIST.has(v), {
+            message: "不支援的 falImageToImageEngine",
+          })
+          .optional(),
+        falImageToJsonEngine: z
+          .string()
+          .trim()
+          .transform(normalizeEngineModelId)
+          .refine(v => FAL_ENGINE_ALLOWLIST.has(v), {
+            message: "不支援的 falImageToJsonEngine",
+          })
+          .optional(),
+        falImageToVideoEngine: z
+          .string()
+          .trim()
+          .transform(normalizeEngineModelId)
+          .refine(v => FAL_ENGINE_ALLOWLIST.has(v), {
+            message: "不支援的 falImageToVideoEngine",
+          })
+          .optional(),
+        falJsonEngine: z
+          .string()
+          .trim()
+          .transform(normalizeEngineModelId)
+          .refine(v => FAL_ENGINE_ALLOWLIST.has(v), {
+            message: "不支援的 falJsonEngine",
+          })
+          .optional(),
+        falLlmEngine: z
+          .string()
+          .trim()
+          .transform(normalizeEngineModelId)
+          .refine(v => FAL_ENGINE_ALLOWLIST.has(v), {
+            message: "不支援的 falLlmEngine",
+          })
+          .optional(),
+        falTextTo3dEngine: z
+          .string()
+          .trim()
+          .transform(normalizeEngineModelId)
+          .refine(v => FAL_ENGINE_ALLOWLIST.has(v), {
+            message: "不支援的 falTextTo3dEngine",
+          })
+          .optional(),
+        falTextToAudioEngine: z
+          .string()
+          .trim()
+          .transform(normalizeEngineModelId)
+          .refine(v => FAL_ENGINE_ALLOWLIST.has(v), {
+            message: "不支援的 falTextToAudioEngine",
+          })
+          .optional(),
+        falTextToImageEngine: z
+          .string()
+          .trim()
+          .transform(normalizeEngineModelId)
+          .refine(v => FAL_ENGINE_ALLOWLIST.has(v), {
+            message: "不支援的 falTextToImageEngine",
+          })
+          .optional(),
+        falTextToJsonEngine: z
+          .string()
+          .trim()
+          .transform(normalizeEngineModelId)
+          .refine(v => FAL_ENGINE_ALLOWLIST.has(v), {
+            message: "不支援的 falTextToJsonEngine",
+          })
+          .optional(),
+        falTextToSpeechEngine: z
+          .string()
+          .trim()
+          .transform(normalizeEngineModelId)
+          .refine(v => FAL_ENGINE_ALLOWLIST.has(v), {
+            message: "不支援的 falTextToSpeechEngine",
+          })
+          .optional(),
+        falTextToVideoEngine: z
+          .string()
+          .trim()
+          .transform(normalizeEngineModelId)
+          .refine(v => FAL_ENGINE_ALLOWLIST.has(v), {
+            message: "不支援的 falTextToVideoEngine",
+          })
+          .optional(),
+        falTrainingEngine: z
+          .string()
+          .trim()
+          .transform(normalizeEngineModelId)
+          .refine(v => FAL_ENGINE_ALLOWLIST.has(v), {
+            message: "不支援的 falTrainingEngine",
+          })
+          .optional(),
+        falVideoToAudioEngine: z
+          .string()
+          .trim()
+          .transform(normalizeEngineModelId)
+          .refine(v => FAL_ENGINE_ALLOWLIST.has(v), {
+            message: "不支援的 falVideoToAudioEngine",
+          })
+          .optional(),
+        falVideoToTextEngine: z
+          .string()
+          .trim()
+          .transform(normalizeEngineModelId)
+          .refine(v => FAL_ENGINE_ALLOWLIST.has(v), {
+            message: "不支援的 falVideoToTextEngine",
+          })
+          .optional(),
+        falVideoToVideoEngine: z
+          .string()
+          .trim()
+          .transform(normalizeEngineModelId)
+          .refine(v => FAL_ENGINE_ALLOWLIST.has(v), {
+            message: "不支援的 falVideoToVideoEngine",
+          })
+          .optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {

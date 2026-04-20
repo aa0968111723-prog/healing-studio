@@ -9,6 +9,12 @@ import {
 import { useIsMobile } from "@/hooks/useMobile";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useAIState } from "@/contexts/AIStateContext";
+import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
+import type {
+  AgentAction,
+  AgentActionResult,
+  AgentCapability,
+} from "../../../shared/agent-actions";
 import VisualSoul from "@/components/VisualSoul";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -235,6 +241,117 @@ export default function SharedSpace() {
     },
     [navigate]
   );
+
+  // ── PageAgent：光球可代操分頁、搜尋、類型篩選 ───────────────────
+  const SHARED_TAB_OPTIONS = useMemo(
+    () => [
+      { id: "assets", label: "共享素材" },
+      { id: "models", label: "共享模型" },
+    ],
+    []
+  );
+  const SHARED_TYPE_OPTIONS = useMemo(
+    () =>
+      ["all", "image", "video", "audio", "voice", "script"].map(t => ({
+        id: t,
+        label: t === "all" ? "全部" : MODALITY_LABELS[t] || t,
+      })),
+    []
+  );
+  const SHARED_NAV_ALLOWLIST = useMemo<Set<string>>(
+    () => new Set(["/assets", "/models", "/studio"]),
+    []
+  );
+  const sharedAgentCapabilities: AgentCapability[] = useMemo(
+    () => [
+      {
+        action: "setTab",
+        label: "切換分頁",
+        currentId: activeTab,
+        options: SHARED_TAB_OPTIONS,
+        hint: "assets（共享素材）或 models（共享模型）",
+      },
+      {
+        action: "setParam",
+        label: "搜尋 / 類型",
+        options: SHARED_TYPE_OPTIONS,
+        hint: "setParam key='search' value=<關鍵字>；key='assetType' value=all|image|video|audio|voice|script",
+      },
+      {
+        action: "reset",
+        label: "清空搜尋條件",
+        hint: "搜尋清空、類型回 all",
+      },
+      {
+        action: "navigate",
+        label: "前往我的資產 / 模型",
+        hint: "/assets、/models、/studio",
+      },
+    ],
+    [activeTab, SHARED_TAB_OPTIONS, SHARED_TYPE_OPTIONS]
+  );
+
+  useRegisterPageAgent({
+    pageId: "shared",
+    pageLabel: "共享空間",
+    pagePath: "/shared",
+    capabilities: sharedAgentCapabilities,
+    state: {
+      activeTab,
+      assetTypeFilter,
+      searchQuery,
+      sharedAssetsCount: sharedAssetsQuery.data?.length ?? 0,
+      sharedModelsCount: sharedModelsQuery.data?.length ?? 0,
+      myTotalContributions,
+    },
+    handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      switch (action.type) {
+        case "setTab": {
+          if (action.tabId !== "assets" && action.tabId !== "models") {
+            return { ok: false, reason: `unknown tab: ${action.tabId}` };
+          }
+          setActiveTab(action.tabId);
+          return { ok: true, message: `切到「${action.tabId}」分頁` };
+        }
+        case "setParam": {
+          if (action.key === "search") {
+            setSearchQuery(
+              typeof action.value === "string" ? action.value : ""
+            );
+            return { ok: true, message: "已套用搜尋" };
+          }
+          if (action.key === "assetType") {
+            const v = String(action.value ?? "");
+            const valid = ["all", "image", "video", "audio", "voice", "script"];
+            if (!valid.includes(v)) {
+              return { ok: false, reason: `unknown assetType: ${v}` };
+            }
+            setAssetTypeFilter(v);
+            if (activeTab !== "assets") setActiveTab("assets");
+            return { ok: true, message: `類型切到「${v}」` };
+          }
+          return { ok: false, reason: `unknown param key: ${action.key}` };
+        }
+        case "navigate": {
+          if (!SHARED_NAV_ALLOWLIST.has(action.path)) {
+            return { ok: false, reason: `navigation blocked: ${action.path}` };
+          }
+          navigate(action.path);
+          return { ok: true, message: `已導航到 ${action.path}` };
+        }
+        case "reset": {
+          setSearchQuery("");
+          setAssetTypeFilter("all");
+          return { ok: true, message: "已清空搜尋與類型" };
+        }
+        default:
+          return {
+            ok: false,
+            reason: `unsupported on shared: ${action.type}`,
+          };
+      }
+    },
+  });
 
   // ── One-Click Use: Send model to Studio (as LoRA model selection) ──
   const handleUseModel = useCallback(

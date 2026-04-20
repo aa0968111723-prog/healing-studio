@@ -35,6 +35,13 @@ import { getOrchestrator } from "./services/modelClients";
 // voiceCompiler, audioCompiler, videoCompiler are no longer used — all modalities route through falDispatcher
 import { buildMemoryContext, upsertMemory } from "./services/ragMemory";
 import { buildOrbSystemPrompt } from "./services/siteKnowledge";
+import { parseOrbReply } from "./services/orbReplyParser";
+import {
+  mergeFeedbackHistories,
+  buildOrbGuideStepPrompt,
+  parseOrbGuideStepReply,
+  type OrbGuideStepContext,
+} from "../shared/agent-actions";
 import {
   estimatePoints,
   getModelPricing,
@@ -51,6 +58,10 @@ import {
   estimateGenerationPoints,
   submitToFalQueue,
 } from "./services/falDispatcher";
+import {
+  localizeResultUrls,
+  persistExternalMediaUrl,
+} from "./services/internalMedia";
 import { eq } from "drizzle-orm";
 import { userAiBrain } from "../drizzle/schema";
 import { getDb } from "./db";
@@ -1040,6 +1051,12 @@ export const appRouter = router({
                   (imageDispatch.data as any)?.images?.[0]?.url ??
                   (imageDispatch.data as any)?.image?.url ??
                   ((imageDispatch.data as any)?.url as string | undefined);
+                if (imageUrl) {
+                  imageUrl = await persistExternalMediaUrl(imageUrl, {
+                    category: "image",
+                    prefix: `generated/studio/${userId}/image`,
+                  });
+                }
                 debug(
                   `[Fal] Image generation completed: ${imageUrl} (${imageDispatch.durationMs}ms, model: ${imageDispatch.modelId})`
                 );
@@ -1105,6 +1122,12 @@ export const appRouter = router({
                   (videoDispatch.data as any)?.video?.url ??
                   (videoDispatch.data as any)?.videos?.[0]?.url ??
                   ((videoDispatch.data as any)?.url as string | undefined);
+                if (videoUrl) {
+                  videoUrl = await persistExternalMediaUrl(videoUrl, {
+                    category: "video",
+                    prefix: `generated/studio/${userId}/video`,
+                  });
+                }
                 debug(
                   `[Fal] Video generation completed: ${videoUrl} (${videoDispatch.durationMs}ms, model: ${videoDispatch.modelId})`
                 );
@@ -1177,6 +1200,12 @@ export const appRouter = router({
                   (audioDispatch.data as any)?.audio?.url ??
                   (audioDispatch.data as any)?.audio_url ??
                   ((audioDispatch.data as any)?.url as string | undefined);
+                if (audioUrl) {
+                  audioUrl = await persistExternalMediaUrl(audioUrl, {
+                    category: "audio",
+                    prefix: `generated/studio/${userId}/audio`,
+                  });
+                }
                 debug(
                   `[Fal] Audio generation completed: ${audioUrl} (${audioDispatch.durationMs}ms, model: ${audioDispatch.modelId})`
                 );
@@ -1254,6 +1283,12 @@ export const appRouter = router({
                   (voiceDispatch.data as any)?.audio?.url ??
                   (voiceDispatch.data as any)?.audio_url ??
                   ((voiceDispatch.data as any)?.url as string | undefined);
+                if (voiceUrl) {
+                  voiceUrl = await persistExternalMediaUrl(voiceUrl, {
+                    category: "voice",
+                    prefix: `generated/studio/${userId}/voice`,
+                  });
+                }
                 debug(
                   `[Fal] Voice generation completed: ${voiceUrl} (${voiceDispatch.durationMs}ms, model: ${voiceDispatch.modelId})`
                 );
@@ -1888,7 +1923,11 @@ export const appRouter = router({
             const resultData = resultRes.ok ? await resultRes.json() : null;
 
             // 從結果中提取 URL（嘗試所有已知路徑）
-            const r = resultData as Record<string, unknown> | null;
+            const localizedResult = (await localizeResultUrls(
+              resultData,
+              `generated/studio/${ctx.user.id}/background/${modelId.replace(/[^\w/-]+/g, "_")}`
+            )) as Record<string, unknown> | null;
+            const r = localizedResult;
             const resultUrl =
               // 圖片
               (r?.images as any)?.[0]?.url ??
@@ -1921,14 +1960,14 @@ export const appRouter = router({
               status: "completed",
               progress: 100,
               progressMessage: "生成完成",
-              resultJson: { ...meta, resultUrl, result: resultData },
+              resultJson: { ...meta, resultUrl, result: localizedResult },
             });
             return {
               ...job,
               status: "completed" as const,
               progress: 100,
               progressMessage: "生成完成",
-              resultJson: { ...meta, resultUrl, result: resultData },
+              resultJson: { ...meta, resultUrl, result: localizedResult },
             };
           }
 
@@ -2972,6 +3011,36 @@ export const appRouter = router({
       }),
   }),
 
+  // ─── Director Preferences ────────────────────────────────────────────────
+
+  directorPreferences: router({
+    get: protectedProcedure.query(async ({ ctx }) => {
+      const pref = await db.getDirectorPreferences(ctx.user.id);
+      if (pref) return pref;
+      return {
+        id: 0,
+        userId: ctx.user.id,
+        personality: "creative" as const,
+        preferredFormat: "co-star" as const,
+        updatedAt: new Date(),
+      };
+    }),
+
+    update: protectedProcedure
+      .input(
+        z.object({
+          personality: z.enum(["calm", "creative", "technical"]).optional(),
+          preferredFormat: z
+            .enum(["co-star", "sslcm", "selcm", "free"])
+            .optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const id = await db.upsertDirectorPreferences(ctx.user.id, input);
+        return { id };
+      }),
+  }),
+
   // ─── Project Notes ────────────────────────────────────────────────────────
 
   notes: router({
@@ -3341,16 +3410,98 @@ export const appRouter = router({
           personality: z
             .enum(["calm", "creative", "technical"])
             .default("creative"),
-          context: z.string().optional(), // current page / modality context
+          /** 舊版欄位：純文字頁面上下文，保留向後相容 */
+          context: z.string().optional(),
+          /**
+           * 新版：PageAgent 註冊時提供的結構化 snapshot。
+           * 帶入後 LLM 才能知道這頁有哪些 modelId / tabId / preset 可以 [ACTION:...]。
+           */
+          pageSnapshot: z
+            .object({
+              pageId: z.string(),
+              pageLabel: z.string(),
+              pagePath: z.string(),
+              capabilities: z
+                .array(
+                  z.object({
+                    action: z.string(),
+                    label: z.string(),
+                    currentId: z.string().optional(),
+                    hint: z.string().optional(),
+                    options: z
+                      .array(
+                        z.object({
+                          id: z.string(),
+                          label: z.string(),
+                          description: z.string().optional(),
+                        })
+                      )
+                      .optional(),
+                  })
+                )
+                .default([]),
+              state: z.record(z.string(), z.unknown()).optional(),
+            })
+            .optional(),
+          /** 使用者最近對光球建議的反應，給 LLM 學習偏好 */
+          recentFeedback: z
+            .array(
+              z.object({
+                at: z.number(),
+                status: z.enum([
+                  "accepted",
+                  "edited",
+                  "cancelled",
+                  "completed",
+                  "failed",
+                ]),
+                actionType: z.string(),
+                note: z.string().optional(),
+                pageId: z.string().optional(),
+              })
+            )
+            .optional(),
+          /** 強制要求：即使是非破壞性動作也要先確認 */
+          alwaysConfirm: z.boolean().optional(),
         })
       )
-      .mutation(async ({ input }) => {
-        const systemPrompt = buildOrbSystemPrompt(
-          input.personality,
-          input.context ?? undefined
+      .mutation(async ({ input, ctx }) => {
+        // Phase 3c：把 DB 裡的長期記憶跟前端 session 記憶合併給 prompt。
+        // 前端剛啟動時 recentFeedback 是空的，但使用者過去的接受/拒絕早已
+        // 寫進 orb_feedback_events；這裡讀最近 10 筆補上去。
+        const dbMemory = await db
+          .getRecentOrbFeedback(ctx.user.id, 10)
+          .catch(() => [] as Array<{
+            createdAt: Date;
+            status: "accepted" | "edited" | "cancelled" | "completed" | "failed";
+            actionType: string;
+            note: string | null;
+            pageId: string | null;
+          }>);
+        const dbEvents = dbMemory.map(row => ({
+          at: row.createdAt.getTime(),
+          status: row.status,
+          actionType: row.actionType,
+          note: row.note ?? undefined,
+          pageId: row.pageId ?? undefined,
+        }));
+        const mergedFeedback = mergeFeedbackHistories(
+          input.recentFeedback,
+          dbEvents,
+          12
         );
 
-        // Prefer MiniMax M2.7 via NVIDIA NIM for orb agent, fallback to default
+        const systemPrompt = buildOrbSystemPrompt(
+          input.personality,
+          input.context ?? undefined,
+          {
+            pageSnapshot: input.pageSnapshot,
+            recentFeedback: mergedFeedback,
+            alwaysConfirm: input.alwaysConfirm,
+          }
+        );
+
+        // Prefer MiniMax M2.7 via NVIDIA NIM for orb agent；失敗自動降級到 Gemini/Vertex/Forge
         const enginePreference =
           serverEnv.NVIDIA_API
             ? ("nvidia" as const)
@@ -3366,7 +3517,7 @@ export const appRouter = router({
                   content: m.content,
                 })),
               ],
-              engine: enginePreference,
+              preferEngine: enginePreference,
               runName: "orb-agent-chat",
             }),
             20_000,
@@ -3383,33 +3534,16 @@ export const appRouter = router({
             return {
               reply: "✨ 抱歉，我暫時無法回應。稍後再試試看吧～",
               actions: [],
+              intent: null,
+              askBeforeAct: false,
+              suggestions: [],
             };
           }
 
-          // ── Parse & whitelist ACTION commands ──
-          const ALLOWED_ACTIONS = new Set([
-            "navigate",
-            "preset",
-            "modality",
-            "focus",
-            "generate",
-            "refine",
-            "export",
-          ]);
-          const actionPattern = /\[ACTION:(\w+):([^\]]*)\]/g;
-          const actions: Array<{ type: string; payload: string }> = [];
-          let reply = rawReply;
-          let match;
-          while ((match = actionPattern.exec(rawReply)) !== null) {
-            if (ALLOWED_ACTIONS.has(match[1])) {
-              actions.push({ type: match[1], payload: match[2] });
-            } else {
-              console.warn(`[Orb] Rejected unknown action type: ${match[1]}`);
-            }
-            reply = reply.replace(match[0], "").trim();
-          }
-
-          return { reply, actions };
+          // ── Parse LLM output：ACTION / INTENT / CONFIRM / SUGGEST markers ──
+          return parseOrbReply(rawReply, {
+            alwaysConfirm: input.alwaysConfirm,
+          });
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : String(err);
           console.error("[Orb] Chat error:", errorMsg);
@@ -3418,7 +3552,164 @@ export const appRouter = router({
             reply:
               "🌿 抱歉，我剛才遇到了一點小狀況。請稍等一下再試試～如果問題持續，可以在設定頁檢查 API 設定唷。",
             actions: [],
+            intent: null,
+            askBeforeAct: false,
+            suggestions: [],
           };
+        }
+      }),
+  }),
+
+  // ─── Orb Memory（Phase 3c：光球跨 session 長期記憶） ──────────────────────
+  //
+  // 前端 `PageAgentContext.reportFeedback` 會把使用者對光球建議的反應
+  // （accepted / edited / cancelled / completed / failed）寫進 DB，
+  // 下一次 ai.chat 會把這些記憶補進 system prompt，讓 LLM 學偏好。
+  orbMemory: router({
+    append: protectedProcedure
+      .input(
+        z.object({
+          status: z.enum([
+            "accepted",
+            "edited",
+            "cancelled",
+            "completed",
+            "failed",
+          ]),
+          actionType: z.string().max(32),
+          pageId: z.string().max(64).optional(),
+          note: z.string().max(512).optional(),
+          actionSummary: z.string().max(256).optional(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        await db.appendOrbFeedback({
+          userId: ctx.user.id,
+          status: input.status,
+          actionType: input.actionType,
+          pageId: input.pageId ?? null,
+          note: input.note ?? null,
+          actionSummary: input.actionSummary ?? null,
+        });
+        return { ok: true as const };
+      }),
+
+    recent: protectedProcedure
+      .input(
+        z
+          .object({
+            limit: z.number().int().min(1).max(50).default(20),
+          })
+          .optional()
+      )
+      .query(async ({ input, ctx }) => {
+        const rows = await db.getRecentOrbFeedback(
+          ctx.user.id,
+          input?.limit ?? 20
+        );
+        return rows.map(r => ({
+          at: r.createdAt.getTime(),
+          status: r.status,
+          actionType: r.actionType,
+          note: r.note ?? undefined,
+          pageId: r.pageId ?? undefined,
+          actionSummary: r.actionSummary ?? undefined,
+        }));
+      }),
+  }),
+
+  // ─── OrbGuide（Phase 3d-hybrid：規則 skeleton + LLM 軟化/補選項/跳題） ────
+  //
+  // OrbGuidePanel 每走到一題就呼叫 step 一次，讓 MiniMax M2.7 把開場白
+  // 軟化、視情境補選項、必要時建議跳題。LLM 任何異常 → 回空，前端就會
+  // 繼續用規則端的 stock text，不影響流程。
+  orbGuide: router({
+    step: protectedProcedure
+      .input(
+        z.object({
+          intent: z.string().min(1).max(32),
+          intentLabel: z.string().min(1).max(40),
+          targetLabel: z.string().min(1).max(40),
+          personality: z
+            .enum(["calm", "creative", "technical"])
+            .default("creative"),
+          answeredSoFar: z
+            .array(
+              z.object({
+                questionId: z.string().max(32),
+                value: z.string().max(64),
+                label: z.string().max(32).optional(),
+              })
+            )
+            .max(8)
+            .default([]),
+          currentQuestion: z
+            .object({
+              id: z.string().max(32),
+              stockText: z.string().max(120),
+              stockOptions: z
+                .array(
+                  z.object({
+                    label: z.string().max(24),
+                    value: z.string().max(64),
+                    emoji: z.string().max(4),
+                  })
+                )
+                .max(8),
+            })
+            .optional(),
+          isFinalStep: z.boolean().default(false),
+          stockOrbMessage: z.string().max(160).optional(),
+          stockPromptHint: z.string().max(320).optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        // MiniMax 只有在 NVIDIA_API 可用時才優先走 nvidia；失敗或未設定則自動降級。
+        const enginePreference =
+          serverEnv.NVIDIA_API ? ("nvidia" as const) : undefined;
+
+        const ctx: OrbGuideStepContext = {
+          intent: input.intent,
+          intentLabel: input.intentLabel,
+          targetLabel: input.targetLabel,
+          personality: input.personality,
+          answeredSoFar: input.answeredSoFar,
+          currentQuestion: input.currentQuestion,
+          isFinalStep: input.isFinalStep,
+          stockOrbMessage: input.stockOrbMessage,
+          stockPromptHint: input.stockPromptHint,
+        };
+
+        const systemPrompt = buildOrbGuideStepPrompt(ctx);
+
+        try {
+          const result = await withTimeout(
+            invokeLLM({
+              messages: [
+                { role: "system", content: systemPrompt },
+                {
+                  role: "user",
+                  content: "請只回 JSON，欄位照規格。",
+                },
+              ],
+              preferEngine: enginePreference,
+              runName: "orb-guide-step",
+              maxTokens: 512,
+              response_format: { type: "json_object" },
+            }),
+            8_000,
+            "光球引導"
+          );
+          const raw =
+            typeof result.choices[0]?.message?.content === "string"
+              ? result.choices[0].message.content
+              : "";
+          return parseOrbGuideStepReply(raw, ctx);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.warn("[OrbGuide] step rewrite failed, falling back:", msg);
+          // 回空物件 → 前端會沿用 stock
+          return {};
         }
       }),
   }),

@@ -1,8 +1,15 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
+import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useAIState } from "@/contexts/AIStateContext";
+import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
+import type {
+  AgentAction,
+  AgentActionResult,
+  AgentCapability,
+} from "../../../shared/agent-actions";
 import VisualSoul from "@/components/VisualSoul";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -106,6 +113,7 @@ function CustomPieLabel({ cx, cy, midAngle, outerRadius, percent, name }: any) {
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const [, setLocation] = useLocation();
 
   // 全站新手引導
   usePageTour("dashboard");
@@ -121,6 +129,65 @@ export default function DashboardPage() {
     retry: false,
   });
   const stats = statsQuery.data;
+
+  // ─── PageAgent 註冊（Phase 4a：儀表板接入光球） ────────────────────────
+  // Dashboard 本身是唯讀，光球主要是拿到 state snapshot 做摘要；
+  // 另外支援 navigate，讓光球可以從儀表板跳到歷史 / 筆記 / 生圖等常用頁。
+  const NAV_ALLOWLIST = useMemo<Set<string>>(
+    () =>
+      new Set([
+        "/history",
+        "/notes",
+        "/prompt-library",
+        "/image",
+        "/video",
+        "/pro-studio",
+        "/director-ai",
+      ]),
+    []
+  );
+  const agentCapabilities: AgentCapability[] = useMemo(
+    () => [
+      {
+        action: "navigate",
+        label: "跳到常用頁面",
+        hint: "navigate path='/history' | '/notes' | '/prompt-library' | '/image' | '/video' | '/pro-studio' | '/director-ai'",
+      },
+    ],
+    []
+  );
+
+  useRegisterPageAgent({
+    pageId: "dashboard",
+    pageLabel: "儀表板",
+    pagePath: "/dashboard",
+    capabilities: agentCapabilities,
+    state: {
+      remainingGenerations:
+        stats?.remainingGenerations ?? user?.remainingGenerations ?? 0,
+      totalRequests: stats?.totalRequests ?? 0,
+      totalCost: stats?.totalCost ?? 0,
+      modalityBreakdown:
+        stats?.modalityBreakdown?.map(r => ({
+          type: r.requestType,
+          count: r.count,
+        })) ?? [],
+    },
+    handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      if (action.type === "navigate") {
+        const path = String(action.path ?? "");
+        if (!NAV_ALLOWLIST.has(path)) {
+          return { ok: false, reason: `不在允許跳轉清單：${path}` };
+        }
+        setLocation(path);
+        return { ok: true, message: `跳到 ${path}` };
+      }
+      return {
+        ok: false,
+        reason: `unsupported on dashboard: ${action.type}`,
+      };
+    },
+  });
 
   const statCards = [
     {

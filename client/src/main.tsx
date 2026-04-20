@@ -7,6 +7,7 @@ import superjson from "superjson";
 import App from "./App";
 import { AIStateProvider } from "@/contexts/AIStateContext";
 import { emitAuthExpiredDebounced } from "@/components/AuthExpiredModal";
+import { clientEnv } from "@/lib/env.validated";
 import "./index.css";
 
 const queryClient = new QueryClient({
@@ -75,6 +76,27 @@ queryClient.getMutationCache().subscribe(event => {
     }
   }
 });
+
+
+const injectUmamiAnalytics = () => {
+  if (typeof document === "undefined") return;
+
+  const endpoint = clientEnv.VITE_ANALYTICS_ENDPOINT.trim();
+  const websiteId = clientEnv.VITE_ANALYTICS_WEBSITE_ID.trim();
+
+  if (!endpoint || !websiteId) return;
+
+  if (document.querySelector("script[data-umami-loaded='true']")) return;
+
+  const script = document.createElement("script");
+  script.defer = true;
+  script.src = `${endpoint.replace(/\/$/, "")}/umami`;
+  script.setAttribute("data-website-id", websiteId);
+  script.setAttribute("data-umami-loaded", "true");
+  document.head.appendChild(script);
+};
+
+injectUmamiAnalytics();
 
 const trpcClient = trpc.createClient({
   links: [

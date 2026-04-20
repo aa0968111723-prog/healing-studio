@@ -42,6 +42,12 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useAIState } from "@/contexts/AIStateContext";
+import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
+import type {
+  AgentAction,
+  AgentActionResult,
+  AgentCapability,
+} from "../../../shared/agent-actions";
 import { AmbientEnvironment } from "@/components/AmbientEnvironment";
 import type { SceneId } from "@/components/AmbientEnvironment";
 import SceneSwitcher from "@/components/SceneSwitcher";
@@ -436,6 +442,70 @@ export default function Home() {
       }
     }
   }, [isAuthenticated, loading]);
+
+  // ─── PageAgent 註冊（Phase 4b：首頁接入光球） ────────────────────────────
+  // 首頁主要任務是「把使用者帶進工作室」。光球可做：navigate 到主要分站、
+  // 暴露 isAuthenticated / sceneId / intent 讓 LLM 決定下一步。
+  const HOME_NAV_ALLOWLIST = useMemo<Set<string>>(
+    () =>
+      new Set([
+        "/studio",
+        "/director",
+        "/image-studio",
+        "/video-studio",
+        "/pro-studio",
+        "/lora-trainer",
+        "/learn",
+        "/dashboard",
+        "/history",
+        "/notes",
+        "/prompt-library",
+        "/assets",
+        "/shared",
+      ]),
+    []
+  );
+  const homeAgentCapabilities: AgentCapability[] = useMemo(
+    () => [
+      {
+        action: "navigate",
+        label: "跳到主要分站",
+        hint: "navigate path='/studio' | '/director' | '/image-studio' | '/video-studio' | '/pro-studio' | '/lora-trainer' | '/learn' | '/dashboard' | '/history' | '/notes' | '/prompt-library' | '/assets' | '/shared'",
+      },
+    ],
+    []
+  );
+
+  useRegisterPageAgent({
+    pageId: "home",
+    pageLabel: "首頁",
+    pagePath: "/",
+    capabilities: homeAgentCapabilities,
+    state: {
+      isAuthenticated,
+      sceneId,
+      isDark,
+      inferredIntentType: intentResult?.intentType ?? null,
+      inferredConfidence: intentResult?.confidence ?? 0,
+    },
+    handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      if (action.type === "navigate") {
+        const path = String(action.path ?? "");
+        if (!HOME_NAV_ALLOWLIST.has(path)) {
+          return { ok: false, reason: `不在允許跳轉清單：${path}` };
+        }
+        if (!isAuthenticated && path !== "/learn") {
+          return {
+            ok: false,
+            reason: "尚未登入，先引導登入再跳轉",
+          };
+        }
+        navigate(path);
+        return { ok: true, message: `跳到 ${path}` };
+      }
+      return { ok: false, reason: `unsupported on home: ${action.type}` };
+    },
+  });
 
   if (showOnboarding && isAuthenticated) {
     return (

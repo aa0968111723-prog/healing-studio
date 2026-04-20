@@ -81,6 +81,12 @@ import JSZip from "jszip";
 
 import ProactiveOrbWidget from "@/components/ProactiveOrbWidget";
 import OnboardingTour from "@/components/OnboardingTour";
+import {
+  useRegisterPageAgent,
+  type AgentAction,
+  type AgentActionResult,
+  type AgentCapability,
+} from "@/contexts/PageAgentContext";
 import { useNotesDrawer } from "@/contexts/NotesDrawerContext";
 import { requireAuth } from "@/components/AuthExpiredModal";
 
@@ -1615,6 +1621,177 @@ export default function Studio() {
     },
     [modalityKey]
   );
+
+  // ── 光球代理人：Studio 總控 ───────────────────────────────────────────
+  // Studio 是 4 模態 × 2 模式 × 3 創作層級的核心頁；把最外層控制
+  // 完整交給光球，讓使用者用自然語就能「切到影片、用專業模式」。
+  const studioCaps: AgentCapability[] = [
+    {
+      action: "setModality",
+      label: "模態",
+      currentId: activeModality,
+      options: MODALITY_TABS.map(t => ({ id: t.value, label: t.label })),
+      hint: "image / video / audio(=music) / voice — audio 的 modalityKey 會被映射成 music",
+    },
+    {
+      action: "setMode",
+      label: "生成模式",
+      currentId: mode,
+      options: [
+        { id: "lightning", label: "閃電", description: "快、便宜、適合試草稿" },
+        {
+          id: "deep_precision",
+          label: "深度精磆",
+          description: "高品質、較慢、專業用",
+        },
+      ],
+      hint: "只接受 lightning | deep_precision",
+    },
+    {
+      action: "applyPreset",
+      label: "創作層級",
+      currentId: `creative:${creativeMode}`,
+      options: [
+        { id: "creative:simple", label: "輕鬆模式", description: "只有提示詞，一鍵生成" },
+        { id: "creative:standard", label: "標準模式", description: "顯示氛圍卡、品質控制" },
+        { id: "creative:pro", label: "專業模式", description: "結構化 prompt、參考圖、進階參數" },
+      ],
+      hint: "以 creative:<simple|standard|pro> 切換創作界面複雜度",
+    },
+    {
+      action: "fillPrompt",
+      label: "提示詞",
+      hint: "slot=prompt 填入主要提示詞；slot=voice 填入語音模態的文字",
+    },
+    {
+      action: "setParam",
+      label: "進階參數",
+      hint: "key=temperature(0-1) / seed(string|number) / loraWeight(0-1)",
+    },
+    {
+      action: "submit",
+      label: "送出生成",
+      hint: "提示詞空或語音模態未填文字會失敗",
+    },
+    {
+      action: "reset",
+      label: "重設",
+      hint: "清空提示詞與結果",
+    },
+  ];
+
+  useRegisterPageAgent({
+    pageId: "studio",
+    pageLabel: "創作工作室",
+    pagePath: "/studio",
+    capabilities: studioCaps,
+    state: {
+      activeModality,
+      mode,
+      creativeMode,
+      promptLength: promptBuilder.rawPrompt.length,
+      hasResult: resultUrl !== null,
+    },
+    handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      switch (action.type) {
+        case "setModality": {
+          const valid: GenerationType[] = ["image", "video", "audio", "voice"];
+          if (!valid.includes(action.modality as GenerationType)) {
+            return { ok: false, reason: `unknown modality: ${action.modality}` };
+          }
+          setActiveModality(action.modality as GenerationType);
+          return { ok: true };
+        }
+        case "setMode": {
+          if (action.modeId !== "lightning" && action.modeId !== "deep_precision") {
+            return { ok: false, reason: `unknown modeId: ${action.modeId}` };
+          }
+          setMode(action.modeId as GenerationMode);
+          return { ok: true };
+        }
+        case "applyPreset": {
+          const id = action.presetId;
+          if (id.startsWith("creative:")) {
+            const cm = id.slice("creative:".length) as CreativeMode;
+            if (cm === "simple" || cm === "standard" || cm === "pro") {
+              setCreativeMode(cm);
+              return { ok: true, message: `已切到「${cm}」層級` };
+            }
+          }
+          return { ok: false, reason: `unknown presetId: ${id}` };
+        }
+        case "fillPrompt": {
+          const slot = action.slot ?? "prompt";
+          if (slot === "voice") {
+            setVoiceState(prev => ({
+              ...prev,
+              text: action.append ? `${prev.text}${prev.text ? " " : ""}${action.text}` : action.text,
+            }));
+            return { ok: true };
+          }
+          if (slot === "negativePrompt") {
+            if (activeModality === "image") {
+              setImageState(prev => ({
+                ...prev,
+                negativePrompt: action.append
+                  ? `${prev.negativePrompt}${prev.negativePrompt ? ", " : ""}${action.text}`
+                  : action.text,
+              }));
+            } else {
+              setNegativePrompts(prev => ({
+                ...prev,
+                [modalityKey]: action.append
+                  ? `${prev[modalityKey] ?? ""}${prev[modalityKey] ? ", " : ""}${action.text}`
+                  : action.text,
+              }));
+            }
+            return { ok: true };
+          }
+          setPromptBuilder(prev => {
+            const next = action.append && prev.rawPrompt.trim()
+              ? `${prev.rawPrompt}, ${action.text}`
+              : action.text;
+            return { ...prev, rawPrompt: next, compiledPrompt: next };
+          });
+          return { ok: true };
+        }
+        case "setParam": {
+          const { key, value } = action;
+          switch (key) {
+            case "temperature":
+              if (typeof value === "number") setTemperature(value);
+              return { ok: true };
+            case "seed":
+              if (typeof value === "string" || typeof value === "number")
+                setSeed(String(value));
+              return { ok: true };
+            case "loraWeight":
+              if (typeof value === "number") setLoraWeight(value);
+              return { ok: true };
+            default:
+              return { ok: false, reason: `unknown param key: ${key}` };
+          }
+        }
+        case "submit": {
+          if (action.delayMs && action.delayMs > 0) {
+            await new Promise(r => setTimeout(r, action.delayMs));
+          }
+          void handleGenerate();
+          return { ok: true, message: "已送出生成" };
+        }
+        case "reset": {
+          setPromptBuilder(createEmptyPromptOutput);
+          setResultUrl(null);
+          setResultData(null);
+          return { ok: true };
+        }
+        case "focusElement":
+          return { ok: true };
+        default:
+          return { ok: false, reason: "unsupported action" };
+      }
+    },
+  });
 
   return (
     <div className="space-y-4">
