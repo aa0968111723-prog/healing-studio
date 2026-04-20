@@ -25,6 +25,11 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import {
   Film,
@@ -348,6 +353,7 @@ function ToolCard({
   modelId,
   color = "blue",
   isNew,
+  defaultOpen = false,
   children,
 }: {
   icon: React.FC<React.SVGProps<SVGSVGElement>>;
@@ -357,53 +363,68 @@ function ToolCard({
   modelId?: string;
   color?: CardColor;
   isNew?: boolean;
+  defaultOpen?: boolean;
   children: React.ReactNode;
 }) {
+  const [open, setOpen] = useState(defaultOpen);
   const c = CARD_COLORS[color];
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      className={`rounded-2xl p-4 sm:p-5 bg-gradient-to-br ${c.bg} border backdrop-blur-sm`}
-    >
-      <div className="flex items-start gap-2.5 sm:gap-3 mb-3 sm:mb-4">
-        <div
-          className={`p-1.5 sm:p-2 rounded-xl bg-white/60 shadow-sm ${c.icon} shrink-0`}
-        >
-          <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="hs-h3 !mb-0 text-foreground">{title}</h3>
-            {badge && (
-              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                {badge}
-              </Badge>
-            )}
-            {isNew && (
-              <Badge className="text-[10px] px-1.5 py-0 bg-emerald-500 text-white">
-                NEW
-              </Badge>
-            )}
-          </div>
-          <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
-            {description}
-          </p>
-          {modelId && (
-            <a
-              href={`https://fal.ai/models/${modelId}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-0.5 text-[10px] text-primary/60 hover:text-primary mt-0.5 transition-colors"
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className={`rounded-2xl bg-gradient-to-br ${c.bg} border backdrop-blur-sm transition-shadow ${open ? "shadow-md" : "shadow-sm hover:shadow-md"}`}
+      >
+        <CollapsibleTrigger asChild>
+          <button
+            className="w-full text-left p-3.5 sm:p-4 flex items-center gap-2.5 sm:gap-3 cursor-pointer group"
+          >
+            <div
+              className={`p-1.5 sm:p-2 rounded-xl bg-white/60 shadow-sm ${c.icon} shrink-0 transition-transform ${open ? "scale-110" : "group-hover:scale-105"}`}
             >
-              <ExternalLink className="w-2.5 h-2.5" />
-              {modelId}
-            </a>
-          )}
-        </div>
-      </div>
-      {children}
-    </motion.div>
+              <Icon className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-sm font-semibold text-foreground leading-tight">{title}</span>
+                {badge && (
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                    {badge}
+                  </Badge>
+                )}
+                {isNew && (
+                  <Badge className="text-[10px] px-1.5 py-0 bg-emerald-500 text-white">
+                    NEW
+                  </Badge>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">
+                {description}
+              </p>
+            </div>
+            <ChevronDown
+              className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+            />
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="px-3.5 sm:px-4 pb-3.5 sm:pb-4 pt-0">
+            {modelId && (
+              <a
+                href={`https://fal.ai/models/${modelId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-0.5 text-[10px] text-primary/60 hover:text-primary mb-3 transition-colors"
+              >
+                <ExternalLink className="w-2.5 h-2.5" />
+                {modelId}
+              </a>
+            )}
+            {children}
+          </div>
+        </CollapsibleContent>
+      </motion.div>
+    </Collapsible>
   );
 }
 
@@ -722,7 +743,7 @@ function TextToVideoTab() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
       {/* Kling v2.1 */}
       <ToolCard
         icon={Clapperboard}
@@ -732,6 +753,7 @@ function TextToVideoTab() {
         modelId="fal-ai/kling-video/v2.1/standard/text-to-video"
         color="purple"
         isNew
+        defaultOpen
       >
         <div className="space-y-3">
           <div>
@@ -1372,7 +1394,7 @@ function ImageToVideoTab() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
       {/* Kling i2v */}
       <ToolCard
         icon={Clapperboard}
@@ -1381,6 +1403,7 @@ function ImageToVideoTab() {
         badge="Kling 2.1"
         modelId="fal-ai/kling-video/v2.1/standard/image-to-video"
         color="purple"
+        defaultOpen
       >
         <div className="space-y-3">
           <div>
@@ -1857,7 +1880,7 @@ function VideoToVideoTab() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
       {/* Wan v2v */}
       <ToolCard
         icon={RefreshCw}
@@ -1866,6 +1889,7 @@ function VideoToVideoTab() {
         badge="Wan 2.1"
         modelId="fal-ai/wan-ai/wan2.1-v2v-480p"
         color="blue"
+        defaultOpen
       >
         <div className="space-y-3">
           <div>
@@ -2155,7 +2179,7 @@ function EnhancementTab() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
       {/* ByteDance Upscaler */}
       <ToolCard
         icon={Maximize2}
@@ -2164,6 +2188,7 @@ function EnhancementTab() {
         badge="ByteDance"
         modelId="fal-ai/bytedance/upscaler/video"
         color="orange"
+        defaultOpen
       >
         <div className="space-y-3">
           <UrlInput
@@ -2515,7 +2540,7 @@ function AdvancedControlTab() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
       {/* CamMaster */}
       <ToolCard
         icon={Camera}
@@ -2525,6 +2550,7 @@ function AdvancedControlTab() {
         modelId="fal-ai/cammaster"
         color="purple"
         isNew
+        defaultOpen
       >
         <div className="space-y-3">
           <div>
@@ -2898,7 +2924,7 @@ export default function VideoStudio() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-5 sm:space-y-6">
+    <div className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-5">
       {/* 頁面標題 */}
       <div className="flex items-start gap-3 sm:gap-4">
         <div className="p-2.5 sm:p-3 rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-500/10 border border-blue-200/40 shrink-0">
@@ -2909,6 +2935,9 @@ export default function VideoStudio() {
           <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
             整合 FAL.AI 頂尖影片生成模型，共{" "}
             {Object.values(MODEL_COUNT).reduce((a, b) => a + b, 0)} 個模型
+            <span className="hidden sm:inline text-muted-foreground/50">
+              {" "}· 點擊卡片展開使用
+            </span>
           </p>
           <div className="flex flex-wrap gap-1 sm:gap-1.5 mt-2">
             {(
@@ -2930,7 +2959,7 @@ export default function VideoStudio() {
               <Badge
                 key={tag}
                 variant="outline"
-                className="text-[10px] sm:text-[10px]"
+                className="text-[10px]"
               >
                 {tag}
               </Badge>
@@ -2965,40 +2994,40 @@ export default function VideoStudio() {
       )}
 
       {/* 標籤列 */}
-      <div className="flex overflow-x-auto gap-1.5 pb-1 -mx-1 px-1 no-scrollbar scroll-fade-x">
-        {TABS.map(tab => {
-          const Icon = tab.icon;
-          const count = MODEL_COUNT[tab.id];
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`
-                shrink-0 flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-3 sm:py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all min-h-[44px] border
-                ${
-                  isActive
-                    ? "bg-primary text-primary-foreground border-primary shadow-md"
-                    : "bg-background text-muted-foreground hover:bg-accent hover:text-foreground active:bg-accent border-border/40"
-                }
-              `}
-            >
-              <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span>{tab.label}</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.5 rounded-full ${isActive ? "bg-white/20" : "bg-primary/10 text-primary"}`}
+      <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-md -mx-3 sm:-mx-4 px-3 sm:px-4 py-2 border-b border-border/20">
+        <div className="flex overflow-x-auto gap-1.5 pb-0.5 no-scrollbar scroll-fade-x">
+          {TABS.map(tab => {
+            const Icon = tab.icon;
+            const count = MODEL_COUNT[tab.id];
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`
+                  shrink-0 flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-medium transition-all min-h-[40px] border
+                  ${
+                    isActive
+                      ? "bg-primary text-primary-foreground border-primary shadow-md"
+                      : "bg-background text-muted-foreground hover:bg-accent hover:text-foreground active:bg-accent border-border/40"
+                  }
+                `}
               >
-                {count}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* 標籤說明 */}
-      <div className="text-[11px] sm:text-xs text-muted-foreground px-1 flex items-center gap-1.5">
-        <span className="inline-block w-1 h-1 rounded-full bg-primary/40"></span>
-        {TABS.find(t => t.id === activeTab)?.desc}
+                <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <span>{tab.label}</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.5 rounded-full leading-none ${isActive ? "bg-white/20" : "bg-primary/10 text-primary"}`}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1.5">
+          <span className="inline-block w-1 h-1 rounded-full bg-primary/40" />
+          {TABS.find(t => t.id === activeTab)?.desc}
+        </div>
       </div>
 
       {/* 標籤內容 */}
@@ -3019,16 +3048,14 @@ export default function VideoStudio() {
       </AnimatePresence>
 
       {/* 頁腳說明 */}
-      <div className="mt-6 sm:mt-8 p-3 sm:p-4 rounded-2xl bg-muted/40 text-xs text-muted-foreground space-y-1">
-        <p className="font-medium text-foreground text-sm">📋 使用說明</p>
-        <p>
-          • 所有影片生成任務均為非同步處理，通常需要 1-10 分鐘，請耐心等待。
-        </p>
-        <p>
-          • 提詞（Prompt）建議使用英文以獲得最佳效果，Kling 模型對中文有優化。
-        </p>
-        <p>• 影片 URL 需為公開可存取的直連URL，建議使用 CDN 託管的資源。</p>
-        <p>• Veo 3 和 Sora 模型費用較高，建議在確認需求後再生成。</p>
+      <div className="mt-6 sm:mt-8 p-3 sm:p-4 rounded-2xl bg-muted/40 border border-border/20 text-xs text-muted-foreground">
+        <p className="font-medium text-foreground text-sm mb-2">📋 使用說明</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
+          <p>• 所有影片生成任務為非同步處理，通常需 1-10 分鐘</p>
+          <p>• 提詞建議使用英文，Kling 模型對中文有優化</p>
+          <p>• 影片 URL 需為公開可存取的直連 URL</p>
+          <p>• Veo 3 和 Sora 費用較高，建議確認需求後再生成</p>
+        </div>
       </div>
     </div>
   );
