@@ -77,6 +77,7 @@ import VisualSoul from "@/components/VisualSoul";
 import { useLocation } from "wouter";
 import { useShowcaseTransfer } from "@/contexts/ShowcaseTransferContext";
 import type { GenerationMode, GenerationType } from "@shared/types";
+import { normalizeEngineModelId } from "@shared/engineModelIds";
 import JSZip from "jszip";
 
 import ProactiveOrbWidget from "@/components/ProactiveOrbWidget";
@@ -721,9 +722,9 @@ export default function Studio() {
           }));
         }
         if (data.generationType) setActiveModality(data.generationType);
-        if (data.overrideEngine) {
-          setDirectorModelOverride(String(data.overrideEngine));
-        }
+        setDirectorModelOverride(
+          data.overrideEngine ? String(data.overrideEngine) : undefined
+        );
         if (data.musicStyle)
           setAudioState(prev => ({ ...prev, musicStyle: data.musicStyle }));
         if (data.voiceText)
@@ -1279,7 +1280,9 @@ export default function Studio() {
         }),
         fineTunedModelId,
         loraWeight,
-        overrideModelId: directorModelOverride,
+        overrideModelId: directorModelOverride
+          ? normalizeEngineModelId(directorModelOverride)
+          : undefined,
       });
       setDirectorModelOverride(undefined);
     } catch {

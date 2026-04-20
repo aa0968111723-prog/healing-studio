@@ -360,6 +360,9 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         const userId = ctx.user.id;
         const demoMode = isDemoMode();
+        const overrideEngine = input.overrideEngine
+          ? normalizeEngineModelId(input.overrideEngine)
+          : undefined;
 
         // ── Step 1: 讀取使用者大腦組態 ──
         let brainRow: Record<string, unknown> | null = null;
@@ -382,19 +385,19 @@ export const appRouter = router({
         // ── Step 2: 選定本次任務的引擎 ──
         const modalityEngineMap: Record<string, string> = {
           image:
-            input.overrideEngine ??
+            overrideEngine ??
             String(brainRow?.imageEngine ?? falEngines.textToImage),
           video:
-            input.overrideEngine ??
+            overrideEngine ??
             String(brainRow?.videoEngine ?? falEngines.textToVideo),
           audio:
-            input.overrideEngine ??
+            overrideEngine ??
             String(brainRow?.audioEngine ?? falEngines.textToAudio),
           voice:
-            input.overrideEngine ??
+            overrideEngine ??
             String(brainRow?.voiceEngine ?? falEngines.textToSpeech),
           multimodal:
-            input.overrideEngine ??
+            overrideEngine ??
             String(brainRow?.imageEngine ?? falEngines.textToImage),
         };
         const selectedEngine =
