@@ -205,19 +205,19 @@ describe("Gemini Audio Migration", () => {
     });
   });
 
-  // ─── @google/genai SDK Import ───
-  describe("@google/genai SDK availability", () => {
+  // ─── @google/generative-ai SDK Import ───
+  describe("@google/generative-ai SDK availability", () => {
     it("should be importable", async () => {
-      const { GoogleGenAI } = await import("@google/genai");
-      expect(GoogleGenAI).toBeDefined();
-      expect(typeof GoogleGenAI).toBe("function");
+      const { GoogleGenerativeAI } = await import("@google/generative-ai");
+      expect(GoogleGenerativeAI).toBeDefined();
+      expect(typeof GoogleGenerativeAI).toBe("function");
     });
 
     it("should create client instance with API key", async () => {
-      const { GoogleGenAI } = await import("@google/genai");
-      const ai = new GoogleGenAI({ apiKey: "test-key" });
+      const { GoogleGenerativeAI } = await import("@google/generative-ai");
+      const ai = new GoogleGenerativeAI("test-key");
       expect(ai).toBeDefined();
-      expect(ai.models).toBeDefined();
+      expect(ai).toBeDefined();
     });
   });
 

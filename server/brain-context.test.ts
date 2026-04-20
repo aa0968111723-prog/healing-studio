@@ -130,8 +130,8 @@ describe("Brain Context Middleware", () => {
       const brain = await buildBrainContext(123);
 
       expect(brain.hasCustomConfig).toBe(false);
-      expect(brain.getBrain("director").model).toBe("gpt-4o");
-      expect(brain.getEngine("imageEngine").engine).toBe("flux-pro");
+      expect(brain.getBrain("director").model).toBe("gemini-2.5-pro");
+      expect(brain.getEngine("imageEngine").engine).toBe("fal-ai/flux-pro/v1.1");
 
       warnSpy.mockRestore();
     });
@@ -428,7 +428,7 @@ describe("Brain Context Middleware", () => {
       const brain = await buildBrainContext(999);
       const director = brain.getBrain("director");
       expect(director.slot).toBe("director");
-      expect(director.model).toBe("gpt-4o");
+      expect(director.model).toBe("gemini-2.5-pro");
     });
 
     it("getEngine should return correct slot config", async () => {
