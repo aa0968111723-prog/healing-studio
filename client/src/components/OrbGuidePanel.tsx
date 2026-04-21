@@ -23,6 +23,7 @@ import type { OrbGuideStepRewrite } from "../../../shared/agent-actions";
 import { summarizeOrbGuideActions } from "../../../shared/orb-guide-plans";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/useMobile";
+import { useGlobalOrbChat } from "@/contexts/GlobalOrbChatContext";
 
 // ─── Typewriter hook ──────────────────────────────────────────────────────────
 
@@ -151,15 +152,22 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
   const { aiState } = useAIState();
   const { personality } = usePersonality();
 
+  // ─── Global Orb Chat Integration ──────────────────────────────────────
+  const globalChat = useGlobalOrbChat();
+
   // ── Panel mode: guided flow or free chat ──────────────────────────────────
   const [panelMode, setPanelMode] = useState<"guide" | "chat">("guide");
-  const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "orb"; text: string }>>([]);
-  const [chatInput, setChatInput] = useState("");
-  const [isChatLoading, setIsChatLoading] = useState(false);
+  // Use global chat state for chat mode
+  const chatMessages = panelMode === "chat"
+    ? globalChat.messages.map(m => ({ role: m.role, text: m.text }))
+    : [];
+  const chatInput = panelMode === "chat" ? globalChat.input : "";
+  const setChatInput = panelMode === "chat" ? globalChat.setInput : () => {};
+  const isChatLoading = panelMode === "chat" ? globalChat.isSending : false;
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLInputElement>(null);
 
-  const aiChatMutation = trpc.ai.chat.useMutation();
+  // Remove local aiChatMutation - will use globalChat.sendMessage instead
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -167,38 +175,18 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
 
   useEffect(() => {
     if (panelMode === "chat") {
+      globalChat.open(); // Sync with global chat state
       setTimeout(() => chatInputRef.current?.focus(), 100);
     }
-  }, [panelMode]);
+  }, [panelMode, globalChat]);
 
   const handleChatSend = useCallback(async () => {
     if (!chatInput.trim() || isChatLoading) return;
     const userMsg = chatInput.trim();
-    const updated = [...chatMessages, { role: "user" as const, text: userMsg }];
-    setChatMessages(updated);
-    setChatInput("");
-    setIsChatLoading(true);
-    try {
-      const contextParts = ["光球引導面板"];
-      if (intent) contextParts.push(`意圖: ${INTENT_CONFIGS[intent].label}`);
-      const data = await aiChatMutation.mutateAsync({
-        messages: updated.map(m => ({
-          role: m.role === "user" ? ("user" as const) : ("assistant" as const),
-          content: m.text,
-        })),
-        personality,
-        context: contextParts.join(" · "),
-      });
-      setChatMessages(prev => [...prev, { role: "orb", text: data.reply }]);
-    } catch {
-      setChatMessages(prev => [
-        ...prev,
-        { role: "orb", text: "🌸 剛才有點問題，再說一次好嗎？" },
-      ]);
-    } finally {
-      setIsChatLoading(false);
-    }
-  }, [chatInput, chatMessages, isChatLoading, personality, intent, aiChatMutation]);
+    // Use global chat to send the message
+    // GlobalOrbChatContext handles all LLM interaction, action dispatch, and message management
+    await globalChat.sendMessage(userMsg);
+  }, [chatInput, isChatLoading, globalChat]);
 
   // Current question index based on answers already collected
   const currentQuestionIndex = intent

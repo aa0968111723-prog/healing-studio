@@ -662,9 +662,6 @@ export default memo(function ProactiveOrbWidget({
   const chatMessages = globalChat.messages.map(m => ({ role: m.role, text: m.text }));
   const isChatLoading = globalChat.isSending;
   const chatSuggestions = globalChat.suggestions.map(s => s.text);
-  const setChatSuggestions = (suggestions: string[]) => {
-    // Global chat manages suggestions internally, no-op for now
-  };
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
 
   // Home position
@@ -1233,9 +1230,9 @@ export default memo(function ProactiveOrbWidget({
   const handleSuggestionClick = useCallback(
     (text: string) => {
       setChatInput(text);
-      setChatSuggestions([]);
+      // No need to clear suggestions - globalChat manages them
     },
-    []
+    [setChatInput]
   );
 
   // ─── Personality theme maps ───────────────────────────────────────────
