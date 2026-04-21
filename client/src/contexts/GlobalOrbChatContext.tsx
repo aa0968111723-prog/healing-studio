@@ -292,7 +292,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         );
 
         // 派送結構化動作
-        if (data.actions && data.actions.length > 0) {
+        if (structuredActions.length > 0) {
           const askBeforeAct = (data as { askBeforeAct?: boolean }).askBeforeAct === true;
 
           for (const action of structuredActions) {

@@ -12,7 +12,7 @@
  *  - 整合 usePageTour（自動觸發新手引導）
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useAIState } from "@/contexts/AIStateContext";
@@ -70,6 +70,12 @@ import {
   Trophy,
   XCircle,
   Box,
+  Download,
+  Upload,
+  Image as ImageIcon,
+  FileAudio,
+  FileVideo,
+  File,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
@@ -345,6 +351,23 @@ function DocDetailModal({ doc, onClose }: { doc: any; onClose: () => void }) {
   const diffBadge = DIFF_BADGE[doc.difficulty] ?? DIFF_BADGE.beginner;
 
   const html = renderMarkdown(doc.content ?? "");
+  const attachments: Array<{ type: string; url: string; title?: string }> = Array.isArray(
+    doc.attachments
+  )
+    ? doc.attachments
+    : [];
+
+  const handleDownloadDoc = () => {
+    const blob = new Blob([JSON.stringify(doc, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${doc.id ?? "learn-doc"}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <Dialog open onOpenChange={onClose}>
@@ -386,6 +409,41 @@ function DocDetailModal({ doc, onClose }: { doc: any; onClose: () => void }) {
             __html: `<p class="hs-p !mb-0 text-gray-700 mb-3">${html}</p>`,
           }}
         />
+        {attachments.length > 0 && (
+          <div className="px-6 pb-4">
+            <h3 className="text-sm font-semibold mb-2">附件資源</h3>
+            <div className="space-y-3">
+              {attachments.map((asset, idx) => (
+                <div key={`${asset.url}-${idx}`} className="rounded-xl border p-3 bg-white">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      {asset.type === "image" && <ImageIcon className="w-3.5 h-3.5" />}
+                      {asset.type === "video" && <FileVideo className="w-3.5 h-3.5" />}
+                      {asset.type === "audio" && <FileAudio className="w-3.5 h-3.5" />}
+                      {asset.type === "pdf" && <File className="w-3.5 h-3.5" />}
+                      {asset.title ?? asset.type.toUpperCase()}
+                    </span>
+                    <a
+                      href={asset.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-primary hover:underline"
+                    >
+                      下載 / 開啟
+                    </a>
+                  </div>
+                  {asset.type === "image" && (
+                    <img src={asset.url} alt={asset.title ?? "attachment"} className="rounded-lg max-h-60 w-full object-cover" />
+                  )}
+                  {asset.type === "video" && (
+                    <video src={asset.url} controls className="rounded-lg max-h-60 w-full" />
+                  )}
+                  {asset.type === "audio" && <audio src={asset.url} controls className="w-full" />}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Footer */}
         <div className="p-4 border-t shrink-0 flex items-center justify-between bg-gray-50/50">
@@ -405,6 +463,15 @@ function DocDetailModal({ doc, onClose }: { doc: any; onClose: () => void }) {
                 原文連結
               </a>
             )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadDoc}
+              className="text-xs rounded-full"
+            >
+              <Download className="w-3.5 h-3.5 mr-1" />
+              下載文件 JSON
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -450,10 +517,33 @@ function AdminDocForm({
   const [featured, setFeatured] = useState(initial?.featured ?? false);
   const [externalUrl, setExternalUrl] = useState(initial?.externalUrl ?? "");
   const [authorName, setAuthorName] = useState(initial?.authorName ?? "");
+  const [attachmentsText, setAttachmentsText] = useState(
+    JSON.stringify(initial?.attachments ?? [], null, 2)
+  );
 
   const handleSave = () => {
     if (!title.trim() || !content.trim()) {
       toast.error("標題和內容為必填");
+      return;
+    }
+    let attachments: Array<{
+      type: "image" | "video" | "pdf" | "audio";
+      url: string;
+      title?: string;
+    }> = [];
+    try {
+      const parsed = JSON.parse(attachmentsText || "[]");
+      if (!Array.isArray(parsed)) {
+        toast.error("附件格式需為 JSON 陣列");
+        return;
+      }
+      attachments = parsed as Array<{
+        type: "image" | "video" | "pdf" | "audio";
+        url: string;
+        title?: string;
+      }>;
+    } catch {
+      toast.error("附件格式需為合法 JSON");
       return;
     }
     onSave({
@@ -470,6 +560,7 @@ function AdminDocForm({
       featured,
       externalUrl: externalUrl.trim() || undefined,
       authorName: authorName.trim() || undefined,
+      attachments,
     });
   };
 
@@ -576,6 +667,23 @@ function AdminDocForm({
           <Label htmlFor="doc-featured" className="text-xs cursor-pointer">
             設為精選文件
           </Label>
+        </div>
+        <div className="col-span-2">
+          <Label className="text-xs text-muted-foreground">
+            附件 JSON（支援 image / video / pdf / audio）
+          </Label>
+          <Textarea
+            value={attachmentsText}
+            onChange={e => setAttachmentsText(e.target.value)}
+            placeholder={`[
+  {"type":"image","url":"https://...","title":"參考圖"},
+  {"type":"video","url":"https://...","title":"示範影片"},
+  {"type":"pdf","url":"https://...","title":"教材 PDF"},
+  {"type":"audio","url":"https://...","title":"語音講解"}
+]`}
+            className="mt-1 font-mono text-xs"
+            rows={6}
+          />
         </div>
         <div className="col-span-2">
           <Label className="text-xs text-muted-foreground">
@@ -2029,6 +2137,7 @@ export default function LearnHub() {
   // Admin form
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingDoc, setEditingDoc] = useState<any | null>(null);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
 
   // tRPC
   const { data, isLoading, refetch } = trpc.learnHub.list.useQuery({
@@ -2069,6 +2178,31 @@ export default function LearnHub() {
     },
     onError: e => toast.error(e.message),
   });
+  const importDocsMut = trpc.learnHub.importDocs.useMutation({
+    onSuccess: res => {
+      toast.success(`已匯入 ${res.count} 篇文件`);
+      refetch();
+    },
+    onError: e => toast.error(e.message),
+  });
+
+  const handleImportDocs = async (file?: File) => {
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const normalized = Array.isArray(parsed) ? parsed : parsed.docs;
+      if (!Array.isArray(normalized) || normalized.length === 0) {
+        toast.error("匯入檔案格式錯誤，需為 docs 陣列");
+        return;
+      }
+      importDocsMut.mutate({ docs: normalized });
+    } catch {
+      toast.error("匯入失敗：請確認 JSON 格式");
+    } finally {
+      if (importInputRef.current) importInputRef.current.value = "";
+    }
+  };
 
   const docs = data?.items ?? [];
   const total = data?.total ?? 0;
@@ -2207,7 +2341,7 @@ export default function LearnHub() {
           <div>
             <h1 className="hs-h1 !mb-0 text-foreground">學習文件中心</h1>
             <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
-              文件教學、影片學習、互動測驗 — 全方位學習 AI 創作技巧
+              文件教學、影片學習、互動測驗 — 全站知識補充都在學習文件中心
             </p>
           </div>
         </div>
@@ -2261,14 +2395,32 @@ export default function LearnHub() {
               </span>
             )}
             {isAdmin && (
-              <Button
-                onClick={() => setShowCreateForm(true)}
-                className="gap-2 shrink-0 ml-auto"
-                size="sm"
-              >
-                <Plus className="w-4 h-4" />
-                新增文件
-              </Button>
+              <div className="ml-auto flex items-center gap-2">
+                <input
+                  ref={importInputRef}
+                  type="file"
+                  accept="application/json"
+                  className="hidden"
+                  onChange={e => handleImportDocs(e.target.files?.[0])}
+                />
+                <Button
+                  variant="outline"
+                  onClick={() => importInputRef.current?.click()}
+                  className="gap-2 shrink-0"
+                  size="sm"
+                >
+                  <Upload className="w-4 h-4" />
+                  匯入文件
+                </Button>
+                <Button
+                  onClick={() => setShowCreateForm(true)}
+                  className="gap-2 shrink-0"
+                  size="sm"
+                >
+                  <Plus className="w-4 h-4" />
+                  新增文件
+                </Button>
+              </div>
             )}
           </div>
 

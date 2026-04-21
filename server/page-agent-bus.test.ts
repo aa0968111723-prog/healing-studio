@@ -83,6 +83,45 @@ describe("coerceAgentAction", () => {
       .toEqual({ type: "focusElement", elementId: "generate-button", message: undefined });
   });
 
+  it("parses openDialog and migrates legacy top-level assetId into params", () => {
+    expect(
+      coerceAgentAction({ type: "openDialog", dialogId: "asset-detail", assetId: "42" })
+    ).toEqual({
+      type: "openDialog",
+      dialogId: "asset-detail",
+      params: { assetId: "42" },
+    });
+  });
+
+  it("keeps params.assetId when both params and legacy assetId exist", () => {
+    expect(
+      coerceAgentAction({
+        type: "openDialog",
+        dialogId: "asset-detail",
+        assetId: "42",
+        params: { assetId: "7", source: "panel" },
+      })
+    ).toEqual({
+      type: "openDialog",
+      dialogId: "asset-detail",
+      params: { assetId: "7", source: "panel" },
+    });
+  });
+
+  it("ignores non-object params for openDialog", () => {
+    expect(
+      coerceAgentAction({
+        type: "openDialog",
+        dialogId: "asset-detail",
+        params: ["bad-shape"],
+      })
+    ).toEqual({
+      type: "openDialog",
+      dialogId: "asset-detail",
+      params: undefined,
+    });
+  });
+
   it("returns null for unknown type", () => {
     expect(coerceAgentAction({ type: "launchRockets" })).toBeNull();
   });

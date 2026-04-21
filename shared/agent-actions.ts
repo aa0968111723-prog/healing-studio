@@ -335,10 +335,18 @@ export function coerceAgentAction(input: unknown): AgentAction | null {
     case "openDialog": {
       const dialogId = obj.dialogId ?? obj.payload;
       if (typeof dialogId !== "string") return null;
+      const legacyAssetId = obj.assetId;
+      const mergedParams =
+        obj.params && typeof obj.params === "object" && !Array.isArray(obj.params)
+          ? { ...obj.params }
+          : {};
+      if (legacyAssetId !== undefined && mergedParams.assetId === undefined) {
+        mergedParams.assetId = legacyAssetId;
+      }
       return {
         type: "openDialog",
         dialogId: String(dialogId),
-        params: obj.params && typeof obj.params === "object" ? obj.params : undefined,
+        params: Object.keys(mergedParams).length > 0 ? mergedParams : undefined,
       };
     }
     case "search": {
