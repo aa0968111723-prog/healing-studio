@@ -21,6 +21,7 @@ import {
   type FalCallInput,
 } from "./falModels";
 import { estimatePoints, getModelPricing } from "./modelPricing";
+import { serverEnv } from "../_core/env.validated";
 
 // ─── LangSmith 追蹤（fal.ai 多模態模型深度整合）──────────────────────────────
 
@@ -29,7 +30,7 @@ let _langSmithClient: import("langsmith").Client | null = null;
 async function getFalLangSmithClient(): Promise<
   import("langsmith").Client | null
 > {
-  const apiKey = process.env.LANGSMITH_API_KEY?.trim();
+  const apiKey = serverEnv.LANGSMITH_API_KEY?.trim();
   if (!apiKey) return null;
   if (_langSmithClient) return _langSmithClient;
   try {
@@ -37,7 +38,7 @@ async function getFalLangSmithClient(): Promise<
     _langSmithClient = new Client({
       apiKey,
       apiUrl:
-        process.env.LANGCHAIN_ENDPOINT || "https://api.smith.langchain.com",
+        serverEnv.LANGCHAIN_ENDPOINT || "https://api.smith.langchain.com",
     });
     return _langSmithClient;
   } catch {
@@ -65,7 +66,7 @@ async function trackFalLangSmith(opts: {
   const client = await getFalLangSmithClient();
   if (!client) return;
 
-  const projectName = process.env.LANGSMITH_PROJECT || "healing-studio";
+  const projectName = serverEnv.LANGSMITH_PROJECT || "網站";
   const endTime = Date.now();
   const startTime = endTime - opts.durationMs;
 

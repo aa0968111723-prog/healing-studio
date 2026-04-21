@@ -12,6 +12,7 @@ import { serverEnv } from "../_core/env.validated";
 import { getDb } from "../db";
 import { aiUsageEvents, rateLimitRules } from "../../drizzle/schema";
 import { eq, and, gte, sql, or, isNull } from "drizzle-orm";
+import { traceToolRun } from "../services/langsmithTracer";
 
 // ─── Provider Config ─────────────────────────────────────────────────────────
 
@@ -286,6 +287,13 @@ aiProxyRouter.all("/api/ai/:provider/*", async (req: Request, res: Response) => 
           ? JSON.stringify(req.body)
           : undefined;
 
+  const requestBodyByteLength =
+    typeof requestBody === "string"
+      ? Buffer.byteLength(requestBody)
+      : requestBody instanceof Uint8Array
+        ? requestBody.byteLength
+        : 0;
+
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 120_000);
@@ -314,7 +322,8 @@ aiProxyRouter.all("/api/ai/:provider/*", async (req: Request, res: Response) => 
     res.status(upstreamRes.status);
 
     const buffer = await upstreamRes.arrayBuffer();
-    res.send(Buffer.from(buffer));
+    const payload = Buffer.from(buffer);
+    res.send(payload);
   } catch (err: unknown) {
     const isAbortError = err instanceof Error && err.name === "AbortError";
     if (isAbortError) {
@@ -332,6 +341,16 @@ aiProxyRouter.all("/api/ai/:provider/*", async (req: Request, res: Response) => 
 
   // Async: log usage event + PostHog (non-blocking)
   const endpoint = req.params[0] || "/";
+  const bodyObj =
+    req.body && typeof req.body === "object" && !Array.isArray(req.body)
+      ? (req.body as Record<string, unknown>)
+      : {};
+  const inferredModel =
+    (typeof req.query.model === "string" && req.query.model) ||
+    (typeof bodyObj.model === "string" && bodyObj.model) ||
+    (typeof bodyObj.model_id === "string" && bodyObj.model_id) ||
+    endpoint.split("/").find(p => p.includes("fal-ai/")) ||
+    "";
   setImmediate(async () => {
     try {
       const db = await getDb();
@@ -357,6 +376,28 @@ aiProxyRouter.all("/api/ai/:provider/*", async (req: Request, res: Response) => 
       status,
       latencyMs,
       upstreamStatus,
+    });
+
+    void traceToolRun({
+      runName: `api-proxy/${providerKey}`,
+      provider: providerKey,
+      model: String(inferredModel),
+      route: `/api/ai/${providerKey}/${endpoint}`,
+      method: req.method,
+      userId: userId ?? null,
+      inputs: {
+        endpoint,
+        query: req.query as Record<string, unknown>,
+        body_keys: Object.keys(bodyObj),
+        request_bytes: requestBodyByteLength,
+      },
+      outputs: {
+        status,
+        upstream_status: upstreamStatus,
+        response_sent: res.headersSent,
+      },
+      error: errorMessage,
+      durationMs: latencyMs,
     });
   });
 });

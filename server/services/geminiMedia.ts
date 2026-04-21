@@ -9,6 +9,7 @@
  *
  * 所有端點均透過 Google AI Studio / Gemini API Key
  */
+import { serverEnv } from "../_core/env.validated";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -215,7 +216,7 @@ export const GEMINI_TTS_VOICES = [
 
 let _geminiLSClient: import("langsmith").Client | null = null;
 async function getGeminiLSClient(): Promise<import("langsmith").Client | null> {
-  const key = process.env.LANGSMITH_API_KEY;
+  const key = serverEnv.LANGSMITH_API_KEY;
   if (!key) return null;
   if (_geminiLSClient) return _geminiLSClient;
   try {
@@ -223,7 +224,7 @@ async function getGeminiLSClient(): Promise<import("langsmith").Client | null> {
     _geminiLSClient = new Client({
       apiKey: key,
       apiUrl:
-        process.env.LANGCHAIN_ENDPOINT || "https://api.smith.langchain.com",
+        serverEnv.LANGCHAIN_ENDPOINT || "https://api.smith.langchain.com",
     });
     return _geminiLSClient;
   } catch {
@@ -242,7 +243,7 @@ async function trackGeminiMedia(opts: {
 }): Promise<void> {
   const client = await getGeminiLSClient();
   if (!client) return;
-  const projectName = process.env.LANGSMITH_PROJECT || "healing-studio";
+  const projectName = serverEnv.LANGSMITH_PROJECT || "網站";
   const endTime = Date.now();
   try {
     await client.createRun({

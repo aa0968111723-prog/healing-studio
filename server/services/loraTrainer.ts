@@ -12,6 +12,7 @@ import JSZip from "jszip";
 import { getReplicateClient } from "./replicateClient.js";
 import { storagePut } from "../storage.js";
 import { updateFineTunedModel, updateBackgroundJob } from "../db.js";
+import { traceToolRun } from "./langsmithTracer";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -127,6 +128,7 @@ async function submitReplicateTraining(params: {
   epochs: number;
   learningRate: number;
 }): Promise<string> {
+  const startedAt = Date.now();
   const replicate = getReplicateClient();
   const steps = Math.min(Math.max(params.epochs * 30, 200), 2000);
 
@@ -135,17 +137,42 @@ async function submitReplicateTraining(params: {
     `Submitting Replicate training: model=ostris/flux-dev-lora-trainer, steps=${steps}, lr=${params.learningRate}, trigger="${params.triggerWord}"`
   );
 
-  const prediction = await replicate.predictions.create({
-    model: "ostris/flux-dev-lora-trainer",
-    input: {
-      input_images: params.zipUrl,
-      steps: steps,
-      learning_rate: params.learningRate,
-      ...(params.triggerWord ? { caption_prefix: params.triggerWord } : {}),
-    },
-  });
+  let prediction: any;
+  try {
+    prediction = await replicate.predictions.create({
+      model: "ostris/flux-dev-lora-trainer",
+      input: {
+        input_images: params.zipUrl,
+        steps: steps,
+        learning_rate: params.learningRate,
+        ...(params.triggerWord ? { caption_prefix: params.triggerWord } : {}),
+      },
+    });
+  } catch (error) {
+    void traceToolRun({
+      runName: "lora-trainer/replicate-submit",
+      provider: "replicate",
+      model: "ostris/flux-dev-lora-trainer",
+      route: "service.loraTrainer.submit",
+      method: "POST",
+      inputs: { steps, has_trigger_word: Boolean(params.triggerWord) },
+      error: error instanceof Error ? error.message : String(error),
+      durationMs: Date.now() - startedAt,
+    });
+    throw error;
+  }
 
   const predictionId = prediction.id;
+  void traceToolRun({
+    runName: "lora-trainer/replicate-submit",
+    provider: "replicate",
+    model: "ostris/flux-dev-lora-trainer",
+    route: "service.loraTrainer.submit",
+    method: "POST",
+    inputs: { steps, has_trigger_word: Boolean(params.triggerWord) },
+    outputs: { prediction_id: predictionId },
+    durationMs: Date.now() - startedAt,
+  });
   log("info", `Replicate prediction created: ${predictionId}`);
   return predictionId;
 }
