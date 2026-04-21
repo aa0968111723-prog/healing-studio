@@ -71,8 +71,9 @@ import {
 /** 5 大推理大腦備選清單（含 Vertex AI 模型） */
 export const REASONING_MODEL_CATALOG = {
   director: {
-    label: "全站導演",
-    description: "統籌創作流程、分鏡、敘事結構",
+    label: "導演 AI",
+    description: "統籌創作流程、分鏡、敘事結構（對應 /director）",
+    targetPath: "/director",
     options: [
       // ── Gemini / Vertex AI ──
       { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro ✦", tier: "premium" },
@@ -163,8 +164,9 @@ export const REASONING_MODEL_CATALOG = {
 /** 生成引擎備選清單（圖片/影片/音頻/語音 + Gemini + ElevenLabs 完整目錄） */
 export const GENERATION_ENGINE_CATALOG = {
   imageEngine: {
-    label: "圖片引擎",
-    description: "AI 圖像生成（文字轉圖像）",
+    label: "圖片工作室",
+    description: "AI 圖像生成（對應 /image-studio）",
+    targetPath: "/image-studio",
     options: [
       // ── Fal.ai ──
       { value: "fal/flux-pro-1.1", label: "Flux Pro 1.1 ✦", tier: "premium" },
@@ -197,8 +199,9 @@ export const GENERATION_ENGINE_CATALOG = {
     ],
   },
   videoEngine: {
-    label: "影片引擎",
-    description: "AI 影片生成（文字/圖片轉視頻）",
+    label: "影片工作室",
+    description: "AI 影片生成（對應 /video-studio）",
+    targetPath: "/video-studio",
     options: [
       // ── Fal.ai 文字轉影片 ──
       {
@@ -240,8 +243,9 @@ export const GENERATION_ENGINE_CATALOG = {
     ],
   },
   audioEngine: {
-    label: "音樂引擎",
-    description: "AI 音樂/音效生成",
+    label: "配音配樂工作室（配樂）",
+    description: "AI 音樂/音效生成（對應 /pro-studio）",
+    targetPath: "/pro-studio",
     options: [
       // ── Suno ──
       { value: "suno-v4", label: "Suno V4 ✦", tier: "premium" },
@@ -280,8 +284,9 @@ export const GENERATION_ENGINE_CATALOG = {
     ],
   },
   voiceEngine: {
-    label: "配音引擎",
-    description: "AI 語音合成（文字轉語音）",
+    label: "配音配樂工作室（配音）",
+    description: "AI 語音合成（對應 /pro-studio）",
+    targetPath: "/pro-studio",
     options: [
       // ── ElevenLabs ──
       {
