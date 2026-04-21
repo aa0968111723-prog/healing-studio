@@ -139,6 +139,7 @@ const sidebarIconByPageId: Record<string, LucideIcon> = {
   credits: Coins,
   learn: BookOpen,
   feedback: MessageSquare,
+  langsmith: Monitor,
   settings: Settings,
 };
 
@@ -197,7 +198,9 @@ sidebarStructure.push(
   ])
 );
 sidebarStructure.push(createGroupEntry("規劃筆記", ["notes", "calendar"]));
-sidebarStructure.push(createGroupEntry("數據洞察", ["dashboard", "credits"]));
+sidebarStructure.push(
+  createGroupEntry("數據洞察", ["dashboard", "credits", "langsmith"])
+);
 for (const tailId of ["learn", "feedback", "settings"]) {
   const page = sidebarPagesById.get(tailId);
   if (page) {
