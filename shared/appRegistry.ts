@@ -343,6 +343,27 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     orbHints: ["幫我把這段記到筆記"],
   },
   {
+    id: "langsmith",
+    label: "AI 監控中心",
+    path: "/langsmith",
+    group: "settings",
+    description: "LangSmith 追蹤分析與模型監控儀表板",
+    aliases: ["langsmith", "監控", "追蹤", "模型監控", "ai 監控中心"],
+    showInSidebar: true,
+    showInAgentHome: true,
+    agentEntryPriority: 30,
+    supportsPageAgent: true,
+    quickActions: [
+      {
+        id: "open-langsmith",
+        label: "打開監控",
+        description: "查看最近 LLM 追蹤、錯誤率與延遲趨勢",
+        path: "/langsmith",
+      },
+    ],
+    orbHints: ["帶我看 LangSmith 監控", "我想查最近模型呼叫的錯誤和延遲"],
+  },
+  {
     id: "settings",
     label: "個人設定",
     path: "/settings",
