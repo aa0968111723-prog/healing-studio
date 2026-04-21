@@ -519,11 +519,11 @@ export default function Home() {
         <OnboardingFlow
           onComplete={() => {
             setShowOnboarding(false);
-            navigate("/studio");
+            navigate("/agent");
           }}
           onSkip={() => {
             setShowOnboarding(false);
-            navigate("/studio");
+            navigate("/agent");
           }}
         />
       </Suspense>
@@ -593,11 +593,11 @@ export default function Home() {
             </div>
             {isAuthenticated ? (
               <Button
-                onClick={() => navigate("/studio")}
+                onClick={() => navigate("/agent")}
                 className={`rounded-2xl gap-1.5 text-sm h-10 px-4 sm:px-6 btn-healing ${s.btnPrimary} ${s.btnPrimaryText}`}
               >
-                <span className="hidden sm:inline">進入工作室</span>
-                <span className="sm:hidden">工作室</span>
+                <span className="hidden sm:inline">啟動光球代理</span>
+                <span className="sm:hidden">光球</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </Button>
             ) : (
@@ -716,11 +716,11 @@ export default function Home() {
                 <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto px-4 sm:px-0">
                   <Button
                     size="lg"
-                    onClick={() => navigate("/studio")}
+                    onClick={() => navigate("/agent")}
                     className={`rounded-2xl h-11 sm:h-12 px-6 sm:px-8 gap-2 text-sm shadow-lg hover:shadow-xl btn-healing w-full sm:w-auto ${s.btnPrimary} ${s.btnPrimaryText}`}
                   >
                     <Sparkles className="w-4 h-4" />
-                    開始創作
+                    開始創作（光球帶路）
                   </Button>
                   <Button
                     variant="outline"
@@ -1161,10 +1161,10 @@ export default function Home() {
                   {isAuthenticated ? (
                     <Button
                       size="lg"
-                      onClick={() => navigate("/studio")}
+                      onClick={() => navigate("/agent")}
                       className={`rounded-2xl h-11 sm:h-12 px-8 sm:px-10 gap-2 text-sm btn-healing ${s.btnPrimary} ${s.btnPrimaryText}`}
                     >
-                      進入工作室
+                      啟動全站光球代理
                       <ArrowRight className="w-4 h-4" />
                     </Button>
                   ) : (

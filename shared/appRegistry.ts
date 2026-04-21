@@ -54,11 +54,11 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
   },
   {
     id: "agent-chat",
-    label: "光球聊天",
+    label: "全站光球代理",
     path: "/agent",
     group: "orb",
-    description: "全站任務代理聊天入口",
-    aliases: ["光球", "agent", "聊天", "助手"],
+    description: "先理解需求，再帶你去正確功能並幫忙操作",
+    aliases: ["光球", "全站光球代理", "agent", "聊天", "助手"],
     showInSidebar: true,
     showInAgentHome: true,
     agentEntryPriority: 1,
@@ -67,11 +67,20 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       {
         id: "start-guided-flow",
         label: "幫我開始",
-        description: "用一句話開始任務導引",
-        prompt: "我不知道從哪開始，請一步步帶我。",
+        description: "描述想要的成果，光球會先問清需求後帶路",
+        prompt: "我想用光球幫我找到最適合的入口並教我怎麼做。",
+      },
+      {
+        id: "diagnose-needs",
+        label: "幫我拆解需求",
+        description: "告訴光球成品、用途、素材，讓它安排流程",
+        prompt: "我想做一個作品，但不確定要從哪開始。我的用途是____，手上有/沒有素材，請幫我安排步驟和頁面。",
       },
     ],
-    orbHints: ["我不知道從哪裡開始", "請你帶我做第一步"],
+    orbHints: [
+      "我不知道從哪裡開始，請你帶我做第一步",
+      "我想做的成品是____，用途是____，幫我選頁面並告訴我怎麼做",
+    ],
   },
   {
     id: "studio",
