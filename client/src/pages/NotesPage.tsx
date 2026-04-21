@@ -201,9 +201,9 @@ export default function NotesPage() {
         hint: "切換只顯示某個 noteType（note/script/calendar_event）或全部",
       },
       {
-        action: "setParam",
-        label: "搜尋字串",
-        hint: "用 setParam key='search' value=<關鍵字> 過濾標題/內容/標籤；建議格式：主題 + 任務狀態 + 角色/場景",
+        action: "search",
+        label: "搜尋筆記",
+        hint: "搜尋筆記標題、內容或標籤；建議格式：主題 + 任務狀態 + 角色/場景",
       },
       {
         action: "reset",
@@ -235,12 +235,9 @@ export default function NotesPage() {
           setTypeFilter(action.tabId as NoteTypeFilter);
           return { ok: true, message: `切到「${action.tabId}」` };
         }
-        case "setParam": {
-          if (action.key === "search") {
-            setSearch(typeof action.value === "string" ? action.value : "");
-            return { ok: true, message: "已套用搜尋" };
-          }
-          return { ok: false, reason: `unknown param key: ${action.key}` };
+        case "search": {
+          setSearch(action.query);
+          return { ok: true, message: "已套用搜尋" };
         }
         case "reset": {
           setTypeFilter("all");

@@ -3319,6 +3319,19 @@ export default function ImageStudio() {
       hint: "清空提示詞、氛圍、參考圖、結果",
     },
     {
+      action: "openDialog",
+      label: "開啟/關閉面板",
+      options: [
+        { id: "settings", label: "設定面板" },
+        { id: "advanced", label: "進階設定" },
+        { id: "history", label: "歷史記錄" },
+        { id: "close-settings", label: "關閉設定" },
+        { id: "close-advanced", label: "關閉進階設定" },
+        { id: "close-history", label: "關閉歷史" },
+      ],
+      hint: "可開啟或關閉設定面板、進階設定、歷史記錄等 UI 元件",
+    },
+    {
       action: "setParam",
       label: "參數",
       hint: activeTab === "t2i"
@@ -3526,6 +3539,32 @@ export default function ImageStudio() {
         }
         case "focusElement":
           return { ok: true };
+        case "openDialog": {
+          const { dialogId } = action;
+          switch (dialogId) {
+            case "settings":
+              setShowSettings(true);
+              return { ok: true, message: "已開啟設定面板" };
+            case "advanced":
+            case "advanced-settings":
+              setShowAdvancedT2i(true);
+              return { ok: true, message: "已開啟進階設定" };
+            case "history":
+              setShowHistory(true);
+              return { ok: true, message: "已開啟歷史記錄" };
+            case "close-settings":
+              setShowSettings(false);
+              return { ok: true, message: "已關閉設定面板" };
+            case "close-advanced":
+              setShowAdvancedT2i(false);
+              return { ok: true, message: "已關閉進階設定" };
+            case "close-history":
+              setShowHistory(false);
+              return { ok: true, message: "已關閉歷史記錄" };
+            default:
+              return { ok: false, reason: `未知的 dialogId: ${dialogId}` };
+          }
+        }
         default:
           return { ok: false, reason: `unsupported action` };
       }

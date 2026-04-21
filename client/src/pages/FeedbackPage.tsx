@@ -1,6 +1,12 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
+import {
+  useRegisterPageAgent,
+  type AgentAction,
+  type AgentActionResult,
+  type AgentCapability,
+} from "@/contexts/PageAgentContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -100,6 +106,100 @@ export default function FeedbackPage() {
       toast.success("回饋已提交");
     },
     onError: e => toast.error(e.message),
+  });
+
+  // ─── Agent Integration ────────────────────────────────────────────────────
+  const agentCapabilities: AgentCapability[] = [
+    {
+      action: "fillPrompt",
+      label: "填入回饋內容",
+      hint: "可以填入標題或描述文字",
+    },
+    {
+      action: "setParam",
+      label: "設定參數",
+      options: [
+        { id: "category", label: "類別", description: "bug / feature_request / quality_issue / general" },
+        { id: "priority", label: "優先級", description: "low / medium / high / critical" },
+      ],
+      hint: "可設定類別 (category) 和優先級 (priority)",
+    },
+    {
+      action: "submit",
+      label: "提交回饋",
+      hint: "送出當前填寫的回饋表單",
+    },
+  ];
+
+  useRegisterPageAgent({
+    pageId: "feedback",
+    pageLabel: "回饋中心",
+    pagePath: "/feedback",
+    capabilities: agentCapabilities,
+    state: {
+      titleLength: title.length,
+      descriptionLength: description.length,
+      category,
+      priority,
+      canSubmit: title.trim().length > 0,
+      isSubmitting: createFeedback.isPending,
+    },
+    handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      switch (action.type) {
+        case "fillPrompt": {
+          const slot = action.slot ?? "description";
+          if (slot === "title" || slot === "prompt") {
+            if (action.append) {
+              setTitle(prev => (prev ? `${prev} ${action.text}` : action.text));
+            } else {
+              setTitle(action.text);
+            }
+            return { ok: true, message: "已填入標題" };
+          } else {
+            // Default to description
+            if (action.append) {
+              setDescription(prev => (prev ? `${prev}\n${action.text}` : action.text));
+            } else {
+              setDescription(action.text);
+            }
+            return { ok: true, message: "已填入描述" };
+          }
+        }
+        case "setParam": {
+          const { key, value } = action;
+          switch (key) {
+            case "category":
+              if (typeof value === "string" && ["bug", "feature_request", "quality_issue", "general"].includes(value)) {
+                setCategory(value as typeof category);
+                const label = categoryInfo[value]?.label || value;
+                return { ok: true, message: `類別已設為「${label}」` };
+              }
+              return { ok: false, reason: "無效的類別值" };
+            case "priority":
+              if (typeof value === "string" && ["low", "medium", "high", "critical"].includes(value)) {
+                setPriority(value as typeof priority);
+                const label = priorityLabels[value]?.label || value;
+                return { ok: true, message: `優先級已設為「${label}」` };
+              }
+              return { ok: false, reason: "無效的優先級值" };
+            default:
+              return { ok: false, reason: `不支援的參數: ${key}` };
+          }
+        }
+        case "submit": {
+          if (!title.trim()) {
+            return { ok: false, reason: "請先填寫標題" };
+          }
+          if (createFeedback.isPending) {
+            return { ok: false, reason: "正在提交中，請稍候" };
+          }
+          createFeedback.mutate({ title, description, category, priority });
+          return { ok: true, message: "正在提交回饋..." };
+        }
+        default:
+          return { ok: false, reason: `不支援的動作: ${action.type}` };
+      }
+    },
   });
 
   return (

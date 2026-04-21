@@ -154,8 +154,25 @@ async function downloadFile(url: string, filename: string) {
 }
 
 // ─── Upload Dialog ──────────────────────────────────────────────────────────
-function UploadDialog({ onSuccess }: { onSuccess: () => void }) {
-  const [open, setOpen] = useState(false);
+function UploadDialog({
+  onSuccess,
+  open,
+  onOpenChange,
+}: {
+  onSuccess: () => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = open !== undefined;
+  const actualOpen = isControlled ? open : internalOpen;
+  const setOpen = (value: boolean) => {
+    if (isControlled) {
+      onOpenChange?.(value);
+    } else {
+      setInternalOpen(value);
+    }
+  };
   const [title, setTitle] = useState("");
   const [assetType, setAssetType] = useState<
     "image" | "video" | "audio" | "voice" | "script" | "zip_bundle"
@@ -236,7 +253,7 @@ function UploadDialog({ onSuccess }: { onSuccess: () => void }) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={actualOpen} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button className="rounded-xl gap-1.5 text-sm" size="sm">
           <Plus className="w-4 h-4" /> 上傳資產
@@ -348,6 +365,7 @@ export default function AssetsLibrary() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<AssetTypeFilter>("all");
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
 
   const myAssetsQuery = trpc.assets.myAssets.useQuery(
     { assetType: typeFilter, search: search || undefined },
@@ -410,8 +428,22 @@ export default function AssetsLibrary() {
       },
       {
         action: "setParam",
-        label: "類型 / 搜尋",
-        hint: "setParam key='assetType' value=all|image|video|audio|voice|script|zip_bundle；key='search' value=<關鍵字>。建議搜尋詞格式：用途 + 角色/場景 + 版本。",
+        label: "類型篩選",
+        hint: "setParam key='assetType' value=all|image|video|audio|voice|script|zip_bundle",
+      },
+      {
+        action: "search",
+        label: "搜尋資產",
+        hint: "搜尋資產標題或內容。建議搜尋詞格式：用途 + 角色/場景 + 版本",
+      },
+      {
+        action: "openDialog",
+        label: "開啟/關閉面板",
+        options: [
+          { id: "upload", label: "上傳資產對話框" },
+          { id: "close-all", label: "關閉所有展開" },
+        ],
+        hint: "可開啟上傳對話框，或使用 assetId 參數展開特定資產詳細資訊",
       },
       {
         action: "reset",
@@ -452,11 +484,34 @@ export default function AssetsLibrary() {
             setTypeFilter(v as AssetTypeFilter);
             return { ok: true, message: `類型切到「${v}」` };
           }
-          if (action.key === "search") {
-            setSearch(typeof action.value === "string" ? action.value : "");
-            return { ok: true, message: "已套用搜尋" };
-          }
           return { ok: false, reason: `unknown param key: ${action.key}` };
+        }
+        case "search": {
+          setSearch(action.query);
+          return { ok: true, message: "已套用搜尋" };
+        }
+        case "openDialog": {
+          const { dialogId, assetId } = action;
+          switch (dialogId) {
+            case "upload":
+              setShowUploadDialog(true);
+              return { ok: true, message: "已開啟上傳對話框" };
+            case "close-all":
+              setExpandedId(null);
+              setShowUploadDialog(false);
+              return { ok: true, message: "已關閉所有展開" };
+            default:
+              // If assetId is provided, expand that asset
+              if (assetId !== undefined) {
+                const id = typeof assetId === "number" ? assetId : parseInt(String(assetId));
+                if (isNaN(id)) {
+                  return { ok: false, reason: `無效的資產 ID: ${assetId}` };
+                }
+                setExpandedId(id);
+                return { ok: true, message: `已展開資產 #${id}` };
+              }
+              return { ok: false, reason: `未知的 dialogId: ${dialogId}` };
+          }
         }
         case "reset": {
           setTypeFilter("all");
@@ -484,7 +539,11 @@ export default function AssetsLibrary() {
           <Badge variant="secondary" className="rounded-lg text-xs">
             {totalMyAssets} 個資產
           </Badge>
-          <UploadDialog onSuccess={() => myAssetsQuery.refetch()} />
+          <UploadDialog
+            onSuccess={() => myAssetsQuery.refetch()}
+            open={showUploadDialog}
+            onOpenChange={setShowUploadDialog}
+          />
         </div>
       </div>
 

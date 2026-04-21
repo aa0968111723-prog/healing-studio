@@ -281,9 +281,9 @@ export default function HistoryPage() {
         hint: "切換目前列表只顯示某個 modality（image/video/audio/voice）或已收藏",
       },
       {
-        action: "setParam",
-        label: "搜尋字串",
-        hint: "用 setParam key='search' value=<關鍵字> 過濾標題/提示詞；建議可用『模型名 + 風格 + 失敗症狀』做回溯",
+        action: "search",
+        label: "搜尋歷史",
+        hint: "搜尋標題或提示詞內容；建議可用『模型名 + 風格 + 失敗症狀』做回溯",
       },
       {
         action: "reset",
@@ -315,12 +315,9 @@ export default function HistoryPage() {
           setFilter(action.tabId as typeof filter);
           return { ok: true, message: `切到「${action.tabId}」` };
         }
-        case "setParam": {
-          if (action.key === "search") {
-            setSearchQuery(typeof action.value === "string" ? action.value : "");
-            return { ok: true, message: "已套用搜尋" };
-          }
-          return { ok: false, reason: `unknown param key: ${action.key}` };
+        case "search": {
+          setSearchQuery(action.query);
+          return { ok: true, message: "已套用搜尋" };
         }
         case "reset": {
           setFilter("all");

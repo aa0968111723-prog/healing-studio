@@ -278,9 +278,14 @@ export default function SharedSpace() {
       },
       {
         action: "setParam",
-        label: "搜尋 / 類型",
+        label: "類型篩選",
         options: SHARED_TYPE_OPTIONS,
-        hint: "setParam key='search' value=<關鍵字>；key='assetType' value=all|image|video|audio|voice|script",
+        hint: "setParam key='assetType' value=all|image|video|audio|voice|script",
+      },
+      {
+        action: "search",
+        label: "搜尋共享內容",
+        hint: "搜尋共享素材或模型",
       },
       {
         action: "reset",
@@ -319,12 +324,6 @@ export default function SharedSpace() {
           return { ok: true, message: `切到「${action.tabId}」分頁` };
         }
         case "setParam": {
-          if (action.key === "search") {
-            setSearchQuery(
-              typeof action.value === "string" ? action.value : ""
-            );
-            return { ok: true, message: "已套用搜尋" };
-          }
           if (action.key === "assetType") {
             const v = String(action.value ?? "");
             const valid = ["all", "image", "video", "audio", "voice", "script"];
@@ -336,6 +335,10 @@ export default function SharedSpace() {
             return { ok: true, message: `類型切到「${v}」` };
           }
           return { ok: false, reason: `unknown param key: ${action.key}` };
+        }
+        case "search": {
+          setSearchQuery(action.query);
+          return { ok: true, message: "已套用搜尋" };
         }
         case "navigate": {
           if (!SHARED_NAV_ALLOWLIST.has(action.path)) {

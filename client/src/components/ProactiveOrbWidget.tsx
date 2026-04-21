@@ -58,6 +58,12 @@ import { useLocation } from "wouter";
 import { getPageByPath } from "@/config/appRegistry";
 import { useIsMobile } from "@/hooks/useMobile";
 import { cn } from "@/lib/utils";
+import {
+  useGlobalOrbChat,
+  formatRelativeTime,
+  getPageEmoji,
+  formatMessageMetadata,
+} from "@/contexts/GlobalOrbChatContext";
 
 type Props = {
   className?: string;
@@ -630,6 +636,9 @@ export default memo(function ProactiveOrbWidget({
   const orbControls = useAnimation();
   const isMobile = useIsMobile();
 
+  // ─── Global Orb Chat Integration ──────────────────────────────────────
+  const globalChat = useGlobalOrbChat();
+
   // Drag position state
   const [position, setPosition] = useState<{ x: number; y: number }>(
     () => loadPosition() || { x: 0, y: 0 }
@@ -652,12 +661,12 @@ export default memo(function ProactiveOrbWidget({
   const [panelView, setPanelView] = useState<
     "main" | "chat" | "inspiration" | "focus-flow"
   >("main");
-  const [chatInput, setChatInput] = useState("");
-  const [chatMessages, setChatMessages] = useState<
-    Array<{ role: "user" | "orb"; text: string }>
-  >([]);
-  const [isChatLoading, setIsChatLoading] = useState(false);
-  const [chatSuggestions, setChatSuggestions] = useState<string[]>([]);
+  // Use global chat state instead of local state
+  const chatInput = globalChat.input;
+  const setChatInput = globalChat.setInput;
+  const chatMessages = globalChat.messages; // Keep full message objects for metadata
+  const isChatLoading = globalChat.isSending;
+  const chatSuggestions = globalChat.suggestions.map(s => s.text);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
 
   // Home position
@@ -1027,15 +1036,10 @@ export default memo(function ProactiveOrbWidget({
       if (view === "chat") {
         const pageLabel = currentRegistryPage?.label ?? pageContext?.pageLabel;
         setPanelView("chat");
-        setChatMessages([
-          {
-            role: "orb",
-            text: pageLabel
-              ? `我現在用「${pageLabel}」頁面狀態陪你聊，想先調參數、流程還是素材？`
-              : greeting,
-          },
-        ]);
-        if (pageLabel) {
+        // Open global chat and set initial input if needed
+        globalChat.open();
+        if (pageLabel && globalChat.messages.length <= 1) {
+          // Only set input if chat history is minimal (just welcome message)
           setChatInput(`請先告訴我「${pageLabel}」這頁的最佳起手步驟。`);
         }
       } else if (view === "focus-flow") {
@@ -1045,7 +1049,7 @@ export default memo(function ProactiveOrbWidget({
       }
       setShowPanel(true);
     },
-    [greeting, currentRegistryPage?.label, pageContext?.pageLabel]
+    [currentRegistryPage?.label, pageContext?.pageLabel, globalChat, setChatInput]
   );
 
   // ─── Quick action handlers ───────────────────────────────────────────
@@ -1065,44 +1069,23 @@ export default memo(function ProactiveOrbWidget({
         }
         case "chat":
           setPanelView("chat");
-          setChatMessages([
-            {
-              role: "orb",
-              text: greeting,
-            },
-          ]);
+          globalChat.open();
           break;
         case "chat-healing":
           setPanelView("chat");
-          setChatMessages([
-            {
-              role: "orb",
-              text: "🌿 告訴我你現在的心情，我來幫你找到適合的創作方向。",
-            },
-          ]);
+          globalChat.open();
           setChatInput("我現在的心情是⋯⋯");
           break;
         case "page-deep-dive": {
           const pageLabel = currentRegistryPage?.label ?? pageContext?.pageLabel ?? "這一頁";
           setPanelView("chat");
-          setChatMessages([
-            {
-              role: "orb",
-              text: `我會用「${pageLabel}」當前狀態，給你這頁最重要的下一步與參數建議。`,
-            },
-          ]);
+          globalChat.open();
           setChatInput(`請解說「${pageLabel}」這一頁，先做哪三步最有效。`);
           break;
         }
         case "studio-workflow-bootstrap":
           setPanelView("chat");
-          setChatMessages([
-            {
-              role: "orb",
-              text:
-                "好，先從創作工作室打底：我先切到圖片模態與快速模式，並打開工具箱素材頁，接著你再選模型與風格。",
-            },
-          ]);
+          globalChat.open();
           setChatInput("接著帶我做：模態→模式→素材→模型→送出第一版。");
           await pageAgent.dispatchMany(
             [
@@ -1166,13 +1149,13 @@ export default memo(function ProactiveOrbWidget({
             };
             const seedMsg = topicHints[action] ?? "有什麼想聊的嗎？";
             setPanelView("chat");
-            setChatMessages([{ role: "orb", text: greeting }]);
+            globalChat.open();
             setChatInput(seedMsg);
           }
           break;
       }
     },
-    [onApplyInspiration, onRestartTour, greeting, showFeedback, currentRegistryPage?.label, pageContext?.pageLabel, pageAgent]
+    [onApplyInspiration, onRestartTour, showFeedback, currentRegistryPage?.label, pageContext?.pageLabel, pageAgent, globalChat, setChatInput]
   );
 
   const handleRegistryQuickAction = useCallback(
@@ -1199,23 +1182,12 @@ export default memo(function ProactiveOrbWidget({
     [onNavigate, pageAgent, showFeedback]
   );
 
-  // ─── AI chat mutation ─────────────────────────────────────────────────
-  const aiChatMutation = trpc.ai.chat.useMutation();
-
   // ─── Chat handler (with real LLM + conversation history) ─────────────
 
   const handleChatSend = useCallback(async () => {
     if (!chatInput.trim() || isChatLoading) return;
 
     const userMsg = chatInput.trim();
-    const updatedMessages = [
-      ...chatMessages,
-      { role: "user" as const, text: userMsg },
-    ];
-    setChatMessages(updatedMessages);
-    setChatInput("");
-    setChatSuggestions([]);
-    setIsChatLoading(true);
 
     // Check for modality keywords to trigger UI side effects
     const lower = userMsg.toLowerCase();
@@ -1235,117 +1207,14 @@ export default memo(function ProactiveOrbWidget({
       onSwitchModality?.("voice");
     }
 
-    try {
-      // Build history for the LLM (exclude the greeting from orb since it's not part of the real history)
-      const llmMessages = updatedMessages
-        .filter(m => !(m.role === "orb" && chatMessages.indexOf(m) === 0)) // skip initial greeting
-        .map(m => ({
-          role: m.role === "user" ? ("user" as const) : ("assistant" as const),
-          content: m.text,
-        }))
-        .filter(m => m.role === "user" || m.content !== greeting); // skip greeting bubble
-
-      // Build page context string for LLM
-      const contextParts = [pageContext?.pageLabel];
-      if (pageContext?.activeModel)
-        contextParts.push(`模型: ${pageContext.activeModel}`);
-      if (pageContext?.activeTab)
-        contextParts.push(`分頁: ${pageContext.activeTab}`);
-      const contextStr = pageContext
-        ? contextParts.filter(Boolean).join(" · ")
-        : undefined;
-
-      const data = await aiChatMutation.mutateAsync({
-        messages: llmMessages,
-        personality,
-        context: contextStr,
-        // Phase 1.5：送上結構化頁面 snapshot + 最近回饋，讓 LLM 真正看懂這頁
-        pageSnapshot: pageAgent.snapshot ?? undefined,
-        recentFeedback: pageAgent.recentFeedback,
-      });
-      setChatMessages(prev => [...prev, { role: "orb", text: data.reply }]);
-
-      // Capture quick-reply suggestions from LLM response
-      const llmSuggestions = (data as { suggestions?: string[] }).suggestions ?? [];
-      if (llmSuggestions.length > 0) {
-        setChatSuggestions(llmSuggestions.slice(0, 4));
-      }
-
-      // Phase 1.5：若 LLM 附了 INTENT 摘要，先浮顯「光球想做什麼」給使用者看
-      const intentSummary =
-        typeof (data as { intent?: string | null }).intent === "string"
-          ? ((data as { intent?: string | null }).intent as string)
-          : undefined;
-      const askBeforeAct = (data as { askBeforeAct?: boolean }).askBeforeAct === true;
-
-      // Handle agent actions from LLM response
-      if (data.actions && Array.isArray(data.actions)) {
-        // 先走既有的 callbacks（向後相容，不影響 Studio 舊路徑）
-        for (const action of data.actions) {
-          switch (action.type) {
-            case "navigate":
-              onNavigate?.(action.payload);
-              break;
-            case "modality":
-              if (
-                ["image", "video", "audio", "voice"].includes(action.payload)
-              ) {
-                onSwitchModality?.(
-                  action.payload as "image" | "video" | "audio" | "voice"
-                );
-              }
-              break;
-            case "preset": {
-              const preset = INSPIRATION_PRESETS.find(
-                p => p.label === action.payload
-              );
-              if (preset) {
-                onApplyInspiration?.(preset.blocks);
-                showFeedback(`已套用「${preset.label}」靈感 ${preset.emoji}`);
-              }
-              break;
-            }
-          }
-        }
-
-        // 同時把結構化 actions 丟進 PageAgent bus。
-        // PageAgentContext.dispatch 內部會自動：
-        //   - 非破壞性動作（fillPrompt / setModel / setTab…）→ 直接執行
-        //   - 破壞性動作（submit / reset / applyPreset / setModality）→ 走確認閘，
-        //     由 AgentIntentPreview 卡片請使用者按「好啊」或「先不要」
-        const structured = parseLLMActions(data.actions);
-        if (structured.length > 0) {
-          for (const action of structured) {
-            void pageAgent.dispatch(action, {
-              source: "ai-chat",
-              intentSummary,
-              // 若 LLM 明說 askBeforeAct，所有動作一律先問；否則用內建破壞性判斷
-              requireConfirmation: askBeforeAct ? true : undefined,
-            });
-          }
-        }
-      }
-    } catch {
-      setChatMessages(prev => [
-        ...prev,
-        { role: "orb", text: "🌸 抱歉，我剛才有點恍神。再說一次好嗎？" },
-      ]);
-    } finally {
-      setIsChatLoading(false);
-    }
+    // Use global chat to send the message
+    // GlobalOrbChatContext handles all LLM interaction, action dispatch, and message management
+    await globalChat.sendMessage(userMsg);
   }, [
     chatInput,
-    chatMessages,
     isChatLoading,
-    personality,
-    greeting,
-    aiChatMutation,
     onSwitchModality,
-    pageContext,
-    onNavigate,
-    onApplyInspiration,
-    showFeedback,
-    pageAgent,
+    globalChat,
   ]);
 
   // ─── Apply inspiration preset ────────────────────────────────────────
@@ -1366,9 +1235,9 @@ export default memo(function ProactiveOrbWidget({
   const handleSuggestionClick = useCallback(
     (text: string) => {
       setChatInput(text);
-      setChatSuggestions([]);
+      // No need to clear suggestions - globalChat manages them
     },
-    []
+    [setChatInput]
   );
 
   // ─── Personality theme maps ───────────────────────────────────────────
@@ -1640,12 +1509,22 @@ export default memo(function ProactiveOrbWidget({
                         <div className="px-5 py-2 max-h-[60vh] overflow-y-auto space-y-2.5">
                           {chatMessages.map((msg, i) => (
                             <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                              <div className={`max-w-[85%] px-3.5 py-2.5 text-sm leading-relaxed ${
-                                msg.role === "user"
-                                  ? `${personalityAccentBtn[personality]} rounded-2xl rounded-br-md`
-                                  : "bg-gradient-to-br from-gray-50 to-gray-100/80 text-gray-700 rounded-2xl rounded-bl-md border border-gray-100/60"
-                              }`}>
-                                {msg.text}
+                              <div className="flex flex-col gap-0.5 max-w-[85%]">
+                                <div className={`px-3.5 py-2.5 text-sm leading-relaxed ${
+                                  msg.role === "user"
+                                    ? `${personalityAccentBtn[personality]} rounded-2xl rounded-br-md`
+                                    : "bg-gradient-to-br from-gray-50 to-gray-100/80 text-gray-700 rounded-2xl rounded-bl-md border border-gray-100/60"
+                                }`}>
+                                  {msg.text}
+                                </div>
+                                {msg.pagePath && msg.at && (
+                                  <div className={`text-[10px] text-muted-foreground px-1 flex items-center gap-1 ${
+                                    msg.role === "user" ? "justify-end" : "justify-start"
+                                  }`}>
+                                    <span>{getPageEmoji(msg.pagePath)}</span>
+                                    <span>{formatMessageMetadata(msg.pagePath, msg.at)}</span>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           ))}
@@ -1969,14 +1848,24 @@ export default memo(function ProactiveOrbWidget({
                           key={i}
                           className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                         >
-                          <div
-                            className={`max-w-[85%] px-3.5 py-2.5 text-xs leading-relaxed ${
-                              msg.role === "user"
-                                ? `${personalityAccentBtn[personality]} rounded-2xl rounded-br-md`
-                                : "bg-gradient-to-br from-gray-50 to-gray-100/80 text-gray-700 rounded-2xl rounded-bl-md border border-gray-100/60"
-                            }`}
-                          >
-                            {msg.text}
+                          <div className="flex flex-col gap-0.5 max-w-[85%]">
+                            <div
+                              className={`px-3.5 py-2.5 text-xs leading-relaxed ${
+                                msg.role === "user"
+                                  ? `${personalityAccentBtn[personality]} rounded-2xl rounded-br-md`
+                                  : "bg-gradient-to-br from-gray-50 to-gray-100/80 text-gray-700 rounded-2xl rounded-bl-md border border-gray-100/60"
+                              }`}
+                            >
+                              {msg.text}
+                            </div>
+                            {msg.pagePath && msg.at && (
+                              <div className={`text-[9px] text-muted-foreground px-1 flex items-center gap-0.5 ${
+                                msg.role === "user" ? "justify-end" : "justify-start"
+                              }`}>
+                                <span>{getPageEmoji(msg.pagePath)}</span>
+                                <span>{formatMessageMetadata(msg.pagePath, msg.at)}</span>
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))}
