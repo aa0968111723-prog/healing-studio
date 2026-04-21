@@ -17,6 +17,7 @@
 import { createFalClient } from "@fal-ai/client";
 import type { FalClient as FalSdkClient } from "@fal-ai/client";
 import Replicate from "replicate";
+import { traceToolRun } from "./langsmithTracer";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
@@ -419,53 +420,94 @@ export class SunoClient {
   }): Promise<{ taskId: string; status: string }> {
     if (!this.apiKey)
       throw new Error("SunoClient not initialized — SUNO_API_KEY missing");
+    const traceStart = Date.now();
+    const body: Record<string, unknown> = {
+      prompt: params.prompt,
+      make_instrumental: params.instrumental ?? false,
+      wait_audio: false, // async mode
+    };
+    if (params.customMode && params.lyrics) {
+      body.custom_mode = true;
+      body.lyrics = params.lyrics;
+      if (params.title) body.title = params.title;
+      if (params.style) body.tags = params.style;
+    }
 
-    const { data, retries, durationMs } = await safeApiCall(
-      async () => {
-        const body: Record<string, unknown> = {
-          prompt: params.prompt,
-          make_instrumental: params.instrumental ?? false,
-          wait_audio: false, // async mode
-        };
+    let data: unknown;
+    let retries = 0;
+    let durationMs = 0;
+    try {
+      const response = await safeApiCall(
+        async () => {
+          const res = await fetch(`${this.baseUrl}/api/v1/generate`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${this.apiKey}`,
+            },
+            body: JSON.stringify(body),
+          });
 
-        if (params.customMode && params.lyrics) {
-          body.custom_mode = true;
-          body.lyrics = params.lyrics;
-          if (params.title) body.title = params.title;
-          if (params.style) body.tags = params.style;
-        }
+          if (!res.ok) {
+            const errText = await res.text().catch(() => "");
+            throw Object.assign(
+              new Error(`Suno API error: ${res.status} ${errText}`),
+              {
+                status: res.status,
+                headers: res.headers,
+              }
+            );
+          }
 
-        const res = await fetch(`${this.baseUrl}/api/v1/generate`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${this.apiKey}`,
-          },
-          body: JSON.stringify(body),
-        });
-
-        if (!res.ok) {
-          const errText = await res.text().catch(() => "");
-          throw Object.assign(
-            new Error(`Suno API error: ${res.status} ${errText}`),
-            {
-              status: res.status,
-              headers: res.headers,
-            }
-          );
-        }
-
-        return res.json();
-      },
-      "Suno:Generate",
-      { timeoutMs: 60000 }
-    );
+          return res.json();
+        },
+        "Suno:Generate",
+        { timeoutMs: 60000 }
+      );
+      data = response.data;
+      retries = response.retries;
+      durationMs = response.durationMs;
+    } catch (error) {
+      const errMessage = error instanceof Error ? error.message : String(error);
+      await traceToolRun({
+        runName: "suno/music-generate",
+        provider: "suno",
+        model: "suno-v1",
+        route: "service.modelClients.suno.generateMusic",
+        method: "POST",
+        inputs: {
+          prompt: params.prompt.slice(0, 500),
+          custom_mode: Boolean(params.customMode),
+          has_lyrics: Boolean(params.lyrics),
+        },
+        error: errMessage,
+        durationMs: Date.now() - traceStart,
+      });
+      throw error;
+    }
 
     console.log(
       `[SunoClient] 🎵 Music generation initiated in ${durationMs}ms (${retries} retries)`
     );
 
     const result = data as any;
+    await traceToolRun({
+      runName: "suno/music-generate",
+      provider: "suno",
+      model: "suno-v1",
+      route: "service.modelClients.suno.generateMusic",
+      method: "POST",
+      inputs: {
+        prompt: params.prompt.slice(0, 500),
+        custom_mode: Boolean(params.customMode),
+        has_lyrics: Boolean(params.lyrics),
+      },
+      outputs: {
+        task_id: result.data?.task_id || result.task_id || "",
+        status: "processing",
+      },
+      durationMs,
+    });
     return {
       taskId: result.data?.task_id || result.task_id || "",
       status: "processing",
@@ -581,50 +623,90 @@ export class ElevenLabsClient {
 
     const voiceId = params.voiceId || "21m00Tcm4TlvDq8ikWAM"; // Rachel (default)
     const modelId = params.modelId || "eleven_multilingual_v2";
+    const startedAt = Date.now();
 
-    const { data, retries, durationMs } = await safeApiCall(
-      async () => {
-        const res = await fetch(`${this.baseUrl}/text-to-speech/${voiceId}`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "xi-api-key": this.apiKey!,
-          },
-          body: JSON.stringify({
-            text: params.text,
-            model_id: modelId,
-            voice_settings: {
-              stability: params.stability ?? 0.5,
-              similarity_boost: params.similarityBoost ?? 0.75,
-              ...(params.speed && { speed: params.speed }),
+    let data: { audioBuffer: Buffer; contentType: string };
+    let retries = 0;
+    let durationMs = 0;
+    try {
+      const response = await safeApiCall(
+        async () => {
+          const res = await fetch(`${this.baseUrl}/text-to-speech/${voiceId}`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "xi-api-key": this.apiKey!,
             },
-          }),
-        });
+            body: JSON.stringify({
+              text: params.text,
+              model_id: modelId,
+              voice_settings: {
+                stability: params.stability ?? 0.5,
+                similarity_boost: params.similarityBoost ?? 0.75,
+                ...(params.speed && { speed: params.speed }),
+              },
+            }),
+          });
 
-        if (!res.ok) {
-          const errText = await res.text().catch(() => "");
-          throw Object.assign(
-            new Error(`ElevenLabs TTS error: ${res.status} ${errText}`),
-            {
-              status: res.status,
-              headers: res.headers,
-            }
-          );
-        }
+          if (!res.ok) {
+            const errText = await res.text().catch(() => "");
+            throw Object.assign(
+              new Error(`ElevenLabs TTS error: ${res.status} ${errText}`),
+              {
+                status: res.status,
+                headers: res.headers,
+              }
+            );
+          }
 
-        const arrayBuffer = await res.arrayBuffer();
-        return {
-          audioBuffer: Buffer.from(arrayBuffer),
-          contentType: res.headers.get("content-type") || "audio/mpeg",
-        };
-      },
-      "ElevenLabs:TTS",
-      { timeoutMs: 60000 }
-    );
+          const arrayBuffer = await res.arrayBuffer();
+          return {
+            audioBuffer: Buffer.from(arrayBuffer),
+            contentType: res.headers.get("content-type") || "audio/mpeg",
+          };
+        },
+        "ElevenLabs:TTS",
+        { timeoutMs: 60000 }
+      );
+      data = response.data;
+      retries = response.retries;
+      durationMs = response.durationMs;
+    } catch (error) {
+      await traceToolRun({
+        runName: "elevenlabs/tts",
+        provider: "elevenlabs",
+        model: modelId,
+        route: "service.modelClients.elevenlabs.textToSpeech",
+        method: "POST",
+        inputs: {
+          voice_id: voiceId,
+          text_preview: params.text.slice(0, 500),
+        },
+        error: error instanceof Error ? error.message : String(error),
+        durationMs: Date.now() - startedAt,
+      });
+      throw error;
+    }
 
     console.log(
       `[ElevenLabsClient] 🎙️ TTS generated in ${durationMs}ms (${retries} retries, ${data.audioBuffer.length} bytes)`
     );
+    await traceToolRun({
+      runName: "elevenlabs/tts",
+      provider: "elevenlabs",
+      model: modelId,
+      route: "service.modelClients.elevenlabs.textToSpeech",
+      method: "POST",
+      inputs: {
+        voice_id: voiceId,
+        text_preview: params.text.slice(0, 500),
+      },
+      outputs: {
+        content_type: data.contentType,
+        audio_bytes: data.audioBuffer.length,
+      },
+      durationMs,
+    });
     return data;
   }
 
@@ -746,20 +828,59 @@ export class ReplicateClient {
         "ReplicateClient not initialized — REPLICATE_API_TOKEN missing"
       );
 
-    const { data, retries, durationMs } = await safeApiCall(
-      async () => {
-        const output = await this.client!.run(params.model, {
-          input: params.input,
-        });
-        return output;
-      },
-      `Replicate:${params.model}`,
-      { timeoutMs: 300000 } // 5 min
-    );
+    const startedAt = Date.now();
+    let data: unknown;
+    let retries = 0;
+    let durationMs = 0;
+    try {
+      const response = await safeApiCall(
+        async () => {
+          const output = await this.client!.run(params.model, {
+            input: params.input,
+          });
+          return output;
+        },
+        `Replicate:${params.model}`,
+        { timeoutMs: 300000 } // 5 min
+      );
+      data = response.data;
+      retries = response.retries;
+      durationMs = response.durationMs;
+    } catch (error) {
+      await traceToolRun({
+        runName: "replicate/run",
+        provider: "replicate",
+        model: params.model,
+        route: "service.modelClients.replicate.run",
+        method: "POST",
+        inputs: {
+          model: params.model,
+          input_keys: Object.keys(params.input || {}),
+        },
+        error: error instanceof Error ? error.message : String(error),
+        durationMs: Date.now() - startedAt,
+      });
+      throw error;
+    }
 
     console.log(
       `[ReplicateClient] 🔧 Model ${params.model} completed in ${durationMs}ms (${retries} retries)`
     );
+    await traceToolRun({
+      runName: "replicate/run",
+      provider: "replicate",
+      model: params.model,
+      route: "service.modelClients.replicate.run",
+      method: "POST",
+      inputs: {
+        model: params.model,
+        input_keys: Object.keys(params.input || {}),
+      },
+      outputs: {
+        output_type: Array.isArray(data) ? "array" : typeof data,
+      },
+      durationMs,
+    });
     return { output: data, durationMs };
   }
 

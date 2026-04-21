@@ -38,6 +38,7 @@ import { z } from "zod";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { recordErrorTrace } from "../services/brainAutoRepair";
+import { traceToolRun } from "../services/langsmithTracer";
 
 // ─── fal.ai 呼叫工具 ──────────────────────────────────────────────────────────
 
@@ -71,6 +72,7 @@ async function falQueueSubmit(
   input: Record<string, unknown>,
   extraHeaders?: Record<string, string>
 ): Promise<{ request_id: string }> {
+  const startedAt = Date.now();
   const key = getFalKey();
   const res = await fetch(`${FAL_QUEUE_BASE}/${modelId}`, {
     method: "POST",
@@ -83,6 +85,16 @@ async function falQueueSubmit(
   });
   if (!res.ok) {
     const err = await res.text();
+    void traceToolRun({
+      runName: "pro-studio/fal-queue-submit",
+      provider: "fal.ai",
+      model: modelId,
+      route: "trpc.proStudio.*",
+      method: "POST",
+      inputs: { input_keys: Object.keys(input) },
+      error: err.slice(0, 500),
+      durationMs: Date.now() - startedAt,
+    });
     recordErrorTrace({
       userId: 0,
       modality: "audio",
@@ -96,7 +108,18 @@ async function falQueueSubmit(
       message: `fal.ai submit 錯誤 [${modelId}]: ${err}`,
     });
   }
-  return res.json();
+  const data = await res.json();
+  void traceToolRun({
+    runName: "pro-studio/fal-queue-submit",
+    provider: "fal.ai",
+    model: modelId,
+    route: "trpc.proStudio.*",
+    method: "POST",
+    inputs: { input_keys: Object.keys(input) },
+    outputs: { request_id: data.request_id ?? null },
+    durationMs: Date.now() - startedAt,
+  });
+  return data;
 }
 
 /** 查詢 queue 任務狀態 */
@@ -104,6 +127,7 @@ async function falQueueStatus(
   requestId: string,
   modelId: string
 ): Promise<unknown> {
+  const startedAt = Date.now();
   const key = getFalKey();
   const res = await fetch(
     `${FAL_QUEUE_BASE}/${modelId}/requests/${requestId}/status`,
@@ -111,12 +135,37 @@ async function falQueueStatus(
       headers: { Authorization: `Key ${key}` },
     }
   );
-  if (!res.ok)
+  if (!res.ok) {
+    void traceToolRun({
+      runName: "pro-studio/fal-queue-status",
+      provider: "fal.ai",
+      model: modelId,
+      route: "trpc.proStudio.check*",
+      method: "GET",
+      inputs: { request_id: requestId },
+      error: `HTTP ${res.status}`,
+      durationMs: Date.now() - startedAt,
+    });
     throw new TRPCError({
       code: "INTERNAL_SERVER_ERROR",
       message: "查詢狀態失敗",
     });
-  return res.json();
+  }
+  const data = await res.json();
+  void traceToolRun({
+    runName: "pro-studio/fal-queue-status",
+    provider: "fal.ai",
+    model: modelId,
+    route: "trpc.proStudio.check*",
+    method: "GET",
+    inputs: { request_id: requestId },
+    outputs: {
+      status: (data as { status?: string })?.status ?? "unknown",
+      request_id: requestId,
+    },
+    durationMs: Date.now() - startedAt,
+  });
+  return data;
 }
 
 /** 取得 queue 任務結果 */
@@ -124,6 +173,7 @@ async function falQueueResult(
   requestId: string,
   modelId: string
 ): Promise<unknown> {
+  const startedAt = Date.now();
   const key = getFalKey();
   const res = await fetch(
     `${FAL_QUEUE_BASE}/${modelId}/requests/${requestId}`,
@@ -131,12 +181,38 @@ async function falQueueResult(
       headers: { Authorization: `Key ${key}` },
     }
   );
-  if (!res.ok)
+  if (!res.ok) {
+    void traceToolRun({
+      runName: "pro-studio/fal-queue-result",
+      provider: "fal.ai",
+      model: modelId,
+      route: "trpc.proStudio.check*",
+      method: "GET",
+      inputs: { request_id: requestId },
+      error: `HTTP ${res.status}`,
+      durationMs: Date.now() - startedAt,
+    });
     throw new TRPCError({
       code: "INTERNAL_SERVER_ERROR",
       message: "取得結果失敗",
     });
-  return res.json();
+  }
+  const data = await res.json();
+  void traceToolRun({
+    runName: "pro-studio/fal-queue-result",
+    provider: "fal.ai",
+    model: modelId,
+    route: "trpc.proStudio.check*",
+    method: "GET",
+    inputs: { request_id: requestId },
+    outputs: {
+      status: (data as { status?: string })?.status ?? "unknown",
+      request_id: requestId,
+      has_result: true,
+    },
+    durationMs: Date.now() - startedAt,
+  });
+  return data;
 }
 
 /**
@@ -148,6 +224,7 @@ async function falRun(
   modelId: string,
   input: Record<string, unknown>
 ): Promise<unknown> {
+  const startedAt = Date.now();
   const key = getFalKey();
   const res = await fetch(`${FAL_RUN_BASE}/${modelId}`, {
     method: "POST",
@@ -161,6 +238,16 @@ async function falRun(
   });
   if (!res.ok) {
     const err = await res.text();
+    void traceToolRun({
+      runName: "pro-studio/fal-run",
+      provider: "fal.ai",
+      model: modelId,
+      route: "trpc.proStudio.*",
+      method: "POST",
+      inputs: { input_keys: Object.keys(input) },
+      error: err.slice(0, 500),
+      durationMs: Date.now() - startedAt,
+    });
     recordErrorTrace({
       userId: 0,
       modality: "audio",
@@ -174,7 +261,18 @@ async function falRun(
       message: `fal.ai 錯誤 [${modelId}]: ${err}`,
     });
   }
-  return res.json();
+  const data = await res.json();
+  void traceToolRun({
+    runName: "pro-studio/fal-run",
+    provider: "fal.ai",
+    model: modelId,
+    route: "trpc.proStudio.*",
+    method: "POST",
+    inputs: { input_keys: Object.keys(input) },
+    outputs: { has_data: Boolean(data) },
+    durationMs: Date.now() - startedAt,
+  });
+  return data;
 }
 
 /**

@@ -272,13 +272,15 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
             ? ((data as { intent?: string | null }).intent as string)
             : undefined;
 
+        const structuredActions = parseLLMActions(data.actions);
+
         const orbMessage: ChatMessage = {
           role: "orb",
           text: data.reply,
           at: Date.now(),
           intent,
           pagePath: locationPath,
-          actions: data.actions,
+          actions: structuredActions,
         };
 
         setMessages(prev => [...prev, orbMessage]);
@@ -291,10 +293,9 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
 
         // 派送結構化動作
         if (data.actions && data.actions.length > 0) {
-          const structured = parseLLMActions(data.actions);
           const askBeforeAct = (data as { askBeforeAct?: boolean }).askBeforeAct === true;
 
-          for (const action of structured) {
+          for (const action of structuredActions) {
             await pageAgent.dispatch(action, {
               source: "ai-chat",
               intentSummary: intent,
