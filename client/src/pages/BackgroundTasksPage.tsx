@@ -9,6 +9,7 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
+import { AssetModelSubpageGuide } from "@/components/AssetModelSubpageGuide";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -734,6 +735,8 @@ export default function BackgroundTasksPage() {
           重新整理
         </Button>
       </div>
+
+      <AssetModelSubpageGuide page="background-tasks" />
 
       {/* Stats */}
       <StatsBar jobs={allJobs} />

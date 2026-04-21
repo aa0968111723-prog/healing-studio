@@ -6,6 +6,7 @@
 import { useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
+import { AssetModelSubpageGuide } from "@/components/AssetModelSubpageGuide";
 import type {
   AgentAction,
   AgentActionResult,
@@ -448,6 +449,8 @@ export default function PromptLibraryPage() {
           公開廣場
         </button>
       </div>
+
+      <AssetModelSubpageGuide page="prompt-library" />
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-4">

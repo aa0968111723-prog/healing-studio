@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
+import { PlanningSubpageGuide } from "@/components/PlanningSubpageGuide";
 import type {
   AgentAction,
   AgentActionResult,
@@ -562,6 +563,8 @@ export default function CalendarPage() {
           </Button>
         </div>
       </div>
+
+      <PlanningSubpageGuide page="calendar" />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Calendar with drag-over support */}

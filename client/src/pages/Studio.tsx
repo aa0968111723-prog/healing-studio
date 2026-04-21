@@ -60,6 +60,8 @@ import {
   Cpu,
   Check,
   Briefcase,
+  Search,
+  SlidersHorizontal,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useIsMobile } from "@/hooks/useMobile";
@@ -177,6 +179,10 @@ function MiniHistoryPanel({
   const rateHistory = trpc.history.rate.useMutation({
     onSuccess: () => historyQuery.refetch(),
   });
+  const [historyFilter, setHistoryFilter] = useState<
+    "all" | "image" | "video" | "audio" | "voice"
+  >("all");
+  const [historyKeyword, setHistoryKeyword] = useState("");
 
   const MODALITY_ICONS: Record<string, React.ReactNode> = {
     image: <Image className="w-3 h-3" />,
@@ -209,12 +215,52 @@ function MiniHistoryPanel({
     );
   }
 
+  const filteredItems = items.filter((item: any) => {
+    if (historyFilter !== "all" && item.generationType !== historyFilter)
+      return false;
+    if (!historyKeyword.trim()) return true;
+    return String(item.prompt || "")
+      .toLowerCase()
+      .includes(historyKeyword.trim().toLowerCase());
+  });
+
   return (
-    <div className="space-y-1.5 p-2">
-      {items.map((item: any) => (
+    <div className="space-y-2 p-2">
+      <div className="rounded-lg border border-border/60 bg-background/70 p-2 space-y-2 sticky top-0 z-10 backdrop-blur-sm">
+        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <SlidersHorizontal className="w-3.5 h-3.5" />
+          歷史篩選與搜尋
+        </div>
+        <div className="rounded-md border border-border/70 bg-background px-2 py-1.5 flex items-center gap-1.5">
+          <Search className="w-3.5 h-3.5 text-muted-foreground" />
+          <input
+            value={historyKeyword}
+            onChange={e => setHistoryKeyword(e.target.value)}
+            placeholder="搜尋提示詞關鍵字..."
+            className="w-full bg-transparent text-xs outline-none placeholder:text-muted-foreground"
+          />
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {(["all", "image", "video", "audio", "voice"] as const).map(type => (
+            <button
+              key={type}
+              onClick={() => setHistoryFilter(type)}
+              className={`text-[11px] rounded-md px-2 py-1 transition-colors ${
+                historyFilter === type
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted/40 text-muted-foreground"
+              }`}
+            >
+              {type === "all" ? "全部" : type}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {filteredItems.map((item: any) => (
         <div
           key={item.id}
-          className="group rounded-lg p-2 hover:bg-accent/30 transition-colors cursor-pointer"
+          className="group rounded-lg p-2.5 hover:bg-accent/30 transition-colors cursor-pointer border border-transparent hover:border-border/40"
         >
           <div className="flex items-start gap-2">
             {/* Thumbnail */}
@@ -238,9 +284,22 @@ function MiniHistoryPanel({
                 {item.prompt?.slice(0, 40) || "無提示詞"}
               </p>
               <div className="flex items-center gap-1.5 mt-1">
-                <span className="text-[10px] text-muted-foreground">
-                  {new Date(item.createdAt).toLocaleDateString()}
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/50 text-muted-foreground uppercase">
+                  {item.generationType}
                 </span>
+                <span className="text-[10px] text-muted-foreground">
+                  {new Date(item.createdAt).toLocaleString("zh-TW", {
+                    month: "numeric",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+                {item.parameterSnapshot && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600">
+                    含參數快照
+                  </span>
+                )}
                 {item.rating && (
                   <span className="flex items-center gap-0.5 text-[10px] text-amber-500">
                     <Star className="w-2.5 h-2.5 fill-current" />
@@ -285,10 +344,28 @@ function MiniHistoryPanel({
               >
                 <RefreshCw className="w-4 h-4 text-muted-foreground" />
               </button>
+              <button
+                onClick={e => {
+                  e.stopPropagation();
+                  rateHistory.mutate({ id: item.id, rating: 5 });
+                }}
+                className="p-1.5 rounded hover:bg-accent/50 active:bg-accent/70 transition-colors"
+                title="評分 5"
+              >
+                <Star className="w-4 h-4 text-amber-500" />
+              </button>
             </div>
           </div>
         </div>
       ))}
+      {filteredItems.length === 0 && (
+        <div className="rounded-lg border border-dashed border-border/70 p-5 text-center">
+          <p className="text-xs text-muted-foreground">目前篩選條件沒有資料</p>
+          <p className="text-[11px] text-muted-foreground/70 mt-1">
+            你可以切換模態或清除關鍵字再試一次
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -3227,6 +3304,29 @@ export default function Studio() {
             onClose={() => setToolboxSheetOpen(false)}
             title="🗂️ 工具箱"
           >
+            <div className="px-2 pt-2">
+              <div className="rounded-xl border border-border/60 bg-background/60 p-2">
+                <p className="text-[11px] text-muted-foreground mb-1.5">
+                  全模式快速切換
+                </p>
+                <div className="grid grid-cols-4 gap-1">
+                  {MODALITY_TABS.map(mod => (
+                    <button
+                      key={mod.value}
+                      onClick={() => setActiveModality(mod.value)}
+                      className={`rounded-lg py-1.5 text-[11px] flex items-center justify-center gap-1 ${
+                        activeModality === mod.value
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted/40 text-muted-foreground"
+                      }`}
+                    >
+                      {mod.icon}
+                      <span>{mod.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
             <div className="flex gap-1 p-2 mb-2 flex-wrap">
               {(
                 ["vault", "assets", "models", "controls", "history"] as const

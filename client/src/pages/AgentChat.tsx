@@ -17,7 +17,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { Send, Sparkles, Loader2, ArrowRight, Navigation2, MessageCircle } from "lucide-react";
+import {
+  Send,
+  Sparkles,
+  Loader2,
+  ArrowRight,
+  Navigation2,
+  MessageCircle,
+  ChevronDown,
+  Clock3,
+} from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { usePersonality } from "@/contexts/PersonalityContext";
 import {
@@ -28,6 +37,11 @@ import {
 } from "@/contexts/PageAgentContext";
 import { useOrbGuide, INTENT_CONFIGS, type GuideIntent } from "@/contexts/OrbGuideContext";
 import { Button } from "@/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { getAgentHomeEntries } from "@/config/appRegistry";
 
 // ─── 型別 ─────────────────────────────────────────────────────────────────
@@ -188,6 +202,7 @@ export default function AgentChat() {
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [needGuideOpen, setNeedGuideOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const starterEntries = useMemo(
     () =>
@@ -382,33 +397,62 @@ export default function AgentChat() {
 
           {/* 需求釐清提示 */}
           <div className="w-full mt-3 sm:mt-4">
-            <div className="rounded-xl border border-slate-200/70 dark:border-slate-700/60 bg-white/70 dark:bg-slate-900/40 px-4 py-3 text-left shadow-sm">
-              <p className="text-xs font-medium text-slate-700 dark:text-slate-200 mb-2">
-                提前告訴我這些，導引會更精準：
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {NEED_CLUES.map(item => (
-                  <span
-                    key={item}
-                    className="text-[11px] px-2 py-1 rounded-full border border-slate-200/80 dark:border-slate-700/70 text-slate-500 dark:text-slate-400 bg-white/70 dark:bg-slate-900/50"
-                  >
-                    {item}
-                  </span>
-                ))}
-              </div>
-              <div className="flex flex-wrap gap-2 mt-3">
-                {NEED_PROMPTS.map((template, i) => (
-                  <Button
-                    key={template}
-                    variant="outline"
-                    size="sm"
-                    className="text-[11px] h-8 px-3 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
-                    onClick={() => void send(template)}
-                  >
-                    示範 {i + 1}
-                  </Button>
-                ))}
-              </div>
+            <Collapsible
+              open={needGuideOpen}
+              onOpenChange={setNeedGuideOpen}
+              className="rounded-xl border border-slate-200/70 dark:border-slate-700/60 bg-white/70 dark:bg-slate-900/40 px-4 py-3 text-left shadow-sm"
+            >
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  className="w-full flex items-center justify-between gap-2"
+                >
+                  <p className="text-xs font-medium text-slate-700 dark:text-slate-200">
+                    提前告訴我這些，導引會更精準
+                  </p>
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 text-slate-400 transition-transform ${needGuideOpen ? "rotate-180" : ""}`}
+                  />
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pt-2">
+                <div className="flex flex-wrap gap-1.5">
+                  {NEED_CLUES.map(item => (
+                    <span
+                      key={item}
+                      className="text-[11px] px-2 py-1 rounded-full border border-slate-200/80 dark:border-slate-700/70 text-slate-500 dark:text-slate-400 bg-white/70 dark:bg-slate-900/50"
+                    >
+                      {item}
+                    </span>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {NEED_PROMPTS.map((template, i) => (
+                    <Button
+                      key={template}
+                      variant="outline"
+                      size="sm"
+                      className="text-[11px] h-8 px-3 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
+                      onClick={() => void send(template)}
+                    >
+                      示範 {i + 1}
+                    </Button>
+                  ))}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          </div>
+          <div className="w-full mt-1">
+            <div className="flex flex-wrap items-center justify-center gap-1.5">
+              {quickStarters.map(text => (
+                <button
+                  key={text}
+                  onClick={() => void send(text)}
+                  className="text-[11px] px-2.5 py-1 rounded-full bg-white/75 dark:bg-slate-900/50 border border-slate-200/70 dark:border-slate-700/70 text-slate-500 dark:text-slate-400 hover:text-emerald-600 hover:border-emerald-200 transition-colors"
+                >
+                  {text}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -569,6 +613,13 @@ export default function AgentChat() {
                     </div>
                   )}
                   {msg.text}
+                  <div className="mt-1.5 text-[10px] opacity-60 flex items-center gap-1">
+                    <Clock3 className="w-3 h-3" />
+                    {new Date(msg.at).toLocaleTimeString("zh-TW", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </div>
                 </div>
               </motion.div>
             ))}

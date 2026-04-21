@@ -39,6 +39,7 @@ import { cn } from "@/lib/utils";
 import { useAIState } from "@/contexts/AIStateContext";
 import { useIsMobile } from "@/hooks/useMobile";
 import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
+import { AssetModelSubpageGuide } from "@/components/AssetModelSubpageGuide";
 import type {
   AgentAction,
   AgentActionResult,
@@ -360,6 +361,7 @@ export default function HistoryPage() {
           </span>
         </div>
       </div>
+      <AssetModelSubpageGuide page="history" />
 
       {/* Stats Bar — horizontal scroll on mobile */}
       <div className="-mx-4 sm:mx-0 px-4 sm:px-0">

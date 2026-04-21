@@ -9,6 +9,11 @@ import {
 } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { getLoginUrl, getDemoLoginUrl } from "@/const";
 import { useLocation } from "wouter";
 import { GlassCard } from "@/components/ZenCoPilot";
@@ -40,6 +45,10 @@ import {
   VolumeX,
   ChevronLeft,
   ChevronRight,
+  ChevronsUpDown,
+  Compass,
+  Rocket,
+  CircleCheck,
 } from "lucide-react";
 import { useAIState } from "@/contexts/AIStateContext";
 import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
@@ -296,6 +305,42 @@ const VIDEO_DEMOS: FeatureDetail[] = [
   },
 ];
 
+const HOME_QUICKSTART_GUIDE = [
+  {
+    id: "new-user",
+    title: "新手 3 分鐘起步",
+    description: "先快速上手，再逐步深入，不需要一次看完全部功能。",
+    icon: Rocket,
+    items: [
+      "先從「訪客體驗」或登入進入，使用預設範本快速出第一版。",
+      "先選一個工作室（圖片 / 影片 / 導演 AI），避免多工分散。",
+      "完成第一個作品後，再到模型與素材庫做細節優化。",
+    ],
+  },
+  {
+    id: "workflow",
+    title: "推薦創作動線",
+    description: "依照大多數使用者習慣設計，降低卡住機率。",
+    icon: Compass,
+    items: [
+      "首頁選工具 → 生成草稿 → 版本比較 → 匯出發佈。",
+      "若要角色一致性，先訓練模型再進入批次生成。",
+      "用導演 AI 編排圖、影、音，可大幅縮短製作時間。",
+    ],
+  },
+  {
+    id: "quality",
+    title: "品質與效率檢查",
+    description: "每次輸出前做一次快速檢查，品質更穩定。",
+    icon: CircleCheck,
+    items: [
+      "提示詞是否有主體、風格、構圖、光線四大元素。",
+      "只調整 1 個參數重跑，方便比對結果差異。",
+      "把可複用設定存入素材庫，避免每次重做。",
+    ],
+  },
+] as const;
+
 // ─── Scene Badge ────────────────────────────────────────────────────────────
 
 function SceneBadge({
@@ -391,6 +436,7 @@ export default function Home() {
     null
   );
   const [featureDialogOpen, setFeatureDialogOpen] = useState(false);
+  const [openGuideId, setOpenGuideId] = useState<string | null>("new-user");
 
   const openFeature = useCallback((feature: FeatureDetail) => {
     setActiveFeature(feature);
@@ -771,6 +817,98 @@ export default function Home() {
           background: `linear-gradient(90deg, transparent, ${s.dividerColor}, transparent)`,
         }}
       />
+
+      {/* ── Home quickstart guide (collapsible) ── */}
+      <section className="pt-8 sm:pt-10 px-4 sm:px-6 relative z-10">
+        <div className="max-w-5xl mx-auto">
+          <div
+            className="rounded-2xl sm:rounded-3xl p-4 sm:p-6 backdrop-blur-md"
+            style={{
+              background: s.cardBg,
+              border: `1px solid ${s.cardBorder}`,
+            }}
+          >
+            <div className="flex items-center justify-between gap-3 mb-3 sm:mb-4">
+              <div>
+                <h2
+                  className={`text-base sm:text-lg font-semibold transition-colors duration-1000 ${s.textPrimary}`}
+                >
+                  首頁快速導覽
+                </h2>
+                <p
+                  className={`text-xs sm:text-sm mt-1 transition-colors duration-1000 ${s.textMuted}`}
+                >
+                  折疊式導覽：先展開你現在最需要的一段。
+                </p>
+              </div>
+              <span
+                className={`text-[10px] sm:text-xs px-2 py-1 rounded-full ${s.textSecondary}`}
+                style={{ background: s.featureBg }}
+              >
+                UIUX
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              {HOME_QUICKSTART_GUIDE.map(block => {
+                const isOpen = openGuideId === block.id;
+                const Icon = block.icon;
+                return (
+                  <Collapsible
+                    key={block.id}
+                    open={isOpen}
+                    onOpenChange={open =>
+                      setOpenGuideId(open ? block.id : null)
+                    }
+                    className="rounded-xl overflow-hidden"
+                    style={{
+                      border: `1px solid ${s.cardBorder}`,
+                      background: s.featureBg,
+                    }}
+                  >
+                    <CollapsibleTrigger asChild>
+                      <button
+                        type="button"
+                        className="w-full px-3 sm:px-4 py-3 text-left flex items-center justify-between gap-3"
+                      >
+                        <div className="flex items-start gap-2.5 sm:gap-3 min-w-0">
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-black/10">
+                            <Icon className={`w-4 h-4 ${s.textSecondary}`} />
+                          </div>
+                          <div className="min-w-0">
+                            <p
+                              className={`text-sm font-medium transition-colors duration-1000 ${s.textPrimary}`}
+                            >
+                              {block.title}
+                            </p>
+                            <p
+                              className={`text-xs mt-0.5 transition-colors duration-1000 ${s.textMuted}`}
+                            >
+                              {block.description}
+                            </p>
+                          </div>
+                        </div>
+                        <ChevronsUpDown
+                          className={`w-4 h-4 shrink-0 transition-colors duration-1000 ${s.textMuted}`}
+                        />
+                      </button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="px-4 pb-3 sm:pb-4">
+                      <ul
+                        className={`list-disc pl-5 space-y-1.5 text-xs sm:text-sm transition-colors duration-1000 ${s.textMuted}`}
+                      >
+                        {block.items.map(item => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    </CollapsibleContent>
+                  </Collapsible>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* ── Video Demo Showcase (影片功能展示區域) — healing carousel ── */}
       <section className="section-breathing px-4 sm:px-6 relative z-10">

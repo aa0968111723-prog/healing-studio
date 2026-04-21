@@ -4,6 +4,7 @@ import { ConsistencyVault } from "@/components/ConsistencyVault";
 import { Layers } from "lucide-react";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
+import { AssetModelSubpageGuide } from "@/components/AssetModelSubpageGuide";
 import type {
   AgentAction,
   AgentActionResult,
@@ -69,6 +70,8 @@ export default function VaultPage() {
           管理角色與場景參考圖，確保跨作品的風格一致性。可拖放至創作工作室使用。
         </p>
       </div>
+
+      <AssetModelSubpageGuide page="vault" />
 
       {/* Full Vault Component */}
       <div className="max-w-2xl">

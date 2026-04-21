@@ -4,6 +4,7 @@ import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { AIChatBox, type Message } from "@/components/AIChatBox";
 import LazyStreamdown from "@/components/LazyStreamdown";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -63,8 +64,14 @@ import {
   CalendarDays,
   CircleDot,
   Milestone,
+  Search,
 } from "lucide-react";
 import { GlassCard } from "@/components/ZenCoPilot";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import VisualSoul from "@/components/VisualSoul";
 import { useAIState } from "@/contexts/AIStateContext";
 import {
@@ -132,6 +139,27 @@ const CATEGORY_LABELS: Record<string, string> = {
   tutorial: "教學",
   brand: "品牌",
 };
+
+const DIRECTOR_QUICK_GUIDE = [
+  {
+    id: "brief",
+    title: "先說任務再說風格",
+    tips: [
+      "先描述用途、受眾、時長與平台（例如 Reels / YouTube）。",
+      "再補風格與情緒（寫實、夢幻、懸疑、療癒等）。",
+      "最後才加限制（預算、素材、交付時間）。",
+    ],
+  },
+  {
+    id: "pipeline",
+    title: "分鏡與生成的推薦順序",
+    tips: [
+      "先用模板快速出分鏡，再逐段微調對白與鏡頭語言。",
+      "先經濟模型確認節奏，再切高品質模型做定稿。",
+      "卡住時可先做 1-2 段 POC，再擴展到全片。",
+    ],
+  },
+] as const;
 
 // ─── Quick Action Icon Map ──────────────────────────────────────────────────
 
@@ -2002,6 +2030,8 @@ export default function DirectorAI() {
     null
   );
   const [showTemplates, setShowTemplates] = useState(false);
+  const [templateKeyword, setTemplateKeyword] = useState("");
+  const [templateGuideOpen, setTemplateGuideOpen] = useState(false);
   const [showSessions, setShowSessions] = useState(false);
   const [refiningIdx, setRefiningIdx] = useState<number | null>(null);
 
@@ -2048,6 +2078,16 @@ export default function DirectorAI() {
   const templatesQuery = trpc.director.templates.useQuery(undefined, {
     staleTime: Infinity,
   });
+  const filteredTemplates = useMemo(() => {
+    const list = templatesQuery.data ?? [];
+    const q = templateKeyword.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter(t =>
+      `${t.label} ${t.description ?? ""} ${t.category ?? ""}`
+        .toLowerCase()
+        .includes(q)
+    );
+  }, [templatesQuery.data, templateKeyword]);
   const sessionsQuery = trpc.director.listSessions.useQuery(undefined, {
     enabled: showSessions,
   });
@@ -2921,6 +2961,51 @@ export default function DirectorAI() {
         </div>
       </div>
 
+      <Collapsible
+        open={templateGuideOpen}
+        onOpenChange={setTemplateGuideOpen}
+        className="rounded-2xl border border-border/40 bg-background/70 px-4 py-3"
+      >
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            className="w-full flex items-center justify-between gap-2"
+          >
+            <p className="text-xs font-semibold flex items-center gap-1.5 text-foreground">
+              <Sparkles className="w-3.5 h-3.5 text-primary" />
+              導演 AI 快速導覽
+            </p>
+            <ChevronDown
+              className={cn(
+                "w-3.5 h-3.5 text-muted-foreground transition-transform",
+                templateGuideOpen && "rotate-180"
+              )}
+            />
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="pt-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {DIRECTOR_QUICK_GUIDE.map(block => (
+              <div
+                key={block.id}
+                className="rounded-xl border border-border/40 bg-muted/20 px-3 py-2.5"
+              >
+                <p className="text-xs font-medium text-foreground mb-1">
+                  {block.title}
+                </p>
+                <ul className="space-y-1 list-disc pl-4">
+                  {block.tips.map(tip => (
+                    <li key={tip} className="text-[11px] text-muted-foreground">
+                      {tip}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+
       {/* Template Gallery Overlay */}
       <AnimatePresence>
         {showTemplates && (
@@ -2943,13 +3028,22 @@ export default function DirectorAI() {
                   <X className="w-4 h-4" />
                 </button>
               </div>
+              <div className="rounded-xl border border-border/40 bg-background/70 px-2.5 py-2 flex items-center gap-2">
+                <Search className="w-3.5 h-3.5 text-muted-foreground" />
+                <Input
+                  value={templateKeyword}
+                  onChange={e => setTemplateKeyword(e.target.value)}
+                  placeholder="搜尋模板主題、分類或用途..."
+                  className="h-7 border-0 bg-transparent px-0 text-xs focus-visible:ring-0"
+                />
+              </div>
               <div
                 className={cn(
                   "grid gap-2",
                   isMobile ? "grid-cols-1" : "grid-cols-2 lg:grid-cols-3"
                 )}
               >
-                {(templatesQuery.data ?? []).map(t => {
+                {filteredTemplates.map(t => {
                   const pConfig =
                     PERSONALITIES.find(p => p.id === t.personality) ??
                     PERSONALITIES[1];
@@ -2984,6 +3078,11 @@ export default function DirectorAI() {
                     </button>
                   );
                 })}
+                {filteredTemplates.length === 0 && (
+                  <div className="col-span-full rounded-xl border border-dashed border-border/60 py-8 text-center text-xs text-muted-foreground">
+                    沒有符合搜尋條件的模板，請換個關鍵字試試。
+                  </div>
+                )}
               </div>
             </GlassCard>
           </motion.div>
