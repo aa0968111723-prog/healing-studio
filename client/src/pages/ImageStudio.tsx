@@ -68,6 +68,7 @@ import {
   Lightbulb,
   HelpCircle,
   Rocket,
+  Search,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { uploadFileToS3 } from "@/lib/upload";
@@ -2557,9 +2558,37 @@ export default function ImageStudio() {
   const [viewMode, setViewMode] = useState<"single" | "grid">("single");
   const [showSettings, setShowSettings] = useState(true);
   const [showAdvancedT2i, setShowAdvancedT2i] = useState(false);
+  const [guideKeyword, setGuideKeyword] = useState("");
+  const [openGuideModelId, setOpenGuideModelId] = useState<string | null>(null);
 
   const model = MODELS.find(m => m.id === selectedModelId) ?? MODELS[0];
   const tabModels = MODELS.filter(m => m.category === activeTab);
+  const filteredGuideModels = useMemo(() => {
+    const keyword = guideKeyword.trim().toLowerCase();
+    const list = tabModels.map(m => {
+      const coaching = getModelCoaching(m);
+      return {
+        ...m,
+        coaching,
+      };
+    });
+    if (!keyword) return list;
+    return list.filter(item => {
+      const haystack = [
+        item.name,
+        item.desc,
+        item.badge,
+        item.bestFor ?? "",
+        item.tip ?? "",
+        item.coaching?.bestFor ?? "",
+        item.coaching?.tip ?? "",
+        ...(item.coaching?.advantages ?? []),
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(keyword);
+    });
+  }, [guideKeyword, tabModels]);
 
   /** Quick-try: fill in a sample prompt so newcomers can experience generation immediately */
   const handleQuickTry = useCallback(() => {
@@ -3652,6 +3681,86 @@ export default function ImageStudio() {
               </button>
             );
           })}
+        </div>
+      </div>
+
+      {/* ── Model Guide — by current tab ── */}
+      <div className="mt-4 rounded-2xl border border-border/40 bg-gradient-to-br from-purple-500/5 to-cyan-500/5 p-3 sm:p-4">
+        <p className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
+          <HelpCircle className="w-3.5 h-3.5 text-primary" />
+          模型細膩導覽 · {TABS.find(t => t.id === activeTab)?.label}
+        </p>
+        <div className="rounded-xl border border-border/40 bg-background/70 px-2.5 py-2 mb-2 flex items-center gap-2">
+          <Search className="w-3.5 h-3.5 text-muted-foreground" />
+          <Input
+            value={guideKeyword}
+            onChange={e => setGuideKeyword(e.target.value)}
+            placeholder="搜尋模型用途、優勢或建議..."
+            className="h-7 border-0 bg-transparent px-0 text-xs focus-visible:ring-0"
+          />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          {filteredGuideModels.map(guideModel => {
+            const coaching = guideModel.coaching ?? getModelCoaching(guideModel);
+            const isOpen = openGuideModelId === guideModel.id;
+            return (
+              <Collapsible
+                key={guideModel.id}
+                open={isOpen}
+                onOpenChange={open => setOpenGuideModelId(open ? guideModel.id : null)}
+                className="rounded-xl border border-border/35 bg-background/70"
+              >
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className="w-full px-3 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-accent/30 rounded-xl transition-colors"
+                  >
+                    <div>
+                      <p className="text-xs font-medium text-foreground">{guideModel.name}</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">
+                        {guideModel.desc}
+                      </p>
+                    </div>
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`}
+                    />
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="px-3 pb-2.5">
+                  {coaching?.bestFor && (
+                    <p className="text-[11px] text-primary mt-1">適合：{coaching.bestFor}</p>
+                  )}
+                  {coaching?.tip && (
+                    <p className="text-[11px] text-muted-foreground/90 mt-0.5 leading-relaxed">建議：{coaching.tip}</p>
+                  )}
+                  {!!coaching?.advantages?.length && (
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {coaching.advantages.map(adv => (
+                        <span
+                          key={adv}
+                          className="text-[10px] rounded-full border border-primary/20 bg-primary/5 px-1.5 py-0.5 text-primary/80"
+                        >
+                          {adv}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedModelId(guideModel.id)}
+                    className="mt-2 text-[11px] font-medium text-primary hover:text-primary/80 transition-colors"
+                  >
+                    套用此模型 →
+                  </button>
+                </CollapsibleContent>
+              </Collapsible>
+            );
+          })}
+          {filteredGuideModels.length === 0 && (
+            <div className="col-span-full rounded-xl border border-dashed border-border/50 bg-background/60 py-6 text-center text-xs text-muted-foreground">
+              沒有符合搜尋條件的模型，請換個關鍵字試試。
+            </div>
+          )}
         </div>
       </div>
 
