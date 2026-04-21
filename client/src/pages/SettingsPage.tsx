@@ -11,9 +11,11 @@ import { ResetAllToursButton } from "@/components/SiteOnboardingOverlay";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import {
   Settings,
@@ -41,6 +43,11 @@ import { useTheme, type AppearanceMode } from "@/contexts/ThemeContext";
 import { useCurrentScene } from "@/components/AmbientEnvironment";
 import type { SceneId } from "@/components/AmbientEnvironment";
 import { useLocation } from "wouter";
+import {
+  usePersonalSettings,
+  type PersonalSettings,
+} from "@/contexts/PersonalSettingsContext";
+import { useViewMode } from "@/hooks/useMobile";
 
 // ─── Appearance Mode Definitions ────────────────────────────────────────────
 
@@ -157,6 +164,8 @@ const WALLPAPER_RESOURCES = [
 export default function SettingsPage() {
   const { user } = useAuth();
   usePageTour("settings");
+  const { settings, updateSettings, isHydrated } = usePersonalSettings();
+  const { viewMode, setViewMode } = useViewMode();
   const { theme, appearanceMode, setAppearanceMode } = useTheme();
   const {
     sceneId,
@@ -166,36 +175,37 @@ export default function SettingsPage() {
   const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState("profile");
 
-  // ─── Notification preference (localStorage) ───────────────────────────────
-  const [soundEnabled, setSoundEnabled] = useState(() => {
-    try {
-      return localStorage.getItem("settings-sound") !== "false";
-    } catch {
-      return true;
-    }
-  });
-  const [desktopNotif, setDesktopNotif] = useState(() => {
-    try {
-      return localStorage.getItem("settings-desktop-notif") === "true";
-    } catch {
-      return false;
-    }
+  const [personalPrefs, setPersonalPrefs] = useState<
+    Pick<
+      PersonalSettings,
+      "displayName" | "timezone" | "bio" | "compactMode" | "confirmBeforeGenerate"
+    >
+  >({
+    displayName: settings.displayName,
+    timezone: settings.timezone,
+    bio: settings.bio,
+    compactMode: settings.compactMode,
+    confirmBeforeGenerate: settings.confirmBeforeGenerate,
   });
 
   useEffect(() => {
-    localStorage.setItem("settings-sound", String(soundEnabled));
-  }, [soundEnabled]);
+    if (!isHydrated) return;
+    setPersonalPrefs({
+      displayName: settings.displayName,
+      timezone: settings.timezone,
+      bio: settings.bio,
+      compactMode: settings.compactMode,
+      confirmBeforeGenerate: settings.confirmBeforeGenerate,
+    });
+  }, [settings, isHydrated]);
 
-  useEffect(() => {
-    localStorage.setItem("settings-desktop-notif", String(desktopNotif));
-    if (
-      desktopNotif &&
-      "Notification" in window &&
-      Notification.permission === "default"
-    ) {
-      Notification.requestPermission();
-    }
-  }, [desktopNotif]);
+  const personalPrefsDirty = JSON.stringify(personalPrefs) !== JSON.stringify({
+    displayName: settings.displayName,
+    timezone: settings.timezone,
+    bio: settings.bio,
+    compactMode: settings.compactMode,
+    confirmBeforeGenerate: settings.confirmBeforeGenerate,
+  });
 
   const handleRestartOnboarding = () => {
     localStorage.removeItem("ai-director-onboarded");
@@ -205,6 +215,29 @@ export default function SettingsPage() {
       new CustomEvent("site-tour-start", { detail: { pageId: "welcome" } })
     );
     toast.success("已重置引導狀態，全站引導即將開始...");
+  };
+
+  const handleSavePersonalPrefs = () => {
+    const sanitized = {
+      ...personalPrefs,
+      displayName: personalPrefs.displayName.trim().slice(0, 40),
+      timezone: personalPrefs.timezone.trim().slice(0, 80) || "Etc/UTC",
+      bio: personalPrefs.bio.trim().slice(0, 180),
+    };
+    updateSettings(sanitized);
+    setPersonalPrefs(sanitized);
+    toast.success("個人化偏好已儲存");
+  };
+
+  const handleResetPersonalPrefs = () => {
+    setPersonalPrefs({
+      displayName: settings.displayName,
+      timezone: settings.timezone,
+      bio: settings.bio,
+      compactMode: settings.compactMode,
+      confirmBeforeGenerate: settings.confirmBeforeGenerate,
+    });
+    toast.success("已還原為上次儲存內容");
   };
 
   const isAdmin = user?.role === "admin";
@@ -254,8 +287,10 @@ export default function SettingsPage() {
         options: [
           { id: "appearanceMode", label: "外觀模式", meta: { bestFor: "閱讀舒適", tip: "夜間建議 dark/auto" } },
           { id: "scene", label: "背景場景", meta: { bestFor: "專注氛圍", tip: "可先鎖定常用場景避免跳動" } },
+          { id: "displayName", label: "偏好顯示名稱", meta: { bestFor: "個人化識別", tip: "可和帳號名稱分開管理" } },
+          { id: "viewMode", label: "檢視模式", meta: { bestFor: "跨裝置瀏覽", tip: "統一在個人設定管理桌機/行動檢視" } },
         ],
-        hint: "setParam key='appearanceMode' value=light|dark|auto|system；key='scene' value=nightSky|morning|cafe|deepSea；key='scene' value='' 表示恢復自動",
+        hint: "setParam key='appearanceMode' value=light|dark|auto|system；key='scene' value=nightSky|morning|cafe|deepSea；key='displayName' value='你的暱稱'；key='viewMode' value=auto|desktop|mobile；key='scene' value='' 表示恢復自動",
       },
       {
         action: "navigate",
@@ -282,8 +317,8 @@ export default function SettingsPage() {
       theme,
       sceneId,
       sceneOverridden: sceneOverride !== null,
-      soundEnabled,
-      desktopNotif,
+      soundEnabled: settings.soundEnabled,
+      desktopNotif: settings.desktopNotif,
       isAdmin,
     },
     handle: async (action: AgentAction): Promise<AgentActionResult> => {
@@ -320,6 +355,20 @@ export default function SettingsPage() {
             }
             setSceneOverride(s as SceneId);
             return { ok: true, message: `場景鎖定為「${s}」` };
+          }
+          if (action.key === "displayName") {
+            const v = String(action.value ?? "").trim().slice(0, 40);
+            setPersonalPrefs(prev => ({ ...prev, displayName: v }));
+            updateSettings({ displayName: v });
+            return { ok: true, message: `偏好名稱更新為「${v || "未設定"}」` };
+          }
+          if (action.key === "viewMode") {
+            const v = String(action.value ?? "");
+            if (v !== "auto" && v !== "desktop" && v !== "mobile") {
+              return { ok: false, reason: `unknown viewMode: ${v}` };
+            }
+            setViewMode(v);
+            return { ok: true, message: `檢視模式切到「${v}」` };
           }
           return { ok: false, reason: `unknown param key: ${action.key}` };
         }
@@ -440,6 +489,120 @@ export default function SettingsPage() {
             </div>
           </GlassCard>
 
+          <GlassCard>
+            <h2 className="hs-h3 !mb-0 text-foreground mb-4 flex items-center gap-2">
+              <User className="w-4 h-4" />
+              個人化偏好（可儲存）
+            </h2>
+            <div className="space-y-4">
+              <div>
+                <Label className="text-xs text-muted-foreground">
+                  偏好顯示名稱
+                </Label>
+                <Input
+                  value={personalPrefs.displayName}
+                  maxLength={40}
+                  onChange={e =>
+                    setPersonalPrefs(prev => ({
+                      ...prev,
+                      displayName: e.target.value,
+                    }))
+                  }
+                  placeholder={user?.name || "輸入你希望顯示的名稱"}
+                  className="mt-1"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  目前實際顯示：{personalPrefs.displayName.trim() || user?.name || "未設定"}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs text-muted-foreground">
+                    時區
+                  </Label>
+                  <Input
+                    value={personalPrefs.timezone}
+                    maxLength={80}
+                    onChange={e =>
+                      setPersonalPrefs(prev => ({
+                        ...prev,
+                        timezone: e.target.value,
+                      }))
+                    }
+                    placeholder="例如：Asia/Taipei"
+                    className="mt-1"
+                  />
+                </div>
+                <div className="space-y-2.5 pt-1">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">
+                      緊湊介面模式
+                    </Label>
+                    <Switch
+                      checked={personalPrefs.compactMode}
+                      onCheckedChange={checked =>
+                        setPersonalPrefs(prev => ({
+                          ...prev,
+                          compactMode: checked,
+                        }))
+                      }
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">
+                      生成前二次確認
+                    </Label>
+                    <Switch
+                      checked={personalPrefs.confirmBeforeGenerate}
+                      onCheckedChange={checked =>
+                        setPersonalPrefs(prev => ({
+                          ...prev,
+                          confirmBeforeGenerate: checked,
+                        }))
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <Label className="text-xs text-muted-foreground">個人簡介</Label>
+                <Textarea
+                  value={personalPrefs.bio}
+                  maxLength={180}
+                  onChange={e =>
+                    setPersonalPrefs(prev => ({ ...prev, bio: e.target.value }))
+                  }
+                  placeholder="可記錄你的創作偏好、語氣習慣或目標（最多 180 字）"
+                  className="mt-1 min-h-[96px]"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  className="rounded-lg"
+                  onClick={handleSavePersonalPrefs}
+                >
+                  儲存偏好
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-lg"
+                  onClick={handleResetPersonalPrefs}
+                  disabled={!personalPrefsDirty}
+                >
+                  還原未儲存變更
+                </Button>
+                <span className="text-[11px] text-muted-foreground">
+                  {personalPrefsDirty ? "有未儲存變更" : "已同步最新儲存內容"}
+                </span>
+              </div>
+            </div>
+          </GlassCard>
+
           {/* Quick link: Director AI preferences */}
           <GlassCard>
             <button
@@ -543,6 +706,34 @@ export default function SettingsPage() {
                   </button>
                 );
               })}
+            </div>
+          </GlassCard>
+
+          <GlassCard>
+            <h2 className="hs-h3 !mb-0 text-foreground mb-1 flex items-center gap-2">
+              <Monitor className="w-4 h-4" />
+              檢視模式（全站統一）
+            </h2>
+            <p className="hs-small !mb-0 text-muted-foreground mb-4">
+              所有頁面的桌機/行動檢視設定統一在此管理
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { id: "auto", label: "自動" },
+                { id: "desktop", label: "桌機" },
+                { id: "mobile", label: "行動" },
+              ].map(opt => (
+                <Button
+                  key={opt.id}
+                  type="button"
+                  size="sm"
+                  variant={viewMode === opt.id ? "default" : "outline"}
+                  className="rounded-lg"
+                  onClick={() => setViewMode(opt.id as "auto" | "desktop" | "mobile")}
+                >
+                  {opt.label}
+                </Button>
+              ))}
             </div>
           </GlassCard>
 
@@ -675,8 +866,10 @@ export default function SettingsPage() {
                   </p>
                 </div>
                 <Switch
-                  checked={soundEnabled}
-                  onCheckedChange={setSoundEnabled}
+                  checked={settings.soundEnabled}
+                  onCheckedChange={checked =>
+                    updateSettings({ soundEnabled: checked })
+                  }
                 />
               </div>
               <div className="flex items-center justify-between">
@@ -689,8 +882,10 @@ export default function SettingsPage() {
                   </p>
                 </div>
                 <Switch
-                  checked={desktopNotif}
-                  onCheckedChange={setDesktopNotif}
+                  checked={settings.desktopNotif}
+                  onCheckedChange={checked =>
+                    updateSettings({ desktopNotif: checked })
+                  }
                 />
               </div>
             </div>
