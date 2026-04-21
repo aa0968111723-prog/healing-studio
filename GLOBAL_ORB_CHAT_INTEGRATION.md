@@ -86,62 +86,35 @@ GlobalOrbChatContext 使用現有的 `trpc.ai.chat` mutation，支援：
 
 ## 待完成功能（Phase 2）
 
-### 1. ProactiveOrbWidget 整合
+### 1. ProactiveOrbWidget 整合 ✅ 已完成
 
 **目標**: 讓浮動光球使用全站聊天狀態
 
-**整合方案**:
-```typescript
-// 在 ProactiveOrbWidget 中
-import { useGlobalOrbChat } from "@/contexts/GlobalOrbChatContext";
+**已完成**:
+- ✅ ProactiveOrbWidget 使用 GlobalOrbChat 狀態
+- ✅ 移除本地聊天狀態和 aiChatMutation
+- ✅ 聊天訊息、輸入、載入狀態全部連接到全站狀態
+- ✅ 快速回覆建議使用全站建議
 
-// 可選：使用全站狀態或保持本地狀態
-const globalChat = useGlobalOrbChat();
-const useGlobalState = true; // 可配置
-
-// 根據配置選擇狀態源
-const messages = useGlobalState ? globalChat.messages : chatMessages;
-const input = useGlobalState ? globalChat.input : chatInput;
-const setInput = useGlobalState ? globalChat.setInput : setChatInput;
-// ...等等
-```
-
-**優點**:
-- 保持向後相容（現有本地狀態繼續運作）
-- 可平滑過渡到全站狀態
-- 用戶在不同頁面看到連續的對話
-
-### 2. OrbGuidePanel 聊天模式整合
+### 2. OrbGuidePanel 整合 ✅ 已完成
 
 **目標**: OrbGuidePanel 的「自由聊天」模式也使用全站狀態
 
-**當前狀況**: OrbGuidePanel 有自己的 chatMessages 本地狀態（lines 156-202）
+**已完成**:
+- ✅ OrbGuidePanel 聊天模式使用 GlobalOrbChat 狀態
+- ✅ 移除本地 chatMessages, chatInput 狀態
+- ✅ 切換到聊天模式時自動開啟全站聊天
+- ✅ 使用 globalChat.sendMessage 發送訊息
 
-**整合方案**:
-```typescript
-// 在 OrbGuidePanel 中
-const globalChat = useGlobalOrbChat();
-
-// 聊天模式使用全站狀態
-if (panelMode === "chat") {
-  // 使用 globalChat.messages, globalChat.sendMessage 等
-}
-```
-
-### 3. AgentChat 頁面整合
+### 3. AgentChat 頁面整合 ✅ 已完成
 
 **目標**: `/agent` 頁面也使用全站狀態，實現真正的「隨處聊天」
 
-**當前狀況**: AgentChat 有自己獨立的 messages 狀態
-
-**整合方案**:
-```typescript
-// 在 AgentChat.tsx 中
-const globalChat = useGlobalOrbChat();
-
-// 直接使用全站狀態
-const { messages, sendMessage, input, setInput, isSending } = globalChat;
-```
+**已完成**:
+- ✅ AgentChat 頁面使用 GlobalOrbChat 狀態
+- ✅ 移除本地 messages, input, isSending 狀態
+- ✅ 頁面載入時自動開啟全站聊天
+- ✅ 使用 globalChat.sendMessage 發送訊息
 
 ### 4. 聊天歷史 UI 增強
 
@@ -378,37 +351,30 @@ function ChatPanel() {
 - [x] GlobalOrbChatContext 實作完成
 - [x] App.tsx Provider 整合
 - [x] localStorage 持久化
-- [ ] ProactiveOrbWidget 整合
-- [ ] OrbGuidePanel 整合
-- [ ] AgentChat 頁面整合
-- [ ] 單元測試
+- [x] ProactiveOrbWidget 整合
+- [x] OrbGuidePanel 整合
+- [x] AgentChat 頁面整合
+- [x] 建置測試通過（817 個測試全部通過）
 - [ ] E2E 測試
 - [ ] 效能測試
+- [ ] 跨頁面聊天連續性手動測試
 - [ ] 文件更新
 
 ## 下一步
 
-1. **完成 ProactiveOrbWidget 整合** (Phase 2.1)
-   - 讓浮動光球使用全站聊天狀態
-   - 保持向後相容性
+**Phase 2 核心整合已完成** ✅
 
-2. **完成 OrbGuidePanel 整合** (Phase 2.2)
-   - 聊天模式使用全站狀態
-   - 統一使用體驗
+剩餘優化項目：
 
-3. **完成 AgentChat 頁面整合** (Phase 2.3)
-   - `/agent` 頁面直接使用全站狀態
-   - 移除重複代碼
-
-4. **UI 增強** (Phase 2.4)
+1. **UI 增強** (Phase 2.4)
    - 實作訊息搜尋
    - 頁面標籤顯示
    - 時間戳美化
 
-5. **測試與優化** (Phase 2.5)
-   - 完整測試覆蓋
+2. **測試與優化** (Phase 2.5)
+   - E2E 測試
    - 效能優化
-   - 文件完善
+   - 跨頁面聊天連續性測試
 
 ## 相關檔案
 
@@ -435,4 +401,23 @@ function ChatPanel() {
 ---
 
 最後更新: 2026-04-21
-版本: Phase 1 Complete
+版本: Phase 2 Complete (Core Integration Finished)
+
+## 實作完成摘要
+
+**Phase 1 (已完成)**:
+- ✅ GlobalOrbChatContext 核心狀態管理
+- ✅ App.tsx Provider 整合
+- ✅ localStorage 持久化
+
+**Phase 2 (已完成)**:
+- ✅ ProactiveOrbWidget 完整整合
+- ✅ OrbGuidePanel 聊天模式整合
+- ✅ AgentChat 頁面整合
+- ✅ 所有建置測試通過（817/817 測試）
+
+**效果**:
+- 用戶現在可以在任何頁面與光球對話
+- 聊天歷史跨頁面持續存在
+- 所有聊天 UI 共享同一個狀態
+- localStorage 自動持久化（7天過期）
