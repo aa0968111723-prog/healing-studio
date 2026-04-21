@@ -130,6 +130,11 @@ Records: tier, quota, remaining, balanceUsd, nextInvoice, concurrency, extraData
 | `POSTHOG_API_KEY` | PostHog server-side key |
 | `POSTHOG_HOST` | PostHog 主機 URL |
 
+## API Key 申請教學
+
+- 詳細步驟請看：`docs/api-key-setup-guide.zh-TW.md`
+- Admin 可透過 `apiUsage.providerReadiness` 一次查看四家供應商是否已配置，並取得對應申請連結。
+
 ## 擴充
 
 Provider enum (`AI_PROVIDERS`) 定義於 `drizzle/schema.ts`，新增供應商只需：

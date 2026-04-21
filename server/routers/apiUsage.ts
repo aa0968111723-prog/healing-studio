@@ -24,11 +24,24 @@ import {
   AI_PROVIDERS,
 } from "../../drizzle/schema";
 import { TRPCError } from "@trpc/server";
+import { serverEnv } from "../_core/env.validated";
 
 // ─── Shared Zod Schemas ──────────────────────────────────────────────────────
 
 const providerEnum = z.enum(AI_PROVIDERS);
 const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const PROVIDER_APPLY_GUIDE: Record<(typeof AI_PROVIDERS)[number], string> = {
+  fal_ai: "https://fal.ai/dashboard/keys",
+  gemini: "https://aistudio.google.com/apikey",
+  elevenlabs: "https://elevenlabs.io/app/settings/api-keys",
+  suno: "https://suno.com/",
+};
+const PROVIDER_ENV_MAP: Record<(typeof AI_PROVIDERS)[number], keyof typeof serverEnv> = {
+  fal_ai: "FAL_API_KEY",
+  gemini: "GEMINI_API_KEY",
+  elevenlabs: "ELEVENLABS_API_KEY",
+  suno: "SUNO_API_KEY",
+};
 
 // ─── Helper: ensure DB ───────────────────────────────────────────────────────
 
@@ -154,6 +167,20 @@ const alertConfigRouter = router({
 // ─── Main Router ─────────────────────────────────────────────────────────────
 
 export const apiUsageRouter = router({
+  providerReadiness: adminProcedure.query(async () => {
+    return AI_PROVIDERS.map(provider => {
+      const envVar = PROVIDER_ENV_MAP[provider];
+      const value = serverEnv[envVar];
+      const configured = typeof value === "string" && value.trim().length > 0;
+      return {
+        provider,
+        envVar,
+        configured,
+        applyGuideUrl: PROVIDER_APPLY_GUIDE[provider],
+      };
+    });
+  }),
+
   // ── Overview KPIs + chart data ────────────────────────────────────────────
   overview: adminProcedure.query(async () => {
     const db = await requireDb();
