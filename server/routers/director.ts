@@ -2561,4 +2561,412 @@ ${segmentSummaries}
       }
       return { ids };
     }),
+
+  // ─── Auto Script-to-Generation Pipeline ─────────────────────────────────────
+
+  /**
+   * Auto-generate multimodal content from script segments
+   * 根據腳本分段自動分配生成任務到對應的 AI 模型
+   */
+  autoGenerateFromSegments: protectedProcedure
+    .input(
+      z.object({
+        segments: z.array(
+          z.object({
+            id: z.string(),
+            index: z.number(),
+            storyboard: z.object({
+              sceneHeading: z.string(),
+              visualDescription: z.string(),
+              dialogue: z.string(),
+              soundDesign: z.string(),
+              cameraDirection: z.string(),
+              duration: z.string(),
+              mood: z.string(),
+            }),
+            costar: z
+              .object({
+                context: z.string(),
+                situation: z.string(),
+                task: z.string(),
+                action: z.string(),
+                result: z.string(),
+                visualPrompt: z.string(),
+                audioScript: z.string(),
+                musicVibe: z.string(),
+              })
+              .optional(),
+          })
+        ),
+        generationOptions: z.object({
+          /** Which modalities to generate for each segment */
+          modalities: z
+            .array(z.enum(["image", "video", "audio", "voice"]))
+            .min(1),
+          /** Image generation settings */
+          imageSettings: z
+            .object({
+              aspectRatio: z.string().optional(),
+              negativePrompt: z.string().optional(),
+              modelId: z.string().optional(),
+            })
+            .optional(),
+          /** Video generation settings */
+          videoSettings: z
+            .object({
+              modelId: z.string().optional(),
+              useImageAsFirstFrame: z.boolean().optional(), // Use generated image as video first frame
+            })
+            .optional(),
+          /** Audio generation settings */
+          audioSettings: z
+            .object({
+              modelId: z.string().optional(),
+              isInstrumental: z.boolean().optional(),
+            })
+            .optional(),
+          /** Voice generation settings */
+          voiceSettings: z
+            .object({
+              modelId: z.string().optional(),
+              voiceSpeed: z.number().optional(),
+              voiceStability: z.number().optional(),
+            })
+            .optional(),
+          /** Generation mode for all tasks */
+          mode: z.enum(["lightning", "deep_precision"]).default("lightning"),
+        }),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const userId = ctx.user.id;
+      const { segments, generationOptions } = input;
+
+      // Import necessary dependencies
+      const { getDb } = await import("../db");
+      const { userAiBrain } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
+      const {
+        resolveFalEnginesFromRow,
+      } = await import("../services/falDispatcher");
+      const { estimatePoints } = await import("../services/modelPricing");
+      const { isDemoMode } = await import("../_core/env.validated");
+      const { normalizeEngineModelId } = await import(
+        "../../shared/engineModelIds"
+      );
+
+      // Fetch user AI brain config
+      let brainRow: Record<string, unknown> | null = null;
+      try {
+        const database = await getDb();
+        if (database) {
+          const rows = await database
+            .select()
+            .from(userAiBrain)
+            .where(eq(userAiBrain.userId, userId))
+            .limit(1);
+          brainRow = (rows[0] ?? null) as Record<string, unknown> | null;
+        }
+      } catch {
+        /* use defaults */
+      }
+      const falEngines = resolveFalEnginesFromRow(brainRow);
+
+      // Build generation tasks for each segment
+      const generationTasks: Array<{
+        segmentId: string;
+        segmentIndex: number;
+        modality: "image" | "video" | "audio" | "voice";
+        modelId: string;
+        prompt: string;
+        voiceText?: string;
+        params: Record<string, unknown>;
+        estimatedPoints: number;
+        dependsOn?: { segmentId: string; modality: string }; // For video depending on image
+      }> = [];
+
+      for (const segment of segments) {
+        const visualPrompt = segment.costar?.visualPrompt ||
+          segment.storyboard.visualDescription;
+        const audioScript = segment.costar?.audioScript ||
+          segment.storyboard.dialogue;
+        const musicVibe = segment.costar?.musicVibe ||
+          segment.storyboard.soundDesign;
+
+        // Parse duration from storyboard
+        const durationStr = segment.storyboard.duration;
+        const minMatch = durationStr.match(/(\d+)\s*分/);
+        const secMatch = durationStr.match(/(\d+)\s*秒/);
+        let durationSec = 0;
+        if (minMatch) durationSec += parseInt(minMatch[1], 10) * 60;
+        if (secMatch) durationSec += parseInt(secMatch[1], 10);
+        if (durationSec === 0) durationSec = 5; // default 5 seconds
+
+        for (const modality of generationOptions.modalities) {
+          if (modality === "image") {
+            const modelId =
+              generationOptions.imageSettings?.modelId
+                ? normalizeEngineModelId(
+                    generationOptions.imageSettings.modelId
+                  )
+                : falEngines.textToImage;
+            const estimate = estimatePoints(modelId, {});
+            generationTasks.push({
+              segmentId: segment.id,
+              segmentIndex: segment.index,
+              modality: "image",
+              modelId,
+              prompt: visualPrompt,
+              params: {
+                aspect_ratio:
+                  generationOptions.imageSettings?.aspectRatio || "16:9",
+                negative_prompt:
+                  generationOptions.imageSettings?.negativePrompt || "",
+              },
+              estimatedPoints: estimate.totalPoints,
+            });
+          } else if (modality === "video") {
+            const useImageFirst =
+              generationOptions.videoSettings?.useImageAsFirstFrame ?? false;
+            const modelId =
+              generationOptions.videoSettings?.modelId
+                ? normalizeEngineModelId(
+                    generationOptions.videoSettings.modelId
+                  )
+                : useImageFirst
+                  ? falEngines.imageToVideo
+                  : falEngines.textToVideo;
+            const estimate = estimatePoints(modelId, { durationSec });
+            const task: (typeof generationTasks)[number] = {
+              segmentId: segment.id,
+              segmentIndex: segment.index,
+              modality: "video",
+              modelId,
+              prompt: visualPrompt,
+              params: {
+                duration: String(durationSec),
+              },
+              estimatedPoints: estimate.totalPoints,
+            };
+            if (useImageFirst) {
+              task.dependsOn = { segmentId: segment.id, modality: "image" };
+            }
+            generationTasks.push(task);
+          } else if (modality === "audio") {
+            const modelId =
+              generationOptions.audioSettings?.modelId
+                ? normalizeEngineModelId(
+                    generationOptions.audioSettings.modelId
+                  )
+                : falEngines.textToAudio;
+            const estimate = estimatePoints(modelId, { durationSec });
+            generationTasks.push({
+              segmentId: segment.id,
+              segmentIndex: segment.index,
+              modality: "audio",
+              modelId,
+              prompt: musicVibe,
+              params: {
+                seconds_total: durationSec,
+                instrumental:
+                  generationOptions.audioSettings?.isInstrumental ?? true,
+              },
+              estimatedPoints: estimate.totalPoints,
+            });
+          } else if (modality === "voice") {
+            const modelId =
+              generationOptions.voiceSettings?.modelId
+                ? normalizeEngineModelId(
+                    generationOptions.voiceSettings.modelId
+                  )
+                : falEngines.textToSpeech;
+            const charCount = audioScript.length;
+            const estimate = estimatePoints(modelId, { charCount });
+            generationTasks.push({
+              segmentId: segment.id,
+              segmentIndex: segment.index,
+              modality: "voice",
+              modelId,
+              prompt: audioScript,
+              voiceText: audioScript,
+              params: {
+                text: audioScript,
+                speed: generationOptions.voiceSettings?.voiceSpeed ?? 1.0,
+                stability: generationOptions.voiceSettings?.voiceStability ?? 0.5,
+              },
+              estimatedPoints: estimate.totalPoints,
+            });
+          }
+        }
+      }
+
+      // Calculate total points needed
+      const totalPoints = generationTasks.reduce(
+        (sum, t) => sum + t.estimatedPoints,
+        0
+      );
+
+      // Check user has enough points
+      if (!isDemoMode()) {
+        const db = await import("../db");
+        const user = await db.getUser(userId);
+        if (!user || (user.credits ?? 0) < totalPoints) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: `積分不足。需要 ${totalPoints} pts，目前 ${user?.credits ?? 0} pts`,
+          });
+        }
+      }
+
+      return {
+        tasks: generationTasks.map(t => ({
+          segmentId: t.segmentId,
+          segmentIndex: t.segmentIndex,
+          modality: t.modality,
+          modelId: t.modelId,
+          estimatedPoints: t.estimatedPoints,
+          dependsOn: t.dependsOn,
+        })),
+        totalPoints,
+        totalTasks: generationTasks.length,
+      };
+    }),
+
+  /**
+   * Execute a single generation task from the auto-generation pipeline
+   * 執行單個自動生成任務
+   */
+  executeGenerationTask: protectedProcedure
+    .input(
+      z.object({
+        segmentId: z.string(),
+        segmentIndex: z.number(),
+        modality: z.enum(["image", "video", "audio", "voice"]),
+        modelId: z.string(),
+        prompt: z.string(),
+        voiceText: z.string().optional(),
+        params: z.record(z.unknown()),
+        mode: z.enum(["lightning", "deep_precision"]).default("lightning"),
+        firstFrameUrl: z.string().optional(), // For video with image dependency
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const userId = ctx.user.id;
+
+      // Import dependencies
+      const { callFalModel } = await import("../services/falModels");
+      const { estimatePoints } = await import("../services/modelPricing");
+      const { isDemoMode } = await import("../_core/env.validated");
+      const db = await import("../db");
+
+      // Estimate points
+      const durationSec =
+        input.modality === "video" || input.modality === "audio"
+          ? Number(input.params.duration || input.params.seconds_total || 5)
+          : undefined;
+      const charCount =
+        input.modality === "voice" ? input.voiceText?.length : undefined;
+      const estimate = estimatePoints(input.modelId, { durationSec, charCount });
+
+      // Deduct points
+      if (!isDemoMode()) {
+        const deductResult = await db.deductUserPoints(
+          userId,
+          estimate.totalPoints
+        );
+        if (!deductResult.success) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: `積分不足（需要 ${estimate.totalPoints} pts）`,
+          });
+        }
+      }
+
+      // Create background job
+      const modalityLabel =
+        input.modality === "image"
+          ? "圖像"
+          : input.modality === "video"
+            ? "影片"
+            : input.modality === "audio"
+              ? "音樂"
+              : "語音";
+      const label = `${modalityLabel}生成 - 分鏡 #${input.segmentIndex + 1}`;
+      const jobId = await db.createBackgroundJob({
+        userId,
+        jobType: input.modality as any,
+        status: "processing",
+        progress: 5,
+        label,
+        paramSnapshot: {
+          segmentId: input.segmentId,
+          segmentIndex: input.segmentIndex,
+          prompt: input.prompt,
+          modelId: input.modelId,
+          ...input.params,
+        },
+      });
+
+      try {
+        // Build fal input based on modality
+        let falInput: Record<string, unknown> = { ...input.params };
+
+        if (input.modality === "image") {
+          falInput.prompt = input.prompt;
+        } else if (input.modality === "video") {
+          falInput.prompt = input.prompt;
+          if (input.firstFrameUrl) {
+            falInput.image_url = input.firstFrameUrl;
+          }
+        } else if (input.modality === "audio") {
+          falInput.prompt = input.prompt;
+        } else if (input.modality === "voice") {
+          falInput.text = input.voiceText || input.prompt;
+        }
+
+        // Call fal model - queue mode (async)
+        const result = await callFalModel({
+          modelId: input.modelId,
+          input: falInput,
+          webhookUrl: undefined,
+          mode: "queue", // Async mode
+        });
+
+        // Update job with request_id
+        await db.updateBackgroundJob(jobId, {
+          status: "processing",
+          progress: 10,
+          requestId: result.request_id || undefined,
+          paramSnapshot: {
+            ...(input.params as Record<string, unknown>),
+            segmentId: input.segmentId,
+            segmentIndex: input.segmentIndex,
+            prompt: input.prompt,
+            modelId: input.modelId,
+            request_id: result.request_id,
+          },
+        });
+
+        return {
+          jobId,
+          requestId: result.request_id,
+          modelId: input.modelId,
+          label,
+          segmentId: input.segmentId,
+          segmentIndex: input.segmentIndex,
+          modality: input.modality,
+        };
+      } catch (error) {
+        // Refund points on error
+        if (!isDemoMode()) {
+          await db.refundUserPoints(userId, estimate.totalPoints);
+        }
+        await db.updateBackgroundJob(jobId, {
+          status: "failed",
+          errorMessage:
+            error instanceof Error ? error.message : "生成任務失敗",
+        });
+        throw error;
+      }
+    }),
 });
