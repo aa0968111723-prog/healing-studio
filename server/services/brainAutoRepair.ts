@@ -1697,16 +1697,49 @@ export function addResearchToLearnHub(researchId: string): boolean {
   const docId = `web-research-${item.id}`;
   if (hasLearnDoc(docId)) return false;
 
+  const normalizedSource = item.source.trim().toLowerCase();
+  const sourceTag = normalizedSource || "web";
+  const keywordTags = item.title
+    .split(/[\s/|｜、,，:：()（）\[\]【】]+/g)
+    .map(k => k.trim().toLowerCase())
+    .filter(k => k.length >= 2)
+    .slice(0, 4);
+  const mergedTags = Array.from(new Set(["爬網研究", sourceTag, ...keywordTags])).slice(0, 8);
+  const publishedIso = new Date(item.createdAt).toISOString();
+  const summarized = item.summary.trim();
+
   addLearnDoc({
     id: docId,
     title: `[爬網] ${item.title}`,
-    summary: item.summary.slice(0, 200),
-    content: `# ${item.title}\n\n**來源:** ${item.source}\n**連結:** ${item.url}\n**搜尋詞:** ${item.query}\n\n---\n\n${item.summary}`,
+    summary: summarized.slice(0, 220),
+    content: `# ${item.title}
+
+## 研究來源
+
+- **來源平台**：${item.source}
+- **原始連結**：${item.url}
+- **搜尋詞**：${item.query}
+- **關聯度**：${item.relevance}/100
+- **匯入時間**：${publishedIso}
+
+---
+
+## 重點摘要
+
+${summarized}
+
+---
+
+## 建議下一步（可直接在學習文件中心延伸）
+
+1. 將本篇加入收藏並建立個人筆記。
+2. 進一步搜尋關鍵字：\`${item.query}\`。
+3. 把相關模型 / API 內容整理進同主題文件，形成專案知識串。`,
     category: "technique",
-    tags: ["爬網研究", item.source.toLowerCase()],
+    tags: mergedTags,
     difficulty: "intermediate",
-    readingMinutes: 2,
-    publishedAt: new Date().toISOString(),
+    readingMinutes: 3,
+    publishedAt: publishedIso,
     updatedAt: new Date().toISOString(),
     featured: false,
   });

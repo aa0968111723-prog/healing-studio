@@ -124,6 +124,12 @@ const ASSET_TYPES = [
 ] as const;
 type AssetTypeFilter = (typeof ASSET_TYPES)[number];
 
+function parsePositiveAssetId(raw: unknown): number | null {
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value <= 0) return null;
+  return value;
+}
+
 function formatBytes(bytes: number | null | undefined): string {
   if (!bytes) return "—";
   if (bytes < 1024) return `${bytes} B`;
@@ -492,7 +498,16 @@ export default function AssetsLibrary() {
         }
         case "openDialog": {
           const { dialogId } = action;
-          const assetId = action.params?.assetId;
+          const actionRecord = action as unknown as Record<string, unknown>;
+          const legacyAssetId =
+            actionRecord && typeof actionRecord === "object" && "assetId" in actionRecord
+              ? actionRecord.assetId
+              : undefined;
+          const assetIdFromParams =
+            action.params && typeof action.params === "object"
+              ? (action.params as { assetId?: unknown }).assetId
+              : undefined;
+          const assetId = assetIdFromParams ?? legacyAssetId;
           switch (dialogId) {
             case "upload":
               setShowUploadDialog(true);
@@ -504,8 +519,8 @@ export default function AssetsLibrary() {
             default:
               // If assetId is provided, expand that asset
               if (assetId !== undefined) {
-                const id = typeof assetId === "number" ? assetId : parseInt(String(assetId));
-                if (isNaN(id)) {
+                const id = parsePositiveAssetId(assetId);
+                if (id === null) {
                   return { ok: false, reason: `無效的資產 ID: ${assetId}` };
                 }
                 setExpandedId(id);
