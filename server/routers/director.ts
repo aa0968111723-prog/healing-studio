@@ -15,6 +15,7 @@
 
 import { z } from "zod";
 import { router, protectedProcedure } from "../_core/trpc";
+import { TRPCError } from "@trpc/server";
 import { invokeLLM } from "../_core/llm";
 import * as db from "../db";
 import { buildMemoryContext } from "../services/ragMemory";
@@ -2665,7 +2666,7 @@ ${segmentSummaries}
         resolveFalEnginesFromRow,
       } = await import("../services/falDispatcher");
       const { estimatePoints } = await import("../services/modelPricing");
-      const { isDemoMode } = await import("../_core/env.validated");
+      const { isDemoMode } = await import("../_core/googleAuth");
       const { normalizeEngineModelId } = await import(
         "../../shared/engineModelIds"
       );
@@ -2823,13 +2824,22 @@ ${segmentSummaries}
 
       // Check user has enough points
       if (!isDemoMode()) {
-        const db = await import("../db");
-        const user = await db.getUser(userId);
-        if (!user || (user.credits ?? 0) < totalPoints) {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: `積分不足。需要 ${totalPoints} pts，目前 ${user?.credits ?? 0} pts`,
-          });
+        const database = await getDb();
+        if (database) {
+          const { users } = await import("../../drizzle/schema");
+          const { eq } = await import("drizzle-orm");
+          const userRows = await database
+            .select()
+            .from(users)
+            .where(eq(users.id, userId))
+            .limit(1);
+          const user = userRows[0];
+          if (!user || (user.remainingGenerations ?? 0) < totalPoints) {
+            throw new TRPCError({
+              code: "FORBIDDEN",
+              message: `積分不足。需要 ${totalPoints} pts，目前 ${user?.remainingGenerations ?? 0} pts`,
+            });
+          }
         }
       }
 
@@ -2860,7 +2870,7 @@ ${segmentSummaries}
         modelId: z.string(),
         prompt: z.string(),
         voiceText: z.string().optional(),
-        params: z.record(z.unknown()),
+        params: z.record(z.string(), z.unknown()),
         mode: z.enum(["lightning", "deep_precision"]).default("lightning"),
         firstFrameUrl: z.string().optional(), // For video with image dependency
       })
@@ -2869,9 +2879,9 @@ ${segmentSummaries}
       const userId = ctx.user.id;
 
       // Import dependencies
-      const { callFalModel } = await import("../services/falModels");
+      const { falQueueSubmitModel } = await import("../services/falModels");
       const { estimatePoints } = await import("../services/modelPricing");
-      const { isDemoMode } = await import("../_core/env.validated");
+      const { isDemoMode } = await import("../_core/googleAuth");
       const db = await import("../db");
 
       // Estimate points
@@ -2912,14 +2922,14 @@ ${segmentSummaries}
         jobType: input.modality as any,
         status: "processing",
         progress: 5,
-        label,
-        paramSnapshot: {
+        progressMessage: label,
+        resultJson: {
           segmentId: input.segmentId,
           segmentIndex: input.segmentIndex,
           prompt: input.prompt,
           modelId: input.modelId,
           ...input.params,
-        },
+        } as any,
       });
 
       try {
@@ -2940,26 +2950,23 @@ ${segmentSummaries}
         }
 
         // Call fal model - queue mode (async)
-        const result = await callFalModel({
-          modelId: input.modelId,
-          input: falInput,
-          webhookUrl: undefined,
-          mode: "queue", // Async mode
-        });
+        const result = await falQueueSubmitModel(
+          input.modelId,
+          falInput
+        );
 
         // Update job with request_id
         await db.updateBackgroundJob(jobId, {
           status: "processing",
           progress: 10,
-          requestId: result.request_id || undefined,
-          paramSnapshot: {
+          resultJson: {
             ...(input.params as Record<string, unknown>),
             segmentId: input.segmentId,
             segmentIndex: input.segmentIndex,
             prompt: input.prompt,
             modelId: input.modelId,
             request_id: result.request_id,
-          },
+          } as any,
         });
 
         return {
