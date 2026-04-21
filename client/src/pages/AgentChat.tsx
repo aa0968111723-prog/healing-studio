@@ -29,6 +29,7 @@ import {
 import { useOrbGuide, INTENT_CONFIGS, type GuideIntent } from "@/contexts/OrbGuideContext";
 import { Button } from "@/components/ui/button";
 import { getAgentHomeEntries } from "@/config/appRegistry";
+import { useGlobalOrbChat } from "@/contexts/GlobalOrbChatContext";
 
 // ─── 型別 ─────────────────────────────────────────────────────────────────
 
@@ -134,6 +135,9 @@ export default function AgentChat() {
   const [, setLocation] = useLocation();
   const { openPanel: openOrbGuide, selectIntent: selectOrbIntent } = useOrbGuide();
 
+  // ─── Global Orb Chat Integration ──────────────────────────────────────
+  const globalChat = useGlobalOrbChat();
+
   // Ref to hold the latest `send` for use in handler (avoids stale closures)
   const sendRef = useRef<(raw: string) => Promise<void>>(undefined);
 
@@ -177,17 +181,15 @@ export default function AgentChat() {
   });
 
   // ─── Chat 狀態 ─────────────────────────────────────────────────────
-  const greeting = useMemo(() => {
-    const list = GREETINGS[personality] ?? GREETINGS.creative;
-    return list[Math.floor(Math.random() * list.length)];
-  }, [personality]);
-
-  const [messages, setMessages] = useState<ChatMessage[]>(() => [
-    { role: "orb", text: greeting, at: Date.now() },
-  ]);
-  const [input, setInput] = useState("");
-  const [isSending, setIsSending] = useState(false);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  // Use global chat state instead of local state
+  const messages = globalChat.messages;
+  const input = globalChat.input;
+  const setInput = globalChat.setInput;
+  const isSending = globalChat.isSending;
+  const suggestions = globalChat.suggestions.map(s => s.text);
+  const setSuggestions = (newSuggestions: string[]) => {
+    // Global chat manages suggestions internally
+  };
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const starterEntries = useMemo(
     () =>
@@ -206,7 +208,7 @@ export default function AgentChat() {
     [starterEntries]
   );
 
-  const aiChat = trpc.ai.chat.useMutation();
+  // Remove local aiChat mutation - will use globalChat.sendMessage instead
 
   // Auto-scroll to bottom on new message
   useEffect(() => {
@@ -215,81 +217,21 @@ export default function AgentChat() {
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, [messages, isSending]);
 
+  // Open global chat when this page loads
+  useEffect(() => {
+    globalChat.open();
+  }, [globalChat]);
+
   // ─── 送出訊息 ───────────────────────────────────────────────────────
   const send = useCallback(
     async (raw: string) => {
       const text = raw.trim();
       if (!text || isSending) return;
-      const nextHistory: ChatMessage[] = [
-        ...messages,
-        { role: "user", text, at: Date.now() },
-      ];
-      setMessages(nextHistory);
-      setInput("");
-      setSuggestions([]);
-      setIsSending(true);
-
-      try {
-        const data = await aiChat.mutateAsync({
-          messages: nextHistory
-            .filter(m => m.at !== messages[0]?.at || m.role === "user") // skip first greeting
-            .map(m => ({
-              role: m.role === "user" ? ("user" as const) : ("assistant" as const),
-              content: m.text,
-            })),
-          personality,
-          context: "全站光球代理頁（/agent）",
-          pageSnapshot: pageAgent.snapshot ?? undefined,
-          recentFeedback: pageAgent.recentFeedback,
-          // 緩衝頁上，所有結構化動作都先預覽再執行（額外柔軟）
-          alwaysConfirm: true,
-        });
-
-        const intent =
-          typeof (data as { intent?: string | null }).intent === "string"
-            ? ((data as { intent?: string | null }).intent as string)
-            : undefined;
-        const askBeforeAct =
-          (data as { askBeforeAct?: boolean }).askBeforeAct === true;
-        const sugg = (data as { suggestions?: string[] }).suggestions ?? [];
-
-        setMessages(prev => [
-          ...prev,
-          { role: "orb", text: data.reply, at: Date.now(), intent },
-        ]);
-        setSuggestions(sugg.slice(0, 4));
-
-        // ── Dispatch 結構化 actions ──────────────────────────────
-        // navigate 在這頁會被我們自己的 handler 直接吃掉（帶去目標頁）；
-        // 其他動作若是目標頁能力，會進 pending queue 等目標頁 drain；
-        // 破壞性動作則由 AgentIntentPreview 先問使用者。
-        const structured = parseLLMActions(data.actions);
-        for (const action of structured) {
-          if (action.type === "navigate") {
-            // navigate 本身不走確認閘（使用者可隨時回上一頁）
-            setLocation(action.path);
-            continue;
-          }
-          void pageAgent.dispatch(action, {
-            source: "ai-chat",
-            intentSummary: intent,
-            requireConfirmation: askBeforeAct ? true : undefined,
-          });
-        }
-      } catch {
-        setMessages(prev => [
-          ...prev,
-          {
-            role: "orb",
-            text: "🌸 抱歉，我剛才恍神了一下。再跟我說一次好嗎？",
-            at: Date.now(),
-          },
-        ]);
-      } finally {
-        setIsSending(false);
-      }
+      // Use global chat to send the message
+      // GlobalOrbChatContext handles all LLM interaction, action dispatch, and message management
+      await globalChat.sendMessage(text);
     },
-    [aiChat, isSending, messages, pageAgent, personality, setLocation]
+    [isSending, globalChat]
   );
 
   // Keep sendRef in sync with the latest `send` callback

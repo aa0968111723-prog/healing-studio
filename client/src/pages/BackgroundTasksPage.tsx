@@ -652,9 +652,9 @@ export default function BackgroundTasksPage() {
         hint: "切換 all/active/completed/failed/image/video/audio/voice/model_training",
       },
       {
-        action: "setParam",
-        label: "搜尋關鍵字",
-        hint: "setParam key='search' value=<關鍵字>；可搜模型名、任務類型、進度訊息",
+        action: "search",
+        label: "搜尋任務",
+        hint: "搜尋模型名、任務類型、進度訊息",
       },
       {
         action: "reset",
@@ -687,12 +687,9 @@ export default function BackgroundTasksPage() {
           setFilter(action.tabId as JobFilter);
           return { ok: true, message: `切到「${action.tabId}」` };
         }
-        case "setParam": {
-          if (action.key === "search") {
-            setSearch(typeof action.value === "string" ? action.value : "");
-            return { ok: true, message: "已套用搜尋" };
-          }
-          return { ok: false, reason: `unknown param key: ${action.key}` };
+        case "search": {
+          setSearch(action.query);
+          return { ok: true, message: "已套用搜尋" };
         }
         case "reset": {
           setFilter("all");
