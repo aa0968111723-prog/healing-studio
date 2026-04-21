@@ -29,6 +29,9 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { usePersonality } from "@/contexts/PersonalityContext";
 import type { Personality } from "@/contexts/PersonalityContext";
+import type { SceneId } from "@/components/AmbientEnvironment";
+import { useAmbient } from "@/contexts/AmbientSoundContext";
+import { useIsMobile } from "@/hooks/useMobile";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -67,6 +70,22 @@ const STATIC_KEYFRAMES = [
     "85%{opacity:0.4}100%{transform:rotate(360deg) translate3d(36px,0,0) scale(0.8);opacity:0}}",
   // Breathing pulse for nebula
   "@keyframes hs-nebula{0%,100%{opacity:0.06;transform:scale(1)}50%{opacity:0.12;transform:scale(1.05)}}",
+  // Hero orb breath + subtle vertical drift
+  "@keyframes hs-hero-breathe{0%,100%{transform:translate3d(0,0,0) scale(1)}50%{transform:translate3d(0,-4px,0) scale(1.04)}}",
+  // Rotating aurora veil around hero orb
+  "@keyframes hs-aurora-spin{0%{transform:translate3d(-50%,-50%,0) rotate(0deg) scale(0.95)}100%{transform:translate3d(-50%,-50%,0) rotate(360deg) scale(1.05)}}",
+  // Convergence shockwave ring
+  "@keyframes hs-shockwave{0%{transform:translate3d(-50%,-50%,0) scale(0.35);opacity:0.55}100%{transform:translate3d(-50%,-50%,0) scale(1.9);opacity:0}}",
+  // Cinematic light rays moving across hero orb
+  "@keyframes hs-ray-sweep{0%{transform:translate3d(-50%,-50%,0) rotate(0deg) scale(0.95);opacity:0.12}50%{opacity:0.35}100%{transform:translate3d(-50%,-50%,0) rotate(360deg) scale(1.1);opacity:0.12}}",
+  // Backdrop parallax-like breathing
+  "@keyframes hs-depth-breathe{0%,100%{opacity:0.22;transform:scale(1)}50%{opacity:0.35;transform:scale(1.05)}}",
+  // Slow depth plane drift
+  "@keyframes hs-plane-drift{0%,100%{transform:translate3d(-50%,-50%,0) scale(1)}50%{transform:translate3d(-50%,-50%,0) scale(1.04)}}",
+  // Volumetric mist rotation for soft cinematic depth
+  "@keyframes hs-mist-swirl{0%{transform:translate3d(-50%,-50%,0) rotate(0deg) scale(0.95);opacity:0.08}50%{opacity:0.18}100%{transform:translate3d(-50%,-50%,0) rotate(360deg) scale(1.05);opacity:0.08}}",
+  // Shimmer highlight on welcome text
+  "@keyframes hs-text-shimmer{0%{background-position:0% 50%}100%{background-position:200% 50%}}",
 ].join("");
 
 // ─── Personality → Color Palette ────────────────────────────────────────────
@@ -144,6 +163,41 @@ function buildPalette(personality: Personality): PaletteConfig {
     meteorTint: `hsla(${t.h + 10},${t.s + 20}%,85%,0.7)`,
     sparkleColor: `hsla(${t.h},${t.s + 10}%,88%,0.8)`,
   };
+}
+
+interface SceneVariant {
+  backdrop: string;
+  accentLayer: string;
+}
+
+function buildSceneVariant(sceneId: SceneId): SceneVariant {
+  const variants: Record<SceneId, SceneVariant> = {
+    nightSky: {
+      backdrop:
+        "radial-gradient(ellipse at 50% 42%, rgba(16,14,34,0.96) 0%, rgba(5,5,16,0.99) 100%)",
+      accentLayer:
+        "radial-gradient(ellipse at 20% 22%, rgba(70,55,150,0.18) 0%, transparent 56%),radial-gradient(ellipse at 78% 74%, rgba(26,64,120,0.16) 0%, transparent 58%)",
+    },
+    morning: {
+      backdrop:
+        "radial-gradient(ellipse at 50% 40%, rgba(58,42,78,0.9) 0%, rgba(24,18,42,0.96) 100%)",
+      accentLayer:
+        "radial-gradient(ellipse at 24% 20%, rgba(255,180,120,0.2) 0%, transparent 54%),radial-gradient(ellipse at 72% 78%, rgba(255,120,180,0.14) 0%, transparent 60%)",
+    },
+    cafe: {
+      backdrop:
+        "radial-gradient(ellipse at 50% 44%, rgba(54,34,34,0.92) 0%, rgba(20,13,18,0.97) 100%)",
+      accentLayer:
+        "radial-gradient(ellipse at 30% 28%, rgba(255,186,136,0.16) 0%, transparent 52%),radial-gradient(ellipse at 76% 72%, rgba(198,122,76,0.14) 0%, transparent 56%)",
+    },
+    deepSea: {
+      backdrop:
+        "radial-gradient(ellipse at 50% 45%, rgba(12,34,50,0.95) 0%, rgba(5,14,24,0.99) 100%)",
+      accentLayer:
+        "radial-gradient(ellipse at 28% 24%, rgba(82,178,220,0.18) 0%, transparent 55%),radial-gradient(ellipse at 70% 76%, rgba(44,112,170,0.16) 0%, transparent 58%)",
+    },
+  };
+  return variants[sceneId];
 }
 
 // ─── Orb flight configuration ───────────────────────────────────────────────
@@ -477,7 +531,8 @@ function FlyingOrbs({
 
 // ─── Convergence flash (multi-layer burst when orbs meet) ───────────────────
 
-function ConvergenceFlash() {
+function ConvergenceFlash({ scale }: { scale: number }) {
+  const s = (v: number) => v * scale;
   return (
     <>
       {/* Outer warm glow burst */}
@@ -486,10 +541,10 @@ function ConvergenceFlash() {
         style={{
           left: "50%",
           top: "50%",
-          width: 420,
-          height: 420,
-          marginLeft: -210,
-          marginTop: -210,
+          width: s(420),
+          height: s(420),
+          marginLeft: -s(210),
+          marginTop: -s(210),
           background:
             "radial-gradient(circle, rgba(255,220,180,0.2) 0%, rgba(255,200,140,0.06) 40%, transparent 65%)",
           willChange: "transform, opacity",
@@ -504,10 +559,10 @@ function ConvergenceFlash() {
         style={{
           left: "50%",
           top: "50%",
-          width: 260,
-          height: 260,
-          marginLeft: -130,
-          marginTop: -130,
+          width: s(260),
+          height: s(260),
+          marginLeft: -s(130),
+          marginTop: -s(130),
           background:
             "radial-gradient(circle, rgba(255,255,245,0.5) 0%, rgba(255,230,200,0.15) 35%, transparent 55%)",
           willChange: "transform, opacity",
@@ -524,19 +579,22 @@ function ConvergenceFlash() {
 
 const NebulaAura = memo(function NebulaAura({
   colors,
+  scale,
 }: {
   colors: [string, string];
+  scale: number;
 }) {
+  const size = 500 * scale;
   return (
     <div
       className="absolute pointer-events-none"
       style={{
         left: "50%",
         top: "50%",
-        width: 500,
-        height: 500,
-        marginLeft: -250,
-        marginTop: -250,
+        width: size,
+        height: size,
+        marginLeft: -size / 2,
+        marginTop: -size / 2,
         borderRadius: "50%",
         background: `radial-gradient(ellipse at 45% 48%, ${colors[0]} 0%, ${colors[1]} 35%, transparent 65%)`,
         animation: "hs-nebula 6s ease-in-out infinite",
@@ -585,23 +643,90 @@ const OrbitingSparkles = memo(function OrbitingSparkles({
 
 // ─── Central converged orb — enriched with highlight + sparkles ─────────────
 
-function CentralOrb({ palette }: { palette: PaletteConfig }) {
+function CentralOrb({
+  palette,
+  parallax,
+  scale,
+}: {
+  palette: PaletteConfig;
+  parallax: [number, number];
+  scale: number;
+}) {
+  const [px, py] = parallax;
+  const s = (v: number) => v * scale;
   return (
     <motion.div
       className="absolute pointer-events-none"
-      style={{ left: "50%", top: "50%", willChange: "transform, opacity" }}
+      style={{
+        left: "50%",
+        top: "50%",
+        willChange: "transform, opacity",
+        animation: "hs-hero-breathe 4.8s ease-in-out 1.1s infinite",
+        rotateX: py * -5,
+        rotateY: px * 6,
+        transformStyle: "preserve-3d",
+      }}
       initial={{ opacity: 0, x: "-50%", y: "-50%" }}
       animate={{ opacity: 1, x: "-50%", y: "-50%" }}
       transition={{ duration: 0.8, ease: "easeOut" }}
     >
+      {/* Hero orb cinematic shockwave */}
+      <div
+        className="absolute rounded-full"
+        style={{
+          width: s(160),
+          height: s(160),
+          left: "50%",
+          top: "50%",
+          transform: "translate3d(-50%,-50%,0)",
+          border: `1px solid ${palette.pulseRing}`,
+          background: "transparent",
+          animation: "hs-shockwave 1.35s ease-out 1.2s 2 forwards",
+          willChange: "transform, opacity",
+        }}
+      />
+
+      {/* Hero orb aurora veil */}
+      <div
+        className="absolute rounded-full"
+        style={{
+          width: s(210),
+          height: s(210),
+          left: "50%",
+          top: "50%",
+          transform: "translate3d(-50%,-50%,0)",
+          background: `conic-gradient(from 90deg, transparent 0deg, ${palette.haloInner} 90deg, transparent 200deg, ${palette.haloOuter} 280deg, transparent 360deg)`,
+          opacity: 0.58,
+          animation: "hs-aurora-spin 10s linear 1.1s infinite",
+          willChange: "transform, opacity",
+        }}
+      />
+
+      {/* Refractive rim to simulate glass-like 3D orb shell */}
+      <div
+        className="absolute rounded-full"
+        style={{
+          width: s(88),
+          height: s(88),
+          left: -s(44),
+          top: -s(44),
+          border: "1px solid rgba(255,255,255,0.28)",
+          background:
+            "linear-gradient(135deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.04) 38%, rgba(255,200,140,0.08) 100%)",
+          boxShadow: "inset -10px -12px 18px rgba(255,150,80,0.08)",
+          transform: `translate3d(${px * 2.8 * scale}px, ${py * 2.4 * scale}px, ${s(16)}px)`,
+          willChange: "transform",
+        }}
+      />
+
       {/* Outer atmospheric halo — large soft gradient */}
       <motion.div
         className="absolute rounded-full"
         style={{
-          width: 380,
-          height: 380,
-          left: -190,
-          top: -190,
+          width: s(380),
+          height: s(380),
+          left: -s(190),
+          top: -s(190),
           background: `radial-gradient(circle, ${palette.haloOuter} 0%, rgba(255,200,140,0.04) 35%, transparent 65%)`,
           willChange: "transform, opacity",
         }}
@@ -614,10 +739,10 @@ function CentralOrb({ palette }: { palette: PaletteConfig }) {
       <motion.div
         className="absolute rounded-full"
         style={{
-          width: 200,
-          height: 200,
-          left: -100,
-          top: -100,
+          width: s(200),
+          height: s(200),
+          left: -s(100),
+          top: -s(100),
           background: `radial-gradient(circle, ${palette.haloInner} 0%, rgba(255,210,170,0.1) 40%, transparent 75%)`,
           willChange: "transform, opacity",
         }}
@@ -633,10 +758,10 @@ function CentralOrb({ palette }: { palette: PaletteConfig }) {
       <motion.div
         className="absolute rounded-full"
         style={{
-          width: 48,
-          height: 48,
-          left: -24,
-          top: -24,
+          width: s(48),
+          height: s(48),
+          left: -s(24),
+          top: -s(24),
           background: `radial-gradient(circle, rgba(255,255,248,0.95) 0%, rgba(255,230,200,0.75) 30%, ${palette.coreTint} 55%, transparent 100%)`,
           willChange: "transform, opacity",
         }}
@@ -648,14 +773,32 @@ function CentralOrb({ palette }: { palette: PaletteConfig }) {
         transition={{ duration: 3.5, delay: 0.6, ease: [0.16, 1, 0.3, 1] }}
       />
 
+      {/* Hero orb shell for stronger "single protagonist" feeling */}
+      <motion.div
+        className="absolute rounded-full"
+        style={{
+          width: s(76),
+          height: s(76),
+          left: -s(38),
+          top: -s(38),
+          border: `1px solid ${palette.haloInner}`,
+          background:
+            "radial-gradient(circle, rgba(255,255,255,0.18) 0%, transparent 70%)",
+          willChange: "transform, opacity",
+        }}
+        initial={{ scale: 0.75, opacity: 0 }}
+        animate={{ scale: [0.75, 1.06, 0.98, 1.02], opacity: [0, 0.8, 0.6, 0.72] }}
+        transition={{ duration: 2.8, delay: 0.8, ease: "easeInOut" }}
+      />
+
       {/* Specular highlight — top-left catchlight for dimensionality */}
       <motion.div
         className="absolute rounded-full"
         style={{
-          width: 14,
-          height: 10,
-          left: -14,
-          top: -16,
+          width: s(14),
+          height: s(10),
+          left: -s(14),
+          top: -s(16),
           background:
             "radial-gradient(ellipse, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.2) 70%, transparent 100%)",
           transform: "rotate(-25deg)",
@@ -671,10 +814,10 @@ function CentralOrb({ palette }: { palette: PaletteConfig }) {
           key={`pulse-${i}`}
           className="absolute rounded-full"
           style={{
-            width: 50,
-            height: 50,
-            left: -25,
-            top: -25,
+            width: s(50),
+            height: s(50),
+            left: -s(25),
+            top: -s(25),
             border: `1px solid ${palette.pulseRing}`,
             background: "transparent",
             willChange: "transform, opacity",
@@ -699,7 +842,7 @@ function CentralOrb({ palette }: { palette: PaletteConfig }) {
         className="absolute flex flex-col items-center"
         style={{
           left: "50%",
-          top: "calc(50% + 72px)",
+          top: `calc(50% + ${s(72)}px)`,
           transform: "translateX(-50%)",
           willChange: "opacity",
         }}
@@ -708,21 +851,27 @@ function CentralOrb({ palette }: { palette: PaletteConfig }) {
         transition={{ duration: 2.2, delay: 2.0, ease: [0.16, 1, 0.3, 1] }}
       >
         <span
-          className="text-base tracking-[0.25em] font-light"
+          className="font-light"
           style={{
-            background: `linear-gradient(135deg, rgba(255,255,255,0.9), ${palette.textGlow}, rgba(255,255,255,0.7))`,
+            fontSize: `${s(16)}px`,
+            letterSpacing: `${Math.max(0.12, 0.25 * scale)}em`,
+            background: `linear-gradient(120deg, rgba(255,255,255,0.75) 0%, rgba(255,255,255,0.98) 22%, ${palette.textGlow} 48%, rgba(255,255,255,0.96) 70%, rgba(255,255,255,0.72) 100%)`,
             WebkitBackgroundClip: "text",
             WebkitTextFillColor: "transparent",
             backgroundClip: "text",
             textShadow: `0 0 24px ${palette.textGlow}`,
+            backgroundSize: "220% 100%",
+            animation: "hs-text-shimmer 4.2s linear 2.1s infinite",
           }}
         >
           歡迎回來
         </span>
         <motion.span
-          className="text-xs tracking-[0.15em] font-light mt-2"
+          className="font-light mt-2"
           style={{
             color: "rgba(255,255,255,0.35)",
+            fontSize: `${s(12)}px`,
+            letterSpacing: `${Math.max(0.08, 0.15 * scale)}em`,
           }}
           initial={{ opacity: 0 }}
           animate={{ opacity: [0, 0.5, 0.5, 0.35] }}
@@ -734,6 +883,105 @@ function CentralOrb({ palette }: { palette: PaletteConfig }) {
     </motion.div>
   );
 }
+
+const HeroLightRays = memo(function HeroLightRays({
+  color,
+  scale,
+}: {
+  color: string;
+  scale: number;
+}) {
+  return (
+    <div
+      className="absolute rounded-full pointer-events-none"
+      style={{
+        left: "50%",
+        top: "50%",
+        width: 330 * scale,
+        height: 330 * scale,
+        transform: "translate3d(-50%,-50%,0)",
+        background: `conic-gradient(from 0deg, transparent 0deg, ${color} 48deg, transparent 92deg, ${color} 185deg, transparent 230deg, ${color} 300deg, transparent 360deg)`,
+        maskImage:
+          "radial-gradient(circle, transparent 0%, rgba(0,0,0,0.5) 35%, rgba(0,0,0,0.95) 68%, transparent 100%)",
+        WebkitMaskImage:
+          "radial-gradient(circle, transparent 0%, rgba(0,0,0,0.5) 35%, rgba(0,0,0,0.95) 68%, transparent 100%)",
+        animation: "hs-ray-sweep 12s linear 1.2s infinite",
+        mixBlendMode: "screen",
+        willChange: "transform, opacity",
+      }}
+    />
+  );
+});
+
+const DepthParallaxPlanes = memo(function DepthParallaxPlanes({
+  parallax,
+  scale,
+}: {
+  parallax: [number, number];
+  scale: number;
+}) {
+  const [px, py] = parallax;
+  return (
+    <>
+      <div
+        className="absolute rounded-full pointer-events-none"
+        style={{
+          left: "50%",
+          top: "50%",
+          width: 760 * scale,
+          height: 760 * scale,
+          transform: `translate3d(calc(-50% + ${px * -22 * scale}px), calc(-50% + ${py * -16 * scale}px), 0)`,
+          background:
+            "radial-gradient(ellipse at 35% 38%, rgba(120,140,255,0.08) 0%, rgba(90,80,180,0.04) 38%, transparent 68%)",
+          animation: "hs-plane-drift 12s ease-in-out infinite",
+          willChange: "transform, opacity",
+        }}
+      />
+      <div
+        className="absolute rounded-full pointer-events-none"
+        style={{
+          left: "50%",
+          top: "50%",
+          width: 560 * scale,
+          height: 560 * scale,
+          transform: `translate3d(calc(-50% + ${px * 16 * scale}px), calc(-50% + ${py * 10 * scale}px), 0)`,
+          background:
+            "radial-gradient(ellipse at 66% 62%, rgba(255,180,140,0.07) 0%, rgba(160,80,120,0.05) 40%, transparent 70%)",
+          animation: "hs-plane-drift 9s ease-in-out 0.8s infinite",
+          willChange: "transform, opacity",
+        }}
+      />
+    </>
+  );
+});
+
+const VolumetricMist = memo(function VolumetricMist({
+  parallax,
+  palette,
+  scale,
+}: {
+  parallax: [number, number];
+  palette: PaletteConfig;
+  scale: number;
+}) {
+  const [px, py] = parallax;
+  return (
+    <div
+      className="absolute rounded-full pointer-events-none"
+      style={{
+        left: "50%",
+        top: "50%",
+        width: 820 * scale,
+        height: 820 * scale,
+        transform: `translate3d(calc(-50% + ${px * 10 * scale}px), calc(-50% + ${py * 8 * scale}px), 0)`,
+        background: `conic-gradient(from 0deg, transparent 0deg, ${palette.nebula[0]} 78deg, transparent 150deg, ${palette.nebula[1]} 220deg, transparent 360deg)`,
+        animation: "hs-mist-swirl 24s linear infinite",
+        mixBlendMode: "screen",
+        willChange: "transform, opacity",
+      }}
+    />
+  );
+});
 
 // ─── Reduced motion variant — simple, elegant fade ──────────────────────────
 
@@ -793,9 +1041,23 @@ export default function LoginOrbAnimation() {
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [containerSize, setContainerSize] = useState<[number, number]>([0, 0]);
   const resizeRaf = useRef(0);
+  const parallaxRaf = useRef(0);
+  const [parallax, setParallax] = useState<[number, number]>([0, 0]);
+  const originalAmbientVolumeRef = useRef<number | null>(null);
 
   const { personality } = usePersonality();
+  const isMobile = useIsMobile();
+  const ambient = useAmbient();
   const palette = useMemo(() => buildPalette(personality), [personality]);
+  const sceneVariant = useMemo(
+    () => buildSceneVariant(ambient.sceneId),
+    [ambient.sceneId]
+  );
+  const responsiveScale = useMemo(() => {
+    const viewportWidth = containerSize[0] || 1280;
+    const baseByWidth = Math.max(0.68, Math.min(1.05, viewportWidth / 1280));
+    return isMobile ? Math.min(0.82, baseByWidth) : baseByWidth;
+  }, [isMobile, containerSize]);
 
   // Sync container size before first paint
   useLayoutEffect(() => {
@@ -838,6 +1100,33 @@ export default function LoginOrbAnimation() {
     };
   }, [show]);
 
+  // Cursor-driven parallax for stronger 3D depth (desktop only)
+  useEffect(() => {
+    if (!show || prefersReducedMotion) return;
+    const onMove = (e: MouseEvent) => {
+      const nx = (e.clientX / window.innerWidth - 0.5) * 2;
+      const ny = (e.clientY / window.innerHeight - 0.5) * 2;
+      cancelAnimationFrame(parallaxRaf.current);
+      parallaxRaf.current = requestAnimationFrame(() => {
+        setParallax([
+          Math.max(-1, Math.min(1, nx)),
+          Math.max(-1, Math.min(1, ny)),
+        ]);
+      });
+    };
+    const onLeave = () => {
+      cancelAnimationFrame(parallaxRaf.current);
+      parallaxRaf.current = requestAnimationFrame(() => setParallax([0, 0]));
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseleave", onLeave);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseleave", onLeave);
+      cancelAnimationFrame(parallaxRaf.current);
+    };
+  }, [show, prefersReducedMotion]);
+
   // Track viewport size (throttled via rAF)
   useEffect(() => {
     if (!show) return;
@@ -867,6 +1156,41 @@ export default function LoginOrbAnimation() {
       clearTimeout(fadeTimer);
     };
   }, [show, prefersReducedMotion]);
+
+  // Link login animation with existing ambient engine: cinematic volume envelope
+  useEffect(() => {
+    if (!show || prefersReducedMotion) return;
+    if (!ambient.isUnlocked || ambient.isMuted) return;
+    const base = originalAmbientVolumeRef.current ?? 0.25;
+    const intro = Math.max(0.06, base * 0.72);
+    const climax = Math.min(1, base + 0.12);
+    ambient.setVolume(intro);
+
+    const t1 = setTimeout(() => ambient.setVolume(climax), 2200);
+    const t2 = setTimeout(() => ambient.setVolume(Math.max(0.05, base * 0.9)), 4300);
+    const t3 = setTimeout(() => ambient.setVolume(base), TOTAL_DURATION_MS);
+
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+      if (originalAmbientVolumeRef.current != null) {
+        ambient.setVolume(originalAmbientVolumeRef.current);
+      }
+      originalAmbientVolumeRef.current = null;
+    };
+  }, [
+    show,
+    prefersReducedMotion,
+    ambient.isUnlocked,
+    ambient.isMuted,
+    ambient.setVolume,
+  ]);
+
+  useEffect(() => {
+    if (show) return;
+    originalAmbientVolumeRef.current = ambient.volume;
+  }, [show, ambient.volume]);
 
   // Hide after fade-out
   useEffect(() => {
@@ -908,7 +1232,7 @@ export default function LoginOrbAnimation() {
           style={{
             zIndex: Z_INDEX_ANIMATION_OVERLAY,
             background:
-              "radial-gradient(ellipse at 50% 45%, rgba(18,14,32,0.94) 0%, rgba(8,6,18,0.98) 100%)",
+              sceneVariant.backdrop,
             isolation: "isolate",
             contain: "layout paint style",
             pointerEvents: isFading ? "none" : "auto",
@@ -939,13 +1263,19 @@ export default function LoginOrbAnimation() {
             className="absolute inset-0 pointer-events-none"
             style={{
               background:
-                "radial-gradient(ellipse at 30% 25%, rgba(40,20,80,0.15) 0%, transparent 50%)," +
-                "radial-gradient(ellipse at 70% 75%, rgba(20,40,80,0.12) 0%, transparent 50%)",
+                sceneVariant.accentLayer,
+              animation: "hs-depth-breathe 8s ease-in-out infinite",
             }}
           />
 
           {/* Star field — pure CSS animations */}
           <StarField />
+          <DepthParallaxPlanes parallax={parallax} scale={responsiveScale} />
+          <VolumetricMist
+            parallax={parallax}
+            palette={palette}
+            scale={responsiveScale}
+          />
 
           {/* Shooting stars — cinematic depth */}
           <ShootingStars tint={palette.meteorTint} />
@@ -965,11 +1295,11 @@ export default function LoginOrbAnimation() {
           )}
 
           {/* Convergence flash */}
-          {phase === "converged" && <ConvergenceFlash />}
+          {phase === "converged" && <ConvergenceFlash scale={responsiveScale} />}
 
           {/* Nebula aura (appears with central orb) */}
           {(phase === "converged" || phase === "fadeout") && (
-            <NebulaAura colors={palette.nebula} />
+            <NebulaAura colors={palette.nebula} scale={responsiveScale} />
           )}
 
           {/* Orbiting micro-sparkles */}
@@ -977,9 +1307,18 @@ export default function LoginOrbAnimation() {
             <OrbitingSparkles color={palette.sparkleColor} />
           )}
 
+          {/* Cinematic rays around hero orb */}
+          {(phase === "converged" || phase === "fadeout") && (
+            <HeroLightRays color={palette.haloOuter} scale={responsiveScale} />
+          )}
+
           {/* Central orb */}
           {(phase === "converged" || phase === "fadeout") && (
-            <CentralOrb palette={palette} />
+            <CentralOrb
+              palette={palette}
+              parallax={parallax}
+              scale={responsiveScale}
+            />
           )}
         </motion.div>
       )}
