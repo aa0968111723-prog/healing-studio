@@ -131,6 +131,7 @@ interface SlotCatalog {
   label: string;
   description: string;
   options: readonly ModelOption[];
+  targetPath?: string;
 }
 
 type HealthStatus = Record<
@@ -478,7 +479,6 @@ function LivePreview({ model, voiceId }: { model: string; voiceId?: string }) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function BrainSlotCard({
-  slot,
   catalog,
   icon: Icon,
   currentModel,
@@ -490,8 +490,8 @@ function BrainSlotCard({
   onTemperatureChange,
   onTopPChange,
   onEnabledChange,
+  onNavigateTarget,
 }: {
-  slot: string;
   catalog: SlotCatalog;
   icon: React.ComponentType<{ className?: string }>;
   currentModel: string;
@@ -503,6 +503,7 @@ function BrainSlotCard({
   onTemperatureChange: (temp: number) => void;
   onTopPChange: (topP: number) => void;
   onEnabledChange: (enabled: boolean) => void;
+  onNavigateTarget?: (path: string) => void;
 }) {
   return (
     <motion.div
@@ -532,6 +533,16 @@ function BrainSlotCard({
             <p className="hs-small !mb-0 text-muted-foreground">
               {catalog.description}
             </p>
+            {catalog.targetPath && onNavigateTarget && (
+              <button
+                type="button"
+                onClick={() => onNavigateTarget(catalog.targetPath!)}
+                className="mt-1 text-[10px] text-primary/80 hover:text-primary inline-flex items-center gap-1"
+              >
+                前往頁面
+                <ChevronRight className="w-3 h-3" />
+              </button>
+            )}
           </div>
         </div>
         <Switch checked={enabled} onCheckedChange={onEnabledChange} />
@@ -628,6 +639,7 @@ function EngineSlotCard({
   health,
   onEngineChange,
   onEnabledChange,
+  onNavigateTarget,
 }: {
   catalog: SlotCatalog;
   icon: React.ComponentType<{ className?: string }>;
@@ -636,6 +648,7 @@ function EngineSlotCard({
   health: HealthStatus | undefined;
   onEngineChange: (engine: string) => void;
   onEnabledChange: (enabled: boolean) => void;
+  onNavigateTarget?: (path: string) => void;
 }) {
   return (
     <motion.div
@@ -665,6 +678,16 @@ function EngineSlotCard({
             <p className="hs-small !mb-0 text-muted-foreground">
               {catalog.description}
             </p>
+            {catalog.targetPath && onNavigateTarget && (
+              <button
+                type="button"
+                onClick={() => onNavigateTarget(catalog.targetPath!)}
+                className="mt-1 text-[10px] text-primary/80 hover:text-primary inline-flex items-center gap-1"
+              >
+                前往頁面
+                <ChevronRight className="w-3 h-3" />
+              </button>
+            )}
           </div>
         </div>
         <Switch checked={enabled} onCheckedChange={onEnabledChange} />
@@ -1550,7 +1573,6 @@ export default function AiBrainSettings() {
                   {catalog && (
                     <>
                       <BrainSlotCard
-                        slot="director"
                         catalog={
                           catalog.reasoning.director as unknown as SlotCatalog
                         }
@@ -1564,9 +1586,9 @@ export default function AiBrainSettings() {
                         onTemperatureChange={setDirectorTemp}
                         onTopPChange={setDirectorTopP}
                         onEnabledChange={setDirectorEnabled}
+                        onNavigateTarget={navigateToPath}
                       />
                       <BrainSlotCard
-                        slot="analyst"
                         catalog={
                           catalog.reasoning.analyst as unknown as SlotCatalog
                         }
@@ -1580,9 +1602,9 @@ export default function AiBrainSettings() {
                         onTemperatureChange={setAnalystTemp}
                         onTopPChange={setAnalystTopP}
                         onEnabledChange={setAnalystEnabled}
+                        onNavigateTarget={navigateToPath}
                       />
                       <BrainSlotCard
-                        slot="storyteller"
                         catalog={
                           catalog.reasoning
                             .storyteller as unknown as SlotCatalog
@@ -1597,9 +1619,9 @@ export default function AiBrainSettings() {
                         onTemperatureChange={setStorytellerTemp}
                         onTopPChange={setStorytellerTopP}
                         onEnabledChange={setStorytellerEnabled}
+                        onNavigateTarget={navigateToPath}
                       />
                       <BrainSlotCard
-                        slot="technician"
                         catalog={
                           catalog.reasoning.technician as unknown as SlotCatalog
                         }
@@ -1613,9 +1635,9 @@ export default function AiBrainSettings() {
                         onTemperatureChange={setTechnicianTemp}
                         onTopPChange={setTechnicianTopP}
                         onEnabledChange={setTechnicianEnabled}
+                        onNavigateTarget={navigateToPath}
                       />
                       <BrainSlotCard
-                        slot="curator"
                         catalog={
                           catalog.reasoning.curator as unknown as SlotCatalog
                         }
@@ -1629,6 +1651,7 @@ export default function AiBrainSettings() {
                         onTemperatureChange={setCuratorTemp}
                         onTopPChange={setCuratorTopP}
                         onEnabledChange={setCuratorEnabled}
+                        onNavigateTarget={navigateToPath}
                       />
                     </>
                   )}
@@ -1661,6 +1684,7 @@ export default function AiBrainSettings() {
                         health={health}
                         onEngineChange={setImageEngine}
                         onEnabledChange={setImageEnabled}
+                        onNavigateTarget={navigateToPath}
                       />
                       <EngineSlotCard
                         catalog={
@@ -1673,6 +1697,7 @@ export default function AiBrainSettings() {
                         health={health}
                         onEngineChange={setVideoEngine}
                         onEnabledChange={setVideoEnabled}
+                        onNavigateTarget={navigateToPath}
                       />
                       <EngineSlotCard
                         catalog={
@@ -1685,6 +1710,7 @@ export default function AiBrainSettings() {
                         health={health}
                         onEngineChange={setAudioEngine}
                         onEnabledChange={setAudioEnabled}
+                        onNavigateTarget={navigateToPath}
                       />
                       <EngineSlotCard
                         catalog={
@@ -1697,6 +1723,7 @@ export default function AiBrainSettings() {
                         health={health}
                         onEngineChange={setVoiceEngine}
                         onEnabledChange={setVoiceEnabled}
+                        onNavigateTarget={navigateToPath}
                       />
                     </>
                   )}
