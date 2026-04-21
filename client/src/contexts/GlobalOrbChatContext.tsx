@@ -28,6 +28,14 @@ import { usePersonality } from "./PersonalityContext";
 import { usePageAgent, parseLLMActions, type AgentAction } from "./PageAgentContext";
 import { useLocation } from "wouter";
 
+// 導出輔助函數供外部使用
+export {
+  getPageLabelByPath,
+  formatRelativeTime,
+  formatMessageMetadata,
+  getPageEmoji,
+} from "@/lib/orbChatHelpers";
+
 // ─── Types ─────────────────────────────────────────────────────────────────
 
 export type ChatRole = "user" | "orb";
@@ -175,6 +183,33 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       saveMessagesToStorage(messages);
     }
   }, [messages]);
+
+  // ─── 全域快捷鍵 ────────────────────────────────────────────────────────
+  // Cmd+K / Ctrl+K 喚起聊天，ESC 關閉
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Cmd+K (Mac) 或 Ctrl+K (Windows/Linux)
+      if ((event.metaKey || event.ctrlKey) && event.key === "k") {
+        // 避免與其他快捷鍵衝突（如果輸入框正在使用則跳過）
+        const target = event.target as HTMLElement;
+        if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        setIsOpen(prev => !prev);
+      }
+
+      // ESC 關閉聊天面板
+      if (event.key === "Escape" && isOpen) {
+        event.preventDefault();
+        setIsOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen]);
 
   // 歡迎訊息（依據人格）
   const welcomeMessage = useMemo(() => {

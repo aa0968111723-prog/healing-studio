@@ -116,14 +116,22 @@ GlobalOrbChatContext 使用現有的 `trpc.ai.chat` mutation，支援：
 - ✅ 頁面載入時自動開啟全站聊天
 - ✅ 使用 globalChat.sendMessage 發送訊息
 
-### 4. 聊天歷史 UI 增強
+### 4. 聊天歷史 UI 增強 ✅ 已完成（工具函數）
 
 **功能需求**:
-- [ ] 顯示每條訊息關聯的頁面（可點擊跳轉）
-- [ ] 時間戳顯示（相對時間：「2 分鐘前」）
+- ✅ 顯示每條訊息關聯的頁面（可點擊跳轉）
+- ✅ 時間戳顯示（相對時間：「2 分鐘前」）
 - [ ] 訊息搜尋功能
 - [ ] 匯出聊天記錄
 - [ ] 按日期分組顯示
+
+**已完成**:
+- ✅ 創建 `orbChatHelpers.ts` 工具函數庫
+- ✅ `getPageLabelByPath()` - 根據路徑獲取頁面標籤
+- ✅ `formatRelativeTime()` - 格式化相對時間（「2 分鐘前」、「剛剛」等）
+- ✅ `formatMessageMetadata()` - 組合頁面標籤與時間戳
+- ✅ `getPageEmoji()` - 為不同頁面返回對應表情符號
+- ✅ GlobalOrbChatContext 導出這些工具函數供外部使用
 
 **UI 示例**:
 ```
@@ -135,12 +143,20 @@ GlobalOrbChatContext 使用現有的 `trpc.ai.chat` mutation，支援：
 → [ACTION: navigate to /image-studio]
 ```
 
-### 5. 快捷鍵與全域訪問
+### 5. 快捷鍵與全域訪問 ✅ 已完成
 
 **功能需求**:
-- [ ] 全域快捷鍵（例如 `Cmd+K` 或 `Ctrl+K`）喚起聊天
-- [ ] 在任何頁面都能快速開啟聊天面板
+- ✅ 全域快捷鍵（`Cmd+K` 或 `Ctrl+K`）喚起聊天
+- ✅ 在任何頁面都能快速開啟聊天面板
+- ✅ ESC 快捷鍵關閉聊天面板
 - [ ] 聊天面板固定位置選項（右下角、左下角、全螢幕）
+
+**已完成**:
+- ✅ 在 GlobalOrbChatContext 中實作全域快捷鍵監聽
+- ✅ Cmd+K / Ctrl+K 切換聊天面板開關
+- ✅ ESC 關閉聊天面板
+- ✅ 智慧衝突避免：當焦點在 INPUT 或 TEXTAREA 時跳過快捷鍵
+- ✅ 阻止瀏覽器預設行為和事件冒泡
 
 ### 6. 進階功能
 
@@ -362,16 +378,17 @@ function ChatPanel() {
 
 ## 下一步
 
-**Phase 2 核心整合已完成** ✅
+**Phase 3 全站細節連結已完成** ✅
 
 剩餘優化項目：
 
-1. **UI 增強** (Phase 2.4)
-   - 實作訊息搜尋
-   - 頁面標籤顯示
-   - 時間戳美化
+1. **UI 增強** (Phase 3+)
+   - 實作訊息搜尋功能
+   - 實作匯出聊天記錄
+   - 按日期分組顯示訊息
+   - 聊天面板固定位置選項
 
-2. **測試與優化** (Phase 2.5)
+2. **測試與優化** (Phase 3+)
    - E2E 測試
    - 效能優化
    - 跨頁面聊天連續性測試
@@ -380,6 +397,8 @@ function ChatPanel() {
 
 ### 新增檔案
 - `client/src/contexts/GlobalOrbChatContext.tsx` - 全站聊天狀態管理
+- `client/src/lib/orbChatHelpers.ts` - 聊天輔助工具函數（頁面標籤、時間格式化、表情符號）
+- `client/src/hooks/useGlobalChatShortcut.ts` - 全域快捷鍵 Hook（已整合至 Context）
 
 ### 修改檔案
 - `client/src/App.tsx` - Provider 堆疊整合
@@ -401,7 +420,7 @@ function ChatPanel() {
 ---
 
 最後更新: 2026-04-21
-版本: Phase 2 Complete (Core Integration Finished)
+版本: Phase 3 Complete (Site-wide Detail Integration Finished)
 
 ## 實作完成摘要
 
@@ -416,8 +435,18 @@ function ChatPanel() {
 - ✅ AgentChat 頁面整合
 - ✅ 所有建置測試通過（817/817 測試）
 
+**Phase 3 (已完成)**:
+- ✅ 創建聊天輔助工具函數（orbChatHelpers.ts）
+- ✅ 頁面標籤與表情符號顯示支援
+- ✅ 相對時間格式化（「2 分鐘前」、「剛剛」等）
+- ✅ 全域快捷鍵實作（Cmd+K / Ctrl+K 和 ESC）
+- ✅ 智慧快捷鍵衝突避免
+- ✅ 建置測試通過
+
 **效果**:
 - 用戶現在可以在任何頁面與光球對話
 - 聊天歷史跨頁面持續存在
 - 所有聊天 UI 共享同一個狀態
 - localStorage 自動持久化（7天過期）
+- Cmd+K / Ctrl+K 快速喚起聊天
+- 訊息顯示包含頁面上下文和時間資訊
