@@ -272,7 +272,9 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
             ? ((data as { intent?: string | null }).intent as string)
             : undefined;
 
-        const structuredActions = parseLLMActions(data.actions);
+        const structuredActions = data.actions
+          ? parseLLMActions(data.actions)
+          : [];
 
         const orbMessage: ChatMessage = {
           role: "orb",
