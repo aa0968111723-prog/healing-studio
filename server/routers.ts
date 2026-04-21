@@ -3520,11 +3520,8 @@ export const appRouter = router({
           }
         );
 
-        // Prefer MiniMax M2.7 via NVIDIA NIM for orb agent；失敗自動降級到 Gemini/Vertex/Forge
-        const enginePreference =
-          serverEnv.NVIDIA_API
-            ? ("nvidia" as const)
-            : undefined;
+        // 需求調整：光球助手 / 全站光球代理優先走 Gemini API，失敗再自動降級。
+        const enginePreference = "gemini" as const;
 
         try {
           const result = await withTimeout(
@@ -3683,9 +3680,8 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input }) => {
-        // MiniMax 只有在 NVIDIA_API 可用時才優先走 nvidia；失敗或未設定則自動降級。
-        const enginePreference =
-          serverEnv.NVIDIA_API ? ("nvidia" as const) : undefined;
+        // 需求調整：光球助手優先走 Gemini API，失敗或未設定則自動降級。
+        const enginePreference = "gemini" as const;
 
         const ctx: OrbGuideStepContext = {
           intent: input.intent,
