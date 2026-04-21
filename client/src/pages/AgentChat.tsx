@@ -81,6 +81,19 @@ const GREETINGS: Record<string, string[]> = {
 
 const AGENT_HOME_ENTRIES = getAgentHomeEntries();
 
+const NEED_CLUES = [
+  "想要的成品與用途（平台/受眾/格式）",
+  "尺寸/長寬比/時長/檔案格式",
+  "手上已有的素材或參考（圖片、影片、腳本、聲音）",
+  "限制條件（設備、時間、風格偏好、點數預算）",
+];
+
+const NEED_PROMPTS = [
+  "我想做 ______，要用在 ______。目前有／沒有素材 ______，限制是 ______。請幫我決定先去哪個頁面並帶我做第一步。",
+  "我想把這張圖做成影片，最終想在 IG Reels 用。幫我安排流程、比例與模型，先帶我去適合的頁面。",
+  "我要做一支 ______ 秒的影片，受眾是 ______。我有的素材：______。請問要先去哪裡、按哪些按鈕？",
+];
+
 function buildStarterEntry(page: (typeof AGENT_HOME_ENTRIES)[number]): StarterEntry {
   const primaryQuickAction = page.quickActions[0];
   return {
@@ -366,6 +379,38 @@ export default function AgentChat() {
           <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md leading-relaxed">
             我會先問幾個關鍵問題（目標、用途、素材、限制），幫你定位到正確的頁面，並一步步告訴你怎麼做。
           </p>
+
+          {/* 需求釐清提示 */}
+          <div className="w-full mt-3 sm:mt-4">
+            <div className="rounded-xl border border-slate-200/70 dark:border-slate-700/60 bg-white/70 dark:bg-slate-900/40 px-4 py-3 text-left shadow-sm">
+              <p className="text-xs font-medium text-slate-700 dark:text-slate-200 mb-2">
+                提前告訴我這些，導引會更精準：
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {NEED_CLUES.map(item => (
+                  <span
+                    key={item}
+                    className="text-[11px] px-2 py-1 rounded-full border border-slate-200/80 dark:border-slate-700/70 text-slate-500 dark:text-slate-400 bg-white/70 dark:bg-slate-900/50"
+                  >
+                    {item}
+                  </span>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-2 mt-3">
+                {NEED_PROMPTS.map((template, i) => (
+                  <Button
+                    key={template}
+                    variant="outline"
+                    size="sm"
+                    className="text-[11px] h-8 px-3 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
+                    onClick={() => void send(template)}
+                  >
+                    示範 {i + 1}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </div>
 
           {/* ── 第一輪：意圖選擇 grid ── */}
           {isFirstTurn && (
