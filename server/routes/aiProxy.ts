@@ -22,6 +22,7 @@ interface ProviderConfig {
   keyEnvVar: keyof typeof serverEnv;
   headerName: string;
   headerPrefix: string;
+  applyGuideUrl: string;
 }
 
 const PROVIDER_CONFIG: Record<ProviderKey, ProviderConfig> = {
@@ -30,24 +31,28 @@ const PROVIDER_CONFIG: Record<ProviderKey, ProviderConfig> = {
     keyEnvVar: "FAL_API_KEY",
     headerName: "Authorization",
     headerPrefix: "Key ",
+    applyGuideUrl: "https://fal.ai/dashboard/keys",
   },
   gemini: {
     baseUrl: "https://generativelanguage.googleapis.com",
     keyEnvVar: "GEMINI_API_KEY",
     headerName: "x-goog-api-key",
     headerPrefix: "",
+    applyGuideUrl: "https://aistudio.google.com/apikey",
   },
   elevenlabs: {
     baseUrl: "https://api.elevenlabs.io",
     keyEnvVar: "ELEVENLABS_API_KEY",
     headerName: "xi-api-key",
     headerPrefix: "",
+    applyGuideUrl: "https://elevenlabs.io/app/settings/api-keys",
   },
   suno: {
     baseUrl: "https://api.sunoapi.org",
     keyEnvVar: "SUNO_API_KEY",
     headerName: "Authorization",
     headerPrefix: "Bearer ",
+    applyGuideUrl: "https://suno.com/",
   },
 };
 
@@ -196,6 +201,10 @@ aiProxyRouter.all("/api/ai/:provider/*", async (req: Request, res: Response) => 
   if (!apiKey || (typeof apiKey === "string" && apiKey.trim().length === 0)) {
     res.status(503).json({
       error: `Provider ${provider} is not configured. Missing ${config.keyEnvVar}.`,
+      missingEnvVar: config.keyEnvVar,
+      applyGuideUrl: config.applyGuideUrl,
+      action:
+        "請先在服務商後台申請 API Key，設定到 .env / Railway Variables，並重啟伺服器。",
     });
     return;
   }
@@ -250,7 +259,7 @@ aiProxyRouter.all("/api/ai/:provider/*", async (req: Request, res: Response) => 
   const skipHeaders = new Set([
     "host", "connection", "keep-alive", "transfer-encoding",
     "te", "trailer", "upgrade", "proxy-authorization",
-    "proxy-authenticate", "authorization",
+    "proxy-authenticate", "authorization", "content-length",
   ]);
 
   for (const [key, value] of Object.entries(req.headers)) {
@@ -266,6 +275,17 @@ aiProxyRouter.all("/api/ai/:provider/*", async (req: Request, res: Response) => 
   let errorMessage: string | undefined;
   let upstreamStatus = 200;
 
+  const requestBody: BodyInit | undefined =
+    req.method === "GET" || req.method === "HEAD"
+      ? undefined
+      : typeof req.body === "string"
+        ? req.body
+        : Buffer.isBuffer(req.body)
+          ? new Uint8Array(req.body)
+        : Object.keys(req.body ?? {}).length > 0
+          ? JSON.stringify(req.body)
+          : undefined;
+
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 120_000);
@@ -273,7 +293,7 @@ aiProxyRouter.all("/api/ai/:provider/*", async (req: Request, res: Response) => 
     const upstreamRes = await fetch(upstreamUrl, {
       method: req.method,
       headers: forwardHeaders,
-      body: ["GET", "HEAD"].includes(req.method) ? undefined : JSON.stringify(req.body),
+      body: requestBody,
       signal: controller.signal,
     });
 
