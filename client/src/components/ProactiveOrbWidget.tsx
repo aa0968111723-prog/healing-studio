@@ -58,7 +58,12 @@ import { useLocation } from "wouter";
 import { getPageByPath } from "@/config/appRegistry";
 import { useIsMobile } from "@/hooks/useMobile";
 import { cn } from "@/lib/utils";
-import { useGlobalOrbChat } from "@/contexts/GlobalOrbChatContext";
+import {
+  useGlobalOrbChat,
+  formatRelativeTime,
+  getPageEmoji,
+  formatMessageMetadata,
+} from "@/contexts/GlobalOrbChatContext";
 
 type Props = {
   className?: string;
@@ -659,7 +664,7 @@ export default memo(function ProactiveOrbWidget({
   // Use global chat state instead of local state
   const chatInput = globalChat.input;
   const setChatInput = globalChat.setInput;
-  const chatMessages = globalChat.messages.map(m => ({ role: m.role, text: m.text }));
+  const chatMessages = globalChat.messages; // Keep full message objects for metadata
   const isChatLoading = globalChat.isSending;
   const chatSuggestions = globalChat.suggestions.map(s => s.text);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
@@ -1504,12 +1509,22 @@ export default memo(function ProactiveOrbWidget({
                         <div className="px-5 py-2 max-h-[60vh] overflow-y-auto space-y-2.5">
                           {chatMessages.map((msg, i) => (
                             <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                              <div className={`max-w-[85%] px-3.5 py-2.5 text-sm leading-relaxed ${
-                                msg.role === "user"
-                                  ? `${personalityAccentBtn[personality]} rounded-2xl rounded-br-md`
-                                  : "bg-gradient-to-br from-gray-50 to-gray-100/80 text-gray-700 rounded-2xl rounded-bl-md border border-gray-100/60"
-                              }`}>
-                                {msg.text}
+                              <div className="flex flex-col gap-0.5 max-w-[85%]">
+                                <div className={`px-3.5 py-2.5 text-sm leading-relaxed ${
+                                  msg.role === "user"
+                                    ? `${personalityAccentBtn[personality]} rounded-2xl rounded-br-md`
+                                    : "bg-gradient-to-br from-gray-50 to-gray-100/80 text-gray-700 rounded-2xl rounded-bl-md border border-gray-100/60"
+                                }`}>
+                                  {msg.text}
+                                </div>
+                                {msg.pagePath && msg.at && (
+                                  <div className={`text-[10px] text-muted-foreground px-1 flex items-center gap-1 ${
+                                    msg.role === "user" ? "justify-end" : "justify-start"
+                                  }`}>
+                                    <span>{getPageEmoji(msg.pagePath)}</span>
+                                    <span>{formatMessageMetadata(msg.pagePath, msg.at)}</span>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           ))}
@@ -1833,14 +1848,24 @@ export default memo(function ProactiveOrbWidget({
                           key={i}
                           className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                         >
-                          <div
-                            className={`max-w-[85%] px-3.5 py-2.5 text-xs leading-relaxed ${
-                              msg.role === "user"
-                                ? `${personalityAccentBtn[personality]} rounded-2xl rounded-br-md`
-                                : "bg-gradient-to-br from-gray-50 to-gray-100/80 text-gray-700 rounded-2xl rounded-bl-md border border-gray-100/60"
-                            }`}
-                          >
-                            {msg.text}
+                          <div className="flex flex-col gap-0.5 max-w-[85%]">
+                            <div
+                              className={`px-3.5 py-2.5 text-xs leading-relaxed ${
+                                msg.role === "user"
+                                  ? `${personalityAccentBtn[personality]} rounded-2xl rounded-br-md`
+                                  : "bg-gradient-to-br from-gray-50 to-gray-100/80 text-gray-700 rounded-2xl rounded-bl-md border border-gray-100/60"
+                              }`}
+                            >
+                              {msg.text}
+                            </div>
+                            {msg.pagePath && msg.at && (
+                              <div className={`text-[9px] text-muted-foreground px-1 flex items-center gap-0.5 ${
+                                msg.role === "user" ? "justify-end" : "justify-start"
+                              }`}>
+                                <span>{getPageEmoji(msg.pagePath)}</span>
+                                <span>{formatMessageMetadata(msg.pagePath, msg.at)}</span>
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))}
