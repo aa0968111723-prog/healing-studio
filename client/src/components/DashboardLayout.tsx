@@ -75,6 +75,7 @@ import {
   memo,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -222,6 +223,71 @@ const MAX_WIDTH = 400;
 const TABLET_MIN_PX = 768;
 const TABLET_MAX_PX = 1024;
 
+const PAGE_HINTS: Record<string, string[]> = {
+  "image-studio": [
+    "先用快速模型找方向，再切高品質模型定稿。",
+    "每次只改一個參數，結果更容易比較與回溯。",
+  ],
+  "video-studio": [
+    "先短時長預演，確認節奏後再產出完整片段。",
+    "要省成本可先用經濟模型做分鏡驗證。",
+  ],
+  "pro-studio": [
+    "先確認語氣與情緒，再細調速度與穩定度。",
+    "音訊流程建議先去噪/分軌，再做配音或混音。",
+  ],
+  models: [
+    "先做最小可用模型，再逐輪微調超參數。",
+    "共享前補上推薦情境與禁用場景，團隊更好用。",
+  ],
+};
+
+function GlobalPageHint() {
+  const { pageContext } = useAIState();
+  const [open, setOpen] = useState(false);
+  if (!pageContext) return null;
+
+  const hints =
+    PAGE_HINTS[pageContext.pageId] ?? [
+      "先完成一個最小可用成果，再逐步細化。",
+      "若卡住可先用光球拆解任務，再執行下一步。",
+    ];
+
+  return (
+    <Collapsible
+      open={open}
+      onOpenChange={setOpen}
+      className="rounded-2xl border border-border/50 bg-background/70 p-3 mb-4"
+    >
+      <CollapsibleTrigger asChild>
+        <button
+          type="button"
+          className="w-full flex items-center justify-between gap-2"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <Bot className="w-4 h-4 text-primary shrink-0" />
+            <p className="text-xs sm:text-sm font-medium text-left truncate">
+              {pageContext.pageLabel} 操作提示
+            </p>
+          </div>
+          <ChevronRight
+            className={`w-4 h-4 text-muted-foreground transition-transform ${open ? "rotate-90" : ""}`}
+          />
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="pt-2">
+        <ul className="space-y-1 list-disc pl-5">
+          {hints.map(h => (
+            <li key={h} className="text-xs text-muted-foreground">
+              {h}
+            </li>
+          ))}
+        </ul>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 export default function DashboardLayout({
   children,
 }: {
@@ -313,12 +379,45 @@ function DashboardLayoutContent({
   const [resizeDisplayWidth, setResizeDisplayWidth] = useState<number | null>(
     null
   );
+  const [sidebarQuery, setSidebarQuery] = useState("");
   const sidebarRef = useRef<HTMLDivElement>(null);
   const activeMenuItem = [...flatMenuItems, ...adminItems].find(
     item => item.path === location
   );
   const isMobile = useIsMobile();
   const { viewMode, setViewMode } = useViewMode();
+  const normalizedSidebarQuery = sidebarQuery.trim().toLowerCase();
+  const visibleSidebarStructure = useMemo<SidebarEntry[]>(() => {
+    if (!normalizedSidebarQuery) return sidebarStructure;
+
+    return sidebarStructure
+      .map(entry => {
+        if (!isGroup(entry)) {
+          const matched =
+            entry.label.toLowerCase().includes(normalizedSidebarQuery) ||
+            entry.path.toLowerCase().includes(normalizedSidebarQuery);
+          return matched ? entry : null;
+        }
+
+        const matchedChildren = entry.children.filter(child => {
+          return (
+            child.label.toLowerCase().includes(normalizedSidebarQuery) ||
+            child.path.toLowerCase().includes(normalizedSidebarQuery)
+          );
+        });
+
+        const selfMatched = entry.label
+          .toLowerCase()
+          .includes(normalizedSidebarQuery);
+
+        if (!selfMatched && matchedChildren.length === 0) return null;
+        return {
+          ...entry,
+          children: selfMatched ? entry.children : matchedChildren,
+        } satisfies SidebarGroupItem;
+      })
+      .filter((entry): entry is SidebarEntry => Boolean(entry));
+  }, [normalizedSidebarQuery]);
 
   const isAdmin = user?.role === "admin";
 
@@ -511,8 +610,21 @@ function DashboardLayoutContent({
           </SidebarHeader>
 
           <SidebarContent className="gap-0">
+            {!isCollapsed && (
+              <div className="px-3 pt-2 pb-1">
+                <div className="rounded-xl border border-border/70 bg-background/70 px-2.5 py-2">
+                  <input
+                    value={sidebarQuery}
+                    onChange={e => setSidebarQuery(e.target.value)}
+                    placeholder="搜尋側邊欄功能..."
+                    className="w-full bg-transparent text-xs outline-none placeholder:text-muted-foreground/80"
+                    aria-label="搜尋側邊欄功能"
+                  />
+                </div>
+              </div>
+            )}
             <SidebarMenu className="px-2 py-1" id="sidebar-nav">
-              {sidebarStructure.map(entry => {
+              {visibleSidebarStructure.map(entry => {
                 if (isGroup(entry)) {
                   const hasActiveChild = entry.children.some(
                     child => location === child.path
@@ -527,10 +639,13 @@ function DashboardLayoutContent({
                         <CollapsibleTrigger asChild>
                           <SidebarMenuButton
                             tooltip={entry.label}
-                            className="h-10 transition-all font-normal"
+                            className="h-10 transition-all font-normal rounded-xl"
                           >
                             <entry.icon className="h-4 w-4" />
                             <span>{entry.label}</span>
+                            <span className="ml-1 text-[10px] text-muted-foreground">
+                              {entry.children.length}
+                            </span>
                             <ChevronRight className="ml-auto h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
                           </SidebarMenuButton>
                         </CollapsibleTrigger>
@@ -543,7 +658,7 @@ function DashboardLayoutContent({
                                   <SidebarMenuSubButton
                                     onClick={() => setLocation(child.path)}
                                     isActive={isChildActive}
-                                    className="cursor-pointer"
+                                    className="cursor-pointer rounded-lg h-9"
                                     id={child.id}
                                   >
                                     <child.icon
@@ -567,7 +682,7 @@ function DashboardLayoutContent({
                       isActive={isActive}
                       onClick={() => setLocation(entry.path)}
                       tooltip={entry.label}
-                      className="h-10 transition-all font-normal"
+                      className="h-10 transition-all font-normal rounded-xl"
                       id={entry.id}
                     >
                       <entry.icon
@@ -587,7 +702,7 @@ function DashboardLayoutContent({
                         isActive={isActive}
                         onClick={() => setLocation(item.path)}
                         tooltip={item.label}
-                        className="h-10 transition-all font-normal"
+                        className="h-10 transition-all font-normal rounded-xl"
                       >
                         <item.icon
                           className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
@@ -597,6 +712,13 @@ function DashboardLayoutContent({
                     </SidebarMenuItem>
                   );
                 })}
+              {visibleSidebarStructure.length === 0 && !isCollapsed && (
+                <SidebarMenuItem>
+                  <div className="px-3 py-6 text-center text-xs text-muted-foreground rounded-xl border border-dashed border-border/70">
+                    找不到符合的頁面，請換個關鍵字試試。
+                  </div>
+                </SidebarMenuItem>
+              )}
             </SidebarMenu>
           </SidebarContent>
 
@@ -838,6 +960,7 @@ function DashboardLayoutContent({
             paddingBottom: "calc(2rem + env(safe-area-inset-bottom, 0px))",
           }}
         >
+          <GlobalPageHint />
           {children}
         </main>
       </SidebarInset>

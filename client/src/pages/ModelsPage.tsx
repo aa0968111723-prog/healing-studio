@@ -24,6 +24,11 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import {
   Cpu,
@@ -49,6 +54,8 @@ import {
   Activity,
   Database,
   Eye,
+  Sparkles,
+  ChevronsUpDown,
 } from "lucide-react";
 import { GlassCard, ZenTooltip, ZenSkeleton } from "@/components/ZenCoPilot";
 import VisualSoul from "@/components/VisualSoul";
@@ -135,6 +142,39 @@ const ANGLE_LABELS: Record<string, string> = {
   expression: "表情",
   other: "其他",
 };
+
+const MODEL_GUIDE_SECTIONS = [
+  {
+    id: "start",
+    title: "第一次建立模型，建議流程",
+    summary: "先建立最小可用版本，再透過分析報告微調。",
+    bullets: [
+      "先上傳 3~8 張不同角度的圖片，先求穩定再追求數量。",
+      "觸發詞使用唯一代碼（例：char_amy）避免與常見詞衝突。",
+      "先以預設超參數訓練，完成後再透過重訓優化。",
+    ],
+  },
+  {
+    id: "quality",
+    title: "如何提升生成穩定度",
+    summary: "降低資訊噪音、提高資料一致性，效果會更穩。",
+    bullets: [
+      "資料集盡量保持同一角色、近似光線與清晰輪廓。",
+      "避免一次混入太多風格，先訓練主體再訓練風格 LoRA。",
+      "每次只調整 1 個參數，便於比對品質變化。",
+    ],
+  },
+  {
+    id: "team",
+    title: "團隊共享最佳實務",
+    summary: "共享前先補齊說明，讓其他成員可直接套用。",
+    bullets: [
+      "在描述中附上推薦提示詞、禁用情境與版本標記。",
+      "建議命名格式：用途/角色/版本（例：ad-hero-v2）。",
+      "使用完成後查看分析面板，追蹤使用次數與狀態。",
+    ],
+  },
+] as const;
 
 function StatusBadge({ status }: { status: string }) {
   const info = STATUS_LABELS[status] ?? {
@@ -464,6 +504,7 @@ export default function ModelsPage() {
   const [isCaptioning, setIsCaptioning] = useState(false);
   const [trainingJobId, setTrainingJobId] = useState<number | null>(null);
   const [analysisModelId, setAnalysisModelId] = useState<number | null>(null);
+  const [guideOpenId, setGuideOpenId] = useState<string | null>("start");
 
   // ── 訓練進度輪詢 ──
   const trainingStatusQuery = trpc.generate.jobStatus.useQuery(
@@ -1344,6 +1385,61 @@ export default function ModelsPage() {
           </DialogContent>
         </Dialog>
       </div>
+
+      <section className="rounded-2xl border border-border/70 bg-card/70 p-4 md:p-5 space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="hs-h3 !mb-1 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-primary" />
+              模型細膩導覽
+            </p>
+            <p className="hs-small !mb-0 text-muted-foreground">
+              使用折疊式導覽，依照你的熟悉度展開需要的步驟與建議。
+            </p>
+          </div>
+          <Badge variant="secondary" className="rounded-full">
+            UI/UX Guide
+          </Badge>
+        </div>
+
+        <div className="space-y-2">
+          {MODEL_GUIDE_SECTIONS.map(section => {
+            const isOpen = guideOpenId === section.id;
+            return (
+              <Collapsible
+                key={section.id}
+                open={isOpen}
+                onOpenChange={open => setGuideOpenId(open ? section.id : null)}
+                className="rounded-xl border border-border/70 bg-background/70"
+              >
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className="w-full px-3 py-3 text-left flex items-center justify-between gap-3 hover:bg-muted/40 rounded-xl transition-colors"
+                  >
+                    <div>
+                      <p className="text-sm font-medium">{section.title}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {section.summary}
+                      </p>
+                    </div>
+                    <ChevronsUpDown className="w-4 h-4 text-muted-foreground shrink-0" />
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="px-3 pb-3">
+                  <ul className="space-y-1.5 list-disc pl-5">
+                    {section.bullets.map(item => (
+                      <li key={item} className="text-xs text-muted-foreground">
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </CollapsibleContent>
+              </Collapsible>
+            );
+          })}
+        </div>
+      </section>
 
       <p className="hs-small !mb-0 text-muted-foreground">
         訓練專屬角色模型，確保跨場景的角色一致性。模型就緒後可在工作室的素材抽屜中直接使用。

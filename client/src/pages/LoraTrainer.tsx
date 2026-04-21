@@ -57,6 +57,7 @@ import {
   type AgentActionResult,
   type AgentCapability,
 } from "@/contexts/PageAgentContext";
+import { AssetModelSubpageGuide } from "@/components/AssetModelSubpageGuide";
 
 // ── Type alias for dataset images from training detail ──────────────────────
 
@@ -773,6 +774,8 @@ export default function LoraTrainer() {
           </Button>
         </div>
       </div>
+
+      <AssetModelSubpageGuide page="lora-trainer" />
 
       {/* Tabs */}
       <Tabs

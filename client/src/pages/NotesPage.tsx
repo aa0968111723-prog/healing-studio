@@ -44,6 +44,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import LazyStreamdown from "@/components/LazyStreamdown";
 import { useAIState } from "@/contexts/AIStateContext";
 import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
+import { PlanningSubpageGuide } from "@/components/PlanningSubpageGuide";
 import type {
   AgentAction,
   AgentActionResult,
@@ -397,6 +398,7 @@ export default function NotesPage() {
       <p className="hs-small !mb-0 text-muted-foreground">
         記錄創作靈感與導演 AI 生成的 CO-STAR 腳本。支援標籤分類與全文搜尋。
       </p>
+      <PlanningSubpageGuide page="notes" />
 
       {/* ── Search + Type Filter ── */}
       <div className="flex flex-col sm:flex-row gap-2">

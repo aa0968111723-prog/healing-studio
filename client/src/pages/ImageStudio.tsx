@@ -6,7 +6,7 @@
  *  Stable Diffusion（3）/ 圖片轉3D（5）
  */
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useAIState } from "@/contexts/AIStateContext";
@@ -25,6 +25,11 @@ import {
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import {
   Image,
@@ -412,6 +417,39 @@ const MODELS: ModelInfo[] = [
     outputType: "3d",
   },
 ];
+
+const IMAGE_STUDIO_QUICK_GUIDE = [
+  {
+    id: "start",
+    title: "新手起手式（先有穩定產出）",
+    summary: "先跑快、再微調，先確定方向再打磨細節。",
+    tips: [
+      "先用 Nano Banana 2 快速試 3~5 組構圖。",
+      "確認方向後再切高品質模型做定稿。",
+      "每次只調整一個變數（構圖/光線/風格）。",
+    ],
+  },
+  {
+    id: "edit",
+    title: "圖片編輯穩定策略",
+    summary: "編輯模型吃語意，描述要具體且可驗證。",
+    tips: [
+      "先說「保留」什麼，再說「改動」什麼。",
+      "局部修改時搭配遮罩，避免全圖意外變形。",
+      "多圖融合建議先統一光線與色調再生成。",
+    ],
+  },
+  {
+    id: "history",
+    title: "歷史回放與複用",
+    summary: "把成功案例沉澱成可重複流程。",
+    tips: [
+      "優先收藏可重複題材，建立自己的範本庫。",
+      "從歷史重用時只改目標元素，提高成功率。",
+      "搭配模態篩選快速找到可直接套用的版本。",
+    ],
+  },
+] as const;
 
 type ModelCoaching = {
   bestFor: string;
@@ -1134,6 +1172,8 @@ function PoseResult({ poseUrl, prompt }: { poseUrl: string; prompt: string }) {
 function HistoryPanel({ onReuse }: { onReuse: (item: HistoryItem) => void }) {
   const [items, setItems] = useState<HistoryItem[]>([]);
   const [filter, setFilter] = useState<"all" | "bookmarked">("all");
+  const [keyword, setKeyword] = useState("");
+  const [sortBy, setSortBy] = useState<"newest" | "oldest">("newest");
 
   useEffect(() => {
     setItems(loadHistory());
@@ -1156,35 +1196,70 @@ function HistoryPanel({ onReuse }: { onReuse: (item: HistoryItem) => void }) {
     saveHistory([]);
     toast.success("已清除所有歷史");
   };
-  const shown =
-    filter === "bookmarked" ? items.filter(i => i.bookmarked) : items;
+  const shown = items
+    .filter(i => (filter === "bookmarked" ? i.bookmarked : true))
+    .filter(i =>
+      keyword.trim()
+        ? `${i.prompt} ${i.modelName}`
+            .toLowerCase()
+            .includes(keyword.trim().toLowerCase())
+        : true
+    )
+    .sort((a, b) =>
+      sortBy === "newest" ? b.timestamp - a.timestamp : a.timestamp - b.timestamp
+    );
+  const bookmarkedCount = items.filter(i => i.bookmarked).length;
 
   return (
     <div className="flex flex-col h-full">
-      <div className="p-2 border-b border-border/20 flex items-center gap-1">
-        {(["all", "bookmarked"] as const).map(f => (
+      <div className="p-2 border-b border-border/20 space-y-2">
+        <div className="rounded-lg border border-border/50 bg-background/60 px-2 py-1.5">
+          <Input
+            value={keyword}
+            onChange={e => setKeyword(e.target.value)}
+            placeholder="搜尋提示詞 / 模型名稱..."
+            className="h-7 text-xs border-0 bg-transparent px-0 focus-visible:ring-0"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-1">
+          {(["all", "bookmarked"] as const).map(f => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`text-xs py-1.5 rounded-lg transition-colors ${filter === f ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent"}`}
+            >
+              {f === "all" ? `全部（${items.length}）` : `⭐ 精選（${bookmarkedCount}）`}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-1">
           <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`flex-1 text-xs py-1.5 rounded-lg transition-colors ${filter === f ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent"}`}
+            onClick={() => setSortBy("newest")}
+            className={`flex-1 text-[11px] py-1 rounded-md ${sortBy === "newest" ? "bg-accent text-foreground" : "text-muted-foreground"}`}
           >
-            {f === "all" ? "全部" : "⭐ 精選"}
+            最新優先
           </button>
-        ))}
-        <button
-          onClick={clearAll}
-          className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors ml-1"
-          title="清除全部"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
+          <button
+            onClick={() => setSortBy("oldest")}
+            className={`flex-1 text-[11px] py-1 rounded-md ${sortBy === "oldest" ? "bg-accent text-foreground" : "text-muted-foreground"}`}
+          >
+            最舊優先
+          </button>
+          <button
+            onClick={clearAll}
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+            title="清除全部"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
       <div className="flex-1 overflow-y-auto p-2 space-y-2">
         {!shown.length && (
           <div className="text-center py-8">
             <History className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
             <p className="hs-small !mb-0 text-muted-foreground">
-              {filter === "bookmarked" ? "尚無精選" : "尚無生成歷史"}
+              {keyword.trim() ? "沒有符合搜尋條件的紀錄" : filter === "bookmarked" ? "尚無精選" : "尚無生成歷史"}
             </p>
           </div>
         )}
@@ -1223,10 +1298,31 @@ function HistoryPanel({ onReuse }: { onReuse: (item: HistoryItem) => void }) {
               <p className="hs-small !mb-0 text-muted-foreground line-clamp-2 mb-1.5">
                 {item.prompt}
               </p>
-              <div className="flex items-center justify-between">
-                <Badge variant="secondary" className="text-[9px] px-1 py-0">
+              <div className="flex items-center justify-between gap-1">
+                <Badge variant="secondary" className="text-[9px] px-1 py-0 truncate max-w-[55%]">
                   {item.modelName}
                 </Badge>
+                <span className="text-[10px] text-muted-foreground tabular-nums">
+                  {new Date(item.timestamp).toLocaleString("zh-TW", {
+                    month: "numeric",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </span>
+              </div>
+              <div className="mt-1.5 flex items-center justify-end gap-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-5 text-[10px] px-1.5 gap-1"
+                  onClick={() => {
+                    navigator.clipboard.writeText(item.prompt);
+                    toast.success("已複製提示詞");
+                  }}
+                >
+                  <Copy className="w-2.5 h-2.5" /> 複製
+                </Button>
                 <Button
                   variant="ghost"
                   size="sm"

@@ -5,7 +5,7 @@
  * 分類：音樂生成 / 音效生成 / 語音合成 / 聲音克隆 / Kling 語音 / 音訊處理 / 語音識別 / AI 形像影片
  */
 
-import { useState, useRef, useCallback, useEffect, createContext, useContext } from "react";
+import { useState, useRef, useCallback, useEffect, createContext, useContext, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useAIState } from "@/contexts/AIStateContext";
@@ -59,6 +59,7 @@ import {
   Info,
   Tag,
   X,
+  Search,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRegisterBgTask } from "@/contexts/BackgroundTasksContext";
@@ -3748,6 +3749,17 @@ export default function ProStudio() {
   });
 
   const currentTabModels = PRO_MODELS.filter(m => m.tab === tab);
+  const [guideKeyword, setGuideKeyword] = useState("");
+  const [openGuideModelId, setOpenGuideModelId] = useState<string | null>(null);
+  const filteredGuideModels = useMemo(() => {
+    const q = guideKeyword.trim().toLowerCase();
+    if (!q) return currentTabModels;
+    return currentTabModels.filter(model =>
+      `${model.label} ${model.desc} ${model.bestFor ?? ""} ${model.tip ?? ""}`
+        .toLowerCase()
+        .includes(q)
+    );
+  }, [currentTabModels, guideKeyword]);
 
   return (
     <AgentBridgeContext.Provider value={bridgeRef}>
@@ -3853,28 +3865,66 @@ export default function ProStudio() {
           <Bot className="w-3.5 h-3.5 text-primary" />
           模型細膩導覽 · {TABS.find(t => t.id === tab)?.label}
         </p>
+        <div className="rounded-xl border border-border/40 bg-background/70 px-2.5 py-2 mb-2 flex items-center gap-2">
+          <Search className="w-3.5 h-3.5 text-muted-foreground" />
+          <Input
+            value={guideKeyword}
+            onChange={e => setGuideKeyword(e.target.value)}
+            placeholder="搜尋模型用途、優勢或建議..."
+            className="h-7 border-0 bg-transparent px-0 text-xs focus-visible:ring-0"
+          />
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          {currentTabModels.map(model => (
-            <div key={model.id} className="rounded-xl border border-border/35 bg-background/70 px-3 py-2.5">
-              <p className="text-xs font-medium text-foreground">{model.label}</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">{model.desc}</p>
-              {model.bestFor && (
-                <p className="text-[11px] text-primary mt-1">適合：{model.bestFor}</p>
-              )}
-              {model.tip && (
-                <p className="text-[11px] text-muted-foreground/90 mt-0.5 leading-relaxed">建議：{model.tip}</p>
-              )}
-              {!!model.advantages?.length && (
-                <div className="flex flex-wrap gap-1 mt-1.5">
-                  {model.advantages.map(adv => (
-                    <span key={adv} className="text-[10px] rounded-full border border-primary/20 bg-primary/5 px-1.5 py-0.5 text-primary/80">
-                      {adv}
-                    </span>
-                  ))}
-                </div>
-              )}
+          {filteredGuideModels.map(model => {
+            const isOpen = openGuideModelId === model.id;
+            return (
+              <Collapsible
+                key={model.id}
+                open={isOpen}
+                onOpenChange={open => setOpenGuideModelId(open ? model.id : null)}
+                className="rounded-xl border border-border/35 bg-background/70"
+              >
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className="w-full px-3 py-2.5 text-left flex items-center justify-between gap-2 hover:bg-accent/30 rounded-xl transition-colors"
+                  >
+                    <div>
+                      <p className="text-xs font-medium text-foreground">{model.label}</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1">
+                        {model.desc}
+                      </p>
+                    </div>
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`}
+                    />
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="px-3 pb-2.5">
+                  {model.bestFor && (
+                    <p className="text-[11px] text-primary mt-1">適合：{model.bestFor}</p>
+                  )}
+                  {model.tip && (
+                    <p className="text-[11px] text-muted-foreground/90 mt-0.5 leading-relaxed">建議：{model.tip}</p>
+                  )}
+                  {!!model.advantages?.length && (
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {model.advantages.map(adv => (
+                        <span key={adv} className="text-[10px] rounded-full border border-primary/20 bg-primary/5 px-1.5 py-0.5 text-primary/80">
+                          {adv}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
+            );
+          })}
+          {filteredGuideModels.length === 0 && (
+            <div className="col-span-full rounded-xl border border-dashed border-border/50 bg-background/60 py-6 text-center text-xs text-muted-foreground">
+              沒有符合搜尋條件的模型，請換個關鍵字試試。
             </div>
-          ))}
+          )}
         </div>
       </div>
 

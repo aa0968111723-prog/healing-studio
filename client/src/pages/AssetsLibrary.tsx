@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
+import { AssetModelSubpageGuide } from "@/components/AssetModelSubpageGuide";
 import type {
   AgentAction,
   AgentActionResult,
@@ -549,6 +550,7 @@ export default function AssetsLibrary() {
       <p className="hs-small !mb-0 text-muted-foreground">
         管理所有生成與上傳的數位資產。分享至團隊可獲得額外配額獎勵。
       </p>
+      <AssetModelSubpageGuide page="assets" />
 
       {/* Search + Filter bar */}
       <div className="flex gap-2 flex-wrap">

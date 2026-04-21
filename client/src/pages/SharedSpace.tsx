@@ -10,6 +10,7 @@ import { useIsMobile } from "@/hooks/useMobile";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useAIState } from "@/contexts/AIStateContext";
 import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
+import { AssetModelSubpageGuide } from "@/components/AssetModelSubpageGuide";
 import type {
   AgentAction,
   AgentActionResult,
@@ -417,6 +418,8 @@ export default function SharedSpace() {
             className="!w-6 !h-6 shrink-0"
           />
         </div>
+
+        <AssetModelSubpageGuide page="shared" />
 
         {/* Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
