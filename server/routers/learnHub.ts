@@ -46,6 +46,11 @@ export interface LearnDoc {
   featured: boolean;
   externalUrl?: string; // If linking to external resource
   authorName?: string;
+  attachments?: Array<{
+    type: "image" | "video" | "pdf" | "audio";
+    url: string;
+    title?: string;
+  }>;
 }
 
 const SEED_DOCS: LearnDoc[] = [
@@ -10957,6 +10962,15 @@ export const learnHubRouter = router({
         featured: z.boolean().default(false),
         externalUrl: z.string().url().optional(),
         authorName: z.string().max(100).optional(),
+        attachments: z
+          .array(
+            z.object({
+              type: z.enum(["image", "video", "pdf", "audio"]),
+              url: z.string().url(),
+              title: z.string().max(120).optional(),
+            })
+          )
+          .default([]),
       })
     )
     .mutation(({ input }) => {
@@ -10993,6 +11007,15 @@ export const learnHubRouter = router({
           .optional(),
         difficulty: z.enum(["beginner", "intermediate", "advanced"]).optional(),
         readingMinutes: z.number().min(1).max(120).optional(),
+        attachments: z
+          .array(
+            z.object({
+              type: z.enum(["image", "video", "pdf", "audio"]),
+              url: z.string().url(),
+              title: z.string().max(120).optional(),
+            })
+          )
+          .optional(),
       })
     )
     .mutation(({ input }) => {
@@ -11017,6 +11040,56 @@ export const learnHubRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "文件不存在" });
       docs.splice(idx, 1);
       return { success: true };
+    }),
+
+  /** 管理員：批量匯入文件（支援圖片/影片/PDF/音訊附件） */
+  importDocs: adminProcedure
+    .input(
+      z.object({
+        docs: z.array(
+          z.object({
+            category: z.enum([
+              "getting-started",
+              "model-guide",
+              "api-docs",
+              "technique",
+              "ai-news",
+              "workflow",
+            ]),
+            title: z.string().min(1).max(200),
+            summary: z.string().min(1).max(500),
+            content: z.string().min(1),
+            tags: z.array(z.string()).default([]),
+            difficulty: z
+              .enum(["beginner", "intermediate", "advanced"])
+              .default("beginner"),
+            readingMinutes: z.number().min(1).max(120).default(5),
+            featured: z.boolean().default(false),
+            externalUrl: z.string().url().optional(),
+            authorName: z.string().max(100).optional(),
+            attachments: z
+              .array(
+                z.object({
+                  type: z.enum(["image", "video", "pdf", "audio"]),
+                  url: z.string().url(),
+                  title: z.string().max(120).optional(),
+                })
+              )
+              .default([]),
+          })
+        ),
+      })
+    )
+    .mutation(({ input }) => {
+      const now = new Date().toISOString();
+      const imported: LearnDoc[] = input.docs.map((item, idx) => ({
+        id: `import-${Date.now()}-${idx}`,
+        ...item,
+        publishedAt: now,
+        updatedAt: now,
+      }));
+      docs = [...imported, ...docs];
+      return { success: true, count: imported.length };
     }),
 
   // ═══════════════════════════════════════════════════════════════════════════

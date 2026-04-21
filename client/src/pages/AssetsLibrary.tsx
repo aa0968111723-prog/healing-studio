@@ -491,7 +491,8 @@ export default function AssetsLibrary() {
           return { ok: true, message: "已套用搜尋" };
         }
         case "openDialog": {
-          const { dialogId, assetId } = action;
+          const { dialogId } = action;
+          const assetId = action.params?.assetId;
           switch (dialogId) {
             case "upload":
               setShowUploadDialog(true);
