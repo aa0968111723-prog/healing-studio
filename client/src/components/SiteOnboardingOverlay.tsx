@@ -420,7 +420,7 @@ export function ResetAllToursButton() {
       }}
     >
       <BookOpen className="w-3.5 h-3.5" />
-      重新觀看全站引導
+      重置全部導覽狀態
     </Button>
   );
 }

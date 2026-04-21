@@ -4,6 +4,9 @@ import { usePersonalSettings } from "@/contexts/PersonalSettingsContext";
 const MOBILE_BREAKPOINT = 768;
 
 export function useIsMobile() {
+  const {
+    settings: { viewMode },
+  } = usePersonalSettings();
   const [isMobile, setIsMobile] = React.useState<boolean | undefined>(
     undefined
   );
@@ -18,6 +21,8 @@ export function useIsMobile() {
     return () => mql.removeEventListener("change", onChange);
   }, []);
 
+  if (viewMode === "desktop") return false;
+  if (viewMode === "mobile") return true;
   return !!isMobile;
 }
 
@@ -36,30 +41,26 @@ export function useViewMode() {
     // Apply viewport meta tag change for desktop mode on mobile devices
     const metaViewport = document.querySelector('meta[name="viewport"]');
     if (metaViewport) {
-      if (mode === "desktop") {
-        metaViewport.setAttribute("content", "width=1280, initial-scale=0.35");
-      } else {
-        metaViewport.setAttribute(
-          "content",
-          "width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover"
-        );
-      }
+      const content =
+        mode === "desktop"
+          ? "width=1280, initial-scale=0.35"
+          : "width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover";
+      metaViewport.setAttribute("content", content);
     }
+    document.documentElement.dataset.viewMode = mode;
   }, [updateSettings]);
 
   // Apply on mount
   React.useEffect(() => {
-    if (viewMode !== "auto") {
-      const metaViewport = document.querySelector('meta[name="viewport"]');
-      if (metaViewport) {
-        if (viewMode === "desktop") {
-          metaViewport.setAttribute(
-            "content",
-            "width=1280, initial-scale=0.35"
-          );
-        }
-      }
+    const metaViewport = document.querySelector('meta[name="viewport"]');
+    if (metaViewport) {
+      const content =
+        viewMode === "desktop"
+          ? "width=1280, initial-scale=0.35"
+          : "width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover";
+      metaViewport.setAttribute("content", content);
     }
+    document.documentElement.dataset.viewMode = viewMode;
   }, [viewMode]);
 
   return { viewMode, setViewMode };

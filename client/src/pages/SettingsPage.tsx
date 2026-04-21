@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
 import type {
@@ -38,6 +38,7 @@ import {
   Waves,
   ExternalLink,
   Sparkles,
+  Link2,
 } from "lucide-react";
 import { useTheme, type AppearanceMode } from "@/contexts/ThemeContext";
 import { useCurrentScene } from "@/components/AmbientEnvironment";
@@ -174,6 +175,12 @@ export default function SettingsPage() {
   } = useCurrentScene();
   const [, navigate] = useLocation();
   const [activeTab, setActiveTab] = useState("profile");
+  const tabsListRef = useRef<HTMLDivElement | null>(null);
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission | "unsupported">(
+    typeof window !== "undefined" && "Notification" in window
+      ? Notification.permission
+      : "unsupported"
+  );
 
   const [personalPrefs, setPersonalPrefs] = useState<
     Pick<
@@ -241,6 +248,18 @@ export default function SettingsPage() {
   };
 
   const isAdmin = user?.role === "admin";
+
+  useEffect(() => {
+    if (!tabsListRef.current) return;
+    const activeEl = tabsListRef.current.querySelector<HTMLElement>(
+      '[data-state="active"]'
+    );
+    activeEl?.scrollIntoView({
+      behavior: "smooth",
+      inline: "center",
+      block: "nearest",
+    });
+  }, [activeTab]);
 
   // ─── PageAgent 註冊（Phase 4b：個人設定接入光球） ────────────────────────
   // 光球可幫：切分頁（profile/appearance/notifications/onboarding/admin）、
@@ -401,6 +420,82 @@ export default function SettingsPage() {
     },
   });
 
+  const handleToggleSound = (checked: boolean) => {
+    updateSettings({ soundEnabled: checked });
+    toast.success(checked ? "已開啟音效提示" : "已關閉音效提示");
+  };
+
+  const handleToggleDesktopNotif = async (checked: boolean) => {
+    if (!("Notification" in window)) {
+      setNotifPermission("unsupported");
+      toast.error("目前裝置不支援桌面通知");
+      return;
+    }
+
+    if (!checked) {
+      updateSettings({ desktopNotif: false });
+      setNotifPermission(Notification.permission);
+      toast.success("已關閉桌面通知");
+      return;
+    }
+
+    const currentPermission = Notification.permission;
+    if (currentPermission === "granted") {
+      updateSettings({ desktopNotif: true });
+      setNotifPermission(currentPermission);
+      toast.success("已開啟桌面通知");
+      return;
+    }
+
+    if (currentPermission === "denied") {
+      updateSettings({ desktopNotif: false });
+      setNotifPermission(currentPermission);
+      toast.error("通知權限已被封鎖，請先到瀏覽器設定開啟");
+      return;
+    }
+
+    const permission = await Notification.requestPermission();
+    setNotifPermission(permission);
+    if (permission === "granted") {
+      updateSettings({ desktopNotif: true });
+      toast.success("已取得通知權限並開啟桌面通知");
+    } else {
+      updateSettings({ desktopNotif: false });
+      toast.error("未取得通知權限，未啟用桌面通知");
+    }
+  };
+
+  const handleSendTestNotification = () => {
+    if (!("Notification" in window)) {
+      toast.error("目前裝置不支援桌面通知");
+      return;
+    }
+    if (Notification.permission !== "granted") {
+      toast.error("請先允許通知權限，再進行測試");
+      return;
+    }
+    const notification = new Notification("Healing Studio 測試通知", {
+      body: "通知已成功啟用，點我回到個人設定頁。",
+      icon: "/favicon.ico",
+      tag: "healing-studio-settings-test",
+    });
+    notification.onclick = () => {
+      window.focus();
+      navigate("/settings");
+      notification.close();
+    };
+    toast.success("已送出測試通知");
+  };
+
+  const handleOpenExternalResource = (url: string, label: string) => {
+    const win = window.open(url, "_blank", "noopener,noreferrer");
+    if (win) {
+      toast.success(`已開啟 ${label}`);
+      return;
+    }
+    window.location.href = url;
+  };
+
   return (
     <div className="space-y-6 max-w-3xl">
       {/* Header */}
@@ -415,35 +510,38 @@ export default function SettingsPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="rounded-xl bg-muted/40 p-1 flex-nowrap overflow-x-auto h-auto gap-1 w-full justify-start">
+        <TabsList
+          ref={tabsListRef}
+          className="rounded-xl bg-muted/40 p-1 flex-nowrap overflow-x-auto h-auto gap-1 w-full justify-start snap-x snap-mandatory"
+        >
           <TabsTrigger
             value="profile"
-            className="rounded-lg gap-1 text-xs shrink-0"
+            className="rounded-lg gap-1 text-sm shrink-0 min-w-[96px] snap-center"
           >
             <User className="w-3 h-3" /> 個人資料
           </TabsTrigger>
           <TabsTrigger
             value="appearance"
-            className="rounded-lg gap-1 text-xs shrink-0"
+            className="rounded-lg gap-1 text-sm shrink-0 min-w-[88px] snap-center"
           >
             <Palette className="w-3 h-3" /> 外觀
           </TabsTrigger>
           <TabsTrigger
             value="notifications"
-            className="rounded-lg gap-1 text-xs shrink-0"
+            className="rounded-lg gap-1 text-sm shrink-0 min-w-[88px] snap-center"
           >
             <Bell className="w-3 h-3" /> 通知
           </TabsTrigger>
           <TabsTrigger
             value="onboarding"
-            className="rounded-lg gap-1 text-xs shrink-0"
+            className="rounded-lg gap-1 text-sm shrink-0 min-w-[88px] snap-center"
           >
             <Eye className="w-3 h-3" /> 引導
           </TabsTrigger>
           {isAdmin && (
             <TabsTrigger
               value="admin"
-              className="rounded-lg gap-1 text-xs shrink-0"
+              className="rounded-lg gap-1 text-sm shrink-0 min-w-[92px] snap-center"
             >
               <Shield className="w-3 h-3" /> 管理員
             </TabsTrigger>
@@ -729,7 +827,10 @@ export default function SettingsPage() {
                   size="sm"
                   variant={viewMode === opt.id ? "default" : "outline"}
                   className="rounded-lg"
-                  onClick={() => setViewMode(opt.id as "auto" | "desktop" | "mobile")}
+                  onClick={() => {
+                    setViewMode(opt.id as "auto" | "desktop" | "mobile");
+                    toast.success(`檢視模式已切換為「${opt.label}」`);
+                  }}
                 >
                   {opt.label}
                 </Button>
@@ -825,11 +926,10 @@ export default function SettingsPage() {
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {WALLPAPER_RESOURCES.map(res => (
-                <a
+                <button
                   key={res.name}
-                  href={res.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  type="button"
+                  onClick={() => handleOpenExternalResource(res.url, res.name)}
                   className="flex items-center gap-3 p-3 rounded-lg border border-border/30 hover:border-border/60 hover:bg-white/30 dark:hover:bg-white/5 transition-all group"
                 >
                   <span className="text-xl shrink-0">{res.icon}</span>
@@ -842,7 +942,7 @@ export default function SettingsPage() {
                     </p>
                   </div>
                   <ExternalLink className="w-3 h-3 text-muted-foreground/40 group-hover:text-primary shrink-0 transition-colors" />
-                </a>
+                </button>
               ))}
             </div>
           </GlassCard>
@@ -867,9 +967,7 @@ export default function SettingsPage() {
                 </div>
                 <Switch
                   checked={settings.soundEnabled}
-                  onCheckedChange={checked =>
-                    updateSettings({ soundEnabled: checked })
-                  }
+                  onCheckedChange={handleToggleSound}
                 />
               </div>
               <div className="flex items-center justify-between">
@@ -883,11 +981,32 @@ export default function SettingsPage() {
                 </div>
                 <Switch
                   checked={settings.desktopNotif}
-                  onCheckedChange={checked =>
-                    updateSettings({ desktopNotif: checked })
-                  }
+                  onCheckedChange={handleToggleDesktopNotif}
                 />
               </div>
+              <p className="hs-small !mb-0 text-muted-foreground">
+                通知權限狀態：
+                <span className="font-medium ml-1">
+                  {notifPermission === "granted"
+                    ? "已允許"
+                    : notifPermission === "denied"
+                      ? "已封鎖"
+                      : notifPermission === "default"
+                        ? "尚未授權"
+                        : "此裝置不支援"}
+                </span>
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-lg w-fit"
+                onClick={handleSendTestNotification}
+                disabled={notifPermission !== "granted"}
+              >
+                <Link2 className="w-3.5 h-3.5 mr-1" />
+                發送測試通知
+              </Button>
             </div>
           </GlassCard>
         </TabsContent>
