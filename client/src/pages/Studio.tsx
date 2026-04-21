@@ -75,6 +75,7 @@ import ThoughtIslandChain, {
 } from "@/components/ThoughtIslandChain";
 import { useAIState } from "@/contexts/AIStateContext";
 import { usePersonality } from "@/contexts/PersonalityContext";
+import { usePersonalSettings } from "@/contexts/PersonalSettingsContext";
 import VisualSoul from "@/components/VisualSoul";
 import { useLocation } from "wouter";
 import { useShowcaseTransfer } from "@/contexts/ShowcaseTransferContext";
@@ -425,6 +426,7 @@ function DrawerPanel({
 
 export default function Studio() {
   const { user } = useAuth();
+  const { settings: personalSettings } = usePersonalSettings();
   const isMobile = useIsMobile();
 
   // 全站新手引導
@@ -1326,6 +1328,12 @@ export default function Studio() {
       toast.error("請輸入要轉換為語音的文字");
       return;
     }
+    if (personalSettings.confirmBeforeGenerate) {
+      const confirmed = window.confirm(
+        "你已開啟「生成前二次確認」，確定要送出本次生成嗎？"
+      );
+      if (!confirmed) return;
+    }
 
     const mutationInput = {
       prompt: activeModality === "voice" ? voiceState.text : prompt,
@@ -1432,6 +1440,8 @@ export default function Studio() {
     vaultSceneId,
     fineTunedModelId,
     directorModelOverride,
+    personalSettings.confirmBeforeGenerate,
+    requireAuth,
   ]);
 
   // ── Vault select handler ──

@@ -1,4 +1,5 @@
 import * as React from "react";
+import { usePersonalSettings } from "@/contexts/PersonalSettingsContext";
 
 const MOBILE_BREAKPOINT = 768;
 
@@ -21,31 +22,16 @@ export function useIsMobile() {
 }
 
 // ─── View Mode Toggle: force desktop or mobile view ──────────────────────
-const VIEW_MODE_KEY = "view-mode-override";
-type ViewMode = "auto" | "desktop" | "mobile";
+export type ViewMode = "auto" | "desktop" | "mobile";
 
 export function useViewMode() {
-  const [viewMode, setViewModeState] = React.useState<ViewMode>(() => {
-    try {
-      const saved = localStorage.getItem(VIEW_MODE_KEY);
-      if (saved === "desktop" || saved === "mobile") return saved;
-    } catch {
-      /* ignore */
-    }
-    return "auto";
-  });
+  const {
+    settings: { viewMode },
+    updateSettings,
+  } = usePersonalSettings();
 
   const setViewMode = React.useCallback((mode: ViewMode) => {
-    setViewModeState(mode);
-    try {
-      if (mode === "auto") {
-        localStorage.removeItem(VIEW_MODE_KEY);
-      } else {
-        localStorage.setItem(VIEW_MODE_KEY, mode);
-      }
-    } catch {
-      /* ignore */
-    }
+    updateSettings({ viewMode: mode });
 
     // Apply viewport meta tag change for desktop mode on mobile devices
     const metaViewport = document.querySelector('meta[name="viewport"]');
@@ -59,7 +45,7 @@ export function useViewMode() {
         );
       }
     }
-  }, []);
+  }, [updateSettings]);
 
   // Apply on mount
   React.useEffect(() => {

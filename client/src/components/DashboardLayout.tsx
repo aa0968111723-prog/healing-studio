@@ -57,7 +57,6 @@ import {
   ListChecks,
   Coins,
   Monitor,
-  Smartphone,
   Brain,
   Music,
   GripVertical,
@@ -91,6 +90,7 @@ import {
   getSidebarGroups,
   type AppPageRegistryItem,
 } from "@/config/appRegistry";
+import { usePersonalSettings } from "@/contexts/PersonalSettingsContext";
 
 // Isolated component that subscribes to AI state —
 // prevents the entire DashboardLayout from re-rendering when aiState/personality change.
@@ -372,6 +372,7 @@ function DashboardLayoutContent({
   setSidebarWidth,
 }: DashboardLayoutContentProps) {
   const { user, logout } = useAuth();
+  const { settings } = usePersonalSettings();
   const [location, setLocation] = useLocation();
   const { state, toggleSidebar, setOpen } = useSidebar();
   const isCollapsed = state === "collapsed";
@@ -385,7 +386,7 @@ function DashboardLayoutContent({
     item => item.path === location
   );
   const isMobile = useIsMobile();
-  const { viewMode, setViewMode } = useViewMode();
+  const { viewMode } = useViewMode();
   const normalizedSidebarQuery = sidebarQuery.trim().toLowerCase();
   const visibleSidebarStructure = useMemo<SidebarEntry[]>(() => {
     if (!normalizedSidebarQuery) return sidebarStructure;
@@ -420,6 +421,8 @@ function DashboardLayoutContent({
   }, [normalizedSidebarQuery]);
 
   const isAdmin = user?.role === "admin";
+  const displayName = settings.displayName.trim() || user?.name || "使用者";
+  const displayInitial = displayName.charAt(0).toUpperCase() || "U";
 
   // ── Tablet auto-collapse: icon mode for 768–1024 px ───────────────────
   useEffect(() => {
@@ -744,48 +747,30 @@ function DashboardLayoutContent({
                 </div>
               </Link>
             )}
-            {/* Desktop/Mobile view toggle */}
             {!isCollapsed && (
-              <div className="flex items-center justify-between px-1 py-1.5 mb-1 rounded-lg bg-muted/40">
-                <span className="hs-small !mb-0 text-muted-foreground ml-1">
-                  檢視模式
+              <button
+                onClick={() => setLocation("/settings")}
+                className="w-full flex items-center justify-between px-2 py-1.5 mb-1 rounded-lg bg-muted/40 hover:bg-muted/60 transition-colors"
+              >
+                <span className="hs-small !mb-0 text-muted-foreground">
+                  檢視模式：{viewMode === "auto" ? "自動" : viewMode === "desktop" ? "桌機" : "行動"}
                 </span>
-                <div className="flex gap-0.5">
-                  <button
-                    onClick={() => setViewMode("auto")}
-                    className={`h-7 px-2 rounded-md text-[11px] font-medium transition-colors ${viewMode === "auto" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-                    title="自動"
-                  >
-                    自動
-                  </button>
-                  <button
-                    onClick={() => setViewMode("desktop")}
-                    className={`h-7 w-7 rounded-md flex items-center justify-center transition-colors ${viewMode === "desktop" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-                    title="電腦版"
-                  >
-                    <Monitor className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => setViewMode("mobile")}
-                    className={`h-7 w-7 rounded-md flex items-center justify-center transition-colors ${viewMode === "mobile" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-                    title="行動版"
-                  >
-                    <Smartphone className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
+                <span className="text-[11px] text-muted-foreground/80">
+                  到個人設定調整
+                </span>
+              </button>
             )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="flex items-center gap-3 rounded-lg px-1.5 py-1.5 hover:bg-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring min-h-[44px]">
                   <Avatar className="h-10 w-10 border shrink-0">
                     <AvatarFallback className="text-sm font-medium bg-primary/10 text-primary">
-                      {user?.name?.charAt(0).toUpperCase() || "U"}
+                      {displayInitial}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0 group-data-[collapsible=icon]:hidden">
                     <p className="text-sm font-medium truncate leading-none text-foreground">
-                      {user?.name || "使用者"}
+                      {displayName}
                     </p>
                     <p className="text-xs text-muted-foreground truncate mt-1.5">
                       {user?.email || "-"}
@@ -889,22 +874,16 @@ function DashboardLayoutContent({
               </span>
             </div>
             <div className="flex items-center gap-2">
-              {/* View mode toggle: desktop/mobile */}
               <button
-                onClick={() =>
-                  setViewMode(viewMode === "desktop" ? "auto" : "desktop")
-                }
-                className="h-9 w-9 rounded-lg flex items-center justify-center bg-muted/60 hover:bg-muted transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                aria-label={
-                  viewMode === "desktop" ? "切換行動版" : "切換電腦版"
-                }
-                title={viewMode === "desktop" ? "切換回行動版" : "切換至電腦版"}
+                onClick={() => setLocation("/settings")}
+                className="h-9 px-2 rounded-lg flex items-center justify-center bg-muted/60 hover:bg-muted transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="前往個人設定調整檢視模式"
+                title="到個人設定調整檢視模式"
               >
-                {viewMode === "desktop" ? (
-                  <Smartphone className="w-4 h-4 text-primary" />
-                ) : (
-                  <Monitor className="w-4 h-4 text-muted-foreground" />
-                )}
+                <Monitor className="w-4 h-4 text-muted-foreground mr-1" />
+                <span className="text-[11px] text-muted-foreground">
+                  {viewMode === "auto" ? "自動" : viewMode === "desktop" ? "桌機" : "行動"}
+                </span>
               </button>
               {/* Quota badge */}
               <div className="flex items-center gap-1.5 bg-primary/10 rounded-lg px-2.5 py-1.5">
@@ -921,14 +900,14 @@ function DashboardLayoutContent({
                     className="h-10 w-10 rounded-full border flex items-center justify-center bg-primary/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <span className="text-sm font-medium text-primary">
-                      {user?.name?.charAt(0).toUpperCase() || "U"}
+                      {displayInitial}
                     </span>
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
                   <div className="px-3 py-2 border-b mb-1">
                     <p className="text-sm font-medium truncate">
-                      {user?.name || "使用者"}
+                      {displayName}
                     </p>
                     <p className="text-xs text-muted-foreground truncate mt-0.5">
                       {user?.email || "-"}
@@ -954,10 +933,14 @@ function DashboardLayoutContent({
           </div>
         )}
         <main
-          className="relative flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-safe-area-inset-bottom"
+          className={`relative flex-1 overflow-y-auto ${
+            settings.compactMode ? "p-3 sm:p-4 lg:p-5" : "p-4 sm:p-6 lg:p-8"
+          } pb-safe-area-inset-bottom`}
           data-scroll-area
           style={{
-            paddingBottom: "calc(2rem + env(safe-area-inset-bottom, 0px))",
+            paddingBottom: settings.compactMode
+              ? "calc(1rem + env(safe-area-inset-bottom, 0px))"
+              : "calc(2rem + env(safe-area-inset-bottom, 0px))",
           }}
         >
           <GlobalPageHint />

@@ -19,6 +19,7 @@ import { AmbientProvider } from "./contexts/AmbientSoundContext";
 import { OrbGuideProvider } from "./contexts/OrbGuideContext";
 import { PageAgentProvider } from "./contexts/PageAgentContext";
 import { GlobalOrbChatProvider } from "./contexts/GlobalOrbChatContext";
+import { PersonalSettingsProvider } from "./contexts/PersonalSettingsContext";
 const SiteOnboardingOverlay = lazy(
   () => import("./components/SiteOnboardingOverlay")
 );
@@ -201,35 +202,37 @@ function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light" switchable>
-        <PersonalityProvider>
-          <NotesDrawerProvider>
-            <ShowcaseTransferProvider>
-              <SiteOnboardingProvider>
-                <FocusFlowProvider>
-                  <AmbientProvider>
-                  <OrbGuideProvider>
-                  <PageAgentProvider>
-                  <GlobalOrbChatProvider>
-                  <TooltipProvider>
-                    <Toaster />
-                    <OfflineBanner />
-                    <AuthExpiredModal />
-                    <LoginOrbAnimation />
-                    <Router />
-                    <ProjectNotesDrawer />
-                    <Suspense fallback={null}>
-                      <SiteOnboardingOverlay />
-                    </Suspense>
-                  </TooltipProvider>
-                  </GlobalOrbChatProvider>
-                  </PageAgentProvider>
-                  </OrbGuideProvider>
-                  </AmbientProvider>
-                </FocusFlowProvider>
-              </SiteOnboardingProvider>
-            </ShowcaseTransferProvider>
-          </NotesDrawerProvider>
-        </PersonalityProvider>
+        <PersonalSettingsProvider>
+          <PersonalityProvider>
+            <NotesDrawerProvider>
+              <ShowcaseTransferProvider>
+                <SiteOnboardingProvider>
+                  <FocusFlowProvider>
+                    <AmbientProvider>
+                    <OrbGuideProvider>
+                    <PageAgentProvider>
+                    <GlobalOrbChatProvider>
+                    <TooltipProvider>
+                      <Toaster />
+                      <OfflineBanner />
+                      <AuthExpiredModal />
+                      <LoginOrbAnimation />
+                      <Router />
+                      <ProjectNotesDrawer />
+                      <Suspense fallback={null}>
+                        <SiteOnboardingOverlay />
+                      </Suspense>
+                    </TooltipProvider>
+                    </GlobalOrbChatProvider>
+                    </PageAgentProvider>
+                    </OrbGuideProvider>
+                    </AmbientProvider>
+                  </FocusFlowProvider>
+                </SiteOnboardingProvider>
+              </ShowcaseTransferProvider>
+            </NotesDrawerProvider>
+          </PersonalityProvider>
+        </PersonalSettingsProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );
