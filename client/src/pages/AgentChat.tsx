@@ -66,16 +66,16 @@ type StarterEntry = {
 
 const GREETINGS: Record<string, string[]> = {
   calm: [
-    "嗨 🌿 我是光球。你想慢慢聊聊今天心情如何嗎？或是有什麼創作想試試看。",
-    "歡迎來到這裡 ✨ 深呼吸一下。有沒有想哪種類型的創作？或是只是想看看可以玩什麼都很好。",
+    "嗨 🌿 我是光球。先跟我說想完成的成果、要用在哪裡，我會陪你慢慢找到對的入口。",
+    "歡迎來到這裡 ✨ 有什麼想做的嗎？告訴我目標、手上素材或限制，我一步步帶你。",
   ],
   creative: [
-    "嗨！我是光球 🌸 今天想做點什麼？圖片？影片？還是一首小歌？不急，我陪你慢慢挑。",
-    "你來啦 ✨ 有畫面、有聲音、還是一段故事在腦海裡？告訴我一點點就好，我來想辦法接下去。",
+    "嗨！我是光球 🌸 今天腦海裡想生成什麼？用在什麼場合？告訴我一些線索，我幫你配好流程。",
+    "你來啦 ✨ 先說說想要的成品、風格或靈感來源，我會問幾個小問題，帶你去對的頁面試做看。",
   ],
   technical: [
-    "嗨，我是光球 🌿 想做什麼類型的內容？我可以幫你挑模型和參數，不用你記一堆。",
-    "歡迎 ✨ 直接說你想要的結果，我幫你拆解成工具和步驟，沒有壓力。",
+    "嗨，我是光球 🌿 告訴我想要的輸出、用途與手邊素材，我幫你挑模型、參數和頁面。",
+    "歡迎 ✨ 先說需求與限制（格式、時長、設備），我會拆解成步驟並引導操作。",
   ],
 };
 
@@ -130,7 +130,7 @@ export default function AgentChat() {
   // 其他結構化動作留給目的地頁面的 handler（透過 pending queue 傳遞）。
   useRegisterPageAgent({
     pageId: "agent-chat",
-    pageLabel: "光球聊天",
+    pageLabel: "全站光球代理",
     pagePath: "/agent",
     capabilities: [
       {
@@ -225,7 +225,7 @@ export default function AgentChat() {
               content: m.text,
             })),
           personality,
-          context: "光球聊天頁（/agent）",
+          context: "全站光球代理頁（/agent）",
           pageSnapshot: pageAgent.snapshot ?? undefined,
           recentFeedback: pageAgent.recentFeedback,
           // 緩衝頁上，所有結構化動作都先預覽再執行（額外柔軟）
@@ -364,7 +364,7 @@ export default function AgentChat() {
             先聊聊看就好 🌿
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md leading-relaxed">
-            不用急著學工具，也不用先研究模型。先讓光球帶你快速操作；想深入時，再去「學習文件中心」慢慢學就好。
+            我會先問幾個關鍵問題（目標、用途、素材、限制），幫你定位到正確的頁面，並一步步告訴你怎麼做。
           </p>
 
           {/* ── 第一輪：意圖選擇 grid ── */}
@@ -378,7 +378,7 @@ export default function AgentChat() {
                 transition={{ duration: 0.4, delay: 0.2 }}
               >
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  你想做什麼？選一個，光球帶你去：
+                  你想做什麼？選一個，光球會先釐清需求，再帶你去對的地方：
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {(["image", "video", "music", "voice", "script", "lora", "explore"] as Exclude<GuideIntent, null>[]).map((intentId, i) => {
