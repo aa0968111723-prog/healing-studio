@@ -184,8 +184,13 @@ export default function PromptLibraryPage() {
       },
       {
         action: "setParam",
-        label: "分類 / 搜尋 / 只看收藏",
-        hint: "setParam key='category' value=<id>；key='search' value=<關鍵字>；key='favoritesOnly' value=true|false",
+        label: "分類 / 收藏",
+        hint: "setParam key='category' value=<id>；key='favoritesOnly' value=true|false",
+      },
+      {
+        action: "search",
+        label: "搜尋提示詞",
+        hint: "搜尋提示詞標題或內容",
       },
       {
         action: "reset",
@@ -219,11 +224,6 @@ export default function PromptLibraryPage() {
           return { ok: true, message: `切到「${action.tabId}」` };
         }
         case "setParam": {
-          if (action.key === "search") {
-            setSearch(typeof action.value === "string" ? action.value : "");
-            setPage(1);
-            return { ok: true, message: "已套用搜尋" };
-          }
           if (action.key === "category") {
             const allowed = ["all", ...CATEGORIES.map(c => c.value)];
             const v = String(action.value ?? "");
@@ -240,6 +240,11 @@ export default function PromptLibraryPage() {
             return { ok: true, message: "已套用收藏篩選" };
           }
           return { ok: false, reason: `unknown param key: ${action.key}` };
+        }
+        case "search": {
+          setSearch(action.query);
+          setPage(1);
+          return { ok: true, message: "已套用搜尋" };
         }
         case "reset": {
           setFilterCategory("all");

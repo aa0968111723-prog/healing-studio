@@ -2115,9 +2115,14 @@ export default function LearnHub() {
       },
       {
         action: "setParam",
-        label: "分類 / 難度 / 搜尋",
+        label: "分類 / 難度",
         options: [...(LEARN_CATEGORY_OPTIONS ?? []), ...(LEARN_DIFFICULTY_OPTIONS ?? [])],
-        hint: "setParam key='category' value=<CategoryId>；key='difficulty' value=all|beginner|intermediate|advanced；key='search' value=<關鍵字>",
+        hint: "setParam key='category' value=<CategoryId>；key='difficulty' value=all|beginner|intermediate|advanced",
+      },
+      {
+        action: "search",
+        label: "搜尋文件",
+        hint: "搜尋文件標題或內容",
       },
       {
         action: "reset",
@@ -2170,13 +2175,11 @@ export default function LearnHub() {
             setSelectedDifficulty(v as DifficultyId);
             return { ok: true, message: `難度切到「${v}」` };
           }
-          if (action.key === "search") {
-            setSearchQuery(
-              typeof action.value === "string" ? action.value : ""
-            );
-            return { ok: true, message: "已套用搜尋" };
-          }
           return { ok: false, reason: `unknown param key: ${action.key}` };
+        }
+        case "search": {
+          setSearchQuery(action.query);
+          return { ok: true, message: "已套用搜尋" };
         }
         case "reset": {
           setSelectedCategory("all");

@@ -23,7 +23,7 @@ import type { OrbGuideStepRewrite } from "../../../shared/agent-actions";
 import { summarizeOrbGuideActions } from "../../../shared/orb-guide-plans";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/useMobile";
-import { useGlobalOrbChat } from "@/contexts/GlobalOrbChatContext";
+import { useGlobalOrbChat, formatRelativeTime, getPageEmoji, formatMessageMetadata } from "@/contexts/GlobalOrbChatContext";
 
 // ─── Typewriter hook ──────────────────────────────────────────────────────────
 
@@ -157,10 +157,8 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
 
   // ── Panel mode: guided flow or free chat ──────────────────────────────────
   const [panelMode, setPanelMode] = useState<"guide" | "chat">("guide");
-  // Use global chat state for chat mode
-  const chatMessages = panelMode === "chat"
-    ? globalChat.messages.map(m => ({ role: m.role, text: m.text }))
-    : [];
+  // Use global chat state for chat mode - keep full message objects for metadata
+  const chatMessages = panelMode === "chat" ? globalChat.messages : [];
   const chatInput = panelMode === "chat" ? globalChat.input : "";
   const setChatInput = panelMode === "chat" ? globalChat.setInput : () => {};
   const isChatLoading = panelMode === "chat" ? globalChat.isSending : false;
@@ -434,7 +432,7 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
             {chatMessages.map((msg, i) => (
               <div
                 key={i}
-                className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}
+                className={cn("flex flex-col gap-0.5", msg.role === "user" ? "items-end" : "items-start")}
               >
                 <div
                   className={cn(
@@ -447,6 +445,16 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
                 >
                   {msg.text}
                 </div>
+                {msg.pagePath && msg.at && (
+                  <div className={cn(
+                    "text-[9px] text-white/40 px-1 flex items-center gap-1",
+                    fullscreen ? "text-[10px]" : "text-[9px]",
+                    msg.role === "user" ? "justify-end" : "justify-start"
+                  )}>
+                    <span>{getPageEmoji(msg.pagePath)}</span>
+                    <span>{formatMessageMetadata(msg.pagePath, msg.at)}</span>
+                  </div>
+                )}
               </div>
             ))}
             {isChatLoading && (
