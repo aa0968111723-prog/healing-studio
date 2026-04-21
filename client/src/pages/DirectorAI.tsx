@@ -2025,6 +2025,24 @@ export default function DirectorAI() {
   const [planningInput, setPlanningInput] = useState("");
   const [showPlanningSessions, setShowPlanningSessions] = useState(false);
 
+  // ─── Batch Generation State ─────────────────────────────────────────────
+  const [showBatchGeneration, setShowBatchGeneration] = useState(false);
+  const [batchGenerationOptions, setBatchGenerationOptions] = useState({
+    modalities: ["image"] as Array<"image" | "video" | "audio" | "voice">,
+    imageSettings: { aspectRatio: "16:9", negativePrompt: "" },
+    videoSettings: { useImageAsFirstFrame: false },
+    audioSettings: { isInstrumental: true },
+    voiceSettings: { voiceSpeed: 1.0, voiceStability: 0.5 },
+    mode: "lightning" as "lightning" | "deep_precision",
+  });
+  const [generationTasks, setGenerationTasks] = useState<Array<{
+    segmentId: string;
+    segmentIndex: number;
+    modality: string;
+    jobId?: number;
+    status: "pending" | "processing" | "completed" | "failed";
+  }>>([]);
+
   // ─── tRPC hooks ──────────────────────────────────────────────────────────
 
   const templatesQuery = trpc.director.templates.useQuery(undefined, {
@@ -2180,6 +2198,39 @@ export default function DirectorAI() {
     undefined,
     { enabled: showPlanningSessions }
   );
+
+  // ─── Batch Generation Hooks ─────────────────────────────────────────────
+  const autoGenerateMut = trpc.director.autoGenerateFromSegments.useMutation({
+    onSuccess: data => {
+      toast.success(
+        `已規劃 ${data.totalTasks} 個生成任務，預估 ${data.totalPoints} pts`
+      );
+      // Initialize generation tasks state
+      setGenerationTasks(
+        data.tasks.map(t => ({
+          segmentId: t.segmentId,
+          segmentIndex: t.segmentIndex,
+          modality: t.modality,
+          status: "pending" as const,
+        }))
+      );
+    },
+    onError: e => toast.error("規劃失敗：" + e.message),
+  });
+
+  const executeTaskMut = trpc.director.executeGenerationTask.useMutation({
+    onSuccess: (data) => {
+      setGenerationTasks(prev =>
+        prev.map(t =>
+          t.segmentId === data.segmentId && t.modality === data.modality
+            ? { ...t, jobId: data.jobId, status: "processing" as const }
+            : t
+        )
+      );
+      toast.success(`${data.label} 已開始生成`);
+    },
+    onError: e => toast.error("執行失敗：" + e.message),
+  });
 
   const deletePlanningMut = trpc.director.deletePlanningSession.useMutation({
     onSuccess: () => planningSessionsQuery.refetch(),
@@ -3312,6 +3363,16 @@ export default function DirectorAI() {
                       <Layers className="w-3.5 h-3.5" />
                     )}
                     批次 CO-STAR
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-xl text-xs gap-1 bg-gradient-to-r from-purple-500/10 to-pink-500/10 border-purple-300/50 hover:from-purple-500/20 hover:to-pink-500/20"
+                    onClick={() => setShowBatchGeneration(true)}
+                    disabled={importedSegments.length === 0}
+                  >
+                    <Zap className="w-3.5 h-3.5 text-purple-600" />
+                    批次生成
                   </Button>
                   <Button
                     variant="outline"
