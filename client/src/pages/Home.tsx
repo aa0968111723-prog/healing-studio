@@ -49,6 +49,8 @@ import {
   Compass,
   Rocket,
   CircleCheck,
+  MessageCircle,
+  Gauge,
 } from "lucide-react";
 import { useAIState } from "@/contexts/AIStateContext";
 import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
@@ -341,6 +343,284 @@ const HOME_QUICKSTART_GUIDE = [
   },
 ] as const;
 
+const HOME_ONBOARDING_MISSIONS = [
+  {
+    id: "mission-orb",
+    title: "先和全站光球代理說目標",
+    description: "輸入一句話需求，讓光球幫你決定從哪個工作室開始。",
+    path: "/agent",
+  },
+  {
+    id: "mission-first-draft",
+    title: "做出第一個作品草稿",
+    description: "到圖片或影片工作室用預設先產出第一版，再逐步微調。",
+    path: "/image-studio",
+  },
+  {
+    id: "mission-director",
+    title: "用導演 AI 規劃完整流程",
+    description: "把點子交給導演 AI，自動拆成圖、影、音可執行任務。",
+    path: "/director",
+  },
+  {
+    id: "mission-iterate",
+    title: "到歷史頁做版本比較與迭代",
+    description: "比對差異、保留最佳版本，建立可重複的創作節奏。",
+    path: "/history",
+  },
+] as const;
+
+const NEW_USER_JOURNEY = [
+  {
+    id: "orb-agent",
+    title: "先用全站光球代理帶路",
+    description:
+      "先從光球代理開始，直接用對話告訴它你的目標，系統會帶你到對應工作室並推薦下一步。",
+  },
+  {
+    id: "first-output",
+    title: "10 分鐘做出第一個作品",
+    description:
+      "先選一個工作室（建議圖片或影片），使用範本與預設參數快速生成第一版。",
+  },
+  {
+    id: "iterate",
+    title: "再做精修與版本管理",
+    description:
+      "回到模型/素材/歷史頁面做迭代，逐步把草稿升級成可發佈成品。",
+  },
+] as const;
+
+const HOME_CREATIVE_TRACKS = [
+  {
+    id: "track-fast",
+    title: "快速出稿",
+    eta: "8-12 分鐘",
+    summary: "先用光球代理選最短路徑，目標是今天就產出可分享版本。",
+    recommendedPath: "/agent",
+    orbPrompt: "我想在 10 分鐘內完成第一版，請帶我走最快路徑。",
+  },
+  {
+    id: "track-brand",
+    title: "品牌內容",
+    eta: "20-30 分鐘",
+    summary: "先定調性，再串接圖片、影片與配樂，快速做一套品牌內容。",
+    recommendedPath: "/director",
+    orbPrompt: "我要做品牌內容，請幫我規劃圖、影、音一致的工作流。",
+  },
+  {
+    id: "track-learning",
+    title: "先理解再操作",
+    eta: "15-20 分鐘",
+    summary: "先看範例與教學，再讓光球代理引導你做第一個任務。",
+    recommendedPath: "/learn",
+    orbPrompt: "我是新手，先給我最容易上手的教學，再帶我做第一個任務。",
+  },
+] as const;
+
+const ORB_AGENT_LESSONS = [
+  {
+    id: "lesson-goal",
+    title: "先說目標，不先選工具",
+    description: "先告訴光球你要完成什麼（例如：做品牌短片、做商品主視覺）。",
+    example: "幫我做一支 20 秒品牌形象短片，風格溫暖療癒。",
+  },
+  {
+    id: "lesson-constraint",
+    title: "補上限制條件",
+    description: "加上時間、尺寸、語言、素材限制，光球會更精準帶路。",
+    example: "今天要交件、9:16、繁中字幕、先用平台預設素材。",
+  },
+  {
+    id: "lesson-next-step",
+    title: "要求下一步與原因",
+    description: "請光球說明先去哪一頁、為什麼，降低新手迷路風險。",
+    example: "請直接告訴我第一步去哪個頁面，並解釋原因。",
+  },
+] as const;
+
+const ORB_GUIDED_ONBOARDING_FLOW = [
+  {
+    id: "flow-agent",
+    title: "Step 1：先開啟全站光球代理",
+    description: "在光球說出你的目標，讓系統自動判斷先去哪個功能頁。",
+  },
+  {
+    id: "flow-clarify",
+    title: "Step 2：讓光球幫你定第一個可交付成果",
+    description: "請光球先定義『今天要完成什麼』與『最短執行路徑』。",
+  },
+  {
+    id: "flow-studio",
+    title: "Step 3：由光球帶你進創作工作室",
+    description: "依光球建議進入圖片/影片/導演工作室完成第一版作品。",
+  },
+] as const;
+
+const ORB_BOOTCAMP_PLANS = [
+  {
+    id: "site-tour",
+    title: "全站深度教學",
+    description: "由光球代理帶你走完站內核心頁：Agent、Director、Studio、History、Assets。",
+    prompt:
+      "請啟動全站深度教學，依序帶我認識 Agent、Director、Studio、History、Assets，且每一步都告訴我目的與下一步。",
+  },
+  {
+    id: "studio-setup",
+    title: "建立創作工作室教學",
+    description: "由光球代理帶你從 0 到 1 建立第一個可重複使用的創作工作室流程。",
+    prompt:
+      "請啟動建立創作工作室教學：先定義創作目標，再建立工作室流程與模板，最後帶我產出第一版並教我如何迭代。",
+  },
+] as const;
+
+const IMAGE_STUDIO_TUTORIAL = [
+  {
+    id: "img-step-1",
+    title: "設定創作目標",
+    description: "先決定用途（廣告、貼文、封面）與輸出尺寸，避免重工。",
+  },
+  {
+    id: "img-step-2",
+    title: "請光球生成第一版提示詞",
+    description: "把風格、主體、構圖、光線交給光球整理成可用 prompt。",
+  },
+  {
+    id: "img-step-3",
+    title: "進圖片創作室產出與迭代",
+    description: "先出 2-4 張版本，比較後再微調單一參數。",
+  },
+] as const;
+
+const VIDEO_STUDIO_TUTORIAL = [
+  {
+    id: "video-step-1",
+    title: "定義影片目標與時長",
+    description: "先決定用途（廣告/短影音/敘事）與秒數，讓分鏡更聚焦。",
+  },
+  {
+    id: "video-step-2",
+    title: "請光球輸出分鏡與影片 prompt",
+    description: "請光球整理主題、鏡頭運動、轉場節奏與字幕語氣。",
+  },
+  {
+    id: "video-step-3",
+    title: "進影片工作室生成首版",
+    description: "先生成 1-2 個版本，再調整單一參數做二次迭代。",
+  },
+] as const;
+
+const MUSIC_VOICE_STUDIO_TUTORIAL = [
+  {
+    id: "audio-step-1",
+    title: "定義音樂與配音目標",
+    description: "先決定用途（影片配樂、旁白、角色配音）與情緒節奏。",
+  },
+  {
+    id: "audio-step-2",
+    title: "請光球生成音樂/配音指令",
+    description: "請光球整理 BPM、樂器、語氣、語速、情緒與段落結構。",
+  },
+  {
+    id: "audio-step-3",
+    title: "進音樂與語音工作室產出首版",
+    description: "先做一版配樂與一版配音，再同步微調情緒與節奏。",
+  },
+] as const;
+
+const DIRECTOR_AI_TUTORIAL = [
+  {
+    id: "director-step-1",
+    title: "輸入主題與目標成品",
+    description: "先告訴導演 AI 你要做什麼內容與交付格式（短片/廣告/企劃）。",
+  },
+  {
+    id: "director-step-2",
+    title: "讓光球拆解成圖影音任務",
+    description: "請光球把需求轉成分鏡、素材、配樂、旁白等可執行任務。",
+  },
+  {
+    id: "director-step-3",
+    title: "在導演 AI 工作室執行與迭代",
+    description: "先跑一版流程，再針對單一段落重跑優化品質。",
+  },
+] as const;
+
+const ASSET_MODEL_SUBPAGE_TUTORIALS = [
+  {
+    id: "assets-library",
+    title: "素材中心（Assets）",
+    path: "/assets",
+    description: "學會上傳、分類與複用素材，建立可重用素材庫。",
+    orbPrompt: "請教我如何在素材中心建立可重用素材庫，並帶我完成第一次分類。",
+  },
+  {
+    id: "shared-assets",
+    title: "共享素材（Shared）",
+    path: "/shared",
+    description: "學會與團隊共享素材、設定存取與版本更新。",
+    orbPrompt: "請教我共享素材頁的最佳實務，並帶我完成一次共享發佈。",
+  },
+  {
+    id: "prompt-library",
+    title: "提示詞庫（Prompt Library）",
+    path: "/prompt-library",
+    description: "學會建立提示詞模板與版本管理，降低重複撰寫成本。",
+    orbPrompt: "請教我建立提示詞模板並分類，帶我完成第一組可複用模板。",
+  },
+  {
+    id: "notes",
+    title: "創作筆記（Notes）",
+    path: "/notes",
+    description: "學會把靈感、設定與迭代紀錄結構化保存。",
+    orbPrompt: "請教我用創作筆記整理專案脈絡，並建立一份可追蹤的筆記範本。",
+  },
+  {
+    id: "history",
+    title: "版本歷史（History）",
+    path: "/history",
+    description: "學會比對版本、保留最佳稿與回溯流程。",
+    orbPrompt: "請教我在版本歷史頁比較差異並選出最佳版本，建立迭代節奏。",
+  },
+  {
+    id: "lora-trainer",
+    title: "模型訓練（LoRA Trainer）",
+    path: "/lora-trainer",
+    description: "學會建立角色/風格模型，提升生成一致性。",
+    orbPrompt: "請教我 LoRA 訓練流程與資料準備，並帶我建立第一個訓練計畫。",
+  },
+  {
+    id: "pro-studio",
+    title: "專業工作室（Pro Studio）",
+    path: "/pro-studio",
+    description: "學會進階參數與模型組合策略，優化輸出品質。",
+    orbPrompt: "請教我 Pro Studio 的進階參數怎麼設計，帶我跑一次高品質工作流。",
+  },
+  {
+    id: "dashboard",
+    title: "成效儀表板（Dashboard）",
+    path: "/dashboard",
+    description: "學會看使用與成效數據，回推最佳創作策略。",
+    orbPrompt: "請教我如何從儀表板解讀成效，並提出下一輪優化策略。",
+  },
+] as const;
+
+const ALL_SUBPAGE_TUTORIALS = [
+  { id: "learn-center", title: "學習文件中心", path: "/learn", prompt: "請教我學習文件中心怎麼快速找到新手到進階的學習路徑。", category: "Learning" },
+  { id: "notes-planning", title: "規劃筆記", path: "/notes", prompt: "請教我如何用規劃筆記建立可執行的創作計畫與里程碑。", category: "Planning" },
+  { id: "dashboard-insights", title: "數據洞察", path: "/dashboard", prompt: "請教我數據洞察頁怎麼看關鍵指標，並給我下一步優化建議。", category: "Insights" },
+  { id: "studio", title: "創作總工作室", path: "/studio", prompt: "請帶我了解創作總工作室的主流程與各模組用途。", category: "Studio" },
+  { id: "director", title: "導演 AI", path: "/director", prompt: "請教我導演 AI 的完整工作流，從需求拆解到輸出成品。", category: "Studio" },
+  { id: "image-studio", title: "圖片工作室", path: "/image-studio", prompt: "請教我圖片工作室從 prompt 到迭代的完整流程。", category: "Studio" },
+  { id: "video-studio", title: "影片工作室", path: "/video-studio", prompt: "請教我影片工作室從分鏡到輸出的完整流程。", category: "Studio" },
+  { id: "pro-studio-all", title: "專業工作室", path: "/pro-studio", prompt: "請教我專業工作室的進階參數與模型搭配策略。", category: "Studio" },
+  { id: "history-all", title: "歷史版本", path: "/history", prompt: "請教我在歷史版本頁做比較、回溯與迭代決策。", category: "Ops" },
+  { id: "prompt-library-all", title: "提示詞庫", path: "/prompt-library", prompt: "請教我如何建立可重用提示詞庫與版本策略。", category: "Ops" },
+  { id: "assets-all", title: "素材中心", path: "/assets", prompt: "請教我素材中心上傳、分類與複用最佳實務。", category: "Ops" },
+  { id: "shared-all", title: "共享素材", path: "/shared", prompt: "請教我共享素材與協作權限設定方式。", category: "Ops" },
+  { id: "lora-all", title: "模型訓練", path: "/lora-trainer", prompt: "請教我模型訓練資料準備、訓練與驗證流程。", category: "Model" },
+] as const;
+
 // ─── Scene Badge ────────────────────────────────────────────────────────────
 
 function SceneBadge({
@@ -437,10 +717,25 @@ export default function Home() {
   );
   const [featureDialogOpen, setFeatureDialogOpen] = useState(false);
   const [openGuideId, setOpenGuideId] = useState<string | null>("new-user");
+  const [quickGuideHidden, setQuickGuideHidden] = useState(false);
+  const [completedMissions, setCompletedMissions] = useState<string[]>([]);
+  const [selectedTrackId, setSelectedTrackId] = useState<string>(
+    HOME_CREATIVE_TRACKS[0].id
+  );
+  const [completedOrbLessons, setCompletedOrbLessons] = useState<string[]>([]);
+  const quickStartRef = useRef<HTMLElement>(null);
 
   const openFeature = useCallback((feature: FeatureDetail) => {
     setActiveFeature(feature);
     setFeatureDialogOpen(true);
+  }, []);
+
+  const scrollToQuickStart = useCallback(() => {
+    setOpenGuideId("new-user");
+    quickStartRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
   }, []);
 
   // ─── Sense Engine + Intent Inference ─────────────────────────────
@@ -488,6 +783,189 @@ export default function Home() {
       }
     }
   }, [isAuthenticated, loading]);
+
+  useEffect(() => {
+    const hiddenPref = localStorage.getItem("home-quick-guide-hidden") === "1";
+    setQuickGuideHidden(hiddenPref);
+  }, []);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("home-onboarding-missions-v1");
+    if (!saved) return;
+    try {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed)) {
+        setCompletedMissions(parsed.filter((item): item is string => typeof item === "string"));
+      }
+    } catch {
+      // ignore invalid localStorage
+    }
+  }, []);
+
+  useEffect(() => {
+    const savedTrack = localStorage.getItem("home-onboarding-track-v1");
+    if (!savedTrack) return;
+    const valid = HOME_CREATIVE_TRACKS.some(track => track.id === savedTrack);
+    if (valid) {
+      setSelectedTrackId(savedTrack);
+    }
+  }, []);
+
+  useEffect(() => {
+    const savedLessons = localStorage.getItem("home-orb-lessons-v1");
+    if (!savedLessons) return;
+    try {
+      const parsed = JSON.parse(savedLessons);
+      if (Array.isArray(parsed)) {
+        setCompletedOrbLessons(parsed.filter((item): item is string => typeof item === "string"));
+      }
+    } catch {
+      // ignore invalid localStorage
+    }
+  }, []);
+
+  const toggleQuickGuideVisibility = useCallback(() => {
+    setQuickGuideHidden(prev => {
+      const next = !prev;
+      localStorage.setItem("home-quick-guide-hidden", next ? "1" : "0");
+      return next;
+    });
+  }, []);
+
+  const completeMission = useCallback((missionId: string) => {
+    setCompletedMissions(prev => {
+      if (prev.includes(missionId)) return prev;
+      const next = [...prev, missionId];
+      localStorage.setItem("home-onboarding-missions-v1", JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  const selectedTrack = useMemo(
+    () =>
+      HOME_CREATIVE_TRACKS.find(track => track.id === selectedTrackId) ??
+      HOME_CREATIVE_TRACKS[0],
+    [selectedTrackId]
+  );
+  const onboardingProgressPercent = Math.round(
+    (completedMissions.length / HOME_ONBOARDING_MISSIONS.length) * 100
+  );
+
+  const copyOrbPrompt = useCallback(async (prompt: string) => {
+    try {
+      await navigator.clipboard.writeText(prompt);
+    } catch {
+      // ignore clipboard permission errors
+    }
+  }, []);
+
+  const completeOrbLesson = useCallback((lessonId: string) => {
+    setCompletedOrbLessons(prev => {
+      if (prev.includes(lessonId)) return prev;
+      const next = [...prev, lessonId];
+      localStorage.setItem("home-orb-lessons-v1", JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  const orbLessonProgress = Math.round(
+    (completedOrbLessons.length / ORB_AGENT_LESSONS.length) * 100
+  );
+
+  const startOrbGuidedOnboarding = useCallback(() => {
+    const kickoffPrompt =
+      "我是新手，請你從全站導覽開始，先帶我到最適合的創作工作室完成第一版。";
+    void copyOrbPrompt(kickoffPrompt);
+    if (!isAuthenticated) {
+      window.location.href = getDemoLoginUrl();
+      return;
+    }
+    navigate("/agent?mode=onboarding&entry=home");
+  }, [copyOrbPrompt, isAuthenticated, navigate]);
+
+  const startOrbBootcamp = useCallback(
+    (prompt: string, tutorial: string) => {
+      void copyOrbPrompt(prompt);
+      if (!isAuthenticated) {
+        window.location.href = getDemoLoginUrl();
+        return;
+      }
+      navigate(`/agent?tutorial=${tutorial}&entry=home`);
+    },
+    [copyOrbPrompt, isAuthenticated, navigate]
+  );
+
+  const startImageStudioTutorial = useCallback(() => {
+    const imageTutorialPrompt =
+      "請啟動圖片創作室教學：先幫我定用途與尺寸，再生成第一版 prompt，最後帶我到 image-studio 出 4 張可比較版本。";
+    void copyOrbPrompt(imageTutorialPrompt);
+    if (!isAuthenticated) {
+      window.location.href = getDemoLoginUrl();
+      return;
+    }
+    navigate("/agent?tutorial=image-studio&entry=home");
+  }, [copyOrbPrompt, isAuthenticated, navigate]);
+
+  const startVideoStudioTutorial = useCallback(() => {
+    const videoTutorialPrompt =
+      "請啟動影片工作室教學：先幫我定義影片目標與時長，再產生分鏡與 prompt，最後帶我到 video-studio 產出第一版。";
+    void copyOrbPrompt(videoTutorialPrompt);
+    if (!isAuthenticated) {
+      window.location.href = getDemoLoginUrl();
+      return;
+    }
+    navigate("/agent?tutorial=video-studio&entry=home");
+  }, [copyOrbPrompt, isAuthenticated, navigate]);
+
+  const startMusicVoiceStudioTutorial = useCallback(() => {
+    const audioTutorialPrompt =
+      "請啟動音樂配音工作室教學：先定義用途與情緒，再生成音樂與配音指令，最後帶我到對應工作室產出第一版。";
+    void copyOrbPrompt(audioTutorialPrompt);
+    if (!isAuthenticated) {
+      window.location.href = getDemoLoginUrl();
+      return;
+    }
+    navigate("/agent?tutorial=music-voice-studio&entry=home");
+  }, [copyOrbPrompt, isAuthenticated, navigate]);
+
+  const startDirectorAITutorial = useCallback(() => {
+    const directorTutorialPrompt =
+      "請啟動導演 AI 教學：先定義成品目標，再把需求拆成圖影音任務，最後帶我到 director 執行第一版流程。";
+    void copyOrbPrompt(directorTutorialPrompt);
+    if (!isAuthenticated) {
+      window.location.href = getDemoLoginUrl();
+      return;
+    }
+    navigate("/agent?tutorial=director-ai&entry=home");
+  }, [copyOrbPrompt, isAuthenticated, navigate]);
+
+  const startAssetModelTutorial = useCallback(
+    (tutorialId: string, path: string, prompt: string) => {
+      void copyOrbPrompt(prompt);
+      if (!isAuthenticated) {
+        window.location.href = getDemoLoginUrl();
+        return;
+      }
+      navigate(
+        `/agent?tutorial=${tutorialId}&target=${encodeURIComponent(path)}&entry=home`
+      );
+    },
+    [copyOrbPrompt, isAuthenticated, navigate]
+  );
+
+  const startGlobalSubpageTutorial = useCallback(
+    (tutorialId: string, path: string, prompt: string) => {
+      void copyOrbPrompt(prompt);
+      if (!isAuthenticated) {
+        window.location.href = getDemoLoginUrl();
+        return;
+      }
+      navigate(
+        `/agent?tutorial=${tutorialId}&target=${encodeURIComponent(path)}&scope=all-pages&entry=home`
+      );
+    },
+    [copyOrbPrompt, isAuthenticated, navigate]
+  );
 
   // ─── PageAgent 註冊（Phase 4b：首頁接入光球） ────────────────────────────
   // 首頁主要任務是「把使用者帶進工作室」。光球可做：navigate 到主要分站、
@@ -804,6 +1282,110 @@ export default function Home() {
               )}
             </motion.div>
 
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{
+                duration: 0.7,
+                delay: 0.75,
+                ease: [0.16, 1, 0.3, 1],
+              }}
+              className="mt-5 sm:mt-6 px-4 sm:px-0"
+            >
+              <div
+                className="max-w-3xl mx-auto rounded-2xl border p-4 sm:p-5 text-left"
+                style={{ background: s.cardBg, borderColor: s.cardBorder }}
+              >
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <p
+                    className={`text-sm sm:text-base font-semibold transition-colors duration-1000 ${s.textPrimary}`}
+                  >
+                    新手入口：第一次來，先走這條路
+                  </p>
+                  <span
+                    className={`text-[10px] sm:text-xs px-2 py-1 rounded-full ${s.textSecondary}`}
+                    style={{ background: s.featureBg }}
+                  >
+                    3 steps
+                  </span>
+                </div>
+                <div className="space-y-2.5">
+                  {NEW_USER_JOURNEY.map((step, idx) => (
+                    <div key={step.id} className="flex items-start gap-2.5">
+                      <span
+                        className={`mt-0.5 inline-flex w-5 h-5 items-center justify-center rounded-full text-[11px] font-semibold ${s.textPrimary}`}
+                        style={{ background: s.featureBg }}
+                      >
+                        {idx + 1}
+                      </span>
+                      <div>
+                        <p
+                          className={`text-xs sm:text-sm font-medium transition-colors duration-1000 ${s.textPrimary}`}
+                        >
+                          {step.title}
+                        </p>
+                        <p
+                          className={`text-xs sm:text-sm mt-0.5 transition-colors duration-1000 ${s.textMuted}`}
+                        >
+                          {step.description}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 flex flex-col sm:flex-row gap-2.5">
+                  {isAuthenticated ? (
+                    <Button
+                      size="sm"
+                      onClick={() => navigate("/agent")}
+                      className={`rounded-xl text-xs sm:text-sm gap-1.5 ${s.btnPrimary} ${s.btnPrimaryText}`}
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      先用全站光球代理
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        window.location.href = getDemoLoginUrl();
+                      }}
+                      className={`rounded-xl text-xs sm:text-sm gap-1.5 ${s.btnPrimary} ${s.btnPrimaryText}`}
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      先體驗光球代理
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    onClick={scrollToQuickStart}
+                    className={`rounded-xl text-xs sm:text-sm gap-1.5 ${s.btnOutline} ${s.btnOutlineText}`}
+                  >
+                    <Rocket className="w-3.5 h-3.5" />
+                    看完整新手教學
+                  </Button>
+                  {isAuthenticated ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setShowOnboarding(true)}
+                      className={`rounded-xl text-xs sm:text-sm ${s.btnOutline} ${s.btnOutlineText}`}
+                    >
+                      再看互動式導覽
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => navigate("/learn")}
+                      className={`rounded-xl text-xs sm:text-sm ${s.btnOutline} ${s.btnOutlineText}`}
+                    >
+                      先看入門教學文章
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+
             {/* Scroll indicator — gentle invitation */}
             <ScrollIndicator isDark={isDark} />
           </motion.div>
@@ -819,7 +1401,10 @@ export default function Home() {
       />
 
       {/* ── Home quickstart guide (collapsible) ── */}
-      <section className="pt-8 sm:pt-10 px-4 sm:px-6 relative z-10">
+      <section
+        ref={quickStartRef}
+        className="pt-8 sm:pt-10 px-4 sm:px-6 relative z-10"
+      >
         <div className="max-w-5xl mx-auto">
           <div
             className="rounded-2xl sm:rounded-3xl p-4 sm:p-6 backdrop-blur-md"
@@ -838,74 +1423,795 @@ export default function Home() {
                 <p
                   className={`text-xs sm:text-sm mt-1 transition-colors duration-1000 ${s.textMuted}`}
                 >
-                  折疊式導覽：先展開你現在最需要的一段。
+                  可展開、可隱藏：並且會依你的登入狀態與光球代理動線給建議。
                 </p>
               </div>
-              <span
-                className={`text-[10px] sm:text-xs px-2 py-1 rounded-full ${s.textSecondary}`}
-                style={{ background: s.featureBg }}
-              >
-                UIUX
-              </span>
+              <div className="flex items-center gap-2">
+                <span
+                  className={`text-[10px] sm:text-xs px-2 py-1 rounded-full ${s.textSecondary}`}
+                  style={{ background: s.featureBg }}
+                >
+                  UIUX
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={toggleQuickGuideVisibility}
+                  className={`h-7 rounded-lg px-2.5 text-[11px] ${s.btnOutline} ${s.btnOutlineText}`}
+                >
+                  {quickGuideHidden ? "顯示導覽" : "隱藏導覽"}
+                </Button>
+              </div>
             </div>
 
-            <div className="space-y-2">
-              {HOME_QUICKSTART_GUIDE.map(block => {
-                const isOpen = openGuideId === block.id;
-                const Icon = block.icon;
-                return (
-                  <Collapsible
-                    key={block.id}
-                    open={isOpen}
-                    onOpenChange={open =>
-                      setOpenGuideId(open ? block.id : null)
-                    }
-                    className="rounded-xl overflow-hidden"
-                    style={{
-                      border: `1px solid ${s.cardBorder}`,
-                      background: s.featureBg,
-                    }}
-                  >
-                    <CollapsibleTrigger asChild>
-                      <button
-                        type="button"
-                        className="w-full px-3 sm:px-4 py-3 text-left flex items-center justify-between gap-3"
+            {quickGuideHidden ? (
+              <div
+                className="rounded-xl border p-3.5 sm:p-4"
+                style={{ borderColor: s.cardBorder, background: s.featureBg }}
+              >
+                <p className={`text-xs sm:text-sm ${s.textMuted}`}>
+                  已隱藏首頁快速導覽。你仍可隨時透過右下角光球代理開始對話：
+                  <span className="font-medium">「帶我快速上手」</span>。
+                </p>
+              </div>
+            ) : (
+              <>
+                <div
+                  className="rounded-xl border p-3 sm:p-4 mb-3"
+                  style={{ borderColor: s.cardBorder, background: s.featureBg }}
+                >
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <p className={`text-sm font-semibold ${s.textPrimary}`}>
+                      全頁子頁面教學總覽
+                    </p>
+                    <span
+                      className={`text-[11px] px-2 py-1 rounded-full ${s.textSecondary}`}
+                      style={{ background: s.cardBg }}
+                    >
+                      All Subpages
+                    </span>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-3 mb-2">
+                    {ALL_SUBPAGE_TUTORIALS.slice(0, 3).map(item => (
+                      <div
+                        key={item.id}
+                        className="rounded-lg border p-2.5"
+                        style={{ borderColor: s.cardBorder, background: s.cardBg }}
                       >
-                        <div className="flex items-start gap-2.5 sm:gap-3 min-w-0">
-                          <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-black/10">
-                            <Icon className={`w-4 h-4 ${s.textSecondary}`} />
+                        <p className={`text-xs font-medium ${s.textPrimary}`}>{item.title}</p>
+                        <p className={`text-[11px] mt-1 ${s.textMuted}`}>{item.category}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {ALL_SUBPAGE_TUTORIALS.map(item => (
+                      <div
+                        key={item.id}
+                        className="rounded-lg border p-3"
+                        style={{ borderColor: s.cardBorder, background: s.cardBg }}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <p className={`text-xs sm:text-sm font-medium ${s.textPrimary}`}>
+                            {item.title}
+                          </p>
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded ${s.textSecondary}`} style={{ background: s.featureBg }}>
+                            {item.category}
+                          </span>
+                        </div>
+                        <div className="mt-2 flex flex-col sm:flex-row gap-2">
+                          <Button
+                            size="sm"
+                            className={`h-7 px-2.5 text-[11px] ${s.btnPrimary} ${s.btnPrimaryText}`}
+                            onClick={() =>
+                              startGlobalSubpageTutorial(item.id, item.path, item.prompt)
+                            }
+                          >
+                            光球教學
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className={`h-7 px-2.5 text-[11px] ${s.btnOutline} ${s.btnOutlineText}`}
+                            onClick={() => {
+                              if (!isAuthenticated) {
+                                window.location.href = getDemoLoginUrl();
+                                return;
+                              }
+                              navigate(item.path);
+                            }}
+                          >
+                            前往頁面
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div
+                  className="rounded-xl border p-3 sm:p-4 mb-3"
+                  style={{ borderColor: s.cardBorder, background: s.featureBg }}
+                >
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <p className={`text-sm font-semibold ${s.textPrimary}`}>
+                      素材與模型 8 子分頁教學
+                    </p>
+                    <span
+                      className={`text-[11px] px-2 py-1 rounded-full ${s.textSecondary}`}
+                      style={{ background: s.cardBg }}
+                    >
+                      8 Tutorials
+                    </span>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {ASSET_MODEL_SUBPAGE_TUTORIALS.map(item => (
+                      <div
+                        key={item.id}
+                        className="rounded-lg border p-3"
+                        style={{ borderColor: s.cardBorder, background: s.cardBg }}
+                      >
+                        <p className={`text-xs sm:text-sm font-medium ${s.textPrimary}`}>
+                          {item.title}
+                        </p>
+                        <p className={`text-xs mt-1 ${s.textMuted}`}>{item.description}</p>
+                        <div className="mt-2 flex flex-col sm:flex-row gap-2">
+                          <Button
+                            size="sm"
+                            className={`h-7 px-2.5 text-[11px] ${s.btnPrimary} ${s.btnPrimaryText}`}
+                            onClick={() =>
+                              startAssetModelTutorial(item.id, item.path, item.orbPrompt)
+                            }
+                          >
+                            光球帶我去學
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className={`h-7 px-2.5 text-[11px] ${s.btnOutline} ${s.btnOutlineText}`}
+                            onClick={() => {
+                              if (!isAuthenticated) {
+                                window.location.href = getDemoLoginUrl();
+                                return;
+                              }
+                              navigate(item.path);
+                            }}
+                          >
+                            直接前往分頁
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div
+                  className="rounded-xl border p-3 sm:p-4 mb-3"
+                  style={{ borderColor: s.cardBorder, background: s.featureBg }}
+                >
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <p className={`text-sm font-semibold ${s.textPrimary}`}>
+                      導演 AI 教學
+                    </p>
+                    <span
+                      className={`text-[11px] px-2 py-1 rounded-full ${s.textSecondary}`}
+                      style={{ background: s.cardBg }}
+                    >
+                      Director AI
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {DIRECTOR_AI_TUTORIAL.map(step => (
+                      <div
+                        key={step.id}
+                        className="rounded-lg border p-2.5"
+                        style={{ borderColor: s.cardBorder, background: s.cardBg }}
+                      >
+                        <p className={`text-xs sm:text-sm font-medium ${s.textPrimary}`}>
+                          {step.title}
+                        </p>
+                        <p className={`text-xs mt-1 ${s.textMuted}`}>{step.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                    <Button
+                      size="sm"
+                      className={`rounded-xl text-xs sm:text-sm gap-1.5 ${s.btnPrimary} ${s.btnPrimaryText}`}
+                      onClick={startDirectorAITutorial}
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      啟動導演 AI 教學
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className={`rounded-xl text-xs sm:text-sm gap-1.5 ${s.btnOutline} ${s.btnOutlineText}`}
+                      onClick={() =>
+                        copyOrbPrompt("請把我的需求拆成導演 AI 任務：分鏡、素材、配樂、旁白、字幕與時間軸。")
+                      }
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                      複製導演 AI 指令
+                    </Button>
+                  </div>
+                </div>
+
+                <div
+                  className="rounded-xl border p-3 sm:p-4 mb-3"
+                  style={{ borderColor: s.cardBorder, background: s.featureBg }}
+                >
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <p className={`text-sm font-semibold ${s.textPrimary}`}>
+                      音樂配音工作室教學
+                    </p>
+                    <span
+                      className={`text-[11px] px-2 py-1 rounded-full ${s.textSecondary}`}
+                      style={{ background: s.cardBg }}
+                    >
+                      Music & Voice
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {MUSIC_VOICE_STUDIO_TUTORIAL.map(step => (
+                      <div
+                        key={step.id}
+                        className="rounded-lg border p-2.5"
+                        style={{ borderColor: s.cardBorder, background: s.cardBg }}
+                      >
+                        <p className={`text-xs sm:text-sm font-medium ${s.textPrimary}`}>
+                          {step.title}
+                        </p>
+                        <p className={`text-xs mt-1 ${s.textMuted}`}>{step.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                    <Button
+                      size="sm"
+                      className={`rounded-xl text-xs sm:text-sm gap-1.5 ${s.btnPrimary} ${s.btnPrimaryText}`}
+                      onClick={startMusicVoiceStudioTutorial}
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      啟動音樂配音教學
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className={`rounded-xl text-xs sm:text-sm gap-1.5 ${s.btnOutline} ${s.btnOutlineText}`}
+                      onClick={() =>
+                        copyOrbPrompt("請幫我生成配樂與旁白指令，含 BPM、情緒、語速、段落與轉折。")
+                      }
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                      複製音樂配音指令
+                    </Button>
+                  </div>
+                </div>
+
+                <div
+                  className="rounded-xl border p-3 sm:p-4 mb-3"
+                  style={{ borderColor: s.cardBorder, background: s.featureBg }}
+                >
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <p className={`text-sm font-semibold ${s.textPrimary}`}>
+                      影片工作室教學
+                    </p>
+                    <span
+                      className={`text-[11px] px-2 py-1 rounded-full ${s.textSecondary}`}
+                      style={{ background: s.cardBg }}
+                    >
+                      Video Studio
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {VIDEO_STUDIO_TUTORIAL.map(step => (
+                      <div
+                        key={step.id}
+                        className="rounded-lg border p-2.5"
+                        style={{ borderColor: s.cardBorder, background: s.cardBg }}
+                      >
+                        <p className={`text-xs sm:text-sm font-medium ${s.textPrimary}`}>
+                          {step.title}
+                        </p>
+                        <p className={`text-xs mt-1 ${s.textMuted}`}>{step.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                    <Button
+                      size="sm"
+                      className={`rounded-xl text-xs sm:text-sm gap-1.5 ${s.btnPrimary} ${s.btnPrimaryText}`}
+                      onClick={startVideoStudioTutorial}
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      啟動影片工作室教學
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className={`rounded-xl text-xs sm:text-sm gap-1.5 ${s.btnOutline} ${s.btnOutlineText}`}
+                      onClick={() =>
+                        copyOrbPrompt("請幫我生成影片 prompt 與 3 鏡分鏡，含鏡頭運動、轉場、字幕語氣。")
+                      }
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                      複製影片 prompt 指令
+                    </Button>
+                  </div>
+                </div>
+
+                <div
+                  className="rounded-xl border p-3 sm:p-4 mb-3"
+                  style={{ borderColor: s.cardBorder, background: s.featureBg }}
+                >
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <p className={`text-sm font-semibold ${s.textPrimary}`}>
+                      圖片創作室教學
+                    </p>
+                    <span
+                      className={`text-[11px] px-2 py-1 rounded-full ${s.textSecondary}`}
+                      style={{ background: s.cardBg }}
+                    >
+                      Image Studio
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {IMAGE_STUDIO_TUTORIAL.map(step => (
+                      <div
+                        key={step.id}
+                        className="rounded-lg border p-2.5"
+                        style={{ borderColor: s.cardBorder, background: s.cardBg }}
+                      >
+                        <p className={`text-xs sm:text-sm font-medium ${s.textPrimary}`}>
+                          {step.title}
+                        </p>
+                        <p className={`text-xs mt-1 ${s.textMuted}`}>{step.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                    <Button
+                      size="sm"
+                      className={`rounded-xl text-xs sm:text-sm gap-1.5 ${s.btnPrimary} ${s.btnPrimaryText}`}
+                      onClick={startImageStudioTutorial}
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      啟動圖片創作室教學
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className={`rounded-xl text-xs sm:text-sm gap-1.5 ${s.btnOutline} ${s.btnOutlineText}`}
+                      onClick={() => copyOrbPrompt("請幫我產生圖片創作 prompt，含主體、風格、構圖、光線四要素。")}
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                      複製圖片 prompt 指令
+                    </Button>
+                  </div>
+                </div>
+
+                <div
+                  className="rounded-xl border p-3 sm:p-4 mb-3"
+                  style={{ borderColor: s.cardBorder, background: s.featureBg }}
+                >
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <p className={`text-sm font-semibold ${s.textPrimary}`}>
+                      光球代理啟動教學（全站 & 建立工作室）
+                    </p>
+                    <span
+                      className={`text-[11px] px-2 py-1 rounded-full ${s.textSecondary}`}
+                      style={{ background: s.cardBg }}
+                    >
+                      Bootcamp
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {ORB_BOOTCAMP_PLANS.map(plan => (
+                      <div
+                        key={plan.id}
+                        className="rounded-lg border p-3"
+                        style={{ borderColor: s.cardBorder, background: s.cardBg }}
+                      >
+                        <p className={`text-xs sm:text-sm font-medium ${s.textPrimary}`}>
+                          {plan.title}
+                        </p>
+                        <p className={`text-xs mt-1 ${s.textMuted}`}>{plan.description}</p>
+                        <div className="mt-2 flex flex-col sm:flex-row gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className={`h-7 px-2.5 text-[11px] ${s.btnOutline} ${s.btnOutlineText}`}
+                            onClick={() => copyOrbPrompt(plan.prompt)}
+                          >
+                            <MessageCircle className="w-3.5 h-3.5 mr-1" />
+                            複製教學指令
+                          </Button>
+                          <Button
+                            size="sm"
+                            className={`h-7 px-2.5 text-[11px] ${s.btnPrimary} ${s.btnPrimaryText}`}
+                            onClick={() => startOrbBootcamp(plan.prompt, plan.id)}
+                          >
+                            啟動這個教學
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div
+                  className="rounded-xl border p-3 sm:p-4 mb-3"
+                  style={{ borderColor: s.cardBorder, background: s.featureBg }}
+                >
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <p className={`text-sm font-semibold ${s.textPrimary}`}>
+                      光球帶路新手流程（先代理、再工作室）
+                    </p>
+                    <span
+                      className={`text-[11px] px-2 py-1 rounded-full ${s.textSecondary}`}
+                      style={{ background: s.cardBg }}
+                    >
+                      Agent → Studio
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {ORB_GUIDED_ONBOARDING_FLOW.map(flow => (
+                      <div
+                        key={flow.id}
+                        className="rounded-lg border p-2.5"
+                        style={{ borderColor: s.cardBorder, background: s.cardBg }}
+                      >
+                        <p className={`text-xs sm:text-sm font-medium ${s.textPrimary}`}>
+                          {flow.title}
+                        </p>
+                        <p className={`text-xs mt-1 ${s.textMuted}`}>{flow.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                    <Button
+                      size="sm"
+                      className={`rounded-xl text-xs sm:text-sm gap-1.5 ${s.btnPrimary} ${s.btnPrimaryText}`}
+                      onClick={startOrbGuidedOnboarding}
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      啟動光球新手帶路
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className={`rounded-xl text-xs sm:text-sm gap-1.5 ${s.btnOutline} ${s.btnOutlineText}`}
+                      onClick={() => {
+                        if (!isAuthenticated) {
+                          window.location.href = getDemoLoginUrl();
+                          return;
+                        }
+                        navigate("/image-studio");
+                      }}
+                    >
+                      直接去創作工作室
+                    </Button>
+                  </div>
+                </div>
+
+                <div
+                  className="rounded-xl border p-3 sm:p-4 mb-3"
+                  style={{ borderColor: s.cardBorder, background: s.featureBg }}
+                >
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <p className={`text-sm font-semibold ${s.textPrimary}`}>
+                      全站光球代理優先教學（先學這塊）
+                    </p>
+                    <span
+                      className={`text-[11px] px-2 py-1 rounded-full ${s.textSecondary}`}
+                      style={{ background: s.cardBg }}
+                    >
+                      進度 {completedOrbLessons.length}/{ORB_AGENT_LESSONS.length}
+                    </span>
+                  </div>
+                  <div className="mb-3">
+                    <div
+                      className="h-2 rounded-full overflow-hidden"
+                      style={{ background: s.cardBg }}
+                    >
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{ width: `${orbLessonProgress}%`, background: s.glowColor }}
+                      />
+                    </div>
+                    <p className={`text-[11px] mt-1 ${s.textMuted}`}>
+                      完成這 3 步後，再進入工作室會更順：目前 {orbLessonProgress}%。
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    {ORB_AGENT_LESSONS.map((lesson, index) => {
+                      const done = completedOrbLessons.includes(lesson.id);
+                      return (
+                        <div
+                          key={lesson.id}
+                          className="rounded-lg border p-3"
+                          style={{ borderColor: s.cardBorder, background: s.cardBg }}
+                        >
+                          <p className={`text-xs sm:text-sm font-medium ${s.textPrimary}`}>
+                            {done ? "✅" : `0${index + 1}`} · {lesson.title}
+                          </p>
+                          <p className={`text-xs mt-1 ${s.textMuted}`}>{lesson.description}</p>
+                          <div
+                            className="rounded-md border px-2.5 py-2 mt-2"
+                            style={{ borderColor: s.cardBorder, background: s.featureBg }}
+                          >
+                            <p className={`text-[11px] ${s.textMuted}`}>
+                              練習句型：{lesson.example}
+                            </p>
                           </div>
-                          <div className="min-w-0">
-                            <p
-                              className={`text-sm font-medium transition-colors duration-1000 ${s.textPrimary}`}
+                          <div className="mt-2 flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className={`h-7 px-2.5 text-[11px] ${s.btnOutline} ${s.btnOutlineText}`}
+                              onClick={() => copyOrbPrompt(lesson.example)}
                             >
-                              {block.title}
-                            </p>
-                            <p
-                              className={`text-xs mt-0.5 transition-colors duration-1000 ${s.textMuted}`}
+                              <MessageCircle className="w-3.5 h-3.5 mr-1" />
+                              複製句型
+                            </Button>
+                            <Button
+                              size="sm"
+                              className={`h-7 px-2.5 text-[11px] ${s.btnPrimary} ${s.btnPrimaryText}`}
+                              onClick={() => {
+                                completeOrbLesson(lesson.id);
+                                if (!isAuthenticated) {
+                                  window.location.href = getDemoLoginUrl();
+                                  return;
+                                }
+                                navigate("/agent");
+                              }}
                             >
-                              {block.description}
-                            </p>
+                              {done ? "再用光球練習" : "用光球練習"}
+                            </Button>
                           </div>
                         </div>
-                        <ChevronsUpDown
-                          className={`w-4 h-4 shrink-0 transition-colors duration-1000 ${s.textMuted}`}
-                        />
-                      </button>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="px-4 pb-3 sm:pb-4">
-                      <ul
-                        className={`list-disc pl-5 space-y-1.5 text-xs sm:text-sm transition-colors duration-1000 ${s.textMuted}`}
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div
+                  className="rounded-xl border p-3 sm:p-4 mb-3"
+                  style={{ borderColor: s.cardBorder, background: s.featureBg }}
+                >
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <p className={`text-sm font-semibold ${s.textPrimary}`}>
+                      先選你的上手模式
+                    </p>
+                    <span
+                      className={`text-[11px] px-2 py-1 rounded-full ${s.textSecondary}`}
+                      style={{ background: s.cardBg }}
+                    >
+                      深度整合光球代理
+                    </span>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {HOME_CREATIVE_TRACKS.map(track => {
+                      const isSelected = selectedTrack.id === track.id;
+                      return (
+                        <button
+                          key={track.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedTrackId(track.id);
+                            localStorage.setItem("home-onboarding-track-v1", track.id);
+                          }}
+                          className={`text-left rounded-lg border p-3 transition-all ${
+                            isSelected ? "ring-1 ring-current" : ""
+                          } ${s.textPrimary}`}
+                          style={{ borderColor: s.cardBorder, background: s.cardBg }}
+                        >
+                          <p className="text-sm font-medium">{track.title}</p>
+                          <p className={`text-xs mt-1 ${s.textMuted}`}>{track.summary}</p>
+                          <p className={`text-[11px] mt-2 inline-flex items-center gap-1 ${s.textSecondary}`}>
+                            <Gauge className="w-3 h-3" />
+                            {track.eta}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div
+                    className="rounded-lg border p-3 mt-3"
+                    style={{ borderColor: s.cardBorder, background: s.featureBg }}
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <p className={`text-xs sm:text-sm ${s.textMuted}`}>
+                        建議你先對光球代理說：
+                        <span className={`font-medium ml-1 ${s.textPrimary}`}>
+                          「{selectedTrack.orbPrompt}」
+                        </span>
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className={`h-7 px-2.5 text-[11px] ${s.btnOutline} ${s.btnOutlineText}`}
+                          onClick={() => copyOrbPrompt(selectedTrack.orbPrompt)}
+                        >
+                          <MessageCircle className="w-3.5 h-3.5 mr-1" />
+                          複製對話
+                        </Button>
+                        <Button
+                          size="sm"
+                          className={`h-7 px-2.5 text-[11px] ${s.btnPrimary} ${s.btnPrimaryText}`}
+                          onClick={() => {
+                            if (!isAuthenticated) {
+                              window.location.href = getDemoLoginUrl();
+                              return;
+                            }
+                            navigate(selectedTrack.recommendedPath);
+                          }}
+                        >
+                          依此模式開始
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  className="rounded-xl border p-3 sm:p-4 mb-3"
+                  style={{ borderColor: s.cardBorder, background: s.featureBg }}
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`text-xs font-medium ${s.textPrimary}`}>
+                      平台現況：
+                    </span>
+                    <span className={`text-[11px] px-2 py-1 rounded-full ${s.textSecondary}`} style={{ background: s.cardBg }}>
+                      {isAuthenticated ? "已登入，可直接啟動全站光球代理" : "未登入，建議先用訪客體驗"}
+                    </span>
+                    <span className={`text-[11px] px-2 py-1 rounded-full ${s.textSecondary}`} style={{ background: s.cardBg }}>
+                      {intentResult?.intentType
+                        ? `目前意圖：${intentResult.intentType}`
+                        : isIntentInferring
+                          ? "正在分析你的探索意圖…"
+                          : "尚未偵測到明確意圖"}
+                    </span>
+                    <span className={`text-[11px] px-2 py-1 rounded-full ${s.textSecondary}`} style={{ background: s.cardBg }}>
+                      推薦下一步：{isAuthenticated ? "先跟光球說你的創作目標" : "先按「先體驗光球代理」"}
+                    </span>
+                    <span className={`text-[11px] px-2 py-1 rounded-full ${s.textSecondary}`} style={{ background: s.cardBg }}>
+                      你的上手模式：{selectedTrack.title}
+                    </span>
+                  </div>
+                </div>
+
+                <div
+                  className="rounded-xl border p-3 sm:p-4 mb-3"
+                  style={{ borderColor: s.cardBorder, background: s.featureBg }}
+                >
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <p className={`text-sm font-semibold ${s.textPrimary}`}>
+                      新手任務清單（操作導向）
+                    </p>
+                    <span
+                      className={`text-[11px] px-2 py-1 rounded-full ${s.textSecondary}`}
+                      style={{ background: s.cardBg }}
+                    >
+                      完成 {completedMissions.length}/{HOME_ONBOARDING_MISSIONS.length}
+                    </span>
+                  </div>
+                  <div className="mb-3">
+                    <div
+                      className="h-2 rounded-full overflow-hidden"
+                      style={{ background: s.cardBg }}
+                      aria-label="onboarding-progress"
+                    >
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{
+                          width: `${onboardingProgressPercent}%`,
+                          background: s.glowColor,
+                        }}
+                      />
+                    </div>
+                    <p className={`text-[11px] mt-1 ${s.textMuted}`}>
+                      目前進度 {onboardingProgressPercent}%：完成 3 個任務後，建議開始建立個人模板。
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    {HOME_ONBOARDING_MISSIONS.map((mission, index) => {
+                      const done = completedMissions.includes(mission.id);
+                      return (
+                        <div
+                          key={mission.id}
+                          className="rounded-lg border p-2.5 sm:p-3"
+                          style={{ borderColor: s.cardBorder, background: s.cardBg }}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className={`text-xs sm:text-sm font-medium ${s.textPrimary}`}>
+                                {done ? "✅" : `0${index + 1}`} · {mission.title}
+                              </p>
+                              <p className={`text-xs mt-1 ${s.textMuted}`}>{mission.description}</p>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant={done ? "outline" : "default"}
+                              className={`h-7 px-2.5 text-[11px] shrink-0 ${done ? `${s.btnOutline} ${s.btnOutlineText}` : `${s.btnPrimary} ${s.btnPrimaryText}`}`}
+                              onClick={() => {
+                                completeMission(mission.id);
+                                if (!isAuthenticated) {
+                                  window.location.href = getDemoLoginUrl();
+                                  return;
+                                }
+                                navigate(mission.path);
+                              }}
+                            >
+                              {done ? "再前往" : "立即前往"}
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {HOME_QUICKSTART_GUIDE.map(block => {
+                    const isOpen = openGuideId === block.id;
+                    const Icon = block.icon;
+                    return (
+                      <Collapsible
+                        key={block.id}
+                        open={isOpen}
+                        onOpenChange={open =>
+                          setOpenGuideId(open ? block.id : null)
+                        }
+                        className="rounded-xl overflow-hidden"
+                        style={{
+                          border: `1px solid ${s.cardBorder}`,
+                          background: s.featureBg,
+                        }}
                       >
-                        {block.items.map(item => (
-                          <li key={item}>{item}</li>
-                        ))}
-                      </ul>
-                    </CollapsibleContent>
-                  </Collapsible>
-                );
-              })}
-            </div>
+                        <CollapsibleTrigger asChild>
+                          <button
+                            type="button"
+                            className="w-full px-3 sm:px-4 py-3 text-left flex items-center justify-between gap-3"
+                          >
+                            <div className="flex items-start gap-2.5 sm:gap-3 min-w-0">
+                              <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-black/10">
+                                <Icon className={`w-4 h-4 ${s.textSecondary}`} />
+                              </div>
+                              <div className="min-w-0">
+                                <p
+                                  className={`text-sm font-medium transition-colors duration-1000 ${s.textPrimary}`}
+                                >
+                                  {block.title}
+                                </p>
+                                <p
+                                  className={`text-xs mt-0.5 transition-colors duration-1000 ${s.textMuted}`}
+                                >
+                                  {block.description}
+                                </p>
+                              </div>
+                            </div>
+                            <ChevronsUpDown
+                              className={`w-4 h-4 shrink-0 transition-colors duration-1000 ${s.textMuted}`}
+                            />
+                          </button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="px-4 pb-3 sm:pb-4">
+                          <ul
+                            className={`list-disc pl-5 space-y-1.5 text-xs sm:text-sm transition-colors duration-1000 ${s.textMuted}`}
+                          >
+                            {block.items.map(item => (
+                              <li key={item}>{item}</li>
+                            ))}
+                          </ul>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
         </div>
       </section>
