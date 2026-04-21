@@ -3414,7 +3414,7 @@ export const appRouter = router({
       }),
   }),
 
-  // ─── AI 光球聊天（含上下文 + AI 代理人行為） ────────────────────────────────
+  // ─── AI 全站光球代理（含上下文 + AI 代理人行為） ──────────────────────────────
 
   ai: router({
     chat: protectedProcedure
@@ -3540,7 +3540,7 @@ export const appRouter = router({
               runName: "orb-agent-chat",
             }),
             20_000,
-            "光球聊天"
+            "全站光球代理"
           );
 
           const rawReply =
