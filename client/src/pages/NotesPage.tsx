@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,8 @@ import {
   Search,
   Filter,
   StickyNote,
+  Wand2,
+  History,
 } from "lucide-react";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import VisualSoul from "@/components/VisualSoul";
@@ -45,6 +47,7 @@ import LazyStreamdown from "@/components/LazyStreamdown";
 import { useAIState } from "@/contexts/AIStateContext";
 import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
 import { PlanningSubpageGuide } from "@/components/PlanningSubpageGuide";
+import { useLocation } from "wouter";
 import type {
   AgentAction,
   AgentActionResult,
@@ -97,6 +100,7 @@ function downloadTextFile(content: string, filename: string) {
 export default function NotesPage() {
   const { personality } = useAIState();
   usePageTour("notes");
+  const [, navigate] = useLocation();
 
   // ── Create dialog state ──
   const [showCreate, setShowCreate] = useState(false);
@@ -149,6 +153,54 @@ export default function NotesPage() {
     },
     onError: e => toast.error(e.message),
   });
+
+  const createGenerationPlanningNote = useCallback(
+    (phase: "pre" | "post") => {
+      const today = new Date().toLocaleDateString("zh-TW");
+      if (phase === "pre") {
+        createNote.mutate({
+          title: `生成前規劃 - ${today}`,
+          content: [
+            "## 目標與輸出",
+            "- [ ] 目標成品（圖片/影片/音樂/語音）",
+            "- [ ] 使用場景（廣告/社群/課程/提案）",
+            "",
+            "## 模型與素材",
+            "- [ ] 已選模型與原因",
+            "- [ ] 觸發詞 / LoRA / 參考素材",
+            "",
+            "## 生成參數起手式",
+            "- [ ] Prompt 主軸",
+            "- [ ] 風格、鏡頭、長度、情緒",
+            "- [ ] 先跑最小可用版本（MVP）",
+          ].join("\n"),
+          noteType: "script",
+          tags: ["生成前", "規劃", "MVP"],
+        });
+        return;
+      }
+
+      createNote.mutate({
+        title: `生成後復盤 - ${today}`,
+        content: [
+          "## 輸出結果",
+          "- [ ] 保留版本 / 捨棄版本",
+          "- [ ] 成本、耗時、品質評分",
+          "",
+          "## 成功訊號",
+          "- [ ] 最有效提示詞/參數",
+          "- [ ] 可複用模板片段",
+          "",
+          "## 下一輪優化",
+          "- [ ] 只改 1 個關鍵參數再重跑",
+          "- [ ] 更新到提示詞庫 / 歷史註記",
+        ].join("\n"),
+        noteType: "note",
+        tags: ["生成後", "復盤", "優化"],
+      });
+    },
+    [createNote]
+  );
 
   // ── Computed / filtered ──
   const allNotes = notesQuery.data || [];
@@ -399,6 +451,46 @@ export default function NotesPage() {
         記錄創作靈感與導演 AI 生成的 CO-STAR 腳本。支援標籤分類與全文搜尋。
       </p>
       <PlanningSubpageGuide page="notes" />
+      <div className="rounded-xl border border-border/50 bg-muted/20 p-3 space-y-2">
+        <p className="text-xs font-medium text-foreground/80">
+          生成式 AI 前後規劃
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs gap-1.5"
+            onClick={() => createGenerationPlanningNote("pre")}
+          >
+            <Wand2 className="w-3.5 h-3.5" />
+            建立生成前規劃
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs gap-1.5"
+            onClick={() => createGenerationPlanningNote("post")}
+          >
+            <History className="w-3.5 h-3.5" />
+            建立生成後復盤
+          </Button>
+          <Button
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => navigate("/studio")}
+          >
+            前往生成
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs"
+            onClick={() => navigate("/history")}
+          >
+            查看歷史
+          </Button>
+        </div>
+      </div>
 
       {/* ── Search + Type Filter ── */}
       <div className="flex flex-col sm:flex-row gap-2">

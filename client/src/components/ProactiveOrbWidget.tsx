@@ -340,6 +340,12 @@ const QUICK_ACTIONS: QuickAction[] = [
     description: "根據心情推薦創作方向",
     action: "chat-healing",
   },
+  {
+    icon: <Navigation2 className="w-4 h-4" />,
+    label: "互動式導覽",
+    description: "一步一步帶你操作目前這一頁",
+    action: "interactive-guide",
+  },
 ];
 
 // ─── Page-specific quick actions (contextual AI agent capabilities) ────────
@@ -357,6 +363,12 @@ const PAGE_QUICK_ACTIONS: Record<string, QuickAction[]> = {
       label: "頁面細節",
       description: "改成頁面細節導引（取代空的靈感連接）",
       action: "page-deep-dive",
+    },
+    {
+      icon: <Coins className="w-4 h-4" />,
+      label: "生成積分預估",
+      description: "先估算本頁模型生成所需積分，再決定執行策略",
+      action: "chat-credits-estimate",
     },
   ],
   "image-studio": [
@@ -378,6 +390,12 @@ const PAGE_QUICK_ACTIONS: Record<string, QuickAction[]> = {
       description: "讓 AI 幫你改進提示詞",
       action: "chat-prompt-optimize",
     },
+    {
+      icon: <Coins className="w-4 h-4" />,
+      label: "生成積分預估",
+      description: "估算不同圖片模型本次生成約需積分",
+      action: "chat-credits-estimate",
+    },
   ],
   "video-studio": [
     {
@@ -398,6 +416,12 @@ const PAGE_QUICK_ACTIONS: Record<string, QuickAction[]> = {
       description: "教你寫出更好的影片生成提示詞",
       action: "chat-video-tips",
     },
+    {
+      icon: <Coins className="w-4 h-4" />,
+      label: "生成積分預估",
+      description: "估算不同影片模型與秒數所需積分",
+      action: "chat-credits-estimate",
+    },
   ],
   "pro-studio": [
     {
@@ -417,6 +441,26 @@ const PAGE_QUICK_ACTIONS: Record<string, QuickAction[]> = {
       label: "配音技巧",
       description: "語音合成和聲音克隆的最佳實踐",
       action: "chat-voice-tips",
+    },
+    {
+      icon: <Coins className="w-4 h-4" />,
+      label: "生成積分預估",
+      description: "估算音樂/配音模型生成所需積分",
+      action: "chat-credits-estimate",
+    },
+  ],
+  director: [
+    {
+      icon: <Film className="w-4 h-4" />,
+      label: "管線模型導覽",
+      description: "拆解導演 AI 圖像/影片/音樂/語音模型搭配",
+      action: "chat-director-model-deep-dive",
+    },
+    {
+      icon: <Coins className="w-4 h-4" />,
+      label: "生成積分預估",
+      description: "估算導演 AI 全流程生成大約所需積分",
+      action: "chat-credits-estimate",
     },
   ],
   "lora-trainer": [
@@ -538,6 +582,8 @@ const PAGE_QUICK_ACTIONS: Record<string, QuickAction[]> = {
     },
   ],
 };
+
+const PROACTIVE_NUDGE_KEY = "orb-proactive-nudge-seen";
 
 const PAGE_TO_GUIDE_INTENT: Partial<Record<string, GuideIntent>> = {
   studio: "explore",
@@ -938,7 +984,22 @@ export default memo(function ProactiveOrbWidget({
     () => getPageByPath(locationPath),
     [locationPath]
   );
+  const proactiveActions = useMemo(
+    () =>
+      pageContext?.pageId
+        ? (PAGE_QUICK_ACTIONS[pageContext.pageId] ?? []).slice(0, 2)
+        : [],
+    [pageContext?.pageId]
+  );
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!pageContext?.pageId || quietMode || proactiveActions.length === 0) return;
+    const key = `${PROACTIVE_NUDGE_KEY}:${pageContext.pageId}`;
+    if (sessionStorage.getItem(key) === "1") return;
+    sessionStorage.setItem(key, "1");
+    showFeedback(`🧭 建議先試試「${proactiveActions[0].label}」`);
+  }, [pageContext?.pageId, proactiveActions, quietMode, showFeedback]);
 
   // 監聽 orb-guide-navigate 事件：導航 + 把 Phase 3e 帶過來的 AgentAction[] 丟進 bus
   useEffect(() => {
@@ -1083,6 +1144,17 @@ export default memo(function ProactiveOrbWidget({
           setChatInput(`請解說「${pageLabel}」這一頁，先做哪三步最有效。`);
           break;
         }
+        case "interactive-guide": {
+          const guideIntent =
+            (pageContext?.pageId
+              ? PAGE_TO_GUIDE_INTENT[pageContext.pageId]
+              : undefined) ?? "explore";
+          setShowPanel(false);
+          openGuidePanel();
+          selectGuideIntent(guideIntent);
+          showFeedback("已啟動互動式導覽，跟著光球一步步操作 ✨");
+          break;
+        }
         case "studio-workflow-bootstrap":
           setPanelView("chat");
           globalChat.open();
@@ -1141,6 +1213,7 @@ export default memo(function ProactiveOrbWidget({
                 "請深度解讀儀表板數據，拆解請求量、成本、模態分佈與效率，並給我可執行的優化策略。",
               "chat-credits-deep-dive":
                 "請深度解讀積分規則，給我不同任務的耗點預估與低成本驗證到高品質定稿的流程。",
+              "chat-credits-estimate": `請以「${currentRegistryPage?.label ?? pageContext?.pageLabel ?? "當前頁"}」為主，估算這頁常用生成模型在本次任務可能消耗多少積分，並給我低成本試跑→高品質定稿的執行建議。`,
               "chat-settings-deep-dive":
                 "請細膩導覽個人設定：外觀、場景、通知、引導、管理功能的用途、風險與推薦配置。",
               "chat-voice-tips": "聲音克隆有什麼注意事項？",
@@ -1155,7 +1228,7 @@ export default memo(function ProactiveOrbWidget({
           break;
       }
     },
-    [onApplyInspiration, onRestartTour, showFeedback, currentRegistryPage?.label, pageContext?.pageLabel, pageAgent, globalChat, setChatInput]
+    [onApplyInspiration, onRestartTour, showFeedback, currentRegistryPage?.label, pageContext?.pageLabel, pageContext?.pageId, pageAgent, globalChat, setChatInput, openGuidePanel, selectGuideIntent]
   );
 
   const handleRegistryQuickAction = useCallback(
@@ -1444,6 +1517,34 @@ export default memo(function ProactiveOrbWidget({
                             <p className="text-xs text-emerald-700 leading-relaxed">
                               💡 {currentRegistryPage.orbHints[0]}
                             </p>
+                          </div>
+                        ) : null}
+                        {proactiveActions.length ? (
+                          <div className="mb-3 rounded-xl border border-emerald-200/70 bg-emerald-50/70 p-2.5">
+                            <p className="text-xs font-medium text-emerald-700 mb-1.5">
+                              光球主動建議（本頁）
+                            </p>
+                            <div className="space-y-1.5">
+                              {proactiveActions.map(qa => (
+                                <button
+                                  key={`proactive-${qa.action}`}
+                                  onClick={() => handleQuickAction(qa.action)}
+                                  className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg bg-white/80 hover:bg-white transition-colors text-left border border-emerald-100"
+                                >
+                                  <div className="p-1.5 rounded-md bg-emerald-100 text-emerald-700">
+                                    {qa.icon}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-medium text-emerald-800 truncate">
+                                      {qa.label}
+                                    </p>
+                                    <p className="text-[11px] text-emerald-600/80 truncate">
+                                      {qa.description}
+                                    </p>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
                           </div>
                         ) : null}
                         <div className="space-y-1.5 mb-3">
@@ -1752,6 +1853,34 @@ export default memo(function ProactiveOrbWidget({
                     ) : null}
 
                     {/* Quick Actions — redesigned as compact cards */}
+                    {proactiveActions.length ? (
+                      <div className="mb-3 rounded-xl border border-emerald-200/70 bg-emerald-50/70 p-2.5">
+                        <p className="text-xs font-medium text-emerald-700 mb-1.5">
+                          光球主動建議（本頁）
+                        </p>
+                        <div className="space-y-1.5">
+                          {proactiveActions.map(qa => (
+                            <button
+                              key={`proactive-desktop-${qa.action}`}
+                              onClick={() => handleQuickAction(qa.action)}
+                              className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg bg-white/80 hover:bg-white transition-colors text-left border border-emerald-100"
+                            >
+                              <div className="p-1.5 rounded-md bg-emerald-100 text-emerald-700">
+                                {qa.icon}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-xs font-medium text-emerald-800 truncate">
+                                  {qa.label}
+                                </p>
+                                <p className="text-[11px] text-emerald-600/80 truncate">
+                                  {qa.description}
+                                </p>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                     <div className="space-y-1.5 mb-3">
                       {[
                         ...QUICK_ACTIONS,

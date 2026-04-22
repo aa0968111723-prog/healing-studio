@@ -29,8 +29,10 @@ import {
   Activity,
   Database,
   Cpu,
+  Image,
   Plus,
   Upload,
+  Wand2,
   ChevronRight,
   ChevronLeft,
   User,
@@ -352,6 +354,43 @@ export default function LoraTrainer() {
       toast.success("可見性已更新");
     },
   });
+
+  const applyModelToGeneration = useCallback(
+    (
+      model: {
+        id: number;
+        name: string;
+        modelType?: string;
+        triggerWord?: string | null;
+        trainedLoraUrl?: string | null;
+      },
+      target: "studio" | "image-studio" | "video-studio" | "pro-studio"
+    ) => {
+      sessionStorage.setItem(
+        "applyModel",
+        JSON.stringify({
+          id: model.id,
+          name: model.name,
+          modelType: model.modelType || "",
+          triggerWord: model.triggerWord || "",
+          loraUrl: model.trainedLoraUrl || "",
+        })
+      );
+      navigate(`/${target}`);
+      toast.success(
+        `已套用模型「${model.name}」並前往${
+          target === "studio"
+            ? "創作工作室"
+            : target === "image-studio"
+              ? "圖片工作室"
+              : target === "video-studio"
+                ? "影片工作室"
+                : "專業創作室"
+        }`
+      );
+    },
+    [navigate]
+  );
 
   // ── Training form handlers ──
   const resetForm = useCallback(() => {
@@ -2021,6 +2060,65 @@ export default function LoraTrainer() {
                             )}
                             同步
                           </Button>
+                        )}
+
+                        {model.status === "ready" && (
+                          <>
+                            {model.modelType === "voice_clone" ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex-1 h-7 text-xs gap-1 rounded-lg"
+                                title="套用到專業創作室（聲音克隆工具箱）"
+                                onClick={() =>
+                                  applyModelToGeneration(model, "pro-studio")
+                                }
+                              >
+                                <Mic className="w-3 h-3" /> 套用到專業創作室
+                              </Button>
+                            ) : (
+                              <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="flex-1 h-7 text-xs gap-1 rounded-lg"
+                                  onClick={() =>
+                                    applyModelToGeneration(model, "studio")
+                                  }
+                                >
+                                  <Wand2 className="w-3 h-3" /> 套用生成
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 text-xs gap-1 rounded-lg"
+                                  title="套用到圖片工作室（LoRA 注入）"
+                                  onClick={() =>
+                                    applyModelToGeneration(
+                                      model,
+                                      "image-studio"
+                                    )
+                                  }
+                                >
+                                  <Image className="w-3 h-3" />
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 text-xs gap-1 rounded-lg"
+                                  title="套用到影片工作室（觸發詞注入）"
+                                  onClick={() =>
+                                    applyModelToGeneration(
+                                      model,
+                                      "video-studio"
+                                    )
+                                  }
+                                >
+                                  <Video className="w-3 h-3" />
+                                </Button>
+                              </>
+                            )}
+                          </>
                         )}
 
                         {model.status === "failed" && (

@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Link } from "wouter";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { ChevronDown, NotebookPen } from "lucide-react";
+import { CalendarCheck2, ChevronDown, Link2, NotebookPen } from "lucide-react";
 
 type PlanningPage = "notes" | "calendar";
 
@@ -32,6 +33,17 @@ const PLANNING_GUIDE: Record<
     ],
   },
 };
+
+const PLANNING_SUBPAGES: { key: PlanningPage; label: string; path: string }[] = [
+  { key: "notes", label: "專案筆記", path: "/notes" },
+  { key: "calendar", label: "創作排程", path: "/calendar" },
+];
+
+const PLANNING_HANDOFFS = [
+  { label: "導演 AI", path: "/director" },
+  { label: "創作工作室", path: "/studio" },
+  { label: "儀表板", path: "/dashboard" },
+];
 
 export function PlanningSubpageGuide({ page }: { page: PlanningPage }) {
   const [open, setOpen] = useState(false);
@@ -70,6 +82,51 @@ export function PlanningSubpageGuide({ page }: { page: PlanningPage }) {
             </li>
           ))}
         </ul>
+        <div className="mt-3 rounded-xl border border-border/50 bg-muted/20 p-2.5 space-y-2">
+          <div className="flex items-center gap-1.5">
+            <Link2 className="w-3.5 h-3.5 text-primary" />
+            <p className="text-[11px] font-medium text-foreground/80">
+              規劃筆記 2 子頁
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {PLANNING_SUBPAGES.map(item => {
+              const isActive = item.key === page;
+              return (
+                <Link
+                  key={item.key}
+                  href={item.path}
+                  className={`text-[11px] px-2 py-1 rounded-full border transition-colors ${
+                    isActive
+                      ? "bg-primary/10 border-primary/30 text-primary"
+                      : "bg-background/70 border-border/60 text-muted-foreground hover:text-foreground hover:border-border"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+        <div className="mt-2 rounded-xl border border-border/50 bg-muted/20 p-2.5">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <CalendarCheck2 className="w-3.5 h-3.5 text-primary" />
+            <p className="text-[11px] font-medium text-foreground/80">
+              轉入生產建議入口
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {PLANNING_HANDOFFS.map(item => (
+              <Link
+                key={item.path}
+                href={item.path}
+                className="text-[11px] px-2 py-1 rounded-full border border-border/60 text-muted-foreground hover:text-foreground hover:border-border transition-colors bg-background/70"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        </div>
       </CollapsibleContent>
     </Collapsible>
   );

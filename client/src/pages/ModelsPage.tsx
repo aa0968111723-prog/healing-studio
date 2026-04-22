@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
+import { AssetModelSubpageGuide } from "@/components/AssetModelSubpageGuide";
 import type {
   AgentAction,
   AgentActionResult,
@@ -49,6 +50,7 @@ import {
   Wand2,
   Image,
   Video,
+  Mic,
   BarChart3,
   Clock,
   Activity,
@@ -828,6 +830,7 @@ export default function ModelsPage() {
 
   return (
     <div className="space-y-6">
+      <AssetModelSubpageGuide page="models" />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -1533,80 +1536,112 @@ export default function ModelsPage() {
                 {/* Use in Studio buttons */}
                 {model.status === "ready" && (
                   <div className="flex gap-1.5">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1 h-7 text-xs gap-1 rounded-lg"
-                      onClick={() => {
-                        sessionStorage.setItem(
-                          "applyModel",
-                          JSON.stringify({
-                            id: model.id,
-                            name: model.name,
-                            triggerWord:
-                              (model.configJson as any)?.triggerWord || "",
-                            loraUrl:
-                              (model as any).trainedLoraUrl ||
-                              (model.configJson as any)?.loraUrl ||
-                              "",
-                          })
-                        );
-                        navigate("/studio");
-                        toast.success(
-                          `已套用模型「${model.name}」，前往創作工作室`
-                        );
-                      }}
-                    >
-                      <Wand2 className="w-3 h-3" />
-                      套用至工作室
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-xs gap-1 rounded-lg"
-                      title="在圖片工作室使用此模型（LoRA 注入）"
-                      onClick={() => {
-                        sessionStorage.setItem(
-                          "applyModel",
-                          JSON.stringify({
-                            id: model.id,
-                            name: model.name,
-                            triggerWord:
-                              (model.configJson as any)?.triggerWord || "",
-                            loraUrl: (model as any).trainedLoraUrl || "",
-                          })
-                        );
-                        navigate("/image-studio");
-                        toast.success(
-                          `已套用模型「${model.name}」至圖片工作室`
-                        );
-                      }}
-                    >
-                      <Image className="w-3 h-3" />
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-xs gap-1 rounded-lg"
-                      title="在影片工作室使用觸發詞"
-                      onClick={() => {
-                        sessionStorage.setItem(
-                          "applyModel",
-                          JSON.stringify({
-                            id: model.id,
-                            name: model.name,
-                            triggerWord:
-                              (model.configJson as any)?.triggerWord || "",
-                          })
-                        );
-                        navigate("/video-studio");
-                        toast.success(
-                          `已套用模型「${model.name}」至影片工作室`
-                        );
-                      }}
-                    >
-                      <Video className="w-3 h-3" />
-                    </Button>
+                    {model.modelType === "voice_clone" ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 h-7 text-xs gap-1 rounded-lg"
+                        onClick={() => {
+                          sessionStorage.setItem(
+                            "applyModel",
+                            JSON.stringify({
+                              id: model.id,
+                              name: model.name,
+                              modelType: model.modelType,
+                              triggerWord:
+                                (model.configJson as any)?.triggerWord || "",
+                            })
+                          );
+                          navigate("/pro-studio");
+                          toast.success(
+                            `已套用語音模型「${model.name}」至專業創作室`
+                          );
+                        }}
+                      >
+                        <Mic className="w-3 h-3" />
+                        套用至專業創作室
+                      </Button>
+                    ) : (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 h-7 text-xs gap-1 rounded-lg"
+                          onClick={() => {
+                            sessionStorage.setItem(
+                              "applyModel",
+                              JSON.stringify({
+                                id: model.id,
+                                name: model.name,
+                                modelType: model.modelType,
+                                triggerWord:
+                                  (model.configJson as any)?.triggerWord || "",
+                                loraUrl:
+                                  (model as any).trainedLoraUrl ||
+                                  (model.configJson as any)?.loraUrl ||
+                                  "",
+                              })
+                            );
+                            navigate("/studio");
+                            toast.success(
+                              `已套用模型「${model.name}」，前往創作工作室`
+                            );
+                          }}
+                        >
+                          <Wand2 className="w-3 h-3" />
+                          套用至工作室
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs gap-1 rounded-lg"
+                          title="在圖片工作室使用此模型（LoRA 注入）"
+                          onClick={() => {
+                            sessionStorage.setItem(
+                              "applyModel",
+                              JSON.stringify({
+                                id: model.id,
+                                name: model.name,
+                                modelType: model.modelType,
+                                triggerWord:
+                                  (model.configJson as any)?.triggerWord || "",
+                                loraUrl: (model as any).trainedLoraUrl || "",
+                              })
+                            );
+                            navigate("/image-studio");
+                            toast.success(
+                              `已套用模型「${model.name}」至圖片工作室`
+                            );
+                          }}
+                        >
+                          <Image className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs gap-1 rounded-lg"
+                          title="在影片工作室使用觸發詞"
+                          onClick={() => {
+                            sessionStorage.setItem(
+                              "applyModel",
+                              JSON.stringify({
+                                id: model.id,
+                                name: model.name,
+                                modelType: model.modelType,
+                                triggerWord:
+                                  (model.configJson as any)?.triggerWord || "",
+                              })
+                            );
+                            navigate("/video-studio");
+                            toast.success(
+                              `已套用模型「${model.name}」至影片工作室`
+                            );
+                          }}
+                        >
+                          <Video className="w-3 h-3" />
+                        </Button>
+                      </>
+                    )}
                   </div>
                 )}
                 {/* Sync / Retrain buttons for non-ready models */}
