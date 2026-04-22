@@ -1167,12 +1167,14 @@ export const promptLibrary = mysqlTable(
     useCount: int("useCount").default(0).notNull(),
     modelHint: varchar("modelHint", { length: 128 }),  // 建議使用的模型 ID
     language: varchar("language", { length: 8 }).default("zh").notNull(),
+    generationMode: varchar("generationMode", { length: 32 }),  // "lightning" | "deep_precision" | null
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
   table => ({
     userIdIdx: index("pl_userId_idx").on(table.userId),
     categoryIdx: index("pl_category_idx").on(table.category),
+    generationModeIdx: index("pl_generationMode_idx").on(table.generationMode),
   })
 );
 

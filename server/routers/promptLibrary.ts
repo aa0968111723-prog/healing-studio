@@ -32,6 +32,7 @@ const PromptCreateInput = z.object({
   isPublic: z.boolean().default(false),
   modelHint: z.string().max(128).optional(),
   language: z.string().max(8).default("zh"),
+  generationMode: z.enum(["lightning", "deep_precision"]).optional(),
 });
 
 const PromptUpdateInput = PromptCreateInput.partial().extend({
@@ -43,6 +44,7 @@ const ListInput = z.object({
   search: z.string().max(100).optional(),
   tags: z.array(z.string()).max(5).optional(),
   favoritesOnly: z.boolean().optional(),
+  generationMode: z.enum(["lightning", "deep_precision"]).optional(),
   page: z.number().int().min(1).default(1),
   pageSize: z.number().int().min(1).max(50).default(20),
 });
@@ -59,12 +61,13 @@ export const promptLibraryRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB 不可用" });
 
       const userId = ctx.user.id;
-      const { category, search, favoritesOnly, page, pageSize } = input;
+      const { category, search, favoritesOnly, generationMode, page, pageSize } = input;
 
       const conditions = [eq(promptLibrary.userId, userId)];
 
       if (category) conditions.push(eq(promptLibrary.category, category));
       if (favoritesOnly) conditions.push(eq(promptLibrary.isFavorite, true));
+      if (generationMode) conditions.push(eq(promptLibrary.generationMode, generationMode));
       if (search) {
         conditions.push(like(promptLibrary.title, `%${search}%`));
       }
@@ -102,6 +105,7 @@ export const promptLibraryRouter = router({
       z.object({
         category: z.enum(CATEGORY_VALUES).optional(),
         search: z.string().max(100).optional(),
+        generationMode: z.enum(["lightning", "deep_precision"]).optional(),
         page: z.number().int().min(1).default(1),
         pageSize: z.number().int().min(1).max(50).default(20),
       })
@@ -110,10 +114,11 @@ export const promptLibraryRouter = router({
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB 不可用" });
 
-      const { category, search, page, pageSize } = input;
+      const { category, search, generationMode, page, pageSize } = input;
       const conditions = [eq(promptLibrary.isPublic, true)];
 
       if (category) conditions.push(eq(promptLibrary.category, category));
+      if (generationMode) conditions.push(eq(promptLibrary.generationMode, generationMode));
       if (search) conditions.push(like(promptLibrary.title, `%${search}%`));
 
       const offset = (page - 1) * pageSize;
@@ -180,6 +185,7 @@ export const promptLibraryRouter = router({
         isPublic: input.isPublic,
         modelHint: input.modelHint,
         language: input.language,
+        generationMode: input.generationMode,
       });
 
       return { id: Number(result[0].insertId), success: true };

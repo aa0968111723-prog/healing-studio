@@ -57,7 +57,13 @@ const CATEGORIES = [
   { value: "system", label: "⚙️ 系統" },
 ] as const;
 
+const GENERATION_MODES = [
+  { value: "lightning", label: "⚡ 閃電模式", description: "快速生成，適合快速預覽和迭代" },
+  { value: "deep_precision", label: "🎯 深度精準", description: "高品質輸出，適合最終作品" },
+] as const;
+
 type Category = (typeof CATEGORIES)[number]["value"];
+type GenerationModeValue = (typeof GENERATION_MODES)[number]["value"];
 
 interface PromptForm {
   title: string;
@@ -66,6 +72,7 @@ interface PromptForm {
   tags: string;
   isPublic: boolean;
   modelHint: string;
+  generationMode: GenerationModeValue | "";
 }
 
 const EMPTY_FORM: PromptForm = {
@@ -75,6 +82,7 @@ const EMPTY_FORM: PromptForm = {
   tags: "",
   isPublic: false,
   modelHint: "",
+  generationMode: "",
 };
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
@@ -83,6 +91,7 @@ export default function PromptLibraryPage() {
   const [tab, setTab] = useState<"mine" | "public">("mine");
   const [search, setSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState<Category | "all">("all");
+  const [filterMode, setFilterMode] = useState<GenerationModeValue | "all">("all");
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [page, setPage] = useState(1);
 
@@ -99,6 +108,7 @@ export default function PromptLibraryPage() {
       pageSize: 20,
       search: search || undefined,
       category: filterCategory !== "all" ? filterCategory : undefined,
+      generationMode: filterMode !== "all" ? filterMode : undefined,
       favoritesOnly: favoritesOnly || undefined,
     },
     { enabled: tab === "mine" }
@@ -110,6 +120,7 @@ export default function PromptLibraryPage() {
       pageSize: 20,
       search: search || undefined,
       category: filterCategory !== "all" ? filterCategory : undefined,
+      generationMode: filterMode !== "all" ? filterMode : undefined,
     },
     { enabled: tab === "public" }
   );
@@ -174,6 +185,20 @@ export default function PromptLibraryPage() {
     ],
     []
   );
+  const MODE_OPTIONS = useMemo<AgentCapability["options"]>(
+    () => [
+      { id: "all", label: "全部模式", meta: { bestFor: "查看所有提示詞", tip: "不限定生成模式" } },
+      ...GENERATION_MODES.map(m => ({
+        id: m.value,
+        label: m.label,
+        meta: {
+          bestFor: m.description,
+          tip: m.value === "lightning" ? "快速迭代用" : "最終成品用",
+        },
+      })),
+    ],
+    []
+  );
   const agentCapabilities: AgentCapability[] = useMemo(
     () => [
       {
@@ -185,8 +210,18 @@ export default function PromptLibraryPage() {
       },
       {
         action: "setParam",
-        label: "分類 / 收藏",
-        hint: "setParam key='category' value=<id>；key='favoritesOnly' value=true|false",
+        label: "分類篩選",
+        hint: "setParam key='category' value=<id>",
+      },
+      {
+        action: "setParam",
+        label: "模式篩選",
+        hint: "setParam key='generationMode' value=lightning|deep_precision|all",
+      },
+      {
+        action: "setParam",
+        label: "收藏篩選",
+        hint: "setParam key='favoritesOnly' value=true|false",
       },
       {
         action: "search",
@@ -210,6 +245,7 @@ export default function PromptLibraryPage() {
     state: {
       tab,
       filterCategory,
+      filterMode,
       search,
       favoritesOnly,
       page,
@@ -235,6 +271,17 @@ export default function PromptLibraryPage() {
             setPage(1);
             return { ok: true, message: `分類切到「${v}」` };
           }
+          if (action.key === "generationMode") {
+            const v = String(action.value ?? "");
+            const allowedModes = ["all", ...GENERATION_MODES.map(m => m.value)];
+            if (!allowedModes.includes(v)) {
+              return { ok: false, reason: `unknown generationMode: ${v}` };
+            }
+            setFilterMode(v as GenerationModeValue | "all");
+            setPage(1);
+            const modeName = GENERATION_MODES.find(m => m.value === v)?.label ?? v;
+            return { ok: true, message: `生成模式切到「${modeName}」` };
+          }
           if (action.key === "favoritesOnly") {
             setFavoritesOnly(Boolean(action.value));
             setPage(1);
@@ -249,6 +296,7 @@ export default function PromptLibraryPage() {
         }
         case "reset": {
           setFilterCategory("all");
+          setFilterMode("all");
           setSearch("");
           setFavoritesOnly(false);
           setPage(1);
@@ -286,6 +334,7 @@ export default function PromptLibraryPage() {
         tags,
         isPublic: form.isPublic,
         modelHint: form.modelHint || undefined,
+        generationMode: form.generationMode || undefined,
       });
     } else {
       createMut.mutate({
@@ -295,6 +344,7 @@ export default function PromptLibraryPage() {
         tags,
         isPublic: form.isPublic,
         modelHint: form.modelHint || undefined,
+        generationMode: form.generationMode || undefined,
       });
     }
   }
@@ -307,6 +357,7 @@ export default function PromptLibraryPage() {
     tags: string[] | null;
     isPublic: boolean;
     modelHint: string | null;
+    generationMode: string | null;
   }) {
     setEditTarget(item.id);
     setForm({
@@ -316,6 +367,7 @@ export default function PromptLibraryPage() {
       tags: (item.tags ?? []).join(", "),
       isPublic: item.isPublic,
       modelHint: item.modelHint ?? "",
+      generationMode: (item.generationMode as GenerationModeValue) ?? "",
     });
     setIsCreateOpen(true);
   }
@@ -399,13 +451,33 @@ export default function PromptLibraryPage() {
                   </Select>
                 </div>
                 <div>
-                  <Label>建議模型（選填）</Label>
-                  <Input
-                    value={form.modelHint}
-                    onChange={e => setForm(f => ({ ...f, modelHint: e.target.value }))}
-                    placeholder="e.g. fal-ai/wan"
-                  />
+                  <Label>生成模式（選填）</Label>
+                  <Select
+                    value={form.generationMode || "none"}
+                    onValueChange={v => setForm(f => ({ ...f, generationMode: v === "none" ? "" : v as GenerationModeValue }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="不指定" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">不指定</SelectItem>
+                      {GENERATION_MODES.map(m => (
+                        <SelectItem key={m.value} value={m.value} className="flex flex-col items-start">
+                          <div>{m.label}</div>
+                          <div className="text-xs text-muted-foreground">{m.description}</div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
+              </div>
+              <div>
+                <Label>建議模型（選填）</Label>
+                <Input
+                  value={form.modelHint}
+                  onChange={e => setForm(f => ({ ...f, modelHint: e.target.value }))}
+                  placeholder="e.g. fal-ai/wan"
+                />
               </div>
               <div>
                 <Label>標籤（逗號分隔）</Label>
@@ -480,6 +552,22 @@ export default function PromptLibraryPage() {
             {CATEGORIES.map(c => (
               <SelectItem key={c.value} value={c.value}>
                 {c.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={filterMode}
+          onValueChange={v => { setFilterMode(v as GenerationModeValue | "all"); setPage(1); }}
+        >
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="所有模式" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">所有模式</SelectItem>
+            {GENERATION_MODES.map(m => (
+              <SelectItem key={m.value} value={m.value}>
+                {m.label}
               </SelectItem>
             ))}
           </SelectContent>
@@ -559,6 +647,7 @@ interface PromptCardProps {
     isPublic: boolean;
     useCount: number;
     modelHint: string | null;
+    generationMode: string | null;
   };
   isOwn: boolean;
   onCopy: () => void;
@@ -569,6 +658,7 @@ interface PromptCardProps {
 
 function PromptCard({ item, isOwn, onCopy, onEdit, onDelete, onToggleFav }: PromptCardProps) {
   const catLabel = CATEGORIES.find(c => c.value === item.category)?.label ?? item.category;
+  const modeInfo = GENERATION_MODES.find(m => m.value === item.generationMode);
 
   return (
     <div className="group relative bg-card border border-border rounded-xl p-4 flex flex-col gap-3 hover:border-primary/50 transition-colors">
@@ -576,10 +666,23 @@ function PromptCard({ item, isOwn, onCopy, onEdit, onDelete, onToggleFav }: Prom
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-sm leading-tight truncate">{item.title}</h3>
-          <div className="flex items-center gap-1.5 mt-1">
+          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
             <Badge variant="secondary" className="text-xs px-1.5 py-0">
               {catLabel}
             </Badge>
+            {modeInfo && (
+              <Badge
+                variant="outline"
+                className={`text-xs px-1.5 py-0 ${
+                  item.generationMode === "lightning"
+                    ? "border-yellow-400/50 bg-yellow-50/50 text-yellow-700 dark:bg-yellow-950/30 dark:text-yellow-400"
+                    : "border-blue-400/50 bg-blue-50/50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400"
+                }`}
+                title={modeInfo.description}
+              >
+                {item.generationMode === "lightning" ? "⚡" : "🎯"}
+              </Badge>
+            )}
             {item.isPublic ? (
               <Globe className="w-3 h-3 text-muted-foreground" />
             ) : (
