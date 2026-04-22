@@ -27,6 +27,30 @@ function getQueryParam(req: Request, key: string): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
+function getRedirectFromState(state?: string): string {
+  if (!state) return "/";
+  try {
+    const decoded = Buffer.from(state, "base64").toString("utf-8") || "/";
+    return isSafeRedirectPath(decoded) ? decoded : "/";
+  } catch {
+    return "/";
+  }
+}
+
+function appendErrorParam(path: string, reason: string): string {
+  const separator = path.includes("?") ? "&" : "?";
+  return `${path}${separator}error=${encodeURIComponent(reason)}`;
+}
+
+function redirectWithAuthError(
+  res: Response,
+  reason: string,
+  state?: string
+): void {
+  const targetPath = getRedirectFromState(state);
+  res.redirect(302, appendErrorParam(targetPath, reason));
+}
+
 /**
  * Validate that a redirect path is a safe, relative path.
  * Blocks absolute URLs, protocol-relative URLs, encoded slash bypasses, etc.
@@ -55,9 +79,7 @@ export function registerOAuthRoutes(app: Express) {
       res.redirect(302, authUrl);
     } catch (error) {
       console.error("[OAuth] Failed to build Google auth URL", error);
-      res
-        .status(500)
-        .json({ error: "OAuth 設定錯誤，請檢查 GOOGLE_CLIENT_ID" });
+      redirectWithAuthError(res, "oauth_config_error");
     }
   });
 
@@ -70,12 +92,12 @@ export function registerOAuthRoutes(app: Express) {
     // 用戶拒絕授權
     if (errorParam) {
       console.warn("[OAuth] User denied access:", errorParam);
-      res.redirect(302, "/?error=auth_denied");
+      redirectWithAuthError(res, "auth_denied", state);
       return;
     }
 
     if (!code) {
-      res.status(400).json({ error: "缺少 authorization code" });
+      redirectWithAuthError(res, "missing_code", state);
       return;
     }
 
@@ -87,7 +109,7 @@ export function registerOAuthRoutes(app: Express) {
       const userInfo = await getGoogleUserInfo(tokens.access_token);
 
       if (!userInfo.sub) {
-        res.status(400).json({ error: "無法取得 Google 用戶 ID" });
+        redirectWithAuthError(res, "missing_google_user_id", state);
         return;
       }
 
@@ -115,25 +137,14 @@ export function registerOAuthRoutes(app: Express) {
       });
 
       // 解碼 state 取得重定向路徑（僅允許安全的相對路徑，防止 Open Redirect 攻擊）
-      let redirectTo = "/";
-      if (state) {
-        try {
-          const decoded = Buffer.from(state, "base64").toString("utf-8") || "/";
-          // Only allow safe relative paths — block absolute URLs, protocol-relative URLs, etc.
-          if (isSafeRedirectPath(decoded)) {
-            redirectTo = decoded;
-          }
-        } catch {
-          redirectTo = "/";
-        }
-      }
+      const redirectTo = getRedirectFromState(state);
 
       // Append welcome flag so the client can show a login orb animation
       const separator = redirectTo.includes("?") ? "&" : "?";
       res.redirect(302, `${redirectTo}${separator}welcome=1`);
     } catch (error) {
       console.error("[OAuth] Callback failed", error);
-      res.status(500).json({ error: "OAuth 認證失敗，請稍後再試" });
+      redirectWithAuthError(res, "oauth_failed", state);
     }
   });
 
@@ -170,7 +181,7 @@ export function registerOAuthRoutes(app: Express) {
       res.redirect(302, "/studio?welcome=1");
     } catch (error) {
       console.error("[Demo OAuth] Failed", error);
-      res.status(500).json({ error: "Demo 登入失敗" });
+      redirectWithAuthError(res, "demo_oauth_failed");
     }
   });
 }
