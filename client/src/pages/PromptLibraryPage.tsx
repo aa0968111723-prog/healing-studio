@@ -66,6 +66,7 @@ interface PromptForm {
   tags: string;
   isPublic: boolean;
   modelHint: string;
+  generationMode: "lightning" | "deep_precision" | "";
 }
 
 const EMPTY_FORM: PromptForm = {
@@ -75,6 +76,7 @@ const EMPTY_FORM: PromptForm = {
   tags: "",
   isPublic: false,
   modelHint: "",
+  generationMode: "",
 };
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
@@ -83,6 +85,7 @@ export default function PromptLibraryPage() {
   const [tab, setTab] = useState<"mine" | "public">("mine");
   const [search, setSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState<Category | "all">("all");
+  const [filterMode, setFilterMode] = useState<"lightning" | "deep_precision" | "all">("all");
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [page, setPage] = useState(1);
 
@@ -99,6 +102,7 @@ export default function PromptLibraryPage() {
       pageSize: 20,
       search: search || undefined,
       category: filterCategory !== "all" ? filterCategory : undefined,
+      generationMode: filterMode !== "all" ? filterMode : undefined,
       favoritesOnly: favoritesOnly || undefined,
     },
     { enabled: tab === "mine" }
@@ -110,6 +114,7 @@ export default function PromptLibraryPage() {
       pageSize: 20,
       search: search || undefined,
       category: filterCategory !== "all" ? filterCategory : undefined,
+      generationMode: filterMode !== "all" ? filterMode : undefined,
     },
     { enabled: tab === "public" }
   );
@@ -185,8 +190,8 @@ export default function PromptLibraryPage() {
       },
       {
         action: "setParam",
-        label: "分類 / 收藏",
-        hint: "setParam key='category' value=<id>；key='favoritesOnly' value=true|false",
+        label: "分類 / 收藏 / 模式",
+        hint: "setParam key='category' value=<id>；key='favoritesOnly' value=true|false；key='generationMode' value=lightning|deep_precision|all",
       },
       {
         action: "search",
@@ -210,6 +215,7 @@ export default function PromptLibraryPage() {
     state: {
       tab,
       filterCategory,
+      filterMode,
       search,
       favoritesOnly,
       page,
@@ -235,6 +241,15 @@ export default function PromptLibraryPage() {
             setPage(1);
             return { ok: true, message: `分類切到「${v}」` };
           }
+          if (action.key === "generationMode") {
+            const v = String(action.value ?? "");
+            if (!["lightning", "deep_precision", "all"].includes(v)) {
+              return { ok: false, reason: `unknown generationMode: ${v}` };
+            }
+            setFilterMode(v as "lightning" | "deep_precision" | "all");
+            setPage(1);
+            return { ok: true, message: `生成模式切到「${v}」` };
+          }
           if (action.key === "favoritesOnly") {
             setFavoritesOnly(Boolean(action.value));
             setPage(1);
@@ -249,6 +264,7 @@ export default function PromptLibraryPage() {
         }
         case "reset": {
           setFilterCategory("all");
+          setFilterMode("all");
           setSearch("");
           setFavoritesOnly(false);
           setPage(1);
@@ -286,6 +302,7 @@ export default function PromptLibraryPage() {
         tags,
         isPublic: form.isPublic,
         modelHint: form.modelHint || undefined,
+        generationMode: form.generationMode || undefined,
       });
     } else {
       createMut.mutate({
@@ -295,6 +312,7 @@ export default function PromptLibraryPage() {
         tags,
         isPublic: form.isPublic,
         modelHint: form.modelHint || undefined,
+        generationMode: form.generationMode || undefined,
       });
     }
   }
@@ -307,6 +325,7 @@ export default function PromptLibraryPage() {
     tags: string[] | null;
     isPublic: boolean;
     modelHint: string | null;
+    generationMode: string | null;
   }) {
     setEditTarget(item.id);
     setForm({
@@ -316,6 +335,7 @@ export default function PromptLibraryPage() {
       tags: (item.tags ?? []).join(", "),
       isPublic: item.isPublic,
       modelHint: item.modelHint ?? "",
+      generationMode: (item.generationMode as "lightning" | "deep_precision") ?? "",
     });
     setIsCreateOpen(true);
   }
@@ -399,13 +419,29 @@ export default function PromptLibraryPage() {
                   </Select>
                 </div>
                 <div>
-                  <Label>建議模型（選填）</Label>
-                  <Input
-                    value={form.modelHint}
-                    onChange={e => setForm(f => ({ ...f, modelHint: e.target.value }))}
-                    placeholder="e.g. fal-ai/wan"
-                  />
+                  <Label>生成模式（選填）</Label>
+                  <Select
+                    value={form.generationMode || "none"}
+                    onValueChange={v => setForm(f => ({ ...f, generationMode: v === "none" ? "" : v as "lightning" | "deep_precision" }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="不指定" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">不指定</SelectItem>
+                      <SelectItem value="lightning">⚡ 閃電模式</SelectItem>
+                      <SelectItem value="deep_precision">🎯 深度精準</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
+              </div>
+              <div>
+                <Label>建議模型（選填）</Label>
+                <Input
+                  value={form.modelHint}
+                  onChange={e => setForm(f => ({ ...f, modelHint: e.target.value }))}
+                  placeholder="e.g. fal-ai/wan"
+                />
               </div>
               <div>
                 <Label>標籤（逗號分隔）</Label>
@@ -484,6 +520,19 @@ export default function PromptLibraryPage() {
             ))}
           </SelectContent>
         </Select>
+        <Select
+          value={filterMode}
+          onValueChange={v => { setFilterMode(v as "lightning" | "deep_precision" | "all"); setPage(1); }}
+        >
+          <SelectTrigger className="w-36">
+            <SelectValue placeholder="所有模式" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">所有模式</SelectItem>
+            <SelectItem value="lightning">⚡ 閃電模式</SelectItem>
+            <SelectItem value="deep_precision">🎯 深度精準</SelectItem>
+          </SelectContent>
+        </Select>
         {tab === "mine" && (
           <Button
             variant={favoritesOnly ? "default" : "outline"}
@@ -559,6 +608,7 @@ interface PromptCardProps {
     isPublic: boolean;
     useCount: number;
     modelHint: string | null;
+    generationMode: string | null;
   };
   isOwn: boolean;
   onCopy: () => void;
@@ -576,10 +626,15 @@ function PromptCard({ item, isOwn, onCopy, onEdit, onDelete, onToggleFav }: Prom
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-sm leading-tight truncate">{item.title}</h3>
-          <div className="flex items-center gap-1.5 mt-1">
+          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
             <Badge variant="secondary" className="text-xs px-1.5 py-0">
               {catLabel}
             </Badge>
+            {item.generationMode && (
+              <Badge variant="outline" className="text-xs px-1.5 py-0">
+                {item.generationMode === "lightning" ? "⚡" : "🎯"}
+              </Badge>
+            )}
             {item.isPublic ? (
               <Globe className="w-3 h-3 text-muted-foreground" />
             ) : (
