@@ -65,6 +65,52 @@ const STORAGE_VERSION = "v1";
 const MAX_STORED_MESSAGES = 100; // 最多保存 100 條訊息
 const STORAGE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 天過期
 
+function inferUserMultimodalIntent(text: string): string {
+  const q = text.toLowerCase();
+  const hit = (keys: string[]) => keys.some(k => q.includes(k));
+
+  if (hit(["文生圖", "生圖", "圖片", "圖像", "海報", "插畫", "photo", "image"])) {
+    return "偏向圖片創作需求（建議 image-studio / studio.image）";
+  }
+  if (hit(["文生影", "圖生影", "影片", "短片", "運鏡", "video", "reel"])) {
+    return "偏向影片創作需求（建議 video-studio / studio.video）";
+  }
+  if (hit(["配樂", "音樂", "bgm", "聲音", "sfx", "music", "audio"])) {
+    return "偏向音樂/音效需求（建議 pro-studio.audio）";
+  }
+  if (hit(["配音", "旁白", "語音", "tts", "voice", "朗讀"])) {
+    return "偏向語音需求（建議 pro-studio.voice）";
+  }
+  if (hit(["腳本", "分鏡", "企劃", "導演", "storyboard", "script"])) {
+    return "偏向前期腳本規劃（建議 director）";
+  }
+  if (hit(["全站模型", "全部模型", "模型總覽", "多模態"])) {
+    return "偏向全站模型導覽（建議先去 studio，再分流 image/video/audio/voice）";
+  }
+  return "意圖未明，先用 1-2 句追問成品與用途後再分流";
+}
+
+function summarizeProviderPing(
+  pingData: unknown
+): string {
+  if (!pingData || typeof pingData !== "object") {
+    return "後端服務狀態未知";
+  }
+  const entries = Object.entries(
+    pingData as Record<
+      string,
+      { ok?: boolean; latencyMs?: number | null; error?: string }
+    >
+  );
+  if (entries.length === 0) return "後端服務清單為空";
+
+  const online = entries.filter(([, v]) => v?.ok).map(([k]) => k);
+  const offline = entries.filter(([, v]) => v && v.ok === false).map(([k]) => k);
+  const summary = `後端連線 ${online.length}/${entries.length} 在線`;
+  if (offline.length === 0) return summary;
+  return `${summary}；離線: ${offline.join(", ")}`;
+}
+
 // ─── Storage Helpers ────────────────────────────────────────────────────────
 
 function loadMessagesFromStorage(): ChatMessage[] {
@@ -176,6 +222,12 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
 
   const aiChat = trpc.ai.chat.useMutation();
+  const providerPingQuery = trpc.brain.pingProviders.useQuery(undefined, {
+    retry: false,
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: false,
+  });
 
   // 當訊息變化時自動存儲
   useEffect(() => {
@@ -254,6 +306,8 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       setIsSending(true);
 
       try {
+        const inferredIntent = inferUserMultimodalIntent(trimmed);
+        const backendSummary = summarizeProviderPing(providerPingQuery.data);
         const data = await aiChat.mutateAsync({
           messages: nextHistory
             .filter(m => m.role !== "orb" || m.at !== messages[0]?.at) // 跳過初始歡迎訊息
@@ -262,7 +316,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
               content: m.text,
             })),
           personality,
-          context: `全站光球聊天 · 當前頁面: ${locationPath}`,
+          context: `全站光球聊天 · 當前頁面: ${locationPath} · 意圖判斷: ${inferredIntent} · ${backendSummary}`,
           pageSnapshot: pageAgent.snapshot ?? undefined,
           recentFeedback: pageAgent.recentFeedback,
         });
@@ -322,7 +376,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         setIsSending(false);
       }
     },
-    [messages, isSending, personality, pageAgent, locationPath, aiChat]
+    [messages, isSending, personality, pageAgent, locationPath, aiChat, providerPingQuery.data]
   );
 
   const open = useCallback(() => {
