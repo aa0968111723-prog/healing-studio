@@ -580,6 +580,24 @@ const CATEGORY_VISUAL_META: Record<
   Model: { emoji: "🧠", eta: "8-12 分鐘", focus: "訓練與驗證模型" },
 };
 
+const INTERACTIVE_TEACHING_OPTIONS = {
+  goal: [
+    { id: "ship-fast", label: "今天先產出可用版本" },
+    { id: "learn-why", label: "先理解每步驟為什麼" },
+    { id: "team-ready", label: "建立可交接流程" },
+  ],
+  pace: [
+    { id: "5-min", label: "5 分鐘快節奏" },
+    { id: "15-min", label: "15 分鐘標準節奏" },
+    { id: "30-min", label: "30 分鐘深度練習" },
+  ],
+  level: [
+    { id: "beginner", label: "新手模式" },
+    { id: "intermediate", label: "進階模式" },
+    { id: "pro", label: "專家模式" },
+  ],
+} as const;
+
 // ─── Scene Badge ────────────────────────────────────────────────────────────
 
 function SceneBadge({
@@ -678,6 +696,18 @@ export default function Home() {
   const [openGuideId, setOpenGuideId] = useState<string | null>("new-user");
   const [quickGuideHidden, setQuickGuideHidden] = useState(false);
   const [completedMissions, setCompletedMissions] = useState<string[]>([]);
+  const [selectedStationId, setSelectedStationId] = useState<string>(
+    ALL_SUBPAGE_TUTORIALS[0].id
+  );
+  const [teachingGoal, setTeachingGoal] = useState<string>(
+    INTERACTIVE_TEACHING_OPTIONS.goal[0].id
+  );
+  const [teachingPace, setTeachingPace] = useState<string>(
+    INTERACTIVE_TEACHING_OPTIONS.pace[1].id
+  );
+  const [teachingLevel, setTeachingLevel] = useState<string>(
+    INTERACTIVE_TEACHING_OPTIONS.level[0].id
+  );
   const [selectedTrackId, setSelectedTrackId] = useState<string>(
     HOME_CREATIVE_TRACKS[0].id
   );
@@ -900,13 +930,15 @@ export default function Home() {
 
   const startGlobalSubpageTutorial = useCallback(
     (tutorialId: string, path: string, prompt: string) => {
+      const profileSnippet = `使用者教學設定：目標=${teachingGoal}，節奏=${teachingPace}，程度=${teachingLevel}。`;
       const deepDivePrompt = `${prompt}
 
 請用「逐站互動式導覽」模式帶我完成這一站：
 1) 先用 2 句話說明這一站的核心價值與適合任務。
 2) 先問我 1-2 個問題（目前目標、交付期限）再客製建議。
 3) 給我「本頁第一步操作」與「完成判準」。
-4) 完成後再給我「下一站建議」與為什麼。`;
+4) 完成後再給我「下一站建議」與為什麼。
+${profileSnippet}`;
       void copyOrbPrompt(deepDivePrompt);
       if (!isAuthenticated) {
         window.location.href = getDemoLoginUrl();
@@ -916,7 +948,7 @@ export default function Home() {
         `/agent?tutorial=${tutorialId}&target=${encodeURIComponent(path)}&scope=all-pages&interactive=1&depth=station&entry=home`
       );
     },
-    [copyOrbPrompt, isAuthenticated, navigate]
+    [copyOrbPrompt, isAuthenticated, navigate, teachingGoal, teachingPace, teachingLevel]
   );
 
   const startInteractiveOrbStep = useCallback(
@@ -940,7 +972,8 @@ export default function Home() {
       const stepPrompt =
         customPrompt ??
         `請啟動「${sectionLabel}」互動式導覽的這一步：${stepTitle}。${stepDescription}。請先問我 1-2 個必要問題，再帶我完成這一步，最後告訴我下一步。`;
-      void copyOrbPrompt(stepPrompt);
+      const profileSnippet = `教學設定：目標=${teachingGoal}，節奏=${teachingPace}，程度=${teachingLevel}。`;
+      void copyOrbPrompt(`${stepPrompt}\n${profileSnippet}`);
       if (!isAuthenticated) {
         window.location.href = getDemoLoginUrl();
         return;
@@ -956,7 +989,7 @@ export default function Home() {
       }
       navigate(`/agent?${params.toString()}`);
     },
-    [copyOrbPrompt, isAuthenticated, navigate]
+    [copyOrbPrompt, isAuthenticated, navigate, teachingGoal, teachingPace, teachingLevel]
   );
 
   // ─── PageAgent 註冊（Phase 4b：首頁接入光球） ────────────────────────────
@@ -1514,12 +1547,77 @@ export default function Home() {
                       ))}
                     </div>
                   </div>
+                  <div
+                    className="rounded-lg border p-2.5 mb-2"
+                    style={{ borderColor: s.cardBorder, background: s.cardBg }}
+                  >
+                    <p className={`text-[11px] font-medium mb-2 ${s.textPrimary}`}>
+                      先設定你的互動教學模式（光球會照這個節奏帶你）
+                    </p>
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap gap-1.5">
+                        {INTERACTIVE_TEACHING_OPTIONS.goal.map(option => (
+                          <Button
+                            key={option.id}
+                            size="sm"
+                            variant={teachingGoal === option.id ? "default" : "outline"}
+                            className={`h-7 px-2 text-[11px] ${teachingGoal === option.id ? `${s.btnPrimary} ${s.btnPrimaryText}` : `${s.btnOutline} ${s.btnOutlineText}`}`}
+                            onClick={() => setTeachingGoal(option.id)}
+                          >
+                            🎯 {option.label}
+                          </Button>
+                        ))}
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {INTERACTIVE_TEACHING_OPTIONS.pace.map(option => (
+                          <Button
+                            key={option.id}
+                            size="sm"
+                            variant={teachingPace === option.id ? "default" : "outline"}
+                            className={`h-7 px-2 text-[11px] ${teachingPace === option.id ? `${s.btnPrimary} ${s.btnPrimaryText}` : `${s.btnOutline} ${s.btnOutlineText}`}`}
+                            onClick={() => setTeachingPace(option.id)}
+                          >
+                            ⏱ {option.label}
+                          </Button>
+                        ))}
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {INTERACTIVE_TEACHING_OPTIONS.level.map(option => (
+                          <Button
+                            key={option.id}
+                            size="sm"
+                            variant={teachingLevel === option.id ? "default" : "outline"}
+                            className={`h-7 px-2 text-[11px] ${teachingLevel === option.id ? `${s.btnPrimary} ${s.btnPrimaryText}` : `${s.btnOutline} ${s.btnOutlineText}`}`}
+                            onClick={() => setTeachingLevel(option.id)}
+                          >
+                            🧭 {option.label}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    className="rounded-lg border p-2.5 mb-2"
+                    style={{ borderColor: s.cardBorder, background: s.featureBg }}
+                  >
+                    <p className={`text-[11px] ${s.textPrimary}`}>
+                      目前選擇站點：
+                      <span className="font-semibold">
+                        {" "}
+                        {ALL_SUBPAGE_TUTORIALS.find(item => item.id === selectedStationId)?.title}
+                      </span>
+                    </p>
+                    <p className={`text-[11px] mt-1 ${s.textMuted}`}>
+                      點任一站卡片就會切換目標站，光球會依你上方的設定自動調整提問深度與教學節奏。
+                    </p>
+                  </div>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {ALL_SUBPAGE_TUTORIALS.map(item => (
                       <div
                         key={item.id}
-                        className="rounded-lg border p-3"
+                        className="rounded-lg border p-3 transition-all cursor-pointer"
                         style={{ borderColor: s.cardBorder, background: s.cardBg }}
+                        onClick={() => setSelectedStationId(item.id)}
                       >
                         <div className="flex items-center justify-between gap-2">
                           <p className={`text-xs sm:text-sm font-medium ${s.textPrimary}`}>
@@ -1529,6 +1627,14 @@ export default function Home() {
                             {item.category}
                           </span>
                         </div>
+                        {selectedStationId === item.id ? (
+                          <div
+                            className="mt-1 rounded-md px-2 py-1 text-[10px] font-medium"
+                            style={{ background: s.featureBg }}
+                          >
+                            <span className={s.textSecondary}>正在準備這一站的互動教學</span>
+                          </div>
+                        ) : null}
                         <div className="mt-2 grid grid-cols-3 gap-1.5">
                           <div
                             className="rounded-md px-2 py-1 text-[10px]"
