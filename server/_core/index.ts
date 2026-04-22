@@ -51,6 +51,7 @@ import {
   stopUserAutoCreditCron,
 } from "../jobs/userAutoCreditJob";
 import { aiProxyRouter } from "../routes/aiProxy";
+import { installFetchGuard } from "./fetchGuard";
 
 type ScheduledMaintenanceJob = {
   name: string;
@@ -177,6 +178,8 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 }
 
 async function startServer() {
+  installFetchGuard();
+
   const app = express();
   const server = createServer(app);
 

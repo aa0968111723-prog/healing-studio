@@ -98,13 +98,33 @@ const injectUmamiAnalytics = () => {
 
 injectUmamiAnalytics();
 
+function resolveClientFetchUrl(input: RequestInfo | URL): string {
+  const raw =
+    typeof input === "string"
+      ? input
+      : input instanceof URL
+        ? input.toString()
+        : input.url;
+
+  const resolved = raw.startsWith("http://") || raw.startsWith("https://")
+    ? raw
+    : new URL(raw, window.location.origin).toString();
+
+  if (!/^https?:\/\//i.test(resolved)) {
+    throw new Error(`[fetch] Invalid URL (missing protocol): ${resolved}`);
+  }
+  return resolved;
+}
+
 const trpcClient = trpc.createClient({
   links: [
     httpBatchLink({
       url: "/api/trpc",
       transformer: superjson,
       fetch(input, init) {
-        return globalThis.fetch(input, {
+        const finalUrl = resolveClientFetchUrl(input);
+        console.log("[fetch] Request URL:", finalUrl);
+        return globalThis.fetch(finalUrl, {
           ...(init ?? {}),
           credentials: "include",
         });
