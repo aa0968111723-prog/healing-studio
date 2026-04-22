@@ -30,6 +30,7 @@ export const ENV = {
 
   // ── Brave Search ────────────────────────────────────────
   braveSearchApiKey: serverEnv.BRAVE_SEARCH_API_KEY,
+  perplexityApiKey: serverEnv.PERPLEXITY_API_KEY,
 
   // ── MiniMax M2.7 via NVIDIA NIM（光球 AI 代理人）───────────
   nvidaApi: serverEnv.NVIDIA_API,

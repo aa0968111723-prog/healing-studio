@@ -2108,7 +2108,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     minPoints: 1,
     maxPoints: 10,
     requiresKey: true,
-    keyEnvVar: "NVIDA_API",
+    keyEnvVar: "NVIDIA_API",
   },
 };
 

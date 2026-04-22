@@ -129,6 +129,7 @@ const multimodalSchema = z.object({
 
   // ── Brave Search API ──────────────────────────────────────
   BRAVE_SEARCH_API_KEY: z.string().min(1).optional().default(""),
+  PERPLEXITY_API_KEY: z.string().min(1).optional().default(""),
 
   // ── 姿勢估測 ─────────────────────────────────────────────
   OPENPOSE_API_KEY: z.string().min(1).optional().default(""),
@@ -248,6 +249,12 @@ function validateAndWarn(): ServerEnvResult {
       env.BRAVE_SEARCH_API_KEY,
       "Brave Search（網路搜尋）",
       "前往 https://brave.com/search/api/ 取得。",
+    ],
+    [
+      "PERPLEXITY_API_KEY",
+      env.PERPLEXITY_API_KEY,
+      "Perplexity API（研究/搜尋）",
+      "前往 https://www.perplexity.ai/settings/api 取得。",
     ],
     [
       "GCS_BUCKET_NAME",
