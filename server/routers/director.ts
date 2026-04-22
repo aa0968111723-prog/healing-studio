@@ -581,7 +581,8 @@ async function discussSegmentWithAI(
   personality: "calm" | "creative" | "technical",
   quickActionId?: string,
   imageUrl?: string,
-  adjacentSegments?: { prev?: ScriptSegment; next?: ScriptSegment }
+  adjacentSegments?: { prev?: ScriptSegment; next?: ScriptSegment },
+  brainConfig?: { model: string; temperature: number; topP: number; systemPrompt: string | null }
 ): Promise<{ reply: string; updatedStoryboard?: ScriptSegment["storyboard"] }> {
   const persona =
     PERSONALITY_PROMPTS[personality] ?? PERSONALITY_PROMPTS.creative;
@@ -664,6 +665,10 @@ async function discussSegmentWithAI(
   const result = await withTimeout(
     invokeLLM({
       runName: "director-segment-chat",
+      model: brainConfig?.model,
+      temperature: brainConfig?.temperature,
+      topP: brainConfig?.topP,
+      systemPrompt: brainConfig?.systemPrompt,
       messages: [
         {
           role: "system",
@@ -1723,7 +1728,8 @@ export const directorRouter = router({
           .optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      const director = ctx.brain.getBrain("director");
       const adjacentSegments = {
         prev: input.prevSegment
           ? ({
@@ -1750,7 +1756,13 @@ export const directorRouter = router({
         input.personality,
         input.quickActionId,
         input.imageUrl,
-        adjacentSegments
+        adjacentSegments,
+        {
+          model: director.model,
+          temperature: director.temperature,
+          topP: director.topP,
+          systemPrompt: director.systemPrompt,
+        }
       );
       return result;
     }),
