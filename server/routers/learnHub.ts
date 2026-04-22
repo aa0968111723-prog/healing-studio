@@ -21,6 +21,8 @@ import {
   router,
 } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
+import { FAL_MODEL_CATALOG } from "../services/falModels";
+import { LEGACY_FAL_ALIAS_MAP } from "../../shared/engineModelIds";
 
 // ─── 靜態種子文件資料 ─────────────────────────────────────────────────────────
 
@@ -8876,6 +8878,202 @@ const checkTimeouts = async () => {
     authorName: "Healing Studio Team",
   },
 
+  {
+    id: "mg-999",
+    category: "model-guide",
+    title: "生成模型總覽：圖片 / 影片 / 音訊 / 語音完整學習地圖",
+    summary:
+      "整理 Healing Studio 目前可用的生成模型、適用場景、建議參數與跨工作室串接方式，作為單一查閱入口。",
+    content: `# 生成模型總覽（2026 Q2）
+
+> 本文目標：把平台所有常用生成模型資訊集中到「學習文件中心」中，作為團隊訓練與新人上手的統一入口。
+
+## 1) 圖片生成模型（Image Studio）
+
+### 文生圖（T2I）
+- Nano Banana 2 / Pro
+- Seedream v4
+- Imagen 4
+
+**建議用法**
+1. 先用入門模型快速找構圖（如 Nano Banana）
+2. 再用高品質模型做最終輸出（如 Imagen 4）
+3. 需要系列圖時，搭配一致性保險庫（角色/場景）
+
+### 圖片編輯（Image Edit）
+- GPT Image 1.5
+- Flux Kontext
+- Grok Edit
+- Seedream v4.5 / v5 Edit
+
+**建議用法**
+- 小改動（背景替換、物件增刪）：先選編輯型模型
+- 風格重塑（寫實→插畫）：先做低強度版本再迭代
+
+### 畫質優化 / 控制 / 3D
+- SeedVR Upscale（超分）
+- DWPose + SD 3.5 + ControlNet（姿態/條件控制）
+- Trellis 2 / SAM 3D / HunYuan3D v3 / Rodin / HunYuan World（3D）
+
+---
+
+## 2) 影片生成模型（Video Studio）
+
+### 文生影（T2V）
+- Kling 2.1
+- Wan 2.1（480p / 720p）
+- MiniMax
+- Veo 3
+- LTX
+- Sora
+
+### 圖生影（I2V）
+- Kling 2.1 I2V
+- Wan 2.1 I2V
+- Runway Gen4 Turbo
+- PixVerse 4.5
+- MiniMax I2V
+
+### 影生影（V2V）/ 後期
+- Wan 2.1 V2V
+- Kling 1.6 V2V
+- LTX I2V
+- ByteDance Video Upscaler
+- RIFE v4.6
+- Topaz Video Enhance
+
+### 進階控制
+- CamMaster（鏡頭運動）
+- AnimateDiff（動態風格）
+- DepthCrafter（深度驅動）
+- Vidu Q1 Reference（參考一致性）
+
+---
+
+## 3) 音訊 / 語音生成模型（Pro Studio）
+
+### 音樂與音效
+- Sonauto（文字生音樂）
+- ElevenLabs 音效模型
+
+### TTS / Clone / Dubbing / ASR
+- ElevenLabs TTS（多語）
+- Qwen TTS / Qwen Clone
+- Dia TTS（聲音延展）
+- ElevenLabs Dubbing（影片配音）
+- WhisperX（語音轉文字）
+
+**建議流程**
+1. 先用 WhisperX 產出字幕草稿
+2. 用 Dubbing/TTS 產出目標語言語音
+3. 最後用音訊分離與混音微調
+
+---
+
+## 4) 跨工作室學習路線（推薦）
+
+1. **Image Studio** 產角色主視覺  
+2. **Video Studio** 做 I2V 動畫化  
+3. **Pro Studio** 製作配樂、旁白與配音  
+4. **History + Assets + Vault** 做版本管理與一致性維護
+
+---
+
+## 5) 測試資料如何對應到學習（Testing → Learning）
+
+為了讓「學習文件」與「測試驗證」一致，建議以下對照：
+
+- 路由健康檢查：\`backend-routes-health.test.ts\`
+- 模型 fallback / key 驗證：\`llm-fallback.test.ts\`、\`api-keys-validation.test.ts\`
+- 內容流程：\`voice-compiler.test.ts\`、\`video-compiler.test.ts\`
+- 學習中心功能：\`phase6-pdf-compliance.test.ts\`、\`phase11-custom-blocks.test.ts\`
+
+**實務規範**
+- 每次新增模型時，至少補 1 份「模型說明文件」與 1 組對應測試
+- 測試命名需可反推學習章節，避免知識與實作脫節
+- 文件更新日期需與模型上線日期同步
+
+---
+
+## 6) 快速檢核清單（上線前）
+
+- [ ] 是否已在 Learn Hub 補充模型用途與限制？
+- [ ] 是否有對應範例 Prompt 與建議參數？
+- [ ] 是否已補上 API / Router 測試案例？
+- [ ] 是否提供錯誤排查（超時、配額、格式）章節？
+
+完成以上四項，即可把新模型納入平台正式學習路徑。
+`,
+    tags: ["生成模型", "模型地圖", "Image Studio", "Video Studio", "Pro Studio"],
+    difficulty: "intermediate",
+    readingMinutes: 12,
+    publishedAt: "2026-04-22T00:00:00Z",
+    updatedAt: "2026-04-22T00:00:00Z",
+    featured: true,
+    authorName: "Healing Studio Team",
+  },
+
+  {
+    id: "wf-999",
+    category: "workflow",
+    title: "學習測驗資料總整：題庫設計、難度分層與維護流程",
+    summary:
+      "把學習測驗區的題庫資料、出題邏輯與維護方法集中在文件中心，便於教學與測試同步迭代。",
+    content: `# 學習測驗資料總整（Learn Hub Quiz）
+
+## 目標
+
+將「學習測驗區」的資料結構、題型規劃、維運規範寫入文件中心，讓內容團隊與工程團隊使用同一份規格。
+
+## 題庫資料結構重點
+
+每份測驗建議至少包含：
+- 標題、摘要、分類、難度
+- 題目陣列（question / options / answerIndex / explanation）
+- 標籤（便於搜尋與推薦）
+- 發佈時間與更新時間
+
+## 難度分層建議
+
+- **beginner**：概念辨識、基礎功能導覽
+- **intermediate**：模型選擇、參數判讀、工作流判斷
+- **advanced**：異常排查、成本優化、跨模態整合
+
+## 與學習文章的連動
+
+建議每篇模型教學文章都對應至少 3-5 題測驗：
+1. 一題概念理解
+2. 一題情境判斷
+3. 一題實作參數選擇
+
+若是進階文章，可再加：
+4. 錯誤排查題
+5. 成本/速度取捨題
+
+## 維護流程（每週）
+
+1. 檢查新增/下線模型
+2. 更新對應學習文件
+3. 調整題庫與答案解析
+4. 用測試檔驗證 API 與資料格式
+5. 在 Learn Hub 發佈版本更新說明
+
+## 品質門檻
+
+- 題目文字清楚，不使用模糊敘述
+- 解析必須說明「為何正確」與「為何其他選項錯誤」
+- 難度標籤需符合實際作答門檻
+- 同主題重複題比例低於 20%
+`,
+    tags: ["學習測驗", "題庫", "資料治理", "教學流程"],
+    difficulty: "intermediate",
+    readingMinutes: 7,
+    publishedAt: "2026-04-22T00:00:00Z",
+    updatedAt: "2026-04-22T00:00:00Z",
+    featured: false,
+    authorName: "Healing Studio Team",
+  },
+
 ];
 
 // ─── In-memory store（後端無 DB 表時使用） ────────────────────────────────
@@ -10868,6 +11066,276 @@ const SEED_QUIZZES: LearnQuiz[] = [
 ];
 
 let quizzes: LearnQuiz[] = [...SEED_QUIZZES];
+
+function upsertSeedDoc(nextDoc: LearnDoc): void {
+  const idx = docs.findIndex(d => d.id === nextDoc.id);
+  if (idx === -1) {
+    docs.unshift(nextDoc);
+    return;
+  }
+  docs[idx] = nextDoc;
+}
+
+function buildModelCoverageDoc(): LearnDoc {
+  const categories = Object.entries(FAL_MODEL_CATALOG);
+  const categoryLines = categories
+    .map(([category, models]) => {
+      const uniqueModels = new Set(models.map(m => m.modelId));
+      const tierCount = models.reduce(
+        (acc, m) => {
+          acc[m.tier] += 1;
+          return acc;
+        },
+        { premium: 0, standard: 0, fast: 0 } as Record<
+          "premium" | "standard" | "fast",
+          number
+        >
+      );
+
+      return `- **${category}**：${uniqueModels.size} 個 unique modelId（設定 ${models.length} 筆，premium ${tierCount.premium} / standard ${tierCount.standard} / fast ${tierCount.fast}）`;
+    })
+    .join("\n");
+
+  const allModelIds = new Set(
+    categories.flatMap(([, models]) => models.map(m => m.modelId))
+  );
+  const legacyAliasCount = Object.keys(LEGACY_FAL_ALIAS_MAP).length;
+  const sampleModelIds = Array.from(allModelIds).slice(0, 40).join("\n");
+
+  const content = `# 生成模型全量資料盤點（自動彙整）
+
+> 更新時間：${new Date().toISOString()}
+> 
+> 本文件由 \`FAL_MODEL_CATALOG\` 與 \`LEGACY_FAL_ALIAS_MAP\` 自動整理，確保學習文件中心可直接看到目前程式碼中的生成模型覆蓋狀況。
+
+## 一、模型覆蓋統計（按 16 類能力）
+
+${categoryLines}
+
+---
+
+## 二、全站模型 ID 覆蓋
+
+- **unique modelId 總數**：${allModelIds.size}
+- **legacy alias 對映數**：${legacyAliasCount}
+
+### 目前 catalog 內的 modelId（前 40 筆）
+
+\`\`\`
+${sampleModelIds}
+\`\`\`
+
+---
+
+## 三、學習建議
+
+1. 新增模型時，請同步更新：
+   - \`server/services/falModels.ts\`
+   - \`shared/engineModelIds.ts\`（若有舊別名）
+   - Learn Hub 模型說明與測驗題庫
+2. 若某類別模型數 < 3，建議優先補齊，以降低單點供應商風險。
+3. 任何模型下線時，需同步更新學習文件與測驗答案解析，避免教材過期。`;
+
+  return {
+    id: "mg-999",
+    category: "model-guide",
+    title: "生成模型全量資料盤點（自動彙整）",
+    summary:
+      "以程式內 FAL_MODEL_CATALOG 與 legacy alias map 自動生成的模型覆蓋報告，集中展示所有生成模型資料。",
+    content,
+    tags: ["生成模型", "catalog", "自動彙整", "Learn Hub"],
+    difficulty: "advanced",
+    readingMinutes: 10,
+    publishedAt: "2026-04-22T00:00:00Z",
+    updatedAt: new Date().toISOString(),
+    featured: true,
+    authorName: "Healing Studio System",
+  };
+}
+
+function buildQuizCoverageDoc(): LearnDoc {
+  const categoryCounts = quizzes.reduce<Record<string, number>>((acc, quiz) => {
+    acc[quiz.category] = (acc[quiz.category] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  const difficultyCounts = quizzes.reduce<
+    Record<"beginner" | "intermediate" | "advanced", number>
+  >(
+    (acc, quiz) => {
+      acc[quiz.difficulty] += 1;
+      return acc;
+    },
+    { beginner: 0, intermediate: 0, advanced: 0 }
+  );
+
+  const totalQuestions = quizzes.reduce(
+    (sum, quiz) => sum + quiz.questions.length,
+    0
+  );
+
+  const categoryLines = Object.entries(categoryCounts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([category, count]) => `- ${category}: ${count} 份測驗`)
+    .join("\n");
+
+  const topQuizzes = [...quizzes]
+    .sort((a, b) => b.questions.length - a.questions.length)
+    .slice(0, 10)
+    .map(
+      q =>
+        `- ${q.title}（${q.category} / ${q.difficulty} / ${q.questions.length} 題）`
+    )
+    .join("\n");
+
+  const content = `# 學習測驗資料盤點（自動彙整）
+
+> 更新時間：${new Date().toISOString()}
+> 
+> 本文件會根據目前 \`SEED_QUIZZES\` 自動整理題庫結構，確保「測試內資料」可直接在學習文件中心檢閱。
+
+## 一、題庫總量
+
+- 測驗份數：**${quizzes.length}**
+- 題目總數：**${totalQuestions}**
+- 難度分佈：beginner ${difficultyCounts.beginner} / intermediate ${difficultyCounts.intermediate} / advanced ${difficultyCounts.advanced}
+
+## 二、分類分佈
+
+${categoryLines}
+
+## 三、題量較高的測驗（前 10 份）
+
+${topQuizzes}
+
+## 四、維運規範
+
+1. 每新增模型教學，至少新增 1 份對應測驗（3-5 題）。
+2. 每次模型或流程改版，需同步更新題目 explanation。
+3. 難度標籤若失衡（任一級別 < 20%）請補題。`;
+
+  return {
+    id: "wf-999",
+    category: "workflow",
+    title: "學習測驗資料盤點（自動彙整）",
+    summary:
+      "從現有測驗資料自動統計份數、題量、難度與分類分佈，將測試資料集中到學習文件中心。",
+    content,
+    tags: ["學習測驗", "題庫盤點", "自動彙整", "Learning QA"],
+    difficulty: "intermediate",
+    readingMinutes: 8,
+    publishedAt: "2026-04-22T00:00:00Z",
+    updatedAt: new Date().toISOString(),
+    featured: true,
+    authorName: "Healing Studio System",
+  };
+}
+
+const AUTOMATION_MAINTENANCE_TOOLS = [
+  {
+    area: "健康監控",
+    tool: "apiHealthMonitor",
+    file: "server/jobs/apiHealthMonitor.ts",
+    purpose: "定期檢查外部服務可用性與延遲，提前預警故障。",
+  },
+  {
+    area: "熔斷保護",
+    tool: "circuitBreaker",
+    file: "server/jobs/circuitBreaker.ts",
+    purpose: "連續失敗時暫停高風險呼叫，避免擴散式錯誤。",
+  },
+  {
+    area: "成本治理",
+    tool: "apiUsageAlertJob",
+    file: "server/jobs/apiUsageAlertJob.ts",
+    purpose: "監控 API 成本和配額異常，發送告警。",
+  },
+  {
+    area: "資料備援",
+    tool: "r2SnapshotJob",
+    file: "server/jobs/r2SnapshotJob.ts",
+    purpose: "定時快照雲端素材與關鍵資料，降低資料遺失風險。",
+  },
+  {
+    area: "知識同步",
+    tool: "learnDocSyncer",
+    file: "server/jobs/learnDocSyncer.ts",
+    purpose: "自動彙整新聞與教學內容，更新學習文件中心。",
+  },
+  {
+    area: "資訊更新",
+    tool: "newsFetcher",
+    file: "server/jobs/newsFetcher.ts",
+    purpose: "抓取並整理最新 AI 新聞，保持內容時效。",
+  },
+  {
+    area: "模型訓練",
+    tool: "modelTrainingWorker",
+    file: "server/jobs/modelTrainingWorker.ts",
+    purpose: "處理 LoRA 等訓練任務隊列與狀態更新。",
+  },
+  {
+    area: "外部抓取",
+    tool: "braveLearnFetcher",
+    file: "server/jobs/braveLearnFetcher.ts",
+    purpose: "擴充外部知識來源，補強學習文件內容。",
+  },
+] as const;
+
+function buildAutomationMaintenanceDoc(): LearnDoc {
+  const rows = AUTOMATION_MAINTENANCE_TOOLS.map(
+    t => `| ${t.area} | ${t.tool} | ${t.file} | ${t.purpose} |`
+  ).join("\n");
+
+  const content = `# 全站自動化維護工具總覽（Automation Ops）
+
+> 更新時間：${new Date().toISOString()}
+>
+> 目標：建立全站維運自動化工具的單一索引，讓團隊能快速查到「哪個工具在維護哪個環節」。
+
+## 一、工具矩陣
+
+| 維護面向 | 工具 | 對應檔案 | 主要用途 |
+|---|---|---|---|
+${rows}
+
+## 二、建議維運節奏
+
+1. 每日檢查：健康監控、熔斷狀態、成本告警。
+2. 每週檢查：知識同步結果、新聞來源品質、題庫更新。
+3. 每月檢查：快照完整性、訓練任務成功率、告警閾值調校。
+
+## 三、新增工具時的標準流程
+
+1. 在 \`server/jobs/\` 新增工具模組與最小可觀測日誌。
+2. 補上對應測試（至少一個健康路徑 + 一個失敗路徑）。
+3. 把工具加入本文件矩陣，確保學習中心可追蹤。
+4. 若工具會影響成本，需同步新增成本告警規則。`;
+
+  return {
+    id: "api-999",
+    category: "api-docs",
+    title: "全站自動化維護工具總覽（Automation Ops）",
+    summary:
+      "集中整理全站健康監控、熔斷、成本治理、備援、知識同步與訓練等自動化維護工具。",
+    content,
+    tags: ["automation", "維運", "ops", "job-scheduler"],
+    difficulty: "intermediate",
+    readingMinutes: 8,
+    publishedAt: "2026-04-22T00:00:00Z",
+    updatedAt: new Date().toISOString(),
+    featured: true,
+    authorName: "Healing Studio System",
+  };
+}
+
+function syncAutoGeneratedLearnDocs(): void {
+  upsertSeedDoc(buildModelCoverageDoc());
+  upsertSeedDoc(buildQuizCoverageDoc());
+  upsertSeedDoc(buildAutomationMaintenanceDoc());
+}
+
+syncAutoGeneratedLearnDocs();
 
 // ─── Router ──────────────────────────────────────────────────────────────────
 
