@@ -135,6 +135,14 @@ interface SlotCatalog {
   targetPath?: string;
 }
 
+type TextareaChangeEvent = React.ChangeEvent<HTMLTextAreaElement>;
+
+function withTextareaValue(handler?: (value: string) => void) {
+  return (e: TextareaChangeEvent) => {
+    handler?.(e.target.value);
+  };
+}
+
 type HealthStatus = Record<
   string,
   { healthy: boolean; consecutiveFailures: number; lastError?: string }
@@ -634,9 +642,7 @@ function BrainSlotCard({
               </Label>
               <Textarea
                 value={systemPrompt || ""}
-                onChange={(e: ChangeEvent<HTMLTextAreaElement>) =>
-                  onSystemPromptChange(e.target.value)
-                }
+                onChange={withTextareaValue(onSystemPromptChange)}
                 placeholder="為此推理大腦設定自訂的系統提示詞，留空則使用預設值"
                 className="min-h-[80px] text-xs bg-white/40 dark:bg-white/5 resize-none"
               />
@@ -758,9 +764,7 @@ function EngineSlotCard({
               </Label>
               <Textarea
                 value={engineParams || ""}
-                onChange={(e: ChangeEvent<HTMLTextAreaElement>) =>
-                  onEngineParamsChange(e.target.value)
-                }
+                onChange={withTextareaValue(onEngineParamsChange)}
                 placeholder={'例如：{"num_images": 4, "guidance_scale": 7.5}'}
                 className="min-h-[80px] text-xs bg-white/40 dark:bg-white/5 resize-none font-mono"
               />

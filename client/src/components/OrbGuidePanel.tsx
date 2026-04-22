@@ -18,12 +18,13 @@ import { useOrbGuide, INTENT_CONFIGS, type GuideIntent } from "@/contexts/OrbGui
 import VisualSoul from "./VisualSoul";
 import { useAIState } from "@/contexts/AIStateContext";
 import { usePersonality } from "@/contexts/PersonalityContext";
+import { usePageAgent, type AgentAction } from "@/contexts/PageAgentContext";
 import { trpc } from "@/lib/trpc";
 import type { OrbGuideStepRewrite } from "../../../shared/agent-actions";
 import { summarizeOrbGuideActions } from "../../../shared/orb-guide-plans";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/useMobile";
-import { useGlobalOrbChat, formatRelativeTime, getPageEmoji, formatMessageMetadata } from "@/contexts/GlobalOrbChatContext";
+import { useGlobalOrbChat, formatRelativeTime, getPageEmoji, formatMessageMetadata, getPageLabelByPath } from "@/contexts/GlobalOrbChatContext";
 
 // ─── Typewriter hook ──────────────────────────────────────────────────────────
 
@@ -125,6 +126,136 @@ function OrbSpeechBubble({ text, small = false }: { text: string; small?: boolea
   );
 }
 
+interface VisualMessageItem {
+  title: string;
+  description: string;
+}
+
+function parseVisualMessage(text: string): { intro: string | null; items: VisualMessageItem[] } {
+  const rawLines = text.split("\n").map(l => l.trim()).filter(Boolean);
+  const itemRegex = /^\d+\.\s*(?:\*\*)?([^:*：]+?)(?:\*\*)?\s*[:：]\s*(.+)$/;
+  const bulletRegex = /^[-•]\s*(?:\*\*)?([^:*：]+?)(?:\*\*)?\s*[:：]\s*(.+)$/;
+  const items: VisualMessageItem[] = [];
+  let intro: string | null = null;
+
+  for (const line of rawLines) {
+    const normalized = line
+      .replace(/\*\*/g, "")
+      .replace(/\[(.*?)\]\(.*?\)/g, "$1");
+    const match = itemRegex.exec(normalized);
+    const bulletMatch = bulletRegex.exec(normalized);
+    if (match || bulletMatch) {
+      const target = match ?? bulletMatch;
+      if (!target) continue;
+      items.push({
+        title: target[1].trim(),
+        description: target[2].trim(),
+      });
+      continue;
+    }
+    if (!intro) {
+      intro = normalized;
+    }
+  }
+
+  return { intro, items };
+}
+
+function OrbMessageContent({ text, compact = false }: { text: string; compact?: boolean }) {
+  const [showFullText, setShowFullText] = useState(false);
+  const { intro, items } = parseVisualMessage(text);
+  const hasVisualCards = items.length >= 2;
+  const isLongText = text.length > 220;
+
+  if (hasVisualCards) {
+    return (
+      <div className="space-y-2">
+        <p className={cn("text-white/85 leading-relaxed", compact ? "text-xs" : "text-sm")}>
+          {intro ?? "我幫你整理成重點卡片："}
+        </p>
+        <div className="space-y-1.5">
+          {items.slice(0, 4).map((item, idx) => (
+            <div
+              key={`${item.title}-${idx}`}
+              className="rounded-xl border border-white/10 bg-white/5 px-2.5 py-2"
+            >
+              <p className={cn("font-medium text-white/90", compact ? "text-[11px]" : "text-xs")}>
+                {idx + 1}. {item.title}
+              </p>
+              <p className={cn("text-white/65 mt-0.5 line-clamp-2", compact ? "text-[10px]" : "text-[11px]")}>
+                {item.description}
+              </p>
+            </div>
+          ))}
+        </div>
+        {isLongText && (
+          <button
+            onClick={() => setShowFullText(v => !v)}
+            className={cn(
+              "text-white/55 hover:text-white/85 underline-offset-2 hover:underline transition-colors",
+              compact ? "text-[10px]" : "text-[11px]"
+            )}
+          >
+            {showFullText ? "收起完整說明" : "查看完整說明"}
+          </button>
+        )}
+        {isLongText && showFullText && (
+          <p className={cn("text-white/70 whitespace-pre-wrap leading-relaxed", compact ? "text-[10px]" : "text-[11px]")}>
+            {text}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  if (isLongText) {
+    const preview = text.slice(0, compact ? 130 : 180).trimEnd();
+    return (
+      <div className="space-y-1.5">
+        <p className={cn("text-white/85 whitespace-pre-wrap leading-relaxed", compact ? "text-xs" : "text-sm")}>
+          {showFullText ? text : `${preview}…`}
+        </p>
+        <button
+          onClick={() => setShowFullText(v => !v)}
+          className={cn(
+            "text-white/55 hover:text-white/85 underline-offset-2 hover:underline transition-colors",
+            compact ? "text-[10px]" : "text-[11px]"
+          )}
+        >
+          {showFullText ? "收起" : "展開全文"}
+        </button>
+      </div>
+    );
+  }
+
+  return <p className="whitespace-pre-wrap">{text}</p>;
+}
+
+function actionToGuideLabel(action: AgentAction): string {
+  switch (action.type) {
+    case "navigate":
+      return `前往 ${getPageLabelByPath(action.path)}`;
+    case "setModel":
+      return `選模型：${action.modelId}`;
+    case "setTab":
+      return `切分頁：${action.tabId}`;
+    case "setMode":
+      return `切模式：${action.modeId}`;
+    case "setModality":
+      return `切類型：${action.modality}`;
+    case "fillPrompt":
+      return "填入提示詞";
+    case "setParam":
+      return `設參數：${action.key}`;
+    case "applyPreset":
+      return `套用：${action.presetId}`;
+    case "focusElement":
+      return `看這裡：${action.elementId}`;
+    default:
+      return action.type;
+  }
+}
+
 // ─── Main Panel ───────────────────────────────────────────────────────────────
 
 interface OrbGuidePanelProps {
@@ -134,6 +265,12 @@ interface OrbGuidePanelProps {
   /** Callback to open the interaction panel with a specific view */
   onOpenInteraction?: (view: "inspiration" | "focus-flow" | "chat") => void;
 }
+
+const MODEL_SHORTCUTS = [
+  { label: "全站模型總覽", prompt: "帶我去全站可用模型總覽，並告訴我怎麼開始。" },
+  { label: "圖片模型", prompt: "帶我去圖片模型頁，幫我選一個最快可用的模型。" },
+  { label: "影片模型", prompt: "帶我去影片模型頁，幫我選一個高品質模型。" },
+];
 
 export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onOpenInteraction }: OrbGuidePanelProps) {
   const isMobile = useIsMobile();
@@ -151,6 +288,7 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
   } = useOrbGuide();
   const { aiState } = useAIState();
   const { personality } = usePersonality();
+  const pageAgent = usePageAgent();
 
   // ─── Global Orb Chat Integration ──────────────────────────────────────
   const globalChat = useGlobalOrbChat();
@@ -159,6 +297,7 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
   const [panelMode, setPanelMode] = useState<"guide" | "chat">("guide");
   // Use global chat state for chat mode - keep full message objects for metadata
   const chatMessages = panelMode === "chat" ? globalChat.messages : [];
+  const chatSuggestions = panelMode === "chat" ? globalChat.suggestions : [];
   const chatInput = panelMode === "chat" ? globalChat.input : "";
   const setChatInput = panelMode === "chat" ? globalChat.setInput : () => {};
   const isChatLoading = panelMode === "chat" ? globalChat.isSending : false;
@@ -443,7 +582,9 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
                       : "bg-white/8 text-white/85 rounded-bl-sm border border-white/10"
                   )}
                 >
-                  {msg.text}
+                  {msg.role === "orb"
+                    ? <OrbMessageContent text={msg.text} compact={!fullscreen} />
+                    : <p className="whitespace-pre-wrap">{msg.text}</p>}
                 </div>
                 {msg.pagePath && msg.at && (
                   <div className={cn(
@@ -453,6 +594,62 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
                   )}>
                     <span>{getPageEmoji(msg.pagePath)}</span>
                     <span>{formatMessageMetadata(msg.pagePath, msg.at)}</span>
+                  </div>
+                )}
+                {msg.role === "orb" && msg.actions && msg.actions.length > 0 && (
+                  <div className={cn(
+                    "max-w-[88%] mt-1 rounded-xl border border-white/10 bg-white/4 px-2.5 py-2 space-y-2",
+                    "self-start"
+                  )}>
+                    <p className={cn("text-white/55", fullscreen ? "text-[11px]" : "text-[10px]")}>
+                      導覽路徑圖
+                    </p>
+                    <ol className="space-y-1.5">
+                      {msg.actions.slice(0, 4).map((action, actionIdx) => (
+                        <li key={`${action.type}-${actionIdx}`} className="flex items-start gap-1.5">
+                          <span className={cn(
+                            "w-4 h-4 rounded-full bg-white/10 border border-white/15 text-white/70 inline-flex items-center justify-center mt-0.5",
+                            "text-[9px]"
+                          )}>
+                            {actionIdx + 1}
+                          </span>
+                          <span className={cn(
+                            "px-2 py-1 rounded-md bg-white/8 border border-white/10 text-white/75 flex-1",
+                            fullscreen ? "text-[10px]" : "text-[9px]"
+                          )}>
+                            {actionToGuideLabel(action)}
+                          </span>
+                        </li>
+                      ))}
+                    </ol>
+                    <div className="flex flex-wrap gap-1.5">
+                      {msg.actions.some(a => a.type === "navigate") && (
+                        <button
+                          onClick={async () => {
+                            const nav = msg.actions?.find(a => a.type === "navigate");
+                            if (!nav || nav.type !== "navigate") return;
+                            await pageAgent.dispatch(nav, { source: "manual" });
+                          }}
+                          className={cn(
+                            "rounded-full border border-cyan-300/30 bg-cyan-300/10 text-cyan-100 hover:bg-cyan-300/20 transition-colors px-3 py-1.5",
+                            fullscreen ? "text-xs" : "text-[11px]"
+                          )}
+                        >
+                          直接帶我去
+                        </button>
+                      )}
+                      <button
+                        onClick={async () => {
+                          await pageAgent.dispatchMany(msg.actions!.slice(0, 4), { source: "manual" });
+                        }}
+                        className={cn(
+                          "rounded-full border border-white/20 bg-white/8 text-white/85 hover:bg-white/14 transition-colors px-3 py-1.5",
+                          fullscreen ? "text-xs" : "text-[11px]"
+                        )}
+                      >
+                        重新套用這組引導
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -469,6 +666,43 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
               </div>
             )}
             <div ref={chatEndRef} />
+          </div>
+          {chatSuggestions.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 shrink-0">
+              {chatSuggestions.map((suggestion, idx) => (
+                <button
+                  key={`${suggestion.text}-${idx}`}
+                  onClick={() => void globalChat.sendMessage(suggestion.text)}
+                  className={cn(
+                    "rounded-full border border-white/12 bg-white/6 hover:bg-white/12",
+                    "text-white/80 hover:text-white px-3 py-1.5 transition-all",
+                    fullscreen ? "text-xs" : "text-[11px]"
+                  )}
+                >
+                  {suggestion.text}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="shrink-0">
+            <p className={cn("text-white/40 mb-1.5", fullscreen ? "text-[11px]" : "text-[10px]")}>
+              全站模型快捷入口
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {MODEL_SHORTCUTS.map(shortcut => (
+                <button
+                  key={shortcut.label}
+                  onClick={() => void globalChat.sendMessage(shortcut.prompt)}
+                  className={cn(
+                    "rounded-full border border-white/12 bg-white/5 hover:bg-white/12",
+                    "text-white/75 hover:text-white px-3 py-1.5 transition-all",
+                    fullscreen ? "text-xs" : "text-[11px]"
+                  )}
+                >
+                  {shortcut.label}
+                </button>
+              ))}
+            </div>
           </div>
           {/* Chat input */}
           <div className={cn(
