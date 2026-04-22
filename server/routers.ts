@@ -3417,7 +3417,7 @@ export const appRouter = router({
   // ─── AI 全站光球代理（含上下文 + AI 代理人行為） ──────────────────────────────
 
   ai: router({
-    chat: protectedProcedure
+    chat: brainProcedure
       .input(
         z.object({
           messages: z.array(
@@ -3520,12 +3520,19 @@ export const appRouter = router({
           }
         );
 
+        // 從 AI 大腦取得導演配置（光球使用導演大腦）
+        const director = ctx.brain.getBrain("director");
+
         // 需求調整：光球助手 / 全站光球代理優先走 Gemini API，失敗再自動降級。
         const enginePreference = "gemini" as const;
 
         try {
           const result = await withTimeout(
             invokeLLM({
+              model: director.model,
+              temperature: director.temperature,
+              topP: director.topP,
+              systemPrompt: director.systemPrompt,
               messages: [
                 { role: "system", content: systemPrompt },
                 ...input.messages.map(m => ({
@@ -3582,7 +3589,7 @@ export const appRouter = router({
   // （accepted / edited / cancelled / completed / failed）寫進 DB，
   // 下一次 ai.chat 會把這些記憶補進 system prompt，讓 LLM 學偏好。
   orbMemory: router({
-    append: protectedProcedure
+    append: brainProcedure
       .input(
         z.object({
           status: z.enum([
