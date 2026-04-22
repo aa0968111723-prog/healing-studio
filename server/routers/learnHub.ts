@@ -6249,7 +6249,7 @@ JWT_SECRET=（至少 32 字元的隨機字串）
 
 | 變數名稱 | 服務 | 說明 |
 |----------|------|------|
-| \`FAL_KEY\` | fal.ai | 主要生成 API（圖片/影片/音訊） |
+| \`FAL_API_KEY\` | fal.ai | 主要生成 API（圖片/影片/音訊） |
 | \`GEMINI_API_KEY\` | Google Gemini | LLM + Embedding |
 | \`ELEVENLABS_API_KEY\` | ElevenLabs | TTS 語音合成（需關閉「限制鍵」） |
 | \`PINECONE_API_KEY\` | Pinecone | RAG 向量記憶 |
@@ -6258,6 +6258,7 @@ JWT_SECRET=（至少 32 字元的隨機字串）
 | \`REPLICATE_API_TOKEN\` | Replicate | 備用模型平台 |
 | \`LANGSMITH_API_KEY\` | LangSmith | LLM 追蹤分析 |
 | \`LANGSMITH_PROJECT\` | LangSmith | 固定值：\`網站\` |
+| \`PERPLEXITY_API_KEY\` | Perplexity API | 研究 / 搜尋功能（選填） |
 | \`NVIDIA_API\` | NVIDIA NIM | Orb AI 代理人（備用） |
 | \`BRAVE_SEARCH_API_KEY\` | Brave Search | Learn Hub 文章搜尋 |
 
