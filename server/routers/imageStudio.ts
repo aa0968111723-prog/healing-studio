@@ -43,6 +43,7 @@ import { TRPCError } from "@trpc/server";
 import { recordErrorTrace } from "../services/brainAutoRepair";
 import { localizeResultUrls } from "../services/internalMedia";
 import { traceToolRun } from "../services/langsmithTracer";
+import { estimatePoints } from "../services/modelPricing";
 import * as db from "../db";
 import { getDb } from "../db";
 import { generationHistory } from "../../drizzle/schema";
@@ -1363,6 +1364,7 @@ export const imageStudioRouter = router({
                   ? localized.prompt
                   : undefined,
             });
+            const estimate = estimatePoints(input.modelId);
             await db.createHistoryEntry({
               userId: ctx.user.id,
               modality: "image",
@@ -1378,7 +1380,7 @@ export const imageStudioRouter = router({
               },
               resultUrl: primaryUrl,
               thumbnailUrl: extractImageUrl(localized) || primaryUrl,
-              costCredits: 1,
+              costCredits: estimate.totalPoints,
             });
           }
         }

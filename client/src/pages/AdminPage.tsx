@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense } from "react";
+import { useState, lazy, Suspense, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -97,6 +97,19 @@ export default function AdminPage() {
   const { personality } = useAIState();
   const { user } = useAuth();
   const [quotaInputs, setQuotaInputs] = useState<Record<number, string>>({});
+  const [autoCreditAmountInputs, setAutoCreditAmountInputs] = useState<
+    Record<number, string>
+  >({});
+  const [autoCreditIntervalInputs, setAutoCreditIntervalInputs] = useState<
+    Record<number, string>
+  >({});
+  const [autoCreditEnabledInputs, setAutoCreditEnabledInputs] = useState<
+    Record<number, string>
+  >({});
+  const [userSearch, setUserSearch] = useState("");
+  const [autoCreditFilter, setAutoCreditFilter] = useState<
+    "all" | "enabled" | "disabled"
+  >("all");
   const [activeTab, setActiveTab] = useState("overview");
 
   // ── Existing queries ──
@@ -158,6 +171,24 @@ export default function AdminPage() {
     onError: e => toast.error(e.message),
   });
 
+  const updateAutoCreditPolicy = trpc.admin.updateAutoCreditPolicy.useMutation({
+    onSuccess: () => {
+      usersQuery.refetch();
+      toast.success("自動給點策略已更新");
+    },
+    onError: e => toast.error(e.message),
+  });
+
+  const runAutoCreditNow = trpc.admin.runAutoCreditNow.useMutation({
+    onSuccess: data => {
+      usersQuery.refetch();
+      toast.success(
+        `已執行自動給點：${data.processedUsers} 人，合計 ${data.totalGranted} 點`
+      );
+    },
+    onError: e => toast.error(e.message),
+  });
+
   const updateFeedbackStatus = trpc.feedback.updateStatus.useMutation({
     onSuccess: () => {
       feedbacksQuery.refetch();
@@ -179,6 +210,42 @@ export default function AdminPage() {
   }
 
   const stats = statsQuery.data;
+  const users = usersQuery.data ?? [];
+  const autoCreditSummary = useMemo(() => {
+    const enabledUsers = users.filter(u => u.autoCreditEnabled);
+    const now = Date.now();
+    const dueUsers = enabledUsers.filter(u => {
+      if (!u.autoCreditNextAt) return false;
+      return new Date(u.autoCreditNextAt).getTime() <= now;
+    });
+    const totalScheduledPerCycle = enabledUsers.reduce(
+      (sum, u) => sum + (u.autoCreditAmount ?? 0),
+      0
+    );
+    return {
+      totalUsers: users.length,
+      enabledUsers: enabledUsers.length,
+      dueUsers: dueUsers.length,
+      totalScheduledPerCycle,
+    };
+  }, [users]);
+
+  const filteredUsers = useMemo(() => {
+    const kw = userSearch.trim().toLowerCase();
+    return users.filter(u => {
+      const matchFilter =
+        autoCreditFilter === "all"
+          ? true
+          : autoCreditFilter === "enabled"
+            ? Boolean(u.autoCreditEnabled)
+            : !u.autoCreditEnabled;
+      if (!matchFilter) return false;
+      if (!kw) return true;
+      const name = (u.name ?? "").toLowerCase();
+      const email = (u.email ?? "").toLowerCase();
+      return name.includes(kw) || email.includes(kw) || String(u.id).includes(kw);
+    });
+  }, [users, userSearch, autoCreditFilter]);
 
   return (
     <div className="space-y-6">
@@ -356,6 +423,61 @@ export default function AdminPage() {
 
         {/* ═══ Tab 2: Users Management ═══ */}
         <TabsContent value="users" className="mt-4 space-y-2">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <GlassCard hover={false}>
+              <p className="text-[11px] text-muted-foreground">使用者總數</p>
+              <p className="text-base font-semibold">{autoCreditSummary.totalUsers}</p>
+            </GlassCard>
+            <GlassCard hover={false}>
+              <p className="text-[11px] text-muted-foreground">已啟用自動給點</p>
+              <p className="text-base font-semibold">{autoCreditSummary.enabledUsers}</p>
+            </GlassCard>
+            <GlassCard hover={false}>
+              <p className="text-[11px] text-muted-foreground">目前已到期</p>
+              <p className="text-base font-semibold">{autoCreditSummary.dueUsers}</p>
+            </GlassCard>
+            <GlassCard hover={false}>
+              <p className="text-[11px] text-muted-foreground">每期排程總額</p>
+              <p className="text-base font-semibold">
+                {autoCreditSummary.totalScheduledPerCycle} 點
+              </p>
+            </GlassCard>
+          </div>
+
+          <div className="flex flex-col md:flex-row gap-2 md:items-center md:justify-between">
+            <div className="flex gap-2">
+              <Input
+                value={userSearch}
+                onChange={e => setUserSearch(e.target.value)}
+                placeholder="搜尋使用者（名稱 / Email / ID）"
+                className="h-8 rounded-lg text-xs md:w-72"
+              />
+              <Select
+                value={autoCreditFilter}
+                onValueChange={v =>
+                  setAutoCreditFilter(v as "all" | "enabled" | "disabled")
+                }
+              >
+                <SelectTrigger className="h-8 rounded-lg text-xs w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部</SelectItem>
+                  <SelectItem value="enabled">僅看已啟用</SelectItem>
+                  <SelectItem value="disabled">僅看未啟用</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-lg h-8 text-xs"
+              onClick={() => runAutoCreditNow.mutate()}
+              disabled={runAutoCreditNow.isPending}
+            >
+              {runAutoCreditNow.isPending ? "執行中..." : "立即執行自動給點"}
+            </Button>
+          </div>
           {usersQuery.isLoading ? (
             <div className="space-y-2">
               {[1, 2, 3].map(i => (
@@ -364,8 +486,12 @@ export default function AdminPage() {
                 </GlassCard>
               ))}
             </div>
+          ) : filteredUsers.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8 text-sm">
+              查無符合條件的使用者
+            </p>
           ) : (
-            usersQuery.data?.map(u => (
+            filteredUsers.map(u => (
               <motion.div
                 key={u.id}
                 initial={{ opacity: 0 }}
@@ -390,6 +516,19 @@ export default function AdminPage() {
                         註冊:{" "}
                         {new Date(u.createdAt).toLocaleDateString("zh-TW")}
                       </p>
+                      <div className="mt-1.5 flex gap-1">
+                        <Badge
+                          variant={u.autoCreditEnabled ? "default" : "outline"}
+                          className="text-[10px] rounded-md"
+                        >
+                          {u.autoCreditEnabled ? "自動給點啟用中" : "自動給點關閉"}
+                        </Badge>
+                        {u.autoCreditEnabled && u.autoCreditAmount > 0 ? (
+                          <Badge variant="secondary" className="text-[10px] rounded-md">
+                            每 {u.autoCreditIntervalDays} 天 +{u.autoCreditAmount} 點
+                          </Badge>
+                        ) : null}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       {/* Role Toggle */}
@@ -437,6 +576,121 @@ export default function AdminPage() {
                       </Button>
                     </div>
                   </div>
+                  <div className="mt-3 grid grid-cols-1 md:grid-cols-4 gap-2">
+                    <Select
+                      value={
+                        autoCreditEnabledInputs[u.id] ??
+                        (u.autoCreditEnabled ? "on" : "off")
+                      }
+                      onValueChange={v =>
+                        setAutoCreditEnabledInputs(prev => ({
+                          ...prev,
+                          [u.id]: v,
+                        }))
+                      }
+                    >
+                      <SelectTrigger className="h-8 rounded-lg text-xs">
+                        <SelectValue placeholder="自動給點" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="off">自動給點：關閉</SelectItem>
+                        <SelectItem value="on">自動給點：啟用</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="number"
+                      min={0}
+                      placeholder={`每期點數 (${u.autoCreditAmount ?? 0})`}
+                      value={autoCreditAmountInputs[u.id] ?? ""}
+                      onChange={e =>
+                        setAutoCreditAmountInputs(prev => ({
+                          ...prev,
+                          [u.id]: e.target.value,
+                        }))
+                      }
+                      className="h-8 rounded-lg text-xs"
+                    />
+                    <Input
+                      type="number"
+                      min={1}
+                      placeholder={`週期天數 (${u.autoCreditIntervalDays ?? 7})`}
+                      value={autoCreditIntervalInputs[u.id] ?? ""}
+                      onChange={e =>
+                        setAutoCreditIntervalInputs(prev => ({
+                          ...prev,
+                          [u.id]: e.target.value,
+                        }))
+                      }
+                      className="h-8 rounded-lg text-xs"
+                    />
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="rounded-lg h-8 text-xs"
+                      disabled={updateAutoCreditPolicy.isPending}
+                      onClick={() => {
+                        const enabled =
+                          (autoCreditEnabledInputs[u.id] ??
+                            (u.autoCreditEnabled ? "on" : "off")) === "on";
+                        const amount = Number.parseInt(
+                          autoCreditAmountInputs[u.id] ??
+                            String(u.autoCreditAmount ?? 0),
+                          10
+                        );
+                        const intervalDays = Number.parseInt(
+                          autoCreditIntervalInputs[u.id] ??
+                            String(u.autoCreditIntervalDays ?? 7),
+                          10
+                        );
+                        if (!Number.isFinite(amount) || amount < 0) {
+                          toast.error("每期點數需為 0 或正整數");
+                          return;
+                        }
+                        if (!Number.isFinite(intervalDays) || intervalDays < 1) {
+                          toast.error("週期天數需為 1 以上整數");
+                          return;
+                        }
+                        if (enabled && amount === 0) {
+                          toast.error("啟用自動給點時，每期點數不可為 0");
+                          return;
+                        }
+                        updateAutoCreditPolicy.mutate({
+                          userId: u.id,
+                          enabled,
+                          amount,
+                          intervalDays,
+                        });
+                      }}
+                    >
+                      儲存自動給點
+                    </Button>
+                  </div>
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    下次自動給點：
+                    {u.autoCreditNextAt
+                      ? new Date(u.autoCreditNextAt).toLocaleString("zh-TW")
+                      : "未設定"}
+                    {u.autoCreditEnabled &&
+                    u.autoCreditNextAt &&
+                    new Date(u.autoCreditNextAt).getTime() <= Date.now()
+                      ? "（已到期待發放）"
+                      : ""}
+                    {" · "}上次發放：
+                    {u.autoCreditLastAt
+                      ? new Date(u.autoCreditLastAt).toLocaleString("zh-TW")
+                      : "尚未發放"}
+                    {u.autoCreditEnabled && u.autoCreditNextAt
+                      ? (() => {
+                          const diffMs =
+                            new Date(u.autoCreditNextAt).getTime() - Date.now();
+                          if (diffMs <= 0) return " · 目前可發放";
+                          const diffDays = Math.ceil(
+                            diffMs / (24 * 60 * 60 * 1000)
+                          );
+                          return ` · 約 ${diffDays} 天後發放`;
+                        })()
+                      : ""}
+                  </p>
                 </GlassCard>
               </motion.div>
             ))

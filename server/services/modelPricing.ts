@@ -2139,57 +2139,71 @@ export function estimatePoints(
     };
   }
 
+  const asPositiveNumber = (value: number | undefined): number => {
+    if (typeof value !== "number" || !Number.isFinite(value)) return 0;
+    return value > 0 ? value : 0;
+  };
+
   let total = pricing.basePoints;
   const multipliers: Record<string, number> = {};
   const breakdownParts: string[] = [`基礎 ${pricing.basePoints} pts`];
 
   // 時長計費（影片/音頻）
-  if (params.durationSec && pricing.pointsPerSecond) {
-    const extra = Math.round(params.durationSec * pricing.pointsPerSecond);
-    if (extra > pricing.basePoints) {
-      const diff = extra - pricing.basePoints;
-      total = extra;
-      multipliers.duration = params.durationSec;
+  const durationSec = asPositiveNumber(params.durationSec);
+  if (durationSec > 0 && pricing.pointsPerSecond) {
+    const extra = Math.round(durationSec * pricing.pointsPerSecond);
+    if (extra > 0) {
+      total += extra;
+      multipliers.duration = durationSec;
       breakdownParts.push(
-        `時長 ${params.durationSec}s × ${pricing.pointsPerSecond} pts/s = ${extra} pts`
+        `時長加收 ${durationSec}s × ${pricing.pointsPerSecond} pts/s = +${extra} pts`
       );
     }
   }
 
   // 字符數計費（TTS/LLM）
-  if (params.charCount && pricing.pointsPer1kChars) {
-    const charPoints = Math.ceil(
-      (params.charCount / 1000) * pricing.pointsPer1kChars
-    );
-    total = Math.max(total, charPoints);
-    multipliers.charCount = params.charCount;
+  const charCount = asPositiveNumber(params.charCount);
+  if (charCount > 0 && pricing.pointsPer1kChars) {
+    const charPoints = Math.ceil((charCount / 1000) * pricing.pointsPer1kChars);
+    total += charPoints;
+    multipliers.charCount = charCount;
     breakdownParts.push(
-      `${params.charCount} 字符 × ${pricing.pointsPer1kChars} pts/1k = ${charPoints} pts`
+      `字符加收 ${charCount} 字符 × ${pricing.pointsPer1kChars} pts/1k = +${charPoints} pts`
     );
   }
 
   // 批次圖片計費
-  if (params.imageCount && params.imageCount > 1 && pricing.pointsPerImage) {
-    const imgExtra = pricing.pointsPerImage * (params.imageCount - 1);
+  const imageCount = asPositiveNumber(params.imageCount);
+  if (imageCount > 1 && pricing.pointsPerImage) {
+    const imgExtra = pricing.pointsPerImage * (imageCount - 1);
     total += imgExtra;
-    multipliers.imageCount = params.imageCount;
+    multipliers.imageCount = imageCount;
     breakdownParts.push(
-      `額外 ${params.imageCount - 1} 張 × ${pricing.pointsPerImage} pts = ${imgExtra} pts`
+      `批次加收 額外 ${imageCount - 1} 張 × ${pricing.pointsPerImage} pts = +${imgExtra} pts`
     );
   }
 
   // 訓練步驟計費
-  if (params.trainingSteps && pricing.pointsPerStep) {
-    const stepPoints = Math.round(params.trainingSteps * pricing.pointsPerStep);
+  const trainingSteps = asPositiveNumber(params.trainingSteps);
+  if (trainingSteps > 0 && pricing.pointsPerStep) {
+    const stepPoints = Math.round(trainingSteps * pricing.pointsPerStep);
     total += stepPoints;
-    multipliers.trainingSteps = params.trainingSteps;
+    multipliers.trainingSteps = trainingSteps;
     breakdownParts.push(
-      `${params.trainingSteps} 步驟 × ${pricing.pointsPerStep} pts/步 = ${stepPoints} pts`
+      `步驟加收 ${trainingSteps} 步驟 × ${pricing.pointsPerStep} pts/步 = +${stepPoints} pts`
     );
   }
 
   // 套用上下限
-  total = Math.max(pricing.minPoints, Math.min(pricing.maxPoints, total));
+  const unclampedTotal = total;
+  total = Math.max(pricing.minPoints, Math.min(pricing.maxPoints, unclampedTotal));
+  if (total !== unclampedTotal) {
+    if (total === pricing.maxPoints) {
+      breakdownParts.push(`封頂上限 ${pricing.maxPoints} pts`);
+    } else if (total === pricing.minPoints) {
+      breakdownParts.push(`補足最低 ${pricing.minPoints} pts`);
+    }
+  }
 
   return {
     modelId,

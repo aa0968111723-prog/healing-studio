@@ -1466,7 +1466,7 @@ export const appRouter = router({
               },
               resultUrl: resultUrl || undefined,
               thumbnailUrl: resultUrl || undefined,
-              costCredits: 1,
+              costCredits: _genEstimate.totalPoints,
             });
 
             // Update job
@@ -3857,6 +3857,32 @@ export const appRouter = router({
         await db.updateUserQuota(input.userId, input.amount);
         return { success: true };
       }),
+
+    updateAutoCreditPolicy: adminProcedure
+      .input(
+        z.object({
+          userId: z.number(),
+          enabled: z.boolean(),
+          amount: z.number().int().min(0).max(100000),
+          intervalDays: z.number().int().min(1).max(365),
+          nextAt: z.coerce.date().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        await db.updateUserAutoCreditPolicy({
+          userId: input.userId,
+          enabled: input.enabled,
+          amount: input.amount,
+          intervalDays: input.intervalDays,
+          nextAt: input.nextAt,
+        });
+        return { success: true };
+      }),
+
+    runAutoCreditNow: adminProcedure.mutation(async () => {
+      const result = await db.runDueAutoCreditGrant(500);
+      return { success: true, ...result };
+    }),
 
     usageLogs: adminProcedure
       .input(z.object({ limit: z.number().default(100) }))

@@ -190,6 +190,94 @@ export async function updateUserQuota(userId: number, amount: number) {
     .where(eq(users.id, userId));
 }
 
+export async function updateUserAutoCreditPolicy(input: {
+  userId: number;
+  enabled: boolean;
+  amount: number;
+  intervalDays: number;
+  nextAt?: Date | null;
+}) {
+  const db = await getDb();
+  if (!db) return;
+
+  const intervalDays = Math.max(1, Math.floor(input.intervalDays || 1));
+  const now = Date.now();
+  const defaultNextAt = new Date(now + intervalDays * 24 * 60 * 60 * 1000);
+  const nextAt =
+    input.enabled && input.amount > 0
+      ? (input.nextAt ?? defaultNextAt)
+      : null;
+
+  await db
+    .update(users)
+    .set({
+      autoCreditEnabled: input.enabled,
+      autoCreditAmount: input.amount,
+      autoCreditIntervalDays: intervalDays,
+      autoCreditNextAt: nextAt,
+      ...(input.enabled ? {} : { autoCreditLastAt: null }),
+    })
+    .where(eq(users.id, input.userId));
+}
+
+export async function runDueAutoCreditGrant(limit = 200): Promise<{
+  processedUsers: number;
+  totalGranted: number;
+}> {
+  const db = await getDb();
+  if (!db) return { processedUsers: 0, totalGranted: 0 };
+
+  return db.transaction(async tx => {
+    const lockedRows = (await tx.execute(sql`
+      SELECT id, autoCreditAmount, autoCreditIntervalDays, autoCreditNextAt
+      FROM users
+      WHERE autoCreditEnabled = 1
+        AND autoCreditAmount > 0
+        AND autoCreditNextAt IS NOT NULL
+        AND autoCreditNextAt <= NOW()
+      ORDER BY autoCreditNextAt ASC
+      LIMIT ${limit}
+      FOR UPDATE
+    `)) as any[];
+
+    const rows = Array.isArray(lockedRows?.[0]) ? lockedRows[0] : lockedRows;
+    if (!rows?.length) return { processedUsers: 0, totalGranted: 0 };
+
+    const now = Date.now();
+    let processedUsers = 0;
+    let totalGranted = 0;
+    for (const row of rows) {
+      const userId = Number(row.id);
+      const amount = Math.max(0, Number(row.autoCreditAmount ?? 0));
+      const intervalDays = Math.max(1, Number(row.autoCreditIntervalDays ?? 7));
+      if (amount <= 0) continue;
+      processedUsers += 1;
+
+      const intervalMs = intervalDays * 24 * 60 * 60 * 1000;
+      const lastScheduledTs = row.autoCreditNextAt
+        ? new Date(row.autoCreditNextAt).getTime()
+        : now;
+      let nextTs = lastScheduledTs + intervalMs;
+      while (nextTs <= now) {
+        nextTs += intervalMs;
+      }
+      const nextAt = new Date(nextTs);
+
+      await tx.execute(sql`
+        UPDATE users
+        SET
+          remainingGenerations = remainingGenerations + ${amount},
+          autoCreditLastAt = NOW(),
+          autoCreditNextAt = ${nextAt}
+        WHERE id = ${userId}
+      `);
+      totalGranted += amount;
+    }
+
+    return { processedUsers, totalGranted };
+  });
+}
+
 /**
  * Atomic quota deduction with pessimistic locking (SELECT ... FOR UPDATE).
  * Uses MySQL transaction + row-level lock to prevent race conditions.
