@@ -392,7 +392,8 @@ const SCRIPT_ANALYSIS_MAX_CHARS = 15_000;
 async function parseScriptIntoSegments(
   rawContent: string,
   sourceFormat: string,
-  personality: "calm" | "creative" | "technical"
+  personality: "calm" | "creative" | "technical",
+  brainConfig?: { model: string; temperature: number; topP: number; systemPrompt: string | null }
 ): Promise<Omit<ScriptSegment, "discussion" | "status">[]> {
   const persona =
     PERSONALITY_PROMPTS[personality] ?? PERSONALITY_PROMPTS.creative;
@@ -437,6 +438,10 @@ async function parseScriptIntoSegments(
   const result = await withTimeout(
     invokeLLM({
       runName: "director-script-split",
+      model: brainConfig?.model,
+      temperature: brainConfig?.temperature,
+      topP: brainConfig?.topP,
+      systemPrompt: brainConfig?.systemPrompt,
       messages: [
         {
           role: "system",
@@ -1223,7 +1228,8 @@ async function runDirectorAI(
   messages: Array<{ role: string; content: string }>,
   saveToNotes: boolean,
   userId: number,
-  personality: "calm" | "creative" | "technical" = "creative"
+  personality: "calm" | "creative" | "technical" = "creative",
+  brainConfig?: { model: string; temperature: number; topP: number; systemPrompt: string | null }
 ) {
   const persona =
     PERSONALITY_PROMPTS[personality] ?? PERSONALITY_PROMPTS.creative;
@@ -1249,6 +1255,10 @@ async function runDirectorAI(
   const researchResult = await withTimeout(
     invokeLLM({
       runName: "director-research",
+      model: brainConfig?.model,
+      temperature: brainConfig?.temperature,
+      topP: brainConfig?.topP,
+      systemPrompt: brainConfig?.systemPrompt,
       messages: [
         {
           role: "system",
@@ -1277,6 +1287,10 @@ ${memorySection}`,
   const scriptResult = await withTimeout(
     invokeLLM({
       runName: "director-costar-generate",
+      model: brainConfig?.model,
+      temperature: brainConfig?.temperature,
+      topP: brainConfig?.topP,
+      systemPrompt: brainConfig?.systemPrompt,
       messages: [
         {
           role: "system",
@@ -1391,11 +1405,18 @@ export const directorRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const director = ctx.brain.getBrain("director");
       return runDirectorAI(
         input.messages,
         input.saveToNotes,
         ctx.user.id,
-        input.personality
+        input.personality,
+        {
+          model: director.model,
+          temperature: director.temperature,
+          topP: director.topP,
+          systemPrompt: director.systemPrompt,
+        }
       );
     }),
 
@@ -1592,11 +1613,18 @@ export const directorRouter = router({
           .default("creative"),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      const director = ctx.brain.getBrain("director");
       const segments = await parseScriptIntoSegments(
         input.rawContent,
         input.sourceFormat,
-        input.personality
+        input.personality,
+        {
+          model: director.model,
+          temperature: director.temperature,
+          topP: director.topP,
+          systemPrompt: director.systemPrompt,
+        }
       );
       const fullSegments: ScriptSegment[] = segments.map(seg => ({
         ...seg,
