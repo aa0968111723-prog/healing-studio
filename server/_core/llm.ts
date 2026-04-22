@@ -142,6 +142,11 @@ export type InvokeParams = {
    * 強制指定使用的模型名稱（覆蓋引擎預設模型）。
    */
   model?: string;
+  /**
+   * 系統提示詞（從 ctx.brain 注入）。
+   * 如果提供，將會前置插入 messages 第一條 system 訊息，或與現有 system 合併。
+   */
+  systemPrompt?: string | null;
 };
 
 export type ToolCall = {
@@ -492,7 +497,39 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     temperature,
     topP,
     model: overrideModel,
+    systemPrompt,
   } = params;
+
+  // ── 注入系統提示詞（來自 ctx.brain）──────────────────────────
+  let processedMessages = messages;
+  if (systemPrompt) {
+    // 尋找第一條 system 訊息
+    const firstSystemIdx = messages.findIndex(m => m.role === "system");
+    if (firstSystemIdx >= 0) {
+      // 合併：AI 大腦系統提示詞在前，原有系統提示詞在後
+      const originalContent = messages[firstSystemIdx].content;
+      const originalText =
+        typeof originalContent === "string"
+          ? originalContent
+          : Array.isArray(originalContent)
+            ? originalContent
+                .map(c => (typeof c === "string" ? c : c.type === "text" ? c.text : ""))
+                .join("\n")
+            : "";
+      const mergedContent = `${systemPrompt}\n\n${originalText}`;
+      processedMessages = [
+        ...messages.slice(0, firstSystemIdx),
+        { ...messages[firstSystemIdx], content: mergedContent },
+        ...messages.slice(firstSystemIdx + 1),
+      ];
+    } else {
+      // 插入新的 system 訊息在最前面
+      processedMessages = [
+        { role: "system" as const, content: systemPrompt },
+        ...messages,
+      ];
+    }
+  }
 
   // ── 透過路由器取得引擎設定 ───────────────────────────────
   // engine（強制）優先；其次 preferEngine（偏好，允許降級）；否則 auto。
@@ -533,7 +570,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   for (const engineConfig of engineConfigs) {
     try {
       const result = await invokeSingleEngine(engineConfig, {
-        messages,
+        messages: processedMessages,
         tools,
         toolChoice,
         tool_choice,

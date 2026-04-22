@@ -14,7 +14,7 @@
  */
 
 import { z } from "zod";
-import { router, protectedProcedure } from "../_core/trpc";
+import { router, brainProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { invokeLLM } from "../_core/llm";
 import * as db from "../db";
@@ -392,7 +392,8 @@ const SCRIPT_ANALYSIS_MAX_CHARS = 15_000;
 async function parseScriptIntoSegments(
   rawContent: string,
   sourceFormat: string,
-  personality: "calm" | "creative" | "technical"
+  personality: "calm" | "creative" | "technical",
+  brainConfig?: { model: string; temperature: number; topP: number; systemPrompt: string | null }
 ): Promise<Omit<ScriptSegment, "discussion" | "status">[]> {
   const persona =
     PERSONALITY_PROMPTS[personality] ?? PERSONALITY_PROMPTS.creative;
@@ -437,6 +438,10 @@ async function parseScriptIntoSegments(
   const result = await withTimeout(
     invokeLLM({
       runName: "director-script-split",
+      model: brainConfig?.model,
+      temperature: brainConfig?.temperature,
+      topP: brainConfig?.topP,
+      systemPrompt: brainConfig?.systemPrompt,
       messages: [
         {
           role: "system",
@@ -576,7 +581,8 @@ async function discussSegmentWithAI(
   personality: "calm" | "creative" | "technical",
   quickActionId?: string,
   imageUrl?: string,
-  adjacentSegments?: { prev?: ScriptSegment; next?: ScriptSegment }
+  adjacentSegments?: { prev?: ScriptSegment; next?: ScriptSegment },
+  brainConfig?: { model: string; temperature: number; topP: number; systemPrompt: string | null }
 ): Promise<{ reply: string; updatedStoryboard?: ScriptSegment["storyboard"] }> {
   const persona =
     PERSONALITY_PROMPTS[personality] ?? PERSONALITY_PROMPTS.creative;
@@ -659,6 +665,10 @@ async function discussSegmentWithAI(
   const result = await withTimeout(
     invokeLLM({
       runName: "director-segment-chat",
+      model: brainConfig?.model,
+      temperature: brainConfig?.temperature,
+      topP: brainConfig?.topP,
+      systemPrompt: brainConfig?.systemPrompt,
       messages: [
         {
           role: "system",
@@ -1223,7 +1233,8 @@ async function runDirectorAI(
   messages: Array<{ role: string; content: string }>,
   saveToNotes: boolean,
   userId: number,
-  personality: "calm" | "creative" | "technical" = "creative"
+  personality: "calm" | "creative" | "technical" = "creative",
+  brainConfig?: { model: string; temperature: number; topP: number; systemPrompt: string | null }
 ) {
   const persona =
     PERSONALITY_PROMPTS[personality] ?? PERSONALITY_PROMPTS.creative;
@@ -1249,6 +1260,10 @@ async function runDirectorAI(
   const researchResult = await withTimeout(
     invokeLLM({
       runName: "director-research",
+      model: brainConfig?.model,
+      temperature: brainConfig?.temperature,
+      topP: brainConfig?.topP,
+      systemPrompt: brainConfig?.systemPrompt,
       messages: [
         {
           role: "system",
@@ -1277,6 +1292,10 @@ ${memorySection}`,
   const scriptResult = await withTimeout(
     invokeLLM({
       runName: "director-costar-generate",
+      model: brainConfig?.model,
+      temperature: brainConfig?.temperature,
+      topP: brainConfig?.topP,
+      systemPrompt: brainConfig?.systemPrompt,
       messages: [
         {
           role: "system",
@@ -1375,7 +1394,7 @@ ${persona.proactiveHint}
 
 export const directorRouter = router({
   /** Main chat endpoint — runs dual-engine Director AI */
-  chat: protectedProcedure
+  chat: brainProcedure
     .input(
       z.object({
         messages: z.array(
@@ -1391,16 +1410,23 @@ export const directorRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const director = ctx.brain.getBrain("director");
       return runDirectorAI(
         input.messages,
         input.saveToNotes,
         ctx.user.id,
-        input.personality
+        input.personality,
+        {
+          model: director.model,
+          temperature: director.temperature,
+          topP: director.topP,
+          systemPrompt: director.systemPrompt,
+        }
       );
     }),
 
   /** Refine an existing script with follow-up instruction */
-  refineScript: protectedProcedure
+  refineScript: brainProcedure
     .input(
       z.object({
         script: z.object({
@@ -1420,12 +1446,17 @@ export const directorRouter = router({
           .default("creative"),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const fullPrompt = buildDirectorSystemPrompt(input.personality);
+      const director = ctx.brain.getBrain("director");
 
       const result = await withTimeout(
         invokeLLM({
           runName: "director-costar-refine",
+          model: director.model,
+          temperature: director.temperature,
+          topP: director.topP,
+          systemPrompt: director.systemPrompt,
           messages: [
             {
               role: "system",
@@ -1487,12 +1518,12 @@ export const directorRouter = router({
     }),
 
   /** Get available templates */
-  templates: protectedProcedure.query(() => {
+  templates: brainProcedure.query(() => {
     return DIRECTOR_TEMPLATES;
   }),
 
   /** Save a session snapshot to project notes */
-  saveSession: protectedProcedure
+  saveSession: brainProcedure
     .input(
       z.object({
         title: z.string().min(1).max(255),
@@ -1514,7 +1545,7 @@ export const directorRouter = router({
     }),
 
   /** List saved director sessions */
-  listSessions: protectedProcedure.query(async ({ ctx }) => {
+  listSessions: brainProcedure.query(async ({ ctx }) => {
     const notes = await db.getProjectNotesByUser(ctx.user.id);
     return notes
       .filter(n => n.noteType === "script" && n.title.startsWith("[導演對話]"))
@@ -1527,7 +1558,7 @@ export const directorRouter = router({
   }),
 
   /** Load a saved session */
-  loadSession: protectedProcedure
+  loadSession: brainProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ ctx, input }) => {
       const note = await db.getProjectNote(input.id);
@@ -1541,7 +1572,7 @@ export const directorRouter = router({
     }),
 
   /** Delete a saved session */
-  deleteSession: protectedProcedure
+  deleteSession: brainProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
       const note = await db.getProjectNote(input.id);
@@ -1552,10 +1583,10 @@ export const directorRouter = router({
 
   /** Preferences CRUD */
   preferences: router({
-    get: protectedProcedure.query(async ({ ctx }) => {
+    get: brainProcedure.query(async ({ ctx }) => {
       return db.getDirectorPreferences(ctx.user.id);
     }),
-    update: protectedProcedure
+    update: brainProcedure
       .input(
         z.object({
           personality: z.enum(["calm", "creative", "technical"]).optional(),
@@ -1576,7 +1607,7 @@ export const directorRouter = router({
   // ─── Script Analysis & Discussion System ──────────────────────────────────
 
   /** Import and parse a long script into storyboard segments */
-  importScript: protectedProcedure
+  importScript: brainProcedure
     .input(
       z.object({
         rawContent: z.string().min(1).max(100000),
@@ -1587,11 +1618,18 @@ export const directorRouter = router({
           .default("creative"),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      const director = ctx.brain.getBrain("director");
       const segments = await parseScriptIntoSegments(
         input.rawContent,
         input.sourceFormat,
-        input.personality
+        input.personality,
+        {
+          model: director.model,
+          temperature: director.temperature,
+          topP: director.topP,
+          systemPrompt: director.systemPrompt,
+        }
       );
       const fullSegments: ScriptSegment[] = segments.map(seg => ({
         ...seg,
@@ -1610,7 +1648,7 @@ export const directorRouter = router({
     }),
 
   /** Discuss a specific segment with AI — supports quick actions, image references, and adjacent segment context */
-  discussSegment: protectedProcedure
+  discussSegment: brainProcedure
     .input(
       z.object({
         segment: z.object({
@@ -1690,7 +1728,8 @@ export const directorRouter = router({
           .optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      const director = ctx.brain.getBrain("director");
       const adjacentSegments = {
         prev: input.prevSegment
           ? ({
@@ -1717,18 +1756,24 @@ export const directorRouter = router({
         input.personality,
         input.quickActionId,
         input.imageUrl,
-        adjacentSegments
+        adjacentSegments,
+        {
+          model: director.model,
+          temperature: director.temperature,
+          topP: director.topP,
+          systemPrompt: director.systemPrompt,
+        }
       );
       return result;
     }),
 
   /** Get available quick actions for multi-modal discussion */
-  quickActions: protectedProcedure.query(() => {
+  quickActions: brainProcedure.query(() => {
     return QUICK_ACTIONS;
   }),
 
   /** Export segments in various formats */
-  exportScript: protectedProcedure
+  exportScript: brainProcedure
     .input(
       z.object({
         segments: z.array(
@@ -1799,7 +1844,7 @@ export const directorRouter = router({
     }),
 
   /** Generate CO-STAR storyboard for a specific segment — enriched with discussion insights */
-  generateSegmentCostar: protectedProcedure
+  generateSegmentCostar: brainProcedure
     .input(
       z.object({
         segment: z.object({
@@ -1951,7 +1996,7 @@ ${persona.proactiveHint}
     }),
 
   /** Batch generate CO-STAR for multiple segments */
-  batchGenerateCostar: protectedProcedure
+  batchGenerateCostar: brainProcedure
     .input(
       z.object({
         segments: z.array(
@@ -2090,7 +2135,7 @@ ${persona.proactiveHint}
     }),
 
   /** Analyze the full script holistically — themes, arcs, pacing, character/location distribution */
-  analyzeScriptOverview: protectedProcedure
+  analyzeScriptOverview: brainProcedure
     .input(
       z.object({
         segments: z.array(
@@ -2249,7 +2294,7 @@ ${segmentSummaries}
   // ─── Quick Generation Pipeline ──────────────────────────────────────────
 
   /** Get available generation models grouped by modality for the model picker */
-  generationModels: protectedProcedure.query(() => {
+  generationModels: brainProcedure.query(() => {
     const byCategory = getAllPricingByCategory();
     const relevantCategories: ModelCategory[] = [
       "text-to-image",
@@ -2296,7 +2341,7 @@ ${segmentSummaries}
   }),
 
   /** Estimate generation cost for a segment with user-selected models */
-  estimateSegmentCost: protectedProcedure
+  estimateSegmentCost: brainProcedure
     .input(
       z.object({
         tasks: z.array(
@@ -2332,7 +2377,7 @@ ${segmentSummaries}
   // ─── Long Script Planning Mode ──────────────────────────────────────────
 
   /** Discuss within a specific planning phase with AI */
-  planningDiscuss: protectedProcedure
+  planningDiscuss: brainProcedure
     .input(
       z.object({
         phase: z.enum([
@@ -2429,7 +2474,7 @@ ${segmentSummaries}
     }),
 
   /** Analyze emotional depth of the planned scenes */
-  planningAnalyzeDepth: protectedProcedure
+  planningAnalyzeDepth: brainProcedure
     .input(
       z.object({
         scenes: z.array(
@@ -2482,7 +2527,7 @@ ${segmentSummaries}
     }),
 
   /** Save a planning session to project notes */
-  savePlanningSession: protectedProcedure
+  savePlanningSession: brainProcedure
     .input(
       z.object({
         title: z.string().min(1).max(255),
@@ -2504,7 +2549,7 @@ ${segmentSummaries}
     }),
 
   /** List saved planning sessions */
-  listPlanningSessions: protectedProcedure.query(async ({ ctx }) => {
+  listPlanningSessions: brainProcedure.query(async ({ ctx }) => {
     const notes = await db.getProjectNotesByUser(ctx.user.id);
     return notes
       .filter(
@@ -2519,7 +2564,7 @@ ${segmentSummaries}
   }),
 
   /** Load a saved planning session */
-  loadPlanningSession: protectedProcedure
+  loadPlanningSession: brainProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ ctx, input }) => {
       const note = await db.getProjectNote(input.id);
@@ -2533,7 +2578,7 @@ ${segmentSummaries}
     }),
 
   /** Delete a saved planning session */
-  deletePlanningSession: protectedProcedure
+  deletePlanningSession: brainProcedure
     .input(z.object({ id: z.number() }))
     .mutation(async ({ ctx, input }) => {
       const note = await db.getProjectNote(input.id);
@@ -2543,7 +2588,7 @@ ${segmentSummaries}
     }),
 
   /** Create calendar milestones from planning session */
-  planningCreateMilestones: protectedProcedure
+  planningCreateMilestones: brainProcedure
     .input(
       z.object({
         milestones: z.array(
@@ -2584,7 +2629,7 @@ ${segmentSummaries}
    * Auto-generate multimodal content from script segments
    * 根據腳本分段自動分配生成任務到對應的 AI 模型
    */
-  autoGenerateFromSegments: protectedProcedure
+  autoGenerateFromSegments: brainProcedure
     .input(
       z.object({
         segments: z.array(
@@ -2861,7 +2906,7 @@ ${segmentSummaries}
    * Execute a single generation task from the auto-generation pipeline
    * 執行單個自動生成任務
    */
-  executeGenerationTask: protectedProcedure
+  executeGenerationTask: brainProcedure
     .input(
       z.object({
         segmentId: z.string(),

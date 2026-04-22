@@ -35,7 +35,7 @@
  */
 
 import { z } from "zod";
-import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
+import { brainProcedure, publicProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { recordErrorTrace } from "../services/brainAutoRepair";
 import { traceToolRun } from "../services/langsmithTracer";
@@ -378,7 +378,7 @@ export const proStudioRouter = router({
    *
    * 當主模型失敗時前端可切換至其他備選模型重試。
    */
-  textToMusic: protectedProcedure
+  textToMusic: brainProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2000).optional(),
@@ -504,7 +504,7 @@ export const proStudioRouter = router({
    * ⚠️ 原先使用 ElevenLabs Sound Effects 會產生「配音說話」而非音效，
    *    已改為 Stable Audio 作為預設模型。
    */
-  soundEffects: protectedProcedure
+  soundEffects: brainProcedure
     .input(
       z.object({
         text: z.string().min(1).max(500),
@@ -560,7 +560,7 @@ export const proStudioRouter = router({
   // ═══════════════════════════════════════════════════════════════
 
   /** fal-ai/elevenlabs/tts/turbo-v2.5 — 高速 ElevenLabs TTS（非同步 queue） */
-  elevenLabsTTS: protectedProcedure
+  elevenLabsTTS: brainProcedure
     .input(
       z.object({
         text: z.string().min(1).max(5000),
@@ -589,7 +589,7 @@ export const proStudioRouter = router({
     }),
 
   /** fal-ai/qwen-3-tts/text-to-speech/1.7b — Qwen TTS（非同步 queue） */
-  qwenTTS: protectedProcedure
+  qwenTTS: brainProcedure
     .input(
       z.object({
         text: z.string().min(1).max(5000),
@@ -643,7 +643,7 @@ export const proStudioRouter = router({
    * 要合成語音需取得 speaker_embedding.url，再呼叫 qwenTTS
    * 並傳入 speaker_voice_embedding_file_url。
    */
-  qwenCloneVoice: protectedProcedure
+  qwenCloneVoice: brainProcedure
     .input(
       z.object({
         audio_url: z.string().url(), // 參考音訊 URL（3-30秒）
@@ -664,7 +664,7 @@ export const proStudioRouter = router({
    * 步驟：clone → 取得 embedding → TTS
    * ⚠️ 使用非同步 queue 避免超時
    */
-  qwenCloneAndSpeak: protectedProcedure
+  qwenCloneAndSpeak: brainProcedure
     .input(
       z.object({
         audio_url: z.string().url(),
@@ -722,7 +722,7 @@ export const proStudioRouter = router({
     }),
 
   /** fal-ai/qwen-3-tts/voice-design/1.7b — 文字描述設計語音（非同步 queue） */
-  qwenVoiceDesign: protectedProcedure
+  qwenVoiceDesign: brainProcedure
     .input(
       z.object({
         voice_description: z.string().min(1).max(1000),
@@ -750,7 +750,7 @@ export const proStudioRouter = router({
    * 只接受 { text }，用 [S1]/[S2] 標籤標注不同說話者。
    * 例如："[S1] 你好 [S2] 我很好"
    */
-  diaTTSVoiceClone: protectedProcedure
+  diaTTSVoiceClone: brainProcedure
     .input(
       z.object({
         text: z.string().min(1).max(5000),
@@ -769,7 +769,7 @@ export const proStudioRouter = router({
     }),
 
   /** fal-ai/kling-video/create-voice — 建立 Kling 語音配置（非同步 queue） */
-  klingCreateVoice: protectedProcedure
+  klingCreateVoice: brainProcedure
     .input(
       z.object({
         audio_url: z.string().url(),
@@ -798,7 +798,7 @@ export const proStudioRouter = router({
    *  - mdx / mdx_extra：支援 vocals/drums/bass/other
    *  - output_format 只支援 "wav" | "mp3"（沒有 flac）
    */
-  demucs: protectedProcedure
+  demucs: brainProcedure
     .input(
       z.object({
         audio_url: z.string().url(),
@@ -854,7 +854,7 @@ export const proStudioRouter = router({
     }),
 
   /** fal-ai/elevenlabs/audio-isolation — 人聲隔離/去噪（非同步 queue） */
-  audioIsolation: protectedProcedure
+  audioIsolation: brainProcedure
     .input(
       z.object({
         audio_url: z.string().url(),
@@ -869,7 +869,7 @@ export const proStudioRouter = router({
     }),
 
   /** fal-ai/ffmpeg-api/merge-audios — 多音訊合併（非同步 queue） */
-  mergeAudios: protectedProcedure
+  mergeAudios: brainProcedure
     .input(
       z.object({
         audio_urls: z.array(z.string().url()).min(2).max(10),
@@ -893,7 +893,7 @@ export const proStudioRouter = router({
   // ═══════════════════════════════════════════════════════════════
 
   /** fal-ai/elevenlabs/voice-changer — 聲音變換（非同步 queue） */
-  voiceChanger: protectedProcedure
+  voiceChanger: brainProcedure
     .input(
       z.object({
         audio_url: z.string().url(),
@@ -925,7 +925,7 @@ export const proStudioRouter = router({
    * - 必須用 queue 模式：submit → 輪詢 → 取結果
    * - 結果格式需要特別解析
    */
-  speechToText: protectedProcedure
+  speechToText: brainProcedure
     .input(
       z.object({
         audio_url: z.string().url(),
@@ -957,7 +957,7 @@ export const proStudioRouter = router({
   // ═══════════════════════════════════════════════════════════════
 
   /** fal-ai/wan/v2.2-14b/speech-to-video — 說話人影片生成 */
-  speechToVideo: protectedProcedure
+  speechToVideo: brainProcedure
     .input(
       z.object({
         image_url: z.string().url(),
@@ -982,7 +982,7 @@ export const proStudioRouter = router({
     }),
 
   /** fal-ai/echomimic-v3 — 說話虛擬形像 */
-  echoMimic: protectedProcedure
+  echoMimic: brainProcedure
     .input(
       z.object({
         image_url: z.string().url(),
@@ -1002,7 +1002,7 @@ export const proStudioRouter = router({
     }),
 
   /** fal-ai/stable-avatar — 音訊驅動頭像（最長 5 分鐘） */
-  stableAvatar: protectedProcedure
+  stableAvatar: brainProcedure
     .input(
       z.object({
         image_url: z.string().url(),
@@ -1018,7 +1018,7 @@ export const proStudioRouter = router({
     }),
 
   /** fal-ai/elevenlabs/dubbing — AI 影片配音翻譯 */
-  dubbing: protectedProcedure
+  dubbing: brainProcedure
     .input(
       z.object({
         video_url: z.string().url().optional(),
@@ -1049,7 +1049,7 @@ export const proStudioRouter = router({
     }),
 
   /** fal-ai/longcat-single-avatar/audio-to-video — 長影片唇形同步 */
-  longcatAvatar: protectedProcedure
+  longcatAvatar: brainProcedure
     .input(
       z.object({
         image_url: z.string().url(),
@@ -1073,7 +1073,7 @@ export const proStudioRouter = router({
     }),
 
   /** fal-ai/ltx-2-19b/distilled/audio-to-video/lora — LTX-2 音訊轉影片 */
-  ltxAudioToVideo: protectedProcedure
+  ltxAudioToVideo: brainProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2000),
@@ -1107,7 +1107,7 @@ export const proStudioRouter = router({
   // ═══════════════════════════════════════════════════════════════
 
   /** 查詢非同步影片任務狀態（jobStatus 每 3 秒輪詢一次） */
-  jobStatus: protectedProcedure
+  jobStatus: brainProcedure
     .input(
       z.object({
         request_id: z.string().min(1),
@@ -1119,7 +1119,7 @@ export const proStudioRouter = router({
     }),
 
   /** 取得非同步影片任務結果 */
-  jobResult: protectedProcedure
+  jobResult: brainProcedure
     .input(
       z.object({
         request_id: z.string().min(1),
@@ -1135,7 +1135,7 @@ export const proStudioRouter = router({
    * 前端每 3 秒呼叫：若已完成則回傳音訊 URL
    * 支援超時偵測：若任務執行超過 10 分鐘仍未完成，自動標記為失敗
    */
-  checkAudioStatus: protectedProcedure
+  checkAudioStatus: brainProcedure
     .input(
       z.object({
         requestId: z.string().min(1),

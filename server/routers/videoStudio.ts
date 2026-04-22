@@ -21,7 +21,7 @@
  */
 
 import { z } from "zod";
-import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
+import { brainProcedure, publicProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { recordErrorTrace } from "../services/brainAutoRepair";
 import { traceToolRun } from "../services/langsmithTracer";
@@ -291,7 +291,7 @@ export const videoStudioRouter = router({
    * fal-ai/kling-video/v2.1/standard/text-to-video
    * 業界頂尖中文語意理解，5s/10s，支援 16:9 / 9:16 / 1:1
    */
-  klingTextToVideo: protectedProcedure
+  klingTextToVideo: brainProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2500),
@@ -331,7 +331,7 @@ export const videoStudioRouter = router({
    * fal-ai/wan-t2v
    * 開源最強影片生成，720p 高畫質，多語言提詞
    */
-  wanTextToVideo: protectedProcedure
+  wanTextToVideo: brainProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2500),
@@ -364,7 +364,7 @@ export const videoStudioRouter = router({
    * fal-ai/minimax/video-01
    * MiniMax 旗艦影片模型，電影級動態，6s
    */
-  minimaxTextToVideo: protectedProcedure
+  minimaxTextToVideo: brainProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2000),
@@ -390,7 +390,7 @@ export const videoStudioRouter = router({
    * fal-ai/veo3
    * Google 最新旗艦影片模型，8s，具備原生音頻生成
    */
-  veo3TextToVideo: protectedProcedure
+  veo3TextToVideo: brainProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(3000),
@@ -413,7 +413,7 @@ export const videoStudioRouter = router({
    * fal-ai/ltx-video-13b-distilled
    * Lightricks 開源旗艦，超快速蒸餾版，720p
    */
-  ltxTextToVideo: protectedProcedure
+  ltxTextToVideo: brainProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2000),
@@ -451,7 +451,7 @@ export const videoStudioRouter = router({
    * fal-ai/sora — 注意：OpenAI Sora 在 fal.ai 的可用性不穩定
    * 此端點如失效將自動降級到 LTX-Video 13B
    */
-  soraTextToVideo: protectedProcedure
+  soraTextToVideo: brainProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(4000),
@@ -505,7 +505,7 @@ export const videoStudioRouter = router({
    * fal-ai/kling-video/v2.1/standard/image-to-video
    * 最自然的圖片動態化，支援起始幀 + 結束幀
    */
-  klingImageToVideo: protectedProcedure
+  klingImageToVideo: brainProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2500),
@@ -539,7 +539,7 @@ export const videoStudioRouter = router({
    * fal-ai/wan-i2v
    * 開源最強圖生影，720p，靈活參數控制
    */
-  wanImageToVideo: protectedProcedure
+  wanImageToVideo: brainProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2500),
@@ -570,7 +570,7 @@ export const videoStudioRouter = router({
    * fal-ai/runway-gen4-turbo/image-to-video
    * Runway Gen4，電影級品質，5s/10s
    */
-  runwayImageToVideo: protectedProcedure
+  runwayImageToVideo: brainProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2000),
@@ -608,7 +608,7 @@ export const videoStudioRouter = router({
    * fal-ai/pixverse/v4.5/image-to-video
    * PixVerse 旗艦，強大的物理動態，支援特效模板
    */
-  pixverseImageToVideo: protectedProcedure
+  pixverseImageToVideo: brainProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2000),
@@ -642,7 +642,7 @@ export const videoStudioRouter = router({
    * fal-ai/minimax/video-01/image-to-video
    * MiniMax 圖生影，超強首幀固定效果
    */
-  minimaxImageToVideo: protectedProcedure
+  minimaxImageToVideo: brainProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2000),
@@ -674,7 +674,7 @@ export const videoStudioRouter = router({
    * fal-ai/wan/v2.1/video-to-video
    * 將現有影片依照提詞重新渲染風格
    */
-  wanVideoToVideo: protectedProcedure
+  wanVideoToVideo: brainProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2500),
@@ -701,7 +701,7 @@ export const videoStudioRouter = router({
    * fal-ai/kling-video/v2.1/standard/video-to-video
    * Kling 高品質影片重繪，保持原始動態
    */
-  klingVideoToVideo: protectedProcedure
+  klingVideoToVideo: brainProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2500),
@@ -728,7 +728,7 @@ export const videoStudioRouter = router({
    * fal-ai/ltx-video/image-to-video
    * 以圖片為關鍵幀生成流暢影片動態
    */
-  ltxImageToVideo: protectedProcedure
+  ltxImageToVideo: brainProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2000),
@@ -768,7 +768,7 @@ export const videoStudioRouter = router({
    * fal-ai/bytedance/upscaler/video
    * 業界頂尖影片超分辨率，2x 或 4x 放大
    */
-  videoUpscale: protectedProcedure
+  videoUpscale: brainProcedure
     .input(
       z.object({
         videoUrl: z.string().url(),
@@ -793,7 +793,7 @@ export const videoStudioRouter = router({
    * fal-ai/rife-v4.6/video
    * RIFE v4.6 高品質補幀，2x/4x 幀率提升
    */
-  frameInterpolation: protectedProcedure
+  frameInterpolation: brainProcedure
     .input(
       z.object({
         videoUrl: z.string().url(),
@@ -820,7 +820,7 @@ export const videoStudioRouter = router({
    * fal-ai/topaz/video-enhance
    * Topaz Labs 專業影片降噪 + 超解析
    */
-  topazEnhance: protectedProcedure
+  topazEnhance: brainProcedure
     .input(
       z.object({
         videoUrl: z.string().url(),
@@ -853,7 +853,7 @@ export const videoStudioRouter = router({
    * fal-ai/cammaster
    * 精確鏡頭運動控制（推拉搖移旋轉），基於圖生影
    */
-  camMaster: protectedProcedure
+  camMaster: brainProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2000),
@@ -902,7 +902,7 @@ export const videoStudioRouter = router({
    * fal-ai/animatediff-v2v
    * 基於骨架姿勢 / Canny 邊緣精確控制影片動作
    */
-  animateDiff: protectedProcedure
+  animateDiff: brainProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2000),
@@ -945,7 +945,7 @@ export const videoStudioRouter = router({
    * fal-ai/depthcrafter
    * 從單目影片重建深度時序，用於 3D 視差效果
    */
-  depthCrafter: protectedProcedure
+  depthCrafter: brainProcedure
     .input(
       z.object({
         videoUrl: z.string().url(),
@@ -977,7 +977,7 @@ export const videoStudioRouter = router({
    * fal-ai/vidu/q1/reference-to-video
    * 保持角色外觀一致性，最多 3 參考圖
    */
-  viduReferenceToVideo: protectedProcedure
+  viduReferenceToVideo: brainProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2000),
@@ -1009,7 +1009,7 @@ export const videoStudioRouter = router({
    * 查詢非同步 queue 任務的當前狀態
    * 前端可用 request_id 輪詢進度
    */
-  jobStatus: protectedProcedure
+  jobStatus: brainProcedure
     .input(
       z.object({
         requestId: z.string(),
@@ -1032,7 +1032,7 @@ export const videoStudioRouter = router({
    * checkVideoStatus — 前端輪詢 API（每 3 秒呼叫一次）
    * 若已完成則回傳影片 URL，若失敗則丟出錯誤
    */
-  checkVideoStatus: protectedProcedure
+  checkVideoStatus: brainProcedure
     .input(
       z.object({
         requestId: z.string().min(1),

@@ -486,10 +486,12 @@ function BrainSlotCard({
   topP,
   enabled,
   health,
+  systemPrompt,
   onModelChange,
   onTemperatureChange,
   onTopPChange,
   onEnabledChange,
+  onSystemPromptChange,
   onNavigateTarget,
 }: {
   catalog: SlotCatalog;
@@ -499,10 +501,12 @@ function BrainSlotCard({
   topP: number;
   enabled: boolean;
   health: HealthStatus | undefined;
+  systemPrompt?: string;
   onModelChange: (model: string) => void;
   onTemperatureChange: (temp: number) => void;
   onTopPChange: (topP: number) => void;
   onEnabledChange: (enabled: boolean) => void;
+  onSystemPromptChange?: (prompt: string) => void;
   onNavigateTarget?: (path: string) => void;
 }) {
   return (
@@ -621,6 +625,23 @@ function BrainSlotCard({
               <span className="text-[9px] text-muted-foreground/50">多樣</span>
             </div>
           </div>
+
+          {onSystemPromptChange && (
+            <div>
+              <Label className="text-[10px] text-muted-foreground mb-1.5 block">
+                系統提示詞（選填）
+              </Label>
+              <Textarea
+                value={systemPrompt || ""}
+                onChange={(e) => onSystemPromptChange(e.target.value)}
+                placeholder="為此推理大腦設定自訂的系統提示詞，留空則使用預設值"
+                className="min-h-[80px] text-xs bg-white/40 dark:bg-white/5 resize-none"
+              />
+              <p className="text-[9px] text-muted-foreground/70 mt-1">
+                自訂系統提示詞可影響大腦的行為風格與輸出品質
+              </p>
+            </div>
+          )}
         </motion.div>
       )}
     </motion.div>
@@ -637,8 +658,10 @@ function EngineSlotCard({
   currentEngine,
   enabled,
   health,
+  engineParams,
   onEngineChange,
   onEnabledChange,
+  onEngineParamsChange,
   onNavigateTarget,
 }: {
   catalog: SlotCatalog;
@@ -646,8 +669,10 @@ function EngineSlotCard({
   currentEngine: string;
   enabled: boolean;
   health: HealthStatus | undefined;
+  engineParams?: string;
   onEngineChange: (engine: string) => void;
   onEnabledChange: (enabled: boolean) => void;
+  onEngineParamsChange?: (params: string) => void;
   onNavigateTarget?: (path: string) => void;
 }) {
   return (
@@ -698,27 +723,47 @@ function EngineSlotCard({
           initial={{ opacity: 0, height: 0 }}
           animate={{ opacity: 1, height: "auto" }}
           exit={{ opacity: 0, height: 0 }}
+          className="space-y-3"
         >
-          <Label className="text-[10px] text-muted-foreground mb-1.5 block">
-            引擎選擇
-          </Label>
-          <Select value={currentEngine} onValueChange={onEngineChange}>
-            <SelectTrigger className="h-9 text-xs bg-white/40 dark:bg-white/5">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {catalog.options.map(opt => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  <span className="flex items-center gap-2">
-                    <HealthDot model={opt.value} health={health} />
-                    <span>{opt.label}</span>
-                    <ProviderBadge value={opt.value} />
-                    <TierBadge tier={opt.tier} />
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div>
+            <Label className="text-[10px] text-muted-foreground mb-1.5 block">
+              引擎選擇
+            </Label>
+            <Select value={currentEngine} onValueChange={onEngineChange}>
+              <SelectTrigger className="h-9 text-xs bg-white/40 dark:bg-white/5">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {catalog.options.map(opt => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    <span className="flex items-center gap-2">
+                      <HealthDot model={opt.value} health={health} />
+                      <span>{opt.label}</span>
+                      <ProviderBadge value={opt.value} />
+                      <TierBadge tier={opt.tier} />
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {onEngineParamsChange && (
+            <div>
+              <Label className="text-[10px] text-muted-foreground mb-1.5 block">
+                引擎參數（JSON，選填）
+              </Label>
+              <Textarea
+                value={engineParams || ""}
+                onChange={(e) => onEngineParamsChange(e.target.value)}
+                placeholder={'例如：{"num_images": 4, "guidance_scale": 7.5}'}
+                className="min-h-[80px] text-xs bg-white/40 dark:bg-white/5 resize-none font-mono"
+              />
+              <p className="text-[9px] text-muted-foreground/70 mt-1">
+                以 JSON 格式設定引擎專屬參數，留空則使用預設值
+              </p>
+            </div>
+          )}
         </motion.div>
       )}
     </motion.div>
@@ -1163,40 +1208,49 @@ export default function AiBrainSettings() {
   const [directorTemp, setDirectorTemp] = useState(0.7);
   const [directorTopP, setDirectorTopP] = useState(0.9);
   const [directorEnabled, setDirectorEnabled] = useState(true);
+  const [directorSystemPrompt, setDirectorSystemPrompt] = useState("");
 
   const [analystModel, setAnalystModel] = useState("gemini-2.5-flash");
   const [analystTemp, setAnalystTemp] = useState(0.3);
   const [analystTopP, setAnalystTopP] = useState(0.8);
   const [analystEnabled, setAnalystEnabled] = useState(true);
+  const [analystSystemPrompt, setAnalystSystemPrompt] = useState("");
 
   const [storytellerModel, setStorytellerModel] = useState("gemini-2.5-pro");
   const [storytellerTemp, setStorytellerTemp] = useState(0.9);
   const [storytellerTopP, setStorytellerTopP] = useState(0.95);
   const [storytellerEnabled, setStorytellerEnabled] = useState(true);
+  const [storytellerSystemPrompt, setStorytellerSystemPrompt] = useState("");
 
   const [technicianModel, setTechnicianModel] = useState("gemini-2.5-flash");
   const [technicianTemp, setTechnicianTemp] = useState(0.2);
   const [technicianTopP, setTechnicianTopP] = useState(0.7);
   const [technicianEnabled, setTechnicianEnabled] = useState(true);
+  const [technicianSystemPrompt, setTechnicianSystemPrompt] = useState("");
 
   const [curatorModel, setCuratorModel] = useState("gemini-2.5-flash");
   const [curatorTemp, setCuratorTemp] = useState(0.8);
   const [curatorTopP, setCuratorTopP] = useState(0.9);
   const [curatorEnabled, setCuratorEnabled] = useState(true);
+  const [curatorSystemPrompt, setCuratorSystemPrompt] = useState("");
 
   // ── Generation Engine State ───────────────────────────────────────────
   const [imageEngine, setImageEngine] = useState("fal-ai/flux-pro/v1.1");
   const [imageEnabled, setImageEnabled] = useState(true);
+  const [imageEngineParams, setImageEngineParams] = useState("");
   const [videoEngine, setVideoEngine] = useState(
     "fal-ai/kling-video/v2.1/standard/text-to-video"
   );
   const [videoEnabled, setVideoEnabled] = useState(true);
+  const [videoEngineParams, setVideoEngineParams] = useState("");
   const [audioEngine, setAudioEngine] = useState("fal-ai/stable-audio");
   const [audioEnabled, setAudioEnabled] = useState(true);
+  const [audioEngineParams, setAudioEngineParams] = useState("");
   const [voiceEngine, setVoiceEngine] = useState(
     "fal-ai/elevenlabs/tts/turbo-v2.5"
   );
   const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [voiceEngineParams, setVoiceEngineParams] = useState("");
 
   // ── Fal.ai 16 Task Engine State ───────────────────────────────────────
   const [falTaskEngines, setFalTaskEngines] = useState<
@@ -1218,46 +1272,55 @@ export default function AiBrainSettings() {
       setDirectorTemp(r.director.temperature);
       setDirectorTopP(r.director.topP);
       setDirectorEnabled(r.director.enabled);
+      setDirectorSystemPrompt(r.director.systemPrompt || "");
     }
     if (r.analyst) {
       setAnalystModel(r.analyst.model);
       setAnalystTemp(r.analyst.temperature);
       setAnalystTopP(r.analyst.topP);
       setAnalystEnabled(r.analyst.enabled);
+      setAnalystSystemPrompt(r.analyst.systemPrompt || "");
     }
     if (r.storyteller) {
       setStorytellerModel(r.storyteller.model);
       setStorytellerTemp(r.storyteller.temperature);
       setStorytellerTopP(r.storyteller.topP);
       setStorytellerEnabled(r.storyteller.enabled);
+      setStorytellerSystemPrompt(r.storyteller.systemPrompt || "");
     }
     if (r.technician) {
       setTechnicianModel(r.technician.model);
       setTechnicianTemp(r.technician.temperature);
       setTechnicianTopP(r.technician.topP);
       setTechnicianEnabled(r.technician.enabled);
+      setTechnicianSystemPrompt(r.technician.systemPrompt || "");
     }
     if (r.curator) {
       setCuratorModel(r.curator.model);
       setCuratorTemp(r.curator.temperature);
       setCuratorTopP(r.curator.topP);
       setCuratorEnabled(r.curator.enabled);
+      setCuratorSystemPrompt(r.curator.systemPrompt || "");
     }
     if (g.imageEngine) {
       setImageEngine(normalizeEngineModelId(g.imageEngine.engine));
       setImageEnabled(g.imageEngine.enabled);
+      setImageEngineParams(g.imageEngine.params ? JSON.stringify(g.imageEngine.params, null, 2) : "");
     }
     if (g.videoEngine) {
       setVideoEngine(normalizeEngineModelId(g.videoEngine.engine));
       setVideoEnabled(g.videoEngine.enabled);
+      setVideoEngineParams(g.videoEngine.params ? JSON.stringify(g.videoEngine.params, null, 2) : "");
     }
     if (g.audioEngine) {
       setAudioEngine(normalizeEngineModelId(g.audioEngine.engine));
       setAudioEnabled(g.audioEngine.enabled);
+      setAudioEngineParams(g.audioEngine.params ? JSON.stringify(g.audioEngine.params, null, 2) : "");
     }
     if (g.voiceEngine) {
       setVoiceEngine(normalizeEngineModelId(g.voiceEngine.engine));
       setVoiceEnabled(g.voiceEngine.enabled);
+      setVoiceEngineParams(g.voiceEngine.params ? JSON.stringify(g.voiceEngine.params, null, 2) : "");
     }
     const fal = (brainQuery.data as any).falTasks;
     if (fal) {
@@ -1314,35 +1377,55 @@ export default function AiBrainSettings() {
       );
     }
 
+    // Parse JSON params
+    const parseParams = (paramsStr: string) => {
+      if (!paramsStr.trim()) return undefined;
+      try {
+        return JSON.parse(paramsStr);
+      } catch (e) {
+        toast.error(`參數 JSON 解析失敗: ${e instanceof Error ? e.message : String(e)}`);
+        return undefined;
+      }
+    };
+
     upsertMutation.mutate({
       directorModel,
       directorTemperature: directorTemp,
       directorTopP,
       directorEnabled,
+      directorSystemPrompt: directorSystemPrompt || undefined,
       analystModel,
       analystTemperature: analystTemp,
       analystTopP,
       analystEnabled,
+      analystSystemPrompt: analystSystemPrompt || undefined,
       storytellerModel,
       storytellerTemperature: storytellerTemp,
       storytellerTopP,
       storytellerEnabled,
+      storytellerSystemPrompt: storytellerSystemPrompt || undefined,
       technicianModel,
       technicianTemperature: technicianTemp,
       technicianTopP,
       technicianEnabled,
+      technicianSystemPrompt: technicianSystemPrompt || undefined,
       curatorModel,
       curatorTemperature: curatorTemp,
       curatorTopP,
       curatorEnabled,
+      curatorSystemPrompt: curatorSystemPrompt || undefined,
       imageEngine: normalizeEngineModelId(imageEngine),
       imageEngineEnabled: imageEnabled,
+      imageEngineParams: parseParams(imageEngineParams),
       videoEngine: normalizeEngineModelId(videoEngine),
       videoEngineEnabled: videoEnabled,
+      videoEngineParams: parseParams(videoEngineParams),
       audioEngine: normalizeEngineModelId(audioEngine),
       audioEngineEnabled: audioEnabled,
+      audioEngineParams: parseParams(audioEngineParams),
       voiceEngine: normalizeEngineModelId(voiceEngine),
       voiceEngineEnabled: voiceEnabled,
+      voiceEngineParams: parseParams(voiceEngineParams),
       ...falTaskPayload,
     } as any);
   }, [
@@ -1350,30 +1433,39 @@ export default function AiBrainSettings() {
     directorTemp,
     directorTopP,
     directorEnabled,
+    directorSystemPrompt,
     analystModel,
     analystTemp,
     analystTopP,
     analystEnabled,
+    analystSystemPrompt,
     storytellerModel,
     storytellerTemp,
     storytellerTopP,
     storytellerEnabled,
+    storytellerSystemPrompt,
     technicianModel,
     technicianTemp,
     technicianTopP,
     technicianEnabled,
+    technicianSystemPrompt,
     curatorModel,
     curatorTemp,
     curatorTopP,
     curatorEnabled,
+    curatorSystemPrompt,
     imageEngine,
     imageEnabled,
+    imageEngineParams,
     videoEngine,
     videoEnabled,
+    videoEngineParams,
     audioEngine,
     audioEnabled,
+    audioEngineParams,
     voiceEngine,
     voiceEnabled,
+    voiceEngineParams,
     falTaskEngines,
     upsertMutation,
   ]);
@@ -1582,10 +1674,12 @@ export default function AiBrainSettings() {
                         topP={directorTopP}
                         enabled={directorEnabled}
                         health={health}
+                        systemPrompt={directorSystemPrompt}
                         onModelChange={setDirectorModel}
                         onTemperatureChange={setDirectorTemp}
                         onTopPChange={setDirectorTopP}
                         onEnabledChange={setDirectorEnabled}
+                        onSystemPromptChange={setDirectorSystemPrompt}
                         onNavigateTarget={navigateToPath}
                       />
                       <BrainSlotCard
@@ -1598,10 +1692,12 @@ export default function AiBrainSettings() {
                         topP={analystTopP}
                         enabled={analystEnabled}
                         health={health}
+                        systemPrompt={analystSystemPrompt}
                         onModelChange={setAnalystModel}
                         onTemperatureChange={setAnalystTemp}
                         onTopPChange={setAnalystTopP}
                         onEnabledChange={setAnalystEnabled}
+                        onSystemPromptChange={setAnalystSystemPrompt}
                         onNavigateTarget={navigateToPath}
                       />
                       <BrainSlotCard
@@ -1615,10 +1711,12 @@ export default function AiBrainSettings() {
                         topP={storytellerTopP}
                         enabled={storytellerEnabled}
                         health={health}
+                        systemPrompt={storytellerSystemPrompt}
                         onModelChange={setStorytellerModel}
                         onTemperatureChange={setStorytellerTemp}
                         onTopPChange={setStorytellerTopP}
                         onEnabledChange={setStorytellerEnabled}
+                        onSystemPromptChange={setStorytellerSystemPrompt}
                         onNavigateTarget={navigateToPath}
                       />
                       <BrainSlotCard
@@ -1631,10 +1729,12 @@ export default function AiBrainSettings() {
                         topP={technicianTopP}
                         enabled={technicianEnabled}
                         health={health}
+                        systemPrompt={technicianSystemPrompt}
                         onModelChange={setTechnicianModel}
                         onTemperatureChange={setTechnicianTemp}
                         onTopPChange={setTechnicianTopP}
                         onEnabledChange={setTechnicianEnabled}
+                        onSystemPromptChange={setTechnicianSystemPrompt}
                         onNavigateTarget={navigateToPath}
                       />
                       <BrainSlotCard
@@ -1647,10 +1747,12 @@ export default function AiBrainSettings() {
                         topP={curatorTopP}
                         enabled={curatorEnabled}
                         health={health}
+                        systemPrompt={curatorSystemPrompt}
                         onModelChange={setCuratorModel}
                         onTemperatureChange={setCuratorTemp}
                         onTopPChange={setCuratorTopP}
                         onEnabledChange={setCuratorEnabled}
+                        onSystemPromptChange={setCuratorSystemPrompt}
                         onNavigateTarget={navigateToPath}
                       />
                     </>
@@ -1682,8 +1784,10 @@ export default function AiBrainSettings() {
                         currentEngine={imageEngine}
                         enabled={imageEnabled}
                         health={health}
+                        engineParams={imageEngineParams}
                         onEngineChange={setImageEngine}
                         onEnabledChange={setImageEnabled}
+                        onEngineParamsChange={setImageEngineParams}
                         onNavigateTarget={navigateToPath}
                       />
                       <EngineSlotCard
@@ -1695,8 +1799,10 @@ export default function AiBrainSettings() {
                         currentEngine={videoEngine}
                         enabled={videoEnabled}
                         health={health}
+                        engineParams={videoEngineParams}
                         onEngineChange={setVideoEngine}
                         onEnabledChange={setVideoEnabled}
+                        onEngineParamsChange={setVideoEngineParams}
                         onNavigateTarget={navigateToPath}
                       />
                       <EngineSlotCard
@@ -1708,8 +1814,10 @@ export default function AiBrainSettings() {
                         currentEngine={audioEngine}
                         enabled={audioEnabled}
                         health={health}
+                        engineParams={audioEngineParams}
                         onEngineChange={setAudioEngine}
                         onEnabledChange={setAudioEnabled}
+                        onEngineParamsChange={setAudioEngineParams}
                         onNavigateTarget={navigateToPath}
                       />
                       <EngineSlotCard
@@ -1721,8 +1829,10 @@ export default function AiBrainSettings() {
                         currentEngine={voiceEngine}
                         enabled={voiceEnabled}
                         health={health}
+                        engineParams={voiceEngineParams}
                         onEngineChange={setVoiceEngine}
                         onEnabledChange={setVoiceEnabled}
+                        onEngineParamsChange={setVoiceEngineParams}
                         onNavigateTarget={navigateToPath}
                       />
                     </>
