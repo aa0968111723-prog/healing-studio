@@ -658,8 +658,10 @@ function EngineSlotCard({
   currentEngine,
   enabled,
   health,
+  engineParams,
   onEngineChange,
   onEnabledChange,
+  onEngineParamsChange,
   onNavigateTarget,
 }: {
   catalog: SlotCatalog;
@@ -667,8 +669,10 @@ function EngineSlotCard({
   currentEngine: string;
   enabled: boolean;
   health: HealthStatus | undefined;
+  engineParams?: string;
   onEngineChange: (engine: string) => void;
   onEnabledChange: (enabled: boolean) => void;
+  onEngineParamsChange?: (params: string) => void;
   onNavigateTarget?: (path: string) => void;
 }) {
   return (
@@ -719,27 +723,47 @@ function EngineSlotCard({
           initial={{ opacity: 0, height: 0 }}
           animate={{ opacity: 1, height: "auto" }}
           exit={{ opacity: 0, height: 0 }}
+          className="space-y-3"
         >
-          <Label className="text-[10px] text-muted-foreground mb-1.5 block">
-            引擎選擇
-          </Label>
-          <Select value={currentEngine} onValueChange={onEngineChange}>
-            <SelectTrigger className="h-9 text-xs bg-white/40 dark:bg-white/5">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {catalog.options.map(opt => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  <span className="flex items-center gap-2">
-                    <HealthDot model={opt.value} health={health} />
-                    <span>{opt.label}</span>
-                    <ProviderBadge value={opt.value} />
-                    <TierBadge tier={opt.tier} />
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div>
+            <Label className="text-[10px] text-muted-foreground mb-1.5 block">
+              引擎選擇
+            </Label>
+            <Select value={currentEngine} onValueChange={onEngineChange}>
+              <SelectTrigger className="h-9 text-xs bg-white/40 dark:bg-white/5">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {catalog.options.map(opt => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    <span className="flex items-center gap-2">
+                      <HealthDot model={opt.value} health={health} />
+                      <span>{opt.label}</span>
+                      <ProviderBadge value={opt.value} />
+                      <TierBadge tier={opt.tier} />
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {onEngineParamsChange && (
+            <div>
+              <Label className="text-[10px] text-muted-foreground mb-1.5 block">
+                引擎參數（JSON，選填）
+              </Label>
+              <Textarea
+                value={engineParams || ""}
+                onChange={(e) => onEngineParamsChange(e.target.value)}
+                placeholder={'例如：{"num_images": 4, "guidance_scale": 7.5}'}
+                className="min-h-[80px] text-xs bg-white/40 dark:bg-white/5 resize-none font-mono"
+              />
+              <p className="text-[9px] text-muted-foreground/70 mt-1">
+                以 JSON 格式設定引擎專屬參數，留空則使用預設值
+              </p>
+            </div>
+          )}
         </motion.div>
       )}
     </motion.div>
@@ -1213,16 +1237,20 @@ export default function AiBrainSettings() {
   // ── Generation Engine State ───────────────────────────────────────────
   const [imageEngine, setImageEngine] = useState("fal-ai/flux-pro/v1.1");
   const [imageEnabled, setImageEnabled] = useState(true);
+  const [imageEngineParams, setImageEngineParams] = useState("");
   const [videoEngine, setVideoEngine] = useState(
     "fal-ai/kling-video/v2.1/standard/text-to-video"
   );
   const [videoEnabled, setVideoEnabled] = useState(true);
+  const [videoEngineParams, setVideoEngineParams] = useState("");
   const [audioEngine, setAudioEngine] = useState("fal-ai/stable-audio");
   const [audioEnabled, setAudioEnabled] = useState(true);
+  const [audioEngineParams, setAudioEngineParams] = useState("");
   const [voiceEngine, setVoiceEngine] = useState(
     "fal-ai/elevenlabs/tts/turbo-v2.5"
   );
   const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [voiceEngineParams, setVoiceEngineParams] = useState("");
 
   // ── Fal.ai 16 Task Engine State ───────────────────────────────────────
   const [falTaskEngines, setFalTaskEngines] = useState<
@@ -1277,18 +1305,22 @@ export default function AiBrainSettings() {
     if (g.imageEngine) {
       setImageEngine(normalizeEngineModelId(g.imageEngine.engine));
       setImageEnabled(g.imageEngine.enabled);
+      setImageEngineParams(g.imageEngine.params ? JSON.stringify(g.imageEngine.params, null, 2) : "");
     }
     if (g.videoEngine) {
       setVideoEngine(normalizeEngineModelId(g.videoEngine.engine));
       setVideoEnabled(g.videoEngine.enabled);
+      setVideoEngineParams(g.videoEngine.params ? JSON.stringify(g.videoEngine.params, null, 2) : "");
     }
     if (g.audioEngine) {
       setAudioEngine(normalizeEngineModelId(g.audioEngine.engine));
       setAudioEnabled(g.audioEngine.enabled);
+      setAudioEngineParams(g.audioEngine.params ? JSON.stringify(g.audioEngine.params, null, 2) : "");
     }
     if (g.voiceEngine) {
       setVoiceEngine(normalizeEngineModelId(g.voiceEngine.engine));
       setVoiceEnabled(g.voiceEngine.enabled);
+      setVoiceEngineParams(g.voiceEngine.params ? JSON.stringify(g.voiceEngine.params, null, 2) : "");
     }
     const fal = (brainQuery.data as any).falTasks;
     if (fal) {
@@ -1345,6 +1377,17 @@ export default function AiBrainSettings() {
       );
     }
 
+    // Parse JSON params
+    const parseParams = (paramsStr: string) => {
+      if (!paramsStr.trim()) return undefined;
+      try {
+        return JSON.parse(paramsStr);
+      } catch (e) {
+        toast.error(`參數 JSON 解析失敗: ${e instanceof Error ? e.message : String(e)}`);
+        return undefined;
+      }
+    };
+
     upsertMutation.mutate({
       directorModel,
       directorTemperature: directorTemp,
@@ -1373,12 +1416,16 @@ export default function AiBrainSettings() {
       curatorSystemPrompt: curatorSystemPrompt || undefined,
       imageEngine: normalizeEngineModelId(imageEngine),
       imageEngineEnabled: imageEnabled,
+      imageEngineParams: parseParams(imageEngineParams),
       videoEngine: normalizeEngineModelId(videoEngine),
       videoEngineEnabled: videoEnabled,
+      videoEngineParams: parseParams(videoEngineParams),
       audioEngine: normalizeEngineModelId(audioEngine),
       audioEngineEnabled: audioEnabled,
+      audioEngineParams: parseParams(audioEngineParams),
       voiceEngine: normalizeEngineModelId(voiceEngine),
       voiceEngineEnabled: voiceEnabled,
+      voiceEngineParams: parseParams(voiceEngineParams),
       ...falTaskPayload,
     } as any);
   }, [
@@ -1409,12 +1456,16 @@ export default function AiBrainSettings() {
     curatorSystemPrompt,
     imageEngine,
     imageEnabled,
+    imageEngineParams,
     videoEngine,
     videoEnabled,
+    videoEngineParams,
     audioEngine,
     audioEnabled,
+    audioEngineParams,
     voiceEngine,
     voiceEnabled,
+    voiceEngineParams,
     falTaskEngines,
     upsertMutation,
   ]);
@@ -1733,8 +1784,10 @@ export default function AiBrainSettings() {
                         currentEngine={imageEngine}
                         enabled={imageEnabled}
                         health={health}
+                        engineParams={imageEngineParams}
                         onEngineChange={setImageEngine}
                         onEnabledChange={setImageEnabled}
+                        onEngineParamsChange={setImageEngineParams}
                         onNavigateTarget={navigateToPath}
                       />
                       <EngineSlotCard
@@ -1746,8 +1799,10 @@ export default function AiBrainSettings() {
                         currentEngine={videoEngine}
                         enabled={videoEnabled}
                         health={health}
+                        engineParams={videoEngineParams}
                         onEngineChange={setVideoEngine}
                         onEnabledChange={setVideoEnabled}
+                        onEngineParamsChange={setVideoEngineParams}
                         onNavigateTarget={navigateToPath}
                       />
                       <EngineSlotCard
@@ -1759,8 +1814,10 @@ export default function AiBrainSettings() {
                         currentEngine={audioEngine}
                         enabled={audioEnabled}
                         health={health}
+                        engineParams={audioEngineParams}
                         onEngineChange={setAudioEngine}
                         onEnabledChange={setAudioEnabled}
+                        onEngineParamsChange={setAudioEngineParams}
                         onNavigateTarget={navigateToPath}
                       />
                       <EngineSlotCard
@@ -1772,8 +1829,10 @@ export default function AiBrainSettings() {
                         currentEngine={voiceEngine}
                         enabled={voiceEnabled}
                         health={health}
+                        engineParams={voiceEngineParams}
                         onEngineChange={setVoiceEngine}
                         onEnabledChange={setVoiceEnabled}
+                        onEngineParamsChange={setVoiceEngineParams}
                         onNavigateTarget={navigateToPath}
                       />
                     </>
