@@ -1174,6 +1174,7 @@ export const promptLibrary = mysqlTable(
   table => ({
     userIdIdx: index("pl_userId_idx").on(table.userId),
     categoryIdx: index("pl_category_idx").on(table.category),
+    generationModeIdx: index("pl_generationMode_idx").on(table.generationMode),
   })
 );
 

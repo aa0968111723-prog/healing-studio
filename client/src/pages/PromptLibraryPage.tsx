@@ -57,7 +57,13 @@ const CATEGORIES = [
   { value: "system", label: "⚙️ 系統" },
 ] as const;
 
+const GENERATION_MODES = [
+  { value: "lightning", label: "⚡ 閃電模式", description: "快速生成，適合快速預覽和迭代" },
+  { value: "deep_precision", label: "🎯 深度精準", description: "高品質輸出，適合最終作品" },
+] as const;
+
 type Category = (typeof CATEGORIES)[number]["value"];
+type GenerationModeValue = (typeof GENERATION_MODES)[number]["value"];
 
 interface PromptForm {
   title: string;
@@ -66,7 +72,7 @@ interface PromptForm {
   tags: string;
   isPublic: boolean;
   modelHint: string;
-  generationMode: "lightning" | "deep_precision" | "";
+  generationMode: GenerationModeValue | "";
 }
 
 const EMPTY_FORM: PromptForm = {
@@ -85,7 +91,7 @@ export default function PromptLibraryPage() {
   const [tab, setTab] = useState<"mine" | "public">("mine");
   const [search, setSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState<Category | "all">("all");
-  const [filterMode, setFilterMode] = useState<"lightning" | "deep_precision" | "all">("all");
+  const [filterMode, setFilterMode] = useState<GenerationModeValue | "all">("all");
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [page, setPage] = useState(1);
 
@@ -179,6 +185,20 @@ export default function PromptLibraryPage() {
     ],
     []
   );
+  const MODE_OPTIONS = useMemo<AgentCapability["options"]>(
+    () => [
+      { id: "all", label: "全部模式", meta: { bestFor: "查看所有提示詞", tip: "不限定生成模式" } },
+      ...GENERATION_MODES.map(m => ({
+        id: m.value,
+        label: m.label,
+        meta: {
+          bestFor: m.description,
+          tip: m.value === "lightning" ? "快速迭代用" : "最終成品用",
+        },
+      })),
+    ],
+    []
+  );
   const agentCapabilities: AgentCapability[] = useMemo(
     () => [
       {
@@ -190,8 +210,18 @@ export default function PromptLibraryPage() {
       },
       {
         action: "setParam",
-        label: "分類 / 收藏 / 模式",
-        hint: "setParam key='category' value=<id>；key='favoritesOnly' value=true|false；key='generationMode' value=lightning|deep_precision|all",
+        label: "分類篩選",
+        hint: "setParam key='category' value=<id>",
+      },
+      {
+        action: "setParam",
+        label: "模式篩選",
+        hint: "setParam key='generationMode' value=lightning|deep_precision|all",
+      },
+      {
+        action: "setParam",
+        label: "收藏篩選",
+        hint: "setParam key='favoritesOnly' value=true|false",
       },
       {
         action: "search",
@@ -243,12 +273,14 @@ export default function PromptLibraryPage() {
           }
           if (action.key === "generationMode") {
             const v = String(action.value ?? "");
-            if (!["lightning", "deep_precision", "all"].includes(v)) {
+            const allowedModes = ["all", ...GENERATION_MODES.map(m => m.value)];
+            if (!allowedModes.includes(v)) {
               return { ok: false, reason: `unknown generationMode: ${v}` };
             }
-            setFilterMode(v as "lightning" | "deep_precision" | "all");
+            setFilterMode(v as GenerationModeValue | "all");
             setPage(1);
-            return { ok: true, message: `生成模式切到「${v}」` };
+            const modeName = GENERATION_MODES.find(m => m.value === v)?.label ?? v;
+            return { ok: true, message: `生成模式切到「${modeName}」` };
           }
           if (action.key === "favoritesOnly") {
             setFavoritesOnly(Boolean(action.value));
@@ -335,7 +367,7 @@ export default function PromptLibraryPage() {
       tags: (item.tags ?? []).join(", "),
       isPublic: item.isPublic,
       modelHint: item.modelHint ?? "",
-      generationMode: (item.generationMode as "lightning" | "deep_precision") ?? "",
+      generationMode: (item.generationMode as GenerationModeValue) ?? "",
     });
     setIsCreateOpen(true);
   }
@@ -422,15 +454,19 @@ export default function PromptLibraryPage() {
                   <Label>生成模式（選填）</Label>
                   <Select
                     value={form.generationMode || "none"}
-                    onValueChange={v => setForm(f => ({ ...f, generationMode: v === "none" ? "" : v as "lightning" | "deep_precision" }))}
+                    onValueChange={v => setForm(f => ({ ...f, generationMode: v === "none" ? "" : v as GenerationModeValue }))}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="不指定" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">不指定</SelectItem>
-                      <SelectItem value="lightning">⚡ 閃電模式</SelectItem>
-                      <SelectItem value="deep_precision">🎯 深度精準</SelectItem>
+                      {GENERATION_MODES.map(m => (
+                        <SelectItem key={m.value} value={m.value} className="flex flex-col items-start">
+                          <div>{m.label}</div>
+                          <div className="text-xs text-muted-foreground">{m.description}</div>
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -522,15 +558,18 @@ export default function PromptLibraryPage() {
         </Select>
         <Select
           value={filterMode}
-          onValueChange={v => { setFilterMode(v as "lightning" | "deep_precision" | "all"); setPage(1); }}
+          onValueChange={v => { setFilterMode(v as GenerationModeValue | "all"); setPage(1); }}
         >
-          <SelectTrigger className="w-36">
+          <SelectTrigger className="w-40">
             <SelectValue placeholder="所有模式" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">所有模式</SelectItem>
-            <SelectItem value="lightning">⚡ 閃電模式</SelectItem>
-            <SelectItem value="deep_precision">🎯 深度精準</SelectItem>
+            {GENERATION_MODES.map(m => (
+              <SelectItem key={m.value} value={m.value}>
+                {m.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
         {tab === "mine" && (
@@ -619,6 +658,7 @@ interface PromptCardProps {
 
 function PromptCard({ item, isOwn, onCopy, onEdit, onDelete, onToggleFav }: PromptCardProps) {
   const catLabel = CATEGORIES.find(c => c.value === item.category)?.label ?? item.category;
+  const modeInfo = GENERATION_MODES.find(m => m.value === item.generationMode);
 
   return (
     <div className="group relative bg-card border border-border rounded-xl p-4 flex flex-col gap-3 hover:border-primary/50 transition-colors">
@@ -630,8 +670,16 @@ function PromptCard({ item, isOwn, onCopy, onEdit, onDelete, onToggleFav }: Prom
             <Badge variant="secondary" className="text-xs px-1.5 py-0">
               {catLabel}
             </Badge>
-            {item.generationMode && (
-              <Badge variant="outline" className="text-xs px-1.5 py-0">
+            {modeInfo && (
+              <Badge
+                variant="outline"
+                className={`text-xs px-1.5 py-0 ${
+                  item.generationMode === "lightning"
+                    ? "border-yellow-400/50 bg-yellow-50/50 text-yellow-700 dark:bg-yellow-950/30 dark:text-yellow-400"
+                    : "border-blue-400/50 bg-blue-50/50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400"
+                }`}
+                title={modeInfo.description}
+              >
                 {item.generationMode === "lightning" ? "⚡" : "🎯"}
               </Badge>
             )}
