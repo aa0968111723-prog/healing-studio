@@ -546,65 +546,6 @@ const DIRECTOR_AI_TUTORIAL = [
   },
 ] as const;
 
-const ASSET_MODEL_SUBPAGE_TUTORIALS = [
-  {
-    id: "assets-library",
-    title: "素材中心（Assets）",
-    path: "/assets",
-    description: "學會上傳、分類與複用素材，建立可重用素材庫。",
-    orbPrompt: "請教我如何在素材中心建立可重用素材庫，並帶我完成第一次分類。",
-  },
-  {
-    id: "shared-assets",
-    title: "共享素材（Shared）",
-    path: "/shared",
-    description: "學會與團隊共享素材、設定存取與版本更新。",
-    orbPrompt: "請教我共享素材頁的最佳實務，並帶我完成一次共享發佈。",
-  },
-  {
-    id: "prompt-library",
-    title: "提示詞庫（Prompt Library）",
-    path: "/prompt-library",
-    description: "學會建立提示詞模板與版本管理，降低重複撰寫成本。",
-    orbPrompt: "請教我建立提示詞模板並分類，帶我完成第一組可複用模板。",
-  },
-  {
-    id: "notes",
-    title: "創作筆記（Notes）",
-    path: "/notes",
-    description: "學會把靈感、設定與迭代紀錄結構化保存。",
-    orbPrompt: "請教我用創作筆記整理專案脈絡，並建立一份可追蹤的筆記範本。",
-  },
-  {
-    id: "history",
-    title: "版本歷史（History）",
-    path: "/history",
-    description: "學會比對版本、保留最佳稿與回溯流程。",
-    orbPrompt: "請教我在版本歷史頁比較差異並選出最佳版本，建立迭代節奏。",
-  },
-  {
-    id: "lora-trainer",
-    title: "模型訓練（LoRA Trainer）",
-    path: "/lora-trainer",
-    description: "學會建立角色/風格模型，提升生成一致性。",
-    orbPrompt: "請教我 LoRA 訓練流程與資料準備，並帶我建立第一個訓練計畫。",
-  },
-  {
-    id: "pro-studio",
-    title: "專業工作室（Pro Studio）",
-    path: "/pro-studio",
-    description: "學會進階參數與模型組合策略，優化輸出品質。",
-    orbPrompt: "請教我 Pro Studio 的進階參數怎麼設計，帶我跑一次高品質工作流。",
-  },
-  {
-    id: "dashboard",
-    title: "成效儀表板（Dashboard）",
-    path: "/dashboard",
-    description: "學會看使用與成效數據，回推最佳創作策略。",
-    orbPrompt: "請教我如何從儀表板解讀成效，並提出下一輪優化策略。",
-  },
-] as const;
-
 const ALL_SUBPAGE_TUTORIALS = [
   { id: "learn-center", title: "學習文件中心", path: "/learn", prompt: "請教我學習文件中心怎麼快速找到新手到進階的學習路徑。", category: "Learning" },
   { id: "notes-planning", title: "規劃筆記", path: "/notes", prompt: "請教我如何用規劃筆記建立可執行的創作計畫與里程碑。", category: "Planning" },
@@ -938,20 +879,6 @@ export default function Home() {
     }
     navigate("/agent?tutorial=director-ai&entry=home");
   }, [copyOrbPrompt, isAuthenticated, navigate]);
-
-  const startAssetModelTutorial = useCallback(
-    (tutorialId: string, path: string, prompt: string) => {
-      void copyOrbPrompt(prompt);
-      if (!isAuthenticated) {
-        window.location.href = getDemoLoginUrl();
-        return;
-      }
-      navigate(
-        `/agent?tutorial=${tutorialId}&target=${encodeURIComponent(path)}&entry=home`
-      );
-    },
-    [copyOrbPrompt, isAuthenticated, navigate]
-  );
 
   const startGlobalSubpageTutorial = useCallback(
     (tutorialId: string, path: string, prompt: string) => {
@@ -1521,62 +1448,6 @@ export default function Home() {
                             }}
                           >
                             前往頁面
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div
-                  className="rounded-xl border p-3 sm:p-4 mb-3"
-                  style={{ borderColor: s.cardBorder, background: s.featureBg }}
-                >
-                  <div className="flex items-center justify-between gap-3 mb-3">
-                    <p className={`text-sm font-semibold ${s.textPrimary}`}>
-                      素材與模型 8 子分頁教學
-                    </p>
-                    <span
-                      className={`text-[11px] px-2 py-1 rounded-full ${s.textSecondary}`}
-                      style={{ background: s.cardBg }}
-                    >
-                      8 Tutorials
-                    </span>
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {ASSET_MODEL_SUBPAGE_TUTORIALS.map(item => (
-                      <div
-                        key={item.id}
-                        className="rounded-lg border p-3"
-                        style={{ borderColor: s.cardBorder, background: s.cardBg }}
-                      >
-                        <p className={`text-xs sm:text-sm font-medium ${s.textPrimary}`}>
-                          {item.title}
-                        </p>
-                        <p className={`text-xs mt-1 ${s.textMuted}`}>{item.description}</p>
-                        <div className="mt-2 flex flex-col sm:flex-row gap-2">
-                          <Button
-                            size="sm"
-                            className={`h-7 px-2.5 text-[11px] ${s.btnPrimary} ${s.btnPrimaryText}`}
-                            onClick={() =>
-                              startAssetModelTutorial(item.id, item.path, item.orbPrompt)
-                            }
-                          >
-                            光球帶我去學
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className={`h-7 px-2.5 text-[11px] ${s.btnOutline} ${s.btnOutlineText}`}
-                            onClick={() => {
-                              if (!isAuthenticated) {
-                                window.location.href = getDemoLoginUrl();
-                                return;
-                              }
-                              navigate(item.path);
-                            }}
-                          >
-                            直接前往分頁
                           </Button>
                         </div>
                       </div>

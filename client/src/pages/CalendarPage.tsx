@@ -565,6 +565,36 @@ export default function CalendarPage() {
       </div>
 
       <PlanningSubpageGuide page="calendar" />
+      <div className="rounded-xl border border-border/50 bg-muted/20 p-3">
+        <p className="text-xs font-medium text-foreground/80 mb-2">
+          生成前後排程串接
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs gap-1.5"
+            onClick={() => navigate("/notes")}
+          >
+            先建規劃筆記
+          </Button>
+          <Button
+            size="sm"
+            className="h-7 text-xs gap-1.5"
+            onClick={() => navigate("/studio")}
+          >
+            進入生成執行
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs gap-1.5"
+            onClick={() => navigate("/history")}
+          >
+            生成後回看
+          </Button>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Calendar with drag-over support */}

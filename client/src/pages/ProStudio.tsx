@@ -3608,6 +3608,28 @@ export default function ProStudio() {
     }
   }, []);
 
+  // ── Restore applied model from Models/LoraTrainer (voice clone path) ──
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("applyModel");
+      if (!raw) return;
+      const data = JSON.parse(raw) as {
+        id?: number;
+        name?: string;
+        modelType?: string;
+      };
+      if (data.modelType !== "voice_clone") return;
+
+      setTab("clone");
+      sessionStorage.removeItem("applyModel");
+      toast.success(
+        `已載入模型「${data.name ?? "語音模型"}」到專業創作室，請在「聲音克隆」工具箱繼續生成`
+      );
+    } catch {
+      // silent
+    }
+  }, []);
+
   // ── 光球代理人：音訊創作室 ───────────────────────────────────────────
   // 7 分頁、24+ 模型分散在子元件。頁面層只做 setTab + 模型語意對照。
   const PRO_MODELS: Array<{

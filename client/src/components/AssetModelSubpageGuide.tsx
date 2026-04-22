@@ -1,17 +1,19 @@
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Link } from "wouter";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { ChevronDown, Package2 } from "lucide-react";
+import { ChevronDown, Link2, Package2, Sparkles } from "lucide-react";
 
 type SubpageKey =
   | "assets"
   | "history"
   | "prompt-library"
   | "shared"
+  | "models"
   | "vault"
   | "lora-trainer"
   | "background-tasks";
@@ -56,6 +58,15 @@ const GUIDE_CONTENT: Record<
       "優先共享可落地模板，降低團隊試錯成本。",
     ],
   },
+  models: {
+    title: "模型庫選型與套用策略",
+    badge: "模型",
+    bullets: [
+      "先看模型狀態與使用紀錄，再決定是否套用到工作室。",
+      "用名稱 + 版本規範，避免團隊誤用舊模型。",
+      "套用後同步記錄觸發詞，讓後續迭代可重現。",
+    ],
+  },
   vault: {
     title: "角色保險庫穩定策略",
     badge: "保險庫",
@@ -84,6 +95,29 @@ const GUIDE_CONTENT: Record<
     ],
   },
 };
+
+const ASSET_MODEL_SUBPAGES: {
+  key: SubpageKey;
+  label: string;
+  path: string;
+}[] = [
+  { key: "assets", label: "素材中心", path: "/assets" },
+  { key: "history", label: "生成歷史", path: "/history" },
+  { key: "prompt-library", label: "提示詞庫", path: "/prompt-library" },
+  { key: "shared", label: "共享素材", path: "/shared" },
+  { key: "models", label: "角色鍛造所", path: "/models" },
+  { key: "lora-trainer", label: "模型訓練中心", path: "/lora-trainer" },
+  { key: "vault", label: "角色保險庫", path: "/vault" },
+  { key: "background-tasks", label: "背景任務", path: "/background-tasks" },
+];
+
+const GLOBAL_HANDOFFS = [
+  { label: "創作工作室", path: "/studio" },
+  { label: "圖片創作室", path: "/image-studio" },
+  { label: "影片創作室", path: "/video-studio" },
+  { label: "專業創作室", path: "/pro-studio" },
+  { label: "導演 AI", path: "/director" },
+];
 
 export function AssetModelSubpageGuide({ page }: { page: SubpageKey }) {
   const [open, setOpen] = useState(false);
@@ -122,6 +156,51 @@ export function AssetModelSubpageGuide({ page }: { page: SubpageKey }) {
             </li>
           ))}
         </ul>
+        <div className="mt-3 rounded-xl border border-border/50 bg-muted/20 p-2.5 space-y-2">
+          <div className="flex items-center gap-1.5">
+            <Link2 className="w-3.5 h-3.5 text-primary" />
+            <p className="text-[11px] font-medium text-foreground/80">
+              素材與模型 8 子分頁
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {ASSET_MODEL_SUBPAGES.map(item => {
+              const isActive = item.key === page;
+              return (
+                <Link
+                  key={item.key}
+                  href={item.path}
+                  className={`text-[11px] px-2 py-1 rounded-full border transition-colors ${
+                    isActive
+                      ? "bg-primary/10 border-primary/30 text-primary"
+                      : "bg-background/70 border-border/60 text-muted-foreground hover:text-foreground hover:border-border"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+        <div className="mt-2 rounded-xl border border-border/50 bg-muted/20 p-2.5">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-primary" />
+            <p className="text-[11px] font-medium text-foreground/80">
+              全站串接建議入口
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {GLOBAL_HANDOFFS.map(item => (
+              <Link
+                key={item.path}
+                href={item.path}
+                className="text-[11px] px-2 py-1 rounded-full border border-border/60 text-muted-foreground hover:text-foreground hover:border-border transition-colors bg-background/70"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        </div>
       </CollapsibleContent>
     </Collapsible>
   );
