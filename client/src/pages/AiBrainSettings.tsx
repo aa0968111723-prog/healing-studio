@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, type ChangeEvent } from "react";
 import { trpc } from "@/lib/trpc";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import { Button } from "@/components/ui/button";

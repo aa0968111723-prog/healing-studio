@@ -562,6 +562,42 @@ const ALL_SUBPAGE_TUTORIALS = [
   { id: "lora-all", title: "模型訓練", path: "/lora-trainer", prompt: "請教我模型訓練資料準備、訓練與驗證流程。", category: "Model" },
 ] as const;
 
+const STATION_VISUAL_STEPS = [
+  "1. 先懂這站在做什麼",
+  "2. 完成一個實際操作",
+  "3. 達成可驗收結果",
+] as const;
+
+const CATEGORY_VISUAL_META: Record<
+  (typeof ALL_SUBPAGE_TUTORIALS)[number]["category"],
+  { emoji: string; eta: string; focus: string }
+> = {
+  Learning: { emoji: "📘", eta: "3-5 分鐘", focus: "理解學習路徑" },
+  Planning: { emoji: "🗒️", eta: "4-6 分鐘", focus: "建立可執行計畫" },
+  Insights: { emoji: "📈", eta: "4-6 分鐘", focus: "看懂關鍵指標" },
+  Studio: { emoji: "🎬", eta: "6-10 分鐘", focus: "完成第一版作品" },
+  Ops: { emoji: "🧩", eta: "3-6 分鐘", focus: "建立可重複流程" },
+  Model: { emoji: "🧠", eta: "8-12 分鐘", focus: "訓練與驗證模型" },
+};
+
+const INTERACTIVE_TEACHING_OPTIONS = {
+  goal: [
+    { id: "ship-fast", label: "今天先產出可用版本" },
+    { id: "learn-why", label: "先理解每步驟為什麼" },
+    { id: "team-ready", label: "建立可交接流程" },
+  ],
+  pace: [
+    { id: "5-min", label: "5 分鐘快節奏" },
+    { id: "15-min", label: "15 分鐘標準節奏" },
+    { id: "30-min", label: "30 分鐘深度練習" },
+  ],
+  level: [
+    { id: "beginner", label: "新手模式" },
+    { id: "intermediate", label: "進階模式" },
+    { id: "pro", label: "專家模式" },
+  ],
+} as const;
+
 // ─── Scene Badge ────────────────────────────────────────────────────────────
 
 function SceneBadge({
@@ -660,6 +696,18 @@ export default function Home() {
   const [openGuideId, setOpenGuideId] = useState<string | null>("new-user");
   const [quickGuideHidden, setQuickGuideHidden] = useState(false);
   const [completedMissions, setCompletedMissions] = useState<string[]>([]);
+  const [selectedStationId, setSelectedStationId] = useState<string>(
+    ALL_SUBPAGE_TUTORIALS[0].id
+  );
+  const [teachingGoal, setTeachingGoal] = useState<string>(
+    INTERACTIVE_TEACHING_OPTIONS.goal[0].id
+  );
+  const [teachingPace, setTeachingPace] = useState<string>(
+    INTERACTIVE_TEACHING_OPTIONS.pace[1].id
+  );
+  const [teachingLevel, setTeachingLevel] = useState<string>(
+    INTERACTIVE_TEACHING_OPTIONS.level[0].id
+  );
   const [selectedTrackId, setSelectedTrackId] = useState<string>(
     HOME_CREATIVE_TRACKS[0].id
   );
@@ -882,16 +930,66 @@ export default function Home() {
 
   const startGlobalSubpageTutorial = useCallback(
     (tutorialId: string, path: string, prompt: string) => {
-      void copyOrbPrompt(prompt);
+      const profileSnippet = `使用者教學設定：目標=${teachingGoal}，節奏=${teachingPace}，程度=${teachingLevel}。`;
+      const deepDivePrompt = `${prompt}
+
+請用「逐站互動式導覽」模式帶我完成這一站：
+1) 先用 2 句話說明這一站的核心價值與適合任務。
+2) 先問我 1-2 個問題（目前目標、交付期限）再客製建議。
+3) 給我「本頁第一步操作」與「完成判準」。
+4) 完成後再給我「下一站建議」與為什麼。
+${profileSnippet}`;
+      void copyOrbPrompt(deepDivePrompt);
       if (!isAuthenticated) {
         window.location.href = getDemoLoginUrl();
         return;
       }
       navigate(
-        `/agent?tutorial=${tutorialId}&target=${encodeURIComponent(path)}&scope=all-pages&entry=home`
+        `/agent?tutorial=${tutorialId}&target=${encodeURIComponent(path)}&scope=all-pages&interactive=1&depth=station&entry=home`
       );
     },
-    [copyOrbPrompt, isAuthenticated, navigate]
+    [copyOrbPrompt, isAuthenticated, navigate, teachingGoal, teachingPace, teachingLevel]
+  );
+
+  const startInteractiveOrbStep = useCallback(
+    ({
+      tutorialId,
+      stepId,
+      stepTitle,
+      stepDescription,
+      targetPath,
+      sectionLabel,
+      customPrompt,
+    }: {
+      tutorialId: string;
+      stepId: string;
+      stepTitle: string;
+      stepDescription: string;
+      targetPath?: string;
+      sectionLabel: string;
+      customPrompt?: string;
+    }) => {
+      const stepPrompt =
+        customPrompt ??
+        `請啟動「${sectionLabel}」互動式導覽的這一步：${stepTitle}。${stepDescription}。請先問我 1-2 個必要問題，再帶我完成這一步，最後告訴我下一步。`;
+      const profileSnippet = `教學設定：目標=${teachingGoal}，節奏=${teachingPace}，程度=${teachingLevel}。`;
+      void copyOrbPrompt(`${stepPrompt}\n${profileSnippet}`);
+      if (!isAuthenticated) {
+        window.location.href = getDemoLoginUrl();
+        return;
+      }
+      const params = new URLSearchParams({
+        tutorial: tutorialId,
+        step: stepId,
+        interactive: "1",
+        entry: "home",
+      });
+      if (targetPath) {
+        params.set("target", targetPath);
+      }
+      navigate(`/agent?${params.toString()}`);
+    },
+    [copyOrbPrompt, isAuthenticated, navigate, teachingGoal, teachingPace, teachingLevel]
   );
 
   // ─── PageAgent 註冊（Phase 4b：首頁接入光球） ────────────────────────────
@@ -1350,7 +1448,7 @@ export default function Home() {
                 <p
                   className={`text-xs sm:text-sm mt-1 transition-colors duration-1000 ${s.textMuted}`}
                 >
-                  可展開、可隱藏：並且會依你的登入狀態與光球代理動線給建議。
+                  已升級為「逐站深入」光球互動式導覽：每一站都會先提問、再帶做、最後銜接下一站。
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -1391,12 +1489,32 @@ export default function Home() {
                     <p className={`text-sm font-semibold ${s.textPrimary}`}>
                       全頁子頁面教學總覽
                     </p>
-                    <span
-                      className={`text-[11px] px-2 py-1 rounded-full ${s.textSecondary}`}
-                      style={{ background: s.cardBg }}
-                    >
-                      All Subpages
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`text-[11px] px-2 py-1 rounded-full ${s.textSecondary}`}
+                        style={{ background: s.cardBg }}
+                      >
+                        All Subpages
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className={`h-7 px-2.5 text-[11px] ${s.btnOutline} ${s.btnOutlineText}`}
+                        onClick={() =>
+                          startInteractiveOrbStep({
+                            tutorialId: "all-subpages-deep-dive",
+                            stepId: "station-sequence",
+                            stepTitle: "全站逐站深入互動導覽",
+                            stepDescription: "由光球依序帶我跑完核心頁面，每站都要有任務與驗收點",
+                            sectionLabel: "全頁子頁面教學總覽",
+                            customPrompt:
+                              "請啟動全站逐站深入互動導覽，依序帶我走 Learn、Notes、Dashboard、Studio、Director、Image、Video、History、Assets。每一站都要先提問、指定一個可執行任務、給驗收標準，完成後再銜接下一站。",
+                          })
+                        }
+                      >
+                        全站逐站導覽
+                      </Button>
+                    </div>
                   </div>
                   <div className="grid gap-2 sm:grid-cols-3 mb-2">
                     {ALL_SUBPAGE_TUTORIALS.slice(0, 3).map(item => (
@@ -1410,12 +1528,96 @@ export default function Home() {
                       </div>
                     ))}
                   </div>
+                  <div
+                    className="rounded-lg border p-2.5 mb-2"
+                    style={{ borderColor: s.cardBorder, background: s.cardBg }}
+                  >
+                    <p className={`text-[11px] font-medium mb-2 ${s.textPrimary}`}>
+                      逐站導覽可視化流程
+                    </p>
+                    <div className="grid gap-1.5 sm:grid-cols-3">
+                      {STATION_VISUAL_STEPS.map(step => (
+                        <div
+                          key={step}
+                          className="rounded-md px-2 py-1.5 text-[11px]"
+                          style={{ background: s.featureBg }}
+                        >
+                          <span className={s.textSecondary}>{step}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div
+                    className="rounded-lg border p-2.5 mb-2"
+                    style={{ borderColor: s.cardBorder, background: s.cardBg }}
+                  >
+                    <p className={`text-[11px] font-medium mb-2 ${s.textPrimary}`}>
+                      先設定你的互動教學模式（光球會照這個節奏帶你）
+                    </p>
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap gap-1.5">
+                        {INTERACTIVE_TEACHING_OPTIONS.goal.map(option => (
+                          <Button
+                            key={option.id}
+                            size="sm"
+                            variant={teachingGoal === option.id ? "default" : "outline"}
+                            className={`h-7 px-2 text-[11px] ${teachingGoal === option.id ? `${s.btnPrimary} ${s.btnPrimaryText}` : `${s.btnOutline} ${s.btnOutlineText}`}`}
+                            onClick={() => setTeachingGoal(option.id)}
+                          >
+                            🎯 {option.label}
+                          </Button>
+                        ))}
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {INTERACTIVE_TEACHING_OPTIONS.pace.map(option => (
+                          <Button
+                            key={option.id}
+                            size="sm"
+                            variant={teachingPace === option.id ? "default" : "outline"}
+                            className={`h-7 px-2 text-[11px] ${teachingPace === option.id ? `${s.btnPrimary} ${s.btnPrimaryText}` : `${s.btnOutline} ${s.btnOutlineText}`}`}
+                            onClick={() => setTeachingPace(option.id)}
+                          >
+                            ⏱ {option.label}
+                          </Button>
+                        ))}
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {INTERACTIVE_TEACHING_OPTIONS.level.map(option => (
+                          <Button
+                            key={option.id}
+                            size="sm"
+                            variant={teachingLevel === option.id ? "default" : "outline"}
+                            className={`h-7 px-2 text-[11px] ${teachingLevel === option.id ? `${s.btnPrimary} ${s.btnPrimaryText}` : `${s.btnOutline} ${s.btnOutlineText}`}`}
+                            onClick={() => setTeachingLevel(option.id)}
+                          >
+                            🧭 {option.label}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    className="rounded-lg border p-2.5 mb-2"
+                    style={{ borderColor: s.cardBorder, background: s.featureBg }}
+                  >
+                    <p className={`text-[11px] ${s.textPrimary}`}>
+                      目前選擇站點：
+                      <span className="font-semibold">
+                        {" "}
+                        {ALL_SUBPAGE_TUTORIALS.find(item => item.id === selectedStationId)?.title}
+                      </span>
+                    </p>
+                    <p className={`text-[11px] mt-1 ${s.textMuted}`}>
+                      點任一站卡片就會切換目標站，光球會依你上方的設定自動調整提問深度與教學節奏。
+                    </p>
+                  </div>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {ALL_SUBPAGE_TUTORIALS.map(item => (
                       <div
                         key={item.id}
-                        className="rounded-lg border p-3"
+                        className="rounded-lg border p-3 transition-all cursor-pointer"
                         style={{ borderColor: s.cardBorder, background: s.cardBg }}
+                        onClick={() => setSelectedStationId(item.id)}
                       >
                         <div className="flex items-center justify-between gap-2">
                           <p className={`text-xs sm:text-sm font-medium ${s.textPrimary}`}>
@@ -1425,6 +1627,43 @@ export default function Home() {
                             {item.category}
                           </span>
                         </div>
+                        {selectedStationId === item.id ? (
+                          <div
+                            className="mt-1 rounded-md px-2 py-1 text-[10px] font-medium"
+                            style={{ background: s.featureBg }}
+                          >
+                            <span className={s.textSecondary}>正在準備這一站的互動教學</span>
+                          </div>
+                        ) : null}
+                        <div className="mt-2 grid grid-cols-3 gap-1.5">
+                          <div
+                            className="rounded-md px-2 py-1 text-[10px]"
+                            style={{ background: s.featureBg }}
+                          >
+                            <span className={s.textSecondary}>
+                              {CATEGORY_VISUAL_META[item.category].emoji} 焦點
+                            </span>
+                            <p className={`mt-0.5 ${s.textPrimary}`}>
+                              {CATEGORY_VISUAL_META[item.category].focus}
+                            </p>
+                          </div>
+                          <div
+                            className="rounded-md px-2 py-1 text-[10px]"
+                            style={{ background: s.featureBg }}
+                          >
+                            <span className={s.textSecondary}>⏱ 預估</span>
+                            <p className={`mt-0.5 ${s.textPrimary}`}>
+                              {CATEGORY_VISUAL_META[item.category].eta}
+                            </p>
+                          </div>
+                          <div
+                            className="rounded-md px-2 py-1 text-[10px]"
+                            style={{ background: s.featureBg }}
+                          >
+                            <span className={s.textSecondary}>✅ 完成標準</span>
+                            <p className={`mt-0.5 ${s.textPrimary}`}>做完一個站內任務</p>
+                          </div>
+                        </div>
                         <div className="mt-2 flex flex-col sm:flex-row gap-2">
                           <Button
                             size="sm"
@@ -1433,21 +1672,25 @@ export default function Home() {
                               startGlobalSubpageTutorial(item.id, item.path, item.prompt)
                             }
                           >
-                            光球教學
+                            深入互動導覽
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
                             className={`h-7 px-2.5 text-[11px] ${s.btnOutline} ${s.btnOutlineText}`}
                             onClick={() => {
-                              if (!isAuthenticated) {
-                                window.location.href = getDemoLoginUrl();
-                                return;
-                              }
-                              navigate(item.path);
+                              startInteractiveOrbStep({
+                                tutorialId: item.id,
+                                stepId: `${item.id}-goto`,
+                                stepTitle: `帶我前往 ${item.title}`,
+                                stepDescription: "先快速介紹這一頁的用途，再帶我前往並指出第一個建議操作",
+                                targetPath: item.path,
+                                sectionLabel: "全頁子頁面教學總覽",
+                                customPrompt: `請啟動「${item.title}」逐站深入導覽。先問我目前目標與時程，再帶我進入頁面 ${item.path}，並指定第一個要完成的操作與驗收標準。`,
+                              });
                             }}
                           >
-                            前往頁面
+                            光球帶我進站
                           </Button>
                         </div>
                       </div>
@@ -1481,6 +1724,23 @@ export default function Home() {
                           {step.title}
                         </p>
                         <p className={`text-xs mt-1 ${s.textMuted}`}>{step.description}</p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className={`h-7 px-2.5 mt-2 text-[11px] ${s.btnOutline} ${s.btnOutlineText}`}
+                          onClick={() =>
+                            startInteractiveOrbStep({
+                              tutorialId: "director-ai",
+                              stepId: step.id,
+                              stepTitle: step.title,
+                              stepDescription: step.description,
+                              targetPath: "/director",
+                              sectionLabel: "導演 AI 教學",
+                            })
+                          }
+                        >
+                          互動式導覽這一步
+                        </Button>
                       </div>
                     ))}
                   </div>
@@ -1533,6 +1793,23 @@ export default function Home() {
                           {step.title}
                         </p>
                         <p className={`text-xs mt-1 ${s.textMuted}`}>{step.description}</p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className={`h-7 px-2.5 mt-2 text-[11px] ${s.btnOutline} ${s.btnOutlineText}`}
+                          onClick={() =>
+                            startInteractiveOrbStep({
+                              tutorialId: "music-voice-studio",
+                              stepId: step.id,
+                              stepTitle: step.title,
+                              stepDescription: step.description,
+                              targetPath: "/studio?tab=audio",
+                              sectionLabel: "音樂配音工作室教學",
+                            })
+                          }
+                        >
+                          互動式導覽這一步
+                        </Button>
                       </div>
                     ))}
                   </div>
@@ -1585,6 +1862,23 @@ export default function Home() {
                           {step.title}
                         </p>
                         <p className={`text-xs mt-1 ${s.textMuted}`}>{step.description}</p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className={`h-7 px-2.5 mt-2 text-[11px] ${s.btnOutline} ${s.btnOutlineText}`}
+                          onClick={() =>
+                            startInteractiveOrbStep({
+                              tutorialId: "video-studio",
+                              stepId: step.id,
+                              stepTitle: step.title,
+                              stepDescription: step.description,
+                              targetPath: "/video-studio",
+                              sectionLabel: "影片工作室教學",
+                            })
+                          }
+                        >
+                          互動式導覽這一步
+                        </Button>
                       </div>
                     ))}
                   </div>
@@ -1637,6 +1931,23 @@ export default function Home() {
                           {step.title}
                         </p>
                         <p className={`text-xs mt-1 ${s.textMuted}`}>{step.description}</p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className={`h-7 px-2.5 mt-2 text-[11px] ${s.btnOutline} ${s.btnOutlineText}`}
+                          onClick={() =>
+                            startInteractiveOrbStep({
+                              tutorialId: "image-studio",
+                              stepId: step.id,
+                              stepTitle: step.title,
+                              stepDescription: step.description,
+                              targetPath: "/image-studio",
+                              sectionLabel: "圖片創作室教學",
+                            })
+                          }
+                        >
+                          互動式導覽這一步
+                        </Button>
                       </div>
                     ))}
                   </div>
@@ -1736,6 +2047,22 @@ export default function Home() {
                           {flow.title}
                         </p>
                         <p className={`text-xs mt-1 ${s.textMuted}`}>{flow.description}</p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className={`h-7 px-2.5 mt-2 text-[11px] ${s.btnOutline} ${s.btnOutlineText}`}
+                          onClick={() =>
+                            startInteractiveOrbStep({
+                              tutorialId: "orb-guided-onboarding",
+                              stepId: flow.id,
+                              stepTitle: flow.title,
+                              stepDescription: flow.description,
+                              sectionLabel: "光球帶路新手流程",
+                            })
+                          }
+                        >
+                          互動式導覽這一步
+                        </Button>
                       </div>
                     ))}
                   </div>
