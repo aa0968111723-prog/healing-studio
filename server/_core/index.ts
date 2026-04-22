@@ -48,6 +48,77 @@ import {
 } from "../jobs/apiUsageAlertJob";
 import { aiProxyRouter } from "../routes/aiProxy";
 
+type ScheduledMaintenanceJob = {
+  name: string;
+  start: () => void;
+  stop: () => void;
+};
+
+const SCHEDULED_MAINTENANCE_JOBS: ScheduledMaintenanceJob[] = [
+  {
+    name: "newsFetcher",
+    start: initNewsFetcherCron,
+    stop: stopNewsFetcherCron,
+  },
+  {
+    name: "modelTrainingWorker",
+    start: initModelTrainingWorkerCron,
+    stop: stopModelTrainingWorkerCron,
+  },
+  {
+    name: "learnDocSyncer",
+    start: initLearnDocSyncerCron,
+    stop: stopLearnDocSyncerCron,
+  },
+  {
+    name: "apiHealthMonitor",
+    start: initApiHealthMonitorCron,
+    stop: stopApiHealthMonitorCron,
+  },
+  {
+    name: "braveLearnFetcher",
+    start: initBraveLearnFetcherCron,
+    stop: stopBraveLearnFetcherCron,
+  },
+  {
+    name: "r2SnapshotJob",
+    start: initR2SnapshotCron,
+    stop: stopR2SnapshotCron,
+  },
+  {
+    name: "providerSnapshotJob",
+    start: initProviderSnapshotCron,
+    stop: stopProviderSnapshotCron,
+  },
+  {
+    name: "apiUsageAlertJob",
+    start: initApiUsageAlertCron,
+    stop: stopApiUsageAlertCron,
+  },
+];
+
+function startScheduledMaintenanceJobs(): void {
+  for (const job of SCHEDULED_MAINTENANCE_JOBS) {
+    try {
+      job.start();
+      console.log(`[Jobs] ✅ Started ${job.name}`);
+    } catch (error) {
+      console.error(`[Jobs] ❌ Failed to start ${job.name}:`, error);
+    }
+  }
+}
+
+function stopScheduledMaintenanceJobs(): void {
+  for (const job of SCHEDULED_MAINTENANCE_JOBS) {
+    try {
+      job.stop();
+      console.log(`[Jobs] 🛑 Stopped ${job.name}`);
+    } catch (error) {
+      console.error(`[Jobs] ❌ Failed to stop ${job.name}:`, error);
+    }
+  }
+}
+
 // ─── Allowlist helpers for proxy-download ─────────────────────────────────
 const PROXY_ALLOWED_HOSTS = [
   "fal.media",
@@ -273,28 +344,14 @@ async function startServer() {
       console.warn("[Storage] 無法偵測儲存後端：", e);
     }
 
-    // Initialize scheduled jobs after server is ready
-    initNewsFetcherCron();
-    initModelTrainingWorkerCron();
-    initLearnDocSyncerCron();
-    initApiHealthMonitorCron();
-    initBraveLearnFetcherCron();
-    initR2SnapshotCron();
-    initProviderSnapshotCron();
-    initApiUsageAlertCron();
+    // Initialize scheduled maintenance jobs after server is ready
+    startScheduledMaintenanceJobs();
   });
 
   // ── Graceful Shutdown ────────────────────────────────────────────────────
   const shutdown = async (signal: string) => {
     console.log(`\n[Server] Received ${signal}. Shutting down gracefully...`);
-    stopNewsFetcherCron();
-    stopModelTrainingWorkerCron();
-    stopLearnDocSyncerCron();
-    stopApiHealthMonitorCron();
-    stopBraveLearnFetcherCron();
-    stopR2SnapshotCron();
-    stopProviderSnapshotCron();
-    stopApiUsageAlertCron();
+    stopScheduledMaintenanceJobs();
     server.close(async () => {
       await closeDb();
       console.log("[Server] All resources released. Exiting.");
