@@ -52,6 +52,9 @@ import {
 } from "../jobs/userAutoCreditJob";
 import { aiProxyRouter } from "../routes/aiProxy";
 import { installFetchGuard } from "./fetchGuard";
+import { globalErrorHandler, registerFatalErrorHandlers } from "./error_handler";
+import { logger, requestTraceMiddleware } from "./logger";
+import { closeDatabaseManager } from "./DatabaseManager";
 
 type ScheduledMaintenanceJob = {
   name: string;
@@ -111,9 +114,12 @@ function startScheduledMaintenanceJobs(): void {
   for (const job of SCHEDULED_MAINTENANCE_JOBS) {
     try {
       job.start();
-      console.log(`[Jobs] ✅ Started ${job.name}`);
+      logger.info("[Jobs] Started scheduled maintenance job", { jobName: job.name });
     } catch (error) {
-      console.error(`[Jobs] ❌ Failed to start ${job.name}:`, error);
+      logger.error("[Jobs] Failed to start scheduled maintenance job", {
+        jobName: job.name,
+        err: error,
+      });
     }
   }
 }
@@ -122,9 +128,12 @@ function stopScheduledMaintenanceJobs(): void {
   for (const job of SCHEDULED_MAINTENANCE_JOBS) {
     try {
       job.stop();
-      console.log(`[Jobs] 🛑 Stopped ${job.name}`);
+      logger.info("[Jobs] Stopped scheduled maintenance job", { jobName: job.name });
     } catch (error) {
-      console.error(`[Jobs] ❌ Failed to stop ${job.name}:`, error);
+      logger.error("[Jobs] Failed to stop scheduled maintenance job", {
+        jobName: job.name,
+        err: error,
+      });
     }
   }
 }
@@ -182,6 +191,9 @@ async function startServer() {
 
   const app = express();
   const server = createServer(app);
+
+  // ── Security headers ─────────────────────────────────────────────────────
+  app.use(requestTraceMiddleware);
 
   // ── Security headers ─────────────────────────────────────────────────────
   app.use(
@@ -276,12 +288,7 @@ async function startServer() {
           }
         };
         pump().catch(err => {
-          console.error(
-            "[proxy-download] Stream error for",
-            targetUrl,
-            ":",
-            err
-          );
+          logger.error("[proxy-download] Stream error", { targetUrl, err });
           if (!res.headersSent)
             res.status(500).json({ error: "Stream failed" });
           else res.end();
@@ -293,7 +300,7 @@ async function startServer() {
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error("[proxy-download] Error:", msg);
+      logger.error("[proxy-download] Error", { msg, targetUrl });
       res.status(500).json({ error: msg });
     }
   });
@@ -319,6 +326,7 @@ async function startServer() {
   } else {
     serveStatic(app);
   }
+  app.use(globalErrorHandler);
 
   // In production (Railway), always use the PORT env var directly and bind 0.0.0.0
   // In development, scan for an available port starting from 3000
@@ -329,11 +337,14 @@ async function startServer() {
       : await findAvailablePort(preferredPort);
 
   if (process.env.NODE_ENV !== "production" && port !== preferredPort) {
-    console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
+    logger.warn("Preferred port unavailable, switched port", {
+      preferredPort,
+      selectedPort: port,
+    });
   }
 
   server.listen(port, "0.0.0.0", () => {
-    console.log(`Server running on http://0.0.0.0:${port}/`);
+    logger.info("Server started", { port, host: "0.0.0.0" });
 
     // Log storage backend status on startup
     try {
@@ -349,11 +360,11 @@ async function startServer() {
           "   ▸ 方案B Google GCS：GCS_BUCKET_NAME + GOOGLE_APPLICATION_CREDENTIALS_JSON\n" +
           "   ▸ 方案C Manus Proxy：BUILT_IN_FORGE_API_URL + BUILT_IN_FORGE_API_KEY",
       };
-      console.log(
-        `[Storage] 目前使用的儲存後端：${backendLabels[backend] ?? backend}`
-      );
+      logger.info("[Storage] 目前使用的儲存後端", {
+        backend: backendLabels[backend] ?? backend,
+      });
     } catch (e) {
-      console.warn("[Storage] 無法偵測儲存後端：", e);
+      logger.warn("[Storage] 無法偵測儲存後端", { err: e });
     }
 
     // Initialize scheduled maintenance jobs after server is ready
@@ -362,22 +373,27 @@ async function startServer() {
 
   // ── Graceful Shutdown ────────────────────────────────────────────────────
   const shutdown = async (signal: string) => {
-    console.log(`\n[Server] Received ${signal}. Shutting down gracefully...`);
+    logger.warn("[Server] Starting graceful shutdown", { signal });
     stopScheduledMaintenanceJobs();
     server.close(async () => {
       await closeDb();
-      console.log("[Server] All resources released. Exiting.");
+      await closeDatabaseManager();
+      logger.info("[Server] All resources released. Exiting.");
       process.exit(0);
     });
     // Force exit after 10s if graceful shutdown hangs
     setTimeout(() => {
-      console.warn("[Server] Graceful shutdown timed out. Forcing exit.");
+      logger.warn("[Server] Graceful shutdown timed out. Forcing exit.");
       process.exit(1);
     }, 10_000);
   };
+
+  registerFatalErrorHandlers(shutdown);
 
   process.on("SIGTERM", () => shutdown("SIGTERM"));
   process.on("SIGINT", () => shutdown("SIGINT"));
 }
 
-startServer().catch(console.error);
+startServer().catch(error => {
+  logger.error("Failed to start server", { err: error });
+});
