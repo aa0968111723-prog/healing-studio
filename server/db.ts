@@ -67,12 +67,31 @@ function isAdminEmail(email: string): boolean {
 let _db: ReturnType<typeof drizzle> | null = null;
 
 export async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
+  if (_db) return _db;
+
+  const databaseUrl = process.env.DATABASE_URL?.trim();
+  if (!databaseUrl) {
+    console.error(
+      "[Database] Missing DATABASE_URL. Skipping mysql2 connection initialization."
+    );
+    return null;
+  }
+  try {
+    new URL(databaseUrl);
+  } catch (error) {
+    console.error(
+      "[Database] Invalid DATABASE_URL format. Expected full URL (e.g. mysql://...).",
+      error
+    );
+    return null;
+  }
+
+  if (!_db) {
     try {
       // Use drizzle's built-in connection pooling with explicit pool configuration
       _db = drizzle({
         connection: {
-          uri: process.env.DATABASE_URL,
+          uri: databaseUrl,
           waitForConnections: true,
           connectionLimit: 10,
           maxIdle: 5,
@@ -263,14 +282,14 @@ export async function runDueAutoCreditGrant(limit = 200): Promise<{
       }
       const nextAt = new Date(nextTs);
 
-      await tx.execute(sql`
-        UPDATE users
-        SET
-          remainingGenerations = remainingGenerations + ${amount},
-          autoCreditLastAt = NOW(),
-          autoCreditNextAt = ${nextAt}
-        WHERE id = ${userId}
-      `);
+      await tx
+        .update(users)
+        .set({
+          remainingGenerations: sql`${users.remainingGenerations} + ${amount}`,
+          autoCreditLastAt: sql`NOW()`,
+          autoCreditNextAt: nextAt,
+        })
+        .where(eq(users.id, userId));
       totalGranted += amount;
     }
 

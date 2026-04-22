@@ -98,6 +98,46 @@ const injectUmamiAnalytics = () => {
 
 injectUmamiAnalytics();
 
+function resolveClientFetchUrl(input: RequestInfo | URL): string {
+  const raw =
+    typeof input === "string"
+      ? input
+      : input instanceof URL
+        ? input.toString()
+        : input.url;
+
+  const resolved = raw.startsWith("http://") || raw.startsWith("https://")
+    ? raw
+    : new URL(raw, window.location.origin).toString();
+
+  if (!/^https?:\/\//i.test(resolved)) {
+    throw new Error(`[fetch] Invalid URL (missing protocol): ${resolved}`);
+  }
+  return resolved;
+}
+
+function installClientFetchGuard(): void {
+  const globalKey = "__HEALING_STUDIO_FETCH_GUARD_INSTALLED__";
+  if ((window as any)[globalKey]) return;
+  (window as any)[globalKey] = true;
+
+  const originalFetch = window.fetch.bind(window);
+  window.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const finalUrl = resolveClientFetchUrl(input);
+    console.log("[fetch] Request URL:", finalUrl);
+
+    if (input instanceof Request) {
+      const normalizedRequest =
+        input.url === finalUrl ? input : new Request(finalUrl, input);
+      return originalFetch(normalizedRequest, init);
+    }
+
+    return originalFetch(finalUrl, init);
+  }) as typeof fetch;
+}
+
+installClientFetchGuard();
+
 const trpcClient = trpc.createClient({
   links: [
     httpBatchLink({
