@@ -28,6 +28,11 @@ export const users = mysqlTable("users", {
     audio: number;
     voice: number;
   }>(),
+  autoCreditEnabled: boolean("autoCreditEnabled").default(false).notNull(),
+  autoCreditAmount: int("autoCreditAmount").default(0).notNull(),
+  autoCreditIntervalDays: int("autoCreditIntervalDays").default(7).notNull(),
+  autoCreditNextAt: timestamp("autoCreditNextAt"),
+  autoCreditLastAt: timestamp("autoCreditLastAt"),
   remainingGenerations: int("remainingGenerations").default(50).notNull(),
   onboardingDone: boolean("onboardingDone").default(false).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),

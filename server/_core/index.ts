@@ -46,6 +46,10 @@ import {
   initApiUsageAlertCron,
   stopApiUsageAlertCron,
 } from "../jobs/apiUsageAlertJob";
+import {
+  initUserAutoCreditCron,
+  stopUserAutoCreditCron,
+} from "../jobs/userAutoCreditJob";
 import { aiProxyRouter } from "../routes/aiProxy";
 
 type ScheduledMaintenanceJob = {
@@ -94,6 +98,11 @@ const SCHEDULED_MAINTENANCE_JOBS: ScheduledMaintenanceJob[] = [
     name: "apiUsageAlertJob",
     start: initApiUsageAlertCron,
     stop: stopApiUsageAlertCron,
+  },
+  {
+    name: "userAutoCreditJob",
+    start: initUserAutoCreditCron,
+    stop: stopUserAutoCreditCron,
   },
 ];
 
