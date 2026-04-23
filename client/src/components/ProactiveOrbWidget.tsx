@@ -19,6 +19,7 @@ import {
   Palette,
   Shuffle,
   MessageCircle,
+  Paperclip,
   Send,
   Heart,
   Music,
@@ -60,10 +61,11 @@ import { useIsMobile } from "@/hooks/useMobile";
 import { cn } from "@/lib/utils";
 import {
   useGlobalOrbChat,
-  formatRelativeTime,
+  type ChatAttachment,
   getPageEmoji,
   formatMessageMetadata,
 } from "@/contexts/GlobalOrbChatContext";
+import { shortErrorMsg, uploadFileToS3 } from "@/lib/upload";
 
 type Props = {
   className?: string;
@@ -120,6 +122,17 @@ function savePosition(x: number, y: number) {
   } catch {
     /* ignore */
   }
+}
+
+const ORB_UPLOAD_ACCEPT = "image/*,video/*,audio/*,.pdf";
+
+function resolveAttachmentKind(mimeType: string): ChatAttachment["kind"] | null {
+  const mime = mimeType.toLowerCase();
+  if (mime.startsWith("image/")) return "image";
+  if (mime.startsWith("video/")) return "video";
+  if (mime.startsWith("audio/")) return "audio";
+  if (mime === "application/pdf") return "pdf";
+  return null;
 }
 
 function isOnboarded(): boolean {
@@ -713,6 +726,9 @@ export default memo(function ProactiveOrbWidget({
   const chatMessages = globalChat.messages; // Keep full message objects for metadata
   const isChatLoading = globalChat.isSending;
   const chatSuggestions = globalChat.suggestions.map(s => s.text);
+  const [chatAttachments, setChatAttachments] = useState<ChatAttachment[]>([]);
+  const [isUploadingAttachments, setIsUploadingAttachments] = useState(false);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
 
   // Home position
@@ -1258,7 +1274,7 @@ export default memo(function ProactiveOrbWidget({
   // ─── Chat handler (with real LLM + conversation history) ─────────────
 
   const handleChatSend = useCallback(async () => {
-    if (!chatInput.trim() || isChatLoading) return;
+    if ((!chatInput.trim() && chatAttachments.length === 0) || isChatLoading) return;
 
     const userMsg = chatInput.trim();
 
@@ -1282,13 +1298,70 @@ export default memo(function ProactiveOrbWidget({
 
     // Use global chat to send the message
     // GlobalOrbChatContext handles all LLM interaction, action dispatch, and message management
-    await globalChat.sendMessage(userMsg);
+    await globalChat.sendMessage(userMsg, chatAttachments);
+    setChatAttachments([]);
   }, [
     chatInput,
+    chatAttachments,
     isChatLoading,
     onSwitchModality,
     globalChat,
   ]);
+
+  const handlePickAttachment = useCallback(() => {
+    uploadInputRef.current?.click();
+  }, []);
+
+  const handleAttachmentFiles = useCallback(
+    async (files: FileList | null) => {
+      if (!files || files.length === 0 || isUploadingAttachments) return;
+
+      const candidates = Array.from(files);
+      const validFiles = candidates.filter(file => resolveAttachmentKind(file.type));
+      if (validFiles.length === 0) {
+        showFeedback("只支援圖像、影片、音訊與 PDF 檔案");
+        return;
+      }
+
+      setIsUploadingAttachments(true);
+      try {
+        const uploaded = await Promise.all(
+          validFiles.map(async file => {
+            const kind = resolveAttachmentKind(file.type);
+            if (!kind) return null;
+            const result = await uploadFileToS3(file);
+            const id =
+              typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+                ? crypto.randomUUID()
+                : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+            return {
+              id,
+              name: file.name,
+              url: result.url,
+              mimeType: file.type,
+              kind,
+            } satisfies ChatAttachment;
+          })
+        );
+        setChatAttachments(prev => [
+          ...prev,
+          ...uploaded.filter((item): item is ChatAttachment => item !== null),
+        ]);
+      } catch (err) {
+        showFeedback(`附件上傳失敗：${shortErrorMsg(err)}`);
+      } finally {
+        setIsUploadingAttachments(false);
+        if (uploadInputRef.current) {
+          uploadInputRef.current.value = "";
+        }
+      }
+    },
+    [isUploadingAttachments, showFeedback]
+  );
+
+  const handleRemoveAttachment = useCallback((id: string) => {
+    setChatAttachments(prev => prev.filter(item => item.id !== id));
+  }, []);
 
   // ─── Apply inspiration preset ────────────────────────────────────────
 
@@ -1395,6 +1468,17 @@ export default memo(function ProactiveOrbWidget({
           </motion.button>
         )}
       </AnimatePresence>
+
+      <input
+        ref={uploadInputRef}
+        type="file"
+        accept={ORB_UPLOAD_ACCEPT}
+        multiple
+        className="hidden"
+        onChange={e => {
+          void handleAttachmentFiles(e.target.files);
+        }}
+      />
 
       {/* ══ OrbGuide Panel — mobile: fixed overlay outside drag container ══ */}
       {isMobile && (
@@ -1616,7 +1700,23 @@ export default memo(function ProactiveOrbWidget({
                                     ? `${personalityAccentBtn[personality]} rounded-2xl rounded-br-md`
                                     : "bg-gradient-to-br from-gray-50 to-gray-100/80 text-gray-700 rounded-2xl rounded-bl-md border border-gray-100/60"
                                 }`}>
-                                  {msg.text}
+                                  {msg.text && <div>{msg.text}</div>}
+                                  {msg.attachments?.length ? (
+                                    <div className={`flex flex-col gap-1 ${msg.text ? "mt-2" : ""}`}>
+                                      {msg.attachments.map(attachment => (
+                                        <a
+                                          key={attachment.id}
+                                          href={attachment.url}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className={`inline-flex items-center gap-1 text-xs underline ${msg.role === "user" ? "text-white/90" : "text-emerald-700"}`}
+                                        >
+                                          {attachment.kind === "image" ? "🖼️" : attachment.kind === "video" ? "🎬" : attachment.kind === "audio" ? "🎵" : "📄"}
+                                          <span className="truncate max-w-[220px]">{attachment.name}</span>
+                                        </a>
+                                      ))}
+                                    </div>
+                                  ) : null}
                                 </div>
                                 {msg.pagePath && msg.at && (
                                   <div className={`text-[10px] text-muted-foreground px-1 flex items-center gap-1 ${
@@ -1657,7 +1757,35 @@ export default memo(function ProactiveOrbWidget({
                           </div>
                         )}
                         <div className="px-4 py-3 border-t border-gray-100/60">
+                          {chatAttachments.length > 0 && (
+                            <div className="mb-2 flex flex-wrap gap-1.5">
+                              {chatAttachments.map(attachment => (
+                                <button
+                                  key={attachment.id}
+                                  onClick={() => handleRemoveAttachment(attachment.id)}
+                                  className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-100"
+                                  title="移除附件"
+                                >
+                                  <span>{attachment.kind === "image" ? "🖼️" : attachment.kind === "video" ? "🎬" : attachment.kind === "audio" ? "🎵" : "📄"}</span>
+                                  <span className="max-w-[120px] truncate">{attachment.name}</span>
+                                  <X className="w-3 h-3" />
+                                </button>
+                              ))}
+                            </div>
+                          )}
                           <div className="flex items-center gap-2 rounded-xl border border-gray-200/60 bg-gray-50/50 px-4 py-3 focus-within:border-gray-300 transition-colors">
+                            <button
+                              onClick={handlePickAttachment}
+                              disabled={isUploadingAttachments || isChatLoading}
+                              className="p-2 rounded-lg hover:bg-gray-200/60 transition-colors disabled:opacity-30"
+                              title="上傳圖像、影片、音訊或 PDF"
+                            >
+                              {isUploadingAttachments ? (
+                                <Loader2 className="w-4 h-4 text-gray-500 animate-spin" />
+                              ) : (
+                                <Paperclip className="w-4 h-4 text-gray-500" />
+                              )}
+                            </button>
                             <input
                               type="text"
                               value={chatInput}
@@ -1667,7 +1795,7 @@ export default memo(function ProactiveOrbWidget({
                               className="bg-transparent text-sm text-gray-700 placeholder:text-gray-400 outline-none flex-1 min-w-0"
                               autoFocus
                             />
-                            <button onClick={handleChatSend} disabled={!chatInput.trim() || isChatLoading} className="p-2 rounded-lg hover:bg-gray-200/60 transition-colors disabled:opacity-30">
+                            <button onClick={handleChatSend} disabled={(!chatInput.trim() && chatAttachments.length === 0) || isChatLoading || isUploadingAttachments} className="p-2 rounded-lg hover:bg-gray-200/60 transition-colors disabled:opacity-30">
                               {isChatLoading ? <Loader2 className="w-4 h-4 text-gray-500 animate-spin" /> : <Send className="w-4 h-4 text-gray-500" />}
                             </button>
                           </div>
@@ -1985,7 +2113,23 @@ export default memo(function ProactiveOrbWidget({
                                   : "bg-gradient-to-br from-gray-50 to-gray-100/80 text-gray-700 rounded-2xl rounded-bl-md border border-gray-100/60"
                               }`}
                             >
-                              {msg.text}
+                              {msg.text && <div>{msg.text}</div>}
+                              {msg.attachments?.length ? (
+                                <div className={`flex flex-col gap-1 ${msg.text ? "mt-2" : ""}`}>
+                                  {msg.attachments.map(attachment => (
+                                    <a
+                                      key={attachment.id}
+                                      href={attachment.url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className={`inline-flex items-center gap-1 text-[11px] underline ${msg.role === "user" ? "text-white/90" : "text-emerald-700"}`}
+                                    >
+                                      {attachment.kind === "image" ? "🖼️" : attachment.kind === "video" ? "🎬" : attachment.kind === "audio" ? "🎵" : "📄"}
+                                      <span className="truncate max-w-[180px]">{attachment.name}</span>
+                                    </a>
+                                  ))}
+                                </div>
+                              ) : null}
                             </div>
                             {msg.pagePath && msg.at && (
                               <div className={`text-[9px] text-muted-foreground px-1 flex items-center gap-0.5 ${
@@ -2054,7 +2198,35 @@ export default memo(function ProactiveOrbWidget({
 
                     {/* Chat Input */}
                     <div className="px-3 py-3 border-t border-gray-100/60">
+                      {chatAttachments.length > 0 && (
+                        <div className="mb-2 flex flex-wrap gap-1.5">
+                          {chatAttachments.map(attachment => (
+                            <button
+                              key={attachment.id}
+                              onClick={() => handleRemoveAttachment(attachment.id)}
+                              className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-100"
+                              title="移除附件"
+                            >
+                              <span>{attachment.kind === "image" ? "🖼️" : attachment.kind === "video" ? "🎬" : attachment.kind === "audio" ? "🎵" : "📄"}</span>
+                              <span className="max-w-[110px] truncate">{attachment.name}</span>
+                              <X className="w-3 h-3" />
+                            </button>
+                          ))}
+                        </div>
+                      )}
                       <div className="flex items-center gap-2 rounded-xl border border-gray-200/60 bg-gray-50/50 px-3 py-2 focus-within:border-gray-300 transition-colors">
+                        <button
+                          onClick={handlePickAttachment}
+                          disabled={isUploadingAttachments || isChatLoading}
+                          className="p-1.5 rounded-lg hover:bg-gray-200/60 transition-colors disabled:opacity-30"
+                          title="上傳圖像、影片、音訊或 PDF"
+                        >
+                          {isUploadingAttachments ? (
+                            <Loader2 className="w-3.5 h-3.5 text-gray-500 animate-spin" />
+                          ) : (
+                            <Paperclip className="w-3.5 h-3.5 text-gray-500" />
+                          )}
+                        </button>
                         <input
                           type="text"
                           value={chatInput}
@@ -2071,7 +2243,7 @@ export default memo(function ProactiveOrbWidget({
                         />
                         <button
                           onClick={handleChatSend}
-                          disabled={!chatInput.trim() || isChatLoading}
+                          disabled={(!chatInput.trim() && chatAttachments.length === 0) || isChatLoading || isUploadingAttachments}
                           className="p-1.5 rounded-lg hover:bg-gray-200/60 transition-colors disabled:opacity-30"
                         >
                           {isChatLoading ? (

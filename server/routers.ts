@@ -3423,7 +3423,50 @@ export const appRouter = router({
           messages: z.array(
             z.object({
               role: z.enum(["user", "assistant"]),
-              content: z.string(),
+              content: z.union([
+                z.string(),
+                z.array(
+                  z.union([
+                    z.object({
+                      type: z.literal("text"),
+                      text: z.string(),
+                    }),
+                    z.object({
+                      type: z.literal("image_url"),
+                      image_url: z.object({
+                        url: z.string().url(),
+                        detail: z.enum(["auto", "low", "high"]).optional(),
+                      }),
+                    }),
+                    z.object({
+                      type: z.literal("file_url"),
+                      file_url: z.object({
+                        url: z.string().url(),
+                        mime_type: z.enum([
+                          "application/pdf",
+                          "image/jpeg",
+                          "image/png",
+                          "image/gif",
+                          "image/webp",
+                          "image/svg+xml",
+                          "image/avif",
+                          "audio/mpeg",
+                          "audio/wav",
+                          "audio/ogg",
+                          "audio/webm",
+                          "audio/mp4",
+                          "audio/aac",
+                          "audio/flac",
+                          "video/mp4",
+                          "video/webm",
+                          "video/ogg",
+                          "video/quicktime",
+                        ]),
+                      }),
+                    }),
+                  ])
+                ),
+              ]),
             })
           ),
           personality: z
