@@ -13,6 +13,9 @@ import { getDb } from "../db";
 import { aiUsageEvents, rateLimitRules } from "../../drizzle/schema";
 import { eq, and, gte, sql, or, isNull } from "drizzle-orm";
 import { traceToolRun } from "../services/langsmithTracer";
+import { optionalVerifyToken } from "../middleware/verifyToken";
+import { getAdapter } from "../services/ai-adapters/registry";
+import { bootstrapAiAdapters } from "../services/ai-adapters/bootstrap";
 
 // ─── Provider Config ─────────────────────────────────────────────────────────
 
@@ -183,6 +186,8 @@ async function checkRateLimit(
 // ─── Express Router ──────────────────────────────────────────────────────────
 
 export const aiProxyRouter = Router();
+bootstrapAiAdapters();
+aiProxyRouter.use("/api/ai", optionalVerifyToken);
 
 aiProxyRouter.all("/api/ai/:provider/*", async (req: Request, res: Response) => {
   const provider = req.params.provider as string;
@@ -295,17 +300,14 @@ aiProxyRouter.all("/api/ai/:provider/*", async (req: Request, res: Response) => 
         : 0;
 
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 120_000);
-
-    const upstreamRes = await fetch(upstreamUrl, {
+    const adapter = getAdapter(providerKey);
+    const upstreamRes = await adapter.proxy({
+      pathWithQuery: `${pathSuffix}${queryStr}`,
       method: req.method,
       headers: forwardHeaders,
       body: requestBody,
-      signal: controller.signal,
+      timeoutMs: 120_000,
     });
-
-    clearTimeout(timeout);
     upstreamStatus = upstreamRes.status;
 
     if (!upstreamRes.ok) {

@@ -51,10 +51,12 @@ import {
   stopUserAutoCreditCron,
 } from "../jobs/userAutoCreditJob";
 import { aiProxyRouter } from "../routes/aiProxy";
+import { localAuthRouter } from "../routes/localAuth";
 import { installFetchGuard } from "./fetchGuard";
 import { globalErrorHandler, registerFatalErrorHandlers } from "./error_handler";
 import { logger, requestTraceMiddleware } from "./logger";
 import { closeDatabaseManager } from "./DatabaseManager";
+import { bootstrapAiAdapters } from "../services/ai-adapters/bootstrap";
 
 type ScheduledMaintenanceJob = {
   name: string;
@@ -188,6 +190,7 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 
 async function startServer() {
   installFetchGuard();
+  bootstrapAiAdapters();
 
   const app = express();
   const server = createServer(app);
@@ -231,6 +234,7 @@ async function startServer() {
   app.use(stripeWebhookRouter);
   // AI Provider Proxy Gateway
   app.use(aiProxyRouter);
+  app.use(localAuthRouter);
 
   // ── 後端代理下載（解決前端直接 fetch CDN 時的 CORS 問題）──────────────────
   // GET /api/proxy-download?url=<encodedUrl>
