@@ -40,10 +40,42 @@ export {
 
 export type ChatRole = "user" | "orb";
 
+export type ChatAttachmentKind = "image" | "video" | "audio" | "pdf";
+
+export type ChatAttachmentMimeType =
+  | "application/pdf"
+  | "image/jpeg"
+  | "image/png"
+  | "image/gif"
+  | "image/webp"
+  | "image/svg+xml"
+  | "image/avif"
+  | "audio/mpeg"
+  | "audio/wav"
+  | "audio/ogg"
+  | "audio/webm"
+  | "audio/mp4"
+  | "audio/aac"
+  | "audio/flac"
+  | "video/mp4"
+  | "video/webm"
+  | "video/ogg"
+  | "video/quicktime";
+
+export interface ChatAttachment {
+  id: string;
+  name: string;
+  url: string;
+  mimeType: ChatAttachmentMimeType;
+  kind: ChatAttachmentKind;
+}
+
 export interface ChatMessage {
   role: ChatRole;
   text: string;
   at: number;
+  /** 使用者上傳的多模態附件 */
+  attachments?: ChatAttachment[];
   /** 光球此輪附上的意圖摘要（若有） */
   intent?: string;
   /** 此訊息關聯的頁面路徑（用於顯示上下文） */
@@ -157,6 +189,47 @@ function clearMessagesFromStorage() {
   }
 }
 
+function toLLMMessageContent(message: ChatMessage): string | Array<
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string; detail?: "auto" | "low" | "high" } }
+  | { type: "file_url"; file_url: { url: string; mime_type: ChatAttachmentMimeType } }
+> {
+  const attachments = message.attachments ?? [];
+  if (attachments.length === 0) return message.text;
+
+  const parts: Array<
+    | { type: "text"; text: string }
+    | { type: "image_url"; image_url: { url: string; detail?: "auto" | "low" | "high" } }
+    | { type: "file_url"; file_url: { url: string; mime_type: ChatAttachmentMimeType } }
+  > = [];
+
+  const trimmedText = message.text.trim();
+  parts.push({
+    type: "text",
+    text: trimmedText || "請參考我上傳的附件內容。",
+  });
+
+  for (const attachment of attachments) {
+    if (attachment.kind === "image") {
+      parts.push({
+        type: "image_url",
+        image_url: { url: attachment.url, detail: "auto" },
+      });
+      continue;
+    }
+
+    parts.push({
+      type: "file_url",
+      file_url: {
+        url: attachment.url,
+        mime_type: attachment.mimeType,
+      },
+    });
+  }
+
+  return parts;
+}
+
 // ─── Context Type ──────────────────────────────────────────────────────────
 
 interface GlobalOrbChatContextValue {
@@ -175,7 +248,7 @@ interface GlobalOrbChatContextValue {
   /** 設定輸入文字 */
   setInput: (text: string) => void;
   /** 發送訊息 */
-  sendMessage: (text: string) => Promise<void>;
+  sendMessage: (text: string, attachments?: ChatAttachment[]) => Promise<void>;
   /** 開啟聊天面板 */
   open: () => void;
   /** 關閉聊天面板 */
@@ -288,15 +361,16 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   }, []); // 只在初始化時執行一次
 
   const sendMessage = useCallback(
-    async (text: string) => {
+    async (text: string, attachments: ChatAttachment[] = []) => {
       const trimmed = text.trim();
-      if (!trimmed || isSending) return;
+      if ((!trimmed && attachments.length === 0) || isSending) return;
 
       const userMessage: ChatMessage = {
         role: "user",
         text: trimmed,
         at: Date.now(),
         pagePath: locationPath,
+        attachments: attachments.length > 0 ? attachments : undefined,
       };
 
       const nextHistory = [...messages, userMessage];
@@ -313,7 +387,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
             .filter(m => m.role !== "orb" || m.at !== messages[0]?.at) // 跳過初始歡迎訊息
             .map(m => ({
               role: m.role === "user" ? ("user" as const) : ("assistant" as const),
-              content: m.text,
+              content: toLLMMessageContent(m),
             })),
           personality,
           context: `全站光球聊天 · 當前頁面: ${locationPath} · 意圖判斷: ${inferredIntent} · ${backendSummary}`,

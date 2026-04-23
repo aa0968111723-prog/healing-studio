@@ -25,6 +25,8 @@ describe("auto credit policy wiring", () => {
 
     expect(source).toContain("defaultNextAt");
     expect(source).toContain("while (nextTs <= now)");
-    expect(source).toContain("autoCreditNextAt = ${nextAt}");
+    // Drizzle ORM uses object-property style: `.set({ autoCreditNextAt: nextAt })`
+    // rather than a raw SQL template literal.
+    expect(source).toContain("autoCreditNextAt: nextAt");
   });
 });

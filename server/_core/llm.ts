@@ -66,11 +66,24 @@ export type FileContent = {
   file_url: {
     url: string;
     mime_type?:
+      | "application/pdf"
+      | "image/jpeg"
+      | "image/png"
+      | "image/gif"
+      | "image/webp"
+      | "image/svg+xml"
+      | "image/avif"
       | "audio/mpeg"
       | "audio/wav"
-      | "application/pdf"
+      | "audio/ogg"
+      | "audio/webm"
       | "audio/mp4"
-      | "video/mp4";
+      | "audio/aac"
+      | "audio/flac"
+      | "video/mp4"
+      | "video/webm"
+      | "video/ogg"
+      | "video/quicktime";
   };
 };
 
