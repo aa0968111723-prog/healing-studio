@@ -42,11 +42,31 @@ export type ChatRole = "user" | "orb";
 
 export type ChatAttachmentKind = "image" | "video" | "audio" | "pdf";
 
+export type ChatAttachmentMimeType =
+  | "application/pdf"
+  | "image/jpeg"
+  | "image/png"
+  | "image/gif"
+  | "image/webp"
+  | "image/svg+xml"
+  | "image/avif"
+  | "audio/mpeg"
+  | "audio/wav"
+  | "audio/ogg"
+  | "audio/webm"
+  | "audio/mp4"
+  | "audio/aac"
+  | "audio/flac"
+  | "video/mp4"
+  | "video/webm"
+  | "video/ogg"
+  | "video/quicktime";
+
 export interface ChatAttachment {
   id: string;
   name: string;
   url: string;
-  mimeType: string;
+  mimeType: ChatAttachmentMimeType;
   kind: ChatAttachmentKind;
 }
 
@@ -172,7 +192,7 @@ function clearMessagesFromStorage() {
 function toLLMMessageContent(message: ChatMessage): string | Array<
   | { type: "text"; text: string }
   | { type: "image_url"; image_url: { url: string; detail?: "auto" | "low" | "high" } }
-  | { type: "file_url"; file_url: { url: string; mime_type?: string } }
+  | { type: "file_url"; file_url: { url: string; mime_type: ChatAttachmentMimeType } }
 > {
   const attachments = message.attachments ?? [];
   if (attachments.length === 0) return message.text;
@@ -180,7 +200,7 @@ function toLLMMessageContent(message: ChatMessage): string | Array<
   const parts: Array<
     | { type: "text"; text: string }
     | { type: "image_url"; image_url: { url: string; detail?: "auto" | "low" | "high" } }
-    | { type: "file_url"; file_url: { url: string; mime_type?: string } }
+    | { type: "file_url"; file_url: { url: string; mime_type: ChatAttachmentMimeType } }
   > = [];
 
   const trimmedText = message.text.trim();

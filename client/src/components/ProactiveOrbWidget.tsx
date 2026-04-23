@@ -62,6 +62,7 @@ import { cn } from "@/lib/utils";
 import {
   useGlobalOrbChat,
   type ChatAttachment,
+  type ChatAttachmentMimeType,
   getPageEmoji,
   formatMessageMetadata,
 } from "@/contexts/GlobalOrbChatContext";
@@ -126,12 +127,37 @@ function savePosition(x: number, y: number) {
 
 const ORB_UPLOAD_ACCEPT = "image/*,video/*,audio/*,.pdf";
 
-function resolveAttachmentKind(mimeType: string): ChatAttachment["kind"] | null {
+const ORB_ALLOWED_MIME_TYPES = new Set<ChatAttachmentMimeType>([
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "image/svg+xml",
+  "image/avif",
+  "audio/mpeg",
+  "audio/wav",
+  "audio/ogg",
+  "audio/webm",
+  "audio/mp4",
+  "audio/aac",
+  "audio/flac",
+  "video/mp4",
+  "video/webm",
+  "video/ogg",
+  "video/quicktime",
+]);
+
+function resolveAttachmentKind(
+  mimeType: string
+): { kind: ChatAttachment["kind"]; mimeType: ChatAttachmentMimeType } | null {
   const mime = mimeType.toLowerCase();
-  if (mime.startsWith("image/")) return "image";
-  if (mime.startsWith("video/")) return "video";
-  if (mime.startsWith("audio/")) return "audio";
-  if (mime === "application/pdf") return "pdf";
+  if (!ORB_ALLOWED_MIME_TYPES.has(mime as ChatAttachmentMimeType)) return null;
+  const normalized = mime as ChatAttachmentMimeType;
+  if (normalized.startsWith("image/")) return { kind: "image", mimeType: normalized };
+  if (normalized.startsWith("video/")) return { kind: "video", mimeType: normalized };
+  if (normalized.startsWith("audio/")) return { kind: "audio", mimeType: normalized };
+  if (normalized === "application/pdf") return { kind: "pdf", mimeType: normalized };
   return null;
 }
 
@@ -1317,7 +1343,16 @@ export default memo(function ProactiveOrbWidget({
       if (!files || files.length === 0 || isUploadingAttachments) return;
 
       const candidates = Array.from(files);
-      const validFiles = candidates.filter(file => resolveAttachmentKind(file.type));
+      const validFiles = candidates
+        .map(file => ({ file, resolved: resolveAttachmentKind(file.type) }))
+        .filter(
+          (
+            entry
+          ): entry is {
+            file: File;
+            resolved: { kind: ChatAttachment["kind"]; mimeType: ChatAttachmentMimeType };
+          } => entry.resolved !== null
+        );
       if (validFiles.length === 0) {
         showFeedback("只支援圖像、影片、音訊與 PDF 檔案");
         return;
@@ -1326,9 +1361,7 @@ export default memo(function ProactiveOrbWidget({
       setIsUploadingAttachments(true);
       try {
         const uploaded = await Promise.all(
-          validFiles.map(async file => {
-            const kind = resolveAttachmentKind(file.type);
-            if (!kind) return null;
+          validFiles.map(async ({ file, resolved }) => {
             const result = await uploadFileToS3(file);
             const id =
               typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
@@ -1338,8 +1371,8 @@ export default memo(function ProactiveOrbWidget({
               id,
               name: file.name,
               url: result.url,
-              mimeType: file.type,
-              kind,
+              mimeType: resolved.mimeType,
+              kind: resolved.kind,
             } satisfies ChatAttachment;
           })
         );
