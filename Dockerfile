@@ -35,6 +35,8 @@ COPY --from=builder /app/dist ./dist
 
 # Copy package.json for runtime metadata (optional but good practice)
 COPY package.json ./
+COPY --from=builder /app/drizzle ./drizzle
+COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
 
 # Railway dynamically assigns $PORT — expose the default
 EXPOSE 3000
