@@ -51,10 +51,12 @@ import {
   stopUserAutoCreditCron,
 } from "../jobs/userAutoCreditJob";
 import { aiProxyRouter } from "../routes/aiProxy";
+import { localAuthRouter } from "../routes/localAuth";
 import { installFetchGuard } from "./fetchGuard";
 import { globalErrorHandler, registerFatalErrorHandlers } from "./error_handler";
 import { logger, requestTraceMiddleware } from "./logger";
 import { closeDatabaseManager } from "./DatabaseManager";
+import { bootstrapAiAdapters } from "../services/ai-adapters/bootstrap";
 import { serverEnv } from "./env.validated";
 
 type ScheduledMaintenanceJob = {
@@ -189,6 +191,7 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 
 async function startServer() {
   installFetchGuard();
+  bootstrapAiAdapters();
 
   const app = express();
   const server = createServer(app);
@@ -232,6 +235,7 @@ async function startServer() {
   app.use(stripeWebhookRouter);
   // AI Provider Proxy Gateway
   app.use(aiProxyRouter);
+  app.use(localAuthRouter);
 
   // ── Maps proxy（隱藏 FRONTEND_FORGE_API_KEY，避免前端暴露）───────────────
   app.get("/api/maps/proxy/*", async (req, res) => {

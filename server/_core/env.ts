@@ -12,6 +12,8 @@ export const ENV = {
   // ── 核心 ──────────────────────────────────────────────────
   appId: serverEnv.VITE_APP_ID,
   cookieSecret: serverEnv.JWT_SECRET,
+  jwtAccessTokenExpiresIn: serverEnv.JWT_ACCESS_TOKEN_EXPIRES_IN,
+  passwordHashAlgorithm: serverEnv.PASSWORD_HASH_ALGORITHM,
   databaseUrl: serverEnv.DATABASE_URL,
   isProduction: serverEnv.NODE_ENV === "production",
 

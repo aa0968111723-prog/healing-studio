@@ -36,6 +36,11 @@ const coreSchema = z.object({
   NODE_ENV: z.string().optional().default("development"),
   PORT: z.string().optional().default("3000"),
   JWT_SECRET: z.string().min(1).optional().default(""),
+  JWT_ACCESS_TOKEN_EXPIRES_IN: z.string().optional().default("31536000"),
+  PASSWORD_HASH_ALGORITHM: z
+    .enum(["scrypt", "bcrypt", "argon2"])
+    .optional()
+    .default("scrypt"),
   DATABASE_URL: z.string().min(1).optional().default(""),
 
   // ── Google OAuth 2.0（替換 Manus OAuth）──────────────────
