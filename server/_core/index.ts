@@ -55,6 +55,7 @@ import { installFetchGuard } from "./fetchGuard";
 import { globalErrorHandler, registerFatalErrorHandlers } from "./error_handler";
 import { logger, requestTraceMiddleware } from "./logger";
 import { closeDatabaseManager } from "./DatabaseManager";
+import { serverEnv } from "./env.validated";
 
 type ScheduledMaintenanceJob = {
   name: string;
@@ -231,6 +232,79 @@ async function startServer() {
   app.use(stripeWebhookRouter);
   // AI Provider Proxy Gateway
   app.use(aiProxyRouter);
+
+  // ── Maps proxy（隱藏 FRONTEND_FORGE_API_KEY，避免前端暴露）───────────────
+  app.get("/api/maps/proxy/*", async (req, res) => {
+    const forgeBase = serverEnv.FRONTEND_FORGE_API_URL.trim();
+    const forgeKey = serverEnv.FRONTEND_FORGE_API_KEY.trim();
+    if (!forgeKey) {
+      res.status(503).json({ error: "FRONTEND_FORGE_API_KEY 未設定" });
+      return;
+    }
+
+    const wildcardPath = (req.params as { "0"?: string })["0"] ?? "";
+    if (wildcardPath !== "maps/api/js") {
+      res.status(404).json({ error: "Unsupported maps proxy path" });
+      return;
+    }
+    const upstreamUrl = new URL(`/v1/maps/proxy/${wildcardPath}`, forgeBase);
+
+    const allowedQueryKeys = new Set([
+      "v",
+      "libraries",
+      "language",
+      "region",
+      "callback",
+      "channel",
+      "solution_channel",
+    ]);
+    for (const [key, value] of Object.entries(req.query)) {
+      if (!allowedQueryKeys.has(key)) continue;
+      if (value == null) continue;
+      if (Array.isArray(value)) {
+        for (const item of value) upstreamUrl.searchParams.append(key, String(item));
+      } else {
+        upstreamUrl.searchParams.set(key, String(value));
+      }
+    }
+    upstreamUrl.searchParams.set("key", forgeKey);
+
+    try {
+      const upstream = await fetch(upstreamUrl.toString(), {
+        signal: AbortSignal.timeout(15_000),
+        headers: {
+          "User-Agent": "HealingStudio/1.0 MapsProxy",
+          Accept: req.headers.accept ?? "*/*",
+        },
+      });
+
+      res.status(upstream.status);
+      const contentType = upstream.headers.get("content-type");
+      const contentLength = upstream.headers.get("content-length");
+      if (contentType) res.setHeader("Content-Type", contentType);
+      if (contentLength) res.setHeader("Content-Length", contentLength);
+      res.setHeader("Cache-Control", "public, max-age=600");
+
+      if (upstream.body) {
+        const reader = upstream.body.getReader();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (!res.write(value)) {
+            await new Promise<void>(resolve => res.once("drain", resolve));
+          }
+        }
+        res.end();
+        return;
+      }
+
+      const body = await upstream.arrayBuffer();
+      res.send(Buffer.from(body));
+    } catch (error) {
+      logger.error("[maps-proxy] upstream error", { err: error });
+      res.status(502).json({ error: "Maps proxy upstream failed" });
+    }
+  });
 
   // ── 後端代理下載（解決前端直接 fetch CDN 時的 CORS 問題）──────────────────
   // GET /api/proxy-download?url=<encodedUrl>
