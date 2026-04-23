@@ -83,6 +83,11 @@ const coreSchema = z.object({
   OWNER_OPEN_ID: z.string().optional().default(""),
   BUILT_IN_FORGE_API_URL: z.string().optional().default(""),
   BUILT_IN_FORGE_API_KEY: z.string().optional().default(""),
+  FRONTEND_FORGE_API_URL: z
+    .string()
+    .optional()
+    .default("https://forge.butterfly-effect.dev"),
+  FRONTEND_FORGE_API_KEY: z.string().optional().default(""),
 });
 
 /**
