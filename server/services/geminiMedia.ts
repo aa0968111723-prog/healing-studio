@@ -10,6 +10,7 @@
  * 所有端點均透過 Google AI Studio / Gemini API Key
  */
 import { serverEnv } from "../_core/env.validated";
+import { safeApiCall } from "./modelClients";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -292,6 +293,38 @@ export class GeminiMediaClient {
     return !!process.env.GEMINI_API_KEY;
   }
 
+  /**
+   * 統一 Gemini HTTP 呼叫：
+   * - timeout + retry（共用 safeApiCall）
+   * - 保留 status / headers 供 retry 判斷（429/5xx）
+   */
+  private async geminiJson<T>(
+    label: string,
+    url: string,
+    init: RequestInit,
+    cfg: { timeoutMs?: number; maxRetries?: number } = {}
+  ): Promise<T> {
+    const { data } = await safeApiCall(
+      async () => {
+        const res = await fetch(url, init);
+        if (!res.ok) {
+          const errText = await res.text().catch(() => "");
+          throw Object.assign(
+            new Error(`Gemini API error ${res.status}: ${errText}`),
+            { status: res.status, headers: res.headers }
+          );
+        }
+        return res.json() as Promise<T>;
+      },
+      label,
+      {
+        timeoutMs: cfg.timeoutMs ?? 60_000,
+        maxRetries: cfg.maxRetries ?? 2,
+      }
+    );
+    return data;
+  }
+
   // ── 圖片生成（Imagen） ───────────────────────────────────────────────────
   async generateImage(params: GeminiImageParams): Promise<GeminiImageResult> {
     const model = params.model ?? "imagen-3.0-generate-002";
@@ -323,15 +356,20 @@ export class GeminiMediaClient {
       },
     };
 
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "");
-      const errMsg = `Gemini Imagen 錯誤 ${res.status}: ${errText}`;
+    let data: any;
+    try {
+      data = await this.geminiJson<any>(
+        `Gemini:Imagen:${model}`,
+        url,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+        { timeoutMs: 60_000, maxRetries: 2 }
+      );
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
       trackGeminiMedia({
         runName: `gemini/imagen/${model}`,
         model,
@@ -345,8 +383,6 @@ export class GeminiMediaClient {
       }).catch(() => {});
       throw new Error(errMsg);
     }
-
-    const data = (await res.json()) as any;
     const predictions = data.predictions ?? [];
     trackGeminiMedia({
       runName: `gemini/imagen/${model}`,
@@ -421,15 +457,20 @@ export class GeminiMediaClient {
       },
     };
 
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "");
-      const errMsg = `Gemini Veo 錯誤 ${res.status}: ${errText}`;
+    let data: any;
+    try {
+      data = await this.geminiJson<any>(
+        `Gemini:Veo:${model}`,
+        url,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+        { timeoutMs: 90_000, maxRetries: 2 }
+      );
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
       trackGeminiMedia({
         runName: `gemini/veo/${model}`,
         model,
@@ -443,8 +484,6 @@ export class GeminiMediaClient {
       }).catch(() => {});
       throw new Error(errMsg);
     }
-
-    const data = (await res.json()) as any;
     trackGeminiMedia({
       runName: `gemini/veo/${model}`,
       model,
@@ -465,17 +504,14 @@ export class GeminiMediaClient {
   /** 查詢 Veo 長時間操作狀態 */
   async pollVideoOperation(operationName: string): Promise<GeminiVideoResult> {
     const url = `${this.baseUrl}/v1beta/${operationName}?key=${this.apiKey}`;
-
-    const res = await fetch(url, {
-      headers: { "Content-Type": "application/json" },
-    });
-
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "");
-      throw new Error(`Gemini 操作查詢錯誤 ${res.status}: ${errText}`);
-    }
-
-    const data = (await res.json()) as any;
+    const data = await this.geminiJson<any>(
+      "Gemini:VeoOperationStatus",
+      url,
+      {
+        headers: { "Content-Type": "application/json" },
+      },
+      { timeoutMs: 20_000, maxRetries: 1 }
+    );
 
     if (data.done) {
       if (data.error) {
@@ -531,15 +567,20 @@ export class GeminiMediaClient {
       },
     };
 
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "");
-      const errMsg = `Gemini Audio 錯誤 ${res.status}: ${errText}`;
+    let data: any;
+    try {
+      data = await this.geminiJson<any>(
+        `Gemini:Audio:${model}`,
+        url,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+        { timeoutMs: 60_000, maxRetries: 2 }
+      );
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
       trackGeminiMedia({
         runName: `gemini/audio/${model}`,
         model,
@@ -549,8 +590,6 @@ export class GeminiMediaClient {
       }).catch(() => {});
       throw new Error(errMsg);
     }
-
-    const data = (await res.json()) as any;
     const prediction = data.predictions?.[0] ?? {};
     trackGeminiMedia({
       runName: `gemini/audio/${model}`,
@@ -593,18 +632,16 @@ export class GeminiMediaClient {
       },
     };
 
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "");
-      throw new Error(`Gemini TTS 錯誤 ${res.status}: ${errText}`);
-    }
-
-    const data = (await res.json()) as any;
+    const data = await this.geminiJson<any>(
+      `Gemini:TTS:${model}`,
+      url,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      { timeoutMs: 45_000, maxRetries: 2 }
+    );
     const part = data.candidates?.[0]?.content?.parts?.[0];
     const inlineData = part?.inlineData;
 
