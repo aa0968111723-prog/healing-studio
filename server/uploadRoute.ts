@@ -71,7 +71,7 @@ uploadRouter.post("/api/upload", async (req: Request, res: Response) => {
 
     // Generate a unique file key to prevent enumeration.
     // Strip the extension from the base name so it is not duplicated
-    // (the extension is appended explicitly after the unique suffix).
+    // (the extension is appended explicitly after the unique suffix)
     const suffix = nanoid(8);
     const dotIdx = fileName.lastIndexOf(".");
     const ext = dotIdx > 0 ? fileName.slice(dotIdx + 1) : "";
