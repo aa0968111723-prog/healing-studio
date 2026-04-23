@@ -69,11 +69,15 @@ uploadRouter.post("/api/upload", async (req: Request, res: Response) => {
       return;
     }
 
-    // Generate a unique file key to prevent enumeration
+    // Generate a unique file key to prevent enumeration.
+    // Strip the extension from the base name so it is not duplicated
+    // (the extension is appended explicitly after the unique suffix).
     const suffix = nanoid(8);
-    const ext = fileName.includes(".") ? fileName.split(".").pop() : "";
-    const safeFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const fileKey = `uploads/${user.id}/${safeFileName}-${suffix}${ext ? "." + ext : ""}`;
+    const dotIdx = fileName.lastIndexOf(".");
+    const ext = dotIdx > 0 ? fileName.slice(dotIdx + 1) : "";
+    const baseNameRaw = dotIdx > 0 ? fileName.slice(0, dotIdx) : fileName;
+    const safeName = baseNameRaw.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const fileKey = `uploads/${user.id}/${safeName}-${suffix}${ext ? "." + ext : ""}`;
 
     // Upload to S3 via storagePut
     const { url, key } = await storagePut(fileKey, buffer, mimeType);
@@ -82,7 +86,7 @@ uploadRouter.post("/api/upload", async (req: Request, res: Response) => {
       success: true,
       url,
       fileKey: key,
-      fileName: safeFileName,
+      fileName: safeName,
       mimeType,
       fileSizeBytes: buffer.length,
     });

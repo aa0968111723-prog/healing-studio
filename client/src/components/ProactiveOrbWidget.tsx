@@ -1376,10 +1376,7 @@ export default memo(function ProactiveOrbWidget({
             } satisfies ChatAttachment;
           })
         );
-        setChatAttachments(prev => [
-          ...prev,
-          ...uploaded.filter((item): item is ChatAttachment => item !== null),
-        ]);
+        setChatAttachments(prev => [...prev, ...uploaded]);
       } catch (err) {
         showFeedback(`附件上傳失敗：${shortErrorMsg(err)}`);
       } finally {
