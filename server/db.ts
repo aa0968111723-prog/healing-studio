@@ -71,9 +71,11 @@ export async function getDb() {
 
   const databaseUrl = process.env.DATABASE_URL?.trim();
   if (!databaseUrl) {
-    console.error(
-      "[Database] Missing DATABASE_URL. Skipping mysql2 connection initialization."
-    );
+    if (process.env.NODE_ENV !== "test") {
+      console.error(
+        "[Database] Missing DATABASE_URL. Skipping mysql2 connection initialization."
+      );
+    }
     return null;
   }
 

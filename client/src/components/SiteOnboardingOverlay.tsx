@@ -114,6 +114,7 @@ function TourCard({
   stepIndex,
   totalSteps,
   targetRect,
+  viewport,
   onNext,
   onPrev,
   onSkip,
@@ -122,20 +123,34 @@ function TourCard({
   stepIndex: number;
   totalSteps: number;
   targetRect: DOMRect | null;
+  viewport: { width: number; height: number };
   onNext: () => void;
   onPrev: () => void;
   onSkip: () => void;
 }) {
   const isCentered = step.position === "center" || !targetRect;
   const isLastStep = stepIndex === totalSteps - 1;
+  const isMobile = viewport.width < 640;
+  const isTablet = viewport.width >= 640 && viewport.width < 1024;
 
-  const cardW = Math.min(380, window.innerWidth - 32);
-  const cardH = 300;
+  const cardW = Math.min(isMobile ? 460 : 380, viewport.width - (isMobile ? 20 : 32));
+  const cardH = isMobile ? 360 : isTablet ? 320 : 300;
   const gap = 18;
 
   // Position logic for anchored cards
   function computeStyle(): React.CSSProperties {
     if (isCentered || !targetRect) {
+      if (isMobile) {
+        return {
+          position: "fixed",
+          left: "50%",
+          bottom: 10,
+          transform: "translateX(-50%)",
+          width: cardW,
+          maxWidth: "calc(100vw - 20px)",
+          maxHeight: Math.max(280, viewport.height - 20),
+        };
+      }
       return {
         position: "fixed",
         top: "50%",
@@ -170,8 +185,20 @@ function TourCard({
     }
 
     // Clamp to viewport
-    left = Math.max(16, Math.min(window.innerWidth - cardW - 16, left));
-    top = Math.max(16, Math.min(window.innerHeight - cardH - 16, top));
+    left = Math.max(16, Math.min(viewport.width - cardW - 16, left));
+    top = Math.max(16, Math.min(viewport.height - cardH - 16, top));
+
+    if (isMobile) {
+      return {
+        position: "fixed",
+        left: "50%",
+        bottom: 10,
+        transform: "translateX(-50%)",
+        width: cardW,
+        maxWidth: "calc(100vw - 20px)",
+        maxHeight: Math.max(280, viewport.height - 20),
+      };
+    }
 
     return { position: "fixed", top, left, width: cardW };
   }
@@ -187,11 +214,11 @@ function TourCard({
       className="z-[9999] pointer-events-auto"
       style={style}
     >
-      <div className="rounded-3xl border border-amber-200/40 bg-white/97 backdrop-blur-2xl shadow-2xl shadow-amber-500/15 overflow-hidden">
+      <div className="rounded-3xl border border-amber-200/40 bg-white/97 backdrop-blur-2xl shadow-2xl shadow-amber-500/15 overflow-hidden max-h-[calc(100vh-20px)] sm:max-h-none flex flex-col">
         {/* Top accent bar */}
         <div className="h-1 bg-gradient-to-r from-amber-400 via-orange-400 to-pink-400" />
 
-        <div className="p-5">
+        <div className="p-4 sm:p-5 overflow-y-auto">
           {/* Header row */}
           <div className="flex items-start gap-3 mb-3">
             {/* VisualSoul orb */}
@@ -217,14 +244,14 @@ function TourCard({
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
-              <h3 className="text-base font-bold text-gray-800 mt-1.5">
+              <h3 className="text-sm sm:text-base font-bold text-gray-800 mt-1.5">
                 {step.title}
               </h3>
             </div>
           </div>
 
           {/* Description */}
-          <p className="text-sm text-gray-600 leading-relaxed mb-3 whitespace-pre-line">
+          <p className="text-xs sm:text-sm text-gray-600 leading-relaxed mb-3 whitespace-pre-line">
             {step.description}
           </p>
 
@@ -232,14 +259,14 @@ function TourCard({
           {step.tip && (
             <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50/80 border border-amber-100 mb-4">
               <Heart className="w-3.5 h-3.5 text-amber-500 mt-0.5 shrink-0" />
-              <p className="text-xs text-amber-700 leading-relaxed italic">
+              <p className="text-[11px] sm:text-xs text-amber-700 leading-relaxed italic">
                 {step.tip}
               </p>
             </div>
           )}
 
           {/* Progress dots + Navigation */}
-          <div className="flex items-center justify-between mt-1">
+          <div className="flex items-center justify-between mt-1 gap-2">
             {/* Progress dots */}
             <div className="flex gap-1.5">
               {Array.from({ length: totalSteps }).map((_, i) => (
@@ -260,22 +287,22 @@ function TourCard({
             </div>
 
             {/* Navigation buttons */}
-            <div className="flex gap-2">
+            <div className="flex gap-1.5 sm:gap-2">
               {stepIndex > 0 && (
                 <Button
                   size="sm"
                   variant="ghost"
                   onClick={onPrev}
-                  className="text-xs h-8 px-3 gap-1 text-gray-500 rounded-full"
+                  className="text-[11px] sm:text-xs h-8 px-2.5 sm:px-3 gap-1 text-gray-500 rounded-full"
                 >
                   <ChevronLeft className="w-3.5 h-3.5" />
                   上一步
                 </Button>
               )}
-              <Button
+                <Button
                 size="sm"
                 onClick={onNext}
-                className="text-xs h-8 px-5 gap-1 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white rounded-full shadow-md shadow-amber-500/25 border-0"
+                className="text-[11px] sm:text-xs h-8 px-3.5 sm:px-5 gap-1 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white rounded-full shadow-md shadow-amber-500/25 border-0"
               >
                 {isLastStep ? (
                   <>
@@ -321,6 +348,10 @@ export default function SiteOnboardingOverlay() {
   } = useSiteOnboarding();
 
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
+  const [viewport, setViewport] = useState(() => ({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  }));
 
   // Track target element rect
   useEffect(() => {
@@ -361,6 +392,30 @@ export default function SiteOnboardingOverlay() {
     };
   }, [isActive, currentStepData]);
 
+  // Keep viewport in sync for responsive card sizing (e.g., phone rotation)
+  useEffect(() => {
+    if (!isActive) return;
+
+    const updateViewport = () => {
+      const vv = window.visualViewport;
+      setViewport({
+        width: Math.round(vv?.width ?? window.innerWidth),
+        height: Math.round(vv?.height ?? window.innerHeight),
+      });
+    };
+
+    updateViewport();
+    window.addEventListener("resize", updateViewport);
+    window.addEventListener("orientationchange", updateViewport);
+    window.visualViewport?.addEventListener("resize", updateViewport);
+
+    return () => {
+      window.removeEventListener("resize", updateViewport);
+      window.removeEventListener("orientationchange", updateViewport);
+      window.visualViewport?.removeEventListener("resize", updateViewport);
+    };
+  }, [isActive]);
+
   // Keyboard navigation
   useEffect(() => {
     if (!isActive) return;
@@ -395,6 +450,7 @@ export default function SiteOnboardingOverlay() {
           stepIndex={currentStep}
           totalSteps={totalSteps}
           targetRect={isCentered ? null : targetRect}
+          viewport={viewport}
           onNext={nextStep}
           onPrev={prevStep}
           onSkip={stopTour}
