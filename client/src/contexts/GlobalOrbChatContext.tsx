@@ -423,14 +423,54 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
 
         // 派送結構化動作
         if (structuredActions.length > 0) {
-          const askBeforeAct = (data as { askBeforeAct?: boolean }).askBeforeAct === true;
+          const askBeforeAct =
+            (data as { askBeforeAct?: boolean }).askBeforeAct === true;
 
-          for (const action of structuredActions) {
-            await pageAgent.dispatch(action, {
-              source: "ai-chat",
-              intentSummary: intent,
-              requireConfirmation: askBeforeAct ? true : undefined,
-            });
+          // askBeforeAct=true 時保留既有逐筆確認流程（會進 pendingConfirmation）
+          if (askBeforeAct) {
+            for (const action of structuredActions) {
+              await pageAgent.dispatch(action, {
+                source: "ai-chat",
+                intentSummary: intent,
+                requireConfirmation: true,
+              });
+            }
+          } else {
+            // askBeforeAct=false 視為後端已完成 B 線審批，可走 A 線執行器
+            const taskId =
+              (data as { taskId?: string }).taskId ??
+              `orb-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+            const exec = await pageAgent.executeApprovedTask(
+              {
+                taskId,
+                approvedByB: true,
+                source: "B",
+                pageId: pageAgent.snapshot?.pageId,
+                actions: structuredActions,
+              },
+              {
+                source: "ai-chat",
+                onFailure: payload => {
+                  pageAgent.reportFeedback({
+                    status: "failed",
+                    actionType: payload.context.actionType as AgentAction["type"],
+                    pageId: payload.context.pageId,
+                    note: `${payload.errorCode}: ${payload.context.reason ?? "unknown failure"}`,
+                  });
+                },
+              }
+            );
+            if (!exec.ok) {
+              setMessages(prev => [
+                ...prev,
+                {
+                  role: "orb",
+                  text: `⚠️ 動作執行失敗（${exec.errorCode ?? "UNKNOWN"}），我已回報給 B 線。`,
+                  at: Date.now(),
+                  pagePath: locationPath,
+                },
+              ]);
+            }
           }
         }
       } catch (err) {
