@@ -36,6 +36,17 @@ import { getOrchestrator } from "./services/modelClients";
 import { buildMemoryContext, upsertMemory } from "./services/ragMemory";
 import { buildOrbSystemPrompt } from "./services/siteKnowledge";
 import { parseOrbReply } from "./services/orbReplyParser";
+import { executeOrbToolCalls } from "./services/agentToolExecutor";
+import { getOrbToolRegistry } from "./config/orbToolRegistry";
+import { orbTaskRepository } from "./repositories/orbTaskRepository";
+import { executeCurrentStepTools } from "./services/orbTaskOrchestrator";
+import { orbToolCallLogStore } from "./services/orbToolCallLogStore";
+import {
+  OrbStartTaskInputSchema,
+  OrbApproveTaskInputSchema,
+  OrbApproveStepInputSchema,
+  OrbStepReportInputSchema,
+} from "../shared/orb-agent-contract";
 import {
   mergeFeedbackHistories,
   buildOrbGuideStepPrompt,
@@ -3417,6 +3428,198 @@ export const appRouter = router({
   // ─── AI 全站光球代理（含上下文 + AI 代理人行為） ──────────────────────────────
 
   ai: router({
+    startTask: brainProcedure
+      .input(OrbStartTaskInputSchema)
+      .mutation(async ({ input, ctx }) => {
+        const task = orbTaskRepository.create({
+          userId: ctx.user.id,
+          intent: input.intent,
+          steps: input.steps,
+          needsApproval: input.needsApproval,
+        });
+        return { task };
+      }),
+
+    task: brainProcedure
+      .input(
+        z.object({
+          taskId: z.string().min(1).max(72),
+          ifNoneMatch: z.string().max(128).optional(),
+        })
+      )
+      .query(async ({ input, ctx }) => {
+        const task = orbTaskRepository.get(input.taskId, ctx.user.id);
+        const sync = orbTaskRepository.getTaskSyncMeta(input.taskId, ctx.user.id);
+        if (input.ifNoneMatch && sync.etag && input.ifNoneMatch === sync.etag) {
+          return {
+            task: null,
+            latestEventId: sync.latestEventId,
+            etag: sync.etag,
+            notModified: true as const,
+          };
+        }
+        return { task, latestEventId: sync.latestEventId, etag: sync.etag };
+      }),
+
+    taskTimeline: brainProcedure
+      .input(
+        z.object({
+          taskId: z.string().min(1).max(72),
+          from: z.number().int().optional(),
+          to: z.number().int().optional(),
+          cursor: z.number().int().optional(),
+          limit: z.number().int().min(1).max(500).optional(),
+          order: z.enum(["asc", "desc"]).optional(),
+          types: z
+            .array(z.enum(["task_created", "step_approved", "step_reported"]))
+            .max(3)
+            .optional(),
+        })
+      )
+      .query(async ({ input, ctx }) => {
+        const page = orbTaskRepository.getTimelinePage(input.taskId, ctx.user.id, {
+          from: input.from,
+          to: input.to,
+          cursor: input.cursor,
+          limit: input.limit,
+          order: input.order,
+          types: input.types,
+        });
+        return page;
+      }),
+
+    toolCallLogs: brainProcedure
+      .input(
+        z
+          .object({
+            taskId: z.string().min(1).max(72).optional(),
+            requestId: z.string().min(1).max(64).optional(),
+            limit: z.number().int().min(1).max(500).optional(),
+          })
+          .optional()
+      )
+      .query(async ({ input, ctx }) => {
+        return orbToolCallLogStore.list({
+          userId: ctx.user.id,
+          taskId: input?.taskId,
+          requestId: input?.requestId,
+          limit: input?.limit,
+        });
+      }),
+
+    approveTask: brainProcedure
+      .input(OrbApproveTaskInputSchema)
+      .mutation(async ({ input, ctx }) => {
+        const task = orbTaskRepository.approve(
+          input.taskId,
+          ctx.user.id,
+          input.approved
+        );
+        return { task };
+      }),
+
+    approveTaskStep: brainProcedure
+      .input(OrbApproveStepInputSchema)
+      .mutation(async ({ input, ctx }) => {
+        const task = orbTaskRepository.approveStep(
+          input.taskId,
+          ctx.user.id,
+          input.stepId,
+          input.approved
+        );
+        const approvalToken = task?.stepApprovals.find(x => x.stepId === input.stepId)?.token;
+        const approvalExpiresAt = task?.stepApprovals.find(
+          x => x.stepId === input.stepId
+        )?.expiresAt;
+        return { task, approvalToken, approvalExpiresAt };
+      }),
+
+    reportTaskStep: brainProcedure
+      .input(OrbStepReportInputSchema)
+      .mutation(async ({ input, ctx }) => {
+        const currentTask = orbTaskRepository.get(input.taskId, ctx.user.id);
+        if (!currentTask) return { task: null, toolResults: [] as const };
+
+        let toolResults: Array<{
+          name: string;
+          ok: boolean;
+          status?: number;
+          data?: unknown;
+          error?: string;
+        }> = [];
+
+        if (input.ok) {
+          const tools = getOrbToolRegistry();
+          const requestId = `task_${input.taskId}_${Date.now()}`;
+          const toolRun = await executeCurrentStepTools({
+            task: currentTask,
+            userId: ctx.user.id,
+            userRole: ctx.user.role,
+            tools,
+            requestId,
+            onAuditEvent: event => {
+              orbToolCallLogStore.append(event);
+            },
+            approved:
+              !currentTask.needsApproval ||
+              orbTaskRepository.isStepApproved(
+                input.taskId,
+                ctx.user.id,
+                input.stepId,
+                input.approvalToken,
+                input.at
+              ),
+          });
+          toolResults = toolRun.toolResults;
+          if (!toolRun.ok) {
+            const failedTask = orbTaskRepository.reportStep(
+              {
+                taskId: input.taskId,
+                stepId: input.stepId,
+                ok: false,
+                detail: input.detail,
+                errorCode: input.errorCode ?? toolResults[0]?.error,
+                source: "tool",
+                actor: "agent",
+                at: input.at,
+              },
+              ctx.user.id
+            );
+            return { task: failedTask, toolResults };
+          }
+        }
+
+        const task = orbTaskRepository.reportStep(
+          {
+            taskId: input.taskId,
+            stepId: input.stepId,
+            ok: input.ok,
+            detail: input.detail,
+            errorCode: input.errorCode,
+            source: input.source ?? "ui",
+            actor: input.actor ?? "user",
+            at: input.at,
+          },
+          ctx.user.id
+        );
+        return { task, toolResults };
+      }),
+
+    tools: brainProcedure.query(() => {
+      const tools = getOrbToolRegistry();
+      return tools.map(tool => ({
+        name: tool.name,
+        description: tool.description,
+        method: tool.method,
+        version: tool.version ?? "v1",
+        riskLevel: tool.riskLevel ?? "medium",
+        allowedRoles: tool.allowedRoles ?? [],
+        retryPolicy: tool.retryPolicy,
+        fallbackTools: tool.fallbackTools ?? [],
+        requireConfirmation: Boolean(tool.requireConfirmation),
+      }));
+    }),
+
     chat: brainProcedure
       .input(
         z.object({
@@ -3528,6 +3731,7 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input, ctx }) => {
+        const registeredTools = getOrbToolRegistry();
         // Phase 3c：把 DB 裡的長期記憶跟前端 session 記憶合併給 prompt。
         // 前端剛啟動時 recentFeedback 是空的，但使用者過去的接受/拒絕早已
         // 寫進 orb_feedback_events；這裡讀最近 10 筆補上去。
@@ -3560,6 +3764,17 @@ export const appRouter = router({
             pageSnapshot: input.pageSnapshot,
             recentFeedback: mergedFeedback,
             alwaysConfirm: input.alwaysConfirm,
+            apiTools: registeredTools.map(tool => ({
+              name: tool.name,
+              description: tool.description,
+              method: tool.method,
+              riskLevel: tool.riskLevel,
+              version: tool.version,
+              allowedRoles: tool.allowedRoles,
+              retryPolicy: tool.retryPolicy,
+              fallbackTools: tool.fallbackTools,
+              requireConfirmation: tool.requireConfirmation,
+            })),
           }
         );
 
@@ -3603,6 +3818,7 @@ export const appRouter = router({
               intent: null,
               askBeforeAct: false,
               suggestions: [],
+              toolCalls: [],
             };
           }
 
@@ -3621,8 +3837,37 @@ export const appRouter = router({
             intent: null,
             askBeforeAct: false,
             suggestions: [],
+            toolCalls: [],
           };
         }
+      }),
+
+    executeTools: brainProcedure
+      .input(
+        z.object({
+          calls: z.array(
+            z.object({
+              name: z.string().min(2).max(64),
+              args: z.record(z.string(), z.unknown()).optional(),
+            })
+          ).max(5),
+          approved: z.boolean().default(false),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        const tools = getOrbToolRegistry();
+        const results = await executeOrbToolCalls({
+          tools,
+          calls: input.calls,
+          userId: ctx.user.id,
+          userRole: ctx.user.role,
+          approved: input.approved,
+          requestId: `adhoc_${ctx.user.id}_${Date.now()}`,
+          onAuditEvent: event => {
+            orbToolCallLogStore.append(event);
+          },
+        });
+        return { results };
       }),
   }),
 
@@ -3674,6 +3919,7 @@ export const appRouter = router({
           input?.limit ?? 20
         );
         return rows.map(r => ({
+          id: r.id,
           at: r.createdAt.getTime(),
           status: r.status,
           actionType: r.actionType,
@@ -3681,6 +3927,36 @@ export const appRouter = router({
           pageId: r.pageId ?? undefined,
           actionSummary: r.actionSummary ?? undefined,
         }));
+      }),
+
+    delete: brainProcedure
+      .input(
+        z.object({
+          id: z.number().int().positive(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        const deleted = await db.deleteOrbFeedbackEvent(ctx.user.id, input.id);
+        return { ok: deleted > 0, deleted };
+      }),
+
+    clear: brainProcedure
+      .input(
+        z
+          .object({
+            pageId: z.string().max(64).optional(),
+            actionType: z.string().max(32).optional(),
+            beforeAt: z.number().int().optional(),
+          })
+          .optional()
+      )
+      .mutation(async ({ input, ctx }) => {
+        const deleted = await db.clearOrbFeedbackEvents(ctx.user.id, {
+          pageId: input?.pageId,
+          actionType: input?.actionType,
+          beforeAt: input?.beforeAt ? new Date(input.beforeAt) : undefined,
+        });
+        return { ok: true as const, deleted };
       }),
   }),
 

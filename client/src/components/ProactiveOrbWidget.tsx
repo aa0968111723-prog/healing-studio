@@ -1464,13 +1464,6 @@ export default memo(function ProactiveOrbWidget({
       studioPromptPack,
       composeOrbGuidePrompt,
       setChatInput,
-      onRestartTour,
-      pageContext?.pageId,
-      openGuidePanel,
-      selectGuideIntent,
-      pageAgent,
-      studioAutopilotActions,
-      showFeedback,
     ]
   );
 

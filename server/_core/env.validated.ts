@@ -165,6 +165,7 @@ function validateAndWarn(): ServerEnvResult {
   }
 
   const env = result.success ? result.data : fullSchema.parse({});
+  const isTestEnv = env.NODE_ENV === "test";
 
   // ── Core variable warnings ──
   const coreWarnings: Array<[string, string, string, string]> = [
@@ -201,7 +202,7 @@ function validateAndWarn(): ServerEnvResult {
   ];
 
   for (const [name, value, module, fix] of coreWarnings) {
-    if (!value) oarsWarn(name, module, fix);
+    if (!value && !isTestEnv) oarsWarn(name, module, fix);
   }
 
   // ── Multimodal API key status summary ──

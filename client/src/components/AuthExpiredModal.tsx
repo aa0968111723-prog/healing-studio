@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { LogIn, ShieldAlert, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getLoginUrl, getDemoLoginUrl } from "@/const";
+import LocalAuthForm from "@/components/LocalAuthForm";
 
 // ─── Global Auth Expired Event ─────────────────────────────────────────────
 // This event-based approach decouples the tRPC interceptor from the UI layer.
@@ -129,6 +130,10 @@ export default function AuthExpiredModal() {
                   <LogIn className="w-4 h-4" />
                   Google 登入
                 </Button>
+                <LocalAuthForm
+                  className="text-left"
+                  onSuccess={handleDismiss}
+                />
                 <Button
                   variant="outline"
                   onClick={() => {

@@ -1,4 +1,4 @@
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and, sql, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
@@ -71,9 +71,11 @@ export async function getDb() {
 
   const databaseUrl = process.env.DATABASE_URL?.trim();
   if (!databaseUrl) {
-    console.error(
-      "[Database] Missing DATABASE_URL. Skipping mysql2 connection initialization."
-    );
+    if (process.env.NODE_ENV !== "test") {
+      console.error(
+        "[Database] Missing DATABASE_URL. Skipping mysql2 connection initialization."
+      );
+    }
     return null;
   }
 
@@ -1430,4 +1432,37 @@ export async function getRecentOrbFeedback(
     .where(eq(orbFeedbackEvents.userId, userId))
     .orderBy(desc(orbFeedbackEvents.createdAt))
     .limit(Math.max(1, Math.min(50, limit)));
+}
+
+/** 刪除單筆光球記憶事件（僅限事件擁有者） */
+export async function deleteOrbFeedbackEvent(userId: number, eventId: number) {
+  const db = await getDb();
+  if (!db) return 0;
+  const result = await db
+    .delete(orbFeedbackEvents)
+    .where(
+      and(eq(orbFeedbackEvents.userId, userId), eq(orbFeedbackEvents.id, eventId))
+    );
+  return Number(result[0].affectedRows ?? 0);
+}
+
+/** 依條件批次刪除光球記憶（支援 pageId/actionType/beforeAt 過濾） */
+export async function clearOrbFeedbackEvents(
+  userId: number,
+  filters?: {
+    pageId?: string;
+    actionType?: string;
+    beforeAt?: Date;
+  }
+) {
+  const db = await getDb();
+  if (!db) return 0;
+  const conditions = [eq(orbFeedbackEvents.userId, userId)];
+  if (filters?.pageId) conditions.push(eq(orbFeedbackEvents.pageId, filters.pageId));
+  if (filters?.actionType) {
+    conditions.push(eq(orbFeedbackEvents.actionType, filters.actionType));
+  }
+  if (filters?.beforeAt) conditions.push(lt(orbFeedbackEvents.createdAt, filters.beforeAt));
+  const result = await db.delete(orbFeedbackEvents).where(and(...conditions));
+  return Number(result[0].affectedRows ?? 0);
 }

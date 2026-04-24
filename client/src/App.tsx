@@ -46,6 +46,7 @@ const ProStudio = lazy(() => import("./pages/ProStudio"));
 const ImageStudio = lazy(() => import("./pages/ImageStudio"));
 const VideoStudio = lazy(() => import("./pages/VideoStudio"));
 const LearnHub = lazy(() => import("./pages/LearnHub"));
+const TutorialOverviewPage = lazy(() => import("./pages/TutorialOverviewPage"));
 const LoraTrainer = lazy(() => import("./pages/LoraTrainer"));
 const FocusFlowPage = lazy(() => import("./pages/FocusFlowPage"));
 const LangSmithPage = lazy(() => import("./pages/LangSmithPage"));
@@ -170,6 +171,12 @@ function Router() {
       </Route>
       <Route path="/learn">
         <DashboardRoute component={LearnHub} />
+      </Route>
+      <Route path="/learn/tutorial-overview">
+        <DashboardRoute component={TutorialOverviewPage} />
+      </Route>
+      <Route path="/tutorial-overview">
+        <DashboardRoute component={TutorialOverviewPage} />
       </Route>
       <Route path="/lora-trainer">
         <ProtectedDashboardRoute component={LoraTrainer} />

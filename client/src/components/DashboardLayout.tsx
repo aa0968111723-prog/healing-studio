@@ -28,6 +28,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { getLoginUrl, getDemoLoginUrl } from "@/const";
+import LocalAuthForm from "@/components/LocalAuthForm";
 import { useIsMobile, useViewMode } from "@/hooks/useMobile";
 import {
   Wand2,
@@ -144,15 +145,17 @@ const sidebarIconByPageId: Record<string, LucideIcon> = {
 };
 
 const groupIconByName: Record<string, LucideIcon> = {
-  "專業創作室": Palette,
-  "素材與模型": FolderOpen,
-  "規劃筆記": StickyNote,
-  "數據洞察": BarChart3,
+  專業創作室: Palette,
+  素材與模型: FolderOpen,
+  規劃筆記: StickyNote,
+  數據洞察: BarChart3,
 };
 
 const sidebarGroupsFromRegistry = getSidebarGroups();
 const sidebarPagesById = new Map(
-  sidebarGroupsFromRegistry.flatMap(group => group.pages.map(page => [page.id, page]))
+  sidebarGroupsFromRegistry.flatMap(group =>
+    group.pages.map(page => [page.id, page])
+  )
 );
 
 const toLeafItem = (page: AppPageRegistryItem): SidebarLeafItem => ({
@@ -162,7 +165,10 @@ const toLeafItem = (page: AppPageRegistryItem): SidebarLeafItem => ({
   id: `sidebar-${page.id}-link`,
 });
 
-const createGroupEntry = (label: string, pageIds: string[]): SidebarGroupItem => ({
+const createGroupEntry = (
+  label: string,
+  pageIds: string[]
+): SidebarGroupItem => ({
   icon: groupIconByName[label] ?? FolderOpen,
   label,
   children: pageIds
@@ -171,11 +177,7 @@ const createGroupEntry = (label: string, pageIds: string[]): SidebarGroupItem =>
     .map(toLeafItem),
 });
 
-const sidebarStructure: SidebarEntry[] = [
-  "agent-chat",
-  "studio",
-  "director",
-]
+const sidebarStructure: SidebarEntry[] = ["agent-chat", "studio", "director"]
   .map(id => sidebarPagesById.get(id))
   .filter((page): page is AppPageRegistryItem => Boolean(page))
   .map(toLeafItem);
@@ -250,11 +252,10 @@ function GlobalPageHint() {
   const [open, setOpen] = useState(false);
   if (!pageContext) return null;
 
-  const hints =
-    PAGE_HINTS[pageContext.pageId] ?? [
-      "先完成一個最小可用成果，再逐步細化。",
-      "若卡住可先用光球拆解任務，再執行下一步。",
-    ];
+  const hints = PAGE_HINTS[pageContext.pageId] ?? [
+    "先完成一個最小可用成果，再逐步細化。",
+    "若卡住可先用光球拆解任務，再執行下一步。",
+  ];
 
   return (
     <Collapsible
@@ -336,6 +337,7 @@ export default function DashboardLayout({
           >
             Google 登入
           </Button>
+          <LocalAuthForm className="mt-3 text-left" />
           <Button
             onClick={() => {
               window.location.href = getDemoLoginUrl();
@@ -549,6 +551,7 @@ function DashboardLayoutContent({
       "/settings": "settings",
       "/settings/ai-brain": "settings",
       "/learn": "learn",
+      "/learn/tutorial-overview": "learn",
       "/focus-flow": "focus-flow",
       "/langsmith": "langsmith",
       "/background-tasks": "background-tasks",
@@ -756,7 +759,12 @@ function DashboardLayoutContent({
                 className="w-full flex items-center justify-between px-2 py-1.5 mb-1 rounded-lg bg-muted/40 hover:bg-muted/60 transition-colors"
               >
                 <span className="hs-small !mb-0 text-muted-foreground">
-                  檢視模式：{viewMode === "auto" ? "自動" : viewMode === "desktop" ? "桌機" : "行動"}
+                  檢視模式：
+                  {viewMode === "auto"
+                    ? "自動"
+                    : viewMode === "desktop"
+                      ? "桌機"
+                      : "行動"}
                 </span>
                 <span className="text-[11px] text-muted-foreground/80">
                   到個人設定調整
@@ -885,7 +893,11 @@ function DashboardLayoutContent({
               >
                 <Monitor className="w-4 h-4 text-muted-foreground mr-1" />
                 <span className="text-[11px] text-muted-foreground">
-                  {viewMode === "auto" ? "自動" : viewMode === "desktop" ? "桌機" : "行動"}
+                  {viewMode === "auto"
+                    ? "自動"
+                    : viewMode === "desktop"
+                      ? "桌機"
+                      : "行動"}
                 </span>
               </button>
               {/* Quota badge */}
@@ -960,7 +972,7 @@ function DashboardLayoutContent({
           onOpenNotes={handleOrbOpenNotes}
           onOpenCalendar={handleOrbOpenCalendar}
           onAddToCalendar={handleOrbAddToCalendar}
-          onNavigate={(path) => setLocation(path)}
+          onNavigate={path => setLocation(path)}
         />
       )}
       {/* 破壞性動作執行前的柔軟確認卡片（全站都可觸發，含 /agent） */}
