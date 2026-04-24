@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { InvokeResult, Message } from "./_core/llm";
+import type { InvokeParams, InvokeResult, Message } from "./_core/llm";
 import {
   buildAgentPlannerMessages,
+  collectMultimodalParts,
+  hasMultimodalPlannerInput,
   plannerResultShouldFallback,
   runSchemaFirstAgentPlanner,
+  summarizeMultimodalInputsForPlanner,
   summarizePageSnapshotForPlanner,
 } from "./services/agentPlanner";
 
@@ -75,6 +78,50 @@ describe("agentPlanner", () => {
     expect(built.at(-1)?.content).toBe("幫我做海報");
   });
 
+  it("detects and summarizes multimodal message parts", () => {
+    const messages: Message[] = [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "請分析這張照片" },
+          { type: "image_url", image_url: { url: "https://cdn.test/photo.png" } },
+          { type: "file_url", file_url: { url: "https://cdn.test/audio.mp3", mime_type: "audio/mpeg" } },
+          { type: "file_url", file_url: { url: "https://cdn.test/video.mp4", mime_type: "video/mp4" } },
+          { type: "file_url", file_url: { url: "https://cdn.test/doc.pdf", mime_type: "application/pdf" } },
+        ],
+      },
+    ];
+
+    const parts = collectMultimodalParts(messages);
+    expect(parts.map(part => part.kind)).toEqual(["image", "audio", "video", "pdf"]);
+    expect(hasMultimodalPlannerInput(messages)).toBe(true);
+    expect(summarizeMultimodalInputsForPlanner(messages)).toContain("audio");
+  });
+
+  it("routes multimodal planner calls to Gemini", async () => {
+    let captured: InvokeParams | null = null;
+    const result = await runSchemaFirstAgentPlanner({
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "請把這張圖做成影片" },
+            { type: "image_url", image_url: { url: "https://cdn.test/photo.png" } },
+          ],
+        },
+      ],
+      invoke: async params => {
+        captured = params;
+        return invokeResult(JSON.stringify(validPlan));
+      },
+    });
+
+    expect(result.usedMultimodalPlanner).toBe(true);
+    expect(result.status).toBe("converted");
+    expect(captured?.preferEngine).toBe("gemini");
+    expect(captured?.runName).toBe("orb-agent-gemini-multimodal-planner");
+  });
+
   it("runs LLM planner and converts valid plan into workflow", async () => {
     const result = await runSchemaFirstAgentPlanner({
       messages: [{ role: "user", content: "幫我做海報" }],
@@ -82,6 +129,7 @@ describe("agentPlanner", () => {
     });
 
     expect(result.plannerUsed).toBe(true);
+    expect(result.usedMultimodalPlanner).toBe(false);
     expect(result.status).toBe("converted");
     expect(result.actions[0]?.type).toBe("runWorkflow");
     expect(plannerResultShouldFallback(result)).toBe(false);
