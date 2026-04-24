@@ -332,3 +332,345 @@ export const AGENT_PLAN_JSON_SCHEMA = {
 export function isKnownAgentActionType(value: string): value is AgentActionType {
   return AgentActionTypeSchema.safeParse(value).success;
 }
+
+// ─── AgentPlan v3 ─────────────────────────────────────────────────────────
+//
+// agent-plan.v3 是 production-grade 升級版：除了 v1 的 steps + clarification
+// 外，明確表達 decision.mode（clarification / direct / tasked / blocked）、
+// routing（preferredEngine / capabilities / pageScope）、attachments、safety
+// 與 taskPolicy / rollbackPolicy / telemetry。v1 schema 保留不動以維持相容；
+// 路由層拿到 LLM 原始輸出時以 `normalizeAgentPlanVersion()` 偵測版本，
+// `parseAndGatePlan()` 統一吐 gating 結果，舊 parseOrbReply 路徑保留為
+// 第三層 fallback。
+
+export const AgentPlanVersionSchema = z.enum(["agent-plan.v1", "agent-plan.v3"]);
+
+export const AgentPlanV3DecisionModeSchema = z.enum([
+  "clarification",
+  "direct",
+  "tasked",
+  "blocked",
+]);
+export type AgentPlanV3DecisionMode = z.infer<typeof AgentPlanV3DecisionModeSchema>;
+
+export const AgentPlanV3PreferredEngineSchema = z.enum([
+  "auto",
+  "gemini",
+  "minimax",
+  "claudeCode",
+]);
+export type AgentPlanV3PreferredEngine = z.infer<typeof AgentPlanV3PreferredEngineSchema>;
+
+export const AGENT_PLAN_V3_KNOWN_CAPABILITIES = [
+  "chat",
+  "ui-automation",
+  "multimodal",
+  "code",
+  "github",
+  "deploy",
+  "tooling",
+  "research",
+] as const;
+export type AgentPlanV3Capability = (typeof AGENT_PLAN_V3_KNOWN_CAPABILITIES)[number];
+
+export const AgentPlanV3RoutingSchema = z.object({
+  preferredEngine: AgentPlanV3PreferredEngineSchema.default("auto"),
+  capabilities: z.array(z.string().trim().min(1).max(40)).max(8).default([]),
+  pageScope: z.enum(["single", "cross-page"]).default("single"),
+});
+export type AgentPlanV3Routing = z.infer<typeof AgentPlanV3RoutingSchema>;
+
+export const AgentPlanV3AttachmentSchema = z.object({
+  kind: z.enum(["image", "video", "audio", "pdf", "file"]),
+  mimeType: z.string().trim().min(1).max(120),
+  url: z.string().trim().min(1).max(2_048),
+  name: z.string().trim().max(120).optional(),
+});
+export type AgentPlanV3Attachment = z.infer<typeof AgentPlanV3AttachmentSchema>;
+
+export const AgentPlanV3SafetySchema = z.object({
+  riskLevel: AgentRiskLevelSchema.default("low"),
+  requiresHuman: z.boolean().default(false),
+  reasons: z.array(z.string().trim().min(1).max(240)).max(8).default([]),
+});
+export type AgentPlanV3Safety = z.infer<typeof AgentPlanV3SafetySchema>;
+
+export const AgentPlanV3StepSchema = AgentPlanStepSchema.extend({
+  toolName: z.string().trim().min(1).max(80).optional(),
+  toolArgs: z.record(z.string(), z.unknown()).optional(),
+});
+export type AgentPlanV3Step = z.infer<typeof AgentPlanV3StepSchema>;
+
+export const AgentPlanV3TaskPolicySchema = z.object({
+  needsApproval: z.boolean().default(true),
+  isolation: z.enum(["ui", "tool", "code"]).default("ui"),
+  autoStart: z.boolean().default(false),
+});
+export type AgentPlanV3TaskPolicy = z.infer<typeof AgentPlanV3TaskPolicySchema>;
+
+export const AgentPlanV3RollbackPolicySchema = z.object({
+  mode: z.enum(["manual", "auto-on-failure", "none"]).default("manual"),
+  compensationSteps: z.array(z.string().trim().min(1).max(80)).max(12).default([]),
+});
+export type AgentPlanV3RollbackPolicy = z.infer<typeof AgentPlanV3RollbackPolicySchema>;
+
+export const AgentPlanV3TelemetrySchema = z.object({
+  runName: z.string().trim().max(80).optional(),
+  tags: z.array(z.string().trim().min(1).max(60)).max(8).default([]),
+});
+export type AgentPlanV3Telemetry = z.infer<typeof AgentPlanV3TelemetrySchema>;
+
+export const AgentPlanV3DecisionSchema = z.object({
+  mode: AgentPlanV3DecisionModeSchema,
+  reason: z.string().trim().max(300).optional(),
+});
+export type AgentPlanV3Decision = z.infer<typeof AgentPlanV3DecisionSchema>;
+
+export const AgentPlanV3Schema = z.object({
+  schemaVersion: z.literal("agent-plan.v3"),
+  planId: z.string().trim().min(1).max(80),
+  traceId: z.string().trim().min(1).max(120).optional(),
+  intent: z.string().trim().min(1).max(240),
+  summaryForUser: z.string().trim().min(1).max(600),
+  clarificationQuestion: z.string().trim().max(300).optional(),
+  decision: AgentPlanV3DecisionSchema,
+  routing: AgentPlanV3RoutingSchema.default({
+    preferredEngine: "auto",
+    capabilities: [],
+    pageScope: "single",
+  }),
+  attachments: z.array(AgentPlanV3AttachmentSchema).max(12).default([]),
+  safety: AgentPlanV3SafetySchema.default({
+    riskLevel: "low",
+    requiresHuman: false,
+    reasons: [],
+  }),
+  steps: z.array(AgentPlanV3StepSchema).max(12).default([]),
+  taskPolicy: AgentPlanV3TaskPolicySchema.optional(),
+  rollbackPolicy: AgentPlanV3RollbackPolicySchema.optional(),
+  telemetry: AgentPlanV3TelemetrySchema.optional(),
+  warnings: z.array(z.string().trim().min(1).max(240)).max(8).default([]),
+}).superRefine((plan, ctx) => {
+  if (plan.decision.mode === "clarification" && !plan.clarificationQuestion) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["clarificationQuestion"],
+      message: "Clarification plans must include clarificationQuestion.",
+    });
+  }
+  if (plan.decision.mode === "direct" && plan.steps.length === 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["steps"],
+      message: "Direct execution plans must include at least one step.",
+    });
+  }
+  if (plan.decision.mode === "tasked" && plan.steps.length === 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["steps"],
+      message: "Tasked plans must include at least one step.",
+    });
+  }
+});
+export type AgentPlanV3 = z.infer<typeof AgentPlanV3Schema>;
+
+export type AgentPlanAny = AgentPlan | AgentPlanV3;
+
+export interface SafeAgentPlanV3ParseResult {
+  ok: boolean;
+  plan?: AgentPlanV3;
+  reason?: string;
+  issues?: string[];
+}
+
+export function safeParseAgentPlanV3(input: unknown): SafeAgentPlanV3ParseResult {
+  const parsed = AgentPlanV3Schema.safeParse(input);
+  if (parsed.success) return { ok: true, plan: parsed.data };
+  const issues = parsed.error.issues.map(issue => {
+    const path = issue.path.length ? issue.path.join(".") : "<root>";
+    return `${path}: ${issue.message}`;
+  });
+  return {
+    ok: false,
+    reason: issues[0] ?? "Invalid agent plan v3",
+    issues,
+  };
+}
+
+export type AgentPlanVersion = "agent-plan.v1" | "agent-plan.v3" | "unknown";
+
+export interface NormalizedAgentPlanInput {
+  version: AgentPlanVersion;
+  raw: unknown;
+}
+
+/** 從 LLM 原始輸出中辨識 schemaVersion，預設視為 v1 以維持向後相容。 */
+export function normalizeAgentPlanVersion(input: unknown): NormalizedAgentPlanInput {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return { version: "unknown", raw: input };
+  }
+  const declared = (input as Record<string, unknown>).schemaVersion;
+  if (declared === "agent-plan.v3") return { version: "agent-plan.v3", raw: input };
+  if (declared === "agent-plan.v1" || declared === undefined) {
+    return { version: "agent-plan.v1", raw: input };
+  }
+  return { version: "unknown", raw: input };
+}
+
+export type SafeAgentPlanAnyParseResult =
+  | { ok: true; version: "agent-plan.v1"; plan: AgentPlan }
+  | { ok: true; version: "agent-plan.v3"; plan: AgentPlanV3 }
+  | { ok: false; version: AgentPlanVersion; reason: string; issues?: string[] };
+
+/** Parse v1 or v3 plan input safely. v1 is the default for unversioned input. */
+export function safeParseAgentPlanAny(input: unknown): SafeAgentPlanAnyParseResult {
+  const normalized = normalizeAgentPlanVersion(input);
+  if (normalized.version === "agent-plan.v3") {
+    const result = safeParseAgentPlanV3(normalized.raw);
+    if (result.ok && result.plan) {
+      return { ok: true, version: "agent-plan.v3", plan: result.plan };
+    }
+    return {
+      ok: false,
+      version: "agent-plan.v3",
+      reason: result.reason ?? "Invalid AgentPlan v3.",
+      issues: result.issues,
+    };
+  }
+  if (normalized.version === "agent-plan.v1") {
+    const result = safeParseAgentPlan(normalized.raw);
+    if (result.ok && result.plan) {
+      return { ok: true, version: "agent-plan.v1", plan: result.plan };
+    }
+    return {
+      ok: false,
+      version: "agent-plan.v1",
+      reason: result.reason ?? "Invalid AgentPlan v1.",
+      issues: result.issues,
+    };
+  }
+  return {
+    ok: false,
+    version: "unknown",
+    reason: "Planner output is not an object.",
+  };
+}
+
+export const AGENT_PLAN_V3_JSON_SCHEMA = {
+  name: "agent_plan_v3",
+  strict: true,
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    required: [
+      "schemaVersion",
+      "planId",
+      "intent",
+      "summaryForUser",
+      "decision",
+      "routing",
+      "attachments",
+      "safety",
+      "steps",
+      "warnings",
+    ],
+    properties: {
+      schemaVersion: { const: "agent-plan.v3" },
+      planId: { type: "string", minLength: 1, maxLength: 80 },
+      traceId: { type: "string", minLength: 1, maxLength: 120 },
+      intent: { type: "string", minLength: 1, maxLength: 240 },
+      summaryForUser: { type: "string", minLength: 1, maxLength: 600 },
+      clarificationQuestion: { type: "string", maxLength: 300 },
+      decision: {
+        type: "object",
+        additionalProperties: false,
+        required: ["mode"],
+        properties: {
+          mode: { enum: ["clarification", "direct", "tasked", "blocked"] },
+          reason: { type: "string", maxLength: 300 },
+        },
+      },
+      routing: {
+        type: "object",
+        additionalProperties: false,
+        required: ["preferredEngine", "capabilities", "pageScope"],
+        properties: {
+          preferredEngine: { enum: ["auto", "gemini", "minimax", "claudeCode"] },
+          capabilities: {
+            type: "array",
+            maxItems: 8,
+            items: { type: "string", minLength: 1, maxLength: 40 },
+          },
+          pageScope: { enum: ["single", "cross-page"] },
+        },
+      },
+      attachments: {
+        type: "array",
+        maxItems: 12,
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["kind", "mimeType", "url"],
+          properties: {
+            kind: { enum: ["image", "video", "audio", "pdf", "file"] },
+            mimeType: { type: "string", minLength: 1, maxLength: 120 },
+            url: { type: "string", minLength: 1, maxLength: 2048 },
+            name: { type: "string", maxLength: 120 },
+          },
+        },
+      },
+      safety: {
+        type: "object",
+        additionalProperties: false,
+        required: ["riskLevel", "requiresHuman", "reasons"],
+        properties: {
+          riskLevel: { enum: ["low", "medium", "high"] },
+          requiresHuman: { type: "boolean" },
+          reasons: {
+            type: "array",
+            maxItems: 8,
+            items: { type: "string", minLength: 1, maxLength: 240 },
+          },
+        },
+      },
+      steps: AGENT_PLAN_JSON_SCHEMA.schema.properties.steps,
+      taskPolicy: {
+        type: "object",
+        additionalProperties: false,
+        required: ["needsApproval", "isolation", "autoStart"],
+        properties: {
+          needsApproval: { type: "boolean" },
+          isolation: { enum: ["ui", "tool", "code"] },
+          autoStart: { type: "boolean" },
+        },
+      },
+      rollbackPolicy: {
+        type: "object",
+        additionalProperties: false,
+        required: ["mode", "compensationSteps"],
+        properties: {
+          mode: { enum: ["manual", "auto-on-failure", "none"] },
+          compensationSteps: {
+            type: "array",
+            maxItems: 12,
+            items: { type: "string", minLength: 1, maxLength: 80 },
+          },
+        },
+      },
+      telemetry: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          runName: { type: "string", maxLength: 80 },
+          tags: {
+            type: "array",
+            maxItems: 8,
+            items: { type: "string", minLength: 1, maxLength: 60 },
+          },
+        },
+      },
+      warnings: AGENT_PLAN_JSON_SCHEMA.schema.properties.warnings,
+    },
+  },
+} as const;

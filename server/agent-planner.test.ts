@@ -144,4 +144,109 @@ describe("agentPlanner", () => {
     expect(result.status).toBe("invalid");
     expect(plannerResultShouldFallback(result)).toBe(true);
   });
+
+  it("v3 code task is materialised as tasked OrbTask draft + claudeCode engine", async () => {
+    const v3CodePlan = {
+      schemaVersion: "agent-plan.v3",
+      planId: "task_code_001",
+      intent: "scaffold a new tRPC router",
+      summaryForUser: "我會幫你產生骨架。",
+      decision: { mode: "tasked" },
+      routing: { preferredEngine: "auto", capabilities: ["code"], pageScope: "single" },
+      attachments: [],
+      safety: { riskLevel: "medium", requiresHuman: true, reasons: [] },
+      steps: [
+        {
+          id: "scaffold",
+          label: "scaffold",
+          pagePath: "/director",
+          riskLevel: "medium",
+          requiresApproval: true,
+          undoable: false,
+          action: { type: "fillPrompt", text: "scaffold tRPC router" },
+        },
+      ],
+      taskPolicy: { needsApproval: true, isolation: "code", autoStart: false },
+      warnings: [],
+    };
+
+    const result = await runSchemaFirstAgentPlanner({
+      messages: [{ role: "user", content: "幫我寫一個 tRPC 路由" }],
+      invoke: async () => invokeResult(JSON.stringify(v3CodePlan)),
+    });
+
+    expect(result.status).toBe("tasked");
+    expect(result.preferredEngine).toBe("claudeCode");
+    expect(result.task?.taskId).toBe("task_code_001");
+    expect(result.actions).toEqual([]);
+  });
+
+  it("v3 multimodal plan upgrades preferredEngine to gemini even when LLM said auto", async () => {
+    const v3MultimodalPlan = {
+      schemaVersion: "agent-plan.v3",
+      planId: "plan_mm_001",
+      intent: "analyse user upload",
+      summaryForUser: "我會幫你分析這個附件。",
+      decision: { mode: "direct" },
+      routing: { preferredEngine: "auto", capabilities: ["multimodal"], pageScope: "single" },
+      attachments: [
+        { kind: "image", mimeType: "image/png", url: "https://cdn.test/photo.png" },
+      ],
+      safety: { riskLevel: "medium", requiresHuman: false, reasons: [] },
+      steps: [
+        {
+          id: "fill",
+          label: "fill prompt",
+          pagePath: "/studio",
+          riskLevel: "medium",
+          requiresApproval: false,
+          undoable: true,
+          action: { type: "fillPrompt", text: "describe upload" },
+        },
+      ],
+      warnings: [],
+    };
+
+    const result = await runSchemaFirstAgentPlanner({
+      messages: [{ role: "user", content: "幫我分析這張圖" }],
+      invoke: async () => invokeResult(JSON.stringify(v3MultimodalPlan)),
+    });
+
+    expect(result.preferredEngine).toBe("gemini");
+    expect(["medium", "high"]).toContain(result.riskEvaluation?.riskLevel);
+  });
+
+  it("v3 blocked plan returns no actions and asks for confirmation", async () => {
+    const v3BlockedPlan = {
+      schemaVersion: "agent-plan.v3",
+      planId: "plan_blocked",
+      intent: "submit",
+      summaryForUser: "我要送出。",
+      decision: { mode: "direct" },
+      routing: { preferredEngine: "auto", capabilities: [], pageScope: "single" },
+      attachments: [],
+      safety: { riskLevel: "high", requiresHuman: true, reasons: [] },
+      steps: [
+        {
+          id: "submit",
+          label: "送出生成",
+          pagePath: "/studio",
+          riskLevel: "high",
+          requiresApproval: false,
+          undoable: false,
+          action: { type: "submit" },
+        },
+      ],
+      warnings: [],
+    };
+
+    const result = await runSchemaFirstAgentPlanner({
+      messages: [{ role: "user", content: "送出" }],
+      invoke: async () => invokeResult(JSON.stringify(v3BlockedPlan)),
+    });
+
+    expect(result.status).toBe("blocked");
+    expect(result.actions).toEqual([]);
+    expect(result.askBeforeAct).toBe(true);
+  });
 });

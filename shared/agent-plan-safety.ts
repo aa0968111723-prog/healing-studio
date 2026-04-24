@@ -1,5 +1,11 @@
 import type { AgentAction, AgentActionType, RunWorkflowAction } from "./agent-actions";
-import type { AgentPlan, AgentPlanStep, AgentRiskLevel } from "./agent-plan-schema";
+import type {
+  AgentPlan,
+  AgentPlanStep,
+  AgentPlanV3,
+  AgentPlanV3DecisionMode,
+  AgentRiskLevel,
+} from "./agent-plan-schema";
 import { actionRequiresApproval, inferRiskLevelForAction } from "./agent-plan-schema";
 
 export type AgentPlanSafetyBlockReason =
@@ -306,6 +312,211 @@ function workflowStepToSyntheticAction(step: RunWorkflowAction["steps"][number])
     default:
       return { type: "fillPrompt", text: payload || step.label };
   }
+}
+
+// ─── AgentPlan v3 risk evaluation ──────────────────────────────────────────
+//
+// 規則：
+//   - unknown action  → blocked
+//   - unknown tool    → blocked
+//   - submit / reset / applyPreset → high + requiresHuman
+//   - cross-page multi-step       → tasked
+//   - code / github / deploy      → tasked + claudeCode
+//   - multimodal generation       → medium 起跳
+//   - fillPrompt only (single)    → low / direct OK
+
+const HIGH_RISK_ACTION_TYPES = new Set<AgentActionType>([
+  "submit",
+  "reset",
+  "applyPreset",
+]);
+
+const KNOWN_AGENT_TOOL_NAMES = new Set<string>([
+  "weather.lookup",
+  "search.web",
+  "code.run",
+  "github.pull",
+  "github.push",
+  "github.review",
+  "deploy.preview",
+  "deploy.production",
+  "media.transcribe",
+  "media.caption",
+  "media.storyboard",
+]);
+
+const TASKED_CAPABILITY_KEYWORDS = ["code", "github", "deploy"] as const;
+const MULTIMODAL_CAPABILITY_KEYWORDS = ["multimodal", "vision", "audio", "video", "pdf"] as const;
+
+export type AgentPlanV3GateMode = AgentPlanV3DecisionMode;
+
+export interface AgentPlanV3RiskEvaluation {
+  riskLevel: AgentRiskLevel;
+  requiresHuman: boolean;
+  reasons: string[];
+  decisionMode: AgentPlanV3DecisionMode;
+  preferredEngine: "auto" | "gemini" | "minimax" | "claudeCode";
+  blockers: AgentPlanSafetyIssue[];
+  warnings: AgentPlanSafetyIssue[];
+  isCrossPage: boolean;
+  isMultimodal: boolean;
+  needsClaudeCode: boolean;
+  taskedRequired: boolean;
+}
+
+function bumpRisk(current: AgentRiskLevel, candidate: AgentRiskLevel): AgentRiskLevel {
+  return maxRisk(current, candidate);
+}
+
+function isMultimodalAttachmentMime(mime: string): boolean {
+  const lower = mime.toLowerCase();
+  return (
+    lower.startsWith("image/") ||
+    lower.startsWith("audio/") ||
+    lower.startsWith("video/") ||
+    lower === "application/pdf"
+  );
+}
+
+export function isKnownAgentTool(name: string): boolean {
+  return KNOWN_AGENT_TOOL_NAMES.has(name);
+}
+
+export function evaluateAgentPlanV3Risk(plan: AgentPlanV3): AgentPlanV3RiskEvaluation {
+  const blockers: AgentPlanSafetyIssue[] = [];
+  const warnings: AgentPlanSafetyIssue[] = [];
+  let riskLevel: AgentRiskLevel = plan.safety?.riskLevel ?? "low";
+  let requiresHuman = plan.safety?.requiresHuman ?? false;
+  const reasonsSet = new Set<string>(plan.safety?.reasons ?? []);
+
+  // 1) Unknown actions block immediately.
+  for (let index = 0; index < plan.steps.length; index += 1) {
+    const step = plan.steps[index];
+    const actionType = step.action.type;
+    if (!isKnownActionType(actionType)) {
+      blockers.push({
+        reason: "unknown_action",
+        severity: "blocker",
+        message: `Unknown action type: ${actionType}`,
+        stepId: step.id,
+        stepIndex: index,
+        actionType,
+      });
+      reasonsSet.add(`未知動作 ${actionType}`);
+    }
+    if (step.toolName && !isKnownAgentTool(step.toolName)) {
+      blockers.push({
+        reason: "unknown_action",
+        severity: "blocker",
+        message: `Unknown tool: ${step.toolName}`,
+        stepId: step.id,
+        stepIndex: index,
+        actionType: step.toolName,
+      });
+      reasonsSet.add(`未知工具 ${step.toolName}`);
+    }
+
+    // 2) Destructive UI actions force high + human approval.
+    if (HIGH_RISK_ACTION_TYPES.has(actionType)) {
+      riskLevel = bumpRisk(riskLevel, "high");
+      requiresHuman = true;
+      reasonsSet.add(`高風險動作：${actionType}`);
+      if (!step.requiresApproval) {
+        blockers.push({
+          reason: "high_risk_without_approval",
+          severity: "blocker",
+          message: `Step ${step.id} (${actionType}) must set requiresApproval=true.`,
+          stepId: step.id,
+          stepIndex: index,
+          actionType,
+        });
+      }
+    }
+
+    if (!isSafeInternalPath(step.pagePath)) {
+      blockers.push({
+        reason: "unsafe_navigation_path",
+        severity: "blocker",
+        message: `Unsafe pagePath: ${step.pagePath}`,
+        stepId: step.id,
+        stepIndex: index,
+        actionType,
+      });
+      reasonsSet.add("頁面路徑不安全");
+    }
+  }
+
+  // 3) Multimodal → at least medium risk.
+  const hasMultimodalAttachment = (plan.attachments ?? []).some(att =>
+    isMultimodalAttachmentMime(att.mimeType)
+  );
+  const hasMultimodalCapability = (plan.routing?.capabilities ?? []).some(cap =>
+    (MULTIMODAL_CAPABILITY_KEYWORDS as readonly string[]).includes(cap)
+  );
+  const isMultimodal = hasMultimodalAttachment || hasMultimodalCapability;
+  if (isMultimodal) {
+    riskLevel = bumpRisk(riskLevel, "medium");
+    reasonsSet.add("多模態輸入需要更高風險評估");
+  }
+
+  // 4) Cross-page multi-step → tasked.
+  const distinctPages = new Set(
+    plan.steps.map(step => step.pagePath?.trim()).filter((path): path is string => Boolean(path))
+  );
+  const isCrossPage =
+    plan.routing?.pageScope === "cross-page" ||
+    distinctPages.size > 1 ||
+    plan.steps.some(step => step.action.type === "navigate");
+  if (isCrossPage && plan.steps.length > 1) {
+    reasonsSet.add("跨頁多步驟動作建議轉成 task");
+  }
+
+  // 5) Code / GitHub / Deploy capability → tasked + ClaudeCode.
+  const needsClaudeCode = (plan.routing?.capabilities ?? []).some(cap =>
+    (TASKED_CAPABILITY_KEYWORDS as readonly string[]).includes(cap)
+  );
+  if (needsClaudeCode) {
+    riskLevel = bumpRisk(riskLevel, "medium");
+    requiresHuman = true;
+    reasonsSet.add("程式碼／GitHub／部署任務需要 Claude Code");
+  }
+
+  // 6) Decide effective decision mode.
+  let decisionMode: AgentPlanV3DecisionMode = plan.decision.mode;
+  if (blockers.length > 0) {
+    decisionMode = "blocked";
+  } else if (decisionMode !== "clarification") {
+    if (needsClaudeCode || (isCrossPage && plan.steps.length > 1)) {
+      decisionMode = "tasked";
+    }
+  }
+
+  if (decisionMode === "blocked" || decisionMode === "tasked") {
+    requiresHuman = true;
+  }
+
+  // 7) Preferred engine routing.
+  const declaredEngine = plan.routing?.preferredEngine ?? "auto";
+  let preferredEngine: AgentPlanV3RiskEvaluation["preferredEngine"] = declaredEngine;
+  if (needsClaudeCode) preferredEngine = "claudeCode";
+  else if (isMultimodal && (declaredEngine === "auto" || declaredEngine === "minimax")) {
+    preferredEngine = "gemini";
+  }
+
+  return {
+    riskLevel,
+    requiresHuman,
+    reasons: Array.from(reasonsSet),
+    decisionMode,
+    preferredEngine,
+    blockers,
+    warnings,
+    isCrossPage,
+    isMultimodal,
+    needsClaudeCode,
+    taskedRequired:
+      decisionMode === "tasked" || needsClaudeCode || (isCrossPage && plan.steps.length > 1),
+  };
 }
 
 export function evaluateWorkflowSafety(action: RunWorkflowAction): AgentPlanSafetyEvaluation {

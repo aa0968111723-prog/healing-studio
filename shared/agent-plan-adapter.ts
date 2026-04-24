@@ -1,13 +1,21 @@
 import type { AgentAction } from "./agent-actions";
 import {
   agentPlanToWorkflowAction,
+  normalizeAgentPlanVersion,
   safeParseAgentPlan,
+  safeParseAgentPlanAny,
   type AgentPlan,
+  type AgentPlanV3,
+  type AgentPlanV3DecisionMode,
+  type AgentPlanV3PreferredEngine,
+  type AgentPlanV3Step,
 } from "./agent-plan-schema";
 import {
   evaluateAgentPlanSafety,
+  evaluateAgentPlanV3Risk,
   type AgentPlanSafetyEvaluation,
   type AgentPlanSafetyIssue,
+  type AgentPlanV3RiskEvaluation,
 } from "./agent-plan-safety";
 
 export type AgentPlanAdapterStatus =
@@ -189,6 +197,348 @@ export function buildAgentPlanSystemPrompt(pageSnapshotSummary?: string): string
     "If the user request is ambiguous, set shouldAskClarification=true and steps=[].",
     "Do not invent unsupported tools. Keep steps short and auditable.",
     "Every executable step should include pagePath unless it is navigate or focusElement.",
+    pageSnapshotSummary ? `Available page context:\n${pageSnapshotSummary}` : "",
+  ].filter(Boolean).join("\n");
+}
+
+// ─── AgentPlan v3 adapter + parseAndGatePlan ──────────────────────────────
+
+export type GatedPlanStatus =
+  | "converted"          // direct execution → AgentAction[]
+  | "tasked"             // tasked execution → OrbTask draft
+  | "clarification"      // ask user a question first
+  | "blocked"            // safety blocked, no action
+  | "invalid";           // could not parse
+
+export interface OrbTaskDraftStep {
+  id: string;
+  label: string;
+  pagePath?: string;
+  uiActions: Array<{ type: string; payload?: unknown }>;
+  toolCalls: Array<{
+    name: string;
+    args?: Record<string, unknown>;
+    requiresApproval: boolean;
+  }>;
+}
+
+export interface OrbTaskDraft {
+  taskId: string;
+  intent: string;
+  summaryForUser: string;
+  needsApproval: boolean;
+  steps: OrbTaskDraftStep[];
+  isolation: "ui" | "tool" | "code";
+  preferredEngine: AgentPlanV3PreferredEngine | "claudeCode";
+  rollbackMode: "manual" | "auto-on-failure" | "none";
+  warnings: string[];
+}
+
+export interface GatedAgentPlanResult {
+  status: GatedPlanStatus;
+  ok: boolean;
+  version: "agent-plan.v1" | "agent-plan.v3" | "unknown";
+  plan?: AgentPlan | AgentPlanV3;
+  actions: AgentAction[];
+  task?: OrbTaskDraft;
+  askBeforeAct: boolean;
+  reply?: string;
+  intent?: string;
+  warnings: string[];
+  blockers: AgentPlanSafetyIssue[];
+  safety?: AgentPlanSafetyEvaluation;
+  riskEvaluation?: AgentPlanV3RiskEvaluation;
+  preferredEngine?: AgentPlanV3PreferredEngine | "claudeCode";
+  decisionMode?: AgentPlanV3DecisionMode;
+  reason?: string;
+  issues?: string[];
+}
+
+function v3StepToUiAction(step: AgentPlanV3Step): { type: string; payload?: unknown } {
+  const action = step.action;
+  switch (action.type) {
+    case "fillPrompt":
+      return { type: "fillPrompt", payload: { text: action.text, append: action.append, slot: action.slot } };
+    case "setModel":
+      return { type: "setModel", payload: action.modelId };
+    case "setTab":
+      return { type: "setTab", payload: action.tabId };
+    case "setMode":
+      return { type: "setMode", payload: action.modeId };
+    case "setModality":
+      return { type: "setModality", payload: action.modality };
+    case "setParam":
+      return { type: "setParam", payload: { key: action.key, value: action.value } };
+    case "applyPreset":
+      return { type: "applyPreset", payload: action.presetId };
+    case "submit":
+      return { type: "submit", payload: { delayMs: action.delayMs } };
+    case "reset":
+      return { type: "reset" };
+    case "navigate":
+      return { type: "navigate", payload: action.path };
+    case "focusElement":
+      return { type: "focusElement", payload: { elementId: action.elementId, message: action.message } };
+    case "openDialog":
+      return { type: "openDialog", payload: { dialogId: action.dialogId, params: action.params } };
+    case "search":
+      return { type: "search", payload: action.query };
+    case "toggleSetting":
+      return { type: "toggleSetting", payload: { key: action.key, value: action.value } };
+    default: {
+      const _exhaustive: never = action;
+      return { type: (_exhaustive as { type: string }).type ?? "unknown" };
+    }
+  }
+}
+
+function v3StepToOrbTaskStep(step: AgentPlanV3Step): OrbTaskDraftStep {
+  const uiActions = [v3StepToUiAction(step)];
+  const toolCalls = step.toolName
+    ? [
+        {
+          name: step.toolName,
+          args: step.toolArgs,
+          requiresApproval: step.requiresApproval,
+        },
+      ]
+    : [];
+  return {
+    id: step.id,
+    label: step.label,
+    pagePath: step.pagePath,
+    uiActions,
+    toolCalls,
+  };
+}
+
+/** Convert a v3 plan into an OrbTask draft (route-side will materialise the
+ *  real DB record via orbTaskRepository.create). */
+export function adaptAgentPlanV3ToOrbTaskDraft(
+  plan: AgentPlanV3,
+  evaluation: AgentPlanV3RiskEvaluation
+): OrbTaskDraft {
+  const isolation = plan.taskPolicy?.isolation ?? (evaluation.needsClaudeCode ? "code" : "ui");
+  return {
+    taskId: plan.planId,
+    intent: plan.intent,
+    summaryForUser: plan.summaryForUser,
+    needsApproval: plan.taskPolicy?.needsApproval ?? evaluation.requiresHuman ?? true,
+    steps: plan.steps.map(v3StepToOrbTaskStep),
+    isolation,
+    preferredEngine: evaluation.preferredEngine,
+    rollbackMode: plan.rollbackPolicy?.mode ?? "manual",
+    warnings: plan.warnings ?? [],
+  };
+}
+
+function v3PlanToWorkflowAction(plan: AgentPlanV3): AgentAction | null {
+  // Re-use the v1 conversion path by projecting v3 steps onto v1 plan shape.
+  const projection: AgentPlan = {
+    schemaVersion: "agent-plan.v1",
+    intent: plan.intent,
+    confidence: 0.9,
+    summaryForUser: plan.summaryForUser,
+    shouldAskClarification: false,
+    warnings: plan.warnings ?? [],
+    steps: plan.steps.map(step => ({
+      id: step.id,
+      label: step.label,
+      pagePath: step.pagePath,
+      action: step.action,
+      riskLevel: step.riskLevel,
+      requiresApproval: step.requiresApproval,
+      undoable: step.undoable,
+      compensationAction: step.compensationAction,
+      rationale: step.rationale,
+    })),
+  };
+  return agentPlanToWorkflowAction(projection, plan.intent);
+}
+
+export function adaptAgentPlanV3ToActions(plan: AgentPlanV3): AgentAction[] {
+  const workflow = v3PlanToWorkflowAction(plan);
+  return workflow ? [workflow] : [];
+}
+
+function gateV3Plan(plan: AgentPlanV3): GatedAgentPlanResult {
+  const evaluation = evaluateAgentPlanV3Risk(plan);
+  const warnings = [
+    ...(plan.warnings ?? []),
+    ...evaluation.reasons,
+  ];
+
+  if (plan.decision.mode === "clarification" || evaluation.decisionMode === "clarification") {
+    return {
+      status: "clarification",
+      ok: true,
+      version: "agent-plan.v3",
+      plan,
+      actions: [],
+      askBeforeAct: false,
+      reply: plan.clarificationQuestion ?? plan.summaryForUser,
+      intent: plan.intent,
+      warnings,
+      blockers: evaluation.blockers,
+      riskEvaluation: evaluation,
+      preferredEngine: evaluation.preferredEngine,
+      decisionMode: "clarification",
+      reason: plan.decision.reason,
+    };
+  }
+
+  if (evaluation.decisionMode === "blocked") {
+    return {
+      status: "blocked",
+      ok: false,
+      version: "agent-plan.v3",
+      plan,
+      actions: [],
+      askBeforeAct: true,
+      reply: `我已建立計畫，但因安全檢查暫停執行：${evaluation.blockers[0]?.message ?? evaluation.reasons.join(" / ")}`,
+      intent: plan.intent,
+      warnings,
+      blockers: evaluation.blockers,
+      riskEvaluation: evaluation,
+      preferredEngine: evaluation.preferredEngine,
+      decisionMode: "blocked",
+      reason: evaluation.reasons.join(" / "),
+    };
+  }
+
+  if (evaluation.decisionMode === "tasked") {
+    const task = adaptAgentPlanV3ToOrbTaskDraft(plan, evaluation);
+    return {
+      status: "tasked",
+      ok: true,
+      version: "agent-plan.v3",
+      plan,
+      actions: [],
+      task,
+      askBeforeAct: true,
+      reply: plan.summaryForUser,
+      intent: plan.intent,
+      warnings,
+      blockers: evaluation.blockers,
+      riskEvaluation: evaluation,
+      preferredEngine: evaluation.preferredEngine,
+      decisionMode: "tasked",
+      reason: evaluation.reasons.join(" / "),
+    };
+  }
+
+  // direct
+  const actions = adaptAgentPlanV3ToActions(plan);
+  if (actions.length === 0) {
+    return {
+      status: "invalid",
+      ok: false,
+      version: "agent-plan.v3",
+      plan,
+      actions: [],
+      askBeforeAct: false,
+      reply: plan.summaryForUser,
+      intent: plan.intent,
+      warnings,
+      blockers: evaluation.blockers,
+      riskEvaluation: evaluation,
+      preferredEngine: evaluation.preferredEngine,
+      decisionMode: "direct",
+      reason: "Plan could not be converted into a workflow action.",
+    };
+  }
+  return {
+    status: "converted",
+    ok: true,
+    version: "agent-plan.v3",
+    plan,
+    actions,
+    askBeforeAct: evaluation.requiresHuman || evaluation.riskLevel !== "low",
+    reply: plan.summaryForUser,
+    intent: plan.intent,
+    warnings,
+    blockers: evaluation.blockers,
+    riskEvaluation: evaluation,
+    preferredEngine: evaluation.preferredEngine,
+    decisionMode: "direct",
+  };
+}
+
+function gateV1Plan(plan: AgentPlan): GatedAgentPlanResult {
+  // Re-use the existing adapter to keep behaviour identical for v1 plans.
+  const adapted = adaptAgentPlanToActions(plan);
+  return {
+    status: adapted.status,
+    ok: adapted.ok,
+    version: "agent-plan.v1",
+    plan: adapted.plan,
+    actions: adapted.actions,
+    askBeforeAct: adapted.askBeforeAct,
+    reply: adapted.reply,
+    intent: adapted.intent,
+    warnings: adapted.warnings,
+    blockers: adapted.blockers,
+    safety: adapted.safety,
+    reason: adapted.reason,
+    issues: adapted.issues,
+  };
+}
+
+/**
+ * 統一 parser + safety gate：吃 LLM 原始輸出（字串或物件），
+ * 回 v1 或 v3 gating 結果。`server/services/agentPlanner.ts` 用這支當主入口；
+ * 路由層仍可 fallback 回 legacy parseOrbReply。
+ */
+export function parseAndGatePlan(rawPlannerOutput: unknown): GatedAgentPlanResult {
+  const normalized = normalizePlannerOutput(rawPlannerOutput);
+  if (!normalized) {
+    return {
+      status: "invalid",
+      ok: false,
+      version: "unknown",
+      actions: [],
+      askBeforeAct: false,
+      warnings: [],
+      blockers: [],
+      reason: "Planner output did not contain a JSON object.",
+      issues: [stringifyPlannerOutput(rawPlannerOutput).slice(0, 500)],
+    };
+  }
+
+  const versioned = normalizeAgentPlanVersion(normalized);
+  const parsed = safeParseAgentPlanAny(normalized);
+  if (!parsed.ok) {
+    return {
+      status: "invalid",
+      ok: false,
+      version: versioned.version,
+      actions: [],
+      askBeforeAct: false,
+      warnings: [],
+      blockers: [],
+      reason: parsed.reason ?? "Invalid AgentPlan.",
+      issues: parsed.issues,
+    };
+  }
+
+  if (parsed.version === "agent-plan.v3") {
+    return gateV3Plan(parsed.plan);
+  }
+  return gateV1Plan(parsed.plan);
+}
+
+export function buildAgentPlanV3SystemPrompt(pageSnapshotSummary?: string): string {
+  return [
+    "You are the production planning layer (agent-plan.v3) for AI Director.",
+    "Return only a JSON object matching AgentPlanV3Schema with schemaVersion='agent-plan.v3'.",
+    "Always set decision.mode to one of: clarification | direct | tasked | blocked.",
+    "Use 'direct' only for single-page low-risk fillPrompt-style flows.",
+    "Use 'tasked' for cross-page multi-step plans, code/GitHub/deploy work, or anything that should be tracked as an OrbTask.",
+    "Use 'clarification' when the request is ambiguous; populate clarificationQuestion.",
+    "Use 'blocked' if you must refuse for safety, and include reasons.",
+    "submit / reset / applyPreset MUST be high risk and requiresApproval=true.",
+    "Multimodal generation (image/audio/video/pdf) MUST set safety.riskLevel >= medium.",
+    "Never invent unsupported tools; toolName must be empty unless you know it is registered.",
     pageSnapshotSummary ? `Available page context:\n${pageSnapshotSummary}` : "",
   ].filter(Boolean).join("\n");
 }
