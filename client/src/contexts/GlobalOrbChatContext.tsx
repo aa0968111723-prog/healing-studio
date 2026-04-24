@@ -2,8 +2,9 @@
  * GlobalOrbChatContext.tsx — 全站光球聊天狀態管理
  *
  * Keeps the existing Orb chat UX, routes structured actions through the global
- * orchestrator, adds deterministic Director workflow fallback, and exposes a
- * global workflow execution status panel.
+ * orchestrator, adds deterministic Director workflow fallback, exposes a global
+ * workflow execution status panel, and gates workflows behind an explicit user
+ * confirmation card.
  */
 
 import {
@@ -76,6 +77,9 @@ export interface ChatSuggestion {
 
 export type WorkflowExecutionStatus = "idle" | "running" | "completed" | "failed";
 export type WorkflowExecutionStepStatus = "pending" | "running" | "completed" | "failed";
+export type PendingWorkflowSource = "llm" | "fallback";
+
+type WorkflowAction = Extract<AgentAction, { type: "runWorkflow" }>;
 
 export interface WorkflowExecutionStepState {
   index: number;
@@ -97,6 +101,18 @@ export interface WorkflowExecutionState {
   startedAt: number;
   completedAt?: number;
   error?: string;
+  steps: WorkflowExecutionStepState[];
+}
+
+export interface PendingWorkflowPlan {
+  id: string;
+  name: string;
+  source: PendingWorkflowSource;
+  intent?: string;
+  userText: string;
+  actions: AgentAction[];
+  total: number;
+  createdAt: number;
   steps: WorkflowExecutionStepState[];
 }
 
@@ -183,8 +199,23 @@ function toLLMMessageContent(message: ChatMessage): string | Array<
   return parts;
 }
 
+function findWorkflowAction(actions: AgentAction[]): WorkflowAction | null {
+  return actions.find((action): action is WorkflowAction => action.type === "runWorkflow") ?? null;
+}
+
+function workflowStepsToState(workflow: WorkflowAction, mode: "pending" | "running", now: number): WorkflowExecutionStepState[] {
+  return workflow.steps.map((step, index) => ({
+    index,
+    label: step.label || `${index + 1}. ${step.actionType}`,
+    path: step.path,
+    actionType: step.actionType,
+    status: mode === "running" && index === 0 ? "running" : "pending",
+    startedAt: mode === "running" && index === 0 ? now : undefined,
+  }));
+}
+
 function buildWorkflowExecutionState(actions: AgentAction[], now: number = Date.now()): WorkflowExecutionState | null {
-  const workflow = actions.find((action): action is Extract<AgentAction, { type: "runWorkflow" }> => action.type === "runWorkflow");
+  const workflow = findWorkflowAction(actions);
   if (!workflow) return null;
   const total = workflow.steps.length;
   return {
@@ -194,14 +225,35 @@ function buildWorkflowExecutionState(actions: AgentAction[], now: number = Date.
     currentIndex: 0,
     total,
     startedAt: now,
-    steps: workflow.steps.map((step, index) => ({
-      index,
-      label: step.label || `${index + 1}. ${step.actionType}`,
-      path: step.path,
-      actionType: step.actionType,
-      status: index === 0 ? "running" : "pending",
-      startedAt: index === 0 ? now : undefined,
-    })),
+    steps: workflowStepsToState(workflow, "running", now),
+  };
+}
+
+function buildPendingWorkflowPlan({
+  actions,
+  userText,
+  intent,
+  source,
+  now = Date.now(),
+}: {
+  actions: AgentAction[];
+  userText: string;
+  intent?: string;
+  source: PendingWorkflowSource;
+  now?: number;
+}): PendingWorkflowPlan | null {
+  const workflow = findWorkflowAction(actions);
+  if (!workflow) return null;
+  return {
+    id: `pending-wf-${now}-${Math.random().toString(36).slice(2, 7)}`,
+    name: workflow.name,
+    source,
+    intent,
+    userText,
+    actions,
+    total: workflow.steps.length,
+    createdAt: now,
+    steps: workflowStepsToState(workflow, "pending", now),
   };
 }
 
@@ -229,6 +281,76 @@ function statusDot(status: WorkflowExecutionStepStatus): string {
     default:
       return "○";
   }
+}
+
+function WorkflowConfirmationCard({
+  pendingWorkflow,
+  isBusy,
+  onStart,
+  onRevise,
+  onCancel,
+}: {
+  pendingWorkflow: PendingWorkflowPlan | null;
+  isBusy: boolean;
+  onStart: () => void;
+  onRevise: () => void;
+  onCancel: () => void;
+}) {
+  if (!pendingWorkflow) return null;
+  const previewSteps = pendingWorkflow.steps.slice(0, 5);
+  const remaining = Math.max(pendingWorkflow.steps.length - previewSteps.length, 0);
+
+  return (
+    <div className="fixed bottom-24 right-5 z-[85] w-[380px] max-w-[calc(100vw-2rem)] rounded-3xl border border-cyan-200/20 bg-slate-950/95 p-4 text-white shadow-2xl backdrop-blur-xl">
+      <div className="text-xs uppercase tracking-[0.2em] text-cyan-200/70">需要你的確認</div>
+      <div className="mt-1 text-base font-semibold">{pendingWorkflow.name}</div>
+      <div className="mt-2 text-sm leading-6 text-white/70">
+        我已整理好 {pendingWorkflow.total} 步流程。按下「開始執行」後，我才會開始跨頁操作。
+      </div>
+
+      <div className="mt-3 rounded-2xl bg-white/10 p-3">
+        <div className="text-xs text-white/50">需求</div>
+        <div className="mt-1 line-clamp-2 text-sm text-white/80">{pendingWorkflow.userText}</div>
+      </div>
+
+      <div className="mt-3 max-h-44 space-y-2 overflow-auto pr-1">
+        {previewSteps.map(step => (
+          <div key={`${pendingWorkflow.id}-${step.index}`} className="flex gap-2 text-xs">
+            <span className="text-cyan-200/70">{step.index + 1}</span>
+            <span className="text-white/75">{step.label}</span>
+          </div>
+        ))}
+        {remaining > 0 && <div className="text-xs text-white/45">還有 {remaining} 步…</div>}
+      </div>
+
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={isBusy}
+          className="rounded-2xl bg-white/10 px-3 py-2 text-xs text-white/70 hover:bg-white/15 disabled:opacity-50"
+        >
+          取消
+        </button>
+        <button
+          type="button"
+          onClick={onRevise}
+          disabled={isBusy}
+          className="rounded-2xl bg-white/10 px-3 py-2 text-xs text-white/80 hover:bg-white/15 disabled:opacity-50"
+        >
+          修改計畫
+        </button>
+        <button
+          type="button"
+          onClick={onStart}
+          disabled={isBusy}
+          className="rounded-2xl bg-cyan-300 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-cyan-200 disabled:opacity-50"
+        >
+          開始執行
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function WorkflowExecutionFloatingPanel({
@@ -308,6 +430,7 @@ interface GlobalOrbChatContextValue {
   suggestions: ChatSuggestion[];
   isOpen: boolean;
   workflowExecution: WorkflowExecutionState | null;
+  pendingWorkflow: PendingWorkflowPlan | null;
   setInput: (text: string) => void;
   sendMessage: (text: string, attachments?: ChatAttachment[]) => Promise<void>;
   open: () => void;
@@ -316,6 +439,9 @@ interface GlobalOrbChatContextValue {
   clearHistory: () => void;
   resetConversation: () => void;
   clearWorkflowExecution: () => void;
+  startPendingWorkflow: () => Promise<void>;
+  revisePendingWorkflow: () => void;
+  cancelPendingWorkflow: () => void;
 }
 
 const GlobalOrbChatContext = createContext<GlobalOrbChatContextValue>({
@@ -325,6 +451,7 @@ const GlobalOrbChatContext = createContext<GlobalOrbChatContextValue>({
   suggestions: [],
   isOpen: false,
   workflowExecution: null,
+  pendingWorkflow: null,
   setInput: () => {},
   sendMessage: async () => {},
   open: () => {},
@@ -333,6 +460,9 @@ const GlobalOrbChatContext = createContext<GlobalOrbChatContextValue>({
   clearHistory: () => {},
   resetConversation: () => {},
   clearWorkflowExecution: () => {},
+  startPendingWorkflow: async () => {},
+  revisePendingWorkflow: () => {},
+  cancelPendingWorkflow: () => {},
 });
 
 export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
@@ -345,6 +475,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   const [suggestions, setSuggestions] = useState<ChatSuggestion[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [workflowExecution, setWorkflowExecution] = useState<WorkflowExecutionState | null>(null);
+  const [pendingWorkflow, setPendingWorkflow] = useState<PendingWorkflowPlan | null>(null);
 
   const aiChat = trpc.ai.chat.useMutation();
   const providerPingQuery = trpc.brain.pingProviders.useQuery(undefined, {
@@ -395,6 +526,119 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     setWorkflowExecution(null);
   }, []);
 
+  const executeActions = useCallback(async (actionsToExecute: AgentAction[], options: {
+    intent?: string;
+    requireConfirmation?: boolean;
+  } = {}) => {
+    const nextWorkflowExecution = buildWorkflowExecutionState(actionsToExecute);
+    if (nextWorkflowExecution) setWorkflowExecution(nextWorkflowExecution);
+
+    try {
+      const results = await executeGlobalActions(actionsToExecute, {
+        currentPage: pageAgent.snapshot,
+        navigate: async path => {
+          if (path !== locationPath) setLocation(path);
+        },
+        dispatch: pageAgent.dispatch,
+        requireConfirmation: options.requireConfirmation === true,
+        requireConfirmationForWorkflowSteps: false,
+        intentSummary: options.intent,
+        source: "ai-chat",
+        waitAfterNavigateMs: 450,
+        onWorkflowStep: step => {
+          const now = Date.now();
+          setWorkflowExecution(prev => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              status: "running",
+              currentIndex: step.index,
+              steps: prev.steps.map(existing => {
+                if (existing.index < step.index) {
+                  return {
+                    ...existing,
+                    status: "completed" as const,
+                    completedAt: existing.completedAt ?? now,
+                  };
+                }
+                if (existing.index === step.index) {
+                  return {
+                    ...existing,
+                    status: "running" as const,
+                    label: step.label,
+                    path: step.path,
+                    actionType: step.action.type,
+                    startedAt: existing.startedAt ?? now,
+                  };
+                }
+                return existing.status === "pending" ? existing : { ...existing, status: "pending" as const };
+              }),
+            };
+          });
+          pageAgent.reportFeedback({
+            status: "completed",
+            actionType: step.action.type,
+            note: `workflow-step:${step.index + 1}/${step.total}:${step.label}`,
+          });
+        },
+      });
+
+      const failed = results.find(result => !result.ok);
+      if (failed) {
+        const failedReason = failed.reason ?? "unknown failure";
+        const now = Date.now();
+        setWorkflowExecution(prev => prev ? {
+          ...prev,
+          status: "failed",
+          error: failedReason,
+          completedAt: now,
+          steps: prev.steps.map(step => step.index === prev.currentIndex
+            ? { ...step, status: "failed" as const, reason: failedReason, completedAt: now }
+            : step),
+        } : prev);
+        setMessages(prev => [...prev, {
+          role: "orb",
+          text: `⚠️ 我找到要做的事，但執行時遇到問題：${failedReason}`,
+          at: Date.now(),
+          pagePath: locationPath,
+        }]);
+        pageAgent.reportFeedback({
+          status: "failed",
+          actionType: actionsToExecute[results.indexOf(failed)]?.type ?? "runWorkflow",
+          note: failedReason,
+        });
+      } else if (nextWorkflowExecution) {
+        const now = Date.now();
+        setWorkflowExecution(prev => prev ? {
+          ...prev,
+          status: "completed",
+          currentIndex: Math.max(prev.total - 1, 0),
+          completedAt: now,
+          steps: prev.steps.map(step => ({
+            ...step,
+            status: "completed" as const,
+            completedAt: step.completedAt ?? now,
+          })),
+        } : prev);
+      }
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      console.error("[GlobalOrbChat] Action execution error:", reason);
+      setWorkflowExecution(prev => prev ? {
+        ...prev,
+        status: "failed",
+        error: reason,
+        completedAt: Date.now(),
+      } : prev);
+      setMessages(prev => [...prev, {
+        role: "orb",
+        text: `⚠️ 執行流程時遇到問題：${reason}`,
+        at: Date.now(),
+        pagePath: locationPath,
+      }]);
+    }
+  }, [pageAgent, locationPath, setLocation]);
+
   const sendMessage = useCallback(async (text: string, attachments: ChatAttachment[] = []) => {
     const trimmed = text.trim();
     if ((!trimmed && attachments.length === 0) || isSending) return;
@@ -435,18 +679,24 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       const llmActions = data.actions ? parseLLMActions(data.actions) : [];
       const fallbackWorkflow = llmActions.length === 0 ? maybeCreateWorkflowFromUserText(trimmed) : null;
       const actionsToExecute: AgentAction[] = fallbackWorkflow ? [fallbackWorkflow] : llmActions;
-      const nextWorkflowExecution = buildWorkflowExecutionState(actionsToExecute);
+      const effectiveIntent = intent ?? (fallbackWorkflow ? fallbackWorkflow.name : undefined);
+      const pendingPlan = buildPendingWorkflowPlan({
+        actions: actionsToExecute,
+        userText: trimmed,
+        intent: effectiveIntent,
+        source: fallbackWorkflow ? "fallback" : "llm",
+      });
       const replyText = fallbackWorkflow
-        ? `${data.reply}\n\n🎬 我已把你的需求轉成「AI Director 短片生成流程」，會先做腳本/分鏡，再帶到圖像、影片與配音。`
+        ? `${data.reply}\n\n🎬 我已把你的需求轉成「AI Director 短片生成流程」。我會先讓你確認計畫，按下開始後才會跨頁執行。`
+        : pendingPlan
+        ? `${data.reply}\n\n🧭 我已整理好執行計畫，請先確認。按下「開始執行」後，我才會開始操作。`
         : data.reply;
-
-      if (nextWorkflowExecution) setWorkflowExecution(nextWorkflowExecution);
 
       setMessages(prev => [...prev, {
         role: "orb",
         text: replyText,
         at: Date.now(),
-        intent: intent ?? (fallbackWorkflow ? fallbackWorkflow.name : undefined),
+        intent: effectiveIntent,
         pagePath: locationPath,
         actions: actionsToExecute,
       }]);
@@ -454,95 +704,18 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       const rawSuggestions = (data as { suggestions?: string[] }).suggestions ?? [];
       setSuggestions(rawSuggestions.slice(0, 4).map(s => ({ text: s })));
 
-      if (actionsToExecute.length > 0) {
-        const askBeforeAct = fallbackWorkflow ? true : (data as { askBeforeAct?: boolean }).askBeforeAct === true;
-        const results = await executeGlobalActions(actionsToExecute, {
-          currentPage: pageAgent.snapshot,
-          navigate: async path => {
-            if (path !== locationPath) setLocation(path);
-          },
-          dispatch: pageAgent.dispatch,
-          requireConfirmation: askBeforeAct,
-          requireConfirmationForWorkflowSteps: false,
-          intentSummary: intent ?? fallbackWorkflow?.name,
-          source: "ai-chat",
-          waitAfterNavigateMs: 450,
-          onWorkflowStep: step => {
-            const now = Date.now();
-            setWorkflowExecution(prev => {
-              if (!prev) return prev;
-              return {
-                ...prev,
-                status: "running",
-                currentIndex: step.index,
-                steps: prev.steps.map(existing => {
-                  if (existing.index < step.index) {
-                    return {
-                      ...existing,
-                      status: "completed" as const,
-                      completedAt: existing.completedAt ?? now,
-                    };
-                  }
-                  if (existing.index === step.index) {
-                    return {
-                      ...existing,
-                      status: "running" as const,
-                      label: step.label,
-                      path: step.path,
-                      actionType: step.action.type,
-                      startedAt: existing.startedAt ?? now,
-                    };
-                  }
-                  return existing.status === "pending" ? existing : { ...existing, status: "pending" as const };
-                }),
-              };
-            });
-            pageAgent.reportFeedback({
-              status: "completed",
-              actionType: step.action.type,
-              note: `workflow-step:${step.index + 1}/${step.total}:${step.label}`,
-            });
-          },
-        });
+      if (pendingPlan) {
+        setPendingWorkflow(pendingPlan);
+        setWorkflowExecution(null);
+        return;
+      }
 
-        const failed = results.find(result => !result.ok);
-        if (failed) {
-          const failedReason = failed.reason ?? "unknown failure";
-          const now = Date.now();
-          setWorkflowExecution(prev => prev ? {
-            ...prev,
-            status: "failed",
-            error: failedReason,
-            completedAt: now,
-            steps: prev.steps.map(step => step.index === prev.currentIndex
-              ? { ...step, status: "failed" as const, reason: failedReason, completedAt: now }
-              : step),
-          } : prev);
-          setMessages(prev => [...prev, {
-            role: "orb",
-            text: `⚠️ 我找到要做的事，但執行時遇到問題：${failedReason}`,
-            at: Date.now(),
-            pagePath: locationPath,
-          }]);
-          pageAgent.reportFeedback({
-            status: "failed",
-            actionType: actionsToExecute[results.indexOf(failed)]?.type ?? "runWorkflow",
-            note: failedReason,
-          });
-        } else if (nextWorkflowExecution) {
-          const now = Date.now();
-          setWorkflowExecution(prev => prev ? {
-            ...prev,
-            status: "completed",
-            currentIndex: Math.max(prev.total - 1, 0),
-            completedAt: now,
-            steps: prev.steps.map(step => ({
-              ...step,
-              status: "completed" as const,
-              completedAt: step.completedAt ?? now,
-            })),
-          } : prev);
-        }
+      if (actionsToExecute.length > 0) {
+        const askBeforeAct = (data as { askBeforeAct?: boolean }).askBeforeAct === true;
+        await executeActions(actionsToExecute, {
+          intent: effectiveIntent,
+          requireConfirmation: askBeforeAct,
+        });
       }
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
@@ -562,7 +735,58 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsSending(false);
     }
-  }, [messages, isSending, personality, pageAgent, locationPath, setLocation, aiChat, providerPingQuery.data]);
+  }, [messages, isSending, personality, pageAgent, locationPath, aiChat, providerPingQuery.data, executeActions]);
+
+  const startPendingWorkflow = useCallback(async () => {
+    if (!pendingWorkflow || isSending) return;
+    const plan = pendingWorkflow;
+    setPendingWorkflow(null);
+    setIsSending(true);
+    setMessages(prev => [...prev, {
+      role: "orb",
+      text: `✅ 已確認，開始執行「${plan.name}」。我會依序完成 ${plan.total} 步。`,
+      at: Date.now(),
+      intent: plan.intent,
+      pagePath: locationPath,
+      actions: plan.actions,
+    }]);
+    try {
+      await executeActions(plan.actions, {
+        intent: plan.intent,
+        requireConfirmation: false,
+      });
+    } finally {
+      setIsSending(false);
+    }
+  }, [pendingWorkflow, isSending, locationPath, executeActions]);
+
+  const revisePendingWorkflow = useCallback(() => {
+    if (!pendingWorkflow || isSending) return;
+    const plan = pendingWorkflow;
+    setPendingWorkflow(null);
+    setIsOpen(true);
+    setInput(`請幫我修改這個流程：${plan.name}\n原始需求：${plan.userText}\n我想調整：`);
+    setMessages(prev => [...prev, {
+      role: "orb",
+      text: "可以，我先暫停這個流程。請告訴我你想修改哪裡，例如秒數、風格、模型、是否需要配音或要跳過哪些步驟。",
+      at: Date.now(),
+      intent: plan.intent,
+      pagePath: locationPath,
+    }]);
+  }, [pendingWorkflow, isSending, locationPath]);
+
+  const cancelPendingWorkflow = useCallback(() => {
+    if (!pendingWorkflow || isSending) return;
+    const plan = pendingWorkflow;
+    setPendingWorkflow(null);
+    setMessages(prev => [...prev, {
+      role: "orb",
+      text: `已取消「${plan.name}」，我不會執行任何跨頁操作。`,
+      at: Date.now(),
+      intent: plan.intent,
+      pagePath: locationPath,
+    }]);
+  }, [pendingWorkflow, isSending, locationPath]);
 
   const open = useCallback(() => setIsOpen(true), []);
   const close = useCallback(() => setIsOpen(false), []);
@@ -570,12 +794,14 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   const clearHistory = useCallback(() => {
     setMessages([]);
     setSuggestions([]);
+    setPendingWorkflow(null);
     clearMessagesFromStorage();
   }, []);
   const resetConversation = useCallback(() => {
     const welcome: ChatMessage = { role: "orb", text: welcomeMessage, at: Date.now(), pagePath: locationPath };
     setMessages([welcome]);
     setSuggestions([]);
+    setPendingWorkflow(null);
     saveMessagesToStorage([welcome]);
   }, [welcomeMessage, locationPath]);
 
@@ -586,6 +812,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     suggestions,
     isOpen,
     workflowExecution,
+    pendingWorkflow,
     setInput,
     sendMessage,
     open,
@@ -594,13 +821,23 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     clearHistory,
     resetConversation,
     clearWorkflowExecution,
-  }), [messages, input, isSending, suggestions, isOpen, workflowExecution, sendMessage, open, close, toggle, clearHistory, resetConversation, clearWorkflowExecution]);
+    startPendingWorkflow,
+    revisePendingWorkflow,
+    cancelPendingWorkflow,
+  }), [messages, input, isSending, suggestions, isOpen, workflowExecution, pendingWorkflow, sendMessage, open, close, toggle, clearHistory, resetConversation, clearWorkflowExecution, startPendingWorkflow, revisePendingWorkflow, cancelPendingWorkflow]);
 
   return (
     <GlobalOrbChatContext.Provider value={value}>
       {children}
+      <WorkflowConfirmationCard
+        pendingWorkflow={pendingWorkflow}
+        isBusy={isSending}
+        onStart={startPendingWorkflow}
+        onRevise={revisePendingWorkflow}
+        onCancel={cancelPendingWorkflow}
+      />
       <WorkflowExecutionFloatingPanel
-        workflowExecution={workflowExecution}
+        workflowExecution={pendingWorkflow ? null : workflowExecution}
         onDismiss={clearWorkflowExecution}
       />
     </GlobalOrbChatContext.Provider>
