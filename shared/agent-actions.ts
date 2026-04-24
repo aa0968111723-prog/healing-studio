@@ -623,6 +623,7 @@ export function serializeSnapshotForPrompt(
 export interface OrbChatResponse {
   reply: string;
   actions: Array<{ type: string; payload: string }>;
+  toolCalls?: Array<{ name: string; args: Record<string, unknown> }>;
   /** 新增：光球想做什麼的自然語言摘要（給確認卡片用） */
   intent?: string | null;
   /** 新增：使用者在執行前是否要先確認 */
