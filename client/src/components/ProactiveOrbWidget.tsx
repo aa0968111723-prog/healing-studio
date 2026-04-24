@@ -362,6 +362,12 @@ interface QuickAction {
 
 const QUICK_ACTIONS: QuickAction[] = [
   {
+    icon: <BookOpen className="w-4 h-4" />,
+    label: "教學引導",
+    description: "用教學節奏帶你一步步完成操作（可搭配光球帶操）",
+    action: "tutorial-guide",
+  },
+  {
     icon: <Shuffle className="w-4 h-4" />,
     label: "隨機靈感",
     description: "讓我幫你隨機組合一組靈感積木",
@@ -408,6 +414,18 @@ const PAGE_QUICK_ACTIONS: Record<string, QuickAction[]> = {
       label: "生成積分預估",
       description: "先估算本頁模型生成所需積分，再決定執行策略",
       action: "chat-credits-estimate",
+    },
+    {
+      icon: <BookOpen className="w-4 h-4" />,
+      label: "工作室全細節",
+      description: "完整拆解創作工作室全部區塊、參數、生成邏輯與實作 SOP",
+      action: "studio-all-details",
+    },
+    {
+      icon: <Zap className="w-4 h-4" />,
+      label: "一鍵帶操",
+      description: "光球先幫你套一版可執行起手式，再逐步微調",
+      action: "studio-autopilot",
     },
   ],
   "image-studio": [
@@ -1026,13 +1044,258 @@ export default memo(function ProactiveOrbWidget({
     () => getPageByPath(locationPath),
     [locationPath]
   );
+  const studioCreativeMode =
+    pageAgent.snapshot?.pageId === "studio"
+      ? String(pageAgent.snapshot.state?.creativeMode ?? "")
+      : "";
+  const studioModality =
+    pageAgent.snapshot?.pageId === "studio"
+      ? String(pageAgent.snapshot.state?.activeModality ?? "image")
+      : "image";
+  const isStudioInspirationMode =
+    pageContext?.pageId === "studio" &&
+    pageAgent.snapshot?.pageId === "studio" &&
+    studioCreativeMode === "simple";
+  const isStudioStandardMode =
+    pageContext?.pageId === "studio" &&
+    pageAgent.snapshot?.pageId === "studio" &&
+    studioCreativeMode === "standard";
+  const isStudioProfessionalMode =
+    pageContext?.pageId === "studio" &&
+    pageAgent.snapshot?.pageId === "studio" &&
+    studioCreativeMode === "pro";
+  const resolvedPageQuickActions = useMemo(() => {
+    const base = pageContext?.pageId
+      ? (PAGE_QUICK_ACTIONS[pageContext.pageId] ?? [])
+      : [];
+    if (
+      !isStudioInspirationMode &&
+      !isStudioStandardMode &&
+      !isStudioProfessionalMode
+    ) {
+      return base;
+    }
+    const mapped = base.map(qa => {
+      if (qa.action === "interactive-guide") {
+        if (isStudioProfessionalMode) {
+          return {
+            ...qa,
+            label: "專業參數帶路",
+            description: "改成專業模式深度調參（品質/一致性/成本/可重現性）",
+          };
+        }
+        if (isStudioStandardMode) {
+          return {
+            ...qa,
+            label: "標準參數帶路",
+            description: "改成標準模式深度調參（積木、比例、參考圖、負面詞、必要條件）",
+          };
+        }
+        return {
+          ...qa,
+          label: "參數帶路",
+          description: "改成靈感模式參數細節操作（風格/比例/負面詞/種子）",
+        };
+      }
+      if (qa.action === "page-deep-dive") {
+        if (isStudioProfessionalMode) {
+          return {
+            ...qa,
+            label: "專業頁面深度解析",
+            description: "完整解說專業模式生成管線、品質控制與交付策略",
+          };
+        }
+        if (isStudioStandardMode) {
+          return {
+            ...qa,
+            label: "標準頁面深度解析",
+            description: "完整解說標準模式的生成鏈路、參數耦合與設計取捨",
+          };
+        }
+        return {
+          ...qa,
+          label: "靈感頁面細節",
+          description: "解說靈感模式底層生成邏輯與這樣設計的原因",
+        };
+      }
+      return qa;
+    });
+    return [
+      ...mapped,
+      {
+        icon: <Settings className="w-4 h-4" />,
+        label: isStudioProfessionalMode
+          ? "專業工具箱深度調參"
+          : isStudioStandardMode
+            ? "標準工具箱深度調參"
+            : "工具箱參數",
+        description: isStudioProfessionalMode
+          ? "開啟工具箱進行專業模式細節操作：品質控制/一致性/成本平衡"
+          : isStudioStandardMode
+            ? "開啟工具箱進行標準模式細節操作：積木/構圖/負面詞/必要條件"
+            : "直接開啟工具箱，逐步調整靈感模式參數並立即套用",
+        action: isStudioProfessionalMode
+          ? "studio-pro-toolbox-deep"
+          : isStudioStandardMode
+            ? "studio-standard-toolbox-deep"
+            : "studio-toolbox-params",
+      },
+    ];
+  }, [
+    isStudioInspirationMode,
+    isStudioStandardMode,
+    isStudioProfessionalMode,
+    pageContext?.pageId,
+  ]);
   const proactiveActions = useMemo(
-    () =>
-      pageContext?.pageId
-        ? (PAGE_QUICK_ACTIONS[pageContext.pageId] ?? []).slice(0, 2)
-        : [],
-    [pageContext?.pageId]
+    () => resolvedPageQuickActions.slice(0, 2),
+    [resolvedPageQuickActions]
   );
+  const studioPromptPack = useMemo(() => {
+    const modalityLabel =
+      studioModality === "video"
+        ? "影片"
+        : studioModality === "audio"
+          ? "音樂"
+          : studioModality === "voice"
+            ? "配音"
+            : "照片";
+    const inspiration = {
+      chatOpen:
+        studioModality === "video"
+          ? "請先用『靈感模式-影片』帶我操作：先定義畫面主題與鏡頭情緒，再調整時長、運鏡與 seed，並說明每步對流暢度與敘事的影響。"
+          : studioModality === "audio"
+            ? "請先用『靈感模式-音樂』帶我操作：先定義情緒與風格，再調整節奏、能量與時長，並說明每步對氛圍的影響。"
+            : studioModality === "voice"
+              ? "請先用『靈感模式-配音』帶我操作：先選角色與情緒，再調整語速、穩定度與強度，並說明每步對可聽性的影響。"
+              : "請先用『靈感模式-照片』帶我做參數細節操作：先設定風格與構圖，再調整比例、seed、負面詞，最後告訴我每個參數為什麼這樣設計。",
+      interactive:
+        studioModality === "video"
+          ? "請改用『參數細節帶路』引導我做影片：逐步設定主題、鏡頭運動、時長、seed 與負面描述，並在每一步說明為什麼這樣調。"
+          : studioModality === "audio"
+            ? "請改用『參數細節帶路』引導我做音樂：逐步設定風格、能量、時長、是否純音樂與結構，並在每一步說明為什麼這樣調。"
+            : studioModality === "voice"
+              ? "請改用『參數細節帶路』引導我做配音：逐步設定聲線、情緒、語速、穩定度與情緒強度，並在每一步說明為什麼這樣調。"
+              : "請改用『參數細節帶路』引導我：逐步幫我設定靈感模式的風格、比例、seed、負面詞，並在每一步說明為什麼這樣調。",
+      toolbox:
+        `請帶我使用工具箱做靈感模式「${modalityLabel}」參數微調：先開工具箱，再依序調整關鍵參數，並解釋每一步對結果的影響。`,
+    };
+    const standard = {
+      chatOpen:
+        studioModality === "video"
+          ? "請先用『標準模式-影片』深度帶路：從靈感積木→進階提示詞→時長/運鏡→參考素材→負面描述，逐步操作並說明設計理由。"
+          : studioModality === "audio"
+            ? "請先用『標準模式-音樂』深度帶路：從靈感積木→進階提示詞→風格/能量/時長→參考素材→結構控制，逐步操作並說明設計理由。"
+            : studioModality === "voice"
+              ? "請先用『標準模式-配音』深度帶路：從文字腳本→聲線/情緒→語速/穩定度→語氣微調，逐步操作並說明設計理由。"
+              : "請先用『標準模式』深度帶路：從圖像靈感積木→進階提示詞建構器→畫面比例→參考圖→風格快選→負面詞→必要條件，逐步操作並說明每一步設計理由。",
+      deepDive:
+        `請深度解說「標準模式-${modalityLabel}」：` +
+        "\n1) 各區塊底層生成邏輯" +
+        "\n2) 參數耦合關係與先後順序（哪些先調、哪些最後微調）" +
+        "\n3) 為什麼標準模式這樣設計（品質穩定、可控性、迭代效率）" +
+        "\n4) 給我一套可重複的『起稿→收斂→定稿』操作模板",
+      interactive:
+        `請改用『標準模式深度帶路（${modalityLabel}）』：逐步帶我操作主要積木、進階提示詞、核心參數、參考素材與限制條件，並解釋每步對輸出的影響。`,
+      toolbox:
+        `請帶我用工具箱深度調整標準模式「${modalityLabel}」：依序處理主要積木、進階提示詞、核心參數、參考素材與限制條件，並提供每步判斷準則。`,
+    };
+    const professional = {
+      chatOpen:
+        studioModality === "video"
+          ? "請先用『專業模式-影片』深度帶路：建立分鏡結構、鏡頭節奏、時長策略、品質參數與成本預算，並說明每一步取捨。"
+          : studioModality === "audio"
+            ? "請先用『專業模式-音樂』深度帶路：建立段落結構、情緒曲線、能量控制、母帶質感與成本策略，並說明每一步取捨。"
+            : studioModality === "voice"
+              ? "請先用『專業模式-配音』深度帶路：建立腳本節奏、角色一致性、語氣控制、音質穩定與交付規格，並說明每一步取捨。"
+              : "請先用『專業模式-照片』深度帶路：建立主題語意、構圖策略、風格一致性、負面詞與細節精修，並說明每一步取捨。",
+      deepDive:
+        `請深度解說「專業模式-${modalityLabel}」：` +
+        "\n1) 生成管線與品質控制節點" +
+        "\n2) 參數耦合、風險點與可重現策略（seed/版本/素材一致性）" +
+        "\n3) 成本與品質平衡（試跑→收斂→定稿）" +
+        "\n4) 交付前檢查清單與可複製 SOP",
+      interactive:
+        `請改用『專業模式深度帶路（${modalityLabel}）』：逐步帶我完成從需求拆解到參數定稿，再到品質驗收與交付前檢查。`,
+      toolbox:
+        `請帶我用工具箱深度調整專業模式「${modalityLabel}」：依序完成高品質參數設定、風格一致性、風險排查與交付檢查，並提供每步判斷準則。`,
+    };
+    const deepDive = {
+      inspiration:
+        `請深度解說「靈感模式-${modalityLabel}」：\n` +
+        "1) 可直接操作的關鍵參數\n" +
+        "2) 底層生成流程與這些參數如何影響輸出\n" +
+        "3) 為什麼這頁要這樣設計（新手起手、可迭代、成本控制）",
+    };
+    return { inspiration, standard, professional, deepDive };
+  }, [studioModality]);
+  const composeOrbGuidePrompt = useCallback(
+    (goal: string) => {
+      const modeLabel =
+        studioCreativeMode === "pro"
+          ? "專業"
+          : studioCreativeMode === "standard"
+            ? "標準"
+            : studioCreativeMode === "simple"
+              ? "靈感"
+              : "未指定";
+      const modalityLabel =
+        studioModality === "video"
+          ? "影片"
+          : studioModality === "audio"
+            ? "音樂"
+            : studioModality === "voice"
+              ? "配音"
+              : "照片";
+      return (
+        `${goal}\n\n` +
+        `目前使用者在創作工作室（模式=${modeLabel}、模態=${modalityLabel}）。\n` +
+        "請用更貼近使用者的光球助理方式回覆：\n" +
+        "1) 先用一句話確認理解我的目標。\n" +
+        "2) 給 3-5 個可直接執行的步驟（每步包含：操作、為什麼、預期結果）。\n" +
+        "3) 每步盡量對應可操作參數與區塊名稱。\n" +
+        "4) 最後補一段「常見錯誤 + 快速修正」。\n" +
+        "5) 若可直接代操，附上可執行的 [ACTION:...]。"
+      );
+    },
+    [studioCreativeMode, studioModality]
+  );
+  const studioAutopilotActions = useMemo<AgentAction[]>(() => {
+    if (pageContext?.pageId !== "studio") return [];
+    const modeId =
+      studioCreativeMode === "pro"
+        ? "professional"
+        : studioCreativeMode === "standard"
+          ? "standard"
+          : "inspiration";
+    const actions: AgentAction[] = [
+      { type: "setModality", modality: studioModality as "image" | "video" | "audio" | "voice" },
+      { type: "setMode", modeId },
+      { type: "openDialog", dialogId: "toolbox", params: { tab: "prompt-builder", section: "autopilot" } },
+    ];
+    if (studioModality === "video") {
+      actions.push(
+        { type: "setParam", key: "duration", value: 5 },
+        { type: "setParam", key: "cameraMotion", value: "gentle_pan" }
+      );
+    } else if (studioModality === "audio") {
+      actions.push(
+        { type: "setParam", key: "musicStyle", value: "ambient" },
+        { type: "setParam", key: "energy", value: 0.4 }
+      );
+    } else if (studioModality === "voice") {
+      actions.push(
+        { type: "setParam", key: "emotionType", value: "calm" },
+        { type: "setParam", key: "stability", value: 0.72 }
+      );
+    } else {
+      actions.push(
+        { type: "setParam", key: "aspectRatio", value: "16:9" },
+        { type: "setParam", key: "negativePrompt", value: "lowres, blurry, artifacts" }
+      );
+    }
+    return actions;
+  }, [pageContext?.pageId, studioCreativeMode, studioModality]);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -1135,16 +1398,55 @@ export default memo(function ProactiveOrbWidget({
 
   // Bridge from OrbGuidePanel → interaction panel views
   const handleOpenInteraction = useCallback(
-    (view: "inspiration" | "focus-flow" | "chat") => {
+    (view: "inspiration" | "focus-flow" | "chat" | "tutorial" | "autopilot") => {
       if (view === "chat") {
         const pageLabel = currentRegistryPage?.label ?? pageContext?.pageLabel;
         setPanelView("chat");
         // Open global chat and set initial input if needed
         globalChat.open();
-        if (pageLabel && globalChat.messages.length <= 1) {
+        if (isStudioProfessionalMode) {
+          setChatInput(composeOrbGuidePrompt(studioPromptPack.professional.chatOpen));
+        } else if (isStudioStandardMode) {
+          setChatInput(composeOrbGuidePrompt(studioPromptPack.standard.chatOpen));
+        } else if (isStudioInspirationMode) {
+          setChatInput(composeOrbGuidePrompt(studioPromptPack.inspiration.chatOpen));
+        } else if (pageLabel && globalChat.messages.length <= 1) {
           // Only set input if chat history is minimal (just welcome message)
           setChatInput(`請先告訴我「${pageLabel}」這頁的最佳起手步驟。`);
         }
+      } else if (view === "autopilot") {
+        setPanelView("chat");
+        globalChat.open();
+        void pageAgent.dispatchMany(studioAutopilotActions, {
+          source: "manual",
+          requireConfirmation: false,
+        });
+        setChatInput(
+          composeOrbGuidePrompt(
+            "我已先幫你套用一版起手參數。請用『光球帶操』方式告訴我：現在每個參數的作用、下一步先調哪兩個最有感，並直接給我可執行 ACTION。"
+          )
+        );
+        showFeedback("已完成一鍵帶操起手式，接下來我們做精細微調 ⚡");
+        setShowPanel(true);
+        return;
+      } else if (view === "tutorial") {
+        const guideIntent =
+          (pageContext?.pageId
+            ? PAGE_TO_GUIDE_INTENT[pageContext.pageId]
+            : undefined) ?? "explore";
+        onRestartTour?.();
+        openGuidePanel();
+        selectGuideIntent(guideIntent);
+        setPanelView("chat");
+        globalChat.open();
+        setChatInput(
+          composeOrbGuidePrompt(
+            "請用『教學引導 + 帶操』方式帶我完成這一頁：先講目標，再一步一步實作，每步都要有操作、原因與檢查點。"
+          )
+        );
+        showFeedback("已啟動教學引導模式，光球會邊教邊帶你操作 📘");
+        setShowPanel(true);
+        return;
       } else if (view === "focus-flow") {
         setPanelView("focus-flow");
       } else {
@@ -1152,7 +1454,24 @@ export default memo(function ProactiveOrbWidget({
       }
       setShowPanel(true);
     },
-    [currentRegistryPage?.label, pageContext?.pageLabel, globalChat, setChatInput]
+    [
+      currentRegistryPage?.label,
+      pageContext?.pageLabel,
+      globalChat,
+      isStudioProfessionalMode,
+      isStudioStandardMode,
+      isStudioInspirationMode,
+      studioPromptPack,
+      composeOrbGuidePrompt,
+      setChatInput,
+      onRestartTour,
+      pageContext?.pageId,
+      openGuidePanel,
+      selectGuideIntent,
+      pageAgent,
+      studioAutopilotActions,
+      showFeedback,
+    ]
   );
 
   // ─── Quick action handlers ───────────────────────────────────────────
@@ -1179,14 +1498,95 @@ export default memo(function ProactiveOrbWidget({
           globalChat.open();
           setChatInput("我現在的心情是⋯⋯");
           break;
+        case "tutorial-guide": {
+          const guideIntent =
+            (pageContext?.pageId
+              ? PAGE_TO_GUIDE_INTENT[pageContext.pageId]
+              : undefined) ?? "explore";
+          onRestartTour?.();
+          openGuidePanel();
+          selectGuideIntent(guideIntent);
+          setPanelView("chat");
+          globalChat.open();
+          setChatInput(
+            composeOrbGuidePrompt(
+              "請用『教學引導 + 帶操』方式帶我完成這一頁：先講目標，再一步一步實作，每步都要有操作、原因與檢查點。"
+            )
+          );
+          showFeedback("已啟動教學引導模式，光球會邊教邊帶你操作 📘");
+          break;
+        }
         case "page-deep-dive": {
           const pageLabel = currentRegistryPage?.label ?? pageContext?.pageLabel ?? "這一頁";
           setPanelView("chat");
           globalChat.open();
-          setChatInput(`請解說「${pageLabel}」這一頁，先做哪三步最有效。`);
+          if (isStudioProfessionalMode) {
+            setChatInput(
+              composeOrbGuidePrompt(
+                `請深度解說「${pageLabel}」。\n${studioPromptPack.professional.deepDive}`
+              )
+            );
+          } else if (isStudioStandardMode) {
+            setChatInput(
+              composeOrbGuidePrompt(
+                `請深度解說「${pageLabel}」。\n${studioPromptPack.standard.deepDive}`
+              )
+            );
+          } else if (isStudioInspirationMode) {
+            setChatInput(
+              composeOrbGuidePrompt(
+                `請深度解說「${pageLabel}」。\n${studioPromptPack.deepDive.inspiration}`
+              )
+            );
+          } else {
+            setChatInput(`請解說「${pageLabel}」這一頁，先做哪三步最有效。`);
+          }
           break;
         }
         case "interactive-guide": {
+          if (isStudioProfessionalMode) {
+            setPanelView("chat");
+            globalChat.open();
+            setChatInput(
+              composeOrbGuidePrompt(studioPromptPack.professional.interactive)
+            );
+            await pageAgent.dispatch(
+              {
+                type: "openDialog",
+                dialogId: "toolbox",
+                params: { tab: "prompt-builder", section: "pro-deep-guide" },
+              },
+              { source: "manual", requireConfirmation: false }
+            );
+            showFeedback("已切換為專業模式「深度參數帶路」並開啟工具箱 🧰");
+            break;
+          }
+          if (isStudioStandardMode) {
+            setPanelView("chat");
+            globalChat.open();
+            setChatInput(
+              composeOrbGuidePrompt(studioPromptPack.standard.interactive)
+            );
+            await pageAgent.dispatch(
+              {
+                type: "openDialog",
+                dialogId: "toolbox",
+                params: { tab: "prompt-builder", section: "standard-deep-guide" },
+              },
+              { source: "manual", requireConfirmation: false }
+            );
+            showFeedback("已切換為標準模式「深度參數帶路」並開啟工具箱 🧰");
+            break;
+          }
+          if (isStudioInspirationMode) {
+            setPanelView("chat");
+            globalChat.open();
+            setChatInput(
+              composeOrbGuidePrompt(studioPromptPack.inspiration.interactive)
+            );
+            showFeedback("已切換為靈感模式「參數細節操作」帶路 ✨");
+            break;
+          }
           const guideIntent =
             (pageContext?.pageId
               ? PAGE_TO_GUIDE_INTENT[pageContext.pageId]
@@ -1209,6 +1609,85 @@ export default memo(function ProactiveOrbWidget({
             ],
             { source: "manual", requireConfirmation: false }
           );
+          break;
+        case "studio-all-details":
+          setPanelView("chat");
+          globalChat.open();
+          setChatInput(
+            composeOrbGuidePrompt(
+              "請完整拆解創作工作室所有細節：\n" +
+                "1) 靈感/標準/專業三模式的定位、差異與切換時機\n" +
+                "2) 照片/影片/音樂/配音四模態的關鍵參數、耦合關係與調整順序\n" +
+                "3) 工具箱每個區塊（積木、進階提示詞、參考圖、負面詞、必要條件）的底層邏輯與實戰用法\n" +
+                "4) 成本與品質控制策略（試跑→收斂→定稿）\n" +
+                "5) 給我一份可重複執行的端到端 SOP（含常見錯誤與排查）"
+            )
+          );
+          await pageAgent.dispatch(
+            {
+              type: "openDialog",
+              dialogId: "toolbox",
+              params: { tab: "prompt-builder", section: "studio-all-details" },
+            },
+            { source: "manual", requireConfirmation: false }
+          );
+          showFeedback("已切到「創作工作室全細節」深度導引 📚");
+          break;
+        case "studio-autopilot":
+          setPanelView("chat");
+          globalChat.open();
+          await pageAgent.dispatchMany(studioAutopilotActions, {
+            source: "manual",
+            requireConfirmation: false,
+          });
+          setChatInput(
+            composeOrbGuidePrompt(
+              "我已先幫你套用一版起手參數。請用『光球帶操』方式告訴我：現在每個參數的作用、下一步先調哪兩個最有感，並直接給我可執行 ACTION。"
+            )
+          );
+          showFeedback("已完成一鍵帶操起手式，接下來我們做精細微調 ⚡");
+          break;
+        case "studio-toolbox-params":
+          setPanelView("chat");
+          globalChat.open();
+          setChatInput(composeOrbGuidePrompt(studioPromptPack.inspiration.toolbox));
+          await pageAgent.dispatch(
+            {
+              type: "openDialog",
+              dialogId: "toolbox",
+              params: { tab: "prompt-builder", section: "inspiration-params" },
+            },
+            { source: "manual", requireConfirmation: false }
+          );
+          showFeedback("已開啟工具箱，開始參數細節操作 🧰");
+          break;
+        case "studio-standard-toolbox-deep":
+          setPanelView("chat");
+          globalChat.open();
+          setChatInput(composeOrbGuidePrompt(studioPromptPack.standard.toolbox));
+          await pageAgent.dispatch(
+            {
+              type: "openDialog",
+              dialogId: "toolbox",
+              params: { tab: "prompt-builder", section: "standard-advanced" },
+            },
+            { source: "manual", requireConfirmation: false }
+          );
+          showFeedback("已開啟標準模式工具箱深度調參流程 🧰");
+          break;
+        case "studio-pro-toolbox-deep":
+          setPanelView("chat");
+          globalChat.open();
+          setChatInput(composeOrbGuidePrompt(studioPromptPack.professional.toolbox));
+          await pageAgent.dispatch(
+            {
+              type: "openDialog",
+              dialogId: "toolbox",
+              params: { tab: "prompt-builder", section: "pro-advanced" },
+            },
+            { source: "manual", requireConfirmation: false }
+          );
+          showFeedback("已開啟專業模式工具箱深度調參流程 🧰");
           break;
         case "tour":
           setShowPanel(false);
@@ -1270,7 +1749,26 @@ export default memo(function ProactiveOrbWidget({
           break;
       }
     },
-    [onApplyInspiration, onRestartTour, showFeedback, currentRegistryPage?.label, pageContext?.pageLabel, pageContext?.pageId, pageAgent, globalChat, setChatInput, openGuidePanel, selectGuideIntent]
+    [
+      onApplyInspiration,
+      onRestartTour,
+      showFeedback,
+      currentRegistryPage?.label,
+      pageContext?.pageLabel,
+      pageContext?.pageId,
+      pageAgent,
+      globalChat,
+      isStudioProfessionalMode,
+      isStudioStandardMode,
+      isStudioInspirationMode,
+      studioAutopilotActions,
+      studioPromptPack,
+      composeOrbGuidePrompt,
+      onRestartTour,
+      setChatInput,
+      openGuidePanel,
+      selectGuideIntent,
+    ]
   );
 
   const handleRegistryQuickAction = useCallback(
@@ -1664,7 +2162,7 @@ export default memo(function ProactiveOrbWidget({
                         <div className="space-y-1.5 mb-3">
                           {[
                             ...QUICK_ACTIONS,
-                            ...(pageContext?.pageId ? (PAGE_QUICK_ACTIONS[pageContext.pageId] ?? []) : []),
+                            ...resolvedPageQuickActions,
                           ].map(qa => (
                             <button
                               key={qa.action}
@@ -2042,9 +2540,7 @@ export default memo(function ProactiveOrbWidget({
                     <div className="space-y-1.5 mb-3">
                       {[
                         ...QUICK_ACTIONS,
-                        ...(pageContext?.pageId
-                          ? (PAGE_QUICK_ACTIONS[pageContext.pageId] ?? [])
-                          : []),
+                        ...resolvedPageQuickActions,
                       ].map(qa => (
                         <button
                           key={qa.action}
