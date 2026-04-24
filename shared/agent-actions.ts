@@ -270,6 +270,68 @@ export function parseLLMActions(
   return out;
 }
 
+/**
+ * 將 schema-first planner 的原始輸出適配成既有 AgentAction[]。
+ *
+ * 支援常見形狀：
+ * - `AgentAction[]`
+ * - `{ actions: AgentAction[] }`
+ * - `{ steps: AgentWorkflowStep[] }`（會包成單一 runWorkflow）
+ * - `{ workflow: {...} }` / `{ runWorkflow: {...} }`
+ */
+export function adaptAgentPlanToActions(rawPlannerOutput: unknown): AgentAction[] {
+  if (!rawPlannerOutput) return [];
+
+  if (Array.isArray(rawPlannerOutput)) {
+    return parseLLMActions(rawPlannerOutput);
+  }
+
+  if (typeof rawPlannerOutput !== "object") return [];
+  const obj = rawPlannerOutput as Record<string, unknown>;
+
+  if (Array.isArray(obj.actions)) {
+    return parseLLMActions(obj.actions);
+  }
+
+  const nestedWorkflow = obj.workflow ?? obj.runWorkflow;
+  if (nestedWorkflow && typeof nestedWorkflow === "object") {
+    const coerced = coerceAgentAction({
+      type: "runWorkflow",
+      ...(nestedWorkflow as Record<string, unknown>),
+    });
+    return coerced ? [coerced] : [];
+  }
+
+  if (Array.isArray(obj.steps)) {
+    const steps = obj.steps
+      .filter(
+        (s: unknown): s is Record<string, unknown> =>
+          !!s && typeof s === "object" && typeof (s as Record<string, unknown>).actionType === "string"
+      )
+      .map((s) => ({
+        path: typeof s.path === "string" ? s.path : undefined,
+        actionType: String(s.actionType),
+        payload: typeof s.payload === "string" ? s.payload : "",
+        label: typeof s.label === "string" ? s.label : String(s.actionType),
+      }));
+
+    if (steps.length > 0) {
+      return [{
+        type: "runWorkflow",
+        name: typeof obj.name === "string" ? obj.name : "AI Agent Plan",
+        steps,
+      }];
+    }
+
+    // steps 不是 workflow step，當作普通 actions steps 再試一次
+    return parseLLMActions(obj.steps);
+  }
+
+  // 兜底：若本體已是單一 action 物件
+  const one = coerceAgentAction(obj);
+  return one ? [one] : [];
+}
+
 /** 盡量把一個外部物件（LLM 回應 / 舊事件 detail）轉成嚴格的 AgentAction */
 export function coerceAgentAction(input: unknown): AgentAction | null {
   if (!input || typeof input !== "object") return null;
@@ -623,6 +685,7 @@ export function serializeSnapshotForPrompt(
 export interface OrbChatResponse {
   reply: string;
   actions: Array<{ type: string; payload: string }>;
+  plannerOutput?: unknown;
   toolCalls?: Array<{ name: string; args: Record<string, unknown> }>;
   /** 新增：光球想做什麼的自然語言摘要（給確認卡片用） */
   intent?: string | null;

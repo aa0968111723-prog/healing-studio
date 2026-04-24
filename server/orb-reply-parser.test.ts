@@ -182,4 +182,64 @@ describe("parseOrbReply", () => {
       { name: "weather.lookup", args: { city: "Taipei" } },
     ]);
   });
+
+  it("可解析 schema-first JSON 回覆並保留 plannerOutput", () => {
+    const raw = JSON.stringify({
+      reply: "我整理好計畫了",
+      intent: "幫你完成短片",
+      plannerOutput: {
+        name: "Schema Plan",
+        steps: [
+          { path: "/director", actionType: "fillPrompt", payload: "企劃", label: "填企劃" },
+        ],
+      },
+      askBeforeAct: true,
+      suggestions: ["好啊", "再想想"],
+    });
+    const r = parseOrbReply(raw);
+    expect(r.reply).toBe("我整理好計畫了");
+    expect(r.intent).toBe("幫你完成短片");
+    expect(r.askBeforeAct).toBe(true);
+    expect(r.actions).toEqual([]);
+    expect(r.plannerOutput).toMatchObject({
+      name: "Schema Plan",
+      steps: [{ path: "/director", actionType: "fillPrompt" }],
+    });
+    expect(r.suggestions).toEqual(["好啊", "再想想"]);
+  });
+
+  it("schema-first JSON 若帶 actions，會保留 actions 並套用破壞性確認規則", () => {
+    const raw = JSON.stringify({
+      reply: "我先幫你送出",
+      actions: [
+        { type: "fillPrompt", text: "晨霧森林" },
+        { type: "submit" },
+      ],
+    });
+    const r = parseOrbReply(raw);
+    expect(r.actions).toEqual([
+      expect.objectContaining({ type: "fillPrompt", payload: "晨霧森林", text: "晨霧森林" }),
+      expect.objectContaining({ type: "submit", payload: "" }),
+    ]);
+    expect(r.askBeforeAct).toBe(true);
+  });
+
+  it("schema-first JSON 會保留 action 額外欄位（例如 setParam 的 key/value）", () => {
+    const raw = JSON.stringify({
+      reply: "已設定參數",
+      actions: [
+        { action: "setParam", key: "duration", value: 8 },
+      ],
+    });
+    const r = parseOrbReply(raw);
+    expect(r.actions).toEqual([
+      expect.objectContaining({
+        action: "setParam",
+        type: "setParam",
+        key: "duration",
+        value: 8,
+        payload: "",
+      }),
+    ]);
+  });
 });
