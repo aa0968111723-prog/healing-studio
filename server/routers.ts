@@ -69,6 +69,7 @@ import {
   estimateGenerationPoints,
   submitToFalQueue,
 } from "./services/falDispatcher";
+import { getGeminiMediaClient } from "./services/geminiMedia";
 import {
   localizeResultUrls,
   persistExternalMediaUrl,
@@ -110,6 +111,61 @@ function withTimeout<T>(
         reject(err);
       });
   });
+}
+
+function ensureFalApiKeyConfigured(): void {
+  if (serverEnv.FAL_API_KEY?.trim()) return;
+  throw new TRPCError({
+    code: "SERVICE_UNAVAILABLE",
+    message:
+      "創作工作室四模態共用 Fal.ai；目前尚未設定 FAL_API_KEY。請到 /admin/api-usage 檢查 providerReadiness，設定後重啟服務。",
+  });
+}
+
+function ensureGeminiApiKeyConfigured(): void {
+  if (serverEnv.GEMINI_API_KEY?.trim()) return;
+  throw new TRPCError({
+    code: "SERVICE_UNAVAILABLE",
+    message:
+      "目前選用 Gemini 系列生成引擎，但尚未設定 GEMINI_API_KEY。請到 /admin/api-usage 檢查 providerReadiness，設定後重啟服務。",
+  });
+}
+
+function isGeminiEngine(modelId: string | undefined): boolean {
+  return typeof modelId === "string" && modelId.startsWith("gemini/");
+}
+
+function getBrainSelectedEngine(
+  brainRow: Record<string, unknown> | null,
+  key: "imageEngine" | "videoEngine" | "audioEngine" | "voiceEngine"
+): string | undefined {
+  const value = brainRow?.[key];
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  return normalizeEngineModelId(value.trim());
+}
+
+function extFromMime(mimeType: string, fallback: string): string {
+  const lower = mimeType.toLowerCase();
+  if (lower.includes("png")) return "png";
+  if (lower.includes("jpeg") || lower.includes("jpg")) return "jpg";
+  if (lower.includes("webp")) return "webp";
+  if (lower.includes("wav")) return "wav";
+  if (lower.includes("mpeg") || lower.includes("mp3")) return "mp3";
+  if (lower.includes("ogg")) return "ogg";
+  return fallback;
+}
+
+async function storeBase64Media(params: {
+  base64: string;
+  mimeType: string;
+  prefix: string;
+  fallbackExt: string;
+}): Promise<string> {
+  const ext = extFromMime(params.mimeType, params.fallbackExt);
+  const key = `${params.prefix}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const buffer = Buffer.from(params.base64, "base64");
+  const stored = await storagePut(key, buffer, params.mimeType || "application/octet-stream");
+  return stored.url;
 }
 
 // ─── Safety Moderation Middleware ────────────────────────────────────────────
@@ -392,6 +448,10 @@ export const appRouter = router({
         }
 
         const falEngines = resolveFalEnginesFromRow(brainRow);
+        const brainImageEngine = getBrainSelectedEngine(brainRow, "imageEngine");
+        const brainVideoEngine = getBrainSelectedEngine(brainRow, "videoEngine");
+        const brainAudioEngine = getBrainSelectedEngine(brainRow, "audioEngine");
+        const brainVoiceEngine = getBrainSelectedEngine(brainRow, "voiceEngine");
 
         // ── Step 2: 選定本次任務的引擎 ──
         const modalityEngineMap: Record<string, string> = {
@@ -688,18 +748,22 @@ export const appRouter = router({
         const falEngines = resolveFalEnginesFromRow(brainRow);
 
         // Resolve which engine was selected for this modality (from brain config)
-        const _resolvedImageEngine = String(
-          brainRow?.imageEngine ?? falEngines.textToImage
-        );
-        const _resolvedVideoEngine = String(
-          brainRow?.videoEngine ?? falEngines.textToVideo
-        );
-        const _resolvedAudioEngine = String(
-          brainRow?.audioEngine ?? falEngines.textToAudio
-        );
-        const _resolvedVoiceEngine = String(
-          brainRow?.voiceEngine ?? falEngines.textToSpeech
-        );
+        const brainImageEngine = getBrainSelectedEngine(brainRow, "imageEngine");
+        const brainVideoEngine = getBrainSelectedEngine(brainRow, "videoEngine");
+        const brainAudioEngine = getBrainSelectedEngine(brainRow, "audioEngine");
+        const brainVoiceEngine = getBrainSelectedEngine(brainRow, "voiceEngine");
+        const _resolvedImageEngine = isGeminiEngine(brainImageEngine)
+          ? brainImageEngine!
+          : falEngines.textToImage;
+        const _resolvedVideoEngine = isGeminiEngine(brainVideoEngine)
+          ? brainVideoEngine!
+          : falEngines.textToVideo;
+        const _resolvedAudioEngine = isGeminiEngine(brainAudioEngine)
+          ? brainAudioEngine!
+          : falEngines.textToAudio;
+        const _resolvedVoiceEngine = isGeminiEngine(brainVoiceEngine)
+          ? brainVoiceEngine!
+          : falEngines.textToSpeech;
         const _falTextToImageEngine = falEngines.textToImage;
         const _falTextToVideoEngine = falEngines.textToVideo;
         const _falTextToAudioEngine = falEngines.textToAudio;
@@ -724,6 +788,12 @@ export const appRouter = router({
         });
         const _genPricing = getModelPricing(_genModelId);
         const _genEngineLabel = _genPricing?.label ?? _genModelId;
+
+        if (isGeminiEngine(_genModelId)) {
+          ensureGeminiApiKeyConfigured();
+        } else {
+          ensureFalApiKeyConfigured();
+        }
 
         // Safety pre-check (points already deducted in prepareJob)
         generationBus.emit(jobId, {
@@ -1027,64 +1097,97 @@ export const appRouter = router({
             input.generationType === "image" ||
             input.generationType === "multimodal"
           ) {
-            // ── Image: fal.ai Flux Pro (真實 API，無 Forge 依賴) ──
-            generationBus.emit(jobId, {
-              type: "progress",
-              progress: 42,
-              message: "正在呼叫 fal.ai Flux 生成圖片...",
-            });
             const refImageUrl =
               input.styleReferenceUrl || input.vibeReferenceUrl || undefined;
             let imageUrl: string | undefined;
+            const imageEngine = _resolvedImageEngine;
+            const imageViaGemini = isGeminiEngine(imageEngine);
+            generationBus.emit(jobId, {
+              type: "progress",
+              progress: 42,
+              message: imageViaGemini
+                ? "正在呼叫 Gemini 生成圖片..."
+                : "正在呼叫 fal.ai 生成圖片...",
+            });
             try {
-              // If user selected a fine-tuned LoRA model and we have the weights URL,
-              // route to the sdLora / lora model instead of the standard T2I engine.
-              const imageModelId = fineTunedLoraUrl
-                ? "fal-ai/lora"
-                : refImageUrl
-                  ? falEngines.imageToImage
-                  : falEngines.textToImage;
-              const imageDispatch = await withTimeout(
-                dispatchImageGeneration({
-                  modelId: imageModelId,
-                  prompt: compiledPrompt,
-                  negativePrompt: input.negativePrompt,
-                  imageUrl: refImageUrl,
-                  aspectRatio: input.aspectRatio,
-                  seed: input.seed,
-                  // Inject LoRA weights URL + scale when fine-tuned model selected
-                  ...(fineTunedLoraUrl && {
-                    loraUrl: fineTunedLoraUrl,
-                    loraScale: input.loraWeight ?? 0.8,
+              if (imageViaGemini) {
+                const gemini = getGeminiMediaClient();
+                const geminiImage = await withTimeout(
+                  gemini.generateImage({
+                    prompt: compiledPrompt,
+                    model:
+                      imageEngine === "gemini/imagen-3-fast"
+                        ? "imagen-3.0-fast-generate-001"
+                        : "imagen-3.0-generate-002",
+                    aspectRatio:
+                      input.aspectRatio === "1:1" ||
+                      input.aspectRatio === "3:4" ||
+                      input.aspectRatio === "4:3" ||
+                      input.aspectRatio === "9:16" ||
+                      input.aspectRatio === "16:9"
+                        ? input.aspectRatio
+                        : undefined,
+                    negativePrompt: input.negativePrompt,
+                    seed: input.seed,
+                    numImages: 1,
                   }),
-                }),
-                150_000,
-                "圖片生成"
-              );
-              if (imageDispatch.success) {
-                imageUrl =
-                  (imageDispatch.data as any)?.images?.[0]?.url ??
-                  (imageDispatch.data as any)?.image?.url ??
-                  ((imageDispatch.data as any)?.url as string | undefined);
-                if (imageUrl) {
-                  imageUrl = await persistExternalMediaUrl(imageUrl, {
-                    category: "image",
-                    prefix: `generated/studio/${userId}/image`,
+                  150_000,
+                  "Gemini 圖片生成"
+                );
+                const firstImage = geminiImage.images?.[0];
+                if (firstImage?.base64) {
+                  imageUrl = await storeBase64Media({
+                    base64: firstImage.base64,
+                    mimeType: firstImage.mimeType || "image/png",
+                    prefix: `generated/studio/${userId}/image/gemini`,
+                    fallbackExt: "png",
                   });
                 }
-                debug(
-                  `[Fal] Image generation completed: ${imageUrl} (${imageDispatch.durationMs}ms, model: ${imageDispatch.modelId})`
+              } else {
+                // If user selected a fine-tuned LoRA model and we have the weights URL,
+                // route to the sdLora / lora model instead of the standard T2I engine.
+                const imageModelId = fineTunedLoraUrl
+                  ? "fal-ai/lora"
+                  : refImageUrl
+                    ? falEngines.imageToImage
+                    : falEngines.textToImage;
+                const imageDispatch = await withTimeout(
+                  dispatchImageGeneration({
+                    modelId: imageModelId,
+                    prompt: compiledPrompt,
+                    negativePrompt: input.negativePrompt,
+                    imageUrl: refImageUrl,
+                    aspectRatio: input.aspectRatio,
+                    seed: input.seed,
+                    ...(fineTunedLoraUrl && {
+                      loraUrl: fineTunedLoraUrl,
+                      loraScale: input.loraWeight ?? 0.8,
+                    }),
+                  }),
+                  150_000,
+                  "圖片生成"
                 );
-              } else if (!demoMode) {
-                await db.refundUserPoints(userId, _genEstimate.totalPoints);
-                throw new TRPCError({
-                  code: "INTERNAL_SERVER_ERROR",
-                  message: `圖片生成失敗（fal.ai ${imageDispatch.modelId}）：${imageDispatch.error || "未知錯誤"}`,
-                });
+                if (imageDispatch.success) {
+                  imageUrl =
+                    (imageDispatch.data as any)?.images?.[0]?.url ??
+                    (imageDispatch.data as any)?.image?.url ??
+                    ((imageDispatch.data as any)?.url as string | undefined);
+                  if (imageUrl) {
+                    imageUrl = await persistExternalMediaUrl(imageUrl, {
+                      category: "image",
+                      prefix: `generated/studio/${userId}/image`,
+                    });
+                  }
+                } else if (!demoMode) {
+                  await db.refundUserPoints(userId, _genEstimate.totalPoints);
+                  throw new TRPCError({
+                    code: "INTERNAL_SERVER_ERROR",
+                    message: `圖片生成失敗（fal.ai ${imageDispatch.modelId}）：${imageDispatch.error || "未知錯誤"}`,
+                  });
+                }
               }
             } catch (err) {
               if (!demoMode) throw err;
-              // Demo mode: 無 API key 時直接報錯
               debug(`[Demo] Image generation failed: ${err}`);
             }
             if (!imageUrl) {
@@ -1092,7 +1195,7 @@ export const appRouter = router({
                 await db.refundUserPoints(userId, _genEstimate.totalPoints);
               throw new TRPCError({
                 code: "INTERNAL_SERVER_ERROR",
-                message: "fal.ai 圖片生成未回傳有效 URL，請稍後再試",
+                message: "圖片生成未回傳有效 URL，請稍後再試",
               });
             }
             resultUrl = imageUrl;
@@ -1101,7 +1204,7 @@ export const appRouter = router({
             resultData.negativePrompt = input.negativePrompt;
             resultData.styleReferenceUrl = input.styleReferenceUrl;
             resultData.vibeReferenceUrl = input.vibeReferenceUrl;
-            resultData.imageModel = falEngines.textToImage;
+            resultData.imageModel = imageEngine;
           }
 
           // ── Video: fal.ai Kling (真實 API，無 Gemini Veo 依賴) ──
@@ -1109,49 +1212,73 @@ export const appRouter = router({
             input.generationType === "video" ||
             input.generationType === "multimodal"
           ) {
+            const videoEngine = _resolvedVideoEngine;
+            const videoViaGemini = isGeminiEngine(videoEngine);
             generationBus.emit(jobId, {
               type: "progress",
               progress: 45,
-              message: "正在呼叫 fal.ai Kling 生成影片...",
+              message: videoViaGemini
+                ? "正在呼叫 Gemini Veo 生成影片..."
+                : "正在呼叫 fal.ai 生成影片...",
             });
             const videoModelId = input.firstFrameUrl
               ? falEngines.imageToVideo
               : falEngines.textToVideo;
             let videoUrl: string | undefined;
             try {
-              const videoDispatch = await withTimeout(
-                dispatchVideoGeneration({
-                  modelId: videoModelId,
-                  prompt: compiledPrompt,
-                  imageUrl:
-                    input.firstFrameUrl || input.characterRefUrl || undefined,
-                  durationSec: input.videoDurationSeconds || 5,
-                  aspectRatio: input.aspectRatio || "16:9",
-                  seed: input.seed,
-                }),
-                300_000,
-                "影片生成"
-              );
-              if (videoDispatch.success) {
-                videoUrl =
-                  (videoDispatch.data as any)?.video?.url ??
-                  (videoDispatch.data as any)?.videos?.[0]?.url ??
-                  ((videoDispatch.data as any)?.url as string | undefined);
-                if (videoUrl) {
-                  videoUrl = await persistExternalMediaUrl(videoUrl, {
-                    category: "video",
-                    prefix: `generated/studio/${userId}/video`,
+              if (videoViaGemini) {
+                const gemini = getGeminiMediaClient();
+                const geminiVideo = await withTimeout(
+                  gemini.generateVideoSync({
+                    prompt: compiledPrompt,
+                    model:
+                      videoEngine === "gemini/veo-2"
+                        ? "veo-2.0-generate-001"
+                        : "veo-3.0-generate-preview",
+                    imageUrl:
+                      input.firstFrameUrl || input.characterRefUrl || undefined,
+                    duration: input.videoDurationSeconds || 5,
+                    aspectRatio:
+                      input.aspectRatio === "9:16" ? "9:16" : "16:9",
+                    negativePrompt: input.negativePrompt,
+                    seed: input.seed,
+                  }),
+                  310_000,
+                  "Gemini 影片生成"
+                );
+                videoUrl = geminiVideo.videoUrl;
+              } else {
+                const videoDispatch = await withTimeout(
+                  dispatchVideoGeneration({
+                    modelId: videoModelId,
+                    prompt: compiledPrompt,
+                    imageUrl:
+                      input.firstFrameUrl || input.characterRefUrl || undefined,
+                    durationSec: input.videoDurationSeconds || 5,
+                    aspectRatio: input.aspectRatio || "16:9",
+                    seed: input.seed,
+                  }),
+                  300_000,
+                  "影片生成"
+                );
+                if (videoDispatch.success) {
+                  videoUrl =
+                    (videoDispatch.data as any)?.video?.url ??
+                    (videoDispatch.data as any)?.videos?.[0]?.url ??
+                    ((videoDispatch.data as any)?.url as string | undefined);
+                  if (videoUrl) {
+                    videoUrl = await persistExternalMediaUrl(videoUrl, {
+                      category: "video",
+                      prefix: `generated/studio/${userId}/video`,
+                    });
+                  }
+                } else if (!demoMode) {
+                  await db.refundUserPoints(userId, _genEstimate.totalPoints);
+                  throw new TRPCError({
+                    code: "INTERNAL_SERVER_ERROR",
+                    message: `影片生成失敗（fal.ai ${videoDispatch.modelId}）：${videoDispatch.error || "未知錯誤"}`,
                   });
                 }
-                debug(
-                  `[Fal] Video generation completed: ${videoUrl} (${videoDispatch.durationMs}ms, model: ${videoDispatch.modelId})`
-                );
-              } else if (!demoMode) {
-                await db.refundUserPoints(userId, _genEstimate.totalPoints);
-                throw new TRPCError({
-                  code: "INTERNAL_SERVER_ERROR",
-                  message: `影片生成失敗（fal.ai ${videoDispatch.modelId}）：${videoDispatch.error || "未知錯誤"}`,
-                });
               }
             } catch (err) {
               if (!demoMode) throw err;
@@ -1168,7 +1295,7 @@ export const appRouter = router({
             resultData.videoUrl = videoUrl;
             resultData.videoStatus = "completed";
             resultData.videoDuration = input.videoDurationSeconds || 5;
-            resultData.videoModel = videoModelId;
+            resultData.videoModel = videoViaGemini ? videoEngine : videoModelId;
             resultData.videoPrompt = compiledPrompt;
             resultData.firstFrameUrl = input.firstFrameUrl;
             resultData.lastFrameUrl = input.lastFrameUrl;
@@ -1182,10 +1309,14 @@ export const appRouter = router({
             input.generationType === "audio" ||
             input.generationType === "multimodal"
           ) {
+            const audioEngine = _resolvedAudioEngine;
+            const audioViaGemini = isGeminiEngine(audioEngine);
             generationBus.emit(jobId, {
               type: "progress",
               progress: 45,
-              message: "正在呼叫 fal.ai 生成音樂...",
+              message: audioViaGemini
+                ? "正在呼叫 Gemini 生成音樂..."
+                : "正在呼叫 fal.ai 生成音樂...",
             });
             // Build music prompt from style + compiled prompt
             let musicPrompt = compiledPrompt;
@@ -1200,36 +1331,55 @@ export const appRouter = router({
             }
             let audioUrl: string | undefined;
             try {
-              const audioDispatch = await withTimeout(
-                dispatchAudioGeneration({
-                  modelId: falEngines.textToAudio,
-                  prompt: musicPrompt,
-                  durationSec: input.audioDuration || 30,
-                  seed: input.seed,
-                }),
-                180_000,
-                "音樂生成"
-              );
-              if (audioDispatch.success) {
-                audioUrl =
-                  (audioDispatch.data as any)?.audio?.url ??
-                  (audioDispatch.data as any)?.audio_url ??
-                  ((audioDispatch.data as any)?.url as string | undefined);
-                if (audioUrl) {
-                  audioUrl = await persistExternalMediaUrl(audioUrl, {
-                    category: "audio",
-                    prefix: `generated/studio/${userId}/audio`,
+              if (audioViaGemini) {
+                const gemini = getGeminiMediaClient();
+                const geminiAudio = await withTimeout(
+                  gemini.generateAudio({
+                    prompt: musicPrompt,
+                    model: audioEngine === "gemini/musicfx" ? "musicfx-001" : "lyria-002",
+                    duration: input.audioDuration || 30,
+                    seed: input.seed,
+                  }),
+                  180_000,
+                  "Gemini 音樂生成"
+                );
+                if (geminiAudio.audioBase64) {
+                  audioUrl = await storeBase64Media({
+                    base64: geminiAudio.audioBase64,
+                    mimeType: geminiAudio.mimeType || "audio/wav",
+                    prefix: `generated/studio/${userId}/audio/gemini`,
+                    fallbackExt: "wav",
                   });
                 }
-                debug(
-                  `[Fal] Audio generation completed: ${audioUrl} (${audioDispatch.durationMs}ms, model: ${audioDispatch.modelId})`
+              } else {
+                const audioDispatch = await withTimeout(
+                  dispatchAudioGeneration({
+                    modelId: falEngines.textToAudio,
+                    prompt: musicPrompt,
+                    durationSec: input.audioDuration || 30,
+                    seed: input.seed,
+                  }),
+                  180_000,
+                  "音樂生成"
                 );
-              } else if (!demoMode) {
-                await db.refundUserPoints(userId, _genEstimate.totalPoints);
-                throw new TRPCError({
-                  code: "INTERNAL_SERVER_ERROR",
-                  message: `音樂生成失敗（fal.ai ${audioDispatch.modelId}）：${audioDispatch.error || "未知錯誤"}`,
-                });
+                if (audioDispatch.success) {
+                  audioUrl =
+                    (audioDispatch.data as any)?.audio?.url ??
+                    (audioDispatch.data as any)?.audio_url ??
+                    ((audioDispatch.data as any)?.url as string | undefined);
+                  if (audioUrl) {
+                    audioUrl = await persistExternalMediaUrl(audioUrl, {
+                      category: "audio",
+                      prefix: `generated/studio/${userId}/audio`,
+                    });
+                  }
+                } else if (!demoMode) {
+                  await db.refundUserPoints(userId, _genEstimate.totalPoints);
+                  throw new TRPCError({
+                    code: "INTERNAL_SERVER_ERROR",
+                    message: `音樂生成失敗（fal.ai ${audioDispatch.modelId}）：${audioDispatch.error || "未知錯誤"}`,
+                  });
+                }
               }
             } catch (err) {
               if (!demoMode) throw err;
@@ -1246,7 +1396,7 @@ export const appRouter = router({
             resultData.audioUrl = audioUrl;
             resultData.audioStatus = "completed";
             resultData.audioTitle = input.musicStyle || "Healing Music";
-            resultData.audioModel = falEngines.textToAudio;
+            resultData.audioModel = audioEngine;
             resultData.musicStyle = input.musicStyle || "ambient healing";
             resultData.isInstrumental = input.isInstrumental;
             resultData.lyrics = input.lyrics;
@@ -1257,10 +1407,14 @@ export const appRouter = router({
 
           // ── Voice: fal.ai playai-tts (真實 API，無 Gemini TTS 依賴) ──
           if (input.generationType === "voice") {
+            const voiceEngine = _resolvedVoiceEngine;
+            const voiceViaGemini = isGeminiEngine(voiceEngine);
             generationBus.emit(jobId, {
               type: "progress",
               progress: 50,
-              message: "正在呼叫 fal.ai TTS 生成語音...",
+              message: voiceViaGemini
+                ? "正在呼叫 Gemini TTS 生成語音..."
+                : "正在呼叫 fal.ai TTS 生成語音...",
             });
             const ttsText = input.voiceText || input.prompt;
             // Map emotion to fal.ai playai voice IDs
@@ -1282,37 +1436,58 @@ export const appRouter = router({
               "s3://voice-cloning-zero-shot/e5df2eb3-5153-40fa-9f6e-6e27bbb7a38e/original/manifest.json";
             let voiceUrl: string | undefined;
             try {
-              const voiceDispatch = await withTimeout(
-                dispatchTTS({
-                  modelId: falEngines.textToSpeech,
-                  text: ttsText,
-                  voiceId: falVoiceId,
-                  speed: input.voiceSpeed,
-                  charCount: ttsText.length,
-                }),
-                90_000,
-                "語音生成"
-              );
-              if (voiceDispatch.success) {
-                voiceUrl =
-                  (voiceDispatch.data as any)?.audio?.url ??
-                  (voiceDispatch.data as any)?.audio_url ??
-                  ((voiceDispatch.data as any)?.url as string | undefined);
-                if (voiceUrl) {
-                  voiceUrl = await persistExternalMediaUrl(voiceUrl, {
-                    category: "voice",
-                    prefix: `generated/studio/${userId}/voice`,
+              if (voiceViaGemini) {
+                const gemini = getGeminiMediaClient();
+                const geminiTTS = await withTimeout(
+                  gemini.textToSpeech({
+                    text: ttsText,
+                    model:
+                      voiceEngine === "gemini/tts-pro"
+                        ? "gemini-2.5-pro-preview-tts"
+                        : "gemini-2.5-flash-preview-tts",
+                    voiceName: input.voiceModelId || "Zephyr",
+                  }),
+                  90_000,
+                  "Gemini 語音生成"
+                );
+                if (geminiTTS.audioBase64) {
+                  voiceUrl = await storeBase64Media({
+                    base64: geminiTTS.audioBase64,
+                    mimeType: geminiTTS.mimeType || "audio/wav",
+                    prefix: `generated/studio/${userId}/voice/gemini`,
+                    fallbackExt: "wav",
                   });
                 }
-                debug(
-                  `[Fal] Voice generation completed: ${voiceUrl} (${voiceDispatch.durationMs}ms, model: ${voiceDispatch.modelId})`
+              } else {
+                const voiceDispatch = await withTimeout(
+                  dispatchTTS({
+                    modelId: falEngines.textToSpeech,
+                    text: ttsText,
+                    voiceId: falVoiceId,
+                    speed: input.voiceSpeed,
+                    charCount: ttsText.length,
+                  }),
+                  90_000,
+                  "語音生成"
                 );
-              } else if (!demoMode) {
-                await db.refundUserPoints(userId, _genEstimate.totalPoints);
-                throw new TRPCError({
-                  code: "INTERNAL_SERVER_ERROR",
-                  message: `語音生成失敗（fal.ai ${voiceDispatch.modelId}）：${voiceDispatch.error || "未知錯誤"}`,
-                });
+                if (voiceDispatch.success) {
+                  voiceUrl =
+                    (voiceDispatch.data as any)?.audio?.url ??
+                    (voiceDispatch.data as any)?.audio_url ??
+                    ((voiceDispatch.data as any)?.url as string | undefined);
+                  if (voiceUrl) {
+                    voiceUrl = await persistExternalMediaUrl(voiceUrl, {
+                      category: "voice",
+                      prefix: `generated/studio/${userId}/voice`,
+                    });
+                  }
+                } else if (!demoMode) {
+                  await db.refundUserPoints(userId, _genEstimate.totalPoints);
+                  throw new TRPCError({
+                    code: "INTERNAL_SERVER_ERROR",
+                    message: `語音生成失敗（fal.ai ${voiceDispatch.modelId}）：${voiceDispatch.error || "未知錯誤"}`,
+                  });
+                }
               }
             } catch (err) {
               if (!demoMode) throw err;
@@ -1329,7 +1504,7 @@ export const appRouter = router({
             resultData.voiceUrl = voiceUrl;
             resultData.voiceStatus = "completed";
             resultData.voiceEngine = "fal-tts";
-            resultData.voiceModel = falEngines.textToSpeech;
+            resultData.voiceModel = voiceEngine;
             resultData.voiceModelId = input.voiceModelId;
             resultData.voiceText = input.voiceText;
             resultData.voiceSpeed = input.voiceSpeed;
@@ -1721,6 +1896,10 @@ export const appRouter = router({
           }
         } catch { /* use defaults */ }
         const falEngines = resolveFalEnginesFromRow(brainRow);
+        const brainImageEngine = getBrainSelectedEngine(brainRow, "imageEngine");
+        const brainVideoEngine = getBrainSelectedEngine(brainRow, "videoEngine");
+        const brainAudioEngine = getBrainSelectedEngine(brainRow, "audioEngine");
+        const brainVoiceEngine = getBrainSelectedEngine(brainRow, "voiceEngine");
 
         // ── 3. 決定 modelId 和 fal input ───────────────────────────────
         let modelId: string;
@@ -1735,9 +1914,14 @@ export const appRouter = router({
 
         if (input.generationType === "image") {
           const refUrl = input.styleReferenceUrl || input.vibeReferenceUrl;
+          const preferredImageEngine = isGeminiEngine(brainImageEngine)
+            ? brainImageEngine!
+            : refUrl
+              ? falEngines.imageToImage
+              : falEngines.textToImage;
           modelId =
             overrideModelId ??
-            (refUrl ? falEngines.imageToImage : falEngines.textToImage);
+            preferredImageEngine;
           falInput = {
             prompt: input.prompt,
             ...(input.aspectRatio && { aspect_ratio: input.aspectRatio }),
@@ -1747,9 +1931,14 @@ export const appRouter = router({
           };
         } else if (input.generationType === "video") {
           const hasFirstFrame = !!input.firstFrameUrl;
+          const preferredVideoEngine = isGeminiEngine(brainVideoEngine)
+            ? brainVideoEngine!
+            : hasFirstFrame
+              ? falEngines.imageToVideo
+              : falEngines.textToVideo;
           modelId =
             overrideModelId ??
-            (hasFirstFrame ? falEngines.imageToVideo : falEngines.textToVideo);
+            preferredVideoEngine;
           falInput = {
             prompt: input.prompt,
             ...(input.videoDurationSeconds && { duration: String(input.videoDurationSeconds) }),
@@ -1759,7 +1948,10 @@ export const appRouter = router({
             ...(input.seed != null && { seed: input.seed }),
           };
         } else if (input.generationType === "audio") {
-          modelId = overrideModelId ?? falEngines.textToAudio;
+          const preferredAudioEngine = isGeminiEngine(brainAudioEngine)
+            ? brainAudioEngine!
+            : falEngines.textToAudio;
+          modelId = overrideModelId ?? preferredAudioEngine;
           falInput = {
             prompt: input.prompt,
             ...(input.audioDuration && { seconds_total: input.audioDuration }),
@@ -1770,7 +1962,10 @@ export const appRouter = router({
         } else {
           // voice
           const voicePrompt = input.voiceText ?? input.prompt;
-          modelId = overrideModelId ?? falEngines.textToSpeech;
+          const preferredVoiceEngine = isGeminiEngine(brainVoiceEngine)
+            ? brainVoiceEngine!
+            : falEngines.textToSpeech;
+          modelId = overrideModelId ?? preferredVoiceEngine;
           // TTS 模型用 text 欄位
           falInput = {
             text: voicePrompt,
@@ -1779,6 +1974,11 @@ export const appRouter = router({
             ...(input.voiceStability != null && { stability: input.voiceStability }),
             ...(input.seed != null && { seed: input.seed }),
           };
+        }
+        if (isGeminiEngine(modelId)) {
+          ensureGeminiApiKeyConfigured();
+        } else {
+          ensureFalApiKeyConfigured();
         }
 
         // ── 4. prepareJob：扣點 + 建 backgroundJob 記錄 ────────────────
@@ -1816,8 +2016,115 @@ export const appRouter = router({
           },
         });
 
-        // ── 5. 送 fal.ai queue（fire-and-forget） ──────────────────────
+        // ── 5. 依引擎供應商送出任務 ───────────────────────────────────────
         try {
+          if (isGeminiEngine(modelId)) {
+            const gemini = getGeminiMediaClient();
+            let resultUrl: string | undefined;
+
+            if (input.generationType === "image") {
+              const imageRes = await gemini.generateImage({
+                prompt: input.prompt,
+                model:
+                  modelId === "gemini/imagen-3-fast"
+                    ? "imagen-3.0-fast-generate-001"
+                    : "imagen-3.0-generate-002",
+                aspectRatio:
+                  input.aspectRatio === "1:1" ||
+                  input.aspectRatio === "3:4" ||
+                  input.aspectRatio === "4:3" ||
+                  input.aspectRatio === "9:16" ||
+                  input.aspectRatio === "16:9"
+                    ? input.aspectRatio
+                    : undefined,
+                negativePrompt: input.negativePrompt,
+                seed: input.seed,
+                numImages: 1,
+              });
+              const firstImage = imageRes.images?.[0];
+              if (firstImage?.base64) {
+                resultUrl = await storeBase64Media({
+                  base64: firstImage.base64,
+                  mimeType: firstImage.mimeType || "image/png",
+                  prefix: `generated/studio/${userId}/image/gemini-async`,
+                  fallbackExt: "png",
+                });
+              }
+            } else if (input.generationType === "video") {
+              const videoRes = await gemini.generateVideoSync({
+                prompt: input.prompt,
+                model:
+                  modelId === "gemini/veo-2"
+                    ? "veo-2.0-generate-001"
+                    : "veo-3.0-generate-preview",
+                imageUrl: input.firstFrameUrl || input.characterRefUrl || undefined,
+                duration: input.videoDurationSeconds || 5,
+                aspectRatio: input.aspectRatio === "9:16" ? "9:16" : "16:9",
+                negativePrompt: input.negativePrompt,
+                seed: input.seed,
+              });
+              resultUrl = videoRes.videoUrl;
+            } else if (input.generationType === "audio") {
+              const audioRes = await gemini.generateAudio({
+                prompt: input.prompt,
+                model: modelId === "gemini/musicfx" ? "musicfx-001" : "lyria-002",
+                duration: input.audioDuration || 30,
+                seed: input.seed,
+              });
+              if (audioRes.audioBase64) {
+                resultUrl = await storeBase64Media({
+                  base64: audioRes.audioBase64,
+                  mimeType: audioRes.mimeType || "audio/wav",
+                  prefix: `generated/studio/${userId}/audio/gemini-async`,
+                  fallbackExt: "wav",
+                });
+              }
+            } else {
+              const ttsRes = await gemini.textToSpeech({
+                text: input.voiceText ?? input.prompt,
+                model:
+                  modelId === "gemini/tts-pro"
+                    ? "gemini-2.5-pro-preview-tts"
+                    : "gemini-2.5-flash-preview-tts",
+                voiceName: input.voiceModelId || "Zephyr",
+              });
+              if (ttsRes.audioBase64) {
+                resultUrl = await storeBase64Media({
+                  base64: ttsRes.audioBase64,
+                  mimeType: ttsRes.mimeType || "audio/wav",
+                  prefix: `generated/studio/${userId}/voice/gemini-async`,
+                  fallbackExt: "wav",
+                });
+              }
+            }
+
+            if (!resultUrl) {
+              throw new Error("Gemini 生成未回傳可用結果");
+            }
+
+            const requestId = `gemini-sync-${jobId}-${Date.now()}`;
+            await db.updateBackgroundJob(jobId, {
+              status: "completed",
+              progress: 100,
+              progressMessage: `${label} 已完成`,
+              resultJson: {
+                studioType: input.generationType,
+                label,
+                modelId,
+                requestId,
+                resultUrl,
+              } as any,
+            });
+
+            return {
+              jobId,
+              request_id: requestId,
+              modelId,
+              label,
+              generationType: input.generationType,
+            };
+          }
+
           const { request_id } = await submitToFalQueue(modelId, falInput);
 
           // 更新 job 記錄，加入 requestId（checkStudioJob 輪詢需要）
