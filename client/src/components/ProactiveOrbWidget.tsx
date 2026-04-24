@@ -1398,7 +1398,7 @@ export default memo(function ProactiveOrbWidget({
 
   // Bridge from OrbGuidePanel → interaction panel views
   const handleOpenInteraction = useCallback(
-    (view: "inspiration" | "focus-flow" | "chat") => {
+    (view: "inspiration" | "focus-flow" | "chat" | "tutorial" | "autopilot") => {
       if (view === "chat") {
         const pageLabel = currentRegistryPage?.label ?? pageContext?.pageLabel;
         setPanelView("chat");
@@ -1414,6 +1414,39 @@ export default memo(function ProactiveOrbWidget({
           // Only set input if chat history is minimal (just welcome message)
           setChatInput(`請先告訴我「${pageLabel}」這頁的最佳起手步驟。`);
         }
+      } else if (view === "autopilot") {
+        setPanelView("chat");
+        globalChat.open();
+        void pageAgent.dispatchMany(studioAutopilotActions, {
+          source: "manual",
+          requireConfirmation: false,
+        });
+        setChatInput(
+          composeOrbGuidePrompt(
+            "我已先幫你套用一版起手參數。請用『光球帶操』方式告訴我：現在每個參數的作用、下一步先調哪兩個最有感，並直接給我可執行 ACTION。"
+          )
+        );
+        showFeedback("已完成一鍵帶操起手式，接下來我們做精細微調 ⚡");
+        setShowPanel(true);
+        return;
+      } else if (view === "tutorial") {
+        const guideIntent =
+          (pageContext?.pageId
+            ? PAGE_TO_GUIDE_INTENT[pageContext.pageId]
+            : undefined) ?? "explore";
+        onRestartTour?.();
+        openGuidePanel();
+        selectGuideIntent(guideIntent);
+        setPanelView("chat");
+        globalChat.open();
+        setChatInput(
+          composeOrbGuidePrompt(
+            "請用『教學引導 + 帶操』方式帶我完成這一頁：先講目標，再一步一步實作，每步都要有操作、原因與檢查點。"
+          )
+        );
+        showFeedback("已啟動教學引導模式，光球會邊教邊帶你操作 📘");
+        setShowPanel(true);
+        return;
       } else if (view === "focus-flow") {
         setPanelView("focus-flow");
       } else {

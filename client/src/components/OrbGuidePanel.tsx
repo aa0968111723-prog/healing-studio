@@ -263,7 +263,9 @@ interface OrbGuidePanelProps {
   /** When true, renders as a full-screen bottom sheet overlay (mobile responsive) */
   fullscreen?: boolean;
   /** Callback to open the interaction panel with a specific view */
-  onOpenInteraction?: (view: "inspiration" | "focus-flow" | "chat") => void;
+  onOpenInteraction?: (
+    view: "inspiration" | "focus-flow" | "chat" | "tutorial" | "autopilot"
+  ) => void;
 }
 
 const MODEL_SHORTCUTS = [
@@ -289,6 +291,7 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
   const { aiState } = useAIState();
   const { personality } = usePersonality();
   const pageAgent = usePageAgent();
+  const isStudioPage = pageAgent.snapshot?.pageId === "studio";
 
   // ─── Global Orb Chat Integration ──────────────────────────────────────
   const globalChat = useGlobalOrbChat();
@@ -550,6 +553,16 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
           自由聊天
         </button>
       </div>
+      <div className={cn("shrink-0 flex flex-wrap gap-1.5", fullscreen ? "px-5 pb-2" : "px-4 pb-2")}>
+        <span className="rounded-full border border-white/15 bg-white/8 px-2 py-0.5 text-[10px] text-white/70">
+          新版引導已啟用
+        </span>
+        {isStudioPage && (
+          <span className="rounded-full border border-cyan-300/25 bg-cyan-300/10 px-2 py-0.5 text-[10px] text-cyan-100">
+            支援教學引導 / 一鍵帶操
+          </span>
+        )}
+      </div>
 
       {/* ── Chat Mode ── */}
       {panelMode === "chat" && (
@@ -799,6 +812,24 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
                     <Lightbulb className={fullscreen ? "w-4 h-4" : "w-3 h-3"} />
                     頁面細節
                   </motion.button>
+                  {isStudioPage && (
+                    <motion.button
+                      onClick={() => { onClose(); onOpenInteraction("autopilot"); }}
+                      className={cn(
+                        "flex-1 flex items-center justify-center gap-1.5 rounded-xl",
+                        "bg-white/6 hover:bg-white/12 border border-white/10 hover:border-white/20",
+                        "transition-all text-white/60 hover:text-white/90",
+                        fullscreen ? "py-2.5 text-sm" : "py-2 text-xs"
+                      )}
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.45 }}
+                      whileTap={{ scale: 0.97 }}
+                    >
+                      <FastForward className={fullscreen ? "w-4 h-4" : "w-3 h-3"} />
+                      一鍵帶操
+                    </motion.button>
+                  )}
                   <motion.button
                     onClick={() => { onClose(); onOpenInteraction("focus-flow"); }}
                     className={cn(
@@ -814,6 +845,22 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
                   >
                     <Leaf className={fullscreen ? "w-4 h-4" : "w-3 h-3"} />
                     專注流
+                  </motion.button>
+                  <motion.button
+                    onClick={() => { onClose(); onOpenInteraction("tutorial"); }}
+                    className={cn(
+                      "flex-1 flex items-center justify-center gap-1.5 rounded-xl",
+                      "bg-white/6 hover:bg-white/12 border border-white/10 hover:border-white/20",
+                      "transition-all text-white/60 hover:text-white/90",
+                      fullscreen ? "py-2.5 text-sm" : "py-2 text-xs"
+                    )}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5 }}
+                    whileTap={{ scale: 0.97 }}
+                  >
+                    <Sparkles className={fullscreen ? "w-4 h-4" : "w-3 h-3"} />
+                    教學引導
                   </motion.button>
                 </div>
               )}
