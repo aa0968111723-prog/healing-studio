@@ -41,6 +41,7 @@ import { getOrbToolRegistry } from "./config/orbToolRegistry";
 import { orbTaskRepository } from "./repositories/orbTaskRepository";
 import { executeCurrentStepTools } from "./services/orbTaskOrchestrator";
 import { orbToolCallLogStore } from "./services/orbToolCallLogStore";
+import { runSchemaFirstAgentPlanner } from "./services/agentPlanner";
 import {
   OrbStartTaskInputSchema,
   OrbApproveTaskInputSchema,
@@ -51,7 +52,9 @@ import {
   mergeFeedbackHistories,
   buildOrbGuideStepPrompt,
   parseOrbGuideStepReply,
+  type AgentFeedbackEvent,
   type OrbGuideStepContext,
+  type PageAgentSnapshot,
 } from "../shared/agent-actions";
 import {
   estimatePoints,
@@ -4092,7 +4095,75 @@ export const appRouter = router({
         const enginePreference = "gemini" as const;
 
         try {
-          const result = await withTimeout(
+          const plannerMessages = input.messages.map(m => ({
+            role: m.role as "user" | "assistant",
+            content: m.content,
+          }));
+          const plannerResult = await withTimeout(
+            runSchemaFirstAgentPlanner({
+              messages: plannerMessages,
+              context: input.context ?? undefined,
+              personality: input.personality,
+              pageSnapshot: (input.pageSnapshot ?? undefined) as
+                | PageAgentSnapshot
+                | undefined,
+              recentFeedback: mergedFeedback as AgentFeedbackEvent[],
+              invoke: plannerInput =>
+                invokeLLM({
+                  ...plannerInput,
+                  model: director.model,
+                  temperature: director.temperature,
+                  topP: director.topP,
+                  systemPrompt: director.systemPrompt,
+                  preferEngine: plannerInput.preferEngine ?? enginePreference,
+                }),
+            }),
+            20_000,
+            "全站光球代理規劃器"
+          );
+
+          if (plannerResult.status === "converted") {
+            return {
+              reply: plannerResult.reply ?? "我已幫你整理好下一步。",
+              actions: plannerResult.actions,
+              intent: plannerResult.intent ?? null,
+              askBeforeAct:
+                plannerResult.askBeforeAct ||
+                Boolean(input.alwaysConfirm && plannerResult.actions.length > 0),
+              suggestions: [],
+              toolCalls: [],
+              plannerOutput: plannerResult.rawContent ?? plannerResult.plan,
+            };
+          }
+
+          if (plannerResult.status === "clarification") {
+            return {
+              reply: plannerResult.reply ?? "我需要先確認一個細節，才能繼續執行。",
+              actions: [],
+              intent: plannerResult.intent ?? null,
+              askBeforeAct: false,
+              suggestions: [],
+              toolCalls: [],
+              plannerOutput: plannerResult.rawContent ?? plannerResult.plan,
+            };
+          }
+
+          if (plannerResult.status === "blocked") {
+            return {
+              reply:
+                plannerResult.reply ??
+                "我已建立計畫，但因安全檢查暫停執行，請先確認需求後再繼續。",
+              actions: [],
+              intent: plannerResult.intent ?? null,
+              askBeforeAct: true,
+              suggestions: [],
+              toolCalls: [],
+              plannerOutput: plannerResult.rawContent ?? plannerResult.plan,
+            };
+          }
+
+          // invalid：維持舊版 fallback parser 流程，兼容既有 marker / JSON reply。
+          const fallbackResult = await withTimeout(
             invokeLLM({
               model: director.model,
               temperature: director.temperature,
@@ -4100,10 +4171,7 @@ export const appRouter = router({
               systemPrompt: director.systemPrompt,
               messages: [
                 { role: "system", content: systemPrompt },
-                ...input.messages.map(m => ({
-                  role: m.role as "user" | "assistant",
-                  content: m.content,
-                })),
+                ...plannerMessages,
               ],
               preferEngine: enginePreference,
               runName: "orb-agent-chat",
@@ -4111,12 +4179,10 @@ export const appRouter = router({
             20_000,
             "全站光球代理"
           );
-
           const rawReply =
-            typeof result.choices[0]?.message?.content === "string"
-              ? result.choices[0].message.content
+            typeof fallbackResult.choices[0]?.message?.content === "string"
+              ? fallbackResult.choices[0].message.content
               : "";
-
           if (!rawReply) {
             console.warn("[Orb] Empty LLM response, using fallback");
             return {
@@ -4128,8 +4194,6 @@ export const appRouter = router({
               toolCalls: [],
             };
           }
-
-          // ── Parse LLM output：ACTION / INTENT / CONFIRM / SUGGEST markers ──
           return parseOrbReply(rawReply, {
             alwaysConfirm: input.alwaysConfirm,
           });
