@@ -1111,6 +1111,20 @@ export interface OrbPromptExtras {
     pageId?: string;
   }>;
   alwaysConfirm?: boolean;
+  apiTools?: Array<{
+    name: string;
+    description: string;
+    method: "GET" | "POST";
+    version?: string;
+    riskLevel?: "low" | "medium" | "high";
+    allowedRoles?: string[];
+    retryPolicy?: {
+      maxRetries?: number;
+      backoffMs?: number;
+    };
+    fallbackTools?: string[];
+    requireConfirmation?: boolean;
+  }>;
 }
 
 function serializeSnapshotBlock(
@@ -1165,6 +1179,35 @@ function serializeFeedbackBlock(
   return `【使用者最近對光球建議的反應（請參考並調整語氣）】\n${lines.join("\n")}`;
 }
 
+function serializeApiToolsBlock(list: OrbPromptExtras["apiTools"]): string {
+  if (!list || list.length === 0) return "";
+  const lines = list.slice(0, 16).map(tool => {
+    const version = tool.version ? `@${tool.version}` : "";
+    const risk = tool.riskLevel ? `，風險=${tool.riskLevel}` : "";
+    const roles =
+      tool.allowedRoles && tool.allowedRoles.length > 0
+        ? `，角色限制=${tool.allowedRoles.join("|")}`
+        : "";
+    const retry =
+      tool.retryPolicy && typeof tool.retryPolicy.maxRetries === "number"
+        ? `，重試=${tool.retryPolicy.maxRetries}次`
+        : "";
+    const fallback =
+      tool.fallbackTools && tool.fallbackTools.length > 0
+        ? `，降級=${tool.fallbackTools.join("→")}`
+        : "";
+    const confirm = tool.requireConfirmation ? "（高風險，需確認）" : "";
+    return `- ${tool.name}${version} [${tool.method}]：${tool.description}${confirm}${risk}${roles}${retry}${fallback}`;
+  });
+  return [
+    "【可呼叫的 API Tools】",
+    ...lines,
+    "若需要連外 API，請附上這種 marker：",
+    "[TOOL:toolName:%7B%22key%22%3A%22value%22%7D]",
+    "（payload 格式為 encodeURIComponent(JSON)）",
+  ].join("\n");
+}
+
 /**
  * 為光球（Orb）打造的完整系統提示詞
  * 包含全站知識 + 親切的光球人格
@@ -1197,6 +1240,7 @@ export function buildOrbSystemPrompt(
   // Phase 1.5：動態頁面能力 + 最近回饋
   const snapshotBlock = serializeSnapshotBlock(extras?.pageSnapshot);
   const feedbackBlock = serializeFeedbackBlock(extras?.recentFeedback);
+  const apiToolsBlock = serializeApiToolsBlock(extras?.apiTools);
   const confirmNote = extras?.alwaysConfirm
     ? "\n【使用者偏好】這位使用者希望任何動作執行前都先詢問一次，請養成「先說意圖、再等確認」的習慣。"
     : "";
@@ -1357,7 +1401,7 @@ ${GENERATION_MODALITIES_KNOWLEDGE}
 ${MODEL_RECOMMENDATION_KNOWLEDGE}
 
 ${WORKFLOW_KNOWLEDGE}
-${contextNote}${snapshotBlock ? "\n\n" + snapshotBlock : ""}${feedbackBlock ? "\n\n" + feedbackBlock : ""}${confirmNote}
+${contextNote}${snapshotBlock ? "\n\n" + snapshotBlock : ""}${feedbackBlock ? "\n\n" + feedbackBlock : ""}${apiToolsBlock ? "\n\n" + apiToolsBlock : ""}${confirmNote}
 ${isStudioPage ? "\n" + STUDIO_CREATIVE_GUIDANCE : ""}
 ${isImageStudioPage ? "\n" + IMAGE_STUDIO_CREATIVE_GUIDANCE : ""}
 ${isVideoStudioPage ? "\n" + VIDEO_STUDIO_CREATIVE_GUIDANCE : ""}

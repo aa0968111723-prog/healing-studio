@@ -9,6 +9,10 @@
  */
 
 export type OrbRawAction = { type: string; payload: string };
+export type OrbRawToolCall = {
+  name: string;
+  args: Record<string, unknown>;
+};
 
 export interface OrbParsedReply {
   /** LLM 去除所有 marker 後的純文字回覆 */
@@ -21,6 +25,8 @@ export interface OrbParsedReply {
   askBeforeAct: boolean;
   /** 快速回覆建議（最多 4 條，每條 1~20 字） */
   suggestions: string[];
+  /** 可選：讓前端/後端 tool executor 執行的 API 呼叫 */
+  toolCalls: OrbRawToolCall[];
 }
 
 /**
@@ -70,6 +76,8 @@ export const ORB_DESTRUCTIVE_ACTIONS = new Set([
   "runWorkflow",
 ]);
 
+export const ORB_ALLOWED_TOOL_NAME = /^[a-z][a-z0-9_.-]{1,63}$/i;
+
 /**
  * 把 LLM 回覆字串解析成結構化物件。
  *
@@ -87,6 +95,7 @@ export function parseOrbReply(
       intent: null,
       askBeforeAct: false,
       suggestions: [],
+      toolCalls: [],
     };
   }
 
@@ -134,10 +143,34 @@ export function parseOrbReply(
     reply = reply.replace(suggestMatch[0], "").trim();
   }
 
+  // ── TOOL markers ────────────────────────────────────────────────
+  const toolCalls: OrbRawToolCall[] = [];
+  const toolPattern = /\[TOOL:([a-zA-Z0-9_.-]+):([^\]]*)\]/g;
+  while ((match = toolPattern.exec(rawReply)) !== null) {
+    const name = match[1].trim();
+    if (!ORB_ALLOWED_TOOL_NAME.test(name)) continue;
+    let args: Record<string, unknown> = {};
+    const rawPayload = match[2].trim();
+    if (rawPayload.length > 0) {
+      try {
+        const decoded = decodeURIComponent(rawPayload);
+        const parsed = JSON.parse(decoded) as unknown;
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          args = parsed as Record<string, unknown>;
+        }
+      } catch {
+        // ignore malformed payload
+      }
+    }
+    toolCalls.push({ name, args });
+    reply = reply.replace(match[0], "");
+  }
+  reply = reply.trim();
+
   // ── Confirm gate：破壞性動作 + alwaysConfirm 的保險絲 ─────────
   const hasDestructive = actions.some(a => ORB_DESTRUCTIVE_ACTIONS.has(a.type));
   if (!confirmExplicit && hasDestructive) askBeforeAct = true;
   if (opts.alwaysConfirm && actions.length > 0) askBeforeAct = true;
 
-  return { reply, actions, intent, askBeforeAct, suggestions };
+  return { reply, actions, intent, askBeforeAct, suggestions, toolCalls };
 }
