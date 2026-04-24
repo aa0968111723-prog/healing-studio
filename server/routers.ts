@@ -36,6 +36,14 @@ import { getOrchestrator } from "./services/modelClients";
 import { buildMemoryContext, upsertMemory } from "./services/ragMemory";
 import { buildOrbSystemPrompt } from "./services/siteKnowledge";
 import { parseOrbReply } from "./services/orbReplyParser";
+import { executeOrbToolCalls } from "./services/agentToolExecutor";
+import { getOrbToolRegistry } from "./config/orbToolRegistry";
+import { orbTaskStore } from "./services/orbTaskStore";
+import {
+  OrbStartTaskInputSchema,
+  OrbApproveTaskInputSchema,
+  OrbStepReportInputSchema,
+} from "../shared/orb-agent-contract";
 import {
   mergeFeedbackHistories,
   buildOrbGuideStepPrompt,
@@ -3417,6 +3425,61 @@ export const appRouter = router({
   // ─── AI 全站光球代理（含上下文 + AI 代理人行為） ──────────────────────────────
 
   ai: router({
+    startTask: brainProcedure
+      .input(OrbStartTaskInputSchema)
+      .mutation(async ({ input, ctx }) => {
+        const task = orbTaskStore.create({
+          userId: ctx.user.id,
+          intent: input.intent,
+          steps: input.steps,
+          needsApproval: input.needsApproval,
+        });
+        return { task };
+      }),
+
+    task: brainProcedure
+      .input(z.object({ taskId: z.string().min(1).max(72) }))
+      .query(async ({ input, ctx }) => {
+        const task = orbTaskStore.get(input.taskId, ctx.user.id);
+        return { task };
+      }),
+
+    approveTask: brainProcedure
+      .input(OrbApproveTaskInputSchema)
+      .mutation(async ({ input, ctx }) => {
+        const task = orbTaskStore.approve(
+          input.taskId,
+          ctx.user.id,
+          input.approved
+        );
+        return { task };
+      }),
+
+    reportTaskStep: brainProcedure
+      .input(OrbStepReportInputSchema)
+      .mutation(async ({ input, ctx }) => {
+        const task = orbTaskStore.reportStep(
+          {
+            taskId: input.taskId,
+            stepId: input.stepId,
+            ok: input.ok,
+            at: input.at,
+          },
+          ctx.user.id
+        );
+        return { task };
+      }),
+
+    tools: brainProcedure.query(() => {
+      const tools = getOrbToolRegistry();
+      return tools.map(tool => ({
+        name: tool.name,
+        description: tool.description,
+        method: tool.method,
+        requireConfirmation: Boolean(tool.requireConfirmation),
+      }));
+    }),
+
     chat: brainProcedure
       .input(
         z.object({
@@ -3528,6 +3591,7 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input, ctx }) => {
+        const registeredTools = getOrbToolRegistry();
         // Phase 3c：把 DB 裡的長期記憶跟前端 session 記憶合併給 prompt。
         // 前端剛啟動時 recentFeedback 是空的，但使用者過去的接受/拒絕早已
         // 寫進 orb_feedback_events；這裡讀最近 10 筆補上去。
@@ -3560,6 +3624,12 @@ export const appRouter = router({
             pageSnapshot: input.pageSnapshot,
             recentFeedback: mergedFeedback,
             alwaysConfirm: input.alwaysConfirm,
+            apiTools: registeredTools.map(tool => ({
+              name: tool.name,
+              description: tool.description,
+              method: tool.method,
+              requireConfirmation: tool.requireConfirmation,
+            })),
           }
         );
 
@@ -3603,6 +3673,7 @@ export const appRouter = router({
               intent: null,
               askBeforeAct: false,
               suggestions: [],
+              toolCalls: [],
             };
           }
 
@@ -3621,8 +3692,32 @@ export const appRouter = router({
             intent: null,
             askBeforeAct: false,
             suggestions: [],
+            toolCalls: [],
           };
         }
+      }),
+
+    executeTools: brainProcedure
+      .input(
+        z.object({
+          calls: z.array(
+            z.object({
+              name: z.string().min(2).max(64),
+              args: z.record(z.string(), z.unknown()).optional(),
+            })
+          ).max(5),
+          approved: z.boolean().default(false),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        const tools = getOrbToolRegistry();
+        const results = await executeOrbToolCalls({
+          tools,
+          calls: input.calls,
+          userId: ctx.user.id,
+          approved: input.approved,
+        });
+        return { results };
       }),
   }),
 

@@ -173,4 +173,13 @@ describe("parseOrbReply", () => {
     expect(r.askBeforeAct).toBe(true);
     expect(r.suggestions).toEqual(["好啊", "先不要", "換別的模型"]);
   });
+
+  it("可解析 TOOL marker（payload 為 encodeURIComponent JSON）", () => {
+    const payload = encodeURIComponent(JSON.stringify({ city: "Taipei" }));
+    const r = parseOrbReply(`我幫你查天氣 [TOOL:weather.lookup:${payload}]`);
+    expect(r.reply).toBe("我幫你查天氣");
+    expect(r.toolCalls).toEqual([
+      { name: "weather.lookup", args: { city: "Taipei" } },
+    ]);
+  });
 });
