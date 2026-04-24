@@ -44,6 +44,7 @@ export const OrbTaskSchema = z.object({
     z.object({
       stepId: z.string().min(1).max(64),
       token: z.string().min(8).max(128),
+      approvedAt: z.number().int(),
       expiresAt: z.number().int(),
     })
   ).default([]),

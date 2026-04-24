@@ -93,6 +93,7 @@ export class OrbTaskStore {
         {
           stepId,
           token: `${task.taskId}_${stepId}_${Math.random().toString(36).slice(2, 12)}`,
+          approvedAt: now,
           expiresAt: now + STEP_APPROVAL_TTL_MS,
         },
       ];
@@ -165,6 +166,46 @@ export class OrbTaskStore {
     task.updatedAt = now;
     this.tasks.set(task.taskId, task);
     return task;
+  }
+
+  getTimeline(taskId: string, userId: number, now: number = Date.now()): Array<{
+    type: "task_created" | "step_approved" | "step_reported";
+    at: number;
+    stepId?: string;
+    ok?: boolean;
+    detail?: string;
+    errorCode?: string;
+  }> {
+    const task = this.get(taskId, userId, now);
+    if (!task) return [];
+    const events: Array<{
+      type: "task_created" | "step_approved" | "step_reported";
+      at: number;
+      stepId?: string;
+      ok?: boolean;
+      detail?: string;
+      errorCode?: string;
+    }> = [
+      {
+        type: "task_created",
+        at: task.createdAt,
+      },
+      ...task.stepApprovals.map(x => ({
+        type: "step_approved" as const,
+        at: x.approvedAt,
+        stepId: x.stepId,
+      })),
+      ...task.stepReports.map(x => ({
+        type: "step_reported" as const,
+        at: x.at,
+        stepId: x.stepId,
+        ok: x.ok,
+        detail: x.detail,
+        errorCode: x.errorCode,
+      })),
+    ];
+    events.sort((a, b) => a.at - b.at);
+    return events;
   }
 }
 

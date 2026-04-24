@@ -3446,6 +3446,13 @@ export const appRouter = router({
         return { task };
       }),
 
+    taskTimeline: brainProcedure
+      .input(z.object({ taskId: z.string().min(1).max(72) }))
+      .query(async ({ input, ctx }) => {
+        const events = orbTaskStore.getTimeline(input.taskId, ctx.user.id);
+        return { events };
+      }),
+
     approveTask: brainProcedure
       .input(OrbApproveTaskInputSchema)
       .mutation(async ({ input, ctx }) => {

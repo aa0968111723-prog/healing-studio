@@ -68,4 +68,18 @@ describe("OrbTaskStore", () => {
     expect(store.isStepApproved(task.taskId, 1, "s1", token, 1200)).toBe(true);
     expect(store.isStepApproved(task.taskId, 1, "s1", token, 9_999_999)).toBe(false);
   });
+
+  it("builds chronological task timeline", () => {
+    const store = new OrbTaskStore();
+    const task = store.create({ userId: 1, intent: "x", steps: demoSteps, now: 1000 });
+    store.approveStep(task.taskId, 1, "s1", true, 1200);
+    store.reportStep({ taskId: task.taskId, stepId: "s1", ok: true, detail: "ok" }, 1, 1300);
+    const timeline = store.getTimeline(task.taskId, 1, 1400);
+    expect(timeline.map(x => x.type)).toEqual([
+      "task_created",
+      "step_approved",
+      "step_reported",
+    ]);
+    expect(timeline[2]?.detail).toBe("ok");
+  });
 });
