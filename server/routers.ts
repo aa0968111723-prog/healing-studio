@@ -39,6 +39,7 @@ import { parseOrbReply } from "./services/orbReplyParser";
 import { executeOrbToolCalls } from "./services/agentToolExecutor";
 import { getOrbToolRegistry } from "./config/orbToolRegistry";
 import { orbTaskStore } from "./services/orbTaskStore";
+import { executeCurrentStepTools } from "./services/orbTaskOrchestrator";
 import {
   OrbStartTaskInputSchema,
   OrbApproveTaskInputSchema,
@@ -3458,6 +3459,40 @@ export const appRouter = router({
     reportTaskStep: brainProcedure
       .input(OrbStepReportInputSchema)
       .mutation(async ({ input, ctx }) => {
+        const currentTask = orbTaskStore.get(input.taskId, ctx.user.id);
+        if (!currentTask) return { task: null, toolResults: [] as const };
+
+        let toolResults: Array<{
+          name: string;
+          ok: boolean;
+          status?: number;
+          data?: unknown;
+          error?: string;
+        }> = [];
+
+        if (input.ok) {
+          const tools = getOrbToolRegistry();
+          const toolRun = await executeCurrentStepTools({
+            task: currentTask,
+            userId: ctx.user.id,
+            tools,
+            approved: !currentTask.needsApproval,
+          });
+          toolResults = toolRun.toolResults;
+          if (!toolRun.ok) {
+            const failedTask = orbTaskStore.reportStep(
+              {
+                taskId: input.taskId,
+                stepId: input.stepId,
+                ok: false,
+                at: input.at,
+              },
+              ctx.user.id
+            );
+            return { task: failedTask, toolResults };
+          }
+        }
+
         const task = orbTaskStore.reportStep(
           {
             taskId: input.taskId,
@@ -3467,7 +3502,7 @@ export const appRouter = router({
           },
           ctx.user.id
         );
-        return { task };
+        return { task, toolResults };
       }),
 
     tools: brainProcedure.query(() => {
