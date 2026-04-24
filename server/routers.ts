@@ -101,6 +101,15 @@ function withTimeout<T>(
   });
 }
 
+function ensureFalApiKeyConfigured(): void {
+  if (serverEnv.FAL_API_KEY?.trim()) return;
+  throw new TRPCError({
+    code: "SERVICE_UNAVAILABLE",
+    message:
+      "創作工作室四模態共用 Fal.ai；目前尚未設定 FAL_API_KEY。請到 /admin/api-usage 檢查 providerReadiness，設定後重啟服務。",
+  });
+}
+
 // ─── Safety Moderation Middleware ────────────────────────────────────────────
 
 async function checkSafety(
@@ -658,6 +667,9 @@ export const appRouter = router({
               : input.generationType === "audio"
                 ? "音樂"
                 : "語音";
+
+        // 四模態皆透過 fal.ai；若缺 key，直接回傳可行動的錯誤訊息
+        ensureFalApiKeyConfigured();
 
         // ── Load brain config to get selected engines for this generation ──
         let brainRow: Record<string, unknown> | null = null;
@@ -1682,6 +1694,8 @@ export const appRouter = router({
       )
       .mutation(async ({ ctx, input }) => {
         const userId = ctx.user.id;
+        // 背景任務四模態皆送 fal queue，先做 preflight 檢查避免先扣點再退款
+        ensureFalApiKeyConfigured();
 
         // ── 1. 安全檢查 ────────────────────────────────────────────────
         const safetyResult = await checkSafety(
