@@ -18,6 +18,8 @@ const baseTask: OrbTask = {
   currentStepIndex: 0,
   needsApproval: false,
   approvedStepIds: [],
+  stepApprovals: [],
+  stepReports: [],
   createdAt: 1,
   updatedAt: 1,
 };

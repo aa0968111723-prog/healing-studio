@@ -31,9 +31,14 @@ describe("OrbTaskStore", () => {
   it("report step success advances and eventually succeeds", () => {
     const store = new OrbTaskStore();
     const task = store.create({ userId: 1, intent: "x", steps: demoSteps, now: 1000 });
-    const t1 = store.reportStep({ taskId: task.taskId, stepId: "s1", ok: true }, 1, 1100);
+    const t1 = store.reportStep(
+      { taskId: task.taskId, stepId: "s1", ok: true, detail: "done-1" },
+      1,
+      1100
+    );
     expect(t1?.status).toBe("running");
     expect(t1?.currentStepIndex).toBe(1);
+    expect(t1?.stepReports[0]?.detail).toBe("done-1");
 
     const t2 = store.reportStep({ taskId: task.taskId, stepId: "s2", ok: true }, 1, 1200);
     expect(t2?.status).toBe("succeeded");
@@ -52,5 +57,15 @@ describe("OrbTaskStore", () => {
     const task = store.create({ userId: 1, intent: "x", steps: demoSteps, now: 1000 });
     const out = store.approveStep(task.taskId, 1, "s1", true, 1010);
     expect(out?.approvedStepIds).toContain("s1");
+    expect(out?.stepApprovals.find(x => x.stepId === "s1")?.token).toBeTruthy();
+  });
+
+  it("isStepApproved validates token and expiry", () => {
+    const store = new OrbTaskStore();
+    const task = store.create({ userId: 1, intent: "x", steps: demoSteps, now: 1000 });
+    const approved = store.approveStep(task.taskId, 1, "s1", true, 1100)!;
+    const token = approved.stepApprovals.find(x => x.stepId === "s1")?.token;
+    expect(store.isStepApproved(task.taskId, 1, "s1", token, 1200)).toBe(true);
+    expect(store.isStepApproved(task.taskId, 1, "s1", token, 9_999_999)).toBe(false);
   });
 });

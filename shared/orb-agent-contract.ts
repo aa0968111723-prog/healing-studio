@@ -40,6 +40,22 @@ export const OrbTaskSchema = z.object({
   currentStepIndex: z.number().int().min(0).default(0),
   needsApproval: z.boolean().default(false),
   approvedStepIds: z.array(z.string().min(1).max(64)).default([]),
+  stepApprovals: z.array(
+    z.object({
+      stepId: z.string().min(1).max(64),
+      token: z.string().min(8).max(128),
+      expiresAt: z.number().int(),
+    })
+  ).default([]),
+  stepReports: z.array(
+    z.object({
+      stepId: z.string().min(1).max(64),
+      ok: z.boolean(),
+      detail: z.string().max(500).optional(),
+      errorCode: z.string().max(64).optional(),
+      at: z.number().int(),
+    })
+  ).default([]),
   createdAt: z.number().int(),
   updatedAt: z.number().int(),
 });
@@ -64,6 +80,7 @@ export const OrbStepReportInputSchema = z.object({
   ok: z.boolean(),
   detail: z.string().max(500).optional(),
   errorCode: z.string().max(64).optional(),
+  approvalToken: z.string().min(8).max(128).optional(),
   at: z.number().int().optional(),
 });
 

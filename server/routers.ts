@@ -3466,7 +3466,11 @@ export const appRouter = router({
           input.stepId,
           input.approved
         );
-        return { task };
+        const approvalToken = task?.stepApprovals.find(x => x.stepId === input.stepId)?.token;
+        const approvalExpiresAt = task?.stepApprovals.find(
+          x => x.stepId === input.stepId
+        )?.expiresAt;
+        return { task, approvalToken, approvalExpiresAt };
       }),
 
     reportTaskStep: brainProcedure
@@ -3489,7 +3493,15 @@ export const appRouter = router({
             task: currentTask,
             userId: ctx.user.id,
             tools,
-            approved: !currentTask.needsApproval,
+            approved:
+              !currentTask.needsApproval ||
+              orbTaskStore.isStepApproved(
+                input.taskId,
+                ctx.user.id,
+                input.stepId,
+                input.approvalToken,
+                input.at
+              ),
           });
           toolResults = toolRun.toolResults;
           if (!toolRun.ok) {
@@ -3498,6 +3510,8 @@ export const appRouter = router({
                 taskId: input.taskId,
                 stepId: input.stepId,
                 ok: false,
+                detail: input.detail,
+                errorCode: input.errorCode ?? toolResults[0]?.error,
                 at: input.at,
               },
               ctx.user.id
@@ -3511,6 +3525,8 @@ export const appRouter = router({
             taskId: input.taskId,
             stepId: input.stepId,
             ok: input.ok,
+            detail: input.detail,
+            errorCode: input.errorCode,
             at: input.at,
           },
           ctx.user.id

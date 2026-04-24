@@ -12,10 +12,13 @@ export interface ReportStepInput {
   taskId: string;
   stepId: string;
   ok: boolean;
+  detail?: string;
+  errorCode?: string;
   at?: number;
 }
 
 const TASK_TTL_MS = 30 * 60 * 1000;
+const STEP_APPROVAL_TTL_MS = 5 * 60 * 1000;
 
 function makeTaskId(now: number): string {
   return `orb_${now}_${Math.random().toString(36).slice(2, 10)}`;
@@ -45,6 +48,8 @@ export class OrbTaskStore {
       currentStepIndex: 0,
       needsApproval: Boolean(input.needsApproval),
       approvedStepIds: [],
+      stepApprovals: [],
+      stepReports: [],
       createdAt: now,
       updatedAt: now,
     };
@@ -82,9 +87,42 @@ export class OrbTaskStore {
     if (approved) set.add(stepId);
     else set.delete(stepId);
     task.approvedStepIds = Array.from(set);
+    if (approved) {
+      task.stepApprovals = [
+        ...task.stepApprovals.filter(x => x.stepId !== stepId),
+        {
+          stepId,
+          token: `${task.taskId}_${stepId}_${Math.random().toString(36).slice(2, 12)}`,
+          expiresAt: now + STEP_APPROVAL_TTL_MS,
+        },
+      ];
+    } else {
+      task.stepApprovals = task.stepApprovals.filter(x => x.stepId !== stepId);
+    }
     task.updatedAt = now;
     this.tasks.set(task.taskId, task);
     return task;
+  }
+
+  isStepApproved(
+    taskId: string,
+    userId: number,
+    stepId: string,
+    token: string | undefined,
+    now: number = Date.now()
+  ): boolean {
+    const task = this.get(taskId, userId, now);
+    if (!task) return false;
+    const approval = task.stepApprovals.find(x => x.stepId === stepId);
+    if (!approval) return false;
+    const valid = approval.expiresAt >= now && Boolean(token) && approval.token === token;
+    if (!valid && approval.expiresAt < now) {
+      task.stepApprovals = task.stepApprovals.filter(x => x.stepId !== stepId);
+      task.approvedStepIds = task.approvedStepIds.filter(x => x !== stepId);
+      task.updatedAt = now;
+      this.tasks.set(task.taskId, task);
+    }
+    return valid;
   }
 
   reportStep(input: ReportStepInput, userId: number, now: number = Date.now()): OrbTask | null {
@@ -102,6 +140,13 @@ export class OrbTaskStore {
 
     if (!input.ok) {
       task.status = "failed";
+      task.stepReports.push({
+        stepId: input.stepId,
+        ok: false,
+        detail: input.detail,
+        errorCode: input.errorCode,
+        at: input.at ?? now,
+      });
       task.updatedAt = now;
       this.tasks.set(task.taskId, task);
       return task;
@@ -109,6 +154,13 @@ export class OrbTaskStore {
 
     const nextIndex = task.currentStepIndex + 1;
     task.currentStepIndex = nextIndex;
+    task.stepReports.push({
+      stepId: input.stepId,
+      ok: true,
+      detail: input.detail,
+      errorCode: input.errorCode,
+      at: input.at ?? now,
+    });
     task.status = nextIndex >= task.steps.length ? "succeeded" : "running";
     task.updatedAt = now;
     this.tasks.set(task.taskId, task);
