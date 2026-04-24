@@ -551,6 +551,7 @@ function DashboardLayoutContent({
       "/settings": "settings",
       "/settings/ai-brain": "settings",
       "/learn": "learn",
+      "/learn/tutorial-overview": "learn",
       "/focus-flow": "focus-flow",
       "/langsmith": "langsmith",
       "/background-tasks": "background-tasks",

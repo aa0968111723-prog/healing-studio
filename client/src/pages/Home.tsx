@@ -1501,7 +1501,7 @@ ${profileSnippet}`;
                   )}
                   <Button
                     size="sm"
-                    onClick={() => navigate("/tutorial-overview")}
+                    onClick={() => navigate("/learn/tutorial-overview")}
                     className={`rounded-xl text-xs sm:text-sm gap-1.5 ${s.btnOutline} ${s.btnOutlineText}`}
                   >
                     <Rocket className="w-3.5 h-3.5" />
@@ -1510,7 +1510,7 @@ ${profileSnippet}`;
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => navigate("/tutorial-overview")}
+                    onClick={() => navigate("/learn/tutorial-overview")}
                     className={`rounded-xl text-xs sm:text-sm ${s.btnOutline} ${s.btnOutlineText}`}
                   >
                     再看互動式導覽
@@ -1533,7 +1533,7 @@ ${profileSnippet}`;
         }}
       />
 
-      {/* 首頁快速導覽已完整移至 /tutorial-overview */}
+      {/* 首頁快速導覽已完整移至 /learn/tutorial-overview */}
 
       {/* ── Video Demo Showcase (影片功能展示區域) — healing carousel ── */}
       <section className="section-breathing px-4 sm:px-6 relative z-10">

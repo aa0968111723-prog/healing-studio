@@ -172,6 +172,9 @@ function Router() {
       <Route path="/learn">
         <DashboardRoute component={LearnHub} />
       </Route>
+      <Route path="/learn/tutorial-overview">
+        <DashboardRoute component={TutorialOverviewPage} />
+      </Route>
       <Route path="/tutorial-overview">
         <DashboardRoute component={TutorialOverviewPage} />
       </Route>

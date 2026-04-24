@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useAIState } from "@/contexts/AIStateContext";
@@ -76,6 +77,7 @@ import {
   FileAudio,
   FileVideo,
   File,
+  Sparkles,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
@@ -2107,6 +2109,7 @@ function QuizLearningTab({ isAdmin }: { isAdmin: boolean }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export default function LearnHub() {
+  const [, navigate] = useLocation();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
 
@@ -2347,6 +2350,15 @@ export default function LearnHub() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-xl"
+            onClick={() => navigate("/learn/tutorial-overview")}
+          >
+            <Sparkles className="w-4 h-4 mr-1.5" />
+            教學總覽
+          </Button>
           <VisualSoul
             size="sm"
             state={aiState}

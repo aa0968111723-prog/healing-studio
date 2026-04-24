@@ -83,6 +83,19 @@ export default function TutorialOverviewPage() {
     <div className="w-full p-2.5 sm:p-6 lg:p-8 space-y-3 sm:space-y-5">
       <Card>
         <CardHeader className="pb-2 px-3.5 sm:px-6 sm:pb-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <p className="text-[11px] sm:text-xs text-muted-foreground">
+              學習中心 / 教學總覽
+            </p>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 px-2.5 text-xs"
+              onClick={() => navigate("/learn")}
+            >
+              返回學習中心
+            </Button>
+          </div>
           <CardTitle className="text-lg sm:text-2xl flex items-center gap-2">
             <Sparkles className="w-5 h-5" /> 教學總覽
           </CardTitle>
