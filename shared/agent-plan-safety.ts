@@ -262,6 +262,48 @@ export function getAgentPlanBlockers(plan: AgentPlan): AgentPlanSafetyIssue[] {
   return evaluateAgentPlanSafety(plan).issues.filter(issue => issue.severity === "blocker");
 }
 
+function workflowStepToSyntheticAction(step: RunWorkflowAction["steps"][number]): AgentAction {
+  const payload = step.payload ?? "";
+
+  switch (step.actionType) {
+    case "submit":
+    case "generate":
+      return { type: "submit" };
+    case "reset":
+      return { type: "reset" };
+    case "navigate":
+      return { type: "navigate", path: payload || step.path || "/" };
+    case "setModality":
+      return { type: "setModality", modality: payload === "video" || payload === "audio" || payload === "voice" ? payload : "image" };
+    case "applyPreset":
+      return { type: "applyPreset", presetId: payload || "workflow-preset" };
+    case "setModel":
+      return { type: "setModel", modelId: payload || "workflow-model" };
+    case "setTab":
+      return { type: "setTab", tabId: payload || "workflow-tab" };
+    case "setMode":
+      return { type: "setMode", modeId: payload || "workflow-mode" };
+    case "setParam": {
+      const [key, ...rest] = payload.split(":");
+      return { type: "setParam", key: key || "workflow-param", value: rest.join(":") };
+    }
+    case "search":
+      return { type: "search", query: payload || step.label };
+    case "focusElement":
+      return { type: "focusElement", elementId: payload || "workflow-target", message: step.label };
+    case "openDialog":
+      return { type: "openDialog", dialogId: payload || "workflow-dialog" };
+    case "toggleSetting":
+      return { type: "toggleSetting", key: payload || "workflow-setting" };
+    case "appendPrompt":
+    case "fillNegativePrompt":
+    case "fillLyrics":
+    case "fillPrompt":
+    default:
+      return { type: "fillPrompt", text: payload || step.label };
+  }
+}
+
 export function evaluateWorkflowSafety(action: RunWorkflowAction): AgentPlanSafetyEvaluation {
   const syntheticPlan: AgentPlan = {
     schemaVersion: "agent-plan.v1",
@@ -271,20 +313,16 @@ export function evaluateWorkflowSafety(action: RunWorkflowAction): AgentPlanSafe
     shouldAskClarification: false,
     warnings: [],
     steps: action.steps.map((step, index) => {
-      const actionType = step.actionType as AgentActionType;
-      const isSubmit = actionType === "submit" || actionType === "generate";
-      const normalizedAction: AgentAction = isSubmit
-        ? { type: "submit" }
-        : actionType === "navigate"
-          ? { type: "navigate", path: step.payload || step.path || "/" }
-          : { type: "fillPrompt", text: step.payload || step.label };
+      const normalizedAction = workflowStepToSyntheticAction(step);
+      const riskLevel = inferRiskLevelForAction(normalizedAction);
+      const requiresApproval = actionRequiresApproval(normalizedAction);
       return {
         id: `workflow-step-${index + 1}`,
         label: step.label,
         pagePath: step.path,
-        riskLevel: isSubmit ? "high" : "low",
-        requiresApproval: isSubmit,
-        undoable: !isSubmit,
+        riskLevel,
+        requiresApproval,
+        undoable: !requiresApproval,
         action: normalizedAction,
       };
     }),
