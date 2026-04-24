@@ -1,9 +1,9 @@
 import { invokeLLM, type Message, type InvokeResult } from "../_core/llm";
 import { AGENT_PLAN_JSON_SCHEMA } from "../../shared/agent-plan-schema";
 import {
-  adaptAgentPlanToActions,
   buildAgentPlanSystemPrompt,
-  type AgentPlanAdapterResult,
+  parseAndGatePlan,
+  type GatedAgentPlanResult,
 } from "../../shared/agent-plan-adapter";
 import type { AgentFeedbackEvent, PageAgentSnapshot } from "../../shared/agent-actions";
 
@@ -25,7 +25,7 @@ export interface AgentPlannerInput {
   invoke?: typeof invokeLLM;
 }
 
-export interface AgentPlannerResult extends AgentPlanAdapterResult {
+export interface AgentPlannerResult extends GatedAgentPlanResult {
   rawContent?: string;
   plannerUsed: boolean;
   usedMultimodalPlanner?: boolean;
@@ -197,9 +197,13 @@ export async function runSchemaFirstAgentPlanner(
   });
 
   const rawContent = extractPlannerContent(result);
-  const adapted = adaptAgentPlanToActions(rawContent);
+  const gated = parseAndGatePlan(rawContent);
+  // Multimodal-derived planner always prefers Gemini routing for the next
+  // engine pick, regardless of what the model declared.
+  const preferredEngine = usedMultimodalPlanner ? "gemini" : gated.preferredEngine;
   return {
-    ...adapted,
+    ...gated,
+    preferredEngine,
     rawContent,
     plannerUsed: true,
     usedMultimodalPlanner,
