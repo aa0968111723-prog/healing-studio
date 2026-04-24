@@ -151,7 +151,8 @@ export function evaluateAgentPlanSafety(
     });
   }
 
-  for (const [index, step] of plan.steps.entries()) {
+  for (let index = 0; index < plan.steps.length; index += 1) {
+    const step = plan.steps[index];
     const actionType = step.action.type;
     const risk = stepRisk(step);
     maxRiskLevel = maxRisk(maxRiskLevel, risk);
@@ -262,7 +263,7 @@ export function getAgentPlanBlockers(plan: AgentPlan): AgentPlanSafetyIssue[] {
   return evaluateAgentPlanSafety(plan).issues.filter(issue => issue.severity === "blocker");
 }
 
-function workflowStepToSyntheticAction(step: RunWorkflowAction["steps"][number]): AgentAction {
+function workflowStepToSyntheticAction(step: RunWorkflowAction["steps"][number]): AgentPlanStep["action"] {
   const payload = step.payload ?? "";
 
   switch (step.actionType) {
