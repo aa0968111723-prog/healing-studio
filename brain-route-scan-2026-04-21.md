@@ -38,6 +38,17 @@
 
 **判定：**「功能存在」，但「未完全納入 AI 大腦可配置模型路由」。
 
+#### A 線（新對話）建議任務邊界
+
+可直接在新對話給 A 光球助理以下明確需求：
+
+1. **只接收 B 已批准的任務/指令**，不自行擴張需求範圍。
+2. **在頁內執行 action dispatch**（走 PageAgent bus），負責把核准動作落到實際頁面互動。
+3. **顯示執行中 UI**（例如步驟條、成功/失敗狀態），讓使用者看見進度與結果。
+4. **失敗要可回報給 B**，至少包含：
+   - `error code`
+   - `context`（發生頁面、步驟、輸入摘要、失敗條件）
+
 ### B) 創作工作室 `/studio`
 
 - `submitMultimodalAsync` 會先查 `userAiBrain`，再 `resolveFalEnginesFromRow(brainRow)`。
@@ -64,3 +75,75 @@
 3. 加一致性測試：
    - `ImageStudio.MODELS.falId ⊆ brain.catalog.falTasks.text-to-image(+edit)`
    - `ai.chat` 是否可讀取對應 brain slot。
+
+---
+
+## 下一步（可直接下給 A 線的執行規格）
+
+> 目標：A 僅做「執行層」，由 B 做「審批/決策層」。
+
+### 1) 任務入口（只吃 B 已批准指令）
+
+- A 只接受帶有 `approvedByB: true` 的任務物件。
+- 未帶批准標記時，A 不執行 action，只回報 `NOT_APPROVED`。
+
+建議 payload：
+
+```ts
+type ApprovedTask = {
+  taskId: string;
+  approvedByB: true;
+  source: "B";
+  pageId?: string;
+  actions: AgentAction[];
+};
+```
+
+### 2) 頁內執行（PageAgent bus）
+
+- A 收到 `ApprovedTask` 後，逐步 `dispatch` 到 PageAgent bus。
+- 每步都要產出可追蹤結果（成功/失敗/跳過）。
+
+### 3) 執行中 UI（步驟條 + 結果狀態）
+
+- UI 最少要有：
+  - 任務標題（taskId）
+  - 總步數 / 當前步
+  - 每步狀態：`running | success | failed | skipped`
+- 任務結束要顯示總結：`successCount / failCount / skippedCount`。
+
+### 4) 失敗回報（回傳給 B）
+
+- 任一 action 失敗時，A 要立即回報 B，格式至少包含：
+  - `errorCode`
+  - `context`
+
+建議 error code 白名單：
+
+- `NOT_APPROVED`：沒有 B 批准標記
+- `NO_PAGE_HANDLER`：目標頁尚未註冊 handler
+- `ACTION_REJECTED`：頁面 handler 回傳 `ok: false`
+- `ACTION_EXCEPTION`：頁面 handler throw
+- `TIMEOUT`：單步執行逾時
+
+建議 context 欄位：
+
+```ts
+type FailureContext = {
+  taskId: string;
+  pageId?: string;
+  actionType: string;
+  actionSummary?: string;
+  stepIndex: number;
+  totalSteps: number;
+  reason?: string;
+  at: number; // timestamp ms
+};
+```
+
+### 5) 驗收標準（Definition of Done）
+
+1. 未批准任務不會觸發任何 page action。
+2. 批准任務可被逐步派送，且 UI 會同步顯示進度。
+3. 任一步失敗時，B 會收到 `errorCode + context`。
+4. 任務完成後可看到完整結果摘要（成功/失敗/略過）。
