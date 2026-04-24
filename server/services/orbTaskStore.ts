@@ -1,0 +1,212 @@
+import type { OrbTask, OrbPlanStep, OrbTaskStatus } from "../../shared/orb-agent-contract";
+
+export interface CreateOrbTaskInput {
+  userId: number;
+  intent: string;
+  steps: OrbPlanStep[];
+  needsApproval?: boolean;
+  now?: number;
+}
+
+export interface ReportStepInput {
+  taskId: string;
+  stepId: string;
+  ok: boolean;
+  detail?: string;
+  errorCode?: string;
+  at?: number;
+}
+
+const TASK_TTL_MS = 30 * 60 * 1000;
+const STEP_APPROVAL_TTL_MS = 5 * 60 * 1000;
+
+function makeTaskId(now: number): string {
+  return `orb_${now}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export class OrbTaskStore {
+  private tasks = new Map<string, OrbTask>();
+
+  private cleanup(now: number): void {
+    this.tasks.forEach((task, id) => {
+      if (now - task.updatedAt > TASK_TTL_MS) this.tasks.delete(id);
+    });
+  }
+
+  create(input: CreateOrbTaskInput): OrbTask {
+    const now = input.now ?? Date.now();
+    this.cleanup(now);
+    const status: OrbTaskStatus = input.needsApproval
+      ? "waiting_approval"
+      : "running";
+    const task: OrbTask = {
+      taskId: makeTaskId(now),
+      userId: input.userId,
+      intent: input.intent,
+      status,
+      steps: input.steps,
+      currentStepIndex: 0,
+      needsApproval: Boolean(input.needsApproval),
+      approvedStepIds: [],
+      stepApprovals: [],
+      stepReports: [],
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.tasks.set(task.taskId, task);
+    return task;
+  }
+
+  get(taskId: string, userId: number, now: number = Date.now()): OrbTask | null {
+    this.cleanup(now);
+    const task = this.tasks.get(taskId);
+    if (!task || task.userId !== userId) return null;
+    return task;
+  }
+
+  approve(taskId: string, userId: number, approved: boolean, now: number = Date.now()): OrbTask | null {
+    const task = this.get(taskId, userId, now);
+    if (!task) return null;
+    task.needsApproval = !approved;
+    task.status = approved ? "running" : "cancelled";
+    task.updatedAt = now;
+    this.tasks.set(task.taskId, task);
+    return task;
+  }
+
+  approveStep(
+    taskId: string,
+    userId: number,
+    stepId: string,
+    approved: boolean,
+    now: number = Date.now()
+  ): OrbTask | null {
+    const task = this.get(taskId, userId, now);
+    if (!task) return null;
+    const set = new Set(task.approvedStepIds);
+    if (approved) set.add(stepId);
+    else set.delete(stepId);
+    task.approvedStepIds = Array.from(set);
+    if (approved) {
+      task.stepApprovals = [
+        ...task.stepApprovals.filter(x => x.stepId !== stepId),
+        {
+          stepId,
+          token: `${task.taskId}_${stepId}_${Math.random().toString(36).slice(2, 12)}`,
+          approvedAt: now,
+          expiresAt: now + STEP_APPROVAL_TTL_MS,
+        },
+      ];
+    } else {
+      task.stepApprovals = task.stepApprovals.filter(x => x.stepId !== stepId);
+    }
+    task.updatedAt = now;
+    this.tasks.set(task.taskId, task);
+    return task;
+  }
+
+  isStepApproved(
+    taskId: string,
+    userId: number,
+    stepId: string,
+    token: string | undefined,
+    now: number = Date.now()
+  ): boolean {
+    const task = this.get(taskId, userId, now);
+    if (!task) return false;
+    const approval = task.stepApprovals.find(x => x.stepId === stepId);
+    if (!approval) return false;
+    const valid = approval.expiresAt >= now && Boolean(token) && approval.token === token;
+    if (!valid && approval.expiresAt < now) {
+      task.stepApprovals = task.stepApprovals.filter(x => x.stepId !== stepId);
+      task.approvedStepIds = task.approvedStepIds.filter(x => x !== stepId);
+      task.updatedAt = now;
+      this.tasks.set(task.taskId, task);
+    }
+    return valid;
+  }
+
+  reportStep(input: ReportStepInput, userId: number, now: number = Date.now()): OrbTask | null {
+    const task = this.get(input.taskId, userId, now);
+    if (!task) return null;
+    if (task.status !== "running") return task;
+
+    const current = task.steps[task.currentStepIndex];
+    if (!current || current.id !== input.stepId) {
+      task.status = "failed";
+      task.updatedAt = now;
+      this.tasks.set(task.taskId, task);
+      return task;
+    }
+
+    if (!input.ok) {
+      task.status = "failed";
+      task.stepReports.push({
+        stepId: input.stepId,
+        ok: false,
+        detail: input.detail,
+        errorCode: input.errorCode,
+        at: input.at ?? now,
+      });
+      task.updatedAt = now;
+      this.tasks.set(task.taskId, task);
+      return task;
+    }
+
+    const nextIndex = task.currentStepIndex + 1;
+    task.currentStepIndex = nextIndex;
+    task.stepReports.push({
+      stepId: input.stepId,
+      ok: true,
+      detail: input.detail,
+      errorCode: input.errorCode,
+      at: input.at ?? now,
+    });
+    task.status = nextIndex >= task.steps.length ? "succeeded" : "running";
+    task.updatedAt = now;
+    this.tasks.set(task.taskId, task);
+    return task;
+  }
+
+  getTimeline(taskId: string, userId: number, now: number = Date.now()): Array<{
+    type: "task_created" | "step_approved" | "step_reported";
+    at: number;
+    stepId?: string;
+    ok?: boolean;
+    detail?: string;
+    errorCode?: string;
+  }> {
+    const task = this.get(taskId, userId, now);
+    if (!task) return [];
+    const events: Array<{
+      type: "task_created" | "step_approved" | "step_reported";
+      at: number;
+      stepId?: string;
+      ok?: boolean;
+      detail?: string;
+      errorCode?: string;
+    }> = [
+      {
+        type: "task_created",
+        at: task.createdAt,
+      },
+      ...task.stepApprovals.map(x => ({
+        type: "step_approved" as const,
+        at: x.approvedAt,
+        stepId: x.stepId,
+      })),
+      ...task.stepReports.map(x => ({
+        type: "step_reported" as const,
+        at: x.at,
+        stepId: x.stepId,
+        ok: x.ok,
+        detail: x.detail,
+        errorCode: x.errorCode,
+      })),
+    ];
+    events.sort((a, b) => a.at - b.at);
+    return events;
+  }
+}
+
+export const orbTaskStore = new OrbTaskStore();
