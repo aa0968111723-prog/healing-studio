@@ -9,7 +9,7 @@
  * 這些測試不依賴 React / DOM / API Key，可在 Vitest node 環境直接執行。
  */
 import { describe, expect, it, beforeEach } from "vitest";
-import type { AgentAction, PageAgentSnapshot } from "../shared/agent-actions";
+import { adaptAgentPlanToActions, type AgentAction, type PageAgentSnapshot } from "../shared/agent-actions";
 import { GlobalAgentRegistry, globalAgentRegistry } from "../shared/global-agent-registry";
 import {
   buildShortVideoWorkflow,
@@ -17,7 +17,13 @@ import {
   maybeCreateWorkflowFromUserText,
   workflowStepToAction,
 } from "../shared/global-agent-workflows";
-import { executeGlobalAction, executeGlobalWorkflow } from "../shared/global-agent-orchestrator";
+import {
+  executeGlobalAction,
+  executeGlobalActions,
+  executeGlobalWorkflow,
+  findDangerousWorkflowSteps,
+  shouldAskBeforeAct,
+} from "../shared/global-agent-orchestrator";
 
 function makePage(id: string, path: string, label: string, actions: AgentAction["type"][]): PageAgentSnapshot {
   return {
@@ -72,6 +78,15 @@ describe("GlobalAgentRegistry", () => {
       targetPageId: "director",
       action: { type: "submit" },
     });
+  });
+
+  it("can find page snapshot by path", () => {
+    const registry = new GlobalAgentRegistry();
+    const director = makePage("director", "/director", "導演 AI", ["fillPrompt"]);
+    registry.register(director);
+
+    expect(registry.findByPath("/director")?.pageId).toBe("director");
+    expect(registry.findByPath("/missing")).toBeUndefined();
   });
 
   it("creates direct navigation plans without requiring page registration", () => {
@@ -144,6 +159,26 @@ describe("global-agent-workflows", () => {
     expect(workflow.steps.map(step => step.label).join("\n")).toContain("影片工作室");
     expect(workflow.steps.map(step => step.label).join("\n")).toContain("配音");
   });
+
+  it("adapts schema-first planner output into runWorkflow action", () => {
+    const adapted = adaptAgentPlanToActions({
+      name: "Schema Plan",
+      steps: [
+        { path: "/director", actionType: "fillPrompt", payload: "企劃", label: "填企劃" },
+        { path: "/director", actionType: "submit", payload: "", label: "送出" },
+      ],
+    });
+
+    expect(adapted).toHaveLength(1);
+    expect(adapted[0]).toMatchObject({
+      type: "runWorkflow",
+      name: "Schema Plan",
+      steps: [
+        { path: "/director", actionType: "fillPrompt", payload: "企劃", label: "填企劃" },
+        { path: "/director", actionType: "submit", payload: "", label: "送出" },
+      ],
+    });
+  });
 });
 
 describe("global-agent-orchestrator", () => {
@@ -211,7 +246,7 @@ describe("global-agent-orchestrator", () => {
       "act:setModality:studio",
       "step:4:填圖像",
       "nav:/studio",
-      "act:fillPrompt:director",
+      "act:fillPrompt:studio",
     ]);
   });
 
@@ -236,5 +271,122 @@ describe("global-agent-orchestrator", () => {
     expect(result.ok).toBe(false);
     expect(result.reason).toContain("missing API key");
     expect(result.results).toHaveLength(2);
+  });
+
+  it("executes multiple actions sequentially (not in parallel)", async () => {
+    globalAgentRegistry.register(makePage("director", "/director", "導演 AI", ["fillPrompt", "setTab"]));
+    const calls: string[] = [];
+
+    await executeGlobalActions([
+      { type: "fillPrompt", text: "first" },
+      { type: "setTab", tabId: "second" },
+    ], {
+      currentPage: null,
+      navigate: async path => calls.push(`nav:${path}`),
+      dispatch: async action => {
+        calls.push(`act:${action.type}`);
+        return { ok: true };
+      },
+      waitAfterNavigateMs: 0,
+    });
+
+    expect(calls).toEqual([
+      "nav:/director",
+      "act:fillPrompt",
+      "nav:/director",
+      "act:setTab",
+    ]);
+  });
+
+  it("stops batch execution after the first failed action", async () => {
+    globalAgentRegistry.register(makePage("director", "/director", "導演 AI", ["fillPrompt", "setTab"]));
+    const calls: string[] = [];
+
+    const result = await executeGlobalActions([
+      { type: "fillPrompt", text: "first" },
+      { type: "setTab", tabId: "second" },
+    ], {
+      currentPage: null,
+      navigate: async path => calls.push(`nav:${path}`),
+      dispatch: async action => {
+        calls.push(`act:${action.type}`);
+        if (action.type === "fillPrompt") return { ok: false, reason: "blocked" };
+        return { ok: true };
+      },
+      waitAfterNavigateMs: 0,
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.ok).toBe(false);
+    expect(calls).toEqual(["nav:/director", "act:fillPrompt"]);
+  });
+
+  it("returns validation failure when workflow has no executable steps", async () => {
+    const result = await executeGlobalWorkflow({
+      type: "runWorkflow",
+      name: "空流程",
+      steps: [{ path: "/director", actionType: "unknownAction", payload: "", label: "壞步驟" }],
+    }, {
+      currentPage: null,
+      navigate: async () => undefined,
+      dispatch: async () => ({ ok: true }),
+      waitAfterNavigateMs: 0,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe("workflow has no executable steps");
+    expect(result.results[0]).toEqual({ ok: false, reason: "workflow has no executable steps" });
+  });
+
+  it("passes source and intentSummary through workflow step dispatch options", async () => {
+    globalAgentRegistry.register(makePage("director", "/director", "導演 AI", ["fillPrompt"]));
+    const seenOpts: Array<{ source?: string; intentSummary?: string }> = [];
+
+    const result = await executeGlobalWorkflow({
+      type: "runWorkflow",
+      name: "來源驗證",
+      steps: [{ path: "/director", actionType: "fillPrompt", payload: "企劃", label: "填企劃" }],
+    }, {
+      currentPage: null,
+      navigate: async () => undefined,
+      dispatch: async (_action, opts) => {
+        seenOpts.push({ source: opts?.source, intentSummary: opts?.intentSummary });
+        return { ok: true };
+      },
+      source: "ai-chat",
+      intentSummary: "幫我做影片企劃",
+      waitAfterNavigateMs: 0,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(seenOpts).toEqual([{ source: "ai-chat", intentSummary: "幫我做影片企劃" }]);
+  });
+});
+
+describe("orchestrator safety helpers", () => {
+  it("detects dangerous workflow steps by index", () => {
+    const indexes = findDangerousWorkflowSteps({
+      type: "runWorkflow",
+      name: "測試",
+      steps: [
+        { path: "/director", actionType: "fillPrompt", payload: "x", label: "填寫" },
+        { path: "/director", actionType: "submit", payload: "", label: "送出" },
+        { path: "/studio", actionType: "reset", payload: "", label: "重設" },
+      ],
+    });
+    expect(indexes).toEqual([1, 2]);
+  });
+
+  it("infers ask-before-act for dangerous actions and multi-step workflows", () => {
+    expect(shouldAskBeforeAct([{ type: "submit" }])).toBe(true);
+    expect(shouldAskBeforeAct([{
+      type: "runWorkflow",
+      name: "兩步流程",
+      steps: [
+        { path: "/director", actionType: "fillPrompt", payload: "x", label: "填寫" },
+        { path: "/director", actionType: "setParam", payload: "duration: 6", label: "設定" },
+      ],
+    }])).toBe(true);
+    expect(shouldAskBeforeAct([{ type: "fillPrompt", text: "hello" }])).toBe(false);
   });
 });

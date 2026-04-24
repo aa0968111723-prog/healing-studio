@@ -18,9 +18,9 @@ import {
 } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePersonality } from "./PersonalityContext";
-import { usePageAgent, parseLLMActions, type AgentAction } from "./PageAgentContext";
+import { usePageAgent, parseLLMActions, adaptAgentPlanToActions, type AgentAction } from "./PageAgentContext";
 import { useLocation } from "wouter";
-import { executeGlobalActions } from "../../../shared/global-agent-orchestrator";
+import { executeGlobalActions, shouldAskBeforeAct } from "../../../shared/global-agent-orchestrator";
 import { maybeCreateWorkflowFromUserText } from "../../../shared/global-agent-workflows";
 
 export {
@@ -598,7 +598,9 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         } : prev);
         setMessages(prev => [...prev, {
           role: "orb",
-          text: `⚠️ 我找到要做的事，但執行時遇到問題：${failedReason}`,
+          text: failedReason === "workflow disabled"
+            ? "⚠️ 目前跨頁工作流程功能暫時關閉。我可以先提供手動步驟指引，或改成單一步驟幫你執行。"
+            : `⚠️ 我找到要做的事，但執行時遇到問題：${failedReason}`,
           at: Date.now(),
           pagePath: locationPath,
         }]);
@@ -676,7 +678,14 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       const intent = typeof (data as { intent?: string | null }).intent === "string"
         ? ((data as { intent?: string | null }).intent as string)
         : undefined;
-      const llmActions = data.actions ? parseLLMActions(data.actions) : [];
+      const rawPlannerOutput = (data as { plannerOutput?: unknown; agentPlan?: unknown; plan?: unknown }).plannerOutput
+        ?? (data as { plannerOutput?: unknown; agentPlan?: unknown; plan?: unknown }).agentPlan
+        ?? (data as { plannerOutput?: unknown; agentPlan?: unknown; plan?: unknown }).plan;
+      const llmActions = rawPlannerOutput
+        ? adaptAgentPlanToActions(rawPlannerOutput)
+        : data.actions
+        ? parseLLMActions(data.actions)
+        : [];
       const fallbackWorkflow = llmActions.length === 0 ? maybeCreateWorkflowFromUserText(trimmed) : null;
       const actionsToExecute: AgentAction[] = fallbackWorkflow ? [fallbackWorkflow] : llmActions;
       const effectiveIntent = intent ?? (fallbackWorkflow ? fallbackWorkflow.name : undefined);
@@ -711,7 +720,9 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       }
 
       if (actionsToExecute.length > 0) {
-        const askBeforeAct = (data as { askBeforeAct?: boolean }).askBeforeAct === true;
+        const askBeforeAct =
+          (data as { askBeforeAct?: boolean }).askBeforeAct === true ||
+          shouldAskBeforeAct(actionsToExecute);
         await executeActions(actionsToExecute, {
           intent: effectiveIntent,
           requireConfirmation: askBeforeAct,

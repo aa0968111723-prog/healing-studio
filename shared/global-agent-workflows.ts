@@ -102,17 +102,20 @@ export function workflowStepToAction(step: AgentWorkflowStep): AgentAction | nul
 }
 
 export function expandWorkflowAction(action: RunWorkflowAction): ExpandedWorkflowStep[] {
-  return action.steps
-    .map(step => {
-      const concrete = workflowStepToAction(step);
-      if (!concrete) return null;
-      return {
-        path: step.path,
-        label: step.label,
-        action: concrete,
-      } satisfies ExpandedWorkflowStep;
-    })
-    .filter((step): step is ExpandedWorkflowStep => step !== null);
+  const expanded: ExpandedWorkflowStep[] = [];
+
+  for (const step of action.steps) {
+    const concrete = workflowStepToAction(step);
+    if (!concrete) continue;
+
+    expanded.push({
+      ...(step.path ? { path: step.path } : {}),
+      label: step.label,
+      action: concrete,
+    });
+  }
+
+  return expanded;
 }
 
 export function buildShortVideoWorkflow(brief: string): RunWorkflowAction {

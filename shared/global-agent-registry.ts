@@ -103,6 +103,10 @@ export class GlobalAgentRegistry {
     return this.pages.get(pageId);
   }
 
+  findByPath(path: string): PageAgentSnapshot | undefined {
+    return this.list().find(snapshot => snapshot.pagePath === path);
+  }
+
   findSupportingPages(actionType: AgentActionType | string): PageAgentSnapshot[] {
     return this.list().filter(snapshot =>
       snapshot.capabilities.some(capability => capability.action === actionType)

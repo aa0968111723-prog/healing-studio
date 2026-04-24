@@ -33,6 +33,7 @@ import { globalAgentRegistry } from "../../../shared/global-agent-registry";
 import {
   AGENT_FEEDBACK_HISTORY_CAP,
   coerceAgentAction,
+  adaptAgentPlanToActions,
   drainActionsForPage,
   enqueueAction,
   isDestructiveAction,
@@ -61,6 +62,7 @@ export type {
 } from "../../../shared/agent-actions";
 export {
   parseLLMActions,
+  adaptAgentPlanToActions,
   coerceAgentAction,
   summarizeAction,
   isDestructiveAction,
