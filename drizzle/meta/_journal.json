@@ -64,6 +64,41 @@
       "when": 1776622268401,
       "tag": "0008_numerous_mother_askani",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1776622268402,
+      "tag": "0008_admin_api_usage",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1776622268403,
+      "tag": "0009_prompt_library_generation_mode",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1776622268404,
+      "tag": "0010_add_generationMode_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "5",
+      "when": 1776622268405,
+      "tag": "0011_user_auto_credit_policy",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "5",
+      "when": 1776622268406,
+      "tag": "0012_local_auth_password_hash",
+      "breakpoints": true
     }
   ]
 }
