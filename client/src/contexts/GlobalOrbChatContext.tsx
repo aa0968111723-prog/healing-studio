@@ -2,8 +2,8 @@
  * GlobalOrbChatContext.tsx — 全站光球聊天狀態管理
  *
  * Keeps the existing Orb chat UX, routes structured actions through the global
- * orchestrator, and now adds a deterministic Director workflow fallback when
- * the user clearly asks for a short video but the LLM returns no actions.
+ * orchestrator, adds deterministic Director workflow fallback, and exposes a
+ * global workflow execution status panel.
  */
 
 import {
@@ -72,6 +72,32 @@ export interface ChatMessage {
 export interface ChatSuggestion {
   text: string;
   action?: AgentAction;
+}
+
+export type WorkflowExecutionStatus = "idle" | "running" | "completed" | "failed";
+export type WorkflowExecutionStepStatus = "pending" | "running" | "completed" | "failed";
+
+export interface WorkflowExecutionStepState {
+  index: number;
+  label: string;
+  path?: string;
+  actionType: AgentAction["type"] | string;
+  status: WorkflowExecutionStepStatus;
+  reason?: string;
+  startedAt?: number;
+  completedAt?: number;
+}
+
+export interface WorkflowExecutionState {
+  id: string;
+  name: string;
+  status: WorkflowExecutionStatus;
+  currentIndex: number;
+  total: number;
+  startedAt: number;
+  completedAt?: number;
+  error?: string;
+  steps: WorkflowExecutionStepState[];
 }
 
 const STORAGE_KEY_MESSAGES = "orb-chat-messages";
@@ -157,12 +183,131 @@ function toLLMMessageContent(message: ChatMessage): string | Array<
   return parts;
 }
 
+function buildWorkflowExecutionState(actions: AgentAction[], now: number = Date.now()): WorkflowExecutionState | null {
+  const workflow = actions.find((action): action is Extract<AgentAction, { type: "runWorkflow" }> => action.type === "runWorkflow");
+  if (!workflow) return null;
+  const total = workflow.steps.length;
+  return {
+    id: `wf-${now}-${Math.random().toString(36).slice(2, 7)}`,
+    name: workflow.name,
+    status: "running",
+    currentIndex: 0,
+    total,
+    startedAt: now,
+    steps: workflow.steps.map((step, index) => ({
+      index,
+      label: step.label || `${index + 1}. ${step.actionType}`,
+      path: step.path,
+      actionType: step.actionType,
+      status: index === 0 ? "running" : "pending",
+      startedAt: index === 0 ? now : undefined,
+    })),
+  };
+}
+
+function statusDotClass(status: WorkflowExecutionStepStatus): string {
+  switch (status) {
+    case "completed":
+      return "text-emerald-300";
+    case "running":
+      return "text-cyan-300";
+    case "failed":
+      return "text-rose-300";
+    default:
+      return "text-white/30";
+  }
+}
+
+function statusDot(status: WorkflowExecutionStepStatus): string {
+  switch (status) {
+    case "completed":
+      return "●";
+    case "running":
+      return "◐";
+    case "failed":
+      return "×";
+    default:
+      return "○";
+  }
+}
+
+function WorkflowExecutionFloatingPanel({
+  workflowExecution,
+  onDismiss,
+}: {
+  workflowExecution: WorkflowExecutionState | null;
+  onDismiss: () => void;
+}) {
+  if (!workflowExecution) return null;
+
+  const current = workflowExecution.steps[workflowExecution.currentIndex];
+  const completedCount = workflowExecution.steps.filter(step => step.status === "completed").length;
+  const percent = workflowExecution.total > 0
+    ? Math.round((completedCount / workflowExecution.total) * 100)
+    : 0;
+  const statusLabel = workflowExecution.status === "running"
+    ? "執行中"
+    : workflowExecution.status === "completed"
+    ? "已完成"
+    : workflowExecution.status === "failed"
+    ? "失敗"
+    : "待命";
+
+  return (
+    <div className="fixed bottom-24 right-5 z-[80] w-[360px] max-w-[calc(100vw-2rem)] rounded-3xl border border-white/15 bg-slate-950/90 p-4 text-white shadow-2xl backdrop-blur-xl">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-xs uppercase tracking-[0.2em] text-cyan-200/70">AI Director Workflow</div>
+          <div className="mt-1 text-sm font-semibold">{workflowExecution.name}</div>
+        </div>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="rounded-full bg-white/10 px-2 py-1 text-xs text-white/70 hover:bg-white/20"
+        >
+          關閉
+        </button>
+      </div>
+
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
+        <div
+          className="h-full rounded-full bg-cyan-300 transition-all duration-500"
+          style={{ width: `${Math.min(percent, 100)}%` }}
+        />
+      </div>
+      <div className="mt-2 flex justify-between text-xs text-white/60">
+        <span>{statusLabel}</span>
+        <span>{completedCount}/{workflowExecution.total}</span>
+      </div>
+
+      {current && (
+        <div className="mt-3 rounded-2xl bg-white/10 p-3">
+          <div className="text-xs text-white/50">目前步驟</div>
+          <div className="mt-1 text-sm">{current.label}</div>
+          {current.path && <div className="mt-1 text-xs text-cyan-100/60">目標頁：{current.path}</div>}
+          {workflowExecution.error && <div className="mt-2 text-xs text-rose-200">{workflowExecution.error}</div>}
+        </div>
+      )}
+
+      <div className="mt-3 max-h-44 space-y-2 overflow-auto pr-1">
+        {workflowExecution.steps.map(step => (
+          <div key={`${step.index}-${step.label}`} className="flex gap-2 text-xs">
+            <span className={statusDotClass(step.status)}>{statusDot(step.status)}</span>
+            <span className="text-white/70">{step.index + 1}. {step.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 interface GlobalOrbChatContextValue {
   messages: ChatMessage[];
   input: string;
   isSending: boolean;
   suggestions: ChatSuggestion[];
   isOpen: boolean;
+  workflowExecution: WorkflowExecutionState | null;
   setInput: (text: string) => void;
   sendMessage: (text: string, attachments?: ChatAttachment[]) => Promise<void>;
   open: () => void;
@@ -170,6 +315,7 @@ interface GlobalOrbChatContextValue {
   toggle: () => void;
   clearHistory: () => void;
   resetConversation: () => void;
+  clearWorkflowExecution: () => void;
 }
 
 const GlobalOrbChatContext = createContext<GlobalOrbChatContextValue>({
@@ -178,6 +324,7 @@ const GlobalOrbChatContext = createContext<GlobalOrbChatContextValue>({
   isSending: false,
   suggestions: [],
   isOpen: false,
+  workflowExecution: null,
   setInput: () => {},
   sendMessage: async () => {},
   open: () => {},
@@ -185,6 +332,7 @@ const GlobalOrbChatContext = createContext<GlobalOrbChatContextValue>({
   toggle: () => {},
   clearHistory: () => {},
   resetConversation: () => {},
+  clearWorkflowExecution: () => {},
 });
 
 export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
@@ -196,6 +344,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   const [isSending, setIsSending] = useState(false);
   const [suggestions, setSuggestions] = useState<ChatSuggestion[]>([]);
   const [isOpen, setIsOpen] = useState(false);
+  const [workflowExecution, setWorkflowExecution] = useState<WorkflowExecutionState | null>(null);
 
   const aiChat = trpc.ai.chat.useMutation();
   const providerPingQuery = trpc.brain.pingProviders.useQuery(undefined, {
@@ -242,6 +391,10 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const clearWorkflowExecution = useCallback(() => {
+    setWorkflowExecution(null);
+  }, []);
+
   const sendMessage = useCallback(async (text: string, attachments: ChatAttachment[] = []) => {
     const trimmed = text.trim();
     if ((!trimmed && attachments.length === 0) || isSending) return;
@@ -282,9 +435,12 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       const llmActions = data.actions ? parseLLMActions(data.actions) : [];
       const fallbackWorkflow = llmActions.length === 0 ? maybeCreateWorkflowFromUserText(trimmed) : null;
       const actionsToExecute: AgentAction[] = fallbackWorkflow ? [fallbackWorkflow] : llmActions;
+      const nextWorkflowExecution = buildWorkflowExecutionState(actionsToExecute);
       const replyText = fallbackWorkflow
         ? `${data.reply}\n\n🎬 我已把你的需求轉成「AI Director 短片生成流程」，會先做腳本/分鏡，再帶到圖像、影片與配音。`
         : data.reply;
+
+      if (nextWorkflowExecution) setWorkflowExecution(nextWorkflowExecution);
 
       setMessages(prev => [...prev, {
         role: "orb",
@@ -312,6 +468,35 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           source: "ai-chat",
           waitAfterNavigateMs: 450,
           onWorkflowStep: step => {
+            const now = Date.now();
+            setWorkflowExecution(prev => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                status: "running",
+                currentIndex: step.index,
+                steps: prev.steps.map(existing => {
+                  if (existing.index < step.index) {
+                    return {
+                      ...existing,
+                      status: "completed" as const,
+                      completedAt: existing.completedAt ?? now,
+                    };
+                  }
+                  if (existing.index === step.index) {
+                    return {
+                      ...existing,
+                      status: "running" as const,
+                      label: step.label,
+                      path: step.path,
+                      actionType: step.action.type,
+                      startedAt: existing.startedAt ?? now,
+                    };
+                  }
+                  return existing.status === "pending" ? existing : { ...existing, status: "pending" as const };
+                }),
+              };
+            });
             pageAgent.reportFeedback({
               status: "completed",
               actionType: step.action.type,
@@ -322,21 +507,52 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
 
         const failed = results.find(result => !result.ok);
         if (failed) {
+          const failedReason = failed.reason ?? "unknown failure";
+          const now = Date.now();
+          setWorkflowExecution(prev => prev ? {
+            ...prev,
+            status: "failed",
+            error: failedReason,
+            completedAt: now,
+            steps: prev.steps.map(step => step.index === prev.currentIndex
+              ? { ...step, status: "failed" as const, reason: failedReason, completedAt: now }
+              : step),
+          } : prev);
           setMessages(prev => [...prev, {
             role: "orb",
-            text: `⚠️ 我找到要做的事，但執行時遇到問題：${failed.reason ?? "unknown failure"}`,
+            text: `⚠️ 我找到要做的事，但執行時遇到問題：${failedReason}`,
             at: Date.now(),
             pagePath: locationPath,
           }]);
           pageAgent.reportFeedback({
             status: "failed",
             actionType: actionsToExecute[results.indexOf(failed)]?.type ?? "runWorkflow",
-            note: failed.reason,
+            note: failedReason,
           });
+        } else if (nextWorkflowExecution) {
+          const now = Date.now();
+          setWorkflowExecution(prev => prev ? {
+            ...prev,
+            status: "completed",
+            currentIndex: Math.max(prev.total - 1, 0),
+            completedAt: now,
+            steps: prev.steps.map(step => ({
+              ...step,
+              status: "completed" as const,
+              completedAt: step.completedAt ?? now,
+            })),
+          } : prev);
         }
       }
     } catch (err) {
-      console.error("[GlobalOrbChat] Send error:", err instanceof Error ? err.message : String(err));
+      const reason = err instanceof Error ? err.message : String(err);
+      console.error("[GlobalOrbChat] Send error:", reason);
+      setWorkflowExecution(prev => prev ? {
+        ...prev,
+        status: "failed",
+        error: reason,
+        completedAt: Date.now(),
+      } : prev);
       setMessages(prev => [...prev, {
         role: "orb",
         text: "🌸 抱歉，我剛才恍神了一下。再跟我說一次好嗎？",
@@ -369,6 +585,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     isSending,
     suggestions,
     isOpen,
+    workflowExecution,
     setInput,
     sendMessage,
     open,
@@ -376,9 +593,18 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     toggle,
     clearHistory,
     resetConversation,
-  }), [messages, input, isSending, suggestions, isOpen, sendMessage, open, close, toggle, clearHistory, resetConversation]);
+    clearWorkflowExecution,
+  }), [messages, input, isSending, suggestions, isOpen, workflowExecution, sendMessage, open, close, toggle, clearHistory, resetConversation, clearWorkflowExecution]);
 
-  return <GlobalOrbChatContext.Provider value={value}>{children}</GlobalOrbChatContext.Provider>;
+  return (
+    <GlobalOrbChatContext.Provider value={value}>
+      {children}
+      <WorkflowExecutionFloatingPanel
+        workflowExecution={workflowExecution}
+        onDismiss={clearWorkflowExecution}
+      />
+    </GlobalOrbChatContext.Provider>
+  );
 }
 
 export function useGlobalOrbChat() {
