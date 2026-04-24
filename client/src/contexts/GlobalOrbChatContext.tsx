@@ -1,10 +1,9 @@
 /**
  * GlobalOrbChatContext.tsx — 全站光球聊天狀態管理
  *
- * This provider keeps the existing site-wide Orb chat UX, while routing any
- * structured actions returned by ai.chat through the Global Agent Orchestrator.
- * That lets the Orb decide whether to act on the current page or navigate to a
- * better page before dispatching the action.
+ * Keeps the existing Orb chat UX, routes structured actions through the global
+ * orchestrator, and now adds a deterministic Director workflow fallback when
+ * the user clearly asks for a short video but the LLM returns no actions.
  */
 
 import {
@@ -21,6 +20,7 @@ import { usePersonality } from "./PersonalityContext";
 import { usePageAgent, parseLLMActions, type AgentAction } from "./PageAgentContext";
 import { useLocation } from "wouter";
 import { executeGlobalActions } from "../../../shared/global-agent-orchestrator";
+import { maybeCreateWorkflowFromUserText } from "../../../shared/global-agent-workflows";
 
 export {
   getPageLabelByPath,
@@ -151,11 +151,8 @@ function toLLMMessageContent(message: ChatMessage): string | Array<
     | { type: "file_url"; file_url: { url: string; mime_type: ChatAttachmentMimeType } }
   > = [{ type: "text", text: message.text.trim() || "請參考我上傳的附件內容。" }];
   for (const attachment of attachments) {
-    if (attachment.kind === "image") {
-      parts.push({ type: "image_url", image_url: { url: attachment.url, detail: "auto" } });
-    } else {
-      parts.push({ type: "file_url", file_url: { url: attachment.url, mime_type: attachment.mimeType } });
-    }
+    if (attachment.kind === "image") parts.push({ type: "image_url", image_url: { url: attachment.url, detail: "auto" } });
+    else parts.push({ type: "file_url", file_url: { url: attachment.url, mime_type: attachment.mimeType } });
   }
   return parts;
 }
@@ -240,9 +237,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   }, [personality]);
 
   useEffect(() => {
-    if (messages.length === 0) {
-      setMessages([{ role: "orb", text: welcomeMessage, at: Date.now(), pagePath: locationPath }]);
-    }
+    if (messages.length === 0) setMessages([{ role: "orb", text: welcomeMessage, at: Date.now(), pagePath: locationPath }]);
     // initialize once only
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -284,32 +279,45 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       const intent = typeof (data as { intent?: string | null }).intent === "string"
         ? ((data as { intent?: string | null }).intent as string)
         : undefined;
-      const structuredActions = data.actions ? parseLLMActions(data.actions) : [];
+      const llmActions = data.actions ? parseLLMActions(data.actions) : [];
+      const fallbackWorkflow = llmActions.length === 0 ? maybeCreateWorkflowFromUserText(trimmed) : null;
+      const actionsToExecute: AgentAction[] = fallbackWorkflow ? [fallbackWorkflow] : llmActions;
+      const replyText = fallbackWorkflow
+        ? `${data.reply}\n\n🎬 我已把你的需求轉成「AI Director 短片生成流程」，會先做腳本/分鏡，再帶到圖像、影片與配音。`
+        : data.reply;
 
       setMessages(prev => [...prev, {
         role: "orb",
-        text: data.reply,
+        text: replyText,
         at: Date.now(),
-        intent,
+        intent: intent ?? (fallbackWorkflow ? fallbackWorkflow.name : undefined),
         pagePath: locationPath,
-        actions: structuredActions,
+        actions: actionsToExecute,
       }]);
 
       const rawSuggestions = (data as { suggestions?: string[] }).suggestions ?? [];
       setSuggestions(rawSuggestions.slice(0, 4).map(s => ({ text: s })));
 
-      if (structuredActions.length > 0) {
-        const askBeforeAct = (data as { askBeforeAct?: boolean }).askBeforeAct === true;
-        const results = await executeGlobalActions(structuredActions, {
+      if (actionsToExecute.length > 0) {
+        const askBeforeAct = fallbackWorkflow ? true : (data as { askBeforeAct?: boolean }).askBeforeAct === true;
+        const results = await executeGlobalActions(actionsToExecute, {
           currentPage: pageAgent.snapshot,
           navigate: async path => {
             if (path !== locationPath) setLocation(path);
           },
           dispatch: pageAgent.dispatch,
           requireConfirmation: askBeforeAct,
-          intentSummary: intent,
+          requireConfirmationForWorkflowSteps: false,
+          intentSummary: intent ?? fallbackWorkflow?.name,
           source: "ai-chat",
           waitAfterNavigateMs: 450,
+          onWorkflowStep: step => {
+            pageAgent.reportFeedback({
+              status: "completed",
+              actionType: step.action.type,
+              note: `workflow-step:${step.index + 1}/${step.total}:${step.label}`,
+            });
+          },
         });
 
         const failed = results.find(result => !result.ok);
@@ -322,7 +330,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           }]);
           pageAgent.reportFeedback({
             status: "failed",
-            actionType: structuredActions[results.indexOf(failed)]?.type ?? "runWorkflow",
+            actionType: actionsToExecute[results.indexOf(failed)]?.type ?? "runWorkflow",
             note: failed.reason,
           });
         }
