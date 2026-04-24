@@ -22,6 +22,11 @@ import { usePageAgent, parseLLMActions, adaptAgentPlanToActions, type AgentActio
 import { useLocation } from "wouter";
 import { executeGlobalActions, shouldAskBeforeAct } from "../../../shared/global-agent-orchestrator";
 import { maybeCreateWorkflowFromUserText } from "../../../shared/global-agent-workflows";
+import {
+  chatMessageToLLMContent,
+  type OrbChatAttachment,
+  type OrbChatAttachmentMimeType,
+} from "../../../shared/orb-chat-multimodal";
 
 export {
   getPageLabelByPath,
@@ -32,25 +37,7 @@ export {
 
 export type ChatRole = "user" | "orb";
 export type ChatAttachmentKind = "image" | "video" | "audio" | "pdf";
-export type ChatAttachmentMimeType =
-  | "application/pdf"
-  | "image/jpeg"
-  | "image/png"
-  | "image/gif"
-  | "image/webp"
-  | "image/svg+xml"
-  | "image/avif"
-  | "audio/mpeg"
-  | "audio/wav"
-  | "audio/ogg"
-  | "audio/webm"
-  | "audio/mp4"
-  | "audio/aac"
-  | "audio/flac"
-  | "video/mp4"
-  | "video/webm"
-  | "video/ogg"
-  | "video/quicktime";
+export type ChatAttachmentMimeType = OrbChatAttachmentMimeType;
 
 export interface ChatAttachment {
   id: string;
@@ -185,18 +172,10 @@ function toLLMMessageContent(message: ChatMessage): string | Array<
   | { type: "image_url"; image_url: { url: string; detail?: "auto" | "low" | "high" } }
   | { type: "file_url"; file_url: { url: string; mime_type: ChatAttachmentMimeType } }
 > {
-  const attachments = message.attachments ?? [];
-  if (!attachments.length) return message.text;
-  const parts: Array<
-    | { type: "text"; text: string }
-    | { type: "image_url"; image_url: { url: string; detail?: "auto" | "low" | "high" } }
-    | { type: "file_url"; file_url: { url: string; mime_type: ChatAttachmentMimeType } }
-  > = [{ type: "text", text: message.text.trim() || "請參考我上傳的附件內容。" }];
-  for (const attachment of attachments) {
-    if (attachment.kind === "image") parts.push({ type: "image_url", image_url: { url: attachment.url, detail: "auto" } });
-    else parts.push({ type: "file_url", file_url: { url: attachment.url, mime_type: attachment.mimeType } });
-  }
-  return parts;
+  return chatMessageToLLMContent({
+    text: message.text,
+    attachments: (message.attachments ?? []) as OrbChatAttachment[],
+  });
 }
 
 function findWorkflowAction(actions: AgentAction[]): WorkflowAction | null {
