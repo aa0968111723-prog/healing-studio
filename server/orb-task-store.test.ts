@@ -46,4 +46,11 @@ describe("OrbTaskStore", () => {
     const out = store.reportStep({ taskId: task.taskId, stepId: "unknown", ok: true }, 1, 1050);
     expect(out?.status).toBe("failed");
   });
+
+  it("approveStep adds step id into approvedStepIds", () => {
+    const store = new OrbTaskStore();
+    const task = store.create({ userId: 1, intent: "x", steps: demoSteps, now: 1000 });
+    const out = store.approveStep(task.taskId, 1, "s1", true, 1010);
+    expect(out?.approvedStepIds).toContain("s1");
+  });
 });

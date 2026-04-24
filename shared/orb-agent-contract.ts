@@ -39,6 +39,7 @@ export const OrbTaskSchema = z.object({
   steps: z.array(OrbPlanStepSchema).min(1).max(12),
   currentStepIndex: z.number().int().min(0).default(0),
   needsApproval: z.boolean().default(false),
+  approvedStepIds: z.array(z.string().min(1).max(64)).default([]),
   createdAt: z.number().int(),
   updatedAt: z.number().int(),
 });
@@ -64,4 +65,10 @@ export const OrbStepReportInputSchema = z.object({
   detail: z.string().max(500).optional(),
   errorCode: z.string().max(64).optional(),
   at: z.number().int().optional(),
+});
+
+export const OrbApproveStepInputSchema = z.object({
+  taskId: z.string().min(1).max(72),
+  stepId: z.string().min(1).max(64),
+  approved: z.boolean(),
 });

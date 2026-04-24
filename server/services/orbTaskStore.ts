@@ -44,6 +44,7 @@ export class OrbTaskStore {
       steps: input.steps,
       currentStepIndex: 0,
       needsApproval: Boolean(input.needsApproval),
+      approvedStepIds: [],
       createdAt: now,
       updatedAt: now,
     };
@@ -63,6 +64,24 @@ export class OrbTaskStore {
     if (!task) return null;
     task.needsApproval = !approved;
     task.status = approved ? "running" : "cancelled";
+    task.updatedAt = now;
+    this.tasks.set(task.taskId, task);
+    return task;
+  }
+
+  approveStep(
+    taskId: string,
+    userId: number,
+    stepId: string,
+    approved: boolean,
+    now: number = Date.now()
+  ): OrbTask | null {
+    const task = this.get(taskId, userId, now);
+    if (!task) return null;
+    const set = new Set(task.approvedStepIds);
+    if (approved) set.add(stepId);
+    else set.delete(stepId);
+    task.approvedStepIds = Array.from(set);
     task.updatedAt = now;
     this.tasks.set(task.taskId, task);
     return task;

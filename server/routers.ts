@@ -43,6 +43,7 @@ import { executeCurrentStepTools } from "./services/orbTaskOrchestrator";
 import {
   OrbStartTaskInputSchema,
   OrbApproveTaskInputSchema,
+  OrbApproveStepInputSchema,
   OrbStepReportInputSchema,
 } from "../shared/orb-agent-contract";
 import {
@@ -3451,6 +3452,18 @@ export const appRouter = router({
         const task = orbTaskStore.approve(
           input.taskId,
           ctx.user.id,
+          input.approved
+        );
+        return { task };
+      }),
+
+    approveTaskStep: brainProcedure
+      .input(OrbApproveStepInputSchema)
+      .mutation(async ({ input, ctx }) => {
+        const task = orbTaskStore.approveStep(
+          input.taskId,
+          ctx.user.id,
+          input.stepId,
           input.approved
         );
         return { task };

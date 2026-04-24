@@ -17,6 +17,7 @@ const baseTask: OrbTask = {
   ],
   currentStepIndex: 0,
   needsApproval: false,
+  approvedStepIds: [],
   createdAt: 1,
   updatedAt: 1,
 };
@@ -66,5 +67,37 @@ describe("executeCurrentStepTools", () => {
     expect(out.attempted).toBe(true);
     expect(out.ok).toBe(true);
     expect(out.toolResults[0]?.ok).toBe(true);
+  });
+
+  it("blocks execution when step requires approval and step not approved", async () => {
+    process.env.ORB_TOOL_ALLOWED_ORIGINS = "https://api.example.com";
+    const out = await executeCurrentStepTools({
+      task: {
+        ...baseTask,
+        steps: [
+          {
+            ...baseTask.steps[0],
+            toolCalls: [
+              { name: "crm.lookup", args: { id: "u_1" }, requiresApproval: true },
+            ],
+          },
+        ],
+      },
+      userId: 7,
+      tools: [
+        {
+          name: "crm.lookup",
+          description: "lookup",
+          method: "GET",
+          endpoint: "https://api.example.com/customers",
+          requireConfirmation: true,
+        },
+      ],
+      approved: false,
+    });
+    expect(out.ok).toBe(false);
+    expect(out.blockedByApproval).toBe(true);
+    expect(out.attempted).toBe(false);
+    expect(out.toolResults[0]?.error).toBe("step-approval-required");
   });
 });
