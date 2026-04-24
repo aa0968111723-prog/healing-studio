@@ -72,6 +72,7 @@ import { AmbientVideo } from "@/components/AmbientVideo";
 import { useSenseEngine } from "@/hooks/useSenseEngine";
 import { useIntentInference } from "@/hooks/useIntentInference";
 import VisualSoulInvitation from "@/components/VisualSoulInvitation";
+import LocalAuthForm from "@/components/LocalAuthForm";
 import FeatureDetailDialog, {
   type FeatureDetail,
 } from "@/components/FeatureDetailDialog";
@@ -1392,27 +1393,35 @@ ${profileSnippet}`;
                   </Button>
                 </div>
               ) : (
-                <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto px-4 sm:px-0">
-                  <Button
-                    size="lg"
-                    onClick={() => {
-                      window.location.href = getLoginUrl();
-                    }}
-                    className={`rounded-2xl h-11 sm:h-12 px-6 sm:px-10 gap-2 text-sm shadow-lg hover:shadow-xl btn-healing ${s.btnPrimary} ${s.btnPrimaryText}`}
+                <div className="w-full px-4 sm:px-0 max-w-xl">
+                  <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                    <Button
+                      size="lg"
+                      onClick={() => {
+                        window.location.href = getLoginUrl();
+                      }}
+                      className={`rounded-2xl h-11 sm:h-12 px-6 sm:px-10 gap-2 text-sm shadow-lg hover:shadow-xl btn-healing ${s.btnPrimary} ${s.btnPrimaryText}`}
+                    >
+                      立即開始
+                      <ArrowRight className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      onClick={() => {
+                        window.location.href = getDemoLoginUrl();
+                      }}
+                      className={`rounded-2xl h-11 sm:h-12 px-6 sm:px-8 gap-2 text-sm border-dashed btn-healing ${s.btnOutline} ${s.btnOutlineText}`}
+                    >
+                      ✨ 訪客體驗
+                    </Button>
+                  </div>
+                  <div
+                    className="mt-4 rounded-2xl border p-3 text-left"
+                    style={{ background: s.cardBg, borderColor: s.cardBorder }}
                   >
-                    立即開始
-                    <ArrowRight className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    onClick={() => {
-                      window.location.href = getDemoLoginUrl();
-                    }}
-                    className={`rounded-2xl h-11 sm:h-12 px-6 sm:px-8 gap-2 text-sm border-dashed btn-healing ${s.btnOutline} ${s.btnOutlineText}`}
-                  >
-                    ✨ 訪客體驗
-                  </Button>
+                    <LocalAuthForm hideTitle redirectTo="/agent" />
+                  </div>
                 </div>
               )}
             </motion.div>
