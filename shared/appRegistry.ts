@@ -48,7 +48,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     showInSidebar: false,
     showInAgentHome: true,
     agentEntryPriority: 100,
-    supportsPageAgent: false,
+    supportsPageAgent: true,
     quickActions: [{ id: "explore-home", label: "先逛逛", description: "查看平台亮點與入口" }],
     orbHints: ["我想先看看這個網站在做什麼"],
   },

@@ -83,8 +83,14 @@ function normalizeResult(r?: AgentActionResult): AgentActionResult {
 }
 
 function flag(key: string) {
-  try { return String((import.meta as any).env?.[key] ?? ""); } catch {}
-  try { return String((globalThis as any).process?.env?.[key] ?? ""); } catch {}
+  try {
+    const v = (import.meta as any).env?.[key];
+    if (v !== undefined && v !== null && String(v) !== "") return String(v);
+  } catch {}
+  try {
+    const v = (globalThis as any).process?.env?.[key];
+    if (v !== undefined && v !== null && String(v) !== "") return String(v);
+  } catch {}
   return "";
 }
 
