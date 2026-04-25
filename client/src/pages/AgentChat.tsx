@@ -26,6 +26,8 @@ import {
   MessageCircle,
   ChevronDown,
   Clock3,
+  Paperclip,
+  X,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { usePersonality } from "@/contexts/PersonalityContext";
@@ -44,6 +46,9 @@ import {
 } from "@/components/ui/collapsible";
 import { getAgentHomeEntries } from "@/config/appRegistry";
 import { useGlobalOrbChat } from "@/contexts/GlobalOrbChatContext";
+import { useOrbAttachments, attachmentKindEmoji } from "@/hooks/useOrbAttachments";
+import { ORB_UPLOAD_ACCEPT } from "../../../shared/orb-chat-multimodal";
+import { toast } from "sonner";
 
 // ─── 型別 ─────────────────────────────────────────────────────────────────
 
@@ -223,7 +228,15 @@ export default function AgentChat() {
     [starterEntries]
   );
 
-  // Remove local aiChat mutation - will use globalChat.sendMessage instead
+  const {
+    attachments,
+    isUploading,
+    fileInputRef,
+    pickAttachment,
+    removeAttachment,
+    clearAttachments,
+    handleFiles,
+  } = useOrbAttachments(message => toast.error(message));
 
   // Auto-scroll to bottom on new message
   useEffect(() => {
@@ -241,12 +254,13 @@ export default function AgentChat() {
   const send = useCallback(
     async (raw: string) => {
       const text = raw.trim();
-      if (!text || isSending) return;
+      if ((!text && attachments.length === 0) || isSending) return;
       // Use global chat to send the message
       // GlobalOrbChatContext handles all LLM interaction, action dispatch, and message management
-      await globalChat.sendMessage(text);
+      await globalChat.sendMessage(text, attachments);
+      clearAttachments();
     },
-    [isSending, globalChat]
+    [isSending, globalChat, attachments, clearAttachments]
   );
 
   // Keep sendRef in sync with the latest `send` callback
@@ -555,6 +569,26 @@ export default function AgentChat() {
                     </div>
                   )}
                   {msg.text}
+                  {msg.attachments?.length ? (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {msg.attachments.map(attachment => (
+                        <a
+                          key={attachment.id}
+                          href={attachment.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] transition-colors ${
+                            msg.role === "user"
+                              ? "border-white/30 bg-white/15 text-white hover:bg-white/25"
+                              : "border-slate-200/70 bg-slate-50/70 text-slate-600 hover:bg-slate-100 dark:border-slate-600/60 dark:bg-slate-700/40 dark:text-slate-200 dark:hover:bg-slate-700/70"
+                          }`}
+                        >
+                          <span>{attachmentKindEmoji(attachment.kind)}</span>
+                          <span className="truncate max-w-[200px]">{attachment.name}</span>
+                        </a>
+                      ))}
+                    </div>
+                  ) : null}
                   <div className="mt-1.5 text-[10px] opacity-60 flex items-center gap-1">
                     <Clock3 className="w-3 h-3" />
                     {new Date(msg.at).toLocaleTimeString("zh-TW", {
@@ -614,23 +648,65 @@ export default function AgentChat() {
         )}
 
         {/* 輸入列 */}
-        <div className="sticky bottom-4 flex items-center gap-2 bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl border border-slate-200/70 dark:border-slate-700/60 shadow-lg p-2">
+        <div className="sticky bottom-4 space-y-2">
+          {attachments.length > 0 && (
+            <div className="flex flex-wrap gap-2 px-1">
+              {attachments.map(attachment => (
+                <button
+                  key={attachment.id}
+                  type="button"
+                  onClick={() => removeAttachment(attachment.id)}
+                  title="移除附件"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-200/70 bg-white/90 px-3 py-1 text-xs text-slate-600 shadow-sm hover:bg-white dark:border-slate-700/60 dark:bg-slate-800/80 dark:text-slate-200"
+                >
+                  <span>{attachmentKindEmoji(attachment.kind)}</span>
+                  <span className="max-w-[160px] truncate">{attachment.name}</span>
+                  <X className="w-3 h-3 opacity-70" />
+                </button>
+              ))}
+            </div>
+          )}
           <input
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={onKeyDown}
-            disabled={isSending}
-            placeholder="說一句話就好…"
-            className="flex-1 bg-transparent outline-none px-3 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 disabled:opacity-50"
+            ref={fileInputRef}
+            type="file"
+            accept={ORB_UPLOAD_ACCEPT}
+            multiple
+            className="hidden"
+            onChange={e => {
+              void handleFiles(e.target.files);
+            }}
           />
-          <Button
-            onClick={() => void send(input)}
-            disabled={!input.trim() || isSending}
-            size="sm"
-            className="bg-gradient-to-r from-emerald-400 to-sky-400 hover:from-emerald-500 hover:to-sky-500 text-white border-0 shadow-md disabled:opacity-40"
-          >
-            <Send className="w-4 h-4" />
-          </Button>
+          <div className="flex items-center gap-2 bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl border border-slate-200/70 dark:border-slate-700/60 shadow-lg p-2">
+            <button
+              type="button"
+              onClick={pickAttachment}
+              disabled={isSending || isUploading}
+              title="上傳圖片 / 影片 / 音訊 / PDF"
+              className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 disabled:opacity-40 transition-colors"
+            >
+              {isUploading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Paperclip className="w-4 h-4" />
+              )}
+            </button>
+            <input
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={onKeyDown}
+              disabled={isSending}
+              placeholder="說一句話就好…"
+              className="flex-1 bg-transparent outline-none px-3 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 disabled:opacity-50"
+            />
+            <Button
+              onClick={() => void send(input)}
+              disabled={(!input.trim() && attachments.length === 0) || isSending || isUploading}
+              size="sm"
+              className="bg-gradient-to-r from-emerald-400 to-sky-400 hover:from-emerald-500 hover:to-sky-500 text-white border-0 shadow-md disabled:opacity-40"
+            >
+              <Send className="w-4 h-4" />
+            </Button>
+          </div>
         </div>
 
         <p className="text-center text-[11px] text-slate-400 dark:text-slate-500">
