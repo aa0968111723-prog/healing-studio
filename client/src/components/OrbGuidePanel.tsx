@@ -13,7 +13,7 @@
 
 import { useRef, useEffect, useMemo, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Sparkles, X, RotateCcw, FastForward, MessageCircle, Navigation2, Send, Loader2, ChevronDown, Lightbulb, Leaf } from "lucide-react";
+import { ArrowRight, Sparkles, X, RotateCcw, FastForward, MessageCircle, Navigation2, Send, Loader2, ChevronDown, Lightbulb, Leaf, Paperclip } from "lucide-react";
 import { useOrbGuide, INTENT_CONFIGS, type GuideIntent } from "@/contexts/OrbGuideContext";
 import VisualSoul from "./VisualSoul";
 import { useAIState } from "@/contexts/AIStateContext";
@@ -25,6 +25,9 @@ import { summarizeOrbGuideActions } from "../../../shared/orb-guide-plans";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/useMobile";
 import { useGlobalOrbChat, formatRelativeTime, getPageEmoji, formatMessageMetadata, getPageLabelByPath } from "@/contexts/GlobalOrbChatContext";
+import { useOrbAttachments, attachmentKindEmoji } from "@/hooks/useOrbAttachments";
+import { ORB_UPLOAD_ACCEPT } from "../../../shared/orb-chat-multimodal";
+import { toast } from "sonner";
 
 // ─── Typewriter hook ──────────────────────────────────────────────────────────
 
@@ -307,7 +310,15 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLInputElement>(null);
 
-  // Remove local aiChatMutation - will use globalChat.sendMessage instead
+  const {
+    attachments: chatAttachments,
+    isUploading: isUploadingAttachments,
+    fileInputRef: chatUploadInputRef,
+    pickAttachment: pickChatAttachment,
+    removeAttachment: removeChatAttachment,
+    clearAttachments: clearChatAttachments,
+    handleFiles: handleChatAttachmentFiles,
+  } = useOrbAttachments(message => toast.error(message));
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -321,12 +332,13 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
   }, [panelMode, globalChat]);
 
   const handleChatSend = useCallback(async () => {
-    if (!chatInput.trim() || isChatLoading) return;
+    if ((!chatInput.trim() && chatAttachments.length === 0) || isChatLoading) return;
     const userMsg = chatInput.trim();
     // Use global chat to send the message
     // GlobalOrbChatContext handles all LLM interaction, action dispatch, and message management
-    await globalChat.sendMessage(userMsg);
-  }, [chatInput, isChatLoading, globalChat]);
+    await globalChat.sendMessage(userMsg, chatAttachments);
+    clearChatAttachments();
+  }, [chatInput, chatAttachments, isChatLoading, globalChat, clearChatAttachments]);
 
   // Current question index based on answers already collected
   const currentQuestionIndex = intent
@@ -598,6 +610,25 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
                   {msg.role === "orb"
                     ? <OrbMessageContent text={msg.text} compact={!fullscreen} />
                     : <p className="whitespace-pre-wrap">{msg.text}</p>}
+                  {msg.attachments?.length ? (
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {msg.attachments.map(attachment => (
+                        <a
+                          key={attachment.id}
+                          href={attachment.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className={cn(
+                            "inline-flex items-center gap-1 rounded-lg border border-white/15 bg-white/10 px-2 py-1 hover:bg-white/15 transition-colors",
+                            fullscreen ? "text-[11px]" : "text-[10px]"
+                          )}
+                        >
+                          <span>{attachmentKindEmoji(attachment.kind)}</span>
+                          <span className="truncate max-w-[160px]">{attachment.name}</span>
+                        </a>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
                 {msg.pagePath && msg.at && (
                   <div className={cn(
@@ -718,36 +749,84 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
             </div>
           </div>
           {/* Chat input */}
-          <div className={cn(
-            "flex items-center gap-2 bg-white/8 rounded-2xl border border-white/10 shrink-0",
-            fullscreen ? "px-4 py-3" : "px-3 py-2"
-          )}>
+          <div className="shrink-0 space-y-1.5">
+            {chatAttachments.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {chatAttachments.map(attachment => (
+                  <button
+                    key={attachment.id}
+                    type="button"
+                    onClick={() => removeChatAttachment(attachment.id)}
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/10 hover:bg-white/15 text-white/85 transition-colors",
+                      fullscreen ? "px-2.5 py-1 text-[11px]" : "px-2 py-0.5 text-[10px]"
+                    )}
+                    title="移除附件"
+                  >
+                    <span>{attachmentKindEmoji(attachment.kind)}</span>
+                    <span className="max-w-[120px] truncate">{attachment.name}</span>
+                    <X className="w-3 h-3 opacity-70" />
+                  </button>
+                ))}
+              </div>
+            )}
             <input
-              ref={chatInputRef}
-              value={chatInput}
-              onChange={e => setChatInput(e.target.value)}
-              onKeyDown={e => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  void handleChatSend();
-                }
+              ref={chatUploadInputRef}
+              type="file"
+              accept={ORB_UPLOAD_ACCEPT}
+              multiple
+              className="hidden"
+              onChange={e => {
+                void handleChatAttachmentFiles(e.target.files);
               }}
-              placeholder={fullscreen ? "輸入你的問題或想法…" : "說一句話就好…"}
-              className={cn(
-                "flex-1 bg-transparent text-white placeholder:text-white/30 outline-none",
-                fullscreen ? "text-sm" : "text-xs"
-              )}
             />
-            <button
-              onClick={() => void handleChatSend()}
-              disabled={!chatInput.trim() || isChatLoading}
-              className={cn(
-                "rounded-lg hover:bg-white/10 disabled:opacity-30 transition-all",
-                fullscreen ? "p-1.5" : "p-1"
-              )}
-            >
-              <Send className={fullscreen ? "w-4 h-4 text-white/70" : "w-3 h-3 text-white/70"} />
-            </button>
+            <div className={cn(
+              "flex items-center gap-2 bg-white/8 rounded-2xl border border-white/10",
+              fullscreen ? "px-4 py-3" : "px-3 py-2"
+            )}>
+              <button
+                type="button"
+                onClick={pickChatAttachment}
+                disabled={isUploadingAttachments || isChatLoading}
+                title="上傳圖片 / 影片 / 音訊 / PDF"
+                className={cn(
+                  "rounded-lg hover:bg-white/10 disabled:opacity-30 transition-all",
+                  fullscreen ? "p-1.5" : "p-1"
+                )}
+              >
+                {isUploadingAttachments ? (
+                  <Loader2 className={fullscreen ? "w-4 h-4 text-white/70 animate-spin" : "w-3 h-3 text-white/70 animate-spin"} />
+                ) : (
+                  <Paperclip className={fullscreen ? "w-4 h-4 text-white/70" : "w-3 h-3 text-white/70"} />
+                )}
+              </button>
+              <input
+                ref={chatInputRef}
+                value={chatInput}
+                onChange={e => setChatInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    void handleChatSend();
+                  }
+                }}
+                placeholder={fullscreen ? "輸入你的問題或想法…" : "說一句話就好…"}
+                className={cn(
+                  "flex-1 bg-transparent text-white placeholder:text-white/30 outline-none",
+                  fullscreen ? "text-sm" : "text-xs"
+                )}
+              />
+              <button
+                onClick={() => void handleChatSend()}
+                disabled={(!chatInput.trim() && chatAttachments.length === 0) || isChatLoading || isUploadingAttachments}
+                className={cn(
+                  "rounded-lg hover:bg-white/10 disabled:opacity-30 transition-all",
+                  fullscreen ? "p-1.5" : "p-1"
+                )}
+              >
+                <Send className={fullscreen ? "w-4 h-4 text-white/70" : "w-3 h-3 text-white/70"} />
+              </button>
+            </div>
           </div>
         </div>
       )}
