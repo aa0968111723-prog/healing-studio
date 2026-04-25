@@ -3,6 +3,7 @@ import { BookOpen, Compass, Film, Image as ImageIcon, MicVocal, Sparkles } from 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useSiteOnboarding, type PageId } from "@/contexts/SiteOnboardingContext";
+import { useRegisterPageAgent, type AgentActionResult } from "@/contexts/PageAgentContext";
 
 const QUICK_LINKS = [
   {
@@ -78,6 +79,35 @@ const TOUR_TRACKS: Array<{
 export default function TutorialOverviewPage() {
   const [, navigate] = useLocation();
   const { startTour } = useSiteOnboarding();
+
+  useRegisterPageAgent({
+    pageId: "tutorial-overview",
+    pageLabel: "教學總覽",
+    pagePath: "/tutorial",
+    capabilities: [
+      {
+        action: "navigate",
+        label: "前往任一頁面",
+        options: [
+          { id: "/", label: "首頁" },
+          { id: "/learn", label: "學習文件中心" },
+          { id: "/director", label: "導演 AI" },
+          { id: "/image-studio", label: "圖片工作室" },
+          { id: "/video-studio", label: "影片工作室" },
+          { id: "/pro-studio", label: "專業工作室" },
+          { id: "/agent", label: "光球互動教學" },
+          { id: "/studio", label: "創作工作室" },
+        ],
+      },
+    ],
+    handle: async (action): Promise<AgentActionResult> => {
+      if (action.type === "navigate" && typeof action.path === "string") {
+        navigate(action.path);
+        return { ok: true };
+      }
+      return { ok: false, reason: `tutorial-overview: unsupported action "${action.type}"` };
+    },
+  });
 
   return (
     <div className="w-full p-2.5 sm:p-6 lg:p-8 space-y-3 sm:space-y-5">

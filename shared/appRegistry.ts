@@ -635,13 +635,30 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       {
         id: "tasks-model-deep-dive",
         label: "模型細膩導覽",
-        description: "用任務佇列判讀模型耗時、成功率與重試策略",
+        description: "用任務佇列判讀模型耗時、成功率、失敗原因與重試優先順序的策略",
         path: "/background-tasks",
         prompt:
           "請深度解讀背景任務中心的任務佇列，幫我建立模型耗時、成功率、失敗原因與重試優先順序的策略。",
       },
     ],
     orbHints: ["我有哪些背景任務"],
+  },
+  {
+    id: "tutorial-overview",
+    label: "教學總覽",
+    path: "/tutorial",
+    group: "learn",
+    description: "教學入口總覽：快速導覽、分站教學、功能教學連結",
+    aliases: ["tutorial", "教學", "overview", "入門"],
+    showInSidebar: false,
+    showInAgentHome: true,
+    agentEntryPriority: 35,
+    supportsPageAgent: true,
+    quickActions: [
+      { id: "start-tour", label: "啟動全站新手教學", description: "從首頁開始完整新手導覽" },
+      { id: "go-agent-chat", label: "用光球開始互動教學", description: "透過光球助手一步一步學習" },
+    ],
+    orbHints: ["我想開始教學", "新手怎麼開始", "給我一個導覽"],
   },
 ];
 
