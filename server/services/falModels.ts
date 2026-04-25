@@ -104,9 +104,14 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       label: "Trellis 3D",
       category: "image-to-3d",
       tier: "premium",
-      description: "高品質圖片轉3D模型，支援GLB/OBJ輸出",
-      inputSchema: { imageUrl: true, seed: true },
-      outputSchema: { objectUrl: true },
+      description:
+        "Trellis 高品質結構化圖片轉3D，支援 GLB/OBJ 輸出（替代 Zero123++）",
+      inputSchema: {
+        imageUrl: true,
+        seed: true,
+        numInferenceSteps: true,
+      },
+      outputSchema: { objectUrl: true, images: true },
       timeoutMs: 300_000,
     },
     {
@@ -125,16 +130,6 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       category: "image-to-3d",
       tier: "standard",
       description: "TripoSG 高品質單張圖片3D重建（替代 Stable Zero123）",
-      inputSchema: { imageUrl: true, seed: true, numInferenceSteps: true },
-      outputSchema: { images: true },
-      timeoutMs: 180_000,
-    },
-    {
-      modelId: "fal-ai/trellis",
-      label: "Trellis 3D",
-      category: "image-to-3d",
-      tier: "standard",
-      description: "Trellis 結構化3D生成（替代 Zero123++）",
       inputSchema: { imageUrl: true, seed: true, numInferenceSteps: true },
       outputSchema: { images: true },
       timeoutMs: 180_000,
@@ -481,16 +476,6 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
   // ════════════════════════════════════════════════════════
   "text-to-3d": [
     {
-      modelId: "fal-ai/tripo3d",
-      label: "TripoSG T23D",
-      category: "text-to-3d",
-      tier: "standard",
-      description: "TripoSG 文字到3D高品質生成（替代 Shap-E）",
-      inputSchema: { prompt: true, seed: true, numInferenceSteps: true },
-      outputSchema: { objectUrl: true },
-      timeoutMs: 180_000,
-    },
-    {
       modelId: "fal-ai/trellis",
       label: "Trellis T23D",
       category: "text-to-3d",
@@ -505,18 +490,9 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       label: "Hyper3D Rodin Pro",
       category: "text-to-3d",
       tier: "premium",
-      description: "Hyper3D Rodin 高品質文字到3D資產生成（替代 Fantasia3D）",
+      description:
+        "Hyper3D Rodin 高精度文字到3D資產生成（替代 Fantasia3D）",
       inputSchema: { prompt: true, seed: true, numInferenceSteps: true },
-      outputSchema: { objectUrl: true },
-      timeoutMs: 300_000,
-    },
-    {
-      modelId: "fal-ai/hyper3d/rodin",
-      label: "Hyper3D Rodin",
-      category: "text-to-3d",
-      tier: "premium",
-      description: "Hyper3D 高精度3D資產生成",
-      inputSchema: { prompt: true, seed: true },
       outputSchema: { objectUrl: true },
       timeoutMs: 300_000,
     },
@@ -525,8 +501,14 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       label: "TripoSG Pro 3D",
       category: "text-to-3d",
       tier: "premium",
-      description: "TripoSG 遊戲級3D模型生成（替代 Meshy-4）",
-      inputSchema: { prompt: true, stylePrompt: true, seed: true },
+      description:
+        "TripoSG 文字到3D高品質生成，支援風格提示與遊戲級資產（替代 Shap-E / Meshy-4）",
+      inputSchema: {
+        prompt: true,
+        stylePrompt: true,
+        seed: true,
+        numInferenceSteps: true,
+      },
       outputSchema: { objectUrl: true },
       timeoutMs: 300_000,
     },
@@ -556,28 +538,14 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       label: "MMAudio V2",
       category: "text-to-audio",
       tier: "standard",
-      description: "AudioLDM2 音頻潛在擴散模型",
-      inputSchema: {
-        prompt: true,
-        duration: true,
-        seed: true,
-        numInferenceSteps: true,
-        guidanceScale: true,
-      },
-      outputSchema: { audioUrl: true },
-      timeoutMs: 60_000,
-    },
-    {
-      modelId: "fal-ai/mmaudio-v2",
-      label: "MMAudio V2",
-      category: "text-to-audio",
-      tier: "standard",
-      description: "MMAudio V2 多模態音頻生成",
+      description: "MMAudio V2 多模態音頻潛在擴散生成（替代 AudioLDM2）",
       inputSchema: {
         prompt: true,
         duration: true,
         seed: true,
         negativePrompt: true,
+        numInferenceSteps: true,
+        guidanceScale: true,
       },
       outputSchema: { audioUrl: true },
       timeoutMs: 60_000,
@@ -608,6 +576,55 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
   // 2-9  文字轉圖像  text-to-image
   // ════════════════════════════════════════════════════════
   "text-to-image": [
+    {
+      modelId: "fal-ai/nano-banana-2",
+      label: "Nano Banana 2 (Gemini Flash)",
+      category: "text-to-image",
+      tier: "fast",
+      description:
+        "Gemini 3.1 Flash 圖像生成，支援多達 14 張參考圖、文字渲染與 0.5K-4K 解析度",
+      inputSchema: {
+        prompt: true,
+        imageSize: true,
+        seed: true,
+        aspectRatio: true,
+      },
+      outputSchema: { images: true, seed: true },
+      timeoutMs: 60_000,
+    },
+    {
+      modelId: "fal-ai/nano-banana-pro",
+      label: "Nano Banana Pro (Gemini Pro)",
+      category: "text-to-image",
+      tier: "premium",
+      description:
+        "Gemini 3 Pro 高品質圖像生成，商業授權友善，支援多參考圖與精細語意控制",
+      inputSchema: {
+        prompt: true,
+        imageSize: true,
+        seed: true,
+        aspectRatio: true,
+        negativePrompt: true,
+      },
+      outputSchema: { images: true, seed: true },
+      timeoutMs: 120_000,
+    },
+    {
+      modelId: "fal-ai/imagen4/preview",
+      label: "Imagen 4 Preview (Google)",
+      category: "text-to-image",
+      tier: "premium",
+      description: "Google Imagen 4 寫實風格圖像生成，超高細節與真實感",
+      inputSchema: {
+        prompt: true,
+        imageSize: true,
+        seed: true,
+        aspectRatio: true,
+        negativePrompt: true,
+      },
+      outputSchema: { images: true, seed: true },
+      timeoutMs: 120_000,
+    },
     {
       modelId: "fal-ai/flux-pro/v1.1",
       label: "Flux Pro 1.1",
@@ -758,6 +775,27 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
   // 2-11 文字轉語音  text-to-speech
   // ════════════════════════════════════════════════════════
   "text-to-speech": [
+    {
+      modelId: "fal-ai/elevenlabs/tts/multilingual-v2",
+      label: "ElevenLabs Multilingual V2",
+      category: "text-to-speech",
+      tier: "premium",
+      description:
+        "ElevenLabs Multilingual V2 高品質多語言 TTS（中/英/日/韓/西/法 等 29 語），支援情感與語氣控制",
+      inputSchema: { prompt: true, voiceId: true, speed: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 60_000,
+    },
+    {
+      modelId: "fal-ai/elevenlabs/tts/turbo-v2.5",
+      label: "ElevenLabs Turbo V2.5",
+      category: "text-to-speech",
+      tier: "fast",
+      description: "ElevenLabs Turbo V2.5 低延遲多語言 TTS，適合即時互動場景",
+      inputSchema: { prompt: true, voiceId: true, speed: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 30_000,
+    },
     {
       modelId: "fal-ai/metavoice-v1",
       label: "MetaVoice V1",
@@ -1029,16 +1067,6 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       timeoutMs: 120_000,
     },
     {
-      modelId: "fal-ai/mmaudio-v2",
-      label: "MMAudio V2 v2a",
-      category: "video-to-audio",
-      tier: "standard",
-      description: "AudioLDM2 視頻音效生成",
-      inputSchema: { videoUrl: true, prompt: true, duration: true, seed: true },
-      outputSchema: { audioUrl: true },
-      timeoutMs: 60_000,
-    },
-    {
       modelId: "fal-ai/sync-lipsync",
       label: "Sync.so Lipsync",
       category: "video-to-audio",
@@ -1198,14 +1226,78 @@ export function getFalModelsByCategory(
   return FAL_MODEL_CATALOG[category] ?? [];
 }
 
-/** 依 modelId 查詢模型設定 */
-export function getFalModelById(modelId: string): FalModelConfig | undefined {
+/**
+ * 依 modelId 查詢模型設定。
+ * 可選 category 收窄查詢範圍，避免跨類別 modelId 衝突
+ * （例如 fal-ai/trellis 同時存在於 image-to-3d 與 text-to-3d）。
+ */
+export function getFalModelById(
+  modelId: string,
+  category?: FalCategory
+): FalModelConfig | undefined {
+  if (category) {
+    return FAL_MODEL_CATALOG[category]?.find(m => m.modelId === modelId);
+  }
   for (const models of Object.values(FAL_MODEL_CATALOG)) {
     const found = models.find(m => m.modelId === modelId);
     if (found) return found;
   }
   return undefined;
 }
+
+/**
+ * 模組載入時的去重保護：在每個類別內檢查 modelId 是否重複。
+ * 這個檢查避免「dispatcher 按 modelId 查找會匹配到第一個，
+ * 第二條設定永遠不可達」的回歸。
+ *
+ * 若發現重複，正式環境僅 console.error（不阻斷啟動），
+ * 開發/測試環境則拋錯讓問題立即暴露。
+ */
+export function findDuplicateModelIds(): Array<{
+  category: FalCategory;
+  modelId: string;
+  count: number;
+}> {
+  const dups: Array<{
+    category: FalCategory;
+    modelId: string;
+    count: number;
+  }> = [];
+  for (const [category, models] of Object.entries(FAL_MODEL_CATALOG) as Array<
+    [FalCategory, FalModelConfig[]]
+  >) {
+    const counts: Record<string, number> = {};
+    for (const m of models) {
+      counts[m.modelId] = (counts[m.modelId] ?? 0) + 1;
+    }
+    for (const modelId of Object.keys(counts)) {
+      const count = counts[modelId];
+      if (count > 1) dups.push({ category, modelId, count });
+    }
+  }
+  return dups;
+}
+
+export function assertNoDuplicateModelIds(): void {
+  const dups = findDuplicateModelIds();
+  if (dups.length === 0) return;
+  const lines = dups
+    .map(d => `  - [${d.category}] ${d.modelId} ×${d.count}`)
+    .join("\n");
+  const message = `FAL_MODEL_CATALOG contains duplicate modelIds within categories (later entries are unreachable via getFalModelById):\n${lines}`;
+  if (
+    process.env.NODE_ENV === "production" ||
+    process.env.NODE_ENV === undefined
+  ) {
+    // 正式環境：僅警告，避免阻斷啟動
+    console.error(`[falModels] ${message}`);
+  } else {
+    throw new Error(message);
+  }
+}
+
+// 模組載入時自動檢查（開發/測試環境會拋錯）
+assertNoDuplicateModelIds();
 
 /** 取得所有類別標籤（繁中） */
 export const FAL_CATEGORY_LABELS: Record<FalCategory, string> = {
