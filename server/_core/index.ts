@@ -2,6 +2,8 @@ import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
+import fs from "fs";
+import path from "path";
 import compression from "compression";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
@@ -227,6 +229,14 @@ async function startServer() {
   registerOAuthRoutes(app);
   // File upload API
   app.use(uploadRouter);
+  // Local uploads directory (dev/demo fallback when no cloud storage configured)
+  if (process.env.NODE_ENV !== "production") {
+    const localUploadsPath = path.resolve(process.cwd(), "uploads");
+    if (!fs.existsSync(localUploadsPath)) {
+      fs.mkdirSync(localUploadsPath, { recursive: true });
+    }
+    app.use("/uploads", express.static(localUploadsPath));
+  }
   // SSE for real-time generation events
   app.use(sseRouter);
   // LangSmith observability stats
@@ -432,6 +442,8 @@ async function startServer() {
         gcs: "✅ Google Cloud Storage（GCS_BUCKET_NAME + GOOGLE_APPLICATION_CREDENTIALS_JSON）",
         manus:
           "✅ Manus Storage Proxy（BUILT_IN_FORGE_API_URL + BUILT_IN_FORGE_API_KEY）",
+        local:
+          "⚠️  本機暫存（開發模式）— 檔案儲存於 ./uploads/，重啟後可能遺失。請在正式環境設定雲端儲存。",
         none:
           "❌ 未設定任何儲存後端！請在 Railway 環境變數中設定以下任一組合：\n" +
           "   ▸ 方案A（推薦）Cloudflare R2：S3_ENDPOINT + S3_ACCESS_KEY_ID + S3_SECRET_ACCESS_KEY + S3_BUCKET_NAME\n" +

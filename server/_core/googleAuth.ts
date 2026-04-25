@@ -25,10 +25,20 @@ const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo";
 
 // ─── JWT 工具 ──────────────────────────────────────────────────────────────
 
+const DEV_FALLBACK_SECRET = "healing-studio-dev-fallback-secret-NOT-FOR-PRODUCTION";
+
 function getJwtSecret(): Uint8Array {
   // Read from process.env directly to avoid ESM module evaluation order issues
   const secret = process.env.JWT_SECRET || ENV.cookieSecret;
-  if (!secret) throw new Error("JWT_SECRET 未設定，無法建立 Session");
+  if (!secret) {
+    if (process.env.NODE_ENV !== "test") {
+      console.warn(
+        "[Auth] ⚠️  JWT_SECRET 未設定，使用開發用暫時密鑰。" +
+          "請在正式環境設定 JWT_SECRET（openssl rand -base64 32）！"
+      );
+    }
+    return new TextEncoder().encode(DEV_FALLBACK_SECRET);
+  }
   return new TextEncoder().encode(secret);
 }
 
