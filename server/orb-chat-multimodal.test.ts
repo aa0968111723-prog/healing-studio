@@ -330,6 +330,57 @@ describe("orb-chat-multimodal contract", () => {
       ).toBe(false);
     });
 
+    // Issue #178: server-side red line. Even if a mis-behaving client tries to
+    // squeeze a base64 buffer through the multimodal contract by stuffing it
+    // into image_url.url or file_url.url, the schema must reject it. This
+    // makes /api/upload's storage-backed URL the *only* legal path for
+    // attachments.
+    it("OrbChatLLMImageUrlPartSchema rejects data: URIs (no inline base64)", () => {
+      const result = OrbChatLLMMessagePartSchema.safeParse({
+        type: "image_url",
+        image_url: {
+          url: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB",
+        },
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("OrbChatLLMFileUrlPartSchema rejects data: URIs for video/audio/pdf", () => {
+      const cases = [
+        {
+          mime: "video/mp4",
+          uri: "data:video/mp4;base64,AAAAIGZ0eXBpc29t",
+        },
+        {
+          mime: "audio/mpeg",
+          uri: "data:audio/mpeg;base64,SUQzBAAAAAAA",
+        },
+        {
+          mime: "application/pdf",
+          uri: "data:application/pdf;base64,JVBERi0xLjQK",
+        },
+      ];
+      for (const { mime, uri } of cases) {
+        const result = OrbChatLLMMessagePartSchema.safeParse({
+          type: "file_url",
+          file_url: { url: uri, mime_type: mime },
+        });
+        expect(result.success).toBe(false);
+      }
+    });
+
+    it("OrbChatLLMFileUrlPartSchema accepts https URLs (storage-backed)", () => {
+      const result = OrbChatLLMMessagePartSchema.safeParse({
+        type: "file_url",
+        file_url: {
+          url: "https://cdn.test/uploads/42/clip-abc123.mp4",
+          mime_type: "video/mp4",
+          size_bytes: 5 * 1024 * 1024,
+        },
+      });
+      expect(result.success).toBe(true);
+    });
+
     it("OrbChatLLMMessageContentSchema accepts both string and array content", () => {
       expect(OrbChatLLMMessageContentSchema.safeParse("hello").success).toBe(true);
       expect(

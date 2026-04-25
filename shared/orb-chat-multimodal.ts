@@ -122,10 +122,28 @@ export const OrbChatLLMTextPartSchema = z.object({
   text: z.string(),
 });
 
+/**
+ * Issue #178: large media uploads must reference a stored object URL, not a
+ * base64 data URI. We refuse `data:` URIs at the schema boundary so server
+ * code never has to re-encode buffers into JSON for the LLM call.
+ *
+ * Note: `z.string().url()` accepts `data:` URIs (RFC 3986 schemes), so this
+ * extra refinement is required even on top of the URL check.
+ */
+export const ORB_DATA_URI_REJECTED_MESSAGE =
+  "Attachment URL must be a stored object URL (https://...). Inline data: URIs are not allowed; upload via /api/upload first.";
+
+const storedObjectUrl = z
+  .string()
+  .url()
+  .refine(value => !/^data:/i.test(value.trim()), {
+    message: ORB_DATA_URI_REJECTED_MESSAGE,
+  });
+
 export const OrbChatLLMImageUrlPartSchema = z.object({
   type: z.literal("image_url"),
   image_url: z.object({
-    url: z.string().url(),
+    url: storedObjectUrl,
     detail: z.enum(["auto", "low", "high"]).optional(),
   }),
 });
@@ -133,7 +151,7 @@ export const OrbChatLLMImageUrlPartSchema = z.object({
 export const OrbChatLLMFileUrlPartSchema = z.object({
   type: z.literal("file_url"),
   file_url: z.object({
-    url: z.string().url(),
+    url: storedObjectUrl,
     mime_type: OrbChatAttachmentMimeTypeSchema,
     size_bytes: z.number().int().nonnegative().optional(),
     duration_sec: z.number().nonnegative().optional(),
