@@ -191,6 +191,15 @@ export interface PageAgentSnapshot {
   pageId: string;
   pageLabel: string;
   pagePath: string;
+  activeMode?: string;
+  activeModel?: string;
+  selectedPreset?: string;
+  availableModels?: string[];
+  availableModes?: string[];
+  availableParameters?: string[];
+  currentPrompt?: string;
+  hasUnsavedChanges?: boolean;
+  warnings?: string[];
   capabilities: AgentCapability[];
   /** 任意即時狀態（promptLength, remainingCredits, isGenerating…） */
   state?: Record<string, unknown>;

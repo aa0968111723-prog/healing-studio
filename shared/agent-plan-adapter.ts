@@ -388,6 +388,10 @@ function gateV3Plan(plan: AgentPlanV3): GatedAgentPlanResult {
   }
 
   if (evaluation.decisionMode === "blocked") {
+    const firstBlocker = evaluation.blockers[0]?.message ?? evaluation.reasons.join(" / ");
+    const friendlyBlockerReply = firstBlocker.includes("has no registered capability")
+      ? "我目前這個頁面沒有對應能力，請先切換到正確工作室，或告訴我你希望前往哪一頁，我再幫你接續。"
+      : `我已建立計畫，但因安全檢查暫停執行：${firstBlocker}`;
     return {
       status: "blocked",
       ok: false,
@@ -395,7 +399,7 @@ function gateV3Plan(plan: AgentPlanV3): GatedAgentPlanResult {
       plan,
       actions: [],
       askBeforeAct: true,
-      reply: `我已建立計畫，但因安全檢查暫停執行：${evaluation.blockers[0]?.message ?? evaluation.reasons.join(" / ")}`,
+      reply: friendlyBlockerReply,
       intent: plan.intent,
       warnings,
       blockers: evaluation.blockers,

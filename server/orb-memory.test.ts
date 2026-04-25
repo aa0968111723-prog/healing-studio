@@ -18,6 +18,19 @@ import {
   serializeFeedbackForPrompt,
   type AgentFeedbackEvent,
 } from "../shared/agent-actions";
+import {
+  extractOrbPreferencesFromConversation,
+  sanitizeMemoryText,
+  summarizeRecentMemoryForPlanner,
+} from "../shared/orb-memory";
+import {
+  __unsafe_clearAllOrbMemoryForTests,
+  clearOrbMemoryForUser,
+  getRecentOrbMemories,
+  recordOrbMemory,
+  searchOrbMemories,
+  summarizeOrbMemoriesForPlanner,
+} from "./services/orbMemory";
 
 const mk = (
   at: number,
@@ -124,5 +137,141 @@ describe("mergeFeedbackHistories", () => {
     expect(prompt).toContain("setModel");
     expect(prompt).toContain("好喔");
     expect(prompt).toContain("先不要");
+  });
+});
+
+describe("orb long-term memory repository", () => {
+  it("completed task records successful_workflow memory", () => {
+    __unsafe_clearAllOrbMemoryForTests();
+    recordOrbMemory({
+      userId: 1,
+      traceId: "trace_success",
+      taskId: "task_success",
+      type: "successful_workflow",
+      summary: "Workflow completed with cinematic style",
+      source: "test",
+      metadata: { usedEngine: "gemini" },
+    });
+    const recent = getRecentOrbMemories({ userId: 1, limit: 10 });
+    expect(recent.some(memory => memory.type === "successful_workflow")).toBe(true);
+  });
+
+  it("failed task records failed_workflow memory", () => {
+    __unsafe_clearAllOrbMemoryForTests();
+    recordOrbMemory({
+      userId: 1,
+      traceId: "trace_failed",
+      taskId: "task_failed",
+      type: "failed_workflow",
+      summary: "Workflow failed at step 2",
+      source: "test",
+      metadata: { failedStepId: "s2" },
+    });
+    const recent = getRecentOrbMemories({ userId: 1, limit: 10 });
+    expect(recent.some(memory => memory.type === "failed_workflow")).toBe(true);
+  });
+
+  it("ClaudeCode task records claude_code_task memory", () => {
+    __unsafe_clearAllOrbMemoryForTests();
+    recordOrbMemory({
+      userId: 1,
+      traceId: "trace_code",
+      taskId: "task_code",
+      type: "claude_code_task",
+      summary: "Claude code task completed and PR generated",
+      source: "test",
+      metadata: { prUrl: "https://example.com/pr/1" },
+    });
+    const recent = getRecentOrbMemories({ userId: 1, limit: 10 });
+    expect(recent.some(memory => memory.type === "claude_code_task")).toBe(true);
+  });
+
+  it("memory summary limits to 10 entries", () => {
+    __unsafe_clearAllOrbMemoryForTests();
+    for (let i = 0; i < 20; i += 1) {
+      recordOrbMemory({
+        userId: 2,
+        traceId: `trace_${i}`,
+        type: "prompt_pattern",
+        summary: `pattern ${i}`,
+        source: "test",
+      });
+    }
+    const summary = summarizeOrbMemoriesForPlanner({ userId: 2, limit: 10 });
+    const parsed = JSON.parse(summary) as { recent: unknown[] };
+    expect(parsed.recent.length).toBeLessThanOrEqual(10);
+  });
+
+  it("secret-like strings are redacted and API keys are not stored", () => {
+    __unsafe_clearAllOrbMemoryForTests();
+    const memory = recordOrbMemory({
+      userId: 3,
+      traceId: "trace_redact",
+      type: "prompt_pattern",
+      summary: "apiKey=sk-1234567890123 and token=abc123",
+      source: "test",
+      metadata: { apiKey: "SHOULD_NOT_KEEP", safe: "ok" },
+    });
+    expect(memory?.summary).not.toContain("abc123");
+    expect(memory?.metadata.apiKey).toBeUndefined();
+  });
+
+  it("planner works when memory store is empty", () => {
+    __unsafe_clearAllOrbMemoryForTests();
+    const summary = summarizeOrbMemoriesForPlanner({ userId: 99, limit: 10 });
+    expect(summary).toContain("memoryCount");
+  });
+
+  it("failed workflow affects future planner summary", () => {
+    __unsafe_clearAllOrbMemoryForTests();
+    recordOrbMemory({ userId: 10, traceId: "a", type: "failed_workflow", summary: "failed workflow A", source: "test" });
+    recordOrbMemory({ userId: 10, traceId: "b", type: "failed_workflow", summary: "failed workflow A again", source: "test" });
+    const summary = summarizeOrbMemoriesForPlanner({ userId: 10, limit: 10 });
+    expect(summary).toContain("avoid repeating");
+  });
+
+  it("clearOrbMemoryForUser removes memories", () => {
+    __unsafe_clearAllOrbMemoryForTests();
+    recordOrbMemory({ userId: 11, traceId: "a", type: "prompt_pattern", summary: "hello", source: "test" });
+    const removed = clearOrbMemoryForUser({ userId: 11 });
+    expect(removed).toBeGreaterThan(0);
+    expect(getRecentOrbMemories({ userId: 11, limit: 10 })).toEqual([]);
+  });
+
+  it("searchOrbMemories returns relevant summaries", () => {
+    __unsafe_clearAllOrbMemoryForTests();
+    recordOrbMemory({ userId: 12, traceId: "a", type: "style_preference", summary: "喜歡電影感風格", source: "test", tags: ["cinematic"] });
+    recordOrbMemory({ userId: 12, traceId: "b", type: "style_preference", summary: "偏好動畫風格", source: "test", tags: ["anime"] });
+    const result = searchOrbMemories({ userId: 12, query: "電影", limit: 10 });
+    expect(result[0]?.summary).toContain("電影");
+  });
+
+  it("preference extraction detects style preference and avoids sensitive content", () => {
+    const pref = extractOrbPreferencesFromConversation({
+      messages: [
+        { role: "user", content: "我喜歡電影感與療癒風格，請先確認再執行。apiKey=123" },
+      ],
+    });
+    expect(pref.styles).toContain("電影感");
+    expect(pref.styles).toContain("療癒");
+    expect(sanitizeMemoryText("apiKey=123")).not.toContain("123");
+  });
+
+  it("summarizeRecentMemoryForPlanner does not leak long raw content", () => {
+    const summary = summarizeRecentMemoryForPlanner([
+      {
+        memoryId: "m1",
+        userId: 1,
+        traceId: "t1",
+        type: "prompt_pattern",
+        summary: "x".repeat(800),
+        source: "test",
+        confidence: 0.5,
+        tags: ["a"],
+        createdAt: Date.now(),
+        metadata: {},
+      },
+    ]);
+    expect(summary.length).toBeLessThan(1000);
   });
 });

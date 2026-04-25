@@ -19,6 +19,9 @@ const clientSchema = z.object({
   VITE_OAUTH_PORTAL_URL: z.string().optional().default(""),
   VITE_ANALYTICS_ENDPOINT: z.string().optional().default(""),
   VITE_ANALYTICS_WEBSITE_ID: z.string().optional().default(""),
+  VITE_ENABLE_GLOBAL_ORB_EXECUTOR: z.string().optional().default("true"),
+  VITE_ENABLE_ORB_MEMORY_PANEL: z.string().optional().default("false"),
+  VITE_ENABLE_CLAUDE_CODE_TASKS: z.string().optional().default("true"),
 });
 
 // ─── Validation ────────────────────────────────────────────────────────────
@@ -31,6 +34,9 @@ function validateClientEnv() {
     VITE_OAUTH_PORTAL_URL: import.meta.env.VITE_OAUTH_PORTAL_URL,
     VITE_ANALYTICS_ENDPOINT: import.meta.env.VITE_ANALYTICS_ENDPOINT,
     VITE_ANALYTICS_WEBSITE_ID: import.meta.env.VITE_ANALYTICS_WEBSITE_ID,
+    VITE_ENABLE_GLOBAL_ORB_EXECUTOR: import.meta.env.VITE_ENABLE_GLOBAL_ORB_EXECUTOR,
+    VITE_ENABLE_ORB_MEMORY_PANEL: import.meta.env.VITE_ENABLE_ORB_MEMORY_PANEL,
+    VITE_ENABLE_CLAUDE_CODE_TASKS: import.meta.env.VITE_ENABLE_CLAUDE_CODE_TASKS,
   };
 
   const result = clientSchema.safeParse(raw);

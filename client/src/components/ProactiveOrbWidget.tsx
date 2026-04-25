@@ -62,11 +62,15 @@ import { cn } from "@/lib/utils";
 import {
   useGlobalOrbChat,
   type ChatAttachment,
-  type ChatAttachmentMimeType,
   getPageEmoji,
   formatMessageMetadata,
 } from "@/contexts/GlobalOrbChatContext";
 import { shortErrorMsg, uploadFileToS3 } from "@/lib/upload";
+import {
+  ORB_UNSUPPORTED_ATTACHMENT_MESSAGE,
+  ORB_UPLOAD_ACCEPT,
+  resolveOrbAttachmentKind,
+} from "../../../shared/orb-chat-multimodal";
 
 type Props = {
   className?: string;
@@ -123,42 +127,6 @@ function savePosition(x: number, y: number) {
   } catch {
     /* ignore */
   }
-}
-
-const ORB_UPLOAD_ACCEPT = "image/*,video/*,audio/*,.pdf";
-
-const ORB_ALLOWED_MIME_TYPES = new Set<ChatAttachmentMimeType>([
-  "application/pdf",
-  "image/jpeg",
-  "image/png",
-  "image/gif",
-  "image/webp",
-  "image/svg+xml",
-  "image/avif",
-  "audio/mpeg",
-  "audio/wav",
-  "audio/ogg",
-  "audio/webm",
-  "audio/mp4",
-  "audio/aac",
-  "audio/flac",
-  "video/mp4",
-  "video/webm",
-  "video/ogg",
-  "video/quicktime",
-]);
-
-function resolveAttachmentKind(
-  mimeType: string
-): { kind: ChatAttachment["kind"]; mimeType: ChatAttachmentMimeType } | null {
-  const mime = mimeType.toLowerCase();
-  if (!ORB_ALLOWED_MIME_TYPES.has(mime as ChatAttachmentMimeType)) return null;
-  const normalized = mime as ChatAttachmentMimeType;
-  if (normalized.startsWith("image/")) return { kind: "image", mimeType: normalized };
-  if (normalized.startsWith("video/")) return { kind: "video", mimeType: normalized };
-  if (normalized.startsWith("audio/")) return { kind: "audio", mimeType: normalized };
-  if (normalized === "application/pdf") return { kind: "pdf", mimeType: normalized };
-  return null;
 }
 
 function isOnboarded(): boolean {
@@ -1835,17 +1803,17 @@ export default memo(function ProactiveOrbWidget({
 
       const candidates = Array.from(files);
       const validFiles = candidates
-        .map(file => ({ file, resolved: resolveAttachmentKind(file.type) }))
+        .map(file => ({ file, resolved: resolveOrbAttachmentKind(file.type) }))
         .filter(
           (
             entry
           ): entry is {
             file: File;
-            resolved: { kind: ChatAttachment["kind"]; mimeType: ChatAttachmentMimeType };
+            resolved: NonNullable<ReturnType<typeof resolveOrbAttachmentKind>>;
           } => entry.resolved !== null
         );
       if (validFiles.length === 0) {
-        showFeedback("只支援圖像、影片、音訊與 PDF 檔案");
+        showFeedback(ORB_UNSUPPORTED_ATTACHMENT_MESSAGE);
         return;
       }
 

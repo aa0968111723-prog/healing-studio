@@ -71,10 +71,16 @@ describe("agentPlanner", () => {
       messages,
       context: "current page /studio",
       personality: "creative",
+      recentTaskMemorySummary: "recent-memory-summary",
+      recentOrbMemorySummary: "recent-orb-memory-summary",
+      siteKnowledgeSummary: "Current page: /studio",
     });
 
     expect(built[0].role).toBe("system");
-    expect(String(built[0].content)).toContain("schema-first planning layer");
+    expect(String(built[0].content)).toContain("agent-plan.v3");
+    expect(String(built[0].content)).toContain("recent-memory-summary");
+    expect(String(built[0].content)).toContain("recent-orb-memory-summary");
+    expect(String(built[0].content)).toContain("Site knowledge summary");
     expect(built.at(-1)?.content).toBe("幫我做海報");
   });
 
@@ -123,15 +129,23 @@ describe("agentPlanner", () => {
   });
 
   it("runs LLM planner and converts valid plan into workflow", async () => {
+    let captured: InvokeParams | null = null;
     const result = await runSchemaFirstAgentPlanner({
       messages: [{ role: "user", content: "幫我做海報" }],
-      invoke: async () => invokeResult(JSON.stringify(validPlan)),
+      invoke: async params => {
+        captured = params;
+        return invokeResult(JSON.stringify(validPlan));
+      },
     });
 
     expect(result.plannerUsed).toBe(true);
     expect(result.usedMultimodalPlanner).toBe(false);
     expect(result.status).toBe("converted");
     expect(result.actions[0]?.type).toBe("runWorkflow");
+    expect(captured?.response_format?.type).toBe("json_schema");
+    expect(
+      (captured?.response_format as { json_schema?: { name?: string } } | undefined)?.json_schema?.name
+    ).toBe("agent_plan_v3");
     expect(plannerResultShouldFallback(result)).toBe(false);
   });
 
@@ -214,6 +228,9 @@ describe("agentPlanner", () => {
 
     expect(result.preferredEngine).toBe("gemini");
     expect(["medium", "high"]).toContain(result.riskEvaluation?.riskLevel);
+    if (result.version === "agent-plan.v3") {
+      expect(result.plan.routing.capabilities).toContain("multimodal");
+    }
   });
 
   it("v3 blocked plan returns no actions and asks for confirmation", async () => {

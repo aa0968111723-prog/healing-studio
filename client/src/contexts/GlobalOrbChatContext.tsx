@@ -17,6 +17,7 @@ import {
   type ReactNode,
 } from "react";
 import { trpc } from "@/lib/trpc";
+import { useGlobalOrbExecutor } from "@/agent/useGlobalOrbExecutor";
 import { usePersonality } from "./PersonalityContext";
 import { usePageAgent, parseLLMActions, adaptAgentPlanToActions, type AgentAction } from "./PageAgentContext";
 import { useLocation } from "wouter";
@@ -27,6 +28,7 @@ import {
   type OrbChatAttachment,
   type OrbChatAttachmentMimeType,
 } from "../../../shared/orb-chat-multimodal";
+import type { GlobalOrbExecutorTask } from "@/agent/GlobalOrbExecutor";
 
 export {
   getPageLabelByPath,
@@ -101,6 +103,29 @@ export interface PendingWorkflowPlan {
   total: number;
   createdAt: number;
   steps: WorkflowExecutionStepState[];
+}
+
+export interface PendingExecutorTask {
+  task: GlobalOrbExecutorTask;
+  requiresHumanReason?: string;
+  affectedPages: string[];
+}
+
+export interface PendingCodeTaskPreview {
+  codeTaskId: string;
+  taskId: string;
+  title: string;
+  objective: string;
+  provider: "claudeCode" | "codex" | "manual";
+  filesAllowed: string[];
+  filesForbidden: string[];
+  riskLevel: "low" | "medium" | "high";
+  testCommands: string[];
+  rollbackPlan: string;
+  status: string;
+  prUrl?: string;
+  branchName?: string;
+  testStatusSummary?: string;
 }
 
 const STORAGE_KEY_MESSAGES = "orb-chat-messages";
@@ -402,6 +427,125 @@ function WorkflowExecutionFloatingPanel({
   );
 }
 
+function ExecutorConfirmationCard({
+  pendingTask,
+  isBusy,
+  onApprove,
+  onCancel,
+  onEditPlan,
+}: {
+  pendingTask: PendingExecutorTask | null;
+  isBusy: boolean;
+  onApprove: () => void;
+  onCancel: () => void;
+  onEditPlan: () => void;
+}) {
+  if (!pendingTask) return null;
+  const { task } = pendingTask;
+  return (
+    <div className="fixed bottom-24 left-5 z-[86] w-[400px] max-w-[calc(100vw-2rem)] rounded-3xl border border-amber-200/30 bg-slate-950/95 p-4 text-white shadow-2xl backdrop-blur-xl">
+      <div className="text-xs uppercase tracking-[0.2em] text-amber-200/80">Executor Approval</div>
+      <div className="mt-1 text-base font-semibold">{task.summaryForUser}</div>
+      <div className="mt-2 text-xs text-white/70">taskId: {task.taskId} · traceId: {task.traceId ?? "n/a"}</div>
+      <div className="mt-1 text-xs text-white/70">risk: {task.riskLevel ?? "unknown"}</div>
+      {pendingTask.requiresHumanReason && <div className="mt-1 text-xs text-amber-200">{pendingTask.requiresHumanReason}</div>}
+      {task.riskLevel === "high" && (
+        <div className="mt-2 rounded-xl border border-rose-300/30 bg-rose-500/15 p-2 text-xs text-rose-100">
+          高風險任務：不會自動執行，請確認後才開始。
+        </div>
+      )}
+      <div className="mt-3 space-y-1 text-xs text-white/80">
+        {task.steps.slice(0, 6).map((step, idx) => (
+          <div key={step.id}>{idx + 1}. {step.label} {step.pagePath ? `(${step.pagePath})` : ""}</div>
+        ))}
+      </div>
+      <div className="mt-2 text-xs text-cyan-100/70">Affected page: {pendingTask.affectedPages.join(", ") || "current page"}</div>
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        <button type="button" onClick={onApprove} disabled={isBusy} className="rounded-2xl bg-emerald-300 px-3 py-2 text-xs font-semibold text-slate-950 disabled:opacity-50">Approve / 執行</button>
+        <button type="button" onClick={onCancel} disabled={isBusy} className="rounded-2xl bg-white/10 px-3 py-2 text-xs text-white/80 disabled:opacity-50">Cancel / 取消</button>
+        <button type="button" onClick={onEditPlan} disabled={isBusy} className="rounded-2xl bg-white/10 px-3 py-2 text-xs text-white/80 disabled:opacity-50">Edit Plan / 修改</button>
+      </div>
+    </div>
+  );
+}
+
+function ExecutorProgressPanel({
+  task,
+  state,
+  onRetry,
+  onCancel,
+  onReplan,
+  onApproveStep,
+}: {
+  task: GlobalOrbExecutorTask | null;
+  state: ReturnType<typeof useGlobalOrbExecutor>["state"];
+  onRetry: () => void;
+  onCancel: () => void;
+  onReplan: () => void;
+  onApproveStep: (stepId: string) => void;
+}) {
+  if (!task || state.taskId !== task.taskId) return null;
+  return (
+    <div className="fixed bottom-24 left-5 z-[84] w-[420px] max-w-[calc(100vw-2rem)] rounded-3xl border border-white/20 bg-slate-950/90 p-4 text-white shadow-2xl backdrop-blur-xl">
+      <div className="flex justify-between text-xs text-white/70">
+        <span>{state.status}</span>
+        <span>{state.currentStepId ?? "no-step"}</span>
+      </div>
+      <div className="mt-1 text-xs text-white/60">taskId: {task.taskId} · traceId: {task.traceId ?? "n/a"}</div>
+      {state.failReason && <div className="mt-2 text-xs text-rose-200">Fail: {state.failReason}</div>}
+      <div className="mt-3 max-h-52 space-y-1 overflow-auto text-xs">
+        {state.steps.map(step => (
+          <div key={step.id} className="rounded-lg bg-white/5 px-2 py-1">
+            <div>{step.label} · {step.status}</div>
+            {step.expectedOutput && <div className="text-white/50">expected: {step.expectedOutput}</div>}
+            {step.status === "awaiting_approval" && (
+              <button className="mt-1 rounded bg-cyan-300 px-2 py-1 text-[11px] font-semibold text-slate-950" onClick={() => onApproveStep(step.id)}>Approve step</button>
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        <button onClick={onRetry} className="rounded-2xl bg-white/10 px-3 py-2 text-xs">Retry</button>
+        <button onClick={onCancel} className="rounded-2xl bg-white/10 px-3 py-2 text-xs">Cancel</button>
+        <button onClick={onReplan} className="rounded-2xl bg-white/10 px-3 py-2 text-xs">Replan</button>
+      </div>
+    </div>
+  );
+}
+
+function CodeTaskCard({
+  codeTask,
+  isBusy,
+  onApprove,
+  onCancel,
+}: {
+  codeTask: PendingCodeTaskPreview | null;
+  isBusy: boolean;
+  onApprove: () => void;
+  onCancel: () => void;
+}) {
+  if (!codeTask) return null;
+  return (
+    <div className="fixed bottom-24 left-5 z-[87] w-[440px] max-w-[calc(100vw-2rem)] rounded-3xl border border-violet-300/30 bg-slate-950/95 p-4 text-white shadow-2xl backdrop-blur-xl">
+      <div className="text-xs uppercase tracking-[0.2em] text-violet-200/80">Code Collaboration Task</div>
+      <div className="mt-1 text-base font-semibold">{codeTask.title}</div>
+      <div className="mt-1 text-xs text-white/70">Provider: {codeTask.provider} · Risk: {codeTask.riskLevel}</div>
+      <div className="mt-1 text-xs text-white/70">taskId: {codeTask.taskId} · codeTaskId: {codeTask.codeTaskId}</div>
+      <div className="mt-2 text-sm text-white/80">{codeTask.objective}</div>
+      <div className="mt-2 text-xs text-cyan-100/70">Allowed: {codeTask.filesAllowed.join(", ") || "(none)"}</div>
+      <div className="mt-1 text-xs text-rose-100/80">Forbidden: {codeTask.filesForbidden.join(", ") || "(none)"}</div>
+      <div className="mt-1 text-xs text-white/70">Tests: {codeTask.testCommands.join(" | ") || "(none)"}</div>
+      <div className="mt-1 text-xs text-white/70">Rollback: {codeTask.rollbackPlan}</div>
+      {codeTask.prUrl && <a href={codeTask.prUrl} target="_blank" rel="noreferrer" className="mt-2 block text-xs text-cyan-200 underline">PR: {codeTask.prUrl}</a>}
+      {codeTask.testStatusSummary && <div className="mt-1 text-xs text-white/70">Tests summary: {codeTask.testStatusSummary}</div>}
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <button onClick={onApprove} disabled={isBusy} className="rounded-2xl bg-violet-300 px-3 py-2 text-xs font-semibold text-slate-950 disabled:opacity-50">Approve / 交給 {codeTask.provider === "codex" ? "Codex" : "Claude Code"}</button>
+        <button onClick={onCancel} disabled={isBusy} className="rounded-2xl bg-white/10 px-3 py-2 text-xs disabled:opacity-50">Cancel</button>
+      </div>
+    </div>
+  );
+}
+
 interface GlobalOrbChatContextValue {
   messages: ChatMessage[];
   input: string;
@@ -455,8 +599,14 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const [workflowExecution, setWorkflowExecution] = useState<WorkflowExecutionState | null>(null);
   const [pendingWorkflow, setPendingWorkflow] = useState<PendingWorkflowPlan | null>(null);
+  const [pendingExecutorTask, setPendingExecutorTask] = useState<PendingExecutorTask | null>(null);
+  const [activeExecutorTask, setActiveExecutorTask] = useState<GlobalOrbExecutorTask | null>(null);
+  const [pendingCodeTask, setPendingCodeTask] = useState<PendingCodeTaskPreview | null>(null);
+  const orbExecutor = useGlobalOrbExecutor();
 
   const aiChat = trpc.ai.chat.useMutation();
+  const codeTaskApprove = trpc.ai.codeTask.approve.useMutation();
+  const codeTaskCancel = trpc.ai.codeTask.cancel.useMutation();
   const providerPingQuery = trpc.brain.pingProviders.useQuery(undefined, {
     retry: false,
     staleTime: 60_000,
@@ -660,6 +810,27 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       const rawPlannerOutput = (data as { plannerOutput?: unknown; agentPlan?: unknown; plan?: unknown }).plannerOutput
         ?? (data as { plannerOutput?: unknown; agentPlan?: unknown; plan?: unknown }).agentPlan
         ?? (data as { plannerOutput?: unknown; agentPlan?: unknown; plan?: unknown }).plan;
+      const taskDraft = (data as { taskDraft?: { summaryForUser?: string; steps?: Array<{ id: string; label: string; pagePath?: string; uiActions?: Array<{ type: string; payload?: unknown }>; requiresApproval?: boolean; toolCalls?: Array<{ name: string; args?: Record<string, unknown>; requiresApproval?: boolean }> }> } | null }).taskDraft;
+      const taskMeta = (data as { task?: { taskId?: string; traceId?: string; riskLevel?: string; preferredEngine?: string; isolation?: "ui" | "tool" | "code"; status?: string } | null; telemetry?: { taskId?: string | null; traceId?: string | null; riskLevel?: string | null } | null }).task;
+      const telemetryMeta = (data as { telemetry?: { taskId?: string | null; traceId?: string | null; riskLevel?: string | null } | null }).telemetry;
+      const codeTaskPreview = (data as {
+        codeTask?: {
+          codeTaskId: string;
+          taskId: string;
+          title: string;
+          objective: string;
+          provider: "claudeCode" | "codex" | "manual";
+          filesAllowed?: string[];
+          filesForbidden?: string[];
+          riskLevel: "low" | "medium" | "high";
+          testCommands?: string[];
+          rollbackPlan: string;
+          status: string;
+          prUrl?: string;
+          branchName?: string;
+          testStatusSummary?: string;
+        } | null;
+      }).codeTask;
       const llmActions = rawPlannerOutput
         ? adaptAgentPlanToActions(rawPlannerOutput)
         : data.actions
@@ -668,6 +839,26 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       const fallbackWorkflow = llmActions.length === 0 ? maybeCreateWorkflowFromUserText(trimmed) : null;
       const actionsToExecute: AgentAction[] = fallbackWorkflow ? [fallbackWorkflow] : llmActions;
       const effectiveIntent = intent ?? (fallbackWorkflow ? fallbackWorkflow.name : undefined);
+      const executorTask: GlobalOrbExecutorTask | null =
+        taskDraft && Array.isArray(taskDraft.steps) && taskDraft.steps.length > 0
+          ? {
+              taskId: telemetryMeta?.taskId ?? taskMeta?.taskId ?? `draft_${Date.now()}`,
+              traceId: telemetryMeta?.traceId ?? taskMeta?.traceId ?? null,
+              summaryForUser: taskDraft.summaryForUser ?? data.reply ?? "Orb task",
+              status: taskMeta?.status ?? "awaiting_approval",
+              preferredEngine: taskMeta?.preferredEngine ?? null,
+              isolation: taskMeta?.isolation ?? "ui",
+              riskLevel: telemetryMeta?.riskLevel ?? taskMeta?.riskLevel ?? "medium",
+              steps: taskDraft.steps.map(step => ({
+                id: step.id,
+                label: step.label,
+                pagePath: step.pagePath,
+                uiActions: step.uiActions ?? [],
+                requiresApproval: step.requiresApproval,
+                toolCalls: step.toolCalls,
+              })),
+            }
+          : null;
       const pendingPlan = buildPendingWorkflowPlan({
         actions: actionsToExecute,
         userText: trimmed,
@@ -695,6 +886,36 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       if (pendingPlan) {
         setPendingWorkflow(pendingPlan);
         setWorkflowExecution(null);
+        return;
+      }
+
+      if (executorTask) {
+        const pages = Array.from(new Set(executorTask.steps.map(step => step.pagePath).filter((v): v is string => Boolean(v))));
+        setPendingExecutorTask({
+          task: executorTask,
+          requiresHumanReason: (data as { reply?: string; warnings?: string[] }).reply,
+          affectedPages: pages,
+        });
+        return;
+      }
+
+      if (codeTaskPreview) {
+        setPendingCodeTask({
+          codeTaskId: codeTaskPreview.codeTaskId,
+          taskId: codeTaskPreview.taskId,
+          title: codeTaskPreview.title,
+          objective: codeTaskPreview.objective,
+          provider: codeTaskPreview.provider,
+          filesAllowed: codeTaskPreview.filesAllowed ?? [],
+          filesForbidden: codeTaskPreview.filesForbidden ?? [],
+          riskLevel: codeTaskPreview.riskLevel,
+          testCommands: codeTaskPreview.testCommands ?? [],
+          rollbackPlan: codeTaskPreview.rollbackPlan,
+          status: codeTaskPreview.status,
+          prUrl: codeTaskPreview.prUrl,
+          branchName: codeTaskPreview.branchName,
+          testStatusSummary: codeTaskPreview.testStatusSummary,
+        });
         return;
       }
 
@@ -726,6 +947,56 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       setIsSending(false);
     }
   }, [messages, isSending, personality, pageAgent, locationPath, aiChat, providerPingQuery.data, executeActions]);
+
+  const approveExecutorTask = useCallback(async () => {
+    if (!pendingExecutorTask || isSending) return;
+    const task = pendingExecutorTask.task;
+    setPendingExecutorTask(null);
+    setActiveExecutorTask(task);
+    await orbExecutor.startTask(task);
+  }, [pendingExecutorTask, isSending, orbExecutor]);
+
+  const cancelExecutorTask = useCallback(async () => {
+    if (!pendingExecutorTask || isSending) return;
+    const task = pendingExecutorTask.task;
+    setPendingExecutorTask(null);
+    await orbExecutor.cancelTask("cancelled before execution");
+    setMessages(prev => [...prev, { role: "orb", text: `已取消任務 ${task.taskId}，不會執行任何操作。`, at: Date.now(), pagePath: locationPath }]);
+  }, [pendingExecutorTask, isSending, orbExecutor, locationPath]);
+
+  const editExecutorPlan = useCallback(() => {
+    if (!pendingExecutorTask || isSending) return;
+    const task = pendingExecutorTask.task;
+    setPendingExecutorTask(null);
+    setIsOpen(true);
+    setInput(`請修改這個執行計畫：${task.summaryForUser}\\n任務ID：${task.taskId}\\n我想調整：`);
+  }, [pendingExecutorTask, isSending]);
+
+  const retryExecutorTask = useCallback(async () => {
+    if (!activeExecutorTask) return;
+    await orbExecutor.retryTask(activeExecutorTask);
+  }, [activeExecutorTask, orbExecutor]);
+
+  const replanFromFailure = useCallback(() => {
+    if (!activeExecutorTask) return;
+    const recovery = orbExecutor.requestRecovery(activeExecutorTask);
+    setIsOpen(true);
+    setInput(`請建立 recovery plan。failedStep=${recovery.failedStepId ?? "unknown"}; failedReason=${recovery.failedReason}`);
+  }, [activeExecutorTask, orbExecutor]);
+
+  const approveCodeTask = useCallback(async () => {
+    if (!pendingCodeTask) return;
+    await codeTaskApprove.mutateAsync({ codeTaskId: pendingCodeTask.codeTaskId });
+    setMessages(prev => [...prev, { role: "orb", text: `已確認程式任務，交由 ${pendingCodeTask.provider} 執行。`, at: Date.now(), pagePath: locationPath }]);
+    setPendingCodeTask(null);
+  }, [pendingCodeTask, codeTaskApprove, locationPath]);
+
+  const cancelCodeTaskPreview = useCallback(async () => {
+    if (!pendingCodeTask) return;
+    await codeTaskCancel.mutateAsync({ codeTaskId: pendingCodeTask.codeTaskId, reason: "cancelled by user" });
+    setMessages(prev => [...prev, { role: "orb", text: "已取消程式任務，不會執行任何 code write 動作。", at: Date.now(), pagePath: locationPath }]);
+    setPendingCodeTask(null);
+  }, [pendingCodeTask, codeTaskCancel, locationPath]);
 
   const startPendingWorkflow = useCallback(async () => {
     if (!pendingWorkflow || isSending) return;
@@ -829,6 +1100,27 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       <WorkflowExecutionFloatingPanel
         workflowExecution={pendingWorkflow ? null : workflowExecution}
         onDismiss={clearWorkflowExecution}
+      />
+      <ExecutorConfirmationCard
+        pendingTask={pendingExecutorTask}
+        isBusy={isSending}
+        onApprove={approveExecutorTask}
+        onCancel={cancelExecutorTask}
+        onEditPlan={editExecutorPlan}
+      />
+      <ExecutorProgressPanel
+        task={activeExecutorTask}
+        state={orbExecutor.state}
+        onRetry={retryExecutorTask}
+        onCancel={() => void orbExecutor.cancelTask("cancelled during execution")}
+        onReplan={replanFromFailure}
+        onApproveStep={stepId => void orbExecutor.approveStep(stepId)}
+      />
+      <CodeTaskCard
+        codeTask={pendingCodeTask}
+        isBusy={isSending}
+        onApprove={approveCodeTask}
+        onCancel={cancelCodeTaskPreview}
       />
     </GlobalOrbChatContext.Provider>
   );
