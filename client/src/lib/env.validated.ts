@@ -42,29 +42,8 @@ function validateClientEnv() {
   const result = clientSchema.safeParse(raw);
   const env = result.success ? result.data : clientSchema.parse({});
 
-  // Warn about critical missing client vars
-  const criticalVars: Array<[string, string, string]> = [
-    ["VITE_APP_ID", env.VITE_APP_ID, "OAuth 登入功能"],
-    ["VITE_OAUTH_PORTAL_URL", env.VITE_OAUTH_PORTAL_URL, "OAuth 登入跳轉"],
-  ];
-
-  const missing = criticalVars.filter(([, value]) => !value);
-  if (missing.length > 0 && import.meta.env.DEV) {
-    console.warn(
-      "%c⚠️ 前端環境變數缺失提醒",
-      "color: #f59e0b; font-weight: bold; font-size: 14px;"
-    );
-    for (const [name, , module] of missing) {
-      console.warn(
-        `  ◦ %c${name}%c — ${module} 將無法正常運作`,
-        "color: #ef4444; font-weight: bold;",
-        "color: inherit;"
-      );
-    }
-    console.warn(
-      "  💡 請在 Manus 管理介面「Settings → Secrets」中設定，或於 .env 檔案中配置。"
-    );
-  }
+  // Note: VITE_APP_ID and VITE_OAUTH_PORTAL_URL are legacy Manus OAuth vars.
+  // Google OAuth is now the primary auth method and does not require these.
 
   return env;
 }

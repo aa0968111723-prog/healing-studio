@@ -1,5 +1,6 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
+import { toast } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
@@ -109,6 +110,36 @@ function ProtectedDashboardRoute({
       </ErrorBoundary>
     </DashboardLayout>
   );
+}
+
+const OAUTH_ERROR_MESSAGES: Record<string, string> = {
+  oauth_config_error: "Google 登入未設定，請聯繫管理員。",
+  auth_denied: "您已取消 Google 授權，請重試。",
+  missing_code: "Google 登入流程異常，請重試。",
+  missing_google_user_id: "無法取得 Google 帳號資訊，請重試。",
+  oauth_failed: "Google 登入失敗，請稍後再試。",
+  demo_oauth_failed: "訪客登入失敗，請重新整理頁面。",
+};
+
+function OAuthErrorToast() {
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const error = params.get("error");
+    if (!error) return;
+
+    params.delete("error");
+    const newSearch = params.toString();
+    const newUrl =
+      window.location.pathname +
+      (newSearch ? `?${newSearch}` : "") +
+      window.location.hash;
+    window.history.replaceState({}, "", newUrl);
+
+    const message = OAUTH_ERROR_MESSAGES[error] ?? "登入失敗，請重試。";
+    toast.error("Google 登入失敗", { description: message, duration: 6000 });
+  }, []);
+
+  return null;
 }
 
 function Router() {
@@ -221,6 +252,7 @@ function App() {
                     <GlobalOrbChatProvider>
                     <TooltipProvider>
                       <Toaster />
+                      <OAuthErrorToast />
                       <OfflineBanner />
                       <AuthExpiredModal />
                       <LoginOrbAnimation />

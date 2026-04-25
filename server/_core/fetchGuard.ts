@@ -35,7 +35,6 @@ export function installFetchGuard(): void {
 
   globalThis.fetch = (async (input: FetchInput, init?: FetchInit) => {
     const finalUrl = resolveFetchUrl(input);
-    console.log(`[fetch] Request URL: ${finalUrl}`);
     return originalFetch(finalUrl, init);
   }) as typeof fetch;
 }
