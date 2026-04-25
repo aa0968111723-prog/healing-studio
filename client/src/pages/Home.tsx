@@ -19,6 +19,7 @@ import { useLocation } from "wouter";
 import { GlassCard } from "@/components/ZenCoPilot";
 import VisualSoul from "@/components/VisualSoul";
 const OnboardingFlow = lazy(() => import("@/components/OnboardingFlow"));
+import { useSiteOnboarding } from "@/contexts/SiteOnboardingContext";
 import {
   motion,
   AnimatePresence,
@@ -767,6 +768,11 @@ export default function Home() {
   const { personality } = useAIState();
   const [, navigate] = useLocation();
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const {
+    activeSurface: onboardingSurface,
+    acquireSurface,
+    releaseSurface,
+  } = useSiteOnboarding();
   const ambient = useAmbient();
   const { sceneId, isDark, override, setOverride, allScenes } = ambient;
   const s = useMemo(() => SCENE_STYLES[sceneId], [sceneId]);
@@ -847,15 +853,25 @@ export default function Home() {
     setIsAmbientVisible(latest > 0.01);
   });
 
-  // Check if user needs onboarding
+  // Check if user needs onboarding (don't open if any other onboarding
+  // surface is already active to avoid stacking overlays)
   useEffect(() => {
-    if (isAuthenticated && !loading) {
-      const onboarded = localStorage.getItem("ai-director-onboarded");
-      if (!onboarded) {
-        setShowOnboarding(true);
-      }
+    if (!isAuthenticated || loading) return;
+    if (localStorage.getItem("ai-director-onboarded")) return;
+    if (onboardingSurface && onboardingSurface !== "home-flow") return;
+    setShowOnboarding(true);
+  }, [isAuthenticated, loading, onboardingSurface]);
+
+  // Hold the onboarding lock while OnboardingFlow is on-screen so site
+  // tours / welcome tour can't pop over it.
+  useEffect(() => {
+    if (!showOnboarding) return;
+    if (!acquireSurface("home-flow")) {
+      setShowOnboarding(false);
+      return;
     }
-  }, [isAuthenticated, loading]);
+    return () => releaseSurface("home-flow");
+  }, [showOnboarding, acquireSurface, releaseSurface]);
 
   useEffect(() => {
     const hiddenPref = localStorage.getItem("home-quick-guide-hidden") === "1";

@@ -640,6 +640,13 @@ const TOUR_DEFINITIONS: Record<PageId, TourDefinition> = {
 
 // ─── Context Interface ───────────────────────────────────────────────────────
 
+/**
+ * Unified onboarding state — all overlays (Home OnboardingFlow + per-page
+ * SiteOnboarding tours + DashboardLayout welcome tour) check this before
+ * mounting, so only one onboarding surface is ever visible at a time.
+ */
+export type OnboardingSurface = "home-flow" | "site-tour";
+
 interface SiteOnboardingContextValue {
   /** Start a tour for a given page. Pass force=true to restart even if already seen */
   startTour: (pageId: PageId, force?: boolean) => void;
@@ -665,6 +672,12 @@ interface SiteOnboardingContextValue {
   hasSeen: (pageId: PageId) => boolean;
   /** Reset all tours (for settings page) */
   resetAllTours: () => void;
+  /** Whichever onboarding surface currently owns the screen, or null */
+  activeSurface: OnboardingSurface | null;
+  /** Acquire the onboarding lock for a non-tour surface (e.g. Home flow). Returns false if another surface is active. */
+  acquireSurface: (surface: OnboardingSurface) => boolean;
+  /** Release the onboarding lock; only the holder may release */
+  releaseSurface: (surface: OnboardingSurface) => void;
 }
 
 const SiteOnboardingContext = createContext<SiteOnboardingContextValue | null>(
@@ -677,7 +690,25 @@ export function SiteOnboardingProvider({ children }: { children: ReactNode }) {
   const [isActive, setIsActive] = useState(false);
   const [currentPageId, setCurrentPageId] = useState<PageId | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
+  const [externalSurface, setExternalSurface] =
+    useState<OnboardingSurface | null>(null);
   const completionCallbackRef = useRef<(() => void) | null>(null);
+
+  // Migrate legacy onboarding keys: if a user already saw the old standalone
+  // OnboardingTour or OnboardingFlow, treat the equivalent site tour as seen
+  // so they aren't onboarded twice during the transition.
+  useEffect(() => {
+    try {
+      if (
+        localStorage.getItem("hasSeenTour") === "true" &&
+        localStorage.getItem(TOUR_DEFINITIONS.studio.storageKey) !== "true"
+      ) {
+        localStorage.setItem(TOUR_DEFINITIONS.studio.storageKey, "true");
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const getTourDef = useCallback((pageId: PageId) => {
     return TOUR_DEFINITIONS[pageId];
@@ -717,13 +748,32 @@ export function SiteOnboardingProvider({ children }: { children: ReactNode }) {
       if (!def) return;
 
       if (!force && hasSeen(pageId)) return;
+      // Don't stack tours on top of another active onboarding surface
+      // (e.g. the Home OnboardingFlow or an already-running tour).
+      if (!force && (isActive || externalSurface)) return;
 
       setCurrentPageId(pageId);
       setCurrentStep(0);
       setIsActive(true);
     },
-    [getTourDef, hasSeen]
+    [getTourDef, hasSeen, isActive, externalSurface]
   );
+
+  const acquireSurface = useCallback(
+    (surface: OnboardingSurface): boolean => {
+      // Tours are tracked separately via isActive. Only allow the lock if
+      // nothing else holds it.
+      if (externalSurface && externalSurface !== surface) return false;
+      if (isActive) return false;
+      setExternalSurface(surface);
+      return true;
+    },
+    [externalSurface, isActive]
+  );
+
+  const releaseSurface = useCallback((surface: OnboardingSurface) => {
+    setExternalSurface(prev => (prev === surface ? null : prev));
+  }, []);
 
   const stopTour = useCallback(() => {
     if (currentPageId) {
@@ -768,6 +818,10 @@ export function SiteOnboardingProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("site-tour-start", handler);
   }, [startTour]);
 
+  const activeSurface: OnboardingSurface | null = isActive
+    ? "site-tour"
+    : externalSurface;
+
   const value = useMemo<SiteOnboardingContextValue>(
     () => ({
       startTour,
@@ -782,6 +836,9 @@ export function SiteOnboardingProvider({ children }: { children: ReactNode }) {
       markSeen,
       hasSeen,
       resetAllTours,
+      activeSurface,
+      acquireSurface,
+      releaseSurface,
     }),
     [
       startTour,
@@ -796,6 +853,9 @@ export function SiteOnboardingProvider({ children }: { children: ReactNode }) {
       markSeen,
       hasSeen,
       resetAllTours,
+      activeSurface,
+      acquireSurface,
+      releaseSurface,
     ]
   );
 
@@ -819,14 +879,18 @@ export function useSiteOnboarding() {
 
 /**
  * Convenience hook: automatically triggers the tour for the current page
- * when the component mounts (only if not yet seen).
+ * when the component mounts (only if not yet seen, and only if no other
+ * onboarding surface is currently active).
  */
 export function usePageTour(pageId: PageId, delayMs = 800) {
-  const { startTour, hasSeen } = useSiteOnboarding();
+  const { startTour, hasSeen, isActive, activeSurface } = useSiteOnboarding();
 
   useEffect(() => {
     if (hasSeen(pageId)) return;
+    // If another tour is mid-flight or the Home flow is showing, skip; the
+    // user can re-enter the page later or replay tours from Settings.
+    if (isActive || activeSurface) return;
     const timer = setTimeout(() => startTour(pageId), delayMs);
     return () => clearTimeout(timer);
-  }, [pageId, delayMs, startTour, hasSeen]);
+  }, [pageId, delayMs, startTour, hasSeen, isActive, activeSurface]);
 }

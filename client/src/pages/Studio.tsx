@@ -84,7 +84,6 @@ import { normalizeEngineModelId } from "@shared/engineModelIds";
 import JSZip from "jszip";
 
 import ProactiveOrbWidget from "@/components/ProactiveOrbWidget";
-import OnboardingTour from "@/components/OnboardingTour";
 import {
   useRegisterPageAgent,
   type AgentAction,
@@ -3401,9 +3400,6 @@ export default function Studio() {
           </BottomSheet>
         </>
       )}
-
-      {/* Onboarding Tour */}
-      <OnboardingTour />
 
       {/* Floating Proactive Orb Widget */}
       <ProactiveOrbWidget
