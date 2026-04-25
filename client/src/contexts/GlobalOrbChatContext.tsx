@@ -203,11 +203,16 @@ function toLLMMessageContent(message: ChatMessage): string | Array<
   });
 }
 
-function findWorkflowAction(actions: AgentAction[]): WorkflowAction | null {
+/**
+ * Issue #160 — pure helpers used by both the live Context and the unit tests
+ * in `client/workflow-confirmation.test.ts`. Exported (instead of file-local)
+ * so vitest can pin the cross-page state machine without rendering React.
+ */
+export function findWorkflowAction(actions: AgentAction[]): WorkflowAction | null {
   return actions.find((action): action is WorkflowAction => action.type === "runWorkflow") ?? null;
 }
 
-function workflowStepsToState(workflow: WorkflowAction, mode: "pending" | "running", now: number): WorkflowExecutionStepState[] {
+export function workflowStepsToState(workflow: WorkflowAction, mode: "pending" | "running", now: number): WorkflowExecutionStepState[] {
   return workflow.steps.map((step, index) => ({
     index,
     label: step.label || `${index + 1}. ${step.actionType}`,
@@ -218,7 +223,7 @@ function workflowStepsToState(workflow: WorkflowAction, mode: "pending" | "runni
   }));
 }
 
-function buildWorkflowExecutionState(actions: AgentAction[], now: number = Date.now()): WorkflowExecutionState | null {
+export function buildWorkflowExecutionState(actions: AgentAction[], now: number = Date.now()): WorkflowExecutionState | null {
   const workflow = findWorkflowAction(actions);
   if (!workflow) return null;
   const total = workflow.steps.length;
@@ -233,7 +238,7 @@ function buildWorkflowExecutionState(actions: AgentAction[], now: number = Date.
   };
 }
 
-function buildPendingWorkflowPlan({
+export function buildPendingWorkflowPlan({
   actions,
   userText,
   intent,
@@ -258,6 +263,97 @@ function buildPendingWorkflowPlan({
     total: workflow.steps.length,
     createdAt: now,
     steps: workflowStepsToState(workflow, "pending", now),
+  };
+}
+
+// ── State machine reducers (Issue #160) ────────────────────────────────────
+// These mirror the inline `setWorkflowExecution(prev => ...)` callbacks in
+// `executeActions` below, but are extracted as pure functions so the
+// cross-page step transitions can be unit-tested without React/SSE.
+
+export interface WorkflowStepAdvance {
+  index: number;
+  label: string;
+  path?: string;
+  actionType: string;
+}
+
+/**
+ * Move a workflow execution forward to the given step index. Steps before the
+ * new index are completed, the matching step becomes running, and later steps
+ * stay pending. This is the same logic the orchestrator's `onWorkflowStep`
+ * callback applies inline — extracting it lets us assert the cross-page
+ * progress-bar behaviour without rendering React.
+ */
+export function advanceWorkflowStep(
+  prev: WorkflowExecutionState,
+  step: WorkflowStepAdvance,
+  now: number = Date.now()
+): WorkflowExecutionState {
+  return {
+    ...prev,
+    status: "running",
+    currentIndex: step.index,
+    steps: prev.steps.map(existing => {
+      if (existing.index < step.index) {
+        return {
+          ...existing,
+          status: "completed" as const,
+          completedAt: existing.completedAt ?? now,
+        };
+      }
+      if (existing.index === step.index) {
+        return {
+          ...existing,
+          status: "running" as const,
+          label: step.label,
+          path: step.path,
+          actionType: step.actionType,
+          startedAt: existing.startedAt ?? now,
+        };
+      }
+      return existing.status === "pending" ? existing : { ...existing, status: "pending" as const };
+    }),
+  };
+}
+
+/**
+ * Mark the current step as failed and freeze the workflow. Used both by the
+ * orchestrator failure handler and the catch-block error path.
+ */
+export function failWorkflowAtCurrentStep(
+  prev: WorkflowExecutionState,
+  reason: string,
+  now: number = Date.now()
+): WorkflowExecutionState {
+  return {
+    ...prev,
+    status: "failed",
+    error: reason,
+    completedAt: now,
+    steps: prev.steps.map(step =>
+      step.index === prev.currentIndex
+        ? { ...step, status: "failed" as const, reason, completedAt: now }
+        : step
+    ),
+  };
+}
+
+/** Mark the workflow as fully completed. */
+export function completeWorkflow(
+  prev: WorkflowExecutionState,
+  now: number = Date.now()
+): WorkflowExecutionState {
+  return {
+    ...prev,
+    status: "completed",
+    currentIndex: Math.max(prev.total - 1, 0),
+    completedAt: now,
+    steps: prev.steps.map(step => ({
+      ...step,
+      status: "completed" as const,
+      completedAt: step.completedAt ?? now,
+    })),
   };
 }
 
@@ -690,34 +786,20 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         waitAfterNavigateMs: 450,
         onWorkflowStep: step => {
           const now = Date.now();
-          setWorkflowExecution(prev => {
-            if (!prev) return prev;
-            return {
-              ...prev,
-              status: "running",
-              currentIndex: step.index,
-              steps: prev.steps.map(existing => {
-                if (existing.index < step.index) {
-                  return {
-                    ...existing,
-                    status: "completed" as const,
-                    completedAt: existing.completedAt ?? now,
-                  };
-                }
-                if (existing.index === step.index) {
-                  return {
-                    ...existing,
-                    status: "running" as const,
+          setWorkflowExecution(prev =>
+            prev
+              ? advanceWorkflowStep(
+                  prev,
+                  {
+                    index: step.index,
                     label: step.label,
                     path: step.path,
                     actionType: step.action.type,
-                    startedAt: existing.startedAt ?? now,
-                  };
-                }
-                return existing.status === "pending" ? existing : { ...existing, status: "pending" as const };
-              }),
-            };
-          });
+                  },
+                  now
+                )
+              : prev
+          );
           pageAgent.reportFeedback({
             status: "completed",
             actionType: step.action.type,
@@ -730,15 +812,9 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       if (failed) {
         const failedReason = failed.reason ?? "unknown failure";
         const now = Date.now();
-        setWorkflowExecution(prev => prev ? {
-          ...prev,
-          status: "failed",
-          error: failedReason,
-          completedAt: now,
-          steps: prev.steps.map(step => step.index === prev.currentIndex
-            ? { ...step, status: "failed" as const, reason: failedReason, completedAt: now }
-            : step),
-        } : prev);
+        setWorkflowExecution(prev =>
+          prev ? failWorkflowAtCurrentStep(prev, failedReason, now) : prev
+        );
         setMessages(prev => [...prev, {
           role: "orb",
           text: failedReason === "workflow disabled"
@@ -754,27 +830,14 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         });
       } else if (nextWorkflowExecution) {
         const now = Date.now();
-        setWorkflowExecution(prev => prev ? {
-          ...prev,
-          status: "completed",
-          currentIndex: Math.max(prev.total - 1, 0),
-          completedAt: now,
-          steps: prev.steps.map(step => ({
-            ...step,
-            status: "completed" as const,
-            completedAt: step.completedAt ?? now,
-          })),
-        } : prev);
+        setWorkflowExecution(prev => (prev ? completeWorkflow(prev, now) : prev));
       }
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       console.error("[GlobalOrbChat] Action execution error:", reason);
-      setWorkflowExecution(prev => prev ? {
-        ...prev,
-        status: "failed",
-        error: reason,
-        completedAt: Date.now(),
-      } : prev);
+      setWorkflowExecution(prev =>
+        prev ? failWorkflowAtCurrentStep(prev, reason, Date.now()) : prev
+      );
       setMessages(prev => [...prev, {
         role: "orb",
         text: `⚠️ 執行流程時遇到問題：${reason}`,

@@ -4560,8 +4560,17 @@ export const appRouter = router({
             };
           }
 
+          // Track planner-level failures so the legacy fallback meta can surface
+          // a clear reason (instead of silently falling through). This lets ops
+          // distinguish "planner threw" vs "planner returned invalid" vs
+          // "planner gating disabled" from telemetry.
+          let plannerExceptionReason: string | null = null;
+          let plannerInvalidWarnings: string[] = [];
+
           if (schemaFirstPlannerEnabled && capabilityRegistryEnabled && toolRegistryEnabled) {
-            const plannerResult = await withTimeout(
+            let plannerResult: Awaited<ReturnType<typeof runSchemaFirstAgentPlanner>> | null = null;
+            try {
+              plannerResult = await withTimeout(
               runSchemaFirstAgentPlanner({
                 messages: plannerMessages,
                 context: input.context ?? undefined,
@@ -4627,8 +4636,23 @@ export const appRouter = router({
               20_000,
               "全站光球代理規劃器"
             );
+            } catch (plannerError) {
+              const reason =
+                plannerError instanceof Error
+                  ? plannerError.message
+                  : String(plannerError);
+              plannerExceptionReason = reason.slice(0, 240);
+              appendTelemetryEvent(telemetryEvents, "planner.exception", {
+                reason: plannerExceptionReason,
+              });
+              console.warn(
+                "[Orb] Schema-first planner threw, falling back to legacy parser:",
+                plannerExceptionReason
+              );
+              plannerResult = null;
+            }
 
-            if (plannerResult.status === "converted") {
+            if (plannerResult && plannerResult.status === "converted") {
               const warnings = globalWorkflowsEnabled
                 ? plannerResult.warnings
                 : [...plannerResult.warnings, "Global Agent workflows 已關閉，僅提供文字回覆。"];
@@ -4669,7 +4693,7 @@ export const appRouter = router({
               };
             }
 
-            if (plannerResult.status === "clarification") {
+            if (plannerResult && plannerResult.status === "clarification") {
               const meta = makePlannerMeta({
                 plannerStatus: plannerResult.status,
                 plan: plannerResult.plan,
@@ -4703,7 +4727,7 @@ export const appRouter = router({
               };
             }
 
-            if (plannerResult.status === "blocked") {
+            if (plannerResult && plannerResult.status === "blocked") {
               const meta = makePlannerMeta({
                 plannerStatus: plannerResult.status,
                 plan: plannerResult.plan,
@@ -4739,7 +4763,7 @@ export const appRouter = router({
               };
             }
 
-            if (plannerResult.status === "tasked") {
+            if (plannerResult && plannerResult.status === "tasked") {
               const taskDraft = plannerResult.task;
               const planRecordForCost =
                 plannerResult.plan && typeof plannerResult.plan === "object"
@@ -4953,9 +4977,30 @@ export const appRouter = router({
                 ...meta,
               };
             }
+
+            // status === "invalid"（或 plannerResult 為 null）：保留既有 fallback
+            // 行為，但在 telemetry 留下明確紀錄，方便運維辨別「schema-first 為何
+            // 沒生效」。把 planner warnings 收集起來，下方 legacy fallback meta
+            // 會合併呈現給前端。
+            if (plannerResult && plannerResult.status === "invalid") {
+              plannerInvalidWarnings = Array.isArray(plannerResult.warnings)
+                ? plannerResult.warnings.slice(0, 8)
+                : [];
+              appendTelemetryEvent(telemetryEvents, "planner.invalid_fallback", {
+                warningCount: plannerInvalidWarnings.length,
+                rawContentLength:
+                  typeof plannerResult.rawContent === "string"
+                    ? plannerResult.rawContent.length
+                    : 0,
+                reason:
+                  (plannerResult as { reason?: unknown }).reason !== undefined
+                    ? String((plannerResult as { reason?: unknown }).reason).slice(0, 240)
+                    : null,
+              });
+            }
           }
 
-          // invalid：維持舊版 fallback parser 流程，兼容既有 marker / JSON reply。
+          // invalid / planner exception：維持舊版 fallback parser 流程，兼容既有 marker / JSON reply。
           const fallbackResult = await withTimeout(
             invokeLLM({
               model: director.model,
@@ -5011,17 +5056,31 @@ export const appRouter = router({
             alwaysConfirm: input.alwaysConfirm,
           });
           const legacyActions = globalWorkflowsEnabled ? legacy.actions : [];
+          // Decide a more precise plannerStatus so ops can tell the four
+          // fallback reasons apart in telemetry dashboards:
+          //   - fallback-schema-disabled: env flag explicitly off
+          //   - fallback-planner-error:   planner threw / timed out
+          //   - fallback-legacy:          planner returned status=invalid
+          //                               (or no schema-first match)
+          const schemaFirstFlagsOn =
+            schemaFirstPlannerEnabled && capabilityRegistryEnabled && toolRegistryEnabled;
+          const fallbackPlannerStatus = !schemaFirstFlagsOn
+            ? "fallback-schema-disabled"
+            : plannerExceptionReason
+              ? "fallback-planner-error"
+              : "fallback-legacy";
           const meta = makePlannerMeta({
-            plannerStatus:
-              schemaFirstPlannerEnabled && capabilityRegistryEnabled && toolRegistryEnabled
-                ? "fallback-legacy"
-                : "fallback-schema-disabled",
+            plannerStatus: fallbackPlannerStatus,
             preferredEngine: enginePreference,
             warnings: [
               ...(schemaFirstPlannerEnabled ? [] : ["Schema-first planner 已關閉，使用 legacy fallback。"]),
               ...(capabilityRegistryEnabled ? [] : ["Capability registry 已關閉，使用 legacy fallback。"]),
               ...(toolRegistryEnabled ? [] : ["Tool registry 已關閉，使用 legacy fallback。"]),
               ...(globalWorkflowsEnabled ? [] : ["Global Agent workflows 已關閉，僅保留聊天回覆。"]),
+              ...(plannerExceptionReason
+                ? [`Schema-first planner 失敗，已改用 legacy fallback：${plannerExceptionReason}`]
+                : []),
+              ...plannerInvalidWarnings.map(w => `Planner invalid：${w}`),
             ],
             usedMultimodalPlanner: false,
           });

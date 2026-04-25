@@ -226,7 +226,7 @@ describe("ai.chat planner gating handling", () => {
       actions: [],
       askBeforeAct: false,
       blockers: [],
-      warnings: [],
+      warnings: ["schema does not match"],
       plannerUsed: true,
       reason: "invalid json",
     });
@@ -242,6 +242,75 @@ describe("ai.chat planner gating handling", () => {
     expect(result.actions[0]?.type).toBe("navigate");
     expect(result.planId).toBeTruthy();
     expect(result.traceId).toBeTruthy();
+    // Telemetry must record the invalid_fallback so ops can tell schema-first
+    // is being skipped, and the planner warnings should bubble up to UI meta.
+    const events = (result.telemetry.events ?? []) as Array<Record<string, unknown>>;
+    expect(events.some(e => e.event === "planner.invalid_fallback")).toBe(true);
+    expect(result.warnings.join(" ")).toContain("schema does not match");
+  });
+
+  it("planner exception is surfaced via fallback-planner-error and legacy still works", async () => {
+    mockedPlanner.mockRejectedValueOnce(new Error("gemini blew up"));
+
+    const caller = appRouter.createCaller(createMockContext());
+    const result = await caller.ai.chat({
+      messages: [{ role: "user", content: "幫我切到影片模式" }],
+      personality: "technical",
+    });
+
+    // Legacy parser must still produce actions (no full crash) and the
+    // fallback status must be distinct from the "schema-disabled" one so
+    // dashboards can split planner exceptions out cleanly.
+    expect(result.plannerStatus).toBe("fallback-planner-error");
+    expect(result.actions.length).toBeGreaterThan(0);
+    expect(result.actions[0]?.type).toBe("navigate");
+    const events = (result.telemetry.events ?? []) as Array<Record<string, unknown>>;
+    expect(events.some(e => e.event === "planner.exception")).toBe(true);
+    expect(result.warnings.join(" ")).toContain("gemini blew up");
+  });
+
+  it("hot-path: '幫我做一支 30 秒短片' converts into a runWorkflow action via schema-first planner", async () => {
+    // This is the canonical Issue #165 regression case: a short-video request
+    // that previously fell through to the heuristic marker fallback. Once the
+    // planner is wired in (which it now is), this MUST come back as a
+    // status=converted plan with a runWorkflow action and a needs-confirm card.
+    mockedPlanner.mockResolvedValue({
+      status: "converted",
+      ok: true,
+      version: "agent-plan.v3",
+      actions: [
+        {
+          type: "runWorkflow",
+          name: "短片創作流程",
+          steps: [
+            { label: "前往影像工作室", actionType: "navigate", payload: "/studio" },
+            { label: "切換為影片模式", actionType: "setMode", payload: "video" },
+            { label: "送出生成", actionType: "submit", payload: "" },
+          ],
+        },
+      ],
+      askBeforeAct: true,
+      blockers: [],
+      warnings: [],
+      plannerUsed: true,
+      preferredEngine: "gemini",
+      reply: "我幫你規劃了一支 30 秒短片的工作流，請確認後我會自動執行。",
+      intent: "video-30s-short",
+    });
+
+    const caller = appRouter.createCaller(createMockContext());
+    const result = await caller.ai.chat({
+      messages: [{ role: "user", content: "幫我做一支 30 秒短片" }],
+      personality: "creative",
+    });
+
+    expect(mockedPlanner).toHaveBeenCalledTimes(1);
+    expect(result.plannerStatus).toBe("converted");
+    expect(result.askBeforeAct).toBe(true);
+    expect(result.actions).toHaveLength(1);
+    expect(result.actions[0]?.type).toBe("runWorkflow");
+    expect(result.preferredEngine).toBe("gemini");
+    expect(result.reply).toContain("30 秒短片");
   });
 
   it("schema-first planner flag off bypasses planner and uses legacy fallback", async () => {
