@@ -65,24 +65,38 @@ function wait(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-function getAllowedOrigins(): string[] {
+/**
+ * 開發環境自動允許 localhost 的 origin，避免 .env 未填寫時阻斷本機開發。
+ * 正式環境（NODE_ENV === "production"）一律不啟用，必須由 ORB_TOOL_ALLOWED_ORIGINS 顯式列出。
+ */
+const DEV_LOCAL_ORIGINS: readonly string[] = [
+  "http://localhost",
+  "http://127.0.0.1",
+];
+
+function isDevLocalhostOrigin(origin: string): boolean {
+  if (process.env.NODE_ENV === "production") return false;
+  try {
+    const parsed = new URL(origin);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+    return parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
+  } catch {
+    return false;
+  }
+}
+
+export function getAllowedOrigins(): string[] {
   const raw = process.env.ORB_TOOL_ALLOWED_ORIGINS ?? "";
-  return raw
+  const explicit = raw
     .split(",")
     .map(x => x.trim())
     .filter(Boolean);
+  if (process.env.NODE_ENV === "production") return explicit;
+  // 非正式環境追加 localhost 起手包（dev / test 不影響正式安全姿態）
+  return Array.from(new Set([...explicit, ...DEV_LOCAL_ORIGINS]));
 }
 
 function assertAllowedEndpoint(endpoint: string): void {
-  const allowed = getAllowedOrigins();
-  if (!allowed.length) {
-    throw new TRPCError({
-      code: "PRECONDITION_FAILED",
-      message:
-        "尚未設定 ORB_TOOL_ALLOWED_ORIGINS，暫時不允許光球代理連外 API。",
-    });
-  }
-
   let origin: string;
   try {
     origin = new URL(endpoint).origin;
@@ -93,13 +107,60 @@ function assertAllowedEndpoint(endpoint: string): void {
     });
   }
 
-  if (!allowed.includes(origin)) {
+  const allowed = getAllowedOrigins();
+  if (allowed.includes(origin)) return;
+  if (isDevLocalhostOrigin(origin)) return;
+
+  if (!allowed.length || allowed.every(o => isDevLocalhostOrigin(o))) {
+    // 沒有任何「實質」allowlist 條目（只剩 dev localhost 預設值）
     throw new TRPCError({
-      code: "FORBIDDEN",
-      message: `endpoint 不在 allowlist：${origin}`,
+      code: "PRECONDITION_FAILED",
+      message:
+        "尚未設定 ORB_TOOL_ALLOWED_ORIGINS，暫時不允許光球代理連外 API。" +
+        " 請在 .env 內填入信任的 origin（半形逗號分隔），" +
+        "範例與說明請見 .env.example 的「光球代理 Orb Tool Execution」段落。",
     });
   }
+
+  throw new TRPCError({
+    code: "FORBIDDEN",
+    message: `endpoint 不在 allowlist：${origin}`,
+  });
 }
+
+/**
+ * 啟動時自我健檢：
+ * 若已設定 ORB_TOOL_REGISTRY_JSON（=有定義工具）但 ORB_TOOL_ALLOWED_ORIGINS 是空的，
+ * 在 stderr 印一次明顯警告，避免「上線後第一次工具呼叫才發現 pipeline 是死路」。
+ */
+let _selfCheckRan = false;
+export function runOrbToolExecutorStartupSelfCheck(): void {
+  if (_selfCheckRan) return;
+  _selfCheckRan = true;
+  const hasRegistry = (process.env.ORB_TOOL_REGISTRY_JSON ?? "").trim().length > 0;
+  const explicitAllow = (process.env.ORB_TOOL_ALLOWED_ORIGINS ?? "")
+    .split(",")
+    .map(x => x.trim())
+    .filter(Boolean);
+  if (hasRegistry && explicitAllow.length === 0) {
+    const env = process.env.NODE_ENV ?? "development";
+    const severity = env === "production" ? "error" : "warn";
+    const message =
+      `[Orb] ORB_TOOL_REGISTRY_JSON is set but ORB_TOOL_ALLOWED_ORIGINS is empty.` +
+      ` All tool calls will fail with PRECONDITION_FAILED in ${env}.` +
+      ` See .env.example -> "光球代理 Orb Tool Execution" for the required origins list.`;
+    if (severity === "error") console.error(message);
+    else console.warn(message);
+  }
+}
+
+/** 測試用：重置自我健檢狀態 */
+export function _resetOrbToolExecutorSelfCheckForTest(): void {
+  _selfCheckRan = false;
+}
+
+// 模組載入時即執行一次（純 console，不會阻斷啟動）
+runOrbToolExecutorStartupSelfCheck();
 
 function withUserHeaders(headers: Record<string, string> | undefined, userId: number) {
   return {
