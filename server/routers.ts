@@ -11,7 +11,7 @@ import {
 import { isDemoMode } from "./_core/googleAuth";
 import { z } from "zod";
 import * as db from "./db";
-import { invokeLLM } from "./_core/llm";
+import { invokeLLM, type Message } from "./_core/llm";
 import { serverEnv } from "./_core/env.validated";
 // imageGeneration.ts no longer used directly — all 4 modalities go through falDispatcher
 import { storagePut } from "./storage";
@@ -42,6 +42,51 @@ import { orbTaskRepository } from "./repositories/orbTaskRepository";
 import { executeCurrentStepTools } from "./services/orbTaskOrchestrator";
 import { orbToolCallLogStore } from "./services/orbToolCallLogStore";
 import { runSchemaFirstAgentPlanner } from "./services/agentPlanner";
+import {
+  approveOrbAgentTask,
+  cancelOrbAgentTask,
+  completeOrbAgentStep,
+  createOrbAgentTaskFromPlanner,
+  failOrbAgentStep,
+  getOrbAgentTask,
+  getOrbAgentTaskEvents,
+  listRecentOrbAgentTasks,
+  retryOrbAgentTask,
+} from "./services/orbTaskStateMachine";
+import {
+  getRecentOrbTaskMemory,
+  summarizeRecentOrbTaskMemoryForPlanner,
+} from "./services/orbTaskMemory";
+import {
+  clearOrbMemoryForUser,
+  deleteOrbMemory,
+  getRecentOrbMemories,
+  recordOrbMemory,
+  searchOrbMemories,
+  summarizeOrbMemoriesForPlanner,
+} from "./services/orbMemory";
+import {
+  approveCodeTask,
+  attachCodeTaskPr,
+  cancelCodeTask,
+  createOrbCodeTask,
+  getCodeTask,
+  getCodeTaskTelemetry,
+  listRecentCodeTasks,
+  markCodeTaskFailed,
+  markCodeTaskMerged,
+  markCodeTaskReviewRequired,
+  markCodeTaskRunning,
+} from "./services/orbCodeTask";
+import {
+  buildClaudeCodeTaskPrompt,
+  buildCodexTaskPrompt,
+} from "../shared/orb-code-task";
+import {
+  extractOrbPreferencesFromConversation,
+  summarizeSiteKnowledgeForPlanner,
+  summarizeRecentMemoryForPlanner,
+} from "../shared/orb-memory";
 import {
   OrbStartTaskInputSchema,
   OrbApproveTaskInputSchema,
@@ -82,6 +127,20 @@ import { eq } from "drizzle-orm";
 import { userAiBrain } from "../drizzle/schema";
 import { getDb } from "./db";
 import { normalizeEngineModelId } from "../shared/engineModelIds";
+import { selectProvider, type ProviderRouteIntent } from "./services/providerRouter";
+import {
+  getProviderHealth,
+  markProviderFailure,
+  markProviderRecovered,
+} from "./services/providerHealth";
+import { estimateOrbTaskCost } from "./services/orbCostGuard";
+import { checkAndConsumeQuota } from "./services/orbQuota";
+import {
+  buildOrbIdempotencyKey,
+  findDuplicateTask,
+  rememberTaskKey,
+} from "./services/orbIdempotency";
+import { validateAttachmentGuards } from "./services/orbAttachmentGuard";
 
 // ─── Dev-only debug logger (no-ops in production) ─────────────────────────
 const isDev = process.env.NODE_ENV !== "production";
@@ -137,6 +196,34 @@ function ensureGeminiApiKeyConfigured(): void {
 
 function isGeminiEngine(modelId: string | undefined): boolean {
   return typeof modelId === "string" && modelId.startsWith("gemini/");
+}
+
+function isFlagEnabled(value: string | undefined, defaultEnabled: boolean): boolean {
+  if (value === undefined || value === null || value.trim() === "") return defaultEnabled;
+  const normalized = value.trim().toLowerCase();
+  return !["0", "false", "off", "no", "disabled"].includes(normalized);
+}
+
+function sanitizeTelemetryValue(input: unknown): unknown {
+  if (typeof input !== "string") return input;
+  return input
+    .replace(/(api[_-]?key|token|secret|password)\s*[:=]\s*[^\s,;]+/gi, "$1=[REDACTED]")
+    .replace(/sk-[a-z0-9]{8,}/gi, "sk-[REDACTED]")
+    .replace(/^data:[^;]+;base64,[a-z0-9+/=\s]+$/i, "[BASE64_REDACTED]");
+}
+
+function appendTelemetryEvent(
+  telemetry: Array<Record<string, unknown>>,
+  event: string,
+  payload: Record<string, unknown>
+) {
+  telemetry.push({
+    event,
+    timestamp: Date.now(),
+    ...Object.fromEntries(
+      Object.entries(payload).map(([k, v]) => [k, sanitizeTelemetryValue(v)])
+    ),
+  });
 }
 
 function getBrainSelectedEngine(
@@ -793,12 +880,6 @@ export const appRouter = router({
         const _genPricing = getModelPricing(_genModelId);
         const _genEngineLabel = _genPricing?.label ?? _genModelId;
 
-        if (isGeminiEngine(_genModelId)) {
-          ensureGeminiApiKeyConfigured();
-        } else {
-          ensureFalApiKeyConfigured();
-        }
-
         // Safety pre-check (points already deducted in prepareJob)
         generationBus.emit(jobId, {
           type: "thought-update",
@@ -867,6 +948,12 @@ export const appRouter = router({
             code: "BAD_REQUEST",
             message: `小兔子提醒你：${safetyResult.reason || "這個內容可能不太適合哦，請試試其他描述吧！"}`,
           });
+        }
+
+        if (isGeminiEngine(_genModelId)) {
+          ensureGeminiApiKeyConfigured();
+        } else {
+          ensureFalApiKeyConfigured();
         }
 
         // ── Vault injection: resolve vault items to image URLs ──
@@ -3994,7 +4081,96 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input, ctx }) => {
+        const makePlannerMeta = (params: {
+          plannerStatus: string;
+          plan?: unknown;
+          warnings?: string[];
+          preferredEngine?: string | null;
+          taskId?: string | null;
+          usedMultimodalPlanner?: boolean;
+        }) => {
+          const now = Date.now();
+          const planRecord =
+            params.plan && typeof params.plan === "object"
+              ? (params.plan as Record<string, unknown>)
+              : null;
+          const planId =
+            typeof planRecord?.planId === "string" && planRecord.planId.trim()
+              ? planRecord.planId
+              : `plan_${now}_${Math.random().toString(36).slice(2, 8)}`;
+          const traceId =
+            typeof planRecord?.traceId === "string" && planRecord.traceId.trim()
+              ? planRecord.traceId
+              : `trace_${now}_${Math.random().toString(36).slice(2, 8)}`;
+          return {
+            plannerStatus: params.plannerStatus,
+            planId,
+            traceId,
+            preferredEngine: params.preferredEngine ?? null,
+            warnings: params.warnings ?? [],
+            taskId: params.taskId ?? null,
+            usedMultimodalPlanner: Boolean(params.usedMultimodalPlanner),
+          };
+        };
+
         const registeredTools = getOrbToolRegistry();
+        const schemaFirstPlannerEnabled = isFlagEnabled(
+          process.env.ENABLE_SCHEMA_FIRST_PLANNER ?? serverEnv.ENABLE_SCHEMA_FIRST_PLANNER,
+          true
+        );
+        const globalWorkflowsEnabled = isFlagEnabled(
+          process.env.VITE_ENABLE_GLOBAL_AGENT_WORKFLOWS ?? serverEnv.VITE_ENABLE_GLOBAL_AGENT_WORKFLOWS,
+          true
+        );
+        const orbTaskStateMachineEnabled = isFlagEnabled(
+          process.env.ENABLE_ORB_TASK_STATE_MACHINE ?? serverEnv.ENABLE_ORB_TASK_STATE_MACHINE,
+          true
+        );
+        const orbTaskMemoryEnabled = isFlagEnabled(
+          process.env.ENABLE_ORB_TASK_MEMORY ?? serverEnv.ENABLE_ORB_TASK_MEMORY,
+          true
+        );
+        const orbLongTermMemoryEnabled = isFlagEnabled(
+          process.env.ENABLE_ORB_LONG_TERM_MEMORY ?? serverEnv.ENABLE_ORB_LONG_TERM_MEMORY,
+          true
+        );
+        const capabilityRegistryEnabled = isFlagEnabled(
+          process.env.ENABLE_GLOBAL_AGENT_CAPABILITY_REGISTRY ??
+            serverEnv.ENABLE_GLOBAL_AGENT_CAPABILITY_REGISTRY,
+          true
+        );
+        const toolRegistryEnabled = isFlagEnabled(
+          process.env.ENABLE_GLOBAL_AGENT_TOOL_REGISTRY ??
+            serverEnv.ENABLE_GLOBAL_AGENT_TOOL_REGISTRY,
+          true
+        );
+        const providerRouterEnabled = isFlagEnabled(
+          process.env.ENABLE_ORB_PROVIDER_ROUTER ?? serverEnv.ENABLE_ORB_PROVIDER_ROUTER,
+          true
+        );
+        const costGuardEnabled = isFlagEnabled(
+          process.env.ENABLE_ORB_COST_GUARD ?? serverEnv.ENABLE_ORB_COST_GUARD,
+          true
+        );
+        const quotaGuardEnabled = isFlagEnabled(
+          process.env.ENABLE_ORB_QUOTA_GUARD ?? serverEnv.ENABLE_ORB_QUOTA_GUARD,
+          false
+        );
+        const idempotencyGuardEnabled = isFlagEnabled(
+          process.env.ENABLE_ORB_IDEMPOTENCY_GUARD ??
+            serverEnv.ENABLE_ORB_IDEMPOTENCY_GUARD,
+          false
+        );
+        const telemetryEvents: Array<Record<string, unknown>> = [];
+        const recentTaskMemorySummary = orbTaskMemoryEnabled
+          ? summarizeRecentOrbTaskMemoryForPlanner(10)
+          : "Task memory disabled.";
+        const recentOrbMemories = orbLongTermMemoryEnabled
+          ? getRecentOrbMemories({ userId: ctx.user.id, limit: 10 })
+          : [];
+        const recentOrbMemorySummary = orbLongTermMemoryEnabled
+          ? summarizeOrbMemoriesForPlanner({ userId: ctx.user.id, limit: 10 })
+          : "Long-term memory disabled.";
         // Phase 3c：把 DB 裡的長期記憶跟前端 session 記憶合併給 prompt。
         // 前端剛啟動時 recentFeedback 是空的，但使用者過去的接受/拒絕早已
         // 寫進 orb_feedback_events；這裡讀最近 10 筆補上去。
@@ -4019,6 +4195,26 @@ export const appRouter = router({
           dbEvents,
           12
         );
+        if (orbLongTermMemoryEnabled) {
+          const preferences = extractOrbPreferencesFromConversation({
+            messages: input.messages.map(message => ({
+              role: message.role,
+              content: typeof message.content === "string" ? message.content : JSON.stringify(message.content),
+            })),
+          });
+          if (preferences.styles.length || preferences.outputs.length || preferences.models.length || preferences.language) {
+            recordOrbMemory({
+              userId: ctx.user.id,
+              traceId: `chat_${Date.now()}`,
+              type: "user_preference",
+              summary: `Preference update: lang=${preferences.language ?? "unknown"}, styles=${preferences.styles.join(",") || "none"}, outputs=${preferences.outputs.join(",") || "none"}, models=${preferences.models.join(",") || "none"}`,
+              source: "ai.chat",
+              confidence: 0.72,
+              tags: ["preference", ...(preferences.styles.slice(0, 2)), ...(preferences.outputs.slice(0, 2))],
+              metadata: preferences as unknown as Record<string, unknown>,
+            });
+          }
+        }
 
         const systemPrompt = buildOrbSystemPrompt(
           input.personality,
@@ -4040,79 +4236,667 @@ export const appRouter = router({
             })),
           }
         );
+        const siteKnowledgeSummary = summarizeSiteKnowledgeForPlanner({
+          currentPageSummary: input.pageSnapshot
+            ? JSON.stringify({
+                pageId: input.pageSnapshot.pageId,
+                pagePath: input.pageSnapshot.pagePath,
+                capabilities: input.pageSnapshot.capabilities.slice(0, 12).map(cap => cap.action),
+              })
+            : "No page snapshot.",
+          memorySummary: summarizeRecentMemoryForPlanner(recentOrbMemories),
+          taskOutcomesSummary: recentTaskMemorySummary,
+        });
 
         // 從 AI 大腦取得導演配置（光球使用導演大腦）
         const director = ctx.brain.getBrain("director");
 
-        // 需求調整：光球助手 / 全站光球代理優先走 Gemini API，失敗再自動降級。
-        const enginePreference = "gemini" as const;
+        // 預設：優先 Gemini，多模態與 planner 會再透過 Provider Router 動態決策。
+        let enginePreference: "gemini" | "auto" = "gemini";
 
         try {
           const plannerMessages = input.messages.map(m => ({
             role: m.role as "user" | "assistant",
             content: m.content,
           }));
-          const plannerResult = await withTimeout(
-            runSchemaFirstAgentPlanner({
-              messages: plannerMessages,
-              context: input.context ?? undefined,
-              personality: input.personality,
-              pageSnapshot: (input.pageSnapshot ?? undefined) as
-                | PageAgentSnapshot
-                | undefined,
-              recentFeedback: mergedFeedback as AgentFeedbackEvent[],
-              invoke: plannerInput =>
-                invokeLLM({
-                  ...plannerInput,
-                  model: director.model,
-                  temperature: director.temperature,
-                  topP: director.topP,
-                  systemPrompt: director.systemPrompt,
-                  preferEngine: plannerInput.preferEngine ?? enginePreference,
-                }),
-            }),
-            20_000,
-            "全站光球代理規劃器"
+          const latestUserText = [...input.messages]
+            .reverse()
+            .find(m => m.role === "user");
+          const latestTextContent =
+            typeof latestUserText?.content === "string"
+              ? latestUserText.content
+              : Array.isArray(latestUserText?.content)
+              ? latestUserText.content
+                  .filter(part => part.type === "text")
+                  .map(part => part.text)
+                  .join("\n")
+              : "";
+          const attachmentUrls = input.messages.flatMap(message =>
+            Array.isArray(message.content)
+              ? message.content.flatMap(part => {
+                  if (part.type === "image_url") return [part.image_url.url];
+                  if (part.type === "file_url") return [part.file_url.url];
+                  return [];
+                })
+              : []
           );
 
-          if (plannerResult.status === "converted") {
-            return {
-              reply: plannerResult.reply ?? "我已幫你整理好下一步。",
-              actions: plannerResult.actions,
-              intent: plannerResult.intent ?? null,
-              askBeforeAct:
-                plannerResult.askBeforeAct ||
-                Boolean(input.alwaysConfirm && plannerResult.actions.length > 0),
-              suggestions: [],
-              toolCalls: [],
-              plannerOutput: plannerResult.rawContent ?? plannerResult.plan,
-            };
+          const idempotencyCandidate =
+            attachmentUrls.length > 0 ||
+            /(生成|generate|video|image|audio|code|deploy|github|影片|圖片|配音)/i.test(
+              latestTextContent
+            );
+          if (idempotencyGuardEnabled && idempotencyCandidate) {
+            const idempotencyKey = buildOrbIdempotencyKey({
+              userId: ctx.user.id,
+              text: latestTextContent,
+              attachmentUrls,
+            });
+            const duplicate = findDuplicateTask(idempotencyKey);
+            if (duplicate) {
+              appendTelemetryEvent(telemetryEvents, "idempotency.duplicate_detected", {
+                key: idempotencyKey.slice(0, 16),
+                taskId: duplicate.taskId ?? null,
+                planId: duplicate.planId ?? null,
+              });
+              const meta = makePlannerMeta({
+                plannerStatus: "duplicate_task",
+                preferredEngine: "auto",
+                warnings: ["Duplicate task detected."],
+                taskId: duplicate.taskId ?? null,
+              });
+              return {
+                reply:
+                  "我發現你剛剛已送出相同任務，為了避免重複扣額度，我先沿用既有任務進度。",
+                actions: [],
+                intent: null,
+                askBeforeAct: true,
+                suggestions: [],
+                toolCalls: [],
+                telemetry: {
+                  traceId: meta.traceId,
+                  planId: meta.planId,
+                  taskId: meta.taskId,
+                  plannerStatus: meta.plannerStatus,
+                  preferredEngine: meta.preferredEngine,
+                  decisionMode: null,
+                  riskLevel: null,
+                  usedMultimodalPlanner: false,
+                  durationMs: null,
+                  outcome: "duplicate",
+                  events: telemetryEvents,
+                },
+                ...meta,
+                taskDraft: null,
+              };
+            }
+            rememberTaskKey(idempotencyKey, {});
           }
 
-          if (plannerResult.status === "clarification") {
+          const attachmentGuard = validateAttachmentGuards(plannerMessages as Message[]);
+          if (!attachmentGuard.ok) {
+            appendTelemetryEvent(telemetryEvents, "attachment.too_large", {
+              reason: attachmentGuard.reason,
+              totalBytes: attachmentGuard.totalBytes,
+            });
+            const meta = makePlannerMeta({
+              plannerStatus: "attachment_blocked",
+              preferredEngine: "gemini",
+              warnings: [attachmentGuard.reason ?? "attachment blocked"],
+            });
             return {
-              reply: plannerResult.reply ?? "我需要先確認一個細節，才能繼續執行。",
+              reply:
+                attachmentGuard.message ??
+                "這個檔案太大，我目前無法直接處理。請壓縮後再上傳，或先轉成較短的 MP3 / MP4 / PDF 摘要。",
               actions: [],
-              intent: plannerResult.intent ?? null,
+              intent: null,
               askBeforeAct: false,
               suggestions: [],
               toolCalls: [],
-              plannerOutput: plannerResult.rawContent ?? plannerResult.plan,
+              telemetry: {
+                traceId: meta.traceId,
+                planId: meta.planId,
+                taskId: null,
+                plannerStatus: meta.plannerStatus,
+                preferredEngine: meta.preferredEngine,
+                decisionMode: null,
+                riskLevel: null,
+                usedMultimodalPlanner: false,
+                durationMs: null,
+                outcome: "attachment_blocked",
+                events: telemetryEvents,
+              },
+              ...meta,
+              taskDraft: null,
             };
           }
 
-          if (plannerResult.status === "blocked") {
-            return {
-              reply:
-                plannerResult.reply ??
-                "我已建立計畫，但因安全檢查暫停執行，請先確認需求後再繼續。",
-              actions: [],
-              intent: plannerResult.intent ?? null,
-              askBeforeAct: true,
-              suggestions: [],
-              toolCalls: [],
-              plannerOutput: plannerResult.rawContent ?? plannerResult.plan,
-            };
+          if (quotaGuardEnabled) {
+            const rapid = checkAndConsumeQuota("rapid_click", {
+              userId: ctx.user.id,
+              sessionId: String(ctx.user.id),
+            });
+            if (!rapid.allowed) {
+              appendTelemetryEvent(telemetryEvents, "quota.blocked", { category: rapid.category, reason: rapid.reason });
+              const meta = makePlannerMeta({
+                plannerStatus: "quota_limited",
+                preferredEngine: "auto",
+                warnings: [rapid.reason ?? "quota limited"],
+              });
+              return {
+                reply: "你操作得有點快，我先幫你保護額度。請稍等幾秒再試一次。",
+                actions: [],
+                intent: null,
+                askBeforeAct: false,
+                suggestions: [],
+                toolCalls: [],
+                telemetry: {
+                  traceId: meta.traceId,
+                  planId: meta.planId,
+                  taskId: null,
+                  plannerStatus: meta.plannerStatus,
+                  preferredEngine: meta.preferredEngine,
+                  decisionMode: null,
+                  riskLevel: null,
+                  usedMultimodalPlanner: false,
+                  durationMs: null,
+                  outcome: "quota_limited",
+                  events: telemetryEvents,
+                },
+                ...meta,
+                taskDraft: null,
+              };
+            }
+            appendTelemetryEvent(telemetryEvents, "quota.allowed", {
+              category: "rapid_click",
+            });
+          }
+          if (quotaGuardEnabled) {
+            const plannerQuota = checkAndConsumeQuota("planner", {
+              userId: ctx.user.id,
+              sessionId: String(ctx.user.id),
+            });
+            if (!plannerQuota.allowed) {
+              appendTelemetryEvent(telemetryEvents, "quota.blocked", {
+                category: plannerQuota.category,
+                reason: plannerQuota.reason,
+              });
+              const meta = makePlannerMeta({
+                plannerStatus: "quota_limited",
+                preferredEngine: "auto",
+                warnings: [plannerQuota.reason ?? "planner quota limited"],
+              });
+              return {
+                reply: "你今天的此類任務額度已用完，可以改成較小的任務，或明天再試。",
+                actions: [],
+                intent: null,
+                askBeforeAct: false,
+                suggestions: [],
+                toolCalls: [],
+                telemetry: {
+                  traceId: meta.traceId,
+                  planId: meta.planId,
+                  taskId: null,
+                  plannerStatus: meta.plannerStatus,
+                  preferredEngine: meta.preferredEngine,
+                  decisionMode: null,
+                  riskLevel: null,
+                  usedMultimodalPlanner: false,
+                  durationMs: null,
+                  outcome: "quota_limited",
+                  events: telemetryEvents,
+                },
+                ...meta,
+                taskDraft: null,
+              };
+            }
+          }
+
+          const routeIntent: ProviderRouteIntent = attachmentGuard.kinds.includes("pdf")
+            ? "planner_pdf"
+            : attachmentGuard.kinds.length > 0
+            ? "planner_multimodal"
+            : "planner_text";
+          if (providerRouterEnabled) {
+            const selection = selectProvider({
+              intent: routeIntent,
+              riskLevel: "low",
+            });
+            if (!selection.provider) {
+              appendTelemetryEvent(telemetryEvents, "provider.unavailable", {
+                routeIntent,
+              });
+              const meta = makePlannerMeta({
+                plannerStatus: "provider_unavailable",
+                preferredEngine: "auto",
+                warnings: ["provider unavailable"],
+              });
+              return {
+                reply:
+                  "目前這個模型服務暫時不可用，我可以改用替代模型，或稍後再試。",
+                actions: [],
+                intent: null,
+                askBeforeAct: false,
+                suggestions: [],
+                toolCalls: [],
+                telemetry: {
+                  traceId: meta.traceId,
+                  planId: meta.planId,
+                  taskId: null,
+                  plannerStatus: meta.plannerStatus,
+                  preferredEngine: meta.preferredEngine,
+                  decisionMode: null,
+                  riskLevel: null,
+                  usedMultimodalPlanner: false,
+                  durationMs: null,
+                  outcome: "provider_unavailable",
+                  events: telemetryEvents,
+                },
+                ...meta,
+                taskDraft: null,
+              };
+            }
+            const providerHealth = getProviderHealth(selection.provider.id).status;
+            appendTelemetryEvent(telemetryEvents, "provider.selected", {
+              providerId: selection.provider.id,
+              routeIntent,
+              health: providerHealth,
+            });
+            enginePreference = selection.provider.id === "default_llm" ? "auto" : "gemini";
+          }
+          if (schemaFirstPlannerEnabled && capabilityRegistryEnabled && toolRegistryEnabled) {
+            const plannerResult = await withTimeout(
+              runSchemaFirstAgentPlanner({
+                messages: plannerMessages,
+                context: input.context ?? undefined,
+                personality: input.personality,
+                pageSnapshot: (input.pageSnapshot ?? undefined) as
+                  | PageAgentSnapshot
+                  | undefined,
+                recentFeedback: mergedFeedback as AgentFeedbackEvent[],
+                recentTaskMemorySummary,
+                recentOrbMemorySummary,
+                siteKnowledgeSummary,
+                invoke: async plannerInput => {
+                  const preferred = plannerInput.preferEngine ?? enginePreference;
+                  try {
+                    const result = await invokeLLM({
+                      ...plannerInput,
+                      model: director.model,
+                      temperature: director.temperature,
+                      topP: director.topP,
+                      systemPrompt: director.systemPrompt,
+                      preferEngine: preferred,
+                    });
+                    if (providerRouterEnabled && preferred === "gemini") {
+                      if (markProviderRecovered("gemini")) {
+                        appendTelemetryEvent(telemetryEvents, "provider.recovered", {
+                          providerId: "gemini",
+                        });
+                      }
+                    }
+                    return result;
+                  } catch (error) {
+                    if (providerRouterEnabled && preferred === "gemini") {
+                      const marked = markProviderFailure("gemini", error);
+                      appendTelemetryEvent(
+                        telemetryEvents,
+                        marked.reason === "timeout" ? "provider.timeout" : "provider.fallback_used",
+                        {
+                          providerId: "gemini",
+                          status: marked.status,
+                          reason: marked.reason ?? "invoke_failed",
+                        }
+                      );
+                      const fallback = selectProvider({
+                        intent: routeIntent,
+                        riskLevel: "low",
+                        preferredProviderId: "default_llm",
+                      });
+                      if (fallback.provider) {
+                        return invokeLLM({
+                          ...plannerInput,
+                          model: director.model,
+                          temperature: director.temperature,
+                          topP: director.topP,
+                          systemPrompt: director.systemPrompt,
+                          preferEngine: "auto",
+                        });
+                      }
+                    }
+                    throw error;
+                  }
+                },
+              }),
+              20_000,
+              "全站光球代理規劃器"
+            );
+
+            if (plannerResult.status === "converted") {
+              const warnings = globalWorkflowsEnabled
+                ? plannerResult.warnings
+                : [...plannerResult.warnings, "Global Agent workflows 已關閉，僅提供文字回覆。"];
+              const actions = globalWorkflowsEnabled ? plannerResult.actions : [];
+              const meta = makePlannerMeta({
+                plannerStatus: plannerResult.status,
+                plan: plannerResult.plan,
+                warnings,
+                preferredEngine: plannerResult.preferredEngine,
+                usedMultimodalPlanner: plannerResult.usedMultimodalPlanner,
+              });
+              return {
+                reply: plannerResult.reply ?? "我已幫你整理好下一步。",
+                actions,
+                intent: plannerResult.intent ?? null,
+                askBeforeAct:
+                  actions.length > 0 &&
+                  (plannerResult.askBeforeAct ||
+                    Boolean(input.alwaysConfirm && actions.length > 0)),
+                suggestions: [],
+                toolCalls: [],
+                plannerOutput: plannerResult.rawContent ?? plannerResult.plan,
+                telemetry: {
+                  traceId: meta.traceId,
+                  planId: meta.planId,
+                  taskId: null,
+                  plannerStatus: meta.plannerStatus,
+                  preferredEngine: meta.preferredEngine,
+                  decisionMode: plannerResult.decisionMode ?? null,
+                  riskLevel: plannerResult.riskEvaluation?.riskLevel ?? null,
+                  usedMultimodalPlanner: meta.usedMultimodalPlanner,
+                  durationMs: null,
+                  outcome: "converted",
+                  events: telemetryEvents,
+                },
+                ...meta,
+                taskDraft: null,
+              };
+            }
+
+            if (plannerResult.status === "clarification") {
+              const meta = makePlannerMeta({
+                plannerStatus: plannerResult.status,
+                plan: plannerResult.plan,
+                warnings: plannerResult.warnings,
+                preferredEngine: plannerResult.preferredEngine,
+                usedMultimodalPlanner: plannerResult.usedMultimodalPlanner,
+              });
+              return {
+                reply: plannerResult.reply ?? "我需要先確認一個細節，才能繼續執行。",
+                actions: [],
+                intent: plannerResult.intent ?? null,
+                askBeforeAct: false,
+                suggestions: [],
+                toolCalls: [],
+                plannerOutput: plannerResult.rawContent ?? plannerResult.plan,
+                telemetry: {
+                  traceId: meta.traceId,
+                  planId: meta.planId,
+                  taskId: null,
+                  plannerStatus: meta.plannerStatus,
+                  preferredEngine: meta.preferredEngine,
+                  decisionMode: plannerResult.decisionMode ?? null,
+                  riskLevel: plannerResult.riskEvaluation?.riskLevel ?? null,
+                  usedMultimodalPlanner: meta.usedMultimodalPlanner,
+                  durationMs: null,
+                  outcome: "clarification",
+                  events: telemetryEvents,
+                },
+                ...meta,
+                taskDraft: null,
+              };
+            }
+
+            if (plannerResult.status === "blocked") {
+              const meta = makePlannerMeta({
+                plannerStatus: plannerResult.status,
+                plan: plannerResult.plan,
+                warnings: plannerResult.warnings,
+                preferredEngine: plannerResult.preferredEngine,
+                usedMultimodalPlanner: plannerResult.usedMultimodalPlanner,
+              });
+              return {
+                reply:
+                  plannerResult.reply ??
+                  "我已建立計畫，但因安全檢查暫停執行，請先確認需求後再繼續。",
+                actions: [],
+                intent: plannerResult.intent ?? null,
+                askBeforeAct: true,
+                suggestions: [],
+                toolCalls: [],
+                plannerOutput: plannerResult.rawContent ?? plannerResult.plan,
+                telemetry: {
+                  traceId: meta.traceId,
+                  planId: meta.planId,
+                  taskId: null,
+                  plannerStatus: meta.plannerStatus,
+                  preferredEngine: meta.preferredEngine,
+                  decisionMode: plannerResult.decisionMode ?? null,
+                  riskLevel: plannerResult.riskEvaluation?.riskLevel ?? null,
+                  usedMultimodalPlanner: meta.usedMultimodalPlanner,
+                  durationMs: null,
+                  outcome: "blocked",
+                  events: telemetryEvents,
+                },
+                ...meta,
+                taskDraft: null,
+              };
+            }
+
+            if (plannerResult.status === "tasked") {
+              const taskDraft = plannerResult.task;
+              const planRecordForCost =
+                plannerResult.plan && typeof plannerResult.plan === "object"
+                  ? (plannerResult.plan as Record<string, unknown>)
+                  : null;
+              const routingCapabilitiesForCost = Array.isArray(
+                (planRecordForCost?.routing as { capabilities?: unknown[] } | undefined)
+                  ?.capabilities
+              )
+                ? ((planRecordForCost?.routing as { capabilities?: string[] }).capabilities ??
+                  [])
+                : [];
+              const outputKind: "text" | "image" | "video" | "audio" | "voice" | "code" | "deploy" =
+                routingCapabilitiesForCost.some(cap => String(cap).includes("deploy"))
+                  ? "deploy"
+                  : routingCapabilitiesForCost.some(cap => String(cap).includes("github") || String(cap).includes("code"))
+                  ? "code"
+                  : routingCapabilitiesForCost.some(cap => String(cap).includes("video"))
+                  ? "video"
+                  : routingCapabilitiesForCost.some(cap => String(cap).includes("audio"))
+                  ? "audio"
+                  : routingCapabilitiesForCost.some(cap => String(cap).includes("image"))
+                  ? "image"
+                  : "text";
+              const costEstimate = costGuardEnabled
+                ? estimateOrbTaskCost({
+                    providerId: outputKind === "code" || outputKind === "deploy" ? "claudeCode" : enginePreference,
+                    modality:
+                      attachmentGuard.kinds[0] && attachmentGuard.kinds[0] !== "unknown"
+                        ? attachmentGuard.kinds[0]
+                        : "text",
+                    attachmentBytes: attachmentGuard.totalBytes,
+                    attachmentCount: attachmentGuard.kinds.length,
+                    expectedOutput: outputKind,
+                    estimatedTokens: 9_000,
+                    crossPageSteps: taskDraft?.steps.length ?? 0,
+                  })
+                : null;
+              if (costEstimate) {
+                appendTelemetryEvent(telemetryEvents, "cost.estimated", {
+                  tier: costEstimate.tier,
+                  reasons: costEstimate.reasons.join(","),
+                });
+                if (costEstimate.requiresHuman) {
+                  appendTelemetryEvent(telemetryEvents, "cost.approval_required", {
+                    tier: costEstimate.tier,
+                  });
+                }
+              }
+              let materializedTask: unknown = null;
+              let stateMachineTask = null;
+              let codeTask: unknown = null;
+              let codeTaskPrompt: string | null = null;
+              if (globalWorkflowsEnabled && taskDraft && orbTaskStateMachineEnabled) {
+                stateMachineTask = createOrbAgentTaskFromPlanner(plannerResult);
+              }
+              if (globalWorkflowsEnabled && taskDraft && !stateMachineTask) {
+                try {
+                  materializedTask = orbTaskRepository.create({
+                    userId: ctx.user.id,
+                    intent: taskDraft.intent,
+                    needsApproval: taskDraft.needsApproval,
+                    steps: taskDraft.steps.map(step => ({
+                      id: step.id,
+                      label: step.label,
+                      pagePath: step.pagePath,
+                      uiActions: step.uiActions,
+                      toolCalls: step.toolCalls,
+                    })),
+                  });
+                } catch (taskError) {
+                  console.warn("[Orb] task materialization failed:", taskError instanceof Error ? taskError.message : String(taskError));
+                }
+              }
+              const planRecord =
+                plannerResult.plan && typeof plannerResult.plan === "object"
+                  ? (plannerResult.plan as Record<string, unknown>)
+                  : null;
+              const routingCapabilities = Array.isArray((planRecord?.routing as { capabilities?: unknown[] } | undefined)?.capabilities)
+                ? ((planRecord?.routing as { capabilities?: string[] }).capabilities ?? [])
+                : [];
+              const stepToolNames = Array.isArray((planRecord?.steps as Array<{ toolName?: unknown }> | undefined))
+                ? (planRecord?.steps as Array<{ toolName?: unknown }>).map(step => String(step.toolName ?? ""))
+                : [];
+              const codeCapabilityDetected =
+                String(plannerResult.preferredEngine ?? taskDraft?.preferredEngine ?? "").toLowerCase().includes("claudecode") ||
+                routingCapabilities.some(cap => ["code", "github", "deploy"].includes(String(cap))) ||
+                stepToolNames.some(name => ["code.modifyWithClaudeCode", "github.pr.create", "deploy.preview"].includes(name));
+              const codeCollabEnabled = isFlagEnabled(
+                process.env.ENABLE_ORB_CODE_COLLABORATION ?? serverEnv.ENABLE_ORB_CODE_COLLABORATION,
+                true
+              );
+              if (taskDraft && codeCapabilityDetected && codeCollabEnabled) {
+                try {
+                  if (quotaGuardEnabled) {
+                    const codeQuota = checkAndConsumeQuota("code_task", {
+                      userId: ctx.user.id,
+                    });
+                    if (!codeQuota.allowed) {
+                      appendTelemetryEvent(telemetryEvents, "quota.blocked", {
+                        category: codeQuota.category,
+                        reason: codeQuota.reason,
+                      });
+                    } else {
+                      appendTelemetryEvent(telemetryEvents, "quota.allowed", {
+                        category: "code_task",
+                      });
+                    }
+                    if (!codeQuota.allowed) {
+                      codeTask = null;
+                      codeTaskPrompt = null;
+                      throw new Error("code task quota exceeded");
+                    }
+                  }
+                  const highRisk = routingCapabilities.some(cap =>
+                    ["auth", "payment", "deploy", "db", "database", "apikey", "secret", "upload", "user-data"].some(keyword =>
+                      String(cap).toLowerCase().includes(keyword)
+                    )
+                  );
+                  const provider = String(plannerResult.preferredEngine ?? taskDraft.preferredEngine ?? "claudeCode").toLowerCase().includes("codex")
+                    ? "codex"
+                    : "claudeCode";
+                  codeTask = createOrbCodeTask({
+                    taskId:
+                      (stateMachineTask as { taskId?: string } | null)?.taskId ??
+                      ((materializedTask as { taskId?: string } | null)?.taskId ?? taskDraft.taskId),
+                    planId: typeof planRecord?.planId === "string" ? planRecord.planId : taskDraft.taskId,
+                    traceId: typeof planRecord?.traceId === "string" ? planRecord.traceId : `trace_${Date.now()}`,
+                    provider,
+                    repository: process.env.ORB_CODE_REPOSITORY ?? "healing-studio",
+                    baseBranch: process.env.ORB_CODE_BASE_BRANCH ?? "main",
+                    title: taskDraft.summaryForUser.slice(0, 180),
+                    objective: taskDraft.intent,
+                    filesAllowed: taskDraft.steps.flatMap(step => step.pagePath ? [step.pagePath] : []),
+                    filesForbidden: [".env", ".env.local", "**/secrets/**", "**/credentials/**"],
+                    acceptanceCriteria: [
+                      "All acceptance criteria in plan are met.",
+                      "Required tests pass.",
+                      "No secrets added to code/logs/memory/telemetry.",
+                    ],
+                    testCommands: ["npm run check", "npm test"],
+                    riskLevel: highRisk ? "high" : (plannerResult.riskEvaluation?.riskLevel ?? "medium"),
+                    summary: taskDraft.summaryForUser,
+                    rollbackPlan: taskDraft.rollbackMode === "none" ? "Manual rollback required via git revert." : "Revert branch commits and redeploy previous healthy version.",
+                  });
+                  if (codeTask) {
+                    const codeTaskRecord = codeTask as Parameters<typeof buildClaudeCodeTaskPrompt>[0]["codeTask"];
+                    codeTaskPrompt =
+                      provider === "codex"
+                        ? buildCodexTaskPrompt({
+                            agentPlanSummary: taskDraft.summaryForUser,
+                            orbTaskSummary: taskDraft.summaryForUser,
+                            codeTask: codeTaskRecord,
+                            relevantFiles: codeTaskRecord.filesAllowed.slice(0, 20),
+                          })
+                        : buildClaudeCodeTaskPrompt({
+                            agentPlanSummary: taskDraft.summaryForUser,
+                            orbTaskSummary: taskDraft.summaryForUser,
+                            codeTask: codeTaskRecord,
+                            relevantFiles: codeTaskRecord.filesAllowed.slice(0, 20),
+                          });
+                  }
+                } catch (codeTaskError) {
+                  console.warn("[Orb] code task creation failed:", codeTaskError instanceof Error ? codeTaskError.message : String(codeTaskError));
+                }
+              }
+              const warnings = globalWorkflowsEnabled
+                ? plannerResult.warnings
+                : [...plannerResult.warnings, "Global Agent workflows 已關閉，任務僅提供草稿不會執行。"];
+              const meta = makePlannerMeta({
+                plannerStatus: plannerResult.status,
+                plan: plannerResult.plan,
+                warnings,
+                preferredEngine: plannerResult.preferredEngine ?? taskDraft?.preferredEngine ?? null,
+                taskId:
+                  (stateMachineTask?.taskId as string | undefined) ??
+                  ((materializedTask as { taskId?: string } | null)?.taskId ?? null),
+                usedMultimodalPlanner: plannerResult.usedMultimodalPlanner,
+              });
+
+              return {
+                reply:
+                  costEstimate?.prompt
+                    ? `${plannerResult.reply ?? "我已建立任務草稿，待你確認後就可以開始執行。"}\n\n${costEstimate.prompt}`
+                    : plannerResult.reply ??
+                      "我已建立任務草稿，待你確認後就可以開始執行。",
+                actions: [],
+                intent: plannerResult.intent ?? null,
+                askBeforeAct: true,
+                suggestions: [],
+                toolCalls: [],
+                task: stateMachineTask ?? materializedTask,
+                codeTask,
+                codeTaskPrompt,
+                taskDraft,
+                plannerOutput: plannerResult.rawContent ?? plannerResult.plan,
+                telemetry: {
+                  traceId: meta.traceId,
+                  planId: meta.planId,
+                  taskId: meta.taskId,
+                  plannerStatus: meta.plannerStatus,
+                  preferredEngine: meta.preferredEngine,
+                  decisionMode: plannerResult.decisionMode ?? null,
+                  riskLevel: plannerResult.riskEvaluation?.riskLevel ?? null,
+                  usedMultimodalPlanner: meta.usedMultimodalPlanner,
+                  durationMs: null,
+                  outcome: stateMachineTask ? stateMachineTask.status : "tasked",
+                  events: telemetryEvents,
+                  estimatedCostTier: costEstimate?.tier ?? null,
+                },
+                ...meta,
+              };
+            }
           }
 
           // invalid：維持舊版 fallback parser 流程，兼容既有 marker / JSON reply。
@@ -4138,6 +4922,11 @@ export const appRouter = router({
               : "";
           if (!rawReply) {
             console.warn("[Orb] Empty LLM response, using fallback");
+            const meta = makePlannerMeta({
+              plannerStatus: "fallback-empty",
+              preferredEngine: enginePreference,
+              usedMultimodalPlanner: false,
+            });
             return {
               reply: "✨ 抱歉，我暫時無法回應。稍後再試試看吧～",
               actions: [],
@@ -4145,15 +4934,71 @@ export const appRouter = router({
               askBeforeAct: false,
               suggestions: [],
               toolCalls: [],
+              telemetry: {
+                traceId: meta.traceId,
+                planId: meta.planId,
+                taskId: null,
+                plannerStatus: meta.plannerStatus,
+                preferredEngine: meta.preferredEngine,
+                decisionMode: null,
+                riskLevel: null,
+                usedMultimodalPlanner: false,
+                durationMs: null,
+                outcome: "fallback-empty",
+                events: telemetryEvents,
+              },
+              ...meta,
+              taskDraft: null,
             };
           }
-          return parseOrbReply(rawReply, {
+          const legacy = parseOrbReply(rawReply, {
             alwaysConfirm: input.alwaysConfirm,
           });
+          const legacyActions = globalWorkflowsEnabled ? legacy.actions : [];
+          const meta = makePlannerMeta({
+            plannerStatus:
+              schemaFirstPlannerEnabled && capabilityRegistryEnabled && toolRegistryEnabled
+                ? "fallback-legacy"
+                : "fallback-schema-disabled",
+            preferredEngine: enginePreference,
+            warnings: [
+              ...(schemaFirstPlannerEnabled ? [] : ["Schema-first planner 已關閉，使用 legacy fallback。"]),
+              ...(capabilityRegistryEnabled ? [] : ["Capability registry 已關閉，使用 legacy fallback。"]),
+              ...(toolRegistryEnabled ? [] : ["Tool registry 已關閉，使用 legacy fallback。"]),
+              ...(globalWorkflowsEnabled ? [] : ["Global Agent workflows 已關閉，僅保留聊天回覆。"]),
+            ],
+            usedMultimodalPlanner: false,
+          });
+          return {
+            ...legacy,
+            actions: legacyActions,
+            askBeforeAct: legacyActions.length > 0 ? legacy.askBeforeAct : false,
+            telemetry: {
+              traceId: meta.traceId,
+              planId: meta.planId,
+              taskId: null,
+              plannerStatus: meta.plannerStatus,
+              preferredEngine: meta.preferredEngine,
+              decisionMode: null,
+              riskLevel: null,
+              usedMultimodalPlanner: meta.usedMultimodalPlanner,
+              durationMs: null,
+              outcome: "fallback",
+              events: telemetryEvents,
+            },
+            ...meta,
+            taskDraft: null,
+          };
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : String(err);
           console.error("[Orb] Chat error:", errorMsg);
           // Return healing-style fallback rather than crashing
+          const meta = makePlannerMeta({
+            plannerStatus: "fallback-error",
+            preferredEngine: enginePreference,
+            warnings: [errorMsg.slice(0, 240)],
+            usedMultimodalPlanner: false,
+          });
           return {
             reply:
               "🌿 抱歉，我剛才遇到了一點小狀況。請稍等一下再試試～如果問題持續，可以在設定頁檢查 API 設定唷。",
@@ -4162,6 +5007,22 @@ export const appRouter = router({
             askBeforeAct: false,
             suggestions: [],
             toolCalls: [],
+            telemetry: {
+              traceId: meta.traceId,
+              planId: meta.planId,
+              taskId: null,
+              plannerStatus: meta.plannerStatus,
+              preferredEngine: meta.preferredEngine,
+              decisionMode: null,
+              riskLevel: null,
+              usedMultimodalPlanner: false,
+              durationMs: null,
+              outcome: "error",
+              safeErrorReason: errorMsg.slice(0, 240),
+              events: telemetryEvents,
+            },
+            ...meta,
+            taskDraft: null,
           };
         }
       }),
@@ -4193,6 +5054,222 @@ export const appRouter = router({
         });
         return { results };
       }),
+
+    orbTask: router({
+      get: brainProcedure
+        .input(z.object({ taskId: z.string().min(1) }))
+        .query(({ input }) => {
+          return getOrbAgentTask(input.taskId);
+        }),
+
+      listRecent: brainProcedure
+        .input(z.object({ limit: z.number().int().min(1).max(100).default(20) }).optional())
+        .query(({ input }) => {
+          return listRecentOrbAgentTasks(input?.limit ?? 20);
+        }),
+
+      approve: brainProcedure
+        .input(z.object({ taskId: z.string().min(1) }))
+        .mutation(({ input }) => {
+          const executorEnabled = isFlagEnabled(
+            process.env.ENABLE_ORB_TASK_EXECUTOR ?? serverEnv.ENABLE_ORB_TASK_EXECUTOR,
+            true
+          );
+          if (!executorEnabled) return null;
+          return approveOrbAgentTask(input.taskId);
+        }),
+
+      cancel: brainProcedure
+        .input(z.object({ taskId: z.string().min(1), reason: z.string().max(240).optional() }))
+        .mutation(({ input }) => {
+          const executorEnabled = isFlagEnabled(
+            process.env.ENABLE_ORB_TASK_EXECUTOR ?? serverEnv.ENABLE_ORB_TASK_EXECUTOR,
+            true
+          );
+          if (!executorEnabled) return null;
+          return cancelOrbAgentTask(input.taskId, input.reason ?? "cancelled by user");
+        }),
+
+      retry: brainProcedure
+        .input(z.object({ taskId: z.string().min(1) }))
+        .mutation(({ input }) => {
+          const executorEnabled = isFlagEnabled(
+            process.env.ENABLE_ORB_TASK_EXECUTOR ?? serverEnv.ENABLE_ORB_TASK_EXECUTOR,
+            true
+          );
+          if (!executorEnabled) return { task: null, recoveryPlan: null };
+          const enableRecovery = isFlagEnabled(
+            process.env.ENABLE_ORB_TASK_RECOVERY ?? serverEnv.ENABLE_ORB_TASK_RECOVERY,
+            true
+          );
+          return retryOrbAgentTask(input.taskId, { enableRecovery });
+        }),
+
+      events: brainProcedure
+        .input(z.object({ taskId: z.string().min(1) }))
+        .query(({ input }) => {
+          return getOrbAgentTaskEvents(input.taskId);
+        }),
+
+      completeStep: brainProcedure
+        .input(z.object({ taskId: z.string().min(1), stepId: z.string().min(1) }))
+        .mutation(({ input }) => {
+          const executorEnabled = isFlagEnabled(
+            process.env.ENABLE_ORB_TASK_EXECUTOR ?? serverEnv.ENABLE_ORB_TASK_EXECUTOR,
+            true
+          );
+          if (!executorEnabled) return null;
+          return completeOrbAgentStep(input.taskId, input.stepId);
+        }),
+
+      failStep: brainProcedure
+        .input(z.object({ taskId: z.string().min(1), stepId: z.string().min(1), reason: z.string().min(1).max(240) }))
+        .mutation(({ input }) => {
+          const executorEnabled = isFlagEnabled(
+            process.env.ENABLE_ORB_TASK_EXECUTOR ?? serverEnv.ENABLE_ORB_TASK_EXECUTOR,
+            true
+          );
+          if (!executorEnabled) return null;
+          return failOrbAgentStep(input.taskId, input.stepId, input.reason);
+        }),
+
+
+      updateStepStatus: brainProcedure
+        .input(
+          z.object({
+            taskId: z.string().min(1),
+            stepId: z.string().min(1),
+            status: z.enum(["completed", "failed"]),
+            reason: z.string().max(240).optional(),
+          })
+        )
+        .mutation(({ input }) => {
+          const executorEnabled = isFlagEnabled(
+            process.env.ENABLE_ORB_TASK_EXECUTOR ?? serverEnv.ENABLE_ORB_TASK_EXECUTOR,
+            true
+          );
+          if (!executorEnabled) return null;
+          if (input.status === "completed") {
+            return completeOrbAgentStep(input.taskId, input.stepId);
+          }
+          return failOrbAgentStep(input.taskId, input.stepId, input.reason ?? "step failed");
+        }),
+
+      memoryRecent: brainProcedure
+        .input(z.object({ limit: z.number().int().min(1).max(50).default(10) }).optional())
+        .query(({ input }) => getRecentOrbTaskMemory(input?.limit ?? 10)),
+    }),
+
+    orbMemory: router({
+      recent: brainProcedure
+        .input(z.object({ limit: z.number().int().min(1).max(50).default(10) }).optional())
+        .query(({ input, ctx }) => {
+          const enabled = isFlagEnabled(
+            process.env.ENABLE_ORB_LONG_TERM_MEMORY ?? serverEnv.ENABLE_ORB_LONG_TERM_MEMORY,
+            true
+          );
+          if (!enabled) return [];
+          return getRecentOrbMemories({ userId: ctx.user.id, limit: input?.limit ?? 10 });
+        }),
+      search: brainProcedure
+        .input(z.object({ query: z.string().min(1).max(120), limit: z.number().int().min(1).max(50).default(10) }))
+        .query(({ input, ctx }) => {
+          const enabled = isFlagEnabled(
+            process.env.ENABLE_ORB_LONG_TERM_MEMORY ?? serverEnv.ENABLE_ORB_LONG_TERM_MEMORY,
+            true
+          );
+          if (!enabled) return [];
+          return searchOrbMemories({ userId: ctx.user.id, query: input.query, limit: input.limit });
+        }),
+      clearForUser: brainProcedure
+        .mutation(({ ctx }) => {
+          const enabled = isFlagEnabled(
+            process.env.ENABLE_ORB_LONG_TERM_MEMORY ?? serverEnv.ENABLE_ORB_LONG_TERM_MEMORY,
+            true
+          );
+          if (!enabled) return { removed: 0 };
+          return { removed: clearOrbMemoryForUser({ userId: ctx.user.id }) };
+        }),
+      deleteOne: brainProcedure
+        .input(z.object({ memoryId: z.string().min(1) }))
+        .mutation(({ input, ctx }) => {
+          const enabled = isFlagEnabled(
+            process.env.ENABLE_ORB_LONG_TERM_MEMORY ?? serverEnv.ENABLE_ORB_LONG_TERM_MEMORY,
+            true
+          );
+          if (!enabled) return { ok: false };
+          return { ok: deleteOrbMemory(input.memoryId, { userId: ctx.user.id }) };
+        }),
+      plannerSummary: brainProcedure
+        .query(({ ctx }) => {
+          const enabled = isFlagEnabled(
+            process.env.ENABLE_ORB_LONG_TERM_MEMORY ?? serverEnv.ENABLE_ORB_LONG_TERM_MEMORY,
+            true
+          );
+          if (!enabled) return "Long-term memory disabled.";
+          return summarizeOrbMemoriesForPlanner({ userId: ctx.user.id, limit: 10 });
+        }),
+    }),
+
+    codeTask: router({
+      get: brainProcedure
+        .input(z.object({ codeTaskId: z.string().min(1) }))
+        .query(({ input }) => getCodeTask(input.codeTaskId)),
+      listRecent: brainProcedure
+        .input(z.object({ limit: z.number().int().min(1).max(100).default(20) }).optional())
+        .query(({ input }) => listRecentCodeTasks(input?.limit ?? 20)),
+      approve: brainProcedure
+        .input(z.object({ codeTaskId: z.string().min(1) }))
+        .mutation(({ input }) => approveCodeTask(input.codeTaskId)),
+      cancel: brainProcedure
+        .input(z.object({ codeTaskId: z.string().min(1), reason: z.string().max(240).optional() }))
+        .mutation(({ input }) => cancelCodeTask(input.codeTaskId, input.reason)),
+      attachPr: brainProcedure
+        .input(z.object({ codeTaskId: z.string().min(1), prUrl: z.string().url() }))
+        .mutation(({ input }) => attachCodeTaskPr(input.codeTaskId, input.prUrl)),
+      markRunning: brainProcedure
+        .input(z.object({ codeTaskId: z.string().min(1) }))
+        .mutation(({ input }) => markCodeTaskRunning(input.codeTaskId)),
+      markReviewRequired: brainProcedure
+        .input(z.object({ codeTaskId: z.string().min(1), testsSummary: z.string().max(500).optional() }))
+        .mutation(({ input }) => markCodeTaskReviewRequired(input.codeTaskId, input.testsSummary)),
+      markMerged: brainProcedure
+        .input(z.object({ codeTaskId: z.string().min(1), commitSha: z.string().max(64).optional() }))
+        .mutation(({ input }) => markCodeTaskMerged(input.codeTaskId, input.commitSha)),
+      markFailed: brainProcedure
+        .input(z.object({ codeTaskId: z.string().min(1), reason: z.string().min(1).max(500) }))
+        .mutation(({ input }) => markCodeTaskFailed(input.codeTaskId, input.reason)),
+      buildHandoffPrompt: brainProcedure
+        .input(
+          z.object({
+            codeTaskId: z.string().min(1),
+            plannerSummary: z.string().max(2000).default(""),
+            orbTaskSummary: z.string().max(2000).default(""),
+            relevantFiles: z.array(z.string().max(240)).max(100).optional(),
+          })
+        )
+        .query(({ input }) => {
+          const codeTask = getCodeTask(input.codeTaskId);
+          if (!codeTask) return null;
+          if (codeTask.provider === "codex") {
+            return buildCodexTaskPrompt({
+              agentPlanSummary: input.plannerSummary,
+              orbTaskSummary: input.orbTaskSummary,
+              codeTask,
+              relevantFiles: input.relevantFiles,
+            });
+          }
+          return buildClaudeCodeTaskPrompt({
+            agentPlanSummary: input.plannerSummary,
+            orbTaskSummary: input.orbTaskSummary,
+            codeTask,
+            relevantFiles: input.relevantFiles,
+          });
+        }),
+      telemetryRecent: brainProcedure
+        .input(z.object({ limit: z.number().int().min(1).max(500).default(100) }).optional())
+        .query(({ input }) => getCodeTaskTelemetry(input?.limit ?? 100)),
+    }),
   }),
 
   // ─── Orb Memory（Phase 3c：光球跨 session 長期記憶） ──────────────────────

@@ -134,6 +134,23 @@ const multimodalSchema = z.object({
     .enum(["auto", "gemini", "vertex", "forge", "nvidia"])
     .optional()
     .default("auto"),
+  ENABLE_SCHEMA_FIRST_PLANNER: z.string().optional().default("true"),
+  VITE_ENABLE_GLOBAL_AGENT_WORKFLOWS: z.string().optional().default("true"),
+  VITE_ENABLE_GLOBAL_AGENT_TELEMETRY: z.string().optional().default("false"),
+  ENABLE_ORB_TASK_STATE_MACHINE: z.string().optional().default("true"),
+  ENABLE_ORB_TASK_MEMORY: z.string().optional().default("true"),
+  ENABLE_ORB_TASK_RECOVERY: z.string().optional().default("true"),
+  ENABLE_ORB_TASK_EXECUTOR: z.string().optional().default("true"),
+  ENABLE_ORB_LONG_TERM_MEMORY: z.string().optional().default("true"),
+  ENABLE_ORB_CODE_COLLABORATION: z.string().optional().default("true"),
+  ENABLE_CLAUDE_CODE_TASKS: z.string().optional().default("true"),
+  ENABLE_CODEX_TASKS: z.string().optional().default("false"),
+  ENABLE_ORB_PROVIDER_ROUTER: z.string().optional().default("true"),
+  ENABLE_ORB_COST_GUARD: z.string().optional().default("true"),
+  ENABLE_ORB_QUOTA_GUARD: z.string().optional().default("false"),
+  ENABLE_ORB_IDEMPOTENCY_GUARD: z.string().optional().default("false"),
+  ENABLE_GLOBAL_AGENT_CAPABILITY_REGISTRY: z.string().optional().default("true"),
+  ENABLE_GLOBAL_AGENT_TOOL_REGISTRY: z.string().optional().default("true"),
 
   // ── MiniMax M2.7 via NVIDIA NIM（光球 AI 代理人引擎）──────────────────────
 

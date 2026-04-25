@@ -1,7 +1,9 @@
 import { invokeLLM, type Message, type InvokeResult } from "../_core/llm";
-import { AGENT_PLAN_JSON_SCHEMA } from "../../shared/agent-plan-schema";
+import { AGENT_PLAN_V3_JSON_SCHEMA } from "../../shared/agent-plan-schema";
+import { summarizeGlobalCapabilityRegistry } from "../../shared/global-agent-capabilities";
+import { summarizeGlobalToolRegistry } from "../../shared/global-agent-tools";
 import {
-  buildAgentPlanSystemPrompt,
+  buildAgentPlanV3SystemPrompt,
   parseAndGatePlan,
   type GatedAgentPlanResult,
 } from "../../shared/agent-plan-adapter";
@@ -21,6 +23,9 @@ export interface AgentPlannerInput {
   personality?: string;
   pageSnapshot?: PageAgentSnapshot | null;
   recentFeedback?: AgentFeedbackEvent[];
+  recentTaskMemorySummary?: string;
+  recentOrbMemorySummary?: string;
+  siteKnowledgeSummary?: string;
   maxTokens?: number;
   invoke?: typeof invokeLLM;
 }
@@ -115,6 +120,15 @@ export function summarizePageSnapshotForPlanner(snapshot?: PageAgentSnapshot | n
     pageId: snapshot.pageId,
     pageLabel: snapshot.pageLabel,
     pagePath: snapshot.pagePath,
+    activeMode: snapshot.activeMode,
+    activeModel: snapshot.activeModel,
+    selectedPreset: snapshot.selectedPreset,
+    availableModels: snapshot.availableModels?.slice(0, 20),
+    availableModes: snapshot.availableModes?.slice(0, 20),
+    availableParameters: snapshot.availableParameters?.slice(0, 40),
+    currentPrompt: snapshot.currentPrompt?.slice(0, 500),
+    hasUnsavedChanges: snapshot.hasUnsavedChanges,
+    warnings: snapshot.warnings?.slice(0, 8),
     capabilities: snapshot.capabilities.map(capability => ({
       action: capability.action,
       label: capability.label,
@@ -144,16 +158,24 @@ export function buildAgentPlannerMessages(input: AgentPlannerInput): Message[] {
   const pageSummary = summarizePageSnapshotForPlanner(input.pageSnapshot);
   const feedbackSummary = summarizeRecentFeedbackForPlanner(input.recentFeedback);
   const multimodalSummary = summarizeMultimodalInputsForPlanner(input.messages);
-  const systemPrompt = buildAgentPlanSystemPrompt(pageSummary);
+  const systemPrompt = buildAgentPlanV3SystemPrompt(pageSummary);
+  const capabilitySummary = summarizeGlobalCapabilityRegistry(120);
+  const toolSummary = summarizeGlobalToolRegistry(60);
   const contextBlock = [
     input.context ? `Conversation context: ${input.context}` : undefined,
     input.personality ? `Orb personality: ${input.personality}` : undefined,
     `Recent execution feedback:\n${feedbackSummary}`,
+    `Recent task memory:\n${input.recentTaskMemorySummary ?? "No recent task memory."}`,
+    `Recent long-term memory:\n${input.recentOrbMemorySummary ?? "No long-term memory."}`,
+    input.siteKnowledgeSummary ? `Site knowledge summary:\n${input.siteKnowledgeSummary}` : undefined,
+    `Global capability registry summary:\n${capabilitySummary}`,
+    `Global tool registry summary:\n${toolSummary}`,
     `Multimodal attachments:\n${multimodalSummary}`,
     "Plan in Traditional Chinese labels where helpful, but keep action ids and page paths exact.",
     "Prefer asking one clarification question when the user's target output, modality, or destination is unclear.",
     "For image uploads, plan image-to-video, image analysis, or prompt extraction workflows when requested.",
     "For audio/video/PDF uploads, use the attachment as source material and create analysis, transcription, storyboard, caption, or conversion workflows when requested.",
+    "Do not use unregistered action types or tool names. If unavailable on this page, return clarification or blocked.",
   ].filter(Boolean).join("\n\n");
 
   return [
@@ -188,7 +210,7 @@ export async function runSchemaFirstAgentPlanner(
     preferEngine: usedMultimodalPlanner ? "gemini" : undefined,
     response_format: {
       type: "json_schema",
-      json_schema: AGENT_PLAN_JSON_SCHEMA as unknown as {
+      json_schema: AGENT_PLAN_V3_JSON_SCHEMA as unknown as {
         name: string;
         schema: Record<string, unknown>;
         strict?: boolean;
@@ -197,7 +219,35 @@ export async function runSchemaFirstAgentPlanner(
   });
 
   const rawContent = extractPlannerContent(result);
-  const gated = parseAndGatePlan(rawContent);
+  let gated = parseAndGatePlan(rawContent);
+  if (
+    usedMultimodalPlanner &&
+    gated.version === "agent-plan.v3" &&
+    gated.plan &&
+    "routing" in gated.plan
+  ) {
+    const plan = gated.plan;
+    const routing = plan.routing ?? {
+      preferredEngine: "auto",
+      capabilities: [],
+      pageScope: "single",
+    };
+    const capabilities = Array.isArray(routing.capabilities) ? routing.capabilities : [];
+    if (!capabilities.includes("multimodal")) {
+      const nextPlan = {
+        ...plan,
+        routing: {
+          ...routing,
+          capabilities: [...capabilities, "multimodal"],
+        },
+      };
+      gated = {
+        ...gated,
+        plan: nextPlan,
+        warnings: [...gated.warnings, "已自動標記 routing.capabilities 包含 multimodal。"],
+      };
+    }
+  }
   // Multimodal-derived planner always prefers Gemini routing for the next
   // engine pick, regardless of what the model declared.
   const preferredEngine = usedMultimodalPlanner ? "gemini" : gated.preferredEngine;

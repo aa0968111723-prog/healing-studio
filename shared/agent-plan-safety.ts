@@ -7,6 +7,8 @@ import type {
   AgentRiskLevel,
 } from "./agent-plan-schema";
 import { actionRequiresApproval, inferRiskLevelForAction } from "./agent-plan-schema";
+import { hasCapabilityForPage } from "./global-agent-capabilities";
+import { getGlobalAgentTool } from "./global-agent-tools";
 
 export type AgentPlanSafetyBlockReason =
   | "schema_requires_clarification"
@@ -331,22 +333,9 @@ const HIGH_RISK_ACTION_TYPES = new Set<AgentActionType>([
   "applyPreset",
 ]);
 
-const KNOWN_AGENT_TOOL_NAMES = new Set<string>([
-  "weather.lookup",
-  "search.web",
-  "code.run",
-  "github.pull",
-  "github.push",
-  "github.review",
-  "deploy.preview",
-  "deploy.production",
-  "media.transcribe",
-  "media.caption",
-  "media.storyboard",
-]);
-
 const TASKED_CAPABILITY_KEYWORDS = ["code", "github", "deploy"] as const;
 const MULTIMODAL_CAPABILITY_KEYWORDS = ["multimodal", "vision", "audio", "video", "pdf"] as const;
+const EXTERNAL_HIGH_RISK_TOOL_KEYWORDS = ["github.", "deploy.", "code."] as const;
 
 export type AgentPlanV3GateMode = AgentPlanV3DecisionMode;
 
@@ -379,7 +368,7 @@ function isMultimodalAttachmentMime(mime: string): boolean {
 }
 
 export function isKnownAgentTool(name: string): boolean {
-  return KNOWN_AGENT_TOOL_NAMES.has(name);
+  return Boolean(getGlobalAgentTool(name));
 }
 
 export function evaluateAgentPlanV3Risk(plan: AgentPlanV3): AgentPlanV3RiskEvaluation {
@@ -404,16 +393,35 @@ export function evaluateAgentPlanV3Risk(plan: AgentPlanV3): AgentPlanV3RiskEvalu
       });
       reasonsSet.add(`未知動作 ${actionType}`);
     }
-    if (step.toolName && !isKnownAgentTool(step.toolName)) {
+    if (step.toolName) {
+      const tool = getGlobalAgentTool(step.toolName);
+      if (!tool) {
+        blockers.push({
+          reason: "unknown_action",
+          severity: "blocker",
+          message: `Unknown tool: ${step.toolName}`,
+          stepId: step.id,
+          stepIndex: index,
+          actionType: step.toolName,
+        });
+        reasonsSet.add(`未知工具 ${step.toolName}`);
+      } else if (tool.requiresHuman || tool.riskLevel === "high") {
+        requiresHuman = true;
+        riskLevel = bumpRisk(riskLevel, "high");
+        reasonsSet.add(`工具需要人工確認：${tool.name}`);
+      }
+    }
+
+    if (!hasCapabilityForPage(step.pagePath, actionType)) {
       blockers.push({
         reason: "unknown_action",
         severity: "blocker",
-        message: `Unknown tool: ${step.toolName}`,
+        message: `Page ${step.pagePath ?? "<unknown>"} has no registered capability for ${actionType}`,
         stepId: step.id,
         stepIndex: index,
-        actionType: step.toolName,
+        actionType,
       });
-      reasonsSet.add(`未知工具 ${step.toolName}`);
+      reasonsSet.add(`頁面能力未註冊：${actionType}`);
     }
 
     // 2) Destructive UI actions force high + human approval.
@@ -479,6 +487,18 @@ export function evaluateAgentPlanV3Risk(plan: AgentPlanV3): AgentPlanV3RiskEvalu
     riskLevel = bumpRisk(riskLevel, "medium");
     requiresHuman = true;
     reasonsSet.add("程式碼／GitHub／部署任務需要 Claude Code");
+  }
+
+  const usesExternalHighRiskTool = plan.steps.some(step =>
+    Boolean(step.toolName) &&
+    (EXTERNAL_HIGH_RISK_TOOL_KEYWORDS as readonly string[]).some(keyword =>
+      String(step.toolName).startsWith(keyword)
+    )
+  );
+  if (usesExternalHighRiskTool) {
+    riskLevel = bumpRisk(riskLevel, "high");
+    requiresHuman = true;
+    reasonsSet.add("外部部署/GitHub/Code 工具需要人工確認");
   }
 
   // 6) Decide effective decision mode.

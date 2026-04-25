@@ -1,0 +1,321 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { TrpcContext } from "./_core/context";
+
+vi.mock("./services/agentPlanner", () => ({
+  runSchemaFirstAgentPlanner: vi.fn(),
+}));
+
+vi.mock("./_core/llm", async importOriginal => {
+  const actual = await importOriginal<typeof import("./_core/llm")>();
+  return {
+    ...actual,
+    invokeLLM: vi.fn().mockResolvedValue({
+      id: "fallback",
+      created: Date.now(),
+      model: "test-model",
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content: "先去影像工作室 [ACTION:navigate:/studio] [ACTION:setMode:video]",
+          },
+          finish_reason: "stop",
+        },
+      ],
+    }),
+  };
+});
+
+import { appRouter } from "./routers";
+import { runSchemaFirstAgentPlanner } from "./services/agentPlanner";
+import { orbTaskRepository } from "./repositories/orbTaskRepository";
+
+type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
+
+function createMockUser(): AuthenticatedUser {
+  return {
+    id: 1,
+    openId: "test-user-001",
+    email: "test@example.com",
+    name: "Test User",
+    loginMethod: "manus",
+    role: "user",
+    remainingGenerations: 99,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    lastSignedIn: new Date(),
+  };
+}
+
+function createMockContext(user: AuthenticatedUser | null = createMockUser()): TrpcContext {
+  return {
+    user,
+    req: {
+      protocol: "https",
+      headers: {},
+    } as TrpcContext["req"],
+    res: {
+      cookie: vi.fn(),
+      clearCookie: vi.fn(),
+    } as unknown as TrpcContext["res"],
+  };
+}
+
+describe("ai.chat planner gating handling", () => {
+  const mockedPlanner = vi.mocked(runSchemaFirstAgentPlanner);
+
+  beforeEach(() => {
+    mockedPlanner.mockReset();
+    delete process.env.ENABLE_SCHEMA_FIRST_PLANNER;
+    delete process.env.VITE_ENABLE_GLOBAL_AGENT_WORKFLOWS;
+  });
+
+  it("returns clarification reply and no actions for status=clarification", async () => {
+    mockedPlanner.mockResolvedValue({
+      status: "clarification",
+      ok: true,
+      version: "agent-plan.v3",
+      actions: [],
+      askBeforeAct: false,
+      blockers: [],
+      warnings: [],
+      plannerUsed: true,
+      reply: "你想要橫式還是直式？",
+      intent: "clarify",
+    });
+
+    const caller = appRouter.createCaller(createMockContext());
+    const result = await caller.ai.chat({
+      messages: [{ role: "user", content: "幫我做海報" }],
+      personality: "creative",
+    });
+
+    expect(result.actions).toEqual([]);
+    expect(result.askBeforeAct).toBe(false);
+    expect(result.reply).toContain("橫式");
+    expect(result.plannerStatus).toBe("clarification");
+    expect(result.planId).toBeTruthy();
+    expect(result.traceId).toBeTruthy();
+    expect(result.usedMultimodalPlanner).toBe(false);
+    expect(result.telemetry).toMatchObject({
+      plannerStatus: "clarification",
+      planId: result.planId,
+      traceId: result.traceId,
+    });
+  });
+
+  it("returns blocked response with askBeforeAct=true and no actions", async () => {
+    mockedPlanner.mockResolvedValue({
+      status: "blocked",
+      ok: false,
+      version: "agent-plan.v3",
+      actions: [],
+      askBeforeAct: true,
+      blockers: [],
+      warnings: [],
+      plannerUsed: true,
+      reply: "我已建立計畫，但因安全檢查暫停執行。",
+      intent: "blocked-intent",
+    });
+
+    const caller = appRouter.createCaller(createMockContext());
+    const result = await caller.ai.chat({
+      messages: [{ role: "user", content: "直接送出" }],
+      personality: "technical",
+    });
+
+    expect(result.actions).toEqual([]);
+    expect(result.askBeforeAct).toBe(true);
+    expect(result.reply).toContain("暫停");
+    expect(result.plannerStatus).toBe("blocked");
+    expect(Array.isArray(result.warnings)).toBe(true);
+  });
+
+  it("materializes task payload when status=tasked", async () => {
+    mockedPlanner.mockResolvedValue({
+      status: "tasked",
+      ok: true,
+      version: "agent-plan.v3",
+      actions: [],
+      askBeforeAct: true,
+      blockers: [],
+      warnings: [],
+      plannerUsed: true,
+      reply: "我先建立任務草稿給你確認。",
+      intent: "code-task",
+      preferredEngine: "claudeCode",
+      task: {
+        taskId: "draft_001",
+        intent: "code-task",
+        summaryForUser: "建立 PR",
+        needsApproval: true,
+        isolation: "code",
+        preferredEngine: "claudeCode",
+        rollbackMode: "manual",
+        warnings: [],
+        steps: [
+          {
+            id: "s1",
+            label: "建立分支",
+            pagePath: "/director",
+            uiActions: [{ type: "fillPrompt", payload: { text: "建立分支" } }],
+            toolCalls: [],
+          },
+        ],
+      },
+    });
+
+    const caller = appRouter.createCaller(createMockContext());
+    const result = await caller.ai.chat({
+      messages: [{ role: "user", content: "幫我改 code 並建立 PR" }],
+      personality: "technical",
+    });
+
+    expect(result.actions).toEqual([]);
+    expect(result.askBeforeAct).toBe(true);
+    expect(result.preferredEngine).toBe("claudeCode");
+    expect(result.task).toBeTruthy();
+    expect(result.task?.approvalRequired).toBe(true);
+    expect(result.task?.status).toBe("awaiting_approval");
+    expect(result.taskDraft?.steps).toHaveLength(1);
+    expect(result.taskId).toBeTruthy();
+    expect(result.plannerStatus).toBe("tasked");
+  });
+
+  it("workflow flag off keeps chat reply but strips actions", async () => {
+    process.env.VITE_ENABLE_GLOBAL_AGENT_WORKFLOWS = "false";
+    mockedPlanner.mockResolvedValue({
+      status: "converted",
+      ok: true,
+      version: "agent-plan.v3",
+      actions: [
+        {
+          type: "runWorkflow",
+          name: "video plan",
+          steps: [{ label: "goto", actionType: "navigate", payload: "/studio" }],
+        },
+      ],
+      askBeforeAct: true,
+      blockers: [],
+      warnings: [],
+      plannerUsed: true,
+      usedMultimodalPlanner: true,
+      reply: "我幫你規劃好了。",
+      intent: "video-plan",
+    });
+
+    const caller = appRouter.createCaller(createMockContext());
+    const result = await caller.ai.chat({
+      messages: [{ role: "user", content: "幫我做一支短片" }],
+      personality: "technical",
+    });
+
+    expect(result.reply).toContain("規劃");
+    expect(result.actions).toEqual([]);
+    expect(result.askBeforeAct).toBe(false);
+    expect(result.warnings.join(" ")).toContain("workflows 已關閉");
+    expect(result.usedMultimodalPlanner).toBe(true);
+  });
+
+  it("invalid planner output falls back to parseOrbReply legacy action markers", async () => {
+    mockedPlanner.mockResolvedValue({
+      status: "invalid",
+      ok: false,
+      version: "unknown",
+      actions: [],
+      askBeforeAct: false,
+      blockers: [],
+      warnings: [],
+      plannerUsed: true,
+      reason: "invalid json",
+    });
+
+    const caller = appRouter.createCaller(createMockContext());
+    const result = await caller.ai.chat({
+      messages: [{ role: "user", content: "幫我切到影片模式" }],
+      personality: "technical",
+    });
+
+    expect(result.plannerStatus).toBe("fallback-legacy");
+    expect(result.actions.length).toBeGreaterThan(0);
+    expect(result.actions[0]?.type).toBe("navigate");
+    expect(result.planId).toBeTruthy();
+    expect(result.traceId).toBeTruthy();
+  });
+
+  it("schema-first planner flag off bypasses planner and uses legacy fallback", async () => {
+    process.env.ENABLE_SCHEMA_FIRST_PLANNER = "false";
+    mockedPlanner.mockResolvedValue({
+      status: "converted",
+      ok: true,
+      version: "agent-plan.v3",
+      actions: [],
+      askBeforeAct: false,
+      blockers: [],
+      warnings: [],
+      plannerUsed: true,
+    });
+
+    const caller = appRouter.createCaller(createMockContext());
+    const result = await caller.ai.chat({
+      messages: [{ role: "user", content: "幫我切到影片模式" }],
+      personality: "technical",
+    });
+
+    expect(mockedPlanner).not.toHaveBeenCalled();
+    expect(result.plannerStatus).toBe("fallback-schema-disabled");
+    expect(result.actions.length).toBeGreaterThan(0);
+    expect(result.warnings.join(" ")).toContain("Schema-first planner 已關閉");
+  });
+
+  it("task materialization failure does not crash chat", async () => {
+    const spy = vi.spyOn(orbTaskRepository, "create").mockImplementationOnce(() => {
+      throw new Error("store unavailable");
+    });
+    mockedPlanner.mockResolvedValue({
+      status: "tasked",
+      ok: true,
+      version: "agent-plan.v3",
+      actions: [],
+      askBeforeAct: true,
+      blockers: [],
+      warnings: [],
+      plannerUsed: true,
+      reply: "我先建立任務草稿給你確認。",
+      intent: "code-task",
+      preferredEngine: "claudeCode",
+      task: {
+        taskId: "draft_002",
+        intent: "code-task",
+        summaryForUser: "建立 PR",
+        needsApproval: true,
+        isolation: "code",
+        preferredEngine: "claudeCode",
+        rollbackMode: "manual",
+        warnings: [],
+        steps: [
+          {
+            id: "s1",
+            label: "建立分支",
+            pagePath: "/director",
+            uiActions: [{ type: "fillPrompt", payload: { text: "建立分支" } }],
+            toolCalls: [],
+          },
+        ],
+      },
+    });
+
+    const caller = appRouter.createCaller(createMockContext());
+    const result = await caller.ai.chat({
+      messages: [{ role: "user", content: "幫我改 code 並建立 PR" }],
+      personality: "technical",
+    });
+
+    expect(result.reply).toContain("任務草稿");
+    expect(result.task).toBeTruthy();
+    expect(result.task?.taskId).toBeTruthy();
+    expect(result.taskDraft?.taskId).toBe("draft_002");
+    spy.mockRestore();
+  });
+});

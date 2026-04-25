@@ -36,7 +36,16 @@ export interface OrbChatAttachment {
 export type OrbChatLLMMessagePart =
   | { type: "text"; text: string }
   | { type: "image_url"; image_url: { url: string; detail?: "auto" | "low" | "high" } }
-  | { type: "file_url"; file_url: { url: string; mime_type: OrbChatAttachmentMimeType } };
+  | {
+      type: "file_url";
+      file_url: {
+        url: string;
+        mime_type: OrbChatAttachmentMimeType;
+        size_bytes?: number;
+        duration_sec?: number;
+        page_count?: number;
+      };
+    };
 
 export type OrbChatLLMMessageContent = string | OrbChatLLMMessagePart[];
 
@@ -126,6 +135,9 @@ export const OrbChatLLMFileUrlPartSchema = z.object({
   file_url: z.object({
     url: z.string().url(),
     mime_type: OrbChatAttachmentMimeTypeSchema,
+    size_bytes: z.number().int().nonnegative().optional(),
+    duration_sec: z.number().nonnegative().optional(),
+    page_count: z.number().int().positive().optional(),
   }),
 });
 
