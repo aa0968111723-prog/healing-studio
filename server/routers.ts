@@ -4114,6 +4114,13 @@ export const appRouter = router({
         };
 
         const registeredTools = getOrbToolRegistry();
+
+        // Global kill switch: when disabled, return text-only reply — no action planning.
+        const orbAgentEnabled = isFlagEnabled(
+          process.env.ENABLE_ORB_AGENT ?? (serverEnv as Record<string, string | undefined>).ENABLE_ORB_AGENT,
+          true
+        );
+
         const schemaFirstPlannerEnabled = isFlagEnabled(
           process.env.ENABLE_SCHEMA_FIRST_PLANNER ?? serverEnv.ENABLE_SCHEMA_FIRST_PLANNER,
           true
@@ -4504,6 +4511,55 @@ export const appRouter = router({
             });
             enginePreference = selection.provider.id === "default_llm" ? "auto" : "gemini";
           }
+          if (!orbAgentEnabled) {
+            // Kill switch active: skip all planning, return text-only via simple LLM call.
+            const meta = makePlannerMeta({ plannerStatus: "agent_disabled", preferredEngine: "auto" });
+            const chatOnlySystemPrompt = buildOrbSystemPrompt(input.personality, input.context ?? undefined, {
+              pageSnapshot: input.pageSnapshot,
+              recentFeedback: mergedFeedback,
+              alwaysConfirm: false,
+              apiTools: [],
+            });
+            const chatOnlyResult = await withTimeout(
+              invokeLLM({
+                messages: [{ role: "system", content: chatOnlySystemPrompt }, ...plannerMessages],
+                model: director.model,
+                temperature: director.temperature,
+                preferEngine: "auto",
+                runName: "orb-chat-only",
+              }),
+              15_000,
+              "光球純聊天模式"
+            );
+            const chatOnlyReply =
+              typeof chatOnlyResult.choices[0]?.message?.content === "string"
+                ? chatOnlyResult.choices[0].message.content
+                : "我在這裡，隨時可以聊天！";
+            return {
+              reply: chatOnlyReply,
+              actions: [],
+              intent: null,
+              askBeforeAct: false,
+              suggestions: [],
+              toolCalls: [],
+              telemetry: {
+                traceId: meta.traceId,
+                planId: meta.planId,
+                taskId: null,
+                plannerStatus: "agent_disabled",
+                preferredEngine: "auto",
+                decisionMode: null,
+                riskLevel: null,
+                usedMultimodalPlanner: false,
+                durationMs: null,
+                outcome: "agent_disabled",
+                events: telemetryEvents,
+              },
+              ...meta,
+              taskDraft: null,
+            };
+          }
+
           if (schemaFirstPlannerEnabled && capabilityRegistryEnabled && toolRegistryEnabled) {
             const plannerResult = await withTimeout(
               runSchemaFirstAgentPlanner({

@@ -554,6 +554,8 @@ interface GlobalOrbChatContextValue {
   isOpen: boolean;
   workflowExecution: WorkflowExecutionState | null;
   pendingWorkflow: PendingWorkflowPlan | null;
+  /** When false, the orb delivers text replies only — no actions, no workflows. */
+  orbAgentEnabled: boolean;
   setInput: (text: string) => void;
   sendMessage: (text: string, attachments?: ChatAttachment[]) => Promise<void>;
   open: () => void;
@@ -567,6 +569,17 @@ interface GlobalOrbChatContextValue {
   cancelPendingWorkflow: () => void;
 }
 
+/** Reads the VITE_ENABLE_ORB_AGENT env flag (default: enabled). */
+function readOrbAgentEnabled(): boolean {
+  try {
+    const v = String((import.meta as { env?: Record<string, string> }).env?.VITE_ENABLE_ORB_AGENT ?? "");
+    if (["0", "false", "off", "no"].includes(v.toLowerCase())) return false;
+  } catch {}
+  return true;
+}
+
+const ORB_AGENT_ENABLED = readOrbAgentEnabled();
+
 const GlobalOrbChatContext = createContext<GlobalOrbChatContextValue>({
   messages: [],
   input: "",
@@ -575,6 +588,7 @@ const GlobalOrbChatContext = createContext<GlobalOrbChatContextValue>({
   isOpen: false,
   workflowExecution: null,
   pendingWorkflow: null,
+  orbAgentEnabled: ORB_AGENT_ENABLED,
   setInput: () => {},
   sendMessage: async () => {},
   open: () => {},
@@ -883,6 +897,11 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       const rawSuggestions = (data as { suggestions?: string[] }).suggestions ?? [];
       setSuggestions(rawSuggestions.slice(0, 4).map(s => ({ text: s })));
 
+      if (!ORB_AGENT_ENABLED) {
+        // Kill switch: orb is chat-only — skip all action dispatch.
+        return;
+      }
+
       if (pendingPlan) {
         setPendingWorkflow(pendingPlan);
         setWorkflowExecution(null);
@@ -1074,6 +1093,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     isOpen,
     workflowExecution,
     pendingWorkflow,
+    orbAgentEnabled: ORB_AGENT_ENABLED,
     setInput,
     sendMessage,
     open,

@@ -16,6 +16,8 @@
  * ─────────────────────────────────────────────────────────────────────────
  */
 
+import fs from "fs";
+import path from "path";
 import { ENV } from "./_core/env";
 import { serverEnv } from "./_core/env.validated";
 
@@ -418,16 +420,50 @@ async function manusGetUrl(relKey: string): Promise<StorageResult> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// 4. Local Filesystem fallback（開發模式，無外部儲存時使用）
+// ═══════════════════════════════════════════════════════════════════════════
+
+const LOCAL_UPLOADS_DIR = path.resolve(process.cwd(), "uploads");
+
+function ensureUploadsDir(): void {
+  if (!fs.existsSync(LOCAL_UPLOADS_DIR)) {
+    fs.mkdirSync(LOCAL_UPLOADS_DIR, { recursive: true });
+  }
+}
+
+async function localPut(
+  relKey: string,
+  data: Buffer | Uint8Array | string,
+  _contentType: string
+): Promise<StorageResult> {
+  ensureUploadsDir();
+  const key = relKey.replace(/^\/+/, "");
+  const filePath = path.join(LOCAL_UPLOADS_DIR, key.replace(/\//g, "_"));
+  const body = typeof data === "string" ? Buffer.from(data, "utf-8") : Buffer.from(data);
+  fs.writeFileSync(filePath, body);
+  // Serve from /uploads/<flat-filename>
+  const url = `/uploads/${path.basename(filePath)}`;
+  return { key, url };
+}
+
+function localGetUrl(relKey: string): StorageResult {
+  const key = relKey.replace(/^\/+/, "");
+  const fileName = key.replace(/\//g, "_");
+  return { key, url: `/uploads/${fileName}` };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // 公開介面 — 自動選擇後端
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
  * 偵測目前可用的 storage 後端（用於 health check 或 debug log）
  */
-export function detectStorageBackend(): "s3" | "gcs" | "manus" | "none" {
+export function detectStorageBackend(): "s3" | "gcs" | "manus" | "local" | "none" {
   if (useS3()) return "s3";
   if (useGCS()) return "gcs";
   if (ENV.forgeApiUrl && ENV.forgeApiKey) return "manus";
+  if (process.env.NODE_ENV !== "production") return "local";
   return "none";
 }
 
@@ -438,11 +474,18 @@ export async function storagePut(
 ): Promise<StorageResult> {
   if (useS3()) return s3Upload(relKey, data, contentType);
   if (useGCS()) return gcsUpload(relKey, data, contentType);
-  return manusUpload(relKey, data, contentType);
+  if (ENV.forgeApiUrl && ENV.forgeApiKey) return manusUpload(relKey, data, contentType);
+  // Local filesystem fallback (dev/demo only)
+  if (process.env.NODE_ENV !== "production") {
+    console.warn("[Storage] ⚠️  No cloud storage configured — saving file locally. Set up S3/R2 for production.");
+    return localPut(relKey, data, contentType);
+  }
+  throw new Error("Storage 未設定：請在 Railway 設定 S3_ENDPOINT / S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY / S3_BUCKET_NAME");
 }
 
 export async function storageGet(relKey: string): Promise<StorageResult> {
   if (useS3()) return s3GetUrl(relKey);
   if (useGCS()) return gcsGetUrl(relKey);
-  return manusGetUrl(relKey);
+  if (ENV.forgeApiUrl && ENV.forgeApiKey) return manusGetUrl(relKey);
+  return localGetUrl(relKey);
 }
