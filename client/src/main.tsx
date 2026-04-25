@@ -123,7 +123,6 @@ const trpcClient = trpc.createClient({
       transformer: superjson,
       fetch(input, init) {
         const finalUrl = resolveClientFetchUrl(input);
-        console.log("[fetch] Request URL:", finalUrl);
         return globalThis.fetch(finalUrl, {
           ...(init ?? {}),
           credentials: "include",

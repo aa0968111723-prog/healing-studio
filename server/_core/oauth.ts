@@ -69,6 +69,11 @@ function isSafeRedirectPath(path: string): boolean {
 export function registerOAuthRoutes(app: Express) {
   // ── 1. 啟動 Google 登入流程 ───────────────────────────────
   app.get("/api/oauth/google/start", (req: Request, res: Response) => {
+    // Demo mode has no database — Google sub would be unresolvable; use demo login instead
+    if (isDemoMode()) {
+      res.redirect(302, "/api/oauth/demo/start");
+      return;
+    }
     try {
       let redirectAfter = getQueryParam(req, "redirect") || "/";
       // Only allow safe relative paths — block absolute URLs, protocol-relative URLs, etc.
