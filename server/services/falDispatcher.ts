@@ -22,6 +22,10 @@ import {
 } from "./falModels";
 import { estimatePoints, getModelPricing } from "./modelPricing";
 import { serverEnv } from "../_core/env.validated";
+import {
+  markProviderFailure,
+  markProviderRecovered,
+} from "./providerHealth";
 
 // ─── LangSmith 追蹤（fal.ai 多模態模型深度整合）──────────────────────────────
 
@@ -180,6 +184,30 @@ export interface FalDispatchInput {
 // ═══════════════════════════════════════════════════════════════════════════
 // Fallback chain for each category
 // ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * FAL 模型 ID → 底層 Provider ID 對照表。
+ * 當某 FAL 模型實際由 Kling/Runway 驅動時，成功/失敗都應更新該 Provider 的
+ * 健康狀態，而非僅更新 "fal"，使 providerRouter 的 Failover 邏輯正確工作。
+ */
+const FAL_MODEL_UNDERLYING_PROVIDER: Readonly<Record<string, string>> = {
+  // Kling（透過 fal.ai 代理呼叫快手 Kling 後端）
+  "fal-ai/kling-video/v2.1/pro/text-to-video": "kling",
+  "fal-ai/kling-video/v2.1/standard/text-to-video": "kling",
+  "fal-ai/kling-video/v2.1/pro/image-to-video": "kling",
+  "fal-ai/kling-video/v2.1/standard/image-to-video": "kling",
+  "fal-ai/kling-video/v2.1/standard/video-to-video": "kling",
+  "fal-ai/kling-video/v2.1/pro/video-to-video": "kling",
+  "fal-ai/kling-video/create-voice": "kling",
+  // Runway（透過 fal.ai 代理呼叫 Runway 後端）
+  "fal-ai/runway-gen4-turbo/image-to-video": "runway",
+  "fal-ai/runway/gen-3a-turbo": "runway",
+  "fal-ai/runway/gen-4": "runway",
+};
+
+function getUnderlyingProvider(modelId: string): string | null {
+  return FAL_MODEL_UNDERLYING_PROVIDER[modelId] ?? null;
+}
 
 /** 模型特定的超時覆寫（毫秒）—— 影片/3D 模型需要更長時間 */
 const TIMEOUT_OVERRIDES: Record<string, number> = {
@@ -410,6 +438,10 @@ export async function dispatchFalTask(
 
     const durationMs = Date.now() - startMs;
 
+    // 更新底層 Provider 健康狀態（Kling/Runway 成功 → 標記恢復）
+    const successProvider = getUnderlyingProvider(targetModelId);
+    if (successProvider) markProviderRecovered(successProvider);
+
     // LangSmith 追蹤：成功
     trackFalLangSmith({
       runId,
@@ -439,6 +471,10 @@ export async function dispatchFalTask(
   } catch (err) {
     const durationMs = Date.now() - startMs;
     const errMsg = err instanceof Error ? err.message : String(err);
+
+    // 更新底層 Provider 健康狀態（Kling/Runway 失敗 → 標記降級）
+    const failProvider = getUnderlyingProvider(targetModelId);
+    if (failProvider) markProviderFailure(failProvider, err);
 
     // ── 4xx 客戶端錯誤不重試（參數錯誤、認證失敗等）──
     if (!isRetryableError(err)) {

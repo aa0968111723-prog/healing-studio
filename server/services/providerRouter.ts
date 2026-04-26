@@ -209,6 +209,81 @@ export function getProviderCatalog(): ProviderConfig[] {
       requiredEnvKeys: ["NVIDIA_API"],
       fallbackProviderIds: ["default_llm"],
     },
+    // ── 影片專用 Providers（直連，獨立 Health Check）────────────────────────
+    {
+      id: "kling",
+      label: "Kling AI",
+      kind: "video",
+      enabled: true,
+      priority: 10,
+      supportsMultimodal: false,
+      supportsImage: false,
+      supportsAudio: false,
+      supportsVideo: true,
+      supportsPdf: false,
+      maxInputSize: 25 * 1024 * 1024,
+      timeoutMs: 300_000,
+      retryBudget: 1,
+      estimatedCostTier: "high",
+      requiredEnvKeys: ["KLING_ACCESS_KEY_ID", "KLING_ACCESS_KEY_SECRET"],
+      fallbackProviderIds: ["runway", "fal"],
+    },
+    {
+      id: "runway",
+      label: "Runway",
+      kind: "video",
+      enabled: true,
+      priority: 15,
+      supportsMultimodal: false,
+      supportsImage: false,
+      supportsAudio: false,
+      supportsVideo: true,
+      supportsPdf: false,
+      maxInputSize: 25 * 1024 * 1024,
+      timeoutMs: 300_000,
+      retryBudget: 1,
+      estimatedCostTier: "high",
+      requiredEnvKeys: ["RUNWAY_API_SECRET"],
+      fallbackProviderIds: ["kling", "fal"],
+    },
+    // ── 通用模型平台 ────────────────────────────────────────────────────────
+    {
+      id: "replicate",
+      label: "Replicate",
+      kind: "image",
+      enabled: true,
+      priority: 20,
+      supportsMultimodal: false,
+      supportsImage: true,
+      supportsAudio: false,
+      supportsVideo: true,
+      supportsPdf: false,
+      maxInputSize: 25 * 1024 * 1024,
+      timeoutMs: 120_000,
+      retryBudget: 1,
+      estimatedCostTier: "medium",
+      requiredEnvKeys: ["REPLICATE_API_TOKEN"],
+      fallbackProviderIds: ["fal"],
+    },
+    // ── 語言 / 多模態 Provider ────────────────────────────────────────────
+    {
+      id: "openai",
+      label: "OpenAI",
+      kind: "llm",
+      enabled: true,
+      priority: 20,
+      supportsMultimodal: true,
+      supportsImage: true,
+      supportsAudio: true,
+      supportsVideo: false,
+      supportsPdf: false,
+      maxInputSize: 25 * 1024 * 1024,
+      timeoutMs: 60_000,
+      retryBudget: 1,
+      estimatedCostTier: "high",
+      requiredEnvKeys: ["OPENAI_API_KEY"],
+      fallbackProviderIds: ["gemini", "default_llm"],
+    },
     {
       id: "disabled",
       label: "Disabled Provider",
@@ -243,13 +318,14 @@ function desiredProviderIds(input: ProviderRouteInput): string[] {
     case "deploy":
       return ["claudeCode", "codex"];
     case "generate_image":
-      return ["fal", "gemini"];
+      return ["fal", "replicate", "gemini"];
     case "generate_video":
-      return ["fal", "gemini"];
+      // 直連 Kling/Runway 優先，fal.ai 代理作兜底，最後 Gemini Veo
+      return ["kling", "runway", "fal", "gemini"];
     case "generate_audio":
       return ["suno", "default_llm"];
     case "voice_tts":
-      return ["elevenlabs", "default_llm"];
+      return ["elevenlabs", "openai", "default_llm"];
     case "music":
       return ["suno", "default_llm"];
     default:
