@@ -2450,6 +2450,54 @@ export const appRouter = router({
         .orderBy(desc(backgroundJobs.createdAt))
         .limit(50);
     }),
+
+    /**
+     * listCompletedMedia — 回傳使用者所有已完成的生成任務（不限時間）。
+     * 供 VaultPage 成品輸出庫使用，支援分頁與媒體類型篩選。
+     */
+    listCompletedMedia: protectedProcedure
+      .input(
+        z
+          .object({
+            jobType: z
+              .enum(["image", "video", "audio", "voice", "multimodal"])
+              .optional(),
+            limit: z.number().min(1).max(100).optional().default(50),
+            offset: z.number().min(0).optional().default(0),
+          })
+          .optional()
+      )
+      .query(async ({ ctx, input }) => {
+        const database = await getDb();
+        if (!database) return { items: [], total: 0 };
+        const { backgroundJobs } = await import("../drizzle/schema");
+        const { eq, and, desc } = await import("drizzle-orm");
+        const conditions = [
+          eq(backgroundJobs.userId, ctx.user.id),
+          eq(backgroundJobs.status, "completed"),
+        ];
+        if (input?.jobType) {
+          conditions.push(
+            eq(backgroundJobs.jobType, input.jobType as any)
+          );
+        }
+        const { sql: drizzleSql } = await import("drizzle-orm");
+        const [items, countRow] = await Promise.all([
+          database
+            .select()
+            .from(backgroundJobs)
+            .where(and(...conditions))
+            .orderBy(desc(backgroundJobs.createdAt))
+            .limit(input?.limit ?? 50)
+            .offset(input?.offset ?? 0),
+          database
+            .select({ count: drizzleSql<number>`COUNT(*)` })
+            .from(backgroundJobs)
+            .where(and(...conditions))
+            .then(r => r[0]),
+        ]);
+        return { items, total: Number(countRow?.count ?? 0) };
+      }),
   }),
 
   // ─── Prompt Evaluation (LLM-as-a-Judge) ──────────────────────────────────

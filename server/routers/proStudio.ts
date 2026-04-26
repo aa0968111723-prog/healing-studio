@@ -39,6 +39,9 @@ import { brainProcedure, publicProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { recordErrorTrace } from "../services/brainAutoRepair";
 import { traceToolRun } from "../services/langsmithTracer";
+import { persistExternalMediaUrl } from "../services/internalMedia";
+import { getAudioCompiler } from "../services/audioCompiler";
+import type { AudioBlock, AudioCompilerInput } from "../services/audioCompiler";
 
 // ─── fal.ai 呼叫工具 ──────────────────────────────────────────────────────────
 
@@ -1188,9 +1191,17 @@ export const proStudioRouter = router({
             .filter(Boolean)
             .join(" ");
 
+        // 持久化到 S3，防止 fal.ai CDN URL 過期
+        const persistedAudioUrl = audioUrl
+          ? await persistExternalMediaUrl(audioUrl, {
+              category: "audio",
+              prefix: `generated/pro-studio/${input.model.replace(/[^\w/-]+/g, "_")}`,
+            }).catch(() => audioUrl)
+          : null;
+
         return {
           status: "COMPLETED",
-          audio_url: audioUrl,
+          audio_url: persistedAudioUrl,
           text: text.trim() || null,
           raw: rawData,
         };
@@ -1214,6 +1225,146 @@ export const proStudioRouter = router({
       }
 
       return { status: "IN_PROGRESS" };
+    }),
+
+  // ═══════════════════════════════════════════════════════════════
+  // 🎼 AudioCompiler — 情緒積木 → 結構化音樂提示詞
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * compiledTextToMusic — 情緒積木預處理後送往音樂生成
+   *
+   * 流程：AudioBlock[] → AudioCompiler.compile() → textToMusic (ace-step / sonauto)
+   * 解決：proStudio.textToMusic 只接受純文字，繞過了 28KB 的 audioCompiler 邏輯。
+   */
+  compiledTextToMusic: brainProcedure
+    .input(
+      z.object({
+        blocks: z.array(
+          z.object({
+            id: z.string(),
+            category: z.enum(["instrument", "genre", "tempo", "ambiance"]),
+            label: z.string(),
+            prompt: z.string(),
+          })
+        ),
+        freePrompt: z.string().optional(),
+        moodKeywords: z.array(z.string()).optional(),
+        lyrics: z.string().optional(),
+        targetDurationSec: z.number().min(10).max(300).optional(),
+        instrumental: z.boolean().optional().default(false),
+        bpmOverride: z.number().min(40).max(300).optional(),
+        model: z
+          .enum(["sonauto", "ace-step", "stable-audio", "musicgen"])
+          .optional()
+          .default("ace-step"),
+      })
+    )
+    .mutation(async ({ input }) => {
+      // ── 1. 用 AudioCompiler 將積木轉化為結構化提示詞 ─────────────
+      const compiler = getAudioCompiler();
+      const compilerInput: AudioCompilerInput = {
+        blocks: input.blocks as AudioBlock[],
+        freePrompt: input.freePrompt,
+        moodKeywords: input.moodKeywords,
+        lyrics: input.lyrics,
+        targetDurationSec: input.targetDurationSec,
+        instrumental: input.instrumental,
+        bpmOverride: input.bpmOverride,
+      };
+      const compiled = compiler.compile(compilerInput);
+
+      // ── 2. 依選定模型送出 fal.ai 任務 ────────────────────────────
+      const modelChoice = input.model ?? "ace-step";
+
+      if (modelChoice === "sonauto") {
+        const payload: Record<string, unknown> = {
+          prompt: compiled.prompt,
+        };
+        if (compiled.styleTag) {
+          payload.tags = compiled.styleTag
+            .split(",")
+            .map(t => t.trim())
+            .filter(Boolean);
+        }
+        if (input.lyrics && !input.instrumental) {
+          payload.lyrics_prompt = input.lyrics;
+        } else if (input.instrumental) {
+          payload.lyrics_prompt = "";
+        }
+        if (input.bpmOverride) payload.bpm = input.bpmOverride;
+        payload.output_format = "mp3";
+        payload.num_songs = 1;
+
+        const { request_id } = await falQueueSubmit(
+          "sonauto/v2/text-to-music",
+          payload
+        );
+        return {
+          request_id,
+          model: "sonauto/v2/text-to-music",
+          is_async_polling: true,
+          compiledPrompt: compiled.prompt,
+          styleTag: compiled.styleTag,
+          estimatedDurationSec: compiled.estimatedDurationSec,
+          compilationLog: compiled.compilationLog,
+        };
+      }
+
+      if (modelChoice === "stable-audio") {
+        const { request_id } = await falQueueSubmit("fal-ai/stable-audio", {
+          prompt: compiled.prompt,
+          seconds_total: input.targetDurationSec ?? compiled.estimatedDurationSec ?? 30,
+        });
+        return {
+          request_id,
+          model: "fal-ai/stable-audio",
+          is_async_polling: true,
+          compiledPrompt: compiled.prompt,
+          styleTag: compiled.styleTag,
+          estimatedDurationSec: compiled.estimatedDurationSec,
+          compilationLog: compiled.compilationLog,
+        };
+      }
+
+      if (modelChoice === "musicgen") {
+        const { request_id } = await falQueueSubmit("fal-ai/musicgen", {
+          prompt: compiled.prompt,
+          duration: input.targetDurationSec ?? compiled.estimatedDurationSec,
+        });
+        return {
+          request_id,
+          model: "fal-ai/musicgen",
+          is_async_polling: true,
+          compiledPrompt: compiled.prompt,
+          styleTag: compiled.styleTag,
+          estimatedDurationSec: compiled.estimatedDurationSec,
+          compilationLog: compiled.compilationLog,
+        };
+      }
+
+      // ace-step（預設）
+      const acePayload: Record<string, unknown> = {
+        prompt: compiled.prompt,
+        ...(input.targetDurationSec
+          ? { duration: input.targetDurationSec }
+          : compiled.estimatedDurationSec
+          ? { duration: compiled.estimatedDurationSec }
+          : {}),
+      };
+      if (input.lyrics && !input.instrumental) {
+        acePayload.lyrics = input.lyrics;
+      }
+      const { request_id } = await falQueueSubmit("fal-ai/ace-step", acePayload);
+      return {
+        request_id,
+        model: "fal-ai/ace-step",
+        is_async_polling: true,
+        compiledPrompt: compiled.prompt,
+        styleTag: compiled.styleTag,
+        estimatedDurationSec: compiled.estimatedDurationSec,
+        compilationLog: compiled.compilationLog,
+      };
     }),
 });
 
