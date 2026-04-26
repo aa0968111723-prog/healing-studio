@@ -1671,3 +1671,406 @@ graph TB
   VC_OUT -->|ElevenLabs / Fal.ai TTS| GEMINI_MEDIA
   AC_OUT -->|Suno / Fal.ai audio| GEMINI_MEDIA
   VVC_OUT -->|Fal.ai / Gemini Veo| GEMINI_MEDIA
+
+---
+
+## 29. Background Jobs — Complete Cron Matrix & Circuit Breaker
+
+```mermaid
+graph TB
+  subgraph SCHEDULES["Cron Schedules (all times UTC)"]
+    J1["modelTrainingWorker\n*/5 * * * *  every 5 min"]
+    J2["providerSnapshotJob\n*/15 * * * *  every 15 min"]
+    J3["userAutoCreditJob\n*/15 * * * *  every 15 min"]
+    J4["apiUsageAlertJob\n*/15 * * * *  every 15 min"]
+    J5["apiHealthMonitor\n*/{interval} * * * *  default 3 min"]
+    J6["newsFetcher\n0 */6 * * *  every 6 h"]
+    J7["braveLearnFetcher\n0 4 * * *  daily 04:00"]
+    J8["r2SnapshotJob\n0 18 * * *  daily 18:00 (= 02:00 UTC+8)"]
+    J9["learnDocSyncer\n0 3 * * 1  every Monday 03:00"]
+  end
+
+  subgraph CB_MATRIX["Circuit Breaker Config"]
+    CB1["modelTrainingWorker\nthreshold=3 · cooldown=10 min"]
+    CB2["newsFetcher\nthreshold=3 · cooldown=30 min"]
+    CB3["learnDocSyncer\nthreshold=3 · cooldown=30 min"]
+    CB4["braveLearnFetcher\nthreshold=3 · cooldown=10 min"]
+    CB5["apiHealthMonitor\nthreshold=5 · cooldown=5 min"]
+    CB6["providerSnapshotJob\nno circuit breaker"]
+    CB7["userAutoCreditJob\nno circuit breaker"]
+    CB8["apiUsageAlertJob\nno circuit breaker"]
+    CB9["r2SnapshotJob\nno circuit breaker"]
+  end
+
+  subgraph GUARD["isRunning Guard (all jobs)"]
+    G["let isRunning = false\nCheck before run → skip if true\nSet true → execute → reset in finally"]
+  end
+
+  subgraph EXTERNAL["External Dependencies"]
+    E1["Replicate API — modelTrainingWorker"]
+    E2["ElevenLabs + Suno quota APIs — providerSnapshotJob"]
+    E3["NewsAPI.org + NewsData.io — newsFetcher"]
+    E4["Brave Search API — braveLearnFetcher"]
+    E5["Gemini Flash LLM — newsFetcher · learnDocSyncer · braveLearnFetcher"]
+    E6["Cloudflare R2 S3 API — r2SnapshotJob"]
+    E7["Slack Webhook — apiUsageAlertJob (optional)"]
+    E8["Discord Webhook — apiHealthMonitor (optional)"]
+  end
+
+  subgraph DB_TABLES["DB Tables Written"]
+    D1["background_jobs · fine_tuned_models — modelTrainingWorker"]
+    D2["providerSnapshots · costAggregations — providerSnapshotJob"]
+    D3["newsArticles — newsFetcher"]
+    D4["r2StorageSnapshots — r2SnapshotJob"]
+    D5["users.remainingGenerations — userAutoCreditJob"]
+  end
+
+  J1 --- CB1
+  J2 --- CB6
+  J3 --- CB7
+  J4 --- CB8
+  J5 --- CB5
+  J6 --- CB2
+  J7 --- CB4
+  J8 --- CB9
+  J9 --- CB3
+  SCHEDULES --- GUARD
+```
+
+---
+
+## 30. News Fetcher — Dual Failover + OARS NLP Pipeline
+
+```mermaid
+flowchart TD
+  A([newsFetcher cron fires every 6 h]) --> CB{Circuit breaker\nCLOSED?}
+  CB -->|OPEN| SKIP([Skip — cooldown 30 min])
+  CB -->|CLOSED| B[Attempt 1: NewsAPI.org\nGET newsapi.org/v2/everything\n15 s timeout · API key header]
+
+  B --> B1{HTTP ok?}
+  B1 -->|No| C[Attempt 2: NewsData.io\nGET newsdata.io/api/1/latest\n15 s timeout]
+  B1 -->|Yes| D
+
+  C --> C1{HTTP ok?}
+  C1 -->|No| ERR([Both sources failed\nLog · increment circuit breaker])
+  C1 -->|Yes| D
+
+  D[Parse articles JSON] --> E["Filter duplicates\nQuery newsArticles.sourceUrl\nin DB · skip already-stored URLs"]
+
+  E --> F["Batch up to 10 articles\nSend to Gemini Flash\nJSON schema strict mode\n60 s timeout"]
+
+  F --> F1{Gemini ok\nwithin 60 s?}
+  F1 -->|Timeout / Error| G_FALL["Fallback: Local NLP Softener\nRegex-based fear word replacement\nE.g. replace humans → collaborate with creators"]
+  F1 -->|OK| G_GEMINI["Gemini OARS Output per article:\nsoftenedTitle Traditional Chinese 20-40 chars\ntldr warm encouraging summary 50-80 chars\nweightLabel: Model Breakthrough · Inspiration Tip\n  Industry Shift · Creative Tool · Community Spotlight\n  Tutorial Guide · General Update\ntags 2-5 technical tags\ncategory: product_update · community_highlight\n  tutorial · industry_news · tips_and_tricks"]
+
+  G_GEMINI & G_FALL --> H["INSERT newsArticles:\ntitle · softenedTitle · tldr · weightLabel\ntags · category · sourceUrl · bodyMarkdown\nisPinned = (weightLabel=Model Breakthrough)"]
+
+  H --> DONE([Articles available on homepage])
+
+  subgraph FEAR_BLACKLIST["Fear Word Blacklist (30 terms)"]
+    FB["ZH: 失業·淘汰·取代·威脅·末日·崩潰·消滅·毀滅·恐慌·危機·滅亡\nEN: job loss·replace humans·threat·apocalypse·doom\neliminate jobs·obsolete·extinction·destroy·crisis\nlayoff·fired·unemployed·displacement·disruption"]
+  end
+```
+
+---
+
+## 31. RAG Memory — Pinecone Vector Search Pipeline
+
+```mermaid
+flowchart TD
+  subgraph UPSERT["Post-Generation Memory Upsert (fire-and-forget)"]
+    U1["upsertMemory input:\nuserId · generationId · prompt\ngenerationType · resultSummary\nvibeCardIds · rating"]
+    U2["Construct embedding text:\nprompt + modality label\n+ vibe cards + result summary"]
+    U3["Gemini gemini-embedding-001\n3072-dim vector\nText capped at 2000 chars"]
+    U4["Pinecone /vectors/upsert\nnamespace: user-{userId}\nvector ID: user-{userId}-gen-{generationId}\nmetadata: all input fields + timestamp"]
+    U1 --> U2 --> U3 --> U4
+  end
+
+  subgraph QUERY["Pre-Generation Memory Retrieval (3 s timeout)"]
+    Q1["buildMemoryContext userId currentPrompt"]
+    Q2["Embed currentPrompt\nGemini gemini-embedding-001\n3072-dim"]
+    Q3["Pinecone /query\nnamespace: user-{userId}\ntopK=3 · includeMetadata=true\nmetric: cosine similarity"]
+    Q4["Returns MemoryMatch[]\nid · score 0-1 · prompt\ngenerationType · vibeCardIds · rating · timestamp"]
+    Q5["Format as Markdown:\n## 用戶歷史創作偏好 RAG 記憶\nFor each match: modality + vibes + rating + prompt"]
+    Q1 --> Q2 --> Q3 --> Q4 --> Q5
+  end
+
+  subgraph INJECTION["Inject into Prompt Compilation"]
+    I1["compileElitePrompt ..., memoryContext, ...\nInjected into LLM system prompt\nProvides style/preference continuity"]
+  end
+
+  subgraph PINECONE_SETUP["Pinecone Index Config"]
+    PS["Index: ai-director-memories (PINECONE_INDEX_NAME)\nDimension: 3072  Metric: cosine\nServerless mode · AWS us-east-1\nPer-user namespace isolation"]
+  end
+
+  Q5 --> I1
+  UPSERT -.->|async after generation| PINECONE_SETUP
+  PINECONE_SETUP -.->|query| QUERY
+
+  subgraph GRACEFUL["Graceful Degradation"]
+    GD1["Embedding fails → return empty string"]
+    GD2["Pinecone query fails → return empty string"]
+    GD3["3 s timeout exceeded → return empty string"]
+    GD4["Main generation pipeline unblocked\nRAG is enhancement-only"]
+  end
+```
+
+---
+
+## 32. Orb Reply Parser + Agent Tool Executor
+
+```mermaid
+flowchart TD
+  subgraph PARSER["orbReplyParser.ts — LLM Reply → Structured Actions"]
+    P1[Raw LLM reply string]
+    P2{Starts/ends\nwith JSON braces?}
+    P3["JSON mode:\nJSON.parse → extract\nplannerOutput · actions · suggestions\ntoolCalls · intent · askBeforeAct"]
+    P4["Marker mode (fallback):\nRegex extract markers:\nACTION type payload\nINTENT text\nCONFIRM true/false\nSUGGEST opt1 pipe opt2\nTOOL name URL-encoded-args"]
+    P5["Allowlist filter:\n24 allowed action types\nreject unknown types"]
+    P6["Confirmation gate:\nif action in 6 DESTRUCTIVE types\n→ askBeforeAct = true\nif opts.alwaysConfirm\n→ askBeforeAct = true"]
+    P7["OrbParsedReply:\nreply clean text\nactions OrbRawAction[]\nintent string or null\naskBeforeAct boolean\nsuggestions max 4\ntoolCalls OrbRawToolCall[]\nplannerOutput optional"]
+    P1 --> P2
+    P2 -->|Yes| P3
+    P2 -->|No| P4
+    P3 & P4 --> P5 --> P6 --> P7
+  end
+
+  subgraph EXECUTOR["agentToolExecutor.ts — Tool Call HTTP Execution"]
+    E1[OrbToolCallResult[] executeOrbToolCalls]
+    E2["For each toolCall:\nLookup tool in registry\nOR return tool-not-found"]
+    E3["assertAllowedEndpoint:\nCheck origin vs ORB_TOOL_ALLOWED_ORIGINS\ndev: auto-allow localhost\nprod: explicit list only"]
+    E4{Role check\nallowedRoles set?}
+    E5["Check userRole in allowedRoles\nor FORBIDDEN"]
+    E6{Requires\nconfirmation?}
+    E7["Check approved flag\nor block with confirmation-required"]
+    E8["HTTP call:\nGET → args as query string\nPOST → args as JSON body\nx-orb-user-id header injected\n12 s timeout"]
+    E9{Response\nstatus?}
+    E10["Retry with backoff:\nmax 3 retries\nbackoffMs × attempts\nRetryable: 429 · 5xx only"]
+    E11{Fallback\ntools set?}
+    E12["Try first healthy fallback\nthat passes role check"]
+    E13["Audit log onAuditEvent:\nrequestId · userId · userRole\ntaskId · stepId · toolName\nok · status · error · attempts\nstartedAt · endedAt"]
+    E1 --> E2 --> E3 --> E4
+    E4 -->|Yes| E5 --> E6
+    E4 -->|No| E6
+    E6 -->|Yes| E7 --> E8
+    E6 -->|No| E8
+    E8 --> E9
+    E9 -->|429 or 5xx| E10 --> E8
+    E9 -->|4xx non-429| E11
+    E9 -->|Success| E13
+    E10 -->|Max retries exceeded| E11
+    E11 -->|Yes| E12 --> E8
+    E11 -->|No| E13
+  end
+
+  P7 -->|toolCalls| E1
+```
+
+---
+
+## 33. Sense Router — Behavioral Intent Inference
+
+```mermaid
+flowchart TD
+  A([User browses homepage]) --> B["Client collects micro-behavioral events:\ncardDwell · scrollHesitation · hoverIntent\nclickAbort · sectionVisit · rapidScan"]
+
+  B --> C["sense.inferIntent mutation\n(publicProcedure)"]
+
+  C --> D["Build behavioral summary:\ndwellCount · hesitationCount · abortCount\nrapidScanCount · modalityPreference\nhighIntentCards"]
+
+  D --> E["Call Gemini Director brain\nJSON schema strict mode\n30 s timeout\nOARS framework prompt:\n(Open-ended · Affirming · Reflective · Summarizing)"]
+
+  E --> F{Inferred\nintent type?}
+
+  F -->|hesitates between options| G1["choice_paralysis\nSuggest: simplify choices"]
+  F -->|clear stylistic preference| G2["aesthetic_preference\nSuggest: show matching examples"]
+  F -->|browsing freely| G3["exploration_mode\nSuggest: surface diverse content"]
+  F -->|focused search| G4["goal_oriented\nSuggest: direct to specific tool"]
+  F -->|looking for ideas| G5["inspiration_seeking\nSuggest: curated showcase"]
+  F -->|low engagement| G6["passive_browsing\nSuggest: featured highlights"]
+
+  G1 & G2 & G3 & G4 & G5 & G6 --> H["Return:\nintentType · confidence 0-1\npsychologicalInsight · suggestedAction"]
+
+  H --> I["Frontend adapts UI:\nShowcase.byAesthetics filter\nHighlight relevant modality\nPersonalised prompt chip suggestions"]
+```
+
+---
+
+## 34. Director AI — CO-STAR Creative System
+
+```mermaid
+graph TB
+  subgraph PERSONALITIES["3 Director Personalities"]
+    P1["calm\nEmotional truth + narrative structure\nReflective language · gentle pacing"]
+    P2["creative\nPoetic imagery · sensory details\nCinematic moments · visual metaphors"]
+    P3["technical\nParameter precision · industry standards\nWorkflow optimization · spec-driven"]
+  end
+
+  subgraph COSTAR["CO-STAR Output Schema"]
+    CS["context — Background / situation\nsituation — Current dramatic state\ntask — What needs to be done\naction — Technical execution approach\nresult — Expected emotional effect on audience\nvisualPrompt — Image generation prompt\naudioScript — Voice / narration script\nmusicVibe — Music mood / style description\nproactiveQuestion — Follow-up for user"]
+  end
+
+  subgraph SCRIPT_ANALYSIS["Script Analysis System"]
+    SA1["importScript → parse into storyboard segments"]
+    SA2["discussSegment → multi-turn scene discussion\n(prev/next segment continuity awareness)"]
+    SA3["generateSegmentCostar → CO-STAR for one segment"]
+    SA4["batchGenerateCostar → bulk all segments"]
+    SA5["analyzeScriptOverview → high-level structure"]
+    SA6["exportScript → JSON · CSV · Markdown · FDX · SRT"]
+    SA1 --> SA2 --> SA3 --> SA4 --> SA5 --> SA6
+  end
+
+  subgraph PLANNING["Planning System"]
+    PL1["planningDiscuss → iterative project planning"]
+    PL2["planningAnalyzeDepth → contextual depth + synthesis"]
+    PL3["planningCreateMilestones → project timeline"]
+    PL4["autoGenerateFromSegments → full project from script"]
+    PL1 --> PL2 --> PL3 --> PL4
+  end
+
+  subgraph CINEMATIC["Cinematic Knowledge Injection (buildDirectorSystemPrompt)"]
+    CK1["Composition: low angle=power · Dutch=unease"]
+    CK2["DoF: shallow=focus · deep=environment"]
+    CK3["Color: warm=intimate · cool=alienation"]
+    CK4["Light: hard=drama · soft=dream"]
+    CK5["Camera: dolly · pull · track · pan · long-take"]
+    CK6["Sound: ambient · layering · silence · music function"]
+    CK7["Pacing: fast-cut=tension · slow=contemplation"]
+    CK8["Narrative: 3-act · emotional arcs · visual motifs"]
+  end
+
+  subgraph SESSIONS["Session Persistence"]
+    SS["chat sessions → notes table\n prefix: [導演對話]\nloadSession · listSessions · deleteSession"]
+  end
+
+  subgraph GENERATION["Generation Integration"]
+    GI["executeGenerationTask → spawn backgroundJob\nestimateSegmentCost → points preview\ngenerationModels → available models per modality"]
+  end
+
+  PERSONALITIES --> COSTAR
+  COSTAR --> SCRIPT_ANALYSIS
+  COSTAR --> PLANNING
+  CINEMATIC --> PERSONALITIES
+  SCRIPT_ANALYSIS --> SESSIONS
+  PLANNING --> SESSIONS
+  COSTAR --> GENERATION
+```
+
+---
+
+## 35. Password Auth Flow — AuthFacade + PasswordHasher
+
+```mermaid
+sequenceDiagram
+  participant C   as Client
+  participant AF  as AuthFacade.ts
+  participant PH  as PasswordHasher
+  participant UR  as UserAuthRepository
+  participant DB  as MySQL
+  participant JWT as createSessionToken
+
+  Note over C,JWT: Registration (email + password)
+  C->>AF: registerWithPassword email · password · name
+  AF->>UR: findByEmail email (lowercase)
+  UR->>DB: SELECT user WHERE LOWER(email)=…
+  DB-->>UR: user or null
+
+  alt User exists with passwordHash
+    AF-->>C: Error duplicate email
+  else New user or OAuth user without password
+    AF->>PH: getPasswordHasher algorithm
+    PH-->>AF: hasher instance (scrypt default)
+    AF->>PH: hasher.hash password
+    Note over PH: scrypt N=16384 r=8 p=1 keyLen=64\nSalt: 16 random bytes\nFormat: scrypt$salt$derivedKeyHex
+    PH-->>AF: passwordHash string
+    AF->>UR: createLocalUser OR setLocalPasswordByUserId
+    UR->>DB: INSERT / UPDATE users
+    AF->>JWT: createSessionToken openId name email expiresInMs
+    JWT-->>AF: HS256 signed JWT
+    AF-->>C: token + user metadata
+  end
+
+  Note over C,JWT: Login (email + password)
+  C->>AF: loginWithPassword email · password
+  AF->>UR: findByEmail email
+  UR->>DB: SELECT user WHERE LOWER(email)=…
+  DB-->>UR: LocalAuthUser or null
+
+  alt User not found or no passwordHash
+    AF-->>C: Error INVALID_CREDENTIALS
+  else Found
+    AF->>PH: hasher.verify password storedHash
+    Note over PH: Re-derive with stored salt\ntimingSafeEqual prevents timing attacks
+    PH-->>AF: boolean match
+
+    alt Password mismatch
+      AF-->>C: Error INVALID_CREDENTIALS
+    else Match
+      AF->>JWT: createSessionToken openId name email
+      JWT-->>AF: HS256 JWT
+      AF-->>C: token + user metadata
+    end
+  end
+
+  subgraph ALGORITHMS["Password Hasher Algorithm Priority"]
+    A1["1st choice: argon2 (if npm package available)"]
+    A2["2nd choice: bcrypt rounds=12 (if npm package available)"]
+    A3["Always available: scrypt N=16384 r=8 p=1"]
+  end
+```
+
+---
+
+## 36. Admin Router + FetchGuard Overview
+
+```mermaid
+graph TB
+  subgraph ADMIN["Admin Router (adminProcedure — role=admin required)"]
+    subgraph USER_MGMT["User Management"]
+      A1["allUsers — list all accounts"]
+      A2["updateQuota — set generation quota per user"]
+      A3["updateRole — promote / demote user role"]
+      A4["updateAutoCreditPolicy — configure auto-credit\n(enabled · amount · intervalDays · nextAt)"]
+      A5["runAutoCreditNow — trigger immediate credit grant"]
+    end
+
+    subgraph MONITORING["Monitoring & Analytics"]
+      M1["usageLogs — recent API usage logs"]
+      M2["teamCostSummary — aggregate cost analytics"]
+      M3["systemStats — platform-wide statistics"]
+      M4["allGenerationHistory — all users' generation records"]
+      M5["userActivity — per-user activity summary"]
+      M6["apiProviderBreakdown — usage by provider"]
+      M7["systemDailyTrend — 30-day configurable trend"]
+      M8["allBackgroundJobs — job queue status"]
+    end
+
+    subgraph API_KEYS["API Keys Status Check"]
+      K1["apiKeysStatus — health check all integrations\nReturns: isSet boolean ONLY — never exposes secrets\nChecks: GEMINI_API_KEY · FAL_API_KEY · REPLICATE_API_TOKEN\nELEVENLABS_API_KEY · SUNO_API_KEY · PINECONE_API_KEY\nNEWS_API_KEY · NEWSDATA_API_KEY · LANGSMITH_API_KEY\nGCS_BUCKET_NAME · S3_ENDPOINT · GOOGLE_CLIENT_ID · DATABASE_URL"]
+    end
+  end
+
+  subgraph FETCH_GUARD["fetchGuard.ts — Global fetch() Interceptor"]
+    FG1["installFetchGuard called at server startup\n_core/index.ts line 196"]
+    FG2["Wraps globalThis.fetch singleton\nIdempotent: installs only once"]
+    FG3["resolveFetchUrl input\nensureAbsoluteUrl check"]
+    FG4{"Has http:// or\nhttps:// prefix?"}
+    FG5["Infer protocol:\nlocalhost / 127.0.0.1 → http://\nAll others → https://"]
+    FG6["Log warning if auto-corrected"]
+    FG7["Forward to original fetch with\nnormalized absolute URL"]
+    FG1 --> FG2 --> FG3 --> FG4
+    FG4 -->|Yes| FG7
+    FG4 -->|No| FG5 --> FG6 --> FG7
+  end
+
+  subgraph EVALUATE["Evaluate Router (brainProcedure)"]
+    EV1["evaluate.prompt — Multi-dimensional scoring 0-100\nDimensions: subjectClarity · actionNarrative\nenvironment · lightingTone · technicalSpecs (each 0-20)\nOutput: score · strengths · weaknesses · suggestions\noptimizedPrompt · actionType: append/replace/add_negative"]
+    EV2["evaluate.suggestChips — AI keyword inspiration\nInput: partial text 1-50 chars\nOutput: 3-5 creative extensions 4-12 chars each\nin Traditional Chinese"]
+  end
+
+  subgraph NOTES["Notes Router (protectedProcedure)"]
+    N1["list — filter by noteType note/script/calendar_event · search · tags"]
+    N2["create — title · content · scriptJson · noteType · scheduledDate · tags[]"]
+    N3["update · delete — ownership verified"]
+    N4["Director sessions auto-saved as '[導演對話]' prefixed notes"]
+  end
