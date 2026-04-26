@@ -25,6 +25,7 @@ import { brainProcedure, publicProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { recordErrorTrace } from "../services/brainAutoRepair";
 import { traceToolRun } from "../services/langsmithTracer";
+import { persistExternalMediaUrl } from "../services/internalMedia";
 
 // ─── fal.ai 呼叫工具（與 proStudio 相同模式） ────────────────────────────────
 
@@ -1051,9 +1052,17 @@ export const videoStudioRouter = router({
           input.requestId,
           input.modelId
         )) as any;
+        const rawVideoUrl = extractVideoUrl(result);
+        // 持久化到 S3，防止 fal.ai CDN URL 過期
+        const video_url = rawVideoUrl
+          ? await persistExternalMediaUrl(rawVideoUrl, {
+              category: "video",
+              prefix: `generated/video-studio/${input.modelId.replace(/[^\w/-]+/g, "_")}`,
+            }).catch(() => rawVideoUrl)
+          : null;
         return {
           status: "COMPLETED" as const,
-          video_url: extractVideoUrl(result),
+          video_url,
           raw: result,
         };
       }

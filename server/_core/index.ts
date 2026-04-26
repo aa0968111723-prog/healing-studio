@@ -36,6 +36,7 @@ import { closeDb } from "../db";
 import { langsmithRouter } from "../routes/langsmith";
 import { falWebhookRouter } from "../routes/webhookFal";
 import { stripeWebhookRouter } from "../routes/stripeWebhook";
+import { mediaDownloadRouter } from "../routes/download";
 import {
   initR2SnapshotCron,
   stopR2SnapshotCron,
@@ -243,6 +244,7 @@ async function startServer() {
   app.use(langsmithRouter);
   app.use(falWebhookRouter);
   app.use(stripeWebhookRouter);
+  app.use(mediaDownloadRouter);
   // AI Provider Proxy Gateway
   app.use(aiProxyRouter);
   app.use(localAuthRouter);

@@ -17,6 +17,7 @@ import {
   getBackgroundJob,
   updateBackgroundJob,
 } from "../db.js";
+import { localizeResultUrls } from "../services/internalMedia.js";
 
 export const falWebhookRouter = Router();
 
@@ -80,8 +81,12 @@ falWebhookRouter.post(
 
       // 4. 根據 webhook status 更新 job
       if (payload.status === "OK" || payload.status === "COMPLETED") {
-        // 成功：取出結果 URL
-        const resultData = extractResultData(payload);
+        // 成功：取出結果 URL，並將外部 CDN URL 持久化到 S3
+        const rawResult = extractResultData(payload);
+        const resultData = (await localizeResultUrls(
+          rawResult,
+          `generated/webhook/${jobId}`
+        )) as typeof rawResult;
         await updateBackgroundJob(jobId, {
           status: "completed",
           progress: 100,
