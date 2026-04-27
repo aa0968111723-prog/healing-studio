@@ -5,7 +5,7 @@ builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "node dist/index.js"
+startCommand = "npx drizzle-kit migrate && node dist/index.js"
 # Use the plain HTTP /api/health endpoint (not tRPC — tRPC requires query params)
 healthcheckPath = "/api/health"
 healthcheckTimeout = 120
