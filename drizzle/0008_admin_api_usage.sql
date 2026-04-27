@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS `rate_limit_rules` (
   `dailyCallLimit` int,
   `dailyCostLimitUsd` decimal(10,2),
   `monthlyCostLimitUsd` decimal(10,2),
-  `isActive` boolean NOT NULL DEFAULT true,
+  `isActive` TINYINT(1) NOT NULL DEFAULT 1,
   `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS `alert_configs` (
   `provider` varchar(32),
   `thresholdPct` decimal(5,2),
   `monthlyBudgetUsd` decimal(10,2),
-  `isActive` boolean NOT NULL DEFAULT true,
+  `isActive` TINYINT(1) NOT NULL DEFAULT 1,
   `lastTriggeredAt` timestamp NULL,
   `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
