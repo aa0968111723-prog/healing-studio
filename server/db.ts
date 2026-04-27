@@ -68,6 +68,7 @@ function isAdminEmail(email: string): boolean {
 
 let _db: ReturnType<typeof drizzle> | null = null;
 let _migrationsDone = false;
+let _migrationsInFlight: Promise<void> | null = null;
 
 /**
  * Runs any pending Drizzle migrations against the connected database.
@@ -77,24 +78,35 @@ let _migrationsDone = false;
  *
  * Exported so it can be called eagerly at server startup (before the first
  * request) rather than only lazily when getDb() happens to be invoked.
+ * Uses a singleton promise so concurrent callers wait for the same run.
  */
 export async function runMigrations(): Promise<void> {
   if (_migrationsDone) return;
+  // If a migration run is already in progress, wait for it instead of starting another.
+  if (_migrationsInFlight) {
+    await _migrationsInFlight;
+    return;
+  }
   const db = await getDb();
   if (!db) {
     console.warn("[Database] Skipping migrations: database not available");
     return;
   }
-  try {
-    console.info("[Database] Checking for pending migrations…");
-    // Use an absolute path so the folder resolves correctly regardless of cwd
-    await migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
-    _migrationsDone = true;
-    console.info("[Database] Migrations applied successfully.");
-  } catch (error) {
-    console.error("[Database] Migration failed:", error);
-    // Do not set _migrationsDone — allow a retry on the next call.
-  }
+  _migrationsInFlight = (async () => {
+    try {
+      console.info("[Database] Checking for pending migrations…");
+      // Use an absolute path so the folder resolves correctly regardless of cwd
+      await migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
+      _migrationsDone = true;
+      console.info("[Database] Migrations applied successfully.");
+    } catch (error) {
+      console.error("[Database] Migration failed:", error);
+      // Do not set _migrationsDone — allow a retry on the next call.
+    } finally {
+      _migrationsInFlight = null;
+    }
+  })();
+  await _migrationsInFlight;
 }
 
 export async function getDb() {
