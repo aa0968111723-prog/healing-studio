@@ -209,6 +209,9 @@ async function startServer() {
   const app = express();
   const server = createServer(app);
 
+  // Trust Railway's reverse proxy so req.ip / X-Forwarded-For work correctly
+  app.set("trust proxy", 1);
+
   // ── Security headers ─────────────────────────────────────────────────────
   app.use(requestTraceMiddleware);
 
