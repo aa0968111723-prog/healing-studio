@@ -1,5 +1,6 @@
 import { eq, desc, and, sql, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
+import { migrate } from "drizzle-orm/mysql2/migrator";
 import {
   InsertUser,
   users,
@@ -65,9 +66,32 @@ function isAdminEmail(email: string): boolean {
 }
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let _migrationsDone = false;
+
+/**
+ * Runs any pending Drizzle migrations against the connected database.
+ * Uses drizzle-orm/mysql2/migrator which tracks applied migrations in the
+ * `__drizzle_migrations` table, so only unapplied entries from the journal
+ * are executed. Safe to call on every startup.
+ */
+async function runMigrations(db: ReturnType<typeof drizzle>): Promise<void> {
+  if (_migrationsDone) return;
+  try {
+    console.info("[Database] Checking for pending migrations…");
+    await migrate(db, { migrationsFolder: "./drizzle" });
+    _migrationsDone = true;
+    console.info("[Database] Migrations applied successfully.");
+  } catch (error) {
+    console.error("[Database] Migration failed:", error);
+    // Do not set _migrationsDone — allow a retry on the next getDb() call.
+  }
+}
 
 export async function getDb() {
-  if (_db) return _db;
+  if (_db) {
+    if (!_migrationsDone) await runMigrations(_db);
+    return _db;
+  }
 
   const databaseUrl = process.env.DATABASE_URL?.trim();
   if (!databaseUrl) {
@@ -93,6 +117,7 @@ export async function getDb() {
           keepAliveInitialDelay: 30_000,
         },
       });
+      await runMigrations(_db);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
