@@ -14,7 +14,9 @@ CREATE TABLE `login_history` (
   `createdAt` timestamp NOT NULL DEFAULT (now()),
   CONSTRAINT `login_history_id` PRIMARY KEY(`id`)
 );
-
+--> statement-breakpoint
 CREATE INDEX `lh_userId_idx` ON `login_history` (`userId`);
+--> statement-breakpoint
 CREATE INDEX `lh_userId_createdAt_idx` ON `login_history` (`userId`, `createdAt`);
+--> statement-breakpoint
 CREATE INDEX `lh_email_idx` ON `login_history` (`email`);
