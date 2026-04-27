@@ -24,7 +24,8 @@ function isSecureRequest(req: Request) {
 export function getSessionCookieOptions(
   req: Request
 ): Pick<CookieOptions, "domain" | "httpOnly" | "path" | "sameSite" | "secure"> {
-  // const hostname = req.hostname;
+  const hostname = req.hostname;
+
   // const shouldSetDomain =
   //   hostname &&
   //   !LOCAL_HOSTS.has(hostname) &&
@@ -40,11 +41,22 @@ export function getSessionCookieOptions(
   //       : undefined;
 
   const secure = isSecureRequest(req);
-  return {
+
+  const options = {
     httpOnly: true,
     path: "/",
     // sameSite:"none" requires secure:true; fall back to "lax" on plain HTTP
     sameSite: secure ? "none" : "lax",
     secure,
-  };
+  } as const;
+
+  console.info("[Cookies] Session cookie options", {
+    hostname,
+    secure,
+    sameSite: options.sameSite,
+    protocol: req.protocol,
+    forwardedProto: req.headers["x-forwarded-proto"],
+  });
+
+  return options;
 }
