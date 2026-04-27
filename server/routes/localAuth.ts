@@ -6,6 +6,7 @@ import { ENV } from "../_core/env";
 import { verifyToken } from "../middleware/verifyToken";
 import { logger } from "../_core/logger";
 import { AuthFacade, authFacade } from "../services/auth/AuthFacade";
+import { loginHistoryService } from "../services/auth/loginHistoryService";
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -119,11 +120,22 @@ export function createLocalAuthRouter(
     }
 
     const email = normalizeEmail(parsed.data.email);
+    const ipAddress = (req.headers["x-forwarded-for"] as string)?.split(",")[0] || req.socket.remoteAddress;
+    const userAgent = req.headers["user-agent"];
 
     try {
       const result = await deps.facade.loginWithPassword({
         email,
         password: parsed.data.password,
+      });
+
+      // Record successful login
+      await loginHistoryService.recordLoginAttempt({
+        userId: result.userId,
+        email,
+        success: true,
+        ipAddress,
+        userAgent,
       });
 
       const cookieOptions = getSessionCookieOptions(req);
@@ -139,6 +151,23 @@ export function createLocalAuthRouter(
       });
     } catch (error) {
       if (error instanceof Error && error.message === "INVALID_CREDENTIALS") {
+        // Try to get userId from email for failed attempt logging
+        try {
+          const failedUser = await deps.facade.findUserByEmail(email);
+          if (failedUser) {
+            await loginHistoryService.recordLoginAttempt({
+              userId: failedUser.id,
+              email,
+              success: false,
+              ipAddress,
+              userAgent,
+              failureReason: "Invalid credentials",
+            });
+          }
+        } catch (logError) {
+          logger.error("[LocalAuth] Failed to log failed attempt", { err: logError });
+        }
+
         res.status(401).json({ error: "Invalid email or password" });
         return;
       }

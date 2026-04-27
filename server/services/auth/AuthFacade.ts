@@ -4,9 +4,12 @@ import { getPasswordHasher } from "./passwordHasher";
 import { userAuthRepository } from "../../repositories/mysql/UserAuthRepository.mysql";
 import { createSessionToken } from "../../_core/googleAuth";
 import type { UserAuthRepository } from "../../repositories/mysql/UserAuthRepository.mysql";
+import { passwordResetService } from "./passwordResetService";
+import { emailService } from "./emailService";
 
 export type AuthResult = {
   token: string;
+  userId: number;
   user: {
     openId: string;
     email: string;
@@ -72,6 +75,7 @@ export class AuthFacade {
 
     return {
       token,
+      userId: existing?.id || 0, // Will be updated after user creation
       user: {
         openId,
         email,
@@ -100,11 +104,147 @@ export class AuthFacade {
 
     return {
       token,
+      userId: user.id,
       user: {
         openId: user.openId,
         email,
         name: user.name || email.split("@")[0],
       },
+    };
+  }
+
+  /**
+   * Find user by email (helper for login history)
+   */
+  async findUserByEmail(email: string): Promise<{ id: number } | null> {
+    const user = await this.deps.repo.findByEmail(email.trim().toLowerCase());
+    return user ? { id: user.id } : null;
+  }
+
+  /**
+   * Request password reset - generates token and sends email
+   */
+  async requestPasswordReset(email: string): Promise<void> {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // Check rate limiting
+    if (!passwordResetService.checkRateLimit(normalizedEmail)) {
+      throw new Error("RATE_LIMIT_EXCEEDED");
+    }
+
+    const user = await this.deps.repo.findByEmail(normalizedEmail);
+
+    // Always return success to prevent email enumeration
+    if (!user || !user.passwordHash) {
+      // User doesn't exist or doesn't have password auth set up
+      // Still return success to prevent email enumeration attacks
+      return;
+    }
+
+    // Invalidate any existing unused tokens
+    await passwordResetService.invalidateUserTokens(user.id);
+
+    // Generate new reset token
+    const resetToken = await passwordResetService.createResetToken(user.id);
+
+    // Send reset email
+    await emailService.sendPasswordReset(normalizedEmail, resetToken);
+  }
+
+  /**
+   * Reset password using a token
+   */
+  async resetPasswordWithToken(token: string, newPassword: string): Promise<void> {
+    // Validate token
+    const userId = await passwordResetService.validateToken(token);
+    if (!userId) {
+      throw new Error("INVALID_OR_EXPIRED_TOKEN");
+    }
+
+    // Hash new password
+    const hasher = await this.deps.hasherFactory(ENV.passwordHashAlgorithm);
+    const passwordHash = await hasher.hash(newPassword);
+
+    // Update password
+    await this.deps.repo.setLocalPasswordByUserId({
+      userId,
+      passwordHash,
+    });
+
+    // Mark token as used
+    await passwordResetService.markTokenAsUsed(token);
+
+    // Invalidate all other tokens for this user
+    await passwordResetService.invalidateUserTokens(userId);
+
+    // Get user info to send confirmation email
+    const user = await this.deps.repo.findById(userId);
+    if (user?.email) {
+      await emailService.sendPasswordChanged(user.email, user.name || undefined);
+    }
+  }
+
+  /**
+   * Change password (requires current password verification)
+   */
+  async changePassword(input: {
+    email: string;
+    currentPassword: string;
+    newPassword: string;
+  }): Promise<void> {
+    const normalizedEmail = input.email.trim().toLowerCase();
+    const user = await this.deps.repo.findByEmail(normalizedEmail);
+
+    if (!user?.passwordHash) {
+      throw new Error("INVALID_CREDENTIALS");
+    }
+
+    // Verify current password
+    const hasher = await this.deps.hasherFactory(ENV.passwordHashAlgorithm);
+    const isValid = await hasher.verify(input.currentPassword, user.passwordHash);
+    if (!isValid) {
+      throw new Error("INVALID_CREDENTIALS");
+    }
+
+    // Hash new password
+    const newPasswordHash = await hasher.hash(input.newPassword);
+
+    // Update password
+    await this.deps.repo.setLocalPasswordByUserId({
+      userId: user.id,
+      passwordHash: newPasswordHash,
+    });
+
+    // Invalidate all reset tokens
+    await passwordResetService.invalidateUserTokens(user.id);
+
+    // Send confirmation email
+    await emailService.sendPasswordChanged(normalizedEmail, user.name || undefined);
+  }
+
+  /**
+   * Update user profile
+   */
+  async updateProfile(input: {
+    email: string;
+    name?: string;
+  }): Promise<{ name: string }> {
+    const normalizedEmail = input.email.trim().toLowerCase();
+    const user = await this.deps.repo.findByEmail(normalizedEmail);
+
+    if (!user) {
+      throw new Error("USER_NOT_FOUND");
+    }
+
+    if (input.name !== undefined) {
+      await this.deps.repo.updateUserName({
+        userId: user.id,
+        name: input.name,
+      });
+    }
+
+    return {
+      name: input.name ?? user.name ?? "",
     };
   }
 }

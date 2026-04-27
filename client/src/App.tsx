@@ -58,6 +58,9 @@ const CreditsInfoPage = lazy(() => import("./pages/CreditsInfoPage"));
 const PromptLibraryPage = lazy(() => import("./pages/PromptLibraryPage"));
 const AgentChat = lazy(() => import("./pages/AgentChat"));
 const AdminApiUsagePage = lazy(() => import("./pages/AdminApiUsagePage"));
+const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"));
+const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
+const AccountSettingsPage = lazy(() => import("./pages/AccountSettingsPage"));
 
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -231,6 +234,21 @@ function Router() {
       </Route>
       <Route path="/agent">
         <DashboardRoute component={AgentChat} />
+      </Route>
+      <Route path="/forgot-password">
+        <Suspense fallback={<PageSkeleton />}>
+          <ForgotPasswordPage />
+        </Suspense>
+      </Route>
+      <Route path="/reset-password">
+        <Suspense fallback={<PageSkeleton />}>
+          <ResetPasswordPage />
+        </Suspense>
+      </Route>
+      <Route path="/account-settings">
+        <Suspense fallback={<PageSkeleton />}>
+          <AccountSettingsPage />
+        </Suspense>
       </Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

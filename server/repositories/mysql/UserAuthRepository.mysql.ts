@@ -60,6 +60,29 @@ export class UserAuthRepository extends BaseRepository {
       [input.passwordHash, input.userId]
     );
   }
+
+  async findById(userId: number): Promise<LocalAuthUser | null> {
+    const rows = await this.db.query<LocalAuthUserRow[]>(
+      `SELECT id, openId, name, email, role, loginMethod, passwordHash, remainingGenerations
+       FROM users
+       WHERE id = ?
+       LIMIT 1`,
+      [userId]
+    );
+    return rows[0] ?? null;
+  }
+
+  async updateUserName(input: {
+    userId: number;
+    name: string;
+  }): Promise<void> {
+    await this.db.execute(
+      `UPDATE users
+       SET name = ?
+       WHERE id = ?`,
+      [input.name, input.userId]
+    );
+  }
 }
 
 export const userAuthRepository = new UserAuthRepository();

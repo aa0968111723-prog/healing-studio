@@ -55,6 +55,7 @@ import {
 } from "../jobs/userAutoCreditJob";
 import { aiProxyRouter } from "../routes/aiProxy";
 import { localAuthRouter } from "../routes/localAuth";
+import { passwordResetRouter } from "../routes/passwordResetRoutes";
 import { installFetchGuard } from "./fetchGuard";
 import { globalErrorHandler, registerFatalErrorHandlers } from "./error_handler";
 import { logger, requestTraceMiddleware } from "./logger";
@@ -248,6 +249,7 @@ async function startServer() {
   // AI Provider Proxy Gateway
   app.use(aiProxyRouter);
   app.use(localAuthRouter);
+  app.use(passwordResetRouter);
 
   // ── Maps proxy（隱藏 FRONTEND_FORGE_API_KEY，避免前端暴露）───────────────
   app.get("/api/maps/proxy/*", async (req, res) => {
