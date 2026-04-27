@@ -94,6 +94,15 @@ export function registerOAuthRoutes(app: Express) {
     const state = getQueryParam(req, "state");
     const errorParam = getQueryParam(req, "error");
 
+    console.info("[OAuth] Callback received", {
+      hasCode: !!code,
+      hasState: !!state,
+      errorParam: errorParam || "none",
+      hostname: req.hostname,
+      protocol: req.protocol,
+      forwardedProto: req.headers["x-forwarded-proto"],
+    });
+
     // 用戶拒絕授權
     if (errorParam) {
       console.warn("[OAuth] User denied access:", errorParam);
@@ -102,23 +111,37 @@ export function registerOAuthRoutes(app: Express) {
     }
 
     if (!code) {
+      console.error("[OAuth] Missing authorization code");
       redirectWithAuthError(res, "missing_code", state);
       return;
     }
 
     try {
       // 換取 Google Access Token
+      console.info("[OAuth] Exchanging code for tokens...");
       const tokens = await exchangeCodeForTokens(code);
+      console.info("[OAuth] Token exchange successful");
 
       // 取得用戶資訊
+      console.info("[OAuth] Fetching user info...");
       const userInfo = await getGoogleUserInfo(tokens.access_token);
+      console.info("[OAuth] User info retrieved", {
+        sub: userInfo.sub,
+        email: userInfo.email,
+        emailVerified: userInfo.email_verified,
+      });
 
       if (!userInfo.sub) {
+        console.error("[OAuth] Missing Google user ID (sub)");
         redirectWithAuthError(res, "missing_google_user_id", state);
         return;
       }
 
       // 寫入 / 更新資料庫
+      console.info("[OAuth] Upserting user to database...", {
+        openId: userInfo.sub,
+        email: userInfo.email,
+      });
       await db.upsertUser({
         openId: userInfo.sub,
         name: userInfo.name || null,
@@ -126,8 +149,10 @@ export function registerOAuthRoutes(app: Express) {
         loginMethod: "google",
         lastSignedIn: new Date(),
       });
+      console.info("[OAuth] User upserted successfully");
 
       // 建立 JWT Session Token
+      console.info("[OAuth] Creating session token...");
       const sessionToken = await createSessionToken(userInfo.sub, {
         name: userInfo.name || "",
         email: userInfo.email,
@@ -136,6 +161,11 @@ export function registerOAuthRoutes(app: Express) {
 
       // 設定 Session Cookie
       const cookieOptions = getSessionCookieOptions(req);
+      console.info("[OAuth] Setting session cookie", {
+        cookieOptions,
+        cookieName: COOKIE_NAME,
+        maxAge: ONE_YEAR_MS,
+      });
       res.cookie(COOKIE_NAME, sessionToken, {
         ...cookieOptions,
         maxAge: ONE_YEAR_MS,
@@ -143,12 +173,18 @@ export function registerOAuthRoutes(app: Express) {
 
       // 解碼 state 取得重定向路徑（僅允許安全的相對路徑，防止 Open Redirect 攻擊）
       const redirectTo = getRedirectFromState(state);
+      console.info("[OAuth] Login successful, redirecting to:", redirectTo);
 
       // Append welcome flag so the client can show a login orb animation
       const separator = redirectTo.includes("?") ? "&" : "?";
       res.redirect(302, `${redirectTo}${separator}welcome=1`);
     } catch (error) {
-      console.error("[OAuth] Callback failed", error);
+      console.error("[OAuth] Callback failed with error:", {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        code: code ? "present" : "missing",
+        state: state ? "present" : "missing",
+      });
       redirectWithAuthError(res, "oauth_failed", state);
     }
   });
