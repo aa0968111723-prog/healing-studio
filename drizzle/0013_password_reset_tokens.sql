@@ -8,7 +8,9 @@ CREATE TABLE `password_reset_tokens` (
   CONSTRAINT `password_reset_tokens_id` PRIMARY KEY(`id`),
   CONSTRAINT `password_reset_tokens_tokenHash_unique` UNIQUE(`tokenHash`)
 );
-
+--> statement-breakpoint
 CREATE INDEX `prt_userId_idx` ON `password_reset_tokens` (`userId`);
+--> statement-breakpoint
 CREATE INDEX `prt_tokenHash_idx` ON `password_reset_tokens` (`tokenHash`);
+--> statement-breakpoint
 CREATE INDEX `prt_expiresAt_idx` ON `password_reset_tokens` (`expiresAt`);
