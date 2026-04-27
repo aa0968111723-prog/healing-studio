@@ -69,11 +69,13 @@ import {
   HelpCircle,
   Rocket,
   Search,
+  Package,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { uploadFileToS3 } from "@/lib/upload";
 import { useRegisterBgTask } from "@/contexts/BackgroundTasksContext";
 import { normalizeEngineModelId } from "@shared/engineModelIds";
+import { useAssetsDrawer } from "@/contexts/AssetsDrawerContext";
 import {
   useRegisterPageAgent,
   type AgentAction,
@@ -2459,6 +2461,7 @@ export default function ImageStudio() {
   // 全站新手引導
   usePageTour("image-studio");
   const registerBgTask = useRegisterBgTask();
+  const { openDrawer: openAssetsDrawer } = useAssetsDrawer();
 
   // ── AI Agent Integration ──
   const {
@@ -3647,6 +3650,13 @@ export default function ImageStudio() {
             aria-pressed={showHistory}
           >
             <History className="w-3.5 h-3.5" /> 歷史
+          </button>
+          <button
+            onClick={() => openAssetsDrawer()}
+            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2.5 rounded-xl border border-border/40 hover:bg-accent active:bg-accent/70 text-muted-foreground text-xs font-medium transition-all min-h-[44px]"
+            aria-label="開啟素材庫"
+          >
+            <Package className="w-3.5 h-3.5" /> 素材
           </button>
         </div>
       </div>

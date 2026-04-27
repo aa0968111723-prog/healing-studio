@@ -7,9 +7,11 @@ import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { NotesDrawerProvider } from "./contexts/NotesDrawerContext";
+import { AssetsDrawerProvider } from "./contexts/AssetsDrawerContext";
 import { PersonalityProvider } from "./contexts/PersonalityContext";
 import DashboardLayout from "./components/DashboardLayout";
 import ProjectNotesDrawer from "./components/ProjectNotesDrawer";
+import AssetsQuickDrawer from "./components/AssetsQuickDrawer";
 import OfflineBanner from "./components/OfflineBanner";
 import AuthExpiredModal from "./components/AuthExpiredModal";
 import LoginOrbAnimation from "./components/LoginOrbAnimation";
@@ -243,6 +245,7 @@ function App() {
         <PersonalSettingsProvider>
           <PersonalityProvider>
             <NotesDrawerProvider>
+              <AssetsDrawerProvider>
               <ShowcaseTransferProvider>
                 <SiteOnboardingProvider>
                   <FocusFlowProvider>
@@ -258,6 +261,7 @@ function App() {
                       <LoginOrbAnimation />
                       <Router />
                       <ProjectNotesDrawer />
+                      <AssetsQuickDrawer />
                       <Suspense fallback={null}>
                         <SiteOnboardingOverlay />
                       </Suspense>
@@ -269,6 +273,7 @@ function App() {
                   </FocusFlowProvider>
                 </SiteOnboardingProvider>
               </ShowcaseTransferProvider>
+              </AssetsDrawerProvider>
             </NotesDrawerProvider>
           </PersonalityProvider>
         </PersonalSettingsProvider>
