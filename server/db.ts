@@ -1,6 +1,7 @@
 import { eq, desc, and, sql, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { migrate } from "drizzle-orm/mysql2/migrator";
+import path from "path";
 import {
   InsertUser,
   users,
@@ -67,29 +68,44 @@ function isAdminEmail(email: string): boolean {
 
 let _db: ReturnType<typeof drizzle> | null = null;
 let _migrationsDone = false;
+let _migrationsInFlight: Promise<void> | null = null;
 
 /**
- * Runs any pending Drizzle migrations against the connected database.
- * Uses drizzle-orm/mysql2/migrator which tracks applied migrations in the
- * `__drizzle_migrations` table, so only unapplied entries from the journal
- * are executed. Safe to call on every startup.
+ * Internal: applies pending migrations against an already-connected db.
+ * Uses a singleton in-flight promise so concurrent callers wait for the
+ * same run rather than triggering multiple simultaneous migrations.
+ * Does NOT call getDb() — avoids circular dependency.
  */
-async function runMigrations(db: ReturnType<typeof drizzle>): Promise<void> {
+async function applyMigrations(db: ReturnType<typeof drizzle>): Promise<void> {
   if (_migrationsDone) return;
-  try {
-    console.info("[Database] Checking for pending migrations…");
-    await migrate(db, { migrationsFolder: "./drizzle" });
-    _migrationsDone = true;
-    console.info("[Database] Migrations applied successfully.");
-  } catch (error) {
-    console.error("[Database] Migration failed:", error);
-    // Do not set _migrationsDone — allow a retry on the next getDb() call.
+  // Concurrent caller: wait for the in-progress run instead of starting another.
+  if (_migrationsInFlight) {
+    await _migrationsInFlight;
+    return;
   }
+  // Assign synchronously so any concurrent caller entering this function
+  // after the first await sees _migrationsInFlight as set.
+  _migrationsInFlight = (async () => {
+    try {
+      console.info("[Database] Checking for pending migrations…");
+      // Absolute path so the folder resolves correctly regardless of cwd.
+      await migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
+      _migrationsDone = true;
+      console.info("[Database] Migrations applied successfully.");
+    } catch (error) {
+      console.error("[Database] Migration failed:", error);
+      // Leave _migrationsDone false so the next startup attempt will retry.
+    } finally {
+      _migrationsInFlight = null;
+    }
+  })();
+  await _migrationsInFlight;
 }
 
 export async function getDb() {
   if (_db) {
-    if (!_migrationsDone) await runMigrations(_db);
+    // Retry migrations if a previous attempt failed (e.g. transient DB error).
+    if (!_migrationsDone) await applyMigrations(_db);
     return _db;
   }
 
@@ -117,13 +133,24 @@ export async function getDb() {
           keepAliveInitialDelay: 30_000,
         },
       });
-      await runMigrations(_db);
+      await applyMigrations(_db);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
     }
   }
   return _db;
+}
+
+/**
+ * Runs pending Drizzle migrations eagerly.
+ * Call this at server startup before accepting requests so that tables like
+ * `login_history` exist even when the first request hits a route that uses
+ * DatabaseManager (raw mysql2) rather than getDb().
+ */
+export async function runMigrations(): Promise<void> {
+  // Trigger getDb() which initialises the connection and calls applyMigrations.
+  await getDb();
 }
 
 /**

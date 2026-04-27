@@ -32,7 +32,7 @@ import {
   stopBraveLearnFetcherCron,
 } from "../jobs/braveLearnFetcher";
 import { detectStorageBackend } from "../storage";
-import { closeDb } from "../db";
+import { closeDb, runMigrations } from "../db";
 import { langsmithRouter } from "../routes/langsmith";
 import { falWebhookRouter } from "../routes/webhookFal";
 import { stripeWebhookRouter } from "../routes/stripeWebhook";
@@ -196,6 +196,15 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   installFetchGuard();
   bootstrapAiAdapters();
+
+  // ── Run DB migrations eagerly before the server handles any requests ─────
+  // This ensures tables like `login_history` exist even if the login endpoint
+  // is the very first request (which uses DatabaseManager, not getDb()).
+  try {
+    await runMigrations();
+  } catch (err) {
+    logger.error("[Server] DB migration failed on startup — server will continue", { err });
+  }
 
   const app = express();
   const server = createServer(app);
