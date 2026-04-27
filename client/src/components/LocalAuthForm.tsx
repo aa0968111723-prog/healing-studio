@@ -140,6 +140,18 @@ export default function LocalAuthForm({
             autoComplete="current-password"
             disabled={loading}
           />
+          <div className="text-right">
+            <a
+              href="/forgot-password"
+              className="text-xs text-primary hover:underline"
+              onClick={e => {
+                e.preventDefault();
+                window.location.href = "/forgot-password";
+              }}
+            >
+              忘記密碼？
+            </a>
+          </div>
         </TabsContent>
 
         <TabsContent value="register" className="space-y-3 mt-3">
