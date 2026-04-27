@@ -193,6 +193,11 @@ sidebarStructure.push(
     "models",
     "lora-trainer",
     "notes",
+    "history",
+    "shared",
+    "vault",
+    "calendar",
+    "background-tasks",
   ])
 );
 sidebarStructure.push(
