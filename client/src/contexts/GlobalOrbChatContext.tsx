@@ -715,14 +715,22 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   const orbExecutor = useGlobalOrbExecutor();
 
   const aiChat = trpc.ai.chat.useMutation();
-  const codeTaskApprove = trpc.ai.codeTask.approve.useMutation();
-  const codeTaskCancel = trpc.ai.codeTask.cancel.useMutation();
-  const providerPingQuery = trpc.brain.pingProviders.useQuery(undefined, {
-    retry: false,
-    staleTime: 60_000,
-    refetchInterval: 60_000,
-    refetchOnWindowFocus: false,
-  });
+    const codeTaskApprove = trpc.ai.codeTask.approve.useMutation();
+    const codeTaskCancel = trpc.ai.codeTask.cancel.useMutation();
+
+    // Only ping providers when authenticated to avoid 401 modals for guests.
+    const meQuery = trpc.auth.me.useQuery(undefined, {
+          retry: false,
+          refetchOnWindowFocus: false,
+    });
+    const isAuthenticated = Boolean(meQuery.data);
+    const providerPingQuery = trpc.brain.pingProviders.useQuery(undefined, {
+          retry: false,
+          staleTime: 60_000,
+          refetchInterval: 60_000,
+          refetchOnWindowFocus: false,
+          enabled: isAuthenticated, // Only run when logged in
+    });
 
   useEffect(() => {
     if (messages.length > 0) saveMessagesToStorage(messages);
