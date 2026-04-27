@@ -21,6 +21,8 @@ export const users = mysqlTable("users", {
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
   passwordHash: varchar("passwordHash", { length: 255 }),
+  emailVerified: boolean("emailVerified").default(false).notNull(),
+  emailVerifiedAt: timestamp("emailVerifiedAt"),
   role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
   /** Per-modality quota JSON */
   quotaJson: json("quotaJson").$type<{
@@ -86,6 +88,37 @@ export const emailVerificationTokens = mysqlTable(
 
 export type EmailVerificationToken = typeof emailVerificationTokens.$inferSelect;
 export type InsertEmailVerificationToken = typeof emailVerificationTokens.$inferInsert;
+
+// ─── Login History ────────────────────────────────────────────────────────
+export const loginHistory = mysqlTable(
+  "login_history",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    email: varchar("email", { length: 320 }),
+    success: boolean("success").default(true).notNull(),
+    ipAddress: varchar("ipAddress", { length: 45 }),
+    userAgent: text("userAgent"),
+    device: varchar("device", { length: 100 }),
+    browser: varchar("browser", { length: 100 }),
+    os: varchar("os", { length: 100 }),
+    country: varchar("country", { length: 100 }),
+    city: varchar("city", { length: 100 }),
+    failureReason: varchar("failureReason", { length: 255 }),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    userIdIdx: index("lh_userId_idx").on(table.userId),
+    userIdCreatedAtIdx: index("lh_userId_createdAt_idx").on(
+      table.userId,
+      table.createdAt
+    ),
+    emailIdx: index("lh_email_idx").on(table.email),
+  })
+);
+
+export type LoginHistory = typeof loginHistory.$inferSelect;
+export type InsertLoginHistory = typeof loginHistory.$inferInsert;
 
 // ─── Background Jobs ─────────────────────────────────────────────────────
 export const backgroundJobs = mysqlTable(

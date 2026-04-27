@@ -9,6 +9,7 @@ import { emailService } from "./emailService";
 
 export type AuthResult = {
   token: string;
+  userId: number;
   user: {
     openId: string;
     email: string;
@@ -74,6 +75,7 @@ export class AuthFacade {
 
     return {
       token,
+      userId: existing?.id || 0, // Will be updated after user creation
       user: {
         openId,
         email,
@@ -102,12 +104,21 @@ export class AuthFacade {
 
     return {
       token,
+      userId: user.id,
       user: {
         openId: user.openId,
         email,
         name: user.name || email.split("@")[0],
       },
     };
+  }
+
+  /**
+   * Find user by email (helper for login history)
+   */
+  async findUserByEmail(email: string): Promise<{ id: number } | null> {
+    const user = await this.deps.repo.findByEmail(email.trim().toLowerCase());
+    return user ? { id: user.id } : null;
   }
 
   /**

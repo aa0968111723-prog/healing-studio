@@ -8,6 +8,7 @@ import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import { authFacade } from "../services/auth/AuthFacade";
 import { passwordResetService } from "../services/auth/passwordResetService";
+import { loginHistoryService } from "../services/auth/loginHistoryService";
 import { verifyToken } from "../middleware/verifyToken";
 import { logger } from "../_core/logger";
 
@@ -258,6 +259,39 @@ export function createPasswordResetRouter() {
 
       logger.error("[PasswordReset] update-profile failed", { err: error, email });
       res.status(500).json({ error: "Profile update failed" });
+    }
+  });
+
+  // ── Get login history (requires authentication) ────────────────────────
+  router.get("/api/auth/login-history", verifyToken, async (req: Request, res: Response) => {
+    const authReq = req as Request & {
+      auth?: { sub: string; name: string; email?: string };
+      user?: {
+        id: number;
+        openId: string;
+        role: "user" | "admin";
+        email: string | null;
+        name: string | null;
+      };
+    };
+
+    const userId = authReq.user?.id;
+    if (!userId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    try {
+      const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+      const history = await loginHistoryService.getUserLoginHistory(userId, limit);
+
+      res.json({
+        success: true,
+        history,
+      });
+    } catch (error) {
+      logger.error("[PasswordReset] get-login-history failed", { err: error, userId });
+      res.status(500).json({ error: "Failed to fetch login history" });
     }
   });
 

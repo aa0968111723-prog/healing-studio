@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { User, Lock, ArrowLeft, CheckCircle2 } from "lucide-react";
+import { User, Lock, ArrowLeft, CheckCircle2, Shield, Monitor } from "lucide-react";
 
 export default function AccountSettingsPage() {
   const [user, setUser] = useState<{
@@ -11,6 +11,15 @@ export default function AccountSettingsPage() {
     email: string;
   } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loginHistory, setLoginHistory] = useState<Array<{
+    id: number;
+    success: boolean;
+    device: string | null;
+    browser: string | null;
+    os: string | null;
+    ipAddress: string | null;
+    createdAt: string;
+  }>>([]);
 
   // Profile tab state
   const [name, setName] = useState("");
@@ -28,6 +37,7 @@ export default function AccountSettingsPage() {
 
   useEffect(() => {
     fetchUser();
+    fetchLoginHistory();
   }, []);
 
   const fetchUser = async () => {
@@ -54,6 +64,21 @@ export default function AccountSettingsPage() {
       window.location.href = "/";
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchLoginHistory = async () => {
+    try {
+      const response = await fetch("/api/auth/login-history?limit=10", {
+        credentials: "include",
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setLoginHistory(data.history || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch login history:", err);
     }
   };
 
@@ -194,7 +219,7 @@ export default function AccountSettingsPage() {
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="profile" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="profile" className="flex items-center gap-2">
                   <User className="h-4 w-4" />
                   個人資料
@@ -202,6 +227,10 @@ export default function AccountSettingsPage() {
                 <TabsTrigger value="security" className="flex items-center gap-2">
                   <Lock className="h-4 w-4" />
                   安全設定
+                </TabsTrigger>
+                <TabsTrigger value="activity" className="flex items-center gap-2">
+                  <Shield className="h-4 w-4" />
+                  登入記錄
                 </TabsTrigger>
               </TabsList>
 
@@ -349,6 +378,75 @@ export default function AccountSettingsPage() {
                     {passwordLoading ? "更新中..." : "更新密碼"}
                   </Button>
                 </form>
+              </TabsContent>
+
+              <TabsContent value="activity" className="space-y-4 mt-6">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-medium">最近登入記錄</h3>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        查看您的帳號登入活動
+                      </p>
+                    </div>
+                  </div>
+
+                  {loginHistory.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Shield className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">尚無登入記錄</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {loginHistory.map((record) => (
+                        <div
+                          key={record.id}
+                          className="flex items-start gap-3 p-3 border rounded-lg"
+                        >
+                          <div className="mt-0.5">
+                            <Monitor className="h-5 w-5 text-muted-foreground" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-medium text-sm">
+                                {record.device || "Unknown"} · {record.browser || "Unknown"}
+                              </span>
+                              {record.success ? (
+                                <span className="text-xs px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full">
+                                  成功
+                                </span>
+                              ) : (
+                                <span className="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-full">
+                                  失敗
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {record.os} · {record.ipAddress || "Unknown IP"}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {new Date(record.createdAt).toLocaleString("zh-TW", {
+                                year: "numeric",
+                                month: "2-digit",
+                                day: "2-digit",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="bg-blue-50 border border-blue-200 text-blue-800 text-xs px-4 py-3 rounded-md">
+                    <p className="font-medium mb-1">🔒 安全提示</p>
+                    <ul className="list-disc list-inside space-y-1">
+                      <li>如果發現可疑的登入活動，請立即更改密碼</li>
+                      <li>定期檢查您的登入記錄以確保帳號安全</li>
+                    </ul>
+                  </div>
+                </div>
               </TabsContent>
             </Tabs>
           </CardContent>
