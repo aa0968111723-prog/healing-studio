@@ -2204,6 +2204,14 @@ export default function Studio() {
           }
           return { ok: false, reason: `unknown dialogId: ${action.dialogId}` };
         }
+        case "setModel": {
+          const id = Number(action.modelId);
+          if (!Number.isNaN(id) && id > 0) {
+            setFineTunedModelId(id);
+            return { ok: true, message: `LoRA 模型已套用（id: ${id}）` };
+          }
+          return { ok: false, reason: `setModel 需要正整數型 fineTuned modelId，收到: ${action.modelId}` };
+        }
         case "focusElement":
           return { ok: true };
         default:

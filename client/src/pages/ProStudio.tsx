@@ -86,6 +86,8 @@ interface ProStudioAgentBridge {
   getState?: () => Record<string, unknown>;
   /** 送出生成 */
   submit?: () => boolean;
+  /** 切換模型（由 PRO_MODEL id 對應到分頁內部 model key） */
+  setModel?: (modelId: string) => boolean;
 }
 
 const AgentBridgeContext = createContext<React.MutableRefObject<ProStudioAgentBridge> | null>(null);
@@ -3116,6 +3118,19 @@ function AvatarVideoTab() {
       if (model === "dubbing" && !videoUrl.trim() && !audioUrl.trim()) return false;
       return true;
     },
+    setModel: (modelId: string) => {
+      const idToKey: Record<string, typeof model> = {
+        "wan-s2v": "wan",
+        "echo-mimic": "echo",
+        "stable-avatar": "stable",
+        "longcat": "longcat",
+        "ltx-a2v": "ltx",
+        "dubbing": "dubbing",
+      };
+      const key = idToKey[modelId];
+      if (key) { setModel(key); return true; }
+      return false;
+    },
   });
 
   const modelConfig = {
@@ -3555,6 +3570,7 @@ export default function ProStudio() {
 
   // ── Agent Bridge Ref：子分頁註冊自己的 bridge，父層透過此 ref 呼叫 ──
   const bridgeRef = useRef<ProStudioAgentBridge>({});
+  const pendingModelIdRef = useRef<string | null>(null);
 
   // ── AI Agent: broadcast page context ──
   useEffect(() => {
@@ -3565,6 +3581,15 @@ export default function ProStudio() {
     });
     return () => setPageContext(null);
   }, [tab, setPageContext]);
+
+  // Consume pending model selection after tab switch renders and bridge is updated
+  useEffect(() => {
+    const pending = pendingModelIdRef.current;
+    if (pending) {
+      pendingModelIdRef.current = null;
+      bridgeRef.current.setModel?.(pending);
+    }
+  }, [tab]);
 
   // ── Restore Director AI sendToStudio payload (audio/voice path) ──
   useEffect(() => {
@@ -3734,10 +3759,13 @@ export default function ProStudio() {
         case "setModel": {
           const m = PRO_MODELS.find(x => x.id === action.modelId);
           if (!m) return { ok: false, reason: `unknown modelId: ${action.modelId}` };
+          // Try bridge first (same tab); if not ready, store as pending for after tab switch
+          const modelSet = bridgeRef.current.setModel?.(action.modelId);
+          if (!modelSet) pendingModelIdRef.current = action.modelId;
           setTab(m.tab);
           return {
             ok: true,
-            message: `已切到「${TABS.find(t => t.id === m.tab)?.label}」分頁，你可以用裡面的 ${m.label}`,
+            message: `已切換到「${m.label}」（${TABS.find(t => t.id === m.tab)?.label}）`,
           };
         }
         case "focusElement":
