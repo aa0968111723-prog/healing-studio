@@ -1,4 +1,5 @@
 import type { CookieOptions, Request } from "express";
+import { logger } from "./logger";
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 
@@ -50,7 +51,7 @@ export function getSessionCookieOptions(
     secure,
   } as const;
 
-  console.info("[Cookies] Session cookie options", {
+  logger.info("[Cookies] Session cookie options", {
     hostname,
     secure,
     sameSite: options.sameSite,

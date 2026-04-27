@@ -32,8 +32,8 @@ export class UserAuthRepository extends BaseRepository {
     email: string;
     passwordHash: string;
     role?: "user" | "admin";
-  }): Promise<void> {
-    await this.db.execute(
+  }): Promise<number> {
+    const result = await this.db.execute(
       `INSERT INTO users (openId, name, email, loginMethod, passwordHash, role, remainingGenerations, onboardingDone, lastSignedIn)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
       [
@@ -47,6 +47,7 @@ export class UserAuthRepository extends BaseRepository {
         0,
       ]
     );
+    return result.insertId;
   }
 
   async setLocalPasswordByUserId(input: {
@@ -70,6 +71,13 @@ export class UserAuthRepository extends BaseRepository {
       [userId]
     );
     return rows[0] ?? null;
+  }
+
+  async updateLastSignedIn(userId: number): Promise<void> {
+    await this.db.execute(
+      `UPDATE users SET lastSignedIn = NOW() WHERE id = ?`,
+      [userId]
+    );
   }
 
   async updateUserName(input: {

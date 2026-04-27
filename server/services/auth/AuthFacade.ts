@@ -58,13 +58,29 @@ export class AuthFacade {
         passwordHash,
       });
     } else {
-      await this.deps.repo.createLocalUser({
+      const insertedId = await this.deps.repo.createLocalUser({
         openId,
         email,
         name: input.name ?? null,
         passwordHash,
         role: input.role,
       });
+      // Use the real insertId so callers receive the correct userId
+      const resolvedId = insertedId ?? 0;
+      const token = await this.deps.tokenIssuer(openId, {
+        name: input.name || email.split("@")[0],
+        email,
+        expiresInMs: this.getTokenLifetimeMs(),
+      });
+      return {
+        token,
+        userId: resolvedId,
+        user: {
+          openId,
+          email,
+          name: input.name || email.split("@")[0],
+        },
+      };
     }
 
     const token = await this.deps.tokenIssuer(openId, {
@@ -75,7 +91,7 @@ export class AuthFacade {
 
     return {
       token,
-      userId: existing?.id || 0, // Will be updated after user creation
+      userId: existing?.id ?? 0,
       user: {
         openId,
         email,
@@ -95,6 +111,9 @@ export class AuthFacade {
     // Use automatic algorithm detection to support legacy hashes
     const ok = await verifyPassword(input.password, user.passwordHash);
     if (!ok) throw new Error("INVALID_CREDENTIALS");
+
+    // Update last signed-in timestamp (fire-and-forget; never blocks login)
+    this.deps.repo.updateLastSignedIn(user.id).catch(() => {});
 
     const token = await this.deps.tokenIssuer(user.openId, {
       name: user.name || email.split("@")[0],

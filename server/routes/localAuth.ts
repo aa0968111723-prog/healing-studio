@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from "express";
+import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import { getSessionCookieOptions } from "../_core/cookies";
@@ -7,6 +8,31 @@ import { verifyToken } from "../middleware/verifyToken";
 import { logger } from "../_core/logger";
 import { AuthFacade, authFacade } from "../services/auth/AuthFacade";
 import { loginHistoryService } from "../services/auth/loginHistoryService";
+
+// ── Auth-specific rate limiters ────────────────────────────────────────────
+// Stricter than the global /api/ limiter (300/15min).
+// Login: 10 attempts per 15 min per IP to slow brute-force without blocking
+// legitimate users who may retry after mistyping.
+const loginRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many login attempts. Please try again later." },
+});
+
+// Register: 5 attempts per 15 min per IP.
+const registerRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many registration attempts. Please try again later." },
+});
+
+// How many recent per-email failures within the lockout window block the account
+const MAX_FAILED_ATTEMPTS = 5;
+const LOCKOUT_WINDOW_MINUTES = 15;
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -49,8 +75,15 @@ function getAccessTokenLifetimeMs(): number {
   return Math.floor(sec * 1000);
 }
 
+/** Minimal contract for login history operations used by this router */
+interface LoginHistoryGateway {
+  getFailedAttemptsByEmail(email: string, withinMinutes: number): Promise<number>;
+  recordLoginAttempt(attempt: { userId: number; email?: string; success: boolean; ipAddress?: string; userAgent?: string; failureReason?: string }): Promise<void>;
+}
+
 type LocalAuthDeps = {
   facade: AuthFacade;
+  loginHistory?: LoginHistoryGateway;
 };
 
 export function createLocalAuthRouter(
@@ -58,9 +91,10 @@ export function createLocalAuthRouter(
     facade: authFacade,
   }
 ) {
+  const history = deps.loginHistory ?? loginHistoryService;
   const router = Router();
 
-  router.post("/api/auth/register", async (req: Request, res: Response) => {
+  router.post("/api/auth/register", registerRateLimiter, async (req: Request, res: Response) => {
     const parsed = registerSchema.safeParse(req.body);
     if (!parsed.success) {
       res
@@ -110,7 +144,7 @@ export function createLocalAuthRouter(
     }
   });
 
-  router.post("/api/auth/login", async (req: Request, res: Response) => {
+  router.post("/api/auth/login", loginRateLimiter, async (req: Request, res: Response) => {
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) {
       res
@@ -123,6 +157,25 @@ export function createLocalAuthRouter(
     const ipAddress = (req.headers["x-forwarded-for"] as string)?.split(",")[0] || req.socket.remoteAddress;
     const userAgent = req.headers["user-agent"];
 
+    // ── Per-email brute-force check ──────────────────────────────────────
+    // Query the login_history table for recent failures. If the DB is down
+    // this call will throw; we catch and allow the request through so a DB
+    // hiccup never locks out legitimate users.
+    try {
+      const recentFailures = await history.getFailedAttemptsByEmail(
+        email,
+        LOCKOUT_WINDOW_MINUTES
+      );
+      if (recentFailures >= MAX_FAILED_ATTEMPTS) {
+        res.status(429).json({
+          error: "Too many failed login attempts. Please try again later or reset your password.",
+        });
+        return;
+      }
+    } catch (err) {
+      logger.warn("[LocalAuth] Could not check failed attempts (DB unavailable), proceeding", { err });
+    }
+
     try {
       const result = await deps.facade.loginWithPassword({
         email,
@@ -131,7 +184,7 @@ export function createLocalAuthRouter(
 
       // Record successful login — fire-and-forget so any DB hiccup never
       // blocks the login response or prevents the session cookie from being set.
-      loginHistoryService.recordLoginAttempt({
+      history.recordLoginAttempt({
         userId: result.userId,
         email,
         success: true,
@@ -156,7 +209,7 @@ export function createLocalAuthRouter(
         try {
           const failedUser = await deps.facade.findUserByEmail(email);
           if (failedUser) {
-            await loginHistoryService.recordLoginAttempt({
+            await history.recordLoginAttempt({
               userId: failedUser.id,
               email,
               success: false,

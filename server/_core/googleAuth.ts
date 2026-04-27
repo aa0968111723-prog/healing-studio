@@ -16,6 +16,7 @@ import { parse as parseCookie } from "cookie";
 import { ENV } from "./env";
 import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import * as db from "../db";
+import { logger } from "./logger";
 
 // ─── Google OAuth 端點 ─────────────────────────────────────────────────────
 
@@ -32,7 +33,7 @@ function getJwtSecret(): Uint8Array {
   const secret = process.env.JWT_SECRET || ENV.cookieSecret;
   if (!secret) {
     if (process.env.NODE_ENV !== "test") {
-      console.warn(
+      logger.warn(
         "[Auth] ⚠️  JWT_SECRET 未設定，使用開發用暫時密鑰。" +
           "請在正式環境設定 JWT_SECRET（openssl rand -base64 32）！"
       );
@@ -81,14 +82,14 @@ export async function verifySessionToken(
 export function buildGoogleAuthUrl(redirectAfter?: string): string {
   const clientId = ENV.googleClientId;
   if (!clientId) {
-    console.error("[GoogleAuth] GOOGLE_CLIENT_ID not configured");
+    logger.error("[GoogleAuth] GOOGLE_CLIENT_ID not configured");
     throw new Error("GOOGLE_CLIENT_ID 未設定");
   }
 
   const redirectUri =
     ENV.googleRedirectUri || "http://localhost:3000/api/oauth/callback";
 
-  console.info("[GoogleAuth] Building Google auth URL", {
+  logger.info("[GoogleAuth] Building Google auth URL", {
     redirectUri,
     redirectAfter: redirectAfter || "/",
     hasClientId: !!clientId,
@@ -131,14 +132,14 @@ export async function exchangeCodeForTokens(
 
   if (!clientId || !clientSecret) {
     const error = new Error("GOOGLE_CLIENT_ID 或 GOOGLE_CLIENT_SECRET 未設定");
-    console.error("[GoogleAuth] Missing OAuth credentials", {
+    logger.error("[GoogleAuth] Missing OAuth credentials", {
       hasClientId: !!clientId,
       hasClientSecret: !!clientSecret,
     });
     throw error;
   }
 
-  console.info("[GoogleAuth] Exchanging code for tokens", {
+  logger.info("[GoogleAuth] Exchanging code for tokens", {
     redirectUri,
     codeLength: code.length,
   });
@@ -157,7 +158,7 @@ export async function exchangeCodeForTokens(
 
   if (!response.ok) {
     const error = await response.text();
-    console.error("[GoogleAuth] Token exchange failed", {
+    logger.error("[GoogleAuth] Token exchange failed", {
       status: response.status,
       statusText: response.statusText,
       error,
@@ -228,7 +229,7 @@ export async function authenticateRequest(req: Request) {
   const cookies = parseCookie(cookieHeader);
   const sessionToken = cookies[COOKIE_NAME];
 
-  console.info("[Auth] Authenticating request", {
+  logger.info("[Auth] Authenticating request", {
     hasCookie: !!cookieHeader,
     hasSessionToken: !!sessionToken,
     isDemoMode: isDemoMode(),
@@ -241,40 +242,40 @@ export async function authenticateRequest(req: Request) {
       try {
         const payload = await verifySessionToken(sessionToken);
         if (payload?.sub === "demo-user-001") {
-          console.info("[Auth] Demo mode: authenticated as demo user");
+          logger.info("[Auth] Demo mode: authenticated as demo user");
           return DEMO_USER as import("../../drizzle/schema").User;
         }
       } catch {
         // fall through
       }
     }
-    console.info("[Auth] Demo mode: no valid session");
+    logger.info("[Auth] Demo mode: no valid session");
     return null;
   }
 
   if (!sessionToken) {
-    console.info("[Auth] No session token found");
+    logger.info("[Auth] No session token found");
     return null;
   }
 
   const payload = await verifySessionToken(sessionToken);
   if (!payload?.sub) {
-    console.warn("[Auth] Invalid session token - no sub in payload");
+    logger.warn("[Auth] Invalid session token - no sub in payload");
     return null;
   }
 
   // 從資料庫取得完整用戶資料
-  console.info("[Auth] Fetching user from database", { openId: payload.sub });
+  logger.info("[Auth] Fetching user from database", { openId: payload.sub });
   const user = await db.getUserByOpenId(payload.sub);
 
   if (user) {
-    console.info("[Auth] User authenticated successfully", {
+    logger.info("[Auth] User authenticated successfully", {
       userId: user.id,
       email: user.email,
       loginMethod: user.loginMethod,
     });
   } else {
-    console.warn("[Auth] User not found in database", { openId: payload.sub });
+    logger.warn("[Auth] User not found in database", { openId: payload.sub });
   }
 
   return user ?? null;
