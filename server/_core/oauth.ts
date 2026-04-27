@@ -148,7 +148,8 @@ export function registerOAuthRoutes(app: Express) {
       const separator = redirectTo.includes("?") ? "&" : "?";
       res.redirect(302, `${redirectTo}${separator}welcome=1`);
     } catch (error) {
-      console.error("[OAuth] Callback failed", error);
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error("[OAuth] Callback failed:", detail);
       redirectWithAuthError(res, "oauth_failed", state);
     }
   });
