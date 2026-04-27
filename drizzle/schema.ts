@@ -44,6 +44,49 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
+// ─── Password Reset Tokens ───────────────────────────────────────────────
+export const passwordResetTokens = mysqlTable(
+  "password_reset_tokens",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    tokenHash: varchar("tokenHash", { length: 128 }).notNull().unique(),
+    expiresAt: timestamp("expiresAt").notNull(),
+    used: boolean("used").default(false).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    userIdIdx: index("prt_userId_idx").on(table.userId),
+    tokenHashIdx: index("prt_tokenHash_idx").on(table.tokenHash),
+    expiresAtIdx: index("prt_expiresAt_idx").on(table.expiresAt),
+  })
+);
+
+export type PasswordResetToken = typeof passwordResetTokens.$inferSelect;
+export type InsertPasswordResetToken = typeof passwordResetTokens.$inferInsert;
+
+// ─── Email Verification Tokens ───────────────────────────────────────────
+export const emailVerificationTokens = mysqlTable(
+  "email_verification_tokens",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    newEmail: varchar("newEmail", { length: 320 }).notNull(),
+    tokenHash: varchar("tokenHash", { length: 128 }).notNull().unique(),
+    expiresAt: timestamp("expiresAt").notNull(),
+    used: boolean("used").default(false).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    userIdIdx: index("evt_userId_idx").on(table.userId),
+    tokenHashIdx: index("evt_tokenHash_idx").on(table.tokenHash),
+    expiresAtIdx: index("evt_expiresAt_idx").on(table.expiresAt),
+  })
+);
+
+export type EmailVerificationToken = typeof emailVerificationTokens.$inferSelect;
+export type InsertEmailVerificationToken = typeof emailVerificationTokens.$inferInsert;
+
 // ─── Background Jobs ─────────────────────────────────────────────────────
 export const backgroundJobs = mysqlTable(
   "background_jobs",
