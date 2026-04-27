@@ -62,7 +62,7 @@ import {
   deleteOrbMemory,
   getRecentOrbMemories,
   recordOrbMemory,
-  searchOrbMemories,
+  searchOrbMemoriesWithRag,
   summarizeOrbMemoriesForPlanner,
 } from "./services/orbMemory";
 import {
@@ -5342,7 +5342,7 @@ export const appRouter = router({
             true
           );
           if (!enabled) return [];
-          return searchOrbMemories({ userId: ctx.user.id, query: input.query, limit: input.limit });
+          return searchOrbMemoriesWithRag({ userId: ctx.user.id, query: input.query, limit: input.limit });
         }),
       clearForUser: brainProcedure
         .mutation(({ ctx }) => {

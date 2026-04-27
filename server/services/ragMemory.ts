@@ -12,6 +12,7 @@
  */
 
 import { serverEnv } from "../_core/env.validated";
+import { OrbMemorySchema, type OrbMemory } from "../../shared/orb-memory";
 
 // ─── Pinecone 設定 ────────────────────────────────────────────────────────
 
@@ -251,4 +252,60 @@ export async function buildMemoryContext(
   });
 
   return `\n\n## 用戶歷史創作偏好（RAG 記憶）\n以下是該用戶過去的創作紀錄，請參考其風格偏好：\n${lines.join("\n")}\n`;
+}
+
+// ─── OrbMemory 適配層（給 orbMemory.searchOrbMemoriesWithRag 使用）──────────
+
+export interface QueryRagMemoryArgs {
+  query: string;
+  userId?: number;
+  limit?: number;
+}
+
+/**
+ * Vector-search adapter that returns Pinecone matches shaped as OrbMemory[],
+ * so the orb planner can transparently merge keyword and RAG hits.
+ *
+ * Returns [] when RAG is unavailable, when userId is missing (vectors are
+ * namespaced per user), or when Pinecone returns no matches.
+ */
+export async function queryRagMemory(args: QueryRagMemoryArgs): Promise<OrbMemory[]> {
+  const query = args.query?.trim();
+  if (!query) return [];
+  if (!args.userId) return [];
+
+  const topK = Math.max(1, Math.min(args.limit ?? 10, 50));
+  const matches = await queryMemories(args.userId, query, topK);
+  if (!matches.length) return [];
+
+  const out: OrbMemory[] = [];
+  for (const m of matches) {
+    const summary = (m.prompt || "RAG memory match").slice(0, 600);
+    const tags = [m.generationType, ...(m.vibeCardIds ? m.vibeCardIds.split(",").filter(Boolean) : [])]
+      .filter((t): t is string => Boolean(t))
+      .slice(0, 20)
+      .map(t => t.slice(0, 64));
+    const confidence = Number.isFinite(m.score) ? Math.max(0, Math.min(1, m.score)) : 0;
+    const createdAt = m.timestamp && Number.isFinite(m.timestamp) ? m.timestamp : Date.now();
+
+    const parsed = OrbMemorySchema.safeParse({
+      memoryId: m.id,
+      userId: args.userId,
+      traceId: m.id,
+      type: "prompt_pattern",
+      summary,
+      source: "rag-pinecone",
+      confidence,
+      tags,
+      createdAt,
+      metadata: {
+        score: m.score,
+        generationType: m.generationType,
+        vibeCardIds: m.vibeCardIds,
+        rating: m.rating,
+      },
+    });
+    if (parsed.success) out.push(parsed.data);
+  }
+  return out;
 }
