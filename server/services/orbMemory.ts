@@ -7,6 +7,7 @@ import {
   sanitizeMemoryText,
   summarizeRecentMemoryForPlanner,
 } from "../../shared/orb-memory";
+import { queryRagMemory } from "./ragMemory";
 
 interface RecordOrbMemoryInput {
   userId?: number;
@@ -118,6 +119,37 @@ export function searchOrbMemories(args: {
       memory.type.toLowerCase().includes(q)
     )
     .slice(0, Math.max(1, Math.min(args.limit ?? 20, 50)));
+}
+
+export async function searchOrbMemoriesWithRag(args: {
+  userId?: number;
+  anonymousSessionId?: string;
+  query: string;
+  limit?: number;
+}): Promise<OrbMemory[]> {
+  const limit = args.limit ?? 10;
+  const keywordResults = searchOrbMemories(args);
+  if (keywordResults.length >= limit) return keywordResults.slice(0, limit);
+
+  let ragResults: OrbMemory[] = [];
+  try {
+    ragResults = await queryRagMemory({
+      query: args.query,
+      userId: args.userId,
+      limit,
+    });
+  } catch (err) {
+    console.warn("[orbMemory] RAG fallback failed (degrading to keyword-only):", err);
+  }
+
+  const seen = new Set(keywordResults.map(m => m.memoryId));
+  const merged = [...keywordResults];
+  for (const r of ragResults) {
+    if (seen.has(r.memoryId)) continue;
+    seen.add(r.memoryId);
+    merged.push(r);
+  }
+  return merged.slice(0, limit);
 }
 
 export function summarizeOrbMemoriesForPlanner(args: {
