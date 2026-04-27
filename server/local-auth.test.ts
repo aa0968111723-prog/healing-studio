@@ -6,6 +6,7 @@ import { createLocalAuthRouter } from "./routes/localAuth";
 const mockFacade = {
   registerWithPassword: vi.fn(),
   loginWithPassword: vi.fn(),
+  findUserByEmail: vi.fn(),
 };
 
 let closeServer: (() => Promise<void>) | null = null;
@@ -13,6 +14,7 @@ let closeServer: (() => Promise<void>) | null = null;
 afterEach(async () => {
   mockFacade.registerWithPassword.mockReset();
   mockFacade.loginWithPassword.mockReset();
+  mockFacade.findUserByEmail.mockReset();
   if (closeServer) {
     await closeServer();
     closeServer = null;
