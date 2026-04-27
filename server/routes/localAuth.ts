@@ -30,7 +30,7 @@ const registerRateLimiter = rateLimit({
   message: { error: "Too many registration attempts. Please try again later." },
 });
 
-// How many consecutive per-email failures block the account temporarily
+// How many recent per-email failures within the lockout window block the account
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_WINDOW_MINUTES = 15;
 
@@ -75,9 +75,15 @@ function getAccessTokenLifetimeMs(): number {
   return Math.floor(sec * 1000);
 }
 
+/** Minimal contract for login history operations used by this router */
+interface LoginHistoryGateway {
+  getFailedAttemptsByEmail(email: string, withinMinutes: number): Promise<number>;
+  recordLoginAttempt(attempt: { userId: number; email?: string; success: boolean; ipAddress?: string; userAgent?: string; failureReason?: string }): Promise<void>;
+}
+
 type LocalAuthDeps = {
   facade: AuthFacade;
-  loginHistory?: Pick<typeof loginHistoryService, "getFailedAttemptsByEmail" | "recordLoginAttempt">;
+  loginHistory?: LoginHistoryGateway;
 };
 
 export function createLocalAuthRouter(

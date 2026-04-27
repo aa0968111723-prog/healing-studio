@@ -66,7 +66,7 @@ export class AuthFacade {
         role: input.role,
       });
       // Use the real insertId so callers receive the correct userId
-      const resolvedId = insertedId || 0;
+      const resolvedId = insertedId ?? 0;
       const token = await this.deps.tokenIssuer(openId, {
         name: input.name || email.split("@")[0],
         email,
