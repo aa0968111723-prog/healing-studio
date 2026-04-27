@@ -146,8 +146,7 @@ const sidebarIconByPageId: Record<string, LucideIcon> = {
 
 const groupIconByName: Record<string, LucideIcon> = {
   專業創作室: Palette,
-  素材與模型: FolderOpen,
-  規劃筆記: StickyNote,
+  資源中心: FolderOpen,
   數據洞察: BarChart3,
 };
 
@@ -188,18 +187,14 @@ sidebarStructure.splice(
   createGroupEntry("專業創作室", ["image-studio", "video-studio", "pro-studio"])
 );
 sidebarStructure.push(
-  createGroupEntry("素材與模型", [
+  createGroupEntry("資源中心", [
     "assets",
-    "history",
     "prompt-library",
-    "shared",
     "models",
     "lora-trainer",
-    "vault",
-    "background-tasks",
+    "notes",
   ])
 );
-sidebarStructure.push(createGroupEntry("規劃筆記", ["notes", "calendar"]));
 sidebarStructure.push(
   createGroupEntry("數據洞察", ["dashboard", "credits", "langsmith"])
 );

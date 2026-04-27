@@ -65,8 +65,10 @@ import {
   CircleDot,
   Milestone,
   Search,
+  Package,
 } from "lucide-react";
 import { GlassCard } from "@/components/ZenCoPilot";
+import { useAssetsDrawer } from "@/contexts/AssetsDrawerContext";
 import {
   Collapsible,
   CollapsibleContent,
@@ -1964,6 +1966,7 @@ export default function DirectorAI() {
 
   // 全站新手引導
   usePageTour("director");
+  const { openDrawer: openAssetsDrawer } = useAssetsDrawer();
   const [, navigate] = useLocation();
   const {
     setAIState,
@@ -2938,6 +2941,16 @@ export default function DirectorAI() {
               {isMobile ? "" : "儲存"}
             </Button>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-xl text-xs gap-1"
+            onClick={() => openAssetsDrawer()}
+            aria-label="開啟素材庫"
+          >
+            <Package className="w-3.5 h-3.5" />
+            {isMobile ? "" : "素材"}
+          </Button>
           <div className="flex items-center gap-2">
             <Switch
               id="save-notes"
