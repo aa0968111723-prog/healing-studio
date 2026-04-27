@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS `ai_usage_events` (
   INDEX `aue_userId_createdAt_idx` (`userId`, `createdAt`),
   INDEX `aue_status_createdAt_idx` (`status`, `createdAt`)
 );
-
+--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS `provider_snapshots` (
   `id` int AUTO_INCREMENT PRIMARY KEY,
   `provider` enum('fal_ai','gemini','elevenlabs','suno') NOT NULL,
@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS `provider_snapshots` (
   `snapshotAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX `ps_provider_snapshotAt_idx` (`provider`, `snapshotAt`)
 );
-
+--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS `cost_aggregations` (
   `id` int AUTO_INCREMENT PRIMARY KEY,
   `provider` enum('fal_ai','gemini','elevenlabs','suno') NOT NULL,
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS `cost_aggregations` (
   INDEX `ca_provider_date_idx` (`provider`, `date`),
   INDEX `ca_date_idx` (`date`)
 );
-
+--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS `rate_limit_rules` (
   `id` int AUTO_INCREMENT PRIMARY KEY,
   `ruleType` enum('per_user','per_api_key','global') NOT NULL,
@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS `rate_limit_rules` (
   `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
-
+--> statement-breakpoint
 CREATE TABLE IF NOT EXISTS `alert_configs` (
   `id` int AUTO_INCREMENT PRIMARY KEY,
   `alertType` enum('budget','quota','anomaly') NOT NULL,
