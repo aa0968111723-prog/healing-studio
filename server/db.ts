@@ -1,6 +1,7 @@
 import { eq, desc, and, sql, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { migrate } from "drizzle-orm/mysql2/migrator";
+import path from "path";
 import {
   InsertUser,
   users,
@@ -73,23 +74,32 @@ let _migrationsDone = false;
  * Uses drizzle-orm/mysql2/migrator which tracks applied migrations in the
  * `__drizzle_migrations` table, so only unapplied entries from the journal
  * are executed. Safe to call on every startup.
+ *
+ * Exported so it can be called eagerly at server startup (before the first
+ * request) rather than only lazily when getDb() happens to be invoked.
  */
-async function runMigrations(db: ReturnType<typeof drizzle>): Promise<void> {
+export async function runMigrations(): Promise<void> {
   if (_migrationsDone) return;
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Skipping migrations: database not available");
+    return;
+  }
   try {
     console.info("[Database] Checking for pending migrations…");
-    await migrate(db, { migrationsFolder: "./drizzle" });
+    // Use an absolute path so the folder resolves correctly regardless of cwd
+    await migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
     _migrationsDone = true;
     console.info("[Database] Migrations applied successfully.");
   } catch (error) {
     console.error("[Database] Migration failed:", error);
-    // Do not set _migrationsDone — allow a retry on the next getDb() call.
+    // Do not set _migrationsDone — allow a retry on the next call.
   }
 }
 
 export async function getDb() {
   if (_db) {
-    if (!_migrationsDone) await runMigrations(_db);
+    if (!_migrationsDone) await runMigrations();
     return _db;
   }
 
@@ -117,7 +127,7 @@ export async function getDb() {
           keepAliveInitialDelay: 30_000,
         },
       });
-      await runMigrations(_db);
+      await runMigrations();
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;

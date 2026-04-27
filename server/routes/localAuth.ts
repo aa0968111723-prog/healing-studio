@@ -129,14 +129,15 @@ export function createLocalAuthRouter(
         password: parsed.data.password,
       });
 
-      // Record successful login
-      await loginHistoryService.recordLoginAttempt({
+      // Record successful login — fire-and-forget so any DB hiccup never
+      // blocks the login response or prevents the session cookie from being set.
+      loginHistoryService.recordLoginAttempt({
         userId: result.userId,
         email,
         success: true,
         ipAddress,
         userAgent,
-      });
+      }).catch(err => logger.error("[LocalAuth] Failed to record login history", { err }));
 
       const cookieOptions = getSessionCookieOptions(req);
       res.cookie(COOKIE_NAME, result.token, {
