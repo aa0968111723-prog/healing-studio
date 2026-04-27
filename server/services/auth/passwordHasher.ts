@@ -116,6 +116,48 @@ const dynamicImport = new Function(
   "return import(specifier);"
 ) as (specifier: string) => Promise<any>;
 
+/**
+ * Detects the algorithm used to hash a password based on its format
+ */
+export function detectHashAlgorithm(hash: string): SupportedAlgorithm | null {
+  if (hash.startsWith("scrypt$")) return "scrypt";
+  if (hash.startsWith("$2a$") || hash.startsWith("$2b$") || hash.startsWith("$2y$")) return "bcrypt";
+  if (hash.startsWith("$argon2")) return "argon2";
+  return null;
+}
+
+/**
+ * Gets a hasher instance for the specified algorithm
+ */
+async function getHasherForAlgorithm(algorithm: SupportedAlgorithm): Promise<PasswordHasher | null> {
+  switch (algorithm) {
+    case "argon2": {
+      return await Argon2PasswordHasher.create();
+    }
+    case "bcrypt": {
+      return await BcryptPasswordHasher.create();
+    }
+    case "scrypt": {
+      return new ScryptPasswordHasher();
+    }
+    default:
+      return null;
+  }
+}
+
+/**
+ * Verifies a password against a hash, automatically detecting the algorithm
+ */
+export async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
+  const detectedAlgorithm = detectHashAlgorithm(storedHash);
+  if (!detectedAlgorithm) return false;
+
+  const hasher = await getHasherForAlgorithm(detectedAlgorithm);
+  if (!hasher) return false;
+
+  return await hasher.verify(password, storedHash);
+}
+
 export async function getPasswordHasher(
   preferred: SupportedAlgorithm = "scrypt"
 ): Promise<PasswordHasher> {

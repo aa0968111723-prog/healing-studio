@@ -1,6 +1,6 @@
 import { ONE_YEAR_MS } from "@shared/const";
 import { ENV } from "../../_core/env";
-import { getPasswordHasher } from "./passwordHasher";
+import { getPasswordHasher, verifyPassword } from "./passwordHasher";
 import { userAuthRepository } from "../../repositories/mysql/UserAuthRepository.mysql";
 import { createSessionToken } from "../../_core/googleAuth";
 import type { UserAuthRepository } from "../../repositories/mysql/UserAuthRepository.mysql";
@@ -92,8 +92,8 @@ export class AuthFacade {
     const user = await this.deps.repo.findByEmail(email);
     if (!user?.passwordHash) throw new Error("INVALID_CREDENTIALS");
 
-    const hasher = await this.deps.hasherFactory(ENV.passwordHashAlgorithm);
-    const ok = await hasher.verify(input.password, user.passwordHash);
+    // Use automatic algorithm detection to support legacy hashes
+    const ok = await verifyPassword(input.password, user.passwordHash);
     if (!ok) throw new Error("INVALID_CREDENTIALS");
 
     const token = await this.deps.tokenIssuer(user.openId, {
@@ -199,14 +199,14 @@ export class AuthFacade {
       throw new Error("INVALID_CREDENTIALS");
     }
 
-    // Verify current password
-    const hasher = await this.deps.hasherFactory(ENV.passwordHashAlgorithm);
-    const isValid = await hasher.verify(input.currentPassword, user.passwordHash);
+    // Verify current password with automatic algorithm detection
+    const isValid = await verifyPassword(input.currentPassword, user.passwordHash);
     if (!isValid) {
       throw new Error("INVALID_CREDENTIALS");
     }
 
     // Hash new password
+    const hasher = await this.deps.hasherFactory(ENV.passwordHashAlgorithm);
     const newPasswordHash = await hasher.hash(input.newPassword);
 
     // Update password
