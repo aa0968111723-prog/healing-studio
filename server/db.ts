@@ -87,6 +87,64 @@ async function runMigrations(db: ReturnType<typeof drizzle>): Promise<void> {
   }
 }
 
+/**
+ * Safety-net fallback: directly checks whether the `emailVerified` and
+ * `emailVerifiedAt` columns exist in the `users` table and, if not, issues
+ * the ALTER TABLE statement to add them.
+ *
+ * This guards against the Drizzle migrator silently failing to apply
+ * migration 0015_add_email_verification_fields (e.g. because the migration
+ * was already recorded in `__drizzle_migrations` from a previous partial run
+ * but the DDL was never actually executed against the database).
+ */
+async function ensureEmailVerificationColumns(
+  db: ReturnType<typeof drizzle>
+): Promise<void> {
+  try {
+    // INFORMATION_SCHEMA is available on all MySQL-compatible databases.
+    // We look for the `emailVerified` column specifically; if it is absent
+    // we can safely assume `emailVerifiedAt` is also missing.
+    const rows = (await db.execute(sql`
+      SELECT COLUMN_NAME
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME   = 'users'
+        AND COLUMN_NAME  = 'emailVerified'
+    `)) as any;
+
+    // Drizzle mysql2 returns [rows, fields] — normalise to a plain array.
+    const resultRows: any[] = Array.isArray(rows?.[0]) ? rows[0] : rows ?? [];
+
+    if (resultRows.length > 0) {
+      // Column already exists — nothing to do.
+      return;
+    }
+
+    console.warn(
+      "[Database] Column 'emailVerified' missing from 'users' table. " +
+        "Applying fallback ALTER TABLE to add email-verification columns…"
+    );
+
+    await db.execute(sql`
+      ALTER TABLE \`users\`
+        ADD COLUMN \`emailVerified\` boolean NOT NULL DEFAULT false,
+        ADD COLUMN \`emailVerifiedAt\` timestamp NULL
+    `);
+
+    console.info(
+      "[Database] Fallback ALTER TABLE applied — 'emailVerified' and " +
+        "'emailVerifiedAt' columns added to 'users' table."
+    );
+  } catch (error) {
+    console.error(
+      "[Database] ensureEmailVerificationColumns failed:",
+      error
+    );
+    // Non-fatal: log and continue. The next query that touches these columns
+    // will surface the real error if the columns are still absent.
+  }
+}
+
 export async function getDb() {
   if (_db) {
     if (!_migrationsDone) await runMigrations(_db);
@@ -118,6 +176,7 @@ export async function getDb() {
         },
       });
       await runMigrations(_db);
+      await ensureEmailVerificationColumns(_db);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
