@@ -119,7 +119,7 @@ const OVERRIDE_TAB_BY_ENGINE: Array<{ prefix: string; tab: TabId }> = [
 // fillPrompt / setParam / submit / reset actions to the currently active tab.
 
 interface VideoAgentCommand {
-  type: "fillPrompt" | "setParam" | "submit" | "reset";
+  type: "fillPrompt" | "setParam" | "submit" | "reset" | "setModel";
   payload?: Record<string, unknown>;
 }
 
@@ -132,6 +132,10 @@ interface VideoAgentBusValue {
   reportState: (tabId: TabId, state: Record<string, unknown>) => void;
   /** Get state reported by active child */
   getChildState: () => Record<string, unknown> | null;
+  /** Store a pending model key for the child tab to consume when it mounts */
+  setPendingModel: (key: string) => void;
+  /** Consume the pending model key (clears it after reading) */
+  consumePendingModel: () => string | null;
 }
 
 const VideoAgentBusContext = createContext<VideoAgentBusValue | null>(null);
@@ -691,11 +695,27 @@ function TextToVideoTab() {
     onError: e => toast.error(e.message),
   });
 
-  // ── Agent Bus subscription: allow parent to fill prompts & set params ──
+  // ── Agent Bus subscription: allow parent to fill prompts, set params & select model ──
+  type T2VModel = "kling" | "wan" | "minimax" | "veo3" | "ltx" | "sora";
+  const [activeT2VModel, setActiveT2VModel] = useState<T2VModel>("kling");
   const runKlingRef = useRef<() => void>(() => {});
+  const runWanRef = useRef<() => void>(() => {});
+  const runMmRef = useRef<() => void>(() => {});
+  const runVeoRef = useRef<() => void>(() => {});
+  const runLtxRef = useRef<() => void>(() => {});
+  const runSoraRef = useRef<() => void>(() => {});
   useEffect(() => {
     if (!bus) return;
+    const pending = bus.consumePendingModel();
+    if (pending && ["kling","wan","minimax","veo3","ltx","sora"].includes(pending)) {
+      setActiveT2VModel(pending as T2VModel);
+    }
     const unsub = bus.subscribe("t2v", (cmd) => {
+      if (cmd.type === "setModel") {
+        const key = cmd.payload?.modelKey as string;
+        if (key) setActiveT2VModel(key as T2VModel);
+        return true;
+      }
       if (cmd.type === "fillPrompt") {
         const text = (cmd.payload?.text as string) ?? "";
         const slot = (cmd.payload?.slot as string) ?? "prompt";
@@ -754,7 +774,11 @@ function TextToVideoTab() {
         }
       }
       if (cmd.type === "submit") {
-        runKlingRef.current();
+        const runFns: Record<T2VModel, () => void> = {
+          kling: runKlingRef.current, wan: runWanRef.current, minimax: runMmRef.current,
+          veo3: runVeoRef.current, ltx: runLtxRef.current, sora: runSoraRef.current,
+        };
+        (runFns[activeT2VModel] ?? runKlingRef.current)();
         return true;
       }
       if (cmd.type === "reset") {
@@ -821,6 +845,7 @@ function TextToVideoTab() {
       setAIState("idle");
     }
   }
+  runWanRef.current = runWan;
 
   async function runMinimax() {
     if (!mmPrompt.trim()) return toast.error("請輸入提詞");
@@ -840,6 +865,7 @@ function TextToVideoTab() {
       setAIState("idle");
     }
   }
+  runMmRef.current = runMinimax;
 
   async function runVeo3() {
     if (!veoPrompt.trim()) return toast.error("請輸入提詞");
@@ -860,6 +886,7 @@ function TextToVideoTab() {
       setAIState("idle");
     }
   }
+  runVeoRef.current = runVeo3;
 
   async function runLtx() {
     if (!ltxPrompt.trim()) return toast.error("請輸入提詞");
@@ -879,6 +906,7 @@ function TextToVideoTab() {
       setAIState("idle");
     }
   }
+  runLtxRef.current = runLtx;
 
   async function runSora() {
     if (!soraPrompt.trim()) return toast.error("請輸入提詞");
@@ -900,6 +928,7 @@ function TextToVideoTab() {
       setAIState("idle");
     }
   }
+  runSoraRef.current = runSora;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
@@ -1449,9 +1478,33 @@ function ImageToVideoTab() {
   });
 
   // ── Agent Bus subscription (i2v) ──
+  type I2VModel = "kling" | "wan" | "runway" | "pixverse" | "minimax";
+  const [activeI2VModel, setActiveI2VModel] = useState<I2VModel>("kling");
+  const runKlingRef = useRef<() => void>(() => {});
+  const runWanRef = useRef<() => void>(() => {});
+  const runRunwayRef = useRef<() => void>(() => {});
+  const runPvRef = useRef<() => void>(() => {});
+  const runMmRef = useRef<() => void>(() => {});
   useEffect(() => {
     if (!bus) return;
+    const pending = bus.consumePendingModel();
+    if (pending && ["kling","wan","runway","pixverse","minimax"].includes(pending)) {
+      setActiveI2VModel(pending as I2VModel);
+    }
     const unsub = bus.subscribe("i2v", (cmd) => {
+      if (cmd.type === "setModel") {
+        const key = cmd.payload?.modelKey as string;
+        if (key) setActiveI2VModel(key as I2VModel);
+        return true;
+      }
+      if (cmd.type === "submit") {
+        const runFns: Record<I2VModel, () => void> = {
+          kling: runKlingRef.current, wan: runWanRef.current, runway: runRunwayRef.current,
+          pixverse: runPvRef.current, minimax: runMmRef.current,
+        };
+        (runFns[activeI2VModel] ?? runKlingRef.current)();
+        return true;
+      }
       if (cmd.type === "fillPrompt") {
         const text = (cmd.payload?.text as string) ?? "";
         setKlingPrompt(text); setWanPrompt(text); setRunwayPrompt(text); setPvPrompt(text); setMmPrompt(text);
@@ -1520,6 +1573,7 @@ function ImageToVideoTab() {
       setAIState("idle");
     }
   }
+  runKlingRef.current = runKling;
 
   async function runWan() {
     if (!wanPrompt.trim() || !wanImage.trim())
@@ -1541,6 +1595,7 @@ function ImageToVideoTab() {
       setAIState("idle");
     }
   }
+  runWanRef.current = runWan;
 
   async function runRunway() {
     if (!runwayPrompt.trim() || !runwayImage.trim())
@@ -1563,6 +1618,7 @@ function ImageToVideoTab() {
       setAIState("idle");
     }
   }
+  runRunwayRef.current = runRunway;
 
   async function runPixverse() {
     if (!pvPrompt.trim() || !pvImage.trim())
@@ -1585,6 +1641,7 @@ function ImageToVideoTab() {
       setAIState("idle");
     }
   }
+  runPvRef.current = runPixverse;
 
   async function runMinimax() {
     if (!mmPrompt.trim() || !mmImage.trim())
@@ -1606,6 +1663,7 @@ function ImageToVideoTab() {
       setAIState("idle");
     }
   }
+  runMmRef.current = runMinimax;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
@@ -2032,9 +2090,30 @@ function VideoToVideoTab() {
   });
 
   // ── Agent Bus subscription (v2v) ──
+  type V2VModel = "wan" | "kling" | "ltx";
+  const [activeV2VModel, setActiveV2VModel] = useState<V2VModel>("wan");
+  const runWanRef = useRef<() => void>(() => {});
+  const runKlingRef = useRef<() => void>(() => {});
+  const runLtxRef = useRef<() => void>(() => {});
   useEffect(() => {
     if (!bus) return;
+    const pending = bus.consumePendingModel();
+    if (pending && ["wan","kling","ltx"].includes(pending)) {
+      setActiveV2VModel(pending as V2VModel);
+    }
     const unsub = bus.subscribe("v2v", (cmd) => {
+      if (cmd.type === "setModel") {
+        const key = cmd.payload?.modelKey as string;
+        if (key) setActiveV2VModel(key as V2VModel);
+        return true;
+      }
+      if (cmd.type === "submit") {
+        const runFns: Record<V2VModel, () => void> = {
+          wan: runWanRef.current, kling: runKlingRef.current, ltx: runLtxRef.current,
+        };
+        (runFns[activeV2VModel] ?? runWanRef.current)();
+        return true;
+      }
       if (cmd.type === "fillPrompt") {
         const text = (cmd.payload?.text as string) ?? "";
         const slot = (cmd.payload?.slot as string) ?? "prompt";
@@ -2100,6 +2179,7 @@ function VideoToVideoTab() {
       setAIState("idle");
     }
   }
+  runWanRef.current = runWan;
 
   async function runKling() {
     if (!klingPrompt.trim() || !klingVideo.trim())
@@ -2121,6 +2201,7 @@ function VideoToVideoTab() {
       setAIState("idle");
     }
   }
+  runKlingRef.current = runKling;
 
   async function runLtx() {
     if (!ltxPrompt.trim() || !ltxImage.trim())
@@ -2142,6 +2223,7 @@ function VideoToVideoTab() {
       setAIState("idle");
     }
   }
+  runLtxRef.current = runLtx;
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
@@ -3154,6 +3236,7 @@ export default function VideoStudio() {
   // ── Video Agent Bus: enables parent agent handler to dispatch to child tabs ──
   const childHandlerRef = useRef<{ tabId: TabId; handler: (cmd: VideoAgentCommand) => boolean } | null>(null);
   const childStateRef = useRef<{ tabId: TabId; state: Record<string, unknown> } | null>(null);
+  const pendingModelKeyRef = useRef<string | null>(null);
 
   const agentBus = useRef<VideoAgentBusValue>({
     subscribe: (tabId, handler) => {
@@ -3170,6 +3253,12 @@ export default function VideoStudio() {
       childStateRef.current = { tabId, state };
     },
     getChildState: () => childStateRef.current?.state ?? null,
+    setPendingModel: (key) => { pendingModelKeyRef.current = key; },
+    consumePendingModel: () => {
+      const k = pendingModelKeyRef.current;
+      pendingModelKeyRef.current = null;
+      return k;
+    },
   }).current;
 
   // ── AI Agent: broadcast page context ──
@@ -3327,10 +3416,22 @@ export default function VideoStudio() {
         case "setModel": {
           const m = VIDEO_MODELS.find(x => x.id === action.modelId);
           if (!m) return { ok: false, reason: `unknown modelId: ${action.modelId}` };
+          const MODEL_KEY_MAP: Record<string, string> = {
+            "kling-t2v": "kling", "wan-t2v": "wan", "minimax-t2v": "minimax",
+            "veo3-t2v": "veo3", "ltx-t2v": "ltx", "sora-t2v": "sora",
+            "kling-i2v": "kling", "wan-i2v": "wan", "runway-i2v": "runway",
+            "pixverse-i2v": "pixverse", "minimax-i2v": "minimax",
+            "wan-v2v": "wan", "kling-v2v": "kling", "ltx-v2v": "ltx",
+          };
+          const modelKey = MODEL_KEY_MAP[m.id];
+          if (modelKey) {
+            const dispatched = agentBus.dispatch({ type: "setModel", payload: { modelKey } });
+            if (!dispatched) agentBus.setPendingModel(modelKey);
+          }
           setActiveTab(m.tab);
           return {
             ok: true,
-            message: `已切到「${TABS.find(t => t.id === m.tab)?.label}」分頁，建議使用 ${m.label}`,
+            message: `已切換到「${m.label}」（${TABS.find(t => t.id === m.tab)?.label}）`,
           };
         }
         case "fillPrompt": {
