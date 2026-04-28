@@ -4,7 +4,6 @@ import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
-import VisualSoul from "@/components/VisualSoul";
 import { toast } from "sonner";
 import {
   Image,
@@ -130,7 +129,7 @@ function StarRating({
 // ─── History Page ──────────────────────────────────────────────────────────
 
 export default function HistoryPage() {
-  const { aiState, setPageContext, personality } = useAIState();
+  const { setPageContext } = useAIState();
 
   // 全站新手引導
   usePageTour("history");
@@ -416,7 +415,6 @@ export default function HistoryPage() {
           hover={false}
           className="flex flex-col items-center justify-center py-16 text-center"
         >
-          <VisualSoul size="md" personality={personality} />
           <p className="hs-small !mb-0 text-muted-foreground mt-4">
             {filter === "bookmarked"
               ? "尚無收藏的生成紀錄"

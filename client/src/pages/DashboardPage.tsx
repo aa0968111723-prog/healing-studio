@@ -10,7 +10,6 @@ import type {
   AgentActionResult,
   AgentCapability,
 } from "../../../shared/agent-actions";
-import VisualSoul from "@/components/VisualSoul";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -164,7 +163,7 @@ export default function DashboardPage() {
     window.history.replaceState(null, "", `?${params.toString()}`);
   };
 
-  const { aiState, setPageContext, personality } = useAIState();
+  const { setPageContext } = useAIState();
 
   useEffect(() => {
     setPageContext({ pageId: "dashboard", pageLabel: "總覽儀表板" });

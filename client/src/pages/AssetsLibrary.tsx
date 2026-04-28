@@ -61,9 +61,7 @@ import {
   Clock,
 } from "lucide-react";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
-import VisualSoul from "@/components/VisualSoul";
 import { motion, AnimatePresence } from "framer-motion";
-import { useAIState } from "@/contexts/AIStateContext";
 import { useIsMobile } from "@/hooks/useMobile";
 import { shortErrorMsg } from "@/lib/upload";
 
@@ -409,7 +407,6 @@ function UploadDialog({
 }
 
 export default function AssetsLibrary() {
-  const { personality } = useAIState();
   const isMobile = useIsMobile();
 
   // 合併大分頁：讀取 URL ?section= 決定初始分頁
@@ -1011,7 +1008,6 @@ export default function AssetsLibrary() {
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <VisualSoul size="lg" personality={personality} />
           <h3 className="hs-h3 !mb-0 mt-6">
             {search || typeFilter !== "all"
               ? "沒有符合條件的資產"
