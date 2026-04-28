@@ -16,7 +16,6 @@ import type {
   AgentActionResult,
   AgentCapability,
 } from "../../../shared/agent-actions";
-import VisualSoul from "@/components/VisualSoul";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
@@ -111,7 +110,7 @@ export default function SharedSpace() {
   usePageTour("shared");
 
   // ── AI Agent Integration ──
-  const { aiState, setPageContext, personality } = useAIState();
+  const { setPageContext } = useAIState();
 
   const [, navigate] = useLocation();
   const isMobile = useIsMobile();
@@ -411,12 +410,6 @@ export default function SharedSpace() {
               探索社群創作、分享你的作品，獲得配額獎勵
             </p>
           </div>
-          <VisualSoul
-            size="sm"
-            state={aiState}
-            personality={personality}
-            className="!w-6 !h-6 shrink-0"
-          />
         </div>
 
         <AssetModelSubpageGuide page="shared" />

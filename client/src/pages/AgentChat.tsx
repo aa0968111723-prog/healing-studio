@@ -19,7 +19,6 @@ import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Send,
-  Sparkles,
   Loader2,
   ArrowRight,
   Navigation2,
@@ -31,6 +30,7 @@ import {
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { usePersonality } from "@/contexts/PersonalityContext";
+import VisualSoul from "@/components/VisualSoul";
 import {
   parseLLMActions,
   usePageAgent,
@@ -339,10 +339,8 @@ export default function AgentChat() {
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ duration: 0.6, ease: "easeOut" }}
-            className="relative w-16 h-16 rounded-full bg-gradient-to-br from-emerald-300 via-sky-300 to-violet-300 shadow-lg flex items-center justify-center"
           >
-            <div className="absolute inset-0 rounded-full bg-white/30 blur-md" />
-            <Sparkles className="relative w-7 h-7 text-white" />
+            <VisualSoul size="lg" personality={personality} />
           </motion.div>
           <h1 className="text-xl sm:text-2xl font-medium text-slate-800 dark:text-slate-100">
             先聊聊看就好 🌿
