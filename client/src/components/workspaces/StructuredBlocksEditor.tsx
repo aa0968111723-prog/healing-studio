@@ -126,11 +126,8 @@ export function StructuredBlocksEditor({
   }, [blocks]);
 
   const visibleCategories = useMemo(() => {
-    if (workspaceMode === "beginner") {
-      return CATEGORIES.filter(c => c.key === "required");
-    }
-    return CATEGORIES;
-  }, [workspaceMode]);
+    return CATEGORIES.filter(c => c.key !== "required");
+  }, []);
 
   function updateBlock(
     blockId: string,

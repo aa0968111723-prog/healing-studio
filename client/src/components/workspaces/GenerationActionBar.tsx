@@ -119,38 +119,6 @@ export function GenerationActionBar({
 
   return (
     <div className="space-y-3">
-      {/* Action mode selector */}
-      <div className="flex gap-1.5 rounded-xl bg-white/5 backdrop-blur-sm p-1">
-        {actionModes.map(
-          ({ mode, label, Icon, activeColor, alwaysEnabled }) => {
-            const enabled = alwaysEnabled || hasResult;
-            const active = actionMode === mode;
-            return (
-              <button
-                key={mode}
-                disabled={!enabled}
-                onClick={() => onActionModeChange(mode)}
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-all",
-                  active
-                    ? cn(activeColor, "shadow-sm")
-                    : "text-white/60 hover:text-white/90 hover:bg-white/10",
-                  !enabled && "opacity-40 cursor-not-allowed"
-                )}
-              >
-                <Icon className="h-3.5 w-3.5" />
-                {label}
-              </button>
-            );
-          }
-        )}
-      </div>
-
-      {/* Description */}
-      <p className="text-[11px] text-white/50 text-center leading-relaxed">
-        {current.description}
-      </p>
-
       {/* Main generate button */}
       <Button
         className={cn(
