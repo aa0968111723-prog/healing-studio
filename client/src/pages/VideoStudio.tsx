@@ -10,7 +10,6 @@ import { useState, useRef, useCallback, useEffect, createContext, useContext, us
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useAIState } from "@/contexts/AIStateContext";
-import VisualSoul from "@/components/VisualSoul";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -3223,12 +3222,10 @@ export default function VideoStudio() {
 
   // ── AI Agent Integration ──
   const {
-    aiState,
     setAIState,
     reportSuccess,
     reportFailure,
     setPageContext,
-    personality,
   } = useAIState();
 
   const [activeTab, setActiveTab] = useState<TabId>("t2v");
@@ -3567,17 +3564,11 @@ export default function VideoStudio() {
         <div className="flex items-center gap-2 shrink-0 mt-1">
           <button
             onClick={() => openAssetsDrawer()}
-            className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-border/40 hover:bg-accent text-muted-foreground text-xs font-medium transition-colors min-h-[36px]"
+            className="hidden flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-border/40 hover:bg-accent text-muted-foreground text-xs font-medium transition-colors min-h-[36px]"
             aria-label="開啟素材庫"
           >
             <Package className="w-3.5 h-3.5" /> 素材
           </button>
-          <VisualSoul
-            size="sm"
-            state={aiState}
-            personality={personality}
-            className="!w-7 !h-7"
-          />
         </div>
       </div>
 

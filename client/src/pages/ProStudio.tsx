@@ -9,7 +9,6 @@ import { useState, useRef, useCallback, useEffect, createContext, useContext, us
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useAIState } from "@/contexts/AIStateContext";
-import VisualSoul from "@/components/VisualSoul";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -3563,7 +3562,7 @@ export default function ProStudio() {
   const { openDrawer: openAssetsDrawer } = useAssetsDrawer();
 
   // ── AI Agent Integration ──
-  const { aiState, setPageContext, personality } = useAIState();
+  const { setPageContext } = useAIState();
 
   const [tab, setTab] = useState("music");
   const apiKeyQuery = trpc.proStudio.checkApiKey.useQuery();
@@ -3853,17 +3852,11 @@ export default function ProStudio() {
         <div className="flex items-center gap-2 shrink-0 mt-1">
           <button
             onClick={() => openAssetsDrawer()}
-            className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-border/40 hover:bg-accent text-muted-foreground text-xs font-medium transition-colors min-h-[36px]"
+            className="hidden flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-border/40 hover:bg-accent text-muted-foreground text-xs font-medium transition-colors min-h-[36px]"
             aria-label="開啟素材庫"
           >
             <Package className="w-3.5 h-3.5" /> 素材
           </button>
-          <VisualSoul
-            size="sm"
-            state={aiState}
-            personality={personality}
-            className="!w-7 !h-7"
-          />
           {hasKey === false && (
             <div className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 shrink-0">
               <AlertCircle className="w-4 h-4" />

@@ -2944,7 +2944,7 @@ export default function DirectorAI() {
           <Button
             variant="outline"
             size="sm"
-            className="rounded-xl text-xs gap-1"
+            className="hidden rounded-xl text-xs gap-1"
             onClick={() => openAssetsDrawer()}
             aria-label="開啟素材庫"
           >
@@ -3347,7 +3347,6 @@ export default function DirectorAI() {
                   <GlassCard hover={false} className="h-full">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="hs-h3 !mb-0 flex items-center gap-2">
-                        <VisualSoul size="sm" personality={personality} />
                         Storyboard
                       </h3>
                       <span className="text-[11px] text-muted-foreground">
@@ -3358,7 +3357,6 @@ export default function DirectorAI() {
                     <ScrollArea className="h-[calc(100vh-480px)]">
                       {scripts.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-16 text-center">
-                          <VisualSoul size="md" personality={personality} />
                           <p className="hs-small !mb-0 text-muted-foreground mt-4">
                             與導演 AI 對話後，腳本會自動出現在這裡
                           </p>
@@ -3391,7 +3389,6 @@ export default function DirectorAI() {
           {isMobile && scripts.length > 0 && (
             <div className="space-y-3">
               <h3 className="hs-h3 !mb-0 flex items-center gap-2">
-                <VisualSoul size="sm" personality={personality} />
                 Storyboard ({scripts.length})
               </h3>
               {scripts.map((script, idx) => (
@@ -3835,7 +3832,6 @@ export default function DirectorAI() {
             /* ── Start / Load Planning Session ── */
             <GlassCard hover={false} className="space-y-6">
               <div className="text-center py-8">
-                <VisualSoul size="md" personality={personality} />
                 <h3 className="hs-h3 mt-4">長腳本規劃模式</h3>
                 <p className="hs-p text-muted-foreground max-w-lg mx-auto">
                   透過五個階段的深度對話，與 AI
