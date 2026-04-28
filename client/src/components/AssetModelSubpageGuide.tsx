@@ -102,7 +102,7 @@ const ASSET_MODEL_SUBPAGES: {
   path: string;
 }[] = [
   { key: "assets", label: "素材中心", path: "/assets" },
-  { key: "history", label: "生成歷史", path: "/history" },
+  { key: "history", label: "生成歷史", path: "/assets?section=history" },
   { key: "prompt-library", label: "提示詞庫", path: "/prompt-library" },
   { key: "shared", label: "共享素材", path: "/shared" },
   { key: "models", label: "角色鍛造所 & 模型訓練", path: "/models" },

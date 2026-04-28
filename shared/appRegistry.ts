@@ -416,7 +416,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     label: "數位資產庫",
     path: "/assets",
     group: "assets",
-    description: "管理圖片、影片與音頻資產",
+    description: "管理圖片、影片與音頻資產，並查看生成歷史",
     aliases: ["assets", "素材", "資產"],
     showInSidebar: true,
     showInAgentHome: true,
