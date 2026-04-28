@@ -934,7 +934,7 @@ function MusicTab() {
     onMutate: () => setAIState("generating"),
     onSuccess: data => {
       setResult(data as AudioResult);
-      registerBgTask(data, "audio", "🎵 音樂生成");
+      registerBgTask(data, "audio", "🎵 音樂生成", prompt);
       const immediate = (data as any)?.audio_url ?? (data as any)?.url;
       if (immediate) toast.success("🎵 音樂生成完成！");
       else toast.success("📤 任務已提交！稍後自動更新結果...");
@@ -1272,7 +1272,7 @@ function SoundEffectsTab() {
     onMutate: () => setAIState("generating"),
     onSuccess: data => {
       setResult(data as AudioResult);
-      registerBgTask(data, "audio", "🔊 音效生成");
+      registerBgTask(data, "audio", "🔊 音效生成", text);
       toast.success("📤 任務已提交！背景生成中，完成後會自動通知你");
       reportSuccess();
     },
@@ -1547,7 +1547,7 @@ function TTSTab() {
     onMutate: () => setAIState("generating"),
     onSuccess: data => {
       setResult(data as AudioResult);
-      registerBgTask(data, "voice", "🎤 ElevenLabs 語音");
+      registerBgTask(data, "voice", "🎤 ElevenLabs 語音", text);
       toast.success("📤 任務已提交！背景生成中，完成後會自動通知你");
       reportSuccess();
     },
@@ -1562,7 +1562,7 @@ function TTSTab() {
     onMutate: () => setAIState("generating"),
     onSuccess: data => {
       setResult(data as AudioResult);
-      registerBgTask(data, "voice", "🎤 Qwen 語音");
+      registerBgTask(data, "voice", "🎤 Qwen 語音", text);
       toast.success("📤 任務已提交！背景生成中，完成後會自動通知你");
       reportSuccess();
     },
@@ -1975,7 +1975,7 @@ function CloneTab() {
     onMutate: () => setAIState("generating"),
     onSuccess: data => {
       setResult(data as AudioResult);
-      registerBgTask(data, "voice", "🎭 Qwen 聲音克隆");
+      registerBgTask(data, "voice", "🎭 Qwen 聲音克隆", text);
       toast.success("📤 任務已提交！背景生成中，完成後會自動通知你");
       reportSuccess();
     },
@@ -1990,7 +1990,7 @@ function CloneTab() {
     onMutate: () => setAIState("generating"),
     onSuccess: data => {
       setResult(data as AudioResult);
-      registerBgTask(data, "voice", "🎭 Dia 聲音克隆");
+      registerBgTask(data, "voice", "🎭 Dia 聲音克隆", text);
       toast.success("📤 任務已提交！背景生成中，完成後會自動通知你");
       reportSuccess();
     },
@@ -2004,7 +2004,7 @@ function CloneTab() {
     onMutate: () => setAIState("generating"),
     onSuccess: data => {
       setResult(data as AudioResult);
-      registerBgTask(data, "voice", "🎨 語音設計");
+      registerBgTask(data, "voice", "🎨 語音設計", voiceDesc);
       toast.success("📤 任務已提交！背景生成中，完成後會自動通知你");
       reportSuccess();
     },
@@ -3186,7 +3186,7 @@ function AvatarVideoTab() {
     onMutate: () => setAIState("generating"),
     onSuccess: d => {
       setJobInfo(d);
-      registerBgTask(d, "video", "🎬 Wan 說話人");
+      registerBgTask(d, "video", "🎬 Wan 說話人", prompt);
       toast.success("🎬 任務已提交！");
       reportSuccess();
     },

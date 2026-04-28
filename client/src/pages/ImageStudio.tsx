@@ -2734,6 +2734,7 @@ export default function ImageStudio() {
   } as const;
 
   const currentMutation = mutations[model.id as keyof typeof mutations] as any;
+  const recordGenResultMut = trpc.generate.recordGenResult.useMutation();
 
   const downloadImage = async (url: string) => {
     try {
@@ -3093,7 +3094,8 @@ export default function ImageStudio() {
       }
 
       result = await currentMutation.mutateAsync(input);
-      registerBgTask(result, "image", `🖼️ ${model.name}`);
+      // For the background task label, use fullPrompt if present (text prompt is most meaningful)
+      registerBgTask(result, "image", `🖼️ ${model.name}`, fullPrompt || undefined);
 
       // 若為非同步任務（只有 request_id），不嘗試提取結果，直接提示並回傳
       const isAsyncResult = !!(
@@ -3186,6 +3188,16 @@ export default function ImageStudio() {
           refImageUrl,
         },
       });
+
+      // 後置動作：儲存提示詞庫 + 數位資產 + 生成歷史 + AI 監控室
+      void recordGenResultMut.mutateAsync({
+        modality: "image",
+        modelId: model.id,
+        prompt: fullPrompt || "",
+        resultUrl: internalImgs[0],
+        label: `🖼️ ${model.name}`,
+        sourceStudio: "image",
+      });
     } catch (err: any) {
       toast.error(`生成失敗：${err?.message ?? "未知錯誤"}`);
       reportFailure();
@@ -3240,6 +3252,7 @@ export default function ImageStudio() {
     setAIState,
     reportSuccess,
     reportFailure,
+    recordGenResultMut,
   ]);
 
   const handleReuseHistory = (item: HistoryItem) => {
