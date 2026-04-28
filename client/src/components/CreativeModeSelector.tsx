@@ -9,12 +9,10 @@ export function loadCreativeMode(): CreativeMode {
   return "standard";
 }
 
-export function saveCreativeMode(mode: CreativeMode) {
-  try {
-    localStorage.setItem(CREATIVE_MODE_KEY, mode);
-  } catch {
-    /* ignore */
-  }
+// saveCreativeMode is intentionally kept for API compatibility but is a no-op
+// since loadCreativeMode always returns "standard" and mode switching is disabled.
+export function saveCreativeMode(_mode: CreativeMode) {
+  // no-op: inspiration and professional modes are hidden; mode is locked to standard
 }
 
 interface CreativeModeSelectorProps {

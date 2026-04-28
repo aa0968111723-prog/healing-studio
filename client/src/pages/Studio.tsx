@@ -2641,7 +2641,7 @@ export default function Studio() {
             </GlassCard>
           )}
 
-          {/* ── Prompt Strength Control — hidden in simple and standard mode ── */}
+          {/* ── Prompt Strength Control — pro mode only (hidden in standard/simple) ── */}
           {isPro && (
             <GlassCard hover={false}>
               <PromptStrengthControl
