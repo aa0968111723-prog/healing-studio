@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
+import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { NotesDrawerProvider } from "./contexts/NotesDrawerContext";
@@ -86,6 +86,12 @@ function PageSkeleton() {
 }
 
 // ─── 路由包裝元件 ─────────────────────────────────────────────────────────
+
+function NavigateRedirect({ to }: { to: string }) {
+  const [, navigate] = useLocation();
+  useEffect(() => { navigate(to, { replace: true }); }, [navigate, to]);
+  return null;
+}
 
 function DashboardRoute({
   component: Component,
@@ -173,7 +179,7 @@ function Router() {
         <DashboardRoute component={NotesPage} />
       </Route>
       <Route path="/calendar">
-        <DashboardRoute component={CalendarPage} />
+        <NavigateRedirect to="/notes" />
       </Route>
       <Route path="/dashboard">
         <DashboardRoute component={DashboardPage} />
@@ -215,7 +221,7 @@ function Router() {
         <DashboardRoute component={TutorialOverviewPage} />
       </Route>
       <Route path="/lora-trainer">
-        <ProtectedDashboardRoute component={LoraTrainer} />
+        <NavigateRedirect to="/models" />
       </Route>
       <Route path="/focus-flow">
         <DashboardRoute component={FocusFlowPage} />

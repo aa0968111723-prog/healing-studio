@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, lazy, Suspense } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import {
   FileText,
   Clapperboard,
   Calendar,
+  CalendarDays,
   Trash2,
   ChevronDown,
   ChevronRight,
@@ -39,6 +40,7 @@ import {
   StickyNote,
   Wand2,
   History,
+  Loader2,
 } from "lucide-react";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import VisualSoul from "@/components/VisualSoul";
@@ -53,6 +55,8 @@ import type {
   AgentActionResult,
   AgentCapability,
 } from "../../../shared/agent-actions";
+
+const CalendarPage = lazy(() => import("./CalendarPage"));
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -101,6 +105,9 @@ export default function NotesPage() {
   const { personality } = useAIState();
   usePageTour("notes");
   const [, navigate] = useLocation();
+
+  // 頁面分頁：專案筆記 | 創作排程
+  const [pageTab, setPageTab] = useState<"notes" | "calendar">("notes");
 
   // ── Create dialog state ──
   const [showCreate, setShowCreate] = useState(false);
@@ -360,6 +367,40 @@ export default function NotesPage() {
 
   return (
     <div className="space-y-6">
+      {/* 頁面切換標籤 */}
+      <div className="flex items-center gap-1 border-b border-border/50 pb-0">
+        <button
+          type="button"
+          onClick={() => setPageTab("notes")}
+          className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors ${
+            pageTab === "notes"
+              ? "bg-primary/10 text-primary border-b-2 border-primary"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <StickyNote className="w-4 h-4" />
+          專案筆記
+        </button>
+        <button
+          type="button"
+          onClick={() => setPageTab("calendar")}
+          className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors ${
+            pageTab === "calendar"
+              ? "bg-primary/10 text-primary border-b-2 border-primary"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <CalendarDays className="w-4 h-4" />
+          創作排程
+        </button>
+      </div>
+
+      {pageTab === "calendar" ? (
+        <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}>
+          <CalendarPage />
+        </Suspense>
+      ) : (
+        <>
       {/* ── Header ── */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -886,6 +927,8 @@ export default function NotesPage() {
               : "點擊「新增筆記」開始記錄，或使用導演 AI 自動生成腳本"}
           </p>
         </div>
+      )}
+        </>
       )}
     </div>
   );

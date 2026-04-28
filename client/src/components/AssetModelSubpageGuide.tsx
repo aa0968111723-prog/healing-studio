@@ -105,8 +105,7 @@ const ASSET_MODEL_SUBPAGES: {
   { key: "history", label: "生成歷史", path: "/history" },
   { key: "prompt-library", label: "提示詞庫", path: "/prompt-library" },
   { key: "shared", label: "共享素材", path: "/shared" },
-  { key: "models", label: "角色鍛造所", path: "/models" },
-  { key: "lora-trainer", label: "模型訓練中心", path: "/lora-trainer" },
+  { key: "models", label: "角色鍛造所 & 模型訓練", path: "/models" },
   { key: "vault", label: "角色保險庫", path: "/vault" },
   { key: "background-tasks", label: "背景任務", path: "/background-tasks" },
 ];
@@ -160,12 +159,13 @@ export function AssetModelSubpageGuide({ page }: { page: SubpageKey }) {
           <div className="flex items-center gap-1.5">
             <Link2 className="w-3.5 h-3.5 text-primary" />
             <p className="text-[11px] font-medium text-foreground/80">
-              素材與模型 8 子分頁
+              素材與模型 7 子分頁
             </p>
           </div>
           <div className="flex flex-wrap gap-1.5">
             {ASSET_MODEL_SUBPAGES.map(item => {
-              const isActive = item.key === page;
+              const effectivePage = page === "lora-trainer" ? "models" : page;
+              const isActive = item.key === effectivePage;
               return (
                 <Link
                   key={item.key}

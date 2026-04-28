@@ -35,8 +35,7 @@ const PLANNING_GUIDE: Record<
 };
 
 const PLANNING_SUBPAGES: { key: PlanningPage; label: string; path: string }[] = [
-  { key: "notes", label: "專案筆記", path: "/notes" },
-  { key: "calendar", label: "創作排程", path: "/calendar" },
+  { key: "notes", label: "專案筆記 & 創作排程", path: "/notes" },
 ];
 
 const PLANNING_HANDOFFS = [
@@ -86,7 +85,7 @@ export function PlanningSubpageGuide({ page }: { page: PlanningPage }) {
           <div className="flex items-center gap-1.5">
             <Link2 className="w-3.5 h-3.5 text-primary" />
             <p className="text-[11px] font-medium text-foreground/80">
-              規劃筆記 2 子頁
+              規劃筆記
             </p>
           </div>
           <div className="flex flex-wrap gap-1.5">

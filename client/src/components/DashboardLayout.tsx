@@ -191,12 +191,10 @@ sidebarStructure.push(
     "assets",
     "prompt-library",
     "models",
-    "lora-trainer",
     "notes",
     "history",
     "shared",
     "vault",
-    "calendar",
     "background-tasks",
   ])
 );
@@ -544,7 +542,6 @@ function DashboardLayoutContent({
       "/assets": "assets",
       "/vault": "vault",
       "/notes": "notes",
-      "/calendar": "calendar",
       "/shared": "shared",
       "/dashboard": "dashboard",
       "/feedback": "feedback",
@@ -577,7 +574,7 @@ function DashboardLayoutContent({
 
   const handleOrbOpenCalendar = useCallback(() => {
     window.dispatchEvent(
-      new CustomEvent("navigate-to", { detail: "/calendar" })
+      new CustomEvent("navigate-to", { detail: "/notes" })
     );
   }, []);
 
