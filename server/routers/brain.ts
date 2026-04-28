@@ -27,6 +27,7 @@ import {
   runAccuracyTest,
   runAllAccuracyTests,
   getSystemSummary,
+  getGenerationLogs,
   ERROR_CATEGORY_LABELS,
 } from "../services/brainAutoRepair";
 import { userAiBrain, userModelSwitchLogs } from "../../drizzle/schema";
@@ -1428,4 +1429,13 @@ export const brainRouter = router({
   runAllAccuracyTests: adminProcedure.mutation(async () => {
     return runAllAccuracyTests();
   }),
+
+  // ─── 6. 生成活動記錄（AI 監控室）───────────────────────────────────────
+
+  /** 取得生成活動記錄（AI 監控室使用） */
+  generationLogs: protectedProcedure
+    .input(
+      z.object({ limit: z.number().min(1).max(200).default(100) }).optional()
+    )
+    .query(({ input }) => getGenerationLogs(input?.limit ?? 100)),
 });

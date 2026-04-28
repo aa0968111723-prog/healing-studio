@@ -47,6 +47,7 @@ interface BackgroundTasksContextValue {
     requestId: string;
     modelId: string;
     label?: string;
+    prompt?: string;
   }) => Promise<number | null>;
   /** 是否展開背景任務面板 */
   drawerOpen: boolean;
@@ -165,6 +166,7 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
       requestId: string;
       modelId: string;
       label?: string;
+      prompt?: string;
     }): Promise<number | null> => {
       try {
         const result = await submitMutation.mutateAsync(params);
@@ -209,12 +211,12 @@ export function useBackgroundTasks() {
 
 /**
  * useRegisterBgTask — 方便各工作室元件快速登錄背景任務。
- * 回傳 register(result, studioType, label)，適用於任何 fal.ai async mutation 結果。
+ * 回傳 register(result, studioType, label, prompt)，適用於任何 fal.ai async mutation 結果。
  */
 export function useRegisterBgTask() {
   const ctx = useContext(BackgroundTasksContext);
   return useCallback(
-    async (result: unknown, studioType: StudioJobType, label?: string) => {
+    async (result: unknown, studioType: StudioJobType, label?: string, prompt?: string) => {
       if (!ctx) return;
       const r = result as Record<string, unknown> | null;
       // 提取 request_id 和 model_id（支援直接和 raw 嵌套格式）
@@ -228,7 +230,7 @@ export function useRegisterBgTask() {
         (r?.model as string) ??
         null;
       if (requestId && modelId) {
-        await ctx.submitTask({ studioType, requestId, modelId, label });
+        await ctx.submitTask({ studioType, requestId, modelId, label, prompt });
       }
     },
     [ctx]

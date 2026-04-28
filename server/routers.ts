@@ -124,7 +124,7 @@ import {
   persistExternalMediaUrl,
 } from "./services/internalMedia";
 import { eq } from "drizzle-orm";
-import { userAiBrain } from "../drizzle/schema";
+import { userAiBrain, promptLibrary } from "../drizzle/schema";
 import { getDb } from "./db";
 import { normalizeEngineModelId } from "../shared/engineModelIds";
 import { selectProvider, type ProviderRouteIntent } from "./services/providerRouter";
@@ -141,6 +141,7 @@ import {
   rememberTaskKey,
 } from "./services/orbIdempotency";
 import { validateAttachmentGuards } from "./services/orbAttachmentGuard";
+import { addGenerationLog } from "./services/brainAutoRepair";
 
 // ─── Dev-only debug logger (no-ops in production) ─────────────────────────
 const isDev = process.env.NODE_ENV !== "production";
@@ -257,6 +258,103 @@ async function storeBase64Media(params: {
   const buffer = Buffer.from(params.base64, "base64");
   const stored = await storagePut(key, buffer, params.mimeType || "application/octet-stream");
   return stored.url;
+}
+
+// ─── Post-Generation Completion Helper ───────────────────────────────────────
+
+/**
+ * doPostGenComplete — 背景任務完成後自動執行的後置動作：
+ *   1-2. 儲存提示詞到提示詞庫（prompt_library）
+ *   1-3. 儲存到數位資產庫（digital_asset_library）+ 生成歷史（generation_history）
+ *   1-4. 記錄到 AI 監控室（brainAutoRepair generationLogs）
+ *
+ * 所有操作為 fire-and-forget，不影響主流程。
+ */
+async function doPostGenComplete(params: {
+  userId: number;
+  modality: "image" | "video" | "audio" | "voice";
+  modelId: string;
+  prompt?: string;
+  resultUrl?: string;
+  label?: string;
+  sourceStudio?: string;
+}): Promise<void> {
+  const { userId, modality, modelId, prompt, resultUrl, label, sourceStudio } = params;
+  const promptText = (prompt ?? "").trim();
+
+  // 1-2. 自動儲存到提示詞庫
+  if (promptText.length >= 4) {
+    try {
+      const dbConn = await getDb();
+      if (dbConn) {
+        await dbConn.insert(promptLibrary).values({
+          userId,
+          title: promptText.slice(0, 80) || `${label ?? modality}提示詞`,
+          content: promptText,
+          category: modality as "image" | "video" | "audio" | "voice",
+          tags: [],
+          isPublic: false,
+          modelHint: modelId.slice(0, 128),
+          language: "zh",
+        });
+      }
+    } catch {
+      // 靜默忽略（可能是重複等原因）
+    }
+  }
+
+  // 1-3a. 自動儲存到數位資產庫
+  if (resultUrl) {
+    try {
+      const assetType = (["image", "video", "audio", "voice"] as const).includes(
+        modality as any
+      )
+        ? (modality as "image" | "video" | "audio" | "voice")
+        : "image";
+      await db.createDigitalAsset({
+        userId,
+        title: label ?? `AI 生成 ${modality}`,
+        description: promptText ? promptText.slice(0, 500) : undefined,
+        assetType,
+        fileUrl: resultUrl,
+        fileKey: resultUrl,
+        promptUsed: promptText || undefined,
+      });
+    } catch {
+      // 靜默忽略
+    }
+  }
+
+  // 1-3b. 自動儲存到生成歷史
+  if (resultUrl) {
+    try {
+      await db.createHistoryEntry({
+        userId,
+        modality,
+        prompt: promptText || undefined,
+        compiledPrompt: promptText || undefined,
+        resultUrl,
+        costCredits: 1,
+      });
+    } catch {
+      // 靜默忽略
+    }
+  }
+
+  // 1-4. 記錄到 AI 監控室
+  try {
+    addGenerationLog({
+      userId,
+      modality,
+      modelId: modelId.slice(0, 200),
+      promptSnippet: promptText.slice(0, 200),
+      resultUrl,
+      success: !!resultUrl,
+      sourceStudio: sourceStudio ?? "unknown",
+    });
+  } catch {
+    // 靜默忽略
+  }
 }
 
 // ─── Safety Moderation Middleware ────────────────────────────────────────────
@@ -2104,6 +2202,7 @@ export const appRouter = router({
             studioType: input.generationType,
             label,
             modelId,
+            prompt: (input.generationType === "voice" ? input.voiceText : input.prompt) ?? "",
           },
         });
 
@@ -2194,6 +2293,7 @@ export const appRouter = router({
             }
 
             const requestId = `gemini-sync-${jobId}-${Date.now()}`;
+            const promptForJob = (input.generationType === "voice" ? input.voiceText : input.prompt) ?? "";
             await db.updateBackgroundJob(jobId, {
               status: "completed",
               progress: 100,
@@ -2204,7 +2304,19 @@ export const appRouter = router({
                 modelId,
                 requestId,
                 resultUrl,
+                prompt: promptForJob,
               } as any,
+            });
+
+            // 後置動作：儲存提示詞庫 + 數位資產 + 生成歷史 + AI 監控室
+            void doPostGenComplete({
+              userId,
+              modality: input.generationType,
+              modelId,
+              prompt: promptForJob,
+              resultUrl,
+              label,
+              sourceStudio: "creative",
             });
 
             return {
@@ -2225,6 +2337,7 @@ export const appRouter = router({
               label,
               modelId,
               requestId: request_id,
+              prompt: (input.generationType === "voice" ? input.voiceText : input.prompt) ?? "",
             } as any,
           });
 
@@ -2262,6 +2375,7 @@ export const appRouter = router({
           requestId: z.string().min(1),
           modelId: z.string().min(1),
           label: z.string().max(200).optional(),
+          prompt: z.string().max(2000).optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -2276,6 +2390,7 @@ export const appRouter = router({
             modelId: input.modelId,
             studioType: input.studioType,
             label: input.label,
+            prompt: input.prompt ?? "",
           },
         });
         return { jobId };
@@ -2390,6 +2505,18 @@ export const appRouter = router({
               progressMessage: "生成完成",
               resultJson: { ...meta, resultUrl, result: localizedResult },
             });
+
+            // 後置動作：儲存提示詞庫 + 數位資產 + 生成歷史 + AI 監控室
+            void doPostGenComplete({
+              userId: ctx.user.id,
+              modality: (meta?.studioType as "image" | "video" | "audio" | "voice") ?? job.jobType as any,
+              modelId: (meta?.modelId as string) ?? modelId,
+              prompt: (meta?.prompt as string) ?? undefined,
+              resultUrl: resultUrl ?? undefined,
+              label: (meta?.label as string) ?? undefined,
+              sourceStudio: "pro",
+            });
+
             return {
               ...job,
               status: "completed" as const,
@@ -2497,6 +2624,37 @@ export const appRouter = router({
             .then(r => r[0]),
         ]);
         return { items, total: Number(countRow?.count ?? 0) };
+      }),
+
+    /**
+     * recordGenResult — 記錄同步生成結果（無背景任務的情況）。
+     * 供 ImageStudio 等直接回傳同步結果的頁面呼叫，執行：
+     *   1-2. 儲存提示詞到提示詞庫
+     *   1-3. 儲存到數位資產庫 + 生成歷史
+     *   1-4. 記錄到 AI 監控室
+     */
+    recordGenResult: protectedProcedure
+      .input(
+        z.object({
+          modality: z.enum(["image", "video", "audio", "voice"]),
+          modelId: z.string().max(200),
+          prompt: z.string().max(2000).optional(),
+          resultUrl: z.string().url().optional(),
+          label: z.string().max(200).optional(),
+          sourceStudio: z.string().max(50).optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        await doPostGenComplete({
+          userId: ctx.user.id,
+          modality: input.modality,
+          modelId: input.modelId,
+          prompt: input.prompt,
+          resultUrl: input.resultUrl,
+          label: input.label,
+          sourceStudio: input.sourceStudio ?? "image",
+        });
+        return { success: true };
       }),
   }),
 

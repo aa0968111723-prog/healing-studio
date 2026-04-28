@@ -815,7 +815,7 @@ function TextToVideoTab() {
         cfgScale: klingCfg,
       });
       setKlingResult(r);
-      registerBgTask(r, "video", "Kling 文生影");
+      registerBgTask(r, "video", "Kling 文生影", klingPrompt);
       toast.success("📤 任務已提交！稍後自動更新結果...");
       reportSuccess();
     } catch {
@@ -837,7 +837,7 @@ function TextToVideoTab() {
         numFrames: wanFrames,
       });
       setWanResult(r);
-      registerBgTask(r, "video", "Wan 文生影");
+      registerBgTask(r, "video", "Wan 文生影", wanPrompt);
       toast.success("📤 任務已提交！稍後自動更新結果...");
       reportSuccess();
     } catch {
@@ -857,7 +857,7 @@ function TextToVideoTab() {
         promptOptimizer: mmOptimize,
       });
       setMmResult(r);
-      registerBgTask(r, "video", "MiniMax 文生影");
+      registerBgTask(r, "video", "MiniMax 文生影", mmPrompt);
       toast.success("📤 任務已提交！稍後自動更新結果...");
       reportSuccess();
     } catch {
@@ -878,7 +878,7 @@ function TextToVideoTab() {
         generateAudio: veoAudio,
       });
       setVeoResult(r);
-      registerBgTask(r, "video", "Veo 3 文生影");
+      registerBgTask(r, "video", "Veo 3 文生影", veoPrompt);
       toast.success("📤 任務已提交！稍後自動更新結果...");
       reportSuccess();
     } catch {
@@ -898,7 +898,7 @@ function TextToVideoTab() {
         negativePrompt: ltxNeg || undefined,
       });
       setLtxResult(r);
-      registerBgTask(r, "video", "LTX 文生影");
+      registerBgTask(r, "video", "LTX 文生影", ltxPrompt);
       toast.success("📤 任務已提交！稍後自動更新結果...");
       reportSuccess();
     } catch {
@@ -920,7 +920,7 @@ function TextToVideoTab() {
         aspectRatio: soraAspect,
       });
       setSoraResult(r);
-      registerBgTask(r, "video", "Sora 文生影");
+      registerBgTask(r, "video", "Sora 文生影", soraPrompt);
       toast.success("📤 任務已提交！稍後自動更新結果...");
       reportSuccess();
     } catch {
@@ -1565,7 +1565,7 @@ function ImageToVideoTab() {
         duration: klingDuration,
       });
       setKlingResult(r);
-      registerBgTask(r, "video", "Kling 圖生影");
+      registerBgTask(r, "video", "Kling 圖生影", klingPrompt);
       toast.success("📤 任務已提交！稍後自動更新結果...");
       reportSuccess();
     } catch {
@@ -1587,7 +1587,7 @@ function ImageToVideoTab() {
         resolution: wanRes,
       });
       setWanResult(r);
-      registerBgTask(r, "video", "Wan 圖生影");
+      registerBgTask(r, "video", "Wan 圖生影", wanPrompt);
       toast.success("📤 任務已提交！稍後自動更新結果...");
       reportSuccess();
     } catch {
@@ -1610,7 +1610,7 @@ function ImageToVideoTab() {
         ratio: runwayRatio as any,
       });
       setRunwayResult(r);
-      registerBgTask(r, "video", "Runway 圖生影");
+      registerBgTask(r, "video", "Runway 圖生影", runwayPrompt);
       toast.success("📤 任務已提交！稍後自動更新結果...");
       reportSuccess();
     } catch {
@@ -1633,7 +1633,7 @@ function ImageToVideoTab() {
         quality: pvQuality,
       });
       setPvResult(r);
-      registerBgTask(r, "video", "Pixverse 圖生影");
+      registerBgTask(r, "video", "Pixverse 圖生影", pvPrompt);
       toast.success("📤 任務已提交！稍後自動更新結果...");
       reportSuccess();
     } catch {
@@ -1655,7 +1655,7 @@ function ImageToVideoTab() {
         promptOptimizer: mmOptimize,
       });
       setMmResult(r);
-      registerBgTask(r, "video", "MiniMax 圖生影");
+      registerBgTask(r, "video", "MiniMax 圖生影", mmPrompt);
       toast.success("📤 任務已提交！稍後自動更新結果...");
       reportSuccess();
     } catch {
@@ -2171,7 +2171,7 @@ function VideoToVideoTab() {
         strength: wanStrength,
       });
       setWanResult(r);
-      registerBgTask(r, "video", "Wan 影生影");
+      registerBgTask(r, "video", "Wan 影生影", wanPrompt);
       toast.success("📤 任務已提交！稍後自動更新結果...");
       reportSuccess();
     } catch {
@@ -2193,7 +2193,7 @@ function VideoToVideoTab() {
         cfgScale: klingCfg,
       });
       setKlingResult(r);
-      registerBgTask(r, "video", "Kling 影生影");
+      registerBgTask(r, "video", "Kling 影生影", klingPrompt);
       toast.success("📤 任務已提交！稍後自動更新結果...");
       reportSuccess();
     } catch {
@@ -2215,7 +2215,7 @@ function VideoToVideoTab() {
         negativePrompt: ltxNeg || undefined,
       });
       setLtxResult(r);
-      registerBgTask(r, "video", "LTX 影生影");
+      registerBgTask(r, "video", "LTX 影生影", ltxPrompt);
       toast.success("📤 任務已提交！稍後自動更新結果...");
       reportSuccess();
     } catch {
@@ -2795,7 +2795,7 @@ function AdvancedControlTab() {
         duration: camDuration,
       });
       setCamResult(r);
-      registerBgTask(r, "video", "CamMaster 鏡頭控制");
+      registerBgTask(r, "video", "CamMaster 鏡頭控制", camPrompt);
       toast.success("📤 任務已提交！稍後自動更新結果...");
       reportSuccess();
     } catch {
@@ -2818,7 +2818,7 @@ function AdvancedControlTab() {
         negativePrompt: adNeg || undefined,
       });
       setAdResult(r);
-      registerBgTask(r, "video", "AnimateDiff 風格化");
+      registerBgTask(r, "video", "AnimateDiff 風格化", adPrompt);
       toast.success("📤 任務已提交！稍後自動更新結果...");
       reportSuccess();
     } catch {
@@ -2856,7 +2856,7 @@ function AdvancedControlTab() {
         duration: viduDuration,
       });
       setViduResult(r);
-      registerBgTask(r, "video", "Vidu 參考圖生影");
+      registerBgTask(r, "video", "Vidu 參考圖生影", viduPrompt);
       toast.success("📤 任務已提交！稍後自動更新結果...");
       reportSuccess();
     } catch {

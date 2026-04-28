@@ -2031,3 +2031,43 @@ export function getSystemSummary(): {
         : null,
   };
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 6. 生成活動記錄 — AI 監控室：記錄每次生成任務的完成事件
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** 生成活動記錄 */
+export interface GenerationLog {
+  id: string;
+  userId: number;
+  modality: "image" | "video" | "audio" | "voice";
+  modelId: string;
+  promptSnippet: string;
+  resultUrl?: string;
+  success: boolean;
+  sourceStudio: string;
+  createdAt: number;
+}
+
+const generationLogs: GenerationLog[] = [];
+const MAX_GEN_LOGS = 200;
+
+/** 新增一筆生成活動記錄 */
+export function addGenerationLog(
+  log: Omit<GenerationLog, "id" | "createdAt">
+): GenerationLog {
+  const full: GenerationLog = {
+    ...log,
+    id: genId("gen"),
+    createdAt: Date.now(),
+  };
+  generationLogs.unshift(full);
+  if (generationLogs.length > MAX_GEN_LOGS)
+    generationLogs.length = MAX_GEN_LOGS;
+  return full;
+}
+
+/** 取得生成活動記錄 */
+export function getGenerationLogs(limit = 100): GenerationLog[] {
+  return generationLogs.slice(0, limit);
+}
