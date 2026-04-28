@@ -10,7 +10,6 @@ import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useAIState } from "@/contexts/AIStateContext";
-import VisualSoul from "@/components/VisualSoul";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -2465,12 +2464,10 @@ export default function ImageStudio() {
 
   // ── AI Agent Integration ──
   const {
-    aiState,
     setAIState,
     reportSuccess,
     reportFailure,
     setPageContext,
-    personality,
   } = useAIState();
 
   // ── Tab / Model ──
@@ -3619,12 +3616,6 @@ export default function ImageStudio() {
           </div>
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          <VisualSoul
-            size="sm"
-            state={aiState}
-            personality={personality}
-            className="!w-7 !h-7"
-          />
           <button
             onClick={() =>
               setViewMode(v => (v === "single" ? "grid" : "single"))
@@ -3641,7 +3632,7 @@ export default function ImageStudio() {
           </button>
           <button
             onClick={() => setShowHistory(!showHistory)}
-            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-2.5 rounded-xl border text-xs font-medium transition-all min-h-[44px] ${
+            className={`hidden flex items-center gap-1.5 px-2.5 sm:px-3 py-2.5 rounded-xl border text-xs font-medium transition-all min-h-[44px] ${
               showHistory
                 ? "bg-primary text-primary-foreground border-primary"
                 : "border-border/40 hover:bg-accent active:bg-accent/70 text-muted-foreground"
@@ -3653,7 +3644,7 @@ export default function ImageStudio() {
           </button>
           <button
             onClick={() => openAssetsDrawer()}
-            className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2.5 rounded-xl border border-border/40 hover:bg-accent active:bg-accent/70 text-muted-foreground text-xs font-medium transition-all min-h-[44px]"
+            className="hidden flex items-center gap-1.5 px-2.5 sm:px-3 py-2.5 rounded-xl border border-border/40 hover:bg-accent active:bg-accent/70 text-muted-foreground text-xs font-medium transition-all min-h-[44px]"
             aria-label="開啟素材庫"
           >
             <Package className="w-3.5 h-3.5" /> 素材
@@ -4488,7 +4479,7 @@ export default function ImageStudio() {
 
           {/* History Sidebar */}
           <AnimatePresence>
-            {showHistory && (
+            {false && showHistory && (
               <motion.div
                 initial={{ width: 0, opacity: 0 }}
                 animate={{ width: 260, opacity: 1 }}
