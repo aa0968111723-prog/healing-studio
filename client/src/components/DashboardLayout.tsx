@@ -44,6 +44,7 @@ import {
   StickyNote,
   CalendarDays,
   Image,
+  Clock,
   Package,
   Layers,
   MessageSquare,
@@ -57,7 +58,6 @@ import {
   ListChecks,
   Coins,
   Monitor,
-  Brain,
   Music,
   GripVertical,
   Bot,
@@ -126,6 +126,7 @@ const sidebarIconByPageId: Record<string, LucideIcon> = {
   "pro-studio": Music,
   director: Clapperboard,
   assets: Package,
+  history: Clock,
   "prompt-library": BookMarked,
   shared: Users,
   models: Cpu,
@@ -187,18 +188,17 @@ sidebarStructure.splice(
 sidebarStructure.push(
   createGroupEntry("資源中心", [
     "assets",
-    "prompt-library",
     "models",
+    "lora-trainer",
     "notes",
-    "shared",
-    "vault",
-    "background-tasks",
+    "history",
+    "calendar",
   ])
 );
 sidebarStructure.push(
-  createGroupEntry("數據洞察", ["dashboard", "credits", "langsmith"])
+  createGroupEntry("數據洞察", ["dashboard"])
 );
-for (const tailId of ["learn", "feedback", "settings"]) {
+for (const tailId of ["learn", "settings"]) {
   const page = sidebarPagesById.get(tailId);
   if (page) {
     sidebarStructure.push(toLeafItem(page));
@@ -211,7 +211,6 @@ const flatMenuItems: SidebarLeafItem[] = sidebarStructure.flatMap(entry =>
 
 const adminItems = [
   { icon: Shield, label: "管理後台", path: "/admin" },
-  { icon: Brain, label: "大腦組態", path: "/settings/ai-brain" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
@@ -535,9 +534,11 @@ function DashboardLayoutContent({
       "/video-studio": "video-studio",
       "/director": "director",
       "/models": "models",
+      "/history": "history",
       "/assets": "assets",
       "/vault": "vault",
       "/notes": "notes",
+      "/calendar": "calendar",
       "/shared": "shared",
       "/dashboard": "dashboard",
       "/feedback": "feedback",
@@ -546,7 +547,6 @@ function DashboardLayoutContent({
       "/learn": "learn",
       "/learn/tutorial-overview": "learn",
       "/focus-flow": "focus-flow",
-      "/langsmith": "langsmith",
       "/background-tasks": "background-tasks",
     };
     const pageId = pathToPageId[location] ?? "welcome";
@@ -729,7 +729,7 @@ function DashboardLayoutContent({
             {!isCollapsed && <BackgroundTasksDrawer />}
             {!isCollapsed && (
               <Link
-                href="/credits"
+                href="/dashboard?section=credits"
                 className="block cursor-pointer group"
                 aria-label="查看積分說明"
               >

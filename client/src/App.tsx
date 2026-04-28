@@ -35,13 +35,10 @@ const Studio = lazy(() => import("./pages/Studio"));
 const DirectorAI = lazy(() => import("./pages/DirectorAI"));
 const AssetsLibrary = lazy(() => import("./pages/AssetsLibrary"));
 const ModelsPage = lazy(() => import("./pages/ModelsPage"));
-const VaultPage = lazy(() => import("./pages/VaultPage"));
-const SharedSpace = lazy(() => import("./pages/SharedSpace"));
 const NotesPage = lazy(() => import("./pages/NotesPage"));
 const CalendarPage = lazy(() => import("./pages/CalendarPage"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const FeedbackPage = lazy(() => import("./pages/FeedbackPage"));
-const AiBrainSettings = lazy(() => import("./pages/AiBrainSettings"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
 const ProStudio = lazy(() => import("./pages/ProStudio"));
@@ -51,10 +48,6 @@ const LearnHub = lazy(() => import("./pages/LearnHub"));
 const TutorialOverviewPage = lazy(() => import("./pages/TutorialOverviewPage"));
 const LoraTrainer = lazy(() => import("./pages/LoraTrainer"));
 const FocusFlowPage = lazy(() => import("./pages/FocusFlowPage"));
-const LangSmithPage = lazy(() => import("./pages/LangSmithPage"));
-const BackgroundTasksPage = lazy(() => import("./pages/BackgroundTasksPage"));
-const CreditsInfoPage = lazy(() => import("./pages/CreditsInfoPage"));
-const PromptLibraryPage = lazy(() => import("./pages/PromptLibraryPage"));
 const AgentChat = lazy(() => import("./pages/AgentChat"));
 const AdminApiUsagePage = lazy(() => import("./pages/AdminApiUsagePage"));
 const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"));
@@ -152,6 +145,24 @@ function OAuthErrorToast() {
   return null;
 }
 
+// Redirect old standalone routes into the unified digital-asset page (/assets?section=...)
+function AssetsRedirect({ section }: { section: string }) {
+  const [, navigate] = useLocation();
+  useEffect(() => {
+    navigate(`/assets?section=${section}`, { replace: true });
+  }, [navigate, section]);
+  return null;
+}
+
+// Redirect /settings/ai-brain to /admin (大腦組態 is now a tab inside 管理後台)
+function AdminRedirect() {
+  const [, navigate] = useLocation();
+  useEffect(() => {
+    navigate("/admin", { replace: true });
+  }, [navigate]);
+  return null;
+}
+
 function Router() {
   return (
     <Switch>
@@ -169,10 +180,10 @@ function Router() {
         <DashboardRoute component={ModelsPage} />
       </Route>
       <Route path="/vault">
-        <DashboardRoute component={VaultPage} />
+        <AssetsRedirect section="vault" />
       </Route>
       <Route path="/shared">
-        <DashboardRoute component={SharedSpace} />
+        <AssetsRedirect section="shared" />
       </Route>
       <Route path="/notes">
         <DashboardRoute component={NotesPage} />
@@ -187,7 +198,7 @@ function Router() {
         <DashboardRoute component={FeedbackPage} />
       </Route>
       <Route path="/settings/ai-brain">
-        <ProtectedDashboardRoute component={AiBrainSettings} />
+        <AdminRedirect />
       </Route>
       <Route path="/settings">
         <DashboardRoute component={SettingsPage} />
@@ -226,16 +237,16 @@ function Router() {
         <DashboardRoute component={FocusFlowPage} />
       </Route>
       <Route path="/langsmith">
-        <DashboardRoute component={LangSmithPage} />
+        <NavigateRedirect to="/dashboard?section=langsmith" />
       </Route>
       <Route path="/background-tasks">
-        <ProtectedDashboardRoute component={BackgroundTasksPage} />
+        <AssetsRedirect section="tasks" />
       </Route>
       <Route path="/credits">
-        <DashboardRoute component={CreditsInfoPage} />
+        <NavigateRedirect to="/dashboard?section=credits" />
       </Route>
       <Route path="/prompt-library">
-        <DashboardRoute component={PromptLibraryPage} />
+        <AssetsRedirect section="prompts" />
       </Route>
       <Route path="/agent">
         <DashboardRoute component={AgentChat} />

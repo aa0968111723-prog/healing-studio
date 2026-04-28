@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -12,10 +12,10 @@ import type {
 } from "../../../shared/agent-actions";
 import VisualSoul from "@/components/VisualSoul";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   BarChart3,
   Zap,
-  DollarSign,
   Clock,
   TrendingUp,
   LayoutDashboard,
@@ -24,14 +24,14 @@ import {
   Music,
   Mic,
   Activity,
+  Coins,
+  Monitor,
 } from "lucide-react";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import { motion } from "framer-motion";
 import {
   BarChart,
   Bar,
-  LineChart,
-  Line,
   PieChart,
   Pie,
   Cell,
@@ -40,8 +40,41 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from "recharts";
+
+const CreditsInfoPage = lazy(() => import("./CreditsInfoPage"));
+const LangSmithPage = lazy(() => import("./LangSmithPage"));
+
+// ─── Section Tabs ────────────────────────────────────────────────────────────
+type SectionId = "dashboard" | "credits" | "langsmith";
+
+const SECTION_TABS: { id: SectionId; label: string; icon: React.ReactNode }[] = [
+  { id: "dashboard", label: "使用統計", icon: <LayoutDashboard className="w-3.5 h-3.5" /> },
+  { id: "credits", label: "積分帳戶", icon: <Coins className="w-3.5 h-3.5" /> },
+  { id: "langsmith", label: "LangSmith", icon: <Monitor className="w-3.5 h-3.5" /> },
+];
+
+function SubPageSkeleton() {
+  return (
+    <div className="space-y-4 animate-in fade-in duration-300">
+      <Skeleton className="h-8 w-48 rounded-lg" />
+      <Skeleton className="h-4 w-72 rounded" />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+        <Skeleton className="h-40 rounded-2xl" />
+        <Skeleton className="h-40 rounded-2xl" />
+        <Skeleton className="h-40 rounded-2xl" />
+      </div>
+    </div>
+  );
+}
+
+function getInitialSection(): SectionId {
+  const params = new URLSearchParams(window.location.search);
+  const s = params.get("section");
+  const valid = SECTION_TABS.map(t => t.id);
+  if (s && valid.includes(s as SectionId)) return s as SectionId;
+  return "dashboard";
+}
 
 // ─── Label maps ─────────────────────────────────────────────────────────────
 
@@ -117,6 +150,16 @@ export default function DashboardPage() {
 
   // 全站新手引導
   usePageTour("dashboard");
+
+  // ─── 大分頁（數據洞察合併） ──────────────────────────────────────────────
+  const [section, setSection] = useState<SectionId>(getInitialSection);
+
+  const handleSectionChange = (id: SectionId) => {
+    setSection(id);
+    const params = new URLSearchParams(window.location.search);
+    params.set("section", id);
+    window.history.replaceState(null, "", `?${params.toString()}`);
+  };
 
   const { aiState, setPageContext, personality } = useAIState();
 
@@ -201,9 +244,9 @@ export default function DashboardPage() {
   const statCards = [
     {
       icon: Zap,
-      label: "剩餘配額",
+      label: "剩餘積分",
       value: stats?.remainingGenerations ?? user?.remainingGenerations ?? 0,
-      unit: "次生成",
+      unit: "點積分",
       color: "bg-zen-lavender/20",
       textColor: "text-violet-600",
     },
@@ -211,25 +254,26 @@ export default function DashboardPage() {
       icon: BarChart3,
       label: "總請求數",
       value: stats?.totalRequests ?? 0,
-      unit: "次 API 呼叫",
+      unit: "次生成",
       color: "bg-zen-sky/20",
       textColor: "text-blue-600",
     },
     {
-      icon: DollarSign,
-      label: "預估成本",
-      value: `$${stats?.totalCost?.toFixed(3) ?? "0.000"}`,
-      unit: "USD",
+      icon: Coins,
+      label: "已消耗積分",
+      value: stats?.totalRequests ?? 0,
+      unit: "點積分",
       color: "bg-zen-peach/20",
       textColor: "text-orange-600",
     },
     {
       icon: TrendingUp,
-      label: "效率指標",
-      value: stats?.totalRequests
-        ? `$${(stats.totalCost / stats.totalRequests).toFixed(4)}`
-        : "$0.0000",
-      unit: "USD / 次",
+      label: "今日請求",
+      value: (() => {
+        const today = new Date().toISOString().slice(0, 10);
+        return stats?.dailyTrend?.find(r => r.date === today)?.count ?? 0;
+      })(),
+      unit: "次 / 今日",
       color: "bg-zen-sage/20",
       textColor: "text-emerald-600",
     },
@@ -263,6 +307,26 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* ─── 大分頁標籤列 ─────────────────────────────────────────────────── */}
+      <div className="flex gap-0.5 border-b overflow-x-auto pb-0 -mb-2">
+        {SECTION_TABS.map(st => (
+          <button
+            key={st.id}
+            onClick={() => handleSectionChange(st.id)}
+            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 whitespace-nowrap transition-colors ${
+              section === st.id
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {st.icon}
+            {st.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ─── 使用統計（主內容） ────────────────────────────────────────────── */}
+      {section === "dashboard" && (<>
       {/* Header */}
       <div className="flex items-center gap-3">
         <LayoutDashboard className="w-5 h-5 text-muted-foreground" />
@@ -527,6 +591,21 @@ export default function DashboardPage() {
           </div>
         )}
       </GlassCard>
+      </>)}
+
+      {/* ─── 積分帳戶 ─────────────────────────────────────────────────────── */}
+      {section === "credits" && (
+        <Suspense fallback={<SubPageSkeleton />}>
+          <CreditsInfoPage />
+        </Suspense>
+      )}
+
+      {/* ─── LangSmith ────────────────────────────────────────────────────── */}
+      {section === "langsmith" && (
+        <Suspense fallback={<SubPageSkeleton />}>
+          <LangSmithPage />
+        </Suspense>
+      )}
     </div>
   );
 }
