@@ -494,8 +494,8 @@ export default function ModelsPage() {
   useEffect(() => {
     if (pageTab === "forge") {
       setPageContext({ pageId: "models", pageLabel: "模型庫" });
-      return () => setPageContext(null);
     }
+    return () => setPageContext(null);
   }, [pageTab, setPageContext]);
 
   const [tab, setTab] = useState("my");
