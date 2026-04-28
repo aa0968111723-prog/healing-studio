@@ -620,7 +620,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     group: "learn",
     description: "提交與追蹤回饋",
     aliases: ["feedback", "意見", "回饋"],
-    showInSidebar: true,
+    showInSidebar: false,
     showInAgentHome: false,
     agentEntryPriority: 41,
     supportsPageAgent: true,

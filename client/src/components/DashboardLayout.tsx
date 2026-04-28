@@ -58,7 +58,6 @@ import {
   ListChecks,
   Coins,
   Monitor,
-  Brain,
   Music,
   GripVertical,
   Bot,
@@ -199,7 +198,7 @@ sidebarStructure.push(
 sidebarStructure.push(
   createGroupEntry("數據洞察", ["dashboard", "credits", "langsmith"])
 );
-for (const tailId of ["learn", "feedback", "settings"]) {
+for (const tailId of ["learn", "settings"]) {
   const page = sidebarPagesById.get(tailId);
   if (page) {
     sidebarStructure.push(toLeafItem(page));
@@ -212,7 +211,6 @@ const flatMenuItems: SidebarLeafItem[] = sidebarStructure.flatMap(entry =>
 
 const adminItems = [
   { icon: Shield, label: "管理後台", path: "/admin" },
-  { icon: Brain, label: "大腦組態", path: "/settings/ai-brain" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";

@@ -39,7 +39,6 @@ const NotesPage = lazy(() => import("./pages/NotesPage"));
 const CalendarPage = lazy(() => import("./pages/CalendarPage"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const FeedbackPage = lazy(() => import("./pages/FeedbackPage"));
-const AiBrainSettings = lazy(() => import("./pages/AiBrainSettings"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const HistoryPage = lazy(() => import("./pages/HistoryPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
@@ -152,6 +151,15 @@ function AssetsRedirect({ section }: { section: string }) {
   return null;
 }
 
+// Redirect /settings/ai-brain to /admin (大腦組態 is now a tab inside 管理後台)
+function AdminRedirect() {
+  const [, navigate] = useLocation();
+  useEffect(() => {
+    navigate("/admin", { replace: true });
+  }, [navigate]);
+  return null;
+}
+
 function Router() {
   return (
     <Switch>
@@ -187,7 +195,7 @@ function Router() {
         <DashboardRoute component={FeedbackPage} />
       </Route>
       <Route path="/settings/ai-brain">
-        <ProtectedDashboardRoute component={AiBrainSettings} />
+        <AdminRedirect />
       </Route>
       <Route path="/settings">
         <DashboardRoute component={SettingsPage} />

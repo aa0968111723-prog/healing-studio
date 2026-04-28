@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
 import type {
@@ -39,6 +39,7 @@ import {
   ExternalLink,
   Sparkles,
   Link2,
+  MessageSquare,
 } from "lucide-react";
 import { useTheme, type AppearanceMode } from "@/contexts/ThemeContext";
 import { useCurrentScene } from "@/components/AmbientEnvironment";
@@ -49,6 +50,8 @@ import {
   type PersonalSettings,
 } from "@/contexts/PersonalSettingsContext";
 import { useViewMode } from "@/hooks/useMobile";
+
+const FeedbackPage = lazy(() => import("@/pages/FeedbackPage"));
 
 // ─── Appearance Mode Definitions ────────────────────────────────────────────
 
@@ -270,6 +273,7 @@ export default function SettingsPage() {
       { id: "appearance", label: "外觀", meta: { bestFor: "視覺舒適度", tip: "依作業時段切換明暗模式" } },
       { id: "notifications", label: "通知", meta: { bestFor: "訊息節奏控管", tip: "保留關鍵通知避免干擾" } },
       { id: "onboarding", label: "引導", meta: { bestFor: "流程重置", tip: "需求變動時可重新走引導" } },
+      { id: "feedback", label: "回饋", meta: { bestFor: "問題回報與建議", tip: "回報 Bug 或提出功能建議" } },
     ];
     return isAdmin
       ? [...base, { id: "admin", label: "管理員", meta: { bestFor: "系統維運", tip: "僅在必要時調整高風險設定" } }]
@@ -286,7 +290,6 @@ export default function SettingsPage() {
         "/director",
         "/credits",
         "/admin",
-        "/settings/ai-brain",
         "/langsmith",
       ]),
     []
@@ -298,7 +301,7 @@ export default function SettingsPage() {
         label: "切換設定分頁",
         currentId: activeTab,
         options: SETTINGS_TAB_OPTIONS,
-        hint: "切到 profile / appearance / notifications / onboarding（admin 限管理員）",
+        hint: "切到 profile / appearance / notifications / onboarding / feedback（admin 限管理員）",
       },
       {
         action: "setParam",
@@ -314,7 +317,7 @@ export default function SettingsPage() {
       {
         action: "navigate",
         label: "跳到相關子頁",
-        hint: "navigate path='/director' | '/credits' | '/admin'（限管理員）| '/settings/ai-brain'（限管理員）| '/langsmith'（限管理員）",
+        hint: "navigate path='/director' | '/credits' | '/admin'（限管理員）| '/langsmith'（限管理員）",
       },
       {
         action: "reset",
@@ -399,7 +402,6 @@ export default function SettingsPage() {
           if (
             !isAdmin &&
             (path === "/admin" ||
-              path === "/settings/ai-brain" ||
               path === "/langsmith")
           ) {
             return { ok: false, reason: "此路徑僅開放管理員" };
@@ -537,6 +539,12 @@ export default function SettingsPage() {
             className="rounded-lg gap-1 text-sm shrink-0 min-w-[88px] snap-center"
           >
             <Eye className="w-3 h-3" /> 引導
+          </TabsTrigger>
+          <TabsTrigger
+            value="feedback"
+            className="rounded-lg gap-1 text-sm shrink-0 min-w-[88px] snap-center"
+          >
+            <MessageSquare className="w-3 h-3" /> 回饋
           </TabsTrigger>
           {isAdmin && (
             <TabsTrigger
@@ -1036,7 +1044,16 @@ export default function SettingsPage() {
           </GlassCard>
         </TabsContent>
 
-        {/* ═══ Tab 5: Admin (admin-only) ═══ */}
+        {/* ═══ Tab 5: Feedback ═══ */}
+        {activeTab === "feedback" && (
+          <div className="mt-4">
+            <Suspense fallback={<div className="py-8 text-center text-sm text-muted-foreground">載入中...</div>}>
+              <FeedbackPage />
+            </Suspense>
+          </div>
+        )}
+
+        {/* ═══ Tab 6: Admin (admin-only) ═══ */}
         {isAdmin && (
           <TabsContent value="admin" className="mt-4 space-y-4">
             <GlassCard>
@@ -1069,7 +1086,7 @@ export default function SettingsPage() {
 
                 {/* AI Brain */}
                 <button
-                  onClick={() => navigate("/settings/ai-brain")}
+                  onClick={() => navigate("/admin")}
                   className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-white/30 border border-transparent hover:border-border/30 transition-all group"
                 >
                   <div className="flex items-center gap-3">

@@ -15,7 +15,6 @@ import { Badge } from "@/components/ui/badge";
 import {
   BarChart3,
   Zap,
-  DollarSign,
   Clock,
   TrendingUp,
   LayoutDashboard,
@@ -24,14 +23,13 @@ import {
   Music,
   Mic,
   Activity,
+  Coins,
 } from "lucide-react";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import { motion } from "framer-motion";
 import {
   BarChart,
   Bar,
-  LineChart,
-  Line,
   PieChart,
   Pie,
   Cell,
@@ -40,7 +38,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from "recharts";
 
 // ─── Label maps ─────────────────────────────────────────────────────────────
@@ -201,9 +198,9 @@ export default function DashboardPage() {
   const statCards = [
     {
       icon: Zap,
-      label: "剩餘配額",
+      label: "剩餘積分",
       value: stats?.remainingGenerations ?? user?.remainingGenerations ?? 0,
-      unit: "次生成",
+      unit: "點積分",
       color: "bg-zen-lavender/20",
       textColor: "text-violet-600",
     },
@@ -211,25 +208,26 @@ export default function DashboardPage() {
       icon: BarChart3,
       label: "總請求數",
       value: stats?.totalRequests ?? 0,
-      unit: "次 API 呼叫",
+      unit: "次生成",
       color: "bg-zen-sky/20",
       textColor: "text-blue-600",
     },
     {
-      icon: DollarSign,
-      label: "預估成本",
-      value: `$${stats?.totalCost?.toFixed(3) ?? "0.000"}`,
-      unit: "USD",
+      icon: Coins,
+      label: "已消耗積分",
+      value: stats?.totalRequests ?? 0,
+      unit: "點積分",
       color: "bg-zen-peach/20",
       textColor: "text-orange-600",
     },
     {
       icon: TrendingUp,
-      label: "效率指標",
-      value: stats?.totalRequests
-        ? `$${(stats.totalCost / stats.totalRequests).toFixed(4)}`
-        : "$0.0000",
-      unit: "USD / 次",
+      label: "今日請求",
+      value: (() => {
+        const today = new Date().toISOString().slice(0, 10);
+        return stats?.dailyTrend?.find(r => r.date === today)?.count ?? 0;
+      })(),
+      unit: "次 / 今日",
       color: "bg-zen-sage/20",
       textColor: "text-emerald-600",
     },
