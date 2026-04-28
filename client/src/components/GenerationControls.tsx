@@ -16,6 +16,7 @@ type GenerationControlsProps = {
   loraWeight?: number;
   onLoraWeightChange?: (val: number) => void;
   showLoraWeight?: boolean;
+  seedOnly?: boolean;
 };
 
 export function GenerationControls({
@@ -28,66 +29,71 @@ export function GenerationControls({
   loraWeight = 0.7,
   onLoraWeightChange,
   showLoraWeight = false,
+  seedOnly = false,
 }: GenerationControlsProps) {
   return (
     <div className="space-y-5">
       {/* Fast-First Toggle */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <ZenTooltip tooltipKey="mode">
-            <div className="flex items-center gap-2">
-              {mode === "lightning" ? (
-                <Zap className="w-4 h-4 text-amber-500" />
-              ) : (
-                <Brain className="w-4 h-4 text-muted-foreground" />
-              )}
-              <Label className="text-sm font-medium">
-                {mode === "lightning" ? "閃電模式" : "深度精修模式"}
-              </Label>
-            </div>
-          </ZenTooltip>
-          <Switch
-            checked={mode === "deep_precision"}
-            onCheckedChange={checked =>
-              onModeChange(checked ? "deep_precision" : "lightning")
-            }
-          />
+      {!seedOnly && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <ZenTooltip tooltipKey="mode">
+              <div className="flex items-center gap-2">
+                {mode === "lightning" ? (
+                  <Zap className="w-4 h-4 text-amber-500" />
+                ) : (
+                  <Brain className="w-4 h-4 text-muted-foreground" />
+                )}
+                <Label className="text-sm font-medium">
+                  {mode === "lightning" ? "閃電模式" : "深度精修模式"}
+                </Label>
+              </div>
+            </ZenTooltip>
+            <Switch
+              checked={mode === "deep_precision"}
+              onCheckedChange={checked =>
+                onModeChange(checked ? "deep_precision" : "lightning")
+              }
+            />
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            {mode === "lightning"
+              ? "Gemini Flash — 快速迭代，適合探索方向"
+              : "Gemini Pro + CO-STAR — 高品質輸出，細節豐富"}
+          </p>
         </div>
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          {mode === "lightning"
-            ? "Gemini Flash — 快速迭代，適合探索方向"
-            : "Gemini Pro + CO-STAR — 高品質輸出，細節豐富"}
-        </p>
-      </div>
+      )}
 
-      <div className="h-px bg-border/50" />
+      {!seedOnly && <div className="h-px bg-border/50" />}
 
       {/* Temperature Slider */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <ZenTooltip tooltipKey="temperature">
-            <Label className="text-sm font-medium">創意溫度</Label>
-          </ZenTooltip>
-          <span className="text-xs text-muted-foreground tabular-nums font-mono">
-            {temperature.toFixed(2)}
-          </span>
+      {!seedOnly && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <ZenTooltip tooltipKey="temperature">
+              <Label className="text-sm font-medium">創意溫度</Label>
+            </ZenTooltip>
+            <span className="text-xs text-muted-foreground tabular-nums font-mono">
+              {temperature.toFixed(2)}
+            </span>
+          </div>
+          <Slider
+            value={[temperature]}
+            onValueChange={([val]) => onTemperatureChange(val)}
+            min={0}
+            max={1}
+            step={0.05}
+            className="w-full"
+          />
+          <div className="flex justify-between text-[11px] text-muted-foreground">
+            <span>精確穩定</span>
+            <span>大膽創新</span>
+          </div>
         </div>
-        <Slider
-          value={[temperature]}
-          onValueChange={([val]) => onTemperatureChange(val)}
-          min={0}
-          max={1}
-          step={0.05}
-          className="w-full"
-        />
-        <div className="flex justify-between text-[11px] text-muted-foreground">
-          <span>精確穩定</span>
-          <span>大膽創新</span>
-        </div>
-      </div>
+      )}
 
       {/* LoRA Weight Slider */}
-      {showLoraWeight && onLoraWeightChange && (
+      {!seedOnly && showLoraWeight && onLoraWeightChange && (
         <>
           <div className="h-px bg-border/50" />
           <div className="space-y-2">
@@ -115,7 +121,7 @@ export function GenerationControls({
         </>
       )}
 
-      <div className="h-px bg-border/50" />
+      {!seedOnly && <div className="h-px bg-border/50" />}
 
       {/* Seed Input */}
       <div className="space-y-2">

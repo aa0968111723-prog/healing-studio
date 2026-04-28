@@ -2239,23 +2239,7 @@ export default function Studio() {
           </div>
         </div>
 
-        {/* Center: Mode selector */}
-        <div className="hidden sm:flex">
-          <CreativeModeSelector
-            value={creativeMode}
-            onChange={setCreativeMode}
-          />
-        </div>
-
         <div className="flex items-center gap-1.5">
-          {/* Mobile-only mode selector */}
-          <div className="sm:hidden">
-            <CreativeModeSelector
-              value={creativeMode}
-              onChange={setCreativeMode}
-            />
-          </div>
-
           {/* Unified Toolbox button (replaces separate vault/settings/history) */}
           <Button
             variant={toolboxSheetOpen || leftDrawerOpen ? "default" : "outline"}
@@ -2630,7 +2614,7 @@ export default function Studio() {
                 <div className="h-px bg-border/30 my-3" />
 
                 {activeModality === "image" && (
-                  <ImageWorkspace value={imageState} onChange={setImageState} />
+                  <ImageWorkspace value={imageState} onChange={setImageState} compactMode={isStandard} />
                 )}
                 {activeModality === "video" && (
                   <VideoWorkspace value={videoState} onChange={setVideoState} />
@@ -2657,8 +2641,8 @@ export default function Studio() {
             </GlassCard>
           )}
 
-          {/* ── Prompt Strength Control — hidden in simple mode ── */}
-          {!isSimple && (
+          {/* ── Prompt Strength Control — pro mode only (hidden in standard/simple) ── */}
+          {isPro && (
             <GlassCard hover={false}>
               <PromptStrengthControl
                 value={promptStrength}
@@ -2710,38 +2694,6 @@ export default function Studio() {
               changedFields={compileResult.changedFields}
               summary={compileResult.summary}
             />
-          )}
-
-          {/* ── Refine Quick Actions (when in refine mode with result, not simple) ── */}
-          {!isSimple && actionMode === "refine" && resultUrl && (
-            <RefineQuickActions
-              modality={modalityKey}
-              onApplyRefine={handleRefineAction}
-            />
-          )}
-
-          {/* Engine + Cost Preview Badge — hidden in simple mode */}
-          {!isSimple && currentEngine && !submitAsyncMutation.isPending && (
-            <div className="flex items-center justify-between text-[11px] text-muted-foreground px-1">
-              <span className="flex items-center gap-1">
-                <Cpu className="w-3 h-3" />
-                {currentEngine.label}
-              </span>
-              <span
-                className={`flex items-center gap-1 font-medium ${
-                  currentEngine.estimatedPoints >= 30
-                    ? "text-amber-500"
-                    : currentEngine.estimatedPoints >= 10
-                      ? "text-blue-500"
-                      : "text-green-600"
-                }`}
-              >
-                {currentEngine.estimatedPoints} pts
-                {!currentEngine.available && (
-                  <span className="text-destructive ml-1">（不可用）</span>
-                )}
-              </span>
-            </div>
           )}
 
           {/* Generate / Refine / Branch + Mode Toggle */}
@@ -3272,27 +3224,7 @@ export default function Studio() {
                 loraWeight={loraWeight}
                 onLoraWeightChange={setLoraWeight}
                 showLoraWeight={showLoraWeight}
-              />
-            </GlassCard>
-
-            {/* Version History */}
-            <GlassCard hover={false}>
-              <VersionHistoryPanel
-                versions={versions}
-                onPin={handleVersionPin}
-                onRestore={handleVersionRestore}
-                pinnedVersionId={pinnedVersionId}
-              />
-            </GlassCard>
-
-            {/* Recipe Library */}
-            <GlassCard hover={false}>
-              <RecipeLibraryPanel
-                modality={modalityKey}
-                savedRecipes={savedRecipes}
-                onApplyRecipe={handleApplyRecipe}
-                onSaveRecipe={handleSaveRecipe}
-                onDeleteRecipe={handleDeleteRecipe}
+                seedOnly={isStandard}
               />
             </GlassCard>
           </div>

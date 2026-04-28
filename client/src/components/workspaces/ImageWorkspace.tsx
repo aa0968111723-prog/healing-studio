@@ -14,6 +14,7 @@ export type ImageWorkspaceState = {
 type ImageWorkspaceProps = {
   value: ImageWorkspaceState;
   onChange: (state: ImageWorkspaceState) => void;
+  compactMode?: boolean;
 };
 
 const ASPECT_RATIOS = [
@@ -63,7 +64,7 @@ export function createDefaultImageState(): ImageWorkspaceState {
   };
 }
 
-export function ImageWorkspace({ value, onChange }: ImageWorkspaceProps) {
+export function ImageWorkspace({ value, onChange, compactMode = false }: ImageWorkspaceProps) {
   const update = (partial: Partial<ImageWorkspaceState>) =>
     onChange({ ...value, ...partial });
 
@@ -125,71 +126,75 @@ export function ImageWorkspace({ value, onChange }: ImageWorkspaceProps) {
       </div>
 
       {/* Style Description Quick Presets */}
-      <div className="space-y-2">
-        <Label className="text-xs font-medium text-muted-foreground">
-          風格描述快選
-        </Label>
-        <div className="flex flex-wrap gap-1.5">
-          {STYLE_PRESETS.map(preset => (
-            <button
-              key={preset.value}
-              onClick={e => {
-                // Dispatch a custom event so Studio/parent can inject this into the prompt
-                const event = new CustomEvent("apply-style-preset", {
-                  detail: preset.value,
-                  bubbles: true,
-                });
-                (e.currentTarget as HTMLElement).dispatchEvent(event);
-              }}
-              title={preset.value}
-              className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-white/40 text-muted-foreground hover:bg-primary/10 hover:text-primary border border-white/60 hover:border-primary/30 transition-all"
-              data-style-preset={preset.value}
-            >
-              {preset.label}
-            </button>
-          ))}
+      {!compactMode && (
+        <div className="space-y-2">
+          <Label className="text-xs font-medium text-muted-foreground">
+            風格描述快選
+          </Label>
+          <div className="flex flex-wrap gap-1.5">
+            {STYLE_PRESETS.map(preset => (
+              <button
+                key={preset.value}
+                onClick={e => {
+                  // Dispatch a custom event so Studio/parent can inject this into the prompt
+                  const event = new CustomEvent("apply-style-preset", {
+                    detail: preset.value,
+                    bubbles: true,
+                  });
+                  (e.currentTarget as HTMLElement).dispatchEvent(event);
+                }}
+                title={preset.value}
+                className="px-2.5 py-1 rounded-full text-[11px] font-medium bg-white/40 text-muted-foreground hover:bg-primary/10 hover:text-primary border border-white/60 hover:border-primary/30 transition-all"
+                data-style-preset={preset.value}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-[10px] text-muted-foreground/50">
+            點擊快選風格標籤，自動附加到提示詞結尾
+          </p>
         </div>
-        <p className="text-[10px] text-muted-foreground/50">
-          點擊快選風格標籤，自動附加到提示詞結尾
-        </p>
-      </div>
+      )}
 
       {/* Negative Prompt */}
-      <div className="space-y-2">
-        <ZenTooltip tooltipKey="negativePrompt">
-          <Label className="text-xs font-medium text-muted-foreground">
-            排除描述 (Negative Prompt)
-          </Label>
-        </ZenTooltip>
-        {/* Quick chips */}
-        <div className="flex flex-wrap gap-1">
-          {NEGATIVE_CHIPS.map(chip => {
-            const active = value.negativePrompt.includes(chip);
-            return (
-              <button
-                key={chip}
-                onClick={() => appendNegativeChip(chip)}
-                disabled={active}
-                className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-medium transition-all border ${
-                  active
-                    ? "bg-destructive/10 text-destructive border-destructive/30 cursor-default"
-                    : "bg-white/40 text-muted-foreground border-white/60 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
-                }`}
-              >
-                {!active && <Plus className="w-2.5 h-2.5" />}
-                {chip}
-              </button>
-            );
-          })}
+      {!compactMode && (
+        <div className="space-y-2">
+          <ZenTooltip tooltipKey="negativePrompt">
+            <Label className="text-xs font-medium text-muted-foreground">
+              排除描述 (Negative Prompt)
+            </Label>
+          </ZenTooltip>
+          {/* Quick chips */}
+          <div className="flex flex-wrap gap-1">
+            {NEGATIVE_CHIPS.map(chip => {
+              const active = value.negativePrompt.includes(chip);
+              return (
+                <button
+                  key={chip}
+                  onClick={() => appendNegativeChip(chip)}
+                  disabled={active}
+                  className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-medium transition-all border ${
+                    active
+                      ? "bg-destructive/10 text-destructive border-destructive/30 cursor-default"
+                      : "bg-white/40 text-muted-foreground border-white/60 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
+                  }`}
+                >
+                  {!active && <Plus className="w-2.5 h-2.5" />}
+                  {chip}
+                </button>
+              );
+            })}
+          </div>
+          <Textarea
+            placeholder="描述你不想出現的元素（例：模糊、變形、低品質）"
+            value={value.negativePrompt}
+            onChange={e => update({ negativePrompt: e.target.value })}
+            rows={2}
+            className="rounded-xl bg-white/40 border-white/60 resize-none text-xs placeholder:text-muted-foreground/35"
+          />
         </div>
-        <Textarea
-          placeholder="描述你不想出現的元素（例：模糊、變形、低品質）"
-          value={value.negativePrompt}
-          onChange={e => update({ negativePrompt: e.target.value })}
-          rows={2}
-          className="rounded-xl bg-white/40 border-white/60 resize-none text-xs placeholder:text-muted-foreground/35"
-        />
-      </div>
+      )}
     </div>
   );
 }

@@ -6,22 +6,13 @@ import type { CreativeMode } from "@/stores/workspaceStore";
 const CREATIVE_MODE_KEY = "hs-creative-mode";
 
 export function loadCreativeMode(): CreativeMode {
-  try {
-    const stored = localStorage.getItem(CREATIVE_MODE_KEY);
-    if (stored === "simple" || stored === "standard" || stored === "pro")
-      return stored;
-  } catch {
-    /* ignore */
-  }
-  return "simple";
+  return "standard";
 }
 
-export function saveCreativeMode(mode: CreativeMode) {
-  try {
-    localStorage.setItem(CREATIVE_MODE_KEY, mode);
-  } catch {
-    /* ignore */
-  }
+// saveCreativeMode is intentionally kept for API compatibility but is a no-op
+// since loadCreativeMode always returns "standard" and mode switching is disabled.
+export function saveCreativeMode(_mode: CreativeMode) {
+  // no-op: inspiration and professional modes are hidden; mode is locked to standard
 }
 
 interface CreativeModeSelectorProps {
