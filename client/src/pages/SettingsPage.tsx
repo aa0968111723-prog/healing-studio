@@ -709,6 +709,47 @@ export default function SettingsPage() {
             </div>
           </GlassCard>
 
+          {/* Orb Assistant Settings */}
+          <GlassCard>
+            <h2 className="hs-h3 !mb-0 text-foreground mb-4 flex items-center gap-2">
+              <Sparkles className="w-4 h-4" />
+              光球助手外觀
+            </h2>
+            <p className="hs-small !mb-0 text-muted-foreground mb-4">
+              自訂右下角光球助手的外觀與互動行為
+            </p>
+            <div className="space-y-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <Label className="text-sm font-medium text-foreground">
+                    可愛表情模式
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    為光球添加可愛的線條眼睛、嘴巴與腮紅，顏色隨情緒變化（亮色系：明黃、薄荷、粉藍、粉紅、薰衣草）
+                  </p>
+                </div>
+                <Switch
+                  checked={settings.orbCuteMode}
+                  onCheckedChange={checked => updateSettings({ orbCuteMode: checked })}
+                />
+              </div>
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <Label className="text-sm font-medium text-foreground">
+                    隨機互動飛行
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    讓光球在閒置時隨機輕柔地漂移飛行，再自動回到原位（桌面版限定）
+                  </p>
+                </div>
+                <Switch
+                  checked={settings.orbRandomFly}
+                  onCheckedChange={checked => updateSettings({ orbRandomFly: checked })}
+                />
+              </div>
+            </div>
+          </GlassCard>
+
           {/* Quick link: Director AI preferences */}
           <GlassCard>
             <button
