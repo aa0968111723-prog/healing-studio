@@ -71,6 +71,7 @@ import {
   ORB_UPLOAD_ACCEPT,
   resolveOrbAttachmentKind,
 } from "../../../shared/orb-chat-multimodal";
+import { usePersonalSettings } from "@/contexts/PersonalSettingsContext";
 
 type Props = {
   className?: string;
@@ -697,6 +698,9 @@ export default memo(function ProactiveOrbWidget({
     resetToAuto,
     config: personalityConfig,
   } = usePersonality();
+  const { settings: personalSettings } = usePersonalSettings();
+  const orbCuteMode = personalSettings.orbCuteMode;
+  const orbRandomFly = personalSettings.orbRandomFly;
   const {
     isAnyTimerRunning,
     activeMode,
@@ -1344,6 +1348,76 @@ export default memo(function ProactiveOrbWidget({
       );
     };
   }, [showFeedback]);
+
+  // ─── Random fly behavior (when orbRandomFly is enabled) ───────────────
+
+  const randomFlyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!orbRandomFly || isMobile || guiding || showPanel || isGuideOpen) {
+      if (randomFlyTimerRef.current) {
+        clearTimeout(randomFlyTimerRef.current);
+        randomFlyTimerRef.current = null;
+      }
+      return;
+    }
+
+    const scheduleNextFly = () => {
+      const delay = 8000 + Math.random() * 10000; // 8-18 seconds
+      randomFlyTimerRef.current = setTimeout(async () => {
+        if (guiding || showPanel || isGuideOpen) {
+          scheduleNextFly();
+          return;
+        }
+
+        // Pick a random drift offset within a gentle radius
+        const driftX = (Math.random() - 0.5) * 160;
+        const driftY = (Math.random() - 0.5) * 120;
+
+        const homeX = homePositionRef.current.x;
+        const homeY = homePositionRef.current.y;
+
+        const targetX = Math.max(
+          -(window.innerWidth * 0.9),
+          Math.min(0, homeX + driftX)
+        );
+        const targetY = Math.max(
+          -(window.innerHeight * 0.9),
+          Math.min(0, homeY + driftY)
+        );
+
+        // Float away
+        await orbControls.start({
+          x: targetX,
+          y: targetY,
+          transition: { duration: 1.8, ease: [0.25, 0.46, 0.45, 0.94] },
+        });
+
+        // Dwell briefly
+        await new Promise<void>(resolve =>
+          setTimeout(resolve, 2000 + Math.random() * 2000)
+        );
+
+        // Return home
+        await orbControls.start({
+          x: homeX,
+          y: homeY,
+          transition: { duration: 1.4, ease: [0.25, 0.46, 0.45, 0.94] },
+        });
+
+        scheduleNextFly();
+      }, delay);
+    };
+
+    scheduleNextFly();
+
+    return () => {
+      if (randomFlyTimerRef.current) {
+        clearTimeout(randomFlyTimerRef.current);
+        randomFlyTimerRef.current = null;
+      }
+    };
+  }, [orbRandomFly, isMobile, guiding, showPanel, isGuideOpen, orbControls]);
 
   // ─── Orb click handler (single click opens panel) ────────────────────
 
@@ -2024,6 +2098,7 @@ export default memo(function ProactiveOrbWidget({
                         personality={personality}
                         size="sm"
                         className="!w-7 !h-7"
+                        cuteMode={orbCuteMode}
                       />
                       <div
                         className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border border-white"
@@ -2388,6 +2463,7 @@ export default memo(function ProactiveOrbWidget({
                       personality={personality}
                       size="sm"
                       className="!w-6 !h-6"
+                      cuteMode={orbCuteMode}
                     />
                     {/* Agent badge */}
                     <div
@@ -2940,6 +3016,7 @@ export default memo(function ProactiveOrbWidget({
             personality={personality}
             size="lg"
             className="!w-12 !h-12"
+            cuteMode={orbCuteMode}
           />
 
           {/* 引導模式的蒯腳文字浮標 */}

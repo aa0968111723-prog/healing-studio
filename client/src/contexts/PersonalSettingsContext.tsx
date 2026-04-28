@@ -10,6 +10,8 @@ export type PersonalSettings = {
   soundEnabled: boolean;
   desktopNotif: boolean;
   viewMode: ViewMode;
+  orbCuteMode: boolean;
+  orbRandomFly: boolean;
 };
 
 const STORAGE_KEY = "settings-personal-preferences-v2";
@@ -26,6 +28,8 @@ const DEFAULT_SETTINGS: PersonalSettings = {
   soundEnabled: true,
   desktopNotif: false,
   viewMode: "auto",
+  orbCuteMode: false,
+  orbRandomFly: false,
 };
 
 type PersonalSettingsContextValue = {
@@ -67,6 +71,14 @@ function parseStoredSettings(raw: string | null): PersonalSettings {
         parsed.viewMode === "auto"
           ? parsed.viewMode
           : DEFAULT_SETTINGS.viewMode,
+      orbCuteMode:
+        typeof parsed.orbCuteMode === "boolean"
+          ? parsed.orbCuteMode
+          : DEFAULT_SETTINGS.orbCuteMode,
+      orbRandomFly:
+        typeof parsed.orbRandomFly === "boolean"
+          ? parsed.orbRandomFly
+          : DEFAULT_SETTINGS.orbRandomFly,
     };
   } catch {
     return DEFAULT_SETTINGS;
