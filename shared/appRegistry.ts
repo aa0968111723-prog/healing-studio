@@ -181,7 +181,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
   },
   {
     id: "pro-studio",
-    label: "專業創作室",
+    label: "音樂配音創作室",
     path: "/pro-studio",
     group: "create",
     description: "音樂、語音、音效專業工作台",
