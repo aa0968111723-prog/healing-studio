@@ -2560,6 +2560,7 @@ export default function ImageStudio() {
   const [showAdvancedT2i, setShowAdvancedT2i] = useState(false);
   const [guideKeyword, setGuideKeyword] = useState("");
   const [openGuideModelId, setOpenGuideModelId] = useState<string | null>(null);
+  const [guideOpen, setGuideOpen] = useState(false);
 
   const model = MODELS.find(m => m.id === selectedModelId) ?? MODELS[0];
   const tabModels = MODELS.filter(m => m.category === activeTab);
@@ -3686,11 +3687,20 @@ export default function ImageStudio() {
       </div>
 
       {/* ── Model Guide — by current tab ── */}
-      <div className="mt-4 rounded-2xl border border-border/40 bg-gradient-to-br from-purple-500/5 to-cyan-500/5 p-3 sm:p-4">
-        <p className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
-          <HelpCircle className="w-3.5 h-3.5 text-primary" />
-          模型細膩導覽 · {TABS.find(t => t.id === activeTab)?.label}
-        </p>
+      <Collapsible open={guideOpen} onOpenChange={setGuideOpen} className="mt-4 rounded-2xl border border-border/40 bg-gradient-to-br from-purple-500/5 to-cyan-500/5">
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            className="w-full px-3 sm:px-4 py-3 sm:py-4 text-left flex items-center justify-between gap-2 hover:bg-accent/20 rounded-2xl transition-colors"
+          >
+            <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+              <HelpCircle className="w-3.5 h-3.5 text-primary" />
+              模型細膩導覽 · {TABS.find(t => t.id === activeTab)?.label}
+            </p>
+            <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform shrink-0 ${guideOpen ? "rotate-180" : ""}`} />
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="px-3 sm:px-4 pb-3 sm:pb-4">
         <div className="rounded-xl border border-border/40 bg-background/70 px-2.5 py-2 mb-2 flex items-center gap-2">
           <Search className="w-3.5 h-3.5 text-muted-foreground" />
           <Input
@@ -3763,7 +3773,8 @@ export default function ImageStudio() {
             </div>
           )}
         </div>
-      </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       {/* ── Two-Column Layout (lg+) ── */}
       <div className="mt-4 flex flex-col lg:flex-row gap-4 lg:gap-6">
