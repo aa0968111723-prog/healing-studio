@@ -196,7 +196,7 @@ sidebarStructure.push(
   ])
 );
 sidebarStructure.push(
-  createGroupEntry("數據洞察", ["dashboard", "credits", "langsmith"])
+  createGroupEntry("數據洞察", ["dashboard"])
 );
 for (const tailId of ["learn", "settings"]) {
   const page = sidebarPagesById.get(tailId);
@@ -547,7 +547,6 @@ function DashboardLayoutContent({
       "/learn": "learn",
       "/learn/tutorial-overview": "learn",
       "/focus-flow": "focus-flow",
-      "/langsmith": "langsmith",
       "/background-tasks": "background-tasks",
     };
     const pageId = pathToPageId[location] ?? "welcome";
@@ -730,7 +729,7 @@ function DashboardLayoutContent({
             {!isCollapsed && <BackgroundTasksDrawer />}
             {!isCollapsed && (
               <Link
-                href="/credits"
+                href="/dashboard?section=credits"
                 className="block cursor-pointer group"
                 aria-label="查看積分說明"
               >

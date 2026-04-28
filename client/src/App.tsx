@@ -49,8 +49,6 @@ const LearnHub = lazy(() => import("./pages/LearnHub"));
 const TutorialOverviewPage = lazy(() => import("./pages/TutorialOverviewPage"));
 const LoraTrainer = lazy(() => import("./pages/LoraTrainer"));
 const FocusFlowPage = lazy(() => import("./pages/FocusFlowPage"));
-const LangSmithPage = lazy(() => import("./pages/LangSmithPage"));
-const CreditsInfoPage = lazy(() => import("./pages/CreditsInfoPage"));
 const AgentChat = lazy(() => import("./pages/AgentChat"));
 const AdminApiUsagePage = lazy(() => import("./pages/AdminApiUsagePage"));
 const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"));
@@ -234,13 +232,13 @@ function Router() {
         <DashboardRoute component={FocusFlowPage} />
       </Route>
       <Route path="/langsmith">
-        <DashboardRoute component={LangSmithPage} />
+        <NavigateRedirect to="/dashboard?section=langsmith" />
       </Route>
       <Route path="/background-tasks">
         <AssetsRedirect section="tasks" />
       </Route>
       <Route path="/credits">
-        <DashboardRoute component={CreditsInfoPage} />
+        <NavigateRedirect to="/dashboard?section=credits" />
       </Route>
       <Route path="/prompt-library">
         <AssetsRedirect section="prompts" />
