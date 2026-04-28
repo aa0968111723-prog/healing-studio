@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
+import { Route, Switch, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { NotesDrawerProvider } from "./contexts/NotesDrawerContext";
@@ -35,8 +35,6 @@ const Studio = lazy(() => import("./pages/Studio"));
 const DirectorAI = lazy(() => import("./pages/DirectorAI"));
 const AssetsLibrary = lazy(() => import("./pages/AssetsLibrary"));
 const ModelsPage = lazy(() => import("./pages/ModelsPage"));
-const VaultPage = lazy(() => import("./pages/VaultPage"));
-const SharedSpace = lazy(() => import("./pages/SharedSpace"));
 const NotesPage = lazy(() => import("./pages/NotesPage"));
 const CalendarPage = lazy(() => import("./pages/CalendarPage"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
@@ -53,9 +51,7 @@ const TutorialOverviewPage = lazy(() => import("./pages/TutorialOverviewPage"));
 const LoraTrainer = lazy(() => import("./pages/LoraTrainer"));
 const FocusFlowPage = lazy(() => import("./pages/FocusFlowPage"));
 const LangSmithPage = lazy(() => import("./pages/LangSmithPage"));
-const BackgroundTasksPage = lazy(() => import("./pages/BackgroundTasksPage"));
 const CreditsInfoPage = lazy(() => import("./pages/CreditsInfoPage"));
-const PromptLibraryPage = lazy(() => import("./pages/PromptLibraryPage"));
 const AgentChat = lazy(() => import("./pages/AgentChat"));
 const AdminApiUsagePage = lazy(() => import("./pages/AdminApiUsagePage"));
 const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"));
@@ -147,6 +143,15 @@ function OAuthErrorToast() {
   return null;
 }
 
+// Redirect old standalone routes into the unified digital-asset page (/assets?section=...)
+function AssetsRedirect({ section }: { section: string }) {
+  const [, navigate] = useLocation();
+  useEffect(() => {
+    navigate(`/assets?section=${section}`, { replace: true });
+  }, [navigate, section]);
+  return null;
+}
+
 function Router() {
   return (
     <Switch>
@@ -164,10 +169,10 @@ function Router() {
         <DashboardRoute component={ModelsPage} />
       </Route>
       <Route path="/vault">
-        <DashboardRoute component={VaultPage} />
+        <AssetsRedirect section="vault" />
       </Route>
       <Route path="/shared">
-        <DashboardRoute component={SharedSpace} />
+        <AssetsRedirect section="shared" />
       </Route>
       <Route path="/notes">
         <DashboardRoute component={NotesPage} />
@@ -224,13 +229,13 @@ function Router() {
         <DashboardRoute component={LangSmithPage} />
       </Route>
       <Route path="/background-tasks">
-        <ProtectedDashboardRoute component={BackgroundTasksPage} />
+        <AssetsRedirect section="tasks" />
       </Route>
       <Route path="/credits">
         <DashboardRoute component={CreditsInfoPage} />
       </Route>
       <Route path="/prompt-library">
-        <DashboardRoute component={PromptLibraryPage} />
+        <AssetsRedirect section="prompts" />
       </Route>
       <Route path="/agent">
         <DashboardRoute component={AgentChat} />

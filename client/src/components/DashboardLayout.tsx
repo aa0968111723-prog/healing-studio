@@ -189,15 +189,11 @@ sidebarStructure.splice(
 sidebarStructure.push(
   createGroupEntry("資源中心", [
     "assets",
-    "prompt-library",
     "models",
     "lora-trainer",
     "notes",
     "history",
-    "shared",
-    "vault",
     "calendar",
-    "background-tasks",
   ])
 );
 sidebarStructure.push(
