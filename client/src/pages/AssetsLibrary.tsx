@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useMemo, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -51,6 +52,10 @@ import {
   Search,
   X,
   Filter,
+  BookMarked,
+  Layers,
+  Users,
+  ListChecks,
 } from "lucide-react";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import VisualSoul from "@/components/VisualSoul";
@@ -58,6 +63,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAIState } from "@/contexts/AIStateContext";
 import { useIsMobile } from "@/hooks/useMobile";
 import { shortErrorMsg } from "@/lib/upload";
+
+const PromptLibraryPage = lazy(() => import("./PromptLibraryPage"));
+const VaultPage = lazy(() => import("./VaultPage"));
+const SharedSpace = lazy(() => import("./SharedSpace"));
+const BackgroundTasksPage = lazy(() => import("./BackgroundTasksPage"));
 
 const typeConfig: Record<
   string,
@@ -123,6 +133,39 @@ const ASSET_TYPES = [
   "zip_bundle",
 ] as const;
 type AssetTypeFilter = (typeof ASSET_TYPES)[number];
+
+// ─── Section Tabs (合併後的大分頁) ───────────────────────────────────────────
+type SectionId = "assets" | "prompts" | "vault" | "shared" | "tasks";
+
+const SECTION_TABS: { id: SectionId; label: string; icon: React.ReactNode }[] = [
+  { id: "assets", label: "數位資產庫", icon: <Package className="w-3.5 h-3.5" /> },
+  { id: "prompts", label: "提示詞庫", icon: <BookMarked className="w-3.5 h-3.5" /> },
+  { id: "vault", label: "一致性保險庫", icon: <Layers className="w-3.5 h-3.5" /> },
+  { id: "shared", label: "共享空間", icon: <Users className="w-3.5 h-3.5" /> },
+  { id: "tasks", label: "背景任務中心", icon: <ListChecks className="w-3.5 h-3.5" /> },
+];
+
+function SubPageSkeleton() {
+  return (
+    <div className="space-y-4 animate-in fade-in duration-300">
+      <Skeleton className="h-8 w-48 rounded-lg" />
+      <Skeleton className="h-4 w-72 rounded" />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+        <Skeleton className="h-40 rounded-2xl" />
+        <Skeleton className="h-40 rounded-2xl" />
+        <Skeleton className="h-40 rounded-2xl" />
+      </div>
+    </div>
+  );
+}
+
+function getInitialSection(): SectionId {
+  const params = new URLSearchParams(window.location.search);
+  const s = params.get("section");
+  const valid = SECTION_TABS.map(t => t.id);
+  if (s && valid.includes(s as SectionId)) return s as SectionId;
+  return "assets";
+}
 
 function parsePositiveAssetId(raw: unknown): number | null {
   const value = Number(raw);
@@ -365,6 +408,16 @@ export default function AssetsLibrary() {
   const { personality } = useAIState();
   const isMobile = useIsMobile();
 
+  // 合併大分頁：讀取 URL ?section= 決定初始分頁
+  const [section, setSection] = useState<SectionId>(getInitialSection);
+
+  const handleSectionChange = (id: SectionId) => {
+    setSection(id);
+    const params = new URLSearchParams(window.location.search);
+    params.set("section", id);
+    window.history.replaceState(null, "", `?${params.toString()}`);
+  };
+
   // 全站新手引導
   usePageTour("assets");
   const [tab, setTab] = useState("my");
@@ -465,6 +518,10 @@ export default function AssetsLibrary() {
     pageLabel: "數位資產庫",
     pagePath: "/assets",
     capabilities: assetsAgentCapabilities,
+    // Only register this agent when the "assets" sub-section is active; each
+    // embedded sub-page (prompts, vault, shared, tasks) registers its own
+    // agent while mounted, so we disable this one to avoid conflicts.
+    enabled: section === "assets",
     state: {
       tab,
       typeFilter,
@@ -545,87 +602,108 @@ export default function AssetsLibrary() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Package className="w-5 h-5 text-muted-foreground" />
-          <h1 className="hs-h2 !mb-0">數位資產庫</h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="secondary" className="rounded-lg text-xs">
-            {totalMyAssets} 個資產
-          </Badge>
-          <UploadDialog
-            onSuccess={() => myAssetsQuery.refetch()}
-            open={showUploadDialog}
-            onOpenChange={setShowUploadDialog}
-          />
-        </div>
+      {/* ─── 大分頁標籤列 ─────────────────────────────────────────────────── */}
+      <div className="flex gap-0.5 border-b overflow-x-auto pb-0 -mb-2">
+        {SECTION_TABS.map(st => (
+          <button
+            key={st.id}
+            onClick={() => handleSectionChange(st.id)}
+            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 whitespace-nowrap transition-colors ${
+              section === st.id
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {st.icon}
+            {st.label}
+          </button>
+        ))}
       </div>
 
-      <p className="hs-small !mb-0 text-muted-foreground">
-        管理所有生成與上傳的數位資產。分享至團隊可獲得額外配額獎勵。
-      </p>
-      <AssetModelSubpageGuide page="assets" />
+      {/* ─── 數位資產庫（主內容） ──────────────────────────────────────────── */}
+      {section === "assets" && (
+        <>
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Package className="w-5 h-5 text-muted-foreground" />
+              <h1 className="hs-h2 !mb-0">數位資產庫</h1>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className="rounded-lg text-xs">
+                {totalMyAssets} 個資產
+              </Badge>
+              <UploadDialog
+                onSuccess={() => myAssetsQuery.refetch()}
+                open={showUploadDialog}
+                onOpenChange={setShowUploadDialog}
+              />
+            </div>
+          </div>
 
-      {/* Search + Filter bar */}
-      <div className="flex gap-2 flex-wrap">
-        <div className="relative flex-1 min-w-[180px]">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="搜尋資產..."
-            className="pl-8 h-8 text-xs rounded-lg"
-          />
-          {search && (
-            <button
-              className="absolute right-2 top-1/2 -translate-y-1/2"
-              onClick={() => setSearch("")}
-            >
-              <X className="w-3 h-3 text-muted-foreground" />
-            </button>
-          )}
-        </div>
-        <div className="flex gap-1">
-          {ASSET_TYPES.map(t => (
-            <button
-              key={t}
-              onClick={() => setTypeFilter(t)}
-              className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-colors flex items-center gap-1 ${typeFilter === t ? "bg-primary text-primary-foreground" : "bg-muted/40 text-muted-foreground hover:bg-muted/60"}`}
-            >
-              {t === "all" ? (
-                <Filter className="w-3 h-3" />
-              ) : (
-                typeConfig[t]?.icon
+          <p className="hs-small !mb-0 text-muted-foreground">
+            管理所有生成與上傳的數位資產。分享至團隊可獲得額外配額獎勵。
+          </p>
+          <AssetModelSubpageGuide page="assets" />
+
+          {/* Search + Filter bar */}
+          <div className="flex gap-2 flex-wrap">
+            <div className="relative flex-1 min-w-[180px]">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="搜尋資產..."
+                className="pl-8 h-8 text-xs rounded-lg"
+              />
+              {search && (
+                <button
+                  className="absolute right-2 top-1/2 -translate-y-1/2"
+                  onClick={() => setSearch("")}
+                >
+                  <X className="w-3 h-3 text-muted-foreground" />
+                </button>
               )}
-              {t === "all" ? "全部" : typeConfig[t]?.label}
-            </button>
-          ))}
-        </div>
-      </div>
+            </div>
+            <div className="flex gap-1">
+              {ASSET_TYPES.map(t => (
+                <button
+                  key={t}
+                  onClick={() => setTypeFilter(t)}
+                  className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-colors flex items-center gap-1 ${typeFilter === t ? "bg-primary text-primary-foreground" : "bg-muted/40 text-muted-foreground hover:bg-muted/60"}`}
+                >
+                  {t === "all" ? (
+                    <Filter className="w-3 h-3" />
+                  ) : (
+                    typeConfig[t]?.icon
+                  )}
+                  {t === "all" ? "全部" : typeConfig[t]?.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="rounded-xl bg-muted/40 p-1">
-          <TabsTrigger value="my" className="rounded-lg gap-1 text-xs">
-            <Lock className="w-3 h-3" /> 我的資產
-          </TabsTrigger>
-          <TabsTrigger value="team" className="rounded-lg gap-1 text-xs">
-            <Globe className="w-3 h-3" /> 團隊共享
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
+          <Tabs value={tab} onValueChange={setTab}>
+            <TabsList className="rounded-xl bg-muted/40 p-1">
+              <TabsTrigger value="my" className="rounded-lg gap-1 text-xs">
+                <Lock className="w-3 h-3" /> 我的資產
+              </TabsTrigger>
+              <TabsTrigger value="team" className="rounded-lg gap-1 text-xs">
+                <Globe className="w-3 h-3" /> 團隊共享
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
 
-      {isLoading ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
-          {[1, 2, 3, 4].map(i => (
-            <GlassCard key={i} hover={false}>
-              <div className="aspect-square rounded-lg bg-muted/30 animate-pulse mb-3" />
-              <ZenSkeleton lines={2} />
-            </GlassCard>
-          ))}
-        </div>
-      ) : assets && assets.length > 0 ? (
+          {isLoading ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+              {[1, 2, 3, 4].map(i => (
+                <GlassCard key={i} hover={false}>
+                  <div className="aspect-square rounded-lg bg-muted/30 animate-pulse mb-3" />
+                  <ZenSkeleton lines={2} />
+                </GlassCard>
+              ))}
+            </div>
+          ) : assets && assets.length > 0 ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
           {assets.map((asset, idx) => {
             const config = typeConfig[asset.assetType] || {
@@ -943,6 +1021,36 @@ export default function AssetsLibrary() {
                 : "還沒有團隊共享的資產"}
           </p>
         </div>
+      )}
+        </>
+      )}
+
+      {/* ─── 提示詞庫 ─────────────────────────────────────────────────────── */}
+      {section === "prompts" && (
+        <Suspense fallback={<SubPageSkeleton />}>
+          <PromptLibraryPage />
+        </Suspense>
+      )}
+
+      {/* ─── 一致性保險庫 ─────────────────────────────────────────────────── */}
+      {section === "vault" && (
+        <Suspense fallback={<SubPageSkeleton />}>
+          <VaultPage />
+        </Suspense>
+      )}
+
+      {/* ─── 共享空間 ─────────────────────────────────────────────────────── */}
+      {section === "shared" && (
+        <Suspense fallback={<SubPageSkeleton />}>
+          <SharedSpace />
+        </Suspense>
+      )}
+
+      {/* ─── 背景任務中心 ─────────────────────────────────────────────────── */}
+      {section === "tasks" && (
+        <Suspense fallback={<SubPageSkeleton />}>
+          <BackgroundTasksPage />
+        </Suspense>
       )}
     </div>
   );
