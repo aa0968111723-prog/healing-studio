@@ -71,7 +71,6 @@ import {
 } from "@/contexts/SiteOnboardingContext";
 import {
   CSSProperties,
-  memo,
   useCallback,
   useEffect,
   useMemo,
@@ -81,7 +80,6 @@ import {
 import { Link, useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
-import VisualSoul from "./VisualSoul";
 import { useAIState } from "@/contexts/AIStateContext";
 import ProactiveOrbWidget from "./ProactiveOrbWidget";
 import AgentIntentPreview from "./AgentIntentPreview";
@@ -92,12 +90,6 @@ import {
 } from "@/config/appRegistry";
 import { usePersonalSettings } from "@/contexts/PersonalSettingsContext";
 
-// Isolated component that subscribes to AI state —
-// prevents the entire DashboardLayout from re-rendering when aiState/personality change.
-const SidebarVisualSoul = memo(function SidebarVisualSoul() {
-  const { aiState, personality } = useAIState();
-  return <VisualSoul size="sm" state={aiState} personality={personality} />;
-});
 
 type SidebarLeafItem = {
   icon: LucideIcon;
@@ -315,9 +307,6 @@ export default function DashboardLayout({
         }}
       >
         <div className="glass-card p-10 sm:p-12 max-w-md w-full mx-4 text-center">
-          <div className="flex justify-center mb-8">
-            <VisualSoul size="xl" state="idle" personality="creative" />
-          </div>
           <h1 className="hs-h1 !mb-0 text-foreground">AI Director 創作平台</h1>
           <p className="text-sm text-muted-foreground mt-4 max-w-sm mx-auto body-healing leading-relaxed">
             在這裡，讓 AI 陪伴你舒適地創作
@@ -602,7 +591,6 @@ function DashboardLayoutContent({
               </button>
               {!isCollapsed && (
                 <div className="flex items-center gap-2 min-w-0">
-                  <SidebarVisualSoul />
                   <span className="font-semibold tracking-tight truncate text-foreground text-sm">
                     AI Director
                   </span>
