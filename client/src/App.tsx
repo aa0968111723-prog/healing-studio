@@ -43,7 +43,6 @@ const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const FeedbackPage = lazy(() => import("./pages/FeedbackPage"));
 const AiBrainSettings = lazy(() => import("./pages/AiBrainSettings"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
-const HistoryPage = lazy(() => import("./pages/HistoryPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
 const ProStudio = lazy(() => import("./pages/ProStudio"));
 const ImageStudio = lazy(() => import("./pages/ImageStudio"));
@@ -194,7 +193,7 @@ function Router() {
         <DashboardRoute component={SettingsPage} />
       </Route>
       <Route path="/history">
-        <ProtectedDashboardRoute component={HistoryPage} />
+        <NavigateRedirect to="/assets?section=history" />
       </Route>
       <Route path="/admin">
         <DashboardRoute component={AdminPage} />

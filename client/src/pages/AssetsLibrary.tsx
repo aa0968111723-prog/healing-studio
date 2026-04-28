@@ -1,4 +1,9 @@
-import { useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useMemo, useRef, useState } from "react";
+import { useLocation } from "wouter";
+import { Loader2 } from "lucide-react";
+
+const HistoryPage = lazy(() => import("./HistoryPage"));
+
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
@@ -51,6 +56,7 @@ import {
   Search,
   X,
   Filter,
+  Clock,
 } from "lucide-react";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import VisualSoul from "@/components/VisualSoul";
@@ -364,9 +370,17 @@ function UploadDialog({
 export default function AssetsLibrary() {
   const { personality } = useAIState();
   const isMobile = useIsMobile();
+  const [location] = useLocation();
 
   // 全站新手引導
   usePageTour("assets");
+
+  // 頁面分頁：資產庫 | 生成歷史
+  const sectionFromUrl = new URLSearchParams(location.split("?")[1] ?? "").get("section");
+  const [pageTab, setPageTab] = useState<"assets" | "history">(
+    sectionFromUrl === "history" ? "history" : "assets"
+  );
+
   const [tab, setTab] = useState("my");
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
@@ -545,7 +559,40 @@ export default function AssetsLibrary() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* 頁面切換標籤 */}
+      <div className="flex items-center gap-1 border-b border-border/50 pb-0">
+        <button
+          type="button"
+          onClick={() => setPageTab("assets")}
+          className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors ${
+            pageTab === "assets"
+              ? "bg-primary/10 text-primary border-b-2 border-primary"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Package className="w-4 h-4" />
+          數位資產庫
+        </button>
+        <button
+          type="button"
+          onClick={() => setPageTab("history")}
+          className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors ${
+            pageTab === "history"
+              ? "bg-primary/10 text-primary border-b-2 border-primary"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Clock className="w-4 h-4" />
+          生成歷史
+        </button>
+      </div>
+
+      {pageTab === "history" ? (
+        <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}>
+          <HistoryPage />
+        </Suspense>
+      ) : (
+      <><div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Package className="w-5 h-5 text-muted-foreground" />
@@ -943,6 +990,8 @@ export default function AssetsLibrary() {
                 : "還沒有團隊共享的資產"}
           </p>
         </div>
+      )}
+    </div></>
       )}
     </div>
   );

@@ -297,11 +297,11 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
   {
     id: "history",
     label: "生成歷史",
-    path: "/history",
+    path: "/assets?section=history",
     group: "project",
     description: "所有生成紀錄時間線",
     aliases: ["history", "紀錄", "歷史"],
-    showInSidebar: true,
+    showInSidebar: false,
     showInAgentHome: true,
     agentEntryPriority: 20,
     supportsPageAgent: true,
@@ -311,7 +311,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
         id: "history-model-deep-dive",
         label: "模型細膩導覽",
         description: "用歷史反推各模型成功樣式與參數策略",
-        path: "/history",
+        path: "/assets?section=history",
         prompt:
           "請帶我用生成歷史反推每個模型的成功樣式、常見失敗訊號與參數調整方向，並整理成可重複流程。",
       },
