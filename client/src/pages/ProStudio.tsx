@@ -3803,6 +3803,7 @@ export default function ProStudio() {
   const currentTabModels = PRO_MODELS.filter(m => m.tab === tab);
   const [guideKeyword, setGuideKeyword] = useState("");
   const [openGuideModelId, setOpenGuideModelId] = useState<string | null>(null);
+  const [guideOpen, setGuideOpen] = useState(false);
   const filteredGuideModels = useMemo(() => {
     const q = guideKeyword.trim().toLowerCase();
     if (!q) return currentTabModels;
@@ -3917,11 +3918,20 @@ export default function ProStudio() {
       </div>
 
       {/* 模型細膩導覽（依當前分頁） */}
-      <div className="rounded-2xl border border-border/40 bg-gradient-to-br from-purple-500/5 to-blue-500/5 p-3 sm:p-4">
-        <p className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
-          <Bot className="w-3.5 h-3.5 text-primary" />
-          模型細膩導覽 · {TABS.find(t => t.id === tab)?.label}
-        </p>
+      <Collapsible open={guideOpen} onOpenChange={setGuideOpen} className="rounded-2xl border border-border/40 bg-gradient-to-br from-purple-500/5 to-blue-500/5">
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            className="w-full px-3 sm:px-4 py-3 sm:py-4 text-left flex items-center justify-between gap-2 hover:bg-accent/20 rounded-2xl transition-colors"
+          >
+            <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+              <Bot className="w-3.5 h-3.5 text-primary" />
+              模型細膩導覽 · {TABS.find(t => t.id === tab)?.label}
+            </p>
+            <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform shrink-0 ${guideOpen ? "rotate-180" : ""}`} />
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="px-3 sm:px-4 pb-3 sm:pb-4">
         <div className="rounded-xl border border-border/40 bg-background/70 px-2.5 py-2 mb-2 flex items-center gap-2">
           <Search className="w-3.5 h-3.5 text-muted-foreground" />
           <Input
@@ -3983,7 +3993,8 @@ export default function ProStudio() {
             </div>
           )}
         </div>
-      </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       {/* 活躍 Tab 內容 */}
       <AnimatePresence mode="wait">
