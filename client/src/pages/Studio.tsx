@@ -3341,52 +3341,7 @@ export default function Studio() {
         </>
       )}
 
-      {/* Floating Proactive Orb Widget */}
-      <ProactiveOrbWidget
-        onSaveToNotes={payload => {
-          const notesEvent = new CustomEvent("pin-to-notes", {
-            detail: payload,
-          });
-          window.dispatchEvent(notesEvent);
-        }}
-        onOpenNotes={() => {
-          window.dispatchEvent(new CustomEvent("open-notes-drawer"));
-        }}
-        onOpenCalendar={() => {
-          window.dispatchEvent(
-            new CustomEvent("navigate-to", { detail: "/calendar" })
-          );
-        }}
-        onAddToCalendar={payload => {
-          window.dispatchEvent(
-            new CustomEvent("add-to-calendar", { detail: payload })
-          );
-        }}
-        onRestartTour={() => {
-          // 觸發全站引導 for studio
-          window.dispatchEvent(
-            new CustomEvent("site-tour-start", { detail: { pageId: "studio" } })
-          );
-        }}
-        onApplyInspiration={blocks => {
-          // Build a prompt string from inspiration blocks
-          const parts = Object.entries(blocks)
-            .filter(([_, v]) => v)
-            .map(([_, label]) => label as string);
-          const inspirationPrompt = parts.join(", ");
-          const separator = promptBuilder.rawPrompt.trim() ? ", " : "";
-          const newRaw =
-            promptBuilder.rawPrompt.trim() + separator + inspirationPrompt;
-          setPromptBuilder(prev => ({
-            ...prev,
-            rawPrompt: newRaw,
-            compiledPrompt: newRaw,
-          }));
-        }}
-        onSwitchModality={modality => {
-          setActiveModality(modality);
-        }}
-      />
+      {/* Floating Proactive Orb Widget — hidden */}
     </div>
   );
 }
