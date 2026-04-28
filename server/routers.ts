@@ -262,6 +262,14 @@ async function storeBase64Media(params: {
 
 // ─── Post-Generation Completion Helper ───────────────────────────────────────
 
+// Minimum prompt text length to save to prompt library
+const MIN_PROMPT_LENGTH_FOR_LIBRARY = 4;
+// Max lengths for stored fields
+const MAX_PROMPT_TITLE_LENGTH = 80;
+const MAX_MODEL_HINT_LENGTH = 128;
+const MAX_ASSET_DESCRIPTION_LENGTH = 500;
+const MAX_LOG_FIELD_LENGTH = 200;
+
 /**
  * doPostGenComplete — 背景任務完成後自動執行的後置動作：
  *   1-2. 儲存提示詞到提示詞庫（prompt_library）
@@ -283,18 +291,18 @@ async function doPostGenComplete(params: {
   const promptText = (prompt ?? "").trim();
 
   // 1-2. 自動儲存到提示詞庫
-  if (promptText.length >= 4) {
+  if (promptText.length >= MIN_PROMPT_LENGTH_FOR_LIBRARY) {
     try {
       const dbConn = await getDb();
       if (dbConn) {
         await dbConn.insert(promptLibrary).values({
           userId,
-          title: promptText.slice(0, 80) || `${label ?? modality}提示詞`,
+          title: promptText.slice(0, MAX_PROMPT_TITLE_LENGTH) || `${label ?? modality}提示詞`,
           content: promptText,
           category: modality as "image" | "video" | "audio" | "voice",
           tags: [],
           isPublic: false,
-          modelHint: modelId.slice(0, 128),
+          modelHint: modelId.slice(0, MAX_MODEL_HINT_LENGTH),
           language: "zh",
         });
       }
@@ -314,7 +322,7 @@ async function doPostGenComplete(params: {
       await db.createDigitalAsset({
         userId,
         title: label ?? `AI 生成 ${modality}`,
-        description: promptText ? promptText.slice(0, 500) : undefined,
+        description: promptText ? promptText.slice(0, MAX_ASSET_DESCRIPTION_LENGTH) : undefined,
         assetType,
         fileUrl: resultUrl,
         fileKey: resultUrl,
@@ -346,8 +354,8 @@ async function doPostGenComplete(params: {
     addGenerationLog({
       userId,
       modality,
-      modelId: modelId.slice(0, 200),
-      promptSnippet: promptText.slice(0, 200),
+      modelId: modelId.slice(0, MAX_LOG_FIELD_LENGTH),
+      promptSnippet: promptText.slice(0, MAX_LOG_FIELD_LENGTH),
       resultUrl,
       success: !!resultUrl,
       sourceStudio: sourceStudio ?? "unknown",

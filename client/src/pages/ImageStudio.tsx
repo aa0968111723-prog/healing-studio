@@ -3094,7 +3094,8 @@ export default function ImageStudio() {
       }
 
       result = await currentMutation.mutateAsync(input);
-      registerBgTask(result, "image", `🖼️ ${model.name}`, fullPrompt || upscaleImageUrl || poseImageUrl || imageUrl3d);
+      // For the background task label, use fullPrompt if present (text prompt is most meaningful)
+      registerBgTask(result, "image", `🖼️ ${model.name}`, fullPrompt || undefined);
 
       // 若為非同步任務（只有 request_id），不嘗試提取結果，直接提示並回傳
       const isAsyncResult = !!(
@@ -3192,7 +3193,7 @@ export default function ImageStudio() {
       void recordGenResultMut.mutateAsync({
         modality: "image",
         modelId: model.id,
-        prompt: fullPrompt || upscaleImageUrl || poseImageUrl || imageUrl3d || "",
+        prompt: fullPrompt || "",
         resultUrl: internalImgs[0],
         label: `🖼️ ${model.name}`,
         sourceStudio: "image",
