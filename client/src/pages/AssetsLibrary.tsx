@@ -162,7 +162,8 @@ function SubPageSkeleton() {
 function getInitialSection(): SectionId {
   const params = new URLSearchParams(window.location.search);
   const s = params.get("section");
-  if (s === "prompts" || s === "vault" || s === "shared" || s === "tasks") return s;
+  const valid = SECTION_TABS.map(t => t.id);
+  if (s && valid.includes(s as SectionId)) return s as SectionId;
   return "assets";
 }
 
@@ -517,6 +518,9 @@ export default function AssetsLibrary() {
     pageLabel: "數位資產庫",
     pagePath: "/assets",
     capabilities: assetsAgentCapabilities,
+    // Only register this agent when the "assets" sub-section is active; each
+    // embedded sub-page (prompts, vault, shared, tasks) registers its own
+    // agent while mounted, so we disable this one to avoid conflicts.
     enabled: section === "assets",
     state: {
       tab,
