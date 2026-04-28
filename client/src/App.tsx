@@ -39,7 +39,6 @@ const NotesPage = lazy(() => import("./pages/NotesPage"));
 const CalendarPage = lazy(() => import("./pages/CalendarPage"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const FeedbackPage = lazy(() => import("./pages/FeedbackPage"));
-const AiBrainSettings = lazy(() => import("./pages/AiBrainSettings"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const HistoryPage = lazy(() => import("./pages/HistoryPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
@@ -50,8 +49,6 @@ const LearnHub = lazy(() => import("./pages/LearnHub"));
 const TutorialOverviewPage = lazy(() => import("./pages/TutorialOverviewPage"));
 const LoraTrainer = lazy(() => import("./pages/LoraTrainer"));
 const FocusFlowPage = lazy(() => import("./pages/FocusFlowPage"));
-const LangSmithPage = lazy(() => import("./pages/LangSmithPage"));
-const CreditsInfoPage = lazy(() => import("./pages/CreditsInfoPage"));
 const AgentChat = lazy(() => import("./pages/AgentChat"));
 const AdminApiUsagePage = lazy(() => import("./pages/AdminApiUsagePage"));
 const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"));
@@ -152,6 +149,15 @@ function AssetsRedirect({ section }: { section: string }) {
   return null;
 }
 
+// Redirect /settings/ai-brain to /admin (大腦組態 is now a tab inside 管理後台)
+function AdminRedirect() {
+  const [, navigate] = useLocation();
+  useEffect(() => {
+    navigate("/admin", { replace: true });
+  }, [navigate]);
+  return null;
+}
+
 function Router() {
   return (
     <Switch>
@@ -187,7 +193,7 @@ function Router() {
         <DashboardRoute component={FeedbackPage} />
       </Route>
       <Route path="/settings/ai-brain">
-        <ProtectedDashboardRoute component={AiBrainSettings} />
+        <AdminRedirect />
       </Route>
       <Route path="/settings">
         <DashboardRoute component={SettingsPage} />
@@ -226,13 +232,13 @@ function Router() {
         <DashboardRoute component={FocusFlowPage} />
       </Route>
       <Route path="/langsmith">
-        <DashboardRoute component={LangSmithPage} />
+        <NavigateRedirect to="/dashboard?section=langsmith" />
       </Route>
       <Route path="/background-tasks">
         <AssetsRedirect section="tasks" />
       </Route>
       <Route path="/credits">
-        <DashboardRoute component={CreditsInfoPage} />
+        <NavigateRedirect to="/dashboard?section=credits" />
       </Route>
       <Route path="/prompt-library">
         <AssetsRedirect section="prompts" />
