@@ -40,7 +40,6 @@ const CalendarPage = lazy(() => import("./pages/CalendarPage"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const FeedbackPage = lazy(() => import("./pages/FeedbackPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
-const HistoryPage = lazy(() => import("./pages/HistoryPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
 const ProStudio = lazy(() => import("./pages/ProStudio"));
 const ImageStudio = lazy(() => import("./pages/ImageStudio"));
@@ -79,6 +78,12 @@ function PageSkeleton() {
 }
 
 // ─── 路由包裝元件 ─────────────────────────────────────────────────────────
+
+function NavigateRedirect({ to }: { to: string }) {
+  const [, navigate] = useLocation();
+  useEffect(() => { navigate(to, { replace: true }); }, [navigate, to]);
+  return null;
+}
 
 function DashboardRoute({
   component: Component,
@@ -184,7 +189,7 @@ function Router() {
         <DashboardRoute component={NotesPage} />
       </Route>
       <Route path="/calendar">
-        <DashboardRoute component={CalendarPage} />
+        <NavigateRedirect to="/notes" />
       </Route>
       <Route path="/dashboard">
         <DashboardRoute component={DashboardPage} />
@@ -199,7 +204,7 @@ function Router() {
         <DashboardRoute component={SettingsPage} />
       </Route>
       <Route path="/history">
-        <ProtectedDashboardRoute component={HistoryPage} />
+        <NavigateRedirect to="/assets?section=history" />
       </Route>
       <Route path="/admin">
         <DashboardRoute component={AdminPage} />
@@ -226,7 +231,7 @@ function Router() {
         <DashboardRoute component={TutorialOverviewPage} />
       </Route>
       <Route path="/lora-trainer">
-        <ProtectedDashboardRoute component={LoraTrainer} />
+        <NavigateRedirect to="/models" />
       </Route>
       <Route path="/focus-flow">
         <DashboardRoute component={FocusFlowPage} />

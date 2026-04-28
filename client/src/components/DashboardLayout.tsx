@@ -570,7 +570,7 @@ function DashboardLayoutContent({
 
   const handleOrbOpenCalendar = useCallback(() => {
     window.dispatchEvent(
-      new CustomEvent("navigate-to", { detail: "/calendar" })
+      new CustomEvent("navigate-to", { detail: "/notes" })
     );
   }, []);
 

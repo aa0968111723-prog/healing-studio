@@ -1,4 +1,6 @@
 import { lazy, Suspense, useMemo, useRef, useState } from "react";
+
+const HistoryPage = lazy(() => import("./HistoryPage"));
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
@@ -56,6 +58,7 @@ import {
   Layers,
   Users,
   ListChecks,
+  Clock,
 } from "lucide-react";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import VisualSoul from "@/components/VisualSoul";
@@ -135,10 +138,11 @@ const ASSET_TYPES = [
 type AssetTypeFilter = (typeof ASSET_TYPES)[number];
 
 // ─── Section Tabs (合併後的大分頁) ───────────────────────────────────────────
-type SectionId = "assets" | "prompts" | "vault" | "shared" | "tasks";
+type SectionId = "assets" | "prompts" | "vault" | "shared" | "tasks" | "history";
 
 const SECTION_TABS: { id: SectionId; label: string; icon: React.ReactNode }[] = [
   { id: "assets", label: "數位資產庫", icon: <Package className="w-3.5 h-3.5" /> },
+  { id: "history", label: "生成歷史", icon: <Clock className="w-3.5 h-3.5" /> },
   { id: "prompts", label: "提示詞庫", icon: <BookMarked className="w-3.5 h-3.5" /> },
   { id: "vault", label: "一致性保險庫", icon: <Layers className="w-3.5 h-3.5" /> },
   { id: "shared", label: "共享空間", icon: <Users className="w-3.5 h-3.5" /> },
@@ -1023,6 +1027,13 @@ export default function AssetsLibrary() {
         </div>
       )}
         </>
+      )}
+
+      {/* ─── 生成歷史 ─────────────────────────────────────────────────────── */}
+      {section === "history" && (
+        <Suspense fallback={<SubPageSkeleton />}>
+          <HistoryPage />
+        </Suspense>
       )}
 
       {/* ─── 提示詞庫 ─────────────────────────────────────────────────────── */}

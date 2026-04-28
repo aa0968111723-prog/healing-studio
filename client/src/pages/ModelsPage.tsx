@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, lazy, Suspense } from "react";
 import { trpc } from "@/lib/trpc";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
@@ -8,6 +8,8 @@ import type {
   AgentActionResult,
   AgentCapability,
 } from "../../../shared/agent-actions";
+
+const LoraTrainer = lazy(() => import("./LoraTrainer"));
 import { uploadFileToS3, shortErrorMsg } from "@/lib/upload";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,6 +60,7 @@ import {
   Eye,
   Sparkles,
   ChevronsUpDown,
+  Zap,
 } from "lucide-react";
 import { GlassCard, ZenTooltip, ZenSkeleton } from "@/components/ZenCoPilot";
 import VisualSoul from "@/components/VisualSoul";
@@ -485,10 +488,15 @@ export default function ModelsPage() {
   // 全站新手引導
   usePageTour("models");
 
+  // 頁面分頁：角色鍛造所 | 模型訓練中心
+  const [pageTab, setPageTab] = useState<"forge" | "trainer">("forge");
+
   useEffect(() => {
-    setPageContext({ pageId: "models", pageLabel: "模型庫" });
+    if (pageTab === "forge") {
+      setPageContext({ pageId: "models", pageLabel: "模型庫" });
+    }
     return () => setPageContext(null);
-  }, [setPageContext]);
+  }, [pageTab, setPageContext]);
 
   const [tab, setTab] = useState("my");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -830,7 +838,41 @@ export default function ModelsPage() {
 
   return (
     <div className="space-y-6">
-      <AssetModelSubpageGuide page="models" />
+      {/* 頁面切換標籤 */}
+      <div className="flex items-center gap-1 border-b border-border/50 pb-0">
+        <button
+          type="button"
+          onClick={() => setPageTab("forge")}
+          className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors ${
+            pageTab === "forge"
+              ? "bg-primary/10 text-primary border-b-2 border-primary"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Cpu className="w-4 h-4" />
+          角色鍛造所
+        </button>
+        <button
+          type="button"
+          onClick={() => setPageTab("trainer")}
+          className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors ${
+            pageTab === "trainer"
+              ? "bg-primary/10 text-primary border-b-2 border-primary"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Zap className="w-4 h-4" />
+          模型訓練中心
+        </button>
+      </div>
+
+      {pageTab === "trainer" ? (
+        <Suspense fallback={<div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>}>
+          <LoraTrainer />
+        </Suspense>
+      ) : (
+        <>
+          <AssetModelSubpageGuide page="models" />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -1763,6 +1805,8 @@ export default function ModelsPage() {
             if (!open) setAnalysisModelId(null);
           }}
         />
+      )}
+        </>
       )}
     </div>
   );
