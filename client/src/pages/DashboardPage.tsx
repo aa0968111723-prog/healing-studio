@@ -26,6 +26,7 @@ import {
   Activity,
   Coins,
   Monitor,
+  DollarSign,
 } from "lucide-react";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import { motion } from "framer-motion";
@@ -40,6 +41,8 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  LineChart,
+  Line,
 } from "recharts";
 
 const CreditsInfoPage = lazy(() => import("./CreditsInfoPage"));

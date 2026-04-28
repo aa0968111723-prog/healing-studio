@@ -23,11 +23,11 @@ function mediaUrlFromResult(resultJson: unknown): string | null {
   const r = resultJson as Record<string, unknown>;
   return (
     (r.resultUrl as string) ??
-    ((r.result as Record<string, unknown>)?.video?.url as string) ??
+    (((r.result as Record<string, unknown>)?.video as Record<string, unknown>)?.url as string) ??
     ((r.result as Record<string, unknown>)?.videoUrl as string) ??
-    ((r.result as Record<string, unknown>)?.audio?.url as string) ??
+    (((r.result as Record<string, unknown>)?.audio as Record<string, unknown>)?.url as string) ??
     ((r.result as Record<string, unknown>)?.audioUrl as string) ??
-    ((r.result as Record<string, unknown>)?.image?.url as string) ??
+    (((r.result as Record<string, unknown>)?.image as Record<string, unknown>)?.url as string) ??
     ((r.result as Record<string, unknown>)?.imageUrl as string) ??
     ((r.result as Record<string, unknown>)?.images as string[])?.[0] ??
     (r.videoUrl as string) ??
