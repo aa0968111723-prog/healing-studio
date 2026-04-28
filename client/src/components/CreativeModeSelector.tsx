@@ -6,14 +6,7 @@ import type { CreativeMode } from "@/stores/workspaceStore";
 const CREATIVE_MODE_KEY = "hs-creative-mode";
 
 export function loadCreativeMode(): CreativeMode {
-  try {
-    const stored = localStorage.getItem(CREATIVE_MODE_KEY);
-    if (stored === "simple" || stored === "standard" || stored === "pro")
-      return stored;
-  } catch {
-    /* ignore */
-  }
-  return "simple";
+  return "standard";
 }
 
 export function saveCreativeMode(mode: CreativeMode) {
