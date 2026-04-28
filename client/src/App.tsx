@@ -163,6 +163,15 @@ function AdminRedirect() {
   return null;
 }
 
+// Generic redirect to any path (used for moved routes)
+function NavigateRedirect({ to }: { to: string }) {
+  const [, navigate] = useLocation();
+  useEffect(() => {
+    navigate(to, { replace: true });
+  }, [navigate, to]);
+  return null;
+}
+
 function Router() {
   return (
     <Switch>
