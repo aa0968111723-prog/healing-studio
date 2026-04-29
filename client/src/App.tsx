@@ -50,6 +50,8 @@ const LoraTrainer = lazy(() => import("./pages/LoraTrainer"));
 const FocusFlowPage = lazy(() => import("./pages/FocusFlowPage"));
 const AgentChat = lazy(() => import("./pages/AgentChat"));
 const AdminApiUsagePage = lazy(() => import("./pages/AdminApiUsagePage"));
+const AiBrainPipelinePage = lazy(() => import("./pages/AiBrainPipelinePage"));
+const MyBrainPage = lazy(() => import("./pages/MyBrainPage"));
 const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"));
 const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
 const AccountSettingsPage = lazy(() => import("./pages/AccountSettingsPage"));
@@ -211,6 +213,12 @@ function Router() {
       </Route>
       <Route path="/admin/api-usage">
         <DashboardRoute component={AdminApiUsagePage} />
+      </Route>
+      <Route path="/admin/brain-pipeline">
+        <DashboardRoute component={AiBrainPipelinePage} />
+      </Route>
+      <Route path="/my-brain">
+        <ProtectedDashboardRoute component={MyBrainPage} />
       </Route>
       <Route path="/pro-studio">
         <ProtectedDashboardRoute component={ProStudio} />

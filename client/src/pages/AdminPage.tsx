@@ -266,12 +266,24 @@ export default function AdminPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <Shield className="w-5 h-5 text-muted-foreground" />
         <h1 className="hs-h2 !mb-0">管理後台</h1>
         <Badge variant="outline" className="text-[10px]">
           管理員
         </Badge>
+        <div className="flex-1" />
+        <Button
+          asChild
+          size="sm"
+          variant="outline"
+          className="gap-1.5"
+          data-testid="admin-brain-pipeline-link"
+        >
+          <a href="/admin/brain-pipeline">
+            🧠 大腦管線可視化
+          </a>
+        </Button>
       </div>
 
       <p className="text-xs text-muted-foreground">
