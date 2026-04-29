@@ -4,6 +4,7 @@ import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import { runSchemaFirstAgentPlanner } from "../services/agentPlanner";
 import { executeCurrentStepTools } from "../services/orbTaskOrchestrator";
+import { loadAgentPreferencesForUser } from "../services/agentPreferenceService";
 import { getOrbToolRegistry } from "../config/orbToolRegistry";
 import type { OrbTask } from "../../shared/orb-agent-contract";
 
@@ -77,6 +78,7 @@ webhooksRouter.post("/orb", limiter, async (req, res) => {
       updatedAt: now,
     };
 
+    const agentPreferences = await loadAgentPreferencesForUser(parse.data.userId);
     await executeCurrentStepTools({
       task: orchestratorTask,
       userId: parse.data.userId,
@@ -84,6 +86,7 @@ webhooksRouter.post("/orb", limiter, async (req, res) => {
       tools: getOrbToolRegistry(),
       approved: true,
       requestId: taskId,
+      agentPreferences,
     });
   })();
 });

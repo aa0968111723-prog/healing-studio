@@ -27,6 +27,9 @@ import {
   Clock3,
   Paperclip,
   X,
+  Settings2,
+  Sparkles,
+  Eraser,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { usePersonality } from "@/contexts/PersonalityContext";
@@ -49,6 +52,7 @@ import { useGlobalOrbChat } from "@/contexts/GlobalOrbChatContext";
 import { useOrbAttachments, attachmentKindEmoji } from "@/hooks/useOrbAttachments";
 import { ORB_UPLOAD_ACCEPT } from "../../../shared/orb-chat-multimodal";
 import { toast } from "sonner";
+import AgentSettingsSheet from "@/components/AgentSettingsSheet";
 
 // ─── 型別 ─────────────────────────────────────────────────────────────────
 
@@ -106,6 +110,38 @@ const NEED_CLUES = [
   "尺寸/長寬比/時長/檔案格式",
   "手上已有的素材或參考（圖片、影片、腳本、聲音）",
   "限制條件（設備、時間、風格偏好、點數預算）",
+];
+
+/**
+ * 「如何使用」分步說明 — 在第一輪對話前展開，告訴使用者怎麼跟光球互動，
+ * 才不會打開頁面只看到一句「先聊聊看就好」就不知道下一步要做什麼。
+ */
+const HOW_TO_STEPS: Array<{ title: string; description: string }> = [
+  {
+    title: "1. 用一句話告訴光球目標",
+    description:
+      "直接打字、貼圖、附素材都可以。例：「我要做 30 秒 IG Reels 預告，已有 3 張產品照」。",
+  },
+  {
+    title: "2. 回答光球的反問",
+    description:
+      "光球會先問尺寸、風格、限制 — 模糊的地方它會繼續確認，不會自己亂猜。",
+  },
+  {
+    title: "3. 看到「意圖卡」再決定要不要動",
+    description:
+      "送出、套預設、跨頁這類動作會先彈卡片給你看。確認沒問題再按，光球才會真的執行。",
+  },
+  {
+    title: "4. 點下方意圖卡跳到對的工具頁",
+    description:
+      "「圖片 / 影片 / 音樂 / 配音 / 腳本 / LoRA」按下去會帶你到對應頁，光球會繼續陪你完成。",
+  },
+  {
+    title: "5. 隨時叫光球幫你跑長期任務",
+    description:
+      "右上角「代理設定」可以開排程，例如「每天早上整理昨日生成紀錄」— 光球會自己跑、出事再叫你。",
+  },
 ];
 
 const NEED_PROMPTS = [
@@ -210,6 +246,8 @@ export default function AgentChat() {
     // Global chat manages suggestions internally
   };
   const [needGuideOpen, setNeedGuideOpen] = useState(false);
+  const [howToOpen, setHowToOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const starterEntries = useMemo(
     () =>
@@ -348,6 +386,117 @@ export default function AgentChat() {
           <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md leading-relaxed">
             我會先問幾個關鍵問題（目標、用途、素材、限制），幫你定位到正確的頁面，並一步步告訴你怎麼做。
           </p>
+
+          {/* 工具列：如何使用 + 代理設定 + 清除對話 */}
+          <div className="w-full flex flex-wrap items-center justify-center gap-2 mt-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setHowToOpen(prev => !prev)}
+              className="h-8 px-3 text-xs gap-1.5 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
+              aria-expanded={howToOpen}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
+              如何使用光球
+              <ChevronDown
+                className={`w-3 h-3 transition-transform ${howToOpen ? "rotate-180" : ""}`}
+              />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (messages.length === 0) {
+                  globalChat.resetConversation();
+                  toast.success("已重新開始對話");
+                  return;
+                }
+                if (
+                  window.confirm(
+                    `確定要清除這段對話嗎？目前有 ${messages.length} 則訊息會被刪除（不影響排程與設定）。`
+                  )
+                ) {
+                  globalChat.resetConversation();
+                  toast.success("對話已清除，重新開始");
+                }
+              }}
+              disabled={isSending}
+              className="h-8 px-3 text-xs gap-1.5 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-destructive hover:border-destructive/40"
+              aria-label="清除目前的光球對話"
+              data-testid="clear-chat-trigger"
+            >
+              <Eraser className="w-3.5 h-3.5" />
+              清除對話
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setSettingsOpen(true)}
+              className="h-8 px-3 text-xs gap-1.5 border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700/60 dark:text-emerald-300 dark:hover:bg-emerald-900/20"
+              aria-haspopup="dialog"
+              data-testid="agent-settings-trigger"
+            >
+              <Settings2 className="w-3.5 h-3.5" />
+              代理設定
+            </Button>
+          </div>
+
+          {/* 如何使用 — 分步說明 */}
+          <AnimatePresence initial={false}>
+            {howToOpen && (
+              <motion.div
+                key="how-to"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.25 }}
+                className="w-full mt-1 overflow-hidden"
+              >
+                <div className="rounded-2xl border border-emerald-200/70 dark:border-emerald-700/40 bg-emerald-50/40 dark:bg-emerald-900/10 px-4 py-3 text-left space-y-2.5">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
+                    <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                      五步學會用光球
+                    </p>
+                  </div>
+                  <ol className="space-y-2">
+                    {HOW_TO_STEPS.map(step => (
+                      <li
+                        key={step.title}
+                        className="flex flex-col gap-0.5 rounded-lg bg-white/70 dark:bg-slate-900/30 border border-emerald-100/80 dark:border-emerald-700/30 px-3 py-2"
+                      >
+                        <p className="text-xs font-medium text-slate-700 dark:text-slate-200">
+                          {step.title}
+                        </p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                          {step.description}
+                        </p>
+                      </li>
+                    ))}
+                  </ol>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => void send("我是新手，請用 30 秒帶我認識這個聊天頁的用法。")}
+                      className="text-[11px] px-2 py-1 rounded-full border border-emerald-300/70 text-emerald-700 hover:bg-emerald-100/60 transition-colors"
+                    >
+                      🚀 讓光球親自示範
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLocation("/learn")}
+                      className="text-[11px] px-2 py-1 rounded-full border border-slate-200/80 text-slate-500 hover:text-slate-700 hover:border-slate-300 transition-colors"
+                    >
+                      📚 看完整文件
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* 需求釐清提示 */}
           <div className="w-full mt-3 sm:mt-4">
@@ -707,10 +856,9 @@ export default function AgentChat() {
           </div>
         </div>
 
-        <p className="text-center text-[11px] text-slate-400 dark:text-slate-500">
-          隨時可以關掉這一頁、換地方、反悔。這裡沒有進度條在追你 ✨
-        </p>
       </div>
+
+      <AgentSettingsSheet open={settingsOpen} onOpenChange={setSettingsOpen} />
     </div>
   );
 }

@@ -245,7 +245,17 @@ async function startServer() {
   } catch (err) {
     logger.error("[Server] DB migration failed on startup — server will continue", { err });
   }
-  startOrbScheduler();
+  // Reload persisted orb scheduled jobs from the DB and seed env-defined
+  // jobs. Awaited so the scheduler is fully ready before the HTTP server
+  // accepts requests.
+  try {
+    await startOrbScheduler();
+  } catch (err) {
+    logger.error(
+      "[Server] OrbScheduler bootstrap failed — server will continue without persisted jobs",
+      { err }
+    );
+  }
 
   const app = express();
   const server = createServer(app);
