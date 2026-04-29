@@ -233,8 +233,8 @@ async function executeWorkflowParallel(
     let cursor = 0;
     while (cursor < batch.length) {
       const slice = batch.slice(cursor, cursor + concurrency);
-      const batchResults = await Promise.all(
-        slice.map(async batchStep => {
+      const batchResults: AgentActionResult[] = await Promise.all(
+        slice.map(async (batchStep): Promise<AgentActionResult> => {
           const expanded = idToExpanded.get(batchStep.id);
           if (!expanded) {
             return { ok: false, reason: `scheduler: missing expanded step ${batchStep.id}` };
@@ -253,6 +253,15 @@ async function executeWorkflowParallel(
             path: expanded.path,
             action: expanded.action,
           });
+          // Pure navigate steps are fully satisfied by ctx.navigate() above;
+          // the page-agent layer rejects dispatched navigate actions.
+          if (expanded.action.type === "navigate") {
+            const navOk: AgentActionResult = {
+              ok: true,
+              message: `navigated to ${expanded.path ?? expanded.action.path}`,
+            };
+            return navOk;
+          }
           const targetPageId = expanded.path
             ? globalAgentRegistry.findByPath(expanded.path)?.pageId
             : globalAgentRegistry.plan(expanded.action, ctx.currentPage)?.steps[0]?.targetPageId;
@@ -306,6 +315,13 @@ async function executeWorkflowSequential(
     if (s.path && s.path !== ctx.currentPage?.pagePath) {
       await ctx.navigate(s.path);
       await wait(ctx.waitAfterNavigateMs ?? 450);
+    }
+    // Pure navigate steps are fully satisfied by ctx.navigate() above; the
+    // page-agent layer intentionally rejects dispatched navigate actions
+    // (orb owns navigation), so re-dispatching would surface a fake failure.
+    if (s.action.type === "navigate") {
+      results.push({ ok: true, message: `navigated to ${s.path ?? s.action.path}` });
+      continue;
     }
     const targetPageId = s.path
       ? globalAgentRegistry.findByPath(s.path)?.pageId
@@ -390,6 +406,14 @@ export async function executeGlobalAction(action: AgentAction, ctx: GlobalAgentE
     if (step.path && step.path !== ctx.currentPage?.pagePath) {
       await ctx.navigate(step.path);
       await wait(ctx.waitAfterNavigateMs ?? 450);
+    }
+
+    // Pure navigate plans are fully satisfied by ctx.navigate() above; the
+    // page-agent layer rejects dispatched navigate actions (orb owns nav),
+    // so re-dispatching would surface a fake failure.
+    if (step.action.type === "navigate") {
+      results.push({ ok: true, message: `navigated to ${step.path ?? step.action.path}` });
+      continue;
     }
 
     const res = normalizeResult(

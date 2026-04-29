@@ -13,6 +13,8 @@ import { describe, expect, it, beforeEach, vi } from "vitest";
 // 先設定假的環境變數讓 llmRouter 的 resolveSpecificEngine 不會報錯
 // （只是取得設定，不發請求）vi.hoisted 確保在 import 前執行
 vi.hoisted(() => {
+  process.env.ANTHROPIC_API_KEY =
+    process.env.ANTHROPIC_API_KEY || "test-anthropic-key";
   process.env.GEMINI_API_KEY = process.env.GEMINI_API_KEY || "test-gemini-key";
   process.env.NVIDIA_API = process.env.NVIDIA_API || "test-nvidia-key";
   process.env.BUILT_IN_FORGE_API_KEY =
@@ -38,7 +40,7 @@ function resetCircuit(engine: LLMEngine): void {
 describe("llm-fallback: 引擎降級鏈", () => {
   beforeEach(() => {
     // 每個 test 前重置所有引擎斷路器
-    (["gemini", "nvidia", "vertex", "forge"] as LLMEngine[]).forEach(
+    (["anthropic", "gemini", "nvidia", "vertex", "forge"] as LLMEngine[]).forEach(
       resetCircuit
     );
   });
@@ -81,13 +83,37 @@ describe("llm-fallback: 引擎降級鏈", () => {
   });
 
   it("auto 模式會跳過不健康的引擎", () => {
-    // 讓 gemini 斷路
+    // 讓 anthropic 與 gemini 都斷路
+    recordEngineFailure("anthropic");
+    recordEngineFailure("anthropic");
+    recordEngineFailure("anthropic");
     recordEngineFailure("gemini");
     recordEngineFailure("gemini");
     recordEngineFailure("gemini");
 
     const cfg = resolveEngineConfig("auto");
-    // auto 優先序：gemini > nvidia > vertex > forge，gemini 斷路後應該回 nvidia
+    // auto 優先序：anthropic > gemini > nvidia > vertex > forge
+    expect(cfg.engine).not.toBe("anthropic");
     expect(cfg.engine).not.toBe("gemini");
+  });
+
+  it("auto 模式優先選 anthropic（光球代理首選）", () => {
+    const cfg = resolveEngineConfig("auto");
+    expect(cfg.engine).toBe("anthropic");
+  });
+
+  it("anthropic 引擎設定包含 Claude Haiku 4.5 預設模型", () => {
+    const cfg = resolveEngineConfig("anthropic");
+    expect(cfg.engine).toBe("anthropic");
+    expect(cfg.model).toContain("claude-haiku");
+    expect(cfg.url).toBe("https://api.anthropic.com/v1/messages");
+    expect(cfg.supportsToolCalling).toBe(true);
+    expect(cfg.supportsLongContext).toBe(true);
+  });
+
+  it("anthropic 會被納入 fallback 鏈（從非 anthropic 主引擎觸發降級時）", () => {
+    const chain = getEngineFallbackChain("nvidia");
+    const engines = chain.map(c => c.engine);
+    expect(engines).toContain("anthropic");
   });
 });

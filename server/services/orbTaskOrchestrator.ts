@@ -79,10 +79,18 @@ export async function executeCurrentStepTools(
   const stepRisk = (step as unknown as { riskLevel?: string }).riskLevel ?? "low";
   const autoApproveTools = new Set(input.agentPreferences?.autoApproveTools ?? []);
   const hasAutoApprovedTool = step.toolCalls.some(call => autoApproveTools.has(call.name));
+  // An explicit per-call `requiresApproval: true` (or registry `requireConfirmation`)
+  // is enforced under default policy — only the user's own "always_approve" (or
+  // the per-tool `autoApproveTools` whitelist) opts out of step-level gates.
+  const explicitlyRequiresApproval = step.toolCalls.some(
+    call => Boolean(call.requiresApproval) || Boolean(registryByName.get(call.name)?.requireConfirmation)
+  );
   const shouldForceApprove =
     policy === "always_approve" ||
     hasAutoApprovedTool ||
-    (policy === "confirm_high_risk" && (input.agentPreferences?.allowedRiskLevels ?? ["low", "medium"]).includes(stepRisk));
+    (policy === "confirm_high_risk" &&
+      !explicitlyRequiresApproval &&
+      (input.agentPreferences?.allowedRiskLevels ?? ["low", "medium"]).includes(stepRisk));
   const shouldForceManual = policy === "confirm_all" || policy === "manual";
   const autoStepLimitReached = (input.autoApprovedStepsInRun ?? 0) >= maxAuto;
   const isStepApproved = input.task.approvedStepIds.includes(step.id);

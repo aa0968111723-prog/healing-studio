@@ -607,7 +607,7 @@ export async function dispatchFalTask(
       modelId: targetModelId,
       category,
       prompt: input.prompt,
-      inputs: falInput,
+      inputs: finalInput,
       result: null,
       error: finalErrMsg,
       durationMs: finalDuration,

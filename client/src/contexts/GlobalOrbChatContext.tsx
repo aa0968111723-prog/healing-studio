@@ -1172,8 +1172,9 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           testStatusSummary?: string;
         } | null;
       }).codeTask;
-      const dataReply = "reply" in data && typeof data.reply === "string" ? data.reply : "";
-      const dataActions = "actions" in data ? data.actions : undefined;
+      const dataObj = (data ?? {}) as Record<string, unknown>;
+      const dataReply = typeof dataObj.reply === "string" ? dataObj.reply : "";
+      const dataActions = dataObj.actions;
       const llmActions = rawPlannerOutput
         ? adaptAgentPlanToActions(rawPlannerOutput)
         : dataActions

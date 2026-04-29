@@ -88,7 +88,7 @@ function buildRateLimitKey(req: Request): string {
   if (userId) return `user:${userId}`;
 
   // Fall back to IP address — use ipKeyGenerator to properly handle IPv6 addresses
-  const ip = ipKeyGenerator(req);
+  const ip = ipKeyGenerator(req.ip ?? "unknown");
   return `ip:${ip}`;
 }
 

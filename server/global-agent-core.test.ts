@@ -338,6 +338,66 @@ describe("global-agent-orchestrator", () => {
     expect(result.results[0]).toEqual({ ok: false, reason: "workflow has no executable steps" });
   });
 
+  it("does not re-dispatch a navigate action after navigating (orb owns nav)", async () => {
+    // Regression: previously executeGlobalAction would call ctx.navigate() and
+    // then ALSO dispatch the navigate action through pageAgent.dispatch, which
+    // returned { ok: false, reason: "navigate handled by orb layer" } and
+    // surfaced a fake failure to the user ("我找到要做的事，但執行時遇到問題").
+    const calls: string[] = [];
+    const result = await executeGlobalAction({ type: "navigate", path: "/studio" }, {
+      currentPage: null,
+      navigate: async path => {
+        calls.push(`nav:${path}`);
+      },
+      dispatch: async action => {
+        calls.push(`dispatch:${action.type}`);
+        // Simulate the page-agent layer's navigate rejection so we catch any
+        // regression where the orchestrator forwards navigate to dispatch.
+        if (action.type === "navigate") {
+          return { ok: false, reason: "navigate handled by orb layer" };
+        }
+        return { ok: true };
+      },
+      waitAfterNavigateMs: 0,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(calls).toEqual(["nav:/studio"]);
+  });
+
+  it("does not re-dispatch navigate steps inside a workflow", async () => {
+    globalAgentRegistry.register(makePage("studio", "/studio", "創作工作室", ["fillPrompt"]));
+    const calls: string[] = [];
+
+    const result = await executeGlobalWorkflow({
+      type: "runWorkflow",
+      name: "navigate-then-fill",
+      steps: [
+        { path: "/studio", actionType: "navigate", payload: "/studio", label: "去工作室" },
+        { path: "/studio", actionType: "fillPrompt", payload: "夕陽", label: "填提示詞" },
+      ],
+    }, {
+      currentPage: null,
+      navigate: async path => calls.push(`nav:${path}`),
+      dispatch: async action => {
+        calls.push(`act:${action.type}`);
+        if (action.type === "navigate") {
+          return { ok: false, reason: "navigate handled by orb layer" };
+        }
+        return { ok: true };
+      },
+      waitAfterNavigateMs: 0,
+    });
+
+    expect(result.ok).toBe(true);
+    // ctx.currentPage stays null in the test, so each step's s.path triggers
+    // ctx.navigate. The navigate ACTION itself must not be dispatched —
+    // otherwise the page-agent's "navigate handled by orb layer" rejection
+    // would fail the workflow.
+    expect(calls).toEqual(["nav:/studio", "nav:/studio", "act:fillPrompt"]);
+    expect(calls).not.toContain("act:navigate");
+  });
+
   it("passes source and intentSummary through workflow step dispatch options", async () => {
     globalAgentRegistry.register(makePage("director", "/director", "導演 AI", ["fillPrompt"]));
     const seenOpts: Array<{ source?: string; intentSummary?: string }> = [];

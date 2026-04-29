@@ -363,7 +363,7 @@ function extractCitationsFromJson(
         (c): c is { kind?: unknown; id?: unknown; label?: unknown } =>
           !!c && typeof c === "object"
       )
-      .map(c => {
+      .map((c): { kind: "memory" | "page" | "tool" | "web"; id: string; label?: string } | null => {
         const kind =
           typeof c.kind === "string" && allowedKinds.has(c.kind)
             ? (c.kind as "memory" | "page" | "tool" | "web")
@@ -371,7 +371,8 @@ function extractCitationsFromJson(
         const id = typeof c.id === "string" ? c.id.trim().slice(0, 160) : "";
         const label =
           typeof c.label === "string" ? c.label.trim().slice(0, 120) : undefined;
-        return id ? { kind, id, label } : null;
+        if (!id) return null;
+        return label !== undefined ? { kind, id, label } : { kind, id };
       })
       .filter((c): c is { kind: "memory" | "page" | "tool" | "web"; id: string; label?: string } => c !== null)
       .slice(0, 8);

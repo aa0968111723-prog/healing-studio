@@ -3713,19 +3713,19 @@ function MiniAssetsPanel() {
 function MiniModelsPanel({
   activeModelId,
   selectedFalModelId,
-  onSelectFalModel,
-  modelParams,
-  onChangeModelParams,
-  activeCategory,
+  onSelectFalModel = () => {},
+  modelParams = {},
+  onChangeModelParams = () => {},
+  activeCategory = "image",
   onApply,
   onRemove,
 }: {
   activeModelId?: number;
   selectedFalModelId?: string;
-  onSelectFalModel: (id: string | undefined) => void;
-  modelParams: Record<string, string | number | boolean>;
-  onChangeModelParams: (next: Record<string, string | number | boolean>) => void;
-  activeCategory: "image" | "video" | "audio" | "voice";
+  onSelectFalModel?: (id: string | undefined) => void;
+  modelParams?: Record<string, string | number | boolean>;
+  onChangeModelParams?: (next: Record<string, string | number | boolean>) => void;
+  activeCategory?: "image" | "video" | "audio" | "voice" | "multimodal";
   onApply: (id: number, name: string) => void;
   onRemove: () => void;
 }) {
@@ -3739,7 +3739,10 @@ function MiniModelsPanel({
     retry: false,
   });
   useEffect(() => {
-    const mappedCategory = activeCategory === "voice" ? "audio" : activeCategory;
+    const mappedCategory =
+      activeCategory === "voice" || activeCategory === "multimodal"
+        ? "audio"
+        : activeCategory;
     fetch(`/api/tools/models?category=${mappedCategory}`)
       .then(r => r.json())
       .then(setFalModels)

@@ -5148,7 +5148,7 @@ export const appRouter = router({
                 recentTaskMemorySummary,
                 recentOrbMemorySummary,
                 siteKnowledgeSummary,
-                preferences: input.preferences ?? null,
+                preferences: (input.preferences ?? null) as Parameters<typeof runSchemaFirstAgentPlanner>[0]["preferences"],
                 invoke: async plannerInput => {
                   const preferred = plannerInput.preferEngine ?? enginePreference;
                   try {
@@ -5330,7 +5330,9 @@ export const appRouter = router({
                 reply: plannerResult.reply ?? "我需要先確認一個細節，才能繼續執行。",
                 actions: [],
                 intent: plannerResult.intent ?? null,
-                askBeforeAct: true,
+                // No actions to gate, just a question to answer — propagate
+                // the planner's askBeforeAct verbatim instead of hardcoding.
+                askBeforeAct: plannerResult.askBeforeAct ?? false,
                 suggestions: [],
                 toolCalls: [],
                 needsClarification: true,
