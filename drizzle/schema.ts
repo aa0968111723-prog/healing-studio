@@ -73,6 +73,37 @@ export const agentPreferences = mysqlTable(
     maxAutoStepsPerTask: int("maxAutoStepsPerTask").default(5).notNull(),
     notifyOnCompletion: boolean("notifyOnCompletion").default(true).notNull(),
     notifyOnError: boolean("notifyOnError").default(true).notNull(),
+    // ── Voice (光球助手語音) ──────────────────────────────────────────
+    voiceEnabled: boolean("voiceEnabled").default(false).notNull(),
+    preferredVoiceName: mysqlEnum("preferredVoiceName", [
+      "Puck",
+      "Charon",
+      "Kore",
+      "Fenrir",
+      "Aoede",
+    ]).default("Puck").notNull(),
+    voiceAutoActivate: boolean("voiceAutoActivate").default(false).notNull(),
+    // ── Per-user kill switch / workflow override ──────────────────────
+    // null = follow env flag; true/false = explicit user override.
+    orbAgentEnabled: boolean("orbAgentEnabled"),
+    workflowsEnabled: boolean("workflowsEnabled"),
+    // ── Per-page agent disable list (json array of pageIds) ──────────
+    disabledPageAgents: json("disabledPageAgents").$type<string[]>().default([]).notNull(),
+    // ── Per-page × per-action 細模許可 (Record<pageId, string[]>) ──
+    disabledActionsByPage: json("disabledActionsByPage")
+      .$type<Record<string, string[]>>()
+      .default({})
+      .notNull(),
+    // ── Orb assistant UI prefs ───────────────────────────────────────
+    orbWidgetCorner: mysqlEnum("orbWidgetCorner", [
+      "bottom-right",
+      "bottom-left",
+      "top-right",
+      "top-left",
+    ]).default("bottom-right").notNull(),
+    orbWelcomeMessage: text("orbWelcomeMessage"),
+    orbShortcutEnabled: boolean("orbShortcutEnabled").default(true).notNull(),
+    orbProactiveSuggestions: boolean("orbProactiveSuggestions").default(true).notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },

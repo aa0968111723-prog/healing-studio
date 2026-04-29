@@ -1,6 +1,8 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
+import { useRegisterPageAgent, type AgentActionResult } from "@/contexts/PageAgentContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -530,6 +532,46 @@ function BillingTab() {
 
 export default function AdminApiUsagePage() {
   const [activeTab, setActiveTab] = useState("overview");
+  const [, navigate] = useLocation();
+
+  // 與 AdminPage 同樣只暴露 navigate / setTab；不開放 destructive 動作。
+  useRegisterPageAgent({
+    pageId: "admin-api-usage",
+    pageLabel: "API 用量分析",
+    pagePath: "/admin/api-usage",
+    capabilities: [
+      {
+        action: "navigate",
+        label: "前往管理子頁",
+        options: [
+          { id: "/admin", label: "管理後台首頁" },
+          { id: "/admin/api-usage", label: "API 用量分析" },
+          { id: "/admin/brain-pipeline", label: "大腦推理鏈視覺化" },
+        ],
+      },
+      {
+        action: "setTab",
+        label: "切換用量分頁",
+        options: [
+          { id: "overview", label: "總覽" },
+          { id: "providers", label: "供應商" },
+          { id: "rate-limit", label: "速率限制" },
+          { id: "billing", label: "帳單" },
+        ],
+      },
+    ],
+    handle: async (action): Promise<AgentActionResult> => {
+      if (action.type === "navigate" && typeof action.path === "string") {
+        navigate(action.path);
+        return { ok: true };
+      }
+      if (action.type === "setTab" && typeof action.tabId === "string") {
+        setActiveTab(action.tabId);
+        return { ok: true };
+      }
+      return { ok: false, reason: `admin-api-usage: unsupported action "${action.type}"` };
+    },
+  });
 
   return (
     <div className="flex-1 p-4 sm:p-8 max-w-7xl mx-auto w-full">

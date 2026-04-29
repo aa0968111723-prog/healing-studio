@@ -29,6 +29,18 @@ export interface OrbParsedReply {
   toolCalls: OrbRawToolCall[];
   /** 可選：schema-first planner 原始輸出（前端可用 adaptAgentPlanToActions 轉換） */
   plannerOutput?: unknown;
+  /** LLM 判斷使用者輸入過於模糊時，要求先反問釐清而非派動作 */
+  needsClarification: boolean;
+  /** 反問的問題文字（needsClarification=true 時必填） */
+  clarificationQuestion?: string;
+  /** 反問時提供的快速選項（最多 4 條，每條 1~24 字） */
+  clarificationOptions?: string[];
+  /** Citations the planner used (memory / page / tool / web). */
+  citations?: Array<{
+    kind: "memory" | "page" | "tool" | "web";
+    id: string;
+    label?: string;
+  }>;
 }
 
 /**
@@ -114,6 +126,7 @@ export function parseOrbReply(
       askBeforeAct: false,
       suggestions: [],
       toolCalls: [],
+      needsClarification: false,
     };
   }
 
@@ -171,14 +184,23 @@ export function parseOrbReply(
       if (!confirmExplicit && hasDestructive) askBeforeAct = true;
       if (opts.alwaysConfirm && (actions.length > 0 || !!plannerOutput)) askBeforeAct = true;
 
+      const clarification = extractClarificationFromJson(parsed, plannerOutput);
+      const clarifiedActions = clarification.needsClarification ? [] : actions;
+      const finalAskBeforeAct = clarification.needsClarification ? true : askBeforeAct;
+      const citations = extractCitationsFromJson(parsed, plannerOutput);
+
       return {
         reply,
-        actions,
+        actions: clarifiedActions,
         intent,
-        askBeforeAct,
+        askBeforeAct: finalAskBeforeAct,
         suggestions,
         toolCalls,
         plannerOutput,
+        needsClarification: clarification.needsClarification,
+        clarificationQuestion: clarification.clarificationQuestion,
+        clarificationOptions: clarification.clarificationOptions,
+        citations,
       };
     } catch {
       // JSON parse failed -> fallback to marker parser below
@@ -255,10 +277,158 @@ export function parseOrbReply(
   }
   reply = reply.trim();
 
+  // ── CLARIFY marker：[CLARIFY:question|opt1|opt2|opt3] ──────────
+  let needsClarification = false;
+  let clarificationQuestion: string | undefined;
+  let clarificationOptions: string[] | undefined;
+  const clarifyMatch = /\[CLARIFY:([^\]]+)\]/.exec(reply);
+  if (clarifyMatch) {
+    const parts = clarifyMatch[1]
+      .split("|")
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+    if (parts.length > 0) {
+      needsClarification = true;
+      clarificationQuestion = parts[0].slice(0, 300);
+      const options = parts
+        .slice(1, 5)
+        .map(s => s.slice(0, 24))
+        .filter(s => s.length > 0);
+      if (options.length > 0) clarificationOptions = options;
+    }
+    reply = reply.replace(clarifyMatch[0], "").trim();
+  }
+
   // ── Confirm gate：破壞性動作 + alwaysConfirm 的保險絲 ─────────
   const hasDestructive = actions.some(a => ORB_DESTRUCTIVE_ACTIONS.has(a.type));
   if (!confirmExplicit && hasDestructive) askBeforeAct = true;
   if (opts.alwaysConfirm && actions.length > 0) askBeforeAct = true;
 
-  return { reply, actions, intent, askBeforeAct, suggestions, toolCalls };
+  // 反問模式下強制清空動作並要求確認，避免 LLM 同時下指令
+  if (needsClarification) {
+    askBeforeAct = true;
+    return {
+      reply,
+      actions: [],
+      intent,
+      askBeforeAct,
+      suggestions,
+      toolCalls,
+      needsClarification,
+      clarificationQuestion,
+      clarificationOptions,
+    };
+  }
+
+  return {
+    reply,
+    actions,
+    intent,
+    askBeforeAct,
+    suggestions,
+    toolCalls,
+    needsClarification: false,
+  };
+}
+
+interface ClarificationExtract {
+  needsClarification: boolean;
+  clarificationQuestion?: string;
+  clarificationOptions?: string[];
+}
+
+function extractCitationsFromJson(
+  parsed: Record<string, unknown>,
+  plannerOutput: unknown
+): Array<{ kind: "memory" | "page" | "tool" | "web"; id: string; label?: string }> | undefined {
+  const candidates: Array<Record<string, unknown> | undefined> = [
+    parsed,
+    typeof plannerOutput === "object" && plannerOutput !== null
+      ? (plannerOutput as Record<string, unknown>)
+      : undefined,
+  ];
+  if (typeof plannerOutput === "object" && plannerOutput !== null) {
+    const planLike = plannerOutput as Record<string, unknown>;
+    if (planLike.plan && typeof planLike.plan === "object") {
+      candidates.push(planLike.plan as Record<string, unknown>);
+    }
+  }
+  const allowedKinds = new Set(["memory", "page", "tool", "web"]);
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const raw = candidate.citations;
+    if (!Array.isArray(raw)) continue;
+    const cleaned = raw
+      .filter(
+        (c): c is { kind?: unknown; id?: unknown; label?: unknown } =>
+          !!c && typeof c === "object"
+      )
+      .map(c => {
+        const kind =
+          typeof c.kind === "string" && allowedKinds.has(c.kind)
+            ? (c.kind as "memory" | "page" | "tool" | "web")
+            : "memory";
+        const id = typeof c.id === "string" ? c.id.trim().slice(0, 160) : "";
+        const label =
+          typeof c.label === "string" ? c.label.trim().slice(0, 120) : undefined;
+        return id ? { kind, id, label } : null;
+      })
+      .filter((c): c is { kind: "memory" | "page" | "tool" | "web"; id: string; label?: string } => c !== null)
+      .slice(0, 8);
+    if (cleaned.length > 0) return cleaned;
+  }
+  return undefined;
+}
+
+function extractClarificationFromJson(
+  parsed: Record<string, unknown>,
+  plannerOutput: unknown
+): ClarificationExtract {
+  const candidates: Array<Record<string, unknown> | undefined> = [
+    parsed,
+    typeof plannerOutput === "object" && plannerOutput !== null
+      ? (plannerOutput as Record<string, unknown>)
+      : undefined,
+  ];
+
+  if (typeof plannerOutput === "object" && plannerOutput !== null) {
+    const planLike = plannerOutput as Record<string, unknown>;
+    if (planLike.plan && typeof planLike.plan === "object") {
+      candidates.push(planLike.plan as Record<string, unknown>);
+    }
+  }
+
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const flag = candidate.shouldAskClarification;
+    const decisionMode =
+      typeof candidate.decision === "object" && candidate.decision !== null
+        ? (candidate.decision as Record<string, unknown>).mode
+        : undefined;
+    const isClarifying = flag === true || decisionMode === "clarification";
+    if (!isClarifying) continue;
+
+    const question =
+      typeof candidate.clarificationQuestion === "string"
+        ? candidate.clarificationQuestion.trim()
+        : undefined;
+    const rawOptions = candidate.clarificationOptions;
+    const options = Array.isArray(rawOptions)
+      ? rawOptions
+          .filter((s): s is string => typeof s === "string")
+          .map(s => s.trim())
+          .filter(s => s.length > 0 && Array.from(s).length <= 24)
+          .slice(0, 4)
+      : undefined;
+
+    if (question && question.length > 0) {
+      return {
+        needsClarification: true,
+        clarificationQuestion: question.slice(0, 300),
+        clarificationOptions: options && options.length > 0 ? options : undefined,
+      };
+    }
+  }
+
+  return { needsClarification: false };
 }

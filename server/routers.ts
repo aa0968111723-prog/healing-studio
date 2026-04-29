@@ -34,12 +34,16 @@ import { externalServicesRouter } from "./routers/externalServices";
 import { apiUsageRouter } from "./routers/apiUsage";
 import { orbSchedulerRouter } from "./routers/orbSchedulerRouter";
 import { agentPreferencesRouter } from "./routers/agentPreferencesRouter";
+import { orbCapabilitiesRouter } from "./routers/orbCapabilitiesRouter";
 import { adminRouter } from "./routers/adminRouter";
 import { getOrchestrator } from "./services/modelClients";
 // voiceCompiler, audioCompiler, videoCompiler are no longer used — all modalities route through falDispatcher
 import { buildMemoryContext, upsertMemory } from "./services/ragMemory";
 import { buildOrbSystemPrompt } from "./services/siteKnowledge";
 import { parseOrbReply } from "./services/orbReplyParser";
+import { sanitizeOrbMessages } from "../shared/orb-prompt-defense";
+import { moderateOrbContent } from "../shared/orb-content-moderation";
+import { checkModalityCoherence } from "../shared/orb-modality-coherence";
 import { executeOrbToolCalls } from "./services/agentToolExecutor";
 import { getOrbToolRegistry } from "./config/orbToolRegistry";
 import { orbTaskRepository } from "./repositories/orbTaskRepository";
@@ -233,6 +237,184 @@ function isFlagEnabled(value: string | undefined, defaultEnabled: boolean): bool
   if (value === undefined || value === null || value.trim() === "") return defaultEnabled;
   const normalized = value.trim().toLowerCase();
   return !["0", "false", "off", "no", "disabled"].includes(normalized);
+}
+
+/**
+ * Pick which of the 5 reasoning brain slots best fits a single orb-chat turn.
+ *
+ * Default: `director` (matches legacy behaviour). Heuristics only override
+ * when the user's intent is unmistakable, so existing tests that mock the
+ * director slot keep passing for normal conversations.
+ *
+ *   technician  — coding / deploy / DevOps / debugging keywords
+ *   storyteller — script / 分鏡 / dialogue / narrative authoring
+ *   analyst     — data lookup / 統計 / metrics / 比較 / 比例 / 分析報告
+ *   curator     — preferences / memory / "上次" / "之前" / personal history
+ *   director    — everything else (multimodal planning, generic creative)
+ */
+function pickReasoningSlotForOrbChat(input: {
+  userText: string;
+  pageSnapshot?: { pageId?: string; pagePath?: string } | null | undefined;
+}): "director" | "analyst" | "storyteller" | "technician" | "curator" {
+  const text = (input.userText ?? "").toLowerCase();
+  if (!text) return "director";
+  const has = (...keywords: string[]) =>
+    keywords.some(keyword => text.includes(keyword.toLowerCase()));
+
+  // Hard signals that should win regardless of page context.
+  if (
+    has(
+      "code",
+      "代碼",
+      "程式",
+      "python",
+      "typescript",
+      "javascript",
+      "bug",
+      "deploy",
+      "github",
+      "api error",
+      "stack trace",
+      "exception",
+      "終端",
+      "shell",
+      "docker",
+      "ci/cd"
+    )
+  ) {
+    return "technician";
+  }
+
+  if (
+    has(
+      "腳本",
+      "分鏡",
+      "對白",
+      "對話",
+      "story",
+      "storyboard",
+      "script",
+      "narrative",
+      "短篇",
+      "電影感",
+      "詩",
+      "歌詞",
+      "lyric"
+    )
+  ) {
+    return "storyteller";
+  }
+
+  if (
+    has(
+      "統計",
+      "比例",
+      "數據",
+      "報表",
+      "metrics",
+      "analytics",
+      "用量",
+      "成本",
+      "cost",
+      "kpi",
+      "比較",
+      "差異",
+      "trend",
+      "dashboard"
+    )
+  ) {
+    return "analyst";
+  }
+
+  if (
+    has(
+      "上次",
+      "之前",
+      "我習慣",
+      "我喜歡",
+      "memory",
+      "記得",
+      "偏好",
+      "preference",
+      "history of",
+      "我做過"
+    )
+  ) {
+    return "curator";
+  }
+
+  // Page-derived hints (only used when text gives no signal).
+  const pageId = input.pageSnapshot?.pageId ?? "";
+  const pagePath = input.pageSnapshot?.pagePath ?? "";
+  if (
+    pageId === "admin" ||
+    pageId === "admin-api-usage" ||
+    pageId === "admin-brain-pipeline" ||
+    pagePath.startsWith("/admin")
+  ) {
+    return "analyst";
+  }
+  if (pageId === "director" || pagePath === "/director") {
+    return "storyteller";
+  }
+
+  return "director";
+}
+
+/**
+ * Drop any planner action whose type is disabled for the current page in the
+ * user's `disabledActionsByPage` map. Returns the filtered actions plus the
+ * list of dropped action types so the caller can surface that in warnings /
+ * telemetry. Workflows are recursed: any inner step matching a disabled
+ * action type is removed from the workflow's `steps[]`.
+ */
+function applyDisabledActionsByPage<T extends { type: string }>(
+  actions: T[],
+  pageId: string | undefined,
+  disabledActionsByPage: Record<string, string[]> | undefined
+): { actions: T[]; dropped: string[] } {
+  if (!actions || actions.length === 0) {
+    return { actions: actions ?? [], dropped: [] };
+  }
+  const map = disabledActionsByPage ?? {};
+  const disabledForPage = new Set(
+    [
+      ...(pageId ? map[pageId] ?? [] : []),
+      ...(map["*"] ?? []), // wildcard for "every page"
+    ].map(s => String(s).toLowerCase())
+  );
+  if (disabledForPage.size === 0) {
+    return { actions, dropped: [] };
+  }
+  const dropped: string[] = [];
+  const filtered = actions
+    .map(action => {
+      if (disabledForPage.has(action.type.toLowerCase())) {
+        dropped.push(action.type);
+        return null;
+      }
+      // For runWorkflow, also strip inner steps with disabled actionType.
+      if (action.type === "runWorkflow") {
+        const wf = action as unknown as {
+          type: "runWorkflow";
+          name: string;
+          steps: Array<{ actionType: string }>;
+        };
+        const keptSteps = wf.steps.filter(step => {
+          const blocked = disabledForPage.has(String(step.actionType).toLowerCase());
+          if (blocked) dropped.push(`runWorkflow.${step.actionType}`);
+          return !blocked;
+        });
+        if (keptSteps.length === 0) {
+          dropped.push("runWorkflow");
+          return null;
+        }
+        return { ...wf, steps: keptSteps } as unknown as T;
+      }
+      return action;
+    })
+    .filter((a): a is T => a !== null);
+  return { actions: filtered, dropped };
 }
 
 function sanitizeTelemetryValue(input: unknown): unknown {
@@ -567,6 +749,7 @@ export const appRouter = router({
   apiUsage: apiUsageRouter,
   orbScheduler: orbSchedulerRouter,
   agentPreferences: agentPreferencesRouter,
+  orbCapabilities: orbCapabilitiesRouter,
   adminEval: adminRouter,
 
   auth: router({
@@ -4400,6 +4583,24 @@ export const appRouter = router({
             .optional(),
           /** 強制要求：即使是非破壞性動作也要先確認 */
           alwaysConfirm: z.boolean().optional(),
+          /** 使用者代理偏好（confirmationPolicy 影響反問門檻、autoApproveTools / blockedTools 影響白黑名單） */
+          preferences: z
+            .object({
+              confirmationPolicy: z
+                .enum(["always_approve", "confirm_high_risk", "confirm_all", "manual"])
+                .optional(),
+              maxAutoStepsPerTask: z.number().int().min(1).max(20).optional(),
+              autoApproveTools: z.array(z.string().max(64)).max(64).optional(),
+              blockedTools: z.array(z.string().max(64)).max(64).optional(),
+              allowedRiskLevels: z.array(z.string().max(24)).max(8).optional(),
+              orbAgentEnabled: z.boolean().nullable().optional(),
+              workflowsEnabled: z.boolean().nullable().optional(),
+              disabledPageAgents: z.array(z.string().max(64)).max(64).optional(),
+              disabledActionsByPage: z
+                .record(z.string().max(64), z.array(z.string().max(40)).max(20))
+                .optional(),
+            })
+            .optional(),
           /** 客戶端請求去重 ID（可由 x-request-id 同步傳入） */
           requestId: z.string().min(1).max(128).optional(),
         })
@@ -4461,11 +4662,22 @@ export const appRouter = router({
 
         const registeredTools = getOrbToolRegistry();
 
-        // Global kill switch: when disabled, return text-only reply — no action planning.
-        const orbAgentEnabled = isFlagEnabled(
+        // Global kill switch + per-user override: env wins when disabled
+        // (admin can globally turn the agent off), but if env=on the user can
+        // still flip themselves into chat-only mode via agentPreferences.
+        const envOrbAgentEnabled = isFlagEnabled(
           process.env.ENABLE_ORB_AGENT ?? (serverEnv as Record<string, string | undefined>).ENABLE_ORB_AGENT,
           true
         );
+        const userOrbAgentOverride =
+          (input as { preferences?: { orbAgentEnabled?: boolean | null } }).preferences
+            ?.orbAgentEnabled ?? null;
+        const orbAgentEnabled =
+          !envOrbAgentEnabled
+            ? false
+            : userOrbAgentOverride === false
+              ? false
+              : true;
 
         const schemaFirstPlannerEnabled = isFlagEnabled(
           process.env.ENABLE_SCHEMA_FIRST_PLANNER ?? serverEnv.ENABLE_SCHEMA_FIRST_PLANNER,
@@ -4601,17 +4813,50 @@ export const appRouter = router({
           taskOutcomesSummary: recentTaskMemorySummary,
         });
 
-        // 從 AI 大腦取得導演配置（光球使用導演大腦）
-        const director = ctx.brain.getBrain("director");
+        // 從 AI 大腦取得導演配置（光球預設使用導演大腦），但會依使用者意圖
+        // 動態切到 5 個推理槽中最適合的那一個——讓使用者在 AI 大腦頁改的
+        // analyst / storyteller / technician / curator 模型都能真正生效。
+        const latestUserContent = [...input.messages]
+          .reverse()
+          .find(m => m.role === "user")?.content;
+        const latestUserTextForRouting =
+          typeof latestUserContent === "string"
+            ? latestUserContent
+            : Array.isArray(latestUserContent)
+            ? latestUserContent
+                .filter(part => part.type === "text")
+                .map(part => part.text)
+                .join("\n")
+            : "";
+        const reasoningSlot = pickReasoningSlotForOrbChat({
+          userText: latestUserTextForRouting,
+          pageSnapshot: input.pageSnapshot,
+        });
+        const director = ctx.brain.getBrain(reasoningSlot);
 
-        // 預設：優先 Gemini，多模態與 planner 會再透過 Provider Router 動態決策。
-        let enginePreference: "gemini" | "auto" = "gemini";
+        // 預設依大腦選定的 model 推斷引擎偏好；多模態與 Provider Router
+        // 會在後續再做動態決策。Brain 設定改 model 後，光球就會跟著切換引擎。
+        let enginePreference: "gemini" | "auto" =
+          /^gemini[-/]/i.test(director.model) || /^google[-/]/i.test(director.model)
+            ? "gemini"
+            : "auto";
 
         try {
-          const plannerMessages = input.messages.map(m => ({
-            role: m.role as "user" | "assistant",
-            content: m.content,
-          }));
+          // Prompt-injection defence: strip well-known role-impersonation /
+          // jailbreak phrases from user content before the planner sees it.
+          // Triggers are surfaced via telemetry so abuse can be flagged.
+          const sanitizationResult = sanitizeOrbMessages(
+            input.messages.map(m => ({
+              role: m.role as "user" | "assistant",
+              content: m.content,
+            }))
+          );
+          if (sanitizationResult.triggers.length > 0) {
+            appendTelemetryEvent(telemetryEvents, "orb.prompt_defense.triggered", {
+              triggers: sanitizationResult.triggers.join(","),
+            });
+          }
+          const plannerMessages = sanitizationResult.messages;
           const latestUserText = [...input.messages]
             .reverse()
             .find(m => m.role === "user");
@@ -4903,6 +5148,7 @@ export const appRouter = router({
                 recentTaskMemorySummary,
                 recentOrbMemorySummary,
                 siteKnowledgeSummary,
+                preferences: input.preferences ?? null,
                 invoke: async plannerInput => {
                   const preferred = plannerInput.preferEngine ?? enginePreference;
                   try {
@@ -4974,9 +5220,34 @@ export const appRouter = router({
             }
 
             if (plannerResult && plannerResult.status === "converted") {
+              // Gap 36: validate planner-selected modality matches the user's
+              // declared modality before shipping the plan. On mismatch we add
+              // a warning + log telemetry so ops can see when the orb routes
+              // to the wrong studio.
+              const planLikeForModality =
+                plannerResult.plan && typeof plannerResult.plan === "object"
+                  ? (plannerResult.plan as { steps?: Array<{ action?: { type?: string; modality?: string; path?: string }; pagePath?: string }> })
+                  : null;
+              const coherence = checkModalityCoherence({
+                userText: latestTextContent,
+                steps: planLikeForModality?.steps ?? [],
+              });
+              if (coherence.mismatch) {
+                appendTelemetryEvent(telemetryEvents, "orb.modality.mismatch", {
+                  declared: coherence.declared ?? "",
+                  selected: coherence.selected ?? "",
+                });
+              }
               const warnings = globalWorkflowsEnabled
-                ? plannerResult.warnings
-                : [...plannerResult.warnings, "Global Agent workflows 已關閉，僅提供文字回覆。"];
+                ? [
+                    ...plannerResult.warnings,
+                    ...(coherence.mismatch ? [coherence.message] : []),
+                  ]
+                : [
+                    ...plannerResult.warnings,
+                    ...(coherence.mismatch ? [coherence.message] : []),
+                    "Global Agent workflows 已關閉，僅提供文字回覆。",
+                  ];
               const actions = globalWorkflowsEnabled ? plannerResult.actions : [];
               const meta = makePlannerMeta({
                 plannerStatus: plannerResult.status,
@@ -4985,14 +5256,44 @@ export const appRouter = router({
                 preferredEngine: plannerResult.preferredEngine,
                 usedMultimodalPlanner: plannerResult.usedMultimodalPlanner,
               });
+              // Gap 17: moderate the converted reply.
+              const convertedModeration = moderateOrbContent(plannerResult.reply ?? "");
+              const moderatedReply = convertedModeration.action !== "pass"
+                ? convertedModeration.text
+                : plannerResult.reply ?? "我已幫你整理好下一步。";
+              if (convertedModeration.action !== "pass") {
+                appendTelemetryEvent(telemetryEvents, "orb.moderation.flagged", {
+                  action: convertedModeration.action,
+                  categories: Array.from(
+                    new Set(convertedModeration.findings.map(f => f.category))
+                  ).join(","),
+                  outcome: "converted",
+                });
+              }
+              const moderatedActions = convertedModeration.action === "block" ? [] : actions;
+              // Gap 9: drop actions blocked for the current page in user prefs.
+              const perPageFiltered = applyDisabledActionsByPage(
+                moderatedActions,
+                input.pageSnapshot?.pageId,
+                input.preferences?.disabledActionsByPage
+              );
+              if (perPageFiltered.dropped.length > 0) {
+                appendTelemetryEvent(telemetryEvents, "orb.per_page_action.blocked", {
+                  pageId: input.pageSnapshot?.pageId ?? "",
+                  dropped: perPageFiltered.dropped.join(","),
+                });
+                warnings.push(
+                  `已依使用者頁面權限略過：${perPageFiltered.dropped.join(", ")}`
+                );
+              }
               return {
-                reply: plannerResult.reply ?? "我已幫你整理好下一步。",
-                actions,
+                reply: moderatedReply,
+                actions: perPageFiltered.actions,
                 intent: plannerResult.intent ?? null,
                 askBeforeAct:
-                  actions.length > 0 &&
+                  perPageFiltered.actions.length > 0 &&
                   (plannerResult.askBeforeAct ||
-                    Boolean(input.alwaysConfirm && actions.length > 0)),
+                    Boolean(input.alwaysConfirm && perPageFiltered.actions.length > 0)),
                 suggestions: [],
                 toolCalls: [],
                 plannerOutput: plannerResult.rawContent ?? plannerResult.plan,
@@ -5022,13 +5323,19 @@ export const appRouter = router({
                 preferredEngine: plannerResult.preferredEngine,
                 usedMultimodalPlanner: plannerResult.usedMultimodalPlanner,
               });
+              const clarificationQuestion =
+                plannerResult.clarificationQuestion ??
+                (typeof plannerResult.reply === "string" ? plannerResult.reply : undefined);
               return {
                 reply: plannerResult.reply ?? "我需要先確認一個細節，才能繼續執行。",
                 actions: [],
                 intent: plannerResult.intent ?? null,
-                askBeforeAct: false,
+                askBeforeAct: true,
                 suggestions: [],
                 toolCalls: [],
+                needsClarification: true,
+                clarificationQuestion,
+                clarificationOptions: plannerResult.clarificationOptions,
                 plannerOutput: plannerResult.rawContent ?? plannerResult.plan,
                 telemetry: {
                   traceId: meta.traceId,
@@ -5376,7 +5683,38 @@ export const appRouter = router({
           const legacy = parseOrbReply(rawReply, {
             alwaysConfirm: input.alwaysConfirm,
           });
-          const legacyActions = globalWorkflowsEnabled ? legacy.actions : [];
+          // Gap 17: moderate the LLM reply text before it reaches the user.
+          const legacyModeration = moderateOrbContent(legacy.reply ?? "");
+          if (legacyModeration.action !== "pass") {
+            appendTelemetryEvent(telemetryEvents, "orb.moderation.flagged", {
+              action: legacyModeration.action,
+              categories: Array.from(
+                new Set(legacyModeration.findings.map(f => f.category))
+              ).join(","),
+            });
+            legacy.reply = legacyModeration.text;
+            // Block strips actions too — never dispatch when moderation blocks.
+            if (legacyModeration.action === "block") {
+              legacy.actions = [];
+            }
+          }
+          const legacyActionsRaw = globalWorkflowsEnabled ? legacy.actions : [];
+          // Gap 9: drop disabled-for-this-page action types from the legacy
+          // fallback path too. Cast: legacy.actions is the loose AgentAction
+          // union; only the `type` field matters for filtering.
+          const legacyPerPage = applyDisabledActionsByPage(
+            legacyActionsRaw as Array<{ type: string }>,
+            input.pageSnapshot?.pageId,
+            input.preferences?.disabledActionsByPage
+          );
+          if (legacyPerPage.dropped.length > 0) {
+            appendTelemetryEvent(telemetryEvents, "orb.per_page_action.blocked", {
+              pageId: input.pageSnapshot?.pageId ?? "",
+              dropped: legacyPerPage.dropped.join(","),
+              outcome: "fallback",
+            });
+          }
+          const legacyActions = legacyPerPage.actions as typeof legacy.actions;
           // Decide a more precise plannerStatus so ops can tell the four
           // fallback reasons apart in telemetry dashboards:
           //   - fallback-schema-disabled: env flag explicitly off
@@ -5405,10 +5743,20 @@ export const appRouter = router({
             ],
             usedMultimodalPlanner: false,
           });
+          // legacy.needsClarification was added by orbReplyParser; force askBeforeAct
+          // when set so the front-end opens the ClarificationCard.
+          const fallbackNeedsClarification = legacy.needsClarification === true;
           return {
             ...legacy,
-            actions: legacyActions,
-            askBeforeAct: legacyActions.length > 0 ? legacy.askBeforeAct : false,
+            actions: fallbackNeedsClarification ? [] : legacyActions,
+            askBeforeAct: fallbackNeedsClarification
+              ? true
+              : legacyActions.length > 0
+                ? legacy.askBeforeAct
+                : false,
+            needsClarification: fallbackNeedsClarification,
+            clarificationQuestion: legacy.clarificationQuestion,
+            clarificationOptions: legacy.clarificationOptions,
             telemetry: {
               traceId: meta.traceId,
               planId: meta.planId,
@@ -5419,7 +5767,7 @@ export const appRouter = router({
               riskLevel: null,
               usedMultimodalPlanner: meta.usedMultimodalPlanner,
               durationMs: null,
-              outcome: "fallback",
+              outcome: fallbackNeedsClarification ? "clarification" : "fallback",
               events: telemetryEvents,
             },
             ...meta,

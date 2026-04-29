@@ -1,11 +1,39 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { PipelineCanvas } from "@/components/brain-pipeline/PipelineCanvas";
 import { SummaryBar } from "@/components/brain-pipeline/SummaryBar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useRegisterPageAgent, type AgentActionResult } from "@/contexts/PageAgentContext";
 
 export default function AiBrainPipelinePage() {
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [, navigate] = useLocation();
+
+  useRegisterPageAgent({
+    pageId: "admin-brain-pipeline",
+    pageLabel: "大腦推理鏈視覺化",
+    pagePath: "/admin/brain-pipeline",
+    capabilities: [
+      {
+        action: "navigate",
+        label: "前往管理子頁",
+        options: [
+          { id: "/admin", label: "管理後台首頁" },
+          { id: "/admin?section=brain", label: "AI 大腦組態" },
+          { id: "/admin/api-usage", label: "API 用量分析" },
+          { id: "/admin/brain-pipeline", label: "推理鏈視覺化" },
+        ],
+      },
+    ],
+    handle: async (action): Promise<AgentActionResult> => {
+      if (action.type === "navigate" && typeof action.path === "string") {
+        navigate(action.path);
+        return { ok: true };
+      }
+      return { ok: false, reason: `admin-brain-pipeline: unsupported action "${action.type}"` };
+    },
+  });
 
   const graphQuery = trpc.brainPipeline.getGraph.useQuery(undefined, {
     refetchInterval: autoRefresh ? 30_000 : false,

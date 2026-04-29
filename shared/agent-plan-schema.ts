@@ -127,8 +127,27 @@ export const AgentPlanSchema = z.object({
   summaryForUser: z.string().trim().min(1).max(600),
   shouldAskClarification: z.boolean().default(false),
   clarificationQuestion: z.string().trim().max(300).optional(),
+  clarificationOptions: z
+    .array(z.string().trim().min(1).max(48))
+    .max(4)
+    .optional(),
   steps: z.array(AgentPlanStepSchema).max(12).default([]),
   warnings: z.array(z.string().trim().min(1).max(240)).max(8).default([]),
+  /**
+   * Citations the planner relied on (memoryId / page / tool / web). Lets the
+   * UI render "based on these sources" — and lets us audit which memories
+   * drove a given decision. Defaults to empty.
+   */
+  citations: z
+    .array(
+      z.object({
+        kind: z.enum(["memory", "page", "tool", "web"]).default("memory"),
+        id: z.string().trim().min(1).max(160),
+        label: z.string().trim().min(1).max(120).optional(),
+      })
+    )
+    .max(8)
+    .optional(),
 }).superRefine((plan, ctx) => {
   if (!plan.shouldAskClarification && plan.steps.length === 0) {
     ctx.addIssue({
@@ -283,6 +302,11 @@ export const AGENT_PLAN_JSON_SCHEMA = {
       summaryForUser: { type: "string", minLength: 1, maxLength: 600 },
       shouldAskClarification: { type: "boolean" },
       clarificationQuestion: { type: "string", maxLength: 300 },
+      clarificationOptions: {
+        type: "array",
+        maxItems: 4,
+        items: { type: "string", minLength: 1, maxLength: 48 },
+      },
       warnings: {
         type: "array",
         maxItems: 8,
@@ -405,6 +429,14 @@ export const AgentPlanV3StepSchema = AgentPlanStepSchema.extend({
     onFail: z.enum(["skip", "abort", "goto"]),
     gotoStepId: z.string().trim().min(1).max(80).optional(),
   }).optional(),
+  /** Optional per-step timeout (ms). Falls back to DEFAULT_STEP_TIMEOUT_MS. */
+  timeoutMs: z.number().int().min(1_000).max(600_000).optional(),
+  /**
+   * Optional list of step ids this step depends on. Future parallel
+   * scheduler reads this field to build a DAG; today the orchestrator
+   * still runs steps sequentially regardless.
+   */
+  dependsOn: z.array(z.string().trim().min(1).max(80)).max(8).optional(),
 });
 export type AgentPlanV3Step = z.infer<typeof AgentPlanV3StepSchema>;
 
@@ -440,6 +472,21 @@ export const AgentPlanV3Schema = z.object({
   intent: z.string().trim().min(1).max(240),
   summaryForUser: z.string().trim().min(1).max(600),
   clarificationQuestion: z.string().trim().max(300).optional(),
+  clarificationOptions: z
+    .array(z.string().trim().min(1).max(48))
+    .max(4)
+    .optional(),
+  /** Citations behind this plan — see AgentPlanSchema.citations for shape. */
+  citations: z
+    .array(
+      z.object({
+        kind: z.enum(["memory", "page", "tool", "web"]).default("memory"),
+        id: z.string().trim().min(1).max(160),
+        label: z.string().trim().min(1).max(120).optional(),
+      })
+    )
+    .max(8)
+    .optional(),
   decision: AgentPlanV3DecisionSchema,
   routing: AgentPlanV3RoutingSchema.default({
     preferredEngine: "auto",
@@ -589,6 +636,11 @@ export const AGENT_PLAN_V3_JSON_SCHEMA = {
       intent: { type: "string", minLength: 1, maxLength: 240 },
       summaryForUser: { type: "string", minLength: 1, maxLength: 600 },
       clarificationQuestion: { type: "string", maxLength: 300 },
+      clarificationOptions: {
+        type: "array",
+        maxItems: 4,
+        items: { type: "string", minLength: 1, maxLength: 48 },
+      },
       decision: {
         type: "object",
         additionalProperties: false,

@@ -138,6 +138,8 @@ export function adaptAgentPlanToActions(rawPlannerOutput: unknown): AgentPlanAda
       blockers,
       safety,
       reason: safety.summary,
+      clarificationQuestion: plan.clarificationQuestion,
+      clarificationOptions: plan.clarificationOptions,
     };
   }
 
@@ -221,6 +223,10 @@ export interface OrbTaskDraftStep {
     requiresApproval: boolean;
   }>;
   condition?: AgentPlanV3Step["condition"];
+  /** Compensation action to dispatch on permanent failure (rollback). */
+  compensationAction?: unknown;
+  /** Per-step timeout (ms) used by the orchestrator's AbortController. */
+  timeoutMs?: number;
 }
 
 export interface OrbTaskDraft {
@@ -253,6 +259,8 @@ export interface GatedAgentPlanResult {
   decisionMode?: AgentPlanV3DecisionMode;
   reason?: string;
   issues?: string[];
+  clarificationQuestion?: string;
+  clarificationOptions?: string[];
 }
 
 function v3StepToUiAction(step: AgentPlanV3Step): { type: string; payload?: unknown } {
@@ -311,6 +319,8 @@ function v3StepToOrbTaskStep(step: AgentPlanV3Step): OrbTaskDraftStep {
     uiActions,
     toolCalls,
     condition: step.condition,
+    compensationAction: step.compensationAction,
+    timeoutMs: (step as { timeoutMs?: number }).timeoutMs,
   };
 }
 
@@ -415,6 +425,8 @@ function gateV3Plan(plan: AgentPlanV3): GatedAgentPlanResult {
       preferredEngine: evaluation.preferredEngine,
       decisionMode: "clarification",
       reason: plan.decision.reason,
+      clarificationQuestion: plan.clarificationQuestion,
+      clarificationOptions: plan.clarificationOptions,
     };
   }
 
@@ -516,6 +528,8 @@ function gateV1Plan(plan: AgentPlan): GatedAgentPlanResult {
     safety: adapted.safety,
     reason: adapted.reason,
     issues: adapted.issues,
+    clarificationQuestion: adapted.clarificationQuestion,
+    clarificationOptions: adapted.clarificationOptions,
   };
 }
 

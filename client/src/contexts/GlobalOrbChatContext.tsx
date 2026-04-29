@@ -111,6 +111,15 @@ export interface PendingExecutorTask {
   affectedPages: string[];
 }
 
+export interface PendingClarificationPrompt {
+  /** Unique id for React keying / accessibility. */
+  id: string;
+  question: string;
+  options?: string[];
+  originalUserText: string;
+  createdAt: number;
+}
+
 export interface PendingCodeTaskPreview {
   codeTaskId: string;
   taskId: string;
@@ -130,6 +139,7 @@ export interface PendingCodeTaskPreview {
 
 const STORAGE_KEY_MESSAGES = "orb-chat-messages";
 const STORAGE_KEY_TIMESTAMP = "orb-chat-timestamp";
+const STORAGE_KEY_CLARIFICATION = "orb-chat-pending-clarification";
 const MAX_STORED_MESSAGES = 100;
 const STORAGE_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -187,8 +197,54 @@ function clearMessagesFromStorage() {
   try {
     localStorage.removeItem(STORAGE_KEY_MESSAGES);
     localStorage.removeItem(STORAGE_KEY_TIMESTAMP);
+    localStorage.removeItem(STORAGE_KEY_CLARIFICATION);
   } catch (err) {
     console.warn("[GlobalOrbChat] Failed to clear messages from storage:", err);
+  }
+}
+
+/**
+ * Pending clarification persistence — uses the same 7-day expiry window as the
+ * chat history so a partially-asked question survives page reloads, but doesn't
+ * outlive a stale conversation.
+ */
+function loadClarificationFromStorage(): {
+  prompt: PendingClarificationPrompt | null;
+} {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_CLARIFICATION);
+    if (!raw) return { prompt: null };
+    const parsed = JSON.parse(raw) as PendingClarificationPrompt & { savedAt?: number };
+    if (typeof parsed?.createdAt !== "number") return { prompt: null };
+    const age = Date.now() - parsed.createdAt;
+    if (age > STORAGE_EXPIRY_MS) {
+      localStorage.removeItem(STORAGE_KEY_CLARIFICATION);
+      return { prompt: null };
+    }
+    return {
+      prompt: {
+        id: String(parsed.id ?? `clarify_${parsed.createdAt}`),
+        question: String(parsed.question ?? ""),
+        options: Array.isArray(parsed.options) ? parsed.options : undefined,
+        originalUserText: String(parsed.originalUserText ?? ""),
+        createdAt: parsed.createdAt,
+      },
+    };
+  } catch (err) {
+    console.warn("[GlobalOrbChat] Failed to load clarification from storage:", err);
+    return { prompt: null };
+  }
+}
+
+function saveClarificationToStorage(prompt: PendingClarificationPrompt | null) {
+  try {
+    if (prompt) {
+      localStorage.setItem(STORAGE_KEY_CLARIFICATION, JSON.stringify(prompt));
+    } else {
+      localStorage.removeItem(STORAGE_KEY_CLARIFICATION);
+    }
+  } catch (err) {
+    console.warn("[GlobalOrbChat] Failed to save clarification to storage:", err);
   }
 }
 
@@ -381,6 +437,98 @@ function statusDot(status: WorkflowExecutionStepStatus): string {
     default:
       return "○";
   }
+}
+
+function ClarificationPromptCard({
+  prompt,
+  isBusy,
+  onAnswer,
+  onCancel,
+}: {
+  prompt: PendingClarificationPrompt | null;
+  isBusy: boolean;
+  onAnswer: (text: string) => void;
+  onCancel: () => void;
+}) {
+  const [draft, setDraft] = useState("");
+  useEffect(() => {
+    setDraft("");
+  }, [prompt?.id]);
+
+  if (!prompt) return null;
+  const submit = (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    onAnswer(trimmed);
+  };
+
+  return (
+    <div
+      role="dialog"
+      aria-label="光球需要先確認需求"
+      data-testid="orb-clarification-card"
+      className="fixed bottom-24 right-5 z-[88] w-[380px] max-w-[calc(100vw-2rem)] rounded-3xl border border-amber-200/30 bg-slate-950/95 p-4 text-white shadow-2xl backdrop-blur-xl"
+    >
+      <div className="text-xs uppercase tracking-[0.2em] text-amber-200/80">
+        先確認一下
+      </div>
+      <div data-testid="orb-clarification-question" className="mt-1 text-base font-semibold">{prompt.question}</div>
+      <div className="mt-2 text-xs text-white/60">
+        我需要先和你確認，避免做錯方向。選一個最接近的答案，或自己補充。
+      </div>
+
+      {prompt.options && prompt.options.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {prompt.options.map(option => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => submit(option)}
+              disabled={isBusy}
+              className="rounded-2xl bg-amber-200/15 px-3 py-1.5 text-xs text-amber-100 transition hover:bg-amber-200/25 disabled:opacity-50"
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-3 flex flex-col gap-2">
+        <textarea
+          value={draft}
+          onChange={event => setDraft(event.target.value)}
+          rows={2}
+          placeholder="也可以自己用一句話說明..."
+          className="w-full rounded-2xl border border-white/10 bg-white/5 p-2 text-sm text-white placeholder:text-white/40 focus:border-amber-200/40 focus:outline-none"
+          onKeyDown={event => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              submit(draft);
+            }
+          }}
+          disabled={isBusy}
+        />
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isBusy}
+            className="rounded-2xl bg-white/10 px-3 py-2 text-xs text-white/70 hover:bg-white/15 disabled:opacity-50"
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            onClick={() => submit(draft)}
+            disabled={isBusy || draft.trim().length === 0}
+            className="rounded-2xl bg-amber-300 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-amber-200 disabled:opacity-50"
+          >
+            傳給光球
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function WorkflowConfirmationCard({
@@ -650,6 +798,8 @@ interface GlobalOrbChatContextValue {
   isOpen: boolean;
   workflowExecution: WorkflowExecutionState | null;
   pendingWorkflow: PendingWorkflowPlan | null;
+  /** Open clarification prompt waiting for the user to disambiguate intent. */
+  pendingClarification: PendingClarificationPrompt | null;
   /** When false, the orb delivers text replies only — no actions, no workflows. */
   orbAgentEnabled: boolean;
   setInput: (text: string) => void;
@@ -663,6 +813,10 @@ interface GlobalOrbChatContextValue {
   startPendingWorkflow: () => Promise<void>;
   revisePendingWorkflow: () => void;
   cancelPendingWorkflow: () => void;
+  /** Submit the user's answer to the active clarification prompt. */
+  answerClarification: (answer: string) => Promise<void>;
+  /** Dismiss the clarification prompt without re-asking. */
+  cancelClarification: () => void;
 }
 
 /** Reads the VITE_ENABLE_ORB_AGENT env flag (default: enabled). */
@@ -674,7 +828,18 @@ function readOrbAgentEnabled(): boolean {
   return true;
 }
 
-const ORB_AGENT_ENABLED = readOrbAgentEnabled();
+const ORB_AGENT_ENV_ENABLED = readOrbAgentEnabled();
+
+/**
+ * Resolve the effective kill-switch state. Per-user pref (true/false) wins over
+ * env flag; null = follow env. We cap the truthy result at env=true so admins
+ * can globally disable the agent without users overriding.
+ */
+function resolveOrbAgentEnabled(userOverride: boolean | null | undefined): boolean {
+  if (!ORB_AGENT_ENV_ENABLED) return false;
+  if (userOverride === false) return false;
+  return true;
+}
 
 const GlobalOrbChatContext = createContext<GlobalOrbChatContextValue>({
   messages: [],
@@ -684,7 +849,8 @@ const GlobalOrbChatContext = createContext<GlobalOrbChatContextValue>({
   isOpen: false,
   workflowExecution: null,
   pendingWorkflow: null,
-  orbAgentEnabled: ORB_AGENT_ENABLED,
+  pendingClarification: null,
+  orbAgentEnabled: ORB_AGENT_ENV_ENABLED,
   setInput: () => {},
   sendMessage: async () => {},
   open: () => {},
@@ -696,6 +862,8 @@ const GlobalOrbChatContext = createContext<GlobalOrbChatContextValue>({
   startPendingWorkflow: async () => {},
   revisePendingWorkflow: () => {},
   cancelPendingWorkflow: () => {},
+  answerClarification: async () => {},
+  cancelClarification: () => {},
 });
 
 export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
@@ -712,6 +880,9 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   const [pendingExecutorTask, setPendingExecutorTask] = useState<PendingExecutorTask | null>(null);
   const [activeExecutorTask, setActiveExecutorTask] = useState<GlobalOrbExecutorTask | null>(null);
   const [pendingCodeTask, setPendingCodeTask] = useState<PendingCodeTaskPreview | null>(null);
+  const [pendingClarification, setPendingClarification] = useState<PendingClarificationPrompt | null>(
+    () => loadClarificationFromStorage().prompt
+  );
   const orbExecutor = useGlobalOrbExecutor();
 
   const aiChat = trpc.ai.chat.useMutation();
@@ -731,12 +902,28 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           refetchOnWindowFocus: false,
           enabled: isAuthenticated, // Only run when logged in
     });
+    const agentPreferencesQuery = trpc.agentPreferences.getPreferences.useQuery(undefined, {
+          retry: false,
+          staleTime: 5 * 60_000,
+          refetchOnWindowFocus: false,
+          enabled: isAuthenticated,
+    });
 
   useEffect(() => {
     if (messages.length > 0) saveMessagesToStorage(messages);
   }, [messages]);
 
+  // Persist the open clarification so it survives a reload — otherwise the
+  // user loses context if they refresh while waiting to disambiguate.
   useEffect(() => {
+    saveClarificationToStorage(pendingClarification);
+  }, [pendingClarification]);
+
+  const orbShortcutEnabled =
+    (agentPreferencesQuery.data as { orbShortcutEnabled?: boolean } | undefined)?.orbShortcutEnabled !== false;
+
+  useEffect(() => {
+    if (!orbShortcutEnabled) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key === "k") {
         const target = event.target as HTMLElement;
@@ -752,16 +939,19 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen]);
+  }, [isOpen, orbShortcutEnabled]);
 
+  const customWelcomeMessage = (agentPreferencesQuery.data as { orbWelcomeMessage?: string | null } | undefined)?.orbWelcomeMessage ?? null;
   const welcomeMessage = useMemo(() => {
+    const trimmed = typeof customWelcomeMessage === "string" ? customWelcomeMessage.trim() : "";
+    if (trimmed.length > 0) return trimmed;
     const greetings: Record<string, string> = {
       calm: "嗨 🌿 我是光球。有什麼想聊的或想做的嗎？慢慢說就好。",
       creative: "嗨！我是光球 ✨ 今天想創作什麼呢？隨便聊聊也可以～",
       technical: "嗨，我是光球 🔧 需要什麼幫助嗎？技術問題或創作都行。",
     };
     return greetings[personality] ?? greetings.creative;
-  }, [personality]);
+  }, [personality, customWelcomeMessage]);
 
   useEffect(() => {
     if (messages.length === 0) setMessages([{ role: "orb", text: welcomeMessage, at: Date.now(), pagePath: locationPath }]);
@@ -876,6 +1066,32 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     try {
       const inferredIntent = inferUserMultimodalIntent(trimmed);
       const backendSummary = summarizeProviderPing(providerPingQuery.data);
+      const prefRow = agentPreferencesQuery.data ?? null;
+      const preferencesForChat = prefRow
+        ? {
+            confirmationPolicy: (prefRow as { confirmationPolicy?: string }).confirmationPolicy as
+              | "always_approve"
+              | "confirm_high_risk"
+              | "confirm_all"
+              | "manual"
+              | undefined,
+            maxAutoStepsPerTask: (prefRow as { maxAutoStepsPerTask?: number }).maxAutoStepsPerTask,
+            autoApproveTools: (prefRow as { autoApproveTools?: string[] }).autoApproveTools,
+            blockedTools: (prefRow as { blockedTools?: string[] }).blockedTools,
+            allowedRiskLevels: (prefRow as { allowedRiskLevels?: string[] }).allowedRiskLevels,
+            // Per-user kill-switch override + per-page / per-action gates
+            // — server uses these to block actions before they ship back.
+            orbAgentEnabled:
+              (prefRow as { orbAgentEnabled?: boolean | null }).orbAgentEnabled ?? null,
+            workflowsEnabled:
+              (prefRow as { workflowsEnabled?: boolean | null }).workflowsEnabled ?? null,
+            disabledPageAgents:
+              (prefRow as { disabledPageAgents?: string[] }).disabledPageAgents,
+            disabledActionsByPage:
+              (prefRow as { disabledActionsByPage?: Record<string, string[]> })
+                .disabledActionsByPage,
+          }
+        : undefined;
       const data = await aiChat.mutateAsync({
         messages: nextHistory
           .filter(m => m.role !== "orb" || m.at !== messages[0]?.at)
@@ -887,7 +1103,47 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         context: `全站光球聊天 · 當前頁面: ${locationPath} · 意圖判斷: ${inferredIntent} · ${backendSummary}`,
         pageSnapshot: pageAgent.snapshot ?? undefined,
         recentFeedback: pageAgent.recentFeedback,
+        preferences: preferencesForChat,
       });
+
+      // Server signalled it needs to ask the user before acting. Skip every
+      // downstream action / workflow / executor branch and surface the
+      // ClarificationPromptCard so the user can disambiguate before the orb
+      // dispatches anything.
+      const needsClarification = (data as { needsClarification?: boolean }).needsClarification === true;
+      if (needsClarification) {
+        const clarificationQuestion =
+          typeof (data as { clarificationQuestion?: string }).clarificationQuestion === "string"
+            ? (data as { clarificationQuestion: string }).clarificationQuestion
+            : typeof (data as { reply?: string }).reply === "string"
+              ? (data as { reply: string }).reply
+              : "請幫我多說一點，我想先確認你的需求。";
+        const clarificationOptionsRaw = (data as { clarificationOptions?: string[] }).clarificationOptions;
+        const clarificationOptions = Array.isArray(clarificationOptionsRaw)
+          ? clarificationOptionsRaw
+              .filter((s): s is string => typeof s === "string")
+              .map(s => s.trim())
+              .filter(s => s.length > 0)
+              .slice(0, 4)
+          : undefined;
+        setMessages(prev => [...prev, {
+          role: "orb",
+          text: clarificationQuestion,
+          at: Date.now(),
+          pagePath: locationPath,
+        }]);
+        setPendingClarification({
+          id: `clarify_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          question: clarificationQuestion,
+          options: clarificationOptions,
+          originalUserText: trimmed,
+          createdAt: Date.now(),
+        });
+        // Suggestions still shown so users can pick from quick replies if any.
+        const rawSuggestions = (data as { suggestions?: string[] }).suggestions ?? [];
+        setSuggestions(rawSuggestions.slice(0, 4).map(s => ({ text: s })));
+        return;
+      }
 
       const intent = typeof (data as { intent?: string | null }).intent === "string"
         ? ((data as { intent?: string | null }).intent as string)
@@ -968,10 +1224,34 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       }]);
 
       const rawSuggestions = (data as { suggestions?: string[] }).suggestions ?? [];
-      setSuggestions(rawSuggestions.slice(0, 4).map(s => ({ text: s })));
+      const allowSuggestions =
+        (prefRow as { orbProactiveSuggestions?: boolean })?.orbProactiveSuggestions !== false;
+      setSuggestions(allowSuggestions ? rawSuggestions.slice(0, 4).map(s => ({ text: s })) : []);
 
-      if (!ORB_AGENT_ENABLED) {
-        // Kill switch: orb is chat-only — skip all action dispatch.
+      const userOverride = (prefRow as { orbAgentEnabled?: boolean | null })?.orbAgentEnabled;
+      const orbAgentRuntimeEnabled = resolveOrbAgentEnabled(
+        typeof userOverride === "boolean" ? userOverride : null
+      );
+      if (!orbAgentRuntimeEnabled) {
+        // Kill switch (env or per-user override): orb is chat-only.
+        return;
+      }
+
+      // Manual / pure-chat policy: 純聊天模式承諾「只回覆文字、不執行任何動作」。
+      // 即使動作通過確認卡也不應該被 dispatch — 早早 return 避免下面的 pendingPlan
+      // / executorTask / codeTask / actionsToExecute 任一分支觸發。
+      if (preferencesForChat?.confirmationPolicy === "manual") {
+        return;
+      }
+
+      // Per-page disable: if the user disabled this page in settings,
+      // surface the reply but skip every action / workflow / executor branch.
+      const disabledPageAgents = (prefRow as { disabledPageAgents?: string[] })?.disabledPageAgents ?? [];
+      if (
+        pageAgent.snapshot?.pageId &&
+        Array.isArray(disabledPageAgents) &&
+        disabledPageAgents.includes(pageAgent.snapshot.pageId)
+      ) {
         return;
       }
 
@@ -1014,7 +1294,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       if (actionsToExecute.length > 0) {
         const askBeforeAct =
           (data as { askBeforeAct?: boolean }).askBeforeAct === true ||
-          shouldAskBeforeAct(actionsToExecute);
+          shouldAskBeforeAct(actionsToExecute, preferencesForChat);
         await executeActions(actionsToExecute, {
           intent: effectiveIntent,
           requireConfirmation: askBeforeAct,
@@ -1141,6 +1421,29 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     }]);
   }, [pendingWorkflow, isSending, locationPath]);
 
+  const cancelClarification = useCallback(() => {
+    setPendingClarification(null);
+    setMessages(prev => [...prev, {
+      role: "orb",
+      text: "好，我先放著這個問題不繼續。如果想接續，再告訴我新的方向就好 🌿",
+      at: Date.now(),
+      pagePath: locationPath,
+    }]);
+  }, [locationPath]);
+
+  const answerClarification = useCallback(async (answer: string) => {
+    const trimmed = answer.trim();
+    if (!trimmed) return;
+    const active = pendingClarification;
+    if (!active) return;
+    setPendingClarification(null);
+    const composedUserText =
+      active.originalUserText.length > 0
+        ? `${active.originalUserText}\n\n[使用者澄清]: ${trimmed}`
+        : trimmed;
+    await sendMessage(composedUserText);
+  }, [pendingClarification, sendMessage]);
+
   const open = useCallback(() => setIsOpen(true), []);
   const close = useCallback(() => setIsOpen(false), []);
   const toggle = useCallback(() => setIsOpen(prev => !prev), []);
@@ -1148,6 +1451,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     setMessages([]);
     setSuggestions([]);
     setPendingWorkflow(null);
+    setPendingClarification(null);
     clearMessagesFromStorage();
   }, []);
   const resetConversation = useCallback(() => {
@@ -1155,8 +1459,12 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     setMessages([welcome]);
     setSuggestions([]);
     setPendingWorkflow(null);
+    setPendingClarification(null);
     saveMessagesToStorage([welcome]);
   }, [welcomeMessage, locationPath]);
+
+  const userOrbAgentOverride = (agentPreferencesQuery.data as { orbAgentEnabled?: boolean | null } | undefined)?.orbAgentEnabled ?? null;
+  const orbAgentEnabledResolved = resolveOrbAgentEnabled(userOrbAgentOverride);
 
   const value = useMemo(() => ({
     messages,
@@ -1166,7 +1474,8 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     isOpen,
     workflowExecution,
     pendingWorkflow,
-    orbAgentEnabled: ORB_AGENT_ENABLED,
+    pendingClarification,
+    orbAgentEnabled: orbAgentEnabledResolved,
     setInput,
     sendMessage,
     open,
@@ -1178,7 +1487,9 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     startPendingWorkflow,
     revisePendingWorkflow,
     cancelPendingWorkflow,
-  }), [messages, input, isSending, suggestions, isOpen, workflowExecution, pendingWorkflow, sendMessage, open, close, toggle, clearHistory, resetConversation, clearWorkflowExecution, startPendingWorkflow, revisePendingWorkflow, cancelPendingWorkflow]);
+    answerClarification,
+    cancelClarification,
+  }), [messages, input, isSending, suggestions, isOpen, workflowExecution, pendingWorkflow, pendingClarification, orbAgentEnabledResolved, sendMessage, open, close, toggle, clearHistory, resetConversation, clearWorkflowExecution, startPendingWorkflow, revisePendingWorkflow, cancelPendingWorkflow, answerClarification, cancelClarification]);
 
   return (
     <GlobalOrbChatContext.Provider value={value}>
@@ -1214,6 +1525,12 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         isBusy={isSending}
         onApprove={approveCodeTask}
         onCancel={cancelCodeTaskPreview}
+      />
+      <ClarificationPromptCard
+        prompt={pendingClarification}
+        isBusy={isSending}
+        onAnswer={text => void answerClarification(text)}
+        onCancel={cancelClarification}
       />
     </GlobalOrbChatContext.Provider>
   );

@@ -83,7 +83,8 @@ export default function TutorialOverviewPage() {
   useRegisterPageAgent({
     pageId: "tutorial-overview",
     pageLabel: "教學總覽",
-    pagePath: "/tutorial",
+    // 對齊 App.tsx 的 <Route path="/tutorial-overview"> 與 appRegistry 條目
+    pagePath: "/tutorial-overview",
     capabilities: [
       {
         action: "navigate",

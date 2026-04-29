@@ -3,6 +3,11 @@ import type {
   OrbAgentTask,
   OrbAgentTaskStep,
   OrbTaskAuditEvent,
+  InterAgentMessage,
+} from "../../shared/orb-task-state-machine";
+import {
+  computeRetryBackoffMs,
+  DEFAULT_STEP_TIMEOUT_MS,
 } from "../../shared/orb-task-state-machine";
 import { parseAndGatePlan } from "../../shared/agent-plan-adapter";
 import { recordOrbTaskMemory } from "./orbTaskMemory";
@@ -61,6 +66,10 @@ export function createOrbAgentTaskFromPlanner(result: GatedAgentPlanResult): Orb
     status: "pending",
     requiresApproval: step.toolCalls.some(t => t.requiresApproval),
     condition: step.condition,
+    // Propagate rollback + timeout hints from the plan into the task so
+    // failOrbAgentStep + runStepWithTimeout can act on them at runtime.
+    compensationAction: step.compensationAction,
+    timeoutMs: step.timeoutMs,
   }));
   const createdAt = now();
   const task: OrbAgentTask = {
@@ -93,8 +102,31 @@ export function createOrbAgentTaskFromPlanner(result: GatedAgentPlanResult): Orb
     pushEvent(task, "task.awaiting_approval", "Task requires approval");
   }
   if (claudeCodeTask) {
+    const subAgentId =
+      task.preferredEngine === "claudeCode" ? "claude-code" : String(task.preferredEngine ?? "claude-code");
     pushEvent(task, "claudeCode.requested", "Claude Code task requested");
+    // Inter-agent channel: orb formally hands the task off to the sub-agent.
+    pushEvent(task, "agent.message", `orb-orchestrator → ${subAgentId} :: request/task.handoff`, {
+      from: "orb-orchestrator",
+      to: subAgentId,
+      kind: "request",
+      topic: "task.handoff",
+      payload: {
+        planId: task.planId,
+        traceId: task.traceId,
+        intent: task.intent,
+        riskLevel: task.riskLevel,
+        capabilities: task.capabilities,
+      },
+    });
     pushEvent(task, "claudeCode.plan_created", "Claude Code plan created");
+    pushEvent(task, "agent.message", `${subAgentId} → orb-orchestrator :: response/plan.acknowledged`, {
+      from: subAgentId,
+      to: "orb-orchestrator",
+      kind: "response",
+      topic: "plan.acknowledged",
+      payload: { planId: task.planId, traceId: task.traceId },
+    });
   }
   taskStore.set(task.taskId, task);
   return task;
@@ -135,6 +167,16 @@ export function cancelOrbAgentTask(taskId: string, reason = "cancelled by user")
   task.completedAt = now();
   task.updatedAt = task.completedAt;
   pushEvent(task, "task.cancelled", reason);
+  if (task.preferredEngine === "claudeCode" || task.preferredEngine === "codex") {
+    const subAgentId = task.preferredEngine === "codex" ? "codex" : "claude-code";
+    pushEvent(task, "agent.message", `orb-orchestrator → ${subAgentId} :: request/task.cancel`, {
+      from: "orb-orchestrator",
+      to: subAgentId,
+      kind: "request",
+      topic: "task.cancel",
+      payload: { taskId: task.taskId, reason },
+    });
+  }
   recordOrbTaskMemory({
     taskId: task.taskId,
     planId: task.planId,
@@ -223,6 +265,14 @@ export function completeOrbAgentStep(taskId: string, stepId: string): OrbAgentTa
     pushEvent(task, "task.completed", "Task completed");
     if (task.preferredEngine === "claudeCode") {
       pushEvent(task, "claudeCode.pr_ready", "Claude Code result ready");
+      // Sub-agent reports completion back to orb-orchestrator.
+      pushEvent(task, "agent.message", "claude-code → orb-orchestrator :: response/pr_ready", {
+        from: "claude-code",
+        to: "orb-orchestrator",
+        kind: "response",
+        topic: "pr_ready",
+        payload: { taskId: task.taskId, planId: task.planId, traceId: task.traceId },
+      });
     }
     recordOrbTaskMemory({
       taskId: task.taskId,
@@ -275,18 +325,77 @@ export function completeOrbAgentStep(taskId: string, stepId: string): OrbAgentTa
   return task;
 }
 
-export function failOrbAgentStep(taskId: string, stepId: string, reason: string): OrbAgentTask | null {
+export function failOrbAgentStep(
+  taskId: string,
+  stepId: string,
+  reason: string,
+  opts: { allowAutoRetry?: boolean; isTimeout?: boolean } = {}
+): OrbAgentTask | null {
   const task = taskStore.get(taskId);
   if (!task) return null;
   const step = task.steps.find(s => s.id === stepId);
+  if (opts.isTimeout) {
+    pushEvent(task, "step.timeout", `Step timed out: ${step?.label ?? stepId}`, {
+      stepId,
+      reason,
+    });
+  }
+
+  // Gap 19 + Gap 6: try automatic retry with exponential backoff before
+  // declaring the whole task failed. Caller opts in via `allowAutoRetry` so
+  // legacy code paths that explicitly want a hard failure still work.
+  if (opts.allowAutoRetry && step && task.retryBudget > 0) {
+    const attempt = (step.attemptCount ?? 0) + 1;
+    const delayMs = computeRetryBackoffMs(attempt);
+    step.attemptCount = attempt;
+    step.retryAfterAt = now() + delayMs;
+    step.status = "pending";
+    task.retryBudget -= 1;
+    task.retryCount += 1;
+    task.updatedAt = now();
+    pushEvent(
+      task,
+      "step.retry_scheduled",
+      `Retry scheduled for ${step.label ?? stepId}`,
+      { stepId, reason, attempt, delayMs, retryBudgetRemaining: task.retryBudget }
+    );
+    return task;
+  }
+
   if (step) step.status = "failed";
   task.status = "failed";
   task.failedReason = reason;
   task.updatedAt = now();
   pushEvent(task, "step.failed", `Step failed: ${step?.label ?? stepId}`, { stepId, reason });
+  // Gap 14: emit a rollback_pending event so the client orchestrator can
+  // dispatch the compensation action. We never auto-execute it here because
+  // compensation actions touch UI state — that work belongs on the client.
+  if (step && step.compensationAction) {
+    step.rollbackStatus = "pending";
+    pushEvent(
+      task,
+      "step.rollback_pending",
+      `Rollback queued for ${step.label ?? stepId}`,
+      {
+        stepId,
+        compensationAction: step.compensationAction,
+        reason,
+      }
+    );
+  }
   pushEvent(task, "task.failed", reason);
   if (task.preferredEngine === "claudeCode") {
     pushEvent(task, "claudeCode.failed", reason);
+    // Sub-agent reports failure on the formal channel; downstream
+    // observability tooling can react to agent.message instead of having to
+    // know the legacy claudeCode.* event types.
+    pushEvent(task, "agent.message", "claude-code → orb-orchestrator :: response/task.failed", {
+      from: "claude-code",
+      to: "orb-orchestrator",
+      kind: "response",
+      topic: "task.failed",
+      payload: { taskId: task.taskId, planId: task.planId, traceId: task.traceId, reason },
+    });
   }
   recordOrbTaskMemory({
     taskId: task.taskId,
@@ -381,6 +490,99 @@ export function retryOrbAgentTask(
   task.updatedAt = now();
   pushEvent(task, "task.approved", "Task retried");
   return { task, recoveryPlan: null };
+}
+
+/**
+ * Run an async step body under a timeout. The orchestrator passes its own
+ * AbortController so the underlying tool call can hard-cancel; this helper
+ * resolves the race against `setTimeout` and reports timeouts via
+ * `failOrbAgentStep(..., { isTimeout: true, allowAutoRetry: true })`.
+ */
+export async function runStepWithTimeout<T>(args: {
+  taskId: string;
+  stepId: string;
+  timeoutMs?: number;
+  body: (signal: AbortSignal) => Promise<T>;
+}): Promise<{ ok: true; value: T } | { ok: false; reason: string; timedOut: boolean }> {
+  const timeoutMs = args.timeoutMs ?? DEFAULT_STEP_TIMEOUT_MS;
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+  try {
+    const value = await args.body(controller.signal);
+    clearTimeout(timer);
+    return { ok: true, value };
+  } catch (err) {
+    clearTimeout(timer);
+    const reason = err instanceof Error ? err.message : String(err);
+    if (timedOut) {
+      failOrbAgentStep(args.taskId, args.stepId, `step timeout (${timeoutMs}ms)`, {
+        isTimeout: true,
+        allowAutoRetry: true,
+      });
+      return { ok: false, reason: `timeout after ${timeoutMs}ms`, timedOut: true };
+    }
+    return { ok: false, reason, timedOut: false };
+  }
+}
+
+/**
+ * Mark the rollback flow for a failed step as completed / failed / skipped.
+ * Called by the front-end orchestrator after it dispatches the compensation
+ * action defined on the step. Safe to call even if no rollback was queued —
+ * just no-ops in that case.
+ */
+export function markStepRollback(
+  taskId: string,
+  stepId: string,
+  status: "completed" | "failed" | "skipped",
+  reason?: string
+): OrbAgentTask | null {
+  const task = taskStore.get(taskId);
+  if (!task) return null;
+  const step = task.steps.find(s => s.id === stepId);
+  if (!step) return task;
+  step.rollbackStatus = status;
+  task.updatedAt = now();
+  const eventType =
+    status === "completed"
+      ? "step.rollback_completed"
+      : status === "failed"
+      ? "step.rollback_failed"
+      : "step.rollback_completed";
+  pushEvent(task, eventType, `Rollback ${status} for ${step.label ?? stepId}`, {
+    stepId,
+    rollbackStatus: status,
+    reason,
+  });
+  return task;
+}
+
+/**
+ * Record an inter-agent message in the task's audit log. Messages between the
+ * orb orchestrator and sub-agents (Claude Code, Codex, future tool agents) go
+ * through this single channel so the audit trail captures every cross-agent
+ * exchange.
+ */
+export function recordAgentMessage(
+  taskId: string,
+  message: InterAgentMessage
+): OrbAgentTask | null {
+  const task = taskStore.get(taskId);
+  if (!task) return null;
+  const summary = `${message.from} → ${message.to} :: ${message.kind}/${message.topic}`;
+  pushEvent(task, "agent.message", summary, {
+    from: message.from,
+    to: message.to,
+    kind: message.kind,
+    topic: message.topic,
+    payload: message.payload,
+  });
+  task.updatedAt = now();
+  return task;
 }
 
 export function getOrbAgentTaskEvents(taskId: string): OrbTaskAuditEvent[] {

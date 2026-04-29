@@ -1,11 +1,39 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { PipelineCanvas } from "@/components/brain-pipeline/PipelineCanvas";
 import { SummaryBar } from "@/components/brain-pipeline/SummaryBar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useRegisterPageAgent, type AgentActionResult } from "@/contexts/PageAgentContext";
 
 export default function MyBrainPage() {
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [, navigate] = useLocation();
+
+  // 純展示頁：只給光球 navigate 能力，不允許動作直接改 brain 配置（那是 admin 範疇）。
+  useRegisterPageAgent({
+    pageId: "my-brain",
+    pageLabel: "我的大腦",
+    pagePath: "/my-brain",
+    capabilities: [
+      {
+        action: "navigate",
+        label: "前往大腦相關頁",
+        options: [
+          { id: "/my-brain", label: "我的大腦" },
+          { id: "/admin?section=brain", label: "AI 大腦組態（需管理員）" },
+          { id: "/admin/brain-pipeline", label: "推理鏈視覺化" },
+        ],
+      },
+    ],
+    handle: async (action): Promise<AgentActionResult> => {
+      if (action.type === "navigate" && typeof action.path === "string") {
+        navigate(action.path);
+        return { ok: true };
+      }
+      return { ok: false, reason: `my-brain: unsupported action "${action.type}"` };
+    },
+  });
 
   const graphQuery = trpc.brainPipeline.getMyGraph.useQuery(undefined, {
     refetchInterval: autoRefresh ? 30_000 : false,
