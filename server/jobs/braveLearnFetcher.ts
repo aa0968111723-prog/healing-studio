@@ -181,56 +181,180 @@ ${articlesSummary}
 - 閱讀時間 3-15 分鐘
 - 僅回傳 JSON 陣列，不要包含其他文字`;
 
-  const result = await invokeLLM({
-    runName: "brave-learn-summarize",
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ],
-    maxTokens: 4096,
-    temperature: 0.4,
-  });
+  // ── Helper: attempt to parse and validate LLM JSON response ──────────────
+  type RawDoc = {
+    title?: string;
+    summary?: string;
+    content?: string;
+    tags?: string[];
+    category?: string;
+    difficulty?: string;
+    readingMinutes?: number;
+  };
 
-  // Extract text from result
-  const firstChoice = result.choices?.[0];
-  const raw =
-    typeof firstChoice?.message?.content === "string"
-      ? firstChoice.message.content
-      : "";
+  const VALID_CATEGORIES = new Set([
+    "technique",
+    "ai-news",
+    "workflow",
+    "model-guide",
+    "getting-started",
+    "api-docs",
+  ]);
+  const VALID_DIFFICULTIES = new Set(["beginner", "intermediate", "advanced"]);
 
-  // Parse JSON from response
-  const jsonMatch = raw.match(/\[[\s\S]*\]/);
-  if (!jsonMatch) {
-    logFetch("warn", "LLM 回傳無法解析為 JSON");
+  function validateAndMapDocs(raw: unknown): Array<{
+    title: string;
+    summary: string;
+    content: string;
+    tags: string[];
+    category: string;
+    difficulty: string;
+    readingMinutes: number;
+  }> {
+    if (!Array.isArray(raw)) {
+      logFetch("warn", `LLM 回傳格式錯誤：預期 JSON 陣列，實際為 ${typeof raw}`);
+      return [];
+    }
+
+    const results = [];
+    for (let i = 0; i < raw.length; i++) {
+      const d = raw[i] as RawDoc;
+      if (!d || typeof d !== "object") {
+        logFetch("warn", `第 ${i + 1} 個文件格式無效，跳過`);
+        continue;
+      }
+      if (!d.title || typeof d.title !== "string") {
+        logFetch("warn", `第 ${i + 1} 個文件缺少 title 欄位，跳過`);
+        continue;
+      }
+      if (!d.content || typeof d.content !== "string") {
+        logFetch("warn", `第 ${i + 1} 個文件缺少 content 欄位，跳過`);
+        continue;
+      }
+
+      const category = VALID_CATEGORIES.has(d.category ?? "")
+        ? (d.category as string)
+        : "ai-news";
+      const difficulty = VALID_DIFFICULTIES.has(d.difficulty ?? "")
+        ? (d.difficulty as string)
+        : "intermediate";
+      const readingMinutes =
+        typeof d.readingMinutes === "number" &&
+        d.readingMinutes >= 1 &&
+        d.readingMinutes <= 60
+          ? d.readingMinutes
+          : 5;
+
+      results.push({
+        title: d.title.slice(0, MAX_TITLE_LENGTH),
+        summary: (d.summary ?? d.title).slice(0, MAX_SUMMARY_LENGTH),
+        content: d.content,
+        tags: Array.isArray(d.tags)
+          ? d.tags.map(String).slice(0, MAX_TAGS_PER_DOC)
+          : [],
+        category,
+        difficulty,
+        readingMinutes,
+      });
+    }
+    return results;
+  }
+
+  function tryParseJson(text: string): unknown | null {
+    // Strategy 1: Direct parse
+    try {
+      return JSON.parse(text);
+    } catch {
+      // fall through
+    }
+
+    // Strategy 2: Strip markdown code fences and retry
+    const stripped = text
+      .replace(/^```(?:json)?\s*/im, "")
+      .replace(/\s*```\s*$/m, "")
+      .trim();
+    try {
+      return JSON.parse(stripped);
+    } catch {
+      // fall through
+    }
+
+    // Strategy 3: Extract first JSON array
+    const arrayMatch = stripped.match(/\[[\s\S]*\]/);
+    if (arrayMatch) {
+      try {
+        return JSON.parse(arrayMatch[0]);
+      } catch {
+        // fall through to truncation repair
+      }
+
+      // Strategy 4: Repair truncated array — trim to last complete object
+      const lastBrace = arrayMatch[0].lastIndexOf("}");
+      if (lastBrace > 0) {
+        try {
+          return JSON.parse(arrayMatch[0].slice(0, lastBrace + 1) + "]");
+        } catch {
+          // fall through
+        }
+      }
+    }
+
+    return null;
+  }
+
+  // ── Attempt 1: primary invocation ─────────────────────────────────────────
+  async function invokeSynthesis(temperature: number, attempt: number): Promise<unknown | null> {
+    logFetch("info", `LLM 合成嘗試 #${attempt}（temperature=${temperature}）`);
+    try {
+      const result = await invokeLLM({
+        runName: "brave-learn-summarize",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        maxTokens: 4096,
+        temperature,
+      });
+
+      const firstChoice = result.choices?.[0];
+      const raw =
+        typeof firstChoice?.message?.content === "string"
+          ? firstChoice.message.content
+          : "";
+
+      if (!raw.trim()) {
+        logFetch("warn", `嘗試 #${attempt}：LLM 回傳空內容`);
+        return null;
+      }
+
+      const parsed = tryParseJson(raw);
+      if (parsed === null) {
+        logFetch("warn", `嘗試 #${attempt}：LLM 回傳無法解析為 JSON（前 200 字元: ${raw.slice(0, 200)}）`);
+      }
+      return parsed;
+    } catch (err) {
+      logFetch("error", `嘗試 #${attempt} LLM 呼叫失敗: ${err instanceof Error ? err.message : String(err)}`);
+      return null;
+    }
+  }
+
+  // Primary attempt
+  let parsed = await invokeSynthesis(0.4, 1);
+
+  // Retry with lower temperature and simplified prompt if first attempt fails
+  if (parsed === null || !Array.isArray(parsed) || parsed.length === 0) {
+    logFetch("warn", "第一次 LLM 合成失敗或回傳空陣列，以較低 temperature 重試...");
+    parsed = await invokeSynthesis(0.2, 2);
+  }
+
+  if (parsed === null) {
+    logFetch("error", "LLM 回傳無法解析為 JSON（兩次嘗試均失敗）");
     return [];
   }
 
-  try {
-    const parsed = JSON.parse(jsonMatch[0]) as Array<{
-      title?: string;
-      summary?: string;
-      content?: string;
-      tags?: string[];
-      category?: string;
-      difficulty?: string;
-      readingMinutes?: number;
-    }>;
-
-    return parsed
-      .filter(d => d.title && d.content)
-      .map(d => ({
-        title: (d.title ?? "").slice(0, MAX_TITLE_LENGTH),
-        summary: (d.summary ?? d.title ?? "").slice(0, MAX_SUMMARY_LENGTH),
-        content: d.content ?? "",
-        tags: (d.tags ?? []).slice(0, MAX_TAGS_PER_DOC),
-        category: d.category ?? "ai-news",
-        difficulty: d.difficulty ?? "intermediate",
-        readingMinutes: d.readingMinutes ?? 5,
-      }));
-  } catch {
-    logFetch("warn", "JSON 解析失敗");
-    return [];
-  }
+  const docs = validateAndMapDocs(parsed);
+  logFetch("info", `JSON 驗證通過，有效文件 ${docs.length} 篇`);
+  return docs;
 }
 
 // ─── Import to LearnHub ─────────────────────────────────────────────────────

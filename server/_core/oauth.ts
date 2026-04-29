@@ -192,7 +192,7 @@ export function registerOAuthRoutes(app: Express) {
   // ── 3. 登出 ───────────────────────────────────────────────
   app.post("/api/oauth/logout", (req: Request, res: Response) => {
     const cookieOptions = getSessionCookieOptions(req);
-    res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: 0 });
+    res.clearCookie(COOKIE_NAME, cookieOptions);
     res.json({ success: true, message: "已登出" });
   });
 

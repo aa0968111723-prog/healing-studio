@@ -208,25 +208,64 @@ ${newsSummary}
       .replace(/\s*```\s*$/, "")
       .trim();
 
-    // JSON 修復：如果 Gemini 回傳被 MAX_TOKENS 截斷，嘗試修復截斷的 JSON
+    // JSON 修復：如果 Gemini 回傳被 MAX_TOKENS 截斷，嘗試多種策略修復
     let parsed: unknown;
+    let repaired = false;
+
+    // Strategy 1: Direct parse
     try {
       parsed = JSON.parse(cleaned);
-    } catch {
-      // 嘗試截取到最後一個完整的 } 來修復截斷 JSON
-      const lastBrace = cleaned.lastIndexOf("}");
+    } catch (parseErr1) {
+      logSync("warn", `JSON 直接解析失敗，嘗試修復截斷內容（原始長度: ${cleaned.length} 字元）`);
+
+      // Strategy 2: Extract the outermost JSON array via regex
+      const arrayMatch = cleaned.match(/\[[\s\S]*/);
+      const candidate = arrayMatch ? arrayMatch[0] : cleaned;
+
+      // Strategy 3: Trim to last complete object (closing brace) and close the array
+      const lastBrace = candidate.lastIndexOf("}");
       if (lastBrace > 0) {
+        const truncated = candidate.slice(0, lastBrace + 1) + "]";
         try {
-          parsed = JSON.parse(cleaned.slice(0, lastBrace + 1) + "]");
-          logSync("warn", "Gemini JSON 被截斷，已自動修復");
-        } catch {
-          logSync("warn", "× Gemini 合成學習文件失敗: 回傳 JSON 無法解析就算修復");
-          return [];
+          parsed = JSON.parse(truncated);
+          repaired = true;
+          logSync("info", `JSON 截斷已自動修復（保留至第 ${lastBrace + 1} 字元）`);
+        } catch (parseErr2) {
+          // Strategy 4: Try to find and parse individual complete objects
+          const objectMatches = candidate.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)?\}/g);
+          if (objectMatches && objectMatches.length > 0) {
+            const validObjects: unknown[] = [];
+            for (const objStr of objectMatches) {
+              try {
+                validObjects.push(JSON.parse(objStr));
+              } catch {
+                // skip malformed individual objects
+              }
+            }
+            if (validObjects.length > 0) {
+              parsed = validObjects;
+              repaired = true;
+              logSync("info", `JSON 修復：從截斷回應中提取了 ${validObjects.length} 個有效物件`);
+            } else {
+              logSync("error", `Gemini JSON 無法修復 — 直接解析錯誤: ${parseErr1 instanceof Error ? parseErr1.message : String(parseErr1)}`);
+              logSync("error", `回應前 200 字元: ${cleaned.slice(0, 200)}`);
+              return [];
+            }
+          } else {
+            logSync("error", `Gemini JSON 無法修復 — 找不到有效物件結構`);
+            logSync("error", `回應前 200 字元: ${cleaned.slice(0, 200)}`);
+            return [];
+          }
         }
       } else {
-        logSync("warn", "× Gemini 合成學習文件失敗: 回傳 JSON 無法解析");
+        logSync("error", `Gemini JSON 無法修復 — 回應中找不到完整物件（無 '}'）`);
+        logSync("error", `回應前 200 字元: ${cleaned.slice(0, 200)}`);
         return [];
       }
+    }
+
+    if (repaired) {
+      logSync("warn", "Gemini JSON 被截斷，已自動修復");
     }
 
     if (!Array.isArray(parsed)) {
