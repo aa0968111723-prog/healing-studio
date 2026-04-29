@@ -19,6 +19,7 @@ import {
   findProcessingJobByRequestId,
 } from "../db.js";
 import { localizeResultUrls } from "../services/internalMedia.js";
+import { generationBus } from "../generationEvents";
 
 export const falWebhookRouter = Router();
 
@@ -91,7 +92,9 @@ falWebhookRouter.post(
         return;
       }
 
-      // 4. 根據 webhook status 更新 job
+      // 4. 根據 webhook status 更新 job + 透過 generationBus 推 SSE 事件
+      //    讓訂閱 /api/generation-events/:jobId 的前端立即收到完成/失敗通知，
+      //    不必等下一輪 5s 輪詢
       if (payload.status === "OK" || payload.status === "COMPLETED") {
         // 成功：取出結果 URL，並將外部 CDN URL 持久化到 S3
         const rawResult = extractResultData(payload);
@@ -105,28 +108,31 @@ falWebhookRouter.post(
           progressMessage: "生成完成",
           resultJson: resultData as any,
         });
+        generationBus.emit(jobId, { type: "complete", thoughtChain: [] });
         console.log(
           `[WebhookFal] ✅ Job ${jobId} completed. Result URLs saved.`
         );
       } else if (payload.status === "ERROR") {
+        const errorMessage = payload.error ?? "fal.ai 回傳錯誤";
         await updateBackgroundJob(jobId, {
           status: "failed",
           progress: 0,
           progressMessage: "生成失敗",
-          errorMessage: payload.error ?? "fal.ai 回傳錯誤",
+          errorMessage,
         });
-        console.error(
-          `[WebhookFal] ❌ Job ${jobId} failed: ${payload.error}`
-        );
+        generationBus.emit(jobId, { type: "error", message: errorMessage });
+        console.error(`[WebhookFal] ❌ Job ${jobId} failed: ${payload.error}`);
       } else {
         // IN_QUEUE / IN_PROGRESS：更新進度
         const progress = payload.status === "IN_PROGRESS" ? 50 : 10;
+        const message =
+          payload.status === "IN_PROGRESS" ? "生成中..." : "排隊中...";
         await updateBackgroundJob(jobId, {
           status: "processing",
           progress,
-          progressMessage:
-            payload.status === "IN_PROGRESS" ? "生成中..." : "排隊中...",
+          progressMessage: message,
         });
+        generationBus.emit(jobId, { type: "progress", progress, message });
       }
     } catch (err) {
       console.error("[WebhookFal] Error processing webhook:", err);

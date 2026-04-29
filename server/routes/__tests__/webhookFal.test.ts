@@ -34,6 +34,7 @@ vi.mock("../../services/internalMedia.js", () => ({
 }));
 
 import { falWebhookRouter } from "../webhookFal";
+import { generationBus } from "../../generationEvents";
 
 async function startTestServer() {
   const app = express();
@@ -69,7 +70,9 @@ describe("webhookFal /api/webhook/fal", () => {
     delete process.env.FAL_WEBHOOK_SECRET;
   });
 
-  it("以 query string ?jobId 命中 backgroundJob 並標記 completed", async () => {
+  it("以 query string ?jobId 命中 backgroundJob 並標記 completed + 推 SSE", async () => {
+    const events: unknown[] = [];
+    const unsubscribe = generationBus.subscribe(42, e => events.push(e));
     const { server, baseUrl } = await startTestServer();
     const res = await fetch(`${baseUrl}/api/webhook/fal?jobId=42`, {
       method: "POST",
@@ -81,7 +84,6 @@ describe("webhookFal /api/webhook/fal", () => {
       }),
     });
     expect(res.status).toBe(200);
-    // 等微小事件循環確保 setTimeout/async 處理完成
     await new Promise(r => setTimeout(r, 30));
 
     expect(getBackgroundJobMock).toHaveBeenCalledWith(42);
@@ -93,6 +95,9 @@ describe("webhookFal /api/webhook/fal", () => {
     expect(jobId).toBe(42);
     expect(patch.status).toBe("completed");
     expect(patch.progress).toBe(100);
+    // SSE 事件
+    expect(events).toEqual([{ type: "complete", thoughtChain: [] }]);
+    unsubscribe();
     server.close();
   });
 
@@ -127,7 +132,9 @@ describe("webhookFal /api/webhook/fal", () => {
     server.close();
   });
 
-  it("status=ERROR 時把 backgroundJob 標記為 failed 並帶 errorMessage", async () => {
+  it("status=ERROR 時把 backgroundJob 標記為 failed 並推 SSE error 事件", async () => {
+    const events: unknown[] = [];
+    const unsubscribe = generationBus.subscribe(42, e => events.push(e));
     const { server, baseUrl } = await startTestServer();
     const res = await fetch(`${baseUrl}/api/webhook/fal?jobId=42`, {
       method: "POST",
@@ -147,6 +154,8 @@ describe("webhookFal /api/webhook/fal", () => {
     ];
     expect(patch.status).toBe("failed");
     expect(patch.errorMessage).toBe("model_blew_up");
+    expect(events).toEqual([{ type: "error", message: "model_blew_up" }]);
+    unsubscribe();
     server.close();
   });
 

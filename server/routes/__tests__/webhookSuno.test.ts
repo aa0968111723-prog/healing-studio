@@ -31,6 +31,7 @@ vi.mock("../../services/internalMedia.js", () => ({
 }));
 
 import { sunoWebhookRouter } from "../webhookSuno";
+import { generationBus } from "../../generationEvents";
 
 async function startTestServer() {
   const app = express();
@@ -60,7 +61,9 @@ describe("webhookSuno /api/webhook/suno", () => {
     } as any);
   });
 
-  it("complete 階段把 audio URL 寫回 backgroundJob 並標記 completed", async () => {
+  it("complete 階段把 audio URL 寫回 backgroundJob 並推 SSE complete 事件", async () => {
+    const events: unknown[] = [];
+    const unsubscribe = generationBus.subscribe(5, e => events.push(e));
     const { server, baseUrl } = await startTestServer();
     const res = await fetch(`${baseUrl}/api/webhook/suno?jobId=5`, {
       method: "POST",
@@ -90,6 +93,8 @@ describe("webhookSuno /api/webhook/suno", () => {
     expect(patch.status).toBe("completed");
     expect(patch.resultJson.audioUrl).toBe("https://suno/x.mp3");
     expect(patch.resultJson.clips).toHaveLength(2);
+    expect(events).toEqual([{ type: "complete", thoughtChain: [] }]);
+    unsubscribe();
     server.close();
   });
 

@@ -30,6 +30,7 @@ import {
   updateBackgroundJob,
 } from "../db.js";
 import { localizeResultUrls } from "../services/internalMedia.js";
+import { generationBus } from "../generationEvents";
 
 export const sunoWebhookRouter = Router();
 
@@ -116,34 +117,42 @@ sunoWebhookRouter.post(
 
       // 2. text / first 階段是部分結果（lyrics ready / first clip ready），更新進度即可
       if (callbackType === "text") {
+        const progress = 30;
+        const message = "Suno 歌詞生成完成…";
         await updateBackgroundJob(jobId, {
           status: "processing",
-          progress: 30,
-          progressMessage: "Suno 歌詞生成完成…",
+          progress,
+          progressMessage: message,
         });
+        generationBus.emit(jobId, { type: "progress", progress, message });
         return;
       }
       if (callbackType === "first") {
+        const progress = 70;
+        const message = "Suno 第一首試聽片段就緒…";
         await updateBackgroundJob(jobId, {
           status: "processing",
-          progress: 70,
-          progressMessage: "Suno 第一首試聽片段就緒…",
+          progress,
+          progressMessage: message,
         });
+        generationBus.emit(jobId, { type: "progress", progress, message });
         return;
       }
 
       // 3. complete：全部 clip 就緒，本地化 audio URL 並寫入結果
       const clips = normalizeClips(payload);
       if (clips.length === 0) {
+        const errorMessage =
+          payload.msg && payload.code !== 200
+            ? `Suno: ${payload.msg}`
+            : "Suno 回呼未帶 audio URL";
         await updateBackgroundJob(jobId, {
           status: "failed",
           progress: 0,
           progressMessage: "Suno 生成失敗",
-          errorMessage:
-            payload.msg && payload.code !== 200
-              ? `Suno: ${payload.msg}`
-              : "Suno 回呼未帶 audio URL",
+          errorMessage,
         });
+        generationBus.emit(jobId, { type: "error", message: errorMessage });
         return;
       }
 
@@ -164,6 +173,7 @@ sunoWebhookRouter.post(
           completedAt: new Date().toISOString(),
         } as any,
       });
+      generationBus.emit(jobId, { type: "complete", thoughtChain: [] });
       console.log(
         `[WebhookSuno] ✅ Job ${jobId} completed (${localized.clips.length} clips)`
       );
