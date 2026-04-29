@@ -6,7 +6,6 @@ import fs from "fs";
 import path from "path";
 import compression from "compression";
 import helmet from "helmet";
-import rateLimit from "express-rate-limit";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { googleAuthRouter } from "../routes/googleAuth";
@@ -75,6 +74,10 @@ import {
 } from "../services/providerHealth";
 import { WebSocketServer } from "ws";
 import { handleOrbVoiceConnection } from "../ws/orbVoiceGateway";
+import { cache } from "./cache";
+import { metrics } from "./metrics";
+import { featureFlags } from "./featureFlags";
+import { rateLimiters, rateLimitContextMiddleware } from "./rateLimiter";
 
 type ScheduledMaintenanceJob = {
   name: string;
@@ -210,6 +213,7 @@ async function startServer() {
   installFetchGuard();
   bootstrapAiAdapters();
   runOrbToolExecutorStartupSelfCheck();
+  featureFlags.logStartupState();
   const elevenLabsHealthy = await checkElevenLabsHealth();
   setElevenLabsAvailability(elevenLabsHealthy);
   if (!elevenLabsHealthy) {
@@ -261,15 +265,15 @@ async function startServer() {
   // ── Gzip/Brotli compression (60-80% smaller text/JSON responses) ────────
   app.use(compression({ threshold: 1024 }));
 
-  // ── Rate limiting for API endpoints ─────────────────────────────────────
-  const apiLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 300, // limit each IP to 300 requests per window
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { error: "Too many requests, please try again later." },
-  });
-  app.use("/api/", apiLimiter);
+  // ── Rate limiting context (adds degraded-mode helper to res) ────────────
+  app.use(rateLimitContextMiddleware);
+
+  // ── Tiered rate limiting for API endpoints ───────────────────────────────
+  // Auth endpoints get a strict limiter; general API uses the relaxed limiter.
+  // The existing express-rate-limit import is kept for backward compatibility.
+  app.use("/api/auth", rateLimiters.auth);
+  app.use("/api/trpc/auth", rateLimiters.auth);
+  app.use("/api/", rateLimiters.api);
 
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
@@ -454,6 +458,21 @@ async function startServer() {
     const storageBackend = detectStorageBackend();
     res.json({ ok: true, ts: Date.now(), storage: storageBackend });
   });
+
+  // ── Performance metrics endpoint ─────────────────────────────────────────
+  // Returns in-process latency, error rates, cache stats, and feature flags.
+  // Restricted to internal/admin use — not rate-limited by the API limiter.
+  app.get("/api/metrics", (_req, res) => {
+    const snap = metrics.getSnapshot();
+    const cacheStats = cache.getStats();
+    const flags = featureFlags.getAllStatuses();
+    res.json({
+      ok: true,
+      metrics: snap,
+      cache: cacheStats,
+      featureFlags: flags,
+    });
+  });
   app.use("/api/webhooks", webhooksRouter);
 
   // tRPC API
@@ -526,9 +545,14 @@ async function startServer() {
   const shutdown = async (signal: string) => {
     logger.warn("[Server] Starting graceful shutdown", { signal });
     stopScheduledMaintenanceJobs();
+    // Flush final metrics snapshot before shutdown
+    logger.info("[Server] Final metrics snapshot", { metrics: metrics.getSnapshot() });
     server.close(async () => {
       await closeDb();
       await closeDatabaseManager();
+      // Release in-process resources
+      cache.destroy();
+      metrics.destroy();
       logger.info("[Server] All resources released. Exiting.");
       process.exit(0);
     });
