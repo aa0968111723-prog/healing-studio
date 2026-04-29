@@ -37,6 +37,10 @@ export interface AgentPlanAdapterResult {
   safety?: AgentPlanSafetyEvaluation;
   reason?: string;
   issues?: string[];
+  /** Question for the user when the planner sets shouldAskClarification. */
+  clarificationQuestion?: string;
+  /** Quick-reply options paired with clarificationQuestion. */
+  clarificationOptions?: string[];
 }
 
 function stringifyPlannerOutput(raw: unknown): string {

@@ -62,7 +62,7 @@ orbTasksRouter.get("/api/tasks/:taskId/stream", verifyToken, (req: Request, res:
       return;
     }
     const timeline = orbTaskStore.getTimeline(taskId, userId, {
-      cursor,
+      from: cursor,
       limit: 100,
       order: "asc",
       now: Date.now(),

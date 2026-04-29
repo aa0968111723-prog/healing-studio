@@ -61,6 +61,8 @@ export const OrbTaskSchema = z.object({
   ).default([]),
   createdAt: z.number().int(),
   updatedAt: z.number().int(),
+  /** Final task output; populated by orchestrator when task reaches done. */
+  result: z.unknown().optional(),
 });
 
 export type OrbTask = z.infer<typeof OrbTaskSchema>;

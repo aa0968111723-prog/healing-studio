@@ -60,7 +60,7 @@ describe("APP_PAGE_REGISTRY shape", () => {
   it("tutorial-overview is registered with correct path", () => {
     const found = APP_PAGE_REGISTRY.find(e => e.id === "tutorial-overview");
     expect(found, "tutorial-overview must be in APP_PAGE_REGISTRY").toBeDefined();
-    expect(found?.path).toBe("/tutorial");
+    expect(found?.path).toBe("/tutorial-overview");
     expect(found?.supportsPageAgent).toBe(true);
   });
 

@@ -96,7 +96,7 @@ export function topologicalBatches(input: AgentWorkflowStep[]): TopologicalBatch
   // Kahn's algorithm — process every step with zero incoming as a batch,
   // then peel them off. If we can't drain all steps the graph has a cycle.
   const remaining = new Map<string, Set<string>>();
-  for (const [id, deps] of incoming) remaining.set(id, new Set(deps));
+  incoming.forEach((deps, id) => remaining.set(id, new Set(deps)));
   const batches: SchedulerStep[][] = [];
   const visited = new Set<string>();
 
@@ -112,8 +112,11 @@ export function topologicalBatches(input: AgentWorkflowStep[]): TopologicalBatch
     batches.push(ready);
     for (const step of ready) {
       visited.add(step.id);
-      for (const downstream of outgoing.get(step.id) ?? []) {
-        remaining.get(downstream)?.delete(step.id);
+      const downstreams = outgoing.get(step.id);
+      if (downstreams) {
+        downstreams.forEach(downstream => {
+          remaining.get(downstream)?.delete(step.id);
+        });
       }
     }
   }

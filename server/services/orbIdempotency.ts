@@ -33,11 +33,11 @@ function prune() {
  */
 export function cleanExpired(): void {
   const now = Date.now();
-  for (const [requestId, entry] of requestIdStore.entries()) {
+  requestIdStore.forEach((entry, requestId) => {
     if (entry.expiresAt <= now) {
       requestIdStore.delete(requestId);
     }
-  }
+  });
 }
 
 setInterval(cleanExpired, CLEANUP_INTERVAL_MS).unref();
