@@ -205,6 +205,29 @@ function isGeminiEngine(modelId: string | undefined): boolean {
   return typeof modelId === "string" && modelId.startsWith("gemini/");
 }
 
+/**
+ * fal-ai/lora 使用 image_size 而非 aspect_ratio。
+ * 對應前端工作室的 aspectRatio 選項到 fal-ai/lora 的 enum。
+ */
+function aspectRatioToImageSize(
+  aspectRatio: string | undefined
+): string {
+  switch (aspectRatio) {
+    case "1:1":
+      return "square_hd";
+    case "16:9":
+      return "landscape_16_9";
+    case "9:16":
+      return "portrait_16_9";
+    case "4:3":
+      return "landscape_4_3";
+    case "3:4":
+      return "portrait_4_3";
+    default:
+      return "square_hd";
+  }
+}
+
 function isFlagEnabled(value: string | undefined, defaultEnabled: boolean): boolean {
   if (value === undefined || value === null || value.trim() === "") return defaultEnabled;
   const normalized = value.trim().toLowerCase();
@@ -2108,6 +2131,53 @@ export const appRouter = router({
         const brainAudioEngine = getBrainSelectedEngine(brainRow, "audioEngine");
         const brainVoiceEngine = getBrainSelectedEngine(brainRow, "voiceEngine");
 
+        // ── 2.5 微調模型注入：解析使用者選定的 LoRA / 微調模型 ───────────
+        // 與同步 generate.execute（routers.ts:1110-1167）行為一致：
+        //  - 驗證 status === "ready"，否則明確拒絕
+        //  - prepend triggerWord 到 prompt
+        //  - 取出 trainedLoraUrl / fileUrl 作為 LoRA weights URL
+        let modelTriggerWord = "";
+        let fineTunedLoraUrl: string | undefined;
+        if (input.fineTunedModelId) {
+          try {
+            const ftModel = await db.getFineTunedModel(input.fineTunedModelId);
+            if (ftModel) {
+              if (ftModel.status !== "ready") {
+                throw new TRPCError({
+                  code: "BAD_REQUEST",
+                  message: `模型「${ftModel.name}」尚未訓練完成（狀態：${ftModel.status}），請等待訓練完畢再使用`,
+                });
+              }
+              const config = ftModel.configJson as Record<
+                string,
+                unknown
+              > | null;
+              if (
+                config &&
+                typeof config.triggerWord === "string" &&
+                config.triggerWord.trim()
+              ) {
+                modelTriggerWord = config.triggerWord.trim();
+                input.prompt = `${modelTriggerWord}, ${input.prompt}`;
+              }
+              if (ftModel.trainedLoraUrl) {
+                fineTunedLoraUrl = ftModel.trainedLoraUrl;
+              } else if (
+                ftModel.fileUrl &&
+                (ftModel.fileUrl.endsWith(".safetensors") ||
+                  ftModel.fileUrl.endsWith(".tar") ||
+                  ftModel.fileUrl.includes("replicate"))
+              ) {
+                fineTunedLoraUrl = ftModel.fileUrl;
+              }
+              db.incrementModelUsage(ftModel.id).catch(() => {});
+            }
+          } catch (e) {
+            if (e instanceof TRPCError) throw e;
+            console.warn("[submitAsync] Failed to load fine-tuned model:", e);
+          }
+        }
+
         // ── 3. 決定 modelId 和 fal input ───────────────────────────────
         let modelId: string;
         let falInput: Record<string, unknown> = {};
@@ -2126,15 +2196,27 @@ export const appRouter = router({
             : refUrl
               ? falEngines.imageToImage
               : falEngines.textToImage;
-          modelId =
-            overrideModelId ??
-            preferredImageEngine;
+          // 若使用者選了訓練模型且取得 LoRA URL，強制切到 fal-ai/lora
+          // （或使用者已用 overrideModelId 指定支援 LoRA 的模型）
+          modelId = fineTunedLoraUrl
+            ? "fal-ai/lora"
+            : overrideModelId ?? preferredImageEngine;
           falInput = {
             prompt: input.prompt,
             ...(input.aspectRatio && { aspect_ratio: input.aspectRatio }),
             ...(input.negativePrompt && { negative_prompt: input.negativePrompt }),
             ...(refUrl && { image_url: refUrl }),
             ...(input.seed != null && { seed: input.seed }),
+            ...(fineTunedLoraUrl && {
+              loras: [
+                {
+                  path: fineTunedLoraUrl,
+                  scale: input.loraWeight ?? 0.8,
+                },
+              ],
+              // fal-ai/lora 使用 image_size 而非 aspect_ratio
+              image_size: aspectRatioToImageSize(input.aspectRatio),
+            }),
           };
         } else if (input.generationType === "video") {
           const hasFirstFrame = !!input.firstFrameUrl;

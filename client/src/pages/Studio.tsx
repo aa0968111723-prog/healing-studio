@@ -90,6 +90,12 @@ import {
   type AgentActionResult,
   type AgentCapability,
 } from "@/contexts/PageAgentContext";
+import { useEnsureCompatibleModel } from "@/hooks/useEnsureCompatibleModel";
+import {
+  FEATURE_LABELS,
+  getModelCapability,
+  type FalModelCapabilityFeatures,
+} from "@shared/falModelCapabilities";
 import { useNotesDrawer } from "@/contexts/NotesDrawerContext";
 import { requireAuth } from "@/components/AuthExpiredModal";
 
@@ -539,6 +545,36 @@ export default function Studio() {
   const modalityKey = (
     activeModality === "audio" ? "music" : activeModality
   ) as Modality;
+  // ── 模型 ↔ 功能相容性監看：啟用 LoRA / 自注意力 / 寬比例時自動切換到相容模型 ──
+  const hasWeightedTokens = useMemo(
+    () =>
+      Array.isArray(promptBuilder.tokenWeights) &&
+      promptBuilder.tokenWeights.some(t => t.weight !== 1.0),
+    [promptBuilder.tokenWeights]
+  );
+  const isWideAspect = useMemo(
+    () => ["21:9", "32:9"].includes(imageState.aspectRatio),
+    [imageState.aspectRatio]
+  );
+  const isStandardAspect = useMemo(
+    () => ["4:3", "3:4", "3:2", "2:3"].includes(imageState.aspectRatio),
+    [imageState.aspectRatio]
+  );
+  const compatibility = useEnsureCompatibleModel({
+    modality:
+      activeModality === "voice" || activeModality === "audio"
+        ? "audio"
+        : (activeModality as "image" | "video"),
+    selectedModelId: selectedFalModelId,
+    setModelId: setSelectedFalModelId,
+    activeFeatures: {
+      tokenWeights: hasWeightedTokens && activeModality === "image",
+      loraInjection: !!fineTunedModelId && activeModality === "image",
+      aspectRatioWide: isWideAspect && activeModality === "image",
+      aspectRatioStandard: isStandardAspect && activeModality === "image",
+    },
+  });
+
   // Derive workspaceMode from creativeMode for backward compat
   const derivedWorkspaceMode: WSMode =
     creativeMode === "pro" ? "advanced" : "beginner";
@@ -3446,6 +3482,10 @@ function MiniModelsPanel({
   onApply: (id: number, name: string) => void;
   onRemove: () => void;
 }) {
+  // 能力徽章：根據選中的 fal 模型顯示支援的功能
+  const modelCapability = selectedFalModelId
+    ? getModelCapability(selectedFalModelId)
+    : null;
   const [openAdvanced, setOpenAdvanced] = useState(false);
   const [falModels, setFalModels] = useState<Array<any>>([]);
   const myModelsQuery = trpc.models.myModels.useQuery(undefined, {
@@ -3507,6 +3547,31 @@ function MiniModelsPanel({
             <option key={m.id} value={m.id}>{m.name}</option>
           ))}
         </select>
+        {modelCapability && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {(Object.entries(modelCapability.features) as Array<
+              [keyof FalModelCapabilityFeatures, boolean]
+            >)
+              .filter(([key]) => key !== "seed")
+              .map(([key, supported]) => (
+                <span
+                  key={key}
+                  className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
+                    supported
+                      ? "border-green-500/30 bg-green-500/10 text-green-700"
+                      : "border-muted/40 bg-muted/20 text-muted-foreground line-through"
+                  }`}
+                  title={
+                    supported
+                      ? `支援 ${FEATURE_LABELS[key]}`
+                      : `此模型不支援 ${FEATURE_LABELS[key]}（會被忽略）`
+                  }
+                >
+                  {FEATURE_LABELS[key]}
+                </span>
+              ))}
+          </div>
+        )}
         <button
           className="mt-2 text-xs text-primary hover:underline"
           onClick={() => setOpenAdvanced(v => !v)}
