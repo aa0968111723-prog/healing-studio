@@ -40,6 +40,13 @@ export interface PipelineNodeMetrics {
   updatedAt?: number;
 }
 
+export interface PipelineNodeDiagnostics {
+  frontendPath?: string;
+  backendRoute?: string;
+  serviceFunction?: string;
+  traceSampleIds?: string[];
+}
+
 export interface PipelineNode {
   /** 全域唯一 id，例如 "provider:fal", "page:home", "brain:director" */
   id: string;
@@ -59,6 +66,8 @@ export interface PipelineNode {
   relatedFiles?: string[];
   /** 數值指標 */
   metrics?: PipelineNodeMetrics;
+  /** 節點級排查資訊（對應檔案/路由/服務/trace） */
+  diagnostics?: PipelineNodeDiagnostics;
   /** 子項目（例如 page-group 內的頁面 id 清單） */
   children?: string[];
   /** 群組節點 id（被折疊到哪個 page-group 之下） */
