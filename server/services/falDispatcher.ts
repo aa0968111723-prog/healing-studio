@@ -1119,9 +1119,19 @@ export function estimateGenerationPoints(params: {
  */
 export async function submitToFalQueue(
   modelId: string,
-  input: Record<string, unknown>
+  input: Record<string, unknown>,
+  options?: {
+    /** fal.ai webhook 回呼 URL（會以 ?fal_webhook= 形式附加） */
+    webhookUrl?: string;
+    extraHeaders?: Record<string, string>;
+  }
 ): Promise<{ request_id: string; modelId: string }> {
   const { falQueueSubmitModel } = await import("./falModels.js");
-  const result = await falQueueSubmitModel(modelId, input);
+  const result = await falQueueSubmitModel(
+    modelId,
+    input,
+    options?.extraHeaders,
+    options?.webhookUrl
+  );
   return { request_id: result.request_id, modelId };
 }

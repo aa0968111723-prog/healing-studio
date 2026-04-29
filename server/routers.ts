@@ -2435,7 +2435,16 @@ export const appRouter = router({
             };
           }
 
-          const { request_id } = await submitToFalQueue(modelId, falInput);
+          // 若設定 VITE_SITE_URL，組出帶 jobId 的 webhook URL；fal.ai 完成時
+          // 會主動 POST 到 /api/webhook/fal?jobId=<id>，瀏覽器關閉也能持久化結果
+          const siteUrl = process.env.VITE_SITE_URL?.trim();
+          const falWebhookUrl = siteUrl
+            ? `${siteUrl}/api/webhook/fal?jobId=${jobId}`
+            : undefined;
+
+          const { request_id } = await submitToFalQueue(modelId, falInput, {
+            webhookUrl: falWebhookUrl,
+          });
 
           // 更新 job 記錄，加入 requestId（checkStudioJob 輪詢需要）
           await db.updateBackgroundJob(jobId, {
