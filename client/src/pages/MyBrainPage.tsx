@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { keepPreviousData } from "@tanstack/react-query";
 import { trpc } from "@/lib/trpc";
 import { PipelineCanvas } from "@/components/brain-pipeline/PipelineCanvas";
 import { SummaryBar } from "@/components/brain-pipeline/SummaryBar";
@@ -39,6 +40,8 @@ export default function MyBrainPage() {
     refetchInterval: autoRefresh ? 30_000 : false,
     refetchOnWindowFocus: false,
     retry: 1,
+    placeholderData: keepPreviousData,
+    staleTime: 25_000,
   });
 
   return (

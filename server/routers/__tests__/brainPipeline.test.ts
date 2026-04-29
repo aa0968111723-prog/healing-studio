@@ -191,4 +191,22 @@ describe("brainPipeline graph builder", () => {
       expect(ids.has(edge.target)).toBe(true);
     }
   });
+
+  it("buildGraph 不會在同一張圖內重複堆疊 trace samples（共享 traces 快照）", () => {
+    // 健康狀態都正常時，trace samples 應為空陣列；確保我們沒在每個 helper
+    // 內各自 fetch 一次而導致行為偏移。
+    const g = buildGraph({
+      includeAllPages: true,
+      includeRouters: true,
+      includeAlerts: false,
+    });
+    for (const node of g.nodes) {
+      const samples = node.diagnostics?.traceSampleIds;
+      if (samples) {
+        // 樣本數最多 3 個，且不應出現重複 id（同一張圖共享同一個 traces 陣列）
+        expect(samples.length).toBeLessThanOrEqual(3);
+        expect(new Set(samples).size).toBe(samples.length);
+      }
+    }
+  });
 });

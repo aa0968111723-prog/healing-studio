@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { keepPreviousData } from "@tanstack/react-query";
 import { trpc } from "@/lib/trpc";
 import { PipelineCanvas } from "@/components/brain-pipeline/PipelineCanvas";
 import { SummaryBar } from "@/components/brain-pipeline/SummaryBar";
@@ -39,6 +40,10 @@ export default function AiBrainPipelinePage() {
     refetchInterval: autoRefresh ? 30_000 : false,
     refetchOnWindowFocus: false,
     retry: 1,
+    // 重新 fetch 時保留上一筆資料，避免畫布閃爍／重新跑 dagre 佈局
+    placeholderData: keepPreviousData,
+    // 與 refetchInterval 對齊，避免 mount/Tab 切換造成額外 fetch
+    staleTime: 25_000,
   });
 
   return (

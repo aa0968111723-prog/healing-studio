@@ -46,12 +46,24 @@ export function PipelineCanvas({ graph, expandPageGroup = false }: Props) {
     return graph.nodes.filter(n => n.kind !== "page");
   }, [graph.nodes, groupExpanded]);
 
-  const visibleEdges = useMemo(() => {
-    const visibleIds = new Set(visibleNodes.map(n => n.id));
-    return graph.edges.filter(
-      e => visibleIds.has(e.source) && visibleIds.has(e.target)
-    );
-  }, [graph.edges, visibleNodes]);
+  // 一次走訪建出 Set + status 表，避免 visibleEdges/rfEdges 各自掃一輪
+  const { visibleIdSet, statusById } = useMemo(() => {
+    const ids = new Set<string>();
+    const status = new Map<string, PipelineNodeStatus>();
+    for (const n of visibleNodes) {
+      ids.add(n.id);
+      status.set(n.id, n.status);
+    }
+    return { visibleIdSet: ids, statusById: status };
+  }, [visibleNodes]);
+
+  const visibleEdges = useMemo(
+    () =>
+      graph.edges.filter(
+        e => visibleIdSet.has(e.source) && visibleIdSet.has(e.target)
+      ),
+    [graph.edges, visibleIdSet]
+  );
 
   // Map domain nodes → React Flow nodes
   const rfNodes: Node[] = useMemo(
@@ -65,27 +77,26 @@ export function PipelineCanvas({ graph, expandPageGroup = false }: Props) {
     [visibleNodes]
   );
 
-  const rfEdges: Edge[] = useMemo(() => {
-    const nodeStatusById = new Map(
-      visibleNodes.map(n => [n.id, n.status])
-    );
-    return visibleEdges.map(e => {
-      const status = nodeStatusById.get(e.source) ?? "healthy";
-      return {
-        id: e.id,
-        source: e.source,
-        target: e.target,
-        label: e.label,
-        animated: status === "needs_optimization" || status === "broken",
-        style: {
-          stroke: EDGE_COLOR[status],
-          strokeWidth: 1.5,
-          strokeDasharray: e.style === "dashed" ? "6 3" : undefined,
-        },
-        labelStyle: { fontSize: 10 },
-      };
-    });
-  }, [visibleEdges, visibleNodes]);
+  const rfEdges: Edge[] = useMemo(
+    () =>
+      visibleEdges.map(e => {
+        const status = statusById.get(e.source) ?? "healthy";
+        return {
+          id: e.id,
+          source: e.source,
+          target: e.target,
+          label: e.label,
+          animated: status === "needs_optimization" || status === "broken",
+          style: {
+            stroke: EDGE_COLOR[status],
+            strokeWidth: 1.5,
+            strokeDasharray: e.style === "dashed" ? "6 3" : undefined,
+          },
+          labelStyle: { fontSize: 10 },
+        };
+      }),
+    [visibleEdges, statusById]
+  );
 
   const { layoutedNodes, layoutedEdges } = useDagreLayout(
     rfNodes,
