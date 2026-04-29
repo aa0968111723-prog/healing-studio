@@ -45,10 +45,29 @@ import {
 } from "lucide-react";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import { motion } from "framer-motion";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { useRegisterPageAgent, type AgentActionResult } from "@/contexts/PageAgentContext";
 
 const AiBrainSettings = lazy(() => import("./AiBrainSettings"));
+
+/** AdminPage 容器層的合法 tab id；放在最上面讓 URL 同步 effect 共用。 */
+const ADMIN_TAB_IDS = [
+  "overview",
+  "users",
+  "activity",
+  "api",
+  "costs",
+  "generations",
+  "jobs",
+  "feedback",
+  "brain",
+  "ai-research",
+] as const;
+type AdminTabId = (typeof ADMIN_TAB_IDS)[number];
+
+function isAdminTabId(value: string): value is AdminTabId {
+  return (ADMIN_TAB_IDS as readonly string[]).includes(value);
+}
 
 // Shared modality icon map (avoid recreating in render loops)
 const MODALITY_ICONS: Record<
@@ -111,7 +130,52 @@ export default function AdminPage() {
   const [autoCreditFilter, setAutoCreditFilter] = useState<
     "all" | "enabled" | "disabled"
   >("all");
-  const [activeTab, setActiveTab] = useState("overview");
+
+  // URL → activeTab 雙向同步：
+  //   1. 進站時若 ?section=brain → 直接打開大腦 tab（讓 NodeDetailSheet 的
+  //      Trace 跳轉、光球的「前往 AI 大腦組態」這類鏈接真的有效）。
+  //   2. 切換 tab 時 replace URL，重新整理或分享連結都能保持位置。
+  const search = useSearch();
+  const initialSection = (() => {
+    try {
+      const params = new URLSearchParams(search);
+      const v = params.get("section");
+      return v && isAdminTabId(v) ? v : "overview";
+    } catch {
+      return "overview";
+    }
+  })();
+  const [activeTab, setActiveTab] = useState<AdminTabId>(
+    initialSection as AdminTabId
+  );
+
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(search);
+      const v = params.get("section");
+      if (v && isAdminTabId(v) && v !== activeTab) {
+        setActiveTab(v);
+      }
+    } catch {
+      // ignore
+    }
+    // 只在 search 變動時同步進來；避免反向迴圈
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
+
+  const handleTabChange = (next: string) => {
+    if (!isAdminTabId(next) || next === activeTab) return;
+    setActiveTab(next);
+    try {
+      const params = new URLSearchParams(window.location.search);
+      params.set("section", next);
+      // 切換 tab 不該污染歷史紀錄；用 replaceState 讓上一頁仍能回到原狀
+      const nextUrl = `${window.location.pathname}?${params.toString()}${window.location.hash}`;
+      window.history.replaceState(null, "", nextUrl);
+    } catch {
+      // ignore
+    }
+  };
 
   // 管理員後台僅暴露安全的 navigate / setTab 能力給光球；不允許 destructive
   // 動作（submit / reset / applyPreset），避免代理人誤觸用戶配額或大腦切換。
@@ -148,7 +212,7 @@ export default function AdminPage() {
         return { ok: true };
       }
       if (action.type === "setTab" && typeof action.tabId === "string") {
-        setActiveTab(action.tabId);
+        handleTabChange(action.tabId);
         return { ok: true };
       }
       return { ok: false, reason: `admin: unsupported action "${action.type}"` };
@@ -336,7 +400,7 @@ export default function AdminPage() {
         管理使用者配額、角色權限、API 金鑰、系統監控、使用紀錄與回饋處理。
       </p>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="rounded-xl bg-muted/40 p-1 flex-nowrap overflow-x-auto h-auto gap-1 w-full justify-start md:flex-wrap md:justify-center">
           <TabsTrigger
             value="overview"

@@ -1,6 +1,10 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { __testing } from "../brainPipeline";
-import { __unsafe_resetProviderHealthForTests, setProviderHealth } from "../../services/providerHealth";
+import {
+  __unsafe_resetProviderHealthForTests,
+  setProviderHealth,
+  getProviderHealthVersion,
+} from "../../services/providerHealth";
 
 const { buildGraph } = __testing;
 
@@ -189,6 +193,35 @@ describe("brainPipeline graph builder", () => {
     for (const edge of g.edges) {
       expect(ids.has(edge.source)).toBe(true);
       expect(ids.has(edge.target)).toBe(true);
+    }
+  });
+
+  it("setProviderHealth 後資料版本會 +1（讓 brainPipeline 快取可即時失效）", () => {
+    const before = getProviderHealthVersion();
+    setProviderHealth("fal", "rate_limited", "429 quota");
+    const afterFirst = getProviderHealthVersion();
+    expect(afterFirst).toBeGreaterThan(before);
+
+    setProviderHealth("gemini", "degraded", "elevated latency");
+    const afterSecond = getProviderHealthVersion();
+    expect(afterSecond).toBeGreaterThan(afterFirst);
+  });
+
+  it("buildGraph 不會在同一張圖內重複堆疊 trace samples（共享 traces 快照）", () => {
+    // 健康狀態都正常時，trace samples 應為空陣列；確保我們沒在每個 helper
+    // 內各自 fetch 一次而導致行為偏移。
+    const g = buildGraph({
+      includeAllPages: true,
+      includeRouters: true,
+      includeAlerts: false,
+    });
+    for (const node of g.nodes) {
+      const samples = node.diagnostics?.traceSampleIds;
+      if (samples) {
+        // 樣本數最多 3 個，且不應出現重複 id（同一張圖共享同一個 traces 陣列）
+        expect(samples.length).toBeLessThanOrEqual(3);
+        expect(new Set(samples).size).toBe(samples.length);
+      }
     }
   });
 });

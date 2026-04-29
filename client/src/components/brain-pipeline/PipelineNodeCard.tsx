@@ -16,7 +16,7 @@ const STATUS_RING: Record<PipelineNodeStatus, string> = {
 const STATUS_DOT: Record<PipelineNodeStatus, string> = {
   healthy: "bg-emerald-500",
   needs_optimization: "bg-yellow-500",
-  broken: "bg-red-500",
+  broken: "bg-red-500 animate-pulse",
   abnormal: "bg-orange-500",
 };
 
@@ -38,6 +38,8 @@ export type PipelineNodeData = {
 
 function PipelineNodeCardImpl({ data, selected }: NodeProps) {
   const { node } = data as PipelineNodeData;
+  const recentErrors = node.metrics?.recentErrorCount ?? 0;
+  const consecutiveFailures = node.metrics?.consecutiveFailures ?? 0;
   return (
     <div
       className={cn(
@@ -56,9 +58,29 @@ function PipelineNodeCardImpl({ data, selected }: NodeProps) {
         <span className="font-medium text-sm truncate flex-1 text-slate-900 dark:text-slate-100">
           {node.label}
         </span>
+        {recentErrors > 0 && (
+          <span
+            title={`近期累積 ${recentErrors} 筆錯誤`}
+            className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-red-500/90 text-white shrink-0"
+            data-testid={`pipeline-node-${node.id}-error-count`}
+          >
+            ⚠{recentErrors}
+          </span>
+        )}
+        {consecutiveFailures > 0 && recentErrors === 0 && (
+          <span
+            title={`連續失敗 ${consecutiveFailures} 次`}
+            className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/90 text-white shrink-0"
+          >
+            ↻{consecutiveFailures}
+          </span>
+        )}
         <span
           aria-label={`狀態：${node.status}`}
-          className={cn("h-2.5 w-2.5 rounded-full shrink-0", STATUS_DOT[node.status])}
+          className={cn(
+            "h-2.5 w-2.5 rounded-full shrink-0",
+            STATUS_DOT[node.status]
+          )}
         />
       </div>
       {node.description && (

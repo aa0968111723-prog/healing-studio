@@ -17,6 +17,15 @@ export interface ProviderHealthSnapshot {
 const healthStore = new Map<string, ProviderHealthSnapshot>();
 export let ELEVENLABS_AVAILABLE = true;
 
+/**
+ * 寫入版本計數器：每次 setProviderHealth 都 +1。供 brainPipeline 等彙整層
+ * 判斷自上次快取以來有沒有變化，達成寫入即失效（不必等 TTL）。
+ */
+let healthVersion = 0;
+export function getProviderHealthVersion(): number {
+  return healthVersion;
+}
+
 function now() {
   return Date.now();
 }
@@ -47,6 +56,7 @@ export function setProviderHealth(providerId: string, status: ProviderHealthStat
     updatedAt: now(),
   };
   healthStore.set(providerId, snapshot);
+  healthVersion++;
   return snapshot;
 }
 
@@ -73,6 +83,7 @@ export function markProviderFailure(providerId: string, err: unknown): ProviderH
 
 export function __unsafe_resetProviderHealthForTests() {
   healthStore.clear();
+  healthVersion++;
   ELEVENLABS_AVAILABLE = true;
 }
 

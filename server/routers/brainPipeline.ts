@@ -14,9 +14,13 @@
 import { router, adminProcedure, protectedProcedure } from "../_core/trpc";
 import { serverEnv } from "../_core/env.validated";
 import { getEngineStatus } from "../_core/llmRouter";
-import { getProviderHealth } from "../services/providerHealth";
+import {
+  getProviderHealth,
+  getProviderHealthVersion,
+} from "../services/providerHealth";
 import {
   getHealthSnapshot,
+  getHealthCacheVersion,
   DEFAULT_REASONING_BRAINS,
   DEFAULT_GENERATION_ENGINES,
   type ReasoningBrainSlot,
@@ -26,7 +30,10 @@ import {
   getAlerts,
   getErrorTraces,
   getSystemSummary,
+  getAutoRepairVersion,
+  runHealthPatrol,
 } from "../services/brainAutoRepair";
+import type { ErrorTrace } from "../services/brainAutoRepair";
 import { APP_PAGE_REGISTRY } from "../../shared/appRegistry";
 import type {
   PipelineGraph,
@@ -412,12 +419,11 @@ function deriveBrainSlotStatus(modelOrEngine: string): {
   };
 }
 
-/** 把錯誤 trace 計入到 router / provider 節點。 */
-function buildErrorCountIndex(): {
+/** 把錯誤 trace 計入到 router / provider 節點。接受預先 fetch 的 traces 以避免重複 slice。 */
+function buildErrorCountIndex(traces: ErrorTrace[]): {
   byEngine: Map<string, number>;
   byModality: Map<string, number>;
 } {
-  const traces = getErrorTraces(200);
   const byEngine = new Map<string, number>();
   const byModality = new Map<string, number>();
   for (const t of traces) {
@@ -497,10 +503,45 @@ function resolvePageServiceFunction(pageId: string): string {
 }
 
 
-function getTraceSamplesForEngines(engines: string[], limit = 3): string[] {
-  const traces = getErrorTraces(200);
-  const hits = traces.filter(t => engines.some(engine => t.engine.includes(engine) || engine.includes(t.engine)));
-  return hits.slice(0, limit).map(t => t.id);
+function getTraceSamplesForEngines(
+  traces: ErrorTrace[],
+  engines: string[],
+  limit = 3
+): string[] {
+  if (traces.length === 0 || engines.length === 0) return [];
+  const result: string[] = [];
+  // 直接走訪一遍即可，避免 .filter() 額外配置一個中介陣列
+  for (const t of traces) {
+    if (
+      engines.some(
+        engine => t.engine.includes(engine) || engine.includes(t.engine)
+      )
+    ) {
+      result.push(t.id);
+      if (result.length >= limit) break;
+    }
+  }
+  return result;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Static Pre-computed Indices
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** O(1) 查 provider meta：取代 router loop 內的 PROVIDERS.find()。 */
+const PROVIDER_BY_ID: Map<string, ProviderMeta> = new Map(
+  PROVIDERS.map(p => [p.id, p])
+);
+
+/** 啟用 PageAgent 的頁面數（靜態註冊表，啟動時算一次即可）。 */
+const SUPPORTING_PAGE_AGENT_COUNT: number = APP_PAGE_REGISTRY.filter(
+  p => p.supportsPageAgent
+).length;
+
+/** 推理腦槽 → 上游 provider id（從 model 字串前綴決定）。 */
+function resolveBrainTargetProvider(model: string): string {
+  if (model.startsWith("vertex/") || model.startsWith("nvidia/")) return "vertex";
+  return "gemini";
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -516,16 +557,46 @@ interface BuildGraphOptions {
   includeAlerts: boolean;
 }
 
+/**
+ * 建一次圖時共享的快照：所有 helper 都從這裡讀，避免一張圖內 50+ 次重複
+ * fetch traces / health snapshot / provider 狀態。
+ */
+interface BuildContext {
+  traces: ErrorTrace[];
+  errorIndex: ReturnType<typeof buildErrorCountIndex>;
+  engineStatus: ReturnType<typeof getEngineStatus>;
+  /** 每個 provider 的衍生狀態，buildGraph 開頭就算好，router loop 直接查。 */
+  providerStatusById: Map<
+    string,
+    ReturnType<typeof deriveProviderStatus>
+  >;
+}
+
 function buildGraph(opts: BuildGraphOptions): PipelineGraph {
   const nodes: PipelineNode[] = [];
   const edges: PipelineEdge[] = [];
 
-  const errorIndex = buildErrorCountIndex();
+  // ── 一次性建立共享快照 ───────────────────────────────────────────────────
+  const traces = getErrorTraces(200);
+  const errorIndex = buildErrorCountIndex(traces);
   const engineStatus = getEngineStatus();
+  const providerStatusById = new Map<
+    string,
+    ReturnType<typeof deriveProviderStatus>
+  >();
+  for (const meta of PROVIDERS) {
+    providerStatusById.set(meta.id, deriveProviderStatus(meta));
+  }
+  const ctx: BuildContext = {
+    traces,
+    errorIndex,
+    engineStatus,
+    providerStatusById,
+  };
 
   // ── Layer 4: External Providers ──────────────────────────────────────────
   for (const meta of PROVIDERS) {
-    const derived = deriveProviderStatus(meta);
+    const derived = ctx.providerStatusById.get(meta.id)!;
     const recentErrorCount = errorIndex.byEngine.get(meta.id) ?? 0;
     nodes.push({
       id: `provider:${meta.id}`,
@@ -544,7 +615,7 @@ function buildGraph(opts: BuildGraphOptions): PipelineGraph {
       diagnostics: {
         backendRoute: "providerHealth snapshot",
         serviceFunction: "getProviderHealth",
-        traceSampleIds: getTraceSamplesForEngines([meta.id]),
+        traceSampleIds: getTraceSamplesForEngines(ctx.traces, [meta.id]),
       },
     });
   }
@@ -571,11 +642,7 @@ function buildGraph(opts: BuildGraphOptions): PipelineGraph {
     });
 
     // 推理腦槽 → Gemini / Vertex provider
-    const targetProvider = defaultModel.startsWith("vertex/")
-      ? "vertex"
-      : defaultModel.startsWith("nvidia/")
-        ? "vertex"
-        : "gemini";
+    const targetProvider = resolveBrainTargetProvider(defaultModel);
     edges.push(
       makeEdge(`brain:${slot}`, `provider:${targetProvider}`, "推理呼叫")
     );
@@ -638,22 +705,24 @@ function buildGraph(opts: BuildGraphOptions): PipelineGraph {
       frontendPath: "client/src/contexts/GlobalOrbChatContext.tsx",
       backendRoute: "trpc.ai.* / trpc.orbScheduler.*",
       serviceFunction: "executeCurrentStepTools / orbTask state machine",
-      traceSampleIds: getTraceSamplesForEngines(["gemini", "vertex", "fal", "elevenlabs"]),
+      traceSampleIds: getTraceSamplesForEngines(ctx.traces, [
+        "gemini",
+        "vertex",
+        "fal",
+        "elevenlabs",
+      ]),
     },
   });
   edges.push(makeEdge("orb:agent", "brain:director", "委派決策"));
   edges.push(makeEdge("orb:agent", "brain:technician", "工具呼叫"));
 
-  // 光球助手（PageAgent）
-  const totalSupporting = APP_PAGE_REGISTRY.filter(
-    p => p.supportsPageAgent
-  ).length;
+  // 光球助手（PageAgent）— 啟用頁數靜態算過一次，這裡直接讀
   nodes.push({
     id: "orb:assistant",
     kind: "orb-assistant",
     layer: "ai-brain",
     label: "光球助手（PageAgent）",
-    description: `每頁的智慧助手，目前有 ${totalSupporting} / ${APP_PAGE_REGISTRY.length} 頁啟用`,
+    description: `每頁的智慧助手，目前有 ${SUPPORTING_PAGE_AGENT_COUNT} / ${APP_PAGE_REGISTRY.length} 頁啟用`,
     status: "healthy",
     relatedFiles: [
       "client/src/contexts/PageAgentContext.tsx",
@@ -663,7 +732,11 @@ function buildGraph(opts: BuildGraphOptions): PipelineGraph {
       frontendPath: "client/src/contexts/PageAgentContext.tsx",
       backendRoute: "trpc.orbGuide.step + trpc.ai.orbTask.*",
       serviceFunction: "executeCurrentStepTools / page agent action bus",
-      traceSampleIds: getTraceSamplesForEngines(["gemini", "vertex"], 2),
+      traceSampleIds: getTraceSamplesForEngines(
+        ctx.traces,
+        ["gemini", "vertex"],
+        2
+      ),
     },
   });
   edges.push(makeEdge("orb:assistant", "orb:agent", "升級到全站代理"));
@@ -681,7 +754,10 @@ function buildGraph(opts: BuildGraphOptions): PipelineGraph {
       frontendPath: "client/src/pages/DirectorAI.tsx",
       backendRoute: "trpc.director.*",
       serviceFunction: "director router + rag memory services",
-      traceSampleIds: getTraceSamplesForEngines(["gemini", "vertex"]),
+      traceSampleIds: getTraceSamplesForEngines(ctx.traces, [
+        "gemini",
+        "vertex",
+      ]),
     },
   });
   edges.push(makeEdge("director:main", "brain:director", "推理"));
@@ -690,15 +766,18 @@ function buildGraph(opts: BuildGraphOptions): PipelineGraph {
   // ── Layer 2: Backend Routers ─────────────────────────────────────────────
   if (opts.includeRouters) {
     for (const r of ROUTER_TO_PROVIDERS) {
-      // 每個 router 的健康度：以下游 provider 健康度與錯誤數推導
-      const recentErrors = r.providers
-        .map(p => errorIndex.byEngine.get(p) ?? 0)
-        .reduce((a, b) => a + b, 0);
-      const downstreamBroken = r.providers.some(p => {
-        const meta = PROVIDERS.find(x => x.id === p);
-        if (!meta) return false;
-        return deriveProviderStatus(meta).status === "broken";
-      });
+      // 一次走訪 r.providers，把錯誤計數與「下游是否 broken」一併算掉，
+      // 同時用 ctx.providerStatusById 取代 PROVIDERS.find() + deriveProviderStatus。
+      let recentErrors = 0;
+      let downstreamBroken = false;
+      for (const p of r.providers) {
+        recentErrors += errorIndex.byEngine.get(p) ?? 0;
+        if (!downstreamBroken && PROVIDER_BY_ID.has(p)) {
+          if (ctx.providerStatusById.get(p)?.status === "broken") {
+            downstreamBroken = true;
+          }
+        }
+      }
       const status: PipelineNodeStatus = downstreamBroken
         ? "broken"
         : recentErrors > 5
@@ -726,7 +805,7 @@ function buildGraph(opts: BuildGraphOptions): PipelineGraph {
         diagnostics: {
           backendRoute: `trpc.${r.id.replace("router:", "") }.*`,
           serviceFunction: "provider dispatch + domain service",
-          traceSampleIds: getTraceSamplesForEngines(r.providers),
+          traceSampleIds: getTraceSamplesForEngines(ctx.traces, r.providers),
         },
       });
       for (const p of r.providers) {
@@ -753,6 +832,12 @@ function buildGraph(opts: BuildGraphOptions): PipelineGraph {
       children: APP_PAGE_REGISTRY.map(p => `page:${p.id}`),
     });
 
+    // 30+ 個 page node 的 trace samples 用同一組引擎；先算一次再共用
+    const pageTraceSamples = getTraceSamplesForEngines(
+      ctx.traces,
+      ["gemini", "fal", "elevenlabs", "vertex"],
+      2
+    );
     for (const page of APP_PAGE_REGISTRY) {
       const status: PipelineNodeStatus = page.supportsPageAgent
         ? "healthy"
@@ -775,7 +860,7 @@ function buildGraph(opts: BuildGraphOptions): PipelineGraph {
           frontendPath: resolvePageSourcePath(page.id),
           backendRoute: resolvePageBackendRoute(page.id),
           serviceFunction: resolvePageServiceFunction(page.id),
-          traceSampleIds: getTraceSamplesForEngines(["gemini", "fal", "elevenlabs", "vertex"], 2),
+          traceSampleIds: pageTraceSamples,
         },
         parentId: "page-group:all",
       });
@@ -817,13 +902,65 @@ function buildGraph(opts: BuildGraphOptions): PipelineGraph {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Procedure-Level Response Cache
+// ═══════════════════════════════════════════════════════════════════════════
+// 前端 SummaryBar 預設每 30 秒自動 refetch，多個 admin 分頁同時開時可能在同一秒
+// 內打多次 getGraph。我們用「版本鍵 + TTL」雙保險：
+//   - 版本鍵：providerHealth / healthCache / brainAutoRepair 任一寫入都 +1，
+//             下次查詢即重建，避免 TTL 內看到陳舊狀態。
+//   - 5 秒 TTL：版本沒變時的兜底上限，避免極端情況快取永遠不更新。
+
+const RESPONSE_CACHE_TTL_MS = 5_000;
+
+interface CachedGraphEntry {
+  graph: PipelineGraph;
+  expiresAt: number;
+  /** 取自三個資料源版本計數的組合鍵 */
+  versionKey: string;
+}
+
+const responseCache = new Map<"admin" | "personal", CachedGraphEntry>();
+
+function currentVersionKey(): string {
+  return `${getProviderHealthVersion()}.${getHealthCacheVersion()}.${getAutoRepairVersion()}`;
+}
+
+function getCachedGraph(
+  key: "admin" | "personal",
+  opts: BuildGraphOptions
+): PipelineGraph {
+  const now = Date.now();
+  const versionKey = currentVersionKey();
+  const cached = responseCache.get(key);
+  if (
+    cached &&
+    cached.expiresAt > now &&
+    cached.versionKey === versionKey
+  ) {
+    return cached.graph;
+  }
+  const fresh = buildGraph(opts);
+  responseCache.set(key, {
+    graph: fresh,
+    expiresAt: now + RESPONSE_CACHE_TTL_MS,
+    versionKey,
+  });
+  return fresh;
+}
+
+/** 對外暴露的快取清除（測試 / 內部即時失效用）。 */
+function invalidateResponseCache(): void {
+  responseCache.clear();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Router
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const brainPipelineRouter = router({
   /** 全站完整管線（admin only） */
   getGraph: adminProcedure.query(() => {
-    return buildGraph({
+    return getCachedGraph("admin", {
       includeAllPages: true,
       includeRouters: true,
       includeAlerts: true,
@@ -832,7 +969,7 @@ export const brainPipelineRouter = router({
 
   /** 個人版腦組態（任何登入用戶） */
   getMyGraph: protectedProcedure.query(() => {
-    return buildGraph({
+    return getCachedGraph("personal", {
       includeAllPages: false,
       includeRouters: false,
       includeAlerts: false,
@@ -843,11 +980,26 @@ export const brainPipelineRouter = router({
   getSummary: protectedProcedure.query(() => {
     return getSystemSummary();
   }),
+
+  /**
+   * 主動觸發實際的 provider 健康巡檢（admin only）。
+   *
+   * 「重新檢測」按鈕呼叫此 mutation 後再 refetch getGraph，能拿到 ping 過真實
+   * 端點後的最新狀態。背景已有 cron 在跑，但人工排查時不必等下一個排程點。
+   *
+   * 同時 invalidate 回應快取，避免 mutation 回傳後立刻又取到 5 秒前的舊圖。
+   */
+  runPatrol: adminProcedure.mutation(async () => {
+    const result = await runHealthPatrol();
+    invalidateResponseCache();
+    return result;
+  }),
 });
 
 // 提供測試用 helpers（不影響執行 router 行為）
 export const __testing = {
   buildGraph,
+  invalidateResponseCache,
   PROVIDERS,
   ROUTER_TO_PROVIDERS,
 };
