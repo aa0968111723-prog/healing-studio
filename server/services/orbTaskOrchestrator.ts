@@ -12,6 +12,7 @@ import {
 } from "./orbTaskStateMachine";
 import { orbTaskStore as defaultOrbTaskStore } from "./orbTaskStore";
 import type { OrbTaskStore } from "./orbTaskStore";
+import type { AgentPreferences } from "../../shared/agent-preferences";
 
 // ─── Single-step executor (existing public contract) ──────────────────────
 
@@ -37,6 +38,8 @@ export interface ExecuteStepToolsInput {
     startedAt: number;
     endedAt: number;
   }) => void;
+  agentPreferences?: AgentPreferences;
+  autoApprovedStepsInRun?: number;
 }
 
 export interface ExecuteStepToolsResult {
@@ -60,8 +63,30 @@ export async function executeCurrentStepTools(
     const fromRegistry = Boolean(registryByName.get(call.name)?.requireConfirmation);
     return fromStep || fromRegistry;
   });
+  const blockedTools = new Set(input.agentPreferences?.blockedTools ?? []);
+  const blockedCall = step.toolCalls.find(call => blockedTools.has(call.name));
+  if (blockedCall) {
+    return {
+      attempted: true,
+      toolResults: [{ name: blockedCall.name, ok: false, error: "tool-blocked-by-user" }],
+      ok: false,
+      blockedByApproval: false,
+    };
+  }
+  const policy = input.agentPreferences?.confirmationPolicy ?? "confirm_high_risk";
+  const maxAuto = Math.max(1, input.agentPreferences?.maxAutoStepsPerTask ?? 5);
+  const stepRisk = (step as unknown as { riskLevel?: string }).riskLevel ?? "low";
+  const autoApproveTools = new Set(input.agentPreferences?.autoApproveTools ?? []);
+  const hasAutoApprovedTool = step.toolCalls.some(call => autoApproveTools.has(call.name));
+  const shouldForceApprove =
+    policy === "always_approve" ||
+    hasAutoApprovedTool ||
+    (policy === "confirm_high_risk" && (input.agentPreferences?.allowedRiskLevels ?? ["low", "medium"]).includes(stepRisk));
+  const shouldForceManual = policy === "confirm_all" || policy === "manual";
+  const autoStepLimitReached = (input.autoApprovedStepsInRun ?? 0) >= maxAuto;
   const isStepApproved = input.task.approvedStepIds.includes(step.id);
-  if (stepNeedsApproval && !(input.approved || isStepApproved)) {
+  const effectiveApproved = shouldForceManual ? false : (shouldForceApprove ? true : input.approved);
+  if ((stepNeedsApproval && !(effectiveApproved || isStepApproved)) || autoStepLimitReached) {
     return {
       attempted: false,
       toolResults: [
@@ -87,6 +112,7 @@ export async function executeCurrentStepTools(
     userId: input.userId,
     userRole: input.userRole,
     approved: input.approved,
+    blockedTools: Array.from(blockedTools),
     requestId: input.requestId,
     taskId: input.task.taskId,
     stepId: step.id,
@@ -148,6 +174,7 @@ export interface RunOrbTaskInput {
   store?: OrbTaskStore;
   /** Pluggable clock for tests. */
   now?: () => number;
+  agentPreferences?: AgentPreferences;
 }
 
 export interface RunOrbTaskResult {
@@ -213,6 +240,7 @@ export async function runOrbTaskToCompletion(
     1,
     input.maxSteps ?? store.get(input.taskId, input.userId, clock())?.steps.length ?? 1
   );
+  let autoApprovedStepsInRun = 0;
 
   for (let i = 0; i < maxIterations; i += 1) {
     const task = store.get(input.taskId, input.userId, clock());
@@ -331,7 +359,10 @@ export async function runOrbTaskToCompletion(
         ? `${input.requestId}_step_${step.id}`
         : `task_${input.taskId}_step_${step.id}_${clock()}`,
       onAuditEvent: input.onToolAuditEvent,
+      agentPreferences: input.agentPreferences,
+      autoApprovedStepsInRun,
     });
+    if (!stepRun.blockedByApproval && stepRun.attempted) autoApprovedStepsInRun += 1;
 
     perStepToolResults.push({
       stepId: step.id,

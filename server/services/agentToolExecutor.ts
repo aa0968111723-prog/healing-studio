@@ -56,6 +56,7 @@ export interface ExecuteOrbToolCallsOptions {
     startedAt: number;
     endedAt: number;
   }) => void;
+  blockedTools?: string[];
 }
 
 const TOOL_TIMEOUT_MS = 12_000;
@@ -96,7 +97,7 @@ export function getAllowedOrigins(): string[] {
   return Array.from(new Set([...explicit, ...DEV_LOCAL_ORIGINS]));
 }
 
-function assertAllowedEndpoint(endpoint: string): void {
+export function assertAllowedEndpoint(endpoint: string): void {
   let origin: string;
   try {
     origin = new URL(endpoint).origin;
@@ -113,12 +114,13 @@ function assertAllowedEndpoint(endpoint: string): void {
 
   if (!allowed.length || allowed.every(o => isDevLocalhostOrigin(o))) {
     // 沒有任何「實質」allowlist 條目（只剩 dev localhost 預設值）
+    const nodeEnv = process.env.NODE_ENV ?? "development";
     throw new TRPCError({
       code: "PRECONDITION_FAILED",
       message:
-        "尚未設定 ORB_TOOL_ALLOWED_ORIGINS，暫時不允許光球代理連外 API。" +
+        `尚未設定 ORB_TOOL_ALLOWED_ORIGINS（NODE_ENV=${nodeEnv}），暫時不允許光球代理連外 API。` +
         " 請在 .env 內填入信任的 origin（半形逗號分隔），" +
-        "範例與說明請見 .env.example 的「光球代理 Orb Tool Execution」段落。",
+        "範例與說明請見 https://github.com/aa0968111723-prog/healing-studio/blob/main/.env.example#L133-L170 。",
     });
   }
 
@@ -280,6 +282,23 @@ export async function executeOrbToolCalls(
     const tool = byName.get(call.name);
     if (!tool) {
       const fail = { name: call.name, ok: false, error: "tool-not-found" } as const;
+      out.push(fail);
+      opts.onAuditEvent?.({
+        requestId,
+        userId: opts.userId,
+        userRole: opts.userRole,
+        taskId: opts.taskId,
+        stepId: opts.stepId,
+        toolName: call.name,
+        ok: false,
+        error: fail.error,
+        startedAt,
+        endedAt: Date.now(),
+      });
+      continue;
+    }
+    if ((opts.blockedTools ?? []).includes(call.name)) {
+      const fail = { name: call.name, ok: false, error: "tool-blocked-by-user" } as const;
       out.push(fail);
       opts.onAuditEvent?.({
         requestId,

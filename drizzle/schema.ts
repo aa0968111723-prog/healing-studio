@@ -46,6 +46,30 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
+export const agentPreferences = mysqlTable(
+  "agent_preferences",
+  {
+    userId: int("userId").notNull().primaryKey(),
+    confirmationPolicy: mysqlEnum("confirmationPolicy", [
+      "always_approve",
+      "confirm_high_risk",
+      "confirm_all",
+      "manual",
+    ]).default("confirm_high_risk").notNull(),
+    allowedRiskLevels: json("allowedRiskLevels").$type<string[]>().notNull(),
+    autoApproveTools: json("autoApproveTools").$type<string[]>().notNull(),
+    blockedTools: json("blockedTools").$type<string[]>().notNull(),
+    maxAutoStepsPerTask: int("maxAutoStepsPerTask").default(5).notNull(),
+    notifyOnCompletion: boolean("notifyOnCompletion").default(true).notNull(),
+    notifyOnError: boolean("notifyOnError").default(true).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    userIdIdx: index("agent_preferences_user_id_idx").on(table.userId),
+  })
+);
+
 // ─── Password Reset Tokens ───────────────────────────────────────────────
 export const passwordResetTokens = mysqlTable(
   "password_reset_tokens",

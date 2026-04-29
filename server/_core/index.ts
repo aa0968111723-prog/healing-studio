@@ -56,12 +56,17 @@ import {
 import { aiProxyRouter } from "../routes/aiProxy";
 import { localAuthRouter } from "../routes/localAuth";
 import { passwordResetRouter } from "../routes/passwordResetRoutes";
+import { webhooksRouter } from "../routes/webhooks";
 import { installFetchGuard } from "./fetchGuard";
 import { globalErrorHandler, registerFatalErrorHandlers } from "./error_handler";
 import { logger, requestTraceMiddleware } from "./logger";
 import { closeDatabaseManager } from "./DatabaseManager";
 import { bootstrapAiAdapters } from "../services/ai-adapters/bootstrap";
+import { runOrbToolExecutorStartupSelfCheck } from "../services/agentToolExecutor";
 import { serverEnv } from "./env.validated";
+import { startOrbScheduler } from "../services/orbScheduler";
+import { WebSocketServer } from "ws";
+import { handleOrbVoiceConnection } from "../ws/orbVoiceGateway";
 
 type ScheduledMaintenanceJob = {
   name: string;
@@ -196,6 +201,20 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   installFetchGuard();
   bootstrapAiAdapters();
+  runOrbToolExecutorStartupSelfCheck();
+
+  if (process.env.NODE_ENV === "production") {
+    const explicitAllowOrigins = (process.env.ORB_TOOL_ALLOWED_ORIGINS ?? "")
+      .split(",")
+      .map(x => x.trim())
+      .filter(Boolean);
+    if (explicitAllowOrigins.length === 0) {
+      logger.error(
+        "[FATAL] ORB_TOOL_ALLOWED_ORIGINS is empty in production. Refusing to boot. See .env.example -> 光球代理 Orb Tool Execution."
+      );
+      process.exit(1);
+    }
+  }
 
   // ── Run DB migrations eagerly before the server handles any requests ─────
   // This ensures tables like `login_history` exist even if the login endpoint
@@ -205,6 +224,7 @@ async function startServer() {
   } catch (err) {
     logger.error("[Server] DB migration failed on startup — server will continue", { err });
   }
+  startOrbScheduler();
 
   const app = express();
   const server = createServer(app);
@@ -415,6 +435,7 @@ async function startServer() {
     const storageBackend = detectStorageBackend();
     res.json({ ok: true, ts: Date.now(), storage: storageBackend });
   });
+  app.use("/api/webhooks", webhooksRouter);
 
   // tRPC API
   app.use(
@@ -475,6 +496,11 @@ async function startServer() {
 
     // Initialize scheduled maintenance jobs after server is ready
     startScheduledMaintenanceJobs();
+  });
+
+  const wss = new WebSocketServer({ server, path: "/ws/orb-voice" });
+  wss.on("connection", (ws: unknown, req: unknown) => {
+    void handleOrbVoiceConnection(ws as never, req as never);
   });
 
   // ── Graceful Shutdown ────────────────────────────────────────────────────

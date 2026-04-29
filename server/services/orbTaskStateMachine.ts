@@ -60,6 +60,7 @@ export function createOrbAgentTaskFromPlanner(result: GatedAgentPlanResult): Orb
     actionType: step.uiActions[0]?.type,
     status: "pending",
     requiresApproval: step.toolCalls.some(t => t.requiresApproval),
+    condition: step.condition,
   }));
   const createdAt = now();
   const task: OrbAgentTask = {
@@ -158,10 +159,63 @@ export function completeOrbAgentStep(taskId: string, stepId: string): OrbAgentTa
   pushEvent(task, "step.completed", `Step completed: ${task.steps[index].label}`, { stepId });
   const next = task.steps[index + 1];
   if (next) {
-    next.status = "running";
-    task.currentStepId = next.id;
-    task.status = "executing";
-    pushEvent(task, "step.started", `Step started: ${next.label}`, { stepId: next.id });
+    const previousOutput = task.auditEvents
+      .filter(event => event.type === "step.completed")
+      .map(event => event.metadata?.output)
+      .at(-1);
+    const condition = next.condition;
+    const readField = (obj: unknown, path: string): unknown =>
+      path.split(".").reduce<unknown>((acc, key) => {
+        if (!acc || typeof acc !== "object") return undefined;
+        return (acc as Record<string, unknown>)[key];
+      }, obj);
+    const evaluate = (): boolean => {
+      if (!condition) return true;
+      const left = readField({ previousStep: { output: previousOutput } }, condition.field);
+      const right = condition.value;
+      switch (condition.operator) {
+        case "eq": return left === right;
+        case "neq": return left !== right;
+        case "contains": return typeof left === "string" && String(left).includes(String(right));
+        case "gt": return Number(left) > Number(right);
+        case "lt": return Number(left) < Number(right);
+        default: return false;
+      }
+    };
+    const passed = evaluate();
+    if (!passed && condition) {
+      if (condition.onFail === "abort") {
+        return failOrbAgentStep(taskId, next.id, "condition-failed");
+      }
+      if (condition.onFail === "skip") {
+        next.status = "skipped";
+        pushEvent(task, "step.completed", `Step skipped by condition: ${next.label}`, { stepId: next.id, skipped: true });
+        const afterSkipped = task.steps[index + 2];
+        if (afterSkipped) {
+          afterSkipped.status = "running";
+          task.currentStepId = afterSkipped.id;
+          task.status = "executing";
+          pushEvent(task, "step.started", `Step started: ${afterSkipped.label}`, { stepId: afterSkipped.id });
+        } else {
+          task.currentStepId = null;
+          task.status = "completed";
+          task.completedAt = now();
+          pushEvent(task, "task.completed", "Task completed");
+        }
+      } else if (condition.onFail === "goto" && condition.gotoStepId) {
+        const goto = task.steps.find(step => step.id === condition.gotoStepId);
+        if (!goto) return failOrbAgentStep(taskId, next.id, "condition-failed");
+        goto.status = "running";
+        task.currentStepId = goto.id;
+        task.status = "executing";
+        pushEvent(task, "step.started", `Step started: ${goto.label}`, { stepId: goto.id, via: "condition-goto" });
+      }
+    } else {
+      next.status = "running";
+      task.currentStepId = next.id;
+      task.status = "executing";
+      pushEvent(task, "step.started", `Step started: ${next.label}`, { stepId: next.id });
+    }
   } else {
     task.currentStepId = null;
     task.status = "completed";

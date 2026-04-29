@@ -220,6 +220,7 @@ export interface OrbTaskDraftStep {
     args?: Record<string, unknown>;
     requiresApproval: boolean;
   }>;
+  condition?: AgentPlanV3Step["condition"];
 }
 
 export interface OrbTaskDraft {
@@ -309,7 +310,22 @@ function v3StepToOrbTaskStep(step: AgentPlanV3Step): OrbTaskDraftStep {
     pagePath: step.pagePath,
     uiActions,
     toolCalls,
+    condition: step.condition,
   };
+}
+
+function validateStepConditions(plan: AgentPlanV3): string | null {
+  const stepIds = new Set(plan.steps.map(step => step.id));
+  for (const step of plan.steps) {
+    const condition = step.condition;
+    if (!condition) continue;
+    if (condition.onFail === "goto") {
+      if (!condition.gotoStepId || !stepIds.has(condition.gotoStepId)) {
+        return `Step "${step.id}" has invalid condition.gotoStepId: ${condition.gotoStepId ?? "<empty>"}`;
+      }
+    }
+  }
+  return null;
 }
 
 /** Convert a v3 plan into an OrbTask draft (route-side will materialise the
@@ -362,6 +378,21 @@ export function adaptAgentPlanV3ToActions(plan: AgentPlanV3): AgentAction[] {
 }
 
 function gateV3Plan(plan: AgentPlanV3): GatedAgentPlanResult {
+  const conditionValidationError = validateStepConditions(plan);
+  if (conditionValidationError) {
+    return {
+      status: "invalid",
+      ok: false,
+      version: "agent-plan.v3",
+      plan,
+      actions: [],
+      askBeforeAct: false,
+      warnings: plan.warnings ?? [],
+      blockers: [],
+      reason: conditionValidationError,
+      issues: [conditionValidationError],
+    };
+  }
   const evaluation = evaluateAgentPlanV3Risk(plan);
   const warnings = [
     ...(plan.warnings ?? []),

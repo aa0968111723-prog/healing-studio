@@ -398,6 +398,13 @@ export type AgentPlanV3Safety = z.infer<typeof AgentPlanV3SafetySchema>;
 export const AgentPlanV3StepSchema = AgentPlanStepSchema.extend({
   toolName: z.string().trim().min(1).max(80).optional(),
   toolArgs: z.record(z.string(), z.unknown()).optional(),
+  condition: z.object({
+    field: z.string().trim().min(1).max(160),
+    operator: z.enum(["eq", "neq", "contains", "gt", "lt"]),
+    value: z.unknown(),
+    onFail: z.enum(["skip", "abort", "goto"]),
+    gotoStepId: z.string().trim().min(1).max(80).optional(),
+  }).optional(),
 });
 export type AgentPlanV3Step = z.infer<typeof AgentPlanV3StepSchema>;
 
@@ -634,7 +641,40 @@ export const AGENT_PLAN_V3_JSON_SCHEMA = {
           },
         },
       },
-      steps: AGENT_PLAN_JSON_SCHEMA.schema.properties.steps,
+      steps: {
+        type: "array",
+        maxItems: 12,
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["id", "label", "action", "riskLevel", "requiresApproval", "undoable"],
+          properties: {
+            id: { type: "string", minLength: 1, maxLength: 80 },
+            label: { type: "string", minLength: 1, maxLength: 180 },
+            pagePath: { type: "string", minLength: 1, maxLength: 240 },
+            action: AGENT_PLAN_JSON_SCHEMA.schema.properties.steps.items.properties.action,
+            riskLevel: { enum: ["low", "medium", "high"] },
+            requiresApproval: { type: "boolean" },
+            undoable: { type: "boolean" },
+            compensationAction: AGENT_PLAN_JSON_SCHEMA.schema.properties.steps.items.properties.compensationAction,
+            rationale: { type: "string", maxLength: 500 },
+            toolName: { type: "string", minLength: 1, maxLength: 80 },
+            toolArgs: { type: "object", additionalProperties: true },
+            condition: {
+              type: "object",
+              additionalProperties: false,
+              required: ["field", "operator", "value", "onFail"],
+              properties: {
+                field: { type: "string", minLength: 1, maxLength: 160 },
+                operator: { enum: ["eq", "neq", "contains", "gt", "lt"] },
+                value: {},
+                onFail: { enum: ["skip", "abort", "goto"] },
+                gotoStepId: { type: "string", minLength: 1, maxLength: 80 },
+              },
+            },
+          },
+        },
+      },
       taskPolicy: {
         type: "object",
         additionalProperties: false,
