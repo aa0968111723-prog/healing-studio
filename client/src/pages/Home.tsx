@@ -1984,7 +1984,6 @@ ${profileSnippet}`;
         />
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-0 text-xs">
           <div className="flex items-center gap-3">
-            <VisualSoul size="sm" personality={personality} />
             <span
               className={`transition-colors duration-1000 tracking-wide ${s.textMuted}`}
             >

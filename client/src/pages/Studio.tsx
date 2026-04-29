@@ -2461,7 +2461,6 @@ export default function Studio() {
       {/* ── Header with Creative Mode Selector + Toolbox ── */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-3 min-w-0">
-          <VisualSoul size="sm" state={aiState} personality={personality} />
           <div className="min-w-0">
             <h1 className="hs-h3-lg !mb-0 text-foreground">創作工作室</h1>
             <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
