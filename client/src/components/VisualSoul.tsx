@@ -17,8 +17,11 @@ import type { OrbCustomColors } from "./VisualSoul3D";
 // ─── Helper: parse "r,g,b" cute color string to 0-1 normalized tuple ────────
 
 function parseCuteColor(s: string): [number, number, number] {
-  const [r, g, b] = s.split(",").map(v => parseInt(v.trim(), 10) / 255);
-  return [r, g, b];
+  const parts = s.split(",").map(v => {
+    const n = parseInt(v.trim(), 10);
+    return isNaN(n) ? 0 : n / 255;
+  });
+  return [parts[0] ?? 0, parts[1] ?? 0, parts[2] ?? 0];
 }
 
 // ─── Types ─────────────────────────────────────────────────────────────────

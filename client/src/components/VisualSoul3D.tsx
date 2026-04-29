@@ -181,6 +181,10 @@ const STATE_VALUE: Record<AIState, number> = {
 
 // ─── Custom Colors Override ────────────────────────────────────────────────
 
+/**
+ * Custom color override for the 3D orb shader.
+ * All color component values must be normalized to the 0–1 range (not 0–255).
+ */
 export interface OrbCustomColors {
   colorPrimary: [number, number, number];
   colorSecondary: [number, number, number];
