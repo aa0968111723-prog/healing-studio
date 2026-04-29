@@ -59,7 +59,7 @@ export interface ExecuteOrbToolCallsOptions {
   blockedTools?: string[];
 }
 
-const TOOL_TIMEOUT_MS = 12_000;
+const TOOL_TIMEOUT_MS = 30_000; // 增加至 30s，容納較慢的 LLM 回應（原 12s 在 NVIDIA 降級時易超時）
 const DEFAULT_RETRY_BACKOFF_MS = 200;
 
 function wait(ms: number): Promise<void> {
@@ -257,7 +257,9 @@ async function executeWithRecovery(
 
     const canRetry = attempts <= maxRetries && isTransientStatus(res.status);
     if (!canRetry) break;
-    await wait(backoffMs * attempts);
+    // 指數退避：backoffMs * 2^(attempts-1)，上限 8 秒
+    const delay = Math.min(backoffMs * Math.pow(2, attempts - 1), 8_000);
+    await wait(delay);
   }
 
   return lastFailure ?? {

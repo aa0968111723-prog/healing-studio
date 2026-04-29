@@ -480,6 +480,122 @@ function normalizeModelForEngine(model: string, engineName: string): string {
   return GEMINI_MODEL_REMAP[model] ?? model;
 }
 
+// ─── Gemini Schema 簡化（避免 400 "too many states" 錯誤） ──────────────────
+//
+// Gemini API 對 JSON Schema 的狀態機複雜度有嚴格限制。
+// 當 schema 過深、屬性過多或含有複雜的 anyOf/oneOf/allOf 時，
+// 會回傳 400 "The specified schema produces a constraint that has too many states for serving"。
+//
+// 此函數在傳送給 Gemini/Vertex 前，將 schema 簡化至安全範圍：
+//   - 最大深度：3 層
+//   - 每層最多屬性：20 個
+//   - 移除 Gemini 不支援的關鍵字（$schema, $defs, $ref, anyOf, oneOf, allOf, not）
+//   - 複雜的 anyOf/oneOf 降級為 type: "string"
+
+const GEMINI_SCHEMA_MAX_DEPTH = 3;
+const GEMINI_SCHEMA_MAX_PROPERTIES = 20;
+
+function simplifySchemaForGemini(
+  schema: Record<string, unknown>,
+  depth: number = 0
+): Record<string, unknown> {
+  if (depth > GEMINI_SCHEMA_MAX_DEPTH) {
+    // 超過最大深度 → 降級為 string
+    return { type: "string" };
+  }
+
+  const simplified: Record<string, unknown> = {};
+
+  // 保留 Gemini 支援的基本關鍵字
+  const allowedKeys = [
+    "type", "description", "properties", "required", "items",
+    "enum", "minimum", "maximum", "minLength", "maxLength",
+    "minItems", "maxItems", "nullable", "format",
+  ];
+
+  for (const key of allowedKeys) {
+    if (!(key in schema)) continue;
+
+    if (key === "properties" && typeof schema.properties === "object" && schema.properties !== null) {
+      const props = schema.properties as Record<string, unknown>;
+      const propKeys = Object.keys(props).slice(0, GEMINI_SCHEMA_MAX_PROPERTIES);
+      const simplifiedProps: Record<string, unknown> = {};
+      for (const propKey of propKeys) {
+        const propVal = props[propKey];
+        simplifiedProps[propKey] =
+          typeof propVal === "object" && propVal !== null
+            ? simplifySchemaForGemini(propVal as Record<string, unknown>, depth + 1)
+            : propVal;
+      }
+      simplified.properties = simplifiedProps;
+    } else if (key === "items" && typeof schema.items === "object" && schema.items !== null) {
+      simplified.items = simplifySchemaForGemini(
+        schema.items as Record<string, unknown>,
+        depth + 1
+      );
+    } else {
+      simplified[key] = schema[key];
+    }
+  }
+
+  // anyOf / oneOf / allOf → 取第一個分支，或降級為 string
+  for (const combiner of ["anyOf", "oneOf", "allOf"] as const) {
+    if (Array.isArray(schema[combiner]) && (schema[combiner] as unknown[]).length > 0) {
+      const first = (schema[combiner] as unknown[])[0];
+      if (typeof first === "object" && first !== null) {
+        return simplifySchemaForGemini(first as Record<string, unknown>, depth);
+      }
+      return { type: "string" };
+    }
+  }
+
+  // 確保 type 存在（Gemini 要求）
+  if (!simplified.type) {
+    simplified.type = "object";
+  }
+
+  return simplified;
+}
+
+/**
+ * 針對 Gemini/Vertex 引擎，將 response_format 中的 json_schema 簡化。
+ * 若 schema 過於複雜，降級為 json_object 模式（仍可取得 JSON，但不強制 schema）。
+ */
+function adaptResponseFormatForGemini(
+  format: ResponseFormat
+): ResponseFormat {
+  if (format.type !== "json_schema") return format;
+
+  try {
+    const originalSchema = format.json_schema.schema as Record<string, unknown>;
+    const simplified = simplifySchemaForGemini(originalSchema);
+
+    // 若簡化後屬性數量仍超過安全閾值，直接降級為 json_object
+    const propCount =
+      typeof simplified.properties === "object" && simplified.properties !== null
+        ? Object.keys(simplified.properties).length
+        : 0;
+    if (propCount > GEMINI_SCHEMA_MAX_PROPERTIES) {
+      console.warn(
+        `[LLM] Gemini schema 過複雜（${propCount} 個屬性），降級為 json_object 模式`
+      );
+      return { type: "json_object" };
+    }
+
+    return {
+      type: "json_schema",
+      json_schema: {
+        ...format.json_schema,
+        schema: simplified,
+        strict: false, // Gemini 不支援 strict mode
+      },
+    };
+  } catch {
+    // 簡化失敗 → 安全降級
+    return { type: "json_object" };
+  }
+}
+
 // ─── LLM retry constants ───────────────────────────────────────────────────
 const LLM_REQUEST_TIMEOUT_MS = 60_000; // 60 seconds
 const LLM_MAX_RETRIES = 3;
@@ -702,8 +818,14 @@ async function invokeSingleEngine(
     outputSchema,
     output_schema,
   });
-  if (normalizedResponseFormat)
-    payload.response_format = normalizedResponseFormat;
+  if (normalizedResponseFormat) {
+    // Gemini/Vertex 引擎：簡化 schema 以避免 400 "too many states" 錯誤
+    const isGeminiEngine =
+      engineConfig.engine === "gemini" || engineConfig.engine === "vertex";
+    payload.response_format = isGeminiEngine
+      ? adaptResponseFormatForGemini(normalizedResponseFormat)
+      : normalizedResponseFormat;
+  }
 
   const startTime = Date.now();
   const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
