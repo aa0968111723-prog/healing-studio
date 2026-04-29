@@ -23,7 +23,7 @@
  *   app.use("/api/auth", rateLimiters.auth);
  */
 
-import rateLimit, { type Options as RateLimitOptions } from "express-rate-limit";
+import rateLimit, { ipKeyGenerator, type Options as RateLimitOptions } from "express-rate-limit";
 import type { Request, Response, NextFunction, RequestHandler } from "express";
 import { logger } from "./logger";
 
@@ -87,9 +87,10 @@ function buildRateLimitKey(req: Request): string {
   const userId = (req as Request & { user?: { id?: number } }).user?.id;
   if (userId) return `user:${userId}`;
 
-  // Fall back to IP address (req.ip respects trust proxy setting)
-  const ip = req.ip ?? req.socket?.remoteAddress ?? "unknown";
-  return `ip:${ip}`;
+  // Fall back to IP address, using ipKeyGenerator to properly normalise
+  // IPv6 addresses and satisfy express-rate-limit's ERR_ERL_KEY_GEN_IPV6
+  // security requirement.
+  return `ip:${ipKeyGenerator(req)}`;
 }
 
 // ─── Rate Limit Factory ────────────────────────────────────────────────────
@@ -153,7 +154,7 @@ function createUserAwareLlmLimiter(): RequestHandler {
     legacyHeaders: false,
     keyGenerator: (req: Request) => {
       const userId = (req as Request & { user?: { id?: number } }).user?.id;
-      return userId ? `llm-user:${userId}` : `llm-ip:${req.ip ?? "unknown"}`;
+      return userId ? `llm-user:${userId}` : `llm-ip:${ipKeyGenerator(req)}`;
     },
     handler: (_req: Request, res: Response) => {
       res.status(429).json({
