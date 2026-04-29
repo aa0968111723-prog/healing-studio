@@ -133,6 +133,21 @@ export const AgentPlanSchema = z.object({
     .optional(),
   steps: z.array(AgentPlanStepSchema).max(12).default([]),
   warnings: z.array(z.string().trim().min(1).max(240)).max(8).default([]),
+  /**
+   * Citations the planner relied on (memoryId / page / tool / web). Lets the
+   * UI render "based on these sources" — and lets us audit which memories
+   * drove a given decision. Defaults to empty.
+   */
+  citations: z
+    .array(
+      z.object({
+        kind: z.enum(["memory", "page", "tool", "web"]).default("memory"),
+        id: z.string().trim().min(1).max(160),
+        label: z.string().trim().min(1).max(120).optional(),
+      })
+    )
+    .max(8)
+    .optional(),
 }).superRefine((plan, ctx) => {
   if (!plan.shouldAskClarification && plan.steps.length === 0) {
     ctx.addIssue({
@@ -452,6 +467,17 @@ export const AgentPlanV3Schema = z.object({
   clarificationOptions: z
     .array(z.string().trim().min(1).max(48))
     .max(4)
+    .optional(),
+  /** Citations behind this plan — see AgentPlanSchema.citations for shape. */
+  citations: z
+    .array(
+      z.object({
+        kind: z.enum(["memory", "page", "tool", "web"]).default("memory"),
+        id: z.string().trim().min(1).max(160),
+        label: z.string().trim().min(1).max(120).optional(),
+      })
+    )
+    .max(8)
     .optional(),
   decision: AgentPlanV3DecisionSchema,
   routing: AgentPlanV3RoutingSchema.default({

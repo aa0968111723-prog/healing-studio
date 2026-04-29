@@ -35,6 +35,12 @@ export interface OrbParsedReply {
   clarificationQuestion?: string;
   /** 反問時提供的快速選項（最多 4 條，每條 1~24 字） */
   clarificationOptions?: string[];
+  /** Citations the planner used (memory / page / tool / web). */
+  citations?: Array<{
+    kind: "memory" | "page" | "tool" | "web";
+    id: string;
+    label?: string;
+  }>;
 }
 
 /**
@@ -181,6 +187,7 @@ export function parseOrbReply(
       const clarification = extractClarificationFromJson(parsed, plannerOutput);
       const clarifiedActions = clarification.needsClarification ? [] : actions;
       const finalAskBeforeAct = clarification.needsClarification ? true : askBeforeAct;
+      const citations = extractCitationsFromJson(parsed, plannerOutput);
 
       return {
         reply,
@@ -193,6 +200,7 @@ export function parseOrbReply(
         needsClarification: clarification.needsClarification,
         clarificationQuestion: clarification.clarificationQuestion,
         clarificationOptions: clarification.clarificationOptions,
+        citations,
       };
     } catch {
       // JSON parse failed -> fallback to marker parser below
@@ -327,6 +335,49 @@ interface ClarificationExtract {
   needsClarification: boolean;
   clarificationQuestion?: string;
   clarificationOptions?: string[];
+}
+
+function extractCitationsFromJson(
+  parsed: Record<string, unknown>,
+  plannerOutput: unknown
+): Array<{ kind: "memory" | "page" | "tool" | "web"; id: string; label?: string }> | undefined {
+  const candidates: Array<Record<string, unknown> | undefined> = [
+    parsed,
+    typeof plannerOutput === "object" && plannerOutput !== null
+      ? (plannerOutput as Record<string, unknown>)
+      : undefined,
+  ];
+  if (typeof plannerOutput === "object" && plannerOutput !== null) {
+    const planLike = plannerOutput as Record<string, unknown>;
+    if (planLike.plan && typeof planLike.plan === "object") {
+      candidates.push(planLike.plan as Record<string, unknown>);
+    }
+  }
+  const allowedKinds = new Set(["memory", "page", "tool", "web"]);
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const raw = candidate.citations;
+    if (!Array.isArray(raw)) continue;
+    const cleaned = raw
+      .filter(
+        (c): c is { kind?: unknown; id?: unknown; label?: unknown } =>
+          !!c && typeof c === "object"
+      )
+      .map(c => {
+        const kind =
+          typeof c.kind === "string" && allowedKinds.has(c.kind)
+            ? (c.kind as "memory" | "page" | "tool" | "web")
+            : "memory";
+        const id = typeof c.id === "string" ? c.id.trim().slice(0, 160) : "";
+        const label =
+          typeof c.label === "string" ? c.label.trim().slice(0, 120) : undefined;
+        return id ? { kind, id, label } : null;
+      })
+      .filter((c): c is { kind: "memory" | "page" | "tool" | "web"; id: string; label?: string } => c !== null)
+      .slice(0, 8);
+    if (cleaned.length > 0) return cleaned;
+  }
+  return undefined;
 }
 
 function extractClarificationFromJson(

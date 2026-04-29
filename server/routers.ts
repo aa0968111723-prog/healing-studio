@@ -41,6 +41,7 @@ import { getOrchestrator } from "./services/modelClients";
 import { buildMemoryContext, upsertMemory } from "./services/ragMemory";
 import { buildOrbSystemPrompt } from "./services/siteKnowledge";
 import { parseOrbReply } from "./services/orbReplyParser";
+import { sanitizeOrbMessages } from "../shared/orb-prompt-defense";
 import { executeOrbToolCalls } from "./services/agentToolExecutor";
 import { getOrbToolRegistry } from "./config/orbToolRegistry";
 import { orbTaskRepository } from "./repositories/orbTaskRepository";
@@ -4588,11 +4589,22 @@ export const appRouter = router({
 
         const registeredTools = getOrbToolRegistry();
 
-        // Global kill switch: when disabled, return text-only reply — no action planning.
-        const orbAgentEnabled = isFlagEnabled(
+        // Global kill switch + per-user override: env wins when disabled
+        // (admin can globally turn the agent off), but if env=on the user can
+        // still flip themselves into chat-only mode via agentPreferences.
+        const envOrbAgentEnabled = isFlagEnabled(
           process.env.ENABLE_ORB_AGENT ?? (serverEnv as Record<string, string | undefined>).ENABLE_ORB_AGENT,
           true
         );
+        const userOrbAgentOverride =
+          (input as { preferences?: { orbAgentEnabled?: boolean | null } }).preferences
+            ?.orbAgentEnabled ?? null;
+        const orbAgentEnabled =
+          !envOrbAgentEnabled
+            ? false
+            : userOrbAgentOverride === false
+              ? false
+              : true;
 
         const schemaFirstPlannerEnabled = isFlagEnabled(
           process.env.ENABLE_SCHEMA_FIRST_PLANNER ?? serverEnv.ENABLE_SCHEMA_FIRST_PLANNER,
@@ -4757,10 +4769,21 @@ export const appRouter = router({
             : "auto";
 
         try {
-          const plannerMessages = input.messages.map(m => ({
-            role: m.role as "user" | "assistant",
-            content: m.content,
-          }));
+          // Prompt-injection defence: strip well-known role-impersonation /
+          // jailbreak phrases from user content before the planner sees it.
+          // Triggers are surfaced via telemetry so abuse can be flagged.
+          const sanitizationResult = sanitizeOrbMessages(
+            input.messages.map(m => ({
+              role: m.role as "user" | "assistant",
+              content: m.content,
+            }))
+          );
+          if (sanitizationResult.triggers.length > 0) {
+            appendTelemetryEvent(telemetryEvents, "orb.prompt_defense.triggered", {
+              triggers: sanitizationResult.triggers.join(","),
+            });
+          }
+          const plannerMessages = sanitizationResult.messages;
           const latestUserText = [...input.messages]
             .reverse()
             .find(m => m.role === "user");

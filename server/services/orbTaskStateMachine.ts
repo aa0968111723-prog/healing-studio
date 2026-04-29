@@ -3,6 +3,11 @@ import type {
   OrbAgentTask,
   OrbAgentTaskStep,
   OrbTaskAuditEvent,
+  InterAgentMessage,
+} from "../../shared/orb-task-state-machine";
+import {
+  computeRetryBackoffMs,
+  DEFAULT_STEP_TIMEOUT_MS,
 } from "../../shared/orb-task-state-machine";
 import { parseAndGatePlan } from "../../shared/agent-plan-adapter";
 import { recordOrbTaskMemory } from "./orbTaskMemory";
@@ -275,10 +280,43 @@ export function completeOrbAgentStep(taskId: string, stepId: string): OrbAgentTa
   return task;
 }
 
-export function failOrbAgentStep(taskId: string, stepId: string, reason: string): OrbAgentTask | null {
+export function failOrbAgentStep(
+  taskId: string,
+  stepId: string,
+  reason: string,
+  opts: { allowAutoRetry?: boolean; isTimeout?: boolean } = {}
+): OrbAgentTask | null {
   const task = taskStore.get(taskId);
   if (!task) return null;
   const step = task.steps.find(s => s.id === stepId);
+  if (opts.isTimeout) {
+    pushEvent(task, "step.timeout", `Step timed out: ${step?.label ?? stepId}`, {
+      stepId,
+      reason,
+    });
+  }
+
+  // Gap 19 + Gap 6: try automatic retry with exponential backoff before
+  // declaring the whole task failed. Caller opts in via `allowAutoRetry` so
+  // legacy code paths that explicitly want a hard failure still work.
+  if (opts.allowAutoRetry && step && task.retryBudget > 0) {
+    const attempt = (step.attemptCount ?? 0) + 1;
+    const delayMs = computeRetryBackoffMs(attempt);
+    step.attemptCount = attempt;
+    step.retryAfterAt = now() + delayMs;
+    step.status = "pending";
+    task.retryBudget -= 1;
+    task.retryCount += 1;
+    task.updatedAt = now();
+    pushEvent(
+      task,
+      "step.retry_scheduled",
+      `Retry scheduled for ${step.label ?? stepId}`,
+      { stepId, reason, attempt, delayMs, retryBudgetRemaining: task.retryBudget }
+    );
+    return task;
+  }
+
   if (step) step.status = "failed";
   task.status = "failed";
   task.failedReason = reason;
@@ -381,6 +419,67 @@ export function retryOrbAgentTask(
   task.updatedAt = now();
   pushEvent(task, "task.approved", "Task retried");
   return { task, recoveryPlan: null };
+}
+
+/**
+ * Run an async step body under a timeout. The orchestrator passes its own
+ * AbortController so the underlying tool call can hard-cancel; this helper
+ * resolves the race against `setTimeout` and reports timeouts via
+ * `failOrbAgentStep(..., { isTimeout: true, allowAutoRetry: true })`.
+ */
+export async function runStepWithTimeout<T>(args: {
+  taskId: string;
+  stepId: string;
+  timeoutMs?: number;
+  body: (signal: AbortSignal) => Promise<T>;
+}): Promise<{ ok: true; value: T } | { ok: false; reason: string; timedOut: boolean }> {
+  const timeoutMs = args.timeoutMs ?? DEFAULT_STEP_TIMEOUT_MS;
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+  try {
+    const value = await args.body(controller.signal);
+    clearTimeout(timer);
+    return { ok: true, value };
+  } catch (err) {
+    clearTimeout(timer);
+    const reason = err instanceof Error ? err.message : String(err);
+    if (timedOut) {
+      failOrbAgentStep(args.taskId, args.stepId, `step timeout (${timeoutMs}ms)`, {
+        isTimeout: true,
+        allowAutoRetry: true,
+      });
+      return { ok: false, reason: `timeout after ${timeoutMs}ms`, timedOut: true };
+    }
+    return { ok: false, reason, timedOut: false };
+  }
+}
+
+/**
+ * Record an inter-agent message in the task's audit log. Messages between the
+ * orb orchestrator and sub-agents (Claude Code, Codex, future tool agents) go
+ * through this single channel so the audit trail captures every cross-agent
+ * exchange.
+ */
+export function recordAgentMessage(
+  taskId: string,
+  message: InterAgentMessage
+): OrbAgentTask | null {
+  const task = taskStore.get(taskId);
+  if (!task) return null;
+  const summary = `${message.from} → ${message.to} :: ${message.kind}/${message.topic}`;
+  pushEvent(task, "agent.message", summary, {
+    from: message.from,
+    to: message.to,
+    kind: message.kind,
+    topic: message.topic,
+    payload: message.payload,
+  });
+  task.updatedAt = now();
+  return task;
 }
 
 export function getOrbAgentTaskEvents(taskId: string): OrbTaskAuditEvent[] {

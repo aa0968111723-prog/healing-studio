@@ -86,6 +86,12 @@ export function summarizeRecentMemoryForPlanner(memories: OrbMemory[]): string {
   const sorted = [...memories].sort((a, b) => b.createdAt - a.createdAt).slice(0, 10);
   return JSON.stringify(
     sorted.map(memory => ({
+      // Citation tracking: surface memoryId + source so the LLM can reference
+      // which prior memory drove a recommendation. The planner prompt asks the
+      // LLM to cite these IDs in its `citations` array; the parser propagates
+      // them to the front-end so the user sees "based on memory:abc123".
+      memoryId: memory.memoryId,
+      source: memory.source,
       type: memory.type,
       summary: sanitizeMemoryText(memory.summary),
       confidence: memory.confidence,
