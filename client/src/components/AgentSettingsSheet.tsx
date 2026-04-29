@@ -531,6 +531,11 @@ function ScheduleSection({ isAuthenticated }: { isAuthenticated: boolean }) {
                   上次執行：{new Date(job.lastRunAt).toLocaleString("zh-TW")}
                 </div>
               )}
+              {job.lastError && (
+                <div className="text-[10px] text-destructive mt-0.5 truncate">
+                  上次錯誤：{job.lastError}
+                </div>
+              )}
             </div>
             <Button
               variant="outline"

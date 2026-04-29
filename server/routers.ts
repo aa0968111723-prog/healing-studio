@@ -48,6 +48,7 @@ import { executeOrbToolCalls } from "./services/agentToolExecutor";
 import { getOrbToolRegistry } from "./config/orbToolRegistry";
 import { orbTaskRepository } from "./repositories/orbTaskRepository";
 import { executeCurrentStepTools } from "./services/orbTaskOrchestrator";
+import { loadAgentPreferencesForUser } from "./services/agentPreferenceService";
 import { orbToolCallLogStore } from "./services/orbToolCallLogStore";
 import { runSchemaFirstAgentPlanner } from "./services/agentPlanner";
 import {
@@ -4454,12 +4455,18 @@ export const appRouter = router({
         if (input.ok) {
           const tools = getOrbToolRegistry();
           const requestId = `task_${input.taskId}_${Date.now()}`;
+          // Load the user's saved agent preferences so confirmation policy,
+          // tool allow/blocklist and max-step caps actually take effect at
+          // runtime (without this load, the /agent settings panel had no
+          // observable effect on real task execution).
+          const agentPreferences = await loadAgentPreferencesForUser(ctx.user.id);
           const toolRun = await executeCurrentStepTools({
             task: currentTask,
             userId: ctx.user.id,
             userRole: ctx.user.role,
             tools,
             requestId,
+            agentPreferences,
             onAuditEvent: event => {
               orbToolCallLogStore.append(event);
             },

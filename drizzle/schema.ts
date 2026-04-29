@@ -112,6 +112,31 @@ export const agentPreferences = mysqlTable(
   })
 );
 
+// ─── Orb Scheduled Jobs ─────────────────────────────────────────────────
+// User-defined cron jobs for the global orb agent. Persisted so that
+// schedules survive server restarts and multi-instance deployments —
+// the in-process node-cron registry is rebuilt from this table on boot.
+export const orbScheduledJobs = mysqlTable(
+  "orb_scheduled_jobs",
+  {
+    id: varchar("id", { length: 128 }).primaryKey(),
+    userId: int("userId").notNull(),
+    cronExpression: varchar("cronExpression", { length: 128 }).notNull(),
+    taskDescription: text("taskDescription").notNull(),
+    enabled: boolean("enabled").default(true).notNull(),
+    lastRunAt: timestamp("lastRunAt"),
+    lastError: text("lastError"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    userIdIdx: index("orb_scheduled_jobs_user_id_idx").on(table.userId),
+  })
+);
+
+export type OrbScheduledJobRow = typeof orbScheduledJobs.$inferSelect;
+export type InsertOrbScheduledJob = typeof orbScheduledJobs.$inferInsert;
+
 // ─── Password Reset Tokens ───────────────────────────────────────────────
 export const passwordResetTokens = mysqlTable(
   "password_reset_tokens",
