@@ -31,6 +31,9 @@ import { langsmithRouter } from "./routers/langsmith";
 import { promptLibraryRouter } from "./routers/promptLibrary";
 import { externalServicesRouter } from "./routers/externalServices";
 import { apiUsageRouter } from "./routers/apiUsage";
+import { orbSchedulerRouter } from "./routers/orbSchedulerRouter";
+import { agentPreferencesRouter } from "./routers/agentPreferencesRouter";
+import { adminRouter } from "./routers/adminRouter";
 import { getOrchestrator } from "./services/modelClients";
 // voiceCompiler, audioCompiler, videoCompiler are no longer used — all modalities route through falDispatcher
 import { buildMemoryContext, upsertMemory } from "./services/ragMemory";
@@ -534,6 +537,9 @@ export const appRouter = router({
   promptLibrary: promptLibraryRouter,
   externalServices: externalServicesRouter,
   apiUsage: apiUsageRouter,
+  orbScheduler: orbSchedulerRouter,
+  agentPreferences: agentPreferencesRouter,
+  adminEval: adminRouter,
 
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

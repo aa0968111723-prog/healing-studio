@@ -44,8 +44,15 @@ export interface OrbAgentTaskStep {
   label: string;
   pagePath?: string;
   actionType?: string;
-  status: "pending" | "running" | "completed" | "failed" | "blocked";
+  status: "pending" | "running" | "completed" | "failed" | "blocked" | "skipped";
   requiresApproval?: boolean;
+  condition?: {
+    field: string;
+    operator: "eq" | "neq" | "contains" | "gt" | "lt";
+    value: unknown;
+    onFail: "skip" | "abort" | "goto";
+    gotoStepId?: string;
+  };
 }
 
 export interface OrbAgentTask {
