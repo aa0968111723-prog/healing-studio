@@ -16,6 +16,7 @@ import crypto from "crypto";
 import {
   getBackgroundJob,
   updateBackgroundJob,
+  findProcessingJobByRequestId,
 } from "../db.js";
 import { localizeResultUrls } from "../services/internalMedia.js";
 
@@ -62,11 +63,24 @@ falWebhookRouter.post(
         `[WebhookFal] Received: requestId=${payload.request_id} status=${payload.status}`
       );
 
-      // 3. 找到對應的 backgroundJob（query string 優先 → request_id → metadata）
-      const jobId = extractJobId(req, payload);
+      // 3. 找到對應的 backgroundJob：
+      //    a) query string ?jobId 優先（submitMultimodalAsync / videoStudio 帶）
+      //    b) request_id 正則 / metadata fallback（早期格式）
+      //    c) 透過 payload.request_id 反查 resultJson.requestId（imageStudio /
+      //       proStudio 流程：先送 fal、後由前端 submitStudioJob 建 backgroundJob）
+      let jobId = extractJobId(req, payload);
+      if (!jobId && payload.request_id) {
+        const matched = await findProcessingJobByRequestId(payload.request_id);
+        if (matched?.id) {
+          jobId = matched.id;
+          console.log(
+            `[WebhookFal] Matched job ${jobId} via resultJson.requestId lookup`
+          );
+        }
+      }
       if (!jobId) {
         console.warn(
-          `[WebhookFal] Cannot extract jobId from request_id: ${payload.request_id}`
+          `[WebhookFal] Cannot resolve jobId for request_id=${payload.request_id}`
         );
         return;
       }

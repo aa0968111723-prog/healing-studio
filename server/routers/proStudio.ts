@@ -76,10 +76,16 @@ async function falQueueSubmit(
   input: Record<string, unknown>,
   extraHeaders?: Record<string, string>
 ): Promise<{ request_id: string }> {
+  // 帶 fal.ai webhook 回呼，瀏覽器關閉時 webhookFal 會以 request_id 反查
+  // resultJson.requestId 對應的 backgroundJob 並寫回結果（不依賴前端輪詢）
+  const siteUrl = process.env.VITE_SITE_URL?.trim();
+  const webhookUrl = siteUrl ? `${siteUrl}/api/webhook/fal` : undefined;
+
   try {
     const result = await dispatchFalQueueTask({
       modelId,
       input,
+      webhookUrl,
       extraHeaders,
       route: "trpc.proStudio.*",
       modality: "audio",

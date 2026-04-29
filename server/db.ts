@@ -943,6 +943,31 @@ export async function getBackgroundJob(id: number) {
   return result[0];
 }
 
+/**
+ * 透過 fal.ai request_id 反查 processing 中的 backgroundJob。
+ * 用於 webhookFal：當 webhook URL 沒帶 ?jobId 時，從 payload.request_id
+ * 反查 resultJson.requestId 對應的 job（imageStudio/proStudio 等先送 fal、
+ * 後由前端 submitStudioJob 建立 backgroundJob 的流程適用）。
+ *
+ * 注意：MySQL JSON_EXTRACT 帶引號回傳；用 JSON_UNQUOTE 剝掉。
+ */
+export async function findProcessingJobByRequestId(requestId: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db
+    .select()
+    .from(backgroundJobs)
+    .where(
+      and(
+        eq(backgroundJobs.status, "processing"),
+        sql`JSON_UNQUOTE(JSON_EXTRACT(${backgroundJobs.resultJson}, '$.requestId')) = ${requestId}`
+      )
+    )
+    .orderBy(desc(backgroundJobs.createdAt))
+    .limit(1);
+  return result[0];
+}
+
 export async function getJobsByUser(userId: number) {
   const db = await getDb();
   if (!db) return [];
