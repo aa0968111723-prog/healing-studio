@@ -726,6 +726,9 @@ async function dispatchDirectorTool(
     const { invokeLLM } = await import("../_core/llm");
     const { buildBrainContext } = await import("../middleware/brainContext");
     const { parseLLMActions } = await import("../../shared/agent-actions");
+    const { extractJsonObjectFromText } = await import(
+      "../../shared/agent-plan-adapter"
+    );
 
     const brain = await buildBrainContext(opts.userId);
     const director = brain.getBrain("director");
@@ -780,6 +783,7 @@ ${director.systemPrompt ? `\n附加大腦指令：\n${director.systemPrompt}` : 
       model: director.model,
       temperature: director.temperature,
       topP: director.topP,
+      responseFormat: { type: "json_object" },
     });
 
     const text =
@@ -787,24 +791,24 @@ ${director.systemPrompt ? `\n附加大腦指令：\n${director.systemPrompt}` : 
         ? llmResponse
         : (llmResponse as { content?: string }).content ?? "";
 
-    let parsed: { actions?: unknown; rationale?: string } = {};
-    try {
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      const jsonText = jsonMatch ? jsonMatch[0] : text;
-      parsed = JSON.parse(jsonText) as typeof parsed;
-    } catch {
+    const extracted = extractJsonObjectFromText(text);
+    if (!extracted || typeof extracted !== "object") {
+      const trimmed = text.trim();
       return {
         name: call.name,
         ok: true,
         data: {
           actions: [],
-          rationale: "導演回應無法解析為 JSON",
+          rationale: trimmed
+            ? trimmed.slice(0, 400)
+            : "導演沒有回應，請稍後再試",
           rawResponse: text.slice(0, 500),
         },
         usedTool: call.name,
       };
     }
 
+    const parsed = extracted as { actions?: unknown; rationale?: string };
     const actions = parseLLMActions(parsed.actions);
     return {
       name: call.name,
