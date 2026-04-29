@@ -176,10 +176,64 @@ export function buildShortVideoWorkflow(brief: string): RunWorkflowAction {
   };
 }
 
+export type VideoIntentDetection =
+  | { kind: "none" }
+  | { kind: "ready"; workflow: RunWorkflowAction }
+  | { kind: "needs-clarification"; message: string; options: string[] };
+
+const VIDEO_KEYWORDS = ["短片", "影片", "video", "reel", "mv", "廣告"];
+const BUILD_KEYWORDS = ["幫我做", "生成", "製作", "create", "make", "build"];
+
+const LENGTH_HINT_RE =
+  /(\d+\s*(秒|分鐘?|小時|second|minute|hour|min|sec|mins|secs)\b)|\d+s\b|短片|長片|長影片|長視頻/i;
+const LONG_HINT_RE = /長片|長影片|長視頻|長.{0,4}的?(影片|video)/i;
+const SHORT_HINT_RE = /短片|reel|30\s*秒|15\s*秒|\b(short|teaser)\b/i;
+const SUBJECT_HINT_RE = /[:：]|主題|題目|關於|介紹|品牌|產品|內容是|story|theme|brand|product/i;
+
+export function detectVideoIntent(text: string): VideoIntentDetection {
+  const trimmed = text.trim();
+  const q = trimmed.toLowerCase();
+  const wantsVideo = VIDEO_KEYWORDS.some(token => q.includes(token));
+  const wantsBuild = BUILD_KEYWORDS.some(token => q.includes(token));
+  if (!(wantsVideo && wantsBuild)) return { kind: "none" };
+
+  const hasLength = LENGTH_HINT_RE.test(trimmed);
+  const wantsLong = LONG_HINT_RE.test(trimmed) || /\d+\s*分(?!之|秒)/.test(trimmed);
+  const isShortHint = SHORT_HINT_RE.test(trimmed);
+  const hasSubject = trimmed.length >= 25 || SUBJECT_HINT_RE.test(trimmed);
+
+  if (wantsLong && !isShortHint) {
+    return {
+      kind: "needs-clarification",
+      message:
+        "你想做的是長影片，但我目前的自動流程預設是 30 秒短片。先聊清楚你想要的長度與內容方向，我再幫你規劃合適的步驟。",
+      options: [
+        "改做 30 秒短片就好",
+        "1–3 分鐘的中片（請先告訴我主題）",
+        "5 分鐘以上的長片（請先告訴我章節結構）",
+        "我自己來，先帶我去 /director",
+      ],
+    };
+  }
+
+  if (!hasLength && !hasSubject) {
+    return {
+      kind: "needs-clarification",
+      message:
+        "影片我可以幫你拼，先給我幾個關鍵點：長度、主題、風格、投放平台。回我一兩句就好，我再展開步驟。",
+      options: [
+        "30 秒短片，主題待定",
+        "想要 1 分鐘以上的長影片",
+        "風格傾向：電影感／品牌／敘事",
+        "投放：IG／YouTube／官網",
+      ],
+    };
+  }
+
+  return { kind: "ready", workflow: buildShortVideoWorkflow(trimmed) };
+}
+
 export function maybeCreateWorkflowFromUserText(text: string): RunWorkflowAction | null {
-  const q = text.toLowerCase();
-  const wantsVideo = ["短片", "影片", "video", "reel", "mv", "廣告"].some(token => q.includes(token));
-  const wantsBuild = ["幫我做", "生成", "製作", "create", "make", "build"].some(token => q.includes(token));
-  if (wantsVideo && wantsBuild) return buildShortVideoWorkflow(text);
-  return null;
+  const detection = detectVideoIntent(text);
+  return detection.kind === "ready" ? detection.workflow : null;
 }

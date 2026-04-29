@@ -13,6 +13,7 @@ import { adaptAgentPlanToActions, type AgentAction, type PageAgentSnapshot } fro
 import { GlobalAgentRegistry, globalAgentRegistry } from "../shared/global-agent-registry";
 import {
   buildShortVideoWorkflow,
+  detectVideoIntent,
   expandWorkflowAction,
   maybeCreateWorkflowFromUserText,
   workflowStepToAction,
@@ -158,6 +159,37 @@ describe("global-agent-workflows", () => {
     expect(workflow.steps.map(step => step.label).join("\n")).toContain("圖像工作室");
     expect(workflow.steps.map(step => step.label).join("\n")).toContain("影片工作室");
     expect(workflow.steps.map(step => step.label).join("\n")).toContain("配音");
+  });
+
+  it("short-video workflow no longer dispatches a standalone /director submit", () => {
+    const workflow = buildShortVideoWorkflow("療癒森林品牌短片");
+    const directorSubmitSteps = workflow.steps.filter(
+      step => step.path === "/director" && step.actionType === "submit"
+    );
+    expect(directorSubmitSteps).toHaveLength(0);
+  });
+
+  it("detectVideoIntent asks for clarification when user wants a long video", () => {
+    const detection = detectVideoIntent("我想做一個長影片你可以幫我做嗎？");
+    expect(detection.kind).toBe("needs-clarification");
+    if (detection.kind === "needs-clarification") {
+      expect(detection.message).toContain("長影片");
+      expect(detection.options.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("detectVideoIntent asks for clarification when video request lacks length and subject", () => {
+    const detection = detectVideoIntent("幫我做影片");
+    expect(detection.kind).toBe("needs-clarification");
+  });
+
+  it("detectVideoIntent skips clarification when user provides explicit short-form details", () => {
+    const detection = detectVideoIntent("幫我做一支 30 秒廣告短片");
+    expect(detection.kind).toBe("ready");
+  });
+
+  it("detectVideoIntent returns none for off-topic chatter", () => {
+    expect(detectVideoIntent("今天天氣如何？").kind).toBe("none");
   });
 
   it("adapts schema-first planner output into runWorkflow action", () => {

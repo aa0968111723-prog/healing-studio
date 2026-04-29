@@ -22,7 +22,7 @@ import { usePersonality } from "./PersonalityContext";
 import { usePageAgent, parseLLMActions, adaptAgentPlanToActions, type AgentAction } from "./PageAgentContext";
 import { useLocation } from "wouter";
 import { executeGlobalActions, shouldAskBeforeAct } from "../../../shared/global-agent-orchestrator";
-import { maybeCreateWorkflowFromUserText } from "../../../shared/global-agent-workflows";
+import { detectVideoIntent } from "../../../shared/global-agent-workflows";
 import {
   chatMessageToLLMContent,
   type OrbChatAttachment,
@@ -1180,7 +1180,28 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         : dataActions
         ? parseLLMActions(dataActions)
         : [];
-      const fallbackWorkflow = llmActions.length === 0 ? maybeCreateWorkflowFromUserText(trimmed) : null;
+      const intentDetection = llmActions.length === 0 ? detectVideoIntent(trimmed) : { kind: "none" } as const;
+      if (intentDetection.kind === "needs-clarification") {
+        const question = intentDetection.message;
+        const replyForUser = dataReply ? `${dataReply}\n\n🎬 ${question}` : `🎬 ${question}`;
+        setMessages(prev => [...prev, {
+          role: "orb",
+          text: replyForUser,
+          at: Date.now(),
+          pagePath: locationPath,
+        }]);
+        setPendingClarification({
+          id: `clarify_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          question,
+          options: intentDetection.options,
+          originalUserText: trimmed,
+          createdAt: Date.now(),
+        });
+        const rawSuggestionsClarify = (data as { suggestions?: string[] }).suggestions ?? [];
+        setSuggestions(rawSuggestionsClarify.slice(0, 4).map(s => ({ text: s })));
+        return;
+      }
+      const fallbackWorkflow = intentDetection.kind === "ready" ? intentDetection.workflow : null;
       const actionsToExecute: AgentAction[] = fallbackWorkflow ? [fallbackWorkflow] : llmActions;
       const effectiveIntent = intent ?? (fallbackWorkflow ? fallbackWorkflow.name : undefined);
       const executorTask: GlobalOrbExecutorTask | null =
