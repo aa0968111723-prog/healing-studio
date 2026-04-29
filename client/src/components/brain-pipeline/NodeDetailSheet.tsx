@@ -121,6 +121,46 @@ export function NodeDetailSheet({ node, onClose }: Props) {
                     </section>
                   )}
 
+
+                {node.diagnostics &&
+                  (node.diagnostics.frontendPath ||
+                    node.diagnostics.backendRoute ||
+                    node.diagnostics.serviceFunction ||
+                    (node.diagnostics.traceSampleIds && node.diagnostics.traceSampleIds.length > 0)) && (
+                    <section>
+                      <h3 className="font-semibold mb-1 text-slate-700 dark:text-slate-300">
+                        🧭 節點排查線索
+                      </h3>
+                      <dl className="grid grid-cols-1 gap-2 text-xs">
+                        {node.diagnostics.frontendPath && (
+                          <div>
+                            <dt className="text-slate-500">前端檔案</dt>
+                            <dd className="font-mono bg-slate-50 dark:bg-slate-900 px-2 py-1 rounded border break-all">{node.diagnostics.frontendPath}</dd>
+                          </div>
+                        )}
+                        {node.diagnostics.backendRoute && (
+                          <div>
+                            <dt className="text-slate-500">後端路由/Procedure</dt>
+                            <dd className="font-mono bg-slate-50 dark:bg-slate-900 px-2 py-1 rounded border break-all">{node.diagnostics.backendRoute}</dd>
+                          </div>
+                        )}
+                        {node.diagnostics.serviceFunction && (
+                          <div>
+                            <dt className="text-slate-500">服務函式</dt>
+                            <dd className="font-mono bg-slate-50 dark:bg-slate-900 px-2 py-1 rounded border break-all">{node.diagnostics.serviceFunction}</dd>
+                          </div>
+                        )}
+                        {node.diagnostics.traceSampleIds && node.diagnostics.traceSampleIds.length > 0 && (
+                          <div>
+                            <dt className="text-slate-500">Trace Samples</dt>
+                            <dd className="font-mono text-[11px] bg-slate-50 dark:bg-slate-900 px-2 py-1 rounded border break-all">
+                              {node.diagnostics.traceSampleIds.join(", ")}
+                            </dd>
+                          </div>
+                        )}
+                      </dl>
+                    </section>
+                  )}
                 {node.relatedFiles && node.relatedFiles.length > 0 && (
                   <section>
                     <h3 className="font-semibold mb-1 text-slate-700 dark:text-slate-300">

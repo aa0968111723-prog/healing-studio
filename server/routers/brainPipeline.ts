@@ -149,6 +149,77 @@ const PROVIDERS: ProviderMeta[] = [
 ];
 
 /** 後端路由 → 連結到的 provider id 清單 */
+
+const PAGE_DIAGNOSTICS_CATALOG: Record<
+  string,
+  { backendRoute: string; serviceFunction: string }
+> = {
+  home: {
+    backendRoute: "trpc.news.list + trpc.showcase.*",
+    serviceFunction: "news/showcase content aggregation",
+  },
+  "agent-chat": {
+    backendRoute: "trpc.ai.chat + trpc.ai.orbTask.*",
+    serviceFunction: "runSchemaFirstAgentPlanner / executeOrbToolCalls",
+  },
+  studio: {
+    backendRoute: "trpc.ai.generate",
+    serviceFunction: "providerRouter + falDispatcher",
+  },
+  director: {
+    backendRoute: "trpc.director.*",
+    serviceFunction: "buildMemoryContext / upsertMemory",
+  },
+  "image-studio": {
+    backendRoute: "trpc.imageStudio.*",
+    serviceFunction: "dispatchImageGeneration",
+  },
+  "video-studio": {
+    backendRoute: "trpc.videoStudio.*",
+    serviceFunction: "dispatchVideoGeneration",
+  },
+  "pro-studio": {
+    backendRoute: "trpc.proStudio.*",
+    serviceFunction: "dispatchAudioGeneration / dispatchTTS",
+  },
+  models: {
+    backendRoute: "trpc.loraTrainer.* + trpc.brain.*",
+    serviceFunction: "startReplicateTraining / dispatchFalTask",
+  },
+  assets: {
+    backendRoute: "trpc.assets.*",
+    serviceFunction: "assets repository + storage adapter",
+  },
+  shared: {
+    backendRoute: "trpc.assets.teamAssets + trpc.models.shared",
+    serviceFunction: "team assets/model sharing queries",
+  },
+  notes: {
+    backendRoute: "trpc.notes.*",
+    serviceFunction: "notes CRUD + sync",
+  },
+  learn: {
+    backendRoute: "trpc.learnHub.*",
+    serviceFunction: "learnHub fetchers + embeddings pipeline",
+  },
+  dashboard: {
+    backendRoute: "trpc.apiUsage.* + trpc.brainPipeline.*",
+    serviceFunction: "getSystemSummary / getProviderHealth",
+  },
+  admin: {
+    backendRoute: "trpc.admin.* + trpc.apiUsage.*",
+    serviceFunction: "apiUsage aggregation + provider snapshot jobs",
+  },
+  "my-brain": {
+    backendRoute: "trpc.brain.myConfig + trpc.brain.health",
+    serviceFunction: "brain config repository + health checks",
+  },
+  settings: {
+    backendRoute: "trpc.settings.* + trpc.agentPreferences.*",
+    serviceFunction: "user settings + agent preferences",
+  },
+};
+
 const ROUTER_TO_PROVIDERS: Array<{
   id: string;
   label: string;
@@ -398,6 +469,40 @@ function buildLegend(): PipelineGraph["legend"] {
   }));
 }
 
+
+
+function resolvePageSourcePath(pageId: string): string {
+  const aliases: Record<string, string> = {
+    home: "client/src/pages/Home.tsx",
+    "agent-chat": "client/src/pages/AgentChat.tsx",
+    studio: "client/src/pages/Studio.tsx",
+    director: "client/src/pages/DirectorAI.tsx",
+    "image-studio": "client/src/pages/ImageStudio.tsx",
+    "video-studio": "client/src/pages/VideoStudio.tsx",
+    "pro-studio": "client/src/pages/ProStudio.tsx",
+    assets: "client/src/pages/AssetsLibrary.tsx",
+    admin: "client/src/pages/AdminPage.tsx",
+    dashboard: "client/src/pages/DashboardPage.tsx",
+  };
+  return aliases[pageId] ?? "client/src/App.tsx";
+}
+
+
+function resolvePageBackendRoute(pageId: string): string {
+  return PAGE_DIAGNOSTICS_CATALOG[pageId]?.backendRoute ?? "trpc.unmapped";
+}
+
+function resolvePageServiceFunction(pageId: string): string {
+  return PAGE_DIAGNOSTICS_CATALOG[pageId]?.serviceFunction ?? "unmapped service";
+}
+
+
+function getTraceSamplesForEngines(engines: string[], limit = 3): string[] {
+  const traces = getErrorTraces(200);
+  const hits = traces.filter(t => engines.some(engine => t.engine.includes(engine) || engine.includes(t.engine)));
+  return hits.slice(0, limit).map(t => t.id);
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Graph Builders
 // ═══════════════════════════════════════════════════════════════════════════
@@ -435,6 +540,11 @@ function buildGraph(opts: BuildGraphOptions): PipelineGraph {
       metrics: {
         ...derived.metrics,
         recentErrorCount: recentErrorCount || undefined,
+      },
+      diagnostics: {
+        backendRoute: "providerHealth snapshot",
+        serviceFunction: "getProviderHealth",
+        traceSampleIds: getTraceSamplesForEngines([meta.id]),
       },
     });
   }
@@ -524,6 +634,12 @@ function buildGraph(opts: BuildGraphOptions): PipelineGraph {
       "server/services/orbTaskStateMachine.ts",
       "shared/global-agent-registry.ts",
     ],
+    diagnostics: {
+      frontendPath: "client/src/contexts/GlobalOrbChatContext.tsx",
+      backendRoute: "trpc.ai.* / trpc.orbScheduler.*",
+      serviceFunction: "executeCurrentStepTools / orbTask state machine",
+      traceSampleIds: getTraceSamplesForEngines(["gemini", "vertex", "fal", "elevenlabs"]),
+    },
   });
   edges.push(makeEdge("orb:agent", "brain:director", "委派決策"));
   edges.push(makeEdge("orb:agent", "brain:technician", "工具呼叫"));
@@ -543,6 +659,12 @@ function buildGraph(opts: BuildGraphOptions): PipelineGraph {
       "client/src/contexts/PageAgentContext.tsx",
       "shared/global-agent-capabilities.ts",
     ],
+    diagnostics: {
+      frontendPath: "client/src/contexts/PageAgentContext.tsx",
+      backendRoute: "trpc.orbGuide.step + trpc.ai.orbTask.*",
+      serviceFunction: "executeCurrentStepTools / page agent action bus",
+      traceSampleIds: getTraceSamplesForEngines(["gemini", "vertex"], 2),
+    },
   });
   edges.push(makeEdge("orb:assistant", "orb:agent", "升級到全站代理"));
 
@@ -555,6 +677,12 @@ function buildGraph(opts: BuildGraphOptions): PipelineGraph {
     description: "CO-STAR 對話、劇本規劃、RAG 記憶",
     status: "healthy",
     relatedFiles: ["server/routers/director.ts", "client/src/pages/DirectorAI.tsx"],
+    diagnostics: {
+      frontendPath: "client/src/pages/DirectorAI.tsx",
+      backendRoute: "trpc.director.*",
+      serviceFunction: "director router + rag memory services",
+      traceSampleIds: getTraceSamplesForEngines(["gemini", "vertex"]),
+    },
   });
   edges.push(makeEdge("director:main", "brain:director", "推理"));
   edges.push(makeEdge("director:main", "brain:storyteller", "敘事"));
@@ -595,6 +723,11 @@ function buildGraph(opts: BuildGraphOptions): PipelineGraph {
             : undefined,
         relatedFiles: r.files,
         metrics: { recentErrorCount: recentErrors || undefined },
+        diagnostics: {
+          backendRoute: `trpc.${r.id.replace("router:", "") }.*`,
+          serviceFunction: "provider dispatch + domain service",
+          traceSampleIds: getTraceSamplesForEngines(r.providers),
+        },
       });
       for (const p of r.providers) {
         edges.push(makeEdge(r.id, `provider:${p}`, "外部呼叫"));
@@ -638,6 +771,12 @@ function buildGraph(opts: BuildGraphOptions): PipelineGraph {
           ? undefined
           : "如需在此頁啟用助手，請於 shared/appRegistry.ts 把 supportsPageAgent 設為 true",
         relatedFiles: ["shared/appRegistry.ts"],
+        diagnostics: {
+          frontendPath: resolvePageSourcePath(page.id),
+          backendRoute: resolvePageBackendRoute(page.id),
+          serviceFunction: resolvePageServiceFunction(page.id),
+          traceSampleIds: getTraceSamplesForEngines(["gemini", "fal", "elevenlabs", "vertex"], 2),
+        },
         parentId: "page-group:all",
       });
       // page → orb assistant

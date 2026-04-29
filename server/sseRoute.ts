@@ -34,7 +34,8 @@ sseRouter.get(
     });
 
     // Send initial connection event
-    res.write(`data: ${JSON.stringify({ type: "connected", jobId })}\n\n`);
+    const orbTraceId = req.header("x-orb-trace-id") || req.header("x-trace-id") || null;
+    res.write(`data: ${JSON.stringify({ type: "connected", jobId, orbTraceId })}\n\n`);
 
     // Cleanup helper — ensures timers and subscriptions are released exactly once
     let cleaned = false;
