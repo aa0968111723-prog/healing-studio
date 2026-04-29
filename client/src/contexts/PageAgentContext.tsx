@@ -28,6 +28,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { globalAgentRegistry } from "../../../shared/global-agent-registry";
 import {
@@ -278,6 +279,9 @@ export function PageAgentProvider({ children }: { children: ReactNode }) {
   useEffect(() => () => clearSpotlightTimer(), [clearSpotlightTimer]);
 
   const runDispatchRef = useRef<((action: AgentAction, opts: DispatchOptions) => Promise<AgentActionResult>) | null>(null);
+  const [locationPath, setLocation] = useLocation();
+  const locationPathRef = useRef(locationPath);
+  locationPathRef.current = locationPath;
   const persistMemory = trpc.orbMemory.append.useMutation();
 
   const reportFeedback = useCallback(
@@ -304,7 +308,19 @@ export function PageAgentProvider({ children }: { children: ReactNode }) {
     async (action: AgentAction, opts: DispatchOptions = {}): Promise<AgentActionResult> => {
       const { targetPageId, enqueueIfNoHandler = true } = opts;
       const page = pageRef.current;
-      if (action.type === "navigate") return { ok: false, reason: "navigate handled by orb layer" };
+      if (action.type === "navigate") {
+        // Direct navigate dispatch (e.g., OrbGuidePanel "直接帶我去" button, or
+        // when the orchestrator passes a navigate action through this layer):
+        // route via wouter so the URL actually changes. The orchestrator's
+        // own ctx.navigate() call already updates location for orb-driven
+        // workflows, so this becomes a no-op when paths match.
+        const targetPath = action.path;
+        if (targetPath && targetPath !== locationPathRef.current) {
+          setLocation(targetPath);
+        }
+        reportFeedback({ status: "completed", actionType: "navigate" });
+        return { ok: true, message: `navigated to ${targetPath}` };
+      }
       if (action.type === "focusElement") {
         showSpotlight(action.elementId, action.message, { source: opts.source });
         if (!page) {
@@ -336,7 +352,7 @@ export function PageAgentProvider({ children }: { children: ReactNode }) {
       }
       return { ok: false, reason: "no matching page handler" };
     },
-    [syncPending, reportFeedback, showSpotlight]
+    [syncPending, reportFeedback, showSpotlight, setLocation]
   );
   runDispatchRef.current = runDispatch;
 
