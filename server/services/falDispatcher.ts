@@ -844,6 +844,156 @@ export async function dispatchLoRATraining(params: {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Queue dispatcher — async submit to fal.ai queue with fallback chain support
+// ═══════════════════════════════════════════════════════════════════════════
+
+const FAL_QUEUE_BASE = "https://queue.fal.run";
+
+export interface FalQueueDispatchInput {
+  /** 使用者選定模型；若不在 catalog 且能推論 category，會自動降級到該 category 的 fallback chain */
+  modelId: string;
+  /** 任務分類（可省略；省略時嘗試從 catalog 推論。無法推論則不做 fallback） */
+  category?: string;
+  /** 完整 Fal 輸入 payload（保留呼叫端原始命名） */
+  input: Record<string, unknown>;
+  /** fal.ai webhook 回呼 URL（透傳到 ?fal_webhook=...） */
+  webhookUrl?: string;
+  /** LangSmith / errorTrace 用的 route 標識，例如 "trpc.imageStudio.*" */
+  route?: string;
+  /** 用於 errorTrace 的模態欄位（對應 recordErrorTrace 接受的值） */
+  modality?: "image" | "video" | "audio" | "voice" | "llm";
+  /** 額外 HTTP headers（例如 x-fal-client-credentials） */
+  extraHeaders?: Record<string, string>;
+  userId?: number;
+}
+
+export interface FalQueueDispatchResult {
+  request_id: string;
+  /** 實際提交的 modelId（可能因 fallback 而變動） */
+  modelId: string;
+  /** true 表示原始 modelId 不在 catalog，已降級到 fallback chain 首選 */
+  degraded?: boolean;
+  /** 降級前原本要使用的 modelId */
+  originalModel?: string;
+}
+
+/**
+ * dispatchFalQueueTask — 提交任務到 fal.ai queue（async，立即回 request_id）。
+ *
+ * 與 dispatchFalTask 的差異：
+ *  - dispatchFalTask 走 client.subscribe，同步等到完成才回傳結果
+ *  - dispatchFalQueueTask 走 queue.submit，立即回傳 request_id 供前端輪詢/webhook
+ *
+ * 三大 studio router（imageStudio / videoStudio / proStudio）原本各自 inline
+ * falQueueSubmit，沒有 fallback；改走此函式即可在「模型不存在於 catalog」時
+ * 自動降級到該 category 的次佳模型。
+ */
+export async function dispatchFalQueueTask(
+  params: FalQueueDispatchInput
+): Promise<FalQueueDispatchResult> {
+  const apiKey = process.env.FAL_API_KEY;
+  if (!apiKey) {
+    throw new Error("FAL_API_KEY 未設定");
+  }
+
+  const { traceToolRun } = await import("./langsmithTracer");
+  const { recordErrorTrace } = await import("./brainAutoRepair");
+
+  let targetModelId = params.modelId;
+  let degraded = false;
+  let originalModel: string | undefined;
+
+  // ── Step 1: 模型存在性檢查 + fallback chain（需要能推論 category） ──
+  const initialConfig = getFalModelById(targetModelId);
+  const resolvedCategory = initialConfig?.category ?? params.category;
+
+  if (!initialConfig && resolvedCategory) {
+    const fallback = (FALLBACK_CHAINS[resolvedCategory] ?? [])[0];
+    if (fallback) {
+      console.warn(
+        `[FalDispatcher] Queue model ${targetModelId} not in catalog; falling back to ${fallback}`
+      );
+      originalModel = targetModelId;
+      targetModelId = fallback;
+      degraded = true;
+    }
+  }
+
+  // ── Step 2: 提交到 fal.ai queue（透傳 webhookUrl） ──
+  const startedAt = Date.now();
+  const route = params.route ?? "fal-dispatcher.queue";
+  const runName = `fal-dispatch/queue-submit/${resolvedCategory ?? "unknown"}`;
+  const queryString = params.webhookUrl
+    ? `?fal_webhook=${encodeURIComponent(params.webhookUrl)}`
+    : "";
+
+  const res = await fetch(`${FAL_QUEUE_BASE}/${targetModelId}${queryString}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Key ${apiKey}`,
+      "Content-Type": "application/json",
+      ...(params.extraHeaders ?? {}),
+    },
+    body: JSON.stringify(params.input),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    void traceToolRun({
+      runName,
+      provider: "fal.ai",
+      model: targetModelId,
+      route,
+      method: "POST",
+      inputs: {
+        input_keys: Object.keys(params.input),
+        original_model: originalModel,
+        degraded,
+      },
+      error: errText.slice(0, 500),
+      durationMs: Date.now() - startedAt,
+    });
+    recordErrorTrace({
+      userId: params.userId ?? 0,
+      modality: params.modality ?? "image",
+      engine: targetModelId,
+      prompt: "[dispatchFalQueueTask]",
+      errorMessage: errText.slice(0, 500),
+      errorCode: "FAL_QUEUE_SUBMIT_ERROR",
+    });
+    throw new Error(`fal.ai queue submit error [${targetModelId}]: ${errText}`);
+  }
+
+  const data = (await res.json()) as { request_id?: string };
+  void traceToolRun({
+    runName,
+    provider: "fal.ai",
+    model: targetModelId,
+    route,
+    method: "POST",
+    inputs: {
+      input_keys: Object.keys(params.input),
+      original_model: originalModel,
+      degraded,
+    },
+    outputs: { request_id: data.request_id ?? null },
+    durationMs: Date.now() - startedAt,
+  });
+
+  if (!data.request_id) {
+    throw new Error(
+      `fal.ai queue submit returned no request_id [${targetModelId}]`
+    );
+  }
+
+  return {
+    request_id: data.request_id,
+    modelId: targetModelId,
+    ...(degraded && { degraded, originalModel }),
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Brain Config Resolution Helpers
 // ═══════════════════════════════════════════════════════════════════════════
 

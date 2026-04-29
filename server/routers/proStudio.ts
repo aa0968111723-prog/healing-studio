@@ -39,9 +39,10 @@ import { brainProcedure, publicProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { recordErrorTrace } from "../services/brainAutoRepair";
 import { traceToolRun } from "../services/langsmithTracer";
-import { persistExternalMediaUrl } from "../services/internalMedia";
+import { localizeResultUrls } from "../services/internalMedia";
 import { getAudioCompiler } from "../services/audioCompiler";
 import type { AudioBlock, AudioCompilerInput } from "../services/audioCompiler";
+import { dispatchFalQueueTask } from "../services/falDispatcher";
 
 // ─── fal.ai 呼叫工具 ──────────────────────────────────────────────────────────
 
@@ -69,60 +70,28 @@ function getElevenLabsProxyHeaders(): Record<string, string> {
   return { "x-fal-client-credentials": key };
 }
 
-/** 使用 queue 非同步提交任務，立即回傳 request_id */
+/** 使用 queue 非同步提交任務（透過 falDispatcher 統一派發），立即回傳 request_id */
 async function falQueueSubmit(
   modelId: string,
   input: Record<string, unknown>,
   extraHeaders?: Record<string, string>
 ): Promise<{ request_id: string }> {
-  const startedAt = Date.now();
-  const key = getFalKey();
-  const res = await fetch(`${FAL_QUEUE_BASE}/${modelId}`, {
-    method: "POST",
-    headers: {
-      Authorization: `Key ${key}`,
-      "Content-Type": "application/json",
-      ...extraHeaders,
-    },
-    body: JSON.stringify(input),
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    void traceToolRun({
-      runName: "pro-studio/fal-queue-submit",
-      provider: "fal.ai",
-      model: modelId,
+  try {
+    const result = await dispatchFalQueueTask({
+      modelId,
+      input,
+      extraHeaders,
       route: "trpc.proStudio.*",
-      method: "POST",
-      inputs: { input_keys: Object.keys(input) },
-      error: err.slice(0, 500),
-      durationMs: Date.now() - startedAt,
-    });
-    recordErrorTrace({
-      userId: 0,
       modality: "audio",
-      engine: modelId,
-      prompt: "[falQueueSubmit]",
-      errorMessage: err.slice(0, 500),
-      errorCode: "FAL_SUBMIT_ERROR",
     });
+    return { request_id: result.request_id };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
     throw new TRPCError({
       code: "INTERNAL_SERVER_ERROR",
-      message: `fal.ai submit 錯誤 [${modelId}]: ${err}`,
+      message: `fal.ai submit 錯誤 [${modelId}]: ${msg}`,
     });
   }
-  const data = await res.json();
-  void traceToolRun({
-    runName: "pro-studio/fal-queue-submit",
-    provider: "fal.ai",
-    model: modelId,
-    route: "trpc.proStudio.*",
-    method: "POST",
-    inputs: { input_keys: Object.keys(input) },
-    outputs: { request_id: data.request_id ?? null },
-    durationMs: Date.now() - startedAt,
-  });
-  return data;
 }
 
 /** 查詢 queue 任務狀態 */
@@ -1130,7 +1099,11 @@ export const proStudioRouter = router({
       })
     )
     .query(async ({ input }) => {
-      return falQueueResult(input.request_id, input.model);
+      const raw = await falQueueResult(input.request_id, input.model);
+      return localizeResultUrls(
+        raw,
+        `generated/pro-studio/${input.model.replace(/[^\w/-]+/g, "_")}`
+      );
     }),
 
   /**
@@ -1171,39 +1144,37 @@ export const proStudioRouter = router({
         )) as any;
         const rawData = result?.data ?? result;
 
+        // 持久化到 S3，防止 fal.ai CDN URL 過期；遞迴本地化整個 result 樹
+        const localized = (await localizeResultUrls(
+          rawData,
+          `generated/pro-studio/${input.model.replace(/[^\w/-]+/g, "_")}`
+        )) as any;
+
         // 通用提取 audio_url（支援各種模型的不同回傳格式）
         const audioUrl =
-          rawData?.audio?.url ??
-          rawData?.audio_url ??
-          (Array.isArray(rawData?.audio) ? rawData.audio[0]?.url : null) ??
-          rawData?.output?.url ??
-          rawData?.audio_file?.url ??
+          localized?.audio?.url ??
+          localized?.audio_url ??
+          (Array.isArray(localized?.audio) ? localized.audio[0]?.url : null) ??
+          localized?.output?.url ??
+          localized?.audio_file?.url ??
           null;
 
         // 如果是 ASR 結果，提取文字
         let text = "";
-        if (typeof rawData?.text === "string") text = rawData.text;
-        else if (typeof rawData?.transcription === "string")
-          text = rawData.transcription;
-        else if (Array.isArray(rawData?.segments))
-          text = rawData.segments
+        if (typeof localized?.text === "string") text = localized.text;
+        else if (typeof localized?.transcription === "string")
+          text = localized.transcription;
+        else if (Array.isArray(localized?.segments))
+          text = localized.segments
             .map((s: any) => s?.text ?? "")
             .filter(Boolean)
             .join(" ");
 
-        // 持久化到 S3，防止 fal.ai CDN URL 過期
-        const persistedAudioUrl = audioUrl
-          ? await persistExternalMediaUrl(audioUrl, {
-              category: "audio",
-              prefix: `generated/pro-studio/${input.model.replace(/[^\w/-]+/g, "_")}`,
-            }).catch(() => audioUrl)
-          : null;
-
         return {
           status: "COMPLETED",
-          audio_url: persistedAudioUrl,
+          audio_url: audioUrl,
           text: text.trim() || null,
-          raw: rawData,
+          raw: localized,
         };
       }
 
@@ -1364,6 +1335,113 @@ export const proStudioRouter = router({
         styleTag: compiled.styleTag,
         estimatedDurationSec: compiled.estimatedDurationSec,
         compilationLog: compiled.compilationLog,
+      };
+    }),
+
+  // ═══════════════════════════════════════════════════════════════
+  // 🎵 Suno 音樂生成（直接走 Suno API，與 fal.ai 並存）
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * generateMusicSuno — 透過 Suno API 生成音樂（async）
+   *
+   * 與 textToMusic / compiledTextToMusic 的差異：
+   *  - textToMusic 走 fal.ai（ace-step / sonauto / stable-audio / musicgen）
+   *  - generateMusicSuno 直接呼叫 Suno API，可使用 customMode 指定歌詞 + 風格
+   *
+   * 完成後使用 checkMusicSunoStatus 輪詢結果。
+   */
+  generateMusicSuno: brainProcedure
+    .input(
+      z.object({
+        prompt: z.string().min(1).max(4000),
+        style: z.string().optional(),
+        title: z.string().optional(),
+        instrumental: z.boolean().default(false),
+        customMode: z.boolean().default(false),
+        lyrics: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { getOrchestrator } = await import("../services/modelClients");
+      const { suno } = getOrchestrator();
+      if (!suno.isAvailable) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "SUNO_API_KEY 未設定，請在 Railway → Environment Variables 中新增",
+        });
+      }
+
+      const { estimatePoints } = await import("../services/modelPricing");
+      const { deductCredits } = await import("../services/orbCostGuard");
+      const { createBackgroundJob } = await import("../db");
+
+      const estimate = estimatePoints("suno-v1", { durationSec: 60 });
+      await deductCredits(ctx.user.id, estimate.totalPoints);
+
+      const { taskId } = await suno.generateMusic(input);
+      const job = await createBackgroundJob({
+        userId: ctx.user.id,
+        jobType: "audio",
+        status: "processing",
+        progressMessage: "Suno 生成中…",
+        resultJson: { sunoTaskId: taskId, estimate } as any,
+      });
+
+      return {
+        taskId,
+        jobId: typeof job === "object" && job && "id" in job ? (job as any).id : null,
+      };
+    }),
+
+  /**
+   * checkMusicSunoStatus — 輪詢 Suno 生成狀態，完成時本地化 audio URL 並回寫 backgroundJob
+   */
+  checkMusicSunoStatus: brainProcedure
+    .input(
+      z.object({
+        taskId: z.string().min(1),
+        jobId: z.number().optional(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const { getOrchestrator } = await import("../services/modelClients");
+      const { suno } = getOrchestrator();
+      if (!suno.isAvailable) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "SUNO_API_KEY 未設定",
+        });
+      }
+
+      const status = await suno.getTaskStatus(input.taskId);
+
+      if (status.status === "completed" && status.clips?.[0]?.audioUrl) {
+        const localized = (await localizeResultUrls(
+          { audioUrl: status.clips[0].audioUrl, clips: status.clips },
+          `generated/${ctx.user.id}/suno-${input.taskId}`
+        )) as { audioUrl: string; clips: typeof status.clips };
+
+        if (input.jobId) {
+          const { updateBackgroundJob } = await import("../db");
+          await updateBackgroundJob(input.jobId, {
+            status: "completed",
+            progress: 100,
+            resultJson: localized as any,
+          });
+        }
+
+        return {
+          status: "COMPLETED" as const,
+          audioUrl: localized.audioUrl,
+          clips: localized.clips,
+        };
+      }
+
+      return {
+        status: status.status,
+        audioUrl: null,
+        clips: status.clips ?? [],
       };
     }),
 });

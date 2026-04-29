@@ -281,6 +281,44 @@ export async function executeOrbToolCalls(
     const startedAt = Date.now();
     const requestId =
       opts.requestId ?? `orb_req_${startedAt}_${Math.random().toString(36).slice(2, 8)}`;
+
+    // ── studio.* 生成工具：橋接到 dispatchFalQueueTask / SunoClient ──
+    if (call.name.startsWith("studio.")) {
+      if ((opts.blockedTools ?? []).includes(call.name)) {
+        const fail = { name: call.name, ok: false, error: "tool-blocked-by-user" } as const;
+        out.push(fail);
+        opts.onAuditEvent?.({
+          requestId,
+          userId: opts.userId,
+          userRole: opts.userRole,
+          taskId: opts.taskId,
+          stepId: opts.stepId,
+          toolName: call.name,
+          ok: false,
+          error: fail.error,
+          startedAt,
+          endedAt: Date.now(),
+        });
+        continue;
+      }
+      const studioResult = await dispatchStudioTool(call, opts);
+      out.push(studioResult);
+      opts.onAuditEvent?.({
+        requestId,
+        userId: opts.userId,
+        userRole: opts.userRole,
+        taskId: opts.taskId,
+        stepId: opts.stepId,
+        toolName: call.name,
+        usedTool: studioResult.usedTool,
+        ok: studioResult.ok,
+        error: studioResult.error,
+        startedAt,
+        endedAt: Date.now(),
+      });
+      continue;
+    }
+
     const tool = byName.get(call.name);
     if (!tool) {
       const fail = { name: call.name, ok: false, error: "tool-not-found" } as const;
@@ -425,4 +463,217 @@ export async function executeOrbToolCalls(
   }
 
   return out;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// studio.* 生成工具橋接：直接走 dispatchFalQueueTask / SunoClient
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * 把光球發出的 studio.generateImage / generateVideo / generateAudio / generateVoice
+ * 工具呼叫橋接到後端對應的 fal.ai queue 任務或 Suno API。
+ *
+ * 流程：
+ *  1. 從 shared/global-agent-tools 讀取定義，做 requireHuman 風險閘門
+ *  2. 根據工具名稱選擇 category 與預設模型
+ *  3. studio.generateAudio + modelId 起頭為 "suno" → 走 SunoClient.generateMusic
+ *  4. 其餘走 dispatchFalQueueTask（含 fallback chain）
+ *  5. 回傳 { request_id | taskId, modelId, engine } 供前端輪詢
+ */
+async function dispatchStudioTool(
+  call: OrbToolCall,
+  opts: ExecuteOrbToolCallsOptions
+): Promise<OrbToolCallResult> {
+  const { getGlobalAgentTool } = await import("../../shared/global-agent-tools");
+  const def = getGlobalAgentTool(call.name);
+  if (!def) {
+    return {
+      name: call.name,
+      ok: false,
+      error: "studio-tool-not-registered",
+    };
+  }
+
+  // ── 風險閘門：requiresHuman 必須有 approved ──
+  if (def.requiresHuman && !opts.approved) {
+    return {
+      name: call.name,
+      ok: false,
+      error: "confirmation-required",
+    };
+  }
+
+  const args = (call.args ?? {}) as Record<string, unknown>;
+
+  try {
+    switch (call.name) {
+      case "studio.generateImage": {
+        const { dispatchFalQueueTask } = await import("./falDispatcher");
+        const modelId = (args.modelId as string) || "fal-ai/flux/dev";
+        const input: Record<string, unknown> = {};
+        if (typeof args.prompt === "string") input.prompt = args.prompt;
+        if (typeof args.aspect_ratio === "string")
+          input.aspect_ratio = args.aspect_ratio;
+        if (typeof args.num_images === "number")
+          input.num_images = args.num_images;
+        if (typeof args.negative_prompt === "string")
+          input.negative_prompt = args.negative_prompt;
+        const r = await dispatchFalQueueTask({
+          modelId,
+          category: "text-to-image",
+          input,
+          route: "orb-tool/studio.generateImage",
+          modality: "image",
+          userId: opts.userId,
+        });
+        return {
+          name: call.name,
+          ok: true,
+          data: {
+            request_id: r.request_id,
+            modelId: r.modelId,
+            degraded: r.degraded ?? false,
+            originalModel: r.originalModel,
+            engine: "fal",
+          },
+          usedTool: call.name,
+        };
+      }
+
+      case "studio.generateVideo": {
+        const { dispatchFalQueueTask } = await import("./falDispatcher");
+        const hasImage = typeof args.image_url === "string" && args.image_url;
+        const modelId =
+          (args.modelId as string) ||
+          (hasImage
+            ? "fal-ai/kling-video/v2.1/pro/image-to-video"
+            : "fal-ai/kling-video/v2.1/pro/text-to-video");
+        const input: Record<string, unknown> = {};
+        if (typeof args.prompt === "string") input.prompt = args.prompt;
+        if (typeof args.image_url === "string") input.image_url = args.image_url;
+        if (typeof args.duration === "number") input.duration = args.duration;
+        if (typeof args.aspect_ratio === "string")
+          input.aspect_ratio = args.aspect_ratio;
+        const r = await dispatchFalQueueTask({
+          modelId,
+          category: hasImage ? "image-to-video" : "text-to-video",
+          input,
+          route: "orb-tool/studio.generateVideo",
+          modality: "video",
+          userId: opts.userId,
+        });
+        return {
+          name: call.name,
+          ok: true,
+          data: {
+            request_id: r.request_id,
+            modelId: r.modelId,
+            degraded: r.degraded ?? false,
+            engine: "fal",
+          },
+          usedTool: call.name,
+        };
+      }
+
+      case "studio.generateAudio": {
+        const requestedModel = (args.modelId as string) || "";
+        // Suno 路徑：modelId 起頭為 "suno" 走 SunoClient
+        if (requestedModel.toLowerCase().startsWith("suno")) {
+          const { getOrchestrator } = await import("./modelClients");
+          const { suno } = getOrchestrator();
+          if (!suno.isAvailable) {
+            return {
+              name: call.name,
+              ok: false,
+              error: "SUNO_API_KEY 未設定",
+            };
+          }
+          const sunoResult = await suno.generateMusic({
+            prompt: (args.prompt as string) ?? "",
+            instrumental: (args.instrumental as boolean) ?? false,
+            lyrics: args.lyrics as string | undefined,
+          });
+          return {
+            name: call.name,
+            ok: true,
+            data: {
+              taskId: sunoResult.taskId,
+              status: sunoResult.status,
+              engine: "suno",
+            },
+            usedTool: call.name,
+          };
+        }
+
+        // fal.ai 路徑（預設）
+        const { dispatchFalQueueTask } = await import("./falDispatcher");
+        const modelId = requestedModel || "fal-ai/ace-step";
+        const input: Record<string, unknown> = {};
+        if (typeof args.prompt === "string") input.prompt = args.prompt;
+        if (typeof args.lyrics === "string") input.lyrics = args.lyrics;
+        if (typeof args.duration === "number") input.duration = args.duration;
+        const r = await dispatchFalQueueTask({
+          modelId,
+          category: "text-to-audio",
+          input,
+          route: "orb-tool/studio.generateAudio",
+          modality: "audio",
+          userId: opts.userId,
+        });
+        return {
+          name: call.name,
+          ok: true,
+          data: {
+            request_id: r.request_id,
+            modelId: r.modelId,
+            degraded: r.degraded ?? false,
+            engine: "fal",
+          },
+          usedTool: call.name,
+        };
+      }
+
+      case "studio.generateVoice": {
+        const { dispatchFalQueueTask } = await import("./falDispatcher");
+        const modelId =
+          (args.modelId as string) || "fal-ai/elevenlabs/tts/turbo-v2.5";
+        const input: Record<string, unknown> = {};
+        if (typeof args.text === "string") input.text = args.text;
+        if (typeof args.voice_id === "string") input.voice_id = args.voice_id;
+        if (typeof args.speed === "number") input.speed = args.speed;
+        const r = await dispatchFalQueueTask({
+          modelId,
+          category: "text-to-speech",
+          input,
+          route: "orb-tool/studio.generateVoice",
+          modality: "voice",
+          userId: opts.userId,
+        });
+        return {
+          name: call.name,
+          ok: true,
+          data: {
+            request_id: r.request_id,
+            modelId: r.modelId,
+            degraded: r.degraded ?? false,
+            engine: "fal",
+          },
+          usedTool: call.name,
+        };
+      }
+
+      default:
+        return {
+          name: call.name,
+          ok: false,
+          error: `unknown-studio-tool: ${call.name}`,
+        };
+    }
+  } catch (err) {
+    return {
+      name: call.name,
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
 }

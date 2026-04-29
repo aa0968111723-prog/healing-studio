@@ -25,7 +25,8 @@ import { brainProcedure, publicProcedure, router } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { recordErrorTrace } from "../services/brainAutoRepair";
 import { traceToolRun } from "../services/langsmithTracer";
-import { persistExternalMediaUrl } from "../services/internalMedia";
+import { localizeResultUrls } from "../services/internalMedia";
+import { dispatchFalQueueTask } from "../services/falDispatcher";
 
 // ─── fal.ai 呼叫工具（與 proStudio 相同模式） ────────────────────────────────
 
@@ -43,67 +44,33 @@ function getFalKey(): string {
   return key;
 }
 
-/** 使用 queue 非同步提交任務，立即回傳 request_id */
+/** 使用 queue 非同步提交任務（透過 falDispatcher 統一派發），立即回傳 request_id */
 async function falQueueSubmit(
   modelId: string,
   input: Record<string, unknown>,
   jobId?: number
 ): Promise<{ request_id: string }> {
-  const startedAt = Date.now();
-  const key = getFalKey();
   // 若設定了 VITE_SITE_URL 且有 jobId，加入 webhook 回呼讓後端持久化結果
   const siteUrl = process.env.VITE_SITE_URL?.trim();
   const webhookUrl =
-    siteUrl && jobId
-      ? `${siteUrl}/api/webhook/fal`
-      : undefined;
-  const body: Record<string, unknown> = { ...input };
-  if (webhookUrl) body._webhookUrl = webhookUrl;
-  const res = await fetch(`${FAL_QUEUE_BASE}/${modelId}${webhookUrl ? `?fal_webhook=${encodeURIComponent(webhookUrl)}` : ""}`, {
-    method: "POST",
-    headers: {
-      Authorization: `Key ${key}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    void traceToolRun({
-      runName: "video-studio/fal-queue-submit",
-      provider: "fal.ai",
-      model: modelId,
+    siteUrl && jobId ? `${siteUrl}/api/webhook/fal` : undefined;
+
+  try {
+    const result = await dispatchFalQueueTask({
+      modelId,
+      input,
+      webhookUrl,
       route: "trpc.videoStudio.*",
-      method: "POST",
-      inputs: { input_keys: Object.keys(input) },
-      error: err.slice(0, 500),
-      durationMs: Date.now() - startedAt,
-    });
-    recordErrorTrace({
-      userId: 0,
       modality: "video",
-      engine: modelId,
-      prompt: "[falQueueSubmit]",
-      errorMessage: err.slice(0, 500),
-      errorCode: "FAL_SUBMIT_ERROR",
     });
+    return { request_id: result.request_id };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
     throw new TRPCError({
       code: "INTERNAL_SERVER_ERROR",
-      message: `fal.ai submit 錯誤 [${modelId}]: ${err}`,
+      message: `fal.ai submit 錯誤 [${modelId}]: ${msg}`,
     });
   }
-  const data = await res.json();
-  void traceToolRun({
-    runName: "video-studio/fal-queue-submit",
-    provider: "fal.ai",
-    model: modelId,
-    route: "trpc.videoStudio.*",
-    method: "POST",
-    inputs: { input_keys: Object.keys(input) },
-    outputs: { request_id: data.request_id ?? null },
-    durationMs: Date.now() - startedAt,
-  });
-  return data;
 }
 
 async function falQueueStatus(
@@ -1052,18 +1019,16 @@ export const videoStudioRouter = router({
           input.requestId,
           input.modelId
         )) as any;
-        const rawVideoUrl = extractVideoUrl(result);
-        // 持久化到 S3，防止 fal.ai CDN URL 過期
-        const video_url = rawVideoUrl
-          ? await persistExternalMediaUrl(rawVideoUrl, {
-              category: "video",
-              prefix: `generated/video-studio/${input.modelId.replace(/[^\w/-]+/g, "_")}`,
-            }).catch(() => rawVideoUrl)
-          : null;
+        // 持久化到 S3，防止 fal.ai CDN URL 過期；遞迴本地化整個 result 樹
+        const localized = (await localizeResultUrls(
+          result,
+          `generated/video-studio/${input.modelId.replace(/[^\w/-]+/g, "_")}`
+        )) as any;
+        const video_url = extractVideoUrl(localized);
         return {
           status: "COMPLETED" as const,
           video_url,
-          raw: result,
+          raw: localized,
         };
       }
 
