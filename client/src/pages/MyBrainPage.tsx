@@ -3,12 +3,13 @@ import { useLocation } from "wouter";
 import { keepPreviousData } from "@tanstack/react-query";
 import { trpc } from "@/lib/trpc";
 import { PipelineCanvas } from "@/components/brain-pipeline/PipelineCanvas";
-import { SummaryBar } from "@/components/brain-pipeline/SummaryBar";
+import { SummaryBar, type StatusFilter } from "@/components/brain-pipeline/SummaryBar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRegisterPageAgent, type AgentActionResult } from "@/contexts/PageAgentContext";
 
 export default function MyBrainPage() {
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [, navigate] = useLocation();
 
   // 純展示頁：只給光球 navigate 能力，不允許動作直接改 brain 配置（那是 admin 範疇）。
@@ -62,6 +63,8 @@ export default function MyBrainPage() {
         autoRefresh={autoRefresh}
         onAutoRefreshChange={setAutoRefresh}
         onRefresh={() => graphQuery.refetch()}
+        statusFilter={statusFilter}
+        onStatusFilterChange={setStatusFilter}
       />
 
       <div className="flex-1 min-h-0 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/40 dark:bg-slate-950/40 overflow-hidden">
@@ -82,7 +85,11 @@ export default function MyBrainPage() {
           </div>
         )}
         {graphQuery.data && (
-          <PipelineCanvas graph={graphQuery.data} expandPageGroup={false} />
+          <PipelineCanvas
+            graph={graphQuery.data}
+            expandPageGroup={false}
+            statusFilter={statusFilter}
+          />
         )}
       </div>
     </div>

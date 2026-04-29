@@ -14,9 +14,13 @@
 import { router, adminProcedure, protectedProcedure } from "../_core/trpc";
 import { serverEnv } from "../_core/env.validated";
 import { getEngineStatus } from "../_core/llmRouter";
-import { getProviderHealth } from "../services/providerHealth";
+import {
+  getProviderHealth,
+  getProviderHealthVersion,
+} from "../services/providerHealth";
 import {
   getHealthSnapshot,
+  getHealthCacheVersion,
   DEFAULT_REASONING_BRAINS,
   DEFAULT_GENERATION_ENGINES,
   type ReasoningBrainSlot,
@@ -26,6 +30,7 @@ import {
   getAlerts,
   getErrorTraces,
   getSystemSummary,
+  getAutoRepairVersion,
 } from "../services/brainAutoRepair";
 import type { ErrorTrace } from "../services/brainAutoRepair";
 import { APP_PAGE_REGISTRY } from "../../shared/appRegistry";
@@ -899,30 +904,46 @@ function buildGraph(opts: BuildGraphOptions): PipelineGraph {
 // Procedure-Level Response Cache
 // ═══════════════════════════════════════════════════════════════════════════
 // 前端 SummaryBar 預設每 30 秒自動 refetch，多個 admin 分頁同時開時可能在同一秒
-// 內打多次 getGraph。30 秒週期 vs 5 秒 TTL → 最壞情況也只有 1/6 的時間是快取命中，
-// 不會嚴重影響「即時性」，但能擋掉短時間內的密集請求（多 tab、按重新檢測等）。
-// 各種 status 寫入（providerHealth / brainAutoRepair）都不超過秒級，5 秒夠新鮮。
+// 內打多次 getGraph。我們用「版本鍵 + TTL」雙保險：
+//   - 版本鍵：providerHealth / healthCache / brainAutoRepair 任一寫入都 +1，
+//             下次查詢即重建，避免 TTL 內看到陳舊狀態。
+//   - 5 秒 TTL：版本沒變時的兜底上限，避免極端情況快取永遠不更新。
 
 const RESPONSE_CACHE_TTL_MS = 5_000;
 
 interface CachedGraphEntry {
   graph: PipelineGraph;
   expiresAt: number;
+  /** 取自三個資料源版本計數的組合鍵 */
+  versionKey: string;
 }
 
 const responseCache = new Map<"admin" | "personal", CachedGraphEntry>();
+
+function currentVersionKey(): string {
+  return `${getProviderHealthVersion()}.${getHealthCacheVersion()}.${getAutoRepairVersion()}`;
+}
 
 function getCachedGraph(
   key: "admin" | "personal",
   opts: BuildGraphOptions
 ): PipelineGraph {
   const now = Date.now();
+  const versionKey = currentVersionKey();
   const cached = responseCache.get(key);
-  if (cached && cached.expiresAt > now) {
+  if (
+    cached &&
+    cached.expiresAt > now &&
+    cached.versionKey === versionKey
+  ) {
     return cached.graph;
   }
   const fresh = buildGraph(opts);
-  responseCache.set(key, { graph: fresh, expiresAt: now + RESPONSE_CACHE_TTL_MS });
+  responseCache.set(key, {
+    graph: fresh,
+    expiresAt: now + RESPONSE_CACHE_TTL_MS,
+    versionKey,
+  });
   return fresh;
 }
 

@@ -1,6 +1,10 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { __testing } from "../brainPipeline";
-import { __unsafe_resetProviderHealthForTests, setProviderHealth } from "../../services/providerHealth";
+import {
+  __unsafe_resetProviderHealthForTests,
+  setProviderHealth,
+  getProviderHealthVersion,
+} from "../../services/providerHealth";
 
 const { buildGraph } = __testing;
 
@@ -190,6 +194,17 @@ describe("brainPipeline graph builder", () => {
       expect(ids.has(edge.source)).toBe(true);
       expect(ids.has(edge.target)).toBe(true);
     }
+  });
+
+  it("setProviderHealth 後資料版本會 +1（讓 brainPipeline 快取可即時失效）", () => {
+    const before = getProviderHealthVersion();
+    setProviderHealth("fal", "rate_limited", "429 quota");
+    const afterFirst = getProviderHealthVersion();
+    expect(afterFirst).toBeGreaterThan(before);
+
+    setProviderHealth("gemini", "degraded", "elevated latency");
+    const afterSecond = getProviderHealthVersion();
+    expect(afterSecond).toBeGreaterThan(afterFirst);
   });
 
   it("buildGraph 不會在同一張圖內重複堆疊 trace samples（共享 traces 快照）", () => {
