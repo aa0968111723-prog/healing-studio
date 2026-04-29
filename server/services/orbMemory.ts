@@ -7,7 +7,7 @@ import {
   sanitizeMemoryText,
   summarizeRecentMemoryForPlanner,
 } from "../../shared/orb-memory";
-import { queryRagMemory } from "./ragMemory";
+import { queryRagMemory as retrieveFromRag, upsertMemory as storeToRag } from "./ragMemory";
 
 interface RecordOrbMemoryInput {
   userId?: number;
@@ -85,6 +85,16 @@ export function recordOrbMemory(input: RecordOrbMemoryInput): OrbMemory | null {
     metadata,
   });
   store.push(memory);
+  if (input.userId) {
+    void storeToRag({
+      userId: input.userId,
+      generationId: Date.now(),
+      prompt: summary,
+      generationType: input.type,
+      resultSummary: input.source,
+      vibeCardIds: input.tags ?? [],
+    });
+  }
   return memory;
 }
 
@@ -128,12 +138,9 @@ export async function searchOrbMemoriesWithRag(args: {
   limit?: number;
 }): Promise<OrbMemory[]> {
   const limit = args.limit ?? 10;
-  const keywordResults = searchOrbMemories(args);
-  if (keywordResults.length >= limit) return keywordResults.slice(0, limit);
-
   let ragResults: OrbMemory[] = [];
   try {
-    ragResults = await queryRagMemory({
+    ragResults = await retrieveFromRag({
       query: args.query,
       userId: args.userId,
       limit,
@@ -142,12 +149,13 @@ export async function searchOrbMemoriesWithRag(args: {
     console.warn("[orbMemory] RAG fallback failed (degrading to keyword-only):", err);
   }
 
-  const seen = new Set(keywordResults.map(m => m.memoryId));
-  const merged = [...keywordResults];
-  for (const r of ragResults) {
-    if (seen.has(r.memoryId)) continue;
-    seen.add(r.memoryId);
-    merged.push(r);
+  const keywordResults = searchOrbMemories(args);
+  const seen = new Set(ragResults.map(m => m.memoryId));
+  const merged = [...ragResults];
+  for (const m of keywordResults) {
+    if (seen.has(m.memoryId)) continue;
+    seen.add(m.memoryId);
+    merged.push(m);
   }
   return merged.slice(0, limit);
 }
