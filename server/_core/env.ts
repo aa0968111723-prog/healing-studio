@@ -15,6 +15,7 @@ export const ENV = {
   jwtAccessTokenExpiresIn: serverEnv.JWT_ACCESS_TOKEN_EXPIRES_IN,
   passwordHashAlgorithm: serverEnv.PASSWORD_HASH_ALGORITHM,
   databaseUrl: serverEnv.DATABASE_URL,
+  baseUrl: serverEnv.BASE_URL,
   isProduction: serverEnv.NODE_ENV === "production",
 
   // ── Google OAuth 2.0 ──────────────────────────────────────

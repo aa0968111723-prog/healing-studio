@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -52,6 +52,23 @@ export default function LocalAuthForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  const [googleConfigured, setGoogleConfigured] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    fetch("/api/auth/google/status", { credentials: "include" })
+      .then(r => r.json())
+      .then((data: { configured?: boolean }) => {
+        if (mounted) setGoogleConfigured(!!data?.configured);
+      })
+      .catch(() => {
+        if (mounted) setGoogleConfigured(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const isStrongPassword = (value: string) =>
     /[a-z]/.test(value) &&
@@ -192,6 +209,19 @@ export default function LocalAuthForm({
 
       {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
       {success && <p className="text-xs text-emerald-600 mt-2">{success}</p>}
+
+      {googleConfigured && (
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full mt-3"
+          onClick={() => {
+            window.location.href = "/api/auth/google";
+          }}
+        >
+          使用 Google 登入
+        </Button>
+      )}
 
       <Button
         type="submit"
