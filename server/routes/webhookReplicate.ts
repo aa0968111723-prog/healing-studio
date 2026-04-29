@@ -24,6 +24,7 @@
 import { Router, Request, Response } from "express";
 import { updateFineTunedModel, getFineTunedModel } from "../db.js";
 import type { InsertFineTunedModel } from "../../drizzle/schema";
+import { generationBus } from "../generationEvents";
 
 export const replicateWebhookRouter = Router();
 
@@ -118,6 +119,11 @@ replicateWebhookRouter.post(
             completedAt: completedAtMs,
           } as InsertFineTunedModel["configJson"],
         });
+        // 推 SSE，讓「我的模型 / LoRA 訓練」頁面立即收到完成通知
+        generationBus.emitTraining(modelId, {
+          type: "complete",
+          thoughtChain: [],
+        });
         console.log(
           `[WebhookReplicate] ✅ Model ${modelId} ready (training ${trainingId})`
         );
@@ -137,6 +143,10 @@ replicateWebhookRouter.post(
             predictionId: trainingId,
             completedAt: completedAtMs,
           } as InsertFineTunedModel["configJson"],
+        });
+        generationBus.emitTraining(modelId, {
+          type: "error",
+          message: errMsg,
         });
         console.error(
           `[WebhookReplicate] ❌ Model ${modelId} failed (training ${trainingId}): ${errMsg}`

@@ -28,6 +28,7 @@ vi.mock("../../db.js", () => ({
 }));
 
 import { replicateWebhookRouter } from "../webhookReplicate";
+import { generationBus } from "../../generationEvents";
 
 async function startTestServer() {
   const app = express();
@@ -57,7 +58,9 @@ describe("webhookReplicate /api/webhook/replicate", () => {
     } as any);
   });
 
-  it("succeeded 時把 status 改 ready 並把 weights URL 存入 trainedLoraUrl", async () => {
+  it("succeeded 時把 status 改 ready、寫 trainedLoraUrl、推 SSE complete", async () => {
+    const events: unknown[] = [];
+    const unsubscribe = generationBus.subscribeTraining(11, e => events.push(e));
     const { server, baseUrl } = await startTestServer();
     const res = await fetch(`${baseUrl}/api/webhook/replicate?modelId=11`, {
       method: "POST",
@@ -84,10 +87,14 @@ describe("webhookReplicate /api/webhook/replicate", () => {
     );
     expect(patch.replicatePredictionId).toBe("rep-train-xyz");
     expect(patch.configJson.triggerWord).toBe("xyz"); // 保留既有 config
+    expect(events).toEqual([{ type: "complete", thoughtChain: [] }]);
+    unsubscribe();
     server.close();
   });
 
-  it("failed 時標記為 failed", async () => {
+  it("failed 時標記為 failed 並推 SSE error", async () => {
+    const events: unknown[] = [];
+    const unsubscribe = generationBus.subscribeTraining(11, e => events.push(e));
     const { server, baseUrl } = await startTestServer();
     await fetch(`${baseUrl}/api/webhook/replicate?modelId=11`, {
       method: "POST",
@@ -105,6 +112,10 @@ describe("webhookReplicate /api/webhook/replicate", () => {
       Record<string, any>,
     ];
     expect(patch.status).toBe("failed");
+    expect(events).toEqual([
+      { type: "error", message: "OOM during training step 480" },
+    ]);
+    unsubscribe();
     server.close();
   });
 

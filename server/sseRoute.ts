@@ -86,3 +86,66 @@ sseRouter.get(
     req.on("close", cleanup);
   }
 );
+
+// ─── GET /api/model-training-events/:modelId ───────────────────────────────
+// 與 /api/generation-events/:jobId 結構相同，差別在 channel 是 model-training:*
+sseRouter.get(
+  "/api/model-training-events/:modelId",
+  (req: Request, res: Response) => {
+    const modelId = parseInt(req.params.modelId, 10);
+    if (isNaN(modelId)) {
+      res.status(400).json({ error: "Invalid modelId" });
+      return;
+    }
+
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    });
+
+    res.write(`data: ${JSON.stringify({ type: "connected", modelId })}\n\n`);
+
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
+      clearInterval(heartbeat);
+      clearTimeout(maxLifetimeTimer);
+      unsubscribe();
+    };
+
+    const unsubscribe = generationBus.subscribeTraining(
+      modelId,
+      (event: GenerationEvent) => {
+        if (cleaned) return;
+        res.write(`data: ${JSON.stringify(event)}\n\n`);
+        if (event.type === "complete" || event.type === "error") {
+          clearInterval(heartbeat);
+          unsubscribe();
+          setTimeout(() => {
+            cleanup();
+            res.end();
+          }, 500);
+        }
+      }
+    );
+
+    const heartbeat = setInterval(() => {
+      if (!cleaned) res.write(": heartbeat\n\n");
+    }, 15000);
+
+    const maxLifetimeTimer = setTimeout(() => {
+      if (!cleaned) {
+        res.write(
+          `data: ${JSON.stringify({ type: "error", message: "SSE connection timeout" })}\n\n`
+        );
+        cleanup();
+        res.end();
+      }
+    }, SSE_MAX_LIFETIME_MS);
+
+    req.on("close", cleanup);
+  }
+);
