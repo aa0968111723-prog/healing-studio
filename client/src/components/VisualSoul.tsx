@@ -12,6 +12,17 @@
 
 import { useMemo, lazy, Suspense, memo } from "react";
 import { motion } from "framer-motion";
+import type { OrbCustomColors } from "./VisualSoul3D";
+
+// ─── Helper: parse "r,g,b" cute color string to 0-1 normalized tuple ────────
+
+function parseCuteColor(s: string): [number, number, number] {
+  const parts = s.split(",").map(v => {
+    const n = parseInt(v.trim(), 10);
+    return isNaN(n) ? 0 : n / 255;
+  });
+  return [parts[0] ?? 0, parts[1] ?? 0, parts[2] ?? 0];
+}
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -569,16 +580,36 @@ export default memo(function VisualSoul({
   }
 
   // md / lg / xl → 真 3D WebGL 光球（主角視覺），CSS fallback for Suspense
-  // When cuteMode is on, always use CSSOrb so the face overlay renders correctly
+  // When cuteMode is on, use VisualSoul3D with cute colors + CuteFace overlay for true 3D look
   if (cuteMode) {
+    const cuteColors = CUTE_STATE_COLORS[state];
+    const customColors: OrbCustomColors = {
+      colorPrimary: parseCuteColor(cuteColors.primary),
+      colorSecondary: parseCuteColor(cuteColors.secondary),
+      colorAccent: parseCuteColor(cuteColors.accent),
+    };
+    const sizeConfig = SIZE_MAP[size];
     return (
-      <CSSOrb
-        state={state}
-        personality={personality}
-        size={size}
-        className={className}
-        cuteMode={cuteMode}
-      />
+      <div className={`relative ${sizeConfig.container} ${className}`}>
+        <Suspense
+          fallback={
+            <CSSOrb
+              state={state}
+              personality={personality}
+              size={size}
+              cuteMode={cuteMode}
+            />
+          }
+        >
+          <VisualSoul3D
+            state={state}
+            personality={personality}
+            size={size}
+            customColors={customColors}
+          />
+        </Suspense>
+        <CuteFace state={state} size={size} />
+      </div>
     );
   }
 

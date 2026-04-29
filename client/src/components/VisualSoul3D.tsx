@@ -179,17 +179,34 @@ const STATE_VALUE: Record<AIState, number> = {
   acting: 1.5,
 };
 
+// ─── Custom Colors Override ────────────────────────────────────────────────
+
+/**
+ * Custom color override for the 3D orb shader.
+ * All color component values must be normalized to the 0–1 range (not 0–255).
+ */
+export interface OrbCustomColors {
+  colorPrimary: [number, number, number];
+  colorSecondary: [number, number, number];
+  colorAccent: [number, number, number];
+}
+
 // ─── The 3D Orb Mesh ───────────────────────────────────────────────────────
 
 function OrbMesh({
   personality,
   state,
+  customColors,
 }: {
   personality: Personality;
   state: AIState;
+  customColors?: OrbCustomColors;
 }) {
   const meshRef = useRef<THREE.Mesh>(null);
   const cfg = PERSONALITY_UNIFORMS[personality];
+  const cp = customColors?.colorPrimary ?? cfg.colorPrimary;
+  const cs = customColors?.colorSecondary ?? cfg.colorSecondary;
+  const ca = customColors?.colorAccent ?? cfg.colorAccent;
 
   const uniforms = useMemo(
     () => ({
@@ -198,12 +215,12 @@ function OrbMesh({
       uBreathSpeed: { value: cfg.breathSpeed },
       uPulseIntensity: { value: cfg.pulseIntensity },
       uEmissiveIntensity: { value: cfg.emissiveIntensity },
-      uColorPrimary: { value: new THREE.Color(...cfg.colorPrimary) },
-      uColorSecondary: { value: new THREE.Color(...cfg.colorSecondary) },
-      uColorAccent: { value: new THREE.Color(...cfg.colorAccent) },
+      uColorPrimary: { value: new THREE.Color(...cp) },
+      uColorSecondary: { value: new THREE.Color(...cs) },
+      uColorAccent: { value: new THREE.Color(...ca) },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [personality]
+    [personality, customColors]
   );
 
   // Update state uniform reactively (no remount needed)
@@ -242,10 +259,12 @@ function ParticleRing({
   personality,
   state,
   count = 8,
+  customColors,
 }: {
   personality: Personality;
   state: AIState;
   count?: number;
+  customColors?: OrbCustomColors;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const cfg = PERSONALITY_UNIFORMS[personality];
@@ -271,7 +290,7 @@ function ParticleRing({
   }, [count]);
 
   const opacity = state === "idle" ? 0.4 : state === "thinking" ? 0.7 : 1.0;
-  const color = new THREE.Color(...cfg.colorAccent);
+  const color = new THREE.Color(...(customColors?.colorAccent ?? cfg.colorAccent));
 
   return (
     <group ref={groupRef}>
@@ -308,6 +327,7 @@ interface VisualSoul3DProps {
   state?: AIState;
   size?: "sm" | "md" | "lg" | "xl";
   className?: string;
+  customColors?: OrbCustomColors;
 }
 
 export default function VisualSoul3D({
@@ -315,6 +335,7 @@ export default function VisualSoul3D({
   state = "idle",
   size = "md",
   className = "",
+  customColors,
 }: VisualSoul3DProps) {
   const px = SIZE_PX[size] ?? 40;
   const showParticles = size !== "sm";
@@ -329,12 +350,12 @@ export default function VisualSoul3D({
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, []);
 
-  const glowColor = PERSONALITY_UNIFORMS[personality].colorPrimary
+  const glowColor = (customColors?.colorPrimary ?? PERSONALITY_UNIFORMS[personality].colorPrimary)
     .map(v => Math.round(v * 255))
     .join(", ");
 
   // 多層光暈強化亮色感
-  const accentColor = PERSONALITY_UNIFORMS[personality].colorAccent
+  const accentColor = (customColors?.colorAccent ?? PERSONALITY_UNIFORMS[personality].colorAccent)
     .map(v => Math.round(v * 255))
     .join(", ");
 
@@ -371,24 +392,25 @@ export default function VisualSoul3D({
           position={[-2, -1, -3]}
           intensity={1.2}
           color={
-            new THREE.Color(...PERSONALITY_UNIFORMS[personality].colorAccent)
+            new THREE.Color(...(customColors?.colorAccent ?? PERSONALITY_UNIFORMS[personality].colorAccent))
           }
         />
         <pointLight
           position={[0, 2, 2]}
           intensity={1.5}
           color={
-            new THREE.Color(...PERSONALITY_UNIFORMS[personality].colorPrimary)
+            new THREE.Color(...(customColors?.colorPrimary ?? PERSONALITY_UNIFORMS[personality].colorPrimary))
           }
         />
 
         <Suspense fallback={null}>
-          <OrbMesh personality={personality} state={state} />
+          <OrbMesh personality={personality} state={state} customColors={customColors} />
           {showParticles && (
             <ParticleRing
               personality={personality}
               state={state}
               count={particleCount}
+              customColors={customColors}
             />
           )}
           <GlowPlane personality={personality} />
