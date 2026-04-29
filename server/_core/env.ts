@@ -41,6 +41,10 @@ export const ENV = {
   // ── Anthropic Claude（光球 AI 代理人主引擎，最佳 tool use）─
   anthropicApiKey: serverEnv.ANTHROPIC_API_KEY,
 
+  // ── GitHub 整合 ──────────────────────────────────────────
+  githubToken: serverEnv.GITHUB_TOKEN,
+  githubRepo: serverEnv.GITHUB_REPO,
+
   // ── 向後相容：Manus Forge API（遷移完成後可移除）─────────
   oAuthServerUrl: serverEnv.OAUTH_SERVER_URL,
   ownerOpenId: serverEnv.OWNER_OPEN_ID,

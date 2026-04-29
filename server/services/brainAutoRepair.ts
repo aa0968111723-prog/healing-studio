@@ -20,6 +20,19 @@ import {
 import { addLearnDoc, hasLearnDoc } from "../routers/learnHub";
 import { ENV } from "../_core/env";
 import { serverEnv } from "../_core/env.validated";
+import {
+  scanSiteCode,
+  rankFindings,
+  findingToMarkdown,
+  type CodeFinding,
+  type FindingSeverity,
+  type ScanResult,
+} from "./siteCodeScanner";
+import {
+  createGithubIssue,
+  isGithubConfigured,
+  type GithubIssueResult,
+} from "./githubIssueClient";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
@@ -93,6 +106,17 @@ export interface ErrorTrace {
   suggestedSteps?: SolutionStep[];
 }
 
+/** 提案嚴重度（用於排序、UI 標色、GitHub label） */
+export type ProposalSeverity = "info" | "low" | "medium" | "high" | "critical";
+
+/** 提案來源 — 用於追蹤是哪個自動化偵測管線產生的 */
+export type ProposalSource =
+  | "manual"
+  | "accuracy_test"
+  | "code_scan"
+  | "error_trace"
+  | "site_research";
+
 /** 自我反省優化提案 */
 export interface ReflectionProposal {
   id: string;
@@ -101,7 +125,14 @@ export interface ReflectionProposal {
     | "engine_switch"
     | "param_tuning"
     | "fallback_update"
-    | "accuracy_fix";
+    | "accuracy_fix"
+    | "code_quality"
+    | "security_fix"
+    | "performance_fix";
+  /** 嚴重度 — 自動產生時依規則決定，手動建立預設 medium */
+  severity: ProposalSeverity;
+  /** 提案來源 — 自動 / 手動 / 哪個管線 */
+  source: ProposalSource;
   title: string;
   description: string;
   currentValue: string;
@@ -109,11 +140,22 @@ export interface ReflectionProposal {
   reasoning: string;
   confidence: number; // 0-100
   status: "pending" | "approved" | "rejected";
+  /** 穩定 dedup key — 同 key 的待審提案只會保留最新一筆 */
+  dedupKey?: string;
+  /** 命中的檔案位置（若來源為 code_scan）*/
+  filePath?: string;
+  lineNumber?: number;
+  codeSnippet?: string;
+  /** GitHub Issue 連結（核准後填入）*/
+  githubIssueNumber?: number;
+  githubIssueUrl?: string;
+  githubError?: string;
   adminNote?: string;
   reviewedBy?: number;
   reviewedAt?: number;
   appliedAt?: number;
   createdAt: number;
+  updatedAt?: number;
 }
 
 /** 爬網研究結果 */
@@ -1500,7 +1542,22 @@ function enrichTraceWithDiagnosis(trace: ErrorTrace): void {
 // 3. 回饋自我反省優化系統
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** 建立優化提案（AI 自動或手動觸發） */
+/** 嚴重度排序：critical > high > medium > low > info */
+const SEVERITY_RANK: Record<ProposalSeverity, number> = {
+  critical: 4,
+  high: 3,
+  medium: 2,
+  low: 1,
+  info: 0,
+};
+
+/**
+ * 建立優化提案（AI 自動或手動觸發）。
+ *
+ * 去重策略：若 input 帶有 dedupKey，且已有同 key 且 status === "pending" 的提案，
+ * 則就地更新該提案的描述/嚴重度等欄位（保留 id 與 createdAt），避免相同問題
+ * 反覆重複出現在審核清單。
+ */
 export function createReflectionProposal(input: {
   category: ReflectionProposal["category"];
   title: string;
@@ -1509,10 +1566,53 @@ export function createReflectionProposal(input: {
   proposedValue: string;
   reasoning: string;
   confidence: number;
+  severity?: ProposalSeverity;
+  source?: ProposalSource;
+  dedupKey?: string;
+  filePath?: string;
+  lineNumber?: number;
+  codeSnippet?: string;
 }): ReflectionProposal {
+  const severity: ProposalSeverity = input.severity ?? "medium";
+  const source: ProposalSource = input.source ?? "manual";
+
+  // ── Dedup：相同 dedupKey 且 pending 的提案就地更新 ────────────────
+  if (input.dedupKey) {
+    const existing = reflectionProposals.find(
+      p => p.dedupKey === input.dedupKey && p.status === "pending"
+    );
+    if (existing) {
+      existing.title = input.title;
+      existing.description = input.description;
+      existing.currentValue = input.currentValue;
+      existing.proposedValue = input.proposedValue;
+      existing.reasoning = input.reasoning;
+      existing.confidence = input.confidence;
+      existing.severity = severity;
+      existing.source = source;
+      existing.filePath = input.filePath;
+      existing.lineNumber = input.lineNumber;
+      existing.codeSnippet = input.codeSnippet;
+      existing.updatedAt = Date.now();
+      return existing;
+    }
+  }
+
   const proposal: ReflectionProposal = {
-    ...input,
     id: genId("prop"),
+    category: input.category,
+    severity,
+    source,
+    title: input.title,
+    description: input.description,
+    currentValue: input.currentValue,
+    proposedValue: input.proposedValue,
+    reasoning: input.reasoning,
+    confidence: input.confidence,
+    dedupKey: input.dedupKey,
+    filePath: input.filePath,
+    lineNumber: input.lineNumber,
+    codeSnippet: input.codeSnippet,
     status: "pending",
     createdAt: Date.now(),
   };
@@ -1522,32 +1622,133 @@ export function createReflectionProposal(input: {
   return proposal;
 }
 
-/** 取得提案清單 */
+/**
+ * 取得提案清單（依嚴重度與時間排序）：critical 在最上面，相同嚴重度依
+ * createdAt 由新到舊。
+ */
 export function getProposals(
   status?: ReflectionProposal["status"]
 ): ReflectionProposal[] {
-  if (status) return reflectionProposals.filter(p => p.status === status);
-  return [...reflectionProposals];
+  const filtered = status
+    ? reflectionProposals.filter(p => p.status === status)
+    : [...reflectionProposals];
+  return filtered.sort((a, b) => {
+    const sevDiff = SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity];
+    if (sevDiff !== 0) return sevDiff;
+    return b.createdAt - a.createdAt;
+  });
 }
 
-/** 管理員批准提案 */
-export function approveProposal(
+/**
+ * 將提案渲染成適合 GitHub Issue body 的 Markdown。
+ * 暴露為函式以便其他模組（測試、cron）共用。
+ */
+export function proposalToIssueBody(p: ReflectionProposal): string {
+  const lines: string[] = [];
+  lines.push(`> 由 AI 全站研究系統自動產生的優化提案，已由管理員核准。`);
+  lines.push("");
+  lines.push(`**嚴重度**：\`${p.severity.toUpperCase()}\``);
+  lines.push(`**分類**：\`${p.category}\``);
+  lines.push(`**來源**：\`${p.source}\``);
+  lines.push(`**信心**：${p.confidence}/100`);
+  if (p.filePath) {
+    lines.push(
+      `**檔案**：\`${p.filePath}${p.lineNumber ? `:${p.lineNumber}` : ""}\``
+    );
+  }
+  lines.push("");
+  lines.push("## 問題描述");
+  lines.push(p.description || "(無描述)");
+  if (p.codeSnippet) {
+    lines.push("");
+    lines.push("## 命中片段");
+    lines.push("```");
+    lines.push(p.codeSnippet);
+    lines.push("```");
+  }
+  lines.push("");
+  lines.push("## 現況 → 建議");
+  lines.push(`- **現況**：${p.currentValue || "(未填)"}`);
+  lines.push(`- **建議**：${p.proposedValue || "(未填)"}`);
+  lines.push("");
+  lines.push("## AI 推理");
+  lines.push(p.reasoning || "(無)");
+  if (p.adminNote) {
+    lines.push("");
+    lines.push("## 管理員備註");
+    lines.push(p.adminNote);
+  }
+  lines.push("");
+  lines.push("---");
+  lines.push(`<sub>提案 ID: \`${p.id}\` · 建立於 ${new Date(p.createdAt).toISOString()}</sub>`);
+  return lines.join("\n");
+}
+
+/** 為提案產生 GitHub Issue 標籤 */
+function proposalLabels(p: ReflectionProposal): string[] {
+  return [
+    "ai-proposal",
+    `severity:${p.severity}`,
+    `category:${p.category}`,
+    `source:${p.source}`,
+  ];
+}
+
+/**
+ * 管理員批准提案。
+ *
+ * 若 GITHUB_TOKEN + GITHUB_REPO 已設定，會嘗試自動建立 GitHub Issue 並把
+ * issue URL 寫回提案。GitHub 失敗不會讓核准動作失敗，僅將錯誤訊息記到
+ * githubError 欄位以便管理員手動處理。
+ */
+export async function approveProposal(
   proposalId: string,
   adminUserId: number,
   note?: string
-): boolean {
+): Promise<{
+  ok: boolean;
+  proposal?: ReflectionProposal;
+  github?: GithubIssueResult;
+}> {
   const proposal = reflectionProposals.find(p => p.id === proposalId);
-  if (!proposal || proposal.status !== "pending") return false;
+  if (!proposal || proposal.status !== "pending") {
+    return { ok: false };
+  }
   proposal.status = "approved";
   proposal.reviewedBy = adminUserId;
   proposal.reviewedAt = Date.now();
   proposal.appliedAt = Date.now();
   proposal.adminNote = note;
+  proposal.updatedAt = Date.now();
 
   console.log(
     `[BrainAutoRepair] ✅ 提案已批准 id=${proposalId} by userId=${adminUserId}: ${proposal.title}`
   );
-  return true;
+
+  let github: GithubIssueResult | undefined;
+  if (isGithubConfigured()) {
+    github = await createGithubIssue({
+      title: `[AI] ${proposal.title}`,
+      body: proposalToIssueBody(proposal),
+      labels: proposalLabels(proposal),
+    });
+    if (github.success) {
+      proposal.githubIssueNumber = github.number;
+      proposal.githubIssueUrl = github.htmlUrl;
+      console.log(
+        `[BrainAutoRepair] 🔗 已建立 GitHub Issue #${github.number} ${github.htmlUrl}`
+      );
+    } else {
+      proposal.githubError = github.error;
+      console.warn(
+        `[BrainAutoRepair] ⚠️ GitHub Issue 建立失敗: ${github.error}`
+      );
+    }
+  } else {
+    proposal.githubError = "GITHUB_TOKEN / GITHUB_REPO 未設定，請手動處理";
+  }
+
+  return { ok: true, proposal, github };
 }
 
 /** 管理員拒絕提案 */
@@ -1561,6 +1762,7 @@ export function rejectProposal(
   proposal.status = "rejected";
   proposal.reviewedBy = adminUserId;
   proposal.reviewedAt = Date.now();
+  proposal.updatedAt = Date.now();
   proposal.adminNote = note;
 
   console.log(
@@ -1914,8 +2116,21 @@ export async function runAccuracyTest(
 
   // 若分數低於門檻，自動建立優化提案
   if (score < 70) {
+    // 分數越低嚴重度越高
+    const severity: ProposalSeverity =
+      score < 25
+        ? "critical"
+        : score < 50
+          ? "high"
+          : score < 65
+            ? "medium"
+            : "low";
     const proposal = createReflectionProposal({
       category: "accuracy_fix",
+      severity,
+      source: "accuracy_test",
+      // dedup：同一 engine+testType 的待審提案只保留最新一筆
+      dedupKey: `accuracy:${engine}:${testType}`,
       title: `精準度不足：${engine} ${testType} 測試得分 ${score}/100`,
       description: `測試提示詞：${testPrompt}\n預期行為：${expectedBehavior}\n實際結果：${actualResult.slice(0, 300)}\n\n建議：${suggestions.join("；")}`,
       currentValue: engine,
@@ -1932,18 +2147,32 @@ export async function runAccuracyTest(
   return test;
 }
 
-/** 執行全部預定義測試 */
+/**
+ * 執行全部預定義測試（並行）。
+ *
+ * 改進：以 Promise.all 平行發送 — 5 個測試案例若依序執行，每個 ~1-3 秒，
+ * 全部完成需 5-15 秒；改成並行後僅需單一 round-trip 時間。
+ * 失敗的測試會以 score=0、actualResult 顯示例外回傳，不會中斷其他測試。
+ */
 export async function runAllAccuracyTests(): Promise<AccuracyTest[]> {
-  const results: AccuracyTest[] = [];
-  for (const tc of ACCURACY_TEST_CASES) {
-    const result = await runAccuracyTest(
-      tc.engine,
-      tc.testType,
-      tc.testPrompt,
-      tc.expectedBehavior
-    );
-    results.push(result);
-  }
+  const results = await Promise.all(
+    ACCURACY_TEST_CASES.map(tc =>
+      runAccuracyTest(tc.engine, tc.testType, tc.testPrompt, tc.expectedBehavior).catch(
+        (err): AccuracyTest => ({
+          id: genId("test"),
+          engine: tc.engine,
+          testType: tc.testType,
+          testPrompt: tc.testPrompt,
+          expectedBehavior: tc.expectedBehavior,
+          actualResult: `測試例外: ${err instanceof Error ? err.message : String(err)}`,
+          score: 0,
+          passed: false,
+          suggestions: ["測試任務發生例外，建議檢查網路連線或 API 配額"],
+          createdAt: Date.now(),
+        })
+      )
+    )
+  );
   return results;
 }
 
@@ -2008,19 +2237,63 @@ export async function runHealthPatrol(): Promise<{
   return { checked: engines.length + providers.length, alerts: alertCount };
 }
 
-/** 統計摘要 */
+/** 最近一次掃描結果（in-memory） */
+let lastScanResult: ScanResult | null = null;
+
+export function getLastScanResult(): ScanResult | null {
+  return lastScanResult;
+}
+
+/** 統計摘要（擴充：嚴重度分佈 + 掃描時間） */
 export function getSystemSummary(): {
   activeAlerts: number;
   unresolvedErrors: number;
   pendingProposals: number;
   totalResearch: number;
   recentTestScore: number | null;
+  /** 待審提案的嚴重度分佈 */
+  pendingBySeverity: Record<ProposalSeverity, number>;
+  /** 待審提案的來源分佈 */
+  pendingBySource: Record<ProposalSource, number>;
+  /** 已核准但 GitHub 建立失敗的提案數 — 供管理員手動處理 */
+  approvedWithoutIssue: number;
+  /** 最近一次全站程式碼掃描 */
+  lastScan: {
+    finishedAt: number;
+    filesScanned: number;
+    findings: number;
+    durationMs: number;
+  } | null;
+  /** GitHub 整合是否已啟用 */
+  githubConfigured: boolean;
 } {
+  const pending = reflectionProposals.filter(p => p.status === "pending");
+  const pendingBySeverity: Record<ProposalSeverity, number> = {
+    critical: 0,
+    high: 0,
+    medium: 0,
+    low: 0,
+    info: 0,
+  };
+  const pendingBySource: Record<ProposalSource, number> = {
+    manual: 0,
+    accuracy_test: 0,
+    code_scan: 0,
+    error_trace: 0,
+    site_research: 0,
+  };
+  for (const p of pending) {
+    pendingBySeverity[p.severity]++;
+    pendingBySource[p.source]++;
+  }
+  const approvedWithoutIssue = reflectionProposals.filter(
+    p => p.status === "approved" && !p.githubIssueUrl
+  ).length;
+
   return {
     activeAlerts: getActiveAlertCount(),
     unresolvedErrors: errorTraces.filter(t => !t.resolvedAt).length,
-    pendingProposals: reflectionProposals.filter(p => p.status === "pending")
-      .length,
+    pendingProposals: pending.length,
     totalResearch: webResearchResults.length,
     recentTestScore:
       accuracyTests.length > 0
@@ -2029,7 +2302,188 @@ export function getSystemSummary(): {
               Math.min(accuracyTests.length, 10)
           )
         : null,
+    pendingBySeverity,
+    pendingBySource,
+    approvedWithoutIssue,
+    lastScan: lastScanResult
+      ? {
+          finishedAt: lastScanResult.finishedAt,
+          filesScanned: lastScanResult.filesScanned,
+          findings: lastScanResult.findings.length,
+          durationMs: lastScanResult.durationMs,
+        }
+      : null,
+    githubConfigured: isGithubConfigured(),
   };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 7. 全站程式碼掃描 → 產生優化提案
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** 將 CodeFinding 轉換為 ReflectionProposal 的 category */
+function findingToProposalCategory(
+  f: CodeFinding
+): ReflectionProposal["category"] {
+  switch (f.category) {
+    case "security":
+      return "security_fix";
+    case "performance":
+      return "performance_fix";
+    case "reliability":
+      return "code_quality";
+    case "maintainability":
+    case "quality":
+    case "todo":
+      return "code_quality";
+  }
+}
+
+/**
+ * 執行全站程式碼掃描，並把 ranked findings 轉成優化提案。
+ *
+ * - 每條 finding 透過 dedupKey 對應一筆提案（重複觸發只更新最新內容）
+ * - 預設只把前 N 個（依嚴重度排序）轉成提案，避免一次掃出 100 條噪音
+ * - 嚴重度直接複用 finding.severity，UI 可依此排序
+ *
+ * 回傳 { scan, proposalsCreated, proposalsUpdated } 供 caller 紀錄。
+ */
+export async function runFullCodeScan(options?: {
+  /** 最多產生幾個提案（依嚴重度排序前 N 個） */
+  topN?: number;
+  /** 傳入自訂 ScanOptions（用於測試或限制範圍） */
+  scanOptions?: Parameters<typeof scanSiteCode>[0];
+}): Promise<{
+  scan: ScanResult;
+  proposalsCreated: number;
+  proposalsUpdated: number;
+}> {
+  const topN = options?.topN ?? 25;
+  const scan = await scanSiteCode(options?.scanOptions);
+  lastScanResult = scan;
+  const top = rankFindings(scan.findings, topN);
+
+  let created = 0;
+  let updated = 0;
+  for (const f of top) {
+    const dedupKey = `code:${f.dedupKey}`;
+    const existed = reflectionProposals.find(
+      p => p.dedupKey === dedupKey && p.status === "pending"
+    );
+    const severity = f.severity as ProposalSeverity;
+    createReflectionProposal({
+      category: findingToProposalCategory(f),
+      severity,
+      source: "code_scan",
+      dedupKey,
+      title: `[${f.severity.toUpperCase()}] ${f.message} — ${f.filePath}:${f.line}`,
+      description: findingToMarkdown(f),
+      currentValue: f.snippet || "(無片段)",
+      proposedValue: f.suggestion,
+      reasoning: `規則 ${f.rule}（${f.category}）在 ${f.filePath}:${f.line} 命中。`,
+      confidence: severityToConfidence(severity),
+      filePath: f.filePath,
+      lineNumber: f.line,
+      codeSnippet: f.snippet,
+    });
+    if (existed) updated++;
+    else created++;
+  }
+
+  console.log(
+    `[BrainAutoRepair] 🔍 全站程式碼掃描完成：scanned=${scan.filesScanned}, findings=${scan.findings.length}, top=${top.length} (新建 ${created} / 更新 ${updated} 個提案)`
+  );
+  return { scan, proposalsCreated: created, proposalsUpdated: updated };
+}
+
+function severityToConfidence(severity: ProposalSeverity): number {
+  switch (severity) {
+    case "critical":
+      return 95;
+    case "high":
+      return 85;
+    case "medium":
+      return 70;
+    case "low":
+      return 55;
+    case "info":
+      return 40;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 8. 錯誤線索 → 自動生成優化提案（recurring error → proposal）
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * 掃描近期錯誤線索，將反覆出現（同 engine + 同 errorCategory）的問題自動轉
+ * 成優化提案。預設條件：60 分鐘內 ≥3 次同類錯誤。
+ *
+ * - 不會重複建立同 dedupKey 的提案（dedup by errorCategory + engine）
+ * - 嚴重度依次數遞增：3-5 次 medium / 6-10 次 high / 11+ critical
+ */
+export function generateProposalsFromErrorTraces(opts?: {
+  windowMs?: number;
+  threshold?: number;
+}): ReflectionProposal[] {
+  const windowMs = opts?.windowMs ?? 60 * 60_000;
+  const threshold = opts?.threshold ?? 3;
+  const cutoff = Date.now() - windowMs;
+  const recent = errorTraces.filter(t => t.createdAt >= cutoff);
+
+  // group by engine + errorCategory
+  const groups = new Map<
+    string,
+    { engine: string; category: ErrorCategory | "unknown"; traces: ErrorTrace[] }
+  >();
+  for (const t of recent) {
+    const cat = t.errorCategory ?? "unknown";
+    const key = `${t.engine}|${cat}`;
+    const grp = groups.get(key) ?? { engine: t.engine, category: cat, traces: [] };
+    grp.traces.push(t);
+    groups.set(key, grp);
+  }
+
+  const proposals: ReflectionProposal[] = [];
+  for (const grp of Array.from(groups.values())) {
+    if (grp.traces.length < threshold) continue;
+    const severity: ProposalSeverity =
+      grp.traces.length >= 11
+        ? "critical"
+        : grp.traces.length >= 6
+          ? "high"
+          : "medium";
+    const sample = grp.traces[0];
+    const title = `${grp.engine} 反覆發生 ${grp.category} 錯誤（${windowMs / 60_000} 分鐘內 ${grp.traces.length} 次）`;
+    const proposal = createReflectionProposal({
+      category: grp.category === "rate_limit" ? "fallback_update" : "engine_switch",
+      severity,
+      source: "error_trace",
+      dedupKey: `errors:${grp.engine}:${grp.category}`,
+      title,
+      description: [
+        `引擎 \`${grp.engine}\` 在最近 ${windowMs / 60_000} 分鐘內共觸發 ${grp.traces.length} 次 \`${grp.category}\` 錯誤。`,
+        ``,
+        `**範例錯誤訊息**：${sample.errorMessage.slice(0, 240)}`,
+        sample.rootCause ? `\n**根因分析**：${sample.rootCause}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      currentValue: grp.engine,
+      proposedValue:
+        grp.category === "rate_limit"
+          ? "降低呼叫頻率或切換備援引擎"
+          : grp.category === "auth_failure"
+            ? "檢查 API Key、輪替 token"
+            : grp.category === "timeout"
+              ? "提高 timeout 或改用 Flash 級模型"
+              : "切換至備援引擎並通知 owner",
+      reasoning: `相同類型錯誤反覆發生，已超過 ${threshold} 次門檻。`,
+      confidence: Math.min(95, 60 + grp.traces.length * 3),
+    });
+    proposals.push(proposal);
+  }
+  return proposals;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

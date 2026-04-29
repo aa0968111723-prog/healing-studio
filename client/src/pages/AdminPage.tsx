@@ -42,6 +42,9 @@ import {
   ExternalLink,
   ThumbsUp,
   ThumbsDown,
+  ShieldAlert,
+  FileCode,
+  CircleDot,
 } from "lucide-react";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import { motion } from "framer-motion";
@@ -1228,11 +1231,37 @@ export default function AdminPage() {
 // ─── AI Site Research Panel ─────────────────────────────────────────────────
 // 自動抓漏程式缺陷、思考優化、管理員同意後自動連結 GitHub 修正
 
+const SEVERITY_BADGE_CLASS: Record<string, string> = {
+  critical: "border-red-500/50 text-red-600 bg-red-500/10",
+  high: "border-orange-500/40 text-orange-600 bg-orange-500/10",
+  medium: "border-yellow-500/40 text-yellow-600 bg-yellow-500/10",
+  low: "border-blue-500/30 text-blue-600 bg-blue-500/10",
+  info: "border-slate-500/30 text-slate-500 bg-slate-500/10",
+};
+
+const SEVERITY_LABEL: Record<string, string> = {
+  critical: "致命",
+  high: "高",
+  medium: "中",
+  low: "低",
+  info: "資訊",
+};
+
+const SOURCE_LABEL: Record<string, string> = {
+  manual: "手動",
+  accuracy_test: "精準度測試",
+  code_scan: "程式碼掃描",
+  error_trace: "錯誤線索",
+  site_research: "全站研究",
+};
+
 function AiSiteResearchPanel() {
   const utils = trpc.useUtils();
   const [scanPrompt, setScanPrompt] = useState(
     "掃描全站程式碼，找出潛在缺陷、效能問題、安全漏洞、以及可優化的架構點"
   );
+  const [severityFilter, setSeverityFilter] = useState<string>("all");
+  const [sourceFilter, setSourceFilter] = useState<string>("all");
 
   // ── Queries ──
   const proposalsQuery = trpc.brain.proposals.useQuery(undefined, {
@@ -1244,24 +1273,33 @@ function AiSiteResearchPanel() {
   });
 
   // ── Mutations ──
-  const createProposalMut = trpc.brain.createProposal.useMutation({
-    onSuccess: () => {
-      toast.success("AI 研究提案已建立");
-      proposalsQuery.refetch();
-    },
-    onError: e => toast.error(e.message),
-  });
   const approveProposalMut = trpc.brain.approveProposal.useMutation({
-    onSuccess: () => {
-      toast.success("提案已核准，將自動連結 GitHub 修正");
-      proposalsQuery.refetch();
+    onSuccess: data => {
+      if (data.githubSuccess && data.githubIssueUrl) {
+        toast.success(
+          `提案已核准 — 已建立 GitHub Issue #${data.githubIssueNumber}`,
+          {
+            action: {
+              label: "開啟 Issue",
+              onClick: () => window.open(data.githubIssueUrl, "_blank"),
+            },
+          }
+        );
+      } else if (data.githubError) {
+        toast.warning(`提案已核准，但 GitHub 建立失敗：${data.githubError}`);
+      } else {
+        toast.success("提案已核准（GitHub 整合未啟用，請手動建立 Issue）");
+      }
+      void utils.brain.proposals.invalidate();
+      void utils.brain.monitorSummary.invalidate();
     },
     onError: e => toast.error(e.message),
   });
   const rejectProposalMut = trpc.brain.rejectProposal.useMutation({
     onSuccess: () => {
       toast.success("提案已拒絕");
-      proposalsQuery.refetch();
+      void utils.brain.proposals.invalidate();
+      void utils.brain.monitorSummary.invalidate();
     },
     onError: e => toast.error(e.message),
   });
@@ -1274,6 +1312,16 @@ function AiSiteResearchPanel() {
     },
     onError: err => toast.error(`研究失敗：${err.message}`),
   });
+  const runScanOnlyMut = trpc.brain.runCodeScan.useMutation({
+    onSuccess: data => {
+      toast.success(
+        `程式碼掃描完成（${(data.durationMs / 1000).toFixed(1)}s）：掃描 ${data.filesScanned} 檔，發現 ${data.findings} findings，產生 ${data.proposalsCreated} 個新提案`
+      );
+      void utils.brain.proposals.invalidate();
+      void utils.brain.monitorSummary.invalidate();
+    },
+    onError: err => toast.error(`掃描失敗：${err.message}`),
+  });
   const addToLearnHubMut = trpc.brain.addResearchToLearnHub.useMutation({
     onSuccess: () => {
       toast.success("已加入學習文件庫");
@@ -1282,27 +1330,24 @@ function AiSiteResearchPanel() {
     onError: e => toast.error(e.message),
   });
 
-  const handleScan = async () => {
-    try {
-      await runFullResearchMut.mutateAsync();
-      // Step 2: Create a self-reflection proposal for site-wide analysis
-      await createProposalMut.mutateAsync({
-        title: "AI 全站自動研究：程式缺陷與優化建議",
-        description: scanPrompt,
-        category: "prompt_optimization",
-        currentValue: "目前全站未經 AI 自動掃描",
-        proposedValue: "AI 自動掃描發現並產出優化建議",
-        reasoning: scanPrompt,
-        confidence: 70,
-      });
-    } catch {
-      // error handled in mutation callbacks
-    }
+  const handleScan = () => {
+    runFullResearchMut.mutate();
   };
 
   const proposals = proposalsQuery.data ?? [];
   const research = researchQuery.data ?? [];
   const summary = summaryQuery.data;
+
+  const filteredProposals = proposals.filter(p => {
+    if (severityFilter !== "all" && p.severity !== severityFilter) return false;
+    if (sourceFilter !== "all" && p.source !== sourceFilter) return false;
+    return true;
+  });
+
+  const pendingCount = proposals.filter(p => p.status === "pending").length;
+  const lastScanText = summary?.lastScan
+    ? `${new Date(summary.lastScan.finishedAt).toLocaleString("zh-TW")} · ${summary.lastScan.filesScanned} 檔 · ${summary.lastScan.findings} findings`
+    : "尚未執行";
 
   return (
     <div className="space-y-6">
@@ -1312,21 +1357,43 @@ function AiSiteResearchPanel() {
           <div className="p-2 rounded-lg bg-primary/10">
             <Search className="w-4 h-4 text-primary" />
           </div>
-          <div>
-            <h3 className="text-sm font-semibold">AI 全站自動研究系統</h3>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              AI 全站自動研究系統
+              {summary?.githubConfigured ? (
+                <Badge variant="outline" className="text-[9px] border-green-500/30 text-green-600 gap-1">
+                  <GitBranch className="w-2.5 h-2.5" /> GitHub 已連結
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-[9px] border-yellow-500/30 text-yellow-600">
+                  GITHUB_TOKEN 未設定
+                </Badge>
+              )}
+            </h3>
             <p className="hs-small !mb-0 text-muted-foreground">
-              自動掃描程式碼缺陷、思考優化方案，經管理員同意後可自動連結 GitHub
-              建立 Issue / PR 修正
+              並行執行：爬網研究 + 精準度測試 + 全站程式碼掃描 + 錯誤線索分析；管理員核准後自動建立 GitHub Issue
             </p>
           </div>
         </div>
 
         {/* Stats */}
         {summary && (
-          <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-4">
             <div className="text-center p-2 rounded-lg bg-muted/30">
               <p className="hs-h3-lg !mb-0">{summary.pendingProposals}</p>
               <p className="hs-small !mb-0 text-muted-foreground">待審核提案</p>
+            </div>
+            <div className="text-center p-2 rounded-lg bg-red-500/5 border border-red-500/10">
+              <p className="hs-h3-lg !mb-0 text-red-600">
+                {summary.pendingBySeverity?.critical ?? 0}
+              </p>
+              <p className="hs-small !mb-0 text-muted-foreground">致命</p>
+            </div>
+            <div className="text-center p-2 rounded-lg bg-orange-500/5 border border-orange-500/10">
+              <p className="hs-h3-lg !mb-0 text-orange-600">
+                {summary.pendingBySeverity?.high ?? 0}
+              </p>
+              <p className="hs-small !mb-0 text-muted-foreground">高</p>
             </div>
             <div className="text-center p-2 rounded-lg bg-muted/30">
               <p className="hs-h3-lg !mb-0">{summary.totalResearch}</p>
@@ -1339,6 +1406,19 @@ function AiSiteResearchPanel() {
           </div>
         )}
 
+        {summary?.lastScan && (
+          <div className="hs-small !mb-3 text-muted-foreground flex items-center gap-1.5">
+            <FileCode className="w-3 h-3" />
+            最近掃描：{lastScanText}（耗時 {(summary.lastScan.durationMs / 1000).toFixed(1)}s）
+          </div>
+        )}
+        {summary && summary.approvedWithoutIssue > 0 && (
+          <div className="hs-small !mb-3 text-yellow-600 flex items-center gap-1.5">
+            <AlertTriangle className="w-3 h-3" />
+            有 {summary.approvedWithoutIssue} 個已核准提案尚未建立 GitHub Issue（請設定 GITHUB_TOKEN）
+          </div>
+        )}
+
         {/* Scan Controls */}
         <div className="space-y-2">
           <Input
@@ -1347,40 +1427,89 @@ function AiSiteResearchPanel() {
             placeholder="自訂研究指令..."
             className="text-xs"
           />
-          <Button
-            onClick={handleScan}
-            disabled={runFullResearchMut.isPending || !scanPrompt.trim()}
-            className="w-full gap-2 text-xs"
-            size="sm"
-          >
-            {runFullResearchMut.isPending ? (
-              <Loader2 className="w-3 h-3 animate-spin" />
-            ) : (
-              <Search className="w-3 h-3" />
-            )}
-            {runFullResearchMut.isPending ? "研究進行中..." : "啟動 AI 全站研究"}
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              onClick={handleScan}
+              disabled={runFullResearchMut.isPending || !scanPrompt.trim()}
+              className="flex-1 gap-2 text-xs"
+              size="sm"
+            >
+              {runFullResearchMut.isPending ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <Search className="w-3 h-3" />
+              )}
+              {runFullResearchMut.isPending ? "研究進行中..." : "啟動 AI 全站研究"}
+            </Button>
+            <Button
+              onClick={() => runScanOnlyMut.mutate({ topN: 25 })}
+              disabled={runScanOnlyMut.isPending}
+              variant="outline"
+              size="sm"
+              className="gap-1 text-xs"
+              title="只執行程式碼掃描，不跑爬網與精準度測試"
+            >
+              {runScanOnlyMut.isPending ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <FileCode className="w-3 h-3" />
+              )}
+              快速掃描
+            </Button>
+          </div>
         </div>
       </GlassCard>
 
       {/* Proposals requiring approval */}
       <GlassCard>
-        <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-          <GitBranch className="w-4 h-4" />
-          優化提案（需管理員審核）
-          {proposals.filter(p => p.status === "pending").length > 0 && (
-            <Badge variant="destructive" className="text-[9px]">
-              {proposals.filter(p => p.status === "pending").length} 待審核
-            </Badge>
-          )}
-        </h3>
-        <div className="space-y-2 max-h-[400px] overflow-y-auto">
-          {proposals.length === 0 ? (
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <h3 className="text-sm font-semibold flex items-center gap-2">
+            <GitBranch className="w-4 h-4" />
+            優化提案（需管理員審核）
+            {pendingCount > 0 && (
+              <Badge variant="destructive" className="text-[9px]">
+                {pendingCount} 待審核
+              </Badge>
+            )}
+          </h3>
+          <div className="flex gap-1.5 items-center">
+            <Select value={severityFilter} onValueChange={setSeverityFilter}>
+              <SelectTrigger className="h-7 text-[10px] w-24">
+                <SelectValue placeholder="嚴重度" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" className="text-xs">全部嚴重度</SelectItem>
+                <SelectItem value="critical" className="text-xs">致命</SelectItem>
+                <SelectItem value="high" className="text-xs">高</SelectItem>
+                <SelectItem value="medium" className="text-xs">中</SelectItem>
+                <SelectItem value="low" className="text-xs">低</SelectItem>
+                <SelectItem value="info" className="text-xs">資訊</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={sourceFilter} onValueChange={setSourceFilter}>
+              <SelectTrigger className="h-7 text-[10px] w-24">
+                <SelectValue placeholder="來源" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all" className="text-xs">全部來源</SelectItem>
+                <SelectItem value="code_scan" className="text-xs">程式碼掃描</SelectItem>
+                <SelectItem value="accuracy_test" className="text-xs">精準度測試</SelectItem>
+                <SelectItem value="error_trace" className="text-xs">錯誤線索</SelectItem>
+                <SelectItem value="site_research" className="text-xs">全站研究</SelectItem>
+                <SelectItem value="manual" className="text-xs">手動</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="space-y-2 max-h-[480px] overflow-y-auto">
+          {filteredProposals.length === 0 ? (
             <p className="text-center text-muted-foreground py-4 text-xs">
-              尚無提案。啟動 AI 研究以生成優化建議。
+              {proposals.length === 0
+                ? "尚無提案。啟動 AI 研究以生成優化建議。"
+                : "目前篩選條件下沒有提案。"}
             </p>
           ) : (
-            proposals.map(p => (
+            filteredProposals.map(p => (
               <motion.div
                 key={p.id}
                 initial={{ opacity: 0, y: 8 }}
@@ -1388,11 +1517,42 @@ function AiSiteResearchPanel() {
               >
                 <div className="p-3 rounded-lg bg-muted/20 border border-white/5 space-y-2">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                        <Badge
+                          variant="outline"
+                          className={`text-[9px] shrink-0 ${
+                            SEVERITY_BADGE_CLASS[p.severity ?? "medium"] ?? ""
+                          }`}
+                        >
+                          {p.severity === "critical" && <ShieldAlert className="w-2.5 h-2.5 mr-0.5" />}
+                          {p.severity === "high" && <AlertTriangle className="w-2.5 h-2.5 mr-0.5" />}
+                          {SEVERITY_LABEL[p.severity ?? "medium"] ?? p.severity}
+                        </Badge>
+                        <Badge variant="secondary" className="text-[9px]">
+                          {p.category}
+                        </Badge>
+                        <Badge variant="outline" className="text-[9px] gap-0.5">
+                          <CircleDot className="w-2 h-2" />
+                          {SOURCE_LABEL[p.source ?? "manual"] ?? p.source}
+                        </Badge>
+                      </div>
                       <p className="text-xs font-medium">{p.title}</p>
+                      {p.filePath && (
+                        <p className="hs-small !mb-0 text-muted-foreground mt-0.5 font-mono">
+                          <FileCode className="w-2.5 h-2.5 inline mr-1" />
+                          {p.filePath}
+                          {p.lineNumber ? `:${p.lineNumber}` : ""}
+                        </p>
+                      )}
                       <p className="hs-small !mb-0 text-muted-foreground mt-0.5 line-clamp-2">
                         {p.description}
                       </p>
+                      {p.codeSnippet && (
+                        <pre className="mt-1.5 p-1.5 rounded bg-muted/40 text-[10px] font-mono overflow-x-auto whitespace-pre-wrap break-all">
+                          {p.codeSnippet}
+                        </pre>
+                      )}
                     </div>
                     <Badge
                       variant="outline"
@@ -1412,10 +1572,11 @@ function AiSiteResearchPanel() {
                     </Badge>
                   </div>
                   <div className="flex items-center gap-1.5 hs-small !mb-0 text-muted-foreground">
-                    <Badge variant="secondary" className="text-[9px]">
-                      {p.category}
-                    </Badge>
+                    <Clock className="w-2.5 h-2.5" />
                     <span>{new Date(p.createdAt).toLocaleString("zh-TW")}</span>
+                    {typeof p.confidence === "number" && (
+                      <span>· 信心 {p.confidence}%</span>
+                    )}
                   </div>
                   {p.status === "pending" && (
                     <div className="flex gap-2 pt-1">
@@ -1443,10 +1604,22 @@ function AiSiteResearchPanel() {
                       </Button>
                     </div>
                   )}
-                  {p.status === "approved" && (
-                    <div className="flex items-center gap-1.5 hs-small !mb-0 text-green-600">
+                  {p.status === "approved" && p.githubIssueUrl && (
+                    <a
+                      href={p.githubIssueUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 hs-small !mb-0 text-green-600 hover:underline"
+                    >
                       <CheckCircle2 className="w-3 h-3" />
-                      已核准 — 系統將自動建立 GitHub Issue 追蹤修正
+                      已建立 GitHub Issue #{p.githubIssueNumber} — 點擊開啟
+                      <ExternalLink className="w-2.5 h-2.5" />
+                    </a>
+                  )}
+                  {p.status === "approved" && !p.githubIssueUrl && (
+                    <div className="flex items-center gap-1.5 hs-small !mb-0 text-yellow-600">
+                      <AlertTriangle className="w-3 h-3" />
+                      {p.githubError ?? "已核准 — 請設定 GITHUB_TOKEN 後重試"}
                     </div>
                   )}
                 </div>

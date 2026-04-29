@@ -167,6 +167,10 @@ const multimodalSchema = z.object({
 
   // ── Anthropic Claude（光球 AI 代理人主引擎，最佳 tool use）──────────
   ANTHROPIC_API_KEY: z.string().min(1).optional().default(""),
+
+  // ── GitHub 整合（AI 全站研究系統 → 自動建立 Issue / PR）─────────────
+  GITHUB_TOKEN: z.string().min(1).optional().default(""),
+  GITHUB_REPO: z.string().optional().default(""),
 });
 
 // Combined schema
@@ -292,6 +296,18 @@ function validateAndWarn(): ServerEnvResult {
       env.GCS_BUCKET_NAME,
       "GCS 儲存（媒體檔案）",
       "在 Google Cloud Console 建立 Storage Bucket。",
+    ],
+    [
+      "GITHUB_TOKEN",
+      env.GITHUB_TOKEN,
+      "AI 全站研究 → GitHub Issue 自動建立",
+      "前往 https://github.com/settings/tokens 建立 fine-grained PAT，授予 Issues: Read & write 權限。",
+    ],
+    [
+      "GITHUB_REPO",
+      env.GITHUB_REPO,
+      "AI 全站研究目標倉庫",
+      "格式 owner/repo，例如 your-org/healing-studio。",
     ],
   ];
 
