@@ -2784,7 +2784,9 @@ export default function DirectorAI() {
   ];
 
   useRegisterPageAgent({
-    pageId: "director-ai",
+    // pageId 對齊 shared/appRegistry.ts 的 "director" 條目；舊值 "director-ai"
+    // 與 registry id 不一致導致光球無法 dispatch 動作到此頁。
+    pageId: "director",
     pageLabel: "導演 AI",
     pagePath: "/director",
     capabilities: directorCaps,

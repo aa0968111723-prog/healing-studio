@@ -233,7 +233,7 @@ function Router() {
         <DashboardRoute component={LearnHub} />
       </Route>
       <Route path="/learn/tutorial-overview">
-        <DashboardRoute component={TutorialOverviewPage} />
+        <NavigateRedirect to="/tutorial-overview" />
       </Route>
       <Route path="/tutorial-overview">
         <DashboardRoute component={TutorialOverviewPage} />

@@ -33,12 +33,33 @@ const CLIENT_PAGES_DIR = resolve(root, "client/src/pages");
 async function extractAppRoutes() {
   const source = await fs.readFile(APP_TSX, "utf8");
   const routes = [];
-  const re = /<Route\s+path="([^"]+)"/g;
-  let match;
-  while ((match = re.exec(source)) !== null) {
-    routes.push(match[1]);
+  const redirects = new Set();
+
+  // Match each <Route path="..."> ... </Route> block; if its body contains
+  // *Redirect components or <NavigateRedirect>, classify the route as a
+  // redirect alias (not a real page that needs a registry entry).
+  const blockRe = /<Route\s+path="([^"]+)">([\s\S]*?)<\/Route>/g;
+  let blockMatch;
+  while ((blockMatch = blockRe.exec(source)) !== null) {
+    const [, path, body] = blockMatch;
+    routes.push(path);
+    if (/(NavigateRedirect|AssetsRedirect|AdminRedirect|Redirect\b)/.test(body)) {
+      redirects.add(path);
+    }
   }
-  return Array.from(new Set(routes)).sort();
+
+  // Self-closing <Route path="..." component={X} /> — count but do NOT classify
+  // as redirect (no body to inspect; assume real page).
+  const selfClosingRe = /<Route\s+path="([^"]+)"\s+component=/g;
+  let scMatch;
+  while ((scMatch = selfClosingRe.exec(source)) !== null) {
+    routes.push(scMatch[1]);
+  }
+
+  return {
+    routes: Array.from(new Set(routes)).sort(),
+    redirects,
+  };
 }
 
 // ── appRegistry path extraction (regex-based, avoids TS imports) ────────────
@@ -115,11 +136,12 @@ function header(title) {
 // ── Main ────────────────────────────────────────────────────────────────────
 
 async function main() {
-  const [appRoutes, registry, registeredPageIds] = await Promise.all([
+  const [appRoutesResult, registry, registeredPageIds] = await Promise.all([
     extractAppRoutes(),
     extractRegistryEntries(),
     findRegisteredPageIds(),
   ]);
+  const { routes: appRoutes, redirects } = appRoutesResult;
 
   const registryPaths = new Set(registry.map(item => normaliseAppPath(item.path)));
   const registryIds = registry.map(item => item.id);
@@ -138,6 +160,9 @@ async function main() {
   const orphanRoutes = appRoutes.filter(path => {
     const normalised = normaliseAppPath(path);
     if (ALLOW_LIST_PREFIXES.some(prefix => normalised.startsWith(prefix))) return false;
+    // Redirect-only routes don't need a registry entry; they're transparent
+    // shortcuts to a real page that already has one.
+    if (redirects.has(path)) return false;
     return !registryPaths.has(normalised);
   });
   if (orphanRoutes.length > 0) {
