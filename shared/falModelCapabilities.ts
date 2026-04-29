@@ -160,6 +160,54 @@ export const FAL_MODEL_CAPABILITIES: FalModelCapability[] = [
     },
   },
 
+  // ─── 圖片編輯（語意式 edit）── 一律無 LoRA / token weight
+  // edit 模型的 input 為 image_url + prompt，aspectRatio 由原圖決定，故 wide/standard 皆 false
+  {
+    modelId: "fal-ai/nano-banana-pro/edit",
+    modality: "image",
+    features: { ...NONE, seed: false },
+  },
+  {
+    modelId: "fal-ai/nano-banana/edit",
+    modality: "image",
+    features: { ...NONE, seed: false },
+  },
+  {
+    modelId: "fal-ai/nano-banana-2/edit",
+    modality: "image",
+    features: { ...NONE, aspectRatioWide: true, aspectRatioStandard: true, seed: false },
+  },
+  {
+    modelId: "fal-ai/bytedance/seedream/v4.5/edit",
+    modality: "image",
+    features: { ...NONE, negativePrompt: true, seed: true },
+  },
+  {
+    modelId: "fal-ai/bytedance/seedream/v5/lite/edit",
+    modality: "image",
+    features: { ...NONE, negativePrompt: true, seed: true },
+  },
+  {
+    modelId: "xai/grok-imagine-image/edit",
+    modality: "image",
+    features: { ...NONE, seed: false },
+  },
+  {
+    modelId: "fal-ai/gpt-image-1.5/edit",
+    modality: "image",
+    features: { ...NONE, seed: false },
+  },
+  {
+    modelId: "fal-ai/flux-pro/kontext",
+    modality: "image",
+    features: { ...NONE, seed: true },
+  },
+  {
+    modelId: "fal-ai/flux-2-pro/edit",
+    modality: "image",
+    features: { ...NONE, seed: true },
+  },
+
   // ─── Video 系（一律無 token weight、無 LoRA） ──
   {
     modelId: "fal-ai/kling-video/v2.1/pro/text-to-video",

@@ -233,6 +233,7 @@ const ENGINE_PROVIDER_MAP: Record<string, string> = {
   "fal-ai/bytedance/seedream/v4/text-to-image": "fal",
   "fal-ai/bytedance/seedream/v4.5/edit": "fal",
   "fal-ai/bytedance/seedream/v5/lite/edit": "fal",
+  "xai/grok-imagine-image/edit": "fal",
   "fal-ai/imagen4/preview": "fal",
   "fal-ai/gpt-image-1.5/edit": "fal",
   "fal-ai/flux-pro/kontext": "fal",
