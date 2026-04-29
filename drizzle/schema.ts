@@ -14,34 +14,45 @@ import {
 } from "drizzle-orm/mysql-core";
 
 // ─── Users ─────────────────────────────────────────────────────────────────
-export const users = mysqlTable("users", {
-  id: int("id").autoincrement().primaryKey(),
-  openId: varchar("openId", { length: 64 }).notNull().unique(),
-  name: text("name"),
-  email: varchar("email", { length: 320 }),
-  loginMethod: varchar("loginMethod", { length: 64 }),
-  passwordHash: varchar("passwordHash", { length: 255 }),
-  emailVerified: boolean("emailVerified").default(false).notNull(),
-  emailVerifiedAt: timestamp("emailVerifiedAt"),
-  role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
-  /** Per-modality quota JSON */
-  quotaJson: json("quotaJson").$type<{
-    image: number;
-    video: number;
-    audio: number;
-    voice: number;
-  }>(),
-  autoCreditEnabled: boolean("autoCreditEnabled").default(false).notNull(),
-  autoCreditAmount: int("autoCreditAmount").default(0).notNull(),
-  autoCreditIntervalDays: int("autoCreditIntervalDays").default(7).notNull(),
-  autoCreditNextAt: timestamp("autoCreditNextAt"),
-  autoCreditLastAt: timestamp("autoCreditLastAt"),
-  remainingGenerations: int("remainingGenerations").default(50).notNull(),
-  onboardingDone: boolean("onboardingDone").default(false).notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-  lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
-});
+export const users = mysqlTable(
+  "users",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    openId: varchar("openId", { length: 64 }).notNull().unique(),
+    name: text("name"),
+    email: varchar("email", { length: 320 }),
+    loginMethod: varchar("loginMethod", { length: 64 }),
+    passwordHash: varchar("passwordHash", { length: 255 }),
+    emailVerified: boolean("emailVerified").default(false).notNull(),
+    emailVerifiedAt: timestamp("emailVerifiedAt"),
+    role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
+    /** Per-modality quota JSON */
+    quotaJson: json("quotaJson").$type<{
+      image: number;
+      video: number;
+      audio: number;
+      voice: number;
+    }>(),
+    autoCreditEnabled: boolean("autoCreditEnabled").default(false).notNull(),
+    autoCreditAmount: int("autoCreditAmount").default(0).notNull(),
+    autoCreditIntervalDays: int("autoCreditIntervalDays").default(7).notNull(),
+    autoCreditNextAt: timestamp("autoCreditNextAt"),
+    autoCreditLastAt: timestamp("autoCreditLastAt"),
+    remainingGenerations: int("remainingGenerations").default(50).notNull(),
+    onboardingDone: boolean("onboardingDone").default(false).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+    lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
+  },
+  table => ({
+    // Email lookup index — used by local auth login and admin queries
+    emailIdx: index("users_email_idx").on(table.email),
+    // Role index — used by admin user listing queries
+    roleIdx: index("users_role_idx").on(table.role),
+    // Auto-credit scheduling index — used by the auto-credit cron job
+    autoCreditNextAtIdx: index("users_autoCreditNextAt_idx").on(table.autoCreditNextAt),
+  })
+);
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
@@ -491,26 +502,33 @@ export type SubscriptionPlan = typeof subscriptionPlans.$inferSelect;
 export type InsertSubscriptionPlan = typeof subscriptionPlans.$inferInsert;
 
 // ─── AI Director Preferences ────────────────────────────────────────────
-export const aiDirectorPreferences = mysqlTable("ai_director_preferences", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
-  personality: mysqlEnum("personality", ["calm", "creative", "technical"])
-    .default("creative")
-    .notNull(),
-  preferredFormat: mysqlEnum("preferredFormat", [
-    "co-star",
-    "sslcm",
-    "selcm",
-    "free",
-  ])
-    .default("co-star")
-    .notNull(),
-  customSystemPrompt: text("customSystemPrompt"),
-  preferencesJson: json("preferencesJson").$type<Record<string, unknown>>(),
-  onboardingSteps: json("onboardingSteps").$type<string[]>(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+export const aiDirectorPreferences = mysqlTable(
+  "ai_director_preferences",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    personality: mysqlEnum("personality", ["calm", "creative", "technical"])
+      .default("creative")
+      .notNull(),
+    preferredFormat: mysqlEnum("preferredFormat", [
+      "co-star",
+      "sslcm",
+      "selcm",
+      "free",
+    ])
+      .default("co-star")
+      .notNull(),
+    customSystemPrompt: text("customSystemPrompt"),
+    preferencesJson: json("preferencesJson").$type<Record<string, unknown>>(),
+    onboardingSteps: json("onboardingSteps").$type<string[]>(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    // userId lookup — primary access pattern for AI director preferences
+    userIdIdx: index("adp_userId_idx").on(table.userId),
+  })
+);
 
 export type AiDirectorPreference = typeof aiDirectorPreferences.$inferSelect;
 export type InsertAiDirectorPreference =
@@ -545,6 +563,16 @@ export const generationHistory = mysqlTable(
     userIdCreatedAtIdx: index("userId_createdAt_idx").on(
       table.userId,
       table.createdAt
+    ),
+    // userId + modality — used when filtering history by content type
+    userIdModalityIdx: index("gh_userId_modality_idx").on(
+      table.userId,
+      table.modality
+    ),
+    // isBookmarked — used when fetching bookmarked items
+    userIdBookmarkedIdx: index("gh_userId_isBookmarked_idx").on(
+      table.userId,
+      table.isBookmarked
     ),
   })
 );
@@ -582,22 +610,31 @@ export type CustomBlock = typeof customBlocks.$inferSelect;
 export type InsertCustomBlock = typeof customBlocks.$inferInsert;
 
 // ─── Block Combos (Saved Inspiration Presets) ───────────────────────────
-export const blockCombos = mysqlTable("block_combos", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
-  name: varchar("name", { length: 255 }).notNull(),
-  modality: mysqlEnum("modality", [
-    "image",
-    "video",
-    "audio",
-    "voice",
-  ]).notNull(),
-  blockIds: json("blockIds").$type<string[]>().notNull(),
-  customBlockIds: json("customBlockIds").$type<number[]>(),
-  vibeCardIds: json("vibeCardIds").$type<string[]>(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+export const blockCombos = mysqlTable(
+  "block_combos",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    name: varchar("name", { length: 255 }).notNull(),
+    modality: mysqlEnum("modality", [
+      "image",
+      "video",
+      "audio",
+      "voice",
+    ]).notNull(),
+    blockIds: json("blockIds").$type<string[]>().notNull(),
+    customBlockIds: json("customBlockIds").$type<number[]>(),
+    vibeCardIds: json("vibeCardIds").$type<string[]>(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    // userId lookup — primary access pattern for block combos
+    userIdIdx: index("bc_userId_idx").on(table.userId),
+    // userId + modality — used when filtering combos by modality
+    userIdModalityIdx: index("bc_userId_modality_idx").on(table.userId, table.modality),
+  })
+);
 
 export type BlockCombo = typeof blockCombos.$inferSelect;
 export type InsertBlockCombo = typeof blockCombos.$inferInsert;
@@ -677,59 +714,74 @@ export type InsertSystemSetting = typeof systemSettings.$inferInsert;
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ─── News Articles (首頁新聞動態) ──────────────────────────────────────────
-export const newsArticles = mysqlTable("news_articles", {
-  id: int("id").autoincrement().primaryKey(),
+export const newsArticles = mysqlTable(
+  "news_articles",
+  {
+    id: int("id").autoincrement().primaryKey(),
 
-  /** 文章標題 */
-  title: varchar("title", { length: 512 }).notNull(),
+    /** 文章標題 */
+    title: varchar("title", { length: 512 }).notNull(),
 
-  /** OARS 柔化摘要 (TL;DR) — 以溫暖、低焦慮語氣撰寫的精簡摘要 */
-  oarsSummary: text("oarsSummary").notNull(),
+    /** OARS 柔化摘要 (TL;DR) — 以溫暖、低焦慮語氣撰寫的精簡摘要 */
+    oarsSummary: text("oarsSummary").notNull(),
 
-  /** 完整內容（Markdown 格式，可選） */
-  bodyMarkdown: text("bodyMarkdown"),
+    /** 完整內容（Markdown 格式，可選） */
+    bodyMarkdown: text("bodyMarkdown"),
 
-  /** 來源名稱（如「AI Director 官方」、「社群精選」） */
-  sourceName: varchar("sourceName", { length: 256 }).notNull(),
+    /** 來源名稱（如「AI Director 官方」、「社群精選」） */
+    sourceName: varchar("sourceName", { length: 256 }).notNull(),
 
-  /** 來源 URL（外部連結，可選） */
-  sourceUrl: text("sourceUrl"),
+    /** 來源 URL（外部連結，可選） */
+    sourceUrl: text("sourceUrl"),
 
-  /** 封面圖片 CDN URL */
-  coverImageUrl: text("coverImageUrl"),
+    /** 封面圖片 CDN URL */
+    coverImageUrl: text("coverImageUrl"),
 
-  /** 文章分類 */
-  category: mysqlEnum("category", [
-    "product_update",
-    "community_highlight",
-    "tutorial",
-    "industry_news",
-    "tips_and_tricks",
-  ])
-    .default("product_update")
-    .notNull(),
+    /** 文章分類 */
+    category: mysqlEnum("category", [
+      "product_update",
+      "community_highlight",
+      "tutorial",
+      "industry_news",
+      "tips_and_tricks",
+    ])
+      .default("product_update")
+      .notNull(),
 
-  /** 標籤（用於篩選與推薦） */
-  tags: json("tags").$type<string[]>(),
+    /** 標籤（用於篩選與推薦） */
+    tags: json("tags").$type<string[]>(),
 
-  /** 是否置頂 */
-  isPinned: boolean("isPinned").default(false).notNull(),
+    /** 是否置頂 */
+    isPinned: boolean("isPinned").default(false).notNull(),
 
-  /** 是否已發布（草稿 vs 公開） */
-  isPublished: boolean("isPublished").default(false).notNull(),
+    /** 是否已發布（草稿 vs 公開） */
+    isPublished: boolean("isPublished").default(false).notNull(),
 
-  /** 發布時間（可排程未來發布） */
-  publishedAt: timestamp("publishedAt"),
+    /** 發布時間（可排程未來發布） */
+    publishedAt: timestamp("publishedAt"),
 
-  /** 作者 userId（可選，null 表示系統發布） */
-  authorUserId: int("authorUserId"),
+    /** 作者 userId（可選，null 表示系統發布） */
+    authorUserId: int("authorUserId"),
 
-  /** 閱讀次數 */
-  viewCount: int("viewCount").default(0).notNull(),
+    /** 閱讀次數 */
+    viewCount: int("viewCount").default(0).notNull(),
 
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    // Published + pinned listing — primary homepage query
+    isPublishedPinnedIdx: index("na_isPublished_isPinned_idx").on(
+      table.isPublished,
+      table.isPinned,
+      table.publishedAt
+    ),
+    // Category filter — used when browsing by category
+    categoryIdx: index("na_category_idx").on(table.category),
+    // publishedAt ordering — used for chronological feeds
+    publishedAtIdx: index("na_publishedAt_idx").on(table.publishedAt),
+  })
+);
 
 export type NewsArticle = typeof newsArticles.$inferSelect;
 export type InsertNewsArticle = typeof newsArticles.$inferInsert;
@@ -1064,51 +1116,66 @@ export type InsertUserAiBrain = typeof userAiBrain.$inferInsert;
  * - 從哪個模型 (fromModel) 切到哪個模型 (toModel)
  * - 切換原因 (reason) — 可選，用於分析使用者偏好趨勢
  */
-export const userModelSwitchLogs = mysqlTable("user_model_switch_logs", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
+export const userModelSwitchLogs = mysqlTable(
+  "user_model_switch_logs",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
 
-  /** 切換的腦/引擎插槽名稱 */
-  brainSlot: mysqlEnum("brainSlot", [
-    "director",
-    "analyst",
-    "storyteller",
-    "technician",
-    "curator",
-    "imageEngine",
-    "videoEngine",
-    "audioEngine",
-    "voiceEngine",
-  ]).notNull(),
+    /** 切換的腦/引擎插槽名稱 */
+    brainSlot: mysqlEnum("brainSlot", [
+      "director",
+      "analyst",
+      "storyteller",
+      "technician",
+      "curator",
+      "imageEngine",
+      "videoEngine",
+      "audioEngine",
+      "voiceEngine",
+    ]).notNull(),
 
-  /** 切換前的模型 ID */
-  fromModel: varchar("fromModel", { length: 128 }).notNull(),
+    /** 切換前的模型 ID */
+    fromModel: varchar("fromModel", { length: 128 }).notNull(),
 
-  /** 切換後的模型 ID */
-  toModel: varchar("toModel", { length: 128 }).notNull(),
+    /** 切換後的模型 ID */
+    toModel: varchar("toModel", { length: 128 }).notNull(),
 
-  /** 切換前的參數快照 */
-  fromParams: json("fromParams").$type<Record<string, unknown>>(),
+    /** 切換前的參數快照 */
+    fromParams: json("fromParams").$type<Record<string, unknown>>(),
 
-  /** 切換後的參數快照 */
-  toParams: json("toParams").$type<Record<string, unknown>>(),
+    /** 切換後的參數快照 */
+    toParams: json("toParams").$type<Record<string, unknown>>(),
 
-  /** 切換原因（使用者自述或系統推薦） */
-  reason: text("reason"),
+    /** 切換原因（使用者自述或系統推薦） */
+    reason: text("reason"),
 
-  /** 切換來源 */
-  switchSource: mysqlEnum("switchSource", [
-    "manual", // 使用者手動切換
-    "soul_recommendation", // 光球推薦
-    "auto_fallback", // 自動降級（模型不可用時）
-    "ab_test", // A/B 測試
-  ])
-    .default("manual")
-    .notNull(),
+    /** 切換來源 */
+    switchSource: mysqlEnum("switchSource", [
+      "manual", // 使用者手動切換
+      "soul_recommendation", // 光球推薦
+      "auto_fallback", // 自動降級（模型不可用時）
+      "ab_test", // A/B 測試
+    ])
+      .default("manual")
+      .notNull(),
 
-  /** 切換時間 */
-  switchedAt: timestamp("switchedAt").defaultNow().notNull(),
-});
+    /** 切換時間 */
+    switchedAt: timestamp("switchedAt").defaultNow().notNull(),
+  },
+  table => ({
+    // userId + switchedAt — primary access pattern for user switch history
+    userIdSwitchedAtIdx: index("umsl_userId_switchedAt_idx").on(
+      table.userId,
+      table.switchedAt
+    ),
+    // userId + brainSlot — used when querying history for a specific brain
+    userIdBrainSlotIdx: index("umsl_userId_brainSlot_idx").on(
+      table.userId,
+      table.brainSlot
+    ),
+  })
+);
 
 export type UserModelSwitchLog = typeof userModelSwitchLogs.$inferSelect;
 export type InsertUserModelSwitchLog = typeof userModelSwitchLogs.$inferInsert;
@@ -1253,7 +1320,18 @@ export const customBlocksCombo = mysqlTable("custom_blocks_combo", {
 
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+},
+table => ({
+  // userId lookup — primary access pattern for user's combos
+  userIdIdx: index("cbc_userId_idx").on(table.userId),
+  // userId + modality — used when filtering combos by modality
+  userIdModalityIdx: index("cbc_userId_modality_idx").on(table.userId, table.modality),
+  // Public curated combos — used for community gallery queries
+  isCuratedPublicIdx: index("cbc_isCurated_isPublic_idx").on(
+    table.isCurated,
+    table.isPublic
+  ),
+}));
 
 export type CustomBlocksComboItem = typeof customBlocksCombo.$inferSelect;
 export type InsertCustomBlocksComboItem = typeof customBlocksCombo.$inferInsert;
@@ -1328,19 +1406,30 @@ export type R2StorageSnapshot = typeof r2StorageSnapshots.$inferSelect;
 export type InsertR2StorageSnapshot = typeof r2StorageSnapshots.$inferInsert;
 
 // ─── User Subscriptions（用戶訂閱，Stripe 用）────────────────────────────────
-export const userSubscriptions = mysqlTable("user_subscriptions", {
-  id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull().unique(),
-  stripeCustomerId: varchar("stripeCustomerId", { length: 64 }),
-  stripeSubscriptionId: varchar("stripeSubscriptionId", { length: 64 }),
-  planId: varchar("planId", { length: 64 }).default("free").notNull(),
-  status: mysqlEnum("status", ["active", "past_due", "cancelled", "trialing"]).default("active"),
-  currentPeriodStart: timestamp("currentPeriodStart"),
-  currentPeriodEnd: timestamp("currentPeriodEnd"),
-  cancelAtPeriodEnd: boolean("cancelAtPeriodEnd").default(false),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-});
+export const userSubscriptions = mysqlTable(
+  "user_subscriptions",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull().unique(),
+    stripeCustomerId: varchar("stripeCustomerId", { length: 64 }),
+    stripeSubscriptionId: varchar("stripeSubscriptionId", { length: 64 }),
+    planId: varchar("planId", { length: 64 }).default("free").notNull(),
+    status: mysqlEnum("status", ["active", "past_due", "cancelled", "trialing"]).default("active"),
+    currentPeriodStart: timestamp("currentPeriodStart"),
+    currentPeriodEnd: timestamp("currentPeriodEnd"),
+    cancelAtPeriodEnd: boolean("cancelAtPeriodEnd").default(false),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    // Stripe customer ID lookup — used by Stripe webhook handlers
+    stripeCustomerIdIdx: index("us_stripeCustomerId_idx").on(table.stripeCustomerId),
+    // Stripe subscription ID lookup — used by Stripe webhook handlers
+    stripeSubscriptionIdIdx: index("us_stripeSubscriptionId_idx").on(table.stripeSubscriptionId),
+    // Status filter — used when querying active subscriptions
+    statusIdx: index("us_status_idx").on(table.status),
+  })
+);
 
 export type UserSubscription = typeof userSubscriptions.$inferSelect;
 export type InsertUserSubscription = typeof userSubscriptions.$inferInsert;
