@@ -1150,10 +1150,10 @@ export default function AdminPage() {
 // 自動抓漏程式缺陷、思考優化、管理員同意後自動連結 GitHub 修正
 
 function AiSiteResearchPanel() {
+  const utils = trpc.useUtils();
   const [scanPrompt, setScanPrompt] = useState(
     "掃描全站程式碼，找出潛在缺陷、效能問題、安全漏洞、以及可優化的架構點"
   );
-  const [isScanning, setIsScanning] = useState(false);
 
   // ── Queries ──
   const proposalsQuery = trpc.brain.proposals.useQuery(undefined, {
@@ -1186,12 +1186,14 @@ function AiSiteResearchPanel() {
     },
     onError: e => toast.error(e.message),
   });
-  const webSearchMut = trpc.brain.webSearch.useMutation({
-    onSuccess: results => {
-      toast.success(`找到 ${results.length} 筆研究結果`);
-      researchQuery.refetch();
+  const runFullResearchMut = trpc.brain.runFullSiteResearch.useMutation({
+    onSuccess: data => {
+      toast.success(data.message);
+      void utils.brain.researchResults.invalidate();
+      void utils.brain.proposals.invalidate();
+      void utils.brain.monitorSummary.invalidate();
     },
-    onError: e => toast.error(e.message),
+    onError: err => toast.error(`研究失敗：${err.message}`),
   });
   const addToLearnHubMut = trpc.brain.addResearchToLearnHub.useMutation({
     onSuccess: () => {
@@ -1202,13 +1204,8 @@ function AiSiteResearchPanel() {
   });
 
   const handleScan = async () => {
-    setIsScanning(true);
     try {
-      // Step 1: Web search for best practices and known issues
-      await webSearchMut.mutateAsync({
-        query: "healing studio AI multimodal platform common bugs optimization",
-        maxResults: 5,
-      });
+      await runFullResearchMut.mutateAsync();
       // Step 2: Create a self-reflection proposal for site-wide analysis
       await createProposalMut.mutateAsync({
         title: "AI 全站自動研究：程式缺陷與優化建議",
@@ -1219,8 +1216,8 @@ function AiSiteResearchPanel() {
         reasoning: scanPrompt,
         confidence: 70,
       });
-    } finally {
-      setIsScanning(false);
+    } catch {
+      // error handled in mutation callbacks
     }
   };
 
@@ -1273,16 +1270,16 @@ function AiSiteResearchPanel() {
           />
           <Button
             onClick={handleScan}
-            disabled={isScanning || !scanPrompt.trim()}
+            disabled={runFullResearchMut.isPending || !scanPrompt.trim()}
             className="w-full gap-2 text-xs"
             size="sm"
           >
-            {isScanning ? (
+            {runFullResearchMut.isPending ? (
               <Loader2 className="w-3 h-3 animate-spin" />
             ) : (
               <Search className="w-3 h-3" />
             )}
-            {isScanning ? "AI 研究中..." : "啟動 AI 全站研究"}
+            {runFullResearchMut.isPending ? "研究進行中..." : "啟動 AI 全站研究"}
           </Button>
         </div>
       </GlassCard>
