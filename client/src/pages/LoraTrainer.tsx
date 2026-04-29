@@ -272,6 +272,44 @@ export default function LoraTrainer() {
     }
   );
 
+  // ── SSE 訂閱 model-training 事件（webhookReplicate 完成時立即推） ──
+  // 在訓練中的模型只要被選到，就建立 EventSource，收到 complete/error 立即
+  // refetch detailQuery / historyQuery；輪詢路徑保留為 fallback。
+  useEffect(() => {
+    if (!selectedModelId) return;
+    if (typeof EventSource === "undefined") return;
+    const detail = detailQuery.data as
+      | { status?: string }
+      | null
+      | undefined;
+    if (detail && detail.status !== "training" && detail.status !== "pending") {
+      return; // 已完成 / 失敗的模型不需要 SSE
+    }
+
+    const es = new EventSource(
+      `/api/model-training-events/${selectedModelId}`
+    );
+    es.onmessage = ev => {
+      try {
+        const event = JSON.parse(ev.data) as { type: string };
+        if (event.type === "complete" || event.type === "error") {
+          void detailQuery.refetch();
+          void historyQuery.refetch();
+          es.close();
+        }
+      } catch {
+        // 忽略 heartbeat / 無法解析的訊息
+      }
+    };
+    es.onerror = () => {
+      // SSE 斷線就靠輪詢 fallback；不主動重連避免風暴
+      es.close();
+    };
+    return () => {
+      es.close();
+    };
+  }, [selectedModelId, detailQuery.data?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Mutations ──
   const createMutation = trpc.models.create.useMutation({
     onMutate: () => setAIState("generating"),

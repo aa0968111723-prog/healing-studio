@@ -36,6 +36,11 @@ export interface ReplicateTrainingInput {
   baseModel?: string;
   /** 訓練後產生的目標模型路徑 "owner/model-slug"。會自動建立（若不存在） */
   destination: string;
+  /**
+   * 訓練完成時主動 POST 回呼到此 URL（Replicate 標準 webhook）。
+   * 不帶則僅能用 getReplicateTrainingStatus 輪詢。
+   */
+  webhook?: string;
 }
 
 export interface ReplicateTrainingResult {
@@ -95,7 +100,7 @@ export async function startReplicateTraining(
     );
   }
 
-  const training = await client.trainings.create(owner, name, latest, {
+  const createOptions: Record<string, unknown> = {
     destination: input.destination as `${string}/${string}`,
     input: {
       input_images: input.zipUrl,
@@ -103,7 +108,18 @@ export async function startReplicateTraining(
       steps: input.steps,
       learning_rate: input.learningRate,
     },
-  });
+  };
+  if (input.webhook) {
+    createOptions.webhook = input.webhook;
+    createOptions.webhook_events_filter = ["completed"];
+  }
+
+  const training = await client.trainings.create(
+    owner,
+    name,
+    latest,
+    createOptions as Parameters<typeof client.trainings.create>[3]
+  );
 
   return {
     trainingId: training.id,

@@ -16,8 +16,10 @@ import crypto from "crypto";
 import {
   getBackgroundJob,
   updateBackgroundJob,
+  findProcessingJobByRequestId,
 } from "../db.js";
 import { localizeResultUrls } from "../services/internalMedia.js";
+import { generationBus } from "../generationEvents";
 
 export const falWebhookRouter = Router();
 
@@ -63,13 +65,24 @@ falWebhookRouter.post(
         `[WebhookFal] Received: requestId=${payload.request_id} status=${payload.status}`
       );
 
-      // 3. 從 request_id 找到對應的 backgroundJob
-      //    慣例：submit 時將 jobId 存放在 fal.ai 的 metadata / requestId 欄位
-      //    這裡透過 request_id 查詢 resultJson 中記錄的 falRequestId
-      const jobId = extractJobId(payload);
+      // 3. 找到對應的 backgroundJob：
+      //    a) query string ?jobId 優先（submitMultimodalAsync / videoStudio 帶）
+      //    b) request_id 正則 / metadata fallback（早期格式）
+      //    c) 透過 payload.request_id 反查 resultJson.requestId（imageStudio /
+      //       proStudio 流程：先送 fal、後由前端 submitStudioJob 建 backgroundJob）
+      let jobId = extractJobId(req, payload);
+      if (!jobId && payload.request_id) {
+        const matched = await findProcessingJobByRequestId(payload.request_id);
+        if (matched?.id) {
+          jobId = matched.id;
+          console.log(
+            `[WebhookFal] Matched job ${jobId} via resultJson.requestId lookup`
+          );
+        }
+      }
       if (!jobId) {
         console.warn(
-          `[WebhookFal] Cannot extract jobId from request_id: ${payload.request_id}`
+          `[WebhookFal] Cannot resolve jobId for request_id=${payload.request_id}`
         );
         return;
       }
@@ -80,7 +93,9 @@ falWebhookRouter.post(
         return;
       }
 
-      // 4. 根據 webhook status 更新 job
+      // 4. 根據 webhook status 更新 job + 透過 generationBus 推 SSE 事件
+      //    讓訂閱 /api/generation-events/:jobId 的前端立即收到完成/失敗通知，
+      //    不必等下一輪 5s 輪詢
       if (payload.status === "OK" || payload.status === "COMPLETED") {
         // 成功：取出結果 URL，並將外部 CDN URL 持久化到 S3
         const rawResult = extractResultData(payload);
@@ -95,28 +110,33 @@ falWebhookRouter.post(
           progressMessage: "生成完成",
           resultJson: resultData as any,
         });
+        generationBus.emit(jobId, { type: "complete", thoughtChain: [] });
         console.log(
           `[WebhookFal] ✅ Job ${jobId} completed. orbTraceId=${orbTraceId} Result URLs saved.`
         );
       } else if (payload.status === "ERROR") {
+        const errorMessage = payload.error ?? "fal.ai 回傳錯誤";
         await updateBackgroundJob(jobId, {
           status: "failed",
           progress: 0,
           progressMessage: "生成失敗",
-          errorMessage: payload.error ?? "fal.ai 回傳錯誤",
+          errorMessage,
         });
+        generationBus.emit(jobId, { type: "error", message: errorMessage });
         console.error(
           `[WebhookFal] ❌ Job ${jobId} failed: ${payload.error} orbTraceId=${orbTraceId}`
         );
       } else {
         // IN_QUEUE / IN_PROGRESS：更新進度
         const progress = payload.status === "IN_PROGRESS" ? 50 : 10;
+        const message =
+          payload.status === "IN_PROGRESS" ? "生成中..." : "排隊中...";
         await updateBackgroundJob(jobId, {
           status: "processing",
           progress,
-          progressMessage:
-            payload.status === "IN_PROGRESS" ? "生成中..." : "排隊中...",
+          progressMessage: message,
         });
+        generationBus.emit(jobId, { type: "progress", progress, message });
       }
     } catch (err) {
       console.error("[WebhookFal] Error processing webhook:", err);
@@ -144,16 +164,20 @@ interface FalWebhookPayload {
 }
 
 /**
- * 從 fal.ai request_id 萃取 backgroundJob.id
- * 慣例：submit 時使用 `fal-job-{jobId}-{timestamp}` 作為 request_id 前綴
- * 或：將 jobId 存入 fal.ai metadata（如有支援）
+ * 從 fal.ai webhook 找到對應 backgroundJob.id：
+ * 1. 優先讀 query string `?jobId=<id>`（呼叫端組 webhook URL 時帶入，最可靠）
+ * 2. 退而求其次用 request_id 配 `fal-job-(\d+)` 正則（早期格式）
+ * 3. 再退就讀 payload metadata.jobId
  */
-function extractJobId(payload: FalWebhookPayload): number | null {
-  // 嘗試從 request_id 解析（格式：fal-job-{id}-...）
+function extractJobId(req: Request, payload: FalWebhookPayload): number | null {
+  const fromQuery = req.query.jobId;
+  if (typeof fromQuery === "string" && /^\d+$/.test(fromQuery)) {
+    return parseInt(fromQuery, 10);
+  }
+
   const match = payload.request_id?.match(/fal-job-(\d+)/);
   if (match) return parseInt(match[1], 10);
 
-  // 嘗試從 payload metadata 解析
   const meta = payload.payload as any;
   if (meta?.jobId && typeof meta.jobId === "number") return meta.jobId;
 

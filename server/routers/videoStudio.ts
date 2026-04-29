@@ -50,10 +50,13 @@ async function falQueueSubmit(
   input: Record<string, unknown>,
   jobId?: number
 ): Promise<{ request_id: string }> {
-  // 若設定了 VITE_SITE_URL 且有 jobId，加入 webhook 回呼讓後端持久化結果
+  // 若設定了 VITE_SITE_URL 且有 jobId，加入帶 jobId 的 webhook 回呼，
+  // fal.ai 完成時主動 POST 到 /api/webhook/fal?jobId=<id>，瀏覽器關閉也能持久化結果
   const siteUrl = process.env.VITE_SITE_URL?.trim();
   const webhookUrl =
-    siteUrl && jobId ? `${siteUrl}/api/webhook/fal` : undefined;
+    siteUrl && jobId
+      ? `${siteUrl}/api/webhook/fal?jobId=${jobId}`
+      : undefined;
 
   try {
     const result = await dispatchFalQueueTask({

@@ -23,6 +23,7 @@ import {
   parseLLMActions,
   type AgentAction,
 } from "../../shared/agent-actions";
+import { extractJsonObjectFromText } from "../../shared/agent-plan-adapter";
 import {
   buildDirectorSystemPrompt,
   GENERATION_MODALITIES_KNOWLEDGE,
@@ -3130,28 +3131,27 @@ ${director.systemPrompt ? `\n附加大腦指令：\n${director.systemPrompt}` : 
         model: director.model,
         temperature: director.temperature,
         topP: director.topP,
+        responseFormat: { type: "json_object" },
       });
 
-      // 嘗試解析 JSON 回應
       const text =
         typeof llmResponse === "string"
           ? llmResponse
           : (llmResponse as { content?: string }).content ?? "";
 
-      let parsed: { actions?: unknown; rationale?: string } = {};
-      try {
-        // 容許 LLM 回傳被 markdown code fence 包住
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        const jsonText = jsonMatch ? jsonMatch[0] : text;
-        parsed = JSON.parse(jsonText) as typeof parsed;
-      } catch {
+      const extracted = extractJsonObjectFromText(text);
+      if (!extracted || typeof extracted !== "object") {
+        const trimmed = text.trim();
         return {
           actions: [] as AgentAction[],
-          rationale: "導演回應無法解析為 JSON",
+          rationale: trimmed
+            ? trimmed.slice(0, 400)
+            : "導演沒有回應，請稍後再試",
           rawResponse: text.slice(0, 1000),
         };
       }
 
+      const parsed = extracted as { actions?: unknown; rationale?: string };
       const actions = parseLLMActions(parsed.actions);
       return {
         actions,

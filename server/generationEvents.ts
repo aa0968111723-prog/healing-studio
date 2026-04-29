@@ -71,6 +71,29 @@ class GenerationEventBus {
   cleanup(jobId: number) {
     this.emitter.removeAllListeners(`job:${jobId}`);
   }
+
+  // ─── 模型訓練專用通道 ────────────────────────────────────────────────────
+  // 訓練狀態存在 fineTunedModels 表（不是 backgroundJobs），
+  // 用獨立 model-training:<modelId> channel 避免與 generation 混在一起。
+
+  emitTraining(modelId: number, event: GenerationEvent) {
+    this.emitter.emit(`model-training:${modelId}`, event);
+  }
+
+  subscribeTraining(
+    modelId: number,
+    listener: (event: GenerationEvent) => void
+  ): () => void {
+    const channel = `model-training:${modelId}`;
+    this.emitter.on(channel, listener);
+    return () => {
+      this.emitter.removeListener(channel, listener);
+    };
+  }
+
+  cleanupTraining(modelId: number) {
+    this.emitter.removeAllListeners(`model-training:${modelId}`);
+  }
 }
 
 // Singleton

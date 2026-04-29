@@ -114,7 +114,7 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
     setActiveJobIds(processing);
   }, [tasks]);
 
-  // 為每個 activeJobId 定期 checkStudioJob
+  // 為每個 activeJobId 定期 checkStudioJob（保險路徑：webhook 漏 / SSE 斷掉時仍會跑）
   useEffect(() => {
     if (activeJobIds.length === 0) return;
 
@@ -155,6 +155,40 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
     check(); // 立即檢查一次
     const timer = setInterval(check, POLL_INTERVAL);
     return () => clearInterval(timer);
+  }, [activeJobIds.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ─── SSE 訂閱：webhook 抵達時立即收到完成/失敗事件，免等下一輪 5s 輪詢 ──
+  useEffect(() => {
+    if (activeJobIds.length === 0 || typeof EventSource === "undefined") return;
+
+    const sources: EventSource[] = activeJobIds.map(jobId => {
+      const es = new EventSource(`/api/generation-events/${jobId}`);
+      es.onmessage = ev => {
+        try {
+          const event = JSON.parse(ev.data) as {
+            type: string;
+            message?: string;
+          };
+          if (event.type === "complete" || event.type === "error") {
+            // 立即觸發 activeJobs 重抓 + checkStudioJob 同步狀態
+            void activeJobsQuery.refetch();
+            void utils.generate.checkStudioJob.fetch({ jobId });
+            es.close();
+          }
+        } catch {
+          // 忽略 heartbeat / 格式不符的訊息
+        }
+      };
+      es.onerror = () => {
+        // SSE 斷線就靠輪詢 fallback；這裡不主動重連避免風暴
+        es.close();
+      };
+      return es;
+    });
+
+    return () => {
+      sources.forEach(es => es.close());
+    };
   }, [activeJobIds.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── 提交新任務 ────────────────────────────────────────────────────────────

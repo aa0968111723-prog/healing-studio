@@ -1373,15 +1373,20 @@ export async function callFalModel(
 export async function falQueueSubmitModel(
   modelId: string,
   input: Record<string, unknown>,
-  extraHeaders?: Record<string, string>
+  extraHeaders?: Record<string, string>,
+  webhookUrl?: string
 ): Promise<{ request_id: string }> {
   const apiKey = process.env.FAL_API_KEY;
   if (!apiKey) throw new Error("FAL_API_KEY 未設定");
 
   const client = createFalClient({ credentials: apiKey });
 
-  // 使用 endpointId 格式提交到 queue（不等待完成）
-  const status = await client.queue.submit(modelId as any, {
+  // fal-client 的 queue.submit 不直接支援 webhookUrl，需自行帶 ?fal_webhook= query string
+  const target = webhookUrl
+    ? `${modelId}?fal_webhook=${encodeURIComponent(webhookUrl)}`
+    : modelId;
+
+  const status = await client.queue.submit(target as any, {
     input,
     ...(extraHeaders ? { headers: extraHeaders } : {}),
   });
