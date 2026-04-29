@@ -20,6 +20,10 @@ import { invokeLLM } from "../_core/llm";
 import * as db from "../db";
 import { buildMemoryContext } from "../services/ragMemory";
 import {
+  parseLLMActions,
+  type AgentAction,
+} from "../../shared/agent-actions";
+import {
   buildDirectorSystemPrompt,
   GENERATION_MODALITIES_KNOWLEDGE,
   WORKFLOW_KNOWLEDGE,
@@ -3035,5 +3039,125 @@ ${segmentSummaries}
         });
         throw error;
       }
+    }),
+
+  /**
+   * askForStudioPlan — 創作工作室向導演 AI 徵詢「下一步建議」。
+   *
+   * 接收 Studio 當前完整上下文（4 模態 prompt、選中模型、tokenWeights、LoRA、
+   * 已啟用功能），導演 LLM 回傳一組 AgentAction[]，前端用 PageAgent
+   * dispatchMany 直接執行（例如：建議切換模態、調整 prompt、套用 preset）。
+   *
+   * 全站光球代理 / 光球助手亦可透過 `studio-tool-bridge` 的 director.suggestPlan
+   * 工具呼叫此端點，達成「光球請導演規劃 → 規劃結果回到工作室」雙向迴路。
+   */
+  askForStudioPlan: brainProcedure
+    .input(
+      z.object({
+        /** 當前活躍的模態 */
+        activeModality: z.enum(["image", "video", "audio", "voice"]),
+        /** 四模態各自的提示詞快照（rawPrompt + 是否有 token weight） */
+        prompts: z.object({
+          image: z.string().default(""),
+          video: z.string().default(""),
+          audio: z.string().default(""),
+          voice: z.string().default(""),
+        }),
+        /** 使用者選定的 fal.ai 模型 ID */
+        selectedFalModelId: z.string().nullable().optional(),
+        /** 是否啟用了自注意力（token weights） */
+        hasTokenWeights: z.boolean().default(false),
+        /** 是否啟用了微調 LoRA 模型 */
+        hasFineTunedModel: z.boolean().default(false),
+        /** 圖片畫面比例（若 activeModality === "image"） */
+        aspectRatio: z.string().optional(),
+        /** 使用者用自然語言描述他想做什麼（可選） */
+        userIntent: z.string().max(2000).optional(),
+        /** 個性風格 */
+        personality: z
+          .enum(["calm", "creative", "technical"])
+          .default("creative"),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const director = ctx.brain.getBrain("director");
+
+      const systemPrompt = `你是「導演 AI」，使用者正在創作工作室裡建立內容。
+你的任務：根據使用者當前的工作室狀態，建議下一步行動。
+
+回傳格式（嚴格）：
+{
+  "actions": [
+    { "type": "fillPrompt", "text": "...", "slot": "prompt|negativePrompt|lyrics|voice", "append": false },
+    { "type": "setModality", "modality": "image|video|audio|voice" },
+    { "type": "setMode", "modeId": "lightning|deep_precision|inspiration|standard|professional" },
+    { "type": "setModel", "modelId": "fal-ai/..." },
+    { "type": "applyPreset", "presetId": "creative:simple|creative:standard|creative:pro" }
+  ],
+  "rationale": "簡短中文說明為什麼這樣建議"
+}
+
+規範：
+- 最多回 4 個 actions
+- 風格 = ${input.personality}
+- 若使用者已輸入提示詞但模態錯了，建議切到正確模態
+- 若使用者啟用了自注意力但選了不支援的模型，建議切到 SD 系列
+- 不要回多餘內容，只回 JSON
+
+${director.systemPrompt ? `\n附加大腦指令：\n${director.systemPrompt}` : ""}`;
+
+      const studioContext = `
+當前活躍模態：${input.activeModality}
+選中模型：${input.selectedFalModelId ?? "(未指定)"}
+畫面比例：${input.aspectRatio ?? "未設定"}
+啟用自注意力：${input.hasTokenWeights ? "是" : "否"}
+使用微調 LoRA：${input.hasFineTunedModel ? "是" : "否"}
+
+四模態提示詞快照：
+- 圖片：${input.prompts.image.slice(0, 200) || "(空)"}
+- 影片：${input.prompts.video.slice(0, 200) || "(空)"}
+- 音樂：${input.prompts.audio.slice(0, 200) || "(空)"}
+- 語音：${input.prompts.voice.slice(0, 200) || "(空)"}
+
+使用者想做什麼：${input.userIntent || "(未說明，請根據上述狀態主動建議)"}
+`.trim();
+
+      const llmResponse = await invokeLLM({
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: studioContext },
+        ],
+        model: director.model,
+        temperature: director.temperature,
+        topP: director.topP,
+      });
+
+      // 嘗試解析 JSON 回應
+      const text =
+        typeof llmResponse === "string"
+          ? llmResponse
+          : (llmResponse as { content?: string }).content ?? "";
+
+      let parsed: { actions?: unknown; rationale?: string } = {};
+      try {
+        // 容許 LLM 回傳被 markdown code fence 包住
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        const jsonText = jsonMatch ? jsonMatch[0] : text;
+        parsed = JSON.parse(jsonText) as typeof parsed;
+      } catch {
+        return {
+          actions: [] as AgentAction[],
+          rationale: "導演回應無法解析為 JSON",
+          rawResponse: text.slice(0, 1000),
+        };
+      }
+
+      const actions = parseLLMActions(parsed.actions);
+      return {
+        actions,
+        rationale:
+          typeof parsed.rationale === "string" ? parsed.rationale : "",
+        rawResponse: undefined as string | undefined,
+      };
     }),
 });

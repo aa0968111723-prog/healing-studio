@@ -62,6 +62,7 @@ import {
   Briefcase,
   Search,
   SlidersHorizontal,
+  Sparkles,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useIsMobile } from "@/hooks/useMobile";
@@ -86,6 +87,7 @@ import JSZip from "jszip";
 import ProactiveOrbWidget from "@/components/ProactiveOrbWidget";
 import {
   useRegisterPageAgent,
+  usePageAgent,
   type AgentAction,
   type AgentActionResult,
   type AgentCapability,
@@ -484,11 +486,41 @@ export default function Studio() {
   } = usePersonality();
   const [, navigate] = useLocation();
 
+  // ── PageAgent: 取得 dispatch helper 用於導演 AI 建議自動執行 ──
+  const pageAgent = usePageAgent();
+
   // ── Shared state ──
   const [activeModality, setActiveModality] = useState<GenerationType>("image");
   const [mode, setMode] = useState<GenerationMode>("lightning");
-  const [promptBuilder, setPromptBuilder] = useState<PromptBuilderOutput>(
-    createEmptyPromptOutput
+  // ── Per-modality prompt state ──
+  // 四模態各自獨立的提示詞 / vibeCards / advancedFields / tokenWeights，
+  // 切換 modality 時自動 swap 對應的副本，使用者切回原模態時內容仍在。
+  const [promptByModality, setPromptByModality] = useState<
+    Record<GenerationType, PromptBuilderOutput>
+  >(() => ({
+    image: createEmptyPromptOutput(),
+    video: createEmptyPromptOutput(),
+    audio: createEmptyPromptOutput(),
+    voice: createEmptyPromptOutput(),
+    multimodal: createEmptyPromptOutput(),
+  }));
+  // 為了最小化既有 30+ 個 promptBuilder 引用點的改動，保留 promptBuilder 名稱
+  // 作為當前 modality 的衍生值，setPromptBuilder 只更新對應 modality 的副本。
+  const promptBuilder = promptByModality[activeModality];
+  const setPromptBuilder = useCallback(
+    (
+      next:
+        | PromptBuilderOutput
+        | ((prev: PromptBuilderOutput) => PromptBuilderOutput)
+    ) => {
+      setPromptByModality(prev => {
+        const current = prev[activeModality];
+        const nextValue = typeof next === "function" ? next(current) : next;
+        if (nextValue === current) return prev;
+        return { ...prev, [activeModality]: nextValue };
+      });
+    },
+    [activeModality]
   );
   const [temperature, setTemperature] = useState(0.5);
   const [seed, setSeed] = useState("");
@@ -1353,6 +1385,171 @@ export default function Studio() {
   }, []);
 
   // ── Handle Generate ──
+  /**
+   * handleAskDirector — 把當前 Studio 完整上下文送給導演 AI，取回 AgentAction[]
+   * 並透過 PageAgent 直接執行（雙向迴路，無需跳離工作室）。
+   */
+  const askDirectorMutation = trpc.director.askForStudioPlan.useMutation();
+  const handleAskDirector = useCallback(async () => {
+    if (!requireAuth()) return;
+    try {
+      const result = await askDirectorMutation.mutateAsync({
+        activeModality:
+          activeModality === "multimodal" ? "image" : activeModality,
+        prompts: {
+          image: promptByModality.image.rawPrompt,
+          video: promptByModality.video.rawPrompt,
+          audio: promptByModality.audio.rawPrompt,
+          voice: voiceState.text || promptByModality.voice.rawPrompt,
+        },
+        selectedFalModelId,
+        hasTokenWeights: hasWeightedTokens,
+        hasFineTunedModel: !!fineTunedModelId,
+        aspectRatio: imageState.aspectRatio,
+        personality: "creative",
+      });
+      if (result.actions.length === 0) {
+        toast.info(result.rationale || "導演沒有建議");
+        return;
+      }
+      // 透過 PageAgent 直接 dispatch 全部 actions（無需離開工作室）
+      await pageAgent.dispatchMany(result.actions, { source: "manual" });
+      toast.success(
+        `導演建議了 ${result.actions.length} 個動作${
+          result.rationale ? `：${result.rationale}` : ""
+        }`,
+        { duration: 5000 }
+      );
+    } catch (e) {
+      toast.error(
+        `徵詢導演失敗：${e instanceof Error ? e.message : "未知錯誤"}`
+      );
+    }
+  }, [
+    askDirectorMutation,
+    activeModality,
+    promptByModality,
+    voiceState.text,
+    selectedFalModelId,
+    hasWeightedTokens,
+    fineTunedModelId,
+    imageState.aspectRatio,
+    pageAgent,
+  ]);
+
+  /**
+   * handleBatchGenerate — 一次送出多個模態的任務（平行）。
+   *
+   * 凡是該模態的 prompt（或 voiceState.text）非空者都會被送出。Promise.allSettled
+   * 確保任一失敗不影響其他模態。完成後彙整 toast 顯示成功 / 失敗數。
+   */
+  const handleBatchGenerate = useCallback(async () => {
+    if (!requireAuth()) return;
+    const modalities: Array<"image" | "video" | "audio" | "voice"> = [
+      "image",
+      "video",
+      "audio",
+      "voice",
+    ];
+
+    const jobs = modalities
+      .map(modality => {
+        const builder = promptByModality[modality];
+        const prompt = builder.compiledPrompt || builder.rawPrompt;
+        if (modality === "voice") {
+          if (!voiceState.text.trim()) return null;
+          return {
+            modality,
+            input: {
+              prompt: voiceState.text,
+              generationType: "voice" as const,
+              mode,
+              voiceModelId: voiceState.voiceActorId,
+              voiceText: voiceState.text,
+              voiceSpeed: voiceState.speed,
+              voiceStability: voiceState.stability,
+              voiceEmotionType: voiceState.emotionType,
+              voiceEmotionIntensity: voiceState.emotionIntensity,
+              fineTunedModelId,
+              loraWeight,
+            },
+          };
+        }
+        if (!prompt.trim()) return null;
+        if (modality === "image") {
+          return {
+            modality,
+            input: {
+              prompt,
+              generationType: "image" as const,
+              mode,
+              aspectRatio: imageState.aspectRatio,
+              negativePrompt: imageState.negativePrompt || undefined,
+              styleReferenceUrl: imageState.styleReferenceUrl,
+              vibeReferenceUrl: imageState.vibeReferenceUrl,
+              fineTunedModelId,
+              loraWeight,
+            },
+          };
+        }
+        if (modality === "video") {
+          return {
+            modality,
+            input: {
+              prompt,
+              generationType: "video" as const,
+              mode,
+              videoDurationSeconds: parseInt(videoState.duration) || 5,
+              firstFrameUrl: videoState.firstFrameUrl,
+              lastFrameUrl: videoState.lastFrameUrl,
+              characterRefUrl: videoState.characterRefUrl,
+              fineTunedModelId,
+              loraWeight,
+            },
+          };
+        }
+        // audio
+        return {
+          modality,
+          input: {
+            prompt,
+            generationType: "audio" as const,
+            mode,
+            musicStyle: audioState.musicStyle,
+            isInstrumental: audioState.isInstrumental,
+            audioDuration: audioState.duration,
+            fineTunedModelId,
+            loraWeight,
+          },
+        };
+      })
+      .filter((j): j is NonNullable<typeof j> => j !== null);
+
+    if (!jobs.length) {
+      toast.error("沒有可送出的內容（請先在任一模態填寫提示詞）");
+      return;
+    }
+
+    toast.info(`正在平行送出 ${jobs.length} 個模態任務…`);
+    const results = await Promise.allSettled(
+      jobs.map(j => submitAsyncMutation.mutateAsync(j.input))
+    );
+    const success = results.filter(r => r.status === "fulfilled").length;
+    const failed = results.length - success;
+    if (success > 0) toast.success(`已送出 ${success} 個任務`);
+    if (failed > 0) toast.error(`${failed} 個任務送出失敗`);
+  }, [
+    promptByModality,
+    voiceState,
+    imageState,
+    videoState,
+    audioState,
+    mode,
+    fineTunedModelId,
+    loraWeight,
+    submitAsyncMutation,
+  ]);
+
   const handleGenerate = useCallback(async () => {
     // Auth guard: show login modal instead of 500 error if session expired
     if (!requireAuth()) return;
@@ -2748,6 +2945,56 @@ export default function Studio() {
             hasResult={!!resultUrl}
             simpleMode={isSimple}
           />
+
+          {/* 全模態送出：偵測有填寫提示詞的模態並平行送出 */}
+          {(() => {
+            const filledModalities = (
+              ["image", "video", "audio", "voice"] as const
+            ).filter(m => {
+              if (m === "voice") return !!voiceState.text.trim();
+              const b = promptByModality[m];
+              return !!(b.compiledPrompt || b.rawPrompt).trim();
+            });
+            if (filledModalities.length < 2) return null;
+            return (
+              <button
+                onClick={() => void handleBatchGenerate()}
+                disabled={submitAsyncMutation.isPending}
+                className="mt-2 w-full rounded-xl border border-primary/30 bg-primary/10 hover:bg-primary/20 transition-colors px-4 py-2.5 text-xs flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>
+                  全模態送出（{filledModalities.length} 個：
+                  {filledModalities
+                    .map(m =>
+                      m === "image"
+                        ? "圖片"
+                        : m === "video"
+                          ? "影片"
+                          : m === "audio"
+                            ? "音樂"
+                            : "語音"
+                    )
+                    .join("、")}
+                  ）
+                </span>
+              </button>
+            );
+          })()}
+
+          {/* 徵詢導演 AI：把當前 4 模態 + 設定送給導演，回傳 actions 自動 dispatch */}
+          <button
+            onClick={() => void handleAskDirector()}
+            disabled={askDirectorMutation.isPending}
+            className="mt-2 w-full rounded-xl border border-amber-400/30 bg-amber-50 hover:bg-amber-100 dark:bg-amber-500/10 dark:hover:bg-amber-500/20 transition-colors px-4 py-2 text-xs flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>
+              {askDirectorMutation.isPending
+                ? "導演思考中…"
+                : "徵詢導演 AI（自動套用建議）"}
+            </span>
+          </button>
 
           {/* Thought Island Chain — z-10 below PromptBuilder's z-20 */}
           <AnimatePresence>

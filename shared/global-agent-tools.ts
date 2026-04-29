@@ -128,6 +128,21 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     },
     executionTarget: "server-side",
   },
+  // ─── 導演 AI 規劃工具（光球可請導演為當前工作室規劃下一步） ──
+  {
+    name: "director.suggestPlan",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      activeModality: "string",
+      userIntent: "string?",
+      selectedFalModelId: "string?",
+      hasTokenWeights: "boolean?",
+      hasFineTunedModel: "boolean?",
+      personality: "string?",
+    },
+    executionTarget: "server-side",
+  },
 ];
 
 export function getGlobalAgentTool(name: string): GlobalAgentToolDefinition | null {
