@@ -1237,6 +1237,13 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      // Manual / pure-chat policy: 純聊天模式承諾「只回覆文字、不執行任何動作」。
+      // 即使動作通過確認卡也不應該被 dispatch — 早早 return 避免下面的 pendingPlan
+      // / executorTask / codeTask / actionsToExecute 任一分支觸發。
+      if (preferencesForChat?.confirmationPolicy === "manual") {
+        return;
+      }
+
       // Per-page disable: if the user disabled this page in settings,
       // surface the reply but skip every action / workflow / executor branch.
       const disabledPageAgents = (prefRow as { disabledPageAgents?: string[] })?.disabledPageAgents ?? [];
