@@ -311,6 +311,9 @@ function estimateTokenCostUsd(
     "gpt-4o-mini": { input: 0.15, output: 0.6 },
     "MiniMax-M2.7": { input: 0.3, output: 1.2 },
     "minimaxai/minimax-m2.7": { input: 0.3, output: 1.2 },
+    "claude-opus-4-7": { input: 15.0, output: 75.0 },
+    "claude-sonnet-4-6": { input: 3.0, output: 15.0 },
+    "claude-haiku-4-5": { input: 0.8, output: 4.0 },
   };
   const key =
     Object.keys(PRICING).find(k => model.includes(k)) ?? "gemini-2.5-flash";
@@ -463,12 +466,39 @@ const GEMINI_MODEL_REMAP: Record<string, string> = {
 /**
  * 正規化模型名稱，確保與所選引擎相容。
  *   - Gemini API/Vertex API：不接受 OpenAI/Claude 名稱 → remap
+ *   - Anthropic API：不接受 Gemini/OpenAI 名稱 → remap
  *   - Vertex 路徑（"vertex/gemini-..."）→ 取 "/" 後半段
  *   - Forge/其他代理 API：不做任何修改（代理層自行處理）
  */
+const ANTHROPIC_MODEL_REMAP: Record<string, string> = {
+  // Gemini → Claude 等效對應
+  "gemini-2.5-pro": "claude-sonnet-4-6",
+  "gemini-2.5-flash": "claude-haiku-4-5-20251001",
+  "gemini-1.5-pro": "claude-sonnet-4-6",
+  "gemini-1.5-flash": "claude-haiku-4-5-20251001",
+  // OpenAI → Claude 等效對應
+  "gpt-4o": "claude-sonnet-4-6",
+  "gpt-4o-mini": "claude-haiku-4-5-20251001",
+  "gpt-4-turbo": "claude-sonnet-4-6",
+  "gpt-4": "claude-sonnet-4-6",
+  "gpt-3.5-turbo": "claude-haiku-4-5-20251001",
+  // Friendly aliases
+  "claude-haiku": "claude-haiku-4-5-20251001",
+  "claude-sonnet": "claude-sonnet-4-6",
+  "claude-opus": "claude-opus-4-7",
+};
+
 function normalizeModelForEngine(model: string, engineName: string): string {
   const isGeminiEndpoint =
     engineName.includes("Gemini") || engineName.includes("Vertex");
+  const isAnthropicEndpoint = engineName.includes("Anthropic");
+
+  if (isAnthropicEndpoint) {
+    // Already a Claude model id → leave as-is.
+    if (model.startsWith("claude-")) return model;
+    return ANTHROPIC_MODEL_REMAP[model] ?? "claude-haiku-4-5-20251001";
+  }
+
   if (!isGeminiEndpoint) return model;
 
   // 處理 "vertex/gemini-2.5-pro" 路徑格式
@@ -576,6 +606,226 @@ function adaptResponseFormatForGemini(
     return { type: "json_object" };
   }
   return format;
+}
+
+// ─── Anthropic native API adapter ──────────────────────────────────────────
+//
+// Anthropic /v1/messages 使用與 OpenAI chat completions 不同的格式：
+//   - system 訊息走獨立的 top-level `system` 字串欄位，不放在 `messages` 裡
+//   - tools 用 { name, description, input_schema } 而不是 { function: {...} }
+//   - tool_choice 形式不同：{ type: "auto" | "any" | "tool", name? }
+//   - 回應是 content[] 區塊（text + tool_use），不是 choices[].message
+//   - 認證用 x-api-key header，不是 Bearer
+//
+// 這層 adapter 負責雙向轉換，讓 invokeLLM 的呼叫端維持 OpenAI 風格的介面，
+// 不需要為了 Claude 特別寫 if/else。
+
+const ANTHROPIC_VERSION = "2023-06-01";
+
+interface AnthropicTextBlock {
+  type: "text";
+  text: string;
+}
+
+interface AnthropicImageBlock {
+  type: "image";
+  source: {
+    type: "base64" | "url";
+    media_type?: string;
+    data?: string;
+    url?: string;
+  };
+}
+
+interface AnthropicToolUseBlock {
+  type: "tool_use";
+  id: string;
+  name: string;
+  input: Record<string, unknown>;
+}
+
+interface AnthropicToolResultBlock {
+  type: "tool_result";
+  tool_use_id: string;
+  content: string;
+  is_error?: boolean;
+}
+
+type AnthropicContentBlock =
+  | AnthropicTextBlock
+  | AnthropicImageBlock
+  | AnthropicToolUseBlock
+  | AnthropicToolResultBlock;
+
+interface AnthropicMessage {
+  role: "user" | "assistant";
+  content: string | AnthropicContentBlock[];
+}
+
+interface AnthropicResponse {
+  id: string;
+  type: "message";
+  role: "assistant";
+  model: string;
+  content: AnthropicContentBlock[];
+  stop_reason: string | null;
+  usage?: {
+    input_tokens: number;
+    output_tokens: number;
+  };
+}
+
+function messagesToAnthropic(messages: Message[]): {
+  system: string | undefined;
+  messages: AnthropicMessage[];
+} {
+  let system: string | undefined;
+  const out: AnthropicMessage[] = [];
+
+  for (const msg of messages) {
+    if (msg.role === "system") {
+      const text = Array.isArray(msg.content)
+        ? msg.content
+            .map(c =>
+              typeof c === "string" ? c : c.type === "text" ? c.text : ""
+            )
+            .join("\n")
+        : typeof msg.content === "string"
+          ? msg.content
+          : msg.content.type === "text"
+            ? msg.content.text
+            : "";
+      system = system ? `${system}\n\n${text}` : text;
+      continue;
+    }
+
+    if (msg.role === "tool" || msg.role === "function") {
+      // Anthropic surfaces tool results as user messages with tool_result blocks.
+      const text = Array.isArray(msg.content)
+        ? msg.content
+            .map(c => (typeof c === "string" ? c : JSON.stringify(c)))
+            .join("\n")
+        : typeof msg.content === "string"
+          ? msg.content
+          : JSON.stringify(msg.content);
+      out.push({
+        role: "user",
+        content: [
+          {
+            type: "tool_result",
+            tool_use_id: msg.tool_call_id ?? "unknown",
+            content: text,
+          },
+        ],
+      });
+      continue;
+    }
+
+    const role: "user" | "assistant" = msg.role === "assistant" ? "assistant" : "user";
+    if (typeof msg.content === "string") {
+      out.push({ role, content: msg.content });
+      continue;
+    }
+    const blocks: AnthropicContentBlock[] = [];
+    for (const part of Array.isArray(msg.content) ? msg.content : [msg.content]) {
+      if (typeof part === "string") {
+        blocks.push({ type: "text", text: part });
+      } else if (part.type === "text") {
+        blocks.push({ type: "text", text: part.text });
+      } else if (part.type === "image_url") {
+        blocks.push({
+          type: "image",
+          source: { type: "url", url: part.image_url.url },
+        });
+      }
+      // file_url and other types: not supported by Anthropic /v1/messages directly,
+      // skip silently — caller can pre-resolve to text or images.
+    }
+    out.push({ role, content: blocks });
+  }
+
+  return { system, messages: out };
+}
+
+function toolsToAnthropic(tools?: Tool[]): Array<{
+  name: string;
+  description?: string;
+  input_schema: Record<string, unknown>;
+}> | undefined {
+  if (!tools || tools.length === 0) return undefined;
+  return tools.map(t => ({
+    name: t.function.name,
+    description: t.function.description,
+    input_schema: (t.function.parameters as Record<string, unknown>) ?? {
+      type: "object",
+      properties: {},
+    },
+  }));
+}
+
+function toolChoiceToAnthropic(
+  choice: ToolChoice | undefined
+): { type: "auto" } | { type: "any" } | { type: "tool"; name: string } | undefined {
+  if (!choice) return undefined;
+  if (choice === "none") return undefined;
+  if (choice === "auto") return { type: "auto" };
+  if (choice === "required") return { type: "any" };
+  if (typeof choice === "object" && "name" in choice && typeof choice.name === "string") {
+    return { type: "tool", name: choice.name };
+  }
+  if (typeof choice === "object" && "type" in choice && choice.type === "function") {
+    return { type: "tool", name: choice.function.name };
+  }
+  return undefined;
+}
+
+function anthropicResponseToInvokeResult(resp: AnthropicResponse): InvokeResult {
+  const textParts = resp.content
+    .filter((b): b is AnthropicTextBlock => b.type === "text")
+    .map(b => b.text);
+  const toolUses = resp.content.filter(
+    (b): b is AnthropicToolUseBlock => b.type === "tool_use"
+  );
+
+  const tool_calls: ToolCall[] | undefined =
+    toolUses.length > 0
+      ? toolUses.map(b => ({
+          id: b.id,
+          type: "function" as const,
+          function: { name: b.name, arguments: JSON.stringify(b.input ?? {}) },
+        }))
+      : undefined;
+
+  const finishReason =
+    resp.stop_reason === "tool_use"
+      ? "tool_calls"
+      : resp.stop_reason === "end_turn"
+        ? "stop"
+        : resp.stop_reason ?? "stop";
+
+  return {
+    id: resp.id,
+    created: Math.floor(Date.now() / 1000),
+    model: resp.model,
+    choices: [
+      {
+        index: 0,
+        message: {
+          role: "assistant",
+          content: textParts.join("\n").trim(),
+          ...(tool_calls ? { tool_calls } : {}),
+        },
+        finish_reason: finishReason,
+      },
+    ],
+    usage: resp.usage
+      ? {
+          prompt_tokens: resp.usage.input_tokens,
+          completion_tokens: resp.usage.output_tokens,
+          total_tokens: resp.usage.input_tokens + resp.usage.output_tokens,
+        }
+      : undefined,
+  };
 }
 
 // ─── LLM retry constants ───────────────────────────────────────────────────
@@ -766,12 +1016,24 @@ async function invokeSingleEngine(
   // ── 解析最終模型名稱（含 engine 相容性正規化）───────────
   const rawModel = overrideModel ?? engineConfig.model;
   const resolvedModel = normalizeModelForEngine(rawModel, engineConfig.name);
+  const isAnthropicEngine = engineConfig.engine === "anthropic";
 
-  const payload: Record<string, unknown> = {
-    model: resolvedModel,
-    messages: messages.map(normalizeMessage),
-    max_tokens: maxTokens ?? max_tokens ?? 8192,
-  };
+  const payload: Record<string, unknown> = isAnthropicEngine
+    ? (() => {
+        const { system, messages: anthropicMessages } = messagesToAnthropic(messages);
+        const p: Record<string, unknown> = {
+          model: resolvedModel,
+          messages: anthropicMessages,
+          max_tokens: maxTokens ?? max_tokens ?? 8192,
+        };
+        if (system) p.system = system;
+        return p;
+      })()
+    : {
+        model: resolvedModel,
+        messages: messages.map(normalizeMessage),
+        max_tokens: maxTokens ?? max_tokens ?? 8192,
+      };
 
   // 注入 AI 大腦的 temperature / top_p（若已設定）
   if (typeof temperature === "number" && temperature >= 0 && temperature <= 2) {
@@ -786,13 +1048,25 @@ async function invokeSingleEngine(
     payload.thinking = { budget_tokens: 128 };
   }
 
-  if (tools && tools.length > 0) payload.tools = tools;
+  if (tools && tools.length > 0) {
+    if (isAnthropicEngine) {
+      const anthropicTools = toolsToAnthropic(tools);
+      if (anthropicTools) payload.tools = anthropicTools;
+    } else {
+      payload.tools = tools;
+    }
+  }
 
-  const normalizedToolChoice = normalizeToolChoice(
-    toolChoice || tool_choice,
-    tools
-  );
-  if (normalizedToolChoice) payload.tool_choice = normalizedToolChoice;
+  if (isAnthropicEngine) {
+    const anthropicChoice = toolChoiceToAnthropic(toolChoice || tool_choice);
+    if (anthropicChoice) payload.tool_choice = anthropicChoice;
+  } else {
+    const normalizedToolChoice = normalizeToolChoice(
+      toolChoice || tool_choice,
+      tools
+    );
+    if (normalizedToolChoice) payload.tool_choice = normalizedToolChoice;
+  }
 
   const normalizedResponseFormat = normalizeResponseFormat({
     responseFormat,
@@ -800,7 +1074,7 @@ async function invokeSingleEngine(
     outputSchema,
     output_schema,
   });
-  if (normalizedResponseFormat) {
+  if (normalizedResponseFormat && !isAnthropicEngine) {
     // Gemini/Vertex 引擎：簡化 schema 以避免 400 "too many states" 錯誤
     const isGeminiEngine =
       engineConfig.engine === "gemini" || engineConfig.engine === "vertex";
@@ -808,6 +1082,8 @@ async function invokeSingleEngine(
       ? adaptResponseFormatForGemini(normalizedResponseFormat)
       : normalizedResponseFormat;
   }
+  // Anthropic doesn't accept response_format. For json_object/json_schema callers,
+  // strict-JSON behaviour is achieved via the system prompt + tool_use schemas.
 
   const startTime = Date.now();
   const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -822,12 +1098,19 @@ async function invokeSingleEngine(
           () => controller.abort(),
           LLM_REQUEST_TIMEOUT_MS
         );
+        const headers: Record<string, string> = isAnthropicEngine
+          ? {
+              "content-type": "application/json",
+              "x-api-key": engineConfig.apiKey,
+              "anthropic-version": ANTHROPIC_VERSION,
+            }
+          : {
+              "content-type": "application/json",
+              authorization: `Bearer ${engineConfig.apiKey}`,
+            };
         const response = await fetch(engineConfig.url, {
           method: "POST",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${engineConfig.apiKey}`,
-          },
+          headers,
           body: JSON.stringify(payload),
           signal: controller.signal,
         });
@@ -862,7 +1145,10 @@ async function invokeSingleEngine(
           throw err;
         }
 
-        result = (await response.json()) as InvokeResult;
+        const rawJson = await response.json();
+        result = isAnthropicEngine
+          ? anthropicResponseToInvokeResult(rawJson as AnthropicResponse)
+          : (rawJson as InvokeResult);
         lastError = null;
         break;
       } catch (err: unknown) {

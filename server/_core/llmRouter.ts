@@ -1,32 +1,38 @@
 /**
- * llmRouter.ts — 四引擎智慧路由層（含斷路器 + 健康感知自動降級）
+ * llmRouter.ts — 五引擎智慧路由層（含斷路器 + 健康感知自動降級）
  *
- * ┌─────────────────────────────────────────────────────────────────┐
- * │                    LLM Router (此檔案)                          │
- * ├──────────────┬────────────┬──────────────────┬─────────────────┤
- * │  Engine A    │ Engine B   │   Engine C       │   Engine D      │
- * │  Gemini API  │ Vertex AI  │  Manus Forge     │  MiniMax M2.7   │
- * │  (直接呼叫)  │ (GCP SDK)  │  (向後相容降級)  │  (NVIDIA NIM)   │
- * └──────────────┴────────────┴──────────────────┴─────────────────┘
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │                       LLM Router (此檔案)                               │
+ * ├────────────┬──────────────┬────────────┬──────────────┬─────────────────┤
+ * │ Engine ⭐  │  Engine A    │ Engine B   │   Engine C   │   Engine D      │
+ * │ Anthropic  │  Gemini API  │ Vertex AI  │ Manus Forge  │ MiniMax M2.7    │
+ * │ Claude API │  (直接呼叫)  │ (GCP SDK)  │ (向後相容)   │ (NVIDIA NIM)    │
+ * └────────────┴──────────────┴────────────┴──────────────┴─────────────────┘
  *
  * 路由策略（可在 .env 中設定 LLM_ENGINE 覆蓋）：
- *   auto     → 自動偵測可用引擎，健康感知優先：gemini > minimax > vertex > forge
- *   gemini   → 強制使用 Gemini API（需要 GEMINI_API_KEY）
- *   vertex   → 強制使用 Vertex AI（需要 GOOGLE_APPLICATION_CREDENTIALS_JSON）
- *   forge    → 強制使用 Manus Forge（需要 BUILT_IN_FORGE_API_KEY）
- *   minimax  → 強制使用 MiniMax M2.7 via NVIDIA NIM（需要 NVIDA_API）
+ *   auto      → 健康感知優先：anthropic > gemini > nvidia > vertex > forge
+ *   anthropic → 強制使用 Anthropic Claude API（需要 ANTHROPIC_API_KEY，光球代理首選）
+ *   gemini    → 強制使用 Gemini API（需要 GEMINI_API_KEY）
+ *   vertex    → 強制使用 Vertex AI（需要 GOOGLE_APPLICATION_CREDENTIALS_JSON）
+ *   forge     → 強制使用 Manus Forge（需要 BUILT_IN_FORGE_API_KEY）
+ *   nvidia    → 強制使用 MiniMax M2.7 via NVIDIA NIM（需要 NVIDIA_API）
  *
  * 每個 Engine 支援的功能：
- *   Engine A (Gemini API)   ：chat, json_mode, function_calling, vision, thinking
- *   Engine B (Vertex AI)    ：chat, json_mode, function_calling, vision, grounding, long_context
- *   Engine C (Forge)        ：chat, json_mode, function_calling, vision, thinking, whisper, maps
- *   Engine D (MiniMax M2.7) ：chat, json_mode, function_calling, long_context (200K), agentic
+ *   Engine ⭐ (Anthropic)    ：chat, json_mode, tool_use, vision, thinking, long_context (200K)
+ *   Engine A  (Gemini API)   ：chat, json_mode, function_calling, vision, thinking
+ *   Engine B  (Vertex AI)    ：chat, json_mode, function_calling, vision, grounding, long_context
+ *   Engine C  (Forge)        ：chat, json_mode, function_calling, vision, thinking, whisper, maps
+ *   Engine D  (MiniMax M2.7) ：chat, json_mode, function_calling, long_context (200K), agentic
  *
  * 穩定性機制：
  *   1. Circuit Breaker — 連續失敗 N 次後自動斷路，冷卻後半開放試探
  *   2. Health-Aware Routing — auto 模式自動跳過不健康的引擎
  *   3. Automatic Failover — invokeLLM 內建引擎降級鏈，首選引擎失敗後自動嘗試備援
  *   4. Exponential Backoff — 每次重試指數退避，避免雪崩
+ *
+ * 為何 Anthropic 排第一：對「全站光球代理」最關鍵的能力是 tool use 的可靠性
+ * 與多步驟反問判斷力 — Claude Sonnet/Haiku 在這兩點上明顯領先 Gemini Flash。
+ * tool_call schema 不會幻覺欄位、reasoning 出錯時會主動詢問而不是亂下動作。
  */
 
 import { serverEnv } from "./env.validated";
@@ -34,7 +40,13 @@ import { ENV } from "./env";
 
 // ─── 引擎類型 ──────────────────────────────────────────────────────────────
 
-export type LLMEngine = "gemini" | "vertex" | "forge" | "nvidia" | "auto";
+export type LLMEngine =
+  | "anthropic"
+  | "gemini"
+  | "vertex"
+  | "forge"
+  | "nvidia"
+  | "auto";
 
 export interface EngineConfig {
   name: string;
@@ -165,6 +177,12 @@ export function detectAvailableEngines(): Array<{
 }> {
   const available: Array<{ engine: LLMEngine; reason: string }> = [];
 
+  if (ENV.anthropicApiKey) {
+    available.push({
+      engine: "anthropic",
+      reason: "ANTHROPIC_API_KEY 已設定（光球代理主引擎）",
+    });
+  }
   if (ENV.geminiApiKey) {
     available.push({ engine: "gemini", reason: "GEMINI_API_KEY 已設定" });
   }
@@ -209,7 +227,7 @@ export function resolveEngineConfig(forceEngine?: LLMEngine): EngineConfig {
 
   // ── Auto 模式 — 健康感知路由 ───────────────────────────────
   // 優先順序：gemini > nvidia > vertex > forge
-  const autoOrder: LLMEngine[] = ["gemini", "nvidia", "vertex", "forge"];
+  const autoOrder: LLMEngine[] = ["anthropic", "gemini", "nvidia", "vertex", "forge"];
 
   for (const engine of autoOrder) {
     if (!isEngineAvailable(engine)) continue;
@@ -242,7 +260,7 @@ export function resolveEngineConfig(forceEngine?: LLMEngine): EngineConfig {
 export function getEngineFallbackChain(
   primaryEngine: LLMEngine
 ): EngineConfig[] {
-  const allOrder: LLMEngine[] = ["gemini", "nvidia", "vertex", "forge"];
+  const allOrder: LLMEngine[] = ["anthropic", "gemini", "nvidia", "vertex", "forge"];
   const fallbacks: EngineConfig[] = [];
 
   for (const engine of allOrder) {
@@ -263,6 +281,25 @@ export function getEngineFallbackChain(
  */
 function resolveSpecificEngine(engine: LLMEngine): EngineConfig {
   switch (engine) {
+    case "anthropic":
+      if (!ENV.anthropicApiKey)
+        throw new Error("Engine 'anthropic' 指定但 ANTHROPIC_API_KEY 未設定");
+      return {
+        name: "Anthropic Claude API",
+        engine: "anthropic",
+        // Native messages endpoint — invokeSingleEngine handles the
+        // Anthropic-specific request/response shape.
+        url: "https://api.anthropic.com/v1/messages",
+        apiKey: ENV.anthropicApiKey,
+        // Haiku 4.5 = best speed/cost for orb dispatch + clarification.
+        // Override per-call (model: "claude-sonnet-4-6") for harder planning.
+        model: "claude-haiku-4-5-20251001",
+        supportsThinking: true,
+        supportsGrounding: false,
+        supportsLongContext: true,
+        supportsToolCalling: true,
+      };
+
     case "gemini":
       if (!ENV.geminiApiKey)
         throw new Error("Engine 'gemini' 指定但 GEMINI_API_KEY 未設定");
