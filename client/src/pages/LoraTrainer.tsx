@@ -832,12 +832,6 @@ export default function LoraTrainer() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <VisualSoul
-            size="sm"
-            state={aiState}
-            personality={personality}
-            className="!w-6 !h-6"
-          />
           <Button
             className="rounded-xl gap-1.5 text-xs sm:text-sm shrink-0 min-h-[44px]"
             onClick={() => {

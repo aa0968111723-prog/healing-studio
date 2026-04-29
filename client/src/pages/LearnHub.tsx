@@ -2359,12 +2359,6 @@ export default function LearnHub() {
             <Sparkles className="w-4 h-4 mr-1.5" />
             教學總覽
           </Button>
-          <VisualSoul
-            size="sm"
-            state={aiState}
-            personality={personality}
-            className="!w-6 !h-6"
-          />
         </div>
       </div>
 
