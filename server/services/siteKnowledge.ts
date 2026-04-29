@@ -383,6 +383,21 @@ export const MODEL_RECOMMENDATION_KNOWLEDGE = `
     步驟 1 → [ACTION:navigate:/lora-trainer] + 說明「先訓練品牌風格模型」
     步驟 2 → 模型就緒後 → [ACTION:navigate:/image-studio] + [ACTION:setTab:sd]（使用 LoRA）
     步驟 3 → [ACTION:navigate:/video-studio] + [ACTION:setModel:sora-t2v]
+
+【跨頁面 Action 回退規則】
+當光球要執行 setModel / setTab / setParam / applyPreset 等頁面操作時，
+若目前頁面不是對應的工作室頁面，光球必須先說明：
+「這個操作需要在 [頁面名稱] 才能執行，我先幫你導航過去。」
+然後先執行 [ACTION:navigate:/target-page]，
+再執行對應的 setModel / setTab 等動作。
+
+絕對不能在非對應頁面靜默發出 setModel / setTab 指令而不導航。
+
+對應關係：
+- setModel/setTab(t2i/edit/upscale/pose/sd/3d) → 需在 /image-studio
+- setModel/setTab(t2v/i2v/v2v/enhance/control) → 需在 /video-studio
+- setModel/setTab(music/sfx/tts/clone) → 需在 /pro-studio
+- setModality/setMode/applyPreset → 需在 /studio
 `;
 
 // ─── 工作流程知識 ────────────────────────────────────────────────────────────

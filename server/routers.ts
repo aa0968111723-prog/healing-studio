@@ -4516,48 +4516,23 @@ export const appRouter = router({
           if (idempotencyGuardEnabled && idempotencyCandidate) {
             const idempotencyKey = buildOrbIdempotencyKey({
               userId: ctx.user.id,
+              sessionId: (ctx as { sessionId?: string }).sessionId,
               text: latestTextContent,
               attachmentUrls,
             });
             const duplicate = findDuplicateTask(idempotencyKey);
-            if (duplicate) {
+            if (duplicate && Date.now() - duplicate.createdAt < 5_000) {
               appendTelemetryEvent(telemetryEvents, "idempotency.duplicate_detected", {
                 key: idempotencyKey.slice(0, 16),
                 taskId: duplicate.taskId ?? null,
                 planId: duplicate.planId ?? null,
               });
-              const meta = makePlannerMeta({
-                plannerStatus: "duplicate_task",
-                preferredEngine: "auto",
-                warnings: ["Duplicate task detected."],
-                taskId: duplicate.taskId ?? null,
-              });
               return {
-                reply:
-                  "我發現你剛剛已送出相同任務，為了避免重複扣額度，我先沿用既有任務進度。",
-                actions: [],
-                intent: null,
-                askBeforeAct: true,
-                suggestions: [],
-                toolCalls: [],
-                telemetry: {
-                  traceId: meta.traceId,
-                  planId: meta.planId,
-                  taskId: meta.taskId,
-                  plannerStatus: meta.plannerStatus,
-                  preferredEngine: meta.preferredEngine,
-                  decisionMode: null,
-                  riskLevel: null,
-                  usedMultimodalPlanner: false,
-                  durationMs: null,
-                  outcome: "duplicate",
-                  events: telemetryEvents,
-                },
-                ...meta,
-                taskDraft: null,
+                duplicate: true,
+                taskId: duplicate.taskId ?? null,
               };
             }
-            rememberTaskKey(idempotencyKey, {});
+            rememberTaskKey(idempotencyKey, { taskId: undefined });
           }
 
           const attachmentGuard = validateAttachmentGuards(plannerMessages as Message[]);

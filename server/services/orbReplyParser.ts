@@ -75,6 +75,7 @@ export const ORB_DESTRUCTIVE_ACTIONS = new Set([
   "applyPreset",
   "preset",
   "generate",
+  "fillPrompt",
   "runWorkflow",
 ]);
 
@@ -132,7 +133,7 @@ export function parseOrbReply(
         ? parsed.suggestions
             .filter((s): s is string => typeof s === "string")
             .map(s => s.trim())
-            .filter(s => s.length > 0 && s.length <= 20)
+            .filter(s => s.length > 0 && Array.from(s).length <= 20)
             .slice(0, 4)
         : [];
       const toolCalls = Array.isArray(parsed.toolCalls)
@@ -217,15 +218,17 @@ export function parseOrbReply(
 
   // ── SUGGEST marker ─────────────────────────────────────────────
   const suggestions: string[] = [];
-  const suggestMatch = /\[SUGGEST:([^\]]+)\]/.exec(reply);
-  if (suggestMatch) {
-    suggestMatch[1]
-      .split("|")
+  const suggestMatches = Array.from(reply.matchAll(/\[SUGGEST:([^\]]+)\]/g));
+  if (suggestMatches.length > 0) {
+    suggestMatches
+      .flatMap(m => m[1].split("|"))
       .map(s => s.trim())
-      .filter(s => s.length > 0 && s.length <= 20)
-      .slice(0, 4)
-      .forEach(s => suggestions.push(s));
-    reply = reply.replace(suggestMatch[0], "").trim();
+      .filter(s => s.length > 0 && Array.from(s).length <= 20)
+      .forEach(s => {
+        if (!suggestions.includes(s)) suggestions.push(s);
+      });
+    suggestions.splice(4);
+    reply = reply.replace(/\[SUGGEST:[^\]]+\]/g, "").trim();
   }
 
   // ── TOOL markers ────────────────────────────────────────────────
