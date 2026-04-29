@@ -610,6 +610,22 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       timeoutMs: 120_000,
     },
     {
+      modelId: "fal-ai/bytedance/seedream/v4/text-to-image",
+      label: "SeeDream v4 (ByteDance)",
+      category: "text-to-image",
+      tier: "premium",
+      description:
+        "ByteDance SeeDream v4 高品質文字生圖，支援中文提示詞與負向提示，擅長東方美學風格",
+      inputSchema: {
+        prompt: true,
+        aspectRatio: true,
+        negativePrompt: true,
+        seed: true,
+      },
+      outputSchema: { images: true, seed: true },
+      timeoutMs: 120_000,
+    },
+    {
       modelId: "fal-ai/imagen4/preview",
       label: "Imagen 4 Preview (Google)",
       category: "text-to-image",
