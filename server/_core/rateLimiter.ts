@@ -23,7 +23,7 @@
  *   app.use("/api/auth", rateLimiters.auth);
  */
 
-import rateLimit, { type Options as RateLimitOptions } from "express-rate-limit";
+import rateLimit, { ipKeyGenerator, type Options as RateLimitOptions } from "express-rate-limit";
 import type { Request, Response, NextFunction, RequestHandler } from "express";
 import { logger } from "./logger";
 
@@ -87,8 +87,8 @@ function buildRateLimitKey(req: Request): string {
   const userId = (req as Request & { user?: { id?: number } }).user?.id;
   if (userId) return `user:${userId}`;
 
-  // Fall back to IP address (req.ip respects trust proxy setting)
-  const ip = req.ip ?? req.socket?.remoteAddress ?? "unknown";
+  // Fall back to IP address — use ipKeyGenerator to properly handle IPv6 addresses
+  const ip = ipKeyGenerator(req);
   return `ip:${ip}`;
 }
 

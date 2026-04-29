@@ -558,42 +558,24 @@ function simplifySchemaForGemini(
 }
 
 /**
- * 針對 Gemini/Vertex 引擎，將 response_format 中的 json_schema 簡化。
- * 若 schema 過於複雜，降級為 json_object 模式（仍可取得 JSON，但不強制 schema）。
+ * 針對 Gemini/Vertex 引擎，將 response_format 強制降級為 json_object。
+ *
+ * Gemini API 的 json_schema 模式對 schema 複雜度有嚴格限制，
+ * 即使簡化後仍會回傳 400 "The specified schema produces a constraint
+ * that has too many states for serving"。
+ *
+ * 解決方案：Gemini 一律使用 json_object 模式（仍可取得 JSON 輸出，
+ * 但不強制 schema 驗證）。json_schema 模式僅保留給 Vertex AI 以外的引擎。
  */
 function adaptResponseFormatForGemini(
   format: ResponseFormat
 ): ResponseFormat {
-  if (format.type !== "json_schema") return format;
-
-  try {
-    const originalSchema = format.json_schema.schema as Record<string, unknown>;
-    const simplified = simplifySchemaForGemini(originalSchema);
-
-    // 若簡化後屬性數量仍超過安全閾值，直接降級為 json_object
-    const propCount =
-      typeof simplified.properties === "object" && simplified.properties !== null
-        ? Object.keys(simplified.properties).length
-        : 0;
-    if (propCount > GEMINI_SCHEMA_MAX_PROPERTIES) {
-      console.warn(
-        `[LLM] Gemini schema 過複雜（${propCount} 個屬性），降級為 json_object 模式`
-      );
-      return { type: "json_object" };
-    }
-
-    return {
-      type: "json_schema",
-      json_schema: {
-        ...format.json_schema,
-        schema: simplified,
-        strict: false, // Gemini 不支援 strict mode
-      },
-    };
-  } catch {
-    // 簡化失敗 → 安全降級
+  // Always fall back to json_object for Gemini — json_schema mode triggers
+  // "too many states" 400 errors regardless of schema complexity.
+  if (format.type === "json_schema" || format.type === "json_object") {
     return { type: "json_object" };
   }
+  return format;
 }
 
 // ─── LLM retry constants ───────────────────────────────────────────────────
