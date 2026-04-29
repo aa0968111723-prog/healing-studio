@@ -107,6 +107,8 @@ export default function AgentPreferencesPage() {
 
   // ── Per-page permissions ──
   const [disabledPageAgents, setDisabledPageAgents] = useState<string[]>([]);
+  // ── Per-page × per-action allowlist (Gap 9) ──
+  const [disabledActionsByPage, setDisabledActionsByPage] = useState<Record<string, string[]>>({});
 
   // ── Assistant UI ──
   const [orbAgentEnabled, setOrbAgentEnabled] = useState<boolean | null>(null);
@@ -130,6 +132,11 @@ export default function AgentPreferencesPage() {
     setAutoApproveCsv(arrayToCsv(initial.autoApproveTools));
     setBlockedCsv(arrayToCsv(initial.blockedTools));
     setDisabledPageAgents(Array.isArray(initial.disabledPageAgents) ? initial.disabledPageAgents : []);
+    setDisabledActionsByPage(
+      initial.disabledActionsByPage && typeof initial.disabledActionsByPage === "object"
+        ? (initial.disabledActionsByPage as Record<string, string[]>)
+        : {}
+    );
     setOrbAgentEnabled(
       typeof initial.orbAgentEnabled === "boolean" ? initial.orbAgentEnabled : null
     );
@@ -158,6 +165,7 @@ export default function AgentPreferencesPage() {
     initial.orbWelcomeMessage,
     initial.orbShortcutEnabled,
     initial.orbProactiveSuggestions,
+    initial.disabledActionsByPage,
   ]);
 
   const policyForMode = useMemo<AgentConfirmationPolicy>(() => MODE_TO_POLICY[mode], [mode]);
@@ -167,6 +175,37 @@ export default function AgentPreferencesPage() {
     setDisabledPageAgents(prev =>
       prev.includes(pageId) ? prev.filter(id => id !== pageId) : [...prev, pageId]
     );
+  };
+
+  const PER_PAGE_ACTION_OPTIONS: Array<{ id: string; label: string; danger?: boolean }> = [
+    { id: "fillPrompt", label: "fillPrompt" },
+    { id: "setModel", label: "setModel" },
+    { id: "setTab", label: "setTab" },
+    { id: "setMode", label: "setMode" },
+    { id: "setModality", label: "setModality" },
+    { id: "setParam", label: "setParam" },
+    { id: "applyPreset", label: "applyPreset", danger: true },
+    { id: "submit", label: "submit", danger: true },
+    { id: "reset", label: "reset", danger: true },
+    { id: "navigate", label: "navigate" },
+    { id: "focusElement", label: "focusElement" },
+    { id: "openDialog", label: "openDialog" },
+    { id: "search", label: "search" },
+    { id: "toggleSetting", label: "toggleSetting" },
+    { id: "runWorkflow", label: "runWorkflow", danger: true },
+  ];
+
+  const togglePerPageAction = (pageId: string, actionType: string) => {
+    setDisabledActionsByPage(prev => {
+      const current = new Set(prev[pageId] ?? []);
+      if (current.has(actionType)) current.delete(actionType);
+      else current.add(actionType);
+      const nextList = Array.from(current);
+      const next = { ...prev };
+      if (nextList.length === 0) delete next[pageId];
+      else next[pageId] = nextList;
+      return next;
+    });
   };
 
   const handleSave = () => {
@@ -185,6 +224,7 @@ export default function AgentPreferencesPage() {
       autoApproveTools: csvToArray(autoApproveCsv),
       blockedTools: csvToArray(blockedCsv),
       disabledPageAgents,
+      disabledActionsByPage,
       orbAgentEnabled,
       workflowsEnabled,
       orbWidgetCorner,
@@ -379,26 +419,59 @@ export default function AgentPreferencesPage() {
         <TabsContent value="pages" className="space-y-3 pt-4">
           <section className="space-y-3 rounded-2xl border bg-card p-4">
             <p className="text-xs text-muted-foreground">
-              關閉某頁的代理權限後，光球在那個頁面只會聊天，不會 dispatch 任何動作。共 {APP_PAGE_REGISTRY.length} 個頁面。
+              第一層：整頁開關（關 = 光球純聊天）。第二層：在某頁內逐一封鎖特定動作類型（例如「圖片工作室」可允許 fillPrompt 但禁 submit）。
             </p>
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="space-y-3">
               {APP_PAGE_REGISTRY.filter(page => page.supportsPageAgent).map(page => {
-                const disabled = disabledPageAgents.includes(page.id);
+                const pageDisabled = disabledPageAgents.includes(page.id);
+                const blockedActions = new Set(disabledActionsByPage[page.id] ?? []);
                 return (
-                  <label
-                    key={page.id}
-                    className="flex items-center justify-between gap-3 rounded-xl border p-2 text-sm"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate font-medium">{page.label}</div>
-                      <div className="truncate text-xs text-muted-foreground">{page.path}</div>
+                  <div key={page.id} className="rounded-xl border p-3 text-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate font-medium">{page.label}</div>
+                        <div className="truncate text-xs text-muted-foreground">{page.path}</div>
+                      </div>
+                      <Switch
+                        checked={!pageDisabled}
+                        onCheckedChange={() => togglePageDisabled(page.id)}
+                        aria-label={`${page.label} 代理開關`}
+                      />
                     </div>
-                    <Switch
-                      checked={!disabled}
-                      onCheckedChange={() => togglePageDisabled(page.id)}
-                      aria-label={`${page.label} 代理開關`}
-                    />
-                  </label>
+
+                    {!pageDisabled && (
+                      <details className="mt-2 group">
+                        <summary className="cursor-pointer text-xs text-muted-foreground group-open:text-foreground">
+                          細模許可（{blockedActions.size > 0 ? `已封鎖 ${blockedActions.size} 種動作` : "未限制"}）
+                        </summary>
+                        <div className="mt-2 grid gap-1 sm:grid-cols-3">
+                          {PER_PAGE_ACTION_OPTIONS.map(option => {
+                            const blocked = blockedActions.has(option.id);
+                            return (
+                              <label
+                                key={option.id}
+                                className={`flex items-center gap-2 rounded border px-2 py-1 text-xs ${
+                                  blocked ? "border-destructive/40 bg-destructive/5 text-destructive" : "border-border"
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={blocked}
+                                  onChange={() => togglePerPageAction(page.id, option.id)}
+                                />
+                                <span className={option.danger ? "font-semibold" : ""}>
+                                  {option.label}
+                                </span>
+                                {option.danger && (
+                                  <span className="ml-auto text-[10px] text-destructive">破壞性</span>
+                                )}
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </details>
+                    )}
+                  </div>
                 );
               })}
             </div>

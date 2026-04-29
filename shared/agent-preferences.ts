@@ -33,6 +33,15 @@ export interface AgentPreferences {
   workflowsEnabled: boolean | null;
   /** Page IDs the user has disabled agent dispatch for. */
   disabledPageAgents: string[];
+  /**
+   * Fine-grained allowlist: 2-D map of pageId → array of action types the
+   * user has explicitly disabled on that page. Empty / missing pageId =
+   * follow disabledPageAgents (all-or-nothing).
+   *
+   * Example: `{ "image-studio": ["submit", "applyPreset"] }` lets the orb
+   * fillPrompt and navigate but blocks destructive submit / preset apply.
+   */
+  disabledActionsByPage: Record<string, string[]>;
   // ── Orb assistant UI prefs ────────────────────────────────────
   orbWidgetCorner: OrbWidgetCorner;
   orbWelcomeMessage: string | null;
@@ -56,6 +65,7 @@ export const DEFAULT_AGENT_PREFERENCES: Omit<AgentPreferences, "userId"> = {
   orbAgentEnabled: null,
   workflowsEnabled: null,
   disabledPageAgents: [],
+  disabledActionsByPage: {},
   orbWidgetCorner: "bottom-right",
   orbWelcomeMessage: null,
   orbShortcutEnabled: true,

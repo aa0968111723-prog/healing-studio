@@ -42,6 +42,8 @@ import { buildMemoryContext, upsertMemory } from "./services/ragMemory";
 import { buildOrbSystemPrompt } from "./services/siteKnowledge";
 import { parseOrbReply } from "./services/orbReplyParser";
 import { sanitizeOrbMessages } from "../shared/orb-prompt-defense";
+import { moderateOrbContent } from "../shared/orb-content-moderation";
+import { checkModalityCoherence } from "../shared/orb-modality-coherence";
 import { executeOrbToolCalls } from "./services/agentToolExecutor";
 import { getOrbToolRegistry } from "./config/orbToolRegistry";
 import { orbTaskRepository } from "./repositories/orbTaskRepository";
@@ -357,6 +359,62 @@ function pickReasoningSlotForOrbChat(input: {
   }
 
   return "director";
+}
+
+/**
+ * Drop any planner action whose type is disabled for the current page in the
+ * user's `disabledActionsByPage` map. Returns the filtered actions plus the
+ * list of dropped action types so the caller can surface that in warnings /
+ * telemetry. Workflows are recursed: any inner step matching a disabled
+ * action type is removed from the workflow's `steps[]`.
+ */
+function applyDisabledActionsByPage<T extends { type: string }>(
+  actions: T[],
+  pageId: string | undefined,
+  disabledActionsByPage: Record<string, string[]> | undefined
+): { actions: T[]; dropped: string[] } {
+  if (!actions || actions.length === 0) {
+    return { actions: actions ?? [], dropped: [] };
+  }
+  const map = disabledActionsByPage ?? {};
+  const disabledForPage = new Set(
+    [
+      ...(pageId ? map[pageId] ?? [] : []),
+      ...(map["*"] ?? []), // wildcard for "every page"
+    ].map(s => String(s).toLowerCase())
+  );
+  if (disabledForPage.size === 0) {
+    return { actions, dropped: [] };
+  }
+  const dropped: string[] = [];
+  const filtered = actions
+    .map(action => {
+      if (disabledForPage.has(action.type.toLowerCase())) {
+        dropped.push(action.type);
+        return null;
+      }
+      // For runWorkflow, also strip inner steps with disabled actionType.
+      if (action.type === "runWorkflow") {
+        const wf = action as unknown as {
+          type: "runWorkflow";
+          name: string;
+          steps: Array<{ actionType: string }>;
+        };
+        const keptSteps = wf.steps.filter(step => {
+          const blocked = disabledForPage.has(String(step.actionType).toLowerCase());
+          if (blocked) dropped.push(`runWorkflow.${step.actionType}`);
+          return !blocked;
+        });
+        if (keptSteps.length === 0) {
+          dropped.push("runWorkflow");
+          return null;
+        }
+        return { ...wf, steps: keptSteps } as unknown as T;
+      }
+      return action;
+    })
+    .filter((a): a is T => a !== null);
+  return { actions: filtered, dropped };
 }
 
 function sanitizeTelemetryValue(input: unknown): unknown {
@@ -4526,6 +4584,12 @@ export const appRouter = router({
               autoApproveTools: z.array(z.string().max(64)).max(64).optional(),
               blockedTools: z.array(z.string().max(64)).max(64).optional(),
               allowedRiskLevels: z.array(z.string().max(24)).max(8).optional(),
+              orbAgentEnabled: z.boolean().nullable().optional(),
+              workflowsEnabled: z.boolean().nullable().optional(),
+              disabledPageAgents: z.array(z.string().max(64)).max(64).optional(),
+              disabledActionsByPage: z
+                .record(z.string().max(64), z.array(z.string().max(40)).max(20))
+                .optional(),
             })
             .optional(),
           /** 客戶端請求去重 ID（可由 x-request-id 同步傳入） */
@@ -5147,9 +5211,34 @@ export const appRouter = router({
             }
 
             if (plannerResult && plannerResult.status === "converted") {
+              // Gap 36: validate planner-selected modality matches the user's
+              // declared modality before shipping the plan. On mismatch we add
+              // a warning + log telemetry so ops can see when the orb routes
+              // to the wrong studio.
+              const planLikeForModality =
+                plannerResult.plan && typeof plannerResult.plan === "object"
+                  ? (plannerResult.plan as { steps?: Array<{ action?: { type?: string; modality?: string; path?: string }; pagePath?: string }> })
+                  : null;
+              const coherence = checkModalityCoherence({
+                userText: latestTextContent,
+                steps: planLikeForModality?.steps ?? [],
+              });
+              if (coherence.mismatch) {
+                appendTelemetryEvent(telemetryEvents, "orb.modality.mismatch", {
+                  declared: coherence.declared ?? "",
+                  selected: coherence.selected ?? "",
+                });
+              }
               const warnings = globalWorkflowsEnabled
-                ? plannerResult.warnings
-                : [...plannerResult.warnings, "Global Agent workflows 已關閉，僅提供文字回覆。"];
+                ? [
+                    ...plannerResult.warnings,
+                    ...(coherence.mismatch ? [coherence.message] : []),
+                  ]
+                : [
+                    ...plannerResult.warnings,
+                    ...(coherence.mismatch ? [coherence.message] : []),
+                    "Global Agent workflows 已關閉，僅提供文字回覆。",
+                  ];
               const actions = globalWorkflowsEnabled ? plannerResult.actions : [];
               const meta = makePlannerMeta({
                 plannerStatus: plannerResult.status,
@@ -5158,14 +5247,44 @@ export const appRouter = router({
                 preferredEngine: plannerResult.preferredEngine,
                 usedMultimodalPlanner: plannerResult.usedMultimodalPlanner,
               });
+              // Gap 17: moderate the converted reply.
+              const convertedModeration = moderateOrbContent(plannerResult.reply ?? "");
+              const moderatedReply = convertedModeration.action !== "pass"
+                ? convertedModeration.text
+                : plannerResult.reply ?? "我已幫你整理好下一步。";
+              if (convertedModeration.action !== "pass") {
+                appendTelemetryEvent(telemetryEvents, "orb.moderation.flagged", {
+                  action: convertedModeration.action,
+                  categories: Array.from(
+                    new Set(convertedModeration.findings.map(f => f.category))
+                  ).join(","),
+                  outcome: "converted",
+                });
+              }
+              const moderatedActions = convertedModeration.action === "block" ? [] : actions;
+              // Gap 9: drop actions blocked for the current page in user prefs.
+              const perPageFiltered = applyDisabledActionsByPage(
+                moderatedActions,
+                input.pageSnapshot?.pageId,
+                input.preferences?.disabledActionsByPage
+              );
+              if (perPageFiltered.dropped.length > 0) {
+                appendTelemetryEvent(telemetryEvents, "orb.per_page_action.blocked", {
+                  pageId: input.pageSnapshot?.pageId ?? "",
+                  dropped: perPageFiltered.dropped.join(","),
+                });
+                warnings.push(
+                  `已依使用者頁面權限略過：${perPageFiltered.dropped.join(", ")}`
+                );
+              }
               return {
-                reply: plannerResult.reply ?? "我已幫你整理好下一步。",
-                actions,
+                reply: moderatedReply,
+                actions: perPageFiltered.actions,
                 intent: plannerResult.intent ?? null,
                 askBeforeAct:
-                  actions.length > 0 &&
+                  perPageFiltered.actions.length > 0 &&
                   (plannerResult.askBeforeAct ||
-                    Boolean(input.alwaysConfirm && actions.length > 0)),
+                    Boolean(input.alwaysConfirm && perPageFiltered.actions.length > 0)),
                 suggestions: [],
                 toolCalls: [],
                 plannerOutput: plannerResult.rawContent ?? plannerResult.plan,
@@ -5555,7 +5674,38 @@ export const appRouter = router({
           const legacy = parseOrbReply(rawReply, {
             alwaysConfirm: input.alwaysConfirm,
           });
-          const legacyActions = globalWorkflowsEnabled ? legacy.actions : [];
+          // Gap 17: moderate the LLM reply text before it reaches the user.
+          const legacyModeration = moderateOrbContent(legacy.reply ?? "");
+          if (legacyModeration.action !== "pass") {
+            appendTelemetryEvent(telemetryEvents, "orb.moderation.flagged", {
+              action: legacyModeration.action,
+              categories: Array.from(
+                new Set(legacyModeration.findings.map(f => f.category))
+              ).join(","),
+            });
+            legacy.reply = legacyModeration.text;
+            // Block strips actions too — never dispatch when moderation blocks.
+            if (legacyModeration.action === "block") {
+              legacy.actions = [];
+            }
+          }
+          const legacyActionsRaw = globalWorkflowsEnabled ? legacy.actions : [];
+          // Gap 9: drop disabled-for-this-page action types from the legacy
+          // fallback path too. Cast: legacy.actions is the loose AgentAction
+          // union; only the `type` field matters for filtering.
+          const legacyPerPage = applyDisabledActionsByPage(
+            legacyActionsRaw as Array<{ type: string }>,
+            input.pageSnapshot?.pageId,
+            input.preferences?.disabledActionsByPage
+          );
+          if (legacyPerPage.dropped.length > 0) {
+            appendTelemetryEvent(telemetryEvents, "orb.per_page_action.blocked", {
+              pageId: input.pageSnapshot?.pageId ?? "",
+              dropped: legacyPerPage.dropped.join(","),
+              outcome: "fallback",
+            });
+          }
+          const legacyActions = legacyPerPage.actions as typeof legacy.actions;
           // Decide a more precise plannerStatus so ops can tell the four
           // fallback reasons apart in telemetry dashboards:
           //   - fallback-schema-disabled: env flag explicitly off

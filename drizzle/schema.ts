@@ -89,6 +89,11 @@ export const agentPreferences = mysqlTable(
     workflowsEnabled: boolean("workflowsEnabled"),
     // ── Per-page agent disable list (json array of pageIds) ──────────
     disabledPageAgents: json("disabledPageAgents").$type<string[]>().default([]).notNull(),
+    // ── Per-page × per-action 細模許可 (Record<pageId, string[]>) ──
+    disabledActionsByPage: json("disabledActionsByPage")
+      .$type<Record<string, string[]>>()
+      .default({})
+      .notNull(),
     // ── Orb assistant UI prefs ───────────────────────────────────────
     orbWidgetCorner: mysqlEnum("orbWidgetCorner", [
       "bottom-right",

@@ -29,6 +29,9 @@ export interface OrbTaskAuditEvent {
     | "step.timeout"
     | "step.retry_scheduled"
     | "step.retry_attempted"
+    | "step.rollback_pending"
+    | "step.rollback_completed"
+    | "step.rollback_failed"
     | "task.recovering"
     | "task.replanning"
     | "task.completed"
@@ -39,7 +42,9 @@ export interface OrbTaskAuditEvent {
     | "claudeCode.plan_created"
     | "claudeCode.pr_ready"
     | "claudeCode.failed"
-    | "agent.message"; // formal inter-agent messaging channel
+    | "agent.message" // formal inter-agent messaging channel
+    | "moderation.flagged"
+    | "modality.mismatch";
   message: string;
   metadata?: Record<string, unknown>;
 }
@@ -64,6 +69,14 @@ export interface OrbAgentTaskStep {
   attemptCount?: number;
   /** When set, scheduler should defer the next attempt until this timestamp. */
   retryAfterAt?: number;
+  /**
+   * Compensation / rollback action to dispatch if this step fails permanently.
+   * Server stores it as opaque `unknown` so we don't import the full
+   * AgentExecutableAction type into this dep-light module; consumers cast.
+   */
+  compensationAction?: unknown;
+  /** Status of the rollback flow for this step. */
+  rollbackStatus?: "pending" | "completed" | "failed" | "skipped";
 }
 
 /**

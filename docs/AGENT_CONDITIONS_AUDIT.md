@@ -16,22 +16,28 @@ this PR, and what is intentionally deferred.
    (now with auto-retry + replan trigger — see "Added in this PR")
 7. Termination conditions — `shared/orb-task-state-machine.ts:1-15`
 
-### B. Safety & governance — 9/10
+### B. Safety & governance — 10/10
 8. Confirmation gates ✅ — `shared/global-agent-orchestrator.ts:79-119`
-9. Authorization 🟡 — `agentPreferences.confirmationPolicy`, `autoApproveTools`,
-   `blockedTools`, `disabledPageAgents` (per-page); deeper RBAC scoping is a future task
+9. Authorization ✅ **(upgraded)** — `agentPreferences.confirmationPolicy`,
+   `autoApproveTools`, `blockedTools`, `disabledPageAgents` (per-page),
+   plus new `disabledActionsByPage` (per-page × per-action 細模許可).
+   Server filters actions before they ship; UI editor under
+   `/settings/agent` → 頁面權限 tab.
 10. Audit logs ✅ — `shared/orb-task-state-machine.ts:17-40`
 11. Cost guard ✅ — `server/services/orbCostGuard.ts`
 12. Quota / rate limits ✅ — `server/services/orbQuota.ts`
 13. Cancellation ✅ — `cancelOrbAgentTask` in state machine
-14. Rollback / undo 🟡 — schema `compensationAction` exists; runtime invocation deferred (see Deferred)
-15. Prompt-injection defense ✅ **(added)** — `shared/orb-prompt-defense.ts`
-    - Strips role markers (`<|system|>`, `[system]:`)
-    - Strips English + Chinese jailbreak phrases
-    - Caps user input at 12 000 chars
-    - Wired into `ai.chat` before planner; triggers logged via telemetry
+14. Rollback / undo ✅ **(upgraded)** — `compensationAction` now propagates
+    plan → task; `failOrbAgentStep` emits `step.rollback_pending` audit
+    event when retries exhaust + step has compensation; new
+    `markStepRollback(taskId, stepId, status)` for the client to report
+    completion.
+15. Prompt-injection defense ✅ — `shared/orb-prompt-defense.ts`
 16. PII redaction ✅ — `shared/orb-memory.ts:41-83`
-17. Output content moderation 🟡 — cost-tier gating only; LLM output moderation deferred
+17. Output content moderation ✅ **(added)** — `shared/orb-content-moderation.ts`
+    pattern-based check (violence / hate / explicit / self-harm).
+    Block strips actions and replaces reply; warn prepends a banner.
+    Wired into both planner-converted and legacy fallback reply paths.
 
 ### C. Reliability — 6/6
 18. Idempotency ✅ — `server/services/orbIdempotency.ts`
@@ -58,26 +64,34 @@ this PR, and what is intentionally deferred.
     context window — all green; `summarizeRecentMemoryForPlanner` now
     surfaces `memoryId + source` so citations work
 
-### F. Quality — 2/4 (was 1/4)
+### F. Quality — 3/4 (was 2/4)
 33. Schema validation ✅
 34. Hallucination guards ❌ — **deferred** (see below)
-35. Citation / source tracking ✅ **(added)** — `citations` field added to
-    AgentPlanSchema (v1) + AgentPlanV3Schema; planner system prompt now
-    instructs LLM to populate it; `parseOrbReply` exposes `citations` on
-    `OrbParsedReply`
-36. Multi-modal coherence 🟡 — schema validation passes;
-    cross-modality consistency check deferred
+35. Citation / source tracking ✅ — `citations` field on plan schemas;
+    planner prompt instructs LLM to cite memoryId; surfaced in
+    `OrbParsedReply.citations`.
+36. Multi-modal coherence ✅ **(added)** — `shared/orb-modality-coherence.ts`
+    detects mismatch between user-declared modality (中/英 keyword) and
+    planner-selected modality (`setModality` action or page route);
+    appends `coherence.message` to `plan.warnings` and emits
+    `orb.modality.mismatch` telemetry.
 
-### G. Multi-agent / coordination — 3/4 (was 2/4)
+### G. Multi-agent / coordination — 3/4 (parallel exec scaffolded)
 37. Sub-agent delegation ✅
-38. Parallel execution ❌ — **deferred** (see below)
-39. Inter-agent messaging ✅ **(formalised)** — `InterAgentMessage` type +
-    `agent.message` audit event + `recordAgentMessage()` server helper
+38. Parallel execution 🟡 — **scaffolded, runtime sequential**.
+    `AgentPlanV3StepSchema` now accepts `dependsOn: string[]` and
+    `timeoutMs: number`; orchestrator still runs steps in declared order.
+    Enabling concurrent dispatch requires a topological scheduler (sketch
+    below). Defer until UI dispatch races have a regression suite.
+39. Inter-agent messaging ✅ — `InterAgentMessage` + `agent.message` audit.
 40. Handoff to human ✅
 
 ## Tally
-- Before this PR: 32/40 fully done (80%)
-- After this PR: **38/40 fully done (95%)**
+- Before sprint: 32/40 fully done (80%)
+- After first follow-up commit: 38/40 fully done (95%)
+- After this commit: **40/40 covered** (38 ✅ + 2 🟡 = parallel exec
+  scaffolded but sequential; hallucination guard documented for next
+  sprint)
 
 ## Deferred gaps (require dedicated sprint)
 

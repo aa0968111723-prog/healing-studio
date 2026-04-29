@@ -1079,6 +1079,17 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
             autoApproveTools: (prefRow as { autoApproveTools?: string[] }).autoApproveTools,
             blockedTools: (prefRow as { blockedTools?: string[] }).blockedTools,
             allowedRiskLevels: (prefRow as { allowedRiskLevels?: string[] }).allowedRiskLevels,
+            // Per-user kill-switch override + per-page / per-action gates
+            // — server uses these to block actions before they ship back.
+            orbAgentEnabled:
+              (prefRow as { orbAgentEnabled?: boolean | null }).orbAgentEnabled ?? null,
+            workflowsEnabled:
+              (prefRow as { workflowsEnabled?: boolean | null }).workflowsEnabled ?? null,
+            disabledPageAgents:
+              (prefRow as { disabledPageAgents?: string[] }).disabledPageAgents,
+            disabledActionsByPage:
+              (prefRow as { disabledActionsByPage?: Record<string, string[]> })
+                .disabledActionsByPage,
           }
         : undefined;
       const data = await aiChat.mutateAsync({

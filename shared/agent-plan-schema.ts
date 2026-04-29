@@ -429,6 +429,14 @@ export const AgentPlanV3StepSchema = AgentPlanStepSchema.extend({
     onFail: z.enum(["skip", "abort", "goto"]),
     gotoStepId: z.string().trim().min(1).max(80).optional(),
   }).optional(),
+  /** Optional per-step timeout (ms). Falls back to DEFAULT_STEP_TIMEOUT_MS. */
+  timeoutMs: z.number().int().min(1_000).max(600_000).optional(),
+  /**
+   * Optional list of step ids this step depends on. Future parallel
+   * scheduler reads this field to build a DAG; today the orchestrator
+   * still runs steps sequentially regardless.
+   */
+  dependsOn: z.array(z.string().trim().min(1).max(80)).max(8).optional(),
 });
 export type AgentPlanV3Step = z.infer<typeof AgentPlanV3StepSchema>;
 

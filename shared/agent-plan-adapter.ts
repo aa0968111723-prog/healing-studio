@@ -223,6 +223,10 @@ export interface OrbTaskDraftStep {
     requiresApproval: boolean;
   }>;
   condition?: AgentPlanV3Step["condition"];
+  /** Compensation action to dispatch on permanent failure (rollback). */
+  compensationAction?: unknown;
+  /** Per-step timeout (ms) used by the orchestrator's AbortController. */
+  timeoutMs?: number;
 }
 
 export interface OrbTaskDraft {
@@ -315,6 +319,8 @@ function v3StepToOrbTaskStep(step: AgentPlanV3Step): OrbTaskDraftStep {
     uiActions,
     toolCalls,
     condition: step.condition,
+    compensationAction: step.compensationAction,
+    timeoutMs: (step as { timeoutMs?: number }).timeoutMs,
   };
 }
 

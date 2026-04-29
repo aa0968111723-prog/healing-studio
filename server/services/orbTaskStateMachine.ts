@@ -66,6 +66,10 @@ export function createOrbAgentTaskFromPlanner(result: GatedAgentPlanResult): Orb
     status: "pending",
     requiresApproval: step.toolCalls.some(t => t.requiresApproval),
     condition: step.condition,
+    // Propagate rollback + timeout hints from the plan into the task so
+    // failOrbAgentStep + runStepWithTimeout can act on them at runtime.
+    compensationAction: step.compensationAction,
+    timeoutMs: step.timeoutMs,
   }));
   const createdAt = now();
   const task: OrbAgentTask = {
@@ -322,6 +326,22 @@ export function failOrbAgentStep(
   task.failedReason = reason;
   task.updatedAt = now();
   pushEvent(task, "step.failed", `Step failed: ${step?.label ?? stepId}`, { stepId, reason });
+  // Gap 14: emit a rollback_pending event so the client orchestrator can
+  // dispatch the compensation action. We never auto-execute it here because
+  // compensation actions touch UI state — that work belongs on the client.
+  if (step && step.compensationAction) {
+    step.rollbackStatus = "pending";
+    pushEvent(
+      task,
+      "step.rollback_pending",
+      `Rollback queued for ${step.label ?? stepId}`,
+      {
+        stepId,
+        compensationAction: step.compensationAction,
+        reason,
+      }
+    );
+  }
   pushEvent(task, "task.failed", reason);
   if (task.preferredEngine === "claudeCode") {
     pushEvent(task, "claudeCode.failed", reason);
@@ -456,6 +476,38 @@ export async function runStepWithTimeout<T>(args: {
     }
     return { ok: false, reason, timedOut: false };
   }
+}
+
+/**
+ * Mark the rollback flow for a failed step as completed / failed / skipped.
+ * Called by the front-end orchestrator after it dispatches the compensation
+ * action defined on the step. Safe to call even if no rollback was queued —
+ * just no-ops in that case.
+ */
+export function markStepRollback(
+  taskId: string,
+  stepId: string,
+  status: "completed" | "failed" | "skipped",
+  reason?: string
+): OrbAgentTask | null {
+  const task = taskStore.get(taskId);
+  if (!task) return null;
+  const step = task.steps.find(s => s.id === stepId);
+  if (!step) return task;
+  step.rollbackStatus = status;
+  task.updatedAt = now();
+  const eventType =
+    status === "completed"
+      ? "step.rollback_completed"
+      : status === "failed"
+      ? "step.rollback_failed"
+      : "step.rollback_completed";
+  pushEvent(task, eventType, `Rollback ${status} for ${step.label ?? stepId}`, {
+    stepId,
+    rollbackStatus: status,
+    reason,
+  });
+  return task;
 }
 
 /**

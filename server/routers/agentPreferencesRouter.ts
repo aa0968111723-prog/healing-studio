@@ -23,6 +23,10 @@ const UpdateSchema = z.object({
   workflowsEnabled: z.boolean().nullable().optional(),
   // Per-page agent disable list
   disabledPageAgents: z.array(z.string().max(64)).max(64).optional(),
+  // Per-page × per-action: { pageId: ["submit", "applyPreset", ...] }
+  disabledActionsByPage: z
+    .record(z.string().max(64), z.array(z.string().max(40)).max(20))
+    .optional(),
   // Orb widget UI prefs
   orbWidgetCorner: z
     .enum(["bottom-right", "bottom-left", "top-right", "top-left"])
