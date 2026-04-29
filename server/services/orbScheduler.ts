@@ -102,7 +102,7 @@ async function recordRunResult(
   }
 }
 
-async function runScheduledOrbJob(job: OrbScheduledJob): Promise<void> {
+export async function runScheduledOrbJob(job: OrbScheduledJob): Promise<void> {
   // The cron callback is invoked by node-cron's worker thread. We MUST
   // catch every error here — an unhandled rejection bubbling out would
   // crash the entire scheduler, taking every other user's job down with
@@ -207,6 +207,69 @@ export function listScheduledJobs(userId: number): OrbScheduledJob[] {
   return Array.from(jobRegistry.values())
     .map(({ job }) => job)
     .filter(job => job.userId === userId);
+}
+
+export function getScheduledJob(jobId: string): OrbScheduledJob | undefined {
+  return jobRegistry.get(jobId)?.job;
+}
+
+/**
+ * Toggle a job's enabled flag without losing its definition. When disabled
+ * we stop the cron task but keep the row in the DB so the user can resume
+ * it later from the panel without re-typing the cron expression.
+ */
+export async function setOrbJobEnabled(
+  jobId: string,
+  enabled: boolean
+): Promise<OrbScheduledJob | undefined> {
+  const existing = jobRegistry.get(jobId);
+  if (!existing) {
+    // Not in memory — try to load it from DB (e.g. server just rebooted and
+    // the cron rebuild raced with the user's click).
+    try {
+      const db = await getDb();
+      if (!db) return undefined;
+      const rows = await db
+        .select()
+        .from(orbScheduledJobs)
+        .where(eq(orbScheduledJobs.id, jobId))
+        .limit(1);
+      const row = rows[0];
+      if (!row) return undefined;
+      const job: OrbScheduledJob = {
+        id: row.id,
+        userId: row.userId,
+        cronExpression: row.cronExpression,
+        taskDescription: row.taskDescription,
+        enabled,
+        lastRunAt: row.lastRunAt ? row.lastRunAt.getTime() : undefined,
+        lastError: row.lastError ?? undefined,
+      };
+      await scheduleOrbJob(job);
+      return job;
+    } catch (error) {
+      console.warn(
+        "[OrbScheduler] setOrbJobEnabled DB lookup failed:",
+        error instanceof Error ? error.message : error
+      );
+      return undefined;
+    }
+  }
+
+  existing.job.enabled = enabled;
+  if (enabled) {
+    await scheduleOrbJob(existing.job);
+  } else {
+    try {
+      existing.task.stop();
+      existing.task.destroy();
+    } catch {
+      // best-effort
+    }
+    jobRegistry.delete(jobId);
+    await persistJob({ ...existing.job, enabled: false });
+  }
+  return existing.job;
 }
 
 async function loadPersistedJobs(): Promise<OrbScheduledJob[]> {

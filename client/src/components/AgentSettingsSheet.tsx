@@ -32,7 +32,17 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Trash2, CalendarPlus, Save } from "lucide-react";
+import {
+  Trash2,
+  CalendarPlus,
+  Save,
+  Play,
+  Pause,
+  Clock,
+  AlertCircle,
+  Check,
+  Search,
+} from "lucide-react";
 import {
   DEFAULT_AGENT_PREFERENCES,
   type AgentConfirmationPolicy,
@@ -319,33 +329,12 @@ export default function AgentSettingsSheet({
 
               {/* ── 工具許可 ──────────────────────────────────────── */}
               <TabsContent value="tools" className="space-y-3 pt-4">
-                <section className="space-y-3 rounded-2xl border bg-card p-4">
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    用逗號或換行分隔工具名稱。白名單裡的工具會直接執行不問你；黑名單裡的工具一律拒絕。輸入{" "}
-                    <code className="rounded bg-muted px-1">*</code>{" "}
-                    代表所有工具。
-                  </p>
-                  <label className="block text-sm">
-                    <span className="font-medium">白名單（自動同意）</span>
-                    <textarea
-                      className="mt-1 w-full rounded border p-2 text-xs font-mono"
-                      rows={3}
-                      value={autoApproveCsv}
-                      onChange={event => setAutoApproveCsv(event.target.value)}
-                      placeholder="例：fal.imagine, gemini.tts"
-                    />
-                  </label>
-                  <label className="block text-sm">
-                    <span className="font-medium">黑名單（永遠拒絕）</span>
-                    <textarea
-                      className="mt-1 w-full rounded border p-2 text-xs font-mono"
-                      rows={3}
-                      value={blockedCsv}
-                      onChange={event => setBlockedCsv(event.target.value)}
-                      placeholder="例：deploy.preview, github.pr.create"
-                    />
-                  </label>
-                </section>
+                <ToolsPickerSection
+                  autoApproveCsv={autoApproveCsv}
+                  setAutoApproveCsv={setAutoApproveCsv}
+                  blockedCsv={blockedCsv}
+                  setBlockedCsv={setBlockedCsv}
+                />
               </TabsContent>
 
               {/* ── 全站開關 ──────────────────────────────────────── */}
@@ -458,14 +447,36 @@ function ScheduleSection({ isAuthenticated }: { isAuthenticated: boolean }) {
     },
     onError: error => toast.error(`取消失敗：${error.message ?? "未知錯誤"}`),
   });
+  const setEnabledMutation = trpc.orbScheduler.setEnabled.useMutation({
+    onSuccess: () => jobsQuery.refetch(),
+    onError: error => toast.error(`切換失敗：${error.message ?? "未知錯誤"}`),
+  });
+  const runNowMutation = trpc.orbScheduler.runNow.useMutation({
+    onSuccess: () => {
+      toast.success("已觸發執行 — 結果會回寫到「上次執行」");
+      // Give the orb a beat before refetching so lastRunAt updates show up.
+      setTimeout(() => jobsQuery.refetch(), 1500);
+    },
+    onError: error => toast.error(`執行失敗：${error.message ?? "未知錯誤"}`),
+  });
 
   const [id, setId] = useState("");
   const [cron, setCron] = useState("0 9 * * *");
   const [taskDescription, setTaskDescription] = useState("");
 
+  const trimmedCron = cron.trim();
+  const previewQuery = trpc.orbScheduler.previewCron.useQuery(
+    { cronExpression: trimmedCron, count: 3 },
+    {
+      enabled: isAuthenticated && trimmedCron.length > 0,
+      retry: false,
+      staleTime: 30_000,
+    }
+  );
+
   const matchedPreset = useMemo(
-    () => CRON_PRESETS.find(preset => preset.cron === cron.trim())?.id ?? null,
-    [cron]
+    () => CRON_PRESETS.find(preset => preset.cron === trimmedCron)?.id ?? null,
+    [trimmedCron]
   );
 
   const handleCreate = () => {
@@ -474,7 +485,6 @@ function ScheduleSection({ isAuthenticated }: { isAuthenticated: boolean }) {
       return;
     }
     const trimmedId = id.trim();
-    const trimmedCron = cron.trim();
     const trimmedTask = taskDescription.trim();
     if (!trimmedId || !trimmedCron || !trimmedTask) {
       toast.error("ID、cron 與任務描述都要填");
@@ -516,37 +526,95 @@ function ScheduleSection({ isAuthenticated }: { isAuthenticated: boolean }) {
         {jobs.map(job => (
           <div
             key={job.id}
-            className="flex items-center justify-between gap-3 rounded-xl border p-3 text-sm"
+            className="flex flex-col gap-2 rounded-xl border p-3 text-sm"
           >
-            <div className="min-w-0 flex-1">
-              <div className="truncate font-medium">{job.id}</div>
-              <div className="truncate text-xs text-muted-foreground">
-                <code className="rounded bg-muted px-1 mr-1">
-                  {job.cronExpression}
-                </code>
-                {job.taskDescription}
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate font-medium">{job.id}</span>
+                  {!job.enabled && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
+                      已暫停
+                    </span>
+                  )}
+                </div>
+                <div className="truncate text-xs text-muted-foreground mt-0.5">
+                  <code className="rounded bg-muted px-1 mr-1">
+                    {job.cronExpression}
+                  </code>
+                  {job.taskDescription}
+                </div>
+                {job.lastRunAt && (
+                  <div className="text-[10px] text-muted-foreground mt-0.5">
+                    上次執行：{new Date(job.lastRunAt).toLocaleString("zh-TW")}
+                  </div>
+                )}
+                {job.lastError && (
+                  <div className="text-[10px] text-destructive mt-0.5 flex items-start gap-1">
+                    <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
+                    <span className="line-clamp-2">{job.lastError}</span>
+                  </div>
+                )}
               </div>
-              {job.lastRunAt && (
-                <div className="text-[10px] text-muted-foreground mt-0.5">
-                  上次執行：{new Date(job.lastRunAt).toLocaleString("zh-TW")}
-                </div>
-              )}
-              {job.lastError && (
-                <div className="text-[10px] text-destructive mt-0.5 truncate">
-                  上次錯誤：{job.lastError}
-                </div>
-              )}
+              <div className="flex items-center gap-1 shrink-0">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => runNowMutation.mutate({ jobId: job.id })}
+                  disabled={runNowMutation.isPending || !job.enabled}
+                  aria-label={`立即執行 ${job.id}`}
+                  title={
+                    job.enabled
+                      ? "立即執行一次"
+                      : "排程暫停中，先恢復才能執行"
+                  }
+                >
+                  <Play className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() =>
+                    setEnabledMutation.mutate({
+                      jobId: job.id,
+                      enabled: !job.enabled,
+                    })
+                  }
+                  disabled={setEnabledMutation.isPending}
+                  aria-label={
+                    job.enabled
+                      ? `暫停排程 ${job.id}`
+                      : `恢復排程 ${job.id}`
+                  }
+                  title={job.enabled ? "暫停（不刪除）" : "恢復排程"}
+                >
+                  {job.enabled ? (
+                    <Pause className="h-3.5 w-3.5" />
+                  ) : (
+                    <Play className="h-3.5 w-3.5 text-emerald-500" />
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        `確定刪除排程「${job.id}」？刪除後光球會停止自動執行這個任務。`
+                      )
+                    ) {
+                      unscheduleMutation.mutate({ jobId: job.id });
+                    }
+                  }}
+                  disabled={unscheduleMutation.isPending}
+                  aria-label={`刪除排程 ${job.id}`}
+                  title="刪除排程"
+                  className="text-destructive hover:bg-destructive/10"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             </div>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => unscheduleMutation.mutate({ jobId: job.id })}
-              disabled={unscheduleMutation.isPending}
-              aria-label={`取消排程 ${job.id}`}
-              title="取消排程"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
           </div>
         ))}
       </div>
@@ -586,6 +654,11 @@ function ScheduleSection({ isAuthenticated }: { isAuthenticated: boolean }) {
             value={cron}
             onChange={event => setCron(event.target.value)}
             className="font-mono text-xs"
+          />
+          <CronPreview
+            query={previewQuery}
+            cron={trimmedCron}
+            isAuthenticated={isAuthenticated}
           />
           <p className="text-[10px] text-muted-foreground">
             cron 格式：分(0-59) 時(0-23) 日(1-31) 月(1-12) 週(0-6, 週日為 0)。
@@ -628,6 +701,361 @@ function ScheduleSection({ isAuthenticated }: { isAuthenticated: boolean }) {
           {scheduleMutation.isPending ? "建立中..." : "建立排程"}
         </Button>
       </div>
+    </section>
+  );
+}
+
+// ───────────── Cron 即時預覽 ─────────────
+
+interface CronPreviewData {
+  ok: boolean;
+  nextRuns: string[];
+  error?: string;
+}
+
+interface CronPreviewProps {
+  query: { isLoading: boolean; data: CronPreviewData | undefined };
+  cron: string;
+  isAuthenticated: boolean;
+}
+
+function CronPreview({ query, cron, isAuthenticated }: CronPreviewProps) {
+  if (!isAuthenticated || !cron) return null;
+  if (query.isLoading) {
+    return (
+      <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+        <Clock className="h-3 w-3 animate-pulse" />
+        計算下 3 次執行時間…
+      </p>
+    );
+  }
+  const data = query.data;
+  if (!data) return null;
+  if (!data.ok) {
+    return (
+      <p className="text-[11px] text-destructive flex items-start gap-1">
+        <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
+        <span>{data.error ?? "cron 表達式無法解析"}</span>
+      </p>
+    );
+  }
+  if (data.nextRuns.length === 0) {
+    return (
+      <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+        <Clock className="h-3 w-3" />
+        在未來 1 年內找不到符合的執行時間（cron 可能定義過嚴格）
+      </p>
+    );
+  }
+  return (
+    <div className="text-[11px] text-emerald-700 dark:text-emerald-400 flex items-start gap-1.5 bg-emerald-50/60 dark:bg-emerald-900/20 border border-emerald-200/60 dark:border-emerald-700/40 rounded-md px-2 py-1.5">
+      <Clock className="h-3 w-3 mt-0.5 shrink-0" />
+      <div className="flex-1 space-y-0.5">
+        <p className="font-medium">接下來 {data.nextRuns.length} 次執行：</p>
+        {data.nextRuns.map(iso => (
+          <p key={iso} className="font-mono">
+            {new Date(iso).toLocaleString("zh-TW", {
+              month: "2-digit",
+              day: "2-digit",
+              weekday: "short",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ───────────── 工具許可子區塊 ─────────────
+
+interface ToolsPickerSectionProps {
+  autoApproveCsv: string;
+  setAutoApproveCsv: (value: string) => void;
+  blockedCsv: string;
+  setBlockedCsv: (value: string) => void;
+}
+
+function ToolsPickerSection({
+  autoApproveCsv,
+  setAutoApproveCsv,
+  blockedCsv,
+  setBlockedCsv,
+}: ToolsPickerSectionProps) {
+  const toolsQuery = trpc.agentPreferences.listAvailableTools.useQuery(
+    undefined,
+    { retry: false, staleTime: 60_000 }
+  );
+  const tools = toolsQuery.data ?? [];
+
+  const autoApprove = useMemo(
+    () =>
+      new Set(
+        autoApproveCsv
+          .split(/[,\n]/g)
+          .map(s => s.trim())
+          .filter(Boolean)
+      ),
+    [autoApproveCsv]
+  );
+  const blocked = useMemo(
+    () =>
+      new Set(
+        blockedCsv
+          .split(/[,\n]/g)
+          .map(s => s.trim())
+          .filter(Boolean)
+      ),
+    [blockedCsv]
+  );
+
+  const [filter, setFilter] = useState("");
+  const filtered = useMemo(() => {
+    const f = filter.trim().toLowerCase();
+    if (!f) return tools;
+    return tools.filter(
+      tool =>
+        tool.name.toLowerCase().includes(f) ||
+        tool.description.toLowerCase().includes(f)
+    );
+  }, [tools, filter]);
+
+  const setStatus = (
+    toolName: string,
+    status: "neutral" | "allow" | "block"
+  ) => {
+    const nextAllow = new Set(autoApprove);
+    const nextBlock = new Set(blocked);
+    nextAllow.delete(toolName);
+    nextBlock.delete(toolName);
+    if (status === "allow") nextAllow.add(toolName);
+    if (status === "block") nextBlock.add(toolName);
+    setAutoApproveCsv(Array.from(nextAllow).join(", "));
+    setBlockedCsv(Array.from(nextBlock).join(", "));
+  };
+
+  const customAllow = Array.from(autoApprove).filter(
+    name => !tools.some(tool => tool.name === name) && name !== "*"
+  );
+  const customBlock = Array.from(blocked).filter(
+    name => !tools.some(tool => tool.name === name) && name !== "*"
+  );
+
+  const allowAll = autoApprove.has("*");
+  const blockAll = blocked.has("*");
+
+  return (
+    <section className="space-y-3 rounded-2xl border bg-card p-4">
+      <div>
+        <h3 className="text-sm font-semibold">工具許可</h3>
+        <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">
+          綠色 = 自動同意（不彈確認）；紅色 = 一律拒絕。點按鈕直接切換，不熟工具就保持灰色。
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3 text-xs">
+        <label className="flex items-center gap-1.5">
+          <Switch
+            checked={allowAll}
+            onCheckedChange={value => {
+              const next = new Set(autoApprove);
+              if (value) next.add("*");
+              else next.delete("*");
+              setAutoApproveCsv(Array.from(next).join(", "));
+            }}
+          />
+          <span>全部自動同意（*）</span>
+        </label>
+        <label className="flex items-center gap-1.5">
+          <Switch
+            checked={blockAll}
+            onCheckedChange={value => {
+              const next = new Set(blocked);
+              if (value) next.add("*");
+              else next.delete("*");
+              setBlockedCsv(Array.from(next).join(", "));
+            }}
+          />
+          <span>全部一律拒絕（*）</span>
+        </label>
+      </div>
+
+      {toolsQuery.isLoading && (
+        <p className="text-xs text-muted-foreground">載入工具清單中…</p>
+      )}
+
+      {!toolsQuery.isLoading && tools.length === 0 && (
+        <div className="rounded-xl border border-dashed p-3 text-xs text-muted-foreground space-y-1">
+          <p>
+            站方目前沒有對外公開的光球工具（後端 ORB_TOOL_REGISTRY_JSON 尚未設定）。
+          </p>
+          <p>
+            你還是可以在下方「進階」用工具名稱手動加入名單，名稱要跟後端註冊一致。
+          </p>
+        </div>
+      )}
+
+      {tools.length > 0 && (
+        <>
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              value={filter}
+              onChange={event => setFilter(event.target.value)}
+              placeholder="搜尋工具名稱或用途…"
+              className="pl-7 text-xs"
+            />
+          </div>
+          <div className="max-h-64 overflow-y-auto space-y-1.5 pr-1">
+            {filtered.map(tool => {
+              const isAllow = autoApprove.has(tool.name);
+              const isBlock = blocked.has(tool.name);
+              const status: "allow" | "block" | "neutral" = isAllow
+                ? "allow"
+                : isBlock
+                  ? "block"
+                  : "neutral";
+              return (
+                <div
+                  key={tool.name}
+                  className={`rounded-lg border p-2 text-xs transition ${
+                    isAllow
+                      ? "border-emerald-300 bg-emerald-50/60 dark:bg-emerald-900/20"
+                      : isBlock
+                        ? "border-destructive/40 bg-destructive/5"
+                        : "border-border"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <code className="font-mono font-medium truncate">
+                          {tool.name}
+                        </code>
+                        <span className="text-[10px] px-1 py-0.5 rounded bg-muted text-muted-foreground uppercase">
+                          {tool.method}
+                        </span>
+                        {tool.requireConfirmation && (
+                          <span
+                            className="text-[10px] px-1 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                            title="此工具預設需要確認"
+                          >
+                            需確認
+                          </span>
+                        )}
+                        {tool.riskLevel && tool.riskLevel !== "low" && (
+                          <span
+                            className={`text-[10px] px-1 py-0.5 rounded ${
+                              tool.riskLevel === "high"
+                                ? "bg-destructive/15 text-destructive"
+                                : "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300"
+                            }`}
+                          >
+                            {tool.riskLevel}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-muted-foreground truncate mt-0.5">
+                        {tool.description}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setStatus(tool.name, "allow")}
+                        title="加入白名單（自動同意）"
+                        className={`h-6 w-6 rounded inline-flex items-center justify-center border ${
+                          status === "allow"
+                            ? "border-emerald-500 bg-emerald-500 text-white"
+                            : "border-border hover:border-emerald-400 text-muted-foreground hover:text-emerald-500"
+                        }`}
+                      >
+                        <Check className="h-3 w-3" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setStatus(tool.name, "block")}
+                        title="加入黑名單（一律拒絕）"
+                        className={`h-6 w-6 rounded inline-flex items-center justify-center border ${
+                          status === "block"
+                            ? "border-destructive bg-destructive text-white"
+                            : "border-border hover:border-destructive text-muted-foreground hover:text-destructive"
+                        }`}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setStatus(tool.name, "neutral")}
+                        title="重設（跟隨整體策略）"
+                        className={`h-6 w-6 rounded inline-flex items-center justify-center border text-[10px] ${
+                          status === "neutral"
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border hover:border-primary/40 text-muted-foreground"
+                        }`}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            {filtered.length === 0 && (
+              <p className="text-xs text-muted-foreground text-center py-2">
+                找不到符合「{filter}」的工具
+              </p>
+            )}
+          </div>
+        </>
+      )}
+
+      {(customAllow.length > 0 || customBlock.length > 0) && (
+        <div className="space-y-1.5 border-t pt-2">
+          <p className="text-[11px] font-medium text-muted-foreground">
+            自訂工具名稱（站方 registry 沒有，直接用名稱比對）
+          </p>
+          {customAllow.length > 0 && (
+            <p className="text-[11px] text-emerald-700 dark:text-emerald-400">
+              ✓ {customAllow.join(", ")}
+            </p>
+          )}
+          {customBlock.length > 0 && (
+            <p className="text-[11px] text-destructive">
+              ✕ {customBlock.join(", ")}
+            </p>
+          )}
+        </div>
+      )}
+
+      <details className="text-xs">
+        <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+          進階：直接編輯名單（CSV）
+        </summary>
+        <div className="space-y-2 mt-2">
+          <label className="block">
+            <span className="font-medium">白名單</span>
+            <textarea
+              className="mt-1 w-full rounded border p-2 text-[11px] font-mono"
+              rows={2}
+              value={autoApproveCsv}
+              onChange={event => setAutoApproveCsv(event.target.value)}
+              placeholder="例：fal.imagine, gemini.tts, *"
+            />
+          </label>
+          <label className="block">
+            <span className="font-medium">黑名單</span>
+            <textarea
+              className="mt-1 w-full rounded border p-2 text-[11px] font-mono"
+              rows={2}
+              value={blockedCsv}
+              onChange={event => setBlockedCsv(event.target.value)}
+              placeholder="例：deploy.preview, github.pr.create"
+            />
+          </label>
+        </div>
+      </details>
     </section>
   );
 }

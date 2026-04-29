@@ -5,6 +5,7 @@ import { agentPreferences } from "../../drizzle/schema";
 import { protectedProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { DEFAULT_AGENT_PREFERENCES } from "../../shared/agent-preferences";
+import { getOrbToolRegistry } from "../config/orbToolRegistry";
 
 const UpdateSchema = z.object({
   confirmationPolicy: z.enum(["always_approve", "confirm_high_risk", "confirm_all", "manual"]).optional(),
@@ -56,5 +57,21 @@ export const agentPreferencesRouter = router({
     await db.update(agentPreferences).set({ ...input }).where(and(eq(agentPreferences.userId, ctx.user.id)));
     const rows = await db.select().from(agentPreferences).where(eq(agentPreferences.userId, ctx.user.id)).limit(1);
     return rows[0];
+  }),
+
+  /**
+   * Surface the registered orb tools so the 代理設定 panel can show users
+   * a real picker instead of asking them to type tool names into a
+   * textarea. Returns minimal metadata (no headers / endpoints) so the
+   * registry's secrets stay server-side.
+   */
+  listAvailableTools: protectedProcedure.query(() => {
+    return getOrbToolRegistry().map(tool => ({
+      name: tool.name,
+      description: tool.description,
+      method: tool.method,
+      riskLevel: tool.riskLevel ?? "low",
+      requireConfirmation: Boolean(tool.requireConfirmation),
+    }));
   }),
 });
