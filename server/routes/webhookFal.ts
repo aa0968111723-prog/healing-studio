@@ -57,7 +57,7 @@ falWebhookRouter.post(
       }
 
       const payload = req.body as FalWebhookPayload;
-      const orbTraceId = (req.headers["x-orb-trace-id"] as string | undefined) || payload.orbTraceId || payload.request_id;
+      const orbTraceId = resolveOrbTraceId(req, payload);
 
       console.log(
         `[WebhookFal] Received: requestId=${payload.request_id} status=${payload.status}`
@@ -124,6 +124,24 @@ falWebhookRouter.post(
   }
 );
 
+
+function resolveOrbTraceId(req: Request, payload: FalWebhookPayload): string {
+  const headerTraceId = req.headers["x-orb-trace-id"] as string | undefined;
+  if (headerTraceId) return headerTraceId;
+
+  if (typeof payload.orbTraceId === "string" && payload.orbTraceId.trim()) {
+    return payload.orbTraceId;
+  }
+
+  const payloadMeta = payload.payload as Record<string, unknown> | undefined;
+  const metaTraceId = payloadMeta?.orbTraceId;
+  if (typeof metaTraceId === "string" && metaTraceId.trim()) {
+    return metaTraceId;
+  }
+
+  return payload.request_id;
+}
+
 // ─── 型別定義 ───────────────────────────────────────────────────────────────
 
 interface FalWebhookPayload {
@@ -155,7 +173,11 @@ function extractJobId(payload: FalWebhookPayload): number | null {
 
   // 嘗試從 payload metadata 解析
   const meta = payload.payload as any;
-  if (meta?.jobId && typeof meta.jobId === "number") return meta.jobId;
+  if (typeof meta?.jobId === "number") return meta.jobId;
+  if (typeof meta?.jobId === "string") {
+    const parsed = Number.parseInt(meta.jobId, 10);
+    if (!Number.isNaN(parsed)) return parsed;
+  }
 
   return null;
 }
