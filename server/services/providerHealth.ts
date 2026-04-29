@@ -15,6 +15,7 @@ export interface ProviderHealthSnapshot {
 }
 
 const healthStore = new Map<string, ProviderHealthSnapshot>();
+export let ELEVENLABS_AVAILABLE = true;
 
 function now() {
   return Date.now();
@@ -72,4 +73,20 @@ export function markProviderFailure(providerId: string, err: unknown): ProviderH
 
 export function __unsafe_resetProviderHealthForTests() {
   healthStore.clear();
+  ELEVENLABS_AVAILABLE = true;
+}
+
+export function setElevenLabsAvailability(available: boolean): void {
+  ELEVENLABS_AVAILABLE = available;
+}
+
+export async function checkElevenLabsHealth(): Promise<boolean> {
+  try {
+    const res = await fetch("https://api.elevenlabs.io/v1/user", {
+      headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY ?? "" },
+    });
+    return res.status === 200;
+  } catch {
+    return false;
+  }
 }

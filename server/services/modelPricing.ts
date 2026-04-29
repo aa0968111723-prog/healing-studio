@@ -2221,6 +2221,41 @@ export function getModelPricing(modelId: string): ModelPricing | null {
   return MODEL_PRICING_CATALOG[modelId] ?? null;
 }
 
+export function calculateActualCost(params: {
+  modelId: string;
+  billingSeconds?: number;
+  outputImages?: number;
+  outputVideoDuration?: number;
+}): number {
+  const pricing = MODEL_PRICING_CATALOG[params.modelId];
+  if (!pricing) return estimatePoints(params.modelId).totalPoints;
+
+  const billingSeconds = Math.max(0, params.billingSeconds ?? 0);
+  const outputImages = Math.max(0, params.outputImages ?? 0);
+  const outputVideoDuration = Math.max(0, params.outputVideoDuration ?? 0);
+
+  if (billingSeconds > 0 && pricing.pointsPerSecond) {
+    const total = Math.round(pricing.basePoints + billingSeconds * pricing.pointsPerSecond);
+    return Math.max(pricing.minPoints, Math.min(pricing.maxPoints, total));
+  }
+
+  if (outputVideoDuration > 0 && pricing.pointsPerSecond) {
+    const total = Math.round(pricing.basePoints + outputVideoDuration * pricing.pointsPerSecond);
+    return Math.max(pricing.minPoints, Math.min(pricing.maxPoints, total));
+  }
+
+  if (outputImages > 0) {
+    if (pricing.pointsPerImage) {
+      const total = pricing.basePoints + Math.max(0, outputImages - 1) * pricing.pointsPerImage;
+      return Math.max(pricing.minPoints, Math.min(pricing.maxPoints, total));
+    }
+    const total = pricing.basePoints * outputImages;
+    return Math.max(pricing.minPoints, Math.min(pricing.maxPoints, total));
+  }
+
+  return estimatePoints(params.modelId).totalPoints;
+}
+
 /**
  * 驗證 API Key 是否可用
  */

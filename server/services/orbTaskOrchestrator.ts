@@ -13,6 +13,7 @@ import {
 import { orbTaskStore as defaultOrbTaskStore } from "./orbTaskStore";
 import type { OrbTaskStore } from "./orbTaskStore";
 import type { AgentPreferences } from "../../shared/agent-preferences";
+import { emitGenerationEvent } from "../generationEvents";
 
 // ─── Single-step executor (existing public contract) ──────────────────────
 
@@ -257,6 +258,12 @@ export async function runOrbTaskToCompletion(
     }
 
     if (task.status === "done") {
+      emitGenerationEvent({
+        type: "task_done",
+        taskId: input.taskId,
+        userId: input.userId,
+        at: clock(),
+      });
       return {
         taskId: input.taskId,
         outcome: "completed",
@@ -267,6 +274,12 @@ export async function runOrbTaskToCompletion(
       };
     }
     if (task.status === "failed") {
+      emitGenerationEvent({
+        type: "task_failed",
+        taskId: input.taskId,
+        userId: input.userId,
+        at: clock(),
+      });
       return {
         taskId: input.taskId,
         outcome: "failed",
@@ -436,11 +449,24 @@ export async function runOrbTaskToCompletion(
       completeOrbAgentStep(input.taskId, step.id);
       flushNewFsmEvents();
     }
+    emitGenerationEvent({
+      type: "step_complete",
+      taskId: input.taskId,
+      stepId: step.id,
+      userId: input.userId,
+      at: clock(),
+    });
   }
 
   // Loop fell out of maxIterations without reaching a terminal state.
   const finalTask = store.get(input.taskId, input.userId, clock());
   if (finalTask?.status === "done") {
+    emitGenerationEvent({
+      type: "task_done",
+      taskId: input.taskId,
+      userId: input.userId,
+      at: clock(),
+    });
     return {
       taskId: input.taskId,
       outcome: "completed",
@@ -449,6 +475,14 @@ export async function runOrbTaskToCompletion(
       finalTask,
       finalAgentTask: getOrbAgentTask(input.taskId),
     };
+  }
+  if (finalTask?.status === "failed") {
+    emitGenerationEvent({
+      type: "task_failed",
+      taskId: input.taskId,
+      userId: input.userId,
+      at: clock(),
+    });
   }
   return {
     taskId: input.taskId,
