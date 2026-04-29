@@ -1430,6 +1430,34 @@ export const brainRouter = router({
     return runAllAccuracyTests();
   }),
 
+  /** 執行全站 AI 研究流程（爬網 + 精準度測試） */
+  runFullSiteResearch: adminProcedure.mutation(async () => {
+    const researchQueries = [
+      "AI self-healing software bug detection 2025",
+      "fal.ai API optimization best practices",
+      "gemini multimodal production deployment issues",
+      "elevenlabs TTS latency optimization",
+      "AI video generation pipeline architecture",
+    ];
+
+    const researchResults = await Promise.allSettled(
+      researchQueries.map(query => webSearch(query, 3))
+    );
+
+    const testResults = await runAllAccuracyTests();
+    const successfulResearch = researchResults.filter(
+      result => result.status === "fulfilled"
+    ).length;
+
+    return {
+      success: true,
+      message: `全站研究完成：${successfulResearch}/${researchQueries.length} 爬網成功，${testResults.length} 精準度測試完成`,
+      researchCount: successfulResearch,
+      testCount: testResults.length,
+      proposalsGenerated: testResults.filter(test => test.proposal).length,
+    };
+  }),
+
   // ─── 6. 生成活動記錄（AI 監控室）───────────────────────────────────────
 
   /** 取得生成活動記錄（AI 監控室使用） */

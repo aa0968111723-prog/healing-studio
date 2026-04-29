@@ -916,10 +916,12 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           testStatusSummary?: string;
         } | null;
       }).codeTask;
+      const dataReply = "reply" in data && typeof data.reply === "string" ? data.reply : "";
+      const dataActions = "actions" in data ? data.actions : undefined;
       const llmActions = rawPlannerOutput
         ? adaptAgentPlanToActions(rawPlannerOutput)
-        : data.actions
-        ? parseLLMActions(data.actions)
+        : dataActions
+        ? parseLLMActions(dataActions)
         : [];
       const fallbackWorkflow = llmActions.length === 0 ? maybeCreateWorkflowFromUserText(trimmed) : null;
       const actionsToExecute: AgentAction[] = fallbackWorkflow ? [fallbackWorkflow] : llmActions;
@@ -929,7 +931,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
           ? {
               taskId: telemetryMeta?.taskId ?? taskMeta?.taskId ?? `draft_${Date.now()}`,
               traceId: telemetryMeta?.traceId ?? taskMeta?.traceId ?? null,
-              summaryForUser: taskDraft.summaryForUser ?? data.reply ?? "Orb task",
+              summaryForUser: taskDraft.summaryForUser ?? dataReply ?? "Orb task",
               status: taskMeta?.status ?? "awaiting_approval",
               preferredEngine: taskMeta?.preferredEngine ?? null,
               isolation: taskMeta?.isolation ?? "ui",
@@ -951,10 +953,10 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         source: fallbackWorkflow ? "fallback" : "llm",
       });
       const replyText = fallbackWorkflow
-        ? `${data.reply}\n\n🎬 我已把你的需求轉成「AI Director 短片生成流程」。我會先讓你確認計畫，按下開始後才會跨頁執行。`
+        ? `${dataReply}\n\n🎬 我已把你的需求轉成「AI Director 短片生成流程」。我會先讓你確認計畫，按下開始後才會跨頁執行。`
         : pendingPlan
-        ? `${data.reply}\n\n🧭 我已整理好執行計畫，請先確認。按下「開始執行」後，我才會開始操作。`
-        : data.reply;
+        ? `${dataReply}\n\n🧭 我已整理好執行計畫，請先確認。按下「開始執行」後，我才會開始操作。`
+        : dataReply;
 
       setMessages(prev => [...prev, {
         role: "orb",
