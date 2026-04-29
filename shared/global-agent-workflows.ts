@@ -131,12 +131,6 @@ export function buildShortVideoWorkflow(brief: string): RunWorkflowAction {
         label: "導演 AI：產生短片企劃與分鏡",
       },
       {
-        path: "/director",
-        actionType: "submit",
-        payload: "",
-        label: "導演 AI：送出腳本規劃",
-      },
-      {
         path: "/studio",
         actionType: "setModality",
         payload: "image",
