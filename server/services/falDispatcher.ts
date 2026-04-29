@@ -20,7 +20,8 @@ import {
   getFalModelsByCategory,
   type FalCallInput,
 } from "./falModels";
-import { estimatePoints, getModelPricing } from "./modelPricing";
+import { calculateActualCost, estimatePoints, getModelPricing } from "./modelPricing";
+import { deductCredits, reconcileCredits } from "./orbCostGuard";
 import { serverEnv } from "../_core/env.validated";
 
 // ─── LangSmith 追蹤（fal.ai 多模態模型深度整合）──────────────────────────────
@@ -175,6 +176,9 @@ export interface FalDispatchInput {
   condAugmentation?: number;
   /** 文字字符數（用於 TTS 計費） */
   charCount?: number;
+  userId?: number;
+  estimatedCredits?: number;
+  modelParams?: Record<string, unknown>;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -276,6 +280,11 @@ export async function dispatchFalTask(
   input: FalDispatchInput
 ): Promise<FalDispatchResult> {
   const { modelId, category, durationSec, charCount } = input;
+  if (!modelId.startsWith("fal-ai/")) {
+    throw new Error(
+      `Invalid Fal model ID: "${modelId}". Must start with "fal-ai/"`
+    );
+  }
   // 每次呼叫產生唯一的追蹤 ID
   const runId = `fal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -337,9 +346,9 @@ export async function dispatchFalTask(
   }
 
   // ── Step 3: 建構 Fal 呼叫參數 ──
-  const falInput: Record<string, unknown> = {};
+  const defaultInput: Record<string, unknown> = {};
 
-  if (input.prompt !== undefined) falInput.prompt = input.prompt;
+  if (input.prompt !== undefined) defaultInput.prompt = input.prompt;
 
   // ── TTS 特殊處理：dia-tts / playai-tts / orpheus-tts 等只接受 `text` 欄位而非 `prompt`
   // 且 dia-tts 要求 [S1]/[S2] 說話者標籤
@@ -358,44 +367,45 @@ export async function dispatchFalTask(
         targetModelId.startsWith("fal-ai/dia-tts") && !/\[S\d\]/.test(input.prompt)
           ? `[S1] ${input.prompt}`
           : input.prompt;
-      falInput.text = text;
-      delete falInput.prompt; // 移除 prompt，dia-tts 不接受此欄位
+      defaultInput.text = text;
+      delete defaultInput.prompt; // 移除 prompt，dia-tts 不接受此欄位
     }
   }
 
-  if (input.imageUrl !== undefined) falInput.image_url = input.imageUrl;
-  if (input.videoUrl !== undefined) falInput.video_url = input.videoUrl;
-  if (input.audioUrl !== undefined) falInput.audio_url = input.audioUrl;
+  if (input.imageUrl !== undefined) defaultInput.image_url = input.imageUrl;
+  if (input.videoUrl !== undefined) defaultInput.video_url = input.videoUrl;
+  if (input.audioUrl !== undefined) defaultInput.audio_url = input.audioUrl;
   if (input.negativePrompt !== undefined)
-    falInput.negative_prompt = input.negativePrompt;
-  if (input.seed !== undefined) falInput.seed = input.seed;
+    defaultInput.negative_prompt = input.negativePrompt;
+  if (input.seed !== undefined) defaultInput.seed = input.seed;
   if (input.numInferenceSteps !== undefined)
-    falInput.num_inference_steps = input.numInferenceSteps;
+    defaultInput.num_inference_steps = input.numInferenceSteps;
   if (input.guidanceScale !== undefined)
-    falInput.guidance_scale = input.guidanceScale;
-  if (input.imageSize !== undefined) falInput.image_size = input.imageSize;
+    defaultInput.guidance_scale = input.guidanceScale;
+  if (input.imageSize !== undefined) defaultInput.image_size = input.imageSize;
   if (input.aspectRatio !== undefined)
-    falInput.aspect_ratio = input.aspectRatio;
-  if (input.durationSec !== undefined) falInput.duration = input.durationSec;
-  if (input.strength !== undefined) falInput.strength = input.strength;
-  if (input.loraUrl !== undefined) falInput.lora_url = input.loraUrl;
-  if (input.loraScale !== undefined) falInput.lora_scale = input.loraScale;
-  if (input.numFrames !== undefined) falInput.num_frames = input.numFrames;
-  if (input.fps !== undefined) falInput.fps = input.fps;
-  if (input.voiceId !== undefined) falInput.voice_id = input.voiceId;
-  if (input.speed !== undefined) falInput.speed = input.speed;
+    defaultInput.aspect_ratio = input.aspectRatio;
+  if (input.durationSec !== undefined) defaultInput.duration = input.durationSec;
+  if (input.strength !== undefined) defaultInput.strength = input.strength;
+  if (input.loraUrl !== undefined) defaultInput.lora_url = input.loraUrl;
+  if (input.loraScale !== undefined) defaultInput.lora_scale = input.loraScale;
+  if (input.numFrames !== undefined) defaultInput.num_frames = input.numFrames;
+  if (input.fps !== undefined) defaultInput.fps = input.fps;
+  if (input.voiceId !== undefined) defaultInput.voice_id = input.voiceId;
+  if (input.speed !== undefined) defaultInput.speed = input.speed;
   if (input.exaggeration !== undefined)
-    falInput.exaggeration = input.exaggeration;
+    defaultInput.exaggeration = input.exaggeration;
   if (input.trainingSteps !== undefined)
-    falInput.training_steps = input.trainingSteps;
+    defaultInput.training_steps = input.trainingSteps;
   if (input.learningRate !== undefined)
-    falInput.learning_rate = input.learningRate;
+    defaultInput.learning_rate = input.learningRate;
   if (input.stylePrompt !== undefined)
-    falInput.style_prompt = input.stylePrompt;
+    defaultInput.style_prompt = input.stylePrompt;
   if (input.motionBucketId !== undefined)
-    falInput.motion_bucket_id = input.motionBucketId;
+    defaultInput.motion_bucket_id = input.motionBucketId;
   if (input.condAugmentation !== undefined)
-    falInput.cond_augmentation = input.condAugmentation;
+    defaultInput.cond_augmentation = input.condAugmentation;
+  const finalInput = { ...defaultInput, ...(input.modelParams ?? {}) };
 
   // ── Step 4: 呼叫 Fal 模型（含完整降級鏈重試） ──
   const startMs = Date.now();
@@ -404,11 +414,30 @@ export async function dispatchFalTask(
   try {
     const result = await callFalModel({
       modelId: targetModelId,
-      input: falInput,
+      input: finalInput,
       timeoutMs: resolvedTimeout,
     });
 
     const durationMs = Date.now() - startMs;
+    const payload = result.data as Record<string, unknown>;
+    const billingSeconds =
+      ((payload.metrics as { inference_time?: number } | undefined)?.inference_time ?? 0);
+    const outputImages = Array.isArray(payload.images) ? payload.images.length : 0;
+    const outputVideoDuration =
+      ((payload.video as { duration?: number } | undefined)?.duration ?? 0);
+    const actualCost = calculateActualCost({
+      modelId: targetModelId,
+      billingSeconds,
+      outputImages,
+      outputVideoDuration,
+    });
+    if (typeof input.userId === "number") {
+      if (typeof input.estimatedCredits === "number") {
+        await reconcileCredits(input.userId, input.estimatedCredits, actualCost);
+      } else {
+        await deductCredits(input.userId, actualCost);
+      }
+    }
 
     // LangSmith 追蹤：成功
     trackFalLangSmith({
@@ -416,11 +445,11 @@ export async function dispatchFalTask(
       modelId: targetModelId,
       category: modelConfig.category,
       prompt: input.prompt,
-      inputs: falInput,
+      inputs: finalInput,
       result: result.data,
       error: null,
       durationMs,
-      pointsDeducted: estimate.totalPoints,
+      pointsDeducted: actualCost,
       degraded: !!degraded,
       originalModel,
     }).catch(() => {});
@@ -432,13 +461,18 @@ export async function dispatchFalTask(
       category: modelConfig.category,
       data: result.data,
       durationMs,
-      pointsDeducted: estimate.totalPoints,
-      pointsBreakdown: estimate.breakdown,
+      pointsDeducted: actualCost,
+      pointsBreakdown: `actual=${actualCost} (estimate=${estimate.totalPoints})`,
       ...(degraded && { degraded, originalModel }),
     };
   } catch (err) {
     const durationMs = Date.now() - startMs;
     const errMsg = err instanceof Error ? err.message : String(err);
+    console.error("[falDispatcher] error", {
+      modelId: targetModelId,
+      status: (err as { status?: unknown } | undefined)?.status,
+      body: (err as { body?: unknown } | undefined)?.body,
+    });
 
     // ── 4xx 客戶端錯誤不重試（參數錯誤、認證失敗等）──
     if (!isRetryableError(err)) {
@@ -463,7 +497,7 @@ export async function dispatchFalTask(
         modelId: targetModelId,
         category,
         prompt: input.prompt,
-        inputs: falInput,
+        inputs: finalInput,
         result: null,
         error: errMsg,
         durationMs,
@@ -496,13 +530,32 @@ export async function dispatchFalTask(
           TIMEOUT_OVERRIDES[candidate] ?? candidateConfig.timeoutMs ?? 120_000;
         const retryResult = await callFalModel({
           modelId: candidate,
-          input: falInput,
+          input: finalInput,
           timeoutMs: candidateTimeout,
         });
         const retryEstimate = estimatePoints(candidate, {
           durationSec,
           charCount,
         });
+        const retryPayload = retryResult.data as Record<string, unknown>;
+        const retryBillingSeconds =
+          ((retryPayload.metrics as { inference_time?: number } | undefined)?.inference_time ?? 0);
+        const retryOutputImages = Array.isArray(retryPayload.images) ? retryPayload.images.length : 0;
+        const retryVideoDuration =
+          ((retryPayload.video as { duration?: number } | undefined)?.duration ?? 0);
+        const retryActualCost = calculateActualCost({
+          modelId: candidate,
+          billingSeconds: retryBillingSeconds,
+          outputImages: retryOutputImages,
+          outputVideoDuration: retryVideoDuration,
+        });
+        if (typeof input.userId === "number") {
+          if (typeof input.estimatedCredits === "number") {
+            await reconcileCredits(input.userId, input.estimatedCredits, retryActualCost);
+          } else {
+            await deductCredits(input.userId, retryActualCost);
+          }
+        }
         // LangSmith 追蹤：降級成功
         const retryDuration = Date.now() - startMs;
         trackFalLangSmith({
@@ -510,11 +563,11 @@ export async function dispatchFalTask(
           modelId: candidate,
           category,
           prompt: input.prompt,
-          inputs: falInput,
+          inputs: finalInput,
           result: retryResult.data,
           error: null,
           durationMs: retryDuration,
-          pointsDeducted: retryEstimate.totalPoints,
+          pointsDeducted: retryActualCost,
           degraded: true,
           originalModel: modelId,
         }).catch(() => {});
@@ -525,8 +578,8 @@ export async function dispatchFalTask(
           category,
           data: retryResult.data,
           durationMs: retryDuration,
-          pointsDeducted: retryEstimate.totalPoints,
-          pointsBreakdown: retryEstimate.breakdown,
+          pointsDeducted: retryActualCost,
+          pointsBreakdown: `actual=${retryActualCost} (estimate=${retryEstimate.totalPoints})`,
           degraded: true,
           originalModel: modelId,
         };

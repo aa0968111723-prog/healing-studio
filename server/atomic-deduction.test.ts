@@ -80,6 +80,34 @@ describe("Atomic Points Deduction", () => {
     });
   });
 
+  describe("reconcileCredits contract", () => {
+    it("should top-up deduct or refund delta based on actual usage", async () => {
+      const dbModule = await import("./db");
+      const deductSpy = vi
+        .spyOn(dbModule, "deductUserPoints")
+        .mockResolvedValue({
+          success: true,
+          actualDeducted: 3,
+          remainingBefore: 100,
+          remainingAfter: 97,
+        });
+      const refundSpy = vi
+        .spyOn(dbModule, "refundUserPoints")
+        .mockResolvedValue(undefined);
+
+      const { reconcileCredits } = await import("./services/orbCostGuard");
+
+      await reconcileCredits(42, 10, 13);
+      expect(deductSpy).toHaveBeenCalledWith(42, 3);
+
+      await reconcileCredits(42, 10, 7);
+      expect(refundSpy).toHaveBeenCalledWith(42, 3);
+
+      deductSpy.mockRestore();
+      refundSpy.mockRestore();
+    });
+  });
+
   describe("deductUserQuota legacy contract", () => {
     it("should return boolean indicating success or failure", async () => {
       const { deductUserQuota } = await import("./db");

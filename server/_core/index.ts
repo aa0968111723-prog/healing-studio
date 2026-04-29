@@ -57,6 +57,9 @@ import { aiProxyRouter } from "../routes/aiProxy";
 import { localAuthRouter } from "../routes/localAuth";
 import { passwordResetRouter } from "../routes/passwordResetRoutes";
 import { webhooksRouter } from "../routes/webhooks";
+import { orbTasksRouter } from "../routes/orbTasks";
+import { adminEventsRouter } from "../routes/adminEvents";
+import { toolsModelsRouter } from "../routes/toolsModels";
 import { installFetchGuard } from "./fetchGuard";
 import { globalErrorHandler, registerFatalErrorHandlers } from "./error_handler";
 import { logger, requestTraceMiddleware } from "./logger";
@@ -65,6 +68,10 @@ import { bootstrapAiAdapters } from "../services/ai-adapters/bootstrap";
 import { runOrbToolExecutorStartupSelfCheck } from "../services/agentToolExecutor";
 import { serverEnv } from "./env.validated";
 import { startOrbScheduler } from "../services/orbScheduler";
+import {
+  checkElevenLabsHealth,
+  setElevenLabsAvailability,
+} from "../services/providerHealth";
 import { WebSocketServer } from "ws";
 import { handleOrbVoiceConnection } from "../ws/orbVoiceGateway";
 
@@ -202,6 +209,13 @@ async function startServer() {
   installFetchGuard();
   bootstrapAiAdapters();
   runOrbToolExecutorStartupSelfCheck();
+  const elevenLabsHealthy = await checkElevenLabsHealth();
+  setElevenLabsAvailability(elevenLabsHealthy);
+  if (!elevenLabsHealthy) {
+    console.warn(
+      "[Voice] ElevenLabs health check failed at startup. Please update ELEVENLABS_API_KEY; Google TTS fallback will be used."
+    );
+  }
 
   if (process.env.NODE_ENV === "production") {
     const explicitAllowOrigins = (process.env.ORB_TOOL_ALLOWED_ORIGINS ?? "")
@@ -282,6 +296,9 @@ async function startServer() {
   app.use(aiProxyRouter);
   app.use(localAuthRouter);
   app.use(passwordResetRouter);
+  app.use(orbTasksRouter);
+  app.use(adminEventsRouter);
+  app.use(toolsModelsRouter);
 
   // ── Maps proxy（隱藏 FRONTEND_FORGE_API_KEY，避免前端暴露）───────────────
   app.get("/api/maps/proxy/*", async (req, res) => {

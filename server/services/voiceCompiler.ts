@@ -11,6 +11,8 @@
  *
  * 支援 ElevenLabs SSML 子集（prosody / emphasis / break / say-as / sub）
  */
+import { ELEVENLABS_AVAILABLE } from "./providerHealth";
+import textToSpeech from "@google-cloud/text-to-speech";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
@@ -99,6 +101,15 @@ export interface VoiceCompilerOutput {
   breakCount: number;
   /** 編譯日誌 */
   compilationLog: string[];
+}
+
+export interface VoiceSynthesisResult {
+  ok: boolean;
+  audioBuffer?: Buffer;
+  mimeType?: string;
+  provider?: "elevenlabs" | "google-tts";
+  fallbackUsed: boolean;
+  error?: string;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -600,6 +611,91 @@ function compileSegment(
 // ═══════════════════════════════════════════════════════════════════════════
 
 export class VoiceCompiler {
+  private async synthesizeWithElevenLabs(
+    text: string,
+    voiceId: string
+  ): Promise<VoiceSynthesisResult> {
+    const apiKey = process.env.ELEVENLABS_API_KEY ?? "";
+    if (!apiKey) throw new Error("ElevenLabs API key missing");
+    const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "xi-api-key": apiKey,
+      },
+      body: JSON.stringify({
+        text,
+        model_id: "eleven_multilingual_v2",
+      }),
+    });
+    if (!response.ok) {
+      const err = new Error(`ElevenLabs TTS failed: ${response.status}`);
+      (err as Error & { status?: number }).status = response.status;
+      throw err;
+    }
+    const audioBuffer = Buffer.from(await response.arrayBuffer());
+    return { ok: true, audioBuffer, mimeType: "audio/mpeg", provider: "elevenlabs", fallbackUsed: false };
+  }
+
+  private async synthesizeWithGoogleTTS(text: string): Promise<VoiceSynthesisResult> {
+    const credentialJson = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+    const credentialPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    if (!credentialJson && !credentialPath) {
+      return { ok: false, error: "voice-provider-unavailable", fallbackUsed: false };
+    }
+    try {
+      const client = credentialJson
+        ? new textToSpeech.TextToSpeechClient({
+            credentials: JSON.parse(credentialJson) as {
+              client_email: string;
+              private_key: string;
+            },
+          })
+        : new textToSpeech.TextToSpeechClient();
+      const [response] = await client.synthesizeSpeech({
+        input: { text },
+        voice: { languageCode: "zh-TW", ssmlGender: "FEMALE" },
+        audioConfig: { audioEncoding: "MP3" },
+      });
+      if (!response.audioContent) {
+        return { ok: false, error: "voice-provider-unavailable", fallbackUsed: false };
+      }
+      return {
+        ok: true,
+        audioBuffer: Buffer.from(response.audioContent as Uint8Array),
+        mimeType: "audio/mpeg",
+        provider: "google-tts",
+        fallbackUsed: true,
+      };
+    } catch {
+      return { ok: false, error: "voice-provider-unavailable", fallbackUsed: false };
+    }
+  }
+
+  async synthesizeSpeech(input: VoiceCompilerInput): Promise<VoiceSynthesisResult> {
+    const compiled = this.compile(input);
+    const plainText = compiled.plainText;
+    const voiceId = input.voiceId ?? "EXAVITQu4vr4xnSDxMaL";
+
+    if (!ELEVENLABS_AVAILABLE) {
+      return this.synthesizeWithGoogleTTS(plainText);
+    }
+
+    try {
+      return await this.synthesizeWithElevenLabs(plainText, voiceId);
+    } catch (error) {
+      const status = (error as { status?: number } | undefined)?.status;
+      if (status === 401 || status === 403) {
+        const fallback = await this.synthesizeWithGoogleTTS(plainText);
+        if (!fallback.ok) {
+          return { ok: false, error: "voice-provider-unavailable", fallbackUsed: false };
+        }
+        return fallback;
+      }
+      throw error;
+    }
+  }
+
   /**
    * 解析情緒設定檔
    * 優先順序：moodBlock.blockId → moodBlock.prompt 推導 → vibeCardIds → 預設

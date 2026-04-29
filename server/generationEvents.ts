@@ -23,7 +23,20 @@ export type GenerationEvent =
   | { type: "thought-update"; node: ThoughtNodeEvent }
   | { type: "progress"; progress: number; message: string }
   | { type: "complete"; thoughtChain: ThoughtNodeEvent[] }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string }
+  | {
+      type: "step_complete";
+      taskId: string;
+      stepId: string;
+      userId: number;
+      at: number;
+    }
+  | {
+      type: "task_done" | "task_failed";
+      taskId: string;
+      userId: number;
+      at: number;
+    };
 
 class GenerationEventBus {
   private emitter = new EventEmitter();
@@ -58,3 +71,14 @@ class GenerationEventBus {
 
 // Singleton
 export const generationBus = new GenerationEventBus();
+
+export let generationEventBus: EventEmitter = new EventEmitter();
+generationEventBus.setMaxListeners(100);
+
+export function setGenerationEventBusForTests(bus: EventEmitter): void {
+  generationEventBus = bus;
+}
+
+export function emitGenerationEvent(event: GenerationEvent): void {
+  generationEventBus.emit("generation", event);
+}

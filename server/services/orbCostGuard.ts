@@ -1,3 +1,5 @@
+import { deductUserPoints, refundUserPoints } from "../db";
+
 export type OrbCostTier = "free" | "low" | "medium" | "high" | "unknown";
 
 export interface OrbCostEstimateInput {
@@ -75,4 +77,26 @@ export function estimateOrbTaskCost(input: OrbCostEstimateInput): OrbCostEstimat
     : null;
 
   return { tier, reasons, requiresHuman, askBeforeAct, prompt };
+}
+
+export async function deductCredits(userId: number, amount: number): Promise<void> {
+  const cost = Math.max(0, Math.round(amount));
+  if (cost <= 0) return;
+  await deductUserPoints(userId, cost);
+}
+
+export async function reconcileCredits(
+  userId: number,
+  estimated: number,
+  actual: number
+): Promise<void> {
+  const estimatedRounded = Math.max(0, Math.round(estimated));
+  const actualRounded = Math.max(0, Math.round(actual));
+  if (actualRounded > estimatedRounded) {
+    await deductCredits(userId, actualRounded - estimatedRounded);
+    return;
+  }
+  if (actualRounded < estimatedRounded) {
+    await refundUserPoints(userId, estimatedRounded - actualRounded);
+  }
 }

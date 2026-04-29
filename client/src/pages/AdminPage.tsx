@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense, useMemo } from "react";
+import { useState, lazy, Suspense, useMemo, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -148,6 +148,27 @@ export default function AdminPage() {
     { limit: 100 },
     { retry: false }
   );
+
+  useEffect(() => {
+    if (user?.role !== "admin") return;
+    const evtSource = new EventSource("/api/admin/events/stream");
+    evtSource.onmessage = e => {
+      try {
+        const event = JSON.parse(e.data) as { type?: string };
+        if (event?.type === "step_complete" || event?.type === "task_done" || event?.type === "task_failed") {
+          genHistoryQuery.refetch();
+          jobsQuery.refetch();
+          statsQuery.refetch();
+        }
+      } catch {
+        // noop
+      }
+    };
+    evtSource.onerror = () => {
+      evtSource.close();
+    };
+    return () => evtSource.close();
+  }, [user?.role, genHistoryQuery, jobsQuery, statsQuery]);
 
   // ── Mutations ──
   const updateQuota = trpc.admin.updateQuota.useMutation({

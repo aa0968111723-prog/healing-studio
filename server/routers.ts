@@ -140,8 +140,11 @@ import { estimateOrbTaskCost } from "./services/orbCostGuard";
 import { checkAndConsumeQuota } from "./services/orbQuota";
 import {
   buildOrbIdempotencyKey,
+  checkAndLock,
   findDuplicateTask,
+  getResult,
   rememberTaskKey,
+  storeResult,
 } from "./services/orbIdempotency";
 import { validateAttachmentGuards } from "./services/orbAttachmentGuard";
 import { addGenerationLog } from "./services/brainAutoRepair";
@@ -2067,6 +2070,7 @@ export const appRouter = router({
           loraWeight: z.number().min(0).max(1).optional(),
           // Director AI can override engine model for this request
           overrideModelId: z.string().optional(),
+          modelParams: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
@@ -2178,6 +2182,11 @@ export const appRouter = router({
             ...(input.seed != null && { seed: input.seed }),
           };
         }
+        falInput = {
+          ...falInput,
+          ...(input.modelParams ?? {}),
+        };
+
         if (isGeminiEngine(modelId)) {
           ensureGeminiApiKeyConfigured();
         } else {
@@ -4298,9 +4307,33 @@ export const appRouter = router({
             .optional(),
           /** 強制要求：即使是非破壞性動作也要先確認 */
           alwaysConfirm: z.boolean().optional(),
+          /** 客戶端請求去重 ID（可由 x-request-id 同步傳入） */
+          requestId: z.string().min(1).max(128).optional(),
         })
       )
       .mutation(async ({ input, ctx }) => {
+        const headerRequestId = ctx.req.headers["x-request-id"];
+        const idempKey =
+          (Array.isArray(headerRequestId) ? headerRequestId[0] : headerRequestId) ??
+          input.requestId;
+        if (idempKey) {
+          const status = checkAndLock(idempKey);
+          if (status === "duplicate") {
+            const cached = getResult(idempKey);
+            return cached ?? { status: "duplicate", message: "Request already processed" };
+          }
+          if (status === "in-progress") {
+            return { status: "in-progress", message: "Request is already being processed" };
+          }
+        }
+
+        const finalizeIdempotentResponse = <T>(result: T): T => {
+          if (idempKey) {
+            storeResult(idempKey, result);
+          }
+          return result;
+        };
+
         const makePlannerMeta = (params: {
           plannerStatus: string;
           plan?: unknown;
@@ -5139,7 +5172,7 @@ export const appRouter = router({
                 usedMultimodalPlanner: plannerResult.usedMultimodalPlanner,
               });
 
-              return {
+              return finalizeIdempotentResponse({
                 reply:
                   costEstimate?.prompt
                     ? `${plannerResult.reply ?? "我已建立任務草稿，待你確認後就可以開始執行。"}\n\n${costEstimate.prompt}`
@@ -5170,7 +5203,7 @@ export const appRouter = router({
                   estimatedCostTier: costEstimate?.tier ?? null,
                 },
                 ...meta,
-              };
+              });
             }
 
             // status === "invalid"（或 plannerResult 為 null）：保留既有 fallback

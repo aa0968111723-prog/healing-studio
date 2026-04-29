@@ -527,6 +527,8 @@ export default function Studio() {
   const [toolboxTab, setToolboxTab] = useState<
     "vault" | "assets" | "models" | "history" | "controls"
   >("vault");
+  const [selectedFalModelId, setSelectedFalModelId] = useState<string | undefined>();
+  const [selectedModelParams, setSelectedModelParams] = useState<Record<string, string | number | boolean>>({});
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [resultData, setResultData] = useState<Record<string, unknown> | null>(
     null
@@ -705,7 +707,8 @@ export default function Studio() {
             }),
             overrideModelId: task.overrideEngine
               ? normalizeEngineModelId(task.overrideEngine)
-              : undefined,
+              : selectedFalModelId,
+            modelParams: selectedModelParams,
           });
           ok += 1;
         } catch {
@@ -1416,7 +1419,8 @@ export default function Studio() {
         loraWeight,
         overrideModelId: directorModelOverride
           ? normalizeEngineModelId(directorModelOverride)
-          : undefined,
+          : selectedFalModelId,
+        modelParams: selectedModelParams,
       });
       setDirectorModelOverride(undefined);
     } catch {
@@ -1439,6 +1443,7 @@ export default function Studio() {
     vaultSceneId,
     fineTunedModelId,
     directorModelOverride,
+    selectedModelParams,
     personalSettings.confirmBeforeGenerate,
     requireAuth,
   ]);
@@ -3309,6 +3314,11 @@ export default function Studio() {
             {toolboxTab === "models" && (
               <MiniModelsPanel
                 activeModelId={fineTunedModelId}
+                selectedFalModelId={selectedFalModelId}
+                onSelectFalModel={setSelectedFalModelId}
+                modelParams={selectedModelParams}
+                onChangeModelParams={setSelectedModelParams}
+                activeCategory={activeModality}
                 onApply={(id, name) => {
                   setFineTunedModelId(id);
                   setFineTunedModelName(name);
@@ -3419,16 +3429,35 @@ function MiniAssetsPanel() {
 
 function MiniModelsPanel({
   activeModelId,
+  selectedFalModelId,
+  onSelectFalModel,
+  modelParams,
+  onChangeModelParams,
+  activeCategory,
   onApply,
   onRemove,
 }: {
   activeModelId?: number;
+  selectedFalModelId?: string;
+  onSelectFalModel: (id: string | undefined) => void;
+  modelParams: Record<string, string | number | boolean>;
+  onChangeModelParams: (next: Record<string, string | number | boolean>) => void;
+  activeCategory: "image" | "video" | "audio" | "voice";
   onApply: (id: number, name: string) => void;
   onRemove: () => void;
 }) {
+  const [openAdvanced, setOpenAdvanced] = useState(false);
+  const [falModels, setFalModels] = useState<Array<any>>([]);
   const myModelsQuery = trpc.models.myModels.useQuery(undefined, {
     retry: false,
   });
+  useEffect(() => {
+    const mappedCategory = activeCategory === "voice" ? "audio" : activeCategory;
+    fetch(`/api/tools/models?category=${mappedCategory}`)
+      .then(r => r.json())
+      .then(setFalModels)
+      .catch(() => setFalModels([]));
+  }, [activeCategory]);
 
   if (myModelsQuery.isLoading) {
     return (
@@ -3462,7 +3491,63 @@ function MiniModelsPanel({
   };
 
   return (
-    <div className="space-y-1 p-2">
+    <div className="space-y-2 p-2">
+      <div className="rounded-lg border border-border/50 p-2">
+        <p className="text-[11px] text-muted-foreground mb-1">Fal 模型選擇</p>
+        <select
+          className="w-full rounded-md bg-muted/30 px-2 py-1.5 text-xs"
+          value={selectedFalModelId ?? ""}
+          onChange={e => {
+            onSelectFalModel(e.target.value || undefined);
+            onChangeModelParams({});
+          }}
+        >
+          <option value="">使用預設模型</option>
+          {falModels.map(m => (
+            <option key={m.id} value={m.id}>{m.name}</option>
+          ))}
+        </select>
+        <button
+          className="mt-2 text-xs text-primary hover:underline"
+          onClick={() => setOpenAdvanced(v => !v)}
+        >
+          進階設定
+        </button>
+        {openAdvanced && selectedFalModelId && (
+          <div className="mt-2 space-y-2">
+            {(falModels.find(m => m.id === selectedFalModelId)?.params ?? []).map((p: any) => (
+              <div key={p.key} className="space-y-1">
+                <label className="text-[11px] text-muted-foreground">{p.label}</label>
+                {p.type === "number" && (
+                  <div>
+                    <input type="range" min={p.min ?? 0} max={p.max ?? 100} step={p.step ?? 1}
+                      value={Number(modelParams[p.key] ?? p.default ?? 0)}
+                      onChange={e => onChangeModelParams({ ...modelParams, [p.key]: Number(e.target.value) })}
+                      className="w-full" />
+                    <div className="text-[11px]">{String(modelParams[p.key] ?? p.default ?? 0)}</div>
+                  </div>
+                )}
+                {p.type === "select" && (
+                  <select className="w-full rounded-md bg-muted/20 px-2 py-1 text-xs"
+                    value={String(modelParams[p.key] ?? p.default ?? "")}
+                    onChange={e => onChangeModelParams({ ...modelParams, [p.key]: e.target.value })}>
+                    {(p.options ?? []).map((o: string) => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                )}
+                {p.type === "boolean" && (
+                  <input type="checkbox" checked={Boolean(modelParams[p.key] ?? p.default ?? false)}
+                    onChange={e => onChangeModelParams({ ...modelParams, [p.key]: e.target.checked })} />
+                )}
+                {p.type === "string" && (
+                  <input type="text" className="w-full rounded-md bg-muted/20 px-2 py-1 text-xs"
+                    value={String(modelParams[p.key] ?? p.default ?? "")}
+                    onChange={e => onChangeModelParams({ ...modelParams, [p.key]: e.target.value })} />
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
       {models.map((model: any) => {
         const isActive = activeModelId === model.id;
         const isReady = model.status === "ready";
