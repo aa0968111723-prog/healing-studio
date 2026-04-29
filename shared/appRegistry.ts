@@ -668,6 +668,44 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     ],
     orbHints: ["我想開始教學", "新手怎麼開始", "給我一個導覽"],
   },
+  {
+    id: "admin",
+    label: "管理後台",
+    path: "/admin",
+    group: "admin",
+    description: "管理員專用：使用者列表、AI 大腦組態、系統健康度檢查",
+    aliases: ["admin", "管理後台", "後台", "管理員"],
+    showInSidebar: false,
+    showInAgentHome: false,
+    agentEntryPriority: 90,
+    supportsPageAgent: true,
+    quickActions: [
+      { id: "open-admin", label: "開啟管理後台", description: "前往管理員主控台", path: "/admin" },
+      {
+        id: "open-admin-brain",
+        label: "查看 AI 大腦組態",
+        description: "前往大腦組態分頁",
+        path: "/admin?section=brain",
+      },
+    ],
+    orbHints: ["我要看管理後台", "如何切換大腦", "管理員工具在哪"],
+  },
+  {
+    id: "admin-api-usage",
+    label: "API 用量分析",
+    path: "/admin/api-usage",
+    group: "admin",
+    description: "管理員專用：API 呼叫成本、各供應商用量、配額用度報告",
+    aliases: ["admin api", "用量", "api usage", "成本"],
+    showInSidebar: false,
+    showInAgentHome: false,
+    agentEntryPriority: 91,
+    supportsPageAgent: true,
+    quickActions: [
+      { id: "open-admin-api-usage", label: "開啟 API 用量", description: "前往 API 用量分析頁", path: "/admin/api-usage" },
+    ],
+    orbHints: ["我想看 API 用量", "查看成本", "各引擎呼叫次數"],
+  },
 ];
 
 const normalizePath = (path: string) => {

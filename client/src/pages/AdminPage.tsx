@@ -45,6 +45,8 @@ import {
 } from "lucide-react";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import { motion } from "framer-motion";
+import { useLocation } from "wouter";
+import { useRegisterPageAgent, type AgentActionResult } from "@/contexts/PageAgentContext";
 
 const AiBrainSettings = lazy(() => import("./AiBrainSettings"));
 
@@ -93,6 +95,8 @@ function StatCard({
 
 export default function AdminPage() {
   const { user } = useAuth();
+  const [, navigate] = useLocation();
+
   const [quotaInputs, setQuotaInputs] = useState<Record<number, string>>({});
   const [autoCreditAmountInputs, setAutoCreditAmountInputs] = useState<
     Record<number, string>
@@ -108,6 +112,48 @@ export default function AdminPage() {
     "all" | "enabled" | "disabled"
   >("all");
   const [activeTab, setActiveTab] = useState("overview");
+
+  // 管理員後台僅暴露安全的 navigate / setTab 能力給光球；不允許 destructive
+  // 動作（submit / reset / applyPreset），避免代理人誤觸用戶配額或大腦切換。
+  useRegisterPageAgent({
+    pageId: "admin",
+    pageLabel: "管理後台",
+    pagePath: "/admin",
+    capabilities: [
+      {
+        action: "navigate",
+        label: "前往管理子頁",
+        options: [
+          { id: "/admin", label: "管理後台首頁" },
+          { id: "/admin?section=brain", label: "AI 大腦組態" },
+          { id: "/admin/api-usage", label: "API 用量分析" },
+          { id: "/admin/brain-pipeline", label: "大腦推理鏈視覺化" },
+        ],
+      },
+      {
+        action: "setTab",
+        label: "切換管理分頁",
+        options: [
+          { id: "overview", label: "總覽" },
+          { id: "users", label: "使用者" },
+          { id: "feedback", label: "用戶回饋" },
+          { id: "system", label: "系統健康" },
+          { id: "brain", label: "AI 大腦" },
+        ],
+      },
+    ],
+    handle: async (action): Promise<AgentActionResult> => {
+      if (action.type === "navigate" && typeof action.path === "string") {
+        navigate(action.path);
+        return { ok: true };
+      }
+      if (action.type === "setTab" && typeof action.tabId === "string") {
+        setActiveTab(action.tabId);
+        return { ok: true };
+      }
+      return { ok: false, reason: `admin: unsupported action "${action.type}"` };
+    },
+  });
 
   // ── Existing queries ──
   const usersQuery = trpc.admin.allUsers.useQuery(undefined, { retry: false });

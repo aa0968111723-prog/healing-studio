@@ -34,6 +34,7 @@ import { externalServicesRouter } from "./routers/externalServices";
 import { apiUsageRouter } from "./routers/apiUsage";
 import { orbSchedulerRouter } from "./routers/orbSchedulerRouter";
 import { agentPreferencesRouter } from "./routers/agentPreferencesRouter";
+import { orbCapabilitiesRouter } from "./routers/orbCapabilitiesRouter";
 import { adminRouter } from "./routers/adminRouter";
 import { getOrchestrator } from "./services/modelClients";
 // voiceCompiler, audioCompiler, videoCompiler are no longer used — all modalities route through falDispatcher
@@ -567,6 +568,7 @@ export const appRouter = router({
   apiUsage: apiUsageRouter,
   orbScheduler: orbSchedulerRouter,
   agentPreferences: agentPreferencesRouter,
+  orbCapabilities: orbCapabilitiesRouter,
   adminEval: adminRouter,
 
   auth: router({
@@ -4391,6 +4393,18 @@ export const appRouter = router({
             .optional(),
           /** 強制要求：即使是非破壞性動作也要先確認 */
           alwaysConfirm: z.boolean().optional(),
+          /** 使用者代理偏好（confirmationPolicy 影響反問門檻、autoApproveTools / blockedTools 影響白黑名單） */
+          preferences: z
+            .object({
+              confirmationPolicy: z
+                .enum(["always_approve", "confirm_high_risk", "confirm_all", "manual"])
+                .optional(),
+              maxAutoStepsPerTask: z.number().int().min(1).max(20).optional(),
+              autoApproveTools: z.array(z.string().max(64)).max(64).optional(),
+              blockedTools: z.array(z.string().max(64)).max(64).optional(),
+              allowedRiskLevels: z.array(z.string().max(24)).max(8).optional(),
+            })
+            .optional(),
           /** 客戶端請求去重 ID（可由 x-request-id 同步傳入） */
           requestId: z.string().min(1).max(128).optional(),
         })
@@ -4595,8 +4609,12 @@ export const appRouter = router({
         // 從 AI 大腦取得導演配置（光球使用導演大腦）
         const director = ctx.brain.getBrain("director");
 
-        // 預設：優先 Gemini，多模態與 planner 會再透過 Provider Router 動態決策。
-        let enginePreference: "gemini" | "auto" = "gemini";
+        // 預設依大腦選定的 director.model 推斷引擎偏好；多模態與 Provider Router
+        // 會在後續再做動態決策。Brain 設定改 model 後，光球就會跟著切換引擎。
+        let enginePreference: "gemini" | "auto" =
+          /^gemini[-/]/i.test(director.model) || /^google[-/]/i.test(director.model)
+            ? "gemini"
+            : "auto";
 
         try {
           const plannerMessages = input.messages.map(m => ({
@@ -4894,6 +4912,7 @@ export const appRouter = router({
                 recentTaskMemorySummary,
                 recentOrbMemorySummary,
                 siteKnowledgeSummary,
+                preferences: input.preferences ?? null,
                 invoke: async plannerInput => {
                   const preferred = plannerInput.preferEngine ?? enginePreference;
                   try {
@@ -5013,13 +5032,19 @@ export const appRouter = router({
                 preferredEngine: plannerResult.preferredEngine,
                 usedMultimodalPlanner: plannerResult.usedMultimodalPlanner,
               });
+              const clarificationQuestion =
+                plannerResult.clarificationQuestion ??
+                (typeof plannerResult.reply === "string" ? plannerResult.reply : undefined);
               return {
                 reply: plannerResult.reply ?? "我需要先確認一個細節，才能繼續執行。",
                 actions: [],
                 intent: plannerResult.intent ?? null,
-                askBeforeAct: false,
+                askBeforeAct: true,
                 suggestions: [],
                 toolCalls: [],
+                needsClarification: true,
+                clarificationQuestion,
+                clarificationOptions: plannerResult.clarificationOptions,
                 plannerOutput: plannerResult.rawContent ?? plannerResult.plan,
                 telemetry: {
                   traceId: meta.traceId,
@@ -5396,10 +5421,20 @@ export const appRouter = router({
             ],
             usedMultimodalPlanner: false,
           });
+          // legacy.needsClarification was added by orbReplyParser; force askBeforeAct
+          // when set so the front-end opens the ClarificationCard.
+          const fallbackNeedsClarification = legacy.needsClarification === true;
           return {
             ...legacy,
-            actions: legacyActions,
-            askBeforeAct: legacyActions.length > 0 ? legacy.askBeforeAct : false,
+            actions: fallbackNeedsClarification ? [] : legacyActions,
+            askBeforeAct: fallbackNeedsClarification
+              ? true
+              : legacyActions.length > 0
+                ? legacy.askBeforeAct
+                : false,
+            needsClarification: fallbackNeedsClarification,
+            clarificationQuestion: legacy.clarificationQuestion,
+            clarificationOptions: legacy.clarificationOptions,
             telemetry: {
               traceId: meta.traceId,
               planId: meta.planId,
@@ -5410,7 +5445,7 @@ export const appRouter = router({
               riskLevel: null,
               usedMultimodalPlanner: meta.usedMultimodalPlanner,
               durationMs: null,
-              outcome: "fallback",
+              outcome: fallbackNeedsClarification ? "clarification" : "fallback",
               events: telemetryEvents,
             },
             ...meta,

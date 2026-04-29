@@ -127,6 +127,10 @@ export const AgentPlanSchema = z.object({
   summaryForUser: z.string().trim().min(1).max(600),
   shouldAskClarification: z.boolean().default(false),
   clarificationQuestion: z.string().trim().max(300).optional(),
+  clarificationOptions: z
+    .array(z.string().trim().min(1).max(48))
+    .max(4)
+    .optional(),
   steps: z.array(AgentPlanStepSchema).max(12).default([]),
   warnings: z.array(z.string().trim().min(1).max(240)).max(8).default([]),
 }).superRefine((plan, ctx) => {
@@ -283,6 +287,11 @@ export const AGENT_PLAN_JSON_SCHEMA = {
       summaryForUser: { type: "string", minLength: 1, maxLength: 600 },
       shouldAskClarification: { type: "boolean" },
       clarificationQuestion: { type: "string", maxLength: 300 },
+      clarificationOptions: {
+        type: "array",
+        maxItems: 4,
+        items: { type: "string", minLength: 1, maxLength: 48 },
+      },
       warnings: {
         type: "array",
         maxItems: 8,
@@ -440,6 +449,10 @@ export const AgentPlanV3Schema = z.object({
   intent: z.string().trim().min(1).max(240),
   summaryForUser: z.string().trim().min(1).max(600),
   clarificationQuestion: z.string().trim().max(300).optional(),
+  clarificationOptions: z
+    .array(z.string().trim().min(1).max(48))
+    .max(4)
+    .optional(),
   decision: AgentPlanV3DecisionSchema,
   routing: AgentPlanV3RoutingSchema.default({
     preferredEngine: "auto",
@@ -589,6 +602,11 @@ export const AGENT_PLAN_V3_JSON_SCHEMA = {
       intent: { type: "string", minLength: 1, maxLength: 240 },
       summaryForUser: { type: "string", minLength: 1, maxLength: 600 },
       clarificationQuestion: { type: "string", maxLength: 300 },
+      clarificationOptions: {
+        type: "array",
+        maxItems: 4,
+        items: { type: "string", minLength: 1, maxLength: 48 },
+      },
       decision: {
         type: "object",
         additionalProperties: false,

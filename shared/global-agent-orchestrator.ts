@@ -65,13 +65,65 @@ export function findDangerousWorkflowSteps(action: Extract<AgentAction, { type: 
     .map(({ index }) => index);
 }
 
-export function shouldAskBeforeAct(actions: AgentAction[]): boolean {
+/**
+ * Subset of `AgentPreferences` consumable by the orchestrator. We re-declare it
+ * here (rather than importing) to keep this module dependency-light and usable
+ * from both client and server bundles.
+ */
+export interface OrchestratorPreferences {
+  confirmationPolicy?: "always_approve" | "confirm_high_risk" | "confirm_all" | "manual";
+  autoApproveTools?: string[];
+  blockedTools?: string[];
+}
+
+export function shouldAskBeforeAct(
+  actions: AgentAction[],
+  preferences?: OrchestratorPreferences | null
+): boolean {
+  const policy = preferences?.confirmationPolicy ?? "confirm_high_risk";
+
+  // confirm_all → every action goes through confirmation, full stop.
+  if (policy === "confirm_all") return actions.length > 0;
+
+  // manual → caller should not be dispatching at all; if it does (kill-switch
+  // bypassed) treat every action as needing confirmation as a safety net.
+  if (policy === "manual") return actions.length > 0;
+
   return actions.some(action => {
     if (action.type === "runWorkflow") {
-      return action.steps.length > 1 || findDangerousWorkflowSteps(action).length > 0;
+      const dangerousSteps = findDangerousWorkflowSteps(action);
+      const hasMultiple = action.steps.length > 1;
+      // always_approve still confirms multi-step workflows because even the
+      // intermediate UI dispatches can mutate persistent state.
+      return hasMultiple || dangerousSteps.length > 0;
+    }
+    if (policy === "always_approve") {
+      // Safe single-step actions auto-pass; submit/reset/applyPreset still gate.
+      return isDangerousAction(action);
     }
     return isDangerousAction(action);
   });
+}
+
+/**
+ * Returns true if a tool name is on the user's auto-approve list. Allows
+ * `*` as a wildcard. Used by orb router-side dispatchers to skip individual
+ * confirmation cards for trusted tools.
+ */
+export function isToolAutoApproved(
+  toolName: string,
+  preferences?: OrchestratorPreferences | null
+): boolean {
+  const list = preferences?.autoApproveTools ?? [];
+  return list.includes("*") || list.includes(toolName);
+}
+
+/** Returns true if the tool name is explicitly blocked by the user. */
+export function isToolBlocked(
+  toolName: string,
+  preferences?: OrchestratorPreferences | null
+): boolean {
+  return (preferences?.blockedTools ?? []).includes(toolName);
 }
 
 function wait(ms: number) {

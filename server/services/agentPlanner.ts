@@ -8,6 +8,7 @@ import {
   type GatedAgentPlanResult,
 } from "../../shared/agent-plan-adapter";
 import type { AgentFeedbackEvent, PageAgentSnapshot } from "../../shared/agent-actions";
+import type { AgentPreferences } from "../../shared/agent-preferences";
 
 export type PlannerMultimodalKind = "image" | "audio" | "video" | "pdf" | "file";
 
@@ -26,8 +27,33 @@ export interface AgentPlannerInput {
   recentTaskMemorySummary?: string;
   recentOrbMemorySummary?: string;
   siteKnowledgeSummary?: string;
+  preferences?: Pick<
+    AgentPreferences,
+    "confirmationPolicy" | "maxAutoStepsPerTask" | "autoApproveTools" | "blockedTools" | "allowedRiskLevels"
+  > | null;
   maxTokens?: number;
   invoke?: typeof invokeLLM;
+}
+
+function summarizePreferencesForPlanner(
+  preferences?: AgentPlannerInput["preferences"]
+): string {
+  if (!preferences) return "No user agent preferences (defaults apply).";
+  return safeStringify({
+    confirmationPolicy: preferences.confirmationPolicy,
+    maxAutoStepsPerTask: preferences.maxAutoStepsPerTask,
+    autoApproveTools: preferences.autoApproveTools?.slice(0, 24),
+    blockedTools: preferences.blockedTools?.slice(0, 24),
+    allowedRiskLevels: preferences.allowedRiskLevels,
+    plannerHint:
+      preferences.confirmationPolicy === "manual"
+        ? "User selected pure-chat / manual mode. Do NOT include action steps; explain or ask instead."
+        : preferences.confirmationPolicy === "confirm_all"
+        ? "User wants every action confirmed. Default shouldAskClarification=true unless the request is unambiguous."
+        : preferences.confirmationPolicy === "always_approve"
+        ? "User pre-approves low-risk actions. Still ask for clarification when target is ambiguous."
+        : "User confirms only high-risk actions; safe navigation may proceed automatically.",
+  }, 1_500);
 }
 
 export interface AgentPlannerResult extends GatedAgentPlanResult {
@@ -161,6 +187,7 @@ export function buildAgentPlannerMessages(input: AgentPlannerInput): Message[] {
   const systemPrompt = buildAgentPlanV3SystemPrompt(pageSummary);
   const capabilitySummary = summarizeGlobalCapabilityRegistry(120);
   const toolSummary = summarizeGlobalToolRegistry(60);
+  const preferencesSummary = summarizePreferencesForPlanner(input.preferences);
   const contextBlock = [
     input.context ? `Conversation context: ${input.context}` : undefined,
     input.personality ? `Orb personality: ${input.personality}` : undefined,
@@ -171,8 +198,10 @@ export function buildAgentPlannerMessages(input: AgentPlannerInput): Message[] {
     `Global capability registry summary:\n${capabilitySummary}`,
     `Global tool registry summary:\n${toolSummary}`,
     `Multimodal attachments:\n${multimodalSummary}`,
+    `User agent preferences:\n${preferencesSummary}`,
     "Plan in Traditional Chinese labels where helpful, but keep action ids and page paths exact.",
-    "Prefer asking one clarification question when the user's target output, modality, or destination is unclear.",
+    "When the user's target output, modality, destination page, or chosen model is unclear, you MUST return shouldAskClarification=true with a single clarificationQuestion (Traditional Chinese, ≤80 字) and 2-4 short clarificationOptions covering the likely choices. Do NOT include any steps in clarification mode.",
+    "Never dispatch navigate, fillPrompt, applyPreset, submit, or runWorkflow when the request is ambiguous — ask first.",
     "For image uploads, plan image-to-video, image analysis, or prompt extraction workflows when requested.",
     "For audio/video/PDF uploads, use the attachment as source material and create analysis, transcription, storyboard, caption, or conversion workflows when requested.",
     "Do not use unregistered action types or tool names. If unavailable on this page, return clarification or blocked.",
