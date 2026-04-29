@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import VisualSoul from "@/components/VisualSoul";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -71,6 +72,7 @@ import {
 } from "@/contexts/SiteOnboardingContext";
 import {
   CSSProperties,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -307,6 +309,11 @@ export default function DashboardLayout({
         }}
       >
         <div className="glass-card p-10 sm:p-12 max-w-md w-full mx-4 text-center">
+          <div className="flex justify-center mb-6">
+            <Suspense fallback={null}>
+              <VisualSoul size="lg" personality="creative" state="idle" />
+            </Suspense>
+          </div>
           <h1 className="hs-h1 !mb-0 text-foreground">AI Director 創作平台</h1>
           <p className="text-sm text-muted-foreground mt-4 max-w-sm mx-auto body-healing leading-relaxed">
             在這裡，讓 AI 陪伴你舒適地創作
