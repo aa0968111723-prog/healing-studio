@@ -13,7 +13,7 @@
 
 import { useRef, useEffect, useMemo, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Sparkles, X, RotateCcw, FastForward, MessageCircle, Navigation2, Send, Loader2, ChevronDown, Lightbulb, Leaf, Paperclip } from "lucide-react";
+import { ArrowRight, Sparkles, X, RotateCcw, FastForward, MessageCircle, Navigation2, Send, Loader2, ChevronDown, Lightbulb, Leaf, Paperclip, Image as ImageIcon, Video, Music, Mic } from "lucide-react";
 import { useOrbGuide, INTENT_CONFIGS, type GuideIntent } from "@/contexts/OrbGuideContext";
 import VisualSoul from "./VisualSoul";
 import { useAIState } from "@/contexts/AIStateContext";
@@ -257,6 +257,89 @@ function actionToGuideLabel(action: AgentAction): string {
     default:
       return action.type;
   }
+}
+
+// ─── Studio modality grid (per-page modality switcher, no navigation) ────────
+
+const STUDIO_MODALITY_CARDS: Array<{
+  modality: "image" | "video" | "audio" | "voice";
+  icon: typeof ImageIcon;
+  title: string;
+  description: string;
+}> = [
+  {
+    modality: "image",
+    icon: ImageIcon,
+    title: "切到生成圖像",
+    description: "用文字創作任何畫面",
+  },
+  {
+    modality: "video",
+    icon: Video,
+    title: "切到生成影片",
+    description: "幾秒生成流暢動態",
+  },
+  {
+    modality: "audio",
+    icon: Music,
+    title: "切到生成音樂",
+    description: "創作專屬背景音樂",
+  },
+  {
+    modality: "voice",
+    icon: Mic,
+    title: "切到配音/語音",
+    description: "文字變成自然語音",
+  },
+];
+
+function StudioModalityGrid({
+  fullscreen,
+  onPick,
+}: {
+  fullscreen: boolean;
+  onPick: (modality: "image" | "video" | "audio" | "voice") => void | Promise<void>;
+}) {
+  return (
+    <div
+      className={cn(
+        "gap-2 pt-1",
+        fullscreen ? "grid grid-cols-2" : "grid grid-cols-1"
+      )}
+    >
+      {STUDIO_MODALITY_CARDS.map((card, i) => {
+        const Icon = card.icon;
+        return (
+          <motion.button
+            key={card.modality}
+            onClick={() => void onPick(card.modality)}
+            className={cn(
+              "rounded-xl border border-white/10 bg-white/5 hover:bg-white/12 hover:border-white/25",
+              "transition-all p-3 text-left flex items-start gap-3",
+              "focus:outline-none focus:ring-2 focus:ring-white/30"
+            )}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.05 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            <div className="rounded-lg bg-white/10 p-2 shrink-0">
+              <Icon className="w-4 h-4 text-white/85" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white/90 truncate">
+                {card.title}
+              </p>
+              <p className="text-[11px] text-white/55 mt-0.5 line-clamp-2">
+                {card.description}
+              </p>
+            </div>
+            <ArrowRight className="w-3.5 h-3.5 text-white/40 shrink-0 mt-1.5" />
+          </motion.button>
+        );
+      })}
+    </div>
+  );
 }
 
 // ─── Main Panel ───────────────────────────────────────────────────────────────
@@ -851,26 +934,48 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
-              <OrbSpeechBubble text="嘿 👋 今天想做什麼？選一個，我帶你去。" />
+              <OrbSpeechBubble
+                text={
+                  isStudioPage
+                    ? "嘿 👋 你已經在創作工作室。要做哪個？我幫你切到對應模態。"
+                    : "嘿 👋 今天想做什麼？選一個，我帶你去。"
+                }
+              />
 
-              <div className={cn(
-                "gap-2 pt-1",
-                fullscreen ? "grid grid-cols-2" : "grid grid-cols-1"
-              )}>
-                {intentOrder.map((id, i) => (
-                  <motion.div
-                    key={id}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.05 }}
-                  >
-                    <IntentCard
-                      intent={id}
-                      onSelect={() => selectIntent(id)}
-                    />
-                  </motion.div>
-                ))}
-              </div>
+              {isStudioPage ? (
+                /* Studio 頁面專屬：當頁模態切換卡（不跳頁） */
+                <StudioModalityGrid
+                  fullscreen={fullscreen}
+                  onPick={async modality => {
+                    await pageAgent.dispatchMany(
+                      [{ type: "setModality", modality }],
+                      { source: "manual" }
+                    );
+                    onClose();
+                  }}
+                />
+              ) : (
+                <div
+                  className={cn(
+                    "gap-2 pt-1",
+                    fullscreen ? "grid grid-cols-2" : "grid grid-cols-1"
+                  )}
+                >
+                  {intentOrder.map((id, i) => (
+                    <motion.div
+                      key={id}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.05 }}
+                    >
+                      <IntentCard
+                        intent={id}
+                        onSelect={() => selectIntent(id)}
+                      />
+                    </motion.div>
+                  ))}
+                </div>
+              )}
 
               {/* ── Quick-access: page detail chat & focus-flow ── */}
               {onOpenInteraction && (

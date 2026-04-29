@@ -44,12 +44,13 @@ import { recordErrorTrace } from "../services/brainAutoRepair";
 import { localizeResultUrls } from "../services/internalMedia";
 import { traceToolRun } from "../services/langsmithTracer";
 import { estimatePoints } from "../services/modelPricing";
+import { dispatchFalQueueTask } from "../services/falDispatcher";
 import * as db from "../db";
 import { getDb } from "../db";
 import { generationHistory } from "../../drizzle/schema";
 import { and, eq } from "drizzle-orm";
 
-// ─── fal.ai 呼叫工具（與 proStudio 相同架構）──────────────────────────────────
+// ─── fal.ai 呼叫工具（透過 falDispatcher 統一派發，享有 fallback chain）────────
 
 const FAL_QUEUE_BASE = "https://queue.fal.run";
 const FAL_RUN_BASE = "https://fal.run";
@@ -69,53 +70,21 @@ async function falQueueSubmit(
   modelId: string,
   input: Record<string, unknown>
 ): Promise<{ request_id: string }> {
-  const startedAt = Date.now();
-  const key = getFalKey();
-  const res = await fetch(`${FAL_QUEUE_BASE}/${modelId}`, {
-    method: "POST",
-    headers: {
-      Authorization: `Key ${key}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(input),
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    void traceToolRun({
-      runName: "image-studio/fal-queue-submit",
-      provider: "fal.ai",
-      model: modelId,
+  try {
+    const result = await dispatchFalQueueTask({
+      modelId,
+      input,
       route: "trpc.imageStudio.*",
-      method: "POST",
-      inputs: { input_keys: Object.keys(input) },
-      error: err.slice(0, 500),
-      durationMs: Date.now() - startedAt,
-    });
-    recordErrorTrace({
-      userId: 0,
       modality: "image",
-      engine: modelId,
-      prompt: "[falQueueSubmit]",
-      errorMessage: err.slice(0, 500),
-      errorCode: "FAL_SUBMIT_ERROR",
     });
+    return { request_id: result.request_id };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
     throw new TRPCError({
       code: "INTERNAL_SERVER_ERROR",
-      message: `fal.ai submit 錯誤 [${modelId}]: ${err}`,
+      message: `fal.ai submit 錯誤 [${modelId}]: ${msg}`,
     });
   }
-  const data = await res.json();
-  void traceToolRun({
-    runName: "image-studio/fal-queue-submit",
-    provider: "fal.ai",
-    model: modelId,
-    route: "trpc.imageStudio.*",
-    method: "POST",
-    inputs: { input_keys: Object.keys(input) },
-    outputs: { request_id: data.request_id ?? null },
-    durationMs: Date.now() - startedAt,
-  });
-  return data;
 }
 
 async function falQueueStatus(

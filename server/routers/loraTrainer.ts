@@ -137,6 +137,142 @@ export const loraTrainerRouter = router({
   }),
 
   /**
+   * trainWithReplicate — 啟動 Replicate LoRA 訓練（async，立即回 trainingId）
+   *
+   * 流程：
+   *  1. 共用 falTrainer 的 ZIP 打包+上傳 helper（buildAndUploadZip）
+   *  2. 在 fineTunedModels 表建立 record（trainingEngine: "replicate"）
+   *  3. 呼叫 replicateClient.startReplicateTraining 啟動 ostris/flux-dev-lora-trainer
+   *  4. 將 trainingId 寫回 replicatePredictionId 欄位
+   *  5. 前端可用 replicateTrainingStatus 輪詢
+   */
+  trainWithReplicate: protectedProcedure
+    .input(
+      z.object({
+        modelName: z.string().min(1).max(255),
+        description: z.string().optional(),
+        modelType: z.enum([
+          "image_subject",
+          "style_lora",
+          "scene_lora",
+          "portrait_lora",
+        ]),
+        triggerWord: z.string().min(1),
+        steps: z.number().int().min(100).max(10000).default(1000),
+        learningRate: z.number().positive().default(0.0004),
+        imageUrls: z.array(z.string().url()).min(4).max(50),
+        baseModel: z.string().optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!process.env.REPLICATE_API_TOKEN) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "REPLICATE_API_TOKEN 未設定，請在 Railway → Environment Variables 中新增",
+        });
+      }
+
+      // ── Step 1: 建立 fineTunedModel record（status: pending） ──
+      const model = await db.createFineTunedModel({
+        userId: ctx.user.id,
+        name: input.modelName,
+        description: input.description,
+        modelType: input.modelType,
+        status: "pending",
+        trainingEngine: "replicate",
+        configJson: {
+          triggerWord: input.triggerWord,
+          steps: input.steps,
+          learningRate: input.learningRate,
+        },
+      });
+      const modelObj = model as unknown as { id: number };
+      const modelId = modelObj.id;
+
+      try {
+        // ── Step 2: 共用 ZIP 打包+上傳 ──
+        const { buildAndUploadZip } = await import("../services/falTrainer");
+        const zipUrl = await buildAndUploadZip(
+          input.imageUrls,
+          ctx.user.id,
+          modelId,
+          "replicate"
+        );
+
+        // ── Step 3: 啟動 Replicate 訓練 ──
+        const { startReplicateTraining } = await import(
+          "../services/replicateClient"
+        );
+        const slug = input.modelName
+          .toLowerCase()
+          .replace(/[^a-z0-9-]+/g, "-")
+          .replace(/^-+|-+$/g, "")
+          .slice(0, 50);
+        // Replicate destination 命名規範：owner/name，使用 token 對應的 username
+        // 預設用 user-{userId} 作為 owner（需事先在 Replicate 端建立帳號）
+        const destination = `user-${ctx.user.id}/${slug || `lora-${modelId}`}`;
+
+        const { trainingId, status } = await startReplicateTraining({
+          zipUrl,
+          triggerWord: input.triggerWord,
+          steps: input.steps,
+          learningRate: input.learningRate,
+          baseModel: input.baseModel,
+          destination,
+        });
+
+        // ── Step 4: 寫回 trainingId + 標記為 training ──
+        await db.updateFineTunedModel(modelId, {
+          status: "training",
+          replicatePredictionId: trainingId,
+          configJson: {
+            triggerWord: input.triggerWord,
+            steps: input.steps,
+            learningRate: input.learningRate,
+            zipUrl,
+            predictionId: trainingId,
+            submittedAt: Date.now(),
+          },
+        });
+
+        return {
+          modelId,
+          trainingId,
+          status,
+          destination,
+          zipUrl,
+        };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        await db
+          .updateFineTunedModel(modelId, { status: "failed" })
+          .catch(() => {});
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Replicate 訓練啟動失敗：${msg}`,
+        });
+      }
+    }),
+
+  /**
+   * replicateTrainingStatus — 查詢 Replicate 訓練狀態
+   */
+  replicateTrainingStatus: protectedProcedure
+    .input(z.object({ trainingId: z.string().min(1) }))
+    .query(async ({ input }) => {
+      if (!process.env.REPLICATE_API_TOKEN) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "REPLICATE_API_TOKEN 未設定",
+        });
+      }
+      const { getReplicateTrainingStatus } = await import(
+        "../services/replicateClient"
+      );
+      return getReplicateTrainingStatus(input.trainingId);
+    }),
+
+  /**
    * 取得單一模型的完整訓練詳情（含 Replicate 即時狀態）
    */
   trainingDetail: protectedProcedure

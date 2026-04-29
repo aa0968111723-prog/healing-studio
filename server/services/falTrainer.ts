@@ -67,8 +67,11 @@ export function resolveFalTrainingModel(modelType: TrainingModelType): string {
 
 /**
  * Downloads each URL (image or video) and packs them into a ZIP buffer.
+ *
+ * Exported so that other training pipelines (Replicate LoRA) can reuse the
+ * same ZIP packing logic without duplicating download/zip code.
  */
-async function buildZipBuffer(urls: string[]): Promise<Buffer> {
+export async function buildZipBuffer(urls: string[]): Promise<Buffer> {
   log("info", `Building ZIP from ${urls.length} files...`);
   const zip = new JSZip();
 
@@ -133,6 +136,24 @@ async function uploadZipToStorage(
   modelId: number
 ): Promise<string> {
   const key = `lora-datasets/${userId}/${modelId}-fal-${Date.now()}.zip`;
+  log("info", `Uploading ZIP to S3: ${key}`);
+  const { url } = await storagePut(key, buffer, "application/zip");
+  log("info", `ZIP uploaded: ${url}`);
+  return url;
+}
+
+/**
+ * buildAndUploadZip — 與 runFalTrainingJob 共用的 ZIP 打包+上傳流程。
+ * 提供給 Replicate / 其他訓練 provider 使用，避免重複程式。
+ */
+export async function buildAndUploadZip(
+  urls: string[],
+  userId: number,
+  modelId: number,
+  scope: "fal" | "replicate" = "fal"
+): Promise<string> {
+  const buffer = await buildZipBuffer(urls);
+  const key = `lora-datasets/${userId}/${modelId}-${scope}-${Date.now()}.zip`;
   log("info", `Uploading ZIP to S3: ${key}`);
   const { url } = await storagePut(key, buffer, "application/zip");
   log("info", `ZIP uploaded: ${url}`);

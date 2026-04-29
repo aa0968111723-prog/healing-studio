@@ -76,6 +76,73 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     allowedArgsSchema: { task: "string", files: "string[]?" },
     executionTarget: "claudeCode",
   },
+  // ─── 創作工作室生成工具（光球可在多步驟計畫中直接觸發生成） ──
+  {
+    name: "studio.generateImage",
+    riskLevel: "medium",
+    requiresHuman: true,
+    allowedArgsSchema: {
+      prompt: "string",
+      modelId: "string?",
+      aspect_ratio: "string?",
+      num_images: "number?",
+      negative_prompt: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "studio.generateVideo",
+    riskLevel: "medium",
+    requiresHuman: true,
+    allowedArgsSchema: {
+      prompt: "string",
+      modelId: "string?",
+      image_url: "string?",
+      duration: "number?",
+      aspect_ratio: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "studio.generateAudio",
+    riskLevel: "medium",
+    requiresHuman: true,
+    allowedArgsSchema: {
+      prompt: "string",
+      modelId: "string?",
+      lyrics: "string?",
+      instrumental: "boolean?",
+      duration: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    name: "studio.generateVoice",
+    riskLevel: "medium",
+    requiresHuman: true,
+    allowedArgsSchema: {
+      text: "string",
+      modelId: "string?",
+      voice_id: "string?",
+      speed: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  // ─── 導演 AI 規劃工具（光球可請導演為當前工作室規劃下一步） ──
+  {
+    name: "director.suggestPlan",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      activeModality: "string",
+      userIntent: "string?",
+      selectedFalModelId: "string?",
+      hasTokenWeights: "boolean?",
+      hasFineTunedModel: "boolean?",
+      personality: "string?",
+    },
+    executionTarget: "server-side",
+  },
 ];
 
 export function getGlobalAgentTool(name: string): GlobalAgentToolDefinition | null {
