@@ -13,6 +13,9 @@ interface Props {
   onRefresh: () => void;
 }
 
+const formatCount = (value: number | undefined) =>
+  typeof value === "number" ? value.toString() : "—";
+
 export function SummaryBar({
   summary,
   isFetching,
@@ -23,22 +26,24 @@ export function SummaryBar({
   return (
     <div className="flex items-center gap-3 flex-wrap p-4 rounded-2xl bg-white/60 dark:bg-slate-900/60 backdrop-blur border border-slate-200 dark:border-slate-800">
       <Badge className="bg-emerald-500 text-white">
-        正常 {summary?.healthy ?? 0}
+        正常 {formatCount(summary?.healthy)}
       </Badge>
       <Badge className="bg-yellow-500 text-white">
-        需優化 {summary?.needsOptimization ?? 0}
+        需優化 {formatCount(summary?.needsOptimization)}
       </Badge>
       <Badge className="bg-red-500 text-white">
-        損壞 {summary?.broken ?? 0}
+        損壞 {formatCount(summary?.broken)}
       </Badge>
       <Badge className="bg-orange-500 text-white">
-        異常 {summary?.abnormal ?? 0}
+        異常 {formatCount(summary?.abnormal)}
       </Badge>
 
       <span className="text-xs text-slate-500 ml-2">
-        共 {summary?.totalNodes ?? 0} 個節點
-        {summary?.lastUpdatedAt && (
+        共 {formatCount(summary?.totalNodes)} 個節點
+        {summary?.lastUpdatedAt ? (
           <> · 最後更新 {new Date(summary.lastUpdatedAt).toLocaleTimeString("zh-TW")}</>
+        ) : (
+          <> · 尚未取得即時資料</>
         )}
       </span>
 

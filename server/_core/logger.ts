@@ -6,6 +6,7 @@ export type LogLevel = "debug" | "info" | "warn" | "error";
 
 type RequestContext = {
   traceId: string;
+  orbTraceId: string;
 };
 
 type Serializable = unknown;
@@ -64,6 +65,7 @@ function formatLog(level: LogLevel, message: string, metadata?: unknown): string
     level,
     message,
     traceId: context?.traceId ?? null,
+    orbTraceId: context?.orbTraceId ?? null,
     metadata: safeSerialize(metadata ?? {}),
   };
 
@@ -91,8 +93,16 @@ export function getTraceId(): string | null {
   return contextStorage.getStore()?.traceId ?? null;
 }
 
-export function runWithTraceId<T>(traceId: string, callback: () => T): T {
-  return contextStorage.run({ traceId }, callback);
+export function getOrbTraceId(): string | null {
+  return contextStorage.getStore()?.orbTraceId ?? null;
+}
+
+export function runWithTraceContext<T>(
+  traceId: string,
+  orbTraceId: string,
+  callback: () => T
+): T {
+  return contextStorage.run({ traceId, orbTraceId }, callback);
 }
 
 export function requestTraceMiddleware(
@@ -101,10 +111,13 @@ export function requestTraceMiddleware(
   next: NextFunction
 ): void {
   const incomingTraceId = req.header("x-trace-id");
+  const incomingOrbTraceId = req.header("x-orb-trace-id") || req.header("x-trace-id");
   const traceId = incomingTraceId || randomUUID();
+  const orbTraceId = incomingOrbTraceId || `orb_${randomUUID()}`;
 
-  runWithTraceId(traceId, () => {
+  runWithTraceContext(traceId, orbTraceId, () => {
     res.setHeader("x-trace-id", traceId);
+    res.setHeader("x-orb-trace-id", orbTraceId);
     logger.info("HTTP request received", {
       method: req.method,
       path: req.originalUrl,

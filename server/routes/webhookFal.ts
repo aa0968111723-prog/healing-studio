@@ -59,6 +59,7 @@ falWebhookRouter.post(
       }
 
       const payload = req.body as FalWebhookPayload;
+      const orbTraceId = (req.headers["x-orb-trace-id"] as string | undefined) || payload.orbTraceId || payload.request_id;
 
       console.log(
         `[WebhookFal] Received: requestId=${payload.request_id} status=${payload.status}`
@@ -102,6 +103,7 @@ falWebhookRouter.post(
           rawResult,
           `generated/webhook/${jobId}`
         )) as typeof rawResult;
+        (resultData as Record<string, unknown>).orbTraceId = orbTraceId;
         await updateBackgroundJob(jobId, {
           status: "completed",
           progress: 100,
@@ -110,7 +112,7 @@ falWebhookRouter.post(
         });
         generationBus.emit(jobId, { type: "complete", thoughtChain: [] });
         console.log(
-          `[WebhookFal] ✅ Job ${jobId} completed. Result URLs saved.`
+          `[WebhookFal] ✅ Job ${jobId} completed. orbTraceId=${orbTraceId} Result URLs saved.`
         );
       } else if (payload.status === "ERROR") {
         const errorMessage = payload.error ?? "fal.ai 回傳錯誤";
@@ -121,7 +123,9 @@ falWebhookRouter.post(
           errorMessage,
         });
         generationBus.emit(jobId, { type: "error", message: errorMessage });
-        console.error(`[WebhookFal] ❌ Job ${jobId} failed: ${payload.error}`);
+        console.error(
+          `[WebhookFal] ❌ Job ${jobId} failed: ${payload.error} orbTraceId=${orbTraceId}`
+        );
       } else {
         // IN_QUEUE / IN_PROGRESS：更新進度
         const progress = payload.status === "IN_PROGRESS" ? 50 : 10;
@@ -155,6 +159,7 @@ interface FalWebhookPayload {
   /** fal.ai 標準輸出：音訊 */
   audio?: { url: string; content_type?: string };
   /** 任意額外欄位 */
+  orbTraceId?: string;
   [key: string]: unknown;
 }
 

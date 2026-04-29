@@ -7,6 +7,7 @@
  */
 
 import { EventEmitter } from "events";
+import { getOrbTraceId } from "./_core/logger";
 
 export type ThoughtNodeEvent = {
   id: string;
@@ -19,24 +20,26 @@ export type ThoughtNodeEvent = {
   tokens?: number;
 };
 
+export type GenerationEventBase = { orbTraceId?: string };
+
 export type GenerationEvent =
-  | { type: "thought-update"; node: ThoughtNodeEvent }
-  | { type: "progress"; progress: number; message: string }
-  | { type: "complete"; thoughtChain: ThoughtNodeEvent[] }
-  | { type: "error"; message: string }
-  | {
+  | ({ type: "thought-update"; node: ThoughtNodeEvent } & GenerationEventBase)
+  | ({ type: "progress"; progress: number; message: string } & GenerationEventBase)
+  | ({ type: "complete"; thoughtChain: ThoughtNodeEvent[] } & GenerationEventBase)
+  | ({ type: "error"; message: string } & GenerationEventBase)
+  | ({
       type: "step_complete";
       taskId: string;
       stepId: string;
       userId: number;
       at: number;
-    }
-  | {
+    } & GenerationEventBase)
+  | ({
       type: "task_done" | "task_failed";
       taskId: string;
       userId: number;
       at: number;
-    };
+    } & GenerationEventBase);
 
 class GenerationEventBus {
   private emitter = new EventEmitter();
@@ -48,7 +51,8 @@ class GenerationEventBus {
 
   /** Emit an event for a specific job */
   emit(jobId: number, event: GenerationEvent) {
-    this.emitter.emit(`job:${jobId}`, event);
+    const orbTraceId = event.orbTraceId ?? getOrbTraceId() ?? undefined;
+    this.emitter.emit(`job:${jobId}`, { ...event, orbTraceId });
   }
 
   /** Subscribe to events for a specific job. Returns unsubscribe function. */
