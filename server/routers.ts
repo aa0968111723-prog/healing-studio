@@ -21,6 +21,7 @@ import { newsRouter } from "./routers/news";
 import { showcaseRouter } from "./routers/showcase";
 import { senseRouter } from "./routers/sense";
 import { brainRouter } from "./routers/brain";
+import { brainPipelineRouter } from "./routers/brainPipeline";
 import { proStudioRouter } from "./routers/proStudio";
 import { imageStudioRouter } from "./routers/imageStudio";
 import { videoStudioRouter } from "./routers/videoStudio";
@@ -532,6 +533,7 @@ export const appRouter = router({
   showcase: showcaseRouter,
   sense: senseRouter,
   brain: brainRouter,
+  brainPipeline: brainPipelineRouter,
   proStudio: proStudioRouter,
   imageStudio: imageStudioRouter,
   videoStudio: videoStudioRouter,

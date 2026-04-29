@@ -1146,6 +1146,28 @@ export default function SettingsPage() {
                   <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                 </button>
 
+                {/* My Brain Pipeline */}
+                <button
+                  onClick={() => navigate("/my-brain")}
+                  className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-white/30 border border-transparent hover:border-border/30 transition-all group"
+                  data-testid="settings-my-brain-link"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                      <Brain className="w-4 h-4 text-emerald-600" />
+                    </div>
+                    <div className="text-left">
+                      <h3 className="hs-h3 !mb-0 text-foreground">
+                        我的腦組態狀態
+                      </h3>
+                      <p className="hs-small !mb-0 text-muted-foreground">
+                        可視化檢視推理／生成引擎、光球代理、導演 AI 的即時健康
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                </button>
+
                 {/* Cost Dashboard */}
                 <button
                   onClick={() => navigate("/admin")}
