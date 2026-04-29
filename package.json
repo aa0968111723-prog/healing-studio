@@ -9,8 +9,10 @@
     "start": "NODE_ENV=production node dist/index.js",
     "check": "node scripts/check-deps.mjs --typecheck",
     "check:routes": "node scripts/scan-routes.mjs",
+    "check:smoke": "node scripts/smoke-routes.mjs",
     "format": "prettier --write .",
     "test": "vitest run",
+    "test:e2e": "playwright test",
     "db:push": "drizzle-kit migrate",
     "eval": "ts-node server/eval/runEval.ts"
   },

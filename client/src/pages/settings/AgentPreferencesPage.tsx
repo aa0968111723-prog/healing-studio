@@ -203,15 +203,15 @@ export default function AgentPreferencesPage() {
         </p>
       </header>
 
-      <Tabs defaultValue="behavior" className="w-full">
+      <Tabs defaultValue="behavior" className="w-full" data-testid="agent-prefs-tabs">
         <TabsList className="flex flex-wrap">
-          <TabsTrigger value="behavior">行為</TabsTrigger>
-          <TabsTrigger value="notify">通知</TabsTrigger>
-          <TabsTrigger value="voice">語音</TabsTrigger>
-          <TabsTrigger value="tools">工具白黑名單</TabsTrigger>
-          <TabsTrigger value="pages">頁面權限</TabsTrigger>
-          <TabsTrigger value="ui">助手 UI</TabsTrigger>
-          <TabsTrigger value="schedule">自動排程</TabsTrigger>
+          <TabsTrigger value="behavior" data-testid="tab-behavior">行為</TabsTrigger>
+          <TabsTrigger value="notify" data-testid="tab-notify">通知</TabsTrigger>
+          <TabsTrigger value="voice" data-testid="tab-voice">語音</TabsTrigger>
+          <TabsTrigger value="tools" data-testid="tab-tools">工具白黑名單</TabsTrigger>
+          <TabsTrigger value="pages" data-testid="tab-pages">頁面權限</TabsTrigger>
+          <TabsTrigger value="ui" data-testid="tab-ui">助手 UI</TabsTrigger>
+          <TabsTrigger value="schedule" data-testid="tab-schedule">自動排程</TabsTrigger>
         </TabsList>
 
         {/* ───── 行為 ───── */}

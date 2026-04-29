@@ -466,12 +466,13 @@ function ClarificationPromptCard({
     <div
       role="dialog"
       aria-label="光球需要先確認需求"
+      data-testid="orb-clarification-card"
       className="fixed bottom-24 right-5 z-[88] w-[380px] max-w-[calc(100vw-2rem)] rounded-3xl border border-amber-200/30 bg-slate-950/95 p-4 text-white shadow-2xl backdrop-blur-xl"
     >
       <div className="text-xs uppercase tracking-[0.2em] text-amber-200/80">
         先確認一下
       </div>
-      <div className="mt-1 text-base font-semibold">{prompt.question}</div>
+      <div data-testid="orb-clarification-question" className="mt-1 text-base font-semibold">{prompt.question}</div>
       <div className="mt-2 text-xs text-white/60">
         我需要先和你確認，避免做錯方向。選一個最接近的答案，或自己補充。
       </div>

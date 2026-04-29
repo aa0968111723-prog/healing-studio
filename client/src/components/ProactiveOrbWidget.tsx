@@ -130,6 +130,46 @@ function savePosition(x: number, y: number) {
   }
 }
 
+/**
+ * Clamp a drag offset relative to the configured corner anchor. Each anchor
+ * allows movement only "into" the screen — bottom-right pulls up-left
+ * (negative offsets), bottom-left allows positive x, top-right allows positive y,
+ * top-left allows both positive offsets.
+ */
+function clampDragOffset(
+  x: number,
+  y: number,
+  corner: string
+): { x: number; y: number } {
+  const w = typeof window !== "undefined" ? window.innerWidth : 0;
+  const h = typeof window !== "undefined" ? window.innerHeight : 0;
+  const padding = 80; // keep at least 80px of widget visible
+
+  switch (corner) {
+    case "bottom-left":
+      return {
+        x: Math.max(0, Math.min(w - padding, x)),
+        y: Math.max(-(h - padding), Math.min(0, y)),
+      };
+    case "top-right":
+      return {
+        x: Math.max(-(w - padding), Math.min(0, x)),
+        y: Math.max(0, Math.min(h - padding, y)),
+      };
+    case "top-left":
+      return {
+        x: Math.max(0, Math.min(w - padding, x)),
+        y: Math.max(0, Math.min(h - padding, y)),
+      };
+    case "bottom-right":
+    default:
+      return {
+        x: Math.max(-(w - padding), Math.min(0, x)),
+        y: Math.max(-(h - padding), Math.min(0, y)),
+      };
+  }
+}
+
 function isOnboarded(): boolean {
   try {
     return localStorage.getItem(ONBOARDED_KEY) === "true";
@@ -714,11 +754,35 @@ export default memo(function ProactiveOrbWidget({
   // ─── Global Orb Chat Integration ──────────────────────────────────────
   const globalChat = useGlobalOrbChat();
 
+  // ── User pref: orb widget corner ────────────────────────────────────────
+  // Read agentPreferences for the user-selected corner. The query is gated by
+  // auth elsewhere; fallback to "bottom-right" matches existing behaviour.
+  const agentPrefsQuery = trpc.agentPreferences.getPreferences.useQuery(undefined, {
+    retry: false,
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+  const orbWidgetCorner =
+    (agentPrefsQuery.data as { orbWidgetCorner?: string } | undefined)?.orbWidgetCorner ??
+    "bottom-right";
+
   // Drag position state
   const [position, setPosition] = useState<{ x: number; y: number }>(
     () => loadPosition() || { x: 0, y: 0 }
   );
   const [hasDragged, setHasDragged] = useState(() => !!loadPosition());
+
+  // Snap back to the configured corner whenever the preference changes —
+  // wipes any old drag offset so the user actually sees the corner they picked.
+  useEffect(() => {
+    setPosition({ x: 0, y: 0 });
+    setHasDragged(false);
+    try {
+      localStorage.removeItem(POSITION_KEY);
+    } catch {
+      /* ignore */
+    }
+  }, [orbWidgetCorner]);
 
   // Onboarding state
   const [guiding, setGuiding] = useState(false);
@@ -921,30 +985,27 @@ export default memo(function ProactiveOrbWidget({
 
     const newX = position.x + info.offset.x;
     const newY = position.y + info.offset.y;
-    const clampedX = Math.max(-(window.innerWidth - 80), Math.min(0, newX));
-    const clampedY = Math.max(-(window.innerHeight - 80), Math.min(0, newY));
+    const clamped = clampDragOffset(newX, newY, orbWidgetCorner);
 
-    setPosition({ x: clampedX, y: clampedY });
-    homePositionRef.current = { x: clampedX, y: clampedY };
-    savePosition(clampedX, clampedY);
+    setPosition(clamped);
+    homePositionRef.current = clamped;
+    savePosition(clamped.x, clamped.y);
     setHasDragged(true);
   }
 
-  // Re-clamp on window resize
+  // Re-clamp on window resize. Re-bind when the corner changes so the
+  // clamp signs (positive vs negative offsets) match the new anchor.
   useEffect(() => {
     function handleResize() {
       setPosition(prev => {
-        const clamped = {
-          x: Math.max(-(window.innerWidth - 80), Math.min(0, prev.x)),
-          y: Math.max(-(window.innerHeight - 80), Math.min(0, prev.y)),
-        };
+        const clamped = clampDragOffset(prev.x, prev.y, orbWidgetCorner);
         homePositionRef.current = clamped;
         return clamped;
       });
     }
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, []);
+  }, [orbWidgetCorner]);
 
   // ─── Drop zone handlers ──────────────────────────────────────────────
 
@@ -2414,10 +2475,17 @@ export default memo(function ProactiveOrbWidget({
         animate={guiding ? undefined : (isMobile ? { x: 0, y: 0 } : position)}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
         className={cn(
-          "pointer-events-auto flex flex-col items-end gap-3",
-          isMobile
-            ? "absolute bottom-4 right-4"
-            : "absolute bottom-6 right-6"
+          "pointer-events-auto flex gap-3",
+          // Anchor the widget to the user-selected corner. Match alignment
+          // (items-end / items-start) to the corner so the panel grows in the
+          // right direction and the drag-bounds stay sensible.
+          (orbWidgetCorner === "bottom-left" || orbWidgetCorner === "top-left")
+            ? "items-start flex-col"
+            : "items-end flex-col",
+          orbWidgetCorner === "bottom-right" && (isMobile ? "absolute bottom-4 right-4" : "absolute bottom-6 right-6"),
+          orbWidgetCorner === "bottom-left" && (isMobile ? "absolute bottom-4 left-4" : "absolute bottom-6 left-6"),
+          orbWidgetCorner === "top-right" && (isMobile ? "absolute top-4 right-4" : "absolute top-6 right-6"),
+          orbWidgetCorner === "top-left" && (isMobile ? "absolute top-4 left-4" : "absolute top-6 left-6")
         )}
         style={{ cursor: isMobile ? "pointer" : (guiding ? "default" : "grab"), touchAction: "none" }}
         id="proactive-orb-anchor"
