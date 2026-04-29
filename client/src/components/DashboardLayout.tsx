@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import VisualSoul from "@/components/VisualSoul";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -82,6 +83,7 @@ import { Link, useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { Button } from "./ui/button";
 import { useAIState } from "@/contexts/AIStateContext";
+import ProactiveOrbWidget from "./ProactiveOrbWidget";
 import AgentIntentPreview from "./AgentIntentPreview";
 import AgentFocusSpotlight from "./AgentFocusSpotlight";
 import {
@@ -308,6 +310,9 @@ export default function DashboardLayout({
       >
         <div className="glass-card p-10 sm:p-12 max-w-md w-full mx-4 text-center">
           <div className="flex justify-center mb-6">
+            <Suspense fallback={null}>
+              <VisualSoul size="lg" personality="creative" state="idle" />
+            </Suspense>
           </div>
           <h1 className="hs-h1 !mb-0 text-foreground">AI Director 創作平台</h1>
           <p className="text-sm text-muted-foreground mt-4 max-w-sm mx-auto body-healing leading-relaxed">
@@ -516,6 +521,63 @@ function DashboardLayoutContent({
   const resetWidth = useCallback(() => {
     setSidebarWidth(DEFAULT_WIDTH);
   }, [setSidebarWidth]);
+
+  // ── Memoized ProactiveOrbWidget callbacks ──────────────────────────────
+  const handleOrbRestartTour = useCallback(() => {
+    const pathToPageId: Record<string, PageId> = {
+      "/pro-studio": "pro-studio",
+      "/image-studio": "image-studio",
+      "/video-studio": "video-studio",
+      "/director": "director",
+      "/models": "models",
+      "/history": "history",
+      "/assets": "assets",
+      "/vault": "vault",
+      "/notes": "notes",
+      "/calendar": "calendar",
+      "/shared": "shared",
+      "/dashboard": "dashboard",
+      "/feedback": "feedback",
+      "/settings": "settings",
+      "/settings/ai-brain": "settings",
+      "/learn": "learn",
+      "/learn/tutorial-overview": "learn",
+      "/focus-flow": "focus-flow",
+      "/background-tasks": "background-tasks",
+    };
+    const pageId = pathToPageId[location] ?? "welcome";
+    window.dispatchEvent(
+      new CustomEvent("site-tour-start", { detail: { pageId } })
+    );
+  }, [location]);
+
+  const handleOrbSaveToNotes = useCallback(
+    (payload: { title: string; content?: string; sourceType?: string }) => {
+      window.dispatchEvent(
+        new CustomEvent("pin-to-notes", { detail: payload })
+      );
+    },
+    []
+  );
+
+  const handleOrbOpenNotes = useCallback(() => {
+    window.dispatchEvent(new CustomEvent("open-notes-drawer"));
+  }, []);
+
+  const handleOrbOpenCalendar = useCallback(() => {
+    window.dispatchEvent(
+      new CustomEvent("navigate-to", { detail: "/notes" })
+    );
+  }, []);
+
+  const handleOrbAddToCalendar = useCallback(
+    (payload: { title: string; description?: string; date: Date }) => {
+      window.dispatchEvent(
+        new CustomEvent("add-to-calendar", { detail: payload })
+      );
+    },
+    []
+  );
 
   return (
     <>
@@ -788,6 +850,9 @@ function DashboardLayoutContent({
           aria-hidden="true"
         >
           <div className="workspace-top-glow" />
+          <div className="workspace-orb workspace-orb-1" />
+          <div className="workspace-orb workspace-orb-2" />
+          <div className="workspace-orb workspace-orb-3" />
         </div>
 
         {isMobile && (
@@ -888,6 +953,16 @@ function DashboardLayoutContent({
 
       {/* 全站光球常駐協助（Studio 頁面內已有自己的光球，不需要重複）
           Phase 2a：/agent 緩衝聊天頁已是全頁光球對話，浮球隱藏避免雙重 UI */}
+      {user && location !== "/agent" && (
+        <ProactiveOrbWidget
+          onRestartTour={handleOrbRestartTour}
+          onSaveToNotes={handleOrbSaveToNotes}
+          onOpenNotes={handleOrbOpenNotes}
+          onOpenCalendar={handleOrbOpenCalendar}
+          onAddToCalendar={handleOrbAddToCalendar}
+          onNavigate={path => setLocation(path)}
+        />
+      )}
       {/* 破壞性動作執行前的柔軟確認卡片（全站都可觸發，含 /agent） */}
       {user && <AgentIntentPreview />}
       {/* 光球「看這裡」視覺聚焦（focusElement 動作的畫面層） */}

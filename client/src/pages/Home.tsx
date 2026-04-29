@@ -17,6 +17,7 @@ import {
 import { getLoginUrl, getDemoLoginUrl } from "@/const";
 import { useLocation } from "wouter";
 import { GlassCard } from "@/components/ZenCoPilot";
+import VisualSoul from "@/components/VisualSoul";
 const OnboardingFlow = lazy(() => import("@/components/OnboardingFlow"));
 import { useSiteOnboarding } from "@/contexts/SiteOnboardingContext";
 import {
@@ -71,6 +72,7 @@ import OarsGreeting from "@/components/OarsGreeting";
 import { AmbientVideo } from "@/components/AmbientVideo";
 import { useSenseEngine } from "@/hooks/useSenseEngine";
 import { useIntentInference } from "@/hooks/useIntentInference";
+import VisualSoulInvitation from "@/components/VisualSoulInvitation";
 import LocalAuthForm from "@/components/LocalAuthForm";
 import FeatureDetailDialog, {
   type FeatureDetail,
@@ -1177,7 +1179,7 @@ ${profileSnippet}`;
       <Suspense
         fallback={
           <div className="min-h-screen flex items-center justify-center">
-            <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+            <VisualSoul state="thinking" />
           </div>
         }
       >
@@ -1235,6 +1237,7 @@ ${profileSnippet}`;
       >
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-full flex items-center justify-between">
           <div className="flex items-center gap-3">
+            <VisualSoul size="sm" personality={personality} />
             <span
               className={`font-semibold tracking-tight transition-colors duration-1000 ${s.textPrimary}`}
             >
@@ -1315,6 +1318,48 @@ ${profileSnippet}`;
             >
               <SceneBadge sceneId={sceneId} isDark={isDark} />
             </motion.div>
+
+            {/* Central Orb — ethereal, scene-adaptive glow */}
+            <div className="flex flex-col items-center mb-8 sm:mb-12">
+              {/* Ambient glow ring behind orb — soft, scene-linked, smaller on mobile */}
+              <motion.div
+                className="absolute w-32 h-32 sm:w-48 sm:h-48 lg:w-56 lg:h-56 rounded-full pointer-events-none"
+                style={{
+                  background: `radial-gradient(circle, ${s.glowColor} 0%, transparent 70%)`,
+                }}
+                animate={{
+                  scale: [1, 1.08, 1],
+                  opacity: [0.25, 0.4, 0.25],
+                }}
+                transition={{
+                  duration: 8,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
+              />
+              {/* Orb with subtle scene-matched aura */}
+              <motion.div
+                className="relative"
+                animate={{
+                  filter: [
+                    `drop-shadow(0 0 16px ${s.glowColor})`,
+                    `drop-shadow(0 0 28px ${s.glowColor})`,
+                    `drop-shadow(0 0 16px ${s.glowColor})`,
+                  ],
+                }}
+                transition={{
+                  duration: 6,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
+              >
+                <VisualSoul
+                  size="md"
+                  personality={personality}
+                  className="sm:!w-16 sm:!h-16"
+                />
+              </motion.div>
+            </div>
 
             {/* OARS Contextual Greeting — replaces static title */}
             <motion.div
@@ -1920,6 +1965,14 @@ ${profileSnippet}`;
         </div>
       </section>
 
+      {/* ── VisualSoul Invitation (光球行動與邀約) ── */}
+      <VisualSoulInvitation
+        sceneId={sceneId}
+        personality={personality}
+        intentResult={intentResult}
+        isInferring={isIntentInferring}
+      />
+
       {/* ── Footer — healing minimal ── */}
       <footer className="py-10 sm:py-12 lg:py-14 px-4 sm:px-6 transition-colors duration-1000 relative z-10 mt-auto">
         {/* Breathing divider line */}
@@ -1931,6 +1984,7 @@ ${profileSnippet}`;
         />
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-0 text-xs">
           <div className="flex items-center gap-3">
+            <VisualSoul size="sm" personality={personality} />
             <span
               className={`transition-colors duration-1000 tracking-wide ${s.textMuted}`}
             >
