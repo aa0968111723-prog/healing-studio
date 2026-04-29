@@ -366,6 +366,40 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     orbHints: ["帶我看 LangSmith 監控", "我想查最近模型呼叫的錯誤和延遲"],
   },
   {
+    id: "agent-preferences",
+    label: "代理人 + 助手 設定",
+    path: "/settings/agent",
+    group: "settings",
+    description: "全站光球代理與光球助手的所有細節：行為模式、語音、工具白黑名單、頁面權限、UI 偏好、自動排程",
+    aliases: [
+      "agent settings",
+      "代理設定",
+      "光球設定",
+      "光球助手設定",
+      "ai 代理設定",
+      "agent preferences",
+    ],
+    showInSidebar: false,
+    showInAgentHome: true,
+    agentEntryPriority: 25,
+    supportsPageAgent: false,
+    quickActions: [
+      {
+        id: "open-agent-settings",
+        label: "打開代理設定",
+        description: "管理光球代理的全部細節",
+        path: "/settings/agent",
+      },
+    ],
+    orbHints: [
+      "我想調整光球",
+      "改光球的設定",
+      "讓光球少問一點",
+      "讓光球純聊天",
+      "設定自動排程",
+    ],
+  },
+  {
     id: "settings",
     label: "個人設定",
     path: "/settings",
@@ -698,7 +732,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     showInSidebar: false,
     showInAgentHome: false,
     agentEntryPriority: 70,
-    supportsPageAgent: false,
+    supportsPageAgent: true,
     quickActions: [
       { id: "open-my-brain", label: "開啟我的大腦", description: "管理個人大腦", path: "/my-brain" },
     ],
@@ -714,7 +748,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     showInSidebar: false,
     showInAgentHome: false,
     agentEntryPriority: 93,
-    supportsPageAgent: false,
+    supportsPageAgent: true,
     quickActions: [
       { id: "open-brain-pipeline", label: "查看推理鏈", description: "前往大腦推理鏈視覺化", path: "/admin/brain-pipeline" },
     ],

@@ -24,6 +24,19 @@ for (const pkg of requiredPackages) {
 }
 
 const shouldTypecheck = process.argv.includes("--typecheck");
+const strictRoutes = process.argv.includes("--strict");
+
+// Route↔registry↔PageAgent lint runs unconditionally — it has no npm
+// dependencies, so it works even when install is blocked. In strict mode it
+// blocks the build; in lint mode it just prints warnings.
+const routesScan = spawnSync(
+  "node",
+  ["scripts/scan-routes.mjs", ...(strictRoutes ? ["--strict"] : [])],
+  { stdio: "inherit" }
+);
+if (strictRoutes && routesScan.status && routesScan.status !== 0) {
+  process.exit(routesScan.status);
+}
 
 if (missing.length > 0) {
   console.warn("\n[check] Dependency preflight warning.");

@@ -40,6 +40,7 @@ const CalendarPage = lazy(() => import("./pages/CalendarPage"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const FeedbackPage = lazy(() => import("./pages/FeedbackPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
+const AgentPreferencesPage = lazy(() => import("./pages/settings/AgentPreferencesPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
 const ProStudio = lazy(() => import("./pages/ProStudio"));
 const ImageStudio = lazy(() => import("./pages/ImageStudio"));
@@ -201,6 +202,9 @@ function Router() {
       </Route>
       <Route path="/settings/ai-brain">
         <AdminRedirect />
+      </Route>
+      <Route path="/settings/agent">
+        <DashboardRoute component={AgentPreferencesPage} />
       </Route>
       <Route path="/settings">
         <DashboardRoute component={SettingsPage} />

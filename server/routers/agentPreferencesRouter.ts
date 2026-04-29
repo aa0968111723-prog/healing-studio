@@ -14,6 +14,22 @@ const UpdateSchema = z.object({
   maxAutoStepsPerTask: z.number().int().min(1).max(20).optional(),
   notifyOnCompletion: z.boolean().optional(),
   notifyOnError: z.boolean().optional(),
+  // Voice (orb 助手)
+  voiceEnabled: z.boolean().optional(),
+  preferredVoiceName: z.enum(["Puck", "Charon", "Kore", "Fenrir", "Aoede"]).optional(),
+  voiceAutoActivate: z.boolean().optional(),
+  // Per-user env-flag overrides (null = follow env)
+  orbAgentEnabled: z.boolean().nullable().optional(),
+  workflowsEnabled: z.boolean().nullable().optional(),
+  // Per-page agent disable list
+  disabledPageAgents: z.array(z.string().max(64)).max(64).optional(),
+  // Orb widget UI prefs
+  orbWidgetCorner: z
+    .enum(["bottom-right", "bottom-left", "top-right", "top-left"])
+    .optional(),
+  orbWelcomeMessage: z.string().max(280).nullable().optional(),
+  orbShortcutEnabled: z.boolean().optional(),
+  orbProactiveSuggestions: z.boolean().optional(),
 });
 
 async function ensurePreferences(userId: number) {

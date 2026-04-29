@@ -197,6 +197,28 @@ export const GENERATION_ENGINE_CATALOG = {
         label: "Imagen 3 (Vertex) 🔷",
         tier: "premium",
       },
+      // ── Imagen 4（Gemini & Vertex）──
+      {
+        value: "gemini/imagen-4",
+        label: "Imagen 4 (Gemini) 🔵",
+        tier: "premium",
+      },
+      {
+        value: "gemini/imagen-4-fast",
+        label: "Imagen 4 Fast (Gemini) ⚡",
+        tier: "fast",
+      },
+      {
+        value: "vertex/imagen-4",
+        label: "Imagen 4 (Vertex) 🔷",
+        tier: "premium",
+      },
+      // ── Nano Banana（Gemini 2.5 Flash Image，圖像快速編修）──
+      {
+        value: "gemini/nano-banana",
+        label: "Nano Banana (Gemini Flash Image) 🍌",
+        tier: "fast",
+      },
     ],
   },
   videoEngine: {

@@ -236,6 +236,128 @@ function isFlagEnabled(value: string | undefined, defaultEnabled: boolean): bool
   return !["0", "false", "off", "no", "disabled"].includes(normalized);
 }
 
+/**
+ * Pick which of the 5 reasoning brain slots best fits a single orb-chat turn.
+ *
+ * Default: `director` (matches legacy behaviour). Heuristics only override
+ * when the user's intent is unmistakable, so existing tests that mock the
+ * director slot keep passing for normal conversations.
+ *
+ *   technician  — coding / deploy / DevOps / debugging keywords
+ *   storyteller — script / 分鏡 / dialogue / narrative authoring
+ *   analyst     — data lookup / 統計 / metrics / 比較 / 比例 / 分析報告
+ *   curator     — preferences / memory / "上次" / "之前" / personal history
+ *   director    — everything else (multimodal planning, generic creative)
+ */
+function pickReasoningSlotForOrbChat(input: {
+  userText: string;
+  pageSnapshot?: { pageId?: string; pagePath?: string } | null | undefined;
+}): "director" | "analyst" | "storyteller" | "technician" | "curator" {
+  const text = (input.userText ?? "").toLowerCase();
+  if (!text) return "director";
+  const has = (...keywords: string[]) =>
+    keywords.some(keyword => text.includes(keyword.toLowerCase()));
+
+  // Hard signals that should win regardless of page context.
+  if (
+    has(
+      "code",
+      "代碼",
+      "程式",
+      "python",
+      "typescript",
+      "javascript",
+      "bug",
+      "deploy",
+      "github",
+      "api error",
+      "stack trace",
+      "exception",
+      "終端",
+      "shell",
+      "docker",
+      "ci/cd"
+    )
+  ) {
+    return "technician";
+  }
+
+  if (
+    has(
+      "腳本",
+      "分鏡",
+      "對白",
+      "對話",
+      "story",
+      "storyboard",
+      "script",
+      "narrative",
+      "短篇",
+      "電影感",
+      "詩",
+      "歌詞",
+      "lyric"
+    )
+  ) {
+    return "storyteller";
+  }
+
+  if (
+    has(
+      "統計",
+      "比例",
+      "數據",
+      "報表",
+      "metrics",
+      "analytics",
+      "用量",
+      "成本",
+      "cost",
+      "kpi",
+      "比較",
+      "差異",
+      "trend",
+      "dashboard"
+    )
+  ) {
+    return "analyst";
+  }
+
+  if (
+    has(
+      "上次",
+      "之前",
+      "我習慣",
+      "我喜歡",
+      "memory",
+      "記得",
+      "偏好",
+      "preference",
+      "history of",
+      "我做過"
+    )
+  ) {
+    return "curator";
+  }
+
+  // Page-derived hints (only used when text gives no signal).
+  const pageId = input.pageSnapshot?.pageId ?? "";
+  const pagePath = input.pageSnapshot?.pagePath ?? "";
+  if (
+    pageId === "admin" ||
+    pageId === "admin-api-usage" ||
+    pageId === "admin-brain-pipeline" ||
+    pagePath.startsWith("/admin")
+  ) {
+    return "analyst";
+  }
+  if (pageId === "director" || pagePath === "/director") {
+    return "storyteller";
+  }
+
+  return "director";
+}
+
 function sanitizeTelemetryValue(input: unknown): unknown {
   if (typeof input !== "string") return input;
   return input
@@ -4606,10 +4728,28 @@ export const appRouter = router({
           taskOutcomesSummary: recentTaskMemorySummary,
         });
 
-        // 從 AI 大腦取得導演配置（光球使用導演大腦）
-        const director = ctx.brain.getBrain("director");
+        // 從 AI 大腦取得導演配置（光球預設使用導演大腦），但會依使用者意圖
+        // 動態切到 5 個推理槽中最適合的那一個——讓使用者在 AI 大腦頁改的
+        // analyst / storyteller / technician / curator 模型都能真正生效。
+        const latestUserContent = [...input.messages]
+          .reverse()
+          .find(m => m.role === "user")?.content;
+        const latestUserTextForRouting =
+          typeof latestUserContent === "string"
+            ? latestUserContent
+            : Array.isArray(latestUserContent)
+            ? latestUserContent
+                .filter(part => part.type === "text")
+                .map(part => part.text)
+                .join("\n")
+            : "";
+        const reasoningSlot = pickReasoningSlotForOrbChat({
+          userText: latestUserTextForRouting,
+          pageSnapshot: input.pageSnapshot,
+        });
+        const director = ctx.brain.getBrain(reasoningSlot);
 
-        // 預設依大腦選定的 director.model 推斷引擎偏好；多模態與 Provider Router
+        // 預設依大腦選定的 model 推斷引擎偏好；多模態與 Provider Router
         // 會在後續再做動態決策。Brain 設定改 model 後，光球就會跟著切換引擎。
         let enginePreference: "gemini" | "auto" =
           /^gemini[-/]/i.test(director.model) || /^google[-/]/i.test(director.model)
