@@ -417,6 +417,11 @@ export class SunoClient {
     duration?: number;
     customMode?: boolean;
     lyrics?: string;
+    /**
+     * Suno 完成時主動 POST 回呼到此 URL（apibox.erweima.ai 的 callBackUrl）。
+     * 不帶則僅能用 getTaskStatus 輪詢；前端關閉後結果會遺失。
+     */
+    callBackUrl?: string;
   }): Promise<{ taskId: string; status: string }> {
     if (!this.apiKey)
       throw new Error("SunoClient not initialized — SUNO_API_KEY missing");
@@ -431,6 +436,9 @@ export class SunoClient {
       body.lyrics = params.lyrics;
       if (params.title) body.title = params.title;
       if (params.style) body.tags = params.style;
+    }
+    if (params.callBackUrl) {
+      body.callBackUrl = params.callBackUrl;
     }
 
     let data: unknown;

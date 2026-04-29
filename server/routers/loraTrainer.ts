@@ -212,6 +212,11 @@ export const loraTrainerRouter = router({
         // 預設用 user-{userId} 作為 owner（需事先在 Replicate 端建立帳號）
         const destination = `user-${ctx.user.id}/${slug || `lora-${modelId}`}`;
 
+        const siteUrl = process.env.VITE_SITE_URL?.trim();
+        const webhook = siteUrl
+          ? `${siteUrl}/api/webhook/replicate?modelId=${modelId}`
+          : undefined;
+
         const { trainingId, status } = await startReplicateTraining({
           zipUrl,
           triggerWord: input.triggerWord,
@@ -219,6 +224,7 @@ export const loraTrainerRouter = router({
           learningRate: input.learningRate,
           baseModel: input.baseModel,
           destination,
+          webhook,
         });
 
         // ── Step 4: 寫回 trainingId + 標記為 training ──

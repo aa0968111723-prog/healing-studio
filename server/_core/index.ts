@@ -36,6 +36,8 @@ import { detectStorageBackend } from "../storage";
 import { closeDb, runMigrations } from "../db";
 import { langsmithRouter } from "../routes/langsmith";
 import { falWebhookRouter } from "../routes/webhookFal";
+import { sunoWebhookRouter } from "../routes/webhookSuno";
+import { replicateWebhookRouter } from "../routes/webhookReplicate";
 import { stripeWebhookRouter } from "../routes/stripeWebhook";
 import { mediaDownloadRouter } from "../routes/download";
 import {
@@ -292,6 +294,8 @@ async function startServer() {
   // LangSmith observability stats
   app.use(langsmithRouter);
   app.use(falWebhookRouter);
+  app.use(sunoWebhookRouter);
+  app.use(replicateWebhookRouter);
   app.use(stripeWebhookRouter);
   app.use(mediaDownloadRouter);
   // AI Provider Proxy Gateway

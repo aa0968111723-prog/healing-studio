@@ -1379,19 +1379,34 @@ export const proStudioRouter = router({
       const estimate = estimatePoints("suno-v1", { durationSec: 60 });
       await deductCredits(ctx.user.id, estimate.totalPoints);
 
-      const { taskId } = await suno.generateMusic(input);
+      // 先建 backgroundJob 取得 jobId，才能組出帶 jobId 的 callBackUrl
       const job = await createBackgroundJob({
         userId: ctx.user.id,
         jobType: "audio",
         status: "processing",
         progressMessage: "Suno 生成中…",
-        resultJson: { sunoTaskId: taskId, estimate } as any,
+        resultJson: { estimate } as any,
       });
+      const jobId =
+        typeof job === "object" && job && "id" in job
+          ? ((job as any).id as number)
+          : null;
 
-      return {
-        taskId,
-        jobId: typeof job === "object" && job && "id" in job ? (job as any).id : null,
-      };
+      const siteUrl = process.env.VITE_SITE_URL?.trim();
+      const callBackUrl =
+        siteUrl && jobId ? `${siteUrl}/api/webhook/suno?jobId=${jobId}` : undefined;
+
+      const { taskId } = await suno.generateMusic({ ...input, callBackUrl });
+
+      // 把 sunoTaskId 補回 backgroundJob.resultJson，供 webhook / 輪詢反查
+      if (jobId) {
+        const { updateBackgroundJob } = await import("../db");
+        await updateBackgroundJob(jobId, {
+          resultJson: { sunoTaskId: taskId, estimate, userId: ctx.user.id } as any,
+        });
+      }
+
+      return { taskId, jobId };
     }),
 
   /**
