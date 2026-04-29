@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { keepPreviousData } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { PipelineCanvas } from "@/components/brain-pipeline/PipelineCanvas";
 import { SummaryBar, type StatusFilter } from "@/components/brain-pipeline/SummaryBar";
@@ -47,6 +48,24 @@ export default function AiBrainPipelinePage() {
     staleTime: 25_000,
   });
 
+  // 「重新檢測」：先觸發後端真實 ping 巡檢，完成後再 refetch 取最新圖。
+  // 巡檢期間按鈕保持 disabled 狀態，避免重複呼叫。
+  const runPatrol = trpc.brainPipeline.runPatrol.useMutation();
+  const handleRefresh = async () => {
+    try {
+      const result = await runPatrol.mutateAsync();
+      toast.success(
+        `已完成檢測：${result.checked} 個服務，${result.alerts} 筆新警報`
+      );
+    } catch (err) {
+      toast.error(
+        `檢測失敗：${err instanceof Error ? err.message : "未知錯誤"}`
+      );
+    } finally {
+      graphQuery.refetch();
+    }
+  };
+
   return (
     <div className="flex-1 flex flex-col p-4 sm:p-6 gap-4 h-[calc(100vh-4rem)] min-h-0">
       <header className="space-y-1">
@@ -61,10 +80,10 @@ export default function AiBrainPipelinePage() {
 
       <SummaryBar
         summary={graphQuery.data?.summary}
-        isFetching={graphQuery.isFetching}
+        isFetching={graphQuery.isFetching || runPatrol.isPending}
         autoRefresh={autoRefresh}
         onAutoRefreshChange={setAutoRefresh}
-        onRefresh={() => graphQuery.refetch()}
+        onRefresh={handleRefresh}
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
       />

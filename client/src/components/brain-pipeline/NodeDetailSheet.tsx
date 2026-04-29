@@ -233,9 +233,13 @@ function TraceSampleRow({ traceIds }: { traceIds: string[] }) {
           <button
             key={id}
             type="button"
-            onClick={() => navigate(`/admin?section=errors&trace=${id}`)}
+            onClick={() =>
+              navigate(
+                `/admin?section=brain&brainTab=errors&trace=${encodeURIComponent(id)}`
+              )
+            }
             className="font-mono text-[11px] bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 px-2 py-1 rounded border break-all transition-colors inline-flex items-center gap-1"
-            title="點擊跳到錯誤追蹤頁查看完整 trace"
+            title="點擊跳到 AI 大腦 → 錯誤追蹤分頁，並自動聚焦此 trace"
           >
             {id}
             <ExternalLink className="h-2.5 w-2.5 opacity-60" />

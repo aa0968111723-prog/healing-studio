@@ -31,6 +31,7 @@ import {
   getErrorTraces,
   getSystemSummary,
   getAutoRepairVersion,
+  runHealthPatrol,
 } from "../services/brainAutoRepair";
 import type { ErrorTrace } from "../services/brainAutoRepair";
 import { APP_PAGE_REGISTRY } from "../../shared/appRegistry";
@@ -978,6 +979,20 @@ export const brainPipelineRouter = router({
   /** 取系統摘要（給 SummaryBar 用，比 getGraph 輕量） */
   getSummary: protectedProcedure.query(() => {
     return getSystemSummary();
+  }),
+
+  /**
+   * 主動觸發實際的 provider 健康巡檢（admin only）。
+   *
+   * 「重新檢測」按鈕呼叫此 mutation 後再 refetch getGraph，能拿到 ping 過真實
+   * 端點後的最新狀態。背景已有 cron 在跑，但人工排查時不必等下一個排程點。
+   *
+   * 同時 invalidate 回應快取，避免 mutation 回傳後立刻又取到 5 秒前的舊圖。
+   */
+  runPatrol: adminProcedure.mutation(async () => {
+    const result = await runHealthPatrol();
+    invalidateResponseCache();
+    return result;
   }),
 });
 
