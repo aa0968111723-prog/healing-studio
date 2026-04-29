@@ -11,7 +11,6 @@ import {
   ChevronUp,
   Eye,
   EyeOff,
-  ToggleLeft,
   ToggleRight,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,7 +26,7 @@ interface StructuredBlocksEditorProps {
   workspaceMode: WorkspaceMode;
 }
 
-type CategoryKey = "required" | "control" | "correction";
+type CategoryKey = "required" | "correction";
 
 interface CategoryMeta {
   key: CategoryKey;
@@ -40,11 +39,6 @@ const CATEGORIES: CategoryMeta[] = [
     key: "required",
     label: "必要條件",
     icon: <Blocks className="h-3.5 w-3.5" />,
-  },
-  {
-    key: "control",
-    label: "控制條件",
-    icon: <ToggleLeft className="h-3.5 w-3.5" />,
   },
   {
     key: "correction",
@@ -109,18 +103,18 @@ export function StructuredBlocksEditor({
     Record<CategoryKey, boolean>
   >({
     required: false,
-    control: true,
     correction: true,
   });
 
   const grouped = useMemo(() => {
     const map: Record<CategoryKey, StructuredBlock[]> = {
       required: [],
-      control: [],
       correction: [],
     };
     for (const block of blocks) {
-      map[block.category]?.push(block);
+      if (block.category in map) {
+        map[block.category as CategoryKey]?.push(block);
+      }
     }
     return map;
   }, [blocks]);
