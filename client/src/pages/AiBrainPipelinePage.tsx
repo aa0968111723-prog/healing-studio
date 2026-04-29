@@ -21,7 +21,7 @@ export default function AiBrainPipelinePage() {
         </h1>
         <p className="text-sm text-slate-500">
           全站視覺化儀表板：前端頁面 → 後端路由 → AI 大腦 / 光球代理 → 外部模型 API
-          的即時健康狀態。點擊任何節點查看詳細原因與修復建議。
+          的即時健康狀態。僅顯示系統實測資料，不使用預設假數值。點擊任何節點查看詳細原因與修復建議。
         </p>
       </header>
 
