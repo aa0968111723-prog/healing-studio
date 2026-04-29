@@ -5,11 +5,13 @@
 import type {
   AgentAction,
   AgentActionResult,
+  AgentWorkflowStep,
   PageAgentSnapshot,
   RunWorkflowAction,
 } from "./agent-actions";
 import { globalAgentRegistry, type GlobalAgentPlan } from "./global-agent-registry";
 import { expandWorkflowAction } from "./global-agent-workflows";
+import { topologicalBatches, ensureStepIds } from "./orb-dag-scheduler";
 
 export interface GlobalAgentExecutionContext {
   currentPage?: PageAgentSnapshot | null;
@@ -165,6 +167,177 @@ export function workflowsEnabled() {
   return !disabled(flag("VITE_ENABLE_GLOBAL_AGENT_WORKFLOWS"));
 }
 
+/**
+ * Returns true when the parallel scheduler should be used. Two conditions
+ * must BOTH hold:
+ *
+ *   1. The `VITE_ENABLE_ORB_PARALLEL_SCHEDULER` env flag is on. This is the
+ *      kill-switch that lets ops disable parallel UI dispatch instantly if a
+ *      regression is detected — defaults off until browser e2e runs against
+ *      production.
+ *   2. The workflow declares at least one step with explicit `dependsOn`.
+ *      Without explicit deps the planner just gave us declared order, and
+ *      our same-page sequencing would already serialise everything, so
+ *      parallelism saves nothing.
+ *
+ * Same-page steps are always sequenced regardless (race protection lives in
+ * the topo sort itself), so even when parallel mode is on, two UI dispatches
+ * never hit the same page concurrently.
+ */
+/**
+ * Internal: execute a workflow using the DAG scheduler. Same-page steps are
+ * automatically sequenced; cross-page independent steps run in batches with
+ * concurrency capped at 3 (configurable via VITE_ORB_PARALLEL_CONCURRENCY).
+ *
+ * Failure semantics:
+ *   - First failure aborts subsequent batches (matches sequential behaviour).
+ *   - Cycle in the DAG → fall back to sequential, log telemetry.
+ */
+async function executeWorkflowParallel(
+  action: RunWorkflowAction,
+  expandedSteps: ReturnType<typeof expandWorkflowAction>,
+  ctx: GlobalAgentExecutionContext
+): Promise<GlobalAgentExecutionResult> {
+  // Build AgentWorkflowStep[] with stable ids from the original action.steps so
+  // explicit dependsOn entries (which reference declared step ids) resolve.
+  const sourceSteps: AgentWorkflowStep[] = action.steps.map((step, index) => ({
+    ...step,
+    id: step.id ?? `step_${index}`,
+  }));
+  const ided = ensureStepIds(sourceSteps);
+  const idToExpanded = new Map<string, typeof expandedSteps[number]>();
+  ided.forEach((step, index) => idToExpanded.set(step.id, expandedSteps[index]));
+
+  const { batches, cycle, implicitChainEdges } = topologicalBatches(ided);
+
+  if (cycle) {
+    log("workflow.scheduler_cycle", { name: action.name, cycle });
+    // Fall back to sequential — never enter parallel mode with a cycle.
+    return executeWorkflowSequential(action, expandedSteps, ctx);
+  }
+
+  log("workflow.parallel_start", {
+    name: action.name,
+    batches: batches.length,
+    implicitChainEdges: implicitChainEdges.length,
+  });
+
+  const concurrencyRaw = parseInt(flag("VITE_ORB_PARALLEL_CONCURRENCY"), 10);
+  const concurrency =
+    Number.isFinite(concurrencyRaw) && concurrencyRaw > 0 ? Math.min(concurrencyRaw, 8) : 3;
+
+  const allResults: AgentActionResult[] = [];
+  let stepIndex = 0;
+
+  for (const batch of batches) {
+    let cursor = 0;
+    while (cursor < batch.length) {
+      const slice = batch.slice(cursor, cursor + concurrency);
+      const batchResults = await Promise.all(
+        slice.map(async batchStep => {
+          const expanded = idToExpanded.get(batchStep.id);
+          if (!expanded) {
+            return { ok: false, reason: `scheduler: missing expanded step ${batchStep.id}` };
+          }
+          // Per-step navigate happens BEFORE the dispatch, exactly like the
+          // sequential loop. Same-page steps already live in different
+          // batches so concurrent navigates can only target different paths.
+          if (expanded.path && expanded.path !== ctx.currentPage?.pagePath) {
+            await ctx.navigate(expanded.path);
+            await wait(ctx.waitAfterNavigateMs ?? 450);
+          }
+          ctx.onWorkflowStep?.({
+            index: stepIndex++,
+            total: ided.length,
+            label: expanded.label,
+            path: expanded.path,
+            action: expanded.action,
+          });
+          const targetPageId = expanded.path
+            ? globalAgentRegistry.findByPath(expanded.path)?.pageId
+            : globalAgentRegistry.plan(expanded.action, ctx.currentPage)?.steps[0]?.targetPageId;
+          return normalizeResult(
+            await ctx.dispatch(expanded.action, {
+              targetPageId,
+              enqueueIfNoHandler: true,
+              requireConfirmation: ctx.requireConfirmationForWorkflowSteps ?? false,
+              source: ctx.source,
+              intentSummary: ctx.intentSummary,
+            })
+          );
+        })
+      );
+      allResults.push(...batchResults);
+      const failed = batchResults.find(r => !r.ok);
+      if (failed) {
+        log("workflow.parallel_fail", { name: action.name, reason: failed.reason });
+        return {
+          ok: false,
+          results: allResults,
+          reason: failed.reason,
+          workflowName: action.name,
+        };
+      }
+      cursor += concurrency;
+    }
+  }
+
+  log("workflow.parallel_complete", { name: action.name });
+  return { ok: true, results: allResults, workflowName: action.name };
+}
+
+/**
+ * Internal: the original sequential loop body. Extracted so the parallel
+ * path can fall back to it on cycle detection without duplicating code.
+ */
+async function executeWorkflowSequential(
+  action: RunWorkflowAction,
+  steps: ReturnType<typeof expandWorkflowAction>,
+  ctx: GlobalAgentExecutionContext
+): Promise<GlobalAgentExecutionResult> {
+  log("workflow.start", { name: action.name, total: steps.length });
+  const results: AgentActionResult[] = [];
+
+  for (let i = 0; i < steps.length; i++) {
+    const s = steps[i];
+    log("workflow.step", { index: i, label: s.label });
+    ctx.onWorkflowStep?.({ index: i, total: steps.length, label: s.label, path: s.path, action: s.action });
+
+    if (s.path && s.path !== ctx.currentPage?.pagePath) {
+      await ctx.navigate(s.path);
+      await wait(ctx.waitAfterNavigateMs ?? 450);
+    }
+    const targetPageId = s.path
+      ? globalAgentRegistry.findByPath(s.path)?.pageId
+      : globalAgentRegistry.plan(s.action, ctx.currentPage)?.steps[0]?.targetPageId;
+    const res = normalizeResult(
+      await ctx.dispatch(s.action, {
+        targetPageId,
+        enqueueIfNoHandler: true,
+        requireConfirmation: ctx.requireConfirmationForWorkflowSteps ?? false,
+        source: ctx.source,
+        intentSummary: ctx.intentSummary,
+      })
+    );
+    results.push(res);
+    if (!res.ok) {
+      log("workflow.fail", { index: i, reason: res.reason });
+      return { ok: false, results, reason: res.reason, workflowName: action.name };
+    }
+  }
+
+  log("workflow.complete", { name: action.name });
+  return { ok: true, results, workflowName: action.name };
+}
+
+export function parallelSchedulerEnabled(action: RunWorkflowAction): boolean {
+  const envOn = ["1", "true", "on"].includes(
+    flag("VITE_ENABLE_ORB_PARALLEL_SCHEDULER").toLowerCase()
+  );
+  if (!envOn) return false;
+  return action.steps.some(step => Array.isArray(step.dependsOn) && step.dependsOn.length > 0);
+}
+
 export async function executeGlobalWorkflow(action: RunWorkflowAction, ctx: GlobalAgentExecutionContext): Promise<GlobalAgentExecutionResult> {
   if (!workflowsEnabled()) {
     log("workflow.disabled", { name: action.name });
@@ -181,44 +354,14 @@ export async function executeGlobalWorkflow(action: RunWorkflowAction, ctx: Glob
       workflowName: action.name,
     };
   }
-  log("workflow.start", { name: action.name, total: steps.length });
 
-  const results: AgentActionResult[] = [];
-
-  for (let i = 0; i < steps.length; i++) {
-    const s = steps[i];
-    log("workflow.step", { index: i, label: s.label });
-
-    ctx.onWorkflowStep?.({ index: i, total: steps.length, label: s.label, path: s.path, action: s.action });
-
-    if (s.path && s.path !== ctx.currentPage?.pagePath) {
-      await ctx.navigate(s.path);
-      await wait(ctx.waitAfterNavigateMs ?? 450);
-    }
-
-    const targetPageId = s.path
-      ? globalAgentRegistry.findByPath(s.path)?.pageId
-      : globalAgentRegistry.plan(s.action, ctx.currentPage)?.steps[0]?.targetPageId;
-
-    const res = normalizeResult(await ctx.dispatch(s.action, {
-      targetPageId,
-      enqueueIfNoHandler: true,
-      requireConfirmation: ctx.requireConfirmationForWorkflowSteps ?? false,
-      source: ctx.source,
-      intentSummary: ctx.intentSummary,
-    }));
-
-    results.push(res);
-
-    if (!res.ok) {
-      log("workflow.fail", { index: i, reason: res.reason });
-      return { ok: false, results, reason: res.reason, workflowName: action.name };
-    }
+  // Opt-in parallel path: when the flag is on AND at least one step declares
+  // dependsOn, run the topological scheduler. Otherwise delegate to the
+  // legacy sequential helper — same code path that's been in production.
+  if (parallelSchedulerEnabled(action)) {
+    return executeWorkflowParallel(action, steps, ctx);
   }
-
-  log("workflow.complete", { name: action.name });
-
-  return { ok: true, results, workflowName: action.name };
+  return executeWorkflowSequential(action, steps, ctx);
 }
 
 export async function executeGlobalAction(action: AgentAction, ctx: GlobalAgentExecutionContext) {

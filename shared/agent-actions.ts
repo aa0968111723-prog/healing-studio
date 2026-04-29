@@ -135,6 +135,14 @@ export interface AgentWorkflowStep {
   payload: string;
   /** 給使用者看的步驟說明 */
   label: string;
+  /**
+   * Stable id used by the DAG scheduler. When present together with
+   * `dependsOn`, the parallel orchestrator can build a topological order;
+   * when absent, the legacy sequential executor uses declared order.
+   */
+  id?: string;
+  /** Step ids this step waits for before running. */
+  dependsOn?: string[];
 }
 
 export type AgentAction =

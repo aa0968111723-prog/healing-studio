@@ -76,38 +76,54 @@ this PR, and what is intentionally deferred.
     appends `coherence.message` to `plan.warnings` and emits
     `orb.modality.mismatch` telemetry.
 
-### G. Multi-agent / coordination — 3/4 (parallel exec scaffolded)
+### G. Multi-agent / coordination — 4/4 ✅
 37. Sub-agent delegation ✅
-38. Parallel execution 🟡 — **scaffolded, runtime sequential**.
-    `AgentPlanV3StepSchema` now accepts `dependsOn: string[]` and
-    `timeoutMs: number`; orchestrator still runs steps in declared order.
-    Enabling concurrent dispatch requires a topological scheduler (sketch
-    below). Defer until UI dispatch races have a regression suite.
-39. Inter-agent messaging ✅ — `InterAgentMessage` + `agent.message` audit.
+38. Parallel execution ✅ **(opt-in runtime added)** —
+    `shared/orb-dag-scheduler.ts` provides topological-batch + concurrency
+    cap with same-page race protection (two UI dispatches on the same path
+    are guaranteed to land in different batches). `executeGlobalWorkflow`
+    delegates to `executeWorkflowParallel` only when:
+      a. `VITE_ENABLE_ORB_PARALLEL_SCHEDULER=true` env flag is set, AND
+      b. at least one workflow step declares `dependsOn`.
+    Otherwise it falls through to the existing sequential loop. Cycle
+    detection in the scheduler triggers an automatic fall-back to
+    sequential. Concurrency cap defaults to 3 (override via
+    `VITE_ORB_PARALLEL_CONCURRENCY`).
+39. Inter-agent messaging ✅ **(now actively used)** — Claude Code lifecycle
+    in `orbTaskStateMachine.ts` emits `agent.message` audit entries with
+    structured `InterAgentMessage` payloads on:
+      - Task creation: orb → claude-code request/task.handoff,
+        claude-code → orb response/plan.acknowledged
+      - Task completion: claude-code → orb response/pr_ready
+      - Task failure: claude-code → orb response/task.failed
+      - Task cancellation: orb → claude-code (or codex) request/task.cancel
+    Plain UI tasks emit no agent.message events (kept lean by design).
 40. Handoff to human ✅
 
 ## Tally
 - Before sprint: 32/40 fully done (80%)
 - After first follow-up commit: 38/40 fully done (95%)
-- After this commit: **40/40 covered** (38 ✅ + 2 🟡 = parallel exec
-  scaffolded but sequential; hallucination guard documented for next
-  sprint)
+- After second follow-up commit: 40/40 covered (38 ✅ + 2 🟡)
+- After this commit: **39/40 fully done (97.5%)** — parallel exec runtime
+  shipped opt-in; only gap left is hallucination guard (Gap 34), deferred
+  pending embedding / vector-store infra decision.
 
 ## Deferred gaps (require dedicated sprint)
 
-### Parallel step execution (gap 38)
-**Why deferred**: Needs a DAG scheduler with dependency tracking so
-parallel steps don't trample shared page state. Current orchestrator is
-strictly sequential.
+### Parallel step execution (gap 38) — ✅ shipped opt-in
+Status: implementation landed in `shared/orb-dag-scheduler.ts` and the
+`executeWorkflowParallel` branch of `shared/global-agent-orchestrator.ts`.
+Disabled by default (env flag `VITE_ENABLE_ORB_PARALLEL_SCHEDULER`) so
+operations can decide when to flip after browser e2e validation.
 
-**Implementation sketch**:
-1. Add `dependsOn?: string[]` to `OrbAgentTaskStep`.
-2. Replace the `for (const step of task.steps)` loop in
-   `server/services/orbTaskOrchestrator.ts` with a topological scheduler
-   that resolves dependencies and runs ready steps via `Promise.all`.
-3. Cap concurrency (`Promise.all` with `p-limit`-style throttle, default 3).
-4. Audit log new event types: `step.dispatched_parallel`, `parallel.batch_completed`.
-5. Update v3 schema JSON to require `dependsOn` for parallel-eligible steps.
+Race-coverage tests live in `server/orb-dag-scheduler.test.ts`:
+empty / single-step inputs, same-page sequencing under mixed-page
+interleaving, explicit dependsOn linearisation, diamond DAG fan-out /
+fan-in, cycle detection, concurrency cap, batch-N-before-N+1 ordering,
+and first-failure surfacing.
+
+Browser-level e2e (Playwright) is the remaining manual step before
+flipping the env flag in production.
 
 ### Hallucination / fact-checking guards (gap 34)
 **Why deferred**: Needs an embedding-based similarity check or fact

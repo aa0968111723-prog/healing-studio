@@ -102,8 +102,31 @@ export function createOrbAgentTaskFromPlanner(result: GatedAgentPlanResult): Orb
     pushEvent(task, "task.awaiting_approval", "Task requires approval");
   }
   if (claudeCodeTask) {
+    const subAgentId =
+      task.preferredEngine === "claudeCode" ? "claude-code" : String(task.preferredEngine ?? "claude-code");
     pushEvent(task, "claudeCode.requested", "Claude Code task requested");
+    // Inter-agent channel: orb formally hands the task off to the sub-agent.
+    pushEvent(task, "agent.message", `orb-orchestrator → ${subAgentId} :: request/task.handoff`, {
+      from: "orb-orchestrator",
+      to: subAgentId,
+      kind: "request",
+      topic: "task.handoff",
+      payload: {
+        planId: task.planId,
+        traceId: task.traceId,
+        intent: task.intent,
+        riskLevel: task.riskLevel,
+        capabilities: task.capabilities,
+      },
+    });
     pushEvent(task, "claudeCode.plan_created", "Claude Code plan created");
+    pushEvent(task, "agent.message", `${subAgentId} → orb-orchestrator :: response/plan.acknowledged`, {
+      from: subAgentId,
+      to: "orb-orchestrator",
+      kind: "response",
+      topic: "plan.acknowledged",
+      payload: { planId: task.planId, traceId: task.traceId },
+    });
   }
   taskStore.set(task.taskId, task);
   return task;
@@ -144,6 +167,16 @@ export function cancelOrbAgentTask(taskId: string, reason = "cancelled by user")
   task.completedAt = now();
   task.updatedAt = task.completedAt;
   pushEvent(task, "task.cancelled", reason);
+  if (task.preferredEngine === "claudeCode" || task.preferredEngine === "codex") {
+    const subAgentId = task.preferredEngine === "codex" ? "codex" : "claude-code";
+    pushEvent(task, "agent.message", `orb-orchestrator → ${subAgentId} :: request/task.cancel`, {
+      from: "orb-orchestrator",
+      to: subAgentId,
+      kind: "request",
+      topic: "task.cancel",
+      payload: { taskId: task.taskId, reason },
+    });
+  }
   recordOrbTaskMemory({
     taskId: task.taskId,
     planId: task.planId,
@@ -232,6 +265,14 @@ export function completeOrbAgentStep(taskId: string, stepId: string): OrbAgentTa
     pushEvent(task, "task.completed", "Task completed");
     if (task.preferredEngine === "claudeCode") {
       pushEvent(task, "claudeCode.pr_ready", "Claude Code result ready");
+      // Sub-agent reports completion back to orb-orchestrator.
+      pushEvent(task, "agent.message", "claude-code → orb-orchestrator :: response/pr_ready", {
+        from: "claude-code",
+        to: "orb-orchestrator",
+        kind: "response",
+        topic: "pr_ready",
+        payload: { taskId: task.taskId, planId: task.planId, traceId: task.traceId },
+      });
     }
     recordOrbTaskMemory({
       taskId: task.taskId,
@@ -345,6 +386,16 @@ export function failOrbAgentStep(
   pushEvent(task, "task.failed", reason);
   if (task.preferredEngine === "claudeCode") {
     pushEvent(task, "claudeCode.failed", reason);
+    // Sub-agent reports failure on the formal channel; downstream
+    // observability tooling can react to agent.message instead of having to
+    // know the legacy claudeCode.* event types.
+    pushEvent(task, "agent.message", "claude-code → orb-orchestrator :: response/task.failed", {
+      from: "claude-code",
+      to: "orb-orchestrator",
+      kind: "response",
+      topic: "task.failed",
+      payload: { taskId: task.taskId, planId: task.planId, traceId: task.traceId, reason },
+    });
   }
   recordOrbTaskMemory({
     taskId: task.taskId,
