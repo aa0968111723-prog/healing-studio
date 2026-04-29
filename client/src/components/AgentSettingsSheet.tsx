@@ -15,6 +15,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { useGlobalOrbChat } from "@/contexts/GlobalOrbChatContext";
 import {
   Sheet,
   SheetContent,
@@ -42,6 +43,7 @@ import {
   AlertCircle,
   Check,
   Search,
+  Eraser,
 } from "lucide-react";
 import {
   DEFAULT_AGENT_PREFERENCES,
@@ -395,6 +397,16 @@ export default function AgentSettingsSheet({
                       </button>
                     ))}
                   </div>
+                </section>
+
+                <section className="space-y-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-4">
+                  <h3 className="text-sm font-semibold text-destructive">
+                    清除對話
+                  </h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    把光球目前的聊天紀錄與快速回覆建議全部清掉，重新開始。不會影響你的排程、設定或帳號資料。
+                  </p>
+                  <ClearChatButton />
                 </section>
               </TabsContent>
             </Tabs>
@@ -1057,5 +1069,41 @@ function ToolsPickerSection({
         </div>
       </details>
     </section>
+  );
+}
+
+// ───────────── Clear chat button ─────────────
+
+function ClearChatButton() {
+  const globalChat = useGlobalOrbChat();
+  const messageCount = globalChat.messages.length;
+  const handleClear = () => {
+    if (
+      messageCount > 0 &&
+      !window.confirm(
+        `確定清除這段對話？目前有 ${messageCount} 則訊息會被刪除。`
+      )
+    ) {
+      return;
+    }
+    globalChat.resetConversation();
+    toast.success("對話已清除，重新開始");
+  };
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <p className="text-[11px] text-muted-foreground">
+        目前有 {messageCount} 則訊息
+      </p>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={handleClear}
+        className="h-8 px-3 text-xs gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10"
+      >
+        <Eraser className="h-3.5 w-3.5" />
+        清除對話
+      </Button>
+    </div>
   );
 }

@@ -29,6 +29,7 @@ import {
   X,
   Settings2,
   Sparkles,
+  Eraser,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { usePersonality } from "@/contexts/PersonalityContext";
@@ -386,7 +387,7 @@ export default function AgentChat() {
             我會先問幾個關鍵問題（目標、用途、素材、限制），幫你定位到正確的頁面，並一步步告訴你怎麼做。
           </p>
 
-          {/* 工具列：如何使用 + 代理設定 */}
+          {/* 工具列：如何使用 + 代理設定 + 清除對話 */}
           <div className="w-full flex flex-wrap items-center justify-center gap-2 mt-1">
             <Button
               type="button"
@@ -401,6 +402,33 @@ export default function AgentChat() {
               <ChevronDown
                 className={`w-3 h-3 transition-transform ${howToOpen ? "rotate-180" : ""}`}
               />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (messages.length === 0) {
+                  globalChat.resetConversation();
+                  toast.success("已重新開始對話");
+                  return;
+                }
+                if (
+                  window.confirm(
+                    `確定要清除這段對話嗎？目前有 ${messages.length} 則訊息會被刪除（不影響排程與設定）。`
+                  )
+                ) {
+                  globalChat.resetConversation();
+                  toast.success("對話已清除，重新開始");
+                }
+              }}
+              disabled={isSending}
+              className="h-8 px-3 text-xs gap-1.5 border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-destructive hover:border-destructive/40"
+              aria-label="清除目前的光球對話"
+              data-testid="clear-chat-trigger"
+            >
+              <Eraser className="w-3.5 h-3.5" />
+              清除對話
             </Button>
             <Button
               type="button"
