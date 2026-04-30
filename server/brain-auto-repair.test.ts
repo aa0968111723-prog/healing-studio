@@ -65,6 +65,22 @@ vi.mock("./_core/env.validated", () => ({
     ELEVENLABS_API_KEY: "",
     REPLICATE_API_TOKEN: "",
     GEMINI_API_KEY: "",
+    GITHUB_TOKEN: "",
+    GITHUB_REPO: "",
+  },
+}));
+
+// Persistence mock — keep tests hermetic (no JSON files written / read).
+vi.mock("./services/brainStatePersistence", () => ({
+  loadStateSync: () => null,
+  schedulePersist: () => {
+    /* noop */
+  },
+  flushNow: async () => {
+    /* noop */
+  },
+  clearStateFile: async () => {
+    /* noop */
   },
 }));
 
@@ -403,7 +419,7 @@ describe("reflection proposals", () => {
       await loadModule();
     const p1 = createReflectionProposal(baseProposalInput());
     createReflectionProposal(baseProposalInput());
-    approveProposal(p1.id, 99);
+    await approveProposal(p1.id, 99);
 
     expect(getProposals("pending").length).toBe(1);
     expect(getProposals("approved").length).toBe(1);
@@ -414,7 +430,8 @@ describe("reflection proposals", () => {
     const { createReflectionProposal, approveProposal, getProposals } =
       await loadModule();
     const proposal = createReflectionProposal(baseProposalInput());
-    expect(approveProposal(proposal.id, 7, "looks good")).toBe(true);
+    const result = await approveProposal(proposal.id, 7, "looks good");
+    expect(result.ok).toBe(true);
     const stored = getProposals().find(p => p.id === proposal.id);
     expect(stored?.status).toBe("approved");
     expect(stored?.reviewedBy).toBe(7);
@@ -438,12 +455,44 @@ describe("reflection proposals", () => {
     const { createReflectionProposal, approveProposal, rejectProposal } =
       await loadModule();
     const proposal = createReflectionProposal(baseProposalInput());
-    approveProposal(proposal.id, 7);
+    await approveProposal(proposal.id, 7);
     // Already approved → cannot approve or reject again.
-    expect(approveProposal(proposal.id, 7)).toBe(false);
+    expect((await approveProposal(proposal.id, 7)).ok).toBe(false);
     expect(rejectProposal(proposal.id, 7)).toBe(false);
-    expect(approveProposal("prop_unknown", 7)).toBe(false);
+    expect((await approveProposal("prop_unknown", 7)).ok).toBe(false);
     expect(rejectProposal("prop_unknown", 7)).toBe(false);
+  });
+
+  it("createReflectionProposal dedups pending entries by dedupKey", async () => {
+    const { createReflectionProposal, getProposals } = await loadModule();
+    const first = createReflectionProposal({
+      ...baseProposalInput(),
+      title: "first",
+      dedupKey: "test-dedup",
+      severity: "medium",
+    });
+    const second = createReflectionProposal({
+      ...baseProposalInput(),
+      title: "second (updated)",
+      dedupKey: "test-dedup",
+      severity: "high",
+    });
+    expect(second.id).toBe(first.id);
+    expect(second.title).toBe("second (updated)");
+    expect(second.severity).toBe("high");
+    expect(second.updatedAt).toBeTypeOf("number");
+    expect(getProposals("pending").length).toBe(1);
+  });
+
+  it("getProposals sorts by severity (critical first)", async () => {
+    const { createReflectionProposal, getProposals } = await loadModule();
+    createReflectionProposal({ ...baseProposalInput(), severity: "low", title: "L" });
+    createReflectionProposal({ ...baseProposalInput(), severity: "critical", title: "C" });
+    createReflectionProposal({ ...baseProposalInput(), severity: "medium", title: "M" });
+
+    const titles = getProposals().map(p => p.title);
+    expect(titles[0]).toBe("C");
+    expect(titles[titles.length - 1]).toBe("L");
   });
 });
 
@@ -656,5 +705,196 @@ describe("runHealthPatrol", () => {
     const result = await runHealthPatrol();
     expect(result.checked).toBeGreaterThan(0);
     expect(result.alerts).toBe(0);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// 11. getSystemSummary — new severity / source / scan / github fields
+// ════════════════════════════════════════════════════════════════════════════
+
+describe("getSystemSummary — extended fields", () => {
+  it("exposes severity / source breakdown and github flag", async () => {
+    const { createReflectionProposal, getSystemSummary } = await loadModule();
+    createReflectionProposal({
+      category: "security_fix",
+      title: "x",
+      description: "x",
+      currentValue: "a",
+      proposedValue: "b",
+      reasoning: "y",
+      confidence: 80,
+      severity: "critical",
+      source: "code_scan",
+    });
+    createReflectionProposal({
+      category: "performance_fix",
+      title: "y",
+      description: "y",
+      currentValue: "a",
+      proposedValue: "b",
+      reasoning: "y",
+      confidence: 60,
+      severity: "medium",
+      source: "accuracy_test",
+    });
+
+    const summary = getSystemSummary();
+    expect(summary.pendingBySeverity.critical).toBe(1);
+    expect(summary.pendingBySeverity.medium).toBe(1);
+    expect(summary.pendingBySource.code_scan).toBe(1);
+    expect(summary.pendingBySource.accuracy_test).toBe(1);
+    expect(summary.githubConfigured).toBe(false);
+    expect(summary.lastScan).toBeNull();
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// 12. generateProposalsFromErrorTraces — recurring error → auto proposal
+// ════════════════════════════════════════════════════════════════════════════
+
+describe("generateProposalsFromErrorTraces", () => {
+  it("emits a proposal when an engine hits the threshold", async () => {
+    const {
+      recordErrorTrace,
+      generateProposalsFromErrorTraces,
+      getProposals,
+    } = await loadModule();
+
+    for (let i = 0; i < 4; i++) {
+      recordErrorTrace({
+        userId: 1,
+        modality: "image",
+        engine: "fal-ai/flux-pro/v1.1",
+        prompt: "p",
+        errorMessage: "429 Too Many Requests",
+      });
+    }
+
+    const result = generateProposalsFromErrorTraces({ threshold: 3 });
+    expect(result.length).toBeGreaterThanOrEqual(1);
+    const proposal = result[0];
+    expect(proposal.source).toBe("error_trace");
+    expect(proposal.dedupKey).toBe("errors:fal-ai/flux-pro/v1.1:rate_limit");
+    expect(proposal.severity).toMatch(/medium|high|critical/);
+    expect(getProposals("pending").length).toBeGreaterThanOrEqual(1);
+
+    // Re-running should dedup (no new pending proposal).
+    const before = getProposals("pending").length;
+    generateProposalsFromErrorTraces({ threshold: 3 });
+    expect(getProposals("pending").length).toBe(before);
+  });
+
+  it("ignores groups below threshold", async () => {
+    const { recordErrorTrace, generateProposalsFromErrorTraces } =
+      await loadModule();
+    recordErrorTrace({
+      userId: 1,
+      modality: "image",
+      engine: "engine-a",
+      prompt: "p",
+      errorMessage: "401 unauthorized",
+    });
+    const result = generateProposalsFromErrorTraces({ threshold: 3 });
+    expect(result.length).toBe(0);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// 13. proposalToIssueBody — markdown rendering for GitHub
+// ════════════════════════════════════════════════════════════════════════════
+
+describe("proposalToIssueBody", () => {
+  it("renders severity, file path, snippet, and reasoning into Markdown", async () => {
+    const { proposalToIssueBody } = await loadModule();
+    const md = proposalToIssueBody({
+      id: "prop_test",
+      category: "security_fix",
+      severity: "critical",
+      source: "code_scan",
+      title: "test",
+      description: "Eval risk",
+      currentValue: "eval(input)",
+      proposedValue: "use JSON.parse",
+      reasoning: "eval enables arbitrary code execution",
+      confidence: 95,
+      status: "pending",
+      filePath: "server/foo.ts",
+      lineNumber: 42,
+      codeSnippet: "eval(userInput)",
+      createdAt: 0,
+    });
+    expect(md).toContain("**嚴重度**：`CRITICAL`");
+    expect(md).toContain("server/foo.ts");
+    expect(md).toContain("eval(userInput)");
+    expect(md).toContain("use JSON.parse");
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// 14. retryGithubIssueForProposal — gracefully reports each failure mode
+// ════════════════════════════════════════════════════════════════════════════
+
+describe("retryGithubIssueForProposal", () => {
+  it("returns reason='提案不存在' for unknown id", async () => {
+    const { retryGithubIssueForProposal } = await loadModule();
+    const r = await retryGithubIssueForProposal("prop_unknown");
+    expect(r.ok).toBe(false);
+    expect(r.reason).toContain("不存在");
+  });
+
+  it("rejects pending proposals (only approved are retryable)", async () => {
+    const { createReflectionProposal, retryGithubIssueForProposal } =
+      await loadModule();
+    const p = createReflectionProposal({
+      category: "code_quality",
+      title: "x",
+      description: "x",
+      currentValue: "a",
+      proposedValue: "b",
+      reasoning: "y",
+      confidence: 70,
+    });
+    const r = await retryGithubIssueForProposal(p.id);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toContain("已核准");
+  });
+
+  it("returns reason='已有 GitHub Issue' if issue already linked", async () => {
+    const { createReflectionProposal, approveProposal, retryGithubIssueForProposal } =
+      await loadModule();
+    const p = createReflectionProposal({
+      category: "code_quality",
+      title: "x",
+      description: "x",
+      currentValue: "a",
+      proposedValue: "b",
+      reasoning: "y",
+      confidence: 70,
+    });
+    await approveProposal(p.id, 1);
+    // Manually attach an issue url to simulate prior success.
+    p.githubIssueUrl = "https://github.com/o/r/issues/9";
+    p.status = "approved";
+    const r = await retryGithubIssueForProposal(p.id);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toContain("已有");
+  });
+
+  it("returns reason about GITHUB_TOKEN when integration is not configured", async () => {
+    const { createReflectionProposal, approveProposal, retryGithubIssueForProposal } =
+      await loadModule();
+    const p = createReflectionProposal({
+      category: "code_quality",
+      title: "x",
+      description: "x",
+      currentValue: "a",
+      proposedValue: "b",
+      reasoning: "y",
+      confidence: 70,
+    });
+    await approveProposal(p.id, 1);
+    const r = await retryGithubIssueForProposal(p.id);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toContain("GITHUB_TOKEN");
   });
 });

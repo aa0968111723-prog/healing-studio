@@ -20,16 +20,24 @@ import {
   createReflectionProposal,
   approveProposal,
   rejectProposal,
+  retryGithubIssueForProposal,
   webSearch,
   getResearchResults,
   addResearchToLearnHub,
   getAccuracyTests,
   runAccuracyTest,
   runAllAccuracyTests,
+  runFullCodeScan,
+  generateProposalsFromErrorTraces,
+  getLastScanResult,
   getSystemSummary,
   getGenerationLogs,
   ERROR_CATEGORY_LABELS,
 } from "../services/brainAutoRepair";
+import {
+  getGithubConfigStatus,
+  testGithubConnection,
+} from "../services/githubIssueClient";
 import { userAiBrain, userModelSwitchLogs } from "../../drizzle/schema";
 import {
   getHealthStatus,
@@ -1339,30 +1347,58 @@ export const brainRouter = router({
           "param_tuning",
           "fallback_update",
           "accuracy_fix",
+          "code_quality",
+          "security_fix",
+          "performance_fix",
         ]),
         title: z.string().min(2).max(200),
-        description: z.string().max(2000),
-        currentValue: z.string().max(500),
-        proposedValue: z.string().max(500),
-        reasoning: z.string().max(2000),
+        description: z.string().max(8000),
+        currentValue: z.string().max(2000),
+        proposedValue: z.string().max(2000),
+        reasoning: z.string().max(4000),
         confidence: z.number().min(0).max(100),
+        severity: z
+          .enum(["info", "low", "medium", "high", "critical"])
+          .optional(),
+        dedupKey: z.string().max(200).optional(),
+        filePath: z.string().max(500).optional(),
+        lineNumber: z.number().int().nonnegative().optional(),
+        codeSnippet: z.string().max(2000).optional(),
       })
     )
     .mutation(({ input }) => createReflectionProposal(input)),
 
-  /** 管理員批准提案 */
+  /**
+   * 管理員批准提案。
+   *
+   * 若 GITHUB_TOKEN + GITHUB_REPO 已設定，會同步嘗試建立 GitHub Issue 並把
+   * 連結寫回提案。GitHub 失敗不會讓 mutation 失敗，僅在回傳結果中標示。
+   */
   approveProposal: adminProcedure
     .input(
       z.object({ proposalId: z.string(), note: z.string().max(500).optional() })
     )
-    .mutation(({ ctx, input }) => {
-      const ok = approveProposal(input.proposalId, ctx.user.id, input.note);
-      if (!ok)
+    .mutation(async ({ ctx, input }) => {
+      const result = await approveProposal(
+        input.proposalId,
+        ctx.user.id,
+        input.note
+      );
+      if (!result.ok)
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "提案不存在或已處理",
         });
-      return { success: true };
+      return {
+        success: true,
+        githubSuccess: result.github?.success ?? false,
+        githubIssueUrl:
+          result.github?.success === true ? result.github.htmlUrl : undefined,
+        githubIssueNumber:
+          result.github?.success === true ? result.github.number : undefined,
+        githubError:
+          result.github?.success === false ? result.github.error : undefined,
+      };
     }),
 
   /** 管理員拒絕提案 */
@@ -1452,7 +1488,17 @@ export const brainRouter = router({
     return runAllAccuracyTests();
   }),
 
-  /** 執行全站 AI 研究流程（爬網 + 精準度測試） */
+  /**
+   * 執行全站 AI 研究流程（並行：爬網 + 精準度測試 + 全站程式碼掃描 + 錯誤線索分析）。
+   *
+   * 4 個子任務並行：
+   *   1. webSearch × 5（Brave / GitHub fallback）
+   *   2. runAllAccuracyTests（5 條測試案例）
+   *   3. runFullCodeScan（server/、client/src/、shared/ 啟發式掃描）
+   *   4. generateProposalsFromErrorTraces（最近 1 小時錯誤趨勢）
+   *
+   * 4 個子任務都用 Promise.allSettled 包裝，任一失敗不影響其他結果。
+   */
   runFullSiteResearch: adminProcedure.mutation(async () => {
     const researchQueries = [
       "AI self-healing software bug detection 2025",
@@ -1462,23 +1508,123 @@ export const brainRouter = router({
       "AI video generation pipeline architecture",
     ];
 
-    const researchResults = await Promise.allSettled(
-      researchQueries.map(query => webSearch(query, 3))
-    );
+    const startedAt = Date.now();
+    const [researchResults, testResults, scanResult, errorProposals] =
+      await Promise.all([
+        Promise.allSettled(researchQueries.map(query => webSearch(query, 3))),
+        runAllAccuracyTests().catch(err => {
+          console.warn("[runFullSiteResearch] accuracy tests failed:", err);
+          return [] as Awaited<ReturnType<typeof runAllAccuracyTests>>;
+        }),
+        runFullCodeScan({ topN: 25 }).catch(err => {
+          console.warn("[runFullSiteResearch] code scan failed:", err);
+          return null;
+        }),
+        Promise.resolve().then(() => generateProposalsFromErrorTraces()).catch(err => {
+          console.warn("[runFullSiteResearch] error trace analysis failed:", err);
+          return [] as Awaited<ReturnType<typeof generateProposalsFromErrorTraces>>;
+        }),
+      ]);
 
-    const testResults = await runAllAccuracyTests();
     const successfulResearch = researchResults.filter(
-      result => result.status === "fulfilled"
+      r => r.status === "fulfilled"
     ).length;
+    const accuracyProposals = testResults.filter(t => t.proposal).length;
+    const codeScanProposals =
+      (scanResult?.proposalsCreated ?? 0) + (scanResult?.proposalsUpdated ?? 0);
+    const errorTraceProposals = errorProposals.length;
+    const totalProposals =
+      accuracyProposals + codeScanProposals + errorTraceProposals;
+    const durationMs = Date.now() - startedAt;
 
     return {
       success: true,
-      message: `全站研究完成：${successfulResearch}/${researchQueries.length} 爬網成功，${testResults.length} 精準度測試完成`,
+      message: `全站研究完成（${(durationMs / 1000).toFixed(1)}s）：爬網 ${successfulResearch}/${researchQueries.length}、精準度測試 ${testResults.length}、程式碼掃描 ${scanResult?.scan.filesScanned ?? 0} 檔（${scanResult?.scan.findings.length ?? 0} findings）、錯誤線索分析 ${errorTraceProposals} 條 — 共產生 ${totalProposals} 個提案`,
       researchCount: successfulResearch,
       testCount: testResults.length,
-      proposalsGenerated: testResults.filter(test => test.proposal).length,
+      proposalsGenerated: totalProposals,
+      breakdown: {
+        accuracy: accuracyProposals,
+        codeScan: codeScanProposals,
+        errorTrace: errorTraceProposals,
+      },
+      scan: scanResult
+        ? {
+            filesScanned: scanResult.scan.filesScanned,
+            findings: scanResult.scan.findings.length,
+            severityCounts: scanResult.scan.severityCounts,
+            categoryCounts: scanResult.scan.categoryCounts,
+            durationMs: scanResult.scan.durationMs,
+          }
+        : null,
+      durationMs,
     };
   }),
+
+  /** 單獨執行全站程式碼掃描（不跑爬網／精準度測試） */
+  runCodeScan: adminProcedure
+    .input(z.object({ topN: z.number().min(1).max(100).default(25) }).optional())
+    .mutation(async ({ input }) => {
+      const result = await runFullCodeScan({ topN: input?.topN ?? 25 });
+      return {
+        success: true,
+        filesScanned: result.scan.filesScanned,
+        filesSkipped: result.scan.filesSkipped,
+        durationMs: result.scan.durationMs,
+        findings: result.scan.findings.length,
+        severityCounts: result.scan.severityCounts,
+        categoryCounts: result.scan.categoryCounts,
+        proposalsCreated: result.proposalsCreated,
+        proposalsUpdated: result.proposalsUpdated,
+      };
+    }),
+
+  /** 取得最近一次掃描的詳細 findings（用於 admin debug） */
+  lastCodeScan: adminProcedure.query(() => {
+    const result = getLastScanResult();
+    if (!result) return null;
+    return {
+      finishedAt: result.finishedAt,
+      filesScanned: result.filesScanned,
+      filesSkipped: result.filesSkipped,
+      durationMs: result.durationMs,
+      severityCounts: result.severityCounts,
+      categoryCounts: result.categoryCounts,
+      findings: result.findings.slice(0, 100),
+    };
+  }),
+
+  // ─── GitHub 整合健康檢查 / 重試 ───────────────────────────────────────
+
+  /** 取得 GitHub 整合設定狀態（管理員 UI 用） */
+  githubConfigStatus: adminProcedure.query(() => getGithubConfigStatus()),
+
+  /** 測試 GitHub 連線：驗證 token 有效 + 是否可寫入 repo issues */
+  testGithubConnection: adminProcedure.mutation(async () => {
+    return testGithubConnection();
+  }),
+
+  /** 對已核准但未建立 Issue 的提案重新嘗試建立 GitHub Issue */
+  retryGithubIssue: adminProcedure
+    .input(z.object({ proposalId: z.string() }))
+    .mutation(async ({ input }) => {
+      const result = await retryGithubIssueForProposal(input.proposalId);
+      if (!result.ok && !result.proposal)
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: result.reason ?? "提案不存在",
+        });
+      return {
+        success: result.ok,
+        reason: result.reason,
+        githubIssueUrl:
+          result.github?.success === true ? result.github.htmlUrl : undefined,
+        githubIssueNumber:
+          result.github?.success === true ? result.github.number : undefined,
+        githubError:
+          result.github?.success === false ? result.github.error : undefined,
+      };
+    }),
 
   // ─── 6. 生成活動記錄（AI 監控室）───────────────────────────────────────
 

@@ -17,6 +17,8 @@ import { CircuitBreaker } from "./circuitBreaker.js";
 import {
   runHealthPatrol,
   runAllAccuracyTests,
+  runFullCodeScan,
+  generateProposalsFromErrorTraces,
 } from "../services/brainAutoRepair.js";
 
 // ─── Discord Webhook 告警 ────────────────────────────────────────────────────
@@ -62,6 +64,10 @@ let isRunning = false;
 // Counter for hourly accuracy tests
 let tickCount = 0;
 const ACCURACY_TEST_INTERVAL = 20; // every 20 ticks = ~60 min (3min * 20)
+
+// 每 ~6 小時執行一次全站程式碼掃描
+let codeScanTickCount = 0;
+const CODE_SCAN_INTERVAL_MINUTES = 360;
 
 // ─── Configurable State (開關 + 巡檢間隔) ───────────────────────────────────
 
@@ -128,6 +134,36 @@ async function runMonitorCycle(): Promise<void> {
         );
       } catch (testErr) {
         console.warn("[ApiHealthMonitor] 精準度抽測失敗:", testErr);
+      }
+    }
+
+    // 每 ~6 小時跑一次全站程式碼掃描 + 錯誤線索分析（背景產生提案）
+    codeScanTickCount++;
+    const codeScanInterval = Math.max(
+      1,
+      Math.round(CODE_SCAN_INTERVAL_MINUTES / monitorIntervalMinutes)
+    );
+    if (codeScanTickCount >= codeScanInterval) {
+      codeScanTickCount = 0;
+      console.log("[ApiHealthMonitor] 🔍 開始全站程式碼掃描 + 錯誤線索分析...");
+      try {
+        const [scan, errorProposals] = await Promise.all([
+          runFullCodeScan({ topN: 25 }).catch(err => {
+            console.warn("[ApiHealthMonitor] 程式碼掃描失敗:", err);
+            return null;
+          }),
+          Promise.resolve()
+            .then(() => generateProposalsFromErrorTraces())
+            .catch(err => {
+              console.warn("[ApiHealthMonitor] 錯誤線索分析失敗:", err);
+              return [];
+            }),
+        ]);
+        console.log(
+          `[ApiHealthMonitor] 🔍 背景掃描完成：${scan?.scan.filesScanned ?? 0} 檔，${scan?.scan.findings.length ?? 0} findings，新增 ${(scan?.proposalsCreated ?? 0) + errorProposals.length} 個提案`
+        );
+      } catch (scanErr) {
+        console.warn("[ApiHealthMonitor] 背景掃描失敗:", scanErr);
       }
     }
   } catch (err) {

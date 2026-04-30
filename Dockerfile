@@ -38,6 +38,13 @@ COPY package.json ./
 COPY --from=builder /app/drizzle ./drizzle
 COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
 
+# AI 全站研究系統需要在 runtime 讀取 TypeScript 原始碼以執行靜態程式碼掃描。
+# 體積成本約 +10MB，但啟用了 siteCodeScanner 真正掃描檔案的能力（否則
+# 掃描器只能在 dist/ 上執行，回傳 0 findings）。
+COPY --from=builder /app/server ./server
+COPY --from=builder /app/client/src ./client/src
+COPY --from=builder /app/shared ./shared
+
 # Railway dynamically assigns $PORT — expose the default
 EXPOSE 3000
 
