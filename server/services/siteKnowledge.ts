@@ -366,6 +366,19 @@ export const MODEL_RECOMMENDATION_KNOWLEDGE = `
   使用者想要「複製自己的聲音」
     → [ACTION:setTab:clone]
 
+■ 聲音克隆決策樹（/pro-studio → clone）：
+  使用者想要「最快 → 用樣本聲講話」
+    → [ACTION:setModel:qwen-clone]（一步：上傳音訊 + 文字 → 直接合成，中文友善）
+  使用者想要「多人對話 / 故事」
+    → [ACTION:setModel:dia-clone] + 用 [S1]/[S2] 標籤標說話者
+  使用者想要「自訂角色聲線（沒有樣本）」
+    → [ACTION:setModel:voice-design] + voice_description 描述（年齡/情緒/語速）
+  使用者想要「跨工具復用聲線（TTS、配音、變聲）」
+    → [ACTION:setModel:eleven-ivc]（建 voice_id，後續可貼到 TTS / Dubbing / Voice Changer）
+  使用者要做「Kling 說話人影片」
+    → [ACTION:setModel:kling-voice] 先建檔，再去 avatar 分頁做影片
+  → 樣本要求：30 秒~3 分鐘乾淨人聲、無背景音樂；越乾淨越像本人
+
 ■ 3D 模型決策樹：
   使用者有圖片想轉 3D
     → [ACTION:setTab:3d] [ACTION:setModel:trellis2]（最高品質）

@@ -43,6 +43,30 @@ import { localizeResultUrls } from "../services/internalMedia";
 import { getAudioCompiler } from "../services/audioCompiler";
 import type { AudioBlock, AudioCompilerInput } from "../services/audioCompiler";
 import { dispatchFalQueueTask } from "../services/falDispatcher";
+import { estimatePoints } from "../services/modelPricing";
+import { deductUserPoints, refundUserPoints } from "../db";
+
+/**
+ * 預扣積分：在送出 fal queue 任務前先估點＋扣款。
+ * 若使用者餘額不足，拋 TRPCError；若送出失敗，呼叫端應用 refundUserPoints 退回。
+ *
+ * 回傳 estimatedCredits 供 webhook 後續對帳（actual vs estimated）。
+ */
+async function chargeForFalTask(
+  userId: number,
+  modelId: string,
+  params: { durationSec?: number; charCount?: number } = {}
+): Promise<number> {
+  const estimate = estimatePoints(modelId, params);
+  const result = await deductUserPoints(userId, estimate.totalPoints);
+  if (!result.success) {
+    throw new TRPCError({
+      code: "PAYMENT_REQUIRED",
+      message: `積分不足：本次需 ${estimate.totalPoints} pts，餘額 ${result.remainingBefore} pts`,
+    });
+  }
+  return estimate.totalPoints;
+}
 
 // ─── fal.ai 呼叫工具 ──────────────────────────────────────────────────────────
 
@@ -371,7 +395,7 @@ export const proStudioRouter = router({
           .default("ace-step"),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       // DEF-14 同步修正：後端預設模型改為 ace-step
       const modelChoice = input.model ?? "ace-step";
 
@@ -414,9 +438,22 @@ export const proStudioRouter = router({
         payload.output_format = "mp3";
         payload.num_songs = 1;
 
-        const falModelId = "sonauto/v2/text-to-music";
-        const { request_id } = await falQueueSubmit(falModelId, payload);
-        return { request_id, model: falModelId, is_async_polling: true };
+        const falModelId = "fal-ai/sonauto";
+        const charged = await chargeForFalTask(ctx.user.id, falModelId, {
+          durationSec: input.duration ?? 60,
+        });
+        try {
+          const { request_id } = await falQueueSubmit("sonauto/v2/text-to-music", payload);
+          return {
+            request_id,
+            model: "sonauto/v2/text-to-music",
+            is_async_polling: true,
+            estimated_credits: charged,
+          };
+        } catch (err) {
+          await refundUserPoints(ctx.user.id, charged);
+          throw err;
+        }
       }
 
       // ── 通用 prompt（非 Sonauto 模型）──────────────────────────
@@ -437,8 +474,16 @@ export const proStudioRouter = router({
         if (input.lyrics && !input.instrumental) {
           payload.lyrics = input.lyrics;
         }
-        const { request_id } = await falQueueSubmit(falModelId, payload);
-        return { request_id, model: falModelId, is_async_polling: true };
+        const charged = await chargeForFalTask(ctx.user.id, falModelId, {
+          durationSec: input.duration ?? 60,
+        });
+        try {
+          const { request_id } = await falQueueSubmit(falModelId, payload);
+          return { request_id, model: falModelId, is_async_polling: true, estimated_credits: charged };
+        } catch (err) {
+          await refundUserPoints(ctx.user.id, charged);
+          throw err;
+        }
       }
 
       // ── Stable Audio ──────────────────────────────────────────
@@ -450,8 +495,16 @@ export const proStudioRouter = router({
             ? { seconds_total: input.duration }
             : { seconds_total: 30 }),
         };
-        const { request_id } = await falQueueSubmit(falModelId, payload);
-        return { request_id, model: falModelId, is_async_polling: true };
+        const charged = await chargeForFalTask(ctx.user.id, falModelId, {
+          durationSec: input.duration ?? 30,
+        });
+        try {
+          const { request_id } = await falQueueSubmit(falModelId, payload);
+          return { request_id, model: falModelId, is_async_polling: true, estimated_credits: charged };
+        } catch (err) {
+          await refundUserPoints(ctx.user.id, charged);
+          throw err;
+        }
       }
 
       // ── MusicGen（最終備選）──────────────────────────────────
@@ -460,8 +513,16 @@ export const proStudioRouter = router({
         prompt: combinedPrompt,
         ...(input.duration ? { duration: input.duration } : {}),
       };
-      const { request_id } = await falQueueSubmit(falModelId, payload);
-      return { request_id, model: falModelId, is_async_polling: true };
+      const charged = await chargeForFalTask(ctx.user.id, falModelId, {
+        durationSec: input.duration ?? 15,
+      });
+      try {
+        const { request_id } = await falQueueSubmit(falModelId, payload);
+        return { request_id, model: falModelId, is_async_polling: true, estimated_credits: charged };
+      } catch (err) {
+        await refundUserPoints(ctx.user.id, charged);
+        throw err;
+      }
     }),
 
   // ═══════════════════════════════════════════════════════════════
@@ -494,7 +555,7 @@ export const proStudioRouter = router({
           .default("stable-audio"),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const modelChoice = input.model ?? "stable-audio";
 
       // ── Stable Audio（預設）── 真正的音效生成 ──────────────────
@@ -504,8 +565,16 @@ export const proStudioRouter = router({
           prompt: input.text,
           seconds_total: input.duration_seconds ?? 10,
         };
-        const { request_id } = await falQueueSubmit(falModelId, payload);
-        return { request_id, model: falModelId, is_async_polling: true };
+        const charged = await chargeForFalTask(ctx.user.id, falModelId, {
+          durationSec: input.duration_seconds ?? 10,
+        });
+        try {
+          const { request_id } = await falQueueSubmit(falModelId, payload);
+          return { request_id, model: falModelId, is_async_polling: true, estimated_credits: charged };
+        } catch (err) {
+          await refundUserPoints(ctx.user.id, charged);
+          throw err;
+        }
       }
 
       // ── AudioLDM2 ── 音頻潛在擴散，擅長環境音效 ────────────────
@@ -517,53 +586,115 @@ export const proStudioRouter = router({
             ? { duration: input.duration_seconds }
             : {}),
         };
-        const { request_id } = await falQueueSubmit(falModelId, payload);
-        return { request_id, model: falModelId, is_async_polling: true };
+        const charged = await chargeForFalTask(ctx.user.id, falModelId, {
+          durationSec: input.duration_seconds ?? 15,
+        });
+        try {
+          const { request_id } = await falQueueSubmit(falModelId, payload);
+          return { request_id, model: falModelId, is_async_polling: true, estimated_credits: charged };
+        } catch (err) {
+          await refundUserPoints(ctx.user.id, charged);
+          throw err;
+        }
       }
 
       // ── ElevenLabs（最終備用）─────────────────────────────────
       const falModelId = "fal-ai/elevenlabs/sound-effects/v2";
-      const { request_id } = await falQueueSubmit(falModelId, {
-        text: input.text,
-        duration_seconds: input.duration_seconds
-          ? Math.min(input.duration_seconds, 22)
-          : undefined,
-        prompt_influence: input.prompt_influence,
-      }, getElevenLabsProxyHeaders());  // 需要 ElevenLabs key 認證
-      return { request_id, model: falModelId, is_async_polling: true };
+      const charged = await chargeForFalTask(ctx.user.id, "elevenlabs/sound-effects");
+      try {
+        const { request_id } = await falQueueSubmit(falModelId, {
+          text: input.text,
+          duration_seconds: input.duration_seconds
+            ? Math.min(input.duration_seconds, 22)
+            : undefined,
+          prompt_influence: input.prompt_influence,
+        }, getElevenLabsProxyHeaders());  // 需要 ElevenLabs key 認證
+        return { request_id, model: falModelId, is_async_polling: true, estimated_credits: charged };
+      } catch (err) {
+        await refundUserPoints(ctx.user.id, charged);
+        throw err;
+      }
     }),
 
   // ═══════════════════════════════════════════════════════════════
   // 🎤 語音合成 (TTS)
   // ═══════════════════════════════════════════════════════════════
 
-  /** fal-ai/elevenlabs/tts/turbo-v2.5 — 高速 ElevenLabs TTS（非同步 queue） */
+  /**
+   * ElevenLabs TTS — 支援 4 個聲線模型
+   *
+   * 可用 engine：
+   *  - turbo-v2.5（預設）— 最快速度、英文友善、低成本（pricing: turbo-v2.5）
+   *  - flash-v2.5 — 超低延遲，適合即時對話（pricing: flash-v2.5）
+   *  - multilingual-v2 — 29 語言、品質穩定（pricing: multilingual-v2）
+   *  - eleven-v3 — 最強情緒表達、最高品質（pricing: eleven-v3）
+   */
   elevenLabsTTS: brainProcedure
     .input(
       z.object({
         text: z.string().min(1).max(5000),
         voice_id: z.string().optional(),
-        model_id: z.string().optional().default("eleven_turbo_v2_5"),
+        engine: z
+          .enum(["turbo-v2.5", "flash-v2.5", "multilingual-v2", "eleven-v3"])
+          .optional()
+          .default("turbo-v2.5"),
+        /** 直接傳入 ElevenLabs 原生 model_id（覆寫 engine 對應） */
+        model_id: z.string().optional(),
         stability: z.number().min(0).max(1).optional().default(0.5),
         similarity_boost: z.number().min(0).max(1).optional().default(0.75),
         style: z.number().min(0).max(1).optional().default(0),
         language_code: z.string().optional(),
       })
     )
-    .mutation(async ({ input }) => {
-      const modelId = "fal-ai/elevenlabs/tts/turbo-v2.5";
-      const { request_id } = await falQueueSubmit(modelId, {
-        text: input.text,
-        voice_id: input.voice_id,
-        model_id: input.model_id,
-        voice_settings: {
-          stability: input.stability,
-          similarity_boost: input.similarity_boost,
-          style: input.style,
+    .mutation(async ({ ctx, input }) => {
+      // engine → fal route + native ElevenLabs model_id + pricing key
+      const ENGINE_MAP: Record<
+        string,
+        { falModelId: string; nativeModelId: string; pricingKey: string }
+      > = {
+        "turbo-v2.5": {
+          falModelId: "fal-ai/elevenlabs/tts/turbo-v2.5",
+          nativeModelId: "eleven_turbo_v2_5",
+          pricingKey: "elevenlabs/turbo-v2.5",
         },
-        language_code: input.language_code,
-      }, getElevenLabsProxyHeaders());  // 需要 ElevenLabs key 認證
-      return { request_id, model: modelId, is_async_polling: true };
+        "flash-v2.5": {
+          falModelId: "fal-ai/elevenlabs/tts/flash-v2.5",
+          nativeModelId: "eleven_flash_v2_5",
+          pricingKey: "elevenlabs/flash-v2.5",
+        },
+        "multilingual-v2": {
+          falModelId: "fal-ai/elevenlabs/tts/multilingual-v2",
+          nativeModelId: "eleven_multilingual_v2",
+          pricingKey: "elevenlabs/multilingual-v2",
+        },
+        "eleven-v3": {
+          falModelId: "fal-ai/elevenlabs/tts/eleven-v3",
+          nativeModelId: "eleven_v3",
+          pricingKey: "elevenlabs/eleven-v3",
+        },
+      };
+      const engine = input.engine ?? "turbo-v2.5";
+      const route = ENGINE_MAP[engine];
+      const charged = await chargeForFalTask(ctx.user.id, route.pricingKey, {
+        charCount: input.text.length,
+      });
+      try {
+        const { request_id } = await falQueueSubmit(route.falModelId, {
+          text: input.text,
+          voice_id: input.voice_id,
+          model_id: input.model_id ?? route.nativeModelId,
+          voice_settings: {
+            stability: input.stability,
+            similarity_boost: input.similarity_boost,
+            style: input.style,
+          },
+          language_code: input.language_code,
+        }, getElevenLabsProxyHeaders());  // 需要 ElevenLabs key 認證
+        return { request_id, model: route.falModelId, engine, is_async_polling: true, estimated_credits: charged };
+      } catch (err) {
+        await refundUserPoints(ctx.user.id, charged);
+        throw err;
+      }
     }),
 
   /** fal-ai/qwen-3-tts/text-to-speech/1.7b — Qwen TTS（非同步 queue） */
@@ -592,21 +723,29 @@ export const proStudioRouter = router({
           .default("Auto"),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const modelId = "fal-ai/qwen-3-tts/text-to-speech/1.7b";
       // DEF-04 修正：voice 與 speaker_voice_embedding_file_url 不能同時為空，否則 422
       const resolvedVoice =
         input.voice ??
         (input.speaker_voice_embedding_file_url ? undefined : "Vivian");
-      const { request_id } = await falQueueSubmit(modelId, {
-        text: input.text,
-        voice: resolvedVoice,
-        speaker_voice_embedding_file_url:
-          input.speaker_voice_embedding_file_url,
-        reference_text: input.reference_text,
-        language: input.language,
+      const charged = await chargeForFalTask(ctx.user.id, modelId, {
+        charCount: input.text.length,
       });
-      return { request_id, model: modelId, is_async_polling: true };
+      try {
+        const { request_id } = await falQueueSubmit(modelId, {
+          text: input.text,
+          voice: resolvedVoice,
+          speaker_voice_embedding_file_url:
+            input.speaker_voice_embedding_file_url,
+          reference_text: input.reference_text,
+          language: input.language,
+        });
+        return { request_id, model: modelId, is_async_polling: true, estimated_credits: charged };
+      } catch (err) {
+        await refundUserPoints(ctx.user.id, charged);
+        throw err;
+      }
     }),
 
   // ═══════════════════════════════════════════════════════════════
@@ -628,13 +767,19 @@ export const proStudioRouter = router({
         reference_text: z.string().optional(), // 參考音訊的文字（可提升品質）
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const modelId = "fal-ai/qwen-3-tts/clone-voice/1.7b";
-      const { request_id } = await falQueueSubmit(modelId, {
-        audio_url: input.audio_url,
-        reference_text: input.reference_text,
-      });
-      return { request_id, model: modelId, is_async_polling: true };
+      const charged = await chargeForFalTask(ctx.user.id, modelId);
+      try {
+        const { request_id } = await falQueueSubmit(modelId, {
+          audio_url: input.audio_url,
+          reference_text: input.reference_text,
+        });
+        return { request_id, model: modelId, is_async_polling: true, estimated_credits: charged };
+      } catch (err) {
+        await refundUserPoints(ctx.user.id, charged);
+        throw err;
+      }
     }),
 
   /**
@@ -666,37 +811,55 @@ export const proStudioRouter = router({
           .default("Auto"),
       })
     )
-    .mutation(async ({ input }) => {
-      // Step 1: 建立 speaker embedding（使用同步呼叫，因為 Step 2 依賴結果）
+    .mutation(async ({ ctx, input }) => {
+      // 兩段式扣款：clone + TTS 各自單獨估點，失敗時各自退款
       const cloneModelId = "fal-ai/qwen-3-tts/clone-voice/1.7b";
-      const cloneResult = (await falRun(cloneModelId, {
-        audio_url: input.audio_url,
-        reference_text: input.reference_text,
-      })) as any;
+      const ttsModelId = "fal-ai/qwen-3-tts/text-to-speech/1.7b";
+
+      const cloneCharged = await chargeForFalTask(ctx.user.id, cloneModelId);
+
+      let cloneResult: any;
+      try {
+        cloneResult = (await falRun(cloneModelId, {
+          audio_url: input.audio_url,
+          reference_text: input.reference_text,
+        })) as any;
+      } catch (err) {
+        await refundUserPoints(ctx.user.id, cloneCharged);
+        throw err;
+      }
 
       const embeddingUrl = cloneResult?.speaker_embedding?.url;
       if (!embeddingUrl) {
+        await refundUserPoints(ctx.user.id, cloneCharged);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "聲音克隆失敗：未取得 speaker_embedding",
         });
       }
 
-      // Step 2: 用克隆聲音合成語音（非同步 queue）
-      const ttsModelId = "fal-ai/qwen-3-tts/text-to-speech/1.7b";
-      const { request_id } = await falQueueSubmit(ttsModelId, {
-        text: input.text,
-        speaker_voice_embedding_file_url: embeddingUrl,
-        reference_text: input.reference_text,
-        language: input.language,
+      const ttsCharged = await chargeForFalTask(ctx.user.id, ttsModelId, {
+        charCount: input.text.length,
       });
+      try {
+        const { request_id } = await falQueueSubmit(ttsModelId, {
+          text: input.text,
+          speaker_voice_embedding_file_url: embeddingUrl,
+          reference_text: input.reference_text,
+          language: input.language,
+        });
 
-      return {
-        request_id,
-        model: ttsModelId,
-        is_async_polling: true,
-        speaker_embedding_url: embeddingUrl,
-      };
+        return {
+          request_id,
+          model: ttsModelId,
+          is_async_polling: true,
+          speaker_embedding_url: embeddingUrl,
+          estimated_credits: cloneCharged + ttsCharged,
+        };
+      } catch (err) {
+        await refundUserPoints(ctx.user.id, ttsCharged);
+        throw err;
+      }
     }),
 
   /** fal-ai/qwen-3-tts/voice-design/1.7b — 文字描述設計語音（非同步 queue） */
@@ -712,13 +875,21 @@ export const proStudioRouter = router({
           .default("你好，我是你設計的聲音。"),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const modelId = "fal-ai/qwen-3-tts/voice-design/1.7b";
-      const { request_id } = await falQueueSubmit(modelId, {
-        voice_description: input.voice_description,
-        text: input.text,
+      const charged = await chargeForFalTask(ctx.user.id, modelId, {
+        charCount: input.text?.length ?? 0,
       });
-      return { request_id, model: modelId, is_async_polling: true };
+      try {
+        const { request_id } = await falQueueSubmit(modelId, {
+          voice_description: input.voice_description,
+          text: input.text,
+        });
+        return { request_id, model: modelId, is_async_polling: true, estimated_credits: charged };
+      } catch (err) {
+        await refundUserPoints(ctx.user.id, charged);
+        throw err;
+      }
     }),
 
   /**
@@ -734,16 +905,67 @@ export const proStudioRouter = router({
         text: z.string().min(1).max(5000),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const modelId = "fal-ai/dia-tts/voice-clone";
       // DEF-07 修正：Dia TTS 要求 [S1]/[S2] 說話者標籤格式，純文字會 422
       const formattedText = /\[S\d\]/.test(input.text)
         ? input.text
         : `[S1] ${input.text}`;
-      const { request_id } = await falQueueSubmit(modelId, {
-        text: formattedText,
+      const charged = await chargeForFalTask(ctx.user.id, modelId, {
+        charCount: input.text.length,
       });
-      return { request_id, model: modelId, is_async_polling: true };
+      try {
+        const { request_id } = await falQueueSubmit(modelId, {
+          text: formattedText,
+        });
+        return { request_id, model: modelId, is_async_polling: true, estimated_credits: charged };
+      } catch (err) {
+        await refundUserPoints(ctx.user.id, charged);
+        throw err;
+      }
+    }),
+
+  /**
+   * fal-ai/elevenlabs/voice-cloning — ElevenLabs Instant Voice Cloning (IVC)
+   *
+   * 上傳 1-3 分鐘乾淨語音樣本，建立 voice_id，後續可在 elevenLabsTTS 直接使用。
+   * 與 qwenCloneVoice 的差異：
+   *  - Qwen 回 .safetensors embedding（only Qwen TTS 可用）
+   *  - ElevenLabs 回 voice_id（可走 ElevenLabs 全家族 TTS / dubbing / voice-changer）
+   */
+  elevenLabsVoiceClone: brainProcedure
+    .input(
+      z.object({
+        audio_url: z.string().url(),
+        name: z.string().min(1).max(100),
+        description: z.string().max(500).optional(),
+        labels: z.record(z.string(), z.string()).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const modelId = "fal-ai/elevenlabs/voice-cloning";
+      const charged = await chargeForFalTask(ctx.user.id, modelId);
+      try {
+        const { request_id } = await falQueueSubmit(
+          modelId,
+          {
+            audio_url: input.audio_url,
+            name: input.name,
+            description: input.description,
+            labels: input.labels,
+          },
+          getElevenLabsProxyHeaders()
+        );
+        return {
+          request_id,
+          model: modelId,
+          is_async_polling: true,
+          estimated_credits: charged,
+        };
+      } catch (err) {
+        await refundUserPoints(ctx.user.id, charged);
+        throw err;
+      }
     }),
 
   /** fal-ai/kling-video/create-voice — 建立 Kling 語音配置（非同步 queue） */
@@ -754,13 +976,19 @@ export const proStudioRouter = router({
         name: z.string().min(1).max(100),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const modelId = "fal-ai/kling-video/create-voice";
-      const { request_id } = await falQueueSubmit(modelId, {
-        audio_url: input.audio_url,
-        name: input.name,
-      });
-      return { request_id, model: modelId, is_async_polling: true };
+      const charged = await chargeForFalTask(ctx.user.id, modelId);
+      try {
+        const { request_id } = await falQueueSubmit(modelId, {
+          audio_url: input.audio_url,
+          name: input.name,
+        });
+        return { request_id, model: modelId, is_async_polling: true, estimated_credits: charged };
+      } catch (err) {
+        await refundUserPoints(ctx.user.id, charged);
+        throw err;
+      }
     }),
 
   // ═══════════════════════════════════════════════════════════════
@@ -796,7 +1024,7 @@ export const proStudioRouter = router({
         output_format: z.enum(["mp3", "wav"]).optional().default("mp3"),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       // 根據模型強制限制 stems，避免 4幹模型收到 guitar/piano 而報錯
       const FOUR_STEM_MODELS = [
         "htdemucs",
@@ -819,16 +1047,22 @@ export const proStudioRouter = router({
       }
 
       const modelId = "fal-ai/demucs";
-      const { request_id } = await falQueueSubmit(modelId, {
-        audio_url: input.audio_url,
-        model: input.model,
-        stems: stems,
-        output_format: input.output_format,
-        shifts: 1,
-        overlap: 0.25,
-      });
+      const charged = await chargeForFalTask(ctx.user.id, modelId);
+      try {
+        const { request_id } = await falQueueSubmit(modelId, {
+          audio_url: input.audio_url,
+          model: input.model,
+          stems: stems,
+          output_format: input.output_format,
+          shifts: 1,
+          overlap: 0.25,
+        });
 
-      return { request_id, model: modelId, is_async_polling: true };
+        return { request_id, model: modelId, is_async_polling: true, estimated_credits: charged };
+      } catch (err) {
+        await refundUserPoints(ctx.user.id, charged);
+        throw err;
+      }
     }),
 
   /** fal-ai/elevenlabs/audio-isolation — 人聲隔離/去噪（非同步 queue） */
@@ -838,12 +1072,18 @@ export const proStudioRouter = router({
         audio_url: z.string().url(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const modelId = "fal-ai/elevenlabs/audio-isolation";
-      const { request_id } = await falQueueSubmit(modelId, {
-        audio_url: input.audio_url,
-      }, getElevenLabsProxyHeaders());  // 需要 ElevenLabs key 認證
-      return { request_id, model: modelId, is_async_polling: true };
+      const charged = await chargeForFalTask(ctx.user.id, modelId);
+      try {
+        const { request_id } = await falQueueSubmit(modelId, {
+          audio_url: input.audio_url,
+        }, getElevenLabsProxyHeaders());  // 需要 ElevenLabs key 認證
+        return { request_id, model: modelId, is_async_polling: true, estimated_credits: charged };
+      } catch (err) {
+        await refundUserPoints(ctx.user.id, charged);
+        throw err;
+      }
     }),
 
   /** fal-ai/ffmpeg-api/merge-audios — 多音訊合併（非同步 queue） */
@@ -857,13 +1097,19 @@ export const proStudioRouter = router({
           .default("concatenate"),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const modelId = "fal-ai/ffmpeg-api/merge-audios";
-      const { request_id } = await falQueueSubmit(modelId, {
-        audio_urls: input.audio_urls,
-        merge_strategy: input.merge_strategy,
-      });
-      return { request_id, model: modelId, is_async_polling: true };
+      const charged = await chargeForFalTask(ctx.user.id, modelId);
+      try {
+        const { request_id } = await falQueueSubmit(modelId, {
+          audio_urls: input.audio_urls,
+          merge_strategy: input.merge_strategy,
+        });
+        return { request_id, model: modelId, is_async_polling: true, estimated_credits: charged };
+      } catch (err) {
+        await refundUserPoints(ctx.user.id, charged);
+        throw err;
+      }
     }),
 
   // ═══════════════════════════════════════════════════════════════
@@ -879,14 +1125,20 @@ export const proStudioRouter = router({
         remove_background_noise: z.boolean().optional().default(false),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const modelId = "fal-ai/elevenlabs/voice-changer";
-      const { request_id } = await falQueueSubmit(modelId, {
-        audio_url: input.audio_url,
-        voice_id: input.voice_id,
-        remove_background_noise: input.remove_background_noise,
-      }, getElevenLabsProxyHeaders());  // 需要 ElevenLabs key 認證
-      return { request_id, model: modelId, is_async_polling: true };
+      const charged = await chargeForFalTask(ctx.user.id, modelId);
+      try {
+        const { request_id } = await falQueueSubmit(modelId, {
+          audio_url: input.audio_url,
+          voice_id: input.voice_id,
+          remove_background_noise: input.remove_background_noise,
+        }, getElevenLabsProxyHeaders());  // 需要 ElevenLabs key 認證
+        return { request_id, model: modelId, is_async_polling: true, estimated_credits: charged };
+      } catch (err) {
+        await refundUserPoints(ctx.user.id, charged);
+        throw err;
+      }
     }),
 
   // ═══════════════════════════════════════════════════════════════
@@ -913,21 +1165,25 @@ export const proStudioRouter = router({
           .default("none"),
       })
     )
-    .mutation(async ({ input }) => {
-      // 使用 submit 立即回傳 request_id，不在後端等待
-      const { request_id } = await falQueueSubmit(
-        "fal-ai/nemotron/asr/stream",
-        {
+    .mutation(async ({ ctx, input }) => {
+      const modelId = "fal-ai/nemotron/asr/stream";
+      const charged = await chargeForFalTask(ctx.user.id, modelId);
+      try {
+        const { request_id } = await falQueueSubmit(modelId, {
           audio_url: input.audio_url,
           acceleration: input.acceleration,
-        }
-      );
+        });
 
-      return {
-        request_id,
-        model: "fal-ai/nemotron/asr/stream",
-        is_async_polling: true,
-      };
+        return {
+          request_id,
+          model: modelId,
+          is_async_polling: true,
+          estimated_credits: charged,
+        };
+      } catch (err) {
+        await refundUserPoints(ctx.user.id, charged);
+        throw err;
+      }
     }),
 
   // ═══════════════════════════════════════════════════════════════
@@ -944,7 +1200,8 @@ export const proStudioRouter = router({
         num_frames: z.number().min(16).max(200).optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      const modelId = "fal-ai/wan/v2.2-14b/speech-to-video";
       // 過濾 undefined 鍾開候送入 fal.ai 造成 422
       const falPayload: Record<string, unknown> = {
         image_url: input.image_url,
@@ -952,11 +1209,16 @@ export const proStudioRouter = router({
       };
       if (input.prompt) falPayload.prompt = input.prompt;
       if (input.num_frames) falPayload.num_frames = input.num_frames;
-      const { request_id } = await falQueueSubmit(
-        "fal-ai/wan/v2.2-14b/speech-to-video",
-        falPayload
-      );
-      return { request_id, model: "fal-ai/wan/v2.2-14b/speech-to-video" };
+      // num_frames 約 24fps；給不到時就以 5 秒估
+      const durationSec = input.num_frames ? Math.max(1, Math.round(input.num_frames / 24)) : 5;
+      const charged = await chargeForFalTask(ctx.user.id, modelId, { durationSec });
+      try {
+        const { request_id } = await falQueueSubmit(modelId, falPayload);
+        return { request_id, model: modelId, estimated_credits: charged };
+      } catch (err) {
+        await refundUserPoints(ctx.user.id, charged);
+        throw err;
+      }
     }),
 
   /** fal-ai/echomimic-v3 — 說話虛擬形像 */
@@ -969,14 +1231,22 @@ export const proStudioRouter = router({
         pose_style: z.number().min(0).max(45).optional().default(0),
       })
     )
-    .mutation(async ({ input }) => {
-      const { request_id } = await falQueueSubmit("fal-ai/echomimic-v3", {
-        image_url: input.image_url,
-        audio_url: input.audio_url,
-        text: input.text,
-        pose_style: input.pose_style,
-      });
-      return { request_id, model: "fal-ai/echomimic-v3" };
+    .mutation(async ({ ctx, input }) => {
+      const modelId = "fal-ai/echomimic-v3";
+      // 沒明確時長提示，以 5 秒估點
+      const charged = await chargeForFalTask(ctx.user.id, modelId, { durationSec: 5 });
+      try {
+        const { request_id } = await falQueueSubmit(modelId, {
+          image_url: input.image_url,
+          audio_url: input.audio_url,
+          text: input.text,
+          pose_style: input.pose_style,
+        });
+        return { request_id, model: modelId, estimated_credits: charged };
+      } catch (err) {
+        await refundUserPoints(ctx.user.id, charged);
+        throw err;
+      }
     }),
 
   /** fal-ai/stable-avatar — 音訊驅動頭像（最長 5 分鐘） */
@@ -987,12 +1257,20 @@ export const proStudioRouter = router({
         audio_url: z.string().url(),
       })
     )
-    .mutation(async ({ input }) => {
-      const { request_id } = await falQueueSubmit("fal-ai/stable-avatar", {
-        image_url: input.image_url,
-        audio_url: input.audio_url,
-      });
-      return { request_id, model: "fal-ai/stable-avatar" };
+    .mutation(async ({ ctx, input }) => {
+      const modelId = "fal-ai/stable-avatar";
+      // Stable Avatar 預估 30 秒（典型短講解片段）
+      const charged = await chargeForFalTask(ctx.user.id, modelId, { durationSec: 30 });
+      try {
+        const { request_id } = await falQueueSubmit(modelId, {
+          image_url: input.image_url,
+          audio_url: input.audio_url,
+        });
+        return { request_id, model: modelId, estimated_credits: charged };
+      } catch (err) {
+        await refundUserPoints(ctx.user.id, charged);
+        throw err;
+      }
     }),
 
   /** fal-ai/elevenlabs/dubbing — AI 影片配音翻譯 */
@@ -1007,7 +1285,8 @@ export const proStudioRouter = router({
         watermark: z.boolean().optional().default(false),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      const modelId = "fal-ai/elevenlabs/dubbing";
       // 驗證：video_url 和 audio_url 必須至少存在一個
       if (!input.video_url && !input.audio_url) {
         throw new TRPCError({
@@ -1015,15 +1294,22 @@ export const proStudioRouter = router({
           message: "請提供 video_url 或 audio_url （必選其一）",
         });
       }
-      const { request_id } = await falQueueSubmit("fal-ai/elevenlabs/dubbing", {
-        video_url: input.video_url,
-        audio_url: input.audio_url,
-        source_language: input.source_language,
-        target_language: input.target_language,
-        num_speakers: input.num_speakers,
-        watermark: input.watermark,
-      }, getElevenLabsProxyHeaders());  // 需要 ElevenLabs key 認證
-      return { request_id, model: "fal-ai/elevenlabs/dubbing" };
+      // Dubbing 沒給時長提示，以 30 秒估
+      const charged = await chargeForFalTask(ctx.user.id, modelId, { durationSec: 30 });
+      try {
+        const { request_id } = await falQueueSubmit(modelId, {
+          video_url: input.video_url,
+          audio_url: input.audio_url,
+          source_language: input.source_language,
+          target_language: input.target_language,
+          num_speakers: input.num_speakers,
+          watermark: input.watermark,
+        }, getElevenLabsProxyHeaders());  // 需要 ElevenLabs key 認證
+        return { request_id, model: modelId, estimated_credits: charged };
+      } catch (err) {
+        await refundUserPoints(ctx.user.id, charged);
+        throw err;
+      }
     }),
 
   /** fal-ai/longcat-single-avatar/audio-to-video — 長影片唇形同步 */
@@ -1035,19 +1321,25 @@ export const proStudioRouter = router({
         prompt: z.string().optional(),
       })
     )
-    .mutation(async ({ input }) => {
-      const { request_id } = await falQueueSubmit(
-        "fal-ai/longcat-single-avatar/audio-to-video",
-        {
+    .mutation(async ({ ctx, input }) => {
+      const modelId = "fal-ai/longcat-single-avatar/audio-to-video";
+      // LongCat 設計用於長片，預估 60 秒
+      const charged = await chargeForFalTask(ctx.user.id, modelId, { durationSec: 60 });
+      try {
+        const { request_id } = await falQueueSubmit(modelId, {
           image_url: input.image_url,
           audio_url: input.audio_url,
           prompt: input.prompt,
-        }
-      );
-      return {
-        request_id,
-        model: "fal-ai/longcat-single-avatar/audio-to-video",
-      };
+        });
+        return {
+          request_id,
+          model: modelId,
+          estimated_credits: charged,
+        };
+      } catch (err) {
+        await refundUserPoints(ctx.user.id, charged);
+        throw err;
+      }
     }),
 
   /** fal-ai/ltx-2-19b/distilled/audio-to-video/lora — LTX-2 音訊轉影片 */
@@ -1062,22 +1354,29 @@ export const proStudioRouter = router({
         resolution: z.enum(["480p", "720p"]).optional().default("720p"),
       })
     )
-    .mutation(async ({ input }) => {
-      const { request_id } = await falQueueSubmit(
-        "fal-ai/ltx-2-19b/distilled/audio-to-video/lora",
-        {
+    .mutation(async ({ ctx, input }) => {
+      const modelId = "fal-ai/ltx-2-19b/distilled/audio-to-video/lora";
+      // num_frames @ ~24fps 換算秒數
+      const durationSec = Math.max(1, Math.round((input.num_frames ?? 121) / 24));
+      const charged = await chargeForFalTask(ctx.user.id, modelId, { durationSec });
+      try {
+        const { request_id } = await falQueueSubmit(modelId, {
           prompt: input.prompt,
           audio_url: input.audio_url,
           image_url: input.image_url,
           lora_url: input.lora_url,
           num_frames: input.num_frames,
           resolution: input.resolution,
-        }
-      );
-      return {
-        request_id,
-        model: "fal-ai/ltx-2-19b/distilled/audio-to-video/lora",
-      };
+        });
+        return {
+          request_id,
+          model: modelId,
+          estimated_credits: charged,
+        };
+      } catch (err) {
+        await refundUserPoints(ctx.user.id, charged);
+        throw err;
+      }
     }),
 
   // ═══════════════════════════════════════════════════════════════
@@ -1237,7 +1536,7 @@ export const proStudioRouter = router({
           .default("ace-step"),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       // ── 1. 用 AudioCompiler 將積木轉化為結構化提示詞 ─────────────
       const compiler = getAudioCompiler();
       const compilerInput: AudioCompilerInput = {
@@ -1253,8 +1552,11 @@ export const proStudioRouter = router({
 
       // ── 2. 依選定模型送出 fal.ai 任務 ────────────────────────────
       const modelChoice = input.model ?? "ace-step";
+      const durationSec =
+        input.targetDurationSec ?? compiled.estimatedDurationSec ?? 30;
 
       if (modelChoice === "sonauto") {
+        const falModelId = "fal-ai/sonauto";
         const payload: Record<string, unknown> = {
           prompt: compiled.prompt,
         };
@@ -1273,54 +1575,75 @@ export const proStudioRouter = router({
         payload.output_format = "mp3";
         payload.num_songs = 1;
 
-        const { request_id } = await falQueueSubmit(
-          "sonauto/v2/text-to-music",
-          payload
-        );
-        return {
-          request_id,
-          model: "sonauto/v2/text-to-music",
-          is_async_polling: true,
-          compiledPrompt: compiled.prompt,
-          styleTag: compiled.styleTag,
-          estimatedDurationSec: compiled.estimatedDurationSec,
-          compilationLog: compiled.compilationLog,
-        };
+        const charged = await chargeForFalTask(ctx.user.id, falModelId, { durationSec });
+        try {
+          const { request_id } = await falQueueSubmit("sonauto/v2/text-to-music", payload);
+          return {
+            request_id,
+            model: "sonauto/v2/text-to-music",
+            is_async_polling: true,
+            compiledPrompt: compiled.prompt,
+            styleTag: compiled.styleTag,
+            estimatedDurationSec: compiled.estimatedDurationSec,
+            compilationLog: compiled.compilationLog,
+            estimated_credits: charged,
+          };
+        } catch (err) {
+          await refundUserPoints(ctx.user.id, charged);
+          throw err;
+        }
       }
 
       if (modelChoice === "stable-audio") {
-        const { request_id } = await falQueueSubmit("fal-ai/stable-audio", {
-          prompt: compiled.prompt,
-          seconds_total: input.targetDurationSec ?? compiled.estimatedDurationSec ?? 30,
-        });
-        return {
-          request_id,
-          model: "fal-ai/stable-audio",
-          is_async_polling: true,
-          compiledPrompt: compiled.prompt,
-          styleTag: compiled.styleTag,
-          estimatedDurationSec: compiled.estimatedDurationSec,
-          compilationLog: compiled.compilationLog,
-        };
+        const falModelId = "fal-ai/stable-audio";
+        const charged = await chargeForFalTask(ctx.user.id, falModelId, { durationSec });
+        try {
+          const { request_id } = await falQueueSubmit(falModelId, {
+            prompt: compiled.prompt,
+            seconds_total: durationSec,
+          });
+          return {
+            request_id,
+            model: falModelId,
+            is_async_polling: true,
+            compiledPrompt: compiled.prompt,
+            styleTag: compiled.styleTag,
+            estimatedDurationSec: compiled.estimatedDurationSec,
+            compilationLog: compiled.compilationLog,
+            estimated_credits: charged,
+          };
+        } catch (err) {
+          await refundUserPoints(ctx.user.id, charged);
+          throw err;
+        }
       }
 
       if (modelChoice === "musicgen") {
-        const { request_id } = await falQueueSubmit("fal-ai/musicgen", {
-          prompt: compiled.prompt,
-          duration: input.targetDurationSec ?? compiled.estimatedDurationSec,
-        });
-        return {
-          request_id,
-          model: "fal-ai/musicgen",
-          is_async_polling: true,
-          compiledPrompt: compiled.prompt,
-          styleTag: compiled.styleTag,
-          estimatedDurationSec: compiled.estimatedDurationSec,
-          compilationLog: compiled.compilationLog,
-        };
+        const falModelId = "fal-ai/musicgen";
+        const charged = await chargeForFalTask(ctx.user.id, falModelId, { durationSec });
+        try {
+          const { request_id } = await falQueueSubmit(falModelId, {
+            prompt: compiled.prompt,
+            duration: durationSec,
+          });
+          return {
+            request_id,
+            model: falModelId,
+            is_async_polling: true,
+            compiledPrompt: compiled.prompt,
+            styleTag: compiled.styleTag,
+            estimatedDurationSec: compiled.estimatedDurationSec,
+            compilationLog: compiled.compilationLog,
+            estimated_credits: charged,
+          };
+        } catch (err) {
+          await refundUserPoints(ctx.user.id, charged);
+          throw err;
+        }
       }
 
       // ace-step（預設）
+      const aceModelId = "fal-ai/ace-step";
       const acePayload: Record<string, unknown> = {
         prompt: compiled.prompt,
         ...(input.targetDurationSec
@@ -1332,16 +1655,23 @@ export const proStudioRouter = router({
       if (input.lyrics && !input.instrumental) {
         acePayload.lyrics = input.lyrics;
       }
-      const { request_id } = await falQueueSubmit("fal-ai/ace-step", acePayload);
-      return {
-        request_id,
-        model: "fal-ai/ace-step",
-        is_async_polling: true,
-        compiledPrompt: compiled.prompt,
-        styleTag: compiled.styleTag,
-        estimatedDurationSec: compiled.estimatedDurationSec,
-        compilationLog: compiled.compilationLog,
-      };
+      const charged = await chargeForFalTask(ctx.user.id, aceModelId, { durationSec });
+      try {
+        const { request_id } = await falQueueSubmit(aceModelId, acePayload);
+        return {
+          request_id,
+          model: aceModelId,
+          is_async_polling: true,
+          compiledPrompt: compiled.prompt,
+          styleTag: compiled.styleTag,
+          estimatedDurationSec: compiled.estimatedDurationSec,
+          compilationLog: compiled.compilationLog,
+          estimated_credits: charged,
+        };
+      } catch (err) {
+        await refundUserPoints(ctx.user.id, charged);
+        throw err;
+      }
     }),
 
   // ═══════════════════════════════════════════════════════════════
@@ -1366,6 +1696,8 @@ export const proStudioRouter = router({
         instrumental: z.boolean().default(false),
         customMode: z.boolean().default(false),
         lyrics: z.string().optional(),
+        /** Suno 模型版本：v3.5（穩定預設）/ v4（高品質） */
+        modelVersion: z.enum(["v3.5", "v4"]).optional().default("v3.5"),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -1378,19 +1710,19 @@ export const proStudioRouter = router({
         });
       }
 
-      const { estimatePoints } = await import("../services/modelPricing");
-      const { deductCredits } = await import("../services/orbCostGuard");
       const { createBackgroundJob } = await import("../db");
 
-      const estimate = estimatePoints("suno-v1", { durationSec: 60 });
-      await deductCredits(ctx.user.id, estimate.totalPoints);
+      // 依模型版本走對應 catalog 條目（v3.5: 6 pts, v4: 10 pts 起跳）
+      const pricingKey = input.modelVersion === "v4" ? "suno-v4" : "suno-v3.5";
+      const estimate = estimatePoints(pricingKey, { durationSec: 60 });
+      const charged = await chargeForFalTask(ctx.user.id, pricingKey, { durationSec: 60 });
 
       // 先建 backgroundJob 取得 jobId，才能組出帶 jobId 的 callBackUrl
       const job = await createBackgroundJob({
         userId: ctx.user.id,
         jobType: "audio",
         status: "processing",
-        progressMessage: "Suno 生成中…",
+        progressMessage: `Suno ${input.modelVersion} 生成中…`,
         resultJson: { estimate } as any,
       });
       const jobId =
@@ -1402,17 +1734,27 @@ export const proStudioRouter = router({
       const callBackUrl =
         siteUrl && jobId ? `${siteUrl}/api/webhook/suno?jobId=${jobId}` : undefined;
 
-      const { taskId } = await suno.generateMusic({ ...input, callBackUrl });
+      try {
+        const { taskId } = await suno.generateMusic({ ...input, callBackUrl });
 
-      // 把 sunoTaskId 補回 backgroundJob.resultJson，供 webhook / 輪詢反查
-      if (jobId) {
-        const { updateBackgroundJob } = await import("../db");
-        await updateBackgroundJob(jobId, {
-          resultJson: { sunoTaskId: taskId, estimate, userId: ctx.user.id } as any,
-        });
+        // 把 sunoTaskId 補回 backgroundJob.resultJson，供 webhook / 輪詢反查
+        if (jobId) {
+          const { updateBackgroundJob } = await import("../db");
+          await updateBackgroundJob(jobId, {
+            resultJson: {
+              sunoTaskId: taskId,
+              estimate,
+              userId: ctx.user.id,
+              modelVersion: input.modelVersion,
+            } as any,
+          });
+        }
+
+        return { taskId, jobId, modelVersion: input.modelVersion, estimated_credits: charged };
+      } catch (err) {
+        await refundUserPoints(ctx.user.id, charged);
+        throw err;
       }
-
-      return { taskId, jobId };
     }),
 
   /**

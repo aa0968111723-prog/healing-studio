@@ -89,7 +89,83 @@ interface ProStudioAgentBridge {
   submit?: () => boolean;
   /** 切換模型（由 PRO_MODEL id 對應到分頁內部 model key） */
   setModel?: (modelId: string) => boolean;
+  /** 清空當前分頁的所有輸入 */
+  reset?: () => void;
 }
+
+/**
+ * 音訊「氛圍預設」— 光球助手 applyPreset 對應的內建套組。
+ * 每個 preset 一次填好 model + prompt + 主要參數，讓使用者一鍵就有可聽結果。
+ */
+const AUDIO_PRESETS: Record<
+  string,
+  { label: string; tab: string; modelId?: string; prompt: string; params?: Record<string, string | number | boolean> }
+> = {
+  meditation: {
+    label: "冥想引導",
+    tab: "music",
+    modelId: "stable-audio",
+    prompt: "ambient meditation, soft pads, gentle nature sounds, peaceful, 60bpm",
+    params: { duration: 60, instrumental: true },
+  },
+  cafe: {
+    label: "咖啡廳輕音樂",
+    tab: "music",
+    modelId: "ace-step",
+    prompt: "soft jazz, acoustic guitar, mellow piano, warm cafe ambience, 80bpm",
+    params: { duration: 90, instrumental: true },
+  },
+  cinematic: {
+    label: "電影配樂",
+    tab: "music",
+    modelId: "ace-step",
+    prompt: "cinematic orchestral score, emotional strings, gentle piano, slow build, 70bpm",
+    params: { duration: 60, instrumental: true },
+  },
+  rain: {
+    label: "雨聲環境音",
+    tab: "sfx",
+    modelId: "stable-audio",
+    prompt: "gentle rain on leaves, distant thunder, calm forest atmosphere",
+    params: { duration_seconds: 30 },
+  },
+  forest: {
+    label: "森林環境音",
+    tab: "sfx",
+    modelId: "stable-audio",
+    prompt: "forest ambience, birds chirping, leaves rustling, distant stream",
+    params: { duration_seconds: 30 },
+  },
+  // ── 聲音克隆預設 ──
+  cloneNarration: {
+    label: "克隆 → 旁白朗讀",
+    tab: "clone",
+    modelId: "qwen-clone",
+    prompt: "請以溫暖、療癒的語氣朗讀這段內容。",
+    params: { mode: "qwen" },
+  },
+  cloneDialog: {
+    label: "多人對話克隆",
+    tab: "clone",
+    modelId: "dia-clone",
+    prompt: "[S1] 你今天感覺如何？ [S2] 我覺得心情輕鬆了不少。",
+    params: { mode: "dia" },
+  },
+  cloneIvc: {
+    label: "ElevenLabs IVC（建 voice_id）",
+    tab: "clone",
+    modelId: "eleven-ivc",
+    prompt: "請示範 30 秒以上的乾淨語音用作參考樣本。",
+    params: { mode: "elevenlabs" },
+  },
+  voiceDesignWarm: {
+    label: "聲音設計：溫暖女聲",
+    tab: "clone",
+    modelId: "voice-design",
+    prompt: "你好，我是你設計出的聲音。",
+    params: { mode: "design", voice_description: "warm, gentle female voice, calm pace, healing tone" },
+  },
+};
 
 const AgentBridgeContext = createContext<React.MutableRefObject<ProStudioAgentBridge> | null>(null);
 
@@ -924,6 +1000,14 @@ function MusicTab() {
     },
     getState: () => ({ prompt, musicModel, duration, instrumental, lyrics, tags }),
     submit: () => { if (!prompt.trim()) return false; return true; },
+    reset: () => {
+      setPrompt("");
+      setLyrics("");
+      setTags("");
+      setInstrumental(false);
+      setDuration(30);
+      setResult(null);
+    },
   });
 
   // 載入可用模型清單
@@ -1262,6 +1346,13 @@ function SoundEffectsTab() {
     },
     getState: () => ({ text, sfxModel, duration, useDuration, influence }),
     submit: () => { if (!text.trim()) return false; return true; },
+    reset: () => {
+      setText("");
+      setDuration(10);
+      setUseDuration(false);
+      setInfluence(0.3);
+      setResult(null);
+    },
   });
 
   // 載入可用模型清單
@@ -1520,6 +1611,9 @@ function TTSTab() {
   const [stability, setStability] = useState(0.5);
   const [similarity, setSimilarity] = useState(0.75);
   const [speed, setSpeed] = useState(1.0);
+  const [elevenEngine, setElevenEngine] = useState<
+    "turbo-v2.5" | "flash-v2.5" | "multilingual-v2" | "eleven-v3"
+  >("turbo-v2.5");
   const [result, setResult] = useState<AudioResult | null>(null);
 
   // ── Agent Bridge：讓光球能控制語音合成分頁參數 ──
@@ -1532,6 +1626,11 @@ function TTSTab() {
           if (valid.includes(value)) { setEngine(value as typeof engine); return true; }
           return false;
         }
+        case "elevenEngine": case "eleven_engine": case "elevenlabs_engine": {
+          const valid = ["turbo-v2.5", "flash-v2.5", "multilingual-v2", "eleven-v3"];
+          if (valid.includes(value)) { setElevenEngine(value as typeof elevenEngine); return true; }
+          return false;
+        }
         case "voiceId": case "voice_id": { setVoiceId(value); return true; }
         case "stability": { const f = parseFloat(value); if (f >= 0 && f <= 1) { setStability(f); return true; } return false; }
         case "similarity": { const f = parseFloat(value); if (f >= 0 && f <= 1) { setSimilarity(f); return true; } return false; }
@@ -1539,8 +1638,17 @@ function TTSTab() {
         default: return false;
       }
     },
-    getState: () => ({ text, engine, voiceId, stability, similarity, speed }),
+    getState: () => ({ text, engine, elevenEngine, voiceId, stability, similarity, speed }),
     submit: () => { if (!text.trim()) return false; return true; },
+    reset: () => {
+      setText("");
+      setVoiceId("");
+      setStability(0.5);
+      setSimilarity(0.75);
+      setSpeed(1.0);
+      setElevenEngine("turbo-v2.5");
+      setResult(null);
+    },
   });
 
   const elevenMutation = trpc.proStudio.elevenLabsTTS.useMutation({
@@ -1583,6 +1691,7 @@ function TTSTab() {
       elevenMutation.mutate({
         text,
         voice_id: voiceId || undefined,
+        engine: elevenEngine,
         stability,
         similarity_boost: similarity,
       });
@@ -1592,6 +1701,13 @@ function TTSTab() {
       qwenMutation.mutate({ text, voice: voiceId || undefined });
     }
   };
+
+  const elevenEngines = [
+    { id: "turbo-v2.5" as const, label: "Turbo v2.5", desc: "最快速度・低成本", badge: "推薦" },
+    { id: "flash-v2.5" as const, label: "Flash v2.5", desc: "超低延遲・即時對話", badge: "最快" },
+    { id: "multilingual-v2" as const, label: "Multilingual v2", desc: "29 語言・穩定品質" },
+    { id: "eleven-v3" as const, label: "ElevenLabs v3", desc: "最強情緒・最高品質", badge: "Pro" },
+  ];
 
   const elevenVoices = [
     {
@@ -1722,6 +1838,40 @@ function TTSTab() {
               {text.length} / 5000 字元
             </p>
           </div>
+
+          {/* ElevenLabs 引擎選擇器 */}
+          {engine === "elevenlabs" && (
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">
+                ElevenLabs 引擎（影響成本與品質）
+              </Label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {elevenEngines.map(e => (
+                  <button
+                    key={e.id}
+                    onClick={() => setElevenEngine(e.id)}
+                    className={`p-2 rounded-lg border text-left transition-all relative ${elevenEngine === e.id ? "bg-purple-500 text-white border-purple-500" : "bg-background hover:bg-accent border-border"}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold">{e.label}</p>
+                      {e.badge && (
+                        <span
+                          className={`text-[8px] px-1 py-0 rounded ${elevenEngine === e.id ? "bg-white/30 text-white" : "bg-purple-100 text-purple-600"}`}
+                        >
+                          {e.badge}
+                        </span>
+                      )}
+                    </div>
+                    <p
+                      className={`text-[9px] mt-0.5 ${elevenEngine === e.id ? "text-purple-100" : "text-muted-foreground"}`}
+                    >
+                      {e.desc}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* 語音選擇 */}
           {engine === "elevenlabs" ? (
@@ -1939,23 +2089,38 @@ function TTSTab() {
 function CloneTab() {
   const registerBgTask = useRegisterBgTask();
   const { setAIState, reportSuccess, reportFailure } = useAIState();
-  const [mode, setMode] = useState<"qwen" | "dia" | "design" | "kling">("qwen");
+  const [mode, setMode] = useState<"qwen" | "dia" | "design" | "kling" | "elevenlabs">("qwen");
   const [text, setText] = useState("");
   const [refAudio, setRefAudio] = useState("");
   const [refTranscript, setRefTranscript] = useState("");
   const [voiceDesc, setVoiceDesc] = useState("");
-  // Kling 專用
+  // Kling / ElevenLabs 共用 voice 名稱
   const [klingName, setKlingName] = useState("");
+  const [elevenDescription, setElevenDescription] = useState("");
   const [klingResult, setKlingResult] = useState<any>(null);
   const [result, setResult] = useState<AudioResult | null>(null);
 
   // ── Agent Bridge：讓光球能控制聲音克隆分頁參數 ──
+  // PRO_MODELS id → CloneTab 內部 mode
+  const cloneModelToMode: Record<string, typeof mode> = {
+    "qwen-clone": "qwen",
+    "dia-clone": "dia",
+    "voice-design": "design",
+    "eleven-ivc": "elevenlabs",
+    "kling-voice": "kling",
+  };
   useProStudioAgentBridge({
     fillPrompt: (t: string) => setText(t),
+    setModel: (modelId: string) => {
+      const next = cloneModelToMode[modelId];
+      if (!next) return false;
+      setMode(next);
+      return true;
+    },
     setParam: (key: string, value: string) => {
       switch (key) {
         case "mode": case "model": {
-          const valid = ["qwen", "dia", "design", "kling"];
+          const valid = ["qwen", "dia", "design", "kling", "elevenlabs"];
           if (valid.includes(value)) { setMode(value as typeof mode); return true; }
           return false;
         }
@@ -1963,11 +2128,22 @@ function CloneTab() {
         case "refTranscript": case "reference_text": { setRefTranscript(value); return true; }
         case "voiceDesc": case "voice_description": { setVoiceDesc(value); return true; }
         case "klingName": case "name": { setKlingName(value); return true; }
+        case "elevenDescription": case "description": { setElevenDescription(value); return true; }
         default: return false;
       }
     },
-    getState: () => ({ text, mode, refAudio, refTranscript, voiceDesc, klingName }),
-    submit: () => { if (mode === "design" && !voiceDesc.trim()) return false; if ((mode === "qwen" || mode === "dia") && !text.trim()) return false; return true; },
+    getState: () => ({ text, mode, refAudio, refTranscript, voiceDesc, klingName, elevenDescription }),
+    submit: () => { if (mode === "design" && !voiceDesc.trim()) return false; if ((mode === "qwen" || mode === "dia") && !text.trim()) return false; if (mode === "elevenlabs" && (!refAudio.trim() || !klingName.trim())) return false; return true; },
+    reset: () => {
+      setText("");
+      setRefAudio("");
+      setRefTranscript("");
+      setVoiceDesc("");
+      setKlingName("");
+      setElevenDescription("");
+      setResult(null);
+      setKlingResult(null);
+    },
   });
 
   // qwenCloneAndSpeak: clone + TTS in one step (audio_url + text → audio)
@@ -2028,12 +2204,27 @@ function CloneTab() {
     },
     onSettled: () => setAIState("idle"),
   });
+  const elevenLabsClone = trpc.proStudio.elevenLabsVoiceClone.useMutation({
+    onMutate: () => setAIState("generating"),
+    onSuccess: data => {
+      setKlingResult(data);
+      registerBgTask(data, "voice", "✅ ElevenLabs 聲音克隆");
+      toast.success("📤 任務已提交！voice_id 完成後可在 TTS 分頁直接使用");
+      reportSuccess();
+    },
+    onError: e => {
+      toast.error(`ElevenLabs 克隆失敗：${e.message}`);
+      reportFailure();
+    },
+    onSettled: () => setAIState("idle"),
+  });
 
   const isPending =
     qwenClone.isPending ||
     diaClone.isPending ||
     voiceDesign.isPending ||
-    klingVoice.isPending;
+    klingVoice.isPending ||
+    elevenLabsClone.isPending;
   const audioUrl =
     result?.audio_url ?? (result?.audio as any)?.url ?? result?.url;
 
@@ -2054,6 +2245,13 @@ function CloneTab() {
       voiceDesign.mutate({
         voice_description: voiceDesc,
         text: text || undefined,
+      });
+    } else if (mode === "elevenlabs") {
+      // ElevenLabs Instant Voice Cloning：建 voice_id，後續可走 TTS / dubbing / voice-changer
+      elevenLabsClone.mutate({
+        audio_url: refAudio,
+        name: klingName,
+        description: elevenDescription || undefined,
       });
     } else {
       klingVoice.mutate({ audio_url: refAudio, name: klingName });
@@ -2080,6 +2278,13 @@ function CloneTab() {
       badge: "Qwen3",
     },
     {
+      id: "elevenlabs" as const,
+      label: "ElevenLabs IVC",
+      desc: "建 voice_id 給 TTS / 配音用",
+      badge: "ElevenLabs",
+      special: true,
+    },
+    {
       id: "kling" as const,
       label: "Kling 語音建立",
       desc: "用於 Kling 影片",
@@ -2090,6 +2295,11 @@ function CloneTab() {
 
   const isKlingDisabled =
     mode === "kling" && (!refAudio.trim() || !klingName.trim());
+  const isElevenDisabled =
+    mode === "elevenlabs" &&
+    (!refAudio.trim() ||
+      !refAudio.trim().startsWith("https://") ||
+      !klingName.trim());
   // DEF-08 修正：Qwen 必須有效的 HTTPS URL（空字串或未上傳完成會造成 422）
   const qwenAudioValid =
     mode !== "qwen" || refAudio.trim().startsWith("https://");
@@ -2098,7 +2308,11 @@ function CloneTab() {
     (mode === "dia" && !text.trim());
   const isDesignDisabled = mode === "design" && !voiceDesc.trim();
   const submitDisabled =
-    isPending || isKlingDisabled || isOtherDisabled || isDesignDisabled;
+    isPending ||
+    isKlingDisabled ||
+    isElevenDisabled ||
+    isOtherDisabled ||
+    isDesignDisabled;
 
   return (
     <div className="space-y-4">
@@ -2487,6 +2701,125 @@ function CloneTab() {
             )}
           </ToolCard>
         )}
+
+        {mode === "elevenlabs" && (
+          <ToolCard
+            icon={UserRound}
+            title="ElevenLabs Instant Voice Cloning"
+            description="上傳 30 秒~3 分鐘乾淨人聲，建立 voice_id，可直接在 TTS / 配音 / 變聲分頁使用"
+            badge="ElevenLabs IVC"
+            modelId="fal-ai/elevenlabs/voice-cloning"
+            color="purple"
+            defaultOpen
+          >
+            <div className="space-y-3">
+              <div className="p-3 rounded-lg bg-violet-50/60 border border-violet-200/40">
+                <p className="text-xs font-medium text-violet-700 mb-1">
+                  💡 使用情境
+                </p>
+                <p className="hs-small !mb-0 text-violet-600">
+                  克隆完成後會回傳 voice_id，可在「語音合成」分頁的 ElevenLabs
+                  TTS 直接以該聲線朗讀任意文字，也可串給 Dubbing / Voice Changer。
+                </p>
+              </div>
+
+              <FileUploadInput
+                label="參考音訊"
+                value={refAudio}
+                onChange={setRefAudio}
+                required
+                accept="audio/*"
+                placeholder="貼上 30 秒~3 分鐘乾淨人聲（mp3/wav/flac/m4a）"
+                hint="建議 30 秒~3 分鐘，無背景雜音、無配樂；越乾淨越像本人"
+              />
+
+              <div>
+                <Label className="text-xs text-muted-foreground">
+                  聲音名稱 <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  value={klingName}
+                  onChange={e => setKlingName(e.target.value)}
+                  placeholder="例如：療癒女聲、品牌主播..."
+                  className="mt-1 text-sm"
+                />
+              </div>
+
+              <div>
+                <Label className="text-xs text-muted-foreground">
+                  聲音描述（選填）
+                </Label>
+                <Input
+                  value={elevenDescription}
+                  onChange={e => setElevenDescription(e.target.value)}
+                  placeholder="柔和、溫暖、緩慢、適合冥想引導..."
+                  className="mt-1 text-sm"
+                />
+                <p className="text-[10px] text-muted-foreground/60 mt-1">
+                  幫助你日後在語音庫找到這個聲線
+                </p>
+              </div>
+
+              <Button
+                onClick={handleGenerate}
+                disabled={submitDisabled}
+                className="w-full bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700"
+              >
+                {isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    建立 ElevenLabs 聲線中...
+                  </>
+                ) : (
+                  <>
+                    <Star className="w-4 h-4 mr-2" />
+                    建立 ElevenLabs 聲線
+                  </>
+                )}
+              </Button>
+
+              {klingResult?.request_id &&
+                klingResult?.model === "fal-ai/elevenlabs/voice-cloning" &&
+                !klingResult?.voice_id && (
+                  <AsyncAudioPoller
+                    result={klingResult as AudioResult}
+                    onUpdate={r => setKlingResult(r)}
+                    label="✅ ElevenLabs 聲線建立"
+                  />
+                )}
+              {klingResult?.voice_id &&
+                klingResult?.model === "fal-ai/elevenlabs/voice-cloning" && (
+                  <div className="mt-4 p-4 rounded-xl bg-gradient-to-r from-violet-500/10 to-purple-500/10 border border-violet-200/50">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Check className="w-4 h-4 text-emerald-500" />
+                      <p className="text-sm font-medium text-foreground">
+                        ElevenLabs 聲線建立成功！
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <code className="flex-1 text-xs bg-white/60 px-2 py-1 rounded border font-mono truncate">
+                        {klingResult.voice_id}
+                      </code>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-7 w-7 shrink-0"
+                        onClick={() => {
+                          navigator.clipboard.writeText(klingResult.voice_id);
+                          toast.success("已複製 voice_id");
+                        }}
+                      >
+                        <Copy className="w-3 h-3" />
+                      </Button>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground/70 mt-2">
+                      💡 在「語音合成」→ ElevenLabs TTS 的 voice_id 欄位貼上即可朗讀
+                    </p>
+                  </div>
+                )}
+            </div>
+          </ToolCard>
+        )}
       </motion.div>
     </div>
   );
@@ -2532,6 +2865,15 @@ function ProcessTab() {
       }
     },
     getState: () => ({ tool, audioUrl, audioUrls, mergeStrategy, demucsModel, voiceId, removeBgNoise }),
+    reset: () => {
+      setAudioUrl("");
+      setAudioUrls(["", ""]);
+      setMergeStrategy("concatenate");
+      setDemucsModel("htdemucs_ft");
+      setVoiceId("");
+      setRemoveBgNoise(false);
+      setResult(null);
+    },
     submit: () => {
       if (tool === "merge" && audioUrls.filter(Boolean).length < 2) return false;
       if (tool === "changer" && (!audioUrl.trim() || !voiceId.trim())) return false;
@@ -2955,6 +3297,11 @@ function ASRTab() {
       }
     },
     getState: () => ({ audioUrl, acceleration }),
+    reset: () => {
+      setAudioUrl("");
+      setAcceleration("none");
+      setResult(null);
+    },
     submit: () => { if (!audioUrl.trim()) return false; return true; },
   });
 
@@ -3110,6 +3457,14 @@ function AvatarVideoTab() {
       }
     },
     getState: () => ({ model, imageUrl, audioUrl, videoUrl, prompt, targetLang }),
+    reset: () => {
+      setImageUrl("");
+      setAudioUrl("");
+      setVideoUrl("");
+      setPrompt("");
+      setTargetLang("en");
+      setJobInfo(null);
+    },
     submit: () => {
       if (model === "wan" && (!imageUrl.trim() || !audioUrl.trim())) return false;
       if (model === "echo" && !imageUrl.trim()) return false;
@@ -3682,6 +4037,7 @@ export default function ProStudio() {
     { id: "qwen-clone", label: "Qwen 克隆並朗讀", tab: "clone", desc: "上傳樣本 → 用樣本聲朗讀", bestFor: "快速個人聲線複製", tip: "樣本越乾淨、越少背景噪音，克隆穩定度越高。", advantages: ["上手快", "中文友善"] },
     { id: "dia-clone", label: "Dia TTS 聲音克隆", tab: "clone", desc: "Dia TTS voice clone", bestFor: "清晰朗讀類任務", tip: "適合旁白與資訊播報型內容。", advantages: ["清晰度好", "穩定朗讀"] },
     { id: "voice-design", label: "Qwen 聲音設計", tab: "clone", desc: "自定義音色", bestFor: "虛擬角色聲音設計", tip: "先明確角色年齡、情緒與語速，再生成更準。", advantages: ["可塑性高", "角色感強"] },
+    { id: "eleven-ivc", label: "ElevenLabs IVC 聲線克隆", tab: "clone", desc: "建 voice_id，可複用於 ElevenLabs 全家族 TTS / 配音 / 變聲", bestFor: "需要跨工具（TTS、Dubbing、Voice Changer）共用聲線時", tip: "上傳 30 秒~3 分鐘乾淨人聲；得到 voice_id 後直接貼到 TTS / 變聲分頁使用。", advantages: ["跨 ElevenLabs 全家族復用", "voice_id 可永久保存"] },
     { id: "kling-voice", label: "Kling 建立聲音", tab: "clone", desc: "Kling 聲音建檔", bestFor: "Kling 生態內聲音資產", tip: "若後續會進 Kling 視訊流程，建議先建好聲音檔。", advantages: ["流程銜接好", "一致性高"] },
     // process (4)
     { id: "demucs", label: "Demucs 分軌", tab: "process", desc: "人聲 / 樂器分離", bestFor: "Remix 與伴奏抽離", tip: "先分軌再做音效或混音，流程更乾淨。", advantages: ["分離效果好", "後製友善"] },
@@ -3738,6 +4094,21 @@ export default function ProStudio() {
       label: "視覺指引",
       hint: "可用 elementId=pro-tab-music / pro-tab-tts 等引導使用者",
     },
+    {
+      action: "applyPreset",
+      label: "氛圍預設",
+      options: Object.entries(AUDIO_PRESETS).map(([id, p]) => ({
+        id,
+        label: p.label,
+        description: `${p.tab} · ${p.modelId ?? "auto"}`,
+      })),
+      hint: "一鍵套用氛圍包：自動切分頁、選模型、填好 prompt 與時長",
+    },
+    {
+      action: "reset",
+      label: "清空表單",
+      hint: "清空當前分頁的 prompt 與參數，回到預設值",
+    },
   ];
 
   useRegisterPageAgent({
@@ -3790,10 +4161,35 @@ export default function ProStudio() {
           const ok = fn();
           return ok ? { ok: true } : { ok: false, reason: "提交條件不足（缺少必填欄位）" };
         }
-        case "reset":
-          return { ok: true, message: "請手動重新整理分頁" };
-        case "applyPreset":
-          return { ok: false, reason: "音訊創作室暫不支援 applyPreset" };
+        case "reset": {
+          const fn = bridgeRef.current.reset;
+          if (!fn) return { ok: false, reason: "當前分頁尚未註冊 reset" };
+          fn();
+          return { ok: true, message: "已清空當前分頁的輸入" };
+        }
+        case "applyPreset": {
+          // 音訊預設（preset）對應到「氛圍包」：每個 preset 把 prompt + tags + duration 一次填好
+          const preset = AUDIO_PRESETS[action.presetId];
+          if (!preset) {
+            return {
+              ok: false,
+              reason: `未知 presetId: ${action.presetId}（可用：${Object.keys(AUDIO_PRESETS).join(" / ")}）`,
+            };
+          }
+          // 切到 preset 指定分頁
+          if (preset.tab !== tab) setTab(preset.tab);
+          // 套用模型
+          if (preset.modelId) {
+            const setOk = bridgeRef.current.setModel?.(preset.modelId);
+            if (!setOk) pendingModelIdRef.current = preset.modelId;
+          }
+          // 套用 prompt + 參數
+          bridgeRef.current.fillPrompt?.(preset.prompt);
+          for (const [key, value] of Object.entries(preset.params ?? {})) {
+            bridgeRef.current.setParam?.(key, String(value));
+          }
+          return { ok: true, message: `已套用「${preset.label}」氛圍預設` };
+        }
         default:
           return { ok: false, reason: "unsupported action" };
       }
