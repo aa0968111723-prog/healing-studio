@@ -1603,6 +1603,14 @@ function TTSTab() {
     },
     getState: () => ({ text, engine, voiceId, stability, similarity, speed }),
     submit: () => { if (!text.trim()) return false; return true; },
+    reset: () => {
+      setText("");
+      setVoiceId("");
+      setStability(0.5);
+      setSimilarity(0.75);
+      setSpeed(1.0);
+      setResult(null);
+    },
   });
 
   const elevenMutation = trpc.proStudio.elevenLabsTTS.useMutation({
@@ -2030,6 +2038,15 @@ function CloneTab() {
     },
     getState: () => ({ text, mode, refAudio, refTranscript, voiceDesc, klingName }),
     submit: () => { if (mode === "design" && !voiceDesc.trim()) return false; if ((mode === "qwen" || mode === "dia") && !text.trim()) return false; return true; },
+    reset: () => {
+      setText("");
+      setRefAudio("");
+      setRefTranscript("");
+      setVoiceDesc("");
+      setKlingName("");
+      setResult(null);
+      setKlingResult(null);
+    },
   });
 
   // qwenCloneAndSpeak: clone + TTS in one step (audio_url + text → audio)
@@ -2594,6 +2611,15 @@ function ProcessTab() {
       }
     },
     getState: () => ({ tool, audioUrl, audioUrls, mergeStrategy, demucsModel, voiceId, removeBgNoise }),
+    reset: () => {
+      setAudioUrl("");
+      setAudioUrls(["", ""]);
+      setMergeStrategy("concatenate");
+      setDemucsModel("htdemucs_ft");
+      setVoiceId("");
+      setRemoveBgNoise(false);
+      setResult(null);
+    },
     submit: () => {
       if (tool === "merge" && audioUrls.filter(Boolean).length < 2) return false;
       if (tool === "changer" && (!audioUrl.trim() || !voiceId.trim())) return false;
@@ -3017,6 +3043,11 @@ function ASRTab() {
       }
     },
     getState: () => ({ audioUrl, acceleration }),
+    reset: () => {
+      setAudioUrl("");
+      setAcceleration("none");
+      setResult(null);
+    },
     submit: () => { if (!audioUrl.trim()) return false; return true; },
   });
 
@@ -3172,6 +3203,14 @@ function AvatarVideoTab() {
       }
     },
     getState: () => ({ model, imageUrl, audioUrl, videoUrl, prompt, targetLang }),
+    reset: () => {
+      setImageUrl("");
+      setAudioUrl("");
+      setVideoUrl("");
+      setPrompt("");
+      setTargetLang("en");
+      setJobInfo(null);
+    },
     submit: () => {
       if (model === "wan" && (!imageUrl.trim() || !audioUrl.trim())) return false;
       if (model === "echo" && !imageUrl.trim()) return false;
