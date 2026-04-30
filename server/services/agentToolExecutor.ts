@@ -554,9 +554,19 @@ async function dispatchStudioTool(
         const input: Record<string, unknown> = {};
         if (typeof args.prompt === "string") input.prompt = args.prompt;
         if (typeof args.image_url === "string") input.image_url = args.image_url;
+        if (typeof args.end_image_url === "string")
+          input.end_image_url = args.end_image_url;
         if (typeof args.duration === "number") input.duration = args.duration;
         if (typeof args.aspect_ratio === "string")
           input.aspect_ratio = args.aspect_ratio;
+        if (typeof args.negative_prompt === "string")
+          input.negative_prompt = args.negative_prompt;
+        if (typeof args.seed === "number") input.seed = args.seed;
+        if (typeof args.num_frames === "number")
+          input.num_frames = args.num_frames;
+        if (typeof args.fps === "number") input.fps = args.fps;
+        if (typeof args.width === "number") input.width = args.width;
+        if (typeof args.height === "number") input.height = args.height;
         const r = await dispatchFalQueueTask({
           modelId,
           category: hasImage ? "image-to-video" : "text-to-video",
