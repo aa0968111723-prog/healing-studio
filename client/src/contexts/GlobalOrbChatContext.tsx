@@ -32,6 +32,7 @@ import {
   buildProcessUrl,
   workflowActionToProcessSpec,
 } from "../../../shared/orb-process-link";
+import { appendProcessLinkToReply } from "../../../shared/orb-reply-process-extractor";
 import type { RunWorkflowAction } from "../../../shared/agent-actions";
 import type { GlobalOrbExecutorTask } from "@/agent/GlobalOrbExecutor";
 
@@ -54,6 +55,12 @@ export interface ChatAttachment {
   kind: ChatAttachmentKind;
 }
 
+export interface ChatWebSource {
+  title: string;
+  url: string;
+  source?: string;
+}
+
 export interface ChatMessage {
   role: ChatRole;
   text: string;
@@ -62,6 +69,8 @@ export interface ChatMessage {
   intent?: string;
   pagePath?: string;
   actions?: AgentAction[];
+  /** Web sources cited by the orb (Brave / GitHub) for research-style answers. */
+  webSources?: ChatWebSource[];
 }
 
 export interface ChatSuggestion {
@@ -1278,11 +1287,28 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       const linkLine = processUrl
         ? `\n\n🔗 查看／分享流程：${processUrl}`
         : "";
-      const replyText = fallbackWorkflow
+      const baseReplyText = fallbackWorkflow
         ? `${dataReply}\n\n🎬 我已把你的需求轉成「${fallbackWorkflow.name}」。我會先讓你確認計畫，按下開始後才會跨頁執行。${linkLine}`
         : pendingPlan
         ? `${dataReply}\n\n🧭 我已整理好執行計畫，請先確認。按下「開始執行」後，我才會開始操作。${linkLine}`
         : dataReply;
+      // Auto-extract a /process link when the reply contains numbered steps
+      // but no link yet (e.g. how-to / 教學 replies the LLM didn't bother to
+      // wrap). The extractor short-circuits when a link already exists, so
+      // it's safe to call unconditionally.
+      const { reply: replyText } = appendProcessLinkToReply(baseReplyText, {
+        fallbackTitle: trimmed.slice(0, 60) || "流程說明",
+        source: "光球 / 自動整理",
+      });
+
+      const rawWebSources = (data as { webSources?: Array<{ title?: string; url?: string; source?: string }> })
+        .webSources ?? [];
+      const webSources: ChatWebSource[] = rawWebSources
+        .filter((s): s is { title: string; url: string; source?: string } =>
+          typeof s.title === "string" && typeof s.url === "string"
+        )
+        .slice(0, 6)
+        .map(s => ({ title: s.title, url: s.url, source: s.source }));
 
       setMessages(prev => [...prev, {
         role: "orb",
@@ -1291,6 +1317,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         intent: effectiveIntent,
         pagePath: locationPath,
         actions: actionsToExecute,
+        ...(webSources.length > 0 ? { webSources } : {}),
       }]);
 
       const rawSuggestions = (data as { suggestions?: string[] }).suggestions ?? [];

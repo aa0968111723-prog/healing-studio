@@ -2354,6 +2354,23 @@ export default memo(function ProactiveOrbWidget({
                                       ))}
                                     </div>
                                   ) : null}
+                                  {msg.webSources?.length ? (
+                                    <div className="mt-2 border-t border-gray-200/60 pt-2 space-y-0.5">
+                                      <div className="text-[9px] uppercase tracking-wider text-gray-400">來源</div>
+                                      {msg.webSources.map((src, idx) => (
+                                        <a
+                                          key={`${src.url}-${idx}`}
+                                          href={src.url}
+                                          target="_blank"
+                                          rel="noreferrer noopener"
+                                          className="block text-[10px] text-emerald-700 hover:underline truncate"
+                                          title={src.url}
+                                        >
+                                          {idx + 1}. {src.title}
+                                        </a>
+                                      ))}
+                                    </div>
+                                  ) : null}
                                 </div>
                                 {msg.pagePath && msg.at && (
                                   <div className={`text-[10px] text-muted-foreground px-1 flex items-center gap-1 ${
@@ -2780,6 +2797,23 @@ export default memo(function ProactiveOrbWidget({
                                     >
                                       {attachment.kind === "image" ? "🖼️" : attachment.kind === "video" ? "🎬" : attachment.kind === "audio" ? "🎵" : "📄"}
                                       <span className="truncate max-w-[180px]">{attachment.name}</span>
+                                    </a>
+                                  ))}
+                                </div>
+                              ) : null}
+                              {msg.webSources?.length ? (
+                                <div className="mt-2 border-t border-gray-200/60 pt-2 space-y-0.5">
+                                  <div className="text-[9px] uppercase tracking-wider text-gray-400">來源</div>
+                                  {msg.webSources.map((src, idx) => (
+                                    <a
+                                      key={`${src.url}-${idx}`}
+                                      href={src.url}
+                                      target="_blank"
+                                      rel="noreferrer noopener"
+                                      className="block text-[10px] text-emerald-700 hover:underline truncate"
+                                      title={src.url}
+                                    >
+                                      {idx + 1}. {src.title}
                                     </a>
                                   ))}
                                 </div>

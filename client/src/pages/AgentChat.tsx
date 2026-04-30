@@ -744,6 +744,25 @@ export default function AgentChat() {
                       ))}
                     </div>
                   ) : null}
+                  {msg.webSources?.length ? (
+                    <div className="mt-2 border-t border-slate-200/40 dark:border-slate-700/40 pt-2 space-y-1">
+                      <div className="text-[10px] uppercase tracking-wider text-slate-400">
+                        來源 · Sources
+                      </div>
+                      {msg.webSources.map((src, idx) => (
+                        <a
+                          key={`${src.url}-${idx}`}
+                          href={src.url}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                          className="block text-[11px] text-cyan-700 dark:text-cyan-300 hover:underline truncate"
+                          title={src.url}
+                        >
+                          {idx + 1}. {src.title}
+                        </a>
+                      ))}
+                    </div>
+                  ) : null}
                   <div className="mt-1.5 text-[10px] opacity-60 flex items-center gap-1">
                     <Clock3 className="w-3 h-3" />
                     {new Date(msg.at).toLocaleTimeString("zh-TW", {

@@ -4636,9 +4636,10 @@ export const appRouter = router({
           // fallback…) carries the same context without each call site needing
           // to remember to spread the fields.
           //
-          // Closure note: `userIdentity` / `rememberedPreferences` are defined
-          // later in the chat handler body, but JS resolves these lookups at
-          // call time, by which point they always exist.
+          // Closure note: `userIdentity` / `rememberedPreferences` /
+          // `webResearchSources` are defined later in the chat handler body,
+          // but JS resolves these lookups at call time, by which point they
+          // always exist.
           let enriched: T = result;
           if (result && typeof result === "object") {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -4650,6 +4651,13 @@ export const appRouter = router({
             }
             if (typeof rememberedPreferences !== "undefined" && r.rememberedPreferences === undefined) {
               r.rememberedPreferences = rememberedPreferences;
+            }
+            if (
+              typeof webResearchSources !== "undefined" &&
+              webResearchSources.length > 0 &&
+              r.webSources === undefined
+            ) {
+              r.webSources = webResearchSources;
             }
             enriched = r;
           }
