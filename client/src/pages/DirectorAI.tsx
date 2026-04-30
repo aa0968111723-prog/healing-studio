@@ -95,8 +95,37 @@ import type {
   PlanningPhase,
   PlanningMessage,
   ScriptPlanningSession,
+  ScenePlan,
   EmotionalBeat,
 } from "@shared/types";
+
+// Local draft of the active planning session — persisted to localStorage on
+// every edit so a page reload mid-edit doesn't lose work that hasn't yet been
+// flushed to the 3s DB auto-save. Versioned so we can evolve the shape later.
+const PLANNING_DRAFT_KEY = "hs.director.planningDraft.v1";
+
+/** Derive ScenePlan rows from imported script segments for the scene-planning phase. */
+function scenesFromSegments(segments: ScriptSegment[]): ScenePlan[] {
+  return segments.map((seg, i) => {
+    const sb = seg.storyboard;
+    const noteParts = [
+      sb.dialogue ? `對白：${sb.dialogue}` : "",
+      sb.cameraDirection ? `鏡頭：${sb.cameraDirection}` : "",
+      sb.soundDesign ? `音效：${sb.soundDesign}` : "",
+    ].filter(Boolean);
+    return {
+      id: seg.id || `scene-${i}-${Date.now()}`,
+      title: sb.sceneHeading || `場景 ${i + 1}`,
+      description: sb.visualDescription || seg.rawText.slice(0, 200),
+      mood: sb.mood || "",
+      emotionalGoal: "",
+      characters: seg.characters ?? [],
+      location: seg.locations?.[0] ?? "",
+      duration: sb.duration || "",
+      notes: noteParts.join("\n"),
+    };
+  });
+}
 
 // ─── Personality Config ────────────────────────────────────────────────────
 
@@ -2221,6 +2250,13 @@ export default function DirectorAI() {
     title: string;
     updatedAt: Date | string;
   } | null>(null);
+  // 規劃模式內的「貼上腳本」面板開關 + 草稿內容
+  const [showPlanningPaste, setShowPlanningPaste] = useState(false);
+  const [planningPasteContent, setPlanningPasteContent] = useState("");
+  const [planningPasteTitle, setPlanningPasteTitle] = useState("");
+  const [planningPasteFormat, setPlanningPasteFormat] = useState("plaintext");
+  // 確保 localStorage 草稿只在掛載時還原一次
+  const planningDraftRestoredRef = useRef(false);
 
   // ─── Batch Generation State ─────────────────────────────────────────────
   const [showBatchGeneration, setShowBatchGeneration] = useState(false);
@@ -2690,8 +2726,87 @@ export default function DirectorAI() {
       updatedAt: new Date().toISOString(),
     };
     setPlanningSession(newSession);
+    setCurrentPlanningId(null);
     setPlanningPhase("concept");
   }, [personality]);
+
+  // 在規劃模式內貼上腳本 → 直接呼叫 importScript，匯入後把分鏡掛上目前
+  // 規劃 session（沒有 session 就先開一個），讓貼腳本 → 場景列表 → 分鏡編輯
+  // 三步連貫，重整也不會掉。
+  const handleImportScriptIntoPlanning = useCallback(async () => {
+    const content = planningPasteContent.trim();
+    if (!content) {
+      toast.error("請先貼上腳本內容");
+      return;
+    }
+    const title =
+      planningPasteTitle.trim() ||
+      `腳本 ${new Date().toLocaleDateString("zh-TW")}`;
+    try {
+      const data = await importScriptMut.mutateAsync({
+        rawContent: content,
+        title,
+        sourceFormat: planningPasteFormat,
+        personality,
+      });
+      // ScriptImportPanel 的全域 onSuccess 已經會更新 importedSegments / Title /
+      // selectedSegmentIdx 並丟出 toast — 這裡只負責把腳本綁到 planningSession。
+      const segs = data.segments;
+      const derivedScenes = scenesFromSegments(segs);
+      setPlanningSession(prev => {
+        const base: ScriptPlanningSession =
+          prev ?? {
+            id: `plan-${Date.now()}`,
+            title,
+            personality,
+            scenes: [],
+            emotionalBeats: [],
+            milestones: [],
+            phases: PLANNING_PHASES.map(p => ({
+              phase: p.id,
+              status: "not-started" as const,
+              discussion: [],
+            })),
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+        return {
+          ...base,
+          // 沒有手動填過場景時才以匯入結果填入，避免覆蓋既有規劃。
+          scenes: base.scenes.length === 0 ? derivedScenes : base.scenes,
+          linkedScript: {
+            title,
+            sourceFormat: planningPasteFormat,
+            segments: segs,
+          },
+          phases: base.phases.map(p =>
+            p.phase === "scene-planning" && p.status === "not-started"
+              ? { ...p, status: "in-progress" as const }
+              : p
+          ),
+          updatedAt: new Date().toISOString(),
+        };
+      });
+      // 沒有現成 planningSession 時剛剛建了一個新的 → 重設 currentPlanningId 走 create 流程
+      if (!planningSession) setCurrentPlanningId(null);
+      setPlanningPhase("scene-planning");
+      setShowPlanningPaste(false);
+      setPlanningPasteContent("");
+      setPlanningPasteTitle("");
+      toast.success(
+        `已將「${title}」載入規劃，可在『腳本分析』分頁逐段微調 🎬`
+      );
+    } catch {
+      // importScriptMut.onError 已經顯示 toast
+    }
+  }, [
+    planningPasteContent,
+    planningPasteTitle,
+    planningPasteFormat,
+    personality,
+    importScriptMut,
+    planningSession,
+  ]);
 
   const handlePlanningSubmit = useCallback(() => {
     if (!planningInput.trim() || !planningSession) return;
@@ -2784,6 +2899,95 @@ export default function DirectorAI() {
     toast.success("規劃已儲存 ✨");
   }, [planningSession, personality, savePlanningMut, currentPlanningId]);
 
+  // ── 規劃 session 已連結腳本時，importedSegments 變更（refine / CO-STAR /
+  // 重新排序）要同步回 session.linkedScript，讓 auto-save 把最新分鏡帶走，
+  // 重整後一切照舊。
+  useEffect(() => {
+    if (!planningSession?.linkedScript) return;
+    if (importedSegments.length === 0) return;
+    setPlanningSession(prev => {
+      if (!prev?.linkedScript) return prev;
+      // 內容真的有變才更新，避免無窮迴圈
+      const same =
+        prev.linkedScript.segments.length === importedSegments.length &&
+        prev.linkedScript.segments.every(
+          (s, i) => s === importedSegments[i]
+        );
+      if (same) return prev;
+      return {
+        ...prev,
+        linkedScript: { ...prev.linkedScript, segments: importedSegments },
+        updatedAt: new Date().toISOString(),
+      };
+    });
+    // 故意只盯 importedSegments；planningSession 變動會自己觸發 same-check。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [importedSegments]);
+
+  // ── localStorage 草稿：每次 planningSession 變更 500ms 內寫入瀏覽器
+  // 端，作為 3s DB auto-save 之前的安全網（重整/當機都不會掉）。
+  useEffect(() => {
+    if (!planningSession) {
+      try {
+        localStorage.removeItem(PLANNING_DRAFT_KEY);
+      } catch {
+        // ignore
+      }
+      return;
+    }
+    const handle = setTimeout(() => {
+      try {
+        localStorage.setItem(
+          PLANNING_DRAFT_KEY,
+          JSON.stringify({
+            session: planningSession,
+            currentPlanningId,
+            savedAt: new Date().toISOString(),
+          })
+        );
+      } catch {
+        // 配額爆 / Safari private mode 都先靜默
+      }
+    }, 500);
+    return () => clearTimeout(handle);
+  }, [planningSession, currentPlanningId]);
+
+  // ── 進站時還原 localStorage 草稿（只跑一次）。若還原成功，連帶把
+  // linkedScript 內的分鏡塞回 importedSegments 讓「腳本分析」分頁也接上。
+  useEffect(() => {
+    if (planningDraftRestoredRef.current) return;
+    planningDraftRestoredRef.current = true;
+    try {
+      const raw = localStorage.getItem(PLANNING_DRAFT_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as {
+        session?: ScriptPlanningSession;
+        currentPlanningId?: number | null;
+      };
+      const session = parsed?.session;
+      if (!session?.id || !Array.isArray(session.phases)) return;
+      setPlanningSession(session);
+      if (typeof parsed.currentPlanningId === "number") {
+        setCurrentPlanningId(parsed.currentPlanningId);
+      }
+      if (session.linkedScript?.segments?.length) {
+        setImportedSegments(session.linkedScript.segments);
+        setImportedTitle(session.linkedScript.title);
+        setSelectedSegmentIdx(0);
+      }
+      // 還原後不再彈「繼續上次規劃」橫幅
+      setResumePlanningCandidate(null);
+      toast.info("已還原上次未儲存的規劃 ✨");
+    } catch {
+      // 壞掉的草稿就丟掉
+      try {
+        localStorage.removeItem(PLANNING_DRAFT_KEY);
+      } catch {
+        // ignore
+      }
+    }
+  }, []);
+
   // ── Auto-save：每次 planningSession 變更後 debounce 3s 自動儲存 ──
   // 第一次會走 create（並設定 currentPlanningId），之後一律 update。
   useEffect(() => {
@@ -2812,6 +3016,13 @@ export default function DirectorAI() {
         if (data.personality) {
           setPersonality(data.personality as Personality);
           setGlobalPersonality(data.personality as Personality);
+        }
+        // 把附在 session 上的腳本分鏡塞回「腳本分析」分頁，讓貼過的劇本與
+        // AI 生成的分鏡跟著規劃一起回來。
+        if (data.linkedScript?.segments?.length) {
+          setImportedSegments(data.linkedScript.segments);
+          setImportedTitle(data.linkedScript.title);
+          setSelectedSegmentIdx(0);
         }
         setShowPlanningSessions(false);
         toast.success("規劃已載入");
@@ -4083,6 +4294,14 @@ export default function DirectorAI() {
                   <Button
                     variant="outline"
                     className="rounded-xl gap-2"
+                    onClick={() => setShowPlanningPaste(prev => !prev)}
+                  >
+                    <FileText className="w-4 h-4" />
+                    貼上現成腳本
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="rounded-xl gap-2"
                     onClick={() =>
                       setShowPlanningSessions(!showPlanningSessions)
                     }
@@ -4091,6 +4310,97 @@ export default function DirectorAI() {
                     載入規劃
                   </Button>
                 </div>
+
+                {/* Inline paste panel — 從這裡可以直接貼整段劇本，AI 會
+                    自動拆分成分鏡並把它們綁進規劃 session，後續可在
+                    「腳本分析」分頁逐段微調。 */}
+                <AnimatePresence>
+                  {showPlanningPaste && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="mt-6 text-left space-y-3 p-4 rounded-xl border border-border/40 bg-white/60">
+                        <div className="flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-primary" />
+                          <span className="text-sm font-semibold">
+                            貼上你的腳本
+                          </span>
+                          <span className="text-[11px] text-muted-foreground">
+                            AI 會拆成分鏡並放進規劃，腳本+規劃一起儲存
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <Input
+                            value={planningPasteTitle}
+                            onChange={e =>
+                              setPlanningPasteTitle(e.target.value)
+                            }
+                            placeholder="腳本標題（選填）"
+                            className="rounded-xl text-xs sm:col-span-2"
+                          />
+                          <select
+                            value={planningPasteFormat}
+                            onChange={e =>
+                              setPlanningPasteFormat(e.target.value)
+                            }
+                            className="rounded-xl text-xs px-3 py-2 border bg-white"
+                          >
+                            {FORMAT_OPTIONS.map(opt => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <Textarea
+                          value={planningPasteContent}
+                          onChange={e =>
+                            setPlanningPasteContent(e.target.value)
+                          }
+                          placeholder="貼上你的腳本內容…可以是任何格式的長腳本文字"
+                          className="rounded-xl text-xs min-h-[160px] resize-y"
+                        />
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="rounded-xl text-xs"
+                            onClick={() => {
+                              setShowPlanningPaste(false);
+                              setPlanningPasteContent("");
+                            }}
+                          >
+                            取消
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="rounded-xl text-xs gap-1"
+                            onClick={handleImportScriptIntoPlanning}
+                            disabled={
+                              importScriptMut.isPending ||
+                              !planningPasteContent.trim()
+                            }
+                          >
+                            {importScriptMut.isPending ? (
+                              <>
+                                <div className="w-3.5 h-3.5 border-2 border-current/30 border-t-current rounded-full animate-spin" />
+                                AI 正在拆分鏡…
+                              </>
+                            ) : (
+                              <>
+                                <Wand2 className="w-3.5 h-3.5" />
+                                匯入並產生分鏡
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* Planning phase overview */}
                 <div
@@ -4187,6 +4497,34 @@ export default function DirectorAI() {
                     variant="outline"
                     size="sm"
                     className="rounded-xl text-xs gap-1"
+                    onClick={() => setShowPlanningPaste(prev => !prev)}
+                  >
+                    <FileText className="w-3.5 h-3.5" />
+                    {planningSession.linkedScript ? "重新貼腳本" : "貼上腳本"}
+                  </Button>
+                  {(planningSession.linkedScript ||
+                    importedSegments.length > 0) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="rounded-xl text-xs gap-1"
+                      onClick={() => setActiveTab("script")}
+                    >
+                      <Film className="w-3.5 h-3.5" />
+                      進入分鏡編輯
+                      <Badge
+                        variant="secondary"
+                        className="text-[9px] h-4 px-1 ml-1"
+                      >
+                        {planningSession.linkedScript?.segments.length ??
+                          importedSegments.length}
+                      </Badge>
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-xl text-xs gap-1"
                     onClick={handleSavePlanning}
                     disabled={savePlanningMut.isPending}
                   >
@@ -4204,6 +4542,12 @@ export default function DirectorAI() {
                         )
                       ) {
                         setPlanningSession(null);
+                        setCurrentPlanningId(null);
+                        try {
+                          localStorage.removeItem(PLANNING_DRAFT_KEY);
+                        } catch {
+                          // ignore
+                        }
                       }
                     }}
                   >
@@ -4212,6 +4556,101 @@ export default function DirectorAI() {
                   </Button>
                 </div>
               </div>
+
+              {/* In-workspace paste panel — 同步到 session.linkedScript，重整不會掉 */}
+              <AnimatePresence>
+                {showPlanningPaste && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <GlassCard hover={false} className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-primary" />
+                        <span className="text-sm font-semibold">
+                          貼上腳本 → 自動產生分鏡
+                        </span>
+                        <span className="text-[11px] text-muted-foreground">
+                          會綁進這次規劃並一起儲存
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <Input
+                          value={planningPasteTitle}
+                          onChange={e => setPlanningPasteTitle(e.target.value)}
+                          placeholder={
+                            planningSession.linkedScript?.title ||
+                            "腳本標題（選填）"
+                          }
+                          className="rounded-xl text-xs sm:col-span-2"
+                        />
+                        <select
+                          value={planningPasteFormat}
+                          onChange={e =>
+                            setPlanningPasteFormat(e.target.value)
+                          }
+                          className="rounded-xl text-xs px-3 py-2 border bg-white"
+                        >
+                          {FORMAT_OPTIONS.map(opt => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <Textarea
+                        value={planningPasteContent}
+                        onChange={e => setPlanningPasteContent(e.target.value)}
+                        placeholder="貼上你的腳本內容…可以是任何格式的長腳本文字"
+                        className="rounded-xl text-xs min-h-[140px] resize-y"
+                      />
+                      {planningSession.scenes.length > 0 && (
+                        <p className="text-[11px] text-amber-600">
+                          這次規劃已經有 {planningSession.scenes.length}{" "}
+                          個場景；匯入的分鏡會放進「腳本分析」分頁，但不會覆蓋
+                          現有場景列表。
+                        </p>
+                      )}
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="rounded-xl text-xs"
+                          onClick={() => {
+                            setShowPlanningPaste(false);
+                            setPlanningPasteContent("");
+                          }}
+                        >
+                          取消
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="rounded-xl text-xs gap-1"
+                          onClick={handleImportScriptIntoPlanning}
+                          disabled={
+                            importScriptMut.isPending ||
+                            !planningPasteContent.trim()
+                          }
+                        >
+                          {importScriptMut.isPending ? (
+                            <>
+                              <div className="w-3.5 h-3.5 border-2 border-current/30 border-t-current rounded-full animate-spin" />
+                              AI 正在拆分鏡…
+                            </>
+                          ) : (
+                            <>
+                              <Wand2 className="w-3.5 h-3.5" />
+                              匯入並產生分鏡
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </GlassCard>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* Phase navigation */}
               <div
