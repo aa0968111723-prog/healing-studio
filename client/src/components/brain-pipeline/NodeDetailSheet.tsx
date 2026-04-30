@@ -1,3 +1,6 @@
+import { useCallback, useState } from "react";
+import { Copy, Check, ExternalLink } from "lucide-react";
+import { useLocation } from "wouter";
 import {
   Sheet,
   SheetContent,
@@ -6,6 +9,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   STATUS_LABEL,
@@ -24,6 +28,18 @@ const STATUS_BADGE_CLASS: Record<PipelineNodeStatus, string> = {
 interface Props {
   node: PipelineNode | null;
   onClose: () => void;
+}
+
+function formatRelative(ts: number): string {
+  const diff = Date.now() - ts;
+  const sec = Math.round(diff / 1000);
+  if (sec < 5) return "剛剛";
+  if (sec < 60) return `${sec} 秒前`;
+  const min = Math.round(sec / 60);
+  if (min < 60) return `${min} 分鐘前`;
+  const hr = Math.round(min / 60);
+  if (hr < 24) return `${hr} 小時前`;
+  return `${Math.round(hr / 24)} 天前`;
 }
 
 export function NodeDetailSheet({ node, onClose }: Props) {
@@ -105,18 +121,22 @@ export function NodeDetailSheet({ node, onClose }: Props) {
                         {node.metrics.updatedAt && (
                           <>
                             <dt className="text-slate-500">最後更新</dt>
-                            <dd className="font-mono">
-                              {new Date(node.metrics.updatedAt).toLocaleString(
-                                "zh-TW"
-                              )}
+                            <dd
+                              className="font-mono"
+                              title={new Date(
+                                node.metrics.updatedAt
+                              ).toLocaleString("zh-TW")}
+                            >
+                              {formatRelative(node.metrics.updatedAt)}
                             </dd>
                           </>
                         )}
                       </dl>
                       {node.metrics.lastError && (
-                        <p className="text-[11px] mt-2 font-mono bg-slate-50 dark:bg-slate-900 p-2 rounded border break-all">
-                          {node.metrics.lastError}
-                        </p>
+                        <CopyableBlock
+                          value={node.metrics.lastError}
+                          className="text-[11px] mt-2 break-all"
+                        />
                       )}
                     </section>
                   )}
@@ -133,31 +153,29 @@ export function NodeDetailSheet({ node, onClose }: Props) {
                       </h3>
                       <dl className="grid grid-cols-1 gap-2 text-xs">
                         {node.diagnostics.frontendPath && (
-                          <div>
-                            <dt className="text-slate-500">前端檔案</dt>
-                            <dd className="font-mono bg-slate-50 dark:bg-slate-900 px-2 py-1 rounded border break-all">{node.diagnostics.frontendPath}</dd>
-                          </div>
+                          <DiagnosticRow
+                            label="前端檔案"
+                            value={node.diagnostics.frontendPath}
+                          />
                         )}
                         {node.diagnostics.backendRoute && (
-                          <div>
-                            <dt className="text-slate-500">後端路由/Procedure</dt>
-                            <dd className="font-mono bg-slate-50 dark:bg-slate-900 px-2 py-1 rounded border break-all">{node.diagnostics.backendRoute}</dd>
-                          </div>
+                          <DiagnosticRow
+                            label="後端路由 / Procedure"
+                            value={node.diagnostics.backendRoute}
+                          />
                         )}
                         {node.diagnostics.serviceFunction && (
-                          <div>
-                            <dt className="text-slate-500">服務函式</dt>
-                            <dd className="font-mono bg-slate-50 dark:bg-slate-900 px-2 py-1 rounded border break-all">{node.diagnostics.serviceFunction}</dd>
-                          </div>
+                          <DiagnosticRow
+                            label="服務函式"
+                            value={node.diagnostics.serviceFunction}
+                          />
                         )}
-                        {node.diagnostics.traceSampleIds && node.diagnostics.traceSampleIds.length > 0 && (
-                          <div>
-                            <dt className="text-slate-500">Trace Samples</dt>
-                            <dd className="font-mono text-[11px] bg-slate-50 dark:bg-slate-900 px-2 py-1 rounded border break-all">
-                              {node.diagnostics.traceSampleIds.join(", ")}
-                            </dd>
-                          </div>
-                        )}
+                        {node.diagnostics.traceSampleIds &&
+                          node.diagnostics.traceSampleIds.length > 0 && (
+                            <TraceSampleRow
+                              traceIds={node.diagnostics.traceSampleIds}
+                            />
+                          )}
                       </dl>
                     </section>
                   )}
@@ -166,14 +184,14 @@ export function NodeDetailSheet({ node, onClose }: Props) {
                     <h3 className="font-semibold mb-1 text-slate-700 dark:text-slate-300">
                       📁 相關檔案
                     </h3>
-                    <ul className="space-y-1 text-xs font-mono">
+                    <ul className="space-y-1 text-xs">
                       {node.relatedFiles.map(f => (
-                        <li
+                        <CopyableBlock
                           key={f}
-                          className="bg-slate-50 dark:bg-slate-900 px-2 py-1 rounded border break-all"
-                        >
-                          {f}
-                        </li>
+                          value={f}
+                          as="li"
+                          className="font-mono break-all"
+                        />
                       ))}
                     </ul>
                   </section>
@@ -188,5 +206,89 @@ export function NodeDetailSheet({ node, onClose }: Props) {
         )}
       </SheetContent>
     </Sheet>
+  );
+}
+
+function DiagnosticRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-slate-500">{label}</dt>
+      <dd>
+        <CopyableBlock value={value} className="font-mono break-all" />
+      </dd>
+    </div>
+  );
+}
+
+function TraceSampleRow({ traceIds }: { traceIds: string[] }) {
+  const [, navigate] = useLocation();
+  return (
+    <div>
+      <dt className="text-slate-500 flex items-center gap-1">
+        Trace Samples
+        <span className="text-[10px] text-slate-400">（點擊跳到錯誤追蹤）</span>
+      </dt>
+      <dd className="flex flex-wrap gap-1.5 mt-1">
+        {traceIds.map(id => (
+          <button
+            key={id}
+            type="button"
+            onClick={() =>
+              navigate(
+                `/admin?section=brain&brainTab=errors&trace=${encodeURIComponent(id)}`
+              )
+            }
+            className="font-mono text-[11px] bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 px-2 py-1 rounded border break-all transition-colors inline-flex items-center gap-1"
+            title="點擊跳到 AI 大腦 → 錯誤追蹤分頁，並自動聚焦此 trace"
+          >
+            {id}
+            <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+          </button>
+        ))}
+      </dd>
+    </div>
+  );
+}
+
+interface CopyableBlockProps {
+  value: string;
+  className?: string;
+  as?: "div" | "li";
+}
+
+function CopyableBlock({ value, className, as = "div" }: CopyableBlockProps) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch {
+      // 忽略：某些瀏覽器/權限下可能失敗
+    }
+  }, [value]);
+
+  const Wrapper = as === "li" ? "li" : "div";
+
+  return (
+    <Wrapper
+      className={`group relative bg-slate-50 dark:bg-slate-900 px-2 py-1 pr-7 rounded border ${className ?? ""}`}
+    >
+      <span>{value}</span>
+      <Button
+        type="button"
+        size="icon"
+        variant="ghost"
+        onClick={handleCopy}
+        aria-label="複製"
+        className="absolute right-0.5 top-0.5 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+      >
+        {copied ? (
+          <Check className="h-3 w-3 text-emerald-500" />
+        ) : (
+          <Copy className="h-3 w-3" />
+        )}
+      </Button>
+    </Wrapper>
   );
 }

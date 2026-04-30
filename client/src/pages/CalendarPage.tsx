@@ -531,7 +531,6 @@ export default function CalendarPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <VisualSoul size="sm" state="idle" personality={personality} />
           <div>
             <h1 className="hs-h2 !mb-0">創作排程</h1>
             <p className="hs-small !mb-0 text-muted-foreground mt-0.5">

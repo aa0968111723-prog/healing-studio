@@ -202,6 +202,18 @@ const reflectionProposals: ReflectionProposal[] = [];
 const webResearchResults: WebResearchResult[] = [];
 const accuracyTests: AccuracyTest[] = [];
 
+/**
+ * 寫入版本計數：每次警報／追蹤被新增、解除、解決時都 +1。
+ * brainPipeline 用此判斷快取是否需要立即失效，達成寫入即更新。
+ */
+let autoRepairVersion = 0;
+function bumpAutoRepairVersion(): void {
+  autoRepairVersion++;
+}
+export function getAutoRepairVersion(): number {
+  return autoRepairVersion;
+}
+
 // Max items per store to prevent memory overflow
 const MAX_ALERTS = 200;
 const MAX_TRACES = 500;
@@ -685,6 +697,7 @@ function addAlert(alert: ApiAlert): void {
   apiAlerts.unshift(alert);
   if (apiAlerts.length > MAX_ALERTS) apiAlerts.length = MAX_ALERTS;
   persistState();
+  bumpAutoRepairVersion();
 }
 
 /** 取得所有警報 */
@@ -699,6 +712,7 @@ export function dismissAlert(alertId: string, userId: number): boolean {
   alert.dismissedAt = Date.now();
   alert.dismissedBy = userId;
   persistState();
+  bumpAutoRepairVersion();
   return true;
 }
 
@@ -727,6 +741,7 @@ export function recordErrorTrace(
   errorTraces.unshift(full);
   if (errorTraces.length > MAX_TRACES) errorTraces.length = MAX_TRACES;
   persistState();
+  bumpAutoRepairVersion();
 
   // 自動觸發爬網搜尋修復方案
   void autoSearchForFix(full);
@@ -800,6 +815,7 @@ export function resolveErrorTrace(
   trace.resolution = resolution;
   trace.resolvedAt = Date.now();
   persistState();
+  bumpAutoRepairVersion();
   return true;
 }
 

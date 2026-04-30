@@ -701,7 +701,7 @@ export default function Studio() {
   }, [compileResult.compiledPrompt, workspaceMode]);
 
   // ── Background Tasks ──
-  const { submitTask, setDrawerOpen } = useBackgroundTasks();
+  const { setDrawerOpen } = useBackgroundTasks();
 
   // ── Brain Pricing Summary (show engine name + cost in UI) ──
   const pricingSummaryQuery = trpc.brain.pricingSummary.useQuery(
@@ -725,13 +725,11 @@ export default function Studio() {
       notifyGenStart();
     },
     onSuccess: (data) => {
-      // 立刻登錄到背景任務系統，讓 BackgroundTasksDrawer 追蹤
-      submitTask({
-        studioType: (data as any).generationType ?? (activeModality as any),
-        requestId: data.request_id,
-        modelId: data.modelId,
-        label: data.label,
-      });
+      // submitMultimodalAsync 在伺服器端已建立 background_job 記錄（routers.ts
+      // submitMultimodalAsync 內 db.createBackgroundJob），這裡僅需 invalidate
+      // activeJobs 讓 BackgroundTasksDrawer 立刻撈到新任務，避免再呼叫
+      // submitTask → submitStudioJob 造成同一任務插入第二筆 job 列。
+      utils.generate.activeJobs.invalidate();
       setAIState("idle");
       notifyGenDone();
       toast.success(`${data.label} 已提交背景執行`, {
@@ -1670,8 +1668,6 @@ export default function Studio() {
     audioState,
     voiceState,
     submitAsyncMutation,
-    submitTask,
-    setDrawerOpen,
     vaultCharacterId,
     vaultSceneId,
     fineTunedModelId,
@@ -2465,7 +2461,6 @@ export default function Studio() {
       {/* ── Header with Creative Mode Selector + Toolbox ── */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-3 min-w-0">
-          <VisualSoul size="sm" state={aiState} personality={personality} />
           <div className="min-w-0">
             <h1 className="hs-h3-lg !mb-0 text-foreground">創作工作室</h1>
             <p className="hs-small !mb-0 text-muted-foreground mt-0.5">
@@ -2939,9 +2934,7 @@ export default function Studio() {
             actionMode={actionMode}
             onActionModeChange={setActionMode}
             onGenerate={handleGenerate}
-            isGenerating={
-              submitAsyncMutation.isPending || submitAsyncMutation.isPending
-            }
+            isGenerating={submitAsyncMutation.isPending}
             hasResult={!!resultUrl}
             simpleMode={isSimple}
           />

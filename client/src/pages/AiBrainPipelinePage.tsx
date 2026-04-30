@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { keepPreviousData } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { PipelineCanvas } from "@/components/brain-pipeline/PipelineCanvas";
-import { SummaryBar } from "@/components/brain-pipeline/SummaryBar";
+import { SummaryBar, type StatusFilter } from "@/components/brain-pipeline/SummaryBar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRegisterPageAgent, type AgentActionResult } from "@/contexts/PageAgentContext";
 
 export default function AiBrainPipelinePage() {
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [, navigate] = useLocation();
 
   useRegisterPageAgent({
@@ -39,7 +42,29 @@ export default function AiBrainPipelinePage() {
     refetchInterval: autoRefresh ? 30_000 : false,
     refetchOnWindowFocus: false,
     retry: 1,
+    // 重新 fetch 時保留上一筆資料，避免畫布閃爍／重新跑 dagre 佈局
+    placeholderData: keepPreviousData,
+    // 與 refetchInterval 對齊，避免 mount/Tab 切換造成額外 fetch
+    staleTime: 25_000,
   });
+
+  // 「重新檢測」：先觸發後端真實 ping 巡檢，完成後再 refetch 取最新圖。
+  // 巡檢期間按鈕保持 disabled 狀態，避免重複呼叫。
+  const runPatrol = trpc.brainPipeline.runPatrol.useMutation();
+  const handleRefresh = async () => {
+    try {
+      const result = await runPatrol.mutateAsync();
+      toast.success(
+        `已完成檢測：${result.checked} 個服務，${result.alerts} 筆新警報`
+      );
+    } catch (err) {
+      toast.error(
+        `檢測失敗：${err instanceof Error ? err.message : "未知錯誤"}`
+      );
+    } finally {
+      graphQuery.refetch();
+    }
+  };
 
   return (
     <div className="flex-1 flex flex-col p-4 sm:p-6 gap-4 h-[calc(100vh-4rem)] min-h-0">
@@ -55,10 +80,12 @@ export default function AiBrainPipelinePage() {
 
       <SummaryBar
         summary={graphQuery.data?.summary}
-        isFetching={graphQuery.isFetching}
+        isFetching={graphQuery.isFetching || runPatrol.isPending}
         autoRefresh={autoRefresh}
         onAutoRefreshChange={setAutoRefresh}
-        onRefresh={() => graphQuery.refetch()}
+        onRefresh={handleRefresh}
+        statusFilter={statusFilter}
+        onStatusFilterChange={setStatusFilter}
       />
 
       <div className="flex-1 min-h-0 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/40 dark:bg-slate-950/40 overflow-hidden">
@@ -82,7 +109,11 @@ export default function AiBrainPipelinePage() {
           </div>
         )}
         {graphQuery.data && (
-          <PipelineCanvas graph={graphQuery.data} expandPageGroup={false} />
+          <PipelineCanvas
+            graph={graphQuery.data}
+            expandPageGroup={false}
+            statusFilter={statusFilter}
+          />
         )}
       </div>
     </div>

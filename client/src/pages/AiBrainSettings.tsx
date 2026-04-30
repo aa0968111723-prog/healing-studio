@@ -63,7 +63,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { useAIState } from "@/contexts/AIStateContext";
 import VisualSoul from "@/components/VisualSoul";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
 import type {
   AgentAction,
@@ -919,11 +919,79 @@ export default function AiBrainSettings() {
     | "research"
     | "accuracy"
     | "langsmith";
-  const [activeTab, setActiveTab] = useState<TabId>("config");
+  // 從 URL 帶入初始 tab：當 brain-pipeline 的 NodeDetailSheet 點擊 Trace 跳轉
+  // 過來時，URL 會帶 ?section=brain&brainTab=errors&trace=<id>。AdminPage 已
+  // 處理 ?section=brain；這裡接 ?brainTab 與 ?trace。
+  const aiBrainSearch = useSearch();
+  const VALID_BRAIN_TABS: readonly TabId[] = [
+    "config",
+    "alerts",
+    "errors",
+    "proposals",
+    "research",
+    "accuracy",
+    "langsmith",
+  ];
+  const initialBrainTab = (() => {
+    try {
+      const params = new URLSearchParams(aiBrainSearch);
+      const v = params.get("brainTab");
+      return v && (VALID_BRAIN_TABS as readonly string[]).includes(v)
+        ? (v as TabId)
+        : "config";
+    } catch {
+      return "config" as TabId;
+    }
+  })();
+  const initialFocusTraceId = (() => {
+    try {
+      return new URLSearchParams(aiBrainSearch).get("trace");
+    } catch {
+      return null;
+    }
+  })();
+  const [activeTab, setActiveTab] = useState<TabId>(initialBrainTab);
+  const [focusedTraceId, setFocusedTraceId] = useState<string | null>(
+    initialFocusTraceId
+  );
   // ── Error Diagnosis State ─────────────────────────────────────────────
   const [expandedDiagnosisId, setExpandedDiagnosisId] = useState<string | null>(
-    null
+    initialFocusTraceId
   );
+
+  // URL 變動時也跟著切（例：在 admin tab 內 NodeDetailSheet 點 Trace）。
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(aiBrainSearch);
+      const tab = params.get("brainTab");
+      if (
+        tab &&
+        (VALID_BRAIN_TABS as readonly string[]).includes(tab) &&
+        tab !== activeTab
+      ) {
+        setActiveTab(tab as TabId);
+      }
+      const traceId = params.get("trace");
+      if (traceId && traceId !== focusedTraceId) {
+        setFocusedTraceId(traceId);
+        setExpandedDiagnosisId(traceId);
+      }
+    } catch {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aiBrainSearch]);
+
+  // 高亮顯示完成後 6 秒淡出，避免畫面長期殘留橘色 ring。
+  useEffect(() => {
+    if (!focusedTraceId) return;
+    const node = document.getElementById(`error-trace-${focusedTraceId}`);
+    if (node) {
+      node.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+    const timer = window.setTimeout(() => setFocusedTraceId(null), 6000);
+    return () => window.clearTimeout(timer);
+  }, [focusedTraceId, activeTab]);
 
   // ── PageAgent：光球可切換七大分頁 ───────────────────────────────
   const [, navigateToPath] = useLocation();
@@ -2349,10 +2417,15 @@ export default function AiBrainSettings() {
                   return (
                     <div
                       key={trace.id}
-                      className={`rounded-lg border p-3 text-xs transition-all ${
+                      id={`error-trace-${trace.id}`}
+                      className={`rounded-lg border p-3 text-xs transition-all scroll-mt-24 ${
                         trace.resolvedAt
                           ? "opacity-50 border-muted"
                           : "border-red-500/20 bg-red-500/5"
+                      } ${
+                        focusedTraceId === trace.id
+                          ? "ring-2 ring-amber-500 shadow-lg"
+                          : ""
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">

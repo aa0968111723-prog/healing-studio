@@ -240,6 +240,15 @@ const healthCache = new Map<string, HealthCacheEntry>();
 const HEALTH_CACHE_TTL_MS = 60_000; // 60 秒
 const MAX_CONSECUTIVE_FAILURES = 3; // 連續失敗 N 次後標記為不健康
 
+/** 寫入版本：每次 healthCache 被寫入都 +1，供彙整層判斷快照新鮮度。 */
+let healthCacheVersion = 0;
+function bumpHealthCacheVersion(): void {
+  healthCacheVersion++;
+}
+export function getHealthCacheVersion(): number {
+  return healthCacheVersion;
+}
+
 /**
  * 對指定模型/引擎執行輕量級健康探測。
  *
@@ -289,6 +298,7 @@ function scheduleHealthCheck(modelOrEngine: string): void {
           checkedAt: Date.now(),
           consecutiveFailures: 0,
         });
+        bumpHealthCacheVersion();
       } else {
         const failures = previousFailures + 1;
         healthCache.set(modelOrEngine, {
@@ -297,6 +307,7 @@ function scheduleHealthCheck(modelOrEngine: string): void {
           consecutiveFailures: failures,
           lastError: `Unknown model/engine: ${modelOrEngine}`,
         });
+        bumpHealthCacheVersion();
       }
     } catch (err) {
       const failures = previousFailures + 1;
@@ -306,6 +317,7 @@ function scheduleHealthCheck(modelOrEngine: string): void {
         consecutiveFailures: failures,
         lastError: err instanceof Error ? err.message : String(err),
       });
+      bumpHealthCacheVersion();
     }
   });
 }
@@ -463,6 +475,7 @@ export function reportEngineFailure(
     consecutiveFailures: failures,
     lastError: error,
   });
+  bumpHealthCacheVersion();
 
   BrainAuditLogger.engineFailure(modelOrEngine, error, failures);
 }
@@ -476,6 +489,7 @@ export function reportEngineRecovery(modelOrEngine: string): void {
     checkedAt: Date.now(),
     consecutiveFailures: 0,
   });
+  bumpHealthCacheVersion();
 
   BrainAuditLogger.engineRecovery(modelOrEngine);
 }
