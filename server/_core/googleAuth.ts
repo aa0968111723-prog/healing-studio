@@ -79,20 +79,65 @@ export async function verifySessionToken(
 
 // ─── Google OAuth URL 生成 ─────────────────────────────────────────────────
 
-export function buildGoogleAuthUrl(redirectAfter?: string): string {
+const DEFAULT_REDIRECT_URI = "http://localhost:3000/api/oauth/callback";
+
+/**
+ * Resolve the OAuth redirect URI.
+ *
+ * Preference order:
+ *   1. `GOOGLE_REDIRECT_URI` if explicitly set (non-empty, non-default).
+ *   2. Derived from the incoming request (`<proto>://<host>/api/oauth/callback`)
+ *      — uses x-forwarded-proto/host so it works behind Railway's proxy.
+ *   3. The localhost default (only for local dev when no request context).
+ *
+ * Both `/api/oauth/google/start` and `/api/oauth/callback` resolve the URI
+ * the same way, so the values match — Google rejects the token exchange if
+ * they don't.
+ */
+export function resolveRedirectUri(req?: Request): string {
+  const fromEnv = process.env.GOOGLE_REDIRECT_URI?.trim();
+  if (fromEnv && fromEnv !== DEFAULT_REDIRECT_URI) {
+    return fromEnv;
+  }
+
+  if (req) {
+    const forwardedProto = req.headers["x-forwarded-proto"];
+    const protoHeader = Array.isArray(forwardedProto)
+      ? forwardedProto[0]
+      : forwardedProto?.split(",")[0]?.trim();
+    const proto = protoHeader || req.protocol || "http";
+
+    const forwardedHost = req.headers["x-forwarded-host"];
+    const hostHeader = Array.isArray(forwardedHost)
+      ? forwardedHost[0]
+      : forwardedHost?.split(",")[0]?.trim();
+    const host = hostHeader || req.get?.("host") || req.hostname;
+
+    if (host) {
+      return `${proto}://${host}/api/oauth/callback`;
+    }
+  }
+
+  return fromEnv || DEFAULT_REDIRECT_URI;
+}
+
+export function buildGoogleAuthUrl(
+  redirectAfter?: string,
+  req?: Request
+): string {
   const clientId = ENV.googleClientId;
   if (!clientId) {
     logger.error("[GoogleAuth] GOOGLE_CLIENT_ID not configured");
     throw new Error("GOOGLE_CLIENT_ID 未設定");
   }
 
-  const redirectUri =
-    ENV.googleRedirectUri || "http://localhost:3000/api/oauth/callback";
+  const redirectUri = resolveRedirectUri(req);
 
   logger.info("[GoogleAuth] Building Google auth URL", {
     redirectUri,
     redirectAfter: redirectAfter || "/",
     hasClientId: !!clientId,
+    source: process.env.GOOGLE_REDIRECT_URI ? "env" : "request",
   });
 
   const state = redirectAfter
@@ -122,13 +167,25 @@ interface GoogleTokenResponse {
   refresh_token?: string;
 }
 
+export class GoogleTokenExchangeError extends Error {
+  readonly status: number;
+  readonly googleError?: string;
+
+  constructor(status: number, googleError: string | undefined, message: string) {
+    super(message);
+    this.name = "GoogleTokenExchangeError";
+    this.status = status;
+    this.googleError = googleError;
+  }
+}
+
 export async function exchangeCodeForTokens(
-  code: string
+  code: string,
+  req?: Request
 ): Promise<GoogleTokenResponse> {
   const clientId = ENV.googleClientId;
   const clientSecret = ENV.googleClientSecret;
-  const redirectUri =
-    ENV.googleRedirectUri || "http://localhost:3000/api/oauth/callback";
+  const redirectUri = resolveRedirectUri(req);
 
   if (!clientId || !clientSecret) {
     const error = new Error("GOOGLE_CLIENT_ID 或 GOOGLE_CLIENT_SECRET 未設定");
@@ -157,15 +214,25 @@ export async function exchangeCodeForTokens(
   });
 
   if (!response.ok) {
-    const error = await response.text();
+    const errorText = await response.text();
     logger.error("[GoogleAuth] Token exchange failed", {
       status: response.status,
       statusText: response.statusText,
-      error,
+      error: errorText,
       redirectUri,
     });
-    throw new Error(
-      `Google token exchange failed: ${response.status} — ${error}`
+
+    let googleError: string | undefined;
+    try {
+      googleError = JSON.parse(errorText)?.error;
+    } catch {
+      // not JSON — leave undefined
+    }
+
+    throw new GoogleTokenExchangeError(
+      response.status,
+      googleError,
+      `Google token exchange failed: ${response.status} — ${errorText}`
     );
   }
 

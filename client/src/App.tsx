@@ -124,6 +124,8 @@ const OAUTH_ERROR_MESSAGES: Record<string, string> = {
   missing_code: "Google 登入流程異常，請重試。",
   missing_google_user_id: "無法取得 Google 帳號資訊，請重試。",
   oauth_failed: "Google 登入失敗，請稍後再試。",
+  oauth_redirect_mismatch:
+    "Google 登入網址未授權，請聯繫管理員確認 OAuth 設定。",
   demo_oauth_failed: "訪客登入失敗，請重新整理頁面。",
 };
 

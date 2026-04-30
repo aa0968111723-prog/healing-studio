@@ -46,10 +46,9 @@ const coreSchema = z.object({
   // ── Google OAuth 2.0（替換 Manus OAuth）──────────────────
   GOOGLE_CLIENT_ID: z.string().min(1).optional().default(""),
   GOOGLE_CLIENT_SECRET: z.string().min(1).optional().default(""),
-  GOOGLE_REDIRECT_URI: z
-    .string()
-    .optional()
-    .default("http://localhost:3000/api/oauth/callback"),
+  // Empty default → server derives `<proto>://<host>/api/oauth/callback`
+  // from the request, so production works without manual env setup.
+  GOOGLE_REDIRECT_URI: z.string().optional().default(""),
 
   // ── Google Cloud Platform ─────────────────────────────────
   GOOGLE_CLOUD_PROJECT_ID: z.string().min(1).optional().default(""),
