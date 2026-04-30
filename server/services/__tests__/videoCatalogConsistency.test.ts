@@ -16,6 +16,8 @@ import {
   I2V_ROUTER_IDS,
   V2V_ROUTER_IDS,
   ENHANCE_ROUTER_IDS,
+  CONTROL_ROUTER_IDS,
+  CONTROL_CATEGORY_BY_ID,
   ALL_VIDEO_ROUTER_IDS,
   ALL_VIDEO_PRICING_IDS,
 } from "../../../shared/videoModelCatalog";
@@ -67,6 +69,22 @@ describe("video catalog SSOT consistency", () => {
     );
     const missing = ENHANCE_ROUTER_IDS.filter(id => !ids.has(id));
     expect(missing, `falModels enhance missing: ${missing.join(", ")}`).toEqual(
+      []
+    );
+  });
+
+  it("every router-called control id is in falModels (per-id category mapping)", () => {
+    const i2vIds = new Set(
+      FAL_MODEL_CATALOG["image-to-video"].map(m => m.modelId)
+    );
+    const v2vIds = new Set(
+      FAL_MODEL_CATALOG["video-to-video"].map(m => m.modelId)
+    );
+    const missing = CONTROL_ROUTER_IDS.filter(id => {
+      const cat = CONTROL_CATEGORY_BY_ID[id];
+      return cat === "image-to-video" ? !i2vIds.has(id) : !v2vIds.has(id);
+    });
+    expect(missing, `falModels control missing: ${missing.join(", ")}`).toEqual(
       []
     );
   });

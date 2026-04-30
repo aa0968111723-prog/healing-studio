@@ -386,6 +386,23 @@ export const GENERATION_ENGINE_CATALOG = {
         tier: "ultra",
       },
 
+      // ── Fal.ai 進階控制（control） ──
+      {
+        value: "fal-ai/cammaster",
+        label: "CamMaster 鏡頭運動控制",
+        tier: "premium",
+      },
+      {
+        value: "fal-ai/depthcrafter",
+        label: "DepthCrafter 深度感知",
+        tier: "standard",
+      },
+      {
+        value: "fal-ai/vidu/q1/reference-to-video",
+        label: "Vidu Q1 Reference-to-Video",
+        tier: "premium",
+      },
+
       // ── Gemini Veo ──
       { value: "gemini/veo-2", label: "Veo 2 (Gemini) 🔵", tier: "premium" },
       {

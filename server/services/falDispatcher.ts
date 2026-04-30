@@ -204,6 +204,10 @@ const TIMEOUT_OVERRIDES: Record<string, number> = {
   "fal-ai/bytedance/upscaler/video": 300_000,
   "fal-ai/rife-v4.6/video": 240_000,
   "fal-ai/topaz/video-enhance": 600_000,
+  // 進階控制（control）：CamMaster / Vidu / DepthCrafter
+  "fal-ai/cammaster": 300_000,
+  "fal-ai/vidu/q1/reference-to-video": 300_000,
+  "fal-ai/depthcrafter": 300_000,
   "fal-ai/minimax-video/text-to-video": 200_000,
   "fal-ai/minimax-video/image-to-video": 200_000,
   "fal-ai/minimax/hailuo-02/pro/text-to-video": 240_000,
@@ -278,6 +282,9 @@ export const FALLBACK_CHAINS: Record<string, string[]> = {
     "fal-ai/wan-i2v",
     "fal-ai/ltx-video/image-to-video",
     "fal-ai/stable-video",
+    // 進階控制：i2v 變體
+    "fal-ai/cammaster",
+    "fal-ai/vidu/q1/reference-to-video",
   ],
   "text-to-speech": [
     "fal-ai/f5-tts",  // playai-tts Not Found, replaced with f5-tts
@@ -312,6 +319,8 @@ export const FALLBACK_CHAINS: Record<string, string[]> = {
     "fal-ai/topaz-upscale-video",
     "fal-ai/stable-video-upscaler",
     "fal-ai/rife-v4.6/video",
+    // 進階控制：v2v 變體
+    "fal-ai/depthcrafter",
   ],
   training: ["fal-ai/flux-lora-fast-training"],
   llm: ["fal-ai/any-llm"],

@@ -55,6 +55,24 @@ export const ENHANCE_ROUTER_IDS = [
 ] as const;
 
 /**
+ * 進階控制（control）：videoStudio.ts 的 camMaster / depthCrafter /
+ * viduReferenceToVideo / animateDiff 真的會送進 fal queue 的 modelId。
+ * animateDiff 也屬 v2v；這裡列出獨立的三個。
+ */
+export const CONTROL_ROUTER_IDS = [
+  "fal-ai/cammaster",
+  "fal-ai/depthcrafter",
+  "fal-ai/vidu/q1/reference-to-video",
+] as const;
+
+/** control 模型在 falModels 對應的類別（i2v 還是 v2v）。 */
+export const CONTROL_CATEGORY_BY_ID: Record<string, "image-to-video" | "video-to-video"> = {
+  "fal-ai/cammaster": "image-to-video",
+  "fal-ai/depthcrafter": "video-to-video",
+  "fal-ai/vidu/q1/reference-to-video": "image-to-video",
+};
+
+/**
  * `VideoStudio.tsx` 用 `modelId="..."` 顯示在 ModelCard 上的 ID。
  * 這些不是 router 直接呼叫的，但 UI 會用 `getModelPricing(modelId)`
  * 顯示積分價格，所以同樣需要在 pricing 裡有對應。
@@ -73,6 +91,7 @@ export const ALL_VIDEO_ROUTER_IDS: readonly string[] = [
   ...I2V_ROUTER_IDS,
   ...V2V_ROUTER_IDS,
   ...ENHANCE_ROUTER_IDS,
+  ...CONTROL_ROUTER_IDS,
 ];
 
 export const ALL_VIDEO_PRICING_IDS: readonly string[] = [

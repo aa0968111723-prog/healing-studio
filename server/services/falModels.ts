@@ -456,6 +456,27 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       outputSchema: { videoUrl: true },
       timeoutMs: 240_000,
     },
+    // ── 進階控制（control）：i2v 變體 ──
+    {
+      modelId: "fal-ai/cammaster",
+      label: "CamMaster 鏡頭運動控制",
+      category: "image-to-video",
+      tier: "premium",
+      description: "精確鏡頭運動控制（推拉搖移旋轉），基於圖生影",
+      inputSchema: { imageUrl: true, prompt: true, duration: true },
+      outputSchema: { videoUrl: true },
+      timeoutMs: 300_000,
+    },
+    {
+      modelId: "fal-ai/vidu/q1/reference-to-video",
+      label: "Vidu Q1 Reference-to-Video",
+      category: "image-to-video",
+      tier: "premium",
+      description: "Vidu Q1 角色一致性影片生成（最多 3 參考圖）",
+      inputSchema: { imageUrl: true, prompt: true, duration: true },
+      outputSchema: { videoUrl: true },
+      timeoutMs: 300_000,
+    },
   ],
 
   // ════════════════════════════════════════════════════════
@@ -1441,6 +1462,17 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       inputSchema: { videoUrl: true },
       outputSchema: { videoUrl: true },
       timeoutMs: 600_000,
+    },
+    // ── 進階控制：v2v 變體 ──
+    {
+      modelId: "fal-ai/depthcrafter",
+      label: "DepthCrafter 深度感知",
+      category: "video-to-video",
+      tier: "standard",
+      description: "從單目影片重建深度時序，3D 視差效果",
+      inputSchema: { videoUrl: true },
+      outputSchema: { videoUrl: true },
+      timeoutMs: 300_000,
     },
   ],
 };
