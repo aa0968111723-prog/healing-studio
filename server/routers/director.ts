@@ -3134,10 +3134,8 @@ ${director.systemPrompt ? `\n附加大腦指令：\n${director.systemPrompt}` : 
         responseFormat: { type: "json_object" },
       });
 
-      const text =
-        typeof llmResponse === "string"
-          ? llmResponse
-          : (llmResponse as { content?: string }).content ?? "";
+      const content = llmResponse.choices[0]?.message?.content;
+      const text = typeof content === "string" ? content : "";
 
       const extracted = extractJsonObjectFromText(text);
       if (!extracted || typeof extracted !== "object") {
