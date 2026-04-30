@@ -281,9 +281,14 @@ async function startServer() {
   app.use(rateLimitContextMiddleware);
 
   // ── Tiered rate limiting for API endpoints ───────────────────────────────
-  // Auth endpoints get a strict limiter; general API uses the relaxed limiter.
-  // The existing express-rate-limit import is kept for backward compatibility.
-  app.use("/api/auth", rateLimiters.auth);
+  // Keep strict auth throttling only on credential-mutating routes.
+  // Read-only auth probes (/api/auth/me, /api/auth/google/status) must stay
+  // responsive, otherwise the login UI can soft-lock before users submit forms.
+  app.use("/api/auth/login", rateLimiters.auth);
+  app.use("/api/auth/register", rateLimiters.auth);
+  app.use("/api/auth/forgot-password", rateLimiters.auth);
+  app.use("/api/auth/reset-password", rateLimiters.auth);
+  app.use("/api/auth/change-password", rateLimiters.auth);
   app.use("/api/trpc/auth", rateLimiters.auth);
   app.use("/api/", rateLimiters.api);
 
