@@ -1194,12 +1194,27 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
   const modelOptions = useMemo(() => {
     const data = modelsQuery.data;
     if (!data) return {};
+    const models = data.models ?? {};
     return {
-      image: data["text-to-image"] ?? [],
-      video: data["text-to-video"] ?? [],
-      audio: data["text-to-audio"] ?? [],
-      voice: data["text-to-speech"] ?? [],
+      image: models["text-to-image"] ?? [],
+      video: models["text-to-video"] ?? [],
+      audio: models["text-to-audio"] ?? [],
+      voice: models["text-to-speech"] ?? [],
     } as Record<string, GenerationModelOption[]>;
+  }, [modelsQuery.data]);
+
+  /**
+   * AI 大腦組態的偏好引擎（per modality）。後端 brainProcedure 注入 ctx.brain
+   * 後讀 imageEngine / videoEngine / audioEngine / voiceEngine 四個插槽。
+   */
+  const brainDefaults = useMemo(() => {
+    const raw = modelsQuery.data?.brainDefaults ?? {};
+    return {
+      image: raw["text-to-image"],
+      video: raw["text-to-video"],
+      audio: raw["text-to-audio"],
+      voice: raw["text-to-speech"],
+    } as Record<string, string | undefined>;
   }, [modelsQuery.data]);
 
   // Get estimated total cost
@@ -1216,13 +1231,20 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
     return total;
   }, [tasks, selectedModels, modelOptions]);
 
-  // Set default model selections when models load
+  // Set default model selections when models load.
+  // 優先順序：(1) 大腦組態偏好引擎且仍可用 → (2) 第一個可用 → (3) 第一個。
   useEffect(() => {
     if (!modelsQuery.data) return;
     const defaults: Record<string, string> = {};
     for (const [modality, models] of Object.entries(modelOptions)) {
-      if (!selectedModels[modality] && models.length > 0) {
-        // Pick first available model, or first model
+      if (selectedModels[modality] || models.length === 0) continue;
+      const brainPref = brainDefaults[modality];
+      const brainMatch = brainPref
+        ? models.find(m => m.modelId === brainPref && m.available)
+        : null;
+      if (brainMatch) {
+        defaults[modality] = brainMatch.modelId;
+      } else {
         const avail = models.find(m => m.available);
         defaults[modality] = avail?.modelId ?? models[0].modelId;
       }
@@ -1230,7 +1252,7 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
     if (Object.keys(defaults).length > 0) {
       setSelectedModels(prev => ({ ...prev, ...defaults }));
     }
-  }, [modelsQuery.data, modelOptions]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [modelsQuery.data, modelOptions, brainDefaults]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleGenerate = useCallback(
     (task: GenerationTask) => {
@@ -1444,6 +1466,8 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
                         {models.map(m => {
                           const isSelected =
                             selectedModels[task.modality] === m.modelId;
+                          const isBrainDefault =
+                            brainDefaults[task.modality] === m.modelId;
                           const coaching = getModelCoaching(task.modality, m);
                           return (
                             <button
@@ -1463,8 +1487,11 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
                                     ? "bg-white/50 border-border/40 hover:bg-white/80 text-muted-foreground hover:text-foreground"
                                     : "bg-muted/20 border-border/20 text-muted-foreground/40 cursor-not-allowed line-through"
                               )}
-                              title={`${m.label} · ${coaching.bestFor} · ${m.basePoints} pts/${m.unit}${!m.available ? " (不可用)" : ""}`}
+                              title={`${m.label} · ${coaching.bestFor} · ${m.basePoints} pts/${m.unit}${!m.available ? " (不可用)" : ""}${isBrainDefault ? " · 你的 AI 大腦組態預設" : ""}`}
                             >
+                              {isBrainDefault && (
+                                <span aria-label="AI 大腦組態預設">🧠</span>
+                              )}
                               <span>{m.label}</span>
                               <span
                                 className={cn(

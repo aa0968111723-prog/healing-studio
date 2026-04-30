@@ -2298,8 +2298,14 @@ ${segmentSummaries}
 
   // ─── Quick Generation Pipeline ──────────────────────────────────────────
 
-  /** Get available generation models grouped by modality for the model picker */
-  generationModels: brainProcedure.query(() => {
+  /**
+   * Get available generation models grouped by modality for the model picker.
+   *
+   * Also exposes the user's AI 大腦組態 preferred engine per modality so the
+   * Director frontend can pre-select that as the default (instead of "first
+   * available"). The brain context is loaded by brainProcedure middleware.
+   */
+  generationModels: brainProcedure.query(({ ctx }) => {
     const byCategory = getAllPricingByCategory();
     const relevantCategories: ModelCategory[] = [
       "text-to-image",
@@ -2307,7 +2313,7 @@ ${segmentSummaries}
       "text-to-audio",
       "text-to-speech",
     ];
-    const result: Record<
+    const models: Record<
       string,
       Array<{
         modelId: string;
@@ -2324,8 +2330,8 @@ ${segmentSummaries}
       }>
     > = {};
     for (const cat of relevantCategories) {
-      const models = byCategory[cat] ?? [];
-      result[cat] = models.map(m => {
+      const list = byCategory[cat] ?? [];
+      models[cat] = list.map(m => {
         const avail = checkModelAvailability(m.modelId);
         return {
           modelId: m.modelId,
@@ -2342,7 +2348,19 @@ ${segmentSummaries}
         };
       });
     }
-    return result;
+
+    // Map each Director modality to the corresponding brain generation slot.
+    // Director uses 4 modalities; brain.generation has 4 slots (imageEngine,
+    // videoEngine, audioEngine, voiceEngine). Falls through to undefined if
+    // brain is unavailable so the frontend default-selection still works.
+    const brainDefaults: Record<string, string | undefined> = {
+      "text-to-image": ctx.brain?.getEngine("imageEngine")?.engine,
+      "text-to-video": ctx.brain?.getEngine("videoEngine")?.engine,
+      "text-to-audio": ctx.brain?.getEngine("audioEngine")?.engine,
+      "text-to-speech": ctx.brain?.getEngine("voiceEngine")?.engine,
+    };
+
+    return { models, brainDefaults };
   }),
 
   /** Estimate generation cost for a segment with user-selected models */
