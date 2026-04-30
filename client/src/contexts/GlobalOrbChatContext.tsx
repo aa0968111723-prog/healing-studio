@@ -22,7 +22,7 @@ import { usePersonality } from "./PersonalityContext";
 import { usePageAgent, parseLLMActions, adaptAgentPlanToActions, type AgentAction } from "./PageAgentContext";
 import { useLocation } from "wouter";
 import { executeGlobalActions, shouldAskBeforeAct } from "../../../shared/global-agent-orchestrator";
-import { detectCreationIntent } from "../../../shared/global-agent-workflows";
+import { detectChatIntent } from "../../../shared/global-agent-workflows";
 import {
   chatMessageToLLMContent,
   type OrbChatAttachment,
@@ -1199,7 +1199,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         return raw;
       })();
       const intentDetection = llmActions.length === 0
-        ? detectCreationIntent(trimmed, rememberedPreferences)
+        ? detectChatIntent(trimmed, rememberedPreferences)
         : { kind: "none" } as const;
       if (intentDetection.kind === "needs-clarification") {
         const question = intentDetection.message;

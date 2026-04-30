@@ -15,11 +15,14 @@ import {
   buildImageWorkflow,
   buildLongVideoWorkflow,
   buildMusicWorkflow,
+  buildNavigateWorkflow,
   buildScriptOnlyWorkflow,
   buildSfxWorkflow,
   buildShortVideoWorkflow,
   buildVoiceWorkflow,
+  detectChatIntent,
   detectCreationIntent,
+  detectNavIntent,
   detectVideoIntent,
   expandWorkflowAction,
   inferLongVideoChapters,
@@ -365,6 +368,51 @@ describe("global-agent-workflows", () => {
     if (detection.kind === "ready") {
       expect(detection.workflow.name).toContain("章節長片");
     }
+  });
+
+  it("detectNavIntent recognises non-creative requests", () => {
+    expect(detectNavIntent("我想訓練自己的 LoRA")?.path).toBe("/models");
+    expect(detectNavIntent("怎麼開始？有新手教學嗎")?.path).toBe("/tutorial-overview");
+    expect(detectNavIntent("我想看學習文件")?.path).toBe("/learn");
+    expect(detectNavIntent("打開個人設定")?.path).toBe("/settings");
+    expect(detectNavIntent("帶我去素材庫")?.path).toBe("/assets");
+    expect(detectNavIntent("查看背景任務")?.path).toBe("/assets?section=tasks");
+    expect(detectNavIntent("查我的點數")?.path).toBe("/dashboard?section=credits");
+    expect(detectNavIntent("打開專注流")?.path).toBe("/focus-flow");
+  });
+
+  it("detectNavIntent returns null for off-topic chatter", () => {
+    expect(detectNavIntent("今天天氣如何")).toBeNull();
+    expect(detectNavIntent("你好")).toBeNull();
+  });
+
+  it("buildNavigateWorkflow produces a single navigate step that passes the capability gate", () => {
+    const wf = buildNavigateWorkflow("前往模型訓練中心", "/models");
+    expect(wf.steps).toHaveLength(1);
+    expect(wf.steps[0].actionType).toBe("navigate");
+    expect(hasCapabilityForPage(wf.steps[0].path, wf.steps[0].actionType)).toBe(true);
+  });
+
+  it("detectChatIntent picks creative intent when both creative and nav keywords match", () => {
+    const detection = detectChatIntent("幫我做一張海報，順便看一下素材庫");
+    expect(detection.kind).toBe("ready");
+    if (detection.kind === "ready") {
+      expect(detection.workflow.name).toBe("圖片生成流程");
+    }
+  });
+
+  it("detectChatIntent falls back to navigate when no creative intent is present", () => {
+    const detection = detectChatIntent("我想看看新手教學");
+    expect(detection.kind).toBe("ready");
+    if (detection.kind === "ready") {
+      expect(detection.workflow.name).toContain("教學");
+      expect(detection.workflow.steps[0].actionType).toBe("navigate");
+    }
+  });
+
+  it("detectChatIntent returns none for plain greetings", () => {
+    expect(detectChatIntent("你好").kind).toBe("none");
+    expect(detectChatIntent("今天天氣如何？").kind).toBe("none");
   });
 
   it("adapts schema-first planner output into runWorkflow action", () => {

@@ -299,6 +299,30 @@ export function buildScriptOnlyWorkflow(brief: string): RunWorkflowAction {
 }
 
 /**
+ * Single-step navigate workflow. Used for "take me to <feature>" intents
+ * (training / tutorials / settings / asset library / etc.) so the keyword
+ * fallback isn't limited to creative pipelines.
+ *
+ * The workflow executor pre-navigates via ctx.navigate() and then auto-resolves
+ * the navigate uiAction without dispatching to a page handler — so this works
+ * uniformly across every page in APP_PAGE_REGISTRY.
+ */
+export function buildNavigateWorkflow(label: string, path: string): RunWorkflowAction {
+  return {
+    type: "runWorkflow",
+    name: label,
+    steps: [
+      {
+        path,
+        actionType: "navigate",
+        payload: path,
+        label,
+      },
+    ],
+  };
+}
+
+/**
  * Infer a sensible chapter count for a long-video workflow. Caps at 6 so the
  * workflow stays under ~30 steps.
  *
@@ -443,6 +467,41 @@ export interface RememberedCreationPreferences {
   platforms?: string[];
   models?: string[];
   videoLengthHint?: "short" | "medium" | "long";
+}
+
+/**
+ * Non-creative navigation intents — "where do I go to do X" requests that
+ * just need a navigate action, not a generation pipeline. Each entry is
+ * checked via simple substring match; first match wins so order matters
+ * (specific keywords before generic ones).
+ */
+const NAV_INTENTS: Array<{ keywords: readonly string[]; label: string; path: string }> = [
+  { keywords: ["lora", "訓練模型", "訓練自己的模型", "model training"], label: "前往模型訓練中心", path: "/models" },
+  { keywords: ["新手教學", "教學中心", "怎麼開始", "tutorial"], label: "前往教學總覽", path: "/tutorial-overview" },
+  { keywords: ["學習文件", "學習中心", "教學文件", "learn"], label: "前往學習文件中心", path: "/learn" },
+  { keywords: ["代理設定", "光球設定", "光球助手設定", "agent settings"], label: "前往代理設定", path: "/settings/agent" },
+  { keywords: ["個人設定", "帳戶設定", "我的設定", "user settings"], label: "前往個人設定", path: "/settings" },
+  { keywords: ["大腦設定", "推理大腦", "ai 大腦", "brain settings"], label: "前往 AI 大腦組態", path: "/admin?section=brain" },
+  { keywords: ["積分", "點數", "credits"], label: "前往積分說明", path: "/dashboard?section=credits" },
+  { keywords: ["儀表板", "dashboard", "用量分析", "成本"], label: "前往儀表板", path: "/dashboard" },
+  { keywords: ["背景任務", "task queue", "任務佇列"], label: "前往背景任務中心", path: "/assets?section=tasks" },
+  { keywords: ["提示詞庫", "prompt library"], label: "前往提示詞庫", path: "/assets?section=prompts" },
+  { keywords: ["一致性保險庫", "保險庫", "vault"], label: "前往一致性保險庫", path: "/assets?section=vault" },
+  { keywords: ["共享空間", "團隊共享", "shared space"], label: "前往共享空間", path: "/assets?section=shared" },
+  { keywords: ["生成歷史", "歷史紀錄", "history"], label: "前往生成歷史", path: "/assets?section=history" },
+  { keywords: ["素材庫", "資產庫", "asset library"], label: "前往數位資產庫", path: "/assets" },
+  { keywords: ["專注流", "心流", "focus flow"], label: "前往專注流", path: "/focus-flow" },
+  { keywords: ["專案筆記", "我的筆記", "notes"], label: "前往專案筆記", path: "/notes" },
+];
+
+export function detectNavIntent(text: string): { label: string; path: string } | null {
+  const q = text.toLowerCase();
+  for (const intent of NAV_INTENTS) {
+    if (intent.keywords.some(token => q.includes(token))) {
+      return { label: intent.label, path: intent.path };
+    }
+  }
+  return null;
 }
 
 function styleHint(prefs: RememberedCreationPreferences | undefined): string {
@@ -662,6 +721,35 @@ export function detectCreationIntent(
 
   // Script alongside another non-audio modality is rare; treat as script-only.
   if (hits.script) return { kind: "ready", workflow: buildScriptOnlyWorkflow(enrichedBrief) };
+
+  return { kind: "none" };
+}
+
+/**
+ * Top-level intent detection used by the chat fallback. Tries a non-creative
+ * navigation intent first ("帶我去 X / 怎麼訓練 LoRA / 怎麼開始 / 設定在哪" …)
+ * and falls back to detectCreationIntent for image / video / audio / script
+ * pipelines. Returns:
+ *   - "ready"               — workflow ready to dispatch
+ *   - "needs-clarification" — ask the user before doing anything
+ *   - "none"                — let the LLM handle it
+ */
+export function detectChatIntent(
+  text: string,
+  preferences?: RememberedCreationPreferences
+): CreationIntentDetection {
+  const trimmed = text.trim();
+  if (!trimmed) return { kind: "none" };
+
+  // Creative intents take precedence — when the user clearly wants to create
+  // something, the navigation fallback shouldn't quietly steal the request.
+  const creative = detectCreationIntent(trimmed, preferences);
+  if (creative.kind !== "none") return creative;
+
+  const nav = detectNavIntent(trimmed);
+  if (nav) {
+    return { kind: "ready", workflow: buildNavigateWorkflow(nav.label, nav.path) };
+  }
 
   return { kind: "none" };
 }
