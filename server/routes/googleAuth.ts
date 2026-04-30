@@ -16,6 +16,13 @@ googleAuthRouter.get("/api/auth/google", (req, res) => {
   res.redirect(`/api/oauth/google/start${query}`);
 });
 
+
+googleAuthRouter.get("/api/auth/google/start", (req, res) => {
+  const queryIndex = req.originalUrl.indexOf("?");
+  const query = queryIndex >= 0 ? req.originalUrl.slice(queryIndex) : "";
+  res.redirect(`/api/oauth/google/start${query}`);
+});
+
 googleAuthRouter.get("/api/auth/google/callback", (req, res) => {
   const queryIndex = req.originalUrl.indexOf("?");
   const query = queryIndex >= 0 ? req.originalUrl.slice(queryIndex) : "";
