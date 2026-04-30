@@ -56,6 +56,7 @@ const MyBrainPage = lazy(() => import("./pages/MyBrainPage"));
 const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"));
 const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
 const AccountSettingsPage = lazy(() => import("./pages/AccountSettingsPage"));
+const ProcessViewerPage = lazy(() => import("./pages/ProcessViewerPage"));
 
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -276,6 +277,11 @@ function Router() {
       <Route path="/account-settings">
         <Suspense fallback={<PageSkeleton />}>
           <AccountSettingsPage />
+        </Suspense>
+      </Route>
+      <Route path="/process">
+        <Suspense fallback={<PageSkeleton />}>
+          <ProcessViewerPage />
         </Suspense>
       </Route>
       <Route path="/404" component={NotFound} />

@@ -28,6 +28,11 @@ import {
   type OrbChatAttachment,
   type OrbChatAttachmentMimeType,
 } from "../../../shared/orb-chat-multimodal";
+import {
+  buildProcessUrl,
+  workflowActionToProcessSpec,
+} from "../../../shared/orb-process-link";
+import type { RunWorkflowAction } from "../../../shared/agent-actions";
 import type { GlobalOrbExecutorTask } from "@/agent/GlobalOrbExecutor";
 
 export {
@@ -1250,10 +1255,33 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         intent: effectiveIntent,
         source: fallbackWorkflow ? "fallback" : "llm",
       });
+      // If the orb produced a runnable workflow, also build a shareable
+      // /process URL so the user (or anyone they share it with) can open the
+      // step-by-step viewer in a normal browser tab.
+      const workflowForLink: RunWorkflowAction | null =
+        fallbackWorkflow ??
+        (actionsToExecute.find(a => a.type === "runWorkflow") as RunWorkflowAction | undefined) ??
+        null;
+      let processUrl: string | null = null;
+      if (workflowForLink) {
+        try {
+          processUrl = buildProcessUrl(
+            workflowActionToProcessSpec(workflowForLink, {
+              summary: trimmed.slice(0, 200),
+              source: fallbackWorkflow ? "光球 / 全站代理" : "光球計畫",
+            })
+          );
+        } catch (err) {
+          console.warn("[GlobalOrbChat] failed to build process URL:", err);
+        }
+      }
+      const linkLine = processUrl
+        ? `\n\n🔗 查看／分享流程：${processUrl}`
+        : "";
       const replyText = fallbackWorkflow
-        ? `${dataReply}\n\n🎬 我已把你的需求轉成「${fallbackWorkflow.name}」。我會先讓你確認計畫，按下開始後才會跨頁執行。`
+        ? `${dataReply}\n\n🎬 我已把你的需求轉成「${fallbackWorkflow.name}」。我會先讓你確認計畫，按下開始後才會跨頁執行。${linkLine}`
         : pendingPlan
-        ? `${dataReply}\n\n🧭 我已整理好執行計畫，請先確認。按下「開始執行」後，我才會開始操作。`
+        ? `${dataReply}\n\n🧭 我已整理好執行計畫，請先確認。按下「開始執行」後，我才會開始操作。${linkLine}`
         : dataReply;
 
       setMessages(prev => [...prev, {

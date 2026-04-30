@@ -53,6 +53,7 @@ import { useOrbAttachments, attachmentKindEmoji } from "@/hooks/useOrbAttachment
 import { ORB_UPLOAD_ACCEPT } from "../../../shared/orb-chat-multimodal";
 import { toast } from "sonner";
 import AgentSettingsSheet from "@/components/AgentSettingsSheet";
+import ChatMessageText from "@/components/ChatMessageText";
 
 // ─── 型別 ─────────────────────────────────────────────────────────────────
 
@@ -715,7 +716,14 @@ export default function AgentChat() {
                       💭 {msg.intent}
                     </div>
                   )}
-                  {msg.text}
+                  <ChatMessageText
+                    text={msg.text}
+                    linkClassName={
+                      msg.role === "user"
+                        ? "underline decoration-white/60 underline-offset-2 hover:text-white inline-flex items-center gap-0.5"
+                        : "underline decoration-cyan-400 underline-offset-2 text-cyan-700 hover:text-cyan-800 inline-flex items-center gap-0.5"
+                    }
+                  />
                   {msg.attachments?.length ? (
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {msg.attachments.map(attachment => (

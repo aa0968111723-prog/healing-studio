@@ -72,6 +72,7 @@ import {
   resolveOrbAttachmentKind,
 } from "../../../shared/orb-chat-multimodal";
 import { usePersonalSettings } from "@/contexts/PersonalSettingsContext";
+import ChatMessageText from "./ChatMessageText";
 
 type Props = {
   className?: string;
@@ -2325,7 +2326,18 @@ export default memo(function ProactiveOrbWidget({
                                     ? `${personalityAccentBtn[personality]} rounded-2xl rounded-br-md`
                                     : "bg-gradient-to-br from-gray-50 to-gray-100/80 text-gray-700 rounded-2xl rounded-bl-md border border-gray-100/60"
                                 }`}>
-                                  {msg.text && <div>{msg.text}</div>}
+                                  {msg.text && (
+                                    <div className="whitespace-pre-wrap break-words">
+                                      <ChatMessageText
+                                        text={msg.text}
+                                        linkClassName={
+                                          msg.role === "user"
+                                            ? "underline decoration-white/60 underline-offset-2 hover:text-white inline-flex items-center gap-0.5"
+                                            : "underline decoration-emerald-400 underline-offset-2 text-emerald-700 hover:text-emerald-800 inline-flex items-center gap-0.5"
+                                        }
+                                      />
+                                    </div>
+                                  )}
                                   {msg.attachments?.length ? (
                                     <div className={`flex flex-col gap-1 ${msg.text ? "mt-2" : ""}`}>
                                       {msg.attachments.map(attachment => (
@@ -2744,7 +2756,18 @@ export default memo(function ProactiveOrbWidget({
                                   : "bg-gradient-to-br from-gray-50 to-gray-100/80 text-gray-700 rounded-2xl rounded-bl-md border border-gray-100/60"
                               }`}
                             >
-                              {msg.text && <div>{msg.text}</div>}
+                              {msg.text && (
+                                <div className="whitespace-pre-wrap break-words">
+                                  <ChatMessageText
+                                    text={msg.text}
+                                    linkClassName={
+                                      msg.role === "user"
+                                        ? "underline decoration-white/60 underline-offset-2 hover:text-white inline-flex items-center gap-0.5"
+                                        : "underline decoration-emerald-400 underline-offset-2 text-emerald-700 hover:text-emerald-800 inline-flex items-center gap-0.5"
+                                    }
+                                  />
+                                </div>
+                              )}
                               {msg.attachments?.length ? (
                                 <div className={`flex flex-col gap-1 ${msg.text ? "mt-2" : ""}`}>
                                   {msg.attachments.map(attachment => (
