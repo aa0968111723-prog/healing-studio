@@ -8,11 +8,9 @@ ALTER TABLE `agent_preferences`
   ADD COLUMN `voiceAutoActivate` boolean NOT NULL DEFAULT false,
   ADD COLUMN `orbAgentEnabled` boolean NULL,
   ADD COLUMN `workflowsEnabled` boolean NULL,
-  ADD COLUMN `disabledPageAgents` json NOT NULL,
+  ADD COLUMN `disabledPageAgents` json NOT NULL DEFAULT '[]',
   ADD COLUMN `orbWidgetCorner` enum('bottom-right','bottom-left','top-right','top-left') NOT NULL DEFAULT 'bottom-right',
   ADD COLUMN `orbWelcomeMessage` text NULL,
   ADD COLUMN `orbShortcutEnabled` boolean NOT NULL DEFAULT true,
   ADD COLUMN `orbProactiveSuggestions` boolean NOT NULL DEFAULT true;
 
--- Backfill the new json column for existing rows.
-UPDATE `agent_preferences` SET `disabledPageAgents` = '[]';
