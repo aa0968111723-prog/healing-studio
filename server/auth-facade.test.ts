@@ -91,8 +91,66 @@ describe("AuthFacade.registerWithPassword", () => {
     });
 
     expect(result.userId).toBe(42);
+    expect(result.linkedExisting).toBe(true);
     expect(repo.setLocalPasswordByUserId).toHaveBeenCalledOnce();
     expect(repo.createLocalUser).not.toHaveBeenCalled();
+  });
+
+  it("does not flag linkedExisting on a brand-new registration", async () => {
+    const repo = makeRepo();
+    const facade = new AuthFacade({
+      repo: repo as any,
+      hasherFactory: mockHasherFactory,
+      tokenIssuer: mockTokenIssuer,
+    });
+
+    const result = await facade.registerWithPassword({
+      email: "fresh@example.com",
+      password: "StrongP@ss1",
+    });
+
+    expect(result.linkedExisting).toBeFalsy();
+  });
+
+  it("recovers from ER_DUP_ENTRY race by linking to the now-visible row", async () => {
+    // Simulates a race where findByEmail returns null (so we attempt INSERT),
+    // but createLocalUser fails with ER_DUP_ENTRY because another concurrent
+    // request just created the row. We then re-fetch and link the password
+    // instead of failing the user with a generic 500.
+    const findByEmail = vi
+      .fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        id: 77,
+        openId: "google-zzz",
+        name: null,
+        email: "race@example.com",
+        role: "user" as const,
+        loginMethod: "google",
+        passwordHash: null,
+        remainingGenerations: 50,
+      });
+    const dupErr = Object.assign(new Error("Duplicate entry"), {
+      code: "ER_DUP_ENTRY",
+    });
+    const repo = makeRepo({
+      findByEmail,
+      createLocalUser: vi.fn().mockRejectedValueOnce(dupErr),
+    });
+    const facade = new AuthFacade({
+      repo: repo as any,
+      hasherFactory: mockHasherFactory,
+      tokenIssuer: mockTokenIssuer,
+    });
+
+    const result = await facade.registerWithPassword({
+      email: "race@example.com",
+      password: "StrongP@ss1",
+    });
+
+    expect(result.userId).toBe(77);
+    expect(result.linkedExisting).toBe(true);
+    expect(repo.setLocalPasswordByUserId).toHaveBeenCalledOnce();
   });
 
   it("throws EMAIL_ALREADY_REGISTERED when user already has a password", async () => {
@@ -153,6 +211,36 @@ describe("AuthFacade.loginWithPassword", () => {
     await expect(
       facade.loginWithPassword({ email: "ghost@example.com", password: "AnyPass1!" })
     ).rejects.toThrow("INVALID_CREDENTIALS");
+  });
+
+  it("throws OAUTH_ONLY_ACCOUNT when user exists via Google but has no password", async () => {
+    // Distinct from INVALID_CREDENTIALS so the UI can guide the user to
+    // "Sign in with Google" instead of saying their password is wrong.
+    const oauthOnlyUser = {
+      id: 12,
+      openId: "google-xyz",
+      name: null,
+      email: "oauth@example.com",
+      role: "user" as const,
+      loginMethod: "google",
+      passwordHash: null,
+      remainingGenerations: 50,
+    };
+    const repo = makeRepo({
+      findByEmail: vi.fn().mockResolvedValue(oauthOnlyUser),
+    });
+    const facade = new AuthFacade({
+      repo: repo as any,
+      hasherFactory: mockHasherFactory,
+      tokenIssuer: mockTokenIssuer,
+    });
+
+    await expect(
+      facade.loginWithPassword({
+        email: "oauth@example.com",
+        password: "AnyPass1!",
+      })
+    ).rejects.toThrow("OAUTH_ONLY_ACCOUNT");
   });
 
   it("throws INVALID_CREDENTIALS when password is wrong", async () => {

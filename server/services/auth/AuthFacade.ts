@@ -20,6 +20,12 @@ export type AuthResult = {
     email: string;
     name: string;
   };
+  /**
+   * True when registerWithPassword attached a password to a pre-existing
+   * Google-only account (no new row created). Lets the UI explain that the
+   * existing Google account is now also reachable via email/password.
+   */
+  linkedExisting?: boolean;
 };
 
 /** Returned when a user has 2FA enabled — caller must collect a TOTP code. */
@@ -56,7 +62,7 @@ export class AuthFacade {
     const hasher = await this.deps.hasherFactory(ENV.passwordHashAlgorithm);
     const passwordHash = await hasher.hash(input.password);
 
-    const existing = await this.deps.repo.findByEmail(email);
+    let existing = await this.deps.repo.findByEmail(email);
     const openId = existing?.openId ?? `local:${email}`;
 
     if (existing?.passwordHash) {
@@ -69,29 +75,57 @@ export class AuthFacade {
         passwordHash,
       });
     } else {
-      const insertedId = await this.deps.repo.createLocalUser({
-        openId,
-        email,
-        name: input.name ?? null,
-        passwordHash,
-        role: input.role,
-      });
-      // Use the real insertId so callers receive the correct userId
-      const resolvedId = insertedId ?? 0;
-      const token = await this.deps.tokenIssuer(openId, {
-        name: input.name || email.split("@")[0],
-        email,
-        expiresInMs: this.getTokenLifetimeMs(),
-      });
-      return {
-        token,
-        userId: resolvedId,
-        user: {
+      try {
+        const insertedId = await this.deps.repo.createLocalUser({
           openId,
           email,
+          name: input.name ?? null,
+          passwordHash,
+          role: input.role,
+        });
+        // Use the real insertId so callers receive the correct userId
+        const resolvedId = insertedId ?? 0;
+        const token = await this.deps.tokenIssuer(openId, {
           name: input.name || email.split("@")[0],
-        },
-      };
+          email,
+          expiresInMs: this.getTokenLifetimeMs(),
+        });
+        return {
+          token,
+          userId: resolvedId,
+          user: {
+            openId,
+            email,
+            name: input.name || email.split("@")[0],
+          },
+          linkedExisting: false,
+        };
+      } catch (err) {
+        // Race / case-insensitive miss: another concurrent request may have
+        // created the row, or findByEmail missed it. On a duplicate-key
+        // collision, recover by re-fetching and linking the password rather
+        // than failing the user with a generic 500.
+        const code = (err as { code?: string; errorCode?: string }).code ||
+          (err as { errorCode?: string }).errorCode;
+        if (code === "ER_DUP_ENTRY") {
+          existing = await this.deps.repo.findByEmail(email);
+          if (existing?.passwordHash) {
+            throw new Error("EMAIL_ALREADY_REGISTERED");
+          }
+          if (existing) {
+            await this.deps.repo.setLocalPasswordByUserId({
+              userId: existing.id,
+              passwordHash,
+            });
+          } else {
+            // Genuinely orphaned duplicate (different email casing on a
+            // unique openId index) — surface the original error.
+            throw err;
+          }
+        } else {
+          throw err;
+        }
+      }
     }
 
     const token = await this.deps.tokenIssuer(openId, {
@@ -108,6 +142,8 @@ export class AuthFacade {
         email,
         name: input.name || existing?.name || email.split("@")[0],
       },
+      // True branch: existing OAuth-only account just got a local password.
+      linkedExisting: !!existing,
     };
   }
 
@@ -119,7 +155,11 @@ export class AuthFacade {
   }): Promise<AuthResult | TwoFactorRequired> {
     const email = input.email.trim().toLowerCase();
     const user = await this.deps.repo.findByEmail(email);
-    if (!user?.passwordHash) throw new Error("INVALID_CREDENTIALS");
+    if (!user) throw new Error("INVALID_CREDENTIALS");
+    // Account exists but only via OAuth — the user almost certainly wants
+    // Google sign-in. Distinguish from "wrong password" so the UI can
+    // redirect them rather than blame the password.
+    if (!user.passwordHash) throw new Error("OAUTH_ONLY_ACCOUNT");
 
     // Use automatic algorithm detection to support legacy hashes
     const ok = await verifyPassword(input.password, user.passwordHash);

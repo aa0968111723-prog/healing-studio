@@ -125,6 +125,10 @@ const OAUTH_ERROR_MESSAGES: Record<string, string> = {
   missing_code: "Google 登入流程異常，請重試。",
   missing_google_user_id: "無法取得 Google 帳號資訊，請重試。",
   oauth_failed: "Google 登入失敗，請稍後再試。",
+  oauth_token_exchange_failed:
+    "Google 暫時無法回應，可能是網路或設定問題，請稍後再試。",
+  oauth_userinfo_failed: "無法從 Google 取得個人資料，請重新登入。",
+  oauth_db_error: "登入時資料庫忙線，請稍後再試。",
   oauth_redirect_mismatch:
     "Google 登入網址未授權，請聯繫管理員確認 OAuth 設定。",
   demo_oauth_failed: "訪客登入失敗，請重新整理頁面。",
@@ -144,8 +148,13 @@ function OAuthErrorToast() {
       window.location.hash;
     window.history.replaceState({}, "", newUrl);
 
+    // Don't blame Google for the demo flow when the demo path itself failed.
+    const isDemo = error === "demo_oauth_failed";
     const message = OAUTH_ERROR_MESSAGES[error] ?? "登入失敗，請重試。";
-    toast.error("Google 登入失敗", { description: message, duration: 6000 });
+    toast.error(isDemo ? "訪客登入失敗" : "Google 登入失敗", {
+      description: message,
+      duration: 6000,
+    });
   }, []);
 
   return null;

@@ -167,6 +167,98 @@ describe("localAuth routes", () => {
     );
   });
 
+  it("returns OAUTH_ONLY_ACCOUNT error code when account has no local password", async () => {
+    mockFacade.loginWithPassword.mockRejectedValueOnce(
+      new Error("OAUTH_ONLY_ACCOUNT")
+    );
+
+    const base = await startTestServer();
+    const res = await fetch(`${base}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "oauth@example.com", password: "AnyPass1!" }),
+    });
+
+    expect(res.status).toBe(409);
+    const payload = await res.json();
+    expect(payload.errorCode).toBe("OAUTH_ONLY_ACCOUNT");
+  });
+
+  it("returns ACCOUNT_LOCKED with retryAfterMinutes when locked out", async () => {
+    mockHistory.getFailedAttemptsByEmail.mockResolvedValueOnce(5);
+
+    const base = await startTestServer();
+    const res = await fetch(`${base}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "lock@example.com", password: "AnyPass1!" }),
+    });
+
+    expect(res.status).toBe(429);
+    const payload = await res.json();
+    expect(payload.errorCode).toBe("ACCOUNT_LOCKED");
+    expect(payload.retryAfterMinutes).toBeGreaterThan(0);
+  });
+
+  it("returns PASSWORD_WEAK error code when password lacks complexity", async () => {
+    const base = await startTestServer();
+    const res = await fetch(`${base}/api/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: "ok@example.com",
+        password: "alllowercase12345",
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    const payload = await res.json();
+    expect(payload.errorCode).toBe("PASSWORD_WEAK");
+  });
+
+  it("returns INVALID_EMAIL error code when email is malformed", async () => {
+    const base = await startTestServer();
+    const res = await fetch(`${base}/api/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: "not-an-email",
+        password: "Strong!Pass1",
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    const payload = await res.json();
+    expect(payload.errorCode).toBe("INVALID_EMAIL");
+  });
+
+  it("register response includes linkedExisting flag from facade", async () => {
+    mockFacade.registerWithPassword.mockResolvedValueOnce({
+      token: "jwt-token",
+      userId: 42,
+      user: {
+        openId: "google-sub-123",
+        email: "linked@example.com",
+        name: "Linked User",
+      },
+      linkedExisting: true,
+    });
+
+    const base = await startTestServer();
+    const res = await fetch(`${base}/api/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: "linked@example.com",
+        password: "Strong!Pass1",
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    const payload = await res.json();
+    expect(payload.linkedExisting).toBe(true);
+  });
+
   it("proceeds normally when history DB is unavailable during login", async () => {
     // Simulate DB failure in the brute-force check
     mockHistory.getFailedAttemptsByEmail.mockRejectedValueOnce(new Error("DB down"));

@@ -10,25 +10,28 @@ import { AuthFacade, authFacade } from "../services/auth/AuthFacade";
 import { loginHistoryService } from "../services/auth/loginHistoryService";
 
 // ── Auth-specific rate limiters ────────────────────────────────────────────
-// Stricter than the global /api/ limiter (300/15min).
-// Login: 10 attempts per 15 min per IP to slow brute-force without blocking
-// legitimate users who may retry after mistyping.
-const loginRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "Too many login attempts. Please try again later." },
-});
+// Stricter than the global /api/ limiter (300/15min). Built per-router so that
+// tests get fresh limiter state and so a future multi-instance setup can scope
+// limits independently.
+function buildLoginRateLimiter() {
+  return rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many login attempts. Please try again later." },
+  });
+}
 
-// Register: 5 attempts per 15 min per IP.
-const registerRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "Too many registration attempts. Please try again later." },
-});
+function buildRegisterRateLimiter() {
+  return rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many registration attempts. Please try again later." },
+  });
+}
 
 // How many recent per-email failures within the lockout window block the account
 const MAX_FAILED_ATTEMPTS = 5;
@@ -49,6 +52,35 @@ const loginSchema = z.object({
 const twoFactorTokenSchema = z.object({
   token: z.string().regex(/^\d{6}$/),
 });
+
+/**
+ * Heuristic: was this error caused by the DB being unavailable, the connection
+ * pool refusing, a timeout, or a known mysql2/AppError DB code? Used to
+ * surface a 503 with a retry-friendly errorCode rather than a generic 500
+ * that the user reads as "the website is broken".
+ */
+function isDatabaseError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const e = error as Error & {
+    code?: string;
+    errno?: number;
+    errorCode?: string;
+  };
+  if (e.errorCode === "DATABASE_ERROR") return true;
+  if (
+    e.code === "ECONNREFUSED" ||
+    e.code === "ETIMEDOUT" ||
+    e.code === "PROTOCOL_CONNECTION_LOST" ||
+    e.code === "ER_CON_COUNT_ERROR" ||
+    e.code === "ER_ACCESS_DENIED_ERROR" ||
+    e.code === "ENOTFOUND"
+  ) return true;
+  if (typeof e.code === "string" && e.code.startsWith("ER_")) return true;
+  if (typeof e.message === "string" &&
+      /database|ECONNREFUSED|ETIMEDOUT|ENOTFOUND|connection lost|pool/i.test(e.message))
+    return true;
+  return false;
+}
 
 function isStrongPassword(password: string): boolean {
   return (
@@ -98,24 +130,32 @@ export function createLocalAuthRouter(
 ) {
   const history = deps.loginHistory ?? loginHistoryService;
   const router = Router();
+  const loginRateLimiter = buildLoginRateLimiter();
+  const registerRateLimiter = buildRegisterRateLimiter();
 
   router.post("/api/auth/register", registerRateLimiter, async (req: Request, res: Response) => {
     const parsed = registerSchema.safeParse(req.body);
     if (!parsed.success) {
-      res
-        .status(400)
-        .json({
-          error: "Invalid register payload",
-          details: parsed.error.flatten(),
-        });
+      const flat = parsed.error.flatten();
+      const fieldErrors = flat.fieldErrors;
+      // Surface a precise reason so the client can localize ("invalid email"
+      // vs "password too short" vs unknown) instead of a generic 400.
+      let code = "INVALID_PAYLOAD";
+      if (fieldErrors.email?.length) code = "INVALID_EMAIL";
+      else if (fieldErrors.password?.length) code = "PASSWORD_TOO_SHORT";
+      res.status(400).json({
+        error: "Invalid register payload",
+        errorCode: code,
+        details: flat,
+      });
       return;
     }
 
     const email = normalizeEmail(parsed.data.email);
     if (!isStrongPassword(parsed.data.password)) {
       res.status(400).json({
-        error:
-          "Password must include uppercase, lowercase, number, and symbol",
+        error: "Password must include uppercase, lowercase, number, and symbol",
+        errorCode: "PASSWORD_WEAK",
       });
       return;
     }
@@ -138,23 +178,42 @@ export function createLocalAuthRouter(
         success: true,
         token: result.token,
         user: result.user,
+        // Signal whether this registration linked a password to a pre-existing
+        // Google-only account (no new row) so the UI can show the right copy.
+        linkedExisting: result.linkedExisting === true,
       });
     } catch (error) {
       if (error instanceof Error && error.message === "EMAIL_ALREADY_REGISTERED") {
-        res.status(409).json({ error: "Email already registered" });
+        res.status(409).json({
+          error: "Email already registered",
+          errorCode: "EMAIL_ALREADY_REGISTERED",
+        });
         return;
       }
-      logger.error("[LocalAuth] register failed", { err: error, email });
-      res.status(500).json({ error: "Register failed" });
+      // Database unavailable should not look identical to a programming bug —
+      // tell the client so it can prompt a retry instead of "Register failed".
+      const errCode = isDatabaseError(error) ? "DATABASE_UNAVAILABLE" : "REGISTER_FAILED";
+      logger.error("[LocalAuth] register failed", { err: error, email, errCode });
+      res.status(errCode === "DATABASE_UNAVAILABLE" ? 503 : 500).json({
+        error: "Register failed",
+        errorCode: errCode,
+      });
     }
   });
 
   router.post("/api/auth/login", loginRateLimiter, async (req: Request, res: Response) => {
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) {
-      res
-        .status(400)
-        .json({ error: "Invalid login payload", details: parsed.error.flatten() });
+      const flat = parsed.error.flatten();
+      let code = "INVALID_PAYLOAD";
+      if (flat.fieldErrors.email?.length) code = "INVALID_EMAIL";
+      else if (flat.fieldErrors.password?.length) code = "PASSWORD_REQUIRED";
+      else if (flat.fieldErrors.totpToken?.length) code = "INVALID_2FA_FORMAT";
+      res.status(400).json({
+        error: "Invalid login payload",
+        errorCode: code,
+        details: flat,
+      });
       return;
     }
 
@@ -174,6 +233,8 @@ export function createLocalAuthRouter(
       if (recentFailures >= MAX_FAILED_ATTEMPTS) {
         res.status(429).json({
           error: "Too many failed login attempts. Please try again later or reset your password.",
+          errorCode: "ACCOUNT_LOCKED",
+          retryAfterMinutes: LOCKOUT_WINDOW_MINUTES,
         });
         return;
       }
@@ -220,7 +281,11 @@ export function createLocalAuthRouter(
       });
     } catch (error) {
       if (error instanceof Error && error.message === "INVALID_2FA_CODE") {
-        res.status(401).json({ error: "Invalid 2FA code", requiresTwoFactor: true });
+        res.status(401).json({
+          error: "Invalid 2FA code",
+          errorCode: "INVALID_2FA_CODE",
+          requiresTwoFactor: true,
+        });
         return;
       }
       if (error instanceof Error && error.message === "INVALID_CREDENTIALS") {
@@ -241,11 +306,28 @@ export function createLocalAuthRouter(
           logger.error("[LocalAuth] Failed to log failed attempt", { err: logError });
         }
 
-        res.status(401).json({ error: "Invalid email or password" });
+        res.status(401).json({
+          error: "Invalid email or password",
+          errorCode: "INVALID_CREDENTIALS",
+        });
         return;
       }
-      logger.error("[LocalAuth] login failed", { err: error, email });
-      res.status(500).json({ error: "Login failed" });
+      if (error instanceof Error && error.message === "OAUTH_ONLY_ACCOUNT") {
+        // The email exists but only as a Google OAuth row — guide the user to
+        // sign in with Google instead of letting them think their password
+        // is wrong.
+        res.status(409).json({
+          error: "This account uses Google sign-in. Please log in with Google.",
+          errorCode: "OAUTH_ONLY_ACCOUNT",
+        });
+        return;
+      }
+      const errCode = isDatabaseError(error) ? "DATABASE_UNAVAILABLE" : "LOGIN_FAILED";
+      logger.error("[LocalAuth] login failed", { err: error, email, errCode });
+      res.status(errCode === "DATABASE_UNAVAILABLE" ? 503 : 500).json({
+        error: "Login failed",
+        errorCode: errCode,
+      });
     }
   });
 
