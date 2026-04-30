@@ -75,6 +75,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import VisualSoul from "@/components/VisualSoul";
+import { BatchGenerationDialog } from "./DirectorAI_batch_dialog";
 import { useAIState } from "@/contexts/AIStateContext";
 import {
   useRegisterPageAgent,
@@ -2117,7 +2118,7 @@ export default function DirectorAI() {
   // ─── Batch Generation State ─────────────────────────────────────────────
   const [showBatchGeneration, setShowBatchGeneration] = useState(false);
   const [batchGenerationOptions, setBatchGenerationOptions] = useState({
-    modalities: ["image"] as Array<"image" | "video" | "audio" | "voice">,
+    modalities: ["image"] as Array<"image" | "video" | "audio" | "voice" | "sfx">,
     imageSettings: { aspectRatio: "16:9", negativePrompt: "" },
     videoSettings: { useImageAsFirstFrame: false },
     audioSettings: { isInstrumental: true },
@@ -2304,7 +2305,7 @@ export default function DirectorAI() {
       toast.success(
         `已規劃 ${data.totalTasks} 個生成任務，預估 ${data.totalPoints} pts`
       );
-      // Initialize generation tasks state
+      setShowBatchGeneration(false);
       setGenerationTasks(
         data.tasks.map(t => ({
           segmentId: t.segmentId,
@@ -2313,6 +2314,27 @@ export default function DirectorAI() {
           status: "pending" as const,
         }))
       );
+
+      // Fire independent tasks (image / audio / voice / sfx). Tasks with
+      // dependsOn (i2v video relying on a generated image) stay pending —
+      // user can trigger them after the upstream image lands.
+      const independent = data.tasks.filter(t => !t.dependsOn);
+      for (const t of independent) {
+        executeTaskMut.mutate({
+          segmentId: t.segmentId,
+          segmentIndex: t.segmentIndex,
+          modality: t.modality,
+          modelId: t.modelId,
+          prompt: t.prompt,
+          voiceText: t.voiceText,
+          params: (t.params ?? {}) as Record<string, unknown>,
+          mode: batchGenerationOptions.mode,
+        });
+      }
+      const deferred = data.tasks.length - independent.length;
+      if (deferred > 0) {
+        toast.info(`${deferred} 個 i2v 影片任務待上游圖像完成後手動觸發`);
+      }
     },
     onError: e => toast.error("規劃失敗：" + e.message),
   });
@@ -2722,6 +2744,26 @@ export default function DirectorAI() {
       personality,
     });
   }, [importedSegments, personality, batchCostarMut]);
+
+  const handleStartBatchGeneration = useCallback(() => {
+    if (importedSegments.length === 0) {
+      toast.error("尚未匯入腳本分鏡");
+      return;
+    }
+    if (batchGenerationOptions.modalities.length === 0) {
+      toast.error("請至少選擇一種生成模態");
+      return;
+    }
+    autoGenerateMut.mutate({
+      segments: importedSegments.map(s => ({
+        id: s.id,
+        index: s.index,
+        storyboard: s.storyboard,
+        costar: s.costar,
+      })),
+      generationOptions: batchGenerationOptions,
+    });
+  }, [importedSegments, batchGenerationOptions, autoGenerateMut]);
 
   const handleAnalyzeOverview = useCallback(() => {
     overviewMut.mutate({
@@ -4344,6 +4386,16 @@ export default function DirectorAI() {
           )}
         </TabsContent>
       </Tabs>
+
+      <BatchGenerationDialog
+        open={showBatchGeneration}
+        onClose={() => setShowBatchGeneration(false)}
+        segments={importedSegments}
+        options={batchGenerationOptions}
+        onOptionsChange={setBatchGenerationOptions}
+        onStartGeneration={handleStartBatchGeneration}
+        isPending={autoGenerateMut.isPending}
+      />
     </div>
   );
 }
