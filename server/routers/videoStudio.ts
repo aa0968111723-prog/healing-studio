@@ -31,7 +31,6 @@ import { dispatchFalQueueTask } from "../services/falDispatcher";
 // ─── fal.ai 呼叫工具（與 proStudio 相同模式） ────────────────────────────────
 
 const FAL_QUEUE_BASE = "https://queue.fal.run";
-const FAL_RUN_BASE = "https://fal.run";
 
 function getFalKey(): string {
   const key = process.env.FAL_API_KEY;
@@ -162,60 +161,6 @@ async function falQueueResult(
       request_id: requestId,
       has_result: true,
     },
-    durationMs: Date.now() - startedAt,
-  });
-  return data;
-}
-
-async function falRun(
-  modelId: string,
-  input: Record<string, unknown>
-): Promise<unknown> {
-  const startedAt = Date.now();
-  const key = getFalKey();
-  const res = await fetch(`${FAL_RUN_BASE}/${modelId}`, {
-    method: "POST",
-    headers: {
-      Authorization: `Key ${key}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(input),
-    signal: AbortSignal.timeout(120_000),
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    void traceToolRun({
-      runName: "video-studio/fal-run",
-      provider: "fal.ai",
-      model: modelId,
-      route: "trpc.videoStudio.*",
-      method: "POST",
-      inputs: { input_keys: Object.keys(input) },
-      error: err.slice(0, 500),
-      durationMs: Date.now() - startedAt,
-    });
-    recordErrorTrace({
-      userId: 0,
-      modality: "video",
-      engine: modelId,
-      prompt: "[falRun]",
-      errorMessage: err.slice(0, 500),
-      errorCode: "FAL_RUN_ERROR",
-    });
-    throw new TRPCError({
-      code: "INTERNAL_SERVER_ERROR",
-      message: `fal.ai 錯誤 [${modelId}]: ${err}`,
-    });
-  }
-  const data = await res.json();
-  void traceToolRun({
-    runName: "video-studio/fal-run",
-    provider: "fal.ai",
-    model: modelId,
-    route: "trpc.videoStudio.*",
-    method: "POST",
-    inputs: { input_keys: Object.keys(input) },
-    outputs: { has_data: Boolean(data) },
     durationMs: Date.now() - startedAt,
   });
   return data;
@@ -1010,7 +955,7 @@ export const videoStudioRouter = router({
         modelId: z.string().min(1),
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       const status = (await falQueueStatus(
         input.requestId,
         input.modelId
@@ -1039,7 +984,7 @@ export const videoStudioRouter = router({
         const errMsg = status?.error ?? status?.message ?? "未知錯誤";
         // 連動：記錄到錯誤線索系統 → 自動觸發爬網搜尋 → 建立修復提案
         recordErrorTrace({
-          userId: 0,
+          userId: ctx.user?.id ?? 0,
           modality: "video",
           engine: input.modelId,
           prompt: `[非同步任務失敗] requestId=${input.requestId}`,

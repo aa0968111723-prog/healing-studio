@@ -190,11 +190,40 @@ const TIMEOUT_OVERRIDES: Record<string, number> = {
   "fal-ai/kling-video/v2.1/pro/text-to-video": 240_000,
   "fal-ai/kling-video/v2.1/standard/text-to-video": 240_000,
   "fal-ai/kling-video/v2.1/pro/image-to-video": 240_000,
+  "fal-ai/kling-video/v2.1/standard/image-to-video": 240_000,
   "fal-ai/kling-video/v2.1/standard/video-to-video": 240_000,
   "fal-ai/wan-t2v": 200_000,
+  "fal-ai/wan-i2v": 200_000,
+  "fal-ai/wan-ai/wan2.1-t2v-720p": 200_000,
+  "fal-ai/wan-ai/wan2.1-i2v-720p": 200_000,
+  "fal-ai/wan-ai/wan2.1-v2v-480p": 200_000,
   "fal-ai/wan/v2.1/video-to-video": 200_000,
+  "fal-ai/kling-video/v1.6/standard/video-to-video": 240_000,
+  "fal-ai/animatediff-v2v": 300_000,
+  // 畫質優化（enhance）：Topaz 專業降噪可達 5–10 分鐘
+  "fal-ai/bytedance/upscaler/video": 300_000,
+  "fal-ai/rife-v4.6/video": 240_000,
+  "fal-ai/topaz/video-enhance": 600_000,
+  // 進階控制（control）：CamMaster / Vidu / DepthCrafter
+  "fal-ai/cammaster": 300_000,
+  "fal-ai/vidu/q1/reference-to-video": 300_000,
+  "fal-ai/depthcrafter": 300_000,
   "fal-ai/minimax-video/text-to-video": 200_000,
+  "fal-ai/minimax-video/image-to-video": 200_000,
+  "fal-ai/minimax/hailuo-02/pro/text-to-video": 240_000,
+  "fal-ai/minimax/hailuo-02/pro/image-to-video": 240_000,
   "fal-ai/cogvideox-5b": 180_000,
+  // Runway / LTX / Sora / Veo3 / Pixverse 高耗時影片模型
+  "fal-ai/runway-gen3/turbo/image-to-video": 300_000,
+  "fal-ai/runway-gen4-turbo/image-to-video": 300_000,
+  "fal-ai/pixverse/v4.5/image-to-video": 240_000,
+  "fal-ai/luma-dream-machine": 240_000,
+  "fal-ai/luma-dream-machine/image-to-video": 240_000,
+  "fal-ai/ltx-video-13b-distilled": 240_000,
+  "fal-ai/ltx-video/image-to-video": 240_000,
+  "fal-ai/sora": 480_000,
+  "fal-ai/veo3": 480_000,
+  "fal-ai/stable-video": 240_000,
   "fal-ai/flux-pro/v1.1": 90_000,
   "fal-ai/flux/schnell": 60_000,
   "fal-ai/triposr": 180_000,
@@ -213,8 +242,12 @@ function isRetryableError(err: unknown): boolean {
   return true;
 }
 
-/** 每個分類的降級鏈（按品質由高至低） */
-const FALLBACK_CHAINS: Record<string, string[]> = {
+/**
+ * 每個分類的降級鏈（按品質由高至低）。
+ * 出口給 brainContext.findFallback 使用，把「per-category roster」當作
+ * 「per-model fallback」缺漏時的來源，避免兩處鏈條策略分叉。
+ */
+export const FALLBACK_CHAINS: Record<string, string[]> = {
   "text-to-image": [
     "fal-ai/flux-pro/v1.1",
     "fal-ai/flux/dev",
@@ -231,15 +264,27 @@ const FALLBACK_CHAINS: Record<string, string[]> = {
   ],
   "text-to-video": [
     "fal-ai/kling-video/v2.1/pro/text-to-video",
+    "fal-ai/kling-video/v2.1/standard/text-to-video",
     "fal-ai/wan-t2v",
+    "fal-ai/minimax/hailuo-02/pro/text-to-video",
     "fal-ai/minimax-video/text-to-video",
+    "fal-ai/ltx-video-13b-distilled",
     "fal-ai/cogvideox-5b",
   ],
   "image-to-video": [
     "fal-ai/kling-video/v2.1/pro/image-to-video",
+    "fal-ai/kling-video/v2.1/standard/image-to-video",
+    "fal-ai/runway-gen4-turbo/image-to-video",
+    "fal-ai/minimax/hailuo-02/pro/image-to-video",
     "fal-ai/minimax-video/image-to-video",
+    "fal-ai/pixverse/v4.5/image-to-video",
     "fal-ai/luma-dream-machine/image-to-video",
+    "fal-ai/wan-i2v",
+    "fal-ai/ltx-video/image-to-video",
     "fal-ai/stable-video",
+    // 進階控制：i2v 變體
+    "fal-ai/cammaster",
+    "fal-ai/vidu/q1/reference-to-video",
   ],
   "text-to-speech": [
     "fal-ai/f5-tts",  // playai-tts Not Found, replaced with f5-tts
@@ -261,7 +306,22 @@ const FALLBACK_CHAINS: Record<string, string[]> = {
   "text-to-3d": ["fal-ai/tripo3d", "fal-ai/trellis", "fal-ai/hyper3d/rodin"],
   "video-to-audio": ["fal-ai/mmaudio-v2", "fal-ai/stable-audio"],
   "video-to-text": ["fal-ai/wizper", "fal-ai/whisper"],
-  "video-to-video": ["fal-ai/wan/v2.1/video-to-video", "fal-ai/cogvideox-5b/video-to-video"],
+  "video-to-video": [
+    "fal-ai/kling-video/v2.1/standard/video-to-video",
+    "fal-ai/kling-video/v1.6/standard/video-to-video",
+    "fal-ai/wan/v2.1/video-to-video",
+    "fal-ai/animatediff-v2v",
+    "fal-ai/cogvideox-5b/video-to-video",
+    "fal-ai/video-to-video",
+    // 畫質優化（fallback 對 enhance 類別共用同一池；同類別內降級）
+    "fal-ai/topaz/video-enhance",
+    "fal-ai/bytedance/upscaler/video",
+    "fal-ai/topaz-upscale-video",
+    "fal-ai/stable-video-upscaler",
+    "fal-ai/rife-v4.6/video",
+    // 進階控制：v2v 變體
+    "fal-ai/depthcrafter",
+  ],
   training: ["fal-ai/flux-lora-fast-training"],
   llm: ["fal-ai/any-llm"],
   json: ["fal-ai/any-llm"],
@@ -916,6 +976,34 @@ export async function dispatchFalQueueTask(
       originalModel = targetModelId;
       targetModelId = fallback;
       degraded = true;
+    }
+  }
+
+  // ── Step 1.5: ultra tier 影片模型 preflight 健康探測 ──
+  // Sora / Veo3 / Topaz / Runway G4 / Kling V2.1 Pro 等高成本模型，
+  // 首次選用前同步驗證一次，避免使用者掛 5–10 分鐘才發現模型壞掉。
+  const pricing = getModelPricing(targetModelId);
+  const isVideoCategory =
+    resolvedCategory === "text-to-video" ||
+    resolvedCategory === "image-to-video" ||
+    resolvedCategory === "video-to-video";
+  if (isVideoCategory && pricing?.tier === "ultra") {
+    const { preflightHealthStatus } = await import(
+      "../middleware/brainContext"
+    );
+    const healthy = await preflightHealthStatus(targetModelId, 3000);
+    if (!healthy) {
+      const altFallback = (FALLBACK_CHAINS[resolvedCategory!] ?? []).find(
+        id => id !== targetModelId
+      );
+      if (altFallback) {
+        console.warn(
+          `[FalDispatcher] Preflight failed for ultra-tier ${targetModelId}; degrading to ${altFallback}`
+        );
+        if (!originalModel) originalModel = targetModelId;
+        targetModelId = altFallback;
+        degraded = true;
+      }
     }
   }
 

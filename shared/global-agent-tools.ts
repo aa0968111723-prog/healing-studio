@@ -97,9 +97,43 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     allowedArgsSchema: {
       prompt: "string",
       modelId: "string?",
+      // i2v：起始幀（並可給結束幀）
       image_url: "string?",
+      end_image_url: "string?",
+      // v2v：來源影片 + 風格化強度
+      video_url: "string?",
+      strength: "number?",
+      cfg_scale: "number?",
+      // 通用
       duration: "number?",
       aspect_ratio: "string?",
+      negative_prompt: "string?",
+      seed: "number?",
+      num_frames: "number?",
+      fps: "number?",
+      width: "number?",
+      height: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  {
+    // 影片畫質優化：upscale / interpolate / enhance 三種操作走同一工具
+    name: "studio.enhanceVideo",
+    riskLevel: "medium",
+    requiresHuman: true,
+    allowedArgsSchema: {
+      video_url: "string",
+      operation: "string", // "upscale" | "interpolate" | "enhance"
+      modelId: "string?",
+      // 共用
+      output_scale: "number?",
+      // upscale
+      upscale_factor: "number?",
+      // interpolate
+      multiplier: "number?",
+      output_fps: "number?",
+      // topaz
+      topaz_model: "string?", // iris / artemis / theia / gaia / nyx
     },
     executionTarget: "server-side",
   },

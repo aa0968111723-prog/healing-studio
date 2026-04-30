@@ -2974,7 +2974,8 @@ ${segmentSummaries}
         voiceText: z.string().optional(),
         params: z.record(z.string(), z.unknown()),
         mode: z.enum(["lightning", "deep_precision"]).default("lightning"),
-        firstFrameUrl: z.string().optional(), // For video with image dependency
+        firstFrameUrl: z.string().optional(), // For video with image dependency (i2v)
+        sourceVideoUrl: z.string().optional(), // For v2v / enhance pipeline (來源影片)
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -3046,7 +3047,11 @@ ${segmentSummaries}
           falInput.prompt = input.prompt;
         } else if (input.modality === "video") {
           falInput.prompt = input.prompt;
-          if (input.firstFrameUrl) {
+          // 三段影片管線：v2v / enhance 看 sourceVideoUrl，i2v 看 firstFrameUrl，
+          // 純 t2v 不帶任何 URL。
+          if (input.sourceVideoUrl) {
+            falInput.video_url = input.sourceVideoUrl;
+          } else if (input.firstFrameUrl) {
             falInput.image_url = input.firstFrameUrl;
           }
         } else if (input.modality === "audio") {

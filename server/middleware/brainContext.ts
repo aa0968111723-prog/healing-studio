@@ -17,6 +17,8 @@
 import { eq } from "drizzle-orm";
 import { userAiBrain, type UserAiBrain } from "../../drizzle/schema";
 import { getDb } from "../db";
+import { FALLBACK_CHAINS as DISPATCHER_FALLBACK_CHAINS } from "../services/falDispatcher";
+import { getModelPricing } from "../services/modelPricing";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
@@ -270,6 +272,38 @@ export function getHealthStatus(modelOrEngine: string): boolean {
   // 快取過期或不存在 — 背景更新，樂觀返回上次狀態或 true
   scheduleHealthCheck(modelOrEngine);
   return cached?.healthy ?? true;
+}
+
+/**
+ * 同步版健康探測（preflight）—— 用於高成本模型（Sora、Veo3、Topaz、Kling Pro 等
+ * ultra tier）首次選用前的「先驗證再扣點」場景。
+ *
+ * 與 getHealthStatus 的差異：
+ *   - 快取命中時行為相同（即時返回）
+ *   - 快取未命中時 **等待** scheduleHealthCheck 完成，最長 timeoutMs（預設 3 秒）
+ *   - 超時則樂觀回 true（避免阻塞太久），讓上游選擇是否繼續
+ *
+ * 設計原則：能用 getHealthStatus 就用，preflight 只給高成本路徑使用。
+ */
+export async function preflightHealthStatus(
+  modelOrEngine: string,
+  timeoutMs = 3000
+): Promise<boolean> {
+  const cached = healthCache.get(modelOrEngine);
+  const now = Date.now();
+  if (cached && now - cached.checkedAt < HEALTH_CACHE_TTL_MS) {
+    return cached.healthy;
+  }
+  // 觸發背景探測並等待結果（最多 timeoutMs）
+  scheduleHealthCheck(modelOrEngine);
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const fresh = healthCache.get(modelOrEngine);
+    if (fresh && fresh.checkedAt >= start) return fresh.healthy;
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  // 超時 — 樂觀回 true，但上游可決定是否要 abort
+  return true;
 }
 
 /**
@@ -585,7 +619,19 @@ function findFallback(
   const isHealthy = getHealthStatus(currentModel);
   if (isHealthy) return null; // 不需要降級
 
-  const chain = ENGINE_FALLBACK_CHAIN[currentModel] ?? [];
+  // 解析 fallback 候選清單：先看 per-model 覆寫，缺則退到 dispatcher
+  // 的 per-category 名單（共用同一份 SSOT，避免兩處策略分叉）。
+  const perModelChain = ENGINE_FALLBACK_CHAIN[currentModel] ?? [];
+  const category = getModelPricing(currentModel)?.category;
+  const categoryChain = category
+    ? (DISPATCHER_FALLBACK_CHAINS[category] ?? []).filter(
+        id => id !== currentModel
+      )
+    : [];
+  // per-model 優先（更精確），補入 category 名單去重
+  const chain = perModelChain.length > 0
+    ? Array.from(new Set([...perModelChain, ...categoryChain]))
+    : categoryChain;
 
   // 嘗試 fallback chain
   for (const candidate of chain) {

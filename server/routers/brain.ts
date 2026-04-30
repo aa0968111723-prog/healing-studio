@@ -231,45 +231,184 @@ export const GENERATION_ENGINE_CATALOG = {
   },
   videoEngine: {
     label: "影片工作室",
-    description: "AI 影片生成（對應 /video-studio）",
+    description: "AI 影片生成（對應 /video-studio，含 t2v / i2v / v2v）",
     targetPath: "/video-studio",
     options: [
-      // ── Fal.ai 文字轉影片 ──
+      // ── Fal.ai 文字轉影片（canonical IDs） ──
       {
-        value: "fal/kling-v2.1-pro-t2v",
-        label: "Kling V2.1 Pro ✦",
+        value: "fal-ai/kling-video/v2.1/pro/text-to-video",
+        label: "Kling V2.1 Pro t2v ✦",
         tier: "premium",
       },
-      // DEF-05 修正：移除 Kling v1.5（已確認 422 錯誤，答商已更新 API）
-      { value: "fal/minimax-t2v", label: "MiniMax Hailuo", tier: "standard" },
       {
-        value: "fal/luma-dream-machine-t2v",
-        label: "Luma Dream Machine",
+        value: "fal-ai/kling-video/v2.1/standard/text-to-video",
+        label: "Kling V2.1 Standard t2v",
         tier: "premium",
       },
-      { value: "fal/wan-t2v-v2.1", label: "WAN T2V 2.1", tier: "standard" },
       {
-        value: "fal/cogvideox-5b-t2v",
-        label: "CogVideoX 5B",
+        value: "fal-ai/minimax-video/text-to-video",
+        label: "MiniMax Hailuo t2v",
         tier: "standard",
       },
-      // ── Fal.ai 圖片轉影片 ──
       {
-        value: "fal/kling-v2.1-pro-i2v",
-        label: "Kling V2.1 i2v ✦",
+        value: "fal-ai/minimax/hailuo-02/pro/text-to-video",
+        label: "MiniMax Hailuo 02 Pro t2v",
         tier: "premium",
       },
       {
-        value: "fal/runway-gen3-i2v",
+        value: "fal-ai/luma-dream-machine",
+        label: "Luma Dream Machine t2v",
+        tier: "premium",
+      },
+      { value: "fal-ai/wan-t2v", label: "WAN T2V 2.1", tier: "standard" },
+      {
+        value: "fal-ai/wan-ai/wan2.1-t2v-720p",
+        label: "WAN 2.1 720p t2v",
+        tier: "standard",
+      },
+      {
+        value: "fal-ai/cogvideox-5b",
+        label: "CogVideoX 5B t2v",
+        tier: "standard",
+      },
+      {
+        value: "fal-ai/ltx-video-13b-distilled",
+        label: "LTX 13B Distilled t2v",
+        tier: "standard",
+      },
+      { value: "fal-ai/sora", label: "OpenAI Sora t2v", tier: "ultra" },
+      { value: "fal-ai/veo3", label: "Veo 3 (fal) t2v", tier: "ultra" },
+
+      // ── Fal.ai 圖片轉影片 ──
+      {
+        value: "fal-ai/kling-video/v2.1/pro/image-to-video",
+        label: "Kling V2.1 Pro i2v ✦",
+        tier: "ultra",
+      },
+      {
+        value: "fal-ai/kling-video/v2.1/standard/image-to-video",
+        label: "Kling V2.1 Standard i2v",
+        tier: "premium",
+      },
+      {
+        value: "fal-ai/runway-gen3/turbo/image-to-video",
         label: "Runway Gen3 Turbo i2v",
         tier: "premium",
       },
+      {
+        value: "fal-ai/runway-gen4-turbo/image-to-video",
+        label: "Runway Gen4 Turbo i2v",
+        tier: "ultra",
+      },
+      {
+        value: "fal-ai/minimax-video/image-to-video",
+        label: "MiniMax i2v",
+        tier: "standard",
+      },
+      {
+        value: "fal-ai/minimax/hailuo-02/pro/image-to-video",
+        label: "MiniMax Hailuo 02 Pro i2v",
+        tier: "premium",
+      },
+      {
+        value: "fal-ai/pixverse/v4.5/image-to-video",
+        label: "PixVerse V4.5 i2v",
+        tier: "standard",
+      },
+      {
+        value: "fal-ai/luma-dream-machine/image-to-video",
+        label: "Luma Dream Machine i2v",
+        tier: "premium",
+      },
+      { value: "fal-ai/wan-i2v", label: "WAN I2V 2.1", tier: "standard" },
+      {
+        value: "fal-ai/wan-ai/wan2.1-i2v-720p",
+        label: "WAN 2.1 720p i2v",
+        tier: "standard",
+      },
+      {
+        value: "fal-ai/ltx-video/image-to-video",
+        label: "LTX Video i2v",
+        tier: "standard",
+      },
+      {
+        value: "fal-ai/stable-video",
+        label: "Stable Video Diffusion",
+        tier: "standard",
+      },
+
+      // ── Fal.ai 影片轉影片（v2v） ──
+      {
+        value: "fal-ai/kling-video/v2.1/standard/video-to-video",
+        label: "Kling V2.1 V2V",
+        tier: "ultra",
+      },
+      {
+        value: "fal-ai/kling-video/v1.6/standard/video-to-video",
+        label: "Kling V1.6 V2V",
+        tier: "premium",
+      },
+      {
+        value: "fal-ai/wan/v2.1/video-to-video",
+        label: "WAN 2.1 V2V",
+        tier: "standard",
+      },
+      {
+        value: "fal-ai/wan-ai/wan2.1-v2v-480p",
+        label: "WAN 2.1 480p V2V",
+        tier: "standard",
+      },
+      {
+        value: "fal-ai/cogvideox-5b/video-to-video",
+        label: "CogVideoX V2V",
+        tier: "standard",
+      },
+      {
+        value: "fal-ai/animatediff-v2v",
+        label: "AnimateDiff V2V (進階控制)",
+        tier: "standard",
+      },
+
+      // ── Fal.ai 畫質優化（enhance） ──
+      {
+        value: "fal-ai/bytedance/upscaler/video",
+        label: "ByteDance 影片超解析",
+        tier: "premium",
+      },
+      {
+        value: "fal-ai/rife-v4.6/video",
+        label: "RIFE 補幀",
+        tier: "standard",
+      },
+      {
+        value: "fal-ai/topaz/video-enhance",
+        label: "Topaz Video Enhance",
+        tier: "ultra",
+      },
+
+      // ── Fal.ai 進階控制（control） ──
+      {
+        value: "fal-ai/cammaster",
+        label: "CamMaster 鏡頭運動控制",
+        tier: "premium",
+      },
+      {
+        value: "fal-ai/depthcrafter",
+        label: "DepthCrafter 深度感知",
+        tier: "standard",
+      },
+      {
+        value: "fal-ai/vidu/q1/reference-to-video",
+        label: "Vidu Q1 Reference-to-Video",
+        tier: "premium",
+      },
+
       // ── Gemini Veo ──
       { value: "gemini/veo-2", label: "Veo 2 (Gemini) 🔵", tier: "premium" },
       {
         value: "gemini/veo-3",
         label: "Veo 3 Preview (Gemini) 🔵",
-        tier: "premium",
+        tier: "ultra",
       },
     ],
   },
