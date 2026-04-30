@@ -298,6 +298,132 @@ export function buildScriptOnlyWorkflow(brief: string): RunWorkflowAction {
   };
 }
 
+/**
+ * Infer a sensible chapter count for a long-video workflow. Caps at 6 so the
+ * workflow stays under ~30 steps.
+ *
+ * - explicit "N 章" / "N 章節" → N (clamped 2..6)
+ * - X 分鐘 → 2 / 3 / 4 / 5 / 6 chapters by length tier
+ * - fallback → 3
+ */
+export function inferLongVideoChapters(text: string): number {
+  const chapterMatch = text.match(/(\d+)\s*章/);
+  if (chapterMatch) {
+    return Math.max(2, Math.min(6, Number.parseInt(chapterMatch[1], 10)));
+  }
+  const minutesMatch = text.match(/(\d+)\s*分(?!之|秒)/);
+  if (minutesMatch) {
+    const minutes = Number.parseInt(minutesMatch[1], 10);
+    if (minutes <= 1) return 2;
+    if (minutes <= 3) return 3;
+    if (minutes <= 5) return 4;
+    if (minutes <= 10) return 5;
+    return 6;
+  }
+  return 3;
+}
+
+export interface LongVideoWorkflowOptions {
+  chapters?: number;
+}
+
+export function buildLongVideoWorkflow(
+  brief: string,
+  options: LongVideoWorkflowOptions = {}
+): RunWorkflowAction {
+  const trimmedBrief = brief.trim();
+  const chapters = Math.max(
+    2,
+    Math.min(6, options.chapters ?? inferLongVideoChapters(trimmedBrief || ""))
+  );
+  const basePrompt =
+    trimmedBrief || `${chapters} 章節長片，主題待定，請依使用者描述展開`;
+
+  const steps: AgentWorkflowStep[] = [
+    {
+      path: "/director",
+      actionType: "fillPrompt",
+      payload:
+        `請把這個需求拆成 ${chapters} 個章節的長片企劃，每章包含：` +
+        `主題、核心訊息、視覺方向、節奏、配樂氛圍、旁白要點，` +
+        `章節之間要能自然銜接：${basePrompt}`,
+      label: `導演 AI：產生 ${chapters} 章節長片企劃`,
+    },
+  ];
+
+  for (let i = 1; i <= chapters; i += 1) {
+    steps.push(
+      {
+        path: "/image-studio",
+        actionType: "fillPrompt",
+        payload: `第 ${i} 章關鍵視覺（請延續導演 AI 該章主題與情緒方向）：${basePrompt}`,
+        label: `第 ${i} 章：填入關鍵視覺提示詞`,
+      },
+      {
+        path: "/image-studio",
+        actionType: "submit",
+        payload: "",
+        label: `第 ${i} 章：生成關鍵視覺`,
+      },
+      {
+        path: "/video-studio",
+        actionType: "fillPrompt",
+        payload:
+          `第 ${i} 章運鏡（鏡頭移動、節奏、光感，與第 ${i} 章主題對齊）：${basePrompt}`,
+        label: `第 ${i} 章：填入影片提示詞`,
+      },
+      {
+        path: "/video-studio",
+        actionType: "submit",
+        payload: "",
+        label: `第 ${i} 章：生成影片`,
+      }
+    );
+  }
+
+  steps.push(
+    {
+      path: "/pro-studio",
+      actionType: "setTab",
+      payload: "music",
+      label: "音樂配音創作室：切換到音樂分頁",
+    },
+    {
+      path: "/pro-studio",
+      actionType: "fillPrompt",
+      payload:
+        `請為這支 ${chapters} 章節長片做一段連貫的背景音樂，` +
+        `情緒隨章節推進變化、整體保持一致風格：${basePrompt}`,
+      label: "全片配樂：填入音樂提示詞",
+    },
+    {
+      path: "/pro-studio",
+      actionType: "submit",
+      payload: "",
+      label: "全片配樂：生成音樂",
+    },
+    {
+      path: "/pro-studio",
+      actionType: "setTab",
+      payload: "tts",
+      label: "音樂配音創作室：切換到語音合成",
+    },
+    {
+      path: "/pro-studio",
+      actionType: "fillPrompt",
+      payload:
+        `請依 ${chapters} 章節結構生成旁白稿，每章一段、節奏與章節對齊：${basePrompt}`,
+      label: "全片旁白：填入旁白稿",
+    }
+  );
+
+  return {
+    type: "runWorkflow",
+    name: `${chapters} 章節長片生成流程`,
+    steps,
+  };
+}
+
 export type VideoIntentDetection =
   | { kind: "none" }
   | { kind: "ready"; workflow: RunWorkflowAction }
@@ -305,7 +431,17 @@ export type VideoIntentDetection =
 
 export type CreationIntentDetection = VideoIntentDetection;
 
-const VIDEO_KEYWORDS = ["短片", "影片", "video", "reel", "mv", "廣告"];
+const VIDEO_KEYWORDS = [
+  "短片",
+  "影片",
+  "長片",
+  "長影片",
+  "長視頻",
+  "video",
+  "reel",
+  "mv",
+  "廣告",
+];
 const IMAGE_KEYWORDS = ["圖片", "圖像", "海報", "插畫", "封面", "image", "picture", "illustration", "poster"];
 const MUSIC_KEYWORDS = ["音樂", "配樂", "背景音樂", "歌曲", "歌", "曲子", "旋律", "music", "song", "bgm"];
 const VOICE_KEYWORDS = ["旁白", "配音", "語音", "tts", "voice", "narration", "narrator"];
@@ -379,15 +515,18 @@ export function detectVideoIntent(text: string): VideoIntentDetection {
   const hasSubject = trimmed.length >= 25 || SUBJECT_HINT_RE.test(trimmed);
 
   if (wantsLong && !isShortHint) {
+    if (hasSubject) {
+      return { kind: "ready", workflow: buildLongVideoWorkflow(trimmed) };
+    }
     return {
       kind: "needs-clarification",
       message:
-        "你想做的是長影片，但我目前的自動流程預設是 30 秒短片。先聊清楚你想要的長度與內容方向，我再幫你規劃合適的步驟。",
+        "長影片我可以幫你拼成多章節流程，先告訴我主題或想表達的核心訊息，我再幫你展開章節步驟。",
       options: [
+        "1–3 分鐘的中片（3 章節）",
+        "5 分鐘的長片（4 章節）",
+        "10 分鐘以上的深度長片（5–6 章節）",
         "改做 30 秒短片就好",
-        "1–3 分鐘的中片（請先告訴我主題）",
-        "5 分鐘以上的長片（請先告訴我章節結構）",
-        "我自己來，先帶我去 /director",
       ],
     };
   }

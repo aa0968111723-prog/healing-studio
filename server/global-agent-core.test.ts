@@ -13,6 +13,7 @@ import { adaptAgentPlanToActions, type AgentAction, type PageAgentSnapshot } fro
 import { GlobalAgentRegistry, globalAgentRegistry } from "../shared/global-agent-registry";
 import {
   buildImageWorkflow,
+  buildLongVideoWorkflow,
   buildMusicWorkflow,
   buildScriptOnlyWorkflow,
   buildSfxWorkflow,
@@ -21,6 +22,7 @@ import {
   detectCreationIntent,
   detectVideoIntent,
   expandWorkflowAction,
+  inferLongVideoChapters,
   maybeCreateWorkflowFromUserText,
   workflowStepToAction,
 } from "../shared/global-agent-workflows";
@@ -291,6 +293,53 @@ describe("global-agent-workflows", () => {
       for (const step of workflow.steps) {
         expect(hasCapabilityForPage(step.path, step.actionType)).toBe(true);
       }
+    }
+  });
+
+  it("inferLongVideoChapters scales with explicit minutes", () => {
+    expect(inferLongVideoChapters("我想做 1 分鐘長片，主題：森林")).toBe(2);
+    expect(inferLongVideoChapters("我想做 3 分鐘長片，主題：森林")).toBe(3);
+    expect(inferLongVideoChapters("我想做 5 分鐘長片，主題：森林")).toBe(4);
+    expect(inferLongVideoChapters("我想做 10 分鐘長片，主題：森林")).toBe(5);
+    expect(inferLongVideoChapters("我想做 30 分鐘長片，主題：森林")).toBe(6);
+  });
+
+  it("inferLongVideoChapters honours explicit chapter counts", () => {
+    expect(inferLongVideoChapters("做一支 4 章節長片")).toBe(4);
+    expect(inferLongVideoChapters("做一支 99 章長片")).toBe(6); // capped
+    expect(inferLongVideoChapters("做一支 1 章長片")).toBe(2); // floor
+  });
+
+  it("buildLongVideoWorkflow scales steps with chapter count", () => {
+    const w3 = buildLongVideoWorkflow("療癒森林品牌故事", { chapters: 3 });
+    const w5 = buildLongVideoWorkflow("療癒森林品牌故事", { chapters: 5 });
+    expect(w3.steps.length).toBeLessThan(w5.steps.length);
+    expect(w3.name).toContain("3 章節");
+    expect(w5.name).toContain("5 章節");
+  });
+
+  it("buildLongVideoWorkflow only uses actions that pass the capability gate", () => {
+    const workflow = buildLongVideoWorkflow("療癒森林品牌故事", { chapters: 4 });
+    for (const step of workflow.steps) {
+      expect(hasCapabilityForPage(step.path, step.actionType)).toBe(true);
+    }
+  });
+
+  it("detectVideoIntent returns a long workflow when long+subject are explicit", () => {
+    const detection = detectVideoIntent(
+      "我想做 5 分鐘的長片，主題：療癒森林品牌故事"
+    );
+    expect(detection.kind).toBe("ready");
+    if (detection.kind === "ready") {
+      expect(detection.workflow.name).toContain("章節長片");
+    }
+  });
+
+  it("detectVideoIntent still asks when long is mentioned without subject", () => {
+    const detection = detectVideoIntent("我想做一個長影片你可以幫我做嗎？");
+    expect(detection.kind).toBe("needs-clarification");
+    if (detection.kind === "needs-clarification") {
+      expect(detection.message).toContain("主題");
     }
   });
 
