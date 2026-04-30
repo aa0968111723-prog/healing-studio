@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { User, Lock, ArrowLeft, CheckCircle2, Shield, Monitor } from "lucide-react";
+import TwoFactorSettings from "@/components/TwoFactorSettings";
 
 export default function AccountSettingsPage() {
   const [user, setUser] = useState<{
@@ -378,6 +379,10 @@ export default function AccountSettingsPage() {
                     {passwordLoading ? "更新中..." : "更新密碼"}
                   </Button>
                 </form>
+
+                <div className="pt-4 mt-4 border-t border-border/40">
+                  <TwoFactorSettings />
+                </div>
               </TabsContent>
 
               <TabsContent value="activity" className="space-y-4 mt-6">

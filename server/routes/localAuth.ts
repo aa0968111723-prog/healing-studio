@@ -43,6 +43,11 @@ const registerSchema = z.object({
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1).max(128),
+  totpToken: z.string().regex(/^\d{6}$/).optional(),
+});
+
+const twoFactorTokenSchema = z.object({
+  token: z.string().regex(/^\d{6}$/),
 });
 
 function isStrongPassword(password: string): boolean {
@@ -180,7 +185,17 @@ export function createLocalAuthRouter(
       const result = await deps.facade.loginWithPassword({
         email,
         password: parsed.data.password,
+        totpToken: parsed.data.totpToken,
       });
+
+      // 2FA gate: password OK but TOTP code is required to finish login.
+      if ("requiresTwoFactor" in result) {
+        res.status(200).json({
+          success: false,
+          requiresTwoFactor: true,
+        });
+        return;
+      }
 
       // Record successful login — fire-and-forget so any DB hiccup never
       // blocks the login response or prevents the session cookie from being set.
@@ -204,6 +219,10 @@ export function createLocalAuthRouter(
         user: result.user,
       });
     } catch (error) {
+      if (error instanceof Error && error.message === "INVALID_2FA_CODE") {
+        res.status(401).json({ error: "Invalid 2FA code", requiresTwoFactor: true });
+        return;
+      }
       if (error instanceof Error && error.message === "INVALID_CREDENTIALS") {
         // Try to get userId from email for failed attempt logging
         try {
@@ -242,6 +261,87 @@ export function createLocalAuthRouter(
       };
     };
     res.json({ user: authReq.user ?? authReq.auth ?? null });
+  });
+
+  // ── 2FA management (all require an authenticated session) ───────────────────
+  type AuthedReq = Request & {
+    user?: { id: number; openId: string; email: string | null };
+  };
+
+  router.get("/api/auth/2fa/status", verifyToken, async (req: AuthedReq, res: Response) => {
+    if (!req.user) { res.status(401).json({ error: "Unauthorized" }); return; }
+    try {
+      const status = await deps.facade.getTwoFactorStatus(req.user.id);
+      res.json(status);
+    } catch (err) {
+      logger.error("[LocalAuth] 2fa status failed", { err });
+      res.status(500).json({ error: "Failed to load 2FA status" });
+    }
+  });
+
+  router.post("/api/auth/2fa/setup", verifyToken, async (req: AuthedReq, res: Response) => {
+    if (!req.user) { res.status(401).json({ error: "Unauthorized" }); return; }
+    try {
+      const result = await deps.facade.beginTwoFactorSetup(req.user.id);
+      res.json(result);
+    } catch (err) {
+      logger.error("[LocalAuth] 2fa setup failed", { err });
+      res.status(500).json({ error: "Failed to start 2FA setup" });
+    }
+  });
+
+  router.post("/api/auth/2fa/verify", verifyToken, async (req: AuthedReq, res: Response) => {
+    if (!req.user) { res.status(401).json({ error: "Unauthorized" }); return; }
+    const parsed = twoFactorTokenSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid 2FA code format" });
+      return;
+    }
+    try {
+      await deps.facade.confirmTwoFactor({
+        userId: req.user.id,
+        token: parsed.data.token,
+      });
+      res.json({ success: true });
+    } catch (err) {
+      if (err instanceof Error && err.message === "INVALID_2FA_CODE") {
+        res.status(401).json({ error: "Invalid 2FA code" });
+        return;
+      }
+      if (err instanceof Error && err.message === "TWO_FACTOR_NOT_INITIALIZED") {
+        res.status(400).json({ error: "Run /api/auth/2fa/setup first" });
+        return;
+      }
+      logger.error("[LocalAuth] 2fa verify failed", { err });
+      res.status(500).json({ error: "Failed to verify 2FA" });
+    }
+  });
+
+  router.post("/api/auth/2fa/disable", verifyToken, async (req: AuthedReq, res: Response) => {
+    if (!req.user) { res.status(401).json({ error: "Unauthorized" }); return; }
+    const parsed = twoFactorTokenSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid 2FA code format" });
+      return;
+    }
+    try {
+      await deps.facade.disableTwoFactor({
+        userId: req.user.id,
+        token: parsed.data.token,
+      });
+      res.json({ success: true });
+    } catch (err) {
+      if (err instanceof Error && err.message === "INVALID_2FA_CODE") {
+        res.status(401).json({ error: "Invalid 2FA code" });
+        return;
+      }
+      if (err instanceof Error && err.message === "TWO_FACTOR_NOT_ENABLED") {
+        res.status(400).json({ error: "2FA is not enabled" });
+        return;
+      }
+      logger.error("[LocalAuth] 2fa disable failed", { err });
+      res.status(500).json({ error: "Failed to disable 2FA" });
+    }
   });
 
   return router;

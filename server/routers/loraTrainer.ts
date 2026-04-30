@@ -301,20 +301,41 @@ export const loraTrainerRouter = router({
           const { getReplicateClient } =
             await import("../services/replicateClient.js");
           const replicate = getReplicateClient();
-          const prediction = (await replicate.predictions.get(
-            predictionId
-          )) as unknown as Record<string, unknown>;
-          replicateInfo = {
-            id: prediction.id,
-            status: prediction.status,
-            createdAt: prediction.created_at,
-            startedAt: prediction.started_at,
-            completedAt: prediction.completed_at,
-            model: prediction.model,
-            version: prediction.version,
-            metrics: prediction.metrics,
-            error: prediction.error,
-          };
+          // LoRA fine-tunes go through Replicate's trainings API. Use it
+          // first; fall back to predictions for legacy records.
+          let info: Record<string, unknown> | null = null;
+          try {
+            const training = (await replicate.trainings.get(
+              predictionId
+            )) as unknown as Record<string, unknown>;
+            info = {
+              id: training.id,
+              status: training.status,
+              createdAt: training.created_at,
+              startedAt: training.started_at,
+              completedAt: training.completed_at,
+              model: training.model,
+              version: training.version,
+              metrics: training.metrics,
+              error: training.error,
+            };
+          } catch {
+            const prediction = (await replicate.predictions.get(
+              predictionId
+            )) as unknown as Record<string, unknown>;
+            info = {
+              id: prediction.id,
+              status: prediction.status,
+              createdAt: prediction.created_at,
+              startedAt: prediction.started_at,
+              completedAt: prediction.completed_at,
+              model: prediction.model,
+              version: prediction.version,
+              metrics: prediction.metrics,
+              error: prediction.error,
+            };
+          }
+          replicateInfo = info;
         } catch {
           // Silently fail — will show null
         }

@@ -23,6 +23,10 @@ export const users = mysqlTable(
     email: varchar("email", { length: 320 }),
     loginMethod: varchar("loginMethod", { length: 64 }),
     passwordHash: varchar("passwordHash", { length: 255 }),
+    /** Base32-encoded TOTP secret (RFC 6238). Null when 2FA is not configured. */
+    twoFactorSecret: varchar("twoFactorSecret", { length: 64 }),
+    /** Whether 2FA verification is required at login. */
+    twoFactorEnabled: boolean("twoFactorEnabled").default(false).notNull(),
     emailVerified: boolean("emailVerified").default(false).notNull(),
     emailVerifiedAt: timestamp("emailVerifiedAt"),
     role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),

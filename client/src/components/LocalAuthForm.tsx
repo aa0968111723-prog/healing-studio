@@ -27,10 +27,15 @@ async function postAuth<T>(
 
   const data = (await response.json().catch(() => ({}))) as {
     error?: string;
+    requiresTwoFactor?: boolean;
   };
 
   if (!response.ok) {
-    throw new Error(data.error || "登入失敗，請稍後再試");
+    const err = new Error(data.error || "登入失敗，請稍後再試") as Error & {
+      requiresTwoFactor?: boolean;
+    };
+    err.requiresTwoFactor = data.requiresTwoFactor;
+    throw err;
   }
 
   return data as T;
@@ -52,6 +57,10 @@ export default function LocalAuthForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // 2FA challenge state — populated when the server signals requiresTwoFactor
+  const [twoFactorRequired, setTwoFactorRequired] = useState(false);
+  const [totpToken, setTotpToken] = useState("");
 
   const [googleConfigured, setGoogleConfigured] = useState(false);
 
@@ -103,10 +112,24 @@ export default function LocalAuthForm({
         if (!normalizedEmail.includes("@")) {
           throw new Error("請輸入有效的 Email");
         }
-        await postAuth("/api/auth/login", {
+        const payload: Record<string, string> = {
           email: normalizedEmail,
           password: loginPassword,
-        });
+        };
+        if (twoFactorRequired && totpToken) {
+          payload.totpToken = totpToken;
+        }
+        const result = await postAuth<{
+          success?: boolean;
+          requiresTwoFactor?: boolean;
+        }>("/api/auth/login", payload);
+
+        // Server returned 200 with success=false → 2FA challenge required.
+        if (result.requiresTwoFactor && !result.success) {
+          setTwoFactorRequired(true);
+          setLoading(false);
+          return;
+        }
         setSuccess("登入成功，正在跳轉...");
       }
 
@@ -115,7 +138,13 @@ export default function LocalAuthForm({
         redirectTo || `${window.location.pathname}${window.location.search}`;
       window.location.assign(target);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "操作失敗");
+      const e = err as Error & { requiresTwoFactor?: boolean };
+      // INVALID_2FA_CODE comes back as 401 with requiresTwoFactor=true; keep
+      // the form in 2FA mode and just surface the error.
+      if (e.requiresTwoFactor) {
+        setTwoFactorRequired(true);
+      }
+      setError(e.message || "操作失敗");
     } finally {
       setLoading(false);
     }
@@ -169,6 +198,30 @@ export default function LocalAuthForm({
               忘記密碼？
             </a>
           </div>
+
+          {twoFactorRequired && (
+            <div className="space-y-2 rounded-md border border-primary/30 bg-primary/5 p-3">
+              <p className="text-xs font-medium text-foreground">
+                兩步驟驗證碼
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                請打開驗證器 App，輸入 6 位數動態碼。
+              </p>
+              <Input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                placeholder="000000"
+                value={totpToken}
+                onChange={e =>
+                  setTotpToken(e.target.value.replace(/\D/g, "").slice(0, 6))
+                }
+                disabled={loading}
+                className="tracking-[0.5em] text-center text-base"
+              />
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="register" className="space-y-3 mt-3">
@@ -227,7 +280,10 @@ export default function LocalAuthForm({
         type="submit"
         disabled={
           loading ||
-          (mode === "login" && (!loginEmail || !loginPassword)) ||
+          (mode === "login" &&
+            (!loginEmail ||
+              !loginPassword ||
+              (twoFactorRequired && totpToken.length !== 6))) ||
           (mode === "register" &&
             (!registerEmail ||
               !registerPassword ||
@@ -236,7 +292,13 @@ export default function LocalAuthForm({
         }
         className="w-full mt-3"
       >
-        {loading ? "處理中..." : mode === "register" ? "建立帳號" : "登入"}
+        {loading
+          ? "處理中..."
+          : mode === "register"
+            ? "建立帳號"
+            : twoFactorRequired
+              ? "驗證並登入"
+              : "登入"}
       </Button>
     </form>
   );

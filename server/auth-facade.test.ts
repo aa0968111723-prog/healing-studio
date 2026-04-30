@@ -33,6 +33,7 @@ function baseRepo() {
     updateLastSignedIn: vi.fn().mockResolvedValue(undefined),
     findById: vi.fn().mockResolvedValue(null),
     updateUserName: vi.fn().mockResolvedValue(undefined),
+    setTwoFactorSecret: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -178,5 +179,121 @@ describe("AuthFacade.loginWithPassword", () => {
       facade.loginWithPassword({ email: "u@example.com", password: "WrongPass1!" })
     ).rejects.toThrow("INVALID_CREDENTIALS");
     expect(repo.updateLastSignedIn).not.toHaveBeenCalled();
+  });
+
+  it("returns requiresTwoFactor when 2FA is enabled and no token is supplied", async () => {
+    const user = {
+      id: 9,
+      openId: "local:tfa@example.com",
+      name: "T",
+      email: "tfa@example.com",
+      role: "user" as const,
+      loginMethod: "local",
+      passwordHash: "scrypt$x$y",
+      remainingGenerations: 50,
+      twoFactorEnabled: true,
+      twoFactorSecret: "JBSWY3DPEHPK3PXP",
+    };
+    const repo = makeRepo({ findByEmail: vi.fn().mockResolvedValue(user) });
+    const facade = new AuthFacade({
+      repo: repo as any,
+      hasherFactory: mockHasherFactory,
+      tokenIssuer: mockTokenIssuer,
+    });
+
+    const result = await facade.loginWithPassword({
+      email: "tfa@example.com",
+      password: "StrongP@ss1",
+    });
+
+    expect("requiresTwoFactor" in result && result.requiresTwoFactor).toBe(true);
+    expect(repo.updateLastSignedIn).not.toHaveBeenCalled();
+  });
+
+  it("rejects with INVALID_2FA_CODE when the TOTP token is wrong", async () => {
+    const user = {
+      id: 9,
+      openId: "local:tfa@example.com",
+      name: "T",
+      email: "tfa@example.com",
+      role: "user" as const,
+      loginMethod: "local",
+      passwordHash: "scrypt$x$y",
+      remainingGenerations: 50,
+      twoFactorEnabled: true,
+      twoFactorSecret: "JBSWY3DPEHPK3PXP",
+    };
+    const repo = makeRepo({ findByEmail: vi.fn().mockResolvedValue(user) });
+    const facade = new AuthFacade({
+      repo: repo as any,
+      hasherFactory: mockHasherFactory,
+      tokenIssuer: mockTokenIssuer,
+    });
+
+    await expect(
+      facade.loginWithPassword({
+        email: "tfa@example.com",
+        password: "StrongP@ss1",
+        totpToken: "000000", // overwhelmingly unlikely to match
+      })
+    ).rejects.toThrow("INVALID_2FA_CODE");
+  });
+});
+
+describe("AuthFacade 2FA setup/disable flow", () => {
+  it("beginTwoFactorSetup persists a fresh secret with enabled=false", async () => {
+    const user = {
+      id: 12,
+      openId: "local:s@example.com",
+      name: "S",
+      email: "s@example.com",
+      role: "user" as const,
+      loginMethod: "local",
+      passwordHash: "scrypt$x$y",
+      remainingGenerations: 50,
+      twoFactorEnabled: false,
+      twoFactorSecret: null,
+    };
+    const repo = makeRepo({ findById: vi.fn().mockResolvedValue(user) });
+    const facade = new AuthFacade({
+      repo: repo as any,
+      hasherFactory: mockHasherFactory,
+      tokenIssuer: mockTokenIssuer,
+    });
+
+    const result = await facade.beginTwoFactorSetup(12);
+
+    expect(result.secret).toMatch(/^[A-Z2-7]+$/);
+    expect(result.otpAuthUri.startsWith("otpauth://totp/")).toBe(true);
+    expect(repo.setTwoFactorSecret).toHaveBeenCalledWith({
+      userId: 12,
+      secret: result.secret,
+      enabled: false,
+    });
+  });
+
+  it("disableTwoFactor rejects when 2FA is not enabled", async () => {
+    const user = {
+      id: 13,
+      openId: "local:d@example.com",
+      name: "D",
+      email: "d@example.com",
+      role: "user" as const,
+      loginMethod: "local",
+      passwordHash: "scrypt$x$y",
+      remainingGenerations: 50,
+      twoFactorEnabled: false,
+      twoFactorSecret: null,
+    };
+    const repo = makeRepo({ findById: vi.fn().mockResolvedValue(user) });
+    const facade = new AuthFacade({
+      repo: repo as any,
+      hasherFactory: mockHasherFactory,
+      tokenIssuer: mockTokenIssuer,
+    });
+
+    await expect(
+      facade.disableTwoFactor({ userId: 13, token: "123456" })
+    ).rejects.toThrow("TWO_FACTOR_NOT_ENABLED");
   });
 });
