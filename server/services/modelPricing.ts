@@ -7,19 +7,27 @@
  *  2. 換算基準：1 USD ≈ 100 Points（方便理解，數字整）
  *  3. 每個模型的 pointCost 按真實 API 成本按比例計算
  *  4. 免費模型 = 1 Point（平台基礎運算成本）
- *  5. 超出範圍的參數（時長、解析度）按乘數額外計費
+ *  5. 超出範圍的參數（時長、字符、批次）按加乘額外計費
  *
- * 計費公式：
- *  totalPoints = baseCost × durationMultiplier × resolutionMultiplier × countMultiplier
+ * 計費公式（加法 baseline + 超量加收）：
+ *  totalPoints = basePoints
+ *              + max(0, durationSec − freeSecondsInBase) × pointsPerSecond
+ *              + ceil(charCount / 1000) × pointsPer1kChars
+ *              + max(0, imageCount − 1) × pointsPerImage
+ *              + trainingSteps × pointsPerStep
+ *  最後 clamp 到 [minPoints, maxPoints]。
  *
- * 參考真實成本（2025 Q2）：
+ *  - basePoints 已含 freeSecondsInBase 秒 baseline，不會再被同一段時長重複收費。
+ *  - 沒有 freeSecondsInBase 的條目視為 0（純加法）。
+ *
+ * 參考真實成本（2025 Q2，basePoints 對應 baseCostUsd × 100）：
  *  - Flux Pro 1.1 : ~$0.04/image  → 4 pts
- *  - Kling V2.1   : ~$0.49/5s    → 49 pts
- *  - ElevenLabs V3: ~$0.18/1kchar→ 18 pts/1k
+ *  - Kling V2.1 Std: ~$0.30/5s    → 30 pts (5s base)
+ *  - ElevenLabs V3: ~$0.18/1kchar → 18 pts/1k（catalog 採平台補貼價 4 pts/1k）
  *  - Gemini Imagen3: ~$0.04/image → 4 pts
- *  - Gemini Veo2   : ~$0.35/5s   → 35 pts
+ *  - Gemini Veo2   : ~$0.35/5s    → 35 pts (5s base)
  *  - Flux Schnell  : ~$0.003/image→ 1 pt  (min 1)
- *  - Whisper       : ~$0.006/min  → 1 pt/min
+ *  - Whisper       : ~$0.006/min  → 1 pt/min (60s base)
  */
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -72,6 +80,14 @@ export interface ModelPricing {
 
   /** 時長乘數（每秒） — 僅限影片/音頻模型 */
   pointsPerSecond?: number;
+
+  /**
+   * basePoints 已包含的時長 baseline（秒）。例如 Kling V2.1 Standard 的
+   * basePoints=30 對應「5 秒 baseline」，freeSecondsInBase=5，這樣
+   * estimatePoints 才不會把同樣 5 秒再用 pointsPerSecond 加一次（雙倍計費）。
+   * 沒設定（或設成 0）= 純加法，basePoints 是純啟動費。
+   */
+  freeSecondsInBase?: number;
 
   /** 每千字符點數 — 僅限 TTS/LLM */
   pointsPer1kChars?: number;
@@ -343,6 +359,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.49,
     unit: "每5秒",
     pointsPerSecond: 9.8,
+    freeSecondsInBase: 5,
     minPoints: 49,
     maxPoints: 500,
     requiresKey: true,
@@ -358,6 +375,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.3,
     unit: "每5秒",
     pointsPerSecond: 6,
+    freeSecondsInBase: 5,
     minPoints: 30,
     maxPoints: 350,
     requiresKey: true,
@@ -374,6 +392,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.3,
     unit: "每5秒",
     pointsPerSecond: 6,
+    freeSecondsInBase: 5,
     minPoints: 30,
     maxPoints: 350,
     requiresKey: true,
@@ -389,6 +408,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.2,
     unit: "每6秒",
     pointsPerSecond: 3.3,
+    freeSecondsInBase: 6,
     minPoints: 20,
     maxPoints: 200,
     requiresKey: true,
@@ -404,6 +424,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.3,
     unit: "每5秒",
     pointsPerSecond: 6,
+    freeSecondsInBase: 5,
     minPoints: 30,
     maxPoints: 300,
     requiresKey: true,
@@ -419,6 +440,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.15,
     unit: "每5秒",
     pointsPerSecond: 3,
+    freeSecondsInBase: 5,
     minPoints: 15,
     maxPoints: 150,
     requiresKey: true,
@@ -434,6 +456,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.15,
     unit: "每6秒",
     pointsPerSecond: 2.5,
+    freeSecondsInBase: 6,
     minPoints: 15,
     maxPoints: 150,
     requiresKey: true,
@@ -449,6 +472,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.35,
     unit: "每5秒",
     pointsPerSecond: 7,
+    freeSecondsInBase: 5,
     minPoints: 35,
     maxPoints: 350,
     requiresKey: true,
@@ -464,6 +488,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.5,
     unit: "每5秒",
     pointsPerSecond: 10,
+    freeSecondsInBase: 5,
     minPoints: 50,
     maxPoints: 500,
     requiresKey: true,
@@ -485,6 +510,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.55,
     unit: "每5秒",
     pointsPerSecond: 11,
+    freeSecondsInBase: 5,
     minPoints: 55,
     maxPoints: 550,
     requiresKey: true,
@@ -500,6 +526,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.35,
     unit: "每5秒",
     pointsPerSecond: 7,
+    freeSecondsInBase: 5,
     minPoints: 35,
     maxPoints: 350,
     requiresKey: true,
@@ -516,6 +543,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.35,
     unit: "每5秒",
     pointsPerSecond: 7,
+    freeSecondsInBase: 5,
     minPoints: 35,
     maxPoints: 400,
     requiresKey: true,
@@ -531,6 +559,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.4,
     unit: "每5秒",
     pointsPerSecond: 8,
+    freeSecondsInBase: 5,
     minPoints: 40,
     maxPoints: 400,
     requiresKey: true,
@@ -546,6 +575,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.15,
     unit: "每25幀",
     pointsPerSecond: 3,
+    freeSecondsInBase: 1, // 25幀 ≈ 1s baseline
     minPoints: 15,
     maxPoints: 150,
     requiresKey: true,
@@ -561,6 +591,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.22,
     unit: "每6秒",
     pointsPerSecond: 3.7,
+    freeSecondsInBase: 6,
     minPoints: 22,
     maxPoints: 220,
     requiresKey: true,
@@ -576,6 +607,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.32,
     unit: "每5秒",
     pointsPerSecond: 6.4,
+    freeSecondsInBase: 5,
     minPoints: 32,
     maxPoints: 320,
     requiresKey: true,
@@ -596,6 +628,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.05,
     unit: "每30秒",
     pointsPerSecond: 0.17,
+    freeSecondsInBase: 30,
     minPoints: 5,
     maxPoints: 60,
     requiresKey: true,
@@ -611,6 +644,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.03,
     unit: "每10秒",
     pointsPerSecond: 0.3,
+    freeSecondsInBase: 10,
     minPoints: 3,
     maxPoints: 30,
     requiresKey: true,
@@ -626,6 +660,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.04,
     unit: "每15秒",
     pointsPerSecond: 0.27,
+    freeSecondsInBase: 15,
     minPoints: 4,
     maxPoints: 40,
     requiresKey: true,
@@ -641,6 +676,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.08,
     unit: "每60秒",
     pointsPerSecond: 0.13,
+    freeSecondsInBase: 60,
     minPoints: 8,
     maxPoints: 80,
     requiresKey: true,
@@ -656,6 +692,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.03,
     unit: "每15秒",
     pointsPerSecond: 0.2,
+    freeSecondsInBase: 15,
     minPoints: 3,
     maxPoints: 30,
     requiresKey: true,
@@ -699,6 +736,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.08,
     unit: "每30秒",
     pointsPerSecond: 0.27,
+    freeSecondsInBase: 30,
     minPoints: 8,
     maxPoints: 80,
     requiresKey: true,
@@ -714,6 +752,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.1,
     unit: "每30秒",
     pointsPerSecond: 0.33,
+    freeSecondsInBase: 30,
     minPoints: 10,
     maxPoints: 100,
     requiresKey: true,
@@ -1083,6 +1122,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.08,
     unit: "每30秒影片",
     pointsPerSecond: 0.27,
+    freeSecondsInBase: 30,
     minPoints: 8,
     maxPoints: 80,
     requiresKey: true,
@@ -1098,6 +1138,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.15,
     unit: "每分鐘影片",
     pointsPerSecond: 0.25,
+    freeSecondsInBase: 60,
     minPoints: 15,
     maxPoints: 150,
     requiresKey: true,
@@ -1118,6 +1159,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.006,
     unit: "每分鐘音訊",
     pointsPerSecond: 0.017,
+    freeSecondsInBase: 60,
     minPoints: 1,
     maxPoints: 30,
     requiresKey: true,
@@ -1133,6 +1175,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.004,
     unit: "每分鐘音訊",
     pointsPerSecond: 0.01,
+    freeSecondsInBase: 60,
     minPoints: 1,
     maxPoints: 20,
     requiresKey: true,
@@ -1153,6 +1196,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.45,
     unit: "每5秒",
     pointsPerSecond: 9,
+    freeSecondsInBase: 5,
     minPoints: 45,
     maxPoints: 450,
     requiresKey: true,
@@ -1168,6 +1212,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.15,
     unit: "每5秒",
     pointsPerSecond: 3,
+    freeSecondsInBase: 5,
     minPoints: 15,
     maxPoints: 150,
     requiresKey: true,
@@ -1183,6 +1228,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.12,
     unit: "每5秒",
     pointsPerSecond: 2.4,
+    freeSecondsInBase: 5,
     minPoints: 12,
     maxPoints: 120,
     requiresKey: true,
@@ -1198,6 +1244,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.1,
     unit: "每分鐘影片",
     pointsPerSecond: 0.17,
+    freeSecondsInBase: 60,
     minPoints: 10,
     maxPoints: 100,
     requiresKey: true,
@@ -1213,6 +1260,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.15,
     unit: "每5秒",
     pointsPerSecond: 3,
+    freeSecondsInBase: 5,
     minPoints: 15,
     maxPoints: 150,
     requiresKey: true,
@@ -1228,6 +1276,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.2,
     unit: "每分鐘影片",
     pointsPerSecond: 0.33,
+    freeSecondsInBase: 60,
     minPoints: 20,
     maxPoints: 200,
     requiresKey: true,
@@ -1415,6 +1464,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.15,
     unit: "每5秒",
     pointsPerSecond: 3,
+    freeSecondsInBase: 5,
     minPoints: 15,
     maxPoints: 150,
     requiresKey: true,
@@ -1430,6 +1480,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.2,
     unit: "每5秒",
     pointsPerSecond: 4,
+    freeSecondsInBase: 5,
     minPoints: 20,
     maxPoints: 200,
     requiresKey: true,
@@ -1445,6 +1496,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.2,
     unit: "每6秒",
     pointsPerSecond: 3.3,
+    freeSecondsInBase: 6,
     minPoints: 20,
     maxPoints: 200,
     requiresKey: true,
@@ -1460,6 +1512,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.2,
     unit: "每6秒",
     pointsPerSecond: 3.3,
+    freeSecondsInBase: 6,
     minPoints: 20,
     maxPoints: 200,
     requiresKey: true,
@@ -1771,6 +1824,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.3,
     unit: "每5秒",
     pointsPerSecond: 6,
+    freeSecondsInBase: 5,
     minPoints: 30,
     maxPoints: 300,
     requiresKey: true,
@@ -1786,6 +1840,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.4,
     unit: "每5秒",
     pointsPerSecond: 8,
+    freeSecondsInBase: 5,
     minPoints: 40,
     maxPoints: 400,
     requiresKey: true,
@@ -1801,6 +1856,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.55,
     unit: "每5秒",
     pointsPerSecond: 11,
+    freeSecondsInBase: 5,
     minPoints: 55,
     maxPoints: 550,
     requiresKey: true,
@@ -1817,6 +1873,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.1,
     unit: "每30秒",
     pointsPerSecond: 0.33,
+    freeSecondsInBase: 30,
     minPoints: 10,
     maxPoints: 100,
     requiresKey: true,
@@ -1832,6 +1889,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.1,
     unit: "每30秒",
     pointsPerSecond: 0.33,
+    freeSecondsInBase: 30,
     minPoints: 10,
     maxPoints: 100,
     requiresKey: true,
@@ -1970,6 +2028,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.15,
     unit: "每5秒",
     pointsPerSecond: 3,
+    freeSecondsInBase: 5,
     minPoints: 15,
     maxPoints: 150,
     requiresKey: true,
@@ -1985,6 +2044,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.4,
     unit: "每5秒",
     pointsPerSecond: 8,
+    freeSecondsInBase: 5,
     minPoints: 40,
     maxPoints: 400,
     requiresKey: true,
@@ -2000,6 +2060,7 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     baseCostUsd: 0.2,
     unit: "每5秒",
     pointsPerSecond: 4,
+    freeSecondsInBase: 5,
     minPoints: 20,
     maxPoints: 200,
     requiresKey: true,
@@ -2029,10 +2090,11 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     provider: "fal",
     category: "text-to-speech",
     tier: "standard",
-    basePoints: 3,
-    baseCostUsd: 0.03,
-    unit: "每次合成",
-    minPoints: 3,
+    basePoints: 1,
+    baseCostUsd: 0.01,
+    unit: "每1000字符",
+    pointsPer1kChars: 1,
+    minPoints: 1,
     maxPoints: 30,
     requiresKey: true,
     keyEnvVar: "FAL_API_KEY",
@@ -2043,10 +2105,11 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     provider: "fal",
     category: "text-to-speech",
     tier: "economy",
-    basePoints: 2,
-    baseCostUsd: 0.02,
-    unit: "每次合成",
-    minPoints: 2,
+    basePoints: 1,
+    baseCostUsd: 0.01,
+    unit: "每1000字符",
+    pointsPer1kChars: 1,
+    minPoints: 1,
     maxPoints: 20,
     requiresKey: true,
     keyEnvVar: "FAL_API_KEY",
@@ -2057,10 +2120,11 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     provider: "fal",
     category: "text-to-speech",
     tier: "standard",
-    basePoints: 3,
-    baseCostUsd: 0.03,
-    unit: "每次合成",
-    minPoints: 3,
+    basePoints: 2,
+    baseCostUsd: 0.02,
+    unit: "每1000字符",
+    pointsPer1kChars: 2,
+    minPoints: 2,
     maxPoints: 30,
     requiresKey: true,
     keyEnvVar: "FAL_API_KEY",
@@ -2148,15 +2212,19 @@ export function estimatePoints(
   const multipliers: Record<string, number> = {};
   const breakdownParts: string[] = [`基礎 ${pricing.basePoints} pts`];
 
-  // 時長計費（影片/音頻）
+  // 時長計費（影片/音頻）— 扣掉 basePoints 已包含的 baseline 秒數，避免雙倍計費
   const durationSec = asPositiveNumber(params.durationSec);
   if (durationSec > 0 && pricing.pointsPerSecond) {
-    const extra = Math.round(durationSec * pricing.pointsPerSecond);
+    const freeSec = Math.max(0, pricing.freeSecondsInBase ?? 0);
+    const billableSec = Math.max(0, durationSec - freeSec);
+    const extra = Math.round(billableSec * pricing.pointsPerSecond);
     if (extra > 0) {
       total += extra;
       multipliers.duration = durationSec;
       breakdownParts.push(
-        `時長加收 ${durationSec}s × ${pricing.pointsPerSecond} pts/s = +${extra} pts`
+        freeSec > 0
+          ? `時長加收 (${durationSec}s − 含 ${freeSec}s 起跳) × ${pricing.pointsPerSecond} pts/s = +${extra} pts`
+          : `時長加收 ${durationSec}s × ${pricing.pointsPerSecond} pts/s = +${extra} pts`
       );
     }
   }
@@ -2234,13 +2302,17 @@ export function calculateActualCost(params: {
   const outputImages = Math.max(0, params.outputImages ?? 0);
   const outputVideoDuration = Math.max(0, params.outputVideoDuration ?? 0);
 
+  const freeSec = Math.max(0, pricing.freeSecondsInBase ?? 0);
+
   if (billingSeconds > 0 && pricing.pointsPerSecond) {
-    const total = Math.round(pricing.basePoints + billingSeconds * pricing.pointsPerSecond);
+    const billable = Math.max(0, billingSeconds - freeSec);
+    const total = Math.round(pricing.basePoints + billable * pricing.pointsPerSecond);
     return Math.max(pricing.minPoints, Math.min(pricing.maxPoints, total));
   }
 
   if (outputVideoDuration > 0 && pricing.pointsPerSecond) {
-    const total = Math.round(pricing.basePoints + outputVideoDuration * pricing.pointsPerSecond);
+    const billable = Math.max(0, outputVideoDuration - freeSec);
+    const total = Math.round(pricing.basePoints + billable * pricing.pointsPerSecond);
     return Math.max(pricing.minPoints, Math.min(pricing.maxPoints, total));
   }
 
