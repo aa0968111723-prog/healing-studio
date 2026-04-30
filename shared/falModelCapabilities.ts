@@ -215,6 +215,13 @@ export const FAL_MODEL_CAPABILITIES: FalModelCapability[] = [
     features: { ...NONE, seed: true },
   },
 
+  // ─── 骨骼姿勢偵測（pose）── input 為 image_url，無 prompt / 無比例設定
+  {
+    modelId: "fal-ai/dwpose",
+    modality: "image",
+    features: NONE,
+  },
+
   // ─── Video 系（一律無 token weight、無 LoRA） ──
   {
     modelId: "fal-ai/kling-video/v2.1/pro/text-to-video",

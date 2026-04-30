@@ -3385,9 +3385,11 @@ export default function ImageStudio() {
             ? "sd 可調: sdImageSize / sdGuidance(1~20) / sdInferSteps(10~50) / sdSeed / negPrompt / loraPath / loraScale(0~2) / controlnetScale(0~2)"
             : activeTab === "upscale"
               ? "upscale 可調: upscaleFactor(2/4) / upscaleMode(factor/target)"
-              : activeTab === "3d"
-                ? "3d 可調: trellisResolution / trellisTextureSize / enablePbr(bool) / hunyuanGenType(Normal/LowPoly/Geometry) / rodinQuality(high/medium/low) / rodinMaterial(PBR/Shaded)"
-                : "可調 key: aspectRatio / numImages / seed / strength / guidance / inferSteps / negPrompt / outputSize / sdGuidance / sdInferSteps / loraScale / controlnetScale / upscaleFactor / enablePbr / hunyuanGenType / rodinQuality",
+              : activeTab === "pose"
+                ? "pose 可調: drawMode(full-pose/body-pose/face-pose/hand-pose) — 偵測模式決定輸出哪個部位的骨骼圖"
+                : activeTab === "3d"
+                  ? "3d 可調: trellisResolution / trellisTextureSize / enablePbr(bool) / hunyuanGenType(Normal/LowPoly/Geometry) / rodinQuality(high/medium/low) / rodinMaterial(PBR/Shaded)"
+                  : "可調 key: aspectRatio / numImages / seed / strength / guidance / inferSteps / negPrompt / outputSize / sdGuidance / sdInferSteps / loraScale / controlnetScale / upscaleFactor / drawMode / enablePbr / hunyuanGenType / rodinQuality",
     },
   ];
 
@@ -3431,6 +3433,10 @@ export default function ImageStudio() {
         upscaleMode,
         upscaleFactor,
         hasUpscaleImage: !!upscaleImageUrl,
+      }),
+      ...(activeTab === "pose" && {
+        drawMode,
+        hasPoseImage: !!poseImageUrl,
       }),
       ...(activeTab === "3d" && {
         has3dImage: !!imageUrl3d,
@@ -3537,6 +3543,18 @@ export default function ImageStudio() {
             case "upscaleMode":
               if (typeof value === "string") setUpscaleMode(value as "factor" | "target");
               return { ok: true };
+            // ── Pose tab params ──
+            case "drawMode": {
+              const allowed = ["full-pose", "body-pose", "face-pose", "hand-pose"];
+              if (typeof value === "string" && allowed.includes(value)) {
+                setDrawMode(value);
+                return { ok: true, message: `骨骼偵測模式已設為 ${value}` };
+              }
+              return {
+                ok: false,
+                reason: `unknown drawMode: ${value}（允許值: ${allowed.join("/")}）`,
+              };
+            }
             // ── 3D tab params ──
             case "trellisResolution":
               if (typeof value === "string") setTrellisResolution(value);

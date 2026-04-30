@@ -242,6 +242,20 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       timeoutMs: 180_000,
     },
 
+    // ─── 骨骼姿勢偵測（pose）── 對應 ImageStudio.tsx pose 分頁
+    // DWPose 為前處理模型：image_url → 骨骼/臉部/手部姿勢圖（可餵 ControlNet）
+    {
+      modelId: "fal-ai/dwpose",
+      label: "DWPose 骨骼姿勢偵測",
+      category: "image-to-image",
+      tier: "fast",
+      description:
+        "Mediapipe DWPose 骨骼姿勢偵測，支援 full-pose / body-pose / face-pose / hand-pose 等模式，輸出可作 ControlNet OpenPose 控制圖",
+      inputSchema: { imageUrl: true },
+      outputSchema: { imageUrl: true },
+      timeoutMs: 60_000,
+    },
+
     // ─── 圖片編輯（語意式 edit）── 對應 ImageStudio.tsx edit 分頁 9 模型
     {
       modelId: "fal-ai/nano-banana-pro/edit",
