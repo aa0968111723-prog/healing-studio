@@ -1,0 +1,71 @@
+/**
+ * shared/videoModelCatalog.ts — 影片創作室「canonical model id」單一真實來源
+ *
+ * 這是 brain-config-gap-audit-2026-04-20.md 標的 P0 SSOT 修復。
+ * UI（VideoStudio.tsx）、router（videoStudio.ts）、middleware
+ * （brainContext.ts）、dispatcher（falDispatcher.ts）都應以這份為準，
+ * 避免 `fal/...` 與 `fal-ai/...` 風格漂移。
+ *
+ * 任何新增影片模型應同步：
+ *   1. 在這裡加 canonical id
+ *   2. server/services/falModels.ts 註冊 catalog（schema/timeout）
+ *   3. server/services/modelPricing.ts 註冊定價
+ *   4. server/routers/brain.ts GENERATION_ENGINE_CATALOG.videoEngine 補入
+ *
+ * 一致性會由 server/services/__tests__/videoCatalogConsistency.test.ts 守住。
+ */
+
+/**
+ * `videoStudio.ts` router 真的會送進 fal queue 的 modelId。
+ * 用來檢查 pricing 與 falModels 都對齊。
+ */
+export const T2V_ROUTER_IDS = [
+  "fal-ai/kling-video/v2.1/standard/text-to-video",
+  "fal-ai/wan-t2v",
+  "fal-ai/minimax/hailuo-02/pro/text-to-video",
+  "fal-ai/veo3",
+  "fal-ai/ltx-video-13b-distilled",
+  "fal-ai/sora",
+] as const;
+
+export const I2V_ROUTER_IDS = [
+  "fal-ai/kling-video/v2.1/standard/image-to-video",
+  "fal-ai/wan-i2v",
+  "fal-ai/runway-gen4-turbo/image-to-video",
+  "fal-ai/pixverse/v4.5/image-to-video",
+  "fal-ai/minimax/hailuo-02/pro/image-to-video",
+  "fal-ai/ltx-video/image-to-video",
+] as const;
+
+export const V2V_ROUTER_IDS = [
+  "fal-ai/wan/v2.1/video-to-video",
+  "fal-ai/kling-video/v2.1/standard/video-to-video",
+  "fal-ai/animatediff-v2v",
+] as const;
+
+/**
+ * `VideoStudio.tsx` 用 `modelId="..."` 顯示在 ModelCard 上的 ID。
+ * 這些不是 router 直接呼叫的，但 UI 會用 `getModelPricing(modelId)`
+ * 顯示積分價格，所以同樣需要在 pricing 裡有對應。
+ */
+export const VIDEO_UI_ONLY_IDS = [
+  "fal-ai/wan-ai/wan2.1-t2v-720p",
+  "fal-ai/wan-ai/wan2.1-i2v-720p",
+  "fal-ai/wan-ai/wan2.1-v2v-480p",
+  "fal-ai/kling-video/v1.6/standard/video-to-video",
+  "fal-ai/minimax/video-01",
+  "fal-ai/minimax/video-01/image-to-video",
+] as const;
+
+export const ALL_VIDEO_ROUTER_IDS: readonly string[] = [
+  ...T2V_ROUTER_IDS,
+  ...I2V_ROUTER_IDS,
+  ...V2V_ROUTER_IDS,
+];
+
+export const ALL_VIDEO_PRICING_IDS: readonly string[] = [
+  ...ALL_VIDEO_ROUTER_IDS,
+  ...VIDEO_UI_ONLY_IDS,
+];
+
+export type VideoCategory = "text-to-video" | "image-to-video" | "video-to-video";

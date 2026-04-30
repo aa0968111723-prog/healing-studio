@@ -20,6 +20,7 @@ import type { AgentAction } from "./agent-actions";
 export type OrbGuideIntentId =
   | "image"
   | "video"
+  | "video2video"
   | "music"
   | "voice"
   | "script"
@@ -53,6 +54,16 @@ export function buildOrbGuideActions(
     case "video": {
       actions.push({ type: "setTab", tabId: "t2v" });
       if (hint) actions.push({ type: "fillPrompt", text: hint });
+      break;
+    }
+    case "video2video": {
+      // 影生影：切到 v2v 分頁、填提詞；videoUrl 由使用者自行上傳
+      actions.push({ type: "setTab", tabId: "v2v" });
+      if (hint) actions.push({ type: "fillPrompt", text: hint });
+      const sourceUrl = input.answers.videoUrl;
+      if (sourceUrl) {
+        actions.push({ type: "setParam", key: "videoUrl", value: sourceUrl });
+      }
       break;
     }
     case "music": {

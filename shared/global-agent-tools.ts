@@ -97,8 +97,14 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     allowedArgsSchema: {
       prompt: "string",
       modelId: "string?",
+      // i2v：起始幀（並可給結束幀）
       image_url: "string?",
       end_image_url: "string?",
+      // v2v：來源影片 + 風格化強度
+      video_url: "string?",
+      strength: "number?",
+      cfg_scale: "number?",
+      // 通用
       duration: "number?",
       aspect_ratio: "string?",
       negative_prompt: "string?",

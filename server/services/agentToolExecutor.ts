@@ -545,17 +545,26 @@ async function dispatchStudioTool(
 
       case "studio.generateVideo": {
         const { dispatchFalQueueTask } = await import("./falDispatcher");
+        const hasVideo = typeof args.video_url === "string" && args.video_url;
         const hasImage = typeof args.image_url === "string" && args.image_url;
+        // 路由優先序：video_url → v2v；image_url → i2v；其餘 → t2v
+        const category: "text-to-video" | "image-to-video" | "video-to-video" =
+          hasVideo ? "video-to-video" : hasImage ? "image-to-video" : "text-to-video";
+        const defaultModelByCategory = {
+          "video-to-video": "fal-ai/kling-video/v2.1/standard/video-to-video",
+          "image-to-video": "fal-ai/kling-video/v2.1/pro/image-to-video",
+          "text-to-video": "fal-ai/kling-video/v2.1/pro/text-to-video",
+        } as const;
         const modelId =
-          (args.modelId as string) ||
-          (hasImage
-            ? "fal-ai/kling-video/v2.1/pro/image-to-video"
-            : "fal-ai/kling-video/v2.1/pro/text-to-video");
+          (args.modelId as string) || defaultModelByCategory[category];
         const input: Record<string, unknown> = {};
         if (typeof args.prompt === "string") input.prompt = args.prompt;
         if (typeof args.image_url === "string") input.image_url = args.image_url;
         if (typeof args.end_image_url === "string")
           input.end_image_url = args.end_image_url;
+        if (typeof args.video_url === "string") input.video_url = args.video_url;
+        if (typeof args.strength === "number") input.strength = args.strength;
+        if (typeof args.cfg_scale === "number") input.cfg_scale = args.cfg_scale;
         if (typeof args.duration === "number") input.duration = args.duration;
         if (typeof args.aspect_ratio === "string")
           input.aspect_ratio = args.aspect_ratio;
@@ -569,7 +578,7 @@ async function dispatchStudioTool(
         if (typeof args.height === "number") input.height = args.height;
         const r = await dispatchFalQueueTask({
           modelId,
-          category: hasImage ? "image-to-video" : "text-to-video",
+          category,
           input,
           route: "orb-tool/studio.generateVideo",
           modality: "video",
