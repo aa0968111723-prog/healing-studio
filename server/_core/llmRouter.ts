@@ -41,6 +41,7 @@ import { ENV } from "./env";
 // ─── 引擎類型 ──────────────────────────────────────────────────────────────
 
 export type LLMEngine =
+  | "openrouter"
   | "anthropic"
   | "gemini"
   | "vertex"
@@ -177,6 +178,12 @@ export function detectAvailableEngines(): Array<{
 }> {
   const available: Array<{ engine: LLMEngine; reason: string }> = [];
 
+  if (ENV.openRouterApiKey) {
+    available.push({
+      engine: "openrouter",
+      reason: "OPENROUTER_API_KEY 已設定（統一 LLM 閘道）",
+    });
+  }
   if (ENV.anthropicApiKey) {
     available.push({
       engine: "anthropic",
@@ -227,7 +234,14 @@ export function resolveEngineConfig(forceEngine?: LLMEngine): EngineConfig {
 
   // ── Auto 模式 — 健康感知路由 ───────────────────────────────
   // 優先順序：gemini > nvidia > vertex > forge
-  const autoOrder: LLMEngine[] = ["anthropic", "gemini", "nvidia", "vertex", "forge"];
+  const autoOrder: LLMEngine[] = [
+    "openrouter",
+    "anthropic",
+    "gemini",
+    "nvidia",
+    "vertex",
+    "forge",
+  ];
 
   for (const engine of autoOrder) {
     if (!isEngineAvailable(engine)) continue;
@@ -260,7 +274,14 @@ export function resolveEngineConfig(forceEngine?: LLMEngine): EngineConfig {
 export function getEngineFallbackChain(
   primaryEngine: LLMEngine
 ): EngineConfig[] {
-  const allOrder: LLMEngine[] = ["anthropic", "gemini", "nvidia", "vertex", "forge"];
+  const allOrder: LLMEngine[] = [
+    "openrouter",
+    "anthropic",
+    "gemini",
+    "nvidia",
+    "vertex",
+    "forge",
+  ];
   const fallbacks: EngineConfig[] = [];
 
   for (const engine of allOrder) {
@@ -281,6 +302,27 @@ export function getEngineFallbackChain(
  */
 function resolveSpecificEngine(engine: LLMEngine): EngineConfig {
   switch (engine) {
+    case "openrouter": {
+      if (!ENV.openRouterApiKey)
+        throw new Error("Engine 'openrouter' 指定但 OPENROUTER_API_KEY 未設定");
+      const baseUrl = ENV.openRouterBaseUrl.replace(/\/$/, "");
+      return {
+        name: "OpenRouter (Unified Gateway)",
+        engine: "openrouter",
+        // OpenAI-compatible chat completions endpoint
+        url: `${baseUrl}/chat/completions`,
+        apiKey: ENV.openRouterApiKey,
+        // Default to Claude Sonnet 4.5 — change via brain config UI per slot.
+        // Model IDs follow `<provider>/<model>` format; OpenRouter supports
+        // anthropic/*, openai/*, google/*, meta-llama/*, mistralai/* etc.
+        model: "anthropic/claude-sonnet-4.5",
+        supportsThinking: true,
+        supportsGrounding: false,
+        supportsLongContext: true,
+        supportsToolCalling: true,
+      };
+    }
+
     case "anthropic":
       if (!ENV.anthropicApiKey)
         throw new Error("Engine 'anthropic' 指定但 ANTHROPIC_API_KEY 未設定");
@@ -390,7 +432,9 @@ export function getEngineStatus(): EngineStatus {
   const available = detectAvailableEngines();
   const missing: string[] = [];
 
-  if (!ENV.geminiApiKey) missing.push("GEMINI_API_KEY（推薦）");
+  if (!ENV.openRouterApiKey)
+    missing.push("OPENROUTER_API_KEY（推薦：統一 LLM 閘道）");
+  if (!ENV.geminiApiKey) missing.push("GEMINI_API_KEY");
   if (!serverEnv.GOOGLE_APPLICATION_CREDENTIALS_JSON)
     missing.push("GOOGLE_APPLICATION_CREDENTIALS_JSON（Vertex AI）");
   if (!ENV.forgeApiKey) missing.push("BUILT_IN_FORGE_API_KEY（Manus 相容）");

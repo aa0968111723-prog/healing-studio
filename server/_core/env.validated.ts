@@ -36,7 +36,12 @@ ${divider}
 
 interface SelfRepairLog {
   varName: string;
-  action: "renamed" | "sanitized" | "reset_to_default" | "ignored_invalid";
+  action:
+    | "renamed"
+    | "sanitized"
+    | "reset_to_default"
+    | "ignored_invalid"
+    | "ignored_placeholder";
   before: string;
   after: string;
   reason: string;
@@ -53,6 +58,23 @@ function isLikelyJson(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * 是否為「明顯的佔位符」字串（例如 .env.example 中常見的 `your-xxx-api-key`、
+ * `<your-key-here>`、`changeme` 等）。這類值若進到下游會引發 401/403 而非
+ * 「未設定」的軟警告，反而比空值更難排查。
+ */
+function isPlaceholder(value: string): boolean {
+  const v = value.trim().toLowerCase();
+  if (v.length === 0) return false;
+  // 常見模板字串：以 `your-` / `your_` 開頭並帶 -api / -key / -token 等關鍵字
+  if (/^<?your[-_].*(key|token|secret|id|url|credential)/i.test(v)) return true;
+  // 以尖括號包起來的範本：<your-xxx>
+  if (/^<.*>$/.test(v) && /your|placeholder|fillme|changeme/.test(v)) return true;
+  // 純粹寫 changeme / placeholder
+  if (["changeme", "placeholder", "fillme", "todo", "tbd"].includes(v)) return true;
+  return false;
 }
 
 function selfRepairEnv(): void {
@@ -120,6 +142,61 @@ function selfRepairEnv(): void {
       reason: "不是合法 JSON 格式，視為未設定以避免 Vertex AI 啟動時崩潰",
     });
     env.GOOGLE_APPLICATION_CREDENTIALS_JSON = "";
+  }
+
+  // 5) 清掃明顯的佔位符值（your-xxx-api-key / <your-key> / changeme …）
+  //    若放著不處理，下游會在第一次呼叫 API 時拿到 401/403，看起來像
+  //    「金鑰失效」其實是「根本沒填」。直接視為未設定，讓 OARS 軟警告生效。
+  const PLACEHOLDER_CANDIDATES = [
+    "OPENROUTER_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "GEMINI_API_KEY",
+    "FAL_API_KEY",
+    "REPLICATE_API_TOKEN",
+    "ELEVENLABS_API_KEY",
+    "SUNO_API_KEY",
+    "PINECONE_API_KEY",
+    "PERPLEXITY_API_KEY",
+    "OPENPOSE_API_KEY",
+    "BRAVE_SEARCH_API_KEY",
+    "NEWS_API_KEY",
+    "NEWSDATA_API_KEY",
+    "LANGSMITH_API_KEY",
+    "POSTHOG_API_KEY",
+    "VITE_POSTHOG_KEY",
+    "NVIDIA_API",
+    "GITHUB_TOKEN",
+    "DISCORD_WEBHOOK_URL",
+    "REDIS_URL",
+  ];
+  for (const key of PLACEHOLDER_CANDIDATES) {
+    const value = env[key];
+    if (value && isPlaceholder(value)) {
+      selfRepairLog.push({
+        varName: key,
+        action: "ignored_placeholder",
+        before: value,
+        after: "(empty)",
+        reason: `偵測到範本字串（${value}），視為未設定以避免 401/403 噪音`,
+      });
+      env[key] = "";
+    }
+  }
+
+  // 6) LangSmith 金鑰必須以 `lsv2_pt_` 或 `lsv2_sk_` 開頭；其他格式（例如
+  //    `id:xxxx-xxx`）會在第一次 trace 時收到 403 Forbidden。直接視為未設定，
+  //    避免 LangChain SDK 一直噴錯。
+  const ls = env.LANGSMITH_API_KEY;
+  if (ls && ls.trim().length > 0 && !/^lsv2_(pt|sk)_/.test(ls.trim())) {
+    selfRepairLog.push({
+      varName: "LANGSMITH_API_KEY",
+      action: "ignored_invalid",
+      before: ls.length > 20 ? `${ls.slice(0, 20)}…` : ls,
+      after: "(empty)",
+      reason:
+        "LangSmith 金鑰必須以 lsv2_pt_ 或 lsv2_sk_ 開頭，偵測到非標準格式，視為未設定",
+    });
+    env.LANGSMITH_API_KEY = "";
   }
 
   if (selfRepairLog.length > 0 && env.NODE_ENV !== "test") {
@@ -196,6 +273,13 @@ const coreSchema = z.object({
   // ── 管理員信箱（逗號分隔，登入時自動設為 admin）─────────
   ADMIN_EMAILS: z.string().optional().default(""),
 
+  // ── 分散式快取 / 排程鎖（沒設則 fallback 到記憶體版）─────
+  REDIS_URL: z.string().optional().default(""),
+  REDIS_KEY_PREFIX: z.string().optional().default("healing-studio:"),
+
+  // ── 健康巡檢警報（沒設則靜默跳過）────────────────────────
+  DISCORD_WEBHOOK_URL: z.string().optional().default(""),
+
   // ── 向後相容：Manus Forge API（遷移完成後可移除）─────────
   VITE_APP_ID: z.string().optional().default(""),
   OAUTH_SERVER_URL: z.string().optional().default(""),
@@ -248,11 +332,24 @@ const multimodalSchema = z.object({
     .default("https://api.smith.langchain.com"),
 
   // ── LLM 引擎路由選擇 ──────────────────────────────────────
-  // auto = 健康感知自動路由（gemini > minimax > vertex > forge）
+  // auto      = 偵測 OPENROUTER_API_KEY 並優先使用，否則退回到舊的多引擎路由
+  // openrouter = 強制走 OpenRouter（推薦：一支金鑰即可使用 Claude / Gemini / GPT 等所有家）
+  // 其他選項保留向後相容；若您想全面遷移到 OpenRouter，把 OPENROUTER_API_KEY 設好即可
   LLM_ENGINE: z
-    .enum(["auto", "gemini", "vertex", "forge", "nvidia"])
+    .enum(["auto", "openrouter", "gemini", "vertex", "forge", "nvidia", "anthropic"])
     .optional()
     .default("auto"),
+
+  // ── OpenRouter（統一 LLM 閘道，OpenAI 相容）─────────────
+  // 取得金鑰：https://openrouter.ai/keys
+  // 模型 ID 格式：<provider>/<model>，例：anthropic/claude-sonnet-4.5、google/gemini-2.5-pro
+  OPENROUTER_API_KEY: z.string().min(1).optional().default(""),
+  OPENROUTER_BASE_URL: z
+    .string()
+    .optional()
+    .default("https://openrouter.ai/api/v1"),
+  OPENROUTER_HTTP_REFERER: z.string().optional().default(""),
+  OPENROUTER_X_TITLE: z.string().optional().default("Healing Studio"),
   ENABLE_SCHEMA_FIRST_PLANNER: z.string().optional().default("true"),
   VITE_ENABLE_GLOBAL_AGENT_WORKFLOWS: z.string().optional().default("true"),
   VITE_ENABLE_GLOBAL_AGENT_TELEMETRY: z.string().optional().default("false"),
@@ -296,6 +393,10 @@ const multimodalSchema = z.object({
   // ── GitHub 整合（AI 全站研究系統 → 自動建立 Issue / PR）─────────────
   GITHUB_TOKEN: z.string().min(1).optional().default(""),
   GITHUB_REPO: z.string().optional().default(""),
+
+  // ── PostHog 後端事件追蹤（前端走 VITE_POSTHOG_KEY） ─────────────────
+  POSTHOG_API_KEY: z.string().min(1).optional().default(""),
+  POSTHOG_HOST: z.string().optional().default("https://us.i.posthog.com"),
 });
 
 // Combined schema
@@ -356,6 +457,12 @@ function validateAndWarn(): ServerEnvResult {
 
   // ── Multimodal API key status summary ──
   const multimodalWarnings: Array<[string, string, string, string]> = [
+    [
+      "OPENROUTER_API_KEY",
+      env.OPENROUTER_API_KEY,
+      "OpenRouter（統一 LLM 閘道，推薦）",
+      "前往 https://openrouter.ai/keys 取得；用一支金鑰即可呼叫 Claude / Gemini / GPT 等所有家。",
+    ],
     [
       "FAL_API_KEY",
       env.FAL_API_KEY,
@@ -433,6 +540,24 @@ function validateAndWarn(): ServerEnvResult {
       env.GITHUB_REPO,
       "AI 全站研究目標倉庫",
       "格式 owner/repo，例如 your-org/healing-studio。",
+    ],
+    [
+      "POSTHOG_API_KEY",
+      env.POSTHOG_API_KEY,
+      "PostHog 後端事件追蹤",
+      "前往 https://us.posthog.com/settings/project 取得 Project API Key。",
+    ],
+    [
+      "DISCORD_WEBHOOK_URL",
+      env.DISCORD_WEBHOOK_URL,
+      "API 健康巡檢 Discord 告警",
+      "在 Discord server 設定 → 整合 → Webhook 取得；不需要則保持空白。",
+    ],
+    [
+      "REDIS_URL",
+      env.REDIS_URL,
+      "分散式快取 / 排程鎖",
+      "Railway 加 Redis plugin 後會自動注入；單機部署可保持空白（fallback 到記憶體）。",
     ],
   ];
 

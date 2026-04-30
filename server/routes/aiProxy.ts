@@ -65,9 +65,8 @@ const VALID_PROVIDERS = new Set(Object.keys(PROVIDER_CONFIG));
 // ─── PostHog Dual-Write ──────────────────────────────────────────────────────
 
 async function postHogCapture(event: Record<string, unknown>): Promise<void> {
-  // POSTHOG_API_KEY / POSTHOG_HOST are optional and not in serverEnv validated schema
-  const apiKey = process.env.POSTHOG_API_KEY;
-  const host = process.env.POSTHOG_HOST || "https://us.i.posthog.com";
+  const apiKey = serverEnv.POSTHOG_API_KEY;
+  const host = serverEnv.POSTHOG_HOST;
   if (!apiKey) return;
 
   try {

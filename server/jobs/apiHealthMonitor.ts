@@ -20,11 +20,12 @@ import {
   runFullCodeScan,
   generateProposalsFromErrorTraces,
 } from "../services/brainAutoRepair.js";
+import { serverEnv } from "../_core/env.validated.js";
 
 // ─── Discord Webhook 告警 ────────────────────────────────────────────────────
 
 async function sendDiscordAlert(message: string): Promise<void> {
-  const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+  const webhookUrl = serverEnv.DISCORD_WEBHOOK_URL;
   if (!webhookUrl) return; // 未設定時靜默跳過
   try {
     await fetch(webhookUrl, {

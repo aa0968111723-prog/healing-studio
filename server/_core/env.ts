@@ -41,6 +41,12 @@ export const ENV = {
   // ── Anthropic Claude（光球 AI 代理人主引擎，最佳 tool use）─
   anthropicApiKey: serverEnv.ANTHROPIC_API_KEY,
 
+  // ── OpenRouter（統一 LLM 閘道，推薦的單一入口）──────────
+  openRouterApiKey: serverEnv.OPENROUTER_API_KEY,
+  openRouterBaseUrl: serverEnv.OPENROUTER_BASE_URL,
+  openRouterHttpReferer: serverEnv.OPENROUTER_HTTP_REFERER,
+  openRouterXTitle: serverEnv.OPENROUTER_X_TITLE,
+
   // ── GitHub 整合 ──────────────────────────────────────────
   githubToken: serverEnv.GITHUB_TOKEN,
   githubRepo: serverEnv.GITHUB_REPO,

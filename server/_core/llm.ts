@@ -492,6 +492,18 @@ function normalizeModelForEngine(model: string, engineName: string): string {
   const isGeminiEndpoint =
     engineName.includes("Gemini") || engineName.includes("Vertex");
   const isAnthropicEndpoint = engineName.includes("Anthropic");
+  const isOpenRouterEndpoint = engineName.includes("OpenRouter");
+
+  if (isOpenRouterEndpoint) {
+    // OpenRouter expects `<provider>/<model>` format. If caller passes a
+    // bare model name (e.g. "claude-sonnet-4-6"), prefix it sensibly.
+    if (model.includes("/")) return model;
+    if (model.startsWith("claude-")) return `anthropic/${model}`;
+    if (model.startsWith("gemini-")) return `google/${model}`;
+    if (model.startsWith("gpt-")) return `openai/${model}`;
+    if (model.startsWith("minimax")) return `minimaxai/${model}`;
+    return model;
+  }
 
   if (isAnthropicEndpoint) {
     // Already a Claude model id → leave as-is.
@@ -1108,6 +1120,17 @@ async function invokeSingleEngine(
               "content-type": "application/json",
               authorization: `Bearer ${engineConfig.apiKey}`,
             };
+
+        // OpenRouter requests benefit from optional attribution headers —
+        // the dashboard groups usage by app and gives priority routing.
+        if (engineConfig.engine === "openrouter") {
+          if (serverEnv.OPENROUTER_HTTP_REFERER) {
+            headers["HTTP-Referer"] = serverEnv.OPENROUTER_HTTP_REFERER;
+          }
+          if (serverEnv.OPENROUTER_X_TITLE) {
+            headers["X-Title"] = serverEnv.OPENROUTER_X_TITLE;
+          }
+        }
         const response = await fetch(engineConfig.url, {
           method: "POST",
           headers,
