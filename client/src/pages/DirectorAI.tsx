@@ -2029,30 +2029,27 @@ export default function DirectorAI() {
     }
   }, [prefsQuery.data, setGlobalPersonality]);
 
-  // ── 接收 ImageStudio 回填（不變更 storyboard schema，只顯示給使用者） ──
-  // 使用者看到後可手動把 resultUrl / finalPrompt 貼回對應場景的視覺描述。
+  // ── 接收 ImageStudio 回填 ──
+  // 進場時先把 payload 暫存，等使用者載入腳本（importedSegments 就緒）
+  // 後再依 sceneName 比對，徵詢確認並回填 costar.visualPrompt + notes。
+  type DirectorReturnPayload = {
+    source?: string;
+    sceneName?: string;
+    finalPrompt?: string;
+    modelId?: string;
+    resultUrl?: string | null;
+  };
+  const [pendingImageReturn, setPendingImageReturn] =
+    useState<DirectorReturnPayload | null>(null);
+
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem("directorReturn");
       if (!raw) return;
-      const data = JSON.parse(raw) as {
-        source?: string;
-        sceneName?: string;
-        finalPrompt?: string;
-        modelId?: string;
-        resultUrl?: string | null;
-      };
       sessionStorage.removeItem("directorReturn");
+      const data = JSON.parse(raw) as DirectorReturnPayload;
       if (data.source !== "image_studio" || !data.sceneName) return;
-      toast.success(
-        `已從圖片創作室收到「${data.sceneName}」的成品${data.modelId ? `（${data.modelId}）` : ""}`,
-        {
-          description: data.resultUrl
-            ? `預覽：${data.resultUrl}`
-            : "請到對應場景的視覺描述手動貼上 prompt / 圖片連結。",
-          duration: 12_000,
-        }
-      );
+      setPendingImageReturn(data);
     } catch {
       // silent
     }
@@ -2107,6 +2104,76 @@ export default function DirectorAI() {
     null
   );
   const [showOverview, setShowOverview] = useState(false);
+
+  // ── Apply ImageStudio return payload once segments are available ──
+  useEffect(() => {
+    if (!pendingImageReturn) return;
+    const data = pendingImageReturn;
+    const sceneName = data.sceneName ?? "";
+
+    // No segments imported yet → keep waiting; if user never imports, fall
+    // back to plain toast so the result link is at least surfaced.
+    if (importedSegments.length === 0) return;
+
+    const matchIdx = importedSegments.findIndex(
+      s => s.storyboard.sceneHeading === sceneName
+    );
+
+    if (matchIdx === -1) {
+      toast.info(
+        `從圖片創作室收到「${sceneName}」成品，但目前腳本沒有對應分鏡`,
+        {
+          description: data.resultUrl ?? undefined,
+          duration: 12_000,
+        }
+      );
+      setPendingImageReturn(null);
+      return;
+    }
+
+    const target = importedSegments[matchIdx];
+    const ok = window.confirm(
+      `導演 AI 收到圖片創作室的成品。\n要把 prompt / 成品連結回填到場景「${sceneName}」嗎？\n\n（會覆寫該場景的 visualPrompt，並把成品連結附加到備註）`
+    );
+    if (!ok) {
+      setPendingImageReturn(null);
+      toast(`已忽略「${sceneName}」的回填`);
+      return;
+    }
+
+    setImportedSegments(prev =>
+      prev.map((s, i) => {
+        if (i !== matchIdx) return s;
+        const newCostar: CoStarScript = s.costar
+          ? { ...s.costar, visualPrompt: data.finalPrompt ?? s.costar.visualPrompt }
+          : {
+              context: "",
+              situation: "",
+              task: "",
+              action: "",
+              result: "",
+              visualPrompt: data.finalPrompt ?? "",
+              audioScript: "",
+              musicVibe: "",
+            };
+        const noteLine = [
+          `🖼️ 圖片創作室成品`,
+          data.modelId ? `model: ${data.modelId}` : null,
+          data.resultUrl ? `url: ${data.resultUrl}` : null,
+        ]
+          .filter(Boolean)
+          .join(" | ");
+        const newNotes = s.notes ? `${s.notes}\n${noteLine}` : noteLine;
+        return { ...s, costar: newCostar, notes: newNotes };
+      })
+    );
+    setSelectedSegmentIdx(matchIdx);
+    setPendingImageReturn(null);
+    toast.success(`已回填到場景「${sceneName}」`, {
+      description: data.resultUrl ?? undefined,
+      duration: 8_000,
+    });
+  }, [pendingImageReturn, importedSegments]);
 
   // ─── Planning Mode State ────────────────────────────────────────────────
   const [planningSession, setPlanningSession] =
