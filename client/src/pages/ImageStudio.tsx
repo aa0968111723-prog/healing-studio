@@ -71,6 +71,7 @@ import {
   Package,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useLocation } from "wouter";
 import { uploadFileToS3 } from "@/lib/upload";
 import { useRegisterBgTask } from "@/contexts/BackgroundTasksContext";
 import { normalizeEngineModelId } from "@shared/engineModelIds";
@@ -2500,6 +2501,14 @@ export default function ImageStudio() {
   const [poseImageUrl, setPoseImageUrl] = useState("");
   const [drawMode, setDrawMode] = useState("body-pose");
 
+  // ── Director AI 來源情境（從 sendToStudio 載入後保留，用於「回到導演 AI」回填）
+  const [directorContext, setDirectorContext] = useState<{
+    sceneName: string;
+    sceneHeading?: string;
+    mood?: string;
+  } | null>(null);
+  const [, navigate] = useLocation();
+
   // ── SD ──
   const [sdImageSize, setSdImageSize] = useState("landscape_4_3");
   const [negPrompt, setNegPrompt] = useState("");
@@ -2540,6 +2549,43 @@ export default function ImageStudio() {
   } | null>(null);
   const [resultPose, setResultPose] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  /**
+   * 回到導演 AI：把目前 prompt + 第一張結果圖打包進 sessionStorage["directorReturn"]
+   * 並跳回 /director。Director 接收端只顯示一條提示讓使用者複製/手動回填，
+   * 不改 storyboard schema，避免影響既有的場景資料模型。
+   */
+  const handleReturnToDirector = useCallback(() => {
+    if (!directorContext) return;
+    try {
+      const firstImage =
+        resultImages[0] ?? result3d?.glbUrl ?? resultPose ?? null;
+      sessionStorage.setItem(
+        "directorReturn",
+        JSON.stringify({
+          source: "image_studio",
+          sceneName: directorContext.sceneName,
+          sceneHeading: directorContext.sceneHeading,
+          mood: directorContext.mood,
+          finalPrompt: prompt,
+          modelId: selectedModelId,
+          resultUrl: firstImage,
+          ts: Date.now(),
+        })
+      );
+    } catch {
+      // sessionStorage 滿/不可用就靜默
+    }
+    navigate("/director");
+  }, [
+    directorContext,
+    resultImages,
+    result3d,
+    resultPose,
+    prompt,
+    selectedModelId,
+    navigate,
+  ]);
   const [lastGenMeta, setLastGenMeta] = useState<{
     modelName: string;
     duration: number;
@@ -2660,6 +2706,7 @@ export default function ImageStudio() {
         overrideEngine?: string;
         source?: string;
         sceneName?: string;
+        segmentContext?: { sceneHeading?: string; mood?: string };
       };
       if (data.generationType !== "image") return;
 
@@ -2674,6 +2721,14 @@ export default function ImageStudio() {
           setActiveTab(matched.category);
           setSelectedModelId(matched.id);
         }
+      }
+
+      if (data.source === "director_ai" && data.sceneName) {
+        setDirectorContext({
+          sceneName: data.sceneName,
+          sceneHeading: data.segmentContext?.sceneHeading,
+          mood: data.segmentContext?.mood,
+        });
       }
 
       sessionStorage.removeItem("sendToStudio");
@@ -3385,9 +3440,11 @@ export default function ImageStudio() {
             ? "sd 可調: sdImageSize / sdGuidance(1~20) / sdInferSteps(10~50) / sdSeed / negPrompt / loraPath / loraScale(0~2) / controlnetScale(0~2)"
             : activeTab === "upscale"
               ? "upscale 可調: upscaleFactor(2/4) / upscaleMode(factor/target)"
-              : activeTab === "3d"
-                ? "3d 可調: trellisResolution / trellisTextureSize / enablePbr(bool) / hunyuanGenType(Normal/LowPoly/Geometry) / rodinQuality(high/medium/low) / rodinMaterial(PBR/Shaded)"
-                : "可調 key: aspectRatio / numImages / seed / strength / guidance / inferSteps / negPrompt / outputSize / sdGuidance / sdInferSteps / loraScale / controlnetScale / upscaleFactor / enablePbr / hunyuanGenType / rodinQuality",
+              : activeTab === "pose"
+                ? "pose 可調: drawMode(full-pose/body-pose/face-pose/hand-pose) — 偵測模式決定輸出哪個部位的骨骼圖"
+                : activeTab === "3d"
+                  ? "3d 可調: trellisResolution / trellisTextureSize / enablePbr(bool) / hunyuanGenType(Normal/LowPoly/Geometry) / rodinQuality(high/medium/low) / rodinMaterial(PBR/Shaded)"
+                  : "可調 key: aspectRatio / numImages / seed / strength / guidance / inferSteps / negPrompt / outputSize / sdGuidance / sdInferSteps / loraScale / controlnetScale / upscaleFactor / drawMode / enablePbr / hunyuanGenType / rodinQuality",
     },
   ];
 
@@ -3431,6 +3488,10 @@ export default function ImageStudio() {
         upscaleMode,
         upscaleFactor,
         hasUpscaleImage: !!upscaleImageUrl,
+      }),
+      ...(activeTab === "pose" && {
+        drawMode,
+        hasPoseImage: !!poseImageUrl,
       }),
       ...(activeTab === "3d" && {
         has3dImage: !!imageUrl3d,
@@ -3537,6 +3598,18 @@ export default function ImageStudio() {
             case "upscaleMode":
               if (typeof value === "string") setUpscaleMode(value as "factor" | "target");
               return { ok: true };
+            // ── Pose tab params ──
+            case "drawMode": {
+              const allowed = ["full-pose", "body-pose", "face-pose", "hand-pose"];
+              if (typeof value === "string" && allowed.includes(value)) {
+                setDrawMode(value);
+                return { ok: true, message: `骨骼偵測模式已設為 ${value}` };
+              }
+              return {
+                ok: false,
+                reason: `unknown drawMode: ${value}（允許值: ${allowed.join("/")}）`,
+              };
+            }
             // ── 3D tab params ──
             case "trellisResolution":
               if (typeof value === "string") setTrellisResolution(value);
@@ -3788,6 +3861,22 @@ export default function ImageStudio() {
         </div>
         </CollapsibleContent>
       </Collapsible>
+
+      {/* ── 來自導演 AI 的橫幅（含「回到導演 AI」按鈕） ── */}
+      {directorContext && (
+        <div className="mt-3 flex items-center gap-2 rounded-xl border border-amber-300/40 bg-amber-50/40 dark:bg-amber-900/10 px-3 py-2 text-xs">
+          <span className="text-amber-700 dark:text-amber-300">
+            ↩ 此次任務來自導演 AI 場景「{directorContext.sceneName}」
+          </span>
+          <button
+            type="button"
+            onClick={handleReturnToDirector}
+            className="ml-auto rounded-lg border border-amber-400/50 bg-background/60 px-2.5 py-1 font-medium text-amber-700 dark:text-amber-200 hover:bg-amber-100/60 dark:hover:bg-amber-900/20 transition"
+          >
+            回到導演 AI
+          </button>
+        </div>
+      )}
 
       {/* ── Two-Column Layout (lg+) ── */}
       <div className="mt-4 flex flex-col lg:flex-row gap-4 lg:gap-6">
