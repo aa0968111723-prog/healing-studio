@@ -2128,6 +2128,20 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     requiresKey: true,
     keyEnvVar: "FAL_API_KEY",
   },
+  "fal-ai/lora": {
+    modelId: "fal-ai/lora",
+    label: "SD + LoRA",
+    provider: "fal",
+    category: "text-to-image",
+    tier: "standard",
+    basePoints: 2,
+    baseCostUsd: 0.02,
+    unit: "每張圖片",
+    minPoints: 2,
+    maxPoints: 10,
+    requiresKey: true,
+    keyEnvVar: "FAL_API_KEY",
+  },
 
   // ── 影片引擎 ──
   "fal-ai/wan/v2.2-14b": {
