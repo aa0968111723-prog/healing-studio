@@ -723,7 +723,7 @@ export default function LoraTrainer() {
   useRegisterPageAgent({
     pageId: "lora-trainer",
     pageLabel: "AI 模型訓練中心",
-    pagePath: "/lora-trainer",
+    pagePath: "/models",
     capabilities: loraCaps,
     state: {
       activeTab: tab,

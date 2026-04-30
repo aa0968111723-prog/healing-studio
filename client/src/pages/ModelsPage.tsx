@@ -770,9 +770,12 @@ export default function ModelsPage() {
     () => [
       { id: "my", label: "我的模型", meta: { bestFor: "版本治理", tip: "依用途標記 stable / experimental" } },
       { id: "team", label: "團隊共享", meta: { bestFor: "跨團隊復用", tip: "附註推薦參數與禁用情境" } },
+      { id: "forge", label: "角色鍛造所", meta: { bestFor: "從零訓練角色", tip: "含資料集、自動標註、超參數精靈" } },
+      { id: "trainer", label: "模型訓練中心", meta: { bestFor: "多類型 LoRA 微調", tip: "Replicate + Fal.ai 雙引擎" } },
     ],
     []
   );
+  const FORGE_STEP_IDS: CharacterForgeStep[] = ["dataset", "captioning", "hyperparams", "training"];
   const MODELS_NAV_ALLOWLIST = useMemo<Set<string>>(
     () => new Set(["/studio", "/image-studio", "/lora-trainer", "/assets"]),
     []
@@ -781,10 +784,20 @@ export default function ModelsPage() {
     () => [
       {
         action: "setTab",
-        label: "切換模型分頁",
-        currentId: tab,
+        label: "切換頁籤",
+        currentId: pageTab === "forge" ? tab : pageTab,
         options: MODELS_TAB_OPTIONS,
-        hint: "my（我的模型）或 team（團隊共享）",
+        hint: "my / team（角色鍛造的子分頁）；forge / trainer（角色鍛造所 vs. 模型訓練中心）",
+      },
+      {
+        action: "openDialog",
+        label: "開啟角色鍛造精靈",
+        hint: "dialogId=create-character；可帶 step=dataset|captioning|hyperparams|training",
+      },
+      {
+        action: "setParam",
+        label: "鍛造精靈步驟",
+        hint: "key=forgeStep；value=dataset|captioning|hyperparams|training",
       },
       {
         action: "navigate",
@@ -792,7 +805,7 @@ export default function ModelsPage() {
         hint: "可導航到 /studio、/image-studio、/lora-trainer、/assets",
       },
     ],
-    [tab, MODELS_TAB_OPTIONS]
+    [tab, pageTab, MODELS_TAB_OPTIONS]
   );
 
   useRegisterPageAgent({
@@ -800,8 +813,12 @@ export default function ModelsPage() {
     pageLabel: "角色鍛造所",
     pagePath: "/models",
     capabilities: modelsAgentCapabilities,
+    enabled: pageTab === "forge",
     state: {
+      pageTab,
       tab,
+      step,
+      dialogOpen,
       myModelsCount: myModelsQuery.data?.length ?? 0,
       teamModelsCount: teamModelsQuery.data?.length ?? 0,
       trainingJobId,
@@ -809,11 +826,40 @@ export default function ModelsPage() {
     handle: async (action: AgentAction): Promise<AgentActionResult> => {
       switch (action.type) {
         case "setTab": {
-          if (action.tabId !== "my" && action.tabId !== "team") {
-            return { ok: false, reason: `unknown tab: ${action.tabId}` };
+          const id = action.tabId;
+          if (id === "forge" || id === "trainer") {
+            setPageTab(id);
+            return { ok: true, message: `切到「${id === "forge" ? "角色鍛造所" : "模型訓練中心"}」` };
           }
-          setTab(action.tabId);
-          return { ok: true, message: `切到「${action.tabId}」分頁` };
+          if (id === "my" || id === "team") {
+            setTab(id);
+            return { ok: true, message: `切到「${id === "my" ? "我的模型" : "團隊共享"}」` };
+          }
+          return { ok: false, reason: `unknown tab: ${id}` };
+        }
+        case "openDialog": {
+          if (action.dialogId !== "create-character") {
+            return { ok: false, reason: `unknown dialog: ${action.dialogId}` };
+          }
+          resetForm();
+          const requestedStep = action.params?.step;
+          if (typeof requestedStep === "string" && FORGE_STEP_IDS.includes(requestedStep as CharacterForgeStep)) {
+            setStep(requestedStep as CharacterForgeStep);
+          }
+          setDialogOpen(true);
+          return { ok: true, message: "已開啟角色鍛造精靈" };
+        }
+        case "setParam": {
+          if (action.key !== "forgeStep") {
+            return { ok: false, reason: `unknown key: ${action.key}` };
+          }
+          const v = String(action.value);
+          if (!FORGE_STEP_IDS.includes(v as CharacterForgeStep)) {
+            return { ok: false, reason: `unknown forgeStep: ${v}` };
+          }
+          setStep(v as CharacterForgeStep);
+          if (!dialogOpen) setDialogOpen(true);
+          return { ok: true, message: `鍛造精靈跳到「${v}」` };
         }
         case "navigate": {
           const path = action.path;
@@ -825,6 +871,8 @@ export default function ModelsPage() {
         }
         case "reset": {
           setTab("my");
+          setPageTab("forge");
+          setDialogOpen(false);
           return { ok: true, message: "已回到我的模型" };
         }
         default:

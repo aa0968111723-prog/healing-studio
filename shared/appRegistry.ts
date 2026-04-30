@@ -252,7 +252,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     path: "/models",
     group: "train",
     description: "LoRA 訓練流程",
-    aliases: ["lora", "訓練", "trainer"],
+    aliases: ["lora", "訓練", "trainer", "角色鍛造", "鍛造所", "character-forge"],
     showInSidebar: false,
     showInAgentHome: true,
     agentEntryPriority: 12,
@@ -260,15 +260,23 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     quickActions: [
       { id: "start-training", label: "開始訓練", description: "上傳資料啟動 LoRA 訓練" },
       {
+        id: "open-character-forge",
+        label: "開啟角色鍛造精靈",
+        description: "進入角色鍛造所並開啟新增角色對話框",
+        path: "/models",
+        prompt:
+          "請切到「角色鍛造所」分頁,開啟角色鍛造精靈,引導我從資料集 → 自動標註 → 超參數 → 開始訓練,過程中提示每一步的常見地雷。",
+      },
+      {
         id: "trainer-model-deep-dive",
         label: "模型細膩導覽",
         description: "依訓練類型比較資料量、引擎與參數起手式",
         path: "/models",
         prompt:
-          "請深度比較模型訓練中心各訓練類別（人物/風格/場景/影片/聲音）的資料量門檻、推薦引擎、超參數起手式與常見失敗點。",
+          "請深度比較模型訓練中心各訓練類別(人物/風格/場景/影片/聲音)的資料量門檻、推薦引擎、超參數起手式與常見失敗點。",
       },
     ],
-    orbHints: ["我要訓練自己的模型"],
+    orbHints: ["我要訓練自己的模型", "開啟角色鍛造精靈"],
   },
   {
     id: "dashboard",
