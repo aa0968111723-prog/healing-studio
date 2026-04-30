@@ -9,7 +9,10 @@
  */
 
 import JSZip from "jszip";
-import { getReplicateClient } from "./replicateClient.js";
+import {
+  startReplicateTraining,
+  getReplicateTrainingStatus,
+} from "./replicateClient.js";
 import { storagePut } from "../storage.js";
 import { updateFineTunedModel, updateBackgroundJob } from "../db.js";
 import { traceToolRun } from "./langsmithTracer";
@@ -118,36 +121,62 @@ async function uploadZipToStorage(
 // ─── B-5: submitReplicateTraining ───────────────────────────────────────────
 
 /**
- * Creates a Replicate prediction for LoRA training using the SDK.
- * Uses ostris/flux-dev-lora-trainer as the training model.
- * Returns the prediction ID for polling.
+ * Creates a Replicate LoRA *training* (not a prediction) via the trainings API.
+ * Uses ostris/flux-dev-lora-trainer as the trainer and writes the resulting
+ * weights to a destination model owned by the user (auto-created if missing).
+ * Returns the trainingId for polling via getReplicateTrainingStatus.
  */
 async function submitReplicateTraining(params: {
   zipUrl: string;
   triggerWord: string;
   epochs: number;
   learningRate: number;
+  userId: number;
+  modelId: number;
+  modelName: string;
 }): Promise<string> {
   const startedAt = Date.now();
-  const replicate = getReplicateClient();
   const steps = Math.min(Math.max(params.epochs * 30, 200), 2000);
+
+  const slug = (params.modelName || `lora-${params.modelId}`)
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 50);
+  const destination = `user-${params.userId}/${slug || `lora-${params.modelId}`}`;
+
+  const siteUrl = process.env.VITE_SITE_URL?.trim();
+  const webhook = siteUrl
+    ? `${siteUrl}/api/webhook/replicate?modelId=${params.modelId}`
+    : undefined;
 
   log(
     "info",
-    `Submitting Replicate training: model=ostris/flux-dev-lora-trainer, steps=${steps}, lr=${params.learningRate}, trigger="${params.triggerWord}"`
+    `Submitting Replicate training: trainer=ostris/flux-dev-lora-trainer, dest=${destination}, steps=${steps}, lr=${params.learningRate}, trigger="${params.triggerWord}"`
   );
 
-  let prediction: any;
   try {
-    prediction = await replicate.predictions.create({
-      model: "ostris/flux-dev-lora-trainer",
-      input: {
-        input_images: params.zipUrl,
-        steps: steps,
-        learning_rate: params.learningRate,
-        ...(params.triggerWord ? { caption_prefix: params.triggerWord } : {}),
-      },
+    const { trainingId } = await startReplicateTraining({
+      zipUrl: params.zipUrl,
+      triggerWord: params.triggerWord,
+      steps,
+      learningRate: params.learningRate,
+      destination,
+      webhook,
     });
+
+    void traceToolRun({
+      runName: "lora-trainer/replicate-submit",
+      provider: "replicate",
+      model: "ostris/flux-dev-lora-trainer",
+      route: "service.loraTrainer.submit",
+      method: "POST",
+      inputs: { steps, has_trigger_word: Boolean(params.triggerWord), destination },
+      outputs: { training_id: trainingId },
+      durationMs: Date.now() - startedAt,
+    });
+    log("info", `Replicate training created: ${trainingId} → ${destination}`);
+    return trainingId;
   } catch (error) {
     void traceToolRun({
       runName: "lora-trainer/replicate-submit",
@@ -155,26 +184,12 @@ async function submitReplicateTraining(params: {
       model: "ostris/flux-dev-lora-trainer",
       route: "service.loraTrainer.submit",
       method: "POST",
-      inputs: { steps, has_trigger_word: Boolean(params.triggerWord) },
+      inputs: { steps, has_trigger_word: Boolean(params.triggerWord), destination },
       error: error instanceof Error ? error.message : String(error),
       durationMs: Date.now() - startedAt,
     });
     throw error;
   }
-
-  const predictionId = prediction.id;
-  void traceToolRun({
-    runName: "lora-trainer/replicate-submit",
-    provider: "replicate",
-    model: "ostris/flux-dev-lora-trainer",
-    route: "service.loraTrainer.submit",
-    method: "POST",
-    inputs: { steps, has_trigger_word: Boolean(params.triggerWord) },
-    outputs: { prediction_id: predictionId },
-    durationMs: Date.now() - startedAt,
-  });
-  log("info", `Replicate prediction created: ${predictionId}`);
-  return predictionId;
 }
 
 // ─── B-6: runLoraTrainingJob (main orchestrator) ────────────────────────────
@@ -234,6 +249,9 @@ export async function runLoraTrainingJob(
       triggerWord,
       epochs,
       learningRate,
+      userId,
+      modelId,
+      modelName,
     });
 
     // 儲存 predictionId 至 resultJson
@@ -260,7 +278,6 @@ export async function runLoraTrainingJob(
     const MAX_POLL_MS = 3_600_000; // 60 minutes
     const POLL_INTERVAL_MS = 30_000; // 30 seconds
     const pollStart = Date.now();
-    const replicate = getReplicateClient();
 
     log(
       "info",
@@ -270,9 +287,9 @@ export async function runLoraTrainingJob(
     while (Date.now() - pollStart < MAX_POLL_MS) {
       await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
 
-      let prediction: any;
+      let prediction: { id: string; status: string; output: unknown; error: unknown };
       try {
-        prediction = await replicate.predictions.get(predictionId);
+        prediction = await getReplicateTrainingStatus(predictionId);
       } catch (pollErr: any) {
         log("warn", `Poll request failed: ${pollErr.message}, will retry...`);
         continue;
@@ -284,12 +301,15 @@ export async function runLoraTrainingJob(
 
       if (prediction.status === "succeeded") {
         // 提取輸出 URL（LoRA weights .safetensors 或 .tar）
+        const out = prediction.output as unknown;
         const outputUrl =
-          typeof prediction.output === "string"
-            ? prediction.output
-            : Array.isArray(prediction.output)
-              ? prediction.output[0]
-              : null;
+          typeof out === "string"
+            ? out
+            : Array.isArray(out)
+              ? (out[0] as string | null)
+              : out && typeof out === "object" && "weights" in (out as object)
+                ? ((out as { weights?: string }).weights ?? null)
+                : null;
 
         await updateFineTunedModel(modelId, {
           status: "ready",

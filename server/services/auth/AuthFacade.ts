@@ -6,6 +6,11 @@ import { createSessionToken } from "../../_core/googleAuth";
 import type { UserAuthRepository } from "../../repositories/mysql/UserAuthRepository.mysql";
 import { passwordResetService } from "./passwordResetService";
 import { emailService } from "./emailService";
+import {
+  buildOtpAuthUri,
+  generateBase32Secret,
+  verifyTotp,
+} from "./totpService";
 
 export type AuthResult = {
   token: string;
@@ -15,6 +20,12 @@ export type AuthResult = {
     email: string;
     name: string;
   };
+};
+
+/** Returned when a user has 2FA enabled — caller must collect a TOTP code. */
+export type TwoFactorRequired = {
+  requiresTwoFactor: true;
+  userId: number;
 };
 
 export class AuthFacade {
@@ -103,7 +114,9 @@ export class AuthFacade {
   async loginWithPassword(input: {
     email: string;
     password: string;
-  }): Promise<AuthResult> {
+    /** When provided, also satisfies the 2FA challenge in a single round-trip. */
+    totpToken?: string;
+  }): Promise<AuthResult | TwoFactorRequired> {
     const email = input.email.trim().toLowerCase();
     const user = await this.deps.repo.findByEmail(email);
     if (!user?.passwordHash) throw new Error("INVALID_CREDENTIALS");
@@ -111,6 +124,16 @@ export class AuthFacade {
     // Use automatic algorithm detection to support legacy hashes
     const ok = await verifyPassword(input.password, user.passwordHash);
     if (!ok) throw new Error("INVALID_CREDENTIALS");
+
+    // ── 2FA gate ──
+    if (user.twoFactorEnabled && user.twoFactorSecret) {
+      if (!input.totpToken) {
+        return { requiresTwoFactor: true, userId: user.id };
+      }
+      if (!verifyTotp(user.twoFactorSecret, input.totpToken)) {
+        throw new Error("INVALID_2FA_CODE");
+      }
+    }
 
     // Update last signed-in timestamp (fire-and-forget; never blocks login)
     this.deps.repo.updateLastSignedIn(user.id).catch(() => {});
@@ -130,6 +153,82 @@ export class AuthFacade {
         name: user.name || email.split("@")[0],
       },
     };
+  }
+
+  /**
+   * Stage-1 2FA setup: generate a fresh TOTP secret for an authenticated user
+   * and return the otpauth URI for QR code rendering. The secret is stored
+   * but `twoFactorEnabled` stays false until verifyTwoFactor succeeds.
+   */
+  async beginTwoFactorSetup(userId: number): Promise<{
+    secret: string;
+    otpAuthUri: string;
+  }> {
+    const user = await this.deps.repo.findById(userId);
+    if (!user) throw new Error("USER_NOT_FOUND");
+    if (!user.email) throw new Error("USER_NOT_FOUND");
+
+    const secret = generateBase32Secret();
+    await this.deps.repo.setTwoFactorSecret({
+      userId,
+      secret,
+      enabled: false,
+    });
+
+    return {
+      secret,
+      otpAuthUri: buildOtpAuthUri({
+        secret,
+        account: user.email,
+      }),
+    };
+  }
+
+  /**
+   * Stage-2 2FA setup: verify the user can produce a valid TOTP from their
+   * authenticator app, then flip twoFactorEnabled on.
+   */
+  async confirmTwoFactor(input: {
+    userId: number;
+    token: string;
+  }): Promise<void> {
+    const user = await this.deps.repo.findById(input.userId);
+    if (!user?.twoFactorSecret) throw new Error("TWO_FACTOR_NOT_INITIALIZED");
+    if (!verifyTotp(user.twoFactorSecret, input.token)) {
+      throw new Error("INVALID_2FA_CODE");
+    }
+    await this.deps.repo.setTwoFactorSecret({
+      userId: input.userId,
+      secret: user.twoFactorSecret,
+      enabled: true,
+    });
+  }
+
+  /**
+   * Disable 2FA. Requires a current TOTP from the existing secret to prevent
+   * an attacker with only a session cookie from removing the second factor.
+   */
+  async disableTwoFactor(input: {
+    userId: number;
+    token: string;
+  }): Promise<void> {
+    const user = await this.deps.repo.findById(input.userId);
+    if (!user?.twoFactorEnabled || !user.twoFactorSecret) {
+      throw new Error("TWO_FACTOR_NOT_ENABLED");
+    }
+    if (!verifyTotp(user.twoFactorSecret, input.token)) {
+      throw new Error("INVALID_2FA_CODE");
+    }
+    await this.deps.repo.setTwoFactorSecret({
+      userId: input.userId,
+      secret: null,
+      enabled: false,
+    });
+  }
+
+  async getTwoFactorStatus(userId: number): Promise<{ enabled: boolean }> {
+    const user = await this.deps.repo.findById(userId);
+    return { enabled: Boolean(user?.twoFactorEnabled) };
   }
 
   /**

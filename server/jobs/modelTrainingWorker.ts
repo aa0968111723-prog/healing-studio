@@ -10,7 +10,7 @@
  */
 
 import * as cron from "node-cron";
-import { getReplicateClient } from "../services/replicateClient.js";
+import { getReplicateTrainingStatus } from "../services/replicateClient.js";
 import {
   getQueuedJobsByType,
   getStuckJobsByType,
@@ -199,12 +199,19 @@ async function recoverStuckTrainingJobs(): Promise<void> {
         );
 
         try {
-          const replicate = getReplicateClient();
-          const prediction = await replicate.predictions.get(predictionId);
+          const prediction = await getReplicateTrainingStatus(predictionId);
 
           if (prediction.status === "succeeded") {
-            // Training completed while we were down — extract output
-            const output = prediction.output as string | undefined;
+            // Training completed while we were down — extract weights URL
+            const out = prediction.output as unknown;
+            const output =
+              typeof out === "string"
+                ? out
+                : Array.isArray(out)
+                  ? (out[0] as string | undefined)
+                  : out && typeof out === "object" && "weights" in (out as object)
+                    ? (out as { weights?: string }).weights
+                    : undefined;
             logWorker(
               "info",
               `任務 #${job.id} — Replicate 訓練已成功完成！output: ${output}`

@@ -10,6 +10,8 @@ export type LocalAuthUser = {
   loginMethod: string | null;
   passwordHash: string | null;
   remainingGenerations: number;
+  twoFactorSecret: string | null;
+  twoFactorEnabled: boolean;
 };
 
 type LocalAuthUserRow = RowDataPacket & LocalAuthUser;
@@ -17,7 +19,8 @@ type LocalAuthUserRow = RowDataPacket & LocalAuthUser;
 export class UserAuthRepository extends BaseRepository {
   async findByEmail(email: string): Promise<LocalAuthUser | null> {
     const rows = await this.db.query<LocalAuthUserRow[]>(
-      `SELECT id, openId, name, email, role, loginMethod, passwordHash, remainingGenerations
+      `SELECT id, openId, name, email, role, loginMethod, passwordHash, remainingGenerations,
+              twoFactorSecret, twoFactorEnabled
        FROM users
        WHERE LOWER(email) = LOWER(?)
        LIMIT 1`,
@@ -64,7 +67,8 @@ export class UserAuthRepository extends BaseRepository {
 
   async findById(userId: number): Promise<LocalAuthUser | null> {
     const rows = await this.db.query<LocalAuthUserRow[]>(
-      `SELECT id, openId, name, email, role, loginMethod, passwordHash, remainingGenerations
+      `SELECT id, openId, name, email, role, loginMethod, passwordHash, remainingGenerations,
+              twoFactorSecret, twoFactorEnabled
        FROM users
        WHERE id = ?
        LIMIT 1`,
@@ -89,6 +93,19 @@ export class UserAuthRepository extends BaseRepository {
        SET name = ?
        WHERE id = ?`,
       [input.name, input.userId]
+    );
+  }
+
+  async setTwoFactorSecret(input: {
+    userId: number;
+    secret: string | null;
+    enabled: boolean;
+  }): Promise<void> {
+    await this.db.execute(
+      `UPDATE users
+       SET twoFactorSecret = ?, twoFactorEnabled = ?
+       WHERE id = ?`,
+      [input.secret, input.enabled, input.userId]
     );
   }
 }
