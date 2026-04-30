@@ -2029,11 +2029,11 @@ export default function DirectorAI() {
     }
   }, [prefsQuery.data, setGlobalPersonality]);
 
-  // ── 接收 ImageStudio / VideoStudio 回填 ──
+  // ── 接收 ImageStudio / VideoStudio / ProStudio 回填 ──
   // 進場時先把 payload 暫存，等使用者載入腳本（importedSegments 就緒）
-  // 後再依 sceneName 比對，徵詢確認並回填 costar.visualPrompt + notes。
+  // 後再依 sceneName 比對，徵詢確認並回填 costar + notes。
   type DirectorReturnPayload = {
-    source?: "image_studio" | "video_studio" | string;
+    source?: "image_studio" | "video_studio" | "pro_studio" | string;
     sceneName?: string;
     finalPrompt?: string;
     modelId?: string;
@@ -2049,7 +2049,9 @@ export default function DirectorAI() {
       sessionStorage.removeItem("directorReturn");
       const data = JSON.parse(raw) as DirectorReturnPayload;
       const isStudioSource =
-        data.source === "image_studio" || data.source === "video_studio";
+        data.source === "image_studio" ||
+        data.source === "video_studio" ||
+        data.source === "pro_studio";
       if (!isStudioSource || !data.sceneName) return;
       setPendingStudioReturn(data);
     } catch {
@@ -2107,14 +2109,32 @@ export default function DirectorAI() {
   );
   const [showOverview, setShowOverview] = useState(false);
 
-  // ── Apply ImageStudio / VideoStudio return payload once segments are available ──
+  // ── Apply ImageStudio / VideoStudio / ProStudio return payload once segments are available ──
   useEffect(() => {
     if (!pendingStudioReturn) return;
     const data = pendingStudioReturn;
     const sceneName = data.sceneName ?? "";
     const isVideo = data.source === "video_studio";
-    const sourceLabel = isVideo ? "影片創作室" : "圖片創作室";
-    const sourceEmoji = isVideo ? "🎬" : "🖼️";
+    const isPro = data.source === "pro_studio";
+    const sourceLabel = isPro
+      ? "音樂配音創作室"
+      : isVideo
+        ? "影片創作室"
+        : "圖片創作室";
+    const sourceEmoji = isPro ? "🎵" : isVideo ? "🎬" : "🖼️";
+    // ProStudio 的 modelId 是 tab id（music/sfx/tts/clone/...）
+    const isVoice =
+      isPro && (data.modelId === "tts" || data.modelId === "clone");
+    const fillTarget = isPro
+      ? isVoice
+        ? "audioScript"
+        : "musicVibe"
+      : "visualPrompt";
+    const fillTargetLabel = isPro
+      ? isVoice
+        ? "audioScript（語音腳本）"
+        : "musicVibe（音樂風格）"
+      : "visualPrompt";
 
     // No segments imported yet → keep waiting; if user never imports, fall
     // back to plain toast so the result link is at least surfaced.
@@ -2137,7 +2157,7 @@ export default function DirectorAI() {
     }
 
     const ok = window.confirm(
-      `導演 AI 收到${sourceLabel}的成品。\n要把 prompt / 成品連結回填到場景「${sceneName}」嗎？\n\n（會覆寫該場景的 visualPrompt，並把成品連結附加到備註）`
+      `導演 AI 收到${sourceLabel}的成品。\n要把 prompt / 成品連結回填到場景「${sceneName}」嗎？\n\n（會覆寫該場景的 ${fillTargetLabel}，並把成品連結附加到備註）`
     );
     if (!ok) {
       setPendingStudioReturn(null);
@@ -2148,18 +2168,21 @@ export default function DirectorAI() {
     setImportedSegments(prev =>
       prev.map((s, i) => {
         if (i !== matchIdx) return s;
-        const newCostar: CoStarScript = s.costar
-          ? { ...s.costar, visualPrompt: data.finalPrompt ?? s.costar.visualPrompt }
-          : {
-              context: "",
-              situation: "",
-              task: "",
-              action: "",
-              result: "",
-              visualPrompt: data.finalPrompt ?? "",
-              audioScript: "",
-              musicVibe: "",
-            };
+        const baseCostar: CoStarScript = s.costar ?? {
+          context: "",
+          situation: "",
+          task: "",
+          action: "",
+          result: "",
+          visualPrompt: "",
+          audioScript: "",
+          musicVibe: "",
+        };
+        const value = data.finalPrompt ?? baseCostar[fillTarget];
+        const newCostar: CoStarScript = {
+          ...baseCostar,
+          [fillTarget]: value,
+        };
         const noteLine = [
           `${sourceEmoji} ${sourceLabel}成品`,
           data.modelId ? `model: ${data.modelId}` : null,

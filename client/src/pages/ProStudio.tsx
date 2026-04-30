@@ -71,6 +71,7 @@ import {
   type AgentActionResult,
   type AgentCapability,
 } from "@/contexts/PageAgentContext";
+import { useLocation } from "wouter";
 
 // ─── Agent Bridge：讓光球代理人能深度控制各分頁參數 ─────────────────────────────
 
@@ -3948,16 +3949,35 @@ export default function ProStudio() {
     }
   }, [tab]);
 
+  const [, navigate] = useLocation();
+
+  // ── Director AI 來源情境（從 sendToStudio 載入後保留，用於「回到導演 AI」回填）──
+  const [directorContext, setDirectorContext] = useState<{
+    sceneName: string;
+    sceneHeading?: string;
+    mood?: string;
+  } | null>(null);
+
+  // 暫存待派發 prompt，等 setTab 切到 targetTab 之後再透過 bridgeRef.fillPrompt 寫入
+  const [pendingDirectorPayload, setPendingDirectorPayload] = useState<{
+    prompt?: string;
+    targetTab: string;
+  } | null>(null);
+
   // ── Restore Director AI sendToStudio payload (audio/voice path) ──
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem("sendToStudio");
       if (!raw) return;
       const data = JSON.parse(raw) as {
+        prompt?: string;
         generationType?: string;
         overrideEngine?: string;
         source?: string;
         sceneName?: string;
+        segmentContext?: { sceneHeading?: string; mood?: string };
+        musicStyle?: string;
+        audioScript?: string;
       };
       if (data.generationType !== "audio" && data.generationType !== "voice") {
         return;
@@ -3966,17 +3986,39 @@ export default function ProStudio() {
       const canonical = data.overrideEngine
         ? normalizeEngineModelId(data.overrideEngine)
         : "";
+      let targetTab = "music";
       if (data.generationType === "voice") {
-        setTab("tts");
+        targetTab = "tts";
       } else if (
         canonical.startsWith("fal-ai/stable-audio") ||
         canonical.startsWith("fal-ai/musicgen") ||
         canonical.startsWith("fal-ai/ace-step") ||
         canonical.startsWith("fal-ai/sonauto")
       ) {
-        setTab("music");
+        targetTab = "music";
       } else {
-        setTab("sfx");
+        targetTab = "sfx";
+      }
+      setTab(targetTab);
+
+      if (data.source === "director_ai" && data.sceneName) {
+        setDirectorContext({
+          sceneName: data.sceneName,
+          sceneHeading: data.segmentContext?.sceneHeading,
+          mood: data.segmentContext?.mood,
+        });
+      }
+
+      // music tab 走 musicStyle，tts 走 audioScript，sfx 走 prompt
+      const promptText =
+        data.generationType === "voice"
+          ? (data.audioScript ?? data.prompt)
+          : targetTab === "music"
+            ? (data.musicStyle ?? data.prompt)
+            : data.prompt;
+
+      if (promptText) {
+        setPendingDirectorPayload({ prompt: promptText, targetTab });
       }
 
       sessionStorage.removeItem("sendToStudio");
@@ -3989,6 +4031,47 @@ export default function ProStudio() {
       // silent
     }
   }, []);
+
+  // ── Drain pending payload once the right tab has mounted & registered bridge ──
+  useEffect(() => {
+    if (!pendingDirectorPayload) return;
+    if (tab !== pendingDirectorPayload.targetTab) return;
+    const fn = bridgeRef.current.fillPrompt;
+    if (fn && pendingDirectorPayload.prompt) {
+      fn(pendingDirectorPayload.prompt);
+    }
+    setPendingDirectorPayload(null);
+  }, [pendingDirectorPayload, tab]);
+
+  // ── 回到導演 AI：把目前 prompt + tab 寫進 directorReturn 並跳回 /director ──
+  const handleReturnToDirector = useCallback(() => {
+    if (!directorContext) return;
+    const childState = bridgeRef.current.getState?.() ?? {};
+    const finalPrompt =
+      typeof childState.prompt === "string"
+        ? childState.prompt
+        : typeof childState.text === "string"
+          ? childState.text
+          : "";
+    try {
+      sessionStorage.setItem(
+        "directorReturn",
+        JSON.stringify({
+          source: "pro_studio",
+          sceneName: directorContext.sceneName,
+          sceneHeading: directorContext.sceneHeading,
+          mood: directorContext.mood,
+          finalPrompt,
+          modelId: tab,
+          resultUrl: null,
+          ts: Date.now(),
+        })
+      );
+    } catch {
+      // sessionStorage 滿/不可用就靜默
+    }
+    navigate("/director");
+  }, [directorContext, tab, navigate]);
 
   // ── Restore applied model from Models/LoraTrainer (voice clone path) ──
   useEffect(() => {
@@ -4391,6 +4474,22 @@ export default function ProStudio() {
         </div>
         </CollapsibleContent>
       </Collapsible>
+
+      {/* ── 來自導演 AI 的橫幅（含「回到導演 AI」按鈕） ── */}
+      {directorContext && (
+        <div className="flex items-center gap-2 rounded-xl border border-amber-300/40 bg-amber-50/40 dark:bg-amber-900/10 px-3 py-2 text-xs">
+          <span className="text-amber-700 dark:text-amber-300">
+            ↩ 此次任務來自導演 AI 場景「{directorContext.sceneName}」
+          </span>
+          <button
+            type="button"
+            onClick={handleReturnToDirector}
+            className="ml-auto rounded-lg border border-amber-400/50 bg-background/60 px-2.5 py-1 font-medium text-amber-700 dark:text-amber-200 hover:bg-amber-100/60 dark:hover:bg-amber-900/20 transition"
+          >
+            回到導演 AI
+          </button>
+        </div>
+      )}
 
       {/* 活躍 Tab 內容 */}
       <AnimatePresence mode="wait">
