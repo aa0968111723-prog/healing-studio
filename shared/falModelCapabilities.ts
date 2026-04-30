@@ -222,6 +222,33 @@ export const FAL_MODEL_CAPABILITIES: FalModelCapability[] = [
     features: NONE,
   },
 
+  // ─── 圖片轉 3D（image-to-3d）── 輸出為 .glb / .obj，prompt 視模型而定
+  {
+    modelId: "fal-ai/trellis-2",
+    modality: "image",
+    features: { ...NONE, seed: true },
+  },
+  {
+    modelId: "fal-ai/sam-3/3d-objects",
+    modality: "image",
+    features: NONE,
+  },
+  {
+    modelId: "fal-ai/hunyuan3d-v3/image-to-3d",
+    modality: "image",
+    features: { ...NONE, seed: true },
+  },
+  {
+    modelId: "fal-ai/hyper3d/rodin",
+    modality: "image",
+    features: { ...NONE, seed: true },
+  },
+  {
+    modelId: "fal-ai/hunyuan_world/image-to-world",
+    modality: "image",
+    features: { ...NONE, seed: true },
+  },
+
   // ─── Video 系（一律無 token weight、無 LoRA） ──
   {
     modelId: "fal-ai/kling-video/v2.1/pro/text-to-video",

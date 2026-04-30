@@ -2001,6 +2001,35 @@ export default function DirectorAI() {
     }
   }, [prefsQuery.data, setGlobalPersonality]);
 
+  // ── 接收 ImageStudio 回填（不變更 storyboard schema，只顯示給使用者） ──
+  // 使用者看到後可手動把 resultUrl / finalPrompt 貼回對應場景的視覺描述。
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("directorReturn");
+      if (!raw) return;
+      const data = JSON.parse(raw) as {
+        source?: string;
+        sceneName?: string;
+        finalPrompt?: string;
+        modelId?: string;
+        resultUrl?: string | null;
+      };
+      sessionStorage.removeItem("directorReturn");
+      if (data.source !== "image_studio" || !data.sceneName) return;
+      toast.success(
+        `已從圖片創作室收到「${data.sceneName}」的成品${data.modelId ? `（${data.modelId}）` : ""}`,
+        {
+          description: data.resultUrl
+            ? `預覽：${data.resultUrl}`
+            : "請到對應場景的視覺描述手動貼上 prompt / 圖片連結。",
+          duration: 12_000,
+        }
+      );
+    } catch {
+      // silent
+    }
+  }, []);
+
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "system",

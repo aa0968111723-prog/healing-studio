@@ -144,6 +144,51 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       outputSchema: { images: true, objectUrl: true },
       timeoutMs: 300_000,
     },
+
+    // ─── ImageStudio 3D 分頁 4 模型（hyper3d/rodin 在 text-to-3d 區） ──
+    {
+      modelId: "fal-ai/trellis-2",
+      label: "Trellis 2",
+      category: "image-to-3d",
+      tier: "premium",
+      description:
+        "Trellis 2 原生 3D 生成，輸出 GLB，電影級幾何與貼圖品質",
+      inputSchema: { imageUrl: true, seed: true },
+      outputSchema: { objectUrl: true, modelUrl: true, images: true },
+      timeoutMs: 300_000,
+    },
+    {
+      modelId: "fal-ai/sam-3/3d-objects",
+      label: "SAM 3D Objects",
+      category: "image-to-3d",
+      tier: "premium",
+      description: "Meta SAM 3D 物件重建，從單張圖片分離出 3D 物件",
+      inputSchema: { imageUrl: true },
+      outputSchema: { objectUrl: true, images: true },
+      timeoutMs: 300_000,
+    },
+    {
+      modelId: "fal-ai/hunyuan3d-v3/image-to-3d",
+      label: "Hunyuan 3D v3",
+      category: "image-to-3d",
+      tier: "premium",
+      description:
+        "騰訊混元 3D v3 電影級 3D 模型生成，支援 Normal / LowPoly / Geometry 多種型態",
+      inputSchema: { imageUrl: true, seed: true },
+      outputSchema: { objectUrl: true, modelUrl: true },
+      timeoutMs: 300_000,
+    },
+    {
+      modelId: "fal-ai/hunyuan_world/image-to-world",
+      label: "Hunyuan World",
+      category: "image-to-3d",
+      tier: "premium",
+      description:
+        "騰訊混元 World 圖片轉 3D 世界，從單張圖生成可探索的 3D 場景",
+      inputSchema: { imageUrl: true, seed: true },
+      outputSchema: { objectUrl: true, modelUrl: true },
+      timeoutMs: 300_000,
+    },
   ],
 
   // ════════════════════════════════════════════════════════
