@@ -885,6 +885,49 @@ export const proStudioRouter = router({
       }
     }),
 
+  /**
+   * fal-ai/elevenlabs/voice-cloning — ElevenLabs Instant Voice Cloning (IVC)
+   *
+   * 上傳 1-3 分鐘乾淨語音樣本，建立 voice_id，後續可在 elevenLabsTTS 直接使用。
+   * 與 qwenCloneVoice 的差異：
+   *  - Qwen 回 .safetensors embedding（only Qwen TTS 可用）
+   *  - ElevenLabs 回 voice_id（可走 ElevenLabs 全家族 TTS / dubbing / voice-changer）
+   */
+  elevenLabsVoiceClone: brainProcedure
+    .input(
+      z.object({
+        audio_url: z.string().url(),
+        name: z.string().min(1).max(100),
+        description: z.string().max(500).optional(),
+        labels: z.record(z.string(), z.string()).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const modelId = "fal-ai/elevenlabs/voice-cloning";
+      const charged = await chargeForFalTask(ctx.user.id, modelId);
+      try {
+        const { request_id } = await falQueueSubmit(
+          modelId,
+          {
+            audio_url: input.audio_url,
+            name: input.name,
+            description: input.description,
+            labels: input.labels,
+          },
+          getElevenLabsProxyHeaders()
+        );
+        return {
+          request_id,
+          model: modelId,
+          is_async_polling: true,
+          estimated_credits: charged,
+        };
+      } catch (err) {
+        await refundUserPoints(ctx.user.id, charged);
+        throw err;
+      }
+    }),
+
   /** fal-ai/kling-video/create-voice — 建立 Kling 語音配置（非同步 queue） */
   klingCreateVoice: brainProcedure
     .input(

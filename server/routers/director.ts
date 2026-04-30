@@ -2697,6 +2697,9 @@ ${segmentSummaries}
               modelId: z.string().optional(),
               voiceSpeed: z.number().optional(),
               voiceStability: z.number().optional(),
+              /** ElevenLabs / Kling voice_id 或 Qwen speaker embedding URL（聲音克隆復用） */
+              cloneVoiceId: z.string().optional(),
+              cloneEmbeddingUrl: z.string().url().optional(),
             })
             .optional(),
           /** Generation mode for all tasks */
@@ -2848,6 +2851,20 @@ ${segmentSummaries}
                 : falEngines.textToSpeech;
             const charCount = audioScript.length;
             const estimate = estimatePoints(modelId, { charCount });
+            // 聲音克隆復用：若分鏡指定 cloneVoiceId（ElevenLabs/Kling）或 embedding url（Qwen），
+            // 在 params 帶入對應欄位，executeGenerationTask 會優先傳給 fal API。
+            const voiceParams: Record<string, unknown> = {
+              text: audioScript,
+              speed: generationOptions.voiceSettings?.voiceSpeed ?? 1.0,
+              stability: generationOptions.voiceSettings?.voiceStability ?? 0.5,
+            };
+            if (generationOptions.voiceSettings?.cloneVoiceId) {
+              voiceParams.voice_id = generationOptions.voiceSettings.cloneVoiceId;
+            }
+            if (generationOptions.voiceSettings?.cloneEmbeddingUrl) {
+              voiceParams.speaker_voice_embedding_file_url =
+                generationOptions.voiceSettings.cloneEmbeddingUrl;
+            }
             generationTasks.push({
               segmentId: segment.id,
               segmentIndex: segment.index,
@@ -2855,11 +2872,7 @@ ${segmentSummaries}
               modelId,
               prompt: audioScript,
               voiceText: audioScript,
-              params: {
-                text: audioScript,
-                speed: generationOptions.voiceSettings?.voiceSpeed ?? 1.0,
-                stability: generationOptions.voiceSettings?.voiceStability ?? 0.5,
-              },
+              params: voiceParams,
               estimatedPoints: estimate.totalPoints,
             });
           }
