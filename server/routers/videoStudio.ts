@@ -194,6 +194,9 @@ async function falRun(
       error: err.slice(0, 500),
       durationMs: Date.now() - startedAt,
     });
+    // userId 在 falRun helper 層拿不到 ctx；錯誤追蹤以 0 表示「來源未知的 fal API 失敗」，
+    // 個別 procedure 若需要 user-attributed trace，請改用 dispatchFalQueueTask
+    // 並讓 brainProcedure ctx 自帶 userId 走 falDispatcher 的 LangSmith 追蹤路徑。
     recordErrorTrace({
       userId: 0,
       modality: "video",
@@ -1010,7 +1013,7 @@ export const videoStudioRouter = router({
         modelId: z.string().min(1),
       })
     )
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       const status = (await falQueueStatus(
         input.requestId,
         input.modelId
@@ -1039,7 +1042,7 @@ export const videoStudioRouter = router({
         const errMsg = status?.error ?? status?.message ?? "未知錯誤";
         // 連動：記錄到錯誤線索系統 → 自動觸發爬網搜尋 → 建立修復提案
         recordErrorTrace({
-          userId: 0,
+          userId: ctx.user?.id ?? 0,
           modality: "video",
           engine: input.modelId,
           prompt: `[非同步任務失敗] requestId=${input.requestId}`,

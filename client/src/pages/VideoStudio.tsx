@@ -2440,6 +2440,10 @@ function VideoToVideoTab() {
 function EnhancementTab() {
   const registerBgTask = useRegisterBgTask();
   const { setAIState, reportSuccess, reportFailure } = useAIState();
+  const bus = useVideoAgentBus();
+  type EnhanceModel = "upscale" | "rife" | "topaz";
+  const [activeEnhanceModel, setActiveEnhanceModel] =
+    useState<EnhanceModel>("upscale");
   const [upVideo, setUpVideo] = useState("");
   const [upFactor, setUpFactor] = useState<"2" | "4">("2");
   const [upResult, setUpResult] = useState<VideoResult | null>(null);
@@ -2524,6 +2528,95 @@ function EnhancementTab() {
       setAIState("idle");
     }
   }
+
+  // ── Agent Bus subscription (enhance) ──
+  const runUpscaleRef = useRef<() => void>(() => {});
+  const runRifeRef = useRef<() => void>(() => {});
+  const runTopazRef = useRef<() => void>(() => {});
+  runUpscaleRef.current = runUpscale;
+  runRifeRef.current = runRife;
+  runTopazRef.current = runTopaz;
+
+  useEffect(() => {
+    if (!bus) return;
+    const pending = bus.consumePendingModel();
+    if (pending && ["upscale", "rife", "topaz"].includes(pending)) {
+      setActiveEnhanceModel(pending as EnhanceModel);
+    }
+    const unsub = bus.subscribe("enhance", (cmd) => {
+      if (cmd.type === "setModel") {
+        const key = cmd.payload?.modelKey as string;
+        if (key && ["upscale", "rife", "topaz"].includes(key)) {
+          setActiveEnhanceModel(key as EnhanceModel);
+        }
+        return true;
+      }
+      if (cmd.type === "submit") {
+        const runFns: Record<EnhanceModel, () => void> = {
+          upscale: runUpscaleRef.current,
+          rife: runRifeRef.current,
+          topaz: runTopazRef.current,
+        };
+        (runFns[activeEnhanceModel] ?? runUpscaleRef.current)();
+        return true;
+      }
+      if (cmd.type === "setParam") {
+        const key = cmd.payload?.key as string;
+        const value = cmd.payload?.value;
+        switch (key) {
+          case "videoUrl":
+            if (typeof value === "string") {
+              setUpVideo(value);
+              setRifeVideo(value);
+              setTopazVideo(value);
+            }
+            return true;
+          case "upscaleFactor":
+            if (value === "2" || value === "4") setUpFactor(value as "2" | "4");
+            return true;
+          case "multiplier":
+            if (value === "2" || value === "4") setRifeMult(value as "2" | "4");
+            return true;
+          case "targetFps":
+          case "outputFps":
+            if (typeof value === "number") setRifeFps(value);
+            return true;
+          case "topazModel":
+            if (
+              typeof value === "string" &&
+              ["iris", "artemis", "theia", "gaia", "nyx"].includes(value)
+            ) {
+              setTopazModel(value as typeof topazModel);
+            }
+            return true;
+          case "outputScale":
+            if (typeof value === "number") setTopazScale(value);
+            return true;
+          default:
+            return true;
+        }
+      }
+      if (cmd.type === "reset") {
+        setUpVideo(""); setUpFactor("2");
+        setRifeVideo(""); setRifeMult("2"); setRifeFps(60);
+        setTopazVideo(""); setTopazModel("iris"); setTopazScale(2);
+        return true;
+      }
+      // enhance 沒有 prompt 欄位；fillPrompt 在這裡視為 no-op 但回 true 不阻塞
+      if (cmd.type === "fillPrompt") return true;
+      return false;
+    });
+    bus.reportState("enhance", {
+      activeModel: activeEnhanceModel,
+      hasVideo:
+        activeEnhanceModel === "upscale"
+          ? !!upVideo
+          : activeEnhanceModel === "rife"
+            ? !!rifeVideo
+            : !!topazVideo,
+    });
+    return unsub;
+  });
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
@@ -2747,6 +2840,10 @@ function EnhancementTab() {
 function AdvancedControlTab() {
   const registerBgTask = useRegisterBgTask();
   const { setAIState, reportSuccess, reportFailure } = useAIState();
+  const bus = useVideoAgentBus();
+  type ControlModel = "cam" | "ad" | "depth" | "vidu";
+  const [activeControlModel, setActiveControlModel] =
+    useState<ControlModel>("cam");
   const [camPrompt, setCamPrompt] = useState("");
   const [camImage, setCamImage] = useState("");
   const [camMotion, setCamMotion] = useState("push_in");
@@ -2865,6 +2962,118 @@ function AdvancedControlTab() {
       setAIState("idle");
     }
   }
+
+  // ── Agent Bus subscription (control) ──
+  const runCamRef = useRef<() => void>(() => {});
+  const runAdRef = useRef<() => void>(() => {});
+  const runDcRef = useRef<() => void>(() => {});
+  const runViduRef = useRef<() => void>(() => {});
+  runCamRef.current = runCam;
+  runAdRef.current = runAnimateDiff;
+  runDcRef.current = runDepthCrafter;
+  runViduRef.current = runVidu;
+
+  useEffect(() => {
+    if (!bus) return;
+    const pending = bus.consumePendingModel();
+    if (pending && ["cam", "ad", "depth", "vidu"].includes(pending)) {
+      setActiveControlModel(pending as ControlModel);
+    }
+    const unsub = bus.subscribe("control", (cmd) => {
+      if (cmd.type === "setModel") {
+        const key = cmd.payload?.modelKey as string;
+        if (key && ["cam", "ad", "depth", "vidu"].includes(key)) {
+          setActiveControlModel(key as ControlModel);
+        }
+        return true;
+      }
+      if (cmd.type === "submit") {
+        const runFns: Record<ControlModel, () => void> = {
+          cam: runCamRef.current,
+          ad: runAdRef.current,
+          depth: runDcRef.current,
+          vidu: runViduRef.current,
+        };
+        (runFns[activeControlModel] ?? runCamRef.current)();
+        return true;
+      }
+      if (cmd.type === "fillPrompt") {
+        const text = (cmd.payload?.text as string) ?? "";
+        const slot = (cmd.payload?.slot as string) ?? "prompt";
+        if (slot === "negativePrompt") {
+          setAdNeg(text);
+        } else {
+          setCamPrompt(text);
+          setAdPrompt(text);
+          setViduPrompt(text);
+        }
+        return true;
+      }
+      if (cmd.type === "setParam") {
+        const key = cmd.payload?.key as string;
+        const value = cmd.payload?.value;
+        switch (key) {
+          case "imageUrl":
+            if (typeof value === "string") {
+              setCamImage(value);
+              setViduImages([value, ""]);
+            }
+            return true;
+          case "videoUrl":
+            if (typeof value === "string") {
+              setAdVideo(value);
+              setDcVideo(value);
+            }
+            return true;
+          case "cameraMotion":
+            if (typeof value === "string") setCamMotion(value);
+            return true;
+          case "duration":
+            if (typeof value === "number") setCamDuration(value);
+            else if (value === "4" || value === "8")
+              setViduDuration(value as "4" | "8");
+            return true;
+          case "controlNet":
+            if (
+              typeof value === "string" &&
+              ["openpose", "canny", "depth", "none"].includes(value)
+            ) {
+              setAdControlNet(value as typeof adControlNet);
+            }
+            return true;
+          case "guidanceScale":
+            if (typeof value === "number") setAdGuide(value);
+            return true;
+          case "negativePrompt":
+            if (typeof value === "string") setAdNeg(value);
+            return true;
+          default:
+            return true;
+        }
+      }
+      if (cmd.type === "reset") {
+        setCamPrompt(""); setCamImage(""); setCamMotion("push_in"); setCamDuration(5);
+        setAdPrompt(""); setAdNeg(""); setAdVideo("");
+        setAdControlNet("openpose"); setAdGuide(7.5);
+        setDcVideo("");
+        setViduPrompt(""); setViduImages(["", ""]); setViduDuration("4");
+        return true;
+      }
+      return false;
+    });
+    bus.reportState("control", {
+      activeModel: activeControlModel,
+      promptPreview:
+        activeControlModel === "cam"
+          ? camPrompt.slice(0, 100)
+          : activeControlModel === "ad"
+            ? adPrompt.slice(0, 100)
+            : activeControlModel === "vidu"
+              ? viduPrompt.slice(0, 100)
+              : "(無提詞)",
+    });
+    return unsub;
+  });
 
   const CAMERA_MOTIONS = [
     { value: "static", label: "靜態（無鏡頭移動）" },
@@ -3375,7 +3584,7 @@ export default function VideoStudio() {
     {
       action: "setParam",
       label: "參數",
-      hint: "可調 key: duration / aspectRatio / cfgScale / resolution / numFrames / strength / negativePrompt / promptOptimizer / generateAudio / upscaleFactor / targetFps / cameraMotion / imageUrl / videoUrl / tailImageUrl",
+      hint: "可調 key（依當前分頁）：t2v/i2v/v2v 共用 duration / aspectRatio / cfgScale / resolution / numFrames / strength / negativePrompt / promptOptimizer / generateAudio / imageUrl / videoUrl / tailImageUrl；enhance：upscaleFactor / multiplier / outputFps / topazModel / outputScale；control：cameraMotion / controlNet / guidanceScale / imageUrl / videoUrl",
     },
     {
       action: "submit",
@@ -3422,6 +3631,15 @@ export default function VideoStudio() {
             "kling-i2v": "kling", "wan-i2v": "wan", "runway-i2v": "runway",
             "pixverse-i2v": "pixverse", "minimax-i2v": "minimax",
             "wan-v2v": "wan", "kling-v2v": "kling", "ltx-v2v": "ltx",
+            // enhance
+            "video-upscale": "upscale",
+            "frame-interp": "rife",
+            "topaz-enhance": "topaz",
+            // control
+            "cam-master": "cam",
+            "animate-diff": "ad",
+            "depth-crafter": "depth",
+            "vidu-ref": "vidu",
           };
           const modelKey = MODEL_KEY_MAP[m.id];
           if (modelKey) {
