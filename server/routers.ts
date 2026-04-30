@@ -42,6 +42,7 @@ import { buildMemoryContext, upsertMemory } from "./services/ragMemory";
 import { buildOrbSystemPrompt, type OrbPromptExtras } from "./services/siteKnowledge";
 import { parseOrbReply } from "./services/orbReplyParser";
 import { sanitizeOrbMessages } from "../shared/orb-prompt-defense";
+import { computeDashboardInsights } from "../shared/dashboard-insights";
 import { moderateOrbContent } from "../shared/orb-content-moderation";
 import { checkModalityCoherence } from "../shared/orb-modality-coherence";
 import { executeOrbToolCalls } from "./services/agentToolExecutor";
@@ -6714,6 +6715,35 @@ export const appRouter = router({
       .query(async ({ ctx, input }) => {
         return db.getUsageLogsByUser(ctx.user.id, input.limit);
       }),
+
+    /**
+     * Phase 4b — AI insights derived from the same usage data myStats returns.
+     * Pure logic lives in shared/dashboard-insights.ts so it's identical when
+     * surfaced in the UI card and when fed into the Orb assistant context.
+     */
+    insights: protectedProcedure.query(async ({ ctx }) => {
+      const [costSummary, modalityBreakdown, dailyTrend] = await Promise.all([
+        db.getUserCostSummary(ctx.user.id),
+        db.getUserModalityBreakdown(ctx.user.id),
+        db.getUserDailyTrend(ctx.user.id),
+      ]);
+      return computeDashboardInsights({
+        remainingGenerations: ctx.user.remainingGenerations,
+        totalRequests: costSummary.totalRequests,
+        totalCost: costSummary.totalCost,
+        modalityBreakdown: modalityBreakdown.map(r => ({
+          requestType: r.requestType,
+          count: r.count,
+          totalCost: parseFloat(r.totalCost || "0"),
+        })),
+        dailyTrend: dailyTrend.map(r => ({
+          date: r.date,
+          count: r.count,
+          totalCost: parseFloat(r.totalCost || "0"),
+          totalTokens: r.totalTokens,
+        })),
+      });
+    }),
   }),
 
   // ─── LangSmith 深度整合（AI 監控儀表板）─────────────────────────────────────

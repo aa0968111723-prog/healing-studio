@@ -26,6 +26,9 @@ import {
   Coins,
   Monitor,
   DollarSign,
+  AlertTriangle,
+  Sparkles,
+  Info,
 } from "lucide-react";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import { motion } from "framer-motion";
@@ -175,6 +178,11 @@ export default function DashboardPage() {
   });
   const stats = statsQuery.data;
 
+  const insightsQuery = trpc.dashboard.insights.useQuery(undefined, {
+    retry: false,
+  });
+  const insights = insightsQuery.data;
+
   // ─── PageAgent 註冊（Phase 4a：儀表板接入光球） ────────────────────────
   // Dashboard 本身是唯讀，光球主要是拿到 state snapshot 做摘要；
   // 另外支援 navigate，讓光球可以從儀表板跳到歷史 / 筆記 / 生圖等常用頁。
@@ -225,7 +233,30 @@ export default function DashboardPage() {
         stats?.modalityBreakdown?.map(r => ({
           type: r.requestType,
           count: r.count,
+          totalCost: r.totalCost,
         })) ?? [],
+      // Phase 4b — AI insights snapshot, exposed to光球 so it can give
+      // contextual suggestions ("成本上升 23%, 建議用較經濟的模型...").
+      riskLevel: insights?.riskLevel ?? "ok",
+      costTrend: insights?.costTrend ?? null,
+      topModality: insights?.topModality ?? null,
+      anomalies:
+        insights?.anomalies?.map(a => ({
+          code: a.code,
+          severity: a.severity,
+          message: a.message,
+        })) ?? [],
+      recommendations: insights?.recommendations ?? [],
+      orbSummary: insights?.orbSummary ?? null,
+      recentProviders: stats?.recentLogs
+        ? Array.from(
+            new Set(
+              stats.recentLogs
+                .map(l => l.apiProvider)
+                .filter((p): p is string => Boolean(p))
+            )
+          ).slice(0, 5)
+        : [],
     },
     handle: async (action: AgentAction): Promise<AgentActionResult> => {
       if (action.type === "navigate") {
@@ -366,6 +397,110 @@ export default function DashboardPage() {
           </motion.div>
         ))}
       </div>
+
+      {/* ─── AI 洞察卡片（Phase 4b） ────────────────────────────────────── */}
+      {insights && (insights.anomalies.length > 0 || insights.recommendations.length > 0) && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+        >
+          <GlassCard hover={false}>
+            <div className="flex items-center gap-2 mb-3">
+              {insights.riskLevel === "high" ? (
+                <AlertTriangle className="w-4 h-4 text-red-500" />
+              ) : insights.riskLevel === "warn" ? (
+                <AlertTriangle className="w-4 h-4 text-amber-500" />
+              ) : (
+                <Sparkles className="w-4 h-4 text-violet-500" />
+              )}
+              <h2 className="hs-h3 !mb-0">AI 洞察</h2>
+              <Badge
+                variant="secondary"
+                className={`text-[10px] rounded-md ${
+                  insights.riskLevel === "high"
+                    ? "bg-red-500/15 text-red-500"
+                    : insights.riskLevel === "warn"
+                      ? "bg-amber-500/15 text-amber-500"
+                      : insights.riskLevel === "info"
+                        ? "bg-blue-500/15 text-blue-500"
+                        : "bg-emerald-500/15 text-emerald-500"
+                }`}
+              >
+                {insights.riskLevel === "high"
+                  ? "高風險"
+                  : insights.riskLevel === "warn"
+                    ? "需注意"
+                    : insights.riskLevel === "info"
+                      ? "資訊"
+                      : "正常"}
+              </Badge>
+            </div>
+
+            {insights.costTrend && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3 text-xs">
+                <div>
+                  <p className="text-muted-foreground">今日成本</p>
+                  <p className="font-semibold tabular-nums">
+                    ${insights.costTrend.todayCost.toFixed(4)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">日均成本</p>
+                  <p className="font-semibold tabular-nums">
+                    ${insights.costTrend.avgDailyCost.toFixed(4)}
+                  </p>
+                </div>
+                {insights.costTrend.dayOverDayPct !== null && (
+                  <div>
+                    <p className="text-muted-foreground">日對比</p>
+                    <p
+                      className={`font-semibold tabular-nums ${
+                        insights.costTrend.dayOverDayPct > 0
+                          ? "text-amber-500"
+                          : "text-emerald-500"
+                      }`}
+                    >
+                      {insights.costTrend.dayOverDayPct >= 0 ? "+" : ""}
+                      {insights.costTrend.dayOverDayPct}%
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {insights.anomalies.length > 0 && (
+              <ul className="space-y-1.5 mb-3">
+                {insights.anomalies.map((a, i) => (
+                  <li key={i} className="flex items-start gap-2 text-xs">
+                    {a.severity === "high" || a.severity === "warn" ? (
+                      <AlertTriangle
+                        className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${
+                          a.severity === "high" ? "text-red-500" : "text-amber-500"
+                        }`}
+                      />
+                    ) : (
+                      <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-blue-500" />
+                    )}
+                    <span className="text-foreground/80">{a.message}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {insights.recommendations.length > 0 && (
+              <div className="rounded-lg bg-muted/20 p-2.5 text-xs space-y-1">
+                <p className="font-medium text-muted-foreground">建議</p>
+                {insights.recommendations.map((r, i) => (
+                  <p key={i} className="text-foreground/80">
+                    · {r}
+                  </p>
+                ))}
+              </div>
+            )}
+          </GlassCard>
+        </motion.div>
+      )}
 
       {/* Charts Row */}
       {statsQuery.isLoading ? (
