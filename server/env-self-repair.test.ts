@@ -21,7 +21,16 @@ const ENV_KEYS_TO_RESET = [
   "ANTHROPIC_API_KEY",
   "NVIDIA_API",
   "FAL_API_KEY",
+  "PINECONE_API_KEY",
   "PINECONE_INDEX_NAME",
+  "PERPLEXITY_API_KEY",
+  "OPENPOSE_API_KEY",
+  "VITE_POSTHOG_KEY",
+  "POSTHOG_API_KEY",
+  "GITHUB_TOKEN",
+  "DISCORD_WEBHOOK_URL",
+  "REDIS_URL",
+  "LANGSMITH_API_KEY",
   "JWT_ACCESS_TOKEN_EXPIRES_IN",
   "GOOGLE_APPLICATION_CREDENTIALS_JSON",
 ];
@@ -116,5 +125,54 @@ describe("env.validated self-repair", () => {
     process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON = validJson;
     const mod = await import("./_core/env.validated");
     expect(mod.serverEnv.GOOGLE_APPLICATION_CREDENTIALS_JSON).toBe(validJson);
+  });
+
+  it("ignores common placeholder values (your-xxx-api-key)", async () => {
+    process.env.PINECONE_API_KEY = "your-pinecone-api-key";
+    process.env.PERPLEXITY_API_KEY = "your-perplexity-api-key";
+    process.env.OPENPOSE_API_KEY = "your-openpose-api-key";
+    process.env.VITE_POSTHOG_KEY = "your-posthog-project-key";
+    const mod = await import("./_core/env.validated");
+    expect(mod.serverEnv.PINECONE_API_KEY).toBe("");
+    expect(mod.serverEnv.PERPLEXITY_API_KEY).toBe("");
+    expect(mod.serverEnv.OPENPOSE_API_KEY).toBe("");
+    const log = mod.getEnvSelfRepairLog();
+    expect(
+      log.filter(l => l.action === "ignored_placeholder").length
+    ).toBeGreaterThanOrEqual(3);
+  });
+
+  it("preserves real-looking API keys (does not match placeholder pattern)", async () => {
+    process.env.PINECONE_API_KEY = "pcsk_abc123_realKey456";
+    process.env.PERPLEXITY_API_KEY = "pplx-abcdef0123456789";
+    const mod = await import("./_core/env.validated");
+    expect(mod.serverEnv.PINECONE_API_KEY).toBe("pcsk_abc123_realKey456");
+    expect(mod.serverEnv.PERPLEXITY_API_KEY).toBe("pplx-abcdef0123456789");
+  });
+
+  it("clears LANGSMITH_API_KEY when format is wrong (not lsv2_pt_/lsv2_sk_)", async () => {
+    process.env.LANGSMITH_API_KEY = "id:69a15d7c-5305-425e-8eb0-8e7c8130a023";
+    const mod = await import("./_core/env.validated");
+    expect(mod.serverEnv.LANGSMITH_API_KEY).toBe("");
+    const log = mod.getEnvSelfRepairLog();
+    expect(
+      log.some(
+        l => l.varName === "LANGSMITH_API_KEY" && l.action === "ignored_invalid"
+      )
+    ).toBe(true);
+  });
+
+  it("preserves a properly formatted LangSmith key", async () => {
+    process.env.LANGSMITH_API_KEY = "lsv2_pt_abcdef0123456789";
+    const mod = await import("./_core/env.validated");
+    expect(mod.serverEnv.LANGSMITH_API_KEY).toBe("lsv2_pt_abcdef0123456789");
+  });
+
+  it("exposes new schema entries (POSTHOG, DISCORD, REDIS) with sensible defaults", async () => {
+    const mod = await import("./_core/env.validated");
+    expect(mod.serverEnv.POSTHOG_HOST).toBe("https://us.i.posthog.com");
+    expect(mod.serverEnv.REDIS_KEY_PREFIX).toBe("healing-studio:");
+    expect(mod.serverEnv.DISCORD_WEBHOOK_URL).toBe("");
+    expect(mod.serverEnv.REDIS_URL).toBe("");
   });
 });

@@ -1,3 +1,5 @@
+import { serverEnv } from "../_core/env.validated";
+
 export type CacheConfig = {
   enabled: boolean;
   redisUrl: string;
@@ -6,8 +8,8 @@ export type CacheConfig = {
 
 export function getCacheConfig(): CacheConfig {
   return {
-    enabled: Boolean(process.env.REDIS_URL),
-    redisUrl: process.env.REDIS_URL || "",
-    keyPrefix: process.env.REDIS_KEY_PREFIX || "healing-studio:",
+    enabled: Boolean(serverEnv.REDIS_URL),
+    redisUrl: serverEnv.REDIS_URL,
+    keyPrefix: serverEnv.REDIS_KEY_PREFIX,
   };
 }
