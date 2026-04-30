@@ -69,6 +69,10 @@ function isAdminEmail(email: string): boolean {
 let _db: ReturnType<typeof drizzle> | null = null;
 let _migrationsDone = false;
 let _migrationsInFlight: Promise<void> | null = null;
+let _migrationsLastFailedAt = 0;
+// Backoff after a failed migration so per-request retries don't spam logs
+// or hammer the DB. Resolved successfully on the next successful run.
+const MIGRATION_RETRY_COOLDOWN_MS = 30_000;
 
 /**
  * Internal: applies pending migrations against an already-connected db.
@@ -83,6 +87,14 @@ async function applyMigrations(db: ReturnType<typeof drizzle>): Promise<void> {
     await _migrationsInFlight;
     return;
   }
+  // After a failure, suppress retries for a short cooldown window so a broken
+  // migration does not produce a flood of identical errors on every request.
+  if (
+    _migrationsLastFailedAt > 0 &&
+    Date.now() - _migrationsLastFailedAt < MIGRATION_RETRY_COOLDOWN_MS
+  ) {
+    return;
+  }
   // Assign synchronously so any concurrent caller entering this function
   // after the first await sees _migrationsInFlight as set.
   _migrationsInFlight = (async () => {
@@ -91,8 +103,10 @@ async function applyMigrations(db: ReturnType<typeof drizzle>): Promise<void> {
       // Absolute path so the folder resolves correctly regardless of cwd.
       await migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
       _migrationsDone = true;
+      _migrationsLastFailedAt = 0;
       console.info("[Database] Migrations applied successfully.");
     } catch (error) {
+      _migrationsLastFailedAt = Date.now();
       console.error("[Database] Migration failed:", error);
       // Leave _migrationsDone false so the next startup attempt will retry.
     } finally {
