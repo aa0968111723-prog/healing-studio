@@ -431,6 +431,30 @@ export type VideoIntentDetection =
 
 export type CreationIntentDetection = VideoIntentDetection;
 
+/**
+ * Subset of the server-side OrbUserPreferenceProfile that the keyword fallback
+ * cares about. Keep the shape forward-compatible (all fields optional) so the
+ * server can grow the profile without breaking the client.
+ */
+export interface RememberedCreationPreferences {
+  name?: string;
+  styles?: string[];
+  outputs?: string[];
+  platforms?: string[];
+  models?: string[];
+  videoLengthHint?: "short" | "medium" | "long";
+}
+
+function styleHint(prefs: RememberedCreationPreferences | undefined): string {
+  if (!prefs?.styles?.length) return "";
+  return `（風格傾向：${prefs.styles.slice(0, 2).join("、")}）`;
+}
+
+function platformHint(prefs: RememberedCreationPreferences | undefined): string {
+  if (!prefs?.platforms?.length) return "";
+  return `（投放：${prefs.platforms.slice(0, 2).join("、")}）`;
+}
+
 const VIDEO_KEYWORDS = [
   "短片",
   "影片",
@@ -502,7 +526,10 @@ function detectModalityHits(q: string): ModalityHits {
   };
 }
 
-export function detectVideoIntent(text: string): VideoIntentDetection {
+export function detectVideoIntent(
+  text: string,
+  preferences?: RememberedCreationPreferences
+): VideoIntentDetection {
   const trimmed = text.trim();
   const q = trimmed.toLowerCase();
   const wantsVideo = matchAny(q, VIDEO_KEYWORDS);
@@ -514,9 +541,13 @@ export function detectVideoIntent(text: string): VideoIntentDetection {
   const isShortHint = SHORT_HINT_RE.test(trimmed);
   const hasSubject = trimmed.length >= 25 || SUBJECT_HINT_RE.test(trimmed);
 
+  // Style / platform we know about become hints embedded in the prompt so
+  // generated work matches the user's usual taste without re-asking.
+  const enrichedBrief = `${trimmed}${styleHint(preferences)}${platformHint(preferences)}`;
+
   if (wantsLong && !isShortHint) {
     if (hasSubject) {
-      return { kind: "ready", workflow: buildLongVideoWorkflow(trimmed) };
+      return { kind: "ready", workflow: buildLongVideoWorkflow(enrichedBrief) };
     }
     return {
       kind: "needs-clarification",
@@ -529,6 +560,16 @@ export function detectVideoIntent(text: string): VideoIntentDetection {
         "改做 30 秒短片就好",
       ],
     };
+  }
+
+  // Use the remembered length tier when the user didn't specify one.
+  // - long: kick off the long workflow if we also have subject hint
+  // - medium: still go short for now (no medium builder); but inject hint
+  // - short or unset: short workflow
+  if (!hasLength) {
+    if (preferences?.videoLengthHint === "long" && hasSubject) {
+      return { kind: "ready", workflow: buildLongVideoWorkflow(enrichedBrief) };
+    }
   }
 
   if (!hasLength && !hasSubject) {
@@ -545,7 +586,7 @@ export function detectVideoIntent(text: string): VideoIntentDetection {
     };
   }
 
-  return { kind: "ready", workflow: buildShortVideoWorkflow(trimmed) };
+  return { kind: "ready", workflow: buildShortVideoWorkflow(enrichedBrief) };
 }
 
 /**
@@ -557,7 +598,10 @@ export function detectVideoIntent(text: string): VideoIntentDetection {
  * The video branch is delegated to detectVideoIntent so the existing
  * length/subject heuristics keep working unchanged.
  */
-export function detectCreationIntent(text: string): CreationIntentDetection {
+export function detectCreationIntent(
+  text: string,
+  preferences?: RememberedCreationPreferences
+): CreationIntentDetection {
   const trimmed = text.trim();
   if (!trimmed) return { kind: "none" };
   const q = trimmed.toLowerCase();
@@ -567,6 +611,8 @@ export function detectCreationIntent(text: string): CreationIntentDetection {
   const anyHit = hits.video || hits.image || hits.music || hits.voice || hits.sfx || hits.script;
   if (!anyHit || !wantsBuild) return { kind: "none" };
 
+  const enrichedBrief = `${trimmed}${styleHint(preferences)}${platformHint(preferences)}`;
+
   // Explicit "寫/規劃/設計 腳本/劇本/分鏡" — the user wants the script as a
   // text deliverable, not the actual film. Beat the video branch even when
   // 短片/影片 is mentioned alongside.
@@ -575,20 +621,20 @@ export function detectCreationIntent(text: string): CreationIntentDetection {
     /(寫|規劃|設計).{0,8}(腳本|劇本|分鏡|故事大綱|story outline|script|storyboard)/i.test(trimmed) &&
     !hits.image && !hits.music && !hits.voice && !hits.sfx;
   if (wantsScriptOnly) {
-    return { kind: "ready", workflow: buildScriptOnlyWorkflow(trimmed) };
+    return { kind: "ready", workflow: buildScriptOnlyWorkflow(enrichedBrief) };
   }
 
   // Video usually subsumes the other modalities (a short film naturally
   // includes images / voice / music). Defer to the existing video heuristics
   // unless the user asked for a non-video deliverable.
   if (hits.video) {
-    return detectVideoIntent(trimmed);
+    return detectVideoIntent(trimmed, preferences);
   }
 
   // Pure script / planning request — script is structured text, not a media
   // generation, so we never ask follow-up questions here.
   if (hits.script && !hits.image && !hits.music && !hits.voice && !hits.sfx) {
-    return { kind: "ready", workflow: buildScriptOnlyWorkflow(trimmed) };
+    return { kind: "ready", workflow: buildScriptOnlyWorkflow(enrichedBrief) };
   }
 
   // Audio cluster — music vs voice vs sfx. If the user mixed multiple audio
@@ -607,20 +653,23 @@ export function detectCreationIntent(text: string): CreationIntentDetection {
     };
   }
 
-  if (hits.music) return { kind: "ready", workflow: buildMusicWorkflow(trimmed) };
-  if (hits.voice) return { kind: "ready", workflow: buildVoiceWorkflow(trimmed) };
-  if (hits.sfx) return { kind: "ready", workflow: buildSfxWorkflow(trimmed) };
+  if (hits.music) return { kind: "ready", workflow: buildMusicWorkflow(enrichedBrief) };
+  if (hits.voice) return { kind: "ready", workflow: buildVoiceWorkflow(enrichedBrief) };
+  if (hits.sfx) return { kind: "ready", workflow: buildSfxWorkflow(enrichedBrief) };
 
   // Image — last because audio/video keywords are more specific.
-  if (hits.image) return { kind: "ready", workflow: buildImageWorkflow(trimmed) };
+  if (hits.image) return { kind: "ready", workflow: buildImageWorkflow(enrichedBrief) };
 
   // Script alongside another non-audio modality is rare; treat as script-only.
-  if (hits.script) return { kind: "ready", workflow: buildScriptOnlyWorkflow(trimmed) };
+  if (hits.script) return { kind: "ready", workflow: buildScriptOnlyWorkflow(enrichedBrief) };
 
   return { kind: "none" };
 }
 
-export function maybeCreateWorkflowFromUserText(text: string): RunWorkflowAction | null {
-  const detection = detectCreationIntent(text);
+export function maybeCreateWorkflowFromUserText(
+  text: string,
+  preferences?: RememberedCreationPreferences
+): RunWorkflowAction | null {
+  const detection = detectCreationIntent(text, preferences);
   return detection.kind === "ready" ? detection.workflow : null;
 }

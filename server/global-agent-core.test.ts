@@ -343,6 +343,30 @@ describe("global-agent-workflows", () => {
     }
   });
 
+  it("detectCreationIntent embeds remembered style/platform hints into the workflow", () => {
+    const detection = detectCreationIntent("幫我做一張海報", {
+      styles: ["電影感", "療癒"],
+      platforms: ["Instagram"],
+    });
+    expect(detection.kind).toBe("ready");
+    if (detection.kind === "ready") {
+      const firstStep = detection.workflow.steps[0];
+      expect(firstStep?.payload).toContain("電影感");
+      expect(firstStep?.payload).toContain("Instagram");
+    }
+  });
+
+  it("detectVideoIntent uses remembered videoLengthHint=long to trigger long-video workflow", () => {
+    const detection = detectVideoIntent(
+      "幫我做一支主題：療癒森林品牌故事的影片",
+      { videoLengthHint: "long" }
+    );
+    expect(detection.kind).toBe("ready");
+    if (detection.kind === "ready") {
+      expect(detection.workflow.name).toContain("章節長片");
+    }
+  });
+
   it("adapts schema-first planner output into runWorkflow action", () => {
     const adapted = adaptAgentPlanToActions({
       name: "Schema Plan",

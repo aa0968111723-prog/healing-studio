@@ -1180,7 +1180,27 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         : dataActions
         ? parseLLMActions(dataActions)
         : [];
-      const intentDetection = llmActions.length === 0 ? detectCreationIntent(trimmed) : { kind: "none" } as const;
+
+      // The chat router echoes back the durable preference profile (name +
+      // styles + platforms + length tier) so the keyword fallback can fill in
+      // missing details rather than asking again. Shape is forward-compat:
+      // every field is optional and we never throw on missing keys.
+      const rememberedPreferences = (() => {
+        const raw = (dataObj.rememberedPreferences ?? null) as
+          | {
+              styles?: string[];
+              outputs?: string[];
+              platforms?: string[];
+              models?: string[];
+              videoLengthHint?: "short" | "medium" | "long";
+            }
+          | null;
+        if (!raw) return undefined;
+        return raw;
+      })();
+      const intentDetection = llmActions.length === 0
+        ? detectCreationIntent(trimmed, rememberedPreferences)
+        : { kind: "none" } as const;
       if (intentDetection.kind === "needs-clarification") {
         const question = intentDetection.message;
         const replyForUser = dataReply ? `${dataReply}\n\n🎬 ${question}` : `🎬 ${question}`;

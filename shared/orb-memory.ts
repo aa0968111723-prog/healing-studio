@@ -125,19 +125,108 @@ export function summarizeToolRegistryForPlanner(limit = 40): string {
 }
 
 export interface ExtractedOrbPreferences {
+  /** 從訊息裡擷取到的暱稱，用來下次主動稱呼。 */
+  name?: string;
   language?: "zh-TW" | "en";
   styles: string[];
   outputs: string[];
   models: string[];
+  /** 偏好影片長度：short=30 秒級、medium=1–3 分鐘、long=5 分鐘以上 */
+  videoLengthHint?: "short" | "medium" | "long";
+  /** 投放平台：IG、YouTube、TikTok 等 */
+  platforms: string[];
   workflowHints: string[];
   riskPreference?: "confirm_first" | "direct_when_safe";
   claudeCodePreference?: string;
+}
+
+const NAME_NEGATIVE_RE =
+  /^(學生|新手|老師|工程師|設計師|創作者|新人|老人|男生|女生|user|new|old|here)$/i;
+
+/**
+ * 從訊息中擷取使用者自報的名字。
+ * 支援「我叫 X」「我是 X」「叫我 X」「my name is X」「I'm X」「I am X」。
+ */
+export function extractUserName(text: string): string | undefined {
+  // ES5 target: avoid \p{Letter} (requires `u` flag, ES2018+). Use an explicit
+  // BMP character class covering CJK + ASCII letters/digits, which is enough
+  // for self-reported nicknames in this product.
+  const NAME_BODY = "[A-Za-z0-9一-鿿぀-ヿ㐀-䶿]";
+  const patterns: RegExp[] = [
+    new RegExp(`我叫\\s*(${NAME_BODY}{1,12})`),
+    new RegExp(`我是\\s*(${NAME_BODY}{1,12})`),
+    new RegExp(`叫我\\s*(${NAME_BODY}{1,12})`),
+    /(?:my\s+name\s+is|i'?m|i\s+am)\s+([A-Za-z][A-Za-z0-9]{0,15})/i,
+  ];
+  // Trailing softeners that often follow self-introductions in Chinese:
+  // 「叫我阿傑就好」「我叫小華吧」「我是阿明哦」 — strip them so we keep the
+  // actual name and not the politeness suffix.
+  const STOP_SUFFIX_RE = /(就好|就是|都好|也行|沒錯|吧|啊|呢|嗎|哦|喔|呀|耶)$/;
+  for (const re of patterns) {
+    const match = text.match(re);
+    if (!match || !match[1]) continue;
+    const trimmed = match[1].trim().replace(STOP_SUFFIX_RE, "").trim();
+    if (!trimmed) continue;
+    if (NAME_NEGATIVE_RE.test(trimmed)) continue;
+    if (containsSensitiveText(trimmed)) continue;
+    return trimmed;
+  }
+  return undefined;
+}
+
+const PLATFORM_TOKENS: Array<{ token: string; label: string }> = [
+  { token: "instagram", label: "Instagram" },
+  { token: "ig", label: "Instagram" },
+  { token: "限動", label: "Instagram" },
+  { token: "reels", label: "Instagram Reels" },
+  { token: "youtube", label: "YouTube" },
+  { token: "yt", label: "YouTube" },
+  { token: "shorts", label: "YouTube Shorts" },
+  { token: "tiktok", label: "TikTok" },
+  { token: "抖音", label: "抖音" },
+  { token: "facebook", label: "Facebook" },
+  { token: "fb", label: "Facebook" },
+  { token: "threads", label: "Threads" },
+  { token: "linkedin", label: "LinkedIn" },
+];
+
+function detectVideoLengthHint(text: string): "short" | "medium" | "long" | undefined {
+  if (/長片|長影片|長視頻/.test(text)) return "long";
+  const minutes = text.match(/(\d+)\s*分(?!之|秒)/);
+  if (minutes) {
+    const n = Number.parseInt(minutes[1], 10);
+    if (n >= 5) return "long";
+    if (n >= 1) return "medium";
+  }
+  if (/短片|reel|shorts|teaser/i.test(text)) return "short";
+  const seconds = text.match(/(\d+)\s*秒/);
+  if (seconds) {
+    const n = Number.parseInt(seconds[1], 10);
+    if (n <= 60) return "short";
+    if (n <= 180) return "medium";
+    return "long";
+  }
+  return undefined;
+}
+
+function detectPlatforms(text: string): string[] {
+  const lower = text.toLowerCase();
+  const seen = new Set<string>();
+  for (const { token, label } of PLATFORM_TOKENS) {
+    if (lower.includes(token)) seen.add(label);
+  }
+  return Array.from(seen);
 }
 
 export function extractOrbPreferencesFromConversation(input: {
   messages: Array<{ role: string; content: string }>;
   taskSummaries?: string[];
 }): ExtractedOrbPreferences {
+  // 偏好抽取只看使用者訊息，避免把 LLM 自己 echo 的內容當成記憶。
+  const userText = input.messages
+    .filter(m => m.role === "user")
+    .map(m => m.content)
+    .join("\n");
   const text = input.messages.map(m => `${m.role}:${m.content}`).join("\n").toLowerCase();
   const pick = (keywords: string[], value: string) => keywords.some(k => text.includes(k)) ? value : null;
   const styles = [
@@ -163,13 +252,99 @@ export function extractOrbPreferencesFromConversation(input: {
     ? sanitizeMemoryText(text.slice(0, 120))
     : undefined;
 
+  const name = extractUserName(userText);
+  const videoLengthHint = detectVideoLengthHint(userText);
+  const platforms = detectPlatforms(userText);
+
   return {
+    name,
     language,
     styles,
     outputs,
     models,
+    videoLengthHint,
+    platforms,
     workflowHints,
     riskPreference,
     claudeCodePreference,
+  };
+}
+
+/**
+ * Durable preference profile aggregated across many memory snapshots. Used to
+ * surface "what we already know about you" to the planner prompt and to the
+ * client-side keyword fallback so it can fill in missing details (length /
+ * platform / style) without asking again.
+ */
+export interface OrbUserPreferenceProfile {
+  name?: string;
+  styles: string[];
+  outputs: string[];
+  platforms: string[];
+  models: string[];
+  videoLengthHint?: "short" | "medium" | "long";
+  language?: "zh-TW" | "en";
+  /** 多少筆記憶投票，用來判斷信心 */
+  evidenceCount: number;
+}
+
+const PREFERENCE_MEMORY_TYPES: OrbMemoryType[] = [
+  "user_preference",
+  "style_preference",
+  "model_preference",
+];
+
+export function aggregatePreferenceProfile(memories: OrbMemory[]): OrbUserPreferenceProfile {
+  const styles = new Set<string>();
+  const outputs = new Set<string>();
+  const platforms = new Set<string>();
+  const models = new Set<string>();
+  let name: string | undefined;
+  let videoLengthHint: "short" | "medium" | "long" | undefined;
+  let language: "zh-TW" | "en" | undefined;
+  let evidenceCount = 0;
+
+  const sorted = [...memories].sort((a, b) => b.createdAt - a.createdAt);
+  for (const memory of sorted) {
+    if (!PREFERENCE_MEMORY_TYPES.includes(memory.type)) continue;
+    evidenceCount += 1;
+    const meta = memory.metadata ?? {};
+    if (!name && typeof meta.name === "string" && meta.name.trim()) {
+      name = meta.name.trim();
+    }
+    if (
+      !videoLengthHint &&
+      (meta.videoLengthHint === "short" || meta.videoLengthHint === "medium" || meta.videoLengthHint === "long")
+    ) {
+      videoLengthHint = meta.videoLengthHint;
+    }
+    if (!language && (meta.language === "zh-TW" || meta.language === "en")) {
+      language = meta.language;
+    }
+    const collect = (set: Set<string>, value: unknown) => {
+      if (Array.isArray(value)) {
+        for (const item of value) if (typeof item === "string" && item.trim()) set.add(item.trim());
+      }
+    };
+    collect(styles, meta.styles);
+    collect(outputs, meta.outputs);
+    collect(platforms, meta.platforms);
+    collect(models, meta.models);
+    for (const tag of memory.tags) {
+      if (tag.startsWith("style:")) styles.add(tag.slice(6));
+      else if (tag.startsWith("platform:")) platforms.add(tag.slice(9));
+      else if (tag.startsWith("output:")) outputs.add(tag.slice(7));
+    }
+  }
+
+  return {
+    name,
+    styles: Array.from(styles).slice(0, 6),
+    outputs: Array.from(outputs).slice(0, 6),
+    platforms: Array.from(platforms).slice(0, 4),
+    models: Array.from(models).slice(0, 6),
+    videoLengthHint,
+    language,
+    evidenceCount,
   };
 }
