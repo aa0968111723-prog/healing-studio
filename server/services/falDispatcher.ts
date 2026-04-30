@@ -200,6 +200,10 @@ const TIMEOUT_OVERRIDES: Record<string, number> = {
   "fal-ai/wan/v2.1/video-to-video": 200_000,
   "fal-ai/kling-video/v1.6/standard/video-to-video": 240_000,
   "fal-ai/animatediff-v2v": 300_000,
+  // 畫質優化（enhance）：Topaz 專業降噪可達 5–10 分鐘
+  "fal-ai/bytedance/upscaler/video": 300_000,
+  "fal-ai/rife-v4.6/video": 240_000,
+  "fal-ai/topaz/video-enhance": 600_000,
   "fal-ai/minimax-video/text-to-video": 200_000,
   "fal-ai/minimax-video/image-to-video": 200_000,
   "fal-ai/minimax/hailuo-02/pro/text-to-video": 240_000,
@@ -234,8 +238,12 @@ function isRetryableError(err: unknown): boolean {
   return true;
 }
 
-/** 每個分類的降級鏈（按品質由高至低） */
-const FALLBACK_CHAINS: Record<string, string[]> = {
+/**
+ * 每個分類的降級鏈（按品質由高至低）。
+ * 出口給 brainContext.findFallback 使用，把「per-category roster」當作
+ * 「per-model fallback」缺漏時的來源，避免兩處鏈條策略分叉。
+ */
+export const FALLBACK_CHAINS: Record<string, string[]> = {
   "text-to-image": [
     "fal-ai/flux-pro/v1.1",
     "fal-ai/flux/dev",
@@ -298,6 +306,12 @@ const FALLBACK_CHAINS: Record<string, string[]> = {
     "fal-ai/animatediff-v2v",
     "fal-ai/cogvideox-5b/video-to-video",
     "fal-ai/video-to-video",
+    // 畫質優化（fallback 對 enhance 類別共用同一池；同類別內降級）
+    "fal-ai/topaz/video-enhance",
+    "fal-ai/bytedance/upscaler/video",
+    "fal-ai/topaz-upscale-video",
+    "fal-ai/stable-video-upscaler",
+    "fal-ai/rife-v4.6/video",
   ],
   training: ["fal-ai/flux-lora-fast-training"],
   llm: ["fal-ai/any-llm"],

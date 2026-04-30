@@ -597,6 +597,52 @@ async function dispatchStudioTool(
         };
       }
 
+      case "studio.enhanceVideo": {
+        const { dispatchFalQueueTask } = await import("./falDispatcher");
+        const operation = String(args.operation ?? "enhance");
+        const defaultModelByOp = {
+          upscale: "fal-ai/bytedance/upscaler/video",
+          interpolate: "fal-ai/rife-v4.6/video",
+          enhance: "fal-ai/topaz/video-enhance",
+        } as const;
+        const modelId =
+          (args.modelId as string) ||
+          defaultModelByOp[operation as keyof typeof defaultModelByOp] ||
+          defaultModelByOp.enhance;
+        const input: Record<string, unknown> = {};
+        if (typeof args.video_url === "string") input.video_url = args.video_url;
+        if (typeof args.upscale_factor === "number")
+          input.upscale_factor = args.upscale_factor;
+        if (typeof args.multiplier === "number")
+          input.multiplier = args.multiplier;
+        if (typeof args.output_fps === "number")
+          input.output_fps = args.output_fps;
+        if (typeof args.output_scale === "number")
+          input.output_scale = args.output_scale;
+        if (typeof args.topaz_model === "string")
+          input.model = args.topaz_model;
+        const r = await dispatchFalQueueTask({
+          modelId,
+          category: "video-to-video",
+          input,
+          route: "orb-tool/studio.enhanceVideo",
+          modality: "video",
+          userId: opts.userId,
+        });
+        return {
+          name: call.name,
+          ok: true,
+          data: {
+            request_id: r.request_id,
+            modelId: r.modelId,
+            operation,
+            degraded: r.degraded ?? false,
+            engine: "fal",
+          },
+          usedTool: call.name,
+        };
+      }
+
       case "studio.generateAudio": {
         const requestedModel = (args.modelId as string) || "";
         // Suno 路徑：modelId 起頭為 "suno" 走 SunoClient

@@ -1411,6 +1411,37 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       outputSchema: { videoUrl: true },
       timeoutMs: 300_000,
     },
+    // ── 畫質優化（enhance） ──
+    {
+      modelId: "fal-ai/bytedance/upscaler/video",
+      label: "ByteDance 影片超解析",
+      category: "video-to-video",
+      tier: "premium",
+      description: "ByteDance 影片超解析（2x / 4x 放大）",
+      inputSchema: { videoUrl: true },
+      outputSchema: { videoUrl: true },
+      timeoutMs: 300_000,
+    },
+    {
+      modelId: "fal-ai/rife-v4.6/video",
+      label: "RIFE 補幀",
+      category: "video-to-video",
+      tier: "standard",
+      description: "RIFE v4.6 高品質補幀（2x / 4x 幀率提升）",
+      inputSchema: { videoUrl: true },
+      outputSchema: { videoUrl: true },
+      timeoutMs: 240_000,
+    },
+    {
+      modelId: "fal-ai/topaz/video-enhance",
+      label: "Topaz Video Enhance",
+      category: "video-to-video",
+      tier: "premium",
+      description: "Topaz 專業降噪 + 超解析（iris / artemis / theia / gaia / nyx）",
+      inputSchema: { videoUrl: true },
+      outputSchema: { videoUrl: true },
+      timeoutMs: 600_000,
+    },
   ],
 };
 

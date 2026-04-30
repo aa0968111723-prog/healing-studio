@@ -17,6 +17,8 @@
 import { eq } from "drizzle-orm";
 import { userAiBrain, type UserAiBrain } from "../../drizzle/schema";
 import { getDb } from "../db";
+import { FALLBACK_CHAINS as DISPATCHER_FALLBACK_CHAINS } from "../services/falDispatcher";
+import { getModelPricing } from "../services/modelPricing";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
@@ -585,7 +587,19 @@ function findFallback(
   const isHealthy = getHealthStatus(currentModel);
   if (isHealthy) return null; // 不需要降級
 
-  const chain = ENGINE_FALLBACK_CHAIN[currentModel] ?? [];
+  // 解析 fallback 候選清單：先看 per-model 覆寫，缺則退到 dispatcher
+  // 的 per-category 名單（共用同一份 SSOT，避免兩處策略分叉）。
+  const perModelChain = ENGINE_FALLBACK_CHAIN[currentModel] ?? [];
+  const category = getModelPricing(currentModel)?.category;
+  const categoryChain = category
+    ? (DISPATCHER_FALLBACK_CHAINS[category] ?? []).filter(
+        id => id !== currentModel
+      )
+    : [];
+  // per-model 優先（更精確），補入 category 名單去重
+  const chain = perModelChain.length > 0
+    ? Array.from(new Set([...perModelChain, ...categoryChain]))
+    : categoryChain;
 
   // 嘗試 fallback chain
   for (const candidate of chain) {

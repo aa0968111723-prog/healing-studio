@@ -369,6 +369,23 @@ export const GENERATION_ENGINE_CATALOG = {
         tier: "standard",
       },
 
+      // ── Fal.ai 畫質優化（enhance） ──
+      {
+        value: "fal-ai/bytedance/upscaler/video",
+        label: "ByteDance 影片超解析",
+        tier: "premium",
+      },
+      {
+        value: "fal-ai/rife-v4.6/video",
+        label: "RIFE 補幀",
+        tier: "standard",
+      },
+      {
+        value: "fal-ai/topaz/video-enhance",
+        label: "Topaz Video Enhance",
+        tier: "ultra",
+      },
+
       // ── Gemini Veo ──
       { value: "gemini/veo-2", label: "Veo 2 (Gemini) 🔵", tier: "premium" },
       {

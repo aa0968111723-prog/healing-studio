@@ -21,6 +21,7 @@ export type OrbGuideIntentId =
   | "image"
   | "video"
   | "video2video"
+  | "videoEnhance"
   | "music"
   | "voice"
   | "script"
@@ -64,6 +65,17 @@ export function buildOrbGuideActions(
       if (sourceUrl) {
         actions.push({ type: "setParam", key: "videoUrl", value: sourceUrl });
       }
+      break;
+    }
+    case "videoEnhance": {
+      // 畫質優化：切到 enhance 分頁；operation 子問答決定走 upscale / interpolate / enhance
+      actions.push({ type: "setTab", tabId: "enhance" });
+      const sourceUrl = input.answers.videoUrl;
+      if (sourceUrl) {
+        actions.push({ type: "setParam", key: "videoUrl", value: sourceUrl });
+      }
+      const op = input.answers.operation; // upscale / interpolate / enhance
+      if (op) actions.push({ type: "setParam", key: "operation", value: op });
       break;
     }
     case "music": {

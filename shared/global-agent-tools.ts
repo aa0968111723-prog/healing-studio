@@ -117,6 +117,27 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     executionTarget: "server-side",
   },
   {
+    // 影片畫質優化：upscale / interpolate / enhance 三種操作走同一工具
+    name: "studio.enhanceVideo",
+    riskLevel: "medium",
+    requiresHuman: true,
+    allowedArgsSchema: {
+      video_url: "string",
+      operation: "string", // "upscale" | "interpolate" | "enhance"
+      modelId: "string?",
+      // 共用
+      output_scale: "number?",
+      // upscale
+      upscale_factor: "number?",
+      // interpolate
+      multiplier: "number?",
+      output_fps: "number?",
+      // topaz
+      topaz_model: "string?", // iris / artemis / theia / gaia / nyx
+    },
+    executionTarget: "server-side",
+  },
+  {
     name: "studio.generateAudio",
     riskLevel: "medium",
     requiresHuman: true,

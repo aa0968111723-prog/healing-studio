@@ -44,6 +44,17 @@ export const V2V_ROUTER_IDS = [
 ] as const;
 
 /**
+ * 畫質優化（enhance）：videoStudio.ts 的 videoUpscale / frameInterpolation /
+ * topazEnhance 真的會送進 fal queue 的 modelId。
+ * 雖然 fal 把這些歸在 video-to-video 類別，但語義上是「後處理」，獨立列出。
+ */
+export const ENHANCE_ROUTER_IDS = [
+  "fal-ai/bytedance/upscaler/video",
+  "fal-ai/rife-v4.6/video",
+  "fal-ai/topaz/video-enhance",
+] as const;
+
+/**
  * `VideoStudio.tsx` 用 `modelId="..."` 顯示在 ModelCard 上的 ID。
  * 這些不是 router 直接呼叫的，但 UI 會用 `getModelPricing(modelId)`
  * 顯示積分價格，所以同樣需要在 pricing 裡有對應。
@@ -61,6 +72,7 @@ export const ALL_VIDEO_ROUTER_IDS: readonly string[] = [
   ...T2V_ROUTER_IDS,
   ...I2V_ROUTER_IDS,
   ...V2V_ROUTER_IDS,
+  ...ENHANCE_ROUTER_IDS,
 ];
 
 export const ALL_VIDEO_PRICING_IDS: readonly string[] = [

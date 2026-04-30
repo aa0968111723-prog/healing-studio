@@ -15,6 +15,7 @@ import {
   T2V_ROUTER_IDS,
   I2V_ROUTER_IDS,
   V2V_ROUTER_IDS,
+  ENHANCE_ROUTER_IDS,
   ALL_VIDEO_ROUTER_IDS,
   ALL_VIDEO_PRICING_IDS,
 } from "../../../shared/videoModelCatalog";
@@ -58,6 +59,16 @@ describe("video catalog SSOT consistency", () => {
     );
     const missing = V2V_ROUTER_IDS.filter(id => !ids.has(id));
     expect(missing, `falModels v2v missing: ${missing.join(", ")}`).toEqual([]);
+  });
+
+  it("every router-called enhance id is in falModels (enhance lives under video-to-video)", () => {
+    const ids = new Set(
+      FAL_MODEL_CATALOG["video-to-video"].map(m => m.modelId)
+    );
+    const missing = ENHANCE_ROUTER_IDS.filter(id => !ids.has(id));
+    expect(missing, `falModels enhance missing: ${missing.join(", ")}`).toEqual(
+      []
+    );
   });
 
   it("brain videoEngine fal options all have pricing (gemini/* exempt)", () => {
