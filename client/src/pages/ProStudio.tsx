@@ -1611,6 +1611,9 @@ function TTSTab() {
   const [stability, setStability] = useState(0.5);
   const [similarity, setSimilarity] = useState(0.75);
   const [speed, setSpeed] = useState(1.0);
+  const [elevenEngine, setElevenEngine] = useState<
+    "turbo-v2.5" | "flash-v2.5" | "multilingual-v2" | "eleven-v3"
+  >("turbo-v2.5");
   const [result, setResult] = useState<AudioResult | null>(null);
 
   // ── Agent Bridge：讓光球能控制語音合成分頁參數 ──
@@ -1623,6 +1626,11 @@ function TTSTab() {
           if (valid.includes(value)) { setEngine(value as typeof engine); return true; }
           return false;
         }
+        case "elevenEngine": case "eleven_engine": case "elevenlabs_engine": {
+          const valid = ["turbo-v2.5", "flash-v2.5", "multilingual-v2", "eleven-v3"];
+          if (valid.includes(value)) { setElevenEngine(value as typeof elevenEngine); return true; }
+          return false;
+        }
         case "voiceId": case "voice_id": { setVoiceId(value); return true; }
         case "stability": { const f = parseFloat(value); if (f >= 0 && f <= 1) { setStability(f); return true; } return false; }
         case "similarity": { const f = parseFloat(value); if (f >= 0 && f <= 1) { setSimilarity(f); return true; } return false; }
@@ -1630,7 +1638,7 @@ function TTSTab() {
         default: return false;
       }
     },
-    getState: () => ({ text, engine, voiceId, stability, similarity, speed }),
+    getState: () => ({ text, engine, elevenEngine, voiceId, stability, similarity, speed }),
     submit: () => { if (!text.trim()) return false; return true; },
     reset: () => {
       setText("");
@@ -1638,6 +1646,7 @@ function TTSTab() {
       setStability(0.5);
       setSimilarity(0.75);
       setSpeed(1.0);
+      setElevenEngine("turbo-v2.5");
       setResult(null);
     },
   });
@@ -1682,6 +1691,7 @@ function TTSTab() {
       elevenMutation.mutate({
         text,
         voice_id: voiceId || undefined,
+        engine: elevenEngine,
         stability,
         similarity_boost: similarity,
       });
@@ -1691,6 +1701,13 @@ function TTSTab() {
       qwenMutation.mutate({ text, voice: voiceId || undefined });
     }
   };
+
+  const elevenEngines = [
+    { id: "turbo-v2.5" as const, label: "Turbo v2.5", desc: "最快速度・低成本", badge: "推薦" },
+    { id: "flash-v2.5" as const, label: "Flash v2.5", desc: "超低延遲・即時對話", badge: "最快" },
+    { id: "multilingual-v2" as const, label: "Multilingual v2", desc: "29 語言・穩定品質" },
+    { id: "eleven-v3" as const, label: "ElevenLabs v3", desc: "最強情緒・最高品質", badge: "Pro" },
+  ];
 
   const elevenVoices = [
     {
@@ -1821,6 +1838,40 @@ function TTSTab() {
               {text.length} / 5000 字元
             </p>
           </div>
+
+          {/* ElevenLabs 引擎選擇器 */}
+          {engine === "elevenlabs" && (
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">
+                ElevenLabs 引擎（影響成本與品質）
+              </Label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {elevenEngines.map(e => (
+                  <button
+                    key={e.id}
+                    onClick={() => setElevenEngine(e.id)}
+                    className={`p-2 rounded-lg border text-left transition-all relative ${elevenEngine === e.id ? "bg-purple-500 text-white border-purple-500" : "bg-background hover:bg-accent border-border"}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold">{e.label}</p>
+                      {e.badge && (
+                        <span
+                          className={`text-[8px] px-1 py-0 rounded ${elevenEngine === e.id ? "bg-white/30 text-white" : "bg-purple-100 text-purple-600"}`}
+                        >
+                          {e.badge}
+                        </span>
+                      )}
+                    </div>
+                    <p
+                      className={`text-[9px] mt-0.5 ${elevenEngine === e.id ? "text-purple-100" : "text-muted-foreground"}`}
+                    >
+                      {e.desc}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* 語音選擇 */}
           {engine === "elevenlabs" ? (

@@ -620,13 +620,26 @@ export const proStudioRouter = router({
   // 🎤 語音合成 (TTS)
   // ═══════════════════════════════════════════════════════════════
 
-  /** fal-ai/elevenlabs/tts/turbo-v2.5 — 高速 ElevenLabs TTS（非同步 queue） */
+  /**
+   * ElevenLabs TTS — 支援 4 個聲線模型
+   *
+   * 可用 engine：
+   *  - turbo-v2.5（預設）— 最快速度、英文友善、低成本（pricing: turbo-v2.5）
+   *  - flash-v2.5 — 超低延遲，適合即時對話（pricing: flash-v2.5）
+   *  - multilingual-v2 — 29 語言、品質穩定（pricing: multilingual-v2）
+   *  - eleven-v3 — 最強情緒表達、最高品質（pricing: eleven-v3）
+   */
   elevenLabsTTS: brainProcedure
     .input(
       z.object({
         text: z.string().min(1).max(5000),
         voice_id: z.string().optional(),
-        model_id: z.string().optional().default("eleven_turbo_v2_5"),
+        engine: z
+          .enum(["turbo-v2.5", "flash-v2.5", "multilingual-v2", "eleven-v3"])
+          .optional()
+          .default("turbo-v2.5"),
+        /** 直接傳入 ElevenLabs 原生 model_id（覆寫 engine 對應） */
+        model_id: z.string().optional(),
         stability: z.number().min(0).max(1).optional().default(0.5),
         similarity_boost: z.number().min(0).max(1).optional().default(0.75),
         style: z.number().min(0).max(1).optional().default(0),
@@ -634,15 +647,42 @@ export const proStudioRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const modelId = "fal-ai/elevenlabs/tts/turbo-v2.5";
-      const charged = await chargeForFalTask(ctx.user.id, modelId, {
+      // engine → fal route + native ElevenLabs model_id + pricing key
+      const ENGINE_MAP: Record<
+        string,
+        { falModelId: string; nativeModelId: string; pricingKey: string }
+      > = {
+        "turbo-v2.5": {
+          falModelId: "fal-ai/elevenlabs/tts/turbo-v2.5",
+          nativeModelId: "eleven_turbo_v2_5",
+          pricingKey: "elevenlabs/turbo-v2.5",
+        },
+        "flash-v2.5": {
+          falModelId: "fal-ai/elevenlabs/tts/flash-v2.5",
+          nativeModelId: "eleven_flash_v2_5",
+          pricingKey: "elevenlabs/flash-v2.5",
+        },
+        "multilingual-v2": {
+          falModelId: "fal-ai/elevenlabs/tts/multilingual-v2",
+          nativeModelId: "eleven_multilingual_v2",
+          pricingKey: "elevenlabs/multilingual-v2",
+        },
+        "eleven-v3": {
+          falModelId: "fal-ai/elevenlabs/tts/eleven-v3",
+          nativeModelId: "eleven_v3",
+          pricingKey: "elevenlabs/eleven-v3",
+        },
+      };
+      const engine = input.engine ?? "turbo-v2.5";
+      const route = ENGINE_MAP[engine];
+      const charged = await chargeForFalTask(ctx.user.id, route.pricingKey, {
         charCount: input.text.length,
       });
       try {
-        const { request_id } = await falQueueSubmit(modelId, {
+        const { request_id } = await falQueueSubmit(route.falModelId, {
           text: input.text,
           voice_id: input.voice_id,
-          model_id: input.model_id,
+          model_id: input.model_id ?? route.nativeModelId,
           voice_settings: {
             stability: input.stability,
             similarity_boost: input.similarity_boost,
@@ -650,7 +690,7 @@ export const proStudioRouter = router({
           },
           language_code: input.language_code,
         }, getElevenLabsProxyHeaders());  // 需要 ElevenLabs key 認證
-        return { request_id, model: modelId, is_async_polling: true, estimated_credits: charged };
+        return { request_id, model: route.falModelId, engine, is_async_polling: true, estimated_credits: charged };
       } catch (err) {
         await refundUserPoints(ctx.user.id, charged);
         throw err;
@@ -1656,6 +1696,8 @@ export const proStudioRouter = router({
         instrumental: z.boolean().default(false),
         customMode: z.boolean().default(false),
         lyrics: z.string().optional(),
+        /** Suno 模型版本：v3.5（穩定預設）/ v4（高品質） */
+        modelVersion: z.enum(["v3.5", "v4"]).optional().default("v3.5"),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -1670,16 +1712,17 @@ export const proStudioRouter = router({
 
       const { createBackgroundJob } = await import("../db");
 
-      // Suno 預設走 v3.5 計費（catalog: suno-v3.5）；v4 等付費方案上線後可再切換
-      const estimate = estimatePoints("suno-v3.5", { durationSec: 60 });
-      await chargeForFalTask(ctx.user.id, "suno-v3.5", { durationSec: 60 });
+      // 依模型版本走對應 catalog 條目（v3.5: 6 pts, v4: 10 pts 起跳）
+      const pricingKey = input.modelVersion === "v4" ? "suno-v4" : "suno-v3.5";
+      const estimate = estimatePoints(pricingKey, { durationSec: 60 });
+      const charged = await chargeForFalTask(ctx.user.id, pricingKey, { durationSec: 60 });
 
       // 先建 backgroundJob 取得 jobId，才能組出帶 jobId 的 callBackUrl
       const job = await createBackgroundJob({
         userId: ctx.user.id,
         jobType: "audio",
         status: "processing",
-        progressMessage: "Suno 生成中…",
+        progressMessage: `Suno ${input.modelVersion} 生成中…`,
         resultJson: { estimate } as any,
       });
       const jobId =
@@ -1691,17 +1734,27 @@ export const proStudioRouter = router({
       const callBackUrl =
         siteUrl && jobId ? `${siteUrl}/api/webhook/suno?jobId=${jobId}` : undefined;
 
-      const { taskId } = await suno.generateMusic({ ...input, callBackUrl });
+      try {
+        const { taskId } = await suno.generateMusic({ ...input, callBackUrl });
 
-      // 把 sunoTaskId 補回 backgroundJob.resultJson，供 webhook / 輪詢反查
-      if (jobId) {
-        const { updateBackgroundJob } = await import("../db");
-        await updateBackgroundJob(jobId, {
-          resultJson: { sunoTaskId: taskId, estimate, userId: ctx.user.id } as any,
-        });
+        // 把 sunoTaskId 補回 backgroundJob.resultJson，供 webhook / 輪詢反查
+        if (jobId) {
+          const { updateBackgroundJob } = await import("../db");
+          await updateBackgroundJob(jobId, {
+            resultJson: {
+              sunoTaskId: taskId,
+              estimate,
+              userId: ctx.user.id,
+              modelVersion: input.modelVersion,
+            } as any,
+          });
+        }
+
+        return { taskId, jobId, modelVersion: input.modelVersion, estimated_credits: charged };
+      } catch (err) {
+        await refundUserPoints(ctx.user.id, charged);
+        throw err;
       }
-
-      return { taskId, jobId };
     }),
 
   /**

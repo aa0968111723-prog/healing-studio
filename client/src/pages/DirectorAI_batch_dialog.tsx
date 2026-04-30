@@ -12,6 +12,7 @@ import {
   Film,
   Music,
   Mic,
+  Volume2,
   CheckCircle2,
 } from "lucide-react";
 import { motion } from "framer-motion";
@@ -30,7 +31,7 @@ export const BatchGenerationDialog = memo(function BatchGenerationDialog({
   onClose: () => void;
   segments: ScriptSegment[];
   options: {
-    modalities: Array<"image" | "video" | "audio" | "voice">;
+    modalities: Array<"image" | "video" | "audio" | "voice" | "sfx">;
     imageSettings: { aspectRatio: string; negativePrompt: string };
     videoSettings: { useImageAsFirstFrame: boolean };
     audioSettings: { isInstrumental: boolean };
@@ -43,7 +44,7 @@ export const BatchGenerationDialog = memo(function BatchGenerationDialog({
 }) {
   if (!open) return null;
 
-  const toggleModality = (mod: "image" | "video" | "audio" | "voice") => {
+  const toggleModality = (mod: "image" | "video" | "audio" | "voice" | "sfx") => {
     const newMods = options.modalities.includes(mod)
       ? options.modalities.filter(m => m !== mod)
       : [...options.modalities, mod];
@@ -92,6 +93,7 @@ export const BatchGenerationDialog = memo(function BatchGenerationDialog({
                 { value: "video" as const, label: "影片", icon: Film, color: "text-purple-600" },
                 { value: "audio" as const, label: "音樂", icon: Music, color: "text-pink-600" },
                 { value: "voice" as const, label: "語音", icon: Mic, color: "text-green-600" },
+                { value: "sfx" as const, label: "音效", icon: Volume2, color: "text-amber-600" },
               ].map(mod => (
                 <button
                   key={mod.value}

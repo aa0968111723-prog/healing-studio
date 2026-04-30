@@ -418,6 +418,11 @@ export class SunoClient {
     customMode?: boolean;
     lyrics?: string;
     /**
+     * Suno 模型版本：v3.5（穩定預設）/ v4（最新高品質）。
+     * apibox.erweima.ai 把版本以 mv 欄位傳入。
+     */
+    modelVersion?: "v3.5" | "v4";
+    /**
      * Suno 完成時主動 POST 回呼到此 URL（apibox.erweima.ai 的 callBackUrl）。
      * 不帶則僅能用 getTaskStatus 輪詢；前端關閉後結果會遺失。
      */
@@ -430,6 +435,7 @@ export class SunoClient {
       prompt: params.prompt,
       make_instrumental: params.instrumental ?? false,
       wait_audio: false, // async mode
+      mv: params.modelVersion === "v4" ? "chirp-v4" : "chirp-v3-5",
     };
     if (params.customMode && params.lyrics) {
       body.custom_mode = true;

@@ -2667,7 +2667,7 @@ ${segmentSummaries}
         generationOptions: z.object({
           /** Which modalities to generate for each segment */
           modalities: z
-            .array(z.enum(["image", "video", "audio", "voice"]))
+            .array(z.enum(["image", "video", "audio", "voice", "sfx"]))
             .min(1),
           /** Image generation settings */
           imageSettings: z
@@ -2745,7 +2745,7 @@ ${segmentSummaries}
       const generationTasks: Array<{
         segmentId: string;
         segmentIndex: number;
-        modality: "image" | "video" | "audio" | "voice";
+        modality: "image" | "video" | "audio" | "voice" | "sfx";
         modelId: string;
         prompt: string;
         voiceText?: string;
@@ -2759,6 +2759,7 @@ ${segmentSummaries}
           segment.storyboard.visualDescription;
         const audioScript = segment.costar?.audioScript ||
           segment.storyboard.dialogue;
+        const soundDesign = segment.storyboard.soundDesign ?? "";
         const musicVibe = segment.costar?.musicVibe ||
           segment.storyboard.soundDesign;
 
@@ -2875,6 +2876,26 @@ ${segmentSummaries}
               params: voiceParams,
               estimatedPoints: estimate.totalPoints,
             });
+          } else if (modality === "sfx") {
+            // 音效：用分鏡 soundDesign 為提示詞，預設走 stable-audio
+            // 與 audio（音樂）區分：sfx 著重前景擬真音效；audio 著重背景配樂
+            if (!soundDesign.trim()) {
+              continue; // 沒有 soundDesign 描述就跳過
+            }
+            const modelId = "fal-ai/stable-audio";
+            const sfxDuration = Math.min(durationSec, 30); // 音效一般 ≤ 30 秒
+            const estimate = estimatePoints(modelId, { durationSec: sfxDuration });
+            generationTasks.push({
+              segmentId: segment.id,
+              segmentIndex: segment.index,
+              modality: "sfx",
+              modelId,
+              prompt: soundDesign,
+              params: {
+                seconds_total: sfxDuration,
+              },
+              estimatedPoints: estimate.totalPoints,
+            });
           }
         }
       }
@@ -2929,7 +2950,7 @@ ${segmentSummaries}
       z.object({
         segmentId: z.string(),
         segmentIndex: z.number(),
-        modality: z.enum(["image", "video", "audio", "voice"]),
+        modality: z.enum(["image", "video", "audio", "voice", "sfx"]),
         modelId: z.string(),
         prompt: z.string(),
         voiceText: z.string().optional(),
@@ -2978,11 +2999,15 @@ ${segmentSummaries}
             ? "影片"
             : input.modality === "audio"
               ? "音樂"
-              : "語音";
+              : input.modality === "sfx"
+                ? "音效"
+                : "語音";
       const label = `${modalityLabel}生成 - 分鏡 #${input.segmentIndex + 1}`;
+      // background_jobs.jobType 沒有 "sfx"；sfx 任務沿用 "audio" 儲存（內容是音檔）
+      const persistedJobType = input.modality === "sfx" ? "audio" : input.modality;
       const jobId = await db.createBackgroundJob({
         userId,
-        jobType: input.modality as any,
+        jobType: persistedJobType as any,
         status: "processing",
         progress: 5,
         progressMessage: label,
@@ -3007,6 +3032,9 @@ ${segmentSummaries}
             falInput.image_url = input.firstFrameUrl;
           }
         } else if (input.modality === "audio") {
+          falInput.prompt = input.prompt;
+        } else if (input.modality === "sfx") {
+          // 音效：fal-ai/stable-audio 接受 prompt + seconds_total
           falInput.prompt = input.prompt;
         } else if (input.modality === "voice") {
           falInput.text = input.voiceText || input.prompt;
