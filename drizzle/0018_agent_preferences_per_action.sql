@@ -4,6 +4,4 @@
 -- explicitly disables an action on a page in /settings/agent.
 
 ALTER TABLE `agent_preferences`
-  ADD COLUMN `disabledActionsByPage` json NOT NULL;
-
-UPDATE `agent_preferences` SET `disabledActionsByPage` = JSON_OBJECT();
+  ADD COLUMN `disabledActionsByPage` json NOT NULL DEFAULT (CAST('{}' AS JSON));
