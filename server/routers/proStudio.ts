@@ -43,6 +43,30 @@ import { localizeResultUrls } from "../services/internalMedia";
 import { getAudioCompiler } from "../services/audioCompiler";
 import type { AudioBlock, AudioCompilerInput } from "../services/audioCompiler";
 import { dispatchFalQueueTask } from "../services/falDispatcher";
+import { estimatePoints } from "../services/modelPricing";
+import { deductUserPoints, refundUserPoints } from "../db";
+
+/**
+ * 預扣積分：在送出 fal queue 任務前先估點＋扣款。
+ * 若使用者餘額不足，拋 TRPCError；若送出失敗，呼叫端應用 refundUserPoints 退回。
+ *
+ * 回傳 estimatedCredits 供 webhook 後續對帳（actual vs estimated）。
+ */
+async function chargeForFalTask(
+  userId: number,
+  modelId: string,
+  params: { durationSec?: number; charCount?: number } = {}
+): Promise<number> {
+  const estimate = estimatePoints(modelId, params);
+  const result = await deductUserPoints(userId, estimate.totalPoints);
+  if (!result.success) {
+    throw new TRPCError({
+      code: "PAYMENT_REQUIRED",
+      message: `積分不足：本次需 ${estimate.totalPoints} pts，餘額 ${result.remainingBefore} pts`,
+    });
+  }
+  return estimate.totalPoints;
+}
 
 // ─── fal.ai 呼叫工具 ──────────────────────────────────────────────────────────
 
@@ -371,7 +395,7 @@ export const proStudioRouter = router({
           .default("ace-step"),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       // DEF-14 同步修正：後端預設模型改為 ace-step
       const modelChoice = input.model ?? "ace-step";
 
@@ -414,9 +438,22 @@ export const proStudioRouter = router({
         payload.output_format = "mp3";
         payload.num_songs = 1;
 
-        const falModelId = "sonauto/v2/text-to-music";
-        const { request_id } = await falQueueSubmit(falModelId, payload);
-        return { request_id, model: falModelId, is_async_polling: true };
+        const falModelId = "fal-ai/sonauto";
+        const charged = await chargeForFalTask(ctx.user.id, falModelId, {
+          durationSec: input.duration ?? 60,
+        });
+        try {
+          const { request_id } = await falQueueSubmit("sonauto/v2/text-to-music", payload);
+          return {
+            request_id,
+            model: "sonauto/v2/text-to-music",
+            is_async_polling: true,
+            estimated_credits: charged,
+          };
+        } catch (err) {
+          await refundUserPoints(ctx.user.id, charged);
+          throw err;
+        }
       }
 
       // ── 通用 prompt（非 Sonauto 模型）──────────────────────────
@@ -437,8 +474,16 @@ export const proStudioRouter = router({
         if (input.lyrics && !input.instrumental) {
           payload.lyrics = input.lyrics;
         }
-        const { request_id } = await falQueueSubmit(falModelId, payload);
-        return { request_id, model: falModelId, is_async_polling: true };
+        const charged = await chargeForFalTask(ctx.user.id, falModelId, {
+          durationSec: input.duration ?? 60,
+        });
+        try {
+          const { request_id } = await falQueueSubmit(falModelId, payload);
+          return { request_id, model: falModelId, is_async_polling: true, estimated_credits: charged };
+        } catch (err) {
+          await refundUserPoints(ctx.user.id, charged);
+          throw err;
+        }
       }
 
       // ── Stable Audio ──────────────────────────────────────────
@@ -450,8 +495,16 @@ export const proStudioRouter = router({
             ? { seconds_total: input.duration }
             : { seconds_total: 30 }),
         };
-        const { request_id } = await falQueueSubmit(falModelId, payload);
-        return { request_id, model: falModelId, is_async_polling: true };
+        const charged = await chargeForFalTask(ctx.user.id, falModelId, {
+          durationSec: input.duration ?? 30,
+        });
+        try {
+          const { request_id } = await falQueueSubmit(falModelId, payload);
+          return { request_id, model: falModelId, is_async_polling: true, estimated_credits: charged };
+        } catch (err) {
+          await refundUserPoints(ctx.user.id, charged);
+          throw err;
+        }
       }
 
       // ── MusicGen（最終備選）──────────────────────────────────
@@ -460,8 +513,16 @@ export const proStudioRouter = router({
         prompt: combinedPrompt,
         ...(input.duration ? { duration: input.duration } : {}),
       };
-      const { request_id } = await falQueueSubmit(falModelId, payload);
-      return { request_id, model: falModelId, is_async_polling: true };
+      const charged = await chargeForFalTask(ctx.user.id, falModelId, {
+        durationSec: input.duration ?? 15,
+      });
+      try {
+        const { request_id } = await falQueueSubmit(falModelId, payload);
+        return { request_id, model: falModelId, is_async_polling: true, estimated_credits: charged };
+      } catch (err) {
+        await refundUserPoints(ctx.user.id, charged);
+        throw err;
+      }
     }),
 
   // ═══════════════════════════════════════════════════════════════
@@ -494,7 +555,7 @@ export const proStudioRouter = router({
           .default("stable-audio"),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const modelChoice = input.model ?? "stable-audio";
 
       // ── Stable Audio（預設）── 真正的音效生成 ──────────────────
@@ -504,8 +565,16 @@ export const proStudioRouter = router({
           prompt: input.text,
           seconds_total: input.duration_seconds ?? 10,
         };
-        const { request_id } = await falQueueSubmit(falModelId, payload);
-        return { request_id, model: falModelId, is_async_polling: true };
+        const charged = await chargeForFalTask(ctx.user.id, falModelId, {
+          durationSec: input.duration_seconds ?? 10,
+        });
+        try {
+          const { request_id } = await falQueueSubmit(falModelId, payload);
+          return { request_id, model: falModelId, is_async_polling: true, estimated_credits: charged };
+        } catch (err) {
+          await refundUserPoints(ctx.user.id, charged);
+          throw err;
+        }
       }
 
       // ── AudioLDM2 ── 音頻潛在擴散，擅長環境音效 ────────────────
@@ -517,20 +586,34 @@ export const proStudioRouter = router({
             ? { duration: input.duration_seconds }
             : {}),
         };
-        const { request_id } = await falQueueSubmit(falModelId, payload);
-        return { request_id, model: falModelId, is_async_polling: true };
+        const charged = await chargeForFalTask(ctx.user.id, falModelId, {
+          durationSec: input.duration_seconds ?? 15,
+        });
+        try {
+          const { request_id } = await falQueueSubmit(falModelId, payload);
+          return { request_id, model: falModelId, is_async_polling: true, estimated_credits: charged };
+        } catch (err) {
+          await refundUserPoints(ctx.user.id, charged);
+          throw err;
+        }
       }
 
       // ── ElevenLabs（最終備用）─────────────────────────────────
       const falModelId = "fal-ai/elevenlabs/sound-effects/v2";
-      const { request_id } = await falQueueSubmit(falModelId, {
-        text: input.text,
-        duration_seconds: input.duration_seconds
-          ? Math.min(input.duration_seconds, 22)
-          : undefined,
-        prompt_influence: input.prompt_influence,
-      }, getElevenLabsProxyHeaders());  // 需要 ElevenLabs key 認證
-      return { request_id, model: falModelId, is_async_polling: true };
+      const charged = await chargeForFalTask(ctx.user.id, "elevenlabs/sound-effects");
+      try {
+        const { request_id } = await falQueueSubmit(falModelId, {
+          text: input.text,
+          duration_seconds: input.duration_seconds
+            ? Math.min(input.duration_seconds, 22)
+            : undefined,
+          prompt_influence: input.prompt_influence,
+        }, getElevenLabsProxyHeaders());  // 需要 ElevenLabs key 認證
+        return { request_id, model: falModelId, is_async_polling: true, estimated_credits: charged };
+      } catch (err) {
+        await refundUserPoints(ctx.user.id, charged);
+        throw err;
+      }
     }),
 
   // ═══════════════════════════════════════════════════════════════
@@ -1378,12 +1461,11 @@ export const proStudioRouter = router({
         });
       }
 
-      const { estimatePoints } = await import("../services/modelPricing");
-      const { deductCredits } = await import("../services/orbCostGuard");
       const { createBackgroundJob } = await import("../db");
 
-      const estimate = estimatePoints("suno-v1", { durationSec: 60 });
-      await deductCredits(ctx.user.id, estimate.totalPoints);
+      // Suno 預設走 v3.5 計費（catalog: suno-v3.5）；v4 等付費方案上線後可再切換
+      const estimate = estimatePoints("suno-v3.5", { durationSec: 60 });
+      await chargeForFalTask(ctx.user.id, "suno-v3.5", { durationSec: 60 });
 
       // 先建 backgroundJob 取得 jobId，才能組出帶 jobId 的 callBackUrl
       const job = await createBackgroundJob({

@@ -89,7 +89,54 @@ interface ProStudioAgentBridge {
   submit?: () => boolean;
   /** 切換模型（由 PRO_MODEL id 對應到分頁內部 model key） */
   setModel?: (modelId: string) => boolean;
+  /** 清空當前分頁的所有輸入 */
+  reset?: () => void;
 }
+
+/**
+ * 音訊「氛圍預設」— 光球助手 applyPreset 對應的內建套組。
+ * 每個 preset 一次填好 model + prompt + 主要參數，讓使用者一鍵就有可聽結果。
+ */
+const AUDIO_PRESETS: Record<
+  string,
+  { label: string; tab: string; modelId?: string; prompt: string; params?: Record<string, string | number | boolean> }
+> = {
+  meditation: {
+    label: "冥想引導",
+    tab: "music",
+    modelId: "stable-audio",
+    prompt: "ambient meditation, soft pads, gentle nature sounds, peaceful, 60bpm",
+    params: { duration: 60, instrumental: true },
+  },
+  cafe: {
+    label: "咖啡廳輕音樂",
+    tab: "music",
+    modelId: "ace-step",
+    prompt: "soft jazz, acoustic guitar, mellow piano, warm cafe ambience, 80bpm",
+    params: { duration: 90, instrumental: true },
+  },
+  cinematic: {
+    label: "電影配樂",
+    tab: "music",
+    modelId: "ace-step",
+    prompt: "cinematic orchestral score, emotional strings, gentle piano, slow build, 70bpm",
+    params: { duration: 60, instrumental: true },
+  },
+  rain: {
+    label: "雨聲環境音",
+    tab: "sfx",
+    modelId: "stable-audio",
+    prompt: "gentle rain on leaves, distant thunder, calm forest atmosphere",
+    params: { duration_seconds: 30 },
+  },
+  forest: {
+    label: "森林環境音",
+    tab: "sfx",
+    modelId: "stable-audio",
+    prompt: "forest ambience, birds chirping, leaves rustling, distant stream",
+    params: { duration_seconds: 30 },
+  },
+};
 
 const AgentBridgeContext = createContext<React.MutableRefObject<ProStudioAgentBridge> | null>(null);
 
@@ -924,6 +971,14 @@ function MusicTab() {
     },
     getState: () => ({ prompt, musicModel, duration, instrumental, lyrics, tags }),
     submit: () => { if (!prompt.trim()) return false; return true; },
+    reset: () => {
+      setPrompt("");
+      setLyrics("");
+      setTags("");
+      setInstrumental(false);
+      setDuration(30);
+      setResult(null);
+    },
   });
 
   // 載入可用模型清單
@@ -1262,6 +1317,13 @@ function SoundEffectsTab() {
     },
     getState: () => ({ text, sfxModel, duration, useDuration, influence }),
     submit: () => { if (!text.trim()) return false; return true; },
+    reset: () => {
+      setText("");
+      setDuration(10);
+      setUseDuration(false);
+      setInfluence(0.3);
+      setResult(null);
+    },
   });
 
   // 載入可用模型清單
@@ -3738,6 +3800,21 @@ export default function ProStudio() {
       label: "視覺指引",
       hint: "可用 elementId=pro-tab-music / pro-tab-tts 等引導使用者",
     },
+    {
+      action: "applyPreset",
+      label: "氛圍預設",
+      options: Object.entries(AUDIO_PRESETS).map(([id, p]) => ({
+        id,
+        label: p.label,
+        description: `${p.tab} · ${p.modelId ?? "auto"}`,
+      })),
+      hint: "一鍵套用氛圍包：自動切分頁、選模型、填好 prompt 與時長",
+    },
+    {
+      action: "reset",
+      label: "清空表單",
+      hint: "清空當前分頁的 prompt 與參數，回到預設值",
+    },
   ];
 
   useRegisterPageAgent({
@@ -3790,10 +3867,35 @@ export default function ProStudio() {
           const ok = fn();
           return ok ? { ok: true } : { ok: false, reason: "提交條件不足（缺少必填欄位）" };
         }
-        case "reset":
-          return { ok: true, message: "請手動重新整理分頁" };
-        case "applyPreset":
-          return { ok: false, reason: "音訊創作室暫不支援 applyPreset" };
+        case "reset": {
+          const fn = bridgeRef.current.reset;
+          if (!fn) return { ok: false, reason: "當前分頁尚未註冊 reset" };
+          fn();
+          return { ok: true, message: "已清空當前分頁的輸入" };
+        }
+        case "applyPreset": {
+          // 音訊預設（preset）對應到「氛圍包」：每個 preset 把 prompt + tags + duration 一次填好
+          const preset = AUDIO_PRESETS[action.presetId];
+          if (!preset) {
+            return {
+              ok: false,
+              reason: `未知 presetId: ${action.presetId}（可用：${Object.keys(AUDIO_PRESETS).join(" / ")}）`,
+            };
+          }
+          // 切到 preset 指定分頁
+          if (preset.tab !== tab) setTab(preset.tab);
+          // 套用模型
+          if (preset.modelId) {
+            const setOk = bridgeRef.current.setModel?.(preset.modelId);
+            if (!setOk) pendingModelIdRef.current = preset.modelId;
+          }
+          // 套用 prompt + 參數
+          bridgeRef.current.fillPrompt?.(preset.prompt);
+          for (const [key, value] of Object.entries(preset.params ?? {})) {
+            bridgeRef.current.setParam?.(key, String(value));
+          }
+          return { ok: true, message: `已套用「${preset.label}」氛圍預設` };
+        }
         default:
           return { ok: false, reason: "unsupported action" };
       }
