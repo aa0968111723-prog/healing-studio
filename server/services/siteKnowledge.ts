@@ -1140,6 +1140,16 @@ export interface OrbPromptExtras {
     fallbackTools?: string[];
     requireConfirmation?: boolean;
   }>;
+  assetLibrary?: {
+    total: number;
+    byType: Partial<Record<"image" | "video" | "audio" | "voice" | "script" | "zip_bundle", number>>;
+    recent: Array<{
+      id: number;
+      title: string;
+      assetType: string;
+      promptUsed?: string | null;
+    }>;
+  };
 }
 
 function serializeSnapshotBlock(
@@ -1192,6 +1202,45 @@ function serializeFeedbackBlock(
     return `- ${ev.actionType}: ${ev.status}${note}｜${ageSec}s 前`;
   });
   return `【使用者最近對光球建議的反應（請參考並調整語氣）】\n${lines.join("\n")}`;
+}
+
+function serializeAssetLibraryBlock(
+  lib: OrbPromptExtras["assetLibrary"]
+): string {
+  if (!lib || lib.total === 0) return "";
+  const typeOrder: Array<keyof NonNullable<OrbPromptExtras["assetLibrary"]>["byType"]> = [
+    "image",
+    "video",
+    "audio",
+    "voice",
+    "script",
+    "zip_bundle",
+  ];
+  const typeLabels: Record<string, string> = {
+    image: "圖",
+    video: "影片",
+    audio: "音樂",
+    voice: "語音",
+    script: "腳本",
+    zip_bundle: "打包",
+  };
+  const breakdown = typeOrder
+    .filter(t => (lib.byType[t] ?? 0) > 0)
+    .map(t => `${typeLabels[t]}×${lib.byType[t]}`)
+    .join("、");
+  const recentLines = lib.recent.slice(0, 5).map(a => {
+    const promptHint = a.promptUsed
+      ? `｜${a.promptUsed.slice(0, 30)}${a.promptUsed.length > 30 ? "…" : ""}`
+      : "";
+    return `- #${a.id} [${a.assetType}] ${a.title}${promptHint}`;
+  });
+  return [
+    `【使用者的資產庫摘要（共 ${lib.total} 件：${breakdown}）】`,
+    "若使用者想「再做一張類似」「延伸之前的作品」「用之前的素材」，可主動提及這些近期作品；",
+    "需要瀏覽完整資產時引導 [ACTION:navigate:/assets]，或在工作室中告訴使用者可開啟「素材」抽屜選用。",
+    ...(recentLines.length ? ["最近的資產："] : []),
+    ...recentLines,
+  ].join("\n");
 }
 
 function serializeApiToolsBlock(list: OrbPromptExtras["apiTools"]): string {
@@ -1256,6 +1305,7 @@ export function buildOrbSystemPrompt(
   const snapshotBlock = serializeSnapshotBlock(extras?.pageSnapshot);
   const feedbackBlock = serializeFeedbackBlock(extras?.recentFeedback);
   const apiToolsBlock = serializeApiToolsBlock(extras?.apiTools);
+  const assetLibraryBlock = serializeAssetLibraryBlock(extras?.assetLibrary);
   const confirmNote = extras?.alwaysConfirm
     ? "\n【使用者偏好】這位使用者希望任何動作執行前都先詢問一次，請養成「先說意圖、再等確認」的習慣。"
     : "";
@@ -1416,7 +1466,7 @@ ${GENERATION_MODALITIES_KNOWLEDGE}
 ${MODEL_RECOMMENDATION_KNOWLEDGE}
 
 ${WORKFLOW_KNOWLEDGE}
-${contextNote}${snapshotBlock ? "\n\n" + snapshotBlock : ""}${feedbackBlock ? "\n\n" + feedbackBlock : ""}${apiToolsBlock ? "\n\n" + apiToolsBlock : ""}${confirmNote}
+${contextNote}${snapshotBlock ? "\n\n" + snapshotBlock : ""}${feedbackBlock ? "\n\n" + feedbackBlock : ""}${apiToolsBlock ? "\n\n" + apiToolsBlock : ""}${assetLibraryBlock ? "\n\n" + assetLibraryBlock : ""}${confirmNote}
 ${isStudioPage ? "\n" + STUDIO_CREATIVE_GUIDANCE : ""}
 ${isImageStudioPage ? "\n" + IMAGE_STUDIO_CREATIVE_GUIDANCE : ""}
 ${isVideoStudioPage ? "\n" + VIDEO_STUDIO_CREATIVE_GUIDANCE : ""}

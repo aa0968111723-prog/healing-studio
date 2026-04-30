@@ -39,7 +39,7 @@ import { adminRouter } from "./routers/adminRouter";
 import { getOrchestrator } from "./services/modelClients";
 // voiceCompiler, audioCompiler, videoCompiler are no longer used — all modalities route through falDispatcher
 import { buildMemoryContext, upsertMemory } from "./services/ragMemory";
-import { buildOrbSystemPrompt } from "./services/siteKnowledge";
+import { buildOrbSystemPrompt, type OrbPromptExtras } from "./services/siteKnowledge";
 import { parseOrbReply } from "./services/orbReplyParser";
 import { sanitizeOrbMessages } from "../shared/orb-prompt-defense";
 import { moderateOrbContent } from "../shared/orb-content-moderation";
@@ -4767,6 +4767,30 @@ export const appRouter = router({
           dbEvents,
           12
         );
+        // 讓光球安靜地知道使用者擁有哪些資產，這樣「再做一張類似的」「延伸之前的作品」
+        // 之類的請求才接得起來；UI 完全不變，純後端注入。
+        type AssetLibrarySummary = NonNullable<OrbPromptExtras["assetLibrary"]>;
+        const assetLibrarySummary: OrbPromptExtras["assetLibrary"] = await db
+          .getDigitalAssetsByUser(ctx.user.id)
+          .then(all => {
+            if (!all.length) return undefined;
+            const byType: AssetLibrarySummary["byType"] = {};
+            for (const a of all) {
+              const k = a.assetType as keyof AssetLibrarySummary["byType"];
+              byType[k] = (byType[k] ?? 0) + 1;
+            }
+            return {
+              total: all.length,
+              byType,
+              recent: all.slice(0, 5).map(a => ({
+                id: a.id,
+                title: a.title,
+                assetType: a.assetType,
+                promptUsed: a.promptUsed,
+              })),
+            };
+          })
+          .catch(() => undefined);
         if (orbLongTermMemoryEnabled) {
           const preferences = extractOrbPreferencesFromConversation({
             messages: input.messages.map(message => ({
@@ -4795,6 +4819,7 @@ export const appRouter = router({
             pageSnapshot: input.pageSnapshot,
             recentFeedback: mergedFeedback,
             alwaysConfirm: input.alwaysConfirm,
+            assetLibrary: assetLibrarySummary,
             apiTools: registeredTools.map(tool => ({
               name: tool.name,
               description: tool.description,
@@ -5091,6 +5116,7 @@ export const appRouter = router({
               pageSnapshot: input.pageSnapshot,
               recentFeedback: mergedFeedback,
               alwaysConfirm: false,
+              assetLibrary: assetLibrarySummary,
               apiTools: [],
             });
             const chatOnlyResult = await withTimeout(
