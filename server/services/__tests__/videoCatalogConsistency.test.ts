@@ -11,6 +11,8 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   T2V_ROUTER_IDS,
   I2V_ROUTER_IDS,
@@ -99,5 +101,38 @@ describe("video catalog SSOT consistency", () => {
     const missing = falOptions.filter(id => !pricingIds.has(id));
     expect(missing, `brain videoEngine missing pricing: ${missing.join(", ")}`)
       .toEqual([]);
+  });
+});
+
+/**
+ * Lint-style 守門：videoStudio.ts 內任何 `fal-ai/...` 字串字面值都必須登錄在
+ * shared/videoModelCatalog.ts 的 router id 集合裡。
+ *
+ * 取代 ESLint 自定 rule 的角色——專案沒有 ESLint 設定，但 vitest 已在 CI，
+ * 多一條 assertion 就能擋掉「直接寫死新 modelId 卻沒同步 SSOT」的回歸。
+ */
+describe("videoStudio router fal-ai literals SSOT lint", () => {
+  it("every fal-ai/* literal in videoStudio.ts is registered in SSOT", () => {
+    const routerPath = resolve(
+      __dirname,
+      "..",
+      "..",
+      "routers",
+      "videoStudio.ts"
+    );
+    const source = readFileSync(routerPath, "utf-8");
+    const literalRegex = /"(fal-ai\/[^"\s]+)"/g;
+    const found = new Set<string>();
+    let m: RegExpExecArray | null;
+    while ((m = literalRegex.exec(source)) !== null) {
+      found.add(m[1]);
+    }
+    const allowlist = new Set(ALL_VIDEO_ROUTER_IDS);
+    const undeclared = [...found].filter(id => !allowlist.has(id));
+    expect(
+      undeclared,
+      `videoStudio.ts has fal-ai/* literals NOT in shared/videoModelCatalog.ts:\n  ${undeclared.join("\n  ")}\n\n` +
+        `→ Add to T2V_ROUTER_IDS / I2V_ROUTER_IDS / V2V_ROUTER_IDS / ENHANCE_ROUTER_IDS / CONTROL_ROUTER_IDS as appropriate.`
+    ).toEqual([]);
   });
 });

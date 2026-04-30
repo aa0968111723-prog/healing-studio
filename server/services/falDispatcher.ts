@@ -979,6 +979,34 @@ export async function dispatchFalQueueTask(
     }
   }
 
+  // ── Step 1.5: ultra tier 影片模型 preflight 健康探測 ──
+  // Sora / Veo3 / Topaz / Runway G4 / Kling V2.1 Pro 等高成本模型，
+  // 首次選用前同步驗證一次，避免使用者掛 5–10 分鐘才發現模型壞掉。
+  const pricing = getModelPricing(targetModelId);
+  const isVideoCategory =
+    resolvedCategory === "text-to-video" ||
+    resolvedCategory === "image-to-video" ||
+    resolvedCategory === "video-to-video";
+  if (isVideoCategory && pricing?.tier === "ultra") {
+    const { preflightHealthStatus } = await import(
+      "../middleware/brainContext"
+    );
+    const healthy = await preflightHealthStatus(targetModelId, 3000);
+    if (!healthy) {
+      const altFallback = (FALLBACK_CHAINS[resolvedCategory!] ?? []).find(
+        id => id !== targetModelId
+      );
+      if (altFallback) {
+        console.warn(
+          `[FalDispatcher] Preflight failed for ultra-tier ${targetModelId}; degrading to ${altFallback}`
+        );
+        if (!originalModel) originalModel = targetModelId;
+        targetModelId = altFallback;
+        degraded = true;
+      }
+    }
+  }
+
   // ── Step 2: 提交到 fal.ai queue（透傳 webhookUrl） ──
   const startedAt = Date.now();
   const route = params.route ?? "fal-dispatcher.queue";

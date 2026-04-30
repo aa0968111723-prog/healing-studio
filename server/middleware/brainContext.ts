@@ -275,6 +275,38 @@ export function getHealthStatus(modelOrEngine: string): boolean {
 }
 
 /**
+ * 同步版健康探測（preflight）—— 用於高成本模型（Sora、Veo3、Topaz、Kling Pro 等
+ * ultra tier）首次選用前的「先驗證再扣點」場景。
+ *
+ * 與 getHealthStatus 的差異：
+ *   - 快取命中時行為相同（即時返回）
+ *   - 快取未命中時 **等待** scheduleHealthCheck 完成，最長 timeoutMs（預設 3 秒）
+ *   - 超時則樂觀回 true（避免阻塞太久），讓上游選擇是否繼續
+ *
+ * 設計原則：能用 getHealthStatus 就用，preflight 只給高成本路徑使用。
+ */
+export async function preflightHealthStatus(
+  modelOrEngine: string,
+  timeoutMs = 3000
+): Promise<boolean> {
+  const cached = healthCache.get(modelOrEngine);
+  const now = Date.now();
+  if (cached && now - cached.checkedAt < HEALTH_CACHE_TTL_MS) {
+    return cached.healthy;
+  }
+  // 觸發背景探測並等待結果（最多 timeoutMs）
+  scheduleHealthCheck(modelOrEngine);
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const fresh = healthCache.get(modelOrEngine);
+    if (fresh && fresh.checkedAt >= start) return fresh.healthy;
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  // 超時 — 樂觀回 true，但上游可決定是否要 abort
+  return true;
+}
+
+/**
  * 排程背景健康檢查（非阻塞）。
  * 實際的探測邏輯根據模型類型不同：
  *   - LLM 模型：嘗試一次極小的 invokeLLM 呼叫

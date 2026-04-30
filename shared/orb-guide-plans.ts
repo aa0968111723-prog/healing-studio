@@ -22,6 +22,9 @@ export type OrbGuideIntentId =
   | "video"
   | "video2video"
   | "videoEnhance"
+  | "videoCameraControl"
+  | "videoReference"
+  | "videoDepthMap"
   | "music"
   | "voice"
   | "script"
@@ -38,7 +41,8 @@ export interface OrbGuidePlanInput {
 
 /**
  * 依 intent 產生到站要執行的 AgentAction[]。
- * 順序很重要：tab 先切、再填 prompt，使用者看到的動畫才自然。
+ * 順序很重要：tab 先切、setModel 次之、setParam 再次、最後 fillPrompt。
+ * 進階控制（control）三細分意圖會自動 setModel 鎖定到對應 ModelCard。
  */
 export function buildOrbGuideActions(
   input: OrbGuidePlanInput
@@ -76,6 +80,42 @@ export function buildOrbGuideActions(
       }
       const op = input.answers.operation; // upscale / interpolate / enhance
       if (op) actions.push({ type: "setParam", key: "operation", value: op });
+      break;
+    }
+    case "videoCameraControl": {
+      // 進階控制 — 鏡頭運動控制（CamMaster）
+      actions.push({ type: "setTab", tabId: "control" });
+      actions.push({ type: "setModel", modelId: "cam-master" });
+      if (hint) actions.push({ type: "fillPrompt", text: hint });
+      const imageUrl = input.answers.imageUrl;
+      if (imageUrl) {
+        actions.push({ type: "setParam", key: "imageUrl", value: imageUrl });
+      }
+      const motion = input.answers.cameraMotion;
+      if (motion) {
+        actions.push({ type: "setParam", key: "cameraMotion", value: motion });
+      }
+      break;
+    }
+    case "videoReference": {
+      // 進階控制 — 角色一致性 reference-to-video（Vidu Q1）
+      actions.push({ type: "setTab", tabId: "control" });
+      actions.push({ type: "setModel", modelId: "vidu-ref" });
+      if (hint) actions.push({ type: "fillPrompt", text: hint });
+      const imageUrl = input.answers.imageUrl;
+      if (imageUrl) {
+        actions.push({ type: "setParam", key: "imageUrl", value: imageUrl });
+      }
+      break;
+    }
+    case "videoDepthMap": {
+      // 進階控制 — 深度感知（DepthCrafter）
+      actions.push({ type: "setTab", tabId: "control" });
+      actions.push({ type: "setModel", modelId: "depth-crafter" });
+      const sourceUrl = input.answers.videoUrl;
+      if (sourceUrl) {
+        actions.push({ type: "setParam", key: "videoUrl", value: sourceUrl });
+      }
       break;
     }
     case "music": {
