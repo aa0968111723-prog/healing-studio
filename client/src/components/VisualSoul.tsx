@@ -10,8 +10,8 @@
  *   <VisualSoul personality="creative" state="generating" size="lg" />
  */
 
-import { useMemo, lazy, Suspense, memo } from "react";
-import { motion } from "framer-motion";
+import { useMemo, useEffect, useState, lazy, Suspense, memo } from "react";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import type { OrbCustomColors } from "./VisualSoul3D";
 
 // ─── Helper: parse "r,g,b" cute color string to 0-1 normalized tuple ────────
@@ -57,15 +57,248 @@ const CUTE_STATE_COLORS: Record<AIState, { primary: string; secondary: string; a
   acting:     { primary: "195,145,255", secondary: "220,180,255", accent: "245,225,255" }, // lavender
 };
 
+// ─── Cute Mode: whisper messages per state (occasionally float up) ─────────
+
+const CUTE_WHISPERS: Record<AIState, string[]> = {
+  idle:       ["哈囉～", "嗨！", "♪～", "陪你～", "嘿嘿", "🌸"],
+  thinking:   ["嗯...", "想想", "誒？", "等等～", "喔！"],
+  generating: ["變變變！", "登登～", "鏘鏘", "好啦～", "✨"],
+  listening:  ["我聽著", "嗯嗯", "繼續說", "好喔", "🍃"],
+  acting:     ["衝啊！", "去囉！", "馬上！", "出發～"],
+};
+
+// ─── Cute Mode: state-specific floating accessory icons ────────────────────
+
+function CuteAccessory({ state, size }: { state: AIState; size: "sm" | "md" | "lg" | "xl" }) {
+  const reduced = useReducedMotion();
+  const fontPx = size === "sm" ? 9 : size === "md" ? 12 : size === "lg" ? 14 : 16;
+  const offsetTop = size === "sm" ? -6 : size === "md" ? -10 : -14;
+  const offsetRight = size === "sm" ? -2 : size === "md" ? -4 : -6;
+
+  // Pick the icon + color for this state
+  const a = (() => {
+    if (state === "thinking")   return { icon: "?",  color: "#3B8FE8", glow: "rgba(91,168,255,0.8)" };
+    if (state === "generating") return { icon: "✨", color: "#FF7BB8", glow: "rgba(255,123,184,0.9)" };
+    if (state === "listening")  return { icon: "♪",  color: "#34C895", glow: "rgba(90,225,170,0.8)" };
+    if (state === "acting")     return { icon: "!",  color: "#9D6BFF", glow: "rgba(195,145,255,0.85)" };
+    return null; // idle → no accessory (face does the work)
+  })();
+
+  if (!a) return null;
+
+  const baseAnim = reduced
+    ? { y: 0, rotate: 0, scale: 1 }
+    : state === "generating"
+      ? { y: [-2, -8, -2], rotate: [-12, 12, -12], scale: [0.9, 1.1, 0.9] }
+      : state === "thinking"
+        ? { y: [-1, -5, -1], rotate: [-6, 6, -6], scale: [0.95, 1.05, 0.95] }
+        : { y: [-1, -4, -1], rotate: [-4, 4, -4], scale: [0.95, 1.05, 0.95] };
+
+  return (
+    <motion.div
+      className="absolute pointer-events-none select-none"
+      style={{
+        top: offsetTop,
+        right: offsetRight,
+        fontSize: fontPx,
+        fontWeight: 800,
+        color: a.color,
+        textShadow: `0 0 6px ${a.glow}, 0 0 12px ${a.glow.replace(/0\.\d+/, "0.4")}`,
+        zIndex: 6,
+        lineHeight: 1,
+      }}
+      initial={{ opacity: 0, scale: 0.5 }}
+      animate={{ opacity: 1, ...baseAnim }}
+      exit={{ opacity: 0, scale: 0.5 }}
+      transition={{ duration: state === "generating" ? 1.4 : 2.2, repeat: Infinity, ease: "easeInOut" }}
+    >
+      {a.icon}
+    </motion.div>
+  );
+}
+
+// ─── Cute Mode: twinkling sparkle field around the orb ─────────────────────
+
+function CuteSparkleField({ size, state }: { size: "sm" | "md" | "lg" | "xl"; state: AIState }) {
+  const reduced = useReducedMotion();
+  // Fewer sparkles on small sizes; richer for generating/acting
+  const baseCount = size === "sm" ? 2 : size === "md" ? 3 : size === "lg" ? 4 : 5;
+  const boost = state === "generating" ? 2 : state === "acting" ? 1 : 0;
+  const count = baseCount + boost;
+
+  const sparkles = useMemo(
+    () =>
+      Array.from({ length: count }, (_, i) => ({
+        // Spread sparkles around the orb (outside the core)
+        angle: (360 / count) * i + Math.random() * 30,
+        radius: 55 + Math.random() * 35, // % offset from center
+        delay: Math.random() * 2.5,
+        duration: 1.6 + Math.random() * 1.2,
+        size: 2 + Math.floor(Math.random() * 3), // 2-4 px
+      })),
+    [count]
+  );
+
+  if (reduced) return null;
+
+  return (
+    <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 4 }}>
+      {sparkles.map((s, i) => {
+        const x = Math.cos((s.angle * Math.PI) / 180) * s.radius;
+        const y = Math.sin((s.angle * Math.PI) / 180) * s.radius;
+        return (
+          <motion.div
+            key={i}
+            className="absolute rounded-full"
+            style={{
+              top: `calc(50% + ${y}%)`,
+              left: `calc(50% + ${x}%)`,
+              width: s.size,
+              height: s.size,
+              marginTop: -s.size / 2,
+              marginLeft: -s.size / 2,
+              background: "radial-gradient(circle, #ffffff 0%, rgba(255,255,255,0.6) 50%, transparent 80%)",
+              boxShadow: "0 0 6px rgba(255,255,255,0.9), 0 0 12px rgba(255,230,200,0.6)",
+            }}
+            animate={{
+              opacity: [0, 1, 0],
+              scale: [0.4, 1.2, 0.4],
+            }}
+            transition={{
+              duration: s.duration,
+              delay: s.delay,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Cute Mode: soft ground halo / shadow beneath the orb ──────────────────
+
+function CuteGroundHalo({ state, size }: { state: AIState; size: "sm" | "md" | "lg" | "xl" }) {
+  const reduced = useReducedMotion();
+  const colors = CUTE_STATE_COLORS[state];
+  const haloHeight = size === "sm" ? 4 : size === "md" ? 6 : size === "lg" ? 8 : 10;
+  const haloWidth = size === "sm" ? 60 : size === "md" ? 70 : 80; // %
+
+  return (
+    <motion.div
+      className="absolute pointer-events-none rounded-[50%]"
+      style={{
+        bottom: -haloHeight - 2,
+        left: "50%",
+        width: `${haloWidth}%`,
+        height: haloHeight,
+        marginLeft: `-${haloWidth / 2}%`,
+        background: `radial-gradient(ellipse at center, rgba(${colors.primary},0.45) 0%, rgba(${colors.primary},0.18) 50%, transparent 80%)`,
+        filter: "blur(2px)",
+        zIndex: 0,
+      }}
+      animate={
+        reduced
+          ? { opacity: 0.7 }
+          : { opacity: [0.45, 0.75, 0.45], scaleX: [0.85, 1, 0.85] }
+      }
+      transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
+    />
+  );
+}
+
+// ─── Cute Mode: ephemeral whisper bubble (idle, intermittent) ──────────────
+
+function CuteWhisperBubble({ state, size }: { state: AIState; size: "sm" | "md" | "lg" | "xl" }) {
+  const reduced = useReducedMotion();
+  const [text, setText] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (reduced) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const schedule = () => {
+      // Roughly every 8-18s, surface a whisper for 2.4s
+      const delay = 8000 + Math.random() * 10000;
+      timer = setTimeout(() => {
+        const pool = CUTE_WHISPERS[state] ?? CUTE_WHISPERS.idle;
+        setText(pool[Math.floor(Math.random() * pool.length)] ?? null);
+        setTimeout(() => setText(null), 2400);
+        schedule();
+      }, delay);
+    };
+    schedule();
+    return () => clearTimeout(timer);
+  }, [state, reduced]);
+
+  // Hide on small sizes — too cramped
+  if (size === "sm") return null;
+
+  const fontPx = size === "md" ? 9 : size === "lg" ? 10 : 11;
+
+  return (
+    <AnimatePresence>
+      {text && (
+        <motion.div
+          key={text}
+          initial={{ opacity: 0, y: 4, scale: 0.85 }}
+          animate={{ opacity: 1, y: -2, scale: 1 }}
+          exit={{ opacity: 0, y: -8, scale: 0.85 }}
+          transition={{ duration: 0.45, ease: "easeOut" }}
+          className="absolute left-1/2 -translate-x-1/2 pointer-events-none whitespace-nowrap"
+          style={{
+            top: -22,
+            fontSize: fontPx,
+            padding: "2px 7px",
+            borderRadius: 999,
+            background: "rgba(255,255,255,0.92)",
+            color: "#3a3552",
+            fontWeight: 600,
+            boxShadow: "0 2px 8px rgba(255,180,210,0.35), 0 0 0 1px rgba(255,255,255,0.6) inset",
+            zIndex: 7,
+            letterSpacing: 0.2,
+          }}
+        >
+          {text}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
 // ─── Cute Face SVG component ───────────────────────────────────────────────
 
 function CuteFace({ state = "idle", size = "md" }: { state: AIState; size: string }) {
+  const reduced = useReducedMotion();
   const faceScale = size === "sm" ? 0.65 : size === "md" ? 0.8 : 1;
   const eyeColor = "#1a1a2e";
   const strokeWidth = size === "sm" ? 1.4 : 1.6;
 
+  // Blink: briefly close eyes every 4-7s (skip when reduced motion preferred)
+  const [blinking, setBlinking] = useState(false);
+  useEffect(() => {
+    if (reduced) return;
+    let blinkTimer: ReturnType<typeof setTimeout>;
+    const scheduleBlink = () => {
+      const delay = 3500 + Math.random() * 3500;
+      blinkTimer = setTimeout(() => {
+        setBlinking(true);
+        setTimeout(() => {
+          setBlinking(false);
+          scheduleBlink();
+        }, 140);
+      }, delay);
+    };
+    scheduleBlink();
+    return () => clearTimeout(blinkTimer);
+  }, [reduced]);
+
   // Eye definitions per state
   const leftEye = () => {
+    if (blinking) {
+      // Closed eye line — gentle smile
+      return <path d="M9,15 Q12,16.5 15,15" stroke={eyeColor} strokeWidth={strokeWidth} strokeLinecap="round" fill="none" />;
+    }
     if (state === "idle") {
       // Happy arc eyes ∩
       return <path d="M10,15 Q12,11 14,15" stroke={eyeColor} strokeWidth={strokeWidth} strokeLinecap="round" fill="none" />;
@@ -101,6 +334,9 @@ function CuteFace({ state = "idle", size = "md" }: { state: AIState; size: strin
   };
 
   const rightEye = () => {
+    if (blinking) {
+      return <path d="M25,15 Q28,16.5 31,15" stroke={eyeColor} strokeWidth={strokeWidth} strokeLinecap="round" fill="none" />;
+    }
     if (state === "idle") {
       return <path d="M26,15 Q28,11 30,15" stroke={eyeColor} strokeWidth={strokeWidth} strokeLinecap="round" fill="none" />;
     }
@@ -152,13 +388,14 @@ function CuteFace({ state = "idle", size = "md" }: { state: AIState; size: strin
     return <ellipse cx="20" cy="24" rx="2.8" ry="3" fill="none" stroke={eyeColor} strokeWidth={strokeWidth} />;
   };
 
-  // Cheek blush marks (only for idle + generating)
+  // Cheek blush marks — radial-gradient soft blush (idle / generating / listening)
   const cheeks = () => {
     if (state !== "idle" && state !== "generating" && state !== "listening") return null;
+    const opacity = state === "generating" ? 0.6 : 0.5;
     return (
-      <g opacity="0.45">
-        <ellipse cx="9" cy="19" rx="3.5" ry="2" fill="#FF9EC0" />
-        <ellipse cx="31" cy="19" rx="3.5" ry="2" fill="#FF9EC0" />
+      <g opacity={opacity}>
+        <circle cx="9" cy="19.5" r="3.2" fill="url(#cute-blush-grad)" />
+        <circle cx="31" cy="19.5" r="3.2" fill="url(#cute-blush-grad)" />
       </g>
     );
   };
@@ -166,8 +403,17 @@ function CuteFace({ state = "idle", size = "md" }: { state: AIState; size: strin
   const faceW = 40;
   const faceH = 32;
 
+  // Slight bounce on the whole face when generating (excited bobble)
+  const faceBounce = reduced
+    ? undefined
+    : state === "generating"
+      ? { y: [0, -1.5, 0], scale: [1, 1.04, 1] }
+      : state === "acting"
+        ? { rotate: [-3, 3, -3] }
+        : undefined;
+
   return (
-    <svg
+    <motion.svg
       viewBox={`0 0 ${faceW} ${faceH}`}
       width={faceW * faceScale}
       height={faceH * faceScale}
@@ -175,17 +421,31 @@ function CuteFace({ state = "idle", size = "md" }: { state: AIState; size: strin
         position: "absolute",
         top: "50%",
         left: "50%",
-        transform: "translate(-50%, -50%)",
+        translateX: "-50%",
+        translateY: "-50%",
         zIndex: 5,
         pointerEvents: "none",
         overflow: "visible",
       }}
+      animate={faceBounce}
+      transition={{
+        duration: state === "generating" ? 0.55 : 1.2,
+        repeat: faceBounce ? Infinity : 0,
+        ease: "easeInOut",
+      }}
     >
+      <defs>
+        <radialGradient id="cute-blush-grad" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#FF9EC0" stopOpacity="0.9" />
+          <stop offset="60%" stopColor="#FFB8D4" stopOpacity="0.5" />
+          <stop offset="100%" stopColor="#FFD2E2" stopOpacity="0" />
+        </radialGradient>
+      </defs>
       {cheeks()}
       {leftEye()}
       {rightEye()}
       {mouth()}
-    </svg>
+    </motion.svg>
   );
 }
 
@@ -365,10 +625,23 @@ function CSSOrb({
   }, [sizeConfig]);
 
   return (
-    <div
+    <motion.div
       className={`relative ${sizeConfig.container} ${className}`}
       style={{ perspective: "200px" }}
+      animate={
+        cuteMode
+          ? { y: [0, -3, 0, -1.5, 0] }
+          : undefined
+      }
+      transition={
+        cuteMode
+          ? { duration: 4.6, repeat: Infinity, ease: "easeInOut" }
+          : undefined
+      }
     >
+      {/* Cute mode: soft ground halo behind everything */}
+      {cuteMode && <CuteGroundHalo state={state} size={size} />}
+
       {/* SVG filters */}
       <svg width="0" height="0" className="absolute">
         <defs>
@@ -480,8 +753,53 @@ function CSSOrb({
         />
       </motion.div>
 
+      {/* Cute mode: glossy top-rim highlight (plastic-cute feel) */}
+      {cuteMode && (
+        <div
+          className="absolute pointer-events-none rounded-full overflow-hidden"
+          style={{ inset: 0, zIndex: 3 }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              top: "6%",
+              left: "18%",
+              width: "64%",
+              height: "26%",
+              borderRadius: "50%",
+              background:
+                "linear-gradient(180deg, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0.3) 50%, transparent 100%)",
+              filter: "blur(0.8px)",
+              opacity: 0.85,
+            }}
+          />
+          {/* tiny pin-point specular */}
+          <div
+            style={{
+              position: "absolute",
+              top: "16%",
+              left: "26%",
+              width: "10%",
+              height: "10%",
+              borderRadius: "50%",
+              background:
+                "radial-gradient(circle, #ffffff 0%, rgba(255,255,255,0.6) 50%, transparent 80%)",
+            }}
+          />
+        </div>
+      )}
+
       {/* Cute face overlay (line-style eyes + mouth + cheeks) */}
       {cuteMode && <CuteFace state={state} size={size} />}
+
+      {/* Cute mode: twinkling sparkle field around the orb */}
+      {cuteMode && <CuteSparkleField size={size} state={state} />}
+
+      {/* Cute mode: state-specific floating accessory icon */}
+      {cuteMode && <CuteAccessory state={state} size={size} />}
+
+      {/* Cute mode: ephemeral whisper bubble (idle/intermittent) */}
+      {cuteMode && <CuteWhisperBubble state={state} size={size} />}
 
       {/* Orbiting particles */}
       {particles.map((p, i) => (
@@ -550,7 +868,7 @@ function CSSOrb({
           }}
         />
       )}
-    </div>
+    </motion.div>
   );
 }
 
@@ -590,7 +908,14 @@ export default memo(function VisualSoul({
     };
     const sizeConfig = SIZE_MAP[size];
     return (
-      <div className={`relative ${sizeConfig.container} ${className}`}>
+      <motion.div
+        className={`relative ${sizeConfig.container} ${className}`}
+        animate={{ y: [0, -3, 0, -1.5, 0] }}
+        transition={{ duration: 4.6, repeat: Infinity, ease: "easeInOut" }}
+      >
+        {/* Soft ground halo behind everything */}
+        <CuteGroundHalo state={state} size={size} />
+
         <Suspense
           fallback={
             <CSSOrb
@@ -608,8 +933,45 @@ export default memo(function VisualSoul({
             customColors={customColors}
           />
         </Suspense>
+
+        {/* Glossy top-rim highlight + pin-point specular */}
+        <div
+          className="absolute pointer-events-none rounded-full overflow-hidden"
+          style={{ inset: 0, zIndex: 3 }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              top: "6%",
+              left: "18%",
+              width: "64%",
+              height: "26%",
+              borderRadius: "50%",
+              background:
+                "linear-gradient(180deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.22) 50%, transparent 100%)",
+              filter: "blur(0.8px)",
+              opacity: 0.75,
+            }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              top: "16%",
+              left: "26%",
+              width: "10%",
+              height: "10%",
+              borderRadius: "50%",
+              background:
+                "radial-gradient(circle, #ffffff 0%, rgba(255,255,255,0.6) 50%, transparent 80%)",
+            }}
+          />
+        </div>
+
         <CuteFace state={state} size={size} />
-      </div>
+        <CuteSparkleField size={size} state={state} />
+        <CuteAccessory state={state} size={size} />
+        <CuteWhisperBubble state={state} size={size} />
+      </motion.div>
     );
   }
 
