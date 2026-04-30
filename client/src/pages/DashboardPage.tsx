@@ -5,12 +5,14 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useAIState } from "@/contexts/AIStateContext";
 import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
+import { useGlobalOrbChat } from "@/contexts/GlobalOrbChatContext";
 import type {
   AgentAction,
   AgentActionResult,
   AgentCapability,
 } from "../../../shared/agent-actions";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   BarChart3,
@@ -182,6 +184,25 @@ export default function DashboardPage() {
     retry: false,
   });
   const insights = insightsQuery.data;
+
+  const orbChat = useGlobalOrbChat();
+
+  const askOrbToAnalyze = () => {
+    if (!insights) return;
+    const lines: string[] = [];
+    lines.push("請幫我分析儀表板目前的成本與用量趨勢，給我具體的優化建議。");
+    if (insights.orbSummary) lines.push(`現況摘要：${insights.orbSummary}`);
+    if (insights.anomalies.length > 0) {
+      lines.push(
+        "偵測到的警示：" + insights.anomalies.map(a => a.message).join("；")
+      );
+    }
+    if (insights.recommendations.length > 0) {
+      lines.push("系統初步建議：" + insights.recommendations.join("；"));
+    }
+    orbChat.open();
+    void orbChat.sendMessage(lines.join("\n"));
+  };
 
   // ─── PageAgent 註冊（Phase 4a：儀表板接入光球） ────────────────────────
   // Dashboard 本身是唯讀，光球主要是拿到 state snapshot 做摘要；
@@ -435,6 +456,17 @@ export default function DashboardPage() {
                       ? "資訊"
                       : "正常"}
               </Badge>
+              <div className="flex-1" />
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-xs gap-1"
+                onClick={askOrbToAnalyze}
+                disabled={orbChat.isSending}
+              >
+                <Sparkles className="w-3 h-3" />
+                請光球分析
+              </Button>
             </div>
 
             {insights.costTrend && (
