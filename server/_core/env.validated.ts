@@ -27,6 +27,126 @@ ${divider}
 `);
 }
 
+// ─── Pre-validation Self-Repair ────────────────────────────────────────────
+// 在 zod 解析之前先掃描 process.env，把幾個常見的人為錯誤就地修補：
+//   • 變數名稱拼錯（例：NTHROPIC_API_KEY → ANTHROPIC_API_KEY）
+//   • Pinecone 索引名含有非法字元 → 自動清洗
+//   • JWT_ACCESS_TOKEN_EXPIRES_IN 寫成非數字 → 還原預設
+//   • GOOGLE_APPLICATION_CREDENTIALS_JSON 不是 JSON → 視為未設定
+
+interface SelfRepairLog {
+  varName: string;
+  action: "renamed" | "sanitized" | "reset_to_default" | "ignored_invalid";
+  before: string;
+  after: string;
+  reason: string;
+}
+
+const selfRepairLog: SelfRepairLog[] = [];
+
+function isLikelyJson(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return false;
+  try {
+    JSON.parse(trimmed);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function selfRepairEnv(): void {
+  const env = process.env;
+
+  // 1) 修補常見變數名稱錯字（aliases → 標準名稱）
+  const ALIASES: Record<string, string> = {
+    NTHROPIC_API_KEY: "ANTHROPIC_API_KEY", // 缺前綴 A
+    ANTROPIC_API_KEY: "ANTHROPIC_API_KEY", // 少一個 H
+    NVIDA_API: "NVIDIA_API",                // 少一個 I
+    FAL_KEY: "FAL_API_KEY",                  // 別名
+  };
+  for (const [alias, canonical] of Object.entries(ALIASES)) {
+    const aliasVal = env[alias];
+    if (aliasVal && aliasVal.trim().length > 0 && !env[canonical]) {
+      env[canonical] = aliasVal;
+      selfRepairLog.push({
+        varName: alias,
+        action: "renamed",
+        before: alias,
+        after: canonical,
+        reason: `偵測到拼字錯誤的別名 ${alias}，已自動映射到 ${canonical}`,
+      });
+    }
+  }
+
+  // 2) Pinecone 索引名只允許 [a-z0-9-]；若含非法字元就強制重設預設值
+  const idx = env.PINECONE_INDEX_NAME;
+  if (idx && idx.trim().length > 0) {
+    const cleaned = idx.toLowerCase().replace(/[^a-z0-9-]/g, "");
+    if (!/^[a-z0-9-]+$/.test(idx) || cleaned.length === 0) {
+      const replacement = "ai-director-memories";
+      selfRepairLog.push({
+        varName: "PINECONE_INDEX_NAME",
+        action: "sanitized",
+        before: idx,
+        after: replacement,
+        reason: "Pinecone 索引名只允許小寫英數與連字號，已重置為安全預設值",
+      });
+      env.PINECONE_INDEX_NAME = replacement;
+    }
+  }
+
+  // 3) JWT_ACCESS_TOKEN_EXPIRES_IN 必須是純數字（秒數）
+  const ttl = env.JWT_ACCESS_TOKEN_EXPIRES_IN;
+  if (ttl && ttl.trim().length > 0 && !/^\d+$/.test(ttl.trim())) {
+    selfRepairLog.push({
+      varName: "JWT_ACCESS_TOKEN_EXPIRES_IN",
+      action: "reset_to_default",
+      before: ttl,
+      after: "31536000",
+      reason: "TTL 必須是整數秒數；偵測到非數字，已還原預設 31536000 秒（1 年）",
+    });
+    env.JWT_ACCESS_TOKEN_EXPIRES_IN = "31536000";
+  }
+
+  // 4) GOOGLE_APPLICATION_CREDENTIALS_JSON 必須是合法 JSON
+  const gac = env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+  if (gac && gac.trim().length > 0 && !isLikelyJson(gac)) {
+    selfRepairLog.push({
+      varName: "GOOGLE_APPLICATION_CREDENTIALS_JSON",
+      action: "ignored_invalid",
+      before: gac.length > 30 ? `${gac.slice(0, 30)}…(${gac.length} chars)` : gac,
+      after: "(empty)",
+      reason: "不是合法 JSON 格式，視為未設定以避免 Vertex AI 啟動時崩潰",
+    });
+    env.GOOGLE_APPLICATION_CREDENTIALS_JSON = "";
+  }
+
+  if (selfRepairLog.length > 0 && env.NODE_ENV !== "test") {
+    const divider = "─".repeat(60);
+    console.warn(`\n${divider}\n🩹  環境變數自動修復報告（${selfRepairLog.length} 項）\n${divider}`);
+    for (const entry of selfRepairLog) {
+      console.warn(`  • [${entry.action}] ${entry.varName}: ${entry.reason}`);
+    }
+    console.warn(`${divider}\n`);
+  }
+}
+
+selfRepairEnv();
+
+/** 暴露自我修復記錄供大腦組態觀察用（不含敏感原值） */
+export function getEnvSelfRepairLog(): ReadonlyArray<{
+  varName: string;
+  action: SelfRepairLog["action"];
+  reason: string;
+}> {
+  return selfRepairLog.map(({ varName, action, reason }) => ({
+    varName,
+    action,
+    reason,
+  }));
+}
+
 // ─── Schema Definitions ────────────────────────────────────────────────────
 
 /**
