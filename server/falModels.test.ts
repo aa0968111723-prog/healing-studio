@@ -113,13 +113,18 @@ describe("getFalModelById category narrowing", () => {
 
 describe("falModels every catalog entry is well-formed", () => {
   it("every entry has matching category field and a non-empty label", () => {
+    // fal.ai dispatches a handful of partner-namespaced models too (e.g.
+    // `xai/grok-imagine-image/edit`); they are still served through the FAL
+    // provider so the catalog is allowed to reference them. The regex below
+    // lists the prefixes that the FAL dispatcher knows how to invoke.
+    const ALLOWED_PREFIXES = /^(fal-ai|xai)\//;
     for (const [category, models] of Object.entries(
       FAL_MODEL_CATALOG
     ) as Array<[FalCategory, (typeof FAL_MODEL_CATALOG)[FalCategory]]>) {
       for (const m of models) {
         expect(m.category).toBe(category);
         expect(m.label.length).toBeGreaterThan(0);
-        expect(m.modelId.startsWith("fal-ai/")).toBe(true);
+        expect(ALLOWED_PREFIXES.test(m.modelId)).toBe(true);
         expect(m.timeoutMs).toBeGreaterThan(0);
       }
     }

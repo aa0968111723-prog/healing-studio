@@ -148,6 +148,12 @@ const multimodalSchema = z.object({
   ENABLE_ORB_COST_GUARD: z.string().optional().default("true"),
   ENABLE_ORB_QUOTA_GUARD: z.string().optional().default("false"),
   ENABLE_ORB_IDEMPOTENCY_GUARD: z.string().optional().default("false"),
+  /**
+   * Whether the orb's `ai.chat` route runs a web-research stage (Brave +
+   * GitHub fallback) for research-style user questions. Defaults to "true";
+   * set to "false" to disable network calls without removing the code path.
+   */
+  ENABLE_ORB_WEB_RESEARCH: z.string().optional().default("true"),
   ENABLE_GLOBAL_AGENT_CAPABILITY_REGISTRY: z.string().optional().default("true"),
   ENABLE_GLOBAL_AGENT_TOOL_REGISTRY: z.string().optional().default("true"),
 

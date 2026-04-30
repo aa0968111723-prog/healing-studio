@@ -53,6 +53,7 @@ import { useOrbAttachments, attachmentKindEmoji } from "@/hooks/useOrbAttachment
 import { ORB_UPLOAD_ACCEPT } from "../../../shared/orb-chat-multimodal";
 import { toast } from "sonner";
 import AgentSettingsSheet from "@/components/AgentSettingsSheet";
+import ChatMessageText from "@/components/ChatMessageText";
 
 // ─── 型別 ─────────────────────────────────────────────────────────────────
 
@@ -715,7 +716,14 @@ export default function AgentChat() {
                       💭 {msg.intent}
                     </div>
                   )}
-                  {msg.text}
+                  <ChatMessageText
+                    text={msg.text}
+                    linkClassName={
+                      msg.role === "user"
+                        ? "underline decoration-white/60 underline-offset-2 hover:text-white inline-flex items-center gap-0.5"
+                        : "underline decoration-cyan-400 underline-offset-2 text-cyan-700 hover:text-cyan-800 inline-flex items-center gap-0.5"
+                    }
+                  />
                   {msg.attachments?.length ? (
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {msg.attachments.map(attachment => (
@@ -732,6 +740,25 @@ export default function AgentChat() {
                         >
                           <span>{attachmentKindEmoji(attachment.kind)}</span>
                           <span className="truncate max-w-[200px]">{attachment.name}</span>
+                        </a>
+                      ))}
+                    </div>
+                  ) : null}
+                  {msg.webSources?.length ? (
+                    <div className="mt-2 border-t border-slate-200/40 dark:border-slate-700/40 pt-2 space-y-1">
+                      <div className="text-[10px] uppercase tracking-wider text-slate-400">
+                        來源 · Sources
+                      </div>
+                      {msg.webSources.map((src, idx) => (
+                        <a
+                          key={`${src.url}-${idx}`}
+                          href={src.url}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                          className="block text-[11px] text-cyan-700 dark:text-cyan-300 hover:underline truncate"
+                          title={src.url}
+                        >
+                          {idx + 1}. {src.title}
                         </a>
                       ))}
                     </div>

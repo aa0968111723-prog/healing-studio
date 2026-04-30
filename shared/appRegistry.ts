@@ -816,6 +816,31 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     ],
     orbHints: ["我想看 API 用量", "查看成本", "各引擎呼叫次數"],
   },
+  {
+    id: "process-viewer",
+    label: "流程說明檢視器",
+    path: "/process",
+    group: "orb",
+    description:
+      "光球幫你產出的流程／教學步驟頁。可分享連結、勾選進度、或交給光球執行。",
+    aliases: ["流程", "步驟", "教學", "process", "guide", "how-to"],
+    showInSidebar: false,
+    showInAgentHome: false,
+    agentEntryPriority: 95,
+    supportsPageAgent: false,
+    quickActions: [
+      {
+        id: "open-process-from-orb",
+        label: "請光球幫我整理流程",
+        description: "告訴光球想了解的流程或步驟，它會回一個可分享的連結",
+        prompt: "請幫我整理一個可以分享的流程說明連結，主題是：",
+      },
+    ],
+    orbHints: [
+      "把這個流程整理成可分享的連結",
+      "幫我做一個 step-by-step 的教學頁",
+    ],
+  },
 ];
 
 const normalizePath = (path: string) => {
