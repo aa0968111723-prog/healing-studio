@@ -155,6 +155,7 @@ import {
 } from "./services/orbIdempotency";
 import { validateAttachmentGuards } from "./services/orbAttachmentGuard";
 import { addGenerationLog } from "./services/brainAutoRepair";
+import { runOrbWebResearch } from "./services/orbWebResearch";
 
 // ─── Dev-only debug logger (no-ops in production) ─────────────────────────
 const isDev = process.env.NODE_ENV !== "production";
@@ -4931,6 +4932,33 @@ export const appRouter = router({
         });
         const director = ctx.brain.getBrain(reasoningSlot);
 
+        // ── Web research stage ─────────────────────────────────────────────
+        // When the user asks a research-style question ("how to …", "製茶過程",
+        // "what is …"), look up real sources via Brave/GitHub fallback so the
+        // orb can ground its reply in citable URLs instead of guessing.
+        // Skipped silently when the trigger doesn't fire or the search
+        // provider is unconfigured.
+        const webResearchEnabled = serverEnv.ENABLE_ORB_WEB_RESEARCH !== "false";
+        const webResearchOutcome = await runOrbWebResearch(
+          latestUserTextForRouting,
+          { enabled: webResearchEnabled }
+        );
+        if (webResearchOutcome.reason === "matched") {
+          appendTelemetryEvent(telemetryEvents, "orb.web_research.hit", {
+            results: webResearchOutcome.results.length,
+          });
+        } else if (webResearchOutcome.reason === "error") {
+          appendTelemetryEvent(telemetryEvents, "orb.web_research.error", {});
+        }
+        const webResearchPromptBlock = webResearchOutcome.promptBlock ?? "";
+        const webResearchSources = webResearchOutcome.results.map(r => ({
+          title: r.title,
+          url: r.url,
+          source: r.source,
+        }));
+        const augmentSystemPromptWithResearch = (base: string) =>
+          webResearchPromptBlock ? `${base}\n\n${webResearchPromptBlock}` : base;
+
         // 預設依大腦選定的 model 推斷引擎偏好；多模態與 Provider Router
         // 會在後續再做動態決策。Brain 設定改 model 後，光球就會跟著切換引擎。
         let enginePreference: "gemini" | "auto" =
@@ -5186,7 +5214,13 @@ export const appRouter = router({
             });
             const chatOnlyResult = await withTimeout(
               invokeLLM({
-                messages: [{ role: "system", content: chatOnlySystemPrompt }, ...plannerMessages],
+                messages: [
+                  {
+                    role: "system",
+                    content: augmentSystemPromptWithResearch(chatOnlySystemPrompt),
+                  },
+                  ...plannerMessages,
+                ],
                 model: director.model,
                 temperature: director.temperature,
                 preferEngine: "auto",
@@ -5234,10 +5268,16 @@ export const appRouter = router({
           if (schemaFirstPlannerEnabled && capabilityRegistryEnabled && toolRegistryEnabled) {
             let plannerResult: Awaited<ReturnType<typeof runSchemaFirstAgentPlanner>> | null = null;
             try {
+              const plannerContextWithResearch = [
+                input.context,
+                webResearchPromptBlock || undefined,
+              ]
+                .filter((s): s is string => Boolean(s && s.trim()))
+                .join("\n\n");
               plannerResult = await withTimeout(
               runSchemaFirstAgentPlanner({
                 messages: plannerMessages,
-                context: input.context ?? undefined,
+                context: plannerContextWithResearch || undefined,
                 personality: input.personality,
                 pageSnapshot: (input.pageSnapshot ?? undefined) as
                   | PageAgentSnapshot
@@ -5736,7 +5776,7 @@ export const appRouter = router({
               topP: director.topP,
               systemPrompt: director.systemPrompt,
               messages: [
-                { role: "system", content: systemPrompt },
+                { role: "system", content: augmentSystemPromptWithResearch(systemPrompt) },
                 ...plannerMessages,
               ],
               preferEngine: enginePreference,
