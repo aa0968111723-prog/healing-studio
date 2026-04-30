@@ -15,4 +15,4 @@ ALTER TABLE `agent_preferences`
   ADD COLUMN `orbProactiveSuggestions` boolean NOT NULL DEFAULT true;
 
 -- Backfill the new json column for existing rows.
-UPDATE `agent_preferences` SET `disabledPageAgents` = JSON_ARRAY();
+UPDATE `agent_preferences` SET `disabledPageAgents` = '[]';
