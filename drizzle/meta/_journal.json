@@ -127,6 +127,34 @@
       "when": 1776622268410,
       "tag": "0016_login_history",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1776622268411,
+      "tag": "0017_agent_preferences_extend",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1776622268412,
+      "tag": "0018_agent_preferences_per_action",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "5",
+      "when": 1776622268413,
+      "tag": "0019_orb_scheduled_jobs",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "5",
+      "when": 1776622268414,
+      "tag": "0020_user_two_factor",
+      "breakpoints": true
     }
   ]
 }
