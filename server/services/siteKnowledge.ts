@@ -1150,6 +1150,25 @@ export interface OrbPromptExtras {
       promptUsed?: string | null;
     }>;
   };
+  /**
+   * Identity surface (帳戶名 + 過去聊天累積出的暱稱) — 讓光球能親切呼叫使用者。
+   * 帳戶名通常是 email 衍生或顯名；rememberedName 來自過往對話「我叫 X」累積的記憶。
+   */
+  userIdentity?: {
+    accountName?: string;
+    rememberedName?: string;
+  };
+  /**
+   * 從長期記憶聚合出的偏好。LLM 可據此在沒問也沒答的情況下做合理預設。
+   */
+  rememberedPreferences?: {
+    styles?: string[];
+    outputs?: string[];
+    platforms?: string[];
+    models?: string[];
+    videoLengthHint?: "short" | "medium" | "long";
+    evidenceCount?: number;
+  };
 }
 
 function serializeSnapshotBlock(
@@ -1243,6 +1262,43 @@ function serializeAssetLibraryBlock(
   ].join("\n");
 }
 
+function serializeIdentityBlock(
+  identity: OrbPromptExtras["userIdentity"],
+  prefs: OrbPromptExtras["rememberedPreferences"]
+): string {
+  const lines: string[] = [];
+  const displayName = identity?.rememberedName ?? identity?.accountName;
+  if (displayName) {
+    lines.push(`【你認識的這位使用者】`);
+    if (identity?.rememberedName && identity.accountName && identity.rememberedName !== identity.accountName) {
+      lines.push(`- 帳戶顯示名：${identity.accountName}（系統登錄）`);
+      lines.push(`- 對話中自報暱稱：${identity.rememberedName}（請優先用這個稱呼）`);
+    } else if (identity?.rememberedName) {
+      lines.push(`- 自報暱稱：${identity.rememberedName}（請主動以這個名字打招呼）`);
+    } else if (identity?.accountName) {
+      lines.push(`- 帳戶顯示名：${identity.accountName}（可在第一次互動時親切稱呼一次）`);
+    }
+  }
+  if (prefs && (prefs.styles?.length || prefs.outputs?.length || prefs.platforms?.length || prefs.videoLengthHint)) {
+    if (lines.length === 0) lines.push(`【你認識的這位使用者】`);
+    if (prefs.styles?.length) lines.push(`- 偏好風格：${prefs.styles.join(" / ")}`);
+    if (prefs.outputs?.length) lines.push(`- 常做的成品：${prefs.outputs.join(" / ")}`);
+    if (prefs.platforms?.length) lines.push(`- 投放平台：${prefs.platforms.join(" / ")}`);
+    if (prefs.videoLengthHint) {
+      const tier = prefs.videoLengthHint === "short" ? "短片（30 秒級）" : prefs.videoLengthHint === "medium" ? "中片（1–3 分鐘）" : "長片（5 分鐘以上）";
+      lines.push(`- 慣用影片長度：${tier}`);
+    }
+    if (typeof prefs.evidenceCount === "number" && prefs.evidenceCount >= 1) {
+      lines.push(`- 偏好信心：${prefs.evidenceCount} 筆對話累積`);
+    }
+  }
+  if (lines.length === 0) return "";
+  lines.push(
+    "請依以上資訊：(1) 第一輪用使用者偏好的稱呼打招呼；(2) 缺細節時優先套用上述偏好做合理預設，再簡短確認；(3) 不要把這些資訊複述成一大段給使用者，而是自然融入回覆。"
+  );
+  return `\n${lines.join("\n")}\n`;
+}
+
 function serializeApiToolsBlock(list: OrbPromptExtras["apiTools"]): string {
   if (!list || list.length === 0) return "";
   const lines = list.slice(0, 16).map(tool => {
@@ -1309,6 +1365,7 @@ export function buildOrbSystemPrompt(
   const confirmNote = extras?.alwaysConfirm
     ? "\n【使用者偏好】這位使用者希望任何動作執行前都先詢問一次，請養成「先說意圖、再等確認」的習慣。"
     : "";
+  const identityBlock = serializeIdentityBlock(extras?.userIdentity, extras?.rememberedPreferences);
 
   // Phase 4：判斷是否在創作工作室，注入深度引導知識
   const isStudioPage =
@@ -1339,7 +1396,7 @@ export function buildOrbSystemPrompt(
     false;
 
   return `${personalityPrompt}
-
+${identityBlock}
 【你的核心身份】
 你是一個以人為本的 AI 療癒創作夥伴。你的首要使命不是效率，而是讓使用者在創作過程中感到放鬆、愉悅和被支持。
 Healing Studio 是一個療癒放鬆的創作空間，使用者來這裡是為了找到內心的平靜和創作的喜悅。

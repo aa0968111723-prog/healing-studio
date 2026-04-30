@@ -92,6 +92,7 @@ import {
   buildCodexTaskPrompt,
 } from "../shared/orb-code-task";
 import {
+  aggregatePreferenceProfile,
   extractOrbPreferencesFromConversation,
   summarizeSiteKnowledgeForPlanner,
   summarizeRecentMemoryForPlanner,
@@ -4628,11 +4629,33 @@ export const appRouter = router({
           }
         }
 
-        const finalizeIdempotentResponse = <T>(result: T): T => {
-          if (idempKey) {
-            storeResult(idempKey, result);
+        const finalizeIdempotentResponse = <T extends object | null | undefined>(result: T): T => {
+          // Inject identity / preference profile for the client. We do it here so
+          // every reply path (planner success, gate blocks, empty LLM, legacy
+          // fallback…) carries the same context without each call site needing
+          // to remember to spread the fields.
+          //
+          // Closure note: `userIdentity` / `rememberedPreferences` are defined
+          // later in the chat handler body, but JS resolves these lookups at
+          // call time, by which point they always exist.
+          let enriched: T = result;
+          if (result && typeof result === "object") {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const r = result as any;
+            // Only attach when we actually computed them — avoids polluting
+            // unrelated early-return shapes ({status: "in-progress"} etc.).
+            if (typeof userIdentity !== "undefined" && r.userIdentity === undefined) {
+              r.userIdentity = userIdentity;
+            }
+            if (typeof rememberedPreferences !== "undefined" && r.rememberedPreferences === undefined) {
+              r.rememberedPreferences = rememberedPreferences;
+            }
+            enriched = r;
           }
-          return result;
+          if (idempKey) {
+            storeResult(idempKey, enriched);
+          }
+          return enriched;
         };
 
         const makePlannerMeta = (params: {
@@ -4798,19 +4821,59 @@ export const appRouter = router({
               content: typeof message.content === "string" ? message.content : JSON.stringify(message.content),
             })),
           });
-          if (preferences.styles.length || preferences.outputs.length || preferences.models.length || preferences.language) {
+          const hasSignal =
+            preferences.styles.length ||
+            preferences.outputs.length ||
+            preferences.models.length ||
+            preferences.platforms.length ||
+            preferences.videoLengthHint ||
+            preferences.name ||
+            preferences.language;
+          if (hasSignal) {
+            const tags = [
+              "preference",
+              ...preferences.styles.slice(0, 2).map(s => `style:${s}`),
+              ...preferences.outputs.slice(0, 2).map(o => `output:${o}`),
+              ...preferences.platforms.slice(0, 2).map(p => `platform:${p}`),
+              ...(preferences.videoLengthHint ? [`length:${preferences.videoLengthHint}`] : []),
+              ...(preferences.name ? [`name:${preferences.name}`] : []),
+            ];
             recordOrbMemory({
               userId: ctx.user.id,
               traceId: `chat_${Date.now()}`,
               type: "user_preference",
-              summary: `Preference update: lang=${preferences.language ?? "unknown"}, styles=${preferences.styles.join(",") || "none"}, outputs=${preferences.outputs.join(",") || "none"}, models=${preferences.models.join(",") || "none"}`,
+              summary: `Preference update: name=${preferences.name ?? "unknown"}, lang=${preferences.language ?? "unknown"}, length=${preferences.videoLengthHint ?? "unknown"}, styles=${preferences.styles.join(",") || "none"}, platforms=${preferences.platforms.join(",") || "none"}, outputs=${preferences.outputs.join(",") || "none"}`,
               source: "ai.chat",
               confidence: 0.72,
-              tags: ["preference", ...(preferences.styles.slice(0, 2)), ...(preferences.outputs.slice(0, 2))],
+              tags,
               metadata: preferences as unknown as Record<string, unknown>,
             });
           }
         }
+
+        // Aggregate the durable preference profile (name / styles / platforms /
+        // length tier) from all preference-type memories so the LLM sees one
+        // tidy block instead of having to parse JSON snapshots itself. The
+        // profile is also returned to the client so the keyword fallback can
+        // fill in defaults when the LLM doesn't reply with actions.
+        const preferenceProfile = aggregatePreferenceProfile(recentOrbMemories);
+        const accountName = ctx.user?.name ?? undefined;
+        const userIdentity = preferenceProfile.name || accountName
+          ? {
+              accountName,
+              rememberedName: preferenceProfile.name ?? undefined,
+            }
+          : undefined;
+        const rememberedPreferences = preferenceProfile.evidenceCount > 0
+          ? {
+              styles: preferenceProfile.styles,
+              outputs: preferenceProfile.outputs,
+              platforms: preferenceProfile.platforms,
+              models: preferenceProfile.models,
+              videoLengthHint: preferenceProfile.videoLengthHint,
+              evidenceCount: preferenceProfile.evidenceCount,
+            }
+          : undefined;
 
         const systemPrompt = buildOrbSystemPrompt(
           input.personality,
@@ -4831,6 +4894,8 @@ export const appRouter = router({
               fallbackTools: tool.fallbackTools,
               requireConfirmation: tool.requireConfirmation,
             })),
+            userIdentity,
+            rememberedPreferences,
           }
         );
         const siteKnowledgeSummary = summarizeSiteKnowledgeForPlanner({
@@ -5691,7 +5756,7 @@ export const appRouter = router({
               preferredEngine: enginePreference,
               usedMultimodalPlanner: false,
             });
-            return {
+            return finalizeIdempotentResponse({
               reply: "✨ 抱歉，我暫時無法回應。稍後再試試看吧～",
               actions: [],
               intent: null,
@@ -5713,7 +5778,7 @@ export const appRouter = router({
               },
               ...meta,
               taskDraft: null,
-            };
+            });
           }
           const legacy = parseOrbReply(rawReply, {
             alwaysConfirm: input.alwaysConfirm,
@@ -5781,7 +5846,7 @@ export const appRouter = router({
           // legacy.needsClarification was added by orbReplyParser; force askBeforeAct
           // when set so the front-end opens the ClarificationCard.
           const fallbackNeedsClarification = legacy.needsClarification === true;
-          return {
+          return finalizeIdempotentResponse({
             ...legacy,
             actions: fallbackNeedsClarification ? [] : legacyActions,
             askBeforeAct: fallbackNeedsClarification
@@ -5807,7 +5872,7 @@ export const appRouter = router({
             },
             ...meta,
             taskDraft: null,
-          };
+          });
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : String(err);
           console.error("[Orb] Chat error:", errorMsg);

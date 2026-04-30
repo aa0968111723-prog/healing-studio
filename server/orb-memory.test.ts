@@ -19,7 +19,9 @@ import {
   type AgentFeedbackEvent,
 } from "../shared/agent-actions";
 import {
+  aggregatePreferenceProfile,
   extractOrbPreferencesFromConversation,
+  extractUserName,
   sanitizeMemoryText,
   summarizeRecentMemoryForPlanner,
 } from "../shared/orb-memory";
@@ -255,6 +257,67 @@ describe("orb long-term memory repository", () => {
     expect(pref.styles).toContain("電影感");
     expect(pref.styles).toContain("療癒");
     expect(sanitizeMemoryText("apiKey=123")).not.toContain("123");
+  });
+
+  it("extractUserName picks up Chinese self-introductions", () => {
+    expect(extractUserName("我叫小明")).toBe("小明");
+    expect(extractUserName("叫我阿傑就好")).toBe("阿傑");
+    expect(extractUserName("嗨我是 Mary")).toBe("Mary");
+  });
+
+  it("extractUserName ignores generic role tags that look like names", () => {
+    expect(extractUserName("我是學生")).toBeUndefined();
+    expect(extractUserName("我是新手")).toBeUndefined();
+  });
+
+  it("preference extraction picks up name, length and platform from user messages only", () => {
+    const pref = extractOrbPreferencesFromConversation({
+      messages: [
+        { role: "user", content: "我叫小明，平常做 30 秒短片，發在 IG 跟 YouTube 上" },
+        { role: "assistant", content: "好的小明～" },
+      ],
+    });
+    expect(pref.name).toBe("小明");
+    expect(pref.videoLengthHint).toBe("short");
+    expect(pref.platforms).toContain("Instagram");
+    expect(pref.platforms).toContain("YouTube");
+  });
+
+  it("preference extraction recognises 5-minute as long-form video preference", () => {
+    const pref = extractOrbPreferencesFromConversation({
+      messages: [
+        { role: "user", content: "幫我做 5 分鐘的長片" },
+      ],
+    });
+    expect(pref.videoLengthHint).toBe("long");
+  });
+
+  it("aggregatePreferenceProfile collapses repeated memories into a single profile", () => {
+    recordOrbMemory({
+      userId: 99,
+      traceId: "agg-1",
+      type: "user_preference",
+      summary: "喜歡電影感",
+      source: "test",
+      tags: ["style:電影感", "platform:Instagram"],
+      metadata: { name: "小明", videoLengthHint: "short", styles: ["電影感"] },
+    });
+    recordOrbMemory({
+      userId: 99,
+      traceId: "agg-2",
+      type: "style_preference",
+      summary: "喜歡療癒",
+      source: "test",
+      tags: ["style:療癒"],
+      metadata: { styles: ["療癒"], platforms: ["YouTube"] },
+    });
+    const memories = getRecentOrbMemories({ userId: 99, limit: 50 });
+    const profile = aggregatePreferenceProfile(memories);
+    expect(profile.name).toBe("小明");
+    expect(profile.videoLengthHint).toBe("short");
+    expect(profile.styles).toEqual(expect.arrayContaining(["電影感", "療癒"]));
+    expect(profile.platforms).toEqual(expect.arrayContaining(["Instagram", "YouTube"]));
+    expect(profile.evidenceCount).toBeGreaterThanOrEqual(2);
   });
 
   it("summarizeRecentMemoryForPlanner does not leak long raw content", () => {

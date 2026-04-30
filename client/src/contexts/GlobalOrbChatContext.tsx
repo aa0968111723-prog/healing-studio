@@ -22,7 +22,7 @@ import { usePersonality } from "./PersonalityContext";
 import { usePageAgent, parseLLMActions, adaptAgentPlanToActions, type AgentAction } from "./PageAgentContext";
 import { useLocation } from "wouter";
 import { executeGlobalActions, shouldAskBeforeAct } from "../../../shared/global-agent-orchestrator";
-import { maybeCreateWorkflowFromUserText } from "../../../shared/global-agent-workflows";
+import { detectChatIntent } from "../../../shared/global-agent-workflows";
 import {
   chatMessageToLLMContent,
   type OrbChatAttachment,
@@ -1180,7 +1180,48 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         : dataActions
         ? parseLLMActions(dataActions)
         : [];
-      const fallbackWorkflow = llmActions.length === 0 ? maybeCreateWorkflowFromUserText(trimmed) : null;
+
+      // The chat router echoes back the durable preference profile (name +
+      // styles + platforms + length tier) so the keyword fallback can fill in
+      // missing details rather than asking again. Shape is forward-compat:
+      // every field is optional and we never throw on missing keys.
+      const rememberedPreferences = (() => {
+        const raw = (dataObj.rememberedPreferences ?? null) as
+          | {
+              styles?: string[];
+              outputs?: string[];
+              platforms?: string[];
+              models?: string[];
+              videoLengthHint?: "short" | "medium" | "long";
+            }
+          | null;
+        if (!raw) return undefined;
+        return raw;
+      })();
+      const intentDetection = llmActions.length === 0
+        ? detectChatIntent(trimmed, rememberedPreferences)
+        : { kind: "none" } as const;
+      if (intentDetection.kind === "needs-clarification") {
+        const question = intentDetection.message;
+        const replyForUser = dataReply ? `${dataReply}\n\n🎬 ${question}` : `🎬 ${question}`;
+        setMessages(prev => [...prev, {
+          role: "orb",
+          text: replyForUser,
+          at: Date.now(),
+          pagePath: locationPath,
+        }]);
+        setPendingClarification({
+          id: `clarify_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          question,
+          options: intentDetection.options,
+          originalUserText: trimmed,
+          createdAt: Date.now(),
+        });
+        const rawSuggestionsClarify = (data as { suggestions?: string[] }).suggestions ?? [];
+        setSuggestions(rawSuggestionsClarify.slice(0, 4).map(s => ({ text: s })));
+        return;
+      }
+      const fallbackWorkflow = intentDetection.kind === "ready" ? intentDetection.workflow : null;
       const actionsToExecute: AgentAction[] = fallbackWorkflow ? [fallbackWorkflow] : llmActions;
       const effectiveIntent = intent ?? (fallbackWorkflow ? fallbackWorkflow.name : undefined);
       const executorTask: GlobalOrbExecutorTask | null =
@@ -1210,7 +1251,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         source: fallbackWorkflow ? "fallback" : "llm",
       });
       const replyText = fallbackWorkflow
-        ? `${dataReply}\n\n🎬 我已把你的需求轉成「AI Director 短片生成流程」。我會先讓你確認計畫，按下開始後才會跨頁執行。`
+        ? `${dataReply}\n\n🎬 我已把你的需求轉成「${fallbackWorkflow.name}」。我會先讓你確認計畫，按下開始後才會跨頁執行。`
         : pendingPlan
         ? `${dataReply}\n\n🧭 我已整理好執行計畫，請先確認。按下「開始執行」後，我才會開始操作。`
         : dataReply;

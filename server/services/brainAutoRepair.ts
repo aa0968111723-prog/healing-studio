@@ -339,6 +339,7 @@ const ENGINE_PROVIDER_MAP: Record<string, string> = {
   "fal-ai/bytedance/seedream/v4/text-to-image": "fal",
   "fal-ai/bytedance/seedream/v4.5/edit": "fal",
   "fal-ai/bytedance/seedream/v5/lite/edit": "fal",
+  "xai/grok-imagine-image/edit": "fal",
   "fal-ai/imagen4/preview": "fal",
   "fal-ai/gpt-image-1.5/edit": "fal",
   "fal-ai/flux-pro/kontext": "fal",
@@ -437,6 +438,60 @@ const REPAIR_FALLBACK: Record<string, string[]> = {
     "fal-ai/nano-banana-2",
     "fal-ai/flux-pro/v1.1",
   ],
+  // ── Stable Diffusion 系（同家族互備） ──
+  "fal-ai/stable-diffusion-v35-large": [
+    "fal-ai/fast-sdxl",
+    "fal-ai/lora",
+    "fal-ai/flux-pro/v1.1",
+  ],
+  "fal-ai/fast-sdxl": [
+    "fal-ai/stable-diffusion-v35-large",
+    "fal-ai/lora",
+    "fal-ai/flux-pro/v1.1",
+  ],
+  "fal-ai/lora": [
+    "fal-ai/fast-sdxl",
+    "fal-ai/stable-diffusion-v35-large",
+  ],
+  // ── 圖片編輯（語意式 edit）── 同家族優先，跨家族次之
+  "fal-ai/nano-banana-pro/edit": [
+    "fal-ai/nano-banana-2/edit",
+    "fal-ai/nano-banana/edit",
+  ],
+  "fal-ai/nano-banana-2/edit": [
+    "fal-ai/nano-banana-pro/edit",
+    "fal-ai/nano-banana/edit",
+  ],
+  "fal-ai/nano-banana/edit": [
+    "fal-ai/nano-banana-2/edit",
+    "fal-ai/nano-banana-pro/edit",
+  ],
+  "fal-ai/bytedance/seedream/v4.5/edit": [
+    "fal-ai/bytedance/seedream/v5/lite/edit",
+    "fal-ai/nano-banana-pro/edit",
+  ],
+  "fal-ai/bytedance/seedream/v5/lite/edit": [
+    "fal-ai/bytedance/seedream/v4.5/edit",
+    "fal-ai/nano-banana-2/edit",
+  ],
+  "xai/grok-imagine-image/edit": [
+    "fal-ai/gpt-image-1.5/edit",
+    "fal-ai/nano-banana-pro/edit",
+  ],
+  "fal-ai/gpt-image-1.5/edit": [
+    "fal-ai/flux-pro/kontext",
+    "fal-ai/nano-banana-pro/edit",
+  ],
+  "fal-ai/flux-pro/kontext": [
+    "fal-ai/flux-2-pro/edit",
+    "fal-ai/nano-banana-pro/edit",
+  ],
+  "fal-ai/flux-2-pro/edit": [
+    "fal-ai/flux-pro/kontext",
+    "fal-ai/nano-banana-pro/edit",
+  ],
+  // ── 影像放大 ──
+  "fal-ai/seedvr/upscale/image": ["fal-ai/aura-sr"],
   // ── 影片生成 ──
   "fal-ai/kling-video/v2.1/standard/text-to-video": [
     "fal-ai/wan/v2.2-14b",
@@ -476,6 +531,18 @@ const REPAIR_FALLBACK: Record<string, string[]> = {
   "fal-ai/trellis": ["fal-ai/trellis-2", "fal-ai/triposr"],
   "fal-ai/triposr": ["fal-ai/trellis-2", "fal-ai/stable-zero123"],
   "fal-ai/hunyuan3d-v3/image-to-3d": ["fal-ai/trellis-2", "fal-ai/triposr"],
+  "fal-ai/sam-3/3d-objects": [
+    "fal-ai/hunyuan3d-v3/image-to-3d",
+    "fal-ai/trellis-2",
+  ],
+  "fal-ai/hyper3d/rodin": [
+    "fal-ai/trellis-2",
+    "fal-ai/hunyuan3d-v3/image-to-3d",
+  ],
+  "fal-ai/hunyuan_world/image-to-world": [
+    "fal-ai/hunyuan3d-v3/image-to-3d",
+    "fal-ai/trellis-2",
+  ],
   // ── 音訊處理 ──
   "fal-ai/demucs": ["fal-ai/elevenlabs/audio-isolation"],
   "fal-ai/elevenlabs/audio-isolation": ["fal-ai/demucs"],
