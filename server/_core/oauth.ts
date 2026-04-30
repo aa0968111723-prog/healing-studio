@@ -20,6 +20,7 @@ import {
   createSessionToken,
   isDemoMode,
   DEMO_USER,
+  GoogleTokenExchangeError,
 } from "./googleAuth";
 
 function getQueryParam(req: Request, key: string): string | undefined {
@@ -80,7 +81,7 @@ export function registerOAuthRoutes(app: Express) {
       if (!isSafeRedirectPath(redirectAfter)) {
         redirectAfter = "/";
       }
-      const authUrl = buildGoogleAuthUrl(redirectAfter);
+      const authUrl = buildGoogleAuthUrl(redirectAfter, req);
       res.redirect(302, authUrl);
     } catch (error) {
       console.error("[OAuth] Failed to build Google auth URL", error);
@@ -119,7 +120,7 @@ export function registerOAuthRoutes(app: Express) {
     try {
       // 換取 Google Access Token
       console.info("[OAuth] Exchanging code for tokens...");
-      const tokens = await exchangeCodeForTokens(code);
+      const tokens = await exchangeCodeForTokens(code, req);
       console.info("[OAuth] Token exchange successful");
 
       // 取得用戶資訊
@@ -185,7 +186,12 @@ export function registerOAuthRoutes(app: Express) {
         code: code ? "present" : "missing",
         state: state ? "present" : "missing",
       });
-      redirectWithAuthError(res, "oauth_failed", state);
+      const reason =
+        error instanceof GoogleTokenExchangeError &&
+        error.googleError === "redirect_uri_mismatch"
+          ? "oauth_redirect_mismatch"
+          : "oauth_failed";
+      redirectWithAuthError(res, reason, state);
     }
   });
 
