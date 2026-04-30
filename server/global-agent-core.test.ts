@@ -12,11 +12,27 @@ import { describe, expect, it, beforeEach } from "vitest";
 import { adaptAgentPlanToActions, type AgentAction, type PageAgentSnapshot } from "../shared/agent-actions";
 import { GlobalAgentRegistry, globalAgentRegistry } from "../shared/global-agent-registry";
 import {
+  buildImageWorkflow,
+  buildLongVideoWorkflow,
+  buildMusicWorkflow,
+  buildNavigateWorkflow,
+  buildScriptOnlyWorkflow,
+  buildSfxWorkflow,
   buildShortVideoWorkflow,
+  buildVoiceWorkflow,
+  detectChatIntent,
+  detectCreationIntent,
+  detectNavIntent,
+  detectVideoIntent,
   expandWorkflowAction,
+  inferLongVideoChapters,
   maybeCreateWorkflowFromUserText,
   workflowStepToAction,
 } from "../shared/global-agent-workflows";
+import {
+  GLOBAL_AGENT_CAPABILITY_REGISTRY,
+  hasCapabilityForPage,
+} from "../shared/global-agent-capabilities";
 import {
   executeGlobalAction,
   executeGlobalActions,
@@ -158,6 +174,245 @@ describe("global-agent-workflows", () => {
     expect(workflow.steps.map(step => step.label).join("\n")).toContain("圖像工作室");
     expect(workflow.steps.map(step => step.label).join("\n")).toContain("影片工作室");
     expect(workflow.steps.map(step => step.label).join("\n")).toContain("配音");
+  });
+
+  it("short-video workflow no longer dispatches a standalone /director submit", () => {
+    const workflow = buildShortVideoWorkflow("療癒森林品牌短片");
+    const directorSubmitSteps = workflow.steps.filter(
+      step => step.path === "/director" && step.actionType === "submit"
+    );
+    expect(directorSubmitSteps).toHaveLength(0);
+  });
+
+  it("detectVideoIntent asks for clarification when user wants a long video", () => {
+    const detection = detectVideoIntent("我想做一個長影片你可以幫我做嗎？");
+    expect(detection.kind).toBe("needs-clarification");
+    if (detection.kind === "needs-clarification") {
+      expect(detection.message).toContain("長影片");
+      expect(detection.options.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("detectVideoIntent asks for clarification when video request lacks length and subject", () => {
+    const detection = detectVideoIntent("幫我做影片");
+    expect(detection.kind).toBe("needs-clarification");
+  });
+
+  it("detectVideoIntent skips clarification when user provides explicit short-form details", () => {
+    const detection = detectVideoIntent("幫我做一支 30 秒廣告短片");
+    expect(detection.kind).toBe("ready");
+  });
+
+  it("detectVideoIntent returns none for off-topic chatter", () => {
+    expect(detectVideoIntent("今天天氣如何？").kind).toBe("none");
+  });
+
+  it("short-video workflow uses setTab for /pro-studio (setModality is unsupported there)", () => {
+    const workflow = buildShortVideoWorkflow("療癒森林品牌短片");
+    const proStudioSteps = workflow.steps.filter(step => step.path === "/pro-studio");
+    expect(proStudioSteps.length).toBeGreaterThan(0);
+    for (const step of proStudioSteps) {
+      expect(step.actionType).not.toBe("setModality");
+    }
+  });
+
+  it("setTab is registered as a capability so workflow steps don't get blocked", () => {
+    const allowed = GLOBAL_AGENT_CAPABILITY_REGISTRY.some(c => c.actionType === "setTab" && c.enabled);
+    expect(allowed).toBe(true);
+    expect(hasCapabilityForPage("/pro-studio", "setTab")).toBe(true);
+    expect(hasCapabilityForPage("/image-studio", "setTab")).toBe(true);
+  });
+
+  it("detectCreationIntent picks the image workflow for image requests", () => {
+    const detection = detectCreationIntent("幫我做一張電影感海報");
+    expect(detection.kind).toBe("ready");
+    if (detection.kind === "ready") {
+      expect(detection.workflow.name).toBe("圖片生成流程");
+      expect(detection.workflow.steps[0]?.path).toBe("/image-studio");
+    }
+  });
+
+  it("detectCreationIntent picks the music workflow for music requests", () => {
+    const detection = detectCreationIntent("幫我做一首放鬆的背景音樂");
+    expect(detection.kind).toBe("ready");
+    if (detection.kind === "ready") {
+      expect(detection.workflow.name).toBe("音樂生成流程");
+      expect(detection.workflow.steps[0]?.path).toBe("/pro-studio");
+    }
+  });
+
+  it("detectCreationIntent picks the voice workflow for narration requests", () => {
+    const detection = detectCreationIntent("幫我做一段冥想引導旁白");
+    expect(detection.kind).toBe("ready");
+    if (detection.kind === "ready") {
+      expect(detection.workflow.name).toBe("語音合成流程");
+    }
+  });
+
+  it("detectCreationIntent picks the sfx workflow for sound-effect requests", () => {
+    const detection = detectCreationIntent("幫我做雨聲音效");
+    expect(detection.kind).toBe("ready");
+    if (detection.kind === "ready") {
+      expect(detection.workflow.name).toBe("音效生成流程");
+    }
+  });
+
+  it("detectCreationIntent picks the script-only workflow for planning requests", () => {
+    const detection = detectCreationIntent("幫我寫一個短片腳本");
+    expect(detection.kind).toBe("ready");
+    if (detection.kind === "ready") {
+      expect(detection.workflow.name).toBe("腳本規劃流程");
+      expect(detection.workflow.steps[0]?.path).toBe("/director");
+    }
+  });
+
+  it("detectCreationIntent asks which audio modality when multiple are mentioned", () => {
+    const detection = detectCreationIntent("幫我做背景音樂和旁白");
+    expect(detection.kind).toBe("needs-clarification");
+    if (detection.kind === "needs-clarification") {
+      expect(detection.options.length).toBeGreaterThan(1);
+    }
+  });
+
+  it("detectCreationIntent defers to video intent when video keyword present", () => {
+    const detection = detectCreationIntent("我想做一個長影片你可以幫我做嗎？");
+    expect(detection.kind).toBe("needs-clarification");
+  });
+
+  it("detectCreationIntent ignores plain chatter", () => {
+    expect(detectCreationIntent("你好").kind).toBe("none");
+    expect(detectCreationIntent("今天我想看書").kind).toBe("none");
+  });
+
+  it("each non-video workflow only uses actions that pass the capability gate", () => {
+    const workflows = [
+      buildImageWorkflow("test"),
+      buildMusicWorkflow("test"),
+      buildVoiceWorkflow("test"),
+      buildSfxWorkflow("test"),
+      buildScriptOnlyWorkflow("test"),
+    ];
+    for (const workflow of workflows) {
+      for (const step of workflow.steps) {
+        expect(hasCapabilityForPage(step.path, step.actionType)).toBe(true);
+      }
+    }
+  });
+
+  it("inferLongVideoChapters scales with explicit minutes", () => {
+    expect(inferLongVideoChapters("我想做 1 分鐘長片，主題：森林")).toBe(2);
+    expect(inferLongVideoChapters("我想做 3 分鐘長片，主題：森林")).toBe(3);
+    expect(inferLongVideoChapters("我想做 5 分鐘長片，主題：森林")).toBe(4);
+    expect(inferLongVideoChapters("我想做 10 分鐘長片，主題：森林")).toBe(5);
+    expect(inferLongVideoChapters("我想做 30 分鐘長片，主題：森林")).toBe(6);
+  });
+
+  it("inferLongVideoChapters honours explicit chapter counts", () => {
+    expect(inferLongVideoChapters("做一支 4 章節長片")).toBe(4);
+    expect(inferLongVideoChapters("做一支 99 章長片")).toBe(6); // capped
+    expect(inferLongVideoChapters("做一支 1 章長片")).toBe(2); // floor
+  });
+
+  it("buildLongVideoWorkflow scales steps with chapter count", () => {
+    const w3 = buildLongVideoWorkflow("療癒森林品牌故事", { chapters: 3 });
+    const w5 = buildLongVideoWorkflow("療癒森林品牌故事", { chapters: 5 });
+    expect(w3.steps.length).toBeLessThan(w5.steps.length);
+    expect(w3.name).toContain("3 章節");
+    expect(w5.name).toContain("5 章節");
+  });
+
+  it("buildLongVideoWorkflow only uses actions that pass the capability gate", () => {
+    const workflow = buildLongVideoWorkflow("療癒森林品牌故事", { chapters: 4 });
+    for (const step of workflow.steps) {
+      expect(hasCapabilityForPage(step.path, step.actionType)).toBe(true);
+    }
+  });
+
+  it("detectVideoIntent returns a long workflow when long+subject are explicit", () => {
+    const detection = detectVideoIntent(
+      "我想做 5 分鐘的長片，主題：療癒森林品牌故事"
+    );
+    expect(detection.kind).toBe("ready");
+    if (detection.kind === "ready") {
+      expect(detection.workflow.name).toContain("章節長片");
+    }
+  });
+
+  it("detectVideoIntent still asks when long is mentioned without subject", () => {
+    const detection = detectVideoIntent("我想做一個長影片你可以幫我做嗎？");
+    expect(detection.kind).toBe("needs-clarification");
+    if (detection.kind === "needs-clarification") {
+      expect(detection.message).toContain("主題");
+    }
+  });
+
+  it("detectCreationIntent embeds remembered style/platform hints into the workflow", () => {
+    const detection = detectCreationIntent("幫我做一張海報", {
+      styles: ["電影感", "療癒"],
+      platforms: ["Instagram"],
+    });
+    expect(detection.kind).toBe("ready");
+    if (detection.kind === "ready") {
+      const firstStep = detection.workflow.steps[0];
+      expect(firstStep?.payload).toContain("電影感");
+      expect(firstStep?.payload).toContain("Instagram");
+    }
+  });
+
+  it("detectVideoIntent uses remembered videoLengthHint=long to trigger long-video workflow", () => {
+    const detection = detectVideoIntent(
+      "幫我做一支主題：療癒森林品牌故事的影片",
+      { videoLengthHint: "long" }
+    );
+    expect(detection.kind).toBe("ready");
+    if (detection.kind === "ready") {
+      expect(detection.workflow.name).toContain("章節長片");
+    }
+  });
+
+  it("detectNavIntent recognises non-creative requests", () => {
+    expect(detectNavIntent("我想訓練自己的 LoRA")?.path).toBe("/models");
+    expect(detectNavIntent("怎麼開始？有新手教學嗎")?.path).toBe("/tutorial-overview");
+    expect(detectNavIntent("我想看學習文件")?.path).toBe("/learn");
+    expect(detectNavIntent("打開個人設定")?.path).toBe("/settings");
+    expect(detectNavIntent("帶我去素材庫")?.path).toBe("/assets");
+    expect(detectNavIntent("查看背景任務")?.path).toBe("/assets?section=tasks");
+    expect(detectNavIntent("查我的點數")?.path).toBe("/dashboard?section=credits");
+    expect(detectNavIntent("打開專注流")?.path).toBe("/focus-flow");
+  });
+
+  it("detectNavIntent returns null for off-topic chatter", () => {
+    expect(detectNavIntent("今天天氣如何")).toBeNull();
+    expect(detectNavIntent("你好")).toBeNull();
+  });
+
+  it("buildNavigateWorkflow produces a single navigate step that passes the capability gate", () => {
+    const wf = buildNavigateWorkflow("前往模型訓練中心", "/models");
+    expect(wf.steps).toHaveLength(1);
+    expect(wf.steps[0].actionType).toBe("navigate");
+    expect(hasCapabilityForPage(wf.steps[0].path, wf.steps[0].actionType)).toBe(true);
+  });
+
+  it("detectChatIntent picks creative intent when both creative and nav keywords match", () => {
+    const detection = detectChatIntent("幫我做一張海報，順便看一下素材庫");
+    expect(detection.kind).toBe("ready");
+    if (detection.kind === "ready") {
+      expect(detection.workflow.name).toBe("圖片生成流程");
+    }
+  });
+
+  it("detectChatIntent falls back to navigate when no creative intent is present", () => {
+    const detection = detectChatIntent("我想看看新手教學");
+    expect(detection.kind).toBe("ready");
+    if (detection.kind === "ready") {
+      expect(detection.workflow.name).toContain("教學");
+      expect(detection.workflow.steps[0].actionType).toBe("navigate");
+    }
+  });
+
+  it("detectChatIntent returns none for plain greetings", () => {
+    expect(detectChatIntent("你好").kind).toBe("none");
+    expect(detectChatIntent("今天天氣如何？").kind).toBe("none");
   });
 
   it("adapts schema-first planner output into runWorkflow action", () => {
