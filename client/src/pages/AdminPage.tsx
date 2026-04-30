@@ -1330,6 +1330,40 @@ function AiSiteResearchPanel() {
     onError: e => toast.error(e.message),
   });
 
+  // GitHub 整合 — 設定狀態 / 連線測試 / 重試
+  const githubStatusQuery = trpc.brain.githubConfigStatus.useQuery(undefined, {
+    refetchInterval: 30_000,
+  });
+  const testConnMut = trpc.brain.testGithubConnection.useMutation({
+    onSuccess: result => {
+      if (result.success) {
+        toast.success(
+          `連線成功：登入為 @${result.login}${result.repoAccess ? "，可寫入 Issue" : "（repo 權限不足或未設定）"}`
+        );
+      } else {
+        toast.error(`連線失敗：${result.error}`);
+      }
+    },
+    onError: err => toast.error(`連線測試失敗：${err.message}`),
+  });
+  const retryIssueMut = trpc.brain.retryGithubIssue.useMutation({
+    onSuccess: data => {
+      if (data.success && data.githubIssueUrl) {
+        toast.success(`已建立 GitHub Issue #${data.githubIssueNumber}`, {
+          action: {
+            label: "開啟",
+            onClick: () => window.open(data.githubIssueUrl, "_blank"),
+          },
+        });
+      } else {
+        toast.error(`重試失敗：${data.reason ?? data.githubError ?? "未知錯誤"}`);
+      }
+      void utils.brain.proposals.invalidate();
+      void utils.brain.monitorSummary.invalidate();
+    },
+    onError: err => toast.error(`重試失敗：${err.message}`),
+  });
+
   const handleScan = () => {
     runFullResearchMut.mutate();
   };
@@ -1415,7 +1449,73 @@ function AiSiteResearchPanel() {
         {summary && summary.approvedWithoutIssue > 0 && (
           <div className="hs-small !mb-3 text-yellow-600 flex items-center gap-1.5">
             <AlertTriangle className="w-3 h-3" />
-            有 {summary.approvedWithoutIssue} 個已核准提案尚未建立 GitHub Issue（請設定 GITHUB_TOKEN）
+            有 {summary.approvedWithoutIssue} 個已核准提案尚未建立 GitHub Issue（可在下方點「重試」或先設定 GITHUB_TOKEN）
+          </div>
+        )}
+
+        {/* GitHub 設定狀態 + 測試 / 設定指南 */}
+        {githubStatusQuery.data && (
+          <div className="mb-3 p-2.5 rounded-lg bg-muted/20 border border-white/5 space-y-1.5">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2 text-xs flex-wrap">
+                <GitBranch className="w-3.5 h-3.5" />
+                <span className="font-medium">GitHub 整合</span>
+                <Badge
+                  variant="outline"
+                  className={`text-[9px] ${
+                    githubStatusQuery.data.configured
+                      ? "border-green-500/30 text-green-600"
+                      : "border-yellow-500/30 text-yellow-600"
+                  }`}
+                >
+                  {githubStatusQuery.data.configured ? "可用" : "未設定"}
+                </Badge>
+                {githubStatusQuery.data.effectiveRepo && (
+                  <span className="hs-small !mb-0 text-muted-foreground font-mono">
+                    {githubStatusQuery.data.effectiveRepo}
+                  </span>
+                )}
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-[10px] h-6 gap-1"
+                onClick={() => testConnMut.mutate()}
+                disabled={
+                  testConnMut.isPending || !githubStatusQuery.data.hasToken
+                }
+              >
+                {testConnMut.isPending ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="w-3 h-3" />
+                )}
+                測試連線
+              </Button>
+            </div>
+            {!githubStatusQuery.data.configured && (
+              <div className="hs-small !mb-0 text-muted-foreground space-y-1">
+                <p className="!mb-0">
+                  <strong>啟用方式</strong>：在 Railway 設定以下兩個環境變數後重新部署 —
+                </p>
+                <pre className="!mb-0 p-1.5 rounded bg-background/40 text-[10px] font-mono whitespace-pre-wrap">
+                  GITHUB_TOKEN=ghp_xxx  # https://github.com/settings/tokens 建立 fine-grained PAT，授予 Issues: Read & write
+                  {"\n"}
+                  GITHUB_REPO=
+                  {githubStatusQuery.data.detectedRepo ??
+                    "owner/repo  # 自動偵測：未在 package.json 找到，請手動填入"}
+                </pre>
+                {githubStatusQuery.data.detectedRepo && (
+                  <p className="!mb-0">
+                    ✓ 自動偵測到 repo：
+                    <code className="font-mono">
+                      {githubStatusQuery.data.detectedRepo}
+                    </code>
+                    （只要設定 GITHUB_TOKEN 就會直接連到此 repo）
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -1617,9 +1717,35 @@ function AiSiteResearchPanel() {
                     </a>
                   )}
                   {p.status === "approved" && !p.githubIssueUrl && (
-                    <div className="flex items-center gap-1.5 hs-small !mb-0 text-yellow-600">
-                      <AlertTriangle className="w-3 h-3" />
-                      {p.githubError ?? "已核准 — 請設定 GITHUB_TOKEN 後重試"}
+                    <div className="flex items-center gap-2 flex-wrap hs-small !mb-0 text-yellow-600">
+                      <AlertTriangle className="w-3 h-3 shrink-0" />
+                      <span className="flex-1 min-w-0 truncate">
+                        {p.githubError ?? "已核准 — 請設定 GITHUB_TOKEN 後重試"}
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-[10px] h-6 gap-1 border-yellow-500/30"
+                        onClick={() =>
+                          retryIssueMut.mutate({ proposalId: p.id })
+                        }
+                        disabled={
+                          retryIssueMut.isPending ||
+                          !githubStatusQuery.data?.configured
+                        }
+                        title={
+                          githubStatusQuery.data?.configured
+                            ? "重試建立 GitHub Issue"
+                            : "請先設定 GITHUB_TOKEN"
+                        }
+                      >
+                        {retryIssueMut.isPending ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <RefreshCw className="w-3 h-3" />
+                        )}
+                        重試
+                      </Button>
                     </div>
                   )}
                 </div>

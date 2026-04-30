@@ -20,6 +20,7 @@ import {
   createReflectionProposal,
   approveProposal,
   rejectProposal,
+  retryGithubIssueForProposal,
   webSearch,
   getResearchResults,
   addResearchToLearnHub,
@@ -33,6 +34,10 @@ import {
   getGenerationLogs,
   ERROR_CATEGORY_LABELS,
 } from "../services/brainAutoRepair";
+import {
+  getGithubConfigStatus,
+  testGithubConnection,
+} from "../services/githubIssueClient";
 import { userAiBrain, userModelSwitchLogs } from "../../drizzle/schema";
 import {
   getHealthStatus,
@@ -1588,6 +1593,38 @@ export const brainRouter = router({
       findings: result.findings.slice(0, 100),
     };
   }),
+
+  // ─── GitHub 整合健康檢查 / 重試 ───────────────────────────────────────
+
+  /** 取得 GitHub 整合設定狀態（管理員 UI 用） */
+  githubConfigStatus: adminProcedure.query(() => getGithubConfigStatus()),
+
+  /** 測試 GitHub 連線：驗證 token 有效 + 是否可寫入 repo issues */
+  testGithubConnection: adminProcedure.mutation(async () => {
+    return testGithubConnection();
+  }),
+
+  /** 對已核准但未建立 Issue 的提案重新嘗試建立 GitHub Issue */
+  retryGithubIssue: adminProcedure
+    .input(z.object({ proposalId: z.string() }))
+    .mutation(async ({ input }) => {
+      const result = await retryGithubIssueForProposal(input.proposalId);
+      if (!result.ok && !result.proposal)
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: result.reason ?? "提案不存在",
+        });
+      return {
+        success: result.ok,
+        reason: result.reason,
+        githubIssueUrl:
+          result.github?.success === true ? result.github.htmlUrl : undefined,
+        githubIssueNumber:
+          result.github?.success === true ? result.github.number : undefined,
+        githubError:
+          result.github?.success === false ? result.github.error : undefined,
+      };
+    }),
 
   // ─── 6. 生成活動記錄（AI 監控室）───────────────────────────────────────
 

@@ -18,7 +18,74 @@
  *  - 標題與 body 經過長度上限防止 abuse
  */
 
+import * as fs from "fs";
+import path from "path";
 import { serverEnv } from "../_core/env.validated";
+
+/**
+ * 解析 git URL 為 "owner/repo" 格式。
+ * 支援：
+ *  - https://github.com/owner/repo.git
+ *  - git+https://github.com/owner/repo.git
+ *  - git@github.com:owner/repo.git
+ *  - github.com/owner/repo
+ */
+export function parseRepoFromUrl(url: string): string | null {
+  const cleaned = url.trim().replace(/^git\+/, "").replace(/\.git$/, "");
+  // SSH 格式：git@github.com:owner/repo
+  const sshMatch = cleaned.match(/^git@[^:]+:([^/]+)\/(.+)$/);
+  if (sshMatch) return `${sshMatch[1]}/${sshMatch[2]}`;
+  // HTTPS / 純路徑格式
+  const httpsMatch = cleaned.match(/github\.com[/:]([^/]+)\/([^/?#]+)/);
+  if (httpsMatch) return `${httpsMatch[1]}/${httpsMatch[2]}`;
+  return null;
+}
+
+let cachedDetectedRepo: string | null | undefined = undefined;
+
+/**
+ * 嘗試從 package.json 的 repository 欄位偵測 owner/repo。Railway runtime 不會帶
+ * `.git` 目錄，但 package.json 一定存在。結果會 cache 在記憶體。
+ */
+export function detectRepoFromPackageJson(cwd: string = process.cwd()): string | null {
+  if (cachedDetectedRepo !== undefined) return cachedDetectedRepo;
+  try {
+    const pkgPath = path.join(cwd, "package.json");
+    if (!fs.existsSync(pkgPath)) {
+      cachedDetectedRepo = null;
+      return null;
+    }
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8")) as {
+      repository?: string | { url?: string };
+    };
+    const url =
+      typeof pkg.repository === "string"
+        ? pkg.repository
+        : pkg.repository?.url;
+    if (!url) {
+      cachedDetectedRepo = null;
+      return null;
+    }
+    cachedDetectedRepo = parseRepoFromUrl(url);
+    return cachedDetectedRepo;
+  } catch {
+    cachedDetectedRepo = null;
+    return null;
+  }
+}
+
+/** 取得目前生效的 repo（env 優先，其次 package.json 自動偵測） */
+export function getEffectiveRepo(): string | null {
+  if (serverEnv.GITHUB_REPO && serverEnv.GITHUB_REPO.includes("/")) {
+    return serverEnv.GITHUB_REPO;
+  }
+  return detectRepoFromPackageJson();
+}
+
+/** 測試用：清掉偵測快取 */
+export function _resetRepoDetection(): void {
+  cachedDetectedRepo = undefined;
+}
 
 export interface GithubIssueRequest {
   title: string;
@@ -60,9 +127,101 @@ function getFetcher(): Fetcher {
   return injectedFetcher ?? fetch;
 }
 
-/** 是否已設定 GitHub 整合 */
+/** 是否已設定 GitHub 整合（token + 可解析的 repo） */
 export function isGithubConfigured(): boolean {
-  return Boolean(serverEnv.GITHUB_TOKEN) && Boolean(serverEnv.GITHUB_REPO);
+  return Boolean(serverEnv.GITHUB_TOKEN) && Boolean(getEffectiveRepo());
+}
+
+/** 取得管理員用的設定狀態（給 UI 顯示） */
+export function getGithubConfigStatus(): {
+  hasToken: boolean;
+  envRepo: string | null;
+  detectedRepo: string | null;
+  effectiveRepo: string | null;
+  configured: boolean;
+} {
+  const detectedRepo = detectRepoFromPackageJson();
+  const envRepo =
+    serverEnv.GITHUB_REPO && serverEnv.GITHUB_REPO.includes("/")
+      ? serverEnv.GITHUB_REPO
+      : null;
+  const effectiveRepo = envRepo ?? detectedRepo;
+  return {
+    hasToken: Boolean(serverEnv.GITHUB_TOKEN),
+    envRepo,
+    detectedRepo,
+    effectiveRepo,
+    configured: Boolean(serverEnv.GITHUB_TOKEN) && Boolean(effectiveRepo),
+  };
+}
+
+/**
+ * 測試 GitHub 連線：嘗試 GET /user 確認 token 是否有效。
+ * 用於管理員介面的「測試連線」按鈕。
+ */
+export async function testGithubConnection(opts?: {
+  token?: string;
+  repo?: string;
+}): Promise<
+  | { success: true; login: string; repoAccess: boolean; effectiveRepo: string | null }
+  | { success: false; error: string; status?: number }
+> {
+  const token = opts?.token ?? serverEnv.GITHUB_TOKEN;
+  const repo = opts?.repo ?? getEffectiveRepo();
+  if (!token) {
+    return { success: false, error: "GITHUB_TOKEN 未設定" };
+  }
+  try {
+    const userRes = await getFetcher()("https://api.github.com/user", {
+      headers: {
+        Accept: "application/vnd.github+json",
+        Authorization: `Bearer ${token}`,
+        "User-Agent": "HealingStudio-AI-Director/1.0",
+      },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!userRes.ok) {
+      const text = await userRes.text().catch(() => "");
+      return {
+        success: false,
+        status: userRes.status,
+        error: `GitHub /user 回應 ${userRes.status}: ${text.slice(0, 200)}`,
+      };
+    }
+    const userData = (await userRes.json()) as { login?: string };
+    const login = userData.login ?? "(unknown)";
+
+    // 順便驗證 repo 是否可寫入 issues
+    let repoAccess = false;
+    if (repo && repo.includes("/")) {
+      const repoRes = await getFetcher()(
+        `https://api.github.com/repos/${repo}`,
+        {
+          headers: {
+            Accept: "application/vnd.github+json",
+            Authorization: `Bearer ${token}`,
+            "User-Agent": "HealingStudio-AI-Director/1.0",
+          },
+          signal: AbortSignal.timeout(10_000),
+        }
+      );
+      if (repoRes.ok) {
+        const repoData = (await repoRes.json()) as {
+          permissions?: { push?: boolean; admin?: boolean };
+          has_issues?: boolean;
+        };
+        repoAccess =
+          (repoData.has_issues ?? true) &&
+          Boolean(repoData.permissions?.push || repoData.permissions?.admin);
+      }
+    }
+    return { success: true, login, repoAccess, effectiveRepo: repo ?? null };
+  } catch (err) {
+    return {
+      success: false,
+      error: `連線例外：${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
 }
 
 /**
@@ -73,7 +232,7 @@ export async function createGithubIssue(
   req: GithubIssueRequest
 ): Promise<GithubIssueResult> {
   const token = req.token ?? serverEnv.GITHUB_TOKEN;
-  const repo = req.repo ?? serverEnv.GITHUB_REPO;
+  const repo = req.repo ?? getEffectiveRepo();
 
   if (!token) {
     return {

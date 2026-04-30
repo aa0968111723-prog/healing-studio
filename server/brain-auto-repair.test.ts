@@ -70,6 +70,20 @@ vi.mock("./_core/env.validated", () => ({
   },
 }));
 
+// Persistence mock — keep tests hermetic (no JSON files written / read).
+vi.mock("./services/brainStatePersistence", () => ({
+  loadStateSync: () => null,
+  schedulePersist: () => {
+    /* noop */
+  },
+  flushNow: async () => {
+    /* noop */
+  },
+  clearStateFile: async () => {
+    /* noop */
+  },
+}));
+
 // ─── Fetch stub ─────────────────────────────────────────────────────────────
 
 type FetchMock = Mock<typeof fetch>;
@@ -813,5 +827,74 @@ describe("proposalToIssueBody", () => {
     expect(md).toContain("server/foo.ts");
     expect(md).toContain("eval(userInput)");
     expect(md).toContain("use JSON.parse");
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// 14. retryGithubIssueForProposal — gracefully reports each failure mode
+// ════════════════════════════════════════════════════════════════════════════
+
+describe("retryGithubIssueForProposal", () => {
+  it("returns reason='提案不存在' for unknown id", async () => {
+    const { retryGithubIssueForProposal } = await loadModule();
+    const r = await retryGithubIssueForProposal("prop_unknown");
+    expect(r.ok).toBe(false);
+    expect(r.reason).toContain("不存在");
+  });
+
+  it("rejects pending proposals (only approved are retryable)", async () => {
+    const { createReflectionProposal, retryGithubIssueForProposal } =
+      await loadModule();
+    const p = createReflectionProposal({
+      category: "code_quality",
+      title: "x",
+      description: "x",
+      currentValue: "a",
+      proposedValue: "b",
+      reasoning: "y",
+      confidence: 70,
+    });
+    const r = await retryGithubIssueForProposal(p.id);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toContain("已核准");
+  });
+
+  it("returns reason='已有 GitHub Issue' if issue already linked", async () => {
+    const { createReflectionProposal, approveProposal, retryGithubIssueForProposal } =
+      await loadModule();
+    const p = createReflectionProposal({
+      category: "code_quality",
+      title: "x",
+      description: "x",
+      currentValue: "a",
+      proposedValue: "b",
+      reasoning: "y",
+      confidence: 70,
+    });
+    await approveProposal(p.id, 1);
+    // Manually attach an issue url to simulate prior success.
+    p.githubIssueUrl = "https://github.com/o/r/issues/9";
+    p.status = "approved";
+    const r = await retryGithubIssueForProposal(p.id);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toContain("已有");
+  });
+
+  it("returns reason about GITHUB_TOKEN when integration is not configured", async () => {
+    const { createReflectionProposal, approveProposal, retryGithubIssueForProposal } =
+      await loadModule();
+    const p = createReflectionProposal({
+      category: "code_quality",
+      title: "x",
+      description: "x",
+      currentValue: "a",
+      proposedValue: "b",
+      reasoning: "y",
+      confidence: 70,
+    });
+    await approveProposal(p.id, 1);
+    const r = await retryGithubIssueForProposal(p.id);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toContain("GITHUB_TOKEN");
   });
 });

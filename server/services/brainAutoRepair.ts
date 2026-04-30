@@ -33,6 +33,11 @@ import {
   isGithubConfigured,
   type GithubIssueResult,
 } from "./githubIssueClient";
+import {
+  loadStateSync,
+  schedulePersist,
+  type PersistableBrainState,
+} from "./brainStatePersistence";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
@@ -206,6 +211,53 @@ const MAX_TESTS = 200;
 
 function genId(prefix: string): string {
   return `${prefix}_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 持久化（啟動時 rehydrate，mutation 時 schedule debounced 寫入）
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** 在模組載入時呼叫 — 把上次寫到 .brain-state.json 的資料 rehydrate 回來 */
+function rehydrateFromDisk(): void {
+  const loaded = loadStateSync();
+  if (!loaded) return;
+
+  if (Array.isArray(loaded.apiAlerts)) {
+    apiAlerts.push(...(loaded.apiAlerts as ApiAlert[]));
+  }
+  if (Array.isArray(loaded.errorTraces)) {
+    errorTraces.push(...(loaded.errorTraces as ErrorTrace[]));
+  }
+  if (Array.isArray(loaded.reflectionProposals)) {
+    reflectionProposals.push(...(loaded.reflectionProposals as ReflectionProposal[]));
+  }
+  if (Array.isArray(loaded.webResearchResults)) {
+    webResearchResults.push(...(loaded.webResearchResults as WebResearchResult[]));
+  }
+  if (Array.isArray(loaded.accuracyTests)) {
+    accuracyTests.push(...(loaded.accuracyTests as AccuracyTest[]));
+  }
+
+  console.log(
+    `[BrainAutoRepair] 🔄 已從磁碟還原狀態：${reflectionProposals.length} proposals, ${webResearchResults.length} research, ${accuracyTests.length} tests, ${errorTraces.length} traces`
+  );
+}
+
+rehydrateFromDisk();
+
+/** 在 mutation 之後呼叫 — debounced 1.5 秒寫一次 .brain-state.json */
+function persistState(): void {
+  schedulePersist((): PersistableBrainState => ({
+    apiAlerts: [...apiAlerts],
+    errorTraces: [...errorTraces],
+    reflectionProposals: [...reflectionProposals],
+    webResearchResults: [...webResearchResults],
+    accuracyTests: [...accuracyTests],
+    generationLogs:
+      typeof generationLogs !== "undefined" ? [...generationLogs] : [],
+    lastScanResult: lastScanResult ?? null,
+    savedAt: Date.now(),
+  }));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -632,6 +684,7 @@ async function attemptAutoRepair(engine: string): Promise<ApiAlert> {
 function addAlert(alert: ApiAlert): void {
   apiAlerts.unshift(alert);
   if (apiAlerts.length > MAX_ALERTS) apiAlerts.length = MAX_ALERTS;
+  persistState();
 }
 
 /** 取得所有警報 */
@@ -645,6 +698,7 @@ export function dismissAlert(alertId: string, userId: number): boolean {
   if (!alert) return false;
   alert.dismissedAt = Date.now();
   alert.dismissedBy = userId;
+  persistState();
   return true;
 }
 
@@ -672,6 +726,7 @@ export function recordErrorTrace(
 
   errorTraces.unshift(full);
   if (errorTraces.length > MAX_TRACES) errorTraces.length = MAX_TRACES;
+  persistState();
 
   // 自動觸發爬網搜尋修復方案
   void autoSearchForFix(full);
@@ -744,6 +799,7 @@ export function resolveErrorTrace(
   if (!trace) return false;
   trace.resolution = resolution;
   trace.resolvedAt = Date.now();
+  persistState();
   return true;
 }
 
@@ -1594,6 +1650,7 @@ export function createReflectionProposal(input: {
       existing.lineNumber = input.lineNumber;
       existing.codeSnippet = input.codeSnippet;
       existing.updatedAt = Date.now();
+      persistState();
       return existing;
     }
   }
@@ -1619,6 +1676,7 @@ export function createReflectionProposal(input: {
   reflectionProposals.unshift(proposal);
   if (reflectionProposals.length > MAX_PROPOSALS)
     reflectionProposals.length = MAX_PROPOSALS;
+  persistState();
   return proposal;
 }
 
@@ -1735,6 +1793,7 @@ export async function approveProposal(
     if (github.success) {
       proposal.githubIssueNumber = github.number;
       proposal.githubIssueUrl = github.htmlUrl;
+      proposal.githubError = undefined;
       console.log(
         `[BrainAutoRepair] 🔗 已建立 GitHub Issue #${github.number} ${github.htmlUrl}`
       );
@@ -1748,7 +1807,51 @@ export async function approveProposal(
     proposal.githubError = "GITHUB_TOKEN / GITHUB_REPO 未設定，請手動處理";
   }
 
+  persistState();
   return { ok: true, proposal, github };
+}
+
+/**
+ * 已核准但尚未建立 GitHub Issue 的提案 — 重新嘗試建立 Issue。
+ * 適用情境：先前 token / repo 缺失或 GitHub 暫時掛掉，管理員修正後想補建。
+ */
+export async function retryGithubIssueForProposal(proposalId: string): Promise<{
+  ok: boolean;
+  proposal?: ReflectionProposal;
+  github?: GithubIssueResult;
+  reason?: string;
+}> {
+  const proposal = reflectionProposals.find(p => p.id === proposalId);
+  if (!proposal) return { ok: false, reason: "提案不存在" };
+  if (proposal.status !== "approved")
+    return { ok: false, reason: "只能對已核准的提案重試" };
+  if (proposal.githubIssueUrl)
+    return { ok: false, reason: "此提案已有 GitHub Issue", proposal };
+  if (!isGithubConfigured())
+    return {
+      ok: false,
+      reason: "GITHUB_TOKEN / GITHUB_REPO 未設定，請先完成設定",
+      proposal,
+    };
+
+  const github = await createGithubIssue({
+    title: `[AI] ${proposal.title}`,
+    body: proposalToIssueBody(proposal),
+    labels: proposalLabels(proposal),
+  });
+  if (github.success) {
+    proposal.githubIssueNumber = github.number;
+    proposal.githubIssueUrl = github.htmlUrl;
+    proposal.githubError = undefined;
+    proposal.updatedAt = Date.now();
+    console.log(
+      `[BrainAutoRepair] 🔁 重試成功，建立 GitHub Issue #${github.number}`
+    );
+  } else {
+    proposal.githubError = github.error;
+  }
+  persistState();
+  return { ok: github.success, proposal, github };
 }
 
 /** 管理員拒絕提案 */
@@ -1764,6 +1867,7 @@ export function rejectProposal(
   proposal.reviewedAt = Date.now();
   proposal.updatedAt = Date.now();
   proposal.adminNote = note;
+  persistState();
 
   console.log(
     `[BrainAutoRepair] ❌ 提案已拒絕 id=${proposalId} by userId=${adminUserId}: ${proposal.title}`
@@ -1887,6 +1991,7 @@ export async function webSearch(
   }
   if (webResearchResults.length > MAX_RESEARCH)
     webResearchResults.length = MAX_RESEARCH;
+  if (results.length > 0) persistState();
 
   return results;
 }
@@ -1948,6 +2053,7 @@ ${summarized}
 
   item.addedToLearnHub = true;
   item.learnDocId = docId;
+  persistState();
   return true;
 }
 
@@ -2143,6 +2249,7 @@ export async function runAccuracyTest(
 
   accuracyTests.unshift(test);
   if (accuracyTests.length > MAX_TESTS) accuracyTests.length = MAX_TESTS;
+  persistState();
 
   return test;
 }
@@ -2361,6 +2468,7 @@ export async function runFullCodeScan(options?: {
   const topN = options?.topN ?? 25;
   const scan = await scanSiteCode(options?.scanOptions);
   lastScanResult = scan;
+  persistState();
   const top = rankFindings(scan.findings, topN);
 
   let created = 0;
@@ -2518,6 +2626,7 @@ export function addGenerationLog(
   generationLogs.unshift(full);
   if (generationLogs.length > MAX_GEN_LOGS)
     generationLogs.length = MAX_GEN_LOGS;
+  persistState();
   return full;
 }
 
