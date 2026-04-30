@@ -2029,17 +2029,17 @@ export default function DirectorAI() {
     }
   }, [prefsQuery.data, setGlobalPersonality]);
 
-  // ── 接收 ImageStudio 回填 ──
+  // ── 接收 ImageStudio / VideoStudio 回填 ──
   // 進場時先把 payload 暫存，等使用者載入腳本（importedSegments 就緒）
   // 後再依 sceneName 比對，徵詢確認並回填 costar.visualPrompt + notes。
   type DirectorReturnPayload = {
-    source?: string;
+    source?: "image_studio" | "video_studio" | string;
     sceneName?: string;
     finalPrompt?: string;
     modelId?: string;
     resultUrl?: string | null;
   };
-  const [pendingImageReturn, setPendingImageReturn] =
+  const [pendingStudioReturn, setPendingStudioReturn] =
     useState<DirectorReturnPayload | null>(null);
 
   useEffect(() => {
@@ -2048,8 +2048,10 @@ export default function DirectorAI() {
       if (!raw) return;
       sessionStorage.removeItem("directorReturn");
       const data = JSON.parse(raw) as DirectorReturnPayload;
-      if (data.source !== "image_studio" || !data.sceneName) return;
-      setPendingImageReturn(data);
+      const isStudioSource =
+        data.source === "image_studio" || data.source === "video_studio";
+      if (!isStudioSource || !data.sceneName) return;
+      setPendingStudioReturn(data);
     } catch {
       // silent
     }
@@ -2105,11 +2107,14 @@ export default function DirectorAI() {
   );
   const [showOverview, setShowOverview] = useState(false);
 
-  // ── Apply ImageStudio return payload once segments are available ──
+  // ── Apply ImageStudio / VideoStudio return payload once segments are available ──
   useEffect(() => {
-    if (!pendingImageReturn) return;
-    const data = pendingImageReturn;
+    if (!pendingStudioReturn) return;
+    const data = pendingStudioReturn;
     const sceneName = data.sceneName ?? "";
+    const isVideo = data.source === "video_studio";
+    const sourceLabel = isVideo ? "影片創作室" : "圖片創作室";
+    const sourceEmoji = isVideo ? "🎬" : "🖼️";
 
     // No segments imported yet → keep waiting; if user never imports, fall
     // back to plain toast so the result link is at least surfaced.
@@ -2121,22 +2126,21 @@ export default function DirectorAI() {
 
     if (matchIdx === -1) {
       toast.info(
-        `從圖片創作室收到「${sceneName}」成品，但目前腳本沒有對應分鏡`,
+        `從${sourceLabel}收到「${sceneName}」成品，但目前腳本沒有對應分鏡`,
         {
           description: data.resultUrl ?? undefined,
           duration: 12_000,
         }
       );
-      setPendingImageReturn(null);
+      setPendingStudioReturn(null);
       return;
     }
 
-    const target = importedSegments[matchIdx];
     const ok = window.confirm(
-      `導演 AI 收到圖片創作室的成品。\n要把 prompt / 成品連結回填到場景「${sceneName}」嗎？\n\n（會覆寫該場景的 visualPrompt，並把成品連結附加到備註）`
+      `導演 AI 收到${sourceLabel}的成品。\n要把 prompt / 成品連結回填到場景「${sceneName}」嗎？\n\n（會覆寫該場景的 visualPrompt，並把成品連結附加到備註）`
     );
     if (!ok) {
-      setPendingImageReturn(null);
+      setPendingStudioReturn(null);
       toast(`已忽略「${sceneName}」的回填`);
       return;
     }
@@ -2157,7 +2161,7 @@ export default function DirectorAI() {
               musicVibe: "",
             };
         const noteLine = [
-          `🖼️ 圖片創作室成品`,
+          `${sourceEmoji} ${sourceLabel}成品`,
           data.modelId ? `model: ${data.modelId}` : null,
           data.resultUrl ? `url: ${data.resultUrl}` : null,
         ]
@@ -2168,12 +2172,12 @@ export default function DirectorAI() {
       })
     );
     setSelectedSegmentIdx(matchIdx);
-    setPendingImageReturn(null);
+    setPendingStudioReturn(null);
     toast.success(`已回填到場景「${sceneName}」`, {
       description: data.resultUrl ?? undefined,
       duration: 8_000,
     });
-  }, [pendingImageReturn, importedSegments]);
+  }, [pendingStudioReturn, importedSegments]);
 
   // ─── Planning Mode State ────────────────────────────────────────────────
   const [planningSession, setPlanningSession] =

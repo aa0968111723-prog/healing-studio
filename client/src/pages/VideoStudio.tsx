@@ -71,6 +71,7 @@ import {
   type AgentActionResult,
   type AgentCapability,
 } from "@/contexts/PageAgentContext";
+import { useLocation } from "wouter";
 
 // ─── 類型 ────────────────────────────────────────────────────────────────────
 
@@ -3442,6 +3443,23 @@ export default function VideoStudio() {
     null
   );
 
+  const [, navigate] = useLocation();
+
+  // ── Director AI 來源情境（從 sendToStudio 載入後保留，用於「回到導演 AI」回填）──
+  const [directorContext, setDirectorContext] = useState<{
+    sceneName: string;
+    sceneHeading?: string;
+    mood?: string;
+  } | null>(null);
+
+  // 暫存等待派發到子 tab 的 prompt / firstFrame；待 activeTab 切換到 targetTab
+  // 後再透過 agentBus.dispatch 發送，避免 child 還沒 subscribe 就 dispatch。
+  const [pendingDirectorPayload, setPendingDirectorPayload] = useState<{
+    prompt?: string;
+    firstFrameUrl?: string;
+    targetTab: TabId | null;
+  } | null>(null);
+
   // ── Video Agent Bus: enables parent agent handler to dispatch to child tabs ──
   const childHandlerRef = useRef<{ tabId: TabId; handler: (cmd: VideoAgentCommand) => boolean } | null>(null);
   const childStateRef = useRef<{ tabId: TabId; state: Record<string, unknown> } | null>(null);
@@ -3692,21 +3710,46 @@ export default function VideoStudio() {
       const raw = sessionStorage.getItem("sendToStudio");
       if (!raw) return;
       const data = JSON.parse(raw) as {
+        prompt?: string;
         generationType?: string;
         overrideEngine?: string;
         source?: string;
         sceneName?: string;
+        segmentContext?: { sceneHeading?: string; mood?: string };
+        referenceImageUrl?: string;
+        parameterSnapshot?: { firstFrameUrl?: string };
       };
       if (data.generationType !== "video") return;
 
+      let targetTab: TabId | null = null;
       if (data.overrideEngine) {
         const canonical = normalizeEngineModelId(data.overrideEngine);
         const matched = OVERRIDE_TAB_BY_ENGINE.find(x =>
           canonical.startsWith(x.prefix)
         );
         if (matched) {
+          targetTab = matched.tab;
           setActiveTab(matched.tab);
         }
+      }
+
+      if (data.source === "director_ai" && data.sceneName) {
+        setDirectorContext({
+          sceneName: data.sceneName,
+          sceneHeading: data.segmentContext?.sceneHeading,
+          mood: data.segmentContext?.mood,
+        });
+      }
+
+      const firstFrameUrl =
+        data.parameterSnapshot?.firstFrameUrl ?? data.referenceImageUrl;
+
+      if (data.prompt || firstFrameUrl) {
+        setPendingDirectorPayload({
+          prompt: data.prompt,
+          firstFrameUrl,
+          targetTab,
+        });
       }
 
       sessionStorage.removeItem("sendToStudio");
@@ -3719,6 +3762,52 @@ export default function VideoStudio() {
       // silent
     }
   }, []);
+
+  // ── Drain pending payload once the right tab has mounted & subscribed ──
+  useEffect(() => {
+    if (!pendingDirectorPayload) return;
+    const { targetTab, prompt, firstFrameUrl } = pendingDirectorPayload;
+    if (targetTab && activeTab !== targetTab) return;
+
+    if (prompt) {
+      agentBus.dispatch({ type: "fillPrompt", payload: { text: prompt } });
+    }
+    if (firstFrameUrl && (targetTab === "i2v" || activeTab === "i2v")) {
+      agentBus.dispatch({
+        type: "setParam",
+        payload: { key: "imageUrl", value: firstFrameUrl },
+      });
+    }
+    setPendingDirectorPayload(null);
+  }, [pendingDirectorPayload, activeTab, agentBus]);
+
+  // ── 回到導演 AI：把目前 prompt + 模型寫進 directorReturn 並跳回 /director ──
+  const handleReturnToDirector = useCallback(() => {
+    if (!directorContext) return;
+    const childState = agentBus.getChildState() ?? {};
+    const finalPrompt =
+      typeof childState.promptPreview === "string"
+        ? childState.promptPreview
+        : "";
+    try {
+      sessionStorage.setItem(
+        "directorReturn",
+        JSON.stringify({
+          source: "video_studio",
+          sceneName: directorContext.sceneName,
+          sceneHeading: directorContext.sceneHeading,
+          mood: directorContext.mood,
+          finalPrompt,
+          modelId: activeTab,
+          resultUrl: null,
+          ts: Date.now(),
+        })
+      );
+    } catch {
+      // sessionStorage 滿/不可用就靜默
+    }
+    navigate("/director");
+  }, [directorContext, activeTab, agentBus, navigate]);
 
   const currentTabModels = VIDEO_MODELS.filter(m => m.tab === activeTab);
   const [guideKeyword, setGuideKeyword] = useState("");
@@ -3806,6 +3895,22 @@ export default function VideoStudio() {
             className="text-amber-500 hover:text-amber-700 transition-colors text-xs shrink-0"
           >
             ✕
+          </button>
+        </div>
+      )}
+
+      {/* ── 來自導演 AI 的橫幅（含「回到導演 AI」按鈕） ── */}
+      {directorContext && (
+        <div className="flex items-center gap-2 rounded-xl border border-amber-300/40 bg-amber-50/40 dark:bg-amber-900/10 px-3 py-2 text-xs">
+          <span className="text-amber-700 dark:text-amber-300">
+            ↩ 此次任務來自導演 AI 場景「{directorContext.sceneName}」
+          </span>
+          <button
+            type="button"
+            onClick={handleReturnToDirector}
+            className="ml-auto rounded-lg border border-amber-400/50 bg-background/60 px-2.5 py-1 font-medium text-amber-700 dark:text-amber-200 hover:bg-amber-100/60 dark:hover:bg-amber-900/20 transition"
+          >
+            回到導演 AI
           </button>
         </div>
       )}
