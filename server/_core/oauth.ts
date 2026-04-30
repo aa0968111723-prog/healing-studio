@@ -117,6 +117,7 @@ export function registerOAuthRoutes(app: Express) {
       return;
     }
 
+    let stage: "token" | "userinfo" | "db" | "session" = "token";
     try {
       // 換取 Google Access Token
       console.info("[OAuth] Exchanging code for tokens...");
@@ -124,6 +125,7 @@ export function registerOAuthRoutes(app: Express) {
       console.info("[OAuth] Token exchange successful");
 
       // 取得用戶資訊
+      stage = "userinfo";
       console.info("[OAuth] Fetching user info...");
       const userInfo = await getGoogleUserInfo(tokens.access_token);
       console.info("[OAuth] User info retrieved", {
@@ -139,6 +141,7 @@ export function registerOAuthRoutes(app: Express) {
       }
 
       // 寫入 / 更新資料庫
+      stage = "db";
       console.info("[OAuth] Upserting user to database...", {
         openId: userInfo.sub,
         email: userInfo.email,
@@ -153,6 +156,7 @@ export function registerOAuthRoutes(app: Express) {
       console.info("[OAuth] User upserted successfully");
 
       // 建立 JWT Session Token
+      stage = "session";
       console.info("[OAuth] Creating session token...");
       const sessionToken = await createSessionToken(userInfo.sub, {
         name: userInfo.name || "",
@@ -181,16 +185,28 @@ export function registerOAuthRoutes(app: Express) {
       res.redirect(302, `${redirectTo}${separator}welcome=1`);
     } catch (error) {
       console.error("[OAuth] Callback failed with error:", {
+        stage,
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
         code: code ? "present" : "missing",
         state: state ? "present" : "missing",
       });
-      const reason =
+      // Map the failure stage to a reason the client can localize precisely.
+      let reason: string;
+      if (
         error instanceof GoogleTokenExchangeError &&
         error.googleError === "redirect_uri_mismatch"
-          ? "oauth_redirect_mismatch"
-          : "oauth_failed";
+      ) {
+        reason = "oauth_redirect_mismatch";
+      } else if (stage === "token") {
+        reason = "oauth_token_exchange_failed";
+      } else if (stage === "userinfo") {
+        reason = "oauth_userinfo_failed";
+      } else if (stage === "db") {
+        reason = "oauth_db_error";
+      } else {
+        reason = "oauth_failed";
+      }
       redirectWithAuthError(res, reason, state);
     }
   });
