@@ -313,6 +313,17 @@ export type ScriptPlanningSession = {
   }>;
   /** Per-phase data */
   phases: PlanningPhaseData[];
+  /**
+   * Optional link to a pasted/imported script. Persisted with the session so
+   * pasted scripts and their AI-generated storyboard segments survive reloads
+   * and "load saved planning" round-trips, keeping the planning workspace
+   * coherent across sessions.
+   */
+  linkedScript?: {
+    title: string;
+    sourceFormat: string;
+    segments: ScriptSegment[];
+  };
   createdAt: string;
   updatedAt: string;
 };
