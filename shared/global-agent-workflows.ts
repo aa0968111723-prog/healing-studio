@@ -162,9 +162,9 @@ export function buildShortVideoWorkflow(brief: string): RunWorkflowAction {
       },
       {
         path: "/pro-studio",
-        actionType: "setModality",
-        payload: "voice",
-        label: "專業工作室：切換到語音/配音",
+        actionType: "setTab",
+        payload: "tts",
+        label: "音樂配音創作室：切換到語音合成",
       },
       {
         path: "/pro-studio",
@@ -176,13 +176,165 @@ export function buildShortVideoWorkflow(brief: string): RunWorkflowAction {
   };
 }
 
+export function buildImageWorkflow(brief: string): RunWorkflowAction {
+  const basePrompt = brief.trim() || "一張電影感的療癒風景圖，柔和光線、低噪、構圖留白";
+  return {
+    type: "runWorkflow",
+    name: "圖片生成流程",
+    steps: [
+      {
+        path: "/image-studio",
+        actionType: "fillPrompt",
+        payload: basePrompt,
+        label: "圖片創作室：填入提示詞",
+      },
+      {
+        path: "/image-studio",
+        actionType: "submit",
+        payload: "",
+        label: "圖片創作室：生成圖片",
+      },
+    ],
+  };
+}
+
+export function buildMusicWorkflow(brief: string): RunWorkflowAction {
+  const basePrompt = brief.trim() || "請生成一段放鬆療癒的背景音樂，120 秒、舒緩節奏";
+  return {
+    type: "runWorkflow",
+    name: "音樂生成流程",
+    steps: [
+      {
+        path: "/pro-studio",
+        actionType: "setTab",
+        payload: "music",
+        label: "音樂配音創作室：切換到音樂分頁",
+      },
+      {
+        path: "/pro-studio",
+        actionType: "fillPrompt",
+        payload: basePrompt,
+        label: "音樂配音創作室：填入音樂需求",
+      },
+      {
+        path: "/pro-studio",
+        actionType: "submit",
+        payload: "",
+        label: "音樂配音創作室：生成音樂",
+      },
+    ],
+  };
+}
+
+export function buildVoiceWorkflow(brief: string): RunWorkflowAction {
+  const basePrompt = brief.trim() || "請朗讀以下旁白稿，語速自然、情緒平穩";
+  return {
+    type: "runWorkflow",
+    name: "語音合成流程",
+    steps: [
+      {
+        path: "/pro-studio",
+        actionType: "setTab",
+        payload: "tts",
+        label: "音樂配音創作室：切換到語音合成",
+      },
+      {
+        path: "/pro-studio",
+        actionType: "fillPrompt",
+        payload: basePrompt,
+        label: "音樂配音創作室：填入旁白稿",
+      },
+      {
+        path: "/pro-studio",
+        actionType: "submit",
+        payload: "",
+        label: "音樂配音創作室：生成語音",
+      },
+    ],
+  };
+}
+
+export function buildSfxWorkflow(brief: string): RunWorkflowAction {
+  const basePrompt = brief.trim() || "請產生一段環境音效，10 秒、清晰、可循環";
+  return {
+    type: "runWorkflow",
+    name: "音效生成流程",
+    steps: [
+      {
+        path: "/pro-studio",
+        actionType: "setTab",
+        payload: "sfx",
+        label: "音樂配音創作室：切換到音效分頁",
+      },
+      {
+        path: "/pro-studio",
+        actionType: "fillPrompt",
+        payload: basePrompt,
+        label: "音樂配音創作室：填入音效描述",
+      },
+      {
+        path: "/pro-studio",
+        actionType: "submit",
+        payload: "",
+        label: "音樂配音創作室：生成音效",
+      },
+    ],
+  };
+}
+
+export function buildScriptOnlyWorkflow(brief: string): RunWorkflowAction {
+  const basePrompt = brief.trim() || "30 秒療癒短片企劃";
+  return {
+    type: "runWorkflow",
+    name: "腳本規劃流程",
+    steps: [
+      {
+        path: "/director",
+        actionType: "fillPrompt",
+        payload: `請幫我規劃：${basePrompt}`,
+        label: "導演 AI：產生腳本與分鏡",
+      },
+    ],
+  };
+}
+
 export type VideoIntentDetection =
   | { kind: "none" }
   | { kind: "ready"; workflow: RunWorkflowAction }
   | { kind: "needs-clarification"; message: string; options: string[] };
 
+export type CreationIntentDetection = VideoIntentDetection;
+
 const VIDEO_KEYWORDS = ["短片", "影片", "video", "reel", "mv", "廣告"];
-const BUILD_KEYWORDS = ["幫我做", "生成", "製作", "create", "make", "build"];
+const IMAGE_KEYWORDS = ["圖片", "圖像", "海報", "插畫", "封面", "image", "picture", "illustration", "poster"];
+const MUSIC_KEYWORDS = ["音樂", "配樂", "背景音樂", "歌曲", "歌", "曲子", "旋律", "music", "song", "bgm"];
+const VOICE_KEYWORDS = ["旁白", "配音", "語音", "tts", "voice", "narration", "narrator"];
+const SFX_KEYWORDS = ["音效", "foley", "sound effect", "sfx"];
+const SCRIPT_KEYWORDS = ["腳本", "劇本", "分鏡", "故事大綱", "story outline", "script", "storyboard"];
+const BUILD_KEYWORDS = [
+  "幫我做",
+  "幫我寫",
+  "幫我生",
+  "幫我產",
+  "幫我製",
+  "幫我做一",
+  "想做",
+  "想要做",
+  "想生",
+  "做一個",
+  "做一支",
+  "做一張",
+  "做一首",
+  "做一段",
+  "生成",
+  "製作",
+  "create",
+  "make",
+  "build",
+  "compose",
+  "produce",
+  "generate",
+];
 
 const LENGTH_HINT_RE =
   /(\d+\s*(秒|分鐘?|小時|second|minute|hour|min|sec|mins|secs)\b)|\d+s\b|短片|長片|長影片|長視頻/i;
@@ -190,11 +342,35 @@ const LONG_HINT_RE = /長片|長影片|長視頻|長.{0,4}的?(影片|video)/i;
 const SHORT_HINT_RE = /短片|reel|30\s*秒|15\s*秒|\b(short|teaser)\b/i;
 const SUBJECT_HINT_RE = /[:：]|主題|題目|關於|介紹|品牌|產品|內容是|story|theme|brand|product/i;
 
+interface ModalityHits {
+  video: boolean;
+  image: boolean;
+  music: boolean;
+  voice: boolean;
+  sfx: boolean;
+  script: boolean;
+}
+
+function matchAny(haystack: string, needles: readonly string[]): boolean {
+  return needles.some(token => haystack.includes(token));
+}
+
+function detectModalityHits(q: string): ModalityHits {
+  return {
+    video: matchAny(q, VIDEO_KEYWORDS),
+    image: matchAny(q, IMAGE_KEYWORDS),
+    music: matchAny(q, MUSIC_KEYWORDS),
+    voice: matchAny(q, VOICE_KEYWORDS),
+    sfx: matchAny(q, SFX_KEYWORDS),
+    script: matchAny(q, SCRIPT_KEYWORDS),
+  };
+}
+
 export function detectVideoIntent(text: string): VideoIntentDetection {
   const trimmed = text.trim();
   const q = trimmed.toLowerCase();
-  const wantsVideo = VIDEO_KEYWORDS.some(token => q.includes(token));
-  const wantsBuild = BUILD_KEYWORDS.some(token => q.includes(token));
+  const wantsVideo = matchAny(q, VIDEO_KEYWORDS);
+  const wantsBuild = matchAny(q, BUILD_KEYWORDS);
   if (!(wantsVideo && wantsBuild)) return { kind: "none" };
 
   const hasLength = LENGTH_HINT_RE.test(trimmed);
@@ -233,7 +409,79 @@ export function detectVideoIntent(text: string): VideoIntentDetection {
   return { kind: "ready", workflow: buildShortVideoWorkflow(trimmed) };
 }
 
+/**
+ * Multi-modal intent detection for the keyword fallback. Tries to figure out
+ * whether the user wants an image, video, music, voice, sfx, or script-only
+ * deliverable, and either returns the matching workflow, asks a clarifying
+ * question, or leaves the request alone.
+ *
+ * The video branch is delegated to detectVideoIntent so the existing
+ * length/subject heuristics keep working unchanged.
+ */
+export function detectCreationIntent(text: string): CreationIntentDetection {
+  const trimmed = text.trim();
+  if (!trimmed) return { kind: "none" };
+  const q = trimmed.toLowerCase();
+
+  const hits = detectModalityHits(q);
+  const wantsBuild = matchAny(q, BUILD_KEYWORDS);
+  const anyHit = hits.video || hits.image || hits.music || hits.voice || hits.sfx || hits.script;
+  if (!anyHit || !wantsBuild) return { kind: "none" };
+
+  // Explicit "寫/規劃/設計 腳本/劇本/分鏡" — the user wants the script as a
+  // text deliverable, not the actual film. Beat the video branch even when
+  // 短片/影片 is mentioned alongside.
+  const wantsScriptOnly =
+    hits.script &&
+    /(寫|規劃|設計).{0,8}(腳本|劇本|分鏡|故事大綱|story outline|script|storyboard)/i.test(trimmed) &&
+    !hits.image && !hits.music && !hits.voice && !hits.sfx;
+  if (wantsScriptOnly) {
+    return { kind: "ready", workflow: buildScriptOnlyWorkflow(trimmed) };
+  }
+
+  // Video usually subsumes the other modalities (a short film naturally
+  // includes images / voice / music). Defer to the existing video heuristics
+  // unless the user asked for a non-video deliverable.
+  if (hits.video) {
+    return detectVideoIntent(trimmed);
+  }
+
+  // Pure script / planning request — script is structured text, not a media
+  // generation, so we never ask follow-up questions here.
+  if (hits.script && !hits.image && !hits.music && !hits.voice && !hits.sfx) {
+    return { kind: "ready", workflow: buildScriptOnlyWorkflow(trimmed) };
+  }
+
+  // Audio cluster — music vs voice vs sfx. If the user mixed multiple audio
+  // categories, ask which one to start with.
+  const audioCount = [hits.music, hits.voice, hits.sfx].filter(Boolean).length;
+  if (audioCount >= 2) {
+    return {
+      kind: "needs-clarification",
+      message: "你提到了多個音訊類型，先確認這次主要要哪一個，我再幫你帶到對應的分頁。",
+      options: [
+        ...(hits.music ? ["先做音樂"] : []),
+        ...(hits.voice ? ["先做配音/旁白"] : []),
+        ...(hits.sfx ? ["先做音效"] : []),
+        "三個都要，先帶我去 /pro-studio",
+      ].slice(0, 4),
+    };
+  }
+
+  if (hits.music) return { kind: "ready", workflow: buildMusicWorkflow(trimmed) };
+  if (hits.voice) return { kind: "ready", workflow: buildVoiceWorkflow(trimmed) };
+  if (hits.sfx) return { kind: "ready", workflow: buildSfxWorkflow(trimmed) };
+
+  // Image — last because audio/video keywords are more specific.
+  if (hits.image) return { kind: "ready", workflow: buildImageWorkflow(trimmed) };
+
+  // Script alongside another non-audio modality is rare; treat as script-only.
+  if (hits.script) return { kind: "ready", workflow: buildScriptOnlyWorkflow(trimmed) };
+
+  return { kind: "none" };
+}
+
 export function maybeCreateWorkflowFromUserText(text: string): RunWorkflowAction | null {
-  const detection = detectVideoIntent(text);
+  const detection = detectCreationIntent(text);
   return detection.kind === "ready" ? detection.workflow : null;
 }

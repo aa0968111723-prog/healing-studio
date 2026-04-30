@@ -22,7 +22,7 @@ import { usePersonality } from "./PersonalityContext";
 import { usePageAgent, parseLLMActions, adaptAgentPlanToActions, type AgentAction } from "./PageAgentContext";
 import { useLocation } from "wouter";
 import { executeGlobalActions, shouldAskBeforeAct } from "../../../shared/global-agent-orchestrator";
-import { detectVideoIntent } from "../../../shared/global-agent-workflows";
+import { detectCreationIntent } from "../../../shared/global-agent-workflows";
 import {
   chatMessageToLLMContent,
   type OrbChatAttachment,
@@ -1180,7 +1180,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         : dataActions
         ? parseLLMActions(dataActions)
         : [];
-      const intentDetection = llmActions.length === 0 ? detectVideoIntent(trimmed) : { kind: "none" } as const;
+      const intentDetection = llmActions.length === 0 ? detectCreationIntent(trimmed) : { kind: "none" } as const;
       if (intentDetection.kind === "needs-clarification") {
         const question = intentDetection.message;
         const replyForUser = dataReply ? `${dataReply}\n\n🎬 ${question}` : `🎬 ${question}`;
@@ -1231,7 +1231,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         source: fallbackWorkflow ? "fallback" : "llm",
       });
       const replyText = fallbackWorkflow
-        ? `${dataReply}\n\n🎬 我已把你的需求轉成「AI Director 短片生成流程」。我會先讓你確認計畫，按下開始後才會跨頁執行。`
+        ? `${dataReply}\n\n🎬 我已把你的需求轉成「${fallbackWorkflow.name}」。我會先讓你確認計畫，按下開始後才會跨頁執行。`
         : pendingPlan
         ? `${dataReply}\n\n🧭 我已整理好執行計畫，請先確認。按下「開始執行」後，我才會開始操作。`
         : dataReply;
