@@ -148,6 +148,7 @@ function selfRepairEnv(): void {
   //    若放著不處理，下游會在第一次呼叫 API 時拿到 401/403，看起來像
   //    「金鑰失效」其實是「根本沒填」。直接視為未設定，讓 OARS 軟警告生效。
   const PLACEHOLDER_CANDIDATES = [
+    "OPENROUTER_API_KEY",
     "ANTHROPIC_API_KEY",
     "GEMINI_API_KEY",
     "FAL_API_KEY",
@@ -331,11 +332,24 @@ const multimodalSchema = z.object({
     .default("https://api.smith.langchain.com"),
 
   // ── LLM 引擎路由選擇 ──────────────────────────────────────
-  // auto = 健康感知自動路由（gemini > minimax > vertex > forge）
+  // auto      = 偵測 OPENROUTER_API_KEY 並優先使用，否則退回到舊的多引擎路由
+  // openrouter = 強制走 OpenRouter（推薦：一支金鑰即可使用 Claude / Gemini / GPT 等所有家）
+  // 其他選項保留向後相容；若您想全面遷移到 OpenRouter，把 OPENROUTER_API_KEY 設好即可
   LLM_ENGINE: z
-    .enum(["auto", "gemini", "vertex", "forge", "nvidia"])
+    .enum(["auto", "openrouter", "gemini", "vertex", "forge", "nvidia", "anthropic"])
     .optional()
     .default("auto"),
+
+  // ── OpenRouter（統一 LLM 閘道，OpenAI 相容）─────────────
+  // 取得金鑰：https://openrouter.ai/keys
+  // 模型 ID 格式：<provider>/<model>，例：anthropic/claude-sonnet-4.5、google/gemini-2.5-pro
+  OPENROUTER_API_KEY: z.string().min(1).optional().default(""),
+  OPENROUTER_BASE_URL: z
+    .string()
+    .optional()
+    .default("https://openrouter.ai/api/v1"),
+  OPENROUTER_HTTP_REFERER: z.string().optional().default(""),
+  OPENROUTER_X_TITLE: z.string().optional().default("Healing Studio"),
   ENABLE_SCHEMA_FIRST_PLANNER: z.string().optional().default("true"),
   VITE_ENABLE_GLOBAL_AGENT_WORKFLOWS: z.string().optional().default("true"),
   VITE_ENABLE_GLOBAL_AGENT_TELEMETRY: z.string().optional().default("false"),
@@ -443,6 +457,12 @@ function validateAndWarn(): ServerEnvResult {
 
   // ── Multimodal API key status summary ──
   const multimodalWarnings: Array<[string, string, string, string]> = [
+    [
+      "OPENROUTER_API_KEY",
+      env.OPENROUTER_API_KEY,
+      "OpenRouter（統一 LLM 閘道，推薦）",
+      "前往 https://openrouter.ai/keys 取得；用一支金鑰即可呼叫 Claude / Gemini / GPT 等所有家。",
+    ],
     [
       "FAL_API_KEY",
       env.FAL_API_KEY,

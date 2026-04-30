@@ -13,6 +13,8 @@ import { describe, expect, it, beforeEach, vi } from "vitest";
 // 先設定假的環境變數讓 llmRouter 的 resolveSpecificEngine 不會報錯
 // （只是取得設定，不發請求）vi.hoisted 確保在 import 前執行
 vi.hoisted(() => {
+  process.env.OPENROUTER_API_KEY =
+    process.env.OPENROUTER_API_KEY || "test-openrouter-key";
   process.env.ANTHROPIC_API_KEY =
     process.env.ANTHROPIC_API_KEY || "test-anthropic-key";
   process.env.GEMINI_API_KEY = process.env.GEMINI_API_KEY || "test-gemini-key";
@@ -40,9 +42,16 @@ function resetCircuit(engine: LLMEngine): void {
 describe("llm-fallback: 引擎降級鏈", () => {
   beforeEach(() => {
     // 每個 test 前重置所有引擎斷路器
-    (["anthropic", "gemini", "nvidia", "vertex", "forge"] as LLMEngine[]).forEach(
-      resetCircuit
-    );
+    (
+      [
+        "openrouter",
+        "anthropic",
+        "gemini",
+        "nvidia",
+        "vertex",
+        "forge",
+      ] as LLMEngine[]
+    ).forEach(resetCircuit);
   });
 
   it("getEngineFallbackChain 會排除主引擎", () => {
@@ -83,7 +92,10 @@ describe("llm-fallback: 引擎降級鏈", () => {
   });
 
   it("auto 模式會跳過不健康的引擎", () => {
-    // 讓 anthropic 與 gemini 都斷路
+    // 讓 openrouter、anthropic、gemini 都斷路
+    recordEngineFailure("openrouter");
+    recordEngineFailure("openrouter");
+    recordEngineFailure("openrouter");
     recordEngineFailure("anthropic");
     recordEngineFailure("anthropic");
     recordEngineFailure("anthropic");
@@ -92,12 +104,21 @@ describe("llm-fallback: 引擎降級鏈", () => {
     recordEngineFailure("gemini");
 
     const cfg = resolveEngineConfig("auto");
-    // auto 優先序：anthropic > gemini > nvidia > vertex > forge
+    // auto 優先序：openrouter > anthropic > gemini > nvidia > vertex > forge
+    expect(cfg.engine).not.toBe("openrouter");
     expect(cfg.engine).not.toBe("anthropic");
     expect(cfg.engine).not.toBe("gemini");
   });
 
-  it("auto 模式優先選 anthropic（光球代理首選）", () => {
+  it("auto 模式優先選 openrouter（統一閘道首選）", () => {
+    const cfg = resolveEngineConfig("auto");
+    expect(cfg.engine).toBe("openrouter");
+  });
+
+  it("openrouter 斷路時 auto 模式會降級到 anthropic", () => {
+    recordEngineFailure("openrouter");
+    recordEngineFailure("openrouter");
+    recordEngineFailure("openrouter");
     const cfg = resolveEngineConfig("auto");
     expect(cfg.engine).toBe("anthropic");
   });
@@ -115,5 +136,20 @@ describe("llm-fallback: 引擎降級鏈", () => {
     const chain = getEngineFallbackChain("nvidia");
     const engines = chain.map(c => c.engine);
     expect(engines).toContain("anthropic");
+  });
+
+  it("openrouter 引擎設定使用 OpenAI-compatible chat completions endpoint", () => {
+    const cfg = resolveEngineConfig("openrouter");
+    expect(cfg.engine).toBe("openrouter");
+    expect(cfg.url).toBe("https://openrouter.ai/api/v1/chat/completions");
+    expect(cfg.model).toMatch(/^[a-z0-9-]+\/[a-z0-9.-]+/i); // <provider>/<model>
+    expect(cfg.supportsToolCalling).toBe(true);
+    expect(cfg.supportsLongContext).toBe(true);
+  });
+
+  it("openrouter 會被納入 fallback 鏈（從非 openrouter 主引擎觸發降級時）", () => {
+    const chain = getEngineFallbackChain("anthropic");
+    const engines = chain.map(c => c.engine);
+    expect(engines).toContain("openrouter");
   });
 });
