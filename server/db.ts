@@ -878,6 +878,23 @@ export async function getUserModalityBreakdown(userId: number) {
     .groupBy(apiUsageLogs.requestType);
 }
 
+/** 按 API 提供商分類的成本/次數統計（用於 Dashboard AI 洞察） */
+export async function getUserProviderBreakdown(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({
+      apiProvider: apiUsageLogs.apiProvider,
+      count: sql<number>`COUNT(*)`,
+      totalCost: sql<string>`COALESCE(SUM(${apiUsageLogs.estimatedCostUsd}), 0)`,
+      successCount: sql<number>`SUM(CASE WHEN ${apiUsageLogs.responseStatus} = 'success' THEN 1 ELSE 0 END)`,
+      failedCount: sql<number>`SUM(CASE WHEN ${apiUsageLogs.responseStatus} = 'failed' THEN 1 ELSE 0 END)`,
+    })
+    .from(apiUsageLogs)
+    .where(eq(apiUsageLogs.userId, userId))
+    .groupBy(apiUsageLogs.apiProvider);
+}
+
 /** 近 7 天每日請求數量趨勢（用於 Dashboard 折線圖） */
 export async function getUserDailyTrend(userId: number) {
   const db = await getDb();

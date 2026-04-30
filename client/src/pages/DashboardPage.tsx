@@ -5,12 +5,14 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { usePageTour } from "@/contexts/SiteOnboardingContext";
 import { useAIState } from "@/contexts/AIStateContext";
 import { useRegisterPageAgent } from "@/contexts/PageAgentContext";
+import { useGlobalOrbChat } from "@/contexts/GlobalOrbChatContext";
 import type {
   AgentAction,
   AgentActionResult,
   AgentCapability,
 } from "../../../shared/agent-actions";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   BarChart3,
@@ -26,6 +28,9 @@ import {
   Coins,
   Monitor,
   DollarSign,
+  AlertTriangle,
+  Sparkles,
+  Info,
 } from "lucide-react";
 import { GlassCard, ZenSkeleton } from "@/components/ZenCoPilot";
 import { motion } from "framer-motion";
@@ -175,6 +180,42 @@ export default function DashboardPage() {
   });
   const stats = statsQuery.data;
 
+  const insightsQuery = trpc.dashboard.insights.useQuery(undefined, {
+    retry: false,
+  });
+  const insights = insightsQuery.data;
+
+  const orbChat = useGlobalOrbChat();
+
+  const askOrbToAnalyze = () => {
+    if (!insights) return;
+    const lines: string[] = [];
+    lines.push("請幫我分析儀表板目前的成本與用量趨勢，給我具體的優化建議。");
+    if (insights.orbSummary) lines.push(`現況摘要：${insights.orbSummary}`);
+    if (insights.providerCostBreakdown.length > 0) {
+      lines.push(
+        "提供商成本分布：" +
+          insights.providerCostBreakdown
+            .slice(0, 4)
+            .map(
+              p =>
+                `${p.apiProvider} $${p.totalCost.toFixed(4)} (${(p.costShare * 100).toFixed(0)}%)`
+            )
+            .join("、")
+      );
+    }
+    if (insights.anomalies.length > 0) {
+      lines.push(
+        "偵測到的警示：" + insights.anomalies.map(a => a.message).join("；")
+      );
+    }
+    if (insights.recommendations.length > 0) {
+      lines.push("系統初步建議：" + insights.recommendations.join("；"));
+    }
+    orbChat.open();
+    void orbChat.sendMessage(lines.join("\n"));
+  };
+
   // ─── PageAgent 註冊（Phase 4a：儀表板接入光球） ────────────────────────
   // Dashboard 本身是唯讀，光球主要是拿到 state snapshot 做摘要；
   // 另外支援 navigate，讓光球可以從儀表板跳到歷史 / 筆記 / 生圖等常用頁。
@@ -225,7 +266,23 @@ export default function DashboardPage() {
         stats?.modalityBreakdown?.map(r => ({
           type: r.requestType,
           count: r.count,
+          totalCost: r.totalCost,
         })) ?? [],
+      // Phase 4b — AI insights snapshot, exposed to光球 so it can give
+      // contextual suggestions ("成本上升 23%, 建議用較經濟的模型...").
+      riskLevel: insights?.riskLevel ?? "ok",
+      costTrend: insights?.costTrend ?? null,
+      topModality: insights?.topModality ?? null,
+      topProvider: insights?.topProvider ?? null,
+      providerCostBreakdown: insights?.providerCostBreakdown ?? [],
+      anomalies:
+        insights?.anomalies?.map(a => ({
+          code: a.code,
+          severity: a.severity,
+          message: a.message,
+        })) ?? [],
+      recommendations: insights?.recommendations ?? [],
+      orbSummary: insights?.orbSummary ?? null,
     },
     handle: async (action: AgentAction): Promise<AgentActionResult> => {
       if (action.type === "navigate") {
@@ -366,6 +423,153 @@ export default function DashboardPage() {
           </motion.div>
         ))}
       </div>
+
+      {/* ─── AI 洞察卡片（Phase 4b） ────────────────────────────────────── */}
+      {insights && (insights.anomalies.length > 0 || insights.recommendations.length > 0) && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+        >
+          <GlassCard hover={false}>
+            <div className="flex items-center gap-2 mb-3">
+              {insights.riskLevel === "high" ? (
+                <AlertTriangle className="w-4 h-4 text-red-500" />
+              ) : insights.riskLevel === "warn" ? (
+                <AlertTriangle className="w-4 h-4 text-amber-500" />
+              ) : (
+                <Sparkles className="w-4 h-4 text-violet-500" />
+              )}
+              <h2 className="hs-h3 !mb-0">AI 洞察</h2>
+              <Badge
+                variant="secondary"
+                className={`text-[10px] rounded-md ${
+                  insights.riskLevel === "high"
+                    ? "bg-red-500/15 text-red-500"
+                    : insights.riskLevel === "warn"
+                      ? "bg-amber-500/15 text-amber-500"
+                      : insights.riskLevel === "info"
+                        ? "bg-blue-500/15 text-blue-500"
+                        : "bg-emerald-500/15 text-emerald-500"
+                }`}
+              >
+                {insights.riskLevel === "high"
+                  ? "高風險"
+                  : insights.riskLevel === "warn"
+                    ? "需注意"
+                    : insights.riskLevel === "info"
+                      ? "資訊"
+                      : "正常"}
+              </Badge>
+              <div className="flex-1" />
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-xs gap-1"
+                onClick={askOrbToAnalyze}
+                disabled={orbChat.isSending}
+              >
+                <Sparkles className="w-3 h-3" />
+                請光球分析
+              </Button>
+            </div>
+
+            {insights.costTrend && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3 text-xs">
+                <div>
+                  <p className="text-muted-foreground">今日成本</p>
+                  <p className="font-semibold tabular-nums">
+                    ${insights.costTrend.todayCost.toFixed(4)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">日均成本</p>
+                  <p className="font-semibold tabular-nums">
+                    ${insights.costTrend.avgDailyCost.toFixed(4)}
+                  </p>
+                </div>
+                {insights.costTrend.dayOverDayPct !== null && (
+                  <div>
+                    <p className="text-muted-foreground">日對比</p>
+                    <p
+                      className={`font-semibold tabular-nums ${
+                        insights.costTrend.dayOverDayPct > 0
+                          ? "text-amber-500"
+                          : "text-emerald-500"
+                      }`}
+                    >
+                      {insights.costTrend.dayOverDayPct >= 0 ? "+" : ""}
+                      {insights.costTrend.dayOverDayPct}%
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {insights.providerCostBreakdown.length > 0 && (
+              <div className="mb-3">
+                <p className="text-xs text-muted-foreground mb-1.5">
+                  提供商成本分布
+                </p>
+                <div className="space-y-1">
+                  {insights.providerCostBreakdown.slice(0, 4).map(p => (
+                    <div
+                      key={p.apiProvider}
+                      className="flex items-center gap-2 text-xs"
+                    >
+                      <span className="text-foreground/80 w-24 truncate">
+                        {p.apiProvider}
+                      </span>
+                      <div className="flex-1 h-1.5 rounded-full bg-muted/30 overflow-hidden">
+                        <div
+                          className="h-full bg-violet-500/70"
+                          style={{ width: `${p.costShare * 100}%` }}
+                        />
+                      </div>
+                      <span className="tabular-nums text-muted-foreground shrink-0 w-16 text-right">
+                        ${p.totalCost.toFixed(4)}
+                      </span>
+                      <span className="tabular-nums text-muted-foreground shrink-0 w-10 text-right">
+                        {(p.costShare * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {insights.anomalies.length > 0 && (
+              <ul className="space-y-1.5 mb-3">
+                {insights.anomalies.map((a, i) => (
+                  <li key={i} className="flex items-start gap-2 text-xs">
+                    {a.severity === "high" || a.severity === "warn" ? (
+                      <AlertTriangle
+                        className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${
+                          a.severity === "high" ? "text-red-500" : "text-amber-500"
+                        }`}
+                      />
+                    ) : (
+                      <Info className="w-3.5 h-3.5 mt-0.5 shrink-0 text-blue-500" />
+                    )}
+                    <span className="text-foreground/80">{a.message}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {insights.recommendations.length > 0 && (
+              <div className="rounded-lg bg-muted/20 p-2.5 text-xs space-y-1">
+                <p className="font-medium text-muted-foreground">建議</p>
+                {insights.recommendations.map((r, i) => (
+                  <p key={i} className="text-foreground/80">
+                    · {r}
+                  </p>
+                ))}
+              </div>
+            )}
+          </GlassCard>
+        </motion.div>
+      )}
 
       {/* Charts Row */}
       {statsQuery.isLoading ? (
