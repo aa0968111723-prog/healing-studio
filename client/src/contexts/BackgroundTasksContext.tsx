@@ -18,6 +18,66 @@ import {
 } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { usePersonalSettings } from "./PersonalSettingsContext";
+
+// 任務完成 / 失敗時的提示音；使用 Web Audio API 即時合成，不需要音檔資產。
+// success=true 兩個上行音（C5→E5），success=false 兩個下行音（A4→E4），時長約 280ms。
+function playCompletionTone(success: boolean) {
+  if (typeof window === "undefined") return;
+  const Ctx =
+    window.AudioContext ||
+    (window as unknown as { webkitAudioContext?: typeof AudioContext })
+      .webkitAudioContext;
+  if (!Ctx) return;
+  try {
+    const ctx = new Ctx();
+    const now = ctx.currentTime;
+    const freqs = success ? [523.25, 659.25] : [440, 329.63];
+    freqs.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      const start = now + i * 0.13;
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(0.18, start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.12);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(start);
+      osc.stop(start + 0.13);
+    });
+    setTimeout(() => ctx.close().catch(() => {}), 600);
+  } catch {
+    // 無聲降級：使用者可能尚未與頁面互動造成 AudioContext 被擋
+  }
+}
+
+// 透過瀏覽器 Notification API 發送桌面通知；權限/支援檢查在呼叫端。
+function sendDesktopNotification(opts: {
+  title: string;
+  body: string;
+  tag: string;
+  onClick?: () => void;
+}) {
+  if (typeof window === "undefined" || !("Notification" in window)) return;
+  if (Notification.permission !== "granted") return;
+  try {
+    const n = new Notification(opts.title, {
+      body: opts.body,
+      icon: "/favicon.ico",
+      tag: opts.tag,
+    });
+    if (opts.onClick) {
+      n.onclick = () => {
+        window.focus();
+        opts.onClick?.();
+        n.close();
+      };
+    }
+  } catch {
+    // 部分行動瀏覽器禁用建構式 Notification；忽略即可
+  }
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -64,6 +124,18 @@ const POLL_INTERVAL = 5000; // 5 秒輪詢一次
 export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const utils = trpc.useUtils();
+  const { settings } = usePersonalSettings();
+  // 使用 ref 讓非同步輪詢/SSE 回呼能讀到最新設定，無需把 effect 加到依賴
+  const notifyPrefsRef = useRef({
+    soundEnabled: settings.soundEnabled,
+    desktopNotif: settings.desktopNotif,
+  });
+  useEffect(() => {
+    notifyPrefsRef.current = {
+      soundEnabled: settings.soundEnabled,
+      desktopNotif: settings.desktopNotif,
+    };
+  }, [settings.soundEnabled, settings.desktopNotif]);
 
   // 追蹤進行中的 jobId，用於逐一 checkStudioJob
   const [activeJobIds, setActiveJobIds] = useState<number[]>([]);
@@ -135,6 +207,16 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
                 onClick: () => setDrawerOpen(true),
               },
             });
+            const prefs = notifyPrefsRef.current;
+            if (prefs.soundEnabled) playCompletionTone(true);
+            if (prefs.desktopNotif && document.visibilityState !== "visible") {
+              sendDesktopNotification({
+                title: `${label} 已完成`,
+                body: "點擊回到 Healing Studio 查看結果",
+                tag: `bg-task-${jobId}-completed`,
+                onClick: () => setDrawerOpen(true),
+              });
+            }
             // 刷新 activeJobs 列表
             activeJobsQuery.refetch();
           } else if (result.status === "failed" && prev !== "failed") {
@@ -143,6 +225,16 @@ export function BackgroundTasksProvider({ children }: { children: ReactNode }) {
             toast.error(`❌ ${label} 失敗`, {
               description: result.errorMessage || "請重試",
             });
+            const prefs = notifyPrefsRef.current;
+            if (prefs.soundEnabled) playCompletionTone(false);
+            if (prefs.desktopNotif && document.visibilityState !== "visible") {
+              sendDesktopNotification({
+                title: `${label} 失敗`,
+                body: result.errorMessage || "請重試",
+                tag: `bg-task-${jobId}-failed`,
+                onClick: () => setDrawerOpen(true),
+              });
+            }
             activeJobsQuery.refetch();
           }
           prevStatusRef.current[jobId] = result.status;
