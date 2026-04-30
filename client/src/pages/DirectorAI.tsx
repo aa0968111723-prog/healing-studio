@@ -2208,6 +2208,19 @@ export default function DirectorAI() {
   const [planningPhase, setPlanningPhase] = useState<PlanningPhase>("concept");
   const [planningInput, setPlanningInput] = useState("");
   const [showPlanningSessions, setShowPlanningSessions] = useState(false);
+  // 已儲存的 planning note id：第一次儲存後設置，之後 auto-save 走 update
+  const [currentPlanningId, setCurrentPlanningId] = useState<number | null>(
+    null
+  );
+  // 規劃模式的反問氣泡（來自 planningDiscuss 結構化欄位）
+  const [planningProactiveQuestion, setPlanningProactiveQuestion] =
+    useState<string | null>(null);
+  // 「繼續上次規劃」橫幅
+  const [resumePlanningCandidate, setResumePlanningCandidate] = useState<{
+    id: number;
+    title: string;
+    updatedAt: Date | string;
+  } | null>(null);
 
   // ─── Batch Generation State ─────────────────────────────────────────────
   const [showBatchGeneration, setShowBatchGeneration] = useState(false);
@@ -2359,6 +2372,10 @@ export default function DirectorAI() {
         }
         return updated;
       });
+      // 規劃模式的反問：把結構化的 proactiveQuestion 推給氣泡顯示
+      if (data.proactiveQuestion?.trim()) {
+        setPlanningProactiveQuestion(data.proactiveQuestion.trim());
+      }
     },
     onError: e => toast.error("規劃討論失敗：" + e.message),
   });
@@ -2381,8 +2398,11 @@ export default function DirectorAI() {
   });
 
   const savePlanningMut = trpc.director.savePlanningSession.useMutation({
-    onSuccess: () => {
-      toast.success("規劃已儲存 ✨");
+    onSuccess: data => {
+      // 第一次儲存記住 id，之後 auto-save 都走 update（不會產生重複 note）
+      if (typeof data?.id === "number") {
+        setCurrentPlanningId(data.id);
+      }
       planningSessionsQuery.refetch();
     },
     onError: e => toast.error("儲存失敗：" + e.message),
@@ -2392,6 +2412,28 @@ export default function DirectorAI() {
     undefined,
     { enabled: showPlanningSessions }
   );
+
+  // 進站時 query 一次最近的規劃 sessions，若有就提示「繼續上次規劃」
+  const recentSessionsQuery = trpc.director.listPlanningSessions.useQuery();
+  useEffect(() => {
+    if (planningSession || resumePlanningCandidate) return; // 已在工作或已提示過
+    const list = recentSessionsQuery.data;
+    if (!list || list.length === 0) return;
+    const dismissed = (() => {
+      try {
+        return localStorage.getItem("director-resume-dismissed") === "1";
+      } catch {
+        return false;
+      }
+    })();
+    if (dismissed) return;
+    const sorted = [...list].sort(
+      (a, b) =>
+        new Date(b.updatedAt ?? b.createdAt).getTime() -
+        new Date(a.updatedAt ?? a.createdAt).getTime()
+    );
+    setResumePlanningCandidate(sorted[0]);
+  }, [recentSessionsQuery.data, planningSession, resumePlanningCandidate]);
 
   // ─── Batch Generation Hooks ─────────────────────────────────────────────
   const autoGenerateMut = trpc.director.autoGenerateFromSegments.useMutation({
@@ -2734,17 +2776,39 @@ export default function DirectorAI() {
     const title =
       planningSession.concept?.theme || planningSession.title || "新規劃";
     savePlanningMut.mutate({
+      id: currentPlanningId ?? undefined,
       title,
       sessionData: JSON.stringify(planningSession),
       personality,
     });
-  }, [planningSession, personality, savePlanningMut]);
+    toast.success("規劃已儲存 ✨");
+  }, [planningSession, personality, savePlanningMut, currentPlanningId]);
+
+  // ── Auto-save：每次 planningSession 變更後 debounce 3s 自動儲存 ──
+  // 第一次會走 create（並設定 currentPlanningId），之後一律 update。
+  useEffect(() => {
+    if (!planningSession) return;
+    const handle = setTimeout(() => {
+      const title =
+        planningSession.concept?.theme || planningSession.title || "新規劃";
+      savePlanningMut.mutate({
+        id: currentPlanningId ?? undefined,
+        title,
+        sessionData: JSON.stringify(planningSession),
+        personality,
+      });
+    }, 3000);
+    return () => clearTimeout(handle);
+    // savePlanningMut 是穩定 ref；故意不放進依賴，避免 mutation pending 影響 debounce
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planningSession, personality, currentPlanningId]);
 
   const handleLoadPlanningSession = useCallback(
-    (sessionData: string) => {
+    (sessionData: string, id?: number) => {
       try {
         const data = JSON.parse(sessionData) as ScriptPlanningSession;
         setPlanningSession(data);
+        if (typeof id === "number") setCurrentPlanningId(id);
         if (data.personality) {
           setPersonality(data.personality as Personality);
           setGlobalPersonality(data.personality as Personality);
@@ -2757,6 +2821,34 @@ export default function DirectorAI() {
     },
     [setGlobalPersonality]
   );
+
+  const trpcUtils = trpc.useUtils();
+  const handleResumeLatestPlanning = useCallback(async () => {
+    if (!resumePlanningCandidate) return;
+    try {
+      const res = await trpcUtils.director.loadPlanningSession.fetch({
+        id: resumePlanningCandidate.id,
+      });
+      if (res?.sessionData) {
+        handleLoadPlanningSession(res.sessionData, resumePlanningCandidate.id);
+        setActiveTab("planning");
+        setResumePlanningCandidate(null);
+      } else {
+        toast.error("無法載入上次規劃");
+      }
+    } catch {
+      toast.error("無法載入上次規劃");
+    }
+  }, [resumePlanningCandidate, handleLoadPlanningSession, trpcUtils]);
+
+  const handleDismissResumeBanner = useCallback(() => {
+    try {
+      localStorage.setItem("director-resume-dismissed", "1");
+    } catch {
+      // ignore
+    }
+    setResumePlanningCandidate(null);
+  }, []);
 
   // ─── Script Analysis Handlers ───────────────────────────────────────────
 
@@ -3349,6 +3441,34 @@ export default function DirectorAI() {
         雙引擎 RAG（事實研究 + CO-STAR 創意編排）—
         腳本可一鍵發送到工作室，也可微調修改
       </p>
+
+      {/* ── 繼續上次規劃橫幅 ── */}
+      {resumePlanningCandidate && (
+        <div className="flex items-center gap-2 rounded-xl border border-amber-300/40 bg-amber-50/40 dark:bg-amber-900/10 px-3 py-2 text-xs">
+          <span className="text-amber-700 dark:text-amber-300">
+            🌿 你上次規劃到「{resumePlanningCandidate.title}」（
+            {new Date(
+              resumePlanningCandidate.updatedAt as string | number | Date
+            ).toLocaleDateString("zh-TW")}
+            ），要繼續嗎？
+          </span>
+          <button
+            type="button"
+            onClick={handleResumeLatestPlanning}
+            className="ml-auto rounded-lg border border-amber-400/50 bg-background/60 px-2.5 py-1 font-medium text-amber-700 dark:text-amber-200 hover:bg-amber-100/60 dark:hover:bg-amber-900/20 transition"
+          >
+            繼續
+          </button>
+          <button
+            type="button"
+            onClick={handleDismissResumeBanner}
+            className="rounded-lg px-1.5 py-1 text-amber-600/70 hover:text-amber-700 dark:hover:text-amber-200 transition"
+            title="不再提示"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Main Tab System */}
       <Tabs
@@ -4235,6 +4355,21 @@ export default function DirectorAI() {
                       </div>
                     </ScrollArea>
 
+                    {/* Planning proactive question */}
+                    <AnimatePresence>
+                      {planningProactiveQuestion && (
+                        <ProactiveQuestionBubble
+                          question={planningProactiveQuestion}
+                          personality={personality}
+                          onDismiss={() => setPlanningProactiveQuestion(null)}
+                          onUse={q => {
+                            setPlanningProactiveQuestion(null);
+                            setPlanningInput(q);
+                          }}
+                        />
+                      )}
+                    </AnimatePresence>
+
                     {/* Input area */}
                     <div className="flex gap-2">
                       <Textarea
@@ -4548,7 +4683,7 @@ const PlanningSessionItem = memo(function PlanningSessionItem({
   onDelete,
 }: {
   session: { id: number; title: string; createdAt: Date | string };
-  onLoad: (data: string) => void;
+  onLoad: (data: string, id?: number) => void;
   onDelete: (id: number) => void;
 }) {
   const loadQuery = trpc.director.loadPlanningSession.useQuery(
@@ -4559,7 +4694,7 @@ const PlanningSessionItem = memo(function PlanningSessionItem({
   const handleLoad = async () => {
     const result = await loadQuery.refetch();
     if (result.data?.sessionData) {
-      onLoad(result.data.sessionData);
+      onLoad(result.data.sessionData, session.id);
     } else {
       toast.error("無法載入規劃");
     }

@@ -1011,8 +1011,9 @@ async function discussPlanningPhase(
     outline?: ScriptPlanningSession["outline"];
     scenes?: ScriptPlanningSession["scenes"];
     emotionalBeats?: ScriptPlanningSession["emotionalBeats"];
-  }
-): Promise<{ reply: string; phaseSummary?: string }> {
+  },
+  userId?: number
+): Promise<{ reply: string; phaseSummary?: string; proactiveQuestion?: string }> {
   const persona =
     PERSONALITY_PROMPTS[personality] ?? PERSONALITY_PROMPTS.creative;
   const phaseConfig = PLANNING_PHASE_PROMPTS[phase];
@@ -1072,6 +1073,19 @@ async function discussPlanningPhase(
     contextParts.push(`\n【本階段先前的討論紀錄】\n${previousDiscussion}`);
   }
 
+  // RAG memory：把使用者過往偏好餵進規劃討論的 system prompt
+  let memorySection = "";
+  if (userId != null) {
+    try {
+      const mem = await buildMemoryContext(userId, userMessage);
+      if (mem) {
+        memorySection = `\n\n【用戶歷史偏好記憶】\n${mem}\n請參考用戶的歷史偏好來調整規劃建議。`;
+      }
+    } catch {
+      // RAG 不可用就靜默
+    }
+  }
+
   const result = await withTimeout(
     invokeLLM({
       runName: "director-planning-discuss",
@@ -1088,7 +1102,7 @@ ${phaseConfig.warmthFocus}
 
 ${contextParts.length > 0 ? contextParts.join("\n\n") : "（這是規劃的開始，尚無先前資訊）"}
 
-${persona.proactiveHint}
+${persona.proactiveHint}${memorySection}
 
 回覆規則：
 1. 用溫暖、鼓勵的語氣引導使用者深入思考
@@ -1096,7 +1110,10 @@ ${persona.proactiveHint}
 3. 適時提出引導性問題，幫助使用者挖掘更深層的想法
 4. 如果使用者的想法可以更深入，溫和地引導他們思考「為什麼」
 5. 慶祝每一個靈感的誕生，每一個想法都值得被珍惜
-6. 回覆末尾如果有適合生成的摘要結構（如核心概念、大綱等），用 \`\`\`json 包裹`,
+6. 回覆末尾如果有適合生成的摘要結構（如核心概念、大綱等），用 \`\`\`json 包裹
+7. 回覆最後一行**必須**獨立輸出一個反問句，格式為 \`[反問] <你的引導性問題>\`，
+   問題必須針對當前階段缺少的、使用者可深入補充的元素（例如缺少的角色動機、
+   情感轉折、視覺意象等），用繁體中文且具體可回答`,
         },
         {
           role: "user",
@@ -1109,10 +1126,19 @@ ${persona.proactiveHint}
     "規劃討論"
   );
 
-  const replyText =
+  const rawReply =
     typeof result.choices[0]?.message?.content === "string"
       ? result.choices[0].message.content
       : "";
+
+  // 抽出 [反問] 行，作為結構化 proactiveQuestion；同時從 reply 主體中移除
+  let proactiveQuestion: string | undefined;
+  let replyText = rawReply;
+  const questionMatch = rawReply.match(/^\s*\[反問\]\s*(.+?)\s*$/m);
+  if (questionMatch) {
+    proactiveQuestion = questionMatch[1].trim();
+    replyText = rawReply.replace(questionMatch[0], "").trimEnd();
+  }
 
   // Try to extract structured summary from the reply
   let phaseSummary: string | undefined;
@@ -1121,7 +1147,7 @@ ${persona.proactiveHint}
     phaseSummary = jsonMatch[1];
   }
 
-  return { reply: replyText, phaseSummary };
+  return { reply: replyText, phaseSummary, proactiveQuestion };
 }
 
 async function analyzeEmotionalDepth(
@@ -2486,13 +2512,14 @@ ${segmentSummaries}
           .default({}),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       return discussPlanningPhase(
         input.phase,
         input.previousMessages as PlanningMessage[],
         input.message,
         input.personality,
-        input.sessionContext
+        input.sessionContext,
+        ctx.user.id
       );
     }),
 
@@ -2549,10 +2576,11 @@ ${segmentSummaries}
       );
     }),
 
-  /** Save a planning session to project notes */
+  /** Save (or update) a planning session to project notes */
   savePlanningSession: brainProcedure
     .input(
       z.object({
+        id: z.number().optional(),
         title: z.string().min(1).max(255),
         sessionData: z.string(), // JSON stringified ScriptPlanningSession
         personality: z
@@ -2561,6 +2589,18 @@ ${segmentSummaries}
       })
     )
     .mutation(async ({ ctx, input }) => {
+      if (input.id) {
+        const note = await db.getProjectNote(input.id);
+        if (note && note.userId === ctx.user.id) {
+          await db.updateProjectNote(input.id, {
+            title: `[長腳本規劃] ${input.title}`,
+            content: input.sessionData,
+            tags: ["planning-session", input.personality, "long-script"],
+          });
+          return { id: input.id };
+        }
+        // 找不到或不是這個使用者的 → fall through 建立新的
+      }
       const id = await db.createProjectNote({
         userId: ctx.user.id,
         title: `[長腳本規劃] ${input.title}`,
