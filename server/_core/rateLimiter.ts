@@ -153,7 +153,9 @@ function createUserAwareLlmLimiter(): RequestHandler {
     legacyHeaders: false,
     keyGenerator: (req: Request) => {
       const userId = (req as Request & { user?: { id?: number } }).user?.id;
-      return userId ? `llm-user:${userId}` : `llm-ip:${req.ip ?? "unknown"}`;
+      if (userId) return `llm-user:${userId}`;
+      // express-rate-limit's validator requires ipKeyGenerator for IPv6 safety
+      return `llm-ip:${ipKeyGenerator(req.ip ?? "unknown")}`;
     },
     handler: (_req: Request, res: Response) => {
       res.status(429).json({
