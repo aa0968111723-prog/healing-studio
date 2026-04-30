@@ -192,6 +192,18 @@ export default function DashboardPage() {
     const lines: string[] = [];
     lines.push("請幫我分析儀表板目前的成本與用量趨勢，給我具體的優化建議。");
     if (insights.orbSummary) lines.push(`現況摘要：${insights.orbSummary}`);
+    if (insights.providerCostBreakdown.length > 0) {
+      lines.push(
+        "提供商成本分布：" +
+          insights.providerCostBreakdown
+            .slice(0, 4)
+            .map(
+              p =>
+                `${p.apiProvider} $${p.totalCost.toFixed(4)} (${(p.costShare * 100).toFixed(0)}%)`
+            )
+            .join("、")
+      );
+    }
     if (insights.anomalies.length > 0) {
       lines.push(
         "偵測到的警示：" + insights.anomalies.map(a => a.message).join("；")
@@ -261,6 +273,8 @@ export default function DashboardPage() {
       riskLevel: insights?.riskLevel ?? "ok",
       costTrend: insights?.costTrend ?? null,
       topModality: insights?.topModality ?? null,
+      topProvider: insights?.topProvider ?? null,
+      providerCostBreakdown: insights?.providerCostBreakdown ?? [],
       anomalies:
         insights?.anomalies?.map(a => ({
           code: a.code,
@@ -269,15 +283,6 @@ export default function DashboardPage() {
         })) ?? [],
       recommendations: insights?.recommendations ?? [],
       orbSummary: insights?.orbSummary ?? null,
-      recentProviders: stats?.recentLogs
-        ? Array.from(
-            new Set(
-              stats.recentLogs
-                .map(l => l.apiProvider)
-                .filter((p): p is string => Boolean(p))
-            )
-          ).slice(0, 5)
-        : [],
     },
     handle: async (action: AgentAction): Promise<AgentActionResult> => {
       if (action.type === "navigate") {
@@ -498,6 +503,38 @@ export default function DashboardPage() {
                     </p>
                   </div>
                 )}
+              </div>
+            )}
+
+            {insights.providerCostBreakdown.length > 0 && (
+              <div className="mb-3">
+                <p className="text-xs text-muted-foreground mb-1.5">
+                  提供商成本分布
+                </p>
+                <div className="space-y-1">
+                  {insights.providerCostBreakdown.slice(0, 4).map(p => (
+                    <div
+                      key={p.apiProvider}
+                      className="flex items-center gap-2 text-xs"
+                    >
+                      <span className="text-foreground/80 w-24 truncate">
+                        {p.apiProvider}
+                      </span>
+                      <div className="flex-1 h-1.5 rounded-full bg-muted/30 overflow-hidden">
+                        <div
+                          className="h-full bg-violet-500/70"
+                          style={{ width: `${p.costShare * 100}%` }}
+                        />
+                      </div>
+                      <span className="tabular-nums text-muted-foreground shrink-0 w-16 text-right">
+                        ${p.totalCost.toFixed(4)}
+                      </span>
+                      <span className="tabular-nums text-muted-foreground shrink-0 w-10 text-right">
+                        {(p.costShare * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 

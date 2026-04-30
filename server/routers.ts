@@ -6722,11 +6722,13 @@ export const appRouter = router({
      * surfaced in the UI card and when fed into the Orb assistant context.
      */
     insights: protectedProcedure.query(async ({ ctx }) => {
-      const [costSummary, modalityBreakdown, dailyTrend] = await Promise.all([
-        db.getUserCostSummary(ctx.user.id),
-        db.getUserModalityBreakdown(ctx.user.id),
-        db.getUserDailyTrend(ctx.user.id),
-      ]);
+      const [costSummary, modalityBreakdown, providerBreakdown, dailyTrend] =
+        await Promise.all([
+          db.getUserCostSummary(ctx.user.id),
+          db.getUserModalityBreakdown(ctx.user.id),
+          db.getUserProviderBreakdown(ctx.user.id),
+          db.getUserDailyTrend(ctx.user.id),
+        ]);
       return computeDashboardInsights({
         remainingGenerations: ctx.user.remainingGenerations,
         totalRequests: costSummary.totalRequests,
@@ -6735,6 +6737,13 @@ export const appRouter = router({
           requestType: r.requestType,
           count: r.count,
           totalCost: parseFloat(r.totalCost || "0"),
+        })),
+        providerBreakdown: providerBreakdown.map(r => ({
+          apiProvider: r.apiProvider,
+          count: r.count,
+          totalCost: parseFloat(r.totalCost || "0"),
+          successCount: r.successCount,
+          failedCount: r.failedCount,
         })),
         dailyTrend: dailyTrend.map(r => ({
           date: r.date,

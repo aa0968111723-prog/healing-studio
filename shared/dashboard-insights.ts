@@ -13,6 +13,14 @@ export interface InsightsModalityRow {
   totalCost: number;
 }
 
+export interface InsightsProviderRow {
+  apiProvider: string;
+  count: number;
+  totalCost: number;
+  successCount?: number;
+  failedCount?: number;
+}
+
 export interface InsightsDailyRow {
   date: string;
   count: number;
@@ -25,6 +33,7 @@ export interface DashboardInsightsInput {
   totalRequests: number;
   totalCost: number;
   modalityBreakdown: InsightsModalityRow[];
+  providerBreakdown?: InsightsProviderRow[];
   dailyTrend: InsightsDailyRow[];
   /** ISO date (YYYY-MM-DD); defaults to today UTC. Injected for testability. */
   today?: string;
@@ -35,6 +44,14 @@ export interface DashboardInsightsInput {
 }
 
 export type RiskLevel = "ok" | "info" | "warn" | "high";
+
+export interface ProviderCostShare {
+  apiProvider: string;
+  count: number;
+  totalCost: number;
+  costShare: number;
+  successRate: number | null;
+}
 
 export interface CostTrend {
   /** USD spent today. */
@@ -52,7 +69,9 @@ export interface DashboardInsightsAnomaly {
     | "cost_spike"
     | "low_credits"
     | "daily_spend_high"
-    | "single_modality_dominant";
+    | "single_modality_dominant"
+    | "provider_concentration"
+    | "provider_failures";
   severity: RiskLevel;
   message: string;
 }
@@ -61,7 +80,9 @@ export interface DashboardInsights {
   riskLevel: RiskLevel;
   costTrend: CostTrend;
   topModality: { requestType: string; count: number; share: number } | null;
-  topProvider: null; // reserved for future — apiProvider not in modalityBreakdown
+  topProvider: ProviderCostShare | null;
+  /** All providers ranked by cost share, descending. */
+  providerCostBreakdown: ProviderCostShare[];
   anomalies: DashboardInsightsAnomaly[];
   recommendations: string[];
   /** Short Chinese summary suitable to ship to the Orb assistant context. */
@@ -127,6 +148,25 @@ export function computeDashboardInsights(
         }
       : null;
 
+  const providerRows = input.providerBreakdown ?? [];
+  const totalProviderCost = providerRows.reduce((s, r) => s + r.totalCost, 0);
+  const providerCostBreakdown: ProviderCostShare[] = providerRows
+    .map(r => {
+      const attempts = (r.successCount ?? 0) + (r.failedCount ?? 0);
+      return {
+        apiProvider: r.apiProvider,
+        count: r.count,
+        totalCost: round(r.totalCost, 4),
+        costShare:
+          totalProviderCost > 0 ? round(r.totalCost / totalProviderCost, 3) : 0,
+        successRate:
+          attempts > 0 ? round((r.successCount ?? 0) / attempts, 3) : null,
+      };
+    })
+    .sort((a, b) => b.totalCost - a.totalCost);
+  const topProvider: ProviderCostShare | null =
+    providerCostBreakdown[0] ?? null;
+
   const anomalies: DashboardInsightsAnomaly[] = [];
   const recommendations: string[] = [];
 
@@ -172,6 +212,31 @@ export function computeDashboardInsights(
     });
   }
 
+  if (
+    topProvider &&
+    topProvider.costShare >= 0.7 &&
+    totalProviderCost >= SPIKE_MIN_USD
+  ) {
+    anomalies.push({
+      code: "provider_concentration",
+      severity: "info",
+      message: `${topProvider.apiProvider} 佔總成本 ${(topProvider.costShare * 100).toFixed(0)}%（$${topProvider.totalCost}），建議評估替代提供商以分散風險與成本。`,
+    });
+    recommendations.push(
+      `比較 ${topProvider.apiProvider} 與其他提供商的單價/成功率，必要時把試稿流量切到較便宜的選項。`
+    );
+  }
+
+  for (const p of providerCostBreakdown) {
+    if (p.successRate !== null && p.successRate < 0.7 && p.count >= 5) {
+      anomalies.push({
+        code: "provider_failures",
+        severity: "warn",
+        message: `${p.apiProvider} 成功率僅 ${(p.successRate * 100).toFixed(0)}%（${p.count} 次中失敗較多），檢查 API 金鑰與配額狀態。`,
+      });
+    }
+  }
+
   const severityRank: Record<RiskLevel, number> = {
     ok: 0,
     info: 1,
@@ -195,6 +260,11 @@ export function computeDashboardInsights(
       `主要模態：${topModality.requestType}（${(topModality.share * 100).toFixed(0)}%）`
     );
   }
+  if (topProvider) {
+    orbSummaryParts.push(
+      `主要提供商：${topProvider.apiProvider}（${(topProvider.costShare * 100).toFixed(0)}% 成本，$${topProvider.totalCost}）`
+    );
+  }
   orbSummaryParts.push(`剩餘積分：${input.remainingGenerations}`);
   if (anomalies.length > 0) {
     orbSummaryParts.push(`警示：${anomalies.map(a => a.code).join(",")}`);
@@ -210,7 +280,8 @@ export function computeDashboardInsights(
       anomaly,
     },
     topModality,
-    topProvider: null,
+    topProvider,
+    providerCostBreakdown,
     anomalies,
     recommendations,
     orbSummary,
