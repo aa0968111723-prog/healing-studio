@@ -208,6 +208,13 @@ export const FAL_MODEL_CAPABILITIES: FalModelCapability[] = [
     features: { ...NONE, seed: true },
   },
 
+  // ─── 影像放大（upscale）── input 為 image_url，prompt-less
+  {
+    modelId: "fal-ai/seedvr/upscale/image",
+    modality: "image",
+    features: { ...NONE, seed: true },
+  },
+
   // ─── Video 系（一律無 token weight、無 LoRA） ──
   {
     modelId: "fal-ai/kling-video/v2.1/pro/text-to-video",

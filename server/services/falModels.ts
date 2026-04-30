@@ -229,6 +229,19 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       timeoutMs: 30_000,
     },
 
+    // ─── 影像放大（upscale）── 對應 ImageStudio.tsx upscale 分頁
+    {
+      modelId: "fal-ai/seedvr/upscale/image",
+      label: "SeedVR Upscale (ByteDance)",
+      category: "image-to-image",
+      tier: "standard",
+      description:
+        "ByteDance SeedVR 影像放大，支援 ×2/×4 倍率或 720p/1080p/1440p/2160p 目標解析度",
+      inputSchema: { imageUrl: true, seed: true },
+      outputSchema: { imageUrl: true, seed: true },
+      timeoutMs: 180_000,
+    },
+
     // ─── 圖片編輯（語意式 edit）── 對應 ImageStudio.tsx edit 分頁 9 模型
     {
       modelId: "fal-ai/nano-banana-pro/edit",
