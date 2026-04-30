@@ -75,6 +75,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import VisualSoul from "@/components/VisualSoul";
+import { BatchGenerationDialog } from "./DirectorAI_batch_dialog";
 import { useAIState } from "@/contexts/AIStateContext";
 import {
   useRegisterPageAgent,
@@ -2028,30 +2029,31 @@ export default function DirectorAI() {
     }
   }, [prefsQuery.data, setGlobalPersonality]);
 
-  // ── 接收 ImageStudio 回填（不變更 storyboard schema，只顯示給使用者） ──
-  // 使用者看到後可手動把 resultUrl / finalPrompt 貼回對應場景的視覺描述。
+  // ── 接收 ImageStudio / VideoStudio / ProStudio 回填 ──
+  // 進場時先把 payload 暫存，等使用者載入腳本（importedSegments 就緒）
+  // 後再依 sceneName 比對，徵詢確認並回填 costar + notes。
+  type DirectorReturnPayload = {
+    source?: "image_studio" | "video_studio" | "pro_studio" | string;
+    sceneName?: string;
+    finalPrompt?: string;
+    modelId?: string;
+    resultUrl?: string | null;
+  };
+  const [pendingStudioReturn, setPendingStudioReturn] =
+    useState<DirectorReturnPayload | null>(null);
+
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem("directorReturn");
       if (!raw) return;
-      const data = JSON.parse(raw) as {
-        source?: string;
-        sceneName?: string;
-        finalPrompt?: string;
-        modelId?: string;
-        resultUrl?: string | null;
-      };
       sessionStorage.removeItem("directorReturn");
-      if (data.source !== "image_studio" || !data.sceneName) return;
-      toast.success(
-        `已從圖片創作室收到「${data.sceneName}」的成品${data.modelId ? `（${data.modelId}）` : ""}`,
-        {
-          description: data.resultUrl
-            ? `預覽：${data.resultUrl}`
-            : "請到對應場景的視覺描述手動貼上 prompt / 圖片連結。",
-          duration: 12_000,
-        }
-      );
+      const data = JSON.parse(raw) as DirectorReturnPayload;
+      const isStudioSource =
+        data.source === "image_studio" ||
+        data.source === "video_studio" ||
+        data.source === "pro_studio";
+      if (!isStudioSource || !data.sceneName) return;
+      setPendingStudioReturn(data);
     } catch {
       // silent
     }
@@ -2107,17 +2109,123 @@ export default function DirectorAI() {
   );
   const [showOverview, setShowOverview] = useState(false);
 
+  // ── Apply ImageStudio / VideoStudio / ProStudio return payload once segments are available ──
+  useEffect(() => {
+    if (!pendingStudioReturn) return;
+    const data = pendingStudioReturn;
+    const sceneName = data.sceneName ?? "";
+    const isVideo = data.source === "video_studio";
+    const isPro = data.source === "pro_studio";
+    const sourceLabel = isPro
+      ? "音樂配音創作室"
+      : isVideo
+        ? "影片創作室"
+        : "圖片創作室";
+    const sourceEmoji = isPro ? "🎵" : isVideo ? "🎬" : "🖼️";
+    // ProStudio 的 modelId 是 tab id（music/sfx/tts/clone/...）
+    const isVoice =
+      isPro && (data.modelId === "tts" || data.modelId === "clone");
+    const fillTarget = isPro
+      ? isVoice
+        ? "audioScript"
+        : "musicVibe"
+      : "visualPrompt";
+    const fillTargetLabel = isPro
+      ? isVoice
+        ? "audioScript（語音腳本）"
+        : "musicVibe（音樂風格）"
+      : "visualPrompt";
+
+    // No segments imported yet → keep waiting; if user never imports, fall
+    // back to plain toast so the result link is at least surfaced.
+    if (importedSegments.length === 0) return;
+
+    const matchIdx = importedSegments.findIndex(
+      s => s.storyboard.sceneHeading === sceneName
+    );
+
+    if (matchIdx === -1) {
+      toast.info(
+        `從${sourceLabel}收到「${sceneName}」成品，但目前腳本沒有對應分鏡`,
+        {
+          description: data.resultUrl ?? undefined,
+          duration: 12_000,
+        }
+      );
+      setPendingStudioReturn(null);
+      return;
+    }
+
+    const ok = window.confirm(
+      `導演 AI 收到${sourceLabel}的成品。\n要把 prompt / 成品連結回填到場景「${sceneName}」嗎？\n\n（會覆寫該場景的 ${fillTargetLabel}，並把成品連結附加到備註）`
+    );
+    if (!ok) {
+      setPendingStudioReturn(null);
+      toast(`已忽略「${sceneName}」的回填`);
+      return;
+    }
+
+    setImportedSegments(prev =>
+      prev.map((s, i) => {
+        if (i !== matchIdx) return s;
+        const baseCostar: CoStarScript = s.costar ?? {
+          context: "",
+          situation: "",
+          task: "",
+          action: "",
+          result: "",
+          visualPrompt: "",
+          audioScript: "",
+          musicVibe: "",
+        };
+        const value = data.finalPrompt ?? baseCostar[fillTarget];
+        const newCostar: CoStarScript = {
+          ...baseCostar,
+          [fillTarget]: value,
+        };
+        const noteLine = [
+          `${sourceEmoji} ${sourceLabel}成品`,
+          data.modelId ? `model: ${data.modelId}` : null,
+          data.resultUrl ? `url: ${data.resultUrl}` : null,
+        ]
+          .filter(Boolean)
+          .join(" | ");
+        const newNotes = s.notes ? `${s.notes}\n${noteLine}` : noteLine;
+        return { ...s, costar: newCostar, notes: newNotes };
+      })
+    );
+    setSelectedSegmentIdx(matchIdx);
+    setPendingStudioReturn(null);
+    toast.success(`已回填到場景「${sceneName}」`, {
+      description: data.resultUrl ?? undefined,
+      duration: 8_000,
+    });
+  }, [pendingStudioReturn, importedSegments]);
+
   // ─── Planning Mode State ────────────────────────────────────────────────
   const [planningSession, setPlanningSession] =
     useState<ScriptPlanningSession | null>(null);
   const [planningPhase, setPlanningPhase] = useState<PlanningPhase>("concept");
   const [planningInput, setPlanningInput] = useState("");
   const [showPlanningSessions, setShowPlanningSessions] = useState(false);
+  // 已儲存的 planning note id：第一次儲存後設置，之後 auto-save 走 update
+  const [currentPlanningId, setCurrentPlanningId] = useState<number | null>(
+    null
+  );
+  // 規劃模式的反問氣泡（來自 planningDiscuss 結構化欄位）
+  const [planningProactiveQuestion, setPlanningProactiveQuestion] =
+    useState<string | null>(null);
+  // 「繼續上次規劃」橫幅
+  const [resumePlanningCandidate, setResumePlanningCandidate] = useState<{
+    id: number;
+    title: string;
+    updatedAt: Date | string;
+  } | null>(null);
 
   // ─── Batch Generation State ─────────────────────────────────────────────
   const [showBatchGeneration, setShowBatchGeneration] = useState(false);
   const [batchGenerationOptions, setBatchGenerationOptions] = useState({
-    modalities: ["image"] as Array<"image" | "video" | "audio" | "voice">,
+    modalities: ["image"] as Array<"image" | "video" | "audio" | "voice" | "sfx">,
     imageSettings: { aspectRatio: "16:9", negativePrompt: "" },
     videoSettings: { useImageAsFirstFrame: false },
     audioSettings: { isInstrumental: true },
@@ -2264,6 +2372,10 @@ export default function DirectorAI() {
         }
         return updated;
       });
+      // 規劃模式的反問：把結構化的 proactiveQuestion 推給氣泡顯示
+      if (data.proactiveQuestion?.trim()) {
+        setPlanningProactiveQuestion(data.proactiveQuestion.trim());
+      }
     },
     onError: e => toast.error("規劃討論失敗：" + e.message),
   });
@@ -2286,8 +2398,11 @@ export default function DirectorAI() {
   });
 
   const savePlanningMut = trpc.director.savePlanningSession.useMutation({
-    onSuccess: () => {
-      toast.success("規劃已儲存 ✨");
+    onSuccess: data => {
+      // 第一次儲存記住 id，之後 auto-save 都走 update（不會產生重複 note）
+      if (typeof data?.id === "number") {
+        setCurrentPlanningId(data.id);
+      }
       planningSessionsQuery.refetch();
     },
     onError: e => toast.error("儲存失敗：" + e.message),
@@ -2298,13 +2413,35 @@ export default function DirectorAI() {
     { enabled: showPlanningSessions }
   );
 
+  // 進站時 query 一次最近的規劃 sessions，若有就提示「繼續上次規劃」
+  const recentSessionsQuery = trpc.director.listPlanningSessions.useQuery();
+  useEffect(() => {
+    if (planningSession || resumePlanningCandidate) return; // 已在工作或已提示過
+    const list = recentSessionsQuery.data;
+    if (!list || list.length === 0) return;
+    const dismissed = (() => {
+      try {
+        return localStorage.getItem("director-resume-dismissed") === "1";
+      } catch {
+        return false;
+      }
+    })();
+    if (dismissed) return;
+    const sorted = [...list].sort(
+      (a, b) =>
+        new Date(b.updatedAt ?? b.createdAt).getTime() -
+        new Date(a.updatedAt ?? a.createdAt).getTime()
+    );
+    setResumePlanningCandidate(sorted[0]);
+  }, [recentSessionsQuery.data, planningSession, resumePlanningCandidate]);
+
   // ─── Batch Generation Hooks ─────────────────────────────────────────────
   const autoGenerateMut = trpc.director.autoGenerateFromSegments.useMutation({
     onSuccess: data => {
       toast.success(
         `已規劃 ${data.totalTasks} 個生成任務，預估 ${data.totalPoints} pts`
       );
-      // Initialize generation tasks state
+      setShowBatchGeneration(false);
       setGenerationTasks(
         data.tasks.map(t => ({
           segmentId: t.segmentId,
@@ -2313,6 +2450,27 @@ export default function DirectorAI() {
           status: "pending" as const,
         }))
       );
+
+      // Fire independent tasks (image / audio / voice / sfx). Tasks with
+      // dependsOn (i2v video relying on a generated image) stay pending —
+      // user can trigger them after the upstream image lands.
+      const independent = data.tasks.filter(t => !t.dependsOn);
+      for (const t of independent) {
+        executeTaskMut.mutate({
+          segmentId: t.segmentId,
+          segmentIndex: t.segmentIndex,
+          modality: t.modality,
+          modelId: t.modelId,
+          prompt: t.prompt,
+          voiceText: t.voiceText,
+          params: (t.params ?? {}) as Record<string, unknown>,
+          mode: batchGenerationOptions.mode,
+        });
+      }
+      const deferred = data.tasks.length - independent.length;
+      if (deferred > 0) {
+        toast.info(`${deferred} 個 i2v 影片任務待上游圖像完成後手動觸發`);
+      }
     },
     onError: e => toast.error("規劃失敗：" + e.message),
   });
@@ -2618,17 +2776,39 @@ export default function DirectorAI() {
     const title =
       planningSession.concept?.theme || planningSession.title || "新規劃";
     savePlanningMut.mutate({
+      id: currentPlanningId ?? undefined,
       title,
       sessionData: JSON.stringify(planningSession),
       personality,
     });
-  }, [planningSession, personality, savePlanningMut]);
+    toast.success("規劃已儲存 ✨");
+  }, [planningSession, personality, savePlanningMut, currentPlanningId]);
+
+  // ── Auto-save：每次 planningSession 變更後 debounce 3s 自動儲存 ──
+  // 第一次會走 create（並設定 currentPlanningId），之後一律 update。
+  useEffect(() => {
+    if (!planningSession) return;
+    const handle = setTimeout(() => {
+      const title =
+        planningSession.concept?.theme || planningSession.title || "新規劃";
+      savePlanningMut.mutate({
+        id: currentPlanningId ?? undefined,
+        title,
+        sessionData: JSON.stringify(planningSession),
+        personality,
+      });
+    }, 3000);
+    return () => clearTimeout(handle);
+    // savePlanningMut 是穩定 ref；故意不放進依賴，避免 mutation pending 影響 debounce
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planningSession, personality, currentPlanningId]);
 
   const handleLoadPlanningSession = useCallback(
-    (sessionData: string) => {
+    (sessionData: string, id?: number) => {
       try {
         const data = JSON.parse(sessionData) as ScriptPlanningSession;
         setPlanningSession(data);
+        if (typeof id === "number") setCurrentPlanningId(id);
         if (data.personality) {
           setPersonality(data.personality as Personality);
           setGlobalPersonality(data.personality as Personality);
@@ -2641,6 +2821,34 @@ export default function DirectorAI() {
     },
     [setGlobalPersonality]
   );
+
+  const trpcUtils = trpc.useUtils();
+  const handleResumeLatestPlanning = useCallback(async () => {
+    if (!resumePlanningCandidate) return;
+    try {
+      const res = await trpcUtils.director.loadPlanningSession.fetch({
+        id: resumePlanningCandidate.id,
+      });
+      if (res?.sessionData) {
+        handleLoadPlanningSession(res.sessionData, resumePlanningCandidate.id);
+        setActiveTab("planning");
+        setResumePlanningCandidate(null);
+      } else {
+        toast.error("無法載入上次規劃");
+      }
+    } catch {
+      toast.error("無法載入上次規劃");
+    }
+  }, [resumePlanningCandidate, handleLoadPlanningSession, trpcUtils]);
+
+  const handleDismissResumeBanner = useCallback(() => {
+    try {
+      localStorage.setItem("director-resume-dismissed", "1");
+    } catch {
+      // ignore
+    }
+    setResumePlanningCandidate(null);
+  }, []);
 
   // ─── Script Analysis Handlers ───────────────────────────────────────────
 
@@ -2722,6 +2930,26 @@ export default function DirectorAI() {
       personality,
     });
   }, [importedSegments, personality, batchCostarMut]);
+
+  const handleStartBatchGeneration = useCallback(() => {
+    if (importedSegments.length === 0) {
+      toast.error("尚未匯入腳本分鏡");
+      return;
+    }
+    if (batchGenerationOptions.modalities.length === 0) {
+      toast.error("請至少選擇一種生成模態");
+      return;
+    }
+    autoGenerateMut.mutate({
+      segments: importedSegments.map(s => ({
+        id: s.id,
+        index: s.index,
+        storyboard: s.storyboard,
+        costar: s.costar,
+      })),
+      generationOptions: batchGenerationOptions,
+    });
+  }, [importedSegments, batchGenerationOptions, autoGenerateMut]);
 
   const handleAnalyzeOverview = useCallback(() => {
     overviewMut.mutate({
@@ -3213,6 +3441,34 @@ export default function DirectorAI() {
         雙引擎 RAG（事實研究 + CO-STAR 創意編排）—
         腳本可一鍵發送到工作室，也可微調修改
       </p>
+
+      {/* ── 繼續上次規劃橫幅 ── */}
+      {resumePlanningCandidate && (
+        <div className="flex items-center gap-2 rounded-xl border border-amber-300/40 bg-amber-50/40 dark:bg-amber-900/10 px-3 py-2 text-xs">
+          <span className="text-amber-700 dark:text-amber-300">
+            🌿 你上次規劃到「{resumePlanningCandidate.title}」（
+            {new Date(
+              resumePlanningCandidate.updatedAt as string | number | Date
+            ).toLocaleDateString("zh-TW")}
+            ），要繼續嗎？
+          </span>
+          <button
+            type="button"
+            onClick={handleResumeLatestPlanning}
+            className="ml-auto rounded-lg border border-amber-400/50 bg-background/60 px-2.5 py-1 font-medium text-amber-700 dark:text-amber-200 hover:bg-amber-100/60 dark:hover:bg-amber-900/20 transition"
+          >
+            繼續
+          </button>
+          <button
+            type="button"
+            onClick={handleDismissResumeBanner}
+            className="rounded-lg px-1.5 py-1 text-amber-600/70 hover:text-amber-700 dark:hover:text-amber-200 transition"
+            title="不再提示"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Main Tab System */}
       <Tabs
@@ -4099,6 +4355,21 @@ export default function DirectorAI() {
                       </div>
                     </ScrollArea>
 
+                    {/* Planning proactive question */}
+                    <AnimatePresence>
+                      {planningProactiveQuestion && (
+                        <ProactiveQuestionBubble
+                          question={planningProactiveQuestion}
+                          personality={personality}
+                          onDismiss={() => setPlanningProactiveQuestion(null)}
+                          onUse={q => {
+                            setPlanningProactiveQuestion(null);
+                            setPlanningInput(q);
+                          }}
+                        />
+                      )}
+                    </AnimatePresence>
+
                     {/* Input area */}
                     <div className="flex gap-2">
                       <Textarea
@@ -4344,6 +4615,16 @@ export default function DirectorAI() {
           )}
         </TabsContent>
       </Tabs>
+
+      <BatchGenerationDialog
+        open={showBatchGeneration}
+        onClose={() => setShowBatchGeneration(false)}
+        segments={importedSegments}
+        options={batchGenerationOptions}
+        onOptionsChange={setBatchGenerationOptions}
+        onStartGeneration={handleStartBatchGeneration}
+        isPending={autoGenerateMut.isPending}
+      />
     </div>
   );
 }
@@ -4402,7 +4683,7 @@ const PlanningSessionItem = memo(function PlanningSessionItem({
   onDelete,
 }: {
   session: { id: number; title: string; createdAt: Date | string };
-  onLoad: (data: string) => void;
+  onLoad: (data: string, id?: number) => void;
   onDelete: (id: number) => void;
 }) {
   const loadQuery = trpc.director.loadPlanningSession.useQuery(
@@ -4413,7 +4694,7 @@ const PlanningSessionItem = memo(function PlanningSessionItem({
   const handleLoad = async () => {
     const result = await loadQuery.refetch();
     if (result.data?.sessionData) {
-      onLoad(result.data.sessionData);
+      onLoad(result.data.sessionData, session.id);
     } else {
       toast.error("無法載入規劃");
     }
