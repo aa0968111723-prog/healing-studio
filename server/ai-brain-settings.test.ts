@@ -47,7 +47,7 @@ describe("Brain Router — Model Catalog", () => {
       for (const opt of config.options) {
         expect(opt.value).toBeTruthy();
         expect(opt.label).toBeTruthy();
-        expect(["premium", "standard", "fast"]).toContain(opt.tier);
+        expect(["ultra", "premium", "standard", "fast"]).toContain(opt.tier);
       }
     }
   });
@@ -60,7 +60,7 @@ describe("Brain Router — Model Catalog", () => {
       for (const opt of config.options) {
         expect(opt.value).toBeTruthy();
         expect(opt.label).toBeTruthy();
-        expect(["premium", "standard", "fast"]).toContain(opt.tier);
+        expect(["ultra", "premium", "standard", "fast"]).toContain(opt.tier);
       }
     }
   });
