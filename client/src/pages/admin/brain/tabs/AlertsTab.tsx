@@ -16,9 +16,13 @@ export function AlertsTab({ active }: { active: boolean }) {
   const utils = trpc.useUtils();
   const autoRepairConfigQuery = trpc.brain.autoRepairConfig.useQuery(undefined, {
     enabled: active,
+    staleTime: 25_000,
+    refetchInterval: 30_000,
   });
   const alertsQuery = trpc.brain.alerts.useQuery(undefined, {
     enabled: active,
+    staleTime: 8_000,
+    refetchInterval: 10_000,
   });
   const toggleAutoRepairMut = trpc.brain.toggleAutoRepair.useMutation({
     onSuccess: data => {

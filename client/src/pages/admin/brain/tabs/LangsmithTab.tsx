@@ -14,6 +14,7 @@ export function LangsmithTab({ active }: { active: boolean }) {
     { limit: 50 },
     {
       enabled: active,
+      staleTime: 25_000,
       refetchInterval: active ? 30_000 : false,
       retry: false,
     }

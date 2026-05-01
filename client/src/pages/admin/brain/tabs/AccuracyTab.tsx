@@ -37,6 +37,8 @@ export function AccuracyTab({ active }: { active: boolean }) {
 
   const testsQuery = trpc.brain.accuracyTests.useQuery(undefined, {
     enabled: active,
+    staleTime: 12_000,
+    refetchInterval: 15_000,
   });
   const runTestMut = trpc.brain.runAccuracyTest.useMutation({
     onSuccess: () => {

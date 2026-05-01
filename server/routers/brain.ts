@@ -136,54 +136,49 @@ function falEngineField(fieldName: keyof typeof FAL_FIELD_ALLOWLISTS) {
 // Router
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const brainRouter = router({
-  /** 取得模型目錄（不需要登入） */
-  catalog: protectedProcedure.query(() => ({
-    reasoning: REASONING_MODEL_CATALOG,
-    generation: GENERATION_ENGINE_CATALOG,
-    /** Fal.ai 16大類任務引擎（每類 5-6 模型） */
-    falTasks: Object.fromEntries(
-      (Object.keys(FAL_MODEL_CATALOG) as FalCategory[]).map(cat => [
-        cat,
-        {
-          label: FAL_CATEGORY_LABELS[cat],
-          description: FAL_MODEL_CATALOG[cat][0]?.description ?? "",
-          options: FAL_MODEL_CATALOG[cat].map(m => ({
-            value: m.modelId,
-            label: m.label,
-            tier: m.tier,
-            description: m.description,
-            inputSchema: m.inputSchema,
-            outputSchema: m.outputSchema,
-          })),
-        },
-      ])
-    ) as Record<
-      FalCategory,
+// ─── Static pricing-by-category — pricing catalog is a compile-time const,
+// so compute once at module load instead of on every pricingSummary call.
+const ALL_PRICING_BY_CATEGORY = Object.freeze(getAllPricingByCategory());
+
+// ─── Static catalog payload — built once at module load ──────────────────
+// REASONING / GENERATION / FAL / ElevenLabs catalogs are all compile-time
+// constants. Computing the response object on every request wastes CPU
+// (and forces React Query refetches to be more expensive than they need).
+// Build once and serve the same frozen object to every caller.
+const STATIC_CATALOG_PAYLOAD = Object.freeze({
+  reasoning: REASONING_MODEL_CATALOG,
+  generation: GENERATION_ENGINE_CATALOG,
+  falTasks: Object.fromEntries(
+    (Object.keys(FAL_MODEL_CATALOG) as FalCategory[]).map(cat => [
+      cat,
       {
-        label: string;
-        description: string;
-        options: Array<{
-          value: string;
-          label: string;
-          tier: string;
-          description: string;
-          inputSchema: Record<string, boolean | undefined>;
-          outputSchema: Record<string, boolean | undefined>;
-        }>;
-      }
-    >,
-    /** ElevenLabs TTS 模型目錄 */
-    elevenLabsModels: ELEVENLABS_TTS_MODELS.map(m => ({
-      value: m.value,
-      label: m.label,
-      tier: m.tier,
-      description: m.description,
-      supportsEmotionTags: m.supportsEmotionTags,
-      supportsMultiSpeaker: m.supportsMultiSpeaker,
-      languages: m.languages,
-    })),
+        label: FAL_CATEGORY_LABELS[cat],
+        description: FAL_MODEL_CATALOG[cat][0]?.description ?? "",
+        options: FAL_MODEL_CATALOG[cat].map(m => ({
+          value: m.modelId,
+          label: m.label,
+          tier: m.tier,
+          description: m.description,
+          inputSchema: m.inputSchema,
+          outputSchema: m.outputSchema,
+        })),
+      },
+    ])
+  ),
+  elevenLabsModels: ELEVENLABS_TTS_MODELS.map(m => ({
+    value: m.value,
+    label: m.label,
+    tier: m.tier,
+    description: m.description,
+    supportsEmotionTags: m.supportsEmotionTags,
+    supportsMultiSpeaker: m.supportsMultiSpeaker,
+    languages: m.languages,
   })),
+});
+
+export const brainRouter = router({
+  /** 取得模型目錄(不需要登入)— 靜態 payload,啟動時一次組好 */
+  catalog: protectedProcedure.query(() => STATIC_CATALOG_PAYLOAD),
 
   /** 取得使用者的大腦組態 */
   get: protectedProcedure.query(async ({ ctx }) => {
@@ -626,10 +621,10 @@ export const brainRouter = router({
         video: buildEntry(videoEngine, input?.durationSec ?? 5),
         audio: buildEntry(audioEngine, input?.durationSec ?? 30),
         voice: buildEntry(voiceEngine, undefined, input?.charCount ?? 100),
-        /** 全模型費率表（按分類，供 UI 展示） */
-        allPricingByCategory: getAllPricingByCategory(),
+        /** 全模型費率表(按分類,供 UI 展示)— 靜態,模組啟動時計算一次 */
+        allPricingByCategory: ALL_PRICING_BY_CATEGORY,
         /** 換算匯率提示 */
-        rateNote: "1 USD ≈ 100 pts（點數）。最低扣 1 pt，上限 500 pts/次。",
+        rateNote: "1 USD ≈ 100 pts(點數)。最低扣 1 pt,上限 500 pts/次。",
       };
     }),
 

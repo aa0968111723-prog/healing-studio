@@ -46,10 +46,16 @@ export function ErrorsTab({
 
   const errorsQuery = trpc.brain.errorTraces.useQuery(undefined, {
     enabled: active,
+    staleTime: 12_000,
+    refetchInterval: 15_000,
   });
   const diagnosisQuery = trpc.brain.diagnoseError.useQuery(
     { traceId: expandedDiagnosisId ?? "" },
-    { enabled: !!expandedDiagnosisId && active }
+    {
+      enabled: !!expandedDiagnosisId && active,
+      // Diagnosis is deterministic for a given trace — keep it warm.
+      staleTime: 5 * 60_000,
+    }
   );
   const resolveErrorMut = trpc.brain.resolveError.useMutation({
     onSuccess: () => {

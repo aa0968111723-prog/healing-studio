@@ -35,9 +35,11 @@ export function ResearchTab({
 
   const errorsQuery = trpc.brain.errorTraces.useQuery(undefined, {
     enabled: active,
+    staleTime: 60_000,
   });
   const researchQuery = trpc.brain.researchResults.useQuery(undefined, {
     enabled: active,
+    staleTime: 30_000,
   });
   const webSearchMut = trpc.brain.webSearch.useMutation({
     onSuccess: () => {

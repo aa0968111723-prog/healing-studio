@@ -331,15 +331,23 @@ export default function AiBrainSettings() {
     },
   });
 
-  const brainQuery = trpc.brain.get.useQuery(undefined, { retry: false });
-  const catalogQuery = trpc.brain.catalog.useQuery(undefined, {
+  const brainQuery = trpc.brain.get.useQuery(undefined, {
+    retry: false,
     staleTime: 60_000,
+  });
+  // Catalog is a static module-load-time payload on the server — never go
+  // stale within a session.
+  const catalogQuery = trpc.brain.catalog.useQuery(undefined, {
+    staleTime: Infinity,
+    gcTime: Infinity,
   });
   const healthQuery = trpc.brain.healthStatus.useQuery(undefined, {
+    staleTime: 25_000,
     refetchInterval: 30_000,
   });
+  // Pricing rarely changes — keep it fresh for 5 minutes between refetches.
   const pricingQuery = trpc.brain.pricingSummary.useQuery(undefined, {
-    staleTime: 60_000,
+    staleTime: 5 * 60_000,
   });
   // Real provider ping — refresh every 60 seconds
   const pingQuery = trpc.brain.pingProviders.useQuery(undefined, {
@@ -359,6 +367,7 @@ export default function AiBrainSettings() {
   //    per-tab queries / mutations / form state now live inside their
   //    respective tab modules under admin/brain/tabs/) ────────────────────
   const summaryQuery = trpc.brain.monitorSummary.useQuery(undefined, {
+    staleTime: 12_000,
     refetchInterval: 15_000,
   });
 

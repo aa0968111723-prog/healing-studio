@@ -13,6 +13,8 @@ export function ProposalsTab({ active }: { active: boolean }) {
   const utils = trpc.useUtils();
   const proposalsQuery = trpc.brain.proposals.useQuery(undefined, {
     enabled: active,
+    staleTime: 12_000,
+    refetchInterval: 15_000,
   });
   const approveProposalMut = trpc.brain.approveProposal.useMutation({
     onSuccess: () => {
