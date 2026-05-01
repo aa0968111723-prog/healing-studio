@@ -14,22 +14,64 @@
 
 export const PER_MODEL_FALLBACK: Record<string, string[]> = {
   // 推理大腦(Gemini 模型族)
-  "gemini-2.5-pro": ["gemini-2.5-flash", "gemini-1.5-pro"],
-  "gemini-2.5-flash": ["gemini-1.5-flash", "gemini-2.5-pro"],
-  "gemini-1.5-pro": ["gemini-2.5-pro", "gemini-1.5-flash"],
-  "gemini-1.5-flash": ["gemini-2.5-flash", "gemini-1.5-pro"],
+  "gemini-2.5-pro": [
+    "gemini-2.5-flash",
+    "google/gemini-2.5-pro",
+    "anthropic/claude-sonnet-4.5",
+  ],
+  "gemini-2.5-flash": [
+    "gemini-2.5-pro",
+    "google/gemini-2.5-flash",
+    "anthropic/claude-haiku-4.5",
+  ],
+  // OpenRouter 推理大腦
+  "google/gemini-2.5-pro": [
+    "anthropic/claude-sonnet-4.5",
+    "google/gemini-2.5-flash",
+    "gemini-2.5-pro",
+  ],
+  "google/gemini-2.5-flash": [
+    "anthropic/claude-haiku-4.5",
+    "google/gemini-2.5-pro",
+    "gemini-2.5-flash",
+  ],
+  "anthropic/claude-sonnet-4.5": [
+    "google/gemini-2.5-pro",
+    "anthropic/claude-haiku-4.5",
+    "gemini-2.5-pro",
+  ],
+  "anthropic/claude-opus-4.7": [
+    "anthropic/claude-sonnet-4.5",
+    "google/gemini-2.5-pro",
+    "gemini-2.5-pro",
+  ],
+  "anthropic/claude-haiku-4.5": [
+    "google/gemini-2.5-flash",
+    "anthropic/claude-sonnet-4.5",
+    "gemini-2.5-flash",
+  ],
+  "minimax/minimax-m2": ["google/gemini-2.5-flash", "gemini-2.5-flash"],
+  "mistralai/mistral-nemo": ["google/gemini-2.5-flash", "gemini-2.5-flash"],
+  "meta-llama/llama-3.1-405b-instruct": [
+    "google/gemini-2.5-pro",
+    "anthropic/claude-sonnet-4.5",
+  ],
+  "meta-llama/llama-3.2-90b-vision-instruct": [
+    "google/gemini-2.5-pro",
+    "anthropic/claude-sonnet-4.5",
+  ],
   // MiniMax M2.7(NVIDIA NIM 代理人引擎)→ 降級到 Gemini
   "minimaxai/minimax-m2.7": ["gemini-2.5-flash", "gemini-2.5-pro"],
   // OpenAI 模型名稱 → Gemini fallback(向後相容,防止舊設定觸發 404)
   "gpt-4o": ["gemini-2.5-pro", "gemini-2.5-flash"],
-  "gpt-4o-mini": ["gemini-2.5-flash", "gemini-1.5-flash"],
-  "gpt-3.5-turbo": ["gemini-2.5-flash", "gemini-1.5-flash"],
+  "gpt-4o-mini": ["gemini-2.5-flash"],
+  "gpt-3.5-turbo": ["gemini-2.5-flash"],
   "claude-3.5-sonnet": ["gemini-2.5-pro", "gemini-2.5-flash"],
-  "claude-3-opus": ["gemini-2.5-pro", "gemini-1.5-pro"],
-  "claude-3-haiku": ["gemini-2.5-flash", "gemini-1.5-flash"],
+  "claude-3-opus": ["gemini-2.5-pro"],
+  "claude-3-haiku": ["gemini-2.5-flash"],
   // Vertex AI 路徑 → 直接 Gemini fallback
   "vertex/gemini-2.5-pro": ["gemini-2.5-pro", "gemini-2.5-flash"],
-  "vertex/gemini-2.5-flash": ["gemini-2.5-flash", "gemini-1.5-flash"],
+  "vertex/gemini-2.5-flash": ["gemini-2.5-flash", "gemini-2.5-pro"],
   // 圖像引擎(實際 Fal.ai 模型 ID)
   "fal-ai/flux-pro/v1.1": [
     "fal-ai/fast-sdxl",

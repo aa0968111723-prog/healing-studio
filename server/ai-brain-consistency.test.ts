@@ -146,7 +146,7 @@ describe("[一致性] Rule 4 — middleware 與 dispatcher 共用同一份 fallb
   it("resolveFallbackChain 在有 per-model 覆寫時會合併", () => {
     const chain = resolveFallbackChain("gemini-2.5-pro");
     expect(chain).toContain("gemini-2.5-flash");
-    expect(chain).toContain("gemini-1.5-pro");
+    expect(chain).toContain("google/gemini-2.5-pro");
   });
 });
 

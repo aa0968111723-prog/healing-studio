@@ -324,10 +324,18 @@ const ENGINE_PROVIDER_MAP: Record<string, string> = {
   // ── Gemini / Vertex AI 推理大腦 ──
   "gemini-2.5-pro": "gemini",
   "gemini-2.5-flash": "gemini",
-  "gemini-1.5-pro": "gemini",
-  "gemini-1.5-flash": "gemini",
   "vertex/gemini-2.5-pro": "gemini",
   "vertex/gemini-2.5-flash": "gemini",
+  // ── OpenRouter Unified Gateway 推理大腦 ──
+  "google/gemini-2.5-pro": "openrouter",
+  "google/gemini-2.5-flash": "openrouter",
+  "anthropic/claude-sonnet-4.5": "openrouter",
+  "anthropic/claude-opus-4.7": "openrouter",
+  "anthropic/claude-haiku-4.5": "openrouter",
+  "minimax/minimax-m2": "openrouter",
+  "mistralai/mistral-nemo": "openrouter",
+  "meta-llama/llama-3.1-405b-instruct": "openrouter",
+  "meta-llama/llama-3.2-90b-vision-instruct": "openrouter",
   // ── MiniMax M2.7 via NVIDIA NIM（代理人推理引擎）──
   "minimaxai/minimax-m2.7": "nvidia",
   // ── 圖像生成（Fal.ai） ──
@@ -416,16 +424,57 @@ const REPAIR_FALLBACK: Record<string, string[]> = {
   // ── 推理大腦 ──
   "gemini-2.5-pro": [
     "gemini-2.5-flash",
+    "google/gemini-2.5-pro",
+    "anthropic/claude-sonnet-4.5",
     "minimaxai/minimax-m2.7",
-    "gemini-1.5-pro",
   ],
   "gemini-2.5-flash": [
-    "gemini-1.5-flash",
+    "gemini-2.5-pro",
+    "google/gemini-2.5-flash",
+    "anthropic/claude-haiku-4.5",
     "minimaxai/minimax-m2.7",
+  ],
+  // ── OpenRouter Unified Gateway 推理大腦 ──
+  "google/gemini-2.5-pro": [
+    "anthropic/claude-sonnet-4.5",
+    "google/gemini-2.5-flash",
     "gemini-2.5-pro",
   ],
+  "google/gemini-2.5-flash": [
+    "anthropic/claude-haiku-4.5",
+    "google/gemini-2.5-pro",
+    "gemini-2.5-flash",
+  ],
+  "anthropic/claude-sonnet-4.5": [
+    "google/gemini-2.5-pro",
+    "anthropic/claude-haiku-4.5",
+    "gemini-2.5-pro",
+  ],
+  "anthropic/claude-opus-4.7": [
+    "anthropic/claude-sonnet-4.5",
+    "google/gemini-2.5-pro",
+  ],
+  "anthropic/claude-haiku-4.5": [
+    "google/gemini-2.5-flash",
+    "anthropic/claude-sonnet-4.5",
+    "gemini-2.5-flash",
+  ],
+  "minimax/minimax-m2": ["google/gemini-2.5-flash", "gemini-2.5-flash"],
+  "mistralai/mistral-nemo": ["google/gemini-2.5-flash", "gemini-2.5-flash"],
+  "meta-llama/llama-3.1-405b-instruct": [
+    "google/gemini-2.5-pro",
+    "anthropic/claude-sonnet-4.5",
+  ],
+  "meta-llama/llama-3.2-90b-vision-instruct": [
+    "google/gemini-2.5-pro",
+    "anthropic/claude-sonnet-4.5",
+  ],
   // ── MiniMax M2.7（NVIDIA NIM 代理人引擎）──
-  "minimaxai/minimax-m2.7": ["gemini-2.5-flash", "gemini-2.5-pro"],
+  "minimaxai/minimax-m2.7": [
+    "gemini-2.5-flash",
+    "gemini-2.5-pro",
+    "google/gemini-2.5-flash",
+  ],
   // ── 圖像生成 ──
   "fal-ai/nano-banana-2": ["fal-ai/nano-banana-pro", "fal-ai/flux-pro/v1.1"],
   "fal-ai/nano-banana-pro": ["fal-ai/nano-banana-2", "fal-ai/flux-pro/v1.1"],
