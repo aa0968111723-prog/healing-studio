@@ -17,7 +17,7 @@
 import { eq } from "drizzle-orm";
 import { userAiBrain, type UserAiBrain } from "../../drizzle/schema";
 import { getDb } from "../db";
-import { FALLBACK_CHAINS as DISPATCHER_FALLBACK_CHAINS } from "../services/falDispatcher";
+import { resolveFallbackChain } from "../_core/fallbackPolicy";
 import { getModelPricing } from "../services/modelPricing";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -130,102 +130,6 @@ export const DEFAULT_GENERATION_ENGINES: Record<
   voiceEngine: { engine: "fal-ai/elevenlabs/tts/turbo-v2.5", params: null },
 };
 
-/** 每個引擎的備援候選清單（按優先順序） */
-const ENGINE_FALLBACK_CHAIN: Record<string, string[]> = {
-  // 推理大腦（Gemini 模型族）
-  "gemini-2.5-pro": ["gemini-2.5-flash", "gemini-1.5-pro"],
-  "gemini-2.5-flash": ["gemini-1.5-flash", "gemini-2.5-pro"],
-  "gemini-1.5-pro": ["gemini-2.5-pro", "gemini-1.5-flash"],
-  "gemini-1.5-flash": ["gemini-2.5-flash", "gemini-1.5-pro"],
-  // MiniMax M2.7（NVIDIA NIM 代理人引擎）→ 降級到 Gemini
-  "minimaxai/minimax-m2.7": ["gemini-2.5-flash", "gemini-2.5-pro"],
-  // OpenAI 模型名稱 → Gemini fallback（向後相容，防止舊設定觸發 404）
-  "gpt-4o": ["gemini-2.5-pro", "gemini-2.5-flash"],
-  "gpt-4o-mini": ["gemini-2.5-flash", "gemini-1.5-flash"],
-  "gpt-3.5-turbo": ["gemini-2.5-flash", "gemini-1.5-flash"],
-  "claude-3.5-sonnet": ["gemini-2.5-pro", "gemini-2.5-flash"],
-  "claude-3-opus": ["gemini-2.5-pro", "gemini-1.5-pro"],
-  "claude-3-haiku": ["gemini-2.5-flash", "gemini-1.5-flash"],
-  // Vertex AI 路徑 → 直接 Gemini fallback
-  "vertex/gemini-2.5-pro": ["gemini-2.5-pro", "gemini-2.5-flash"],
-  "vertex/gemini-2.5-flash": ["gemini-2.5-flash", "gemini-1.5-flash"],
-  // 圖像引擎（實際 Fal.ai 模型 ID）
-  "fal-ai/flux-pro/v1.1": [
-    "fal-ai/fast-sdxl",
-    "fal-ai/stable-diffusion-v35-large",
-  ],
-  "fal-ai/nano-banana-2": ["fal-ai/nano-banana-pro", "fal-ai/flux-pro/v1.1"],
-  "fal-ai/nano-banana-pro": ["fal-ai/nano-banana-2", "fal-ai/flux-pro/v1.1"],
-  "fal-ai/imagen4/preview": ["fal-ai/nano-banana-2", "fal-ai/flux-pro/v1.1"],
-  "fal-ai/fast-sdxl": [
-    "fal-ai/flux-pro/v1.1",
-    "fal-ai/stable-diffusion-v35-large",
-  ],
-  // 圖像引擎（向後相容舊別名）
-  "flux-pro": ["fal-ai/flux-pro/v1.1", "flux-schnell", "dall-e-3"],
-  "flux-schnell": ["flux-pro", "dall-e-3"],
-  "dall-e-3": ["flux-pro", "flux-schnell"],
-  "stable-diffusion-xl": ["flux-pro", "dall-e-3"],
-  // 影片引擎（實際 Fal.ai 模型 ID）
-  "fal-ai/kling-video/v2.1/standard/text-to-video": [
-    "fal-ai/wan/v2.2-14b",
-    "fal-ai/minimax/video-01",
-  ],
-  "fal-ai/kling-video/v2.1/standard/image-to-video": [
-    "fal-ai/minimax/video-01/image-to-video",
-    "fal-ai/pixverse/v4.5/image-to-video",
-  ],
-  "fal-ai/wan/v2.2-14b": [
-    "fal-ai/kling-video/v2.1/standard/text-to-video",
-    "fal-ai/minimax/video-01",
-  ],
-  "fal-ai/veo3": [
-    "fal-ai/kling-video/v2.1/standard/text-to-video",
-    "fal-ai/wan/v2.2-14b",
-  ],
-  "fal-ai/minimax/video-01": [
-    "fal-ai/kling-video/v2.1/standard/text-to-video",
-    "fal-ai/wan/v2.2-14b",
-  ],
-  // 影片引擎（向後相容舊別名）
-  "kling-v1": [
-    "fal-ai/kling-video/v2.1/standard/text-to-video",
-    "kling-v1-5",
-    "minimax-video",
-  ],
-  "kling-v1-5": ["kling-v1", "minimax-video"],
-  "minimax-video": ["fal-ai/minimax/video-01", "kling-v1", "kling-v1-5"],
-  // 音樂引擎（實際 Fal.ai 模型 ID）
-  "fal-ai/sonauto": ["fal-ai/ace-step", "fal-ai/stable-audio"],  // sonauto Not Found, ace-step is primary
-  "fal-ai/ace-step": ["fal-ai/stable-audio", "fal-ai/musicgen"],
-  "fal-ai/stable-audio": ["fal-ai/ace-step", "fal-ai/musicgen"],
-  // 音樂引擎（向後相容舊別名）
-  "suno-v4": ["fal-ai/ace-step", "suno-v3.5", "udio-v1"],
-  "suno-v3.5": ["suno-v4", "udio-v1"],
-  "udio-v1": ["suno-v4", "suno-v3.5"],
-  // 語音引擎（實際 Fal.ai 模型 ID）
-  "fal-ai/elevenlabs/tts/turbo-v2.5": [
-    "fal-ai/qwen-3-tts/text-to-speech/1.7b",
-    "fal-ai/dia-tts/voice-clone",
-  ],
-  "fal-ai/qwen-3-tts/text-to-speech/1.7b": [
-    "fal-ai/elevenlabs/tts/turbo-v2.5",
-    "fal-ai/dia-tts/voice-clone",
-  ],
-  "fal-ai/dia-tts/voice-clone": [
-    "fal-ai/elevenlabs/tts/turbo-v2.5",
-    "fal-ai/qwen-3-tts/text-to-speech/1.7b",
-  ],
-  // 語音引擎（向後相容舊別名）
-  "elevenlabs-v2": [
-    "fal-ai/elevenlabs/tts/turbo-v2.5",
-    "elevenlabs-v1",
-    "azure-tts",
-  ],
-  "elevenlabs-v1": ["elevenlabs-v2", "azure-tts"],
-  "azure-tts": ["elevenlabs-v2", "elevenlabs-v1"],
-};
-
 // ═══════════════════════════════════════════════════════════════════════════
 // Health Ping System (健康狀態區驗)
 // ═══════════════════════════════════════════════════════════════════════════
@@ -272,6 +176,24 @@ export function getHealthStatus(modelOrEngine: string): boolean {
   // 快取過期或不存在 — 背景更新，樂觀返回上次狀態或 true
   scheduleHealthCheck(modelOrEngine);
   return cached?.healthy ?? true;
+}
+
+/** 三態健康狀態:已驗證健康 / 已驗證不健康 / 未驗證(尚未探測過) */
+export type HealthState = "healthy" | "unhealthy" | "unverified";
+
+/**
+ * 細緻版健康檢查:回傳三態,讓 UI 能區分「樂觀預設 healthy」與「真的探測過健康」。
+ * 與 getHealthStatus 不同之處:無快取時回 "unverified",而非樂觀的 true。
+ */
+export function getHealthStatusDetailed(modelOrEngine: string): HealthState {
+  const cached = healthCache.get(modelOrEngine);
+  const now = Date.now();
+  if (cached && now - cached.checkedAt < HEALTH_CACHE_TTL_MS) {
+    return cached.healthy ? "healthy" : "unhealthy";
+  }
+  // 排程背景探測,但不假裝已驗證
+  scheduleHealthCheck(modelOrEngine);
+  return "unverified";
 }
 
 /**
@@ -356,140 +278,14 @@ function scheduleHealthCheck(modelOrEngine: string): void {
   });
 }
 
-/** 已知的模型/引擎清單 */
-const KNOWN_MODELS = new Set([
-  // LLM — Gemini（主要引擎）
-  "gemini-2.5-pro",
-  "gemini-2.5-flash",
-  "gemini-1.5-pro",
-  "gemini-1.5-flash",
-  "gemini-pro",
-  // LLM — MiniMax M2.7 via NVIDIA NIM（代理人引擎）
-  "minimaxai/minimax-m2.7",
-  // Vertex AI 路徑
-  "vertex/gemini-2.5-pro",
-  "vertex/gemini-2.5-flash",
-  "vertex/gemini-1.5-pro",
-  "vertex/gemini-1.5-flash",
-  "vertex/llama-3.2-90b",
-  // OpenAI/Claude（向後相容，系統會自動 remapping）
-  "gpt-4o",
-  "gpt-4o-mini",
-  "gpt-3.5-turbo",
-  "claude-3.5-sonnet",
-  "claude-3-opus",
-  // Google AI Studio / Vertex AI — 多模態
-  "gemini/imagen-3",
-  "gemini/imagen-3-fast",
-  "gemini/imagen-4",
-  "vertex/imagen-3",
-  "vertex/imagen-4",
-  "gemini/veo-2",
-  "gemini/veo-3",
-  "gemini/veo-3-fast",
-  "vertex/veo-2",
-  "vertex/veo-3",
-  "gemini/lyria-2",
-  "gemini/lyria-3",
-  "vertex/lyria-2",
-  "gemini/tts-flash",
-  "gemini/tts-pro",
-  // 圖像引擎（fal.ai）
-  "fal-ai/flux-pro/v1.1",
-  "fal-ai/flux/dev",
-  "fal-ai/flux/schnell",
-  "fal-ai/flux-schnell",
-  "fal-ai/stable-diffusion-v3-medium",
-  "fal-ai/aura-flow",
-  "fal-ai/ideogram/v2",
-  "flux-pro", // 向後相容短名稱
-  "flux-schnell", // 向後相容短名稱
-  // 圖像編輯 / ControlNet / IP-Adapter
-  "fal-ai/flux/dev/image-to-image",
-  "fal-ai/stable-diffusion-v3-medium/image-to-image",
-  "fal-ai/controlnet-union",
-  "fal-ai/ip-adapter-face-id",
-  "fal-ai/aura-sr",
-  "fal-ai/imageutils/rembg",
-  // 影片引擎（fal.ai）
-  "fal-ai/kling-video/v2.1/pro/text-to-video",
-  "fal-ai/kling-video/v2.1/standard/text-to-video",
-  "fal-ai/kling-video/v2.1/pro/image-to-video",
-  "fal-ai/kling-video/v2.1/standard/image-to-video",
-  "fal-ai/kling-video/v2.1/standard/video-to-video",
-  "fal-ai/wan-t2v",
-  "fal-ai/wan-t2v-v2.1",
-  "fal-ai/wan-v2v",
-  "fal-ai/minimax/video-01",
-  "fal-ai/minimax-video/text-to-video",
-  "fal-ai/minimax-video/image-to-video",
-  "fal-ai/luma-dream-machine",
-  "fal-ai/luma-dream-machine/image-to-video",
-  "fal-ai/runway-gen3/turbo/image-to-video",
-  "fal-ai/stable-video",
-  "fal-ai/cogvideox-5b",
-  "fal-ai/cogvideox-5b/video-to-video",
-  "fal-ai/video-to-video",
-  "fal-ai/topaz-upscale-video",
-  "fal-ai/stable-video-upscaler",
-  "kling-v1", // 向後相容短名稱
-  // 音樂引擎（fal.ai）
-  "fal-ai/stable-audio",
-  "fal-ai/ace-step",
-  "fal-ai/musicgen",
-  "fal-ai/mmaudio-v2",
-  "fal-ai/mmaudio-v2/video-to-audio",
-  "fal-ai/audioldm2",
-  "fal-ai/elevenlabs/sound-effects",
-  "suno-v4", // 向後相容短名稱
-  "suno-v3.5", // 向後相容短名稱
-  // 語音引擎（fal.ai TTS）
-  "fal-ai/metavoice-v1",
-  "fal-ai/kokoro",
-  "fal-ai/dia-tts",
-  "fal-ai/f5-tts",  // playai-tts Not Found, replaced with f5-tts
-  "fal-ai/orpheus-tts",
-  "fal-ai/whisper",
-  "fal-ai/wizper",
-  "fal-ai/sync-lipsync",
-  "elevenlabs-v2", // 向後相容短名稱
-  // 3D 引擎
-  "fal-ai/trellis",
-  "fal-ai/triposr",
-  "fal-ai/stable-zero123",
-  "fal-ai/zero123plus",
-  "fal-ai/mv-adapter",
-  "fal-ai/hyper3d/rodin",
-  "fal-ai/meshy-4",
-  "fal-ai/shap-e",
-  "fal-ai/dreamgaussian",
-  "fal-ai/fantasia3d",
-  // LLM / JSON / Vision（fal.ai）
-  "fal-ai/any-llm",
-  "fal-ai/llava-next",
-  "fal-ai/moondream",
-  "fal-ai/doctr",
-  "fal-ai/sam2",
-  "fal-ai/meta-llama/llama-3.2-90b-vision-instruct",
-  "fal-ai/meta-llama/llama-3.1-8b-instruct",
-  "fal-ai/wizardlm-2-8x22b",
-  "fal-ai/dolphin-2.9.2-qwen2-72b",
-  "fal-ai/lmstudio",
-  "fal-ai/outlines",
-  "fal-ai/wizardcoder",
-  // 訓練引擎
-  "fal-ai/flux-lora-fast-training",
-  "fal-ai/flux-lora-portrait-trainer",
-  "fal-ai/dreambooth-flux",
-  "fal-ai/sd3-lora-training",
-  "fal-ai/cogvideox-lora-training",
-  "fal-ai/hunyuan-video-lora-training",
-  "fal-ai/flux-2-trainer",
-  "fal-ai/turbo-flux-trainer",
-]);
+import { isCanonicalOrKnownModel } from "../_core/modelRegistry";
 
+/**
+ * Whether a given model/engine ID is recognized by the registry.
+ * Backed by the auto-derived `getKnownModelIds()` (catalogs ∪ legacy aliases).
+ */
 function isRecognizedModel(model: string): boolean {
-  return KNOWN_MODELS.has(model);
+  return isCanonicalOrKnownModel(model);
 }
 
 /**
@@ -608,8 +404,9 @@ export const BrainAuditLogger = {
 
 /**
  * 為不健康的模型/引擎尋找可用的備援。
- * 沿著 ENGINE_FALLBACK_CHAIN 依序嘗試，返回第一個健康的候選。
- * 若所有候選都不健康，返回該類型的硬編碼預設值。
+ * 由 _core/fallbackPolicy.ts 統一查詢:先看 per-model 覆寫(更精確),
+ * 缺則退到 per-category 名單,共用同一份 SSOT 避免兩處策略分叉。
+ * 若所有候選都不健康,返回該類型的硬編碼預設值。
  */
 function findFallback(
   currentModel: string,
@@ -619,19 +416,8 @@ function findFallback(
   const isHealthy = getHealthStatus(currentModel);
   if (isHealthy) return null; // 不需要降級
 
-  // 解析 fallback 候選清單：先看 per-model 覆寫，缺則退到 dispatcher
-  // 的 per-category 名單（共用同一份 SSOT，避免兩處策略分叉）。
-  const perModelChain = ENGINE_FALLBACK_CHAIN[currentModel] ?? [];
   const category = getModelPricing(currentModel)?.category;
-  const categoryChain = category
-    ? (DISPATCHER_FALLBACK_CHAINS[category] ?? []).filter(
-        id => id !== currentModel
-      )
-    : [];
-  // per-model 優先（更精確），補入 category 名單去重
-  const chain = perModelChain.length > 0
-    ? Array.from(new Set([...perModelChain, ...categoryChain]))
-    : categoryChain;
+  const chain = resolveFallbackChain(currentModel, category);
 
   // 嘗試 fallback chain
   for (const candidate of chain) {

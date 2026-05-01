@@ -1076,9 +1076,9 @@ export const userAiBrain = mysqlTable("user_ai_brain", {
   }>(),
   audioEngineEnabled: boolean("audioEngineEnabled").default(true).notNull(),
 
-  /** 語音合成引擎 */
+  /** 語音合成引擎 — 對齊 DEFAULT_GENERATION_ENGINES.voiceEngine */
   voiceEngine: varchar("voiceEngine", { length: 128 })
-    .default("fal-ai/metavoice-v1")
+    .default("fal-ai/elevenlabs/tts/turbo-v2.5")
     .notNull(),
   voiceEngineParams: json("voiceEngineParams").$type<{
     voiceId?: string;
@@ -1131,10 +1131,10 @@ export const userAiBrain = mysqlTable("user_ai_brain", {
   falTextToJsonEngine: varchar("falTextToJsonEngine", { length: 128 }).default(
     "fal-ai/any-llm"
   ),
-  /** 2-11 文字轉語音 */
+  /** 2-11 文字轉語音 — 對齊 DEFAULT_FAL_ENGINES.textToSpeech */
   falTextToSpeechEngine: varchar("falTextToSpeechEngine", {
     length: 128,
-  }).default("fal-ai/metavoice-v1"),
+  }).default("fal-ai/elevenlabs/tts/turbo-v2.5"),
   /** 2-12 文字轉視頻 */
   falTextToVideoEngine: varchar("falTextToVideoEngine", {
     length: 128,
