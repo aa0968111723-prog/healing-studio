@@ -1051,6 +1051,127 @@ describe("orchestrator precision policy", () => {
     expect(calls.find(c => c.startsWith("nav:"))).toBeTruthy();
     expect(calls.find(c => c.startsWith("act:fillPrompt:"))).toBeTruthy();
   });
+
+  // ─── 全站光球代理 ↔ /image-studio (照片工作室) connection audit ─────────
+  // /image-studio is the orb's destination for image-specific creation work
+  // (t2i / edit / upscale / pose / sd / 3D). These tests pin the contract
+  // so future refactors can't silently break the orb→照片工作室 routing.
+
+  it("/image-studio supportedActions matches the page's actual handler switch", () => {
+    // Audit ImageStudio.tsx's `case "..."` blocks one by one. If a future
+    // change adds or removes a case, the supportedActions audit must be
+    // updated in lockstep — otherwise the static-fallback router either
+    // sends the orb to a page that can't handle the action (silent fail)
+    // or refuses to send it at all (fake "no route found").
+    const imageStudio = APP_PAGE_REGISTRY.find(p => p.id === "image-studio");
+    expect(imageStudio).toBeTruthy();
+    expect(new Set(imageStudio!.supportedActions)).toEqual(
+      new Set([
+        "setTab",
+        "setModel",
+        "fillPrompt",
+        "applyPreset",
+        "submit",
+        "reset",
+        "openDialog",
+        "setParam",
+        "focusElement",
+      ])
+    );
+  });
+
+  it("buildImageWorkflow's steps match /image-studio's declared supportedActions", () => {
+    // Workflow safety net: every step the keyword fallback emits for an
+    // image build must point at an action the destination page can handle.
+    // Otherwise the dispatch silently no-ops and the user sees a half-done
+    // workflow ("filled but never submitted").
+    const wf = buildImageWorkflow("一張電影感的療癒風景");
+    const imageStudio = APP_PAGE_REGISTRY.find(p => p.id === "image-studio");
+    expect(imageStudio).toBeTruthy();
+    for (const step of wf.steps) {
+      expect(step.path).toBe("/image-studio");
+      expect(imageStudio!.supportedActions).toContain(step.actionType);
+    }
+  });
+
+  it("orb-emitted image actions from /agent route to /image-studio via static fallback", async () => {
+    // From /agent (only the chat host is live-registered), each image-
+    // studio-only action (setTab / openDialog) must resolve to
+    // /image-studio. /studio doesn't declare setTab / openDialog so the
+    // ranker can't accidentally route there.
+    const cases: Array<{ action: AgentAction; expectPath: string }> = [
+      { action: { type: "setTab", tabId: "edit" }, expectPath: "/image-studio" },
+      { action: { type: "openDialog", dialogId: "image-history" }, expectPath: "/image-studio" },
+      { action: { type: "fillPrompt", text: "電影感療癒圖片" }, expectPath: "/image-studio" },
+    ];
+    for (const { action, expectPath } of cases) {
+      globalAgentRegistry.clear();
+      globalAgentRegistry.register(makePage("agent-chat", "/agent", "全站光球代理", []));
+      const calls: string[] = [];
+      const result = await executeGlobalAction(action, {
+        currentPage: null,
+        navigate: async path => calls.push(`nav:${path}`),
+        dispatch: async () => ({ ok: true }),
+        waitAfterNavigateMs: 0,
+      });
+      expect(result.ok).toBe(true);
+      expect(calls[0]).toBe(`nav:${expectPath}`);
+    }
+  });
+
+  it("a chained image workflow (setTab → fillPrompt → setParam → submit) stays on /image-studio", async () => {
+    // /image-studio gets live-registered (mirrors what useRegisterPageAgent
+    // does after navigateAndSettle in production). The orb threads four
+    // actions through it without re-navigating — this is the contract for
+    // 全站光球代理 driving the photo studio's t2i flow end to end.
+    globalAgentRegistry.clear();
+    globalAgentRegistry.register(
+      makePage("image-studio", "/image-studio", "圖片創作室", [
+        "setTab",
+        "fillPrompt",
+        "setParam",
+        "submit",
+      ])
+    );
+    const calls: string[] = [];
+    const result = await executeGlobalActions(
+      [
+        { type: "setTab", tabId: "t2i" },
+        { type: "fillPrompt", text: "夜晚電影感咖啡廳，雨後街道，霓虹反光" },
+        { type: "setParam", key: "aspectRatio", value: "16:9" },
+        { type: "submit" },
+      ],
+      {
+        currentPage: null,
+        navigate: async path => calls.push(`nav:${path}`),
+        dispatch: async (action, opts) => {
+          calls.push(`act:${action.type}:${opts?.targetPageId}`);
+          return { ok: true };
+        },
+        waitAfterNavigateMs: 0,
+      }
+    );
+    expect(result.every(r => r.ok)).toBe(true);
+    expect(calls.filter(c => c.startsWith("nav:"))).toEqual(["nav:/image-studio"]);
+    expect(calls.filter(c => c.startsWith("act:"))).toEqual([
+      "act:setTab:image-studio",
+      "act:fillPrompt:image-studio",
+      "act:setParam:image-studio",
+      "act:submit:image-studio",
+    ]);
+  });
+
+  it("detectChatIntent for image keywords lands the workflow exclusively on /image-studio", () => {
+    // The keyword fallback must never split an image build between
+    // /image-studio and other studios — every step's path is /image-studio
+    // so we know exactly where the orb is taking the user.
+    const detection = detectChatIntent("幫我做一張寫實風格的圖片");
+    expect(detection.kind).toBe("ready");
+    if (detection.kind === "ready") {
+      const paths = new Set(detection.workflow.steps.map(s => s.path));
+      expect(paths).toEqual(new Set(["/image-studio"]));
+    }
+  });
 });
 
 describe("orchestrator safety helpers", () => {
