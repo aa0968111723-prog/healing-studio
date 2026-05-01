@@ -15,6 +15,7 @@ import type {
   AgentWorkflowStep,
   RunWorkflowAction,
 } from "./agent-actions";
+import { APP_PAGE_REGISTRY } from "./appRegistry";
 
 export interface ExpandedWorkflowStep {
   path?: string;
@@ -502,6 +503,33 @@ export function detectNavIntent(text: string): { label: string; path: string } |
     }
   }
   return null;
+}
+
+/**
+ * Static reply for the orb's 「功能詢問」 chip. Drawn straight from
+ * APP_PAGE_REGISTRY so we never hallucinate a feature: the user always sees
+ * exactly what is wired up in the SPA. Sorted by `agentEntryPriority` so
+ * the most useful pages come first; capped to keep the message scrollable.
+ */
+export function buildFeatureSummaryReply(): string {
+  const entries = APP_PAGE_REGISTRY
+    .filter(page => page.showInAgentHome && page.path && page.path !== "/agent")
+    .sort((a, b) => a.agentEntryPriority - b.agentEntryPriority)
+    .slice(0, 14);
+
+  const lines = entries.map(page => {
+    const hint = page.orbHints[0] ?? page.quickActions[0]?.label ?? "";
+    const hintSuffix = hint ? `（例如：${hint}）` : "";
+    return `• ${page.label} — ${page.description}${hintSuffix}\n  路徑：${page.path}`;
+  });
+
+  return [
+    "🧭 這個站目前能幫你做的事（取自實際註冊的功能列表）：",
+    "",
+    ...lines,
+    "",
+    "想直接過去任何一個功能，跟我說「帶我去 X」就行；想要一鍵流程，告訴我你要做的成品（圖片／影片／音樂／配音／腳本），我就會把跨頁工作流程拼好。",
+  ].join("\n");
 }
 
 function styleHint(prefs: RememberedCreationPreferences | undefined): string {

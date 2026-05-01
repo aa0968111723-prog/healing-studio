@@ -1,4 +1,4 @@
-import type { AgentAction } from "./agent-actions";
+import type { AgentAction, AgentActionType } from "./agent-actions";
 
 export type AppPageGroupId =
   | "orb"
@@ -35,6 +35,16 @@ export interface AppPageRegistryItem {
   supportsPageAgent: boolean;
   quickActions: AppPageQuickAction[];
   orbHints: string[];
+  /**
+   * Action types whose `case` block actually exists in this page's
+   * `useRegisterPageAgent` handler. The orb's static-fallback router uses
+   * this to avoid sending an action to a page that can't really handle it
+   * (the most common past failure: setModality routed to /image-studio,
+   * which has no setModality case → silent dispatch failure / "no route
+   * found"). Empty = page is informational-only and only handles the
+   * universal navigate/focusElement actions provided by PageAgentContext.
+   */
+  supportedActions: AgentActionType[];
 }
 
 export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
@@ -51,6 +61,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     supportsPageAgent: true,
     quickActions: [{ id: "explore-home", label: "先逛逛", description: "查看平台亮點與入口" }],
     orbHints: ["我想先看看這個網站在做什麼"],
+    supportedActions: [],
   },
   {
     id: "agent-chat",
@@ -81,6 +92,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       "我不知道從哪裡開始，請你帶我做第一步",
       "我想做的成品是____，用途是____，幫我選頁面並告訴我怎麼做",
     ],
+    supportedActions: [],
   },
   {
     id: "studio",
@@ -102,6 +114,20 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       },
     ],
     orbHints: ["我想快速做一個作品"],
+    // Studio is the four-modality hub: it is the ONLY page that handles
+    // setModality, so the orb must always route modality switches here.
+    supportedActions: [
+      "setModality",
+      "setMode",
+      "setModel",
+      "applyPreset",
+      "fillPrompt",
+      "setParam",
+      "submit",
+      "reset",
+      "openDialog",
+      "focusElement",
+    ],
   },
   {
     id: "image-studio",
@@ -140,6 +166,17 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       },
     ],
     orbHints: ["幫我生成一張圖片"],
+    supportedActions: [
+      "setTab",
+      "setModel",
+      "fillPrompt",
+      "applyPreset",
+      "submit",
+      "reset",
+      "openDialog",
+      "setParam",
+      "focusElement",
+    ],
   },
   {
     id: "video-studio",
@@ -178,6 +215,15 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       },
     ],
     orbHints: ["我想做一支短影片"],
+    supportedActions: [
+      "setTab",
+      "setModel",
+      "fillPrompt",
+      "submit",
+      "reset",
+      "setParam",
+      "focusElement",
+    ],
   },
   {
     id: "pro-studio",
@@ -216,6 +262,16 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       },
     ],
     orbHints: ["我想做配樂或配音"],
+    supportedActions: [
+      "setTab",
+      "setModel",
+      "fillPrompt",
+      "applyPreset",
+      "submit",
+      "reset",
+      "setParam",
+      "focusElement",
+    ],
   },
   {
     id: "director",
@@ -245,6 +301,15 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       },
     ],
     orbHints: ["幫我先整理腳本"],
+    supportedActions: [
+      "setTab",
+      "fillPrompt",
+      "applyPreset",
+      "submit",
+      "reset",
+      "setParam",
+      "focusElement",
+    ],
   },
   {
     id: "lora-trainer",
@@ -277,6 +342,15 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       },
     ],
     orbHints: ["我要訓練自己的模型", "開啟角色鍛造精靈"],
+    supportedActions: [
+      "setTab",
+      "fillPrompt",
+      "applyPreset",
+      "submit",
+      "reset",
+      "setParam",
+      "focusElement",
+    ],
   },
   {
     id: "dashboard",
@@ -301,6 +375,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       },
     ],
     orbHints: ["幫我看看最近使用狀況"],
+    supportedActions: [],
   },
   {
     id: "history",
@@ -325,6 +400,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       },
     ],
     orbHints: ["找我之前做的內容"],
+    supportedActions: ["setTab", "search", "reset"],
   },
   {
     id: "notes",
@@ -349,6 +425,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       },
     ],
     orbHints: ["幫我把這段記到筆記"],
+    supportedActions: ["setTab", "search", "reset"],
   },
   {
     id: "langsmith",
@@ -372,6 +449,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       },
     ],
     orbHints: ["帶我看 LangSmith 監控", "我想查最近模型呼叫的錯誤和延遲"],
+    supportedActions: [],
   },
   {
     id: "agent-preferences",
@@ -406,6 +484,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       "讓光球純聊天",
       "設定自動排程",
     ],
+    supportedActions: [],
   },
   {
     id: "settings",
@@ -430,6 +509,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       },
     ],
     orbHints: ["我想調整我的設定"],
+    supportedActions: ["setTab", "setParam", "reset"],
   },
   {
     id: "credits",
@@ -454,6 +534,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       },
     ],
     orbHints: ["我的點數怎麼算"],
+    supportedActions: [],
   },
   {
     id: "assets",
@@ -499,6 +580,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       },
     ],
     orbHints: ["打開我的素材庫", "給我一些提示詞靈感", "我有哪些背景任務"],
+    supportedActions: ["setTab", "search", "setParam", "reset", "openDialog"],
   },
   {
     id: "prompt-library",
@@ -523,6 +605,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       },
     ],
     orbHints: ["給我一些提示詞靈感"],
+    supportedActions: ["setTab", "search", "setParam", "reset"],
   },
   {
     id: "models",
@@ -560,6 +643,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       },
     ],
     orbHints: ["我的模型在哪裡"],
+    supportedActions: ["setTab", "openDialog", "setParam", "reset"],
   },
   {
     id: "vault",
@@ -584,6 +668,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       },
     ],
     orbHints: ["保持角色一致"],
+    supportedActions: [],
   },
   {
     id: "calendar",
@@ -608,6 +693,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       },
     ],
     orbHints: ["幫我排一下這週創作"],
+    supportedActions: ["setParam", "reset"],
   },
   {
     id: "shared",
@@ -632,6 +718,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       },
     ],
     orbHints: ["看看團隊共享作品"],
+    supportedActions: ["setTab", "search", "setParam", "reset"],
   },
   {
     id: "learn",
@@ -656,6 +743,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       },
     ],
     orbHints: ["有新手教學嗎"],
+    supportedActions: ["setTab", "search", "setParam", "reset"],
   },
   {
     id: "feedback",
@@ -670,6 +758,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
     supportsPageAgent: true,
     quickActions: [{ id: "send-feedback", label: "提交回饋", description: "回報問題或提出建議" }],
     orbHints: ["我要回報一個問題"],
+    supportedActions: ["fillPrompt", "setParam", "submit"],
   },
   {
     id: "background-tasks",
@@ -694,6 +783,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       },
     ],
     orbHints: ["我有哪些背景任務"],
+    supportedActions: ["setTab", "search", "reset"],
   },
   {
     id: "tutorial-overview",
@@ -713,6 +803,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       { id: "go-agent-chat", label: "用光球開始互動教學", description: "透過光球助手一步一步學習" },
     ],
     orbHints: ["我想開始教學", "新手怎麼開始", "給我一個導覽"],
+    supportedActions: [],
   },
   {
     id: "brain-settings",
@@ -729,6 +820,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       { id: "open-brain-settings", label: "開啟大腦組態", description: "前往 AI 大腦設定", path: "/admin?section=brain" },
     ],
     orbHints: ["切換大腦", "改 director model", "查看大腦健康度"],
+    supportedActions: ["setTab", "reset"],
   },
   {
     id: "my-brain",
@@ -745,6 +837,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       { id: "open-my-brain", label: "開啟我的大腦", description: "管理個人大腦", path: "/my-brain" },
     ],
     orbHints: ["切到我的大腦", "個人 AI 設定"],
+    supportedActions: [],
   },
   {
     id: "admin-brain-pipeline",
@@ -761,6 +854,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       { id: "open-brain-pipeline", label: "查看推理鏈", description: "前往大腦推理鏈視覺化", path: "/admin/brain-pipeline" },
     ],
     orbHints: ["看推理鏈", "大腦動作流"],
+    supportedActions: [],
   },
   {
     id: "focus-flow",
@@ -777,6 +871,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       { id: "open-focus-flow", label: "進入專注流", description: "啟動專注模式", path: "/focus-flow" },
     ],
     orbHints: ["我想專注一下", "啟動心流模式"],
+    supportedActions: ["setTab", "setParam", "reset"],
   },
   {
     id: "admin",
@@ -799,6 +894,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       },
     ],
     orbHints: ["我要看管理後台", "如何切換大腦", "管理員工具在哪"],
+    supportedActions: [],
   },
   {
     id: "admin-api-usage",
@@ -815,6 +911,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       { id: "open-admin-api-usage", label: "開啟 API 用量", description: "前往 API 用量分析頁", path: "/admin/api-usage" },
     ],
     orbHints: ["我想看 API 用量", "查看成本", "各引擎呼叫次數"],
+    supportedActions: [],
   },
   {
     id: "process-viewer",
@@ -840,6 +937,7 @@ export const APP_PAGE_REGISTRY: AppPageRegistryItem[] = [
       "把這個流程整理成可分享的連結",
       "幫我做一個 step-by-step 的教學頁",
     ],
+    supportedActions: [],
   },
 ];
 

@@ -323,15 +323,22 @@ async function executeWorkflowParallel(
           // Per-step navigate happens BEFORE the dispatch, exactly like the
           // sequential loop. Same-page steps already live in different
           // batches so concurrent navigates can only target different paths.
-          if (expanded.path && expanded.path !== currentPath) {
-            await navigateAndSettle(expanded.path, ctx);
-            currentPath = expanded.path;
+          // When the LLM omitted step.path, fall back to the static registry
+          // so we still navigate to a page that can handle the action (the
+          // page-agent layer's enqueue+drain finishes the dispatch on mount).
+          const fallbackForBatchStep = expanded.path
+            ? null
+            : globalAgentRegistry.planWithFallback(expanded.action, ctx.currentPage)?.steps[0] ?? null;
+          const effectivePath = expanded.path ?? fallbackForBatchStep?.path;
+          if (effectivePath && effectivePath !== currentPath) {
+            await navigateAndSettle(effectivePath, ctx);
+            currentPath = effectivePath;
           }
           ctx.onWorkflowStep?.({
             index: declaredIndex.get(batchStep.id) ?? 0,
             total: ided.length,
             label: expanded.label,
-            path: expanded.path,
+            path: effectivePath,
             action: expanded.action,
           });
           // Pure navigate steps are fully satisfied by ctx.navigate() above;
@@ -339,13 +346,14 @@ async function executeWorkflowParallel(
           if (expanded.action.type === "navigate") {
             const navOk: AgentActionResult = {
               ok: true,
-              message: `navigated to ${expanded.path ?? expanded.action.path}`,
+              message: `navigated to ${effectivePath ?? expanded.action.path}`,
             };
             return navOk;
           }
-          const targetPageId = expanded.path
-            ? globalAgentRegistry.findByPath(expanded.path)?.pageId
-            : globalAgentRegistry.plan(expanded.action, ctx.currentPage)?.steps[0]?.targetPageId;
+          const targetPageId = effectivePath
+            ? globalAgentRegistry.findByPath(effectivePath)?.pageId
+              ?? fallbackForBatchStep?.targetPageId
+            : globalAgentRegistry.planWithFallback(expanded.action, ctx.currentPage)?.steps[0]?.targetPageId;
           return normalizeResult(
             await ctx.dispatch(expanded.action, {
               targetPageId,
@@ -397,9 +405,17 @@ async function executeWorkflowSequential(
     const s = steps[i];
     log("workflow.step", { index: i, label: s.label });
 
-    if (s.path && s.path !== currentPath) {
-      await navigateAndSettle(s.path, ctx);
-      currentPath = s.path;
+    // When the LLM omits step.path the static fallback figures out the right
+    // destination so the orchestrator can navigate before dispatch instead of
+    // letting the action fall through to the current page (which usually
+    // can't handle it and surfaces a fake failure).
+    const fallbackForStep = s.path
+      ? null
+      : globalAgentRegistry.planWithFallback(s.action, ctx.currentPage)?.steps[0] ?? null;
+    const effectivePath = s.path ?? fallbackForStep?.path;
+    if (effectivePath && effectivePath !== currentPath) {
+      await navigateAndSettle(effectivePath, ctx);
+      currentPath = effectivePath;
     }
     // Fire the progress callback AFTER the navigate completes so the UI
     // reflects "running step N" only when N can actually start, not while
@@ -408,19 +424,20 @@ async function executeWorkflowSequential(
       index: i,
       total: steps.length,
       label: s.label,
-      path: s.path,
+      path: effectivePath,
       action: s.action,
     });
     // Pure navigate steps are fully satisfied by ctx.navigate() above; the
     // page-agent layer intentionally rejects dispatched navigate actions
     // (orb owns navigation), so re-dispatching would surface a fake failure.
     if (s.action.type === "navigate") {
-      results.push({ ok: true, message: `navigated to ${s.path ?? s.action.path}` });
+      results.push({ ok: true, message: `navigated to ${effectivePath ?? s.action.path}` });
       continue;
     }
-    const targetPageId = s.path
-      ? globalAgentRegistry.findByPath(s.path)?.pageId
-      : globalAgentRegistry.plan(s.action, ctx.currentPage)?.steps[0]?.targetPageId;
+    const targetPageId = effectivePath
+      ? globalAgentRegistry.findByPath(effectivePath)?.pageId
+        ?? fallbackForStep?.targetPageId
+      : globalAgentRegistry.planWithFallback(s.action, ctx.currentPage)?.steps[0]?.targetPageId;
     const res = normalizeResult(
       await ctx.dispatch(s.action, {
         targetPageId,
@@ -484,7 +501,13 @@ export async function executeGlobalWorkflow(action: RunWorkflowAction, ctx: Glob
 export async function executeGlobalAction(action: AgentAction, ctx: GlobalAgentExecutionContext) {
   if (action.type === "runWorkflow") return executeGlobalWorkflow(action, ctx);
 
-  const plan = globalAgentRegistry.plan(action, ctx.currentPage);
+  // planWithFallback: when no live page is registered for this action (the
+  // common case from the /agent host where only the orb chat page itself is
+  // mounted), resolve a destination from the static capability registry so
+  // we navigate to a known-good page instead of failing with "no route found".
+  // The page-agent layer's enqueue+drain takes care of dispatching the action
+  // once the destination page mounts and registers.
+  const plan = globalAgentRegistry.planWithFallback(action, ctx.currentPage);
   if (!plan) {
     log("action.no-plan", { actionType: action.type });
     return {
