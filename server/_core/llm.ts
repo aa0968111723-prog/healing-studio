@@ -161,6 +161,12 @@ export type InvokeParams = {
    * 如果提供，將會前置插入 messages 第一條 system 訊息，或與現有 system 合併。
    */
   systemPrompt?: string | null;
+  /**
+   * 單一引擎呼叫的最長等待毫秒數（覆蓋全域 LLM_TIMEOUT_SECONDS）。
+   * 用於需要快速降級的場景（例如光球聊天：外層 20s 包住，但希望單一引擎
+   * 8 秒就放棄，讓 OpenRouter 等備援引擎還有機會被嘗試）。
+   */
+  timeoutMs?: number;
 };
 
 export type ToolCall = {
@@ -877,6 +883,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     topP,
     model: overrideModel,
     systemPrompt,
+    timeoutMs,
   } = params;
 
   // ── 注入系統提示詞（來自 ctx.brain）──────────────────────────
@@ -967,6 +974,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
           temperature,
           topP,
           overrideModel,
+          timeoutMs,
         });
 
         // 成功 — 更新斷路器
@@ -1015,6 +1023,7 @@ async function invokeSingleEngine(
     temperature?: number;
     topP?: number;
     overrideModel?: string;
+    timeoutMs?: number;
   }
 ): Promise<InvokeResult> {
   const {
@@ -1033,7 +1042,12 @@ async function invokeSingleEngine(
     temperature,
     topP,
     overrideModel,
+    timeoutMs,
   } = params;
+  const perEngineTimeoutMs =
+    typeof timeoutMs === "number" && timeoutMs > 0
+      ? timeoutMs
+      : LLM_REQUEST_TIMEOUT_MS;
 
   // ── 解析最終模型名稱（含 engine 相容性正規化）───────────
   const rawModel = overrideModel ?? engineConfig.model;
@@ -1118,7 +1132,7 @@ async function invokeSingleEngine(
         const controller = new AbortController();
         const timeout = setTimeout(
           () => controller.abort(),
-          LLM_REQUEST_TIMEOUT_MS
+          perEngineTimeoutMs
         );
         const headers: Record<string, string> = isAnthropicEngine
           ? {
