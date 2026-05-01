@@ -795,6 +795,12 @@ function buildGraph(opts: BuildGraphOptions): PipelineGraph {
   }
 
   // ── Layer 3b: Generation Engine Slots ────────────────────────────────────
+  const ENGINE_ROUTER_FILE: Record<GenerationEngineSlot, string> = {
+    imageEngine: "server/routers/imageStudio.ts",
+    videoEngine: "server/routers/videoStudio.ts",
+    audioEngine: "server/routers/proStudio.ts",
+    voiceEngine: "server/routers/proStudio.ts",
+  };
   for (const slot of Object.keys(
     DEFAULT_GENERATION_ENGINES
   ) as GenerationEngineSlot[]) {
@@ -813,6 +819,7 @@ function buildGraph(opts: BuildGraphOptions): PipelineGraph {
       relatedFiles: [
         "server/middleware/brainContext.ts",
         "server/services/falDispatcher.ts",
+        ENGINE_ROUTER_FILE[slot],
       ],
       metrics: derived.metrics,
     });

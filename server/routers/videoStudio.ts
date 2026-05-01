@@ -387,11 +387,18 @@ export const videoStudioRouter = router({
         aspect_ratio: input.aspectRatio,
       };
       // 嘗試 Sora 端點如失效則降級到 LTX-Video
+      const SORA_MODEL = "fal-ai/sora";
+      const FALLBACK_MODEL = "fal-ai/ltx-video-13b-distilled";
       try {
-        const result = (await falQueueRun("fal-ai/sora", payload, 480)) as any;
-        return { video_url: extractVideoUrl(result), raw: result };
+        const result = (await falQueueRun(SORA_MODEL, payload, 480)) as any;
+        return {
+          video_url: extractVideoUrl(result),
+          raw: result,
+          model_used: SORA_MODEL,
+        };
       } catch (e: any) {
-        if (e?.message?.includes("404") || e?.message?.includes("not found")) {
+        const errMsg = e?.message ?? String(e);
+        if (errMsg.includes("404") || errMsg.includes("not found")) {
           // Sora 端點不可用，降級到 LTX-Video-13B
           const fallbackPayload: Record<string, unknown> = {
             prompt: input.prompt,
@@ -401,7 +408,7 @@ export const videoStudioRouter = router({
             width: 848,
           };
           const result = (await falQueueRun(
-            "fal-ai/ltx-video-13b-distilled",
+            FALLBACK_MODEL,
             fallbackPayload,
             300
           )) as any;
@@ -409,6 +416,10 @@ export const videoStudioRouter = router({
             video_url: extractVideoUrl(result),
             raw: result,
             degraded: true,
+            degraded_reason:
+              "Sora 在 fal.ai 暫時不可用（404），已自動降級至 LTX-Video-13B（畫質與時長會降低，請於前端提示使用者）",
+            model_requested: SORA_MODEL,
+            model_used: FALLBACK_MODEL,
           };
         }
         throw e;
