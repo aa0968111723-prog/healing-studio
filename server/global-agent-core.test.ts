@@ -1367,6 +1367,243 @@ describe("orchestrator precision policy", () => {
     // fix the issue manually.
     expect(result.endingPath).toBe("/image-studio");
   });
+
+  // ─── 全站光球代理 ↔ /video-studio (影片工作室) multi-step coverage ─────
+  // VideoStudio.tsx's handler switch covers fillPrompt / focusElement /
+  // reset / setModel / setParam / setTab / submit. Notably NO applyPreset
+  // and NO openDialog (unlike /image-studio) and NO setModality (unlike
+  // /studio). The supportedActions audit must enforce this so the orb's
+  // ranker doesn't silently dispatch unsupported actions to /video-studio.
+
+  it("/video-studio supportedActions matches VideoStudio.tsx's actual handler switch", () => {
+    // setTab/setModel/fillPrompt/submit/reset/setParam are the six non-
+    // universal actions VideoStudio actually implements. focusElement is
+    // universally handled by PageAgentContext. Crucially: applyPreset and
+    // openDialog are NOT here — VideoStudio doesn't handle them.
+    const videoStudio = APP_PAGE_REGISTRY.find(p => p.id === "video-studio");
+    expect(videoStudio).toBeTruthy();
+    expect(new Set(videoStudio!.supportedActions)).toEqual(
+      new Set([
+        "setTab",
+        "setModel",
+        "fillPrompt",
+        "submit",
+        "reset",
+        "setParam",
+        "focusElement",
+      ])
+    );
+    expect(videoStudio!.supportedActions).not.toContain("applyPreset");
+    expect(videoStudio!.supportedActions).not.toContain("openDialog");
+    expect(videoStudio!.supportedActions).not.toContain("setModality");
+  });
+
+  it("buildShortVideoWorkflow's /video-studio steps only use actions VideoStudio handles", () => {
+    // The cross-page short-video workflow (director → studio →
+    // video-studio → pro-studio) must not hand /video-studio an action
+    // it can't process. Filter to /video-studio steps and assert each
+    // actionType is in supportedActions.
+    const wf = buildShortVideoWorkflow("夜晚電影感咖啡廳");
+    const videoStudio = APP_PAGE_REGISTRY.find(p => p.id === "video-studio");
+    expect(videoStudio).toBeTruthy();
+    const videoSteps = wf.steps.filter(s => s.path === "/video-studio");
+    expect(videoSteps.length).toBeGreaterThan(0);
+    for (const step of videoSteps) {
+      expect(videoStudio!.supportedActions).toContain(step.actionType);
+    }
+  });
+
+  it("buildLongVideoWorkflow's /video-studio steps (every chapter) only use actions VideoStudio handles", () => {
+    // The long-video workflow scales /video-studio steps with chapter
+    // count. Even with 6 chapters (12 video-studio steps), every step
+    // must hit a VideoStudio-handled action.
+    const wf = buildLongVideoWorkflow("六章節旅行紀錄片", { chapters: 6 });
+    const videoStudio = APP_PAGE_REGISTRY.find(p => p.id === "video-studio");
+    expect(videoStudio).toBeTruthy();
+    const videoSteps = wf.steps.filter(s => s.path === "/video-studio");
+    expect(videoSteps.length).toBe(12); // 2 steps × 6 chapters
+    for (const step of videoSteps) {
+      expect(videoStudio!.supportedActions).toContain(step.actionType);
+    }
+  });
+
+  it("a multi-step video runWorkflow (setTab → setModel → fillPrompt → setParam → submit) all dispatches on /video-studio", async () => {
+    // Five-step deep-dive video creation: configure tab + model, fill
+    // prompt, set duration, submit. Notably: no applyPreset because
+    // VideoStudio doesn't handle it — orb must respect that.
+    globalAgentRegistry.clear();
+    globalAgentRegistry.register(
+      makePage("video-studio", "/video-studio", "影片創作室", [
+        "setTab",
+        "setModel",
+        "fillPrompt",
+        "setParam",
+        "submit",
+      ])
+    );
+    const calls: string[] = [];
+    const result = await executeGlobalWorkflow(
+      {
+        type: "runWorkflow",
+        name: "深度影片創作",
+        steps: [
+          { path: "/video-studio", actionType: "setTab", payload: "t2v", label: "切到 t2v" },
+          { path: "/video-studio", actionType: "setModel", payload: "kling-2.0", label: "選 kling 模型" },
+          { path: "/video-studio", actionType: "fillPrompt", payload: "城市夜雨運鏡", label: "填提示詞" },
+          { path: "/video-studio", actionType: "setParam", payload: "duration:8", label: "設定 8 秒" },
+          { path: "/video-studio", actionType: "submit", payload: "", label: "送出生成" },
+        ],
+      },
+      {
+        currentPage: null,
+        navigate: async path => calls.push(`nav:${path}`),
+        dispatch: async (action, opts) => {
+          calls.push(`act:${action.type}:${opts?.targetPageId ?? "none"}`);
+          return { ok: true };
+        },
+        waitAfterNavigateMs: 0,
+      }
+    );
+    expect(result.ok).toBe(true);
+    expect(calls.filter(c => c.startsWith("nav:"))).toEqual(["nav:/video-studio"]);
+    expect(calls.filter(c => c.startsWith("act:"))).toEqual([
+      "act:setTab:video-studio",
+      "act:setModel:video-studio",
+      "act:fillPrompt:video-studio",
+      "act:setParam:video-studio",
+      "act:submit:video-studio",
+    ]);
+  });
+
+  it("a video runWorkflow with NO step.path still lands every dispatch on /video-studio via fallback", async () => {
+    // Same defensive contract as the image-studio version: when a smaller
+    // LLM forgets pagePath, the per-step static fallback must resolve
+    // each step to /video-studio. We register /video-studio live to
+    // mirror the post-navigate state in production.
+    globalAgentRegistry.clear();
+    globalAgentRegistry.register(
+      makePage("video-studio", "/video-studio", "影片創作室", [
+        "setTab",
+        "fillPrompt",
+        "submit",
+      ])
+    );
+    const calls: string[] = [];
+    const result = await executeGlobalWorkflow(
+      {
+        type: "runWorkflow",
+        name: "缺路徑的影片流程",
+        steps: [
+          { actionType: "setTab", payload: "t2v", label: "切分頁" },
+          { actionType: "fillPrompt", payload: "電影感的夜雨運鏡影片", label: "填提示詞" },
+          { actionType: "submit", payload: "", label: "送出" },
+        ],
+      },
+      {
+        currentPage: null,
+        navigate: async path => calls.push(`nav:${path}`),
+        dispatch: async (action, opts) => {
+          calls.push(`act:${action.type}:${opts?.targetPageId ?? "none"}`);
+          return { ok: true };
+        },
+        waitAfterNavigateMs: 0,
+      }
+    );
+    expect(result.ok).toBe(true);
+    expect(calls.filter(c => c.startsWith("nav:"))).toEqual(["nav:/video-studio"]);
+    expect(calls.filter(c => c.startsWith("act:"))).toEqual([
+      "act:setTab:video-studio",
+      "act:fillPrompt:video-studio",
+      "act:submit:video-studio",
+    ]);
+  });
+
+  it("the cross-page short-video workflow drives /video-studio (fillPrompt + submit) end to end", async () => {
+    // buildShortVideoWorkflow spans /director → /studio → /video-studio →
+    // /pro-studio. With every studio live-registered (mirrors post-
+    // navigate state), executeGlobalWorkflow must navigate exactly once
+    // per page boundary, dispatch every step on its declared page, and
+    // every /video-studio step lands on /video-studio's handler.
+    globalAgentRegistry.clear();
+    globalAgentRegistry.register(makePage("director", "/director", "導演 AI", ["fillPrompt"]));
+    globalAgentRegistry.register(
+      makePage("studio", "/studio", "創作工作室", [
+        "setModality",
+        "fillPrompt",
+        "submit",
+      ])
+    );
+    globalAgentRegistry.register(
+      makePage("video-studio", "/video-studio", "影片創作室", [
+        "fillPrompt",
+        "submit",
+      ])
+    );
+    globalAgentRegistry.register(
+      makePage("pro-studio", "/pro-studio", "音樂配音創作室", [
+        "setTab",
+        "fillPrompt",
+      ])
+    );
+    const calls: string[] = [];
+    const wf = buildShortVideoWorkflow("城市夜雨咖啡廳的療癒短片");
+    const result = await executeGlobalWorkflow(wf, {
+      currentPage: null,
+      navigate: async path => calls.push(`nav:${path}`),
+      dispatch: async (action, opts) => {
+        calls.push(`act:${action.type}@${opts?.targetPageId ?? "none"}`);
+        return { ok: true };
+      },
+      waitAfterNavigateMs: 0,
+    });
+    expect(result.ok).toBe(true);
+    // Every /video-studio step in the cross-page chain dispatched on
+    // /video-studio — that's the contract for the orb→影片工作室 multi-
+    // step connection.
+    const videoSteps = wf.steps.filter(s => s.path === "/video-studio");
+    expect(videoSteps.length).toBeGreaterThanOrEqual(2);
+    const videoDispatches = calls.filter(c => c.endsWith("@video-studio"));
+    expect(videoDispatches.length).toBe(videoSteps.length);
+    // /video-studio gets navigated to exactly once across the workflow.
+    expect(calls.filter(c => c === "nav:/video-studio")).toHaveLength(1);
+  });
+
+  it("multi-step video workflow surfaces a clear failure on submit (no silent skip)", async () => {
+    // Same failure-semantics contract as the image-studio version:
+    // /video-studio submit fails frequently (missing API key, video
+    // generation timeout). The orb's failure card needs the real reason
+    // and the right endingPath to drop the user back on /video-studio.
+    globalAgentRegistry.clear();
+    globalAgentRegistry.register(
+      makePage("video-studio", "/video-studio", "影片創作室", [
+        "fillPrompt",
+        "submit",
+      ])
+    );
+    const result = await executeGlobalWorkflow(
+      {
+        type: "runWorkflow",
+        name: "影片流程含失敗",
+        steps: [
+          { path: "/video-studio", actionType: "fillPrompt", payload: "x", label: "a" },
+          { path: "/video-studio", actionType: "submit", payload: "", label: "b" },
+        ],
+      },
+      {
+        currentPage: null,
+        navigate: async () => undefined,
+        dispatch: async action =>
+          action.type === "submit"
+            ? { ok: false, reason: "video-studio: kling API timeout" }
+            : { ok: true },
+        waitAfterNavigateMs: 0,
+      }
+    );
+    expect(result.ok).toBe(false);
+    expect(result.reason).toContain("kling API timeout");
+    expect(result.results[1]?.ok).toBe(false);
+    expect(result.endingPath).toBe("/video-studio");
+  });
 });
 
 describe("orchestrator safety helpers", () => {
