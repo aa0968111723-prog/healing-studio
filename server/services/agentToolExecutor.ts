@@ -797,8 +797,20 @@ async function dispatchStudioTool(
 
       case "studio.generateVoice": {
         const { dispatchFalQueueTask } = await import("./falDispatcher");
-        const modelId =
-          (args.modelId as string) || "fal-ai/elevenlabs/tts/turbo-v2.5";
+        // 光球沒指定模型時，讀使用者大腦組態的 voiceEngine；保留 turbo-v2.5 作為最終 fallback。
+        let modelId = (args.modelId as string) || "";
+        if (!modelId) {
+          try {
+            const { buildBrainContext } = await import(
+              "../middleware/brainContext"
+            );
+            const brain = await buildBrainContext(opts.userId);
+            modelId = brain.getEngine("voiceEngine").engine;
+          } catch {
+            // brain 載入失敗則退回 turbo-v2.5
+          }
+          if (!modelId) modelId = "fal-ai/elevenlabs/tts/turbo-v2.5";
+        }
         const input: Record<string, unknown> = {};
         if (typeof args.text === "string") input.text = args.text;
         if (typeof args.voice_id === "string") input.voice_id = args.voice_id;
