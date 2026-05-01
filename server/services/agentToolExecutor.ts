@@ -29,6 +29,33 @@ interface FalDispatchEnvelope {
 }
 
 /**
+ * 解析光球工具的目標模型：
+ *  1. 呼叫端有指定 modelId → 直接用
+ *  2. 否則讀使用者大腦組態的對應 engine slot
+ *  3. brain 載入失敗或 slot 為空 → 用 hardcoded fallback
+ *
+ * 同時應用於 studio.generateImage / generateVideo（t2v）/ generateAudio /
+ * generateVoice，避免「使用者改了大腦組態，光球仍用舊預設」的回歸。
+ */
+async function resolveOrbEngine(
+  requestedModelId: string,
+  userId: number,
+  slot: "imageEngine" | "videoEngine" | "audioEngine" | "voiceEngine",
+  hardcodedFallback: string
+): Promise<string> {
+  if (requestedModelId) return requestedModelId;
+  try {
+    const { buildBrainContext } = await import("../middleware/brainContext");
+    const brain = await buildBrainContext(userId);
+    const fromBrain = brain.getEngine(slot).engine;
+    if (fromBrain) return fromBrain;
+  } catch {
+    // brain 載入失敗（DB 不可用等），落到 fallback
+  }
+  return hardcodedFallback;
+}
+
+/**
  * Wait for a fal queue dispatch to terminate (completed / failed / pending),
  * then merge the awaited URLs into the dispatcher's envelope so downstream
  * step-ref placeholders (`${step1.video_url}`) resolve. Honours the
@@ -591,7 +618,12 @@ async function dispatchStudioTool(
     switch (call.name) {
       case "studio.generateImage": {
         const { dispatchFalQueueTask } = await import("./falDispatcher");
-        const modelId = (args.modelId as string) || "fal-ai/flux/dev";
+        const modelId = await resolveOrbEngine(
+          (args.modelId as string) || "",
+          opts.userId,
+          "imageEngine",
+          "fal-ai/flux/dev"
+        );
         const input: Record<string, unknown> = {};
         if (typeof args.prompt === "string") input.prompt = args.prompt;
         if (typeof args.aspect_ratio === "string")
@@ -637,8 +669,16 @@ async function dispatchStudioTool(
           "image-to-video": "fal-ai/kling-video/v2.1/pro/image-to-video",
           "text-to-video": "fal-ai/kling-video/v2.1/pro/text-to-video",
         } as const;
+        // brain 的 videoEngine 是 t2v 預設；i2v / v2v 各自有結構性預設模型，不該被覆寫。
         const modelId =
-          (args.modelId as string) || defaultModelByCategory[category];
+          category === "text-to-video"
+            ? await resolveOrbEngine(
+                (args.modelId as string) || "",
+                opts.userId,
+                "videoEngine",
+                defaultModelByCategory[category]
+              )
+            : (args.modelId as string) || defaultModelByCategory[category];
         const input: Record<string, unknown> = {};
         if (typeof args.prompt === "string") input.prompt = args.prompt;
         if (typeof args.image_url === "string") input.image_url = args.image_url;
@@ -756,20 +796,12 @@ async function dispatchStudioTool(
 
         // fal.ai 路徑（預設）
         const { dispatchFalQueueTask } = await import("./falDispatcher");
-        // 光球沒指定模型時，讀使用者大腦組態的 audioEngine；保留 ace-step 作為最終 fallback。
-        let modelId = requestedModel;
-        if (!modelId) {
-          try {
-            const { buildBrainContext } = await import(
-              "../middleware/brainContext"
-            );
-            const brain = await buildBrainContext(opts.userId);
-            modelId = brain.getEngine("audioEngine").engine;
-          } catch {
-            // brain 載入失敗則退回 ace-step
-          }
-          if (!modelId) modelId = "fal-ai/ace-step";
-        }
+        const modelId = await resolveOrbEngine(
+          requestedModel,
+          opts.userId,
+          "audioEngine",
+          "fal-ai/ace-step"
+        );
         const input: Record<string, unknown> = {};
         if (typeof args.prompt === "string") input.prompt = args.prompt;
         if (typeof args.lyrics === "string") input.lyrics = args.lyrics;
@@ -797,20 +829,12 @@ async function dispatchStudioTool(
 
       case "studio.generateVoice": {
         const { dispatchFalQueueTask } = await import("./falDispatcher");
-        // 光球沒指定模型時，讀使用者大腦組態的 voiceEngine；保留 turbo-v2.5 作為最終 fallback。
-        let modelId = (args.modelId as string) || "";
-        if (!modelId) {
-          try {
-            const { buildBrainContext } = await import(
-              "../middleware/brainContext"
-            );
-            const brain = await buildBrainContext(opts.userId);
-            modelId = brain.getEngine("voiceEngine").engine;
-          } catch {
-            // brain 載入失敗則退回 turbo-v2.5
-          }
-          if (!modelId) modelId = "fal-ai/elevenlabs/tts/turbo-v2.5";
-        }
+        const modelId = await resolveOrbEngine(
+          (args.modelId as string) || "",
+          opts.userId,
+          "voiceEngine",
+          "fal-ai/elevenlabs/tts/turbo-v2.5"
+        );
         const input: Record<string, unknown> = {};
         if (typeof args.text === "string") input.text = args.text;
         if (typeof args.voice_id === "string") input.voice_id = args.voice_id;

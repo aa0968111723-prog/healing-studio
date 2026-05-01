@@ -161,6 +161,62 @@ describe("executeOrbToolCalls — studio.* bridge", () => {
     });
   });
 
+  it("falls through to brain-config engine slot when modelId is omitted (all 4 generate tools)", async () => {
+    // 統一驗證四個 studio.* 工具：呼叫端沒指定 modelId 時，必須讀大腦組態的
+    // 對應 engine slot，而不是 hardcoded 的舊預設。沒有 DB 的測試環境會
+    // 退回 DEFAULT_GENERATION_ENGINES，所以這裡斷言 URL 命中那些預設值。
+    const { DEFAULT_GENERATION_ENGINES } = await import(
+      "./middleware/brainContext"
+    );
+    const expected: Array<{
+      tool: string;
+      args: Record<string, unknown>;
+      slot: keyof typeof DEFAULT_GENERATION_ENGINES;
+    }> = [
+      { tool: "studio.generateImage", args: { prompt: "x" }, slot: "imageEngine" },
+      // 影片只有 t2v 走 brain；i2v / v2v 各有結構性預設。這裡測 t2v。
+      { tool: "studio.generateVideo", args: { prompt: "x" }, slot: "videoEngine" },
+      { tool: "studio.generateAudio", args: { prompt: "x" }, slot: "audioEngine" },
+      { tool: "studio.generateVoice", args: { text: "你好" }, slot: "voiceEngine" },
+    ];
+
+    for (const { tool, args, slot } of expected) {
+      const submitUrls: string[] = [];
+      const fetchMock = vi.fn(async (url: string) => {
+        submitUrls.push(url);
+        return new Response(JSON.stringify({ request_id: `req-${slot}` }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
+      const out = await executeOrbToolCalls({
+        tools: [],
+        calls: [
+          {
+            name: tool,
+            // 不帶 modelId — 必須由 brain config 解析
+            args: { ...args, wait: false },
+          },
+        ],
+        userId: 1234,
+        userRole: "user",
+        approved: true,
+      });
+
+      expect(out[0].ok, `${tool} should succeed`).toBe(true);
+      // queue.fal.run/<modelId> — modelId 必須等於 brain 預設 engine
+      const expectedEngine = DEFAULT_GENERATION_ENGINES[slot].engine;
+      expect(
+        submitUrls[0],
+        `${tool} should dispatch to brain ${slot}=${expectedEngine}`
+      ).toContain(expectedEngine);
+
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("waits for fal queue completion and exposes media URLs to chained steps", async () => {
     // Default behaviour (no wait flag) must poll fal until COMPLETED so
     // multi-step pipelines can chain ${stepN.image_url} into the next call.
