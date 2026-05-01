@@ -86,6 +86,13 @@ function selfRepairEnv(): void {
     ANTROPIC_API_KEY: "ANTHROPIC_API_KEY", // 少一個 H
     NVIDA_API: "NVIDIA_API",                // 少一個 I
     FAL_KEY: "FAL_API_KEY",                  // 別名
+    // ── 認證密鑰別名：AUTH_SECRET 為使用者習慣命名，內部統一用 JWT_SECRET ──
+    AUTH_SECRET: "JWT_SECRET",
+    // ── 功能旗標別名：使用者層用 ENABLE_*；內部 featureFlags.ts 讀 FEATURE_* ──
+    // featureFlags.ts:180-184 會讀 process.env[`FEATURE_${name}`]，rename 後即可生效
+    ENABLE_ADVANCED_SEARCH: "FEATURE_ADVANCED_SEARCH",
+    ENABLE_RAG_MEMORY: "FEATURE_RAG_MEMORY",
+    ENABLE_RESEARCH_MODE: "FEATURE_RESEARCH_MODE",
   };
   for (const [alias, canonical] of Object.entries(ALIASES)) {
     const aliasVal = env[alias];
@@ -287,6 +294,14 @@ const coreSchema = z.object({
   ALERT_SLACK_WEBHOOK: z.string().optional().default(""),
   ALERT_EMAIL_RECIPIENTS: z.string().optional().default(""),
   AI_MONTHLY_BUDGET_USD: z.string().optional().default("500"),
+
+  // ── 效能調節（皆為純數字字串，下游 parseInt 後使用）─────────
+  // CACHE_TTL_SECONDS：LRU 快取預設 TTL（秒），cache.ts 的 DEFAULT_TTL_SECONDS
+  // LLM_TIMEOUT_SECONDS：所有 LLM 呼叫的 AbortSignal timeout（秒），llm.ts 全域生效
+  // MAX_CONCURRENT_LLM_CALLS：同時並行的 LLM 呼叫上限，超過排隊（_core/llmConcurrency.ts）
+  CACHE_TTL_SECONDS: z.string().optional().default("300"),
+  LLM_TIMEOUT_SECONDS: z.string().optional().default("60"),
+  MAX_CONCURRENT_LLM_CALLS: z.string().optional().default("5"),
 
   // ── Stripe 收款（沒設則跳過 webhook 簽章驗證 / 不建立訂單）─
   STRIPE_SECRET_KEY: z.string().optional().default(""),

@@ -13,6 +13,7 @@ import { z } from "zod";
 import * as db from "./db";
 import { invokeLLM, type Message } from "./_core/llm";
 import { serverEnv } from "./_core/env.validated";
+import { featureFlags } from "./_core/featureFlags";
 // imageGeneration.ts no longer used directly — all 4 modalities go through falDispatcher
 import { storagePut } from "./storage";
 import { TRPCError } from "@trpc/server";
@@ -4947,7 +4948,11 @@ export const appRouter = router({
         // orb can ground its reply in citable URLs instead of guessing.
         // Skipped silently when the trigger doesn't fire or the search
         // provider is unconfigured.
-        const webResearchEnabled = serverEnv.ENABLE_ORB_WEB_RESEARCH !== "false";
+        // Both ENABLE_ORB_WEB_RESEARCH and ENABLE_RESEARCH_MODE turn this on
+        // (the latter is rewritten to FEATURE_RESEARCH_MODE by env self-repair).
+        const webResearchEnabled =
+          serverEnv.ENABLE_ORB_WEB_RESEARCH !== "false" &&
+          featureFlags.isEnabled("RESEARCH_MODE");
         const webResearchOutcome = await runOrbWebResearch(
           latestUserTextForRouting,
           { enabled: webResearchEnabled }

@@ -20,7 +20,7 @@
 openssl rand -base64 32
 ```
 
-> ⚠️ **不要**另外設定 `AUTH_SECRET`，程式碼只讀 `JWT_SECRET`（`server/_core/env.ts:14`）。
+> 💡 也可改用別名 `AUTH_SECRET`（self-repair 會自動 rename 成 `JWT_SECRET`），任設一個即可。
 
 ---
 
@@ -134,17 +134,31 @@ openssl rand -base64 32
 
 ---
 
-## ❌ 不要設定（程式碼從未讀取）
+## 🔧 效能調節（純整數，皆有預設值，可選填）
 
-下列變數**完全沒有任何 code 引用**，設了只是噪音：
+| 變數名稱                 | 預設 | 用途                                                              |
+| ------------------------ | ---- | ----------------------------------------------------------------- |
+| `CACHE_TTL_SECONDS`      | 300  | `_core/cache.ts` LRU 快取的預設 TTL（秒）                          |
+| `LLM_TIMEOUT_SECONDS`    | 60   | 所有 LLM HTTP 呼叫的 AbortSignal timeout（秒）                     |
+| `MAX_CONCURRENT_LLM_CALLS` | 5  | 全域同時並行的 LLM 呼叫上限（`_core/llmConcurrency.ts` semaphore）  |
 
-- `AUTH_SECRET`（用 `JWT_SECRET` 取代）
-- `CACHE_TTL_SECONDS`（cache TTL 是 hardcoded 常數）
-- `LLM_TIMEOUT_SECONDS`（hardcoded 90000ms）
-- `MAX_CONCURRENT_LLM_CALLS`（無引用）
-- `ENABLE_ADVANCED_SEARCH`（無引用）
-- `ENABLE_RAG_MEMORY`（用 `ENABLE_ORB_LONG_TERM_MEMORY` 取代）
-- `ENABLE_RESEARCH_MODE`（用 `ENABLE_ORB_WEB_RESEARCH` 取代）
+> 突發流量（光球同時跑多個 research query）會排隊而非一次打爆 provider rate limit。
+
+---
+
+## 🔁 變數別名（self-repair 自動 rename，可任填一邊）
+
+啟動時 `_core/env.validated.ts` 會把下列「使用者習慣命名」rename 成「程式碼內部命名」：
+
+| 設定的名稱（也接受） | 內部實際名稱             | 用途                            |
+| -------------------- | ------------------------ | ------------------------------- |
+| `AUTH_SECRET`        | `JWT_SECRET`             | JWT 簽名（任設一個即可）         |
+| `ENABLE_ADVANCED_SEARCH` | `FEATURE_ADVANCED_SEARCH` | featureFlags：多 provider 搜尋 |
+| `ENABLE_RAG_MEMORY`  | `FEATURE_RAG_MEMORY`     | featureFlags：Pinecone 向量記憶 |
+| `ENABLE_RESEARCH_MODE` | `FEATURE_RESEARCH_MODE` | featureFlags：深度研究流程       |
+| `NTHROPIC_API_KEY` / `ANTROPIC_API_KEY` | `ANTHROPIC_API_KEY` | typo 修補         |
+| `NVIDA_API`          | `NVIDIA_API`             | typo 修補                       |
+| `FAL_KEY`            | `FAL_API_KEY`            | typo 修補                       |
 
 ---
 
