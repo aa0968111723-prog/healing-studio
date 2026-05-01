@@ -41,6 +41,7 @@ import {
 import { userAiBrain, userModelSwitchLogs } from "../../drizzle/schema";
 import {
   getHealthStatus,
+  getHealthStatusDetailed,
   getHealthSnapshot,
   DEFAULT_REASONING_BRAINS,
   DEFAULT_GENERATION_ENGINES,
@@ -658,12 +659,20 @@ export const brainRouter = router({
 
     const status: Record<
       string,
-      { healthy: boolean; consecutiveFailures: number; lastError?: string }
+      {
+        /** 向後相容欄位:無快取時樂觀回 true */
+        healthy: boolean;
+        /** 三態:healthy / unhealthy / unverified(尚未探測過) */
+        state: "healthy" | "unhealthy" | "unverified";
+        consecutiveFailures: number;
+        lastError?: string;
+      }
     > = {};
     for (const model of Array.from(allModels)) {
       const cached = snapshot[model];
       status[model] = {
         healthy: cached ? cached.healthy : getHealthStatus(model),
+        state: getHealthStatusDetailed(model),
         consecutiveFailures: cached?.consecutiveFailures ?? 0,
         lastError: cached?.lastError,
       };

@@ -143,9 +143,16 @@ function withTextareaValue(handler?: (value: string) => void) {
   };
 }
 
+type HealthState = "healthy" | "unhealthy" | "unverified";
+
 type HealthStatus = Record<
   string,
-  { healthy: boolean; consecutiveFailures: number; lastError?: string }
+  {
+    healthy: boolean;
+    state?: HealthState;
+    consecutiveFailures: number;
+    lastError?: string;
+  }
 >;
 
 // Fal.ai 16大類任務引擎鍵名
@@ -242,24 +249,28 @@ function HealthDot({
   health: HealthStatus | undefined;
 }) {
   const status = health?.[model];
-  const isHealthy = status?.healthy ?? true;
+  const state: HealthState = status?.state ?? (status ? "healthy" : "unverified");
   const failures = status?.consecutiveFailures ?? 0;
 
   let color: string;
   let label: string;
   let pulseClass: string;
 
-  if (!isHealthy) {
+  if (state === "unhealthy") {
     color = "bg-red-500";
     label = "Offline";
     pulseClass = "";
+  } else if (state === "unverified") {
+    color = "bg-slate-400";
+    label = "未驗證";
+    pulseClass = "animate-pulse";
   } else if (failures > 0) {
     color = "bg-amber-500";
     label = "Degraded";
     pulseClass = "animate-pulse";
   } else {
     color = "bg-emerald-500";
-    label = "Online";
+    label = "已驗證";
     pulseClass = "";
   }
 
@@ -268,7 +279,7 @@ function HealthDot({
       <TooltipTrigger asChild>
         <span className="relative inline-flex items-center">
           <span className={`w-2.5 h-2.5 rounded-full ${color} ${pulseClass}`} />
-          {isHealthy && failures === 0 && (
+          {state === "healthy" && failures === 0 && (
             <span
               className={`absolute w-2.5 h-2.5 rounded-full ${color} animate-ping opacity-40`}
             />

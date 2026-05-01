@@ -178,6 +178,24 @@ export function getHealthStatus(modelOrEngine: string): boolean {
   return cached?.healthy ?? true;
 }
 
+/** 三態健康狀態:已驗證健康 / 已驗證不健康 / 未驗證(尚未探測過) */
+export type HealthState = "healthy" | "unhealthy" | "unverified";
+
+/**
+ * 細緻版健康檢查:回傳三態,讓 UI 能區分「樂觀預設 healthy」與「真的探測過健康」。
+ * 與 getHealthStatus 不同之處:無快取時回 "unverified",而非樂觀的 true。
+ */
+export function getHealthStatusDetailed(modelOrEngine: string): HealthState {
+  const cached = healthCache.get(modelOrEngine);
+  const now = Date.now();
+  if (cached && now - cached.checkedAt < HEALTH_CACHE_TTL_MS) {
+    return cached.healthy ? "healthy" : "unhealthy";
+  }
+  // 排程背景探測,但不假裝已驗證
+  scheduleHealthCheck(modelOrEngine);
+  return "unverified";
+}
+
 /**
  * 同步版健康探測（preflight）—— 用於高成本模型（Sora、Veo3、Topaz、Kling Pro 等
  * ultra tier）首次選用前的「先驗證再扣點」場景。
