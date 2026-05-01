@@ -489,18 +489,20 @@ describe("global-agent-orchestrator", () => {
 
     expect(result.ok).toBe(true);
     expect(result.workflowName).toBe("測試跨頁流程");
+    // Precision policy: same-page consecutive steps must NOT re-navigate
+    // (currentPath tracked locally), and onWorkflowStep fires AFTER the
+    // navigate completes so the progress UI never claims a step is running
+    // before its destination is reached.
     expect(calls).toEqual([
-      "step:1:填企劃",
       "nav:/director",
+      "step:1:填企劃",
       "act:fillPrompt:director",
       "step:2:送出",
-      "nav:/director",
       "act:submit:director",
-      "step:3:切圖像",
       "nav:/studio",
+      "step:3:切圖像",
       "act:setModality:studio",
       "step:4:填圖像",
-      "nav:/studio",
       "act:fillPrompt:studio",
     ]);
   });
@@ -545,10 +547,13 @@ describe("global-agent-orchestrator", () => {
       waitAfterNavigateMs: 0,
     });
 
+    // Precision policy: cross-action path threading. The second action targets
+    // the same page the first one landed on, so we must NOT navigate again —
+    // doing so would burn a fresh settle wait and (in production) trigger
+    // wouter's no-op route change which still costs a render.
     expect(calls).toEqual([
       "nav:/director",
       "act:fillPrompt",
-      "nav:/director",
       "act:setTab",
     ]);
   });
@@ -645,11 +650,11 @@ describe("global-agent-orchestrator", () => {
     });
 
     expect(result.ok).toBe(true);
-    // ctx.currentPage stays null in the test, so each step's s.path triggers
-    // ctx.navigate. The navigate ACTION itself must not be dispatched —
-    // otherwise the page-agent's "navigate handled by orb layer" rejection
-    // would fail the workflow.
-    expect(calls).toEqual(["nav:/studio", "nav:/studio", "act:fillPrompt"]);
+    // currentPath tracking means the second step (already on /studio) skips
+    // the redundant navigate. The navigate ACTION itself must still NOT be
+    // dispatched — otherwise the page-agent's "navigate handled by orb layer"
+    // rejection would fail the workflow.
+    expect(calls).toEqual(["nav:/studio", "act:fillPrompt"]);
     expect(calls).not.toContain("act:navigate");
   });
 
@@ -675,6 +680,183 @@ describe("global-agent-orchestrator", () => {
 
     expect(result.ok).toBe(true);
     expect(seenOpts).toEqual([{ source: "ai-chat", intentSummary: "幫我做影片企劃" }]);
+  });
+});
+
+describe("orchestrator precision policy", () => {
+  beforeEach(() => {
+    globalAgentRegistry.clear();
+  });
+
+  it("awaits page readiness after every navigate when awaitPageReady is provided", async () => {
+    globalAgentRegistry.register(makePage("director", "/director", "導演 AI", ["fillPrompt", "submit"]));
+    globalAgentRegistry.register(makePage("studio", "/studio", "創作工作室", ["fillPrompt"]));
+    const readinessProbes: Array<{ path: string; timeoutMs: number }> = [];
+
+    const result = await executeGlobalWorkflow({
+      type: "runWorkflow",
+      name: "等頁面就緒",
+      steps: [
+        { path: "/director", actionType: "fillPrompt", payload: "x", label: "a" },
+        { path: "/director", actionType: "submit", payload: "", label: "b" },
+        { path: "/studio", actionType: "fillPrompt", payload: "y", label: "c" },
+      ],
+    }, {
+      currentPage: null,
+      navigate: async () => undefined,
+      dispatch: async () => ({ ok: true }),
+      waitAfterNavigateMs: 0,
+      pageReadyTimeoutMs: 1000,
+      awaitPageReady: async (path, opts) => {
+        readinessProbes.push({ path, timeoutMs: opts.timeoutMs });
+        return true;
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    // One probe per actual navigate. Same-page consecutive steps must not
+    // re-probe — that's wasted time and a false guarantee.
+    expect(readinessProbes).toEqual([
+      { path: "/director", timeoutMs: 1000 },
+      { path: "/studio", timeoutMs: 1000 },
+    ]);
+  });
+
+  it("continues even when awaitPageReady reports timeout (dispatch's enqueue path covers it)", async () => {
+    globalAgentRegistry.register(makePage("director", "/director", "導演 AI", ["fillPrompt"]));
+    const dispatched: string[] = [];
+
+    const result = await executeGlobalWorkflow({
+      type: "runWorkflow",
+      name: "就緒逾時",
+      steps: [{ path: "/director", actionType: "fillPrompt", payload: "x", label: "a" }],
+    }, {
+      currentPage: null,
+      navigate: async () => undefined,
+      dispatch: async action => {
+        dispatched.push(action.type);
+        return { ok: true };
+      },
+      waitAfterNavigateMs: 0,
+      pageReadyTimeoutMs: 50,
+      awaitPageReady: async () => false,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(dispatched).toEqual(["fillPrompt"]);
+  });
+
+  it("threads the just-landed path forward across executeGlobalActions", async () => {
+    // No registry — actions get planned via current page hint. We pass a
+    // currentPage on /home so the FIRST action navigates, but the SECOND
+    // (which the planner routes to the same page the first ended on) must
+    // skip the redundant navigate via the new endingPath threading.
+    globalAgentRegistry.register(makePage("director", "/director", "導演 AI", ["fillPrompt", "setTab", "submit"]));
+    const calls: string[] = [];
+
+    const results = await executeGlobalActions(
+      [
+        { type: "fillPrompt", text: "a" },
+        { type: "setTab", tabId: "main" },
+        { type: "submit" },
+      ],
+      {
+        currentPage: null,
+        navigate: async path => calls.push(`nav:${path}`),
+        dispatch: async action => {
+          calls.push(`act:${action.type}`);
+          return { ok: true };
+        },
+        waitAfterNavigateMs: 0,
+      }
+    );
+
+    expect(results.every(r => r.ok)).toBe(true);
+    // Only ONE navigate even though there are 3 actions all routed to /director.
+    expect(calls).toEqual([
+      "nav:/director",
+      "act:fillPrompt",
+      "act:setTab",
+      "act:submit",
+    ]);
+    expect(results[0]?.endingPath).toBe("/director");
+    expect(results[2]?.endingPath).toBe("/director");
+  });
+
+  it("workflowSequential exposes endingPath on success and on failure", async () => {
+    globalAgentRegistry.register(makePage("director", "/director", "導演 AI", ["fillPrompt", "submit"]));
+
+    const okResult = await executeGlobalWorkflow({
+      type: "runWorkflow",
+      name: "成功",
+      steps: [{ path: "/director", actionType: "fillPrompt", payload: "x", label: "a" }],
+    }, {
+      currentPage: null,
+      navigate: async () => undefined,
+      dispatch: async () => ({ ok: true }),
+      waitAfterNavigateMs: 0,
+    });
+    expect(okResult.endingPath).toBe("/director");
+
+    const failResult = await executeGlobalWorkflow({
+      type: "runWorkflow",
+      name: "失敗",
+      steps: [
+        { path: "/director", actionType: "fillPrompt", payload: "x", label: "a" },
+        { path: "/director", actionType: "submit", payload: "", label: "b" },
+      ],
+    }, {
+      currentPage: null,
+      navigate: async () => undefined,
+      dispatch: async action => action.type === "submit" ? { ok: false, reason: "x" } : { ok: true },
+      waitAfterNavigateMs: 0,
+    });
+    expect(failResult.endingPath).toBe("/director");
+  });
+
+  it("respects ctx.currentPath override when provided", async () => {
+    globalAgentRegistry.register(makePage("studio", "/studio", "創作工作室", ["fillPrompt"]));
+    const calls: string[] = [];
+
+    const result = await executeGlobalWorkflow({
+      type: "runWorkflow",
+      name: "已在工作室",
+      steps: [{ path: "/studio", actionType: "fillPrompt", payload: "x", label: "a" }],
+    }, {
+      currentPage: null,
+      currentPath: "/studio",
+      navigate: async path => calls.push(`nav:${path}`),
+      dispatch: async action => {
+        calls.push(`act:${action.type}`);
+        return { ok: true };
+      },
+      waitAfterNavigateMs: 0,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(calls).toEqual(["act:fillPrompt"]);
+  });
+
+  it("onWorkflowStep fires AFTER navigate so the UI never claims a step is running before its destination is reached", async () => {
+    globalAgentRegistry.register(makePage("director", "/director", "導演 AI", ["fillPrompt"]));
+    const order: string[] = [];
+
+    await executeGlobalWorkflow({
+      type: "runWorkflow",
+      name: "順序",
+      steps: [{ path: "/director", actionType: "fillPrompt", payload: "x", label: "填" }],
+    }, {
+      currentPage: null,
+      navigate: async path => order.push(`nav:${path}`),
+      dispatch: async () => {
+        order.push("dispatch");
+        return { ok: true };
+      },
+      waitAfterNavigateMs: 0,
+      onWorkflowStep: step => order.push(`step:${step.label}`),
+    });
+
+    expect(order).toEqual(["nav:/director", "step:填", "dispatch"]);
   });
 });
 

@@ -15,9 +15,40 @@ import { topologicalBatches, ensureStepIds } from "./orb-dag-scheduler";
 
 export interface GlobalAgentExecutionContext {
   currentPage?: PageAgentSnapshot | null;
+  /**
+   * Override for "the path the SPA is currently on". When set, takes
+   * precedence over `currentPage?.pagePath` for the redundant-navigate
+   * check. Used internally by `executeGlobalActions` to thread the
+   * just-landed path forward across a multi-action batch — without it the
+   * second action would re-navigate to the same page the first action just
+   * left us on, because `currentPage` is a frozen snapshot from the caller.
+   */
+  currentPath?: string;
   navigate: (path: string) => Promise<void> | void;
   dispatch: (action: AgentAction, opts?: GlobalDispatchOptions) => Promise<AgentActionResult>;
+  /**
+   * Minimum settle time after `navigate()` before the orchestrator polls for
+   * handler readiness. Lets wouter / React commit the route change. Default
+   * 450ms — set 0 in tests.
+   */
   waitAfterNavigateMs?: number;
+  /**
+   * Optional readiness probe. When provided, the orchestrator awaits this
+   * after `navigate()` + the settle wait, before dispatching the step's
+   * action. Returns true if the destination handler registered in time,
+   * false on timeout. The orchestrator continues either way (timeouts get
+   * surfaced via the dispatch failure path), but a true return guarantees
+   * the next dispatch lands on a live handler instead of the silent enqueue
+   * path. Wire this up to `globalAgentRegistry.findByPath` polling from the
+   * client to make cross-page workflows survive slow route hydration.
+   */
+  awaitPageReady?: (path: string, opts: { timeoutMs: number }) => Promise<boolean>;
+  /**
+   * Cap on the readiness poll. Default 4000ms. Tuned for "slow but precise":
+   * we'd rather block here for a few seconds than dispatch into the queue
+   * and lose deterministic ordering.
+   */
+  pageReadyTimeoutMs?: number;
   source?: "ai-chat" | "orb-guide" | "manual";
   requireConfirmation?: boolean;
   intentSummary?: string;
@@ -47,6 +78,13 @@ export interface GlobalAgentExecutionResult {
   results: AgentActionResult[];
   reason?: string;
   workflowName?: string;
+  /**
+   * The path the orchestrator believes the SPA ended on after this run.
+   * Threaded by `executeGlobalActions` into the next iteration's `currentPath`
+   * so consecutive actions targeting the same page skip the redundant
+   * navigate + settle wait. Undefined when no step had a path.
+   */
+  endingPath?: string;
 }
 
 const DANGEROUS_ACTION_TYPES = new Set<AgentAction["type"]>([
@@ -134,6 +172,37 @@ function wait(ms: number) {
 
 function normalizeResult(r?: AgentActionResult): AgentActionResult {
   return r ?? { ok: true };
+}
+
+/**
+ * Navigate + settle + (optionally) wait for the destination page handler to
+ * register. Centralised so sequential and parallel paths apply the exact same
+ * precision policy. Returns the readiness signal so callers can log /
+ * surface telemetry — the orchestrator does NOT abort on a false return
+ * because the dispatch layer's silent-enqueue + retry-on-register path will
+ * still satisfy the action; we just wanted to give it the best chance to run
+ * synchronously.
+ */
+async function navigateAndSettle(
+  path: string,
+  ctx: GlobalAgentExecutionContext
+): Promise<{ ready: boolean }> {
+  await ctx.navigate(path);
+  const settle = ctx.waitAfterNavigateMs ?? 450;
+  if (settle > 0) await wait(settle);
+  if (!ctx.awaitPageReady) return { ready: true };
+  const timeoutMs = ctx.pageReadyTimeoutMs ?? 4000;
+  try {
+    const ready = await ctx.awaitPageReady(path, { timeoutMs });
+    log("navigate.ready", { path, ready, timeoutMs });
+    return { ready };
+  } catch (err) {
+    log("navigate.ready_error", {
+      path,
+      reason: err instanceof Error ? err.message : String(err),
+    });
+    return { ready: false };
+  }
 }
 
 function flag(key: string) {
@@ -227,7 +296,19 @@ async function executeWorkflowParallel(
     Number.isFinite(concurrencyRaw) && concurrencyRaw > 0 ? Math.min(concurrencyRaw, 8) : 3;
 
   const allResults: AgentActionResult[] = [];
-  let stepIndex = 0;
+  // Map each scheduler step to its position in the original declared order so
+  // progress callbacks always report the user-visible step number. Critically:
+  // we do NOT mutate a shared counter inside `Promise.all` — that read-modify
+  // -write is racy and causes UI progress to jump around or duplicate.
+  const declaredIndex = new Map<string, number>();
+  ided.forEach((step, index) => declaredIndex.set(step.id, index));
+  // Track the path we believe the SPA is currently on. Within a single batch
+  // the DAG scheduler guarantees no two steps share a path (same-page chains
+  // are forced sequential), so updating this from concurrent slice tasks is
+  // safe — no two writers ever race for the same destination. Across batches
+  // the previous batch must have drained before the next begins, so the value
+  // is consistent at batch boundaries too.
+  let currentPath: string | undefined = ctx.currentPath ?? ctx.currentPage?.pagePath;
 
   for (const batch of batches) {
     let cursor = 0;
@@ -242,12 +323,12 @@ async function executeWorkflowParallel(
           // Per-step navigate happens BEFORE the dispatch, exactly like the
           // sequential loop. Same-page steps already live in different
           // batches so concurrent navigates can only target different paths.
-          if (expanded.path && expanded.path !== ctx.currentPage?.pagePath) {
-            await ctx.navigate(expanded.path);
-            await wait(ctx.waitAfterNavigateMs ?? 450);
+          if (expanded.path && expanded.path !== currentPath) {
+            await navigateAndSettle(expanded.path, ctx);
+            currentPath = expanded.path;
           }
           ctx.onWorkflowStep?.({
-            index: stepIndex++,
+            index: declaredIndex.get(batchStep.id) ?? 0,
             total: ided.length,
             label: expanded.label,
             path: expanded.path,
@@ -292,7 +373,7 @@ async function executeWorkflowParallel(
   }
 
   log("workflow.parallel_complete", { name: action.name });
-  return { ok: true, results: allResults, workflowName: action.name };
+  return { ok: true, results: allResults, workflowName: action.name, endingPath: currentPath };
 }
 
 /**
@@ -306,16 +387,30 @@ async function executeWorkflowSequential(
 ): Promise<GlobalAgentExecutionResult> {
   log("workflow.start", { name: action.name, total: steps.length });
   const results: AgentActionResult[] = [];
+  // Track the SPA's current path locally so consecutive same-page steps
+  // skip both the redundant navigate() call AND the settle/readiness wait.
+  // Without this, ctx.currentPage stays frozen at workflow start and every
+  // step that targets a different path than the *initial* page re-navigates.
+  let currentPath: string | undefined = ctx.currentPath ?? ctx.currentPage?.pagePath;
 
   for (let i = 0; i < steps.length; i++) {
     const s = steps[i];
     log("workflow.step", { index: i, label: s.label });
-    ctx.onWorkflowStep?.({ index: i, total: steps.length, label: s.label, path: s.path, action: s.action });
 
-    if (s.path && s.path !== ctx.currentPage?.pagePath) {
-      await ctx.navigate(s.path);
-      await wait(ctx.waitAfterNavigateMs ?? 450);
+    if (s.path && s.path !== currentPath) {
+      await navigateAndSettle(s.path, ctx);
+      currentPath = s.path;
     }
+    // Fire the progress callback AFTER the navigate completes so the UI
+    // reflects "running step N" only when N can actually start, not while
+    // we're still settling on the previous step's destination.
+    ctx.onWorkflowStep?.({
+      index: i,
+      total: steps.length,
+      label: s.label,
+      path: s.path,
+      action: s.action,
+    });
     // Pure navigate steps are fully satisfied by ctx.navigate() above; the
     // page-agent layer intentionally rejects dispatched navigate actions
     // (orb owns navigation), so re-dispatching would surface a fake failure.
@@ -338,12 +433,18 @@ async function executeWorkflowSequential(
     results.push(res);
     if (!res.ok) {
       log("workflow.fail", { index: i, reason: res.reason });
-      return { ok: false, results, reason: res.reason, workflowName: action.name };
+      return {
+        ok: false,
+        results,
+        reason: res.reason,
+        workflowName: action.name,
+        endingPath: currentPath,
+      };
     }
   }
 
   log("workflow.complete", { name: action.name });
-  return { ok: true, results, workflowName: action.name };
+  return { ok: true, results, workflowName: action.name, endingPath: currentPath };
 }
 
 export function parallelSchedulerEnabled(action: RunWorkflowAction): boolean {
@@ -401,11 +502,12 @@ export async function executeGlobalAction(action: AgentAction, ctx: GlobalAgentE
   });
 
   const results: AgentActionResult[] = [];
+  let currentPath: string | undefined = ctx.currentPath ?? ctx.currentPage?.pagePath;
 
   for (const step of plan.steps) {
-    if (step.path && step.path !== ctx.currentPage?.pagePath) {
-      await ctx.navigate(step.path);
-      await wait(ctx.waitAfterNavigateMs ?? 450);
+    if (step.path && step.path !== currentPath) {
+      await navigateAndSettle(step.path, ctx);
+      currentPath = step.path;
     }
 
     // Pure navigate plans are fully satisfied by ctx.navigate() above; the
@@ -435,20 +537,31 @@ export async function executeGlobalAction(action: AgentAction, ctx: GlobalAgentE
         plan,
         results,
         reason: res.reason ?? "action execution failed",
+        endingPath: currentPath,
       };
     }
   }
 
   log("action.complete", { actionType: action.type });
-  return { ok: true, plan, results };
+  return { ok: true, plan, results, endingPath: currentPath };
 }
 
 export async function executeGlobalActions(actions: AgentAction[], ctx: GlobalAgentExecutionContext) {
   const results: GlobalAgentExecutionResult[] = [];
+  // Thread the inferred path forward across actions. After each action lands
+  // on a page, the next action treats that page as "current" — same precision
+  // policy as same-page steps inside a workflow: no redundant navigate, no
+  // redundant settle wait, no readiness re-poll.
+  let runningPath: string | undefined = ctx.currentPath ?? ctx.currentPage?.pagePath;
   for (const action of actions) {
-    const result = await executeGlobalAction(action, ctx);
+    const localCtx: GlobalAgentExecutionContext =
+      runningPath === (ctx.currentPath ?? ctx.currentPage?.pagePath)
+        ? ctx
+        : { ...ctx, currentPath: runningPath };
+    const result = await executeGlobalAction(action, localCtx);
     results.push(result);
     if (!result.ok) break;
+    if (result.endingPath) runningPath = result.endingPath;
   }
   return results;
 }
