@@ -19,4 +19,26 @@ describe("normalizeEngineModelId", () => {
     expect(normalizeEngineModelId("fal-ai/flux/dev")).toBe("fal-ai/flux/dev");
     expect(normalizeEngineModelId("gemini/veo-3")).toBe("gemini/veo-3");
   });
+
+  // DEF-So1：Sonauto canonical id 不在 fal endpoint 上，必須改寫。
+  it("rewrites fal-ai/sonauto to the real fal queue path", () => {
+    expect(normalizeEngineModelId("fal-ai/sonauto")).toBe(
+      "sonauto/v2/text-to-music"
+    );
+    expect(normalizeEngineModelId("fal/sonauto")).toBe(
+      "sonauto/v2/text-to-music"
+    );
+  });
+
+  // DEF-A1：fal.ai 下架 fal-ai/audioldm2，全部別名到 fal-ai/mmaudio-v2，
+  // 阻止 dispatcher 因 catalog 不到而誤降級到 ace-step（音樂引擎）。
+  it("rewrites all audioldm2 aliases to fal-ai/mmaudio-v2", () => {
+    expect(normalizeEngineModelId("fal-ai/audioldm2")).toBe(
+      "fal-ai/mmaudio-v2"
+    );
+    expect(normalizeEngineModelId("fal/audioldm2")).toBe("fal-ai/mmaudio-v2");
+    expect(normalizeEngineModelId("fal/audioldm2-v2a")).toBe(
+      "fal-ai/mmaudio-v2"
+    );
+  });
 });

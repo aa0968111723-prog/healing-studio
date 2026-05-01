@@ -792,19 +792,24 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     requiresKey: true,
     keyEnvVar: "FAL_API_KEY",
   },
+  // DEF-A2：fal-ai/audioldm2 endpoint 已被 fal.ai 下架，dispatcher 端會
+  // normalize 到 fal-ai/mmaudio-v2 實際送單。此 pricing 條目保留作為
+  // 上游（proStudio.chargeForFalTask / director.estimatePoints）在 normalize
+  // 之前的 lookup fallback，且數值與 mmaudio-v2 對齊，避免兩個 modelId
+  // 同一交付下出現計費差異。
   "fal-ai/audioldm2": {
     modelId: "fal-ai/audioldm2",
-    label: "AudioLDM 2",
+    label: "AudioLDM 2 (→ MMAudio V2)",
     provider: "fal",
     category: "text-to-audio",
     tier: "standard",
-    basePoints: 3,
-    baseCostUsd: 0.03,
-    unit: "每10秒",
-    pointsPerSecond: 0.3,
-    freeSecondsInBase: 10,
-    minPoints: 3,
-    maxPoints: 30,
+    basePoints: 4,
+    baseCostUsd: 0.04,
+    unit: "每15秒",
+    pointsPerSecond: 0.27,
+    freeSecondsInBase: 15,
+    minPoints: 4,
+    maxPoints: 40,
     requiresKey: true,
     keyEnvVar: "FAL_API_KEY",
   },

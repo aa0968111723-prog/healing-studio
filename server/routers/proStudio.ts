@@ -335,13 +335,15 @@ const SFX_MODELS = [
     badge: "預設",
     tier: "premium" as const,
   },
-  // DEF-SFX3：id 維持 "audioldm2" 以避開前端枚舉破壞性變更，但 label 與
-  // description 與實際 fal endpoint（fal-ai/mmaudio-v2）對齊，
-  // 不再誤導使用者以為走的是 AudioLDM2。
+  // DEF-SFX3 / DEF-A3：id 維持 "audioldm2" 以避開前端枚舉破壞性變更。
+  // fal.ai 已下架 fal-ai/audioldm2 endpoint，整個堆疊（dispatcher / pricing
+  // 別名 / brain audioEngine）會自動 normalize 到 fal-ai/mmaudio-v2 — 同 latent
+  // diffusion 路線、同 standard tier，使用者無感切換。Label 與 description
+  // 對齊真實交付模型，避免誤導。
   {
     id: "audioldm2",
     label: "MMAudio V2",
-    description: "MMAudio 多模態音頻生成（替代 AudioLDM2，擅長自然音效）",
+    description: "MMAudio 多模態音頻生成（替代已下架的 AudioLDM2，同 latent diffusion，擅長自然音效）",
     badge: "",
     tier: "standard" as const,
   },

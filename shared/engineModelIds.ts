@@ -24,7 +24,12 @@ export const LEGACY_FAL_ALIAS_MAP: Record<string, string> = {
   // 透過此別名於 dispatcher 層轉成 fal 真實 endpoint。
   "fal-ai/sonauto": "sonauto/v2/text-to-music",
   "fal/sonauto": "sonauto/v2/text-to-music",
-  "fal/audioldm2": "fal-ai/audioldm2",
+  // DEF-A1：fal.ai 已移除 fal-ai/audioldm2 endpoint，由 fal-ai/mmaudio-v2 接替
+  // （同 latent-diffusion 路線、同 standard tier）。將 audioldm2 系列全部別名
+  // 到 mmaudio-v2，避免 dispatcher 因 catalog 找不到而誤降級到 ace-step（音樂模型）。
+  "fal-ai/audioldm2": "fal-ai/mmaudio-v2",
+  "fal/audioldm2": "fal-ai/mmaudio-v2",
+  "fal/audioldm2-v2a": "fal-ai/mmaudio-v2",
   "fal/playai-tts": "fal-ai/f5-tts",
   "fal/kokoro": "fal-ai/kokoro",
   "fal/orpheus-tts": "fal-ai/orpheus-tts",
@@ -46,7 +51,6 @@ export const LEGACY_FAL_ALIAS_MAP: Record<string, string> = {
   "fal/fantasia3d": "fal-ai/trellis",
   "fal/mmaudio-v2": "fal-ai/mmaudio-v2",
   "fal/stable-audio-v2a": "fal-ai/stable-audio",
-  "fal/audioldm2-v2a": "fal-ai/audioldm2",
   "fal/sync-lipsync": "fal-ai/sync-lipsync",
   "fal/elevenlabs-sound": "fal-ai/elevenlabs/tts/turbo-v2.5",
   // ElevenLabs Music / TTS catalog short-form → canonical Fal.ai paths
