@@ -195,8 +195,10 @@ UI:`client/src/pages/AiBrainSettings.tsx`(主檔)+ `client/src/pages/admin/brain
 
 ---
 
-## 9. 後續可做的事(non-blocking)
+## 9. 後續可做的事
 
 - [x] `getKnownModelIds()` 改為 module-load-time 凍結 — 已於 `_core/modelRegistry.ts` 改用 `const KNOWN_MODEL_IDS = buildKnownModelIds()`,回傳 `ReadonlySet`。
 - [x] LangSmith API key 格式檢查 — 已在 `_core/env.validated.ts:186-200` 實作:啟動時若 `LANGSMITH_API_KEY` 非 `lsv2_pt_` / `lsv2_sk_` 開頭,視為未設定並記入 self-repair log。
-- [ ] 把 `AiBrainSettings.tsx`(目前 3088 行)再拆分為 7 個分頁檔(每檔 < 600 行)— 進行中
+- [x] `AiBrainSettings.tsx` 7 分頁拆檔 — 6 個非 config 分頁已抽到 `client/src/pages/admin/brain/tabs/`(LangsmithTab / AlertsTab / ProposalsTab / ResearchTab / AccuracyTab / ErrorsTab),每個 130–325 行,自帶 query + mutation + 局部 state。
+- [x] 把 LivePreview + 3 個 SlotCard(BrainSlotCard / EngineSlotCard / FalTaskCard)抽到 `client/src/pages/admin/brain/_components/`,共 510 行。主檔從 3329 行降到 **1377 行(-59%)**。
+- [ ] `ConfigTab` JSX 抽檔(剩下 ~565 行的 Config tab 內容) — 狀態包含 53 個 useState + 5 個 query + 1 個 mutation + brainQuery → state 同步 effect。屬於完整 form 重構,留作獨立 PR。
