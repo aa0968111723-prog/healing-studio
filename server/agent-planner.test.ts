@@ -105,6 +105,21 @@ describe("agentPlanner", () => {
     expect(systemPrompt).toMatch(/離題|drop any source/);
   });
 
+  it("system prompt requires real autonomous execution via studio.* tools after the wizard", () => {
+    const messages: Message[] = [{ role: "user", content: "幫我做一支貓咪大戰爭影片" }];
+    const built = buildAgentPlannerMessages({ messages });
+    const systemPrompt = String(built[0].content);
+    // The orb must actually run generation, not just navigate + chat.
+    expect(systemPrompt).toContain("Autonomous-execution rule");
+    expect(systemPrompt).toContain("toolName");
+    expect(systemPrompt).toContain("toolArgs");
+    expect(systemPrompt).toContain("studio.generateVideo");
+    // Pair tool calls with UI actions so the user can see progress on the page.
+    expect(systemPrompt).toMatch(/uiActions.*toolCalls|toolCalls.*uiActions/s);
+    // Forbid lazy "navigate + tell the user to do it themselves" outputs.
+    expect(systemPrompt).toMatch(/Forbidden lazy outputs|navigate.*tell the user/);
+  });
+
   it("detects and summarizes multimodal message parts", () => {
     const messages: Message[] = [
       {
