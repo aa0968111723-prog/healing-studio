@@ -2296,6 +2296,8 @@ export const appRouter = router({
           voiceEmotionType: z.string().optional(),
           voiceEmotionIntensity: z.number().optional(),
           // Vault & Model
+          vaultCharacterId: z.number().optional(),
+          vaultSceneId: z.number().optional(),
           fineTunedModelId: z.number().optional(),
           loraWeight: z.number().min(0).max(1).optional(),
           // Director AI can override engine model for this request
@@ -2337,6 +2339,48 @@ export const appRouter = router({
         const brainVideoEngine = getBrainSelectedEngine(brainRow, "videoEngine");
         const brainAudioEngine = getBrainSelectedEngine(brainRow, "audioEngine");
         const brainVoiceEngine = getBrainSelectedEngine(brainRow, "voiceEngine");
+
+        // ── 2.4 Vault 注入：把使用者從寶庫挑的角色 / 場景換成參考圖 URL ──
+        // 與同步 generate.execute（routers.ts:1305+）行為對齊。
+        // 之前 submitMultimodalAsync 完全沒處理這兩個欄位，使用者點「使用此角色」
+        // 後送出,角色完全沒注入,結果跟空寶庫一樣 — 看起來像「無法生成」。
+        if (input.vaultCharacterId) {
+          try {
+            const vaultChar = await db.getVaultItem(input.vaultCharacterId);
+            if (vaultChar && vaultChar.imageUrl) {
+              if (input.generationType === "video") {
+                input.characterRefUrl =
+                  input.characterRefUrl || vaultChar.imageUrl;
+                input.firstFrameUrl =
+                  input.firstFrameUrl || vaultChar.imageUrl;
+              } else if (input.generationType === "image") {
+                input.styleReferenceUrl =
+                  input.styleReferenceUrl || vaultChar.imageUrl;
+              }
+            }
+          } catch (e) {
+            console.warn(
+              "[submitAsync][Vault] Failed to load character vault item:",
+              e
+            );
+          }
+        }
+        if (input.vaultSceneId) {
+          try {
+            const vaultScene = await db.getVaultItem(input.vaultSceneId);
+            if (vaultScene && vaultScene.imageUrl) {
+              if (input.generationType === "image") {
+                input.vibeReferenceUrl =
+                  input.vibeReferenceUrl || vaultScene.imageUrl;
+              }
+            }
+          } catch (e) {
+            console.warn(
+              "[submitAsync][Vault] Failed to load scene vault item:",
+              e
+            );
+          }
+        }
 
         // ── 2.5 微調模型注入：解析使用者選定的 LoRA / 微調模型 ───────────
         // 與同步 generate.execute（routers.ts:1110-1167）行為一致：
