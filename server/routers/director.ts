@@ -2888,16 +2888,21 @@ ${segmentSummaries}
                   )
                 : falEngines.textToAudio;
             const estimate = estimatePoints(modelId, { durationSec });
+            // ace-step 等 fal 音樂引擎用 duration（非 seconds_total，那是 stable-audio
+            // 才有的欄位），且不接受 instrumental flag — 改用 prompt 後綴表達
+            // （與 proStudio.textToMusic:464,472 一致）。
+            const isInstrumental = generationOptions.audioSettings?.isInstrumental ?? true;
+            const audioPrompt = isInstrumental
+              ? `${musicVibe}, instrumental, no vocals`
+              : musicVibe;
             generationTasks.push({
               segmentId: segment.id,
               segmentIndex: segment.index,
               modality: "audio",
               modelId,
-              prompt: musicVibe,
+              prompt: audioPrompt,
               params: {
-                seconds_total: durationSec,
-                instrumental:
-                  generationOptions.audioSettings?.isInstrumental ?? true,
+                duration: durationSec,
               },
               estimatedPoints: estimate.totalPoints,
             });
@@ -2912,10 +2917,14 @@ ${segmentSummaries}
             const estimate = estimatePoints(modelId, { charCount });
             // 聲音克隆復用：若分鏡指定 cloneVoiceId（ElevenLabs/Kling）或 embedding url（Qwen），
             // 在 params 帶入對應欄位，executeGenerationTask 會優先傳給 fal API。
+            // ElevenLabs 系列把 stability 放在 nested voice_settings（見
+            // proStudio.elevenLabsTTS:686-690）；speed 為 fal.ai 接受的 top-level 別名。
+            const voiceStability =
+              generationOptions.voiceSettings?.voiceStability ?? 0.5;
             const voiceParams: Record<string, unknown> = {
               text: audioScript,
               speed: generationOptions.voiceSettings?.voiceSpeed ?? 1.0,
-              stability: generationOptions.voiceSettings?.voiceStability ?? 0.5,
+              voice_settings: { stability: voiceStability },
             };
             if (generationOptions.voiceSettings?.cloneVoiceId) {
               voiceParams.voice_id = generationOptions.voiceSettings.cloneVoiceId;

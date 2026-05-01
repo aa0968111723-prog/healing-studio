@@ -2412,18 +2412,21 @@ export const appRouter = router({
           const hasFirstFrame = !!input.firstFrameUrl;
           const preferredVideoEngine = isGeminiEngine(brainVideoEngine)
             ? brainVideoEngine!
-            : hasFirstFrame
+            : hasFirstFrame || input.characterRefUrl
               ? falEngines.imageToVideo
               : falEngines.textToVideo;
           modelId =
             overrideModelId ??
             preferredVideoEngine;
+          // i2v 來源圖：firstFrameUrl 優先、其次 characterRefUrl（與同步流程
+          // routers.ts:1675 / videoStudio.klingImageToVideo 一致）
+          const i2vImageUrl = input.firstFrameUrl || input.characterRefUrl;
           falInput = {
             prompt: input.prompt,
             ...(input.videoDurationSeconds && { duration: String(input.videoDurationSeconds) }),
-            ...(input.firstFrameUrl && { image_url: input.firstFrameUrl }),
-            ...(input.lastFrameUrl && { last_image_url: input.lastFrameUrl }),
-            ...(input.characterRefUrl && { character_ref_url: input.characterRefUrl }),
+            ...(i2vImageUrl && { image_url: i2vImageUrl }),
+            // Kling 結束幀正確欄位是 tail_image_url（見 videoStudio.klingImageToVideo:442）
+            ...(input.lastFrameUrl && { tail_image_url: input.lastFrameUrl }),
             ...(input.seed != null && { seed: input.seed }),
           };
         } else if (input.generationType === "audio") {
@@ -2431,11 +2434,14 @@ export const appRouter = router({
             ? brainAudioEngine!
             : falEngines.textToAudio;
           modelId = overrideModelId ?? preferredAudioEngine;
+          // ace-step / musicgen / mmaudio 用 duration；style + instrumental 折入
+          // prompt（與 proStudio.textToMusic:464-476 一致）。
+          const audioPromptParts = [input.prompt];
+          if (input.musicStyle) audioPromptParts.push(input.musicStyle);
+          if (input.isInstrumental) audioPromptParts.push("instrumental, no vocals");
           falInput = {
-            prompt: input.prompt,
-            ...(input.audioDuration && { seconds_total: input.audioDuration }),
-            ...(input.musicStyle && { music_style: input.musicStyle }),
-            ...(input.isInstrumental != null && { instrumental: input.isInstrumental }),
+            prompt: audioPromptParts.join(", "),
+            ...(input.audioDuration && { duration: input.audioDuration }),
             ...(input.seed != null && { seed: input.seed }),
           };
         } else {
@@ -2445,12 +2451,15 @@ export const appRouter = router({
             ? brainVoiceEngine!
             : falEngines.textToSpeech;
           modelId = overrideModelId ?? preferredVoiceEngine;
-          // TTS 模型用 text 欄位
+          // ElevenLabs 系列 TTS 用 voice_id + nested voice_settings（見
+          // proStudio.elevenLabsTTS:683-690）。speed 為 fal.ai 接受的 top-level 別名。
+          const voiceSettings: Record<string, unknown> = {};
+          if (input.voiceStability != null) voiceSettings.stability = input.voiceStability;
           falInput = {
             text: voicePrompt,
-            ...(input.voiceModelId && { voice: input.voiceModelId }),
+            ...(input.voiceModelId && { voice_id: input.voiceModelId }),
             ...(input.voiceSpeed != null && { speed: input.voiceSpeed }),
-            ...(input.voiceStability != null && { stability: input.voiceStability }),
+            ...(Object.keys(voiceSettings).length > 0 && { voice_settings: voiceSettings }),
             ...(input.seed != null && { seed: input.seed }),
           };
         }
