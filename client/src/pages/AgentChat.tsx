@@ -332,10 +332,11 @@ export default function AgentChat() {
     () => [
       {
         id: "multi-step",
-        label: "多步驟代理",
-        description: "讓光球分多個步驟逐一執行",
+        label: "多步驟代理（全自動）",
+        description: "一次確認後，全部步驟自動跑完",
         icon: Workflow,
-        prompt: "請多步驟代理：請把我的請求拆成多個步驟，逐一執行並在每一步等我確認。",
+        prompt:
+          "請啟動多步驟代理（全自動模式）：把我的請求拆成完整工作流程，產生一份 tasked 計畫讓我一次批准；批准後請呼叫 studio.* 工具自動執行所有步驟到完成，不要在每一步停下來等我，只有遇到必要的高風險動作才中斷。",
       },
       {
         id: "plan",
@@ -906,6 +907,19 @@ export default function AgentChat() {
             }}
           />
           <div className="flex items-center gap-2 bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl border border-slate-200/70 dark:border-slate-700/60 shadow-lg p-2">
+            <button
+              type="button"
+              onClick={pickAttachment}
+              disabled={isSending || isUploading}
+              title="上傳圖片 / 影片 / 音訊 / PDF"
+              className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 disabled:opacity-40 transition-colors"
+            >
+              {isUploading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Paperclip className="w-4 h-4" />
+              )}
+            </button>
             <Popover open={plusMenuOpen} onOpenChange={setPlusMenuOpen}>
               <PopoverTrigger asChild>
                 <button
@@ -953,19 +967,6 @@ export default function AgentChat() {
                 </div>
               </PopoverContent>
             </Popover>
-            <button
-              type="button"
-              onClick={pickAttachment}
-              disabled={isSending || isUploading}
-              title="上傳圖片 / 影片 / 音訊 / PDF"
-              className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 disabled:opacity-40 transition-colors"
-            >
-              {isUploading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Paperclip className="w-4 h-4" />
-              )}
-            </button>
             <input
               value={input}
               onChange={e => setInput(e.target.value)}
