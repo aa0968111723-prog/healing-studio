@@ -356,19 +356,23 @@ export const videoStudioRouter = router({
   /**
    * LTX-Video 13B Text-to-Video
    * fal-ai/ltx-video-13b-distilled
-   * Lightricks 開源旗艦，超快速蒸餾版，720p
+   * Lightricks 開源旗艦，超快速蒸餾版，720p；可指定 seed / guidance_scale / expand_prompt
    */
   ltxTextToVideo: brainProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2000),
         negativePrompt: z.string().max(500).optional(),
-        numFrames: z.number().min(25).max(257).default(121),
+        // 25 fps × 5 秒 = 125 frames（對齊 modelPricing.ts "每5秒"）
+        numFrames: z.number().min(25).max(257).default(125),
         fps: z.number().min(8).max(30).default(25),
         height: z.number().min(256).max(720).default(480),
         width: z.number().min(256).max(1280).default(848),
         guidanceScale: z.number().min(1).max(5).default(3),
-        seed: z.number().optional(),
+        seed: z.number().int().nonnegative().optional(),
+        /** fal 端會用這個指令幫你補強提詞細節 */
+        expandPrompt: z.boolean().default(true),
+        numInferenceSteps: z.number().int().min(4).max(50).optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -379,16 +383,23 @@ export const videoStudioRouter = router({
         height: input.height,
         width: input.width,
         guidance_scale: input.guidanceScale,
+        expand_prompt: input.expandPrompt,
       };
       if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
       if (input.seed !== undefined) payload.seed = input.seed;
+      if (input.numInferenceSteps !== undefined)
+        payload.num_inference_steps = input.numInferenceSteps;
 
       const result = (await falQueueRun(
         "fal-ai/ltx-video-13b-distilled",
         payload,
         240
       )) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   /**
@@ -426,12 +437,22 @@ export const videoStudioRouter = router({
         const errMsg = e?.message ?? String(e);
         if (errMsg.includes("404") || errMsg.includes("not found")) {
           // Sora 端點不可用，降級到 LTX-Video-13B
+          // 盡量保留使用者意圖：duration 換算 numFrames、aspect_ratio 換算 height/width
+          const fps = 25;
+          const numFrames = Math.min(257, Math.max(25, input.duration * fps));
+          const [w, h] =
+            input.aspectRatio === "9:16"
+              ? [480, 848]
+              : input.aspectRatio === "1:1"
+                ? [704, 704]
+                : [848, 480];
           const fallbackPayload: Record<string, unknown> = {
             prompt: input.prompt,
-            num_frames: 121,
-            fps: 25,
-            height: 480,
-            width: 848,
+            num_frames: numFrames,
+            fps,
+            height: h,
+            width: w,
+            expand_prompt: true,
           };
           const result = (await falQueueRun(
             FALLBACK_MODEL,
@@ -701,10 +722,12 @@ export const videoStudioRouter = router({
         prompt: z.string().min(1).max(2000),
         imageUrl: z.string().url(),
         negativePrompt: z.string().max(500).optional(),
-        numFrames: z.number().min(25).max(257).default(121),
+        // 25 fps × 5 秒 = 125 frames（對齊 modelPricing.ts "每5秒"）
+        numFrames: z.number().min(25).max(257).default(125),
         fps: z.number().min(8).max(30).default(25),
         guidanceScale: z.number().min(1).max(5).default(3),
-        seed: z.number().optional(),
+        seed: z.number().int().nonnegative().optional(),
+        expandPrompt: z.boolean().default(true),
       })
     )
     .mutation(async ({ input }) => {
@@ -714,6 +737,7 @@ export const videoStudioRouter = router({
         num_frames: input.numFrames,
         fps: input.fps,
         guidance_scale: input.guidanceScale,
+        expand_prompt: input.expandPrompt,
       };
       if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
       if (input.seed !== undefined) payload.seed = input.seed;
@@ -723,7 +747,11 @@ export const videoStudioRouter = router({
         payload,
         240
       )) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   // ═══════════════════════════════════════════════════════════════════════════
