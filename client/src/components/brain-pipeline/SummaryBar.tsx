@@ -2,6 +2,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import {
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@/components/ui/toggle-group";
 import type {
   PipelineSummary,
   PipelineNodeStatus,
@@ -10,6 +14,15 @@ import { RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type StatusFilter = "all" | PipelineNodeStatus | "issues";
+
+/**
+ * 視圖模式：
+ * - site：站點視圖（只顯示 page / page-group），給「全站關係圖」場景。
+ * - brain：大腦視圖（router / brain / engine / provider / orb / director），
+ *          當前 admin 監控頁的預設行為。
+ * - full：完整視圖，把站點與大腦串成一張橫跨四層的圖。
+ */
+export type ViewMode = "site" | "brain" | "full";
 
 interface Props {
   summary: PipelineSummary | undefined;
@@ -20,6 +33,9 @@ interface Props {
   /** 目前的狀態篩選；不傳 = 不啟用篩選功能 */
   statusFilter?: StatusFilter;
   onStatusFilterChange?: (next: StatusFilter) => void;
+  /** 視圖模式；不傳 = 不顯示切換器（給 personal /my-brain 頁用） */
+  viewMode?: ViewMode;
+  onViewModeChange?: (next: ViewMode) => void;
 }
 
 const formatCount = (value: number | undefined) =>
@@ -46,7 +62,11 @@ export function SummaryBar({
   onRefresh,
   statusFilter = "all",
   onStatusFilterChange,
+  viewMode,
+  onViewModeChange,
 }: Props) {
+  const showViewToggle =
+    typeof viewMode === "string" && typeof onViewModeChange === "function";
   const filterable = typeof onStatusFilterChange === "function";
   const handleFilter = (next: StatusFilter) => {
     if (!filterable) return;
@@ -60,6 +80,45 @@ export function SummaryBar({
 
   return (
     <div className="flex items-center gap-3 flex-wrap p-4 rounded-2xl bg-white/60 dark:bg-slate-900/60 backdrop-blur border border-slate-200 dark:border-slate-800">
+      {showViewToggle && (
+        <>
+          <ToggleGroup
+            type="single"
+            value={viewMode}
+            onValueChange={value => {
+              // ToggleGroup 在「再點同一個」時會回傳空字串，這時不切換。
+              if (value === "site" || value === "brain" || value === "full") {
+                onViewModeChange!(value);
+              }
+            }}
+            className="h-7 rounded-md border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70"
+          >
+            <ToggleGroupItem
+              value="site"
+              className="h-7 px-2.5 text-xs"
+              aria-label="站點視圖"
+            >
+              站點
+            </ToggleGroupItem>
+            <ToggleGroupItem
+              value="brain"
+              className="h-7 px-2.5 text-xs"
+              aria-label="大腦視圖"
+            >
+              大腦
+            </ToggleGroupItem>
+            <ToggleGroupItem
+              value="full"
+              className="h-7 px-2.5 text-xs"
+              aria-label="完整視圖"
+            >
+              完整
+            </ToggleGroupItem>
+          </ToggleGroup>
+          <span className="h-5 w-px bg-slate-200 dark:bg-slate-700" />
+        </>
+      )}
+
       <FilterBadge
         active={statusFilter === "healthy"}
         clickable={filterable}

@@ -35,6 +35,7 @@ import {
 } from "../services/brainAutoRepair";
 import type { ErrorTrace } from "../services/brainAutoRepair";
 import { APP_PAGE_REGISTRY } from "../../shared/appRegistry";
+import type { AppPageRegistryItem } from "../../shared/appRegistry";
 import type {
   PipelineGraph,
   PipelineNode,
@@ -108,6 +109,8 @@ interface ProviderMeta {
   apiKeyEnv: string;
   /** API key 是否有設定（true=已設） */
   hasKey: () => boolean;
+  /** 對應的後端 service 檔（用於 GitHub 連結；未設則僅顯示 .env 標記） */
+  serviceFiles?: string[];
 }
 
 const PROVIDERS: ProviderMeta[] = [
@@ -117,6 +120,7 @@ const PROVIDERS: ProviderMeta[] = [
     description: "主要 LLM 引擎（推理與多模態）",
     apiKeyEnv: "GEMINI_API_KEY",
     hasKey: () => Boolean(serverEnv.GEMINI_API_KEY),
+    serviceFiles: ["server/services/geminiMedia.ts"],
   },
   {
     id: "vertex",
@@ -124,6 +128,7 @@ const PROVIDERS: ProviderMeta[] = [
     description: "企業級 LLM 與多模態（Gemini / Llama / Imagen）",
     apiKeyEnv: "GOOGLE_APPLICATION_CREDENTIALS_JSON",
     hasKey: () => Boolean(serverEnv.GOOGLE_APPLICATION_CREDENTIALS_JSON),
+    serviceFiles: ["server/services/vertexAI.ts"],
   },
   {
     id: "fal",
@@ -131,6 +136,10 @@ const PROVIDERS: ProviderMeta[] = [
     description: "圖像／影片／音樂／語音生成模型聚合",
     apiKeyEnv: "FAL_API_KEY",
     hasKey: () => Boolean(serverEnv.FAL_API_KEY),
+    serviceFiles: [
+      "server/services/falDispatcher.ts",
+      "server/services/falModels.ts",
+    ],
   },
   {
     id: "elevenlabs",
@@ -138,6 +147,7 @@ const PROVIDERS: ProviderMeta[] = [
     description: "高品質語音合成與聲音克隆",
     apiKeyEnv: "ELEVENLABS_API_KEY",
     hasKey: () => Boolean(serverEnv.ELEVENLABS_API_KEY),
+    serviceFiles: ["server/services/elevenLabsExtended.ts"],
   },
   {
     id: "suno",
@@ -152,6 +162,7 @@ const PROVIDERS: ProviderMeta[] = [
     description: "LoRA 訓練與第三方模型推理",
     apiKeyEnv: "REPLICATE_API_TOKEN",
     hasKey: () => Boolean(serverEnv.REPLICATE_API_TOKEN),
+    serviceFiles: ["server/services/replicateClient.ts"],
   },
 ];
 
@@ -227,6 +238,86 @@ const PAGE_DIAGNOSTICS_CATALOG: Record<
   },
 };
 
+/**
+ * Page id → upstream router ids；用於完整視圖中描繪 page 觸發哪條後端鏈。
+ *
+ * 對應的後端 trpc namespace 在 `PAGE_DIAGNOSTICS_CATALOG` 與 `server/routers.ts`
+ * 已實際存在；此處顯式列出可讓 React Flow 畫出 page → router 邊。沒列出的頁面
+ * 表示該頁不直接觸發 AI router（例如 calendar / vault 等純 CRUD 頁）。
+ */
+const PAGE_TO_ROUTERS: Record<string, string[]> = {
+  home: ["router:news", "router:showcase"],
+  "agent-chat": ["router:orbScheduler", "router:brain"],
+  studio: ["router:imageStudio", "router:videoStudio", "router:proStudio"],
+  "image-studio": ["router:imageStudio"],
+  "video-studio": ["router:videoStudio"],
+  "pro-studio": ["router:proStudio"],
+  director: ["router:director"],
+  "lora-trainer": ["router:loraTrainer"],
+  models: ["router:loraTrainer", "router:brain"],
+  "my-brain": ["router:brain"],
+  "brain-settings": ["router:brain"],
+  learn: ["router:learnHub"],
+  "tutorial-overview": ["router:learnHub"],
+  "prompt-library": ["router:promptLibrary"],
+  langsmith: ["router:langsmith"],
+  "agent-preferences": ["router:agentPreferences"],
+  settings: ["router:agentPreferences"],
+  dashboard: ["router:apiUsage"],
+  credits: ["router:apiUsage"],
+  admin: ["router:apiUsage", "router:adminEval"],
+  "admin-api-usage": ["router:apiUsage"],
+  "process-viewer": ["router:orbScheduler"],
+};
+
+/**
+ * Router id → downstream brain/engine slot ids；用於畫出後端 router 真正觸發
+ * 哪些 AI 大腦或引擎槽。沒列出的 router 直接連 provider（語意：純 LLM 呼叫）。
+ */
+const ROUTER_TO_AI_SLOTS: Record<string, string[]> = {
+  "router:brain": [
+    "brain:director",
+    "brain:analyst",
+    "brain:storyteller",
+    "brain:technician",
+    "brain:curator",
+  ],
+  "router:director": ["brain:director", "brain:storyteller"],
+  "router:imageStudio": ["engine:imageEngine"],
+  "router:videoStudio": ["engine:videoEngine"],
+  "router:proStudio": ["engine:audioEngine", "engine:voiceEngine"],
+  "router:loraTrainer": ["engine:imageEngine"],
+  "router:learnHub": ["brain:analyst"],
+  "router:orbScheduler": ["brain:director", "brain:technician"],
+};
+
+/** AppPageGroupId → 顯示用標籤；對應 `shared/appRegistry.ts` 的 8 個分群。 */
+const PAGE_GROUP_META: Record<
+  string,
+  { label: string; description: string }
+> = {
+  orb: { label: "光球代理", description: "全站對話與引導入口" },
+  create: {
+    label: "創作工作室",
+    description: "圖片/影片/音訊/導演 AI 生成入口",
+  },
+  train: { label: "模型訓練", description: "LoRA / 自訂風格訓練" },
+  project: {
+    label: "專案管理",
+    description: "儀表板、歷程、筆記、點數",
+  },
+  assets: {
+    label: "素材與模型",
+    description: "素材庫、提示詞、保險庫、模型清單",
+  },
+  learn: { label: "學習中心", description: "教學內容、文件、入門引導" },
+  settings: { label: "個人設定", description: "帳號、偏好、設定頁" },
+  admin: {
+    label: "管理後台",
+    description: "系統管理、用量、推理鏈監控",
+  },
+};
+
 const ROUTER_TO_PROVIDERS: Array<{
   id: string;
   label: string;
@@ -292,6 +383,58 @@ const ROUTER_TO_PROVIDERS: Array<{
       "server/routers/orbSchedulerRouter.ts",
       "server/services/orbTaskOrchestrator.ts",
     ],
+  },
+  // ── 純服務 router（無外部 provider，僅 DB / 內部資料） ─────────────────
+  // 這些 router 不直接呼外部 AI；放進圖裡是為了讓 page → router 連線完整，
+  // 並讓 admin 能在同一畫面看到所有後端入口的錯誤累積狀況。
+  {
+    id: "router:apiUsage",
+    label: "apiUsage（API 用量）",
+    description: "彙整 token / 成本 / 呼叫次數，供管理後台分析",
+    providers: [],
+    files: ["server/routers/apiUsage.ts"],
+  },
+  {
+    id: "router:agentPreferences",
+    label: "agentPreferences（Agent 偏好）",
+    description: "使用者光球與 PageAgent 偏好設定",
+    providers: [],
+    files: ["server/routers/agentPreferencesRouter.ts"],
+  },
+  {
+    id: "router:promptLibrary",
+    label: "promptLibrary（提示詞庫）",
+    description: "提示詞 CRUD、收藏、分享",
+    providers: [],
+    files: ["server/routers/promptLibrary.ts"],
+  },
+  {
+    id: "router:news",
+    label: "news（新聞動態）",
+    description: "首頁新聞與更新動態",
+    providers: [],
+    files: ["server/routers/news.ts"],
+  },
+  {
+    id: "router:showcase",
+    label: "showcase（精選作品）",
+    description: "首頁作品展示與分類查詢",
+    providers: [],
+    files: ["server/routers/showcase.ts"],
+  },
+  {
+    id: "router:langsmith",
+    label: "langsmith（追蹤器）",
+    description: "LangSmith trace、dataset、回饋彙整",
+    providers: [],
+    files: ["server/routers/langsmith.ts"],
+  },
+  {
+    id: "router:adminEval",
+    label: "adminEval（管理員評估）",
+    description: "Agent 評估、品質檢測、admin 工具",
+    providers: [],
+    files: ["server/routers/adminRouter.ts"],
   },
 ];
 
@@ -607,7 +750,10 @@ function buildGraph(opts: BuildGraphOptions): PipelineGraph {
       status: derived.status,
       reason: derived.reason,
       recommendation: derived.recommendation,
-      relatedFiles: [`.env (${meta.apiKeyEnv})`],
+      relatedFiles: [
+        `.env (${meta.apiKeyEnv})`,
+        ...(meta.serviceFiles ?? []),
+      ],
       metrics: {
         ...derived.metrics,
         recentErrorCount: recentErrorCount || undefined,
@@ -817,20 +963,38 @@ function buildGraph(opts: BuildGraphOptions): PipelineGraph {
     edges.push(makeEdge("router:director", "director:main"));
     edges.push(makeEdge("router:brain", "orb:agent"));
     edges.push(makeEdge("router:orbScheduler", "orb:agent"));
+
+    // router → brain-slot / engine-slot 邊：把 AI router 真正觸發的腦/引擎槽串起來，
+    // 讓「完整視圖」可以清楚看到 page → router → brain/engine → provider 的四層鏈。
+    for (const routerId of Object.keys(ROUTER_TO_AI_SLOTS)) {
+      for (const slotId of ROUTER_TO_AI_SLOTS[routerId]) {
+        edges.push(makeEdge(routerId, slotId, "委派"));
+      }
+    }
   }
 
   // ── Layer 1: Frontend Pages ──────────────────────────────────────────────
   if (opts.includeAllPages) {
-    // 把所有頁面塞進一個群組節點，前端可選擇是否展開
-    nodes.push({
-      id: "page-group:all",
-      kind: "page-group",
-      layer: "frontend",
-      label: `📱 前端頁面（${APP_PAGE_REGISTRY.length}）`,
-      description: "全站頁面，點擊展開查看每頁的光球助手註冊狀態",
-      status: "healthy",
-      children: APP_PAGE_REGISTRY.map(p => `page:${p.id}`),
-    });
+    // 依 AppPageGroupId 分成多個 page-group 容器，比單一巨型群組更貼近 IA 結構，
+    // 也讓「站點視圖」可以一眼看出 8 大功能分區。
+    const pagesByGroup: Record<string, AppPageRegistryItem[]> = {};
+    for (const page of APP_PAGE_REGISTRY) {
+      (pagesByGroup[page.group] ??= []).push(page);
+    }
+    for (const groupId of Object.keys(pagesByGroup)) {
+      const pages = pagesByGroup[groupId];
+      const meta =
+        PAGE_GROUP_META[groupId] ?? { label: groupId, description: "" };
+      nodes.push({
+        id: `page-group:${groupId}`,
+        kind: "page-group",
+        layer: "frontend",
+        label: `📱 ${meta.label}（${pages.length}）`,
+        description: meta.description,
+        status: "healthy",
+        children: pages.map(p => `page:${p.id}`),
+      });
+    }
 
     // 30+ 個 page node 的 trace samples 用同一組引擎；先算一次再共用
     const pageTraceSamples = getTraceSamplesForEngines(
@@ -862,12 +1026,18 @@ function buildGraph(opts: BuildGraphOptions): PipelineGraph {
           serviceFunction: resolvePageServiceFunction(page.id),
           traceSampleIds: pageTraceSamples,
         },
-        parentId: "page-group:all",
+        parentId: `page-group:${page.group}`,
       });
-      // page → orb assistant
+      // page → orb assistant（PageAgent 永遠可用）
       edges.push(
         makeEdge(`page:${page.id}`, "orb:assistant", "PageAgent")
       );
+      // page → router 邊；只有 includeRouters 時才畫，否則指向不存在的目標
+      if (opts.includeRouters) {
+        for (const routerId of PAGE_TO_ROUTERS[page.id] ?? []) {
+          edges.push(makeEdge(`page:${page.id}`, routerId, "tRPC"));
+        }
+      }
     }
   }
 
@@ -1002,4 +1172,6 @@ export const __testing = {
   invalidateResponseCache,
   PROVIDERS,
   ROUTER_TO_PROVIDERS,
+  PAGE_TO_ROUTERS,
+  ROUTER_TO_AI_SLOTS,
 };
