@@ -248,8 +248,26 @@ function isFlagEnabled(value: string | undefined, defaultEnabled: boolean): bool
 /**
  * Tracks the task IDs whose orchestrator loop is currently running, so two
  * approve clicks (or approve+retry) don't double-fire the executor.
+ *
+ * Each entry stores the timestamp the driver started so we can self-heal
+ * when an unhandled rejection slips past the try/finally (rare but
+ * possible in some Node async contexts). Without the TTL, a single
+ * crashed driver would lock the user out of retrying the task forever.
  */
-const orbAutoDriverInFlight = new Set<string>();
+const ORB_AUTO_DRIVER_STALE_MS = 10 * 60_000; // 10 minutes
+const orbAutoDriverInFlight = new Map<string, number>();
+
+function isOrbAutoDriverInFlight(taskId: string): boolean {
+  const startedAt = orbAutoDriverInFlight.get(taskId);
+  if (startedAt === undefined) return false;
+  if (Date.now() - startedAt > ORB_AUTO_DRIVER_STALE_MS) {
+    // Stale entry — assume the previous driver crashed without cleanup
+    // and let the next caller re-enter.
+    orbAutoDriverInFlight.delete(taskId);
+    return false;
+  }
+  return true;
+}
 
 /**
  * Fire-and-forget: drive a multi-step orb task to completion in the
@@ -267,8 +285,8 @@ async function driveOrbTaskInBackground(input: {
   userId: number;
   userRole: string;
 }): Promise<void> {
-  if (orbAutoDriverInFlight.has(input.taskId)) return;
-  orbAutoDriverInFlight.add(input.taskId);
+  if (isOrbAutoDriverInFlight(input.taskId)) return;
+  orbAutoDriverInFlight.set(input.taskId, Date.now());
   try {
     const tools = getOrbToolRegistry();
     const agentPreferences = await loadAgentPreferencesForUser(input.userId);
@@ -6239,6 +6257,21 @@ export const appRouter = router({
             true
           );
           if (!executorEnabled) return null;
+          // Reject approve calls on terminal tasks. Without this guard, a
+          // double-clicked approve (or a stale tab) would re-fire the
+          // background driver against a `completed` / `failed` /
+          // `cancelled` task — harmless to the FSM, but it confuses the
+          // user-facing retry flow because the second approve "succeeds"
+          // and then the retry button gets stuck (the task is already
+          // terminal so no more steps run).
+          const existing = getOrbAgentTask(input.taskId);
+          if (existing && (
+            existing.status === "completed" ||
+            existing.status === "failed" ||
+            existing.status === "cancelled"
+          )) {
+            return existing;
+          }
           const fsmTask = approveOrbAgentTask(input.taskId);
           // Sync legacy store so the orchestrator (which reads task.status
           // there) sees `running` instead of `waiting_human` and can advance

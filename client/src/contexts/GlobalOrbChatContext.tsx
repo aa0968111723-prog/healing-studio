@@ -922,8 +922,28 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   const [pendingExecutorTask, setPendingExecutorTask] = useState<PendingExecutorTask | null>(null);
   const [activeExecutorTask, setActiveExecutorTask] = useState<GlobalOrbExecutorTask | null>(null);
   const [pendingCodeTask, setPendingCodeTask] = useState<PendingCodeTaskPreview | null>(null);
-  const [pendingClarification, setPendingClarification] = useState<PendingClarificationPrompt | null>(
+  const [pendingClarification, setPendingClarificationState] = useState<PendingClarificationPrompt | null>(
     () => loadClarificationFromStorage().prompt
+  );
+  // Wrap the setter so the clarification is persisted to localStorage in
+  // the same tick the state changes — the useEffect below is still here
+  // as a defence-in-depth but only fires on next commit, which is too
+  // late if the user reloads the tab between dispatch and commit.
+  const setPendingClarification = useCallback(
+    (next: PendingClarificationPrompt | null | ((prev: PendingClarificationPrompt | null) => PendingClarificationPrompt | null)) => {
+      setPendingClarificationState(prev => {
+        const resolved = typeof next === "function"
+          ? (next as (p: PendingClarificationPrompt | null) => PendingClarificationPrompt | null)(prev)
+          : next;
+        try {
+          saveClarificationToStorage(resolved);
+        } catch {
+          // best-effort
+        }
+        return resolved;
+      });
+    },
+    []
   );
   const orbExecutor = useGlobalOrbExecutor();
 

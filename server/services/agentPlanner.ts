@@ -91,25 +91,52 @@ function mimeToPlannerKind(mimeType?: string): PlannerMultimodalKind {
   return "file";
 }
 
+// Reject attachment URLs that aren't safe to embed in the planner prompt:
+// data: / javascript: / file: schemes, raw bytes, control characters,
+// extremely long blobs, or anything that's not http(s). Without this,
+// a corrupt upload (or a malicious one) can blow up the planner's token
+// budget or smuggle prompt-injection text into the system message.
+const SAFE_URL_RE = /^https?:\/\/[^\s]+$/;
+const MAX_URL_LENGTH = 2_048;
+const MAX_MIME_LENGTH = 120;
+function sanitizeAttachmentUrl(url: unknown): string | undefined {
+  if (typeof url !== "string") return undefined;
+  if (!url.length || url.length > MAX_URL_LENGTH) return undefined;
+  if (!SAFE_URL_RE.test(url)) return undefined;
+  // eslint-disable-next-line no-control-regex
+  if (/[\x00-\x1f\x7f]/.test(url)) return undefined;
+  return url;
+}
+function sanitizeMimeType(mimeType: unknown): string | undefined {
+  if (typeof mimeType !== "string") return undefined;
+  if (!mimeType.length || mimeType.length > MAX_MIME_LENGTH) return undefined;
+  if (!/^[a-zA-Z0-9!#$&^_+\-.]+\/[a-zA-Z0-9!#$&^_+\-.]+$/.test(mimeType)) return undefined;
+  return mimeType.toLowerCase();
+}
+
 function summarizeMessagePart(part: unknown): PlannerMultimodalPartSummary | null {
   if (!part || typeof part !== "object") return null;
   const record = part as Record<string, unknown>;
 
   if (record.type === "image_url") {
     const image = record.image_url as Record<string, unknown> | undefined;
+    const url = sanitizeAttachmentUrl(image?.url);
+    if (!url) return null;
     return {
       kind: "image",
-      url: typeof image?.url === "string" ? image.url : undefined,
+      url,
     };
   }
 
   if (record.type === "file_url") {
     const file = record.file_url as Record<string, unknown> | undefined;
-    const mimeType = typeof file?.mime_type === "string" ? file.mime_type : undefined;
+    const url = sanitizeAttachmentUrl(file?.url);
+    if (!url) return null;
+    const mimeType = sanitizeMimeType(file?.mime_type);
     return {
       kind: mimeToPlannerKind(mimeType),
       mimeType,
-      url: typeof file?.url === "string" ? file.url : undefined,
+      url,
     };
   }
 
