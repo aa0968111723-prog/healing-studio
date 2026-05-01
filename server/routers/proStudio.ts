@@ -419,6 +419,8 @@ export const proStudioRouter = router({
         instrumental: z.boolean().optional(), // true → 傳空字串歌詞（純音樂）
         bpm: z.number().min(40).max(300).optional(),
         duration: z.number().min(1).max(300).optional(), // 秒數（非 Sonauto 模型用）
+        // DEF-S1：Stable Audio 支援 negative_prompt（其他音樂模型會忽略）
+        negativePrompt: z.string().max(500).optional(),
         model: z
           .enum(["sonauto", "ace-step", "stable-audio", "musicgen"])
           .optional(),
@@ -523,10 +525,10 @@ export const proStudioRouter = router({
         const falModelId = "fal-ai/stable-audio";
         const payload: Record<string, unknown> = {
           prompt: combinedPrompt,
-          ...(input.duration
-            ? { seconds_total: input.duration }
-            : { seconds_total: 30 }),
+          seconds_total: input.duration ?? 30,
         };
+        // DEF-S1：Stable Audio 支援 negative_prompt
+        if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
         const charged = await chargeForFalTask(ctx.user.id, falModelId, {
           durationSec: input.duration ?? 30,
         });
@@ -1562,6 +1564,8 @@ export const proStudioRouter = router({
         targetDurationSec: z.number().min(10).max(300).optional(),
         instrumental: z.boolean().optional().default(false),
         bpmOverride: z.number().min(40).max(300).optional(),
+        // DEF-S1：Stable Audio 支援 negative_prompt（其他音樂模型會忽略）
+        negativePrompt: z.string().max(500).optional(),
         model: z
           .enum(["sonauto", "ace-step", "stable-audio", "musicgen"])
           .optional(),
@@ -1632,11 +1636,14 @@ export const proStudioRouter = router({
       if (modelChoice === "stable-audio") {
         const falModelId = "fal-ai/stable-audio";
         const charged = await chargeForFalTask(ctx.user.id, falModelId, { durationSec });
+        const stablePayload: Record<string, unknown> = {
+          prompt: compiled.prompt,
+          seconds_total: durationSec,
+        };
+        // DEF-S1：Stable Audio 支援 negative_prompt
+        if (input.negativePrompt) stablePayload.negative_prompt = input.negativePrompt;
         try {
-          const { request_id } = await falQueueSubmit(falModelId, {
-            prompt: compiled.prompt,
-            seconds_total: durationSec,
-          });
+          const { request_id } = await falQueueSubmit(falModelId, stablePayload);
           return {
             request_id,
             model: falModelId,

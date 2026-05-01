@@ -2963,22 +2963,29 @@ ${segmentSummaries}
                   )
                 : falEngines.textToAudio;
             const estimate = estimatePoints(modelId, { durationSec });
-            // ace-step 等 fal 音樂引擎用 duration（非 seconds_total，那是 stable-audio
-            // 才有的欄位），且不接受 instrumental flag — 改用 prompt 後綴表達
-            // （與 proStudio.textToMusic:464,472 一致）。
+            // DEF-S2：fal.ai 音樂引擎的 duration 欄位名不一致 —
+            //   - ace-step / musicgen / sonauto → "duration"
+            //   - stable-audio                  → "seconds_total"
+            // 過去硬編碼成 "duration"，導致大腦/使用者選 stable-audio 時時長被忽略，
+            // fal.ai 落回 30s 預設值。依 modelId 動態選用正確欄位名。
+            // 全模型皆不接受 instrumental flag — 改用 prompt 後綴表達
+            // （與 proStudio.textToMusic 一致）。
             const isInstrumental = generationOptions.audioSettings?.isInstrumental ?? true;
             const audioPrompt = isInstrumental
               ? `${musicVibe}, instrumental, no vocals`
               : musicVibe;
+            const audioDurationParams: Record<string, unknown> = modelId.includes(
+              "stable-audio"
+            )
+              ? { seconds_total: durationSec }
+              : { duration: durationSec };
             generationTasks.push({
               segmentId: segment.id,
               segmentIndex: segment.index,
               modality: "audio",
               modelId,
               prompt: audioPrompt,
-              params: {
-                duration: durationSec,
-              },
+              params: audioDurationParams,
               estimatedPoints: estimate.totalPoints,
             });
           } else if (modality === "voice") {
