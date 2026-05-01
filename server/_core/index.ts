@@ -33,7 +33,6 @@ import {
 } from "../jobs/braveLearnFetcher";
 import { detectStorageBackend } from "../storage";
 import { closeDb, runMigrations } from "../db";
-import { langsmithRouter } from "../routes/langsmith";
 import { falWebhookRouter } from "../routes/webhookFal";
 import { sunoWebhookRouter } from "../routes/webhookSuno";
 import { replicateWebhookRouter } from "../routes/webhookReplicate";
@@ -310,8 +309,7 @@ async function startServer() {
   }
   // SSE for real-time generation events
   app.use(sseRouter);
-  // LangSmith observability stats
-  app.use(langsmithRouter);
+  // (LangSmith stats moved to tRPC: trpc.langsmith.stats)
   app.use(falWebhookRouter);
   app.use(sunoWebhookRouter);
   app.use(replicateWebhookRouter);

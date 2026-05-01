@@ -1248,40 +1248,29 @@ export default function AiBrainSettings() {
       totalTokens: number;
     };
   }
-  const [langsmithStats, setLangsmithStats] = useState<LangSmithStats | null>(
-    null
-  );
-  const [langsmithLoading, setLangsmithLoading] = useState(false);
-  const [langsmithError, setLangsmithError] = useState<string | null>(null);
-
-  const fetchLangsmithStats = useCallback(async () => {
-    setLangsmithLoading(true);
-    setLangsmithError(null);
-    try {
-      const res = await fetch("/api/langsmith/stats");
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setLangsmithError(
-          (data as { error?: string }).error ?? `HTTP ${res.status}`
-        );
-        setLangsmithStats(null);
-      } else {
-        const data = (await res.json()) as LangSmithStats;
-        setLangsmithStats(data);
-      }
-    } catch (e) {
-      setLangsmithError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLangsmithLoading(false);
+  const langsmithStatsQuery = trpc.langsmith.stats.useQuery(
+    { limit: 50 },
+    {
+      enabled: activeTab === "langsmith",
+      refetchInterval: activeTab === "langsmith" ? 30_000 : false,
+      retry: false,
     }
-  }, []);
-
-  useEffect(() => {
-    if (activeTab !== "langsmith") return;
-    fetchLangsmithStats();
-    const timer = setInterval(fetchLangsmithStats, 30_000);
-    return () => clearInterval(timer);
-  }, [activeTab, fetchLangsmithStats]);
+  );
+  const langsmithStats: LangSmithStats | null = langsmithStatsQuery.data
+    ? {
+        runs: langsmithStatsQuery.data.runs,
+        summary: langsmithStatsQuery.data.summary,
+      }
+    : null;
+  const langsmithLoading = langsmithStatsQuery.isFetching;
+  const langsmithError = langsmithStatsQuery.error
+    ? langsmithStatsQuery.error.message
+    : !langsmithStatsQuery.isLoading && langsmithStatsQuery.data?.configured === false
+      ? "LANGSMITH_API_KEY 未設定"
+      : null;
+  const fetchLangsmithStats = useCallback(() => {
+    void langsmithStatsQuery.refetch();
+  }, [langsmithStatsQuery]);
 
   // ── Accuracy Test State ───────────────────────────────────────────────
   const [testEngine, setTestEngine] = useState("gemini-2.5-flash");

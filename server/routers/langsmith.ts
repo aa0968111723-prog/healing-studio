@@ -217,6 +217,96 @@ export const langsmithRouter = router({
     }
   }),
 
+  /**
+   * 摘要統計 — 整合「最近 N 個 runs」的延遲、錯誤率、token 消耗。
+   * 取代過去的 `GET /api/langsmith/stats` Express 端點。
+   */
+  stats: protectedProcedure
+    .input(z.object({ limit: z.number().min(1).max(200).default(50) }).optional())
+    .query(async ({ input }) => {
+      const limit = input?.limit ?? 50;
+      const client = await getClient();
+      if (!client) {
+        return {
+          configured: false,
+          runs: [],
+          summary: {
+            totalRuns: 0,
+            errorCount: 0,
+            errorRate: 0,
+            avgLatency: 0,
+            totalTokens: 0,
+          },
+        };
+      }
+      const runs: Array<{
+        id: string;
+        name: string;
+        status: string;
+        latency: number | null;
+        totalTokens: number;
+        error: string | null;
+        startTime: string;
+      }> = [];
+      try {
+        for await (const run of client.listRuns({
+          projectName: getProjectName(),
+          executionOrder: 1,
+          limit,
+        })) {
+          const startMs =
+            typeof run.start_time === "number"
+              ? run.start_time
+              : run.start_time
+                ? new Date(run.start_time).getTime()
+                : null;
+          const endMs =
+            run.end_time != null
+              ? typeof run.end_time === "number"
+                ? run.end_time
+                : new Date(run.end_time).getTime()
+              : null;
+          const latency =
+            startMs != null && endMs != null ? endMs - startMs : null;
+          runs.push({
+            id: run.id ?? "",
+            name: run.name ?? "",
+            status: run.status ?? "unknown",
+            latency,
+            totalTokens: run.total_tokens ?? 0,
+            error: run.error ?? null,
+            startTime: startMs != null ? new Date(startMs).toISOString() : "",
+          });
+        }
+      } catch {
+        // LangSmith unavailable — return empty stats
+      }
+      const totalRuns = runs.length;
+      const errorCount = runs.filter(
+        r => r.error != null || r.status === "error"
+      ).length;
+      const errorRate = totalRuns > 0 ? (errorCount / totalRuns) * 100 : 0;
+      const validLatencies = runs
+        .map(r => r.latency)
+        .filter((l): l is number => l != null);
+      const avgLatency =
+        validLatencies.length > 0
+          ? validLatencies.reduce((a, b) => a + b, 0) / validLatencies.length
+          : 0;
+      const totalTokens = runs.reduce((s, r) => s + r.totalTokens, 0);
+      return {
+        configured: true,
+        runs,
+        summary: {
+          totalRuns,
+          errorCount,
+          errorRate: Math.round(errorRate * 10) / 10,
+          avgLatency: Math.round(avgLatency),
+          totalTokens,
+        },
+      };
+    }),
+
   // ═══════════════════════════════════════════════════════════════════════════
   // 1. 全鏈路追蹤 — Run 列表與詳情
   // ═══════════════════════════════════════════════════════════════════════════
