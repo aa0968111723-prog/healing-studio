@@ -945,10 +945,29 @@ async function dispatchStudioTool(
         if (isElevenLabsTts && !process.env.ELEVENLABS_API_KEY) {
           modelId = "fal-ai/f5-tts";
         }
+        // DEF-Q3：Qwen TTS 的欄位形狀與其他 TTS 引擎不同 —
+        //   - 預訓練聲線欄位是 voice（接受名稱字串，如 "Vivian"），不是 voice_id
+        //   - 不接受 speed
+        //   - 必須有 voice 或 speaker_voice_embedding_file_url 至少其一，否則 422
+        // 把光球 args.voice_id 翻譯成 Qwen 期望的 voice，且空白時補上 "Vivian"
+        // 預設（與 proStudio.qwenTTS 行為一致）。
+        const isQwenTts = modelId.startsWith("fal-ai/qwen-3-tts/text-to-speech");
         const input: Record<string, unknown> = {};
         if (typeof args.text === "string") input.text = args.text;
-        if (typeof args.voice_id === "string") input.voice_id = args.voice_id;
-        if (typeof args.speed === "number") input.speed = args.speed;
+        if (isQwenTts) {
+          const qwenVoice =
+            (typeof args.voice_id === "string" && args.voice_id) ||
+            (typeof args.voice === "string" && args.voice) ||
+            "Vivian";
+          input.voice = qwenVoice;
+          if (typeof args.speaker_voice_embedding_file_url === "string") {
+            input.speaker_voice_embedding_file_url =
+              args.speaker_voice_embedding_file_url;
+          }
+        } else {
+          if (typeof args.voice_id === "string") input.voice_id = args.voice_id;
+          if (typeof args.speed === "number") input.speed = args.speed;
+        }
         const finalIsElevenLabs =
           modelId.startsWith("fal-ai/elevenlabs/") &&
           !!process.env.ELEVENLABS_API_KEY;

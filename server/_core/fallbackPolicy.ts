@@ -196,6 +196,9 @@ export const PER_CATEGORY_FALLBACK: Record<string, string[]> = {
     "fal-ai/orpheus-tts",
     "fal-ai/dia-tts",
     "fal-ai/kokoro",
+    // DEF-Q2：Qwen TTS 加入候選鏈 — 不需特殊 key（FAL_API_KEY 即可）、
+    // 多語言、tier=fast，可作為 ElevenLabs 缺 ELEVENLABS_API_KEY 時的合理替代。
+    "fal-ai/qwen-3-tts/text-to-speech/1.7b",
   ],
   "text-to-audio": [
     "fal-ai/ace-step",

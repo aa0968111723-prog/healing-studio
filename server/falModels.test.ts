@@ -74,6 +74,39 @@ describe("falModels catalog coverage", () => {
     ).toBe(true);
   });
 
+  // DEF-Q1：Qwen3-TTS 1.7B 必須註冊在 text-to-speech catalog，否則 dispatcher
+  // 對 modelId 為 fal-ai/qwen-3-tts/text-to-speech/1.7b 的請求會 catalog miss，
+  // 自動降級到 fallback chain[0] = fal-ai/f5-tts（光球/導演/大腦選 Qwen 都會被換掉）。
+  it("text-to-speech catalog includes Qwen3-TTS 1.7B canonical id", () => {
+    const cfg = getFalModelById(
+      "fal-ai/qwen-3-tts/text-to-speech/1.7b",
+      "text-to-speech"
+    );
+    expect(cfg).toBeDefined();
+    expect(cfg!.category).toBe("text-to-speech");
+  });
+
+  // DEF-EL1：ElevenLabs SFX 真實 endpoint 帶 /v2 後綴，必須在 text-to-audio
+  // catalog 註冊，否則 dispatcher 會把所有 SFX 請求降級到 fal-ai/ace-step（音樂模型）。
+  it("text-to-audio catalog includes ElevenLabs SFX v2 canonical id", () => {
+    const cfg = getFalModelById(
+      "fal-ai/elevenlabs/sound-effects/v2",
+      "text-to-audio"
+    );
+    expect(cfg).toBeDefined();
+    expect(cfg!.category).toBe("text-to-audio");
+  });
+
+  // DEF-So1：Sonauto v2 真實 fal endpoint。
+  it("text-to-audio catalog includes Sonauto v2 canonical id", () => {
+    const cfg = getFalModelById(
+      "sonauto/v2/text-to-music",
+      "text-to-audio"
+    );
+    expect(cfg).toBeDefined();
+    expect(cfg!.category).toBe("text-to-audio");
+  });
+
   it("every front-end falId from ImageStudio resolves via getFalModelById", () => {
     // Mirror the t2i falIds declared in client/src/pages/ImageStudio.tsx
     const t2iFalIds = [

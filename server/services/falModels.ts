@@ -1244,6 +1244,42 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       outputSchema: { audioUrl: true },
       timeoutMs: 60_000,
     },
+    // DEF-Q1：Qwen3-TTS 1.7B — 早先只有 pricing/brain-repair 紀錄，沒註冊到
+    // FAL_MODEL_CATALOG，因此 dispatcher 對任何 category=text-to-speech 的
+    // 請求 + modelId="fal-ai/qwen-3-tts/text-to-speech/1.7b" 都 catalog miss，
+    // 自動降級到 fal-ai/f5-tts。光球 / 導演 / 大腦選 Qwen 全部默默被換掉。
+    // 欄位形狀與其他 TTS 不同：用 voice（預訓練名稱，如 "Vivian"）或
+    // speaker_voice_embedding_file_url，並可選 reference_text + language。
+    {
+      modelId: "fal-ai/qwen-3-tts/text-to-speech/1.7b",
+      label: "Qwen 3 TTS 1.7B",
+      category: "text-to-speech",
+      tier: "fast",
+      description: "Qwen 3 TTS 1.7B — 多語言（中英日韓西法德義葡俄）+ 預訓練聲線/克隆 embedding",
+      inputSchema: { prompt: true, voiceId: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 60_000,
+    },
+    {
+      modelId: "fal-ai/qwen-3-tts/clone-voice/1.7b",
+      label: "Qwen 3 Voice Clone",
+      category: "text-to-speech",
+      tier: "fast",
+      description: "Qwen 3 聲音克隆 — 回傳 speaker_voice_embedding，供 qwenTTS 復用",
+      inputSchema: { audioUrl: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 90_000,
+    },
+    {
+      modelId: "fal-ai/qwen-3-tts/voice-design/1.7b",
+      label: "Qwen 3 Voice Design",
+      category: "text-to-speech",
+      tier: "fast",
+      description: "Qwen 3 文字描述設計語音 — prompt 描述聲線 → embedding",
+      inputSchema: { prompt: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 90_000,
+    },
   ],
 
   // ════════════════════════════════════════════════════════
