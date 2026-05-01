@@ -5694,9 +5694,17 @@ export const appRouter = router({
               if (globalWorkflowsEnabled && taskDraft && orbTaskStateMachineEnabled) {
                 stateMachineTask = createOrbAgentTaskFromPlanner(plannerResult);
               }
-              if (globalWorkflowsEnabled && taskDraft && !stateMachineTask) {
+              // Always materialize a legacy orbTaskRepository record so the
+              // existing reportTaskStep flow (which queries the legacy store)
+              // can drive steps. When the FSM created a task we reuse its id
+              // so both stores point at the same logical task; otherwise we
+              // generate a new id. Without this, multi-step plans created via
+              // the FSM stalled at "pending" because reportTaskStep saw a
+              // missing record under the FSM id.
+              if (globalWorkflowsEnabled && taskDraft) {
                 try {
                   materializedTask = orbTaskRepository.create({
+                    taskId: stateMachineTask?.taskId,
                     userId: ctx.user.id,
                     intent: taskDraft.intent,
                     needsApproval: taskDraft.needsApproval,

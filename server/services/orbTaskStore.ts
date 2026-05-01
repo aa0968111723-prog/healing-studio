@@ -7,6 +7,14 @@ export interface CreateOrbTaskInput {
   steps: OrbPlanStep[];
   needsApproval?: boolean;
   now?: number;
+  /**
+   * Optional override so the FSM (orbTaskStateMachine) and the legacy store
+   * can share the same identifier. Without this, the two stores generated
+   * different IDs (`orb_task_*` vs `orb_*`) for the same logical task and
+   * `reportTaskStep` silently failed because the legacy store had no record
+   * under the FSM's id.
+   */
+  taskId?: string;
 }
 
 export interface ReportStepInput {
@@ -24,7 +32,9 @@ const TASK_TTL_MS = 30 * 60 * 1000;
 const STEP_APPROVAL_TTL_MS = 5 * 60 * 1000;
 
 function makeTaskId(now: number): string {
-  return `orb_${now}_${Math.random().toString(36).slice(2, 10)}`;
+  // Keep the `orb_task_*` prefix consistent with orbTaskStateMachine so the
+  // FSM and the legacy store can address the same task by the same id.
+  return `orb_task_${now}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
 export class OrbTaskStore {
@@ -111,7 +121,7 @@ export class OrbTaskStore {
     const now = input.now ?? Date.now();
     this.cleanup(now);
     const task: OrbTask = {
-      taskId: makeTaskId(now),
+      taskId: input.taskId ?? makeTaskId(now),
       userId: input.userId,
       intent: input.intent,
       status: "planned",

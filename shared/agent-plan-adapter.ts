@@ -348,7 +348,24 @@ export function adaptAgentPlanV3ToOrbTaskDraft(
   plan: AgentPlanV3,
   evaluation: AgentPlanV3RiskEvaluation
 ): OrbTaskDraft {
-  const isolation = plan.taskPolicy?.isolation ?? (evaluation.needsClaudeCode ? "code" : "ui");
+  let isolation: "ui" | "tool" | "code" =
+    plan.taskPolicy?.isolation ?? (evaluation.needsClaudeCode ? "code" : "ui");
+  // Demote a hallucinated `taskPolicy.isolation: "code"` when the actual
+  // step toolNames are all server-side media calls. Without this, plans
+  // like "為使用者做普洱茶療癒影片" (steps = studio.generateImage / Video /
+  // Audio) keep getting forced into claudeCode isolation by an LLM that
+  // misclassifies "tasked" as "code work".
+  if (isolation === "code" && !evaluation.needsClaudeCode) {
+    const stepsWithToolName = plan.steps.filter(step => Boolean(step.toolName));
+    const allServerMedia =
+      stepsWithToolName.length > 0 &&
+      stepsWithToolName.every(step =>
+        ["studio.", "director.", "media.", "pro-studio."].some(prefix =>
+          String(step.toolName).startsWith(prefix)
+        )
+      );
+    if (allServerMedia) isolation = "ui";
+  }
   return {
     taskId: plan.planId,
     intent: plan.intent,
