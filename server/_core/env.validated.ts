@@ -280,6 +280,18 @@ const coreSchema = z.object({
   // ── 健康巡檢警報（沒設則靜默跳過）────────────────────────
   DISCORD_WEBHOOK_URL: z.string().optional().default(""),
 
+  // ── API 用量告警（沒設則靜默跳過）─────────────────────────
+  // ALERT_SLACK_WEBHOOK：Slack incoming webhook URL，每 15 分鐘 cron 觸發
+  // ALERT_EMAIL_RECIPIENTS：逗號分隔，目前 cron 只實作 Slack；保留欄位以便未來擴充
+  // AI_MONTHLY_BUDGET_USD：當月 AI 預算（美金），預設 500；用於 budget alert
+  ALERT_SLACK_WEBHOOK: z.string().optional().default(""),
+  ALERT_EMAIL_RECIPIENTS: z.string().optional().default(""),
+  AI_MONTHLY_BUDGET_USD: z.string().optional().default("500"),
+
+  // ── Stripe 收款（沒設則跳過 webhook 簽章驗證 / 不建立訂單）─
+  STRIPE_SECRET_KEY: z.string().optional().default(""),
+  STRIPE_WEBHOOK_SECRET: z.string().optional().default(""),
+
   // ── 向後相容：Manus Forge API（遷移完成後可移除）─────────
   VITE_APP_ID: z.string().optional().default(""),
   OAUTH_SERVER_URL: z.string().optional().default(""),
@@ -303,6 +315,9 @@ const multimodalSchema = z.object({
 
   // ── 圖片 / 影片生成 ──────────────────────────────────────
   FAL_API_KEY: z.string().min(1).optional().default(""),
+  // Fal.ai Webhook 簽章共享密鑰（HMAC-SHA256 驗證 webhook payload）
+  // 必須與 FAL_API_KEY 不同；建議用 `openssl rand -hex 32` 生成獨立隨機值
+  FAL_WEBHOOK_SECRET: z.string().optional().default(""),
   REPLICATE_API_TOKEN: z.string().min(1).optional().default(""),
 
   // ── 音訊 / 語音生成 ──────────────────────────────────────
@@ -397,6 +412,10 @@ const multimodalSchema = z.object({
   // ── PostHog 後端事件追蹤（前端走 VITE_POSTHOG_KEY） ─────────────────
   POSTHOG_API_KEY: z.string().min(1).optional().default(""),
   POSTHOG_HOST: z.string().optional().default("https://us.i.posthog.com"),
+
+  // ── Orb Webhook（n8n / Zapier / Make 觸發 POST /api/webhooks/orb）─────
+  // 共享密鑰：請求 header `x-orb-webhook-secret` 必須等於此值，否則 401
+  ORB_WEBHOOK_SECRET: z.string().optional().default(""),
 });
 
 // Combined schema

@@ -1,6 +1,7 @@
 # Railway 環境變數設定清單
 
-> 部署到 Railway 後，在 **Variables** 分頁逐一貼入以下變數
+> 部署到 Railway 後，在 **Variables** 分頁逐一貼入以下變數。
+> 完整變數定義與預設值見 `server/_core/env.validated.ts` 與 `client/src/lib/env.validated.ts`。
 
 ---
 
@@ -10,16 +11,16 @@
 | -------------- | -------------------------------- | -------------------------- |
 | `NODE_ENV`     | `production`                     | 固定填這個                 |
 | `PORT`         | `3000`                           | Railway 會自動覆蓋，但先填 |
-| `JWT_SECRET`   | _(見下方生成方式)_               | 至少 32 字元隨機字串       |
-| `DATABASE_URL` | `mysql://user:pass@host:3306/db` | MySQL 連線字串             |
+| `JWT_SECRET`   | _(32+ 字元隨機字串)_             | `openssl rand -base64 32`   |
+| `DATABASE_URL` | `${{MySQL.MYSQL_URL}}`           | Railway MySQL 服務參照      |
 
-### 生成 JWT_SECRET（複製以下任一個）
+### 生成 JWT_SECRET
 
+```bash
+openssl rand -base64 32
 ```
-healing-studio-prod-jwt-2024-xK9mR3nQ
-```
 
-或到 Railway → Variables → 直接貼入
+> ⚠️ **不要**另外設定 `AUTH_SECRET`，程式碼只讀 `JWT_SECRET`（`server/_core/env.ts:14`）。
 
 ---
 
@@ -29,24 +30,121 @@ healing-studio-prod-jwt-2024-xK9mR3nQ
 | ---------------------- | -------------------------------------------- |
 | `GOOGLE_CLIENT_ID`     | 從 Google Cloud Console 取得                 |
 | `GOOGLE_CLIENT_SECRET` | 從 Google Cloud Console 取得                 |
-| `GOOGLE_REDIRECT_URI`  | `https://你的Railway網址/api/oauth/callback` |
+| `GOOGLE_REDIRECT_URI`  | `https://你的網址/api/oauth/callback`        |
 
 ---
 
-## 🟢 AI 服務 API（功能性，非必要啟動）
+## 🟢 LLM 引擎（推薦：用 OpenRouter 一支金鑰打所有家）
 
-| 變數名稱               | 取得網址                                    |
-| ---------------------- | ------------------------------------------- |
-| `GEMINI_API_KEY`       | https://aistudio.google.com/apikey          |
-| `FAL_API_KEY`          | https://fal.ai/dashboard/keys               |
-| `REPLICATE_API_TOKEN`  | https://replicate.com/account/api-tokens    |
-| `ELEVENLABS_API_KEY`   | https://elevenlabs.io/app/settings/api-keys |
-| `SUNO_API_KEY`         | Suno 開發者控制台                           |
-| `PINECONE_API_KEY`     | https://app.pinecone.io                     |
-| `PINECONE_ENVIRONMENT` | `us-east-1`                                 |
-| `PINECONE_INDEX_NAME`  | `ai-director-memories`                      |
-| `NEWS_API_KEY`         | https://newsapi.org/account                 |
-| `NEWSDATA_API_KEY`     | https://newsdata.io                         |
+| 變數名稱            | 取得網址                                  | 備註                       |
+| ------------------- | ----------------------------------------- | -------------------------- |
+| `OPENROUTER_API_KEY`| https://openrouter.ai/keys                | 推薦：統一閘道             |
+| `ANTHROPIC_API_KEY` | https://console.anthropic.com/settings/keys | 光球代理首選 tool use      |
+| `GEMINI_API_KEY`    | https://aistudio.google.com/apikey        | 圖片/影片/語音多模態必需   |
+| `LLM_ENGINE`        | `auto`                                    | 智慧路由（不要寫死成單一引擎）|
+
+> `LLM_ENGINE=auto` 的優先序：`openrouter > anthropic > gemini > nvidia > vertex > forge`，
+> 任一引擎失敗會自動降級（`server/_core/llmRouter.ts`）。
+
+---
+
+## 🟢 多模態 API（依啟用模組設定）
+
+| 變數名稱               | 取得網址                                    | 模組         |
+| ---------------------- | ------------------------------------------- | ------------ |
+| `FAL_API_KEY`          | https://fal.ai/dashboard/keys               | 圖片/影片    |
+| `FAL_WEBHOOK_SECRET`   | `openssl rand -hex 32`（**不可與 FAL_API_KEY 同值**） | webhook 簽章 |
+| `REPLICATE_API_TOKEN`  | https://replicate.com/account/api-tokens    | LoRA 訓練    |
+| `ELEVENLABS_API_KEY`   | https://elevenlabs.io/app/settings/api-keys | TTS          |
+| `SUNO_API_KEY`         | Suno 開發者控制台                           | 音樂生成     |
+| `PINECONE_API_KEY`     | https://app.pinecone.io                     | RAG 記憶     |
+| `PINECONE_ENVIRONMENT` | `us-east-1`                                 |              |
+| `PINECONE_INDEX_NAME`  | `ai-director-memories`                      |              |
+| `NEWS_API_KEY`         | https://newsapi.org/account                 | 新聞研究     |
+| `NEWSDATA_API_KEY`     | https://newsdata.io                         | 新聞研究     |
+| `BRAVE_SEARCH_API_KEY` | https://brave.com/search/api/               | 網路搜尋     |
+| `PERPLEXITY_API_KEY`   | https://www.perplexity.ai/settings/api      | 網路研究     |
+
+---
+
+## 🟢 GitHub 整合（AI 自動建立 Issue）
+
+| 變數名稱       | 格式 / 來源                              |
+| -------------- | ---------------------------------------- |
+| `GITHUB_TOKEN` | `github_pat_*` 或 `ghp_*`（**不是 Pinecone `pcsk_*`**） |
+| `GITHUB_REPO`  | `owner/repo`，例 `aa0968111723-prog/healing-studio` |
+
+> 到 https://github.com/settings/tokens 建立 fine-grained PAT，授予 `Issues: Read & write`。
+
+---
+
+## 🟢 站點與 Webhook 路徑
+
+| 變數名稱       | 值                          | 用途                             |
+| -------------- | --------------------------- | -------------------------------- |
+| `VITE_SITE_URL`| `https://director.today`    | webhook callback URL 構造        |
+| `BASE_URL`     | `https://director.today`    | 後端絕對 URL（email 連結等）     |
+| `ORB_TOOL_ALLOWED_ORIGINS` | `https://director.today,https://api.director.today` | 光球工具白名單（不設則全擋） |
+| `ORB_TOOL_REGISTRY_JSON`   | `[]` 或 JSON 工具陣列     | 光球可呼叫的外部工具定義         |
+| `ORB_WEBHOOK_SECRET`       | `openssl rand -hex 32`     | n8n / Zapier 觸發 orb 共享密鑰   |
+
+---
+
+## 🟢 監控與分析
+
+| 變數名稱            | 值                                  | 模組               |
+| ------------------- | ----------------------------------- | ------------------ |
+| `VITE_POSTHOG_KEY`  | PostHog Project key (`phc_*`)       | 前端分析（build time 注入） |
+| `VITE_POSTHOG_HOST` | `https://us.i.posthog.com`          | 前端分析           |
+| `POSTHOG_API_KEY`   | PostHog server-side key             | AI Proxy 後端事件  |
+| `POSTHOG_HOST`      | `https://us.i.posthog.com`          | 後端事件 endpoint  |
+| `LANGSMITH_API_KEY` | `lsv2_pt_*` 或 `lsv2_sk_*`          | LLM 追蹤（非此格式會被自動清空）|
+| `LANGSMITH_PROJECT` | `healing-studio-prod`               |                    |
+| `LANGCHAIN_TRACING_V2` | `true`                           |                    |
+| `LANGCHAIN_ENDPOINT` | `https://api.smith.langchain.com`  |                    |
+
+---
+
+## 🟢 儲存（Cloudflare R2 / S3 相容）
+
+| 變數名稱                | 值                                                            |
+| ----------------------- | ------------------------------------------------------------- |
+| `S3_ENDPOINT`           | `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`              |
+| `S3_ACCESS_KEY_ID`      | _(R2 token)_                                                   |
+| `S3_SECRET_ACCESS_KEY`  | _(R2 secret)_                                                 |
+| `S3_BUCKET_NAME`        | _(bucket 名稱)_                                                |
+| `S3_PUBLIC_DOMAIN`      | `https://pub-xxxx.r2.dev`（或自訂網域）                       |
+
+---
+
+## 🟡 選用（依場景補上）
+
+| 變數名稱                | 用途                                                    |
+| ----------------------- | ------------------------------------------------------- |
+| `STRIPE_SECRET_KEY`     | Stripe 收款（`sk_live_*`）                              |
+| `STRIPE_WEBHOOK_SECRET` | Stripe webhook 驗章（`whsec_*`）                        |
+| `REDIS_URL`             | 分散式快取/排程鎖（單機可不設，多機必填）              |
+| `DISCORD_WEBHOOK_URL`   | 健康巡檢告警                                            |
+| `ALERT_SLACK_WEBHOOK`   | API 用量告警（每 15 分鐘 cron）                         |
+| `AI_MONTHLY_BUDGET_USD` | 月預算上限（預設 500）                                  |
+| `OPENROUTER_HTTP_REFERER` | OpenRouter dashboard 識別來源                         |
+| `ADMIN_EMAILS`          | 逗號分隔，登入時自動設為 admin                          |
+| `NVIDIA_API`            | MiniMax M2.7 via NVIDIA NIM                            |
+| `GEMINI_LIVE_API_KEY`   | Gemini Live Voice 即時對話                              |
+
+---
+
+## ❌ 不要設定（程式碼從未讀取）
+
+下列變數**完全沒有任何 code 引用**，設了只是噪音：
+
+- `AUTH_SECRET`（用 `JWT_SECRET` 取代）
+- `CACHE_TTL_SECONDS`（cache TTL 是 hardcoded 常數）
+- `LLM_TIMEOUT_SECONDS`（hardcoded 90000ms）
+- `MAX_CONCURRENT_LLM_CALLS`（無引用）
+- `ENABLE_ADVANCED_SEARCH`（無引用）
+- `ENABLE_RAG_MEMORY`（用 `ENABLE_ORB_LONG_TERM_MEMORY` 取代）
+- `ENABLE_RESEARCH_MODE`（用 `ENABLE_ORB_WEB_RESEARCH` 取代）
 
 ---
 
@@ -54,17 +152,30 @@ healing-studio-prod-jwt-2024-xK9mR3nQ
 
 1. Railway Dashboard → **+ New** → **Database** → **MySQL**
 2. 建立完後點擊 MySQL 服務 → **Variables**
-3. 複製 `DATABASE_URL` 的值
-4. 貼到你的 App 服務的 Variables 裡
+3. 在你的 App 服務的 Variables 加上 `DATABASE_URL=${{MySQL.MYSQL_URL}}` 即可參照
 
 ---
 
 ## 🌐 Google OAuth URI 填法
 
-Railway 部署完成後會給你一個網址，例如：
-`https://healing-studio-production.up.railway.app`
+Railway 部署完成後填入 Google Cloud Console：
 
-填入 Google Cloud Console：
+- **已授權的 JavaScript 來源**：`https://你的網址`
+- **已授權的重新導向 URI**：`https://你的網址/api/oauth/callback`
 
-- **已授權的 JavaScript 來源**：`https://healing-studio-production.up.railway.app`
-- **已授權的重新導向 URI**：`https://healing-studio-production.up.railway.app/api/oauth/callback`
+---
+
+## 🩹 自我修復機制（程式碼自動處理）
+
+啟動時若偵測到下列狀況會自動修補並警告（`server/_core/env.validated.ts:80-210`）：
+
+| 偵測 | 動作 |
+|------|------|
+| `NTHROPIC_API_KEY` / `ANTROPIC_API_KEY` | rename → `ANTHROPIC_API_KEY` |
+| `NVIDA_API` | rename → `NVIDIA_API` |
+| `FAL_KEY` | rename → `FAL_API_KEY` |
+| `PINECONE_INDEX_NAME` 含非法字元 | sanitize 為小寫英數連字號 |
+| `JWT_ACCESS_TOKEN_EXPIRES_IN` 非數字 | 還原預設 31536000 |
+| `GOOGLE_APPLICATION_CREDENTIALS_JSON` 非合法 JSON | 視為未設定 |
+| `LANGSMITH_API_KEY` 非 `lsv2_*` 格式 | 視為未設定 |
+| 範本字串（`your-xxx-api-key` 等） | 視為未設定 |

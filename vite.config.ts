@@ -168,10 +168,18 @@ export default defineConfig({
     },
   },
   envDir: path.resolve(import.meta.dirname),
-  // 確保 VITE_SITE_URL 在 build 時被正確替換（index.html og:url / canonical）
+  // 確保下列變數在 build 時被替換（index.html 模板用 %VITE_X% 也會自動替換）
+  // - VITE_SITE_URL：og:url / canonical
+  // - VITE_POSTHOG_KEY / VITE_POSTHOG_HOST：index.html 內聯 PostHog init
   define: {
     "import.meta.env.VITE_SITE_URL": JSON.stringify(
       process.env.VITE_SITE_URL ?? "https://healing-studio-production.up.railway.app"
+    ),
+    "import.meta.env.VITE_POSTHOG_KEY": JSON.stringify(
+      process.env.VITE_POSTHOG_KEY ?? ""
+    ),
+    "import.meta.env.VITE_POSTHOG_HOST": JSON.stringify(
+      process.env.VITE_POSTHOG_HOST ?? "https://us.i.posthog.com"
     ),
   },
   root: path.resolve(import.meta.dirname, "client"),

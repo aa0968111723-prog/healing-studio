@@ -38,6 +38,8 @@ webhooksRouter.post("/orb", limiter, async (req, res) => {
     return;
   }
 
+  // 直讀 process.env：webhook 需要支援運行期輪替密鑰（test 也依賴此語意）；
+  // schema 條目仍用於 .env.example 文件化與啟動期驗證。
   const expected = process.env.ORB_WEBHOOK_SECRET ?? "";
   if (!expected || !isValidSecret(parse.data.webhookSecret, expected)) {
     res.status(401).json({ error: "unauthorized" });
