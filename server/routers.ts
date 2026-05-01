@@ -5248,6 +5248,9 @@ export const appRouter = router({
                 temperature: director.temperature,
                 preferEngine: "auto",
                 runName: "orb-chat-only",
+                // Per-engine cap so that if the first engine hangs, OpenRouter
+                // / Anthropic still get a shot before the outer 15s wrapper fires.
+                timeoutMs: 6_000,
               }),
               15_000,
               "光球純聊天模式"
@@ -5312,6 +5315,9 @@ export const appRouter = router({
                 preferences: (input.preferences ?? null) as Parameters<typeof runSchemaFirstAgentPlanner>[0]["preferences"],
                 invoke: async plannerInput => {
                   const preferred = plannerInput.preferEngine ?? enginePreference;
+                  // Cap each engine attempt so the inner fallback chain (incl.
+                  // OpenRouter) actually runs before the outer 20s wrapper fires.
+                  const PLANNER_PER_ENGINE_TIMEOUT_MS = 8_000;
                   try {
                     const result = await invokeLLM({
                       ...plannerInput,
@@ -5320,6 +5326,7 @@ export const appRouter = router({
                       topP: director.topP,
                       systemPrompt: director.systemPrompt,
                       preferEngine: preferred,
+                      timeoutMs: PLANNER_PER_ENGINE_TIMEOUT_MS,
                     });
                     if (providerRouterEnabled && preferred === "gemini") {
                       if (markProviderRecovered("gemini")) {
@@ -5354,6 +5361,7 @@ export const appRouter = router({
                           topP: director.topP,
                           systemPrompt: director.systemPrompt,
                           preferEngine: "auto",
+                          timeoutMs: PLANNER_PER_ENGINE_TIMEOUT_MS,
                         });
                       }
                     }
@@ -5804,6 +5812,9 @@ export const appRouter = router({
               ],
               preferEngine: enginePreference,
               runName: "orb-agent-chat",
+              // Per-engine cap so the inner fallback chain (incl. OpenRouter)
+              // gets attempted before the outer 20s wrapper times out.
+              timeoutMs: 8_000,
             }),
             20_000,
             "全站光球代理"
