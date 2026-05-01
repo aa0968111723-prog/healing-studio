@@ -15,6 +15,7 @@ const {
   PAGE_TO_ROUTERS,
   ROUTER_TO_AI_SLOTS,
   PROVIDERS,
+  STUDIO_CONSUMERS,
 } = __testing;
 
 /** 專案根目錄 — 用於檢查 graph 中提到的檔案是否真的存在於 repo。 */
@@ -425,6 +426,72 @@ describe("brainPipeline graph builder", () => {
       `Graph 中有檔案路徑指到不存在的檔案：\n  ${missing.slice(0, 20).join("\n  ")}\n` +
         `→ 請更新 brainPipeline.ts 中對應 node 的 relatedFiles / frontendPath。`
     ).toEqual([]);
+  });
+
+  it("studio consumer nodes are always present and edged to their engine slots, orb-agent and director", () => {
+    // 個人視圖（無 page、無 router）也必須能看到工作室節點與引擎連線，
+    // 否則「我的大腦」頁的引擎槽會懸空。
+    const personal = buildGraph({
+      includeAllPages: false,
+      includeRouters: false,
+      includeAlerts: false,
+    });
+    const studios = personal.nodes.filter(n => n.kind === "studio");
+    expect(studios.map(s => s.id).sort()).toEqual([
+      "studio:image-studio",
+      "studio:pro-studio",
+      "studio:video-studio",
+    ]);
+
+    // 每個工作室都連到它宣告的所有引擎槽
+    for (const meta of STUDIO_CONSUMERS) {
+      for (const engineSlot of meta.engines) {
+        expect(
+          personal.edges.find(
+            e => e.source === meta.id && e.target === `engine:${engineSlot}`
+          ),
+          `${meta.id} 應有 edge 連到 engine:${engineSlot}`
+        ).toBeDefined();
+      }
+    }
+
+    // orb:agent → 每個工作室（光球可分派多步驟工具呼叫到工作室）
+    for (const meta of STUDIO_CONSUMERS) {
+      expect(
+        personal.edges.find(
+          e => e.source === "orb:agent" && e.target === meta.id
+        ),
+        `orb:agent 應有 edge 連到 ${meta.id}`
+      ).toBeDefined();
+    }
+
+    // 導演 → 圖片 / 影片工作室（sendToStudio 流程）
+    expect(
+      personal.edges.find(
+        e =>
+          e.source === "director:main" && e.target === "studio:image-studio"
+      )
+    ).toBeDefined();
+    expect(
+      personal.edges.find(
+        e =>
+          e.source === "director:main" && e.target === "studio:video-studio"
+      )
+    ).toBeDefined();
+
+    // admin 完整視圖也必須包含相同的工作室節點（不被 includeAllPages 開關影響）
+    const admin = buildGraph({
+      includeAllPages: true,
+      includeRouters: true,
+      includeAlerts: true,
+    });
+    expect(
+      admin.nodes.filter(n => n.kind === "studio").map(s => s.id).sort()
+    ).toEqual([
+      "studio:image-studio",
+      "studio:pro-studio",
+      "studio:video-studio",
+    ]);
   });
 
   it("orb-agent and orb-assistant and director nodes are always present", () => {

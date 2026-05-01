@@ -102,6 +102,73 @@ const GENERATION_SLOT_META: Record<
   },
 };
 
+/**
+ * 創作工作室 → 消費的生成引擎槽。
+ *
+ * 之前的版本只在「站點視圖」展開後才能在 page-group 內看到圖片／影片／專業
+ * 工作室；而 admin 「大腦視圖」與用戶 `/my-brain` 預設視圖把 page 節點過濾掉，
+ * 結果引擎槽看起來懸空，使用者無法在大腦可視化中看到「圖片工作室就是消費
+ * imageEngine 的那一頁」。
+ *
+ * 這份清單把 3 個主要工作室列為 ai-brain layer 的「studio」節點：
+ *   - 在 brain / full / site 視圖都會出現（VIEW_MODE_KINDS 已涵蓋）
+ *   - 連到對應的 engine slot（消費引擎）
+ *   - 從 orb:agent 連入（光球可分派工作室）
+ *   - 從 director:main 連入（導演可送至工作室）
+ */
+interface StudioConsumerMeta {
+  id: string;
+  label: string;
+  description: string;
+  engines: GenerationEngineSlot[];
+  files: string[];
+  frontendPath: string;
+  backendRoute: string;
+  serviceFunction: string;
+}
+
+const STUDIO_CONSUMERS: StudioConsumerMeta[] = [
+  {
+    id: "studio:image-studio",
+    label: "圖片工作室",
+    description: "靜態圖片生成入口（t2i / edit / upscale / pose / 3d）",
+    engines: ["imageEngine"],
+    files: [
+      "client/src/pages/ImageStudio.tsx",
+      "server/routers/imageStudio.ts",
+    ],
+    frontendPath: "client/src/pages/ImageStudio.tsx",
+    backendRoute: "trpc.imageStudio.* + studio.generateImage（光球工具）",
+    serviceFunction: "agentToolExecutor.dispatchFalQueueTask",
+  },
+  {
+    id: "studio:video-studio",
+    label: "影片工作室",
+    description: "動態影片生成入口（Kling / Veo / WAN / Seedance）",
+    engines: ["videoEngine"],
+    files: [
+      "client/src/pages/VideoStudio.tsx",
+      "server/routers/videoStudio.ts",
+    ],
+    frontendPath: "client/src/pages/VideoStudio.tsx",
+    backendRoute: "trpc.videoStudio.* + studio.generateVideo（光球工具）",
+    serviceFunction: "agentToolExecutor.dispatchFalQueueTask",
+  },
+  {
+    id: "studio:pro-studio",
+    label: "專業工作室",
+    description: "音訊生成、TTS、聲音克隆（ACE-Step / ElevenLabs / Dia）",
+    engines: ["audioEngine", "voiceEngine"],
+    files: [
+      "client/src/pages/ProStudio.tsx",
+      "server/routers/proStudio.ts",
+    ],
+    frontendPath: "client/src/pages/ProStudio.tsx",
+    backendRoute: "trpc.proStudio.* + studio.generateAudio/Voice（光球工具）",
+    serviceFunction: "dispatchAudioGeneration / dispatchTTS",
+  },
+];
+
 interface ProviderMeta {
   id: string;
   label: string;
@@ -823,6 +890,53 @@ function buildGraph(opts: BuildGraphOptions): PipelineGraph {
     );
   }
 
+  // ── Layer 3b+: Creation Studio Consumers ────────────────────────────────
+  // 工作室節點：使用對應引擎槽的狀態作為自身狀態（最差的優先），
+  // 讓使用者點開「圖片工作室」就能看到下游引擎是否健康。
+  const slotStatusById = new Map<string, PipelineNodeStatus>(
+    nodes
+      .filter(n => n.kind === "engine-slot")
+      .map(n => [n.id, n.status])
+  );
+  const STATUS_RANK: Record<PipelineNodeStatus, number> = {
+    healthy: 0,
+    needs_optimization: 1,
+    abnormal: 2,
+    broken: 3,
+  };
+  for (const studio of STUDIO_CONSUMERS) {
+    let worst: PipelineNodeStatus = "healthy";
+    for (const engineSlot of studio.engines) {
+      const s = slotStatusById.get(`engine:${engineSlot}`) ?? "healthy";
+      if (STATUS_RANK[s] > STATUS_RANK[worst]) worst = s;
+    }
+    nodes.push({
+      id: studio.id,
+      kind: "studio",
+      layer: "ai-brain",
+      label: studio.label,
+      description: studio.description,
+      status: worst,
+      reason:
+        worst !== "healthy"
+          ? "下游生成引擎之一狀態不佳，可能影響此工作室的產出"
+          : undefined,
+      recommendation:
+        worst !== "healthy"
+          ? "點擊下游引擎節點查看詳情，或前往「大腦組態」改選備援引擎"
+          : undefined,
+      relatedFiles: studio.files,
+      diagnostics: {
+        frontendPath: studio.frontendPath,
+        backendRoute: studio.backendRoute,
+        serviceFunction: studio.serviceFunction,
+      },
+    });
+    for (const engineSlot of studio.engines) {
+      edges.push(makeEdge(studio.id, `engine:${engineSlot}`, "消費引擎"));
+    }
+  }
+
   // ── Layer 3c: Orb Agent / Orb Assistant / Director AI ───────────────────
   // 光球代理（全站路由器）
   const orbAgentStatus: PipelineNodeStatus =
@@ -861,6 +975,10 @@ function buildGraph(opts: BuildGraphOptions): PipelineGraph {
   });
   edges.push(makeEdge("orb:agent", "brain:director", "委派決策"));
   edges.push(makeEdge("orb:agent", "brain:technician", "工具呼叫"));
+  // 光球可分派到任一工作室執行 studio.generate* 工具（多步驟可串）
+  for (const studio of STUDIO_CONSUMERS) {
+    edges.push(makeEdge("orb:agent", studio.id, "分派工作室"));
+  }
 
   // 光球助手（PageAgent）— 啟用頁數靜態算過一次，這裡直接讀
   nodes.push({
@@ -908,6 +1026,9 @@ function buildGraph(opts: BuildGraphOptions): PipelineGraph {
   });
   edges.push(makeEdge("director:main", "brain:director", "推理"));
   edges.push(makeEdge("director:main", "brain:storyteller", "敘事"));
+  // 導演可把 sendToStudio payload 送給圖片／影片工作室
+  edges.push(makeEdge("director:main", "studio:image-studio", "送至工作室"));
+  edges.push(makeEdge("director:main", "studio:video-studio", "送至工作室"));
 
   // ── Layer 2: Backend Routers ─────────────────────────────────────────────
   if (opts.includeRouters) {
@@ -1174,4 +1295,5 @@ export const __testing = {
   ROUTER_TO_PROVIDERS,
   PAGE_TO_ROUTERS,
   ROUTER_TO_AI_SLOTS,
+  STUDIO_CONSUMERS,
 };
