@@ -120,6 +120,23 @@ describe("agentPlanner", () => {
     expect(systemPrompt).toMatch(/Forbidden lazy outputs|navigate.*tell the user/);
   });
 
+  it("system prompt forbids tasked plans that only navigate (the navigate-and-abandon bug)", () => {
+    // Hard-stop the most common multi-step failure mode: the planner
+    // emits decision.mode='tasked' with only navigate / focusElement
+    // steps and no toolName, leaving the user on the destination page
+    // with nothing executed. The runtime gate also rejects these
+    // (agent-plan-v3.test.ts), but we want the planner itself to
+    // refuse to produce them.
+    const messages: Message[] = [
+      { role: "user", content: "請多步驟代理：幫我做一支療癒影片" },
+    ];
+    const built = buildAgentPlannerMessages({ messages });
+    const systemPrompt = String(built[0].content);
+    expect(systemPrompt).toMatch(/HARD CONSTRAINT for tasked plans|絕對不可違反/);
+    expect(systemPrompt).toMatch(/navigate.*focusElement|all.*navigate/);
+    expect(systemPrompt).toMatch(/光跳頁不執行|navigate-and-abandon|will be rejected/i);
+  });
+
   it("system prompt teaches the ${stepId.path} chaining syntax for multi-step tool pipelines", () => {
     const messages: Message[] = [
       { role: "user", content: "先生成影片再幫我做字幕" },
