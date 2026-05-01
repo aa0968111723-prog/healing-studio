@@ -3031,23 +3031,38 @@ ${segmentSummaries}
               estimatedPoints: estimate.totalPoints,
             });
           } else if (modality === "sfx") {
-            // 音效：用分鏡 soundDesign 為提示詞，預設走 stable-audio
+            // 音效：用分鏡 soundDesign 為提示詞
             // 與 audio（音樂）區分：sfx 著重前景擬真音效；audio 著重背景配樂
             if (!soundDesign.trim()) {
               continue; // 沒有 soundDesign 描述就跳過
             }
-            const modelId = "fal-ai/stable-audio";
+            // DEF-SFX4：SFX 接通大腦 audioEngine — 僅當大腦選了 SFX-capable
+            // 引擎（stable-audio / mmaudio-v2 / audioldm2）時跟隨；否則退回
+            // 安全預設 stable-audio，避免拿純音樂引擎（ace-step/sonauto/musicgen）
+            // 去做 Foley 音效。
+            const brainAudioEngine = ctx.brain.generation.audioEngine.engine;
+            const sfxCapable = new Set([
+              "fal-ai/stable-audio",
+              "fal-ai/mmaudio-v2",
+              "fal-ai/audioldm2",
+            ]);
+            const modelId = sfxCapable.has(brainAudioEngine)
+              ? brainAudioEngine
+              : "fal-ai/stable-audio";
             const sfxDuration = Math.min(durationSec, 30); // 音效一般 ≤ 30 秒
             const estimate = estimatePoints(modelId, { durationSec: sfxDuration });
+            // mmaudio-v2 / audioldm2 用 duration；stable-audio 用 seconds_total
+            const sfxParams: Record<string, unknown> =
+              modelId === "fal-ai/stable-audio"
+                ? { seconds_total: sfxDuration }
+                : { duration: sfxDuration };
             generationTasks.push({
               segmentId: segment.id,
               segmentIndex: segment.index,
               modality: "sfx",
               modelId,
               prompt: soundDesign,
-              params: {
-                seconds_total: sfxDuration,
-              },
+              params: sfxParams,
               estimatedPoints: estimate.totalPoints,
             });
           }

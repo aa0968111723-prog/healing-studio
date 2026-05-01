@@ -7,6 +7,7 @@ const GENERATION_SLOT_TOOLS = new Set([
   "studio.generateImage",
   "studio.generateVideo",
   "studio.generateAudio",
+  "studio.generateSfx",
   "studio.generateVoice",
   "studio.enhanceVideo",
   "studio.trainLora",
@@ -832,6 +833,60 @@ async function dispatchStudioTool(
           name: call.name,
           ok: awaited.status !== "failed",
           data: { ...awaited, engine: "fal" },
+          usedTool: call.name,
+          ...(awaited.status === "failed" && awaited.error ? { error: awaited.error } : {}),
+        };
+      }
+
+      // DEF-SFX2：光球專用 SFX 工具 — 與 generateAudio（音樂）分流，
+      // 不接受 lyrics/tags 等音樂專屬欄位，路由到 SFX-capable 引擎。
+      // 大腦 audioEngine 為 SFX-capable 時跟隨；否則退回 fal-ai/stable-audio。
+      case "studio.generateSfx": {
+        const { dispatchFalQueueTask } = await import("./falDispatcher");
+        const requestedModel = (args.modelId as string) || "";
+        let modelId = requestedModel;
+        if (!modelId) {
+          try {
+            const { buildBrainContext } = await import("../middleware/brainContext");
+            const brain = await buildBrainContext(opts.userId);
+            const brainEngine = brain.generation.audioEngine.engine;
+            const sfxCapable = new Set([
+              "fal-ai/stable-audio",
+              "fal-ai/mmaudio-v2",
+              "fal-ai/audioldm2",
+            ]);
+            modelId = sfxCapable.has(brainEngine) ? brainEngine : "fal-ai/stable-audio";
+          } catch {
+            modelId = "fal-ai/stable-audio";
+          }
+        }
+        const sfxInput: Record<string, unknown> = {};
+        if (typeof args.prompt === "string") sfxInput.prompt = args.prompt;
+        const sfxDuration =
+          typeof args.duration === "number" ? Math.min(args.duration, 30) : undefined;
+        if (sfxDuration !== undefined) {
+          if (modelId === "fal-ai/stable-audio") {
+            sfxInput.seconds_total = sfxDuration;
+          } else {
+            sfxInput.duration = sfxDuration;
+          }
+        }
+        const r = await dispatchFalQueueTask({
+          modelId,
+          category: "text-to-audio",
+          input: sfxInput,
+          route: "orb-tool/studio.generateSfx",
+          modality: "audio",
+          userId: opts.userId,
+        });
+        const awaited = await awaitFalForOrb(
+          { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
+          args
+        );
+        return {
+          name: call.name,
+          ok: awaited.status !== "failed",
+          data: { ...awaited, engine: "fal", kind: "sfx" },
           usedTool: call.name,
           ...(awaited.status === "failed" && awaited.error ? { error: awaited.error } : {}),
         };

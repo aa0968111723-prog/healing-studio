@@ -7,11 +7,13 @@ import {
 import { executeOrbToolCalls } from "./services/agentToolExecutor";
 
 describe("studio.* generation tool registration", () => {
-  it("registers all four studio generation tools", () => {
+  it("registers all studio generation tools", () => {
     const names = GLOBAL_AGENT_TOOL_REGISTRY.map(t => t.name);
     expect(names).toContain("studio.generateImage");
     expect(names).toContain("studio.generateVideo");
     expect(names).toContain("studio.generateAudio");
+    // DEF-SFX2：SFX 與 Audio（音樂）分流
+    expect(names).toContain("studio.generateSfx");
     expect(names).toContain("studio.generateVoice");
   });
 
@@ -20,6 +22,7 @@ describe("studio.* generation tool registration", () => {
       "studio.generateImage",
       "studio.generateVideo",
       "studio.generateAudio",
+      "studio.generateSfx",
       "studio.generateVoice",
     ]) {
       const tool = getGlobalAgentTool(name);
@@ -33,6 +36,7 @@ describe("studio.* generation tool registration", () => {
     expect(isKnownGlobalAgentTool("studio.generateImage")).toBe(true);
     expect(isKnownGlobalAgentTool("studio.generateVideo")).toBe(true);
     expect(isKnownGlobalAgentTool("studio.generateAudio")).toBe(true);
+    expect(isKnownGlobalAgentTool("studio.generateSfx")).toBe(true);
     expect(isKnownGlobalAgentTool("studio.generateVoice")).toBe(true);
     expect(isKnownGlobalAgentTool("studio.unknownThing")).toBe(false);
   });

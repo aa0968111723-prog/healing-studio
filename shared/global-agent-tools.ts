@@ -150,6 +150,20 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     },
     executionTarget: "server-side",
   },
+  // DEF-SFX2：光球專用 SFX 生成工具，與音樂分流。
+  // 路由到 fal-ai/stable-audio 或 fal-ai/mmaudio-v2，prompt 為 Foley/環境音描述，
+  // duration 為秒數（stable-audio 走 seconds_total，mmaudio-v2 走 duration）。
+  {
+    name: "studio.generateSfx",
+    riskLevel: "medium",
+    requiresHuman: true,
+    allowedArgsSchema: {
+      prompt: "string",
+      modelId: "string?",
+      duration: "number?",
+    },
+    executionTarget: "server-side",
+  },
   {
     name: "studio.generateVoice",
     riskLevel: "medium",

@@ -335,10 +335,13 @@ const SFX_MODELS = [
     badge: "預設",
     tier: "premium" as const,
   },
+  // DEF-SFX3：id 維持 "audioldm2" 以避開前端枚舉破壞性變更，但 label 與
+  // description 與實際 fal endpoint（fal-ai/mmaudio-v2）對齊，
+  // 不再誤導使用者以為走的是 AudioLDM2。
   {
     id: "audioldm2",
-    label: "AudioLDM 2",
-    description: "音頻潛在擴散模型，擅長自然音效",
+    label: "MMAudio V2",
+    description: "MMAudio 多模態音頻生成（替代 AudioLDM2，擅長自然音效）",
     badge: "",
     tier: "standard" as const,
   },
@@ -382,6 +385,41 @@ function resolveMusicModelChoice(
     return FAL_TO_SHORT_MUSIC[brainEngine];
   }
   return "ace-step";
+}
+
+// ─── 音效模型解析 ────────────────────────────────────────────────────────
+
+type SfxShortId = "stable-audio" | "audioldm2" | "elevenlabs";
+
+/**
+ * SFX-capable fal 引擎集合（不含純音樂模型如 ace-step / sonauto / musicgen）。
+ * 大腦 audioEngine 落在這個集合內時，SFX 路徑才能跟著大腦走。
+ */
+const FAL_TO_SHORT_SFX: Record<string, SfxShortId> = {
+  "fal-ai/stable-audio": "stable-audio",
+  // SFX_MODELS 的 "audioldm2" 實際路由到 fal-ai/mmaudio-v2，故兩個 canonical
+  // 都映射到同一短碼。
+  "fal-ai/mmaudio-v2": "audioldm2",
+  "fal-ai/audioldm2": "audioldm2",
+};
+
+/**
+ * DEF-SFX1：SFX 路徑接通大腦 audioEngine。
+ * 大腦 audioEngine 若為純音樂引擎（ace-step / sonauto / musicgen）則不適用，
+ * 退回 SFX 安全預設 stable-audio，避免拿不會生環境音的模型去做 Foley。
+ *   1. input.model（使用者顯式選擇）
+ *   2. brain.generation.audioEngine.engine（僅當為 SFX-capable）
+ *   3. "stable-audio"（最終安全預設）
+ */
+function resolveSfxModelChoice(
+  inputModel: SfxShortId | undefined,
+  brainEngine: string | undefined
+): SfxShortId {
+  if (inputModel) return inputModel;
+  if (brainEngine && FAL_TO_SHORT_SFX[brainEngine]) {
+    return FAL_TO_SHORT_SFX[brainEngine];
+  }
+  return "stable-audio";
 }
 
 // ─── Router ──────────────────────────────────────────────────────────────────
@@ -585,12 +623,15 @@ export const proStudioRouter = router({
         prompt_influence: z.number().min(0).max(1).optional().default(0.3),
         model: z
           .enum(["stable-audio", "audioldm2", "elevenlabs"])
-          .optional()
-          .default("stable-audio"),
+          .optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const modelChoice = input.model ?? "stable-audio";
+      // DEF-SFX1：SFX 接通大腦 audioEngine（僅當為 SFX-capable 引擎時生效）
+      const modelChoice = resolveSfxModelChoice(
+        input.model,
+        ctx.brain.generation.audioEngine.engine
+      );
 
       // ── Stable Audio（預設）── 真正的音效生成 ──────────────────
       if (modelChoice === "stable-audio") {
