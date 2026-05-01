@@ -24,7 +24,12 @@ import { usePageAgent, parseLLMActions, adaptAgentPlanToActions, type AgentActio
 import { useLocation } from "wouter";
 import { executeGlobalActions, shouldAskBeforeAct } from "../../../shared/global-agent-orchestrator";
 import { globalAgentRegistry } from "../../../shared/global-agent-registry";
-import { detectChatIntent } from "../../../shared/global-agent-workflows";
+import {
+  buildFeatureSummaryReply,
+  buildNavigateWorkflow,
+  detectChatIntent,
+  detectNavIntent,
+} from "../../../shared/global-agent-workflows";
 import {
   chatMessageToLLMContent,
   type OrbChatAttachment,
@@ -882,7 +887,11 @@ interface GlobalOrbChatContextValue {
   /** When false, the orb delivers text replies only — no actions, no workflows. */
   orbAgentEnabled: boolean;
   setInput: (text: string) => void;
-  sendMessage: (text: string, attachments?: ChatAttachment[]) => Promise<void>;
+  sendMessage: (
+    text: string,
+    attachments?: ChatAttachment[],
+    options?: SendMessageOptions
+  ) => Promise<void>;
   open: () => void;
   close: () => void;
   toggle: () => void;
@@ -896,6 +905,25 @@ interface GlobalOrbChatContextValue {
   answerClarification: (answer: string) => Promise<void>;
   /** Dismiss the clarification prompt without re-asking. */
   cancelClarification: () => void;
+}
+
+/**
+ * Mode chips on the agent-chat composer (跳頁 / 計畫 / 多步驟代理 / 功能詢問).
+ *
+ * Modes are encoded as structured metadata so the user's typed prompt is
+ * displayed as-is in the chat (no Chinese instruction prefix injected) and
+ * each mode runs through hard-coded logic where possible — e.g. navigate
+ * mode never round-trips through the LLM, it does keyword routing client-
+ * side and dispatches a navigate workflow directly.
+ */
+export type OrbChatRequestedMode =
+  | "navigate"
+  | "plan"
+  | "multi-step"
+  | "ask-feature";
+
+export interface SendMessageOptions {
+  requestedMode?: OrbChatRequestedMode;
 }
 
 /** Reads the VITE_ENABLE_ORB_AGENT env flag (default: enabled). */
@@ -1172,9 +1200,14 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   // invoke the latest version without creating a circular hook dep.
   const startPendingWorkflowRef = useRef<(() => Promise<void>) | null>(null);
 
-  const sendMessage = useCallback(async (text: string, attachments: ChatAttachment[] = []) => {
+  const sendMessage = useCallback(async (
+    text: string,
+    attachments: ChatAttachment[] = [],
+    options: SendMessageOptions = {}
+  ) => {
     const trimmed = text.trim();
     if ((!trimmed && attachments.length === 0) || isSending) return;
+    const requestedMode = options.requestedMode;
 
     const userMessage: ChatMessage = {
       role: "user",
@@ -1190,9 +1223,68 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     setSuggestions([]);
     setIsSending(true);
 
+    // ─── Mode shortcuts: hard-coded behavior so the user sees the prompt
+    //     they typed instead of an LLM-rewritten reply, and we don't burn a
+    //     round-trip when the answer is already deterministic.
+
+    // navigate (跳頁): keyword-routed direct nav. Uses the same detectors the
+    //   LLM-fallback already trusts; only when no path can be inferred do we
+    //   defer to the LLM (with the mode hint preserved in `context`).
+    if (requestedMode === "navigate") {
+      const directNav = detectNavIntent(trimmed);
+      const intent = directNav ? null : detectChatIntent(trimmed);
+      const inferredPath =
+        directNav?.path ??
+        (intent && intent.kind === "ready"
+          ? intent.workflow.steps.find(step => step.path)?.path
+          : undefined);
+      const inferredLabel =
+        directNav?.label ??
+        (intent && intent.kind === "ready" ? intent.workflow.name : undefined);
+
+      if (inferredPath && inferredLabel) {
+        const navWorkflow = buildNavigateWorkflow(inferredLabel, inferredPath);
+        setMessages(prev => [...prev, {
+          role: "orb",
+          text: `🧭 帶你去「${inferredLabel}」（${inferredPath}）。`,
+          at: Date.now(),
+          pagePath: locationPath,
+          actions: [navWorkflow],
+        }]);
+        try {
+          await executeActions([navWorkflow], {
+            intent: inferredLabel,
+            requireConfirmation: false,
+          });
+        } finally {
+          setIsSending(false);
+        }
+        return;
+      }
+      // No keyword match — let the LLM pick a destination, but tell it the
+      // user explicitly asked for a navigate-only reply.
+    }
+
+    // ask-feature (功能詢問): static response listing what the site can do.
+    //   APP_PAGE_REGISTRY is the source of truth for site features, so this
+    //   never needs an LLM — the answer is the same every time and avoids
+    //   hallucinating features that don't exist.
+    if (requestedMode === "ask-feature") {
+      const featureSummary = buildFeatureSummaryReply();
+      setMessages(prev => [...prev, {
+        role: "orb",
+        text: featureSummary,
+        at: Date.now(),
+        pagePath: locationPath,
+      }]);
+      setIsSending(false);
+      return;
+    }
+
     try {
       const inferredIntent = inferUserMultimodalIntent(trimmed);
       const backendSummary = summarizeProviderPing(providerPingQuery.data);
+      const modeHint = requestedMode ? ` · 使用者選擇模式: ${requestedMode}` : "";
       const prefRow = agentPreferencesQuery.data ?? null;
       const preferencesForChat = prefRow
         ? {
@@ -1227,7 +1319,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
             content: toLLMMessageContent(m),
           })),
         personality,
-        context: `全站光球聊天 · 當前頁面: ${locationPath} · 意圖判斷: ${inferredIntent} · ${backendSummary}`,
+        context: `全站光球聊天 · 當前頁面: ${locationPath} · 意圖判斷: ${inferredIntent} · ${backendSummary}${modeHint}`,
         pageSnapshot: pageAgent.snapshot ?? undefined,
         recentFeedback: pageAgent.recentFeedback,
         preferences: preferencesForChat,

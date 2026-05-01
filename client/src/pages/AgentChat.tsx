@@ -295,61 +295,50 @@ export default function AgentChat() {
     globalChat.open();
   }, [globalChat]);
 
-  // ─── 模式工具列：把舊「+」popover 改成可點亮的模式按鈕 ────────────────
-  // 點下去 → 模式亮起 → 使用者再輸入自己的提示詞 → 送出時自動帶上模式語境。
-  // 若使用者沒輸入直接送，會用該模式的 defaultPrompt 作為 fallback。
+  // ─── 模式工具列：點亮後送出時把模式作為結構化 metadata 傳給 sendMessage。
+  // 不再把長段中文指令塞到使用者的 prompt 前面 — 使用者打的字就是聊天紀錄
+  // 看到的字。每個模式的行為由程式直接處理（navigate / ask-feature 走純客
+  // 端捷徑；plan / multi-step 走 LLM 但用 context 帶模式提示）。
   const modeOptions = useMemo(
     () => [
       {
-        id: "multi-step",
+        id: "multi-step" as const,
         label: "多步驟代理",
         shortLabel: "自動",
         description: "全自動拆解工作流程並執行",
         accent: "violet" as const,
         icon: Workflow,
-        prefix:
-          "（請以多步驟代理「全自動」模式處理：把我的請求拆成完整工作流程，產生一份 tasked 計畫讓我一次批准；批准後請呼叫 studio.* 工具自動執行所有步驟到完成，不要在每一步停下來等我，只有遇到必要的高風險動作才中斷。）\n",
-        defaultPrompt:
-          "請啟動多步驟代理（全自動模式）：把我的請求拆成完整工作流程，產生一份 tasked 計畫讓我一次批准；批准後請呼叫 studio.* 工具自動執行所有步驟到完成。",
+        defaultPrompt: "幫我把這件事拆成完整流程並自動執行到完成。",
         placeholder: "說一句目標，光球會自動拆步驟…",
       },
       {
-        id: "plan",
+        id: "plan" as const,
         label: "計畫",
         shortLabel: "計畫",
         description: "先擬一份可執行的計畫",
         accent: "emerald" as const,
         icon: ListChecks,
-        prefix:
-          "（請先以「計畫」模式回覆：列出目標、步驟、需要的素材與預期結果，再讓我選要不要執行。）\n",
-        defaultPrompt:
-          "請先幫我擬一份計畫：列出目標、步驟、需要的素材與預期結果，再讓我選要不要執行。",
+        defaultPrompt: "幫我擬一份可執行的計畫。",
         placeholder: "說一個想完成的目標，光球先擬計畫…",
       },
       {
-        id: "navigate",
+        id: "navigate" as const,
         label: "跳頁",
         shortLabel: "跳頁",
         description: "幫我帶到對應的功能頁面",
         accent: "sky" as const,
         icon: CornerUpRight,
-        prefix:
-          "（請以「跳頁」模式回覆：先問我想做什麼，再用 [ACTION:navigate:/path] 帶我過去。）\n",
-        defaultPrompt:
-          "請幫我跳到合適的頁面：先問我想做什麼，再用 [ACTION:navigate:/path] 帶我過去。",
+        defaultPrompt: "帶我去合適的功能頁。",
         placeholder: "想去哪個工具頁？描述一下…",
       },
       {
-        id: "ask-feature",
+        id: "ask-feature" as const,
         label: "功能詢問",
         shortLabel: "功能",
         description: "問光球這個站有什麼功能",
         accent: "amber" as const,
         icon: HelpCircle,
-        prefix:
-          "（請以「功能詢問」模式回覆：聚焦這個站目前有的功能、能怎麼幫到我、以及怎麼開始使用。）\n",
-        defaultPrompt:
-          "請介紹一下這個站目前有哪些功能可以用？我想了解能怎麼幫到我，以及怎麼開始。",
+        defaultPrompt: "這個站目前有哪些功能可以用？",
         placeholder: "想知道哪個功能？問我吧…",
       },
     ],
@@ -370,17 +359,15 @@ export default function AgentChat() {
     async (raw: string) => {
       const text = raw.trim();
       if ((!text && attachments.length === 0) || isSending) return;
-      // 若有點亮模式，把模式語境加到使用者提示前面；空輸入時直接用預設提示。
-      const composed = activeModeOption
-        ? text
-          ? `${activeModeOption.prefix}${text}`
-          : activeModeOption.defaultPrompt
-        : text;
-      // Use global chat to send the message
-      // GlobalOrbChatContext handles all LLM interaction, action dispatch, and message management
-      await globalChat.sendMessage(composed, attachments);
+      // 使用者打什麼，聊天紀錄就顯示什麼。模式以 requestedMode 結構化欄位
+      // 傳遞，由 GlobalOrbChatContext 內的 hard-coded 邏輯接手 — 不再注入
+      // 一段中文 instruction 蓋掉使用者原文。
+      const promptToSend = text || activeModeOption?.defaultPrompt || "";
+      await globalChat.sendMessage(promptToSend, attachments, {
+        requestedMode: activeModeOption?.id,
+      });
       clearAttachments();
-      // 送出後自動關閉模式，避免下一句無意間又被加上前綴。
+      // 送出後自動關閉模式，避免下一句又意外帶到模式上下文。
       if (activeModeOption) setActiveMode(null);
     },
     [isSending, globalChat, attachments, clearAttachments, activeModeOption]

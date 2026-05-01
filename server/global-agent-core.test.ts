@@ -15,6 +15,7 @@ import {
   buildImageWorkflow,
   buildLongVideoWorkflow,
   buildMusicWorkflow,
+  buildFeatureSummaryReply,
   buildNavigateWorkflow,
   buildScriptOnlyWorkflow,
   buildSfxWorkflow,
@@ -33,6 +34,9 @@ import {
   GLOBAL_AGENT_CAPABILITY_REGISTRY,
   hasCapabilityForPage,
 } from "../shared/global-agent-capabilities";
+import { APP_PAGE_REGISTRY } from "../shared/appRegistry";
+
+const APP_PAGE_REGISTRY_PATHS = APP_PAGE_REGISTRY.map(page => page.path);
 import {
   executeGlobalAction,
   executeGlobalActions,
@@ -391,6 +395,26 @@ describe("global-agent-workflows", () => {
     expect(wf.steps).toHaveLength(1);
     expect(wf.steps[0].actionType).toBe("navigate");
     expect(hasCapabilityForPage(wf.steps[0].path, wf.steps[0].actionType)).toBe(true);
+  });
+
+  // ─── 「功能詢問」 mode renders this reply client-side without an LLM hop,
+  //     so we lock its shape: every line must point at a real APP_PAGE_REGISTRY
+  //     path so the user can't read about a feature that doesn't exist.
+  it("buildFeatureSummaryReply only advertises real registry paths and skips the /agent host", () => {
+    const reply = buildFeatureSummaryReply();
+    expect(reply).toContain("功能");
+    // Extract advertised paths after "路徑：" markers.
+    const refs = Array.from(reply.matchAll(/路徑：(\S+)/g)).map(m => m[1]);
+    expect(refs.length).toBeGreaterThan(0);
+    // None of the advertised entries should be the orb's own host page (we
+    // never want the orb telling the user to navigate to itself).
+    expect(refs).not.toContain("/agent");
+    // Every advertised path must exist in APP_PAGE_REGISTRY so the orb can't
+    // hallucinate a feature that's not actually wired up.
+    const knownPaths = new Set(APP_PAGE_REGISTRY_PATHS);
+    for (const ref of refs) {
+      expect(knownPaths.has(ref)).toBe(true);
+    }
   });
 
   it("detectChatIntent picks creative intent when both creative and nav keywords match", () => {
