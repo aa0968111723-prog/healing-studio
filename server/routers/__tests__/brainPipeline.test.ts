@@ -162,6 +162,62 @@ describe("brainPipeline graph builder", () => {
     }
   });
 
+  it("includes service routers (notes/promptLibrary/news/apiUsage/...) and wires router → AI slot edges", () => {
+    const g = buildGraph({
+      includeAllPages: true,
+      includeRouters: true,
+      includeAlerts: false,
+    });
+    // 服務型 router 出現（即使沒有外部 provider 也要被畫出）
+    const requiredRouters = [
+      "router:apiUsage",
+      "router:agentPreferences",
+      "router:notes",
+      "router:promptLibrary",
+      "router:news",
+      "router:showcase",
+      "router:langsmith",
+      "router:adminEval",
+    ];
+    for (const id of requiredRouters) {
+      expect(g.nodes.find(n => n.id === id)).toBeDefined();
+    }
+
+    // page → service router 邊：home → news/showcase, notes → notes router
+    expect(
+      g.edges.find(
+        e => e.source === "page:home" && e.target === "router:news"
+      )
+    ).toBeDefined();
+    expect(
+      g.edges.find(
+        e => e.source === "page:notes" && e.target === "router:notes"
+      )
+    ).toBeDefined();
+
+    // router → AI slot 邊（語意中介層）
+    expect(
+      g.edges.find(
+        e =>
+          e.source === "router:imageStudio" &&
+          e.target === "engine:imageEngine"
+      )
+    ).toBeDefined();
+    expect(
+      g.edges.find(
+        e =>
+          e.source === "router:proStudio" &&
+          e.target === "engine:voiceEngine"
+      )
+    ).toBeDefined();
+    expect(
+      g.edges.find(
+        e =>
+          e.source === "router:learnHub" && e.target === "brain:analyst"
+      )
+    ).toBeDefined();
+  });
+
   it("orb-agent and orb-assistant and director nodes are always present", () => {
     const g = buildGraph({
       includeAllPages: false,

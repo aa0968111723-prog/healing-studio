@@ -228,8 +228,15 @@ const PAGE_DIAGNOSTICS_CATALOG: Record<
   },
 };
 
-/** Page id → upstream router ids；用於完整視圖中描繪 page 觸發哪條後端鏈。 */
+/**
+ * Page id → upstream router ids；用於完整視圖中描繪 page 觸發哪條後端鏈。
+ *
+ * 對應的後端 trpc namespace 在 `PAGE_DIAGNOSTICS_CATALOG` 與 `server/routers.ts`
+ * 已實際存在；此處顯式列出可讓 React Flow 畫出 page → router 邊。沒列出的頁面
+ * 表示該頁不直接觸發 AI router（例如 calendar / vault 等純 CRUD 頁）。
+ */
 const PAGE_TO_ROUTERS: Record<string, string[]> = {
+  home: ["router:news", "router:showcase"],
   "agent-chat": ["router:orbScheduler", "router:brain"],
   studio: ["router:imageStudio", "router:videoStudio", "router:proStudio"],
   "image-studio": ["router:imageStudio"],
@@ -239,7 +246,40 @@ const PAGE_TO_ROUTERS: Record<string, string[]> = {
   "lora-trainer": ["router:loraTrainer"],
   models: ["router:loraTrainer", "router:brain"],
   "my-brain": ["router:brain"],
+  "brain-settings": ["router:brain"],
   learn: ["router:learnHub"],
+  "tutorial-overview": ["router:learnHub"],
+  notes: ["router:notes"],
+  "prompt-library": ["router:promptLibrary"],
+  langsmith: ["router:langsmith"],
+  "agent-preferences": ["router:agentPreferences"],
+  settings: ["router:agentPreferences"],
+  dashboard: ["router:apiUsage"],
+  credits: ["router:apiUsage"],
+  admin: ["router:apiUsage", "router:adminEval"],
+  "admin-api-usage": ["router:apiUsage"],
+  "process-viewer": ["router:orbScheduler"],
+};
+
+/**
+ * Router id → downstream brain/engine slot ids；用於畫出後端 router 真正觸發
+ * 哪些 AI 大腦或引擎槽。沒列出的 router 直接連 provider（語意：純 LLM 呼叫）。
+ */
+const ROUTER_TO_AI_SLOTS: Record<string, string[]> = {
+  "router:brain": [
+    "brain:director",
+    "brain:analyst",
+    "brain:storyteller",
+    "brain:technician",
+    "brain:curator",
+  ],
+  "router:director": ["brain:director", "brain:storyteller"],
+  "router:imageStudio": ["engine:imageEngine"],
+  "router:videoStudio": ["engine:videoEngine"],
+  "router:proStudio": ["engine:audioEngine", "engine:voiceEngine"],
+  "router:loraTrainer": ["engine:imageEngine"],
+  "router:learnHub": ["brain:analyst"],
+  "router:orbScheduler": ["brain:director", "brain:technician"],
 };
 
 /** AppPageGroupId → 顯示用標籤；對應 `shared/appRegistry.ts` 的 8 個分群。 */
@@ -334,6 +374,65 @@ const ROUTER_TO_PROVIDERS: Array<{
       "server/routers/orbSchedulerRouter.ts",
       "server/services/orbTaskOrchestrator.ts",
     ],
+  },
+  // ── 純服務 router（無外部 provider，僅 DB / 內部資料） ─────────────────
+  // 這些 router 不直接呼外部 AI；放進圖裡是為了讓 page → router 連線完整，
+  // 並讓 admin 能在同一畫面看到所有後端入口的錯誤累積狀況。
+  {
+    id: "router:apiUsage",
+    label: "apiUsage（API 用量）",
+    description: "彙整 token / 成本 / 呼叫次數，供管理後台分析",
+    providers: [],
+    files: ["server/routers/apiUsage.ts"],
+  },
+  {
+    id: "router:agentPreferences",
+    label: "agentPreferences（Agent 偏好）",
+    description: "使用者光球與 PageAgent 偏好設定",
+    providers: [],
+    files: ["server/routers/agentPreferencesRouter.ts"],
+  },
+  {
+    id: "router:notes",
+    label: "notes（專案筆記）",
+    description: "個人/專案筆記 CRUD 與同步",
+    providers: [],
+    files: ["server/routers/notes.ts"],
+  },
+  {
+    id: "router:promptLibrary",
+    label: "promptLibrary（提示詞庫）",
+    description: "提示詞 CRUD、收藏、分享",
+    providers: [],
+    files: ["server/routers/promptLibrary.ts"],
+  },
+  {
+    id: "router:news",
+    label: "news（新聞動態）",
+    description: "首頁新聞與更新動態",
+    providers: [],
+    files: ["server/routers/news.ts"],
+  },
+  {
+    id: "router:showcase",
+    label: "showcase（精選作品）",
+    description: "首頁作品展示與分類查詢",
+    providers: [],
+    files: ["server/routers/showcase.ts"],
+  },
+  {
+    id: "router:langsmith",
+    label: "langsmith（追蹤器）",
+    description: "LangSmith trace、dataset、回饋彙整",
+    providers: [],
+    files: ["server/routers/langsmith.ts"],
+  },
+  {
+    id: "router:adminEval",
+    label: "adminEval（管理員評估）",
+    description: "Agent 評估、品質檢測、admin 工具",
+    providers: [],
+    files: ["server/routers/adminRouter.ts"],
   },
 ];
 
@@ -859,6 +958,14 @@ function buildGraph(opts: BuildGraphOptions): PipelineGraph {
     edges.push(makeEdge("router:director", "director:main"));
     edges.push(makeEdge("router:brain", "orb:agent"));
     edges.push(makeEdge("router:orbScheduler", "orb:agent"));
+
+    // router → brain-slot / engine-slot 邊：把 AI router 真正觸發的腦/引擎槽串起來，
+    // 讓「完整視圖」可以清楚看到 page → router → brain/engine → provider 的四層鏈。
+    for (const routerId of Object.keys(ROUTER_TO_AI_SLOTS)) {
+      for (const slotId of ROUTER_TO_AI_SLOTS[routerId]) {
+        edges.push(makeEdge(routerId, slotId, "委派"));
+      }
+    }
   }
 
   // ── Layer 1: Frontend Pages ──────────────────────────────────────────────

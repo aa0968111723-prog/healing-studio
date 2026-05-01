@@ -209,16 +209,28 @@ flowchart LR
     P_Orb["Global Orb<br/>(全站浮動)"]:::frontend
   end
 
-  subgraph L2[層 2 · Backend tRPC Routers]
+  subgraph L2[層 2 · Backend tRPC Routers（16 個）]
     direction TB
-    R_Brain["brain<br/>(CRUD/健康)"]:::backend
-    R_Pipeline["brainPipeline<br/>(graph/patrol)"]:::backend
-    R_Image["imageStudio"]:::backend
-    R_Video["videoStudio"]:::backend
-    R_Pro["proStudio"]:::backend
-    R_Director["director"]:::backend
-    R_OrbSched["orbScheduler"]:::backend
-    R_LangSmith["langsmith"]:::backend
+    subgraph L2a[AI Routers]
+      R_Brain["brain"]:::backend
+      R_Director["director"]:::backend
+      R_Image["imageStudio"]:::backend
+      R_Video["videoStudio"]:::backend
+      R_Pro["proStudio"]:::backend
+      R_Lora["loraTrainer"]:::backend
+      R_Learn["learnHub"]:::backend
+      R_OrbSched["orbScheduler"]:::backend
+    end
+    subgraph L2b[Service Routers]
+      R_ApiUsage["apiUsage"]:::backend
+      R_AgentPref["agentPreferences"]:::backend
+      R_Notes["notes"]:::backend
+      R_Prompt["promptLibrary"]:::backend
+      R_News["news"]:::backend
+      R_Showcase["showcase"]:::backend
+      R_LangSmith["langsmith"]:::backend
+      R_Admin["adminEval"]:::backend
+    end
   end
 
   subgraph L3[層 3 · AI 大腦（5 推理槽）]
@@ -256,16 +268,27 @@ flowchart LR
     D_Repair["Auto Repair"]:::detect
   end
 
-  %% Layer flow
+  %% Layer flow（page → router 由前端 PAGE_TO_ROUTERS 提供，圖中略）
   L1 --> L2
-  R_Brain --> L3
+
+  %% Router → Brain / Engine 中介層（語意委派）
+  R_Brain -. 管 .-> B_Director
+  R_Brain -. 管 .-> B_Analyst
+  R_Brain -. 管 .-> B_Story
+  R_Brain -. 管 .-> B_Tech
+  R_Brain -. 管 .-> B_Curator
   R_Director --> B_Director
+  R_Director --> B_Story
   R_Image --> E_Image
   R_Video --> E_Video
   R_Pro --> E_Audio
   R_Pro --> E_Voice
+  R_Lora --> E_Image
+  R_Learn --> B_Analyst
   R_OrbSched --> B_Director
+  R_OrbSched --> B_Tech
 
+  %% Brain / Engine → Provider
   B_Director --> PV_Gemini
   B_Analyst --> PV_Gemini
   B_Story --> PV_Vertex
@@ -279,8 +302,11 @@ flowchart LR
   E_Audio --> PV_Suno
   E_Voice --> PV_Eleven
 
+  %% Service routers 不打外部 provider，但會被 page 層直接呼叫（CRUD/查詢）
+  R_LangSmith -. 讀 trace .-> PV_Gemini
+
   %% Detection wires
-  R_Pipeline -. 巡檢 .-> D_Patrol
+  R_Brain -. 巡檢 .-> D_Patrol
   D_Patrol -. ping .-> D_Health
   D_Health -. 失敗計數 .-> D_Trace
   D_Trace -. 觸發 .-> D_Alert
@@ -299,6 +325,99 @@ flowchart LR
 | `needs_optimization` | 黃 | 可運作但建議優化（成本高、慢、品質） |
 | `broken` | 紅 | 失敗 / API down |
 | `abnormal` | 灰 | 未知 / 待巡檢 |
+
+---
+
+## 3.5 完整連線清單（與後端程式碼 1:1 對齊）
+
+> 以下三張表是後端 `server/routers/brainPipeline.ts` 中 `PAGE_TO_ROUTERS`、`ROUTER_TO_AI_SLOTS`、`ROUTER_TO_PROVIDERS` 的真實對照。新增頁面或 router 時請同步更新本表與該檔案。
+
+### A. Page → Router 邊（22 條，覆蓋 32 頁中 22 頁）
+
+| Page | 觸發 Router |
+|---|---|
+| `/`（home） | `news`、`showcase` |
+| `/agent`（agent-chat） | `orbScheduler`、`brain` |
+| `/studio` | `imageStudio`、`videoStudio`、`proStudio` |
+| `/image-studio` | `imageStudio` |
+| `/video-studio` | `videoStudio` |
+| `/pro-studio` | `proStudio` |
+| `/director` | `director` |
+| `/lora-trainer` | `loraTrainer` |
+| `/models` | `loraTrainer`、`brain` |
+| `/my-brain` | `brain` |
+| `/settings/ai-brain`（brain-settings） | `brain` |
+| `/learn` | `learnHub` |
+| `/tutorial-overview` | `learnHub` |
+| `/notes` | `notes` |
+| `/assets?section=prompts`（prompt-library） | `promptLibrary` |
+| `/dashboard?section=langsmith`（langsmith） | `langsmith` |
+| `/settings/agent`（agent-preferences） | `agentPreferences` |
+| `/settings` | `agentPreferences` |
+| `/dashboard` | `apiUsage` |
+| `/dashboard?section=credits` | `apiUsage` |
+| `/admin` | `apiUsage`、`adminEval` |
+| `/admin/api-usage` | `apiUsage` |
+| `/process`（process-viewer） | `orbScheduler` |
+
+> 未列出的 10 頁（assets、vault、calendar、shared、feedback、background-tasks、focus-flow、history、admin-brain-pipeline、home 部分）為純 UI / CRUD / meta 頁，不直接觸發 AI router。
+
+### B. Router → Brain / Engine 邊（17 條中介委派）
+
+| Router | 委派的 Brain / Engine 槽 |
+|---|---|
+| `brain` | `director`、`analyst`、`storyteller`、`technician`、`curator`（管理全部 5 個推理槽） |
+| `director` | `brain:director`、`brain:storyteller` |
+| `imageStudio` | `engine:imageEngine` |
+| `videoStudio` | `engine:videoEngine` |
+| `proStudio` | `engine:audioEngine`、`engine:voiceEngine` |
+| `loraTrainer` | `engine:imageEngine` |
+| `learnHub` | `brain:analyst` |
+| `orbScheduler` | `brain:director`、`brain:technician` |
+
+### C. Router → Provider 邊（AI Routers 才有）
+
+| Router | 直接呼叫的 Provider |
+|---|---|
+| `brain` | gemini、vertex |
+| `director` | gemini、vertex |
+| `imageStudio` | fal、vertex |
+| `videoStudio` | fal、vertex |
+| `proStudio` | elevenlabs、fal |
+| `loraTrainer` | replicate、fal |
+| `learnHub` | gemini |
+| `orbScheduler` | gemini、fal |
+| `apiUsage` / `agentPreferences` / `notes` / `promptLibrary` / `news` / `showcase` / `langsmith` / `adminEval` | —（純 DB / 內部資料） |
+
+### D. Brain / Engine → Provider 邊（共 11 條）
+
+| Slot | Provider |
+|---|---|
+| `brain:director` | gemini |
+| `brain:analyst` | gemini |
+| `brain:storyteller` | vertex |
+| `brain:technician` | vertex |
+| `brain:curator` | gemini |
+| `engine:imageEngine` | fal、replicate |
+| `engine:videoEngine` | fal |
+| `engine:audioEngine` | fal、suno |
+| `engine:voiceEngine` | elevenlabs |
+
+### E. 節點總計（admin 完整視圖）
+
+| 層 | 類型 | 數量 |
+|---|---|---|
+| 1 | page-group | 8（依 AppPageGroupId 分群） |
+| 1 | page | 32 |
+| 2 | router（AI） | 8 |
+| 2 | router（service） | 8 |
+| 3 | brain-slot | 5 |
+| 3 | engine-slot | 4 |
+| 3 | orb-agent / orb-assistant / director | 3 |
+| 4 | provider | 6 |
+| **合計** | — | **74** |
+
+> 邊數合計約 80+：22 page→router + 17 router→slot + 14 router→provider + 11 slot→provider + 多條 orb / director / detection 邊。
 
 ---
 
@@ -473,24 +592,46 @@ flowchart TB
 
 ---
 
-## 7. 後端對應索引
+## 7. 後端對應索引（全 16 個 router 完整列表）
 
-| 前端 | 對應後端 / 文件 |
+### 7.1 AI Routers（會呼叫外部 LLM/生成 API）
+
+| Router | 檔案 | 主要職責 | 觸發 Brain / Engine |
+|---|---|---|---|
+| `brain` | `server/routers/brain.ts` | 大腦組態 CRUD、健康、錯誤追蹤 | 5 個推理槽全管 |
+| `director` | `server/routers/director.ts` | 導演對話、CO-STAR、RAG 記憶 | director、storyteller |
+| `imageStudio` | `server/routers/imageStudio.ts` | 圖片生成 dispatch | imageEngine |
+| `videoStudio` | `server/routers/videoStudio.ts` | 影片生成 dispatch | videoEngine |
+| `proStudio` | `server/routers/proStudio.ts` | 音樂/配音/聲音克隆 | audioEngine、voiceEngine |
+| `loraTrainer` | `server/routers/loraTrainer.ts` | LoRA / 自訂風格訓練 | imageEngine |
+| `learnHub` | `server/routers/learnHub.ts` | 教學內容、問答 | analyst |
+| `orbScheduler` | `server/routers/orbSchedulerRouter.ts` | 光球任務狀態機 | director、technician |
+
+### 7.2 Service Routers（純資料/管理，無外部 AI）
+
+| Router | 檔案 | 主要職責 |
+|---|---|---|
+| `apiUsage` | `server/routers/apiUsage.ts` | token / 成本 / 呼叫次數彙整 |
+| `agentPreferences` | `server/routers/agentPreferencesRouter.ts` | 光球與 PageAgent 偏好 |
+| `notes` | `server/routers/notes.ts` | 專案筆記 CRUD |
+| `promptLibrary` | `server/routers/promptLibrary.ts` | 提示詞 CRUD/收藏 |
+| `news` | `server/routers/news.ts` | 首頁新聞 |
+| `showcase` | `server/routers/showcase.ts` | 首頁作品展示 |
+| `langsmith` | `server/routers/langsmith.ts` | LangSmith trace/dataset |
+| `adminEval` | `server/routers/adminRouter.ts` | Agent 評估、品質檢測 |
+
+### 7.3 偵測與設定相關文件
+
+| 主題 | 對應檔案 / 文件 |
 |---|---|
-| 全站光球代理 | `server/routers/orbScheduler.ts`、`docs/global-orb-*.md`、`docs/AGENT_CONDITIONS_AUDIT.md` |
+| 全站光球代理（語意層） | `docs/global-orb-*.md`、`docs/AGENT_CONDITIONS_AUDIT.md` |
 | 大腦推理鏈視覺化 | `server/routers/brainPipeline.ts`、`shared/brain-pipeline.ts`、`docs/AI_BRAIN_OVERVIEW.md` |
-| AI 大腦設定 | `server/routers/brain.ts`、`docs/BRAIN_CONFIGURATION.md` |
+| AI 大腦設定 | `docs/BRAIN_CONFIGURATION.md` |
 | 偵測 / 自我修復 | `server/services/brainAutoRepair.ts`、`server/services/providerHealth.ts`、`server/services/brainStatePersistence.ts` |
 | 全站節點對照 | `docs/fullstack-node-level-map-2026-04-29.zh-TW.md` |
 | 連線健康檢查 | `docs/connection-audit-2026-04-29.md` |
 | 外部供應商 | `docs/external-api-supplier-audit-2026-04-23.md` |
-| API 用量管理 | `server/routers/apiUsage.ts`、`docs/admin-api-usage.md` |
-| LangSmith 追蹤 | `server/routers/langsmith.ts` |
-| 圖片創作室 | `server/routers/imageStudio.ts` |
-| 影片創作室 | `server/routers/videoStudio.ts` |
-| 音樂/配音創作室 | `server/routers/proStudio.ts` |
-| 導演 AI | `server/routers/director.ts` |
-| LoRA 訓練 | `server/routers/loraTrainer.ts` |
+| API 用量管理 | `docs/admin-api-usage.md` |
 
 ---
 
@@ -544,9 +685,18 @@ npx markmap-cli docs/SITE_MAP.md
 
 ## 10. 維護規則
 
-1. 新增頁面 → 同步在 §2 flowchart 加節點，並在 `App.tsx` 加 `<Route>`。
-2. 黃色便利貼 (`classDef note`) 用於補充「業務語意 / 使用情境」，**不寫實作細節**。
-3. 三模式（養成 / 標準 / 尊享）的歸屬若有調整，先改本文件再改程式碼，確保文件先行。
-4. 新增大腦槽 / 引擎槽 / 供應商 → 同步更新 `shared/brain-pipeline.ts` 與本文件 §3、§4、§5。
-5. 偵測機制有變動（新增 alert 來源、新增自我修復策略）→ 更新 §6 流程圖。
-6. 若選擇本文件「§9 選項 B」整合方案，本文件改為**從 `shared/site-map.ts` 自動產生 Mermaid**（避免手動雙軌）。
+1. **新增頁面**：依序更新
+   - `client/src/App.tsx`：加 `<Route>`
+   - `shared/appRegistry.ts`：加 `AppPageRegistryItem`（含 `group` 與 `supportsPageAgent`）
+   - `server/routers/brainPipeline.ts`：若會觸發 AI router，更新 `PAGE_TO_ROUTERS`
+   - 本文件 §2 flowchart 與 §3.5 表 A
+2. **新增 router**：
+   - `server/routers.ts` 註冊
+   - `server/routers/brainPipeline.ts:ROUTER_TO_PROVIDERS` 加 entry（service router 用 `providers: []`）
+   - 若會委派給某 brain/engine 槽，更新 `ROUTER_TO_AI_SLOTS`
+   - 本文件 §3.5 表 B/C 與 §7
+3. **新增大腦槽 / 引擎槽 / 供應商**：同步 `shared/brain-pipeline.ts`、`server/middleware/brainContext.ts`、本文件 §3、§3.5 表 D、§4、§5。
+4. **偵測機制變動**（新增 alert 來源、自我修復策略）→ 更新 §6 流程圖與相關 service。
+5. **黃色便利貼** (`classDef note`)：用於補充「業務語意 / 使用情境」，**不寫實作細節**。
+6. **三模式（養成 / 標準 / 尊享）**：目前是文件層的概念分群，若日後落地到程式（subscription tier 或 Studio.tsx state），先改本文件再改程式碼，確保文件先行。
+7. **未來重構建議**：將 `PAGE_TO_ROUTERS`、`ROUTER_TO_AI_SLOTS`、`ROUTER_TO_PROVIDERS` 三張表抽到 `shared/site-map.ts` 純資料檔，**同時餵給 Mermaid 與 XYFlow**，避免文件與程式碼雙軌不同步。
