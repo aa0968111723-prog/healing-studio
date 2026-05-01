@@ -123,6 +123,27 @@ describe("創作工作室四模態 AI 模型路由管道", () => {
     });
   });
 
+  it("fallback chain 內每個 fal-ai 候選 ID 都能在 catalog 找到 (no typos)", () => {
+    // 防止 fallback chain 出現拼錯的 model id (例如 "fal-ai/minimax/video-01"
+    // 而非正確的 "fal-ai/minimax-video/text-to-video") — 這類 typo 會讓
+    // dispatcher 試降級時拿到 null config 直接放棄整條鏈,使用者覺得「降級
+    // 沒救我」。每個進到 PER_CATEGORY_FALLBACK 的 fal-ai ID 都必須對應 catalog
+    // 真實條目。
+    const allFallbackIds = new Set<string>();
+    for (const chain of Object.values(FALLBACK_CHAINS)) {
+      for (const id of chain) {
+        if (id.startsWith("fal-ai/")) allFallbackIds.add(id);
+      }
+    }
+    const missing = [...allFallbackIds].filter(
+      (id) => getFalModelById(id) === undefined
+    );
+    expect(
+      missing,
+      `Fallback chain references not in catalog: ${missing.join(", ")}`
+    ).toHaveLength(0);
+  });
+
   it("四模態合併摘要：所有模態都能成功路由", () => {
     const results = FOUR_MODALITIES.map((modality) => {
       const selection = selectProvider({ intent: modality.intent });

@@ -92,15 +92,15 @@ export const PER_MODEL_FALLBACK: Record<string, string[]> = {
   // 影片引擎(實際 Fal.ai 模型 ID)
   "fal-ai/kling-video/v2.1/standard/text-to-video": [
     "fal-ai/wan-t2v",
-    "fal-ai/minimax/video-01",
+    "fal-ai/minimax-video/text-to-video",
   ],
   "fal-ai/kling-video/v2.1/standard/image-to-video": [
-    "fal-ai/minimax/video-01/image-to-video",
+    "fal-ai/minimax-video/image-to-video",
     "fal-ai/pixverse/v4.5/image-to-video",
   ],
   "fal-ai/wan-t2v": [
     "fal-ai/kling-video/v2.1/standard/text-to-video",
-    "fal-ai/minimax/video-01",
+    "fal-ai/minimax-video/text-to-video",
   ],
   "fal-ai/veo3": [
     "fal-ai/kling-video/v2.1/standard/text-to-video",
