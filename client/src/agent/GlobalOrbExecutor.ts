@@ -129,7 +129,21 @@ export function createGlobalOrbExecutor(deps: GlobalOrbExecutorDeps) {
     if (!deps.enabled) return "workflow disabled";
     if (task.status === "blocked") return "blocked task cannot execute";
     if (task.status === "cancelled") return "cancelled task cannot execute";
-    if (task.isolation === "code" || task.preferredEngine === "claudeCode") {
+    if (task.isolation === "code") {
+      return "claude code handoff required";
+    }
+    // preferredEngine === "claudeCode" alone is an LLM routing hint and
+    // does not justify blocking a plan whose steps are all server-side
+    // media calls. The per-step EXTERNAL_TOOL_PREFIX gate below still
+    // catches any actual code./github./deploy. tool call.
+    if (
+      task.preferredEngine === "claudeCode" &&
+      task.steps.some(step =>
+        (step.toolCalls ?? []).some(tool =>
+          EXTERNAL_TOOL_PREFIX.some(prefix => tool.name.startsWith(prefix))
+        )
+      )
+    ) {
       return "claude code handoff required";
     }
     return null;

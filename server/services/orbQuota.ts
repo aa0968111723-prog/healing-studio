@@ -92,3 +92,52 @@ export function __unsafe_resetOrbQuotaForTests() {
   sessionClicks.clear();
   providerRateCounters.clear();
 }
+
+export interface OrbQuotaCategorySnapshot {
+  category: keyof typeof DAILY_LIMITS;
+  used: number;
+  limit: number;
+  remaining: number;
+}
+
+export interface OrbQuotaSnapshot {
+  userId: number;
+  dayKey: string;
+  categories: OrbQuotaCategorySnapshot[];
+}
+
+/**
+ * Read-only snapshot of remaining daily quotas for a user. Used by the
+ * 全站光球代理 planner so it can budget its plan into stages instead of
+ * proposing more generation steps than the day allows.
+ */
+export function getOrbQuotaSnapshot(userId: number): OrbQuotaSnapshot {
+  const day = dayKey();
+  const categories: OrbQuotaCategorySnapshot[] = (
+    Object.keys(DAILY_LIMITS) as Array<keyof typeof DAILY_LIMITS>
+  ).map(category => {
+    const used = userDailyCounters.get(`${userId}:${day}:${category}`) ?? 0;
+    const limit = DAILY_LIMITS[category];
+    return {
+      category,
+      used,
+      limit,
+      remaining: Math.max(0, limit - used),
+    };
+  });
+  return { userId, dayKey: day, categories };
+}
+
+/**
+ * Compact human-readable summary used by the planner system prompt. Lists
+ * each category as `category: remaining/limit (used N)` so the LLM can plan
+ * around the cap.
+ */
+export function summarizeOrbQuotaForPlanner(snapshot: OrbQuotaSnapshot): string {
+  if (!snapshot.categories.length) return "未取得配額資料。";
+  const parts = snapshot.categories.map(
+    entry =>
+      `${entry.category}: 剩餘 ${entry.remaining}/${entry.limit}（今日已用 ${entry.used}）`
+  );
+  return `今日剩餘配額（${snapshot.dayKey}）：\n${parts.join("\n")}`;
+}

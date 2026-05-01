@@ -343,6 +343,18 @@ const HIGH_RISK_ACTION_TYPES = new Set<AgentActionType>([
 const TASKED_CAPABILITY_KEYWORDS = ["code", "github", "deploy"] as const;
 const MULTIMODAL_CAPABILITY_KEYWORDS = ["multimodal", "vision", "audio", "video", "pdf"] as const;
 const EXTERNAL_HIGH_RISK_TOOL_KEYWORDS = ["github.", "deploy.", "code."] as const;
+// Tool namespaces that run server-side via the orb tool executor and never
+// require a Claude Code handoff. When every non-empty step toolName falls in
+// this set, the planner's "code" capability hint is metadata noise and must
+// not override the actual work — see the 全站光球代理 misroute that blocked
+// the Pu'er-tea video plan with "claude code handoff required" even though
+// every step was a studio.* media call.
+const SERVER_SIDE_MEDIA_TOOL_PREFIXES = [
+  "studio.",
+  "director.",
+  "media.",
+  "pro-studio.",
+] as const;
 
 export type AgentPlanV3GateMode = AgentPlanV3DecisionMode;
 
@@ -496,21 +508,40 @@ export function evaluateAgentPlanV3Risk(plan: AgentPlanV3): AgentPlanV3RiskEvalu
   }
 
   // 5) Code / GitHub / Deploy capability → tasked + ClaudeCode.
-  const needsClaudeCode = (plan.routing?.capabilities ?? []).some(cap =>
+  const declaresCodeCapability = (plan.routing?.capabilities ?? []).some(cap =>
     (TASKED_CAPABILITY_KEYWORDS as readonly string[]).includes(cap)
   );
-  if (needsClaudeCode) {
-    riskLevel = bumpRisk(riskLevel, "medium");
-    requiresHuman = true;
-    reasonsSet.add("程式碼／GitHub／部署任務需要 Claude Code");
-  }
-
   const usesExternalHighRiskTool = plan.steps.some(step =>
     Boolean(step.toolName) &&
     (EXTERNAL_HIGH_RISK_TOOL_KEYWORDS as readonly string[]).some(keyword =>
       String(step.toolName).startsWith(keyword)
     )
   );
+  const stepsWithToolName = plan.steps.filter(step => Boolean(step.toolName));
+  const allToolStepsAreServerMedia =
+    stepsWithToolName.length > 0 &&
+    stepsWithToolName.every(step =>
+      (SERVER_SIDE_MEDIA_TOOL_PREFIXES as readonly string[]).some(prefix =>
+        String(step.toolName).startsWith(prefix)
+      )
+    );
+  // The planner LLM sometimes hallucinates routing.capabilities=["code"] for
+  // a multi-step media plan (e.g., "為使用者製作普洱茶療癒影片"). When that
+  // happens but every actual tool call is a server-side media tool, demote
+  // the claudeCode routing — there is no code to hand off, and blocking the
+  // task with "claude code handoff required" stalls every studio.* step.
+  const needsClaudeCode =
+    usesExternalHighRiskTool ||
+    (declaresCodeCapability && !allToolStepsAreServerMedia);
+  if (needsClaudeCode) {
+    riskLevel = bumpRisk(riskLevel, "medium");
+    requiresHuman = true;
+    reasonsSet.add("程式碼／GitHub／部署任務需要 Claude Code");
+  } else if (declaresCodeCapability && allToolStepsAreServerMedia) {
+    reasonsSet.add(
+      "已忽略 routing.capabilities=code 旗標：所有步驟皆為 studio/director/media 工具，伺服器端可直接執行。"
+    );
+  }
   if (usesExternalHighRiskTool) {
     riskLevel = bumpRisk(riskLevel, "high");
     requiresHuman = true;

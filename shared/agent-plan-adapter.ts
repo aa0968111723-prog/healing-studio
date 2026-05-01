@@ -592,6 +592,7 @@ export function buildAgentPlanV3SystemPrompt(pageSnapshotSummary?: string): stri
     "submit / reset / applyPreset MUST be high risk and requiresApproval=true.",
     "Multimodal generation (image/audio/video/pdf) MUST set safety.riskLevel >= medium.",
     "Never invent unsupported tools; toolName must be empty unless you know it is registered.",
+    "routing.capabilities is metadata that decides downstream engine routing. Use 'code' / 'github' / 'deploy' ONLY when the actual work modifies source files, opens a PR, or triggers a deployment — NEVER for media generation. For 製作影片 / 生成圖片 / 配樂 / 配音 / 腳本規劃 use 'multimodal' plus the matching modality ('image' / 'audio' / 'video' / 'voice'); the gating layer will reject a 'code' capability when every step toolName is a studio.* / director.* / media.* call.",
     pageSnapshotSummary ? `Available page context:\n${pageSnapshotSummary}` : "",
   ].filter(Boolean).join("\n");
 }

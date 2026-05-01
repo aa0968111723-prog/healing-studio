@@ -147,7 +147,7 @@ import {
   markProviderRecovered,
 } from "./services/providerHealth";
 import { estimateOrbTaskCost } from "./services/orbCostGuard";
-import { checkAndConsumeQuota } from "./services/orbQuota";
+import { checkAndConsumeQuota, getOrbQuotaSnapshot } from "./services/orbQuota";
 import {
   buildOrbIdempotencyKey,
   checkAndLock,
@@ -5382,6 +5382,12 @@ export const appRouter = router({
                 recentOrbMemorySummary,
                 siteKnowledgeSummary,
                 preferences: (input.preferences ?? null) as Parameters<typeof runSchemaFirstAgentPlanner>[0]["preferences"],
+                // Site-wide model usage snapshot so the planner can budget
+                // generation/multimodal/code calls into stages instead of
+                // emitting plans the day's quota cannot cover.
+                quotaSnapshot: quotaGuardEnabled
+                  ? getOrbQuotaSnapshot(ctx.user.id)
+                  : null,
                 invoke: async plannerInput => {
                   const preferred = plannerInput.preferEngine ?? enginePreference;
                   // Cap each engine attempt so the inner fallback chain (incl.

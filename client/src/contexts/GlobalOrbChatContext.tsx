@@ -769,7 +769,13 @@ function ExecutorProgressPanel({
     <div className="fixed bottom-24 left-5 z-[84] w-[420px] max-w-[calc(100vw-2rem)] rounded-3xl border border-white/20 bg-slate-950/90 p-4 text-white shadow-2xl backdrop-blur-xl">
       <div className="flex justify-between text-xs text-white/70">
         <span>{state.status}</span>
-        <span>{state.currentStepId ?? "no-step"}</span>
+        <span>{state.currentStepId ?? (
+          state.status === "completed" ? "已完成" :
+          state.status === "failed" ? "失敗等待重試" :
+          state.status === "cancelled" ? "已取消" :
+          state.status === "blocked" ? "已封鎖" :
+          state.steps.find(s => s.status === "pending")?.label ?? "等待開始"
+        )}</span>
       </div>
       <div className="mt-1 text-xs text-white/60">taskId: {task.taskId} · traceId: {task.traceId ?? "n/a"}</div>
       {state.failReason && <div className="mt-2 text-xs text-rose-200">Fail: {state.failReason}</div>}
