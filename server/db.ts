@@ -33,6 +33,10 @@ import {
   orbFeedbackEvents,
   InsertOrbFeedbackEvent,
   OrbFeedbackEvent,
+  modelTrainingConsents,
+  InsertModelTrainingConsent,
+  fineTunedModelConsents,
+  InsertFineTunedModelConsent,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -665,6 +669,96 @@ export async function incrementModelUsage(id: number) {
     .update(fineTunedModels)
     .set({ usageCount: sql`${fineTunedModels.usageCount} + 1` })
     .where(eq(fineTunedModels.id, id));
+}
+
+// ─── Model Training Consents ────────────────────────────────────────────────
+
+export async function createModelTrainingConsent(
+  data: InsertModelTrainingConsent
+): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(modelTrainingConsents).values(data);
+  return result[0].insertId;
+}
+
+export async function getModelTrainingConsent(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(modelTrainingConsents)
+    .where(eq(modelTrainingConsents.id, id))
+    .limit(1);
+  return rows[0] || null;
+}
+
+export async function getModelTrainingConsentsByUser(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(modelTrainingConsents)
+    .where(eq(modelTrainingConsents.userId, userId))
+    .orderBy(desc(modelTrainingConsents.createdAt));
+}
+
+export async function revokeModelTrainingConsent(
+  id: number,
+  reason: string | null
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(modelTrainingConsents)
+    .set({ revokedAt: new Date(), revokeReason: reason ?? null })
+    .where(eq(modelTrainingConsents.id, id));
+}
+
+/**
+ * Whether a consent is currently usable for a new training job:
+ * not revoked, validFrom in the past, validUntil null or in the future.
+ */
+export function isConsentActive(c: {
+  revokedAt: Date | null;
+  validFrom: Date;
+  validUntil: Date | null;
+}): boolean {
+  if (c.revokedAt) return false;
+  const now = Date.now();
+  if (c.validFrom.getTime() > now) return false;
+  if (c.validUntil && c.validUntil.getTime() < now) return false;
+  return true;
+}
+
+export async function linkConsentsToModel(
+  modelId: number,
+  consentIds: number[]
+): Promise<void> {
+  if (consentIds.length === 0) return;
+  const db = await getDb();
+  if (!db) return;
+  const rows: InsertFineTunedModelConsent[] = consentIds.map(consentId => ({
+    modelId,
+    consentId,
+  }));
+  await db.insert(fineTunedModelConsents).values(rows);
+}
+
+export async function getConsentsForModel(modelId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db
+    .select({
+      consent: modelTrainingConsents,
+    })
+    .from(fineTunedModelConsents)
+    .innerJoin(
+      modelTrainingConsents,
+      eq(fineTunedModelConsents.consentId, modelTrainingConsents.id)
+    )
+    .where(eq(fineTunedModelConsents.modelId, modelId));
+  return rows.map(r => r.consent);
 }
 
 /** 取得特定模型的訓練任務歷史 */

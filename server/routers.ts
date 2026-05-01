@@ -28,6 +28,7 @@ import { imageStudioRouter } from "./routers/imageStudio";
 import { videoStudioRouter } from "./routers/videoStudio";
 import { learnHubRouter } from "./routers/learnHub";
 import { loraTrainerRouter } from "./routers/loraTrainer";
+import { modelConsentsRouter } from "./routers/modelConsents";
 import { directorRouter } from "./routers/director";
 import { langsmithRouter } from "./routers/langsmith";
 import { promptLibraryRouter } from "./routers/promptLibrary";
@@ -749,6 +750,7 @@ export const appRouter = router({
   videoStudio: videoStudioRouter,
   learnHub: learnHubRouter,
   loraTrainer: loraTrainerRouter,
+  modelConsents: modelConsentsRouter,
   promptLibrary: promptLibraryRouter,
   externalServices: externalServicesRouter,
   apiUsage: apiUsageRouter,
@@ -3689,9 +3691,71 @@ export const appRouter = router({
             )
             .max(20)
             .optional(),
+          /**
+           * 訓練資料的主體類型。只要不是 `synthetic`，後端就會強制要求至少
+           * 一筆有效（未撤回 / 未過期）的 modelTrainingConsents 紀錄。
+           * - synthetic：純 AI 生成 / 無辨識性內容
+           * - self：本人
+           * - real_person：真實他人
+           * - copyrighted：第三方版權素材
+           */
+          subjectType: z
+            .enum(["synthetic", "self", "real_person", "copyrighted"])
+            .default("synthetic"),
+          /** 引用的同意書 ID（必須屬於本人、且為有效狀態） */
+          consentIds: z.array(z.number()).max(20).optional(),
         })
       )
       .mutation(async ({ ctx, input }) => {
+        // ── 同意書門檻：人像 / 第三方版權素材必須提供有效 consent ──────
+        const requiresConsent =
+          input.subjectType === "self" ||
+          input.subjectType === "real_person" ||
+          input.subjectType === "copyrighted" ||
+          input.modelType === "portrait_lora";
+
+        if (requiresConsent) {
+          const ids = input.consentIds ?? [];
+          if (ids.length === 0) {
+            throw new TRPCError({
+              code: "BAD_REQUEST",
+              message:
+                "訓練真實人物或受版權保護的素材，必須先簽署數位肖像權 / 照片使用同意書",
+            });
+          }
+          for (const cid of ids) {
+            const c = await db.getModelTrainingConsent(cid);
+            if (!c || c.userId !== ctx.user.id) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: `同意書 #${cid} 不存在或不屬於目前帳號`,
+              });
+            }
+            if (
+              !db.isConsentActive({
+                revokedAt: c.revokedAt,
+                validFrom: c.validFrom,
+                validUntil: c.validUntil,
+              })
+            ) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: `同意書 #${cid}（${c.subjectName}）已撤回或過期，無法用於訓練`,
+              });
+            }
+            // 視訓練類型檢查授權範圍
+            if (
+              input.modelType === "portrait_lora" &&
+              c.consentType === "photo_usage"
+            ) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: `同意書 #${cid} 僅授權「照片使用」，未涵蓋肖像權，不可用於 portrait_lora`,
+              });
+            }
+          }
+        }
+
         const STEPS_PER_EPOCH = 30;
         const MIN_TRAINING_STEPS = 200;
         const MAX_TRAINING_STEPS = 2000;
@@ -3726,6 +3790,11 @@ export const appRouter = router({
           fileKey: input.datasetImages?.[0]?.fileKey || input.fileKey,
           configJson,
         });
+
+        // Link consents (if any) to the model for audit trail
+        if (input.consentIds && input.consentIds.length > 0) {
+          await db.linkConsentsToModel(modelId, input.consentIds);
+        }
 
         // Create a background job for training
         const jobId = await db.createBackgroundJob({
