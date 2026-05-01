@@ -120,6 +120,21 @@ describe("agentPlanner", () => {
     expect(systemPrompt).toMatch(/Forbidden lazy outputs|navigate.*tell the user/);
   });
 
+  it("system prompt teaches the ${stepId.path} chaining syntax for multi-step tool pipelines", () => {
+    const messages: Message[] = [
+      { role: "user", content: "先生成影片再幫我做字幕" },
+    ];
+    const built = buildAgentPlannerMessages({ messages });
+    const systemPrompt = String(built[0].content);
+    // Without this, multi-step pipelines can't actually chain — step 2's
+    // toolArgs need to reference step 1's video_url / transcript / etc.
+    expect(systemPrompt).toMatch(/\$\{<stepId>\.<key>\}|\$\{step1\.video_url\}/);
+    expect(systemPrompt).toMatch(/orchestrator substitutes/);
+    // Concrete worked examples for the common pipelines.
+    expect(systemPrompt).toMatch(/studio\.enhanceVideo/);
+    expect(systemPrompt).toMatch(/media\.transcribe/);
+  });
+
   it("detects and summarizes multimodal message parts", () => {
     const messages: Message[] = [
       {

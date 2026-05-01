@@ -228,6 +228,14 @@ How to produce a real executable tasked plan:
   The orchestrator will dispatch the tool to fal.ai / Suno / ElevenLabs server-side and stream the request_id back — that's the real generation, not a UI hint.
 - Pair each tool-call step with the matching UI action so the user sees it happen on the right studio page (e.g., navigate to /video-studio, fillPrompt with the same prompt, then submit). Both run together: uiActions for visibility, toolCalls for autonomous execution.
 - For multi-step pipelines (subtitle → dubbing → render, or storyboard → image → video), chain the steps so each downstream step consumes the previous step's output. Use 'condition' / 'dependsOn' when ordering matters.
+- To reference an earlier step's tool result inside a later step's toolArgs, write the placeholder \`\${<stepId>.<key>}\` (or \`\${<stepId>.output.<key>}\`) in the toolArgs string value. The orchestrator substitutes the real value at runtime. Examples:
+    • step1 toolName='studio.generateVideo' returns \`{ request_id, video_url? }\` →
+      step2 toolName='studio.enhanceVideo', toolArgs={ video_url: "\${step1.video_url}", operation: "upscale" }
+    • step1 toolName='media.transcribe' returns \`{ transcript }\` →
+      step2 toolName='media.caption', toolArgs={ transcript: "\${step1.transcript}", style: "搞笑可愛" }
+    • step1 toolName='studio.generateImage' returns \`{ request_id, image_url? }\` →
+      step2 toolName='studio.generateVideo', toolArgs={ prompt: "...", image_url: "\${step1.image_url}" }
+  Use these placeholders ONLY for values produced by registered tool calls in earlier steps of the SAME plan; do not invent variables for parameters the user gave you (those are already known and should be inlined verbatim).
 - Keep risk gates honest: studio.generate* tools are medium-risk + requiresHuman; the workflow confirmation card already approves them as a batch, so set requiresApproval=true on the step but DO NOT block on each individual sub-step at runtime.
 - Forbidden lazy outputs: do NOT respond with only a navigate step + a chat message that tells the user to fill the prompt and click submit themselves. That defeats the purpose of the agent — always emit the actual toolName/toolArgs whenever a registered server-side tool covers the user's goal.
 

@@ -5,6 +5,7 @@ import type {
 } from "../../shared/orb-task-state-machine";
 import type { OrbApiTool, OrbToolCallResult } from "./agentToolExecutor";
 import { executeOrbToolCalls } from "./agentToolExecutor";
+import { resolveStepRefsInArgs } from "../../shared/orb-step-ref-resolver";
 import {
   completeOrbAgentStep,
   failOrbAgentStep,
@@ -41,6 +42,16 @@ export interface ExecuteStepToolsInput {
   }) => void;
   agentPreferences?: AgentPreferences;
   autoApprovedStepsInRun?: number;
+  /**
+   * Cumulative tool results from earlier steps in this run. The current
+   * step's `toolArgs` are walked through `resolveStepRefsInArgs` so the
+   * planner can chain outputs (e.g. `${step1.video_url}` for a follow-up
+   * upscale or caption call).
+   */
+  perStepToolResults?: Array<{
+    stepId: string;
+    toolResults: OrbToolCallResult[];
+  }>;
 }
 
 export interface ExecuteStepToolsResult {
@@ -110,9 +121,22 @@ export async function executeCurrentStepTools(
     };
   }
 
+  // Resolve `${stepId.path}` references in each tool call's args against
+  // earlier-step outputs. Without this, a multi-step plan that needs a
+  // generated video_url, request_id, or audio_url from step N to feed
+  // into step N+1 cannot actually chain — the planner has no way to know
+  // those values upfront. This is the single largest gap that kept the
+  // orb from being a real autonomous agent (see audit, gap #1).
+  const cumulativeResults = input.perStepToolResults ?? [];
   const calls = step.toolCalls.map(call => ({
     name: call.name,
-    args: call.args,
+    args: resolveStepRefsInArgs({
+      args: call.args,
+      perStepToolResults: cumulativeResults.map(entry => ({
+        stepId: entry.stepId,
+        toolResults: entry.toolResults.map(r => ({ ok: r.ok, data: r.data })),
+      })),
+    }),
   }));
 
   const toolResults = await executeOrbToolCalls({
@@ -382,6 +406,7 @@ export async function runOrbTaskToCompletion(
       onAuditEvent: input.onToolAuditEvent,
       agentPreferences: input.agentPreferences,
       autoApprovedStepsInRun,
+      perStepToolResults,
     });
     if (!stepRun.blockedByApproval && stepRun.attempted) autoApprovedStepsInRun += 1;
 
