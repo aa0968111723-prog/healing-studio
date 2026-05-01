@@ -569,23 +569,18 @@ const LEGACY_LLM_ALIASES = new Set([
   "minimaxai/minimax-m2.7",
 ]);
 
-let _knownModelIdsCache: Set<string> | null = null;
-
 /**
- * 取得所有「已知」模型/引擎 ID 集合,涵蓋:
+ * 在 module load time 一次性計算「已知」模型/引擎 ID 集合,涵蓋:
  *  - 5 推理大腦 catalog(REASONING_MODEL_CATALOG)
  *  - 4 生成引擎 catalog(GENERATION_ENGINE_CATALOG;含 normalize 後的 canonical 形式)
  *  - 16 Fal 任務 catalog(FAL_MODEL_CATALOG)
  *  - LEGACY_FAL_ALIAS_MAP 的舊鍵與新值
  *  - LEGACY_LLM_ALIASES 的向後相容 ID
  *
- * 結果會被 cache,模組啟動後不再重算。
+ * 凍結為 readonly Set,避免熱載入或測試 mock 改變 catalog 後造成不一致。
  */
-export function getKnownModelIds(): Set<string> {
-  if (_knownModelIdsCache) return _knownModelIdsCache;
-
+function buildKnownModelIds(): ReadonlySet<string> {
   const set = new Set<string>();
-
   for (const slot of Object.values(REASONING_MODEL_CATALOG)) {
     for (const opt of slot.options) set.add(opt.value);
   }
@@ -603,9 +598,13 @@ export function getKnownModelIds(): Set<string> {
     set.add(to);
   }
   LEGACY_LLM_ALIASES.forEach(id => set.add(id));
-
-  _knownModelIdsCache = set;
   return set;
+}
+
+const KNOWN_MODEL_IDS: ReadonlySet<string> = buildKnownModelIds();
+
+export function getKnownModelIds(): ReadonlySet<string> {
+  return KNOWN_MODEL_IDS;
 }
 
 /** 健康檢查使用:判斷一個模型 ID 是否在已知集合中 */

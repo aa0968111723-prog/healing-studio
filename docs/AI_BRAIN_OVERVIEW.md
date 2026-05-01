@@ -197,6 +197,6 @@ UI:`client/src/pages/AiBrainSettings.tsx`(主檔)+ `client/src/pages/admin/brain
 
 ## 9. 後續可做的事(non-blocking)
 
-- [ ] 把 `AiBrainSettings.tsx`(目前 3088 行)再拆分為 7 個分頁檔(每檔 < 600 行)
-- [ ] LangSmith API key 格式檢查(目前格式錯誤會在管線測試時 403,可在啟動時就警告)
-- [ ] `getKnownModelIds()` 改為 module-load-time 凍結,避免日後熱載入造成不一致
+- [x] `getKnownModelIds()` 改為 module-load-time 凍結 — 已於 `_core/modelRegistry.ts` 改用 `const KNOWN_MODEL_IDS = buildKnownModelIds()`,回傳 `ReadonlySet`。
+- [x] LangSmith API key 格式檢查 — 已在 `_core/env.validated.ts:186-200` 實作:啟動時若 `LANGSMITH_API_KEY` 非 `lsv2_pt_` / `lsv2_sk_` 開頭,視為未設定並記入 self-repair log。
+- [ ] 把 `AiBrainSettings.tsx`(目前 3088 行)再拆分為 7 個分頁檔(每檔 < 600 行)— 進行中
