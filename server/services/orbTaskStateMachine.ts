@@ -54,9 +54,15 @@ export function createOrbAgentTaskFromPlanner(result: GatedAgentPlanResult): Orb
   const capabilities = Array.isArray((plan?.routing as { capabilities?: unknown[] } | undefined)?.capabilities)
     ? ((plan?.routing as { capabilities?: string[] }).capabilities ?? [])
     : [];
+  // Trust the safety evaluator's verdict (already accounts for actual step
+  // toolNames vs hallucinated capability strings). Re-deriving from raw
+  // capabilities here was forcing media plans whose planner LLM declared
+  // routing.capabilities=["code"] back into claudeCode handoff even after
+  // agent-plan-safety demoted them — exactly the 全站光球代理 misroute
+  // that stalled the Pu'er-tea video flow.
   const claudeCodeTask =
     result.task.preferredEngine === "claudeCode" ||
-    capabilities.some(cap => ["code", "github", "deploy"].includes(String(cap)));
+    result.task.isolation === "code";
   const approvalRequired = claudeCodeTask || result.task.needsApproval;
   const steps: OrbAgentTaskStep[] = result.task.steps.map(step => ({
     id: step.id,

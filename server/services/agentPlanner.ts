@@ -9,6 +9,10 @@ import {
 } from "../../shared/agent-plan-adapter";
 import type { AgentFeedbackEvent, PageAgentSnapshot } from "../../shared/agent-actions";
 import type { AgentPreferences } from "../../shared/agent-preferences";
+import {
+  summarizeOrbQuotaForPlanner,
+  type OrbQuotaSnapshot,
+} from "./orbQuota";
 
 export type PlannerMultimodalKind = "image" | "audio" | "video" | "pdf" | "file";
 
@@ -31,6 +35,14 @@ export interface AgentPlannerInput {
     AgentPreferences,
     "confirmationPolicy" | "maxAutoStepsPerTask" | "autoApproveTools" | "blockedTools" | "allowedRiskLevels"
   > | null;
+  /**
+   * Remaining site-wide quota for today, keyed by category (planner /
+   * generation / multimodal_analysis / code_task). When supplied the
+   * planner is instructed to budget its plan against the remaining slots
+   * and propose staged execution if the request would exceed the day's
+   * cap. See `getOrbQuotaSnapshot()` in `services/orbQuota.ts`.
+   */
+  quotaSnapshot?: OrbQuotaSnapshot | null;
   maxTokens?: number;
   invoke?: typeof invokeLLM;
 }
@@ -188,6 +200,9 @@ export function buildAgentPlannerMessages(input: AgentPlannerInput): Message[] {
   const capabilitySummary = summarizeGlobalCapabilityRegistry(120);
   const toolSummary = summarizeGlobalToolRegistry(60);
   const preferencesSummary = summarizePreferencesForPlanner(input.preferences);
+  const quotaSummary = input.quotaSnapshot
+    ? summarizeOrbQuotaForPlanner(input.quotaSnapshot)
+    : null;
   const contextBlock = [
     input.context ? `Conversation context: ${input.context}` : undefined,
     input.personality ? `Orb personality: ${input.personality}` : undefined,
@@ -199,6 +214,9 @@ export function buildAgentPlannerMessages(input: AgentPlannerInput): Message[] {
     `Global tool registry summary:\n${toolSummary}`,
     `Multimodal attachments:\n${multimodalSummary}`,
     `User agent preferences:\n${preferencesSummary}`,
+    quotaSummary
+      ? `${quotaSummary}\n\n配額分階段規則（極為重要 / very important）：\n- 計算 plan 中真正會消耗 generation 額度的步驟數（每個 studio.generateImage / studio.generateVideo / studio.generateAudio / studio.generateVoice / studio.enhanceVideo / studio.trainLora 算 1 個 generation 額度；planner 額度由本次規劃自動扣除，無需自行加總；multimodal_analysis 用於分析上傳的圖／影／音／PDF；code_task 用於 code/github/deploy 真正改檔工作）。\n- 若所需 generation 步驟數 ≤ 剩餘 generation 額度，可一次規劃完整 plan。\n- 若所需 generation 步驟數 > 剩餘 generation 額度，必須分階段：把 plan 切成 ≤ 剩餘額度的「第一階段」與後續「第 N 階段」；只提交第一階段為 tasked plan，並在 summaryForUser 與 reply 中明確告知使用者「今日只能執行 X 步，剩下 Y 步明日再續」並把後續 step 列入 followUpStages 文字描述（不要放進當次 steps）。\n- 若 generation 額度 = 0：直接回覆 clarification（或 blocked），告知使用者今日 generation 額度已滿，並建議改成預覽／分鏡／文字腳本等不耗 generation 的步驟；不要送出空 tasked plan。\n- 若 multimodal_analysis = 0 且使用者上傳了圖／影／音／PDF：說明今日無法分析附件，請使用者明日再試或先以文字描述需求。\n- 若 code_task = 0 且使用者請求改檔／GitHub／部署：直接回覆額度已滿，不要建立 code task。\n- 千萬不要為了規劃而規劃 — 只有實際會被執行的步驟才能算進當次 plan，宣告 followUpStages 時要清楚標註「Stage 2 (明日)」之類的文字。`
+      : undefined,
     "Plan in Traditional Chinese labels where helpful, but keep action ids and page paths exact.",
     "When the user's target output, modality, destination page, chosen model, constraints, or success criteria are unclear, you MUST return shouldAskClarification=true with a single clarificationQuestion (Traditional Chinese, ≤80 字) and 2-4 short clarificationOptions covering the likely choices. Do NOT include any steps in clarification mode.",
     `Multi-step wizard rule (極為重要 / very important):

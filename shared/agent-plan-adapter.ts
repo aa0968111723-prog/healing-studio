@@ -348,7 +348,24 @@ export function adaptAgentPlanV3ToOrbTaskDraft(
   plan: AgentPlanV3,
   evaluation: AgentPlanV3RiskEvaluation
 ): OrbTaskDraft {
-  const isolation = plan.taskPolicy?.isolation ?? (evaluation.needsClaudeCode ? "code" : "ui");
+  let isolation: "ui" | "tool" | "code" =
+    plan.taskPolicy?.isolation ?? (evaluation.needsClaudeCode ? "code" : "ui");
+  // Demote a hallucinated `taskPolicy.isolation: "code"` when the actual
+  // step toolNames are all server-side media calls. Without this, plans
+  // like "為使用者做普洱茶療癒影片" (steps = studio.generateImage / Video /
+  // Audio) keep getting forced into claudeCode isolation by an LLM that
+  // misclassifies "tasked" as "code work".
+  if (isolation === "code" && !evaluation.needsClaudeCode) {
+    const stepsWithToolName = plan.steps.filter(step => Boolean(step.toolName));
+    const allServerMedia =
+      stepsWithToolName.length > 0 &&
+      stepsWithToolName.every(step =>
+        ["studio.", "director.", "media.", "pro-studio."].some(prefix =>
+          String(step.toolName).startsWith(prefix)
+        )
+      );
+    if (allServerMedia) isolation = "ui";
+  }
   return {
     taskId: plan.planId,
     intent: plan.intent,
@@ -592,6 +609,7 @@ export function buildAgentPlanV3SystemPrompt(pageSnapshotSummary?: string): stri
     "submit / reset / applyPreset MUST be high risk and requiresApproval=true.",
     "Multimodal generation (image/audio/video/pdf) MUST set safety.riskLevel >= medium.",
     "Never invent unsupported tools; toolName must be empty unless you know it is registered.",
+    "routing.capabilities is metadata that decides downstream engine routing. Use 'code' / 'github' / 'deploy' ONLY when the actual work modifies source files, opens a PR, or triggers a deployment — NEVER for media generation. For 製作影片 / 生成圖片 / 配樂 / 配音 / 腳本規劃 use 'multimodal' plus the matching modality ('image' / 'audio' / 'video' / 'voice'); the gating layer will reject a 'code' capability when every step toolName is a studio.* / director.* / media.* call.",
     pageSnapshotSummary ? `Available page context:\n${pageSnapshotSummary}` : "",
   ].filter(Boolean).join("\n");
 }

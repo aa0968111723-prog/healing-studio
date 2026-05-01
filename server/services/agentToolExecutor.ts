@@ -1,5 +1,16 @@
 import { TRPCError } from "@trpc/server";
 import { awaitFalQueueResult, type FalAwaitResult } from "./falQueueAwaiter";
+import { checkAndConsumeQuota } from "./orbQuota";
+
+/** Tool names that consume a `generation` daily slot when executed. */
+const GENERATION_SLOT_TOOLS = new Set([
+  "studio.generateImage",
+  "studio.generateVideo",
+  "studio.generateAudio",
+  "studio.generateVoice",
+  "studio.enhanceVideo",
+  "studio.trainLora",
+]);
 
 /**
  * Default wait budget for orb-side tool calls that dispatch to fal.ai's queue.
@@ -555,6 +566,23 @@ async function dispatchStudioTool(
       ok: false,
       error: "confirmation-required",
     };
+  }
+
+  // ── 全站每日生成額度閘門 ──
+  // The planner is told it has DAILY_LIMITS.generation slots/day; without
+  // this gate the studio.* dispatchers ran unconstrained and the planner's
+  // staging instructions were unenforceable. Counts only when the tool
+  // actually consumes a generation slot (image/video/audio/voice/enhance/
+  // train) — director.suggestPlan and other helpers stay free.
+  if (GENERATION_SLOT_TOOLS.has(call.name)) {
+    const quota = checkAndConsumeQuota("generation", { userId: opts.userId });
+    if (!quota.allowed) {
+      return {
+        name: call.name,
+        ok: false,
+        error: quota.reason ?? "generation-quota-exceeded",
+      };
+    }
   }
 
   const args = (call.args ?? {}) as Record<string, unknown>;

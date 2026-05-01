@@ -50,7 +50,7 @@ import { checkModalityCoherence } from "../shared/orb-modality-coherence";
 import { executeOrbToolCalls } from "./services/agentToolExecutor";
 import { getOrbToolRegistry } from "./config/orbToolRegistry";
 import { orbTaskRepository } from "./repositories/orbTaskRepository";
-import { executeCurrentStepTools } from "./services/orbTaskOrchestrator";
+import { executeCurrentStepTools, runOrbTaskToCompletion } from "./services/orbTaskOrchestrator";
 import { loadAgentPreferencesForUser } from "./services/agentPreferenceService";
 import { orbToolCallLogStore } from "./services/orbToolCallLogStore";
 import { runSchemaFirstAgentPlanner } from "./services/agentPlanner";
@@ -147,7 +147,7 @@ import {
   markProviderRecovered,
 } from "./services/providerHealth";
 import { estimateOrbTaskCost } from "./services/orbCostGuard";
-import { checkAndConsumeQuota } from "./services/orbQuota";
+import { checkAndConsumeQuota, getOrbQuotaSnapshot } from "./services/orbQuota";
 import {
   buildOrbIdempotencyKey,
   checkAndLock,
@@ -243,6 +243,63 @@ function isFlagEnabled(value: string | undefined, defaultEnabled: boolean): bool
   if (value === undefined || value === null || value.trim() === "") return defaultEnabled;
   const normalized = value.trim().toLowerCase();
   return !["0", "false", "off", "no", "disabled"].includes(normalized);
+}
+
+/**
+ * Tracks the task IDs whose orchestrator loop is currently running, so two
+ * approve clicks (or approve+retry) don't double-fire the executor.
+ */
+const orbAutoDriverInFlight = new Set<string>();
+
+/**
+ * Fire-and-forget: drive a multi-step orb task to completion in the
+ * background. Honours every safety / approval gate — if the orchestrator
+ * hits an `awaiting_approval` step it exits cleanly, the front-end's
+ * approval card shows up, and the loop resumes when the user approves.
+ *
+ * Without this, every multi-step plan stalled at step 0 because nothing
+ * actually called the orchestrator after the chat router created the
+ * task. The orb was effectively a planner-only "draft generator" instead
+ * of a real executable agent.
+ */
+async function driveOrbTaskInBackground(input: {
+  taskId: string;
+  userId: number;
+  userRole: string;
+}): Promise<void> {
+  if (orbAutoDriverInFlight.has(input.taskId)) return;
+  orbAutoDriverInFlight.add(input.taskId);
+  try {
+    const tools = getOrbToolRegistry();
+    const agentPreferences = await loadAgentPreferencesForUser(input.userId);
+    const result = await runOrbTaskToCompletion({
+      taskId: input.taskId,
+      userId: input.userId,
+      userRole: input.userRole,
+      tools,
+      agentPreferences,
+      requestId: `orb_auto_${input.taskId}_${Date.now()}`,
+      onToolAuditEvent: event => {
+        try {
+          orbToolCallLogStore.append(event);
+        } catch {
+          // best-effort
+        }
+      },
+    });
+    if (result.outcome === "failed") {
+      console.warn(
+        `[Orb] auto-driver finished with failure: taskId=${input.taskId} reason=${result.reason ?? "unknown"}`
+      );
+    }
+  } catch (error) {
+    console.error(
+      `[Orb] auto-driver crashed for taskId=${input.taskId}:`,
+      error instanceof Error ? error.message : String(error)
+    );
+  } finally {
+    orbAutoDriverInFlight.delete(input.taskId);
+  }
 }
 
 /**
@@ -4501,6 +4558,32 @@ export const appRouter = router({
           ctx.user.id,
           input.approved
         );
+        // Mirror approval into the FSM (when the task is also tracked there)
+        // and kick the autonomous driver so the rest of the steps run without
+        // requiring the client to call reportTaskStep N more times.
+        if (input.approved) {
+          if (getOrbAgentTask(input.taskId)) {
+            try {
+              approveOrbAgentTask(input.taskId);
+            } catch (error) {
+              console.warn(
+                "[Orb] FSM approve mirror failed:",
+                error instanceof Error ? error.message : String(error)
+              );
+            }
+          }
+          void driveOrbTaskInBackground({
+            taskId: input.taskId,
+            userId: ctx.user.id,
+            userRole: ctx.user.role,
+          });
+        } else if (getOrbAgentTask(input.taskId)) {
+          try {
+            cancelOrbAgentTask(input.taskId, "cancelled by user");
+          } catch {
+            // best-effort
+          }
+        }
         return { task };
       }),
 
@@ -5382,6 +5465,12 @@ export const appRouter = router({
                 recentOrbMemorySummary,
                 siteKnowledgeSummary,
                 preferences: (input.preferences ?? null) as Parameters<typeof runSchemaFirstAgentPlanner>[0]["preferences"],
+                // Site-wide model usage snapshot so the planner can budget
+                // generation/multimodal/code calls into stages instead of
+                // emitting plans the day's quota cannot cover.
+                quotaSnapshot: quotaGuardEnabled
+                  ? getOrbQuotaSnapshot(ctx.user.id)
+                  : null,
                 invoke: async plannerInput => {
                   const preferred = plannerInput.preferEngine ?? enginePreference;
                   // Cap each engine attempt so the inner fallback chain (incl.
@@ -5688,9 +5777,17 @@ export const appRouter = router({
               if (globalWorkflowsEnabled && taskDraft && orbTaskStateMachineEnabled) {
                 stateMachineTask = createOrbAgentTaskFromPlanner(plannerResult);
               }
-              if (globalWorkflowsEnabled && taskDraft && !stateMachineTask) {
+              // Always materialize a legacy orbTaskRepository record so the
+              // existing reportTaskStep flow (which queries the legacy store)
+              // can drive steps. When the FSM created a task we reuse its id
+              // so both stores point at the same logical task; otherwise we
+              // generate a new id. Without this, multi-step plans created via
+              // the FSM stalled at "pending" because reportTaskStep saw a
+              // missing record under the FSM id.
+              if (globalWorkflowsEnabled && taskDraft) {
                 try {
                   materializedTask = orbTaskRepository.create({
+                    taskId: stateMachineTask?.taskId,
                     userId: ctx.user.id,
                     intent: taskDraft.intent,
                     needsApproval: taskDraft.needsApproval,
@@ -6097,29 +6194,49 @@ export const appRouter = router({
 
       approve: brainProcedure
         .input(z.object({ taskId: z.string().min(1) }))
-        .mutation(({ input }) => {
+        .mutation(async ({ input, ctx }) => {
           const executorEnabled = isFlagEnabled(
             process.env.ENABLE_ORB_TASK_EXECUTOR ?? serverEnv.ENABLE_ORB_TASK_EXECUTOR,
             true
           );
           if (!executorEnabled) return null;
-          return approveOrbAgentTask(input.taskId);
+          const fsmTask = approveOrbAgentTask(input.taskId);
+          // Sync legacy store so the orchestrator (which reads task.status
+          // there) sees `running` instead of `waiting_human` and can advance
+          // currentStepIndex on each successful step.
+          orbTaskRepository.approve(input.taskId, ctx.user.id, true);
+          // Drive the whole multi-step task autonomously. We fire-and-forget
+          // so the HTTP response returns the approval ack immediately while
+          // the orchestrator chains studio.* / director.* tool calls in the
+          // background. Front-end SSE / orbTask.events streaming surfaces
+          // step progress to the UI without further user clicks — this is
+          // what makes the orb a real multi-step agent instead of a per-step
+          // remote control.
+          void driveOrbTaskInBackground({
+            taskId: input.taskId,
+            userId: ctx.user.id,
+            userRole: ctx.user.role,
+          });
+          return fsmTask;
         }),
 
       cancel: brainProcedure
         .input(z.object({ taskId: z.string().min(1), reason: z.string().max(240).optional() }))
-        .mutation(({ input }) => {
+        .mutation(({ input, ctx }) => {
           const executorEnabled = isFlagEnabled(
             process.env.ENABLE_ORB_TASK_EXECUTOR ?? serverEnv.ENABLE_ORB_TASK_EXECUTOR,
             true
           );
           if (!executorEnabled) return null;
+          // Mirror cancellation into the legacy store so any running
+          // orchestrator loop exits on its next status check.
+          orbTaskRepository.approve(input.taskId, ctx.user.id, false);
           return cancelOrbAgentTask(input.taskId, input.reason ?? "cancelled by user");
         }),
 
       retry: brainProcedure
         .input(z.object({ taskId: z.string().min(1) }))
-        .mutation(({ input }) => {
+        .mutation(async ({ input, ctx }) => {
           const executorEnabled = isFlagEnabled(
             process.env.ENABLE_ORB_TASK_EXECUTOR ?? serverEnv.ENABLE_ORB_TASK_EXECUTOR,
             true
@@ -6129,7 +6246,15 @@ export const appRouter = router({
             process.env.ENABLE_ORB_TASK_RECOVERY ?? serverEnv.ENABLE_ORB_TASK_RECOVERY,
             true
           );
-          return retryOrbAgentTask(input.taskId, { enableRecovery });
+          const result = retryOrbAgentTask(input.taskId, { enableRecovery });
+          // Re-arm the autonomous driver after retry too.
+          orbTaskRepository.approve(input.taskId, ctx.user.id, true);
+          void driveOrbTaskInBackground({
+            taskId: input.taskId,
+            userId: ctx.user.id,
+            userRole: ctx.user.role,
+          });
+          return result;
         }),
 
       events: brainProcedure
