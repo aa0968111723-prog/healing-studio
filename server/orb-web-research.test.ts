@@ -10,6 +10,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import {
+  buildResearchQuery,
   classifyOrbResearchIntent,
   formatResearchPromptBlock,
   runOrbWebResearch,
@@ -54,6 +55,34 @@ describe("classifyOrbResearchIntent", () => {
   });
 });
 
+describe("buildResearchQuery", () => {
+  it("strips conversational imperative wrappers so search hits the topic", () => {
+    expect(buildResearchQuery("幫我規劃一支貓咪大戰爭影片")).not.toMatch(/幫我/);
+    expect(buildResearchQuery("幫我規劃一支貓咪大戰爭影片")).toContain("貓咪大戰爭");
+    expect(buildResearchQuery("請告訴我製茶的歷史")).toContain("製茶");
+    expect(buildResearchQuery("請告訴我製茶的歷史")).toContain("歷史");
+  });
+
+  it("drops the appended [使用者澄清] suffix used for multi-step wizard context", () => {
+    const composed = "幫我規劃一支貓咪大戰爭影片\n\n[使用者澄清]: 30 秒、搞笑可愛";
+    const query = buildResearchQuery(composed);
+    expect(query).not.toContain("使用者澄清");
+    expect(query).not.toContain("30 秒");
+    expect(query).toContain("貓咪大戰爭");
+  });
+
+  it("falls back to the trimmed input when filler-stripping eats everything", () => {
+    expect(buildResearchQuery("幫我")).toBe("幫我");
+    expect(buildResearchQuery("   ")).toBe("");
+  });
+
+  it("caps the query length to keep search calls focused", () => {
+    const long = `${"製茶"}${"a".repeat(500)}`;
+    const query = buildResearchQuery(long);
+    expect(query.length).toBeLessThanOrEqual(120);
+  });
+});
+
 describe("formatResearchPromptBlock", () => {
   it("returns empty string when no results", () => {
     expect(formatResearchPromptBlock([])).toBe("");
@@ -91,6 +120,24 @@ describe("formatResearchPromptBlock", () => {
     expect(block).toContain("2. Oolong Tea History");
     expect(block).toContain("Long origin story with messy whitespace");
     expect(block).toContain("/process?spec=");
+  });
+
+  it("instructs the LLM to drop sources whose topic does not match the user prompt", () => {
+    const results: WebResearchResult[] = [
+      {
+        id: "r1",
+        query: "tea process",
+        source: "Brave Search",
+        title: "Traditional Tea Making",
+        summary: "Six core steps from picking leaves to drying.",
+        url: "https://example.com/tea",
+        relevance: 80,
+        addedToLearnHub: false,
+        createdAt: 1,
+      },
+    ];
+    const block = formatResearchPromptBlock(results);
+    expect(block).toMatch(/不相關.*捨棄|寧可不附來源|對應使用者的主題/);
   });
 });
 

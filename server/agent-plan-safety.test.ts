@@ -37,7 +37,7 @@ describe("agent-plan-safety", () => {
     expect(evaluation.issues).toEqual([]);
   });
 
-  it("blocks high-risk submit steps when approval is missing", () => {
+  it("auto-corrects high-risk submit steps missing approval (warning, not blocker)", () => {
     const plan: AgentPlan = {
       ...basePlan,
       steps: [
@@ -55,8 +55,14 @@ describe("agent-plan-safety", () => {
 
     const evaluation = evaluateAgentPlanSafety(plan);
     expect(evaluation.askBeforeAct).toBe(true);
+    // Plan is no longer rejected outright — the planner forgetting one
+    // boolean shouldn't kill a valid workflow. okToExecute remains false
+    // because askBeforeAct is on (high-risk steps still need approval),
+    // but the plan is presentable and runs after the confirmation card.
     expect(evaluation.okToExecute).toBe(false);
-    expect(getAgentPlanBlockers(plan).map(issue => issue.reason)).toContain("high_risk_without_approval");
+    expect(evaluation.okToPresent).toBe(true);
+    expect(plan.steps[0].requiresApproval).toBe(true);
+    expect(getAgentPlanBlockers(plan).map(issue => issue.reason)).not.toContain("high_risk_without_approval");
   });
 
   it("requires confirmation but does not block approved high-risk plans", () => {

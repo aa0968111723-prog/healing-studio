@@ -84,6 +84,75 @@ describe("agentPlanner", () => {
     expect(built.at(-1)?.content).toBe("幫我做海報");
   });
 
+  it("system prompt instructs a step-by-step quick-select wizard before tasked plans", () => {
+    const messages: Message[] = [{ role: "user", content: "幫我規劃一支貓咪大戰爭影片" }];
+    const built = buildAgentPlannerMessages({ messages });
+    const systemPrompt = String(built[0].content);
+    // Multi-step wizard rule: ask one question at a time with quick-select options
+    // before producing a tasked plan, covering the modality-specific dimensions.
+    expect(systemPrompt).toContain("Multi-step wizard");
+    expect(systemPrompt).toMatch(/ONE clarifying question at a time/);
+    expect(systemPrompt).toContain("clarificationOptions");
+    expect(systemPrompt).toMatch(/時長|風格|素材/);
+    // Re-asking already-answered dimensions is forbidden so the wizard advances.
+    expect(systemPrompt).toMatch(/使用者澄清/);
+  });
+
+  it("system prompt requires web citations to match the user's actual topic", () => {
+    const messages: Message[] = [{ role: "user", content: "幫我做一支貓咪影片" }];
+    const built = buildAgentPlannerMessages({ messages });
+    const systemPrompt = String(built[0].content);
+    expect(systemPrompt).toMatch(/離題|drop any source/);
+  });
+
+  it("system prompt requires real autonomous execution via studio.* tools after the wizard", () => {
+    const messages: Message[] = [{ role: "user", content: "幫我做一支貓咪大戰爭影片" }];
+    const built = buildAgentPlannerMessages({ messages });
+    const systemPrompt = String(built[0].content);
+    // The orb must actually run generation, not just navigate + chat.
+    expect(systemPrompt).toContain("Autonomous-execution rule");
+    expect(systemPrompt).toContain("toolName");
+    expect(systemPrompt).toContain("toolArgs");
+    expect(systemPrompt).toContain("studio.generateVideo");
+    // Pair tool calls with UI actions so the user can see progress on the page.
+    expect(systemPrompt).toMatch(/uiActions.*toolCalls|toolCalls.*uiActions/s);
+    // Forbid lazy "navigate + tell the user to do it themselves" outputs.
+    expect(systemPrompt).toMatch(/Forbidden lazy outputs|navigate.*tell the user/);
+  });
+
+  it("system prompt teaches the ${stepId.path} chaining syntax for multi-step tool pipelines", () => {
+    const messages: Message[] = [
+      { role: "user", content: "先生成影片再幫我做字幕" },
+    ];
+    const built = buildAgentPlannerMessages({ messages });
+    const systemPrompt = String(built[0].content);
+    // Without this, multi-step pipelines can't actually chain — step 2's
+    // toolArgs need to reference step 1's video_url / transcript / etc.
+    expect(systemPrompt).toMatch(/\$\{<stepId>\.<key>\}|\$\{step1\.video_url\}/);
+    expect(systemPrompt).toMatch(/orchestrator substitutes/);
+    // Concrete worked examples for the common pipelines.
+    expect(systemPrompt).toMatch(/studio\.enhanceVideo/);
+    expect(systemPrompt).toMatch(/media\.transcribe/);
+  });
+
+  it("system prompt teaches the studio.trainLora training tool with the right shape", () => {
+    const messages: Message[] = [
+      { role: "user", content: "幫我訓練一個自己的貓咪 LoRA 模型" },
+    ];
+    const built = buildAgentPlannerMessages({ messages });
+    const systemPrompt = String(built[0].content);
+    expect(systemPrompt).toContain("studio.trainLora");
+    // The planner must know about the right modelTypes + dataset shape.
+    expect(systemPrompt).toMatch(/portrait_lora|style_lora|video_lora/);
+    expect(systemPrompt).toContain("datasetImages");
+    expect(systemPrompt).toContain("triggerWord");
+    // And about the async monitoring URL — training takes 5–30 minutes
+    // so the planner should NOT chain a downstream generate step that
+    // depends on the not-yet-trained model in the same plan.
+    expect(systemPrompt).toMatch(/monitorUrl/);
+    expect(systemPrompt).toMatch(/5–30 minutes|do NOT await/);
+  });
+
   it("detects and summarizes multimodal message parts", () => {
     const messages: Message[] = [
       {
@@ -233,10 +302,10 @@ describe("agentPlanner", () => {
     }
   });
 
-  it("v3 blocked plan returns no actions and asks for confirmation", async () => {
-    const v3BlockedPlan = {
+  it("v3 high-risk submit without approval auto-corrects to converted (still asks before act)", async () => {
+    const v3HighRiskPlan = {
       schemaVersion: "agent-plan.v3",
-      planId: "plan_blocked",
+      planId: "plan_high_risk",
       intent: "submit",
       summaryForUser: "我要送出。",
       decision: { mode: "direct" },
@@ -259,11 +328,13 @@ describe("agentPlanner", () => {
 
     const result = await runSchemaFirstAgentPlanner({
       messages: [{ role: "user", content: "送出" }],
-      invoke: async () => invokeResult(JSON.stringify(v3BlockedPlan)),
+      invoke: async () => invokeResult(JSON.stringify(v3HighRiskPlan)),
     });
 
-    expect(result.status).toBe("blocked");
-    expect(result.actions).toEqual([]);
+    // Auto-fix: missing requiresApproval is no longer a fatal blocker.
+    // Plan converts and the runtime confirmation gate still applies.
+    expect(result.status).toBe("converted");
+    expect(result.actions.length).toBeGreaterThan(0);
     expect(result.askBeforeAct).toBe(true);
   });
 });

@@ -50,8 +50,24 @@ const IN_APP_INTENT_PATTERNS: RegExp[] = [
 ];
 
 const MAX_RESEARCH_TEXT_LEN = 220;
-const RESEARCH_QUERY_MAX_LEN = 200;
+const RESEARCH_QUERY_MAX_LEN = 120;
 const RESEARCH_RESULT_LIMIT = 4;
+
+/**
+ * Conversational filler / instruction prefixes we strip from the search query.
+ * The raw user message is great context for the LLM but pollutes search engine
+ * recall — e.g., "幫我規劃一支貓咪大戰爭影片" should query for the topic
+ * ("貓咪大戰爭 影片"), not the imperative wrapper.
+ */
+const QUERY_FILLER_PATTERNS: RegExp[] = [
+  /^[\s，。、！？\?!.]+/,
+  /(請|幫我|可以|麻煩|能不能|想要|我要|我想|想請|請問|想做|要做|做一個|做個|規劃|安排|生成|產生|產出|教我|告訴我|跟我說|請你|請給我|請幫我)/g,
+  /(嗎|呢|啊|喔|耶|拜託|謝謝|感恩)/g,
+  /\[使用者澄清\][:：][\s\S]*$/,
+];
+
+const QUERY_KEEP_PUNCTUATION = /[「」『』《》〈〉【】（）()\[\]"']/g;
+const QUERY_WHITESPACE = /\s+/g;
 
 export interface OrbWebResearchOutcome {
   /** Block to append to the system prompt (already prefixed with header). */
@@ -82,6 +98,30 @@ function shouldTrigger(text: string): boolean {
   if (text.length > MAX_RESEARCH_TEXT_LEN) return false;
   if (IN_APP_INTENT_PATTERNS.some(re => re.test(text))) return false;
   return RESEARCH_PATTERNS.some(re => re.test(text));
+}
+
+/**
+ * Pure: turn a free-form user message into a focused search query that better
+ * reflects the user's actual topic. We strip the appended `[使用者澄清]:`
+ * suffix (used by the multi-step wizard for LLM context, not for search),
+ * conversational fillers and imperative verbs, and collapse whitespace so
+ * the search engine sees the topical noun phrases — fixes the "ask about
+ * cat war videos, get Midjourney tutorials" mismatch.
+ */
+export function buildResearchQuery(text: string): string {
+  if (!text) return "";
+  let cleaned = text;
+  for (const pattern of QUERY_FILLER_PATTERNS) {
+    cleaned = cleaned.replace(pattern, " ");
+  }
+  cleaned = cleaned
+    .replace(QUERY_KEEP_PUNCTUATION, " ")
+    .replace(QUERY_WHITESPACE, " ")
+    .trim();
+  // Don't return an empty query — search engines treat "" as anything.
+  // Fall back to the original trimmed text if filler-stripping ate everything.
+  if (!cleaned) cleaned = text.trim();
+  return cleaned.slice(0, RESEARCH_QUERY_MAX_LEN);
 }
 
 /** Pure: decide whether the latest user text warrants a web search. */
@@ -117,8 +157,9 @@ export function formatResearchPromptBlock(results: WebResearchResult[]): string 
     "你剛剛幫使用者爬到的最新網路資料如下，請優先依這些資料回答，並在文字回覆裡引用 1–3 條 URL 作為來源。若內容互相矛盾，挑最可信的來源並標註不一致。",
     ...lines,
     "回覆規範：",
+    "- 先評估每一條來源的標題／摘要是否真的對應使用者的主題；不相關的來源請直接捨棄，不要為了引用而引用 (寧可不附來源，也不要引用離題的內容)。",
     "- 用步驟 1 / 步驟 2 … 列出 3–8 個步驟。",
-    "- 在最後一行附上「來源：<url1>、<url2>」讓使用者可驗證。",
+    "- 在最後一行附上「來源：<url1>、<url2>」讓使用者可驗證；如果沒有任何來源符合主題，這一行就省略。",
     "- 也請依「可分享的流程連結」規則，自行產生 /process?spec=… 連結。",
   ].join("\n");
 }
@@ -140,7 +181,10 @@ export async function runOrbWebResearch(
   if (!classification.shouldSearch) {
     return { promptBlock: null, results: [], reason: classification.reason };
   }
-  const query = latestUserText.trim().slice(0, RESEARCH_QUERY_MAX_LEN);
+  const query = buildResearchQuery(latestUserText);
+  if (!query) {
+    return { promptBlock: null, results: [], reason: "skipped:empty" };
+  }
   try {
     const results = await webSearch(query, options.maxResults ?? RESEARCH_RESULT_LIMIT);
     if (!Array.isArray(results) || results.length === 0) {

@@ -216,10 +216,17 @@ export function evaluateAgentPlanSafety(
     if (requiresApproval) askBeforeAct = true;
 
     if (risk === "high" && !step.requiresApproval) {
+      // Auto-fix: silently coerce requiresApproval=true on high-risk steps and
+      // emit a warning instead of blocking. Runtime gates (orbTaskOrchestrator
+      // + WorkflowConfirmationCard + user agent preferences) still enforce
+      // approval at execution time, so the policy is preserved — but the
+      // planner forgetting one boolean no longer kills an otherwise-valid
+      // multi-step workflow (regression caught by the cat-war video case).
+      step.requiresApproval = true;
       addIssue(issues, {
         reason: "high_risk_without_approval",
-        severity: "blocker",
-        message: "High-risk step must set requiresApproval=true.",
+        severity: "warning",
+        message: "High-risk step missing requiresApproval=true; auto-corrected to true. Runtime approval gate still applies.",
         stepId: step.id,
         stepIndex: index,
         actionType,
@@ -430,14 +437,23 @@ export function evaluateAgentPlanV3Risk(plan: AgentPlanV3): AgentPlanV3RiskEvalu
       requiresHuman = true;
       reasonsSet.add(`高風險動作：${actionType}`);
       if (!step.requiresApproval) {
-        blockers.push({
+        // Auto-fix instead of block: the planner forgetting this boolean was
+        // a frequent reason multi-step plans (e.g., the cat-war video flow)
+        // got rejected with "must set requiresApproval=true" and the user
+        // could not proceed. Runtime gates (orbTaskOrchestrator policy +
+        // user agent preferences + workflow confirmation card) still enforce
+        // human approval at execution time, so security is preserved while
+        // the plan can actually reach the UI.
+        step.requiresApproval = true;
+        warnings.push({
           reason: "high_risk_without_approval",
-          severity: "blocker",
-          message: `Step ${step.id} (${actionType}) must set requiresApproval=true.`,
+          severity: "warning",
+          message: `Step ${step.id} (${actionType}) missing requiresApproval=true; auto-corrected. Runtime approval gate still applies.`,
           stepId: step.id,
           stepIndex: index,
           actionType,
         });
+        reasonsSet.add(`高風險動作自動補上人工確認：${actionType}`);
       }
     }
 

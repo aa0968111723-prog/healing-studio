@@ -13,6 +13,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -1078,6 +1079,12 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
     }
   }, [pageAgent, locationPath, setLocation]);
 
+  // Forward declaration for the auto-execute branch inside `sendMessage`.
+  // The actual `startPendingWorkflow` callback is defined further down (it
+  // depends on `executeActions` + `pendingWorkflow`); we keep a ref so we can
+  // invoke the latest version without creating a circular hook dep.
+  const startPendingWorkflowRef = useRef<(() => Promise<void>) | null>(null);
+
   const sendMessage = useCallback(async (text: string, attachments: ChatAttachment[] = []) => {
     const trimmed = text.trim();
     if ((!trimmed && attachments.length === 0) || isSending) return;
@@ -1374,6 +1381,31 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       if (pendingPlan) {
         setPendingWorkflow(pendingPlan);
         setWorkflowExecution(null);
+        // Auto-execution path: when the user has set confirmationPolicy to
+        // 'always_approve' (or pre-approved every tool in the plan via
+        // autoApproveTools), skip the WorkflowConfirmationCard — the user
+        // has already opted into hands-off execution at the preference
+        // level, and asking again on every plan defeats the purpose of an
+        // autonomous agent. Runtime gates (high-risk steps + per-step
+        // requiresApproval) still apply.
+        const policy = preferencesForChat?.confirmationPolicy;
+        const autoApprove = Array.isArray(preferencesForChat?.autoApproveTools)
+          ? new Set(preferencesForChat?.autoApproveTools)
+          : null;
+        const everyStepIsAutoApprovedTool =
+          autoApprove !== null &&
+          autoApprove.size > 0 &&
+          pendingPlan.actions.every(a => {
+            if (a.type !== "runWorkflow") return autoApprove.has(a.type);
+            return a.steps.every(step => autoApprove.has(step.actionType));
+          });
+        if (policy === "always_approve" || everyStepIsAutoApprovedTool) {
+          // Defer to next tick so React commits setPendingWorkflow first;
+          // startPendingWorkflow reads the latest pendingWorkflow ref.
+          setTimeout(() => {
+            void startPendingWorkflowRef.current?.();
+          }, 0);
+        }
         return;
       }
 
@@ -1508,6 +1540,13 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       setIsSending(false);
     }
   }, [pendingWorkflow, isSending, locationPath, executeActions]);
+
+  // Keep the ref pointing at the latest `startPendingWorkflow` so the
+  // auto-execute branch inside `sendMessage` (declared above) always invokes
+  // the current callback without taking a hard React dep.
+  useEffect(() => {
+    startPendingWorkflowRef.current = startPendingWorkflow;
+  }, [startPendingWorkflow]);
 
   const revisePendingWorkflow = useCallback(() => {
     if (!pendingWorkflow || isSending) return;
