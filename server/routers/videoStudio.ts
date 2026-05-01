@@ -320,14 +320,19 @@ export const videoStudioRouter = router({
   /**
    * Google Veo 3 Flash Text-to-Video
    * fal-ai/veo3
-   * Google 最新旗艦影片模型，8s，具備原生音頻生成
+   * Google 最新旗艦影片模型，8s，唯一原生同步音訊生成；可指定 negative_prompt / seed
    */
   veo3TextToVideo: brainProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(3000),
+        negativePrompt: z.string().max(1000).optional(),
         aspectRatio: z.enum(["16:9", "9:16"]).default("16:9"),
         generateAudio: z.boolean().default(true),
+        /** fal 端會用這個指令幫你補強提詞細節（畫面層次、光影） */
+        enhancePrompt: z.boolean().default(true),
+        /** 隨機種子 — 固定可重現相同生成結果 */
+        seed: z.number().int().nonnegative().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -335,9 +340,17 @@ export const videoStudioRouter = router({
         prompt: input.prompt,
         aspect_ratio: input.aspectRatio,
         generate_audio: input.generateAudio,
+        enhance_prompt: input.enhancePrompt,
       };
+      if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
+      if (input.seed !== undefined) payload.seed = input.seed;
+
       const result = (await falQueueRun("fal-ai/veo3", payload, 480)) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   /**

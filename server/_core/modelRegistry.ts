@@ -293,7 +293,7 @@ export const GENERATION_ENGINE_CATALOG = {
         tier: "standard",
       },
       { value: "fal-ai/sora", label: "OpenAI Sora t2v", tier: "ultra" },
-      { value: "fal-ai/veo3", label: "Veo 3 (fal) t2v", tier: "ultra" },
+      { value: "fal-ai/veo3", label: "Veo 3 (fal) t2v", tier: "premium" },
 
       // ── Fal.ai 圖片轉影片 ──
       {
