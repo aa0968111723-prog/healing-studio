@@ -186,7 +186,16 @@ function extractJobId(req: Request, payload: FalWebhookPayload): number | null {
 }
 
 /**
- * 從 webhook payload 萃取結果資料（URL、duration 等）
+ * 從 webhook payload 萃取結果資料（URL、duration 等）。
+ *
+ * fal.ai webhook 的實際格式是 `{ status, request_id, payload: <model_output> }`，
+ * 也就是真正的模型輸出（images/video/audio）會被包在 `payload.payload` 裡。
+ * 早期內部測試 mock 卻把這些欄位放在 top-level。
+ *
+ * 為了同時支援兩種來源，我們把 top-level 與 nested envelope 都當成候選來掃，
+ * 取第一個有 URL 的命中者。沒這層相容,生產環境的 fal webhook 會送進來但 URL
+ * 全部抓不到,job 雖然標 completed 但 resultUrl 卻是 undefined,前端就一直
+ * 顯示「處理中」直到 30 分鐘超時。
  */
 function extractResultData(payload: FalWebhookPayload): Record<string, unknown> {
   const result: Record<string, unknown> = {
@@ -194,18 +203,41 @@ function extractResultData(payload: FalWebhookPayload): Record<string, unknown> 
     completedAt: new Date().toISOString(),
   };
 
-  if (payload.video?.url) {
-    result.videoUrl = payload.video.url;
-    result.mediaType = "video";
-  }
-  if (payload.images?.length) {
-    result.imageUrl = payload.images[0].url;
-    result.images = payload.images.map(i => i.url);
-    result.mediaType = "image";
-  }
-  if (payload.audio?.url) {
-    result.audioUrl = payload.audio.url;
-    result.mediaType = "audio";
+  type FalLikePayload = {
+    video?: { url?: string };
+    images?: Array<{ url?: string }>;
+    audio?: { url?: string };
+    image?: { url?: string };
+    image_url?: string;
+    video_url?: string;
+    audio_url?: string;
+  };
+  const candidates: FalLikePayload[] = [
+    payload as unknown as FalLikePayload,
+    (payload.payload ?? {}) as FalLikePayload,
+  ];
+
+  for (const c of candidates) {
+    if (!result.videoUrl && (c.video?.url || c.video_url)) {
+      result.videoUrl = c.video?.url ?? c.video_url;
+      result.mediaType = "video";
+    }
+    if (!result.imageUrl) {
+      const firstImg = c.images?.[0]?.url ?? c.image?.url ?? c.image_url;
+      if (firstImg) {
+        result.imageUrl = firstImg;
+        if (Array.isArray(c.images)) {
+          result.images = c.images
+            .map(i => i.url)
+            .filter((u): u is string => typeof u === "string");
+        }
+        result.mediaType = result.mediaType ?? "image";
+      }
+    }
+    if (!result.audioUrl && (c.audio?.url || c.audio_url)) {
+      result.audioUrl = c.audio?.url ?? c.audio_url;
+      result.mediaType = result.mediaType ?? "audio";
+    }
   }
 
   // 保留完整 payload 供除錯

@@ -8,6 +8,7 @@
 import { z } from "zod";
 import { publicProcedure, router } from "../_core/trpc";
 import { invokeLLM } from "../_core/llm";
+import { extractJsonObjectFromText } from "../../shared/agent-plan-adapter";
 
 // ─── Input Schema ──────────────────────────────────────────────────────────
 
@@ -281,17 +282,41 @@ ${events
   );
 
   const content = result.choices[0]?.message?.content;
+  // Use the fence-tolerant extractor — Gemini's json_object mode (which
+  // adaptResponseFormatForGemini falls back to because the strict
+  // json_schema mode trips its "too many states" 400) sometimes wraps
+  // the payload in ```json fences. A naive JSON.parse there would throw
+  // and 500 the entire inferIntent request — the page just shows a
+  // generic error toast instead of degrading to the encouraging fallback
+  // message below.
   if (typeof content === "string") {
-    return JSON.parse(content) as {
-      intentType: IntentType;
-      intentLabel: string;
-      confidence: number;
-      psychologicalInsight: string;
-      suggestedAction: string;
-      actionDetail: string;
-      detectedAesthetics: string[];
-      preferredModality: string;
-    };
+    const parsed = extractJsonObjectFromText(content) as
+      | {
+          intentType?: IntentType;
+          intentLabel?: string;
+          confidence?: number;
+          psychologicalInsight?: string;
+          suggestedAction?: string;
+          actionDetail?: string;
+          detectedAesthetics?: string[];
+          preferredModality?: string;
+        }
+      | null;
+    if (parsed && typeof parsed === "object" && parsed.intentType) {
+      return {
+        intentType: parsed.intentType,
+        intentLabel: parsed.intentLabel ?? "",
+        confidence:
+          typeof parsed.confidence === "number" ? parsed.confidence : 0.5,
+        psychologicalInsight: parsed.psychologicalInsight ?? "",
+        suggestedAction: parsed.suggestedAction ?? "encourage_exploration",
+        actionDetail: parsed.actionDetail ?? "",
+        detectedAesthetics: Array.isArray(parsed.detectedAesthetics)
+          ? parsed.detectedAesthetics
+          : [],
+        preferredModality: parsed.preferredModality ?? "unknown",
+      };
+    }
   }
 
   // Fallback

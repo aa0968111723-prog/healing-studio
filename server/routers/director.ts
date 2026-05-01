@@ -548,9 +548,16 @@ ${formatInstruction}
       locations: string[];
     }>;
   };
-  try {
-    parsed = typeof content === "string" ? JSON.parse(content) : content;
-  } catch {
+  // Fence-tolerant — Gemini json_object mode sometimes ships ```json fences.
+  if (typeof content === "string") {
+    const extracted = extractJsonObjectFromText(content);
+    parsed =
+      extracted && typeof extracted === "object"
+        ? (extracted as typeof parsed)
+        : { segments: [] };
+  } else if (content && typeof content === "object") {
+    parsed = content as unknown as typeof parsed;
+  } else {
     parsed = { segments: [] };
   }
 
@@ -1246,16 +1253,31 @@ ${sceneSummary}
   );
 
   const content = result.choices[0]?.message?.content;
-  try {
-    const parsed = typeof content === "string" ? JSON.parse(content) : content;
-    return {
-      emotionalBeats: parsed.emotionalBeats ?? [],
-      warmthScore: parsed.warmthScore ?? 5,
-      depthAnalysis: parsed.depthAnalysis ?? "",
-    };
-  } catch {
-    return { emotionalBeats: [], warmthScore: 5, depthAnalysis: "" };
-  }
+  const parsed =
+    typeof content === "string"
+      ? (extractJsonObjectFromText(content) as
+          | {
+              emotionalBeats?: unknown;
+              warmthScore?: unknown;
+              depthAnalysis?: unknown;
+            }
+          | null)
+      : (content as unknown as
+          | {
+              emotionalBeats?: unknown;
+              warmthScore?: unknown;
+              depthAnalysis?: unknown;
+            }
+          | null);
+  return {
+    emotionalBeats: Array.isArray(parsed?.emotionalBeats)
+      ? (parsed!.emotionalBeats as never[])
+      : [],
+    warmthScore:
+      typeof parsed?.warmthScore === "number" ? parsed!.warmthScore : 5,
+    depthAnalysis:
+      typeof parsed?.depthAnalysis === "string" ? parsed!.depthAnalysis : "",
+  };
 }
 
 // ─── Core Director AI Logic ─────────────────────────────────────────────────
@@ -1387,24 +1409,58 @@ ${persona.proactiveHint}
   );
 
   const scriptContent = scriptResult.choices[0]?.message?.content;
-  let script;
-  try {
-    script =
-      typeof scriptContent === "string"
-        ? JSON.parse(scriptContent)
-        : scriptContent;
-  } catch {
-    script = {
-      context: "",
-      situation: "",
-      task: "",
-      action: "",
-      result: "",
-      visualPrompt: "",
-      audioScript: "",
-      musicVibe: "",
-      proactiveQuestion: "",
+  // Gemini's json_object mode occasionally wraps the payload in ```json
+  // fences or prepends a one-line preamble; extractJsonObjectFromText falls
+  // back to fenced/embedded extraction so the user still sees a populated
+  // CO-STAR card instead of an empty one. We then coerce the loosely-typed
+  // result back to the strict CO-STAR shape so the tRPC inferred return
+  // type stays the same as before this hardening.
+  type CoStarScript = {
+    context: string;
+    situation: string;
+    task: string;
+    action: string;
+    result: string;
+    visualPrompt: string;
+    audioScript: string;
+    musicVibe: string;
+    proactiveQuestion: string;
+  };
+  const emptyScript: CoStarScript = {
+    context: "",
+    situation: "",
+    task: "",
+    action: "",
+    result: "",
+    visualPrompt: "",
+    audioScript: "",
+    musicVibe: "",
+    proactiveQuestion: "",
+  };
+  const coerce = (raw: unknown): CoStarScript => {
+    if (!raw || typeof raw !== "object") return emptyScript;
+    const obj = raw as Record<string, unknown>;
+    const pick = (k: keyof CoStarScript) =>
+      typeof obj[k] === "string" ? (obj[k] as string) : "";
+    return {
+      context: pick("context"),
+      situation: pick("situation"),
+      task: pick("task"),
+      action: pick("action"),
+      result: pick("result"),
+      visualPrompt: pick("visualPrompt"),
+      audioScript: pick("audioScript"),
+      musicVibe: pick("musicVibe"),
+      proactiveQuestion: pick("proactiveQuestion"),
     };
+  };
+  let script: CoStarScript;
+  if (typeof scriptContent === "string") {
+    script = coerce(extractJsonObjectFromText(scriptContent));
+  } else if (scriptContent && typeof scriptContent === "object") {
+    script = coerce(scriptContent);
+  } else {
+    script = emptyScript;
   }
 
   // Save to project notes if requested
@@ -1541,11 +1597,17 @@ export const directorRouter = router({
       );
 
       const content = result.choices[0]?.message?.content;
-      try {
-        return typeof content === "string" ? JSON.parse(content) : content;
-      } catch {
-        return input.script;
+      // Fence-tolerant — same rationale as generateSegmentCostar.
+      const refinedScript =
+        typeof content === "string"
+          ? extractJsonObjectFromText(content)
+          : content && typeof content === "object"
+            ? (content as unknown)
+            : null;
+      if (refinedScript && typeof refinedScript === "object") {
+        return refinedScript as Record<string, unknown>;
       }
+      return input.script;
     }),
 
   /** Get available templates */
@@ -2009,21 +2071,29 @@ ${persona.proactiveHint}
       );
 
       const content = result.choices[0]?.message?.content;
-      try {
-        return typeof content === "string" ? JSON.parse(content) : content;
-      } catch {
-        return {
-          context: "",
-          situation: "",
-          task: "",
-          action: "",
-          result: "",
-          visualPrompt: "",
-          audioScript: "",
-          musicVibe: "",
-          proactiveQuestion: "",
-        };
+      // Use the fence-tolerant extractor so Gemini wrapping the JSON in
+      // ```json fences (a common json_object mode artefact) still produces
+      // a usable CO-STAR card instead of falling through to all-empty.
+      const extracted =
+        typeof content === "string"
+          ? extractJsonObjectFromText(content)
+          : content && typeof content === "object"
+            ? (content as unknown)
+            : null;
+      if (extracted && typeof extracted === "object") {
+        return extracted as Record<string, unknown>;
       }
+      return {
+        context: "",
+        situation: "",
+        task: "",
+        action: "",
+        result: "",
+        visualPrompt: "",
+        audioScript: "",
+        musicVibe: "",
+        proactiveQuestion: "",
+      };
     }),
 
   /** Batch generate CO-STAR for multiple segments */
@@ -2141,28 +2211,28 @@ ${persona.proactiveHint}
       );
 
       const content = result.choices[0]?.message?.content;
-      try {
-        const parsed =
-          typeof content === "string" ? JSON.parse(content) : content;
-        // Map results back to segment IDs — use segmentId from AI, fallback to input order
-        const resultMap: Record<string, Record<string, string>> = {};
-        const results = Array.isArray(parsed.results) ? parsed.results : [];
-        for (let i = 0; i < results.length; i++) {
-          const r = results[i] as {
-            segmentId?: string;
-            [key: string]: unknown;
-          };
-          const segId =
-            r.segmentId ||
-            (i < input.segments.length ? input.segments[i].id : undefined);
-          if (segId) {
-            resultMap[segId] = r as Record<string, string>;
-          }
+      // Fence-tolerant parsing — see generateSegmentCostar comment.
+      const parsed =
+        typeof content === "string"
+          ? (extractJsonObjectFromText(content) as
+              | { results?: unknown }
+              | null)
+          : (content as unknown as { results?: unknown } | null);
+      const resultMap: Record<string, Record<string, string>> = {};
+      const results = Array.isArray(parsed?.results) ? parsed!.results : [];
+      for (let i = 0; i < results.length; i++) {
+        const r = results[i] as {
+          segmentId?: string;
+          [key: string]: unknown;
+        };
+        const segId =
+          r.segmentId ||
+          (i < input.segments.length ? input.segments[i].id : undefined);
+        if (segId) {
+          resultMap[segId] = r as Record<string, string>;
         }
-        return { results: resultMap };
-      } catch {
-        return { results: {} };
       }
+      return { results: resultMap };
     }),
 
   /** Analyze the full script holistically — themes, arcs, pacing, character/location distribution */
@@ -2300,15 +2370,20 @@ ${segmentSummaries}
       );
 
       const content = result.choices[0]?.message?.content;
-      try {
-        const parsed =
-          typeof content === "string" ? JSON.parse(content) : content;
+      const parsedOverview =
+        typeof content === "string"
+          ? extractJsonObjectFromText(content)
+          : content && typeof content === "object"
+            ? (content as unknown)
+            : null;
+      if (parsedOverview && typeof parsedOverview === "object") {
         return {
           totalDuration: `${totalMin}分${totalSec}秒`,
           segmentCount: input.segments.length,
-          ...parsed,
+          ...(parsedOverview as Record<string, unknown>),
         } as ScriptOverview;
-      } catch {
+      }
+      {
         return {
           totalDuration: `${totalMin}分${totalSec}秒`,
           segmentCount: input.segments.length,
@@ -3033,8 +3108,13 @@ ${segmentSummaries}
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.user.id;
 
-      // Import dependencies
-      const { falQueueSubmitModel } = await import("../services/falModels");
+      // Import dependencies — go through dispatchFalQueueTask so the
+      // director's auto-generation pipeline gets the same fallback chain
+      // protection as Studio (a stale modelId degrades to the category's
+      // first valid choice instead of hard-failing the whole batch).
+      const { dispatchFalQueueTask } = await import(
+        "../services/falDispatcher"
+      );
       const { estimatePoints } = await import("../services/modelPricing");
       const { isDemoMode } = await import("../_core/googleAuth");
       const db = await import("../db");
@@ -3115,13 +3195,41 @@ ${segmentSummaries}
           falInput.text = input.voiceText || input.prompt;
         }
 
-        // Call fal model - queue mode (async)
-        const result = await falQueueSubmitModel(
-          input.modelId,
-          falInput
-        );
+        // Map segment modality → fal task category for fallback chain lookup.
+        // sfx 走 text-to-audio 同 catalog（stable-audio 是 audio 類別）。
+        const queueCategory: string =
+          input.modality === "image"
+            ? "text-to-image"
+            : input.modality === "video"
+              ? input.sourceVideoUrl
+                ? "video-to-video"
+                : input.firstFrameUrl
+                  ? "image-to-video"
+                  : "text-to-video"
+              : input.modality === "audio" || input.modality === "sfx"
+                ? "text-to-audio"
+                : "text-to-speech";
+        // 若設定 VITE_SITE_URL，組出帶 jobId 的 webhook URL，
+        // 完成時 fal.ai 主動推送結果到 /api/webhook/fal?jobId=<id>。
+        const siteUrl = process.env.VITE_SITE_URL?.trim();
+        const falWebhookUrl = siteUrl
+          ? `${siteUrl}/api/webhook/fal?jobId=${jobId}`
+          : undefined;
+        const queueModalityForTrace =
+          input.modality === "sfx" ? "audio" : input.modality;
+        const queueResult = await dispatchFalQueueTask({
+          modelId: input.modelId,
+          category: queueCategory,
+          input: falInput,
+          webhookUrl: falWebhookUrl,
+          route: "trpc.director.executeGenerationTask",
+          modality: queueModalityForTrace,
+          userId,
+        });
+        const submittedModelId = queueResult.modelId;
 
-        // Update job with request_id
+        // Update job with request_id（以實際送出的 modelId 為準，
+        // 確保前端輪詢時能命中正確的 fal queue endpoint）
         await db.updateBackgroundJob(jobId, {
           status: "processing",
           progress: 10,
@@ -3130,19 +3238,25 @@ ${segmentSummaries}
             segmentId: input.segmentId,
             segmentIndex: input.segmentIndex,
             prompt: input.prompt,
-            modelId: input.modelId,
-            request_id: result.request_id,
+            modelId: submittedModelId,
+            request_id: queueResult.request_id,
+            ...(queueResult.degraded && queueResult.originalModel
+              ? { originalModel: queueResult.originalModel, degraded: true }
+              : {}),
           } as any,
         });
 
         return {
           jobId,
-          requestId: result.request_id,
-          modelId: input.modelId,
+          requestId: queueResult.request_id,
+          modelId: submittedModelId,
           label,
           segmentId: input.segmentId,
           segmentIndex: input.segmentIndex,
           modality: input.modality,
+          ...(queueResult.degraded && queueResult.originalModel
+            ? { degraded: true, originalModel: queueResult.originalModel }
+            : {}),
         };
       } catch (error) {
         // Refund points on error

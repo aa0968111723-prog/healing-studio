@@ -114,6 +114,7 @@ import {
   type OrbGuideStepContext,
   type PageAgentSnapshot,
 } from "../shared/agent-actions";
+import { extractJsonObjectFromText } from "../shared/agent-plan-adapter";
 import { OrbChatRouterMessageSchema } from "../shared/orb-chat-multimodal";
 import {
   estimatePoints,
@@ -129,7 +130,7 @@ import {
   resolveFalEnginesFromRow,
   DEFAULT_FAL_ENGINES,
   estimateGenerationPoints,
-  submitToFalQueue,
+  dispatchFalQueueTask,
 } from "./services/falDispatcher";
 import { getGeminiMediaClient } from "./services/geminiMedia";
 import {
@@ -682,7 +683,21 @@ async function checkSafety(
     );
     const content = result.choices[0]?.message?.content;
     if (typeof content === "string") {
-      return JSON.parse(content);
+      // Fence-tolerant parse — Gemini json_object mode occasionally wraps
+      // the response in ```json fences. A naive JSON.parse there throws,
+      // the catch defaults to { safe: true }, and the safety gate becomes
+      // permanently no-op without the operator noticing.
+      const parsed = extractJsonObjectFromText(content) as
+        | { safe?: unknown; reason?: unknown }
+        | null;
+      if (parsed && typeof parsed === "object") {
+        return {
+          safe: parsed.safe !== false,
+          ...(typeof parsed.reason === "string"
+            ? { reason: parsed.reason }
+            : {}),
+        };
+      }
     }
     return { safe: true };
   } catch {
@@ -2338,6 +2353,8 @@ export const appRouter = router({
           voiceEmotionType: z.string().optional(),
           voiceEmotionIntensity: z.number().optional(),
           // Vault & Model
+          vaultCharacterId: z.number().optional(),
+          vaultSceneId: z.number().optional(),
           fineTunedModelId: z.number().optional(),
           loraWeight: z.number().min(0).max(1).optional(),
           // Director AI can override engine model for this request
@@ -2379,6 +2396,48 @@ export const appRouter = router({
         const brainVideoEngine = getBrainSelectedEngine(brainRow, "videoEngine");
         const brainAudioEngine = getBrainSelectedEngine(brainRow, "audioEngine");
         const brainVoiceEngine = getBrainSelectedEngine(brainRow, "voiceEngine");
+
+        // ── 2.4 Vault 注入：把使用者從寶庫挑的角色 / 場景換成參考圖 URL ──
+        // 與同步 generate.execute（routers.ts:1305+）行為對齊。
+        // 之前 submitMultimodalAsync 完全沒處理這兩個欄位，使用者點「使用此角色」
+        // 後送出,角色完全沒注入,結果跟空寶庫一樣 — 看起來像「無法生成」。
+        if (input.vaultCharacterId) {
+          try {
+            const vaultChar = await db.getVaultItem(input.vaultCharacterId);
+            if (vaultChar && vaultChar.imageUrl) {
+              if (input.generationType === "video") {
+                input.characterRefUrl =
+                  input.characterRefUrl || vaultChar.imageUrl;
+                input.firstFrameUrl =
+                  input.firstFrameUrl || vaultChar.imageUrl;
+              } else if (input.generationType === "image") {
+                input.styleReferenceUrl =
+                  input.styleReferenceUrl || vaultChar.imageUrl;
+              }
+            }
+          } catch (e) {
+            console.warn(
+              "[submitAsync][Vault] Failed to load character vault item:",
+              e
+            );
+          }
+        }
+        if (input.vaultSceneId) {
+          try {
+            const vaultScene = await db.getVaultItem(input.vaultSceneId);
+            if (vaultScene && vaultScene.imageUrl) {
+              if (input.generationType === "image") {
+                input.vibeReferenceUrl =
+                  input.vibeReferenceUrl || vaultScene.imageUrl;
+              }
+            }
+          } catch (e) {
+            console.warn(
+              "[submitAsync][Vault] Failed to load scene vault item:",
+              e
+            );
+          }
+        }
 
         // ── 2.5 微調模型注入：解析使用者選定的 LoRA / 微調模型 ───────────
         // 與同步 generate.execute（routers.ts:1110-1167）行為一致：
@@ -2698,27 +2757,67 @@ export const appRouter = router({
             ? `${siteUrl}/api/webhook/fal?jobId=${jobId}`
             : undefined;
 
-          const { request_id } = await submitToFalQueue(modelId, falInput, {
+          // 使用 dispatchFalQueueTask 而非裸 submitToFalQueue:
+          // - 不認識的 modelId 會降級到該分類的 fallback chain 首選
+          // - ultra-tier 影片模型送出前先做 preflight 健康探測,避免使用者
+          //   等待 5–10 分鐘才發現模型損毀。
+          const queueCategory: string =
+            input.generationType === "image"
+              ? input.styleReferenceUrl || input.vibeReferenceUrl
+                ? "image-to-image"
+                : "text-to-image"
+              : input.generationType === "video"
+                ? input.firstFrameUrl || input.characterRefUrl
+                  ? "image-to-video"
+                  : "text-to-video"
+                : input.generationType === "audio"
+                  ? "text-to-audio"
+                  : "text-to-speech";
+          const queueModalityForTrace =
+            input.generationType === "image"
+              ? "image"
+              : input.generationType === "video"
+                ? "video"
+                : input.generationType === "audio"
+                  ? "audio"
+                  : "voice";
+          const queueResult = await dispatchFalQueueTask({
+            modelId,
+            category: queueCategory,
+            input: falInput,
             webhookUrl: falWebhookUrl,
+            route: "trpc.generate.submitMultimodalAsync",
+            modality: queueModalityForTrace,
+            userId,
           });
+          const request_id = queueResult.request_id;
+          // 若 dispatcher 因為 modelId 不在 catalog 而降級,以實際送出的模型為準,
+          // 確保前端用 checkStudioJob 輪詢時能命中正確的 fal queue endpoint。
+          const submittedModelId = queueResult.modelId;
 
           // 更新 job 記錄，加入 requestId（checkStudioJob 輪詢需要）
           await db.updateBackgroundJob(jobId, {
             resultJson: {
               studioType: input.generationType,
               label,
-              modelId,
+              modelId: submittedModelId,
               requestId: request_id,
               prompt: (input.generationType === "voice" ? input.voiceText : input.prompt) ?? "",
+              ...(queueResult.degraded && queueResult.originalModel
+                ? { originalModel: queueResult.originalModel, degraded: true }
+                : {}),
             } as any,
           });
 
           return {
             jobId,
             request_id,
-            modelId,
+            modelId: submittedModelId,
             label,
             generationType: input.generationType,
+            ...(queueResult.degraded && queueResult.originalModel
+              ? { degraded: true, originalModel: queueResult.originalModel }
+              : {}),
           };
         } catch (err) {
           // queue submit 失敗 → 退款 + 標記失敗
@@ -3170,7 +3269,11 @@ export const appRouter = router({
         );
         const content = result.choices[0]?.message?.content;
         if (typeof content === "string") {
-          return JSON.parse(content);
+          // Fence-tolerant — see safety check rationale above.
+          const parsed = extractJsonObjectFromText(content);
+          if (parsed && typeof parsed === "object") {
+            return parsed as Record<string, unknown>;
+          }
         }
         return {
           score: 50,
@@ -3240,10 +3343,18 @@ export const appRouter = router({
         );
         const content = result.choices[0]?.message?.content;
         if (typeof content === "string") {
-          const parsed = JSON.parse(content);
-          return { chips: (parsed.chips || []).slice(0, 5) };
+          // Fence-tolerant — see safety check rationale above.
+          const parsed = extractJsonObjectFromText(content) as
+            | { chips?: unknown }
+            | null;
+          if (parsed && Array.isArray(parsed.chips)) {
+            const chips = (parsed.chips as unknown[])
+              .filter((c): c is string => typeof c === "string")
+              .slice(0, 5);
+            return { chips };
+          }
         }
-        return { chips: [] };
+        return { chips: [] as string[] };
       }),
   }),
 

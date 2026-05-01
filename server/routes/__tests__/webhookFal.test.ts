@@ -179,6 +179,33 @@ describe("webhookFal /api/webhook/fal", () => {
     server.close();
   });
 
+  it("從實際 fal.ai webhook 的 nested payload.payload 也能萃取出 image_url", async () => {
+    // fal.ai 真正的格式把 model output 包在 payload.payload，而非 top-level；
+    // 沒這層相容會讓 job 標 completed 但 resultUrl 為空,前端持續顯示處理中
+    const { server, baseUrl } = await startTestServer();
+    await fetch(`${baseUrl}/api/webhook/fal?jobId=42`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        request_id: "fal-uuid-xyz",
+        status: "OK",
+        payload: {
+          images: [{ url: "https://fal.media/nested.png" }],
+        },
+      }),
+    });
+    await new Promise(r => setTimeout(r, 30));
+    const [, patch] = updateBackgroundJobMock.mock.calls[0] as [
+      number,
+      Record<string, unknown>,
+    ];
+    expect(patch.status).toBe("completed");
+    const resultJson = patch.resultJson as Record<string, unknown>;
+    expect(resultJson.imageUrl).toBe("https://fal.media/nested.png");
+    expect(resultJson.mediaType).toBe("image");
+    server.close();
+  });
+
   it("既無 jobId 也找不到對應 requestId 時直接 drop（不更新 DB）", async () => {
     const { server, baseUrl } = await startTestServer();
     const res = await fetch(`${baseUrl}/api/webhook/fal`, {

@@ -72,6 +72,8 @@ describe("executeOrbToolCalls — studio.* bridge", () => {
   });
 
   it("dispatches studio.generateImage to fal.ai queue when approved", async () => {
+    // Fire-and-forget mode (wait: false) — verifies the queue submit step
+    // without paying the cost of the awaiter polling fal for completion.
     const fetchMock = vi.fn(async () =>
       new Response(JSON.stringify({ request_id: "req-img-1" }), {
         status: 200,
@@ -85,7 +87,7 @@ describe("executeOrbToolCalls — studio.* bridge", () => {
       calls: [
         {
           name: "studio.generateImage",
-          args: { prompt: "a cyberpunk city", aspect_ratio: "16:9" },
+          args: { prompt: "a cyberpunk city", aspect_ratio: "16:9", wait: false },
         },
       ],
       userId: 42,
@@ -100,6 +102,7 @@ describe("executeOrbToolCalls — studio.* bridge", () => {
     expect(out[0].data).toMatchObject({
       request_id: "req-img-1",
       engine: "fal",
+      status: "pending",
     });
   });
 
@@ -140,7 +143,8 @@ describe("executeOrbToolCalls — studio.* bridge", () => {
       calls: [
         {
           name: "studio.generateVideo",
-          args: { prompt: "ocean waves" },
+          // wait: false avoids polling fal for completion (covered separately)
+          args: { prompt: "ocean waves", wait: false },
         },
       ],
       userId: 7,
@@ -155,5 +159,64 @@ describe("executeOrbToolCalls — studio.* bridge", () => {
       ok: true,
       userId: 7,
     });
+  });
+
+  it("waits for fal queue completion and exposes media URLs to chained steps", async () => {
+    // Default behaviour (no wait flag) must poll fal until COMPLETED so
+    // multi-step pipelines can chain ${stepN.image_url} into the next call.
+    const calls: Array<{ url: string }> = [];
+    const fetchMock = vi.fn(async (url: string) => {
+      calls.push({ url });
+      // 1) Queue submit
+      if (url.startsWith("https://queue.fal.run/") && !url.includes("/requests/")) {
+        return new Response(JSON.stringify({ request_id: "req-await-1" }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      // 2) Status poll → COMPLETED on first poll
+      if (url.endsWith("/status")) {
+        return new Response(JSON.stringify({ status: "COMPLETED" }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      // 3) Result fetch → canonical image_url shape
+      return new Response(
+        JSON.stringify({
+          images: [{ url: "https://fal.media/result/req-await-1.png" }],
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const out = await executeOrbToolCalls({
+      tools: [],
+      calls: [
+        {
+          name: "studio.generateImage",
+          // No wait flag — must default to polling completion.
+          args: { prompt: "a forest", timeoutMs: 5_000 },
+        },
+      ],
+      userId: 99,
+      userRole: "user",
+      approved: true,
+    });
+
+    expect(out[0].ok).toBe(true);
+    expect(out[0].data).toMatchObject({
+      request_id: "req-await-1",
+      status: "completed",
+      engine: "fal",
+      image_url: "https://fal.media/result/req-await-1.png",
+      output_url: "https://fal.media/result/req-await-1.png",
+    });
+    // submit + status + result fetch
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 });

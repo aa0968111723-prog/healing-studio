@@ -1450,6 +1450,11 @@ export default function Studio() {
       "voice",
     ];
 
+    // 寶庫角色 / 場景:每個模態都該帶上,讓批次也能用 vault 注入
+    const vaultPayload = {
+      ...(vaultCharacterId ? { vaultCharacterId } : {}),
+      ...(vaultSceneId ? { vaultSceneId } : {}),
+    };
     const jobs = modalities
       .map(modality => {
         const builder = promptByModality[modality];
@@ -1468,6 +1473,7 @@ export default function Studio() {
               voiceStability: voiceState.stability,
               voiceEmotionType: voiceState.emotionType,
               voiceEmotionIntensity: voiceState.emotionIntensity,
+              ...vaultPayload,
               fineTunedModelId,
               loraWeight,
             },
@@ -1485,6 +1491,7 @@ export default function Studio() {
               negativePrompt: imageState.negativePrompt || undefined,
               styleReferenceUrl: imageState.styleReferenceUrl,
               vibeReferenceUrl: imageState.vibeReferenceUrl,
+              ...vaultPayload,
               fineTunedModelId,
               loraWeight,
             },
@@ -1501,6 +1508,7 @@ export default function Studio() {
               firstFrameUrl: videoState.firstFrameUrl,
               lastFrameUrl: videoState.lastFrameUrl,
               characterRefUrl: videoState.characterRefUrl,
+              ...vaultPayload,
               fineTunedModelId,
               loraWeight,
             },
@@ -1516,6 +1524,7 @@ export default function Studio() {
             musicStyle: audioState.musicStyle,
             isInstrumental: audioState.isInstrumental,
             audioDuration: audioState.duration,
+            ...vaultPayload,
             fineTunedModelId,
             loraWeight,
           },
@@ -1543,9 +1552,12 @@ export default function Studio() {
     videoState,
     audioState,
     mode,
+    vaultCharacterId,
+    vaultSceneId,
     fineTunedModelId,
     loraWeight,
     submitAsyncMutation,
+    requireAuth,
   ]);
 
   const handleGenerate = useCallback(async () => {
@@ -1646,6 +1658,11 @@ export default function Studio() {
           voiceEmotionType: voiceState.emotionType,
           voiceEmotionIntensity: voiceState.emotionIntensity,
         }),
+        // 寶庫角色 / 場景:server 端會解析成參考圖 URL 後注入到對應的
+        // styleReferenceUrl / characterRefUrl / firstFrameUrl / vibeReferenceUrl,
+        // 之前漏傳 → server 拿不到 → 角色/場景被靜默忽略,使用者覺得「沒生效」
+        ...(vaultCharacterId ? { vaultCharacterId } : {}),
+        ...(vaultSceneId ? { vaultSceneId } : {}),
         fineTunedModelId,
         loraWeight,
         overrideModelId: directorModelOverride

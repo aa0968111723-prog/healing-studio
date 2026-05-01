@@ -104,9 +104,11 @@ describe("dispatchFalQueueTask", () => {
     expect(headers.Authorization).toBe("Key test-fal-key");
   });
 
-  it("throws when fal.ai returns non-2xx", async () => {
+  it("throws on non-retryable 4xx without walking fallback chain", async () => {
+    // 422 is a client error — caller's input is wrong; falling back to a
+    // sibling model would just hit the same validation failure.
     const fetchMock = vi.fn(async () =>
-      new Response("upstream error", { status: 500 })
+      new Response("invalid prompt", { status: 422 })
     );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -116,7 +118,44 @@ describe("dispatchFalQueueTask", () => {
         input: { prompt: "x" },
       })
     ).rejects.toThrow(/fal\.ai queue submit error/);
+    // Exactly one queue submit attempt — non-retryable errors short-circuit
+    // the fallback chain. (Other fetches like brave-search auto-repair go
+    // to non-fal hosts; we filter by host to ignore them.)
+    const queueCalls = fetchMock.mock.calls.filter(c =>
+      String(c[0]).startsWith("https://queue.fal.run/")
+    );
+    expect(queueCalls).toHaveLength(1);
   });
+
+  it("walks fallback chain on retryable 5xx and degrades to next candidate", async () => {
+    // Primary returns 503 (retryable); the first fallback succeeds. The
+    // dispatcher should mark the result as degraded with the original
+    // modelId so the UI can surface the swap.
+    let callIdx = 0;
+    const fetchMock = vi.fn(async (url: string) => {
+      callIdx++;
+      // First call → primary (flux-pro/v1.1) returns 503
+      if (callIdx === 1) {
+        return new Response("upstream busy", { status: 503 });
+      }
+      // Second call → fallback model succeeds
+      return new Response(JSON.stringify({ request_id: "req-ok" }), {
+        status: 200,
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await dispatchFalQueueTask({
+      modelId: "fal-ai/flux-pro/v1.1",
+      input: { prompt: "x" },
+    });
+
+    expect(result.request_id).toBe("req-ok");
+    expect(result.degraded).toBe(true);
+    expect(result.originalModel).toBe("fal-ai/flux-pro/v1.1");
+    expect(result.modelId).not.toBe("fal-ai/flux-pro/v1.1");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  }, 10_000);
 
   it("throws when FAL_API_KEY missing", async () => {
     delete process.env.FAL_API_KEY;
