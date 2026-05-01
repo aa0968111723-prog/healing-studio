@@ -768,16 +768,22 @@ async function dispatchStudioTool(
             modelId = "fal-ai/ace-step";
           }
         }
-        // DEF-So1：Sonauto 的欄位名與其他音樂引擎不同 —
-        //   - 歌詞欄位是 lyrics_prompt（不是 lyrics）
-        //   - 沒有 duration（自動產 1-3 分鐘完整歌曲）
-        //   - tags 是陣列（光球 args 若帶 tags，需切成 array）
-        // 用 normalize 後 modelId 判斷，避免大腦傳 "fal-ai/sonauto" 時誤判。
+        // DEF-So1 / DEF-M1 / DEF-M2：四個音樂引擎的欄位形狀互不相容，
+        // 統一在此依 canonical modelId 構建正確的 fal 輸入：
+        //   - Sonauto v2  → prompt + lyrics_prompt + tags[] + output_format + num_songs（無時長）
+        //   - ACE-Step    → prompt + lyrics（可選）+ duration
+        //   - Stable Audio → prompt + seconds_total + negative_prompt（可選）
+        //   - MusicGen    → prompt + duration（不接受 lyrics/negative_prompt）
+        // 過去 else 分支對所有非 Sonauto 引擎都送 lyrics+duration，導致 MusicGen
+        // 收到無用 lyrics、Stable Audio 的時長被吃掉（fal 落回 30s 預設）。
         const { normalizeEngineModelId } = await import(
           "../../shared/engineModelIds"
         );
         const canonicalAudioModel = normalizeEngineModelId(modelId);
         const isSonauto = canonicalAudioModel === "sonauto/v2/text-to-music";
+        const isAceStep = canonicalAudioModel === "fal-ai/ace-step";
+        const isStableAudio = canonicalAudioModel === "fal-ai/stable-audio";
+        const isMusicGen = canonicalAudioModel === "fal-ai/musicgen";
 
         const input: Record<string, unknown> = {};
         if (typeof args.prompt === "string") input.prompt = args.prompt;
@@ -792,8 +798,22 @@ async function dispatchStudioTool(
           input.output_format = "mp3";
           input.num_songs = 1;
           // 注意：duration 由 Sonauto 自決，刻意不傳。
-        } else {
+        } else if (isStableAudio) {
+          const dur =
+            typeof args.duration === "number" ? args.duration : undefined;
+          if (dur !== undefined) input.seconds_total = dur;
+          if (typeof args.negativePrompt === "string") {
+            input.negative_prompt = args.negativePrompt;
+          } else if (typeof args.negative_prompt === "string") {
+            input.negative_prompt = args.negative_prompt;
+          }
+        } else if (isAceStep) {
           if (typeof args.lyrics === "string") input.lyrics = args.lyrics;
+          if (typeof args.duration === "number") input.duration = args.duration;
+        } else if (isMusicGen) {
+          if (typeof args.duration === "number") input.duration = args.duration;
+        } else {
+          // 未知音樂引擎：保守傳 prompt + duration，由 dispatcher 的 fallback chain 處理。
           if (typeof args.duration === "number") input.duration = args.duration;
         }
         const r = await dispatchFalQueueTask({
