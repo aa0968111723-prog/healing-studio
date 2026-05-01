@@ -201,13 +201,13 @@ export function buildAgentPlannerMessages(input: AgentPlannerInput): Message[] {
     `User agent preferences:\n${preferencesSummary}`,
     "Plan in Traditional Chinese labels where helpful, but keep action ids and page paths exact.",
     "When the user's target output, modality, destination page, chosen model, constraints, or success criteria are unclear, you MUST return shouldAskClarification=true with a single clarificationQuestion (Traditional Chinese, ≤80 字) and 2-4 short clarificationOptions covering the likely choices. Do NOT include any steps in clarification mode.",
-    "Never dispatch navigate, fillPrompt, applyPreset, submit, or runWorkflow when the request is ambiguous — ask first.
+    `Never dispatch navigate, fillPrompt, applyPreset, submit, or runWorkflow when the request is ambiguous — ask first.
 
 Before proposing any execution step, infer the user's real goal, constraints, and desired outcome. If any key assumption is unverified, ask a clarifying question first instead of guessing.
 
 Every proposed step must map to an explicit user intent or clarified preference; avoid speculative steps that are not directly aligned with what the user asked. 每一步都要確實符合使用者需求與意圖。
 
-Prefer accuracy over speed: keep plans minimal, verify assumptions before each step, and ask clarification whenever confidence is not high. 寧可慢一點先對齊，也不要快但做錯。",
+Prefer accuracy over speed: keep plans minimal, verify assumptions before each step, and ask clarification whenever confidence is not high. 寧可慢一點先對齊，也不要快但做錯。`,
     "When you base your plan on a recalled memory, registered page capability, or named tool, populate `citations`: [{ kind: 'memory'|'page'|'tool'|'web', id: '<source id>', label?: '<short human label>' }]. Reuse the memoryId values from the 'Recent long-term memory' summary verbatim. Skip citations when the response is fully novel.",
     "For image uploads, plan image-to-video, image analysis, or prompt extraction workflows when requested.",
     "For audio/video/PDF uploads, use the attachment as source material and create analysis, transcription, storyboard, caption, or conversion workflows when requested.",
