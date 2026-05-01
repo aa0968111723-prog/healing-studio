@@ -922,12 +922,39 @@ async function dispatchStudioTool(
 
       case "studio.generateVoice": {
         const { dispatchFalQueueTask } = await import("./falDispatcher");
-        const modelId =
-          (args.modelId as string) || "fal-ai/elevenlabs/tts/turbo-v2.5";
+        // DEF-V2：光球 generateVoice 過去硬編碼 turbo-v2.5，從未讀使用者
+        // 大腦 voiceEngine。改成：args.modelId > brain.voiceEngine > turbo-v2.5。
+        let modelId = (args.modelId as string) || "";
+        if (!modelId) {
+          try {
+            const { buildBrainContext } = await import("../middleware/brainContext");
+            const brain = await buildBrainContext(opts.userId);
+            modelId =
+              brain.generation.voiceEngine.engine ||
+              "fal-ai/elevenlabs/tts/turbo-v2.5";
+          } catch {
+            modelId = "fal-ai/elevenlabs/tts/turbo-v2.5";
+          }
+        }
+        // DEF-V1：ElevenLabs proxy endpoint 必須帶 x-fal-client-credentials，
+        // 否則 fal 回 401，光球 step 浪費掉。缺 key 時退回 turbo-v2.5 的呼叫但
+        // 仍會 401；更安全的處理是退回不需 key 的 fal-ai/f5-tts。
+        const isElevenLabsTts =
+          modelId.startsWith("fal-ai/elevenlabs/tts/") ||
+          modelId === "fal-ai/elevenlabs/tts";
+        if (isElevenLabsTts && !process.env.ELEVENLABS_API_KEY) {
+          modelId = "fal-ai/f5-tts";
+        }
         const input: Record<string, unknown> = {};
         if (typeof args.text === "string") input.text = args.text;
         if (typeof args.voice_id === "string") input.voice_id = args.voice_id;
         if (typeof args.speed === "number") input.speed = args.speed;
+        const finalIsElevenLabs =
+          modelId.startsWith("fal-ai/elevenlabs/") &&
+          !!process.env.ELEVENLABS_API_KEY;
+        const elevenLabsHeaders = finalIsElevenLabs
+          ? { "x-fal-client-credentials": process.env.ELEVENLABS_API_KEY! }
+          : undefined;
         const r = await dispatchFalQueueTask({
           modelId,
           category: "text-to-speech",
@@ -935,6 +962,7 @@ async function dispatchStudioTool(
           route: "orb-tool/studio.generateVoice",
           modality: "voice",
           userId: opts.userId,
+          ...(elevenLabsHeaders ? { extraHeaders: elevenLabsHeaders } : {}),
         });
         const awaited = await awaitFalForOrb(
           { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },

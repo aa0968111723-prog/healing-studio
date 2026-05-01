@@ -771,6 +771,15 @@ export const proStudioRouter = router({
       };
       const engine = input.engine ?? "turbo-v2.5";
       const route = ENGINE_MAP[engine];
+      // DEF-V3：ElevenLabs proxy 需 ELEVENLABS_API_KEY，沒設就提早報錯，
+      // 避免「扣點 → fal 401 → 退點」的浪費往返。
+      if (!process.env.ELEVENLABS_API_KEY) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "ElevenLabs TTS 需要 ELEVENLABS_API_KEY。請改用 Qwen TTS / Dia TTS 等本地引擎，或聯絡管理員設定金鑰。",
+        });
+      }
       const charged = await chargeForFalTask(ctx.user.id, route.pricingKey, {
         charCount: input.text.length,
       });

@@ -2670,6 +2670,10 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
   },
 
   // ── 語音引擎 ──
+  // DEF-V4：與上游 elevenlabs/turbo-v2.5（pricing key, line 990）對齊 maxPoints=50。
+  // 兩個 entry 是同一交付（fal proxy），過去 30 vs 50 的差導致 dispatcher
+  // reconciliation 與 chargeForFalTask 對同一筆使用估算出不同上限。
+  // requiresKey 改為 ELEVENLABS_API_KEY（fal proxy 必要），與 SFX 對齊。
   "fal-ai/elevenlabs/tts/turbo-v2.5": {
     modelId: "fal-ai/elevenlabs/tts/turbo-v2.5",
     label: "ElevenLabs TTS Turbo V2.5 (via fal)",
@@ -2681,9 +2685,9 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     unit: "每1000字符",
     pointsPer1kChars: 1,
     minPoints: 1,
-    maxPoints: 30,
+    maxPoints: 50,
     requiresKey: true,
-    keyEnvVar: "FAL_API_KEY",
+    keyEnvVar: "ELEVENLABS_API_KEY",
   },
   "fal-ai/qwen-3-tts/text-to-speech/1.7b": {
     modelId: "fal-ai/qwen-3-tts/text-to-speech/1.7b",
