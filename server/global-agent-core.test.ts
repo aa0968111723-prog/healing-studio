@@ -1172,6 +1172,201 @@ describe("orchestrator precision policy", () => {
       expect(paths).toEqual(new Set(["/image-studio"]));
     }
   });
+
+  // ─── 多步驟執行 (multi-step / runWorkflow) end-to-end coverage ─────────
+  // Above tests cover individual actions and ad-hoc executeGlobalActions
+  // chains. These tests exercise the *real* tasked-execution path: a
+  // single runWorkflow action with N steps going through
+  // executeGlobalWorkflow. This is what the orb actually dispatches when
+  // the planner returns a tasked plan that lands on /image-studio.
+
+  it("buildImageWorkflow runs end-to-end through executeGlobalWorkflow", async () => {
+    // The keyword fallback's image build (buildImageWorkflow) is a real
+    // RunWorkflowAction — verify the orchestrator can drive every step
+    // with /image-studio live-registered.
+    globalAgentRegistry.clear();
+    globalAgentRegistry.register(
+      makePage("image-studio", "/image-studio", "圖片創作室", [
+        "fillPrompt",
+        "submit",
+      ])
+    );
+    const calls: string[] = [];
+    const wf = buildImageWorkflow("夜晚電影感咖啡廳，雨後街道，霓虹反光");
+    const result = await executeGlobalWorkflow(wf, {
+      currentPage: null,
+      navigate: async path => calls.push(`nav:${path}`),
+      dispatch: async (action, opts) => {
+        calls.push(`act:${action.type}:${opts?.targetPageId ?? "none"}`);
+        return { ok: true };
+      },
+      waitAfterNavigateMs: 0,
+      onWorkflowStep: step => calls.push(`step:${step.index + 1}/${step.total}`),
+    });
+    expect(result.ok).toBe(true);
+    expect(result.workflowName).toBe("圖片生成流程");
+    // Single navigate (path-threading), every step dispatched on
+    // /image-studio, onWorkflowStep fires once per declared step.
+    expect(calls.filter(c => c.startsWith("nav:"))).toEqual(["nav:/image-studio"]);
+    expect(calls.filter(c => c.startsWith("act:"))).toEqual([
+      "act:fillPrompt:image-studio",
+      "act:submit:image-studio",
+    ]);
+    expect(calls.filter(c => c.startsWith("step:"))).toEqual([
+      "step:1/2",
+      "step:2/2",
+    ]);
+  });
+
+  it("a six-step image runWorkflow (setTab → setModel → applyPreset → fillPrompt → setParam → submit) all dispatches on /image-studio", async () => {
+    // Simulates what the orb's planner emits for a "deep-dive image
+    // creation" tasked plan: configure the tab + model + vibe, fill the
+    // prompt, set the aspect ratio, then submit. Pre-supportedActions,
+    // setModel could leak to /studio or /video-studio because the static
+    // fallback was permissive; with the audit it stays on /image-studio.
+    globalAgentRegistry.clear();
+    globalAgentRegistry.register(
+      makePage("image-studio", "/image-studio", "圖片創作室", [
+        "setTab",
+        "setModel",
+        "applyPreset",
+        "fillPrompt",
+        "setParam",
+        "submit",
+      ])
+    );
+    const calls: string[] = [];
+    const result = await executeGlobalWorkflow(
+      {
+        type: "runWorkflow",
+        name: "深度圖片創作",
+        steps: [
+          { path: "/image-studio", actionType: "setTab", payload: "t2i", label: "切到 t2i" },
+          { path: "/image-studio", actionType: "setModel", payload: "imagen", label: "選 imagen 模型" },
+          { path: "/image-studio", actionType: "applyPreset", payload: "cinematic", label: "套用電影感" },
+          { path: "/image-studio", actionType: "fillPrompt", payload: "城市夜雨", label: "填入提示詞" },
+          { path: "/image-studio", actionType: "setParam", payload: "aspectRatio:16:9", label: "設定寬螢幕" },
+          { path: "/image-studio", actionType: "submit", payload: "", label: "送出生成" },
+        ],
+      },
+      {
+        currentPage: null,
+        navigate: async path => calls.push(`nav:${path}`),
+        dispatch: async (action, opts) => {
+          calls.push(`act:${action.type}:${opts?.targetPageId ?? "none"}`);
+          return { ok: true };
+        },
+        waitAfterNavigateMs: 0,
+      }
+    );
+    expect(result.ok).toBe(true);
+    // Single nav, six dispatches, all on image-studio.
+    expect(calls.filter(c => c.startsWith("nav:"))).toEqual(["nav:/image-studio"]);
+    expect(calls.filter(c => c.startsWith("act:"))).toEqual([
+      "act:setTab:image-studio",
+      "act:setModel:image-studio",
+      "act:applyPreset:image-studio",
+      "act:fillPrompt:image-studio",
+      "act:setParam:image-studio",
+      "act:submit:image-studio",
+    ]);
+  });
+
+  it("a multi-step runWorkflow with NO step.path still lands every dispatch on /image-studio via fallback", async () => {
+    // Defensive: when the LLM forgets to attach pagePath to each step
+    // (happens occasionally with smaller models), the orchestrator's
+    // per-step static fallback must resolve every step to /image-studio
+    // because the audited supportedActions filter eliminates other
+    // candidates. Pre-fix this used to dispatch on the current page (or
+    // worst, fail with "no route found").
+    globalAgentRegistry.clear();
+    globalAgentRegistry.register(
+      makePage("image-studio", "/image-studio", "圖片創作室", [
+        "setTab",
+        "fillPrompt",
+        "submit",
+      ])
+    );
+    const calls: string[] = [];
+    const result = await executeGlobalWorkflow(
+      {
+        type: "runWorkflow",
+        name: "缺路徑的圖片流程",
+        steps: [
+          // setTab is uniquely owned by image/video/pro studio + director +
+          // lora-trainer. With image-studio live-registered, the fallback's
+          // tiebreaker (priority + token in haystack) lands here.
+          { actionType: "setTab", payload: "t2i", label: "切分頁" },
+          { actionType: "fillPrompt", payload: "電影感的療癒圖片", label: "填提示詞" },
+          { actionType: "submit", payload: "", label: "送出" },
+        ],
+      },
+      {
+        currentPage: null,
+        navigate: async path => calls.push(`nav:${path}`),
+        dispatch: async (action, opts) => {
+          calls.push(`act:${action.type}:${opts?.targetPageId ?? "none"}`);
+          return { ok: true };
+        },
+        waitAfterNavigateMs: 0,
+      }
+    );
+    expect(result.ok).toBe(true);
+    // Path threading: only ONE navigate even with no path declared per step.
+    expect(calls.filter(c => c.startsWith("nav:"))).toEqual(["nav:/image-studio"]);
+    expect(calls.filter(c => c.startsWith("act:"))).toEqual([
+      "act:setTab:image-studio",
+      "act:fillPrompt:image-studio",
+      "act:submit:image-studio",
+    ]);
+  });
+
+  it("multi-step image workflow with a failing dispatch surfaces a clear failure (no silent skip)", async () => {
+    // Failure semantics: a multi-step plan must abort on first failure
+    // and surface the reason, not pretend the workflow succeeded just
+    // because some steps ran. /image-studio's submit gate frequently
+    // fails (missing prompt, generation in progress, missing API key) —
+    // the orb's UI must see the real reason.
+    globalAgentRegistry.clear();
+    globalAgentRegistry.register(
+      makePage("image-studio", "/image-studio", "圖片創作室", [
+        "fillPrompt",
+        "submit",
+      ])
+    );
+    const calls: string[] = [];
+    const result = await executeGlobalWorkflow(
+      {
+        type: "runWorkflow",
+        name: "圖片流程含失敗",
+        steps: [
+          { path: "/image-studio", actionType: "fillPrompt", payload: "x", label: "a" },
+          { path: "/image-studio", actionType: "submit", payload: "", label: "b" },
+        ],
+      },
+      {
+        currentPage: null,
+        navigate: async path => calls.push(`nav:${path}`),
+        dispatch: async action => {
+          calls.push(`act:${action.type}`);
+          return action.type === "submit"
+            ? { ok: false, reason: "image-studio: missing API key" }
+            : { ok: true };
+        },
+        waitAfterNavigateMs: 0,
+      }
+    );
+    expect(result.ok).toBe(false);
+    expect(result.reason).toContain("missing API key");
+    // The failed step's outcome must be in the results array — the orb's
+    // failure card relies on this to tell the user where the workflow
+    // stopped.
+    expect(result.results).toHaveLength(2);
+    expect(result.results[1]?.ok).toBe(false);
+    // endingPath is /image-studio so the user lands on the right page to
+    // fix the issue manually.
+    expect(result.endingPath).toBe("/image-studio");
+  });
 });
 
 describe("orchestrator safety helpers", () => {
