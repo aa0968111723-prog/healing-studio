@@ -217,6 +217,54 @@ describe("executeOrbToolCalls — studio.* bridge", () => {
     }
   });
 
+  it("propagates extended image args (image_url, seed, loras) and switches to image-to-image", async () => {
+    // 光球用 ${step1.image_url} 串到下一步時，studio.generateImage 必須能接受
+    // image_url 並改走 image-to-image 路由；同時 seed / lora_url 必須打進 fal payload。
+    const captured: Array<{ url: string; body: unknown }> = [];
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      const body = init?.body
+        ? JSON.parse(init.body as string)
+        : undefined;
+      captured.push({ url, body });
+      return new Response(JSON.stringify({ request_id: "req-img-i2i" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await executeOrbToolCalls({
+      tools: [],
+      calls: [
+        {
+          name: "studio.generateImage",
+          args: {
+            prompt: "stylize as oil painting",
+            image_url: "https://fal.media/source.png",
+            strength: 0.7,
+            seed: 42,
+            lora_url: "https://example.com/lora.safetensors",
+            lora_scale: 0.8,
+            wait: false,
+          },
+        },
+      ],
+      userId: 333,
+      userRole: "user",
+      approved: true,
+    });
+
+    expect(captured).toHaveLength(1);
+    const body = captured[0]!.body as Record<string, unknown>;
+    expect(body.prompt).toBe("stylize as oil painting");
+    expect(body.image_url).toBe("https://fal.media/source.png");
+    expect(body.strength).toBe(0.7);
+    expect(body.seed).toBe(42);
+    expect(body.loras).toEqual([
+      { path: "https://example.com/lora.safetensors", scale: 0.8 },
+    ]);
+  });
+
   it("propagates extended voice args (language_code, voice_settings) into the fal payload", async () => {
     // 多語 TTS / 聲音調諧的 orb args 必須出現在送往 fal 的 request body，
     // 否則光球發起的「日文 TTS」會落回英文預設。

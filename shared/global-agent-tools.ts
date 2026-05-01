@@ -87,6 +87,17 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
       aspect_ratio: "string?",
       num_images: "number?",
       negative_prompt: "string?",
+      // img2img / 編輯：起始圖 + 強度（對應 ImageStudio 的編輯/姿勢/3D 流程）
+      image_url: "string?",
+      strength: "number?",
+      // 可重現性
+      seed: "number?",
+      // 推論調諧（Flux / SDXL 都支援）
+      guidance_scale: "number?",
+      num_inference_steps: "number?",
+      // LoRA 注入（用 ${stepN.lora_url} 從訓練步驟串進來）
+      lora_url: "string?",
+      lora_scale: "number?",
     },
     executionTarget: "server-side",
   },

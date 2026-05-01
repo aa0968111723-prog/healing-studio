@@ -624,6 +624,12 @@ async function dispatchStudioTool(
           "imageEngine",
           "fal-ai/flux/dev"
         );
+        // img2img：有 image_url 時改走 image-to-image 路由，讓 dispatcher
+        // 對 LoRA / 編輯類模型套對應的 fallback chain。
+        const hasImage = typeof args.image_url === "string" && args.image_url;
+        const category: "text-to-image" | "image-to-image" = hasImage
+          ? "image-to-image"
+          : "text-to-image";
         const input: Record<string, unknown> = {};
         if (typeof args.prompt === "string") input.prompt = args.prompt;
         if (typeof args.aspect_ratio === "string")
@@ -632,9 +638,25 @@ async function dispatchStudioTool(
           input.num_images = args.num_images;
         if (typeof args.negative_prompt === "string")
           input.negative_prompt = args.negative_prompt;
+        if (typeof args.image_url === "string") input.image_url = args.image_url;
+        if (typeof args.strength === "number") input.strength = args.strength;
+        if (typeof args.seed === "number") input.seed = args.seed;
+        if (typeof args.guidance_scale === "number")
+          input.guidance_scale = args.guidance_scale;
+        if (typeof args.num_inference_steps === "number")
+          input.num_inference_steps = args.num_inference_steps;
+        if (typeof args.lora_url === "string") {
+          // fal LoRA-aware models 期望 loras 為陣列
+          input.loras = [
+            {
+              path: args.lora_url,
+              scale: typeof args.lora_scale === "number" ? args.lora_scale : 1,
+            },
+          ];
+        }
         const r = await dispatchFalQueueTask({
           modelId,
-          category: "text-to-image",
+          category,
           input,
           route: "orb-tool/studio.generateImage",
           modality: "image",
