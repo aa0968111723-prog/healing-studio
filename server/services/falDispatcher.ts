@@ -1042,7 +1042,7 @@ export const DEFAULT_FAL_ENGINES: BrainFalEngines = {
   textToVideo: "fal-ai/kling-video/v2.1/pro/text-to-video",
   training: "fal-ai/flux-lora-fast-training",
   videoToAudio: "fal-ai/mmaudio-v2/video-to-audio",
-  videoToText: "fal-ai/nemotron/asr/stream",
+  videoToText: "fal-ai/whisper",
   videoToVideo: "fal-ai/kling-video/v2.1/standard/video-to-video",
 };
 

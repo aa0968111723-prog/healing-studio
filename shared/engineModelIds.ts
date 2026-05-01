@@ -44,6 +44,11 @@ export const LEGACY_FAL_ALIAS_MAP: Record<string, string> = {
   "fal/audioldm2-v2a": "fal-ai/audioldm2",
   "fal/sync-lipsync": "fal-ai/sync-lipsync",
   "fal/elevenlabs-sound": "fal-ai/elevenlabs/tts/turbo-v2.5",
+  // ElevenLabs Music / TTS catalog short-form → canonical Fal.ai paths
+  "elevenlabs/turbo-v2.5": "fal-ai/elevenlabs/tts/turbo-v2.5",
+  "elevenlabs/flash-v2.5": "fal-ai/elevenlabs/tts/turbo-v2.5",
+  "elevenlabs/eleven-v3": "fal-ai/elevenlabs/tts/turbo-v2.5",
+  "elevenlabs/multilingual-v2": "fal-ai/elevenlabs/tts/turbo-v2.5",
   "fal/whisper": "fal-ai/whisper",
   "fal/wizper": "fal-ai/wizper",
   "fal/any-llm-video": "fal-ai/any-llm",

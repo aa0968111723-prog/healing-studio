@@ -210,7 +210,7 @@ const FAL_TASK_DEFAULTS: Record<FalTaskKey, string> = {
   "text-to-video": "fal-ai/kling-video/v2.1/pro/text-to-video",
   training: "fal-ai/flux-lora-fast-training",
   "video-to-audio": "fal-ai/mmaudio-v2/video-to-audio",
-  "video-to-text": "fal-ai/nemotron/asr/stream",
+  "video-to-text": "fal-ai/whisper",
   "video-to-video": "fal-ai/kling-video/v2.1/standard/video-to-video",
 };
 

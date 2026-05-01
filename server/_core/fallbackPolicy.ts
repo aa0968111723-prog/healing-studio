@@ -49,24 +49,20 @@ export const PER_MODEL_FALLBACK: Record<string, string[]> = {
   "stable-diffusion-xl": ["flux-pro", "dall-e-3"],
   // 影片引擎(實際 Fal.ai 模型 ID)
   "fal-ai/kling-video/v2.1/standard/text-to-video": [
-    "fal-ai/wan/v2.2-14b",
+    "fal-ai/wan-t2v",
     "fal-ai/minimax/video-01",
   ],
   "fal-ai/kling-video/v2.1/standard/image-to-video": [
     "fal-ai/minimax/video-01/image-to-video",
     "fal-ai/pixverse/v4.5/image-to-video",
   ],
-  "fal-ai/wan/v2.2-14b": [
+  "fal-ai/wan-t2v": [
     "fal-ai/kling-video/v2.1/standard/text-to-video",
     "fal-ai/minimax/video-01",
   ],
   "fal-ai/veo3": [
     "fal-ai/kling-video/v2.1/standard/text-to-video",
-    "fal-ai/wan/v2.2-14b",
-  ],
-  "fal-ai/minimax/video-01": [
-    "fal-ai/kling-video/v2.1/standard/text-to-video",
-    "fal-ai/wan/v2.2-14b",
+    "fal-ai/wan-t2v",
   ],
   // 影片引擎(向後相容舊別名)
   "kling-v1": [
@@ -75,9 +71,12 @@ export const PER_MODEL_FALLBACK: Record<string, string[]> = {
     "minimax-video",
   ],
   "kling-v1-5": ["kling-v1", "minimax-video"],
-  "minimax-video": ["fal-ai/minimax/video-01", "kling-v1", "kling-v1-5"],
+  "minimax-video": [
+    "fal-ai/minimax-video/text-to-video",
+    "kling-v1",
+    "kling-v1-5",
+  ],
   // 音樂引擎(實際 Fal.ai 模型 ID)
-  "fal-ai/sonauto": ["fal-ai/ace-step", "fal-ai/stable-audio"],
   "fal-ai/ace-step": ["fal-ai/stable-audio", "fal-ai/musicgen"],
   "fal-ai/stable-audio": ["fal-ai/ace-step", "fal-ai/musicgen"],
   // 音樂引擎(向後相容舊別名)
@@ -86,16 +85,16 @@ export const PER_MODEL_FALLBACK: Record<string, string[]> = {
   "udio-v1": ["suno-v4", "suno-v3.5"],
   // 語音引擎(實際 Fal.ai 模型 ID)
   "fal-ai/elevenlabs/tts/turbo-v2.5": [
-    "fal-ai/qwen-3-tts/text-to-speech/1.7b",
-    "fal-ai/dia-tts/voice-clone",
+    "fal-ai/dia-tts",
+    "fal-ai/f5-tts",
   ],
-  "fal-ai/qwen-3-tts/text-to-speech/1.7b": [
+  "fal-ai/dia-tts": [
     "fal-ai/elevenlabs/tts/turbo-v2.5",
-    "fal-ai/dia-tts/voice-clone",
+    "fal-ai/f5-tts",
   ],
-  "fal-ai/dia-tts/voice-clone": [
+  "fal-ai/f5-tts": [
     "fal-ai/elevenlabs/tts/turbo-v2.5",
-    "fal-ai/qwen-3-tts/text-to-speech/1.7b",
+    "fal-ai/orpheus-tts",
   ],
   // 語音引擎(向後相容舊別名)
   "elevenlabs-v2": [
