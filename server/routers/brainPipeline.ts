@@ -35,6 +35,7 @@ import {
 } from "../services/brainAutoRepair";
 import type { ErrorTrace } from "../services/brainAutoRepair";
 import { APP_PAGE_REGISTRY } from "../../shared/appRegistry";
+import type { AppPageRegistryItem } from "../../shared/appRegistry";
 import type {
   PipelineGraph,
   PipelineNode,
@@ -224,6 +225,47 @@ const PAGE_DIAGNOSTICS_CATALOG: Record<
   settings: {
     backendRoute: "trpc.settings.* + trpc.agentPreferences.*",
     serviceFunction: "user settings + agent preferences",
+  },
+};
+
+/** Page id → upstream router ids；用於完整視圖中描繪 page 觸發哪條後端鏈。 */
+const PAGE_TO_ROUTERS: Record<string, string[]> = {
+  "agent-chat": ["router:orbScheduler", "router:brain"],
+  studio: ["router:imageStudio", "router:videoStudio", "router:proStudio"],
+  "image-studio": ["router:imageStudio"],
+  "video-studio": ["router:videoStudio"],
+  "pro-studio": ["router:proStudio"],
+  director: ["router:director"],
+  "lora-trainer": ["router:loraTrainer"],
+  models: ["router:loraTrainer", "router:brain"],
+  "my-brain": ["router:brain"],
+  learn: ["router:learnHub"],
+};
+
+/** AppPageGroupId → 顯示用標籤；對應 `shared/appRegistry.ts` 的 8 個分群。 */
+const PAGE_GROUP_META: Record<
+  string,
+  { label: string; description: string }
+> = {
+  orb: { label: "光球代理", description: "全站對話與引導入口" },
+  create: {
+    label: "創作工作室",
+    description: "圖片/影片/音訊/導演 AI 生成入口",
+  },
+  train: { label: "模型訓練", description: "LoRA / 自訂風格訓練" },
+  project: {
+    label: "專案管理",
+    description: "儀表板、歷程、筆記、點數",
+  },
+  assets: {
+    label: "素材與模型",
+    description: "素材庫、提示詞、保險庫、模型清單",
+  },
+  learn: { label: "學習中心", description: "教學內容、文件、入門引導" },
+  settings: { label: "個人設定", description: "帳號、偏好、設定頁" },
+  admin: {
+    label: "管理後台",
+    description: "系統管理、用量、推理鏈監控",
   },
 };
 
@@ -821,16 +863,26 @@ function buildGraph(opts: BuildGraphOptions): PipelineGraph {
 
   // ── Layer 1: Frontend Pages ──────────────────────────────────────────────
   if (opts.includeAllPages) {
-    // 把所有頁面塞進一個群組節點，前端可選擇是否展開
-    nodes.push({
-      id: "page-group:all",
-      kind: "page-group",
-      layer: "frontend",
-      label: `📱 前端頁面（${APP_PAGE_REGISTRY.length}）`,
-      description: "全站頁面，點擊展開查看每頁的光球助手註冊狀態",
-      status: "healthy",
-      children: APP_PAGE_REGISTRY.map(p => `page:${p.id}`),
-    });
+    // 依 AppPageGroupId 分成多個 page-group 容器，比單一巨型群組更貼近 IA 結構，
+    // 也讓「站點視圖」可以一眼看出 8 大功能分區。
+    const pagesByGroup: Record<string, AppPageRegistryItem[]> = {};
+    for (const page of APP_PAGE_REGISTRY) {
+      (pagesByGroup[page.group] ??= []).push(page);
+    }
+    for (const groupId of Object.keys(pagesByGroup)) {
+      const pages = pagesByGroup[groupId];
+      const meta =
+        PAGE_GROUP_META[groupId] ?? { label: groupId, description: "" };
+      nodes.push({
+        id: `page-group:${groupId}`,
+        kind: "page-group",
+        layer: "frontend",
+        label: `📱 ${meta.label}（${pages.length}）`,
+        description: meta.description,
+        status: "healthy",
+        children: pages.map(p => `page:${p.id}`),
+      });
+    }
 
     // 30+ 個 page node 的 trace samples 用同一組引擎；先算一次再共用
     const pageTraceSamples = getTraceSamplesForEngines(
@@ -862,12 +914,18 @@ function buildGraph(opts: BuildGraphOptions): PipelineGraph {
           serviceFunction: resolvePageServiceFunction(page.id),
           traceSampleIds: pageTraceSamples,
         },
-        parentId: "page-group:all",
+        parentId: `page-group:${page.group}`,
       });
-      // page → orb assistant
+      // page → orb assistant（PageAgent 永遠可用）
       edges.push(
         makeEdge(`page:${page.id}`, "orb:assistant", "PageAgent")
       );
+      // page → router 邊；只有 includeRouters 時才畫，否則指向不存在的目標
+      if (opts.includeRouters) {
+        for (const routerId of PAGE_TO_ROUTERS[page.id] ?? []) {
+          edges.push(makeEdge(`page:${page.id}`, routerId, "tRPC"));
+        }
+      }
     }
   }
 

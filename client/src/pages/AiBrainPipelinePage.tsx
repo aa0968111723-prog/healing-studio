@@ -4,13 +4,18 @@ import { keepPreviousData } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { PipelineCanvas } from "@/components/brain-pipeline/PipelineCanvas";
-import { SummaryBar, type StatusFilter } from "@/components/brain-pipeline/SummaryBar";
+import {
+  SummaryBar,
+  type StatusFilter,
+  type ViewMode,
+} from "@/components/brain-pipeline/SummaryBar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useRegisterPageAgent, type AgentActionResult } from "@/contexts/PageAgentContext";
 
 export default function AiBrainPipelinePage() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [viewMode, setViewMode] = useState<ViewMode>("brain");
   const [, navigate] = useLocation();
 
   useRegisterPageAgent({
@@ -70,11 +75,11 @@ export default function AiBrainPipelinePage() {
     <div className="flex-1 flex flex-col p-4 sm:p-6 gap-4 h-[calc(100vh-4rem)] min-h-0">
       <header className="space-y-1">
         <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-          🧠 AI 大腦組態管線
+          🧠 AI 大腦組態管線 ＆ 全站關係圖
         </h1>
         <p className="text-sm text-slate-500">
-          全站視覺化儀表板：前端頁面 → 後端路由 → AI 大腦 / 光球代理 → 外部模型 API
-          的即時健康狀態。僅顯示系統實測資料，不使用預設假數值。點擊任何節點查看詳細原因與修復建議。
+          四層視覺化儀表板：前端頁面 → 後端路由 → AI 大腦 / 光球代理 → 外部模型 API
+          的即時健康狀態。可切換「站點 / 大腦 / 完整」三種視圖；點擊任何節點查看詳細原因與修復建議。
         </p>
       </header>
 
@@ -86,6 +91,8 @@ export default function AiBrainPipelinePage() {
         onRefresh={handleRefresh}
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
       />
 
       <div className="flex-1 min-h-0 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/40 dark:bg-slate-950/40 overflow-hidden">
@@ -111,8 +118,9 @@ export default function AiBrainPipelinePage() {
         {graphQuery.data && (
           <PipelineCanvas
             graph={graphQuery.data}
-            expandPageGroup={false}
+            expandPageGroup={viewMode === "site"}
             statusFilter={statusFilter}
+            viewMode={viewMode}
           />
         )}
       </div>

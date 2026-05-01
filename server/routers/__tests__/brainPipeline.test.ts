@@ -114,21 +114,38 @@ describe("brainPipeline graph builder", () => {
     expect(routers.some(r => r.id === "router:director")).toBe(true);
   });
 
-  it("emits page-group with all pages and individual page nodes when includeAllPages=true", () => {
+  it("splits pages into per-group containers (orb/create/admin/...) and links pages to routers", () => {
     const g = buildGraph({
       includeAllPages: true,
       includeRouters: true,
       includeAlerts: true,
     });
-    const group = g.nodes.find(n => n.id === "page-group:all");
-    expect(group).toBeDefined();
-    expect(group!.kind).toBe("page-group");
-    expect(group!.children!.length).toBeGreaterThan(0);
+    const groups = g.nodes.filter(n => n.kind === "page-group");
+    expect(groups.length).toBeGreaterThan(1);
+    expect(groups.some(n => n.id === "page-group:create")).toBe(true);
+    expect(groups.some(n => n.id === "page-group:admin")).toBe(true);
 
-    // Every child id should resolve to a real page node
-    for (const childId of group!.children!) {
-      expect(g.nodes.find(n => n.id === childId)).toBeDefined();
+    // Every group's children should resolve to real page nodes,
+    // and every page's parentId should point at one of these groups.
+    const groupIds = new Set(groups.map(n => n.id));
+    for (const group of groups) {
+      for (const childId of group.children ?? []) {
+        expect(g.nodes.find(n => n.id === childId)).toBeDefined();
+      }
     }
+    const pages = g.nodes.filter(n => n.kind === "page");
+    for (const p of pages) {
+      expect(p.parentId).toBeDefined();
+      expect(groupIds.has(p.parentId!)).toBe(true);
+    }
+
+    // page → router edges exist for known studios (full-view trace).
+    const imageStudioToRouter = g.edges.find(
+      e =>
+        e.source === "page:image-studio" &&
+        e.target === "router:imageStudio"
+    );
+    expect(imageStudioToRouter).toBeDefined();
   });
 
   it("page nodes without supportsPageAgent are marked abnormal", () => {
