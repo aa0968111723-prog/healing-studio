@@ -203,6 +203,10 @@ export const PER_CATEGORY_FALLBACK: Record<string, string[]> = {
     "fal-ai/stable-audio",
     "fal-ai/mmaudio-v2",
     "fal-ai/musicgen",
+    // DEF-EL8：ElevenLabs SFX 排在最後 — 需要獨立的 ELEVENLABS_API_KEY，
+    // 不適合作為其他模型壞掉時的自動 fallback 對象，但 chain 內存在讓
+    // dispatcher 在使用者明確選 ElevenLabs 時 catalog 能找得到。
+    "fal-ai/elevenlabs/sound-effects/v2",
   ],
   "image-to-3d": ["fal-ai/triposr", "fal-ai/tripo3d", "fal-ai/trellis"],
   "text-to-3d": ["fal-ai/tripo3d", "fal-ai/trellis", "fal-ai/hyper3d/rodin"],

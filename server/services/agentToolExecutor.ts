@@ -838,39 +838,66 @@ async function dispatchStudioTool(
         };
       }
 
-      // DEF-SFX2：光球專用 SFX 工具 — 與 generateAudio（音樂）分流，
+      // DEF-SFX2 / DEF-EL4：光球專用 SFX 工具 — 與 generateAudio（音樂）分流，
       // 不接受 lyrics/tags 等音樂專屬欄位，路由到 SFX-capable 引擎。
       // 大腦 audioEngine 為 SFX-capable 時跟隨；否則退回 fal-ai/stable-audio。
+      // ElevenLabs SFX 額外要求 ELEVENLABS_API_KEY，缺 key 時退回 stable-audio。
       case "studio.generateSfx": {
         const { dispatchFalQueueTask } = await import("./falDispatcher");
         const requestedModel = (args.modelId as string) || "";
         let modelId = requestedModel;
+        const sfxCapable = new Set([
+          "fal-ai/stable-audio",
+          "fal-ai/mmaudio-v2",
+          "fal-ai/audioldm2",
+          "fal-ai/elevenlabs/sound-effects/v2",
+          "fal-ai/elevenlabs/sound-effects",
+        ]);
         if (!modelId) {
           try {
             const { buildBrainContext } = await import("../middleware/brainContext");
             const brain = await buildBrainContext(opts.userId);
             const brainEngine = brain.generation.audioEngine.engine;
-            const sfxCapable = new Set([
-              "fal-ai/stable-audio",
-              "fal-ai/mmaudio-v2",
-              "fal-ai/audioldm2",
-            ]);
             modelId = sfxCapable.has(brainEngine) ? brainEngine : "fal-ai/stable-audio";
           } catch {
             modelId = "fal-ai/stable-audio";
           }
         }
+        const isElevenLabsSfx =
+          modelId === "fal-ai/elevenlabs/sound-effects/v2" ||
+          modelId === "fal-ai/elevenlabs/sound-effects";
+        // 缺 ELEVENLABS_API_KEY 時退回 stable-audio，避免光球任務 401 浪費 step。
+        if (isElevenLabsSfx && !process.env.ELEVENLABS_API_KEY) {
+          modelId = "fal-ai/stable-audio";
+        }
+        const finalIsElevenLabs =
+          modelId === "fal-ai/elevenlabs/sound-effects/v2" ||
+          modelId === "fal-ai/elevenlabs/sound-effects";
         const sfxInput: Record<string, unknown> = {};
-        if (typeof args.prompt === "string") sfxInput.prompt = args.prompt;
+        if (typeof args.prompt === "string") {
+          // ElevenLabs 用 text 欄位，其他 SFX 引擎用 prompt
+          if (finalIsElevenLabs) sfxInput.text = args.prompt;
+          else sfxInput.prompt = args.prompt;
+        }
+        const sfxCap = finalIsElevenLabs ? 22 : 30;
         const sfxDuration =
-          typeof args.duration === "number" ? Math.min(args.duration, 30) : undefined;
+          typeof args.duration === "number" ? Math.min(args.duration, sfxCap) : undefined;
         if (sfxDuration !== undefined) {
-          if (modelId === "fal-ai/stable-audio") {
+          if (finalIsElevenLabs) {
+            sfxInput.duration_seconds = sfxDuration;
+          } else if (modelId === "fal-ai/stable-audio") {
             sfxInput.seconds_total = sfxDuration;
           } else {
             sfxInput.duration = sfxDuration;
           }
         }
+        if (finalIsElevenLabs) {
+          sfxInput.prompt_influence = 0.3;
+        }
+        const elevenLabsHeaders =
+          finalIsElevenLabs && process.env.ELEVENLABS_API_KEY
+            ? { "x-fal-client-credentials": process.env.ELEVENLABS_API_KEY }
+            : undefined;
         const r = await dispatchFalQueueTask({
           modelId,
           category: "text-to-audio",
@@ -878,6 +905,7 @@ async function dispatchStudioTool(
           route: "orb-tool/studio.generateSfx",
           modality: "audio",
           userId: opts.userId,
+          ...(elevenLabsHeaders ? { extraHeaders: elevenLabsHeaders } : {}),
         });
         const awaited = await awaitFalForOrb(
           { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },

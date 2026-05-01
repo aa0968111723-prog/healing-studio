@@ -41,4 +41,13 @@ describe("normalizeEngineModelId", () => {
       "fal-ai/mmaudio-v2"
     );
   });
+
+  // DEF-EL5：ElevenLabs SFX endpoint 帶 /v2 後綴。早期 catalog 用無 /v2 拼法
+  // 註冊，必須改寫到真實 endpoint，否則 dispatcher 會把 SFX 請求降級到
+  // text-to-audio[0] = fal-ai/ace-step（音樂引擎，產出根本不是音效）。
+  it("rewrites ElevenLabs sound-effects to v2 canonical", () => {
+    expect(normalizeEngineModelId("fal-ai/elevenlabs/sound-effects")).toBe(
+      "fal-ai/elevenlabs/sound-effects/v2"
+    );
+  });
 });

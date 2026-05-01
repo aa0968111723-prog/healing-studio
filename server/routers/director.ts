@@ -3036,24 +3036,41 @@ ${segmentSummaries}
             if (!soundDesign.trim()) {
               continue; // 沒有 soundDesign 描述就跳過
             }
-            // DEF-SFX4：SFX 接通大腦 audioEngine — 僅當大腦選了 SFX-capable
-            // 引擎（stable-audio / mmaudio-v2 / audioldm2）時跟隨；否則退回
-            // 安全預設 stable-audio，避免拿純音樂引擎（ace-step/sonauto/musicgen）
-            // 去做 Foley 音效。
+            // DEF-SFX4 / DEF-EL3：SFX 接通大腦 audioEngine — 僅當大腦選了
+            // SFX-capable 引擎時跟隨；否則退回安全預設 stable-audio，避免拿純
+            // 音樂引擎（ace-step / sonauto / musicgen）去做 Foley 音效。
+            // ElevenLabs SFX 額外要求 ELEVENLABS_API_KEY，缺 key 時也退回 stable-audio。
             const brainAudioEngine = ctx.brain.generation.audioEngine.engine;
             const sfxCapable = new Set([
               "fal-ai/stable-audio",
               "fal-ai/mmaudio-v2",
               "fal-ai/audioldm2",
+              "fal-ai/elevenlabs/sound-effects/v2",
+              "fal-ai/elevenlabs/sound-effects",
             ]);
-            const modelId = sfxCapable.has(brainAudioEngine)
-              ? brainAudioEngine
-              : "fal-ai/stable-audio";
-            const sfxDuration = Math.min(durationSec, 30); // 音效一般 ≤ 30 秒
+            const requiresElevenLabsKey =
+              brainAudioEngine === "fal-ai/elevenlabs/sound-effects/v2" ||
+              brainAudioEngine === "fal-ai/elevenlabs/sound-effects";
+            const elevenLabsKeyMissing =
+              requiresElevenLabsKey && !process.env.ELEVENLABS_API_KEY;
+            const modelId =
+              sfxCapable.has(brainAudioEngine) && !elevenLabsKeyMissing
+                ? brainAudioEngine
+                : "fal-ai/stable-audio";
+            const isElevenLabs =
+              modelId === "fal-ai/elevenlabs/sound-effects/v2" ||
+              modelId === "fal-ai/elevenlabs/sound-effects";
+            // 三家 SFX 引擎欄位互斥：
+            //   - stable-audio   → prompt + seconds_total
+            //   - mmaudio/audioldm2 → prompt + duration
+            //   - elevenlabs SFX → text + duration_seconds (≤22) + prompt_influence
+            // ElevenLabs 有 22 秒硬上限，其他 SFX 慣用 30 秒上限。
+            // ElevenLabs SFX v2 hard cap = 22 秒（per fal docs）；其他 SFX 引擎慣用 30 秒
+            const sfxDuration = Math.min(durationSec, isElevenLabs ? 22 : 30);
             const estimate = estimatePoints(modelId, { durationSec: sfxDuration });
-            // mmaudio-v2 / audioldm2 用 duration；stable-audio 用 seconds_total
-            const sfxParams: Record<string, unknown> =
-              modelId === "fal-ai/stable-audio"
+            const sfxParams: Record<string, unknown> = isElevenLabs
+              ? { duration_seconds: sfxDuration, prompt_influence: 0.3 }
+              : modelId === "fal-ai/stable-audio"
                 ? { seconds_total: sfxDuration }
                 : { duration: sfxDuration };
             generationTasks.push({
@@ -3216,8 +3233,18 @@ ${segmentSummaries}
         } else if (input.modality === "audio") {
           falInput.prompt = input.prompt;
         } else if (input.modality === "sfx") {
-          // 音效：fal-ai/stable-audio 接受 prompt + seconds_total
-          falInput.prompt = input.prompt;
+          // DEF-EL3：SFX 引擎欄位名稱不一致 —
+          //   - stable-audio / mmaudio-v2 / audioldm2 → "prompt"
+          //   - elevenlabs/sound-effects/v2          → "text"
+          // 並且 ElevenLabs proxy 需要 ELEVENLABS_API_KEY 透過 fal client credentials 注入。
+          const isElevenLabsSfx =
+            input.modelId === "fal-ai/elevenlabs/sound-effects/v2" ||
+            input.modelId === "fal-ai/elevenlabs/sound-effects";
+          if (isElevenLabsSfx) {
+            falInput.text = input.prompt;
+          } else {
+            falInput.prompt = input.prompt;
+          }
         } else if (input.modality === "voice") {
           falInput.text = input.voiceText || input.prompt;
         }
@@ -3244,6 +3271,14 @@ ${segmentSummaries}
           : undefined;
         const queueModalityForTrace =
           input.modality === "sfx" ? "audio" : input.modality;
+        // DEF-EL3：ElevenLabs proxy 認證 — 任何 fal-ai/elevenlabs/* endpoint 都
+        // 需把 ELEVENLABS_API_KEY 以 x-fal-client-credentials header 傳入。
+        const needsElevenLabsCreds =
+          typeof input.modelId === "string" &&
+          input.modelId.startsWith("fal-ai/elevenlabs/");
+        const extraHeaders = needsElevenLabsCreds && process.env.ELEVENLABS_API_KEY
+          ? { "x-fal-client-credentials": process.env.ELEVENLABS_API_KEY }
+          : undefined;
         const queueResult = await dispatchFalQueueTask({
           modelId: input.modelId,
           category: queueCategory,
@@ -3252,6 +3287,7 @@ ${segmentSummaries}
           route: "trpc.director.executeGenerationTask",
           modality: queueModalityForTrace,
           userId,
+          ...(extraHeaders ? { extraHeaders } : {}),
         });
         const submittedModelId = queueResult.modelId;
 

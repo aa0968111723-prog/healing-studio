@@ -875,6 +875,22 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       outputSchema: { audioUrl: true },
       timeoutMs: 240_000,
     },
+    // DEF-EL1：ElevenLabs Sound Effects v2 — fal 真實路徑帶 /v2 後綴。
+    // 未註冊在 catalog 時 dispatcher 會把任何 SFX 請求降級到 text-to-audio[0]
+    // = fal-ai/ace-step（音樂引擎！），導致每次選 ElevenLabs SFX 都默默被換成
+    // 音樂。輸入欄位為 { text, duration_seconds, prompt_influence }（與其他
+    // SFX 模型用 prompt+seconds_total/duration 不同），且需 ELEVENLABS_API_KEY
+    // 經 fal proxy header 認證；最大時長 22 秒。
+    {
+      modelId: "fal-ai/elevenlabs/sound-effects/v2",
+      label: "ElevenLabs SFX v2",
+      category: "text-to-audio",
+      tier: "standard",
+      description: "ElevenLabs Sound Effects v2（最長 22 秒，需 ELEVENLABS_API_KEY）",
+      inputSchema: { prompt: true, duration: true, seed: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 60_000,
+    },
   ],
 
   // ════════════════════════════════════════════════════════

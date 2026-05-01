@@ -393,6 +393,12 @@ function resolveMusicModelChoice(
 
 type SfxShortId = "stable-audio" | "audioldm2" | "elevenlabs";
 
+/** ElevenLabs Sound Effects v2 endpoint（帶 /v2，與 fal 真實 URL 對齊） */
+const ELEVENLABS_SFX_MODEL_ID = "fal-ai/elevenlabs/sound-effects/v2";
+
+/** ElevenLabs Sound Effects v2 最大時長（per fal docs） */
+const ELEVENLABS_SFX_MAX_SECONDS = 22;
+
 /**
  * SFX-capable fal 引擎集合（不含純音樂模型如 ace-step / sonauto / musicgen）。
  * 大腦 audioEngine 落在這個集合內時，SFX 路徑才能跟著大腦走。
@@ -403,6 +409,10 @@ const FAL_TO_SHORT_SFX: Record<string, SfxShortId> = {
   // 都映射到同一短碼。
   "fal-ai/mmaudio-v2": "audioldm2",
   "fal-ai/audioldm2": "audioldm2",
+  // DEF-EL2：ElevenLabs SFX canonical（含 legacy 無 /v2 拼法）也接通短碼，
+  // 讓使用者在大腦頁選 ElevenLabs 後 SFX 路徑能跟隨。
+  [ELEVENLABS_SFX_MODEL_ID]: "elevenlabs",
+  "fal-ai/elevenlabs/sound-effects": "elevenlabs",
 };
 
 /**
@@ -676,13 +686,22 @@ export const proStudioRouter = router({
       }
 
       // ── ElevenLabs（最終備用）─────────────────────────────────
-      const falModelId = "fal-ai/elevenlabs/sound-effects/v2";
+      // DEF-EL7：先檢查 ELEVENLABS_API_KEY 再扣點，避免使用者被「扣點 → fal 401
+      // → 退點」的無謂往返；同時提早給出明確錯誤訊息。
+      if (!process.env.ELEVENLABS_API_KEY) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "ElevenLabs SFX 需要 ELEVENLABS_API_KEY。請改用 Stable Audio 或 MMAudio V2，或聯絡管理員設定金鑰。",
+        });
+      }
+      const falModelId = ELEVENLABS_SFX_MODEL_ID;
       const charged = await chargeForFalTask(ctx.user.id, "elevenlabs/sound-effects");
       try {
         const { request_id } = await falQueueSubmit(falModelId, {
           text: input.text,
           duration_seconds: input.duration_seconds
-            ? Math.min(input.duration_seconds, 22)
+            ? Math.min(input.duration_seconds, ELEVENLABS_SFX_MAX_SECONDS)
             : undefined,
           prompt_influence: input.prompt_influence,
         }, getElevenLabsProxyHeaders());  // 需要 ElevenLabs key 認證

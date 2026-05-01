@@ -935,6 +935,23 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     requiresKey: true,
     keyEnvVar: "ELEVENLABS_API_KEY",
   },
+  // DEF-EL6：fal canonical 路徑（含 /v2）必須有獨立 pricing 條目，否則
+  // dispatcher 在 normalize 後 getModelPricing 會回 null，cost reconciliation
+  // 無法對帳。數值與 elevenlabs/sound-effects 對齊（同一交付）。
+  "fal-ai/elevenlabs/sound-effects/v2": {
+    modelId: "fal-ai/elevenlabs/sound-effects/v2",
+    label: "ElevenLabs SFX v2 (via fal)",
+    provider: "fal",
+    category: "text-to-audio",
+    tier: "standard",
+    basePoints: 3,
+    baseCostUsd: 0.03,
+    unit: "每次生成",
+    minPoints: 3,
+    maxPoints: 15,
+    requiresKey: true,
+    keyEnvVar: "ELEVENLABS_API_KEY",
+  },
 
   // ═══════════════════════════════════════════════════════════
   // TEXT-TO-SPEECH / VOICE

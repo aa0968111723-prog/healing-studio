@@ -30,6 +30,10 @@ export const LEGACY_FAL_ALIAS_MAP: Record<string, string> = {
   "fal-ai/audioldm2": "fal-ai/mmaudio-v2",
   "fal/audioldm2": "fal-ai/mmaudio-v2",
   "fal/audioldm2-v2a": "fal-ai/mmaudio-v2",
+  // DEF-EL5：ElevenLabs SFX 真實 fal endpoint 帶 /v2 後綴。falModels catalog
+  // 早先註冊的 fal-ai/elevenlabs/sound-effects（無 /v2，且分類錯誤在 video-to-audio）
+  // 必須改寫到帶 /v2 的真實 endpoint，避免 dispatcher catalog miss 後降級到 ace-step。
+  "fal-ai/elevenlabs/sound-effects": "fal-ai/elevenlabs/sound-effects/v2",
   "fal/playai-tts": "fal-ai/f5-tts",
   "fal/kokoro": "fal-ai/kokoro",
   "fal/orpheus-tts": "fal-ai/orpheus-tts",
