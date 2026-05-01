@@ -480,10 +480,10 @@ getDemoLoginUrl() // 返回 /api/oauth/demo/start
 - **特點：** 開源最強，物理動態出色（水流/風吹），費用最低
 - **超時：** 300 秒
 
-### 3. MiniMax Hailuo（迷你麥斯）
+### 3. MiniMax Hailuo-02 Pro（迷你麥斯）
 - **API：** \`trpc.videoStudio.minimaxTextToVideo\`
-- **FAL 模型：** \`fal-ai/minimax/video-01\`
-- **特點：** 流暢敘事型影片，對話場景表現優秀
+- **FAL 模型：** \`fal-ai/minimax/hailuo-02/pro/text-to-video\`
+- **特點：** 流暢敘事型影片，對話場景表現優秀；6s/10s、1080p/768p、可指定畫面比例
 - **超時：** 300 秒
 
 ### 4. Google Veo 3（谷歌）
@@ -527,9 +527,10 @@ getDemoLoginUrl() // 返回 /api/oauth/demo/start
 - **FAL 模型：** \`fal-ai/pixverse/v4.5/image-to-video\`
 - **特點：** 動畫風格出色，表情生動
 
-### 11. MiniMax I2V
+### 11. MiniMax Hailuo-02 Pro I2V
 - **API：** \`trpc.videoStudio.minimaxImageToVideo\`
-- **FAL 模型：** \`fal-ai/minimax/video-01/image-to-video\`
+- **FAL 模型：** \`fal-ai/minimax/hailuo-02/pro/image-to-video\`
+- **特點：** 圖生影超強首幀固定；6s/10s、1080p/768p
 
 ---
 

@@ -1140,7 +1140,7 @@ function TextToVideoTab() {
         title="MiniMax Hailuo-02 文生影"
         description="MiniMax 旗艦影片模型，電影級動態，6s 超長鏡頭"
         badge="MiniMax"
-        modelId="fal-ai/minimax/video-01"
+        modelId="fal-ai/minimax/hailuo-02/pro/text-to-video"
         color="orange"
       >
         <div className="space-y-3">
@@ -1996,7 +1996,7 @@ function ImageToVideoTab() {
         title="MiniMax Hailuo-02 圖生影"
         description="MiniMax 圖生影，超強首幀固定效果，電影級動態"
         badge="MiniMax"
-        modelId="fal-ai/minimax/video-01/image-to-video"
+        modelId="fal-ai/minimax/hailuo-02/pro/image-to-video"
         color="rose"
       >
         <div className="space-y-3">

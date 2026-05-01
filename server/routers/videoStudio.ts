@@ -282,29 +282,39 @@ export const videoStudioRouter = router({
     }),
 
   /**
-   * MiniMax Hailuo-02 Text-to-Video
-   * fal-ai/minimax/video-01
-   * MiniMax 旗艦影片模型，電影級動態，6s
+   * MiniMax Hailuo-02 Pro Text-to-Video
+   * fal-ai/minimax/hailuo-02/pro/text-to-video
+   * MiniMax 旗艦影片模型，電影級動態；6s/10s，1080p/768p，可指定畫面比例與提詞優化
    */
   minimaxTextToVideo: brainProcedure
     .input(
       z.object({
-        prompt: z.string().min(1).max(2000),
+        prompt: z.string().min(1).max(2500),
         promptOptimizer: z.boolean().default(true),
+        duration: z.enum(["6", "10"]).default("6"),
+        resolution: z.enum(["768p", "1080p"]).default("1080p"),
+        aspectRatio: z.enum(["16:9", "9:16", "1:1"]).default("16:9"),
       })
     )
     .mutation(async ({ input }) => {
       const payload: Record<string, unknown> = {
         prompt: input.prompt,
         prompt_optimizer: input.promptOptimizer,
+        duration: input.duration,
+        resolution: input.resolution,
+        aspect_ratio: input.aspectRatio,
       };
-      // MiniMax Hailuo-02 升級版端點（原 video-01 已升級）
+      // MiniMax Hailuo-02 Pro 升級版端點（原 video-01 已升級）
       const result = (await falQueueRun(
         "fal-ai/minimax/hailuo-02/pro/text-to-video",
         payload,
         300
       )) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   /**
@@ -578,16 +588,18 @@ export const videoStudioRouter = router({
     }),
 
   /**
-   * MiniMax Hailuo-02 Image-to-Video
-   * fal-ai/minimax/video-01/image-to-video
-   * MiniMax 圖生影，超強首幀固定效果
+   * MiniMax Hailuo-02 Pro Image-to-Video
+   * fal-ai/minimax/hailuo-02/pro/image-to-video
+   * MiniMax 圖生影，超強首幀固定效果；6s/10s，1080p/768p
    */
   minimaxImageToVideo: brainProcedure
     .input(
       z.object({
-        prompt: z.string().min(1).max(2000),
+        prompt: z.string().min(1).max(2500),
         imageUrl: z.string().url(),
         promptOptimizer: z.boolean().default(true),
+        duration: z.enum(["6", "10"]).default("6"),
+        resolution: z.enum(["768p", "1080p"]).default("1080p"),
       })
     )
     .mutation(async ({ input }) => {
@@ -595,8 +607,10 @@ export const videoStudioRouter = router({
         prompt: input.prompt,
         image_url: input.imageUrl,
         prompt_optimizer: input.promptOptimizer,
+        duration: input.duration,
+        resolution: input.resolution,
       };
-      // MiniMax Hailuo-02 升級版端點
+      // MiniMax Hailuo-02 Pro 升級版端點
       const result = (await falQueueRun(
         "fal-ai/minimax/hailuo-02/pro/image-to-video",
         payload,
