@@ -783,6 +783,17 @@ async function dispatchStudioTool(
         };
       }
 
+      case "studio.trainLora": {
+        // Kick off a LoRA / style / portrait / video-LoRA training run.
+        // Training takes 5–30 minutes — too long to await synchronously
+        // inside an HTTP request, so we create the model + background job
+        // rows up front, return modelId/jobId immediately so the user can
+        // monitor on /training-jobs, and let the worker write the result
+        // back when fal completes.
+        const trainingResult = await dispatchTrainingTool(call, opts);
+        return trainingResult;
+      }
+
       default:
         return {
           name: call.name,
@@ -808,6 +819,244 @@ async function dispatchStudioTool(
  * 直接 reuse director.askForStudioPlan 同樣的 prompt + parseLLMActions 流程，
  * 但不經 tRPC layer（避免 caller 自我引用）。
  */
+
+// ═══════════════════════════════════════════════════════════════════════════
+// studio.trainLora 訓練橋接：建立 fineTunedModel + backgroundJob，背景啟動
+// runFalTrainingJob / runLoraTrainingJob，立即回傳 modelId+jobId 給光球。
+// ═══════════════════════════════════════════════════════════════════════════
+
+const SUPPORTED_TRAINING_MODEL_TYPES = new Set([
+  "image_subject",
+  "voice_clone",
+  "style_lora",
+  "scene_lora",
+  "video_lora",
+  "portrait_lora",
+]);
+
+const STEPS_PER_EPOCH_FOR_ORB = 100;
+const MIN_TRAINING_STEPS_FOR_ORB = 200;
+const MAX_TRAINING_STEPS_FOR_ORB = 4_000;
+
+interface DatasetMediaItem {
+  url: string;
+  fileKey?: string;
+}
+
+function coerceDatasetArray(value: unknown): DatasetMediaItem[] {
+  if (!Array.isArray(value)) return [];
+  const out: DatasetMediaItem[] = [];
+  for (const item of value) {
+    if (typeof item === "string" && item.trim().length > 0) {
+      out.push({ url: item.trim() });
+    } else if (item && typeof item === "object") {
+      const record = item as Record<string, unknown>;
+      const url = typeof record.url === "string" ? record.url.trim() : "";
+      if (!url) continue;
+      const fileKey =
+        typeof record.fileKey === "string" ? record.fileKey : undefined;
+      out.push({ url, ...(fileKey ? { fileKey } : {}) });
+    }
+  }
+  return out;
+}
+
+async function dispatchTrainingTool(
+  call: OrbToolCall,
+  opts: ExecuteOrbToolCallsOptions
+): Promise<OrbToolCallResult> {
+  const { getGlobalAgentTool } = await import("../../shared/global-agent-tools");
+  const def = getGlobalAgentTool(call.name);
+  if (!def) {
+    return { name: call.name, ok: false, error: "training-tool-not-registered" };
+  }
+  if (def.requiresHuman && !opts.approved) {
+    return { name: call.name, ok: false, error: "confirmation-required" };
+  }
+
+  const args = (call.args ?? {}) as Record<string, unknown>;
+  const modelType = String(args.modelType ?? "");
+  const name = String(args.name ?? "").trim();
+  const triggerWord =
+    typeof args.triggerWord === "string" ? args.triggerWord.trim() : "";
+  const description =
+    typeof args.description === "string" ? args.description.trim() : undefined;
+  const trainingEngine =
+    typeof args.trainingEngine === "string" && args.trainingEngine === "replicate"
+      ? "replicate"
+      : "fal";
+  const isStyle = args.isStyle === true;
+  const epochs =
+    typeof args.epochs === "number" && args.epochs > 0 ? args.epochs : 20;
+  const learningRate =
+    typeof args.learningRate === "number" && args.learningRate > 0
+      ? args.learningRate
+      : 0.0001;
+  const batchSize =
+    typeof args.batchSize === "number" && args.batchSize > 0 ? args.batchSize : 4;
+  const datasetImages = coerceDatasetArray(args.datasetImages);
+  const datasetVideos = coerceDatasetArray(args.datasetVideos);
+  const totalDataCount = datasetImages.length + datasetVideos.length;
+
+  if (!SUPPORTED_TRAINING_MODEL_TYPES.has(modelType)) {
+    return {
+      name: call.name,
+      ok: false,
+      error: `unsupported-training-model-type: ${modelType}`,
+    };
+  }
+  if (!name) {
+    return {
+      name: call.name,
+      ok: false,
+      error: "training-name-required",
+    };
+  }
+  if (totalDataCount === 0) {
+    return {
+      name: call.name,
+      ok: false,
+      error: "training-dataset-empty (need datasetImages and/or datasetVideos)",
+    };
+  }
+  if (trainingEngine === "fal" && !process.env.FAL_API_KEY) {
+    return { name: call.name, ok: false, error: "FAL_API_KEY not configured" };
+  }
+  if (trainingEngine === "replicate" && !process.env.REPLICATE_API_TOKEN) {
+    return {
+      name: call.name,
+      ok: false,
+      error: "REPLICATE_API_TOKEN not configured",
+    };
+  }
+
+  const effectiveSteps = Math.min(
+    Math.max(epochs * STEPS_PER_EPOCH_FOR_ORB, MIN_TRAINING_STEPS_FOR_ORB),
+    MAX_TRAINING_STEPS_FOR_ORB
+  );
+  const configJson: Record<string, unknown> = {
+    triggerWord,
+    epochs,
+    learningRate,
+    batchSize,
+    steps: effectiveSteps,
+    isStyle,
+    datasetImages,
+    datasetVideos,
+  };
+  if (typeof args.falModelId === "string" && args.falModelId.trim()) {
+    configJson.falModelId = args.falModelId.trim();
+  }
+
+  let modelId: number;
+  let jobId: number;
+  try {
+    const db = await import("../db");
+    modelId = await db.createFineTunedModel({
+      userId: opts.userId,
+      name,
+      description,
+      modelType: modelType as never,
+      fileUrl: datasetImages[0]?.url || datasetVideos[0]?.url || "",
+      fileKey: datasetImages[0]?.fileKey,
+      configJson,
+    } as never);
+    jobId = await db.createBackgroundJob({
+      userId: opts.userId,
+      jobType: "model_training",
+      status: "queued",
+      progress: 0,
+      progressMessage: "光球已將訓練任務加入佇列",
+      resultJson: { modelId, modelName: name, engine: trainingEngine },
+    } as never);
+  } catch (err) {
+    return {
+      name: call.name,
+      ok: false,
+      error: `training-job-create-failed: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    };
+  }
+
+  // Fire the actual long-running training job in the background. We
+  // explicitly do NOT await — training takes 5–30 minutes which would
+  // blow the HTTP request lifetime. The user monitors via /training-jobs
+  // and the existing fal/replicate webhook callbacks update DB rows.
+  const imageUrls = datasetImages.map(item => item.url);
+  const videoUrls = datasetVideos.map(item => item.url);
+
+  if (trainingEngine === "fal") {
+    void import("./falTrainer")
+      .then(({ runFalTrainingJob, resolveFalTrainingModel }) => {
+        const resolvedFalModel =
+          (typeof args.falModelId === "string" && args.falModelId.trim()) ||
+          resolveFalTrainingModel(modelType as never);
+        return runFalTrainingJob({
+          userId: opts.userId,
+          modelId,
+          jobId,
+          modelName: name,
+          modelType: modelType as never,
+          triggerWord,
+          steps: effectiveSteps,
+          learningRate,
+          isStyle,
+          imageUrls,
+          videoUrls,
+          falModelId: resolvedFalModel,
+        });
+      })
+      .catch(err => {
+        console.error(
+          `[orb-tool/studio.trainLora] fal background job failed for model ${modelId}:`,
+          err
+        );
+      });
+  } else {
+    void import("./loraTrainer")
+      .then(({ runLoraTrainingJob }) =>
+        runLoraTrainingJob({
+          userId: opts.userId,
+          modelId,
+          jobId,
+          modelName: name,
+          modelType: modelType as never,
+          triggerWord,
+          steps: effectiveSteps,
+          learningRate,
+          isStyle,
+          imageUrls,
+        } as never)
+      )
+      .catch(err => {
+        console.error(
+          `[orb-tool/studio.trainLora] replicate background job failed for model ${modelId}:`,
+          err
+        );
+      });
+  }
+
+  return {
+    name: call.name,
+    ok: true,
+    data: {
+      modelId,
+      jobId,
+      status: "queued",
+      modelType,
+      modelName: name,
+      triggerWord,
+      trainingEngine,
+      datasetSize: totalDataCount,
+      steps: effectiveSteps,
+      monitorUrl: `/training-jobs?jobId=${jobId}`,
+      engine: trainingEngine,
+    },
+    usedTool: call.name,
+  };
+}
+
 async function dispatchDirectorTool(
   call: OrbToolCall,
   opts: ExecuteOrbToolCallsOptions

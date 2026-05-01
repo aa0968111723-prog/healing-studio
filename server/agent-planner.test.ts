@@ -135,6 +135,24 @@ describe("agentPlanner", () => {
     expect(systemPrompt).toMatch(/media\.transcribe/);
   });
 
+  it("system prompt teaches the studio.trainLora training tool with the right shape", () => {
+    const messages: Message[] = [
+      { role: "user", content: "幫我訓練一個自己的貓咪 LoRA 模型" },
+    ];
+    const built = buildAgentPlannerMessages({ messages });
+    const systemPrompt = String(built[0].content);
+    expect(systemPrompt).toContain("studio.trainLora");
+    // The planner must know about the right modelTypes + dataset shape.
+    expect(systemPrompt).toMatch(/portrait_lora|style_lora|video_lora/);
+    expect(systemPrompt).toContain("datasetImages");
+    expect(systemPrompt).toContain("triggerWord");
+    // And about the async monitoring URL — training takes 5–30 minutes
+    // so the planner should NOT chain a downstream generate step that
+    // depends on the not-yet-trained model in the same plan.
+    expect(systemPrompt).toMatch(/monitorUrl/);
+    expect(systemPrompt).toMatch(/5–30 minutes|do NOT await/);
+  });
+
   it("detects and summarizes multimodal message parts", () => {
     const messages: Message[] = [
       {

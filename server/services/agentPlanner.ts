@@ -223,9 +223,18 @@ After the wizard collects all parameters, the orb MUST actually run the generati
 
 How to produce a real executable tasked plan:
 - Map the confirmed parameters onto a registered server-side studio.* tool from the 'Global tool registry summary' and emit a step with BOTH:
-    • toolName: '<registered tool name>' (e.g., 'studio.generateVideo', 'studio.generateImage', 'studio.generateAudio', 'studio.generateVoice', 'studio.enhanceVideo')
+    • toolName: '<registered tool name>' (e.g., 'studio.generateVideo', 'studio.generateImage', 'studio.generateAudio', 'studio.generateVoice', 'studio.enhanceVideo', 'studio.trainLora')
     • toolArgs: { ...the actual prompt/modelId/duration/aspect_ratio/etc derived from the wizard answers }
   The orchestrator will dispatch the tool to fal.ai / Suno / ElevenLabs server-side and stream the request_id back — that's the real generation, not a UI hint.
+- For LoRA / 風格 / 角色 / 場景 / 影片 LoRA / 肖像 / 配音 clone training, emit a 'studio.trainLora' step with toolArgs:
+    { modelType: 'image_subject'|'portrait_lora'|'style_lora'|'scene_lora'|'video_lora'|'voice_clone',
+      name: '<user-friendly model name>',
+      triggerWord: '<short token to invoke this LoRA in future prompts>',
+      trainingEngine: 'fal' (default) | 'replicate',
+      datasetImages: [{ url, fileKey? }, ...],   // user-uploaded refs
+      datasetVideos: [{ url, fileKey? }, ...],   // for video_lora
+      epochs?: number, learningRate?: number, isStyle?: boolean }
+  Training takes 5–30 minutes — the tool returns immediately with { modelId, jobId, status: 'queued', monitorUrl }. The orb's reply must surface monitorUrl so the user can watch progress; do NOT await results in the same plan, and do NOT chain a downstream studio.generateImage step that depends on the trained model in the SAME tasked plan (it won't be ready). After kicking off training, hand the user the monitorUrl and offer to check back later.
 - Pair each tool-call step with the matching UI action so the user sees it happen on the right studio page (e.g., navigate to /video-studio, fillPrompt with the same prompt, then submit). Both run together: uiActions for visibility, toolCalls for autonomous execution.
 - For multi-step pipelines (subtitle → dubbing → render, or storyboard → image → video), chain the steps so each downstream step consumes the previous step's output. Use 'condition' / 'dependsOn' when ordering matters.
 - To reference an earlier step's tool result inside a later step's toolArgs, write the placeholder \`\${<stepId>.<key>}\` (or \`\${<stepId>.output.<key>}\`) in the toolArgs string value. The orchestrator substitutes the real value at runtime. Examples:

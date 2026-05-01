@@ -177,6 +177,38 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     },
     executionTarget: "server-side",
   },
+  // ─── 訓練 / 微調工具（光球可幫使用者訓練屬於自己的 LoRA / 風格 / 角色模型） ──
+  {
+    // 啟動 LoRA / 風格 / 角色 / 場景 / 影片 LoRA / 肖像 LoRA 訓練。
+    // 訓練本身耗時 5–30 分鐘，因此不同步等待完成；回傳 modelId+jobId 讓
+    // 使用者可在儀表板（/training-jobs）監控進度。
+    name: "studio.trainLora",
+    riskLevel: "high",
+    requiresHuman: true,
+    allowedArgsSchema: {
+      // 訓練類別：image_subject / portrait_lora / style_lora / scene_lora /
+      // video_lora / voice_clone（依 shared/types TrainingModelType）。
+      modelType: "string",
+      // 模型名稱（出現在儀表板與生成下拉選單）。
+      name: "string",
+      // 觸發詞 / token：在生成 prompt 中啟用此模型。
+      triggerWord: "string?",
+      description: "string?",
+      // 訓練引擎：fal | replicate（預設 fal，速度較快）。
+      trainingEngine: "string?",
+      // 進階：訓練步數 / 學習率 / 批次大小 / 是否風格化。
+      epochs: "number?",
+      learningRate: "number?",
+      batchSize: "number?",
+      isStyle: "boolean?",
+      // 訓練資料：圖片 / 影片 URL 陣列（每個元素需含 url，可選 fileKey）。
+      datasetImages: "object?",
+      datasetVideos: "object?",
+      // 強制覆寫 fal 訓練 modelId（進階）。
+      falModelId: "string?",
+    },
+    executionTarget: "server-side",
+  },
 ];
 
 export function getGlobalAgentTool(name: string): GlobalAgentToolDefinition | null {
