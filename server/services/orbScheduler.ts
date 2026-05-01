@@ -1,12 +1,12 @@
 import cron, { type ScheduledTask } from "node-cron";
 import { eq } from "drizzle-orm";
 import { runSchemaFirstAgentPlanner } from "./agentPlanner";
-import { executeCurrentStepTools } from "./orbTaskOrchestrator";
+import { runOrbTaskToCompletion } from "./orbTaskOrchestrator";
 import { getOrbToolRegistry } from "../config/orbToolRegistry";
 import { loadAgentPreferencesForUser } from "./agentPreferenceService";
 import { orbScheduledJobs } from "../../drizzle/schema";
 import { getDb } from "../db";
-import type { OrbTask } from "../../shared/orb-agent-contract";
+import { orbTaskStore } from "./orbTaskStore";
 
 export interface OrbScheduledJob {
   id: string;
@@ -124,32 +124,40 @@ export async function runScheduledOrbJob(job: OrbScheduledJob): Promise<void> {
 
     const tools = getOrbToolRegistry();
     const agentPreferences = await loadAgentPreferencesForUser(job.userId);
-    const now = Date.now();
-    const orchestratorTask: OrbTask = {
-      ...plannerResult.task,
+    // Materialize the plan into the legacy store so the orchestrator can
+    // walk every step. Scheduled jobs run unattended → pre-approve so the
+    // driver doesn't park at the first requiresApproval gate.
+    const stored = orbTaskStore.create({
       userId: job.userId,
-      status: "running",
-      currentStepIndex: 0,
-      approvedStepIds: [],
-      stepApprovals: [],
-      stepReports: [],
-      createdAt: now,
-      updatedAt: now,
-    };
+      intent: plannerResult.task.intent,
+      needsApproval: false,
+      steps: plannerResult.task.steps.map(step => ({
+        id: step.id,
+        label: step.label,
+        pagePath: step.pagePath,
+        uiActions: step.uiActions,
+        toolCalls: step.toolCalls,
+      })),
+    });
 
-    await executeCurrentStepTools({
-      task: orchestratorTask,
+    const result = await runOrbTaskToCompletion({
+      taskId: stored.taskId,
       userId: job.userId,
       userRole: "user",
       tools,
-      approved: true,
       requestId: `orb_scheduler_${job.id}_${Date.now()}`,
       agentPreferences,
     });
 
     job.lastRunAt = Date.now();
-    job.lastError = undefined;
-    await recordRunResult(job.id, { lastRunAt: job.lastRunAt });
+    job.lastError =
+      result.outcome === "completed"
+        ? undefined
+        : `outcome=${result.outcome} reason=${result.reason ?? "unknown"}`;
+    await recordRunResult(job.id, {
+      lastRunAt: job.lastRunAt,
+      lastError: job.lastError,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     job.lastRunAt = Date.now();
