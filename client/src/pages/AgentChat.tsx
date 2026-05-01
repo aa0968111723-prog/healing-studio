@@ -30,6 +30,11 @@ import {
   Settings2,
   Sparkles,
   Eraser,
+  Plus,
+  Workflow,
+  ListChecks,
+  CornerUpRight,
+  HelpCircle,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { usePersonality } from "@/contexts/PersonalityContext";
@@ -47,6 +52,11 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { getAgentHomeEntries } from "@/config/appRegistry";
 import { useGlobalOrbChat } from "@/contexts/GlobalOrbChatContext";
 import { useOrbAttachments, attachmentKindEmoji } from "@/hooks/useOrbAttachments";
@@ -249,6 +259,7 @@ export default function AgentChat() {
   const [needGuideOpen, setNeedGuideOpen] = useState(false);
   const [howToOpen, setHowToOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [plusMenuOpen, setPlusMenuOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const starterEntries = useMemo(
     () =>
@@ -313,6 +324,50 @@ export default function AgentChat() {
       }
     },
     [input, send]
+  );
+
+  // ─── 「+」快速功能選單 ────────────────────────────────────────────────
+  // 提供使用者一鍵呼叫光球的常見進階能力，避免每次都要自己想開頭句子。
+  const plusMenuItems = useMemo(
+    () => [
+      {
+        id: "multi-step",
+        label: "多步驟代理",
+        description: "讓光球分多個步驟逐一執行",
+        icon: Workflow,
+        prompt: "請多步驟代理：請把我的請求拆成多個步驟，逐一執行並在每一步等我確認。",
+      },
+      {
+        id: "plan",
+        label: "計畫",
+        description: "先擬一份可執行的計畫",
+        icon: ListChecks,
+        prompt: "請先幫我擬一份計畫：列出目標、步驟、需要的素材與預期結果，再讓我選要不要執行。",
+      },
+      {
+        id: "navigate",
+        label: "跳頁",
+        description: "幫我帶到對應的功能頁面",
+        icon: CornerUpRight,
+        prompt: "請幫我跳到合適的頁面：先問我想做什麼，再用 [ACTION:navigate:/path] 帶我過去。",
+      },
+      {
+        id: "ask-feature",
+        label: "功能詢問",
+        description: "問光球這個站有什麼功能",
+        icon: HelpCircle,
+        prompt: "請介紹一下這個站目前有哪些功能可以用？我想了解能怎麼幫到我，以及怎麼開始。",
+      },
+    ],
+    []
+  );
+
+  const handlePlusMenuItemClick = useCallback(
+    async (prompt: string) => {
+      setPlusMenuOpen(false);
+      await send(prompt);
+    },
+    [send]
   );
 
   const isFirstTurn = messages.length <= 1;
@@ -851,6 +906,53 @@ export default function AgentChat() {
             }}
           />
           <div className="flex items-center gap-2 bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl border border-slate-200/70 dark:border-slate-700/60 shadow-lg p-2">
+            <Popover open={plusMenuOpen} onOpenChange={setPlusMenuOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  disabled={isSending}
+                  title="更多功能"
+                  aria-label="更多功能"
+                  className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 disabled:opacity-40 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                side="top"
+                align="start"
+                sideOffset={8}
+                className="w-64 p-2"
+              >
+                <div className="px-2 py-1.5 text-[11px] font-medium text-slate-400 dark:text-slate-500">
+                  快速請光球做點什麼
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  {plusMenuItems.map(item => {
+                    const Icon = item.icon;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => void handlePlusMenuItemClick(item.prompt)}
+                        disabled={isSending}
+                        className="flex items-start gap-2 px-2 py-2 rounded-lg text-left hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 transition-colors"
+                      >
+                        <Icon className="w-4 h-4 mt-0.5 text-emerald-500 dark:text-emerald-400 shrink-0" />
+                        <div className="flex flex-col">
+                          <span className="text-sm text-slate-800 dark:text-slate-100">
+                            {item.label}
+                          </span>
+                          <span className="text-xs text-slate-500 dark:text-slate-400 leading-snug">
+                            {item.description}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </PopoverContent>
+            </Popover>
             <button
               type="button"
               onClick={pickAttachment}
