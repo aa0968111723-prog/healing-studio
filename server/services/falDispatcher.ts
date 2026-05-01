@@ -928,7 +928,10 @@ export async function dispatchFalQueueTask(
     }
   }
 
-  // ── Step 2: 提交到 fal.ai queue（透傳 webhookUrl） ──
+  // ── Step 2: 提交到 fal.ai queue（透傳 webhookUrl）──
+  // 若主模型回 5xx / 429 / 網路錯誤,逐一嘗試 fallback chain 的次佳候選,
+  // 而非把錯誤直接拋給使用者。這個迴圈和 dispatchFalTask 的同步重試對齊,
+  // 確保「使用者選了一個暫時性壞掉的模型」也能透過降級成功送出。
   const startedAt = Date.now();
   const route = params.route ?? "fal-dispatcher.queue";
   const runName = `fal-dispatch/queue-submit/${resolvedCategory ?? "unknown"}`;
@@ -936,28 +939,102 @@ export async function dispatchFalQueueTask(
     ? `?fal_webhook=${encodeURIComponent(params.webhookUrl)}`
     : "";
 
-  const res = await fetch(`${FAL_QUEUE_BASE}/${targetModelId}${queryString}`, {
-    method: "POST",
-    headers: {
-      Authorization: `Key ${apiKey}`,
-      "Content-Type": "application/json",
-      ...(params.extraHeaders ?? {}),
-    },
-    body: JSON.stringify(params.input),
-  });
+  type SubmitOutcome =
+    | { ok: true; data: { request_id?: string }; modelUsed: string }
+    | { ok: false; error: string; retryable: boolean; modelUsed: string };
 
-  if (!res.ok) {
-    const errText = await res.text();
+  const trySubmit = async (modelToUse: string): Promise<SubmitOutcome> => {
+    try {
+      const r = await fetch(
+        `${FAL_QUEUE_BASE}/${modelToUse}${queryString}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Key ${apiKey}`,
+            "Content-Type": "application/json",
+            ...(params.extraHeaders ?? {}),
+          },
+          body: JSON.stringify(params.input),
+        }
+      );
+      if (!r.ok) {
+        const errText = await r.text();
+        // 4xx (except 429) → not retryable; 5xx / 429 → retryable
+        const status = r.status;
+        const retryable = status === 429 || status >= 500;
+        return {
+          ok: false,
+          error: `HTTP ${status}: ${errText.slice(0, 300)}`,
+          retryable,
+          modelUsed: modelToUse,
+        };
+      }
+      const data = (await r.json()) as { request_id?: string };
+      return { ok: true, data, modelUsed: modelToUse };
+    } catch (err) {
+      // 網路 / DNS / abort 都當可重試
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+        retryable: true,
+        modelUsed: modelToUse,
+      };
+    }
+  };
+
+  // 主模型 → fallback chain 候選
+  const submitCandidates: string[] = [targetModelId];
+  if (resolvedCategory) {
+    for (const candidate of FALLBACK_CHAINS[resolvedCategory] ?? []) {
+      if (candidate !== targetModelId && !submitCandidates.includes(candidate)) {
+        submitCandidates.push(candidate);
+      }
+    }
+  }
+
+  let lastOutcome: SubmitOutcome | null = null;
+  let attemptedModel = targetModelId;
+  for (let i = 0; i < submitCandidates.length; i++) {
+    attemptedModel = submitCandidates[i];
+    const outcome = await trySubmit(attemptedModel);
+    lastOutcome = outcome;
+    if (outcome.ok) {
+      // 命中！若是降級到非主模型,標記 degraded
+      if (attemptedModel !== targetModelId) {
+        if (!originalModel) originalModel = targetModelId;
+        targetModelId = attemptedModel;
+        degraded = true;
+        console.warn(
+          `[FalDispatcher] Queue submit degraded: ${originalModel} → ${attemptedModel}`
+        );
+      }
+      break;
+    }
+    // 4xx 不可重試 → 直接停止 chain（參數錯誤、認證失敗等）
+    if (!outcome.retryable) break;
+    // 還有候選 → 指數退避（500ms, 1s, 2s, max 4s）後嘗試下一個
+    if (i < submitCandidates.length - 1) {
+      const backoffMs = Math.min(500 * Math.pow(2, i), 4000);
+      console.warn(
+        `[FalDispatcher] Queue submit ${attemptedModel} failed (${outcome.error.slice(0, 120)}); trying next candidate after ${backoffMs}ms`
+      );
+      await new Promise(r => setTimeout(r, backoffMs));
+    }
+  }
+
+  if (!lastOutcome || !lastOutcome.ok) {
+    const errText = lastOutcome ? lastOutcome.error : "unknown error";
     void traceToolRun({
       runName,
       provider: "fal.ai",
-      model: targetModelId,
+      model: attemptedModel,
       route,
       method: "POST",
       inputs: {
         input_keys: Object.keys(params.input),
         original_model: originalModel,
         degraded,
+        candidates_tried: submitCandidates.length,
       },
       error: errText.slice(0, 500),
       durationMs: Date.now() - startedAt,
@@ -965,15 +1042,15 @@ export async function dispatchFalQueueTask(
     recordErrorTrace({
       userId: params.userId ?? 0,
       modality: params.modality ?? "image",
-      engine: targetModelId,
+      engine: attemptedModel,
       prompt: "[dispatchFalQueueTask]",
       errorMessage: errText.slice(0, 500),
       errorCode: "FAL_QUEUE_SUBMIT_ERROR",
     });
-    throw new Error(`fal.ai queue submit error [${targetModelId}]: ${errText}`);
+    throw new Error(`fal.ai queue submit error [${attemptedModel}]: ${errText}`);
   }
 
-  const data = (await res.json()) as { request_id?: string };
+  const data = lastOutcome.data;
   void traceToolRun({
     runName,
     provider: "fal.ai",
