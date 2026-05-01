@@ -1652,3 +1652,141 @@ export const alertConfigs = mysqlTable("alert_configs", {
 
 export type AlertConfig = typeof alertConfigs.$inferSelect;
 export type InsertAlertConfig = typeof alertConfigs.$inferInsert;
+
+// ─── Model Training Consents (肖像權 / 照片使用同意書)──────────────────────
+//
+// 訓練資料若包含真實人類或第三方版權素材，必須由本人 / 法定代理人 / 著作權
+// 持有人簽署數位同意書，記錄主體姓名、簽署人身分、授權範圍、有效期間與
+// 數位簽名（Base64 PNG）等欄位，並與訓練模型 (fineTunedModels) 連結。
+//
+// 一筆 consent 可保護多次訓練（複用），但每次 models.create 必須引用至少一筆
+// 有效（未撤回、未過期）的 consent，否則後端拒絕訓練。
+
+export const modelTrainingConsents = mysqlTable(
+  "model_training_consents",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    /** 上傳訓練資料、發起此同意書的使用者 */
+    userId: int("userId").notNull(),
+
+    /** 主體類型：本人 / 真實他人 / 第三方版權素材 */
+    subjectType: mysqlEnum("subjectType", [
+      "self",
+      "real_person",
+      "copyrighted",
+    ]).notNull(),
+
+    /** 同意書類型：肖像權 / 照片使用 / 兩者皆有 */
+    consentType: mysqlEnum("consentType", [
+      "portrait",
+      "photo_usage",
+      "both",
+    ])
+      .default("both")
+      .notNull(),
+
+    // ── 主體 / 被授權人資訊 ──────────────────────────────────────────────
+    /** 主體 (被拍攝者 / 著作權人) 姓名 */
+    subjectName: varchar("subjectName", { length: 128 }).notNull(),
+    /** 主體聯絡 Email（可選，用於通知與撤回驗證） */
+    subjectEmail: varchar("subjectEmail", { length: 320 }),
+    /** 主體身分證件後 4 碼 / 護照尾碼 / 統編後 4 碼（不存全碼） */
+    subjectIdLast4: varchar("subjectIdLast4", { length: 8 }),
+
+    // ── 簽署人資訊（可能為主體本人、法定代理人、或著作權代表） ──────────
+    signerName: varchar("signerName", { length: 128 }).notNull(),
+    signerEmail: varchar("signerEmail", { length: 320 }).notNull(),
+    /** 簽署人與主體的關係：本人 / 法定代理人 / 著作權持有人 / 授權代表 */
+    signerRelation: mysqlEnum("signerRelation", [
+      "self",
+      "guardian",
+      "copyright_holder",
+      "authorized_representative",
+    ]).notNull(),
+
+    // ── 授權範圍 ─────────────────────────────────────────────────────────
+    /** 授權使用範圍：僅內部訓練 / 內部 + 個人輸出 / 公開展示 / 商業使用 */
+    usageScope: mysqlEnum("usageScope", [
+      "training_only",
+      "personal_output",
+      "public_display",
+      "commercial",
+    ])
+      .default("training_only")
+      .notNull(),
+    /** 是否允許衍生作品再分享 */
+    allowDerivative: boolean("allowDerivative").default(false).notNull(),
+
+    /** 有效期間起始 */
+    validFrom: timestamp("validFrom").defaultNow().notNull(),
+    /** 有效期間截止 (NULL = 無限期) */
+    validUntil: timestamp("validUntil"),
+
+    // ── 同意書內容快照 / 法律條款版本 ───────────────────────────────────
+    /** 條款版本編號 (e.g. "v1.0-2026-05") */
+    termsVersion: varchar("termsVersion", { length: 32 }).notNull(),
+    /** 完整條款 plain text 快照（供日後爭議比對） */
+    termsSnapshot: text("termsSnapshot").notNull(),
+
+    // ── 數位簽名 ─────────────────────────────────────────────────────────
+    /** 數位簽名圖檔 (Base64 PNG, data URL) */
+    signatureDataUrl: text("signatureDataUrl").notNull(),
+    /** 簽署當下的 IP（可選，用於驗證） */
+    signedIp: varchar("signedIp", { length: 64 }),
+    /** 簽署當下的 User-Agent（可選） */
+    signedUserAgent: text("signedUserAgent"),
+    signedAt: timestamp("signedAt").defaultNow().notNull(),
+
+    // ── 證明文件 / 照片授權清單 ─────────────────────────────────────────
+    /** 主體身分證明檔案 URL（如有上傳，e.g. ID 卡照片） */
+    proofFileUrl: text("proofFileUrl"),
+    proofFileKey: text("proofFileKey"),
+    /** 此同意書授權的照片 / 影片 URL 清單（與訓練資料對應） */
+    coveredAssets: json("coveredAssets").$type<
+      Array<{
+        url: string;
+        fileKey?: string;
+        kind: "image" | "video";
+        sha256?: string;
+      }>
+    >(),
+
+    // ── 撤回 ─────────────────────────────────────────────────────────────
+    revokedAt: timestamp("revokedAt"),
+    revokeReason: text("revokeReason"),
+
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    userIdIdx: index("mtc_userId_idx").on(table.userId),
+    userSubjectIdx: index("mtc_userId_subjectName_idx").on(
+      table.userId,
+      table.subjectName
+    ),
+    revokedIdx: index("mtc_revokedAt_idx").on(table.revokedAt),
+  })
+);
+
+export type ModelTrainingConsent = typeof modelTrainingConsents.$inferSelect;
+export type InsertModelTrainingConsent =
+  typeof modelTrainingConsents.$inferInsert;
+
+// ─── Consent ↔ Fine-Tuned Model 關聯（多對多）──────────────────────────────
+export const fineTunedModelConsents = mysqlTable(
+  "fine_tuned_model_consents",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    modelId: int("modelId").notNull(),
+    consentId: int("consentId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    modelIdIdx: index("ftmc_modelId_idx").on(table.modelId),
+    consentIdIdx: index("ftmc_consentId_idx").on(table.consentId),
+  })
+);
+
+export type FineTunedModelConsent = typeof fineTunedModelConsents.$inferSelect;
+export type InsertFineTunedModelConsent =
+  typeof fineTunedModelConsents.$inferInsert;

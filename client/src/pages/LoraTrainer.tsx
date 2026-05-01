@@ -42,8 +42,12 @@ import {
   Film,
   Mic,
   Video,
+  ShieldCheck,
+  ShieldAlert,
+  FileSignature,
 } from "lucide-react";
 import { GlassCard, ZenTooltip, ZenSkeleton } from "@/components/ZenCoPilot";
+import ConsentFormDialog from "@/components/ConsentFormDialog";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
 import type {
@@ -237,6 +241,13 @@ export default function LoraTrainer() {
   const [isCaptioning, setIsCaptioning] = useState(false);
   const [trainingJobId, setTrainingJobId] = useState<number | null>(null);
 
+  // ── 同意書（肖像權 / 照片使用）──
+  const [subjectType, setSubjectType] = useState<
+    "synthetic" | "self" | "real_person" | "copyrighted"
+  >("synthetic");
+  const [selectedConsentIds, setSelectedConsentIds] = useState<number[]>([]);
+  const [consentDialogOpen, setConsentDialogOpen] = useState(false);
+
   // ── tRPC queries ──
   const statsQuery = trpc.loraTrainer.stats.useQuery(undefined, {
     retry: false,
@@ -255,6 +266,11 @@ export default function LoraTrainer() {
     { modelId: selectedModelId! },
     { enabled: !!selectedModelId, retry: false }
   );
+
+  // ── 同意書清單（肖像權 / 照片使用）──
+  const consentsQuery = trpc.modelConsents.list.useQuery(undefined, {
+    retry: false,
+  });
 
   // ── Training job status polling ──
   const trainingStatusQuery = trpc.generate.jobStatus.useQuery(
@@ -593,6 +609,16 @@ export default function LoraTrainer() {
       return;
     }
 
+    // ── 同意書門檻：人像 / 真人 / 第三方版權必須附帶有效同意書 ──
+    const requiresConsent =
+      subjectType !== "synthetic" || selectedTrainingType === "portrait_lora";
+    if (requiresConsent && selectedConsentIds.length === 0) {
+      toast.error(
+        "訓練真實人物或受版權保護的素材，請先簽署數位肖像權 / 照片使用同意書"
+      );
+      return;
+    }
+
     createMutation.mutate({
       name: modelName,
       triggerWord,
@@ -615,6 +641,8 @@ export default function LoraTrainer() {
         fileKey: v.fileKey,
         caption: v.caption,
       })),
+      subjectType,
+      consentIds: selectedConsentIds.length ? selectedConsentIds : undefined,
     });
   }, [
     modelName,
@@ -630,6 +658,8 @@ export default function LoraTrainer() {
     datasetVideos,
     currentCategory,
     createMutation,
+    subjectType,
+    selectedConsentIds,
   ]);
 
   const allImagesUploaded =
@@ -1642,6 +1672,122 @@ export default function LoraTrainer() {
                               </span>
                             </div>
                           </div>
+                          {/* ── 肖像權 / 照片使用同意書 ── */}
+                          <div className="rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50/50 dark:bg-amber-900/10 p-4 text-left space-y-3">
+                            <div className="flex items-center gap-2">
+                              <ShieldCheck className="w-4 h-4 text-amber-600" />
+                              <span className="text-sm font-semibold">
+                                訓練資料主體類型
+                              </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground leading-relaxed">
+                              選擇本次訓練資料的來源類型。若涉及真實人類或第三方
+                              版權素材，必須附上有效的數位肖像權 / 照片使用同意書。
+                            </p>
+                            <select
+                              value={subjectType}
+                              onChange={e =>
+                                setSubjectType(
+                                  e.target.value as typeof subjectType
+                                )
+                              }
+                              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            >
+                              <option value="synthetic">
+                                純 AI 生成 / 無辨識性內容（無需同意書）
+                              </option>
+                              <option value="self">本人</option>
+                              <option value="real_person">真實他人</option>
+                              <option value="copyrighted">第三方版權素材</option>
+                            </select>
+
+                            {(subjectType !== "synthetic" ||
+                              selectedTrainingType === "portrait_lora") && (
+                              <div className="space-y-2 pt-2 border-t border-amber-200/60 dark:border-amber-900/40">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-medium text-muted-foreground">
+                                    引用的同意書
+                                  </span>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 gap-1 text-xs"
+                                    onClick={() => setConsentDialogOpen(true)}
+                                  >
+                                    <FileSignature className="w-3.5 h-3.5" />
+                                    新增同意書
+                                  </Button>
+                                </div>
+
+                                {consentsQuery.isLoading ? (
+                                  <p className="text-xs text-muted-foreground">
+                                    載入中…
+                                  </p>
+                                ) : (consentsQuery.data ?? []).filter(c => c.isActive)
+                                    .length === 0 ? (
+                                  <div className="flex items-center gap-2 rounded-md bg-red-50 dark:bg-red-900/20 px-3 py-2 text-xs text-red-700 dark:text-red-300">
+                                    <ShieldAlert className="w-3.5 h-3.5 flex-shrink-0" />
+                                    尚無有效同意書，請點「新增同意書」簽署。
+                                  </div>
+                                ) : (
+                                  <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                                    {(consentsQuery.data ?? [])
+                                      .filter(c => c.isActive)
+                                      .map(c => {
+                                        const checked =
+                                          selectedConsentIds.includes(c.id);
+                                        return (
+                                          <label
+                                            key={c.id}
+                                            className={`flex items-start gap-2 rounded-md border p-2 text-xs cursor-pointer transition-colors ${
+                                              checked
+                                                ? "border-indigo-400 bg-indigo-50/60 dark:bg-indigo-900/20"
+                                                : "border-input hover:bg-muted/50"
+                                            }`}
+                                          >
+                                            <input
+                                              type="checkbox"
+                                              checked={checked}
+                                              onChange={() =>
+                                                setSelectedConsentIds(prev =>
+                                                  prev.includes(c.id)
+                                                    ? prev.filter(x => x !== c.id)
+                                                    : [...prev, c.id]
+                                                )
+                                              }
+                                              className="mt-0.5"
+                                            />
+                                            <div className="flex-1 min-w-0">
+                                              <div className="font-medium truncate">
+                                                #{c.id} {c.subjectName}
+                                              </div>
+                                              <div className="text-muted-foreground truncate">
+                                                {c.consentType === "portrait"
+                                                  ? "肖像權"
+                                                  : c.consentType === "photo_usage"
+                                                    ? "照片使用"
+                                                    : "肖像 + 照片"}
+                                                ・{c.signerName}（
+                                                {c.signerRelation === "self"
+                                                  ? "本人"
+                                                  : c.signerRelation === "guardian"
+                                                    ? "法代"
+                                                    : c.signerRelation ===
+                                                        "copyright_holder"
+                                                      ? "著作權人"
+                                                      : "授權代表"}
+                                                ）
+                                              </div>
+                                            </div>
+                                          </label>
+                                        );
+                                      })}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
                           <Button
                             onClick={handleStartTraining}
                             disabled={createMutation.isPending}
@@ -2549,7 +2695,24 @@ export default function LoraTrainer() {
         </p>
         <p>• 訓練過程通常需要 15-60 分鐘，進度可在總覽頁面監控。</p>
         <p>• 訓練完成後，在圖片創作室輸入觸發詞即可使用您的自訂模型。</p>
+        <p>
+          • 訓練資料含真實人類或第三方版權素材時，須先簽署數位肖像權 /
+          照片使用同意書（依個資法與著作權法）。
+        </p>
       </div>
+
+      <ConsentFormDialog
+        open={consentDialogOpen}
+        onClose={() => setConsentDialogOpen(false)}
+        defaultSubjectType={
+          subjectType === "synthetic" ? "real_person" : subjectType
+        }
+        onCreated={created => {
+          // 自動勾選新建立的同意書
+          setSelectedConsentIds(prev => [...prev, created.id]);
+          consentsQuery.refetch();
+        }}
+      />
     </div>
   );
 }
