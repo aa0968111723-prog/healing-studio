@@ -858,6 +858,111 @@ describe("orchestrator precision policy", () => {
 
     expect(order).toEqual(["nav:/director", "step:填", "dispatch"]);
   });
+
+  // ─── Static-fallback regression: "no route found" should NOT happen when
+  //     the live registry only knows the orb host page. The orchestrator must
+  //     consult GLOBAL_AGENT_CAPABILITY_REGISTRY, navigate to a known-good
+  //     page, and let the page-agent enqueue+drain finish the dispatch.
+  it("falls back to the static capability registry when no live page handles the action", async () => {
+    // Only the agent-chat host page is registered — same as production when
+    // the orb is opened on /agent. The user asks for an image fillPrompt;
+    // the live registry has zero candidates, so without the static fallback
+    // this used to surface as "no route found".
+    globalAgentRegistry.register(makePage("agent-chat", "/agent", "全站光球代理", []));
+    const calls: string[] = [];
+
+    const result = await executeGlobalAction(
+      { type: "fillPrompt", text: "做一張電影感的療癒圖片" },
+      {
+        currentPage: null,
+        navigate: async path => calls.push(`nav:${path}`),
+        dispatch: async (action, opts) => {
+          calls.push(`dispatch:${action.type}:${opts?.targetPageId}`);
+          return { ok: true };
+        },
+        waitAfterNavigateMs: 0,
+      }
+    );
+
+    expect(result.ok).toBe(true);
+    // The static fallback must pick a page that supports fillPrompt — the
+    // alias "圖片" should bias the ranker to the image-focused studio.
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toMatch(/^nav:\//);
+    expect(calls[1]).toMatch(/^dispatch:fillPrompt:/);
+  });
+
+  it("setModality fallback prefers the matching modality page", async () => {
+    globalAgentRegistry.register(makePage("agent-chat", "/agent", "全站光球代理", []));
+    const calls: string[] = [];
+
+    await executeGlobalAction(
+      { type: "setModality", modality: "video" },
+      {
+        currentPage: null,
+        navigate: async path => calls.push(`nav:${path}`),
+        dispatch: async () => ({ ok: true }),
+        waitAfterNavigateMs: 0,
+      }
+    );
+
+    // 'video' alias is on /video-studio AND /studio's quick action; the
+    // modality boost + alias match should land us on a page whose haystack
+    // contains 'video'. We accept either /studio or /video-studio (both
+    // valid destinations) but reject anything else.
+    const navPath = calls[0]?.replace(/^nav:/, "");
+    expect(["/studio", "/video-studio"]).toContain(navPath);
+  });
+
+  it("empty live registry resolves a route via static fallback (was: no route found)", async () => {
+    // No live page registered at all. The static fallback must still pick a
+    // page from GLOBAL_AGENT_CAPABILITY_REGISTRY so the action can land on a
+    // real handler after the navigate + readiness wait. Pre-fix this surfaced
+    // as the user-visible "我找到要做的事，但執行時遇到問題：no route found".
+    const calls: string[] = [];
+    const result = await executeGlobalAction(
+      { type: "fillPrompt", text: "做一張電影感的圖片" },
+      {
+        currentPage: null,
+        navigate: async path => calls.push(`nav:${path}`),
+        dispatch: async () => ({ ok: true }),
+        waitAfterNavigateMs: 0,
+      }
+    );
+    expect(result.ok).toBe(true);
+    expect(calls[0]).toMatch(/^nav:\//);
+  });
+
+  it("workflow step without explicit path still navigates via static fallback", async () => {
+    // Simulates a planner that emits a workflow step for fillPrompt but
+    // forgot to attach `path`. Pre-fix the orchestrator dispatched on the
+    // current page (which couldn't handle it) and surfaced a failure.
+    const calls: string[] = [];
+    const result = await executeGlobalWorkflow(
+      {
+        type: "runWorkflow",
+        name: "缺路徑步驟",
+        steps: [
+          // No `path` field — orchestrator must resolve it via static fallback.
+          { actionType: "fillPrompt", payload: "做一張電影感的圖片", label: "填提示詞" },
+        ],
+      },
+      {
+        currentPage: null,
+        navigate: async path => calls.push(`nav:${path}`),
+        dispatch: async (action, opts) => {
+          calls.push(`act:${action.type}:${opts?.targetPageId ?? "none"}`);
+          return { ok: true };
+        },
+        waitAfterNavigateMs: 0,
+      }
+    );
+
+    expect(result.ok).toBe(true);
+    // Must have navigated to *some* page first, then dispatched.
+    expect(calls.find(c => c.startsWith("nav:"))).toBeTruthy();
+    expect(calls.find(c => c.startsWith("act:fillPrompt:"))).toBeTruthy();
+  });
 });
 
 describe("orchestrator safety helpers", () => {

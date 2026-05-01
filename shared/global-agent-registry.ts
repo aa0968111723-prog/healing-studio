@@ -8,6 +8,8 @@
  */
 
 import type { AgentAction, AgentActionType, PageAgentSnapshot } from "./agent-actions";
+import { APP_PAGE_REGISTRY, type AppPageRegistryItem } from "./appRegistry";
+import { GLOBAL_AGENT_CAPABILITY_REGISTRY } from "./global-agent-capabilities";
 
 export interface GlobalAgentPlanStep {
   path?: string;
@@ -181,6 +183,145 @@ export class GlobalAgentRegistry {
       ],
     };
   }
+
+  /**
+   * Resolve a route using the static capability registry — the union of every
+   * page that *could* support an action when mounted. Used as a fallback when
+   * `plan()` returns null because the live registry only knows about the
+   * currently-mounted page (the orb's host page on `/agent`). Without this
+   * fallback, single actions like fillPrompt / setModality / submit emitted
+   * by the planner from `/agent` surface as "no route found" instead of
+   * navigating to the right studio.
+   *
+   * Ranking heuristic:
+   *   - candidates must support the action type per GLOBAL_AGENT_CAPABILITY_REGISTRY
+   *   - boost when payload tokens (split by whitespace/punct) appear in the
+   *     page's haystack OR when an alias/label appears in the payload (covers
+   *     Chinese without segmentation)
+   *   - extra boost for setModality whose modality keyword matches an alias
+   *   - tiebreak by agentEntryPriority (lower = more important)
+   */
+  resolveStaticFallback(action: AgentAction): GlobalAgentPlan | null {
+    if (action.type === "navigate") {
+      return {
+        reason: `Navigate directly to ${action.path}`,
+        steps: [{ path: action.path, action, label: "navigate" }],
+      };
+    }
+
+    const supporting = GLOBAL_AGENT_CAPABILITY_REGISTRY.filter(
+      cap => cap.enabled && cap.actionType === action.type
+    );
+    if (supporting.length === 0) return null;
+
+    const payload = normalizeText(actionPayloadText(action));
+    const payloadTokens = payload
+      .split(/[\s,，。:：/|]+/)
+      .filter(token => token.length >= 2);
+
+    type Scored = {
+      page: AppPageRegistryItem;
+      score: number;
+      reasons: string[];
+    };
+    const scored: Scored[] = [];
+    const seen = new Set<string>();
+
+    for (const capability of supporting) {
+      if (seen.has(capability.pageId)) continue;
+      seen.add(capability.pageId);
+
+      const page = APP_PAGE_REGISTRY.find(p => p.id === capability.pageId);
+      if (!page) continue;
+
+      const haystack = pageRegistryHaystack(page);
+      let score = 1; // baseline: action-type match always beats no candidate
+      const reasons: string[] = [`supports:${action.type}`];
+
+      for (const token of payloadTokens.slice(0, 12)) {
+        if (haystack.includes(token)) {
+          score += 5;
+          reasons.push(`token:${token}`);
+        }
+      }
+
+      // Reverse direction: catch Chinese payloads where the whole sentence is
+      // one token but a 2+ char alias/label is a substring (e.g. "幫我做一張
+      // 圖片" contains alias "圖片").
+      const aliases = [
+        page.label,
+        page.id,
+        ...page.aliases,
+      ].map(s => s.toLowerCase()).filter(s => s.length >= 2);
+      for (const alias of aliases) {
+        if (payload.includes(alias)) {
+          score += 6;
+          reasons.push(`alias:${alias}`);
+        }
+      }
+
+      if (action.type === "setModality") {
+        const modality = action.modality.toLowerCase();
+        if (haystack.includes(modality)) {
+          score += 30;
+          reasons.push(`modality:${modality}`);
+        }
+      }
+
+      // Lower agentEntryPriority = more important. Apply a small bonus
+      // (max +1) so it only breaks ties between equally-good text matches.
+      const priorityBonus = Math.max(0, Math.min(100, 100 - page.agentEntryPriority)) / 100;
+      score += priorityBonus;
+
+      scored.push({ page, score, reasons });
+    }
+
+    if (scored.length === 0) return null;
+    scored.sort((a, b) => b.score - a.score);
+    const best = scored[0];
+
+    return {
+      reason: `Static fallback to ${best.page.label} (${best.reasons.join(", ")})`,
+      steps: [
+        {
+          path: best.page.path,
+          targetPageId: best.page.id,
+          action,
+          label: best.page.label,
+        },
+      ],
+    };
+  }
+
+  /**
+   * `plan()` first; if no live page matches, fall back to the static
+   * capability registry so a single action emitted from `/agent` (where only
+   * the orb host page is registered) still finds a destination.
+   */
+  planWithFallback(
+    action: AgentAction,
+    currentPage?: PageAgentSnapshot | null
+  ): GlobalAgentPlan | null {
+    const live = this.plan(action, currentPage);
+    if (live) return live;
+    return this.resolveStaticFallback(action);
+  }
+}
+
+function pageRegistryHaystack(page: AppPageRegistryItem): string {
+  return [
+    page.id,
+    page.label,
+    page.path,
+    page.description,
+    page.aliases.join(" "),
+    page.orbHints.join(" "),
+    page.quickActions
+      .map(qa => `${qa.id} ${qa.label} ${qa.description ?? ""} ${qa.prompt ?? ""}`)
+      .join(" "),
+  ]
+    .join(" ")
+    .toLowerCase();
 }
 
 export const globalAgentRegistry = new GlobalAgentRegistry();

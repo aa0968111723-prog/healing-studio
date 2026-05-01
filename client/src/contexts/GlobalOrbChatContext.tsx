@@ -1130,11 +1130,15 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         setWorkflowExecution(prev =>
           prev ? failWorkflowAtCurrentStep(prev, failedReason, now) : prev
         );
+        const friendlyText =
+          failedReason === "workflow disabled"
+            ? "⚠️ 目前跨頁工作流程功能暫時關閉。我可以先提供手動步驟指引，或改成單一步驟幫你執行。"
+            : failedReason === "no route found"
+              ? "⚠️ 我找到要做的事，但暫時找不到能執行這個動作的頁面。再多告訴我一句你想去哪一個工作室（圖片／影片／音樂／導演 AI），我就能直接帶你過去並接手操作。"
+              : `⚠️ 我找到要做的事，但執行時遇到問題：${failedReason}`;
         setMessages(prev => [...prev, {
           role: "orb",
-          text: failedReason === "workflow disabled"
-            ? "⚠️ 目前跨頁工作流程功能暫時關閉。我可以先提供手動步驟指引，或改成單一步驟幫你執行。"
-            : `⚠️ 我找到要做的事，但執行時遇到問題：${failedReason}`,
+          text: friendlyText,
           at: Date.now(),
           pagePath: locationPath,
         }]);
