@@ -46,6 +46,27 @@ export const REASONING_MODEL_CATALOG = {
         label: "MiniMax M2.7 (NVIDIA NIM) 🟠",
         tier: "premium",
       },
+      // ── OpenRouter Unified Gateway ──
+      {
+        value: "anthropic/claude-sonnet-4.5",
+        label: "Claude Sonnet 4.5 (OpenRouter) 🟣",
+        tier: "premium",
+      },
+      {
+        value: "anthropic/claude-opus-4.7",
+        label: "Claude Opus 4.7 (OpenRouter) 🟣",
+        tier: "ultra",
+      },
+      {
+        value: "google/gemini-2.5-pro",
+        label: "Gemini 2.5 Pro (OpenRouter) 🟣",
+        tier: "premium",
+      },
+      {
+        value: "minimax/minimax-m2",
+        label: "MiniMax M2 (OpenRouter) 🟣",
+        tier: "premium",
+      },
     ],
   },
   analyst: {
@@ -63,6 +84,17 @@ export const REASONING_MODEL_CATALOG = {
         value: "vertex/llama-3.1-405b",
         label: "Vertex Llama 3.1 405B",
         tier: "premium",
+      },
+      // ── OpenRouter Unified Gateway ──
+      {
+        value: "google/gemini-2.5-flash",
+        label: "Gemini 2.5 Flash (OpenRouter) 🟣",
+        tier: "fast",
+      },
+      {
+        value: "anthropic/claude-haiku-4.5",
+        label: "Claude Haiku 4.5 (OpenRouter) 🟣 ⚡",
+        tier: "fast",
       },
     ],
   },
@@ -82,6 +114,22 @@ export const REASONING_MODEL_CATALOG = {
         label: "Vertex Mistral NeMo",
         tier: "standard",
       },
+      // ── OpenRouter Unified Gateway ──
+      {
+        value: "anthropic/claude-sonnet-4.5",
+        label: "Claude Sonnet 4.5 (OpenRouter) 🟣",
+        tier: "premium",
+      },
+      {
+        value: "google/gemini-2.5-pro",
+        label: "Gemini 2.5 Pro (OpenRouter) 🟣",
+        tier: "premium",
+      },
+      {
+        value: "mistralai/mistral-nemo",
+        label: "Mistral NeMo (OpenRouter) 🟣",
+        tier: "standard",
+      },
     ],
   },
   technician: {
@@ -93,6 +141,17 @@ export const REASONING_MODEL_CATALOG = {
       {
         value: "vertex/gemini-2.5-flash",
         label: "Vertex Gemini 2.5 Flash 🔷",
+        tier: "fast",
+      },
+      // ── OpenRouter Unified Gateway ──
+      {
+        value: "anthropic/claude-haiku-4.5",
+        label: "Claude Haiku 4.5 (OpenRouter) 🟣 ⚡",
+        tier: "fast",
+      },
+      {
+        value: "google/gemini-2.5-flash",
+        label: "Gemini 2.5 Flash (OpenRouter) 🟣 ⚡",
         tier: "fast",
       },
     ],
@@ -107,6 +166,17 @@ export const REASONING_MODEL_CATALOG = {
         value: "vertex/gemini-2.5-pro",
         label: "Vertex Gemini 2.5 Pro 🔷",
         tier: "premium",
+      },
+      // ── OpenRouter Unified Gateway ──
+      {
+        value: "google/gemini-2.5-pro",
+        label: "Gemini 2.5 Pro (OpenRouter) 🟣",
+        tier: "premium",
+      },
+      {
+        value: "anthropic/claude-haiku-4.5",
+        label: "Claude Haiku 4.5 (OpenRouter) 🟣 ⚡",
+        tier: "fast",
       },
     ],
   },
@@ -567,6 +637,18 @@ const LEGACY_LLM_ALIASES = new Set([
   "azure-tts",
   // MiniMax via NVIDIA NIM(catalog 用 nvidia/...,brainContext 用 minimaxai/...)
   "minimaxai/minimax-m2.7",
+  // OpenRouter Unified Gateway 路徑(provider/model 格式)
+  "anthropic/claude-sonnet-4.5",
+  "anthropic/claude-haiku-4.5",
+  "anthropic/claude-opus-4.7",
+  "google/gemini-2.5-pro",
+  "google/gemini-2.5-flash",
+  "google/gemini-pro-1.5",
+  "google/gemini-flash-1.5",
+  "minimax/minimax-m2",
+  "meta-llama/llama-3.2-90b-vision-instruct",
+  "meta-llama/llama-3.1-405b-instruct",
+  "mistralai/mistral-nemo",
 ]);
 
 /**

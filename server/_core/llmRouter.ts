@@ -169,6 +169,73 @@ export function getCircuitBreakerStatus(): Record<
 // ─── 引擎偵測 ──────────────────────────────────────────────────────────────
 
 /**
+ * 從模型 ID 推斷正確的引擎。給定一個 model id（例如 "nvidia/minimax-m2.7"
+ * 或 "vertex/gemini-2.5-pro"），回傳該 ID 應該被送往哪個引擎。
+ *
+ * 設計原則：OpenRouter 作為預設統一閘道，但某些 prefix（vertex/、nvidia/、
+ * minimaxai/）必須走原生引擎，否則 OpenRouter 會 400 Bad Request。
+ *
+ * 回傳 null 表示無法從 prefix 確定引擎（呼叫端應 fallback 到 auto 順序）。
+ */
+export function inferEngineFromModelId(
+  modelId: string | undefined | null
+): LLMEngine | null {
+  if (!modelId || typeof modelId !== "string") return null;
+  const id = modelId.toLowerCase().trim();
+  if (!id) return null;
+
+  // ── 明確 prefix 對應 ──────────────────────────────────────
+  if (id.startsWith("openrouter/")) return "openrouter";
+  if (id.startsWith("vertex/")) return "vertex";
+
+  // NVIDIA NIM：catalog 用 nvidia/...，原生 API 用 minimaxai/...
+  if (id.startsWith("minimaxai/") || id.startsWith("nvidia/")) return "nvidia";
+
+  // OpenRouter 統一閘道支援的 provider/model 格式
+  if (
+    id.startsWith("anthropic/") ||
+    id.startsWith("google/") ||
+    id.startsWith("openai/") ||
+    id.startsWith("meta-llama/") ||
+    id.startsWith("mistralai/") ||
+    id.startsWith("minimax/") ||
+    id.startsWith("x-ai/") ||
+    id.startsWith("deepseek/") ||
+    id.startsWith("qwen/") ||
+    id.startsWith("perplexity/") ||
+    id.startsWith("cohere/")
+  ) {
+    return "openrouter";
+  }
+
+  // 裸 Claude 模型 → Anthropic native（若無 key，呼叫端會 fallback 到 OpenRouter）
+  if (id.startsWith("claude-")) return "anthropic";
+
+  // 裸 Gemini 模型 → Gemini API（若無 key，呼叫端會 fallback）
+  if (id.startsWith("gemini-")) return "gemini";
+
+  return null;
+}
+
+/**
+ * 從模型 ID 推斷引擎，但只回傳實際已設定且健康的引擎。
+ * 找不到合適引擎時回傳 null，呼叫端應 fallback 到 auto。
+ */
+export function inferEngineFromModelIdSafe(
+  modelId: string | undefined | null
+): LLMEngine | null {
+  const inferred = inferEngineFromModelId(modelId);
+  if (!inferred) return null;
+  if (!isEngineAvailable(inferred)) return null;
+  try {
+    resolveSpecificEngine(inferred);
+    return inferred;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * 偵測可用的引擎，回傳優先順序列表
  * 呼叫端可以用來顯示「目前使用哪個引擎」的 debug info
  */

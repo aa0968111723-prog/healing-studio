@@ -21,6 +21,7 @@ import {
   recordEngineSuccess,
   recordEngineFailure,
   isEngineAvailable,
+  inferEngineFromModelIdSafe,
   type LLMEngine,
   type EngineConfig,
 } from "./llmRouter";
@@ -495,6 +496,27 @@ const ANTHROPIC_MODEL_REMAP: Record<string, string> = {
   "claude-opus": "claude-opus-4-7",
 };
 
+/**
+ * Catalog id → OpenRouter canonical id 重映射。
+ * 使用情境：當 invokeLLM 的降級鏈把帶有非 OpenRouter prefix 的 model
+ * （例如 "nvidia/minimax-m2.7"、"vertex/gemini-2.5-pro"）送進 OpenRouter
+ * 引擎時，OpenRouter 會以「is not a valid model」拒絕並回 400。
+ * 這個 map 把這類 ID 重寫為 OpenRouter 實際支援的形式，避免斷路器連環跳閘。
+ */
+const OPENROUTER_CATALOG_REMAP: Record<string, string> = {
+  // NVIDIA NIM 路徑 → OpenRouter 上的 MiniMax
+  "nvidia/minimax-m2.7": "minimax/minimax-m2",
+  "minimaxai/minimax-m2.7": "minimax/minimax-m2",
+  // Vertex 內部路徑 → OpenRouter 等效（OpenRouter 不接受 vertex/ 前綴）
+  "vertex/gemini-2.5-pro": "google/gemini-2.5-pro",
+  "vertex/gemini-2.5-flash": "google/gemini-2.5-flash",
+  "vertex/gemini-1.5-pro": "google/gemini-pro-1.5",
+  "vertex/gemini-1.5-flash": "google/gemini-flash-1.5",
+  "vertex/llama-3.2-90b": "meta-llama/llama-3.2-90b-vision-instruct",
+  "vertex/llama-3.1-405b": "meta-llama/llama-3.1-405b-instruct",
+  "vertex/mistral-nemo": "mistralai/mistral-nemo",
+};
+
 function normalizeModelForEngine(model: string, engineName: string): string {
   const isGeminiEndpoint =
     engineName.includes("Gemini") || engineName.includes("Vertex");
@@ -502,14 +524,24 @@ function normalizeModelForEngine(model: string, engineName: string): string {
   const isOpenRouterEndpoint = engineName.includes("OpenRouter");
 
   if (isOpenRouterEndpoint) {
-    // OpenRouter expects `<provider>/<model>` format. If caller passes a
+    // 1) 顯式重映射（解決 nvidia/、vertex/ 等不被 OpenRouter 接受的 prefix）
+    const remapped = OPENROUTER_CATALOG_REMAP[model];
+    if (remapped) return remapped;
+
+    // 2) 顯式 openrouter/ 前綴 → 去掉它（OpenRouter 不接受多餘前綴）
+    if (model.startsWith("openrouter/")) {
+      return model.slice("openrouter/".length);
+    }
+
+    // 3) OpenRouter expects `<provider>/<model>` format. If caller passes a
     // bare model name (e.g. "claude-sonnet-4-6"), prefix it sensibly.
     if (model.includes("/")) return model;
     if (model.startsWith("claude-")) return `anthropic/${model}`;
     if (model.startsWith("gemini-")) return `google/${model}`;
     if (model.startsWith("gpt-")) return `openai/${model}`;
-    if (model.startsWith("minimax")) return `minimaxai/${model}`;
-    return model;
+    if (model.startsWith("minimax")) return `minimax/${model}`;
+    // 未知裸模型名 → 預設安全選擇，避免送出去被 OpenRouter 直接 400
+    return "anthropic/claude-sonnet-4.5";
   }
 
   if (isAnthropicEndpoint) {
@@ -918,8 +950,16 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   }
 
   // ── 透過路由器取得引擎設定 ───────────────────────────────
-  // engine（強制）優先；其次 preferEngine（偏好，允許降級）；否則 auto。
-  const resolvedPrimary = engine ?? preferEngine ?? "auto";
+  // engine（強制）優先；其次 preferEngine（偏好，允許降級）；
+  // 若仍是 auto 而 overrideModel 帶有明確 prefix，依 prefix 推斷正確引擎，
+  // 避免 nvidia/...、vertex/... 這類 ID 被誤送至 OpenRouter 造成 400。
+  let resolvedPrimary: LLMEngine = engine ?? preferEngine ?? "auto";
+  if (resolvedPrimary === "auto" && typeof overrideModel === "string") {
+    const inferred = inferEngineFromModelIdSafe(overrideModel);
+    if (inferred) {
+      resolvedPrimary = inferred;
+    }
+  }
 
   // preferEngine 且斷路器 OPEN → 直接跳過，從健康的備援鏈開始
   const skipPreferDueToCircuit =
