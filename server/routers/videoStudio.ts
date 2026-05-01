@@ -519,9 +519,9 @@ export const videoStudioRouter = router({
   // ═══════════════════════════════════════════════════════════════════════════
 
   /**
-   * Kling v2.1 Image-to-Video
+   * Kling v2.1 Standard Image-to-Video
    * fal-ai/kling-video/v2.1/standard/image-to-video
-   * 最自然的圖片動態化，支援起始幀 + 結束幀
+   * 最自然的圖片動態化，支援起始幀 + 結束幀；可指定 motion_intensity / aspect_ratio / seed
    */
   klingImageToVideo: brainProcedure
     .input(
@@ -531,7 +531,11 @@ export const videoStudioRouter = router({
         tailImageUrl: z.string().url().optional(),
         negativePrompt: z.string().max(1000).optional(),
         duration: z.enum(["5", "10"]).default("5"),
+        aspectRatio: z.enum(["16:9", "9:16", "1:1"]).default("16:9"),
         cfgScale: z.number().min(0).max(1).default(0.5),
+        /** 動態強度 — 0=靜態畫面, 1=高動態 */
+        motionIntensity: z.number().min(0).max(1).optional(),
+        seed: z.number().int().nonnegative().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -539,17 +543,71 @@ export const videoStudioRouter = router({
         prompt: input.prompt,
         image_url: input.imageUrl,
         duration: input.duration,
+        aspect_ratio: input.aspectRatio,
         cfg_scale: input.cfgScale,
       };
       if (input.tailImageUrl) payload.tail_image_url = input.tailImageUrl;
       if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
+      if (input.motionIntensity !== undefined)
+        payload.motion_intensity = input.motionIntensity;
+      if (input.seed !== undefined) payload.seed = input.seed;
 
       const result = (await falQueueRun(
         "fal-ai/kling-video/v2.1/standard/image-to-video",
         payload,
         300
       )) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
+    }),
+
+  /**
+   * Kling v2.1 Pro Image-to-Video
+   * fal-ai/kling-video/v2.1/pro/image-to-video
+   * Kling Pro 旗艦圖生影：更細膩的動態、更精準的角色一致性；ultra tier
+   * 與 Standard 同 schema，但定價較高（Pro pricing 已存在於 modelPricing.ts）
+   */
+  klingProImageToVideo: brainProcedure
+    .input(
+      z.object({
+        prompt: z.string().min(1).max(2500),
+        imageUrl: z.string().url(),
+        tailImageUrl: z.string().url().optional(),
+        negativePrompt: z.string().max(1000).optional(),
+        duration: z.enum(["5", "10"]).default("5"),
+        aspectRatio: z.enum(["16:9", "9:16", "1:1"]).default("16:9"),
+        cfgScale: z.number().min(0).max(1).default(0.5),
+        motionIntensity: z.number().min(0).max(1).optional(),
+        seed: z.number().int().nonnegative().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const payload: Record<string, unknown> = {
+        prompt: input.prompt,
+        image_url: input.imageUrl,
+        duration: input.duration,
+        aspect_ratio: input.aspectRatio,
+        cfg_scale: input.cfgScale,
+      };
+      if (input.tailImageUrl) payload.tail_image_url = input.tailImageUrl;
+      if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
+      if (input.motionIntensity !== undefined)
+        payload.motion_intensity = input.motionIntensity;
+      if (input.seed !== undefined) payload.seed = input.seed;
+
+      const result = (await falQueueRun(
+        "fal-ai/kling-video/v2.1/pro/image-to-video",
+        payload,
+        300
+      )) as any;
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   /**

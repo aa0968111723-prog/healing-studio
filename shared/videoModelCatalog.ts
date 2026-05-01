@@ -31,6 +31,7 @@ export const T2V_ROUTER_IDS = [
 
 export const I2V_ROUTER_IDS = [
   "fal-ai/kling-video/v2.1/standard/image-to-video",
+  "fal-ai/kling-video/v2.1/pro/image-to-video",
   "fal-ai/wan-i2v",
   "fal-ai/runway-gen4-turbo/image-to-video",
   "fal-ai/pixverse/v4.5/image-to-video",

@@ -1558,6 +1558,9 @@ function ImageToVideoTab() {
   const [klingTail, setKlingTail] = useState("");
   const [klingDuration, setKlingDuration] = useState<"5" | "10">("5");
   const [klingResult, setKlingResult] = useState<VideoResult | null>(null);
+  // Kling Pro i2v 共用 prompt / image / tail / duration 與 Standard，方便比對；
+  // 但結果分開存以便兩個 ToolCard 各自顯示輸出
+  const [klingProResult, setKlingProResult] = useState<VideoResult | null>(null);
 
   const [wanPrompt, setWanPrompt] = useState("");
   const [wanImage, setWanImage] = useState("");
@@ -1586,6 +1589,9 @@ function ImageToVideoTab() {
   const klingMut = trpc.videoStudio.klingImageToVideo.useMutation({
     onError: e => toast.error(e.message),
   });
+  const klingProMut = trpc.videoStudio.klingProImageToVideo.useMutation({
+    onError: e => toast.error(e.message),
+  });
   const wanMut = trpc.videoStudio.wanImageToVideo.useMutation({
     onError: e => toast.error(e.message),
   });
@@ -1600,9 +1606,16 @@ function ImageToVideoTab() {
   });
 
   // ── Agent Bus subscription (i2v) ──
-  type I2VModel = "kling" | "wan" | "runway" | "pixverse" | "minimax";
+  type I2VModel =
+    | "kling"
+    | "klingpro"
+    | "wan"
+    | "runway"
+    | "pixverse"
+    | "minimax";
   const [activeI2VModel, setActiveI2VModel] = useState<I2VModel>("kling");
   const runKlingRef = useRef<() => void>(() => {});
+  const runKlingProRef = useRef<() => void>(() => {});
   const runWanRef = useRef<() => void>(() => {});
   const runRunwayRef = useRef<() => void>(() => {});
   const runPvRef = useRef<() => void>(() => {});
@@ -1610,7 +1623,7 @@ function ImageToVideoTab() {
   useEffect(() => {
     if (!bus) return;
     const pending = bus.consumePendingModel();
-    if (pending && ["kling","wan","runway","pixverse","minimax"].includes(pending)) {
+    if (pending && ["kling","klingpro","wan","runway","pixverse","minimax"].includes(pending)) {
       setActiveI2VModel(pending as I2VModel);
     }
     const unsub = bus.subscribe("i2v", (cmd) => {
@@ -1621,7 +1634,8 @@ function ImageToVideoTab() {
       }
       if (cmd.type === "submit") {
         const runFns: Record<I2VModel, () => void> = {
-          kling: runKlingRef.current, wan: runWanRef.current, runway: runRunwayRef.current,
+          kling: runKlingRef.current, klingpro: runKlingProRef.current,
+          wan: runWanRef.current, runway: runRunwayRef.current,
           pixverse: runPvRef.current, minimax: runMmRef.current,
         };
         (runFns[activeI2VModel] ?? runKlingRef.current)();
@@ -1696,6 +1710,29 @@ function ImageToVideoTab() {
     }
   }
   runKlingRef.current = runKling;
+
+  async function runKlingPro() {
+    if (!klingPrompt.trim() || !klingImage.trim())
+      return toast.error("請輸入提詞與圖片 URL");
+    setAIState("generating");
+    try {
+      const r = await klingProMut.mutateAsync({
+        prompt: klingPrompt,
+        imageUrl: klingImage,
+        tailImageUrl: klingTail || undefined,
+        duration: klingDuration,
+      });
+      setKlingProResult(r);
+      registerBgTask(r, "video", "Kling Pro 圖生影", klingPrompt);
+      toast.success("📤 任務已提交！稍後自動更新結果...");
+      reportSuccess();
+    } catch {
+      reportFailure();
+    } finally {
+      setAIState("idle");
+    }
+  }
+  runKlingProRef.current = runKlingPro;
 
   async function runWan() {
     if (!wanPrompt.trim() || !wanImage.trim())
@@ -1860,6 +1897,48 @@ function ImageToVideoTab() {
               result={klingResult}
               onUpdate={setKlingResult}
               label="Kling 圖生影結果"
+            />
+          )}
+        </div>
+      </ToolCard>
+
+      {/* Kling Pro i2v */}
+      <ToolCard
+        icon={Clapperboard}
+        title="Kling v2.1 Pro 圖生影 ✦"
+        description="Kling Pro 旗艦圖生影：更細膩的動態與角色一致性（ultra 層級，55 點/5s）"
+        badge="Kling 2.1 Pro"
+        modelId="fal-ai/kling-video/v2.1/pro/image-to-video"
+        color="purple"
+      >
+        <div className="space-y-3">
+          <div className="text-xs text-muted-foreground bg-amber-50 dark:bg-amber-950/30 rounded p-2 border border-amber-200 dark:border-amber-900">
+            ✦ Pro 版定價約 Standard 的 1.6 倍（55 點 vs 35 點）；
+            輸入欄與 Standard 共用，方便比對輸出品質。
+          </div>
+          <Button
+            onClick={runKlingPro}
+            disabled={klingProMut.isPending}
+            className="w-full btn-healing"
+            variant="secondary"
+          >
+            {klingProMut.isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                生成中（Pro 版品質更高，耗時相當）...
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4 mr-2" />
+                Kling Pro 圖生影
+              </>
+            )}
+          </Button>
+          {klingProResult && (
+            <AsyncVideoPoller
+              result={klingProResult}
+              onUpdate={setKlingProResult}
+              label="Kling Pro 圖生影結果"
             />
           )}
         </div>

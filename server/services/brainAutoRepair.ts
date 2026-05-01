@@ -369,6 +369,7 @@ const ENGINE_PROVIDER_MAP: Record<string, string> = {
   // ── 影片生成（Fal.ai） ──
   "fal-ai/kling-video/v2.1/standard/text-to-video": "fal",
   "fal-ai/kling-video/v2.1/standard/image-to-video": "fal",
+  "fal-ai/kling-video/v2.1/pro/image-to-video": "fal",
   "fal-ai/kling-video/v1.6/standard/video-to-video": "fal",
   "fal-ai/wan/v2.2-14b": "fal",
   "fal-ai/wan-t2v": "fal",
@@ -549,6 +550,11 @@ const REPAIR_FALLBACK: Record<string, string[]> = {
   "fal-ai/kling-video/v2.1/standard/image-to-video": [
     "fal-ai/minimax/video-01/image-to-video",
     "fal-ai/pixverse/v4.5/image-to-video",
+  ],
+  // Pro 失敗時降級到 Standard（同模型族、相近輸出，但 Standard 較便宜）
+  "fal-ai/kling-video/v2.1/pro/image-to-video": [
+    "fal-ai/kling-video/v2.1/standard/image-to-video",
+    "fal-ai/wan-i2v",
   ],
   "fal-ai/wan/v2.2-14b": [
     "fal-ai/kling-video/v2.1/standard/text-to-video",
