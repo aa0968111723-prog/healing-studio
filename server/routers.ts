@@ -114,6 +114,7 @@ import {
   type OrbGuideStepContext,
   type PageAgentSnapshot,
 } from "../shared/agent-actions";
+import { extractJsonObjectFromText } from "../shared/agent-plan-adapter";
 import { OrbChatRouterMessageSchema } from "../shared/orb-chat-multimodal";
 import {
   estimatePoints,
@@ -625,7 +626,21 @@ async function checkSafety(
     );
     const content = result.choices[0]?.message?.content;
     if (typeof content === "string") {
-      return JSON.parse(content);
+      // Fence-tolerant parse — Gemini json_object mode occasionally wraps
+      // the response in ```json fences. A naive JSON.parse there throws,
+      // the catch defaults to { safe: true }, and the safety gate becomes
+      // permanently no-op without the operator noticing.
+      const parsed = extractJsonObjectFromText(content) as
+        | { safe?: unknown; reason?: unknown }
+        | null;
+      if (parsed && typeof parsed === "object") {
+        return {
+          safe: parsed.safe !== false,
+          ...(typeof parsed.reason === "string"
+            ? { reason: parsed.reason }
+            : {}),
+        };
+      }
     }
     return { safe: true };
   } catch {
@@ -3153,7 +3168,11 @@ export const appRouter = router({
         );
         const content = result.choices[0]?.message?.content;
         if (typeof content === "string") {
-          return JSON.parse(content);
+          // Fence-tolerant — see safety check rationale above.
+          const parsed = extractJsonObjectFromText(content);
+          if (parsed && typeof parsed === "object") {
+            return parsed as Record<string, unknown>;
+          }
         }
         return {
           score: 50,
@@ -3223,10 +3242,18 @@ export const appRouter = router({
         );
         const content = result.choices[0]?.message?.content;
         if (typeof content === "string") {
-          const parsed = JSON.parse(content);
-          return { chips: (parsed.chips || []).slice(0, 5) };
+          // Fence-tolerant — see safety check rationale above.
+          const parsed = extractJsonObjectFromText(content) as
+            | { chips?: unknown }
+            | null;
+          if (parsed && Array.isArray(parsed.chips)) {
+            const chips = (parsed.chips as unknown[])
+              .filter((c): c is string => typeof c === "string")
+              .slice(0, 5);
+            return { chips };
+          }
         }
-        return { chips: [] };
+        return { chips: [] as string[] };
       }),
   }),
 
