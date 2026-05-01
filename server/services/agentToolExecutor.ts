@@ -806,6 +806,23 @@ async function dispatchStudioTool(
         if (typeof args.prompt === "string") input.prompt = args.prompt;
         if (typeof args.lyrics === "string") input.lyrics = args.lyrics;
         if (typeof args.duration === "number") input.duration = args.duration;
+        if (typeof args.tags === "string") {
+          // Sonauto 期望 tags 為陣列；其他模型併入 prompt
+          if (modelId.includes("sonauto")) {
+            const arr = args.tags
+              .split(",")
+              .map(t => t.trim())
+              .filter(Boolean);
+            if (arr.length > 0) input.tags = arr;
+          } else if (typeof input.prompt === "string") {
+            input.prompt = `${input.prompt}, ${args.tags}`;
+          }
+        }
+        if (typeof args.bpm === "number") input.bpm = args.bpm;
+        if (args.instrumental === true && modelId.includes("sonauto")) {
+          // Sonauto 用空字串歌詞表達純音樂
+          input.lyrics_prompt = "";
+        }
         const r = await dispatchFalQueueTask({
           modelId,
           category: "text-to-audio",
@@ -839,6 +856,23 @@ async function dispatchStudioTool(
         if (typeof args.text === "string") input.text = args.text;
         if (typeof args.voice_id === "string") input.voice_id = args.voice_id;
         if (typeof args.speed === "number") input.speed = args.speed;
+        // 多語 TTS：language_code 必傳到 ElevenLabs，否則 multilingual-v2
+        // 會落到英文預設，光球發起的中文 / 日文 TTS 會發音怪。
+        if (typeof args.language_code === "string")
+          input.language_code = args.language_code;
+        // 聲音調諧（stability / similarity_boost / style）走 ElevenLabs voice_settings
+        const stability = typeof args.stability === "number" ? args.stability : undefined;
+        const similarity = typeof args.similarity_boost === "number"
+          ? args.similarity_boost
+          : undefined;
+        const style = typeof args.style === "number" ? args.style : undefined;
+        if (stability !== undefined || similarity !== undefined || style !== undefined) {
+          const voiceSettings: Record<string, unknown> = {};
+          if (stability !== undefined) voiceSettings.stability = stability;
+          if (similarity !== undefined) voiceSettings.similarity_boost = similarity;
+          if (style !== undefined) voiceSettings.style = style;
+          input.voice_settings = voiceSettings;
+        }
         const r = await dispatchFalQueueTask({
           modelId,
           category: "text-to-speech",

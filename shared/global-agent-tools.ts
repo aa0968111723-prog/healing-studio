@@ -147,6 +147,9 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
       lyrics: "string?",
       instrumental: "boolean?",
       duration: "number?",
+      // 風格標籤（逗號分隔）+ BPM；底層 textToMusic / Sonauto 都支援
+      tags: "string?",
+      bpm: "number?",
     },
     executionTarget: "server-side",
   },
@@ -159,6 +162,14 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
       modelId: "string?",
       voice_id: "string?",
       speed: "number?",
+      // 多語 TTS 必要欄位；缺這個多語推理就退回英文
+      language_code: "string?",
+      // ElevenLabs engine 切換（turbo-v2.5 / flash-v2.5 / multilingual-v2 / eleven-v3）
+      engine: "string?",
+      // ElevenLabs 聲音調諧
+      stability: "number?",
+      similarity_boost: "number?",
+      style: "number?",
     },
     executionTarget: "server-side",
   },

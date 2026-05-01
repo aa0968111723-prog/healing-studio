@@ -217,6 +217,93 @@ describe("executeOrbToolCalls — studio.* bridge", () => {
     }
   });
 
+  it("propagates extended voice args (language_code, voice_settings) into the fal payload", async () => {
+    // 多語 TTS / 聲音調諧的 orb args 必須出現在送往 fal 的 request body，
+    // 否則光球發起的「日文 TTS」會落回英文預設。
+    const captured: Array<{ url: string; body: unknown }> = [];
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      const body = init?.body
+        ? JSON.parse(init.body as string)
+        : undefined;
+      captured.push({ url, body });
+      return new Response(JSON.stringify({ request_id: "req-voice" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await executeOrbToolCalls({
+      tools: [],
+      calls: [
+        {
+          name: "studio.generateVoice",
+          args: {
+            text: "こんにちは",
+            language_code: "ja",
+            stability: 0.6,
+            similarity_boost: 0.85,
+            style: 0.2,
+            wait: false,
+          },
+        },
+      ],
+      userId: 555,
+      userRole: "user",
+      approved: true,
+    });
+
+    expect(captured).toHaveLength(1);
+    const body = captured[0]!.body as Record<string, unknown>;
+    expect(body.text).toBe("こんにちは");
+    expect(body.language_code).toBe("ja");
+    expect(body.voice_settings).toMatchObject({
+      stability: 0.6,
+      similarity_boost: 0.85,
+      style: 0.2,
+    });
+  });
+
+  it("propagates extended audio args (tags, bpm) into the fal payload", async () => {
+    // 對 Sonauto，tags 應該展開為陣列；對其他模型併入 prompt。
+    const captured: Array<{ body: unknown }> = [];
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+      const body = init?.body
+        ? JSON.parse(init.body as string)
+        : undefined;
+      captured.push({ body });
+      return new Response(JSON.stringify({ request_id: "req-audio" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await executeOrbToolCalls({
+      tools: [],
+      calls: [
+        {
+          name: "studio.generateAudio",
+          args: {
+            prompt: "lo-fi study beats",
+            modelId: "fal-ai/sonauto", // 走 Sonauto，tags 應為陣列
+            tags: "chill, lofi, study",
+            bpm: 90,
+            wait: false,
+          },
+        },
+      ],
+      userId: 777,
+      userRole: "user",
+      approved: true,
+    });
+
+    expect(captured).toHaveLength(1);
+    const body = captured[0]!.body as Record<string, unknown>;
+    expect(body.tags).toEqual(["chill", "lofi", "study"]);
+    expect(body.bpm).toBe(90);
+  });
+
   it("waits for fal queue completion and exposes media URLs to chained steps", async () => {
     // Default behaviour (no wait flag) must poll fal until COMPLETED so
     // multi-step pipelines can chain ${stepN.image_url} into the next call.
