@@ -293,10 +293,49 @@ async function driveOrbTaskInBackground(input: {
       );
     }
   } catch (error) {
-    console.error(
-      `[Orb] auto-driver crashed for taskId=${input.taskId}:`,
-      error instanceof Error ? error.message : String(error)
-    );
+    // The auto-driver crashed before runOrbTaskToCompletion could write
+    // a terminal state itself (e.g., tool registry threw during init,
+    // preferences load failed, network error reaching the FSM store).
+    // Without this branch the task would sit in `running` / `waiting_human`
+    // forever and the user would see a spinner with no error message.
+    // Mirror the crash into both the FSM (so the UI surfaces "task
+    // failed: <reason>") and the audit log (so ops can see what blew up).
+    const reason =
+      error instanceof Error
+        ? `auto-driver crashed: ${error.message}`
+        : `auto-driver crashed: ${String(error)}`;
+    console.error(`[Orb] auto-driver crashed for taskId=${input.taskId}:`, reason);
+    try {
+      const fsmTask = getOrbAgentTask(input.taskId);
+      if (fsmTask) {
+        const failingStepId = fsmTask.currentStepId ?? fsmTask.steps[0]?.id;
+        if (failingStepId) {
+          failOrbAgentStep(input.taskId, failingStepId, reason);
+        }
+      }
+    } catch (mirrorError) {
+      console.error(
+        `[Orb] failed to mirror auto-driver crash to FSM for taskId=${input.taskId}:`,
+        mirrorError instanceof Error ? mirrorError.message : String(mirrorError)
+      );
+    }
+    try {
+      const at = Date.now();
+      orbToolCallLogStore.append({
+        requestId: `orb_auto_${input.taskId}_${at}`,
+        userId: input.userId,
+        userRole: input.userRole,
+        taskId: input.taskId,
+        stepId: "auto-driver",
+        toolName: "auto-driver",
+        ok: false,
+        error: reason,
+        startedAt: at,
+        endedAt: at,
+      });
+    } catch {
+      // best-effort
+    }
   } finally {
     orbAutoDriverInFlight.delete(input.taskId);
   }
