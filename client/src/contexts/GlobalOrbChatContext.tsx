@@ -171,6 +171,26 @@ function inferUserMultimodalIntent(text: string): string {
   return "意圖未明，先用 1-2 句追問成品與用途後再分流";
 }
 
+function inferClarificationIntentCards(question: string, userText: string): string[] {
+  const source = `${question} ${userText}`.toLowerCase();
+  const has = (keys: string[]) => keys.some(k => source.includes(k));
+
+  if (has(["影片", "video", "短片", "reel", "運鏡"])) {
+    return ["社群短片（15-30 秒）", "教學短片（1-3 分鐘）", "商業廣告（30-60 秒）", "我先看範例再決定"];
+  }
+  if (has(["圖片", "image", "海報", "插畫", "封面"])) {
+    return ["寫實風格", "插畫風格", "品牌海報", "先給我 3 組方向"];
+  }
+  if (has(["音樂", "audio", "配樂", "bgm", "聲音", "sfx"])) {
+    return ["療癒慢節奏", "節奏感強", "環境氛圍音", "先給我試聽方向"];
+  }
+  if (has(["配音", "voice", "旁白", "tts", "語音"])) {
+    return ["溫柔旁白", "專業廣告口吻", "活潑年輕語氣", "先讓我選聲線"];
+  }
+
+  return ["我要你直接規劃並執行", "先給我快速選項卡", "先問我 1 題就好", "我先看流程再開始"];
+}
+
 function summarizeProviderPing(pingData: unknown): string {
   if (!pingData || typeof pingData !== "object") return "後端服務狀態未知";
   const entries = Object.entries(pingData as Record<string, { ok?: boolean; latencyMs?: number | null; error?: string }>);
@@ -490,7 +510,7 @@ function ClarificationPromptCard({
       </div>
       <div data-testid="orb-clarification-question" className="mt-1 text-base font-semibold">{prompt.question}</div>
       <div className="mt-2 text-xs text-white/60">
-        我需要先和你確認，避免做錯方向。選一個最接近的答案，或自己補充。
+        我需要先和你確認，避免做錯方向。可直接點下面意圖卡牌快選，或自己補充一句。
       </div>
 
       {prompt.options && prompt.options.length > 0 && (
@@ -1165,7 +1185,7 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
               .map(s => s.trim())
               .filter(s => s.length > 0)
               .slice(0, 4)
-          : undefined;
+          : inferClarificationIntentCards(clarificationQuestion, trimmed);
         setMessages(prev => [...prev, {
           role: "orb",
           text: clarificationQuestion,
