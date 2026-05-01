@@ -100,3 +100,25 @@ export function getPageEmoji(path: string | undefined): string {
 
   return "💬";
 }
+
+/**
+ * 根據快選建議文字猜一個小圖示，用在「反問快選圖卡」與「快速回覆卡片」上。
+ * 讓使用者一眼就能分辨建議是「圖片 / 影片 / 配樂 / 腳本…」哪一類。
+ */
+export function inferSuggestionEmoji(text: string): string {
+  const lower = text.toLowerCase();
+  if (/(圖片|插畫|海報|illustration|poster|image)/.test(text)) return "🖼️";
+  if (/(影片|短片|reels|vlog|video|動態)/.test(text)) return "🎬";
+  if (/(配樂|音樂|bgm|music)/.test(text)) return "🎵";
+  if (/(配音|聲音|tts|voice|narration|旁白)/.test(text)) return "🎙️";
+  if (/(腳本|劇本|文案|script)/.test(text)) return "📝";
+  if (/(lora|fine.?tune|訓練|模型)/.test(lower)) return "🎯";
+  if (/(學習|文件|教學|learn|guide)/.test(text)) return "📚";
+  if (/(設定|config|settings|偏好)/.test(text)) return "⚙️";
+  if (/(計畫|步驟|流程|workflow|plan)/.test(text)) return "🗺️";
+  if (/(跳頁|帶我|navigate|前往|路由)/.test(text)) return "🧭";
+  if (/(功能|介紹|這個站|有哪些|怎麼用)/.test(text)) return "💡";
+  if (/(新|建立|create|new)/.test(text)) return "✨";
+  if (/(問|了解|不知道|how|what)/.test(text)) return "💬";
+  return "🌿";
+}

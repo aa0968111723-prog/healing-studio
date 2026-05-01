@@ -64,6 +64,7 @@ import {
   type ChatAttachment,
   getPageEmoji,
   formatMessageMetadata,
+  inferSuggestionEmoji,
 } from "@/contexts/GlobalOrbChatContext";
 import { shortErrorMsg, uploadFileToS3 } from "@/lib/upload";
 import {
@@ -2396,18 +2397,24 @@ export default memo(function ProactiveOrbWidget({
                           )}
                           <div ref={chatEndRef} />
                         </div>
-                        {/* Quick-reply suggestions */}
+                        {/* Quick-reply suggestions — 用快選圖卡呈現 */}
                         {chatSuggestions.length > 0 && !isChatLoading && (
-                          <div className="px-4 py-1.5 flex flex-wrap gap-1.5">
-                            {chatSuggestions.map(s => (
-                              <button
-                                key={s}
-                                onClick={() => handleSuggestionClick(s)}
-                                className="text-xs px-2.5 py-1 rounded-full bg-white/80 text-gray-600 border border-gray-200/60 hover:bg-emerald-50 hover:border-emerald-200 transition"
-                              >
-                                {s}
-                              </button>
-                            ))}
+                          <div className="px-4 py-2 grid grid-cols-2 gap-1.5">
+                            {chatSuggestions.map(s => {
+                              const emoji = inferSuggestionEmoji(s);
+                              return (
+                                <button
+                                  key={s}
+                                  onClick={() => handleSuggestionClick(s)}
+                                  className="group flex items-start gap-2 rounded-xl border border-gray-200/60 bg-white/85 px-2.5 py-2 text-left shadow-sm hover:border-emerald-300 hover:bg-emerald-50/70 transition-all"
+                                >
+                                  <span className="text-sm leading-none mt-0.5 shrink-0">{emoji}</span>
+                                  <span className="text-[11px] leading-snug text-gray-600 group-hover:text-gray-700 line-clamp-2">
+                                    {s}
+                                  </span>
+                                </button>
+                              );
+                            })}
                           </div>
                         )}
                         <div className="px-4 py-3 border-t border-gray-100/60">
@@ -2869,18 +2876,24 @@ export default memo(function ProactiveOrbWidget({
                       <div ref={chatEndRef} />
                     </div>
 
-                    {/* Quick-reply suggestions (desktop) */}
+                    {/* Quick-reply suggestions (desktop) — 用快選圖卡呈現 */}
                     {chatSuggestions.length > 0 && !isChatLoading && (
-                      <div className="px-3 py-1 flex flex-wrap gap-1">
-                        {chatSuggestions.map(s => (
-                          <button
-                            key={s}
-                            onClick={() => handleSuggestionClick(s)}
-                            className="text-[11px] px-2 py-0.5 rounded-full bg-white/80 text-gray-600 border border-gray-200/60 hover:bg-emerald-50 hover:border-emerald-200 transition"
-                          >
-                            {s}
-                          </button>
-                        ))}
+                      <div className="px-3 py-1.5 grid grid-cols-2 gap-1.5">
+                        {chatSuggestions.map(s => {
+                          const emoji = inferSuggestionEmoji(s);
+                          return (
+                            <button
+                              key={s}
+                              onClick={() => handleSuggestionClick(s)}
+                              className="group flex items-start gap-1.5 rounded-xl border border-gray-200/60 bg-white/85 px-2 py-1.5 text-left shadow-sm hover:border-emerald-300 hover:bg-emerald-50/70 transition-all"
+                            >
+                              <span className="text-[13px] leading-none mt-0.5 shrink-0">{emoji}</span>
+                              <span className="text-[11px] leading-snug text-gray-600 group-hover:text-gray-700 line-clamp-2">
+                                {s}
+                              </span>
+                            </button>
+                          );
+                        })}
                       </div>
                     )}
 
