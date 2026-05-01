@@ -289,7 +289,6 @@ async function startServer() {
   app.use("/api/auth/forgot-password", rateLimiters.auth);
   app.use("/api/auth/reset-password", rateLimiters.auth);
   app.use("/api/auth/change-password", rateLimiters.auth);
-  app.use("/api/trpc/auth", rateLimiters.auth);
   app.use("/api/", rateLimiters.api);
 
   // Configure body parser with larger size limit for file uploads
