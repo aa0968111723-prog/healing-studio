@@ -962,7 +962,7 @@ export const userAiBrain = mysqlTable("user_ai_brain", {
 
   /** 導演大腦 — 統籌創作流程、分鏡、敘事結構 */
   directorModel: varchar("directorModel", { length: 128 })
-    .default("gpt-4o")
+    .default("google/gemini-2.5-pro")
     .notNull(),
   directorTemperature: decimal("directorTemperature", {
     precision: 3,
@@ -978,7 +978,7 @@ export const userAiBrain = mysqlTable("user_ai_brain", {
 
   /** 分析師大腦 — 數據分析、趨勢洞察、品質評估 */
   analystModel: varchar("analystModel", { length: 128 })
-    .default("gpt-4o")
+    .default("google/gemini-2.5-flash")
     .notNull(),
   analystTemperature: decimal("analystTemperature", { precision: 3, scale: 2 })
     .default("0.3")
@@ -991,7 +991,7 @@ export const userAiBrain = mysqlTable("user_ai_brain", {
 
   /** 說書人大腦 — 文案撰寫、故事展開、情感渲染 */
   storytellerModel: varchar("storytellerModel", { length: 128 })
-    .default("gpt-4o")
+    .default("google/gemini-2.5-pro")
     .notNull(),
   storytellerTemperature: decimal("storytellerTemperature", {
     precision: 3,
@@ -1007,7 +1007,7 @@ export const userAiBrain = mysqlTable("user_ai_brain", {
 
   /** 技師大腦 — 提示詞工程、參數優化、技術翻譯 */
   technicianModel: varchar("technicianModel", { length: 128 })
-    .default("gpt-4o")
+    .default("google/gemini-2.5-flash")
     .notNull(),
   technicianTemperature: decimal("technicianTemperature", {
     precision: 3,
@@ -1023,7 +1023,7 @@ export const userAiBrain = mysqlTable("user_ai_brain", {
 
   /** 策展人大腦 — 風格推薦、美學判斷、靈感策展 */
   curatorModel: varchar("curatorModel", { length: 128 })
-    .default("gpt-4o")
+    .default("google/gemini-2.5-flash")
     .notNull(),
   curatorTemperature: decimal("curatorTemperature", { precision: 3, scale: 2 })
     .default("0.8")

@@ -606,14 +606,26 @@ export const REASONING_MODEL_ALLOWLIST = Object.fromEntries(
  * 用於健康檢查的 isRecognizedModel,以及 fallback 鏈解析。
  */
 const LEGACY_LLM_ALIASES = new Set([
-  // OpenAI/Claude(自動 remap 到 Gemini)
+  // OpenAI legacy(自動 remap 到 OpenRouter 或 Gemini)
   "gpt-4o",
   "gpt-4o-mini",
+  "gpt-4-turbo",
+  "gpt-4",
   "gpt-3.5-turbo",
+  "gpt-3.5-turbo-16k",
+  // Anthropic legacy(Claude 3 系列;OpenRouter 已下架,自動 remap 到 4.x)
   "claude-3.5-sonnet",
+  "claude-3-sonnet",
   "claude-3-opus",
   "claude-3-haiku",
-  // Gemini 1.5 系列
+  "claude-instant-1",
+  // Anthropic native API IDs(date-suffixed;非 OpenRouter 形式)
+  "claude-haiku-4-5-20251001",
+  "claude-haiku-4-5",
+  "claude-sonnet-4-6",
+  "claude-sonnet-4-5",
+  "claude-opus-4-7",
+  // Gemini 1.5 系列(Google 已 deprecate,自動 remap 到 2.5)
   "gemini-1.5-pro",
   "gemini-1.5-flash",
   "gemini-pro",
@@ -643,12 +655,16 @@ const LEGACY_LLM_ALIASES = new Set([
   "anthropic/claude-opus-4.7",
   "google/gemini-2.5-pro",
   "google/gemini-2.5-flash",
-  "google/gemini-pro-1.5",
-  "google/gemini-flash-1.5",
   "minimax/minimax-m2",
   "meta-llama/llama-3.2-90b-vision-instruct",
   "meta-llama/llama-3.1-405b-instruct",
   "mistralai/mistral-nemo",
+  // OpenAI via OpenRouter
+  "openai/gpt-4o",
+  "openai/gpt-4o-mini",
+  "openai/gpt-4-turbo",
+  "openai/gpt-4",
+  "openai/gpt-3.5-turbo",
 ]);
 
 /**

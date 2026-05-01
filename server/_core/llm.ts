@@ -311,14 +311,22 @@ function estimateTokenCostUsd(
   if (!usage) return 0;
   // Approximate pricing (USD per 1M tokens)
   const PRICING: Record<string, { input: number; output: number }> = {
+    // Native Gemini API IDs
     "gemini-2.5-pro": { input: 1.25, output: 5.0 },
     "gemini-2.5-flash": { input: 0.075, output: 0.3 },
-    "gemini-1.5-pro": { input: 1.25, output: 5.0 },
-    "gemini-1.5-flash": { input: 0.075, output: 0.3 },
-    "gpt-4o": { input: 2.5, output: 10.0 },
-    "gpt-4o-mini": { input: 0.15, output: 0.6 },
+    // OpenRouter canonical IDs
+    "google/gemini-2.5-pro": { input: 1.25, output: 5.0 },
+    "google/gemini-2.5-flash": { input: 0.075, output: 0.3 },
+    "anthropic/claude-opus-4.7": { input: 15.0, output: 75.0 },
+    "anthropic/claude-sonnet-4.5": { input: 3.0, output: 15.0 },
+    "anthropic/claude-haiku-4.5": { input: 0.8, output: 4.0 },
+    "minimax/minimax-m2": { input: 0.3, output: 1.2 },
+    "mistralai/mistral-nemo": { input: 0.15, output: 0.15 },
+    "meta-llama/llama-3.1-405b-instruct": { input: 2.7, output: 2.7 },
+    // NVIDIA NIM
     "MiniMax-M2.7": { input: 0.3, output: 1.2 },
     "minimaxai/minimax-m2.7": { input: 0.3, output: 1.2 },
+    // Native Anthropic API IDs (date-suffixed)
     "claude-opus-4-7": { input: 15.0, output: 75.0 },
     "claude-sonnet-4-6": { input: 3.0, output: 15.0 },
     "claude-haiku-4-5": { input: 0.8, output: 4.0 },
@@ -456,19 +464,26 @@ const GEMINI_MODEL_REMAP: Record<string, string> = {
   "gpt-4o": "gemini-2.5-pro",
   "gpt-4o-mini": "gemini-2.5-flash",
   "gpt-4-turbo": "gemini-2.5-pro",
-  "gpt-4": "gemini-1.5-pro",
+  "gpt-4": "gemini-2.5-pro",
   "gpt-3.5-turbo": "gemini-2.5-flash",
-  "gpt-3.5-turbo-16k": "gemini-1.5-flash",
+  "gpt-3.5-turbo-16k": "gemini-2.5-flash",
   // Anthropic Claude → Gemini 等效對應
   "claude-3-opus": "gemini-2.5-pro",
   "claude-3.5-sonnet": "gemini-2.5-pro",
-  "claude-3-sonnet": "gemini-1.5-pro",
+  "claude-3-sonnet": "gemini-2.5-pro",
   "claude-3-haiku": "gemini-2.5-flash",
   "claude-instant-1": "gemini-2.5-flash",
+  "claude-sonnet-4.5": "gemini-2.5-pro",
+  "claude-opus-4.7": "gemini-2.5-pro",
+  "claude-haiku-4.5": "gemini-2.5-flash",
   // Mistral → Gemini
   "mistral-large": "gemini-2.5-pro",
-  "mistral-medium": "gemini-1.5-pro",
+  "mistral-medium": "gemini-2.5-pro",
   "mistral-small": "gemini-2.5-flash",
+  // Legacy Gemini 1.5 → 2.5(降版相容)
+  "gemini-1.5-pro": "gemini-2.5-pro",
+  "gemini-1.5-flash": "gemini-2.5-flash",
+  "gemini-pro": "gemini-2.5-pro",
 };
 
 /**
@@ -490,10 +505,17 @@ const ANTHROPIC_MODEL_REMAP: Record<string, string> = {
   "gpt-4-turbo": "claude-sonnet-4-6",
   "gpt-4": "claude-sonnet-4-6",
   "gpt-3.5-turbo": "claude-haiku-4-5-20251001",
+  // OpenRouter canonical IDs → Anthropic native IDs
+  "anthropic/claude-sonnet-4.5": "claude-sonnet-4-6",
+  "anthropic/claude-opus-4.7": "claude-opus-4-7",
+  "anthropic/claude-haiku-4.5": "claude-haiku-4-5-20251001",
   // Friendly aliases
   "claude-haiku": "claude-haiku-4-5-20251001",
   "claude-sonnet": "claude-sonnet-4-6",
   "claude-opus": "claude-opus-4-7",
+  "claude-sonnet-4.5": "claude-sonnet-4-6",
+  "claude-opus-4.7": "claude-opus-4-7",
+  "claude-haiku-4.5": "claude-haiku-4-5-20251001",
 };
 
 /**
@@ -510,11 +532,32 @@ const OPENROUTER_CATALOG_REMAP: Record<string, string> = {
   // Vertex 內部路徑 → OpenRouter 等效（OpenRouter 不接受 vertex/ 前綴）
   "vertex/gemini-2.5-pro": "google/gemini-2.5-pro",
   "vertex/gemini-2.5-flash": "google/gemini-2.5-flash",
-  "vertex/gemini-1.5-pro": "google/gemini-pro-1.5",
-  "vertex/gemini-1.5-flash": "google/gemini-flash-1.5",
+  // Legacy 1.5 → 2.5(OpenRouter 已不再支援 1.5 命名)
+  "vertex/gemini-1.5-pro": "google/gemini-2.5-pro",
+  "vertex/gemini-1.5-flash": "google/gemini-2.5-flash",
+  "gemini-1.5-pro": "google/gemini-2.5-pro",
+  "gemini-1.5-flash": "google/gemini-2.5-flash",
+  "gemini-pro": "google/gemini-2.5-pro",
   "vertex/llama-3.2-90b": "meta-llama/llama-3.2-90b-vision-instruct",
   "vertex/llama-3.1-405b": "meta-llama/llama-3.1-405b-instruct",
   "vertex/mistral-nemo": "mistralai/mistral-nemo",
+  // Anthropic native(date-suffixed)→ OpenRouter canonical
+  "claude-haiku-4-5-20251001": "anthropic/claude-haiku-4.5",
+  "claude-haiku-4-5": "anthropic/claude-haiku-4.5",
+  "claude-sonnet-4-6": "anthropic/claude-sonnet-4.5",
+  "claude-sonnet-4-5": "anthropic/claude-sonnet-4.5",
+  "claude-opus-4-7": "anthropic/claude-opus-4.7",
+  // Legacy Claude 3 系列 → OpenRouter 4.x
+  "claude-3-opus": "anthropic/claude-opus-4.7",
+  "claude-3.5-sonnet": "anthropic/claude-sonnet-4.5",
+  "claude-3-sonnet": "anthropic/claude-sonnet-4.5",
+  "claude-3-haiku": "anthropic/claude-haiku-4.5",
+  // Legacy OpenAI → OpenRouter equivalents
+  "gpt-4o": "openai/gpt-4o",
+  "gpt-4o-mini": "openai/gpt-4o-mini",
+  "gpt-4-turbo": "openai/gpt-4-turbo",
+  "gpt-4": "openai/gpt-4",
+  "gpt-3.5-turbo": "openai/gpt-3.5-turbo",
 };
 
 function normalizeModelForEngine(model: string, engineName: string): string {
