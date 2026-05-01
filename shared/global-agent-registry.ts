@@ -209,9 +209,27 @@ export class GlobalAgentRegistry {
       };
     }
 
-    const supporting = GLOBAL_AGENT_CAPABILITY_REGISTRY.filter(
-      cap => cap.enabled && cap.actionType === action.type
+    // Prefer pages that explicitly declare this action in their
+    // `supportedActions` audit (the source of truth for what each page's
+    // useRegisterPageAgent handler actually implements). Falling back to
+    // the generic capability registry would let setModality route to
+    // /image-studio etc., which has no setModality case and silently
+    // fails. Only when no page declares the action do we widen to the
+    // capability registry to preserve coverage for actions whose audit
+    // hasn't been filled in.
+    const declared = APP_PAGE_REGISTRY.filter(
+      page => page.supportsPageAgent && page.supportedActions.includes(action.type)
     );
+    const supporting = declared.length > 0
+      ? declared.map(page => ({
+          pageId: page.id,
+          pagePath: page.path,
+          actionType: action.type,
+          enabled: true,
+        }))
+      : GLOBAL_AGENT_CAPABILITY_REGISTRY.filter(
+          cap => cap.enabled && cap.actionType === action.type
+        );
     if (supporting.length === 0) return null;
 
     const payload = normalizeText(actionPayloadText(action));

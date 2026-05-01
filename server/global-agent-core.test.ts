@@ -916,26 +916,90 @@ describe("orchestrator precision policy", () => {
     expect(calls[1]).toMatch(/^dispatch:fillPrompt:/);
   });
 
-  it("setModality fallback prefers the matching modality page", async () => {
-    globalAgentRegistry.register(makePage("agent-chat", "/agent", "全站光球代理", []));
-    const calls: string[] = [];
+  it("setModality always routes to /studio (the only page that handles modality switching)", async () => {
+    // Audit: only Studio.tsx has a `case "setModality"` block. The static
+    // fallback used to pick the modality-named studio (image-studio for
+    // modality=image, video-studio for modality=video, …) which silently
+    // failed because those pages don't implement setModality. With
+    // supportedActions on AppPageRegistryItem, only Studio is eligible.
+    for (const modality of ["image", "video", "audio", "voice"] as const) {
+      globalAgentRegistry.clear();
+      globalAgentRegistry.register(makePage("agent-chat", "/agent", "全站光球代理", []));
+      const calls: string[] = [];
+      const result = await executeGlobalAction(
+        { type: "setModality", modality },
+        {
+          currentPage: null,
+          navigate: async path => calls.push(`nav:${path}`),
+          dispatch: async (action, opts) => {
+            calls.push(`dispatch:${action.type}:${opts?.targetPageId}`);
+            return { ok: true };
+          },
+          waitAfterNavigateMs: 0,
+        }
+      );
+      expect(result.ok).toBe(true);
+      expect(calls[0]).toBe("nav:/studio");
+      expect(calls[1]).toBe("dispatch:setModality:studio");
+    }
+  });
 
-    await executeGlobalAction(
-      { type: "setModality", modality: "video" },
-      {
-        currentPage: null,
-        navigate: async path => calls.push(`nav:${path}`),
-        dispatch: async () => ({ ok: true }),
-        waitAfterNavigateMs: 0,
-      }
+  it("the four modalities each have a complete fillPrompt + setParam + submit pipeline through /studio", async () => {
+    // End-to-end: with /studio live-registered (mirrors what useRegisterPageAgent
+    // does after navigate completes in production), the orb chains
+    // setModality → fillPrompt → setParam → submit on the same page in one
+    // navigate, for each of the four modalities. This is the contract the
+    // user described: "全站光球代理 與 創作工作室的四模態連結 都要通".
+    for (const modality of ["image", "video", "audio", "voice"] as const) {
+      globalAgentRegistry.clear();
+      globalAgentRegistry.register(
+        makePage("studio", "/studio", "創作工作室", [
+          "setModality",
+          "fillPrompt",
+          "setParam",
+          "submit",
+        ])
+      );
+      const calls: string[] = [];
+      const result = await executeGlobalActions(
+        [
+          { type: "setModality", modality },
+          { type: "fillPrompt", text: `生成一個 ${modality} 作品` },
+          { type: "setParam", key: "temperature", value: 0.7 },
+          { type: "submit" },
+        ],
+        {
+          currentPage: null,
+          navigate: async path => calls.push(`nav:${path}`),
+          dispatch: async (action, opts) => {
+            calls.push(`act:${action.type}:${opts?.targetPageId}`);
+            return { ok: true };
+          },
+          waitAfterNavigateMs: 0,
+        }
+      );
+      expect(result.every(r => r.ok)).toBe(true);
+      // Path-threading: navigate to /studio once, dispatch four actions there.
+      expect(calls.filter(c => c.startsWith("nav:"))).toEqual(["nav:/studio"]);
+      expect(calls.filter(c => c.startsWith("act:"))).toEqual([
+        "act:setModality:studio",
+        "act:fillPrompt:studio",
+        "act:setParam:studio",
+        "act:submit:studio",
+      ]);
+    }
+  });
+
+  it("Studio is the only page that declares setModality in its supportedActions audit", () => {
+    // Locks in the invariant: any future page that wants to handle
+    // setModality must add it to its `supportedActions` array AND register
+    // a `case "setModality"` block. The orb's static-fallback router only
+    // routes to declared handlers, so missing this declaration will silently
+    // make the page invisible to the orb's modality switching.
+    const studios = APP_PAGE_REGISTRY.filter(p =>
+      p.supportedActions.includes("setModality")
     );
-
-    // 'video' alias is on /video-studio AND /studio's quick action; the
-    // modality boost + alias match should land us on a page whose haystack
-    // contains 'video'. We accept either /studio or /video-studio (both
-    // valid destinations) but reject anything else.
-    const navPath = calls[0]?.replace(/^nav:/, "");
-    expect(["/studio", "/video-studio"]).toContain(navPath);
+    expect(studios.map(p => p.id)).toEqual(["studio"]);
   });
 
   it("empty live registry resolves a route via static fallback (was: no route found)", async () => {
