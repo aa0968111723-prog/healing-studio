@@ -58,7 +58,7 @@ describe("agent-plan-adapter", () => {
     expect(result.reply).toContain("圖片還是影片");
   });
 
-  it("blocks unsafe high-risk plans", () => {
+  it("auto-corrects unsafe high-risk plans into runnable workflows that still ask before acting", () => {
     const result = adaptAgentPlanToActions({
       schemaVersion: "agent-plan.v1",
       intent: "submit without approval",
@@ -79,10 +79,16 @@ describe("agent-plan-adapter", () => {
       ],
     });
 
-    expect(result.status).toBe("blocked");
-    expect(result.ok).toBe(false);
+    // Auto-fix: instead of blocking, we coerce requiresApproval=true and
+    // emit a warning. The plan converts, askBeforeAct stays true so the
+    // confirmation card still appears at runtime.
+    expect(result.status).toBe("converted");
+    expect(result.ok).toBe(true);
     expect(result.askBeforeAct).toBe(true);
-    expect(result.blockers.map(issue => issue.reason)).toContain("high_risk_without_approval");
+    expect(result.blockers.map(issue => issue.reason)).not.toContain("high_risk_without_approval");
+    expect(result.warnings).toEqual(
+      expect.arrayContaining([expect.stringMatching(/auto-corrected|requiresApproval/i)])
+    );
   });
 
   it("marks approved submit plans as converted but requiring askBeforeAct", () => {

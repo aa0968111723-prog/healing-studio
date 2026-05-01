@@ -203,7 +203,7 @@ describe("evaluateAgentPlanV3Risk — risk rules", () => {
     }
   });
 
-  it("blocks submit when requiresApproval=false (no auto-execution of high risk)", () => {
+  it("auto-corrects submit step missing requiresApproval=true instead of blocking", () => {
     const plan = buildV3Plan({
       steps: [
         {
@@ -218,8 +218,13 @@ describe("evaluateAgentPlanV3Risk — risk rules", () => {
       ],
     });
     const evaluation = evaluateAgentPlanV3Risk(plan);
-    expect(evaluation.decisionMode).toBe("blocked");
-    expect(evaluation.blockers.map(b => b.reason)).toContain("high_risk_without_approval");
+    // Plan is no longer blocked just because the planner forgot one boolean —
+    // we coerce requiresApproval=true and emit a warning. Runtime gates still
+    // enforce human approval at execution time.
+    expect(evaluation.decisionMode).not.toBe("blocked");
+    expect(evaluation.requiresHuman).toBe(true);
+    expect(plan.steps[0].requiresApproval).toBe(true);
+    expect(evaluation.warnings.map(b => b.reason)).toContain("high_risk_without_approval");
   });
 
   it("upgrades cross-page multi-step plan to tasked", () => {
@@ -402,7 +407,7 @@ describe("parseAndGatePlan — gating across versions", () => {
     expect(result.reply).toContain("圖片還是影片");
   });
 
-  it("v3 blocked plan returns no actions and asks for confirmation", () => {
+  it("v3 high-risk submit without approval auto-corrects and converts (askBeforeAct stays on)", () => {
     const plan = buildV3Plan({
       decision: { mode: "direct" },
       steps: [
@@ -418,8 +423,11 @@ describe("parseAndGatePlan — gating across versions", () => {
       ],
     });
     const result = parseAndGatePlan(plan);
-    expect(result.status).toBe("blocked");
-    expect(result.actions).toEqual([]);
+    // Auto-fix: instead of blocking, the plan converts to a runnable
+    // workflow with the approval gate still on. This unblocks the
+    // multi-step wizard flow when the planner forgets the boolean.
+    expect(result.status).toBe("converted");
+    expect(result.actions.length).toBeGreaterThan(0);
     expect(result.askBeforeAct).toBe(true);
   });
 

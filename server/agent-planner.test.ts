@@ -269,10 +269,10 @@ describe("agentPlanner", () => {
     }
   });
 
-  it("v3 blocked plan returns no actions and asks for confirmation", async () => {
-    const v3BlockedPlan = {
+  it("v3 high-risk submit without approval auto-corrects to converted (still asks before act)", async () => {
+    const v3HighRiskPlan = {
       schemaVersion: "agent-plan.v3",
-      planId: "plan_blocked",
+      planId: "plan_high_risk",
       intent: "submit",
       summaryForUser: "我要送出。",
       decision: { mode: "direct" },
@@ -295,11 +295,13 @@ describe("agentPlanner", () => {
 
     const result = await runSchemaFirstAgentPlanner({
       messages: [{ role: "user", content: "送出" }],
-      invoke: async () => invokeResult(JSON.stringify(v3BlockedPlan)),
+      invoke: async () => invokeResult(JSON.stringify(v3HighRiskPlan)),
     });
 
-    expect(result.status).toBe("blocked");
-    expect(result.actions).toEqual([]);
+    // Auto-fix: missing requiresApproval is no longer a fatal blocker.
+    // Plan converts and the runtime confirmation gate still applies.
+    expect(result.status).toBe("converted");
+    expect(result.actions.length).toBeGreaterThan(0);
     expect(result.askBeforeAct).toBe(true);
   });
 });
