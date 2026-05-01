@@ -1,4 +1,55 @@
 import { TRPCError } from "@trpc/server";
+import { awaitFalQueueResult, type FalAwaitResult } from "./falQueueAwaiter";
+
+/**
+ * Default wait budget for orb-side tool calls that dispatch to fal.ai's queue.
+ * The orchestrator chains step N → step N+1 by reading step N's output_url
+ * (image_url / video_url / audio_url) — and that output only exists after
+ * fal completes, not after the queue submit returns. 120s covers the
+ * majority of image / short-video generations; longer jobs get returned with
+ * status="pending" + request_id so the caller can poll later or retry.
+ */
+const ORB_FAL_AWAIT_TIMEOUT_MS = 120_000;
+
+interface FalDispatchEnvelope {
+  request_id: string;
+  modelId: string;
+  degraded?: boolean;
+}
+
+/**
+ * Wait for a fal queue dispatch to terminate (completed / failed / pending),
+ * then merge the awaited URLs into the dispatcher's envelope so downstream
+ * step-ref placeholders (`${step1.video_url}`) resolve. Honours the
+ * conventional `args.wait === false` opt-out for fire-and-forget callers.
+ */
+async function awaitFalForOrb(
+  envelope: FalDispatchEnvelope,
+  args: Record<string, unknown>
+): Promise<FalDispatchEnvelope & Partial<FalAwaitResult>> {
+  if (args.wait === false) return { ...envelope, status: "pending" };
+  const timeoutMs =
+    typeof args.timeoutMs === "number" && args.timeoutMs > 0
+      ? Math.min(args.timeoutMs, 5 * 60_000)
+      : ORB_FAL_AWAIT_TIMEOUT_MS;
+  const awaited = await awaitFalQueueResult(
+    envelope.request_id,
+    envelope.modelId,
+    { timeoutMs }
+  );
+  return {
+    request_id: envelope.request_id,
+    modelId: envelope.modelId,
+    degraded: envelope.degraded ?? false,
+    status: awaited.status,
+    output_url: awaited.output_url,
+    image_url: awaited.image_url,
+    video_url: awaited.video_url,
+    audio_url: awaited.audio_url,
+    raw: awaited.raw,
+    error: awaited.error,
+  };
+}
 
 export interface OrbApiTool {
   name: string;
@@ -529,17 +580,20 @@ async function dispatchStudioTool(
           modality: "image",
           userId: opts.userId,
         });
+        const awaited = await awaitFalForOrb(
+          { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
+          args
+        );
         return {
           name: call.name,
-          ok: true,
+          ok: awaited.status !== "failed",
           data: {
-            request_id: r.request_id,
-            modelId: r.modelId,
-            degraded: r.degraded ?? false,
+            ...awaited,
             originalModel: r.originalModel,
             engine: "fal",
           },
           usedTool: call.name,
+          ...(awaited.status === "failed" && awaited.error ? { error: awaited.error } : {}),
         };
       }
 
@@ -584,16 +638,16 @@ async function dispatchStudioTool(
           modality: "video",
           userId: opts.userId,
         });
+        const awaited = await awaitFalForOrb(
+          { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
+          args
+        );
         return {
           name: call.name,
-          ok: true,
-          data: {
-            request_id: r.request_id,
-            modelId: r.modelId,
-            degraded: r.degraded ?? false,
-            engine: "fal",
-          },
+          ok: awaited.status !== "failed",
+          data: { ...awaited, engine: "fal" },
           usedTool: call.name,
+          ...(awaited.status === "failed" && awaited.error ? { error: awaited.error } : {}),
         };
       }
 
@@ -629,17 +683,16 @@ async function dispatchStudioTool(
           modality: "video",
           userId: opts.userId,
         });
+        const awaited = await awaitFalForOrb(
+          { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
+          args
+        );
         return {
           name: call.name,
-          ok: true,
-          data: {
-            request_id: r.request_id,
-            modelId: r.modelId,
-            operation,
-            degraded: r.degraded ?? false,
-            engine: "fal",
-          },
+          ok: awaited.status !== "failed",
+          data: { ...awaited, operation, engine: "fal" },
           usedTool: call.name,
+          ...(awaited.status === "failed" && awaited.error ? { error: awaited.error } : {}),
         };
       }
 
@@ -688,16 +741,16 @@ async function dispatchStudioTool(
           modality: "audio",
           userId: opts.userId,
         });
+        const awaited = await awaitFalForOrb(
+          { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
+          args
+        );
         return {
           name: call.name,
-          ok: true,
-          data: {
-            request_id: r.request_id,
-            modelId: r.modelId,
-            degraded: r.degraded ?? false,
-            engine: "fal",
-          },
+          ok: awaited.status !== "failed",
+          data: { ...awaited, engine: "fal" },
           usedTool: call.name,
+          ...(awaited.status === "failed" && awaited.error ? { error: awaited.error } : {}),
         };
       }
 
@@ -717,16 +770,16 @@ async function dispatchStudioTool(
           modality: "voice",
           userId: opts.userId,
         });
+        const awaited = await awaitFalForOrb(
+          { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
+          args
+        );
         return {
           name: call.name,
-          ok: true,
-          data: {
-            request_id: r.request_id,
-            modelId: r.modelId,
-            degraded: r.degraded ?? false,
-            engine: "fal",
-          },
+          ok: awaited.status !== "failed",
+          data: { ...awaited, engine: "fal" },
           usedTool: call.name,
+          ...(awaited.status === "failed" && awaited.error ? { error: awaited.error } : {}),
         };
       }
 
