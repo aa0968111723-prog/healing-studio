@@ -354,6 +354,45 @@ export const videoStudioRouter = router({
     }),
 
   /**
+   * Google Veo 3 Pro Text-to-Video
+   * fal-ai/veo3/pro
+   * Veo 3 旗艦 Pro 版：更高擬真、更好的色彩還原、原生同步音訊
+   * 與 Veo 3 Standard 共用 schema，但定價與 timeout 較高
+   */
+  veo3ProTextToVideo: brainProcedure
+    .input(
+      z.object({
+        prompt: z.string().min(1).max(3000),
+        negativePrompt: z.string().max(1000).optional(),
+        aspectRatio: z.enum(["16:9", "9:16"]).default("16:9"),
+        generateAudio: z.boolean().default(true),
+        enhancePrompt: z.boolean().default(true),
+        seed: z.number().int().nonnegative().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const payload: Record<string, unknown> = {
+        prompt: input.prompt,
+        aspect_ratio: input.aspectRatio,
+        generate_audio: input.generateAudio,
+        enhance_prompt: input.enhancePrompt,
+      };
+      if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
+      if (input.seed !== undefined) payload.seed = input.seed;
+
+      const result = (await falQueueRun(
+        "fal-ai/veo3/pro",
+        payload,
+        600
+      )) as any;
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
+    }),
+
+  /**
    * LTX-Video 13B Text-to-Video
    * fal-ai/ltx-video-13b-distilled
    * Lightricks 開源旗艦，超快速蒸餾版，720p；可指定 seed / guidance_scale / expand_prompt
@@ -430,6 +469,7 @@ export const videoStudioRouter = router({
         const result = (await falQueueRun(SORA_MODEL, payload, 480)) as any;
         return {
           video_url: extractVideoUrl(result),
+          request_id: result?.request_id ?? null,
           raw: result,
           model_used: SORA_MODEL,
         };
@@ -461,6 +501,7 @@ export const videoStudioRouter = router({
           )) as any;
           return {
             video_url: extractVideoUrl(result),
+            request_id: result?.request_id ?? null,
             raw: result,
             degraded: true,
             degraded_reason:

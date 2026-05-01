@@ -24,6 +24,7 @@ export const T2V_ROUTER_IDS = [
   "fal-ai/wan-t2v",
   "fal-ai/minimax/hailuo-02/pro/text-to-video",
   "fal-ai/veo3",
+  "fal-ai/veo3/pro",
   "fal-ai/ltx-video-13b-distilled",
   "fal-ai/sora",
 ] as const;

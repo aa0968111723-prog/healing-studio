@@ -489,8 +489,16 @@ getDemoLoginUrl() // 返回 /api/oauth/demo/start
 ### 4. Google Veo 3（谷歌）
 - **API：** \`trpc.videoStudio.veo3TextToVideo\`
 - **FAL 模型：** \`fal-ai/veo3\`
-- **特點：** **首個原生音頻影片模型**，生成影片自帶音效和配樂，8 秒
+- **特點：** **首個原生音頻影片模型**，生成影片自帶音效和配樂，8 秒；可指定 negative_prompt / seed / enhance_prompt
 - **超時：** 480 秒
+
+### 4-Pro. Google Veo 3 Pro（試用中）
+- **API：** \`trpc.videoStudio.veo3ProTextToVideo\`
+- **FAL 模型：** \`fal-ai/veo3/pro\`
+- **特點：** Veo 3 旗艦 Pro 版，更高擬真、更佳色彩；schema 與 Standard 相同
+- **超時：** 600 秒
+- **積分：** 80 點/5 秒（約 Standard 兩倍，ultra 層級）
+- **備援：** 端點若尚未開放會回 404，可改回 Veo 3 Standard
 
 ### 5. LTX Video 13B Distilled
 - **API：** \`trpc.videoStudio.ltxTextToVideo\`
@@ -501,8 +509,12 @@ getDemoLoginUrl() // 返回 /api/oauth/demo/start
 ### 6. Sora（OpenAI）
 - **API：** \`trpc.videoStudio.soraTextToVideo\`
 - **FAL 模型：** \`fal-ai/sora\`
-- **特點：** OpenAI 旗艦影片模型，物理模擬精準，最長 20 秒
+- **特點：** OpenAI 旗艦影片模型，物理模擬精準，最長 20 秒；可選 480p/720p/1080p、16:9/9:16/1:1
 - **超時：** 480 秒
+- **不穩定備援：** Sora 在 fal.ai 可用性不穩，端點 404 時會自動降級到 LTX-Video-13B；
+  回傳會帶 \`degraded: true\`、\`degraded_reason\`、\`model_requested\`、\`model_used\`，
+  前端會用這些欄位告知使用者畫質與時長已降低
+- **積分：** 60 點/5 秒（ultra 層級）
 
 ---
 

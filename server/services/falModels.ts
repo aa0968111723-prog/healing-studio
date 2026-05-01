@@ -1382,6 +1382,21 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       outputSchema: { videoUrl: true },
       timeoutMs: 480_000,
     },
+    {
+      modelId: "fal-ai/veo3/pro",
+      label: "Veo 3 Pro (fal) t2v",
+      category: "text-to-video",
+      tier: "ultra",
+      description: "Google Veo 3 Pro（fal.ai 代理）：旗艦版，極高擬真、原生同步音訊、更佳色彩還原",
+      inputSchema: {
+        prompt: true,
+        aspectRatio: true,
+        negativePrompt: true,
+        seed: true,
+      },
+      outputSchema: { videoUrl: true },
+      timeoutMs: 600_000,
+    },
   ],
 
   // ════════════════════════════════════════════════════════

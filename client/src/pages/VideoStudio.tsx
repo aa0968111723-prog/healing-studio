@@ -102,7 +102,10 @@ const OVERRIDE_TAB_BY_ENGINE: Array<{ prefix: string; tab: TabId }> = [
   { prefix: "fal-ai/kling-video/v2.1/pro/text-to-video", tab: "t2v" },
   { prefix: "fal-ai/kling-video/v2.1/standard/text-to-video", tab: "t2v" },
   { prefix: "fal-ai/wan-t2v", tab: "t2v" },
+  { prefix: "fal-ai/veo3", tab: "t2v" },
+  { prefix: "fal-ai/sora", tab: "t2v" },
   { prefix: "fal-ai/minimax-video/text-to-video", tab: "t2v" },
+  { prefix: "fal-ai/minimax/hailuo-02/pro/text-to-video", tab: "t2v" },
   { prefix: "fal-ai/cogvideox-5b", tab: "t2v" },
   { prefix: "fal-ai/ltx-video", tab: "t2v" },
   { prefix: "fal-ai/kling-video/v2.1/pro/image-to-video", tab: "i2v" },
@@ -664,6 +667,9 @@ function TextToVideoTab() {
   const [veoAspect, setVeoAspect] = useState<"16:9" | "9:16">("16:9");
   const [veoAudio, setVeoAudio] = useState(true);
   const [veoResult, setVeoResult] = useState<VideoResult | null>(null);
+  // Veo 3 Pro 共用 veoPrompt / veoAspect / veoAudio（兩者參數完全同型），
+  // 但結果分開存以便兩個 ToolCard 各自顯示輸出
+  const [veoProResult, setVeoProResult] = useState<VideoResult | null>(null);
 
   // ─ LTX
   const [ltxPrompt, setLtxPrompt] = useState("");
@@ -690,6 +696,9 @@ function TextToVideoTab() {
   const veoMut = trpc.videoStudio.veo3TextToVideo.useMutation({
     onError: e => toast.error(e.message),
   });
+  const veoProMut = trpc.videoStudio.veo3ProTextToVideo.useMutation({
+    onError: e => toast.error(e.message),
+  });
   const ltxMut = trpc.videoStudio.ltxTextToVideo.useMutation({
     onError: e => toast.error(e.message),
   });
@@ -698,18 +707,26 @@ function TextToVideoTab() {
   });
 
   // ── Agent Bus subscription: allow parent to fill prompts, set params & select model ──
-  type T2VModel = "kling" | "wan" | "minimax" | "veo3" | "ltx" | "sora";
+  type T2VModel =
+    | "kling"
+    | "wan"
+    | "minimax"
+    | "veo3"
+    | "veo3pro"
+    | "ltx"
+    | "sora";
   const [activeT2VModel, setActiveT2VModel] = useState<T2VModel>("kling");
   const runKlingRef = useRef<() => void>(() => {});
   const runWanRef = useRef<() => void>(() => {});
   const runMmRef = useRef<() => void>(() => {});
   const runVeoRef = useRef<() => void>(() => {});
+  const runVeoProRef = useRef<() => void>(() => {});
   const runLtxRef = useRef<() => void>(() => {});
   const runSoraRef = useRef<() => void>(() => {});
   useEffect(() => {
     if (!bus) return;
     const pending = bus.consumePendingModel();
-    if (pending && ["kling","wan","minimax","veo3","ltx","sora"].includes(pending)) {
+    if (pending && ["kling","wan","minimax","veo3","veo3pro","ltx","sora"].includes(pending)) {
       setActiveT2VModel(pending as T2VModel);
     }
     const unsub = bus.subscribe("t2v", (cmd) => {
@@ -778,7 +795,8 @@ function TextToVideoTab() {
       if (cmd.type === "submit") {
         const runFns: Record<T2VModel, () => void> = {
           kling: runKlingRef.current, wan: runWanRef.current, minimax: runMmRef.current,
-          veo3: runVeoRef.current, ltx: runLtxRef.current, sora: runSoraRef.current,
+          veo3: runVeoRef.current, veo3pro: runVeoProRef.current,
+          ltx: runLtxRef.current, sora: runSoraRef.current,
         };
         (runFns[activeT2VModel] ?? runKlingRef.current)();
         return true;
@@ -889,6 +907,28 @@ function TextToVideoTab() {
     }
   }
   runVeoRef.current = runVeo3;
+
+  async function runVeo3Pro() {
+    if (!veoPrompt.trim()) return toast.error("請輸入提詞");
+    setAIState("generating");
+    try {
+      const r = await veoProMut.mutateAsync({
+        prompt: veoPrompt,
+        aspectRatio: veoAspect,
+        generateAudio: veoAudio,
+      });
+      setVeoProResult(r);
+      registerBgTask(r, "video", "Veo 3 Pro 文生影", veoPrompt);
+      toast.success("📤 任務已提交！稍後自動更新結果...");
+      reportSuccess();
+    } catch {
+      reportFailure();
+    } finally {
+      setAIState("idle");
+    }
+  }
+  runVeoProRef.current = runVeo3Pro;
+
 
   async function runLtx() {
     if (!ltxPrompt.trim()) return toast.error("請輸入提詞");
@@ -1263,6 +1303,86 @@ function TextToVideoTab() {
               result={veoResult}
               onUpdate={setVeoResult}
               label="Veo 3 生成結果"
+            />
+          )}
+        </div>
+      </ToolCard>
+
+      {/* Veo 3 Pro */}
+      <ToolCard
+        icon={Cpu}
+        title="Google Veo 3 Pro 文生影"
+        description="Veo 3 旗艦 Pro 版，更高擬真、更佳色彩，原生同步音訊（試用中）"
+        badge="Veo 3 Pro"
+        modelId="fal-ai/veo3/pro"
+        color="blue"
+        isNew
+      >
+        <div className="space-y-3">
+          <div className="text-xs text-muted-foreground bg-amber-50 dark:bg-amber-950/30 rounded p-2 border border-amber-200 dark:border-amber-900">
+            ✦ Pro 版定價約 Standard 的 2 倍（每 5 秒 80 點）；端點若尚未開放會
+            自動回 404，可改回 Veo 3 Standard。輸入欄與 Standard 共用，方便比對。
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">提詞 *</Label>
+            <Textarea
+              value={veoPrompt}
+              onChange={e => setVeoPrompt(e.target.value)}
+              placeholder="詳細描述場景、動作、音效..."
+              className="mt-1 text-sm resize-none"
+              rows={3}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs text-muted-foreground">寬高比</Label>
+              <Select
+                value={veoAspect}
+                onValueChange={v => setVeoAspect(v as "16:9" | "9:16")}
+              >
+                <SelectTrigger className="mt-1 text-sm h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="16:9">16:9（橫屏）</SelectItem>
+                  <SelectItem value="9:16">9:16（豎屏）</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-3 mt-5">
+              <Switch
+                checked={veoAudio}
+                onCheckedChange={setVeoAudio}
+                id="veo-pro-audio"
+              />
+              <Label htmlFor="veo-pro-audio" className="text-xs cursor-pointer">
+                生成配音
+              </Label>
+            </div>
+          </div>
+          <Button
+            onClick={runVeo3Pro}
+            disabled={veoProMut.isPending}
+            className="w-full btn-healing"
+            variant="secondary"
+          >
+            {veoProMut.isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                生成中（約 5-10 分鐘）...
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4 mr-2" />
+                Veo 3 Pro 文生影
+              </>
+            )}
+          </Button>
+          {veoProResult && (
+            <AsyncVideoPoller
+              result={veoProResult}
+              onUpdate={setVeoProResult}
+              label="Veo 3 Pro 生成結果"
             />
           )}
         </div>

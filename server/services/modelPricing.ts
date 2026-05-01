@@ -2602,6 +2602,25 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     requiresKey: true,
     keyEnvVar: "FAL_API_KEY",
   },
+  // Veo 3 Pro：旗艦版，定價約 Standard 的 2 倍（fal.ai Veo 3 Pro 約 $0.80/5s）
+  "fal-ai/veo3/pro": {
+    modelId: "fal-ai/veo3/pro",
+    label: "Veo 3 Pro (fal)",
+    provider: "fal",
+    category: "text-to-video",
+    tier: "ultra",
+    basePoints: 80,
+    baseCostUsd: 0.8,
+    unit: "每5秒",
+    pointsPerSecond: 16,
+    freeSecondsInBase: 5,
+    minPoints: 80,
+    maxPoints: 800,
+    requiresKey: true,
+    keyEnvVar: "FAL_API_KEY",
+    availabilityNote:
+      "Veo 3 Pro：旗艦品質、原生同步音訊；fal.ai 端點若尚未開放會回 404，建議搭配 Veo 3 Standard 作為備援",
+  },
   "fal-ai/pixverse/v4.5/image-to-video": {
     modelId: "fal-ai/pixverse/v4.5/image-to-video",
     label: "PixVerse V4.5 I2V",
