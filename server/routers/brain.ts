@@ -72,469 +72,33 @@ import {
   setAutoRepairEnabled,
   setMonitorInterval,
 } from "../jobs/apiHealthMonitor";
+import {
+  REASONING_MODEL_CATALOG,
+  GENERATION_ENGINE_CATALOG,
+  FAL_TASK_ENGINE_CATALOG,
+  REASONING_MODEL_ALLOWLIST,
+  FAL_FIELD_ALLOWLISTS,
+} from "../_core/modelRegistry";
+
+// Re-export for backward compatibility (tests/external imports rely on these
+// being available from `routers/brain`).
+export {
+  REASONING_MODEL_CATALOG,
+  GENERATION_ENGINE_CATALOG,
+  FAL_TASK_ENGINE_CATALOG,
+};
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Model Catalog (白皮書規格)
+// Local Allowlists (REASONING_MODEL_ALLOWLIST + FAL_FIELD_ALLOWLISTS come
+// from the registry; GENERATION_ENGINE_ALLOWLIST stays local because it
+// layers normalization + DEFAULT engine on top of the catalog.)
 // ═══════════════════════════════════════════════════════════════════════════
-
-/** 5 大推理大腦備選清單（含 Vertex AI 模型） */
-export const REASONING_MODEL_CATALOG = {
-  director: {
-    label: "導演 AI",
-    description: "統籌創作流程、分鏡、敘事結構（對應 /director）",
-    targetPath: "/director",
-    options: [
-      // ── Gemini / Vertex AI ──
-      { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro ✦", tier: "premium" },
-      { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash ⚡", tier: "fast" },
-      // ── Vertex AI 模型 ──
-      {
-        value: "vertex/gemini-2.5-pro",
-        label: "Vertex Gemini 2.5 Pro 🔷",
-        tier: "premium",
-      },
-      {
-        value: "vertex/llama-3.2-90b",
-        label: "Vertex Llama 3.2 90B",
-        tier: "premium",
-      },
-      // ── DEF-13 修正：新增 NVIDIA NIM / MiniMax M2.7 ──
-      {
-        value: "nvidia/minimax-m2.7",
-        label: "MiniMax M2.7 (NVIDIA NIM) 🟠",
-        tier: "premium",
-      },
-    ],
-  },
-  analyst: {
-    label: "新聞過濾",
-    description: "數據分析、趨勢洞察、新聞摘要",
-    options: [
-      { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash ⚡", tier: "fast" },
-      { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", tier: "premium" },
-      {
-        value: "vertex/gemini-2.5-flash",
-        label: "Vertex Gemini 2.5 Flash 🔷",
-        tier: "fast",
-      },
-      {
-        value: "vertex/llama-3.1-405b",
-        label: "Vertex Llama 3.1 405B",
-        tier: "premium",
-      },
-    ],
-  },
-  storyteller: {
-    label: "編譯器",
-    description: "提示詞編譯、文案撰寫、故事展開",
-    options: [
-      { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro ✦", tier: "premium" },
-      { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash ⚡", tier: "fast" },
-      {
-        value: "vertex/gemini-2.5-pro",
-        label: "Vertex Gemini 2.5 Pro 🔷",
-        tier: "premium",
-      },
-      {
-        value: "vertex/mistral-nemo",
-        label: "Vertex Mistral NeMo",
-        tier: "standard",
-      },
-    ],
-  },
-  technician: {
-    label: "光球語調",
-    description: "VisualSoul 對話風格、OARS 語句生成",
-    options: [
-      { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash ⚡", tier: "fast" },
-      { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", tier: "premium" },
-      {
-        value: "vertex/gemini-2.5-flash",
-        label: "Vertex Gemini 2.5 Flash 🔷",
-        tier: "fast",
-      },
-    ],
-  },
-  curator: {
-    label: "RAG 向量",
-    description: "風格推薦、美學判斷、靈感策展",
-    options: [
-      { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash ⚡", tier: "fast" },
-      { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro", tier: "premium" },
-      {
-        value: "vertex/gemini-2.5-pro",
-        label: "Vertex Gemini 2.5 Pro 🔷",
-        tier: "premium",
-      },
-    ],
-  },
-} as const;
-
-/** 生成引擎備選清單（圖片/影片/音頻/語音 + Gemini + ElevenLabs 完整目錄） */
-export const GENERATION_ENGINE_CATALOG = {
-  imageEngine: {
-    label: "圖片工作室",
-    description: "AI 圖像生成（對應 /image-studio）",
-    targetPath: "/image-studio",
-    options: [
-      // ── Fal.ai ──
-      { value: "fal/flux-pro-1.1", label: "Flux Pro 1.1 ✦", tier: "premium" },
-      { value: "fal/flux-dev", label: "Flux Dev", tier: "premium" },
-      { value: "fal/flux-schnell", label: "Flux Schnell ⚡", tier: "fast" },
-      {
-        value: "fal/sd3-medium",
-        label: "Stable Diffusion 3",
-        tier: "standard",
-      },
-      { value: "fal/ideogram-v2", label: "Ideogram V2", tier: "premium" },
-      { value: "fal/aura-flow", label: "AuraFlow", tier: "standard" },
-      // ── Gemini Imagen ──
-      {
-        value: "gemini/imagen-3",
-        label: "Imagen 3 (Gemini) 🔵",
-        tier: "premium",
-      },
-      {
-        value: "gemini/imagen-3-fast",
-        label: "Imagen 3 Fast (Gemini) ⚡",
-        tier: "fast",
-      },
-      // ── Vertex Imagen ──
-      {
-        value: "vertex/imagen-3",
-        label: "Imagen 3 (Vertex) 🔷",
-        tier: "premium",
-      },
-      // ── Imagen 4（Gemini & Vertex）──
-      {
-        value: "gemini/imagen-4",
-        label: "Imagen 4 (Gemini) 🔵",
-        tier: "premium",
-      },
-      {
-        value: "gemini/imagen-4-fast",
-        label: "Imagen 4 Fast (Gemini) ⚡",
-        tier: "fast",
-      },
-      {
-        value: "vertex/imagen-4",
-        label: "Imagen 4 (Vertex) 🔷",
-        tier: "premium",
-      },
-      // ── Nano Banana（Gemini 2.5 Flash Image，圖像快速編修）──
-      {
-        value: "gemini/nano-banana",
-        label: "Nano Banana (Gemini Flash Image) 🍌",
-        tier: "fast",
-      },
-    ],
-  },
-  videoEngine: {
-    label: "影片工作室",
-    description: "AI 影片生成（對應 /video-studio，含 t2v / i2v / v2v）",
-    targetPath: "/video-studio",
-    options: [
-      // ── Fal.ai 文字轉影片（canonical IDs） ──
-      {
-        value: "fal-ai/kling-video/v2.1/pro/text-to-video",
-        label: "Kling V2.1 Pro t2v ✦",
-        tier: "premium",
-      },
-      {
-        value: "fal-ai/kling-video/v2.1/standard/text-to-video",
-        label: "Kling V2.1 Standard t2v",
-        tier: "premium",
-      },
-      {
-        value: "fal-ai/minimax-video/text-to-video",
-        label: "MiniMax Hailuo t2v",
-        tier: "standard",
-      },
-      {
-        value: "fal-ai/minimax/hailuo-02/pro/text-to-video",
-        label: "MiniMax Hailuo 02 Pro t2v",
-        tier: "premium",
-      },
-      {
-        value: "fal-ai/luma-dream-machine",
-        label: "Luma Dream Machine t2v",
-        tier: "premium",
-      },
-      { value: "fal-ai/wan-t2v", label: "WAN T2V 2.1", tier: "standard" },
-      {
-        value: "fal-ai/wan-ai/wan2.1-t2v-720p",
-        label: "WAN 2.1 720p t2v",
-        tier: "standard",
-      },
-      {
-        value: "fal-ai/cogvideox-5b",
-        label: "CogVideoX 5B t2v",
-        tier: "standard",
-      },
-      {
-        value: "fal-ai/ltx-video-13b-distilled",
-        label: "LTX 13B Distilled t2v",
-        tier: "standard",
-      },
-      { value: "fal-ai/sora", label: "OpenAI Sora t2v", tier: "ultra" },
-      { value: "fal-ai/veo3", label: "Veo 3 (fal) t2v", tier: "ultra" },
-
-      // ── Fal.ai 圖片轉影片 ──
-      {
-        value: "fal-ai/kling-video/v2.1/pro/image-to-video",
-        label: "Kling V2.1 Pro i2v ✦",
-        tier: "ultra",
-      },
-      {
-        value: "fal-ai/kling-video/v2.1/standard/image-to-video",
-        label: "Kling V2.1 Standard i2v",
-        tier: "premium",
-      },
-      {
-        value: "fal-ai/runway-gen3/turbo/image-to-video",
-        label: "Runway Gen3 Turbo i2v",
-        tier: "premium",
-      },
-      {
-        value: "fal-ai/runway-gen4-turbo/image-to-video",
-        label: "Runway Gen4 Turbo i2v",
-        tier: "ultra",
-      },
-      {
-        value: "fal-ai/minimax-video/image-to-video",
-        label: "MiniMax i2v",
-        tier: "standard",
-      },
-      {
-        value: "fal-ai/minimax/hailuo-02/pro/image-to-video",
-        label: "MiniMax Hailuo 02 Pro i2v",
-        tier: "premium",
-      },
-      {
-        value: "fal-ai/pixverse/v4.5/image-to-video",
-        label: "PixVerse V4.5 i2v",
-        tier: "standard",
-      },
-      {
-        value: "fal-ai/luma-dream-machine/image-to-video",
-        label: "Luma Dream Machine i2v",
-        tier: "premium",
-      },
-      { value: "fal-ai/wan-i2v", label: "WAN I2V 2.1", tier: "standard" },
-      {
-        value: "fal-ai/wan-ai/wan2.1-i2v-720p",
-        label: "WAN 2.1 720p i2v",
-        tier: "standard",
-      },
-      {
-        value: "fal-ai/ltx-video/image-to-video",
-        label: "LTX Video i2v",
-        tier: "standard",
-      },
-      {
-        value: "fal-ai/stable-video",
-        label: "Stable Video Diffusion",
-        tier: "standard",
-      },
-
-      // ── Fal.ai 影片轉影片（v2v） ──
-      {
-        value: "fal-ai/kling-video/v2.1/standard/video-to-video",
-        label: "Kling V2.1 V2V",
-        tier: "ultra",
-      },
-      {
-        value: "fal-ai/kling-video/v1.6/standard/video-to-video",
-        label: "Kling V1.6 V2V",
-        tier: "premium",
-      },
-      {
-        value: "fal-ai/wan/v2.1/video-to-video",
-        label: "WAN 2.1 V2V",
-        tier: "standard",
-      },
-      {
-        value: "fal-ai/wan-ai/wan2.1-v2v-480p",
-        label: "WAN 2.1 480p V2V",
-        tier: "standard",
-      },
-      {
-        value: "fal-ai/cogvideox-5b/video-to-video",
-        label: "CogVideoX V2V",
-        tier: "standard",
-      },
-      {
-        value: "fal-ai/animatediff-v2v",
-        label: "AnimateDiff V2V (進階控制)",
-        tier: "standard",
-      },
-
-      // ── Fal.ai 畫質優化（enhance） ──
-      {
-        value: "fal-ai/bytedance/upscaler/video",
-        label: "ByteDance 影片超解析",
-        tier: "premium",
-      },
-      {
-        value: "fal-ai/rife-v4.6/video",
-        label: "RIFE 補幀",
-        tier: "standard",
-      },
-      {
-        value: "fal-ai/topaz/video-enhance",
-        label: "Topaz Video Enhance",
-        tier: "ultra",
-      },
-
-      // ── Fal.ai 進階控制（control） ──
-      {
-        value: "fal-ai/cammaster",
-        label: "CamMaster 鏡頭運動控制",
-        tier: "premium",
-      },
-      {
-        value: "fal-ai/depthcrafter",
-        label: "DepthCrafter 深度感知",
-        tier: "standard",
-      },
-      {
-        value: "fal-ai/vidu/q1/reference-to-video",
-        label: "Vidu Q1 Reference-to-Video",
-        tier: "premium",
-      },
-
-      // ── Gemini Veo ──
-      { value: "gemini/veo-2", label: "Veo 2 (Gemini) 🔵", tier: "premium" },
-      {
-        value: "gemini/veo-3",
-        label: "Veo 3 Preview (Gemini) 🔵",
-        tier: "ultra",
-      },
-    ],
-  },
-  audioEngine: {
-    label: "配音配樂工作室（配樂）",
-    description: "AI 音樂/音效生成（對應 /pro-studio）",
-    targetPath: "/pro-studio",
-    options: [
-      // ── Suno ──
-      { value: "suno-v4", label: "Suno V4 ✦", tier: "premium" },
-      { value: "suno-v3.5", label: "Suno V3.5", tier: "standard" },
-      // ── Fal.ai 音頻 ──
-      {
-        value: "fal/stable-audio",
-        label: "Stable Audio (Fal)",
-        tier: "premium",
-      },
-      { value: "fal/musicgen", label: "MusicGen (Meta)", tier: "standard" },
-      { value: "fal/ace-step", label: "ACE-Step", tier: "premium" },
-      { value: "fal/audioldm2", label: "AudioLDM 2", tier: "standard" },
-      // ── Gemini Lyria ──
-      {
-        value: "gemini/lyria-2",
-        label: "Lyria 2 (Gemini) 🔵",
-        tier: "premium",
-      },
-      {
-        value: "gemini/musicfx",
-        label: "MusicFX (Gemini) 🔵",
-        tier: "standard",
-      },
-      // ── ElevenLabs ──
-      {
-        value: "elevenlabs/music",
-        label: "ElevenLabs Music 🎵",
-        tier: "premium",
-      },
-      {
-        value: "elevenlabs/sound-effects",
-        label: "ElevenLabs 音效 🎵",
-        tier: "standard",
-      },
-    ],
-  },
-  voiceEngine: {
-    label: "配音配樂工作室（配音）",
-    description: "AI 語音合成（對應 /pro-studio）",
-    targetPath: "/pro-studio",
-    options: [
-      // ── ElevenLabs ──
-      {
-        value: "elevenlabs/eleven-v3",
-        label: "ElevenLabs V3 ✦",
-        tier: "premium",
-      },
-      {
-        value: "elevenlabs/multilingual-v2",
-        label: "ElevenLabs Multilingual V2",
-        tier: "premium",
-      },
-      {
-        value: "elevenlabs/turbo-v2.5",
-        label: "ElevenLabs Turbo V2.5 ⚡",
-        tier: "fast",
-      },
-      {
-        value: "elevenlabs/flash-v2.5",
-        label: "ElevenLabs Flash V2.5 ⚡",
-        tier: "fast",
-      },
-      // ── Fal.ai TTS ──
-      // DEF-06 修正：移除 MetaVoice v1（對應 fal-ai/metavoice-v1 API 已變更，422 錯誤）
-      { value: "fal/playai-tts", label: "PlayAI TTS (Fal)", tier: "premium" },
-      { value: "fal/kokoro", label: "Kokoro TTS (Fal) ⚡", tier: "fast" },
-      {
-        value: "fal/orpheus-tts",
-        label: "Orpheus TTS (Fal)",
-        tier: "standard",
-      },
-      { value: "fal/dia-tts", label: "Dia TTS (Fal)", tier: "standard" },
-      // ── Gemini TTS ──
-      {
-        value: "gemini/tts-flash",
-        label: "Gemini TTS Flash 🔵 ⚡",
-        tier: "fast",
-      },
-      { value: "gemini/tts-pro", label: "Gemini TTS Pro 🔵", tier: "premium" },
-    ],
-  },
-} as const;
-
-/** Fal.ai 16大類專用引擎（可在大腦設定中為特定任務指定） */
-export const FAL_TASK_ENGINE_CATALOG = Object.fromEntries(
-  (Object.keys(FAL_MODEL_CATALOG) as FalCategory[]).map(cat => [
-    cat,
-    {
-      label: FAL_CATEGORY_LABELS[cat],
-      description: FAL_MODEL_CATALOG[cat][0]?.description ?? "",
-      options: FAL_MODEL_CATALOG[cat].map(m => ({
-        value: m.modelId,
-        label: m.label,
-        tier: m.tier,
-      })),
-    },
-  ])
-) as Record<
-  FalCategory,
-  {
-    label: string;
-    description: string;
-    options: Array<{ value: string; label: string; tier: string }>;
-  }
->;
-
-const REASONING_MODEL_ALLOWLIST = Object.fromEntries(
-  (
-    Object.keys(REASONING_MODEL_CATALOG) as Array<keyof typeof REASONING_MODEL_CATALOG>
-  ).map(slot => [
-    slot,
-    new Set(REASONING_MODEL_CATALOG[slot].options.map(opt => opt.value)),
-  ])
-) as Record<keyof typeof REASONING_MODEL_CATALOG, Set<string>>;
 
 const GENERATION_ENGINE_ALLOWLIST = Object.fromEntries(
   (
-    Object.keys(GENERATION_ENGINE_CATALOG) as Array<keyof typeof GENERATION_ENGINE_CATALOG>
+    Object.keys(GENERATION_ENGINE_CATALOG) as Array<
+      keyof typeof GENERATION_ENGINE_CATALOG
+    >
   ).map(slot => [
     slot,
     new Set([
@@ -546,30 +110,26 @@ const GENERATION_ENGINE_ALLOWLIST = Object.fromEntries(
   ])
 ) as Record<keyof typeof GENERATION_ENGINE_CATALOG, Set<string>>;
 
-const FAL_ENGINE_ALLOWLIST = new Set(
-  Object.values(FAL_MODEL_CATALOG)
-    .flat()
-    .map(m => m.modelId)
+/** Set of the 16 Fal task field names — derived from registry. */
+const FAL_TASK_FIELD_ALLOWLIST = new Set(
+  Object.keys(FAL_FIELD_ALLOWLISTS)
 );
 
-const FAL_TASK_FIELD_ALLOWLIST = new Set([
-  "falImageTo3dEngine",
-  "falImageToImageEngine",
-  "falImageToJsonEngine",
-  "falImageToVideoEngine",
-  "falJsonEngine",
-  "falLlmEngine",
-  "falTextTo3dEngine",
-  "falTextToAudioEngine",
-  "falTextToImageEngine",
-  "falTextToJsonEngine",
-  "falTextToSpeechEngine",
-  "falTextToVideoEngine",
-  "falTrainingEngine",
-  "falVideoToAudioEngine",
-  "falVideoToTextEngine",
-  "falVideoToVideoEngine",
-]);
+/**
+ * Per-field Zod schema for one of the 16 Fal task engine fields.
+ * Validates against the **per-category** allowlist (e.g. falTextToImageEngine
+ * only accepts text-to-image models, not video models).
+ */
+function falEngineField(fieldName: keyof typeof FAL_FIELD_ALLOWLISTS) {
+  return z
+    .string()
+    .trim()
+    .transform(normalizeEngineModelId)
+    .refine(v => FAL_FIELD_ALLOWLISTS[fieldName].has(v), {
+      message: `不支援的 ${fieldName}`,
+    })
+    .optional();
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Router
@@ -834,134 +394,22 @@ export const brainRouter = router({
           .optional(),
         voiceEngineEnabled: z.boolean().optional(),
         // Fal.ai 16大類任務引擎
-        falImageTo3dEngine: z
-          .string()
-          .trim()
-          .transform(normalizeEngineModelId)
-          .refine(v => FAL_ENGINE_ALLOWLIST.has(v), {
-            message: "不支援的 falImageTo3dEngine",
-          })
-          .optional(),
-        falImageToImageEngine: z
-          .string()
-          .trim()
-          .transform(normalizeEngineModelId)
-          .refine(v => FAL_ENGINE_ALLOWLIST.has(v), {
-            message: "不支援的 falImageToImageEngine",
-          })
-          .optional(),
-        falImageToJsonEngine: z
-          .string()
-          .trim()
-          .transform(normalizeEngineModelId)
-          .refine(v => FAL_ENGINE_ALLOWLIST.has(v), {
-            message: "不支援的 falImageToJsonEngine",
-          })
-          .optional(),
-        falImageToVideoEngine: z
-          .string()
-          .trim()
-          .transform(normalizeEngineModelId)
-          .refine(v => FAL_ENGINE_ALLOWLIST.has(v), {
-            message: "不支援的 falImageToVideoEngine",
-          })
-          .optional(),
-        falJsonEngine: z
-          .string()
-          .trim()
-          .transform(normalizeEngineModelId)
-          .refine(v => FAL_ENGINE_ALLOWLIST.has(v), {
-            message: "不支援的 falJsonEngine",
-          })
-          .optional(),
-        falLlmEngine: z
-          .string()
-          .trim()
-          .transform(normalizeEngineModelId)
-          .refine(v => FAL_ENGINE_ALLOWLIST.has(v), {
-            message: "不支援的 falLlmEngine",
-          })
-          .optional(),
-        falTextTo3dEngine: z
-          .string()
-          .trim()
-          .transform(normalizeEngineModelId)
-          .refine(v => FAL_ENGINE_ALLOWLIST.has(v), {
-            message: "不支援的 falTextTo3dEngine",
-          })
-          .optional(),
-        falTextToAudioEngine: z
-          .string()
-          .trim()
-          .transform(normalizeEngineModelId)
-          .refine(v => FAL_ENGINE_ALLOWLIST.has(v), {
-            message: "不支援的 falTextToAudioEngine",
-          })
-          .optional(),
-        falTextToImageEngine: z
-          .string()
-          .trim()
-          .transform(normalizeEngineModelId)
-          .refine(v => FAL_ENGINE_ALLOWLIST.has(v), {
-            message: "不支援的 falTextToImageEngine",
-          })
-          .optional(),
-        falTextToJsonEngine: z
-          .string()
-          .trim()
-          .transform(normalizeEngineModelId)
-          .refine(v => FAL_ENGINE_ALLOWLIST.has(v), {
-            message: "不支援的 falTextToJsonEngine",
-          })
-          .optional(),
-        falTextToSpeechEngine: z
-          .string()
-          .trim()
-          .transform(normalizeEngineModelId)
-          .refine(v => FAL_ENGINE_ALLOWLIST.has(v), {
-            message: "不支援的 falTextToSpeechEngine",
-          })
-          .optional(),
-        falTextToVideoEngine: z
-          .string()
-          .trim()
-          .transform(normalizeEngineModelId)
-          .refine(v => FAL_ENGINE_ALLOWLIST.has(v), {
-            message: "不支援的 falTextToVideoEngine",
-          })
-          .optional(),
-        falTrainingEngine: z
-          .string()
-          .trim()
-          .transform(normalizeEngineModelId)
-          .refine(v => FAL_ENGINE_ALLOWLIST.has(v), {
-            message: "不支援的 falTrainingEngine",
-          })
-          .optional(),
-        falVideoToAudioEngine: z
-          .string()
-          .trim()
-          .transform(normalizeEngineModelId)
-          .refine(v => FAL_ENGINE_ALLOWLIST.has(v), {
-            message: "不支援的 falVideoToAudioEngine",
-          })
-          .optional(),
-        falVideoToTextEngine: z
-          .string()
-          .trim()
-          .transform(normalizeEngineModelId)
-          .refine(v => FAL_ENGINE_ALLOWLIST.has(v), {
-            message: "不支援的 falVideoToTextEngine",
-          })
-          .optional(),
-        falVideoToVideoEngine: z
-          .string()
-          .trim()
-          .transform(normalizeEngineModelId)
-          .refine(v => FAL_ENGINE_ALLOWLIST.has(v), {
-            message: "不支援的 falVideoToVideoEngine",
-          })
-          .optional(),
+        falImageTo3dEngine: falEngineField("falImageTo3dEngine"),
+        falImageToImageEngine: falEngineField("falImageToImageEngine"),
+        falImageToJsonEngine: falEngineField("falImageToJsonEngine"),
+        falImageToVideoEngine: falEngineField("falImageToVideoEngine"),
+        falJsonEngine: falEngineField("falJsonEngine"),
+        falLlmEngine: falEngineField("falLlmEngine"),
+        falTextTo3dEngine: falEngineField("falTextTo3dEngine"),
+        falTextToAudioEngine: falEngineField("falTextToAudioEngine"),
+        falTextToImageEngine: falEngineField("falTextToImageEngine"),
+        falTextToJsonEngine: falEngineField("falTextToJsonEngine"),
+        falTextToSpeechEngine: falEngineField("falTextToSpeechEngine"),
+        falTextToVideoEngine: falEngineField("falTextToVideoEngine"),
+        falTrainingEngine: falEngineField("falTrainingEngine"),
+        falVideoToAudioEngine: falEngineField("falVideoToAudioEngine"),
+        falVideoToTextEngine: falEngineField("falVideoToTextEngine"),
+        falVideoToVideoEngine: falEngineField("falVideoToVideoEngine"),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -1051,13 +499,13 @@ export const brainRouter = router({
           });
         }
       } else if (rawUpdateField.endsWith("Engine")) {
-        if (
-          FAL_TASK_FIELD_ALLOWLIST.has(rawUpdateField)
-            ? !FAL_ENGINE_ALLOWLIST.has(nextModel)
-            : !GENERATION_ENGINE_ALLOWLIST[
-                rawUpdateField as keyof typeof GENERATION_ENGINE_ALLOWLIST
-              ]?.has(nextModel)
-        ) {
+        const isFalTask = FAL_TASK_FIELD_ALLOWLIST.has(rawUpdateField);
+        const allowedForField = isFalTask
+          ? FAL_FIELD_ALLOWLISTS[rawUpdateField]
+          : GENERATION_ENGINE_ALLOWLIST[
+              rawUpdateField as keyof typeof GENERATION_ENGINE_ALLOWLIST
+            ];
+        if (!allowedForField || !allowedForField.has(nextModel)) {
           throw new TRPCError({
             code: "BAD_REQUEST",
             message: `不支援的引擎：${nextModel}`,

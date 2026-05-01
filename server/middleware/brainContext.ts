@@ -356,140 +356,14 @@ function scheduleHealthCheck(modelOrEngine: string): void {
   });
 }
 
-/** 已知的模型/引擎清單 */
-const KNOWN_MODELS = new Set([
-  // LLM — Gemini（主要引擎）
-  "gemini-2.5-pro",
-  "gemini-2.5-flash",
-  "gemini-1.5-pro",
-  "gemini-1.5-flash",
-  "gemini-pro",
-  // LLM — MiniMax M2.7 via NVIDIA NIM（代理人引擎）
-  "minimaxai/minimax-m2.7",
-  // Vertex AI 路徑
-  "vertex/gemini-2.5-pro",
-  "vertex/gemini-2.5-flash",
-  "vertex/gemini-1.5-pro",
-  "vertex/gemini-1.5-flash",
-  "vertex/llama-3.2-90b",
-  // OpenAI/Claude（向後相容，系統會自動 remapping）
-  "gpt-4o",
-  "gpt-4o-mini",
-  "gpt-3.5-turbo",
-  "claude-3.5-sonnet",
-  "claude-3-opus",
-  // Google AI Studio / Vertex AI — 多模態
-  "gemini/imagen-3",
-  "gemini/imagen-3-fast",
-  "gemini/imagen-4",
-  "vertex/imagen-3",
-  "vertex/imagen-4",
-  "gemini/veo-2",
-  "gemini/veo-3",
-  "gemini/veo-3-fast",
-  "vertex/veo-2",
-  "vertex/veo-3",
-  "gemini/lyria-2",
-  "gemini/lyria-3",
-  "vertex/lyria-2",
-  "gemini/tts-flash",
-  "gemini/tts-pro",
-  // 圖像引擎（fal.ai）
-  "fal-ai/flux-pro/v1.1",
-  "fal-ai/flux/dev",
-  "fal-ai/flux/schnell",
-  "fal-ai/flux-schnell",
-  "fal-ai/stable-diffusion-v3-medium",
-  "fal-ai/aura-flow",
-  "fal-ai/ideogram/v2",
-  "flux-pro", // 向後相容短名稱
-  "flux-schnell", // 向後相容短名稱
-  // 圖像編輯 / ControlNet / IP-Adapter
-  "fal-ai/flux/dev/image-to-image",
-  "fal-ai/stable-diffusion-v3-medium/image-to-image",
-  "fal-ai/controlnet-union",
-  "fal-ai/ip-adapter-face-id",
-  "fal-ai/aura-sr",
-  "fal-ai/imageutils/rembg",
-  // 影片引擎（fal.ai）
-  "fal-ai/kling-video/v2.1/pro/text-to-video",
-  "fal-ai/kling-video/v2.1/standard/text-to-video",
-  "fal-ai/kling-video/v2.1/pro/image-to-video",
-  "fal-ai/kling-video/v2.1/standard/image-to-video",
-  "fal-ai/kling-video/v2.1/standard/video-to-video",
-  "fal-ai/wan-t2v",
-  "fal-ai/wan-t2v-v2.1",
-  "fal-ai/wan-v2v",
-  "fal-ai/minimax/video-01",
-  "fal-ai/minimax-video/text-to-video",
-  "fal-ai/minimax-video/image-to-video",
-  "fal-ai/luma-dream-machine",
-  "fal-ai/luma-dream-machine/image-to-video",
-  "fal-ai/runway-gen3/turbo/image-to-video",
-  "fal-ai/stable-video",
-  "fal-ai/cogvideox-5b",
-  "fal-ai/cogvideox-5b/video-to-video",
-  "fal-ai/video-to-video",
-  "fal-ai/topaz-upscale-video",
-  "fal-ai/stable-video-upscaler",
-  "kling-v1", // 向後相容短名稱
-  // 音樂引擎（fal.ai）
-  "fal-ai/stable-audio",
-  "fal-ai/ace-step",
-  "fal-ai/musicgen",
-  "fal-ai/mmaudio-v2",
-  "fal-ai/mmaudio-v2/video-to-audio",
-  "fal-ai/audioldm2",
-  "fal-ai/elevenlabs/sound-effects",
-  "suno-v4", // 向後相容短名稱
-  "suno-v3.5", // 向後相容短名稱
-  // 語音引擎（fal.ai TTS）
-  "fal-ai/metavoice-v1",
-  "fal-ai/kokoro",
-  "fal-ai/dia-tts",
-  "fal-ai/f5-tts",  // playai-tts Not Found, replaced with f5-tts
-  "fal-ai/orpheus-tts",
-  "fal-ai/whisper",
-  "fal-ai/wizper",
-  "fal-ai/sync-lipsync",
-  "elevenlabs-v2", // 向後相容短名稱
-  // 3D 引擎
-  "fal-ai/trellis",
-  "fal-ai/triposr",
-  "fal-ai/stable-zero123",
-  "fal-ai/zero123plus",
-  "fal-ai/mv-adapter",
-  "fal-ai/hyper3d/rodin",
-  "fal-ai/meshy-4",
-  "fal-ai/shap-e",
-  "fal-ai/dreamgaussian",
-  "fal-ai/fantasia3d",
-  // LLM / JSON / Vision（fal.ai）
-  "fal-ai/any-llm",
-  "fal-ai/llava-next",
-  "fal-ai/moondream",
-  "fal-ai/doctr",
-  "fal-ai/sam2",
-  "fal-ai/meta-llama/llama-3.2-90b-vision-instruct",
-  "fal-ai/meta-llama/llama-3.1-8b-instruct",
-  "fal-ai/wizardlm-2-8x22b",
-  "fal-ai/dolphin-2.9.2-qwen2-72b",
-  "fal-ai/lmstudio",
-  "fal-ai/outlines",
-  "fal-ai/wizardcoder",
-  // 訓練引擎
-  "fal-ai/flux-lora-fast-training",
-  "fal-ai/flux-lora-portrait-trainer",
-  "fal-ai/dreambooth-flux",
-  "fal-ai/sd3-lora-training",
-  "fal-ai/cogvideox-lora-training",
-  "fal-ai/hunyuan-video-lora-training",
-  "fal-ai/flux-2-trainer",
-  "fal-ai/turbo-flux-trainer",
-]);
+import { isCanonicalOrKnownModel } from "../_core/modelRegistry";
 
+/**
+ * Whether a given model/engine ID is recognized by the registry.
+ * Backed by the auto-derived `getKnownModelIds()` (catalogs ∪ legacy aliases).
+ */
 function isRecognizedModel(model: string): boolean {
-  return KNOWN_MODELS.has(model);
+  return isCanonicalOrKnownModel(model);
 }
 
 /**
