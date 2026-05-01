@@ -201,14 +201,31 @@ export function buildAgentPlannerMessages(input: AgentPlannerInput): Message[] {
     `User agent preferences:\n${preferencesSummary}`,
     "Plan in Traditional Chinese labels where helpful, but keep action ids and page paths exact.",
     "When the user's target output, modality, destination page, chosen model, constraints, or success criteria are unclear, you MUST return shouldAskClarification=true with a single clarificationQuestion (Traditional Chinese, ≤80 字) and 2-4 short clarificationOptions covering the likely choices. Do NOT include any steps in clarification mode.",
-    `Never dispatch navigate, fillPrompt, applyPreset, submit, or runWorkflow when the request is ambiguous — ask first.
+    `Multi-step wizard rule (極為重要 / very important):
+Before producing a 'tasked' plan (multi-step / cross-page execution), you MUST gather the key parameters with a step-by-step quick-select wizard. Even if you can guess, ASK FIRST.
+
+How the wizard works:
+- Ask ONE clarifying question at a time (decision.mode='clarification' + clarificationQuestion + 2-4 clarificationOptions). Never ask multiple questions in a single message.
+- Re-read the conversation each turn — earlier '[使用者澄清]:' answers count as already-confirmed parameters; do NOT ask the same dimension twice.
+- Continue clarification rounds until ALL the following dimensions for the user's modality are pinned down before switching to decision.mode='tasked':
+  • Video (影片): 時長 (e.g., 15s / 30-60s / 1分鐘以上)、風格/調性、素材來源 (手邊素材 vs AI 生成)、目標平台/比例。
+  • Image (圖片): 比例/尺寸、風格/氛圍、主體/構圖、模型偏好 (若已知)。
+  • Voice / 配音: 語氣/角色、語言、時長或字數、輸出格式。
+  • Music / 音樂: 用途 (BGM / 廣告 / 短影音)、時長、情緒/曲風、是否需要人聲。
+  • Script / 腳本: 平台/受眾、主題與目標、長度、風格 (搞笑 / 嚴肅 / 教學 …)。
+  • LoRA / Training: 訓練主體、素材數量、目標風格、輸出用途。
+- Each clarificationOptions list should reflect THIS user's prompt (use their own wording / topic when sensible) — never generic fillers, never options unrelated to their topic.
+- Switch to decision.mode='direct' only for single-page low-risk fillPrompt-style requests where every parameter is already explicit.
+- Switch to decision.mode='tasked' only after the wizard has all required dimensions confirmed; the steps you produce must reflect each confirmed answer.
+
+Never dispatch navigate, fillPrompt, applyPreset, submit, or runWorkflow when the request is ambiguous — ask first.
 
 Before proposing any execution step, infer the user's real goal, constraints, and desired outcome. If any key assumption is unverified, ask a clarifying question first instead of guessing.
 
 Every proposed step must map to an explicit user intent or clarified preference; avoid speculative steps that are not directly aligned with what the user asked. 每一步都要確實符合使用者需求與意圖。
 
 Prefer accuracy over speed: keep plans minimal, verify assumptions before each step, and ask clarification whenever confidence is not high. 寧可慢一點先對齊，也不要快但做錯。`,
-    "When you base your plan on a recalled memory, registered page capability, or named tool, populate `citations`: [{ kind: 'memory'|'page'|'tool'|'web', id: '<source id>', label?: '<short human label>' }]. Reuse the memoryId values from the 'Recent long-term memory' summary verbatim. Skip citations when the response is fully novel.",
+    "When you base your plan on a recalled memory, registered page capability, or named tool, populate `citations`: [{ kind: 'memory'|'page'|'tool'|'web', id: '<source id>', label?: '<short human label>' }]. Reuse the memoryId values from the 'Recent long-term memory' summary verbatim. Skip citations when the response is fully novel. For 'web' citations, only include URLs that come from the provided 【網路研究】 block AND match the user's actual topic — drop any source whose title/summary is unrelated to what the user asked (寧可不引用，也不要引用離題的來源).",
     "For image uploads, plan image-to-video, image analysis, or prompt extraction workflows when requested.",
     "For audio/video/PDF uploads, use the attachment as source material and create analysis, transcription, storyboard, caption, or conversion workflows when requested.",
     "Do not use unregistered action types or tool names. If unavailable on this page, return clarification or blocked.",

@@ -84,6 +84,27 @@ describe("agentPlanner", () => {
     expect(built.at(-1)?.content).toBe("幫我做海報");
   });
 
+  it("system prompt instructs a step-by-step quick-select wizard before tasked plans", () => {
+    const messages: Message[] = [{ role: "user", content: "幫我規劃一支貓咪大戰爭影片" }];
+    const built = buildAgentPlannerMessages({ messages });
+    const systemPrompt = String(built[0].content);
+    // Multi-step wizard rule: ask one question at a time with quick-select options
+    // before producing a tasked plan, covering the modality-specific dimensions.
+    expect(systemPrompt).toContain("Multi-step wizard");
+    expect(systemPrompt).toMatch(/ONE clarifying question at a time/);
+    expect(systemPrompt).toContain("clarificationOptions");
+    expect(systemPrompt).toMatch(/時長|風格|素材/);
+    // Re-asking already-answered dimensions is forbidden so the wizard advances.
+    expect(systemPrompt).toMatch(/使用者澄清/);
+  });
+
+  it("system prompt requires web citations to match the user's actual topic", () => {
+    const messages: Message[] = [{ role: "user", content: "幫我做一支貓咪影片" }];
+    const built = buildAgentPlannerMessages({ messages });
+    const systemPrompt = String(built[0].content);
+    expect(systemPrompt).toMatch(/離題|drop any source/);
+  });
+
   it("detects and summarizes multimodal message parts", () => {
     const messages: Message[] = [
       {
