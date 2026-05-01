@@ -29,6 +29,7 @@ const KIND_ICON: Record<PipelineNode["kind"], string> = {
   "orb-agent": "🌐",
   "orb-assistant": "💫",
   director: "🎬",
+  studio: "🎨",
   provider: "☁️",
 };
 

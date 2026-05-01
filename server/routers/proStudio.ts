@@ -293,6 +293,40 @@ async function falQueueRun(
 
 // ─── 音樂 & 音效模型清單 ──────────────────────────────────────────────────────
 
+type MusicModelChoice = "sonauto" | "ace-step" | "stable-audio" | "musicgen";
+
+/**
+ * 把大腦組態的 audioEngine 字串映射到 textToMusic 的 model enum。
+ * 使用者可在「大腦組態」自訂 audioEngine（如 fal-ai/sonauto / fal-ai/stable-audio），
+ * textToMusic 沒收到 input.model 時就以此為預設，讓 brain config 真正生效。
+ */
+function audioEngineToMusicChoice(engine: string): MusicModelChoice {
+  const e = engine.toLowerCase();
+  if (e.includes("sonauto")) return "sonauto";
+  if (e.includes("stable-audio")) return "stable-audio";
+  if (e.includes("musicgen")) return "musicgen";
+  return "ace-step";
+}
+
+type ElevenLabsEngineChoice =
+  | "turbo-v2.5"
+  | "flash-v2.5"
+  | "multilingual-v2"
+  | "eleven-v3";
+
+/**
+ * 把大腦組態的 voiceEngine 字串映射到 elevenLabsTTS 的 engine enum。
+ * 使用者把 voiceEngine 切到 multilingual-v2 / flash-v2.5 / eleven-v3 都會被尊重；
+ * 若 voiceEngine 指向非 ElevenLabs 模型（Qwen / Dia），此 endpoint 退回 turbo-v2.5。
+ */
+function voiceEngineToElevenLabsEngine(engine: string): ElevenLabsEngineChoice {
+  const e = engine.toLowerCase();
+  if (e.includes("flash-v2.5")) return "flash-v2.5";
+  if (e.includes("multilingual-v2")) return "multilingual-v2";
+  if (e.includes("eleven-v3")) return "eleven-v3";
+  return "turbo-v2.5";
+}
+
 /** 可用的音樂生成模型 */
 const MUSIC_MODELS = [
   // DEF-14 修正：ACE-Step 設為預設（Sonauto v2 目前 fal.ai 不穩定）
@@ -391,13 +425,15 @@ export const proStudioRouter = router({
         duration: z.number().min(1).max(300).optional(), // 秒數（非 Sonauto 模型用）
         model: z
           .enum(["sonauto", "ace-step", "stable-audio", "musicgen"])
-          .optional()
-          .default("ace-step"),
+          .optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      // DEF-14 同步修正：後端預設模型改為 ace-step
-      const modelChoice = input.model ?? "ace-step";
+      // 沒帶 model 時，從使用者的大腦組態 audioEngine 推導，讓 brain 設定真正生效。
+      // 仍保留 ace-step 作為最終 fallback（DEF-14：Sonauto v2 在 fal.ai 偶發不穩）。
+      const modelChoice: MusicModelChoice =
+        input.model ??
+        audioEngineToMusicChoice(ctx.brain.getEngine("audioEngine").engine);
 
       // ── Sonauto v2（預設）─────────────────────────────────────
       if (modelChoice === "sonauto") {
@@ -636,8 +672,7 @@ export const proStudioRouter = router({
         voice_id: z.string().optional(),
         engine: z
           .enum(["turbo-v2.5", "flash-v2.5", "multilingual-v2", "eleven-v3"])
-          .optional()
-          .default("turbo-v2.5"),
+          .optional(),
         /** 直接傳入 ElevenLabs 原生 model_id（覆寫 engine 對應） */
         model_id: z.string().optional(),
         stability: z.number().min(0).max(1).optional().default(0.5),
@@ -673,7 +708,10 @@ export const proStudioRouter = router({
           pricingKey: "elevenlabs/eleven-v3",
         },
       };
-      const engine = input.engine ?? "turbo-v2.5";
+      // 沒帶 engine 時，從使用者大腦組態的 voiceEngine 推導；保留 turbo-v2.5 作為最終 fallback。
+      const engine: ElevenLabsEngineChoice =
+        input.engine ??
+        voiceEngineToElevenLabsEngine(ctx.brain.getEngine("voiceEngine").engine);
       const route = ENGINE_MAP[engine];
       const charged = await chargeForFalTask(ctx.user.id, route.pricingKey, {
         charCount: input.text.length,

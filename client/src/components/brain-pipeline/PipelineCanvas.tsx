@@ -46,7 +46,7 @@ const ISSUE_STATUSES: ReadonlySet<PipelineNodeStatus> = new Set<PipelineNodeStat
  * - full：四層完整圖（page → router → brain/engine → provider）
  */
 const VIEW_MODE_KINDS: Record<ViewMode, ReadonlySet<PipelineNodeKind>> = {
-  site: new Set<PipelineNodeKind>(["page", "page-group"]),
+  site: new Set<PipelineNodeKind>(["page", "page-group", "studio"]),
   brain: new Set<PipelineNodeKind>([
     "router",
     "brain-slot",
@@ -54,6 +54,7 @@ const VIEW_MODE_KINDS: Record<ViewMode, ReadonlySet<PipelineNodeKind>> = {
     "orb-agent",
     "orb-assistant",
     "director",
+    "studio",
     "provider",
   ]),
   full: new Set<PipelineNodeKind>([
@@ -65,6 +66,7 @@ const VIEW_MODE_KINDS: Record<ViewMode, ReadonlySet<PipelineNodeKind>> = {
     "orb-agent",
     "orb-assistant",
     "director",
+    "studio",
     "provider",
   ]),
 };

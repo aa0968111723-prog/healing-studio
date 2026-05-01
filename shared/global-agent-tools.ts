@@ -87,6 +87,17 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
       aspect_ratio: "string?",
       num_images: "number?",
       negative_prompt: "string?",
+      // img2img / 編輯：起始圖 + 強度（對應 ImageStudio 的編輯/姿勢/3D 流程）
+      image_url: "string?",
+      strength: "number?",
+      // 可重現性
+      seed: "number?",
+      // 推論調諧（Flux / SDXL 都支援）
+      guidance_scale: "number?",
+      num_inference_steps: "number?",
+      // LoRA 注入（用 ${stepN.lora_url} 從訓練步驟串進來）
+      lora_url: "string?",
+      lora_scale: "number?",
     },
     executionTarget: "server-side",
   },
@@ -147,6 +158,9 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
       lyrics: "string?",
       instrumental: "boolean?",
       duration: "number?",
+      // 風格標籤（逗號分隔）+ BPM；底層 textToMusic / Sonauto 都支援
+      tags: "string?",
+      bpm: "number?",
     },
     executionTarget: "server-side",
   },
@@ -159,6 +173,14 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
       modelId: "string?",
       voice_id: "string?",
       speed: "number?",
+      // 多語 TTS 必要欄位；缺這個多語推理就退回英文
+      language_code: "string?",
+      // ElevenLabs engine 切換（turbo-v2.5 / flash-v2.5 / multilingual-v2 / eleven-v3）
+      engine: "string?",
+      // ElevenLabs 聲音調諧
+      stability: "number?",
+      similarity_boost: "number?",
+      style: "number?",
     },
     executionTarget: "server-side",
   },

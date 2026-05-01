@@ -29,6 +29,33 @@ interface FalDispatchEnvelope {
 }
 
 /**
+ * 解析光球工具的目標模型：
+ *  1. 呼叫端有指定 modelId → 直接用
+ *  2. 否則讀使用者大腦組態的對應 engine slot
+ *  3. brain 載入失敗或 slot 為空 → 用 hardcoded fallback
+ *
+ * 同時應用於 studio.generateImage / generateVideo（t2v）/ generateAudio /
+ * generateVoice，避免「使用者改了大腦組態，光球仍用舊預設」的回歸。
+ */
+async function resolveOrbEngine(
+  requestedModelId: string,
+  userId: number,
+  slot: "imageEngine" | "videoEngine" | "audioEngine" | "voiceEngine",
+  hardcodedFallback: string
+): Promise<string> {
+  if (requestedModelId) return requestedModelId;
+  try {
+    const { buildBrainContext } = await import("../middleware/brainContext");
+    const brain = await buildBrainContext(userId);
+    const fromBrain = brain.getEngine(slot).engine;
+    if (fromBrain) return fromBrain;
+  } catch {
+    // brain 載入失敗（DB 不可用等），落到 fallback
+  }
+  return hardcodedFallback;
+}
+
+/**
  * Wait for a fal queue dispatch to terminate (completed / failed / pending),
  * then merge the awaited URLs into the dispatcher's envelope so downstream
  * step-ref placeholders (`${step1.video_url}`) resolve. Honours the
@@ -591,7 +618,18 @@ async function dispatchStudioTool(
     switch (call.name) {
       case "studio.generateImage": {
         const { dispatchFalQueueTask } = await import("./falDispatcher");
-        const modelId = (args.modelId as string) || "fal-ai/flux/dev";
+        const modelId = await resolveOrbEngine(
+          (args.modelId as string) || "",
+          opts.userId,
+          "imageEngine",
+          "fal-ai/flux/dev"
+        );
+        // img2img：有 image_url 時改走 image-to-image 路由，讓 dispatcher
+        // 對 LoRA / 編輯類模型套對應的 fallback chain。
+        const hasImage = typeof args.image_url === "string" && args.image_url;
+        const category: "text-to-image" | "image-to-image" = hasImage
+          ? "image-to-image"
+          : "text-to-image";
         const input: Record<string, unknown> = {};
         if (typeof args.prompt === "string") input.prompt = args.prompt;
         if (typeof args.aspect_ratio === "string")
@@ -600,9 +638,25 @@ async function dispatchStudioTool(
           input.num_images = args.num_images;
         if (typeof args.negative_prompt === "string")
           input.negative_prompt = args.negative_prompt;
+        if (typeof args.image_url === "string") input.image_url = args.image_url;
+        if (typeof args.strength === "number") input.strength = args.strength;
+        if (typeof args.seed === "number") input.seed = args.seed;
+        if (typeof args.guidance_scale === "number")
+          input.guidance_scale = args.guidance_scale;
+        if (typeof args.num_inference_steps === "number")
+          input.num_inference_steps = args.num_inference_steps;
+        if (typeof args.lora_url === "string") {
+          // fal LoRA-aware models 期望 loras 為陣列
+          input.loras = [
+            {
+              path: args.lora_url,
+              scale: typeof args.lora_scale === "number" ? args.lora_scale : 1,
+            },
+          ];
+        }
         const r = await dispatchFalQueueTask({
           modelId,
-          category: "text-to-image",
+          category,
           input,
           route: "orb-tool/studio.generateImage",
           modality: "image",
@@ -637,8 +691,16 @@ async function dispatchStudioTool(
           "image-to-video": "fal-ai/kling-video/v2.1/pro/image-to-video",
           "text-to-video": "fal-ai/kling-video/v2.1/pro/text-to-video",
         } as const;
+        // brain 的 videoEngine 是 t2v 預設；i2v / v2v 各自有結構性預設模型，不該被覆寫。
         const modelId =
-          (args.modelId as string) || defaultModelByCategory[category];
+          category === "text-to-video"
+            ? await resolveOrbEngine(
+                (args.modelId as string) || "",
+                opts.userId,
+                "videoEngine",
+                defaultModelByCategory[category]
+              )
+            : (args.modelId as string) || defaultModelByCategory[category];
         const input: Record<string, unknown> = {};
         if (typeof args.prompt === "string") input.prompt = args.prompt;
         if (typeof args.image_url === "string") input.image_url = args.image_url;
@@ -756,11 +818,33 @@ async function dispatchStudioTool(
 
         // fal.ai 路徑（預設）
         const { dispatchFalQueueTask } = await import("./falDispatcher");
-        const modelId = requestedModel || "fal-ai/ace-step";
+        const modelId = await resolveOrbEngine(
+          requestedModel,
+          opts.userId,
+          "audioEngine",
+          "fal-ai/ace-step"
+        );
         const input: Record<string, unknown> = {};
         if (typeof args.prompt === "string") input.prompt = args.prompt;
         if (typeof args.lyrics === "string") input.lyrics = args.lyrics;
         if (typeof args.duration === "number") input.duration = args.duration;
+        if (typeof args.tags === "string") {
+          // Sonauto 期望 tags 為陣列；其他模型併入 prompt
+          if (modelId.includes("sonauto")) {
+            const arr = args.tags
+              .split(",")
+              .map(t => t.trim())
+              .filter(Boolean);
+            if (arr.length > 0) input.tags = arr;
+          } else if (typeof input.prompt === "string") {
+            input.prompt = `${input.prompt}, ${args.tags}`;
+          }
+        }
+        if (typeof args.bpm === "number") input.bpm = args.bpm;
+        if (args.instrumental === true && modelId.includes("sonauto")) {
+          // Sonauto 用空字串歌詞表達純音樂
+          input.lyrics_prompt = "";
+        }
         const r = await dispatchFalQueueTask({
           modelId,
           category: "text-to-audio",
@@ -784,12 +868,33 @@ async function dispatchStudioTool(
 
       case "studio.generateVoice": {
         const { dispatchFalQueueTask } = await import("./falDispatcher");
-        const modelId =
-          (args.modelId as string) || "fal-ai/elevenlabs/tts/turbo-v2.5";
+        const modelId = await resolveOrbEngine(
+          (args.modelId as string) || "",
+          opts.userId,
+          "voiceEngine",
+          "fal-ai/elevenlabs/tts/turbo-v2.5"
+        );
         const input: Record<string, unknown> = {};
         if (typeof args.text === "string") input.text = args.text;
         if (typeof args.voice_id === "string") input.voice_id = args.voice_id;
         if (typeof args.speed === "number") input.speed = args.speed;
+        // 多語 TTS：language_code 必傳到 ElevenLabs，否則 multilingual-v2
+        // 會落到英文預設，光球發起的中文 / 日文 TTS 會發音怪。
+        if (typeof args.language_code === "string")
+          input.language_code = args.language_code;
+        // 聲音調諧（stability / similarity_boost / style）走 ElevenLabs voice_settings
+        const stability = typeof args.stability === "number" ? args.stability : undefined;
+        const similarity = typeof args.similarity_boost === "number"
+          ? args.similarity_boost
+          : undefined;
+        const style = typeof args.style === "number" ? args.style : undefined;
+        if (stability !== undefined || similarity !== undefined || style !== undefined) {
+          const voiceSettings: Record<string, unknown> = {};
+          if (stability !== undefined) voiceSettings.stability = stability;
+          if (similarity !== undefined) voiceSettings.similarity_boost = similarity;
+          if (style !== undefined) voiceSettings.style = style;
+          input.voice_settings = voiceSettings;
+        }
         const r = await dispatchFalQueueTask({
           modelId,
           category: "text-to-speech",
