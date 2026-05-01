@@ -20,6 +20,7 @@ import { newsArticles } from "../../drizzle/schema";
 import { invokeLLM } from "../_core/llm";
 import { gte, desc, and, eq } from "drizzle-orm";
 import { CircuitBreaker } from "./circuitBreaker";
+import { serverEnv } from "../_core/env.validated";
 import {
   addLearnDoc,
   hasLearnDoc,
@@ -35,8 +36,11 @@ const LOOKBACK_DAYS = 7;
 /** 每次最多合成幾篇學習文件 */
 const MAX_DOCS_PER_RUN = 3;
 
-/** Gemini 呼叫逾時（毫秒） */
-const LLM_TIMEOUT_MS = 90_000;
+/** Gemini 呼叫逾時（毫秒）— 讀 LLM_TIMEOUT_SECONDS；批次任務預設 90s 比互動式長 */
+const LLM_TIMEOUT_MS = (() => {
+  const parsed = parseInt(serverEnv.LLM_TIMEOUT_SECONDS, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed * 1000 : 90_000;
+})();
 
 /** 啟動後首次同步延遲（毫秒） */
 const INITIAL_SYNC_DELAY_MS = 60_000;

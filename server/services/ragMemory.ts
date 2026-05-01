@@ -12,6 +12,7 @@
  */
 
 import { serverEnv } from "../_core/env.validated";
+import { featureFlags } from "../_core/featureFlags";
 import { OrbMemorySchema, type OrbMemory } from "../../shared/orb-memory";
 
 // ─── Pinecone 設定 ────────────────────────────────────────────────────────
@@ -129,6 +130,10 @@ export interface MemoryRecord {
 
 export async function upsertMemory(record: MemoryRecord): Promise<void> {
   try {
+    // FEATURE_RAG_MEMORY（別名 ENABLE_RAG_MEMORY）關閉時直接跳過 Pinecone 寫入。
+    // 預設由 PINECONE_API_KEY 是否存在決定（featureFlags.ts:92-96）。
+    if (!featureFlags.isEnabled("RAG_MEMORY")) return;
+
     const apiKey = serverEnv.PINECONE_API_KEY;
     if (!apiKey) return; // RAG 未啟用時靜默跳過
 
@@ -195,6 +200,10 @@ export async function queryMemories(
   topK = 3
 ): Promise<MemoryMatch[]> {
   try {
+    // FEATURE_RAG_MEMORY（別名 ENABLE_RAG_MEMORY）關閉時靜默回空，
+    // 上游 buildMemoryContext / queryRagMemory 會自動跳過記憶注入。
+    if (!featureFlags.isEnabled("RAG_MEMORY")) return [];
+
     const apiKey = serverEnv.PINECONE_API_KEY;
     if (!apiKey) return []; // RAG 未啟用
 
