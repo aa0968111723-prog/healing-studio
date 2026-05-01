@@ -1604,6 +1604,140 @@ describe("orchestrator precision policy", () => {
     expect(result.results[1]?.ok).toBe(false);
     expect(result.endingPath).toBe("/video-studio");
   });
+
+  // ─── /studio narrow-handler routing defect (multi-step bug fix) ────────
+  // /studio's `case "applyPreset"` handler only accepts ids starting with
+  // "creative:" (creative-mode levels). Its `case "setModel"` only accepts
+  // positive integer LoRA fine-tune IDs. Both are nominally in /studio's
+  // supportedActions because the case blocks exist — but the static
+  // fallback's priority tiebreak (Studio = priority 2) used to make
+  // /studio win over /image-studio (priority 3) for `applyPreset:
+  // vibe-cinematic` and `setModel:imagen`, dispatching to a guaranteed-
+  // fail target and stalling the orb's multi-step plan one step in.
+  // resolveStaticFallback now skips /studio for these payload shapes.
+
+  it("static fallback skips /studio for non-creative applyPreset (routes to a vibe-aware studio)", async () => {
+    globalAgentRegistry.clear();
+    globalAgentRegistry.register(makePage("agent-chat", "/agent", "全站光球代理", []));
+    const calls: string[] = [];
+    const result = await executeGlobalAction(
+      { type: "applyPreset", presetId: "vibe-cinematic" },
+      {
+        currentPage: null,
+        navigate: async path => calls.push(`nav:${path}`),
+        dispatch: async (action, opts) => {
+          calls.push(`act:${action.type}:${opts?.targetPageId}`);
+          return { ok: true };
+        },
+        waitAfterNavigateMs: 0,
+      }
+    );
+    expect(result.ok).toBe(true);
+    // /image-studio / /pro-studio / /director are vibe-aware and accept
+    // arbitrary preset IDs. Either is acceptable — what we MUST never see
+    // is /studio winning, because /studio rejects non-creative presets.
+    expect(calls[0]).not.toBe("nav:/studio");
+    expect(calls[0]).toMatch(/^nav:\/(image-studio|pro-studio|director|lora-trainer)$/);
+  });
+
+  it("static fallback still picks /studio for creative-mode applyPreset (creative:simple/standard/pro)", async () => {
+    // The flip side of the narrow-handler gate: /studio is the ONLY page
+    // that handles creative:* presets. It must still win for those payloads.
+    globalAgentRegistry.clear();
+    globalAgentRegistry.register(makePage("agent-chat", "/agent", "全站光球代理", []));
+    const calls: string[] = [];
+    const result = await executeGlobalAction(
+      { type: "applyPreset", presetId: "creative:simple" },
+      {
+        currentPage: null,
+        navigate: async path => calls.push(`nav:${path}`),
+        dispatch: async () => ({ ok: true }),
+        waitAfterNavigateMs: 0,
+      }
+    );
+    expect(result.ok).toBe(true);
+    expect(calls[0]).toBe("nav:/studio");
+  });
+
+  it("static fallback skips /studio for non-numeric setModel (routes to a string-model studio)", async () => {
+    globalAgentRegistry.clear();
+    globalAgentRegistry.register(makePage("agent-chat", "/agent", "全站光球代理", []));
+    const calls: string[] = [];
+    const result = await executeGlobalAction(
+      { type: "setModel", modelId: "imagen-image-3" },
+      {
+        currentPage: null,
+        navigate: async path => calls.push(`nav:${path}`),
+        dispatch: async () => ({ ok: true }),
+        waitAfterNavigateMs: 0,
+      }
+    );
+    expect(result.ok).toBe(true);
+    // /image-studio / /video-studio / /pro-studio accept string model IDs.
+    // /studio's setModel rejects anything non-numeric (it's a LoRA-only
+    // handler) so it must never win this fallback.
+    expect(calls[0]).not.toBe("nav:/studio");
+    expect(calls[0]).toMatch(/^nav:\/(image-studio|video-studio|pro-studio)$/);
+  });
+
+  it("static fallback still picks /studio for numeric setModel (LoRA fine-tune ID)", async () => {
+    globalAgentRegistry.clear();
+    globalAgentRegistry.register(makePage("agent-chat", "/agent", "全站光球代理", []));
+    const calls: string[] = [];
+    const result = await executeGlobalAction(
+      { type: "setModel", modelId: "42" },
+      {
+        currentPage: null,
+        navigate: async path => calls.push(`nav:${path}`),
+        dispatch: async () => ({ ok: true }),
+        waitAfterNavigateMs: 0,
+      }
+    );
+    expect(result.ok).toBe(true);
+    // For a numeric model ID /studio is a valid candidate (it sets the
+    // fineTunedModelId for LoRA injection). Priority breaks the tie.
+    expect(calls[0]).toBe("nav:/studio");
+  });
+
+  it("multi-step plan with vibe applyPreset + image fillPrompt + submit lands every step on /image-studio (no /studio detour)", async () => {
+    // End-to-end regression for the "multi-step stalls one step in"
+    // defect. Pre-fix: the applyPreset step routed to /studio (which
+    // failed with "unknown presetId"), the workflow aborted, and the
+    // user never got their image. Post-fix: every step stays on
+    // /image-studio.
+    globalAgentRegistry.clear();
+    globalAgentRegistry.register(
+      makePage("image-studio", "/image-studio", "圖片創作室", [
+        "applyPreset",
+        "fillPrompt",
+        "submit",
+      ])
+    );
+    const calls: string[] = [];
+    const result = await executeGlobalActions(
+      [
+        { type: "applyPreset", presetId: "vibe-cinematic" },
+        { type: "fillPrompt", text: "城市夜雨咖啡廳" },
+        { type: "submit" },
+      ],
+      {
+        currentPage: null,
+        navigate: async path => calls.push(`nav:${path}`),
+        dispatch: async (action, opts) => {
+          calls.push(`act:${action.type}:${opts?.targetPageId}`);
+          return { ok: true };
+        },
+        waitAfterNavigateMs: 0,
+      }
+    );
+    expect(result.every(r => r.ok)).toBe(true);
+    expect(calls.filter(c => c.startsWith("nav:"))).toEqual(["nav:/image-studio"]);
+    expect(calls.filter(c => c.startsWith("act:"))).toEqual([
+      "act:applyPreset:image-studio",
+      "act:fillPrompt:image-studio",
+      "act:submit:image-studio",
+    ]);
+  });
 });
 
 describe("orchestrator safety helpers", () => {

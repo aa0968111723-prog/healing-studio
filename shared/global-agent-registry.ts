@@ -252,6 +252,28 @@ export class GlobalAgentRegistry {
       const page = APP_PAGE_REGISTRY.find(p => p.id === capability.pageId);
       if (!page) continue;
 
+      // /studio's narrow handler semantics: the unified studio page
+      // exposes applyPreset / setModel cases, so its supportedActions
+      // includes them — but the handler only accepts:
+      //   - applyPreset id starting with "creative:" (creative-mode levels)
+      //   - setModel modelId that's a positive integer (LoRA fine-tune ID)
+      // Anything else (e.g. applyPreset:vibe-cinematic, setModel:imagen)
+      // is rejected with "unknown presetId" / "setModel 需要正整數". The
+      // static fallback can't validate payload shape per page in general,
+      // but for /studio we know enough to skip when the payload won't
+      // fit. Without this gate, /studio's lower priority number (2) wins
+      // the tiebreak over /image-studio (3) for vibe-style presets and
+      // string model IDs, dispatch fails silently, and the orb's
+      // multi-step plan stalls one step in.
+      if (page.id === "studio") {
+        if (action.type === "applyPreset" && !action.presetId.startsWith("creative:")) {
+          continue;
+        }
+        if (action.type === "setModel" && !/^\d+$/.test(action.modelId)) {
+          continue;
+        }
+      }
+
       const haystack = pageRegistryHaystack(page);
       let score = 1; // baseline: action-type match always beats no candidate
       const reasons: string[] = [`supports:${action.type}`];
