@@ -43,6 +43,7 @@ export {
   formatRelativeTime,
   formatMessageMetadata,
   getPageEmoji,
+  inferSuggestionEmoji,
 } from "@/lib/orbChatHelpers";
 
 export type ChatRole = "user" | "orb";
@@ -169,6 +170,36 @@ function inferUserMultimodalIntent(text: string): string {
   if (hit(["腳本", "分鏡", "企劃", "導演", "storyboard", "script"])) return "偏向前期腳本規劃（建議 director）";
   if (hit(["全站模型", "全部模型", "模型總覽", "多模態"])) return "偏向全站模型導覽（建議先去 studio，再分流 image/video/audio/voice）";
   return "意圖未明，先用 1-2 句追問成品與用途後再分流";
+}
+
+/**
+ * 給「反問快選圖卡」用的小圖示推測 — 視內容自動配個 emoji，
+ * 讓使用者一眼分辨選項類型（影片 / 風格 / 規劃 / 自由補充…）。
+ */
+export function inferClarificationOptionEmoji(text: string): string {
+  const lower = text.toLowerCase();
+  if (/(短片|reel|社群)/.test(text)) return "📱";
+  if (/(教學|tutorial|guide)/.test(text)) return "🎓";
+  if (/(廣告|商業|品牌|advert|brand)/.test(text)) return "📣";
+  if (/(影片|video|reel|vlog)/.test(text)) return "🎬";
+  if (/(寫實|realistic|photo)/.test(text)) return "📷";
+  if (/(插畫|illustration|手繪|漫畫)/.test(text)) return "🎨";
+  if (/(海報|poster|封面)/.test(text)) return "🖼️";
+  if (/(音樂|配樂|bgm|music)/.test(lower)) return "🎵";
+  if (/(節奏|rhythm|beat|快|活潑)/.test(text)) return "🥁";
+  if (/(慢|療癒|溫柔|放鬆|calm)/.test(text)) return "🌿";
+  if (/(環境|氛圍|ambient|sfx|音效)/.test(text)) return "🌌";
+  if (/(配音|旁白|tts|聲線|語音)/.test(text)) return "🎙️";
+  if (/(專業|adult|男聲|主播)/.test(text)) return "🎤";
+  if (/(年輕|青春|youth)/.test(text)) return "🧒";
+  if (/(範例|sample|試聽|示範|看看)/.test(text)) return "👀";
+  if (/(規劃|計畫|執行|流程|workflow)/.test(text)) return "🗺️";
+  if (/(直接|自動|幫我做|代理)/.test(text)) return "⚡";
+  if (/(快速|fast|快選)/.test(text)) return "⚡";
+  if (/(問我|追問|釐清|1 題)/.test(text)) return "❓";
+  if (/(看|觀察|先看|了解)/.test(text)) return "👁️";
+  if (/(三組|3 組|多選|方向)/.test(text)) return "✨";
+  return "💡";
 }
 
 function inferClarificationIntentCards(question: string, userText: string): string[] {
@@ -514,18 +545,24 @@ function ClarificationPromptCard({
       </div>
 
       {prompt.options && prompt.options.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {prompt.options.map(option => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => submit(option)}
-              disabled={isBusy}
-              className="rounded-2xl bg-amber-200/15 px-3 py-1.5 text-xs text-amber-100 transition hover:bg-amber-200/25 disabled:opacity-50"
-            >
-              {option}
-            </button>
-          ))}
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          {prompt.options.map(option => {
+            const emoji = inferClarificationOptionEmoji(option);
+            return (
+              <button
+                key={option}
+                type="button"
+                onClick={() => submit(option)}
+                disabled={isBusy}
+                className="group flex items-start gap-2 rounded-2xl border border-amber-200/20 bg-amber-200/10 px-3 py-2.5 text-left transition hover:border-amber-200/50 hover:bg-amber-200/20 disabled:opacity-50"
+              >
+                <span className="text-base leading-none mt-0.5 shrink-0">{emoji}</span>
+                <span className="text-xs leading-snug text-amber-50 group-hover:text-amber-100">
+                  {option}
+                </span>
+              </button>
+            );
+          })}
         </div>
       )}
 

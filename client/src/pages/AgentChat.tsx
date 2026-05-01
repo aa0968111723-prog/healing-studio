@@ -30,7 +30,6 @@ import {
   Settings2,
   Sparkles,
   Eraser,
-  Plus,
   Workflow,
   ListChecks,
   CornerUpRight,
@@ -52,13 +51,9 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { getAgentHomeEntries } from "@/config/appRegistry";
 import { useGlobalOrbChat } from "@/contexts/GlobalOrbChatContext";
+import { inferSuggestionEmoji } from "@/lib/orbChatHelpers";
 import { useOrbAttachments, attachmentKindEmoji } from "@/hooks/useOrbAttachments";
 import { ORB_UPLOAD_ACCEPT } from "../../../shared/orb-chat-multimodal";
 import { toast } from "sonner";
@@ -259,7 +254,7 @@ export default function AgentChat() {
   const [needGuideOpen, setNeedGuideOpen] = useState(false);
   const [howToOpen, setHowToOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [plusMenuOpen, setPlusMenuOpen] = useState(false);
+  const [activeMode, setActiveMode] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const starterEntries = useMemo(
     () =>
@@ -300,17 +295,95 @@ export default function AgentChat() {
     globalChat.open();
   }, [globalChat]);
 
+  // ─── 模式工具列：把舊「+」popover 改成可點亮的模式按鈕 ────────────────
+  // 點下去 → 模式亮起 → 使用者再輸入自己的提示詞 → 送出時自動帶上模式語境。
+  // 若使用者沒輸入直接送，會用該模式的 defaultPrompt 作為 fallback。
+  const modeOptions = useMemo(
+    () => [
+      {
+        id: "multi-step",
+        label: "多步驟代理",
+        shortLabel: "自動",
+        description: "全自動拆解工作流程並執行",
+        accent: "violet" as const,
+        icon: Workflow,
+        prefix:
+          "（請以多步驟代理「全自動」模式處理：把我的請求拆成完整工作流程，產生一份 tasked 計畫讓我一次批准；批准後請呼叫 studio.* 工具自動執行所有步驟到完成，不要在每一步停下來等我，只有遇到必要的高風險動作才中斷。）\n",
+        defaultPrompt:
+          "請啟動多步驟代理（全自動模式）：把我的請求拆成完整工作流程，產生一份 tasked 計畫讓我一次批准；批准後請呼叫 studio.* 工具自動執行所有步驟到完成。",
+        placeholder: "說一句目標，光球會自動拆步驟…",
+      },
+      {
+        id: "plan",
+        label: "計畫",
+        shortLabel: "計畫",
+        description: "先擬一份可執行的計畫",
+        accent: "emerald" as const,
+        icon: ListChecks,
+        prefix:
+          "（請先以「計畫」模式回覆：列出目標、步驟、需要的素材與預期結果，再讓我選要不要執行。）\n",
+        defaultPrompt:
+          "請先幫我擬一份計畫：列出目標、步驟、需要的素材與預期結果，再讓我選要不要執行。",
+        placeholder: "說一個想完成的目標，光球先擬計畫…",
+      },
+      {
+        id: "navigate",
+        label: "跳頁",
+        shortLabel: "跳頁",
+        description: "幫我帶到對應的功能頁面",
+        accent: "sky" as const,
+        icon: CornerUpRight,
+        prefix:
+          "（請以「跳頁」模式回覆：先問我想做什麼，再用 [ACTION:navigate:/path] 帶我過去。）\n",
+        defaultPrompt:
+          "請幫我跳到合適的頁面：先問我想做什麼，再用 [ACTION:navigate:/path] 帶我過去。",
+        placeholder: "想去哪個工具頁？描述一下…",
+      },
+      {
+        id: "ask-feature",
+        label: "功能詢問",
+        shortLabel: "功能",
+        description: "問光球這個站有什麼功能",
+        accent: "amber" as const,
+        icon: HelpCircle,
+        prefix:
+          "（請以「功能詢問」模式回覆：聚焦這個站目前有的功能、能怎麼幫到我、以及怎麼開始使用。）\n",
+        defaultPrompt:
+          "請介紹一下這個站目前有哪些功能可以用？我想了解能怎麼幫到我，以及怎麼開始。",
+        placeholder: "想知道哪個功能？問我吧…",
+      },
+    ],
+    []
+  );
+
+  const activeModeOption = useMemo(
+    () => modeOptions.find(option => option.id === activeMode) ?? null,
+    [activeMode, modeOptions]
+  );
+
+  const toggleMode = useCallback((modeId: string) => {
+    setActiveMode(prev => (prev === modeId ? null : modeId));
+  }, []);
+
   // ─── 送出訊息 ───────────────────────────────────────────────────────
   const send = useCallback(
     async (raw: string) => {
       const text = raw.trim();
       if ((!text && attachments.length === 0) || isSending) return;
+      // 若有點亮模式，把模式語境加到使用者提示前面；空輸入時直接用預設提示。
+      const composed = activeModeOption
+        ? text
+          ? `${activeModeOption.prefix}${text}`
+          : activeModeOption.defaultPrompt
+        : text;
       // Use global chat to send the message
       // GlobalOrbChatContext handles all LLM interaction, action dispatch, and message management
-      await globalChat.sendMessage(text, attachments);
+      await globalChat.sendMessage(composed, attachments);
       clearAttachments();
+      // 送出後自動關閉模式，避免下一句無意間又被加上前綴。
+      if (activeModeOption) setActiveMode(null);
     },
-    [isSending, globalChat, attachments, clearAttachments]
+    [isSending, globalChat, attachments, clearAttachments, activeModeOption]
   );
 
   // Keep sendRef in sync with the latest `send` callback
@@ -324,51 +397,6 @@ export default function AgentChat() {
       }
     },
     [input, send]
-  );
-
-  // ─── 「+」快速功能選單 ────────────────────────────────────────────────
-  // 提供使用者一鍵呼叫光球的常見進階能力，避免每次都要自己想開頭句子。
-  const plusMenuItems = useMemo(
-    () => [
-      {
-        id: "multi-step",
-        label: "多步驟代理（全自動）",
-        description: "一次確認後，全部步驟自動跑完",
-        icon: Workflow,
-        prompt:
-          "請啟動多步驟代理（全自動模式）：把我的請求拆成完整工作流程，產生一份 tasked 計畫讓我一次批准；批准後請呼叫 studio.* 工具自動執行所有步驟到完成，不要在每一步停下來等我，只有遇到必要的高風險動作才中斷。",
-      },
-      {
-        id: "plan",
-        label: "計畫",
-        description: "先擬一份可執行的計畫",
-        icon: ListChecks,
-        prompt: "請先幫我擬一份計畫：列出目標、步驟、需要的素材與預期結果，再讓我選要不要執行。",
-      },
-      {
-        id: "navigate",
-        label: "跳頁",
-        description: "幫我帶到對應的功能頁面",
-        icon: CornerUpRight,
-        prompt: "請幫我跳到合適的頁面：先問我想做什麼，再用 [ACTION:navigate:/path] 帶我過去。",
-      },
-      {
-        id: "ask-feature",
-        label: "功能詢問",
-        description: "問光球這個站有什麼功能",
-        icon: HelpCircle,
-        prompt: "請介紹一下這個站目前有哪些功能可以用？我想了解能怎麼幫到我，以及怎麼開始。",
-      },
-    ],
-    []
-  );
-
-  const handlePlusMenuItemClick = useCallback(
-    async (prompt: string) => {
-      setPlusMenuOpen(false);
-      await send(prompt);
-    },
-    [send]
   );
 
   const isFirstTurn = messages.length <= 1;
@@ -602,17 +630,23 @@ export default function AgentChat() {
               </CollapsibleContent>
             </Collapsible>
           </div>
-          <div className="w-full mt-1">
-            <div className="flex flex-wrap items-center justify-center gap-1.5">
-              {quickStarters.map(text => (
-                <button
-                  key={text}
-                  onClick={() => void send(text)}
-                  className="text-[11px] px-2.5 py-1 rounded-full bg-white/75 dark:bg-slate-900/50 border border-slate-200/70 dark:border-slate-700/70 text-slate-500 dark:text-slate-400 hover:text-emerald-600 hover:border-emerald-200 transition-colors"
-                >
-                  {text}
-                </button>
-              ))}
+          <div className="w-full mt-2">
+            <div className="grid grid-cols-2 gap-2">
+              {quickStarters.map(text => {
+                const emoji = inferSuggestionEmoji(text);
+                return (
+                  <button
+                    key={text}
+                    onClick={() => void send(text)}
+                    className="group flex items-center gap-2 rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white/80 dark:bg-slate-900/50 px-3 py-2.5 text-left shadow-sm hover:border-emerald-300 hover:bg-emerald-50/60 dark:hover:border-emerald-600/70 dark:hover:bg-emerald-900/20 transition-all"
+                  >
+                    <span className="text-base leading-none shrink-0">{emoji}</span>
+                    <span className="text-xs leading-snug text-slate-600 dark:text-slate-300 line-clamp-2">
+                      {text}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -846,19 +880,30 @@ export default function AgentChat() {
           </AnimatePresence>
         </div>
 
-        {/* 快速回覆（對話中途的建議） */}
+        {/* 快速回覆（對話中途的反問建議）— 用快選圖卡呈現，比小膠囊更好讀 */}
         {!isFirstTurn && suggestions.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {suggestions.map(s => (
-              <button
-                key={s}
-                onClick={() => void send(s)}
-                disabled={isSending}
-                className="text-xs px-3 py-1.5 rounded-full bg-white/80 dark:bg-slate-800/70 text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700/60 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 hover:border-emerald-200 dark:hover:border-emerald-500/40 transition disabled:opacity-50"
-              >
-                {s}
-              </button>
-            ))}
+          <div className="space-y-1.5">
+            <p className="text-[11px] text-slate-400 dark:text-slate-500 px-1">
+              快選回應 ✨
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {suggestions.map(s => {
+                const emoji = inferSuggestionEmoji(s);
+                return (
+                  <button
+                    key={s}
+                    onClick={() => void send(s)}
+                    disabled={isSending}
+                    className="group flex items-start gap-2.5 rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white/85 dark:bg-slate-800/70 px-3 py-2.5 text-left shadow-sm backdrop-blur hover:border-emerald-300 hover:bg-emerald-50/70 dark:hover:border-emerald-500/50 dark:hover:bg-emerald-900/30 disabled:opacity-50 transition-all"
+                  >
+                    <span className="text-base leading-none mt-0.5 shrink-0">{emoji}</span>
+                    <span className="text-xs leading-snug text-slate-700 dark:text-slate-200 line-clamp-3">
+                      {s}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
         {/* 學習中心捷徑（對話中途顯示） */}
@@ -906,6 +951,72 @@ export default function AgentChat() {
               void handleFiles(e.target.files);
             }}
           />
+
+          {/* 模式工具列：點下去會亮起來，再輸入自己的提示詞送出即可。 */}
+          <div className="flex items-center gap-1.5 overflow-x-auto px-1 pb-0.5 scrollbar-thin">
+            {modeOptions.map(option => {
+              const Icon = option.icon;
+              const isActive = activeMode === option.id;
+              const accentClasses = isActive
+                ? {
+                    violet:
+                      "border-violet-300 bg-violet-100 text-violet-700 shadow-sm shadow-violet-200/60 dark:border-violet-500/60 dark:bg-violet-500/20 dark:text-violet-200",
+                    emerald:
+                      "border-emerald-300 bg-emerald-100 text-emerald-700 shadow-sm shadow-emerald-200/60 dark:border-emerald-500/60 dark:bg-emerald-500/20 dark:text-emerald-200",
+                    sky: "border-sky-300 bg-sky-100 text-sky-700 shadow-sm shadow-sky-200/60 dark:border-sky-500/60 dark:bg-sky-500/20 dark:text-sky-200",
+                    amber:
+                      "border-amber-300 bg-amber-100 text-amber-700 shadow-sm shadow-amber-200/60 dark:border-amber-500/60 dark:bg-amber-500/20 dark:text-amber-200",
+                  }[option.accent]
+                : "border-slate-200/70 bg-white/70 text-slate-500 hover:border-slate-300 hover:text-slate-700 dark:border-slate-700/60 dark:bg-slate-900/40 dark:text-slate-400 dark:hover:text-slate-200";
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => toggleMode(option.id)}
+                  disabled={isSending}
+                  aria-pressed={isActive}
+                  title={option.description}
+                  className={`group inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-all disabled:opacity-40 ${accentClasses}`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span>{option.label}</span>
+                  {isActive && (
+                    <span
+                      aria-hidden
+                      className="ml-0.5 inline-block w-1.5 h-1.5 rounded-full bg-current animate-pulse"
+                    />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* 已點亮模式的提示條：清楚告訴使用者「現在輸入會以這個模式送出」 */}
+          {activeModeOption && (
+            <motion.div
+              key={activeModeOption.id}
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="flex items-center justify-between gap-2 rounded-xl border border-emerald-200/70 bg-emerald-50/70 dark:border-emerald-500/30 dark:bg-emerald-900/20 px-3 py-1.5"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                <p className="text-[11px] text-emerald-700 dark:text-emerald-300 truncate">
+                  目前模式：<span className="font-semibold">{activeModeOption.label}</span>
+                  <span className="opacity-70"> · {activeModeOption.description}</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveMode(null)}
+                className="text-[11px] text-emerald-700/70 hover:text-emerald-800 dark:text-emerald-300/70 dark:hover:text-emerald-200 shrink-0"
+              >
+                取消
+              </button>
+            </motion.div>
+          )}
+
           <div className="flex items-center gap-2 bg-white/90 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl border border-slate-200/70 dark:border-slate-700/60 shadow-lg p-2">
             <button
               type="button"
@@ -920,64 +1031,17 @@ export default function AgentChat() {
                 <Paperclip className="w-4 h-4" />
               )}
             </button>
-            <Popover open={plusMenuOpen} onOpenChange={setPlusMenuOpen}>
-              <PopoverTrigger asChild>
-                <button
-                  type="button"
-                  disabled={isSending}
-                  title="更多功能"
-                  aria-label="更多功能"
-                  className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 disabled:opacity-40 transition-colors"
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent
-                side="top"
-                align="start"
-                sideOffset={8}
-                className="w-64 p-2"
-              >
-                <div className="px-2 py-1.5 text-[11px] font-medium text-slate-400 dark:text-slate-500">
-                  快速請光球做點什麼
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  {plusMenuItems.map(item => {
-                    const Icon = item.icon;
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => void handlePlusMenuItemClick(item.prompt)}
-                        disabled={isSending}
-                        className="flex items-start gap-2 px-2 py-2 rounded-lg text-left hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 transition-colors"
-                      >
-                        <Icon className="w-4 h-4 mt-0.5 text-emerald-500 dark:text-emerald-400 shrink-0" />
-                        <div className="flex flex-col">
-                          <span className="text-sm text-slate-800 dark:text-slate-100">
-                            {item.label}
-                          </span>
-                          <span className="text-xs text-slate-500 dark:text-slate-400 leading-snug">
-                            {item.description}
-                          </span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </PopoverContent>
-            </Popover>
             <input
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={onKeyDown}
               disabled={isSending}
-              placeholder="說一句話就好…"
+              placeholder={activeModeOption?.placeholder ?? "說一句話就好…"}
               className="flex-1 bg-transparent outline-none px-3 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 disabled:opacity-50"
             />
             <Button
               onClick={() => void send(input)}
-              disabled={(!input.trim() && attachments.length === 0) || isSending || isUploading}
+              disabled={(!input.trim() && attachments.length === 0 && !activeModeOption) || isSending || isUploading}
               size="sm"
               className="bg-gradient-to-r from-emerald-400 to-sky-400 hover:from-emerald-500 hover:to-sky-500 text-white border-0 shadow-md disabled:opacity-40"
             >
