@@ -1167,4 +1167,6 @@ export const __testing = {
   invalidateResponseCache,
   PROVIDERS,
   ROUTER_TO_PROVIDERS,
+  PAGE_TO_ROUTERS,
+  ROUTER_TO_AI_SLOTS,
 };

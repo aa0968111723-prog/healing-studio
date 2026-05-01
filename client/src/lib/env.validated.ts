@@ -27,6 +27,14 @@ const clientSchema = z.object({
   // 未設定時 init() 會用空字串 → PostHog SDK 會自動跳過 capture
   VITE_POSTHOG_KEY: z.string().optional().default(""),
   VITE_POSTHOG_HOST: z.string().optional().default("https://us.i.posthog.com"),
+  // ── 大腦推理鏈視覺化：節點檔案連到 GitHub 原始碼 ───────────────
+  // VITE_GITHUB_REPO  例：aa0968111723-prog/healing-studio
+  // VITE_GITHUB_REF   分支或 commit SHA；未設則使用 "main"
+  VITE_GITHUB_REPO: z
+    .string()
+    .optional()
+    .default("aa0968111723-prog/healing-studio"),
+  VITE_GITHUB_REF: z.string().optional().default("main"),
 });
 
 // ─── Validation ────────────────────────────────────────────────────────────
@@ -44,6 +52,8 @@ function validateClientEnv() {
     VITE_ENABLE_CLAUDE_CODE_TASKS: import.meta.env.VITE_ENABLE_CLAUDE_CODE_TASKS,
     VITE_POSTHOG_KEY: import.meta.env.VITE_POSTHOG_KEY,
     VITE_POSTHOG_HOST: import.meta.env.VITE_POSTHOG_HOST,
+    VITE_GITHUB_REPO: import.meta.env.VITE_GITHUB_REPO,
+    VITE_GITHUB_REF: import.meta.env.VITE_GITHUB_REF,
   };
 
   const result = clientSchema.safeParse(raw);

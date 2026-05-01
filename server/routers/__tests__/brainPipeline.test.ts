@@ -1,4 +1,6 @@
 import { describe, expect, it, beforeEach } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { __testing } from "../brainPipeline";
 import {
   __unsafe_resetProviderHealthForTests,
@@ -6,7 +8,7 @@ import {
   getProviderHealthVersion,
 } from "../../services/providerHealth";
 
-const { buildGraph } = __testing;
+const { buildGraph, ROUTER_TO_PROVIDERS } = __testing;
 
 describe("brainPipeline graph builder", () => {
   beforeEach(() => {
@@ -216,6 +218,52 @@ describe("brainPipeline graph builder", () => {
           e.source === "router:learnHub" && e.target === "brain:analyst"
       )
     ).toBeDefined();
+  });
+
+  it("ROUTER_TO_PROVIDERS stays in sync with server/routers.ts (drift guard)", () => {
+    // 讀 server/routers.ts 原始碼，抓所有「key: someRouter,」式註冊。
+    // 任何在 routers.ts 註冊、但未列入 ROUTER_TO_PROVIDERS 的 router 都應失敗，
+    // 確保大腦推理鏈視覺化會跟著程式碼真實更新。
+    const routersTs = readFileSync(
+      resolve(__dirname, "../../routers.ts"),
+      "utf-8"
+    );
+    // 例：`  imageStudio: imageStudioRouter,`
+    const registered = new Set<string>();
+    const re = /^\s+([a-zA-Z][a-zA-Z0-9]*):\s+[a-zA-Z][a-zA-Z0-9]*Router,/gm;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(routersTs)) !== null) {
+      registered.add(m[1]);
+    }
+    expect(registered.size).toBeGreaterThan(0);
+
+    // 已知不需要顯示在大腦推理鏈圖上的 router（meta / 測試 / 系統健康用）
+    const exempt = new Set([
+      "system", // 系統健康，不在 graph 上重複呈現
+      "brainPipeline", // 自我引用，避免 meta 循環
+      "modelConsents", // 純法務同意書，無 AI 流向
+      "externalServices", // 外部服務代理（HTTP），不算 tRPC AI router
+      "promptLibrary", // 已可選擇納入；目前 ROUTER_TO_PROVIDERS 未列即視為豁免
+      "sense", // 感測訊號，獨立子系統
+      "orbCapabilities", // 純 capability registry 查詢，不觸發 AI
+    ]);
+
+    const inGraph = new Set(
+      ROUTER_TO_PROVIDERS.map(r => r.id.replace(/^router:/, ""))
+    );
+
+    const missing: string[] = [];
+    for (const name of registered) {
+      if (exempt.has(name)) continue;
+      if (!inGraph.has(name)) missing.push(name);
+    }
+
+    expect(
+      missing,
+      `偵測到 server/routers.ts 新增了 router 但未加入 brainPipeline.ts 的 ROUTER_TO_PROVIDERS：\n  ${missing.join(", ")}\n` +
+        `→ 請在 server/routers/brainPipeline.ts 的 ROUTER_TO_PROVIDERS 加上對應 entry，` +
+        `或若該 router 不該出現在大腦推理鏈圖上，請更新本測試的 exempt 清單。`
+    ).toEqual([]);
   });
 
   it("orb-agent and orb-assistant and director nodes are always present", () => {

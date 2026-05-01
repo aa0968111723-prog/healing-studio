@@ -13,6 +13,11 @@
 >
 > 路由清單來源：`client/src/App.tsx`（30+ 條 `<Route>`）
 > 大腦節點來源：`shared/brain-pipeline.ts`、`server/routers/brainPipeline.ts`
+>
+> **真實同步機制**：
+> - `/admin/brain-pipeline` 頁面每 30 秒自動 refetch，狀態（綠/黃/紅/灰）即時跟隨真實 API 健康。
+> - 點擊節點打開的 NodeDetailSheet 中所有 repo 檔案路徑會渲染 GitHub 圖示按鈕，**直接跳到原始碼**（由 `VITE_GITHUB_REPO` + `VITE_GITHUB_REF` 控制，預設 `aa0968111723-prog/healing-studio` `main`）。
+> - 單元測試 `brainPipeline.test.ts` 內含 **drift guard**：當 `server/routers.ts` 新增 router 但忘了加入 `ROUTER_TO_PROVIDERS` 時，CI 會以清楚的錯誤訊息失敗。
 
 ---
 
@@ -690,13 +695,14 @@ npx markmap-cli docs/SITE_MAP.md
    - `shared/appRegistry.ts`：加 `AppPageRegistryItem`（含 `group` 與 `supportsPageAgent`）
    - `server/routers/brainPipeline.ts`：若會觸發 AI router，更新 `PAGE_TO_ROUTERS`
    - 本文件 §2 flowchart 與 §3.5 表 A
-2. **新增 router**：
+2. **新增 router**（drift guard 會自動偵測，CI 會失敗直到完成）：
    - `server/routers.ts` 註冊
-   - `server/routers/brainPipeline.ts:ROUTER_TO_PROVIDERS` 加 entry（service router 用 `providers: []`）
+   - `server/routers/brainPipeline.ts:ROUTER_TO_PROVIDERS` 加 entry（service router 用 `providers: []`）；若該 router 不該出現在大腦推理鏈圖上（如 system / brainPipeline 自身），請改更新 `brainPipeline.test.ts` 的 `exempt` 清單
    - 若會委派給某 brain/engine 槽，更新 `ROUTER_TO_AI_SLOTS`
    - 本文件 §3.5 表 B/C 與 §7
 3. **新增大腦槽 / 引擎槽 / 供應商**：同步 `shared/brain-pipeline.ts`、`server/middleware/brainContext.ts`、本文件 §3、§3.5 表 D、§4、§5。
 4. **偵測機制變動**（新增 alert 來源、自我修復策略）→ 更新 §6 流程圖與相關 service。
 5. **黃色便利貼** (`classDef note`)：用於補充「業務語意 / 使用情境」，**不寫實作細節**。
 6. **三模式（養成 / 標準 / 尊享）**：目前是文件層的概念分群，若日後落地到程式（subscription tier 或 Studio.tsx state），先改本文件再改程式碼，確保文件先行。
-7. **未來重構建議**：將 `PAGE_TO_ROUTERS`、`ROUTER_TO_AI_SLOTS`、`ROUTER_TO_PROVIDERS` 三張表抽到 `shared/site-map.ts` 純資料檔，**同時餵給 Mermaid 與 XYFlow**，避免文件與程式碼雙軌不同步。
+7. **GitHub 連結**：節點檔案路徑會自動以 `VITE_GITHUB_REPO` / `VITE_GITHUB_REF` 組成 `https://github.com/<repo>/blob/<ref>/<path>` 並渲染為點擊按鈕。預設值在 `client/src/lib/env.validated.ts`；切換分支或 fork 只需設環境變數。
+8. **未來重構建議**：將 `PAGE_TO_ROUTERS`、`ROUTER_TO_AI_SLOTS`、`ROUTER_TO_PROVIDERS` 三張表抽到 `shared/site-map.ts` 純資料檔，**同時餵給 Mermaid 與 XYFlow**，避免文件與程式碼雙軌不同步。

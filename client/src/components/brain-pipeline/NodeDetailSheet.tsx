@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
-import { Copy, Check, ExternalLink } from "lucide-react";
+import { Copy, Check, ExternalLink, Github } from "lucide-react";
 import { useLocation } from "wouter";
+import { fileToGithubUrl } from "@/lib/github-url";
 import {
   Sheet,
   SheetContent,
@@ -156,6 +157,7 @@ export function NodeDetailSheet({ node, onClose }: Props) {
                           <DiagnosticRow
                             label="前端檔案"
                             value={node.diagnostics.frontendPath}
+                            linkable
                           />
                         )}
                         {node.diagnostics.backendRoute && (
@@ -191,6 +193,7 @@ export function NodeDetailSheet({ node, onClose }: Props) {
                           value={f}
                           as="li"
                           className="font-mono break-all"
+                          linkable
                         />
                       ))}
                     </ul>
@@ -209,12 +212,25 @@ export function NodeDetailSheet({ node, onClose }: Props) {
   );
 }
 
-function DiagnosticRow({ label, value }: { label: string; value: string }) {
+function DiagnosticRow({
+  label,
+  value,
+  linkable = false,
+}: {
+  label: string;
+  value: string;
+  /** 若為真實 repo 檔案路徑，渲染 GitHub 連結圖示 */
+  linkable?: boolean;
+}) {
   return (
     <div>
       <dt className="text-slate-500">{label}</dt>
       <dd>
-        <CopyableBlock value={value} className="font-mono break-all" />
+        <CopyableBlock
+          value={value}
+          className="font-mono break-all"
+          linkable={linkable}
+        />
       </dd>
     </div>
   );
@@ -254,9 +270,16 @@ interface CopyableBlockProps {
   value: string;
   className?: string;
   as?: "div" | "li";
+  /** 若為真實 repo 檔案路徑且 VITE_GITHUB_REPO 有設，會多顯示一個 GitHub 連結按鈕 */
+  linkable?: boolean;
 }
 
-function CopyableBlock({ value, className, as = "div" }: CopyableBlockProps) {
+function CopyableBlock({
+  value,
+  className,
+  as = "div",
+  linkable = false,
+}: CopyableBlockProps) {
   const [copied, setCopied] = useState(false);
   const handleCopy = useCallback(async () => {
     try {
@@ -268,13 +291,33 @@ function CopyableBlock({ value, className, as = "div" }: CopyableBlockProps) {
     }
   }, [value]);
 
+  // 只有「實際看起來像 repo 檔案路徑」才產出 URL；
+  // 例如 trpc 命名空間或 ".env (FAL_API_KEY)" 不會被連到 GitHub。
+  const githubUrl = linkable ? fileToGithubUrl(value) : null;
+
   const Wrapper = as === "li" ? "li" : "div";
+  const trailingPad = githubUrl ? "pr-14" : "pr-7";
 
   return (
     <Wrapper
-      className={`group relative bg-slate-50 dark:bg-slate-900 px-2 py-1 pr-7 rounded border ${className ?? ""}`}
+      className={`group relative bg-slate-50 dark:bg-slate-900 px-2 py-1 ${trailingPad} rounded border ${className ?? ""}`}
     >
       <span>{value}</span>
+      {githubUrl && (
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          asChild
+          aria-label="在 GitHub 開啟"
+          title={`在 GitHub 開啟 ${value}`}
+          className="absolute right-7 top-0.5 h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+        >
+          <a href={githubUrl} target="_blank" rel="noopener noreferrer">
+            <Github className="h-3 w-3" />
+          </a>
+        </Button>
+      )}
       <Button
         type="button"
         size="icon"
