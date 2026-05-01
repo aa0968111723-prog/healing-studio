@@ -354,6 +354,36 @@ const SFX_MODELS = [
 /** 背景任務超時閾值（毫秒）— 超過此時間未完成則標記失敗 */
 const BACKGROUND_TASK_TIMEOUT_MS = 10 * 60 * 1000; // 10 分鐘
 
+// ─── 音樂模型解析（接通大腦組態 audioEngine）────────────────────────────────
+
+type MusicShortId = "sonauto" | "ace-step" | "stable-audio" | "musicgen";
+
+const FAL_TO_SHORT_MUSIC: Record<string, MusicShortId> = {
+  "fal-ai/sonauto": "sonauto",
+  "fal-ai/ace-step": "ace-step",
+  "fal-ai/stable-audio": "stable-audio",
+  "fal-ai/musicgen": "musicgen",
+};
+
+/**
+ * DEF-15：接通大腦組態。
+ * 當使用者未顯式選擇模型時，採用 ctx.brain.generation.audioEngine（含降級
+ * 後的 fallback engine），而非硬編碼預設值。優先序：
+ *   1. input.model（使用者顯式選擇）
+ *   2. brain.generation.audioEngine.engine（大腦組態，可被使用者在大腦頁設定）
+ *   3. "ace-step"（最終安全預設）
+ */
+function resolveMusicModelChoice(
+  inputModel: MusicShortId | undefined,
+  brainEngine: string | undefined
+): MusicShortId {
+  if (inputModel) return inputModel;
+  if (brainEngine && FAL_TO_SHORT_MUSIC[brainEngine]) {
+    return FAL_TO_SHORT_MUSIC[brainEngine];
+  }
+  return "ace-step";
+}
+
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 export const proStudioRouter = router({
@@ -391,13 +421,15 @@ export const proStudioRouter = router({
         duration: z.number().min(1).max(300).optional(), // 秒數（非 Sonauto 模型用）
         model: z
           .enum(["sonauto", "ace-step", "stable-audio", "musicgen"])
-          .optional()
-          .default("ace-step"),
+          .optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      // DEF-14 同步修正：後端預設模型改為 ace-step
-      const modelChoice = input.model ?? "ace-step";
+      // DEF-15：接通大腦 audioEngine — 未指定 model 時依大腦組態選擇引擎
+      const modelChoice = resolveMusicModelChoice(
+        input.model,
+        ctx.brain.generation.audioEngine.engine
+      );
 
       // ── Sonauto v2（預設）─────────────────────────────────────
       if (modelChoice === "sonauto") {
@@ -1532,8 +1564,7 @@ export const proStudioRouter = router({
         bpmOverride: z.number().min(40).max(300).optional(),
         model: z
           .enum(["sonauto", "ace-step", "stable-audio", "musicgen"])
-          .optional()
-          .default("ace-step"),
+          .optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -1551,7 +1582,11 @@ export const proStudioRouter = router({
       const compiled = compiler.compile(compilerInput);
 
       // ── 2. 依選定模型送出 fal.ai 任務 ────────────────────────────
-      const modelChoice = input.model ?? "ace-step";
+      // DEF-15：接通大腦 audioEngine — 未指定 model 時依大腦組態選擇引擎
+      const modelChoice = resolveMusicModelChoice(
+        input.model,
+        ctx.brain.generation.audioEngine.engine
+      );
       const durationSec =
         input.targetDurationSec ?? compiled.estimatedDurationSec ?? 30;
 

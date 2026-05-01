@@ -755,8 +755,19 @@ async function dispatchStudioTool(
         }
 
         // fal.ai 路徑（預設）
+        // DEF-15：接通大腦 audioEngine — 光球代理/助手未指定 modelId 時，
+        // 採用使用者大腦組態（含降級後的 fallback engine），而非硬編碼 ace-step。
         const { dispatchFalQueueTask } = await import("./falDispatcher");
-        const modelId = requestedModel || "fal-ai/ace-step";
+        let modelId = requestedModel;
+        if (!modelId) {
+          try {
+            const { buildBrainContext } = await import("../middleware/brainContext");
+            const brain = await buildBrainContext(opts.userId);
+            modelId = brain.generation.audioEngine.engine || "fal-ai/ace-step";
+          } catch {
+            modelId = "fal-ai/ace-step";
+          }
+        }
         const input: Record<string, unknown> = {};
         if (typeof args.prompt === "string") input.prompt = args.prompt;
         if (typeof args.lyrics === "string") input.lyrics = args.lyrics;
