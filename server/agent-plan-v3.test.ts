@@ -394,6 +394,79 @@ describe("parseAndGatePlan — gating across versions", () => {
     expect(result.askBeforeAct).toBe(true);
   });
 
+  it("v3 tasked plan with only navigate steps is rejected as invalid (no navigate-and-abandon)", () => {
+    // The planner sometimes emits a multi-step plan whose steps are all
+    // bare `navigate` actions with no toolName — that means the orb
+    // would take the user to a page and stop, expecting them to do the
+    // generation themselves. This is exactly the "多步驟代理人常常會
+    // 只有跳頁讓使用者用而已" bug. The gating layer must catch it so
+    // no orb task is materialised.
+    const plan = buildV3Plan({
+      decision: { mode: "tasked" },
+      routing: { preferredEngine: "auto", capabilities: [], pageScope: "cross-page" },
+      taskPolicy: { needsApproval: true, isolation: "ui", autoStart: false },
+      steps: [
+        {
+          id: "go-director",
+          label: "前往 /director",
+          pagePath: "/director",
+          riskLevel: "low",
+          requiresApproval: false,
+          undoable: true,
+          action: { type: "navigate", path: "/director" },
+        },
+        {
+          id: "go-video",
+          label: "前往 /video-studio",
+          pagePath: "/video-studio",
+          riskLevel: "low",
+          requiresApproval: false,
+          undoable: true,
+          action: { type: "navigate", path: "/video-studio" },
+        },
+      ],
+    });
+    const result = parseAndGatePlan(plan);
+    expect(result.status).toBe("invalid");
+    expect(result.task).toBeUndefined();
+    expect(result.actions).toEqual([]);
+    expect(result.reason).toMatch(/navigate/);
+    expect(result.warnings).toContain("tasked-plan-navigate-only");
+  });
+
+  it("v3 tasked plan with at least one tool call passes the navigate-only gate", () => {
+    const plan = buildV3Plan({
+      decision: { mode: "tasked" },
+      routing: { preferredEngine: "auto", capabilities: [], pageScope: "cross-page" },
+      taskPolicy: { needsApproval: true, isolation: "ui", autoStart: false },
+      steps: [
+        {
+          id: "go-video",
+          label: "前往 /video-studio",
+          pagePath: "/video-studio",
+          riskLevel: "low",
+          requiresApproval: false,
+          undoable: true,
+          action: { type: "navigate", path: "/video-studio" },
+        },
+        {
+          id: "generate",
+          label: "生成影片",
+          pagePath: "/video-studio",
+          riskLevel: "medium",
+          requiresApproval: true,
+          undoable: false,
+          action: { type: "fillPrompt", text: "貓咪大戰爭 15 秒" },
+          toolName: "studio.generateVideo",
+          toolArgs: { prompt: "貓咪大戰爭 15 秒", duration: 15 },
+        },
+      ],
+    });
+    const result = parseAndGatePlan(plan);
+    expect(result.status).toBe("tasked");
+    expect(result.task).toBeDefined();
+  });
+
   it("v3 clarification plan returns no actions", () => {
     const plan = buildV3Plan({
       decision: { mode: "clarification" },

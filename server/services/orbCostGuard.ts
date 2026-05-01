@@ -13,7 +13,21 @@ export interface OrbCostEstimateInput {
   estimatedAssetCount?: number;
   crossPageSteps?: number;
   retryCount?: number;
+  /**
+   * Names of registered tools the plan will invoke. Used to detect
+   * outsized workloads (LoRA / fine-tune training) that the asset-count
+   * heuristic alone undercounts — a single studio.trainLora step costs
+   * far more than three studio.generateImage calls.
+   */
+  toolNames?: string[];
 }
+
+/** Tools whose presence forces tier="high" regardless of asset count. */
+const HIGH_COST_TOOL_PREFIXES = [
+  "studio.trainLora",
+  "studio.fineTune",
+  "studio.train",
+] as const;
 
 export interface OrbCostEstimate {
   tier: OrbCostTier;
@@ -58,6 +72,19 @@ export function estimateOrbTaskCost(input: OrbCostEstimateInput): OrbCostEstimat
   if (input.providerId === "claudeCode" || input.providerId === "codex") {
     tier = "high";
     reasons.push("code_collaboration");
+  }
+
+  // LoRA / fine-tune training jobs each cost 5–30 minutes of GPU time and
+  // burn the user's training quota — far more than the asset-count
+  // heuristic above can capture. Force high tier so the cost-guard prompt
+  // surfaces the explicit confirmation card before kicking the job off.
+  const toolNames = input.toolNames ?? [];
+  const usesTrainingTool = toolNames.some(name =>
+    HIGH_COST_TOOL_PREFIXES.some(prefix => name.startsWith(prefix))
+  );
+  if (usesTrainingTool) {
+    tier = "high";
+    reasons.push("model_training_workload");
   }
 
   if (retries > 1) {

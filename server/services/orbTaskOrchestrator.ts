@@ -139,6 +139,33 @@ export async function executeCurrentStepTools(
     }),
   }));
 
+  // Guard: if any `${stepN.x}` placeholder survived resolution (because the
+  // referenced step never produced data, the path is misnamed, or the step
+  // came earlier-than-expected in the plan), refuse to dispatch the tool —
+  // calling fal.ai / Suno / ElevenLabs with the literal string
+  // `"${step1.video_url}"` produces a useless 4xx hours later. Surface a
+  // clear `unresolved-step-ref` error per offending call so the FSM marks
+  // the step failed and the user / planner sees what's missing.
+  const unresolvedToolResults: OrbToolCallResult[] = [];
+  for (const call of calls) {
+    const refs = collectUnresolvedStepRefs(call.args);
+    if (refs.length > 0) {
+      unresolvedToolResults.push({
+        name: call.name,
+        ok: false,
+        error: `unresolved-step-ref:${refs.slice(0, 4).join(",")}`,
+      });
+    }
+  }
+  if (unresolvedToolResults.length > 0) {
+    return {
+      attempted: true,
+      toolResults: unresolvedToolResults,
+      ok: false,
+      blockedByApproval: false,
+    };
+  }
+
   const toolResults = await executeOrbToolCalls({
     tools: input.tools,
     calls,
@@ -158,6 +185,31 @@ export async function executeCurrentStepTools(
     ok: toolResults.every(r => r.ok),
     blockedByApproval: false,
   };
+}
+
+const UNRESOLVED_STEP_REF_RE = /\$\{[^}]+\}/g;
+
+/**
+ * Walk a resolved toolArgs object and return every leftover `${...}` string.
+ * Used to fail fast when the planner referenced a step.path that doesn't
+ * exist instead of forwarding the literal placeholder to a remote tool.
+ */
+function collectUnresolvedStepRefs(value: unknown, acc: string[] = []): string[] {
+  if (typeof value === "string") {
+    const matches = value.match(UNRESOLVED_STEP_REF_RE);
+    if (matches) acc.push(...matches);
+    return acc;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectUnresolvedStepRefs(item, acc);
+    return acc;
+  }
+  if (value && typeof value === "object") {
+    for (const v of Object.values(value as Record<string, unknown>)) {
+      collectUnresolvedStepRefs(v, acc);
+    }
+  }
+  return acc;
 }
 
 // ─── Multi-step coordinator ────────────────────────────────────────────────

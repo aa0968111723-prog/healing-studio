@@ -126,6 +126,114 @@ describe("executeCurrentStepTools", () => {
     expect(out.ok).toBe(false);
     expect(out.toolResults[0]?.error).toBe("forbidden-role");
   });
+
+  it("fails the step with unresolved-step-ref when ${stepN.x} placeholder cannot be resolved", async () => {
+    // Reproduces the audit's #3 silent-failure: planner chains step2 with
+    // `${step1.video_url}` but step1 returned `{ url: ... }` instead of
+    // `video_url`. Without the guard, the literal placeholder string was
+    // forwarded to the remote tool (fal.ai / Suno / ElevenLabs) and the
+    // request 4xx'd hours later with no clear error. With the guard, we
+    // refuse to dispatch the tool and surface the missing reference up
+    // front so the FSM marks the step failed and the user / planner can
+    // see exactly which path was wrong.
+    process.env.ORB_TOOL_ALLOWED_ORIGINS = "https://api.example.com";
+    const fetchSpy = vi.fn(async () =>
+      new Response("{}", {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const out = await executeCurrentStepTools({
+      task: {
+        ...baseTask,
+        steps: [
+          {
+            ...baseTask.steps[0],
+            toolCalls: [
+              {
+                name: "crm.lookup",
+                // Placeholder that won't resolve — no perStepToolResults are
+                // provided, so the resolver leaves it in place.
+                args: { id: "${step1.video_url}" },
+                requiresApproval: false,
+              },
+            ],
+          },
+        ],
+      },
+      userId: 7,
+      userRole: "user",
+      tools: [
+        {
+          name: "crm.lookup",
+          description: "lookup",
+          method: "GET",
+          endpoint: "https://api.example.com/customers",
+        },
+      ],
+      approved: true,
+    });
+
+    expect(out.attempted).toBe(true);
+    expect(out.ok).toBe(false);
+    expect(out.toolResults[0]?.error).toContain("unresolved-step-ref");
+    expect(out.toolResults[0]?.error).toContain("${step1.video_url}");
+    // Critically: the remote tool must NOT have been dispatched.
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("dispatches normally when the placeholder resolves to a real value", async () => {
+    process.env.ORB_TOOL_ALLOWED_ORIGINS = "https://api.example.com";
+    const fetchSpy = vi.fn(async () =>
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const out = await executeCurrentStepTools({
+      task: {
+        ...baseTask,
+        steps: [
+          {
+            ...baseTask.steps[0],
+            toolCalls: [
+              {
+                name: "crm.lookup",
+                args: { id: "${step1.video_url}" },
+                requiresApproval: false,
+              },
+            ],
+          },
+        ],
+      },
+      userId: 7,
+      userRole: "user",
+      tools: [
+        {
+          name: "crm.lookup",
+          description: "lookup",
+          method: "GET",
+          endpoint: "https://api.example.com/customers",
+        },
+      ],
+      approved: true,
+      perStepToolResults: [
+        {
+          stepId: "step1",
+          toolResults: [
+            { name: "studio.generateVideo", ok: true, data: { video_url: "https://cdn.test/v.mp4" } },
+          ],
+        },
+      ],
+    });
+
+    expect(out.ok).toBe(true);
+    expect(fetchSpy).toHaveBeenCalledOnce();
+  });
 });
 
 import { runOrbTaskToCompletion } from "./services/orbTaskOrchestrator";

@@ -342,6 +342,28 @@ function validateStepConditions(plan: AgentPlanV3): string | null {
   return null;
 }
 
+// Action types that don't perform any real work — they only move the user
+// or focus an element. A tasked plan made entirely of these is the
+// "navigate-and-abandon" anti-pattern: the orb takes the user to a page
+// and stops, expecting them to do the actual generation themselves. This
+// defeats the whole point of the multi-step agent.
+const NAVIGATION_ONLY_ACTION_TYPES = new Set<string>(["navigate", "focusElement"]);
+
+/**
+ * A tasked plan must contain at least one step that actually does work —
+ * either a registered tool call (toolName) or a non-navigation UI action
+ * (fillPrompt, submit, runWorkflow, applyPreset, setModel, …). If every
+ * step is a bare navigate / focusElement, the plan is rejected so the
+ * chat layer falls back to a normal reply instead of materialising a task
+ * that immediately stalls after step 0.
+ */
+function hasExecutableStep(plan: AgentPlanV3): boolean {
+  return plan.steps.some(step => {
+    if (step.toolName) return true;
+    return !NAVIGATION_ONLY_ACTION_TYPES.has(step.action.type);
+  });
+}
+
 /** Convert a v3 plan into an OrbTask draft (route-side will materialise the
  *  real DB record via orbTaskRepository.create). */
 export function adaptAgentPlanV3ToOrbTaskDraft(
@@ -475,6 +497,35 @@ function gateV3Plan(plan: AgentPlanV3): GatedAgentPlanResult {
   }
 
   if (evaluation.decisionMode === "tasked") {
+    // Reject "navigate-and-abandon" plans: a tasked plan made entirely
+    // of navigate / focusElement steps with no toolName means the orb
+    // would take the user to a page and stop, leaving them to actually
+    // generate / submit themselves. That is exactly the bug the
+    // autonomous-execution rule in the planner system prompt forbids,
+    // but the LLM still produces these plans sometimes — catch them
+    // here so the task never materialises and the chat layer falls
+    // back to a normal reply.
+    if (!hasExecutableStep(plan)) {
+      const navOnlyReason =
+        "Tasked plan rejected: every step is navigate / focusElement with no toolName. Re-plan with at least one studio.* tool call or a non-navigation UI action (fillPrompt / submit / runWorkflow / applyPreset).";
+      return {
+        status: "invalid",
+        ok: false,
+        version: "agent-plan.v3",
+        plan,
+        actions: [],
+        askBeforeAct: false,
+        reply: plan.summaryForUser,
+        intent: plan.intent,
+        warnings: [...warnings, "tasked-plan-navigate-only"],
+        blockers: evaluation.blockers,
+        riskEvaluation: evaluation,
+        preferredEngine: evaluation.preferredEngine,
+        decisionMode: "tasked",
+        reason: navOnlyReason,
+        issues: [navOnlyReason],
+      };
+    }
     const task = adaptAgentPlanV3ToOrbTaskDraft(plan, evaluation);
     return {
       status: "tasked",
