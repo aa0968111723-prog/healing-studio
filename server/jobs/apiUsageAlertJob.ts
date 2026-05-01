@@ -12,6 +12,7 @@
 
 import * as cron from "node-cron";
 import { getDb } from "../db.js";
+import { serverEnv } from "../_core/env.validated";
 import {
   providerSnapshots,
   costAggregations,
@@ -37,8 +38,7 @@ function shouldAlert(key: string): boolean {
 // ─── Alert Channels ──────────────────────────────────────────────────────────
 
 async function sendSlackAlert(message: string): Promise<void> {
-  // ALERT_SLACK_WEBHOOK is optional and not in serverEnv validated schema
-  const webhookUrl = process.env.ALERT_SLACK_WEBHOOK;
+  const webhookUrl = serverEnv.ALERT_SLACK_WEBHOOK;
   if (!webhookUrl) return;
 
   try {
@@ -64,8 +64,7 @@ async function checkBudgetAlert(): Promise<void> {
   const db = await getDb();
   if (!db) return;
 
-  // AI_MONTHLY_BUDGET_USD is optional and not in serverEnv validated schema
-  const monthlyBudget = Number(process.env.AI_MONTHLY_BUDGET_USD ?? 500);
+  const monthlyBudget = Number(serverEnv.AI_MONTHLY_BUDGET_USD || 500);
   const now = new Date();
   const dayOfMonth = now.getDate();
   const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();

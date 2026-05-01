@@ -5,6 +5,7 @@
  */
 
 import { Router, Request, Response } from "express";
+import { serverEnv } from "../_core/env.validated";
 
 export const stripeWebhookRouter = Router();
 
@@ -16,7 +17,7 @@ export const stripeWebhookRouter = Router();
  * TODO: 整合 Stripe 時使用 stripe.webhooks.constructEvent() 取代此骨架。
  */
 function verifyStripeSignature(req: Request): boolean {
-  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  const secret = serverEnv.STRIPE_WEBHOOK_SECRET;
 
   if (!secret) {
     console.warn(

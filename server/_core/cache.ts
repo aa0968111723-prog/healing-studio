@@ -18,6 +18,7 @@
  */
 
 import { logger } from "./logger";
+import { serverEnv } from "./env.validated";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -43,8 +44,11 @@ interface CacheEntry<T> {
 
 // ─── Constants ─────────────────────────────────────────────────────────────
 
-/** Default TTL: 5 minutes */
-const DEFAULT_TTL_SECONDS = 300;
+/** Default TTL（秒）— 由 CACHE_TTL_SECONDS 環境變數控制，預設 300 (5 分鐘) */
+const DEFAULT_TTL_SECONDS = (() => {
+  const parsed = parseInt(serverEnv.CACHE_TTL_SECONDS, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 300;
+})();
 
 /** Maximum number of entries before LRU eviction kicks in */
 const DEFAULT_MAX_SIZE = 1_000;

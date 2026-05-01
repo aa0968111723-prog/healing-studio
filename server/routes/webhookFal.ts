@@ -18,6 +18,7 @@ import {
   updateBackgroundJob,
   findProcessingJobByRequestId,
 } from "../db.js";
+import { serverEnv } from "../_core/env.validated";
 import { localizeResultUrls } from "../services/internalMedia.js";
 import { generationBus } from "../generationEvents";
 
@@ -25,7 +26,7 @@ export const falWebhookRouter = Router();
 
 // ─── Webhook 簽名驗證（可選，fal.ai 支援 HMAC-SHA256）─────────────────────────
 function verifyFalSignature(req: Request): boolean {
-  const secret = process.env.FAL_WEBHOOK_SECRET;
+  const secret = serverEnv.FAL_WEBHOOK_SECRET;
   // 若未設定 secret，跳過驗證（開發期間可接受）
   if (!secret) return true;
 

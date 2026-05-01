@@ -18,6 +18,7 @@ import { createHash } from "crypto";
 import { invokeLLM } from "../_core/llm";
 import { CircuitBreaker } from "./circuitBreaker";
 import { ENV } from "../_core/env";
+import { serverEnv } from "../_core/env.validated";
 import {
   addLearnDoc,
   hasLearnDoc,
@@ -30,8 +31,11 @@ import {
 /** 每次搜尋幾篇文章 */
 const ARTICLES_PER_RUN = 5;
 
-/** Gemini 呼叫逾時（毫秒） */
-const LLM_TIMEOUT_MS = 90_000;
+/** Gemini 呼叫逾時（毫秒）— 讀 LLM_TIMEOUT_SECONDS；批次任務預設 90s 比互動式長 */
+const LLM_TIMEOUT_MS = (() => {
+  const parsed = parseInt(serverEnv.LLM_TIMEOUT_SECONDS, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed * 1000 : 90_000;
+})();
 
 /** 啟動後首次同步延遲（毫秒） */
 const INITIAL_DELAY_MS = 120_000;

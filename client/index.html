@@ -38,7 +38,7 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <!-- DNS prefetch for external services -->
-    <link rel="dns-prefetch" href="https://us.i.posthog.com" />
+    <link rel="dns-prefetch" href="%VITE_POSTHOG_HOST%" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -97,10 +97,13 @@
           }),
           (e.__SV = 1));
       })(document, window.posthog || []);
-      posthog.init("phc_piqMEmDCK3tPRPgvjsueARaP3DE7SScZqc3LFLchS94", {
-        api_host: "https://us.i.posthog.com",
-        person_profiles: "identified_only",
-      });
+      var __posthogKey = "%VITE_POSTHOG_KEY%";
+      if (__posthogKey && __posthogKey.charAt(0) !== "%") {
+        posthog.init(__posthogKey, {
+          api_host: "%VITE_POSTHOG_HOST%",
+          person_profiles: "identified_only",
+        });
+      }
     </script>
   </head>
 

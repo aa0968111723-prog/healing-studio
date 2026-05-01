@@ -14,6 +14,7 @@
  */
 
 import { serverEnv } from "./env.validated";
+import { withLLMSlot } from "./llmConcurrency";
 import {
   resolveEngineConfig,
   getEngineFallbackChain,
@@ -841,7 +842,12 @@ function anthropicResponseToInvokeResult(resp: AnthropicResponse): InvokeResult 
 }
 
 // ─── LLM retry constants ───────────────────────────────────────────────────
-const LLM_REQUEST_TIMEOUT_MS = 60_000; // 60 seconds
+// LLM_TIMEOUT_SECONDS 環境變數控制全域 timeout（預設 60s），
+// 各引擎 invokeSingleEngine 內 fetch + AbortSignal 共用此值。
+const LLM_REQUEST_TIMEOUT_MS = (() => {
+  const parsed = parseInt(serverEnv.LLM_TIMEOUT_SECONDS, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed * 1000 : 60_000;
+})();
 const LLM_MAX_RETRIES = 3;
 const LLM_MAX_RETRY_DELAY_MS = 8_000;
 
@@ -938,50 +944,54 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     engineConfigs.push(...getEngineFallbackChain(primaryConfig.engine));
   }
 
-  let lastError: Error | null = null;
+  // 整個引擎迴圈（含降級）共用一個並行槽位，由 MAX_CONCURRENT_LLM_CALLS 控制。
+  // 同一次 invokeLLM 呼叫即使要試 3 個引擎，也只佔一個槽，避免迴圈期間槽位反覆釋放。
+  return withLLMSlot(async () => {
+    let lastError: Error | null = null;
 
-  for (const engineConfig of engineConfigs) {
-    try {
-      const result = await invokeSingleEngine(engineConfig, {
-        messages: processedMessages,
-        tools,
-        toolChoice,
-        tool_choice,
-        maxTokens,
-        max_tokens,
-        outputSchema,
-        output_schema,
-        responseFormat,
-        response_format,
-        runName,
-        parentRunId,
-        temperature,
-        topP,
-        overrideModel,
-      });
+    for (const engineConfig of engineConfigs) {
+      try {
+        const result = await invokeSingleEngine(engineConfig, {
+          messages: processedMessages,
+          tools,
+          toolChoice,
+          tool_choice,
+          maxTokens,
+          max_tokens,
+          outputSchema,
+          output_schema,
+          responseFormat,
+          response_format,
+          runName,
+          parentRunId,
+          temperature,
+          topP,
+          overrideModel,
+        });
 
-      // 成功 — 更新斷路器
-      recordEngineSuccess(engineConfig.engine);
-      return result;
-    } catch (err: unknown) {
-      const error = err instanceof Error ? err : new Error(String(err));
-      lastError = error;
+        // 成功 — 更新斷路器
+        recordEngineSuccess(engineConfig.engine);
+        return result;
+      } catch (err: unknown) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        lastError = error;
 
-      // 記錄斷路器失敗
-      recordEngineFailure(engineConfig.engine);
+        // 記錄斷路器失敗
+        recordEngineFailure(engineConfig.engine);
 
-      // 如果還有備援引擎，繼續嘗試
-      if (engineConfigs.indexOf(engineConfig) < engineConfigs.length - 1) {
-        console.warn(
-          `[LLM] ⚠️ ${engineConfig.name} 失敗，嘗試備援引擎... 錯誤: ${error.message.slice(0, 200)}`
-        );
-        continue;
+        // 如果還有備援引擎，繼續嘗試
+        if (engineConfigs.indexOf(engineConfig) < engineConfigs.length - 1) {
+          console.warn(
+            `[LLM] ⚠️ ${engineConfig.name} 失敗，嘗試備援引擎... 錯誤: ${error.message.slice(0, 200)}`
+          );
+          continue;
+        }
       }
     }
-  }
 
-  // 所有引擎都失敗
-  throw lastError ?? new Error("[LLM] 所有引擎都失敗");
+    // 所有引擎都失敗
+    throw lastError ?? new Error("[LLM] 所有引擎都失敗");
+  });
 }
 
 /**
