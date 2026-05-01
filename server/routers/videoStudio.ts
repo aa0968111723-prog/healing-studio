@@ -254,7 +254,10 @@ export const videoStudioRouter = router({
         negativePrompt: z.string().max(1000).optional(),
         numFrames: z.number().min(16).max(81).default(81),
         resolution: z.enum(["480p", "720p"]).default("720p"),
+        aspectRatio: z.enum(["16:9", "9:16", "1:1"]).default("16:9"),
         enableSafety: z.boolean().default(false),
+        /** 隨機種子 — 固定可重現相同生成結果，留空則隨機 */
+        seed: z.number().int().nonnegative().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -263,12 +266,12 @@ export const videoStudioRouter = router({
       const payload: Record<string, unknown> = {
         prompt: input.prompt,
         num_frames: input.numFrames,
-        enable_safety_checker: input.enableSafety,
-        // resolution 之前在 schema 宣告但沒送出去 → 不論使用者選 720p / 480p
-        // 都用 fal 的 default。Wan v2.1 接受 "480p" / "720p" 字串。
         resolution: input.resolution,
+        aspect_ratio: input.aspectRatio,
+        enable_safety_checker: input.enableSafety,
       };
       if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
+      if (input.seed !== undefined) payload.seed = input.seed;
 
       const result = (await falQueueRun(modelId, payload, 300)) as any;
       return {
@@ -474,8 +477,11 @@ export const videoStudioRouter = router({
       z.object({
         prompt: z.string().min(1).max(2500),
         imageUrl: z.string().url(),
+        negativePrompt: z.string().max(1000).optional(),
         numFrames: z.number().min(16).max(81).default(81),
         resolution: z.enum(["480p", "720p"]).default("720p"),
+        /** 隨機種子 — 固定可重現相同動態軌跡，留空則隨機 */
+        seed: z.number().int().nonnegative().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -486,10 +492,11 @@ export const videoStudioRouter = router({
         prompt: input.prompt,
         image_url: input.imageUrl,
         num_frames: input.numFrames,
-        // resolution 之前在 schema 宣告但沒送出去 → 使用者選 720p / 480p
-        // 全被 fal default 覆寫。Wan i2v 也接受 "480p" / "720p"。
         resolution: input.resolution,
       };
+      if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
+      if (input.seed !== undefined) payload.seed = input.seed;
+
       const result = (await falQueueRun(modelId, payload, 300)) as any;
       return {
         video_url: extractVideoUrl(result),
