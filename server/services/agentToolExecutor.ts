@@ -756,7 +756,20 @@ async function dispatchStudioTool(
 
         // fal.ai 路徑（預設）
         const { dispatchFalQueueTask } = await import("./falDispatcher");
-        const modelId = requestedModel || "fal-ai/ace-step";
+        // 光球沒指定模型時，讀使用者大腦組態的 audioEngine；保留 ace-step 作為最終 fallback。
+        let modelId = requestedModel;
+        if (!modelId) {
+          try {
+            const { buildBrainContext } = await import(
+              "../middleware/brainContext"
+            );
+            const brain = await buildBrainContext(opts.userId);
+            modelId = brain.getEngine("audioEngine").engine;
+          } catch {
+            // brain 載入失敗則退回 ace-step
+          }
+          if (!modelId) modelId = "fal-ai/ace-step";
+        }
         const input: Record<string, unknown> = {};
         if (typeof args.prompt === "string") input.prompt = args.prompt;
         if (typeof args.lyrics === "string") input.lyrics = args.lyrics;

@@ -293,6 +293,21 @@ async function falQueueRun(
 
 // ─── 音樂 & 音效模型清單 ──────────────────────────────────────────────────────
 
+type MusicModelChoice = "sonauto" | "ace-step" | "stable-audio" | "musicgen";
+
+/**
+ * 把大腦組態的 audioEngine 字串映射到 textToMusic 的 model enum。
+ * 使用者可在「大腦組態」自訂 audioEngine（如 fal-ai/sonauto / fal-ai/stable-audio），
+ * textToMusic 沒收到 input.model 時就以此為預設，讓 brain config 真正生效。
+ */
+function audioEngineToMusicChoice(engine: string): MusicModelChoice {
+  const e = engine.toLowerCase();
+  if (e.includes("sonauto")) return "sonauto";
+  if (e.includes("stable-audio")) return "stable-audio";
+  if (e.includes("musicgen")) return "musicgen";
+  return "ace-step";
+}
+
 /** 可用的音樂生成模型 */
 const MUSIC_MODELS = [
   // DEF-14 修正：ACE-Step 設為預設（Sonauto v2 目前 fal.ai 不穩定）
@@ -391,13 +406,15 @@ export const proStudioRouter = router({
         duration: z.number().min(1).max(300).optional(), // 秒數（非 Sonauto 模型用）
         model: z
           .enum(["sonauto", "ace-step", "stable-audio", "musicgen"])
-          .optional()
-          .default("ace-step"),
+          .optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      // DEF-14 同步修正：後端預設模型改為 ace-step
-      const modelChoice = input.model ?? "ace-step";
+      // 沒帶 model 時，從使用者的大腦組態 audioEngine 推導，讓 brain 設定真正生效。
+      // 仍保留 ace-step 作為最終 fallback（DEF-14：Sonauto v2 在 fal.ai 偶發不穩）。
+      const modelChoice: MusicModelChoice =
+        input.model ??
+        audioEngineToMusicChoice(ctx.brain.getEngine("audioEngine").engine);
 
       // ── Sonauto v2（預設）─────────────────────────────────────
       if (modelChoice === "sonauto") {
