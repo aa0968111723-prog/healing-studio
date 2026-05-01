@@ -1,14 +1,24 @@
 import { describe, expect, it, beforeEach } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { __testing } from "../brainPipeline";
+import { APP_PAGE_REGISTRY } from "../../../shared/appRegistry";
 import {
   __unsafe_resetProviderHealthForTests,
   setProviderHealth,
   getProviderHealthVersion,
 } from "../../services/providerHealth";
 
-const { buildGraph, ROUTER_TO_PROVIDERS } = __testing;
+const {
+  buildGraph,
+  ROUTER_TO_PROVIDERS,
+  PAGE_TO_ROUTERS,
+  ROUTER_TO_AI_SLOTS,
+  PROVIDERS,
+} = __testing;
+
+/** 專案根目錄 — 用於檢查 graph 中提到的檔案是否真的存在於 repo。 */
+const REPO_ROOT = resolve(__dirname, "../../..");
 
 describe("brainPipeline graph builder", () => {
   beforeEach(() => {
@@ -164,7 +174,7 @@ describe("brainPipeline graph builder", () => {
     }
   });
 
-  it("includes service routers (notes/promptLibrary/news/apiUsage/...) and wires router → AI slot edges", () => {
+  it("includes service routers (promptLibrary/news/apiUsage/...) and wires router → AI slot edges", () => {
     const g = buildGraph({
       includeAllPages: true,
       includeRouters: true,
@@ -174,7 +184,6 @@ describe("brainPipeline graph builder", () => {
     const requiredRouters = [
       "router:apiUsage",
       "router:agentPreferences",
-      "router:notes",
       "router:promptLibrary",
       "router:news",
       "router:showcase",
@@ -185,7 +194,7 @@ describe("brainPipeline graph builder", () => {
       expect(g.nodes.find(n => n.id === id)).toBeDefined();
     }
 
-    // page → service router 邊：home → news/showcase, notes → notes router
+    // page → service router 邊
     expect(
       g.edges.find(
         e => e.source === "page:home" && e.target === "router:news"
@@ -193,7 +202,9 @@ describe("brainPipeline graph builder", () => {
     ).toBeDefined();
     expect(
       g.edges.find(
-        e => e.source === "page:notes" && e.target === "router:notes"
+        e =>
+          e.source === "page:prompt-library" &&
+          e.target === "router:promptLibrary"
       )
     ).toBeDefined();
 
@@ -263,6 +274,156 @@ describe("brainPipeline graph builder", () => {
       `偵測到 server/routers.ts 新增了 router 但未加入 brainPipeline.ts 的 ROUTER_TO_PROVIDERS：\n  ${missing.join(", ")}\n` +
         `→ 請在 server/routers/brainPipeline.ts 的 ROUTER_TO_PROVIDERS 加上對應 entry，` +
         `或若該 router 不該出現在大腦推理鏈圖上，請更新本測試的 exempt 清單。`
+    ).toEqual([]);
+  });
+
+  it("APP_PAGE_REGISTRY paths stay in sync with client/src/App.tsx <Route> declarations (drift guard)", () => {
+    // 讀 App.tsx 抓出所有 <Route path="..."> 的 path，跟 registry 中的 path 比對。
+    // 部分頁面（登入、忘記密碼等）刻意不放進 registry，因此用 exempt 清單明確列出。
+    const appTsx = readFileSync(
+      resolve(REPO_ROOT, "client/src/App.tsx"),
+      "utf-8"
+    );
+    const routePaths = new Set<string>();
+    const re = /<Route\s+path=["']([^"']+)["']/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(appTsx)) !== null) {
+      // 忽略 404 fallback 與動態路徑
+      if (m[1] === "/404") continue;
+      routePaths.add(m[1]);
+    }
+    expect(routePaths.size).toBeGreaterThan(10);
+
+    // 已知不放進 APP_PAGE_REGISTRY 的路徑：
+    // - 純 auth flow / WIP / 重定向
+    // - registry 用 query 變體（如 /vault → /assets?section=vault），App.tsx 給了
+    //   bare path 作為 alias；兩種寫法都會抵達同一個 UI
+    const exemptPaths = new Set([
+      "/forgot-password",
+      "/reset-password",
+      "/account-settings",
+      "/learn/tutorial-overview", // 已有 /tutorial-overview
+      "/admin/api-usage", // 已有 admin-api-usage 條目
+      "/admin/brain-pipeline", // 已有 admin-brain-pipeline 條目
+      "/settings/agent", // 已有 agent-preferences 條目
+      "/settings/ai-brain", // 已有 brain-settings 條目
+      "/process", // 已有 process-viewer 條目
+      // registry 用 /assets?section=xxx 表達子分頁，App.tsx 給 bare path 作 alias
+      "/vault", // registry: /assets?section=vault
+      "/shared", // registry: /assets?section=shared
+      "/history", // registry: /assets?section=history
+      "/prompt-library", // registry: /assets?section=prompts
+      "/background-tasks", // registry: /assets?section=tasks
+      // registry 用 /dashboard?section=xxx 表達子分頁
+      "/credits", // registry: /dashboard?section=credits
+      "/langsmith", // registry: /dashboard?section=langsmith
+      // registry 用 /models 但 App.tsx 也給 /lora-trainer 作 alias
+      "/lora-trainer", // registry: /models
+      "/calendar", // 行事曆功能尚未在 registry 中（可未來補上）
+    ]);
+
+    const registryPaths = new Set(APP_PAGE_REGISTRY.map(p => p.path));
+    // 檢查：每條 App.tsx 的 route（除 exempt 外）都應該有對應的 registry 條目
+    // 比對方式：path 直接相等，或 path 是 registry path 的「query 變體」（如 /assets vs /assets?section=prompts）
+    const orphanRoutes: string[] = [];
+    for (const path of routePaths) {
+      if (exemptPaths.has(path)) continue;
+      if (registryPaths.has(path)) continue;
+      // 容許 registry 用「path?section=xxx」表達子分頁
+      const matchedAsBase = [...registryPaths].some(rp =>
+        rp.startsWith(`${path}?`)
+      );
+      if (matchedAsBase) continue;
+      orphanRoutes.push(path);
+    }
+    expect(
+      orphanRoutes,
+      `App.tsx 有 <Route> 但 shared/appRegistry.ts 找不到對應 page：\n  ${orphanRoutes.join(", ")}\n` +
+        `→ 請在 APP_PAGE_REGISTRY 加 entry，或更新本測試的 exemptPaths。`
+    ).toEqual([]);
+  });
+
+  it("PAGE_TO_ROUTERS keys reference real registry pages and values reference real routers (drift guard)", () => {
+    const registryIds = new Set(APP_PAGE_REGISTRY.map(p => p.id));
+    const routerIds = new Set(ROUTER_TO_PROVIDERS.map(r => r.id));
+
+    const orphanPageKeys: string[] = [];
+    const orphanRouterTargets: string[] = [];
+    for (const pageId of Object.keys(PAGE_TO_ROUTERS)) {
+      if (!registryIds.has(pageId)) orphanPageKeys.push(pageId);
+      for (const routerId of PAGE_TO_ROUTERS[pageId]) {
+        if (!routerIds.has(routerId))
+          orphanRouterTargets.push(`${pageId} → ${routerId}`);
+      }
+    }
+    expect(orphanPageKeys, "PAGE_TO_ROUTERS 含 registry 找不到的 page id").toEqual(
+      []
+    );
+    expect(
+      orphanRouterTargets,
+      "PAGE_TO_ROUTERS 指向的 router 不在 ROUTER_TO_PROVIDERS"
+    ).toEqual([]);
+  });
+
+  it("ROUTER_TO_AI_SLOTS targets are real brain-slot or engine-slot ids (drift guard)", () => {
+    // 真實的 slot id 從 buildGraph 輸出推導，避免重複在測試裡寫常數
+    const g = buildGraph({
+      includeAllPages: false,
+      includeRouters: false,
+      includeAlerts: false,
+    });
+    const validSlotIds = new Set(
+      g.nodes
+        .filter(n => n.kind === "brain-slot" || n.kind === "engine-slot")
+        .map(n => n.id)
+    );
+    const orphanRouters: string[] = [];
+    const orphanTargets: string[] = [];
+    const declaredRouters = new Set(ROUTER_TO_PROVIDERS.map(r => r.id));
+    for (const routerId of Object.keys(ROUTER_TO_AI_SLOTS)) {
+      if (!declaredRouters.has(routerId)) orphanRouters.push(routerId);
+      for (const slotId of ROUTER_TO_AI_SLOTS[routerId]) {
+        if (!validSlotIds.has(slotId))
+          orphanTargets.push(`${routerId} → ${slotId}`);
+      }
+    }
+    expect(orphanRouters, "ROUTER_TO_AI_SLOTS 的 router id 未在 ROUTER_TO_PROVIDERS 註冊").toEqual([]);
+    expect(orphanTargets, "ROUTER_TO_AI_SLOTS 指向不存在的 brain/engine slot").toEqual([]);
+  });
+
+  it("every repo file path mentioned by graph nodes really exists on disk (drift guard)", () => {
+    // Graph 中每個 node 的 relatedFiles / diagnostics.frontendPath 若看起來像 repo 檔案路徑，
+    // 必須真的存在於磁碟上。這檔案後來被改名/移走時 CI 會立刻失敗。
+    const g = buildGraph({
+      includeAllPages: true,
+      includeRouters: true,
+      includeAlerts: false,
+    });
+
+    const looksLikePath = (s: string) =>
+      !!s &&
+      !s.includes(" ") &&
+      !s.startsWith("trpc.") &&
+      s.includes("/") &&
+      /\.[a-zA-Z0-9]+$/.test(s);
+
+    const missing: string[] = [];
+    for (const node of g.nodes) {
+      const candidates: string[] = [
+        ...(node.relatedFiles ?? []),
+        ...(node.diagnostics?.frontendPath ? [node.diagnostics.frontendPath] : []),
+      ];
+      for (const p of candidates) {
+        if (!looksLikePath(p)) continue;
+        if (!existsSync(resolve(REPO_ROOT, p))) {
+          missing.push(`${node.id} → ${p}`);
+        }
+      }
+    }
+    expect(
+      missing,
+      `Graph 中有檔案路徑指到不存在的檔案：\n  ${missing.slice(0, 20).join("\n  ")}\n` +
+        `→ 請更新 brainPipeline.ts 中對應 node 的 relatedFiles / frontendPath。`
     ).toEqual([]);
   });
 

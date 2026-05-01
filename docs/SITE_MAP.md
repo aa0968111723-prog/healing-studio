@@ -16,8 +16,13 @@
 >
 > **真實同步機制**：
 > - `/admin/brain-pipeline` 頁面每 30 秒自動 refetch，狀態（綠/黃/紅/灰）即時跟隨真實 API 健康。
-> - 點擊節點打開的 NodeDetailSheet 中所有 repo 檔案路徑會渲染 GitHub 圖示按鈕，**直接跳到原始碼**（由 `VITE_GITHUB_REPO` + `VITE_GITHUB_REF` 控制，預設 `aa0968111723-prog/healing-studio` `main`）。
-> - 單元測試 `brainPipeline.test.ts` 內含 **drift guard**：當 `server/routers.ts` 新增 router 但忘了加入 `ROUTER_TO_PROVIDERS` 時，CI 會以清楚的錯誤訊息失敗。
+> - 點擊節點打開的 NodeDetailSheet 中所有 repo 檔案路徑會渲染 GitHub 圖示按鈕，**直接跳到原始碼**（由 `VITE_GITHUB_REPO` + `VITE_GITHUB_REF` 控制，預設 `aa0968111723-prog/healing-studio` `main`）。Provider 節點也會額外連到對應的 service 檔（fal → `falDispatcher.ts`、elevenlabs → `elevenLabsExtended.ts` 等）。
+> - 單元測試 `brainPipeline.test.ts` 內含 **5 道 drift guard**，CI 會在以下任一情況自動失敗：
+>   1. **Router 註冊漂移**：`server/routers.ts` 新增 router 但忘了加入 `ROUTER_TO_PROVIDERS`
+>   2. **Page 註冊漂移**：`client/src/App.tsx` 新增 `<Route>` 但忘了加入 `APP_PAGE_REGISTRY`
+>   3. **Page→Router 對應**：`PAGE_TO_ROUTERS` 指向不存在的 page id 或 router id
+>   4. **Router→AI Slot 對應**：`ROUTER_TO_AI_SLOTS` 指向不存在的 brain/engine 槽
+>   5. **檔案存在性**：graph 中任何 `relatedFiles` / `frontendPath` 指到的檔案被改名/刪除
 
 ---
 
@@ -214,7 +219,7 @@ flowchart LR
     P_Orb["Global Orb<br/>(全站浮動)"]:::frontend
   end
 
-  subgraph L2[層 2 · Backend tRPC Routers（16 個）]
+  subgraph L2[層 2 · Backend tRPC Routers（15 個）]
     direction TB
     subgraph L2a[AI Routers]
       R_Brain["brain"]:::backend
@@ -229,7 +234,6 @@ flowchart LR
     subgraph L2b[Service Routers]
       R_ApiUsage["apiUsage"]:::backend
       R_AgentPref["agentPreferences"]:::backend
-      R_Notes["notes"]:::backend
       R_Prompt["promptLibrary"]:::backend
       R_News["news"]:::backend
       R_Showcase["showcase"]:::backend
@@ -354,7 +358,7 @@ flowchart LR
 | `/settings/ai-brain`（brain-settings） | `brain` |
 | `/learn` | `learnHub` |
 | `/tutorial-overview` | `learnHub` |
-| `/notes` | `notes` |
+| `/notes` | —（純前端，目前 codebase 無 notes 後端 router；drift guard 已驗證） |
 | `/assets?section=prompts`（prompt-library） | `promptLibrary` |
 | `/dashboard?section=langsmith`（langsmith） | `langsmith` |
 | `/settings/agent`（agent-preferences） | `agentPreferences` |
@@ -392,7 +396,7 @@ flowchart LR
 | `loraTrainer` | replicate、fal |
 | `learnHub` | gemini |
 | `orbScheduler` | gemini、fal |
-| `apiUsage` / `agentPreferences` / `notes` / `promptLibrary` / `news` / `showcase` / `langsmith` / `adminEval` | —（純 DB / 內部資料） |
+| `apiUsage` / `agentPreferences` / `promptLibrary` / `news` / `showcase` / `langsmith` / `adminEval` | —（純 DB / 內部資料） |
 
 ### D. Brain / Engine → Provider 邊（共 11 條）
 
@@ -415,7 +419,7 @@ flowchart LR
 | 1 | page-group | 8（依 AppPageGroupId 分群） |
 | 1 | page | 32 |
 | 2 | router（AI） | 8 |
-| 2 | router（service） | 8 |
+| 2 | router（service） | 7 |
 | 3 | brain-slot | 5 |
 | 3 | engine-slot | 4 |
 | 3 | orb-agent / orb-assistant / director | 3 |
@@ -597,7 +601,7 @@ flowchart TB
 
 ---
 
-## 7. 後端對應索引（全 16 個 router 完整列表）
+## 7. 後端對應索引（全 15 個 router 完整列表）
 
 ### 7.1 AI Routers（會呼叫外部 LLM/生成 API）
 
@@ -618,7 +622,6 @@ flowchart TB
 |---|---|---|
 | `apiUsage` | `server/routers/apiUsage.ts` | token / 成本 / 呼叫次數彙整 |
 | `agentPreferences` | `server/routers/agentPreferencesRouter.ts` | 光球與 PageAgent 偏好 |
-| `notes` | `server/routers/notes.ts` | 專案筆記 CRUD |
 | `promptLibrary` | `server/routers/promptLibrary.ts` | 提示詞 CRUD/收藏 |
 | `news` | `server/routers/news.ts` | 首頁新聞 |
 | `showcase` | `server/routers/showcase.ts` | 首頁作品展示 |

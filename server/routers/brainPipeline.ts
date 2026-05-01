@@ -109,6 +109,8 @@ interface ProviderMeta {
   apiKeyEnv: string;
   /** API key 是否有設定（true=已設） */
   hasKey: () => boolean;
+  /** 對應的後端 service 檔（用於 GitHub 連結；未設則僅顯示 .env 標記） */
+  serviceFiles?: string[];
 }
 
 const PROVIDERS: ProviderMeta[] = [
@@ -118,6 +120,7 @@ const PROVIDERS: ProviderMeta[] = [
     description: "主要 LLM 引擎（推理與多模態）",
     apiKeyEnv: "GEMINI_API_KEY",
     hasKey: () => Boolean(serverEnv.GEMINI_API_KEY),
+    serviceFiles: ["server/services/geminiMedia.ts"],
   },
   {
     id: "vertex",
@@ -125,6 +128,7 @@ const PROVIDERS: ProviderMeta[] = [
     description: "企業級 LLM 與多模態（Gemini / Llama / Imagen）",
     apiKeyEnv: "GOOGLE_APPLICATION_CREDENTIALS_JSON",
     hasKey: () => Boolean(serverEnv.GOOGLE_APPLICATION_CREDENTIALS_JSON),
+    serviceFiles: ["server/services/vertexAI.ts"],
   },
   {
     id: "fal",
@@ -132,6 +136,10 @@ const PROVIDERS: ProviderMeta[] = [
     description: "圖像／影片／音樂／語音生成模型聚合",
     apiKeyEnv: "FAL_API_KEY",
     hasKey: () => Boolean(serverEnv.FAL_API_KEY),
+    serviceFiles: [
+      "server/services/falDispatcher.ts",
+      "server/services/falModels.ts",
+    ],
   },
   {
     id: "elevenlabs",
@@ -139,6 +147,7 @@ const PROVIDERS: ProviderMeta[] = [
     description: "高品質語音合成與聲音克隆",
     apiKeyEnv: "ELEVENLABS_API_KEY",
     hasKey: () => Boolean(serverEnv.ELEVENLABS_API_KEY),
+    serviceFiles: ["server/services/elevenLabsExtended.ts"],
   },
   {
     id: "suno",
@@ -153,6 +162,7 @@ const PROVIDERS: ProviderMeta[] = [
     description: "LoRA 訓練與第三方模型推理",
     apiKeyEnv: "REPLICATE_API_TOKEN",
     hasKey: () => Boolean(serverEnv.REPLICATE_API_TOKEN),
+    serviceFiles: ["server/services/replicateClient.ts"],
   },
 ];
 
@@ -249,7 +259,6 @@ const PAGE_TO_ROUTERS: Record<string, string[]> = {
   "brain-settings": ["router:brain"],
   learn: ["router:learnHub"],
   "tutorial-overview": ["router:learnHub"],
-  notes: ["router:notes"],
   "prompt-library": ["router:promptLibrary"],
   langsmith: ["router:langsmith"],
   "agent-preferences": ["router:agentPreferences"],
@@ -391,13 +400,6 @@ const ROUTER_TO_PROVIDERS: Array<{
     description: "使用者光球與 PageAgent 偏好設定",
     providers: [],
     files: ["server/routers/agentPreferencesRouter.ts"],
-  },
-  {
-    id: "router:notes",
-    label: "notes（專案筆記）",
-    description: "個人/專案筆記 CRUD 與同步",
-    providers: [],
-    files: ["server/routers/notes.ts"],
   },
   {
     id: "router:promptLibrary",
@@ -748,7 +750,10 @@ function buildGraph(opts: BuildGraphOptions): PipelineGraph {
       status: derived.status,
       reason: derived.reason,
       recommendation: derived.recommendation,
-      relatedFiles: [`.env (${meta.apiKeyEnv})`],
+      relatedFiles: [
+        `.env (${meta.apiKeyEnv})`,
+        ...(meta.serviceFiles ?? []),
+      ],
       metrics: {
         ...derived.metrics,
         recentErrorCount: recentErrorCount || undefined,
