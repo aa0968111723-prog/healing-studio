@@ -248,6 +248,7 @@ function isRetryableError(err: unknown): boolean {
  * 此處 re-export 以維持外部 import("./falDispatcher").FALLBACK_CHAINS 的相容性。
  */
 import { PER_CATEGORY_FALLBACK as FALLBACK_CHAINS } from "../_core/fallbackPolicy";
+import { normalizeEngineModelId } from "../../shared/engineModelIds";
 export { FALLBACK_CHAINS };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -880,7 +881,9 @@ export async function dispatchFalQueueTask(
   const { traceToolRun } = await import("./langsmithTracer");
   const { recordErrorTrace } = await import("./brainAutoRepair");
 
-  let targetModelId = params.modelId;
+  // DEF-So1：先把 legacy alias（例：fal-ai/sonauto）轉成 fal 真實 endpoint
+  // （sonauto/v2/text-to-music），避免 catalog 查不到而誤觸 fallback chain。
+  let targetModelId = normalizeEngineModelId(params.modelId);
   let degraded = false;
   let originalModel: string | undefined;
 

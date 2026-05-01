@@ -2630,6 +2630,22 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     requiresKey: true,
     keyEnvVar: "FAL_API_KEY",
   },
+  // DEF-So1：Sonauto 真實 fal endpoint。dispatcher 經 normalize 後查的就是這個 key。
+  // 與 fal-ai/sonauto 對齊（每首 5 pts，無時長維度）。
+  "sonauto/v2/text-to-music": {
+    modelId: "sonauto/v2/text-to-music",
+    label: "Sonauto v2",
+    provider: "fal",
+    category: "text-to-audio",
+    tier: "premium",
+    basePoints: 5,
+    baseCostUsd: 0.05,
+    unit: "每首",
+    minPoints: 5,
+    maxPoints: 50,
+    requiresKey: true,
+    keyEnvVar: "FAL_API_KEY",
+  },
 
   // ── 語音引擎 ──
   "fal-ai/elevenlabs/tts/turbo-v2.5": {

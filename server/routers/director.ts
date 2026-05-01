@@ -2963,22 +2963,27 @@ ${segmentSummaries}
                   )
                 : falEngines.textToAudio;
             const estimate = estimatePoints(modelId, { durationSec });
-            // DEF-S2：fal.ai 音樂引擎的 duration 欄位名不一致 —
-            //   - ace-step / musicgen / sonauto → "duration"
-            //   - stable-audio                  → "seconds_total"
-            // 過去硬編碼成 "duration"，導致大腦/使用者選 stable-audio 時時長被忽略，
-            // fal.ai 落回 30s 預設值。依 modelId 動態選用正確欄位名。
+            // DEF-S2 / DEF-So1：fal.ai 音樂引擎的時長欄位名不一致 —
+            //   - ace-step / musicgen → "duration"
+            //   - stable-audio        → "seconds_total"
+            //   - sonauto v2          → 不接受時長參數（自動產 1-3 分鐘完整歌曲），
+            //                           且歌詞用 lyrics_prompt、tags 為陣列
+            // 過去硬編碼成 "duration"，導致大腦選 stable-audio / sonauto 時時長被
+            // 吃掉甚至送出無效欄位。依 modelId 動態決定 params 形狀。
             // 全模型皆不接受 instrumental flag — 改用 prompt 後綴表達
             // （與 proStudio.textToMusic 一致）。
             const isInstrumental = generationOptions.audioSettings?.isInstrumental ?? true;
             const audioPrompt = isInstrumental
               ? `${musicVibe}, instrumental, no vocals`
               : musicVibe;
-            const audioDurationParams: Record<string, unknown> = modelId.includes(
-              "stable-audio"
-            )
-              ? { seconds_total: durationSec }
-              : { duration: durationSec };
+            const isSonautoModel =
+              modelId === "sonauto/v2/text-to-music" ||
+              modelId === "fal-ai/sonauto";
+            const audioDurationParams: Record<string, unknown> = isSonautoModel
+              ? { output_format: "mp3", num_songs: 1 }
+              : modelId.includes("stable-audio")
+                ? { seconds_total: durationSec }
+                : { duration: durationSec };
             generationTasks.push({
               segmentId: segment.id,
               segmentIndex: segment.index,

@@ -199,6 +199,7 @@ export const PER_CATEGORY_FALLBACK: Record<string, string[]> = {
   ],
   "text-to-audio": [
     "fal-ai/ace-step",
+    "sonauto/v2/text-to-music",
     "fal-ai/stable-audio",
     "fal-ai/mmaudio-v2",
     "fal-ai/musicgen",

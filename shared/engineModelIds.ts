@@ -19,6 +19,11 @@ export const LEGACY_FAL_ALIAS_MAP: Record<string, string> = {
   "fal/stable-audio": "fal-ai/stable-audio",
   "fal/musicgen": "fal-ai/musicgen",
   "fal/ace-step": "fal-ai/ace-step",
+  // DEF-So1：Sonauto 真實 fal 路徑為 sonauto/v2/text-to-music。
+  // 大腦組態 / brainAutoRepair / pricing 沿用 "fal-ai/sonauto" 為穩定 ID，
+  // 透過此別名於 dispatcher 層轉成 fal 真實 endpoint。
+  "fal-ai/sonauto": "sonauto/v2/text-to-music",
+  "fal/sonauto": "sonauto/v2/text-to-music",
   "fal/audioldm2": "fal-ai/audioldm2",
   "fal/playai-tts": "fal-ai/f5-tts",
   "fal/kokoro": "fal-ai/kokoro",

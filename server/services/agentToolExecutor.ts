@@ -768,10 +768,34 @@ async function dispatchStudioTool(
             modelId = "fal-ai/ace-step";
           }
         }
+        // DEF-So1：Sonauto 的欄位名與其他音樂引擎不同 —
+        //   - 歌詞欄位是 lyrics_prompt（不是 lyrics）
+        //   - 沒有 duration（自動產 1-3 分鐘完整歌曲）
+        //   - tags 是陣列（光球 args 若帶 tags，需切成 array）
+        // 用 normalize 後 modelId 判斷，避免大腦傳 "fal-ai/sonauto" 時誤判。
+        const { normalizeEngineModelId } = await import(
+          "../../shared/engineModelIds"
+        );
+        const canonicalAudioModel = normalizeEngineModelId(modelId);
+        const isSonauto = canonicalAudioModel === "sonauto/v2/text-to-music";
+
         const input: Record<string, unknown> = {};
         if (typeof args.prompt === "string") input.prompt = args.prompt;
-        if (typeof args.lyrics === "string") input.lyrics = args.lyrics;
-        if (typeof args.duration === "number") input.duration = args.duration;
+        if (isSonauto) {
+          if (typeof args.lyrics === "string") input.lyrics_prompt = args.lyrics;
+          if (typeof args.tags === "string") {
+            const tagsArr = args.tags.split(",").map(t => t.trim()).filter(Boolean);
+            if (tagsArr.length) input.tags = tagsArr;
+          } else if (Array.isArray(args.tags)) {
+            input.tags = args.tags;
+          }
+          input.output_format = "mp3";
+          input.num_songs = 1;
+          // 注意：duration 由 Sonauto 自決，刻意不傳。
+        } else {
+          if (typeof args.lyrics === "string") input.lyrics = args.lyrics;
+          if (typeof args.duration === "number") input.duration = args.duration;
+        }
         const r = await dispatchFalQueueTask({
           modelId,
           category: "text-to-audio",

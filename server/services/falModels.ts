@@ -862,6 +862,19 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       outputSchema: { audioUrl: true },
       timeoutMs: 120_000,
     },
+    // DEF-So1：Sonauto v2 — fal endpoint 真實路徑為 sonauto/v2/text-to-music
+    // （非 fal-ai/sonauto）。沒有 duration 參數，自動產 1-3 分鐘完整歌曲；
+    // 歌詞欄位為 lyrics_prompt（不是 lyrics），tags 是陣列。
+    {
+      modelId: "sonauto/v2/text-to-music",
+      label: "Sonauto v2",
+      category: "text-to-audio",
+      tier: "premium",
+      description: "Sonauto v2 完整歌曲生成（含歌詞、風格 tags，1-3 分鐘）",
+      inputSchema: { prompt: true, seed: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 240_000,
+    },
   ],
 
   // ════════════════════════════════════════════════════════
