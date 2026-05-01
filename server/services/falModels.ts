@@ -1665,7 +1665,7 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
         videoUrl: true,
         prompt: true,
         strength: true,
-        cfgScale: true,
+        guidanceScale: true,
         seed: true,
       },
       outputSchema: { videoUrl: true },
