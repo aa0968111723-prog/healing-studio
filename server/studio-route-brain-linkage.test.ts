@@ -56,8 +56,10 @@ describe("Studio API route wiring and AI brain linkage", () => {
 
     expect(asyncSection).toContain("if (isGeminiEngine(modelId))");
     expect(asyncSection).toContain("const gemini = getGeminiMediaClient()");
-    // Match the prefix — submitToFalQueue accepts an optional 3rd webhook arg.
-    expect(asyncSection).toContain("submitToFalQueue(modelId, falInput");
+    // Async path now goes through dispatchFalQueueTask so we get the
+    // category-based fallback chain when a stale modelId is selected.
+    expect(asyncSection).toContain("dispatchFalQueueTask({");
+    expect(asyncSection).toMatch(/category: queueCategory/);
   });
 
   it("normalizes brain engine IDs before routing so AI brain selection is real", () => {

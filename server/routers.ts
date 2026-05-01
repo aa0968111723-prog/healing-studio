@@ -129,7 +129,7 @@ import {
   resolveFalEnginesFromRow,
   DEFAULT_FAL_ENGINES,
   estimateGenerationPoints,
-  submitToFalQueue,
+  dispatchFalQueueTask,
 } from "./services/falDispatcher";
 import { getGeminiMediaClient } from "./services/geminiMedia";
 import {
@@ -2641,27 +2641,67 @@ export const appRouter = router({
             ? `${siteUrl}/api/webhook/fal?jobId=${jobId}`
             : undefined;
 
-          const { request_id } = await submitToFalQueue(modelId, falInput, {
+          // 使用 dispatchFalQueueTask 而非裸 submitToFalQueue:
+          // - 不認識的 modelId 會降級到該分類的 fallback chain 首選
+          // - ultra-tier 影片模型送出前先做 preflight 健康探測,避免使用者
+          //   等待 5–10 分鐘才發現模型損毀。
+          const queueCategory: string =
+            input.generationType === "image"
+              ? input.styleReferenceUrl || input.vibeReferenceUrl
+                ? "image-to-image"
+                : "text-to-image"
+              : input.generationType === "video"
+                ? input.firstFrameUrl || input.characterRefUrl
+                  ? "image-to-video"
+                  : "text-to-video"
+                : input.generationType === "audio"
+                  ? "text-to-audio"
+                  : "text-to-speech";
+          const queueModalityForTrace =
+            input.generationType === "image"
+              ? "image"
+              : input.generationType === "video"
+                ? "video"
+                : input.generationType === "audio"
+                  ? "audio"
+                  : "voice";
+          const queueResult = await dispatchFalQueueTask({
+            modelId,
+            category: queueCategory,
+            input: falInput,
             webhookUrl: falWebhookUrl,
+            route: "trpc.generate.submitMultimodalAsync",
+            modality: queueModalityForTrace,
+            userId,
           });
+          const request_id = queueResult.request_id;
+          // 若 dispatcher 因為 modelId 不在 catalog 而降級,以實際送出的模型為準,
+          // 確保前端用 checkStudioJob 輪詢時能命中正確的 fal queue endpoint。
+          const submittedModelId = queueResult.modelId;
 
           // 更新 job 記錄，加入 requestId（checkStudioJob 輪詢需要）
           await db.updateBackgroundJob(jobId, {
             resultJson: {
               studioType: input.generationType,
               label,
-              modelId,
+              modelId: submittedModelId,
               requestId: request_id,
               prompt: (input.generationType === "voice" ? input.voiceText : input.prompt) ?? "",
+              ...(queueResult.degraded && queueResult.originalModel
+                ? { originalModel: queueResult.originalModel, degraded: true }
+                : {}),
             } as any,
           });
 
           return {
             jobId,
             request_id,
-            modelId,
+            modelId: submittedModelId,
             label,
             generationType: input.generationType,
+            ...(queueResult.degraded && queueResult.originalModel
+              ? { degraded: true, originalModel: queueResult.originalModel }
+              : {}),
           };
         } catch (err) {
           // queue submit 失敗 → 退款 + 標記失敗
