@@ -22,6 +22,7 @@ import { usePersonality } from "./PersonalityContext";
 import { usePageAgent, parseLLMActions, adaptAgentPlanToActions, type AgentAction } from "./PageAgentContext";
 import { useLocation } from "wouter";
 import { executeGlobalActions, shouldAskBeforeAct } from "../../../shared/global-agent-orchestrator";
+import { globalAgentRegistry } from "../../../shared/global-agent-registry";
 import { detectChatIntent } from "../../../shared/global-agent-workflows";
 import {
   chatMessageToLLMContent,
@@ -996,6 +997,24 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         intentSummary: options.intent,
         source: "ai-chat",
         waitAfterNavigateMs: 450,
+        // Precision over speed: after navigate + the 450ms settle, poll the
+        // global registry up to 4s waiting for the destination page to call
+        // useRegisterPageAgent. This eliminates the silent-enqueue race where
+        // a slow-hydrating page receives the dispatch before its handler is
+        // ready (the action gets queued and executes later, breaking ordered
+        // workflows). Polls every 80ms; that's tight enough to feel
+        // immediate while keeping reflow cost trivial.
+        pageReadyTimeoutMs: 4000,
+        awaitPageReady: async (path, { timeoutMs }) => {
+          if (globalAgentRegistry.findByPath(path)) return true;
+          const intervalMs = 80;
+          const deadline = Date.now() + timeoutMs;
+          while (Date.now() < deadline) {
+            await new Promise(resolve => setTimeout(resolve, intervalMs));
+            if (globalAgentRegistry.findByPath(path)) return true;
+          }
+          return false;
+        },
         onWorkflowStep: step => {
           const now = Date.now();
           setWorkflowExecution(prev =>

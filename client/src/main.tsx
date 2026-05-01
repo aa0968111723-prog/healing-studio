@@ -1,7 +1,12 @@
-import { trpc } from "@/lib/trpc";
+import {
+  trpc,
+  isHeavyProcedurePath,
+  shouldRetryQuery,
+  computeRetryDelay,
+} from "@/lib/trpc";
 import { UNAUTHED_ERR_MSG } from "@shared/const";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { httpBatchLink, TRPCClientError } from "@trpc/client";
+import { httpBatchLink, httpLink, splitLink, TRPCClientError } from "@trpc/client";
 import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
@@ -19,9 +24,12 @@ const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
       // 網路恢復時自動 refetch（保留此行為，確保離線後數據更新）
       refetchOnReconnect: true,
-      // 失敗時最多重試 1 次（避免過多無效請求）
-      retry: 1,
-      retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 10_000),
+      // 智慧重試：4xx 不重試（同樣 input 會同樣失敗，重試只是浪費），
+      // 5xx / 網路錯誤最多 2 次。前一次只有 1 次的設定無法吸收 Railway
+      // 冷啟動或瞬間斷線，剛好觸發「有時連不上」的體感。
+      retry: shouldRetryQuery,
+      // 指數退避 + ±25% jitter，避免並發重試在同一毫秒撞上後端。
+      retryDelay: computeRetryDelay,
     },
     mutations: {
       // mutation 失敗不自動重試
@@ -116,18 +124,59 @@ function resolveClientFetchUrl(input: RequestInfo | URL): string {
   return resolved;
 }
 
+// ─── Fetch with timeout + caller signal forwarding ────────────────────────
+// Without an explicit timeout, a hung backend (Railway cold start, network
+// blip, slow LLM call) leaves the request waiting on the browser's default
+// (~5 minutes). Combined with the previous `retry: 1` policy, that one slow
+// request consumed the only retry attempt and surfaced as "API doesn't
+// connect". We compose the timeout abort with React Query's caller signal
+// so unmount cancellation still works — losing that would defeat the whole
+// React Query lifecycle model.
+function fetchWithTimeout(timeoutMs: number) {
+  return (input: RequestInfo | URL, init?: RequestInit) => {
+    const finalUrl = resolveClientFetchUrl(input);
+    const controller = new AbortController();
+    const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
+    const callerSignal = init?.signal;
+    if (callerSignal) {
+      if (callerSignal.aborted) controller.abort();
+      else callerSignal.addEventListener("abort", () => controller.abort(), { once: true });
+    }
+    return globalThis
+      .fetch(finalUrl, {
+        ...(init ?? {}),
+        credentials: "include",
+        signal: controller.signal,
+      })
+      .finally(() => clearTimeout(timeoutHandle));
+  };
+}
+
+// LLM / generation procedures get their own httpLink (no batching, longer
+// timeout). Batch poisoning was the dominant cause of "API doesn't connect"
+// — a single slow `ai.chat` queued in the same 10ms window as a snappy
+// `auth.me` made the whole batch wait, then both fail together. With
+// splitLink, each heavy call gets its own HTTP request and can take its
+// time without affecting any other procedure.
 const trpcClient = trpc.createClient({
   links: [
-    httpBatchLink({
-      url: "/api/trpc",
-      transformer: superjson,
-      fetch(input, init) {
-        const finalUrl = resolveClientFetchUrl(input);
-        return globalThis.fetch(finalUrl, {
-          ...(init ?? {}),
-          credentials: "include",
-        });
-      },
+    splitLink({
+      condition: op => isHeavyProcedurePath(op.path),
+      // Heavy: own request, 90s ceiling (LLM calls + image gen routinely
+      // take 30-60s; 90s leaves headroom without making a truly hung
+      // request invisible).
+      true: httpLink({
+        url: "/api/trpc",
+        transformer: superjson,
+        fetch: fetchWithTimeout(90_000),
+      }),
+      // Light: batched, 30s ceiling (auth, profile, page data — anything
+      // beyond 30s on these is a backend problem worth surfacing).
+      false: httpBatchLink({
+        url: "/api/trpc",
+        transformer: superjson,
+        fetch: fetchWithTimeout(30_000),
+      }),
     }),
   ],
 });
