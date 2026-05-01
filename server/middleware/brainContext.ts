@@ -17,7 +17,7 @@
 import { eq } from "drizzle-orm";
 import { userAiBrain, type UserAiBrain } from "../../drizzle/schema";
 import { getDb } from "../db";
-import { FALLBACK_CHAINS as DISPATCHER_FALLBACK_CHAINS } from "../services/falDispatcher";
+import { resolveFallbackChain } from "../_core/fallbackPolicy";
 import { getModelPricing } from "../services/modelPricing";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -128,102 +128,6 @@ export const DEFAULT_GENERATION_ENGINES: Record<
   },
   audioEngine: { engine: "fal-ai/ace-step", params: null },
   voiceEngine: { engine: "fal-ai/elevenlabs/tts/turbo-v2.5", params: null },
-};
-
-/** 每個引擎的備援候選清單（按優先順序） */
-const ENGINE_FALLBACK_CHAIN: Record<string, string[]> = {
-  // 推理大腦（Gemini 模型族）
-  "gemini-2.5-pro": ["gemini-2.5-flash", "gemini-1.5-pro"],
-  "gemini-2.5-flash": ["gemini-1.5-flash", "gemini-2.5-pro"],
-  "gemini-1.5-pro": ["gemini-2.5-pro", "gemini-1.5-flash"],
-  "gemini-1.5-flash": ["gemini-2.5-flash", "gemini-1.5-pro"],
-  // MiniMax M2.7（NVIDIA NIM 代理人引擎）→ 降級到 Gemini
-  "minimaxai/minimax-m2.7": ["gemini-2.5-flash", "gemini-2.5-pro"],
-  // OpenAI 模型名稱 → Gemini fallback（向後相容，防止舊設定觸發 404）
-  "gpt-4o": ["gemini-2.5-pro", "gemini-2.5-flash"],
-  "gpt-4o-mini": ["gemini-2.5-flash", "gemini-1.5-flash"],
-  "gpt-3.5-turbo": ["gemini-2.5-flash", "gemini-1.5-flash"],
-  "claude-3.5-sonnet": ["gemini-2.5-pro", "gemini-2.5-flash"],
-  "claude-3-opus": ["gemini-2.5-pro", "gemini-1.5-pro"],
-  "claude-3-haiku": ["gemini-2.5-flash", "gemini-1.5-flash"],
-  // Vertex AI 路徑 → 直接 Gemini fallback
-  "vertex/gemini-2.5-pro": ["gemini-2.5-pro", "gemini-2.5-flash"],
-  "vertex/gemini-2.5-flash": ["gemini-2.5-flash", "gemini-1.5-flash"],
-  // 圖像引擎（實際 Fal.ai 模型 ID）
-  "fal-ai/flux-pro/v1.1": [
-    "fal-ai/fast-sdxl",
-    "fal-ai/stable-diffusion-v35-large",
-  ],
-  "fal-ai/nano-banana-2": ["fal-ai/nano-banana-pro", "fal-ai/flux-pro/v1.1"],
-  "fal-ai/nano-banana-pro": ["fal-ai/nano-banana-2", "fal-ai/flux-pro/v1.1"],
-  "fal-ai/imagen4/preview": ["fal-ai/nano-banana-2", "fal-ai/flux-pro/v1.1"],
-  "fal-ai/fast-sdxl": [
-    "fal-ai/flux-pro/v1.1",
-    "fal-ai/stable-diffusion-v35-large",
-  ],
-  // 圖像引擎（向後相容舊別名）
-  "flux-pro": ["fal-ai/flux-pro/v1.1", "flux-schnell", "dall-e-3"],
-  "flux-schnell": ["flux-pro", "dall-e-3"],
-  "dall-e-3": ["flux-pro", "flux-schnell"],
-  "stable-diffusion-xl": ["flux-pro", "dall-e-3"],
-  // 影片引擎（實際 Fal.ai 模型 ID）
-  "fal-ai/kling-video/v2.1/standard/text-to-video": [
-    "fal-ai/wan/v2.2-14b",
-    "fal-ai/minimax/video-01",
-  ],
-  "fal-ai/kling-video/v2.1/standard/image-to-video": [
-    "fal-ai/minimax/video-01/image-to-video",
-    "fal-ai/pixverse/v4.5/image-to-video",
-  ],
-  "fal-ai/wan/v2.2-14b": [
-    "fal-ai/kling-video/v2.1/standard/text-to-video",
-    "fal-ai/minimax/video-01",
-  ],
-  "fal-ai/veo3": [
-    "fal-ai/kling-video/v2.1/standard/text-to-video",
-    "fal-ai/wan/v2.2-14b",
-  ],
-  "fal-ai/minimax/video-01": [
-    "fal-ai/kling-video/v2.1/standard/text-to-video",
-    "fal-ai/wan/v2.2-14b",
-  ],
-  // 影片引擎（向後相容舊別名）
-  "kling-v1": [
-    "fal-ai/kling-video/v2.1/standard/text-to-video",
-    "kling-v1-5",
-    "minimax-video",
-  ],
-  "kling-v1-5": ["kling-v1", "minimax-video"],
-  "minimax-video": ["fal-ai/minimax/video-01", "kling-v1", "kling-v1-5"],
-  // 音樂引擎（實際 Fal.ai 模型 ID）
-  "fal-ai/sonauto": ["fal-ai/ace-step", "fal-ai/stable-audio"],  // sonauto Not Found, ace-step is primary
-  "fal-ai/ace-step": ["fal-ai/stable-audio", "fal-ai/musicgen"],
-  "fal-ai/stable-audio": ["fal-ai/ace-step", "fal-ai/musicgen"],
-  // 音樂引擎（向後相容舊別名）
-  "suno-v4": ["fal-ai/ace-step", "suno-v3.5", "udio-v1"],
-  "suno-v3.5": ["suno-v4", "udio-v1"],
-  "udio-v1": ["suno-v4", "suno-v3.5"],
-  // 語音引擎（實際 Fal.ai 模型 ID）
-  "fal-ai/elevenlabs/tts/turbo-v2.5": [
-    "fal-ai/qwen-3-tts/text-to-speech/1.7b",
-    "fal-ai/dia-tts/voice-clone",
-  ],
-  "fal-ai/qwen-3-tts/text-to-speech/1.7b": [
-    "fal-ai/elevenlabs/tts/turbo-v2.5",
-    "fal-ai/dia-tts/voice-clone",
-  ],
-  "fal-ai/dia-tts/voice-clone": [
-    "fal-ai/elevenlabs/tts/turbo-v2.5",
-    "fal-ai/qwen-3-tts/text-to-speech/1.7b",
-  ],
-  // 語音引擎（向後相容舊別名）
-  "elevenlabs-v2": [
-    "fal-ai/elevenlabs/tts/turbo-v2.5",
-    "elevenlabs-v1",
-    "azure-tts",
-  ],
-  "elevenlabs-v1": ["elevenlabs-v2", "azure-tts"],
-  "azure-tts": ["elevenlabs-v2", "elevenlabs-v1"],
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -482,8 +386,9 @@ export const BrainAuditLogger = {
 
 /**
  * 為不健康的模型/引擎尋找可用的備援。
- * 沿著 ENGINE_FALLBACK_CHAIN 依序嘗試，返回第一個健康的候選。
- * 若所有候選都不健康，返回該類型的硬編碼預設值。
+ * 由 _core/fallbackPolicy.ts 統一查詢:先看 per-model 覆寫(更精確),
+ * 缺則退到 per-category 名單,共用同一份 SSOT 避免兩處策略分叉。
+ * 若所有候選都不健康,返回該類型的硬編碼預設值。
  */
 function findFallback(
   currentModel: string,
@@ -493,19 +398,8 @@ function findFallback(
   const isHealthy = getHealthStatus(currentModel);
   if (isHealthy) return null; // 不需要降級
 
-  // 解析 fallback 候選清單：先看 per-model 覆寫，缺則退到 dispatcher
-  // 的 per-category 名單（共用同一份 SSOT，避免兩處策略分叉）。
-  const perModelChain = ENGINE_FALLBACK_CHAIN[currentModel] ?? [];
   const category = getModelPricing(currentModel)?.category;
-  const categoryChain = category
-    ? (DISPATCHER_FALLBACK_CHAINS[category] ?? []).filter(
-        id => id !== currentModel
-      )
-    : [];
-  // per-model 優先（更精確），補入 category 名單去重
-  const chain = perModelChain.length > 0
-    ? Array.from(new Set([...perModelChain, ...categoryChain]))
-    : categoryChain;
+  const chain = resolveFallbackChain(currentModel, category);
 
   // 嘗試 fallback chain
   for (const candidate of chain) {

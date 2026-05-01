@@ -243,91 +243,12 @@ function isRetryableError(err: unknown): boolean {
 }
 
 /**
- * 每個分類的降級鏈（按品質由高至低）。
- * 出口給 brainContext.findFallback 使用，把「per-category roster」當作
- * 「per-model fallback」缺漏時的來源，避免兩處鏈條策略分叉。
+ * 每個分類的降級鏈(按品質由高至低)。
+ * 已搬移到 `server/_core/fallbackPolicy.ts:PER_CATEGORY_FALLBACK`,
+ * 此處 re-export 以維持外部 import("./falDispatcher").FALLBACK_CHAINS 的相容性。
  */
-export const FALLBACK_CHAINS: Record<string, string[]> = {
-  "text-to-image": [
-    "fal-ai/flux-pro/v1.1",
-    "fal-ai/flux/dev",
-    "fal-ai/stable-diffusion-v3-medium",
-    "fal-ai/flux/schnell",
-    "fal-ai/aura-flow",
-  ],
-  "image-to-image": [
-    "fal-ai/flux/dev/image-to-image",
-    "fal-ai/stable-diffusion-v3-medium/image-to-image",
-    "fal-ai/flux/dev/controlnet",
-    "fal-ai/ip-adapter-face-id",
-    "fal-ai/aura-sr",
-  ],
-  "text-to-video": [
-    "fal-ai/kling-video/v2.1/pro/text-to-video",
-    "fal-ai/kling-video/v2.1/standard/text-to-video",
-    "fal-ai/wan-t2v",
-    "fal-ai/minimax/hailuo-02/pro/text-to-video",
-    "fal-ai/minimax-video/text-to-video",
-    "fal-ai/ltx-video-13b-distilled",
-    "fal-ai/cogvideox-5b",
-  ],
-  "image-to-video": [
-    "fal-ai/kling-video/v2.1/pro/image-to-video",
-    "fal-ai/kling-video/v2.1/standard/image-to-video",
-    "fal-ai/runway-gen4-turbo/image-to-video",
-    "fal-ai/minimax/hailuo-02/pro/image-to-video",
-    "fal-ai/minimax-video/image-to-video",
-    "fal-ai/pixverse/v4.5/image-to-video",
-    "fal-ai/luma-dream-machine/image-to-video",
-    "fal-ai/wan-i2v",
-    "fal-ai/ltx-video/image-to-video",
-    "fal-ai/stable-video",
-    // 進階控制：i2v 變體
-    "fal-ai/cammaster",
-    "fal-ai/vidu/q1/reference-to-video",
-  ],
-  "text-to-speech": [
-    "fal-ai/f5-tts",  // playai-tts Not Found, replaced with f5-tts
-    "fal-ai/orpheus-tts",
-    "fal-ai/dia-tts",
-    "fal-ai/kokoro",
-  ],
-  "text-to-audio": [
-    "fal-ai/ace-step",
-    "fal-ai/stable-audio",
-    "fal-ai/mmaudio-v2",
-    "fal-ai/musicgen",
-  ],
-  "image-to-3d": [
-    "fal-ai/triposr",
-    "fal-ai/tripo3d",
-    "fal-ai/trellis",
-  ],
-  "text-to-3d": ["fal-ai/tripo3d", "fal-ai/trellis", "fal-ai/hyper3d/rodin"],
-  "video-to-audio": ["fal-ai/mmaudio-v2", "fal-ai/stable-audio"],
-  "video-to-text": ["fal-ai/wizper", "fal-ai/whisper"],
-  "video-to-video": [
-    "fal-ai/kling-video/v2.1/standard/video-to-video",
-    "fal-ai/kling-video/v1.6/standard/video-to-video",
-    "fal-ai/wan/v2.1/video-to-video",
-    "fal-ai/animatediff-v2v",
-    "fal-ai/cogvideox-5b/video-to-video",
-    "fal-ai/video-to-video",
-    // 畫質優化（fallback 對 enhance 類別共用同一池；同類別內降級）
-    "fal-ai/topaz/video-enhance",
-    "fal-ai/bytedance/upscaler/video",
-    "fal-ai/topaz-upscale-video",
-    "fal-ai/stable-video-upscaler",
-    "fal-ai/rife-v4.6/video",
-    // 進階控制：v2v 變體
-    "fal-ai/depthcrafter",
-  ],
-  training: ["fal-ai/flux-lora-fast-training"],
-  llm: ["fal-ai/any-llm"],
-  json: ["fal-ai/any-llm"],
-  "text-to-json": ["fal-ai/any-llm"],
-  "image-to-json": ["fal-ai/llava-next", "fal-ai/moondream"],
-};
+import { PER_CATEGORY_FALLBACK as FALLBACK_CHAINS } from "../_core/fallbackPolicy";
+export { FALLBACK_CHAINS };
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Core dispatch function
