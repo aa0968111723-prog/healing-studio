@@ -15,6 +15,8 @@ describe("studio.* generation tool registration", () => {
     // DEF-SFX2：SFX 與 Audio（音樂）分流
     expect(names).toContain("studio.generateSfx");
     expect(names).toContain("studio.generateVoice");
+    // DEF-VC1：voice cloning 與 generateVoice 分流，輸出 speaker embedding 供後續 step 復用
+    expect(names).toContain("studio.cloneVoice");
   });
 
   it("studio.* tools require human approval", () => {
@@ -24,6 +26,7 @@ describe("studio.* generation tool registration", () => {
       "studio.generateAudio",
       "studio.generateSfx",
       "studio.generateVoice",
+      "studio.cloneVoice",
     ]) {
       const tool = getGlobalAgentTool(name);
       expect(tool, name).not.toBeNull();
@@ -38,6 +41,7 @@ describe("studio.* generation tool registration", () => {
     expect(isKnownGlobalAgentTool("studio.generateAudio")).toBe(true);
     expect(isKnownGlobalAgentTool("studio.generateSfx")).toBe(true);
     expect(isKnownGlobalAgentTool("studio.generateVoice")).toBe(true);
+    expect(isKnownGlobalAgentTool("studio.cloneVoice")).toBe(true);
     expect(isKnownGlobalAgentTool("studio.unknownThing")).toBe(false);
   });
 });

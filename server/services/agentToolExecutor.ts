@@ -9,6 +9,7 @@ const GENERATION_SLOT_TOOLS = new Set([
   "studio.generateAudio",
   "studio.generateSfx",
   "studio.generateVoice",
+  "studio.cloneVoice",
   "studio.enhanceVideo",
   "studio.trainLora",
 ]);
@@ -917,6 +918,55 @@ async function dispatchStudioTool(
           data: { ...awaited, engine: "fal", kind: "sfx" },
           usedTool: call.name,
           ...(awaited.status === "failed" && awaited.error ? { error: awaited.error } : {}),
+        };
+      }
+
+      // DEF-VC1：光球專用 voice cloning — 從參考音訊產出 speaker embedding，
+      // 後續 step 可帶 speaker_voice_embedding_file_url 給 studio.generateVoice
+      // 用同一個音色合成任意文字。預設走 Qwen 3 zero-shot clone（30 秒參考音訊內）。
+      // 與 generateVoice 分流：clone 步驟不需 brain.voiceEngine 也不接受 ElevenLabs key。
+      case "studio.cloneVoice": {
+        const { dispatchFalQueueTask } = await import("./falDispatcher");
+        const modelId =
+          (args.modelId as string) || "fal-ai/qwen-3-tts/clone-voice/1.7b";
+        const cloneInput: Record<string, unknown> = {};
+        if (typeof args.audio_url === "string") cloneInput.audio_url = args.audio_url;
+        if (typeof args.reference_text === "string") {
+          cloneInput.reference_text = args.reference_text;
+        }
+        const r = await dispatchFalQueueTask({
+          modelId,
+          category: "text-to-speech",
+          input: cloneInput,
+          route: "orb-tool/studio.cloneVoice",
+          modality: "voice",
+          userId: opts.userId,
+        });
+        const awaited = await awaitFalForOrb(
+          { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
+          args
+        );
+        // Qwen clone 回 speaker_embedding.url（.safetensors）；把 embedding URL
+        // 平推到頂層方便後續 step 透過 ${stepN.speaker_voice_embedding_file_url}
+        // 接到 studio.generateVoice。
+        const speakerEmbedding =
+          (awaited.raw as { speaker_embedding?: { url?: string } } | undefined)
+            ?.speaker_embedding?.url ?? null;
+        return {
+          name: call.name,
+          ok: awaited.status !== "failed" && !!speakerEmbedding,
+          data: {
+            ...awaited,
+            engine: "fal",
+            kind: "voice-clone",
+            speaker_voice_embedding_file_url: speakerEmbedding,
+          },
+          usedTool: call.name,
+          ...(awaited.status === "failed" && awaited.error
+            ? { error: awaited.error }
+            : !speakerEmbedding && awaited.status !== "pending"
+              ? { error: "voice-clone: speaker_embedding 缺失" }
+              : {}),
         };
       }
 
