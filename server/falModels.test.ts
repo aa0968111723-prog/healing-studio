@@ -98,6 +98,16 @@ describe("falModels catalog coverage", () => {
     expect(ids.has("fal-ai/elevenlabs/tts/eleven-v3")).toBe(true);
   });
 
+  // DEF-D1：Dia voice-clone 是獨立 endpoint（雖叫 voice-clone 實為多說話者
+  // 對話 TTS），必須與基礎 fal-ai/dia-tts 並列在 catalog 內，否則 dispatcher
+  // 對該 modelId 會 catalog miss → 降級到 f5-tts。
+  it("text-to-speech catalog includes Dia voice-clone alongside base dia-tts", () => {
+    const list = getFalModelsByCategory("text-to-speech");
+    const ids = new Set(list.map(m => m.modelId));
+    expect(ids.has("fal-ai/dia-tts")).toBe(true);
+    expect(ids.has("fal-ai/dia-tts/voice-clone")).toBe(true);
+  });
+
   // DEF-EL1：ElevenLabs SFX 真實 endpoint 帶 /v2 後綴，必須在 text-to-audio
   // catalog 註冊，否則 dispatcher 會把所有 SFX 請求降級到 fal-ai/ace-step（音樂模型）。
   it("text-to-audio catalog includes ElevenLabs SFX v2 canonical id", () => {

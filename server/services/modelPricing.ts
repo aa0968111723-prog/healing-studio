@@ -2756,9 +2756,11 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     requiresKey: true,
     keyEnvVar: "FAL_API_KEY",
   },
+  // DEF-D2：fal 端命名誤導 — "voice-clone" 實為多說話者對話 TTS（[S1]/[S2] 標籤），
+  // 並非以參考音訊複製真實聲音。label 改為對話 TTS 對齊 catalog 描述。
   "fal-ai/dia-tts/voice-clone": {
     modelId: "fal-ai/dia-tts/voice-clone",
-    label: "Dia TTS Voice Clone",
+    label: "Dia 多說話者對話 TTS",
     provider: "fal",
     category: "text-to-speech",
     tier: "standard",

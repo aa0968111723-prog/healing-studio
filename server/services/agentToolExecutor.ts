@@ -995,16 +995,25 @@ async function dispatchStudioTool(
         if (isElevenLabsTts && !process.env.ELEVENLABS_API_KEY) {
           modelId = "fal-ai/f5-tts";
         }
-        // DEF-Q3：Qwen TTS 的欄位形狀與其他 TTS 引擎不同 —
-        //   - 預訓練聲線欄位是 voice（接受名稱字串，如 "Vivian"），不是 voice_id
-        //   - 不接受 speed
-        //   - 必須有 voice 或 speaker_voice_embedding_file_url 至少其一，否則 422
-        // 把光球 args.voice_id 翻譯成 Qwen 期望的 voice，且空白時補上 "Vivian"
-        // 預設（與 proStudio.qwenTTS 行為一致）。
+        // DEF-Q3 / DEF-D3：每家 TTS 欄位形狀不同 —
+        //   - Qwen：voice（不是 voice_id）+ speaker_voice_embedding_file_url；不接受 speed
+        //   - Dia voice-clone：只接受 text，且必須以 [S1]/[S2] 標籤標注說話者，
+        //                       無 [S1] 標籤時 fal 回 422 — 與 proStudio.diaTTSVoiceClone:1015 行為對齊
+        //   - ElevenLabs：voice_id + voice_settings + 原生 model_id（DEF-V10）
+        //   - 其他（f5-tts / kokoro / orpheus）：voice_id + speed
         const isQwenTts = modelId.startsWith("fal-ai/qwen-3-tts/text-to-speech");
+        const isDiaVoiceClone =
+          modelId === "fal-ai/dia-tts/voice-clone" ||
+          modelId === "fal-ai/dia-tts";
         const input: Record<string, unknown> = {};
-        if (typeof args.text === "string") input.text = args.text;
-        if (isQwenTts) {
+        if (typeof args.text === "string") {
+          input.text = isDiaVoiceClone && !/\[S\d\]/.test(args.text)
+            ? `[S1] ${args.text}`
+            : args.text;
+        }
+        if (isDiaVoiceClone) {
+          // Dia 不接受 voice_id / speed / voice_settings — 跳過所有額外欄位
+        } else if (isQwenTts) {
           const qwenVoice =
             (typeof args.voice_id === "string" && args.voice_id) ||
             (typeof args.voice === "string" && args.voice) ||

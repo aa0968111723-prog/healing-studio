@@ -1233,6 +1233,24 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       outputSchema: { audioUrl: true },
       timeoutMs: 60_000,
     },
+    // DEF-D1：Dia voice-clone endpoint 未註冊。dispatcher 對 modelId
+    // fal-ai/dia-tts/voice-clone 的請求會 catalog miss → 降級到
+    // text-to-speech[0] = fal-ai/f5-tts。光球 / 導演 / 大腦選 Dia 對話克隆
+    // 都會被默默換成 f5-tts。
+    // ⚠️ 名稱誤導：fal 端 "voice-clone" 實為多說話者對話 TTS（用 [S1]/[S2]
+    // 標籤生成不同合成聲音），並非以參考音訊複製真實使用者聲音 —— 故只接受
+    // { text }，沒有 audio_url 參數。
+    {
+      modelId: "fal-ai/dia-tts/voice-clone",
+      label: "Dia 多說話者對話 TTS",
+      category: "text-to-speech",
+      tier: "standard",
+      description:
+        "Dia 多說話者對話 TTS — 用 [S1]/[S2] 標籤生成多角色合成聲音（非真實聲音克隆）",
+      inputSchema: { prompt: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 60_000,
+    },
     {
       modelId: "fal-ai/dia-tts",
       label: "Dia TTS",
