@@ -2108,7 +2108,75 @@ export async function webSearch(
     }
   }
 
-  // 若 Brave Search 沒有結果，嘗試 GitHub 公開搜尋 API
+  // ── Perplexity Sonar via OpenRouter（取代直連 Perplexity API） ─────
+  // 比 GitHub repo 搜尋更貼近 "研究式問答" 的語意；Brave 沒有結果或未設 key
+  // 時做為第二級備援，會自動引用 web 來源並回傳簡短摘要 + 連結。
+  if (results.length === 0 && ENV.openRouterApiKey) {
+    try {
+      const baseUrl = (ENV.openRouterBaseUrl || "https://openrouter.ai/api/v1").replace(/\/$/, "");
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${ENV.openRouterApiKey}`,
+        "Content-Type": "application/json",
+      };
+      if (ENV.openRouterHttpReferer) headers["HTTP-Referer"] = ENV.openRouterHttpReferer;
+      if (ENV.openRouterXTitle) headers["X-Title"] = ENV.openRouterXTitle;
+
+      const sonarRes = await fetch(`${baseUrl}/chat/completions`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          model: "perplexity/sonar",
+          messages: [
+            {
+              role: "system",
+              content:
+                "You are a research assistant. Answer the user's query with up to 5 distinct factual sources. Reply ONLY in JSON with shape {\"results\":[{\"title\":string,\"url\":string,\"summary\":string}]}. Each summary must be under 240 characters.",
+            },
+            { role: "user", content: query },
+          ],
+          response_format: { type: "json_object" },
+          max_tokens: 800,
+          temperature: 0.2,
+        }),
+        signal: AbortSignal.timeout(15_000),
+      });
+
+      if (sonarRes.ok) {
+        const data = (await sonarRes.json()) as {
+          choices?: Array<{ message?: { content?: string } }>;
+        };
+        const content = data.choices?.[0]?.message?.content ?? "";
+        if (content) {
+          try {
+            const parsed = JSON.parse(content) as {
+              results?: Array<{ title?: string; url?: string; summary?: string }>;
+            };
+            for (const item of (parsed.results ?? []).slice(0, maxResults)) {
+              if (item.title && item.url) {
+                results.push({
+                  id: genId("web"),
+                  query,
+                  source: "Perplexity Sonar (OpenRouter)",
+                  title: String(item.title).slice(0, 100),
+                  summary: (item.summary ?? item.title).slice(0, 240),
+                  url: String(item.url),
+                  relevance: 75,
+                  addedToLearnHub: false,
+                  createdAt: Date.now(),
+                });
+              }
+            }
+          } catch {
+            // JSON parsing failed — fall through to GitHub fallback below
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[WebResearch] Perplexity Sonar (OpenRouter) 搜尋失敗:", err);
+    }
+  }
+
+  // 若 Brave Search 與 OpenRouter Sonar 都沒有結果，嘗試 GitHub 公開搜尋 API
   if (results.length === 0) {
     try {
       const ghQuery = encodeURIComponent(query);

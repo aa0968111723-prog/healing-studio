@@ -95,15 +95,25 @@ const FLAG_DEFINITIONS: Record<FeatureFlagName, FlagDefinition> = {
     fallbackHint: "Use plain conversation context without long-term memory.",
   },
   RESEARCH_MODE: {
-    description: "Deep research via Perplexity / Brave Search APIs",
+    description:
+      "Deep research via Brave Search 或 OpenRouter Perplexity Sonar（取代直連 Perplexity API）",
     defaultResolver: () =>
-      Boolean(serverEnv.PERPLEXITY_API_KEY || serverEnv.BRAVE_SEARCH_API_KEY),
+      Boolean(
+        serverEnv.BRAVE_SEARCH_API_KEY ||
+          serverEnv.OPENROUTER_API_KEY ||
+          serverEnv.PERPLEXITY_API_KEY
+      ),
     fallbackHint: "Fall back to standard LLM knowledge without live search.",
   },
   ADVANCED_SEARCH: {
-    description: "Multi-provider search aggregation (Brave + Perplexity)",
+    description:
+      "Multi-provider search aggregation（Brave + OpenRouter Sonar；Perplexity 直連視為已淘汰）",
     defaultResolver: () =>
-      Boolean(serverEnv.BRAVE_SEARCH_API_KEY || serverEnv.PERPLEXITY_API_KEY),
+      Boolean(
+        serverEnv.BRAVE_SEARCH_API_KEY ||
+          serverEnv.OPENROUTER_API_KEY ||
+          serverEnv.PERPLEXITY_API_KEY
+      ),
     fallbackHint: "Use single-provider search or skip search entirely.",
   },
   LLM_CACHE: {
