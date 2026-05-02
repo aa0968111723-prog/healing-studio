@@ -262,6 +262,20 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     },
     executionTarget: "server-side",
   },
+  // DEF-ASR3：光球專用語音轉文字（ASR）— 把音訊轉成文字稿，後續 step 可接到
+  // LLM 翻譯 / 摘要 / 重新合成（generateVoice）等。預設 Nemotron ASR（SSE 串流，
+  // 自動偵測語言），不需特殊 key。完成「逐字稿」工作流的關鍵一塊。
+  {
+    name: "studio.transcribe",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      audio_url: "string",
+      modelId: "string?",
+      acceleration: "string?",
+    },
+    executionTarget: "server-side",
+  },
   {
     name: "studio.generateVoice",
     riskLevel: "medium",

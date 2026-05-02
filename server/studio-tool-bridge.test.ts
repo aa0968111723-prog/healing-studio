@@ -27,6 +27,8 @@ describe("studio.* generation tool registration", () => {
     expect(names).toContain("studio.mergeAudios");
     // DEF-VCH4：聲音變換 — 把現有錄音的聲音換成 voice_id，保留原語速/語氣
     expect(names).toContain("studio.changeVoice");
+    // DEF-ASR3：語音轉文字 — 開啟「逐字稿 → 翻譯/摘要 → 再合成」工作流
+    expect(names).toContain("studio.transcribe");
   });
 
   it("studio.* tools require human approval", () => {
@@ -62,6 +64,7 @@ describe("studio.* generation tool registration", () => {
     expect(isKnownGlobalAgentTool("studio.isolateAudio")).toBe(true);
     expect(isKnownGlobalAgentTool("studio.mergeAudios")).toBe(true);
     expect(isKnownGlobalAgentTool("studio.changeVoice")).toBe(true);
+    expect(isKnownGlobalAgentTool("studio.transcribe")).toBe(true);
     expect(isKnownGlobalAgentTool("studio.unknownThing")).toBe(false);
   });
 });

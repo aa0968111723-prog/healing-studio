@@ -25,6 +25,7 @@ import { createFalClient } from "@fal-ai/client";
 // ─── 模型類別定義 ─────────────────────────────────────────────────────────
 
 export type FalCategory =
+  | "audio-to-text"
   | "image-to-3d"
   | "image-to-image"
   | "image-to-json"
@@ -95,6 +96,49 @@ export interface FalOutputSchema {
 // ─── 16大類 × 5-6個模型目錄 ───────────────────────────────────────────────
 
 export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
+  // ════════════════════════════════════════════════════════
+  // 2-0  音訊轉文字  audio-to-text
+  // DEF-ASR1：ASR（語音辨識）。modelPricing.ts 早就有 audio-to-text category，
+  // 但 falModels.ts 的 FalCategory enum 過去缺，導致 ASR 模型無法在 catalog
+  // 註冊。proStudio.speechToText 直接呼叫 falQueueSubmit（不傳 category）僥倖
+  // 避開 dispatcher 降級邏輯，但任何透過 dispatcher 帶 category 的路徑會踩
+  // catalog miss bug。新增此分類後，nemotron-asr / wizper / whisper 都能由
+  // dispatcher 正確認得。
+  // ════════════════════════════════════════════════════════
+  "audio-to-text": [
+    {
+      modelId: "fal-ai/nemotron/asr/stream",
+      label: "Nemotron ASR Stream",
+      category: "audio-to-text",
+      tier: "standard",
+      description:
+        "NVIDIA Nemotron ASR — SSE 串流端點，自動偵測語言（不接 language 參數）",
+      inputSchema: { audioUrl: true },
+      outputSchema: { text: true, json: true },
+      timeoutMs: 180_000,
+    },
+    {
+      modelId: "fal-ai/wizper",
+      label: "Wizper 快速 ASR",
+      category: "audio-to-text",
+      tier: "fast",
+      description: "Wizper 快速語音轉文字（音訊輸入），fal.ai 主流選擇",
+      inputSchema: { audioUrl: true },
+      outputSchema: { text: true, json: true },
+      timeoutMs: 60_000,
+    },
+    {
+      modelId: "fal-ai/whisper",
+      label: "Whisper ASR",
+      category: "audio-to-text",
+      tier: "standard",
+      description: "OpenAI Whisper 多語言 ASR，audio_url 輸入",
+      inputSchema: { audioUrl: true },
+      outputSchema: { text: true, json: true },
+      timeoutMs: 180_000,
+    },
+  ],
+
   // ════════════════════════════════════════════════════════
   // 2-1  影像轉3D  image-to-3d
   // ════════════════════════════════════════════════════════
@@ -2001,6 +2045,7 @@ assertNoDuplicateModelIds();
 
 /** 取得所有類別標籤（繁中） */
 export const FAL_CATEGORY_LABELS: Record<FalCategory, string> = {
+  "audio-to-text": "音訊轉文字",
   "image-to-3d": "影像轉3D",
   "image-to-image": "影像到影像",
   "image-to-json": "圖像轉JSON",

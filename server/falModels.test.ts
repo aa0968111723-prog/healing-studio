@@ -164,6 +164,17 @@ describe("falModels catalog coverage", () => {
     expect(cfg!.tier).toBe("standard");
   });
 
+  // DEF-ASR1：audio-to-text 為 FalCategory 新增分類，過去 modelPricing 早有
+  // category="audio-to-text" 但 falModels enum 缺，使得 ASR 模型無處註冊。
+  // 現在 Nemotron / Wizper / Whisper 都應該在 audio-to-text catalog 內。
+  it("audio-to-text catalog includes Nemotron / Wizper / Whisper", () => {
+    const list = getFalModelsByCategory("audio-to-text");
+    const ids = new Set(list.map(m => m.modelId));
+    expect(ids.has("fal-ai/nemotron/asr/stream")).toBe(true);
+    expect(ids.has("fal-ai/wizper")).toBe(true);
+    expect(ids.has("fal-ai/whisper")).toBe(true);
+  });
+
   // DEF-EL1：ElevenLabs SFX 真實 endpoint 帶 /v2 後綴，必須在 text-to-audio
   // catalog 註冊，否則 dispatcher 會把所有 SFX 請求降級到 fal-ai/ace-step（音樂模型）。
   it("text-to-audio catalog includes ElevenLabs SFX v2 canonical id", () => {

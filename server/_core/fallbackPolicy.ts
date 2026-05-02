@@ -215,6 +215,13 @@ export const PER_CATEGORY_FALLBACK: Record<string, string[]> = {
   "text-to-3d": ["fal-ai/tripo3d", "fal-ai/trellis", "fal-ai/hyper3d/rodin"],
   "video-to-audio": ["fal-ai/mmaudio-v2", "fal-ai/stable-audio"],
   "video-to-text": ["fal-ai/wizper", "fal-ai/whisper"],
+  // DEF-ASR2：ASR 候選鏈 — Nemotron 為預設（自動偵測語言、SSE 串流），
+  // 失敗時退到 fal.ai 主流 wizper / whisper。
+  "audio-to-text": [
+    "fal-ai/nemotron/asr/stream",
+    "fal-ai/wizper",
+    "fal-ai/whisper",
+  ],
   "video-to-video": [
     "fal-ai/kling-video/v2.1/standard/video-to-video",
     "fal-ai/kling-video/v1.6/standard/video-to-video",

@@ -1324,6 +1324,57 @@ async function dispatchStudioTool(
         };
       }
 
+      // DEF-ASR3：光球專用 ASR — 把音訊轉文字稿，後續 step 可接到 LLM
+      // 翻譯／摘要 / 再合成。預設 Nemotron ASR Stream（自動偵測語言），
+      // 不需特殊 key。標 riskLevel:low + requiresHuman:false 讓光球可自主呼叫
+      // （與 generateVoice 不同 — generateVoice 產出新音訊需人類審核）。
+      case "studio.transcribe": {
+        const { dispatchFalQueueTask } = await import("./falDispatcher");
+        const modelId =
+          (args.modelId as string) || "fal-ai/nemotron/asr/stream";
+        const transcribeInput: Record<string, unknown> = {};
+        if (typeof args.audio_url === "string") {
+          transcribeInput.audio_url = args.audio_url;
+        }
+        if (typeof args.acceleration === "string") {
+          transcribeInput.acceleration = args.acceleration;
+        }
+        const r = await dispatchFalQueueTask({
+          modelId,
+          category: "audio-to-text",
+          input: transcribeInput,
+          route: "orb-tool/studio.transcribe",
+          modality: "voice",
+          userId: opts.userId,
+        });
+        const awaited = await awaitFalForOrb(
+          { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
+          args
+        );
+        // ASR 模型回傳格式不一：Nemotron 回 { text, segments? }；wizper/whisper
+        // 回 { text, chunks }。統一抓出 text 欄位平推到 data.text。
+        const raw = awaited.raw as
+          | { text?: string; transcription?: string }
+          | undefined;
+        const transcript = raw?.text ?? raw?.transcription ?? null;
+        return {
+          name: call.name,
+          ok: awaited.status !== "failed" && !!transcript,
+          data: {
+            ...awaited,
+            engine: "fal",
+            kind: "transcription",
+            text: transcript,
+          },
+          usedTool: call.name,
+          ...(awaited.status === "failed" && awaited.error
+            ? { error: awaited.error }
+            : !transcript && awaited.status !== "pending"
+              ? { error: "transcribe: 文字稿缺失" }
+              : {}),
+        };
+      }
+
       case "studio.generateVoice": {
         const { dispatchFalQueueTask } = await import("./falDispatcher");
         // DEF-V2：光球 generateVoice 過去硬編碼 turbo-v2.5，從未讀使用者
