@@ -964,7 +964,8 @@ export const videoStudioRouter = router({
   /**
    * Topaz Video Enhance AI
    * fal-ai/topaz/video-enhance
-   * Topaz Labs 專業影片降噪 + 超解析
+   * Topaz Labs 專業影片降噪 + 超解析；ultra 層級，計價依影片時長
+   * 內建模型：iris（人臉）/ artemis（一般）/ theia（細節）/ gaia（高解析）/ nyx（低光降噪）
    */
   topazEnhance: brainProcedure
     .input(
@@ -987,7 +988,11 @@ export const videoStudioRouter = router({
         payload,
         600
       )) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   // ═══════════════════════════════════════════════════════════════════════════
