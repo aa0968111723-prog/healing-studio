@@ -120,6 +120,15 @@ describe("falModels catalog coverage", () => {
     expect(cfg!.tier).toBe("premium");
   });
 
+  // DEF-DM1：Demucs 音幹分離。沒在 catalog → 任何 category-aware 路徑（光球
+  // studio.separateStems / 導演若引用）會 catalog miss → 降級到 ace-step（音樂引擎），
+  // 完全與 stem 分離無關，使用者 / agent 拿到的會是音樂生成輸出。
+  it("text-to-audio catalog includes Demucs", () => {
+    const cfg = getFalModelById("fal-ai/demucs", "text-to-audio");
+    expect(cfg).toBeDefined();
+    expect(cfg!.timeoutMs).toBeGreaterThan(60_000);
+  });
+
   // DEF-EL1：ElevenLabs SFX 真實 endpoint 帶 /v2 後綴，必須在 text-to-audio
   // catalog 註冊，否則 dispatcher 會把所有 SFX 請求降級到 fal-ai/ace-step（音樂模型）。
   it("text-to-audio catalog includes ElevenLabs SFX v2 canonical id", () => {

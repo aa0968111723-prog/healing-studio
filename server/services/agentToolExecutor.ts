@@ -11,6 +11,7 @@ const GENERATION_SLOT_TOOLS = new Set([
   "studio.generateVoice",
   "studio.cloneVoice",
   "studio.designVoice",
+  "studio.separateStems",
   "studio.enhanceVideo",
   "studio.trainLora",
 ]);
@@ -1057,6 +1058,71 @@ async function dispatchStudioTool(
             ? { error: awaited.error }
             : !speakerEmbedding && awaited.status !== "pending"
               ? { error: "voice-design: speaker_embedding 缺失" }
+              : {}),
+        };
+      }
+
+      // DEF-DM2：光球專用音幹分離 — 把整首歌拆成 4 軌（vocals/drums/bass/other）
+      // 或 6 軌（+guitar/piano，僅 htdemucs_6s）。後續 step 可用
+      // ${stepN.vocals_url} / ${stepN.drums_url} 等接混音 / 替換人聲 / 取樣等流程。
+      // 預設 fal-ai/demucs（htdemucs_ft），與 proStudio.demucs DEF-04 stems 強制
+      // 限制邏輯一致 — 4 軌模型不送 guitar/piano，否則 fal 422。
+      case "studio.separateStems": {
+        const { dispatchFalQueueTask } = await import("./falDispatcher");
+        const modelId = (args.modelId as string) || "fal-ai/demucs";
+        const stemModel =
+          typeof args.stem_model === "string" && args.stem_model
+            ? args.stem_model
+            : "htdemucs_ft";
+        const SIX_STEM_MODELS = new Set(["htdemucs_6s"]);
+        const stems = SIX_STEM_MODELS.has(stemModel)
+          ? ["vocals", "drums", "bass", "other", "guitar", "piano"]
+          : ["vocals", "drums", "bass", "other"];
+        const outputFormat =
+          args.output_format === "wav" ? "wav" : "mp3";
+        const separateInput: Record<string, unknown> = {
+          model: stemModel,
+          stems,
+          output_format: outputFormat,
+        };
+        if (typeof args.audio_url === "string") {
+          separateInput.audio_url = args.audio_url;
+        }
+        const r = await dispatchFalQueueTask({
+          modelId,
+          category: "text-to-audio",
+          input: separateInput,
+          route: "orb-tool/studio.separateStems",
+          modality: "audio",
+          userId: opts.userId,
+        });
+        const awaited = await awaitFalForOrb(
+          { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
+          args
+        );
+        // Demucs 回 { vocals: { url }, drums: { url }, ... } —— 把每軌 URL
+        // 平推到 data 頂層，方便 step refs 使用 ${stepN.vocals_url} 等。
+        const raw = awaited.raw as Record<string, { url?: string } | undefined> | undefined;
+        const stemUrls: Record<string, string | null> = {};
+        for (const stem of stems) {
+          stemUrls[`${stem}_url`] = raw?.[stem]?.url ?? null;
+        }
+        const haveAnyStem = Object.values(stemUrls).some(Boolean);
+        return {
+          name: call.name,
+          ok: awaited.status !== "failed" && haveAnyStem,
+          data: {
+            ...awaited,
+            engine: "fal",
+            kind: "stem-separation",
+            stem_model: stemModel,
+            ...stemUrls,
+          },
+          usedTool: call.name,
+          ...(awaited.status === "failed" && awaited.error
+            ? { error: awaited.error }
+            : !haveAnyStem && awaited.status !== "pending"
+              ? { error: "stem-separation: 所有 stem URL 缺失" }
               : {}),
         };
       }

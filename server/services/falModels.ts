@@ -1266,6 +1266,24 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       outputSchema: { audioUrl: true },
       timeoutMs: 120_000,
     },
+    // DEF-DM1：Demucs 音幹分離 — fal endpoint 是 audio-to-audio（音訊輸入、
+    // 多軌音訊輸出），但 FalCategory type 沒有 audio-to-audio enum。暫時掛在
+    // text-to-audio 下，避免新增 enum 引發大範圍 type 變更；catalog 註冊後
+    // dispatcher 對 modelId fal-ai/demucs 不再 miss → 不會降級到 ace-step。
+    // proStudio.demucs 直接呼叫 falQueueSubmit（不傳 category）原本繞過了
+    // category-aware fallback，但任何透過 dispatcher 帶 category 的路徑（光球 /
+    // 導演自動編曲）都會踩 catalog miss bug。
+    {
+      modelId: "fal-ai/demucs",
+      label: "Demucs 音幹分離",
+      category: "text-to-audio",
+      tier: "standard",
+      description:
+        "Demucs 音幹分離 — 將歌曲拆解為 4 軌（vocals/drums/bass/other）或 6 軌（+guitar/piano，僅 htdemucs_6s）",
+      inputSchema: { audioUrl: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 180_000,
+    },
     {
       modelId: "fal-ai/dia-tts",
       label: "Dia TTS",

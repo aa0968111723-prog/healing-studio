@@ -200,6 +200,22 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     },
     executionTarget: "server-side",
   },
+  // DEF-DM2：光球專用音幹分離工具 — 把整首歌拆成多軌（vocals / drums /
+  // bass / other [+guitar/piano]），後續 step 可用 ${stepN.vocals_url} /
+  // ${stepN.drums_url} 等接到混音 / mergeAudios / voiceChanger 等流程。
+  // 預設走 fal-ai/demucs（htdemucs_ft 4 軌）。
+  {
+    name: "studio.separateStems",
+    riskLevel: "medium",
+    requiresHuman: true,
+    allowedArgsSchema: {
+      audio_url: "string",
+      modelId: "string?",
+      stem_model: "string?",
+      output_format: "string?",
+    },
+    executionTarget: "server-side",
+  },
   {
     name: "studio.generateVoice",
     riskLevel: "medium",
