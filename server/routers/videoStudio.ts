@@ -696,7 +696,7 @@ export const videoStudioRouter = router({
   /**
    * PixVerse v4.5 Image-to-Video
    * fal-ai/pixverse/v4.5/image-to-video
-   * PixVerse 旗艦，強大的物理動態，支援特效模板
+   * PixVerse 旗艦，強大的物理動態，支援特效模板；可指定 aspect_ratio / style / seed
    */
   pixverseImageToVideo: brainProcedure
     .input(
@@ -704,9 +704,16 @@ export const videoStudioRouter = router({
         prompt: z.string().min(1).max(2000),
         imageUrl: z.string().url(),
         negativePrompt: z.string().max(500).optional(),
-        duration: z.enum(["4", "8"]).default("4"),
+        // fal PixVerse v4.5 接受 "5" / "8"（pre-v4.5 才有 4s）
+        duration: z.enum(["5", "8"]).default("5"),
         quality: z.enum(["360p", "540p", "720p", "1080p"]).default("720p"),
+        aspectRatio: z.enum(["16:9", "9:16", "1:1"]).default("16:9"),
         motionMode: z.enum(["normal", "fast"]).default("normal"),
+        /** PixVerse v4.5 風格：留空為寫實；可選動漫 / 3D / 黏土 / 漫畫 / 賽博龐克 */
+        style: z
+          .enum(["anime", "3d_animation", "clay", "comic", "cyberpunk"])
+          .optional(),
+        seed: z.number().int().nonnegative().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -715,16 +722,23 @@ export const videoStudioRouter = router({
         image_url: input.imageUrl,
         duration: parseInt(input.duration),
         quality: input.quality,
+        aspect_ratio: input.aspectRatio,
         motion_mode: input.motionMode,
       };
       if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
+      if (input.style) payload.style = input.style;
+      if (input.seed !== undefined) payload.seed = input.seed;
 
       const result = (await falQueueRun(
         "fal-ai/pixverse/v4.5/image-to-video",
         payload,
         300
       )) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   /**

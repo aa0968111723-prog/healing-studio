@@ -1584,10 +1584,15 @@ function ImageToVideoTab() {
 
   const [pvPrompt, setPvPrompt] = useState("");
   const [pvImage, setPvImage] = useState("");
-  const [pvDuration, setPvDuration] = useState<"4" | "8">("4");
+  const [pvNeg, setPvNeg] = useState("");
+  const [pvDuration, setPvDuration] = useState<"5" | "8">("5");
   const [pvQuality, setPvQuality] = useState<
     "360p" | "540p" | "720p" | "1080p"
   >("720p");
+  const [pvAspect, setPvAspect] = useState<"16:9" | "9:16" | "1:1">("16:9");
+  const [pvStyle, setPvStyle] = useState<
+    "" | "anime" | "3d_animation" | "clay" | "comic" | "cyberpunk"
+  >("");
   const [pvResult, setPvResult] = useState<VideoResult | null>(null);
 
   const [mmPrompt, setMmPrompt] = useState("");
@@ -1798,8 +1803,11 @@ function ImageToVideoTab() {
       const r = await pvMut.mutateAsync({
         prompt: pvPrompt,
         imageUrl: pvImage,
+        negativePrompt: pvNeg || undefined,
         duration: pvDuration,
         quality: pvQuality,
+        aspectRatio: pvAspect,
+        style: pvStyle || undefined,
       });
       setPvResult(r);
       registerBgTask(r, "video", "Pixverse 圖生影", pvPrompt);
@@ -2163,18 +2171,28 @@ function ImageToVideoTab() {
             accept="image"
             required
           />
+          <div>
+            <Label className="text-xs text-muted-foreground">負向提詞（選填）</Label>
+            <Textarea
+              value={pvNeg}
+              onChange={e => setPvNeg(e.target.value)}
+              placeholder="不想出現的元素..."
+              className="mt-1 text-sm resize-none"
+              rows={2}
+            />
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label className="text-xs text-muted-foreground">時長</Label>
               <Select
                 value={pvDuration}
-                onValueChange={v => setPvDuration(v as "4" | "8")}
+                onValueChange={v => setPvDuration(v as "5" | "8")}
               >
                 <SelectTrigger className="mt-1 text-sm h-9">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="4">4 秒</SelectItem>
+                  <SelectItem value="5">5 秒</SelectItem>
                   <SelectItem value="8">8 秒</SelectItem>
                 </SelectContent>
               </Select>
@@ -2193,6 +2211,45 @@ function ImageToVideoTab() {
                   <SelectItem value="720p">720p</SelectItem>
                   <SelectItem value="540p">540p</SelectItem>
                   <SelectItem value="360p">360p</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs text-muted-foreground">畫面比例</Label>
+              <Select
+                value={pvAspect}
+                onValueChange={v => setPvAspect(v as "16:9" | "9:16" | "1:1")}
+              >
+                <SelectTrigger className="mt-1 text-sm h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="16:9">16:9（橫屏）</SelectItem>
+                  <SelectItem value="9:16">9:16（豎屏）</SelectItem>
+                  <SelectItem value="1:1">1:1（方形）</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">風格（選填）</Label>
+              <Select
+                value={pvStyle || "_none"}
+                onValueChange={v =>
+                  setPvStyle(v === "_none" ? "" : (v as typeof pvStyle))
+                }
+              >
+                <SelectTrigger className="mt-1 text-sm h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">寫實（預設）</SelectItem>
+                  <SelectItem value="anime">動漫</SelectItem>
+                  <SelectItem value="3d_animation">3D 動畫</SelectItem>
+                  <SelectItem value="clay">黏土</SelectItem>
+                  <SelectItem value="comic">漫畫</SelectItem>
+                  <SelectItem value="cyberpunk">賽博龐克</SelectItem>
                 </SelectContent>
               </Select>
             </div>
