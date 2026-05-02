@@ -2409,6 +2409,10 @@ function VideoToVideoTab() {
   const [ltxPrompt, setLtxPrompt] = useState("");
   const [ltxImage, setLtxImage] = useState("");
   const [ltxNeg, setLtxNeg] = useState("");
+  // 25 fps × 5s = 125 frames（與 router default 對齊）
+  const [ltxFrames, setLtxFrames] = useState(125);
+  const [ltxGuidance, setLtxGuidance] = useState(3);
+  const [ltxExpand, setLtxExpand] = useState(true);
   const [ltxResult, setLtxResult] = useState<VideoResult | null>(null);
 
   const wanMut = trpc.videoStudio.wanVideoToVideo.useMutation({
@@ -2477,8 +2481,8 @@ function VideoToVideoTab() {
       }
       if (cmd.type === "reset") {
         setWanPrompt(""); setWanVideo(""); setWanStrength(0.7);
-        setKlingPrompt(""); setKlingVideo(""); setKlingCfg(0.5);
-        setLtxPrompt(""); setLtxImage(""); setLtxNeg("");
+        setKlingPrompt(""); setKlingVideo(""); setKlingNeg(""); setKlingCfg(0.5);
+        setLtxPrompt(""); setLtxImage(""); setLtxNeg(""); setLtxFrames(125); setLtxGuidance(3); setLtxExpand(true);
         return true;
       }
       return false;
@@ -2546,9 +2550,12 @@ function VideoToVideoTab() {
         prompt: ltxPrompt,
         imageUrl: ltxImage,
         negativePrompt: ltxNeg || undefined,
+        numFrames: ltxFrames,
+        guidanceScale: ltxGuidance,
+        expandPrompt: ltxExpand,
       });
       setLtxResult(r);
-      registerBgTask(r, "video", "LTX 影生影", ltxPrompt);
+      registerBgTask(r, "video", "LTX 關鍵幀生成", ltxPrompt);
       toast.success("📤 任務已提交！稍後自動更新結果...");
       reportSuccess();
     } catch {
@@ -2754,6 +2761,44 @@ function VideoToVideoTab() {
               placeholder="不希望出現的元素..."
               className="mt-1 text-sm"
             />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs text-muted-foreground">
+                幀數：{ltxFrames}（約 {(ltxFrames / 25).toFixed(1)}s @25fps）
+              </Label>
+              <Slider
+                min={25}
+                max={257}
+                step={1}
+                value={[ltxFrames]}
+                onValueChange={([v]) => setLtxFrames(v)}
+                className="mt-2"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">
+                CFG 強度：{ltxGuidance.toFixed(1)}
+              </Label>
+              <Slider
+                min={1}
+                max={5}
+                step={0.1}
+                value={[ltxGuidance]}
+                onValueChange={([v]) => setLtxGuidance(v)}
+                className="mt-2"
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Switch
+              checked={ltxExpand}
+              onCheckedChange={setLtxExpand}
+              id="ltx-i2v-expand"
+            />
+            <Label htmlFor="ltx-i2v-expand" className="text-xs cursor-pointer">
+              fal 提詞補強（建議開啟）
+            </Label>
           </div>
           <Button
             onClick={runLtx}
