@@ -91,6 +91,15 @@ export interface OrbWebResearchOptions {
   enabled?: boolean;
   /** Override result count for tests. */
   maxResults?: number;
+  /**
+   * Output mode:
+   *   - "agent" (default for planner-driven calls): emits a lean source list
+   *     without numbered-step formatting instructions, so the planner stays
+   *     in charge of plan.steps shape.
+   *   - "qna" (legacy / Q&A reply): keeps the original "用步驟 1 / 步驟 2"
+   *     format directive for educational replies that bypass the planner.
+   */
+  mode?: "agent" | "qna";
 }
 
 function shouldTrigger(text: string): boolean {
@@ -145,13 +154,33 @@ export function classifyOrbResearchIntent(text: string): {
 }
 
 /** Pure: format a list of results as a readable system-prompt block. */
-export function formatResearchPromptBlock(results: WebResearchResult[]): string {
+export function formatResearchPromptBlock(
+  results: WebResearchResult[],
+  options: { mode?: "agent" | "qna" } = {}
+): string {
   if (results.length === 0) return "";
   const lines = results.map((r, i) => {
     const summary = (r.summary ?? "").replace(/\s+/g, " ").trim();
     const truncatedSummary = summary.length > 180 ? `${summary.slice(0, 179)}…` : summary;
     return `${i + 1}. ${r.title} — ${truncatedSummary}\n   ${r.url}`;
   });
+  // "agent" mode: caller is the planner-driven path. Surface the sources as
+  // background context only — DO NOT instruct the LLM to format the reply
+  // as 步驟 1 / 步驟 2, because that conflicts with the planner's mandate
+  // to either commit to decision.mode='clarification' (with structured
+  // clarificationQuestion + clarificationOptions) or 'tasked' (with real
+  // toolName/toolArgs). When both rules fire the LLM ends up describing a
+  // pseudo-plan in chat and asking "從哪步開始？" — the empty-prompt UX bug
+  // we keep stamping out.
+  if (options.mode === "agent") {
+    return [
+      "【網路研究 / Web Research（即時抓取，僅供背景參考）】",
+      "以下是即時搜到的相關來源，內容可作為你規劃 plan / 回答 clarification 時的事實參考；",
+      "請只在 reply 文字裡引用 1–2 條 URL（且必須是真的對應使用者主題的來源）。",
+      "不要把整個回覆寫成 步驟 1 / 步驟 2 的教學文 — 步驟結構由 plan.steps 決定。",
+      ...lines,
+    ].join("\n");
+  }
   return [
     "【網路研究 / Web Research（即時抓取）】",
     "你剛剛幫使用者爬到的最新網路資料如下，請優先依這些資料回答，並在文字回覆裡引用 1–3 條 URL 作為來源。若內容互相矛盾，挑最可信的來源並標註不一致。",
@@ -191,7 +220,7 @@ export async function runOrbWebResearch(
       return { promptBlock: null, results: [], reason: "skipped:no_results" };
     }
     return {
-      promptBlock: formatResearchPromptBlock(results),
+      promptBlock: formatResearchPromptBlock(results, { mode: options.mode }),
       results,
       reason: "matched",
     };

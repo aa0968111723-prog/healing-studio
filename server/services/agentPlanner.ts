@@ -263,7 +263,53 @@ export function buildAgentPlannerMessages(input: AgentPlannerInput): Message[] {
   const quotaSummary = input.quotaSnapshot
     ? summarizeOrbQuotaForPlanner(input.quotaSnapshot)
     : null;
+  // ── Mode-specific directive ─────────────────────────────────────
+  // The chat layer threads the user's selected composer mode (多步驟代理 /
+  // 計畫 / 跳頁 / 功能詢問) into `input.context` as "使用者選擇模式: <id>".
+  // Surface that as a top-level directive so the LLM treats it as a hard
+  // contract rather than a soft hint. When the user explicitly clicked
+  // 多步驟代理 we MUST commit to either clarification (gather more info)
+  // or tasked (run real tools) — never a chatty plan-as-text reply.
+  const requestedModeMatch = input.context
+    ? input.context.match(/使用者選擇模式[:：]\s*([a-z_-]+)/i)
+    : null;
+  const requestedMode = requestedModeMatch?.[1]?.toLowerCase() ?? null;
+  const modeDirective = (() => {
+    switch (requestedMode) {
+      case "multi-step":
+        return [
+          "User-selected composer mode (極為重要 / very important): 多步驟代理 (multi-step agent).",
+          "The user explicitly opted into autonomous multi-step execution. You MUST commit to one of:",
+          "  • decision.mode='clarification' with clarificationQuestion + 2-4 clarificationOptions — used when ANY wizard dimension (format / length / style / platform / audience / subject) is still unknown. The first turn for an ambiguous request defaults here.",
+          "  • decision.mode='tasked' with concrete toolName + toolArgs steps — used ONLY when every required wizard dimension is already pinned down (look in `[使用者澄清]:` lines + recalled memory).",
+          "FORBIDDEN in this mode:",
+          "  • decision.mode='direct' (multi-step needs the WorkflowConfirmationCard, not a single dispatch).",
+          "  • Reply text containing numbered '步驟 1 / 步驟 2 / Step 1 / Step 2' lists — that's the phantom-plan anti-pattern.",
+          "  • Asking the user '從哪個步驟開始？' or 'which step do you want to start with?' (commit to clarification or tasked instead).",
+          "  • Empty / chatty replies that don't move the wizard forward.",
+        ].join("\n");
+      case "plan":
+        return [
+          "User-selected composer mode (重要): 計畫 (planning).",
+          "The user wants a runnable plan with explicit steps. You MUST return decision.mode='tasked' (with toolName/toolArgs) OR decision.mode='clarification' if a key parameter is missing. Do NOT return a chatty reply that only describes a plan in prose; let summaryForUser carry the human-friendly summary while plan.steps carry the structure.",
+        ].join("\n");
+      case "navigate":
+        return [
+          "User-selected composer mode: 跳頁 (navigate).",
+          "The user wants to be taken to a feature page. Return decision.mode='direct' with a single navigate step. If the destination is ambiguous, ask one short clarification with topic-aware options instead.",
+        ].join("\n");
+      case "ask-feature":
+        return [
+          "User-selected composer mode: 功能詢問 (feature Q&A).",
+          "The user is asking what the site can do. Return a conversational reply describing the relevant features — do NOT emit any execution steps. Use decision.mode='direct' with steps=[] when supported, otherwise decision.mode='clarification'.",
+        ].join("\n");
+      default:
+        return null;
+    }
+  })();
+
   const contextBlock = [
+    modeDirective ? `User mode directive:\n${modeDirective}` : undefined,
     input.context ? `Conversation context: ${input.context}` : undefined,
     input.personality ? `Orb personality: ${input.personality}` : undefined,
     `Recent execution feedback:\n${feedbackSummary}`,
