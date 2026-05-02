@@ -37,6 +37,33 @@ interface FalDispatchEnvelope {
 }
 
 /**
+ * 解析光球工具的目標模型：
+ *  1. 呼叫端有指定 modelId → 直接用
+ *  2. 否則讀使用者大腦組態的對應 engine slot
+ *  3. brain 載入失敗或 slot 為空 → 用 hardcoded fallback
+ *
+ * 同時應用於 studio.generateImage / generateVideo（t2v）/ generateAudio /
+ * generateVoice，避免「使用者改了大腦組態，光球仍用舊預設」的回歸。
+ */
+async function resolveOrbEngine(
+  requestedModelId: string,
+  userId: number,
+  slot: "imageEngine" | "videoEngine" | "audioEngine" | "voiceEngine",
+  hardcodedFallback: string
+): Promise<string> {
+  if (requestedModelId) return requestedModelId;
+  try {
+    const { buildBrainContext } = await import("../middleware/brainContext");
+    const brain = await buildBrainContext(userId);
+    const fromBrain = brain.getEngine(slot).engine;
+    if (fromBrain) return fromBrain;
+  } catch {
+    // brain 載入失敗（DB 不可用等），落到 fallback
+  }
+  return hardcodedFallback;
+}
+
+/**
  * Wait for a fal queue dispatch to terminate (completed / failed / pending),
  * then merge the awaited URLs into the dispatcher's envelope so downstream
  * step-ref placeholders (`${step1.video_url}`) resolve. Honours the
@@ -599,7 +626,18 @@ async function dispatchStudioTool(
     switch (call.name) {
       case "studio.generateImage": {
         const { dispatchFalQueueTask } = await import("./falDispatcher");
-        const modelId = (args.modelId as string) || "fal-ai/flux/dev";
+        const modelId = await resolveOrbEngine(
+          (args.modelId as string) || "",
+          opts.userId,
+          "imageEngine",
+          "fal-ai/flux/dev"
+        );
+        // img2img：有 image_url 時改走 image-to-image 路由，讓 dispatcher
+        // 對 LoRA / 編輯類模型套對應的 fallback chain。
+        const hasImage = typeof args.image_url === "string" && args.image_url;
+        const category: "text-to-image" | "image-to-image" = hasImage
+          ? "image-to-image"
+          : "text-to-image";
         const input: Record<string, unknown> = {};
         if (typeof args.prompt === "string") input.prompt = args.prompt;
         if (typeof args.aspect_ratio === "string")
@@ -608,9 +646,25 @@ async function dispatchStudioTool(
           input.num_images = args.num_images;
         if (typeof args.negative_prompt === "string")
           input.negative_prompt = args.negative_prompt;
+        if (typeof args.image_url === "string") input.image_url = args.image_url;
+        if (typeof args.strength === "number") input.strength = args.strength;
+        if (typeof args.seed === "number") input.seed = args.seed;
+        if (typeof args.guidance_scale === "number")
+          input.guidance_scale = args.guidance_scale;
+        if (typeof args.num_inference_steps === "number")
+          input.num_inference_steps = args.num_inference_steps;
+        if (typeof args.lora_url === "string") {
+          // fal LoRA-aware models 期望 loras 為陣列
+          input.loras = [
+            {
+              path: args.lora_url,
+              scale: typeof args.lora_scale === "number" ? args.lora_scale : 1,
+            },
+          ];
+        }
         const r = await dispatchFalQueueTask({
           modelId,
-          category: "text-to-image",
+          category,
           input,
           route: "orb-tool/studio.generateImage",
           modality: "image",
@@ -645,8 +699,16 @@ async function dispatchStudioTool(
           "image-to-video": "fal-ai/kling-video/v2.1/pro/image-to-video",
           "text-to-video": "fal-ai/kling-video/v2.1/pro/text-to-video",
         } as const;
+        // brain 的 videoEngine 是 t2v 預設；i2v / v2v 各自有結構性預設模型，不該被覆寫。
         const modelId =
-          (args.modelId as string) || defaultModelByCategory[category];
+          category === "text-to-video"
+            ? await resolveOrbEngine(
+                (args.modelId as string) || "",
+                opts.userId,
+                "videoEngine",
+                defaultModelByCategory[category]
+              )
+            : (args.modelId as string) || defaultModelByCategory[category];
         const input: Record<string, unknown> = {};
         if (typeof args.prompt === "string") input.prompt = args.prompt;
         if (typeof args.image_url === "string") input.image_url = args.image_url;
@@ -1510,8 +1572,7 @@ async function dispatchStudioTool(
         }
         const elevenLabsHeaders = finalIsElevenLabs
           ? { "x-fal-client-credentials": process.env.ELEVENLABS_API_KEY! }
-          : undefined;
-        const r = await dispatchFalQueueTask({
+          : undefined;        const r = await dispatchFalQueueTask({
           modelId,
           category: "text-to-speech",
           input,

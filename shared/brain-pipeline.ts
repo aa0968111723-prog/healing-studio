@@ -21,6 +21,7 @@ export type PipelineNodeKind =
   | "orb-agent"
   | "orb-assistant"
   | "director"
+  | "studio"
   | "provider";
 
 export type PipelineLayer =

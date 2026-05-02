@@ -223,6 +223,7 @@ const TIMEOUT_OVERRIDES: Record<string, number> = {
   "fal-ai/ltx-video/image-to-video": 240_000,
   "fal-ai/sora": 480_000,
   "fal-ai/veo3": 480_000,
+  "fal-ai/veo3/pro": 600_000,
   "fal-ai/stable-video": 240_000,
   "fal-ai/flux-pro/v1.1": 90_000,
   "fal-ai/flux/schnell": 60_000,

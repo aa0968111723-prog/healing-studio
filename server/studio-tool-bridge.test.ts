@@ -196,6 +196,197 @@ describe("executeOrbToolCalls — studio.* bridge", () => {
     });
   });
 
+  it("falls through to brain-config engine slot when modelId is omitted (all 4 generate tools)", async () => {
+    // 統一驗證四個 studio.* 工具：呼叫端沒指定 modelId 時，必須讀大腦組態的
+    // 對應 engine slot，而不是 hardcoded 的舊預設。沒有 DB 的測試環境會
+    // 退回 DEFAULT_GENERATION_ENGINES，所以這裡斷言 URL 命中那些預設值。
+    const { DEFAULT_GENERATION_ENGINES } = await import(
+      "./middleware/brainContext"
+    );
+    const expected: Array<{
+      tool: string;
+      args: Record<string, unknown>;
+      slot: keyof typeof DEFAULT_GENERATION_ENGINES;
+    }> = [
+      { tool: "studio.generateImage", args: { prompt: "x" }, slot: "imageEngine" },
+      // 影片只有 t2v 走 brain；i2v / v2v 各有結構性預設。這裡測 t2v。
+      { tool: "studio.generateVideo", args: { prompt: "x" }, slot: "videoEngine" },
+      { tool: "studio.generateAudio", args: { prompt: "x" }, slot: "audioEngine" },
+      { tool: "studio.generateVoice", args: { text: "你好" }, slot: "voiceEngine" },
+    ];
+
+    for (const { tool, args, slot } of expected) {
+      const submitUrls: string[] = [];
+      const fetchMock = vi.fn(async (url: string) => {
+        submitUrls.push(url);
+        return new Response(JSON.stringify({ request_id: `req-${slot}` }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
+      const out = await executeOrbToolCalls({
+        tools: [],
+        calls: [
+          {
+            name: tool,
+            // 不帶 modelId — 必須由 brain config 解析
+            args: { ...args, wait: false },
+          },
+        ],
+        userId: 1234,
+        userRole: "user",
+        approved: true,
+      });
+
+      expect(out[0].ok, `${tool} should succeed`).toBe(true);
+      // queue.fal.run/<modelId> — modelId 必須等於 brain 預設 engine
+      const expectedEngine = DEFAULT_GENERATION_ENGINES[slot].engine;
+      expect(
+        submitUrls[0],
+        `${tool} should dispatch to brain ${slot}=${expectedEngine}`
+      ).toContain(expectedEngine);
+
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("propagates extended image args (image_url, seed, loras) and switches to image-to-image", async () => {
+    // 光球用 ${step1.image_url} 串到下一步時，studio.generateImage 必須能接受
+    // image_url 並改走 image-to-image 路由；同時 seed / lora_url 必須打進 fal payload。
+    const captured: Array<{ url: string; body: unknown }> = [];
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      const body = init?.body
+        ? JSON.parse(init.body as string)
+        : undefined;
+      captured.push({ url, body });
+      return new Response(JSON.stringify({ request_id: "req-img-i2i" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await executeOrbToolCalls({
+      tools: [],
+      calls: [
+        {
+          name: "studio.generateImage",
+          args: {
+            prompt: "stylize as oil painting",
+            image_url: "https://fal.media/source.png",
+            strength: 0.7,
+            seed: 42,
+            lora_url: "https://example.com/lora.safetensors",
+            lora_scale: 0.8,
+            wait: false,
+          },
+        },
+      ],
+      userId: 333,
+      userRole: "user",
+      approved: true,
+    });
+
+    expect(captured).toHaveLength(1);
+    const body = captured[0]!.body as Record<string, unknown>;
+    expect(body.prompt).toBe("stylize as oil painting");
+    expect(body.image_url).toBe("https://fal.media/source.png");
+    expect(body.strength).toBe(0.7);
+    expect(body.seed).toBe(42);
+    expect(body.loras).toEqual([
+      { path: "https://example.com/lora.safetensors", scale: 0.8 },
+    ]);
+  });
+
+  it("propagates extended voice args (language_code, voice_settings) into the fal payload", async () => {
+    // 多語 TTS / 聲音調諧的 orb args 必須出現在送往 fal 的 request body，
+    // 否則光球發起的「日文 TTS」會落回英文預設。
+    const captured: Array<{ url: string; body: unknown }> = [];
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      const body = init?.body
+        ? JSON.parse(init.body as string)
+        : undefined;
+      captured.push({ url, body });
+      return new Response(JSON.stringify({ request_id: "req-voice" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await executeOrbToolCalls({
+      tools: [],
+      calls: [
+        {
+          name: "studio.generateVoice",
+          args: {
+            text: "こんにちは",
+            language_code: "ja",
+            stability: 0.6,
+            similarity_boost: 0.85,
+            style: 0.2,
+            wait: false,
+          },
+        },
+      ],
+      userId: 555,
+      userRole: "user",
+      approved: true,
+    });
+
+    expect(captured).toHaveLength(1);
+    const body = captured[0]!.body as Record<string, unknown>;
+    expect(body.text).toBe("こんにちは");
+    expect(body.language_code).toBe("ja");
+    expect(body.voice_settings).toMatchObject({
+      stability: 0.6,
+      similarity_boost: 0.85,
+      style: 0.2,
+    });
+  });
+
+  it("propagates extended audio args (tags, bpm) into the fal payload", async () => {
+    // 對 Sonauto，tags 應該展開為陣列；對其他模型併入 prompt。
+    const captured: Array<{ body: unknown }> = [];
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+      const body = init?.body
+        ? JSON.parse(init.body as string)
+        : undefined;
+      captured.push({ body });
+      return new Response(JSON.stringify({ request_id: "req-audio" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await executeOrbToolCalls({
+      tools: [],
+      calls: [
+        {
+          name: "studio.generateAudio",
+          args: {
+            prompt: "lo-fi study beats",
+            modelId: "fal-ai/sonauto", // 走 Sonauto，tags 應為陣列
+            tags: "chill, lofi, study",
+            bpm: 90,
+            wait: false,
+          },
+        },
+      ],
+      userId: 777,
+      userRole: "user",
+      approved: true,
+    });
+
+    expect(captured).toHaveLength(1);
+    const body = captured[0]!.body as Record<string, unknown>;
+    expect(body.tags).toEqual(["chill", "lofi", "study"]);
+    expect(body.bpm).toBe(90);
+  });
+
   it("waits for fal queue completion and exposes media URLs to chained steps", async () => {
     // Default behaviour (no wait flag) must poll fal until COMPLETED so
     // multi-step pipelines can chain ${stepN.image_url} into the next call.

@@ -254,7 +254,10 @@ export const videoStudioRouter = router({
         negativePrompt: z.string().max(1000).optional(),
         numFrames: z.number().min(16).max(81).default(81),
         resolution: z.enum(["480p", "720p"]).default("720p"),
+        aspectRatio: z.enum(["16:9", "9:16", "1:1"]).default("16:9"),
         enableSafety: z.boolean().default(false),
+        /** 隨機種子 — 固定可重現相同生成結果，留空則隨機 */
+        seed: z.number().int().nonnegative().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -263,12 +266,12 @@ export const videoStudioRouter = router({
       const payload: Record<string, unknown> = {
         prompt: input.prompt,
         num_frames: input.numFrames,
-        enable_safety_checker: input.enableSafety,
-        // resolution 之前在 schema 宣告但沒送出去 → 不論使用者選 720p / 480p
-        // 都用 fal 的 default。Wan v2.1 接受 "480p" / "720p" 字串。
         resolution: input.resolution,
+        aspect_ratio: input.aspectRatio,
+        enable_safety_checker: input.enableSafety,
       };
       if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
+      if (input.seed !== undefined) payload.seed = input.seed;
 
       const result = (await falQueueRun(modelId, payload, 300)) as any;
       return {
@@ -279,42 +282,57 @@ export const videoStudioRouter = router({
     }),
 
   /**
-   * MiniMax Hailuo-02 Text-to-Video
-   * fal-ai/minimax/video-01
-   * MiniMax 旗艦影片模型，電影級動態，6s
+   * MiniMax Hailuo-02 Pro Text-to-Video
+   * fal-ai/minimax/hailuo-02/pro/text-to-video
+   * MiniMax 旗艦影片模型，電影級動態；6s/10s，1080p/768p，可指定畫面比例與提詞優化
    */
   minimaxTextToVideo: brainProcedure
     .input(
       z.object({
-        prompt: z.string().min(1).max(2000),
+        prompt: z.string().min(1).max(2500),
         promptOptimizer: z.boolean().default(true),
+        duration: z.enum(["6", "10"]).default("6"),
+        resolution: z.enum(["768p", "1080p"]).default("1080p"),
+        aspectRatio: z.enum(["16:9", "9:16", "1:1"]).default("16:9"),
       })
     )
     .mutation(async ({ input }) => {
       const payload: Record<string, unknown> = {
         prompt: input.prompt,
         prompt_optimizer: input.promptOptimizer,
+        duration: input.duration,
+        resolution: input.resolution,
+        aspect_ratio: input.aspectRatio,
       };
-      // MiniMax Hailuo-02 升級版端點（原 video-01 已升級）
+      // MiniMax Hailuo-02 Pro 升級版端點（原 video-01 已升級）
       const result = (await falQueueRun(
         "fal-ai/minimax/hailuo-02/pro/text-to-video",
         payload,
         300
       )) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   /**
    * Google Veo 3 Flash Text-to-Video
    * fal-ai/veo3
-   * Google 最新旗艦影片模型，8s，具備原生音頻生成
+   * Google 最新旗艦影片模型，8s，唯一原生同步音訊生成；可指定 negative_prompt / seed
    */
   veo3TextToVideo: brainProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(3000),
+        negativePrompt: z.string().max(1000).optional(),
         aspectRatio: z.enum(["16:9", "9:16"]).default("16:9"),
         generateAudio: z.boolean().default(true),
+        /** fal 端會用這個指令幫你補強提詞細節（畫面層次、光影） */
+        enhancePrompt: z.boolean().default(true),
+        /** 隨機種子 — 固定可重現相同生成結果 */
+        seed: z.number().int().nonnegative().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -322,27 +340,78 @@ export const videoStudioRouter = router({
         prompt: input.prompt,
         aspect_ratio: input.aspectRatio,
         generate_audio: input.generateAudio,
+        enhance_prompt: input.enhancePrompt,
       };
+      if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
+      if (input.seed !== undefined) payload.seed = input.seed;
+
       const result = (await falQueueRun("fal-ai/veo3", payload, 480)) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
+    }),
+
+  /**
+   * Google Veo 3 Pro Text-to-Video
+   * fal-ai/veo3/pro
+   * Veo 3 旗艦 Pro 版：更高擬真、更好的色彩還原、原生同步音訊
+   * 與 Veo 3 Standard 共用 schema，但定價與 timeout 較高
+   */
+  veo3ProTextToVideo: brainProcedure
+    .input(
+      z.object({
+        prompt: z.string().min(1).max(3000),
+        negativePrompt: z.string().max(1000).optional(),
+        aspectRatio: z.enum(["16:9", "9:16"]).default("16:9"),
+        generateAudio: z.boolean().default(true),
+        enhancePrompt: z.boolean().default(true),
+        seed: z.number().int().nonnegative().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const payload: Record<string, unknown> = {
+        prompt: input.prompt,
+        aspect_ratio: input.aspectRatio,
+        generate_audio: input.generateAudio,
+        enhance_prompt: input.enhancePrompt,
+      };
+      if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
+      if (input.seed !== undefined) payload.seed = input.seed;
+
+      const result = (await falQueueRun(
+        "fal-ai/veo3/pro",
+        payload,
+        600
+      )) as any;
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   /**
    * LTX-Video 13B Text-to-Video
    * fal-ai/ltx-video-13b-distilled
-   * Lightricks 開源旗艦，超快速蒸餾版，720p
+   * Lightricks 開源旗艦，超快速蒸餾版，720p；可指定 seed / guidance_scale / expand_prompt
    */
   ltxTextToVideo: brainProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2000),
         negativePrompt: z.string().max(500).optional(),
-        numFrames: z.number().min(25).max(257).default(121),
+        // 25 fps × 5 秒 = 125 frames（對齊 modelPricing.ts "每5秒"）
+        numFrames: z.number().min(25).max(257).default(125),
         fps: z.number().min(8).max(30).default(25),
         height: z.number().min(256).max(720).default(480),
         width: z.number().min(256).max(1280).default(848),
         guidanceScale: z.number().min(1).max(5).default(3),
-        seed: z.number().optional(),
+        seed: z.number().int().nonnegative().optional(),
+        /** fal 端會用這個指令幫你補強提詞細節 */
+        expandPrompt: z.boolean().default(true),
+        numInferenceSteps: z.number().int().min(4).max(50).optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -353,16 +422,23 @@ export const videoStudioRouter = router({
         height: input.height,
         width: input.width,
         guidance_scale: input.guidanceScale,
+        expand_prompt: input.expandPrompt,
       };
       if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
       if (input.seed !== undefined) payload.seed = input.seed;
+      if (input.numInferenceSteps !== undefined)
+        payload.num_inference_steps = input.numInferenceSteps;
 
       const result = (await falQueueRun(
         "fal-ai/ltx-video-13b-distilled",
         payload,
         240
       )) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   /**
@@ -387,28 +463,51 @@ export const videoStudioRouter = router({
         aspect_ratio: input.aspectRatio,
       };
       // 嘗試 Sora 端點如失效則降級到 LTX-Video
+      const SORA_MODEL = "fal-ai/sora";
+      const FALLBACK_MODEL = "fal-ai/ltx-video-13b-distilled";
       try {
-        const result = (await falQueueRun("fal-ai/sora", payload, 480)) as any;
-        return { video_url: extractVideoUrl(result), raw: result };
+        const result = (await falQueueRun(SORA_MODEL, payload, 480)) as any;
+        return {
+          video_url: extractVideoUrl(result),
+          request_id: result?.request_id ?? null,
+          raw: result,
+          model_used: SORA_MODEL,
+        };
       } catch (e: any) {
-        if (e?.message?.includes("404") || e?.message?.includes("not found")) {
+        const errMsg = e?.message ?? String(e);
+        if (errMsg.includes("404") || errMsg.includes("not found")) {
           // Sora 端點不可用，降級到 LTX-Video-13B
+          // 盡量保留使用者意圖：duration 換算 numFrames、aspect_ratio 換算 height/width
+          const fps = 25;
+          const numFrames = Math.min(257, Math.max(25, input.duration * fps));
+          const [w, h] =
+            input.aspectRatio === "9:16"
+              ? [480, 848]
+              : input.aspectRatio === "1:1"
+                ? [704, 704]
+                : [848, 480];
           const fallbackPayload: Record<string, unknown> = {
             prompt: input.prompt,
-            num_frames: 121,
-            fps: 25,
-            height: 480,
-            width: 848,
+            num_frames: numFrames,
+            fps,
+            height: h,
+            width: w,
+            expand_prompt: true,
           };
           const result = (await falQueueRun(
-            "fal-ai/ltx-video-13b-distilled",
+            FALLBACK_MODEL,
             fallbackPayload,
             300
           )) as any;
           return {
             video_url: extractVideoUrl(result),
+            request_id: result?.request_id ?? null,
             raw: result,
             degraded: true,
+            degraded_reason:
+              "Sora 在 fal.ai 暫時不可用（404），已自動降級至 LTX-Video-13B（畫質與時長會降低，請於前端提示使用者）",
+            model_requested: SORA_MODEL,
+            model_used: FALLBACK_MODEL,
           };
         }
         throw e;
@@ -420,9 +519,9 @@ export const videoStudioRouter = router({
   // ═══════════════════════════════════════════════════════════════════════════
 
   /**
-   * Kling v2.1 Image-to-Video
+   * Kling v2.1 Standard Image-to-Video
    * fal-ai/kling-video/v2.1/standard/image-to-video
-   * 最自然的圖片動態化，支援起始幀 + 結束幀
+   * 最自然的圖片動態化，支援起始幀 + 結束幀；可指定 motion_intensity / aspect_ratio / seed
    */
   klingImageToVideo: brainProcedure
     .input(
@@ -432,7 +531,11 @@ export const videoStudioRouter = router({
         tailImageUrl: z.string().url().optional(),
         negativePrompt: z.string().max(1000).optional(),
         duration: z.enum(["5", "10"]).default("5"),
+        aspectRatio: z.enum(["16:9", "9:16", "1:1"]).default("16:9"),
         cfgScale: z.number().min(0).max(1).default(0.5),
+        /** 動態強度 — 0=靜態畫面, 1=高動態 */
+        motionIntensity: z.number().min(0).max(1).optional(),
+        seed: z.number().int().nonnegative().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -440,17 +543,71 @@ export const videoStudioRouter = router({
         prompt: input.prompt,
         image_url: input.imageUrl,
         duration: input.duration,
+        aspect_ratio: input.aspectRatio,
         cfg_scale: input.cfgScale,
       };
       if (input.tailImageUrl) payload.tail_image_url = input.tailImageUrl;
       if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
+      if (input.motionIntensity !== undefined)
+        payload.motion_intensity = input.motionIntensity;
+      if (input.seed !== undefined) payload.seed = input.seed;
 
       const result = (await falQueueRun(
         "fal-ai/kling-video/v2.1/standard/image-to-video",
         payload,
         300
       )) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
+    }),
+
+  /**
+   * Kling v2.1 Pro Image-to-Video
+   * fal-ai/kling-video/v2.1/pro/image-to-video
+   * Kling Pro 旗艦圖生影：更細膩的動態、更精準的角色一致性；ultra tier
+   * 與 Standard 同 schema，但定價較高（Pro pricing 已存在於 modelPricing.ts）
+   */
+  klingProImageToVideo: brainProcedure
+    .input(
+      z.object({
+        prompt: z.string().min(1).max(2500),
+        imageUrl: z.string().url(),
+        tailImageUrl: z.string().url().optional(),
+        negativePrompt: z.string().max(1000).optional(),
+        duration: z.enum(["5", "10"]).default("5"),
+        aspectRatio: z.enum(["16:9", "9:16", "1:1"]).default("16:9"),
+        cfgScale: z.number().min(0).max(1).default(0.5),
+        motionIntensity: z.number().min(0).max(1).optional(),
+        seed: z.number().int().nonnegative().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const payload: Record<string, unknown> = {
+        prompt: input.prompt,
+        image_url: input.imageUrl,
+        duration: input.duration,
+        aspect_ratio: input.aspectRatio,
+        cfg_scale: input.cfgScale,
+      };
+      if (input.tailImageUrl) payload.tail_image_url = input.tailImageUrl;
+      if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
+      if (input.motionIntensity !== undefined)
+        payload.motion_intensity = input.motionIntensity;
+      if (input.seed !== undefined) payload.seed = input.seed;
+
+      const result = (await falQueueRun(
+        "fal-ai/kling-video/v2.1/pro/image-to-video",
+        payload,
+        300
+      )) as any;
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   /**
@@ -463,8 +620,11 @@ export const videoStudioRouter = router({
       z.object({
         prompt: z.string().min(1).max(2500),
         imageUrl: z.string().url(),
+        negativePrompt: z.string().max(1000).optional(),
         numFrames: z.number().min(16).max(81).default(81),
         resolution: z.enum(["480p", "720p"]).default("720p"),
+        /** 隨機種子 — 固定可重現相同動態軌跡，留空則隨機 */
+        seed: z.number().int().nonnegative().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -475,10 +635,11 @@ export const videoStudioRouter = router({
         prompt: input.prompt,
         image_url: input.imageUrl,
         num_frames: input.numFrames,
-        // resolution 之前在 schema 宣告但沒送出去 → 使用者選 720p / 480p
-        // 全被 fal default 覆寫。Wan i2v 也接受 "480p" / "720p"。
         resolution: input.resolution,
       };
+      if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
+      if (input.seed !== undefined) payload.seed = input.seed;
+
       const result = (await falQueueRun(modelId, payload, 300)) as any;
       return {
         video_url: extractVideoUrl(result),
@@ -490,7 +651,7 @@ export const videoStudioRouter = router({
   /**
    * Runway Gen4 Turbo Image-to-Video
    * fal-ai/runway-gen4-turbo/image-to-video
-   * Runway Gen4，電影級品質，5s/10s
+   * Runway Gen4，電影級品質，5s/10s；可指定 ratio 與 seed
    */
   runwayImageToVideo: brainProcedure
     .input(
@@ -508,6 +669,7 @@ export const videoStudioRouter = router({
             "1584:672",
           ])
           .default("1280:720"),
+        seed: z.number().int().nonnegative().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -517,18 +679,24 @@ export const videoStudioRouter = router({
         duration: parseInt(input.duration),
         ratio: input.ratio,
       };
+      if (input.seed !== undefined) payload.seed = input.seed;
+
       const result = (await falQueueRun(
         "fal-ai/runway-gen4-turbo/image-to-video",
         payload,
         300
       )) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   /**
    * PixVerse v4.5 Image-to-Video
    * fal-ai/pixverse/v4.5/image-to-video
-   * PixVerse 旗艦，強大的物理動態，支援特效模板
+   * PixVerse 旗艦，強大的物理動態，支援特效模板；可指定 aspect_ratio / style / seed
    */
   pixverseImageToVideo: brainProcedure
     .input(
@@ -536,9 +704,16 @@ export const videoStudioRouter = router({
         prompt: z.string().min(1).max(2000),
         imageUrl: z.string().url(),
         negativePrompt: z.string().max(500).optional(),
-        duration: z.enum(["4", "8"]).default("4"),
+        // fal PixVerse v4.5 接受 "5" / "8"（pre-v4.5 才有 4s）
+        duration: z.enum(["5", "8"]).default("5"),
         quality: z.enum(["360p", "540p", "720p", "1080p"]).default("720p"),
+        aspectRatio: z.enum(["16:9", "9:16", "1:1"]).default("16:9"),
         motionMode: z.enum(["normal", "fast"]).default("normal"),
+        /** PixVerse v4.5 風格：留空為寫實；可選動漫 / 3D / 黏土 / 漫畫 / 賽博龐克 */
+        style: z
+          .enum(["anime", "3d_animation", "clay", "comic", "cyberpunk"])
+          .optional(),
+        seed: z.number().int().nonnegative().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -547,29 +722,38 @@ export const videoStudioRouter = router({
         image_url: input.imageUrl,
         duration: parseInt(input.duration),
         quality: input.quality,
+        aspect_ratio: input.aspectRatio,
         motion_mode: input.motionMode,
       };
       if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
+      if (input.style) payload.style = input.style;
+      if (input.seed !== undefined) payload.seed = input.seed;
 
       const result = (await falQueueRun(
         "fal-ai/pixverse/v4.5/image-to-video",
         payload,
         300
       )) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   /**
-   * MiniMax Hailuo-02 Image-to-Video
-   * fal-ai/minimax/video-01/image-to-video
-   * MiniMax 圖生影，超強首幀固定效果
+   * MiniMax Hailuo-02 Pro Image-to-Video
+   * fal-ai/minimax/hailuo-02/pro/image-to-video
+   * MiniMax 圖生影，超強首幀固定效果；6s/10s，1080p/768p
    */
   minimaxImageToVideo: brainProcedure
     .input(
       z.object({
-        prompt: z.string().min(1).max(2000),
+        prompt: z.string().min(1).max(2500),
         imageUrl: z.string().url(),
         promptOptimizer: z.boolean().default(true),
+        duration: z.enum(["6", "10"]).default("6"),
+        resolution: z.enum(["768p", "1080p"]).default("1080p"),
       })
     )
     .mutation(async ({ input }) => {
@@ -577,14 +761,20 @@ export const videoStudioRouter = router({
         prompt: input.prompt,
         image_url: input.imageUrl,
         prompt_optimizer: input.promptOptimizer,
+        duration: input.duration,
+        resolution: input.resolution,
       };
-      // MiniMax Hailuo-02 升級版端點
+      // MiniMax Hailuo-02 Pro 升級版端點
       const result = (await falQueueRun(
         "fal-ai/minimax/hailuo-02/pro/image-to-video",
         payload,
         300
       )) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -594,41 +784,53 @@ export const videoStudioRouter = router({
   /**
    * Wan Video-to-Video（影片風格化）
    * fal-ai/wan/v2.1/video-to-video
-   * 將現有影片依照提詞重新渲染風格
+   * 將現有影片依照提詞重新渲染風格；可指定 strength / negative_prompt / seed
    */
   wanVideoToVideo: brainProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2500),
         videoUrl: z.string().url(),
+        negativePrompt: z.string().max(1000).optional(),
         strength: z.number().min(0.1).max(1.0).default(0.7),
+        seed: z.number().int().nonnegative().optional(),
       })
     )
     .mutation(async ({ input }) => {
       // DEF-09 修正：正確 WAN V2V endpoint（已驗證 fal-ai/wan/v2.1/video-to-video = 200）
+      const payload: Record<string, unknown> = {
+        prompt: input.prompt,
+        video_url: input.videoUrl,
+        strength: input.strength,
+      };
+      if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
+      if (input.seed !== undefined) payload.seed = input.seed;
+
       const result = (await falQueueRun(
         "fal-ai/wan/v2.1/video-to-video",
-        {
-          prompt: input.prompt,
-          video_url: input.videoUrl,
-          strength: input.strength,
-        },
+        payload,
         300
       )) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   /**
    * Kling v2.1 Video-to-Video（影片重繪）
    * fal-ai/kling-video/v2.1/standard/video-to-video
-   * Kling 高品質影片重繪，保持原始動態
+   * Kling 高品質影片重繪，保持原始動態；可指定 cfg_scale / negative_prompt / seed
    */
   klingVideoToVideo: brainProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2500),
         videoUrl: z.string().url(),
+        negativePrompt: z.string().max(1000).optional(),
         cfgScale: z.number().min(0).max(1).default(0.5),
+        seed: z.number().int().nonnegative().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -637,12 +839,19 @@ export const videoStudioRouter = router({
         video_url: input.videoUrl,
         cfg_scale: input.cfgScale,
       };
+      if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
+      if (input.seed !== undefined) payload.seed = input.seed;
+
       const result = (await falQueueRun(
         "fal-ai/kling-video/v2.1/standard/video-to-video",
         payload,
         300
       )) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   /**
@@ -656,10 +865,12 @@ export const videoStudioRouter = router({
         prompt: z.string().min(1).max(2000),
         imageUrl: z.string().url(),
         negativePrompt: z.string().max(500).optional(),
-        numFrames: z.number().min(25).max(257).default(121),
+        // 25 fps × 5 秒 = 125 frames（對齊 modelPricing.ts "每5秒"）
+        numFrames: z.number().min(25).max(257).default(125),
         fps: z.number().min(8).max(30).default(25),
         guidanceScale: z.number().min(1).max(5).default(3),
-        seed: z.number().optional(),
+        seed: z.number().int().nonnegative().optional(),
+        expandPrompt: z.boolean().default(true),
       })
     )
     .mutation(async ({ input }) => {
@@ -669,6 +880,7 @@ export const videoStudioRouter = router({
         num_frames: input.numFrames,
         fps: input.fps,
         guidance_scale: input.guidanceScale,
+        expand_prompt: input.expandPrompt,
       };
       if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
       if (input.seed !== undefined) payload.seed = input.seed;
@@ -678,7 +890,11 @@ export const videoStudioRouter = router({
         payload,
         240
       )) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -688,7 +904,7 @@ export const videoStudioRouter = router({
   /**
    * ByteDance Video Upscaler (2x/4x)
    * fal-ai/bytedance/upscaler/video
-   * 業界頂尖影片超分辨率，2x 或 4x 放大
+   * 業界頂尖影片超分辨率，2x 或 4x 放大；premium 層級，計價依影片時長
    */
   videoUpscale: brainProcedure
     .input(
@@ -707,13 +923,17 @@ export const videoStudioRouter = router({
         payload,
         300
       )) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   /**
    * Video Frame Interpolation（補幀）
    * fal-ai/rife-v4.6/video
-   * RIFE v4.6 高品質補幀，2x/4x 幀率提升
+   * RIFE v4.6 高品質補幀，2x/4x 幀率提升；可指定目標 fps（24-120），standard 層級
    */
   frameInterpolation: brainProcedure
     .input(
@@ -734,13 +954,18 @@ export const videoStudioRouter = router({
         payload,
         240
       )) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   /**
    * Topaz Video Enhance AI
    * fal-ai/topaz/video-enhance
-   * Topaz Labs 專業影片降噪 + 超解析
+   * Topaz Labs 專業影片降噪 + 超解析；ultra 層級，計價依影片時長
+   * 內建模型：iris（人臉）/ artemis（一般）/ theia（細節）/ gaia（高解析）/ nyx（低光降噪）
    */
   topazEnhance: brainProcedure
     .input(
@@ -763,7 +988,11 @@ export const videoStudioRouter = router({
         payload,
         600
       )) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -773,7 +1002,8 @@ export const videoStudioRouter = router({
   /**
    * CamMaster Camera Control
    * fal-ai/cammaster
-   * 精確鏡頭運動控制（推拉搖移旋轉），基於圖生影
+   * 精確鏡頭運動控制（17 種運鏡：靜止、推拉、上下移、左右搖、上下俯仰、
+   * 順逆時針旋轉、水平/垂直環繞、升降鏡），基於圖生影；premium 層級
    */
   camMaster: brainProcedure
     .input(
@@ -816,13 +1046,17 @@ export const videoStudioRouter = router({
         payload,
         300
       )) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   /**
-   * AnimateDiff + ControlNet（逐幀姿勢控制）
+   * AnimateDiff + ControlNet（逐幀姿勢/邊緣/深度控制）
    * fal-ai/animatediff-v2v
-   * 基於骨架姿勢 / Canny 邊緣精確控制影片動作
+   * 基於骨架姿勢 / Canny 邊緣 / Depth 深度精確控制影片動作；standard 層級
    */
   animateDiff: brainProcedure
     .input(
@@ -833,16 +1067,18 @@ export const videoStudioRouter = router({
         controlNet: z
           .enum(["openpose", "canny", "depth", "none"])
           .default("openpose"),
+        /** ControlNet 條件強度 — 0=完全不參考原片, 1=完全鎖死原片骨架/邊緣 */
+        controlnetScale: z.number().min(0).max(2).default(1.0),
         guidanceScale: z.number().min(1).max(20).default(7.5),
         numSteps: z.number().min(10).max(50).default(25),
-        seed: z.number().optional(),
+        seed: z.number().int().nonnegative().optional(),
       })
     )
     .mutation(async ({ input }) => {
       const payload: Record<string, unknown> = {
         prompt: input.prompt,
         video_url: input.videoUrl,
-        controlnet_conditioning_scale: 1.0,
+        controlnet_conditioning_scale: input.controlnetScale,
         guidance_scale: input.guidanceScale,
         num_inference_steps: input.numSteps,
       };
@@ -859,13 +1095,19 @@ export const videoStudioRouter = router({
         payload,
         300
       )) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   /**
    * DepthCrafter（深度感知影片生成）
    * fal-ai/depthcrafter
-   * 從單目影片重建深度時序，用於 3D 視差效果
+   * 從單目影片重建深度時序（depth time-series），用於 3D 視差效果或 ControlNet 深度條件；
+   * 進階參數：num_denoising_steps（去噪步數，越高越精細）、guidance_scale、
+   * window_size（時序視窗）、overlap（視窗重疊）、max_res（最大邊長）
    */
   depthCrafter: brainProcedure
     .input(
@@ -875,6 +1117,7 @@ export const videoStudioRouter = router({
         guidance: z.number().min(1).max(20).default(1.0),
         windowSize: z.number().min(4).max(110).default(110),
         overlap: z.number().min(1).max(25).default(25),
+        maxRes: z.number().min(256).max(2048).default(1024),
       })
     )
     .mutation(async ({ input }) => {
@@ -884,14 +1127,18 @@ export const videoStudioRouter = router({
         guidance_scale: input.guidance,
         window_size: input.windowSize,
         overlap: input.overlap,
-        max_res: 1024,
+        max_res: input.maxRes,
       };
       const result = (await falQueueRun(
         "fal-ai/depthcrafter",
         payload,
         300
       )) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   /**
@@ -922,7 +1169,11 @@ export const videoStudioRouter = router({
         payload,
         300
       )) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   // ─── 非同步任務狀態查詢（共用） ─────────────────────────────────────────────

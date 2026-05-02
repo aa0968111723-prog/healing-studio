@@ -3396,20 +3396,28 @@ ${segmentSummaries}
 回傳格式（嚴格）：
 {
   "actions": [
-    { "type": "fillPrompt", "text": "...", "slot": "prompt|negativePrompt|lyrics|voice", "append": false },
+    { "type": "navigate", "path": "/video-studio|/image-studio|/pro-studio" },
     { "type": "setModality", "modality": "image|video|audio|voice" },
+    { "type": "setTab", "tabId": "t2v|i2v|v2v|t2i|i2i|music|voice" },
     { "type": "setMode", "modeId": "lightning|deep_precision|inspiration|standard|professional" },
     { "type": "setModel", "modelId": "fal-ai/..." },
-    { "type": "applyPreset", "presetId": "creative:simple|creative:standard|creative:pro" }
+    { "type": "fillPrompt", "text": "...", "slot": "prompt|negativePrompt|lyrics|voice", "append": false },
+    { "type": "setParam", "key": "duration|aspectRatio|cfgScale|...", "value": "..." },
+    { "type": "applyPreset", "presetId": "creative:simple|creative:standard|creative:pro" },
+    { "type": "submit" }
   ],
   "rationale": "簡短中文說明為什麼這樣建議"
 }
 
 規範：
-- 最多回 4 個 actions
+- 最多回 6 個 actions（含 submit 才算一次完整流程）
 - 風格 = ${input.personality}
 - 若使用者已輸入提示詞但模態錯了，建議切到正確模態
 - 若使用者啟用了自注意力但選了不支援的模型，建議切到 SD 系列
+- 影片創作室預設 t2v 引擎為 fal-ai/kling-video/v2.1/standard/text-to-video（中文語意理解最佳）；
+  若使用者明確要求 720p 開源／多語言，可改用 fal-ai/wan-t2v；要求音訊同步輸出可用 fal-ai/veo3
+- 編排 Kling 流程的標準順序：navigate → setModality(video) → setTab(t2v) → setModel(kling) → fillPrompt → setParam(duration/aspectRatio) →（使用者確認後）submit
+- 在使用者尚未確認前不要直接送出 submit；只有 userIntent 明確要求「直接生成」「立即輸出」時才附上 submit
 - 不要回多餘內容，只回 JSON
 
 ${director.systemPrompt ? `\n附加大腦指令：\n${director.systemPrompt}` : ""}`;
