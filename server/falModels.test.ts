@@ -108,6 +108,18 @@ describe("falModels catalog coverage", () => {
     expect(ids.has("fal-ai/dia-tts/voice-clone")).toBe(true);
   });
 
+  // DEF-IVC1：ElevenLabs Instant Voice Cloning 必須在 catalog，否則
+  // 大腦/光球選 ElevenLabs IVC 都會 catalog miss → 降級到 f5-tts，
+  // ELEVENLABS_API_KEY proxy header 也不會被注入。
+  it("text-to-speech catalog includes ElevenLabs IVC", () => {
+    const cfg = getFalModelById(
+      "fal-ai/elevenlabs/voice-cloning",
+      "text-to-speech"
+    );
+    expect(cfg).toBeDefined();
+    expect(cfg!.tier).toBe("premium");
+  });
+
   // DEF-EL1：ElevenLabs SFX 真實 endpoint 帶 /v2 後綴，必須在 text-to-audio
   // catalog 註冊，否則 dispatcher 會把所有 SFX 請求降級到 fal-ai/ace-step（音樂模型）。
   it("text-to-audio catalog includes ElevenLabs SFX v2 canonical id", () => {

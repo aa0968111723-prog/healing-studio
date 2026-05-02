@@ -1048,6 +1048,15 @@ export const proStudioRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // DEF-IVC2：與 elevenLabsTTS / soundEffects 對齊 — 缺 ELEVENLABS_API_KEY
+      // 時提早報錯，避免「扣 8pt → fal 401 → 退 8pt」的浪費往返。
+      if (!process.env.ELEVENLABS_API_KEY) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "ElevenLabs Instant Voice Clone 需要 ELEVENLABS_API_KEY。請改用 Qwen TTS Voice Clone，或聯絡管理員設定金鑰。",
+        });
+      }
       const modelId = "fal-ai/elevenlabs/voice-cloning";
       const charged = await chargeForFalTask(ctx.user.id, modelId);
       try {

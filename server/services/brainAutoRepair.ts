@@ -398,6 +398,8 @@ const ENGINE_PROVIDER_MAP: Record<string, string> = {
   "fal-ai/elevenlabs/tts/flash-v2.5": "fal",
   "fal-ai/elevenlabs/tts/multilingual-v2": "fal",
   "fal-ai/elevenlabs/tts/eleven-v3": "fal",
+  // DEF-IVC4：ElevenLabs Instant Voice Cloning（建立永久 voice_id）
+  "fal-ai/elevenlabs/voice-cloning": "fal",
   "fal-ai/qwen-3-tts/text-to-speech/1.7b": "fal",
   "fal-ai/qwen-3-tts/clone-voice/1.7b": "fal",
   "fal-ai/qwen-3-tts/voice-design/1.7b": "fal",

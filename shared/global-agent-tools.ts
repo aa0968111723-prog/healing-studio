@@ -164,11 +164,13 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     },
     executionTarget: "server-side",
   },
-  // DEF-VC1：光球專用 voice cloning 工具 — 從一段參考音訊產出 speaker
-  // embedding（.safetensors URL），可在後續 step 透過 studio.generateVoice
-  // 帶 speaker_voice_embedding_file_url 復用該音色。
-  // 預設走 fal-ai/qwen-3-tts/clone-voice/1.7b（zero-shot，30 秒參考音訊內），
-  // 後續可擴充為 ElevenLabs voice-cloning 等。
+  // DEF-VC1 / DEF-IVC3：光球專用 voice cloning 工具 — 兩條路徑：
+  //   - 預設 Qwen 3 zero-shot clone：30 秒參考音訊內 → speaker_embedding URL
+  //   - ElevenLabs IVC（modelId="fal-ai/elevenlabs/voice-cloning"）：1-3 分鐘
+  //     參考音訊 → 永久 voice_id（可餵給全家族 TTS / dubbing）；需 name 欄位
+  //     與 ELEVENLABS_API_KEY，缺 key 時自動退回 Qwen clone。
+  // 後續 step 可透過 ${stepN.speaker_voice_embedding_file_url} 或
+  // ${stepN.voice_id} 鏈接到 studio.generateVoice。
   {
     name: "studio.cloneVoice",
     riskLevel: "medium",
@@ -177,6 +179,8 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
       audio_url: "string",
       modelId: "string?",
       reference_text: "string?",
+      name: "string?",
+      description: "string?",
     },
     executionTarget: "server-side",
   },

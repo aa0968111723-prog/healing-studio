@@ -1251,6 +1251,21 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       outputSchema: { audioUrl: true },
       timeoutMs: 60_000,
     },
+    // DEF-IVC1：ElevenLabs Instant Voice Cloning (IVC) — 上傳 1-3 分鐘參考音訊
+    // 在 ElevenLabs 端建立永久 voice_id，後續可在所有 ElevenLabs TTS / dubbing /
+    // voice-changer 復用。需 ELEVENLABS_API_KEY 經 fal proxy header 認證。
+    // 過去未註冊在 catalog → 大腦/光球選 ElevenLabs IVC 都被默默降級到 f5-tts。
+    {
+      modelId: "fal-ai/elevenlabs/voice-cloning",
+      label: "ElevenLabs Instant Voice Clone",
+      category: "text-to-speech",
+      tier: "premium",
+      description:
+        "ElevenLabs IVC — 1-3 分鐘參考音訊建立永久 voice_id，可被全家族 TTS 復用（需 ELEVENLABS_API_KEY）",
+      inputSchema: { audioUrl: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 120_000,
+    },
     {
       modelId: "fal-ai/dia-tts",
       label: "Dia TTS",

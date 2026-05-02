@@ -922,19 +922,44 @@ async function dispatchStudioTool(
         };
       }
 
-      // DEF-VC1：光球專用 voice cloning — 從參考音訊產出 speaker embedding，
-      // 後續 step 可帶 speaker_voice_embedding_file_url 給 studio.generateVoice
-      // 用同一個音色合成任意文字。預設走 Qwen 3 zero-shot clone（30 秒參考音訊內）。
-      // 與 generateVoice 分流：clone 步驟不需 brain.voiceEngine 也不接受 ElevenLabs key。
+      // DEF-VC1 / DEF-IVC3：光球專用 voice cloning — 兩家 clone 引擎輸出格式不同：
+      //   - Qwen 3 clone（預設，zero-shot 30 秒參考音訊內）
+      //     → 回 speaker_embedding.url（.safetensors）；只能餵給 Qwen TTS
+      //   - ElevenLabs IVC（永久建立 voice_id；需 1-3 分鐘參考 + ELEVENLABS_API_KEY）
+      //     → 回 voice_id；可餵給 ElevenLabs 全家族 TTS / dubbing / voice-changer
+      // 兩種輸出都 hoist 到 data 頂層，後續 step 可用 ${stepN.speaker_voice_embedding_file_url}
+      // 或 ${stepN.voice_id} 接到 studio.generateVoice。
       case "studio.cloneVoice": {
         const { dispatchFalQueueTask } = await import("./falDispatcher");
-        const modelId =
+        let modelId =
           (args.modelId as string) || "fal-ai/qwen-3-tts/clone-voice/1.7b";
+        const isElevenLabsIvc = modelId === "fal-ai/elevenlabs/voice-cloning";
+        // 缺 ELEVENLABS_API_KEY 時退回 Qwen clone（不需特殊 key）。
+        if (isElevenLabsIvc && !process.env.ELEVENLABS_API_KEY) {
+          modelId = "fal-ai/qwen-3-tts/clone-voice/1.7b";
+        }
+        const finalIsElevenLabsIvc = modelId === "fal-ai/elevenlabs/voice-cloning";
         const cloneInput: Record<string, unknown> = {};
         if (typeof args.audio_url === "string") cloneInput.audio_url = args.audio_url;
-        if (typeof args.reference_text === "string") {
-          cloneInput.reference_text = args.reference_text;
+        if (finalIsElevenLabsIvc) {
+          // ElevenLabs IVC 需要 name（必填）— args.name 缺失時用 timestamp 補
+          cloneInput.name =
+            typeof args.name === "string" && args.name
+              ? args.name
+              : `Cloned Voice ${new Date().toISOString().slice(0, 19)}`;
+          if (typeof args.description === "string") {
+            cloneInput.description = args.description;
+          }
+        } else {
+          // Qwen clone 接受 reference_text（可選，提升品質）
+          if (typeof args.reference_text === "string") {
+            cloneInput.reference_text = args.reference_text;
+          }
         }
+        const elevenLabsHeaders =
+          finalIsElevenLabsIvc && process.env.ELEVENLABS_API_KEY
+            ? { "x-fal-client-credentials": process.env.ELEVENLABS_API_KEY }
+            : undefined;
         const r = await dispatchFalQueueTask({
           modelId,
           category: "text-to-speech",
@@ -942,31 +967,44 @@ async function dispatchStudioTool(
           route: "orb-tool/studio.cloneVoice",
           modality: "voice",
           userId: opts.userId,
+          ...(elevenLabsHeaders ? { extraHeaders: elevenLabsHeaders } : {}),
         });
         const awaited = await awaitFalForOrb(
           { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
           args
         );
-        // Qwen clone 回 speaker_embedding.url（.safetensors）；把 embedding URL
-        // 平推到頂層方便後續 step 透過 ${stepN.speaker_voice_embedding_file_url}
-        // 接到 studio.generateVoice。
-        const speakerEmbedding =
-          (awaited.raw as { speaker_embedding?: { url?: string } } | undefined)
-            ?.speaker_embedding?.url ?? null;
+        // 兩種引擎都 hoist 各自的 voice 識別子到 data 頂層 —
+        //   - Qwen → speaker_voice_embedding_file_url（.safetensors）
+        //   - ElevenLabs → voice_id（永久 ID，可被全家族 TTS 復用）
+        const raw = awaited.raw as
+          | {
+              speaker_embedding?: { url?: string };
+              voice?: { voice_id?: string };
+              voice_id?: string;
+            }
+          | undefined;
+        const speakerEmbedding = raw?.speaker_embedding?.url ?? null;
+        const voiceId = raw?.voice?.voice_id ?? raw?.voice_id ?? null;
+        const haveOutput = finalIsElevenLabsIvc ? !!voiceId : !!speakerEmbedding;
         return {
           name: call.name,
-          ok: awaited.status !== "failed" && !!speakerEmbedding,
+          ok: awaited.status !== "failed" && haveOutput,
           data: {
             ...awaited,
             engine: "fal",
-            kind: "voice-clone",
+            kind: finalIsElevenLabsIvc ? "voice-clone-permanent" : "voice-clone",
             speaker_voice_embedding_file_url: speakerEmbedding,
+            voice_id: voiceId,
           },
           usedTool: call.name,
           ...(awaited.status === "failed" && awaited.error
             ? { error: awaited.error }
-            : !speakerEmbedding && awaited.status !== "pending"
-              ? { error: "voice-clone: speaker_embedding 缺失" }
+            : !haveOutput && awaited.status !== "pending"
+              ? {
+                  error: finalIsElevenLabsIvc
+                    ? "voice-clone: voice_id 缺失"
+                    : "voice-clone: speaker_embedding 缺失",
+                }
               : {}),
         };
       }
