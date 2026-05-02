@@ -3263,6 +3263,8 @@ function AdvancedControlTab() {
   const [viduPrompt, setViduPrompt] = useState("");
   const [viduImages, setViduImages] = useState(["", ""]);
   const [viduDuration, setViduDuration] = useState<"4" | "8">("4");
+  const [viduAspect, setViduAspect] = useState<"16:9" | "9:16" | "1:1">("16:9");
+  const [viduResolution, setViduResolution] = useState<"720p" | "1080p">("720p");
   const [viduResult, setViduResult] = useState<VideoResult | null>(null);
 
   const camMut = trpc.videoStudio.camMaster.useMutation({
@@ -3349,9 +3351,11 @@ function AdvancedControlTab() {
         prompt: viduPrompt,
         imageUrls: urls,
         duration: viduDuration,
+        aspectRatio: viduAspect,
+        resolution: viduResolution,
       });
       setViduResult(r);
-      registerBgTask(r, "video", "Vidu 參考圖生影", viduPrompt);
+      registerBgTask(r, "video", "Vidu Q1 角色一致性生成", viduPrompt);
       toast.success("📤 任務已提交！稍後自動更新結果...");
       reportSuccess();
     } catch {
@@ -3772,20 +3776,53 @@ function AdvancedControlTab() {
               + 新增參考圖片
             </Button>
           )}
-          <div>
-            <Label className="text-xs text-muted-foreground">時長</Label>
-            <Select
-              value={viduDuration}
-              onValueChange={v => setViduDuration(v as "4" | "8")}
-            >
-              <SelectTrigger className="mt-1 text-sm h-9">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="4">4 秒</SelectItem>
-                <SelectItem value="8">8 秒</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <Label className="text-xs text-muted-foreground">時長</Label>
+              <Select
+                value={viduDuration}
+                onValueChange={v => setViduDuration(v as "4" | "8")}
+              >
+                <SelectTrigger className="mt-1 text-sm h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="4">4 秒</SelectItem>
+                  <SelectItem value="8">8 秒</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">畫面比例</Label>
+              <Select
+                value={viduAspect}
+                onValueChange={v => setViduAspect(v as "16:9" | "9:16" | "1:1")}
+              >
+                <SelectTrigger className="mt-1 text-sm h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="16:9">16:9</SelectItem>
+                  <SelectItem value="9:16">9:16</SelectItem>
+                  <SelectItem value="1:1">1:1</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">解析度</Label>
+              <Select
+                value={viduResolution}
+                onValueChange={v => setViduResolution(v as "720p" | "1080p")}
+              >
+                <SelectTrigger className="mt-1 text-sm h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="720p">720p</SelectItem>
+                  <SelectItem value="1080p">1080p</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <Button
             onClick={runVidu}

@@ -1169,7 +1169,11 @@ export const videoStudioRouter = router({
         payload,
         300
       )) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   // ─── 非同步任務狀態查詢（共用） ─────────────────────────────────────────────
