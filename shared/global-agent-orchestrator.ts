@@ -10,8 +10,10 @@ import type {
   RunWorkflowAction,
 } from "./agent-actions";
 import { globalAgentRegistry, type GlobalAgentPlan } from "./global-agent-registry";
-import { expandWorkflowAction } from "./global-agent-workflows";
+import { expandWorkflowAction, type ExpandedWorkflowStep } from "./global-agent-workflows";
 import { topologicalBatches, ensureStepIds } from "./orb-dag-scheduler";
+import { resolveStepRefsInArgs } from "./orb-step-ref-resolver";
+import type { WorkflowRunState } from "./workflow-run-state";
 
 export interface GlobalAgentExecutionContext {
   currentPage?: PageAgentSnapshot | null;
@@ -54,6 +56,71 @@ export interface GlobalAgentExecutionContext {
   intentSummary?: string;
   requireConfirmationForWorkflowSteps?: boolean;
   onWorkflowStep?: (step: GlobalWorkflowStepProgress) => void;
+
+  // ── Task 1: tool-call execution ────────────────────────────────────────
+  /**
+   * Server-side tool dispatcher. The orchestrator calls this when a workflow
+   * step declares `toolName`. Implementations route to the tRPC studio
+   * router (`media.transcribe`, `studio.generateImage`, …). Returning
+   * `{ ok: false }` triggers the same retry / replan path as a UI dispatch
+   * failure.
+   */
+  callTool?: (
+    toolName: string,
+    args: Record<string, unknown>
+  ) => Promise<{ ok: boolean; data?: unknown; reason?: string }>;
+  /**
+   * Cumulative tool results threaded across a workflow run. The resolver
+   * substitutes `${stepId.key}` placeholders inside `toolArgs` from these
+   * entries before each tool dispatch. Caller-supplied so a multi-action
+   * sequence can reuse step results across adjacent runWorkflow calls.
+   */
+  perStepToolResults?: Array<{
+    stepId: string;
+    toolResults: Array<{ ok: boolean; data?: unknown }>;
+  }>;
+
+  // ── Task 2: reactive replan ────────────────────────────────────────────
+  /**
+   * Optional replan hook. After all retries on a failed step are exhausted
+   * (and the step does not have `skipOnFail`), the orchestrator calls this
+   * with the failure context. Returning a fresh AgentWorkflowStep[] swaps
+   * out the remaining steps; returning null preserves the legacy
+   * abort-on-fail behaviour.
+   */
+  replan?: (args: {
+    failedStep: AgentWorkflowStep;
+    failReason: string;
+    remainingSteps: AgentWorkflowStep[];
+    currentSnapshot?: PageAgentSnapshot | null;
+  }) => Promise<AgentWorkflowStep[] | null>;
+
+  // ── Task 3: workflow run-state persistence ─────────────────────────────
+  /** Persist the workflow's progress after each step (success or fail). */
+  persistRunState?: (state: WorkflowRunState) => Promise<void>;
+  /** Load a previously persisted run state by id. */
+  loadRunState?: (runId: string) => Promise<WorkflowRunState | null>;
+  /**
+   * When set, the sequential executor calls `loadRunState(resumeFromRunId)`
+   * at the start of the workflow and skips already-completed steps.
+   */
+  resumeFromRunId?: string;
+  /** Stable id used by the persistence hooks. Auto-generated when omitted. */
+  runId?: string;
+
+  // ── Task 4: step-by-step confirmation ──────────────────────────────────
+  /**
+   * When the workflow declares `confirmationMode: "step-by-step"` (or
+   * `"high-risk-only"` for a destructive step), the orchestrator awaits
+   * this hook before dispatching. "skip" mirrors `retryPolicy.skipOnFail`
+   * and continues with the next step; "abort" stops the workflow with a
+   * cooperative reason (no replan).
+   */
+  confirmStep?: (
+    step: AgentWorkflowStep,
+    index: number,
+    total: number
+  ) => Promise<"proceed" | "skip" | "abort">;
 }
 
 export interface GlobalDispatchOptions {
@@ -172,6 +239,82 @@ function wait(ms: number) {
 
 function normalizeResult(r?: AgentActionResult): AgentActionResult {
   return r ?? { ok: true };
+}
+
+/** Stable id for an expanded step, falling back to its position in the list. */
+function stepIdOrIndex(step: ExpandedWorkflowStep, index: number): string {
+  return step.id ?? step.original?.id ?? `step_${index}`;
+}
+
+/** Logical key under which `perStepToolResults` stores this step's data. */
+function toolResultBindingKey(step: ExpandedWorkflowStep, index: number): string {
+  return step.toolResultBinding ?? stepIdOrIndex(step, index);
+}
+
+/**
+ * High-risk action types — used for `confirmationMode: "high-risk-only"` and
+ * for the legacy dangerous-step set the parallel scheduler uses.
+ */
+const HIGH_RISK_ACTION_TYPES = new Set<AgentAction["type"]>([
+  "submit",
+  "reset",
+  "applyPreset",
+  "runWorkflow",
+]);
+
+function isHighRiskExpandedStep(step: ExpandedWorkflowStep): boolean {
+  if (step.toolName) {
+    // Tool calls are always at least medium risk; treat trainLora /
+    // generate* as high so confirmStep gets a chance to gate them.
+    return true;
+  }
+  return !!step.action && HIGH_RISK_ACTION_TYPES.has(step.action.type);
+}
+
+function reconstructAgentWorkflowStep(step: ExpandedWorkflowStep, index: number): AgentWorkflowStep {
+  if (step.original) return step.original;
+  // Best-effort reconstruction for replan/persist when the expansion path
+  // didn't preserve the original (older code paths). We synthesise a
+  // minimum AgentWorkflowStep that round-trips through `expandWorkflowAction`.
+  if (step.toolName) {
+    return {
+      path: step.path,
+      actionType: "",
+      payload: "",
+      label: step.label,
+      id: stepIdOrIndex(step, index),
+      toolName: step.toolName,
+      ...(step.toolArgs ? { toolArgs: step.toolArgs } : {}),
+      ...(step.toolResultBinding ? { toolResultBinding: step.toolResultBinding } : {}),
+      ...(step.dependsOn?.length ? { dependsOn: step.dependsOn } : {}),
+      ...(step.retryPolicy ? { retryPolicy: step.retryPolicy } : {}),
+    };
+  }
+  return {
+    path: step.path,
+    actionType: step.action?.type ?? "",
+    payload: "",
+    label: step.label,
+    id: stepIdOrIndex(step, index),
+    ...(step.dependsOn?.length ? { dependsOn: step.dependsOn } : {}),
+    ...(step.retryPolicy ? { retryPolicy: step.retryPolicy } : {}),
+  };
+}
+
+let _runIdCounter = 0;
+function generateRunId(): string {
+  _runIdCounter += 1;
+  return `run_${Date.now().toString(36)}_${_runIdCounter}`;
+}
+
+/** True when this step needs an interactive confirmation before dispatch. */
+function shouldRequestStepConfirm(
+  mode: RunWorkflowAction["confirmationMode"],
+  step: ExpandedWorkflowStep
+): boolean {
+  if (mode === "step-by-step") return true;
+  if (mode === "high-risk-only") return isHighRiskExpandedStep(step);
+  return false;
 }
 
 /**
@@ -296,75 +439,84 @@ async function executeWorkflowParallel(
     Number.isFinite(concurrencyRaw) && concurrencyRaw > 0 ? Math.min(concurrencyRaw, 8) : 3;
 
   const allResults: AgentActionResult[] = [];
-  // Map each scheduler step to its position in the original declared order so
-  // progress callbacks always report the user-visible step number. Critically:
-  // we do NOT mutate a shared counter inside `Promise.all` — that read-modify
-  // -write is racy and causes UI progress to jump around or duplicate.
   const declaredIndex = new Map<string, number>();
   ided.forEach((step, index) => declaredIndex.set(step.id, index));
   // Track the path we believe the SPA is currently on. Within a single batch
   // the DAG scheduler guarantees no two steps share a path (same-page chains
   // are forced sequential), so updating this from concurrent slice tasks is
-  // safe — no two writers ever race for the same destination. Across batches
-  // the previous batch must have drained before the next begins, so the value
-  // is consistent at batch boundaries too.
+  // safe — no two writers ever race for the same destination.
   let currentPath: string | undefined = ctx.currentPath ?? ctx.currentPage?.pagePath;
+
+  // Tool results threaded across batches. Concurrent writes within a batch
+  // are funneled through a "deferred entry" pattern so we never race-push
+  // duplicate stepIds: each Promise.all task returns a typed entry, then
+  // the outer for-loop merges them in deterministic order.
+  const perStepToolResults: NonNullable<GlobalAgentExecutionContext["perStepToolResults"]> =
+    ctx.perStepToolResults ? [...ctx.perStepToolResults] : [];
 
   for (const batch of batches) {
     let cursor = 0;
     while (cursor < batch.length) {
       const slice = batch.slice(cursor, cursor + concurrency);
-      const batchResults: AgentActionResult[] = await Promise.all(
-        slice.map(async (batchStep): Promise<AgentActionResult> => {
+
+      type SliceTaskResult = {
+        result: AgentActionResult;
+        currentPath: string | undefined;
+        toolEntry?: { stepId: string; entry: { ok: boolean; data?: unknown } };
+      };
+
+      const sliceResults: SliceTaskResult[] = await Promise.all(
+        slice.map(async (batchStep): Promise<SliceTaskResult> => {
           const expanded = idToExpanded.get(batchStep.id);
           if (!expanded) {
-            return { ok: false, reason: `scheduler: missing expanded step ${batchStep.id}` };
-          }
-          // Per-step navigate happens BEFORE the dispatch, exactly like the
-          // sequential loop. Same-page steps already live in different
-          // batches so concurrent navigates can only target different paths.
-          // When the LLM omitted step.path, fall back to the static registry
-          // so we still navigate to a page that can handle the action (the
-          // page-agent layer's enqueue+drain finishes the dispatch on mount).
-          const fallbackForBatchStep = expanded.path
-            ? null
-            : globalAgentRegistry.planWithFallback(expanded.action, ctx.currentPage)?.steps[0] ?? null;
-          const effectivePath = expanded.path ?? fallbackForBatchStep?.path;
-          if (effectivePath && effectivePath !== currentPath) {
-            await navigateAndSettle(effectivePath, ctx);
-            currentPath = effectivePath;
-          }
-          ctx.onWorkflowStep?.({
-            index: declaredIndex.get(batchStep.id) ?? 0,
-            total: ided.length,
-            label: expanded.label,
-            path: effectivePath,
-            action: expanded.action,
-          });
-          // Pure navigate steps are fully satisfied by ctx.navigate() above;
-          // the page-agent layer rejects dispatched navigate actions.
-          if (expanded.action.type === "navigate") {
-            const navOk: AgentActionResult = {
-              ok: true,
-              message: `navigated to ${effectivePath ?? expanded.action.path}`,
+            return {
+              result: { ok: false, reason: `scheduler: missing expanded step ${batchStep.id}` },
+              currentPath,
             };
-            return navOk;
           }
-          const targetPageId = effectivePath
-            ? globalAgentRegistry.findByPath(effectivePath)?.pageId
-              ?? fallbackForBatchStep?.targetPageId
-            : globalAgentRegistry.planWithFallback(expanded.action, ctx.currentPage)?.steps[0]?.targetPageId;
-          return normalizeResult(
-            await ctx.dispatch(expanded.action, {
-              targetPageId,
-              enqueueIfNoHandler: true,
-              requireConfirmation: ctx.requireConfirmationForWorkflowSteps ?? false,
-              source: ctx.source,
-              intentSummary: ctx.intentSummary,
-            })
-          );
+          // Snapshot perStepToolResults once at task entry so concurrent
+          // slice tasks see a stable view of upstream results. Within a
+          // single batch the topology guarantees no cross-batch deps so
+          // concurrent tasks never need to read each other's tool data.
+          const snapshotResults = [...perStepToolResults];
+          const declared = declaredIndex.get(batchStep.id) ?? 0;
+          const outcome = await runStepWithRetry(expanded, declared, {
+            ctx,
+            perStepToolResults: snapshotResults,
+            currentPath,
+            currentPageContext: ctx.currentPage,
+            total: ided.length,
+          });
+          // The snapshot may have gained a tool entry for THIS step. Pluck
+          // it out and surface to the caller for deterministic merge.
+          const ourBinding = toolResultBindingKey(expanded, declared);
+          let toolEntry: SliceTaskResult["toolEntry"];
+          for (const e of snapshotResults) {
+            if (e.stepId !== ourBinding) continue;
+            const last = e.toolResults[e.toolResults.length - 1];
+            if (last) toolEntry = { stepId: ourBinding, entry: last };
+            break;
+          }
+          return { result: outcome.result, currentPath: outcome.currentPath, toolEntry };
         })
       );
+
+      // Deterministic merge: walk slice in declared order so re-runs are stable.
+      for (const r of sliceResults) {
+        if (r.currentPath) currentPath = r.currentPath;
+        if (r.toolEntry) {
+          const existing = perStepToolResults.find(e => e.stepId === r.toolEntry!.stepId);
+          if (existing) {
+            existing.toolResults.push(r.toolEntry.entry);
+          } else {
+            perStepToolResults.push({
+              stepId: r.toolEntry.stepId,
+              toolResults: [r.toolEntry.entry],
+            });
+          }
+        }
+      }
+      const batchResults = sliceResults.map(r => r.result);
       allResults.push(...batchResults);
       const failed = batchResults.find(r => !r.ok);
       if (failed) {
@@ -387,81 +539,375 @@ async function executeWorkflowParallel(
 /**
  * Internal: the original sequential loop body. Extracted so the parallel
  * path can fall back to it on cycle detection without duplicating code.
+ *
+ * Wires Tasks 1-4: tool-call dispatch (`toolName`), retry / replan, run-state
+ * persistence + resume, and step-by-step confirmation. All four are opt-in via
+ * either a workflow field or a `ctx` hook — without those, the loop reduces
+ * to the legacy navigate + dispatch behaviour.
  */
 async function executeWorkflowSequential(
   action: RunWorkflowAction,
-  steps: ReturnType<typeof expandWorkflowAction>,
+  initialSteps: ReturnType<typeof expandWorkflowAction>,
   ctx: GlobalAgentExecutionContext
 ): Promise<GlobalAgentExecutionResult> {
-  log("workflow.start", { name: action.name, total: steps.length });
+  log("workflow.start", { name: action.name, total: initialSteps.length });
+
+  // ── Task 3: resume from persisted run state ──────────────────────────
+  const runId = ctx.runId ?? ctx.resumeFromRunId ?? generateRunId();
+  let runState: WorkflowRunState | null = null;
+  if (ctx.resumeFromRunId && ctx.loadRunState) {
+    runState = await ctx.loadRunState(ctx.resumeFromRunId);
+    if (runState) {
+      log("workflow.resume", {
+        runId: runState.runId,
+        completed: runState.completedStepIds.length,
+      });
+    }
+  }
+  if (!runState && ctx.persistRunState) {
+    runState = {
+      runId,
+      workflowName: action.name,
+      totalSteps: initialSteps.length,
+      completedStepIds: [],
+      perStepToolResults: [],
+      startedAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+  }
+
+  // Tool results carry across the run so `${stepId.key}` references resolve.
+  // Seeded from ctx (caller may pre-populate from a parent workflow) and
+  // from a resumed run-state (`completedStepIds` may have tool data).
+  const perStepToolResults: NonNullable<GlobalAgentExecutionContext["perStepToolResults"]> =
+    ctx.perStepToolResults
+      ? [...ctx.perStepToolResults]
+      : [];
+  if (runState) {
+    for (const entry of runState.perStepToolResults) {
+      if (!perStepToolResults.find(e => e.stepId === entry.stepId)) {
+        perStepToolResults.push(entry);
+      }
+    }
+  }
+
   const results: AgentActionResult[] = [];
   // Track the SPA's current path locally so consecutive same-page steps
   // skip both the redundant navigate() call AND the settle/readiness wait.
-  // Without this, ctx.currentPage stays frozen at workflow start and every
-  // step that targets a different path than the *initial* page re-navigates.
   let currentPath: string | undefined = ctx.currentPath ?? ctx.currentPage?.pagePath;
+
+  // Steps may be replaced mid-run by the replan hook; keep the list mutable.
+  let steps: ExpandedWorkflowStep[] = [...initialSteps];
 
   for (let i = 0; i < steps.length; i++) {
     const s = steps[i];
-    log("workflow.step", { index: i, label: s.label });
+    const stepId = stepIdOrIndex(s, i);
+    log("workflow.step", { index: i, label: s.label, stepId });
 
-    // When the LLM omits step.path the static fallback figures out the right
-    // destination so the orchestrator can navigate before dispatch instead of
-    // letting the action fall through to the current page (which usually
-    // can't handle it and surfaces a fake failure).
-    const fallbackForStep = s.path
-      ? null
-      : globalAgentRegistry.planWithFallback(s.action, ctx.currentPage)?.steps[0] ?? null;
-    const effectivePath = s.path ?? fallbackForStep?.path;
-    if (effectivePath && effectivePath !== currentPath) {
-      await navigateAndSettle(effectivePath, ctx);
-      currentPath = effectivePath;
-    }
-    // Fire the progress callback AFTER the navigate completes so the UI
-    // reflects "running step N" only when N can actually start, not while
-    // we're still settling on the previous step's destination.
-    ctx.onWorkflowStep?.({
-      index: i,
-      total: steps.length,
-      label: s.label,
-      path: effectivePath,
-      action: s.action,
-    });
-    // Pure navigate steps are fully satisfied by ctx.navigate() above; the
-    // page-agent layer intentionally rejects dispatched navigate actions
-    // (orb owns navigation), so re-dispatching would surface a fake failure.
-    if (s.action.type === "navigate") {
-      results.push({ ok: true, message: `navigated to ${effectivePath ?? s.action.path}` });
+    // ── Task 3: skip already-completed steps when resuming ──────────────
+    if (runState && runState.completedStepIds.includes(stepId)) {
+      log("workflow.skip_completed", { stepId, index: i });
+      results.push({ ok: true, message: `skipped (already completed): ${s.label}` });
       continue;
     }
-    const targetPageId = effectivePath
-      ? globalAgentRegistry.findByPath(effectivePath)?.pageId
-        ?? fallbackForStep?.targetPageId
-      : globalAgentRegistry.planWithFallback(s.action, ctx.currentPage)?.steps[0]?.targetPageId;
-    const res = normalizeResult(
-      await ctx.dispatch(s.action, {
-        targetPageId,
-        enqueueIfNoHandler: true,
-        requireConfirmation: ctx.requireConfirmationForWorkflowSteps ?? false,
-        source: ctx.source,
-        intentSummary: ctx.intentSummary,
-      })
-    );
-    results.push(res);
-    if (!res.ok) {
-      log("workflow.fail", { index: i, reason: res.reason });
-      return {
-        ok: false,
-        results,
-        reason: res.reason,
-        workflowName: action.name,
-        endingPath: currentPath,
-      };
+
+    // ── Task 4: per-step confirmation ───────────────────────────────────
+    if (ctx.confirmStep && shouldRequestStepConfirm(action.confirmationMode, s)) {
+      const decision = await ctx.confirmStep(
+        reconstructAgentWorkflowStep(s, i),
+        i,
+        steps.length
+      );
+      if (decision === "abort") {
+        log("workflow.confirm_abort", { stepId, index: i });
+        return {
+          ok: false,
+          results,
+          reason: `aborted at step "${s.label}"`,
+          workflowName: action.name,
+          endingPath: currentPath,
+        };
+      }
+      if (decision === "skip") {
+        log("workflow.confirm_skip", { stepId, index: i });
+        results.push({ ok: true, message: `skipped by user: ${s.label}` });
+        if (runState) {
+          runState = {
+            ...runState,
+            completedStepIds: [...runState.completedStepIds, stepId],
+            updatedAt: Date.now(),
+          };
+          if (ctx.persistRunState) await ctx.persistRunState(runState);
+        }
+        continue;
+      }
+      // "proceed" falls through to dispatch below.
     }
+
+    // Dispatch the step — branches to tool-call vs UI dispatch internally.
+    const dispatchOutcome = await runStepWithRetry(s, i, {
+      ctx,
+      perStepToolResults,
+      currentPath,
+      currentPageContext: ctx.currentPage,
+      total: steps.length,
+    });
+    currentPath = dispatchOutcome.currentPath;
+    results.push(dispatchOutcome.result);
+
+    if (dispatchOutcome.result.ok) {
+      if (runState) {
+        runState = {
+          ...runState,
+          completedStepIds: runState.completedStepIds.includes(stepId)
+            ? runState.completedStepIds
+            : [...runState.completedStepIds, stepId],
+          perStepToolResults: [...perStepToolResults],
+          updatedAt: Date.now(),
+        };
+        if (ctx.persistRunState) await ctx.persistRunState(runState);
+      }
+      continue;
+    }
+
+    // ── Task 2 fail branch ──────────────────────────────────────────────
+    log("workflow.fail", { index: i, reason: dispatchOutcome.result.reason });
+
+    if (s.retryPolicy?.skipOnFail) {
+      log("workflow.skip_on_fail", { stepId, index: i });
+      // Override the recorded result so callers see it as skipped.
+      results[results.length - 1] = {
+        ok: true,
+        message: `skipped on failure: ${s.label}`,
+      };
+      if (runState) {
+        runState = {
+          ...runState,
+          completedStepIds: [...runState.completedStepIds, stepId],
+          updatedAt: Date.now(),
+        };
+        if (ctx.persistRunState) await ctx.persistRunState(runState);
+      }
+      continue;
+    }
+
+    if (ctx.replan) {
+      const remainingOriginalSteps = steps
+        .slice(i + 1)
+        .map((step, idx) => reconstructAgentWorkflowStep(step, i + 1 + idx));
+      const replanResult = await ctx.replan({
+        failedStep: reconstructAgentWorkflowStep(s, i),
+        failReason: dispatchOutcome.result.reason ?? "unknown failure",
+        remainingSteps: remainingOriginalSteps,
+        currentSnapshot: ctx.currentPage,
+      });
+      if (replanResult && replanResult.length > 0) {
+        log("workflow.replan", {
+          stepId,
+          replacedCount: replanResult.length,
+        });
+        const replanWorkflow: RunWorkflowAction = {
+          type: "runWorkflow",
+          name: `${action.name} (replanned)`,
+          steps: replanResult,
+        };
+        const replanExpanded = expandWorkflowAction(replanWorkflow);
+        // Replace from the current position onwards, drop the failure result
+        // since replan chose to recover from it.
+        steps = [...steps.slice(0, i), ...replanExpanded];
+        results.pop();
+        // Re-run this index against the freshly inserted step.
+        i -= 1;
+        continue;
+      }
+    }
+
+    if (runState) {
+      runState = {
+        ...runState,
+        failedAt: stepId,
+        failReason: dispatchOutcome.result.reason,
+        updatedAt: Date.now(),
+      };
+      if (ctx.persistRunState) await ctx.persistRunState(runState);
+    }
+
+    return {
+      ok: false,
+      results,
+      reason: dispatchOutcome.result.reason,
+      workflowName: action.name,
+      endingPath: currentPath,
+    };
   }
 
   log("workflow.complete", { name: action.name });
   return { ok: true, results, workflowName: action.name, endingPath: currentPath };
+}
+
+interface RunStepContext {
+  ctx: GlobalAgentExecutionContext;
+  perStepToolResults: NonNullable<GlobalAgentExecutionContext["perStepToolResults"]>;
+  currentPath: string | undefined;
+  currentPageContext: PageAgentSnapshot | null | undefined;
+  /** Total step count for the onWorkflowStep callback. */
+  total: number;
+  /** True for the first attempt of a step — gates onWorkflowStep firing. */
+  isFirstAttempt: boolean;
+}
+
+interface RunStepOutcome {
+  result: AgentActionResult;
+  currentPath: string | undefined;
+}
+
+/**
+ * Execute a single expanded step with `retryPolicy`-aware retries.
+ * Branches on `step.toolName` to either invoke `ctx.callTool` (tool-call
+ * path) or `ctx.dispatch` (UI dispatch path). Updates `perStepToolResults`
+ * after every successful tool call so subsequent steps can resolve
+ * `${stepId.key}` placeholders.
+ */
+async function runStepWithRetry(
+  step: ExpandedWorkflowStep,
+  index: number,
+  rsCtx: Omit<RunStepContext, "isFirstAttempt">
+): Promise<RunStepOutcome> {
+  const policy = step.retryPolicy;
+  const maxAttempts = Math.max(1, policy?.maxAttempts ?? 1);
+  const backoffMs = Math.max(0, policy?.backoffMs ?? 0);
+
+  let lastResult: AgentActionResult = { ok: false, reason: "no attempt made" };
+  let pathAfter = rsCtx.currentPath;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const attemptOutcome = await executeStepOnce(step, index, {
+      ...rsCtx,
+      currentPath: pathAfter,
+      isFirstAttempt: attempt === 1,
+    });
+    pathAfter = attemptOutcome.currentPath;
+    lastResult = attemptOutcome.result;
+    if (attemptOutcome.result.ok) return { result: attemptOutcome.result, currentPath: pathAfter };
+    if (attempt < maxAttempts && backoffMs > 0) await wait(backoffMs);
+  }
+  return { result: lastResult, currentPath: pathAfter };
+}
+
+/**
+ * One attempt at executing a step. Resolves `${stepId.key}` refs in
+ * toolArgs, navigates if the step targets a new path, then invokes either
+ * `ctx.callTool` or `ctx.dispatch`. Returns the AgentActionResult plus the
+ * (possibly updated) currentPath.
+ */
+async function executeStepOnce(
+  step: ExpandedWorkflowStep,
+  index: number,
+  rsCtx: RunStepContext
+): Promise<RunStepOutcome> {
+  const { ctx, perStepToolResults } = rsCtx;
+  let currentPath = rsCtx.currentPath;
+
+  // Tool-call path — when the planner declared `toolName`, the orchestrator
+  // routes through ctx.callTool instead of dispatch. The step may still
+  // declare a `path` so subsequent UI steps land on the right page; navigate
+  // first so a follow-up UI step doesn't pay for the page load.
+  if (step.toolName) {
+    if (!ctx.callTool) {
+      return {
+        result: { ok: false, reason: `callTool hook missing for tool ${step.toolName}` },
+        currentPath,
+      };
+    }
+    if (step.path && step.path !== currentPath) {
+      await navigateAndSettle(step.path, ctx);
+      currentPath = step.path;
+    }
+    if (rsCtx.isFirstAttempt) {
+      ctx.onWorkflowStep?.({
+        index,
+        total: rsCtx.total,
+        label: step.label,
+        path: step.path,
+        // Synthetic action for telemetry — tool-call steps don't have a real
+        // AgentAction; the consumer treats `search.query` as the tool name.
+        action: { type: "search", query: step.toolName },
+      });
+    }
+    const resolvedArgs = resolveStepRefsInArgs({
+      args: step.toolArgs ?? {},
+      perStepToolResults,
+    }) ?? {};
+    let toolRes: { ok: boolean; data?: unknown; reason?: string };
+    try {
+      toolRes = await ctx.callTool(step.toolName, resolvedArgs);
+    } catch (err) {
+      toolRes = {
+        ok: false,
+        reason: err instanceof Error ? err.message : String(err),
+      };
+    }
+    const bindingKey = toolResultBindingKey(step, index);
+    const existingEntry = perStepToolResults.find(e => e.stepId === bindingKey);
+    if (existingEntry) {
+      existingEntry.toolResults.push({ ok: toolRes.ok, data: toolRes.data });
+    } else {
+      perStepToolResults.push({
+        stepId: bindingKey,
+        toolResults: [{ ok: toolRes.ok, data: toolRes.data }],
+      });
+    }
+    return {
+      result: toolRes.ok
+        ? { ok: true, message: `tool ${step.toolName} ok` }
+        : { ok: false, reason: toolRes.reason ?? `tool ${step.toolName} failed` },
+      currentPath,
+    };
+  }
+
+  // UI dispatch path (legacy behaviour).
+  if (!step.action) {
+    return {
+      result: { ok: false, reason: `step "${step.label}" has neither toolName nor action` },
+      currentPath,
+    };
+  }
+
+  const fallbackForStep = step.path
+    ? null
+    : globalAgentRegistry.planWithFallback(step.action, rsCtx.currentPageContext)?.steps[0] ?? null;
+  const effectivePath = step.path ?? fallbackForStep?.path;
+  if (effectivePath && effectivePath !== currentPath) {
+    await navigateAndSettle(effectivePath, ctx);
+    currentPath = effectivePath;
+  }
+  if (rsCtx.isFirstAttempt) {
+    ctx.onWorkflowStep?.({
+      index,
+      total: rsCtx.total,
+      label: step.label,
+      path: effectivePath,
+      action: step.action,
+    });
+  }
+  if (step.action.type === "navigate") {
+    return {
+      result: { ok: true, message: `navigated to ${effectivePath ?? step.action.path}` },
+      currentPath,
+    };
+  }
+  const targetPageId = effectivePath
+    ? globalAgentRegistry.findByPath(effectivePath)?.pageId ?? fallbackForStep?.targetPageId
+    : globalAgentRegistry.planWithFallback(step.action, rsCtx.currentPageContext)?.steps[0]?.targetPageId;
+  const res = normalizeResult(
+    await ctx.dispatch(step.action, {
+      targetPageId,
+      enqueueIfNoHandler: true,
+      requireConfirmation: ctx.requireConfirmationForWorkflowSteps ?? false,
+      source: ctx.source,
+      intentSummary: ctx.intentSummary,
+    })
+  );
+  return { result: res, currentPath };
 }
 
 export function parallelSchedulerEnabled(action: RunWorkflowAction): boolean {
