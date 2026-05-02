@@ -53,10 +53,12 @@
   --font-sans: "Noto Sans TC", "Inter", system-ui, sans-serif;
   /* Healing animation timing tokens */
   --ease-healing: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --ease-healing-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-breath: cubic-bezier(0.37, 0, 0.63, 1);
   --duration-gentle: 0.4s;
   --duration-breath: 4s;
   --duration-ambient: 20s;
+  --duration-page: 0.32s;
 }
 
 :root {
@@ -73,7 +75,8 @@
   --secondary: oklch(0.93 0.01 75);
   --secondary-foreground: oklch(0.35 0.01 60);
   --muted: oklch(0.94 0.008 75);
-  --muted-foreground: oklch(0.5 0.015 60);
+  /* Tightened from 0.5 → 0.46 for WCAG AA contrast on glass surfaces */
+  --muted-foreground: oklch(0.46 0.015 60);
   --accent: oklch(0.91 0.015 300);
   --accent-foreground: oklch(0.35 0.02 300);
   --destructive: oklch(0.6 0.15 25);
@@ -94,6 +97,77 @@
   --sidebar-accent-foreground: oklch(0.28 0.01 60);
   --sidebar-border: oklch(0.91 0.01 75);
   --sidebar-ring: oklch(0.55 0.04 60);
+
+  /* Healing rhythm scale — consistent vertical/horizontal spacing */
+  --space-1: 0.25rem;   /* 4px */
+  --space-2: 0.5rem;    /* 8px */
+  --space-3: 0.75rem;   /* 12px */
+  --space-4: 1rem;      /* 16px */
+  --space-5: 1.5rem;    /* 24px */
+  --space-6: 2rem;      /* 32px */
+  --space-7: 3rem;      /* 48px */
+  --space-8: 4rem;      /* 64px */
+  --space-9: 6rem;      /* 96px */
+  --space-10: 8rem;     /* 128px */
+  --space-11: 10rem;    /* 160px */
+  --space-12: 12rem;    /* 192px */
+
+  /* Semantic glass surface tiers — replace ad-hoc bg-background/60 patterns */
+  --surface-1: oklch(0.99 0.003 75 / 0.55);
+  --surface-2: oklch(0.99 0.003 75 / 0.7);
+  --surface-3: oklch(0.99 0.003 75 / 0.85);
+  --surface-border: oklch(0.99 0.003 75 / 0.5);
+
+  /* WCAG-validated text colors for use on glass surfaces */
+  --text-on-glass-strong: oklch(0.28 0.01 60);
+  --text-on-glass-soft: oklch(0.42 0.012 60);
+
+  /* Unified focus ring — soft lavender glow */
+  --ring-healing: oklch(0.82 0.04 300 / 0.55);
+  --ring-healing-strong: oklch(0.72 0.06 300 / 0.7);
+}
+
+/* ─── Dark Mode — Night-leaning palette harmonized with nightSky/deepSea ─── */
+.dark {
+  --background: oklch(0.18 0.012 280);
+  --foreground: oklch(0.93 0.008 75);
+  --card: oklch(0.24 0.012 270 / 0.55);
+  --card-foreground: oklch(0.93 0.008 75);
+  --popover: oklch(0.22 0.012 270 / 0.92);
+  --popover-foreground: oklch(0.93 0.008 75);
+  --primary: oklch(0.85 0.03 300);
+  --primary-foreground: oklch(0.2 0.012 280);
+  --secondary: oklch(0.28 0.012 280);
+  --secondary-foreground: oklch(0.92 0.008 75);
+  --muted: oklch(0.26 0.012 280);
+  --muted-foreground: oklch(0.72 0.014 75);
+  --accent: oklch(0.34 0.025 300);
+  --accent-foreground: oklch(0.93 0.018 300);
+  --destructive: oklch(0.65 0.18 25);
+  --destructive-foreground: oklch(0.97 0.006 75);
+  --border: oklch(0.32 0.012 270 / 0.6);
+  --input: oklch(0.3 0.012 270 / 0.7);
+  --ring: oklch(0.72 0.05 300);
+
+  --sidebar: oklch(0.2 0.012 280 / 0.8);
+  --sidebar-foreground: oklch(0.92 0.008 75);
+  --sidebar-primary: oklch(0.85 0.03 300);
+  --sidebar-primary-foreground: oklch(0.2 0.012 280);
+  --sidebar-accent: oklch(0.28 0.012 280);
+  --sidebar-accent-foreground: oklch(0.92 0.008 75);
+  --sidebar-border: oklch(0.32 0.012 270 / 0.5);
+  --sidebar-ring: oklch(0.72 0.05 300);
+
+  --surface-1: oklch(0.22 0.012 280 / 0.55);
+  --surface-2: oklch(0.24 0.012 280 / 0.7);
+  --surface-3: oklch(0.26 0.012 280 / 0.85);
+  --surface-border: oklch(0.32 0.012 280 / 0.45);
+
+  --text-on-glass-strong: oklch(0.95 0.008 75);
+  --text-on-glass-soft: oklch(0.78 0.012 75);
+
+  --ring-healing: oklch(0.72 0.05 300 / 0.55);
+  --ring-healing-strong: oklch(0.82 0.06 300 / 0.75);
 }
 
 @layer base {
@@ -131,9 +205,15 @@
   }
   /* Healing focus ring — soft lavender glow instead of harsh outline */
   :focus-visible {
-    outline: 2px solid oklch(0.82 0.04 300 / 0.5);
+    outline: 2px solid var(--ring-healing);
     outline-offset: 2px;
     border-radius: 6px;
+  }
+  /* Stronger focus ring on small screens for thumb visibility */
+  @media (max-width: 640px) {
+    :focus-visible {
+      outline-width: 3px;
+    }
   }
   /* Smoother scrollbar for healing feel */
   ::-webkit-scrollbar {
@@ -213,6 +293,73 @@
     box-shadow:
       0 1px 2px rgba(108, 108, 108, 0.03),
       0 4px 16px rgba(108, 108, 108, 0.06);
+  }
+
+  /* Dark-mode glass surfaces — deep night tone with same blur/blur-saturate */
+  :is(.dark) .glass-card,
+  :is(.dark) .glass-card-static {
+    background: rgba(20, 25, 40, 0.55);
+    border-color: rgba(180, 170, 220, 0.18);
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.2),
+      0 4px 16px rgba(0, 0, 0, 0.25),
+      0 8px 32px rgba(120, 100, 180, 0.08);
+  }
+  :is(.dark) .glass-card:hover {
+    border-color: rgba(212, 197, 226, 0.32);
+    box-shadow:
+      0 2px 4px rgba(0, 0, 0, 0.25),
+      0 8px 24px rgba(0, 0, 0, 0.3),
+      0 16px 48px rgba(160, 140, 220, 0.18);
+  }
+
+  /* ─── Semantic Surface Tiers — replace ad-hoc bg-background/60 ────── */
+  .surface-1 {
+    background: var(--surface-1);
+    border: 1px solid var(--surface-border);
+    border-radius: 1rem;
+    backdrop-filter: blur(12px) saturate(160%);
+    -webkit-backdrop-filter: blur(12px) saturate(160%);
+  }
+  .surface-2 {
+    background: var(--surface-2);
+    border: 1px solid var(--surface-border);
+    border-radius: 1rem;
+    backdrop-filter: blur(14px) saturate(170%);
+    -webkit-backdrop-filter: blur(14px) saturate(170%);
+  }
+  .surface-3 {
+    background: var(--surface-3);
+    border: 1px solid var(--surface-border);
+    border-radius: 1rem;
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+  }
+  .text-glass-strong {
+    color: var(--text-on-glass-strong);
+  }
+  .text-glass-soft {
+    color: var(--text-on-glass-soft);
+  }
+
+  /* ─── Unified Healing Transition ─── */
+  .transition-healing {
+    transition: all var(--duration-gentle) var(--ease-healing);
+  }
+  .transition-healing-out {
+    transition: all var(--duration-gentle) var(--ease-healing-out);
+  }
+
+  /* ─── Unified Healing Focus Ring ─── */
+  .focus-ring-healing:focus-visible {
+    outline: 2px solid var(--ring-healing);
+    outline-offset: 2px;
+    border-radius: 0.5rem;
+  }
+  @media (max-width: 640px) {
+    .focus-ring-healing:focus-visible {
+      outline-width: 3px;
+    }
   }
 
   /* ─── Shimmer Animation ──────────────────────────────────────────── */
@@ -454,9 +601,22 @@
     );
   }
 
-  /* ─── Safe Area for iOS bottom bar ─── */
+  /* ─── Safe Area for iOS notches & home indicator ─── */
   .safe-area-pb {
     padding-bottom: max(0.625rem, env(safe-area-inset-bottom, 0px));
+  }
+  .safe-area-pt {
+    padding-top: max(0.625rem, env(safe-area-inset-top, 0px));
+  }
+  .safe-area-pl {
+    padding-left: max(0.625rem, env(safe-area-inset-left, 0px));
+  }
+  .safe-area-pr {
+    padding-right: max(0.625rem, env(safe-area-inset-right, 0px));
+  }
+  .safe-area-px {
+    padding-left: max(0.625rem, env(safe-area-inset-left, 0px));
+    padding-right: max(0.625rem, env(safe-area-inset-right, 0px));
   }
 
   /* ─── Healing Utility Classes ─────────────────────────────────── */
@@ -762,13 +922,24 @@
 
   /* ─── Workspace Reduced Motion — respect user preference ──────── */
   @media (prefers-reduced-motion: reduce) {
-    .workspace-ambient-bg {
-      animation: none;
+    .workspace-ambient-bg,
+    .workspace-orb,
+    .healing-wash-bg,
+    .glow-healing,
+    .orb-breathe {
+      animation: none !important;
     }
 
     .workspace-orb {
-      animation: none;
       opacity: 0.12;
+    }
+
+    .transition-healing,
+    .transition-healing-out,
+    .hover-lift,
+    .btn-healing,
+    .img-healing {
+      transition: none !important;
     }
   }
 
@@ -870,6 +1041,24 @@
     [role="button"],
     a {
       min-height: 36px;
+    }
+
+    /* Single-column stack for bento on phones */
+    .mobile-stack-bento {
+      grid-template-columns: 1fr !important;
+      grid-auto-rows: auto !important;
+    }
+    .mobile-stack-bento > * {
+      grid-column: span 1 !important;
+      grid-row: span 1 !important;
+    }
+  }
+
+  /* Stronger touch targets at very small widths (< 400px) */
+  @media (max-width: 400px) {
+    .touch-target {
+      min-height: 48px;
+      min-width: 48px;
     }
   }
 

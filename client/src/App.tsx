@@ -23,9 +23,12 @@ import { OrbGuideProvider } from "./contexts/OrbGuideContext";
 import { PageAgentProvider } from "./contexts/PageAgentContext";
 import { GlobalOrbChatProvider } from "./contexts/GlobalOrbChatContext";
 import { PersonalSettingsProvider } from "./contexts/PersonalSettingsContext";
+import SkipToContent from "./components/SkipToContent";
+import RouteTransition from "./components/RouteTransition";
 const SiteOnboardingOverlay = lazy(
   () => import("./components/SiteOnboardingOverlay")
 );
+const CommandPalette = lazy(() => import("./components/CommandPalette"));
 
 // ─── 首頁直接載入（不延遲，確保首屏最快） ─────────────────────────────────
 import Home from "./pages/Home";
@@ -97,7 +100,9 @@ function DashboardRoute({
   return (
     <DashboardLayout>
       <Suspense fallback={<PageSkeleton />}>
-        <Component />
+        <RouteTransition>
+          <Component />
+        </RouteTransition>
       </Suspense>
     </DashboardLayout>
   );
@@ -112,7 +117,9 @@ function ProtectedDashboardRoute({
     <DashboardLayout>
       <ErrorBoundary inline>
         <Suspense fallback={<PageSkeleton />}>
-          <Component />
+          <RouteTransition>
+            <Component />
+          </RouteTransition>
         </Suspense>
       </ErrorBoundary>
     </DashboardLayout>
@@ -317,6 +324,7 @@ function App() {
                     <PageAgentProvider>
                     <GlobalOrbChatProvider>
                     <TooltipProvider>
+                      <SkipToContent />
                       <Toaster />
                       <OAuthErrorToast />
                       <OfflineBanner />
@@ -327,6 +335,9 @@ function App() {
                       <AssetsQuickDrawer />
                       <Suspense fallback={null}>
                         <SiteOnboardingOverlay />
+                      </Suspense>
+                      <Suspense fallback={null}>
+                        <CommandPalette />
                       </Suspense>
                     </TooltipProvider>
                     </GlobalOrbChatProvider>

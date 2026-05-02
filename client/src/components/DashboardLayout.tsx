@@ -62,6 +62,7 @@ import {
   Music,
   GripVertical,
   Bot,
+  Sparkles,
 } from "lucide-react";
 import { BackgroundTasksProvider } from "@/contexts/BackgroundTasksContext";
 import BackgroundTasksDrawer from "./BackgroundTasksDrawer";
@@ -609,18 +610,32 @@ function DashboardLayoutContent({
           <SidebarContent className="gap-0">
             {!isCollapsed && (
               <div className="px-3 pt-2 pb-1">
-                <div className="rounded-xl border border-border/70 bg-background/70 px-2.5 py-2">
+                <label
+                  className="surface-1 flex items-center gap-2 rounded-xl px-2.5 py-2 transition-healing focus-within:[outline:2px_solid_var(--ring-healing)] focus-within:outline-offset-1"
+                  aria-label="搜尋側邊欄功能"
+                >
                   <input
                     value={sidebarQuery}
                     onChange={e => setSidebarQuery(e.target.value)}
-                    placeholder="搜尋側邊欄功能..."
-                    className="w-full bg-transparent text-xs outline-none placeholder:text-muted-foreground/80"
+                    placeholder="搜尋功能..."
+                    className="flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground/80"
                     aria-label="搜尋側邊欄功能"
                   />
-                </div>
+                  <kbd
+                    className="hidden md:inline-flex items-center gap-0.5 rounded-md border border-border/60 bg-background/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+                    title="⌘K / Ctrl+K 全站指令面板"
+                  >
+                    ⌘K
+                  </kbd>
+                </label>
               </div>
             )}
-            <SidebarMenu className="px-2 py-1" id="sidebar-nav">
+            <SidebarMenu
+              className="px-2 py-1"
+              id="sidebar-nav"
+              role="navigation"
+              aria-label="主導覽"
+            >
               {visibleSidebarStructure.map(entry => {
                 if (isGroup(entry)) {
                   const hasActiveChild = entry.children.some(
@@ -777,13 +792,27 @@ function DashboardLayoutContent({
                   </div>
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuItem
                   onClick={() => setLocation("/")}
                   className="cursor-pointer"
                 >
                   <Home className="mr-2 h-4 w-4" />
                   <span>首頁</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setLocation("/settings")}
+                  className="cursor-pointer"
+                >
+                  <Settings className="mr-2 h-4 w-4" />
+                  <span>個人設定</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => startTour("welcome", true)}
+                  className="cursor-pointer"
+                >
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  <span>重新開始導覽</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={logout}
@@ -907,7 +936,7 @@ function DashboardLayoutContent({
                     </span>
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuContent align="end" className="w-52 sm:w-56">
                   <div className="px-3 py-2 border-b mb-1">
                     <p className="text-sm font-medium truncate">
                       {displayName}
@@ -924,6 +953,20 @@ function DashboardLayoutContent({
                     <span>首頁</span>
                   </DropdownMenuItem>
                   <DropdownMenuItem
+                    onClick={() => setLocation("/settings")}
+                    className="cursor-pointer h-10"
+                  >
+                    <Settings className="mr-2 h-4 w-4" />
+                    <span>個人設定</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => startTour("welcome", true)}
+                    className="cursor-pointer h-10"
+                  >
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    <span>重新開始導覽</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
                     onClick={logout}
                     className="cursor-pointer text-destructive focus:text-destructive h-10"
                   >
@@ -936,9 +979,11 @@ function DashboardLayoutContent({
           </div>
         )}
         <main
+          id="main-content"
+          tabIndex={-1}
           className={`relative flex-1 overflow-y-auto ${
             settings.compactMode ? "p-3 sm:p-4 lg:p-5" : "p-4 sm:p-6 lg:p-8"
-          } pb-safe-area-inset-bottom`}
+          } pb-safe-area-inset-bottom focus:outline-none`}
           data-scroll-area
           style={{
             paddingBottom: settings.compactMode
