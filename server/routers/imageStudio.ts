@@ -323,7 +323,7 @@ export function normalizeAspectRatio(
   const parts = ratio.split(":");
   const w = Number(parts[0]);
   const h = Number(parts[1]);
-  if (!w || !h || isNaN(w) || isNaN(h)) return supportedRatios[0];
+  if (isNaN(w) || isNaN(h) || w <= 0 || h <= 0) return supportedRatios[0];
   const target = w / h;
   let best = supportedRatios[0];
   let bestDiff = Infinity;
@@ -332,7 +332,7 @@ export function normalizeAspectRatio(
     const rParts = r.split(":");
     const rw = Number(rParts[0]);
     const rh = Number(rParts[1]);
-    if (!rw || !rh) continue;
+    if (rw <= 0 || rh <= 0) continue;
     const diff = Math.abs(rw / rh - target);
     if (diff < bestDiff) {
       bestDiff = diff;
@@ -341,6 +341,12 @@ export function normalizeAspectRatio(
   }
   return best;
 }
+
+/** SeeDream v4 支援的比例集合（共 7 種） */
+const SEEDREAM_V4_RATIOS = ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"] as const;
+
+/** Google Imagen 4 支援的比例集合（共 5 種） */
+const IMAGEN4_RATIOS = ["1:1", "16:9", "9:16", "4:3", "3:4"] as const;
 
 // ─── Router ──────────────────────────────────────────────────────────────────
 
@@ -438,7 +444,6 @@ export const imageStudioRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const SEEDREAM_V4_RATIOS = ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"] as const;
       const raw = (await falQueueRun(
         "fal-ai/bytedance/seedream/v4/text-to-image",
         {
@@ -471,7 +476,6 @@ export const imageStudioRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const IMAGEN4_RATIOS = ["1:1", "16:9", "9:16", "4:3", "3:4"] as const;
       const raw = (await falQueueRun(
         "fal-ai/imagen4/preview",
         {

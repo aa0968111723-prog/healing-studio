@@ -95,6 +95,12 @@ type StudioTab =
 
 type ModelCategory = "t2i" | "edit" | "upscale" | "pose" | "sd" | "3d";
 
+// Hunyuan3D face count range constants
+const HUNYUAN_FACE_COUNT_MIN = 40000;
+const HUNYUAN_FACE_COUNT_MAX = 1500000;
+const HUNYUAN_FACE_COUNT_STEP = 10000;
+const HUNYUAN_FACE_COUNT_DEFAULT = 500000;
+
 type ModelInfo = {
   id: string;
   falId: string;
@@ -2321,9 +2327,9 @@ function ThreeDPanel({
             </Label>
             <input
               type="range"
-              min={40000}
-              max={1500000}
-              step={10000}
+              min={HUNYUAN_FACE_COUNT_MIN}
+              max={HUNYUAN_FACE_COUNT_MAX}
+              step={HUNYUAN_FACE_COUNT_STEP}
               value={hunyuanFaceCount}
               onChange={e => setHunyuanFaceCount(Number(e.target.value))}
               className="w-full"
@@ -2641,7 +2647,7 @@ export default function ImageStudio() {
   const [hunyuanGenType, setHunyuanGenType] = useState<
     "Normal" | "LowPoly" | "Geometry"
   >("Normal");
-  const [hunyuanFaceCount, setHunyuanFaceCount] = useState(500000);
+  const [hunyuanFaceCount, setHunyuanFaceCount] = useState(HUNYUAN_FACE_COUNT_DEFAULT);
   const [hunyuanPolygonType, setHunyuanPolygonType] = useState<
     "triangle" | "quadrilateral"
   >("triangle");
@@ -3760,7 +3766,7 @@ export default function ImageStudio() {
               if (typeof value === "string") setHunyuanGenType(value as "Normal" | "LowPoly" | "Geometry");
               return { ok: true, message: `3D 類型已設為 ${value}` };
             case "hunyuanFaceCount":
-              if (typeof value === "number") setHunyuanFaceCount(value);
+              if (typeof value === "number") setHunyuanFaceCount(Math.max(HUNYUAN_FACE_COUNT_MIN, Math.min(HUNYUAN_FACE_COUNT_MAX, value)));
               return { ok: true, message: `面數已設為 ${value}` };
             case "hunyuanPolygonType":
               if (typeof value === "string") setHunyuanPolygonType(value as "triangle" | "quadrilateral");
