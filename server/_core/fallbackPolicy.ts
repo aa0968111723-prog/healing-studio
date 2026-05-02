@@ -84,6 +84,41 @@ export const PER_MODEL_FALLBACK: Record<string, string[]> = {
     "fal-ai/flux-pro/v1.1",
     "fal-ai/stable-diffusion-v35-large",
   ],
+  // 圖片編輯模型 fallback（同系列優先）
+  "fal-ai/nano-banana-pro/edit": [
+    "fal-ai/nano-banana-2/edit",
+    "fal-ai/nano-banana/edit",
+    "fal-ai/flux-pro/kontext",
+  ],
+  "fal-ai/nano-banana-2/edit": [
+    "fal-ai/nano-banana-pro/edit",
+    "fal-ai/nano-banana/edit",
+    "fal-ai/flux-pro/kontext",
+  ],
+  "fal-ai/nano-banana/edit": [
+    "fal-ai/nano-banana-2/edit",
+    "fal-ai/nano-banana-pro/edit",
+  ],
+  "fal-ai/bytedance/seedream/v4.5/edit": [
+    "fal-ai/bytedance/seedream/v5/lite/edit",
+    "fal-ai/flux-pro/kontext",
+  ],
+  "fal-ai/bytedance/seedream/v5/lite/edit": [
+    "fal-ai/bytedance/seedream/v4.5/edit",
+    "fal-ai/flux-pro/kontext",
+  ],
+  "fal-ai/gpt-image-1.5/edit": [
+    "fal-ai/flux-pro/kontext",
+    "fal-ai/nano-banana-pro/edit",
+  ],
+  "fal-ai/flux-pro/kontext": [
+    "fal-ai/flux-2-pro/edit",
+    "fal-ai/nano-banana-pro/edit",
+  ],
+  "fal-ai/flux-2-pro/edit": [
+    "fal-ai/flux-pro/kontext",
+    "fal-ai/nano-banana-pro/edit",
+  ],
   // 圖像引擎(向後相容舊別名)
   "flux-pro": ["fal-ai/flux-pro/v1.1", "flux-schnell", "dall-e-3"],
   "flux-schnell": ["flux-pro", "dall-e-3"],

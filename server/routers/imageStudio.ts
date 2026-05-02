@@ -305,6 +305,43 @@ function mergeNegativePrompt(userNegative?: string): string {
   return `${userNegative}, ${DEFAULT_NEGATIVE_PROMPT}`;
 }
 
+/**
+ * 將任意 aspect_ratio 正規化為模型實際支援的最近似值。
+ * - `auto` → 優先取 "1:1"；若不支援則取第一個
+ * - 其他值 → 以數值距離找最接近的支援比例
+ * 可用於 seedreamV4、imagen4、nanoBananaProEdit 等限制比例集合的端點，
+ * 防止傳入不支援的比例時 fal.ai 回 400 錯誤。
+ */
+export function normalizeAspectRatio(
+  ratio: string,
+  supportedRatios: readonly string[]
+): string {
+  if (supportedRatios.includes(ratio)) return ratio;
+  if (ratio === "auto") {
+    return supportedRatios.includes("1:1") ? "1:1" : supportedRatios[0];
+  }
+  const parts = ratio.split(":");
+  const w = Number(parts[0]);
+  const h = Number(parts[1]);
+  if (!w || !h || isNaN(w) || isNaN(h)) return supportedRatios[0];
+  const target = w / h;
+  let best = supportedRatios[0];
+  let bestDiff = Infinity;
+  for (const r of supportedRatios) {
+    if (r === "auto") continue;
+    const rParts = r.split(":");
+    const rw = Number(rParts[0]);
+    const rh = Number(rParts[1]);
+    if (!rw || !rh) continue;
+    const diff = Math.abs(rw / rh - target);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = r;
+    }
+  }
+  return best;
+}
+
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 export const imageStudioRouter = router({
@@ -395,20 +432,18 @@ export const imageStudioRouter = router({
     .input(
       z.object({
         prompt: z.string().min(1).max(4000),
-        aspect_ratio: z
-          .enum(["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"])
-          .optional()
-          .default("1:1"),
+        aspect_ratio: z.string().optional().default("1:1"),
         negative_prompt: z.string().optional(),
         num_images: z.number().min(1).max(4).optional().default(1),
       })
     )
     .mutation(async ({ input }) => {
+      const SEEDREAM_V4_RATIOS = ["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"] as const;
       const raw = (await falQueueRun(
         "fal-ai/bytedance/seedream/v4/text-to-image",
         {
           prompt: input.prompt,
-          aspect_ratio: input.aspect_ratio,
+          aspect_ratio: normalizeAspectRatio(input.aspect_ratio ?? "1:1", SEEDREAM_V4_RATIOS),
           negative_prompt: mergeNegativePrompt(input.negative_prompt),
           num_images: input.num_images,
         },
@@ -430,20 +465,18 @@ export const imageStudioRouter = router({
     .input(
       z.object({
         prompt: z.string().min(1).max(4000),
-        aspect_ratio: z
-          .enum(["1:1", "16:9", "9:16", "4:3", "3:4"])
-          .optional()
-          .default("1:1"),
+        aspect_ratio: z.string().optional().default("1:1"),
         num_images: z.number().min(1).max(4).optional().default(1),
         negative_prompt: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {
+      const IMAGEN4_RATIOS = ["1:1", "16:9", "9:16", "4:3", "3:4"] as const;
       const raw = (await falQueueRun(
         "fal-ai/imagen4/preview",
         {
           prompt: input.prompt,
-          aspect_ratio: input.aspect_ratio,
+          aspect_ratio: normalizeAspectRatio(input.aspect_ratio ?? "1:1", IMAGEN4_RATIOS),
           num_images: input.num_images,
           negative_prompt: mergeNegativePrompt(input.negative_prompt),
         },
@@ -471,15 +504,23 @@ export const imageStudioRouter = router({
         prompt: z.string().min(1).max(4000),
         image_url: z.string().url(),
         image_urls: z.array(z.string().url()).max(13).optional(), // 額外參考圖
+        aspect_ratio: z.string().optional().default("auto"),
+        num_images: z.number().min(1).max(4).optional().default(1),
       })
     )
     .mutation(async ({ input }) => {
       const urls = [input.image_url, ...(input.image_urls ?? [])];
+      const normalizedRatio = normalizeAspectRatio(
+        input.aspect_ratio ?? "auto",
+        ASPECT_RATIOS
+      );
       const raw = (await falQueueRun(
         "fal-ai/nano-banana-pro/edit",
         {
           prompt: input.prompt,
           image_urls: urls,
+          aspect_ratio: normalizedRatio,
+          num_images: input.num_images,
         },
         180
       )) as any;
@@ -524,16 +565,23 @@ export const imageStudioRouter = router({
         prompt: z.string().min(1).max(4000),
         image_url: z.string().url(),
         strength: z.number().min(0).max(1).optional().default(0.8),
+        negative_prompt: z.string().optional(),
+        num_images: z.number().min(1).max(4).optional().default(1),
+        seed: z.number().optional(),
       })
     )
     .mutation(async ({ input }) => {
+      const payload: Record<string, unknown> = {
+        prompt: input.prompt,
+        image_url: input.image_url,
+        strength: input.strength,
+        negative_prompt: mergeNegativePrompt(input.negative_prompt),
+        num_images: input.num_images,
+      };
+      if (input.seed !== undefined) payload.seed = input.seed;
       const raw = (await falQueueRun(
         "fal-ai/bytedance/seedream/v4.5/edit",
-        {
-          prompt: input.prompt,
-          image_url: input.image_url,
-          strength: input.strength,
-        },
+        payload,
         120
       )) as any;
       return {
@@ -553,16 +601,23 @@ export const imageStudioRouter = router({
         prompt: z.string().min(1).max(4000),
         image_url: z.string().url(),
         strength: z.number().min(0).max(1).optional().default(0.8),
+        negative_prompt: z.string().optional(),
+        num_images: z.number().min(1).max(4).optional().default(1),
+        seed: z.number().optional(),
       })
     )
     .mutation(async ({ input }) => {
+      const payload: Record<string, unknown> = {
+        prompt: input.prompt,
+        image_url: input.image_url,
+        strength: input.strength,
+        negative_prompt: mergeNegativePrompt(input.negative_prompt),
+        num_images: input.num_images,
+      };
+      if (input.seed !== undefined) payload.seed = input.seed;
       const raw = (await falQueueRun(
         "fal-ai/bytedance/seedream/v5/lite/edit",
-        {
-          prompt: input.prompt,
-          image_url: input.image_url,
-          strength: input.strength,
-        },
+        payload,
         120
       )) as any;
       return {

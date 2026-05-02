@@ -646,18 +646,25 @@ getDemoLoginUrl() // 返回 /api/oauth/demo/start
 ### 2. Nano Banana Pro（Gemini 3 Pro Image）
 - **API：** \`trpc.imageStudio.nanoBananaPro\`
 - **FAL 模型：** \`fal-ai/nano-banana-pro\`
+- **參數：** prompt、aspect_ratio（auto/1:1/16:9/9:16/4:3/3:4/4:1/1:4/21:9）、image_urls（最多 14 張參考圖）、num_images（1–4）
 - **特點：** 最高品質 Gemini 圖片模型，細節豐富，最多 14 張參考圖
+- **超時：** 180 秒
 
 ### 3. Seedream v4（ByteDance）
 - **API：** \`trpc.imageStudio.seedreamV4\`
 - **FAL 模型：** \`fal-ai/bytedance/seedream/v4/text-to-image\`
-- **比例：** 1:1、16:9、9:16、4:3、3:4、3:2、2:3
-- **特點：** ByteDance 高品質模型，中文提詞優化
+- **比例：** 1:1、16:9、9:16、4:3、3:4、3:2、2:3（不支援的比例會自動正規化到最接近的支援值）
+- **參數：** prompt、aspect_ratio、negative_prompt、num_images（1–4）
+- **特點：** ByteDance 高品質模型，中文提詞優化，含智慧比例正規化
+- **超時：** 120 秒
 
 ### 4. Google Imagen 4（Preview）
 - **API：** \`trpc.imageStudio.imagen4\`
 - **FAL 模型：** \`fal-ai/imagen4/preview\`
-- **特點：** Google 最新圖片生成模型，真實感出色
+- **比例：** 1:1、16:9、9:16、4:3、3:4（不支援的比例會自動正規化到最接近的支援值）
+- **參數：** prompt、aspect_ratio、num_images（1–4）、negative_prompt
+- **特點：** Google 最新圖片生成模型，真實感出色，含智慧比例正規化
+- **超時：** 120 秒
 
 ---
 
@@ -666,41 +673,63 @@ getDemoLoginUrl() // 返回 /api/oauth/demo/start
 ### 5. Nano Banana Pro Edit
 - **API：** \`trpc.imageStudio.nanoBananaProEdit\`
 - **FAL 模型：** \`fal-ai/nano-banana-pro/edit\`
-- **參數：** prompt、image_url、aspect_ratio
+- **參數：** prompt、image_url（必填）、image_urls（最多 13 張額外參考圖）、aspect_ratio（自動正規化）、num_images（1–4）
+- **特點：** Gemini 3 Pro 語意編輯，多圖參考融合，不需 mask
+- **超時：** 180 秒
+- **降級鏈：** nano-banana-2/edit → nano-banana/edit → flux-pro/kontext
 
 ### 6. Nano Banana Edit（Gemini 2.0 Flash）
 - **API：** \`trpc.imageStudio.nanoBananaEdit\`
 - **FAL 模型：** \`fal-ai/nano-banana/edit\`
+- **參數：** prompt、image_url（必填）、image_urls（最多 13 張額外參考圖）
+- **特點：** 速度最快的 Gemini 編輯模型，適合快速迭代
 
 ### 7. Nano Banana 2 Edit（Gemini 3.1 Flash 編輯）
 - **API：** \`trpc.imageStudio.nanoBanana2Edit\`
 - **FAL 模型：** \`fal-ai/nano-banana-2/edit\`
+- **參數：** prompt、image_url（必填）、image_urls（最多 13 張）、aspect_ratio（auto/21:9/16:9/3:2/4:3/5:4/1:1/4:5/3:4/2:3/9:16/4:1/1:4/8:1/1:8）、resolution（0.5K/1K/2K/4K）、num_images（1–4）
+- **特點：** Gemini 3.1 Flash 高效編輯，支援解析度控制
 
 ### 8. Seedream v4.5 Edit（ByteDance）
 - **API：** \`trpc.imageStudio.seedreamV45Edit\`
 - **FAL 模型：** \`fal-ai/bytedance/seedream/v4.5/edit\`
+- **參數：** prompt、image_url（必填）、strength（0–1，預設 0.8）、negative_prompt、num_images（1–4）、seed
+- **特點：** ByteDance 高品質圖片語意編輯，支援負向提示詞與批次生成
+- **降級鏈：** seedream/v5/lite/edit → flux-pro/kontext
 
 ### 9. Seedream v5 Lite Edit
 - **API：** \`trpc.imageStudio.seedreamV5LiteEdit\`
 - **FAL 模型：** \`fal-ai/bytedance/seedream/v5/lite/edit\`
+- **參數：** prompt、image_url（必填）、strength（0–1，預設 0.8）、negative_prompt、num_images（1–4）、seed
+- **特點：** 更快速的 v5 輕量版，與 v4.5 相同支援的進階參數
+- **降級鏈：** seedream/v4.5/edit → flux-pro/kontext
 
 ### 10. Grok Edit（xAI）
 - **API：** \`trpc.imageStudio.grokEdit\`
 - **FAL 模型：** \`fal-ai/grok/image-edit\`（或類似端點）
+- **參數：** prompt、image_url（必填）
+- **特點：** xAI Grok 原生多模態圖片編輯，高語意理解
 
 ### 11. GPT Image 1.5 Edit（OpenAI）
 - **API：** \`trpc.imageStudio.gptImage15Edit\`
 - **FAL 模型：** \`fal-ai/gpt-image-1.5/edit\`
-- **特點：** OpenAI 最強圖片編輯，文字插入/修改/去除，多圖合成
+- **參數：** prompt、image_url（必填）、mask_url（可選遮罩）、size（auto/1024x1024/1536x1024/1024x1536）
+- **特點：** OpenAI 最強圖片編輯，文字插入/修改/去除，多圖合成，支援 inpainting
+- **降級鏈：** flux-pro/kontext → nano-banana-pro/edit
 
 ### 12. FLUX.1 Kontext Pro（Black Forest Labs）
 - **API：** \`trpc.imageStudio.fluxKontext\`
 - **FAL 模型：** \`fal-ai/flux-pro/kontext\`
+- **參數：** prompt、image_url（必填）、guidance_scale（1–30，預設 3.5）、num_inference_steps（1–50，預設 28）、seed、output_format（jpeg/png）
 - **特點：** 語境感知編輯，保留背景同時精確修改目標區域
+- **降級鏈：** flux-2-pro/edit → nano-banana-pro/edit
 
 ### 13. Flux 2 Pro Edit
 - **API：** \`trpc.imageStudio.flux2ProEdit\`
 - **FAL 模型：** \`fal-ai/flux-2-pro/edit\`
+- **參數：** prompt、image_url（必填）、image_urls（最多 2 張）、image_size（auto/square_hd/square/portrait_4_3/portrait_16_9/landscape_4_3/landscape_16_9）、seed
+- **特點：** FLUX 2 Pro 多圖編輯融合，image_url 會自動合併入 image_urls 陣列
+- **降級鏈：** flux-pro/kontext → nano-banana-pro/edit
 
 ---
 
@@ -709,7 +738,9 @@ getDemoLoginUrl() // 返回 /api/oauth/demo/start
 ### 14. SeedVR Upscale（影像超分辨率）
 - **API：** \`trpc.imageStudio.seedVRUpscale\`
 - **FAL 模型：** \`fal-ai/seedvr/upscale/image\`
-- **特點：** ByteDance 最強超分，可放大到 4K
+- **參數：** image_url（必填）、upscale_mode（factor/target）、upscale_factor（1–4×，預設 2）、target_resolution（720p/1080p/1440p/2160p）、noise_scale（0–1）、output_format（png/jpg/webp）、seed
+- **特點：** ByteDance 最強超分，可放大到 4K，支援因子或目標解析度模式
+- **超時：** 180 秒
 
 ---
 
