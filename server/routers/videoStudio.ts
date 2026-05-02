@@ -1105,7 +1105,9 @@ export const videoStudioRouter = router({
   /**
    * DepthCrafter（深度感知影片生成）
    * fal-ai/depthcrafter
-   * 從單目影片重建深度時序，用於 3D 視差效果
+   * 從單目影片重建深度時序（depth time-series），用於 3D 視差效果或 ControlNet 深度條件；
+   * 進階參數：num_denoising_steps（去噪步數，越高越精細）、guidance_scale、
+   * window_size（時序視窗）、overlap（視窗重疊）、max_res（最大邊長）
    */
   depthCrafter: brainProcedure
     .input(
@@ -1115,6 +1117,7 @@ export const videoStudioRouter = router({
         guidance: z.number().min(1).max(20).default(1.0),
         windowSize: z.number().min(4).max(110).default(110),
         overlap: z.number().min(1).max(25).default(25),
+        maxRes: z.number().min(256).max(2048).default(1024),
       })
     )
     .mutation(async ({ input }) => {
@@ -1124,14 +1127,18 @@ export const videoStudioRouter = router({
         guidance_scale: input.guidance,
         window_size: input.windowSize,
         overlap: input.overlap,
-        max_res: 1024,
+        max_res: input.maxRes,
       };
       const result = (await falQueueRun(
         "fal-ai/depthcrafter",
         payload,
         300
       )) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   /**

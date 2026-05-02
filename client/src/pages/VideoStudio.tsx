@@ -3329,7 +3329,7 @@ function AdvancedControlTab() {
     try {
       const r = await dcMut.mutateAsync({ videoUrl: dcVideo });
       setDcResult(r);
-      registerBgTask(r, "video", "DepthCrafter 深度圖");
+      registerBgTask(r, "video", "DepthCrafter 深度感知生成");
       toast.success("📤 任務已提交！稍後自動更新結果...");
       reportSuccess();
     } catch {
