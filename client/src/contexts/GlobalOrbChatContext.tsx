@@ -40,6 +40,11 @@ import {
   workflowActionToProcessSpec,
 } from "../../../shared/orb-process-link";
 import { appendProcessLinkToReply } from "../../../shared/orb-reply-process-extractor";
+import {
+  buildContextualClarificationOptions,
+  isPhantomPlanReply,
+  extractPhantomPlanQuestion,
+} from "../../../shared/orb-clarification-options";
 import type { RunWorkflowAction } from "../../../shared/agent-actions";
 import type { GlobalOrbExecutorTask } from "@/agent/GlobalOrbExecutor";
 
@@ -208,23 +213,17 @@ export function inferClarificationOptionEmoji(text: string): string {
 }
 
 function inferClarificationIntentCards(question: string, userText: string): string[] {
-  const source = `${question} ${userText}`.toLowerCase();
-  const has = (keys: string[]) => keys.some(k => source.includes(k));
-
-  if (has(["影片", "video", "短片", "reel", "運鏡"])) {
-    return ["社群短片（15-30 秒）", "教學短片（1-3 分鐘）", "商業廣告（30-60 秒）", "我先看範例再決定"];
-  }
-  if (has(["圖片", "image", "海報", "插畫", "封面"])) {
-    return ["寫實風格", "插畫風格", "品牌海報", "先給我 3 組方向"];
-  }
-  if (has(["音樂", "audio", "配樂", "bgm", "聲音", "sfx"])) {
-    return ["療癒慢節奏", "節奏感強", "環境氛圍音", "先給我試聽方向"];
-  }
-  if (has(["配音", "voice", "旁白", "tts", "語音"])) {
-    return ["溫柔旁白", "專業廣告口吻", "活潑年輕語氣", "先讓我選聲線"];
-  }
-
-  return ["我要你直接規劃並執行", "先給我快速選項卡", "先問我 1 題就好", "我先看流程再開始"];
+  // Delegate to the shared context-aware generator so the options always
+  // reference the user's own topic (e.g. "茶道體驗短片（30 秒）" instead of
+  // generic "社群短片（15-30 秒）"). The shared util infers the modality
+  // from `userText`; we pass `question` along too so modality detection
+  // catches cases where the user asked about images but the question is
+  // phrased around video.
+  const optionPack = buildContextualClarificationOptions({
+    userText: `${userText}\n${question}`.trim(),
+    dimension: "format",
+  });
+  return optionPack.options;
 }
 
 function summarizeProviderPing(pingData: unknown): string {
@@ -1625,6 +1624,37 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         await executeActions(actionsToExecute, {
           intent: effectiveIntent,
           requireConfirmation: askBeforeAct,
+        });
+        return;
+      }
+
+      // ── Phantom-plan defence ─────────────────────────────────────
+      // Server should have caught this in `parseOrbReply`, but if a
+      // legacy / non-router path slipped through, we still want the
+      // user to get a quick-pick clarification card instead of a wall
+      // of text. Triggers only when there's nothing else actionable
+      // (no plan, no task, no actions) but the reply describes
+      // numbered steps and ends with a "which step?" question.
+      if (
+        !pendingPlan &&
+        !executorTask &&
+        !codeTaskPreview &&
+        actionsToExecute.length === 0 &&
+        isPhantomPlanReply(dataReply)
+      ) {
+        const question =
+          extractPhantomPlanQuestion(dataReply) ??
+          "我先確認一下你要的方向，這樣才能做對。";
+        const optionPack = buildContextualClarificationOptions({
+          userText: trimmed,
+          dimension: "format",
+        });
+        setPendingClarification({
+          id: `clarify_phantom_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          question,
+          options: optionPack.options,
+          originalUserText: trimmed,
+          createdAt: Date.now(),
         });
       }
     } catch (err) {

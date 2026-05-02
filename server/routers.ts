@@ -6190,6 +6190,7 @@ export const appRouter = router({
           }
           const legacy = parseOrbReply(rawReply, {
             alwaysConfirm: input.alwaysConfirm,
+            userText: latestUserTextForRouting,
           });
           // Gap 17: moderate the LLM reply text before it reaches the user.
           const legacyModeration = moderateOrbContent(legacy.reply ?? "");

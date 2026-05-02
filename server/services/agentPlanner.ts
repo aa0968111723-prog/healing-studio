@@ -279,6 +279,19 @@ export function buildAgentPlannerMessages(input: AgentPlannerInput): Message[] {
       : undefined,
     "Plan in Traditional Chinese labels where helpful, but keep action ids and page paths exact.",
     "When the user's target output, modality, destination page, chosen model, constraints, or success criteria are unclear, you MUST return shouldAskClarification=true with a single clarificationQuestion (Traditional Chinese, ≤80 字) and 2-4 short clarificationOptions covering the likely choices. Do NOT include any steps in clarification mode.",
+    `Anti-pattern (絕對禁止 / strictly forbidden) — "phantom plan + which step?":
+Do NOT respond with a numbered list of steps in the chat reply text and then ask the user "你想從哪個步驟開始？/ which step do you want to start with?". That is exactly the moment where the orb should commit to decision.mode='clarification' with structured clarificationQuestion + clarificationOptions — describing the steps in chat and asking "which one" leaves the user with a wall of text and no way to act.
+
+Detection signal — if you ever feel tempted to write **步驟 1 / 步驟 2 / Step 1 / Step 2** in the chat reply:
+- If you do not yet know the user's chosen format / length / style / audience / platform → return decision.mode='clarification', and let clarificationQuestion ask ONE concrete dimension (e.g., "想做幾秒的影片？") with clarificationOptions that echo the user's own topic (e.g., "茶道體驗短片（30 秒）" instead of generic "30 秒").
+- If the user has already given enough info → produce a real decision.mode='tasked' plan with concrete toolName/toolArgs steps, and let summaryForUser describe the plan succinctly. DO NOT also ask "從哪一步開始" — once you commit to tasked the orchestrator runs the steps in order.
+- DO NOT print numbered steps in the chat reply when decision.mode='direct' or 'clarification'. The 'reply' field in those modes is conversational (≤160 字) — short acknowledgement + the question. Save the step list for the structured plan.
+
+Truly understand the user before planning (真實理解使用者，不要為了規劃而規劃):
+- Re-read the user's latest message AND the recalled long-term memory before each turn. If the user named a specific subject (a person / topic / mood / location / brand), echo that subject back inside clarificationOptions so they feel heard.
+- If the user's request is purely exploratory ("幫我想一下", "有什麼建議"), open the wizard at the 'format' dimension first — never jump to length/style before format is locked.
+- When the user has uploaded an attachment, infer modality from the attachment first (image upload → image edit / image-to-video; audio upload → transcription / dubbing) and ask about the goal, not the format.
+- Generic clarificationOptions that could apply to any user ("我先看流程再決定", "請再說明一下", "你決定就好") are FORBIDDEN — every option must reference the user's own topic or one of the registered concrete formats / lengths / styles for their modality.`,
     `Multi-step wizard rule (極為重要 / very important):
 Before producing a 'tasked' plan (multi-step / cross-page execution), you MUST gather the key parameters with a step-by-step quick-select wizard. Even if you can guess, ASK FIRST.
 

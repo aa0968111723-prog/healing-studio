@@ -105,4 +105,68 @@ describe("parseOrbReply clarification handling", () => {
     expect(parsed.needsClarification).toBe(false);
     expect(parsed.clarificationQuestion).toBeUndefined();
   });
+
+  // ── Phantom-plan reclassification ────────────────────────────────
+  // The LLM sometimes describes a multi-step plan in chat then asks
+  // "你比較想從哪個步驟開始？". That's the exact moment the orb should
+  // switch to a structured clarification — otherwise the user gets a
+  // wall of text with no quick-pick. parseOrbReply now catches this
+  // pattern and surfaces context-aware options derived from userText.
+  it("reclassifies a phantom plan reply as clarification with topic-aware options", () => {
+    const raw = [
+      "**步驟 1** → 導演 AI 規劃腳本（用 CO-STAR 框架構思製茶故事線）",
+      "**步驟 2** → 圖片工作室生成關鍵製茶場景（寫實風格）",
+      "**步驟 3** → 影片工作室製作動態影片（用 Kling 2.1 最高品質）",
+      "**步驟 4** → 音樂配音創作室添加背景音樂（可選茶道相關音樂）",
+      "",
+      "你比較想從哪個步驟開始？還是有其他想法呢？✨",
+    ].join("\n");
+    const parsed = parseOrbReply(raw, { userText: "幫我做一支關於茶的療癒短片" });
+    expect(parsed.needsClarification).toBe(true);
+    expect(parsed.clarificationQuestion).toContain("從哪個步驟");
+    expect(parsed.actions).toEqual([]);
+    expect(parsed.askBeforeAct).toBe(true);
+    expect(parsed.clarificationOptions).toBeTruthy();
+    // Options should echo the user's own topic word rather than fall back
+    // to generic "我先看流程再決定" placeholders.
+    const joined = (parsed.clarificationOptions ?? []).join(" ");
+    expect(joined).toMatch(/茶|短片|秒|分鐘/);
+    // Always includes an open-input escape hatch so users aren't trapped.
+    expect(parsed.clarificationOptions).toContain("我自己描述一下");
+  });
+
+  it("does NOT reclassify when reply has steps but no question", () => {
+    const raw = [
+      "**步驟 1** → 規劃腳本",
+      "**步驟 2** → 生成圖片",
+      "**步驟 3** → 套上音樂",
+    ].join("\n");
+    const parsed = parseOrbReply(raw, { userText: "做一支茶的影片" });
+    expect(parsed.needsClarification).toBe(false);
+  });
+
+  it("does NOT reclassify when reply has actions (real plan was emitted)", () => {
+    const raw = JSON.stringify({
+      reply: "**步驟 1** → 切到 t2i\n**步驟 2** → 填入提示詞\n你想從哪一步開始？",
+      actions: [{ type: "fillPrompt", payload: "夜晚電影感" }],
+    });
+    const parsed = parseOrbReply(raw, { userText: "做夜晚電影感的圖" });
+    expect(parsed.needsClarification).toBe(false);
+    expect(parsed.actions.length).toBeGreaterThan(0);
+  });
+
+  it("backfills topic-aware options when planner clarification ships empty options", () => {
+    const raw = JSON.stringify({
+      reply: "我先確認一下你想做的方向。",
+      shouldAskClarification: true,
+      clarificationQuestion: "想做什麼類型的茶影片？",
+      clarificationOptions: [],
+    });
+    const parsed = parseOrbReply(raw, { userText: "想做關於茶的短片" });
+    expect(parsed.needsClarification).toBe(true);
+    expect(parsed.clarificationOptions).toBeTruthy();
+    expect(parsed.clarificationOptions!.length).toBeGreaterThan(0);
+    const joined = (parsed.clarificationOptions ?? []).join(" ");
+    expect(joined).toMatch(/茶|短片|秒|分鐘/);
+  });
 });
