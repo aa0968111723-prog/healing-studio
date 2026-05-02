@@ -1002,7 +1002,8 @@ export const videoStudioRouter = router({
   /**
    * CamMaster Camera Control
    * fal-ai/cammaster
-   * 精確鏡頭運動控制（推拉搖移旋轉），基於圖生影
+   * 精確鏡頭運動控制（17 種運鏡：靜止、推拉、上下移、左右搖、上下俯仰、
+   * 順逆時針旋轉、水平/垂直環繞、升降鏡），基於圖生影；premium 層級
    */
   camMaster: brainProcedure
     .input(
@@ -1045,7 +1046,11 @@ export const videoStudioRouter = router({
         payload,
         300
       )) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   /**

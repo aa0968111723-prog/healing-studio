@@ -663,7 +663,7 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       label: "CamMaster 鏡頭運動控制",
       category: "image-to-video",
       tier: "premium",
-      description: "精確鏡頭運動控制（推拉搖移旋轉），基於圖生影",
+      description: "精確鏡頭運動控制：17 種專業運鏡（靜止/推拉/上下移/左右搖/俯仰/旋轉/環繞/升降）；3-10 秒；基於圖生影",
       inputSchema: { imageUrl: true, prompt: true, duration: true },
       outputSchema: { videoUrl: true },
       timeoutMs: 300_000,
