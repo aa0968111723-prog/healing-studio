@@ -3350,6 +3350,214 @@ ${segmentSummaries}
     }),
 
   /**
+   * pollGenerationTask — 自動生成管線的統一輪詢端點。
+   *
+   * autoGenerateFromSegments 啟動的每個任務（image / video / audio / voice / sfx）
+   * 都會透過此 query 輪詢進度。職責：
+   *   1. 從 backgroundJob 讀回 request_id 與 modelId（resultJson 內）
+   *   2. 呼叫 fal.ai queue status 確認任務狀態
+   *   3. 若 COMPLETED：抓結果、本地化 URL、解析出 resultUrl、寫回 backgroundJob
+   *   4. 若 FAILED：標記 backgroundJob 失敗，回傳錯誤訊息
+   *   5. 否則保持 IN_PROGRESS
+   *
+   * 回傳統一形狀，讓前端可以對所有模態用同一個 useQuery（refetchInterval=3s）。
+   */
+  pollGenerationTask: brainProcedure
+    .input(
+      z.object({
+        jobId: z.number(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const dbModule = await import("../db");
+      const job = await dbModule.getBackgroundJob(input.jobId);
+      if (!job || job.userId !== ctx.user.id) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "任務不存在或無權存取",
+        });
+      }
+
+      // 終態（completed / failed / cancelled）— 直接回填結果
+      const meta = (job.resultJson as Record<string, unknown> | null) ?? {};
+      const cachedResultUrl =
+        typeof meta.resultUrl === "string" ? meta.resultUrl : null;
+      if (job.status === "completed") {
+        return {
+          status: "COMPLETED" as const,
+          jobId: job.id,
+          resultUrl: cachedResultUrl,
+          progress: 100,
+          errorMessage: null as string | null,
+        };
+      }
+      if (job.status === "failed" || job.status === "cancelled") {
+        return {
+          status: "FAILED" as const,
+          jobId: job.id,
+          resultUrl: null as string | null,
+          progress: job.progress ?? 0,
+          errorMessage: job.errorMessage ?? "任務失敗",
+        };
+      }
+
+      // 仍在處理中 — 透過 fal.ai queue API 輪詢狀態
+      const requestId =
+        typeof meta.request_id === "string"
+          ? meta.request_id
+          : typeof meta.requestId === "string"
+            ? meta.requestId
+            : null;
+      const modelId = typeof meta.modelId === "string" ? meta.modelId : null;
+      if (!requestId || !modelId) {
+        // backgroundJob 還沒寫入 request_id（例如 dispatcher 還沒回傳）—
+        // 回 IN_PROGRESS，前端繼續等待。
+        return {
+          status: "IN_PROGRESS" as const,
+          jobId: job.id,
+          resultUrl: null as string | null,
+          progress: job.progress ?? 5,
+          errorMessage: null as string | null,
+        };
+      }
+
+      const falKey = process.env.FAL_API_KEY;
+      if (!falKey) {
+        // 缺少金鑰但任務還在跑 — 不要硬擋，把錯誤訊息透過 errorMessage 帶回去，
+        // 由前端決定是否提示使用者。
+        return {
+          status: "IN_PROGRESS" as const,
+          jobId: job.id,
+          resultUrl: null as string | null,
+          progress: job.progress ?? 10,
+          errorMessage: "FAL_API_KEY 未設定，無法輪詢任務狀態",
+        };
+      }
+
+      const FAL_QUEUE_BASE = "https://queue.fal.run";
+      type FalStatus = { status?: string; error?: string } | null;
+      let statusData: FalStatus = null;
+      try {
+        const statusRes = await fetch(
+          `${FAL_QUEUE_BASE}/${modelId}/requests/${requestId}/status`,
+          { headers: { Authorization: `Key ${falKey}` } }
+        );
+        if (statusRes.ok) {
+          statusData = (await statusRes.json()) as FalStatus;
+        }
+      } catch {
+        // fal.ai 暫時不可用，保持 IN_PROGRESS — 下一輪輪詢會再試
+      }
+
+      const s = statusData?.status;
+
+      if (s === "COMPLETED") {
+        const { localizeResultUrls } = await import(
+          "../services/internalMedia"
+        );
+        let resultData: Record<string, unknown> | null = null;
+        try {
+          const resultRes = await fetch(
+            `${FAL_QUEUE_BASE}/${modelId}/requests/${requestId}`,
+            { headers: { Authorization: `Key ${falKey}` } }
+          );
+          if (resultRes.ok) {
+            resultData = (await resultRes.json()) as Record<string, unknown>;
+          }
+        } catch {
+          // 結果端點偶發失敗 — 回 IN_PROGRESS，下一輪重試
+          return {
+            status: "IN_PROGRESS" as const,
+            jobId: job.id,
+            resultUrl: null as string | null,
+            progress: 90,
+            errorMessage: null as string | null,
+          };
+        }
+
+        const localized = (await localizeResultUrls(
+          resultData,
+          `generated/director/${modelId.replace(/[^\w/-]+/g, "_")}`
+        )) as Record<string, unknown> | null;
+        const r = localized;
+
+        // URL 抽取邏輯與 routers.ts 的 webhookFal 對齊（涵蓋所有模態）
+        const resultUrl =
+          ((r?.images as { url?: string }[] | undefined)?.[0]?.url) ??
+          ((r?.image as { url?: string } | undefined)?.url) ??
+          (r?.image_url as string | undefined) ??
+          ((r?.video as { url?: string } | undefined)?.url) ??
+          (r?.video_url as string | undefined) ??
+          ((r?.videos as { url?: string }[] | undefined)?.[0]?.url) ??
+          ((r?.audio as { url?: string } | undefined)?.url) ??
+          (r?.audio_url as string | undefined) ??
+          ((r?.audio_file as { url?: string } | undefined)?.url) ??
+          ((r?.output as { url?: string } | undefined)?.url) ??
+          null;
+
+        await dbModule.updateBackgroundJob(job.id, {
+          status: "completed",
+          progress: 100,
+          progressMessage: "生成完成",
+          resultJson: { ...meta, resultUrl, result: localized } as any,
+        });
+
+        return {
+          status: "COMPLETED" as const,
+          jobId: job.id,
+          resultUrl: typeof resultUrl === "string" ? resultUrl : null,
+          progress: 100,
+          errorMessage: null as string | null,
+        };
+      }
+
+      if (s === "FAILED") {
+        const errMsg = String(
+          statusData?.error ?? "fal.ai 回報任務失敗"
+        );
+        // 退回扣除的點數，並標記 job 失敗
+        const { isDemoMode } = await import("../_core/googleAuth");
+        if (!isDemoMode()) {
+          // 估算點數退款：嘗試從 resultJson 還原原始 modelId + 參數
+          const { estimatePoints } = await import("../services/modelPricing");
+          const params = (meta as Record<string, unknown>) ?? {};
+          const durationSec =
+            typeof params.duration === "number"
+              ? params.duration
+              : typeof params.seconds_total === "number"
+                ? params.seconds_total
+                : undefined;
+          try {
+            const refund = estimatePoints(modelId, { durationSec });
+            await dbModule.refundUserPoints(ctx.user.id, refund.totalPoints);
+          } catch {
+            /* 退款失敗時不阻擋 — 主要訴求是把任務標記為失敗 */
+          }
+        }
+        await dbModule.updateBackgroundJob(job.id, {
+          status: "failed",
+          errorMessage: errMsg,
+        });
+        return {
+          status: "FAILED" as const,
+          jobId: job.id,
+          resultUrl: null as string | null,
+          progress: job.progress ?? 0,
+          errorMessage: errMsg,
+        };
+      }
+
+      // IN_QUEUE / IN_PROGRESS / 任何 fal.ai 暫定狀態都當作 IN_PROGRESS
+      return {
+        status: "IN_PROGRESS" as const,
+        jobId: job.id,
+        resultUrl: null as string | null,
+        progress: job.progress ?? 25,
+        errorMessage: null as string | null,
+      };
+    }),
+
+  /**
    * askForStudioPlan — 創作工作室向導演 AI 徵詢「下一步建議」。
    *
    * 接收 Studio 當前完整上下文（4 模態 prompt、選中模型、tokenWeights、LoRA、
