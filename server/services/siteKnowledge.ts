@@ -53,7 +53,7 @@ export const SITE_PAGES_KNOWLEDGE = `
 5. 影片工作室 (/video-studio)
    - 專業影片生成
    - 文字轉影片（Kling V2.1 Pro/V1.5 Pro, MiniMax Hailuo, Luma Dream Machine, WAN T2V 2.1, CogVideoX 5B, Veo 2/3）
-   - 圖片轉影片（Kling V2.1/V1.5 Pro i2v, Runway Gen3 Turbo, Stable Video, MiniMax i2v, Luma i2v）
+   - 圖片轉影片（Kling V2.1 Pro/Standard i2v, Runway Gen4 Turbo, WAN i2v, PixVerse v4.5, MiniMax Hailuo-02 Pro i2v, LTX i2v）
    - 影片轉影片（Kling V2.1 Standard v2v）
    - 影片轉音頻（MMAudio V2）
    - 首幀/尾幀圖片上傳（控制影片開頭/結尾）

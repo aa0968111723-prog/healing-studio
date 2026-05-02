@@ -527,7 +527,11 @@ getDemoLoginUrl() // 返回 /api/oauth/demo/start
 
 ### 8. Wan 2.1 I2V
 - **API：** \`trpc.videoStudio.wanImageToVideo\`
-- **FAL 模型：** \`fal-ai/wan-ai/wan2.1-i2v-720p\`（720p）/ \`480p\`
+- **FAL 模型（canonical）：** \`fal-ai/wan-i2v\`
+- **UI 顯示別名：** \`fal-ai/wan-ai/wan2.1-i2v-720p\`（兩個 ID 指向同一個 fal 端點，計價與行為一致）
+- **特點：** 阿里開源旗艦圖生影；可指定 prompt / negative_prompt / num_frames(16-81) / resolution(480p/720p) / seed
+- **積分：** 20 點/5 秒（standard）
+- **超時：** 300 秒
 
 ### 9. Runway Gen4 Turbo
 - **API：** \`trpc.videoStudio.runwayImageToVideo\`

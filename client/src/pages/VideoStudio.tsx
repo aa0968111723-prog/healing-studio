@@ -109,8 +109,15 @@ const OVERRIDE_TAB_BY_ENGINE: Array<{ prefix: string; tab: TabId }> = [
   { prefix: "fal-ai/cogvideox-5b", tab: "t2v" },
   { prefix: "fal-ai/ltx-video", tab: "t2v" },
   { prefix: "fal-ai/kling-video/v2.1/pro/image-to-video", tab: "i2v" },
+  { prefix: "fal-ai/kling-video/v2.1/standard/image-to-video", tab: "i2v" },
+  { prefix: "fal-ai/wan-i2v", tab: "i2v" },
+  { prefix: "fal-ai/wan-ai/wan2.1-i2v-720p", tab: "i2v" },
   { prefix: "fal-ai/minimax-video/image-to-video", tab: "i2v" },
+  { prefix: "fal-ai/minimax/hailuo-02/pro/image-to-video", tab: "i2v" },
   { prefix: "fal-ai/runway-gen3/turbo/image-to-video", tab: "i2v" },
+  { prefix: "fal-ai/runway-gen4-turbo/image-to-video", tab: "i2v" },
+  { prefix: "fal-ai/pixverse/v4.5/image-to-video", tab: "i2v" },
+  { prefix: "fal-ai/ltx-video/image-to-video", tab: "i2v" },
   { prefix: "fal-ai/luma-dream-machine/image-to-video", tab: "i2v" },
   { prefix: "fal-ai/wan/v2.1/video-to-video", tab: "v2v" },
   { prefix: "fal-ai/kling-video/v2.1/standard/video-to-video", tab: "v2v" },
@@ -1564,6 +1571,8 @@ function ImageToVideoTab() {
 
   const [wanPrompt, setWanPrompt] = useState("");
   const [wanImage, setWanImage] = useState("");
+  const [wanNeg, setWanNeg] = useState("");
+  const [wanFrames, setWanFrames] = useState(81);
   const [wanRes, setWanRes] = useState<"480p" | "720p">("720p");
   const [wanResult, setWanResult] = useState<VideoResult | null>(null);
 
@@ -1743,6 +1752,8 @@ function ImageToVideoTab() {
         prompt: wanPrompt,
         imageUrl: wanImage,
         resolution: wanRes,
+        numFrames: wanFrames,
+        negativePrompt: wanNeg || undefined,
       });
       setWanResult(r);
       registerBgTask(r, "video", "Wan 圖生影", wanPrompt);
@@ -1972,19 +1983,44 @@ function ImageToVideoTab() {
             required
           />
           <div>
-            <Label className="text-xs text-muted-foreground">解析度</Label>
-            <Select
-              value={wanRes}
-              onValueChange={v => setWanRes(v as "480p" | "720p")}
-            >
-              <SelectTrigger className="mt-1 text-sm h-9">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="720p">720p（高畫質）</SelectItem>
-                <SelectItem value="480p">480p（快速）</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label className="text-xs text-muted-foreground">負向提詞（選填）</Label>
+            <Textarea
+              value={wanNeg}
+              onChange={e => setWanNeg(e.target.value)}
+              placeholder="不想出現的元素，如 blurry, low quality..."
+              className="mt-1 text-sm resize-none"
+              rows={2}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs text-muted-foreground">解析度</Label>
+              <Select
+                value={wanRes}
+                onValueChange={v => setWanRes(v as "480p" | "720p")}
+              >
+                <SelectTrigger className="mt-1 text-sm h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="720p">720p（高畫質）</SelectItem>
+                  <SelectItem value="480p">480p（快速）</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">
+                幀數：{wanFrames}（約 {Math.round((wanFrames / 16) * 10) / 10}s）
+              </Label>
+              <Slider
+                min={16}
+                max={81}
+                step={1}
+                value={[wanFrames]}
+                onValueChange={v => setWanFrames(v[0])}
+                className="mt-2"
+              />
+            </div>
           </div>
           <Button
             onClick={runWan}

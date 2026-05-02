@@ -593,8 +593,8 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       modelId: "fal-ai/runway-gen4-turbo/image-to-video",
       label: "Runway Gen4 Turbo i2v",
       category: "image-to-video",
-      tier: "premium",
-      description: "Runway Gen4 Turbo 圖生影",
+      tier: "ultra",
+      description: "Runway Gen4 Turbo 圖生影：電影級品質、5s/10s、6 種比例、可指定 seed",
       inputSchema: {
         imageUrl: true,
         prompt: true,

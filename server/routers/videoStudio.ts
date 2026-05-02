@@ -651,7 +651,7 @@ export const videoStudioRouter = router({
   /**
    * Runway Gen4 Turbo Image-to-Video
    * fal-ai/runway-gen4-turbo/image-to-video
-   * Runway Gen4，電影級品質，5s/10s
+   * Runway Gen4，電影級品質，5s/10s；可指定 ratio 與 seed
    */
   runwayImageToVideo: brainProcedure
     .input(
@@ -669,6 +669,7 @@ export const videoStudioRouter = router({
             "1584:672",
           ])
           .default("1280:720"),
+        seed: z.number().int().nonnegative().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -678,12 +679,18 @@ export const videoStudioRouter = router({
         duration: parseInt(input.duration),
         ratio: input.ratio,
       };
+      if (input.seed !== undefined) payload.seed = input.seed;
+
       const result = (await falQueueRun(
         "fal-ai/runway-gen4-turbo/image-to-video",
         payload,
         300
       )) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   /**
