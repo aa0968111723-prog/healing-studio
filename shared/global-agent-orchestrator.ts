@@ -122,6 +122,27 @@ export interface GlobalAgentExecutionContext {
     total: number
   ) => Promise<"proceed" | "skip" | "abort">;
 
+  // ── Cost governor (pre-flight estimate + budget gate) ─────────────────
+  /**
+   * Optional pre-flight hook called ONCE per workflow before any step
+   * runs. Caller is expected to use `orb-cost-governor.estimateWorkflowCost`
+   * + `shouldRequireBudgetConfirm` and either:
+   *   - return `"proceed"` to run the workflow as planned;
+   *   - return `"abort"` with a reason to stop before any tool fires;
+   *   - return `"confirm"` to flip `confirmationMode` to "step-by-step"
+   *     for THIS workflow (honoured even if the action didn't declare it).
+   *
+   * Implementations typically pop a confirmation card showing the
+   * `formatCostEstimateForUser(estimate)` output before returning.
+   */
+  estimateAndConfirmBudget?: (args: {
+    workflowName: string;
+    steps: AgentWorkflowStep[];
+  }) => Promise<{
+    decision: "proceed" | "confirm" | "abort";
+    reason?: string;
+  }>;
+
   // ── Perception loop (post-step verification) ───────────────────────────
   /**
    * Optional hook called after EACH successful step. The caller is
@@ -450,6 +471,7 @@ async function executeWorkflowParallel(
   if (cycle) {
     log("workflow.scheduler_cycle", { name: action.name, cycle });
     // Fall back to sequential — never enter parallel mode with a cycle.
+    // Sequential will re-run the budget hook; that's fine (idempotent).
     return executeWorkflowSequential(action, expandedSteps, ctx);
   }
 
@@ -577,6 +599,11 @@ async function executeWorkflowSequential(
 ): Promise<GlobalAgentExecutionResult> {
   log("workflow.start", { name: action.name, total: initialSteps.length });
 
+  // The budget gate already ran in `executeGlobalWorkflow` (single entry
+  // point) — the workflow's `confirmationMode` may have been upgraded
+  // before we got here. Trust whatever the action says.
+  const confirmationMode = action.confirmationMode;
+
   // ── Task 3: resume from persisted run state ──────────────────────────
   const runId = ctx.runId ?? ctx.resumeFromRunId ?? generateRunId();
   let runState: WorkflowRunState | null = null;
@@ -637,7 +664,7 @@ async function executeWorkflowSequential(
     }
 
     // ── Task 4: per-step confirmation ───────────────────────────────────
-    if (ctx.confirmStep && shouldRequestStepConfirm(action.confirmationMode, s)) {
+    if (ctx.confirmStep && shouldRequestStepConfirm(confirmationMode, s)) {
       const decision = await ctx.confirmStep(
         reconstructAgentWorkflowStep(s, i),
         i,
@@ -1058,13 +1085,47 @@ export async function executeGlobalWorkflow(action: RunWorkflowAction, ctx: Glob
     };
   }
 
+  // Cost governor pre-flight runs ONCE at this entry, BEFORE either the
+  // parallel or sequential branch. Caller-owned estimate + budget gate.
+  // - "abort"   → typed failure with no side effects
+  // - "confirm" → upgrade `confirmationMode` to "step-by-step" + force the
+  //               sequential branch so confirmStep can fire per step (the
+  //               parallel scheduler doesn't expose per-step confirms).
+  let workflowAction: RunWorkflowAction = action;
+  if (ctx.estimateAndConfirmBudget) {
+    const decision = await ctx.estimateAndConfirmBudget({
+      workflowName: action.name,
+      steps: action.steps,
+    });
+    if (decision.decision === "abort") {
+      log("workflow.budget_abort", {
+        name: action.name,
+        reason: decision.reason,
+      });
+      return {
+        ok: false,
+        results: [],
+        reason: `budget abort: ${decision.reason ?? "user cancelled"}`,
+        workflowName: action.name,
+      };
+    }
+    if (decision.decision === "confirm") {
+      log("workflow.budget_upgrade_confirm", { name: action.name });
+      workflowAction =
+        action.confirmationMode === "step-by-step"
+          ? action
+          : { ...action, confirmationMode: "step-by-step" };
+      return executeWorkflowSequential(workflowAction, steps, ctx);
+    }
+  }
+
   // Opt-in parallel path: when the flag is on AND at least one step declares
   // dependsOn, run the topological scheduler. Otherwise delegate to the
   // legacy sequential helper — same code path that's been in production.
-  if (parallelSchedulerEnabled(action)) {
-    return executeWorkflowParallel(action, steps, ctx);
+  if (parallelSchedulerEnabled(workflowAction)) {
+    return executeWorkflowParallel(workflowAction, steps, ctx);
   }
-  return executeWorkflowSequential(action, steps, ctx);
+  return executeWorkflowSequential(workflowAction, steps, ctx);
 }
 
 export async function executeGlobalAction(action: AgentAction, ctx: GlobalAgentExecutionContext) {

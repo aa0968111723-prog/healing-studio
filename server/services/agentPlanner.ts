@@ -3,12 +3,24 @@ import { AGENT_PLAN_V3_JSON_SCHEMA } from "../../shared/agent-plan-schema";
 import { summarizeGlobalCapabilityRegistry } from "../../shared/global-agent-capabilities";
 import { summarizeGlobalToolRegistry } from "../../shared/global-agent-tools";
 import {
+  adaptAgentPlanV3ToActions,
   buildAgentPlanV3SystemPrompt,
   parseAndGatePlan,
   type GatedAgentPlanResult,
 } from "../../shared/agent-plan-adapter";
-import type { AgentFeedbackEvent, PageAgentSnapshot } from "../../shared/agent-actions";
+import type {
+  AgentAction,
+  AgentFeedbackEvent,
+  PageAgentSnapshot,
+  RunWorkflowAction,
+} from "../../shared/agent-actions";
+import type { AgentPlanV3 } from "../../shared/agent-plan-schema";
 import type { AgentPreferences } from "../../shared/agent-preferences";
+import {
+  buildCritiquePromptForLLM,
+  critiquePlan,
+  type PlanCritiqueResult,
+} from "../../shared/orb-plan-critic";
 import {
   summarizeOrbQuotaForPlanner,
   type OrbQuotaSnapshot,
@@ -45,6 +57,23 @@ export interface AgentPlannerInput {
   quotaSnapshot?: OrbQuotaSnapshot | null;
   maxTokens?: number;
   invoke?: typeof invokeLLM;
+  /**
+   * When true, after the initial plan is parsed and gated, run
+   * `critiquePlan` against the converted RunWorkflowAction. If
+   * `shouldRefine` is set (blockers OR score < refineBelow), build a
+   * refine prompt with the issue list and re-invoke the planner ONCE.
+   * Capped to 1 refine attempt to prevent infinite loops; defaults to
+   * false so existing call sites are unaffected. Use this on the
+   * agent-task path where the cost of a second LLM call is justified
+   * by avoiding a wasted UI dispatch + workflow run.
+   */
+  enableCritique?: boolean;
+  /**
+   * Refine threshold (0..100). Plans with score >= this skip the refine
+   * pass even when `enableCritique` is true. Defaults to 75 — same as
+   * `critiquePlan`'s internal default.
+   */
+  critiqueRefineBelow?: number;
 }
 
 function summarizePreferencesForPlanner(
@@ -72,6 +101,10 @@ export interface AgentPlannerResult extends GatedAgentPlanResult {
   rawContent?: string;
   plannerUsed: boolean;
   usedMultimodalPlanner?: boolean;
+  /** Set when `enableCritique` was true; null when critique was skipped. */
+  critique?: PlanCritiqueResult | null;
+  /** Set when the refine pass actually ran (the LLM was called twice). */
+  critiqueRefined?: boolean;
 }
 
 function safeStringify(value: unknown, maxLength = 3_000): string {
@@ -392,3 +425,136 @@ export async function runSchemaFirstAgentPlanner(
 export function plannerResultShouldFallback(result: AgentPlannerResult): boolean {
   return result.status === "invalid";
 }
+
+// ─── Plan self-critique with auto-refine ──────────────────────────────────
+//
+// Runs the schema-first planner, then submits the converted workflow to
+// the semantic critic (`critiquePlan`). When the critic reports
+// `shouldRefine` (blockers present or score below threshold), the planner
+// is invoked AGAIN with the original messages plus a refine prompt
+// describing the issues; the second result replaces the first. Capped at
+// one refine pass.
+//
+// Why two passes instead of asking the LLM to be careful upfront: the
+// planner system prompt is already 8k tokens and adding "please don't
+// make these mistakes" rarely changes behaviour. A directed refine
+// prompt that names each concrete issue (forward-reference at step 3,
+// unresolved-placeholder at step 5, …) lands far more reliably.
+
+/**
+ * Find the workflow representation of a planner result regardless of how
+ * the gating layer classified it.
+ *
+ *   - status="converted"  → workflow lives in `result.actions[0]`.
+ *   - status="tasked"     → `result.actions` is empty (the gate routed it
+ *                           through OrbTask draft); we project the v3
+ *                           plan back into a RunWorkflowAction so the
+ *                           critic can still inspect tool / step shape.
+ */
+function extractWorkflowFromResult(
+  result: AgentPlannerResult
+): RunWorkflowAction | null {
+  for (const action of result.actions) {
+    if (action.type === "runWorkflow") return action;
+  }
+  if (
+    result.status === "tasked" &&
+    result.version === "agent-plan.v3" &&
+    result.plan &&
+    "steps" in result.plan
+  ) {
+    // The status + version narrowing already established v3-shape, but
+    // the typed union still includes the legacy v1 plan. Cast at the call
+    // boundary; runtime check has already validated.
+    const projected = adaptAgentPlanV3ToActions(result.plan as AgentPlanV3);
+    for (const action of projected) {
+      if (action.type === "runWorkflow") return action;
+    }
+  }
+  return null;
+}
+
+/**
+ * Run the planner with optional critique + refine pass. Falls back to
+ * `runSchemaFirstAgentPlanner` semantics whenever critique is disabled,
+ * the gating layer rejected the plan, or no `runWorkflow` came out of the
+ * conversion. The refine pass is bounded to 1 LLM round-trip; if the
+ * second result is also invalid we surface that — we never loop.
+ */
+export async function runSchemaFirstAgentPlannerWithCritique(
+  input: AgentPlannerInput
+): Promise<AgentPlannerResult> {
+  const draft = await runSchemaFirstAgentPlanner(input);
+  if (!input.enableCritique) {
+    return { ...draft, critique: null, critiqueRefined: false };
+  }
+  // Critique is meaningful only on plans the gate already accepted as a
+  // workflow; clarification / blocked / invalid statuses skip refinement.
+  if (draft.status !== "converted" && draft.status !== "tasked") {
+    return { ...draft, critique: null, critiqueRefined: false };
+  }
+  const workflow = extractWorkflowFromResult(draft);
+  if (!workflow) return { ...draft, critique: null, critiqueRefined: false };
+
+  const refineBelow = input.critiqueRefineBelow ?? 75;
+  const critique = critiquePlan(workflow, { refineBelow });
+  if (!critique.shouldRefine) {
+    return { ...draft, critique, critiqueRefined: false };
+  }
+
+  // Build the refine prompt and re-invoke the same planner. We append the
+  // critique to the original message thread as a SYSTEM-style note so the
+  // LLM treats it as a constraint, not as user input.
+  const llm = input.invoke ?? invokeLLM;
+  const refinePrompt = buildCritiquePromptForLLM(workflow, critique);
+  const refineMessages: Message[] = [
+    ...input.messages,
+    {
+      role: "user",
+      content: refinePrompt,
+    } as Message,
+  ];
+  const refineResult = await llm({
+    messages: buildAgentPlannerMessages({
+      ...input,
+      messages: refineMessages,
+    }),
+    runName: "orb-agent-schema-first-planner-refine",
+    maxTokens: input.maxTokens ?? 2_500,
+    response_format: {
+      type: "json_schema",
+      json_schema: AGENT_PLAN_V3_JSON_SCHEMA as unknown as {
+        name: string;
+        schema: Record<string, unknown>;
+        strict?: boolean;
+      },
+    },
+  });
+  const refinedRaw = extractPlannerContent(refineResult);
+  const refinedGated = parseAndGatePlan(refinedRaw);
+
+  // If the refine attempt itself produces a workflow, run the critic ONE
+  // more time so callers can see the post-refine score (purely informational
+  // — we never refine twice).
+  let postCritique: PlanCritiqueResult | null = null;
+  for (const action of refinedGated.actions) {
+    if (action.type === "runWorkflow") {
+      postCritique = critiquePlan(action, { refineBelow });
+      break;
+    }
+  }
+
+  return {
+    ...refinedGated,
+    rawContent: refinedRaw,
+    plannerUsed: true,
+    usedMultimodalPlanner: draft.usedMultimodalPlanner,
+    critique: postCritique ?? critique,
+    critiqueRefined: true,
+  };
+}
+
+// Re-export so other modules can build their own critique flows without
+// reaching across the shared boundary.
+export { critiquePlan, buildCritiquePromptForLLM } from "../../shared/orb-plan-critic";
+export type { PlanCritiqueResult } from "../../shared/orb-plan-critic";

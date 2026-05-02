@@ -10,6 +10,13 @@ import {
   serializeRegistryForSiteKnowledge,
   type SerializableAppRegistryItem,
 } from "../../shared/appRegistry";
+import {
+  distillPreferenceProfile,
+  serializePreferenceProfileForPrompt,
+  suggestAutoApproveActions,
+  type DistilledOrbPreferenceProfile,
+} from "../../shared/orb-preference-distiller";
+import type { OrbMemory } from "../../shared/orb-memory";
 
 export function getSerializedAppRegistryKnowledge(): SerializableAppRegistryItem[] {
   return serializeRegistryForSiteKnowledge();
@@ -1182,6 +1189,14 @@ export interface OrbPromptExtras {
     videoLengthHint?: "short" | "medium" | "long";
     evidenceCount?: number;
   };
+  /**
+   * Optional DB-backed memories (model_preference / successful_workflow /
+   * failed_workflow rows) the prompt builder folds into the distilled
+   * preference block via `orb-preference-distiller`. Pass through
+   * verbatim from the chat router; the builder handles confidence ramps,
+   * pacing inference, and prompt-block rendering itself.
+   */
+  recentMemories?: OrbMemory[];
 }
 
 function serializeSnapshotBlock(
@@ -1234,6 +1249,58 @@ function serializeFeedbackBlock(
     return `- ${ev.actionType}: ${ev.status}${note}｜${ageSec}s 前`;
   });
   return `【使用者最近對光球建議的反應（請參考並調整語氣）】\n${lines.join("\n")}`;
+}
+
+/**
+ * Build the distilled-preference prompt block. The legacy `recentFeedback`
+ * block above ("最近 5 筆反應") gives the LLM a turn-by-turn picture; this
+ * block adds the AGGREGATE picture (ratios + preferred models + pacing
+ * tier) so the planner can make consistent decisions across the whole
+ * relationship instead of over-weighting the last 5 events.
+ *
+ * Returns "" when there's no signal at all so a brand-new user doesn't
+ * pay the prompt-budget cost for an empty profile.
+ */
+function serializeDistilledPreferenceBlock(
+  extras?: OrbPromptExtras,
+  now: number = Date.now()
+): { block: string; profile: DistilledOrbPreferenceProfile | null } {
+  if (!extras) return { block: "", profile: null };
+  const feedbackEvents = extras.recentFeedback ?? [];
+  const memories = extras.recentMemories ?? [];
+  if (feedbackEvents.length === 0 && memories.length === 0) {
+    return { block: "", profile: null };
+  }
+  const profile = distillPreferenceProfile({
+    feedbackEvents,
+    memories,
+    extracted: extras.rememberedPreferences
+      ? {
+          styles: extras.rememberedPreferences.styles ?? [],
+          outputs: extras.rememberedPreferences.outputs ?? [],
+          platforms: extras.rememberedPreferences.platforms ?? [],
+          models: extras.rememberedPreferences.models ?? [],
+          videoLengthHint: extras.rememberedPreferences.videoLengthHint,
+          workflowHints: [],
+        }
+      : undefined,
+    now,
+  });
+  const baseBlock = serializePreferenceProfileForPrompt(profile);
+  if (!baseBlock) return { block: "", profile };
+
+  // Surface auto-approve hints: when an actionType has been accepted >=70%
+  // of the time over >=4 trials, tell the planner it can dispatch that
+  // action without an extra confirmation card. This is what makes the
+  // distillation actually behaviourally different from the raw event list —
+  // the planner adjusts its `confirmationPolicy` per-action.
+  const autoApprove = suggestAutoApproveActions(profile);
+  const hint =
+    autoApprove.length > 0
+      ? `\n- 可自動接受（≥70% 接受率）：${autoApprove.join("、")}`
+      : "";
+
+  return { block: `${baseBlock}${hint}`, profile };
 }
 
 function serializeAssetLibraryBlock(
@@ -1379,6 +1446,12 @@ export function buildOrbSystemPrompt(
     ? "\n【使用者偏好】這位使用者希望任何動作執行前都先詢問一次，請養成「先說意圖、再等確認」的習慣。"
     : "";
   const identityBlock = serializeIdentityBlock(extras?.userIdentity, extras?.rememberedPreferences);
+  // Distilled aggregate over feedback + memories. Embedded after the
+  // legacy turn-by-turn feedback block so the planner sees BOTH:
+  // recent reactions (signal) + ratios + preferred models + auto-approve
+  // hints (aggregate). When there's no signal it returns "" and we drop
+  // the section entirely from the prompt.
+  const distilledPreferenceBlock = serializeDistilledPreferenceBlock(extras).block;
 
   // Phase 4：判斷是否在創作工作室，注入深度引導知識
   const isStudioPage =
@@ -1550,7 +1623,7 @@ ${GENERATION_MODALITIES_KNOWLEDGE}
 ${MODEL_RECOMMENDATION_KNOWLEDGE}
 
 ${WORKFLOW_KNOWLEDGE}
-${contextNote}${snapshotBlock ? "\n\n" + snapshotBlock : ""}${feedbackBlock ? "\n\n" + feedbackBlock : ""}${apiToolsBlock ? "\n\n" + apiToolsBlock : ""}${assetLibraryBlock ? "\n\n" + assetLibraryBlock : ""}${confirmNote}
+${contextNote}${snapshotBlock ? "\n\n" + snapshotBlock : ""}${feedbackBlock ? "\n\n" + feedbackBlock : ""}${distilledPreferenceBlock ? "\n\n" + distilledPreferenceBlock : ""}${apiToolsBlock ? "\n\n" + apiToolsBlock : ""}${assetLibraryBlock ? "\n\n" + assetLibraryBlock : ""}${confirmNote}
 ${isStudioPage ? "\n" + STUDIO_CREATIVE_GUIDANCE : ""}
 ${isImageStudioPage ? "\n" + IMAGE_STUDIO_CREATIVE_GUIDANCE : ""}
 ${isVideoStudioPage ? "\n" + VIDEO_STUDIO_CREATIVE_GUIDANCE : ""}
