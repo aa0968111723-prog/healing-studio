@@ -720,6 +720,33 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       outputSchema: { videoUrl: true },
       timeoutMs: 600_000,
     },
+    // DEF-EM1：EchoMimic V3 與 Stable Avatar — 兩個 avatar 系列引擎與 Wan 同 pattern：
+    // pricing + brainAutoRepair 都認得，但 catalog 缺。差異：EchoMimic 接受 text 模式
+    // （image + text → 內含 TTS 的對嘴影片，audio_url 可選），Stable Avatar 是
+    // 長片優化（最長 5 分鐘）。三家共用 image-to-video category，光球
+    // studio.animateSpeaker 可透過 modelId 切換。
+    {
+      modelId: "fal-ai/echomimic-v3",
+      label: "EchoMimic V3 對嘴",
+      category: "image-to-video",
+      tier: "premium",
+      description:
+        "EchoMimic V3 — image + audio（或 text）→ 精準對嘴 + 表情連動，pose_style 0-45 控制動作幅度",
+      inputSchema: { imageUrl: true, audioUrl: true, prompt: true },
+      outputSchema: { videoUrl: true },
+      timeoutMs: 600_000,
+    },
+    {
+      modelId: "fal-ai/stable-avatar",
+      label: "Stable Avatar 長片頭像",
+      category: "image-to-video",
+      tier: "premium",
+      description:
+        "Stable Avatar — 音訊驅動頭像，最長 5 分鐘長片連續對嘴（適合長 podcast / 課程旁白）",
+      inputSchema: { imageUrl: true, audioUrl: true },
+      outputSchema: { videoUrl: true },
+      timeoutMs: 900_000,
+    },
   ],
 
   // ════════════════════════════════════════════════════════

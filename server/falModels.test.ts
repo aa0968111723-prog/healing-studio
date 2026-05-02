@@ -187,6 +187,17 @@ describe("falModels catalog coverage", () => {
     expect(cfg!.tier).toBe("premium");
   });
 
+  // DEF-EM1：EchoMimic V3 與 Stable Avatar — 同 DEF-WAN1 pattern，雙雙 catalog
+  // 漏註冊。avatar 系列三引擎（Wan / EchoMimic / Stable Avatar）需全部在
+  // image-to-video catalog 否則 dispatcher 對嘴生成請求都會降級到純 i2v。
+  it("image-to-video catalog includes the avatar engine family", () => {
+    const list = getFalModelsByCategory("image-to-video");
+    const ids = new Set(list.map(m => m.modelId));
+    expect(ids.has("fal-ai/wan/v2.2-14b/speech-to-video")).toBe(true);
+    expect(ids.has("fal-ai/echomimic-v3")).toBe(true);
+    expect(ids.has("fal-ai/stable-avatar")).toBe(true);
+  });
+
   // DEF-EL1：ElevenLabs SFX 真實 endpoint 帶 /v2 後綴，必須在 text-to-audio
   // catalog 註冊，否則 dispatcher 會把所有 SFX 請求降級到 fal-ai/ace-step（音樂模型）。
   it("text-to-audio catalog includes ElevenLabs SFX v2 canonical id", () => {
