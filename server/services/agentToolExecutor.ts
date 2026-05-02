@@ -13,6 +13,7 @@ const GENERATION_SLOT_TOOLS = new Set([
   "studio.designVoice",
   "studio.separateStems",
   "studio.isolateAudio",
+  "studio.mergeAudios",
   "studio.enhanceVideo",
   "studio.trainLora",
 ]);
@@ -1193,6 +1194,68 @@ async function dispatchStudioTool(
             ? { error: awaited.error }
             : !isolatedUrl && awaited.status !== "pending"
               ? { error: "audio-isolation: 隔離後音檔 URL 缺失" }
+              : {}),
+        };
+      }
+
+      // DEF-MA3：光球專用多音訊合併 — separateStems → 替換人聲 → mergeAudios
+      // 三段式工作流的最後一塊。把多段音訊以 concatenate（序接）或 mix（混音）
+      // 合併成一段。範例：分離歌曲後替換人聲、再與原伴奏混回成品。
+      case "studio.mergeAudios": {
+        const { dispatchFalQueueTask } = await import("./falDispatcher");
+        const modelId =
+          (args.modelId as string) || "fal-ai/ffmpeg-api/merge-audios";
+        const audioUrls = Array.isArray(args.audio_urls)
+          ? args.audio_urls.filter(
+              (u): u is string => typeof u === "string" && u.length > 0
+            )
+          : [];
+        if (audioUrls.length < 2) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "merge-audios: 至少需要 2 段 audio_urls",
+            usedTool: call.name,
+          };
+        }
+        const mergeStrategy =
+          args.merge_strategy === "mix" ? "mix" : "concatenate";
+        const mergeInput: Record<string, unknown> = {
+          audio_urls: audioUrls.slice(0, 10), // fal 上限 10 段
+          merge_strategy: mergeStrategy,
+        };
+        const r = await dispatchFalQueueTask({
+          modelId,
+          category: "text-to-audio",
+          input: mergeInput,
+          route: "orb-tool/studio.mergeAudios",
+          modality: "audio",
+          userId: opts.userId,
+        });
+        const awaited = await awaitFalForOrb(
+          { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
+          args
+        );
+        // FFmpeg merge 通常回 audio.url（單一輸出）；統一以 data.audio_url 平推
+        // 到頂層，後續 step 可用 ${stepN.audio_url} 接到 isolation / voiceChanger / 終端發布。
+        const raw = awaited.raw as { audio?: { url?: string } } | undefined;
+        const mergedUrl =
+          raw?.audio?.url ?? awaited.audio_url ?? null;
+        return {
+          name: call.name,
+          ok: awaited.status !== "failed" && !!mergedUrl,
+          data: {
+            ...awaited,
+            engine: "fal",
+            kind: "merge-audios",
+            merge_strategy: mergeStrategy,
+            audio_url: mergedUrl,
+          },
+          usedTool: call.name,
+          ...(awaited.status === "failed" && awaited.error
+            ? { error: awaited.error }
+            : !mergedUrl && awaited.status !== "pending"
+              ? { error: "merge-audios: 合併後音檔 URL 缺失" }
               : {}),
         };
       }

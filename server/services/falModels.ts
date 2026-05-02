@@ -1299,6 +1299,20 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       outputSchema: { audioUrl: true },
       timeoutMs: 120_000,
     },
+    // DEF-MA1：FFmpeg merge-audios — 多音訊合併（concatenate 序接 / mix 混音）。
+    // 是音幹分離 → 替換人聲 → 合回成品工作流的最後一塊拼圖。同 audio-to-audio
+    // 概念，掛在 text-to-audio 下避免 FalCategory enum 變更。
+    {
+      modelId: "fal-ai/ffmpeg-api/merge-audios",
+      label: "FFmpeg 多音訊合併",
+      category: "text-to-audio",
+      tier: "fast",
+      description:
+        "FFmpeg merge-audios — 將 2-10 段音訊以 concatenate（序接）或 mix（混音）合併成一段",
+      inputSchema: { audioUrl: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 60_000,
+    },
     {
       modelId: "fal-ai/dia-tts",
       label: "Dia TTS",

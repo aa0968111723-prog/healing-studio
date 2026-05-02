@@ -230,6 +230,20 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     },
     executionTarget: "server-side",
   },
+  // DEF-MA3：光球專用多音訊合併 — separateStems → 替換／設計人聲 → mergeAudios
+  // 三段式工作流的最後一塊。strategy="concatenate" 序接（多段對白接龍）；
+  // "mix" 混音（伴奏 + 替換人聲合成完整成品）。預設走 fal-ai/ffmpeg-api/merge-audios。
+  {
+    name: "studio.mergeAudios",
+    riskLevel: "medium",
+    requiresHuman: true,
+    allowedArgsSchema: {
+      audio_urls: "string[]",
+      merge_strategy: "string?",
+      modelId: "string?",
+    },
+    executionTarget: "server-side",
+  },
   {
     name: "studio.generateVoice",
     riskLevel: "medium",

@@ -409,6 +409,9 @@ const ENGINE_PROVIDER_MAP: Record<string, string> = {
   "fal-ai/audioldm2": "fal",
   "fal-ai/elevenlabs/sound-effects/v2": "fal",
   "fal-ai/elevenlabs/audio-isolation": "fal",
+  // DEF-MA2：FFmpeg merge-audios — provider 註冊讓健康狀態回查與降級事件
+  // 能正確識別來源。本地 ffmpeg 處理，不需特殊 key。
+  "fal-ai/ffmpeg-api/merge-audios": "fal",
   "fal-ai/nemotron/asr/stream": "fal",
   // ── 數位人 / 語音轉影片（Fal.ai） ──
   "fal-ai/echomimic-v3": "fal",

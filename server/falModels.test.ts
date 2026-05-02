@@ -141,6 +141,18 @@ describe("falModels catalog coverage", () => {
     expect(cfg!.tier).toBe("standard");
   });
 
+  // DEF-MA1：FFmpeg merge-audios — 同 DEF-DM1 / DEF-AI1 pattern，catalog miss
+  // 會把「合併已分離的軌道」降級成「生成音樂」。多步驟工作流的最後一塊（拆軌
+  // → 替換人聲 → mergeAudios 合回成品）必須能在 dispatcher 端 catalog 命中。
+  it("text-to-audio catalog includes FFmpeg merge-audios", () => {
+    const cfg = getFalModelById(
+      "fal-ai/ffmpeg-api/merge-audios",
+      "text-to-audio"
+    );
+    expect(cfg).toBeDefined();
+    expect(cfg!.tier).toBe("fast");
+  });
+
   // DEF-EL1：ElevenLabs SFX 真實 endpoint 帶 /v2 後綴，必須在 text-to-audio
   // catalog 註冊，否則 dispatcher 會把所有 SFX 請求降級到 fal-ai/ace-step（音樂模型）。
   it("text-to-audio catalog includes ElevenLabs SFX v2 canonical id", () => {

@@ -23,6 +23,8 @@ describe("studio.* generation tool registration", () => {
     expect(names).toContain("studio.separateStems");
     // DEF-AI3：音訊隔離 — 與 separateStems 互補，抽乾淨單軌（去背景噪）
     expect(names).toContain("studio.isolateAudio");
+    // DEF-MA3：多音訊合併 — separateStems / cloneVoice / designVoice 工作流的最後一塊
+    expect(names).toContain("studio.mergeAudios");
   });
 
   it("studio.* tools require human approval", () => {
@@ -36,6 +38,7 @@ describe("studio.* generation tool registration", () => {
       "studio.designVoice",
       "studio.separateStems",
       "studio.isolateAudio",
+      "studio.mergeAudios",
     ]) {
       const tool = getGlobalAgentTool(name);
       expect(tool, name).not.toBeNull();
@@ -54,6 +57,7 @@ describe("studio.* generation tool registration", () => {
     expect(isKnownGlobalAgentTool("studio.designVoice")).toBe(true);
     expect(isKnownGlobalAgentTool("studio.separateStems")).toBe(true);
     expect(isKnownGlobalAgentTool("studio.isolateAudio")).toBe(true);
+    expect(isKnownGlobalAgentTool("studio.mergeAudios")).toBe(true);
     expect(isKnownGlobalAgentTool("studio.unknownThing")).toBe(false);
   });
 });
