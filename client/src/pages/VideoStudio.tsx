@@ -2402,6 +2402,7 @@ function VideoToVideoTab() {
 
   const [klingPrompt, setKlingPrompt] = useState("");
   const [klingVideo, setKlingVideo] = useState("");
+  const [klingNeg, setKlingNeg] = useState("");
   const [klingCfg, setKlingCfg] = useState(0.5);
   const [klingResult, setKlingResult] = useState<VideoResult | null>(null);
 
@@ -2521,6 +2522,7 @@ function VideoToVideoTab() {
       const r = await klingMut.mutateAsync({
         prompt: klingPrompt,
         videoUrl: klingVideo,
+        negativePrompt: klingNeg || undefined,
         cfgScale: klingCfg,
       });
       setKlingResult(r);
@@ -2641,10 +2643,10 @@ function VideoToVideoTab() {
       {/* Kling v2v */}
       <ToolCard
         icon={Clapperboard}
-        title="Kling v1.6 影片重繪"
-        description="Kling 高品質影片重繪，精確保持原始動態，電影級風格"
-        badge="Kling 1.6"
-        modelId="fal-ai/kling-video/v1.6/standard/video-to-video"
+        title="Kling v2.1 影片重繪"
+        description="Kling 高品質影片重繪，精確保持原始動態，電影級風格（ultra 層級，45 點/5s）"
+        badge="Kling 2.1"
+        modelId="fal-ai/kling-video/v2.1/standard/video-to-video"
         color="purple"
       >
         <div className="space-y-3">
@@ -2664,6 +2666,16 @@ function VideoToVideoTab() {
             onChange={setKlingVideo}
             required
           />
+          <div>
+            <Label className="text-xs text-muted-foreground">負向提詞（選填）</Label>
+            <Textarea
+              value={klingNeg}
+              onChange={e => setKlingNeg(e.target.value)}
+              placeholder="不想出現的風格元素..."
+              className="mt-1 text-sm resize-none"
+              rows={2}
+            />
+          </div>
           <div>
             <Label className="text-xs text-muted-foreground">
               CFG 強度：{klingCfg.toFixed(2)}

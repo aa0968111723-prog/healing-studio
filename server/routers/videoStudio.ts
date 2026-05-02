@@ -821,14 +821,16 @@ export const videoStudioRouter = router({
   /**
    * Kling v2.1 Video-to-Video（影片重繪）
    * fal-ai/kling-video/v2.1/standard/video-to-video
-   * Kling 高品質影片重繪，保持原始動態
+   * Kling 高品質影片重繪，保持原始動態；可指定 cfg_scale / negative_prompt / seed
    */
   klingVideoToVideo: brainProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2500),
         videoUrl: z.string().url(),
+        negativePrompt: z.string().max(1000).optional(),
         cfgScale: z.number().min(0).max(1).default(0.5),
+        seed: z.number().int().nonnegative().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -837,12 +839,19 @@ export const videoStudioRouter = router({
         video_url: input.videoUrl,
         cfg_scale: input.cfgScale,
       };
+      if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
+      if (input.seed !== undefined) payload.seed = input.seed;
+
       const result = (await falQueueRun(
         "fal-ai/kling-video/v2.1/standard/video-to-video",
         payload,
         300
       )) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   /**
