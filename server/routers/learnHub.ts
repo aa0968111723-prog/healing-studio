@@ -9688,6 +9688,259 @@ const checkTimeouts = async () => {
     authorName: "Healing Studio Team",
   },
 
+  {
+    id: "master-orb-tool-registry",
+    category: "api-docs",
+    title: "🛠️ 全站光球工具登錄表（Tool Registry 完全參照）",
+    summary:
+      "光球可呼叫的全部 server-side 工具、頁面動作、跨頁工作流的完整對照：每個工具的參數、風險級別、是否需要使用者確認、降級鏈與資料流。",
+    content: `# 🛠️ 全站光球工具登錄表（Tool Registry 完全參照）
+
+> 這份文件是「光球能做什麼」的單一事實來源。
+> 任何時候你想知道「光球可以呼叫哪些後端 API / 頁面動作 / 跨頁流程」，先看這裡。
+> 對應原始碼：\`shared/global-agent-tools.ts\`、\`shared/global-agent-capabilities.ts\`、
+> \`shared/global-agent-workflows.ts\`、\`server/services/agentToolExecutor.ts\`。
+
+---
+
+## 一、工具分層（三層架構）
+
+光球能做的事情分成三層，每一層的執行模型、確認門檻、可觀測性都不同：
+
+| 層級 | 名稱 | 觸發方式 | 執行位置 | 風險級別預設 | 使用者確認 |
+|---|---|---|---|---|---|
+| L1 | **頁面動作 (PageAgent)** | \`[ACTION:...]\` marker | 前端 React 元件 | low / medium | 破壞性才確認 |
+| L2 | **後端工具 (Server Tool)** | \`[TOOL:name:payload]\` marker 或 planner schema-first | server / 外部 provider | medium / high | 多數要 |
+| L3 | **跨頁工作流 (RunWorkflow)** | \`[ACTION:runWorkflow:{...}]\` 或 builder（buildShortVideoWorkflow…） | 前端編排 + L1/L2 混合 | medium | 整體確認卡 |
+
+> 速記：**L1 改畫面、L2 跑生成、L3 拼起來**。
+
+---
+
+## 二、L1：頁面動作（10 個 actionType）
+
+來源：\`shared/global-agent-capabilities.ts\` 的 \`DEFAULT_ACTION_CAPABILITIES\`。每個頁面註冊時可宣告它支援哪幾個 action。
+
+| actionType | label | 預設風險 | 是否需確認 | 輸入 schema | 適用模態 |
+|---|---|---|---|---|---|
+| \`fillPrompt\` | 填入提示詞 | low | ✗ | \`{ text, slot? }\` | text/image/video/audio/voice |
+| \`setModel\` | 切換模型 | low | ✗ | \`{ modelId }\` | image/video/audio/voice/text |
+| \`setMode\` | 切換模式 | low | ✗ | \`{ modeId }\` | image/video/audio/voice |
+| \`setTab\` | 切換分頁 | low | ✗ | \`{ tabId }\` | image/video/audio/voice/text |
+| \`setParam\` | 調整參數 | medium | ✗ | \`{ key, value }\` | image/video/audio/voice |
+| \`setModality\` | 切換模態 | medium | ✓ | \`{ modality: image\|video\|audio\|voice }\` | 跨模態 |
+| \`applyPreset\` | 套用 preset | high | ✓ | \`{ presetId }\` | image/video/audio/voice |
+| \`submit\` | 送出生成 | high | ✓ | \`{ delayMs? }\` | 全模態 |
+| \`reset\` | 重設表單 | high | ✓ | \`{}\` | 全模態 |
+| \`navigate\` | 跨頁導覽 | low | ✗ | \`{ path }\` | text |
+| \`openDialog\` | 開啟對話框 | low | ✗ | \`{ dialogId }\` | text |
+| \`runWorkflow\` | 建立工作流 | medium | ✓ | \`{ steps: [...] }\` | 跨模態 |
+| \`search\` | 頁內搜尋 | low | ✗ | \`{ query }\` | text |
+| \`focusElement\` | 聚焦元素 | low | ✗ | \`{ elementId, message? }\` | text |
+| \`toggleSetting\` | 切換設定 | low | ✗ | \`{ key, value? }\` | text |
+
+> ⚠️ **important**：頁面只能執行它在 \`useRegisterPageAgent\` 註冊時宣告過的 actionType。
+> 光球的系統提示詞會收到目前頁面的 \`capabilities\`，禁止對沒宣告的 actionType 發指令。
+
+---
+
+## 三、L2：後端工具（17 個 server tool）
+
+來源：\`shared/global-agent-tools.ts\` 的 \`GLOBAL_AGENT_TOOL_REGISTRY\`。由 \`server/services/agentToolExecutor.ts\` 派遣。
+
+### 3.1 媒體理解工具（5 個）
+
+| tool name | 風險 | 需確認 | 執行 | 用途 |
+|---|---|---|---|---|
+| \`media.transcribe\` | medium | ✗ | external | 影片/音訊 → 逐字稿 |
+| \`media.caption\` | medium | ✗ | server | 為片段產生字幕 |
+| \`media.storyboard\` | medium | ✗ | server | 摘要 → 分鏡腳本 |
+| \`media.summarizePdf\` | medium | ✗ | external | PDF → 重點摘要 |
+| \`media.extractPrompt\` | low | ✗ | server | 從文字抽取生成提示詞 |
+
+### 3.2 Studio 生成工具（13 個 — 全部 \`requiresHuman: true\`）
+
+這 13 個是「真的會花點數」的工具，預設都要使用者確認：
+
+| tool name | 風險 | 對應頁面 | 主要參數 |
+|---|---|---|---|
+| \`studio.generateImage\` | medium | \`/image-studio\` | \`prompt, modelId?, aspect_ratio?, num_images?, image_url?, strength?, seed?, lora_url?, lora_scale?, mask_url?\` |
+| \`studio.generateVideo\` | medium | \`/video-studio\` | \`prompt, modelId?, image_url?, end_image_url?, video_url?, duration?, aspect_ratio?, cfg_scale?\` |
+| \`studio.enhanceVideo\` | medium | \`/video-studio\` enhance 分頁 | \`video_url, modelId?, target_fps?, scale_factor?\` |
+| \`studio.generateAudio\` | medium | \`/pro-studio\` music 子分頁 | \`prompt, modelId?, lyrics?, instrumental?, duration?, tags?, bpm?\` |
+| \`studio.generateSfx\` | medium | \`/pro-studio\` sfx 子分頁 | \`prompt, duration?, prompt_influence?\` |
+| \`studio.generateVoice\` | medium | \`/pro-studio\` tts 子分頁 | \`text, modelId?, voice_id?, language_code?, stability?, similarity_boost?, style?, speed?\` |
+| \`studio.cloneVoice\` | medium | \`/pro-studio\` clone 子分頁 | \`audio_url, name?, description?\` → 輸出 \`voice_id\` |
+| \`studio.designVoice\` | medium | \`/pro-studio\` clone | \`voice_description, sample_text\` |
+| \`studio.separateStems\` | medium | \`/pro-studio\` separate 子分頁 | \`audio_url, model?\`（vocals/drums/bass/other） |
+| \`studio.isolateAudio\` | medium | \`/pro-studio\` separate | \`audio_url\`（直接抽乾淨人聲） |
+| \`studio.mergeAudios\` | medium | \`/pro-studio\` mix | \`audio_urls[], mode: concat\|mix\` |
+| \`studio.changeVoice\` | medium | \`/pro-studio\` voice-changer | \`audio_url, voice_id\` |
+| \`studio.transcribe\` | low | \`/pro-studio\` whisper | \`audio_url, language?\` |
+| \`studio.animateSpeaker\` | medium | \`/pro-studio\` avatar | \`image_url, audio_url, modelId?\` |
+| \`studio.generate3D\` | medium | \`/image-studio\` 3d 分頁 | \`image_url, modelId?, texture?\` |
+| \`studio.trainLora\` | high | \`/lora-trainer\` | \`name, image_urls[], trigger_word, training_steps?, learning_rate?\` |
+| \`director.suggestPlan\` | medium | \`/director\` | \`brief, personality?\` → 回 CO-STAR 計畫 |
+
+### 3.3 治理 / Ops 工具（4 個 — 全部 \`requiresHuman: true\`，僅特定角色可用）
+
+| tool name | 風險 | 執行目標 | 用途 |
+|---|---|---|---|
+| \`github.review\` | high | claudeCode | PR 審查 |
+| \`github.pr.create\` | high | claudeCode | 建立 PR |
+| \`deploy.preview\` | high | external | 部署預覽環境 |
+| \`code.modifyWithClaudeCode\` | high | claudeCode | 用 Claude Code 改代碼 |
+
+> 🔒 角色限制：這 4 個工具對一般使用者不開放。光球若被請求觸發，會直接回「需要管理員身份」並引導到 \`/admin\`。
+
+---
+
+## 四、L3：跨頁工作流（7 個 builder + 1 個 runWorkflow runtime）
+
+來源：\`shared/global-agent-workflows.ts\`。光球在解讀「我想做一支 X」這類整體目標時，會選一個 builder 組出 \`runWorkflow\` 動作。
+
+| builder 函數 | 觸發句型 | 步驟概覽 |
+|---|---|---|
+| \`buildShortVideoWorkflow(brief)\` | 「做一支短片」「30 秒影片」「Reels」 | director → image-studio → video-studio i2v → pro-studio music |
+| \`buildLongVideoWorkflow(opts)\` | 「拍長片」「分章節」「3 分鐘以上」 | director（多分鏡） → 多次 image → 多次 i2v → music + voice → mergeAudios |
+| \`buildImageWorkflow(brief)\` | 「畫一張」「做圖」 | image-studio t2i (光球選最佳模型) |
+| \`buildMusicWorkflow(brief)\` | 「做配樂」「BGM」 | pro-studio music 子分頁 → ace-step / sonauto |
+| \`buildVoiceWorkflow(brief)\` | 「做旁白」「TTS」 | pro-studio tts 子分頁 → ElevenLabs/Qwen |
+| \`buildSfxWorkflow(brief)\` | 「做音效」「SFX」 | pro-studio sfx → ElevenLabs SFX v2 |
+| \`buildScriptOnlyWorkflow(brief)\` | 「先寫腳本」「先規劃」 | director（CO-STAR）→ 不走生成 |
+| \`buildNavigateWorkflow(label, path)\` | 「帶我去 X」 | 單步 navigate |
+
+每個 step 內含：
+- \`path?\`：下一個目標頁面（光球會先 navigate）
+- \`actionType\` + \`payload\`：到了之後要執行什麼動作
+- \`toolName\` + \`toolArgs\`：若該步要呼叫 server tool 而非 UI 動作
+- \`toolResultBinding\`：把結果掛在邏輯名稱下，後續步驟可用 \`\${stepN.image_url}\` 引用
+- \`dependsOn\`：DAG 排程依賴；orchestrator 會做拓撲排序、能平行就平行
+- \`retryPolicy\`：失敗重試策略（maxAttempts、backoffMs、skipOnFail）
+
+### 4.1 確認模式（confirmationMode）
+- \`all-at-once\`（預設）：整體確認卡，按一次同意所有步驟。
+- \`step-by-step\`：每步 dispatch 前都呼叫 \`ctx.confirmStep\` 讓使用者審查。
+- \`high-risk-only\`：只在破壞性步驟（submit / reset / applyPreset）前停下來。
+
+---
+
+## 五、光球角色（Agent Role）路由
+
+來源：\`shared/orb-agent-roles.ts\`。光球依據使用者句子內容自動切換到不同「內部角色」，每個角色有不同 prompt slice。
+
+| AgentRole | 何時觸發 | 行為偏向 |
+|---|---|---|
+| \`director\` | 「規劃 / 計畫 / 工作流 / 拆成步驟 / plan / pipeline」 | 多步驟跨頁規劃，主動提 runWorkflow |
+| \`composer\` | 已在某工作室、句子是「幫我選 X / 設成 Y」 | 單頁執行 / dispatch，主動 setModel + setParam |
+| \`critic\` | 「幫我看 / 檢查 / 評論 / 改進」 | 對使用者輸出提改善建議，不主動執行 |
+| \`researcher\` | 「查 / 搜尋 / 找資料 / 參考」 | 先做檢索（學習文件中心 / 資產庫 / web）再回應 |
+| \`navigator\` | 「帶我去 X / 開啟 X / 前往」 | 純 navigate，不執行其他動作 |
+| \`companion\` | 開場閒聊、無明確目標 | 開放對話，問一句釐清需求 |
+
+\`composeRoleChain()\` 可同時返回 2-3 個角色（例：researcher → director → composer），讓光球先查、再規劃、最後執行。
+
+---
+
+## 六、確認策略（Confirmation Policy）
+
+來源：使用者偏好（\`agentPreferences.confirmationPolicy\`），影響光球判讀「要不要先停下來問」。
+
+| policy | 行為 |
+|---|---|
+| \`always_approve\` | 任何動作都直接執行（不建議：高風險） |
+| \`confirm_high_risk\` | 預設：破壞性動作才確認 |
+| \`confirm_all\` | 任何動作都先問 |
+| \`manual\` | 不主動執行任何動作，僅給建議 |
+
+加上 \`autoApproveTools\`（白名單）/ \`blockedTools\`（黑名單）細粒度覆蓋。Onboarding 三題（primary-goal / preferred-pacing / confirmation-style）會幫使用者填好初始策略。
+
+---
+
+## 七、降級與重試鏈（光球如何在失敗時自我修復）
+
+光球收到後端 \`degraded: true\` 或 \`status: failed\` 時，會：
+
+1. **catalog miss** → \`server/services/falDispatcher.ts\` 會嘗試同 category 的同 tier 次選模型。例：
+   - text-to-audio：sonauto → ace-step → stable-audio → musicgen
+   - text-to-video：kling-pro → wan-720p → minimax-pro → ltx
+   - text-to-speech：elevenlabs/turbo-v2.5 → elevenlabs/multilingual → qwen-3-tts → f5-tts
+2. **provider 401**（缺 API Key）→ 回退到不需 key 的開源模型（例如 ElevenLabs TTS → f5-tts）。
+3. **rate-limited / 5xx** → 由 \`retryPolicy\` 退避重試（預設 1 次，可調 maxAttempts）。
+4. **fal queue timeout** → \`awaitFalForOrb\` 中止輪詢並回 \`status: failed\`，光球收到後改建議使用者降級或稍後再試。
+5. **runWorkflow 中途失敗** → 若 step 設了 \`skipOnFail: true\` 會跳過繼續下一步；否則整個 workflow 中止並通知使用者。
+
+---
+
+## 八、可觀測性（光球每個動作都有 trace）
+
+每次工具呼叫會經過：
+
+1. \`agentToolExecutor.ts\` 寫入 \`onAuditEvent\` callback（\`{ toolName, ok, userId, durationMs, error? }\`）。
+2. \`server/jobs/learnDocSyncer.ts\` / \`langsmithExporter.ts\` 把高層 trace 推到 LangSmith。
+3. 前端在 \`/process?spec=...\` 顯示步驟卡片（base64url 編碼的 \`{ title, steps[] }\`）。
+4. \`/langsmith\` 頁面可以查歷次 trace，並比較 prompt / 模型 / 結果差異。
+
+> 想了解單次任務全貌：在光球完成後，跟它說「給我這個任務的 trace 連結」。
+
+---
+
+## 九、安全護欄（Safety Rails）
+
+光球的工具呼叫過 4 道閘：
+
+| 閘 | 位置 | 內容 |
+|---|---|---|
+| 1️⃣ Prompt Defense | \`shared/orb-prompt-defense.ts\` | 阻擋 jailbreak / prompt injection |
+| 2️⃣ Capability Whitelist | \`shared/global-agent-capabilities.ts\` | 動作必須在頁面 capabilities 內 |
+| 3️⃣ Cost Guard | \`server/services/orbCostGuard.ts\` | 估算超過上限會先停下來確認 |
+| 4️⃣ Quota Limit | \`server/services/orbQuota.ts\` | 點數不足直接擋下，不會浪費 fal queue |
+
+---
+
+## 十、給開發者：擴充指南
+
+### 加一個新的後端工具
+1. 在 \`shared/global-agent-tools.ts\` 加一筆 \`GlobalAgentToolDefinition\`（name / riskLevel / requiresHuman / allowedArgsSchema）。
+2. 在 \`server/services/agentToolExecutor.ts\` 的 switch 加 case 處理執行邏輯。
+3. 加測試：\`server/studio-tool-bridge.test.ts\`（生成類）或 \`server/global-orb-executor.test.ts\`（其他）。
+4. 在本文（master-orb-tool-registry）對應的表格新增一列。
+5. 若需審計／成本追蹤，記得呼叫 \`onAuditEvent\` + 設定 pricing 條目。
+
+### 加一個新的頁面動作
+1. 在 \`shared/agent-actions.ts\` 加 interface + 加進 \`AgentAction\` union。
+2. 在 \`shared/global-agent-capabilities.ts\` 的 \`DEFAULT_ACTION_CAPABILITIES\` 加一筆。
+3. 在頁面的 \`useRegisterPageAgent\` handle 中加 case。
+4. 把該頁的 \`supportedActions\` 加上新 actionType（\`shared/appRegistry.ts\`）。
+5. 更新光球系統提示詞範例（\`server/services/siteKnowledge.ts\`）。
+
+### 加一個新的工作流 builder
+1. 在 \`shared/global-agent-workflows.ts\` 加 \`buildXxxWorkflow(brief)\` function。
+2. 加單元測試驗證 step 順序與 toolResultBinding。
+3. 在本文「跨頁工作流」表格新增一列。
+4. 在 \`shared/orb-agent-roles.ts\` 的 KEYWORD_RULES 加觸發詞，讓光球能對應上。
+
+---
+
+## 十一、推薦延伸閱讀
+
+- master-toolkit-guide 全站工具完整使用與學習導引
+- master-orb-companion-guide 光球代理人完全指南
+- mg-004 AI Brain 5 大引擎配置
+- api-001 tRPC API 完整端點目錄
+- api-999 全站自動化維護工具
+
+> 🌿 給光球的話：「告訴我你能用哪些工具」 → 光球會引用本文摘要，依當下任務挑工具給你看。
+`,
+    tags: ["光球工具", "Tool Registry", "PageAgent", "Workflow", "深度參考"],
+    difficulty: "advanced",
+    readingMinutes: 14,
+    publishedAt: "2026-05-02T00:00:00Z",
+    updatedAt: "2026-05-02T00:00:00Z",
+    featured: true,
+    authorName: "Healing Studio Team",
+  },
+
 ];
 
 // ─── In-memory store（後端無 DB 表時使用） ────────────────────────────────
