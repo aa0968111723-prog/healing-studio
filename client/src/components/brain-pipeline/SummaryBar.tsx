@@ -20,9 +20,13 @@ export type StatusFilter = "all" | PipelineNodeStatus | "issues";
  * - site：站點視圖（只顯示 page / page-group），給「全站關係圖」場景。
  * - brain：大腦視圖（router / brain / engine / provider / orb / director），
  *          當前 admin 監控頁的預設行為。
- * - full：完整視圖，把站點與大腦串成一張橫跨四層的圖。
+ * - full：完整視圖，把瀏覽器→頁面→API→中介層→服務→tRPC→大腦→引擎→外部 Provider
+ *          →資料表→基礎設施→建構流水線→品質閘全部畫進來，適合深度排查。
+ * - infra：「網站如何運作」視圖；強調 client / api / data / infrastructure，
+ *          隱藏 brain/engine 細節。給主管或非工程同仁看「請求是怎麼走的」。
+ * - data：資料視圖；強調 DB 表、repository、service、storage，協助理解資料流向。
  */
-export type ViewMode = "site" | "brain" | "full";
+export type ViewMode = "site" | "brain" | "full" | "infra" | "data";
 
 interface Props {
   summary: PipelineSummary | undefined;
@@ -87,7 +91,13 @@ export function SummaryBar({
             value={viewMode}
             onValueChange={value => {
               // ToggleGroup 在「再點同一個」時會回傳空字串，這時不切換。
-              if (value === "site" || value === "brain" || value === "full") {
+              if (
+                value === "site" ||
+                value === "brain" ||
+                value === "full" ||
+                value === "infra" ||
+                value === "data"
+              ) {
                 onViewModeChange!(value);
               }
             }}
@@ -106,6 +116,22 @@ export function SummaryBar({
               aria-label="大腦視圖"
             >
               大腦
+            </ToggleGroupItem>
+            <ToggleGroupItem
+              value="infra"
+              className="h-7 px-2.5 text-xs"
+              aria-label="運作視圖"
+              title="瀏覽器 → API → 資料庫 → 部署平台的端到端關係圖"
+            >
+              運作
+            </ToggleGroupItem>
+            <ToggleGroupItem
+              value="data"
+              className="h-7 px-2.5 text-xs"
+              aria-label="資料視圖"
+              title="DB 表、Repository、Service、Storage 的資料流向"
+            >
+              資料
             </ToggleGroupItem>
             <ToggleGroupItem
               value="full"

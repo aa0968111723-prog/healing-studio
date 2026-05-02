@@ -31,6 +31,27 @@ const KIND_ICON: Record<PipelineNode["kind"], string> = {
   director: "🎬",
   studio: "🎨",
   provider: "☁️",
+  // ── 「網站如何運作」深度整合新增 ────────────────────────────────────
+  browser: "🖥️",
+  "api-endpoint": "🛰️",
+  webhook: "📨",
+  websocket: "🔌",
+  middleware: "🧩",
+  service: "⚒️",
+  repository: "📚",
+  database: "🗄️",
+  "db-table": "📋",
+  storage: "🪣",
+  "vector-store": "🧬",
+  "search-provider": "🔎",
+  "cron-job": "🕒",
+  "build-artifact": "🏗️",
+  "eval-runner": "🧪",
+  deployment: "🚂",
+  observability: "📡",
+  "auth-provider": "🔐",
+  notification: "🔔",
+  payment: "💳",
 };
 
 export type PipelineNodeData = {

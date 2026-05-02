@@ -43,7 +43,8 @@ const ISSUE_STATUSES: ReadonlySet<PipelineNodeStatus> = new Set<PipelineNodeStat
  * 視圖模式對應的可見 kind 集合。
  * - site：純站點關係圖（page + page-group），用於「全站關係圖」場景
  * - brain：原本的 admin 監控視圖，隱藏 frontend 節點
- * - full：四層完整圖（page → router → brain/engine → provider）
+ * - full：六層完整圖（browser → page → api/router → brain/engine → provider → infra/data）
+ * - infra：對主管 / 新成員的「網站如何運作」視圖（強調 client / api / data / infrastructure）
  */
 const VIEW_MODE_KINDS: Record<ViewMode, ReadonlySet<PipelineNodeKind>> = {
   site: new Set<PipelineNodeKind>(["page", "page-group", "studio"]),
@@ -56,10 +57,22 @@ const VIEW_MODE_KINDS: Record<ViewMode, ReadonlySet<PipelineNodeKind>> = {
     "director",
     "studio",
     "provider",
+    "service",
+    // 「我的腦組態」也想看 LangSmith / DB 對應（讓 AI 路徑完整）
+    "observability",
+    "vector-store",
+    "search-provider",
   ]),
   full: new Set<PipelineNodeKind>([
+    "browser",
     "page",
     "page-group",
+    "api-endpoint",
+    "webhook",
+    "websocket",
+    "middleware",
+    "service",
+    "repository",
     "router",
     "brain-slot",
     "engine-slot",
@@ -68,6 +81,50 @@ const VIEW_MODE_KINDS: Record<ViewMode, ReadonlySet<PipelineNodeKind>> = {
     "director",
     "studio",
     "provider",
+    "database",
+    "db-table",
+    "storage",
+    "vector-store",
+    "search-provider",
+    "cron-job",
+    "build-artifact",
+    "eval-runner",
+    "deployment",
+    "observability",
+    "auth-provider",
+    "notification",
+    "payment",
+  ]),
+  infra: new Set<PipelineNodeKind>([
+    "browser",
+    "page-group",
+    "api-endpoint",
+    "webhook",
+    "websocket",
+    "middleware",
+    "database",
+    "storage",
+    "vector-store",
+    "search-provider",
+    "cron-job",
+    "build-artifact",
+    "deployment",
+    "observability",
+    "auth-provider",
+    "notification",
+    "payment",
+    "provider",
+    "studio",
+  ]),
+  data: new Set<PipelineNodeKind>([
+    "router",
+    "service",
+    "repository",
+    "database",
+    "db-table",
+    "storage",
+    "vector-store",
+    "cron-job",
   ]),
 };
 
@@ -89,19 +146,22 @@ export function PipelineCanvas({
   const [selectedNode, setSelectedNode] = useState<PipelineNode | null>(null);
   const [groupExpanded, setGroupExpanded] = useState(expandPageGroup);
 
-  // 過濾順序：viewMode → page-group 折疊（僅 full 模式適用）→ status filter。
-  // page-group 容器不被 status 篩走，避免變空圖。
+  // 過濾順序：viewMode → 群組折疊（page-group / database）→ status filter。
+  // page-group / database 容器本身不被 status 篩走，避免變空圖。
   const visibleNodes = useMemo(() => {
     const allowedKinds = VIEW_MODE_KINDS[viewMode];
     let base = graph.nodes.filter(n => allowedKinds.has(n.kind));
-    // 僅 full 模式下使用「展開/折疊頁面」邏輯：折疊時隱藏 page，留下 page-group bubbles。
-    // site 模式預期看到所有頁面；brain 模式 page/page-group 已被 viewMode 排除。
-    if (viewMode === "full" && !groupExpanded) {
-      base = base.filter(n => n.kind !== "page");
+    // 折疊時：full 視圖隱藏 page；data / full 視圖隱藏 db-table（保留 db:main bubble）
+    if (!groupExpanded) {
+      if (viewMode === "full") {
+        base = base.filter(n => n.kind !== "page" && n.kind !== "db-table");
+      } else if (viewMode === "data") {
+        base = base.filter(n => n.kind !== "db-table");
+      }
     }
     if (statusFilter === "all") return base;
     return base.filter(n => {
-      if (n.kind === "page-group") return true;
+      if (n.kind === "page-group" || n.kind === "database") return true;
       if (statusFilter === "issues") return ISSUE_STATUSES.has(n.status);
       return n.status === statusFilter;
     });
@@ -169,7 +229,11 @@ export function PipelineCanvas({
     (_: unknown, rfNode: Node) => {
       const data = rfNode.data as PipelineNodeData;
       const node = data.node;
-      if (node.kind === "page-group") {
+      // page-group 與 database（含 children 的容器）— 點擊切換展開/折疊
+      if (
+        node.kind === "page-group" ||
+        (node.kind === "database" && node.children && node.children.length > 0)
+      ) {
         setGroupExpanded(prev => !prev);
         return;
       }

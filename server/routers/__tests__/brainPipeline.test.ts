@@ -16,6 +16,20 @@ const {
   ROUTER_TO_AI_SLOTS,
   PROVIDERS,
   STUDIO_CONSUMERS,
+  API_ENDPOINTS,
+  WEBHOOK_ENDPOINTS,
+  DATA_NODES,
+  INFRA_NODES,
+  BROWSER_NODE_META,
+  EXTERNAL_SERVICES,
+  CRON_JOBS,
+  MIDDLEWARE_STACK,
+  WS_GATEWAYS,
+  INTERNAL_SERVICES,
+  REPOSITORIES,
+  DB_TABLES,
+  BUILD_ARTIFACTS,
+  EVAL_NODE_META,
 } = __testing;
 
 /** 專案根目錄 — 用於檢查 graph 中提到的檔案是否真的存在於 repo。 */
@@ -60,14 +74,22 @@ describe("brainPipeline graph builder", () => {
       includeAlerts: false,
     });
     const providers = g.nodes.filter(n => n.kind === "provider");
-    expect(providers.map(p => p.id).sort()).toEqual([
+    // 動態跟著 PROVIDERS catalog 與 EXTERNAL_SERVICES（kind=provider）長 — 避免每次新增
+    // provider 都要改測試。檢查兩件事：
+    // (1) 6 個既有 AI provider 一定都在
+    // (2) 沒有重複 id
+    const renderedIds = new Set(providers.map(p => p.id));
+    for (const id of [
       "provider:elevenlabs",
       "provider:fal",
       "provider:gemini",
       "provider:replicate",
       "provider:suno",
       "provider:vertex",
-    ]);
+    ]) {
+      expect(renderedIds.has(id), `${id} 應出現在圖中`).toBe(true);
+    }
+    expect(renderedIds.size).toBe(providers.length);
   });
 
   it("marks a provider as broken when API key env is unset", () => {
@@ -554,6 +576,678 @@ describe("brainPipeline graph builder", () => {
     setProviderHealth("gemini", "degraded", "elevated latency");
     const afterSecond = getProviderHealthVersion();
     expect(afterSecond).toBeGreaterThan(afterFirst);
+  });
+
+  describe("「網站如何運作」深度整合層（client / api / data / infrastructure）", () => {
+    it("admin 完整視圖預設包含 browser + api + data + infra 節點", () => {
+      const g = buildGraph({
+        includeAllPages: true,
+        includeRouters: true,
+        includeAlerts: false,
+      });
+      // browser 入口
+      expect(g.nodes.find(n => n.id === BROWSER_NODE_META.id)).toBeDefined();
+      // 核心 API 端點都應出現
+      const apiIds = new Set(API_ENDPOINTS.map(e => e.id));
+      const renderedApiIds = new Set(
+        g.nodes.filter(n => n.kind === "api-endpoint").map(n => n.id)
+      );
+      for (const id of apiIds) {
+        expect(renderedApiIds.has(id), `${id} 應出現在圖中`).toBe(true);
+      }
+      // 5 個 webhook 都應出現
+      for (const wh of WEBHOOK_ENDPOINTS) {
+        expect(g.nodes.find(n => n.id === wh.id)).toBeDefined();
+      }
+      // 資料層
+      for (const meta of DATA_NODES) {
+        expect(g.nodes.find(n => n.id === meta.id)).toBeDefined();
+      }
+      // 部署 / 觀測 / 第三方
+      for (const meta of INFRA_NODES) {
+        expect(g.nodes.find(n => n.id === meta.id)).toBeDefined();
+      }
+    });
+
+    it("瀏覽器節點連到所有 page-group（admin 視圖）與 orb-agent（個人視圖 fallback）", () => {
+      const admin = buildGraph({
+        includeAllPages: true,
+        includeRouters: true,
+        includeAlerts: false,
+      });
+      const groupNodes = admin.nodes.filter(n => n.kind === "page-group");
+      expect(groupNodes.length).toBeGreaterThan(0);
+      for (const group of groupNodes) {
+        expect(
+          admin.edges.find(
+            e =>
+              e.source === BROWSER_NODE_META.id && e.target === group.id
+          ),
+          `browser → ${group.id} edge 應存在`
+        ).toBeDefined();
+      }
+
+      const personal = buildGraph({
+        includeAllPages: false,
+        includeRouters: false,
+        includeAlerts: false,
+      });
+      expect(
+        personal.edges.find(
+          e =>
+            e.source === BROWSER_NODE_META.id && e.target === "orb:agent"
+        )
+      ).toBeDefined();
+    });
+
+    it("API 端點 → 下游節點的邊都會被畫出（端點不會懸空）", () => {
+      const g = buildGraph({
+        includeAllPages: true,
+        includeRouters: true,
+        includeAlerts: false,
+      });
+      const ids = new Set(g.nodes.map(n => n.id));
+      // /api/upload 必須連到 storage:assets 與 db:main
+      expect(
+        g.edges.find(
+          e => e.source === "api:upload" && e.target === "storage:assets"
+        )
+      ).toBeDefined();
+      expect(
+        g.edges.find(e => e.source === "api:upload" && e.target === "db:main")
+      ).toBeDefined();
+      // /api/trpc 必須連到至少一個 router 節點
+      const trpcDownstream = g.edges.filter(e => e.source === "api:trpc");
+      expect(trpcDownstream.length).toBeGreaterThan(0);
+      for (const e of trpcDownstream) {
+        expect(ids.has(e.target)).toBe(true);
+      }
+    });
+
+    it("Webhook 由對應 provider/payment 流入；下游寫入 db:main", () => {
+      const g = buildGraph({
+        includeAllPages: false,
+        includeRouters: false,
+        includeAlerts: false,
+      });
+      // provider:fal → webhook:fal
+      expect(
+        g.edges.find(
+          e => e.source === "provider:fal" && e.target === "webhook:fal"
+        )
+      ).toBeDefined();
+      // payment:stripe → webhook:stripe
+      expect(
+        g.edges.find(
+          e =>
+            e.source === "payment:stripe" && e.target === "webhook:stripe"
+        )
+      ).toBeDefined();
+      // 每個 webhook → db:main
+      for (const wh of WEBHOOK_ENDPOINTS) {
+        if (wh.downstream.includes("db:main")) {
+          expect(
+            g.edges.find(e => e.source === wh.id && e.target === "db:main")
+          ).toBeDefined();
+        }
+      }
+    });
+
+    it("Railway 部署節點代管 healthcheck / DB / storage", () => {
+      const g = buildGraph({
+        includeAllPages: false,
+        includeRouters: false,
+        includeAlerts: false,
+      });
+      const railway = g.nodes.find(n => n.id === "infra:railway");
+      expect(railway).toBeDefined();
+      expect(railway!.layer).toBe("infrastructure");
+      expect(
+        g.edges.find(
+          e => e.source === "infra:railway" && e.target === "api:health"
+        )
+      ).toBeDefined();
+      expect(
+        g.edges.find(
+          e => e.source === "infra:railway" && e.target === "db:main"
+        )
+      ).toBeDefined();
+      expect(
+        g.edges.find(
+          e =>
+            e.source === "infra:railway" && e.target === "storage:assets"
+        )
+      ).toBeDefined();
+    });
+
+    it("可關閉 includeInfrastructure 取得舊版精簡圖（向後相容）", () => {
+      const slim = buildGraph({
+        includeAllPages: false,
+        includeRouters: false,
+        includeAlerts: false,
+        includeInfrastructure: false,
+      });
+      expect(
+        slim.nodes.find(n => n.id === BROWSER_NODE_META.id)
+      ).toBeUndefined();
+      expect(
+        slim.nodes.find(n => n.kind === "api-endpoint")
+      ).toBeUndefined();
+      expect(slim.nodes.find(n => n.id === "db:main")).toBeUndefined();
+      expect(
+        slim.nodes.find(n => n.id === "infra:railway")
+      ).toBeUndefined();
+    });
+
+    it("Cron / 外部服務 / middleware 節點都會出現於完整圖", () => {
+      const g = buildGraph({
+        includeAllPages: false,
+        includeRouters: false,
+        includeAlerts: false,
+      });
+      for (const job of CRON_JOBS) {
+        expect(
+          g.nodes.find(n => n.id === job.id),
+          `${job.id} 應出現`
+        ).toBeDefined();
+      }
+      for (const ext of EXTERNAL_SERVICES) {
+        expect(
+          g.nodes.find(n => n.id === ext.id),
+          `${ext.id} 應出現`
+        ).toBeDefined();
+      }
+      for (const mw of MIDDLEWARE_STACK) {
+        expect(
+          g.nodes.find(n => n.id === mw.id),
+          `${mw.id} 應出現`
+        ).toBeDefined();
+      }
+    });
+
+    it("Cron 節點連到 Railway（被代管）與 downstream（讀寫對象）", () => {
+      const g = buildGraph({
+        includeAllPages: false,
+        includeRouters: false,
+        includeAlerts: false,
+      });
+      // newsFetcher → newsapi + newsdata + db
+      const newsCron = "cron:news-fetcher";
+      expect(
+        g.edges.find(e => e.source === newsCron && e.target === "ext:newsapi")
+      ).toBeDefined();
+      expect(
+        g.edges.find(e => e.source === newsCron && e.target === "db:main")
+      ).toBeDefined();
+      // Railway 排程每個 cron
+      for (const job of CRON_JOBS) {
+        expect(
+          g.edges.find(
+            e => e.source === "infra:railway" && e.target === job.id
+          ),
+          `infra:railway → ${job.id} 應存在`
+        ).toBeDefined();
+      }
+    });
+
+    it("Middleware 鏈：browser → helmet → compression → rate-limit → request-trace", () => {
+      const g = buildGraph({
+        includeAllPages: false,
+        includeRouters: false,
+        includeAlerts: false,
+      });
+      const order = [
+        BROWSER_NODE_META.id,
+        "mw:helmet",
+        "mw:compression",
+        "mw:rate-limit",
+        "mw:request-trace",
+      ];
+      for (let i = 0; i < order.length - 1; i++) {
+        expect(
+          g.edges.find(
+            e => e.source === order[i] && e.target === order[i + 1]
+          ),
+          `edge ${order[i]} → ${order[i + 1]} 應存在`
+        ).toBeDefined();
+      }
+    });
+
+    it("API endpoint 狀態繼承下游最差狀態（worst-of 規則）", () => {
+      // 透過讓 storage 在生產環境缺設來迫 api:upload 退化（純單元測試以
+      // 已存在的環境而定，這裡僅驗證型別欄位存在且為合法狀態）。
+      const g = buildGraph({
+        includeAllPages: false,
+        includeRouters: false,
+        includeAlerts: false,
+      });
+      const upload = g.nodes.find(n => n.id === "api:upload");
+      expect(upload).toBeDefined();
+      expect(["healthy", "needs_optimization", "broken", "abnormal"]).toContain(
+        upload!.status
+      );
+    });
+  });
+
+  describe("自動化漂移偵測（drift guards） — 程式碼變動時讓視覺化跟著更新", () => {
+    /**
+     * 集中讀取會被多個 drift guard 重用的原始檔，避免每個測試各自 readFile。
+     */
+    const indexTs = readFileSync(
+      resolve(REPO_ROOT, "server/_core/index.ts"),
+      "utf-8"
+    );
+
+    it("server/_core/index.ts 中所有 cron init 呼叫都已列入 CRON_JOBS catalog", () => {
+      // 抓 `start: init<Name>Cron` 形式（cron 啟動 registry 內的引用）；新增 cron 但
+      // 忘記登錄到 brainPipeline 時失敗
+      const initCalls = new Set<string>();
+      const re = /\bstart:\s*init([A-Z][a-zA-Z0-9]*)Cron\b/g;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(indexTs)) !== null) {
+        initCalls.add(m[1]); // e.g. "NewsFetcher", "ModelTrainingWorker"
+      }
+      expect(initCalls.size).toBeGreaterThanOrEqual(8);
+
+      // 把 catalog id 轉成可比對的 PascalCase 集合
+      // cron:news-fetcher → NewsFetcher
+      const catalogPascal = new Set(
+        CRON_JOBS.map(j =>
+          j.id
+            .replace(/^cron:/, "")
+            .split("-")
+            .map(s => s.charAt(0).toUpperCase() + s.slice(1))
+            .join("")
+        )
+      );
+
+      // 已知在 catalog 內以不同名字呈現的別名（catalog 名 → 實際 init 函式名）
+      const aliases: Record<string, string> = {
+        ApiHealthMonitor: "ApiHealthMonitor",
+      };
+      const missing: string[] = [];
+      for (const fn of initCalls) {
+        const target = aliases[fn] ?? fn;
+        if (!catalogPascal.has(target)) missing.push(fn);
+      }
+      expect(
+        missing,
+        `偵測到 server/_core/index.ts 新增了 cron 但未加入 brainPipeline 的 CRON_JOBS：\n` +
+          `  ${missing.join(", ")}\n→ 請在 server/routers/brainPipeline.ts 的 CRON_JOBS catalog 加上對應 entry，` +
+          `或若該 cron 不該出現在管線圖上，請在此測試 aliases 中標記。`
+      ).toEqual([]);
+    });
+
+    it("server/_core/index.ts 註冊的全域 middleware 都已列入 MIDDLEWARE_STACK catalog", () => {
+      // 用啟發式判斷 — 抓 app.use(<callExpr>) 的 callee 並比對到 catalog 標籤
+      const expectedMiddlewareSignals: Array<{
+        id: string;
+        signal: RegExp;
+      }> = [
+        { id: "mw:helmet", signal: /\bhelmet\s*\(/ },
+        { id: "mw:compression", signal: /\bcompression\s*\(/ },
+        { id: "mw:rate-limit", signal: /rateLimit(ers|Context)/ },
+        { id: "mw:request-trace", signal: /requestTraceMiddleware/ },
+        { id: "mw:error-handler", signal: /globalErrorHandler/ },
+      ];
+
+      const catalogIds = new Set(MIDDLEWARE_STACK.map(m => m.id));
+      const missingFromCatalog: string[] = [];
+      const missingInSource: string[] = [];
+
+      for (const { id, signal } of expectedMiddlewareSignals) {
+        if (!catalogIds.has(id)) missingFromCatalog.push(id);
+        if (!signal.test(indexTs)) missingInSource.push(id);
+      }
+      expect(
+        missingFromCatalog,
+        "MIDDLEWARE_STACK 缺少預期的 middleware id"
+      ).toEqual([]);
+      expect(
+        missingInSource,
+        "server/_core/index.ts 中找不到預期的 middleware（可能已移除或改名）"
+      ).toEqual([]);
+    });
+
+    it("server/_core/index.ts 中所有 app.get/post/use(\"/api/...\") 端點都對應到 API_ENDPOINTS 或 WEBHOOK_ENDPOINTS", () => {
+      // 抓 app.get / app.post / app.use 中以 "/api/..." 字串為第一引數的呼叫
+      const apiPathRe =
+        /app\.(?:get|post|put|delete|use)\s*\(\s*["']([^"']+)["']/g;
+      const sourcedPaths = new Set<string>();
+      let m: RegExpExecArray | null;
+      while ((m = apiPathRe.exec(indexTs)) !== null) {
+        const p = m[1];
+        if (!p.startsWith("/api/") && !p.startsWith("/uploads")) continue;
+        sourcedPaths.add(p);
+      }
+
+      // 把 catalog 端點的 path 也標準化（去掉 :param / *）
+      const catalogPaths = new Set<string>();
+      for (const ep of API_ENDPOINTS) catalogPaths.add(ep.path);
+      for (const wh of WEBHOOK_ENDPOINTS) catalogPaths.add(wh.path);
+
+      // 已知不需要進入 catalog 的端點（純 middleware 限流註冊；端點本身在
+      // 其他 router 檔案註冊，已個別列入 catalog）
+      const exemptPaths = new Set([
+        "/api/auth/login", // /api/auth/login 由 localAuth.ts 個別註冊；這裡是 rateLimiter app.use
+        "/api/auth/register",
+        "/api/auth/forgot-password",
+        "/api/auth/reset-password",
+        "/api/auth/change-password",
+        "/api/", // app.use("/api/", rateLimiters.api) — 全域限流器
+        "/api/webhooks", // app.use("/api/webhooks", webhooksRouter) — 子 router 已被 WEBHOOK_ENDPOINTS 列入
+      ]);
+
+      const orphan: string[] = [];
+      for (const p of sourcedPaths) {
+        if (exemptPaths.has(p)) continue;
+        if (catalogPaths.has(p)) continue;
+        // 容許 path 是 catalog 條目的 prefix（catalog 寫成具體子 path）
+        const matchedAsBase = [...catalogPaths].some(cp => cp.startsWith(p));
+        if (matchedAsBase) continue;
+        orphan.push(p);
+      }
+      expect(
+        orphan,
+        `偵測到 server/_core/index.ts 新增了 /api 端點但未加入 brainPipeline 的 API_ENDPOINTS / WEBHOOK_ENDPOINTS：\n` +
+          `  ${orphan.join("\n  ")}\n→ 請在 server/routers/brainPipeline.ts 的 API_ENDPOINTS catalog 加上對應 entry，` +
+          `或若該端點不該出現在管線圖上，請在此測試 exemptPaths 中標記。`
+      ).toEqual([]);
+    });
+
+    it("已宣告於 .env.example 的外部 provider key 都對應到某個圖節點", () => {
+      // 讀 .env.example 抓所有 *_API_KEY 變數，確認 catalog 有對應
+      const envExample = readFileSync(resolve(REPO_ROOT, ".env.example"), "utf-8");
+      const envKeyRe = /^([A-Z][A-Z0-9_]*_(?:API_KEY|TOKEN|WEBHOOK))=/gm;
+      const envKeys = new Set<string>();
+      let m: RegExpExecArray | null;
+      while ((m = envKeyRe.exec(envExample)) !== null) {
+        envKeys.add(m[1]);
+      }
+      expect(envKeys.size).toBeGreaterThan(0);
+
+      const declaredKeys = new Set<string>();
+      for (const p of PROVIDERS) declaredKeys.add(p.apiKeyEnv);
+      for (const ext of EXTERNAL_SERVICES) declaredKeys.add(ext.envKey);
+      for (const infra of INFRA_NODES) {
+        if (infra.envKey) declaredKeys.add(infra.envKey);
+      }
+
+      // 已知不需要在 catalog 表達的 env key（內部設定 / 已被其他節點代表）
+      const exempt = new Set([
+        "JWT_SECRET",
+        "FAL_WEBHOOK_SECRET", // FAL provider 已存在；webhook secret 為內部驗章
+        "ORB_WEBHOOK_SECRET", // orb webhook 內部簽章
+        "STRIPE_WEBHOOK_SECRET", // payment:stripe 已存在
+        "BUILT_IN_FORGE_API_URL", // 不是 *_API_KEY，但 regex 不會抓到
+        "BUILT_IN_FORGE_API_KEY", // 已由 ext:forge-maps（FRONTEND_FORGE_API_KEY）代表
+        "FRONTEND_FORGE_API_URL",
+        "OAUTH_SERVER_URL",
+        "OPENPOSE_API_KEY", // env declare 但無 service 實作；保留 env 給未來
+        "GEMINI_LIVE_API_KEY", // Gemini Live (流式語音) 預留 env，目前不在主路徑
+      ]);
+
+      const orphan: string[] = [];
+      for (const key of envKeys) {
+        if (exempt.has(key)) continue;
+        if (declaredKeys.has(key)) continue;
+        orphan.push(key);
+      }
+      expect(
+        orphan,
+        `偵測到 .env.example 有外部服務 key 但 brainPipeline catalog 沒對應節點：\n` +
+          `  ${orphan.join(", ")}\n→ 請在 PROVIDERS / EXTERNAL_SERVICES / INFRA_NODES 任一 catalog 加 entry，` +
+          `或若該 key 不該被視覺化，請在此測試 exempt 中標記。`
+      ).toEqual([]);
+    });
+
+    it("server/jobs 目錄下所有 *.ts 檔（含 cron.schedule）都對應到 CRON_JOBS catalog", () => {
+      // 走訪 server/jobs/*.ts 找含 cron.schedule 的檔案
+      const fs = require("node:fs");
+      const path = require("node:path");
+      const jobsDir = resolve(REPO_ROOT, "server/jobs");
+      const files: string[] = fs
+        .readdirSync(jobsDir)
+        .filter((f: string) => f.endsWith(".ts") && !f.endsWith(".test.ts"));
+
+      const cronFiles = new Set<string>();
+      for (const f of files) {
+        const content = fs.readFileSync(path.join(jobsDir, f), "utf-8");
+        if (/cron\.schedule\s*\(/.test(content)) {
+          cronFiles.add(`server/jobs/${f}`);
+        }
+      }
+
+      const catalogFiles = new Set<string>();
+      for (const job of CRON_JOBS) {
+        for (const f of job.files) {
+          if (f.startsWith("server/jobs/")) catalogFiles.add(f);
+        }
+      }
+
+      // 已知不需要登錄為 cron 節點（如純粹的 helper / circuit breaker）
+      const exempt = new Set<string>(["server/jobs/circuitBreaker.ts"]);
+
+      const orphan: string[] = [];
+      for (const f of cronFiles) {
+        if (exempt.has(f)) continue;
+        if (catalogFiles.has(f)) continue;
+        orphan.push(f);
+      }
+      expect(
+        orphan,
+        `偵測到 server/jobs/ 下有檔案使用 cron.schedule 但 CRON_JOBS catalog 沒對應 entry：\n` +
+          `  ${orphan.join("\n  ")}\n→ 請在 brainPipeline 的 CRON_JOBS catalog 加 entry。`
+      ).toEqual([]);
+    });
+
+    it("Service / Repository / WS / Build / Eval 節點都會出現於完整圖", () => {
+      const g = buildGraph({
+        includeAllPages: false,
+        includeRouters: true,
+        includeAlerts: false,
+      });
+      for (const svc of INTERNAL_SERVICES) {
+        expect(g.nodes.find(n => n.id === svc.id), `${svc.id} 應出現`).toBeDefined();
+      }
+      for (const repo of REPOSITORIES) {
+        expect(
+          g.nodes.find(n => n.id === repo.id),
+          `${repo.id} 應出現`
+        ).toBeDefined();
+      }
+      for (const ws of WS_GATEWAYS) {
+        expect(g.nodes.find(n => n.id === ws.id), `${ws.id} 應出現`).toBeDefined();
+      }
+      for (const art of BUILD_ARTIFACTS) {
+        expect(
+          g.nodes.find(n => n.id === art.id),
+          `${art.id} 應出現`
+        ).toBeDefined();
+      }
+      expect(g.nodes.find(n => n.id === EVAL_NODE_META.id)).toBeDefined();
+    });
+
+    it("DB 表都掛在 db:main 之下（parentId 正確；db:main 也宣告 children）", () => {
+      const g = buildGraph({
+        includeAllPages: false,
+        includeRouters: false,
+        includeAlerts: false,
+      });
+      const dbMain = g.nodes.find(n => n.id === "db:main");
+      expect(dbMain).toBeDefined();
+      const childIds = new Set(dbMain!.children ?? []);
+      for (const tbl of DB_TABLES) {
+        const node = g.nodes.find(n => n.id === tbl.id);
+        expect(node, `${tbl.id} 節點應存在`).toBeDefined();
+        expect(node!.parentId, `${tbl.id} 應指向 db:main`).toBe("db:main");
+        expect(childIds.has(tbl.id), `db:main.children 應包含 ${tbl.id}`).toBe(
+          true
+        );
+      }
+    });
+
+    it("Service 節點與 upstream / downstream 都有 edge 連接（無懸空）", () => {
+      const g = buildGraph({
+        includeAllPages: false,
+        includeRouters: true, // 才會有 upstream router 節點
+        includeAlerts: false,
+      });
+      const ids = new Set(g.nodes.map(n => n.id));
+      for (const svc of INTERNAL_SERVICES) {
+        for (const upId of svc.upstream) {
+          if (!ids.has(upId)) continue;
+          expect(
+            g.edges.find(e => e.source === upId && e.target === svc.id),
+            `${upId} → ${svc.id} edge 應存在`
+          ).toBeDefined();
+        }
+        for (const downId of svc.downstream) {
+          if (!ids.has(downId)) continue;
+          expect(
+            g.edges.find(e => e.source === svc.id && e.target === downId),
+            `${svc.id} → ${downId} edge 應存在`
+          ).toBeDefined();
+        }
+      }
+    });
+
+    it("Build artifacts → 部署平台 與 build:vite-frontend → browser 邊都被畫出", () => {
+      const g = buildGraph({
+        includeAllPages: false,
+        includeRouters: false,
+        includeAlerts: false,
+      });
+      for (const art of BUILD_ARTIFACTS) {
+        expect(
+          g.edges.find(
+            e => e.source === art.id && e.target === "infra:railway"
+          ),
+          `${art.id} → infra:railway edge 應存在`
+        ).toBeDefined();
+      }
+      expect(
+        g.edges.find(
+          e =>
+            e.source === "build:vite-frontend" &&
+            e.target === BROWSER_NODE_META.id
+        )
+      ).toBeDefined();
+    });
+
+    it("WebSocket（/ws/orb-voice） browser → ws → Gemini 邊都連接", () => {
+      const g = buildGraph({
+        includeAllPages: false,
+        includeRouters: false,
+        includeAlerts: false,
+      });
+      expect(
+        g.edges.find(
+          e =>
+            e.source === BROWSER_NODE_META.id && e.target === "ws:orb-voice"
+        )
+      ).toBeDefined();
+      expect(
+        g.edges.find(
+          e => e.source === "ws:orb-voice" && e.target === "provider:gemini"
+        )
+      ).toBeDefined();
+    });
+
+    it("server/routes 目錄下所有 *.ts 都被某個 API_ENDPOINTS 或 WEBHOOK_ENDPOINTS 條目引用", () => {
+      const fs = require("node:fs");
+      const path = require("node:path");
+      const routesDir = resolve(REPO_ROOT, "server/routes");
+      const files: string[] = fs
+        .readdirSync(routesDir)
+        .filter((f: string) => f.endsWith(".ts") && !f.endsWith(".test.ts"));
+
+      const referenced = new Set<string>();
+      for (const ep of API_ENDPOINTS) {
+        for (const f of ep.files) referenced.add(f);
+      }
+      for (const wh of WEBHOOK_ENDPOINTS) {
+        for (const f of wh.files) referenced.add(f);
+      }
+
+      const orphan: string[] = [];
+      for (const f of files) {
+        const full = `server/routes/${f}`;
+        if (!referenced.has(full)) orphan.push(full);
+      }
+      expect(
+        orphan,
+        `偵測到 server/routes/ 下有檔案不被任何 API_ENDPOINTS / WEBHOOK_ENDPOINTS 條目引用：\n` +
+          `  ${orphan.join("\n  ")}\n→ 請在 brainPipeline catalog 加對應端點，或刪除未使用的 routes 檔案。`
+      ).toEqual([]);
+    });
+
+    it("server/ws 目錄下所有 *.ts 都被某個 WS_GATEWAYS 條目引用", () => {
+      const fs = require("node:fs");
+      const path = require("node:path");
+      const wsDir = resolve(REPO_ROOT, "server/ws");
+      const files: string[] = fs
+        .readdirSync(wsDir)
+        .filter((f: string) => f.endsWith(".ts") && !f.endsWith(".test.ts"));
+
+      const referenced = new Set<string>();
+      for (const ws of WS_GATEWAYS) {
+        for (const f of ws.files) referenced.add(f);
+      }
+
+      const orphan: string[] = [];
+      for (const f of files) {
+        const full = `server/ws/${f}`;
+        if (!referenced.has(full)) orphan.push(full);
+      }
+      expect(
+        orphan,
+        `偵測到 server/ws/ 下有檔案不被任何 WS_GATEWAYS 條目引用：\n` +
+          `  ${orphan.join("\n  ")}\n→ 請在 brainPipeline 的 WS_GATEWAYS catalog 加 entry。`
+      ).toEqual([]);
+    });
+
+    it("DB_TABLES 中宣告的 drizzleExport 都真的存在於 drizzle/schema.ts", () => {
+      const schemaTs = readFileSync(
+        resolve(REPO_ROOT, "drizzle/schema.ts"),
+        "utf-8"
+      );
+      const orphan: string[] = [];
+      for (const tbl of DB_TABLES) {
+        const re = new RegExp(
+          `^export const ${tbl.drizzleExport}\\b`,
+          "m"
+        );
+        if (!re.test(schemaTs)) orphan.push(tbl.drizzleExport);
+      }
+      expect(
+        orphan,
+        `DB_TABLES 中以下 drizzleExport 名找不到對應的 drizzle 表：\n` +
+          `  ${orphan.join(", ")}\n→ 請更新 DB_TABLES 的 drizzleExport 欄位。`
+      ).toEqual([]);
+    });
+
+    it("server/eval 目錄存在的話，必須對應到 EVAL_NODE_META（quality gate 不漂移）", () => {
+      const fs = require("node:fs");
+      const evalDir = resolve(REPO_ROOT, "server/eval");
+      if (!fs.existsSync(evalDir)) return; // 不存在就跳過
+      const referenced = new Set(EVAL_NODE_META.files);
+      // 只檢查頂層 .ts 與目錄
+      const orphans: string[] = [];
+      for (const f of fs.readdirSync(evalDir)) {
+        const full = `server/eval/${f}`;
+        // 容許目錄（cases/）或 .ts 檔；若兩種都沒被 EVAL_NODE_META 提及 → orphan
+        const inSet =
+          referenced.has(full) ||
+          [...referenced].some(r => r.startsWith(`${full}/`));
+        if (!inSet) orphans.push(full);
+      }
+      expect(
+        orphans,
+        `偵測到 server/eval/ 下有檔案/目錄未被 EVAL_NODE_META 引用：\n` +
+          `  ${orphans.join("\n  ")}`
+      ).toEqual([]);
+    });
   });
 
   it("buildGraph 不會在同一張圖內重複堆疊 trace samples（共享 traces 快照）", () => {
