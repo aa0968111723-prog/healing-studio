@@ -17,6 +17,8 @@ describe("studio.* generation tool registration", () => {
     expect(names).toContain("studio.generateVoice");
     // DEF-VC1：voice cloning 與 generateVoice 分流，輸出 speaker embedding 供後續 step 復用
     expect(names).toContain("studio.cloneVoice");
+    // DEF-VD1：voice design 與 cloneVoice 互補，從文字描述設計虛擬聲音
+    expect(names).toContain("studio.designVoice");
   });
 
   it("studio.* tools require human approval", () => {
@@ -27,6 +29,7 @@ describe("studio.* generation tool registration", () => {
       "studio.generateSfx",
       "studio.generateVoice",
       "studio.cloneVoice",
+      "studio.designVoice",
     ]) {
       const tool = getGlobalAgentTool(name);
       expect(tool, name).not.toBeNull();
@@ -42,6 +45,7 @@ describe("studio.* generation tool registration", () => {
     expect(isKnownGlobalAgentTool("studio.generateSfx")).toBe(true);
     expect(isKnownGlobalAgentTool("studio.generateVoice")).toBe(true);
     expect(isKnownGlobalAgentTool("studio.cloneVoice")).toBe(true);
+    expect(isKnownGlobalAgentTool("studio.designVoice")).toBe(true);
     expect(isKnownGlobalAgentTool("studio.unknownThing")).toBe(false);
   });
 });

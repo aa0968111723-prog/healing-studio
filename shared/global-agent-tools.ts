@@ -180,6 +180,22 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     },
     executionTarget: "server-side",
   },
+  // DEF-VD1：光球專用 voice design 工具 — 用文字描述設計虛擬聲音
+  // （年齡/性別/情緒/語速等），輸出 speaker embedding，可在後續 step 透過
+  // studio.generateVoice 帶 speaker_voice_embedding_file_url 復用。
+  // 與 cloneVoice 互補：cloneVoice 從參考音訊複製真實聲音、designVoice 從
+  // 文字描述產生虛擬角色聲音。預設走 fal-ai/qwen-3-tts/voice-design/1.7b。
+  {
+    name: "studio.designVoice",
+    riskLevel: "medium",
+    requiresHuman: true,
+    allowedArgsSchema: {
+      voice_description: "string",
+      modelId: "string?",
+      text: "string?",
+    },
+    executionTarget: "server-side",
+  },
   {
     name: "studio.generateVoice",
     riskLevel: "medium",

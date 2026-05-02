@@ -10,6 +10,7 @@ const GENERATION_SLOT_TOOLS = new Set([
   "studio.generateSfx",
   "studio.generateVoice",
   "studio.cloneVoice",
+  "studio.designVoice",
   "studio.enhanceVideo",
   "studio.trainLora",
 ]);
@@ -966,6 +967,58 @@ async function dispatchStudioTool(
             ? { error: awaited.error }
             : !speakerEmbedding && awaited.status !== "pending"
               ? { error: "voice-clone: speaker_embedding 缺失" }
+              : {}),
+        };
+      }
+
+      // DEF-VD1：光球專用 voice design — 用文字描述設計虛擬聲音，輸出 speaker
+      // embedding URL，後續 step 可帶 speaker_voice_embedding_file_url 給
+      // studio.generateVoice 復用該設計音色。預設 fal-ai/qwen-3-tts/voice-design/1.7b。
+      case "studio.designVoice": {
+        const { dispatchFalQueueTask } = await import("./falDispatcher");
+        const modelId =
+          (args.modelId as string) || "fal-ai/qwen-3-tts/voice-design/1.7b";
+        const designInput: Record<string, unknown> = {};
+        if (typeof args.voice_description === "string") {
+          designInput.voice_description = args.voice_description;
+        }
+        // text 為可選預覽文字（fal 會用設計出的聲音念這段文字回傳音檔），
+        // 與 proStudio.qwenVoiceDesign:980 的預設一致。
+        designInput.text =
+          typeof args.text === "string" && args.text
+            ? args.text
+            : "你好，我是你設計的聲音。";
+        const r = await dispatchFalQueueTask({
+          modelId,
+          category: "text-to-speech",
+          input: designInput,
+          route: "orb-tool/studio.designVoice",
+          modality: "voice",
+          userId: opts.userId,
+        });
+        const awaited = await awaitFalForOrb(
+          { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
+          args
+        );
+        // 與 cloneVoice 同一回傳契約：把 speaker_embedding.url 平推到頂層 —
+        // 後續 step 可用 ${stepN.speaker_voice_embedding_file_url} 接到 generateVoice。
+        const speakerEmbedding =
+          (awaited.raw as { speaker_embedding?: { url?: string } } | undefined)
+            ?.speaker_embedding?.url ?? null;
+        return {
+          name: call.name,
+          ok: awaited.status !== "failed" && !!speakerEmbedding,
+          data: {
+            ...awaited,
+            engine: "fal",
+            kind: "voice-design",
+            speaker_voice_embedding_file_url: speakerEmbedding,
+          },
+          usedTool: call.name,
+          ...(awaited.status === "failed" && awaited.error
+            ? { error: awaited.error }
+            : !speakerEmbedding && awaited.status !== "pending"
+              ? { error: "voice-design: speaker_embedding 缺失" }
               : {}),
         };
       }
