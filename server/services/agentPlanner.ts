@@ -242,7 +242,7 @@ export function buildAgentPlannerMessages(input: AgentPlannerInput): Message[] {
     `Multimodal attachments:\n${multimodalSummary}`,
     `User agent preferences:\n${preferencesSummary}`,
     quotaSummary
-      ? `${quotaSummary}\n\n配額分階段規則（極為重要 / very important）：\n- 計算 plan 中真正會消耗 generation 額度的步驟數（每個 studio.generateImage / studio.generateVideo / studio.generateAudio / studio.generateVoice / studio.enhanceVideo / studio.trainLora 算 1 個 generation 額度；planner 額度由本次規劃自動扣除，無需自行加總；multimodal_analysis 用於分析上傳的圖／影／音／PDF；code_task 用於 code/github/deploy 真正改檔工作）。\n- 若所需 generation 步驟數 ≤ 剩餘 generation 額度，可一次規劃完整 plan。\n- 若所需 generation 步驟數 > 剩餘 generation 額度，必須分階段：把 plan 切成 ≤ 剩餘額度的「第一階段」與後續「第 N 階段」；只提交第一階段為 tasked plan，並在 summaryForUser 與 reply 中明確告知使用者「今日只能執行 X 步，剩下 Y 步明日再續」並把後續 step 列入 followUpStages 文字描述（不要放進當次 steps）。\n- 若 generation 額度 = 0：直接回覆 clarification（或 blocked），告知使用者今日 generation 額度已滿，並建議改成預覽／分鏡／文字腳本等不耗 generation 的步驟；不要送出空 tasked plan。\n- 若 multimodal_analysis = 0 且使用者上傳了圖／影／音／PDF：說明今日無法分析附件，請使用者明日再試或先以文字描述需求。\n- 若 code_task = 0 且使用者請求改檔／GitHub／部署：直接回覆額度已滿，不要建立 code task。\n- 千萬不要為了規劃而規劃 — 只有實際會被執行的步驟才能算進當次 plan，宣告 followUpStages 時要清楚標註「Stage 2 (明日)」之類的文字。`
+      ? `${quotaSummary}\n\n配額分階段規則（極為重要 / very important）：\n- 計算 plan 中真正會消耗 generation 額度的步驟數（每個 studio.generateImage / studio.generate3D / studio.generateVideo / studio.generateAudio / studio.generateVoice / studio.enhanceVideo / studio.trainLora 算 1 個 generation 額度；planner 額度由本次規劃自動扣除，無需自行加總；multimodal_analysis 用於分析上傳的圖／影／音／PDF；code_task 用於 code/github/deploy 真正改檔工作）。\n- 若所需 generation 步驟數 ≤ 剩餘 generation 額度，可一次規劃完整 plan。\n- 若所需 generation 步驟數 > 剩餘 generation 額度，必須分階段：把 plan 切成 ≤ 剩餘額度的「第一階段」與後續「第 N 階段」；只提交第一階段為 tasked plan，並在 summaryForUser 與 reply 中明確告知使用者「今日只能執行 X 步，剩下 Y 步明日再續」並把後續 step 列入 followUpStages 文字描述（不要放進當次 steps）。\n- 若 generation 額度 = 0：直接回覆 clarification（或 blocked），告知使用者今日 generation 額度已滿，並建議改成預覽／分鏡／文字腳本等不耗 generation 的步驟；不要送出空 tasked plan。\n- 若 multimodal_analysis = 0 且使用者上傳了圖／影／音／PDF：說明今日無法分析附件，請使用者明日再試或先以文字描述需求。\n- 若 code_task = 0 且使用者請求改檔／GitHub／部署：直接回覆額度已滿，不要建立 code task。\n- 千萬不要為了規劃而規劃 — 只有實際會被執行的步驟才能算進當次 plan，宣告 followUpStages 時要清楚標註「Stage 2 (明日)」之類的文字。`
       : undefined,
     "Plan in Traditional Chinese labels where helpful, but keep action ids and page paths exact.",
     "When the user's target output, modality, destination page, chosen model, constraints, or success criteria are unclear, you MUST return shouldAskClarification=true with a single clarificationQuestion (Traditional Chinese, ≤80 字) and 2-4 short clarificationOptions covering the likely choices. Do NOT include any steps in clarification mode.",
@@ -268,7 +268,7 @@ After the wizard collects all parameters, the orb MUST actually run the generati
 
 How to produce a real executable tasked plan:
 - Map the confirmed parameters onto a registered server-side studio.* tool from the 'Global tool registry summary' and emit a step with BOTH:
-    • toolName: '<registered tool name>' (e.g., 'studio.generateVideo', 'studio.generateImage', 'studio.generateAudio', 'studio.generateVoice', 'studio.enhanceVideo', 'studio.trainLora')
+    • toolName: '<registered tool name>' (e.g., 'studio.generateVideo', 'studio.generateImage', 'studio.generate3D', 'studio.generateAudio', 'studio.generateVoice', 'studio.enhanceVideo', 'studio.trainLora')
     • toolArgs: { ...the actual prompt/modelId/duration/aspect_ratio/etc derived from the wizard answers }
   The orchestrator will dispatch the tool to fal.ai / Suno / ElevenLabs server-side and stream the request_id back — that's the real generation, not a UI hint.
 - For LoRA / 風格 / 角色 / 場景 / 影片 LoRA / 肖像 / 配音 clone training, emit a 'studio.trainLora' step with toolArgs:
@@ -289,6 +289,27 @@ How to produce a real executable tasked plan:
       step2 toolName='media.caption', toolArgs={ transcript: "\${step1.transcript}", style: "搞笑可愛" }
     • step1 toolName='studio.generateImage' returns \`{ request_id, image_url? }\` →
       step2 toolName='studio.generateVideo', toolArgs={ prompt: "...", image_url: "\${step1.image_url}" }
+    • 圖片編輯（image-to-image）— 同一個 studio.generateImage 工具可同時處理 t2i 與 edit；
+      只要在 toolArgs 帶上 image_url(必填) 與可選 image_urls[]（多參考圖融合）+ modelId
+      指向 edit 模型即可，例如:
+        toolName='studio.generateImage', toolArgs={
+          modelId: 'fal-ai/nano-banana-pro/edit',
+          prompt: '把背景換成日落海邊',
+          image_url: '\${step1.image_url}',
+          image_urls: ['\${step1.image_url}']
+        }
+      代理會自動以 image-to-image 路徑提交，沒有獨立的 studio.editImage 工具。
+    • 3D 建模（image-to-3d / text-to-3d）— studio.generate3D 是 5 個 3D 模型
+      （trellis-2 / sam-3/3d-objects / hunyuan3d-v3 / hyper3d/rodin / hunyuan_world）
+      共用入口，executor 依 modelId / prompt / image_url 自動推 category。例：
+        toolName='studio.generate3D', toolArgs={
+          modelId: 'fal-ai/trellis-2',
+          image_url: '\${step1.image_url}',
+          resolution: '1024',
+          texture_size: '2048'
+        }
+      Rodin 純文字模式（無 image_url）會走 text-to-3d；HunYuan3D v3 用 input_image_url
+      + 可選 back/left/right_image_url 多視角。3D 推論 1-5 分鐘，會立即回 request_id。
   Use these placeholders ONLY for values produced by registered tool calls in earlier steps of the SAME plan; do not invent variables for parameters the user gave you (those are already known and should be inlined verbatim).
 - Keep risk gates honest: studio.generate* tools are medium-risk + requiresHuman; the workflow confirmation card already approves them as a batch, so set requiresApproval=true on the step but DO NOT block on each individual sub-step at runtime.
 - Forbidden lazy outputs: do NOT respond with only a navigate step + a chat message that tells the user to fill the prompt and click submit themselves. That defeats the purpose of the agent — always emit the actual toolName/toolArgs whenever a registered server-side tool covers the user's goal.

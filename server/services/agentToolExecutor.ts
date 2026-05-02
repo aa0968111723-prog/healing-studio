@@ -5,6 +5,7 @@ import { checkAndConsumeQuota } from "./orbQuota";
 /** Tool names that consume a `generation` daily slot when executed. */
 const GENERATION_SLOT_TOOLS = new Set([
   "studio.generateImage",
+  "studio.generate3D",
   "studio.generateVideo",
   "studio.generateAudio",
   "studio.generateSfx",
@@ -656,15 +657,23 @@ async function dispatchStudioTool(
     switch (call.name) {
       case "studio.generateImage": {
         const { dispatchFalQueueTask } = await import("./falDispatcher");
+        // img2img：有 image_url 或 image_urls 時改走 image-to-image 路由，
+        // 讓 dispatcher 對 LoRA / 編輯類模型套對應的 fallback chain。
+        const { category, imageUrls } = resolveImageGenRouting(args);
+        // Category-aware default:當光球規劃 edit step 又沒明指 modelId 時,
+        // 不能 fallback 到 t2i 模型(fal-ai/flux/dev),否則會把 edit 提示送到
+        // 文生圖端點得到語意不對的結果。i2i 走 flux/dev/image-to-image,
+        // 跟 brain config 的 falImageToImageEngine 預設一致。
+        const hardcodedDefault =
+          category === "image-to-image"
+            ? "fal-ai/flux/dev/image-to-image"
+            : "fal-ai/flux/dev";
         const modelId = await resolveOrbEngine(
           (args.modelId as string) || "",
           opts.userId,
           "imageEngine",
-          "fal-ai/flux/dev"
+          hardcodedDefault
         );
-        // img2img：有 image_url 或 image_urls 時改走 image-to-image 路由，
-        // 讓 dispatcher 對 LoRA / 編輯類模型套對應的 fallback chain。
-        const { category, imageUrls } = resolveImageGenRouting(args);
         const input: Record<string, unknown> = {};
         if (typeof args.prompt === "string") input.prompt = args.prompt;
         if (typeof args.aspect_ratio === "string")
@@ -714,6 +723,100 @@ async function dispatchStudioTool(
           category,
           input,
           route: "orb-tool/studio.generateImage",
+          modality: "image",
+          userId: opts.userId,
+        });
+        const awaited = await awaitFalForOrb(
+          { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
+          args
+        );
+        return {
+          name: call.name,
+          ok: awaited.status !== "failed",
+          data: {
+            ...awaited,
+            originalModel: r.originalModel,
+            engine: "fal",
+          },
+          usedTool: call.name,
+          ...(awaited.status === "failed" && awaited.error ? { error: awaited.error } : {}),
+        };
+      }
+
+      case "studio.generate3D": {
+        // 3D 創作室統一入口：trellis-2 / sam-3/3d-objects / hunyuan3d-v3 /
+        // hyper3d/rodin / hunyuan_world 五個模型共用一個工具,executor 根據
+        // args 自動選 category 並組 payload。HunYuan3D v3 用 input_image_url,
+        // 其他模型用 image_url — 兩個欄位都會填上去（procedure 端 zod 會挑用）。
+        const { dispatchFalQueueTask } = await import("./falDispatcher");
+        const modelId = (args.modelId as string) || "fal-ai/trellis-2";
+        const input: Record<string, unknown> = {};
+        // 通用：prompt / image / 多視角
+        if (typeof args.prompt === "string") input.prompt = args.prompt;
+        if (typeof args.image_url === "string") input.image_url = args.image_url;
+        if (typeof args.input_image_url === "string")
+          input.input_image_url = args.input_image_url;
+        if (Array.isArray(args.image_urls))
+          input.image_urls = args.image_urls as string[];
+        if (typeof args.back_image_url === "string")
+          input.back_image_url = args.back_image_url;
+        if (typeof args.left_image_url === "string")
+          input.left_image_url = args.left_image_url;
+        if (typeof args.right_image_url === "string")
+          input.right_image_url = args.right_image_url;
+        // Trellis 2
+        if (typeof args.resolution === "string" || typeof args.resolution === "number")
+          input.resolution = args.resolution;
+        if (typeof args.texture_size === "string" || typeof args.texture_size === "number")
+          input.texture_size = args.texture_size;
+        if (typeof args.remesh === "boolean") input.remesh = args.remesh;
+        // HunYuan3D v3
+        if (typeof args.enable_pbr === "boolean")
+          input.enable_pbr = args.enable_pbr;
+        if (typeof args.face_count === "number")
+          input.face_count = args.face_count;
+        if (typeof args.generate_type === "string")
+          input.generate_type = args.generate_type;
+        if (typeof args.polygon_type === "string")
+          input.polygon_type = args.polygon_type;
+        // SAM 3D
+        if (typeof args.export_textured_glb === "boolean")
+          input.export_textured_glb = args.export_textured_glb;
+        if (typeof args.detection_threshold === "number")
+          input.detection_threshold = args.detection_threshold;
+        // Rodin
+        if (typeof args.condition_mode === "string")
+          input.condition_mode = args.condition_mode;
+        if (typeof args.geometry_file_format === "string")
+          input.geometry_file_format = args.geometry_file_format;
+        if (typeof args.material === "string") input.material = args.material;
+        if (typeof args.quality === "string") input.quality = args.quality;
+        if (typeof args.use_hyper === "boolean")
+          input.use_hyper = args.use_hyper;
+        // HunYuan World
+        if (typeof args.labels_fg1 === "string")
+          input.labels_fg1 = args.labels_fg1;
+        if (typeof args.labels_fg2 === "string")
+          input.labels_fg2 = args.labels_fg2;
+        if (typeof args.classes === "string") input.classes = args.classes;
+        if (typeof args.export_drc === "boolean")
+          input.export_drc = args.export_drc;
+        // 通用 seed
+        if (typeof args.seed === "number") input.seed = args.seed;
+        // category：Rodin 純文字模式（有 prompt 但沒任何圖）→ text-to-3d；其餘走 image-to-3d。
+        const hasAnyImage =
+          typeof args.image_url === "string" ||
+          typeof args.input_image_url === "string" ||
+          (Array.isArray(args.image_urls) && args.image_urls.length > 0);
+        const category: "text-to-3d" | "image-to-3d" =
+          !hasAnyImage && typeof args.prompt === "string"
+            ? "text-to-3d"
+            : "image-to-3d";
+        const r = await dispatchFalQueueTask({
+          modelId,
+          category,
+          input,
+          route: "orb-tool/studio.generate3D",
           modality: "image",
           userId: opts.userId,
         });

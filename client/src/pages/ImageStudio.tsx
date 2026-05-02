@@ -2142,6 +2142,12 @@ function ThreeDPanel({
   setHunyuanFaceCount,
   hunyuanPolygonType,
   setHunyuanPolygonType,
+  hunyuanBackImageUrl,
+  setHunyuanBackImageUrl,
+  hunyuanLeftImageUrl,
+  setHunyuanLeftImageUrl,
+  hunyuanRightImageUrl,
+  setHunyuanRightImageUrl,
   // Rodin
   rodinQuality,
   setRodinQuality,
@@ -2182,6 +2188,12 @@ function ThreeDPanel({
   setHunyuanFaceCount: (v: number) => void;
   hunyuanPolygonType: "triangle" | "quadrilateral";
   setHunyuanPolygonType: (v: "triangle" | "quadrilateral") => void;
+  hunyuanBackImageUrl: string;
+  setHunyuanBackImageUrl: (v: string) => void;
+  hunyuanLeftImageUrl: string;
+  setHunyuanLeftImageUrl: (v: string) => void;
+  hunyuanRightImageUrl: string;
+  setHunyuanRightImageUrl: (v: string) => void;
   rodinQuality: "high" | "medium" | "low" | "extra-low";
   setRodinQuality: (v: "high" | "medium" | "low" | "extra-low") => void;
   rodinMaterial: "PBR" | "Shaded";
@@ -2350,6 +2362,29 @@ function ThreeDPanel({
                 </button>
               ))}
             </div>
+          </div>
+          <div className="space-y-2 pt-1 border-t border-border/30">
+            <p className="text-[10px] text-muted-foreground">
+              多視角輸入（選填，提供至少一張背面 / 側面可避免單圖背面 hallucination）
+            </p>
+            <RefImageInput
+              label="背面圖（back）"
+              value={hunyuanBackImageUrl}
+              onChange={setHunyuanBackImageUrl}
+              onClear={() => setHunyuanBackImageUrl("")}
+            />
+            <RefImageInput
+              label="左側圖（left）"
+              value={hunyuanLeftImageUrl}
+              onChange={setHunyuanLeftImageUrl}
+              onClear={() => setHunyuanLeftImageUrl("")}
+            />
+            <RefImageInput
+              label="右側圖（right）"
+              value={hunyuanRightImageUrl}
+              onChange={setHunyuanRightImageUrl}
+              onClear={() => setHunyuanRightImageUrl("")}
+            />
           </div>
         </div>
       )}
@@ -2651,6 +2686,9 @@ export default function ImageStudio() {
   const [hunyuanPolygonType, setHunyuanPolygonType] = useState<
     "triangle" | "quadrilateral"
   >("triangle");
+  const [hunyuanBackImageUrl, setHunyuanBackImageUrl] = useState("");
+  const [hunyuanLeftImageUrl, setHunyuanLeftImageUrl] = useState("");
+  const [hunyuanRightImageUrl, setHunyuanRightImageUrl] = useState("");
   const [rodinQuality, setRodinQuality] = useState<
     "high" | "medium" | "low" | "extra-low"
   >("medium");
@@ -3249,6 +3287,11 @@ export default function ImageStudio() {
           generate_type: hunyuanGenType,
           face_count: hunyuanFaceCount,
           polygon_type: hunyuanPolygonType,
+          ...(hunyuanBackImageUrl && { back_image_url: hunyuanBackImageUrl }),
+          ...(hunyuanLeftImageUrl && { left_image_url: hunyuanLeftImageUrl }),
+          ...(hunyuanRightImageUrl && {
+            right_image_url: hunyuanRightImageUrl,
+          }),
         };
       } else if (model.id === "rodin3d") {
         if (!prompt3d && !imageUrl3d) {
@@ -4577,6 +4620,12 @@ export default function ImageStudio() {
                 setHunyuanFaceCount={setHunyuanFaceCount}
                 hunyuanPolygonType={hunyuanPolygonType}
                 setHunyuanPolygonType={setHunyuanPolygonType}
+                hunyuanBackImageUrl={hunyuanBackImageUrl}
+                setHunyuanBackImageUrl={setHunyuanBackImageUrl}
+                hunyuanLeftImageUrl={hunyuanLeftImageUrl}
+                setHunyuanLeftImageUrl={setHunyuanLeftImageUrl}
+                hunyuanRightImageUrl={hunyuanRightImageUrl}
+                setHunyuanRightImageUrl={setHunyuanRightImageUrl}
                 rodinQuality={rodinQuality}
                 setRodinQuality={setRodinQuality}
                 rodinMaterial={rodinMaterial}
