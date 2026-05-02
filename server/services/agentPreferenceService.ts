@@ -67,6 +67,33 @@ export async function loadAgentPreferencesForUser(
       orbWelcomeMessage: row.orbWelcomeMessage,
       orbShortcutEnabled: row.orbShortcutEnabled,
       orbProactiveSuggestions: row.orbProactiveSuggestions,
+      // Phase D fields. Each guarded against missing columns / nulls so
+      // the loader keeps booting on an unmigrated DB during deploy.
+      costBudget:
+        row.costBudget && typeof row.costBudget === "object"
+          ? row.costBudget
+          : DEFAULT_AGENT_PREFERENCES.costBudget,
+      perceptionEnabled:
+        typeof row.perceptionEnabled === "boolean"
+          ? row.perceptionEnabled
+          : DEFAULT_AGENT_PREFERENCES.perceptionEnabled,
+      perceptionStrictness:
+        row.perceptionStrictness ?? DEFAULT_AGENT_PREFERENCES.perceptionStrictness,
+      criticEnabled:
+        typeof row.criticEnabled === "boolean"
+          ? row.criticEnabled
+          : DEFAULT_AGENT_PREFERENCES.criticEnabled,
+      criticRefineBelow:
+        typeof row.criticRefineBelow === "number"
+          ? row.criticRefineBelow
+          : DEFAULT_AGENT_PREFERENCES.criticRefineBelow,
+      roleAutoSwitch:
+        typeof row.roleAutoSwitch === "boolean"
+          ? row.roleAutoSwitch
+          : DEFAULT_AGENT_PREFERENCES.roleAutoSwitch,
+      pacingOverride:
+        row.pacingOverride ?? DEFAULT_AGENT_PREFERENCES.pacingOverride,
+      onboardingCompletedAt: row.onboardingCompletedAt ?? null,
       createdAt: row.createdAt ?? undefined,
       updatedAt: row.updatedAt ?? undefined,
     };
