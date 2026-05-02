@@ -6,6 +6,7 @@ import type {
 import type { OrbApiTool, OrbToolCallResult } from "./agentToolExecutor";
 import { executeOrbToolCalls } from "./agentToolExecutor";
 import { resolveStepRefsInArgs } from "../../shared/orb-step-ref-resolver";
+import { verifyToolResult } from "../../shared/orb-tool-result-verifier";
 import {
   completeOrbAgentStep,
   failOrbAgentStep,
@@ -179,10 +180,28 @@ export async function executeCurrentStepTools(
     onAuditEvent: input.onAuditEvent,
   });
 
+  // ── DEF-AG1 Step Reflection ────────────────────────────────────────────
+  // After a successful tool call, run a lightweight payload verifier so
+  // an all-black image / empty audio / 200-with-error response can be
+  // caught here instead of being silently fed to the next step. On
+  // failure we mutate the per-call result in-place so the existing
+  // failure path (FSM mark-failed → retry / replan) picks it up; we
+  // never throw, never alter network behaviour.
+  const verifiedResults = toolResults.map(r => {
+    if (!r.ok) return r;
+    const verdict = verifyToolResult({ toolName: r.name, data: r.data });
+    if (verdict.ok) return r;
+    return {
+      ...r,
+      ok: false,
+      error: verdict.errorCode ?? "verifier:unknown",
+    };
+  });
+
   return {
     attempted: true,
-    toolResults,
-    ok: toolResults.every(r => r.ok),
+    toolResults: verifiedResults,
+    ok: verifiedResults.every(r => r.ok),
     blockedByApproval: false,
   };
 }
