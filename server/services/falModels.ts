@@ -1313,6 +1313,23 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       outputSchema: { audioUrl: true },
       timeoutMs: 60_000,
     },
+    // DEF-VCH1：ElevenLabs Voice Changer — 把現有錄音的「聲音」換成另一個 voice_id
+    // 但保留原本的語音內容、語速、情緒。與 generateVoice + cloneVoice 三件一組：
+    //   - cloneVoice 建立 voice_id（從參考音訊）
+    //   - generateVoice 用 voice_id 念新文字
+    //   - voiceChanger 用 voice_id 換掉現有錄音的聲音（保留原語氣與時長）
+    // 同 audio-to-audio 概念，掛在 text-to-audio 避免 enum 變更。
+    {
+      modelId: "fal-ai/elevenlabs/voice-changer",
+      label: "ElevenLabs 聲音變換",
+      category: "text-to-audio",
+      tier: "standard",
+      description:
+        "ElevenLabs Voice Changer — 把錄音的聲音換成指定 voice_id，保留原語速/語氣（需 ELEVENLABS_API_KEY）",
+      inputSchema: { audioUrl: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 120_000,
+    },
     {
       modelId: "fal-ai/dia-tts",
       label: "Dia TTS",

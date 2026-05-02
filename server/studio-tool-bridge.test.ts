@@ -25,6 +25,8 @@ describe("studio.* generation tool registration", () => {
     expect(names).toContain("studio.isolateAudio");
     // DEF-MA3：多音訊合併 — separateStems / cloneVoice / designVoice 工作流的最後一塊
     expect(names).toContain("studio.mergeAudios");
+    // DEF-VCH4：聲音變換 — 把現有錄音的聲音換成 voice_id，保留原語速/語氣
+    expect(names).toContain("studio.changeVoice");
   });
 
   it("studio.* tools require human approval", () => {
@@ -39,6 +41,7 @@ describe("studio.* generation tool registration", () => {
       "studio.separateStems",
       "studio.isolateAudio",
       "studio.mergeAudios",
+      "studio.changeVoice",
     ]) {
       const tool = getGlobalAgentTool(name);
       expect(tool, name).not.toBeNull();
@@ -58,6 +61,7 @@ describe("studio.* generation tool registration", () => {
     expect(isKnownGlobalAgentTool("studio.separateStems")).toBe(true);
     expect(isKnownGlobalAgentTool("studio.isolateAudio")).toBe(true);
     expect(isKnownGlobalAgentTool("studio.mergeAudios")).toBe(true);
+    expect(isKnownGlobalAgentTool("studio.changeVoice")).toBe(true);
     expect(isKnownGlobalAgentTool("studio.unknownThing")).toBe(false);
   });
 });

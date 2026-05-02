@@ -1249,6 +1249,15 @@ export const proStudioRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // DEF-VCH3：與 elevenLabsTTS / elevenLabsVoiceClone / audioIsolation 對齊 —
+      // 缺 ELEVENLABS_API_KEY 時提早報錯，避免「扣 4pt → fal 401 → 退 4pt」浪費往返。
+      if (!process.env.ELEVENLABS_API_KEY) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "ElevenLabs Voice Changer 需要 ELEVENLABS_API_KEY。請先用 Qwen Voice Clone 建立 embedding，再用 qwenTTS 重念新內容（功能等價但流程不同），或聯絡管理員設定金鑰。",
+        });
+      }
       const modelId = "fal-ai/elevenlabs/voice-changer";
       const charged = await chargeForFalTask(ctx.user.id, modelId);
       try {

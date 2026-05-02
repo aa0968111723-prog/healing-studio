@@ -14,6 +14,7 @@ const GENERATION_SLOT_TOOLS = new Set([
   "studio.separateStems",
   "studio.isolateAudio",
   "studio.mergeAudios",
+  "studio.changeVoice",
   "studio.enhanceVideo",
   "studio.trainLora",
 ]);
@@ -1256,6 +1257,69 @@ async function dispatchStudioTool(
             ? { error: awaited.error }
             : !mergedUrl && awaited.status !== "pending"
               ? { error: "merge-audios: 合併後音檔 URL 缺失" }
+              : {}),
+        };
+      }
+
+      // DEF-VCH4：光球專用聲音變換 — 把現有錄音的聲音換成指定 voice_id，
+      // 保留原始語速/停頓/情緒。需 ELEVENLABS_API_KEY proxy；缺 key 時無法降級
+      // （因為產出的是「同樣語氣的不同聲音」，Qwen TTS 重念新文字無法等價）—
+      // 因此缺 key 直接回 error 而非靜默替換引擎。
+      case "studio.changeVoice": {
+        const { dispatchFalQueueTask } = await import("./falDispatcher");
+        if (!process.env.ELEVENLABS_API_KEY) {
+          return {
+            name: call.name,
+            ok: false,
+            error:
+              "voice-changer: 需要 ELEVENLABS_API_KEY；本工具無等價替代品",
+            usedTool: call.name,
+          };
+        }
+        const modelId =
+          (args.modelId as string) || "fal-ai/elevenlabs/voice-changer";
+        const changeInput: Record<string, unknown> = {};
+        if (typeof args.audio_url === "string") {
+          changeInput.audio_url = args.audio_url;
+        }
+        if (typeof args.voice_id === "string") {
+          changeInput.voice_id = args.voice_id;
+        }
+        if (typeof args.remove_background_noise === "boolean") {
+          changeInput.remove_background_noise = args.remove_background_noise;
+        }
+        const r = await dispatchFalQueueTask({
+          modelId,
+          category: "text-to-audio",
+          input: changeInput,
+          route: "orb-tool/studio.changeVoice",
+          modality: "audio",
+          userId: opts.userId,
+          extraHeaders: {
+            "x-fal-client-credentials": process.env.ELEVENLABS_API_KEY,
+          },
+        });
+        const awaited = await awaitFalForOrb(
+          { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
+          args
+        );
+        // ElevenLabs voice-changer 回 audio.url；統一以 data.audio_url 平推到頂層。
+        const raw = awaited.raw as { audio?: { url?: string } } | undefined;
+        const changedUrl = raw?.audio?.url ?? awaited.audio_url ?? null;
+        return {
+          name: call.name,
+          ok: awaited.status !== "failed" && !!changedUrl,
+          data: {
+            ...awaited,
+            engine: "fal",
+            kind: "voice-change",
+            audio_url: changedUrl,
+          },
+          usedTool: call.name,
+          ...(awaited.status === "failed" && awaited.error
+            ? { error: awaited.error }
+            : !changedUrl && awaited.status !== "pending"
+              ? { error: "voice-change: 變聲後音檔 URL 缺失" }
               : {}),
         };
       }

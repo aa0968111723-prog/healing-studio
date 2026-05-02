@@ -412,6 +412,8 @@ const ENGINE_PROVIDER_MAP: Record<string, string> = {
   // DEF-MA2：FFmpeg merge-audios — provider 註冊讓健康狀態回查與降級事件
   // 能正確識別來源。本地 ffmpeg 處理，不需特殊 key。
   "fal-ai/ffmpeg-api/merge-audios": "fal",
+  // DEF-VCH2：ElevenLabs Voice Changer — 與 IVC / TTS 系列同 fal proxy。
+  "fal-ai/elevenlabs/voice-changer": "fal",
   "fal-ai/nemotron/asr/stream": "fal",
   // ── 數位人 / 語音轉影片（Fal.ai） ──
   "fal-ai/echomimic-v3": "fal",

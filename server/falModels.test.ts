@@ -153,6 +153,17 @@ describe("falModels catalog coverage", () => {
     expect(cfg!.tier).toBe("fast");
   });
 
+  // DEF-VCH1：ElevenLabs Voice Changer — catalog miss 會把「換聲音保留語氣」
+  // 降級成「生成音樂」，且 ELEVENLABS_API_KEY proxy header 不會被注入。
+  it("text-to-audio catalog includes ElevenLabs Voice Changer", () => {
+    const cfg = getFalModelById(
+      "fal-ai/elevenlabs/voice-changer",
+      "text-to-audio"
+    );
+    expect(cfg).toBeDefined();
+    expect(cfg!.tier).toBe("standard");
+  });
+
   // DEF-EL1：ElevenLabs SFX 真實 endpoint 帶 /v2 後綴，必須在 text-to-audio
   // catalog 註冊，否則 dispatcher 會把所有 SFX 請求降級到 fal-ai/ace-step（音樂模型）。
   it("text-to-audio catalog includes ElevenLabs SFX v2 canonical id", () => {

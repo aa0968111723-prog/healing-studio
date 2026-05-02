@@ -244,6 +244,24 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     },
     executionTarget: "server-side",
   },
+  // DEF-VCH4：光球專用聲音變換 — 把現有錄音的「聲音」換成另一個 voice_id，
+  // 但保留原始語氣、語速、情緒。與 cloneVoice + generateVoice 三件互補：
+  //   - cloneVoice：建立 voice_id（從參考音訊）
+  //   - generateVoice：用 voice_id 念新文字
+  //   - changeVoice：用 voice_id 改寫現有錄音的聲音（保留原時長與停頓）
+  // 預設 fal-ai/elevenlabs/voice-changer（需 ELEVENLABS_API_KEY）。
+  {
+    name: "studio.changeVoice",
+    riskLevel: "medium",
+    requiresHuman: true,
+    allowedArgsSchema: {
+      audio_url: "string",
+      voice_id: "string",
+      remove_background_noise: "boolean?",
+      modelId: "string?",
+    },
+    executionTarget: "server-side",
+  },
   {
     name: "studio.generateVoice",
     riskLevel: "medium",
