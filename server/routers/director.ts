@@ -16,7 +16,7 @@
 import { z } from "zod";
 import { router, brainProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
-import { invokeLLM } from "../_core/llm";
+import { invokeLLM, extractMessageText, extractMessageJson as extractMessageJsonRaw } from "../_core/llm";
 import * as db from "../db";
 import { buildMemoryContext } from "../services/ragMemory";
 import {
@@ -71,29 +71,10 @@ function withTimeout<T>(
   });
 }
 
-// LLM 訊息 content 可能是 string 或 Array<TextContent | ImageContent | FileContent>。
-// 直接以 typeof === "string" 判斷會在 array 形式下丟失文字，導致導演AI輸出空值。
-function extractMessageText(
-  content: string | Array<{ type: string; text?: string }> | undefined | null
-): string {
-  if (typeof content === "string") return content;
-  if (Array.isArray(content)) {
-    return content
-      .map(part => (part?.type === "text" && typeof part.text === "string" ? part.text : ""))
-      .join("");
-  }
-  return "";
-}
-
-// 從 LLM 回應中解析 JSON 物件。先抽出純文字（容忍 array 形式），再以
-// fence-tolerant 解析器抽取 JSON，避免 array 形式被誤當成 parsed object。
-function extractMessageJson(
-  content: string | Array<{ type: string; text?: string }> | undefined | null
-): unknown {
-  const text = extractMessageText(content);
-  if (!text) return null;
-  return extractJsonObjectFromText(text);
-}
+// 把 fence-tolerant 解析器注入共用 helper，避免每個 call site 重複處理 array-form content。
+const extractMessageJson = (
+  content: Parameters<typeof extractMessageJsonRaw>[0]
+): unknown => extractMessageJsonRaw(content, extractJsonObjectFromText);
 
 // ─── Personality System Prompts ──────────────────────────────────────────────
 

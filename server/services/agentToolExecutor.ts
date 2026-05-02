@@ -2051,7 +2051,7 @@ async function dispatchDirectorTool(
       };
     }
 
-    const { invokeLLM } = await import("../_core/llm");
+    const { invokeLLM, extractMessageText } = await import("../_core/llm");
     const { buildBrainContext } = await import("../middleware/brainContext");
     const { parseLLMActions } = await import("../../shared/agent-actions");
     const { extractJsonObjectFromText } = await import(
@@ -2114,8 +2114,7 @@ ${director.systemPrompt ? `\n附加大腦指令：\n${director.systemPrompt}` : 
       responseFormat: { type: "json_object" },
     });
 
-    const content = llmResponse.choices[0]?.message?.content;
-    const text = typeof content === "string" ? content : "";
+    const text = extractMessageText(llmResponse.choices[0]?.message?.content);
 
     const extracted = extractJsonObjectFromText(text);
     if (!extracted || typeof extracted !== "object") {

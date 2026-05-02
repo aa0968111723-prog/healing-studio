@@ -17,7 +17,7 @@ import * as cron from "node-cron";
 import { createHash } from "crypto";
 import { getDb } from "../db";
 import { newsArticles } from "../../drizzle/schema";
-import { invokeLLM } from "../_core/llm";
+import { invokeLLM, extractMessageText } from "../_core/llm";
 import { gte, desc, and, eq } from "drizzle-orm";
 import { CircuitBreaker } from "./circuitBreaker";
 import { serverEnv } from "../_core/env.validated";
@@ -203,8 +203,9 @@ ${newsSummary}
 
     const result = await Promise.race([llmPromise, timeoutPromise]);
 
-    const rawContent = result.choices?.[0]?.message?.content;
-    const text = (typeof rawContent === "string" ? rawContent : "").trim();
+    const text = extractMessageText(
+      result.choices?.[0]?.message?.content
+    ).trim();
 
     // Strip potential markdown code block wrappers
     const cleaned = text

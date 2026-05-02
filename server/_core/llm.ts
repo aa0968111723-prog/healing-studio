@@ -209,6 +209,44 @@ export type ResponseFormat =
   | { type: "json_object" }
   | { type: "json_schema"; json_schema: JsonSchema };
 
+// ─── 訊息內容抽取工具 ──────────────────────────────────────────────────────
+//
+// LLM 回應的 `message.content` 型別是 `string | Array<TextContent | ...>`。
+// 直接以 `typeof === "string"` 判斷會在 array 形式下丟失文字，導致下游
+// 拿到空字串、空 JSON 或 fallback 值，例如導演AI對話模式輸出空值。
+// 一律經由這兩個 helper 抽取，避免回到散落在各路由的錯誤判斷。
+
+type LLMContent =
+  | string
+  | Array<TextContent | ImageContent | FileContent>
+  | undefined
+  | null;
+
+export function extractMessageText(content: LLMContent): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .map(part =>
+        part && part.type === "text" && typeof part.text === "string"
+          ? part.text
+          : ""
+      )
+      .join("");
+  }
+  return "";
+}
+
+// 從 LLM 回應抽出 JSON 物件。先抽純文字（容忍 array 形式），再以呼叫端
+// 提供的 fence-tolerant 解析器抽取 JSON。透過 callback 注入避免循環依賴。
+export function extractMessageJson(
+  content: LLMContent,
+  parseJson: (text: string) => unknown
+): unknown {
+  const text = extractMessageText(content);
+  if (!text) return null;
+  return parseJson(text);
+}
+
 // ─── 內部工具函數 ──────────────────────────────────────────────────────────
 
 const ensureArray = (
@@ -420,9 +458,10 @@ async function trackLangSmithSDK(
         },
         outputs: {
           content:
-            typeof outputContent === "string"
-              ? outputContent.slice(0, 2000)
-              : "[structured]",
+            (typeof outputContent === "string"
+              ? outputContent
+              : extractMessageText(outputContent)
+            ).slice(0, 2000) || "[structured]",
           finish_reason: result.choices[0]?.finish_reason,
           usage: result.usage,
           token_usage: {

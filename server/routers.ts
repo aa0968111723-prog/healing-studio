@@ -11,7 +11,12 @@ import {
 import { isDemoMode } from "./_core/googleAuth";
 import { z } from "zod";
 import * as db from "./db";
-import { invokeLLM, type Message } from "./_core/llm";
+import {
+  invokeLLM,
+  extractMessageText,
+  extractMessageJson,
+  type Message,
+} from "./_core/llm";
 import { serverEnv } from "./_core/env.validated";
 import { featureFlags } from "./_core/featureFlags";
 // imageGeneration.ts no longer used directly — all 4 modalities go through falDispatcher
@@ -738,23 +743,22 @@ async function checkSafety(
       15_000,
       "安全檢查"
     );
-    const content = result.choices[0]?.message?.content;
-    if (typeof content === "string") {
-      // Fence-tolerant parse — Gemini json_object mode occasionally wraps
-      // the response in ```json fences. A naive JSON.parse there throws,
-      // the catch defaults to { safe: true }, and the safety gate becomes
-      // permanently no-op without the operator noticing.
-      const parsed = extractJsonObjectFromText(content) as
-        | { safe?: unknown; reason?: unknown }
-        | null;
-      if (parsed && typeof parsed === "object") {
-        return {
-          safe: parsed.safe !== false,
-          ...(typeof parsed.reason === "string"
-            ? { reason: parsed.reason }
-            : {}),
-        };
-      }
+    // Fence-tolerant parse — Gemini json_object mode occasionally wraps
+    // the response in ```json fences. A naive JSON.parse there throws,
+    // the catch defaults to { safe: true }, and the safety gate becomes
+    // permanently no-op without the operator noticing. Also handle
+    // array-form content via extractMessageJson.
+    const parsed = extractMessageJson(
+      result.choices[0]?.message?.content,
+      extractJsonObjectFromText
+    ) as { safe?: unknown; reason?: unknown } | null;
+    if (parsed && typeof parsed === "object") {
+      return {
+        safe: parsed.safe !== false,
+        ...(typeof parsed.reason === "string"
+          ? { reason: parsed.reason }
+          : {}),
+      };
     }
     return { safe: true };
   } catch {
@@ -853,9 +857,8 @@ async function compileElitePrompt(payload: {
       30_000,
       "提示詞編譯"
     );
-    const content = result.choices[0]?.message?.content;
-    const compiledPrompt =
-      typeof content === "string" ? content : payload.prompt;
+    const text = extractMessageText(result.choices[0]?.message?.content);
+    const compiledPrompt = text || payload.prompt;
     return { compiledPrompt, visualWeight, controlNetParams };
   } catch {
     // LLM unavailable (e.g., no GEMINI_API_KEY in demo mode) — gracefully fall back to original prompt
@@ -3324,13 +3327,13 @@ export const appRouter = router({
           30_000,
           "提示詞評估"
         );
-        const content = result.choices[0]?.message?.content;
-        if (typeof content === "string") {
-          // Fence-tolerant — see safety check rationale above.
-          const parsed = extractJsonObjectFromText(content);
-          if (parsed && typeof parsed === "object") {
-            return parsed as Record<string, unknown>;
-          }
+        // Fence-tolerant — see safety check rationale above.
+        const parsed = extractMessageJson(
+          result.choices[0]?.message?.content,
+          extractJsonObjectFromText
+        );
+        if (parsed && typeof parsed === "object") {
+          return parsed as Record<string, unknown>;
         }
         return {
           score: 50,
@@ -3398,18 +3401,16 @@ export const appRouter = router({
           15_000,
           "靈感建議"
         );
-        const content = result.choices[0]?.message?.content;
-        if (typeof content === "string") {
-          // Fence-tolerant — see safety check rationale above.
-          const parsed = extractJsonObjectFromText(content) as
-            | { chips?: unknown }
-            | null;
-          if (parsed && Array.isArray(parsed.chips)) {
-            const chips = (parsed.chips as unknown[])
-              .filter((c): c is string => typeof c === "string")
-              .slice(0, 5);
-            return { chips };
-          }
+        // Fence-tolerant — see safety check rationale above.
+        const parsed = extractMessageJson(
+          result.choices[0]?.message?.content,
+          extractJsonObjectFromText
+        ) as { chips?: unknown } | null;
+        if (parsed && Array.isArray(parsed.chips)) {
+          const chips = (parsed.chips as unknown[])
+            .filter((c): c is string => typeof c === "string")
+            .slice(0, 5);
+          return { chips };
         }
         return { chips: [] as string[] };
       }),
@@ -4147,12 +4148,10 @@ export const appRouter = router({
               20_000,
               "圖片標註"
             );
-            const content = result.choices[0]?.message?.content;
-            captions.push(
-              typeof content === "string"
-                ? content.trim()
-                : `${img.angle} view of the subject`
-            );
+            const text = extractMessageText(
+              result.choices[0]?.message?.content
+            ).trim();
+            captions.push(text || `${img.angle} view of the subject`);
           } catch {
             captions.push(`${img.angle} view of the subject`);
           }
@@ -5575,10 +5574,10 @@ export const appRouter = router({
               15_000,
               "光球純聊天模式"
             );
-            const chatOnlyReply =
-              typeof chatOnlyResult.choices[0]?.message?.content === "string"
-                ? chatOnlyResult.choices[0].message.content
-                : "我在這裡，隨時可以聊天！";
+            const chatOnlyText = extractMessageText(
+              chatOnlyResult.choices[0]?.message?.content
+            );
+            const chatOnlyReply = chatOnlyText || "我在這裡，隨時可以聊天！";
             return {
               reply: chatOnlyReply,
               actions: [],
@@ -6153,10 +6152,9 @@ export const appRouter = router({
             20_000,
             "全站光球代理"
           );
-          const rawReply =
-            typeof fallbackResult.choices[0]?.message?.content === "string"
-              ? fallbackResult.choices[0].message.content
-              : "";
+          const rawReply = extractMessageText(
+            fallbackResult.choices[0]?.message?.content
+          );
           if (!rawReply) {
             console.warn("[Orb] Empty LLM response, using fallback");
             const meta = makePlannerMeta({
@@ -6777,10 +6775,7 @@ export const appRouter = router({
             8_000,
             "光球引導"
           );
-          const raw =
-            typeof result.choices[0]?.message?.content === "string"
-              ? result.choices[0].message.content
-              : "";
+          const raw = extractMessageText(result.choices[0]?.message?.content);
           return parseOrbGuideStepReply(raw, ctx);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
