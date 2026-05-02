@@ -83,3 +83,23 @@ export const LEGACY_FAL_ALIAS_MAP: Record<string, string> = {
 
 export const normalizeEngineModelId = (value: string): string =>
   LEGACY_FAL_ALIAS_MAP[value] ?? value;
+
+/**
+ * DEF-V10：從 fal-ai/elevenlabs/tts/{variant} canonical 路徑回推 ElevenLabs
+ * 原生 model_id（fal 反向代理時 body 內的必要欄位）。
+ *
+ * 對應規則：
+ *   fal-ai/elevenlabs/tts/turbo-v2.5      → eleven_turbo_v2_5
+ *   fal-ai/elevenlabs/tts/flash-v2.5      → eleven_flash_v2_5
+ *   fal-ai/elevenlabs/tts/multilingual-v2 → eleven_multilingual_v2
+ *   fal-ai/elevenlabs/tts/eleven-v3       → eleven_v3
+ *
+ * 給 director / orb 路徑使用，避免他們因為沒帶 model_id 而 fal 落到預設 Turbo。
+ * 非 ElevenLabs TTS 路徑回傳 null（呼叫端不應加 model_id 欄位）。
+ */
+export function nativeElevenLabsModelId(falModelId: string): string | null {
+  const m = falModelId.match(/^fal-ai\/elevenlabs\/tts\/(.+)$/);
+  if (!m) return null;
+  const variant = m[1].replace(/-/g, "_").replace(/\./g, "_");
+  return variant.startsWith("eleven_") ? variant : `eleven_${variant}`;
+}

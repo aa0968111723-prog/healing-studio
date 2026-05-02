@@ -971,6 +971,16 @@ async function dispatchStudioTool(
         const finalIsElevenLabs =
           modelId.startsWith("fal-ai/elevenlabs/") &&
           !!process.env.ELEVENLABS_API_KEY;
+        // DEF-V10：fal ElevenLabs proxy 需要 body.model_id（原生 ElevenLabs id），
+        // 否則 V3 / Multilingual / Flash 會在 fal 端落到預設 Turbo。
+        // 從 canonical fal 路徑回推（eleven-v3 → eleven_v3 等）。
+        if (finalIsElevenLabs && !input.model_id) {
+          const { nativeElevenLabsModelId } = await import(
+            "../../shared/engineModelIds"
+          );
+          const nativeId = nativeElevenLabsModelId(modelId);
+          if (nativeId) input.model_id = nativeId;
+        }
         const elevenLabsHeaders = finalIsElevenLabs
           ? { "x-fal-client-credentials": process.env.ELEVENLABS_API_KEY! }
           : undefined;

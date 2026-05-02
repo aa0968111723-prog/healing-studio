@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { normalizeEngineModelId } from "../shared/engineModelIds";
+import {
+  normalizeEngineModelId,
+  nativeElevenLabsModelId,
+} from "../shared/engineModelIds";
 
 describe("normalizeEngineModelId", () => {
   it("normalizes common legacy Fal IDs to canonical IDs", () => {
@@ -67,5 +70,34 @@ describe("normalizeEngineModelId", () => {
     expect(normalizeEngineModelId("elevenlabs/multilingual-v2")).toBe(
       "fal-ai/elevenlabs/tts/multilingual-v2"
     );
+  });
+});
+
+describe("nativeElevenLabsModelId", () => {
+  // DEF-V10：fal proxy 需 body.model_id（原生 ElevenLabs id），director / orb
+  // 路徑沒帶就會落到 fal 預設 Turbo。helper 必須能從 canonical 路徑反推。
+  it("derives native ElevenLabs id from each canonical fal path", () => {
+    expect(nativeElevenLabsModelId("fal-ai/elevenlabs/tts/turbo-v2.5")).toBe(
+      "eleven_turbo_v2_5"
+    );
+    expect(nativeElevenLabsModelId("fal-ai/elevenlabs/tts/flash-v2.5")).toBe(
+      "eleven_flash_v2_5"
+    );
+    expect(
+      nativeElevenLabsModelId("fal-ai/elevenlabs/tts/multilingual-v2")
+    ).toBe("eleven_multilingual_v2");
+    expect(nativeElevenLabsModelId("fal-ai/elevenlabs/tts/eleven-v3")).toBe(
+      "eleven_v3"
+    );
+  });
+
+  it("returns null for non-ElevenLabs-TTS paths", () => {
+    expect(nativeElevenLabsModelId("fal-ai/f5-tts")).toBeNull();
+    expect(
+      nativeElevenLabsModelId("fal-ai/qwen-3-tts/text-to-speech/1.7b")
+    ).toBeNull();
+    expect(
+      nativeElevenLabsModelId("fal-ai/elevenlabs/sound-effects/v2")
+    ).toBeNull();
   });
 });

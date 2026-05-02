@@ -3247,6 +3247,20 @@ ${segmentSummaries}
           }
         } else if (input.modality === "voice") {
           falInput.text = input.voiceText || input.prompt;
+          // DEF-V10：fal ElevenLabs proxy 必須在 body 裡帶 model_id（原生 ElevenLabs id），
+          // 否則 V3 / Multilingual / Flash 會在 fal 端落到預設 Turbo。
+          // 從 canonical fal 路徑回推（fal-ai/elevenlabs/tts/eleven-v3 → eleven_v3）。
+          if (
+            typeof input.modelId === "string" &&
+            input.modelId.startsWith("fal-ai/elevenlabs/tts/") &&
+            !falInput.model_id
+          ) {
+            const { nativeElevenLabsModelId } = await import(
+              "../../shared/engineModelIds"
+            );
+            const nativeId = nativeElevenLabsModelId(input.modelId);
+            if (nativeId) falInput.model_id = nativeId;
+          }
         }
 
         // Map segment modality → fal task category for fallback chain lookup.
