@@ -904,7 +904,7 @@ export const videoStudioRouter = router({
   /**
    * ByteDance Video Upscaler (2x/4x)
    * fal-ai/bytedance/upscaler/video
-   * 業界頂尖影片超分辨率，2x 或 4x 放大
+   * 業界頂尖影片超分辨率，2x 或 4x 放大；premium 層級，計價依影片時長
    */
   videoUpscale: brainProcedure
     .input(
@@ -923,7 +923,11 @@ export const videoStudioRouter = router({
         payload,
         300
       )) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   /**

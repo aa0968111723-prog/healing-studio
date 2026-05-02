@@ -1743,7 +1743,7 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       label: "ByteDance 影片超解析",
       category: "video-to-video",
       tier: "premium",
-      description: "ByteDance 影片超解析（2x / 4x 放大）",
+      description: "ByteDance 影片超解析：2x（推薦）或 4x（超高清）放大；計價依影片時長",
       inputSchema: { videoUrl: true },
       outputSchema: { videoUrl: true },
       timeoutMs: 300_000,
