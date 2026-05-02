@@ -1440,10 +1440,24 @@ ${persona.proactiveHint}
       proactiveQuestion: pick("proactiveQuestion"),
     };
   };
-  const script: CoStarScript = coerce(parsedScript);
+  const coerced: CoStarScript = coerce(parsedScript);
+  // 若解析失敗，coerce(null) 會回傳全空的 emptyScript。此時不要把空腳本
+  // 當成有效結果送給前端，否則 chat onSuccess 會渲染一張完全空白的
+  // 「CO-STAR 腳本已生成」表格給使用者看。
+  const isAllEmpty =
+    !coerced.context &&
+    !coerced.situation &&
+    !coerced.task &&
+    !coerced.action &&
+    !coerced.result &&
+    !coerced.visualPrompt &&
+    !coerced.audioScript &&
+    !coerced.musicVibe &&
+    !coerced.proactiveQuestion;
+  const script: CoStarScript | null = isAllEmpty ? null : coerced;
 
   // Save to project notes if requested
-  if (saveToNotes && userId) {
+  if (saveToNotes && userId && script) {
     await db.createProjectNote({
       userId,
       title: `導演 AI 腳本 (${personality}) - ${new Date().toLocaleDateString("zh-TW")}`,

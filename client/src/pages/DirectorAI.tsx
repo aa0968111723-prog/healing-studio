@@ -2890,7 +2890,7 @@ export default function DirectorAI() {
           setProactiveQuestion(data.script.proactiveQuestion);
         }
       }
-      if (saveToNotes) {
+      if (saveToNotes && data.script) {
         toast.success("腳本已儲存至專案筆記");
       }
     },
