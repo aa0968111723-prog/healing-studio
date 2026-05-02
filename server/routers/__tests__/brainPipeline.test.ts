@@ -24,6 +24,12 @@ const {
   EXTERNAL_SERVICES,
   CRON_JOBS,
   MIDDLEWARE_STACK,
+  WS_GATEWAYS,
+  INTERNAL_SERVICES,
+  REPOSITORIES,
+  DB_TABLES,
+  BUILD_ARTIFACTS,
+  EVAL_NODE_META,
 } = __testing;
 
 /** 專案根目錄 — 用於檢查 graph 中提到的檔案是否真的存在於 repo。 */
@@ -1035,6 +1041,119 @@ describe("brainPipeline graph builder", () => {
       ).toEqual([]);
     });
 
+    it("Service / Repository / WS / Build / Eval 節點都會出現於完整圖", () => {
+      const g = buildGraph({
+        includeAllPages: false,
+        includeRouters: true,
+        includeAlerts: false,
+      });
+      for (const svc of INTERNAL_SERVICES) {
+        expect(g.nodes.find(n => n.id === svc.id), `${svc.id} 應出現`).toBeDefined();
+      }
+      for (const repo of REPOSITORIES) {
+        expect(
+          g.nodes.find(n => n.id === repo.id),
+          `${repo.id} 應出現`
+        ).toBeDefined();
+      }
+      for (const ws of WS_GATEWAYS) {
+        expect(g.nodes.find(n => n.id === ws.id), `${ws.id} 應出現`).toBeDefined();
+      }
+      for (const art of BUILD_ARTIFACTS) {
+        expect(
+          g.nodes.find(n => n.id === art.id),
+          `${art.id} 應出現`
+        ).toBeDefined();
+      }
+      expect(g.nodes.find(n => n.id === EVAL_NODE_META.id)).toBeDefined();
+    });
+
+    it("DB 表都掛在 db:main 之下（parentId 正確；db:main 也宣告 children）", () => {
+      const g = buildGraph({
+        includeAllPages: false,
+        includeRouters: false,
+        includeAlerts: false,
+      });
+      const dbMain = g.nodes.find(n => n.id === "db:main");
+      expect(dbMain).toBeDefined();
+      const childIds = new Set(dbMain!.children ?? []);
+      for (const tbl of DB_TABLES) {
+        const node = g.nodes.find(n => n.id === tbl.id);
+        expect(node, `${tbl.id} 節點應存在`).toBeDefined();
+        expect(node!.parentId, `${tbl.id} 應指向 db:main`).toBe("db:main");
+        expect(childIds.has(tbl.id), `db:main.children 應包含 ${tbl.id}`).toBe(
+          true
+        );
+      }
+    });
+
+    it("Service 節點與 upstream / downstream 都有 edge 連接（無懸空）", () => {
+      const g = buildGraph({
+        includeAllPages: false,
+        includeRouters: true, // 才會有 upstream router 節點
+        includeAlerts: false,
+      });
+      const ids = new Set(g.nodes.map(n => n.id));
+      for (const svc of INTERNAL_SERVICES) {
+        for (const upId of svc.upstream) {
+          if (!ids.has(upId)) continue;
+          expect(
+            g.edges.find(e => e.source === upId && e.target === svc.id),
+            `${upId} → ${svc.id} edge 應存在`
+          ).toBeDefined();
+        }
+        for (const downId of svc.downstream) {
+          if (!ids.has(downId)) continue;
+          expect(
+            g.edges.find(e => e.source === svc.id && e.target === downId),
+            `${svc.id} → ${downId} edge 應存在`
+          ).toBeDefined();
+        }
+      }
+    });
+
+    it("Build artifacts → 部署平台 與 build:vite-frontend → browser 邊都被畫出", () => {
+      const g = buildGraph({
+        includeAllPages: false,
+        includeRouters: false,
+        includeAlerts: false,
+      });
+      for (const art of BUILD_ARTIFACTS) {
+        expect(
+          g.edges.find(
+            e => e.source === art.id && e.target === "infra:railway"
+          ),
+          `${art.id} → infra:railway edge 應存在`
+        ).toBeDefined();
+      }
+      expect(
+        g.edges.find(
+          e =>
+            e.source === "build:vite-frontend" &&
+            e.target === BROWSER_NODE_META.id
+        )
+      ).toBeDefined();
+    });
+
+    it("WebSocket（/ws/orb-voice） browser → ws → Gemini 邊都連接", () => {
+      const g = buildGraph({
+        includeAllPages: false,
+        includeRouters: false,
+        includeAlerts: false,
+      });
+      expect(
+        g.edges.find(
+          e =>
+            e.source === BROWSER_NODE_META.id && e.target === "ws:orb-voice"
+        )
+      ).toBeDefined();
+      expect(
+        g.edges.find(
+          e => e.source === "ws:orb-voice" && e.target === "provider:gemini"
+        )
+      ).toBeDefined();
+    });
+
     it("server/routes 目錄下所有 *.ts 都被某個 API_ENDPOINTS 或 WEBHOOK_ENDPOINTS 條目引用", () => {
       const fs = require("node:fs");
       const path = require("node:path");
@@ -1060,6 +1179,73 @@ describe("brainPipeline graph builder", () => {
         orphan,
         `偵測到 server/routes/ 下有檔案不被任何 API_ENDPOINTS / WEBHOOK_ENDPOINTS 條目引用：\n` +
           `  ${orphan.join("\n  ")}\n→ 請在 brainPipeline catalog 加對應端點，或刪除未使用的 routes 檔案。`
+      ).toEqual([]);
+    });
+
+    it("server/ws 目錄下所有 *.ts 都被某個 WS_GATEWAYS 條目引用", () => {
+      const fs = require("node:fs");
+      const path = require("node:path");
+      const wsDir = resolve(REPO_ROOT, "server/ws");
+      const files: string[] = fs
+        .readdirSync(wsDir)
+        .filter((f: string) => f.endsWith(".ts") && !f.endsWith(".test.ts"));
+
+      const referenced = new Set<string>();
+      for (const ws of WS_GATEWAYS) {
+        for (const f of ws.files) referenced.add(f);
+      }
+
+      const orphan: string[] = [];
+      for (const f of files) {
+        const full = `server/ws/${f}`;
+        if (!referenced.has(full)) orphan.push(full);
+      }
+      expect(
+        orphan,
+        `偵測到 server/ws/ 下有檔案不被任何 WS_GATEWAYS 條目引用：\n` +
+          `  ${orphan.join("\n  ")}\n→ 請在 brainPipeline 的 WS_GATEWAYS catalog 加 entry。`
+      ).toEqual([]);
+    });
+
+    it("DB_TABLES 中宣告的 drizzleExport 都真的存在於 drizzle/schema.ts", () => {
+      const schemaTs = readFileSync(
+        resolve(REPO_ROOT, "drizzle/schema.ts"),
+        "utf-8"
+      );
+      const orphan: string[] = [];
+      for (const tbl of DB_TABLES) {
+        const re = new RegExp(
+          `^export const ${tbl.drizzleExport}\\b`,
+          "m"
+        );
+        if (!re.test(schemaTs)) orphan.push(tbl.drizzleExport);
+      }
+      expect(
+        orphan,
+        `DB_TABLES 中以下 drizzleExport 名找不到對應的 drizzle 表：\n` +
+          `  ${orphan.join(", ")}\n→ 請更新 DB_TABLES 的 drizzleExport 欄位。`
+      ).toEqual([]);
+    });
+
+    it("server/eval 目錄存在的話，必須對應到 EVAL_NODE_META（quality gate 不漂移）", () => {
+      const fs = require("node:fs");
+      const evalDir = resolve(REPO_ROOT, "server/eval");
+      if (!fs.existsSync(evalDir)) return; // 不存在就跳過
+      const referenced = new Set(EVAL_NODE_META.files);
+      // 只檢查頂層 .ts 與目錄
+      const orphans: string[] = [];
+      for (const f of fs.readdirSync(evalDir)) {
+        const full = `server/eval/${f}`;
+        // 容許目錄（cases/）或 .ts 檔；若兩種都沒被 EVAL_NODE_META 提及 → orphan
+        const inSet =
+          referenced.has(full) ||
+          [...referenced].some(r => r.startsWith(`${full}/`));
+        if (!inSet) orphans.push(full);
+      }
+      expect(
+        orphans,
+        `偵測到 server/eval/ 下有檔案/目錄未被 EVAL_NODE_META 引用：\n` +
+          `  ${orphans.join("\n  ")}`
       ).toEqual([]);
     });
   });

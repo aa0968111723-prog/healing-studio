@@ -1171,6 +1171,395 @@ interface MiddlewareMeta {
   files: string[];
 }
 
+/**
+ * WebSocket 閘道 — `/ws/orb-voice` 給 Gemini Live 雙向音訊串流。
+ *
+ * 與 SSE 不同（單向 server→client），WebSocket 是雙向；放獨立 kind 讓畫布上
+ * 的圖示與 edge label 可以區分。
+ */
+interface WebSocketGatewayMeta {
+  id: string;
+  label: string;
+  description: string;
+  path: string;
+  files: string[];
+  envKey?: string;
+  downstream: string[];
+}
+
+const WS_GATEWAYS: WebSocketGatewayMeta[] = [
+  {
+    id: "ws:orb-voice",
+    label: "WS /ws/orb-voice（Gemini Live Voice）",
+    description:
+      "光球語音對話：瀏覽器 ↔ Gemini Live API 雙向音訊串流；上限 ORB_VOICE_MAX_SESSION_MS",
+    path: "/ws/orb-voice",
+    files: ["server/ws/orbVoiceGateway.ts", "server/_core/index.ts"],
+    envKey: "GEMINI_LIVE_API_KEY",
+    downstream: ["provider:gemini", "db:main"],
+  },
+];
+
+/**
+ * 後端內部服務（business logic）— router 與 provider / DB 之間的中介。
+ *
+ * 加入這些節點是為了讓主管能看到「光球收到請求後，到底經過哪些服務才送到
+ * Gemini？」例如：tRPC ai router → provider router → llm router → Gemini API。
+ *
+ * 只列出對外行為「明顯改變圖樣」的核心服務，避免把每支 service 檔都畫成節點。
+ */
+interface InternalServiceMeta {
+  id: string;
+  label: string;
+  description: string;
+  files: string[];
+  /** 服務上游（誰會呼叫它）— 用於畫 edge */
+  upstream: string[];
+  /** 服務下游（它會呼叫誰）— 用於畫 edge */
+  downstream: string[];
+}
+
+const INTERNAL_SERVICES: InternalServiceMeta[] = [
+  {
+    id: "service:provider-router",
+    label: "Provider Router（LLM 路由器）",
+    description:
+      "把模型 ID 解析到 OpenRouter / Anthropic / Gemini / Vertex；支援 fallback 與並發控制",
+    files: [
+      "server/_core/llmRouter.ts",
+      "server/_core/llm.ts",
+      "server/_core/llmConcurrency.ts",
+      "server/_core/fallbackPolicy.ts",
+      "server/services/providerRouter.ts",
+    ],
+    upstream: [
+      "router:brain",
+      "router:director",
+      "router:learnHub",
+      "router:orbScheduler",
+    ],
+    downstream: [
+      "provider:gemini",
+      "provider:vertex",
+      "provider:openrouter",
+      "provider:anthropic",
+    ],
+  },
+  {
+    id: "service:fal-dispatcher",
+    label: "Fal Dispatcher（Fal queue 分發器）",
+    description: "把生成請求送到 Fal queue 並輪詢結果；支援 webhook 異步回呼",
+    files: [
+      "server/services/falDispatcher.ts",
+      "server/services/falModels.ts",
+      "server/services/falQueueAwaiter.ts",
+      "server/services/falTrainer.ts",
+    ],
+    upstream: ["router:imageStudio", "router:videoStudio", "router:proStudio"],
+    downstream: ["provider:fal"],
+  },
+  {
+    id: "service:agent-planner",
+    label: "Schema-First Agent Planner",
+    description:
+      "從用戶需求生成多步驟工具呼叫計畫；含 plan / critique / safety guards",
+    files: ["server/services/agentPlanner.ts"],
+    upstream: ["orb:agent"],
+    downstream: ["service:agent-tool-executor"],
+  },
+  {
+    id: "service:agent-tool-executor",
+    label: "Agent Tool Executor",
+    description:
+      "把計畫中每一步的 tool call 真正送出（studio.* / web research / image edit / 3D…）",
+    files: ["server/services/agentToolExecutor.ts"],
+    upstream: ["service:agent-planner"],
+    downstream: [
+      "studio:image-studio",
+      "studio:video-studio",
+      "studio:pro-studio",
+      "service:fal-dispatcher",
+    ],
+  },
+  {
+    id: "service:rag-memory",
+    label: "RAG Memory（向量記憶服務）",
+    description:
+      "把對話 / 素材 embed 寫入 Pinecone；支援 query 取得語意相似的歷史段落",
+    files: ["server/services/ragMemory.ts", "server/services/orbMemory.ts"],
+    upstream: ["brain:director", "brain:storyteller", "orb:agent"],
+    downstream: ["ext:pinecone", "db:main"],
+  },
+  {
+    id: "service:provider-health",
+    label: "Provider Health Service",
+    description: "聚合所有外部 provider 的健康狀態快照；ProviderSnapshot cron 寫入",
+    files: ["server/services/providerHealth.ts"],
+    upstream: ["router:brain", "cron:provider-snapshot"],
+    downstream: [
+      "provider:gemini",
+      "provider:fal",
+      "provider:elevenlabs",
+      "provider:replicate",
+    ],
+  },
+  {
+    id: "service:brain-auto-repair",
+    label: "Brain Auto-Repair（錯誤追蹤+自動修復）",
+    description:
+      "捕捉 LLM / engine 錯誤；超過閾值熔斷，必要時自動建立 GitHub issue",
+    files: [
+      "server/services/brainAutoRepair.ts",
+      "server/middleware/brainContext.ts",
+    ],
+    upstream: ["mw:error-handler", "service:provider-router"],
+    downstream: ["ext:github", "db:main"],
+  },
+  {
+    id: "service:langsmith-tracer",
+    label: "LangSmith Tracer（追蹤橋接）",
+    description:
+      "把每一次 LLM call / agent step 上傳 LangSmith；支援 dataset & 評估",
+    files: ["server/services/langsmithTracer.ts"],
+    upstream: ["service:provider-router", "service:agent-planner"],
+    downstream: ["observability:langsmith"],
+  },
+  {
+    id: "service:auth-facade",
+    label: "Auth Facade（認證門面）",
+    description:
+      "統一帳密 / OAuth / 2FA / 密碼重設邏輯；包裝 password hasher、TOTP、login history",
+    files: [
+      "server/services/auth/AuthFacade.ts",
+      "server/services/auth/passwordHasher.ts",
+      "server/services/auth/totpService.ts",
+      "server/services/auth/passwordResetService.ts",
+      "server/services/auth/loginHistoryService.ts",
+      "server/services/auth/emailVerificationService.ts",
+    ],
+    upstream: [
+      "api:auth-login",
+      "api:auth-register",
+      "api:auth-2fa",
+      "api:auth-forgot",
+      "api:auth-reset",
+      "api:auth-change",
+      "api:auth-login-history",
+    ],
+    downstream: ["repo:users", "db:main"],
+  },
+  {
+    id: "service:orb-task-orchestrator",
+    label: "Orb Task Orchestrator（多步驟狀態機）",
+    description:
+      "光球任務 state machine：plan → tool calls → confirm → finalize；含 idempotency 與 cost guard",
+    files: [
+      "server/services/orbTaskOrchestrator.ts",
+      "server/services/orbTaskStateMachine.ts",
+      "server/services/orbTaskStore.ts",
+      "server/services/orbIdempotency.ts",
+      "server/services/orbCostGuard.ts",
+      "server/services/orbQuota.ts",
+    ],
+    upstream: ["router:orbScheduler", "orb:agent"],
+    downstream: [
+      "service:agent-planner",
+      "service:agent-tool-executor",
+      "repo:orb-tasks",
+    ],
+  },
+  {
+    id: "service:site-code-scanner",
+    label: "Site Code Scanner",
+    description:
+      "AI 全站研究：靜態掃描 server/ + client/src/ 提供給光球使用，回答程式碼問題",
+    files: [
+      "server/services/siteCodeScanner.ts",
+      "server/services/siteKnowledge.ts",
+    ],
+    upstream: ["orb:agent", "router:adminEval"],
+    downstream: [],
+  },
+];
+
+/**
+ * Repository 層（資料存取）— Repository pattern 把 ORM query 集中管理。
+ * 介於 service 層與 DB 之間，讓服務不直接組 SQL。
+ */
+interface RepositoryMeta {
+  id: string;
+  label: string;
+  description: string;
+  files: string[];
+  /** 主要操作的 DB 表名（用於畫到 db-table 子節點的邊） */
+  tables: string[];
+  /** 上游：誰會呼叫此 repository */
+  upstream: string[];
+}
+
+const REPOSITORIES: RepositoryMeta[] = [
+  {
+    id: "repo:orb-tasks",
+    label: "Orb Task Repository",
+    description: "光球任務的 CRUD：建立、推進狀態、寫入結果",
+    files: [
+      "server/repositories/orbTaskRepository.ts",
+      "server/repositories/base",
+      "server/repositories/mysql",
+    ],
+    tables: ["table:background_jobs"],
+    upstream: ["service:orb-task-orchestrator"],
+  },
+  {
+    id: "repo:users",
+    label: "User Repository（內聯於 db.ts）",
+    description:
+      "使用者、session、login_history 的 query helper（目前在 server/db.ts）",
+    files: ["server/db.ts"],
+    tables: [
+      "table:users",
+      "table:login_history",
+      "table:password_reset_tokens",
+    ],
+    upstream: ["service:auth-facade"],
+  },
+];
+
+/**
+ * 資料表（database 子節點）— 列出 30+ 表中最關鍵的 12 個資料領域。
+ *
+ * 每個表都用 `parentId: "db:main"` 折疊到 db:main 之下；展開時可看到完整對應，
+ * 避免一張圖塞 30+ 個表把畫布炸掉。對應到 drizzle/schema.ts 的實際表名。
+ */
+interface DbTableMeta {
+  id: string;
+  label: string;
+  description: string;
+  /** drizzle schema 中的 export 名 */
+  drizzleExport: string;
+  /** 哪些服務會讀寫此表 */
+  consumers?: string[];
+}
+
+const DB_TABLES: DbTableMeta[] = [
+  {
+    id: "table:users",
+    label: "users",
+    description: "使用者帳號 / profile / 點數",
+    drizzleExport: "users",
+  },
+  {
+    id: "table:login_history",
+    label: "login_history",
+    description: "登入紀錄（IP / UA / 時間）",
+    drizzleExport: "loginHistory",
+  },
+  {
+    id: "table:password_reset_tokens",
+    label: "password_reset_tokens",
+    description: "密碼重設 token（短期有效）",
+    drizzleExport: "passwordResetTokens",
+  },
+  {
+    id: "table:digital_asset_library",
+    label: "digital_asset_library",
+    description: "上傳 + 生成的素材（圖 / 影 / 音）",
+    drizzleExport: "digitalAssetLibrary",
+  },
+  {
+    id: "table:fine_tuned_models",
+    label: "fine_tuned_models",
+    description: "LoRA 訓練紀錄與輸出 weights URL",
+    drizzleExport: "fineTunedModels",
+  },
+  {
+    id: "table:background_jobs",
+    label: "background_jobs",
+    description: "光球任務狀態機 / 排程任務 / 重試紀錄",
+    drizzleExport: "backgroundJobs",
+  },
+  {
+    id: "table:news_articles",
+    label: "news_articles",
+    description: "newsFetcher cron 抓進來的最新動態",
+    drizzleExport: "newsArticles",
+  },
+  {
+    id: "table:api_usage_logs",
+    label: "api_usage_logs",
+    description: "每一次 LLM / Fal / Replicate 呼叫的 token / 成本紀錄",
+    drizzleExport: "apiUsageLogs",
+  },
+  {
+    id: "table:ai_usage_events",
+    label: "ai_usage_events",
+    description: "AI 用量事件流（提供告警 / 配額計算）",
+    drizzleExport: "aiUsageEvents",
+  },
+  {
+    id: "table:generation_history",
+    label: "generation_history",
+    description: "歷次生成快照（prompt / model / 結果）",
+    drizzleExport: "generationHistory",
+  },
+  {
+    id: "table:user_ai_brain",
+    label: "user_ai_brain",
+    description: "使用者腦組態（5 推理 + 4 引擎槽選擇）",
+    drizzleExport: "userAiBrain",
+  },
+  {
+    id: "table:user_subscriptions",
+    label: "user_subscriptions",
+    description: "Stripe 訂閱狀態 / 點數加值紀錄",
+    drizzleExport: "userSubscriptions",
+  },
+];
+
+/**
+ * 建構流水線（dist/public + dist/index.js）— Railway 部署前的兩個 build step。
+ *
+ * 把它畫成圖讓 onboarding 工程師能看到「打包流程」與部署的關聯。
+ */
+interface BuildArtifactMeta {
+  id: string;
+  label: string;
+  description: string;
+  files: string[];
+}
+
+const BUILD_ARTIFACTS: BuildArtifactMeta[] = [
+  {
+    id: "build:vite-frontend",
+    label: "Vite 前端建構（dist/public）",
+    description:
+      "vite build 編譯 React + Tailwind + assets；產出靜態檔給 Express 在生產環境 serve",
+    files: ["vite.config.ts", "client/index.html"],
+  },
+  {
+    id: "build:esbuild-backend",
+    label: "esbuild 後端建構（dist/index.js）",
+    description:
+      "esbuild bundle Node 端 entry → ESM；package.json 的 build script 描述完整指令",
+    files: ["package.json", "server/_core/index.ts"],
+  },
+];
+
+/**
+ * 評估框架（quality gate）— 偵測 agent 行為退化、回歸測試。
+ */
+const EVAL_NODE_META = {
+  id: "eval:agent-runner",
+  label: "Agent Eval Runner",
+  description:
+    "對固定的 agent 對話 case 跑回歸；可手動透過 `npm run eval` 觸發或 admin/eval 介面",
+  files: [
+    "server/eval/runEval.ts",
+    "server/eval/agentEvalRunner.ts",
+    "server/eval/cases",
+  ],
+} as const;
+
 const MIDDLEWARE_STACK: MiddlewareMeta[] = [
   {
     id: "mw:helmet",
@@ -2315,6 +2704,175 @@ function appendInfrastructureLayers(
     edges.push(makeEdge("api:trpc", "mw:error-handler", "錯誤"));
   }
 
+  // ── WebSocket 閘道節點（api layer） ──────────────────────────────────
+  for (const ws of WS_GATEWAYS) {
+    let worst: PipelineNodeStatus = "healthy";
+    if (ws.envKey) {
+      const s = deriveOptionalServiceStatus(ws.envKey).status;
+      if (STATUS_RANK[s] > STATUS_RANK[worst]) worst = s;
+    }
+    for (const downId of ws.downstream) {
+      if (!nodes.find(n => n.id === downId)) continue;
+      const s = statusOf(downId);
+      if (STATUS_RANK[s] > STATUS_RANK[worst]) worst = s;
+    }
+    nodes.push({
+      id: ws.id,
+      kind: "websocket",
+      layer: "api",
+      label: ws.label,
+      description: ws.description,
+      status: worst,
+      relatedFiles: [
+        ...(ws.envKey ? [`.env (${ws.envKey})`] : []),
+        ...ws.files,
+      ],
+      diagnostics: {
+        backendRoute: `WS ${ws.path}`,
+        serviceFunction: ws.files[0] ?? "ws.WebSocketServer",
+      },
+    });
+    edges.push(makeEdge(BROWSER_NODE_META.id, ws.id, "WebSocket"));
+    for (const downId of ws.downstream) {
+      if (nodes.find(n => n.id === downId)) {
+        edges.push(makeEdge(ws.id, downId, "雙向"));
+      }
+    }
+  }
+
+  // ── 內部服務節點（service layer） ─────────────────────────────────────
+  for (const svc of INTERNAL_SERVICES) {
+    nodes.push({
+      id: svc.id,
+      kind: "service",
+      layer: "service",
+      label: svc.label,
+      description: svc.description,
+      status: "healthy",
+      relatedFiles: svc.files,
+      diagnostics: {
+        backendRoute: "internal service",
+        serviceFunction: svc.files[0] ?? "service module",
+      },
+    });
+    for (const upId of svc.upstream) {
+      if (nodes.find(n => n.id === upId)) {
+        edges.push(makeEdge(upId, svc.id, "委派"));
+      }
+    }
+    for (const downId of svc.downstream) {
+      if (nodes.find(n => n.id === downId)) {
+        edges.push(makeEdge(svc.id, downId, "呼叫"));
+      }
+    }
+  }
+
+  // ── Repository 節點 ────────────────────────────────────────────────────
+  for (const repo of REPOSITORIES) {
+    nodes.push({
+      id: repo.id,
+      kind: "repository",
+      layer: "service",
+      label: repo.label,
+      description: repo.description,
+      status: "healthy",
+      relatedFiles: repo.files,
+      diagnostics: {
+        backendRoute: "repository pattern",
+        serviceFunction: repo.files[0] ?? "repository module",
+      },
+    });
+    for (const upId of repo.upstream) {
+      if (nodes.find(n => n.id === upId)) {
+        edges.push(makeEdge(upId, repo.id, "資料存取"));
+      }
+    }
+    // repo → db:main（所有 repo 的最終目的地）
+    edges.push(makeEdge(repo.id, "db:main", "SQL"));
+  }
+
+  // ── DB 表（database 子節點，用 parentId 折疊） ───────────────────────
+  for (const tbl of DB_TABLES) {
+    nodes.push({
+      id: tbl.id,
+      kind: "db-table",
+      layer: "data",
+      label: tbl.label,
+      description: tbl.description,
+      status: "healthy",
+      relatedFiles: ["drizzle/schema.ts"],
+      diagnostics: {
+        backendRoute: "MySQL table",
+        serviceFunction: `drizzle export: ${tbl.drizzleExport}`,
+      },
+      parentId: "db:main",
+    });
+  }
+  // 把 db:main 標成 group container（把所有表放進 children）
+  const dbMain = nodes.find(n => n.id === "db:main");
+  if (dbMain) {
+    dbMain.children = DB_TABLES.map(t => t.id);
+  }
+  // Repository → 對應的 db-table 邊（明示資料存取對象）
+  for (const repo of REPOSITORIES) {
+    for (const tableId of repo.tables) {
+      if (nodes.find(n => n.id === tableId)) {
+        edges.push(makeEdge(repo.id, tableId, "讀寫"));
+      }
+    }
+  }
+
+  // ── 建構流水線（build layer） ────────────────────────────────────────
+  for (const art of BUILD_ARTIFACTS) {
+    nodes.push({
+      id: art.id,
+      kind: "build-artifact",
+      layer: "build",
+      label: art.label,
+      description: art.description,
+      status: "healthy",
+      relatedFiles: art.files,
+      diagnostics: {
+        backendRoute: "build pipeline (npm run build)",
+        serviceFunction: art.files[0] ?? "build entry",
+      },
+    });
+  }
+  // 部署平台依賴 build artifacts
+  if (nodes.find(n => n.id === "infra:railway")) {
+    for (const art of BUILD_ARTIFACTS) {
+      edges.push(makeEdge(art.id, "infra:railway", "部署"));
+    }
+  }
+  // browser 載入的是 vite-frontend 產出的 bundle
+  edges.push(
+    makeEdge("build:vite-frontend", BROWSER_NODE_META.id, "送出 bundle")
+  );
+
+  // ── 評估框架（quality layer） ────────────────────────────────────────
+  nodes.push({
+    id: EVAL_NODE_META.id,
+    kind: "eval-runner",
+    layer: "quality",
+    label: EVAL_NODE_META.label,
+    description: EVAL_NODE_META.description,
+    status: "healthy",
+    relatedFiles: [...EVAL_NODE_META.files],
+    diagnostics: {
+      backendRoute: "npm run eval",
+      serviceFunction: EVAL_NODE_META.files[0],
+    },
+  });
+  // eval runner → 它在跑的目標（agent planner / orb agent）
+  if (nodes.find(n => n.id === "service:agent-planner")) {
+    edges.push(
+      makeEdge(EVAL_NODE_META.id, "service:agent-planner", "回歸測試")
+    );
+  }
+  if (nodes.find(n => n.id === "orb:agent")) {
+    edges.push(makeEdge(EVAL_NODE_META.id, "orb:agent", "回歸測試"));
+  }
+
   // ── 跨層的「黏合」邊 ────────────────────────────────────────────────────
   // Railway → 它代管的核心服務（healthcheck / DB / storage）
   for (const downId of INFRA_NODES.find(i => i.id === "infra:railway")
@@ -2483,4 +3041,10 @@ export const __testing = {
   EXTERNAL_SERVICES,
   CRON_JOBS,
   MIDDLEWARE_STACK,
+  WS_GATEWAYS,
+  INTERNAL_SERVICES,
+  REPOSITORIES,
+  DB_TABLES,
+  BUILD_ARTIFACTS,
+  EVAL_NODE_META,
 };

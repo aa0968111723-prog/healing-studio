@@ -27,12 +27,18 @@ export type PipelineNodeKind =
   | "browser" // 使用者瀏覽器入口（client runtime）
   | "api-endpoint" // REST/HTTP 端點（非 tRPC）
   | "webhook" // 外部服務回調（fal / replicate / suno / stripe / orb）
+  | "websocket" // WebSocket 閘道（Gemini Live Voice 等）
   | "middleware" // Express 中介層（helmet / rateLimit / verifyToken / 錯誤處理）
+  | "service" // 後端內部服務（agent planner / fal dispatcher / rag memory…）
+  | "repository" // 資料存取層（Repository pattern；介於 router 與 DB 之間）
   | "database" // 永續資料層（MySQL via Drizzle）
+  | "db-table" // 資料表（database 的子節點）
   | "storage" // 物件儲存（GCS / S3 / 本地）
   | "vector-store" // 向量記憶（Pinecone）
   | "search-provider" // 搜尋／資料來源（Brave / Perplexity / NewsAPI / NewsData）
   | "cron-job" // 排程任務（node-cron）
+  | "build-artifact" // 建構產物（dist/public、dist/index.js）
+  | "eval-runner" // 評估框架（agent eval / 品質閘）
   | "deployment" // 部署平台（Railway / Docker）
   | "observability" // 觀測與追蹤（LangSmith / PostHog）
   | "auth-provider" // 第三方登入（Google OAuth）
@@ -46,9 +52,12 @@ export type PipelineLayer =
   | "external"
   // ── 「網站如何運作」深度整合新增 ────────────────────────────────────
   | "client" // 瀏覽器端（區別於 React 頁面層）
-  | "api" // REST / Webhook / SSE 端點
-  | "data" // 資料層（DB + 物件儲存）
-  | "infrastructure"; // 部署平台（Railway / 容器 / 觀測）
+  | "api" // REST / Webhook / SSE / WS 端點
+  | "service" // 後端服務層（router 與 provider/DB 中間的 business logic）
+  | "data" // 資料層（DB + 物件儲存 + 表）
+  | "infrastructure" // 部署平台（Railway / 容器 / 觀測）
+  | "quality" // 品質閘（eval / lint / drift guard）
+  | "build"; // 建構流水線（Vite / esbuild）
 
 export interface PipelineNodeMetrics {
   /** 連續失敗次數（health cache 提供） */
