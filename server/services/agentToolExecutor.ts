@@ -97,6 +97,36 @@ async function awaitFalForOrb(
   };
 }
 
+/**
+ * 解析 studio.generateImage 的路由分類與圖片 URL 集合。
+ * - 有 image_url 或 image_urls 陣列 → image-to-image
+ * - 否則 → text-to-image
+ * - 回傳的 imageUrls 會將 image_url 合併進 image_urls（fal.ai edit endpoints 需要陣列）
+ *
+ * @internal exported for unit tests
+ */
+export function resolveImageGenRouting(args: Record<string, unknown>): {
+  category: "text-to-image" | "image-to-image";
+  imageUrls: string[] | undefined;
+} {
+  const singleUrl =
+    typeof args.image_url === "string" && args.image_url
+      ? [args.image_url as string]
+      : [];
+  const multiUrls = Array.isArray(args.image_urls)
+    ? (args.image_urls as string[]).filter(u => typeof u === "string" && u)
+    : [];
+  const isImageToImage = singleUrl.length > 0 || multiUrls.length > 0;
+  const category: "text-to-image" | "image-to-image" = isImageToImage
+    ? "image-to-image"
+    : "text-to-image";
+  // Merge image_url + image_urls into a deduplicated array for fal.ai edit endpoints
+  const merged = isImageToImage
+    ? Array.from(new Set([...singleUrl, ...multiUrls]))
+    : undefined;
+  return { category, imageUrls: merged };
+}
+
 export interface OrbApiTool {
   name: string;
   description: string;
@@ -632,12 +662,9 @@ async function dispatchStudioTool(
           "imageEngine",
           "fal-ai/flux/dev"
         );
-        // img2img：有 image_url 時改走 image-to-image 路由，讓 dispatcher
-        // 對 LoRA / 編輯類模型套對應的 fallback chain。
-        const hasImage = typeof args.image_url === "string" && args.image_url;
-        const category: "text-to-image" | "image-to-image" = hasImage
-          ? "image-to-image"
-          : "text-to-image";
+        // img2img：有 image_url 或 image_urls 時改走 image-to-image 路由，
+        // 讓 dispatcher 對 LoRA / 編輯類模型套對應的 fallback chain。
+        const { category, imageUrls } = resolveImageGenRouting(args);
         const input: Record<string, unknown> = {};
         if (typeof args.prompt === "string") input.prompt = args.prompt;
         if (typeof args.aspect_ratio === "string")
@@ -647,12 +674,29 @@ async function dispatchStudioTool(
         if (typeof args.negative_prompt === "string")
           input.negative_prompt = args.negative_prompt;
         if (typeof args.image_url === "string") input.image_url = args.image_url;
+        // Auto-populate image_urls from image_url for fal.ai edit endpoints
+        if (imageUrls) input.image_urls = imageUrls;
         if (typeof args.strength === "number") input.strength = args.strength;
         if (typeof args.seed === "number") input.seed = args.seed;
         if (typeof args.guidance_scale === "number")
           input.guidance_scale = args.guidance_scale;
         if (typeof args.num_inference_steps === "number")
           input.num_inference_steps = args.num_inference_steps;
+        if (typeof args.output_format === "string")
+          input.output_format = args.output_format;
+        // Model-specific edit params
+        if (typeof args.resolution === "string") input.resolution = args.resolution;
+        if (typeof args.mask_url === "string") input.mask_url = args.mask_url;
+        if (typeof args.size === "string") input.size = args.size;
+        if (typeof args.image_size === "string") input.image_size = args.image_size;
+        // Upscale params
+        if (typeof args.upscale_factor === "number") input.upscale_factor = args.upscale_factor;
+        if (typeof args.upscale_mode === "string") input.upscale_mode = args.upscale_mode;
+        if (typeof args.target_resolution === "string") input.target_resolution = args.target_resolution;
+        // Pose detection params
+        if (typeof args.detect_hand === "boolean") input.detect_hand = args.detect_hand;
+        if (typeof args.detect_face === "boolean") input.detect_face = args.detect_face;
+        if (typeof args.detect_body === "boolean") input.detect_body = args.detect_body;
         if (typeof args.lora_url === "string") {
           // fal LoRA-aware models 期望 loras 為陣列
           input.loras = [
@@ -662,6 +706,9 @@ async function dispatchStudioTool(
             },
           ];
         }
+        // ControlNet field
+        if (typeof args.controlnet_conditioning_scale === "number")
+          input.controlnet_conditioning_scale = args.controlnet_conditioning_scale;
         const r = await dispatchFalQueueTask({
           modelId,
           category,

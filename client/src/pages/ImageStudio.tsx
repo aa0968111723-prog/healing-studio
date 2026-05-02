@@ -95,6 +95,12 @@ type StudioTab =
 
 type ModelCategory = "t2i" | "edit" | "upscale" | "pose" | "sd" | "3d";
 
+// Hunyuan3D face count range constants
+const HUNYUAN_FACE_COUNT_MIN = 40000;
+const HUNYUAN_FACE_COUNT_MAX = 1500000;
+const HUNYUAN_FACE_COUNT_STEP = 10000;
+const HUNYUAN_FACE_COUNT_DEFAULT = 500000;
+
 type ModelInfo = {
   id: string;
   falId: string;
@@ -253,6 +259,7 @@ const MODELS: ModelInfo[] = [
     category: "edit",
     color: "orange",
     supportsStrength: true,
+    supportsNeg: true,
   },
   {
     id: "seedreamV5LiteEdit",
@@ -263,6 +270,7 @@ const MODELS: ModelInfo[] = [
     category: "edit",
     color: "amber",
     supportsStrength: true,
+    supportsNeg: true,
     fast: true,
   },
   {
@@ -2130,11 +2138,21 @@ function ThreeDPanel({
   setEnablePbr,
   hunyuanGenType,
   setHunyuanGenType,
+  hunyuanFaceCount,
+  setHunyuanFaceCount,
+  hunyuanPolygonType,
+  setHunyuanPolygonType,
   // Rodin
   rodinQuality,
   setRodinQuality,
   rodinMaterial,
   setRodinMaterial,
+  rodinGeometryFormat,
+  setRodinGeometryFormat,
+  rodinConditionMode,
+  setRodinConditionMode,
+  rodinUseHyper,
+  setRodinUseHyper,
   // HunyuanWorld
   labelsFg1,
   setLabelsFg1,
@@ -2142,6 +2160,8 @@ function ThreeDPanel({
   setLabelsFg2,
   worldClasses,
   setWorldClasses,
+  worldExportDrc,
+  setWorldExportDrc,
 }: {
   imageUrl: string;
   setImageUrl: (v: string) => void;
@@ -2158,16 +2178,28 @@ function ThreeDPanel({
   setEnablePbr: (v: boolean) => void;
   hunyuanGenType: "Normal" | "LowPoly" | "Geometry";
   setHunyuanGenType: (v: "Normal" | "LowPoly" | "Geometry") => void;
+  hunyuanFaceCount: number;
+  setHunyuanFaceCount: (v: number) => void;
+  hunyuanPolygonType: "triangle" | "quadrilateral";
+  setHunyuanPolygonType: (v: "triangle" | "quadrilateral") => void;
   rodinQuality: "high" | "medium" | "low" | "extra-low";
   setRodinQuality: (v: "high" | "medium" | "low" | "extra-low") => void;
   rodinMaterial: "PBR" | "Shaded";
   setRodinMaterial: (v: "PBR" | "Shaded") => void;
+  rodinGeometryFormat: "glb" | "usdz" | "fbx" | "obj" | "stl";
+  setRodinGeometryFormat: (v: "glb" | "usdz" | "fbx" | "obj" | "stl") => void;
+  rodinConditionMode: "fuse" | "concat";
+  setRodinConditionMode: (v: "fuse" | "concat") => void;
+  rodinUseHyper: boolean;
+  setRodinUseHyper: (v: boolean) => void;
   labelsFg1: string;
   setLabelsFg1: (v: string) => void;
   labelsFg2: string;
   setLabelsFg2: (v: string) => void;
   worldClasses: string;
   setWorldClasses: (v: string) => void;
+  worldExportDrc: boolean;
+  setWorldExportDrc: (v: boolean) => void;
 }) {
   const needsImage = [
     "trellis2",
@@ -2289,47 +2321,123 @@ function ThreeDPanel({
               ))}
             </div>
           </div>
+          <div>
+            <Label className="text-[10px] text-muted-foreground mb-1 block">
+              面數 (face_count): {hunyuanFaceCount.toLocaleString()}
+            </Label>
+            <input
+              type="range"
+              min={HUNYUAN_FACE_COUNT_MIN}
+              max={HUNYUAN_FACE_COUNT_MAX}
+              step={HUNYUAN_FACE_COUNT_STEP}
+              value={hunyuanFaceCount}
+              onChange={e => setHunyuanFaceCount(Number(e.target.value))}
+              className="w-full"
+            />
+          </div>
+          <div>
+            <Label className="text-[10px] text-muted-foreground mb-1 block">
+              多邊形類型
+            </Label>
+            <div className="flex gap-1.5">
+              {(["triangle", "quadrilateral"] as const).map(p => (
+                <button
+                  key={p}
+                  onClick={() => setHunyuanPolygonType(p)}
+                  className={`flex-1 py-1.5 rounded-lg border text-[10px] font-medium transition-all ${hunyuanPolygonType === p ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border/40 text-muted-foreground hover:bg-accent"}`}
+                >
+                  {p === "triangle" ? "三角形" : "四邊形"}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 
       {/* Rodin 專屬 */}
       {modelId === "rodin3d" && (
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <Label className="text-[10px] text-muted-foreground mb-1 block">
-              材質
-            </Label>
-            <div className="flex gap-1">
-              {(["PBR", "Shaded"] as const).map(m => (
-                <button
-                  key={m}
-                  onClick={() => setRodinMaterial(m)}
-                  className={`flex-1 py-1.5 rounded-lg border text-[10px] font-medium transition-all ${rodinMaterial === m ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border/40 text-muted-foreground hover:bg-accent"}`}
-                >
-                  {m}
-                </button>
-              ))}
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-[10px] text-muted-foreground mb-1 block">
+                材質
+              </Label>
+              <div className="flex gap-1">
+                {(["PBR", "Shaded"] as const).map(m => (
+                  <button
+                    key={m}
+                    onClick={() => setRodinMaterial(m)}
+                    className={`flex-1 py-1.5 rounded-lg border text-[10px] font-medium transition-all ${rodinMaterial === m ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border/40 text-muted-foreground hover:bg-accent"}`}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <Label className="text-[10px] text-muted-foreground mb-1 block">
+                品質
+              </Label>
+              <Select
+                value={rodinQuality}
+                onValueChange={v => setRodinQuality(v as any)}
+              >
+                <SelectTrigger className="text-xs h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(["high", "medium", "low", "extra-low"] as const).map(q => (
+                    <SelectItem key={q} value={q}>
+                      {q}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
-          <div>
-            <Label className="text-[10px] text-muted-foreground mb-1 block">
-              品質
-            </Label>
-            <Select
-              value={rodinQuality}
-              onValueChange={v => setRodinQuality(v as any)}
-            >
-              <SelectTrigger className="text-xs h-8">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(["high", "medium", "low", "extra-low"] as const).map(q => (
-                  <SelectItem key={q} value={q}>
-                    {q}
-                  </SelectItem>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-[10px] text-muted-foreground mb-1 block">
+                幾何格式
+              </Label>
+              <Select
+                value={rodinGeometryFormat}
+                onValueChange={v => setRodinGeometryFormat(v as any)}
+              >
+                <SelectTrigger className="text-xs h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(["glb", "usdz", "fbx", "obj", "stl"] as const).map(f => (
+                    <SelectItem key={f} value={f}>
+                      {f.toUpperCase()}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-[10px] text-muted-foreground mb-1 block">
+                條件模式
+              </Label>
+              <div className="flex gap-1">
+                {(["concat", "fuse"] as const).map(c => (
+                  <button
+                    key={c}
+                    onClick={() => setRodinConditionMode(c)}
+                    className={`flex-1 py-1.5 rounded-lg border text-[10px] font-medium transition-all ${rodinConditionMode === c ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border/40 text-muted-foreground hover:bg-accent"}`}
+                  >
+                    {c}
+                  </button>
                 ))}
-              </SelectContent>
-            </Select>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <Label className="text-xs text-muted-foreground">
+              Hyper 加速
+            </Label>
+            <Switch checked={rodinUseHyper} onCheckedChange={setRodinUseHyper} />
           </div>
         </div>
       )}
@@ -2369,6 +2477,12 @@ function ThreeDPanel({
               placeholder="場景類型，例：outdoor, urban"
               className="text-xs"
             />
+          </div>
+          <div className="flex items-center justify-between">
+            <Label className="text-xs text-muted-foreground">
+              匯出 Draco 壓縮 (export_drc)
+            </Label>
+            <Switch checked={worldExportDrc} onCheckedChange={setWorldExportDrc} />
           </div>
         </div>
       )}
@@ -2533,13 +2647,23 @@ export default function ImageStudio() {
   const [hunyuanGenType, setHunyuanGenType] = useState<
     "Normal" | "LowPoly" | "Geometry"
   >("Normal");
+  const [hunyuanFaceCount, setHunyuanFaceCount] = useState(HUNYUAN_FACE_COUNT_DEFAULT);
+  const [hunyuanPolygonType, setHunyuanPolygonType] = useState<
+    "triangle" | "quadrilateral"
+  >("triangle");
   const [rodinQuality, setRodinQuality] = useState<
     "high" | "medium" | "low" | "extra-low"
   >("medium");
   const [rodinMaterial, setRodinMaterial] = useState<"PBR" | "Shaded">("PBR");
+  const [rodinGeometryFormat, setRodinGeometryFormat] = useState<
+    "glb" | "usdz" | "fbx" | "obj" | "stl"
+  >("glb");
+  const [rodinConditionMode, setRodinConditionMode] = useState<"fuse" | "concat">("concat");
+  const [rodinUseHyper, setRodinUseHyper] = useState(false);
   const [labelsFg1, setLabelsFg1] = useState("foreground objects");
   const [labelsFg2, setLabelsFg2] = useState("background elements");
   const [worldClasses, setWorldClasses] = useState("general scene");
+  const [worldExportDrc, setWorldExportDrc] = useState(false);
 
   // ── Results ──
   const [resultImages, setResultImages] = useState<string[]>([]);
@@ -3123,6 +3247,8 @@ export default function ImageStudio() {
           input_image_url: imageUrl3d,
           enable_pbr: enablePbr,
           generate_type: hunyuanGenType,
+          face_count: hunyuanFaceCount,
+          polygon_type: hunyuanPolygonType,
         };
       } else if (model.id === "rodin3d") {
         if (!prompt3d && !imageUrl3d) {
@@ -3134,6 +3260,9 @@ export default function ImageStudio() {
           image_urls: imageUrl3d ? [imageUrl3d] : undefined,
           material: rodinMaterial,
           quality: rodinQuality,
+          geometry_file_format: rodinGeometryFormat,
+          condition_mode: rodinConditionMode,
+          use_hyper: rodinUseHyper,
         };
       } else if (model.id === "hunyuanWorld") {
         if (!imageUrl3d) {
@@ -3145,6 +3274,7 @@ export default function ImageStudio() {
           labels_fg1: labelsFg1,
           labels_fg2: labelsFg2,
           classes: worldClasses,
+          export_drc: worldExportDrc,
         };
       }
 
@@ -3297,11 +3427,17 @@ export default function ImageStudio() {
     samPrompt,
     enablePbr,
     hunyuanGenType,
+    hunyuanFaceCount,
+    hunyuanPolygonType,
     rodinQuality,
     rodinMaterial,
+    rodinGeometryFormat,
+    rodinConditionMode,
+    rodinUseHyper,
     labelsFg1,
     labelsFg2,
     worldClasses,
+    worldExportDrc,
     currentMutation,
     persistGeneratedImageUrl,
     setAIState,
@@ -3443,7 +3579,7 @@ export default function ImageStudio() {
               : activeTab === "pose"
                 ? "pose 可調: drawMode(full-pose/body-pose/face-pose/hand-pose) — 偵測模式決定輸出哪個部位的骨骼圖"
                 : activeTab === "3d"
-                  ? "3d 可調: trellisResolution / trellisTextureSize / enablePbr(bool) / hunyuanGenType(Normal/LowPoly/Geometry) / rodinQuality(high/medium/low) / rodinMaterial(PBR/Shaded)"
+                  ? "3d 可調: trellisResolution / trellisTextureSize / enablePbr(bool) / hunyuanGenType(Normal/LowPoly/Geometry) / hunyuanFaceCount(40000~1500000) / hunyuanPolygonType(triangle/quadrilateral) / rodinQuality(high/medium/low) / rodinMaterial(PBR/Shaded) / rodinGeometryFormat(glb/usdz/fbx/obj/stl) / rodinConditionMode(fuse/concat) / rodinUseHyper(bool) / worldExportDrc(bool)"
                   : "可調 key: aspectRatio / numImages / seed / strength / guidance / inferSteps / negPrompt / outputSize / sdGuidance / sdInferSteps / loraScale / controlnetScale / upscaleFactor / drawMode / enablePbr / hunyuanGenType / rodinQuality",
     },
   ];
@@ -3497,7 +3633,13 @@ export default function ImageStudio() {
         has3dImage: !!imageUrl3d,
         enablePbr,
         hunyuanGenType,
+        hunyuanFaceCount,
+        hunyuanPolygonType,
         rodinQuality,
+        rodinGeometryFormat,
+        rodinConditionMode,
+        rodinUseHyper,
+        worldExportDrc,
       }),
     },
     handle: async (action: AgentAction): Promise<AgentActionResult> => {
@@ -3623,12 +3765,30 @@ export default function ImageStudio() {
             case "hunyuanGenType":
               if (typeof value === "string") setHunyuanGenType(value as "Normal" | "LowPoly" | "Geometry");
               return { ok: true, message: `3D 類型已設為 ${value}` };
+            case "hunyuanFaceCount":
+              if (typeof value === "number") setHunyuanFaceCount(Math.max(HUNYUAN_FACE_COUNT_MIN, Math.min(HUNYUAN_FACE_COUNT_MAX, value)));
+              return { ok: true, message: `面數已設為 ${value}` };
+            case "hunyuanPolygonType":
+              if (typeof value === "string") setHunyuanPolygonType(value as "triangle" | "quadrilateral");
+              return { ok: true, message: `多邊形類型已設為 ${value}` };
             case "rodinQuality":
               if (typeof value === "string") setRodinQuality(value as "high" | "medium" | "low" | "extra-low");
               return { ok: true, message: `3D 品質已設為 ${value}` };
             case "rodinMaterial":
               if (typeof value === "string") setRodinMaterial(value as "PBR" | "Shaded");
               return { ok: true };
+            case "rodinGeometryFormat":
+              if (typeof value === "string") setRodinGeometryFormat(value as "glb" | "usdz" | "fbx" | "obj" | "stl");
+              return { ok: true, message: `幾何格式已設為 ${value}` };
+            case "rodinConditionMode":
+              if (typeof value === "string") setRodinConditionMode(value as "fuse" | "concat");
+              return { ok: true };
+            case "rodinUseHyper":
+              if (typeof value === "boolean") setRodinUseHyper(value);
+              return { ok: true, message: value ? "已開啟 Hyper 加速" : "已關閉 Hyper 加速" };
+            case "worldExportDrc":
+              if (typeof value === "boolean") setWorldExportDrc(value);
+              return { ok: true, message: value ? "已開啟 Draco 壓縮輸出" : "已關閉 Draco 壓縮輸出" };
             default:
               return { ok: false, reason: `unknown param key: ${key}` };
           }
@@ -4413,16 +4573,28 @@ export default function ImageStudio() {
                 setEnablePbr={setEnablePbr}
                 hunyuanGenType={hunyuanGenType}
                 setHunyuanGenType={setHunyuanGenType}
+                hunyuanFaceCount={hunyuanFaceCount}
+                setHunyuanFaceCount={setHunyuanFaceCount}
+                hunyuanPolygonType={hunyuanPolygonType}
+                setHunyuanPolygonType={setHunyuanPolygonType}
                 rodinQuality={rodinQuality}
                 setRodinQuality={setRodinQuality}
                 rodinMaterial={rodinMaterial}
                 setRodinMaterial={setRodinMaterial}
+                rodinGeometryFormat={rodinGeometryFormat}
+                setRodinGeometryFormat={setRodinGeometryFormat}
+                rodinConditionMode={rodinConditionMode}
+                setRodinConditionMode={setRodinConditionMode}
+                rodinUseHyper={rodinUseHyper}
+                setRodinUseHyper={setRodinUseHyper}
                 labelsFg1={labelsFg1}
                 setLabelsFg1={setLabelsFg1}
                 labelsFg2={labelsFg2}
                 setLabelsFg2={setLabelsFg2}
                 worldClasses={worldClasses}
                 setWorldClasses={setWorldClasses}
+                worldExportDrc={worldExportDrc}
+                setWorldExportDrc={setWorldExportDrc}
               />
             </div>
           )}

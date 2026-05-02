@@ -89,15 +89,32 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
       negative_prompt: "string?",
       // img2img / 編輯：起始圖 + 強度（對應 ImageStudio 的編輯/姿勢/3D 流程）
       image_url: "string?",
+      image_urls: "string[]?",
       strength: "number?",
       // 可重現性
       seed: "number?",
       // 推論調諧（Flux / SDXL 都支援）
       guidance_scale: "number?",
       num_inference_steps: "number?",
+      output_format: "string?",
+      // 模型特定編輯參數
+      resolution: "string?",     // nanoBanana2Edit: "0.5K" | "1K" | "2K" | "4K"
+      mask_url: "string?",       // gptImage15Edit: inpainting mask
+      size: "string?",           // gptImage15Edit: output size
+      image_size: "string?",     // flux2ProEdit: preset size
+      // 影像放大參數
+      upscale_factor: "number?",
+      upscale_mode: "string?",
+      target_resolution: "string?",
+      // 骨骼姿勢偵測參數
+      detect_hand: "boolean?",
+      detect_face: "boolean?",
+      detect_body: "boolean?",
       // LoRA 注入（用 ${stepN.lora_url} 從訓練步驟串進來）
       lora_url: "string?",
       lora_scale: "number?",
+      // ControlNet 強度（SD 3.5 ControlNet 支援）
+      controlnet_conditioning_scale: "number?",
     },
     executionTarget: "server-side",
   },
