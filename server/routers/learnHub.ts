@@ -9127,6 +9127,567 @@ const checkTimeouts = async () => {
     authorName: "Healing Studio Team",
   },
 
+  // ══════════════════════════════════════════════════════
+  // 🌐 全站工具完整使用與學習導引（光球參考索引）
+  // ══════════════════════════════════════════════════════
+  //
+  // 這幾篇文件是「學習文件中心 ↔ 全站光球代理」連結的橋樑：
+  // - 它們會被注入到光球的系統提示詞中，作為光球回答「我該怎麼用 X / 在哪裡學 X」時的單一事實來源。
+  // - 文件 id 命名為 `master-*`，前後端均以這個前綴判斷是「全站索引型」文件。
+  // - 內容要保持「對使用者也好讀、對 LLM 也好搜尋」：用清楚標題、條列、跨連結。
+
+  {
+    id: "master-toolkit-guide",
+    category: "getting-started",
+    title: "🌐 全站工具完整使用與學習導引（光球索引版）",
+    summary:
+      "一站式總目錄：21 個頁面、4 大模態、80+ 模型，每個工具都標註「用來做什麼／如何使用／在哪學」，光球會直接引用本文回答你。",
+    content: `# 🌐 全站工具完整使用與學習導引
+
+> 這份文件是 Healing Studio 的「總地圖 + 學習索引」。
+>
+> 每一個工具都會用三個層次說明：
+>
+> 1. **這是什麼（What）** — 一句話說明用途。
+> 2. **怎麼開始（How）** — 第一步到能用的最短路徑。
+> 3. **延伸學習（Learn）** — 推薦對應的學習文件 / 影片 / 測驗。
+>
+> 全站光球代理會把本文當成參考資料，所以你問光球「X 怎麼用？」「我該從哪裡學？」時，
+> 它會直接引用這裡的索引帶你走完整流程。
+
+---
+
+## 📚 怎麼閱讀這份索引
+
+- 想快速試做 → 先看「🟢 入門路線」。
+- 想做完整作品 → 看「🔵 創作流程路線」。
+- 想優化品質 / 擴大規模 → 看「🟣 進階與營運路線」。
+- 想了解某個頁面 → 直接跳到下方「🗺️ 全站工具速查表」。
+- 想跟光球聊 → 任何頁面右下角的光球 🪐 都能問問題、要它幫你開頁、設參數。
+
+---
+
+## 🟢 新手入門路線（30 分鐘上手）
+
+| 順序 | 你要做的事 | 工具 / 入口 | 推薦學習文件 |
+|---|---|---|---|
+| 1 | 認識平台架構 | 學習文件中心 \`/learn\` | gs-001 完整入門指南 |
+| 2 | 試做第一張圖 | 創作工作室 \`/studio\` | gs-002 靈感積木系統 |
+| 3 | 看光球能做什麼 | 任何頁面右下角光球 🪐 | master-orb-companion-guide |
+| 4 | 看一段教學影片 | 學習文件中心 → 影片學習區 | video-001 快速入門 |
+| 5 | 做測驗驗證理解 | 學習文件中心 → 學習測驗區 | quiz-001 平台基礎測驗 |
+
+> 🪐 光球小提示：「請帶我做新手三件事」就會自動依照上面順序帶路。
+
+---
+
+## 🔵 創作流程路線（從概念到成品）
+
+| 階段 | 工具 | 用來做什麼 | 怎麼開始 |
+|---|---|---|---|
+| 規劃 | 導演 AI \`/director\` | CO-STAR 框架寫腳本／分鏡 | 描述想做的成品＋目標觀眾，導演 AI 會主動追問 |
+| 配角 | LoRA 訓練工坊 \`/lora-trainer\` | 訓練自己的角色 / 風格 LoRA | 上傳 3–20 張角度齊全照片，AI 自動標註後送訓練 |
+| 圖像 | 圖片創作室 \`/image-studio\` | 23 個模型生成關鍵畫面 | 選分頁（t2i/edit/upscale/pose/sd/3d）→ 選模型 → 寫提示詞 |
+| 影片 | 影片工作室 \`/video-studio\` | 21 個模型把畫面動起來 | t2v 直接寫提示，i2v 把圖丟進去再寫運鏡 |
+| 配樂 | 音樂配音創作室 \`/pro-studio\` | 音樂 / 音效 / 旁白 / 配音 | 切到 music / sfx / tts / clone 子分頁 |
+| 整合 | 創作工作室 \`/studio\` | 4 模態統一入口、跨工具串接 | 用靈感積木＋ZenCoPilot 一次規劃 |
+| 收納 | 數位資產庫 \`/assets\` | 集中所有產出，可分享給團隊 | 切換 private ↔ team_shared 即可分享 |
+| 紀錄 | 生成歷史 \`/history\` | 評分、書籤、再生成 | 加星標 / 加書籤、推到首頁精選 |
+| 一致性 | 一致性保險庫 \`/vault\` | 鎖定角色 / 場景視覺 | 把參考圖存入後可直接注入提示詞 |
+| 計畫 | 專案筆記 \`/notes\` + 創作排程 \`/calendar\` | 腳本、待辦、上線日程 | 從導演 AI 發送腳本即自動進筆記 |
+
+> 🪐 光球小提示：跟光球說「我想做一支 30 秒冥想短片」，它會自動排出上述跨頁路線。
+
+---
+
+## 🟣 進階與營運路線（品質、效率、團隊）
+
+| 主題 | 工具 / 頁面 | 推薦深度文件 |
+|---|---|---|
+| 品質升級 | 圖片 SeedVR Upscale、影片 Topaz Enhance、RIFE 補幀 | mg-001 / mg-002 / deep-cross-modal |
+| 一致性策略 | 一致性保險庫 + LoRA + Seed | tech-002 一致性保險庫 / deep-lora-trainer |
+| 提示詞工程 | ZenCoPilot、提示詞庫 \`/prompt-library\` | tech-001 提示詞工程 / tech-prompt-mastery |
+| 成本優化 | 儀表板 \`/dashboard\`、AI 大腦 \`/settings/ai-brain\` | deep-cost-optimization / mg-004 |
+| 監控除錯 | LangSmith \`/langsmith\`、背景任務 \`/background-tasks\` | deep-langsmith / kb-background-tasks |
+| 團隊協作 | 共享空間 \`/shared\`、資產庫共享、評論 | deep-shared / deep-assets |
+| 安全與權限 | 管理後台 \`/admin\`、回饋中心 \`/feedback\` | deep-admin / deep-security |
+| 部署營運 | Railway 環境變數、API Keys、健康監控 | api-004 / gs-env-vars / api-999 |
+
+---
+
+## 🗺️ 全站工具速查表（21 個頁面）
+
+> 每一列：頁面 → 用途 → 第一步 → 推薦學習文件 ID。
+
+### 1. 首頁 \`/\`
+- **用途：** 平台亮點、精選作品輪播、新聞與感知數據視覺化。
+- **第一步：** 用左上角的歡迎卡選擇「我是新手」或「我已上手」。
+- **延伸學習：** kb-home-page、gs-001、gs-full-sitemap
+
+### 2. 全站光球代理 \`/agent\`
+- **用途：** 以對話釐清需求、跨頁帶路、自動幫你設好模型 / 提示詞 / 參數。
+- **第一步：** 直接告訴光球「我想做 X，目標是 Y，我有 / 沒有素材」。
+- **延伸學習：** master-orb-companion-guide、deep-faq
+
+### 3. 創作工作室 \`/studio\`
+- **用途：** 4 模態統一入口（圖／影／音／聲），靈感積木 + ZenCoPilot。
+- **第一步：** 選模態 → 點 3 個積木 → 按生成。
+- **延伸學習：** gs-002、wf-full-workflows、tech-prompt-mastery
+
+### 4. 圖片創作室 \`/image-studio\`
+- **用途：** 23 個圖片模型，含文生圖 / 編輯 / 超解析 / 姿態 / SD / 3D。
+- **第一步：** 切到 t2i 分頁 → 預設選 nanoBanana2 → 寫一句提示詞。
+- **延伸學習：** mg-002、tech-003 ControlNet、tech-prompt-mastery
+
+### 5. 影片工作室 \`/video-studio\`
+- **用途：** 21 個影片模型，文生影 / 圖生影 / 影生影 / 補幀 / 運鏡控制。
+- **第一步：** 切到 t2v → 選 kling-t2v → 寫一句場景描述。
+- **延伸學習：** mg-001、wf-001、deep-cross-modal
+
+### 6. 音樂配音創作室 \`/pro-studio\`
+- **用途：** 音樂 / 音效 / TTS / 聲音克隆 / 配音 / 字幕 / 說話頭像。
+- **第一步：** 切到 tts 子分頁 → 選 qwen3-tts → 貼文字試聽。
+- **延伸學習：** mg-003、deep-voice-avatar
+
+### 7. 導演 AI \`/director\`
+- **用途：** CO-STAR 雙引擎導演助手，主動提問、產出可直接送到工作室的腳本。
+- **第一步：** 點「新對話」→ 描述成品 / 受眾 / 平台。
+- **延伸學習：** deep-director、kb-director-script
+
+### 8. 角色鍛造所 \`/models\`
+- **用途：** 管理已訓練的 LoRA 模型 / 風格模型 / 訓練紀錄。
+- **第一步：** 看模型卡片 → 點「分析」查看訓練細節。
+- **延伸學習：** tech-004、deep-lora-trainer
+
+### 9. LoRA 訓練工坊 \`/lora-trainer\`
+- **用途：** 上傳資料集、自動標註、設超參、啟動 Replicate 訓練。
+- **第一步：** 拖入 5–20 張同角色照片 → 系統自動標註 → 按開始訓練。
+- **延伸學習：** tech-004、deep-lora-trainer、kb-lora-trainer-detail
+
+### 10. 提示詞庫 \`/prompt-library\`
+- **用途：** 個人提示詞 / 公開提示詞廣場、生成模式標籤、一鍵套用。
+- **第一步：** 切到「公開廣場」→ 找有興趣的 → 按「套用到工作室」。
+- **延伸學習：** api-prompt-library、kb-prompt-library
+
+### 11. 生成歷史 \`/history\`
+- **用途：** 所有產出的時間線、評分、書籤、再生成、推首頁精選。
+- **第一步：** 用模態篩選找作品 → 給 4–5 星 → 加書籤。
+- **延伸學習：** wf-003、history-model-deep-dive
+
+### 12. 數位資產庫 \`/assets\`
+- **用途：** 個人 + 團隊媒體素材的集中管理、可見性切換。
+- **第一步：** 上傳一個檔案 → 設成 team_shared 給隊友。
+- **延伸學習：** deep-assets、deep-shared
+
+### 13. 一致性保險庫 \`/vault\`
+- **用途：** 角色 / 場景參考圖庫，創作時可直接注入提示詞。
+- **第一步：** 新增「角色」項目 → 上傳 3 張同人物照 → 描述特徵。
+- **延伸學習：** tech-002、wf-002
+
+### 14. 專案筆記 \`/notes\`
+- **用途：** Markdown 筆記、結構化腳本、行事曆事件。
+- **第一步：** 從導演 AI 發送腳本，會自動建立 script 類型筆記。
+- **延伸學習：** deep-notes-calendar
+
+### 15. 創作排程 \`/calendar\`
+- **用途：** 把腳本 / 任務排到日期，可批次匯出 Google Calendar。
+- **第一步：** 在筆記設定排程日期，會自動出現在 calendar。
+- **延伸學習：** deep-notes-calendar
+
+### 16. 共享空間 \`/shared\`
+- **用途：** 團隊共享作品瀏覽 / 評論 / 協作。
+- **第一步：** 把資產設 team_shared 後，到 shared 看夥伴的作品。
+- **延伸學習：** deep-shared
+
+### 17. 儀表板 \`/dashboard\`
+- **用途：** 使用統計、配額、成本摘要、模態分佈、每日趨勢。
+- **第一步：** 看「本月成本」+「最常用模態」決定要不要切換到便宜模型。
+- **延伸學習：** deep-dashboard、deep-cost-optimization
+
+### 18. 回饋中心 \`/feedback\`
+- **用途：** 提交 bug / 功能建議 / 品質問題給管理員。
+- **第一步：** 選類別 → 寫經過 → 附截圖 → 提交。
+- **延伸學習：** deep-admin
+
+### 19. 學習文件中心 \`/learn\`（你正在這裡）
+- **用途：** 系統化的文件 + 影片 + 測驗，光球會引用本中心回答你。
+- **第一步：** 用上方分類 + 難度 + 搜尋找需要的文章。
+- **延伸學習：** master-toolkit-guide（本文）、master-orb-companion-guide
+
+### 20. 專注流 \`/focus-flow\`
+- **用途：** 番茄鐘 × 療癒呼吸 × 想法捕捉，創作專注模式。
+- **第一步：** 啟動 25 分鐘番茄鐘，期間光球不會主動打擾。
+- **延伸學習：** deep-focus-flow、kb-focus-flow-complete
+
+### 21. 設定中心 \`/settings\` + AI 大腦 \`/settings/ai-brain\`
+- **用途：** 主題 / 字型 / 動畫偏好；自訂每個模態使用的 LLM 引擎、溫度、TopP。
+- **第一步：** 先到 ai-brain 確認導演 / 編譯器 / 光球三個 slot 都有引擎。
+- **延伸學習：** mg-004、deep-settings、kb-settings-complete
+
+### 22. 管理後台 \`/admin\`（管理員）
+- **用途：** 用戶與配額管理、系統指標、回饋處理、AI 大腦組態審查。
+- **第一步：** 從首頁巡檢 → 進入回饋分頁批次處理。
+- **延伸學習：** deep-admin、admin-api-usage
+
+---
+
+## 🧠 學習路徑建議（依角色）
+
+### 🎨 我是創作者（想快速做出作品）
+1. gs-001 完整入門指南（8 分鐘）
+2. gs-002 靈感積木系統（6 分鐘）
+3. wf-001 完整影片創作流程（10 分鐘）
+4. tech-001 提詞工程（10 分鐘）
+5. master-orb-companion-guide 光球使用指南
+→ 完成後做 quiz-001、quiz-002 驗證理解
+
+### 🛠️ 我是技術 / 整合者
+1. api-001 tRPC API 端點目錄
+2. api-002 / api-db-schema 資料庫 Schema
+3. api-003 fal.ai 架構與最佳實踐
+4. mg-004 AI Brain 5 維度配置
+5. api-fal-webhook、api-pinecone-rag、api-999 自動化維護工具
+→ 完成後做 quiz-008（API）、quiz-014（資料庫）
+
+### 🧑‍💼 我是管理員 / 維運者
+1. deep-admin 後台教學
+2. deep-security 安全與隱私
+3. deep-cost-optimization 成本策略
+4. api-999 全站自動化維護工具
+5. api-004 部署指南（Railway + GCP）
+→ 完成後做 quiz-019（管理）、quiz-020（成本）
+
+### 🎬 我想做特定主題作品
+- 角色一致性系列 → wf-002 + tech-002 + tech-004
+- MV / 音樂影片 → wf-full-workflows § 工作流程 C
+- 冥想 / 療癒內容 → wf-full-workflows § 工作流程 D
+- 品牌素材 → wf-full-workflows § 工作流程 E
+
+---
+
+## 🪐 跟光球協作的 7 個關鍵句型
+
+把這些句子直接貼給光球，它會幫你完成對應動作（已和 PageAgent 連動）。
+
+1. 「帶我去 \`/<頁面>\`」 → 直接導航。
+2. 「幫我選最適合做 X 的模型」 → 自動 setModel + 解釋原因。
+3. 「幫我把提示詞優化成電影感」 → ZenCoPilot 風格優化 + fillPrompt。
+4. 「我有圖想做成影片」 → 跳到影片工作室 i2v、預先 setTab + setModel。
+5. 「請排一個跨頁面流程做 X」 → runWorkflow 多步驟計畫 + 確認卡。
+6. 「告訴我這個作品花了多少點數」 → 從儀表板資料引用，並建議便宜替代。
+7. 「我想學 X，請推薦學習文件」 → 直接列出本中心對應 docId 並用 [ACTION:navigate:/learn?docId=...] 帶你打開。
+
+---
+
+## ✅ 完成此文件的學習成果
+
+- 你能回答：Healing Studio 有哪些頁面？每個頁面用來做什麼？
+- 你知道：要做某件事該從哪一個入口開始。
+- 你會：把光球當成「索引引擎 + 操作助理」搭配本文使用。
+- 你能：根據自己的角色（創作者 / 技術 / 管理員）自選下一個學習文件。
+
+> 🌿 接下來建議閱讀：[master-orb-companion-guide]（光球代理人完全指南）。
+`,
+    tags: ["全站索引", "工具總覽", "學習路徑", "光球參考", "主目錄"],
+    difficulty: "beginner",
+    readingMinutes: 12,
+    publishedAt: "2026-05-02T00:00:00Z",
+    updatedAt: "2026-05-02T00:00:00Z",
+    featured: true,
+    authorName: "Healing Studio Team",
+  },
+
+  {
+    id: "master-orb-companion-guide",
+    category: "getting-started",
+    title: "🪐 全站光球代理人使用完全指南",
+    summary:
+      "光球能做什麼、怎麼問問題最有效、如何讓它跨頁面幫你完成任務，以及它和學習文件中心如何雙向引用。",
+    content: `# 🪐 全站光球代理人使用完全指南
+
+## 一、光球是什麼
+
+光球是 Healing Studio 的「全站代理人」。它不是普通的 chatbot，而是會：
+
+- **理解你目前所在的頁面**（讀取 PageAgent snapshot：可用模型、目前模型、目前分頁、提示詞長度…）。
+- **真正幫你操作頁面**（透過 PageAgent bus 發出 [ACTION:navigate / setModel / setTab / setParam / fillPrompt …]）。
+- **跨頁面串接工作流**（runWorkflow：例如導演 AI → 圖片創作室 → 影片工作室 → 音樂配音）。
+- **以你的偏好做合理預設**（從聊天歷史、回饋紀錄與長期記憶中蒸餾出風格 / 平台 / 模型偏好）。
+- **引用學習文件中心**（master-toolkit-guide、master-orb-companion-guide 等核心文件已注入光球的系統提示詞）。
+
+> 簡單說：光球 = 「全站導遊 + 操作助理 + 學習索引」。
+
+---
+
+## 二、光球住在哪裡
+
+| 介面 | 位置 | 適合什麼情境 |
+|---|---|---|
+| 浮動光球 ProactiveOrbWidget | 全站任何頁面右下角 🪐 | 隨手問一句、要它幫忙設參數 |
+| 全站光球代理頁 \`/agent\` | 側邊欄第一個入口 | 整段對話、跨頁規劃、長任務 |
+| 導引面板 OrbGuidePanel | 第一次進站 / 點教學總覽時 | 步驟式新手導引 |
+
+三者共用同一個聊天歷史（GlobalOrbChatContext），跨頁切換不會掉訊息。
+
+---
+
+## 三、最有效的問句模板
+
+光球對「成品 + 用途 + 限制」這種結構化敘述反應最好。
+
+### 模板 A：直接帶路
+> 「帶我去 \`/image-studio\`，我想做 16:9 的電影海報，用 nanoBananaPro。」
+
+光球會：navigate → setTab → setModel → setParam → 等你輸入提示詞。
+
+### 模板 B：成品優先
+> 「我想做 30 秒的療癒冥想短片，要有旁白和環境音，給 Instagram Reels（直式）。」
+
+光球會：先說明跨頁路線 → navigate 到導演 AI → 引導寫腳本 → 之後逐步帶路。
+
+### 模板 C：學習導向
+> 「我完全不懂 LoRA，請從零教我，目標是訓練自己的角色。」
+
+光球會：列推薦學習文件（tech-004 / deep-lora-trainer / kb-lora-trainer-detail）→ navigate 到 \`/learn?docId=tech-004\` → 看完問你要不要直接到 \`/lora-trainer\`。
+
+### 模板 D：診斷修復
+> 「為什麼我剛剛生成失敗？」
+
+光球會：讀取最近的失敗紀錄 → 提出具體原因（額度 / 模型不可用 / 提示詞觸發審核）→ 建議替代模型或重試策略。
+
+### 模板 E：成本意識
+> 「我這個月還剩多少點數，最該優化哪個模型？」
+
+光球會：讀取儀表板資料 → 指出最大宗開銷 → 用 mg-004 的優先序建議切到便宜替代。
+
+---
+
+## 四、光球的動作語言（你看得到的標記）
+
+光球回覆中可能出現以下 marker，前端會自動渲染成按鈕 / 確認卡：
+
+| Marker | 用途 |
+|---|---|
+| \`[ACTION:navigate:/path]\` | 帶你到某個頁面 |
+| \`[ACTION:fillPrompt:文字]\` | 直接幫你填提示詞 |
+| \`[ACTION:setModel:modelId]\` | 切換當頁模型 |
+| \`[ACTION:setTab:tabId]\` | 切換子分頁 |
+| \`[ACTION:setParam:key=value]\` | 設參數（aspectRatio、duration…）|
+| \`[ACTION:applyPreset:presetId]\` | 套用預設組合（破壞性，會問你） |
+| \`[ACTION:submit:]\` | 真的按下生成（破壞性，會問你） |
+| \`[ACTION:reset:]\` | 清空表單（破壞性，會問你） |
+| \`[ACTION:openDialog:dialogId]\` | 打開頁面對話框 |
+| \`[ACTION:search:關鍵字]\` | 在當頁搜尋 |
+| \`[CONFIRM:true]\` | 表示這一步要等你按確認 |
+| \`[INTENT:摘要]\` | 顯示在確認卡頂端的「我打算做⋯⋯」 |
+| \`[SUGGEST:A\|B\|C]\` | 給你 3–4 個快速回覆按鈕 |
+
+> 🔒 破壞性動作 (submit / reset / applyPreset / setModality) 必定先停下來問你，不會偷偷送出。
+
+---
+
+## 五、光球如何引用學習文件中心
+
+**雙向綁定機制：**
+
+1. \`server/services/siteKnowledge.ts\` 在組光球系統提示詞時，會把學習文件中心目前可用的「索引文件 ID + 標題 + 摘要」一起注入。
+2. 光球被問到「我該怎麼學 X」時，會直接引用文件 ID，並用 \`[ACTION:navigate:/learn?docId=<id>]\` 帶你打開。
+3. 學習文件中心 \`/learn\` 支援 \`?docId=<id>\` 直接深連到單篇文件，光球的連結都能正常落地。
+4. 兩篇核心索引文件（master-toolkit-guide、master-orb-companion-guide）會永遠存在，是光球的「事實基準」。
+
+**結果：你問光球，光球答完後直接給你帶路 + 推薦延伸閱讀，閉環完成。**
+
+---
+
+## 六、光球無法做的事 / 邊界
+
+- ❌ 跨帳號操作別人的資料（一律以你目前登入身份為準）。
+- ❌ 直接花光點數（破壞性動作必確認）。
+- ❌ 修改其他使用者的提示詞庫 / 資產庫（私有資料受 RBAC 保護）。
+- ❌ 自動跨主機操作 GitHub / 部署系統（這是 ops 職責，不是光球）。
+- ❌ 取代你做創意決定（它幫你選模型 / 設參數，但「想做什麼」是你的）。
+- ⚠️ 影像 / 影片生成本身仍由 fal.ai、Replicate 等供應商產生，速度與穩定度受其影響；光球會在供應商離線時自動建議替代模型。
+
+---
+
+## 七、光球的人格
+
+可在「設定」→「光球人格」切換：
+
+- **沉穩型 calm** — 溫柔陪伴、節奏慢、適合療癒 / 冥想創作。
+- **創意型 creative** — 活潑、發散、適合靈感探索與品牌創意（預設）。
+- **技術型 technical** — 直接給參數、解釋取捨、適合工程 / 製作主導。
+
+人格只影響語氣，不影響動作能力。三種人格都能下達一樣的 [ACTION:...]。
+
+---
+
+## 八、跟光球互動的小秘訣
+
+1. **想學就直接問「請推薦我學 X 的文件」** → 光球會用 docId 帶路。
+2. **遇到失敗別只說「失敗了」** → 描述當下狀態（哪個模型、什麼提示詞），光球能更精準分流。
+3. **連續任務一句話帶過** → 「拍 → 修 → 配樂」這種長句光球會自動排 runWorkflow。
+4. **想要安靜創作？** → 把光球切到「沉穩型」+ 啟動專注流，它會閉嘴陪你。
+5. **想看歷史對話？** → \`/agent\` 頁有完整歷史；浮動光球只顯示最近數則。
+6. **想要更個人化？** → 多用「我喜歡 / 不喜歡 / 下次也照這樣」這類句子，記憶系統會學起來。
+
+---
+
+## 九、推薦延伸閱讀
+
+- master-toolkit-guide 全站工具完整使用與學習導引（總目錄）
+- gs-001 完整入門指南
+- gs-005 全站關鍵元件（光球、視覺靈魂、思維島鏈）
+- deep-faq 常見問題與疑難排解
+- mg-004 AI Brain 5 大引擎（光球使用的 LLM 引擎可以自訂）
+
+> 🌿 看完這份指南，回到任何頁面對光球說「請帶我做今天最想做的事」，它會繼續從這裡出發。
+`,
+    tags: ["光球", "代理人", "全站導引", "光球參考", "PageAgent"],
+    difficulty: "beginner",
+    readingMinutes: 10,
+    publishedAt: "2026-05-02T00:00:00Z",
+    updatedAt: "2026-05-02T00:00:00Z",
+    featured: true,
+    authorName: "Healing Studio Team",
+  },
+
+  {
+    id: "master-learning-paths",
+    category: "workflow",
+    title: "🛣️ 角色化學習路線圖（創作者 / 技術 / 管理員 / 教育者）",
+    summary:
+      "依照你的角色與目標，規劃完整的學習順序。每條路線都帶 30/60/90 分鐘三種深度版本，讓你選最合適的投入。",
+    content: `# 🛣️ 角色化學習路線圖
+
+> 配合 master-toolkit-guide 與 master-orb-companion-guide 一起讀效果最好。
+> 光球會根據你自報的角色 / 目標，自動引用本文裡對應的路線。
+
+---
+
+## 🎨 路線一：療癒系創作者（圖／影／音整合）
+
+### 30 分鐘版（試做版）
+1. gs-001 完整入門指南（8 分鐘）
+2. gs-002 靈感積木系統（6 分鐘）
+3. 直接到 \`/studio\` 用 nanoBanana2 試做一張圖（10 分鐘）
+4. quiz-001 平台基礎測驗（5 分鐘）
+
+### 60 分鐘版（完成版）
+1. 30 分鐘版全部
+2. wf-001 完整影片創作流程（10 分鐘）
+3. tech-001 提詞工程（10 分鐘）
+4. 在 \`/director\` 規劃一個冥想短片（10 分鐘）
+
+### 90 分鐘版（精通版）
+1. 60 分鐘版全部
+2. tech-002 一致性保險庫（10 分鐘）
+3. mg-001 影片工作室全模型目錄（15 分鐘）
+4. 在 \`/video-studio\` 用 i2v 把上一張圖動起來（5 分鐘）
+
+---
+
+## 🛠️ 路線二：整合工程師（接 API / 自動化）
+
+### 30 分鐘版
+1. api-001 tRPC API 端點目錄
+2. api-003 fal.ai API 架構
+3. quiz-008（API 測驗）
+
+### 60 分鐘版
+1. 30 分鐘版全部
+2. api-db-schema 完整資料庫 Schema
+3. api-fal-webhook fal.ai Webhook 持久化
+4. api-pinecone-rag Pinecone RAG
+
+### 90 分鐘版
+1. 60 分鐘版全部
+2. api-999 全站自動化維護工具
+3. mg-004 AI Brain 5 維度配置
+4. deep-langsmith LangSmith 追蹤
+
+---
+
+## 🧑‍💼 路線三：管理員 / 營運者
+
+### 30 分鐘版
+1. deep-admin 管理後台教學
+2. deep-security 安全與隱私
+3. quiz-019（管理測驗）
+
+### 60 分鐘版
+1. 30 分鐘版全部
+2. deep-cost-optimization 成本策略
+3. api-999 全站自動化維護工具
+
+### 90 分鐘版
+1. 60 分鐘版全部
+2. api-004 部署指南（Railway + GCP）
+3. gs-env-vars 環境變數完整設定
+4. deep-dashboard 儀表板數據分析
+
+---
+
+## 📚 路線四：教育者 / 培訓師
+
+> 你要把 Healing Studio 帶給學生、員工或社群。
+
+### 30 分鐘版
+1. master-toolkit-guide 全站工具完整使用與學習導引
+2. master-orb-companion-guide 光球代理人完全指南
+3. gs-005 光球、視覺靈魂、思維島鏈
+
+### 60 分鐘版
+1. 30 分鐘版全部
+2. wf-full-workflows 五大創作工作流程
+3. tech-prompt-mastery 提示詞大師班
+4. 用 quiz-001 ~ quiz-005 設計入門考核
+
+### 90 分鐘版
+1. 60 分鐘版全部
+2. mg-full-models 全模型完整對照表
+3. deep-cross-modal 跨模態工作流串聯
+4. 在 \`/learn\` 影片區檢視 video-001 ~ video-006
+
+---
+
+## 🏃 路線五：閃電課程（只有 15 分鐘？）
+
+1. 讀 master-toolkit-guide 第一節「新手入門路線」（5 分鐘）
+2. 跟光球說「我只有 10 分鐘，請帶我做最有成就感的事」（10 分鐘）
+
+光球會：
+- 帶你到 \`/studio\`
+- 自動 setModel:nanoBanana2 + 預設 1:1
+- 給你 3 個提示詞模板選一個
+- 按生成 → 你拿到第一張作品
+
+---
+
+## 🧭 怎麼追蹤學習進度
+
+- 學習文件中心右上角會記錄你已開過的文件（瀏覽紀錄）。
+- 每條路線完成後做對應的 quiz，收集 ≥80% 的正確率即代表掌握。
+- 光球會記住你完成的階段，下次自動推薦下一步路線。
+
+---
+
+## 💬 想客製學習路線？
+
+直接跟光球說：
+> 「我是 ____ 角色，每天有 ____ 分鐘，目標是 ____，幫我安排一週的學習計畫。」
+
+光球會引用本文，再依照你回答的細節組出個人版路線，並把每天的入口頁面 + 文件 ID 條列給你。
+`,
+    tags: ["學習路線", "角色化", "新手", "進階", "光球參考"],
+    difficulty: "beginner",
+    readingMinutes: 8,
+    publishedAt: "2026-05-02T00:00:00Z",
+    updatedAt: "2026-05-02T00:00:00Z",
+    featured: true,
+    authorName: "Healing Studio Team",
+  },
+
 ];
 
 // ─── In-memory store（後端無 DB 表時使用） ────────────────────────────────
@@ -9145,6 +9706,34 @@ export function hasLearnDoc(id: string): boolean {
 }
 export function getLearnDocCount(): number {
   return docs.length;
+}
+
+/**
+ * 給 `siteKnowledge.buildLearnHubIndexKnowledge()` 用的精簡摘要清單。
+ *
+ * 為什麼不直接 export `docs`：
+ *  - 光球只需要 id / title / summary / category / difficulty / readingMinutes / featured。
+ *  - 完整 content 可能上百 KB，全塞進系統提示詞會炸 token。
+ *  - 這層投影也讓未來改成 DB-backed 時不破壞 siteKnowledge 的契約。
+ */
+export function getAllLearnDocsForOrbIndex(): Array<{
+  id: string;
+  category: string;
+  title: string;
+  summary: string;
+  difficulty: string;
+  featured: boolean;
+  readingMinutes: number;
+}> {
+  return docs.map(d => ({
+    id: d.id,
+    category: d.category,
+    title: d.title,
+    summary: d.summary,
+    difficulty: d.difficulty,
+    featured: d.featured,
+    readingMinutes: d.readingMinutes,
+  }));
 }
 
 // ─── Video Types & Seed Data ─────────────────────────────────────────────────

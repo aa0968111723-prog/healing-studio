@@ -17,9 +17,128 @@ import {
   type DistilledOrbPreferenceProfile,
 } from "../../shared/orb-preference-distiller";
 import type { OrbMemory } from "../../shared/orb-memory";
+import { getAllLearnDocsForOrbIndex } from "../routers/learnHub";
 
 export function getSerializedAppRegistryKnowledge(): SerializableAppRegistryItem[] {
   return serializeRegistryForSiteKnowledge();
+}
+
+// ─── 學習文件中心索引（光球引用資料） ────────────────────────────────────
+//
+// `buildLearnHubIndexKnowledge()` 在組光球系統提示詞時被呼叫，
+// 把學習文件中心的精選 / 索引型文件做成一段「請光球引用」的清單。
+//
+// 設計原則：
+//  - 只列「索引型 + 精選」文件，避免把整本學習中心塞進 prompt（成本爆炸）。
+//  - 每筆只給 id + title + 摘要 + 分類，控制在 ~30 筆內。
+//  - 同時告訴光球：使用 [ACTION:navigate:/learn?docId=<id>] 直接帶使用者深連到該篇。
+//
+// 動態依賴：使用 require() 延遲載入避免循環依賴
+// （learnHub.ts 也會從本檔案間接被引用）。
+
+interface LearnDocSummaryForOrb {
+  id: string;
+  category: string;
+  title: string;
+  summary: string;
+  difficulty: string;
+  featured: boolean;
+  readingMinutes: number;
+}
+
+const LEARN_HUB_CATEGORY_LABEL: Record<string, string> = {
+  "getting-started": "入門指南",
+  "model-guide": "模型說明",
+  "api-docs": "API 文件",
+  "technique": "生成技術",
+  "ai-news": "AI 新聞",
+  "workflow": "創作流程",
+};
+
+/**
+ * 取得學習文件中心目前的「光球索引清單」。
+ *
+ * 規則：master-* 開頭的索引型文件 100% 包含；其餘 featured 文件以分類為單位
+ * 各保留前 3 篇，總筆數上限 30，避免 prompt 超量。
+ */
+export function getLearnHubOrbIndex(limit = 30): LearnDocSummaryForOrb[] {
+  const all = getAllLearnDocsForOrbIndex();
+
+  const masters = all.filter(d => d.id.startsWith("master-"));
+
+  const featuredByCategory = new Map<string, LearnDocSummaryForOrb[]>();
+  for (const doc of all) {
+    if (doc.id.startsWith("master-")) continue;
+    if (!doc.featured) continue;
+    const list = featuredByCategory.get(doc.category) ?? [];
+    if (list.length < 3) {
+      list.push(doc);
+      featuredByCategory.set(doc.category, list);
+    }
+  }
+
+  const featured = Array.from(featuredByCategory.values()).flat();
+
+  return [...masters, ...featured].slice(0, limit);
+}
+
+/**
+ * 為光球系統提示詞組「學習文件中心索引」段落。
+ * 若沒有任何索引型 / 精選文件，回傳 "" 不浪費 prompt token。
+ */
+export function buildLearnHubIndexKnowledge(): string {
+  const docs = getLearnHubOrbIndex();
+  if (docs.length === 0) return "";
+
+  const groups = new Map<string, LearnDocSummaryForOrb[]>();
+  for (const doc of docs) {
+    const list = groups.get(doc.category) ?? [];
+    list.push(doc);
+    groups.set(doc.category, list);
+  }
+
+  const sections: string[] = [];
+  // 確保 master 索引文件最先出現（光球的「事實基準」）
+  const masterDocs = docs.filter(d => d.id.startsWith("master-"));
+  if (masterDocs.length > 0) {
+    sections.push(
+      [
+        "▎全站索引型文件（光球的事實基準，請優先引用）",
+        ...masterDocs.map(
+          d => `  - [${d.id}] ${d.title}（${d.readingMinutes} 分鐘）— ${d.summary}`
+        ),
+      ].join("\n")
+    );
+  }
+
+  // tsconfig target is below es2015 in some build paths, so iterate entries
+  // via Array.from to avoid `--downlevelIteration` requirements.
+  const groupEntries: Array<[string, LearnDocSummaryForOrb[]]> = Array.from(groups.entries());
+  for (const [category, list] of groupEntries) {
+    const filtered = list.filter((d: LearnDocSummaryForOrb) => !d.id.startsWith("master-"));
+    if (filtered.length === 0) continue;
+    const label = LEARN_HUB_CATEGORY_LABEL[category] ?? category;
+    sections.push(
+      [
+        `▎${label}（精選）`,
+        ...filtered.map(
+          (d: LearnDocSummaryForOrb) =>
+            `  - [${d.id}] ${d.title}｜${d.difficulty}｜${d.readingMinutes} 分鐘｜${d.summary}`
+        ),
+      ].join("\n")
+    );
+  }
+
+  return [
+    "【學習文件中心索引（光球可直接引用）】",
+    "當使用者問「我該怎麼學 X / 在哪裡看 X / 哪一篇可以幫我」時，",
+    "請從下方索引中挑出最對應的文章，並用 [ACTION:navigate:/learn?docId=<id>] 帶使用者打開。",
+    "若不確定該推哪一篇，先建議閱讀 master-toolkit-guide（總目錄）。",
+    "",
+    ...sections,
+    "",
+    "→ 規則：每輪最多推薦 3 篇文件；沒有強需求時，先帶使用者操作再推薦延伸閱讀。",
+  ].join("\n");
 }
 
 // ─── 全站頁面功能知識 ──────────────────────────────────────────────────────
@@ -1623,6 +1742,8 @@ ${GENERATION_MODALITIES_KNOWLEDGE}
 ${MODEL_RECOMMENDATION_KNOWLEDGE}
 
 ${WORKFLOW_KNOWLEDGE}
+
+${buildLearnHubIndexKnowledge()}
 ${contextNote}${snapshotBlock ? "\n\n" + snapshotBlock : ""}${feedbackBlock ? "\n\n" + feedbackBlock : ""}${distilledPreferenceBlock ? "\n\n" + distilledPreferenceBlock : ""}${apiToolsBlock ? "\n\n" + apiToolsBlock : ""}${assetLibraryBlock ? "\n\n" + assetLibraryBlock : ""}${confirmNote}
 ${isStudioPage ? "\n" + STUDIO_CREATIVE_GUIDANCE : ""}
 ${isImageStudioPage ? "\n" + IMAGE_STUDIO_CREATIVE_GUIDANCE : ""}

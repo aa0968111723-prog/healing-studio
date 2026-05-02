@@ -13,7 +13,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useAIState } from "@/contexts/AIStateContext";
@@ -2110,6 +2110,7 @@ function QuizLearningTab({ isAdmin }: { isAdmin: boolean }) {
 
 export default function LearnHub() {
   const [, navigate] = useLocation();
+  const search = useSearch();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
 
@@ -2136,6 +2137,24 @@ export default function LearnHub() {
 
   // Document detail
   const [openDocId, setOpenDocId] = useState<string | null>(null);
+
+  // ── Deep-link support: ?docId=... opens a doc directly ──────────
+  // Lets the global orb agent (and external links) jump straight to
+  // a specific learn doc via [ACTION:navigate:/learn?docId=<id>].
+  // We watch the search string each time it changes so re-clicking the
+  // same orb suggestion still re-opens the modal.
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(search);
+      const docIdFromUrl = params.get("docId");
+      if (docIdFromUrl && docIdFromUrl !== openDocId) {
+        setOpenDocId(docIdFromUrl);
+      }
+    } catch {
+      // Malformed search string — ignore, behave like no docId param.
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 
   // Admin form
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -2639,7 +2658,24 @@ export default function LearnHub() {
 
       {/* ── Document Detail Modal ──────────────────────────────── */}
       {openDocId && openDocData && (
-        <DocDetailModal doc={openDocData} onClose={() => setOpenDocId(null)} />
+        <DocDetailModal
+          doc={openDocData}
+          onClose={() => {
+            setOpenDocId(null);
+            // Strip ?docId= from URL so the deep-link effect doesn't
+            // re-open the modal on the next render.
+            try {
+              const params = new URLSearchParams(search);
+              if (params.has("docId")) {
+                params.delete("docId");
+                const next = params.toString();
+                navigate(next ? `/learn?${next}` : "/learn", { replace: true });
+              }
+            } catch {
+              // ignore — closing the modal is the priority
+            }
+          }}
+        />
       )}
 
       {/* ── Admin Create Dialog ─────────────────────────────────── */}
