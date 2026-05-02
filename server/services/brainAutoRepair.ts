@@ -391,7 +391,13 @@ const ENGINE_PROVIDER_MAP: Record<string, string> = {
   "fal-ai/stable-audio": "fal",
   "fal-ai/musicgen": "fal",
   // ── 語音 TTS / 聲音克隆（Fal.ai + ElevenLabs） ──
+  // DEF-V8：ElevenLabs TTS 全家四口 — DEF-V5/V6/V7 修好別名+catalog+pricing 後，
+  // brainAutoRepair 的 PROVIDER_MAP 也需收齊，否則 brain 對 Flash/V3/Multilingual
+  // 健康檢查或降級事件回查 provider 時會 missing。
   "fal-ai/elevenlabs/tts/turbo-v2.5": "fal",
+  "fal-ai/elevenlabs/tts/flash-v2.5": "fal",
+  "fal-ai/elevenlabs/tts/multilingual-v2": "fal",
+  "fal-ai/elevenlabs/tts/eleven-v3": "fal",
   "fal-ai/qwen-3-tts/text-to-speech/1.7b": "fal",
   "fal-ai/qwen-3-tts/clone-voice/1.7b": "fal",
   "fal-ai/qwen-3-tts/voice-design/1.7b": "fal",
@@ -567,9 +573,28 @@ const REPAIR_FALLBACK: Record<string, string[]> = {
   "fal-ai/ace-step": ["fal-ai/sonauto", "fal-ai/musicgen"],
   "fal-ai/stable-audio": ["fal-ai/sonauto", "fal-ai/musicgen"],
   // ── 語音 TTS ──
+  // DEF-V8：ElevenLabs TTS 家族間互為 family-aware fallback（Flash↔Turbo
+  // 同 fast-tier 互換、V3↔Multilingual 同 premium-tier 互換）；最後 fallback 到
+  // Qwen / Dia（不需 ELEVENLABS_API_KEY，避免家族整體掛掉時連鎖失敗）。
   "fal-ai/elevenlabs/tts/turbo-v2.5": [
+    "fal-ai/elevenlabs/tts/flash-v2.5",
     "fal-ai/qwen-3-tts/text-to-speech/1.7b",
     "fal-ai/dia-tts/voice-clone",
+  ],
+  "fal-ai/elevenlabs/tts/flash-v2.5": [
+    "fal-ai/elevenlabs/tts/turbo-v2.5",
+    "fal-ai/qwen-3-tts/text-to-speech/1.7b",
+    "fal-ai/kokoro",
+  ],
+  "fal-ai/elevenlabs/tts/multilingual-v2": [
+    "fal-ai/elevenlabs/tts/eleven-v3",
+    "fal-ai/elevenlabs/tts/turbo-v2.5",
+    "fal-ai/qwen-3-tts/text-to-speech/1.7b",
+  ],
+  "fal-ai/elevenlabs/tts/eleven-v3": [
+    "fal-ai/elevenlabs/tts/multilingual-v2",
+    "fal-ai/elevenlabs/tts/turbo-v2.5",
+    "fal-ai/qwen-3-tts/text-to-speech/1.7b",
   ],
   "fal-ai/qwen-3-tts/text-to-speech/1.7b": [
     "fal-ai/elevenlabs/tts/turbo-v2.5",
