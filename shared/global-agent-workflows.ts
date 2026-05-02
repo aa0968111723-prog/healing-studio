@@ -20,7 +20,22 @@ import { APP_PAGE_REGISTRY } from "./appRegistry";
 export interface ExpandedWorkflowStep {
   path?: string;
   label: string;
-  action: AgentAction;
+  /**
+   * The concrete UI action when this step takes the dispatch path.
+   * Undefined when the step is a server-side tool call (`toolName` set);
+   * the orchestrator routes those through `ctx.callTool` instead.
+   */
+  action?: AgentAction;
+  /** Stable id used by the DAG scheduler + perStepToolResults indexing. */
+  id?: string;
+  dependsOn?: string[];
+  /** Set when the step is a server-side tool call. */
+  toolName?: string;
+  toolArgs?: Record<string, unknown>;
+  toolResultBinding?: string;
+  retryPolicy?: AgentWorkflowStep["retryPolicy"];
+  /** Original step kept around so the orchestrator can replan / persist. */
+  original?: AgentWorkflowStep;
 }
 
 function isModality(value: string): value is AgentModality {
@@ -106,6 +121,26 @@ export function expandWorkflowAction(action: RunWorkflowAction): ExpandedWorkflo
   const expanded: ExpandedWorkflowStep[] = [];
 
   for (const step of action.steps) {
+    // Tool-call steps short-circuit the actionType conversion: the orchestrator
+    // dispatches them via ctx.callTool with `${stepN.key}` placeholders resolved
+    // against perStepToolResults. They can still declare a `path` so the
+    // orchestrator pre-navigates (useful when the tool result later feeds a UI
+    // step on the same page).
+    if (step.toolName) {
+      expanded.push({
+        ...(step.path ? { path: step.path } : {}),
+        label: step.label,
+        toolName: step.toolName,
+        ...(step.toolArgs ? { toolArgs: step.toolArgs } : {}),
+        ...(step.toolResultBinding ? { toolResultBinding: step.toolResultBinding } : {}),
+        ...(step.id ? { id: step.id } : {}),
+        ...(step.dependsOn?.length ? { dependsOn: step.dependsOn } : {}),
+        ...(step.retryPolicy ? { retryPolicy: step.retryPolicy } : {}),
+        original: step,
+      });
+      continue;
+    }
+
     const concrete = workflowStepToAction(step);
     if (!concrete) continue;
 
@@ -113,6 +148,10 @@ export function expandWorkflowAction(action: RunWorkflowAction): ExpandedWorkflo
       ...(step.path ? { path: step.path } : {}),
       label: step.label,
       action: concrete,
+      ...(step.id ? { id: step.id } : {}),
+      ...(step.dependsOn?.length ? { dependsOn: step.dependsOn } : {}),
+      ...(step.retryPolicy ? { retryPolicy: step.retryPolicy } : {}),
+      original: step,
     });
   }
 

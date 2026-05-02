@@ -3,9 +3,23 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { agentPreferences } from "../../drizzle/schema";
 import { protectedProcedure, router } from "../_core/trpc";
-import { getDb } from "../db";
+import { getDb, getRecentOrbFeedback } from "../db";
 import { DEFAULT_AGENT_PREFERENCES } from "../../shared/agent-preferences";
+import { distillPreferenceProfile } from "../../shared/orb-preference-distiller";
+import { getRecentOrbMemories } from "../services/orbMemory";
 import { getOrbToolRegistry } from "../config/orbToolRegistry";
+
+const CostBudgetSchema = z
+  .object({
+    perWorkflowCap: z.number().int().min(0).max(100_000).nullable().optional(),
+    remainingCredits: z.number().int().min(0).max(1_000_000).nullable().optional(),
+    confirmAtTierOrAbove: z
+      .enum(["free", "cheap", "medium", "expensive", "premium"])
+      .nullable()
+      .optional(),
+    alwaysAllow: z.boolean().nullable().optional(),
+  })
+  .nullable();
 
 const UpdateSchema = z.object({
   confirmationPolicy: z.enum(["always_approve", "confirm_high_risk", "confirm_all", "manual"]).optional(),
@@ -35,6 +49,21 @@ const UpdateSchema = z.object({
   orbWelcomeMessage: z.string().max(280).nullable().optional(),
   orbShortcutEnabled: z.boolean().optional(),
   orbProactiveSuggestions: z.boolean().optional(),
+  // ── Phase D ──────────────────────────────────────────────────────────
+  costBudget: CostBudgetSchema.optional(),
+  perceptionEnabled: z.boolean().optional(),
+  perceptionStrictness: z.enum(["lenient", "balanced", "strict"]).optional(),
+  criticEnabled: z.boolean().optional(),
+  criticRefineBelow: z.number().int().min(0).max(100).optional(),
+  roleAutoSwitch: z.boolean().optional(),
+  pacingOverride: z.enum(["auto", "patient", "balanced", "impatient"]).optional(),
+  /**
+   * Acceptance: pass a Date (server-side) or an ISO string (client) — the
+   * router coerces strings before persisting. `null` resets the flag.
+   */
+  onboardingCompletedAt: z
+    .union([z.date(), z.string().datetime(), z.null()])
+    .optional(),
 });
 
 async function ensurePreferences(userId: number) {
@@ -54,7 +83,14 @@ export const agentPreferencesRouter = router({
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
     await ensurePreferences(ctx.user.id);
-    await db.update(agentPreferences).set({ ...input }).where(and(eq(agentPreferences.userId, ctx.user.id)));
+    // Coerce ISO-string onboarding completion (the only field where the
+    // client may send a string instead of Date) — Drizzle's mysql2 driver
+    // accepts Date but rejects bare strings.
+    const patch: Record<string, unknown> = { ...input };
+    if (typeof patch.onboardingCompletedAt === "string") {
+      patch.onboardingCompletedAt = new Date(patch.onboardingCompletedAt);
+    }
+    await db.update(agentPreferences).set(patch).where(and(eq(agentPreferences.userId, ctx.user.id)));
     const rows = await db.select().from(agentPreferences).where(eq(agentPreferences.userId, ctx.user.id)).limit(1);
     return rows[0];
   }),
@@ -73,5 +109,46 @@ export const agentPreferencesRouter = router({
       riskLevel: tool.riskLevel ?? "low",
       requireConfirmation: Boolean(tool.requireConfirmation),
     }));
+  }),
+
+  /**
+   * Distil the user's feedback + memory history into a single profile so
+   * /settings/agent can render an "光球已經記得這些事" inspector card.
+   * Wraps the same `distillPreferenceProfile` the chat router uses, so
+   * what the user sees in the settings page IS what the planner sees.
+   */
+  getDistilledProfile: protectedProcedure.query(async ({ ctx }) => {
+    const dbFeedback = await getRecentOrbFeedback(ctx.user.id, 30).catch(() => []);
+    const feedbackEvents = dbFeedback.map(row => ({
+      at: row.createdAt instanceof Date
+        ? row.createdAt.getTime()
+        : new Date(row.createdAt as unknown as string).getTime(),
+      status: row.status,
+      actionType: row.actionType,
+      note: row.note ?? undefined,
+      pageId: row.pageId ?? undefined,
+    }));
+    // getRecentOrbMemories is sync — wrap in try/catch instead of .catch().
+    let memories: Awaited<ReturnType<typeof getRecentOrbMemories>> = [];
+    try {
+      memories = getRecentOrbMemories({ userId: ctx.user.id, limit: 30 });
+    } catch {
+      memories = [];
+    }
+    const profile = distillPreferenceProfile({ feedbackEvents, memories });
+    // Return a leaner shape — the inspector only needs the headline
+    // numbers, not the entire breakdown structure.
+    return {
+      totalEvents: profile.totalEvents,
+      totalMemoriesConsidered: profile.totalMemoriesConsidered,
+      confidence: profile.confidence,
+      pacingTier: profile.pacingTier,
+      preferredModels: profile.preferredModels,
+      avoidedModels: profile.avoidedModels,
+      actionAcceptance: Object.entries(profile.actionAcceptance)
+        .sort((a, b) => (b[1].accepted + b[1].rejected) - (a[1].accepted + a[1].rejected))
+        .slice(0, 8)
+        .map(([type, stat]) => ({ type, ...stat })),
+    };
   }),
 });

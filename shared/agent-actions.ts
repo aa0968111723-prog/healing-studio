@@ -123,6 +123,13 @@ export interface RunWorkflowAction {
   name: string;
   /** 依序要執行的子步驟 */
   steps: AgentWorkflowStep[];
+  /**
+   * 步驟確認策略：
+   *  - "all-at-once" / undefined：用整體確認卡（舊行為）。
+   *  - "step-by-step"：每步 dispatch 前呼叫 ctx.confirmStep，使用者可逐步審查。
+   *  - "high-risk-only"：只在破壞性步驟（submit/reset/applyPreset）前停下來。
+   */
+  confirmationMode?: "all-at-once" | "step-by-step" | "high-risk-only";
 }
 
 /** 工作流程子步驟（簡化版，只包含 navigate + 單一動作） */
@@ -143,6 +150,29 @@ export interface AgentWorkflowStep {
   id?: string;
   /** Step ids this step waits for before running. */
   dependsOn?: string[];
+  /**
+   * 若設定，此步驟走工具呼叫（server-side tRPC）而非 UI dispatch。
+   * orchestrator 會優先檢查 toolName；有值時忽略 actionType/payload。
+   */
+  toolName?: string;
+  /**
+   * 工具呼叫的參數，支援 `${stepId.key}` 佔位符引用前面步驟的工具結果。
+   * 由 orb-step-ref-resolver 在執行前展開。
+   */
+  toolArgs?: Record<string, unknown>;
+  /**
+   * 工具呼叫完成後要把結果掛在哪個邏輯名稱下，方便後續步驟用
+   * `${binding.key}` 引用。預設等同 `id`。
+   */
+  toolResultBinding?: string;
+  /**
+   * 失敗重試 / 跳過策略。預設 maxAttempts=1（不重試）、skipOnFail=false。
+   */
+  retryPolicy?: {
+    maxAttempts: number;
+    backoffMs?: number;
+    skipOnFail?: boolean;
+  };
 }
 
 export type AgentAction =
@@ -322,15 +352,13 @@ export function adaptAgentPlanToActions(rawPlannerOutput: unknown): AgentAction[
   if (Array.isArray(obj.steps)) {
     const steps = obj.steps
       .filter(
-        (s: unknown): s is Record<string, unknown> =>
-          !!s && typeof s === "object" && typeof (s as Record<string, unknown>).actionType === "string"
+        (s: unknown): s is Record<string, unknown> => {
+          if (!s || typeof s !== "object") return false;
+          const rec = s as Record<string, unknown>;
+          return typeof rec.actionType === "string" || typeof rec.toolName === "string";
+        }
       )
-      .map((s) => ({
-        path: typeof s.path === "string" ? s.path : undefined,
-        actionType: String(s.actionType),
-        payload: typeof s.payload === "string" ? s.payload : "",
-        label: typeof s.label === "string" ? s.label : String(s.actionType),
-      }));
+      .map(coerceWorkflowStep);
 
     if (steps.length > 0) {
       return [{
@@ -446,6 +474,12 @@ export function coerceAgentAction(input: unknown): AgentAction | null {
       const name = obj.name ?? obj.payload;
       if (typeof name !== "string") return null;
       const steps = Array.isArray(obj.steps) ? obj.steps : [];
+      const confirmationMode =
+        obj.confirmationMode === "step-by-step" ||
+        obj.confirmationMode === "high-risk-only" ||
+        obj.confirmationMode === "all-at-once"
+          ? obj.confirmationMode
+          : undefined;
       return {
         type: "runWorkflow",
         name: String(name),
@@ -454,15 +488,13 @@ export function coerceAgentAction(input: unknown): AgentAction | null {
             (s: unknown): s is Record<string, unknown> => {
               if (!s || typeof s !== "object") return false;
               const rec = s as Record<string, unknown>;
-              return typeof rec.actionType === "string";
+              // Tool-call steps may omit actionType entirely; UI-dispatch
+              // steps must declare actionType:string.
+              return typeof rec.actionType === "string" || typeof rec.toolName === "string";
             }
           )
-          .map((s) => ({
-            path: typeof s.path === "string" ? s.path : undefined,
-            actionType: String(s.actionType),
-            payload: typeof s.payload === "string" ? s.payload : "",
-            label: typeof s.label === "string" ? s.label : `${String(s.actionType)}`,
-          })),
+          .map(coerceWorkflowStep),
+        ...(confirmationMode ? { confirmationMode } : {}),
       };
     }
     default:
@@ -472,6 +504,46 @@ export function coerceAgentAction(input: unknown): AgentAction | null {
 
 function isModality(v: unknown): v is AgentModality {
   return v === "image" || v === "video" || v === "audio" || v === "voice";
+}
+
+/**
+ * Coerce a raw workflow step object (LLM-emitted or DB-loaded) into a strict
+ * `AgentWorkflowStep`. Preserves the optional advanced fields
+ * (`id`, `dependsOn`, `toolName`, `toolArgs`, `toolResultBinding`,
+ * `retryPolicy`) so the orchestrator can route tool-call steps and replan.
+ */
+function coerceWorkflowStep(s: Record<string, unknown>): AgentWorkflowStep {
+  const out: AgentWorkflowStep = {
+    path: typeof s.path === "string" ? s.path : undefined,
+    actionType: typeof s.actionType === "string" ? s.actionType : "",
+    payload: typeof s.payload === "string" ? s.payload : "",
+    label: typeof s.label === "string" ? s.label : String(s.actionType ?? s.toolName ?? "step"),
+  };
+  if (typeof s.id === "string" && s.id) out.id = s.id;
+  if (Array.isArray(s.dependsOn)) {
+    const deps = s.dependsOn.filter((d): d is string => typeof d === "string" && d.length > 0);
+    if (deps.length > 0) out.dependsOn = deps;
+  }
+  if (typeof s.toolName === "string" && s.toolName) out.toolName = s.toolName;
+  if (s.toolArgs && typeof s.toolArgs === "object" && !Array.isArray(s.toolArgs)) {
+    out.toolArgs = { ...(s.toolArgs as Record<string, unknown>) };
+  }
+  if (typeof s.toolResultBinding === "string" && s.toolResultBinding) {
+    out.toolResultBinding = s.toolResultBinding;
+  }
+  if (s.retryPolicy && typeof s.retryPolicy === "object" && !Array.isArray(s.retryPolicy)) {
+    const rp = s.retryPolicy as Record<string, unknown>;
+    const maxAttempts = typeof rp.maxAttempts === "number" && rp.maxAttempts >= 1
+      ? Math.floor(rp.maxAttempts)
+      : 1;
+    const policy: AgentWorkflowStep["retryPolicy"] = { maxAttempts };
+    if (typeof rp.backoffMs === "number" && rp.backoffMs >= 0) {
+      policy.backoffMs = rp.backoffMs;
+    }
+    if (typeof rp.skipOnFail === "boolean") policy.skipOnFail = rp.skipOnFail;
+    out.retryPolicy = policy;
+  }
+  return out;
 }
 
 // ─── Phase 1.5：意圖 / 回饋 / 確認 輔助層 ────────────────────────────────

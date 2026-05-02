@@ -108,6 +108,29 @@ export const agentPreferences = mysqlTable(
     orbWelcomeMessage: text("orbWelcomeMessage"),
     orbShortcutEnabled: boolean("orbShortcutEnabled").default(true).notNull(),
     orbProactiveSuggestions: boolean("orbProactiveSuggestions").default(true).notNull(),
+    // ── Phase D: cost / perception / critic / pacing / onboarding ──
+    costBudget: json("costBudget").$type<{
+      perWorkflowCap?: number | null;
+      remainingCredits?: number | null;
+      confirmAtTierOrAbove?: "free" | "cheap" | "medium" | "expensive" | "premium" | null;
+      alwaysAllow?: boolean | null;
+    } | null>().default(null),
+    perceptionEnabled: boolean("perceptionEnabled").default(true).notNull(),
+    perceptionStrictness: mysqlEnum("perceptionStrictness", [
+      "lenient",
+      "balanced",
+      "strict",
+    ]).default("balanced").notNull(),
+    criticEnabled: boolean("criticEnabled").default(false).notNull(),
+    criticRefineBelow: int("criticRefineBelow").default(75).notNull(),
+    roleAutoSwitch: boolean("roleAutoSwitch").default(true).notNull(),
+    pacingOverride: mysqlEnum("pacingOverride", [
+      "auto",
+      "patient",
+      "balanced",
+      "impatient",
+    ]).default("auto").notNull(),
+    onboardingCompletedAt: timestamp("onboardingCompletedAt"),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },

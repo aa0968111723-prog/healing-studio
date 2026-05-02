@@ -8,8 +8,12 @@ import { Switch } from "@/components/ui/switch";
 import {
   DEFAULT_AGENT_PREFERENCES,
   type AgentConfirmationPolicy,
+  type AgentCostBudget,
+  type AgentPacingOverride,
   type AgentVoiceName,
+  type CostBudgetTier,
   type OrbWidgetCorner,
+  type PerceptionStrictness,
 } from "@shared/agent-preferences";
 import { APP_PAGE_REGISTRY } from "@shared/appRegistry";
 
@@ -118,6 +122,19 @@ export default function AgentPreferencesPage() {
   const [orbShortcutEnabled, setOrbShortcutEnabled] = useState(true);
   const [orbProactiveSuggestions, setOrbProactiveSuggestions] = useState(true);
 
+  // ── Phase D: budget / perception / critic / roles / pacing ─────────
+  const [costBudgetEnabled, setCostBudgetEnabled] = useState<boolean>(false);
+  const [perWorkflowCap, setPerWorkflowCap] = useState<string>("");
+  const [remainingCredits, setRemainingCredits] = useState<string>("");
+  const [confirmAtTierOrAbove, setConfirmAtTierOrAbove] = useState<CostBudgetTier | "">("");
+  const [budgetAlwaysAllow, setBudgetAlwaysAllow] = useState<boolean>(false);
+  const [perceptionEnabled, setPerceptionEnabled] = useState<boolean>(true);
+  const [perceptionStrictness, setPerceptionStrictness] = useState<PerceptionStrictness>("balanced");
+  const [criticEnabled, setCriticEnabled] = useState<boolean>(false);
+  const [criticRefineBelow, setCriticRefineBelow] = useState<number>(75);
+  const [roleAutoSwitch, setRoleAutoSwitch] = useState<boolean>(true);
+  const [pacingOverride, setPacingOverride] = useState<AgentPacingOverride>("auto");
+
   useEffect(() => {
     if (!prefsQuery.data) return;
     const policy = (initial.confirmationPolicy ?? "confirm_high_risk") as AgentConfirmationPolicy;
@@ -147,6 +164,31 @@ export default function AgentPreferencesPage() {
     setOrbWelcomeMessage(initial.orbWelcomeMessage ?? "");
     setOrbShortcutEnabled(initial.orbShortcutEnabled ?? true);
     setOrbProactiveSuggestions(initial.orbProactiveSuggestions ?? true);
+    // Phase D state hydration. costBudget is the only field that's a
+    // structured null vs object so the toggle controls visibility of
+    // the inputs below.
+    const budget = (initial.costBudget ?? null) as AgentCostBudget | null;
+    setCostBudgetEnabled(budget !== null);
+    setPerWorkflowCap(
+      budget?.perWorkflowCap !== null && budget?.perWorkflowCap !== undefined
+        ? String(budget.perWorkflowCap)
+        : ""
+    );
+    setRemainingCredits(
+      budget?.remainingCredits !== null && budget?.remainingCredits !== undefined
+        ? String(budget.remainingCredits)
+        : ""
+    );
+    setConfirmAtTierOrAbove(
+      (budget?.confirmAtTierOrAbove as CostBudgetTier | null | undefined) ?? ""
+    );
+    setBudgetAlwaysAllow(budget?.alwaysAllow === true);
+    setPerceptionEnabled(initial.perceptionEnabled ?? true);
+    setPerceptionStrictness((initial.perceptionStrictness ?? "balanced") as PerceptionStrictness);
+    setCriticEnabled(initial.criticEnabled ?? false);
+    setCriticRefineBelow(initial.criticRefineBelow ?? 75);
+    setRoleAutoSwitch(initial.roleAutoSwitch ?? true);
+    setPacingOverride((initial.pacingOverride ?? "auto") as AgentPacingOverride);
   }, [
     prefsQuery.data,
     initial.confirmationPolicy,
@@ -166,6 +208,13 @@ export default function AgentPreferencesPage() {
     initial.orbShortcutEnabled,
     initial.orbProactiveSuggestions,
     initial.disabledActionsByPage,
+    initial.costBudget,
+    initial.perceptionEnabled,
+    initial.perceptionStrictness,
+    initial.criticEnabled,
+    initial.criticRefineBelow,
+    initial.roleAutoSwitch,
+    initial.pacingOverride,
   ]);
 
   const policyForMode = useMemo<AgentConfirmationPolicy>(() => MODE_TO_POLICY[mode], [mode]);
@@ -213,6 +262,16 @@ export default function AgentPreferencesPage() {
       toast.error("請先登入後再調整代理人偏好");
       return;
     }
+    // Build the cost budget payload from the toggle + inputs. When the
+    // toggle is off the entire budget is null (the gate becomes a no-op).
+    const budgetPayload: AgentCostBudget | null = costBudgetEnabled
+      ? {
+          perWorkflowCap: perWorkflowCap.trim().length > 0 ? Number(perWorkflowCap) : null,
+          remainingCredits: remainingCredits.trim().length > 0 ? Number(remainingCredits) : null,
+          confirmAtTierOrAbove: confirmAtTierOrAbove === "" ? null : confirmAtTierOrAbove,
+          alwaysAllow: budgetAlwaysAllow,
+        }
+      : null;
     updateMutation.mutate({
       confirmationPolicy: policyToSave,
       maxAutoStepsPerTask,
@@ -231,6 +290,14 @@ export default function AgentPreferencesPage() {
       orbWelcomeMessage: orbWelcomeMessage.trim().length > 0 ? orbWelcomeMessage.trim() : null,
       orbShortcutEnabled,
       orbProactiveSuggestions,
+      // ── Phase D ────────────────────────────────────────────────────
+      costBudget: budgetPayload,
+      perceptionEnabled,
+      perceptionStrictness,
+      criticEnabled,
+      criticRefineBelow,
+      roleAutoSwitch,
+      pacingOverride,
     });
   };
 
@@ -246,6 +313,10 @@ export default function AgentPreferencesPage() {
       <Tabs defaultValue="behavior" className="w-full" data-testid="agent-prefs-tabs">
         <TabsList className="flex flex-wrap">
           <TabsTrigger value="behavior" data-testid="tab-behavior">行為</TabsTrigger>
+          <TabsTrigger value="budget" data-testid="tab-budget">成本預算</TabsTrigger>
+          <TabsTrigger value="perception" data-testid="tab-perception">感知</TabsTrigger>
+          <TabsTrigger value="critic" data-testid="tab-critic">自我批判</TabsTrigger>
+          <TabsTrigger value="roles" data-testid="tab-roles">角色 / 節奏</TabsTrigger>
           <TabsTrigger value="notify" data-testid="tab-notify">通知</TabsTrigger>
           <TabsTrigger value="voice" data-testid="tab-voice">語音</TabsTrigger>
           <TabsTrigger value="tools" data-testid="tab-tools">工具白黑名單</TabsTrigger>
@@ -332,6 +403,216 @@ export default function AgentPreferencesPage() {
               />
             </label>
           </section>
+        </TabsContent>
+
+        {/* ───── 成本預算 (Phase D) ───── */}
+        <TabsContent value="budget" className="space-y-3 pt-4">
+          <section className="space-y-3 rounded-2xl border bg-card p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-1">
+                <h2 className="text-base font-semibold">啟用成本守門員</h2>
+                <p className="text-xs text-muted-foreground">
+                  光球在執行可能消耗點數的工作流之前會先估算總成本。超過你設定的上限會跳出確認卡，可選擇繼續、調整或取消。
+                </p>
+              </div>
+              <Switch
+                checked={costBudgetEnabled}
+                onCheckedChange={setCostBudgetEnabled}
+                data-testid="switch-cost-budget"
+              />
+            </div>
+
+            {costBudgetEnabled && (
+              <div className="space-y-3 border-t pt-3">
+                <label className="grid grid-cols-[1fr_auto] items-center gap-2 text-sm">
+                  <span>單次工作流上限（點數）</span>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100_000}
+                    value={perWorkflowCap}
+                    onChange={event => setPerWorkflowCap(event.target.value)}
+                    placeholder="例：100"
+                    className="w-28"
+                    data-testid="input-per-workflow-cap"
+                  />
+                </label>
+                <label className="grid grid-cols-[1fr_auto] items-center gap-2 text-sm">
+                  <span>剩餘可用點數（超過會擋）</span>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={1_000_000}
+                    value={remainingCredits}
+                    onChange={event => setRemainingCredits(event.target.value)}
+                    placeholder="留空=不限"
+                    className="w-28"
+                    data-testid="input-remaining-credits"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-sm">
+                  <span>風險 tier 達到此級就強制確認</span>
+                  <select
+                    className="rounded-md border bg-background px-2 py-1.5"
+                    value={confirmAtTierOrAbove}
+                    onChange={event => setConfirmAtTierOrAbove(event.target.value as CostBudgetTier | "")}
+                    data-testid="select-confirm-tier"
+                  >
+                    <option value="">不依風險強制（只看點數）</option>
+                    <option value="cheap">cheap 以上（含送出）</option>
+                    <option value="medium">medium 以上（含一般生成）</option>
+                    <option value="expensive">expensive 以上（含影片）</option>
+                    <option value="premium">premium 以上（LoRA 訓練）</option>
+                  </select>
+                </label>
+                <label className="flex items-center justify-between text-sm">
+                  <span>純資訊模式：永遠不擋（只顯示估算）</span>
+                  <Switch
+                    checked={budgetAlwaysAllow}
+                    onCheckedChange={setBudgetAlwaysAllow}
+                    data-testid="switch-budget-always-allow"
+                  />
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  💡 留空 = 不檢查那一項。建議至少設一個「單次上限」避免一鍵燒光點數。
+                </p>
+              </div>
+            )}
+          </section>
+        </TabsContent>
+
+        {/* ───── 感知 (Phase D) ───── */}
+        <TabsContent value="perception" className="space-y-3 pt-4">
+          <section className="space-y-3 rounded-2xl border bg-card p-4">
+            <div>
+              <h2 className="text-base font-semibold">執行後驗證（感知迴圈）</h2>
+              <p className="text-xs text-muted-foreground">
+                每步動作完成後，光球會比對前後頁面狀態判斷是否真的生效。沒生效會自動嘗試恢復或重新規劃，避免「以為按下去了實際沒反應」。
+              </p>
+            </div>
+            <label className="flex items-center justify-between text-sm">
+              <span>啟用感知迴圈</span>
+              <Switch
+                checked={perceptionEnabled}
+                onCheckedChange={setPerceptionEnabled}
+                data-testid="switch-perception"
+              />
+            </label>
+            {perceptionEnabled && (
+              <fieldset className="space-y-2 border-t pt-3 text-sm">
+                <legend className="text-xs font-semibold text-muted-foreground">嚴格度</legend>
+                {(
+                  [
+                    ["lenient", "寬鬆（只看真正失敗）"],
+                    ["balanced", "平衡（推薦）— 警告也會觸發重規劃"],
+                    ["strict", "嚴格 — 任何沒變化都當作沒生效"],
+                  ] as Array<[PerceptionStrictness, string]>
+                ).map(([value, label]) => (
+                  <label key={value} className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="perceptionStrictness"
+                      checked={perceptionStrictness === value}
+                      onChange={() => setPerceptionStrictness(value)}
+                      data-testid={`radio-perception-${value}`}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </fieldset>
+            )}
+          </section>
+        </TabsContent>
+
+        {/* ───── 自我批判 (Phase D) ───── */}
+        <TabsContent value="critic" className="space-y-3 pt-4">
+          <section className="space-y-3 rounded-2xl border bg-card p-4">
+            <div>
+              <h2 className="text-base font-semibold">計畫自我批判</h2>
+              <p className="text-xs text-muted-foreground">
+                光球規劃完工作流後，會用一個額外的審查步驟檢查：placeholder 對不上、缺少前置工具、submit 沒有 prompt
+                等問題。若分數低於門檻會自動重新規劃一次（多一次 LLM call）。
+              </p>
+            </div>
+            <label className="flex items-center justify-between text-sm">
+              <span>啟用自我批判（需要多一次 LLM 推理）</span>
+              <Switch
+                checked={criticEnabled}
+                onCheckedChange={setCriticEnabled}
+                data-testid="switch-critic"
+              />
+            </label>
+            {criticEnabled && (
+              <label className="grid grid-cols-[1fr_auto] items-center gap-2 border-t pt-3 text-sm">
+                <span>分數低於此值才重新規劃（0–100，預設 75）</span>
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  value={criticRefineBelow}
+                  onChange={event => {
+                    const v = Number(event.target.value);
+                    if (Number.isFinite(v)) setCriticRefineBelow(Math.max(0, Math.min(100, v)));
+                  }}
+                  className="w-24"
+                  data-testid="input-critic-threshold"
+                />
+              </label>
+            )}
+          </section>
+        </TabsContent>
+
+        {/* ───── 角色 / 節奏 (Phase D) ───── */}
+        <TabsContent value="roles" className="space-y-3 pt-4">
+          <section className="space-y-3 rounded-2xl border bg-card p-4">
+            <div>
+              <h2 className="text-base font-semibold">多角色路由</h2>
+              <p className="text-xs text-muted-foreground">
+                每一輪光球會自動判斷扮演導演（規劃）、作曲家（執行）、評論者（審查）、研究員（查資料）、導航（帶路）或陪伴（聊天）。可在這裡關閉，讓所有對話用同一種風格。
+              </p>
+            </div>
+            <label className="flex items-center justify-between text-sm">
+              <span>啟用多角色自動切換</span>
+              <Switch
+                checked={roleAutoSwitch}
+                onCheckedChange={setRoleAutoSwitch}
+                data-testid="switch-role-auto"
+              />
+            </label>
+          </section>
+
+          <section className="space-y-3 rounded-2xl border bg-card p-4">
+            <div>
+              <h2 className="text-base font-semibold">節奏覆寫</h2>
+              <p className="text-xs text-muted-foreground">
+                光球會從你的回饋速度推測「節奏」（快、慢、中），並用此決定是否要在每一步停下來確認。
+                這裡可以強制覆寫推測值。
+              </p>
+            </div>
+            <fieldset className="space-y-2 text-sm">
+              {(
+                [
+                  ["auto", "自動推測（推薦）"],
+                  ["patient", "慢節奏 — 多停下來確認，給足思考時間"],
+                  ["balanced", "平衡 — 重要動作才停"],
+                  ["impatient", "快節奏 — 安全動作直接做，少打斷"],
+                ] as Array<[AgentPacingOverride, string]>
+              ).map(([value, label]) => (
+                <label key={value} className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="pacingOverride"
+                    checked={pacingOverride === value}
+                    onChange={() => setPacingOverride(value)}
+                    data-testid={`radio-pacing-${value}`}
+                  />
+                  {label}
+                </label>
+              ))}
+            </fieldset>
+          </section>
+
+          <PreferenceInspectorCard isAuthenticated={isAuthenticated} />
         </TabsContent>
 
         {/* ───── 通知 ───── */}
@@ -599,6 +880,129 @@ export default function AgentPreferencesPage() {
         </p>
       )}
     </div>
+  );
+}
+
+// ───────────── 偏好檢視卡（Phase D：光球已記得的事） ─────────────
+
+const PACING_LABELS: Record<string, string> = {
+  patient: "慢節奏（你有足夠時間）",
+  balanced: "平衡",
+  impatient: "快節奏（你常急著完成）",
+};
+
+function PreferenceInspectorCard({ isAuthenticated }: { isAuthenticated: boolean }) {
+  const profileQuery = trpc.agentPreferences.getDistilledProfile.useQuery(undefined, {
+    retry: false,
+    enabled: isAuthenticated,
+    staleTime: 60_000,
+  });
+
+  if (!isAuthenticated) return null;
+
+  const profile = profileQuery.data;
+
+  return (
+    <section className="space-y-3 rounded-2xl border bg-card p-4" data-testid="preference-inspector">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-semibold">光球已經記得你的這些事</h2>
+          <p className="text-xs text-muted-foreground">
+            這份偏好是從你過去的反應與長期記憶蒸餾出來的。光球規劃時會直接參考它。
+          </p>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => profileQuery.refetch()}
+          disabled={profileQuery.isFetching}
+        >
+          {profileQuery.isFetching ? "更新中..." : "重新蒸餾"}
+        </Button>
+      </div>
+
+      {profileQuery.isLoading && (
+        <p className="text-xs text-muted-foreground">載入中...</p>
+      )}
+
+      {profile && profile.totalEvents === 0 && profile.totalMemoriesConsidered === 0 && (
+        <p className="text-sm text-muted-foreground">
+          還沒收集到足夠的偏好訊號 — 多和光球互動幾次後再回來看，會有新的觀察。
+        </p>
+      )}
+
+      {profile && (profile.totalEvents > 0 || profile.totalMemoriesConsidered > 0) && (
+        <div className="space-y-3 text-sm">
+          <div className="flex flex-wrap items-center gap-3 text-xs">
+            <span className="rounded-full border px-2 py-0.5">
+              信心 {Math.round(profile.confidence * 100)}%
+            </span>
+            <span className="rounded-full border px-2 py-0.5">
+              節奏：{PACING_LABELS[profile.pacingTier] ?? profile.pacingTier}
+            </span>
+            <span className="rounded-full border px-2 py-0.5">
+              {profile.totalEvents} 筆回饋 · {profile.totalMemoriesConsidered} 筆記憶
+            </span>
+          </div>
+
+          {profile.preferredModels.length > 0 && (
+            <div>
+              <div className="text-xs font-semibold text-muted-foreground">偏好模型</div>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {profile.preferredModels.map(m => (
+                  <code
+                    key={m}
+                    className="rounded bg-muted px-1.5 py-0.5 text-[11px]"
+                    data-testid={`pref-model-${m}`}
+                  >
+                    {m}
+                  </code>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {profile.avoidedModels.length > 0 && (
+            <div>
+              <div className="text-xs font-semibold text-muted-foreground">避開模型</div>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {profile.avoidedModels.map(m => (
+                  <code key={m} className="rounded bg-destructive/10 px-1.5 py-0.5 text-[11px] text-destructive">
+                    {m}
+                  </code>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {profile.actionAcceptance.length > 0 && (
+            <div>
+              <div className="text-xs font-semibold text-muted-foreground">動作接受率（前 8 名）</div>
+              <ul className="mt-1 space-y-1">
+                {profile.actionAcceptance.map(row => {
+                  const total = row.accepted + row.rejected;
+                  const pct = Math.round(row.ratio * 100);
+                  return (
+                    <li key={row.type} className="flex items-center gap-2 text-xs">
+                      <code className="w-32 truncate font-mono">{row.type}</code>
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                        <div
+                          className="h-full bg-primary"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <span className="w-24 text-right tabular-nums text-muted-foreground">
+                        {row.accepted}/{total}（{pct}%）
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
   );
 }
 
