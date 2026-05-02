@@ -121,6 +121,31 @@ export interface GlobalAgentExecutionContext {
     index: number,
     total: number
   ) => Promise<"proceed" | "skip" | "abort">;
+
+  // ── Perception loop (post-step verification) ───────────────────────────
+  /**
+   * Optional hook called after EACH successful step. The caller is
+   * responsible for capturing the post-step `PageAgentSnapshot` (or tool
+   * result) and converting it into a recommendation via
+   * `orb-perception-loop.evaluateStepOutcome`. Recommendations:
+   *   - "proceed"  — continue to the next step (default).
+   *   - "retry"    — re-run the same step once more (counts as a retry).
+   *   - "replan"   — synthesise a "no-effect" failure and route through
+   *                  `ctx.replan` so the planner can react.
+   *   - "abort"    — stop the workflow with `reason = perception.<...>`.
+   *
+   * Implementations should NOT rely on this hook for hard failures —
+   * those still propagate through `dispatch`'s ok=false return.
+   */
+  observeAfterStep?: (args: {
+    step: AgentWorkflowStep;
+    index: number;
+    total: number;
+    result: AgentActionResult;
+  }) => Promise<{
+    recommendation: "proceed" | "retry" | "replan" | "abort";
+    reason?: string;
+  } | null | undefined>;
 }
 
 export interface GlobalDispatchOptions {
@@ -656,18 +681,116 @@ async function executeWorkflowSequential(
     results.push(dispatchOutcome.result);
 
     if (dispatchOutcome.result.ok) {
-      if (runState) {
-        runState = {
-          ...runState,
-          completedStepIds: runState.completedStepIds.includes(stepId)
-            ? runState.completedStepIds
-            : [...runState.completedStepIds, stepId],
-          perStepToolResults: [...perStepToolResults],
-          updatedAt: Date.now(),
-        };
-        if (ctx.persistRunState) await ctx.persistRunState(runState);
+      // ── Perception loop: optional post-step verification ────────────
+      // The hook returns a verdict drawn from the post-step snapshot via
+      // orb-perception-loop.evaluateStepOutcome. We translate the verdict
+      // into the orchestrator's existing primitives (retry / replan / abort)
+      // so the perception layer doesn't need its own control flow.
+      if (ctx.observeAfterStep) {
+        const observation = await ctx.observeAfterStep({
+          step: reconstructAgentWorkflowStep(s, i),
+          index: i,
+          total: steps.length,
+          result: dispatchOutcome.result,
+        });
+        const recommendation = observation?.recommendation ?? "proceed";
+        if (recommendation === "abort") {
+          log("workflow.perception_abort", {
+            stepId,
+            reason: observation?.reason,
+          });
+          if (runState) {
+            runState = {
+              ...runState,
+              failedAt: stepId,
+              failReason: observation?.reason ?? "perception abort",
+              updatedAt: Date.now(),
+            };
+            if (ctx.persistRunState) await ctx.persistRunState(runState);
+          }
+          return {
+            ok: false,
+            results,
+            reason: `perception: ${observation?.reason ?? "verdict=abort"}`,
+            workflowName: action.name,
+            endingPath: currentPath,
+          };
+        }
+        if (recommendation === "retry") {
+          // Retry consumes one slot of the policy budget — but if the policy
+          // is the default (1 attempt) we still allow a single perception
+          // retry, capped to one extra attempt to prevent loops.
+          log("workflow.perception_retry", { stepId });
+          const retryOutcome = await runStepWithRetry(s, i, {
+            ctx,
+            perStepToolResults,
+            currentPath,
+            currentPageContext: ctx.currentPage,
+            total: steps.length,
+          });
+          currentPath = retryOutcome.currentPath;
+          results[results.length - 1] = retryOutcome.result;
+          if (retryOutcome.result.ok) {
+            if (runState) {
+              runState = {
+                ...runState,
+                completedStepIds: runState.completedStepIds.includes(stepId)
+                  ? runState.completedStepIds
+                  : [...runState.completedStepIds, stepId],
+                perStepToolResults: [...perStepToolResults],
+                updatedAt: Date.now(),
+              };
+              if (ctx.persistRunState) await ctx.persistRunState(runState);
+            }
+            continue;
+          }
+          // Retry failed — fall through into the regular fail branch by
+          // synthesising a `dispatchOutcome` so the replan / skipOnFail
+          // logic still runs against the perception-driven failure.
+          dispatchOutcome.result = retryOutcome.result;
+        } else if (recommendation === "replan") {
+          log("workflow.perception_replan", {
+            stepId,
+            reason: observation?.reason,
+          });
+          // Synthesise a typed failure result so the existing replan path
+          // (Task 2) takes over without duplicating logic.
+          const synthetic: AgentActionResult = {
+            ok: false,
+            reason: `perception: ${observation?.reason ?? "no-effect"}`,
+          };
+          results[results.length - 1] = synthetic;
+          dispatchOutcome.result = synthetic;
+          // Fall through into the fail branch below.
+        } else {
+          // recommendation === "proceed"  → record completion as usual.
+          if (runState) {
+            runState = {
+              ...runState,
+              completedStepIds: runState.completedStepIds.includes(stepId)
+                ? runState.completedStepIds
+                : [...runState.completedStepIds, stepId],
+              perStepToolResults: [...perStepToolResults],
+              updatedAt: Date.now(),
+            };
+            if (ctx.persistRunState) await ctx.persistRunState(runState);
+          }
+          continue;
+        }
+      } else {
+        if (runState) {
+          runState = {
+            ...runState,
+            completedStepIds: runState.completedStepIds.includes(stepId)
+              ? runState.completedStepIds
+              : [...runState.completedStepIds, stepId],
+            perStepToolResults: [...perStepToolResults],
+            updatedAt: Date.now(),
+          };
+          if (ctx.persistRunState) await ctx.persistRunState(runState);
+        }
+        continue;
       }
-      continue;
     }
 
     // ── Task 2 fail branch ──────────────────────────────────────────────
