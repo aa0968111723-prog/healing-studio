@@ -175,6 +175,18 @@ describe("falModels catalog coverage", () => {
     expect(ids.has("fal-ai/whisper")).toBe(true);
   });
 
+  // DEF-WAN1：Wan 2.2 Speech-to-Video — 說話人動畫。catalog miss 會把
+  // 「靜態頭像 + 配音 → 對嘴影片」的請求降級到 image-to-video[0] = kling-pro
+  // （純 i2v，不對嘴），使用者拿到的影片人物嘴型與配音對不上。
+  it("image-to-video catalog includes Wan 2.2 speech-to-video", () => {
+    const cfg = getFalModelById(
+      "fal-ai/wan/v2.2-14b/speech-to-video",
+      "image-to-video"
+    );
+    expect(cfg).toBeDefined();
+    expect(cfg!.tier).toBe("premium");
+  });
+
   // DEF-EL1：ElevenLabs SFX 真實 endpoint 帶 /v2 後綴，必須在 text-to-audio
   // catalog 註冊，否則 dispatcher 會把所有 SFX 請求降級到 fal-ai/ace-step（音樂模型）。
   it("text-to-audio catalog includes ElevenLabs SFX v2 canonical id", () => {

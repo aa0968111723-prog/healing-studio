@@ -276,6 +276,22 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     },
     executionTarget: "server-side",
   },
+  // DEF-WAN2：光球專用說話人動畫 — 靜態頭像 + 配音 → 對嘴說話影片。
+  // 是「克隆聲音 → TTS → 動畫」工作流的最後一塊。預設 fal-ai/wan/v2.2-14b/speech-to-video。
+  // 與 generateVideo（純 i2v / t2v）區別：必須有 audio_url，產出對嘴而非純動畫。
+  {
+    name: "studio.animateSpeaker",
+    riskLevel: "medium",
+    requiresHuman: true,
+    allowedArgsSchema: {
+      image_url: "string",
+      audio_url: "string",
+      prompt: "string?",
+      num_frames: "number?",
+      modelId: "string?",
+    },
+    executionTarget: "server-side",
+  },
   {
     name: "studio.generateVoice",
     riskLevel: "medium",

@@ -29,6 +29,8 @@ describe("studio.* generation tool registration", () => {
     expect(names).toContain("studio.changeVoice");
     // DEF-ASR3：語音轉文字 — 開啟「逐字稿 → 翻譯/摘要 → 再合成」工作流
     expect(names).toContain("studio.transcribe");
+    // DEF-WAN2：說話人動畫 — 靜態頭像 + 音訊 → 對嘴影片（完成 TTS → 動畫工作流）
+    expect(names).toContain("studio.animateSpeaker");
   });
 
   it("studio.* tools require human approval", () => {
@@ -44,6 +46,7 @@ describe("studio.* generation tool registration", () => {
       "studio.isolateAudio",
       "studio.mergeAudios",
       "studio.changeVoice",
+      "studio.animateSpeaker",
     ]) {
       const tool = getGlobalAgentTool(name);
       expect(tool, name).not.toBeNull();
@@ -65,6 +68,7 @@ describe("studio.* generation tool registration", () => {
     expect(isKnownGlobalAgentTool("studio.mergeAudios")).toBe(true);
     expect(isKnownGlobalAgentTool("studio.changeVoice")).toBe(true);
     expect(isKnownGlobalAgentTool("studio.transcribe")).toBe(true);
+    expect(isKnownGlobalAgentTool("studio.animateSpeaker")).toBe(true);
     expect(isKnownGlobalAgentTool("studio.unknownThing")).toBe(false);
   });
 });

@@ -15,6 +15,7 @@ const GENERATION_SLOT_TOOLS = new Set([
   "studio.isolateAudio",
   "studio.mergeAudios",
   "studio.changeVoice",
+  "studio.animateSpeaker",
   "studio.enhanceVideo",
   "studio.trainLora",
 ]);
@@ -1320,6 +1321,68 @@ async function dispatchStudioTool(
             ? { error: awaited.error }
             : !changedUrl && awaited.status !== "pending"
               ? { error: "voice-change: 變聲後音檔 URL 缺失" }
+              : {}),
+        };
+      }
+
+      // DEF-WAN2：光球專用說話人動畫 — 靜態頭像 + 配音 → 對嘴說話影片。
+      // 與 generateVideo 不同：必須帶 audio_url，產出對嘴影片而非純動畫。
+      // 完成「文字稿 → TTS → 對嘴影片」全鏈最後一塊。
+      case "studio.animateSpeaker": {
+        const { dispatchFalQueueTask } = await import("./falDispatcher");
+        const modelId =
+          (args.modelId as string) || "fal-ai/wan/v2.2-14b/speech-to-video";
+        const animateInput: Record<string, unknown> = {};
+        if (typeof args.image_url === "string") {
+          animateInput.image_url = args.image_url;
+        }
+        if (typeof args.audio_url === "string") {
+          animateInput.audio_url = args.audio_url;
+        }
+        if (typeof args.prompt === "string" && args.prompt) {
+          animateInput.prompt = args.prompt;
+        }
+        if (typeof args.num_frames === "number") {
+          // fal Wan 接受 16-200 frames（≈ 24fps，0.7-8.3 秒）
+          animateInput.num_frames = Math.max(16, Math.min(200, args.num_frames));
+        }
+        if (!animateInput.image_url || !animateInput.audio_url) {
+          return {
+            name: call.name,
+            ok: false,
+            error: "animate-speaker: image_url 與 audio_url 都是必填",
+            usedTool: call.name,
+          };
+        }
+        const r = await dispatchFalQueueTask({
+          modelId,
+          category: "image-to-video",
+          input: animateInput,
+          route: "orb-tool/studio.animateSpeaker",
+          modality: "video",
+          userId: opts.userId,
+        });
+        const awaited = await awaitFalForOrb(
+          { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
+          args
+        );
+        // Wan 回傳 { video: { url } }；統一以 data.video_url 平推到頂層。
+        const raw = awaited.raw as { video?: { url?: string } } | undefined;
+        const videoUrl = raw?.video?.url ?? awaited.video_url ?? null;
+        return {
+          name: call.name,
+          ok: awaited.status !== "failed" && !!videoUrl,
+          data: {
+            ...awaited,
+            engine: "fal",
+            kind: "speech-to-video",
+            video_url: videoUrl,
+          },
+          usedTool: call.name,
+          ...(awaited.status === "failed" && awaited.error
+            ? { error: awaited.error }
+            : !videoUrl && awaited.status !== "pending"
+              ? { error: "animate-speaker: 對嘴影片 URL 缺失" }
               : {}),
         };
       }

@@ -703,6 +703,23 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       outputSchema: { videoUrl: true },
       timeoutMs: 300_000,
     },
+    // DEF-WAN1：Wan 2.2 Speech-to-Video — 說話人動畫（image + audio → 對嘴影片）。
+    // pricing 早就掛在 image-to-video category（line 2906），但 falModels catalog
+    // 缺。proStudio.speechToVideo 直接呼叫 falQueueSubmit（不傳 category）僥倖
+    // 避開 dispatcher 降級邏輯，但任何 category-aware 路徑會 catalog miss → 降級
+    // 到 image-to-video[0] = kling-video/v2.1/pro/image-to-video（純 i2v，無對嘴）。
+    // 使用者送靜態頭像 + 配音，期望「對嘴影片」，卻拿到「不對嘴的純動畫」。
+    {
+      modelId: "fal-ai/wan/v2.2-14b/speech-to-video",
+      label: "Wan 2.2 說話人動畫",
+      category: "image-to-video",
+      tier: "premium",
+      description:
+        "Wan 2.2 Speech-to-Video — 靜態頭像 + 音訊 → 對嘴說話影片（≈24fps，num_frames 16-200）",
+      inputSchema: { imageUrl: true, audioUrl: true, prompt: true },
+      outputSchema: { videoUrl: true },
+      timeoutMs: 600_000,
+    },
   ],
 
   // ════════════════════════════════════════════════════════
