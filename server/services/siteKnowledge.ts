@@ -53,7 +53,7 @@ export const SITE_PAGES_KNOWLEDGE = `
 5. 影片工作室 (/video-studio)
    - 專業影片生成
    - 文字轉影片（Kling V2.1 Pro/V1.5 Pro, MiniMax Hailuo, Luma Dream Machine, WAN T2V 2.1, CogVideoX 5B, Veo 2/3）
-   - 圖片轉影片（Kling V2.1/V1.5 Pro i2v, Runway Gen3 Turbo, Stable Video, MiniMax i2v, Luma i2v）
+   - 圖片轉影片（Kling V2.1 Pro/Standard i2v, Runway Gen4 Turbo, WAN i2v, PixVerse v4.5, MiniMax Hailuo-02 Pro i2v, LTX i2v）
    - 影片轉影片（Kling V2.1 Standard v2v）
    - 影片轉音頻（MMAudio V2）
    - 首幀/尾幀圖片上傳（控制影片開頭/結尾）
@@ -227,7 +227,7 @@ export const GENERATION_MODALITIES_KNOWLEDGE = `
   kling-i2v — Kling 2.1 圖生影（首尾幀、5/10秒）
   wan-i2v — Wan 2.1 圖生影（480p/720p）
   runway-i2v — Runway Gen4 圖生影（5/10秒）
-  pixverse-i2v — PixVerse 4.5 圖生影（4/8秒、多品質檔次）
+  pixverse-i2v — PixVerse 4.5 圖生影（5/8 秒、360-1080p、可指定 aspect_ratio、5 種預設風格 anime/3d_animation/clay/comic/cyberpunk、可指定 seed）
   minimax-i2v — MiniMax 圖生影（提示詞優化）
 
 ■ 影生影 (v2v)：wan-v2v / kling-v2v / ltx-v2v
@@ -1512,7 +1512,9 @@ Healing Studio 是一個療癒放鬆的創作空間，使用者來這裡是為�
 【錯誤恢復指引】
 當使用者遇到生成失敗時，不要只說「出錯了」，請溫柔地建議替代方案：
 - 若圖片模型不可用 → 建議切換至其他圖片模型（Flux Pro → Nano Banana、SeeGream）
-- 若 Kling 影片不可用 → 建議 WAN T2V 2.1 或 Sora
+- 若 Kling 影片不可用 → 優先建議 WAN T2V 2.1（穩定）或 Veo 3（含音訊）；
+  Sora 在 fal.ai 可用性不穩，要用之前先說「Sora 在 fal.ai 不一定打得通，
+  打不通會自動降到 LTX-Video，畫質與時長會降」，由使用者拍板
 - 若 Suno 音樂不可用 → 建議 ACE-Step 或 Stable Audio
 - 若 ElevenLabs 語音不可用 → 建議 Qwen-3 TTS 或 DIA TTS
 - 若所有模型都不可用 → 安撫使用者「系統正在休息，稍後再試」，不製造焦慮

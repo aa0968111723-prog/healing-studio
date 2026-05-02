@@ -102,12 +102,22 @@ const OVERRIDE_TAB_BY_ENGINE: Array<{ prefix: string; tab: TabId }> = [
   { prefix: "fal-ai/kling-video/v2.1/pro/text-to-video", tab: "t2v" },
   { prefix: "fal-ai/kling-video/v2.1/standard/text-to-video", tab: "t2v" },
   { prefix: "fal-ai/wan-t2v", tab: "t2v" },
+  { prefix: "fal-ai/veo3", tab: "t2v" },
+  { prefix: "fal-ai/sora", tab: "t2v" },
   { prefix: "fal-ai/minimax-video/text-to-video", tab: "t2v" },
+  { prefix: "fal-ai/minimax/hailuo-02/pro/text-to-video", tab: "t2v" },
   { prefix: "fal-ai/cogvideox-5b", tab: "t2v" },
   { prefix: "fal-ai/ltx-video", tab: "t2v" },
   { prefix: "fal-ai/kling-video/v2.1/pro/image-to-video", tab: "i2v" },
+  { prefix: "fal-ai/kling-video/v2.1/standard/image-to-video", tab: "i2v" },
+  { prefix: "fal-ai/wan-i2v", tab: "i2v" },
+  { prefix: "fal-ai/wan-ai/wan2.1-i2v-720p", tab: "i2v" },
   { prefix: "fal-ai/minimax-video/image-to-video", tab: "i2v" },
+  { prefix: "fal-ai/minimax/hailuo-02/pro/image-to-video", tab: "i2v" },
   { prefix: "fal-ai/runway-gen3/turbo/image-to-video", tab: "i2v" },
+  { prefix: "fal-ai/runway-gen4-turbo/image-to-video", tab: "i2v" },
+  { prefix: "fal-ai/pixverse/v4.5/image-to-video", tab: "i2v" },
+  { prefix: "fal-ai/ltx-video/image-to-video", tab: "i2v" },
   { prefix: "fal-ai/luma-dream-machine/image-to-video", tab: "i2v" },
   { prefix: "fal-ai/wan/v2.1/video-to-video", tab: "v2v" },
   { prefix: "fal-ai/kling-video/v2.1/standard/video-to-video", tab: "v2v" },
@@ -664,6 +674,9 @@ function TextToVideoTab() {
   const [veoAspect, setVeoAspect] = useState<"16:9" | "9:16">("16:9");
   const [veoAudio, setVeoAudio] = useState(true);
   const [veoResult, setVeoResult] = useState<VideoResult | null>(null);
+  // Veo 3 Pro 共用 veoPrompt / veoAspect / veoAudio（兩者參數完全同型），
+  // 但結果分開存以便兩個 ToolCard 各自顯示輸出
+  const [veoProResult, setVeoProResult] = useState<VideoResult | null>(null);
 
   // ─ LTX
   const [ltxPrompt, setLtxPrompt] = useState("");
@@ -690,6 +703,9 @@ function TextToVideoTab() {
   const veoMut = trpc.videoStudio.veo3TextToVideo.useMutation({
     onError: e => toast.error(e.message),
   });
+  const veoProMut = trpc.videoStudio.veo3ProTextToVideo.useMutation({
+    onError: e => toast.error(e.message),
+  });
   const ltxMut = trpc.videoStudio.ltxTextToVideo.useMutation({
     onError: e => toast.error(e.message),
   });
@@ -698,18 +714,26 @@ function TextToVideoTab() {
   });
 
   // ── Agent Bus subscription: allow parent to fill prompts, set params & select model ──
-  type T2VModel = "kling" | "wan" | "minimax" | "veo3" | "ltx" | "sora";
+  type T2VModel =
+    | "kling"
+    | "wan"
+    | "minimax"
+    | "veo3"
+    | "veo3pro"
+    | "ltx"
+    | "sora";
   const [activeT2VModel, setActiveT2VModel] = useState<T2VModel>("kling");
   const runKlingRef = useRef<() => void>(() => {});
   const runWanRef = useRef<() => void>(() => {});
   const runMmRef = useRef<() => void>(() => {});
   const runVeoRef = useRef<() => void>(() => {});
+  const runVeoProRef = useRef<() => void>(() => {});
   const runLtxRef = useRef<() => void>(() => {});
   const runSoraRef = useRef<() => void>(() => {});
   useEffect(() => {
     if (!bus) return;
     const pending = bus.consumePendingModel();
-    if (pending && ["kling","wan","minimax","veo3","ltx","sora"].includes(pending)) {
+    if (pending && ["kling","wan","minimax","veo3","veo3pro","ltx","sora"].includes(pending)) {
       setActiveT2VModel(pending as T2VModel);
     }
     const unsub = bus.subscribe("t2v", (cmd) => {
@@ -778,7 +802,8 @@ function TextToVideoTab() {
       if (cmd.type === "submit") {
         const runFns: Record<T2VModel, () => void> = {
           kling: runKlingRef.current, wan: runWanRef.current, minimax: runMmRef.current,
-          veo3: runVeoRef.current, ltx: runLtxRef.current, sora: runSoraRef.current,
+          veo3: runVeoRef.current, veo3pro: runVeoProRef.current,
+          ltx: runLtxRef.current, sora: runSoraRef.current,
         };
         (runFns[activeT2VModel] ?? runKlingRef.current)();
         return true;
@@ -889,6 +914,28 @@ function TextToVideoTab() {
     }
   }
   runVeoRef.current = runVeo3;
+
+  async function runVeo3Pro() {
+    if (!veoPrompt.trim()) return toast.error("請輸入提詞");
+    setAIState("generating");
+    try {
+      const r = await veoProMut.mutateAsync({
+        prompt: veoPrompt,
+        aspectRatio: veoAspect,
+        generateAudio: veoAudio,
+      });
+      setVeoProResult(r);
+      registerBgTask(r, "video", "Veo 3 Pro 文生影", veoPrompt);
+      toast.success("📤 任務已提交！稍後自動更新結果...");
+      reportSuccess();
+    } catch {
+      reportFailure();
+    } finally {
+      setAIState("idle");
+    }
+  }
+  runVeoProRef.current = runVeo3Pro;
+
 
   async function runLtx() {
     if (!ltxPrompt.trim()) return toast.error("請輸入提詞");
@@ -1140,7 +1187,7 @@ function TextToVideoTab() {
         title="MiniMax Hailuo-02 文生影"
         description="MiniMax 旗艦影片模型，電影級動態，6s 超長鏡頭"
         badge="MiniMax"
-        modelId="fal-ai/minimax/video-01"
+        modelId="fal-ai/minimax/hailuo-02/pro/text-to-video"
         color="orange"
       >
         <div className="space-y-3">
@@ -1263,6 +1310,86 @@ function TextToVideoTab() {
               result={veoResult}
               onUpdate={setVeoResult}
               label="Veo 3 生成結果"
+            />
+          )}
+        </div>
+      </ToolCard>
+
+      {/* Veo 3 Pro */}
+      <ToolCard
+        icon={Cpu}
+        title="Google Veo 3 Pro 文生影"
+        description="Veo 3 旗艦 Pro 版，更高擬真、更佳色彩，原生同步音訊（試用中）"
+        badge="Veo 3 Pro"
+        modelId="fal-ai/veo3/pro"
+        color="blue"
+        isNew
+      >
+        <div className="space-y-3">
+          <div className="text-xs text-muted-foreground bg-amber-50 dark:bg-amber-950/30 rounded p-2 border border-amber-200 dark:border-amber-900">
+            ✦ Pro 版定價約 Standard 的 2 倍（每 5 秒 80 點）；端點若尚未開放會
+            自動回 404，可改回 Veo 3 Standard。輸入欄與 Standard 共用，方便比對。
+          </div>
+          <div>
+            <Label className="text-xs text-muted-foreground">提詞 *</Label>
+            <Textarea
+              value={veoPrompt}
+              onChange={e => setVeoPrompt(e.target.value)}
+              placeholder="詳細描述場景、動作、音效..."
+              className="mt-1 text-sm resize-none"
+              rows={3}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs text-muted-foreground">寬高比</Label>
+              <Select
+                value={veoAspect}
+                onValueChange={v => setVeoAspect(v as "16:9" | "9:16")}
+              >
+                <SelectTrigger className="mt-1 text-sm h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="16:9">16:9（橫屏）</SelectItem>
+                  <SelectItem value="9:16">9:16（豎屏）</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-3 mt-5">
+              <Switch
+                checked={veoAudio}
+                onCheckedChange={setVeoAudio}
+                id="veo-pro-audio"
+              />
+              <Label htmlFor="veo-pro-audio" className="text-xs cursor-pointer">
+                生成配音
+              </Label>
+            </div>
+          </div>
+          <Button
+            onClick={runVeo3Pro}
+            disabled={veoProMut.isPending}
+            className="w-full btn-healing"
+            variant="secondary"
+          >
+            {veoProMut.isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                生成中（約 5-10 分鐘）...
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4 mr-2" />
+                Veo 3 Pro 文生影
+              </>
+            )}
+          </Button>
+          {veoProResult && (
+            <AsyncVideoPoller
+              result={veoProResult}
+              onUpdate={setVeoProResult}
+              label="Veo 3 Pro 生成結果"
             />
           )}
         </div>
@@ -1438,9 +1565,14 @@ function ImageToVideoTab() {
   const [klingTail, setKlingTail] = useState("");
   const [klingDuration, setKlingDuration] = useState<"5" | "10">("5");
   const [klingResult, setKlingResult] = useState<VideoResult | null>(null);
+  // Kling Pro i2v 共用 prompt / image / tail / duration 與 Standard，方便比對；
+  // 但結果分開存以便兩個 ToolCard 各自顯示輸出
+  const [klingProResult, setKlingProResult] = useState<VideoResult | null>(null);
 
   const [wanPrompt, setWanPrompt] = useState("");
   const [wanImage, setWanImage] = useState("");
+  const [wanNeg, setWanNeg] = useState("");
+  const [wanFrames, setWanFrames] = useState(81);
   const [wanRes, setWanRes] = useState<"480p" | "720p">("720p");
   const [wanResult, setWanResult] = useState<VideoResult | null>(null);
 
@@ -1452,18 +1584,28 @@ function ImageToVideoTab() {
 
   const [pvPrompt, setPvPrompt] = useState("");
   const [pvImage, setPvImage] = useState("");
-  const [pvDuration, setPvDuration] = useState<"4" | "8">("4");
+  const [pvNeg, setPvNeg] = useState("");
+  const [pvDuration, setPvDuration] = useState<"5" | "8">("5");
   const [pvQuality, setPvQuality] = useState<
     "360p" | "540p" | "720p" | "1080p"
   >("720p");
+  const [pvAspect, setPvAspect] = useState<"16:9" | "9:16" | "1:1">("16:9");
+  const [pvStyle, setPvStyle] = useState<
+    "" | "anime" | "3d_animation" | "clay" | "comic" | "cyberpunk"
+  >("");
   const [pvResult, setPvResult] = useState<VideoResult | null>(null);
 
   const [mmPrompt, setMmPrompt] = useState("");
   const [mmImage, setMmImage] = useState("");
   const [mmOptimize, setMmOptimize] = useState(true);
+  const [mmDuration, setMmDuration] = useState<"6" | "10">("6");
+  const [mmResolution, setMmResolution] = useState<"768p" | "1080p">("1080p");
   const [mmResult, setMmResult] = useState<VideoResult | null>(null);
 
   const klingMut = trpc.videoStudio.klingImageToVideo.useMutation({
+    onError: e => toast.error(e.message),
+  });
+  const klingProMut = trpc.videoStudio.klingProImageToVideo.useMutation({
     onError: e => toast.error(e.message),
   });
   const wanMut = trpc.videoStudio.wanImageToVideo.useMutation({
@@ -1480,9 +1622,16 @@ function ImageToVideoTab() {
   });
 
   // ── Agent Bus subscription (i2v) ──
-  type I2VModel = "kling" | "wan" | "runway" | "pixverse" | "minimax";
+  type I2VModel =
+    | "kling"
+    | "klingpro"
+    | "wan"
+    | "runway"
+    | "pixverse"
+    | "minimax";
   const [activeI2VModel, setActiveI2VModel] = useState<I2VModel>("kling");
   const runKlingRef = useRef<() => void>(() => {});
+  const runKlingProRef = useRef<() => void>(() => {});
   const runWanRef = useRef<() => void>(() => {});
   const runRunwayRef = useRef<() => void>(() => {});
   const runPvRef = useRef<() => void>(() => {});
@@ -1490,7 +1639,7 @@ function ImageToVideoTab() {
   useEffect(() => {
     if (!bus) return;
     const pending = bus.consumePendingModel();
-    if (pending && ["kling","wan","runway","pixverse","minimax"].includes(pending)) {
+    if (pending && ["kling","klingpro","wan","runway","pixverse","minimax"].includes(pending)) {
       setActiveI2VModel(pending as I2VModel);
     }
     const unsub = bus.subscribe("i2v", (cmd) => {
@@ -1501,7 +1650,8 @@ function ImageToVideoTab() {
       }
       if (cmd.type === "submit") {
         const runFns: Record<I2VModel, () => void> = {
-          kling: runKlingRef.current, wan: runWanRef.current, runway: runRunwayRef.current,
+          kling: runKlingRef.current, klingpro: runKlingProRef.current,
+          wan: runWanRef.current, runway: runRunwayRef.current,
           pixverse: runPvRef.current, minimax: runMmRef.current,
         };
         (runFns[activeI2VModel] ?? runKlingRef.current)();
@@ -1524,7 +1674,7 @@ function ImageToVideoTab() {
             return true;
           case "duration":
             if (value === "5" || value === "10") { setKlingDuration(value); setRunwayDuration(value); }
-            if (value === "4" || value === "8") setPvDuration(value);
+            if (value === "5" || value === "8") setPvDuration(value);
             return true;
           case "resolution":
             if (value === "480p" || value === "720p") setWanRes(value);
@@ -1540,8 +1690,8 @@ function ImageToVideoTab() {
         setKlingPrompt(""); setKlingImage(""); setKlingTail(""); setKlingDuration("5");
         setWanPrompt(""); setWanImage(""); setWanRes("720p");
         setRunwayPrompt(""); setRunwayImage(""); setRunwayDuration("5"); setRunwayRatio("1280:720");
-        setPvPrompt(""); setPvImage(""); setPvDuration("4"); setPvQuality("720p");
-        setMmPrompt(""); setMmImage(""); setMmOptimize(true);
+        setPvPrompt(""); setPvImage(""); setPvNeg(""); setPvDuration("5"); setPvQuality("720p"); setPvAspect("16:9"); setPvStyle("");
+        setMmPrompt(""); setMmImage(""); setMmOptimize(true); setMmDuration("6"); setMmResolution("1080p");
         return true;
       }
       return false;
@@ -1577,6 +1727,29 @@ function ImageToVideoTab() {
   }
   runKlingRef.current = runKling;
 
+  async function runKlingPro() {
+    if (!klingPrompt.trim() || !klingImage.trim())
+      return toast.error("請輸入提詞與圖片 URL");
+    setAIState("generating");
+    try {
+      const r = await klingProMut.mutateAsync({
+        prompt: klingPrompt,
+        imageUrl: klingImage,
+        tailImageUrl: klingTail || undefined,
+        duration: klingDuration,
+      });
+      setKlingProResult(r);
+      registerBgTask(r, "video", "Kling Pro 圖生影", klingPrompt);
+      toast.success("📤 任務已提交！稍後自動更新結果...");
+      reportSuccess();
+    } catch {
+      reportFailure();
+    } finally {
+      setAIState("idle");
+    }
+  }
+  runKlingProRef.current = runKlingPro;
+
   async function runWan() {
     if (!wanPrompt.trim() || !wanImage.trim())
       return toast.error("請輸入提詞與圖片 URL");
@@ -1586,6 +1759,8 @@ function ImageToVideoTab() {
         prompt: wanPrompt,
         imageUrl: wanImage,
         resolution: wanRes,
+        numFrames: wanFrames,
+        negativePrompt: wanNeg || undefined,
       });
       setWanResult(r);
       registerBgTask(r, "video", "Wan 圖生影", wanPrompt);
@@ -1630,8 +1805,11 @@ function ImageToVideoTab() {
       const r = await pvMut.mutateAsync({
         prompt: pvPrompt,
         imageUrl: pvImage,
+        negativePrompt: pvNeg || undefined,
         duration: pvDuration,
         quality: pvQuality,
+        aspectRatio: pvAspect,
+        style: pvStyle || undefined,
       });
       setPvResult(r);
       registerBgTask(r, "video", "Pixverse 圖生影", pvPrompt);
@@ -1654,6 +1832,8 @@ function ImageToVideoTab() {
         prompt: mmPrompt,
         imageUrl: mmImage,
         promptOptimizer: mmOptimize,
+        duration: mmDuration,
+        resolution: mmResolution,
       });
       setMmResult(r);
       registerBgTask(r, "video", "MiniMax 圖生影", mmPrompt);
@@ -1745,6 +1925,48 @@ function ImageToVideoTab() {
         </div>
       </ToolCard>
 
+      {/* Kling Pro i2v */}
+      <ToolCard
+        icon={Clapperboard}
+        title="Kling v2.1 Pro 圖生影 ✦"
+        description="Kling Pro 旗艦圖生影：更細膩的動態與角色一致性（ultra 層級，55 點/5s）"
+        badge="Kling 2.1 Pro"
+        modelId="fal-ai/kling-video/v2.1/pro/image-to-video"
+        color="purple"
+      >
+        <div className="space-y-3">
+          <div className="text-xs text-muted-foreground bg-amber-50 dark:bg-amber-950/30 rounded p-2 border border-amber-200 dark:border-amber-900">
+            ✦ Pro 版定價約 Standard 的 1.6 倍（55 點 vs 35 點）；
+            輸入欄與 Standard 共用，方便比對輸出品質。
+          </div>
+          <Button
+            onClick={runKlingPro}
+            disabled={klingProMut.isPending}
+            className="w-full btn-healing"
+            variant="secondary"
+          >
+            {klingProMut.isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                生成中（Pro 版品質更高，耗時相當）...
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4 mr-2" />
+                Kling Pro 圖生影
+              </>
+            )}
+          </Button>
+          {klingProResult && (
+            <AsyncVideoPoller
+              result={klingProResult}
+              onUpdate={setKlingProResult}
+              label="Kling Pro 圖生影結果"
+            />
+          )}
+        </div>
+      </ToolCard>
+
       {/* Wan i2v */}
       <ToolCard
         icon={Zap}
@@ -1773,19 +1995,44 @@ function ImageToVideoTab() {
             required
           />
           <div>
-            <Label className="text-xs text-muted-foreground">解析度</Label>
-            <Select
-              value={wanRes}
-              onValueChange={v => setWanRes(v as "480p" | "720p")}
-            >
-              <SelectTrigger className="mt-1 text-sm h-9">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="720p">720p（高畫質）</SelectItem>
-                <SelectItem value="480p">480p（快速）</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label className="text-xs text-muted-foreground">負向提詞（選填）</Label>
+            <Textarea
+              value={wanNeg}
+              onChange={e => setWanNeg(e.target.value)}
+              placeholder="不想出現的元素，如 blurry, low quality..."
+              className="mt-1 text-sm resize-none"
+              rows={2}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs text-muted-foreground">解析度</Label>
+              <Select
+                value={wanRes}
+                onValueChange={v => setWanRes(v as "480p" | "720p")}
+              >
+                <SelectTrigger className="mt-1 text-sm h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="720p">720p（高畫質）</SelectItem>
+                  <SelectItem value="480p">480p（快速）</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">
+                幀數：{wanFrames}（約 {Math.round((wanFrames / 16) * 10) / 10}s）
+              </Label>
+              <Slider
+                min={16}
+                max={81}
+                step={1}
+                value={[wanFrames]}
+                onValueChange={v => setWanFrames(v[0])}
+                className="mt-2"
+              />
+            </div>
           </div>
           <Button
             onClick={runWan}
@@ -1928,18 +2175,28 @@ function ImageToVideoTab() {
             accept="image"
             required
           />
+          <div>
+            <Label className="text-xs text-muted-foreground">負向提詞（選填）</Label>
+            <Textarea
+              value={pvNeg}
+              onChange={e => setPvNeg(e.target.value)}
+              placeholder="不想出現的元素..."
+              className="mt-1 text-sm resize-none"
+              rows={2}
+            />
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label className="text-xs text-muted-foreground">時長</Label>
               <Select
                 value={pvDuration}
-                onValueChange={v => setPvDuration(v as "4" | "8")}
+                onValueChange={v => setPvDuration(v as "5" | "8")}
               >
                 <SelectTrigger className="mt-1 text-sm h-9">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="4">4 秒</SelectItem>
+                  <SelectItem value="5">5 秒</SelectItem>
                   <SelectItem value="8">8 秒</SelectItem>
                 </SelectContent>
               </Select>
@@ -1958,6 +2215,45 @@ function ImageToVideoTab() {
                   <SelectItem value="720p">720p</SelectItem>
                   <SelectItem value="540p">540p</SelectItem>
                   <SelectItem value="360p">360p</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs text-muted-foreground">畫面比例</Label>
+              <Select
+                value={pvAspect}
+                onValueChange={v => setPvAspect(v as "16:9" | "9:16" | "1:1")}
+              >
+                <SelectTrigger className="mt-1 text-sm h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="16:9">16:9（橫屏）</SelectItem>
+                  <SelectItem value="9:16">9:16（豎屏）</SelectItem>
+                  <SelectItem value="1:1">1:1（方形）</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">風格（選填）</Label>
+              <Select
+                value={pvStyle || "_none"}
+                onValueChange={v =>
+                  setPvStyle(v === "_none" ? "" : (v as typeof pvStyle))
+                }
+              >
+                <SelectTrigger className="mt-1 text-sm h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">寫實（預設）</SelectItem>
+                  <SelectItem value="anime">動漫</SelectItem>
+                  <SelectItem value="3d_animation">3D 動畫</SelectItem>
+                  <SelectItem value="clay">黏土</SelectItem>
+                  <SelectItem value="comic">漫畫</SelectItem>
+                  <SelectItem value="cyberpunk">賽博龐克</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1996,7 +2292,7 @@ function ImageToVideoTab() {
         title="MiniMax Hailuo-02 圖生影"
         description="MiniMax 圖生影，超強首幀固定效果，電影級動態"
         badge="MiniMax"
-        modelId="fal-ai/minimax/video-01/image-to-video"
+        modelId="fal-ai/minimax/hailuo-02/pro/image-to-video"
         color="rose"
       >
         <div className="space-y-3">
@@ -2017,6 +2313,38 @@ function ImageToVideoTab() {
             accept="image"
             required
           />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs text-muted-foreground">時長</Label>
+              <Select
+                value={mmDuration}
+                onValueChange={v => setMmDuration(v as "6" | "10")}
+              >
+                <SelectTrigger className="mt-1 text-sm h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="6">6 秒</SelectItem>
+                  <SelectItem value="10">10 秒</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">解析度</Label>
+              <Select
+                value={mmResolution}
+                onValueChange={v => setMmResolution(v as "768p" | "1080p")}
+              >
+                <SelectTrigger className="mt-1 text-sm h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1080p">1080p（高畫質）</SelectItem>
+                  <SelectItem value="768p">768p（快速）</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
           <div className="flex items-center gap-3">
             <Switch
               checked={mmOptimize}
@@ -2068,17 +2396,23 @@ function VideoToVideoTab() {
   const bus = useVideoAgentBus();
   const [wanPrompt, setWanPrompt] = useState("");
   const [wanVideo, setWanVideo] = useState("");
+  const [wanNeg, setWanNeg] = useState("");
   const [wanStrength, setWanStrength] = useState(0.7);
   const [wanResult, setWanResult] = useState<VideoResult | null>(null);
 
   const [klingPrompt, setKlingPrompt] = useState("");
   const [klingVideo, setKlingVideo] = useState("");
+  const [klingNeg, setKlingNeg] = useState("");
   const [klingCfg, setKlingCfg] = useState(0.5);
   const [klingResult, setKlingResult] = useState<VideoResult | null>(null);
 
   const [ltxPrompt, setLtxPrompt] = useState("");
   const [ltxImage, setLtxImage] = useState("");
   const [ltxNeg, setLtxNeg] = useState("");
+  // 25 fps × 5s = 125 frames（與 router default 對齊）
+  const [ltxFrames, setLtxFrames] = useState(125);
+  const [ltxGuidance, setLtxGuidance] = useState(3);
+  const [ltxExpand, setLtxExpand] = useState(true);
   const [ltxResult, setLtxResult] = useState<VideoResult | null>(null);
 
   const wanMut = trpc.videoStudio.wanVideoToVideo.useMutation({
@@ -2147,8 +2481,8 @@ function VideoToVideoTab() {
       }
       if (cmd.type === "reset") {
         setWanPrompt(""); setWanVideo(""); setWanStrength(0.7);
-        setKlingPrompt(""); setKlingVideo(""); setKlingCfg(0.5);
-        setLtxPrompt(""); setLtxImage(""); setLtxNeg("");
+        setKlingPrompt(""); setKlingVideo(""); setKlingNeg(""); setKlingCfg(0.5);
+        setLtxPrompt(""); setLtxImage(""); setLtxNeg(""); setLtxFrames(125); setLtxGuidance(3); setLtxExpand(true);
         return true;
       }
       return false;
@@ -2169,6 +2503,7 @@ function VideoToVideoTab() {
       const r = await wanMut.mutateAsync({
         prompt: wanPrompt,
         videoUrl: wanVideo,
+        negativePrompt: wanNeg || undefined,
         strength: wanStrength,
       });
       setWanResult(r);
@@ -2191,6 +2526,7 @@ function VideoToVideoTab() {
       const r = await klingMut.mutateAsync({
         prompt: klingPrompt,
         videoUrl: klingVideo,
+        negativePrompt: klingNeg || undefined,
         cfgScale: klingCfg,
       });
       setKlingResult(r);
@@ -2214,9 +2550,12 @@ function VideoToVideoTab() {
         prompt: ltxPrompt,
         imageUrl: ltxImage,
         negativePrompt: ltxNeg || undefined,
+        numFrames: ltxFrames,
+        guidanceScale: ltxGuidance,
+        expandPrompt: ltxExpand,
       });
       setLtxResult(r);
-      registerBgTask(r, "video", "LTX 影生影", ltxPrompt);
+      registerBgTask(r, "video", "LTX 關鍵幀生成", ltxPrompt);
       toast.success("📤 任務已提交！稍後自動更新結果...");
       reportSuccess();
     } catch {
@@ -2258,6 +2597,16 @@ function VideoToVideoTab() {
             onChange={setWanVideo}
             required
           />
+          <div>
+            <Label className="text-xs text-muted-foreground">負向提詞（選填）</Label>
+            <Textarea
+              value={wanNeg}
+              onChange={e => setWanNeg(e.target.value)}
+              placeholder="不想出現的風格元素，如 oversaturated, blurry..."
+              className="mt-1 text-sm resize-none"
+              rows={2}
+            />
+          </div>
           <div>
             <Label className="text-xs text-muted-foreground">
               重繪強度：{(wanStrength * 100).toFixed(0)}%（越高越偏向新風格）
@@ -2301,10 +2650,10 @@ function VideoToVideoTab() {
       {/* Kling v2v */}
       <ToolCard
         icon={Clapperboard}
-        title="Kling v1.6 影片重繪"
-        description="Kling 高品質影片重繪，精確保持原始動態，電影級風格"
-        badge="Kling 1.6"
-        modelId="fal-ai/kling-video/v1.6/standard/video-to-video"
+        title="Kling v2.1 影片重繪"
+        description="Kling 高品質影片重繪，精確保持原始動態，電影級風格（ultra 層級，45 點/5s）"
+        badge="Kling 2.1"
+        modelId="fal-ai/kling-video/v2.1/standard/video-to-video"
         color="purple"
       >
         <div className="space-y-3">
@@ -2324,6 +2673,16 @@ function VideoToVideoTab() {
             onChange={setKlingVideo}
             required
           />
+          <div>
+            <Label className="text-xs text-muted-foreground">負向提詞（選填）</Label>
+            <Textarea
+              value={klingNeg}
+              onChange={e => setKlingNeg(e.target.value)}
+              placeholder="不想出現的風格元素..."
+              className="mt-1 text-sm resize-none"
+              rows={2}
+            />
+          </div>
           <div>
             <Label className="text-xs text-muted-foreground">
               CFG 強度：{klingCfg.toFixed(2)}
@@ -2402,6 +2761,44 @@ function VideoToVideoTab() {
               placeholder="不希望出現的元素..."
               className="mt-1 text-sm"
             />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs text-muted-foreground">
+                幀數：{ltxFrames}（約 {(ltxFrames / 25).toFixed(1)}s @25fps）
+              </Label>
+              <Slider
+                min={25}
+                max={257}
+                step={1}
+                value={[ltxFrames]}
+                onValueChange={([v]) => setLtxFrames(v)}
+                className="mt-2"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">
+                CFG 強度：{ltxGuidance.toFixed(1)}
+              </Label>
+              <Slider
+                min={1}
+                max={5}
+                step={0.1}
+                value={[ltxGuidance]}
+                onValueChange={([v]) => setLtxGuidance(v)}
+                className="mt-2"
+              />
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Switch
+              checked={ltxExpand}
+              onCheckedChange={setLtxExpand}
+              id="ltx-i2v-expand"
+            />
+            <Label htmlFor="ltx-i2v-expand" className="text-xs cursor-pointer">
+              fal 提詞補強（建議開啟）
+            </Label>
           </div>
           <Button
             onClick={runLtx}
@@ -2500,7 +2897,7 @@ function EnhancementTab() {
         outputFps: rifeFps,
       });
       setRifeResult(r);
-      registerBgTask(r, "video", "幀插補");
+      registerBgTask(r, "video", "RIFE v4.6 影片補幀");
       toast.success("📤 任務已提交！稍後自動更新結果...");
       reportSuccess();
     } catch {
@@ -2866,6 +3263,8 @@ function AdvancedControlTab() {
   const [viduPrompt, setViduPrompt] = useState("");
   const [viduImages, setViduImages] = useState(["", ""]);
   const [viduDuration, setViduDuration] = useState<"4" | "8">("4");
+  const [viduAspect, setViduAspect] = useState<"16:9" | "9:16" | "1:1">("16:9");
+  const [viduResolution, setViduResolution] = useState<"720p" | "1080p">("720p");
   const [viduResult, setViduResult] = useState<VideoResult | null>(null);
 
   const camMut = trpc.videoStudio.camMaster.useMutation({
@@ -2916,7 +3315,7 @@ function AdvancedControlTab() {
         negativePrompt: adNeg || undefined,
       });
       setAdResult(r);
-      registerBgTask(r, "video", "AnimateDiff 風格化", adPrompt);
+      registerBgTask(r, "video", "AnimateDiff 動作控制", adPrompt);
       toast.success("📤 任務已提交！稍後自動更新結果...");
       reportSuccess();
     } catch {
@@ -2932,7 +3331,7 @@ function AdvancedControlTab() {
     try {
       const r = await dcMut.mutateAsync({ videoUrl: dcVideo });
       setDcResult(r);
-      registerBgTask(r, "video", "DepthCrafter 深度圖");
+      registerBgTask(r, "video", "DepthCrafter 深度感知生成");
       toast.success("📤 任務已提交！稍後自動更新結果...");
       reportSuccess();
     } catch {
@@ -2952,9 +3351,11 @@ function AdvancedControlTab() {
         prompt: viduPrompt,
         imageUrls: urls,
         duration: viduDuration,
+        aspectRatio: viduAspect,
+        resolution: viduResolution,
       });
       setViduResult(r);
-      registerBgTask(r, "video", "Vidu 參考圖生影", viduPrompt);
+      registerBgTask(r, "video", "Vidu Q1 角色一致性生成", viduPrompt);
       toast.success("📤 任務已提交！稍後自動更新結果...");
       reportSuccess();
     } catch {
@@ -3375,20 +3776,53 @@ function AdvancedControlTab() {
               + 新增參考圖片
             </Button>
           )}
-          <div>
-            <Label className="text-xs text-muted-foreground">時長</Label>
-            <Select
-              value={viduDuration}
-              onValueChange={v => setViduDuration(v as "4" | "8")}
-            >
-              <SelectTrigger className="mt-1 text-sm h-9">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="4">4 秒</SelectItem>
-                <SelectItem value="8">8 秒</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <Label className="text-xs text-muted-foreground">時長</Label>
+              <Select
+                value={viduDuration}
+                onValueChange={v => setViduDuration(v as "4" | "8")}
+              >
+                <SelectTrigger className="mt-1 text-sm h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="4">4 秒</SelectItem>
+                  <SelectItem value="8">8 秒</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">畫面比例</Label>
+              <Select
+                value={viduAspect}
+                onValueChange={v => setViduAspect(v as "16:9" | "9:16" | "1:1")}
+              >
+                <SelectTrigger className="mt-1 text-sm h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="16:9">16:9</SelectItem>
+                  <SelectItem value="9:16">9:16</SelectItem>
+                  <SelectItem value="1:1">1:1</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">解析度</Label>
+              <Select
+                value={viduResolution}
+                onValueChange={v => setViduResolution(v as "720p" | "1080p")}
+              >
+                <SelectTrigger className="mt-1 text-sm h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="720p">720p</SelectItem>
+                  <SelectItem value="1080p">1080p</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <Button
             onClick={runVidu}
