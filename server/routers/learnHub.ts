@@ -784,7 +784,12 @@ getDemoLoginUrl() // 返回 /api/oauth/demo/start
 ### 21. HunYuan3D v3 電影級（混元）
 - **API：** \`trpc.imageStudio.hunyuan3d\`
 - **FAL 模型：** \`fal-ai/hunyuan3d-v3/image-to-3d\`
-- **特點：** 騰訊混元最強 3D 生成，電影級精度
+- **必填參數：** input_image_url（主視角／正面圖）
+- **多視角增強（可選但極大幅提升品質）：** back_image_url（背面）、left_image_url（左側）、right_image_url（右側）
+- **品質與型態：** enable_pbr（bool，預設 true，啟用 PBR 物理材質）、face_count（40000-1500000，預設 500000；遊戲走 50K-200K，CG 走 800K+）、generate_type（Normal / LowPoly / Geometry，預設 Normal；LowPoly 給遊戲 / Geometry 純幾何無紋理最快）、polygon_type（triangle / quadrilateral，預設 triangle；CAD / 動畫管線需要 quadrilateral 才能拓樸細分）
+- **回傳：** \`model_glb_url\` + \`thumbnail_url\` + \`model_urls.{glb, obj, usdz, fbx}\`（四種格式並存，AR 用 usdz、Blender 用 fbx、Web 用 glb）
+- **特點：** 騰訊混元 3D v3 電影級建模，多視角輸入時可解決單圖背面 hallucination 問題；8 點/次（最貴的 3D 模型之一，比 Trellis 2 / SAM 3D 的 5pt 高 60%）
+- **UI 已暴露所有參數：** input_image_url（正面）+ back/left/right_image_url（多視角，3 個獨立上傳器，選填）+ enable_pbr / generate_type / face_count（40K-1.5M 滑桿）/ polygon_type（triangle / quadrilateral 切換）
 
 ### 22. Rodin（文字/圖片生成 3D）
 - **API：** \`trpc.imageStudio.rodin3d\`
@@ -11134,13 +11139,13 @@ function buildModelCoverageDoc(): LearnDoc {
           acc[m.tier] += 1;
           return acc;
         },
-        { premium: 0, standard: 0, fast: 0 } as Record<
-          "premium" | "standard" | "fast",
+        { ultra: 0, premium: 0, standard: 0, fast: 0 } as Record<
+          "ultra" | "premium" | "standard" | "fast",
           number
         >
       );
 
-      return `- **${category}**：${uniqueModels.size} 個 unique modelId（設定 ${models.length} 筆，premium ${tierCount.premium} / standard ${tierCount.standard} / fast ${tierCount.fast}）`;
+      return `- **${category}**：${uniqueModels.size} 個 unique modelId（設定 ${models.length} 筆，ultra ${tierCount.ultra} / premium ${tierCount.premium} / standard ${tierCount.standard} / fast ${tierCount.fast}）`;
     })
     .join("\n");
 

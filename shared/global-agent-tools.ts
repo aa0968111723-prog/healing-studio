@@ -343,6 +343,56 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     },
     executionTarget: "server-side",
   },
+  {
+    // 圖片創作室 3D 分頁的 5 個模型統一入口（trellis-2 / sam-3/3d-objects /
+    // hunyuan3d-v3 / hyper3d/rodin / hunyuan_world）。3D 推論單次需 1-5 分鐘,
+    // executor 提交後立即回 request_id,結果寫入 backgroundJob 由 webhook 收尾。
+    // category 自動依 modelId / prompt / image_url 推斷:
+    //   - prompt 但無 image_url        → text-to-3d (Rodin 純文字模式)
+    //   - image_url 但無 prompt        → image-to-3d (Trellis / SAM / HunYuan3D / Rodin / HunYuan World)
+    //   - prompt + image_url 兼用      → image-to-3d (Rodin 雙輸入,condition_mode 控制融合)
+    name: "studio.generate3D",
+    riskLevel: "medium",
+    requiresHuman: true,
+    allowedArgsSchema: {
+      modelId: "string?",
+      // 雙輸入(Rodin)或單獨任一(其他模型)
+      prompt: "string?",
+      image_url: "string?",
+      image_urls: "string[]?",
+      // HunYuan3D v3 多視角輸入(可選,提升正背面品質)
+      input_image_url: "string?",
+      back_image_url: "string?",
+      left_image_url: "string?",
+      right_image_url: "string?",
+      // Trellis 2 與其他 mesh 模型的解析度 / 紋理控制
+      resolution: "string?",
+      texture_size: "string?",
+      remesh: "boolean?",
+      // HunYuan3D v3 拓樸控制
+      enable_pbr: "boolean?",
+      face_count: "number?",
+      generate_type: "string?", // Normal | LowPoly | Geometry
+      polygon_type: "string?", // triangle | quadrilateral
+      // SAM 3D 偵測控制
+      export_textured_glb: "boolean?",
+      detection_threshold: "number?",
+      // Rodin 雙輸入融合 + 輸出格式 + 品質
+      condition_mode: "string?", // fuse | concat
+      geometry_file_format: "string?", // glb | usdz | fbx | obj | stl
+      material: "string?", // PBR | Shaded
+      quality: "string?", // high | medium | low | extra-low
+      use_hyper: "boolean?",
+      // HunYuan World 場景語意標籤
+      labels_fg1: "string?",
+      labels_fg2: "string?",
+      classes: "string?",
+      export_drc: "boolean?",
+      // 通用
+      seed: "number?",
+    },
+    executionTarget: "server-side",
+  },
   // ─── 導演 AI 規劃工具（光球可請導演為當前工作室規劃下一步） ──
   {
     name: "director.suggestPlan",

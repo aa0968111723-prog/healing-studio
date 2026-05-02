@@ -47,7 +47,7 @@ export interface FalModelConfig {
   modelId: string; // fal-ai/xxx model ID
   label: string; // 顯示名稱
   category: FalCategory;
-  tier: "premium" | "standard" | "fast";
+  tier: "ultra" | "premium" | "standard" | "fast";
   description: string;
   inputSchema: FalInputSchema;
   outputSchema: FalOutputSchema;
