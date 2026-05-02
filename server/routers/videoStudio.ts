@@ -1054,9 +1054,9 @@ export const videoStudioRouter = router({
     }),
 
   /**
-   * AnimateDiff + ControlNet（逐幀姿勢控制）
+   * AnimateDiff + ControlNet（逐幀姿勢/邊緣/深度控制）
    * fal-ai/animatediff-v2v
-   * 基於骨架姿勢 / Canny 邊緣精確控制影片動作
+   * 基於骨架姿勢 / Canny 邊緣 / Depth 深度精確控制影片動作；standard 層級
    */
   animateDiff: brainProcedure
     .input(
@@ -1067,16 +1067,18 @@ export const videoStudioRouter = router({
         controlNet: z
           .enum(["openpose", "canny", "depth", "none"])
           .default("openpose"),
+        /** ControlNet 條件強度 — 0=完全不參考原片, 1=完全鎖死原片骨架/邊緣 */
+        controlnetScale: z.number().min(0).max(2).default(1.0),
         guidanceScale: z.number().min(1).max(20).default(7.5),
         numSteps: z.number().min(10).max(50).default(25),
-        seed: z.number().optional(),
+        seed: z.number().int().nonnegative().optional(),
       })
     )
     .mutation(async ({ input }) => {
       const payload: Record<string, unknown> = {
         prompt: input.prompt,
         video_url: input.videoUrl,
-        controlnet_conditioning_scale: 1.0,
+        controlnet_conditioning_scale: input.controlnetScale,
         guidance_scale: input.guidanceScale,
         num_inference_steps: input.numSteps,
       };
@@ -1093,7 +1095,11 @@ export const videoStudioRouter = router({
         payload,
         300
       )) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   /**

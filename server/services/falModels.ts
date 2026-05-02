@@ -1727,10 +1727,12 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       label: "AnimateDiff V2V",
       category: "video-to-video",
       tier: "standard",
-      description: "AnimateDiff + ControlNet 逐幀姿勢控制",
+      description: "AnimateDiff + ControlNet 逐幀控制：openpose（骨架）/ canny（邊緣）/ depth（深度）/ none；可指定 controlnet_conditioning_scale (0-2) / guidance_scale (1-20) / num_inference_steps (10-50) / seed",
       inputSchema: {
         videoUrl: true,
         prompt: true,
+        guidanceScale: true,
+        numInferenceSteps: true,
         seed: true,
         negativePrompt: true,
       },

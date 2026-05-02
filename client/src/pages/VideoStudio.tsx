@@ -3313,7 +3313,7 @@ function AdvancedControlTab() {
         negativePrompt: adNeg || undefined,
       });
       setAdResult(r);
-      registerBgTask(r, "video", "AnimateDiff 風格化", adPrompt);
+      registerBgTask(r, "video", "AnimateDiff 動作控制", adPrompt);
       toast.success("📤 任務已提交！稍後自動更新結果...");
       reportSuccess();
     } catch {
