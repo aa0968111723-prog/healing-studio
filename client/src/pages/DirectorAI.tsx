@@ -1608,6 +1608,215 @@ const GenerationPipelinePanel = memo(function GenerationPipelinePanel({
   );
 });
 
+// ─── Generation Progress Panel ──────────────────────────────────────────────
+//
+// 跟著 autoGenerateFromSegments 的任務一起出現的「批次生成進度面板」：
+//   - 每個任務一行（GenerationTaskRow），自帶 trpc.director.pollGenerationTask
+//     輪詢（refetchInterval = 3s）
+//   - 任務完成時，把 resultUrl 上拋給父層；父層 useEffect 偵測到 image 任務完成
+//     後會自動觸發對應的 i2v video 任務（透過 executeTaskMut）
+//   - 失敗時顯示錯誤訊息，使用者可重試
+
+type DirectorGenTaskRow = {
+  segmentId: string;
+  segmentIndex: number;
+  modality: "image" | "video" | "audio" | "voice" | "sfx";
+  modelId: string;
+  prompt: string;
+  voiceText?: string;
+  params: Record<string, unknown>;
+  estimatedPoints: number;
+  dependsOn?: { segmentId: string; modality: string };
+  jobId?: number;
+  requestId?: string;
+  status: "pending" | "processing" | "completed" | "failed";
+  resultUrl?: string | null;
+  errorMessage?: string | null;
+};
+
+const MODALITY_BADGES: Record<
+  DirectorGenTaskRow["modality"],
+  { label: string; icon: React.ComponentType<{ className?: string }>; color: string }
+> = {
+  image: { label: "圖像", icon: Image, color: "bg-blue-100 text-blue-700" },
+  video: { label: "影片", icon: Camera, color: "bg-purple-100 text-purple-700" },
+  audio: { label: "音樂", icon: Music, color: "bg-amber-100 text-amber-700" },
+  voice: { label: "語音", icon: Mic, color: "bg-emerald-100 text-emerald-700" },
+  sfx: { label: "音效", icon: Volume2, color: "bg-pink-100 text-pink-700" },
+};
+
+const GenerationTaskRow = memo(function GenerationTaskRow({
+  task,
+  onUpdate,
+}: {
+  task: DirectorGenTaskRow;
+  onUpdate: (
+    segmentId: string,
+    modality: DirectorGenTaskRow["modality"],
+    patch: Partial<DirectorGenTaskRow>
+  ) => void;
+}) {
+  const isPolling =
+    task.status === "processing" && typeof task.jobId === "number";
+  const pollQuery = trpc.director.pollGenerationTask.useQuery(
+    { jobId: task.jobId ?? 0 },
+    {
+      enabled: isPolling,
+      refetchInterval: isPolling ? 3000 : false,
+      retry: 1,
+    }
+  );
+
+  // 把輪詢結果同步回 state — onUpdate 被父層 useCallback 包起來，
+  // 才能避免每輪輪詢觸發無限 setState 迴圈。
+  useEffect(() => {
+    const data = pollQuery.data;
+    if (!data) return;
+    if (data.status === "COMPLETED") {
+      onUpdate(task.segmentId, task.modality, {
+        status: "completed",
+        resultUrl: data.resultUrl ?? null,
+      });
+    } else if (data.status === "FAILED") {
+      onUpdate(task.segmentId, task.modality, {
+        status: "failed",
+        errorMessage: data.errorMessage ?? "fal.ai 回報任務失敗",
+      });
+    }
+  }, [pollQuery.data, task.segmentId, task.modality, onUpdate]);
+
+  const badge = MODALITY_BADGES[task.modality];
+  const Icon = badge.icon;
+  const statusLabel =
+    task.status === "pending"
+      ? task.dependsOn
+        ? "等待上游"
+        : "排隊中"
+      : task.status === "processing"
+        ? "生成中..."
+        : task.status === "completed"
+          ? "已完成"
+          : "失敗";
+  const statusColor =
+    task.status === "completed"
+      ? "text-emerald-600"
+      : task.status === "failed"
+        ? "text-rose-600"
+        : task.status === "processing"
+          ? "text-blue-600"
+          : "text-muted-foreground";
+
+  return (
+    <div className="flex items-center gap-2 p-2 rounded-lg bg-white/60 border border-border/40 text-xs">
+      <span
+        className={cn(
+          "inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md font-medium shrink-0",
+          badge.color
+        )}
+      >
+        <Icon className="w-3 h-3" />
+        {badge.label}
+      </span>
+      <span className="font-semibold text-muted-foreground shrink-0">
+        #{task.segmentIndex + 1}
+      </span>
+      <span className="flex-1 truncate text-muted-foreground">
+        {task.prompt.slice(0, 60) || "(無提示詞)"}
+      </span>
+      {task.status === "processing" && (
+        <div className="w-3 h-3 border-2 border-blue-300 border-t-blue-600 rounded-full animate-spin shrink-0" />
+      )}
+      {task.status === "completed" && task.resultUrl && (
+        <a
+          href={task.resultUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[10px] text-emerald-700 hover:underline shrink-0"
+        >
+          查看成品
+        </a>
+      )}
+      <span className={cn("text-[10px] font-medium shrink-0", statusColor)}>
+        {statusLabel}
+      </span>
+    </div>
+  );
+});
+
+const GenerationProgressPanel = memo(function GenerationProgressPanel({
+  tasks,
+  onUpdate,
+  onClear,
+}: {
+  tasks: DirectorGenTaskRow[];
+  onUpdate: (
+    segmentId: string,
+    modality: DirectorGenTaskRow["modality"],
+    patch: Partial<DirectorGenTaskRow>
+  ) => void;
+  onClear: () => void;
+}) {
+  const [collapsed, setCollapsed] = useState(false);
+  const completed = tasks.filter(t => t.status === "completed").length;
+  const failed = tasks.filter(t => t.status === "failed").length;
+  const processing = tasks.filter(t => t.status === "processing").length;
+  const pending = tasks.filter(t => t.status === "pending").length;
+  const allDone =
+    tasks.length > 0 && completed + failed === tasks.length;
+
+  if (tasks.length === 0) return null;
+
+  return (
+    <div className="fixed bottom-4 right-4 z-40 w-[min(420px,calc(100vw-2rem))] rounded-xl border border-border/50 bg-white/95 backdrop-blur-sm shadow-2xl">
+      <div className="flex items-center gap-2 p-3 border-b border-border/40">
+        <Zap className="w-4 h-4 text-amber-500" />
+        <span className="text-sm font-semibold">批次生成進度</span>
+        <span className="text-[10px] text-muted-foreground">
+          {completed}/{tasks.length} 完成
+          {processing > 0 ? ` · ${processing} 進行中` : ""}
+          {pending > 0 ? ` · ${pending} 等待中` : ""}
+          {failed > 0 ? ` · ${failed} 失敗` : ""}
+        </span>
+        <div className="ml-auto flex items-center gap-1">
+          <button
+            onClick={() => setCollapsed(c => !c)}
+            className="p-1 rounded hover:bg-muted/40"
+            title={collapsed ? "展開" : "收合"}
+          >
+            {collapsed ? (
+              <ChevronUp className="w-3.5 h-3.5" />
+            ) : (
+              <ChevronDown className="w-3.5 h-3.5" />
+            )}
+          </button>
+          {allDone && (
+            <button
+              onClick={onClear}
+              className="p-1 rounded hover:bg-muted/40 text-muted-foreground"
+              title="關閉面板"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+      {!collapsed && (
+        <ScrollArea className="max-h-[40vh]">
+          <div className="p-2 space-y-1.5">
+            {tasks.map(t => (
+              <GenerationTaskRow
+                key={`${t.segmentId}-${t.modality}`}
+                task={t}
+                onUpdate={onUpdate}
+              />
+            ))}
+          </div>
+        </ScrollArea>
+      )}
+    </div>
+  );
+});
+
 // ─── Export Panel ────────────────────────────────────────────────────────────
 
 const ExportPanel = memo(function ExportPanel({
@@ -2268,13 +2477,28 @@ export default function DirectorAI() {
     voiceSettings: { voiceSpeed: 1.0, voiceStability: 0.5 },
     mode: "lightning" as "lightning" | "deep_precision",
   });
-  const [generationTasks, setGenerationTasks] = useState<Array<{
+  // 每個任務的完整定義 + 執行狀態 — 必須在前端持久化（保留 modelId、prompt、
+  // params、dependsOn 等）才能：
+  //   1. 顯示生成進度面板（modality、progress、resultUrl）
+  //   2. 在上游 image 任務完成後自動觸發 dependent video（i2v）
+  //   3. 失敗時提供使用者重試入口
+  type DirectorGenTask = {
     segmentId: string;
     segmentIndex: number;
-    modality: string;
+    modality: "image" | "video" | "audio" | "voice" | "sfx";
+    modelId: string;
+    prompt: string;
+    voiceText?: string;
+    params: Record<string, unknown>;
+    estimatedPoints: number;
+    dependsOn?: { segmentId: string; modality: string };
     jobId?: number;
+    requestId?: string;
     status: "pending" | "processing" | "completed" | "failed";
-  }>>([]);
+    resultUrl?: string | null;
+    errorMessage?: string | null;
+  };
+  const [generationTasks, setGenerationTasks] = useState<DirectorGenTask[]>([]);
 
   // ─── tRPC hooks ──────────────────────────────────────────────────────────
 
@@ -2478,19 +2702,27 @@ export default function DirectorAI() {
         `已規劃 ${data.totalTasks} 個生成任務，預估 ${data.totalPoints} pts`
       );
       setShowBatchGeneration(false);
-      setGenerationTasks(
-        data.tasks.map(t => ({
-          segmentId: t.segmentId,
-          segmentIndex: t.segmentIndex,
-          modality: t.modality,
-          status: "pending" as const,
-        }))
-      );
+      // 把完整的任務定義（含 modelId/prompt/params/dependsOn）存入 state，
+      // 讓 GenerationProgressPanel 能輪詢狀態 + 在上游 image 完成後自動觸發
+      // 對應的 i2v video 任務。
+      const tasksWithDef: DirectorGenTask[] = data.tasks.map(t => ({
+        segmentId: t.segmentId,
+        segmentIndex: t.segmentIndex,
+        modality: t.modality as DirectorGenTask["modality"],
+        modelId: t.modelId,
+        prompt: t.prompt,
+        voiceText: t.voiceText,
+        params: (t.params ?? {}) as Record<string, unknown>,
+        estimatedPoints: t.estimatedPoints,
+        dependsOn: t.dependsOn,
+        status: "pending" as const,
+      }));
+      setGenerationTasks(tasksWithDef);
 
       // Fire independent tasks (image / audio / voice / sfx). Tasks with
       // dependsOn (i2v video relying on a generated image) stay pending —
-      // user can trigger them after the upstream image lands.
-      const independent = data.tasks.filter(t => !t.dependsOn);
+      // GenerationProgressPanel 的 useEffect 會在上游 image 完成時自動觸發。
+      const independent = tasksWithDef.filter(t => !t.dependsOn);
       for (const t of independent) {
         executeTaskMut.mutate({
           segmentId: t.segmentId,
@@ -2499,31 +2731,130 @@ export default function DirectorAI() {
           modelId: t.modelId,
           prompt: t.prompt,
           voiceText: t.voiceText,
-          params: (t.params ?? {}) as Record<string, unknown>,
+          params: t.params,
           mode: batchGenerationOptions.mode,
         });
       }
-      const deferred = data.tasks.length - independent.length;
+      const deferred = tasksWithDef.length - independent.length;
       if (deferred > 0) {
-        toast.info(`${deferred} 個 i2v 影片任務待上游圖像完成後手動觸發`);
+        toast.info(`${deferred} 個 i2v 影片任務將在上游圖像完成後自動觸發`);
       }
     },
     onError: e => toast.error("規劃失敗：" + e.message),
   });
 
   const executeTaskMut = trpc.director.executeGenerationTask.useMutation({
-    onSuccess: (data) => {
+    onSuccess: data => {
       setGenerationTasks(prev =>
         prev.map(t =>
           t.segmentId === data.segmentId && t.modality === data.modality
-            ? { ...t, jobId: data.jobId, status: "processing" as const }
+            ? {
+                ...t,
+                jobId: data.jobId,
+                requestId: data.requestId,
+                status: "processing" as const,
+              }
             : t
         )
       );
       toast.success(`${data.label} 已開始生成`);
     },
-    onError: e => toast.error("執行失敗：" + e.message),
+    onError: (e, vars) => {
+      // 把對應任務標記為 failed，前端面板可顯示錯誤並提供重試
+      setGenerationTasks(prev =>
+        prev.map(t =>
+          t.segmentId === vars.segmentId && t.modality === vars.modality
+            ? { ...t, status: "failed" as const, errorMessage: e.message }
+            : t
+        )
+      );
+      toast.error("執行失敗：" + e.message);
+    },
   });
+
+  // GenerationTaskRow 用的 patch handler — 由父層持有，避免子元件重新訂閱輪詢
+  const handleGenerationTaskUpdate = useCallback(
+    (
+      segmentId: string,
+      modality: "image" | "video" | "audio" | "voice" | "sfx",
+      patch: Partial<DirectorGenTask>
+    ) => {
+      setGenerationTasks(prev =>
+        prev.map(t =>
+          t.segmentId === segmentId && t.modality === modality
+            ? { ...t, ...patch }
+            : t
+        )
+      );
+    },
+    []
+  );
+
+  const handleClearGenerationTasks = useCallback(() => {
+    setGenerationTasks([]);
+  }, []);
+
+  // 自動觸發 i2v 影片任務 — 監聽 generationTasks，當 image 任務完成且 resultUrl
+  // 可用時，找出依賴它的 video 任務（dependsOn.modality === "image"）並用
+  // resultUrl 當 firstFrameUrl 觸發 executeGenerationTask。
+  // 透過樂觀地把 dependent 任務狀態先設為 "processing"，避免 effect 在 mutate
+  // 還沒回 onSuccess 前重複觸發。
+  useEffect(() => {
+    const completedImages = generationTasks.filter(
+      t =>
+        t.modality === "image" &&
+        t.status === "completed" &&
+        typeof t.resultUrl === "string" &&
+        t.resultUrl.length > 0
+    );
+    if (completedImages.length === 0) return;
+
+    const fired: Array<{ task: DirectorGenTask; firstFrameUrl: string }> = [];
+    for (const upstream of completedImages) {
+      const url = upstream.resultUrl;
+      if (!url) continue;
+      const dependents = generationTasks.filter(
+        t =>
+          t.status === "pending" &&
+          !!t.dependsOn &&
+          t.dependsOn.segmentId === upstream.segmentId &&
+          t.dependsOn.modality === "image"
+      );
+      for (const dep of dependents) {
+        fired.push({ task: dep, firstFrameUrl: url });
+      }
+    }
+    if (fired.length === 0) return;
+
+    setGenerationTasks(prev =>
+      prev.map(t => {
+        const isFired = fired.some(
+          f =>
+            f.task.segmentId === t.segmentId && f.task.modality === t.modality
+        );
+        return isFired ? { ...t, status: "processing" as const } : t;
+      })
+    );
+
+    for (const { task, firstFrameUrl } of fired) {
+      executeTaskMut.mutate({
+        segmentId: task.segmentId,
+        segmentIndex: task.segmentIndex,
+        modality: task.modality,
+        modelId: task.modelId,
+        prompt: task.prompt,
+        voiceText: task.voiceText,
+        params: task.params,
+        mode: batchGenerationOptions.mode,
+        firstFrameUrl,
+      });
+    }
+    toast.info(`圖像完成，自動觸發 ${fired.length} 個 i2v 影片任務`);
+    // executeTaskMut.mutate 在 react-query 中是穩定 reference；
+    // batchGenerationOptions.mode 為 stable primitive。
+    // 故只需依 generationTasks 變更觸發。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generationTasks]);
 
   const deletePlanningMut = trpc.director.deletePlanningSession.useMutation({
     onSuccess: () => planningSessionsQuery.refetch(),
@@ -5063,6 +5394,12 @@ export default function DirectorAI() {
         onOptionsChange={setBatchGenerationOptions}
         onStartGeneration={handleStartBatchGeneration}
         isPending={autoGenerateMut.isPending}
+      />
+
+      <GenerationProgressPanel
+        tasks={generationTasks}
+        onUpdate={handleGenerationTaskUpdate}
+        onClear={handleClearGenerationTasks}
       />
     </div>
   );
