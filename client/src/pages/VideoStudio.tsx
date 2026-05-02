@@ -2897,7 +2897,7 @@ function EnhancementTab() {
         outputFps: rifeFps,
       });
       setRifeResult(r);
-      registerBgTask(r, "video", "幀插補");
+      registerBgTask(r, "video", "RIFE v4.6 影片補幀");
       toast.success("📤 任務已提交！稍後自動更新結果...");
       reportSuccess();
     } catch {

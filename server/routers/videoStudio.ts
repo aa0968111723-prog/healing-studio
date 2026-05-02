@@ -933,7 +933,7 @@ export const videoStudioRouter = router({
   /**
    * Video Frame Interpolation（補幀）
    * fal-ai/rife-v4.6/video
-   * RIFE v4.6 高品質補幀，2x/4x 幀率提升
+   * RIFE v4.6 高品質補幀，2x/4x 幀率提升；可指定目標 fps（24-120），standard 層級
    */
   frameInterpolation: brainProcedure
     .input(
@@ -954,7 +954,11 @@ export const videoStudioRouter = router({
         payload,
         240
       )) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   /**
