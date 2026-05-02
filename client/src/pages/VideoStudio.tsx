@@ -1672,7 +1672,7 @@ function ImageToVideoTab() {
             return true;
           case "duration":
             if (value === "5" || value === "10") { setKlingDuration(value); setRunwayDuration(value); }
-            if (value === "4" || value === "8") setPvDuration(value);
+            if (value === "5" || value === "8") setPvDuration(value);
             return true;
           case "resolution":
             if (value === "480p" || value === "720p") setWanRes(value);
@@ -1688,7 +1688,7 @@ function ImageToVideoTab() {
         setKlingPrompt(""); setKlingImage(""); setKlingTail(""); setKlingDuration("5");
         setWanPrompt(""); setWanImage(""); setWanRes("720p");
         setRunwayPrompt(""); setRunwayImage(""); setRunwayDuration("5"); setRunwayRatio("1280:720");
-        setPvPrompt(""); setPvImage(""); setPvDuration("4"); setPvQuality("720p");
+        setPvPrompt(""); setPvImage(""); setPvNeg(""); setPvDuration("5"); setPvQuality("720p"); setPvAspect("16:9"); setPvStyle("");
         setMmPrompt(""); setMmImage(""); setMmOptimize(true);
         return true;
       }

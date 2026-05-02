@@ -227,7 +227,7 @@ export const GENERATION_MODALITIES_KNOWLEDGE = `
   kling-i2v — Kling 2.1 圖生影（首尾幀、5/10秒）
   wan-i2v — Wan 2.1 圖生影（480p/720p）
   runway-i2v — Runway Gen4 圖生影（5/10秒）
-  pixverse-i2v — PixVerse 4.5 圖生影（4/8秒、多品質檔次）
+  pixverse-i2v — PixVerse 4.5 圖生影（5/8 秒、360-1080p、可指定 aspect_ratio、5 種預設風格 anime/3d_animation/clay/comic/cyberpunk、可指定 seed）
   minimax-i2v — MiniMax 圖生影（提示詞優化）
 
 ■ 影生影 (v2v)：wan-v2v / kling-v2v / ltx-v2v

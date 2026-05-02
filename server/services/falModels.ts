@@ -610,7 +610,7 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       label: "PixVerse V4.5 i2v",
       category: "image-to-video",
       tier: "standard",
-      description: "PixVerse 4.5 圖生影：社群短片節奏；5s/8s、360-1080p、可指定 aspect_ratio / style（動漫/3D/黏土/漫畫/賽博龐克）/ seed",
+      description: "PixVerse 4.5 圖生影：社群短片節奏；5s/8s、360-1080p、可指定 aspect_ratio / motion_mode（normal/fast）/ style（動漫/3D/黏土/漫畫/賽博龐克）/ seed",
       inputSchema: {
         imageUrl: true,
         prompt: true,
@@ -618,6 +618,9 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
         aspectRatio: true,
         negativePrompt: true,
         seed: true,
+        // PixVerse 專屬：quality(360-1080p)、motionMode(normal/fast)、stylePrompt(5 種預設風格)
+        // — falInputSchema 用 stylePrompt 來標註此能力
+        stylePrompt: true,
       },
       outputSchema: { videoUrl: true },
       timeoutMs: 240_000,
