@@ -15,7 +15,7 @@
 
 import * as cron from "node-cron";
 import { createHash } from "crypto";
-import { invokeLLM } from "../_core/llm";
+import { invokeLLM, extractMessageText } from "../_core/llm";
 import { CircuitBreaker } from "./circuitBreaker";
 import { ENV } from "../_core/env";
 import { serverEnv } from "../_core/env.validated";
@@ -195,12 +195,8 @@ ${articlesSummary}
     temperature: 0.4,
   });
 
-  // Extract text from result
-  const firstChoice = result.choices?.[0];
-  const raw =
-    typeof firstChoice?.message?.content === "string"
-      ? firstChoice.message.content
-      : "";
+  // Extract text from result (容忍 array-form content)
+  const raw = extractMessageText(result.choices?.[0]?.message?.content);
 
   // Parse JSON from response
   const jsonMatch = raw.match(/\[[\s\S]*\]/);

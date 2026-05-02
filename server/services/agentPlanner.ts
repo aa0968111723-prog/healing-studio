@@ -1,4 +1,9 @@
-import { invokeLLM, type Message, type InvokeResult } from "../_core/llm";
+import {
+  invokeLLM,
+  extractMessageText,
+  type Message,
+  type InvokeResult,
+} from "../_core/llm";
 import { AGENT_PLAN_V3_JSON_SCHEMA } from "../../shared/agent-plan-schema";
 import { summarizeGlobalCapabilityRegistry } from "../../shared/global-agent-capabilities";
 import { summarizeGlobalToolRegistry } from "../../shared/global-agent-tools";
@@ -368,15 +373,7 @@ Prefer accuracy over speed: keep plans minimal, verify assumptions before each s
 }
 
 function extractPlannerContent(result: InvokeResult): string {
-  const content = result.choices[0]?.message?.content;
-  if (typeof content === "string") return content;
-  if (Array.isArray(content)) {
-    return content
-      .map(part => part.type === "text" ? part.text : "")
-      .filter(Boolean)
-      .join("\n");
-  }
-  return "";
+  return extractMessageText(result.choices[0]?.message?.content);
 }
 
 export async function runSchemaFirstAgentPlanner(
