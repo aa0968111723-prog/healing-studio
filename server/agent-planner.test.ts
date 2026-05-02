@@ -120,6 +120,51 @@ describe("agentPlanner", () => {
     expect(systemPrompt).toMatch(/Forbidden lazy outputs|navigate.*tell the user/);
   });
 
+  // ── Mode-specific directive ────────────────────────────────────────
+  // The chat layer threads the user's selected composer mode (多步驟代理 /
+  // 計畫 / 跳頁 / 功能詢問) through input.context. The planner must surface
+  // it as a hard contract so the LLM never falls back to chatty replies
+  // when the user explicitly opted into autonomous execution.
+  it("injects multi-step mode directive when context names 多步驟代理", () => {
+    const messages: Message[] = [
+      { role: "user", content: "幫我做關於茶的療癒短片" },
+    ];
+    const built = buildAgentPlannerMessages({
+      messages,
+      context: "全站光球聊天 · 使用者選擇模式: multi-step",
+    });
+    const systemPrompt = String(built[0].content);
+    // The directive should surface the chosen mode in plain words.
+    expect(systemPrompt).toContain("多步驟代理");
+    // Multi-step must commit to clarification or tasked — never direct, never chatty.
+    expect(systemPrompt).toMatch(/clarification.*tasked|tasked.*clarification/s);
+    expect(systemPrompt).toMatch(/FORBIDDEN.*direct|direct.*FORBIDDEN/s);
+    // Phantom-plan anti-pattern is reiterated for this mode.
+    expect(systemPrompt).toMatch(/步驟\s*1.*步驟\s*2|phantom/iu);
+  });
+
+  it("injects plan mode directive when context names 計畫", () => {
+    const messages: Message[] = [{ role: "user", content: "幫我擬一份計畫" }];
+    const built = buildAgentPlannerMessages({
+      messages,
+      context: "全站光球聊天 · 使用者選擇模式: plan",
+    });
+    const systemPrompt = String(built[0].content);
+    expect(systemPrompt).toContain("計畫");
+    expect(systemPrompt).toMatch(/tasked.*toolName|clarification/);
+  });
+
+  it("injects no mode directive when context lacks 使用者選擇模式", () => {
+    const messages: Message[] = [{ role: "user", content: "嗨" }];
+    const built = buildAgentPlannerMessages({
+      messages,
+      context: "全站光球聊天",
+    });
+    const systemPrompt = String(built[0].content);
+    // No "User mode directive:" header should appear.
+    expect(systemPrompt).not.toContain("User mode directive");
+  });
+
   it("drops attachment parts whose URL or MIME is malformed (defence against corrupt uploads / prompt injection)", () => {
     // Without sanitisation, a data: URL or a URL with embedded newlines could
     // either blow up the planner's token budget (huge base64) or smuggle

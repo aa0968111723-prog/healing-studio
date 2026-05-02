@@ -8,6 +8,12 @@
  * 方便在 node 環境下用 vitest 做大量回歸測試。
  */
 
+import {
+  buildContextualClarificationOptions,
+  extractPhantomPlanQuestion,
+  isPhantomPlanReply,
+} from "../../shared/orb-clarification-options";
+
 export type OrbRawAction = { type: string; payload: string };
 export type OrbRawToolCall = {
   name: string;
@@ -116,7 +122,7 @@ function toRawActionPayload(action: Record<string, unknown>): string {
  */
 export function parseOrbReply(
   rawReply: string,
-  opts: { alwaysConfirm?: boolean } = {}
+  opts: { alwaysConfirm?: boolean; userText?: string } = {}
 ): OrbParsedReply {
   if (!rawReply) {
     return {
@@ -185,6 +191,24 @@ export function parseOrbReply(
       if (opts.alwaysConfirm && (actions.length > 0 || !!plannerOutput)) askBeforeAct = true;
 
       const clarification = extractClarificationFromJson(parsed, plannerOutput);
+      // When the LLM commits to clarification mode but ships an empty
+      // options list (or generic placeholders the planner discarded),
+      // derive context-aware options from the user's own text so the
+      // quick-pick card actually helps the user disambiguate.
+      if (
+        clarification.needsClarification &&
+        (!clarification.clarificationOptions ||
+          clarification.clarificationOptions.length === 0) &&
+        opts.userText
+      ) {
+        const optionPack = buildContextualClarificationOptions({
+          userText: opts.userText,
+          dimension: "format",
+        });
+        if (optionPack.options.length > 0) {
+          clarification.clarificationOptions = optionPack.options;
+        }
+      }
       const clarifiedActions = clarification.needsClarification ? [] : actions;
       const finalAskBeforeAct = clarification.needsClarification ? true : askBeforeAct;
       const citations = extractCitationsFromJson(parsed, plannerOutput);
@@ -317,6 +341,38 @@ export function parseOrbReply(
       needsClarification,
       clarificationQuestion,
       clarificationOptions,
+    };
+  }
+
+  // ── Phantom-plan reclassification ───────────────────────────────
+  // The LLM sometimes describes a multi-step plan in chat ("步驟 1 ... 步驟 4
+  // 你比較想從哪步開始？") without committing to decision.mode='clarification'
+  // and without emitting any actions. The result is a wall of text the user
+  // can't act on. Catch that pattern here and surface it as a real
+  // clarification with quick-pick options derived from the user's own topic.
+  if (
+    actions.length === 0 &&
+    toolCalls.length === 0 &&
+    isPhantomPlanReply(reply)
+  ) {
+    const question =
+      extractPhantomPlanQuestion(reply) ?? "想先確認一下你要的方向，這樣才能做對。";
+    const userText = opts.userText ?? "";
+    const optionPack = buildContextualClarificationOptions({
+      userText,
+      dimension: "format",
+    });
+    return {
+      reply,
+      actions: [],
+      intent,
+      askBeforeAct: true,
+      suggestions,
+      toolCalls,
+      needsClarification: true,
+      clarificationQuestion: question,
+      clarificationOptions:
+        optionPack.options.length > 0 ? optionPack.options : undefined,
     };
   }
 

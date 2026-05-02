@@ -74,6 +74,39 @@ export interface GlobalOrbExecutorDeps {
 const HIGH_RISK_ACTIONS = new Set(["submit", "reset", "applyPreset"]);
 const EXTERNAL_TOOL_PREFIX = ["github.", "deploy.", "code."];
 
+/**
+ * UI actions that swap the visible workspace inside a single page (tab,
+ * modality, mode, preset). React commits the new state asynchronously, so
+ * a follow-up dispatch landing on the SAME page would race against the
+ * destination child re-mount and end up writing to the previous bridge —
+ * the empty-prompt symptom users see in the multi-step orb. We pause
+ * briefly between same-page steps when the previous step's action is in
+ * this set.
+ */
+const STATE_MUTATING_UI_ACTIONS = new Set<string>([
+  "setTab",
+  "setModality",
+  "setMode",
+  "applyPreset",
+]);
+const SAME_PAGE_STATE_MUTATION_SETTLE_MS = 120;
+
+function waitMs(ms: number) {
+  return new Promise<void>(resolve => setTimeout(resolve, ms));
+}
+
+function stepNeedsSamePageSettle(
+  prev: GlobalOrbExecutorStep | undefined,
+  next: GlobalOrbExecutorStep | undefined
+): boolean {
+  if (!prev || !next) return false;
+  if (!prev.pagePath || !next.pagePath) return false;
+  if (prev.pagePath !== next.pagePath) return false;
+  return (prev.uiActions ?? []).some(action =>
+    STATE_MUTATING_UI_ACTIONS.has(action.type)
+  );
+}
+
 function isSecretLike(key: string, value: unknown): boolean {
   const lower = key.toLowerCase();
   if (lower.includes("key") || lower.includes("token") || lower.includes("secret") || lower.includes("password")) return true;
@@ -232,6 +265,14 @@ export function createGlobalOrbExecutor(deps: GlobalOrbExecutorDeps) {
       const step = task.steps[i];
       if (cancelled) break;
       if (paused) break;
+
+      // Same-page state-mutation settle: when the previous step changed the
+      // visible workspace (setTab / setModality / setMode / applyPreset)
+      // and this step targets the same page, give React a chance to commit
+      // before the next dispatch lands on the new bridge.
+      if (i > 0 && stepNeedsSamePageSettle(task.steps[i - 1], step)) {
+        await waitMs(SAME_PAGE_STATE_MUTATION_SETTLE_MS);
+      }
 
       setState(prev => ({
         ...prev,

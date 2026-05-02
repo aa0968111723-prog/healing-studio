@@ -122,6 +122,33 @@ describe("formatResearchPromptBlock", () => {
     expect(block).toContain("/process?spec=");
   });
 
+  it("agent-mode block omits the '步驟 1 / 步驟 2' format directive so the planner stays in charge of plan.steps", () => {
+    const results: WebResearchResult[] = [
+      {
+        id: "r1",
+        query: "tea process",
+        source: "Brave Search",
+        title: "Traditional Tea Making",
+        summary: "Six core steps from picking leaves to drying.",
+        url: "https://example.com/tea",
+        relevance: 80,
+        addedToLearnHub: false,
+        createdAt: 1,
+      },
+    ];
+    const block = formatResearchPromptBlock(results, { mode: "agent" });
+    // Sources still surfaced.
+    expect(block).toContain("Traditional Tea Making");
+    expect(block).toContain("https://example.com/tea");
+    // The "use 步驟 1 / 步驟 2" instruction is what makes the LLM emit the
+    // phantom-plan walls of text users keep complaining about — the agent
+    // mode block must NOT include it.
+    expect(block).not.toMatch(/步驟\s*1\s*\/\s*步驟\s*2/);
+    // The lean header should hint at clarification / plan.steps as the
+    // proper structured output channel.
+    expect(block).toMatch(/clarification|plan\.steps|背景參考/u);
+  });
+
   it("instructs the LLM to drop sources whose topic does not match the user prompt", () => {
     const results: WebResearchResult[] = [
       {

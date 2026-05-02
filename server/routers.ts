@@ -5283,7 +5283,15 @@ export const appRouter = router({
           featureFlags.isEnabled("RESEARCH_MODE");
         const webResearchOutcome = await runOrbWebResearch(
           latestUserTextForRouting,
-          { enabled: webResearchEnabled }
+          {
+            enabled: webResearchEnabled,
+            // Planner-driven path (schema-first agent planner): use the
+            // lean "agent" formatting so the LLM does not collapse the
+            // reply into a "步驟 1 / 步驟 2 ... 從哪步開始？" wall of text
+            // that conflicts with the planner's clarification / tasked
+            // commitment. Legacy fallback can still call the qna shape.
+            mode: "agent",
+          }
         );
         if (webResearchOutcome.reason === "matched") {
           appendTelemetryEvent(telemetryEvents, "orb.web_research.hit", {
@@ -6188,6 +6196,7 @@ export const appRouter = router({
           }
           const legacy = parseOrbReply(rawReply, {
             alwaysConfirm: input.alwaysConfirm,
+            userText: latestUserTextForRouting,
           });
           // Gap 17: moderate the LLM reply text before it reaches the user.
           const legacyModeration = moderateOrbContent(legacy.reply ?? "");
