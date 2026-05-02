@@ -1598,6 +1598,8 @@ function ImageToVideoTab() {
   const [mmPrompt, setMmPrompt] = useState("");
   const [mmImage, setMmImage] = useState("");
   const [mmOptimize, setMmOptimize] = useState(true);
+  const [mmDuration, setMmDuration] = useState<"6" | "10">("6");
+  const [mmResolution, setMmResolution] = useState<"768p" | "1080p">("1080p");
   const [mmResult, setMmResult] = useState<VideoResult | null>(null);
 
   const klingMut = trpc.videoStudio.klingImageToVideo.useMutation({
@@ -1689,7 +1691,7 @@ function ImageToVideoTab() {
         setWanPrompt(""); setWanImage(""); setWanRes("720p");
         setRunwayPrompt(""); setRunwayImage(""); setRunwayDuration("5"); setRunwayRatio("1280:720");
         setPvPrompt(""); setPvImage(""); setPvNeg(""); setPvDuration("5"); setPvQuality("720p"); setPvAspect("16:9"); setPvStyle("");
-        setMmPrompt(""); setMmImage(""); setMmOptimize(true);
+        setMmPrompt(""); setMmImage(""); setMmOptimize(true); setMmDuration("6"); setMmResolution("1080p");
         return true;
       }
       return false;
@@ -1830,6 +1832,8 @@ function ImageToVideoTab() {
         prompt: mmPrompt,
         imageUrl: mmImage,
         promptOptimizer: mmOptimize,
+        duration: mmDuration,
+        resolution: mmResolution,
       });
       setMmResult(r);
       registerBgTask(r, "video", "MiniMax 圖生影", mmPrompt);
@@ -2309,6 +2313,38 @@ function ImageToVideoTab() {
             accept="image"
             required
           />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs text-muted-foreground">時長</Label>
+              <Select
+                value={mmDuration}
+                onValueChange={v => setMmDuration(v as "6" | "10")}
+              >
+                <SelectTrigger className="mt-1 text-sm h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="6">6 秒</SelectItem>
+                  <SelectItem value="10">10 秒</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">解析度</Label>
+              <Select
+                value={mmResolution}
+                onValueChange={v => setMmResolution(v as "768p" | "1080p")}
+              >
+                <SelectTrigger className="mt-1 text-sm h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1080p">1080p（高畫質）</SelectItem>
+                  <SelectItem value="768p">768p（快速）</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
           <div className="flex items-center gap-3">
             <Switch
               checked={mmOptimize}

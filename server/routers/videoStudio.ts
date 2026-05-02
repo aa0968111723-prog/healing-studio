@@ -770,7 +770,11 @@ export const videoStudioRouter = router({
         payload,
         300
       )) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   // ═══════════════════════════════════════════════════════════════════════════
