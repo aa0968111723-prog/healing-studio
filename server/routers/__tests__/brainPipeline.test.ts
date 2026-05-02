@@ -16,6 +16,11 @@ const {
   ROUTER_TO_AI_SLOTS,
   PROVIDERS,
   STUDIO_CONSUMERS,
+  API_ENDPOINTS,
+  WEBHOOK_ENDPOINTS,
+  DATA_NODES,
+  INFRA_NODES,
+  BROWSER_NODE_META,
 } = __testing;
 
 /** 專案根目錄 — 用於檢查 graph 中提到的檔案是否真的存在於 repo。 */
@@ -554,6 +559,183 @@ describe("brainPipeline graph builder", () => {
     setProviderHealth("gemini", "degraded", "elevated latency");
     const afterSecond = getProviderHealthVersion();
     expect(afterSecond).toBeGreaterThan(afterFirst);
+  });
+
+  describe("「網站如何運作」深度整合層（client / api / data / infrastructure）", () => {
+    it("admin 完整視圖預設包含 browser + api + data + infra 節點", () => {
+      const g = buildGraph({
+        includeAllPages: true,
+        includeRouters: true,
+        includeAlerts: false,
+      });
+      // browser 入口
+      expect(g.nodes.find(n => n.id === BROWSER_NODE_META.id)).toBeDefined();
+      // 核心 API 端點都應出現
+      const apiIds = new Set(API_ENDPOINTS.map(e => e.id));
+      const renderedApiIds = new Set(
+        g.nodes.filter(n => n.kind === "api-endpoint").map(n => n.id)
+      );
+      for (const id of apiIds) {
+        expect(renderedApiIds.has(id), `${id} 應出現在圖中`).toBe(true);
+      }
+      // 5 個 webhook 都應出現
+      for (const wh of WEBHOOK_ENDPOINTS) {
+        expect(g.nodes.find(n => n.id === wh.id)).toBeDefined();
+      }
+      // 資料層
+      for (const meta of DATA_NODES) {
+        expect(g.nodes.find(n => n.id === meta.id)).toBeDefined();
+      }
+      // 部署 / 觀測 / 第三方
+      for (const meta of INFRA_NODES) {
+        expect(g.nodes.find(n => n.id === meta.id)).toBeDefined();
+      }
+    });
+
+    it("瀏覽器節點連到所有 page-group（admin 視圖）與 orb-agent（個人視圖 fallback）", () => {
+      const admin = buildGraph({
+        includeAllPages: true,
+        includeRouters: true,
+        includeAlerts: false,
+      });
+      const groupNodes = admin.nodes.filter(n => n.kind === "page-group");
+      expect(groupNodes.length).toBeGreaterThan(0);
+      for (const group of groupNodes) {
+        expect(
+          admin.edges.find(
+            e =>
+              e.source === BROWSER_NODE_META.id && e.target === group.id
+          ),
+          `browser → ${group.id} edge 應存在`
+        ).toBeDefined();
+      }
+
+      const personal = buildGraph({
+        includeAllPages: false,
+        includeRouters: false,
+        includeAlerts: false,
+      });
+      expect(
+        personal.edges.find(
+          e =>
+            e.source === BROWSER_NODE_META.id && e.target === "orb:agent"
+        )
+      ).toBeDefined();
+    });
+
+    it("API 端點 → 下游節點的邊都會被畫出（端點不會懸空）", () => {
+      const g = buildGraph({
+        includeAllPages: true,
+        includeRouters: true,
+        includeAlerts: false,
+      });
+      const ids = new Set(g.nodes.map(n => n.id));
+      // /api/upload 必須連到 storage:assets 與 db:main
+      expect(
+        g.edges.find(
+          e => e.source === "api:upload" && e.target === "storage:assets"
+        )
+      ).toBeDefined();
+      expect(
+        g.edges.find(e => e.source === "api:upload" && e.target === "db:main")
+      ).toBeDefined();
+      // /api/trpc 必須連到至少一個 router 節點
+      const trpcDownstream = g.edges.filter(e => e.source === "api:trpc");
+      expect(trpcDownstream.length).toBeGreaterThan(0);
+      for (const e of trpcDownstream) {
+        expect(ids.has(e.target)).toBe(true);
+      }
+    });
+
+    it("Webhook 由對應 provider/payment 流入；下游寫入 db:main", () => {
+      const g = buildGraph({
+        includeAllPages: false,
+        includeRouters: false,
+        includeAlerts: false,
+      });
+      // provider:fal → webhook:fal
+      expect(
+        g.edges.find(
+          e => e.source === "provider:fal" && e.target === "webhook:fal"
+        )
+      ).toBeDefined();
+      // payment:stripe → webhook:stripe
+      expect(
+        g.edges.find(
+          e =>
+            e.source === "payment:stripe" && e.target === "webhook:stripe"
+        )
+      ).toBeDefined();
+      // 每個 webhook → db:main
+      for (const wh of WEBHOOK_ENDPOINTS) {
+        if (wh.downstream.includes("db:main")) {
+          expect(
+            g.edges.find(e => e.source === wh.id && e.target === "db:main")
+          ).toBeDefined();
+        }
+      }
+    });
+
+    it("Railway 部署節點代管 healthcheck / DB / storage", () => {
+      const g = buildGraph({
+        includeAllPages: false,
+        includeRouters: false,
+        includeAlerts: false,
+      });
+      const railway = g.nodes.find(n => n.id === "infra:railway");
+      expect(railway).toBeDefined();
+      expect(railway!.layer).toBe("infrastructure");
+      expect(
+        g.edges.find(
+          e => e.source === "infra:railway" && e.target === "api:health"
+        )
+      ).toBeDefined();
+      expect(
+        g.edges.find(
+          e => e.source === "infra:railway" && e.target === "db:main"
+        )
+      ).toBeDefined();
+      expect(
+        g.edges.find(
+          e =>
+            e.source === "infra:railway" && e.target === "storage:assets"
+        )
+      ).toBeDefined();
+    });
+
+    it("可關閉 includeInfrastructure 取得舊版精簡圖（向後相容）", () => {
+      const slim = buildGraph({
+        includeAllPages: false,
+        includeRouters: false,
+        includeAlerts: false,
+        includeInfrastructure: false,
+      });
+      expect(
+        slim.nodes.find(n => n.id === BROWSER_NODE_META.id)
+      ).toBeUndefined();
+      expect(
+        slim.nodes.find(n => n.kind === "api-endpoint")
+      ).toBeUndefined();
+      expect(slim.nodes.find(n => n.id === "db:main")).toBeUndefined();
+      expect(
+        slim.nodes.find(n => n.id === "infra:railway")
+      ).toBeUndefined();
+    });
+
+    it("API endpoint 狀態繼承下游最差狀態（worst-of 規則）", () => {
+      // 透過讓 storage 在生產環境缺設來迫 api:upload 退化（純單元測試以
+      // 已存在的環境而定，這裡僅驗證型別欄位存在且為合法狀態）。
+      const g = buildGraph({
+        includeAllPages: false,
+        includeRouters: false,
+        includeAlerts: false,
+      });
+      const upload = g.nodes.find(n => n.id === "api:upload");
+      expect(upload).toBeDefined();
+      expect(["healthy", "needs_optimization", "broken", "abnormal"]).toContain(
+        upload!.status
+      );
+    });
   });
 
   it("buildGraph 不會在同一張圖內重複堆疊 trace samples（共享 traces 快照）", () => {

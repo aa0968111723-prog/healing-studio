@@ -43,7 +43,8 @@ const ISSUE_STATUSES: ReadonlySet<PipelineNodeStatus> = new Set<PipelineNodeStat
  * 視圖模式對應的可見 kind 集合。
  * - site：純站點關係圖（page + page-group），用於「全站關係圖」場景
  * - brain：原本的 admin 監控視圖，隱藏 frontend 節點
- * - full：四層完整圖（page → router → brain/engine → provider）
+ * - full：六層完整圖（browser → page → api/router → brain/engine → provider → infra/data）
+ * - infra：對主管 / 新成員的「網站如何運作」視圖（強調 client / api / data / infrastructure）
  */
 const VIEW_MODE_KINDS: Record<ViewMode, ReadonlySet<PipelineNodeKind>> = {
   site: new Set<PipelineNodeKind>(["page", "page-group", "studio"]),
@@ -56,10 +57,15 @@ const VIEW_MODE_KINDS: Record<ViewMode, ReadonlySet<PipelineNodeKind>> = {
     "director",
     "studio",
     "provider",
+    // 「我的腦組態」也想看 LangSmith / DB 對應（讓 AI 路徑完整）
+    "observability",
   ]),
   full: new Set<PipelineNodeKind>([
+    "browser",
     "page",
     "page-group",
+    "api-endpoint",
+    "webhook",
     "router",
     "brain-slot",
     "engine-slot",
@@ -68,6 +74,26 @@ const VIEW_MODE_KINDS: Record<ViewMode, ReadonlySet<PipelineNodeKind>> = {
     "director",
     "studio",
     "provider",
+    "database",
+    "storage",
+    "deployment",
+    "observability",
+    "auth-provider",
+    "payment",
+  ]),
+  infra: new Set<PipelineNodeKind>([
+    "browser",
+    "page-group",
+    "api-endpoint",
+    "webhook",
+    "database",
+    "storage",
+    "deployment",
+    "observability",
+    "auth-provider",
+    "payment",
+    "provider",
+    "studio",
   ]),
 };
 

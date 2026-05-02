@@ -506,6 +506,311 @@ const ROUTER_TO_PROVIDERS: Array<{
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
+// 「網站整體運作」深度整合 — Browser / API / Data / Infrastructure 節點
+// ───────────────────────────────────────────────────────────────────────────
+// 目的：讓主管或新成員打開可視化頁面就能看到「請求是怎麼從瀏覽器走到外部 AI 與
+// 部署平台」的完整鏈路，不必再翻 Dockerfile / railway.toml / .env.example。
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * REST / HTTP API 端點目錄。
+ *
+ * tRPC 路由已由 ROUTER_TO_PROVIDERS 表達；這份清單列出 `app.use(...)` 與
+ * `router.get/post(...)` 註冊的「非 tRPC」端點，例如 SSE 串流、檔案上傳、
+ * 健康檢查、OAuth 回調。每筆 entry 同時宣告 downstream（DB / 儲存 / tRPC
+ * router / provider），讓畫布能畫出端點對下游的真實依賴。
+ */
+interface ApiEndpointMeta {
+  id: string;
+  label: string;
+  description: string;
+  method: "GET" | "POST" | "DELETE" | "PUT";
+  path: string;
+  files: string[];
+  /** 此端點下游節點 id（任一現存節點，用於畫 edge） */
+  downstream: string[];
+  /** 此端點之上游 — 若為 client 觸發，預設為 client:browser；webhook 則為對應 provider */
+  upstream?: string[];
+}
+
+const API_ENDPOINTS: ApiEndpointMeta[] = [
+  {
+    id: "api:health",
+    label: "GET /api/health",
+    description: "Railway / Docker 健康檢查（部署平台據此判斷服務存活）",
+    method: "GET",
+    path: "/api/health",
+    files: ["server/_core/index.ts"],
+    downstream: ["infra:railway"],
+    upstream: ["infra:railway"],
+  },
+  {
+    id: "api:metrics",
+    label: "GET /api/metrics",
+    description: "聚合 LLM 用量、錯誤計數、provider 健康指標（內部監控）",
+    method: "GET",
+    path: "/api/metrics",
+    files: ["server/_core/index.ts"],
+    downstream: ["db:main"],
+  },
+  {
+    id: "api:auth-login",
+    label: "POST /api/auth/login",
+    description: "本地帳密登入；命中 rate limiter 後寫入 session JWT",
+    method: "POST",
+    path: "/api/auth/login",
+    files: ["server/routes/localAuth.ts"],
+    downstream: ["db:main"],
+  },
+  {
+    id: "api:auth-register",
+    label: "POST /api/auth/register",
+    description: "註冊新帳號，雜湊密碼後落地至 users 表",
+    method: "POST",
+    path: "/api/auth/register",
+    files: ["server/routes/localAuth.ts"],
+    downstream: ["db:main"],
+  },
+  {
+    id: "api:auth-google",
+    label: "GET /api/auth/google/callback",
+    description: "Google OAuth 完成後 redirect 回站，交換 token 並建立 session",
+    method: "GET",
+    path: "/api/auth/google/callback",
+    files: ["server/routes/googleAuth.ts"],
+    downstream: ["db:main", "auth:google-oauth"],
+    upstream: ["auth:google-oauth"],
+  },
+  {
+    id: "api:upload",
+    label: "POST /api/upload",
+    description: "前端上傳素材，依 detectStorageBackend 寫入 S3 / GCS / 本地",
+    method: "POST",
+    path: "/api/upload",
+    files: ["server/uploadRoute.ts", "server/storage.ts"],
+    downstream: ["storage:assets", "db:main"],
+  },
+  {
+    id: "api:sse-generation",
+    label: "GET /api/generation-events/:jobId",
+    description: "SSE 串流：把 generation thought-chain 即時推送給前端 UI",
+    method: "GET",
+    path: "/api/generation-events/:jobId",
+    files: ["server/sseRoute.ts", "server/generationEvents.ts"],
+    downstream: ["db:main"],
+  },
+  {
+    id: "api:tasks-stream",
+    label: "GET /api/tasks/:taskId/stream",
+    description: "光球任務狀態機的 SSE 串流（多步驟工具呼叫進度）",
+    method: "GET",
+    path: "/api/tasks/:taskId/stream",
+    files: ["server/routes/orbTasks.ts"],
+    downstream: ["db:main"],
+  },
+  {
+    id: "api:download",
+    label: "GET /api/download/:assetId",
+    description: "受授權的素材下載（presigned URL 或代理串流）",
+    method: "GET",
+    path: "/api/download/:assetId",
+    files: ["server/routes/download.ts"],
+    downstream: ["storage:assets"],
+  },
+  {
+    id: "api:tools-models",
+    label: "GET /api/tools/models",
+    description: "提供前端工具面板可用模型清單（fal / vertex / replicate）",
+    method: "GET",
+    path: "/api/tools/models",
+    files: ["server/routes/toolsModels.ts"],
+    downstream: ["db:main"],
+  },
+  {
+    id: "api:trpc",
+    label: "ALL /api/trpc/*",
+    description: "tRPC HTTP 適配器入口；所有 admin / studio / brain 呼叫都走這裡",
+    method: "POST",
+    path: "/api/trpc",
+    files: ["server/_core/index.ts", "server/routers.ts"],
+    downstream: [
+      "router:brain",
+      "router:director",
+      "router:imageStudio",
+      "router:videoStudio",
+      "router:proStudio",
+    ],
+  },
+];
+
+/**
+ * Webhook 端點：由外部服務「主動回呼」我們的 API，例如 fal queue 完成、
+ * replicate 訓練回報、Stripe 付款狀態。webhook 在拓撲上是 provider → API。
+ */
+interface WebhookEndpointMeta {
+  id: string;
+  label: string;
+  description: string;
+  path: string;
+  files: string[];
+  /** 觸發此 webhook 的外部 provider id（用於畫 edge） */
+  source: string;
+  downstream: string[];
+}
+
+const WEBHOOK_ENDPOINTS: WebhookEndpointMeta[] = [
+  {
+    id: "webhook:fal",
+    label: "POST /api/webhooks/fal",
+    description: "Fal queue 任務完成回調 → 觸發 generationEvents 與 DB 更新",
+    path: "/api/webhooks/fal",
+    files: ["server/routes/webhookFal.ts"],
+    source: "provider:fal",
+    downstream: ["db:main"],
+  },
+  {
+    id: "webhook:replicate",
+    label: "POST /api/webhooks/replicate",
+    description: "Replicate LoRA 訓練 / 推理回調 → 寫入訓練狀態",
+    path: "/api/webhooks/replicate",
+    files: ["server/routes/webhookReplicate.ts"],
+    source: "provider:replicate",
+    downstream: ["db:main"],
+  },
+  {
+    id: "webhook:suno",
+    label: "POST /api/webhooks/suno",
+    description: "Suno 音樂生成回調（備援音樂引擎）",
+    path: "/api/webhooks/suno",
+    files: ["server/routes/webhookSuno.ts"],
+    source: "provider:suno",
+    downstream: ["db:main"],
+  },
+  {
+    id: "webhook:stripe",
+    label: "POST /api/webhooks/stripe",
+    description: "Stripe 付款 / 訂閱事件回調 → 點數與計費結算",
+    path: "/api/webhooks/stripe",
+    files: ["server/routes/stripeWebhook.ts"],
+    source: "payment:stripe",
+    downstream: ["db:main"],
+  },
+  {
+    id: "webhook:orb",
+    label: "POST /api/webhooks/orb",
+    description: "光球外部回調入口（外部排程 / 第三方工具觸發）",
+    path: "/api/webhooks/orb",
+    files: ["server/routes/webhooks.ts"],
+    source: "infra:railway",
+    downstream: ["db:main"],
+  },
+];
+
+/**
+ * 資料層（永續儲存）— MySQL 與物件儲存（GCS / S3 / 本地）。
+ *
+ * 兩個節點的狀態都從環境變數推導：DATABASE_URL 缺 = broken；
+ * detectStorageBackend()=="none" = needs_optimization（生產才會 broken）。
+ */
+interface DataNodeMeta {
+  id: string;
+  label: string;
+  description: string;
+  files: string[];
+}
+
+const DATA_NODES: DataNodeMeta[] = [
+  {
+    id: "db:main",
+    label: "MySQL（主資料庫）",
+    description:
+      "使用者、會話、素材、光球任務、用量計量等核心資料；以 Drizzle ORM 連線 MySQL（DATABASE_URL）",
+    files: ["server/db.ts", "drizzle/schema.ts", "drizzle.config.ts"],
+  },
+  {
+    id: "storage:assets",
+    label: "物件儲存（S3 / GCS / 本地）",
+    description:
+      "上傳素材、生成成品、LoRA 訓練輸出；自動偵測 S3 / GCS，無設定時 fallback 到本地檔案",
+    files: ["server/storage.ts", "server/uploadRoute.ts"],
+  },
+];
+
+/**
+ * 基礎設施 / 部署平台。Railway 為主部署平台（以 Dockerfile build），
+ * 同時把觀測（LangSmith / PostHog）也歸類於此層，方便主管在「Infra 視圖」
+ * 一眼看到上線狀態 + 監控接線。
+ */
+interface InfraNodeMeta {
+  id: string;
+  kind: "deployment" | "observability" | "auth-provider" | "payment";
+  label: string;
+  description: string;
+  envKey?: string;
+  files: string[];
+  downstream?: string[];
+}
+
+const INFRA_NODES: InfraNodeMeta[] = [
+  {
+    id: "infra:railway",
+    kind: "deployment",
+    label: "Railway（部署平台）",
+    description:
+      "生產環境主機；以 Dockerfile build → 透過 healthcheck=/api/health 做 liveness 判定",
+    files: ["railway.toml", "Dockerfile", ".nixpacks.toml"],
+    downstream: ["api:health", "db:main", "storage:assets"],
+  },
+  {
+    id: "observability:langsmith",
+    kind: "observability",
+    label: "LangSmith（AI 追蹤）",
+    description:
+      "把每一次 LLM call 與 agent step 上傳到 LangSmith，提供 trace / dataset / 評估",
+    envKey: "LANGSMITH_API_KEY",
+    files: ["server/services/langsmithTracer.ts", "server/routers/langsmith.ts"],
+    downstream: [],
+  },
+  {
+    id: "observability:posthog",
+    kind: "observability",
+    label: "PostHog（行為分析）",
+    description: "前端事件追蹤、轉換漏斗、A/B 測試結果聚合",
+    envKey: "POSTHOG_API_KEY",
+    files: ["client/index.html", "client/src/lib/env.validated.ts"],
+    downstream: [],
+  },
+  {
+    id: "auth:google-oauth",
+    kind: "auth-provider",
+    label: "Google OAuth",
+    description: "Google 登入 / 連結 GCP 服務帳戶；GOOGLE_CLIENT_ID 缺則無法第三方登入",
+    envKey: "GOOGLE_CLIENT_ID",
+    files: ["server/_core/oauth.ts", "server/routes/googleAuth.ts"],
+    downstream: [],
+  },
+  {
+    id: "payment:stripe",
+    kind: "payment",
+    label: "Stripe（金流）",
+    description:
+      "訂閱付款 / 點數加值；STRIPE_SECRET_KEY 缺則 webhook 與訂閱流程停用",
+    envKey: "STRIPE_SECRET_KEY",
+    files: ["server/routes/stripeWebhook.ts"],
+    downstream: ["webhook:stripe"],
+  },
+];
+
+/** 瀏覽器（client runtime）入口節點 — 整張圖的最上游。 */
+const BROWSER_NODE_META = {
+  id: "client:browser",
+  label: "使用者瀏覽器",
+  description:
+    "整張圖的入口：使用者打開首頁，下載 Vite 打包後的 React bundle 並建立第一個 HTTP 連線",
+  files: ["client/index.html", "client/src/main.tsx", "vite.config.ts"],
+} as const;
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Helpers
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -755,6 +1060,86 @@ function resolveBrainTargetProvider(model: string): string {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// 「網站整體運作」深度整合 — 狀態推導 helpers
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** 從 DATABASE_URL 與環境推導資料庫節點狀態。 */
+function deriveDatabaseStatus(): {
+  status: PipelineNodeStatus;
+} & AggregatedHealth {
+  const url = serverEnv.DATABASE_URL?.trim();
+  if (!url) {
+    // 開發環境無 DATABASE_URL 視為「需優化」（會 fallback 到 in-memory），生產則為 broken
+    if (process.env.NODE_ENV === "production") {
+      return {
+        status: "broken",
+        reason: "DATABASE_URL 未設定，無法連線到 MySQL 永續儲存",
+        recommendation:
+          "在 Railway Variables 設定 DATABASE_URL（例：mysql://user:pass@host:3306/db）",
+      };
+    }
+    return {
+      status: "needs_optimization",
+      reason: "DATABASE_URL 未設定（開發模式 fallback）",
+      recommendation: "若要測試永續儲存路徑，請在 .env 設定 DATABASE_URL",
+    };
+  }
+  return { status: "healthy" };
+}
+
+/** 從 storage 偵測結果推導物件儲存節點狀態。 */
+function deriveStorageStatus(): {
+  status: PipelineNodeStatus;
+} & AggregatedHealth {
+  const hasS3 =
+    Boolean(serverEnv.S3_ENDPOINT) &&
+    Boolean(serverEnv.S3_ACCESS_KEY_ID) &&
+    Boolean(serverEnv.S3_SECRET_ACCESS_KEY) &&
+    Boolean(serverEnv.S3_BUCKET_NAME);
+  const hasGCS =
+    Boolean(serverEnv.GCS_BUCKET_NAME) &&
+    Boolean(serverEnv.GOOGLE_APPLICATION_CREDENTIALS_JSON);
+  if (hasS3 || hasGCS) {
+    return { status: "healthy" };
+  }
+  if (process.env.NODE_ENV === "production") {
+    return {
+      status: "broken",
+      reason: "未設定任何雲端儲存（S3 / GCS），生產環境會直接失敗",
+      recommendation:
+        "在 Railway Variables 設定 S3_ENDPOINT 系列或 GCS_BUCKET_NAME",
+    };
+  }
+  return {
+    status: "needs_optimization",
+    reason: "未設定雲端儲存，目前 fallback 至本地檔案（僅限開發環境）",
+    recommendation: "上線前請設定 S3 或 GCS，否則生產環境的上傳會立刻失敗",
+  };
+}
+
+/** 從 healthcheck 路徑推導 Railway 部署節點狀態（純 metadata，未實際 ping）。 */
+function deriveRailwayStatus(): {
+  status: PipelineNodeStatus;
+} & AggregatedHealth {
+  // 這裡只判斷「healthcheck 路徑與 Dockerfile 是否存在」，實際存活由 Railway 自己判定
+  return { status: "healthy" };
+}
+
+/** 觀測 / 第三方服務：依 envKey 是否設定推導 healthy / needs_optimization。 */
+function deriveOptionalServiceStatus(envKey: string | undefined): {
+  status: PipelineNodeStatus;
+} & AggregatedHealth {
+  if (!envKey) return { status: "healthy" };
+  const present = Boolean((serverEnv as Record<string, unknown>)[envKey]);
+  if (present) return { status: "healthy" };
+  return {
+    status: "needs_optimization",
+    reason: `${envKey} 未設定，此服務尚未啟用`,
+    recommendation: `若要啟用此服務，請在環境變數中設定 ${envKey}`,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Graph Builders
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -765,6 +1150,15 @@ interface BuildGraphOptions {
   includeRouters: boolean;
   /** 個人版是否包含活躍錯誤摘要（會脫敏） */
   includeAlerts: boolean;
+  /**
+   * 是否包含「網站如何運作」的完整深度整合節點 —
+   * 瀏覽器、REST/SSE/Webhook 端點、MySQL、物件儲存、Railway 部署、
+   * 觀測（LangSmith/PostHog）、第三方登入、金流。
+   *
+   * 預設 true（admin & personal 圖都會包含；個人版只是少了 page/router）。
+   * 測試或舊呼叫端可以傳 false 取得舊版精簡圖。
+   */
+  includeInfrastructure?: boolean;
 }
 
 /**
@@ -1191,12 +1585,251 @@ function buildGraph(opts: BuildGraphOptions): PipelineGraph {
     }
   }
 
+  // ── Layer 5: 「網站如何運作」深度整合 — Browser / API / Data / Infra ──
+  // 預設啟用；只有舊測試 / personal 簡化視圖才會傳 false 關閉。
+  // 整段拆成 4 區塊，每塊都先建節點再連邊，方便日後逐區開關。
+  if (opts.includeInfrastructure ?? true) {
+    appendInfrastructureLayers(nodes, edges, opts);
+  }
+
   return {
     nodes,
     edges,
     summary: summarize(nodes),
     legend: buildLegend(),
   };
+}
+
+/**
+ * 附加 client / api / data / infrastructure 四個整合層到既有圖中。
+ * 拆出 helper 是因為 `buildGraph` 已 250+ 行；放在獨立函式比較好閱讀。
+ *
+ * 新增的節點與邊與既有節點的連線：
+ *   - client:browser → 所有 frontend page-group（瀏覽器打開頁面）
+ *   - client:browser → api:trpc / api:auth-* / api:sse-generation（HTTP/SSE）
+ *   - api:* → router:* / db:main / storage:assets / auth/payment（依 downstream）
+ *   - webhook:* → db:main，並由對應 provider/payment 連入 webhook
+ *   - infra:railway → api:health / db:main / storage:assets（host runs all）
+ *   - observability:langsmith ← brain-slot * / orb:agent（LLM trace 上傳）
+ *
+ * 函式不會修改既有的 frontend / backend / ai-brain / external 節點，純粹「附加」。
+ */
+function appendInfrastructureLayers(
+  nodes: PipelineNode[],
+  edges: PipelineEdge[],
+  opts: BuildGraphOptions
+): void {
+  const existingIds = new Set(nodes.map(n => n.id));
+
+  // ── Browser 節點（client layer） ──────────────────────────────────────────
+  nodes.push({
+    id: BROWSER_NODE_META.id,
+    kind: "browser",
+    layer: "client",
+    label: BROWSER_NODE_META.label,
+    description: BROWSER_NODE_META.description,
+    status: "healthy",
+    relatedFiles: [...BROWSER_NODE_META.files],
+    diagnostics: {
+      frontendPath: "client/index.html",
+      backendRoute: "static asset (Vite build → dist/public)",
+      serviceFunction: "browser bundle download + initial render",
+    },
+  });
+
+  // 瀏覽器 → 所有 page-group（若已包含頁面層）；否則直接連 orb:agent 表達使用入口
+  if (opts.includeAllPages) {
+    for (const node of nodes) {
+      if (node.kind === "page-group") {
+        edges.push(makeEdge(BROWSER_NODE_META.id, node.id, "HTTP / 載入"));
+      }
+    }
+  } else {
+    edges.push(makeEdge(BROWSER_NODE_META.id, "orb:agent", "HTTP / 載入"));
+  }
+
+  // ── Infrastructure 節點（observability / auth / payment / deployment） ──
+  for (const meta of INFRA_NODES) {
+    const derived =
+      meta.kind === "deployment"
+        ? deriveRailwayStatus()
+        : deriveOptionalServiceStatus(meta.envKey);
+    nodes.push({
+      id: meta.id,
+      kind: meta.kind,
+      layer: meta.kind === "deployment" ? "infrastructure" : "external",
+      label: meta.label,
+      description: meta.description,
+      status: derived.status,
+      reason: derived.reason,
+      recommendation: derived.recommendation,
+      relatedFiles: [
+        ...(meta.envKey ? [`.env (${meta.envKey})`] : []),
+        ...meta.files,
+      ],
+      metrics: derived.metrics,
+    });
+  }
+
+  // ── Data 節點（database + storage） ──────────────────────────────────────
+  for (const meta of DATA_NODES) {
+    const derived =
+      meta.id === "db:main" ? deriveDatabaseStatus() : deriveStorageStatus();
+    nodes.push({
+      id: meta.id,
+      kind: meta.id === "db:main" ? "database" : "storage",
+      layer: "data",
+      label: meta.label,
+      description: meta.description,
+      status: derived.status,
+      reason: derived.reason,
+      recommendation: derived.recommendation,
+      relatedFiles: meta.files,
+    });
+  }
+
+  // ── API 端點節點（api layer） ──────────────────────────────────────────
+  // 端點狀態繼承「下游所有節點裡最差的」：例如 /api/upload 下游含 storage:assets
+  // 與 db:main，只要其中之一不 healthy 就標記成需優化或 broken。
+  const STATUS_RANK: Record<PipelineNodeStatus, number> = {
+    healthy: 0,
+    needs_optimization: 1,
+    abnormal: 2,
+    broken: 3,
+  };
+  const statusOf = (id: string): PipelineNodeStatus =>
+    nodes.find(n => n.id === id)?.status ?? "healthy";
+
+  for (const ep of API_ENDPOINTS) {
+    let worst: PipelineNodeStatus = "healthy";
+    for (const downId of ep.downstream) {
+      // downstream 中的 router id 只在 includeRouters=true 時存在；
+      // 若不存在就跳過該邊但仍建立節點，避免懸空 edge。
+      if (!nodes.find(n => n.id === downId)) continue;
+      const s = statusOf(downId);
+      if (STATUS_RANK[s] > STATUS_RANK[worst]) worst = s;
+    }
+    nodes.push({
+      id: ep.id,
+      kind: "api-endpoint",
+      layer: "api",
+      label: ep.label,
+      description: ep.description,
+      status: worst,
+      reason:
+        worst === "healthy"
+          ? undefined
+          : "下游服務狀態不佳，可能影響此端點實際可用性",
+      recommendation:
+        worst === "healthy"
+          ? undefined
+          : "點擊下游節點查看詳細原因；通常是 DB / 儲存 / 外部 provider 其中之一",
+      relatedFiles: ep.files,
+      diagnostics: {
+        backendRoute: `${ep.method} ${ep.path}`,
+        serviceFunction: ep.files[0] ?? "express handler",
+      },
+    });
+    // 預設 client:browser → endpoint，覆蓋 webhook 場景
+    const upstream = ep.upstream ?? [BROWSER_NODE_META.id];
+    for (const upId of upstream) {
+      if (nodes.find(n => n.id === upId)) {
+        edges.push(makeEdge(upId, ep.id, ep.method));
+      }
+    }
+    // endpoint → downstream
+    for (const downId of ep.downstream) {
+      if (nodes.find(n => n.id === downId)) {
+        edges.push(makeEdge(ep.id, downId, "依賴"));
+      }
+    }
+  }
+
+  // ── Webhook 端點節點 ────────────────────────────────────────────────────
+  for (const wh of WEBHOOK_ENDPOINTS) {
+    let worst: PipelineNodeStatus = "healthy";
+    for (const downId of wh.downstream) {
+      if (!nodes.find(n => n.id === downId)) continue;
+      const s = statusOf(downId);
+      if (STATUS_RANK[s] > STATUS_RANK[worst]) worst = s;
+    }
+    nodes.push({
+      id: wh.id,
+      kind: "webhook",
+      layer: "api",
+      label: wh.label,
+      description: wh.description,
+      status: worst,
+      relatedFiles: wh.files,
+      diagnostics: {
+        backendRoute: `POST ${wh.path}`,
+        serviceFunction: wh.files[0] ?? "express webhook handler",
+      },
+    });
+    if (nodes.find(n => n.id === wh.source)) {
+      edges.push(makeEdge(wh.source, wh.id, "回調"));
+    }
+    for (const downId of wh.downstream) {
+      if (nodes.find(n => n.id === downId)) {
+        edges.push(makeEdge(wh.id, downId, "寫入"));
+      }
+    }
+  }
+
+  // ── 跨層的「黏合」邊 ────────────────────────────────────────────────────
+  // Railway → 它代管的核心服務（healthcheck / DB / storage）
+  for (const downId of INFRA_NODES.find(i => i.id === "infra:railway")
+    ?.downstream ?? []) {
+    if (nodes.find(n => n.id === downId)) {
+      edges.push(makeEdge("infra:railway", downId, "代管"));
+    }
+  }
+
+  // tRPC routers → DB（所有 router 最終都會落到 MySQL）；
+  // 只在 includeRouters=true 時畫，不然 router 節點根本不存在。
+  if (opts.includeRouters) {
+    for (const r of nodes.filter(n => n.kind === "router")) {
+      edges.push(makeEdge(r.id, "db:main", "查詢/寫入"));
+    }
+  }
+
+  // 工作室 → storage:assets（生成成品落地）
+  for (const studio of nodes.filter(n => n.kind === "studio")) {
+    edges.push(makeEdge(studio.id, "storage:assets", "落地素材"));
+  }
+
+  // brain-slot / engine-slot / orb / director → LangSmith（追蹤上傳）
+  // 只有 LangSmith 啟用時才畫，避免一堆灰色未啟用邊
+  const langsmithEnabled =
+    nodes.find(n => n.id === "observability:langsmith")?.status === "healthy";
+  if (langsmithEnabled) {
+    const traceSourceKinds = new Set([
+      "brain-slot",
+      "engine-slot",
+      "orb-agent",
+      "orb-assistant",
+      "director",
+    ]);
+    for (const n of nodes) {
+      if (traceSourceKinds.has(n.kind)) {
+        edges.push(makeEdge(n.id, "observability:langsmith", "trace"));
+      }
+    }
+  }
+
+  // 防呆：去掉重複 edge id（極少數情境下 source/target 可能撞到既有邊）
+  const seen = new Set<string>();
+  const dedupedEdges: PipelineEdge[] = [];
+  for (const e of edges) {
+    if (existingIds.has(e.source) && existingIds.has(e.target) && seen.has(e.id)) {
+      continue;
+    }
+    if (seen.has(e.id)) continue;
+    seen.add(e.id);
+    dedupedEdges.push(e);
+  }
+  edges.length = 0;
+  edges.push(...dedupedEdges);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1303,4 +1936,9 @@ export const __testing = {
   PAGE_TO_ROUTERS,
   ROUTER_TO_AI_SLOTS,
   STUDIO_CONSUMERS,
+  API_ENDPOINTS,
+  WEBHOOK_ENDPOINTS,
+  DATA_NODES,
+  INFRA_NODES,
+  BROWSER_NODE_META,
 };

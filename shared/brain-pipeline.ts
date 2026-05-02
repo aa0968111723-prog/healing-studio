@@ -22,13 +22,28 @@ export type PipelineNodeKind =
   | "orb-assistant"
   | "director"
   | "studio"
-  | "provider";
+  | "provider"
+  // ── 「網站如何運作」深度整合新增 ────────────────────────────────────
+  | "browser" // 使用者瀏覽器入口（client runtime）
+  | "api-endpoint" // REST/HTTP 端點（非 tRPC）
+  | "webhook" // 外部服務回調（fal / replicate / suno / stripe / orb）
+  | "database" // 永續資料層（MySQL via Drizzle）
+  | "storage" // 物件儲存（GCS / S3 / 本地）
+  | "deployment" // 部署平台（Railway / Docker）
+  | "observability" // 觀測與追蹤（LangSmith / PostHog）
+  | "auth-provider" // 第三方登入（Google OAuth）
+  | "payment"; // 金流（Stripe）
 
 export type PipelineLayer =
   | "frontend"
   | "backend"
   | "ai-brain"
-  | "external";
+  | "external"
+  // ── 「網站如何運作」深度整合新增 ────────────────────────────────────
+  | "client" // 瀏覽器端（區別於 React 頁面層）
+  | "api" // REST / Webhook / SSE 端點
+  | "data" // 資料層（DB + 物件儲存）
+  | "infrastructure"; // 部署平台（Railway / 容器 / 觀測）
 
 export interface PipelineNodeMetrics {
   /** 連續失敗次數（health cache 提供） */
