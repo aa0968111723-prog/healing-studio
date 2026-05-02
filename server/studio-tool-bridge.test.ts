@@ -7,12 +7,30 @@ import {
 import { executeOrbToolCalls } from "./services/agentToolExecutor";
 
 describe("studio.* generation tool registration", () => {
-  it("registers all four studio generation tools", () => {
+  it("registers all studio generation tools", () => {
     const names = GLOBAL_AGENT_TOOL_REGISTRY.map(t => t.name);
     expect(names).toContain("studio.generateImage");
     expect(names).toContain("studio.generateVideo");
     expect(names).toContain("studio.generateAudio");
+    // DEF-SFX2：SFX 與 Audio（音樂）分流
+    expect(names).toContain("studio.generateSfx");
     expect(names).toContain("studio.generateVoice");
+    // DEF-VC1：voice cloning 與 generateVoice 分流，輸出 speaker embedding 供後續 step 復用
+    expect(names).toContain("studio.cloneVoice");
+    // DEF-VD1：voice design 與 cloneVoice 互補，從文字描述設計虛擬聲音
+    expect(names).toContain("studio.designVoice");
+    // DEF-DM2：音幹分離（vocals/drums/bass/other [+guitar/piano]）
+    expect(names).toContain("studio.separateStems");
+    // DEF-AI3：音訊隔離 — 與 separateStems 互補，抽乾淨單軌（去背景噪）
+    expect(names).toContain("studio.isolateAudio");
+    // DEF-MA3：多音訊合併 — separateStems / cloneVoice / designVoice 工作流的最後一塊
+    expect(names).toContain("studio.mergeAudios");
+    // DEF-VCH4：聲音變換 — 把現有錄音的聲音換成 voice_id，保留原語速/語氣
+    expect(names).toContain("studio.changeVoice");
+    // DEF-ASR3：語音轉文字 — 開啟「逐字稿 → 翻譯/摘要 → 再合成」工作流
+    expect(names).toContain("studio.transcribe");
+    // DEF-WAN2：說話人動畫 — 靜態頭像 + 音訊 → 對嘴影片（完成 TTS → 動畫工作流）
+    expect(names).toContain("studio.animateSpeaker");
   });
 
   it("studio.* tools require human approval", () => {
@@ -20,7 +38,15 @@ describe("studio.* generation tool registration", () => {
       "studio.generateImage",
       "studio.generateVideo",
       "studio.generateAudio",
+      "studio.generateSfx",
       "studio.generateVoice",
+      "studio.cloneVoice",
+      "studio.designVoice",
+      "studio.separateStems",
+      "studio.isolateAudio",
+      "studio.mergeAudios",
+      "studio.changeVoice",
+      "studio.animateSpeaker",
     ]) {
       const tool = getGlobalAgentTool(name);
       expect(tool, name).not.toBeNull();
@@ -33,7 +59,16 @@ describe("studio.* generation tool registration", () => {
     expect(isKnownGlobalAgentTool("studio.generateImage")).toBe(true);
     expect(isKnownGlobalAgentTool("studio.generateVideo")).toBe(true);
     expect(isKnownGlobalAgentTool("studio.generateAudio")).toBe(true);
+    expect(isKnownGlobalAgentTool("studio.generateSfx")).toBe(true);
     expect(isKnownGlobalAgentTool("studio.generateVoice")).toBe(true);
+    expect(isKnownGlobalAgentTool("studio.cloneVoice")).toBe(true);
+    expect(isKnownGlobalAgentTool("studio.designVoice")).toBe(true);
+    expect(isKnownGlobalAgentTool("studio.separateStems")).toBe(true);
+    expect(isKnownGlobalAgentTool("studio.isolateAudio")).toBe(true);
+    expect(isKnownGlobalAgentTool("studio.mergeAudios")).toBe(true);
+    expect(isKnownGlobalAgentTool("studio.changeVoice")).toBe(true);
+    expect(isKnownGlobalAgentTool("studio.transcribe")).toBe(true);
+    expect(isKnownGlobalAgentTool("studio.animateSpeaker")).toBe(true);
     expect(isKnownGlobalAgentTool("studio.unknownThing")).toBe(false);
   });
 });

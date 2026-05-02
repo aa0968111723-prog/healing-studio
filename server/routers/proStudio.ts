@@ -369,10 +369,15 @@ const SFX_MODELS = [
     badge: "預設",
     tier: "premium" as const,
   },
+  // DEF-SFX3 / DEF-A3：id 維持 "audioldm2" 以避開前端枚舉破壞性變更。
+  // fal.ai 已下架 fal-ai/audioldm2 endpoint，整個堆疊（dispatcher / pricing
+  // 別名 / brain audioEngine）會自動 normalize 到 fal-ai/mmaudio-v2 — 同 latent
+  // diffusion 路線、同 standard tier，使用者無感切換。Label 與 description
+  // 對齊真實交付模型，避免誤導。
   {
     id: "audioldm2",
-    label: "AudioLDM 2",
-    description: "音頻潛在擴散模型，擅長自然音效",
+    label: "MMAudio V2",
+    description: "MMAudio 多模態音頻生成（替代已下架的 AudioLDM2，同 latent diffusion，擅長自然音效）",
     badge: "",
     tier: "standard" as const,
   },
@@ -387,6 +392,81 @@ const SFX_MODELS = [
 
 /** 背景任務超時閾值（毫秒）— 超過此時間未完成則標記失敗 */
 const BACKGROUND_TASK_TIMEOUT_MS = 10 * 60 * 1000; // 10 分鐘
+
+// ─── 音樂模型解析（接通大腦組態 audioEngine）────────────────────────────────
+
+type MusicShortId = "sonauto" | "ace-step" | "stable-audio" | "musicgen";
+
+const FAL_TO_SHORT_MUSIC: Record<string, MusicShortId> = {
+  "fal-ai/sonauto": "sonauto",
+  "fal-ai/ace-step": "ace-step",
+  "fal-ai/stable-audio": "stable-audio",
+  "fal-ai/musicgen": "musicgen",
+};
+
+/**
+ * DEF-15：接通大腦組態。
+ * 當使用者未顯式選擇模型時，採用 ctx.brain.generation.audioEngine（含降級
+ * 後的 fallback engine），而非硬編碼預設值。優先序：
+ *   1. input.model（使用者顯式選擇）
+ *   2. brain.generation.audioEngine.engine（大腦組態，可被使用者在大腦頁設定）
+ *   3. "ace-step"（最終安全預設）
+ */
+function resolveMusicModelChoice(
+  inputModel: MusicShortId | undefined,
+  brainEngine: string | undefined
+): MusicShortId {
+  if (inputModel) return inputModel;
+  if (brainEngine && FAL_TO_SHORT_MUSIC[brainEngine]) {
+    return FAL_TO_SHORT_MUSIC[brainEngine];
+  }
+  return "ace-step";
+}
+
+// ─── 音效模型解析 ────────────────────────────────────────────────────────
+
+type SfxShortId = "stable-audio" | "audioldm2" | "elevenlabs";
+
+/** ElevenLabs Sound Effects v2 endpoint（帶 /v2，與 fal 真實 URL 對齊） */
+const ELEVENLABS_SFX_MODEL_ID = "fal-ai/elevenlabs/sound-effects/v2";
+
+/** ElevenLabs Sound Effects v2 最大時長（per fal docs） */
+const ELEVENLABS_SFX_MAX_SECONDS = 22;
+
+/**
+ * SFX-capable fal 引擎集合（不含純音樂模型如 ace-step / sonauto / musicgen）。
+ * 大腦 audioEngine 落在這個集合內時，SFX 路徑才能跟著大腦走。
+ */
+const FAL_TO_SHORT_SFX: Record<string, SfxShortId> = {
+  "fal-ai/stable-audio": "stable-audio",
+  // SFX_MODELS 的 "audioldm2" 實際路由到 fal-ai/mmaudio-v2，故兩個 canonical
+  // 都映射到同一短碼。
+  "fal-ai/mmaudio-v2": "audioldm2",
+  "fal-ai/audioldm2": "audioldm2",
+  // DEF-EL2：ElevenLabs SFX canonical（含 legacy 無 /v2 拼法）也接通短碼，
+  // 讓使用者在大腦頁選 ElevenLabs 後 SFX 路徑能跟隨。
+  [ELEVENLABS_SFX_MODEL_ID]: "elevenlabs",
+  "fal-ai/elevenlabs/sound-effects": "elevenlabs",
+};
+
+/**
+ * DEF-SFX1：SFX 路徑接通大腦 audioEngine。
+ * 大腦 audioEngine 若為純音樂引擎（ace-step / sonauto / musicgen）則不適用，
+ * 退回 SFX 安全預設 stable-audio，避免拿不會生環境音的模型去做 Foley。
+ *   1. input.model（使用者顯式選擇）
+ *   2. brain.generation.audioEngine.engine（僅當為 SFX-capable）
+ *   3. "stable-audio"（最終安全預設）
+ */
+function resolveSfxModelChoice(
+  inputModel: SfxShortId | undefined,
+  brainEngine: string | undefined
+): SfxShortId {
+  if (inputModel) return inputModel;
+  if (brainEngine && FAL_TO_SHORT_SFX[brainEngine]) {
+    return FAL_TO_SHORT_SFX[brainEngine];
+  }
+  return "stable-audio";
+}
 
 // ─── Router ──────────────────────────────────────────────────────────────────
 
@@ -423,17 +503,19 @@ export const proStudioRouter = router({
         instrumental: z.boolean().optional(), // true → 傳空字串歌詞（純音樂）
         bpm: z.number().min(40).max(300).optional(),
         duration: z.number().min(1).max(300).optional(), // 秒數（非 Sonauto 模型用）
+        // DEF-S1：Stable Audio 支援 negative_prompt（其他音樂模型會忽略）
+        negativePrompt: z.string().max(500).optional(),
         model: z
           .enum(["sonauto", "ace-step", "stable-audio", "musicgen"])
           .optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      // 沒帶 model 時，從使用者的大腦組態 audioEngine 推導，讓 brain 設定真正生效。
-      // 仍保留 ace-step 作為最終 fallback（DEF-14：Sonauto v2 在 fal.ai 偶發不穩）。
-      const modelChoice: MusicModelChoice =
-        input.model ??
-        audioEngineToMusicChoice(ctx.brain.getEngine("audioEngine").engine);
+      // DEF-15：接通大腦 audioEngine — 未指定 model 時依大腦組態選擇引擎
+      const modelChoice = resolveMusicModelChoice(
+        input.model,
+        ctx.brain.generation.audioEngine.engine
+      );
 
       // ── Sonauto v2（預設）─────────────────────────────────────
       if (modelChoice === "sonauto") {
@@ -527,10 +609,10 @@ export const proStudioRouter = router({
         const falModelId = "fal-ai/stable-audio";
         const payload: Record<string, unknown> = {
           prompt: combinedPrompt,
-          ...(input.duration
-            ? { seconds_total: input.duration }
-            : { seconds_total: 30 }),
+          seconds_total: input.duration ?? 30,
         };
+        // DEF-S1：Stable Audio 支援 negative_prompt
+        if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
         const charged = await chargeForFalTask(ctx.user.id, falModelId, {
           durationSec: input.duration ?? 30,
         });
@@ -587,12 +669,15 @@ export const proStudioRouter = router({
         prompt_influence: z.number().min(0).max(1).optional().default(0.3),
         model: z
           .enum(["stable-audio", "audioldm2", "elevenlabs"])
-          .optional()
-          .default("stable-audio"),
+          .optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const modelChoice = input.model ?? "stable-audio";
+      // DEF-SFX1：SFX 接通大腦 audioEngine（僅當為 SFX-capable 引擎時生效）
+      const modelChoice = resolveSfxModelChoice(
+        input.model,
+        ctx.brain.generation.audioEngine.engine
+      );
 
       // ── Stable Audio（預設）── 真正的音效生成 ──────────────────
       if (modelChoice === "stable-audio") {
@@ -635,13 +720,22 @@ export const proStudioRouter = router({
       }
 
       // ── ElevenLabs（最終備用）─────────────────────────────────
-      const falModelId = "fal-ai/elevenlabs/sound-effects/v2";
+      // DEF-EL7：先檢查 ELEVENLABS_API_KEY 再扣點，避免使用者被「扣點 → fal 401
+      // → 退點」的無謂往返；同時提早給出明確錯誤訊息。
+      if (!process.env.ELEVENLABS_API_KEY) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "ElevenLabs SFX 需要 ELEVENLABS_API_KEY。請改用 Stable Audio 或 MMAudio V2，或聯絡管理員設定金鑰。",
+        });
+      }
+      const falModelId = ELEVENLABS_SFX_MODEL_ID;
       const charged = await chargeForFalTask(ctx.user.id, "elevenlabs/sound-effects");
       try {
         const { request_id } = await falQueueSubmit(falModelId, {
           text: input.text,
           duration_seconds: input.duration_seconds
-            ? Math.min(input.duration_seconds, 22)
+            ? Math.min(input.duration_seconds, ELEVENLABS_SFX_MAX_SECONDS)
             : undefined,
           prompt_influence: input.prompt_influence,
         }, getElevenLabsProxyHeaders());  // 需要 ElevenLabs key 認證
@@ -713,6 +807,15 @@ export const proStudioRouter = router({
         input.engine ??
         voiceEngineToElevenLabsEngine(ctx.brain.getEngine("voiceEngine").engine);
       const route = ENGINE_MAP[engine];
+      // DEF-V3：ElevenLabs proxy 需 ELEVENLABS_API_KEY，沒設就提早報錯，
+      // 避免「扣點 → fal 401 → 退點」的浪費往返。
+      if (!process.env.ELEVENLABS_API_KEY) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "ElevenLabs TTS 需要 ELEVENLABS_API_KEY。請改用 Qwen TTS / Dia TTS 等本地引擎，或聯絡管理員設定金鑰。",
+        });
+      }
       const charged = await chargeForFalTask(ctx.user.id, route.pricingKey, {
         charCount: input.text.length,
       });
@@ -981,6 +1084,15 @@ export const proStudioRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // DEF-IVC2：與 elevenLabsTTS / soundEffects 對齊 — 缺 ELEVENLABS_API_KEY
+      // 時提早報錯，避免「扣 8pt → fal 401 → 退 8pt」的浪費往返。
+      if (!process.env.ELEVENLABS_API_KEY) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "ElevenLabs Instant Voice Clone 需要 ELEVENLABS_API_KEY。請改用 Qwen TTS Voice Clone，或聯絡管理員設定金鑰。",
+        });
+      }
       const modelId = "fal-ai/elevenlabs/voice-cloning";
       const charged = await chargeForFalTask(ctx.user.id, modelId);
       try {
@@ -1111,6 +1223,15 @@ export const proStudioRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // DEF-AI2：與 elevenLabsTTS / elevenLabsVoiceClone 對齊 — 缺
+      // ELEVENLABS_API_KEY 時提早報錯，避免「扣 3pt → fal 401 → 退 3pt」浪費往返。
+      if (!process.env.ELEVENLABS_API_KEY) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "ElevenLabs Audio Isolation 需要 ELEVENLABS_API_KEY。請改用 Demucs 音幹分離（取 vocals 軌即得乾淨人聲），或聯絡管理員設定金鑰。",
+        });
+      }
       const modelId = "fal-ai/elevenlabs/audio-isolation";
       const charged = await chargeForFalTask(ctx.user.id, modelId);
       try {
@@ -1164,6 +1285,15 @@ export const proStudioRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // DEF-VCH3：與 elevenLabsTTS / elevenLabsVoiceClone / audioIsolation 對齊 —
+      // 缺 ELEVENLABS_API_KEY 時提早報錯，避免「扣 4pt → fal 401 → 退 4pt」浪費往返。
+      if (!process.env.ELEVENLABS_API_KEY) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "ElevenLabs Voice Changer 需要 ELEVENLABS_API_KEY。請先用 Qwen Voice Clone 建立 embedding，再用 qwenTTS 重念新內容（功能等價但流程不同），或聯絡管理員設定金鑰。",
+        });
+      }
       const modelId = "fal-ai/elevenlabs/voice-changer";
       const charged = await chargeForFalTask(ctx.user.id, modelId);
       try {
@@ -1568,10 +1698,11 @@ export const proStudioRouter = router({
         targetDurationSec: z.number().min(10).max(300).optional(),
         instrumental: z.boolean().optional().default(false),
         bpmOverride: z.number().min(40).max(300).optional(),
+        // DEF-S1：Stable Audio 支援 negative_prompt（其他音樂模型會忽略）
+        negativePrompt: z.string().max(500).optional(),
         model: z
           .enum(["sonauto", "ace-step", "stable-audio", "musicgen"])
-          .optional()
-          .default("ace-step"),
+          .optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -1589,7 +1720,11 @@ export const proStudioRouter = router({
       const compiled = compiler.compile(compilerInput);
 
       // ── 2. 依選定模型送出 fal.ai 任務 ────────────────────────────
-      const modelChoice = input.model ?? "ace-step";
+      // DEF-15：接通大腦 audioEngine — 未指定 model 時依大腦組態選擇引擎
+      const modelChoice = resolveMusicModelChoice(
+        input.model,
+        ctx.brain.generation.audioEngine.engine
+      );
       const durationSec =
         input.targetDurationSec ?? compiled.estimatedDurationSec ?? 30;
 
@@ -1635,11 +1770,14 @@ export const proStudioRouter = router({
       if (modelChoice === "stable-audio") {
         const falModelId = "fal-ai/stable-audio";
         const charged = await chargeForFalTask(ctx.user.id, falModelId, { durationSec });
+        const stablePayload: Record<string, unknown> = {
+          prompt: compiled.prompt,
+          seconds_total: durationSec,
+        };
+        // DEF-S1：Stable Audio 支援 negative_prompt
+        if (input.negativePrompt) stablePayload.negative_prompt = input.negativePrompt;
         try {
-          const { request_id } = await falQueueSubmit(falModelId, {
-            prompt: compiled.prompt,
-            seconds_total: durationSec,
-          });
+          const { request_id } = await falQueueSubmit(falModelId, stablePayload);
           return {
             request_id,
             model: falModelId,

@@ -796,19 +796,24 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     requiresKey: true,
     keyEnvVar: "FAL_API_KEY",
   },
+  // DEF-A2：fal-ai/audioldm2 endpoint 已被 fal.ai 下架，dispatcher 端會
+  // normalize 到 fal-ai/mmaudio-v2 實際送單。此 pricing 條目保留作為
+  // 上游（proStudio.chargeForFalTask / director.estimatePoints）在 normalize
+  // 之前的 lookup fallback，且數值與 mmaudio-v2 對齊，避免兩個 modelId
+  // 同一交付下出現計費差異。
   "fal-ai/audioldm2": {
     modelId: "fal-ai/audioldm2",
-    label: "AudioLDM 2",
+    label: "AudioLDM 2 (→ MMAudio V2)",
     provider: "fal",
     category: "text-to-audio",
     tier: "standard",
-    basePoints: 3,
-    baseCostUsd: 0.03,
-    unit: "每10秒",
-    pointsPerSecond: 0.3,
-    freeSecondsInBase: 10,
-    minPoints: 3,
-    maxPoints: 30,
+    basePoints: 4,
+    baseCostUsd: 0.04,
+    unit: "每15秒",
+    pointsPerSecond: 0.27,
+    freeSecondsInBase: 15,
+    minPoints: 4,
+    maxPoints: 40,
     requiresKey: true,
     keyEnvVar: "FAL_API_KEY",
   },
@@ -924,6 +929,23 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     modelId: "elevenlabs/sound-effects",
     label: "ElevenLabs 音效",
     provider: "elevenlabs",
+    category: "text-to-audio",
+    tier: "standard",
+    basePoints: 3,
+    baseCostUsd: 0.03,
+    unit: "每次生成",
+    minPoints: 3,
+    maxPoints: 15,
+    requiresKey: true,
+    keyEnvVar: "ELEVENLABS_API_KEY",
+  },
+  // DEF-EL6：fal canonical 路徑（含 /v2）必須有獨立 pricing 條目，否則
+  // dispatcher 在 normalize 後 getModelPricing 會回 null，cost reconciliation
+  // 無法對帳。數值與 elevenlabs/sound-effects 對齊（同一交付）。
+  "fal-ai/elevenlabs/sound-effects/v2": {
+    modelId: "fal-ai/elevenlabs/sound-effects/v2",
+    label: "ElevenLabs SFX v2 (via fal)",
+    provider: "fal",
     category: "text-to-audio",
     tier: "standard",
     basePoints: 3,
@@ -2656,8 +2678,28 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     requiresKey: true,
     keyEnvVar: "FAL_API_KEY",
   },
+  // DEF-So1：Sonauto 真實 fal endpoint。dispatcher 經 normalize 後查的就是這個 key。
+  // 與 fal-ai/sonauto 對齊（每首 5 pts，無時長維度）。
+  "sonauto/v2/text-to-music": {
+    modelId: "sonauto/v2/text-to-music",
+    label: "Sonauto v2",
+    provider: "fal",
+    category: "text-to-audio",
+    tier: "premium",
+    basePoints: 5,
+    baseCostUsd: 0.05,
+    unit: "每首",
+    minPoints: 5,
+    maxPoints: 50,
+    requiresKey: true,
+    keyEnvVar: "FAL_API_KEY",
+  },
 
   // ── 語音引擎 ──
+  // DEF-V4：與上游 elevenlabs/turbo-v2.5（pricing key, line 990）對齊 maxPoints=50。
+  // 兩個 entry 是同一交付（fal proxy），過去 30 vs 50 的差導致 dispatcher
+  // reconciliation 與 chargeForFalTask 對同一筆使用估算出不同上限。
+  // requiresKey 改為 ELEVENLABS_API_KEY（fal proxy 必要），與 SFX 對齊。
   "fal-ai/elevenlabs/tts/turbo-v2.5": {
     modelId: "fal-ai/elevenlabs/tts/turbo-v2.5",
     label: "ElevenLabs TTS Turbo V2.5 (via fal)",
@@ -2669,9 +2711,61 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     unit: "每1000字符",
     pointsPer1kChars: 1,
     minPoints: 1,
-    maxPoints: 30,
+    maxPoints: 50,
     requiresKey: true,
-    keyEnvVar: "FAL_API_KEY",
+    keyEnvVar: "ELEVENLABS_API_KEY",
+  },
+  // DEF-V7：ElevenLabs TTS 家族其他三家的 fal canonical 也需要 pricing 條目，
+  // 否則 dispatcher 在 normalize 後 getModelPricing 拿到 null 無法對帳。
+  // 數值與 elevenlabs/* 系列對齊（同一交付）。
+  "fal-ai/elevenlabs/tts/flash-v2.5": {
+    modelId: "fal-ai/elevenlabs/tts/flash-v2.5",
+    label: "ElevenLabs TTS Flash V2.5 (via fal)",
+    provider: "fal",
+    category: "text-to-speech",
+    tier: "economy",
+    basePoints: 1,
+    baseCostUsd: 0.005,
+    unit: "每1000字符",
+    pointsPer1kChars: 1,
+    minPoints: 1,
+    maxPoints: 50,
+    requiresKey: true,
+    keyEnvVar: "ELEVENLABS_API_KEY",
+  },
+  // DEF-V9：與上游 elevenlabs/multilingual-v2（pricing key, line 975）對齊 —
+  // 同一交付（fal proxy → ElevenLabs），DEF-V7 初版填了 2pt/100，造成
+  // dispatcher 對帳跑出與 chargeForFalTask 不同的單價。改成 3pt/150 與 legacy 同。
+  "fal-ai/elevenlabs/tts/multilingual-v2": {
+    modelId: "fal-ai/elevenlabs/tts/multilingual-v2",
+    label: "ElevenLabs TTS Multilingual V2 (via fal)",
+    provider: "fal",
+    category: "text-to-speech",
+    tier: "premium",
+    basePoints: 3,
+    baseCostUsd: 0.03,
+    unit: "每1000字符",
+    pointsPer1kChars: 3,
+    minPoints: 1,
+    maxPoints: 150,
+    requiresKey: true,
+    keyEnvVar: "ELEVENLABS_API_KEY",
+  },
+  // DEF-V9：與上游 elevenlabs/eleven-v3（pricing key, line 960）對齊 4pt/200。
+  "fal-ai/elevenlabs/tts/eleven-v3": {
+    modelId: "fal-ai/elevenlabs/tts/eleven-v3",
+    label: "ElevenLabs TTS Eleven V3 (via fal)",
+    provider: "fal",
+    category: "text-to-speech",
+    tier: "premium",
+    basePoints: 4,
+    baseCostUsd: 0.04,
+    unit: "每1000字符",
+    pointsPer1kChars: 4,
+    minPoints: 1,
+    maxPoints: 200,
+    requiresKey: true,
+    keyEnvVar: "ELEVENLABS_API_KEY",
   },
   "fal-ai/qwen-3-tts/text-to-speech/1.7b": {
     modelId: "fal-ai/qwen-3-tts/text-to-speech/1.7b",
@@ -2688,9 +2782,11 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     requiresKey: true,
     keyEnvVar: "FAL_API_KEY",
   },
+  // DEF-D2：fal 端命名誤導 — "voice-clone" 實為多說話者對話 TTS（[S1]/[S2] 標籤），
+  // 並非以參考音訊複製真實聲音。label 改為對話 TTS 對齊 catalog 描述。
   "fal-ai/dia-tts/voice-clone": {
     modelId: "fal-ai/dia-tts/voice-clone",
-    label: "Dia TTS Voice Clone",
+    label: "Dia 多說話者對話 TTS",
     provider: "fal",
     category: "text-to-speech",
     tier: "standard",

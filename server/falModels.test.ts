@@ -74,6 +74,151 @@ describe("falModels catalog coverage", () => {
     ).toBe(true);
   });
 
+  // DEF-Q1：Qwen3-TTS 1.7B 必須註冊在 text-to-speech catalog，否則 dispatcher
+  // 對 modelId 為 fal-ai/qwen-3-tts/text-to-speech/1.7b 的請求會 catalog miss，
+  // 自動降級到 fallback chain[0] = fal-ai/f5-tts（光球/導演/大腦選 Qwen 都會被換掉）。
+  it("text-to-speech catalog includes Qwen3-TTS 1.7B canonical id", () => {
+    const cfg = getFalModelById(
+      "fal-ai/qwen-3-tts/text-to-speech/1.7b",
+      "text-to-speech"
+    );
+    expect(cfg).toBeDefined();
+    expect(cfg!.category).toBe("text-to-speech");
+  });
+
+  // DEF-V6：ElevenLabs TTS 家族四家全部要在 catalog（過去只有 turbo + multilingual）。
+  // Flash / Eleven V3 缺席 → 光球選 Flash 經 dispatcher 會 catalog miss
+  // 並降級到 fallback[0] = fal-ai/f5-tts，使用者選 Flash 卻被默默換成 f5-tts。
+  it("text-to-speech catalog includes the full ElevenLabs TTS family", () => {
+    const list = getFalModelsByCategory("text-to-speech");
+    const ids = new Set(list.map(m => m.modelId));
+    expect(ids.has("fal-ai/elevenlabs/tts/turbo-v2.5")).toBe(true);
+    expect(ids.has("fal-ai/elevenlabs/tts/flash-v2.5")).toBe(true);
+    expect(ids.has("fal-ai/elevenlabs/tts/multilingual-v2")).toBe(true);
+    expect(ids.has("fal-ai/elevenlabs/tts/eleven-v3")).toBe(true);
+  });
+
+  // DEF-D1：Dia voice-clone 是獨立 endpoint（雖叫 voice-clone 實為多說話者
+  // 對話 TTS），必須與基礎 fal-ai/dia-tts 並列在 catalog 內，否則 dispatcher
+  // 對該 modelId 會 catalog miss → 降級到 f5-tts。
+  it("text-to-speech catalog includes Dia voice-clone alongside base dia-tts", () => {
+    const list = getFalModelsByCategory("text-to-speech");
+    const ids = new Set(list.map(m => m.modelId));
+    expect(ids.has("fal-ai/dia-tts")).toBe(true);
+    expect(ids.has("fal-ai/dia-tts/voice-clone")).toBe(true);
+  });
+
+  // DEF-IVC1：ElevenLabs Instant Voice Cloning 必須在 catalog，否則
+  // 大腦/光球選 ElevenLabs IVC 都會 catalog miss → 降級到 f5-tts，
+  // ELEVENLABS_API_KEY proxy header 也不會被注入。
+  it("text-to-speech catalog includes ElevenLabs IVC", () => {
+    const cfg = getFalModelById(
+      "fal-ai/elevenlabs/voice-cloning",
+      "text-to-speech"
+    );
+    expect(cfg).toBeDefined();
+    expect(cfg!.tier).toBe("premium");
+  });
+
+  // DEF-DM1：Demucs 音幹分離。沒在 catalog → 任何 category-aware 路徑（光球
+  // studio.separateStems / 導演若引用）會 catalog miss → 降級到 ace-step（音樂引擎），
+  // 完全與 stem 分離無關，使用者 / agent 拿到的會是音樂生成輸出。
+  it("text-to-audio catalog includes Demucs", () => {
+    const cfg = getFalModelById("fal-ai/demucs", "text-to-audio");
+    expect(cfg).toBeDefined();
+    expect(cfg!.timeoutMs).toBeGreaterThan(60_000);
+  });
+
+  // DEF-AI1：ElevenLabs Audio Isolation。同 DEF-DM1 pattern — catalog miss
+  // 會把「抽乾淨人聲」的請求降級成「生成音樂」，且 ELEVENLABS_API_KEY proxy
+  // header 也不會被注入。
+  it("text-to-audio catalog includes ElevenLabs Audio Isolation", () => {
+    const cfg = getFalModelById(
+      "fal-ai/elevenlabs/audio-isolation",
+      "text-to-audio"
+    );
+    expect(cfg).toBeDefined();
+    expect(cfg!.tier).toBe("standard");
+  });
+
+  // DEF-MA1：FFmpeg merge-audios — 同 DEF-DM1 / DEF-AI1 pattern，catalog miss
+  // 會把「合併已分離的軌道」降級成「生成音樂」。多步驟工作流的最後一塊（拆軌
+  // → 替換人聲 → mergeAudios 合回成品）必須能在 dispatcher 端 catalog 命中。
+  it("text-to-audio catalog includes FFmpeg merge-audios", () => {
+    const cfg = getFalModelById(
+      "fal-ai/ffmpeg-api/merge-audios",
+      "text-to-audio"
+    );
+    expect(cfg).toBeDefined();
+    expect(cfg!.tier).toBe("fast");
+  });
+
+  // DEF-VCH1：ElevenLabs Voice Changer — catalog miss 會把「換聲音保留語氣」
+  // 降級成「生成音樂」，且 ELEVENLABS_API_KEY proxy header 不會被注入。
+  it("text-to-audio catalog includes ElevenLabs Voice Changer", () => {
+    const cfg = getFalModelById(
+      "fal-ai/elevenlabs/voice-changer",
+      "text-to-audio"
+    );
+    expect(cfg).toBeDefined();
+    expect(cfg!.tier).toBe("standard");
+  });
+
+  // DEF-ASR1：audio-to-text 為 FalCategory 新增分類，過去 modelPricing 早有
+  // category="audio-to-text" 但 falModels enum 缺，使得 ASR 模型無處註冊。
+  // 現在 Nemotron / Wizper / Whisper 都應該在 audio-to-text catalog 內。
+  it("audio-to-text catalog includes Nemotron / Wizper / Whisper", () => {
+    const list = getFalModelsByCategory("audio-to-text");
+    const ids = new Set(list.map(m => m.modelId));
+    expect(ids.has("fal-ai/nemotron/asr/stream")).toBe(true);
+    expect(ids.has("fal-ai/wizper")).toBe(true);
+    expect(ids.has("fal-ai/whisper")).toBe(true);
+  });
+
+  // DEF-WAN1：Wan 2.2 Speech-to-Video — 說話人動畫。catalog miss 會把
+  // 「靜態頭像 + 配音 → 對嘴影片」的請求降級到 image-to-video[0] = kling-pro
+  // （純 i2v，不對嘴），使用者拿到的影片人物嘴型與配音對不上。
+  it("image-to-video catalog includes Wan 2.2 speech-to-video", () => {
+    const cfg = getFalModelById(
+      "fal-ai/wan/v2.2-14b/speech-to-video",
+      "image-to-video"
+    );
+    expect(cfg).toBeDefined();
+    expect(cfg!.tier).toBe("premium");
+  });
+
+  // DEF-EM1：EchoMimic V3 與 Stable Avatar — 同 DEF-WAN1 pattern，雙雙 catalog
+  // 漏註冊。avatar 系列三引擎（Wan / EchoMimic / Stable Avatar）需全部在
+  // image-to-video catalog 否則 dispatcher 對嘴生成請求都會降級到純 i2v。
+  it("image-to-video catalog includes the avatar engine family", () => {
+    const list = getFalModelsByCategory("image-to-video");
+    const ids = new Set(list.map(m => m.modelId));
+    expect(ids.has("fal-ai/wan/v2.2-14b/speech-to-video")).toBe(true);
+    expect(ids.has("fal-ai/echomimic-v3")).toBe(true);
+    expect(ids.has("fal-ai/stable-avatar")).toBe(true);
+  });
+
+  // DEF-EL1：ElevenLabs SFX 真實 endpoint 帶 /v2 後綴，必須在 text-to-audio
+  // catalog 註冊，否則 dispatcher 會把所有 SFX 請求降級到 fal-ai/ace-step（音樂模型）。
+  it("text-to-audio catalog includes ElevenLabs SFX v2 canonical id", () => {
+    const cfg = getFalModelById(
+      "fal-ai/elevenlabs/sound-effects/v2",
+      "text-to-audio"
+    );
+    expect(cfg).toBeDefined();
+    expect(cfg!.category).toBe("text-to-audio");
+  });
+
+  // DEF-So1：Sonauto v2 真實 fal endpoint。
+  it("text-to-audio catalog includes Sonauto v2 canonical id", () => {
+    const cfg = getFalModelById(
+      "sonauto/v2/text-to-music",
+      "text-to-audio"
+    );
+    expect(cfg).toBeDefined();
+    expect(cfg!.category).toBe("text-to-audio");
+  });
+
   it("every front-end falId from ImageStudio resolves via getFalModelById", () => {
     // Mirror the t2i falIds declared in client/src/pages/ImageStudio.tsx
     const t2iFalIds = [

@@ -19,7 +19,21 @@ export const LEGACY_FAL_ALIAS_MAP: Record<string, string> = {
   "fal/stable-audio": "fal-ai/stable-audio",
   "fal/musicgen": "fal-ai/musicgen",
   "fal/ace-step": "fal-ai/ace-step",
-  "fal/audioldm2": "fal-ai/audioldm2",
+  // DEF-So1：Sonauto 真實 fal 路徑為 sonauto/v2/text-to-music。
+  // 大腦組態 / brainAutoRepair / pricing 沿用 "fal-ai/sonauto" 為穩定 ID，
+  // 透過此別名於 dispatcher 層轉成 fal 真實 endpoint。
+  "fal-ai/sonauto": "sonauto/v2/text-to-music",
+  "fal/sonauto": "sonauto/v2/text-to-music",
+  // DEF-A1：fal.ai 已移除 fal-ai/audioldm2 endpoint，由 fal-ai/mmaudio-v2 接替
+  // （同 latent-diffusion 路線、同 standard tier）。將 audioldm2 系列全部別名
+  // 到 mmaudio-v2，避免 dispatcher 因 catalog 找不到而誤降級到 ace-step（音樂模型）。
+  "fal-ai/audioldm2": "fal-ai/mmaudio-v2",
+  "fal/audioldm2": "fal-ai/mmaudio-v2",
+  "fal/audioldm2-v2a": "fal-ai/mmaudio-v2",
+  // DEF-EL5：ElevenLabs SFX 真實 fal endpoint 帶 /v2 後綴。falModels catalog
+  // 早先註冊的 fal-ai/elevenlabs/sound-effects（無 /v2，且分類錯誤在 video-to-audio）
+  // 必須改寫到帶 /v2 的真實 endpoint，避免 dispatcher catalog miss 後降級到 ace-step。
+  "fal-ai/elevenlabs/sound-effects": "fal-ai/elevenlabs/sound-effects/v2",
   "fal/playai-tts": "fal-ai/f5-tts",
   "fal/kokoro": "fal-ai/kokoro",
   "fal/orpheus-tts": "fal-ai/orpheus-tts",
@@ -41,14 +55,16 @@ export const LEGACY_FAL_ALIAS_MAP: Record<string, string> = {
   "fal/fantasia3d": "fal-ai/trellis",
   "fal/mmaudio-v2": "fal-ai/mmaudio-v2",
   "fal/stable-audio-v2a": "fal-ai/stable-audio",
-  "fal/audioldm2-v2a": "fal-ai/audioldm2",
   "fal/sync-lipsync": "fal-ai/sync-lipsync",
   "fal/elevenlabs-sound": "fal-ai/elevenlabs/tts/turbo-v2.5",
-  // ElevenLabs Music / TTS catalog short-form → canonical Fal.ai paths
+  // DEF-V5：ElevenLabs TTS short-form → canonical Fal.ai paths。
+  // 之前 flash / eleven-v3 / multilingual 全部錯誤導向 turbo-v2.5（同一條別名值
+  // 複製貼上的 bug），導致大腦選 Flash 或 V3 都被默默換成 Turbo —
+  // 影響 Turbo v2.5 收到本不該屬於它的流量、且其他三家根本進不來。
   "elevenlabs/turbo-v2.5": "fal-ai/elevenlabs/tts/turbo-v2.5",
-  "elevenlabs/flash-v2.5": "fal-ai/elevenlabs/tts/turbo-v2.5",
-  "elevenlabs/eleven-v3": "fal-ai/elevenlabs/tts/turbo-v2.5",
-  "elevenlabs/multilingual-v2": "fal-ai/elevenlabs/tts/turbo-v2.5",
+  "elevenlabs/flash-v2.5": "fal-ai/elevenlabs/tts/flash-v2.5",
+  "elevenlabs/eleven-v3": "fal-ai/elevenlabs/tts/eleven-v3",
+  "elevenlabs/multilingual-v2": "fal-ai/elevenlabs/tts/multilingual-v2",
   "fal/whisper": "fal-ai/whisper",
   "fal/wizper": "fal-ai/wizper",
   "fal/any-llm-video": "fal-ai/any-llm",
@@ -67,3 +83,23 @@ export const LEGACY_FAL_ALIAS_MAP: Record<string, string> = {
 
 export const normalizeEngineModelId = (value: string): string =>
   LEGACY_FAL_ALIAS_MAP[value] ?? value;
+
+/**
+ * DEF-V10：從 fal-ai/elevenlabs/tts/{variant} canonical 路徑回推 ElevenLabs
+ * 原生 model_id（fal 反向代理時 body 內的必要欄位）。
+ *
+ * 對應規則：
+ *   fal-ai/elevenlabs/tts/turbo-v2.5      → eleven_turbo_v2_5
+ *   fal-ai/elevenlabs/tts/flash-v2.5      → eleven_flash_v2_5
+ *   fal-ai/elevenlabs/tts/multilingual-v2 → eleven_multilingual_v2
+ *   fal-ai/elevenlabs/tts/eleven-v3       → eleven_v3
+ *
+ * 給 director / orb 路徑使用，避免他們因為沒帶 model_id 而 fal 落到預設 Turbo。
+ * 非 ElevenLabs TTS 路徑回傳 null（呼叫端不應加 model_id 欄位）。
+ */
+export function nativeElevenLabsModelId(falModelId: string): string | null {
+  const m = falModelId.match(/^fal-ai\/elevenlabs\/tts\/(.+)$/);
+  if (!m) return null;
+  const variant = m[1].replace(/-/g, "_").replace(/\./g, "_");
+  return variant.startsWith("eleven_") ? variant : `eleven_${variant}`;
+}

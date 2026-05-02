@@ -164,6 +164,148 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     },
     executionTarget: "server-side",
   },
+  // DEF-SFX2：光球專用 SFX 生成工具，與音樂分流。
+  // 路由到 fal-ai/stable-audio 或 fal-ai/mmaudio-v2，prompt 為 Foley/環境音描述，
+  // duration 為秒數（stable-audio 走 seconds_total，mmaudio-v2 走 duration）。
+  {
+    name: "studio.generateSfx",
+    riskLevel: "medium",
+    requiresHuman: true,
+    allowedArgsSchema: {
+      prompt: "string",
+      modelId: "string?",
+      duration: "number?",
+    },
+    executionTarget: "server-side",
+  },
+  // DEF-VC1 / DEF-IVC3：光球專用 voice cloning 工具 — 兩條路徑：
+  //   - 預設 Qwen 3 zero-shot clone：30 秒參考音訊內 → speaker_embedding URL
+  //   - ElevenLabs IVC（modelId="fal-ai/elevenlabs/voice-cloning"）：1-3 分鐘
+  //     參考音訊 → 永久 voice_id（可餵給全家族 TTS / dubbing）；需 name 欄位
+  //     與 ELEVENLABS_API_KEY，缺 key 時自動退回 Qwen clone。
+  // 後續 step 可透過 ${stepN.speaker_voice_embedding_file_url} 或
+  // ${stepN.voice_id} 鏈接到 studio.generateVoice。
+  {
+    name: "studio.cloneVoice",
+    riskLevel: "medium",
+    requiresHuman: true,
+    allowedArgsSchema: {
+      audio_url: "string",
+      modelId: "string?",
+      reference_text: "string?",
+      name: "string?",
+      description: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  // DEF-VD1：光球專用 voice design 工具 — 用文字描述設計虛擬聲音
+  // （年齡/性別/情緒/語速等），輸出 speaker embedding，可在後續 step 透過
+  // studio.generateVoice 帶 speaker_voice_embedding_file_url 復用。
+  // 與 cloneVoice 互補：cloneVoice 從參考音訊複製真實聲音、designVoice 從
+  // 文字描述產生虛擬角色聲音。預設走 fal-ai/qwen-3-tts/voice-design/1.7b。
+  {
+    name: "studio.designVoice",
+    riskLevel: "medium",
+    requiresHuman: true,
+    allowedArgsSchema: {
+      voice_description: "string",
+      modelId: "string?",
+      text: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  // DEF-DM2：光球專用音幹分離工具 — 把整首歌拆成多軌（vocals / drums /
+  // bass / other [+guitar/piano]），後續 step 可用 ${stepN.vocals_url} /
+  // ${stepN.drums_url} 等接到混音 / mergeAudios / voiceChanger 等流程。
+  // 預設走 fal-ai/demucs（htdemucs_ft 4 軌）。
+  {
+    name: "studio.separateStems",
+    riskLevel: "medium",
+    requiresHuman: true,
+    allowedArgsSchema: {
+      audio_url: "string",
+      modelId: "string?",
+      stem_model: "string?",
+      output_format: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  // DEF-AI3：光球專用音訊隔離 — 與 separateStems 互補：分離拆多軌、隔離抽
+  // 乾淨單軌（去背景噪、保留人聲/語音）。預設 fal-ai/elevenlabs/audio-isolation
+  // （需 ELEVENLABS_API_KEY），缺 key 時退回 fal-ai/demucs 並取 vocals 軌。
+  // 後續 step 可用 ${stepN.audio_url} 接到 STT / voiceChanger / mergeAudios。
+  {
+    name: "studio.isolateAudio",
+    riskLevel: "medium",
+    requiresHuman: true,
+    allowedArgsSchema: {
+      audio_url: "string",
+      modelId: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  // DEF-MA3：光球專用多音訊合併 — separateStems → 替換／設計人聲 → mergeAudios
+  // 三段式工作流的最後一塊。strategy="concatenate" 序接（多段對白接龍）；
+  // "mix" 混音（伴奏 + 替換人聲合成完整成品）。預設走 fal-ai/ffmpeg-api/merge-audios。
+  {
+    name: "studio.mergeAudios",
+    riskLevel: "medium",
+    requiresHuman: true,
+    allowedArgsSchema: {
+      audio_urls: "string[]",
+      merge_strategy: "string?",
+      modelId: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  // DEF-VCH4：光球專用聲音變換 — 把現有錄音的「聲音」換成另一個 voice_id，
+  // 但保留原始語氣、語速、情緒。與 cloneVoice + generateVoice 三件互補：
+  //   - cloneVoice：建立 voice_id（從參考音訊）
+  //   - generateVoice：用 voice_id 念新文字
+  //   - changeVoice：用 voice_id 改寫現有錄音的聲音（保留原時長與停頓）
+  // 預設 fal-ai/elevenlabs/voice-changer（需 ELEVENLABS_API_KEY）。
+  {
+    name: "studio.changeVoice",
+    riskLevel: "medium",
+    requiresHuman: true,
+    allowedArgsSchema: {
+      audio_url: "string",
+      voice_id: "string",
+      remove_background_noise: "boolean?",
+      modelId: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  // DEF-ASR3：光球專用語音轉文字（ASR）— 把音訊轉成文字稿，後續 step 可接到
+  // LLM 翻譯 / 摘要 / 重新合成（generateVoice）等。預設 Nemotron ASR（SSE 串流，
+  // 自動偵測語言），不需特殊 key。完成「逐字稿」工作流的關鍵一塊。
+  {
+    name: "studio.transcribe",
+    riskLevel: "low",
+    requiresHuman: false,
+    allowedArgsSchema: {
+      audio_url: "string",
+      modelId: "string?",
+      acceleration: "string?",
+    },
+    executionTarget: "server-side",
+  },
+  // DEF-WAN2：光球專用說話人動畫 — 靜態頭像 + 配音 → 對嘴說話影片。
+  // 是「克隆聲音 → TTS → 動畫」工作流的最後一塊。預設 fal-ai/wan/v2.2-14b/speech-to-video。
+  // 與 generateVideo（純 i2v / t2v）區別：必須有 audio_url，產出對嘴而非純動畫。
+  {
+    name: "studio.animateSpeaker",
+    riskLevel: "medium",
+    requiresHuman: true,
+    allowedArgsSchema: {
+      image_url: "string",
+      audio_url: "string",
+      prompt: "string?",
+      num_frames: "number?",
+      modelId: "string?",
+    },
+    executionTarget: "server-side",
+  },
   {
     name: "studio.generateVoice",
     riskLevel: "medium",

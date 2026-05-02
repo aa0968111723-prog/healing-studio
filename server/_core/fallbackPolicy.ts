@@ -196,17 +196,32 @@ export const PER_CATEGORY_FALLBACK: Record<string, string[]> = {
     "fal-ai/orpheus-tts",
     "fal-ai/dia-tts",
     "fal-ai/kokoro",
+    // DEF-Q2：Qwen TTS 加入候選鏈 — 不需特殊 key（FAL_API_KEY 即可）、
+    // 多語言、tier=fast，可作為 ElevenLabs 缺 ELEVENLABS_API_KEY 時的合理替代。
+    "fal-ai/qwen-3-tts/text-to-speech/1.7b",
   ],
   "text-to-audio": [
     "fal-ai/ace-step",
+    "sonauto/v2/text-to-music",
     "fal-ai/stable-audio",
     "fal-ai/mmaudio-v2",
     "fal-ai/musicgen",
+    // DEF-EL8：ElevenLabs SFX 排在最後 — 需要獨立的 ELEVENLABS_API_KEY，
+    // 不適合作為其他模型壞掉時的自動 fallback 對象，但 chain 內存在讓
+    // dispatcher 在使用者明確選 ElevenLabs 時 catalog 能找得到。
+    "fal-ai/elevenlabs/sound-effects/v2",
   ],
   "image-to-3d": ["fal-ai/triposr", "fal-ai/tripo3d", "fal-ai/trellis"],
   "text-to-3d": ["fal-ai/tripo3d", "fal-ai/trellis", "fal-ai/hyper3d/rodin"],
   "video-to-audio": ["fal-ai/mmaudio-v2", "fal-ai/stable-audio"],
   "video-to-text": ["fal-ai/wizper", "fal-ai/whisper"],
+  // DEF-ASR2：ASR 候選鏈 — Nemotron 為預設（自動偵測語言、SSE 串流），
+  // 失敗時退到 fal.ai 主流 wizper / whisper。
+  "audio-to-text": [
+    "fal-ai/nemotron/asr/stream",
+    "fal-ai/wizper",
+    "fal-ai/whisper",
+  ],
   "video-to-video": [
     "fal-ai/kling-video/v2.1/standard/video-to-video",
     "fal-ai/kling-video/v1.6/standard/video-to-video",

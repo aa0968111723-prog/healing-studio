@@ -25,6 +25,7 @@ import { createFalClient } from "@fal-ai/client";
 // ─── 模型類別定義 ─────────────────────────────────────────────────────────
 
 export type FalCategory =
+  | "audio-to-text"
   | "image-to-3d"
   | "image-to-image"
   | "image-to-json"
@@ -95,6 +96,49 @@ export interface FalOutputSchema {
 // ─── 16大類 × 5-6個模型目錄 ───────────────────────────────────────────────
 
 export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
+  // ════════════════════════════════════════════════════════
+  // 2-0  音訊轉文字  audio-to-text
+  // DEF-ASR1：ASR（語音辨識）。modelPricing.ts 早就有 audio-to-text category，
+  // 但 falModels.ts 的 FalCategory enum 過去缺，導致 ASR 模型無法在 catalog
+  // 註冊。proStudio.speechToText 直接呼叫 falQueueSubmit（不傳 category）僥倖
+  // 避開 dispatcher 降級邏輯，但任何透過 dispatcher 帶 category 的路徑會踩
+  // catalog miss bug。新增此分類後，nemotron-asr / wizper / whisper 都能由
+  // dispatcher 正確認得。
+  // ════════════════════════════════════════════════════════
+  "audio-to-text": [
+    {
+      modelId: "fal-ai/nemotron/asr/stream",
+      label: "Nemotron ASR Stream",
+      category: "audio-to-text",
+      tier: "standard",
+      description:
+        "NVIDIA Nemotron ASR — SSE 串流端點，自動偵測語言（不接 language 參數）",
+      inputSchema: { audioUrl: true },
+      outputSchema: { text: true, json: true },
+      timeoutMs: 180_000,
+    },
+    {
+      modelId: "fal-ai/wizper",
+      label: "Wizper 快速 ASR",
+      category: "audio-to-text",
+      tier: "fast",
+      description: "Wizper 快速語音轉文字（音訊輸入），fal.ai 主流選擇",
+      inputSchema: { audioUrl: true },
+      outputSchema: { text: true, json: true },
+      timeoutMs: 60_000,
+    },
+    {
+      modelId: "fal-ai/whisper",
+      label: "Whisper ASR",
+      category: "audio-to-text",
+      tier: "standard",
+      description: "OpenAI Whisper 多語言 ASR，audio_url 輸入",
+      inputSchema: { audioUrl: true },
+      outputSchema: { text: true, json: true },
+      timeoutMs: 180_000,
+    },
+  ],
+
   // ════════════════════════════════════════════════════════
   // 2-1  影像轉3D  image-to-3d
   // ════════════════════════════════════════════════════════
@@ -683,6 +727,50 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       outputSchema: { videoUrl: true },
       timeoutMs: 300_000,
     },
+    // DEF-WAN1：Wan 2.2 Speech-to-Video — 說話人動畫（image + audio → 對嘴影片）。
+    // pricing 早就掛在 image-to-video category（line 2906），但 falModels catalog
+    // 缺。proStudio.speechToVideo 直接呼叫 falQueueSubmit（不傳 category）僥倖
+    // 避開 dispatcher 降級邏輯，但任何 category-aware 路徑會 catalog miss → 降級
+    // 到 image-to-video[0] = kling-video/v2.1/pro/image-to-video（純 i2v，無對嘴）。
+    // 使用者送靜態頭像 + 配音，期望「對嘴影片」，卻拿到「不對嘴的純動畫」。
+    {
+      modelId: "fal-ai/wan/v2.2-14b/speech-to-video",
+      label: "Wan 2.2 說話人動畫",
+      category: "image-to-video",
+      tier: "premium",
+      description:
+        "Wan 2.2 Speech-to-Video — 靜態頭像 + 音訊 → 對嘴說話影片（≈24fps，num_frames 16-200）",
+      inputSchema: { imageUrl: true, audioUrl: true, prompt: true },
+      outputSchema: { videoUrl: true },
+      timeoutMs: 600_000,
+    },
+    // DEF-EM1：EchoMimic V3 與 Stable Avatar — 兩個 avatar 系列引擎與 Wan 同 pattern：
+    // pricing + brainAutoRepair 都認得，但 catalog 缺。差異：EchoMimic 接受 text 模式
+    // （image + text → 內含 TTS 的對嘴影片，audio_url 可選），Stable Avatar 是
+    // 長片優化（最長 5 分鐘）。三家共用 image-to-video category，光球
+    // studio.animateSpeaker 可透過 modelId 切換。
+    {
+      modelId: "fal-ai/echomimic-v3",
+      label: "EchoMimic V3 對嘴",
+      category: "image-to-video",
+      tier: "premium",
+      description:
+        "EchoMimic V3 — image + audio（或 text）→ 精準對嘴 + 表情連動，pose_style 0-45 控制動作幅度",
+      inputSchema: { imageUrl: true, audioUrl: true, prompt: true },
+      outputSchema: { videoUrl: true },
+      timeoutMs: 600_000,
+    },
+    {
+      modelId: "fal-ai/stable-avatar",
+      label: "Stable Avatar 長片頭像",
+      category: "image-to-video",
+      tier: "premium",
+      description:
+        "Stable Avatar — 音訊驅動頭像，最長 5 分鐘長片連續對嘴（適合長 podcast / 課程旁白）",
+      inputSchema: { imageUrl: true, audioUrl: true },
+      outputSchema: { videoUrl: true },
+      timeoutMs: 900_000,
+    },
   ],
 
   // ════════════════════════════════════════════════════════
@@ -885,6 +973,35 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       inputSchema: { prompt: true, duration: true, seed: true },
       outputSchema: { audioUrl: true },
       timeoutMs: 120_000,
+    },
+    // DEF-So1：Sonauto v2 — fal endpoint 真實路徑為 sonauto/v2/text-to-music
+    // （非 fal-ai/sonauto）。沒有 duration 參數，自動產 1-3 分鐘完整歌曲；
+    // 歌詞欄位為 lyrics_prompt（不是 lyrics），tags 是陣列。
+    {
+      modelId: "sonauto/v2/text-to-music",
+      label: "Sonauto v2",
+      category: "text-to-audio",
+      tier: "premium",
+      description: "Sonauto v2 完整歌曲生成（含歌詞、風格 tags，1-3 分鐘）",
+      inputSchema: { prompt: true, seed: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 240_000,
+    },
+    // DEF-EL1：ElevenLabs Sound Effects v2 — fal 真實路徑帶 /v2 後綴。
+    // 未註冊在 catalog 時 dispatcher 會把任何 SFX 請求降級到 text-to-audio[0]
+    // = fal-ai/ace-step（音樂引擎！），導致每次選 ElevenLabs SFX 都默默被換成
+    // 音樂。輸入欄位為 { text, duration_seconds, prompt_influence }（與其他
+    // SFX 模型用 prompt+seconds_total/duration 不同），且需 ELEVENLABS_API_KEY
+    // 經 fal proxy header 認證；最大時長 22 秒。
+    {
+      modelId: "fal-ai/elevenlabs/sound-effects/v2",
+      label: "ElevenLabs SFX v2",
+      category: "text-to-audio",
+      tier: "standard",
+      description: "ElevenLabs Sound Effects v2（最長 22 秒，需 ELEVENLABS_API_KEY）",
+      inputSchema: { prompt: true, duration: true, seed: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 60_000,
     },
   ],
 
@@ -1184,6 +1301,30 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       outputSchema: { audioUrl: true },
       timeoutMs: 30_000,
     },
+    // DEF-V6：ElevenLabs TTS 家族其他兩家原本只有 proStudio.ENGINE_MAP 引用，
+    // catalog 完全沒註冊。一旦透過 dispatcher（光球 / 導演 / brain-driven）使用，
+    // catalog miss → fallback chain[0] = fal-ai/f5-tts。使用者選 Flash 或 V3 都會
+    // 默默被換成 f5-tts。
+    {
+      modelId: "fal-ai/elevenlabs/tts/flash-v2.5",
+      label: "ElevenLabs Flash V2.5",
+      category: "text-to-speech",
+      tier: "fast",
+      description: "ElevenLabs Flash V2.5 超低延遲（~75ms），適合即時對話場景",
+      inputSchema: { prompt: true, voiceId: true, speed: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 30_000,
+    },
+    {
+      modelId: "fal-ai/elevenlabs/tts/eleven-v3",
+      label: "ElevenLabs Eleven V3",
+      category: "text-to-speech",
+      tier: "premium",
+      description: "ElevenLabs Eleven V3 最強情緒表達與最高品質 TTS",
+      inputSchema: { prompt: true, voiceId: true, speed: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 60_000,
+    },
     {
       modelId: "fal-ai/metavoice-v1",
       label: "MetaVoice V1",
@@ -1203,6 +1344,103 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       inputSchema: { prompt: true, voiceId: true, speed: true },
       outputSchema: { audioUrl: true },
       timeoutMs: 60_000,
+    },
+    // DEF-D1：Dia voice-clone endpoint 未註冊。dispatcher 對 modelId
+    // fal-ai/dia-tts/voice-clone 的請求會 catalog miss → 降級到
+    // text-to-speech[0] = fal-ai/f5-tts。光球 / 導演 / 大腦選 Dia 對話克隆
+    // 都會被默默換成 f5-tts。
+    // ⚠️ 名稱誤導：fal 端 "voice-clone" 實為多說話者對話 TTS（用 [S1]/[S2]
+    // 標籤生成不同合成聲音），並非以參考音訊複製真實使用者聲音 —— 故只接受
+    // { text }，沒有 audio_url 參數。
+    {
+      modelId: "fal-ai/dia-tts/voice-clone",
+      label: "Dia 多說話者對話 TTS",
+      category: "text-to-speech",
+      tier: "standard",
+      description:
+        "Dia 多說話者對話 TTS — 用 [S1]/[S2] 標籤生成多角色合成聲音（非真實聲音克隆）",
+      inputSchema: { prompt: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 60_000,
+    },
+    // DEF-IVC1：ElevenLabs Instant Voice Cloning (IVC) — 上傳 1-3 分鐘參考音訊
+    // 在 ElevenLabs 端建立永久 voice_id，後續可在所有 ElevenLabs TTS / dubbing /
+    // voice-changer 復用。需 ELEVENLABS_API_KEY 經 fal proxy header 認證。
+    // 過去未註冊在 catalog → 大腦/光球選 ElevenLabs IVC 都被默默降級到 f5-tts。
+    {
+      modelId: "fal-ai/elevenlabs/voice-cloning",
+      label: "ElevenLabs Instant Voice Clone",
+      category: "text-to-speech",
+      tier: "premium",
+      description:
+        "ElevenLabs IVC — 1-3 分鐘參考音訊建立永久 voice_id，可被全家族 TTS 復用（需 ELEVENLABS_API_KEY）",
+      inputSchema: { audioUrl: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 120_000,
+    },
+    // DEF-DM1：Demucs 音幹分離 — fal endpoint 是 audio-to-audio（音訊輸入、
+    // 多軌音訊輸出），但 FalCategory type 沒有 audio-to-audio enum。暫時掛在
+    // text-to-audio 下，避免新增 enum 引發大範圍 type 變更；catalog 註冊後
+    // dispatcher 對 modelId fal-ai/demucs 不再 miss → 不會降級到 ace-step。
+    // proStudio.demucs 直接呼叫 falQueueSubmit（不傳 category）原本繞過了
+    // category-aware fallback，但任何透過 dispatcher 帶 category 的路徑（光球 /
+    // 導演自動編曲）都會踩 catalog miss bug。
+    {
+      modelId: "fal-ai/demucs",
+      label: "Demucs 音幹分離",
+      category: "text-to-audio",
+      tier: "standard",
+      description:
+        "Demucs 音幹分離 — 將歌曲拆解為 4 軌（vocals/drums/bass/other）或 6 軌（+guitar/piano，僅 htdemucs_6s）",
+      inputSchema: { audioUrl: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 180_000,
+    },
+    // DEF-AI1：ElevenLabs Audio Isolation — 與 Demucs 互補：Demucs 拆多軌、
+    // Isolation 抽乾淨單軌（去背景噪、保留人聲/語音）。同 audio-to-audio 概念，
+    // 同樣為避免 enum 變更掛在 text-to-audio。catalog 過去缺席 → 任何 category-
+    // aware 路徑會降級到 ace-step（音樂引擎）。需 ELEVENLABS_API_KEY proxy。
+    {
+      modelId: "fal-ai/elevenlabs/audio-isolation",
+      label: "ElevenLabs 音訊隔離",
+      category: "text-to-audio",
+      tier: "standard",
+      description:
+        "ElevenLabs Audio Isolation — 從含背景噪訊的錄音抽出乾淨人聲/語音（需 ELEVENLABS_API_KEY）",
+      inputSchema: { audioUrl: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 120_000,
+    },
+    // DEF-MA1：FFmpeg merge-audios — 多音訊合併（concatenate 序接 / mix 混音）。
+    // 是音幹分離 → 替換人聲 → 合回成品工作流的最後一塊拼圖。同 audio-to-audio
+    // 概念，掛在 text-to-audio 下避免 FalCategory enum 變更。
+    {
+      modelId: "fal-ai/ffmpeg-api/merge-audios",
+      label: "FFmpeg 多音訊合併",
+      category: "text-to-audio",
+      tier: "fast",
+      description:
+        "FFmpeg merge-audios — 將 2-10 段音訊以 concatenate（序接）或 mix（混音）合併成一段",
+      inputSchema: { audioUrl: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 60_000,
+    },
+    // DEF-VCH1：ElevenLabs Voice Changer — 把現有錄音的「聲音」換成另一個 voice_id
+    // 但保留原本的語音內容、語速、情緒。與 generateVoice + cloneVoice 三件一組：
+    //   - cloneVoice 建立 voice_id（從參考音訊）
+    //   - generateVoice 用 voice_id 念新文字
+    //   - voiceChanger 用 voice_id 換掉現有錄音的聲音（保留原語氣與時長）
+    // 同 audio-to-audio 概念，掛在 text-to-audio 避免 enum 變更。
+    {
+      modelId: "fal-ai/elevenlabs/voice-changer",
+      label: "ElevenLabs 聲音變換",
+      category: "text-to-audio",
+      tier: "standard",
+      description:
+        "ElevenLabs Voice Changer — 把錄音的聲音換成指定 voice_id，保留原語速/語氣（需 ELEVENLABS_API_KEY）",
+      inputSchema: { audioUrl: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 120_000,
     },
     {
       modelId: "fal-ai/dia-tts",
@@ -1238,6 +1476,42 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       inputSchema: { prompt: true, voiceId: true, speed: true },
       outputSchema: { audioUrl: true },
       timeoutMs: 60_000,
+    },
+    // DEF-Q1：Qwen3-TTS 1.7B — 早先只有 pricing/brain-repair 紀錄，沒註冊到
+    // FAL_MODEL_CATALOG，因此 dispatcher 對任何 category=text-to-speech 的
+    // 請求 + modelId="fal-ai/qwen-3-tts/text-to-speech/1.7b" 都 catalog miss，
+    // 自動降級到 fal-ai/f5-tts。光球 / 導演 / 大腦選 Qwen 全部默默被換掉。
+    // 欄位形狀與其他 TTS 不同：用 voice（預訓練名稱，如 "Vivian"）或
+    // speaker_voice_embedding_file_url，並可選 reference_text + language。
+    {
+      modelId: "fal-ai/qwen-3-tts/text-to-speech/1.7b",
+      label: "Qwen 3 TTS 1.7B",
+      category: "text-to-speech",
+      tier: "fast",
+      description: "Qwen 3 TTS 1.7B — 多語言（中英日韓西法德義葡俄）+ 預訓練聲線/克隆 embedding",
+      inputSchema: { prompt: true, voiceId: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 60_000,
+    },
+    {
+      modelId: "fal-ai/qwen-3-tts/clone-voice/1.7b",
+      label: "Qwen 3 Voice Clone",
+      category: "text-to-speech",
+      tier: "fast",
+      description: "Qwen 3 聲音克隆 — 回傳 speaker_voice_embedding，供 qwenTTS 復用",
+      inputSchema: { audioUrl: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 90_000,
+    },
+    {
+      modelId: "fal-ai/qwen-3-tts/voice-design/1.7b",
+      label: "Qwen 3 Voice Design",
+      category: "text-to-speech",
+      tier: "fast",
+      description: "Qwen 3 文字描述設計語音 — prompt 描述聲線 → embedding",
+      inputSchema: { prompt: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 90_000,
     },
   ],
 
@@ -1873,6 +2147,7 @@ assertNoDuplicateModelIds();
 
 /** 取得所有類別標籤（繁中） */
 export const FAL_CATEGORY_LABELS: Record<FalCategory, string> = {
+  "audio-to-text": "音訊轉文字",
   "image-to-3d": "影像轉3D",
   "image-to-image": "影像到影像",
   "image-to-json": "圖像轉JSON",
