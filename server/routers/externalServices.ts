@@ -280,7 +280,8 @@ export const externalServicesRouter = router({
         apiKeyEnvVar: "PERPLEXITY_API_KEY",
         apiKeyStatus: "unknown" as const,
         riskLevel: "low" as const,
-        notes: "全站 AI 搜尋/研究功能可使用此服務。請在 Railway 環境變數設定 PERPLEXITY_API_KEY。",
+        notes:
+          "（選用）已由 OpenRouter perplexity/sonar 模型取代，不需另外申請。如仍想用直連 API 可在 Railway 設定 PERPLEXITY_API_KEY；webSearch 會優先走 Brave，再 fallback 到 OpenRouter Sonar。",
       },
       {
         serviceName: "Railway",

@@ -219,20 +219,39 @@ export function inferEngineFromModelId(
 
 /**
  * 從模型 ID 推斷引擎，但只回傳實際已設定且健康的引擎。
- * 找不到合適引擎時回傳 null，呼叫端應 fallback 到 auto。
+ * 找不到合適引擎時：
+ *   - vertex/* 與裸 claude-*、gemini-* 路徑會自動降級到 OpenRouter（若已設定 key），
+ *     避免在 Vertex/Anthropic 直連缺金鑰時整個請求失敗。
+ *   - 其他狀況回 null，呼叫端會 fallback 到 auto 順序。
  */
 export function inferEngineFromModelIdSafe(
   modelId: string | undefined | null
 ): LLMEngine | null {
   const inferred = inferEngineFromModelId(modelId);
   if (!inferred) return null;
-  if (!isEngineAvailable(inferred)) return null;
-  try {
-    resolveSpecificEngine(inferred);
-    return inferred;
-  } catch {
-    return null;
+  if (isEngineAvailable(inferred)) {
+    try {
+      resolveSpecificEngine(inferred);
+      return inferred;
+    } catch {
+      // 推斷出引擎但金鑰缺失 — 走下面的 OpenRouter 自動降級
+    }
   }
+  // Vertex / Anthropic / 直連 Gemini 沒設好 → 自動切到 OpenRouter（normalizeModelForEngine
+  // 會把 vertex/* → google/*、claude-* → anthropic/claude-* 重寫成 OpenRouter 接受的格式）
+  if (
+    (inferred === "vertex" || inferred === "anthropic" || inferred === "gemini") &&
+    ENV.openRouterApiKey &&
+    isEngineAvailable("openrouter")
+  ) {
+    try {
+      resolveSpecificEngine("openrouter");
+      return "openrouter";
+    } catch {
+      return null;
+    }
+  }
+  return null;
 }
 
 /**
@@ -330,7 +349,7 @@ export function resolveEngineConfig(forceEngine?: LLMEngine): EngineConfig {
   }
 
   throw new Error(
-    "沒有可用的 LLM 引擎！請在 .env 中設定 GEMINI_API_KEY（推薦）、NVIDIA_API（NVIDIA NIM）或 BUILT_IN_FORGE_API_KEY（Manus 相容）"
+    "沒有可用的 LLM 引擎！請在 .env 中設定 OPENROUTER_API_KEY（推薦：統一閘道，可直接路由到 Claude / Gemini / Llama）、GEMINI_API_KEY、NVIDIA_API（NVIDIA NIM）或 BUILT_IN_FORGE_API_KEY（Manus 相容）"
   );
 }
 

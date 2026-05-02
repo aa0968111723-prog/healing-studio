@@ -191,8 +191,9 @@ const PROVIDERS: ProviderMeta[] = [
   },
   {
     id: "vertex",
-    label: "Google Vertex AI",
-    description: "企業級 LLM 與多模態（Gemini / Llama / Imagen）",
+    label: "Google Vertex AI（選用，缺金鑰時自動降級到 OpenRouter）",
+    description:
+      "企業級 LLM 與多模態（Gemini / Llama / Imagen）。未設 GOOGLE_APPLICATION_CREDENTIALS_JSON 時，所有 vertex/* 模型會由 normalizeModelForEngine 自動重寫為 OpenRouter 等效 ID（google/gemini-*、meta-llama/* 等）。",
     apiKeyEnv: "GOOGLE_APPLICATION_CREDENTIALS_JSON",
     hasKey: () => Boolean(serverEnv.GOOGLE_APPLICATION_CREDENTIALS_JSON),
     serviceFiles: ["server/services/vertexAI.ts"],
@@ -241,8 +242,9 @@ const PROVIDERS: ProviderMeta[] = [
   },
   {
     id: "anthropic",
-    label: "Anthropic Claude",
-    description: "光球代理首選（直連 Anthropic API；支援 prompt caching）",
+    label: "Anthropic Claude（選用，缺金鑰時自動降級到 OpenRouter）",
+    description:
+      "光球代理首選（直連 Anthropic API；支援 prompt caching）。未設 ANTHROPIC_API_KEY 或帳戶餘額不足時，inferEngineFromModelIdSafe 會把裸 claude-* 路徑改走 OpenRouter（anthropic/claude-*）。",
     apiKeyEnv: "ANTHROPIC_API_KEY",
     hasKey: () => Boolean(serverEnv.ANTHROPIC_API_KEY),
     serviceFiles: ["server/_core/llmRouter.ts", "server/_core/llm.ts"],
@@ -1006,10 +1008,11 @@ const EXTERNAL_SERVICES: ExternalServiceMeta[] = [
   {
     id: "ext:perplexity",
     kind: "search-provider",
-    label: "Perplexity API",
-    description: "進階研究模式備援（ENABLE_RESEARCH_MODE 啟用時走此路徑）",
+    label: "Perplexity（已淘汰直連，由 OpenRouter Sonar 取代）",
+    description:
+      "進階研究模式：若設 PERPLEXITY_API_KEY 仍可用，但 webSearch 預設走 OpenRouter perplexity/sonar 模型，免另外購買金鑰。",
     envKey: "PERPLEXITY_API_KEY",
-    files: ["server/services/orbWebResearch.ts"],
+    files: ["server/services/brainAutoRepair.ts", "server/services/orbWebResearch.ts"],
   },
   {
     id: "ext:newsapi",
