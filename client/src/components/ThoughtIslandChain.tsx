@@ -52,9 +52,16 @@ type Props = {
 
 function formatDuration(ms: number): string {
   if (ms <= 0) return "";
-  if (ms < 1000) return `${ms}ms`;
-  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
-  return `${(ms / 60000).toFixed(1)}m`;
+  // Defensive: if an absolute Unix timestamp leaks in (years 2020+ ≈ 1.6e12),
+  // convert to elapsed-from-now so we never print raw 1773762824205ms.
+  if (ms > 1e12) {
+    ms = Math.max(0, Date.now() - ms);
+  }
+  if (ms < 1000) return `${Math.round(ms)} 毫秒`;
+  if (ms < 10_000) return `${(ms / 1000).toFixed(1)} 秒`;
+  if (ms < 60_000) return `${Math.round(ms / 1000)} 秒`;
+  if (ms < 3_600_000) return `${Math.round(ms / 60_000)} 分鐘`;
+  return `${(ms / 3_600_000).toFixed(1)} 小時`;
 }
 
 function computeRelativeDurations(nodes: ThoughtNode[]): Map<string, number> {

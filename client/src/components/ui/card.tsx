@@ -2,12 +2,29 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-function Card({ className, ...props }: React.ComponentProps<"div">) {
+type CardTone = "default" | "glass" | "raised";
+
+const toneClasses: Record<CardTone, string> = {
+  default:
+    "bg-card text-card-foreground border shadow-sm card-healing",
+  glass:
+    "surface-2 text-glass-strong border-0 shadow-sm card-healing",
+  raised:
+    "surface-3 text-glass-strong border-0 shadow-md card-healing",
+};
+
+function Card({
+  className,
+  tone = "default",
+  ...props
+}: React.ComponentProps<"div"> & { tone?: CardTone }) {
   return (
     <div
       data-slot="card"
+      data-tone={tone}
       className={cn(
-        "bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm",
+        "flex flex-col gap-6 rounded-xl py-6",
+        toneClasses[tone],
         className
       )}
       {...props}

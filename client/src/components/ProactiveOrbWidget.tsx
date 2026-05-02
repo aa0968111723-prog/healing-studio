@@ -1,4 +1,12 @@
-import { useState, useEffect, useCallback, useRef, useMemo, memo } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useMemo,
+  memo,
+  type CSSProperties,
+} from "react";
 import {
   motion,
   AnimatePresence,
@@ -2492,6 +2500,8 @@ export default memo(function ProactiveOrbWidget({
 
       {/* Draggable orb container */}
       <motion.div
+        role="complementary"
+        aria-label="光球助手"
         drag={!isMobile && !guiding && !showPanel}
         dragElastic={0.1}
         dragMomentum={false}
@@ -2518,12 +2528,26 @@ export default memo(function ProactiveOrbWidget({
           (orbWidgetCorner === "bottom-left" || orbWidgetCorner === "top-left")
             ? "items-start flex-col"
             : "items-end flex-col",
-          orbWidgetCorner === "bottom-right" && (isMobile ? "absolute bottom-4 right-4" : "absolute bottom-6 right-6"),
-          orbWidgetCorner === "bottom-left" && (isMobile ? "absolute bottom-4 left-4" : "absolute bottom-6 left-6"),
-          orbWidgetCorner === "top-right" && (isMobile ? "absolute top-4 right-4" : "absolute top-6 right-6"),
-          orbWidgetCorner === "top-left" && (isMobile ? "absolute top-4 left-4" : "absolute top-6 left-6")
+          // Position is set via inline style below to honour iOS safe-area insets
+          orbWidgetCorner === "bottom-right" && "absolute",
+          orbWidgetCorner === "bottom-left" && "absolute",
+          orbWidgetCorner === "top-right" && "absolute",
+          orbWidgetCorner === "top-left" && "absolute"
         )}
-        style={{ cursor: isMobile ? "pointer" : (guiding ? "default" : "grab"), touchAction: "none" }}
+        style={(() => {
+          const inset = isMobile ? "1rem" : "1.5rem";
+          const v = `calc(${inset} + env(safe-area-inset-bottom, 0px))`;
+          const top = `calc(${inset} + env(safe-area-inset-top, 0px))`;
+          const right = `calc(${inset} + env(safe-area-inset-right, 0px))`;
+          const left = `calc(${inset} + env(safe-area-inset-left, 0px))`;
+          const cursor = isMobile ? "pointer" : (guiding ? "default" : "grab");
+          const base: CSSProperties = { cursor, touchAction: "none" };
+          if (orbWidgetCorner === "bottom-right") return { ...base, bottom: v, right };
+          if (orbWidgetCorner === "bottom-left") return { ...base, bottom: v, left };
+          if (orbWidgetCorner === "top-right") return { ...base, top, right };
+          if (orbWidgetCorner === "top-left") return { ...base, top, left };
+          return base;
+        })()}
         id="proactive-orb-anchor"
       >
         {/* ══ OrbGuide Panel — desktop only (mobile renders outside drag container) ══ */}
