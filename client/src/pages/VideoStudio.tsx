@@ -3899,9 +3899,27 @@ export default function VideoStudio() {
   const childStateRef = useRef<{ tabId: TabId; state: Record<string, unknown> } | null>(null);
   const pendingModelKeyRef = useRef<string | null>(null);
 
+  // ── 全站光球多步驟代理：跨分頁 fillPrompt / setParam / submit 排隊 ──
+  // setActiveTab 觸發 React state change 後，新分頁子元件還沒掛上、
+  // childHandlerRef 仍指著舊分頁。下一個 fillPrompt 馬上派發就會打到舊分頁。
+  // 這裡用 ref 暫存 payload，等 activeTab 切到目標 + 子元件 subscribe 完再 drain。
+  type PendingVideoAgentPayload = {
+    targetTab: TabId;
+    fillPrompt?: { text: string; slot?: string; append?: boolean };
+    setParam?: Array<{ key: string; value: unknown }>;
+    submit?: boolean;
+  };
+  const pendingAgentPayloadRef = useRef<PendingVideoAgentPayload | null>(null);
+  const [agentDrainTick, setAgentDrainTick] = useState(0);
+  const requestAgentDrain = useCallback(() => {
+    setAgentDrainTick(prev => prev + 1);
+  }, []);
+
   const agentBus = useRef<VideoAgentBusValue>({
     subscribe: (tabId, handler) => {
       childHandlerRef.current = { tabId, handler };
+      // 子分頁剛 subscribe，馬上請求 drain 看有沒有暫存的 payload 要灌進去
+      setAgentDrainTick(prev => prev + 1);
       return () => {
         if (childHandlerRef.current?.tabId === tabId) childHandlerRef.current = null;
       };
@@ -4067,10 +4085,26 @@ export default function VideoStudio() {
       ...(agentBus.getChildState() ?? {}),
     },
     handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      const queueAgent = (
+        update: (prev: PendingVideoAgentPayload) => PendingVideoAgentPayload,
+        targetTab: TabId
+      ) => {
+        const existing = pendingAgentPayloadRef.current;
+        const base: PendingVideoAgentPayload =
+          existing && existing.targetTab === targetTab ? existing : { targetTab };
+        pendingAgentPayloadRef.current = update(base);
+        requestAgentDrain();
+      };
+
       switch (action.type) {
         case "setTab": {
           const tab = TABS.find(t => t.id === action.tabId);
           if (!tab) return { ok: false, reason: `unknown tabId: ${action.tabId}` };
+          // 如果舊的暫存 payload 是給別的 tab，先清掉避免錯灌
+          const existing = pendingAgentPayloadRef.current;
+          if (existing && existing.targetTab !== tab.id) {
+            pendingAgentPayloadRef.current = null;
+          }
           setActiveTab(tab.id);
           return { ok: true, message: `已切到「${tab.label}」` };
         }
@@ -4105,25 +4139,50 @@ export default function VideoStudio() {
           };
         }
         case "fillPrompt": {
-          const dispatched = agentBus.dispatch({
-            type: "fillPrompt",
-            payload: { text: action.text, slot: action.slot, append: action.append },
-          });
-          if (!dispatched) return { ok: false, reason: "當前分頁尚未就緒，請稍候重試" };
-          return { ok: true, message: "提示詞已填入" };
+          const pending = pendingAgentPayloadRef.current;
+          const expectedTab = (pending?.targetTab ?? activeTab) as TabId;
+          if (expectedTab === activeTab) {
+            const dispatched = agentBus.dispatch({
+              type: "fillPrompt",
+              payload: { text: action.text, slot: action.slot, append: action.append },
+            });
+            if (dispatched) return { ok: true, message: "提示詞已填入" };
+          }
+          // 暫存：等待目標 tab 切換完成 + 子分頁 subscribe 後 drain
+          queueAgent(prev => ({
+            ...prev,
+            fillPrompt: { text: action.text, slot: action.slot, append: action.append },
+          }), expectedTab);
+          return {
+            ok: true,
+            message: `提示詞已暫存，等切到「${TABS.find(t => t.id === expectedTab)?.label ?? expectedTab}」分頁就緒後填入`,
+          };
         }
         case "setParam": {
-          const dispatched = agentBus.dispatch({
-            type: "setParam",
-            payload: { key: action.key, value: action.value },
-          });
-          if (!dispatched) return { ok: false, reason: "當前分頁尚未就緒" };
-          return { ok: true, message: `已設定 ${action.key}` };
+          const pending = pendingAgentPayloadRef.current;
+          const expectedTab = (pending?.targetTab ?? activeTab) as TabId;
+          if (expectedTab === activeTab) {
+            const dispatched = agentBus.dispatch({
+              type: "setParam",
+              payload: { key: action.key, value: action.value },
+            });
+            if (dispatched) return { ok: true, message: `已設定 ${action.key}` };
+          }
+          queueAgent(prev => ({
+            ...prev,
+            setParam: [...(prev.setParam ?? []), { key: action.key, value: action.value }],
+          }), expectedTab);
+          return { ok: true, message: `參數已暫存，等分頁就緒後套用` };
         }
         case "submit": {
-          const dispatched = agentBus.dispatch({ type: "submit" });
-          if (!dispatched) return { ok: false, reason: "當前分頁尚未就緒" };
-          return { ok: true, message: "已送出生成" };
+          const pending = pendingAgentPayloadRef.current;
+          const expectedTab = (pending?.targetTab ?? activeTab) as TabId;
+          if (expectedTab === activeTab && !pending?.fillPrompt && !pending?.setParam?.length) {
+            const dispatched = agentBus.dispatch({ type: "submit" });
+            if (dispatched) return { ok: true, message: "已送出生成" };
+          }
+          queueAgent(prev => ({ ...prev, submit: true }), expectedTab);
+          return { ok: true, message: "送出已排入佇列，等分頁與提示詞就緒後執行" };
         }
         case "reset": {
           const dispatched = agentBus.dispatch({ type: "reset" });
@@ -4214,6 +4273,73 @@ export default function VideoStudio() {
     }
     setPendingDirectorPayload(null);
   }, [pendingDirectorPayload, activeTab, agentBus]);
+
+  // ── 全站光球多步驟代理 drain：tab 切到目標 + 子分頁 subscribe 後，把暫存
+  // 的 fillPrompt / setParam / submit 真正派出去；若子分頁還沒掛完，
+  // 在 RAF 重試最多 ~10 次（≈ 160ms）。
+  useEffect(() => {
+    const pending = pendingAgentPayloadRef.current;
+    if (!pending) return;
+    if (pending.targetTab !== activeTab) return;
+
+    let cancelled = false;
+    let attempt = 0;
+    const MAX_ATTEMPTS = 10;
+
+    const drain = () => {
+      if (cancelled) return;
+      const current = pendingAgentPayloadRef.current;
+      if (!current) return;
+      if (current.targetTab !== activeTab) return;
+
+      // childHandlerRef.current === null → 子分頁還沒 subscribe，等下一幀
+      if (!childHandlerRef.current) {
+        if (attempt < MAX_ATTEMPTS) {
+          attempt += 1;
+          window.requestAnimationFrame(drain);
+        }
+        return;
+      }
+
+      let allOk = true;
+      if (current.fillPrompt) {
+        const ok = agentBus.dispatch({
+          type: "fillPrompt",
+          payload: {
+            text: current.fillPrompt.text,
+            slot: current.fillPrompt.slot,
+            append: current.fillPrompt.append,
+          },
+        });
+        if (!ok) allOk = false;
+      }
+      if (allOk && current.setParam?.length) {
+        for (const { key, value } of current.setParam) {
+          const ok = agentBus.dispatch({ type: "setParam", payload: { key, value } });
+          if (!ok) {
+            allOk = false;
+            break;
+          }
+        }
+      }
+      if (allOk && current.submit) {
+        const ok = agentBus.dispatch({ type: "submit" });
+        if (!ok) allOk = false;
+      }
+
+      if (allOk) {
+        pendingAgentPayloadRef.current = null;
+      } else if (attempt < MAX_ATTEMPTS) {
+        attempt += 1;
+        window.requestAnimationFrame(drain);
+      }
+    };
+
+    drain();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, agentDrainTick, agentBus]);
 
   // ── 回到導演 AI：把目前 prompt + 模型寫進 directorReturn 並跳回 /director ──
   const handleReturnToDirector = useCallback(() => {

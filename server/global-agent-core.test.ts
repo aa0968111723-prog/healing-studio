@@ -1740,6 +1740,133 @@ describe("orchestrator precision policy", () => {
   });
 });
 
+describe("orchestrator same-page state-mutation settle", () => {
+  // Regression for the multi-step orb bug where setTab → fillPrompt on the
+  // same page raced against the React re-mount and ended up writing the
+  // prompt into the previous child's bridge (so the user lands on the new
+  // tab and sees an empty input). The orchestrator now waits a short window
+  // between consecutive same-page state-mutating steps so the destination
+  // bridge has time to register.
+  it("inserts a settle between setTab and fillPrompt on the same page", async () => {
+    globalAgentRegistry.clear();
+    globalAgentRegistry.register(
+      makePage("pro-studio", "/pro-studio", "音樂配音創作室", [
+        "setTab",
+        "fillPrompt",
+        "submit",
+      ])
+    );
+    const events: Array<{ type: string; at: number }> = [];
+    const start = Date.now();
+    const result = await executeGlobalWorkflow(
+      {
+        type: "runWorkflow",
+        name: "TTS 配音流程",
+        steps: [
+          { path: "/pro-studio", actionType: "setTab", payload: "tts", label: "切到 TTS" },
+          { path: "/pro-studio", actionType: "fillPrompt", payload: "請朗讀這段旁白", label: "填入旁白" },
+          { path: "/pro-studio", actionType: "submit", payload: "", label: "送出生成" },
+        ],
+      },
+      {
+        currentPage: null,
+        navigate: async () => {},
+        dispatch: async action => {
+          events.push({ type: action.type, at: Date.now() - start });
+          return { ok: true };
+        },
+        waitAfterNavigateMs: 0,
+        samePageStateMutationSettleMs: 50,
+      }
+    );
+    expect(result.ok).toBe(true);
+    const setTabEvent = events.find(e => e.type === "setTab")!;
+    const fillPromptEvent = events.find(e => e.type === "fillPrompt")!;
+    const submitEvent = events.find(e => e.type === "submit")!;
+    expect(setTabEvent).toBeDefined();
+    expect(fillPromptEvent).toBeDefined();
+    expect(submitEvent).toBeDefined();
+    // setTab → fillPrompt must wait the configured settle.
+    expect(fillPromptEvent.at - setTabEvent.at).toBeGreaterThanOrEqual(45);
+    // fillPrompt → submit is not a state-mutating sequence, so no settle.
+    expect(submitEvent.at - fillPromptEvent.at).toBeLessThan(45);
+  });
+
+  it("skips the settle when samePageStateMutationSettleMs is zero", async () => {
+    globalAgentRegistry.clear();
+    globalAgentRegistry.register(
+      makePage("pro-studio", "/pro-studio", "音樂配音創作室", [
+        "setTab",
+        "fillPrompt",
+      ])
+    );
+    const events: Array<{ type: string; at: number }> = [];
+    const start = Date.now();
+    const result = await executeGlobalWorkflow(
+      {
+        type: "runWorkflow",
+        name: "TTS 配音流程（測試）",
+        steps: [
+          { path: "/pro-studio", actionType: "setTab", payload: "tts", label: "切到 TTS" },
+          { path: "/pro-studio", actionType: "fillPrompt", payload: "x", label: "填入" },
+        ],
+      },
+      {
+        currentPage: null,
+        navigate: async () => {},
+        dispatch: async action => {
+          events.push({ type: action.type, at: Date.now() - start });
+          return { ok: true };
+        },
+        waitAfterNavigateMs: 0,
+        samePageStateMutationSettleMs: 0,
+      }
+    );
+    expect(result.ok).toBe(true);
+    const setTabEvent = events.find(e => e.type === "setTab")!;
+    const fillPromptEvent = events.find(e => e.type === "fillPrompt")!;
+    expect(fillPromptEvent.at - setTabEvent.at).toBeLessThan(30);
+  });
+
+  it("does NOT settle when prev and next steps are on different pages", async () => {
+    globalAgentRegistry.clear();
+    globalAgentRegistry.register(
+      makePage("studio", "/studio", "創作工作室", ["setModality"])
+    );
+    globalAgentRegistry.register(
+      makePage("pro-studio", "/pro-studio", "音樂配音創作室", ["fillPrompt"])
+    );
+    const events: Array<{ type: string; path: string | undefined; at: number }> = [];
+    const start = Date.now();
+    const result = await executeGlobalWorkflow(
+      {
+        type: "runWorkflow",
+        name: "跨頁流程",
+        steps: [
+          { path: "/studio", actionType: "setModality", payload: "image", label: "切圖像" },
+          { path: "/pro-studio", actionType: "fillPrompt", payload: "x", label: "填入" },
+        ],
+      },
+      {
+        currentPage: null,
+        navigate: async () => {},
+        dispatch: async (action, opts) => {
+          events.push({ type: action.type, path: opts?.targetPageId, at: Date.now() - start });
+          return { ok: true };
+        },
+        waitAfterNavigateMs: 0,
+        samePageStateMutationSettleMs: 50,
+      }
+    );
+    expect(result.ok).toBe(true);
+    const setModalityEvent = events.find(e => e.type === "setModality")!;
+    const fillPromptEvent = events.find(e => e.type === "fillPrompt")!;
+    // Cross-page: navigate's own settle (waitAfterNavigateMs=0 here) covers
+    // it. The same-page state-mutation settle should NOT fire.
+    expect(fillPromptEvent.at - setModalityEvent.at).toBeLessThan(30);
+  });
+});
+
 describe("orchestrator safety helpers", () => {
   it("detects dangerous workflow steps by index", () => {
     const indexes = findDangerousWorkflowSteps({

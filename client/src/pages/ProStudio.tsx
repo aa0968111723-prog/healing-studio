@@ -3930,6 +3930,24 @@ export default function ProStudio() {
   const bridgeRef = useRef<ProStudioAgentBridge>({});
   const pendingModelIdRef = useRef<string | null>(null);
 
+  // ── 全站光球多步驟代理：跨分頁 fillPrompt / setParam / submit 排隊 ──
+  // 多步驟流程裡常見的 race：上一步 setTab(tts)，下一步馬上 fillPrompt。
+  // setTab 觸發 React state change，但目標子分頁尚未掛載並透過
+  // useProStudioAgentBridge 重設 bridgeRef → 這時候 fillPrompt 會打到
+  // 舊分頁（音樂）的 bridge 或回 fn=null，使用者切到新分頁就看到空提示詞。
+  // 用 ref 暫存待派發 payload，等 tab 真正切到目標 + bridge 註冊完再 drain。
+  type PendingAgentPayload = {
+    targetTab: string;
+    fillPrompt?: string;
+    setParam?: Array<{ key: string; value: string }>;
+    submit?: boolean;
+  };
+  const pendingAgentPayloadRef = useRef<PendingAgentPayload | null>(null);
+  const [agentDrainTick, setAgentDrainTick] = useState(0);
+  const requestAgentDrain = useCallback(() => {
+    setAgentDrainTick(prev => prev + 1);
+  }, []);
+
   // ── AI Agent: broadcast page context ──
   useEffect(() => {
     setPageContext({
@@ -4042,6 +4060,60 @@ export default function ProStudio() {
     }
     setPendingDirectorPayload(null);
   }, [pendingDirectorPayload, tab]);
+
+  // ── 全站光球多步驟代理：tab 切到目標後，把暫存的 fillPrompt / setParam /
+  // submit 真正灌進子分頁。bridgeRef 在子分頁 render 時被覆寫，所以這個
+  // effect 會在 commit 後拿到最新的 fn；若子分頁掛太慢還沒寫入 bridge，
+  // 用 RAF 重試最多 ~10 次（≈ 160ms）。
+  useEffect(() => {
+    const pending = pendingAgentPayloadRef.current;
+    if (!pending) return;
+    if (pending.targetTab && pending.targetTab !== tab) return;
+
+    let cancelled = false;
+    let attempt = 0;
+    const MAX_ATTEMPTS = 10;
+
+    const drain = () => {
+      if (cancelled) return;
+      const current = pendingAgentPayloadRef.current;
+      if (!current) return;
+      if (current.targetTab && current.targetTab !== tab) return;
+
+      const fillPromptFn = bridgeRef.current.fillPrompt;
+      const setParamFn = bridgeRef.current.setParam;
+      const submitFn = bridgeRef.current.submit;
+
+      const needsFill = current.fillPrompt !== undefined;
+      const needsParam = (current.setParam?.length ?? 0) > 0;
+      const needsSubmit = current.submit === true;
+
+      const ready =
+        (!needsFill || !!fillPromptFn) &&
+        (!needsParam || !!setParamFn) &&
+        (!needsSubmit || !!submitFn);
+
+      if (!ready) {
+        if (attempt < MAX_ATTEMPTS) {
+          attempt += 1;
+          window.requestAnimationFrame(drain);
+        }
+        return;
+      }
+
+      if (needsFill && fillPromptFn) fillPromptFn(current.fillPrompt!);
+      if (needsParam && setParamFn) {
+        for (const { key, value } of current.setParam!) setParamFn(key, value);
+      }
+      if (needsSubmit && submitFn) submitFn();
+      pendingAgentPayloadRef.current = null;
+    };
+
+    drain();
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, agentDrainTick]);
 
   // ── 回到導演 AI：把目前 prompt + tab 寫進 directorReturn 並跳回 /director ──
   const handleReturnToDirector = useCallback(() => {
@@ -4205,10 +4277,28 @@ export default function ProStudio() {
       ...(bridgeRef.current.getState?.() ?? {}),
     },
     handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      const queueAgent = (
+        update: (prev: PendingAgentPayload) => PendingAgentPayload,
+        targetTab: string
+      ) => {
+        const existing = pendingAgentPayloadRef.current;
+        const base: PendingAgentPayload =
+          existing && existing.targetTab === targetTab
+            ? existing
+            : { targetTab };
+        pendingAgentPayloadRef.current = update(base);
+        requestAgentDrain();
+      };
+
       switch (action.type) {
         case "setTab": {
           const t = TABS.find(x => x.id === action.tabId);
           if (!t) return { ok: false, reason: `unknown tabId: ${action.tabId}` };
+          // 切到不同分頁時，把舊的暫存 payload 清掉避免錯灌到新分頁
+          const existing = pendingAgentPayloadRef.current;
+          if (existing && existing.targetTab !== t.id) {
+            pendingAgentPayloadRef.current = null;
+          }
           setTab(t.id);
           return { ok: true };
         }
@@ -4227,22 +4317,45 @@ export default function ProStudio() {
         case "focusElement":
           return { ok: true };
         case "fillPrompt": {
+          // 如果目前 bridge 已就緒且使用者沒有正在等待 tab 切換，直接灌進去
           const fn = bridgeRef.current.fillPrompt;
-          if (!fn) return { ok: false, reason: "當前分頁尚未註冊 fillPrompt" };
-          fn(action.text);
-          return { ok: true };
+          const pending = pendingAgentPayloadRef.current;
+          const expectedTab = pending?.targetTab ?? tab;
+          if (fn && expectedTab === tab) {
+            fn(action.text);
+            return { ok: true, message: "已填入提示詞" };
+          }
+          // 否則暫存，等 tab 真正切到目標 + bridge 註冊完再 drain
+          queueAgent(prev => ({ ...prev, fillPrompt: action.text }), expectedTab);
+          return {
+            ok: true,
+            message: `提示詞已暫存，等切到「${TABS.find(t => t.id === expectedTab)?.label ?? expectedTab}」分頁後自動填入`,
+          };
         }
         case "setParam": {
           const fn = bridgeRef.current.setParam;
-          if (!fn) return { ok: false, reason: "當前分頁尚未註冊 setParam" };
-          const ok = fn(action.key, String(action.value));
-          return ok ? { ok: true } : { ok: false, reason: `無法設定 ${action.key}=${action.value}` };
+          const pending = pendingAgentPayloadRef.current;
+          const expectedTab = pending?.targetTab ?? tab;
+          if (fn && expectedTab === tab) {
+            const ok = fn(action.key, String(action.value));
+            return ok ? { ok: true } : { ok: false, reason: `無法設定 ${action.key}=${action.value}` };
+          }
+          queueAgent(prev => ({
+            ...prev,
+            setParam: [...(prev.setParam ?? []), { key: action.key, value: String(action.value) }],
+          }), expectedTab);
+          return { ok: true, message: "參數已暫存，等分頁就緒後套用" };
         }
         case "submit": {
           const fn = bridgeRef.current.submit;
-          if (!fn) return { ok: false, reason: "當前分頁尚未註冊 submit" };
-          const ok = fn();
-          return ok ? { ok: true } : { ok: false, reason: "提交條件不足（缺少必填欄位）" };
+          const pending = pendingAgentPayloadRef.current;
+          const expectedTab = pending?.targetTab ?? tab;
+          if (fn && expectedTab === tab && !pending?.fillPrompt && !pending?.setParam?.length) {
+            const ok = fn();
+            return ok ? { ok: true } : { ok: false, reason: "提交條件不足（缺少必填欄位）" };
+          }
+          queueAgent(prev => ({ ...prev, submit: true }), expectedTab);
+          return { ok: true, message: "送出已排入佇列，等分頁與提示詞就緒後執行" };
         }
         case "reset": {
           const fn = bridgeRef.current.reset;

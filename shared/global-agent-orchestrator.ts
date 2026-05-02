@@ -167,6 +167,16 @@ export interface GlobalAgentExecutionContext {
     recommendation: "proceed" | "retry" | "replan" | "abort";
     reason?: string;
   } | null | undefined>;
+
+  /**
+   * Pause inserted between consecutive same-page steps when the previous
+   * step changed the visible workspace (setTab / setModality / setMode /
+   * applyPreset). Lets React commit + the destination child re-mount and
+   * register its bridge before the next dispatch fires; without it
+   * `setTab → fillPrompt` on /pro-studio races and the prompt input ends
+   * up empty. Default 120ms; set 0 from tests / non-React callers.
+   */
+  samePageStateMutationSettleMs?: number;
 }
 
 export interface GlobalDispatchOptions {
@@ -285,6 +295,41 @@ function wait(ms: number) {
 
 function normalizeResult(r?: AgentActionResult): AgentActionResult {
   return r ?? { ok: true };
+}
+
+/**
+ * UI actions that swap the visible workspace inside a single page (tab,
+ * modality, mode, preset). React commits the new state asynchronously, and
+ * the destination child only registers its bridge / agentBus subscription
+ * after re-mount. A follow-up `fillPrompt` dispatched on the SAME page would
+ * race against that re-mount and either no-op or land on the previous
+ * child's state — exactly the empty-prompt symptom users see when the
+ * multi-step orb runs `setTab → fillPrompt` against /pro-studio.
+ *
+ * The orchestrator pauses briefly between same-page steps when the
+ * previous action belongs to this set, giving React + the page-level bridge
+ * registration enough time to settle before the next dispatch fires.
+ */
+const STATE_MUTATING_ACTION_TYPES = new Set<AgentAction["type"]>([
+  "setTab",
+  "setModality",
+  "setMode",
+  "applyPreset",
+]);
+
+const SAME_PAGE_STATE_MUTATION_SETTLE_MS = 120;
+
+function shouldAwaitSamePageStateMutation(
+  prev: ExpandedWorkflowStep | undefined,
+  next: ExpandedWorkflowStep | undefined
+): boolean {
+  if (!prev || !next) return false;
+  const prevType = prev.action?.type;
+  if (!prevType || !STATE_MUTATING_ACTION_TYPES.has(prevType)) return false;
+  const prevPath = prev.path;
+  const nextPath = next.path;
+  if (!prevPath || !nextPath) return false;
+  return prevPath === nextPath;
 }
 
 /** Stable id for an expanded step, falling back to its position in the list. */
@@ -655,6 +700,16 @@ async function executeWorkflowSequential(
     const s = steps[i];
     const stepId = stepIdOrIndex(s, i);
     log("workflow.step", { index: i, label: s.label, stepId });
+
+    // Same-page state-mutation settle: when the previous step changed the
+    // visible workspace (setTab / setModality / setMode / applyPreset) and
+    // this step targets the same page, give React a chance to commit the
+    // re-mount before we dispatch — otherwise fillPrompt lands on the old
+    // child's bridge and the prompt input ends up empty.
+    const settleMs = ctx.samePageStateMutationSettleMs ?? SAME_PAGE_STATE_MUTATION_SETTLE_MS;
+    if (settleMs > 0 && i > 0 && shouldAwaitSamePageStateMutation(steps[i - 1], s)) {
+      await wait(settleMs);
+    }
 
     // ── Task 3: skip already-completed steps when resuming ──────────────
     if (runState && runState.completedStepIds.includes(stepId)) {
@@ -1206,7 +1261,21 @@ export async function executeGlobalActions(actions: AgentAction[], ctx: GlobalAg
   // policy as same-page steps inside a workflow: no redundant navigate, no
   // redundant settle wait, no readiness re-poll.
   let runningPath: string | undefined = ctx.currentPath ?? ctx.currentPage?.pagePath;
-  for (const action of actions) {
+  const settleMs = ctx.samePageStateMutationSettleMs ?? SAME_PAGE_STATE_MUTATION_SETTLE_MS;
+  for (let idx = 0; idx < actions.length; idx += 1) {
+    const action = actions[idx];
+    const prevAction = idx > 0 ? actions[idx - 1] : undefined;
+    // Same-page settle when the previous action mutated tab / modality / mode
+    // / preset on the page we're still sitting on. Mirrors the in-workflow
+    // settle so chained top-level dispatches don't race against the React
+    // re-mount and end up filling the wrong child's prompt.
+    if (
+      settleMs > 0 &&
+      prevAction &&
+      STATE_MUTATING_ACTION_TYPES.has(prevAction.type)
+    ) {
+      await wait(settleMs);
+    }
     const localCtx: GlobalAgentExecutionContext =
       runningPath === (ctx.currentPath ?? ctx.currentPage?.pagePath)
         ? ctx
