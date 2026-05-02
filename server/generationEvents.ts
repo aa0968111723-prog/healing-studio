@@ -39,6 +39,21 @@ export type GenerationEvent =
       taskId: string;
       userId: number;
       at: number;
+    } & GenerationEventBase)
+  | ({
+      // DEF-AG1 Step Reflection telemetry: emitted whenever the
+      // post-execution verifier rejects an otherwise 200-OK tool result
+      // (all-black image / empty audio / missing URL / model-reported
+      // error). Lets the front-end intent card surface "驗收失敗、自動
+      // retry/replan" instead of leaving the user staring at a spinner.
+      type: "step_verifier_failed";
+      taskId: string;
+      stepId: string;
+      userId: number;
+      toolName: string;
+      errorCode: string;
+      issueCount: number;
+      at: number;
     } & GenerationEventBase);
 
 class GenerationEventBus {

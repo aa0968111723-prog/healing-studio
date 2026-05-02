@@ -6,6 +6,7 @@ import type {
 import type { OrbApiTool, OrbToolCallResult } from "./agentToolExecutor";
 import { executeOrbToolCalls } from "./agentToolExecutor";
 import { resolveStepRefsInArgs } from "../../shared/orb-step-ref-resolver";
+import { verifyToolResult } from "../../shared/orb-tool-result-verifier";
 import {
   completeOrbAgentStep,
   failOrbAgentStep,
@@ -15,6 +16,7 @@ import { orbTaskStore as defaultOrbTaskStore } from "./orbTaskStore";
 import type { OrbTaskStore } from "./orbTaskStore";
 import type { AgentPreferences } from "../../shared/agent-preferences";
 import { emitGenerationEvent } from "../generationEvents";
+import { recordOrbMemory } from "./orbMemory";
 
 // ─── Single-step executor (existing public contract) ──────────────────────
 
@@ -179,10 +181,73 @@ export async function executeCurrentStepTools(
     onAuditEvent: input.onAuditEvent,
   });
 
+  // ── DEF-AG1 Step Reflection ────────────────────────────────────────────
+  // After a successful tool call, run a lightweight payload verifier so
+  // an all-black image / empty audio / 200-with-error response can be
+  // caught here instead of being silently fed to the next step. On
+  // failure we mutate the per-call result in-place so the existing
+  // failure path (FSM mark-failed → retry / replan) picks it up; we
+  // never throw, never alter network behaviour.
+  //
+  // DEF-AG1.1 also emits a `step_verifier_failed` SSE event and writes a
+  // `tool_feedback` entry into orbMemory so:
+  //   1. The front-end intent card can surface 「驗收失敗、自動 retry」
+  //      instead of leaving the user staring at a spinner.
+  //   2. Once DEF-AG4 (Memory RAG → Planner) lands, the planner can
+  //      retrieve historical 「這個工具/這個 prompt 容易出黑圖」 feedback
+  //      and avoid the same trap on subsequent runs.
+  const verifiedResults = toolResults.map(r => {
+    if (!r.ok) return r;
+    const verdict = verifyToolResult({ toolName: r.name, data: r.data });
+    if (verdict.ok) return r;
+    const errorCode = verdict.errorCode ?? "verifier:unknown";
+    // Fire-and-forget telemetry — wrapped so an emit/memory bug never
+    // breaks the orchestration tick.
+    try {
+      emitGenerationEvent({
+        type: "step_verifier_failed",
+        taskId: input.task.taskId,
+        stepId: step.id,
+        userId: input.userId,
+        toolName: r.name,
+        errorCode,
+        issueCount: verdict.issues.length,
+        at: Date.now(),
+      });
+    } catch (err) {
+      console.warn("[orchestrator] step_verifier_failed emit failed:", err);
+    }
+    try {
+      recordOrbMemory({
+        userId: input.userId,
+        traceId: input.requestId ?? `task_${input.task.taskId}_step_${step.id}`,
+        taskId: input.task.taskId,
+        type: "tool_feedback",
+        summary: `Tool ${r.name} failed verifier (${errorCode}) on step ${step.id}`,
+        source: "orchestrator.verifier",
+        confidence: 0.9,
+        tags: ["verifier-failed", errorCode, r.name],
+        metadata: {
+          taskId: input.task.taskId,
+          stepId: step.id,
+          toolName: r.name,
+          issues: verdict.issues.slice(0, 4),
+        },
+      });
+    } catch (err) {
+      console.warn("[orchestrator] verifier memory writeback failed:", err);
+    }
+    return {
+      ...r,
+      ok: false,
+      error: errorCode,
+    };
+  });
+
   return {
     attempted: true,
-    toolResults,
-    ok: toolResults.every(r => r.ok),
+    toolResults: verifiedResults,
+    ok: verifiedResults.every(r => r.ok),
     blockedByApproval: false,
   };
 }
