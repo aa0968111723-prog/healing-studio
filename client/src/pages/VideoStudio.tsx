@@ -3918,8 +3918,13 @@ export default function VideoStudio() {
   const agentBus = useRef<VideoAgentBusValue>({
     subscribe: (tabId, handler) => {
       childHandlerRef.current = { tabId, handler };
-      // 子分頁剛 subscribe，馬上請求 drain 看有沒有暫存的 payload 要灌進去
-      setAgentDrainTick(prev => prev + 1);
+      // ⚠️ 不要在這裡呼叫 setAgentDrainTick。子分頁的 subscribe useEffect
+      // 沒有 deps array（為了在每次 render 都更新閉包），會在每次 render 都
+      // 呼叫 subscribe；如果這裡同步觸發 parent state update，就會形成
+      // parent → child → subscribe → setState → parent 的無限迴圈，把整頁
+      // 打到 ErrorBoundary。drain 由 [activeTab, agentDrainTick] effect 負責，
+      // 而 React 子層 useEffect 早於父層 useEffect，所以 setTab 觸發的
+      // remount → child subscribe → parent drain 順序天然就對。
       return () => {
         if (childHandlerRef.current?.tabId === tabId) childHandlerRef.current = null;
       };
