@@ -50,4 +50,22 @@ describe("normalizeEngineModelId", () => {
       "fal-ai/elevenlabs/sound-effects/v2"
     );
   });
+
+  // DEF-V5：ElevenLabs TTS 家族 short-form 必須對應到各自 canonical，過去
+  // flash / eleven-v3 / multilingual 都被誤指到 turbo-v2.5（複製貼上 bug），
+  // 導致 brain-driven 的選擇全被默默換成 turbo。
+  it("maps each ElevenLabs TTS short-form to its own canonical (not all to turbo)", () => {
+    expect(normalizeEngineModelId("elevenlabs/turbo-v2.5")).toBe(
+      "fal-ai/elevenlabs/tts/turbo-v2.5"
+    );
+    expect(normalizeEngineModelId("elevenlabs/flash-v2.5")).toBe(
+      "fal-ai/elevenlabs/tts/flash-v2.5"
+    );
+    expect(normalizeEngineModelId("elevenlabs/eleven-v3")).toBe(
+      "fal-ai/elevenlabs/tts/eleven-v3"
+    );
+    expect(normalizeEngineModelId("elevenlabs/multilingual-v2")).toBe(
+      "fal-ai/elevenlabs/tts/multilingual-v2"
+    );
+  });
 });

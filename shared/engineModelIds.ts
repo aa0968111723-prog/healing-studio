@@ -57,11 +57,14 @@ export const LEGACY_FAL_ALIAS_MAP: Record<string, string> = {
   "fal/stable-audio-v2a": "fal-ai/stable-audio",
   "fal/sync-lipsync": "fal-ai/sync-lipsync",
   "fal/elevenlabs-sound": "fal-ai/elevenlabs/tts/turbo-v2.5",
-  // ElevenLabs Music / TTS catalog short-form → canonical Fal.ai paths
+  // DEF-V5：ElevenLabs TTS short-form → canonical Fal.ai paths。
+  // 之前 flash / eleven-v3 / multilingual 全部錯誤導向 turbo-v2.5（同一條別名值
+  // 複製貼上的 bug），導致大腦選 Flash 或 V3 都被默默換成 Turbo —
+  // 影響 Turbo v2.5 收到本不該屬於它的流量、且其他三家根本進不來。
   "elevenlabs/turbo-v2.5": "fal-ai/elevenlabs/tts/turbo-v2.5",
-  "elevenlabs/flash-v2.5": "fal-ai/elevenlabs/tts/turbo-v2.5",
-  "elevenlabs/eleven-v3": "fal-ai/elevenlabs/tts/turbo-v2.5",
-  "elevenlabs/multilingual-v2": "fal-ai/elevenlabs/tts/turbo-v2.5",
+  "elevenlabs/flash-v2.5": "fal-ai/elevenlabs/tts/flash-v2.5",
+  "elevenlabs/eleven-v3": "fal-ai/elevenlabs/tts/eleven-v3",
+  "elevenlabs/multilingual-v2": "fal-ai/elevenlabs/tts/multilingual-v2",
   "fal/whisper": "fal-ai/whisper",
   "fal/wizper": "fal-ai/wizper",
   "fal/any-llm-video": "fal-ai/any-llm",

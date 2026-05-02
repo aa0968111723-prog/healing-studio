@@ -1189,6 +1189,30 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       outputSchema: { audioUrl: true },
       timeoutMs: 30_000,
     },
+    // DEF-V6：ElevenLabs TTS 家族其他兩家原本只有 proStudio.ENGINE_MAP 引用，
+    // catalog 完全沒註冊。一旦透過 dispatcher（光球 / 導演 / brain-driven）使用，
+    // catalog miss → fallback chain[0] = fal-ai/f5-tts。使用者選 Flash 或 V3 都會
+    // 默默被換成 f5-tts。
+    {
+      modelId: "fal-ai/elevenlabs/tts/flash-v2.5",
+      label: "ElevenLabs Flash V2.5",
+      category: "text-to-speech",
+      tier: "fast",
+      description: "ElevenLabs Flash V2.5 超低延遲（~75ms），適合即時對話場景",
+      inputSchema: { prompt: true, voiceId: true, speed: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 30_000,
+    },
+    {
+      modelId: "fal-ai/elevenlabs/tts/eleven-v3",
+      label: "ElevenLabs Eleven V3",
+      category: "text-to-speech",
+      tier: "premium",
+      description: "ElevenLabs Eleven V3 最強情緒表達與最高品質 TTS",
+      inputSchema: { prompt: true, voiceId: true, speed: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 60_000,
+    },
     {
       modelId: "fal-ai/metavoice-v1",
       label: "MetaVoice V1",

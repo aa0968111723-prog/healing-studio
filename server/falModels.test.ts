@@ -86,6 +86,18 @@ describe("falModels catalog coverage", () => {
     expect(cfg!.category).toBe("text-to-speech");
   });
 
+  // DEF-V6：ElevenLabs TTS 家族四家全部要在 catalog（過去只有 turbo + multilingual）。
+  // Flash / Eleven V3 缺席 → 光球選 Flash 經 dispatcher 會 catalog miss
+  // 並降級到 fallback[0] = fal-ai/f5-tts，使用者選 Flash 卻被默默換成 f5-tts。
+  it("text-to-speech catalog includes the full ElevenLabs TTS family", () => {
+    const list = getFalModelsByCategory("text-to-speech");
+    const ids = new Set(list.map(m => m.modelId));
+    expect(ids.has("fal-ai/elevenlabs/tts/turbo-v2.5")).toBe(true);
+    expect(ids.has("fal-ai/elevenlabs/tts/flash-v2.5")).toBe(true);
+    expect(ids.has("fal-ai/elevenlabs/tts/multilingual-v2")).toBe(true);
+    expect(ids.has("fal-ai/elevenlabs/tts/eleven-v3")).toBe(true);
+  });
+
   // DEF-EL1：ElevenLabs SFX 真實 endpoint 帶 /v2 後綴，必須在 text-to-audio
   // catalog 註冊，否則 dispatcher 會把所有 SFX 請求降級到 fal-ai/ace-step（音樂模型）。
   it("text-to-audio catalog includes ElevenLabs SFX v2 canonical id", () => {
