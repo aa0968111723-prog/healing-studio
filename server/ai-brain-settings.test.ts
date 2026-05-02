@@ -149,11 +149,11 @@ describe("Brain Router — Model Catalog", () => {
     const modelKeys = Object.keys(FAL_MODEL_CATALOG).sort();
     expect(taskKeys).toEqual(modelKeys);
 
-    // fal.ai dispatches partner-namespaced models too (e.g. `xai/...`); the
-    // catalog is allowed to reference them as long as the model id is
-    // present in the canonical FAL_MODEL_CATALOG (which is the actual
-    // source of truth for "is this a fal-served model").
-    const ALLOWED_PREFIXES = /^(fal-ai|xai)\//;
+    // fal.ai dispatches partner-namespaced models too (e.g. `xai/...`,
+    // `sonauto/...`); the catalog is allowed to reference them as long as
+    // the model id is present in the canonical FAL_MODEL_CATALOG (which
+    // is the actual source of truth for "is this a fal-served model").
+    const ALLOWED_PREFIXES = /^(fal-ai|xai|sonauto)\//;
     for (const [category, slot] of Object.entries(FAL_TASK_ENGINE_CATALOG)) {
       const canonical = FAL_MODEL_CATALOG[category as keyof typeof FAL_MODEL_CATALOG];
       const canonicalIds = new Set(canonical.map(m => m.modelId));

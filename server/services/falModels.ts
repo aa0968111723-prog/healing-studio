@@ -1003,6 +1003,58 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       outputSchema: { audioUrl: true },
       timeoutMs: 60_000,
     },
+    // DEF-DM1：Demucs 音幹分離。沒在 catalog → 任何 category-aware 路徑（光球
+    // studio.separateStems / 導演若引用）會 catalog miss → 降級到 ace-step（音樂引擎），
+    // 完全與 stem 分離無關，使用者拿到的會是音樂生成輸出。
+    {
+      modelId: "fal-ai/demucs",
+      label: "Demucs 音幹分離",
+      category: "text-to-audio",
+      tier: "standard",
+      description:
+        "Demucs 把單一混音檔拆成 vocals / drums / bass / other 四軌；常用在替換主唱、純伴奏等流程",
+      inputSchema: { audioUrl: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 120_000,
+    },
+    // DEF-AI1：ElevenLabs Audio Isolation — 抽乾淨人聲（保留語氣，去掉背景音）。
+    // 與 Demucs 不同：Demucs 拆出多軌，Audio Isolation 直接吐單軌乾淨人聲。
+    {
+      modelId: "fal-ai/elevenlabs/audio-isolation",
+      label: "ElevenLabs Audio Isolation",
+      category: "text-to-audio",
+      tier: "standard",
+      description:
+        "ElevenLabs 直接從含背景音的錄音中抽出乾淨人聲（保留語氣與動態，需 ELEVENLABS_API_KEY）",
+      inputSchema: { audioUrl: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 60_000,
+    },
+    // DEF-VCH1：ElevenLabs Voice Changer — 換聲音保留語氣（同個人講話，換成另一個聲線）。
+    {
+      modelId: "fal-ai/elevenlabs/voice-changer",
+      label: "ElevenLabs Voice Changer",
+      category: "text-to-audio",
+      tier: "standard",
+      description:
+        "ElevenLabs 把任意錄音換成指定 voice_id 的聲線，保留原始語氣與節奏（需 ELEVENLABS_API_KEY）",
+      inputSchema: { audioUrl: true, voiceId: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 60_000,
+    },
+    // DEF-MA1：FFmpeg merge-audios — 多軌合併。多步驟工作流的最後一塊
+    // （拆軌 → 替換人聲 → mergeAudios 合回成品）必須能在 dispatcher 端命中。
+    {
+      modelId: "fal-ai/ffmpeg-api/merge-audios",
+      label: "FFmpeg Merge Audios",
+      category: "text-to-audio",
+      tier: "fast",
+      description:
+        "把多個音訊檔（例如 Demucs 拆出的軌道、Voice Changer 輸出）按時間軸合成單一檔案",
+      inputSchema: {},
+      outputSchema: { audioUrl: true },
+      timeoutMs: 60_000,
+    },
   ],
 
   // ════════════════════════════════════════════════════════
@@ -1378,70 +1430,12 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       outputSchema: { audioUrl: true },
       timeoutMs: 120_000,
     },
-    // DEF-DM1：Demucs 音幹分離 — fal endpoint 是 audio-to-audio（音訊輸入、
-    // 多軌音訊輸出），但 FalCategory type 沒有 audio-to-audio enum。暫時掛在
-    // text-to-audio 下，避免新增 enum 引發大範圍 type 變更；catalog 註冊後
-    // dispatcher 對 modelId fal-ai/demucs 不再 miss → 不會降級到 ace-step。
-    // proStudio.demucs 直接呼叫 falQueueSubmit（不傳 category）原本繞過了
-    // category-aware fallback，但任何透過 dispatcher 帶 category 的路徑（光球 /
-    // 導演自動編曲）都會踩 catalog miss bug。
-    {
-      modelId: "fal-ai/demucs",
-      label: "Demucs 音幹分離",
-      category: "text-to-audio",
-      tier: "standard",
-      description:
-        "Demucs 音幹分離 — 將歌曲拆解為 4 軌（vocals/drums/bass/other）或 6 軌（+guitar/piano，僅 htdemucs_6s）",
-      inputSchema: { audioUrl: true },
-      outputSchema: { audioUrl: true },
-      timeoutMs: 180_000,
-    },
-    // DEF-AI1：ElevenLabs Audio Isolation — 與 Demucs 互補：Demucs 拆多軌、
-    // Isolation 抽乾淨單軌（去背景噪、保留人聲/語音）。同 audio-to-audio 概念，
-    // 同樣為避免 enum 變更掛在 text-to-audio。catalog 過去缺席 → 任何 category-
-    // aware 路徑會降級到 ace-step（音樂引擎）。需 ELEVENLABS_API_KEY proxy。
-    {
-      modelId: "fal-ai/elevenlabs/audio-isolation",
-      label: "ElevenLabs 音訊隔離",
-      category: "text-to-audio",
-      tier: "standard",
-      description:
-        "ElevenLabs Audio Isolation — 從含背景噪訊的錄音抽出乾淨人聲/語音（需 ELEVENLABS_API_KEY）",
-      inputSchema: { audioUrl: true },
-      outputSchema: { audioUrl: true },
-      timeoutMs: 120_000,
-    },
-    // DEF-MA1：FFmpeg merge-audios — 多音訊合併（concatenate 序接 / mix 混音）。
-    // 是音幹分離 → 替換人聲 → 合回成品工作流的最後一塊拼圖。同 audio-to-audio
-    // 概念，掛在 text-to-audio 下避免 FalCategory enum 變更。
-    {
-      modelId: "fal-ai/ffmpeg-api/merge-audios",
-      label: "FFmpeg 多音訊合併",
-      category: "text-to-audio",
-      tier: "fast",
-      description:
-        "FFmpeg merge-audios — 將 2-10 段音訊以 concatenate（序接）或 mix（混音）合併成一段",
-      inputSchema: { audioUrl: true },
-      outputSchema: { audioUrl: true },
-      timeoutMs: 60_000,
-    },
-    // DEF-VCH1：ElevenLabs Voice Changer — 把現有錄音的「聲音」換成另一個 voice_id
-    // 但保留原本的語音內容、語速、情緒。與 generateVoice + cloneVoice 三件一組：
-    //   - cloneVoice 建立 voice_id（從參考音訊）
-    //   - generateVoice 用 voice_id 念新文字
-    //   - voiceChanger 用 voice_id 換掉現有錄音的聲音（保留原語氣與時長）
-    // 同 audio-to-audio 概念，掛在 text-to-audio 避免 enum 變更。
-    {
-      modelId: "fal-ai/elevenlabs/voice-changer",
-      label: "ElevenLabs 聲音變換",
-      category: "text-to-audio",
-      tier: "standard",
-      description:
-        "ElevenLabs Voice Changer — 把錄音的聲音換成指定 voice_id，保留原語速/語氣（需 ELEVENLABS_API_KEY）",
-      inputSchema: { audioUrl: true },
-      outputSchema: { audioUrl: true },
-      timeoutMs: 120_000,
-    },
+    // 註：Demucs / ElevenLabs Audio Isolation / FFmpeg merge-audios / ElevenLabs
+    // Voice Changer 概念上是 audio-to-audio，但 FalCategory enum 沒有該分類。
+    // 它們已在 `text-to-audio` slot 註冊（見 DEF-DM1 / DEF-AI1 / DEF-MA1 /
+    // DEF-VCH1），這裡的 text-to-speech slot 不要重複註冊，否則 catalog 內會
+    // 出現 category 與 slot 不一致的條目，違反 falModels.test.ts 的
+    // 「every entry has matching category field」結構斷言。
     {
       modelId: "fal-ai/dia-tts",
       label: "Dia TTS",

@@ -76,12 +76,17 @@ describe("studio.* generation tool registration", () => {
 describe("executeOrbToolCalls — studio.* bridge", () => {
   beforeEach(() => {
     process.env.FAL_API_KEY = "test-fal-key";
+    // DEF-V1 在沒有 ELEVENLABS_API_KEY 時會把 ElevenLabs TTS 降級到 f5-tts，
+    // 這在測試環境會掩蓋掉「brain config 解析」的本意。stub 一個假 key 讓
+    // dispatcher 走真正的 brain default 路徑（fetch 已 mock，不會真的發出去）。
+    process.env.ELEVENLABS_API_KEY = "test-elevenlabs-key";
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.resetModules();
     delete process.env.FAL_API_KEY;
+    delete process.env.ELEVENLABS_API_KEY;
   });
 
   it("returns confirmation-required when approved=false on studio.generateImage", async () => {

@@ -1015,6 +1015,9 @@ async function dispatchStudioTool(
           } else if (Array.isArray(args.tags)) {
             input.tags = args.tags;
           }
+          // DEF-So2：bpm 是 Sonauto 風格控制的關鍵欄位（影響節拍密度與曲種風格）。
+          // 沒透傳 → 光球請求的「90 BPM lo-fi」最終生成成預設節拍歌曲。
+          if (typeof args.bpm === "number") input.bpm = args.bpm;
           input.output_format = "mp3";
           input.num_songs = 1;
           // 注意：duration 由 Sonauto 自決，刻意不傳。
@@ -1706,6 +1709,26 @@ async function dispatchStudioTool(
         } else {
           if (typeof args.voice_id === "string") input.voice_id = args.voice_id;
           if (typeof args.speed === "number") input.speed = args.speed;
+        }
+        // DEF-V11：多語 TTS 與 ElevenLabs voice_settings 必須從光球 args
+        // 傳到 fal payload，否則「日文 TTS」、「微調穩定度」這類請求會落回
+        // 預設值。language_code 是 fal ElevenLabs proxy 的通用欄位（非 Dia
+        // 專屬，且 Qwen 也接受），voice_settings 是 ElevenLabs 專屬聚合物。
+        if (!isDiaVoiceClone && typeof args.language_code === "string") {
+          input.language_code = args.language_code;
+        }
+        if (!isDiaVoiceClone && !isQwenTts) {
+          const voiceSettings: Record<string, number> = {};
+          if (typeof args.stability === "number")
+            voiceSettings.stability = args.stability;
+          if (typeof args.similarity_boost === "number")
+            voiceSettings.similarity_boost = args.similarity_boost;
+          if (typeof args.style === "number") voiceSettings.style = args.style;
+          if (typeof args.use_speaker_boost === "boolean")
+            voiceSettings.use_speaker_boost = args.use_speaker_boost ? 1 : 0;
+          if (Object.keys(voiceSettings).length > 0) {
+            input.voice_settings = voiceSettings;
+          }
         }
         const finalIsElevenLabs =
           modelId.startsWith("fal-ai/elevenlabs/") &&
