@@ -71,6 +71,20 @@ function withTimeout<T>(
   });
 }
 
+// LLM 訊息 content 可能是 string 或 Array<TextContent | ImageContent | FileContent>。
+// 直接以 typeof === "string" 判斷會在 array 形式下丟失文字，導致導演AI輸出空值。
+function extractMessageText(
+  content: string | Array<{ type: string; text?: string }> | undefined | null
+): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .map(part => (part?.type === "text" && typeof part.text === "string" ? part.text : ""))
+      .join("");
+  }
+  return "";
+}
+
 // ─── Personality System Prompts ──────────────────────────────────────────────
 
 const PERSONALITY_PROMPTS: Record<
@@ -708,10 +722,7 @@ ${contextParts.join("\n")}
     "分鏡討論"
   );
 
-  const replyText =
-    typeof result.choices[0]?.message?.content === "string"
-      ? result.choices[0].message.content
-      : "";
+  const replyText = extractMessageText(result.choices[0]?.message?.content);
 
   // Try to extract updated storyboard JSON from the reply
   let updatedStoryboard: ScriptSegment["storyboard"] | undefined;
@@ -1133,10 +1144,7 @@ ${persona.proactiveHint}${memorySection}
     "規劃討論"
   );
 
-  const rawReply =
-    typeof result.choices[0]?.message?.content === "string"
-      ? result.choices[0].message.content
-      : "";
+  const rawReply = extractMessageText(result.choices[0]?.message?.content);
 
   // 抽出 [反問] 行，作為結構化 proactiveQuestion；同時從 reply 主體中移除
   let proactiveQuestion: string | undefined;
@@ -1336,10 +1344,9 @@ ${memorySection}`,
     30_000,
     "導演AI研究"
   );
-  const researchContent =
-    typeof researchResult.choices[0]?.message?.content === "string"
-      ? researchResult.choices[0].message.content
-      : "";
+  const researchContent = extractMessageText(
+    researchResult.choices[0]?.message?.content
+  );
 
   // Step 2: Creative orchestration with CO-STAR framework + full director knowledge
   const scriptResult = await withTimeout(
