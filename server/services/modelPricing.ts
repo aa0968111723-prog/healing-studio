@@ -1445,18 +1445,21 @@ export const MODEL_PRICING_CATALOG: Record<string, ModelPricing> = {
     keyEnvVar: "FAL_API_KEY",
   },
   // 補：UI VideoStudio.tsx:2237 使用的 Wan 480p v2v 命名
+  // 與 canonical fal-ai/wan/v2.1/video-to-video 對齊（同一個 fal 端點），
+  // 避免 UI badge 與 router 顯示不同積分
   "fal-ai/wan-ai/wan2.1-v2v-480p": {
     modelId: "fal-ai/wan-ai/wan2.1-v2v-480p",
     label: "WAN 2.1 480p V2V (alias)",
     provider: "fal",
     category: "video-to-video",
     tier: "standard",
-    basePoints: 12,
-    baseCostUsd: 0.12,
+    basePoints: 15,
+    baseCostUsd: 0.15,
     unit: "每5秒",
-    pointsPerSecond: 2.4,
-    minPoints: 12,
-    maxPoints: 120,
+    pointsPerSecond: 3,
+    freeSecondsInBase: 5,
+    minPoints: 15,
+    maxPoints: 150,
     requiresKey: true,
     keyEnvVar: "FAL_API_KEY",
   },

@@ -2396,6 +2396,7 @@ function VideoToVideoTab() {
   const bus = useVideoAgentBus();
   const [wanPrompt, setWanPrompt] = useState("");
   const [wanVideo, setWanVideo] = useState("");
+  const [wanNeg, setWanNeg] = useState("");
   const [wanStrength, setWanStrength] = useState(0.7);
   const [wanResult, setWanResult] = useState<VideoResult | null>(null);
 
@@ -2497,6 +2498,7 @@ function VideoToVideoTab() {
       const r = await wanMut.mutateAsync({
         prompt: wanPrompt,
         videoUrl: wanVideo,
+        negativePrompt: wanNeg || undefined,
         strength: wanStrength,
       });
       setWanResult(r);
@@ -2586,6 +2588,16 @@ function VideoToVideoTab() {
             onChange={setWanVideo}
             required
           />
+          <div>
+            <Label className="text-xs text-muted-foreground">負向提詞（選填）</Label>
+            <Textarea
+              value={wanNeg}
+              onChange={e => setWanNeg(e.target.value)}
+              placeholder="不想出現的風格元素，如 oversaturated, blurry..."
+              className="mt-1 text-sm resize-none"
+              rows={2}
+            />
+          </div>
           <div>
             <Label className="text-xs text-muted-foreground">
               重繪強度：{(wanStrength * 100).toFixed(0)}%（越高越偏向新風格）

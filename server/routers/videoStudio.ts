@@ -784,28 +784,38 @@ export const videoStudioRouter = router({
   /**
    * Wan Video-to-Video（影片風格化）
    * fal-ai/wan/v2.1/video-to-video
-   * 將現有影片依照提詞重新渲染風格
+   * 將現有影片依照提詞重新渲染風格；可指定 strength / negative_prompt / seed
    */
   wanVideoToVideo: brainProcedure
     .input(
       z.object({
         prompt: z.string().min(1).max(2500),
         videoUrl: z.string().url(),
+        negativePrompt: z.string().max(1000).optional(),
         strength: z.number().min(0.1).max(1.0).default(0.7),
+        seed: z.number().int().nonnegative().optional(),
       })
     )
     .mutation(async ({ input }) => {
       // DEF-09 修正：正確 WAN V2V endpoint（已驗證 fal-ai/wan/v2.1/video-to-video = 200）
+      const payload: Record<string, unknown> = {
+        prompt: input.prompt,
+        video_url: input.videoUrl,
+        strength: input.strength,
+      };
+      if (input.negativePrompt) payload.negative_prompt = input.negativePrompt;
+      if (input.seed !== undefined) payload.seed = input.seed;
+
       const result = (await falQueueRun(
         "fal-ai/wan/v2.1/video-to-video",
-        {
-          prompt: input.prompt,
-          video_url: input.videoUrl,
-          strength: input.strength,
-        },
+        payload,
         300
       )) as any;
-      return { video_url: extractVideoUrl(result), raw: result };
+      return {
+        video_url: extractVideoUrl(result),
+        request_id: result?.request_id ?? null,
+        raw: result,
+      };
     }),
 
   /**

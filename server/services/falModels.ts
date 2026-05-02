@@ -1633,7 +1633,7 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       label: "WAN V2V",
       category: "video-to-video",
       tier: "standard",
-      description: "WAN 影片到影片風格遷移",
+      description: "WAN 影片到影片風格遷移：可指定 strength（重繪強度）/ negative_prompt / seed",
       inputSchema: {
         videoUrl: true,
         prompt: true,
