@@ -27,11 +27,16 @@ export type PipelineNodeKind =
   | "browser" // 使用者瀏覽器入口（client runtime）
   | "api-endpoint" // REST/HTTP 端點（非 tRPC）
   | "webhook" // 外部服務回調（fal / replicate / suno / stripe / orb）
+  | "middleware" // Express 中介層（helmet / rateLimit / verifyToken / 錯誤處理）
   | "database" // 永續資料層（MySQL via Drizzle）
   | "storage" // 物件儲存（GCS / S3 / 本地）
+  | "vector-store" // 向量記憶（Pinecone）
+  | "search-provider" // 搜尋／資料來源（Brave / Perplexity / NewsAPI / NewsData）
+  | "cron-job" // 排程任務（node-cron）
   | "deployment" // 部署平台（Railway / Docker）
   | "observability" // 觀測與追蹤（LangSmith / PostHog）
   | "auth-provider" // 第三方登入（Google OAuth）
+  | "notification" // 通知通道（Slack / Email）
   | "payment"; // 金流（Stripe）
 
 export type PipelineLayer =

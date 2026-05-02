@@ -231,6 +231,22 @@ const PROVIDERS: ProviderMeta[] = [
     hasKey: () => Boolean(serverEnv.REPLICATE_API_TOKEN),
     serviceFiles: ["server/services/replicateClient.ts"],
   },
+  {
+    id: "openrouter",
+    label: "OpenRouter",
+    description: "統一 LLM 閘道（推薦的單一入口；可路由到 Claude / Mistral / Llama 等）",
+    apiKeyEnv: "OPENROUTER_API_KEY",
+    hasKey: () => Boolean(serverEnv.OPENROUTER_API_KEY),
+    serviceFiles: ["server/_core/llmRouter.ts", "server/_core/llm.ts"],
+  },
+  {
+    id: "anthropic",
+    label: "Anthropic Claude",
+    description: "光球代理首選（直連 Anthropic API；支援 prompt caching）",
+    apiKeyEnv: "ANTHROPIC_API_KEY",
+    hasKey: () => Boolean(serverEnv.ANTHROPIC_API_KEY),
+    serviceFiles: ["server/_core/llmRouter.ts", "server/_core/llm.ts"],
+  },
 ];
 
 /** 後端路由 → 連結到的 provider id 清單 */
@@ -641,6 +657,139 @@ const API_ENDPOINTS: ApiEndpointMeta[] = [
       "router:proStudio",
     ],
   },
+  // ── 認證細節端點 ──────────────────────────────────────────────────────
+  {
+    id: "api:auth-me",
+    label: "GET /api/auth/me",
+    description: "取得目前登入使用者的 profile 與點數餘額",
+    method: "GET",
+    path: "/api/auth/me",
+    files: ["server/routes/localAuth.ts"],
+    downstream: ["db:main"],
+  },
+  {
+    id: "api:auth-2fa",
+    label: "ALL /api/auth/2fa/*",
+    description:
+      "兩步驟驗證設定流程（status / setup / verify / disable）；TOTP 私鑰存於 DB",
+    method: "POST",
+    path: "/api/auth/2fa/*",
+    files: ["server/routes/localAuth.ts", "server/totp-service.test.ts"],
+    downstream: ["db:main"],
+  },
+  {
+    id: "api:auth-forgot",
+    label: "POST /api/auth/forgot-password",
+    description: "申請密碼重設 token；目前不實際發信，token 寫入 DB 供測試",
+    method: "POST",
+    path: "/api/auth/forgot-password",
+    files: ["server/routes/passwordResetRoutes.ts"],
+    downstream: ["db:main"],
+  },
+  {
+    id: "api:auth-verify-reset",
+    label: "GET /api/auth/verify-reset-token",
+    description: "驗證密碼重設 token 是否有效（前端 ResetPasswordPage 開頁時呼叫）",
+    method: "GET",
+    path: "/api/auth/verify-reset-token",
+    files: ["server/routes/passwordResetRoutes.ts"],
+    downstream: ["db:main"],
+  },
+  {
+    id: "api:auth-reset",
+    label: "POST /api/auth/reset-password",
+    description: "完成密碼重設，使 token 失效並更新 password hash",
+    method: "POST",
+    path: "/api/auth/reset-password",
+    files: ["server/routes/passwordResetRoutes.ts"],
+    downstream: ["db:main"],
+  },
+  {
+    id: "api:auth-change",
+    label: "POST /api/auth/change-password",
+    description: "已登入用戶變更密碼（需 verifyToken middleware）",
+    method: "POST",
+    path: "/api/auth/change-password",
+    files: ["server/routes/passwordResetRoutes.ts"],
+    downstream: ["db:main"],
+  },
+  {
+    id: "api:auth-login-history",
+    label: "GET /api/auth/login-history",
+    description: "回傳目前用戶最近的登入紀錄（IP、UA、時間）",
+    method: "GET",
+    path: "/api/auth/login-history",
+    files: ["server/routes/passwordResetRoutes.ts"],
+    downstream: ["db:main"],
+  },
+  // ── Admin & 工具端點 ──────────────────────────────────────────────────
+  {
+    id: "api:admin-events-stream",
+    label: "GET /api/admin/events/stream",
+    description: "Admin 即時事件 SSE 串流（光球任務、錯誤、CI 狀態）",
+    method: "GET",
+    path: "/api/admin/events/stream",
+    files: ["server/routes/adminEvents.ts"],
+    downstream: ["db:main"],
+  },
+  {
+    id: "api:tasks-status",
+    label: "GET /api/tasks/:taskId/status",
+    description: "輪詢光球任務當前狀態（state machine snapshot）",
+    method: "GET",
+    path: "/api/tasks/:taskId/status",
+    files: ["server/routes/orbTasks.ts"],
+    downstream: ["db:main"],
+  },
+  {
+    id: "api:maps-proxy",
+    label: "GET /api/maps/proxy/*",
+    description: "前端地圖元件代理；轉發到 Forge maps（隱藏使用者 IP 與 API key）",
+    method: "GET",
+    path: "/api/maps/proxy/*",
+    files: ["server/_core/index.ts"],
+    downstream: ["ext:forge-maps"],
+  },
+  {
+    id: "api:proxy-download",
+    label: "GET /api/proxy-download",
+    description:
+      "代理外部資源下載；解 CORS、加 referer，並在快取層短期 memoize 結果",
+    method: "GET",
+    path: "/api/proxy-download",
+    files: ["server/_core/index.ts"],
+    downstream: ["storage:assets"],
+  },
+  {
+    id: "api:ai-proxy",
+    label: "ALL /api/ai/:provider/*",
+    description:
+      "對外暴露的 AI 代理端點（讓前端 / 第三方工具透過 healing-studio 統一閘道呼叫 LLM）",
+    method: "POST",
+    path: "/api/ai/:provider/*",
+    files: ["server/routes/aiProxy.ts"],
+    downstream: ["provider:gemini", "provider:openrouter", "provider:anthropic"],
+  },
+  {
+    id: "api:oauth-callback",
+    label: "GET /api/oauth/callback",
+    description: "通用 OAuth 回呼端點（registerOAuthRoutes 註冊；含 state 校驗）",
+    method: "GET",
+    path: "/api/oauth/callback",
+    files: ["server/_core/oauth.ts"],
+    downstream: ["db:main", "auth:google-oauth"],
+    upstream: ["auth:google-oauth"],
+  },
+  {
+    id: "api:uploads-static",
+    label: "GET /uploads/*",
+    description:
+      "本地素材靜態檔案 serving（開發模式 fallback；生產走 storage:assets）",
+    method: "GET",
+    path: "/uploads/*",
+    files: ["server/_core/index.ts"],
+    downstream: ["storage:assets"],
+  },
 ];
 
 /**
@@ -809,6 +958,259 @@ const BROWSER_NODE_META = {
     "整張圖的入口：使用者打開首頁，下載 Vite 打包後的 React bundle 並建立第一個 HTTP 連線",
   files: ["client/index.html", "client/src/main.tsx", "vite.config.ts"],
 } as const;
+
+/**
+ * 非 AI 的外部服務 — 向量記憶、搜尋、新聞、原始碼、通知通道。
+ *
+ * 這些 service 與 PROVIDERS 一樣是「環境變數驅動的外部 HTTP 依賴」，但語意上
+ * 不屬於 AI 引擎；用獨立 catalog 與獨立 kind 標記，讓「運作」視圖把它們聚成
+ * 一群，避免和 8 個 LLM provider 擠在一起難以辨識。
+ */
+interface ExternalServiceMeta {
+  id: string;
+  kind:
+    | "vector-store"
+    | "search-provider"
+    | "provider"
+    | "notification";
+  label: string;
+  description: string;
+  envKey: string;
+  files: string[];
+  /** 此服務的「下游消費者」節點 id（之後會建立 edge 連入；通常是 cron / router） */
+  consumers?: string[];
+}
+
+const EXTERNAL_SERVICES: ExternalServiceMeta[] = [
+  {
+    id: "ext:pinecone",
+    kind: "vector-store",
+    label: "Pinecone（向量記憶）",
+    description:
+      "RAG 記憶後端：把光球 / 導演對話 embedding 後寫入 Pinecone，讀取時做語意檢索",
+    envKey: "PINECONE_API_KEY",
+    files: ["server/services/ragMemory.ts"],
+  },
+  {
+    id: "ext:brave-search",
+    kind: "search-provider",
+    label: "Brave Search API",
+    description:
+      "網路研究與每日學習文件抓取的主要搜尋來源（光球 web research + braveLearnFetcher cron）",
+    envKey: "BRAVE_SEARCH_API_KEY",
+    files: [
+      "server/services/orbWebResearch.ts",
+      "server/jobs/braveLearnFetcher.ts",
+    ],
+  },
+  {
+    id: "ext:perplexity",
+    kind: "search-provider",
+    label: "Perplexity API",
+    description: "進階研究模式備援（ENABLE_RESEARCH_MODE 啟用時走此路徑）",
+    envKey: "PERPLEXITY_API_KEY",
+    files: ["server/services/orbWebResearch.ts"],
+  },
+  {
+    id: "ext:newsapi",
+    kind: "search-provider",
+    label: "NewsAPI",
+    description: "首頁新聞動態主要來源（每 6 小時 newsFetcher cron 抓取）",
+    envKey: "NEWS_API_KEY",
+    files: ["server/jobs/newsFetcher.ts"],
+  },
+  {
+    id: "ext:newsdata",
+    kind: "search-provider",
+    label: "NewsData.io",
+    description: "新聞動態備援來源（NewsAPI 失敗時 fallback）",
+    envKey: "NEWSDATA_API_KEY",
+    files: ["server/jobs/newsFetcher.ts"],
+  },
+  {
+    id: "ext:github",
+    kind: "provider",
+    label: "GitHub API",
+    description: "失敗自動回報 issue（brainAutoRepair → githubIssueClient）",
+    envKey: "GITHUB_TOKEN",
+    files: ["server/services/githubIssueClient.ts"],
+  },
+  {
+    id: "ext:slack-alerts",
+    kind: "notification",
+    label: "Slack Alerts",
+    description: "高用量 / 預算告警通知（apiUsageAlertJob 每 15 分鐘檢查）",
+    envKey: "ALERT_SLACK_WEBHOOK",
+    files: ["server/jobs/apiUsageAlertJob.ts"],
+  },
+  {
+    id: "ext:forge-maps",
+    kind: "provider",
+    label: "Forge Maps Proxy",
+    description:
+      "地圖 / 地理資料代理（透過 /api/maps/proxy/* 代理至 forge.butterfly-effect.dev）",
+    envKey: "FRONTEND_FORGE_API_KEY",
+    files: ["server/_core/index.ts"],
+  },
+];
+
+/**
+ * 排程任務（node-cron）清單 — 對應 server/_core/index.ts 啟動時 init 的 9 個 cron。
+ * 每筆 entry 同時宣告 cron 表達式（用於 UI 顯示週期）與下游節點，
+ * 讓「運作」視圖能畫出「定時任務 → 寫入哪個 DB / 抓哪個外部服務」。
+ */
+interface CronJobMeta {
+  id: string;
+  label: string;
+  /** cron 表達式，純文字顯示給人看 */
+  schedule: string;
+  description: string;
+  files: string[];
+  /** 下游：每次跑會打哪些節點 */
+  downstream: string[];
+  envKey?: string;
+}
+
+const CRON_JOBS: CronJobMeta[] = [
+  {
+    id: "cron:news-fetcher",
+    label: "新聞動態抓取（每 6 小時）",
+    schedule: "0 */6 * * *",
+    description: "從 NewsAPI / NewsData 抓最新 AI 新聞，寫入 news_articles 表",
+    files: ["server/jobs/newsFetcher.ts"],
+    downstream: ["ext:newsapi", "ext:newsdata", "db:main"],
+    envKey: "NEWS_API_KEY",
+  },
+  {
+    id: "cron:brave-learn-fetcher",
+    label: "Brave 學習文件（每日 04:00）",
+    schedule: "0 4 * * *",
+    description:
+      "用 Brave Search 抓取教學內容並 embedding，寫入 learn_documents 表",
+    files: ["server/jobs/braveLearnFetcher.ts"],
+    downstream: ["ext:brave-search", "db:main"],
+    envKey: "BRAVE_SEARCH_API_KEY",
+  },
+  {
+    id: "cron:learn-doc-syncer",
+    label: "學習文件同步（每週一 03:00）",
+    schedule: "0 3 * * 1",
+    description: "把長期學習文件同步到 learn_documents 並重算 embedding",
+    files: ["server/jobs/learnDocSyncer.ts"],
+    downstream: ["db:main"],
+  },
+  {
+    id: "cron:model-training-worker",
+    label: "模型訓練輪詢（每 5 分鐘）",
+    schedule: "*/5 * * * *",
+    description:
+      "輪詢 Replicate / Fal LoRA 訓練 job 狀態並更新 lora_trainings 表",
+    files: ["server/jobs/modelTrainingWorker.ts"],
+    downstream: ["provider:replicate", "provider:fal", "db:main"],
+  },
+  {
+    id: "cron:api-health-monitor",
+    label: "API 健康巡檢（依 ENV 設定週期）",
+    schedule: "API_HEALTH_MONITOR_SCHEDULE",
+    description: "ping 所有外部 provider，更新 providerHealth snapshot",
+    files: ["server/jobs/apiHealthMonitor.ts", "server/services/providerHealth.ts"],
+    downstream: [
+      "provider:gemini",
+      "provider:vertex",
+      "provider:fal",
+      "provider:elevenlabs",
+      "provider:replicate",
+    ],
+  },
+  {
+    id: "cron:provider-snapshot",
+    label: "Provider 快照（每 15 分鐘）",
+    schedule: "*/15 * * * *",
+    description: "把 providerHealth + apiUsage 快照寫入 DB 供日後趨勢分析",
+    files: ["server/jobs/providerSnapshotJob.ts"],
+    downstream: ["db:main"],
+  },
+  {
+    id: "cron:api-usage-alert",
+    label: "用量告警（每 15 分鐘）",
+    schedule: "*/15 * * * *",
+    description:
+      "檢查 AI 用量是否超出 AI_MONTHLY_BUDGET_USD，超標時發 Slack 通知",
+    files: ["server/jobs/apiUsageAlertJob.ts"],
+    downstream: ["db:main", "ext:slack-alerts"],
+    envKey: "AI_MONTHLY_BUDGET_USD",
+  },
+  {
+    id: "cron:user-auto-credit",
+    label: "自動發放點數（每 15 分鐘）",
+    schedule: "*/15 * * * *",
+    description: "依 auto-credit 規則替合資格用戶補點數",
+    files: ["server/jobs/userAutoCreditJob.ts"],
+    downstream: ["db:main"],
+  },
+  {
+    id: "cron:r2-snapshot",
+    label: "R2 / S3 快照（每日 18:00）",
+    schedule: "0 18 * * *",
+    description: "每天備份重要 DB 表到物件儲存（容災）",
+    files: ["server/jobs/r2SnapshotJob.ts"],
+    downstream: ["db:main", "storage:assets"],
+  },
+];
+
+/**
+ * Express middleware 棧 — 從 server/_core/index.ts 取出的全域層。
+ *
+ * 把每一層中介層畫成獨立節點，讓主管能直觀看到「請求進入後依序經過 helmet →
+ * compression → rate limit → trace → 路由 → verifyToken → 錯誤處理」的順序。
+ */
+interface MiddlewareMeta {
+  id: string;
+  label: string;
+  description: string;
+  files: string[];
+}
+
+const MIDDLEWARE_STACK: MiddlewareMeta[] = [
+  {
+    id: "mw:helmet",
+    label: "helmet（安全標頭）",
+    description: "設定 CSP、HSTS、X-Frame-Options 等防護標頭，防止 XSS / clickjacking",
+    files: ["server/_core/index.ts"],
+  },
+  {
+    id: "mw:compression",
+    label: "compression（壓縮）",
+    description: "對 >1KB 的 JSON / 文字回應做 gzip / brotli 壓縮（節省 60-80% 流量）",
+    files: ["server/_core/index.ts"],
+  },
+  {
+    id: "mw:rate-limit",
+    label: "rate limit（速率限制）",
+    description:
+      "auth / api 每分鐘 N 次的限流；超出回 429，避免暴力破解與爆量呼叫",
+    files: ["server/_core/rateLimiter.ts", "server/_core/index.ts"],
+  },
+  {
+    id: "mw:request-trace",
+    label: "request trace（追蹤 ID）",
+    description: "為每個請求生成 correlation id，串穿所有 log 與 LangSmith trace",
+    files: ["server/_core/index.ts"],
+  },
+  {
+    id: "mw:verify-token",
+    label: "verifyToken（JWT 認證）",
+    description: "驗證 session JWT 並把 user 注入 request；保護需登入的端點",
+    files: ["server/middleware/verifyToken.ts"],
+  },
+  {
+    id: "mw:error-handler",
+    label: "globalErrorHandler（錯誤處理）",
+    description:
+      "捕捉未處理錯誤、寫入 brainAutoRepair trace，回傳脫敏訊息給前端",
+    files: ["server/_core/error_handler.ts"],
+  },
+];
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Helpers
@@ -1671,6 +2073,42 @@ function appendInfrastructureLayers(
     });
   }
 
+  // ── 非 AI 外部服務（Pinecone / Brave / Perplexity / NewsAPI / NewsData / GitHub / Slack / Forge）
+  for (const meta of EXTERNAL_SERVICES) {
+    const derived = deriveOptionalServiceStatus(meta.envKey);
+    nodes.push({
+      id: meta.id,
+      kind: meta.kind,
+      layer: "external",
+      label: meta.label,
+      description: meta.description,
+      status: derived.status,
+      reason: derived.reason,
+      recommendation: derived.recommendation,
+      relatedFiles: [`.env (${meta.envKey})`, ...meta.files],
+      metrics: derived.metrics,
+    });
+  }
+
+  // RAG 記憶 → Pinecone 邊（語意上 brain-slot 透過 ragMemory 服務存取向量庫）
+  if (nodes.find(n => n.id === "ext:pinecone")) {
+    edges.push(makeEdge("brain:director", "ext:pinecone", "RAG 檢索"));
+    edges.push(makeEdge("brain:storyteller", "ext:pinecone", "RAG 檢索"));
+  }
+
+  // 光球 web research → Brave / Perplexity
+  if (nodes.find(n => n.id === "ext:brave-search")) {
+    edges.push(makeEdge("orb:agent", "ext:brave-search", "網路研究"));
+  }
+  if (nodes.find(n => n.id === "ext:perplexity")) {
+    edges.push(makeEdge("orb:agent", "ext:perplexity", "進階研究"));
+  }
+
+  // brainAutoRepair → GitHub（失敗自動回報 issue）
+  if (nodes.find(n => n.id === "ext:github")) {
+    edges.push(makeEdge("observability:langsmith", "ext:github", "自動回報"));
+  }
+
   // ── Data 節點（database + storage） ──────────────────────────────────────
   for (const meta of DATA_NODES) {
     const derived =
@@ -1774,6 +2212,107 @@ function appendInfrastructureLayers(
         edges.push(makeEdge(wh.id, downId, "寫入"));
       }
     }
+  }
+
+  // ── Cron 排程任務節點（infrastructure layer） ────────────────────────
+  for (const job of CRON_JOBS) {
+    // 狀態取下游最差；若 envKey 存在但缺，則直接 needs_optimization
+    let worst: PipelineNodeStatus = "healthy";
+    if (job.envKey) {
+      const envStatus = deriveOptionalServiceStatus(job.envKey).status;
+      if (STATUS_RANK[envStatus] > STATUS_RANK[worst]) worst = envStatus;
+    }
+    for (const downId of job.downstream) {
+      if (!nodes.find(n => n.id === downId)) continue;
+      const s = statusOf(downId);
+      if (STATUS_RANK[s] > STATUS_RANK[worst]) worst = s;
+    }
+    nodes.push({
+      id: job.id,
+      kind: "cron-job",
+      layer: "infrastructure",
+      label: job.label,
+      description: `排程：${job.schedule}｜${job.description}`,
+      status: worst,
+      reason:
+        worst === "healthy"
+          ? undefined
+          : "下游服務之一狀態不佳，可能影響此排程任務",
+      recommendation:
+        worst === "healthy"
+          ? undefined
+          : "點擊下游節點查看詳情；若是 envKey 缺失請補設並重啟",
+      relatedFiles: [
+        ...(job.envKey ? [`.env (${job.envKey})`] : []),
+        ...job.files,
+      ],
+      diagnostics: {
+        backendRoute: `cron schedule: ${job.schedule}`,
+        serviceFunction: job.files[0] ?? "node-cron task",
+      },
+    });
+    // 部署平台 → cron job（Railway 代管 cron）
+    if (nodes.find(n => n.id === "infra:railway")) {
+      edges.push(makeEdge("infra:railway", job.id, "排程"));
+    }
+    for (const downId of job.downstream) {
+      if (nodes.find(n => n.id === downId)) {
+        edges.push(makeEdge(job.id, downId, "讀寫"));
+      }
+    }
+  }
+
+  // ── Express middleware 節點（api layer） ──────────────────────────────
+  // 用一條鏈表表達順序：browser → helmet → compression → rate-limit → request-trace
+  // → (端點) → verifyToken（受保護端點）→ error-handler。
+  const MIDDLEWARE_ORDER = MIDDLEWARE_STACK.map(m => m.id);
+  for (const mw of MIDDLEWARE_STACK) {
+    nodes.push({
+      id: mw.id,
+      kind: "middleware",
+      layer: "api",
+      label: mw.label,
+      description: mw.description,
+      status: "healthy",
+      relatedFiles: mw.files,
+      diagnostics: {
+        backendRoute: "express middleware",
+        serviceFunction: mw.files[0] ?? "app.use",
+      },
+    });
+  }
+  // 串前 4 層成順序鏈：helmet → compression → rate-limit → request-trace
+  for (let i = 0; i < 4; i++) {
+    const a = MIDDLEWARE_ORDER[i];
+    const b = MIDDLEWARE_ORDER[i + 1];
+    if (a && b) edges.push(makeEdge(a, b, "next()"));
+  }
+  // browser → 第一層 middleware
+  edges.push(makeEdge(BROWSER_NODE_META.id, MIDDLEWARE_ORDER[0], "HTTP"));
+  // request-trace → 重要 API 端點（不畫滿避免亂；只畫到 trpc / upload / sse）
+  for (const apiId of ["api:trpc", "api:upload", "api:sse-generation"]) {
+    if (nodes.find(n => n.id === apiId)) {
+      edges.push(makeEdge("mw:request-trace", apiId, "通過"));
+    }
+  }
+  // verifyToken → 需登入才能呼叫的端點
+  for (const apiId of [
+    "api:auth-me",
+    "api:auth-2fa",
+    "api:auth-change",
+    "api:auth-login-history",
+    "api:tasks-status",
+    "api:tasks-stream",
+    "api:admin-events-stream",
+    "api:upload",
+  ]) {
+    if (nodes.find(n => n.id === apiId)) {
+      edges.push(makeEdge("mw:verify-token", apiId, "驗證"));
+    }
+  }
+  // 所有 endpoint → error-handler（最後保險）；只畫一條代表邊避免炸圖
+  if (nodes.find(n => n.id === "api:trpc")) {
+    edges.push(makeEdge("api:trpc", "mw:error-handler", "錯誤"));
   }
 
   // ── 跨層的「黏合」邊 ────────────────────────────────────────────────────
@@ -1941,4 +2480,7 @@ export const __testing = {
   DATA_NODES,
   INFRA_NODES,
   BROWSER_NODE_META,
+  EXTERNAL_SERVICES,
+  CRON_JOBS,
+  MIDDLEWARE_STACK,
 };

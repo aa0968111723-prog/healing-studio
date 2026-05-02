@@ -35,11 +35,16 @@ const KIND_ICON: Record<PipelineNode["kind"], string> = {
   browser: "🖥️",
   "api-endpoint": "🛰️",
   webhook: "📨",
+  middleware: "🧩",
   database: "🗄️",
   storage: "🪣",
+  "vector-store": "🧬",
+  "search-provider": "🔎",
+  "cron-job": "🕒",
   deployment: "🚂",
   observability: "📡",
   "auth-provider": "🔐",
+  notification: "🔔",
   payment: "💳",
 };
 
