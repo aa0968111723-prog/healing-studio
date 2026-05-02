@@ -12,6 +12,7 @@ const GENERATION_SLOT_TOOLS = new Set([
   "studio.cloneVoice",
   "studio.designVoice",
   "studio.separateStems",
+  "studio.isolateAudio",
   "studio.enhanceVideo",
   "studio.trainLora",
 ]);
@@ -1123,6 +1124,75 @@ async function dispatchStudioTool(
             ? { error: awaited.error }
             : !haveAnyStem && awaited.status !== "pending"
               ? { error: "stem-separation: 所有 stem URL 缺失" }
+              : {}),
+        };
+      }
+
+      // DEF-AI3：光球專用音訊隔離 — 從含背景噪訊的錄音抽出乾淨人聲/語音。
+      // 預設走 fal-ai/elevenlabs/audio-isolation（需 ELEVENLABS_API_KEY）；
+      // 缺 key 時退回 fal-ai/demucs htdemucs_ft 並回傳 vocals 軌作為等價輸出。
+      case "studio.isolateAudio": {
+        const { dispatchFalQueueTask } = await import("./falDispatcher");
+        let modelId =
+          (args.modelId as string) || "fal-ai/elevenlabs/audio-isolation";
+        const isElevenLabsIsolation =
+          modelId === "fal-ai/elevenlabs/audio-isolation";
+        // 缺 ELEVENLABS_API_KEY 時退回 Demucs（取 vocals 軌即等同 isolation）。
+        if (isElevenLabsIsolation && !process.env.ELEVENLABS_API_KEY) {
+          modelId = "fal-ai/demucs";
+        }
+        const finalIsElevenLabs =
+          modelId === "fal-ai/elevenlabs/audio-isolation";
+        const isolationInput: Record<string, unknown> = {};
+        if (typeof args.audio_url === "string") {
+          isolationInput.audio_url = args.audio_url;
+        }
+        // Demucs 退回路徑：4 軌 htdemucs_ft 取 vocals 即等同 isolation
+        if (modelId === "fal-ai/demucs") {
+          isolationInput.model = "htdemucs_ft";
+          isolationInput.stems = ["vocals", "drums", "bass", "other"];
+          isolationInput.output_format = "mp3";
+        }
+        const elevenLabsHeaders =
+          finalIsElevenLabs && process.env.ELEVENLABS_API_KEY
+            ? { "x-fal-client-credentials": process.env.ELEVENLABS_API_KEY }
+            : undefined;
+        const r = await dispatchFalQueueTask({
+          modelId,
+          category: "text-to-audio",
+          input: isolationInput,
+          route: "orb-tool/studio.isolateAudio",
+          modality: "audio",
+          userId: opts.userId,
+          ...(elevenLabsHeaders ? { extraHeaders: elevenLabsHeaders } : {}),
+        });
+        const awaited = await awaitFalForOrb(
+          { request_id: r.request_id, modelId: r.modelId, degraded: r.degraded ?? false },
+          args
+        );
+        // 兩條路徑的輸出形狀不同：
+        //   - ElevenLabs isolation → audio.url（單軌）
+        //   - Demucs vocals 退回路徑 → vocals.url（多軌之一）
+        // 統一以 `audio_url` 平推到 data 頂層，後續 step 不需關心走哪條路徑。
+        const raw = awaited.raw as
+          | { audio?: { url?: string }; vocals?: { url?: string } }
+          | undefined;
+        const isolatedUrl =
+          raw?.audio?.url ?? raw?.vocals?.url ?? awaited.audio_url ?? null;
+        return {
+          name: call.name,
+          ok: awaited.status !== "failed" && !!isolatedUrl,
+          data: {
+            ...awaited,
+            engine: "fal",
+            kind: "audio-isolation",
+            audio_url: isolatedUrl,
+          },
+          usedTool: call.name,
+          ...(awaited.status === "failed" && awaited.error
+            ? { error: awaited.error }
+            : !isolatedUrl && awaited.status !== "pending"
+              ? { error: "audio-isolation: 隔離後音檔 URL 缺失" }
               : {}),
         };
       }

@@ -1187,6 +1187,15 @@ export const proStudioRouter = router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      // DEF-AI2：與 elevenLabsTTS / elevenLabsVoiceClone 對齊 — 缺
+      // ELEVENLABS_API_KEY 時提早報錯，避免「扣 3pt → fal 401 → 退 3pt」浪費往返。
+      if (!process.env.ELEVENLABS_API_KEY) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "ElevenLabs Audio Isolation 需要 ELEVENLABS_API_KEY。請改用 Demucs 音幹分離（取 vocals 軌即得乾淨人聲），或聯絡管理員設定金鑰。",
+        });
+      }
       const modelId = "fal-ai/elevenlabs/audio-isolation";
       const charged = await chargeForFalTask(ctx.user.id, modelId);
       try {

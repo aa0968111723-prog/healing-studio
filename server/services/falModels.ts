@@ -1284,6 +1284,21 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       outputSchema: { audioUrl: true },
       timeoutMs: 180_000,
     },
+    // DEF-AI1：ElevenLabs Audio Isolation — 與 Demucs 互補：Demucs 拆多軌、
+    // Isolation 抽乾淨單軌（去背景噪、保留人聲/語音）。同 audio-to-audio 概念，
+    // 同樣為避免 enum 變更掛在 text-to-audio。catalog 過去缺席 → 任何 category-
+    // aware 路徑會降級到 ace-step（音樂引擎）。需 ELEVENLABS_API_KEY proxy。
+    {
+      modelId: "fal-ai/elevenlabs/audio-isolation",
+      label: "ElevenLabs 音訊隔離",
+      category: "text-to-audio",
+      tier: "standard",
+      description:
+        "ElevenLabs Audio Isolation — 從含背景噪訊的錄音抽出乾淨人聲/語音（需 ELEVENLABS_API_KEY）",
+      inputSchema: { audioUrl: true },
+      outputSchema: { audioUrl: true },
+      timeoutMs: 120_000,
+    },
     {
       modelId: "fal-ai/dia-tts",
       label: "Dia TTS",

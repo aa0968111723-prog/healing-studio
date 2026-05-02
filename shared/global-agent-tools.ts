@@ -216,6 +216,20 @@ export const GLOBAL_AGENT_TOOL_REGISTRY: GlobalAgentToolDefinition[] = [
     },
     executionTarget: "server-side",
   },
+  // DEF-AI3：光球專用音訊隔離 — 與 separateStems 互補：分離拆多軌、隔離抽
+  // 乾淨單軌（去背景噪、保留人聲/語音）。預設 fal-ai/elevenlabs/audio-isolation
+  // （需 ELEVENLABS_API_KEY），缺 key 時退回 fal-ai/demucs 並取 vocals 軌。
+  // 後續 step 可用 ${stepN.audio_url} 接到 STT / voiceChanger / mergeAudios。
+  {
+    name: "studio.isolateAudio",
+    riskLevel: "medium",
+    requiresHuman: true,
+    allowedArgsSchema: {
+      audio_url: "string",
+      modelId: "string?",
+    },
+    executionTarget: "server-side",
+  },
   {
     name: "studio.generateVoice",
     riskLevel: "medium",

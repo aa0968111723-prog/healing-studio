@@ -129,6 +129,18 @@ describe("falModels catalog coverage", () => {
     expect(cfg!.timeoutMs).toBeGreaterThan(60_000);
   });
 
+  // DEF-AI1：ElevenLabs Audio Isolation。同 DEF-DM1 pattern — catalog miss
+  // 會把「抽乾淨人聲」的請求降級成「生成音樂」，且 ELEVENLABS_API_KEY proxy
+  // header 也不會被注入。
+  it("text-to-audio catalog includes ElevenLabs Audio Isolation", () => {
+    const cfg = getFalModelById(
+      "fal-ai/elevenlabs/audio-isolation",
+      "text-to-audio"
+    );
+    expect(cfg).toBeDefined();
+    expect(cfg!.tier).toBe("standard");
+  });
+
   // DEF-EL1：ElevenLabs SFX 真實 endpoint 帶 /v2 後綴，必須在 text-to-audio
   // catalog 註冊，否則 dispatcher 會把所有 SFX 請求降級到 fal-ai/ace-step（音樂模型）。
   it("text-to-audio catalog includes ElevenLabs SFX v2 canonical id", () => {
