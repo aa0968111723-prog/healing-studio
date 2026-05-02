@@ -85,6 +85,16 @@ function extractMessageText(
   return "";
 }
 
+// 從 LLM 回應中解析 JSON 物件。先抽出純文字（容忍 array 形式），再以
+// fence-tolerant 解析器抽取 JSON，避免 array 形式被誤當成 parsed object。
+function extractMessageJson(
+  content: string | Array<{ type: string; text?: string }> | undefined | null
+): unknown {
+  const text = extractMessageText(content);
+  if (!text) return null;
+  return extractJsonObjectFromText(text);
+}
+
 // ─── Personality System Prompts ──────────────────────────────────────────────
 
 const PERSONALITY_PROMPTS: Record<
@@ -547,8 +557,10 @@ ${formatInstruction}
     "腳本分析"
   );
 
-  const content = result.choices[0]?.message?.content;
-  let parsed: {
+  // Fence-tolerant — Gemini json_object mode sometimes ships ```json fences.
+  // 同時容忍 array 形式 content，避免被誤當成 parsed object 而吃空 segments。
+  const extracted = extractMessageJson(result.choices[0]?.message?.content);
+  const parsed: {
     segments: Array<{
       sceneHeading: string;
       visualDescription: string;
@@ -561,19 +573,10 @@ ${formatInstruction}
       characters: string[];
       locations: string[];
     }>;
-  };
-  // Fence-tolerant — Gemini json_object mode sometimes ships ```json fences.
-  if (typeof content === "string") {
-    const extracted = extractJsonObjectFromText(content);
-    parsed =
-      extracted && typeof extracted === "object"
-        ? (extracted as typeof parsed)
-        : { segments: [] };
-  } else if (content && typeof content === "object") {
-    parsed = content as unknown as typeof parsed;
-  } else {
-    parsed = { segments: [] };
-  }
+  } =
+    extracted && typeof extracted === "object"
+      ? (extracted as never)
+      : { segments: [] };
 
   const segments = parsed.segments ?? [];
   const segCount = segments.length || 1;
@@ -1260,23 +1263,13 @@ ${sceneSummary}
     "情感深度分析"
   );
 
-  const content = result.choices[0]?.message?.content;
-  const parsed =
-    typeof content === "string"
-      ? (extractJsonObjectFromText(content) as
-          | {
-              emotionalBeats?: unknown;
-              warmthScore?: unknown;
-              depthAnalysis?: unknown;
-            }
-          | null)
-      : (content as unknown as
-          | {
-              emotionalBeats?: unknown;
-              warmthScore?: unknown;
-              depthAnalysis?: unknown;
-            }
-          | null);
+  const parsed = extractMessageJson(result.choices[0]?.message?.content) as
+    | {
+        emotionalBeats?: unknown;
+        warmthScore?: unknown;
+        depthAnalysis?: unknown;
+      }
+    | null;
   return {
     emotionalBeats: Array.isArray(parsed?.emotionalBeats)
       ? (parsed!.emotionalBeats as never[])
@@ -1415,7 +1408,12 @@ ${persona.proactiveHint}
     "導演AI創作"
   );
 
-  const scriptContent = scriptResult.choices[0]?.message?.content;
+  // content 可能是 string 或 Array<TextContent | ...>。先抽出純文字再走
+  // extractJsonObjectFromText，避免 array 形式被誤當成 parsed JSON object
+  // 而導致 CO-STAR 欄位全部變空。
+  const parsedScript = extractMessageJson(
+    scriptResult.choices[0]?.message?.content
+  );
   // Gemini's json_object mode occasionally wraps the payload in ```json
   // fences or prepends a one-line preamble; extractJsonObjectFromText falls
   // back to fenced/embedded extraction so the user still sees a populated
@@ -1461,14 +1459,7 @@ ${persona.proactiveHint}
       proactiveQuestion: pick("proactiveQuestion"),
     };
   };
-  let script: CoStarScript;
-  if (typeof scriptContent === "string") {
-    script = coerce(extractJsonObjectFromText(scriptContent));
-  } else if (scriptContent && typeof scriptContent === "object") {
-    script = coerce(scriptContent);
-  } else {
-    script = emptyScript;
-  }
+  const script: CoStarScript = coerce(parsedScript);
 
   // Save to project notes if requested
   if (saveToNotes && userId) {
@@ -1603,14 +1594,10 @@ export const directorRouter = router({
         "腳本修改"
       );
 
-      const content = result.choices[0]?.message?.content;
       // Fence-tolerant — same rationale as generateSegmentCostar.
-      const refinedScript =
-        typeof content === "string"
-          ? extractJsonObjectFromText(content)
-          : content && typeof content === "object"
-            ? (content as unknown)
-            : null;
+      const refinedScript = extractMessageJson(
+        result.choices[0]?.message?.content
+      );
       if (refinedScript && typeof refinedScript === "object") {
         return refinedScript as Record<string, unknown>;
       }
@@ -2077,16 +2064,12 @@ ${persona.proactiveHint}
         "分鏡 CO-STAR 生成"
       );
 
-      const content = result.choices[0]?.message?.content;
       // Use the fence-tolerant extractor so Gemini wrapping the JSON in
       // ```json fences (a common json_object mode artefact) still produces
       // a usable CO-STAR card instead of falling through to all-empty.
-      const extracted =
-        typeof content === "string"
-          ? extractJsonObjectFromText(content)
-          : content && typeof content === "object"
-            ? (content as unknown)
-            : null;
+      const extracted = extractMessageJson(
+        result.choices[0]?.message?.content
+      );
       if (extracted && typeof extracted === "object") {
         return extracted as Record<string, unknown>;
       }
@@ -2217,14 +2200,10 @@ ${persona.proactiveHint}
         "批次 CO-STAR 生成"
       );
 
-      const content = result.choices[0]?.message?.content;
       // Fence-tolerant parsing — see generateSegmentCostar comment.
-      const parsed =
-        typeof content === "string"
-          ? (extractJsonObjectFromText(content) as
-              | { results?: unknown }
-              | null)
-          : (content as unknown as { results?: unknown } | null);
+      const parsed = extractMessageJson(
+        result.choices[0]?.message?.content
+      ) as { results?: unknown } | null;
       const resultMap: Record<string, Record<string, string>> = {};
       const results = Array.isArray(parsed?.results) ? parsed!.results : [];
       for (let i = 0; i < results.length; i++) {
@@ -2376,13 +2355,9 @@ ${segmentSummaries}
         "腳本全局分析"
       );
 
-      const content = result.choices[0]?.message?.content;
-      const parsedOverview =
-        typeof content === "string"
-          ? extractJsonObjectFromText(content)
-          : content && typeof content === "object"
-            ? (content as unknown)
-            : null;
+      const parsedOverview = extractMessageJson(
+        result.choices[0]?.message?.content
+      );
       if (parsedOverview && typeof parsedOverview === "object") {
         return {
           totalDuration: `${totalMin}分${totalSec}秒`,
@@ -3664,8 +3639,9 @@ ${director.systemPrompt ? `\n附加大腦指令：\n${director.systemPrompt}` : 
         responseFormat: { type: "json_object" },
       });
 
-      const content = llmResponse.choices[0]?.message?.content;
-      const text = typeof content === "string" ? content : "";
+      const text = extractMessageText(
+        llmResponse.choices[0]?.message?.content
+      );
 
       const extracted = extractJsonObjectFromText(text);
       if (!extracted || typeof extracted !== "object") {
