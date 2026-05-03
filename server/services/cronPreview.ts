@@ -178,6 +178,105 @@ export function formatTaipeiLabel(date: Date): string {
   return `${month}/${day}（${weekday}）${dayPeriod} ${hour}:${minute}`;
 }
 
+const WEEKDAY_LABELS = ["週日", "週一", "週二", "週三", "週四", "週五", "週六"];
+
+function pad2(n: number): string {
+  return n < 10 ? `0${n}` : String(n);
+}
+
+function describePeriod(hour: number, minute: number): string {
+  const hh = pad2(hour);
+  const mm = pad2(minute);
+  if (hour === 0) return `凌晨 00:${mm}`;
+  if (hour < 6) return `凌晨 ${hh}:${mm}`;
+  if (hour < 12) return `早上 ${hh}:${mm}`;
+  if (hour === 12) return `中午 12:${mm}`;
+  if (hour < 18) return `下午 ${pad2(hour - 12)}:${mm}`;
+  if (hour < 21) return `傍晚 ${pad2(hour - 12)}:${mm}`;
+  return `晚上 ${pad2(hour - 12)}:${mm}`;
+}
+
+/**
+ * Translate a 5-field cron expression into a plain Chinese sentence the user
+ * can read at a glance. Covers the patterns the preset list emits plus a few
+ * common ad-hoc shapes; falls back to a generic sentence for anything we
+ * can't confidently summarise.
+ *
+ * Always frames the time as 台灣時間 because the scheduler interprets it
+ * that way.
+ */
+export function describeCron(cron: string): string {
+  const trimmed = cron.trim();
+  const parts = trimmed.split(/\s+/);
+  if (parts.length !== 5) return "（cron 格式不正確）";
+  const [m, h, dom, mon, dow] = parts;
+
+  // every minute
+  if (m === "*" && h === "*" && dom === "*" && mon === "*" && dow === "*") {
+    return "每分鐘執行（台灣時間）";
+  }
+  // every N minutes (*/N)
+  const stepM = m.match(/^\*\/(\d+)$/);
+  if (
+    stepM &&
+    h === "*" &&
+    dom === "*" &&
+    mon === "*" &&
+    dow === "*"
+  ) {
+    return `每 ${stepM[1]} 分鐘執行（台灣時間）`;
+  }
+  // every hour at minute M (M * * * *)
+  if (
+    /^\d+$/.test(m) &&
+    h === "*" &&
+    dom === "*" &&
+    mon === "*" &&
+    dow === "*"
+  ) {
+    return `每小時的第 ${parseInt(m, 10)} 分鐘執行（台灣時間）`;
+  }
+  // every N hours (M */N * * *)
+  const stepH = h.match(/^\*\/(\d+)$/);
+  if (
+    /^\d+$/.test(m) &&
+    stepH &&
+    dom === "*" &&
+    mon === "*" &&
+    dow === "*"
+  ) {
+    return `每 ${stepH[1]} 小時執行一次（台灣時間，每次在第 ${parseInt(m, 10)} 分鐘）`;
+  }
+  // exact minute & hour
+  if (/^\d+$/.test(m) && /^\d+$/.test(h)) {
+    const minute = parseInt(m, 10);
+    const hour = parseInt(h, 10);
+    if (hour > 23 || minute > 59) return "（cron 時間欄超出範圍）";
+    const time = describePeriod(hour, minute);
+    // monthly: 0 9 1 * *
+    if (/^\d+$/.test(dom) && mon === "*" && dow === "*") {
+      return `每月 ${parseInt(dom, 10)} 號 ${time} 執行（台灣時間）`;
+    }
+    // weekday range Mon-Fri
+    if (dom === "*" && mon === "*" && dow === "1-5") {
+      return `工作日（週一至週五）${time} 執行（台灣時間）`;
+    }
+    // single weekday
+    if (dom === "*" && mon === "*" && /^[0-6]$/.test(dow)) {
+      return `每${WEEKDAY_LABELS[parseInt(dow, 10)]} ${time} 執行（台灣時間）`;
+    }
+    // weekend Sat-Sun
+    if (dom === "*" && mon === "*" && (dow === "0,6" || dow === "6,0")) {
+      return `週末（六、日）${time} 執行（台灣時間）`;
+    }
+    // daily
+    if (dom === "*" && mon === "*" && dow === "*") {
+      return `每天 ${time} 執行（台灣時間）`;
+    }
+  }
+  return `依 cron 規則 \`${trimmed}\` 執行（台灣時間）`;
+}
+
 /**
  * Human-readable "in 4 小時 32 分" / "在 8 分鐘後" style relative label.
  * Returns "已過" if the target is in the past (which shouldn't happen for

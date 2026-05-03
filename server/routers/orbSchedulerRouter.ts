@@ -11,11 +11,30 @@ import {
   unscheduleOrbJob,
 } from "../services/orbScheduler";
 import {
+  describeCron,
   formatRelativeFromNow,
   formatTaipeiLabel,
   nextFireTimes,
   SCHEDULER_TIMEZONE,
 } from "../services/cronPreview";
+
+interface NextRunMeta {
+  iso: string;
+  label: string;
+  relative: string;
+}
+
+function computeNextRun(cronExpression: string, now: Date): NextRunMeta | null {
+  if (!isValidCronExpression(cronExpression)) return null;
+  const result = nextFireTimes(cronExpression, 1, now);
+  if (!result.ok || result.nextRuns.length === 0) return null;
+  const d = result.nextRuns[0];
+  return {
+    iso: d.toISOString(),
+    label: formatTaipeiLabel(d),
+    relative: formatRelativeFromNow(d, now),
+  };
+}
 
 const OrbScheduleInput = z.object({
   id: z
@@ -133,7 +152,20 @@ export const orbSchedulerRouter = router({
       return { success: true } as const;
     }),
 
-  listJobs: protectedProcedure.query(({ ctx }) => listScheduledJobs(ctx.user.id)),
+  /**
+   * List the current user's scheduled jobs, enriched with the next planned
+   * fire time (in Asia/Taipei) and a plain-Chinese description of the cron
+   * expression so the panel can show "下次執行：05/04（週一）下午 09:00 ·
+   * 還有 4 小時 32 分" without doing any TZ math on the client.
+   */
+  listJobs: protectedProcedure.query(({ ctx }) => {
+    const now = new Date();
+    return listScheduledJobs(ctx.user.id).map(job => ({
+      ...job,
+      cronDescription: describeCron(job.cronExpression),
+      nextRun: job.enabled ? computeNextRun(job.cronExpression, now) : null,
+    }));
+  }),
 
   /**
    * Live preview the next N fire times for a cron expression so the user
@@ -155,6 +187,7 @@ export const orbSchedulerRouter = router({
     .query(({ input }): {
       ok: boolean;
       timezone: string;
+      description: string;
       nextRuns: string[];
       nextRunsLocal: Array<{ iso: string; label: string; relative: string }>;
       error?: string;
@@ -163,6 +196,7 @@ export const orbSchedulerRouter = router({
         return {
           ok: false,
           timezone: SCHEDULER_TIMEZONE,
+          description: describeCron(input.cronExpression),
           nextRuns: [],
           nextRunsLocal: [],
           error: "無效的 cron 表達式",
@@ -173,6 +207,7 @@ export const orbSchedulerRouter = router({
       return {
         ok: result.ok,
         timezone: SCHEDULER_TIMEZONE,
+        description: describeCron(input.cronExpression),
         nextRuns: result.nextRuns.map(d => d.toISOString()),
         nextRunsLocal: result.nextRuns.map(d => ({
           iso: d.toISOString(),

@@ -327,6 +327,35 @@ export default function AgentSettingsSheet({
                     <span className="text-xs text-muted-foreground">步</span>
                   </div>
                 </section>
+
+                <section className="space-y-2 rounded-2xl border border-primary/30 bg-primary/5 p-4">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-primary">
+                    目前生效
+                  </h3>
+                  <ul className="text-xs text-foreground space-y-1 leading-relaxed">
+                    <li>
+                      <span className="text-muted-foreground">行為模式：</span>
+                      {MODE_DESCRIPTIONS[mode].title}（
+                      <code className="font-mono text-[10px] bg-muted px-1 rounded">
+                        {MODE_TO_POLICY[mode]}
+                      </code>
+                      ）— {MODE_DESCRIPTIONS[mode].description}
+                    </li>
+                    <li>
+                      <span className="text-muted-foreground">單一任務上限：</span>
+                      {maxAutoStepsPerTask} 步（超過會先暫停問你）
+                    </li>
+                    <li>
+                      <span className="text-muted-foreground">完成通知：</span>
+                      {notifyOnCompletion ? "開啟" : "關閉"}
+                      <span className="text-muted-foreground">，失敗通知：</span>
+                      {notifyOnError ? "開啟" : "關閉"}
+                    </li>
+                  </ul>
+                  <p className="text-[10px] text-muted-foreground pt-1">
+                    記得按下方「儲存設定」才會寫入。
+                  </p>
+                </section>
               </TabsContent>
 
               {/* ── 自動排程 ──────────────────────────────────────── */}
@@ -567,12 +596,24 @@ function ScheduleSection({ isAuthenticated }: { isAuthenticated: boolean }) {
                     </span>
                   )}
                 </div>
-                <div className="truncate text-xs text-muted-foreground mt-0.5">
-                  <code className="rounded bg-muted px-1 mr-1">
+                <div className="text-xs text-muted-foreground mt-0.5 leading-snug">
+                  <code className="rounded bg-muted px-1 mr-1 font-mono text-[10px]">
                     {job.cronExpression}
                   </code>
+                  {job.cronDescription && (
+                    <span className="text-foreground/80">{job.cronDescription}</span>
+                  )}
+                </div>
+                <div className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">
                   {job.taskDescription}
                 </div>
+                {job.enabled && job.nextRun && (
+                  <div className="text-[10px] text-emerald-700 dark:text-emerald-400 mt-1 flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    下次執行：{job.nextRun.label}
+                    <span className="opacity-70">· {job.nextRun.relative}</span>
+                  </div>
+                )}
                 {job.lastRunAt && (
                   <div className="text-[10px] text-muted-foreground mt-0.5">
                     上次執行：
@@ -672,12 +713,15 @@ function ScheduleSection({ isAuthenticated }: { isAuthenticated: boolean }) {
         <div className="space-y-1.5">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-medium">執行時間</span>
-            <span
-              className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/70 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-700/40"
-              title="所有 cron 都以 Asia/Taipei 解讀，下方預覽就是真實會跑的時間。"
-            >
-              台灣時間 UTC+8
-            </span>
+            <div className="flex items-center gap-1">
+              <span
+                className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/70 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-700/40"
+                title="所有 cron 都以 Asia/Taipei 解讀，下方預覽就是真實會跑的時間。"
+              >
+                台灣時間 UTC+8
+              </span>
+              <BrowserTimezoneHint />
+            </div>
           </div>
           <div className="flex flex-wrap gap-1.5">
             {CRON_PRESETS.map(preset => (
@@ -711,6 +755,28 @@ function ScheduleSection({ isAuthenticated }: { isAuthenticated: boolean }) {
             所有時間都按 <span className="font-medium">台灣時間（Asia/Taipei）</span>解讀，
             不受瀏覽器或伺服器所在時區影響。
           </p>
+          <details className="text-[10px] text-muted-foreground">
+            <summary className="cursor-pointer hover:text-foreground">
+              cron 範例
+            </summary>
+            <ul className="mt-1 space-y-0.5 pl-3 list-disc">
+              <li>
+                <code className="font-mono">0 9 * * *</code> — 每天 09:00
+              </li>
+              <li>
+                <code className="font-mono">30 14 * * 1-5</code> — 工作日 14:30
+              </li>
+              <li>
+                <code className="font-mono">0 */2 * * *</code> — 每 2 小時整點
+              </li>
+              <li>
+                <code className="font-mono">0 9 1 * *</code> — 每月 1 號 09:00
+              </li>
+              <li>
+                <code className="font-mono">15,45 * * * *</code> — 每小時 15 分、45 分
+              </li>
+            </ul>
+          </details>
         </div>
 
         <div className="space-y-1.5">
@@ -753,11 +819,53 @@ function ScheduleSection({ isAuthenticated }: { isAuthenticated: boolean }) {
   );
 }
 
+// ───────────── 瀏覽器時區提示 ─────────────
+
+/**
+ * If the user's browser is in a timezone other than UTC+8, surface a small
+ * hint so they understand "中午 12:00" means Taipei noon, which may not
+ * match their phone's wall-clock.
+ */
+function BrowserTimezoneHint() {
+  const hint = useMemo(() => {
+    if (typeof Intl === "undefined") return null;
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+      // Collapse Asia/Taipei (or any +08:00 zone) — no need to nag the user.
+      const offsetMin = -new Date().getTimezoneOffset(); // browser → minutes east of UTC
+      if (offsetMin === 480) return null; // already UTC+8
+      const sign = offsetMin >= 0 ? "+" : "-";
+      const abs = Math.abs(offsetMin);
+      const hh = Math.floor(abs / 60);
+      const mm = abs % 60;
+      const browserLabel = `UTC${sign}${String(hh).padStart(2, "0")}${
+        mm ? `:${String(mm).padStart(2, "0")}` : ""
+      }`;
+      const diffH = (offsetMin - 480) / 60;
+      const direction =
+        diffH > 0 ? `比台灣早 ${diffH} 小時` : `比台灣晚 ${Math.abs(diffH)} 小時`;
+      return { tz, browserLabel, direction };
+    } catch {
+      return null;
+    }
+  }, []);
+  if (!hint) return null;
+  return (
+    <span
+      className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200/70 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-700/40"
+      title={`你的瀏覽器時區：${hint.tz} (${hint.browserLabel})，${hint.direction}。下方預覽顯示的是台灣時間。`}
+    >
+      你的瀏覽器：{hint.browserLabel}
+    </span>
+  );
+}
+
 // ───────────── Cron 即時預覽 ─────────────
 
 interface CronPreviewData {
   ok: boolean;
   timezone?: string;
+  description?: string;
   nextRuns: string[];
   nextRunsLocal?: Array<{ iso: string; label: string; relative: string }>;
   error?: string;
@@ -818,11 +926,11 @@ function CronPreview({ query, cron, isAuthenticated }: CronPreviewProps) {
     <div className="text-[11px] text-emerald-700 dark:text-emerald-400 flex items-start gap-1.5 bg-emerald-50/60 dark:bg-emerald-900/20 border border-emerald-200/60 dark:border-emerald-700/40 rounded-md px-2 py-1.5">
       <Clock className="h-3 w-3 mt-0.5 shrink-0" />
       <div className="flex-1 space-y-0.5">
-        <p className="font-medium">
-          接下來 {rows.length} 次執行
-          <span className="ml-1 text-[10px] opacity-80 font-normal">
-            （{data.timezone ?? "Asia/Taipei"}）
-          </span>
+        {data.description && (
+          <p className="font-medium leading-snug">{data.description}</p>
+        )}
+        <p className="text-[10px] opacity-80">
+          接下來 {rows.length} 次執行（{data.timezone ?? "Asia/Taipei"}）：
         </p>
         {rows.map(row => (
           <p key={row.iso} className="font-mono flex items-baseline gap-1.5">
@@ -922,6 +1030,18 @@ function ToolsPickerSection({
         <h3 className="text-sm font-semibold">工具許可</h3>
         <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">
           綠色 = 自動同意（不彈確認）；紅色 = 一律拒絕。點按鈕直接切換，不熟工具就保持灰色。
+        </p>
+        <p className="text-[11px] text-muted-foreground mt-1">
+          目前狀態：
+          <span className="text-emerald-700 dark:text-emerald-400 font-medium ml-1">
+            ✓ {autoApprove.size} 個自動同意
+          </span>
+          <span className="text-destructive font-medium ml-2">
+            ✕ {blocked.size} 個封鎖
+          </span>
+          <span className="text-muted-foreground ml-2">
+            · 其餘 {Math.max(0, tools.length - autoApprove.size - blocked.size)} 個跟隨整體策略
+          </span>
         </p>
       </div>
 

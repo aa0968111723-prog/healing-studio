@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  describeCron,
   formatRelativeFromNow,
   formatTaipeiLabel,
   nextFireTimes,
@@ -112,6 +113,51 @@ describe("formatTaipeiLabel", () => {
     // 2026-05-04 01:00 Taipei == 2026-05-03 17:00 UTC
     const label = formatTaipeiLabel(new Date("2026-05-03T17:00:00Z"));
     expect(label.startsWith("05/04")).toBe(true);
+  });
+});
+
+describe("describeCron", () => {
+  it("describes the daily morning preset", () => {
+    expect(describeCron("0 9 * * *")).toBe("每天 早上 09:00 執行（台灣時間）");
+  });
+  it("describes daily noon as 中午", () => {
+    expect(describeCron("0 12 * * *")).toBe("每天 中午 12:00 執行（台灣時間）");
+  });
+  it("describes daily evening as 晚上", () => {
+    expect(describeCron("0 21 * * *")).toBe("每天 晚上 09:00 執行（台灣時間）");
+  });
+  it("describes weekday-only ranges", () => {
+    expect(describeCron("0 9 * * 1-5")).toBe(
+      "工作日（週一至週五）早上 09:00 執行（台灣時間）"
+    );
+  });
+  it("describes a single weekday", () => {
+    // 18:00 falls in the 傍晚 bucket (18-20) per describePeriod.
+    expect(describeCron("0 18 * * 5")).toBe(
+      "每週五 傍晚 06:00 執行（台灣時間）"
+    );
+  });
+  it("describes monthly schedules", () => {
+    expect(describeCron("0 9 1 * *")).toBe(
+      "每月 1 號 早上 09:00 執行（台灣時間）"
+    );
+  });
+  it("describes step expressions", () => {
+    expect(describeCron("*/30 * * * *")).toBe("每 30 分鐘執行（台灣時間）");
+    expect(describeCron("* * * * *")).toBe("每分鐘執行（台灣時間）");
+  });
+  it("describes hourly minute markers", () => {
+    expect(describeCron("0 * * * *")).toBe(
+      "每小時的第 0 分鐘執行（台灣時間）"
+    );
+  });
+  it("falls back for shapes it can't summarise", () => {
+    expect(describeCron("15,45 * * * *")).toBe(
+      "依 cron 規則 `15,45 * * * *` 執行（台灣時間）"
+    );
+  });
+  it("flags malformed input", () => {
+    expect(describeCron("not a cron")).toMatch(/格式不正確|cron/);
   });
 });
 
