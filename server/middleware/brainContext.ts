@@ -106,28 +106,57 @@ export interface DegradationEvent {
 // Default Configurations (硬編碼安全預設)
 // ═══════════════════════════════════════════════════════════════════════════
 
-// 全站光球代理（Global Orb Agent）預設改用 Perplexity 旗艦 AI 代理模型
-// perplexity/sonar-reasoning-pro（ultra tier）：原生帶 web grounding（即時
-// 網路搜尋）、reasoning 強化、最適合「全站光球」需要規劃 + 引用即時資訊
-// 的代理人場景。
+// 全站光球代理（Global Orb Agent）採「混合搭配」預設：
+//
+//   director / storyteller / technician / curator
+//     → anthropic/claude-opus-4.7 (ultra)
+//     - 原生 OpenAI 風格 function calling，schema-first planner JSON tool
+//       calls 可靠
+//     - 不會強制注入網路搜尋結果，純創作 / 規劃 / 程式碼 / 偏好查詢輸出
+//       乾淨無雜訊
+//
+//   analyst
+//     → perplexity/sonar-reasoning-pro (ultra)
+//     - 原生 web grounding：數據查詢、統計比較、新聞摘要等本來就需要
+//       即時資訊的場景，由 Sonar 直接帶入引用來源
+//     - 缺 function calling，但 analyst slot 多為回答型（不太呼叫工具），
+//       且光球的 [ACTION:...] 文字標記在任何純文字模型上都能 parse
 //
 // 路由策略（見 server/_core/llmRouter.ts inferEngineFromModelIdSafe）：
-//   1. 若設了 PERPLEXITY_API_KEY → 走原生 Perplexity API（直連，較便宜）
-//   2. 若沒設 PERPLEXITY_API_KEY 但有 OPENROUTER_API_KEY → 自動走 OpenRouter
-//      （normalizeModelForEngine 會把 perplexity/sonar-* 直接送到
-//      OpenRouter 的 perplexity/sonar-* model id，相容）
-//   3. 都沒設 → 斷路器跳過，降級到下一條 fallback chain（claude/gemini）
+//   1. 若設了對應 API key（ANTHROPIC_API_KEY / PERPLEXITY_API_KEY 或
+//      OPENROUTER_API_KEY）→ 走原生
+//   2. 若主 key 缺 → 自動降級到 OpenRouter 同名 ID（normalizeModelForEngine
+//      會把 anthropic/claude-* 與 perplexity/sonar-* 都重寫成 OpenRouter
+//      接受的格式）
+//   3. 都沒設 → 斷路器跳過，降級到下一條 fallback chain
+//
+// 額外保險：server/routers.ts 的 ai.chat handler 會檢查 picked slot 的
+// model；若是 Perplexity 但 planner 需要嚴格 JSON tool use，會 fall back
+// 到 director 的 Claude（避免 schema-first planner 因 Sonar 不支援
+// function calling 而退化）。
 //
 // 使用者仍可在 /ai-brain-settings 自行切換每個 slot 的模型。
 export const DEFAULT_REASONING_BRAINS: Record<
   ReasoningBrainSlot,
   { model: string; temperature: number; topP: number }
 > = {
-  director: { model: "perplexity/sonar-reasoning-pro", temperature: 0.4, topP: 0.9 },
-  analyst: { model: "perplexity/sonar-reasoning-pro", temperature: 0.3, topP: 0.8 },
-  storyteller: { model: "perplexity/sonar-reasoning-pro", temperature: 0.9, topP: 0.95 },
-  technician: { model: "perplexity/sonar-reasoning-pro", temperature: 0.2, topP: 0.7 },
-  curator: { model: "perplexity/sonar-reasoning-pro", temperature: 0.8, topP: 0.9 },
+  director: { model: "anthropic/claude-opus-4.7", temperature: 0.4, topP: 0.9 },
+  analyst: {
+    model: "perplexity/sonar-reasoning-pro",
+    temperature: 0.3,
+    topP: 0.8,
+  },
+  storyteller: {
+    model: "anthropic/claude-opus-4.7",
+    temperature: 0.9,
+    topP: 0.95,
+  },
+  technician: {
+    model: "anthropic/claude-opus-4.7",
+    temperature: 0.2,
+    topP: 0.7,
+  },
+  curator: { model: "anthropic/claude-opus-4.7", temperature: 0.8, topP: 0.9 },
 };
 
 export const DEFAULT_GENERATION_ENGINES: Record<

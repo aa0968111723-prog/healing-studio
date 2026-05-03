@@ -33,7 +33,7 @@ interface RawNewsItem {
 }
 
 interface FetchResult {
-  provider: "newsapi" | "newsdata";
+  provider: "newsapi" | "newsdata" | "perplexity";
   articles: RawNewsItem[];
 }
 
@@ -225,11 +225,112 @@ async function fetchFromNewsData(apiKey: string): Promise<FetchResult> {
   return { provider: "newsdata", articles };
 }
 
-// ─── Dual Fail-over Orchestrator ──────────────────────────────────────────────
+// ─── Provider: Perplexity Sonar (Tertiary AI-curated fallback) ────────────────
+
+/**
+ * Perplexity 原生 API 第三級備援：當 NewsAPI 與 NewsData 都掛掉時，
+ * 透過 Perplexity Sonar 拿到帶引用的 AI 新聞摘要（real URLs + 1-line
+ * descriptions）。比 NewsAPI/NewsData 慢，但是 AI 自動策展、不需要白名單
+ * 經營，整體覆蓋率好。
+ *
+ * 回傳格式刻意對齊 NewsAPI 的 RawNewsItem 結構，讓 OARS NLP 柔化管線可以
+ * 直接接手不需特例。
+ */
+async function fetchFromPerplexity(apiKey: string): Promise<FetchResult> {
+  logOars("info", "嘗試從第三級備援 Perplexity Sonar 抓取新聞...");
+
+  const response = await fetchWithTimeout(
+    "https://api.perplexity.ai/chat/completions",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        // sonar-pro：含 web grounding 但不啟動 reasoning，速度 / 成本最佳。
+        model: "sonar-pro",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a news curator. Reply ONLY with a JSON object of shape " +
+              '{"articles":[{"title":string,"description":string,"source":string,"url":string,"publishedAt":string|null}]}. ' +
+              "Each article must have a real, working URL from the past 7 days. " +
+              `Return up to ${MAX_ARTICLES_PER_FETCH} articles. ` +
+              "Do not wrap the JSON in markdown.",
+          },
+          {
+            role: "user",
+            content: `Find the latest AI / generative AI / creative tools news matching: ${FETCH_KEYWORDS}`,
+          },
+        ],
+        response_format: { type: "json_object" },
+        max_tokens: 2000,
+        temperature: 0.2,
+      }),
+    },
+    30_000 // Sonar 通常需要 10-20s 做 web search
+  );
+
+  if (response.status === 429) {
+    throw new Error(`RATE_LIMIT: Perplexity 回傳 429 — 已達速率上限`);
+  }
+  if (response.status >= 500) {
+    throw new Error(
+      `SERVER_ERROR: Perplexity 回傳 ${response.status} — 伺服器異常`
+    );
+  }
+  if (!response.ok) {
+    throw new Error(
+      `HTTP_ERROR: Perplexity 回傳 ${response.status} — ${response.statusText}`
+    );
+  }
+
+  const data = (await response.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+    search_results?: Array<{ title?: string; url?: string; date?: string }>;
+  };
+  const content = data.choices?.[0]?.message?.content?.trim() ?? "";
+  let parsed: { articles?: Array<Partial<RawNewsItem>> } = {};
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    throw new Error("PARSE_ERROR: Perplexity 回傳的 JSON 解析失敗");
+  }
+
+  const rawArticles = Array.isArray(parsed.articles) ? parsed.articles : [];
+  if (rawArticles.length === 0) {
+    throw new Error("EMPTY_RESPONSE: Perplexity 沒有回傳任何文章");
+  }
+
+  const articles: RawNewsItem[] = rawArticles
+    .filter((a): a is RawNewsItem & { title: string } =>
+      Boolean(a && typeof a.title === "string" && a.title.trim())
+    )
+    .slice(0, MAX_ARTICLES_PER_FETCH)
+    .map(a => ({
+      title: a.title || "Untitled",
+      description: a.description ?? null,
+      source: a.source || "Perplexity Sonar",
+      url: a.url ?? null,
+      imageUrl: a.imageUrl ?? null,
+      publishedAt: a.publishedAt ?? null,
+    }));
+
+  logOars(
+    "info",
+    `Perplexity Sonar 成功回傳 ${articles.length} 篇文章（AI-curated）`
+  );
+  return { provider: "perplexity", articles };
+}
+
+// ─── Triple Fail-over Orchestrator ────────────────────────────────────────────
 
 async function fetchNewsWithFailover(): Promise<FetchResult | null> {
   const newsApiKey = process.env.NEWS_API_KEY?.trim();
   const newsDataKey = process.env.NEWSDATA_API_KEY?.trim();
+  const perplexityKey = process.env.PERPLEXITY_API_KEY?.trim();
 
   // ── Attempt 1: Primary (NewsAPI.org) ──
   if (newsApiKey) {
@@ -252,17 +353,34 @@ async function fetchNewsWithFailover(): Promise<FetchResult | null> {
     } catch (fallbackError: any) {
       logOars(
         "error",
-        `備援來源 NewsData.io 也失敗：${fallbackError.message}。本輪新聞抓取中止。`
+        `備援來源 NewsData.io 也失敗：${fallbackError.message}。嘗試第三級備援...`
       );
     }
   } else {
-    logOars("warn", "NEWSDATA_API_KEY 未設定，無法啟動備援來源。");
+    logOars("warn", "NEWSDATA_API_KEY 未設定，跳過第二級備援。");
   }
 
-  // ── Both failed ──
+  // ── Attempt 3: Tertiary AI-curated (Perplexity Sonar) ──
+  if (perplexityKey) {
+    try {
+      return await fetchFromPerplexity(perplexityKey);
+    } catch (tertiaryError: any) {
+      logOars(
+        "error",
+        `第三級備援 Perplexity Sonar 也失敗：${tertiaryError.message}。本輪新聞抓取中止。`
+      );
+    }
+  } else {
+    logOars(
+      "warn",
+      "PERPLEXITY_API_KEY 未設定，無第三級備援。"
+    );
+  }
+
+  // ── All failed ──
   logOars(
     "error",
-    "【雙活備援全部失敗】主從兩個新聞來源均無法連線。首頁將繼續顯示既有快取新聞。下次排程將自動重試。"
+    "【三活備援全部失敗】NewsAPI / NewsData / Perplexity Sonar 全部失敗。首頁將繼續顯示既有快取新聞。下次排程將自動重試。"
   );
   return null;
 }

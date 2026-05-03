@@ -2137,9 +2137,100 @@ export async function webSearch(
     }
   }
 
-  // ── Perplexity Sonar via OpenRouter（取代直連 Perplexity API） ─────
-  // 比 GitHub repo 搜尋更貼近 "研究式問答" 的語意；Brave 沒有結果或未設 key
-  // 時做為第二級備援，會自動引用 web 來源並回傳簡短摘要 + 連結。
+  // ── Perplexity Sonar 原生 API（PERPLEXITY_API_KEY 直連）───────────
+  // 優先於 OpenRouter 路徑：少一層轉接，請求本身較快，且能直接吃 Perplexity
+  // 提供的 search_results 欄位（含 title / url / 來源網域），不需另外
+  // prompt-engineer JSON。
+  if (results.length === 0 && ENV.perplexityApiKey) {
+    try {
+      const sonarRes = await fetch(
+        "https://api.perplexity.ai/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${ENV.perplexityApiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            // sonar-pro：成本最低的 web-grounded 變體；search_results 與
+            // sonar-reasoning-pro 同等品質，無需額外推理 token。
+            model: "sonar-pro",
+            messages: [
+              {
+                role: "system",
+                content:
+                  "You are a research assistant. Reply concisely (under 240 characters). The Perplexity API will attach its own search citations — focus your text reply on a 1-line summary.",
+              },
+              { role: "user", content: query },
+            ],
+            max_tokens: 400,
+            temperature: 0.2,
+          }),
+          signal: AbortSignal.timeout(15_000),
+        }
+      );
+
+      if (sonarRes.ok) {
+        const data = (await sonarRes.json()) as {
+          choices?: Array<{ message?: { content?: string } }>;
+          // Perplexity 原生 API 回傳的搜尋來源欄位（與 Sonar 同名）
+          search_results?: Array<{
+            title?: string;
+            url?: string;
+            date?: string;
+          }>;
+          // 部分版本回傳 citations 為 URL string 陣列
+          citations?: string[];
+        };
+        const summary =
+          (data.choices?.[0]?.message?.content ?? "").trim() || query;
+        const searchResults = data.search_results ?? [];
+        if (searchResults.length > 0) {
+          for (const item of searchResults.slice(0, maxResults)) {
+            if (item.title && item.url) {
+              results.push({
+                id: genId("web"),
+                query,
+                source: "Perplexity Sonar (Native)",
+                title: String(item.title).slice(0, 100),
+                summary: summary.slice(0, 240),
+                url: String(item.url),
+                relevance: 85,
+                addedToLearnHub: false,
+                createdAt: Date.now(),
+              });
+            }
+          }
+        } else if (data.citations && data.citations.length > 0) {
+          // 舊版 Perplexity API 只回 URL 陣列；用 summary + URL host 當 title。
+          for (const url of data.citations.slice(0, maxResults)) {
+            try {
+              const host = new URL(url).host;
+              results.push({
+                id: genId("web"),
+                query,
+                source: "Perplexity Sonar (Native)",
+                title: host,
+                summary: summary.slice(0, 240),
+                url,
+                relevance: 80,
+                addedToLearnHub: false,
+                createdAt: Date.now(),
+              });
+            } catch {
+              // 無效 URL — 略過
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[WebResearch] Perplexity Sonar (Native) 搜尋失敗:", err);
+    }
+  }
+
+  // ── Perplexity Sonar via OpenRouter（無 PERPLEXITY_API_KEY 時的備援）─
+  // 比 GitHub repo 搜尋更貼近 "研究式問答" 的語意；Brave / 原生 Perplexity
+  // 都沒有結果時做為第三級備援，會自動引用 web 來源並回傳簡短摘要 + 連結。
   if (results.length === 0 && ENV.openRouterApiKey) {
     try {
       const baseUrl = (ENV.openRouterBaseUrl || "https://openrouter.ai/api/v1").replace(/\/$/, "");
