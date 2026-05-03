@@ -16,6 +16,7 @@ import type {
   RunWorkflowAction,
 } from "./agent-actions";
 import { APP_PAGE_REGISTRY } from "./appRegistry";
+import { buildWizardClarification } from "./orb-clarification-options";
 
 export interface ExpandedWorkflowStep {
   path?: string;
@@ -160,6 +161,11 @@ export function expandWorkflowAction(action: RunWorkflowAction): ExpandedWorkflo
 
 export function buildShortVideoWorkflow(brief: string): RunWorkflowAction {
   const basePrompt = brief.trim() || "30 秒電影感短片，清楚主題、三幕節奏、可生成分鏡";
+  // Richer per-step prompts — each downstream step inlines an explicit
+  // creative direction so the destination page receives an actually-runnable
+  // prompt even when the user / LLM didn't customize the brief. The previous
+  // version left the downstream studio pages with terse one-liners that the
+  // user had to rewrite by hand, defeating the point of multi-step auto-fill.
   return {
     type: "runWorkflow",
     name: "AI Director 短片生成流程",
@@ -167,7 +173,10 @@ export function buildShortVideoWorkflow(brief: string): RunWorkflowAction {
       {
         path: "/director",
         actionType: "fillPrompt",
-        payload: `請把這個需求拆成 30 秒短片企劃、三幕腳本、3 個鏡頭分鏡、每鏡頭視覺提示詞：${basePrompt}`,
+        payload:
+          `請把以下需求展開成 30 秒短片企劃，並在輸出內標明【企劃】【三幕腳本（起／承／轉合）】` +
+          `【3 個鏡頭分鏡（含 shot type、運鏡、情緒、預估秒數）】【每鏡頭的視覺提示詞】` +
+          `【一段 30 秒旁白稿】【BGM 風格建議】六個區塊，方便後續工作室直接接手：\n\n需求：${basePrompt}`,
         label: "導演 AI：產生短片企劃與分鏡",
       },
       {
@@ -179,7 +188,9 @@ export function buildShortVideoWorkflow(brief: string): RunWorkflowAction {
       {
         path: "/studio",
         actionType: "fillPrompt",
-        payload: `根據短片需求建立第一張電影感關鍵視覺：${basePrompt}`,
+        payload:
+          `為這支短片建立第一張電影感關鍵視覺（key visual）：構圖留白、光影立體、` +
+          `主體清楚、留出標題與字幕區。鏡頭可採中景或特寫，情緒呼應主題：${basePrompt}`,
         label: "圖像工作室：填入第一張關鍵視覺提示詞",
       },
       {
@@ -191,7 +202,10 @@ export function buildShortVideoWorkflow(brief: string): RunWorkflowAction {
       {
         path: "/video-studio",
         actionType: "fillPrompt",
-        payload: `把關鍵視覺延伸成 30 秒短片運鏡，包含鏡頭移動、情緒節奏、光影與剪輯感：${basePrompt}`,
+        payload:
+          `把上一步的關鍵視覺延伸成 30 秒短片運鏡：包含 3 個鏡頭切換、` +
+          `平滑運鏡（推軌／環繞／升降）、情緒節奏起承轉、電影感光影與淺景深、` +
+          `符合社群平台的剪輯密度。請直接產出可送入影片模型的中文提示詞：${basePrompt}`,
         label: "影片工作室：填入影片生成提示詞",
       },
       {
@@ -209,7 +223,10 @@ export function buildShortVideoWorkflow(brief: string): RunWorkflowAction {
       {
         path: "/pro-studio",
         actionType: "fillPrompt",
-        payload: `請生成適合這支短片的旁白稿與語氣：${basePrompt}`,
+        payload:
+          `請為這支 30 秒短片寫一段旁白稿（約 60–80 字，中文）：` +
+          `語氣自然、情緒貼合主題、節奏切合 3 鏡頭分鏡、收尾留一句記憶點。` +
+          `寫完後直接以朗讀格式輸出，不要附說明文字：${basePrompt}`,
         label: "配音：填入旁白需求",
       },
     ],
@@ -225,7 +242,10 @@ export function buildImageWorkflow(brief: string): RunWorkflowAction {
       {
         path: "/image-studio",
         actionType: "fillPrompt",
-        payload: basePrompt,
+        payload:
+          `請依以下需求生成一張高品質圖片：構圖留白、光線層次清楚、` +
+          `主體聚焦、避免畸變肢體與雜訊。輸出時保持中文提示詞與英文關鍵字混合，` +
+          `方便模型理解：${basePrompt}`,
         label: "圖片創作室：填入提示詞",
       },
       {
@@ -253,7 +273,9 @@ export function buildMusicWorkflow(brief: string): RunWorkflowAction {
       {
         path: "/pro-studio",
         actionType: "fillPrompt",
-        payload: basePrompt,
+        payload:
+          `請生成一段配樂：請於提示詞中明確標出「曲風」「情緒」「BPM 區間」「主要樂器」` +
+          `「結構（前奏／主題／結尾）」，並標明可循環或淡出收尾。需求：${basePrompt}`,
         label: "音樂配音創作室：填入音樂需求",
       },
       {
@@ -281,7 +303,9 @@ export function buildVoiceWorkflow(brief: string): RunWorkflowAction {
       {
         path: "/pro-studio",
         actionType: "fillPrompt",
-        payload: basePrompt,
+        payload:
+          `請以下列旁白稿生成語音：語速自然、咬字清楚、情緒呼應內容、` +
+          `句中換氣自然、不要突兀的機械感。如稿子較長請保留段落間的呼吸停頓：\n\n${basePrompt}`,
         label: "音樂配音創作室：填入旁白稿",
       },
       {
@@ -309,7 +333,9 @@ export function buildSfxWorkflow(brief: string): RunWorkflowAction {
       {
         path: "/pro-studio",
         actionType: "fillPrompt",
-        payload: basePrompt,
+        payload:
+          `請生成一段音效：明確標出「場景／物件」「動作」「持續秒數」「音色與層次」` +
+          `「是否可循環」。輸出純音效不要加旁白，並避免明顯的剪接接縫：${basePrompt}`,
         label: "音樂配音創作室：填入音效描述",
       },
       {
@@ -331,7 +357,10 @@ export function buildScriptOnlyWorkflow(brief: string): RunWorkflowAction {
       {
         path: "/director",
         actionType: "fillPrompt",
-        payload: `請幫我規劃：${basePrompt}`,
+        payload:
+          `請幫我把這個需求拆成完整短片企劃，輸出時請分成` +
+          `【一句話 logline】【三幕腳本（起／承／轉合）】【3 個鏡頭分鏡（shot type／運鏡／情緒／秒數）】` +
+          `【旁白稿（60–80 字）】四個區塊，方便後續直接送進影像／配音流程：\n\n需求：${basePrompt}`,
         label: "導演 AI：產生腳本與分鏡",
       },
     ],
@@ -698,17 +727,18 @@ export function detectVideoIntent(
     }
   }
 
-  if (!hasLength && !hasSubject) {
+  // Multi-round wizard — instead of asking "影片我可以幫你拼，先給我幾個關鍵點"
+  // ONCE and then plowing ahead with whatever scraps came back, walk the
+  // dimensions one at a time. `buildWizardClarification` finds the next
+  // missing one (length → subject → style → platform) and returns null when
+  // we have enough to commit. This keeps the orb from generating an 8-step
+  // workflow on the first turn with placeholder text in every prompt slot.
+  const wizard = buildWizardClarification(trimmed, "video");
+  if (wizard) {
     return {
       kind: "needs-clarification",
-      message:
-        "影片我可以幫你拼，先給我幾個關鍵點：長度、主題、風格、投放平台。回我一兩句就好，我再展開步驟。",
-      options: [
-        "30 秒短片，主題待定",
-        "想要 1 分鐘以上的長影片",
-        "風格傾向：電影感／品牌／敘事",
-        "投放：IG／YouTube／官網",
-      ],
+      message: `影片我可以幫你跨頁跑完整套流程（導演 AI → 圖像 → 影片 → 配音）。${wizard.question}`,
+      options: wizard.options,
     };
   }
 

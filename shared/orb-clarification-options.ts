@@ -137,15 +137,22 @@ export function buildContextualClarificationOptions(
   const modality = ctx.modality ?? inferModalityFromText(ctx.userText);
   const dimension: ClarificationDimension = ctx.dimension ?? "format";
   const topic = extractTopicWord(ctx.userText);
-  const t = topic ?? "你的主題";
+  // When the topic can't be inferred we drop it from the option label entirely
+  // instead of substituting "你的主題" — the placeholder used to leak into the
+  // chip text (e.g. "你的主題 社群短片（15–30 秒）"), which made the orb feel
+  // generic and unaware of the user's request. Neutral options force the user
+  // (or a follow-up round) to commit to a real topic.
+  const t = topic ?? "";
+  const tPrefix = topic ? `${topic} ` : "";
+  const tSuffix = topic ? ` ${topic}` : "";
 
   const lib: Record<ClarificationModality, Record<ClarificationDimension, string[]>> = {
     video: {
       format: [
-        `${t} 社群短片（15–30 秒）`,
-        `${t} 紀錄／教學（1–3 分鐘）`,
-        `${t} 廣告或宣傳片（30–60 秒）`,
-        `${t} 微電影／長片（>3 分鐘）`,
+        `${tPrefix}社群短片（15–30 秒）`,
+        `${tPrefix}紀錄／教學（1–3 分鐘）`,
+        `${tPrefix}廣告或宣傳片（30–60 秒）`,
+        `${tPrefix}微電影／長片（>3 分鐘）`,
       ],
       duration: [
         "15 秒之內（社群快剪）",
@@ -154,10 +161,10 @@ export function buildContextualClarificationOptions(
         "3 分鐘以上（微電影）",
       ],
       style: [
-        `${t} 紀錄寫實`,
-        `${t} 電影感運鏡`,
-        `${t} 動態插畫／動畫`,
-        `${t} 極簡 MV 風`,
+        `${tPrefix}紀錄寫實`,
+        `${tPrefix}電影感運鏡`,
+        `${tPrefix}動態插畫／動畫`,
+        `${tPrefix}極簡 MV 風`,
       ],
       audience: [
         "IG / TikTok 短影音",
@@ -165,12 +172,19 @@ export function buildContextualClarificationOptions(
         "品牌官網／廣告投放",
         "個人收藏／回憶",
       ],
-      subject: [
-        `特寫${t} 細節`,
-        `用人物帶出${t}`,
-        `用空鏡呈現${t} 氛圍`,
-        `用故事包裝${t}`,
-      ],
+      subject: topic
+        ? [
+            `特寫${t}細節`,
+            `用人物帶出${t}`,
+            `用空鏡呈現${t}氛圍`,
+            `用故事包裝${t}`,
+          ]
+        : [
+            "想用人物／角色當主視覺",
+            "想用空鏡／場景帶氛圍",
+            "想用產品／物件特寫",
+            "想用故事／情境串成完整敘事",
+          ],
       platform: [
         "IG Reel（9:16）",
         "TikTok（9:16）",
@@ -181,17 +195,17 @@ export function buildContextualClarificationOptions(
     },
     image: {
       format: [
-        `${t} 主視覺海報`,
-        `${t} 社群封面圖`,
-        `${t} 系列插畫（4 張）`,
-        `${t} 寫實照片風格`,
+        `${tPrefix}主視覺海報`,
+        `${tPrefix}社群封面圖`,
+        `${tPrefix}系列插畫（4 張）`,
+        `${tPrefix}寫實照片風格`,
       ],
       duration: [],
       style: [
-        `${t} 寫實風格`,
-        `${t} 日系插畫`,
-        `${t} 油畫／藝術感`,
-        `${t} 極簡平面風`,
+        `${tPrefix}寫實風格`,
+        `${tPrefix}日系插畫`,
+        `${tPrefix}油畫／藝術感`,
+        `${tPrefix}極簡平面風`,
       ],
       audience: [
         "個人桌布／珍藏",
@@ -199,12 +213,19 @@ export function buildContextualClarificationOptions(
         "品牌行銷素材",
         "印刷成品（高解析）",
       ],
-      subject: [
-        `主角是${t} 本身`,
-        `用環境襯托${t}`,
-        `用人物搭配${t}`,
-        `抽象呈現${t}`,
-      ],
+      subject: topic
+        ? [
+            `主角是${t}本身`,
+            `用環境襯托${t}`,
+            `用人物搭配${t}`,
+            `抽象呈現${t}`,
+          ]
+        : [
+            "想用人物／肖像當主角",
+            "想用風景／環境當主角",
+            "想用產品／物件當主角",
+            "想要抽象／概念視覺",
+          ],
       platform: [
         "1:1 方形（IG）",
         "9:16 直式（限動）",
@@ -215,10 +236,10 @@ export function buildContextualClarificationOptions(
     },
     music: {
       format: [
-        `${t} 主題 BGM（純音樂）`,
-        `${t} 歌詞歌曲`,
-        `${t} 場景環境音`,
-        `${t} 廣告短旋律（5–15 秒）`,
+        `${tPrefix}主題 BGM（純音樂）`,
+        `${tPrefix}歌詞歌曲`,
+        `${tPrefix}場景環境音`,
+        `${tPrefix}廣告短旋律（5–15 秒）`,
       ],
       duration: [
         "10–15 秒（短廣告）",
@@ -227,10 +248,10 @@ export function buildContextualClarificationOptions(
         "5 分鐘以上（長 BGM）",
       ],
       style: [
-        `${t} 療癒慢板`,
-        `${t} 節奏輕快`,
-        `${t} 電影氛圍交響`,
-        `${t} 民謠／東方韻味`,
+        `${tPrefix}療癒慢板`,
+        `${tPrefix}節奏輕快`,
+        `${tPrefix}電影氛圍交響`,
+        `${tPrefix}民謠／東方韻味`,
       ],
       audience: [
         "影片配樂",
@@ -244,10 +265,10 @@ export function buildContextualClarificationOptions(
     },
     voice: {
       format: [
-        `${t} 中文旁白`,
-        `${t} 廣告口白`,
-        `${t} 角色配音`,
-        `${t} 多語言版本`,
+        `${tPrefix}中文旁白`,
+        `${tPrefix}廣告口白`,
+        `${tPrefix}角色配音`,
+        `${tPrefix}多語言版本`,
       ],
       duration: [
         "30 秒以內（短廣告）",
@@ -267,10 +288,10 @@ export function buildContextualClarificationOptions(
     },
     script: {
       format: [
-        `${t} 短影音腳本（15–30 秒）`,
-        `${t} 紀錄／教學腳本（1–3 分鐘）`,
-        `${t} 廣告腳本（30–60 秒）`,
-        `${t} 文案／貼文文字`,
+        `${tPrefix}短影音腳本（15–30 秒）`,
+        `${tPrefix}紀錄／教學腳本（1–3 分鐘）`,
+        `${tPrefix}廣告腳本（30–60 秒）`,
+        `${tPrefix}文案／貼文文字`,
       ],
       duration: [
         "100 字以內（社群貼文）",
@@ -278,10 +299,10 @@ export function buildContextualClarificationOptions(
         "800 字（教學長腳本）",
       ],
       style: [
-        `${t} 親切口語`,
-        `${t} 嚴肅紀實`,
-        `${t} 幽默搞笑`,
-        `${t} 專業說明`,
+        `${tPrefix}親切口語`,
+        `${tPrefix}嚴肅紀實`,
+        `${tPrefix}幽默搞笑`,
+        `${tPrefix}專業說明`,
       ],
       audience: [
         "IG / TikTok",
@@ -308,12 +329,19 @@ export function buildContextualClarificationOptions(
       open: [],
     },
     unknown: {
-      format: [
-        `做${t} 影片`,
-        `做${t} 圖片／海報`,
-        `做${t} 配樂／旁白`,
-        `先寫${t} 腳本`,
-      ],
+      format: topic
+        ? [
+            `做${t}影片`,
+            `做${t}圖片／海報`,
+            `做${t}配樂／旁白`,
+            `先寫${t}腳本`,
+          ]
+        : [
+            "做一支影片",
+            "做一張圖片／海報",
+            "做一段配樂／旁白",
+            "先寫腳本／文案",
+          ],
       duration: [],
       style: [],
       audience: [],
@@ -322,6 +350,10 @@ export function buildContextualClarificationOptions(
       open: [],
     },
   };
+  // Suppress unused-variable warnings — `tSuffix` is reserved for future
+  // tail-suffix templates (e.g. "30 秒短片，主題：${t}"). Keep it accessible
+  // so other helpers in this file can reuse the same naming.
+  void tSuffix;
 
   const dims = lib[modality];
   let raw: string[] = dims?.[dimension] ?? [];
@@ -336,6 +368,185 @@ export function buildContextualClarificationOptions(
   const trimmed = uniqueOptions(raw, 3);
   const options = uniqueOptions([...trimmed, OPEN_INPUT_OPTION], 4);
   return { options, modality, dimension };
+}
+
+/**
+ * Stepwise wizard helper — given the conversation so far (concatenated user
+ * utterances + earlier `[使用者澄清]:` answers) and the user's modality, return
+ * the next dimension that is still missing, or `null` once enough dimensions
+ * are pinned down.
+ *
+ * Used by:
+ * - `detectVideoIntent` (and friends in `global-agent-workflows.ts`) to
+ *   produce a multi-round wizard instead of a single ask.
+ * - The LLM planner via the system prompt (it mirrors this dimension order).
+ *
+ * The "enough" bar is intentionally low: format + length/duration + (style OR
+ * platform/audience). We don't gate on every single dimension — over-asking
+ * makes the orb feel like a form, not an agent.
+ *
+ * Order of asking (matches user expectation of orb behaviour):
+ *   1. format (or duration for audio) — without this, nothing can run
+ *   2. subject — what's the topic / who is it about
+ *   3. style  — tone / look / mood
+ *   4. platform OR audience — aspect ratio / target context
+ */
+export interface ConversationDimensionSignals {
+  /** The user mentioned a concrete length / duration. */
+  hasLength?: boolean;
+  /** The user mentioned a concrete topic / subject. */
+  hasSubject?: boolean;
+  /** The user mentioned a style / tone / mood. */
+  hasStyle?: boolean;
+  /** The user mentioned a target platform / aspect ratio / audience. */
+  hasPlatform?: boolean;
+  /** The user mentioned a source (uploaded vs AI-generated material). */
+  hasSource?: boolean;
+}
+
+const STYLE_HINT_RE =
+  /電影感|品牌|敘事|寫實|MV|動畫|插畫|紀錄|教學|搞笑|療癒|廣告|cinematic|brand|narrative|documentary|realistic|cartoon|animation|anime|funny|advert/i;
+const PLATFORM_HINT_RE =
+  /(?:9:16|16:9|1:1|4:5|3:4|2:3|3:2|portrait|landscape|square)|直式|橫式|方形|限動|reel|tiktok|youtube|shorts|官網|電視|抖音|小紅書|podcast|播客|印刷/i;
+const AUDIENCE_HINT_RE =
+  /給.{0,4}看|受眾|觀眾|客戶|投放|target|audience|品牌|內部|員工|教學|學生|玩家/i;
+const SOURCE_HINT_RE =
+  /上傳|手邊|自己拍|現有素材|有素材|沒素材|純AI|全AI|AI\s*生成|無素材|reference|參考圖|參考影片/i;
+
+export function inferConversationDimensions(
+  text: string,
+  modality: ClarificationModality
+): ConversationDimensionSignals {
+  const trimmed = text.trim();
+  if (!trimmed) return {};
+  const lengthRe =
+    /(\d+\s*(秒|分鐘?|小時|second|minute|hour|min|sec|mins|secs)\b)|\d+s\b|短片|長片|長影片|長視頻|\d+\s*字/i;
+  const subjectMarkers =
+    /[:：]|主題|題目|關於|介紹|品牌|產品|內容是|主角|story|theme|brand|product/i;
+  const hasLength = modality === "image" || modality === "lora"
+    ? false
+    : lengthRe.test(trimmed);
+  // Single-character "topics" extracted by `extractTopicWord` are usually
+  // residual verbs ("做" / "拍") rather than real subjects, so we require ≥2
+  // chars before treating the topic word as a confirmed subject. The other
+  // two signals (explicit subject markers, long message) still apply.
+  const topicWord = extractTopicWord(trimmed);
+  const hasSubject =
+    (topicWord !== null && topicWord.length >= 2) ||
+    subjectMarkers.test(trimmed) ||
+    trimmed.length >= 35;
+  return {
+    hasLength,
+    hasSubject,
+    hasStyle: STYLE_HINT_RE.test(trimmed),
+    hasPlatform: PLATFORM_HINT_RE.test(trimmed) || AUDIENCE_HINT_RE.test(trimmed),
+    hasSource: SOURCE_HINT_RE.test(trimmed),
+  };
+}
+
+export function nextMissingDimension(
+  text: string,
+  modality: ClarificationModality
+): ClarificationDimension | null {
+  const sig = inferConversationDimensions(text, modality);
+  // Bar for "wizard satisfied":
+  //   - The two foundational dimensions (length + subject for time-based
+  //     media; subject for image/lora) are mandatory — we won't run a real
+  //     workflow without these.
+  //   - At least ONE finishing dimension (style / platform / audience) is
+  //     enough; we don't want to over-ask. If the user provided either a
+  //     style cue OR a platform cue, treat the wizard as complete.
+  //
+  // This is intentionally lenient so that "幫我做一支 30 秒廣告短片" (length +
+  // implicit subject + 廣告 style) goes straight to ready instead of being
+  // trapped in an extra "投放平台？" round. The LLM planner can still ask
+  // for finer dimensions when it has the budget for a richer wizard.
+  if (modality === "image" || modality === "lora") {
+    if (!sig.hasSubject) return "subject";
+    if (!sig.hasStyle && !sig.hasPlatform) return "style";
+    return null;
+  }
+  if (modality === "voice" || modality === "music") {
+    if (!sig.hasLength && !sig.hasSubject) return "duration";
+    if (!sig.hasSubject) return "subject";
+    return null;
+  }
+  // video / script / unknown
+  if (!sig.hasLength && !sig.hasSubject) return "duration";
+  if (!sig.hasSubject) return "subject";
+  if (!sig.hasStyle && !sig.hasPlatform) return "style";
+  return null;
+}
+
+/**
+ * Compose a short clarification question paired with topic-aware options for
+ * the next missing dimension. Returns null when the wizard is satisfied.
+ *
+ * The question text is intentionally conversational ("我會幫你跑完整套流程，
+ * 但先確認…") so the user understands WHY we're asking — the orb is doing
+ * real work, not bureaucratic form-filling.
+ */
+export function buildWizardClarification(
+  text: string,
+  modality: ClarificationModality
+): { question: string; options: string[]; dimension: ClarificationDimension } | null {
+  const dimension = nextMissingDimension(text, modality);
+  if (!dimension) return null;
+  const { options } = buildContextualClarificationOptions({
+    userText: text,
+    modality,
+    dimension,
+  });
+  const question = wizardQuestionFor(modality, dimension);
+  return { question, options, dimension };
+}
+
+function wizardQuestionFor(
+  modality: ClarificationModality,
+  dimension: ClarificationDimension
+): string {
+  const modalityNoun = modalityNounOf(modality);
+  switch (dimension) {
+    case "duration":
+      if (modality === "voice") return `想要多長的旁白？（這會決定字數與情緒節奏）`;
+      if (modality === "music") return `音樂希望幾秒到幾分鐘？（影響曲式與配器）`;
+      return `想做多長的${modalityNoun}？（時長決定節奏與分鏡密度）`;
+    case "subject":
+      return `主題或主角是什麼？（一兩個關鍵字就好，例如人物、品牌、場景）`;
+    case "style":
+      return `想要什麼風格／調性？（這會決定我給的視覺與運鏡指引）`;
+    case "platform":
+      if (modality === "image") return `要用在哪？這會決定比例與解析度。`;
+      if (modality === "video" || modality === "script")
+        return `投放平台或比例？（IG Reel、YouTube、官網…）`;
+      return `主要用在哪個情境？`;
+    case "audience":
+      return `主要觀眾是誰？（影響文案語氣與節奏）`;
+    case "format":
+    case "open":
+    default:
+      return `想做哪一種${modalityNoun}？`;
+  }
+}
+
+function modalityNounOf(modality: ClarificationModality): string {
+  switch (modality) {
+    case "video":
+      return "影片";
+    case "image":
+      return "圖片／海報";
+    case "music":
+      return "音樂";
+    case "voice":
+      return "旁白／配音";
+    case "script":
+      return "腳本";
+    case "lora":
+      return "客製化模型";
+    case "unknown":
+    default:
+      return "成品";
+  }
 }
 
 /**
