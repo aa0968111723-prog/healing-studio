@@ -75,6 +75,19 @@ export interface OrbTaskChainIteration {
   /** When this iteration was created from a replan, the planner gating
    *  status that produced it. */
   plannerStatus?: string;
+  /**
+   * Page-state snapshots captured for this iteration's task before the
+   * chain handed off to the next iteration (or, for the final
+   * iteration, before chain end). Empty if no client snapshots arrived.
+   * Bounded by the per-task ring buffer cap in orbTaskPageStateStore.
+   */
+  pageStateSnapshots?: Array<{
+    at: number;
+    pageId?: string;
+    actionType?: string;
+    summary?: string;
+    state: Record<string, unknown>;
+  }>;
 }
 
 export interface OrbTaskChainResult {
@@ -405,6 +418,18 @@ export async function runOrbTaskWithContinuationLoop(
       break;
     }
 
+    // Snapshot predecessor's page state into the iteration log BEFORE
+    // dropping the buffer — without this, multi-iteration chains lose
+    // all the earlier pages' state and only the final iteration's
+    // snapshots ever reach memory / dashboards.
+    const handoffSnapshots = getOrbTaskPageState(currentTaskId);
+    if (handoffSnapshots.length > 0) {
+      iterations[iterations.length - 1] = {
+        ...iterations[iterations.length - 1],
+        pageStateSnapshots: handoffSnapshots,
+      };
+    }
+
     // Hand off: predecessor's planner context + page state can be
     // dropped; successor already carries its own copy and will produce
     // its own snapshots once UI dispatches happen on the next iteration.
@@ -412,7 +437,7 @@ export async function runOrbTaskWithContinuationLoop(
     deleteOrbTaskPageState(currentTaskId);
     currentTaskId = replan.newTaskId;
 
-    // Record on the iteration we're about to push for the new task.
+    // Record planner status on the iteration we just pushed.
     iterations[iterations.length - 1] = {
       ...iterations[iterations.length - 1],
       plannerStatus: replan.plannerStatus,
@@ -421,8 +446,16 @@ export async function runOrbTaskWithContinuationLoop(
 
   // Snapshot the final task's page state BEFORE the cleanup below so
   // the chain memory entry can carry a compact "what the page looked
-  // like when the chain ended" summary forward to the planner.
+  // like when the chain ended" summary forward to the planner. Also
+  // attach to the final iteration so callers walking iterations[] see
+  // the same data structure for every iteration including the last.
   const finalPageSnapshots = getOrbTaskPageState(currentTaskId);
+  if (finalPageSnapshots.length > 0 && iterations.length > 0) {
+    iterations[iterations.length - 1] = {
+      ...iterations[iterations.length - 1],
+      pageStateSnapshots: finalPageSnapshots,
+    };
+  }
 
   // Final cleanup of context for whichever task ended the chain.
   deleteOrbTaskPlannerContext(currentTaskId);
@@ -476,17 +509,24 @@ export async function runOrbTaskWithContinuationLoop(
     if (lastObservation && lastObservation.kind === "abort") {
       failedReasonParts.push(`observer:${lastObservation.failureCategory}`);
     }
-    // Add a tiny "page-state at chain end" hint so a planner that sees
-    // this memory next time can recognise the same trap (e.g. prompt
-    // queued but never landed because tab switch never happened).
-    // Bounded length so the memory summary stays compact for LLM
-    // context budgets.
-    if (finalPageSnapshots.length > 0) {
-      const last = finalPageSnapshots[finalPageSnapshots.length - 1];
-      const stateHint = JSON.stringify(last.state).slice(0, 80);
+    // Add a tiny "page-state across the chain" hint so a planner that
+    // sees this memory next time can recognise the same trap (e.g.
+    // prompt queued but never landed because tab switch never
+    // happened). Walk every iteration so multi-hop chains' earlier
+    // pages aren't invisible. Bounded length per snapshot so the
+    // memory summary stays compact for LLM context budgets.
+    const pageHintParts: string[] = [];
+    for (const it of iterations) {
+      const snaps = it.pageStateSnapshots ?? [];
+      if (snaps.length === 0) continue;
+      const last = snaps[snaps.length - 1];
+      const stateHint = JSON.stringify(last.state).slice(0, 60);
       const pageBit = last.pageId ? `${last.pageId}:` : "";
       const actionBit = last.actionType ? `${last.actionType} ` : "";
-      failedReasonParts.push(`page:${pageBit}${actionBit}${stateHint}`);
+      pageHintParts.push(`#${it.iterationIndex} ${pageBit}${actionBit}${stateHint}`);
+    }
+    if (pageHintParts.length > 0) {
+      failedReasonParts.push(`page:[${pageHintParts.join(" | ")}]`);
     }
     recordOrbTaskMemory({
       taskId: input.initialTaskId,

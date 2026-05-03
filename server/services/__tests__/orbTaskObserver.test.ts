@@ -287,8 +287,74 @@ describe("orbTaskObserver", () => {
       runResult: makeRunResult({ outcome: "completed" }),
       agentTask: makeAgentTask(),
       taskId: "no-state-task",
+      recentTaskMemory: [],
       invoke: llm as unknown as Parameters<typeof observeOrbTaskOutcome>[0]["invoke"],
     });
     expect(captured).not.toContain("[頁面實況]");
+  });
+
+  it("forwards recent task memory into the LLM prompt", async () => {
+    let captured = "";
+    const llm = vi.fn(async ({ messages }) => {
+      const userMsg = messages.find((m: { role: string }) => m.role === "user");
+      captured = String(userMsg?.content ?? "");
+      return {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ kind: "complete", userMessage: "ok" }),
+            },
+          },
+        ],
+      };
+    });
+    await observeOrbTaskOutcome({
+      intent: "做一支貓咪短片",
+      runResult: makeRunResult({ outcome: "completed" }),
+      agentTask: makeAgentTask(),
+      recentTaskMemory: [
+        {
+          taskId: "prev-1",
+          planId: "prev-1",
+          traceId: "prev-1",
+          userIntent: "做一支貓咪短片",
+          outcome: "failure",
+          failedReason: "chain.planner_no_task / page:[#0 video-studio:fillPrompt {\"promptApplied\":false}]",
+          usedEngine: "veo3",
+          usedMultimodalPlanner: false,
+          actionTypes: ["fillPrompt", "submit"],
+          createdAt: Date.now() - 60_000,
+        },
+      ],
+      invoke: llm as unknown as Parameters<typeof observeOrbTaskOutcome>[0]["invoke"],
+    });
+    expect(captured).toContain("[歷史紀錄]");
+    expect(captured).toContain("chain.planner_no_task");
+    expect(captured).toContain("貓咪短片");
+  });
+
+  it("omits memory block when explicitly empty", async () => {
+    let captured = "";
+    const llm = vi.fn(async ({ messages }) => {
+      const userMsg = messages.find((m: { role: string }) => m.role === "user");
+      captured = String(userMsg?.content ?? "");
+      return {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ kind: "complete", userMessage: "ok" }),
+            },
+          },
+        ],
+      };
+    });
+    await observeOrbTaskOutcome({
+      intent: "x",
+      runResult: makeRunResult({ outcome: "completed" }),
+      agentTask: makeAgentTask(),
+      recentTaskMemory: [],
+      invoke: llm as unknown as Parameters<typeof observeOrbTaskOutcome>[0]["invoke"],
+    });
+    expect(captured).not.toContain("[歷史紀錄]");
   });
 });

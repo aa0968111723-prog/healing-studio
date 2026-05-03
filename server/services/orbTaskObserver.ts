@@ -26,6 +26,10 @@ import {
   getOrbTaskPageState,
   type OrbTaskPageStateSnapshot,
 } from "./orbTaskPageStateStore";
+import {
+  getRecentOrbTaskMemory,
+  type OrbTaskMemoryEvent,
+} from "./orbTaskMemory";
 
 // ─── Output contract ──────────────────────────────────────────────────────
 
@@ -86,6 +90,15 @@ export interface ObserveOrbTaskInput {
   pageStateSnapshots?: OrbTaskPageStateSnapshot[];
   /** Used to auto-pull snapshots when `pageStateSnapshots` is absent. */
   taskId?: string;
+  /**
+   * Agent loop v9 — recent task-memory events to surface in the
+   * observer prompt as "歷史紀錄". Lets the LLM recognise repeat
+   * failure patterns ("we've hit `chain.planner_no_task` on this
+   * intent before — give up faster"). When omitted, the observer
+   * pulls from `getRecentOrbTaskMemory()` automatically (capped at 5
+   * entries). Pass an empty array to opt out.
+   */
+  recentTaskMemory?: OrbTaskMemoryEvent[];
   /** 注入用 — 預設用全站 invokeLLM，測試時用 stub */
   invoke?: typeof invokeLLM;
   /** 觀察 LLM 回應的最大 tokens；預設 600 */
@@ -200,7 +213,31 @@ function summarizeExecutionForLLM(input: ObserveOrbTaskInput): string {
     }
   }
 
+  // Agent loop v9 — surface recent chain memory so the observer can
+  // recognise repeat patterns ("3rd attempt at this intent has hit
+  // the same trap, time to abort, not retry"). Capped at 5 entries
+  // and each failedReason truncated so the block stays compact.
+  const memory = resolveRecentTaskMemory(input);
+  if (memory.length > 0) {
+    lines.push("[歷史紀錄] 最近的相關 chain 結果（新→舊）");
+    for (const evt of memory) {
+      const reason = evt.failedReason ? ` :: ${evt.failedReason.slice(0, 100)}` : "";
+      const intentBit = evt.userIntent.slice(0, 40);
+      lines.push(`  · ${evt.outcome} | ${intentBit}${reason}`);
+    }
+  }
+
   return lines.join("\n").slice(0, 4000);
+}
+
+function resolveRecentTaskMemory(
+  input: ObserveOrbTaskInput
+): OrbTaskMemoryEvent[] {
+  if (input.recentTaskMemory !== undefined) {
+    // Caller opted in (or out by passing []) — honour exactly.
+    return input.recentTaskMemory.slice(0, 5);
+  }
+  return getRecentOrbTaskMemory(5);
 }
 
 function resolvePageStateSnapshots(
@@ -232,7 +269,10 @@ function buildObserverMessages(input: ObserveOrbTaskInput): Message[] {
     `而不是「unresolved-step-ref:step1.video_url」）。\n\n` +
     `紀錄裡可能會有「[頁面實況]」區塊 — 這是目標頁面在動作執行後實際的狀態（例如 prompt 是不是真的填上去、` +
     `目前選的模型、生成是不是回到 URL）。判斷 kind 的時候要把這個放在第一順位：tool 看似成功但頁面實況顯示` +
-    `prompt 是空的，那其實就是 needs_user 或 continue，不是 complete。`;
+    `prompt 是空的，那其實就是 needs_user 或 continue，不是 complete。\n\n` +
+    `也可能會有「[歷史紀錄]」區塊 — 之前類似 chain 的結果與失敗原因。如果發現使用者最近已經連續多次卡在` +
+    `同一個 trap（例：兩次都是 chain.planner_no_task），就傾向回 abort 而不是繼續 continue —` +
+    `agent 一直撞同一面牆對使用者沒幫助；把問題誠實告訴他並請他換個方向。`;
 
   const user = `以下是剛跑完的任務執行紀錄：\n\n${transcript}`;
 

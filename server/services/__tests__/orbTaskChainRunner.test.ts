@@ -11,6 +11,10 @@ import type { OrbApiTool } from "../agentToolExecutor";
 import { setGenerationEventBusForTests } from "../../generationEvents";
 import type { GenerationEvent } from "../../generationEvents";
 import { getRecentOrbTaskMemory } from "../orbTaskMemory";
+import {
+  _resetOrbTaskPageStateStoreForTests,
+  appendOrbTaskPageState,
+} from "../orbTaskPageStateStore";
 
 const tools: OrbApiTool[] = [];
 const userId = 42;
@@ -55,6 +59,7 @@ function makeRunResult(
 
 beforeEach(() => {
   _resetOrbTaskPlannerContextStoreForTests();
+  _resetOrbTaskPageStateStoreForTests();
 });
 afterEach(() => {
   vi.restoreAllMocks();
@@ -446,5 +451,50 @@ describe("orbTaskChainRunner memory integration", () => {
     });
     const ours = getRecentOrbTaskMemory(50).find(r => r.taskId === "t-mem-needs-user");
     expect(ours?.outcome).toBe("blocked");
+  });
+
+  it("attaches per-iteration page-state snapshots and threads them into memory failedReason", async () => {
+    appendOrbTaskPageState("t-snap", {
+      at: 1,
+      pageId: "video-studio",
+      actionType: "fillPrompt",
+      state: { promptApplied: false, promptQueuedForTab: "v2v" },
+    });
+    appendOrbTaskPageState("t-snap", {
+      at: 2,
+      pageId: "video-studio",
+      actionType: "submit",
+      state: { submitted: false, waitingFor: "tab" },
+    });
+
+    const out = await runOrbTaskWithContinuationLoop({
+      initialTaskId: "t-snap",
+      userId,
+      userRole,
+      tools,
+      runTask: vi.fn(async () =>
+        makeRunResult({
+          outcome: "failed",
+          taskId: "t-snap",
+          reason: "queued",
+        })
+      ),
+      invokeObserver: vi.fn(async () => ({
+        kind: "abort" as const,
+        userMessage: "stuck",
+        failureCategory: "missing_input" as const,
+      } satisfies TaskObservation)),
+      invokePlanner: vi.fn(),
+    });
+
+    // Snapshots attached to the last iteration.
+    expect(out.iterations[0].pageStateSnapshots).toBeDefined();
+    expect(out.iterations[0].pageStateSnapshots).toHaveLength(2);
+
+    // Threaded into the recorded memory's failedReason so a future
+    // planner invocation can recognise the trap.
+    const ours = getRecentOrbTaskMemory(50).find(r => r.taskId === "t-snap");
+    expect(ours?.failedReason).toContain("page:[#0");
+    expect(ours?.failedReason).toContain("video-studio");
   });
 });
