@@ -153,7 +153,7 @@ async function synthesizeArticles(articles: BraveSearchResult[]): Promise<
     .map((a, i) => `${i + 1}. [${a.title}](${a.url})\n   ${a.description}`)
     .join("\n\n");
 
-  const systemPrompt = `你是一位 AI 技術文件撰寫專家。請根據搜尋結果撰寫高品質的繁體中文學習文件。`;
+  const systemPrompt = `你是一位 AI 技術文件撰寫專家。請根據搜尋結果撰寫高品質的繁體中文學習文件。回覆必須是合法的 JSON 陣列，不包含 markdown 程式碼塊標記、說明文字或任何 JSON 以外的內容。`;
 
   const userPrompt = `請根據以下搜尋結果，撰寫高品質的繁體中文學習文件。
 
@@ -164,7 +164,6 @@ ${articlesSummary}
 ## 輸出要求
 
 請回傳 JSON 陣列，每篇文件格式如下：
-\`\`\`json
 [
   {
     "title": "文件標題（50-100 字）",
@@ -176,14 +175,14 @@ ${articlesSummary}
     "readingMinutes": 3
   }
 ]
-\`\`\`
 
 限制：
-- 最多產出 ${Math.min(articles.length, 5)} 篇文件
+- 最多產出 ${Math.min(articles.length, 3)} 篇文件
 - 內容必須為繁體中文
 - 每篇標籤 3-5 個
 - 閱讀時間 3-15 分鐘
-- 僅回傳 JSON 陣列，不要包含其他文字`;
+- 僅回傳 JSON 陣列，不要包含 markdown 標記或任何其他文字
+- content 內的換行請使用 \\n 跳脫，雙引號請使用 \\" 跳脫`;
 
   const result = await invokeLLM({
     runName: "brave-learn-summarize",
@@ -191,46 +190,97 @@ ${articlesSummary}
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
     ],
-    maxTokens: 4096,
+    maxTokens: 8192,
     temperature: 0.4,
   });
 
   // Extract text from result (容忍 array-form content)
-  const raw = extractMessageText(result.choices?.[0]?.message?.content);
+  const raw = extractMessageText(result.choices?.[0]?.message?.content).trim();
 
-  // Parse JSON from response
-  const jsonMatch = raw.match(/\[[\s\S]*\]/);
-  if (!jsonMatch) {
-    logFetch("warn", "LLM 回傳無法解析為 JSON");
+  if (!raw) {
+    logFetch("warn", "LLM 回傳為空");
     return [];
   }
+
+  // Strip potential markdown code block wrappers
+  const cleaned = raw
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```\s*$/, "")
+    .trim();
+
+  // 嘗試多種策略解析 JSON：
+  // 1. 直接解析整段 cleaned（最常見且最可靠）
+  // 2. 用 regex 截取 [...] 區塊（容忍前後雜訊）
+  // 3. 修復被 MAX_TOKENS 截斷的 JSON（截至最後一個 } 後補 ]）
+  let parsed: unknown = null;
+  let parseError: string | null = null;
 
   try {
-    const parsed = JSON.parse(jsonMatch[0]) as Array<{
-      title?: string;
-      summary?: string;
-      content?: string;
-      tags?: string[];
-      category?: string;
-      difficulty?: string;
-      readingMinutes?: number;
-    }>;
+    parsed = JSON.parse(cleaned);
+  } catch (e) {
+    parseError = e instanceof Error ? e.message : String(e);
 
-    return parsed
-      .filter(d => d.title && d.content)
-      .map(d => ({
-        title: (d.title ?? "").slice(0, MAX_TITLE_LENGTH),
-        summary: (d.summary ?? d.title ?? "").slice(0, MAX_SUMMARY_LENGTH),
-        content: d.content ?? "",
-        tags: (d.tags ?? []).slice(0, MAX_TAGS_PER_DOC),
-        category: d.category ?? "ai-news",
-        difficulty: d.difficulty ?? "intermediate",
-        readingMinutes: d.readingMinutes ?? 5,
-      }));
-  } catch {
-    logFetch("warn", "JSON 解析失敗");
+    const arrayMatch = cleaned.match(/\[[\s\S]*\]/);
+    if (arrayMatch) {
+      try {
+        parsed = JSON.parse(arrayMatch[0]);
+        parseError = null;
+      } catch (e2) {
+        parseError = e2 instanceof Error ? e2.message : String(e2);
+      }
+    }
+
+    if (parsed === null) {
+      const lastBrace = cleaned.lastIndexOf("}");
+      const firstBracket = cleaned.indexOf("[");
+      if (lastBrace > 0 && firstBracket >= 0 && firstBracket < lastBrace) {
+        try {
+          const repaired = cleaned.slice(firstBracket, lastBrace + 1) + "]";
+          parsed = JSON.parse(repaired);
+          logFetch("warn", "LLM 回傳 JSON 被截斷，已自動修復");
+          parseError = null;
+        } catch (e3) {
+          parseError = e3 instanceof Error ? e3.message : String(e3);
+        }
+      }
+    }
+  }
+
+  if (parsed === null) {
+    const preview = cleaned.slice(0, 300).replace(/\s+/g, " ");
+    logFetch(
+      "warn",
+      `JSON 解析失敗: ${parseError ?? "未知錯誤"}; 內容前 300 字: ${preview}`
+    );
     return [];
   }
+
+  if (!Array.isArray(parsed)) {
+    logFetch("warn", "LLM 回傳不是陣列格式");
+    return [];
+  }
+
+  const docs = parsed as Array<{
+    title?: string;
+    summary?: string;
+    content?: string;
+    tags?: string[];
+    category?: string;
+    difficulty?: string;
+    readingMinutes?: number;
+  }>;
+
+  return docs
+    .filter(d => d.title && d.content)
+    .map(d => ({
+      title: (d.title ?? "").slice(0, MAX_TITLE_LENGTH),
+      summary: (d.summary ?? d.title ?? "").slice(0, MAX_SUMMARY_LENGTH),
+      content: d.content ?? "",
+      tags: (d.tags ?? []).slice(0, MAX_TAGS_PER_DOC),
+      category: d.category ?? "ai-news",
+      difficulty: d.difficulty ?? "intermediate",
+      readingMinutes: d.readingMinutes ?? 5,
+    }));
 }
 
 // ─── Import to LearnHub ─────────────────────────────────────────────────────
