@@ -46,10 +46,14 @@ describe("executeCurrentStepTools", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
-        new Response(JSON.stringify({ ok: true }), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        })
+        // Verifier-compliant payload: includes asset URL so verifyVideoFamily passes.
+        new Response(
+          JSON.stringify({ ok: true, url: "https://example.com/output.mp4", duration: 5 }),
+          {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }
+        )
       )
     );
 
@@ -187,10 +191,17 @@ describe("executeCurrentStepTools", () => {
   it("dispatches normally when the placeholder resolves to a real value", async () => {
     process.env.ORB_TOOL_ALLOWED_ORIGINS = "https://api.example.com";
     const fetchSpy = vi.fn(async () =>
-      new Response(JSON.stringify({ ok: true }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      })
+      // Include a valid asset URL so the orchestrator's tool-result verifier
+      // (DEF-AG1) accepts the response for the video.render step. Without
+      // this, verifyVideoFamily rejects the bare {ok:true} body and the
+      // orchestrator marks the run failed.
+      new Response(
+        JSON.stringify({ ok: true, url: "https://example.com/output.mp4", duration: 5 }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }
+      )
     );
     vi.stubGlobal("fetch", fetchSpy);
 
@@ -293,10 +304,17 @@ describe("runOrbTaskToCompletion (multi-step driver)", () => {
   it("walks all three steps in order and ends with status=done", async () => {
     process.env.ORB_TOOL_ALLOWED_ORIGINS = "https://api.example.com";
     const fetchMock = vi.fn(async () =>
-      new Response(JSON.stringify({ ok: true }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      })
+      // Include a valid asset URL so the orchestrator's tool-result verifier
+      // (DEF-AG1) accepts the response for the video.render step. Without
+      // this, verifyVideoFamily rejects the bare {ok:true} body and the
+      // orchestrator marks the run failed.
+      new Response(
+        JSON.stringify({ ok: true, url: "https://example.com/output.mp4", duration: 5 }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }
+      )
     );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -380,10 +398,17 @@ describe("runOrbTaskToCompletion (multi-step driver)", () => {
   it("returns awaiting_approval when an unapproved step requires confirmation", async () => {
     process.env.ORB_TOOL_ALLOWED_ORIGINS = "https://api.example.com";
     const fetchMock = vi.fn(async () =>
-      new Response(JSON.stringify({ ok: true }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      })
+      // Include a valid asset URL so the orchestrator's tool-result verifier
+      // (DEF-AG1) accepts the response for the video.render step. Without
+      // this, verifyVideoFamily rejects the bare {ok:true} body and the
+      // orchestrator marks the run failed.
+      new Response(
+        JSON.stringify({ ok: true, url: "https://example.com/output.mp4", duration: 5 }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }
+      )
     );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -434,10 +459,17 @@ describe("runOrbTaskToCompletion (multi-step driver)", () => {
   it("resumes after step approval is granted via approvalTokensByStepId", async () => {
     process.env.ORB_TOOL_ALLOWED_ORIGINS = "https://api.example.com";
     const fetchMock = vi.fn(async () =>
-      new Response(JSON.stringify({ ok: true }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      })
+      // Include a valid asset URL so the orchestrator's tool-result verifier
+      // (DEF-AG1) accepts the response for the video.render step. Without
+      // this, verifyVideoFamily rejects the bare {ok:true} body and the
+      // orchestrator marks the run failed.
+      new Response(
+        JSON.stringify({ ok: true, url: "https://example.com/output.mp4", duration: 5 }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }
+      )
     );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -534,10 +566,14 @@ describe("runOrbTaskToCompletion (multi-step driver)", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
-        new Response(JSON.stringify({ ok: true }), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        })
+        // Verifier-compliant payload: includes asset URL so verifyVideoFamily passes.
+        new Response(
+          JSON.stringify({ ok: true, url: "https://example.com/output.mp4", duration: 5 }),
+          {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }
+        )
       )
     );
 
@@ -618,10 +654,14 @@ describe("runOrbTaskToCompletion (multi-step driver)", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
-        new Response(JSON.stringify({ ok: true }), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        })
+        // Verifier-compliant payload: includes asset URL so verifyVideoFamily passes.
+        new Response(
+          JSON.stringify({ ok: true, url: "https://example.com/output.mp4", duration: 5 }),
+          {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }
+        )
       )
     );
 

@@ -45,6 +45,7 @@ import { localizeResultUrls } from "../services/internalMedia";
 import { traceToolRun } from "../services/langsmithTracer";
 import { estimatePoints } from "../services/modelPricing";
 import { dispatchFalQueueTask } from "../services/falDispatcher";
+import { falQueueFetchWithPrefixFallback } from "../services/falQueueClient";
 import * as db from "../db";
 import { getDb } from "../db";
 import { generationHistory } from "../../drizzle/schema";
@@ -99,11 +100,11 @@ async function falQueueStatus(
 ): Promise<unknown> {
   const startedAt = Date.now();
   const key = getFalKey();
-  const res = await fetch(
-    `${FAL_QUEUE_BASE}/${modelId}/requests/${requestId}/status`,
-    {
-      headers: { Authorization: `Key ${key}` },
-    }
+  const res = await falQueueFetchWithPrefixFallback(
+    modelId,
+    requestId,
+    "/status",
+    key
   );
   if (!res.ok) {
     void traceToolRun({
@@ -144,11 +145,11 @@ async function falQueueResult(
 ): Promise<unknown> {
   const startedAt = Date.now();
   const key = getFalKey();
-  const res = await fetch(
-    `${FAL_QUEUE_BASE}/${modelId}/requests/${requestId}`,
-    {
-      headers: { Authorization: `Key ${key}` },
-    }
+  const res = await falQueueFetchWithPrefixFallback(
+    modelId,
+    requestId,
+    "",
+    key
   );
   if (!res.ok) {
     void traceToolRun({

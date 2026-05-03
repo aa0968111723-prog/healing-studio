@@ -5,8 +5,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { User, Lock, ArrowLeft, CheckCircle2, Shield, Monitor } from "lucide-react";
 import TwoFactorSettings from "@/components/TwoFactorSettings";
+import { useAuth } from "@/_core/hooks/useAuth";
 
 export default function AccountSettingsPage() {
+  const { user: authUser, loading: authLoading, isAuthenticated } = useAuth({
+    redirectOnUnauthenticated: true,
+    redirectPath: "/",
+  });
+
   const [user, setUser] = useState<{
     name: string;
     email: string;
@@ -36,37 +42,29 @@ export default function AccountSettingsPage() {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState(false);
 
+  // Hydrate local form state from useAuth's user data; this avoids the
+  // duplicate REST round-trip to /api/auth/me that previously surfaced as
+  // a console 401 for guest visitors before the redirect kicked in.
   useEffect(() => {
-    fetchUser();
-    fetchLoginHistory();
-  }, []);
-
-  const fetchUser = async () => {
-    try {
-      const response = await fetch("/api/auth/me", {
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch user");
-      }
-
-      const data = await response.json();
-      if (data.user) {
-        setUser({
-          name: data.user.name || "",
-          email: data.user.email || "",
-        });
-        setName(data.user.name || "");
-      }
-    } catch (err) {
-      console.error("Failed to fetch user:", err);
-      // Redirect to home if not authenticated
-      window.location.href = "/";
-    } finally {
+    if (authLoading) return;
+    if (!authUser) {
       setLoading(false);
+      return;
     }
-  };
+    setUser({
+      name: (authUser as { name?: string }).name ?? "",
+      email: (authUser as { email?: string }).email ?? "",
+    });
+    setName((authUser as { name?: string }).name ?? "");
+    setLoading(false);
+  }, [authLoading, authUser]);
+
+  // Login history is the only piece not covered by useAuth, so it remains
+  // a REST call — but only after we know the user is authenticated.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    fetchLoginHistory();
+  }, [isAuthenticated]);
 
   const fetchLoginHistory = async () => {
     try {
@@ -74,6 +72,9 @@ export default function AccountSettingsPage() {
         credentials: "include",
       });
 
+      if (response.status === 401 || response.status === 403) {
+        return;
+      }
       if (response.ok) {
         const data = await response.json();
         setLoginHistory(data.history || []);

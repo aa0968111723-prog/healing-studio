@@ -904,6 +904,29 @@ export async function dispatchFalQueueTask(
     }
   }
 
+  // ── Step 1.1: 廢棄/破損模型自動降級 ──
+  // Models flagged `disabled: true` in the catalog are known broken upstream
+  // at fal (e.g. submit accepts but the result endpoint returns
+  // 200 {detail: "Path X not found"}). Auto-degrade to the category fallback
+  // chain so saved brain configs / older jobs / orb tool dispatches don't
+  // silently lose generations on a disabled model.
+  if (initialConfig?.disabled && resolvedCategory) {
+    const fallback = (FALLBACK_CHAINS[resolvedCategory] ?? []).find(
+      id => {
+        const cfg = getFalModelById(id);
+        return cfg && !cfg.disabled;
+      }
+    );
+    if (fallback) {
+      console.warn(
+        `[FalDispatcher] Queue model ${targetModelId} is disabled (${initialConfig.disabledReason ?? "broken upstream"}); falling back to ${fallback}`
+      );
+      if (!originalModel) originalModel = targetModelId;
+      targetModelId = fallback;
+      degraded = true;
+    }
+  }
+
   // ── Step 1.5: ultra tier 影片模型 preflight 健康探測 ──
   // Sora / Veo3 / Topaz / Runway G4 / Kling V2.1 Pro 等高成本模型，
   // 首次選用前同步驗證一次，避免使用者掛 5–10 分鐘才發現模型壞掉。
@@ -944,7 +967,15 @@ export async function dispatchFalQueueTask(
     : "";
 
   type SubmitOutcome =
-    | { ok: true; data: { request_id?: string }; modelUsed: string }
+    | {
+        ok: true;
+        data: {
+          request_id?: string;
+          status_url?: string;
+          response_url?: string;
+        };
+        modelUsed: string;
+      }
     | { ok: false; error: string; retryable: boolean; modelUsed: string };
 
   const trySubmit = async (modelToUse: string): Promise<SubmitOutcome> => {
@@ -973,7 +1004,11 @@ export async function dispatchFalQueueTask(
           modelUsed: modelToUse,
         };
       }
-      const data = (await r.json()) as { request_id?: string };
+      const data = (await r.json()) as {
+        request_id?: string;
+        status_url?: string;
+        response_url?: string;
+      };
       return { ok: true, data, modelUsed: modelToUse };
     } catch (err) {
       // 網路 / DNS / abort 都當可重試
@@ -1079,6 +1114,13 @@ export async function dispatchFalQueueTask(
   return {
     request_id: data.request_id,
     modelId: targetModelId,
+    // fal sometimes routes /preview, /text-to-image and similar variants to
+    // a queue tracking prefix that differs from the submit URL — e.g.
+    // submit fal-ai/imagen4/preview but status_url is /fal-ai/imagen4/...
+    // Reconstructing the URL from modelId at poll time then 405s. Surface
+    // fal's own canonical tracking URLs so callers can poll robustly.
+    ...(data.status_url ? { statusUrl: data.status_url } : {}),
+    ...(data.response_url ? { responseUrl: data.response_url } : {}),
     ...(degraded && { degraded, originalModel }),
   };
 }

@@ -39,6 +39,10 @@ interface SunoWebhookClip {
   audio_url?: string;
   audioUrl?: string;
   source_audio_url?: string;
+  sourceAudioUrl?: string;
+  /** new contract: streamable URL while audio_url is still rendering */
+  stream_audio_url?: string;
+  streamAudioUrl?: string;
   image_url?: string;
   imageUrl?: string;
   title?: string;
@@ -55,7 +59,20 @@ interface SunoWebhookPayload {
     taskId?: string;
     callbackType?: "complete" | "first" | "text" | string;
     status?: string;
+    /** Old apibox.erweima.ai webhook shape */
     data?: SunoWebhookClip[];
+    /**
+     * 2026-05 audit: new apibox.erweima.ai shape moved clips here. The
+     * status-poll endpoint returns data.response.sunoData[]; the
+     * completion webhook sends the same shape. Older code only checked
+     * data.data, so live callbacks under the new contract would have
+     * been silently dropped (no clips → "Suno 回呼未帶 audio URL" →
+     * job marked failed even though Suno succeeded).
+     */
+    response?: {
+      taskId?: string;
+      sunoData?: SunoWebhookClip[];
+    };
   };
   /** 容許頂層直接帶 task_id / clips 的舊版格式 */
   task_id?: string;
@@ -73,11 +90,27 @@ function pickJobId(req: Request): number | null {
 }
 
 function normalizeClips(payload: SunoWebhookPayload): SunoWebhookClip[] {
-  const list = payload.data?.data ?? payload.clips ?? [];
+  // Try every known clip-array location in order: new contract
+  // (data.response.sunoData[]), old contract (data.data[]), top-level
+  // legacy shape (clips[]).
+  const list =
+    payload.data?.response?.sunoData ??
+    payload.data?.data ??
+    payload.clips ??
+    [];
   return list
     .map(c => ({
       id: c.id,
-      audioUrl: c.audioUrl ?? c.audio_url ?? c.source_audio_url,
+      // Accept the actual asset URL in any of the shapes Suno has used.
+      // Streaming URLs are an acceptable fallback when the rendered
+      // audioUrl isn't ready yet — better than dropping the clip entirely.
+      audioUrl:
+        c.audioUrl ??
+        c.audio_url ??
+        c.sourceAudioUrl ??
+        c.source_audio_url ??
+        c.streamAudioUrl ??
+        c.stream_audio_url,
       imageUrl: c.imageUrl ?? c.image_url,
       title: c.title,
       duration: c.duration,

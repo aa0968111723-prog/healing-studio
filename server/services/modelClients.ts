@@ -431,17 +431,28 @@ export class SunoClient {
     if (!this.apiKey)
       throw new Error("SunoClient not initialized — SUNO_API_KEY missing");
     const traceStart = Date.now();
+    // 2026-05 audit: apibox.erweima.ai changed the request contract.
+    //   - `mv: "chirp-v3-5"` → `model: "V3_5"` (uppercase + underscore)
+    //   - `make_instrumental` / `wait_audio` / `custom_mode` → `instrumental`
+    //     / removed / `customMode` (camelCase, no _audio toggle)
+    // Calling the old shape returns
+    // 400 "model cannot be null, only V3_5, V4_5ALL, V4, V4_5, V4_5PLUS, V5
+    // or V5_5" or 400 "customMode cannot be null". Suno was 100% broken
+    // until this fix.
+    const modelMap: Record<string, string> = { v3_5: "V3_5", v4: "V4" };
+    const versionLower = String(params.modelVersion ?? "v3.5")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "_");
     const body: Record<string, unknown> = {
       prompt: params.prompt,
-      make_instrumental: params.instrumental ?? false,
-      wait_audio: false, // async mode
-      mv: params.modelVersion === "v4" ? "chirp-v4" : "chirp-v3-5",
+      instrumental: params.instrumental ?? false,
+      customMode: Boolean(params.customMode),
+      model: modelMap[versionLower] ?? "V3_5",
     };
     if (params.customMode && params.lyrics) {
-      body.custom_mode = true;
       body.lyrics = params.lyrics;
       if (params.title) body.title = params.title;
-      if (params.style) body.tags = params.style;
+      if (params.style) body.style = params.style;
     }
     if (params.callBackUrl) {
       body.callBackUrl = params.callBackUrl;
@@ -523,7 +534,15 @@ export class SunoClient {
       durationMs,
     });
     return {
-      taskId: result.data?.task_id || result.task_id || "",
+      // The new apibox.erweima.ai response is { code, msg, data: { taskId } }
+      // (camelCase). Older code only checked snake_case `task_id`, leaving
+      // the field empty for every successful generate. Accept both shapes.
+      taskId:
+        result.data?.taskId ||
+        result.data?.task_id ||
+        result.taskId ||
+        result.task_id ||
+        "",
       status: "processing",
     };
   }
@@ -539,8 +558,13 @@ export class SunoClient {
 
     const { data } = await safeApiCall(
       async () => {
+        // 2026-05 audit: apibox.erweima.ai moved the status endpoint from
+        // /api/v1/generate/record to /api/v1/generate/record-info. The old
+        // path returns 404, leaving every poll throwing "Suno status check
+        // failed: 404" — every Suno job hung forever. Switched to the new
+        // endpoint.
         const res = await fetch(
-          `${this.baseUrl}/api/v1/generate/record?taskId=${taskId}`,
+          `${this.baseUrl}/api/v1/generate/record-info?taskId=${taskId}`,
           {
             headers: { Authorization: `Bearer ${this.apiKey}` },
           }
@@ -553,14 +577,24 @@ export class SunoClient {
     );
 
     const result = data as any;
-    const responseData = result.data || result;
+    const responseData = result.data ?? result;
+    // New shape: data.response.sunoData[] when at least one clip is ready.
+    // Statuses observed: PENDING, TEXT_SUCCESS (lyrics-only), FIRST_SUCCESS
+    // (one clip ready), SUCCESS (all clips ready), CREATE_TASK_FAILED,
+    // GENERATE_AUDIO_FAILED. Map both legacy and new fields so the rest of
+    // the pipeline (webhookSuno + checkMusicSunoStatus router) keeps
+    // resolving against `clip.audioUrl` / `clip.title` / `clip.duration`.
+    const clipsRaw =
+      (responseData.response?.sunoData as any[] | undefined) ??
+      (responseData.data as any[] | undefined) ??
+      [];
 
     return {
       status: responseData.status || "unknown",
-      clips: (responseData.data || []).map((clip: any) => ({
-        audioUrl: clip.audio_url || "",
+      clips: clipsRaw.map((clip: any) => ({
+        audioUrl: clip.audioUrl || clip.audio_url || clip.streamAudioUrl || "",
         title: clip.title || "",
-        duration: clip.duration || 0,
+        duration: typeof clip.duration === "number" ? clip.duration : 0,
       })),
     };
   }

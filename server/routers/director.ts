@@ -1345,7 +1345,13 @@ ${memorySection}
         })),
       ],
     }),
-    30_000,
+    // gemini-2.5-pro with thinking on a "plan a 30s video" prompt routinely
+    // takes 25-45s. The previous 30s ceiling caused frequent
+    // "導演AI研究 回應超時" 500s in production. Bump to 90s; the underlying
+    // `invokeLLM` already enforces the env-driven LLM_TIMEOUT_SECONDS
+    // (default 60) and a thinking-budget-aware AbortSignal, so this wrapper
+    // is the per-stage failsafe rather than the primary timeout.
+    90_000,
     "導演AI研究"
   );
   const researchContent = extractMessageText(
@@ -1615,7 +1621,9 @@ export const directorRouter = router({
             },
           },
         }),
-        30_000,
+        // Same rationale as `導演AI研究` above — bumped to 90s so
+        // gemini-2.5-pro thinking has headroom.
+        90_000,
         "腳本修改"
       );
 
@@ -3219,6 +3227,11 @@ ${segmentSummaries}
           prompt: input.prompt,
           modelId: input.modelId,
           ...input.params,
+          // Persist the exact charged amount so pollGenerationTask's failure
+          // path can refund the same number of points instead of recomputing
+          // from a partial set of inputs (voice's charCount, for instance,
+          // is not part of params and would be silently dropped on refund).
+          chargedPoints: estimate.totalPoints,
         } as any,
       });
 
@@ -3324,6 +3337,17 @@ ${segmentSummaries}
             prompt: input.prompt,
             modelId: submittedModelId,
             request_id: queueResult.request_id,
+            // Persist fal's own canonical tracking URLs so pollGenerationTask
+            // can hit them directly and bypass the modelId-derived URL —
+            // necessary for fal models whose submit path differs from the
+            // queue tracking path (e.g. fal-ai/kling-video/v2.1/standard/text-to-video
+            // submits OK but its queue tracking lives at fal-ai/kling-video/...).
+            ...(queueResult.statusUrl ? { statusUrl: queueResult.statusUrl } : {}),
+            ...(queueResult.responseUrl ? { responseUrl: queueResult.responseUrl } : {}),
+            // Persist the exact charged amount so pollGenerationTask's failure
+            // path can refund the same number of points instead of recomputing
+            // from a partial set of inputs.
+            chargedPoints: estimate.totalPoints,
             ...(queueResult.degraded && queueResult.originalModel
               ? { originalModel: queueResult.originalModel, degraded: true }
               : {}),
@@ -3386,7 +3410,27 @@ ${segmentSummaries}
       }
 
       // 終態（completed / failed / cancelled）— 直接回填結果
-      const meta = (job.resultJson as Record<string, unknown> | null) ?? {};
+      // drizzle returns mysql JSON columns as strings (the underlying mysql2
+      // driver hands back the raw bytes from the server). Older code cast
+      // straight to Record<string,unknown>, leaving every field undefined
+      // and breaking the polling path entirely — pollGenerationTask would
+      // forever return IN_PROGRESS even though fal had completed the job.
+      // Parse defensively: accept either a pre-parsed object or a JSON
+      // string, and fall back to {} on any malformed value.
+      const rawMeta = job.resultJson;
+      let meta: Record<string, unknown> = {};
+      if (rawMeta && typeof rawMeta === "object") {
+        meta = rawMeta as Record<string, unknown>;
+      } else if (typeof rawMeta === "string" && rawMeta.length > 0) {
+        try {
+          const parsed = JSON.parse(rawMeta);
+          if (parsed && typeof parsed === "object") {
+            meta = parsed as Record<string, unknown>;
+          }
+        } catch {
+          /* malformed JSON in DB — fall through with empty meta */
+        }
+      }
       const cachedResultUrl =
         typeof meta.resultUrl === "string" ? meta.resultUrl : null;
       if (job.status === "completed") {
@@ -3441,14 +3485,32 @@ ${segmentSummaries}
         };
       }
 
-      const FAL_QUEUE_BASE = "https://queue.fal.run";
+      const { falQueueFetchWithPrefixFallback } = await import(
+        "../services/falQueueClient"
+      );
+      // Prefer fal's own status_url / response_url when we persisted them at
+      // submit time — fal sometimes routes the queue tracking URL to a path
+      // that's NOT a simple prefix of the submit URL (e.g. kling-video t2v
+      // submits to /v2.1/standard/text-to-video but tracks at /kling-video/),
+      // and modelId-based reconstruction can't recover that.
+      const persistedStatusUrl =
+        typeof meta.statusUrl === "string" ? meta.statusUrl : null;
+      const persistedResponseUrl =
+        typeof meta.responseUrl === "string" ? meta.responseUrl : null;
+
       type FalStatus = { status?: string; error?: string } | null;
       let statusData: FalStatus = null;
       try {
-        const statusRes = await fetch(
-          `${FAL_QUEUE_BASE}/${modelId}/requests/${requestId}/status`,
-          { headers: { Authorization: `Key ${falKey}` } }
-        );
+        const statusRes = persistedStatusUrl
+          ? await fetch(persistedStatusUrl, {
+              headers: { Authorization: `Key ${falKey}` },
+            })
+          : await falQueueFetchWithPrefixFallback(
+              modelId,
+              requestId,
+              "/status",
+              falKey
+            );
         if (statusRes.ok) {
           statusData = (await statusRes.json()) as FalStatus;
         }
@@ -3464,10 +3526,16 @@ ${segmentSummaries}
         );
         let resultData: Record<string, unknown> | null = null;
         try {
-          const resultRes = await fetch(
-            `${FAL_QUEUE_BASE}/${modelId}/requests/${requestId}`,
-            { headers: { Authorization: `Key ${falKey}` } }
-          );
+          const resultRes = persistedResponseUrl
+            ? await fetch(persistedResponseUrl, {
+                headers: { Authorization: `Key ${falKey}` },
+              })
+            : await falQueueFetchWithPrefixFallback(
+                modelId,
+                requestId,
+                "",
+                falKey
+              );
           if (resultRes.ok) {
             resultData = (await resultRes.json()) as Record<string, unknown>;
           }
@@ -3525,20 +3593,37 @@ ${segmentSummaries}
         // 退回扣除的點數，並標記 job 失敗
         const { isDemoMode } = await import("../_core/googleAuth");
         if (!isDemoMode()) {
-          // 估算點數退款：嘗試從 resultJson 還原原始 modelId + 參數
-          const { estimatePoints } = await import("../services/modelPricing");
+          // Prefer the exact `chargedPoints` snapshot persisted at deduction
+          // time — recomputing via estimatePoints here drops voice's
+          // charCount (it isn't part of params), which would refund less than
+          // was charged. Fall back to the recompute path only when the
+          // snapshot isn't present (older jobs created before this field
+          // existed).
           const params = (meta as Record<string, unknown>) ?? {};
-          const durationSec =
-            typeof params.duration === "number"
-              ? params.duration
-              : typeof params.seconds_total === "number"
-                ? params.seconds_total
-                : undefined;
-          try {
-            const refund = estimatePoints(modelId, { durationSec });
-            await dbModule.refundUserPoints(ctx.user.id, refund.totalPoints);
-          } catch {
-            /* 退款失敗時不阻擋 — 主要訴求是把任務標記為失敗 */
+          const chargedPoints =
+            typeof params.chargedPoints === "number" && params.chargedPoints > 0
+              ? params.chargedPoints
+              : null;
+          if (chargedPoints !== null) {
+            try {
+              await dbModule.refundUserPoints(ctx.user.id, chargedPoints);
+            } catch {
+              /* 退款失敗時不阻擋 — 主要訴求是把任務標記為失敗 */
+            }
+          } else {
+            const { estimatePoints } = await import("../services/modelPricing");
+            const durationSec =
+              typeof params.duration === "number"
+                ? params.duration
+                : typeof params.seconds_total === "number"
+                  ? params.seconds_total
+                  : undefined;
+            try {
+              const refund = estimatePoints(modelId, { durationSec });
+              await dbModule.refundUserPoints(ctx.user.id, refund.totalPoints);
+            } catch {
+              /* 退款失敗時不阻擋 */
+            }
           }
         }
         await dbModule.updateBackgroundJob(job.id, {

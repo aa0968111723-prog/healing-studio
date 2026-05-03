@@ -749,9 +749,9 @@ function ScrollIndicator({ isDark }: { isDark: boolean }) {
           />
           <motion.circle
             cx="8"
-            cy="8"
             r="2"
             fill="currentColor"
+            initial={{ cy: 8 }}
             animate={{ cy: [8, 18, 8] }}
             transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
           />

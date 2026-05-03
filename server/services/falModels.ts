@@ -52,6 +52,17 @@ export interface FalModelConfig {
   inputSchema: FalInputSchema;
   outputSchema: FalOutputSchema;
   timeoutMs: number;
+  /**
+   * Mark a model as broken upstream at fal — submit accepts but the model
+   * either never runs (gateway short-circuit, e.g. kling-video t2v) or its
+   * result endpoint returns `200 {"detail": "Path X not found"}` (e.g.
+   * elevenlabs/tts/flash-v2.5 as of 2026-05). Disabled models are filtered
+   * out of `getAllFalModels()` and the studio dropdowns; the entry is kept
+   * in the catalog so historical jobs and `getFalModelById` lookups still
+   * resolve metadata for billing / UI labels.
+   */
+  disabled?: boolean;
+  disabledReason?: string;
 }
 
 export interface FalInputSchema {
@@ -711,6 +722,11 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       inputSchema: { imageUrl: true, prompt: true, duration: true },
       outputSchema: { videoUrl: true },
       timeoutMs: 300_000,
+      // Live audit (2026-05-03): fal returns
+      // 404 'Application "cammaster" not found' on submit. Model removed.
+      disabled: true,
+      disabledReason:
+        "fal returns 404 'Application \"cammaster\" not found' on submit; removed at fal",
     },
     {
       modelId: "fal-ai/vidu/q1/reference-to-video",
@@ -1366,6 +1382,13 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       inputSchema: { prompt: true, voiceId: true, speed: true },
       outputSchema: { audioUrl: true },
       timeoutMs: 30_000,
+      // Broken upstream at fal as of 2026-05-03: submit accepts and status
+      // reports COMPLETED, but result endpoint returns
+      // 200 {"detail":"Path /tts/flash-v2.5 not found"}. Sister models
+      // turbo-v2.5 and multilingual-v2 work fine.
+      disabled: true,
+      disabledReason:
+        "fal upstream returns COMPLETED but result endpoint reports 'Path /tts/flash-v2.5 not found'; use turbo-v2.5 or multilingual-v2 instead",
     },
     {
       modelId: "fal-ai/elevenlabs/tts/eleven-v3",
@@ -1543,6 +1566,15 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       },
       outputSchema: { videoUrl: true },
       timeoutMs: 300_000,
+      // Broken upstream at fal as of 2026-05-03: submit accepts but the model
+      // gateway short-circuits — status reports COMPLETED in <1s with empty
+      // metrics, and the result endpoint returns
+      // 200 {"detail":"Path /v2.1/standard/text-to-video not found"}.
+      // Same failure across v1, v1.6, v2, v2.5, v2.5-turbo. Kling i2v still
+      // works, so the i2v workflow (image first, then animate) remains viable.
+      disabled: true,
+      disabledReason:
+        "fal upstream short-circuits the t2v gateway and returns no inference; use wan-t2v / minimax / sora for t2v, or generate an image first and use a kling i2v model",
     },
     {
       modelId: "fal-ai/minimax-video/text-to-video",
@@ -2022,6 +2054,14 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       inputSchema: { videoUrl: true },
       outputSchema: { videoUrl: true },
       timeoutMs: 300_000,
+      // Live audit (2026-05-03): same upstream pattern as kling t2v / topaz —
+      // fal accepts the submit at /fal-ai/bytedance/upscaler/video, gateway
+      // short-circuits (status COMPLETED in <5s, no inference, empty
+      // metrics), and the result endpoint returns
+      // 200 {"detail":"Path /upscaler/video not found"}. Model removed at fal.
+      disabled: true,
+      disabledReason:
+        "fal upstream short-circuits the submit; result endpoint returns 'Path /upscaler/video not found'",
     },
     {
       modelId: "fal-ai/rife-v4.6/video",
@@ -2032,6 +2072,14 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       inputSchema: { videoUrl: true, fps: true },
       outputSchema: { videoUrl: true },
       timeoutMs: 240_000,
+      // Live audit (2026-05-03): fal removed the video frame-interpolation
+      // endpoint. The bare /fal-ai/rife endpoint still exists but only
+      // accepts {start_image_url, end_image_url} (image-pair interpolation,
+      // not video). Both /fal-ai/rife-v4.6/video and /fal-ai/rife/v4.6
+      // return 200 {detail: "Path /v4.6 not found"} on result fetch.
+      disabled: true,
+      disabledReason:
+        "fal removed the video frame-interpolation endpoint; the bare /fal-ai/rife is image-pair only, not video",
     },
     {
       modelId: "fal-ai/topaz/video-enhance",
@@ -2042,6 +2090,14 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       inputSchema: { videoUrl: true },
       outputSchema: { videoUrl: true },
       timeoutMs: 600_000,
+      // Live audit (2026-05-03): same upstream pattern as bytedance upscaler.
+      // Submit accepts; status COMPLETED in <5s with empty metrics; result
+      // endpoint returns 200 {"detail":"Path /video-enhance not found"}.
+      // fal stripped the suffix at the queue layer but no actual handler
+      // exists for the topaz model anymore.
+      disabled: true,
+      disabledReason:
+        "fal upstream short-circuits the submit; result endpoint returns 'Path /video-enhance not found'",
     },
     // ── 進階控制：v2v 變體 ──
     {
@@ -2053,6 +2109,13 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       inputSchema: { videoUrl: true, guidanceScale: true },
       outputSchema: { videoUrl: true },
       timeoutMs: 300_000,
+      // Live audit (2026-05-03): fal returns
+      // 404 'Application "depthcrafter" not found' on submit. fal removed
+      // the model. Mark disabled until fal restores it or we replace with
+      // an equivalent depth-from-video model.
+      disabled: true,
+      disabledReason:
+        "fal returns 404 'Application \"depthcrafter\" not found' on submit; model removed at fal",
     },
   ],
 };
@@ -2064,6 +2127,18 @@ export function getFalModelsByCategory(
   category: FalCategory
 ): FalModelConfig[] {
   return FAL_MODEL_CATALOG[category] ?? [];
+}
+
+/**
+ * Returns only the models that are not flagged as broken upstream
+ * (`disabled: true`). User-facing dropdowns / engine pickers should call
+ * this; admin / billing / diagnostics views should keep using the
+ * unfiltered `getFalModelsByCategory` so historical jobs still resolve.
+ */
+export function getActiveFalModelsByCategory(
+  category: FalCategory
+): FalModelConfig[] {
+  return (FAL_MODEL_CATALOG[category] ?? []).filter(m => !m.disabled);
 }
 
 /**
