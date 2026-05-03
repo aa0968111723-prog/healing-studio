@@ -43,6 +43,7 @@ import { orbSchedulerRouter } from "./routers/orbSchedulerRouter";
 import { agentPreferencesRouter } from "./routers/agentPreferencesRouter";
 import { orbCapabilitiesRouter } from "./routers/orbCapabilitiesRouter";
 import { adminRouter } from "./routers/adminRouter";
+import { agentOSRouter } from "./routers/agentOSRouter";
 import { getOrchestrator } from "./services/modelClients";
 // voiceCompiler, audioCompiler, videoCompiler are no longer used — all modalities route through falDispatcher
 import { buildMemoryContext, upsertMemory } from "./services/ragMemory";
@@ -920,6 +921,7 @@ export const appRouter = router({
   agentPreferences: agentPreferencesRouter,
   orbCapabilities: orbCapabilitiesRouter,
   adminEval: adminRouter,
+  agentOS: agentOSRouter,
 
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),

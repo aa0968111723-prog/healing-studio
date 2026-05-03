@@ -1,0 +1,69 @@
+# docker-compose.yml — local / staging deployment for healing-studio +
+# hollow-agentOS side-car. Production deploys (Railway) keep using
+# `Dockerfile` + `.nixpacks.toml` directly; this file is for environments
+# where we want the multi-agent runtime running alongside the app.
+#
+# Phase 1 wiring: the studio talks to agent-os over the internal `agent-net`
+# bridge using `AGENT_OS_BASE_URL=http://agent-os:8088`. Neither agent-os nor
+# ollama publish ports to the host — only the studio is reachable externally.
+#
+# Prerequisites before `docker compose up`:
+#   1. `git clone https://github.com/ninjahawk/hollow-agentOS.git vendor/hollow-agentOS`
+#      (pin to a known-good SHA; this directory is gitignored.)
+#   2. `cp vendor/hollow-agentOS/config.example.json vendor/hollow-agentOS/config.json`
+#      and set the `token` field to a fresh `openssl rand -hex 32`. Copy the
+#      same value into `.env` as `AGENT_OS_TOKEN`.
+#   3. After first boot: `docker compose exec ollama ollama pull qwen2.5:7b nomic-embed-text`
+#      (the README requests `qwen3.5:9b`; verify your host has the RAM / GPU).
+
+services:
+  studio:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      AGENT_OS_BASE_URL: http://agent-os:8088
+    ports:
+      - "3000:3000"
+    networks:
+      - agent-net
+    depends_on:
+      - agent-os
+
+  agent-os:
+    build:
+      context: ./vendor/hollow-agentOS
+    volumes:
+      - ./vendor/hollow-agentOS/config.json:/app/config.json:ro
+      - agent_os_state:/app/state
+    networks:
+      - agent-net
+    depends_on:
+      - ollama
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama_models:/root/.ollama
+    networks:
+      - agent-net
+    restart: unless-stopped
+    # Uncomment for GPU passthrough (NVIDIA Container Toolkit required):
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+networks:
+  agent-net:
+    driver: bridge
+
+volumes:
+  ollama_models:
+  agent_os_state:
