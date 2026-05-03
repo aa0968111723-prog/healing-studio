@@ -1056,6 +1056,17 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   const orbShortcutEnabled =
     (agentPreferencesQuery.data as { orbShortcutEnabled?: boolean } | undefined)?.orbShortcutEnabled !== false;
 
+  // Agent loop v5 — keep PageAgent's reporting-task-id in lock-step
+  // with whichever server task we're currently following. This is what
+  // lets the chain runner's observer see what the destination page
+  // looks like (was the prompt filled, did Generate succeed, …).
+  useEffect(() => {
+    pageAgent.setReportingTaskId(latestServerTaskId);
+    return () => {
+      // Clear on unmount only — successive renders just overwrite.
+    };
+  }, [latestServerTaskId, pageAgent]);
+
   useEffect(() => {
     if (!orbShortcutEnabled) return;
     const handleKeyDown = (event: KeyboardEvent) => {

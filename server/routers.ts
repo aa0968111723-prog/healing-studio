@@ -61,6 +61,7 @@ import { orbToolCallLogStore } from "./services/orbToolCallLogStore";
 import { runSchemaFirstAgentPlanner, type AgentPlannerInput } from "./services/agentPlanner";
 import { runOrbTaskWithContinuationLoop } from "./services/orbTaskChainRunner";
 import { setOrbTaskPlannerContext } from "./services/orbTaskPlannerContextStore";
+import { appendOrbTaskPageState } from "./services/orbTaskPageStateStore";
 import {
   approveOrbAgentTask,
   cancelOrbAgentTask,
@@ -6506,6 +6507,41 @@ export const appRouter = router({
         .input(z.object({ taskId: z.string().min(1) }))
         .query(({ input }) => {
           return getOrbAgentTaskEvents(input.taskId);
+        }),
+
+      // Agent loop v5 — client posts a structured page-state snapshot
+      // here whenever a PageAgent action handler returns `data` while a
+      // task is being followed. The observer reads the buffer at
+      // post-mortem time so its prompt sees what the destination page
+      // actually looks like (was the prompt filled? which model? did
+      // generation succeed?). Off-band from the FSM audit log on
+      // purpose: this is a "what does the world look like" snapshot,
+      // not a "what did I do" event.
+      reportPageState: brainProcedure
+        .input(
+          z.object({
+            taskId: z.string().min(1).max(72),
+            pageId: z.string().min(1).max(64).optional(),
+            actionType: z.string().min(1).max(48).optional(),
+            summary: z.string().max(240).optional(),
+            // Cap the JSON payload defensively so a chatty page
+            // handler can't blow up the in-memory buffer.
+            state: z
+              .record(z.string(), z.unknown())
+              .refine(v => JSON.stringify(v).length <= 4_000, {
+                message: "page state payload exceeds 4 kB",
+              }),
+          })
+        )
+        .mutation(({ input }) => {
+          appendOrbTaskPageState(input.taskId, {
+            at: Date.now(),
+            pageId: input.pageId,
+            actionType: input.actionType,
+            summary: input.summary,
+            state: input.state,
+          });
+          return { ok: true as const };
         }),
 
       completeStep: brainProcedure

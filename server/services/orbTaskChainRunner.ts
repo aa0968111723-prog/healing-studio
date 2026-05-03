@@ -47,6 +47,7 @@ import {
   setOrbTaskPlannerContext,
   type StoredOrbTaskPlannerContext,
 } from "./orbTaskPlannerContextStore";
+import { deleteOrbTaskPageState } from "./orbTaskPageStateStore";
 import { runSchemaFirstAgentPlanner } from "./agentPlanner";
 import type { AgentPlannerInput } from "./agentPlanner";
 import { orbTaskRepository } from "../repositories/orbTaskRepository";
@@ -318,6 +319,9 @@ export async function runOrbTaskWithContinuationLoop(
           "",
         runResult,
         agentTask: getOrbAgentTask(currentTaskId),
+        // Agent loop v5 — observer auto-pulls page-state snapshots
+        // posted by the client during this task's run.
+        taskId: currentTaskId,
       });
       // Persist observation as audit event on the current task.
       appendOrbAgentTaskAuditEvent(
@@ -397,9 +401,11 @@ export async function runOrbTaskWithContinuationLoop(
       break;
     }
 
-    // Hand off: predecessor's planner context can be dropped; successor
-    // already carries its own copy.
+    // Hand off: predecessor's planner context + page state can be
+    // dropped; successor already carries its own copy and will produce
+    // its own snapshots once UI dispatches happen on the next iteration.
     deleteOrbTaskPlannerContext(currentTaskId);
+    deleteOrbTaskPageState(currentTaskId);
     currentTaskId = replan.newTaskId;
 
     // Record on the iteration we're about to push for the new task.
@@ -411,6 +417,7 @@ export async function runOrbTaskWithContinuationLoop(
 
   // Final cleanup of context for whichever task ended the chain.
   deleteOrbTaskPlannerContext(currentTaskId);
+  deleteOrbTaskPageState(currentTaskId);
 
   try {
     emitGenerationEvent({

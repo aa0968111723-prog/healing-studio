@@ -181,6 +181,14 @@ interface PageAgentContextValue {
     actionType: AgentActionType | string;
   }) => void;
   recentFeedback: AgentFeedbackEvent[];
+  /**
+   * Set the taskId to attach to subsequent action reports. When set,
+   * any AgentActionResult that includes `data` is forwarded to the
+   * server's per-task page-state store so the agent loop's observer can
+   * see what the destination page actually looks like. Pass `null` to
+   * stop reporting (e.g. when a task ends).
+   */
+  setReportingTaskId: (taskId: string | null) => void;
   spotlight: AgentSpotlight | null;
   showSpotlight: (
     elementId: string,
@@ -217,6 +225,7 @@ const noop: PageAgentContextValue = {
   confirmPending: async () => null,
   cancelPending: () => {},
   reportFeedback: () => {},
+  setReportingTaskId: () => {},
   recentFeedback: [],
   spotlight: null,
   showSpotlight: () => {},
@@ -283,6 +292,18 @@ export function PageAgentProvider({ children }: { children: ReactNode }) {
   const locationPathRef = useRef(locationPath);
   locationPathRef.current = locationPath;
   const persistMemory = trpc.orbMemory.append.useMutation();
+  const reportPageStateMutation = trpc.ai.orbTask.reportPageState.useMutation();
+
+  // Agent loop v5 — when an OrbTask is being followed (set externally
+  // by GlobalOrbChat once the brain router returns a real taskId), any
+  // AgentActionResult that includes `data` is forwarded to the server's
+  // per-task page-state store. The observer pulls those snapshots into
+  // its prompt so it sees what the destination page looks like, not
+  // just whether the dispatch returned ok.
+  const reportingTaskIdRef = useRef<string | null>(null);
+  const setReportingTaskId = useCallback((taskId: string | null) => {
+    reportingTaskIdRef.current = taskId;
+  }, []);
 
   const reportFeedback = useCallback(
     (event: Partial<AgentFeedbackEvent> & { status: AgentFeedbackStatus; actionType: AgentActionType | string }) => {
@@ -338,6 +359,26 @@ export function PageAgentProvider({ children }: { children: ReactNode }) {
             actionType: action.type,
             note: norm.ok ? undefined : (norm as { reason: string }).reason,
           });
+          // Agent loop v5 — forward the page-handler's structured `data`
+          // to the per-task page-state store so the observer can see
+          // what the destination page actually looks like. Fire-and-
+          // forget; failures here must not change dispatch behaviour.
+          if (norm.ok && "data" in norm && norm.data && reportingTaskIdRef.current) {
+            try {
+              reportPageStateMutation.mutate(
+                {
+                  taskId: reportingTaskIdRef.current,
+                  pageId: page.snapshot.pageId,
+                  actionType: action.type,
+                  state: norm.data as Record<string, unknown>,
+                },
+                { onError: () => {} }
+              );
+            } catch {
+              // best-effort; tRPC client-side rejection (e.g. payload
+              // exceeded the 4 kB cap) is swallowed silently.
+            }
+          }
           return norm;
         } catch (err: unknown) {
           const reason = err instanceof Error ? err.message : "handler threw unknown error";
@@ -484,13 +525,14 @@ export function PageAgentProvider({ children }: { children: ReactNode }) {
     confirmPending,
     cancelPending,
     reportFeedback,
+    setReportingTaskId,
     recentFeedback,
     spotlight,
     showSpotlight,
     dismissSpotlight,
     taskExecution,
     executeApprovedTask,
-  }), [snapshot, dispatch, dispatchMany, registerPage, pendingCount, pendingConfirmation, confirmPending, cancelPending, reportFeedback, recentFeedback, spotlight, showSpotlight, dismissSpotlight, taskExecution, executeApprovedTask]);
+  }), [snapshot, dispatch, dispatchMany, registerPage, pendingCount, pendingConfirmation, confirmPending, cancelPending, reportFeedback, setReportingTaskId, recentFeedback, spotlight, showSpotlight, dismissSpotlight, taskExecution, executeApprovedTask]);
 
   return <PageAgentContext.Provider value={value}>{children}</PageAgentContext.Provider>;
 }

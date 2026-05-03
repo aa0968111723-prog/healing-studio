@@ -22,6 +22,10 @@
 import { invokeLLM, extractMessageText, type Message } from "../_core/llm";
 import type { OrbAgentTask } from "../../shared/orb-task-state-machine";
 import type { RunOrbTaskResult } from "./orbTaskOrchestrator";
+import {
+  getOrbTaskPageState,
+  type OrbTaskPageStateSnapshot,
+} from "./orbTaskPageStateStore";
 
 // ─── Output contract ──────────────────────────────────────────────────────
 
@@ -68,6 +72,20 @@ export interface ObserveOrbTaskInput {
   runResult: RunOrbTaskResult;
   /** FSM task snapshot；可從 runResult.finalAgentTask 取，也可外部傳入 */
   agentTask?: OrbAgentTask | null;
+  /**
+   * Agent loop v5 — page-state snapshots the client posted via
+   * `ai.orbTask.reportPageState` while this task was running. When
+   * supplied (or auto-fetched from the in-memory store via `taskId`),
+   * the observer prompt includes a "頁面實況" block so the LLM judges
+   * outcomes against what the page actually looks like, not just
+   * server-side tool results.
+   *
+   * Either pass the snapshots directly OR set `taskId` and let the
+   * observer pull them. Direct passing wins when both are given.
+   */
+  pageStateSnapshots?: OrbTaskPageStateSnapshot[];
+  /** Used to auto-pull snapshots when `pageStateSnapshots` is absent. */
+  taskId?: string;
   /** 注入用 — 預設用全站 invokeLLM，測試時用 stub */
   invoke?: typeof invokeLLM;
   /** 觀察 LLM 回應的最大 tokens；預設 600 */
@@ -166,7 +184,35 @@ function summarizeExecutionForLLM(input: ObserveOrbTaskInput): string {
     }
   }
 
+  // Agent loop v5 — append the page-state snapshots the client posted
+  // while the task ran. Bounded: only the last 8 snapshots; each state
+  // payload truncated to 240 chars when serialised so a chatty page
+  // can't blow the LLM context budget.
+  const snapshots = resolvePageStateSnapshots(input);
+  if (snapshots.length > 0) {
+    lines.push("[頁面實況] (最新在底)");
+    for (const snap of snapshots.slice(-8)) {
+      const where = snap.pageId ? `[${snap.pageId}]` : "[?]";
+      const what = snap.actionType ? `${snap.actionType} →` : "snapshot →";
+      const summary = snap.summary ? `${snap.summary} · ` : "";
+      const stateJson = JSON.stringify(snap.state).slice(0, 240);
+      lines.push(`  ${where} ${what} ${summary}${stateJson}`);
+    }
+  }
+
   return lines.join("\n").slice(0, 4000);
+}
+
+function resolvePageStateSnapshots(
+  input: ObserveOrbTaskInput
+): OrbTaskPageStateSnapshot[] {
+  if (input.pageStateSnapshots && input.pageStateSnapshots.length > 0) {
+    return input.pageStateSnapshots;
+  }
+  if (input.taskId) {
+    return getOrbTaskPageState(input.taskId);
+  }
+  return [];
 }
 
 function buildObserverMessages(input: ObserveOrbTaskInput): Message[] {
@@ -183,7 +229,10 @@ function buildObserverMessages(input: ObserveOrbTaskInput): Message[] {
     `userMessage 用同理的口氣解釋並說「先暫停這條路徑」，failureCategory 從 enum 中選最貼近的一個。\n\n` +
     `注意：使用者只看得到 userMessage / question / suggestedNextAction 的字，不要在裡面塞 raw error code、` +
     `step id、tool name 這些開發者語言；如果一定要提及失敗原因，用人話翻譯（例：「上一步沒拿到影片網址」` +
-    `而不是「unresolved-step-ref:step1.video_url」）。`;
+    `而不是「unresolved-step-ref:step1.video_url」）。\n\n` +
+    `紀錄裡可能會有「[頁面實況]」區塊 — 這是目標頁面在動作執行後實際的狀態（例如 prompt 是不是真的填上去、` +
+    `目前選的模型、生成是不是回到 URL）。判斷 kind 的時候要把這個放在第一順位：tool 看似成功但頁面實況顯示` +
+    `prompt 是空的，那其實就是 needs_user 或 continue，不是 complete。`;
 
   const user = `以下是剛跑完的任務執行紀錄：\n\n${transcript}`;
 

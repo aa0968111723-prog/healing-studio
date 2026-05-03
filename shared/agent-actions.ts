@@ -197,7 +197,23 @@ export type AgentActionType = AgentAction["type"];
 // ─── Action 執行結果 ─────────────────────────────────────────────────────
 
 export type AgentActionResult =
-  | { ok: true; message?: string }
+  | {
+      ok: true;
+      message?: string;
+      /**
+       * Optional structured snapshot the page handler can return so the
+       * agent loop can observe what actually happened (was the prompt
+       * filled? which model is now active? did the generation succeed
+       * with what URL?). Backwards compatible — handlers may continue
+       * returning `{ ok: true }` and stay valid; observer + planner pull
+       * this when present and ignore when absent.
+       *
+       * Keep payloads small (< ~1 kB serialised) — they're forwarded to
+       * the LLM observer prompt and persisted in an in-memory per-task
+       * page-state ring buffer.
+       */
+      data?: Record<string, unknown>;
+    }
   | { ok: false; reason: string };
 
 // ─── Capability — 頁面對外宣告「我能做什麼」 ─────────────────────────────

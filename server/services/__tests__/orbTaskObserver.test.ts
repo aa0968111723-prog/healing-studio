@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   observeOrbTaskOutcome,
   observationToAuditMessage,
@@ -7,6 +7,14 @@ import {
 } from "../orbTaskObserver";
 import type { RunOrbTaskResult } from "../orbTaskOrchestrator";
 import type { OrbAgentTask } from "../../../shared/orb-task-state-machine";
+import {
+  _resetOrbTaskPageStateStoreForTests,
+  appendOrbTaskPageState,
+} from "../orbTaskPageStateStore";
+
+afterEach(() => {
+  _resetOrbTaskPageStateStoreForTests();
+});
 
 function makeRunResult(
   partial: Partial<RunOrbTaskResult> = {}
@@ -175,5 +183,112 @@ describe("orbTaskObserver", () => {
     };
     expect(observationToAuditMessage(observation)).toContain("complete");
     expect(observationToAuditMetadata(observation)).toEqual({ observation });
+  });
+
+  it("forwards page-state snapshots from store into the LLM prompt", async () => {
+    appendOrbTaskPageState("task-with-state", {
+      at: 1,
+      pageId: "video-studio",
+      actionType: "fillPrompt",
+      state: { promptText: "calm cat by a river" },
+    });
+    appendOrbTaskPageState("task-with-state", {
+      at: 2,
+      pageId: "video-studio",
+      actionType: "submit",
+      state: { ok: true, jobId: "job-77" },
+    });
+
+    let capturedUserContent = "";
+    const llm = vi.fn(async ({ messages }) => {
+      const userMsg = messages.find((m: { role: string }) => m.role === "user");
+      capturedUserContent = String(userMsg?.content ?? "");
+      return {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                kind: "complete",
+                userMessage: "做完了",
+              }),
+            },
+          },
+        ],
+      };
+    });
+
+    await observeOrbTaskOutcome({
+      intent: "做一支貓咪短片",
+      runResult: makeRunResult({ outcome: "completed", taskId: "task-with-state" }),
+      agentTask: makeAgentTask(),
+      taskId: "task-with-state",
+      invoke: llm as unknown as Parameters<typeof observeOrbTaskOutcome>[0]["invoke"],
+    });
+
+    expect(capturedUserContent).toContain("[頁面實況]");
+    expect(capturedUserContent).toContain("video-studio");
+    expect(capturedUserContent).toContain("fillPrompt");
+    expect(capturedUserContent).toContain("submit");
+    expect(capturedUserContent).toContain("calm cat");
+  });
+
+  it("prefers explicit pageStateSnapshots over store lookup", async () => {
+    // Put one thing in the store, then pass a different one explicitly —
+    // the explicit snapshots should win.
+    appendOrbTaskPageState("task-x", {
+      at: 1,
+      state: { fromStore: true },
+    });
+    let captured = "";
+    const llm = vi.fn(async ({ messages }) => {
+      const userMsg = messages.find((m: { role: string }) => m.role === "user");
+      captured = String(userMsg?.content ?? "");
+      return {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ kind: "complete", userMessage: "ok" }),
+            },
+          },
+        ],
+      };
+    });
+    await observeOrbTaskOutcome({
+      intent: "x",
+      runResult: makeRunResult({ outcome: "completed" }),
+      agentTask: makeAgentTask(),
+      taskId: "task-x",
+      pageStateSnapshots: [
+        { at: 99, pageId: "explicit", state: { fromExplicit: true } },
+      ],
+      invoke: llm as unknown as Parameters<typeof observeOrbTaskOutcome>[0]["invoke"],
+    });
+    expect(captured).toContain("fromExplicit");
+    expect(captured).not.toContain("fromStore");
+  });
+
+  it("omits page-state block when no snapshots available", async () => {
+    let captured = "";
+    const llm = vi.fn(async ({ messages }) => {
+      const userMsg = messages.find((m: { role: string }) => m.role === "user");
+      captured = String(userMsg?.content ?? "");
+      return {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ kind: "complete", userMessage: "ok" }),
+            },
+          },
+        ],
+      };
+    });
+    await observeOrbTaskOutcome({
+      intent: "x",
+      runResult: makeRunResult({ outcome: "completed" }),
+      agentTask: makeAgentTask(),
+      taskId: "no-state-task",
+      invoke: llm as unknown as Parameters<typeof observeOrbTaskOutcome>[0]["invoke"],
+    });
+    expect(captured).not.toContain("[頁面實況]");
   });
 });
