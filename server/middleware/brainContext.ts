@@ -106,15 +106,21 @@ export interface DegradationEvent {
 // Default Configurations (硬編碼安全預設)
 // ═══════════════════════════════════════════════════════════════════════════
 
+// 全站光球代理（Global Orb Agent）預設改用 OpenRouter 上最高品質的代理
+// 專用模型 anthropic/claude-opus-4.7（ultra tier）。Anthropic 在 tool use
+// 可靠度與多步驟反問判斷力上明顯領先 Gemini Flash，最適合「全站光球」這種
+// 需要規劃、呼叫工具、跨頁推理的代理人場景（見 server/_core/llmRouter.ts
+// 開頭的「為何 Anthropic 排第一」說明）。使用者仍可在 /ai-brain-settings
+// 自行切換（slot allowlist 已加入 opus-4.7 選項）。
 export const DEFAULT_REASONING_BRAINS: Record<
   ReasoningBrainSlot,
   { model: string; temperature: number; topP: number }
 > = {
-  director: { model: "gemini-2.5-pro", temperature: 0.4, topP: 0.9 },
-  analyst: { model: "gemini-2.5-flash", temperature: 0.3, topP: 0.8 },
-  storyteller: { model: "gemini-2.5-pro", temperature: 0.9, topP: 0.95 },
-  technician: { model: "gemini-2.5-flash", temperature: 0.2, topP: 0.7 },
-  curator: { model: "gemini-2.5-flash", temperature: 0.8, topP: 0.9 },
+  director: { model: "anthropic/claude-opus-4.7", temperature: 0.4, topP: 0.9 },
+  analyst: { model: "anthropic/claude-opus-4.7", temperature: 0.3, topP: 0.8 },
+  storyteller: { model: "anthropic/claude-opus-4.7", temperature: 0.9, topP: 0.95 },
+  technician: { model: "anthropic/claude-opus-4.7", temperature: 0.2, topP: 0.7 },
+  curator: { model: "anthropic/claude-opus-4.7", temperature: 0.8, topP: 0.9 },
 };
 
 export const DEFAULT_GENERATION_ENGINES: Record<

@@ -87,6 +87,11 @@ export const REASONING_MODEL_CATALOG = {
       },
       // ── OpenRouter Unified Gateway ──
       {
+        value: "anthropic/claude-opus-4.7",
+        label: "Claude Opus 4.7 (OpenRouter) 🟣 ✦ AI 代理專用",
+        tier: "ultra",
+      },
+      {
         value: "google/gemini-2.5-flash",
         label: "Gemini 2.5 Flash (OpenRouter) 🟣",
         tier: "fast",
@@ -115,6 +120,11 @@ export const REASONING_MODEL_CATALOG = {
         tier: "standard",
       },
       // ── OpenRouter Unified Gateway ──
+      {
+        value: "anthropic/claude-opus-4.7",
+        label: "Claude Opus 4.7 (OpenRouter) 🟣 ✦ AI 代理專用",
+        tier: "ultra",
+      },
       {
         value: "anthropic/claude-sonnet-4.5",
         label: "Claude Sonnet 4.5 (OpenRouter) 🟣",
@@ -145,6 +155,11 @@ export const REASONING_MODEL_CATALOG = {
       },
       // ── OpenRouter Unified Gateway ──
       {
+        value: "anthropic/claude-opus-4.7",
+        label: "Claude Opus 4.7 (OpenRouter) 🟣 ✦ AI 代理專用",
+        tier: "ultra",
+      },
+      {
         value: "anthropic/claude-haiku-4.5",
         label: "Claude Haiku 4.5 (OpenRouter) 🟣 ⚡",
         tier: "fast",
@@ -168,6 +183,11 @@ export const REASONING_MODEL_CATALOG = {
         tier: "premium",
       },
       // ── OpenRouter Unified Gateway ──
+      {
+        value: "anthropic/claude-opus-4.7",
+        label: "Claude Opus 4.7 (OpenRouter) 🟣 ✦ AI 代理專用",
+        tier: "ultra",
+      },
       {
         value: "google/gemini-2.5-pro",
         label: "Gemini 2.5 Pro (OpenRouter) 🟣",

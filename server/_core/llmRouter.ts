@@ -398,10 +398,12 @@ function resolveSpecificEngine(engine: LLMEngine): EngineConfig {
         // OpenAI-compatible chat completions endpoint
         url: `${baseUrl}/chat/completions`,
         apiKey: ENV.openRouterApiKey,
-        // Default to Claude Sonnet 4.5 — change via brain config UI per slot.
-        // Model IDs follow `<provider>/<model>` format; OpenRouter supports
-        // anthropic/*, openai/*, google/*, meta-llama/*, mistralai/* etc.
-        model: "anthropic/claude-sonnet-4.5",
+        // Default to Claude Opus 4.7 — Anthropic 的旗艦 AI 代理人模型，最高品質
+        // 的 tool use / 多步驟規劃 / 反問判斷力（全站光球代理首選，與
+        // DEFAULT_REASONING_BRAINS 對齊）。Model IDs follow `<provider>/<model>`
+        // 格式；OpenRouter 支援 anthropic/*, openai/*, google/*, meta-llama/*,
+        // mistralai/* 等。可在 /ai-brain-settings 自行切換每個 slot 的模型。
+        model: "anthropic/claude-opus-4.7",
         supportsThinking: true,
         supportsGrounding: false,
         supportsLongContext: true,

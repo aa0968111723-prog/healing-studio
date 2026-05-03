@@ -130,7 +130,8 @@ describe("Brain Context Middleware", () => {
       const brain = await buildBrainContext(123);
 
       expect(brain.hasCustomConfig).toBe(false);
-      expect(brain.getBrain("director").model).toBe("gemini-2.5-pro");
+      // 全站光球代理預設改用 OpenRouter Claude Opus 4.7（AI 代理專用、最高品質）。
+      expect(brain.getBrain("director").model).toBe("anthropic/claude-opus-4.7");
       expect(brain.getEngine("imageEngine").engine).toBe("fal-ai/flux-pro/v1.1");
 
       warnSpy.mockRestore();
@@ -428,7 +429,8 @@ describe("Brain Context Middleware", () => {
       const brain = await buildBrainContext(999);
       const director = brain.getBrain("director");
       expect(director.slot).toBe("director");
-      expect(director.model).toBe("gemini-2.5-pro");
+      // 全站光球代理預設改用 OpenRouter Claude Opus 4.7（AI 代理專用、最高品質）。
+      expect(director.model).toBe("anthropic/claude-opus-4.7");
     });
 
     it("getEngine should return correct slot config", async () => {
