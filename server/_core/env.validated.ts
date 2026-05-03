@@ -60,6 +60,12 @@ function isLikelyJson(value: string): boolean {
   }
 }
 
+function isUnresolvedRailwayTemplate(value: string): boolean {
+  const v = value.trim();
+  // Railway variable-reference syntax, e.g. `${{MySQL.MYSQL_URL}}`.
+  return /^\$\{\{[^}]+\}\}$/.test(v);
+}
+
 /**
  * 是否為「明顯的佔位符」字串（例如 .env.example 中常見的 `your-xxx-api-key`、
  * `<your-key-here>`、`changeme` 等）。這類值若進到下游會引發 401/403 而非
@@ -204,6 +210,21 @@ function selfRepairEnv(): void {
         "LangSmith 金鑰必須以 lsv2_pt_ 或 lsv2_sk_ 開頭，偵測到非標準格式，視為未設定",
     });
     env.LANGSMITH_API_KEY = "";
+  }
+
+  // 7) DATABASE_URL 若仍是 Railway 模板字串（未被平台展開），視為未設定。
+  //    否則 mysql2 會嘗試用字面 `${{...}}` 連線，啟動時產生誤導性的連線錯誤。
+  const databaseUrl = env.DATABASE_URL;
+  if (databaseUrl && isUnresolvedRailwayTemplate(databaseUrl)) {
+    selfRepairLog.push({
+      varName: "DATABASE_URL",
+      action: "ignored_invalid",
+      before: databaseUrl,
+      after: "(empty)",
+      reason:
+        "偵測到未展開的 Railway 模板字串，已視為未設定；請確認 Variables 引用是否成功展開",
+    });
+    env.DATABASE_URL = "";
   }
 
   if (selfRepairLog.length > 0 && env.NODE_ENV !== "test") {

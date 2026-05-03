@@ -33,6 +33,7 @@ const ENV_KEYS_TO_RESET = [
   "LANGSMITH_API_KEY",
   "JWT_ACCESS_TOKEN_EXPIRES_IN",
   "GOOGLE_APPLICATION_CREDENTIALS_JSON",
+  "DATABASE_URL",
 ];
 
 describe("env.validated self-repair", () => {
@@ -166,6 +167,16 @@ describe("env.validated self-repair", () => {
     process.env.LANGSMITH_API_KEY = "lsv2_pt_abcdef0123456789";
     const mod = await import("./_core/env.validated");
     expect(mod.serverEnv.LANGSMITH_API_KEY).toBe("lsv2_pt_abcdef0123456789");
+  });
+
+  it("clears unresolved Railway DATABASE_URL template syntax", async () => {
+    process.env.DATABASE_URL = "${{MySQL.MYSQL_URL}}";
+    const mod = await import("./_core/env.validated");
+    expect(mod.serverEnv.DATABASE_URL).toBe("");
+    const log = mod.getEnvSelfRepairLog();
+    expect(
+      log.some(l => l.varName === "DATABASE_URL" && l.action === "ignored_invalid")
+    ).toBe(true);
   });
 
   it("exposes new schema entries (POSTHOG, DISCORD, REDIS) with sensible defaults", async () => {
