@@ -40,6 +40,17 @@ export interface OrbGuidePlanInput {
 }
 
 /**
+ * 跳頁到目標頁後，需要使用者親自完成的手動步驟。
+ * 自動的（setTab / fillPrompt …）由 buildOrbGuideActions 負責；
+ * 這裡只列「程式無法替使用者做」的事，例如上傳檔案、按下生成。
+ */
+export interface OrbGuideManualStep {
+  id: string;
+  label: string;
+  hint?: string;
+}
+
+/**
  * 依 intent 產生到站要執行的 AgentAction[]。
  * 順序很重要：tab 先切、setModel 次之、setParam 再次、最後 fillPrompt。
  * 進階控制（control）三細分意圖會自動 setModel 鎖定到對應 ModelCard。
@@ -147,6 +158,123 @@ export function buildOrbGuideActions(
   }
 
   return actions;
+}
+
+/**
+ * 依 intent 產生到站後使用者要親自完成的步驟。
+ * 設計原則：列出「程式無法替使用者代勞」的事情；像填提詞、切分頁這類已被
+ * buildOrbGuideActions 自動執行的，就不要重覆放進來。
+ */
+export function buildOrbGuideManualSteps(
+  input: OrbGuidePlanInput
+): OrbGuideManualStep[] {
+  const steps: OrbGuideManualStep[] = [];
+  const hasPrompt = input.promptHint.trim().length > 0;
+
+  switch (input.intent) {
+    case "image":
+    case "video":
+    case "music": {
+      if (hasPrompt) {
+        steps.push({
+          id: "review-prompt",
+          label: "看一下幫你準備的提示詞，覺得不夠味就直接改",
+        });
+      }
+      steps.push({
+        id: "click-generate",
+        label: "按下「生成」，等成品出來",
+      });
+      break;
+    }
+    case "video2video":
+    case "videoDepthMap": {
+      steps.push({
+        id: "upload-video",
+        label: "上傳要轉換 / 處理的影片檔",
+        hint: "MP4、MOV 都可以",
+      });
+      if (hasPrompt) {
+        steps.push({
+          id: "review-prompt",
+          label: "看一下提示詞，需要的話就改",
+        });
+      }
+      steps.push({ id: "click-generate", label: "按下「生成」" });
+      break;
+    }
+    case "videoEnhance": {
+      steps.push({
+        id: "upload-video",
+        label: "上傳要優化的影片",
+      });
+      steps.push({
+        id: "click-generate",
+        label: "確認操作後按下「執行」",
+      });
+      break;
+    }
+    case "videoCameraControl":
+    case "videoReference": {
+      steps.push({
+        id: "upload-image",
+        label: "上傳一張參考用的圖片",
+      });
+      if (hasPrompt) {
+        steps.push({
+          id: "review-prompt",
+          label: "看一下提示詞，需要的話就改",
+        });
+      }
+      steps.push({ id: "click-generate", label: "按下「生成」" });
+      break;
+    }
+    case "voice": {
+      steps.push({
+        id: "enter-text",
+        label: "把要轉成語音的文字填進去（或改一下範例）",
+      });
+      if (input.answers.type === "clone") {
+        steps.push({
+          id: "upload-voice",
+          label: "上傳一段參考音檔（10–30 秒最佳）",
+        });
+      }
+      steps.push({ id: "click-generate", label: "按下「生成語音」" });
+      break;
+    }
+    case "script": {
+      steps.push({
+        id: "send-message",
+        label: "把詳細想法送出，導演 AI 會幫你寫腳本",
+      });
+      break;
+    }
+    case "lora": {
+      steps.push({
+        id: "upload-images",
+        label: "上傳訓練用的圖片（建議 10 張以上）",
+      });
+      steps.push({
+        id: "name-model",
+        label: "幫這份模型取個名字",
+      });
+      steps.push({
+        id: "start-training",
+        label: "按下「開始訓練」",
+      });
+      break;
+    }
+    case "explore": {
+      steps.push({
+        id: "browse",
+        label: "隨意逛逛，看到喜歡的就點進去",
+      });
+      break;
+    }
+  }
+
+  return steps;
 }
 
 /** 給 UI 顯示用的繁中摘要，逐行一條 action */

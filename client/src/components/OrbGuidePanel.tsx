@@ -13,7 +13,7 @@
 
 import { useRef, useEffect, useMemo, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Sparkles, X, RotateCcw, FastForward, MessageCircle, Navigation2, Send, Loader2, ChevronDown, Lightbulb, Leaf, Paperclip, Image as ImageIcon, Video, Music, Mic } from "lucide-react";
+import { ArrowRight, Sparkles, X, RotateCcw, FastForward, MessageCircle, Navigation2, Send, Loader2, ChevronDown, Lightbulb, Leaf, Paperclip, Image as ImageIcon, Video, Music, Mic, Check, Circle, CheckCircle2 } from "lucide-react";
 import { useOrbGuide, INTENT_CONFIGS, type GuideIntent } from "@/contexts/OrbGuideContext";
 import VisualSoul from "./VisualSoul";
 import { useAIState } from "@/contexts/AIStateContext";
@@ -373,6 +373,9 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
     confirmAndNavigate,
     reset,
     patchPlan,
+    completedManualStepIds,
+    toggleManualStepDone,
+    dismissArrival,
   } = useOrbGuide();
   const { aiState } = useAIState();
   const { personality } = usePersonality();
@@ -1201,6 +1204,160 @@ export default function OrbGuidePanel({ onClose, fullscreen: fullscreenProp, onO
       )}
     </motion.div>
   );
+
+  // ── 跳頁中／到站後：縮成緊湊卡片，不擋目標頁 ──
+  // 跳頁時不關 panel（OrbGuideContext 已改），到站後切到這個緊湊版，列出
+  // 已自動完成的動作（setTab / fillPrompt …由 PageAgent queue drain 自動執行）
+  // 與接下來要使用者親自做的事，方便手動部分的引導完成。
+  if (step === "navigating" || step === "arrived") {
+    const isNavigating = step === "navigating";
+    const autoLines = plan ? summarizeOrbGuideActions(plan.actions) : [];
+    const manualSteps = plan?.manualSteps ?? [];
+    const allManualDone =
+      manualSteps.length > 0 &&
+      manualSteps.every(s => completedManualStepIds.includes(s.id));
+
+    return (
+      <motion.div
+        className={cn(
+          "fixed z-[71] pointer-events-auto",
+          // 手機：底部置中、左右留 8px；桌機：右下小卡片
+          "inset-x-2 bottom-3",
+          "sm:inset-x-auto sm:right-4 sm:left-auto sm:bottom-4 sm:w-[360px]"
+        )}
+        initial={{ opacity: 0, y: 32, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 24, scale: 0.95 }}
+        transition={{ type: "spring", stiffness: 320, damping: 28 }}
+        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+      >
+        <div
+          className={cn(
+            "relative rounded-2xl border border-white/15 overflow-hidden",
+            "bg-gradient-to-b from-black/85 via-black/75 to-black/85",
+            "backdrop-blur-2xl shadow-2xl shadow-black/50"
+          )}
+        >
+          {/* Header */}
+          <div className="flex items-center gap-2.5 px-4 pt-3 pb-2">
+            <VisualSoul
+              state={isNavigating ? "thinking" : "acting"}
+              personality={personality}
+              size="sm"
+            />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white/90 truncate">
+                {isNavigating
+                  ? "正在帶你過去…"
+                  : `已帶你到 ${plan?.targetLabel ?? ""}`}
+              </p>
+              {!isNavigating && plan?.orbMessage && (
+                <p className="text-[11px] text-white/50 truncate">
+                  {plan.orbMessage}
+                </p>
+              )}
+            </div>
+            <motion.button
+              onClick={dismissArrival}
+              className="p-1.5 rounded-full hover:bg-white/10 text-white/40 hover:text-white/70 transition-all shrink-0"
+              whileTap={{ scale: 0.9 }}
+              title="收掉引導"
+            >
+              <X className="w-3.5 h-3.5" />
+            </motion.button>
+          </div>
+
+          {isNavigating ? (
+            <div className="px-4 pb-4 flex items-center gap-2 text-xs text-white/55">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <span>正在自動切到對應分頁、準備好提示詞…</span>
+            </div>
+          ) : (
+            <div className="px-4 pb-4 space-y-3">
+              {autoLines.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-[11px] uppercase tracking-wide text-white/40">
+                    已自動完成
+                  </p>
+                  <ul className="space-y-1">
+                    {autoLines.map((line, i) => (
+                      <li
+                        key={i}
+                        className="flex items-start gap-2 text-xs text-white/75"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 text-emerald-300/90 shrink-0" />
+                        <span className="leading-relaxed">{line}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {manualSteps.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-[11px] uppercase tracking-wide text-white/40">
+                    接下來請你做
+                  </p>
+                  <ul className="space-y-1">
+                    {manualSteps.map(s => {
+                      const done = completedManualStepIds.includes(s.id);
+                      return (
+                        <li key={s.id}>
+                          <button
+                            type="button"
+                            onClick={() => toggleManualStepDone(s.id)}
+                            className={cn(
+                              "w-full flex items-start gap-2 text-left rounded-lg px-1.5 py-1 -mx-1.5 transition-colors",
+                              "hover:bg-white/6"
+                            )}
+                          >
+                            {done ? (
+                              <Check className="w-3.5 h-3.5 mt-0.5 text-emerald-300 shrink-0" />
+                            ) : (
+                              <Circle className="w-3.5 h-3.5 mt-0.5 text-white/40 shrink-0" />
+                            )}
+                            <span
+                              className={cn(
+                                "text-xs leading-relaxed",
+                                done
+                                  ? "text-white/40 line-through"
+                                  : "text-white/85"
+                              )}
+                            >
+                              {s.label}
+                              {s.hint && (
+                                <span className="block text-[10px] text-white/40 mt-0.5">
+                                  {s.hint}
+                                </span>
+                              )}
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+
+              <motion.button
+                onClick={dismissArrival}
+                className={cn(
+                  "w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-medium transition-all",
+                  allManualDone
+                    ? "bg-emerald-400/20 hover:bg-emerald-400/30 border border-emerald-300/30 text-emerald-50"
+                    : "bg-white/8 hover:bg-white/14 border border-white/12 text-white/75"
+                )}
+                whileTap={{ scale: 0.98 }}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                {allManualDone ? "都做完了，謝謝光球" : "我自己來，先收掉"}
+              </motion.button>
+            </div>
+          )}
+        </div>
+      </motion.div>
+    );
+  }
 
   // ── Fullscreen: wrap in fixed overlay; Desktop: return panel directly ──
   if (fullscreen) {
