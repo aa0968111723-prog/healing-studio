@@ -722,6 +722,11 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       inputSchema: { imageUrl: true, prompt: true, duration: true },
       outputSchema: { videoUrl: true },
       timeoutMs: 300_000,
+      // Live audit (2026-05-03): fal returns
+      // 404 'Application "cammaster" not found' on submit. Model removed.
+      disabled: true,
+      disabledReason:
+        "fal returns 404 'Application \"cammaster\" not found' on submit; removed at fal",
     },
     {
       modelId: "fal-ai/vidu/q1/reference-to-video",
@@ -2049,6 +2054,14 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       inputSchema: { videoUrl: true },
       outputSchema: { videoUrl: true },
       timeoutMs: 300_000,
+      // Live audit (2026-05-03): same upstream pattern as kling t2v / topaz —
+      // fal accepts the submit at /fal-ai/bytedance/upscaler/video, gateway
+      // short-circuits (status COMPLETED in <5s, no inference, empty
+      // metrics), and the result endpoint returns
+      // 200 {"detail":"Path /upscaler/video not found"}. Model removed at fal.
+      disabled: true,
+      disabledReason:
+        "fal upstream short-circuits the submit; result endpoint returns 'Path /upscaler/video not found'",
     },
     {
       modelId: "fal-ai/rife-v4.6/video",
@@ -2077,6 +2090,14 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       inputSchema: { videoUrl: true },
       outputSchema: { videoUrl: true },
       timeoutMs: 600_000,
+      // Live audit (2026-05-03): same upstream pattern as bytedance upscaler.
+      // Submit accepts; status COMPLETED in <5s with empty metrics; result
+      // endpoint returns 200 {"detail":"Path /video-enhance not found"}.
+      // fal stripped the suffix at the queue layer but no actual handler
+      // exists for the topaz model anymore.
+      disabled: true,
+      disabledReason:
+        "fal upstream short-circuits the submit; result endpoint returns 'Path /video-enhance not found'",
     },
     // ── 進階控制：v2v 變體 ──
     {

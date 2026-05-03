@@ -195,10 +195,79 @@ correctly wired (auth, destination model creation, training POST,
 status polling, refund on failure). No code changes needed; the
 audit just confirms it works.
 
+## Round 4 — webhooks + remaining model families
+
+### Webhook handlers verified end-to-end
+
+Simulated each of the three webhook endpoints with a fake completion
+payload (using the project's HMAC secret for fal):
+
+- **`/api/webhook/suno`** — sent a payload in the new contract shape
+  (`data.response.sunoData[]`, `audioUrl` camelCase), confirmed the
+  handler updates `background_jobs.status='completed'` and writes the
+  R2-localized URL.
+- **`/api/webhook/fal`** — signed payload with `FAL_WEBHOOK_SECRET`,
+  confirmed HMAC verification passes, job marked completed with R2 URL.
+- **`/api/webhook/replicate`** — sent the standard prediction payload
+  with `output.weights` (real format from a successful LoRA training),
+  confirmed `fine_tuned_models.status='ready'` + `trainedLoraUrl` set.
+
+#### K. Suno webhook only read the old `data.data[]` clip path
+
+Same root cause as the Suno API contract change in round 3: the
+webhook handler's `normalizeClips` only read clips from `data.data[]`,
+the old apibox.erweima.ai shape. The new gateway sends them at
+`data.response.sunoData[]` instead. **Live Suno callbacks would have
+been silently dropped** — the handler would emit `Suno 回呼未帶 audio
+URL`, mark the job failed, and refund nothing. Fixed by adding the
+new path and accepting `streamAudioUrl` as a fallback when the
+rendered `audioUrl` isn't ready yet.
+
+### Three more upstream-broken models flagged disabled
+
+- `fal-ai/cammaster` — fal returns 404 'Application "cammaster" not
+  found' on submit. Removed at fal.
+- `fal-ai/topaz/video-enhance` — submit accepts, status COMPLETED in
+  <5s with empty metrics, result endpoint returns
+  200 `{"detail":"Path /video-enhance not found"}`. Same upstream
+  short-circuit pattern as kling t2v.
+- `fal-ai/bytedance/upscaler/video` — same pattern: result endpoint
+  returns `"Path /upscaler/video not found"`.
+
+All three flagged `disabled: true` in `server/services/falModels.ts`;
+the dispatcher's auto-degrade chain handles legacy brain-config /
+saved-job references to them.
+
+### Models verified working that round 4 confirmed
+
+These models accept submit at fal and route through correctly (some
+were too queue-deep to wait through completion in this round, but the
+contract is intact):
+
+- `fal-ai/dia-tts/voice-clone`, `fal-ai/elevenlabs/voice-cloning`,
+  `fal-ai/kling-video/create-voice` (voice clone family)
+- `fal-ai/longcat-single-avatar/audio-to-video`, `fal-ai/echomimic-v3`,
+  `fal-ai/wan/v2.2-14b/speech-to-video` (avatar / talking-head)
+- `fal-ai/hunyuan3d-v3/image-to-3d`, `fal-ai/sam-3/3d-objects` (3D)
+- `fal-ai/whisper`, `fal-ai/wizper` (ASR — confirmed end-to-end with
+  real audio: Whisper returned `text: " Hi."`)
+- `fal-ai/dwpose` (image pose detection — codebase correctly sends
+  `image_url`, harness's `video_url` was wrong category)
+- `fal-ai/elevenlabs/dubbing` (downstream service error on a 0.6s
+  audio sample — input issue, not codebase bug)
+
 ## What still isn't covered
 
-(nothing significant — every codebase-side wiring issue surfaced by
-the live audit has been fixed)
+- Veo3 / Sora ultra-tier text-to-video — gated behind `--include-ultra`
+  flag (each call is ~$0.40+).
+- Sonauto music generation timed out at 5 min queue depth (real fal
+  queue, not a code bug).
+- Director AI procedures beyond the three core ones (chat /
+  executeGenerationTask / pollGenerationTask) — `analyzeScriptOverview`,
+  `generateSegmentCostar`, `batchGenerateCostar`, `discussSegment`,
+  `refineScript`, `planningDiscuss`, etc. The underlying LLM router
+  is proven working (gemini-2.5-pro), so the pattern would be
+  end-to-end testing of each rather than wire-up debugging.
 - Webhook callbacks (Suno, fal, Replicate) — those are exercised
   asynchronously by the providers, not by direct testing.
 - Director AI tRPC procedures (`chat`, `executeGenerationTask`,

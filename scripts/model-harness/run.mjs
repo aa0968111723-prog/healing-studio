@@ -374,6 +374,120 @@ const MATRIX = [
     timeoutMs: 1_200_000,
     notes: "trains LoRA on 5 zen-garden images, ~$3-5 budget",
   },
+
+  // ────────── ROUND 4: REMAINING FAMILIES ─────────────
+
+  // Voice clone + design (round 4)
+  {
+    id: "fal-ai/dia-tts/voice-clone",
+    family: "voice-clone-r4",
+    input: { text: "[S1] Hi everyone! [S2] Hi back!" },
+    timeoutMs: 120_000,
+  },
+  ...(skipElevenLabs ? [] : [
+    {
+      id: "fal-ai/elevenlabs/voice-cloning",
+      family: "voice-clone-r4",
+      input: { audio_url: SAMPLE_AUDIO_URL, name: "harness-test-voice" },
+      timeoutMs: 120_000,
+      extraHeaders: { "x-fal-client-credentials": ELEVENLABS_KEY },
+    },
+  ]),
+  {
+    id: "fal-ai/kling-video/create-voice",
+    family: "voice-clone-r4",
+    input: { audio_url: SAMPLE_AUDIO_URL, name: "harness-test-voice" },
+    timeoutMs: 180_000,
+  },
+
+  // Avatar / talking head (round 4)
+  {
+    id: "fal-ai/longcat-single-avatar/audio-to-video",
+    family: "avatar-r4",
+    input: { image_url: SAMPLE_IMAGE_URL, audio_url: SAMPLE_AUDIO_URL },
+    timeoutMs: 600_000,
+  },
+  {
+    id: "fal-ai/echomimic-v3",
+    family: "avatar-r4",
+    input: { image_url: SAMPLE_IMAGE_URL, audio_url: SAMPLE_AUDIO_URL },
+    timeoutMs: 600_000,
+  },
+
+  // Video utilities (round 4)
+  {
+    id: "fal-ai/topaz/video-enhance",
+    family: "video-util",
+    input: { video_url: SAMPLE_VIDEO_URL, output_scale: 2 },
+    timeoutMs: 900_000,
+    notes: "ultra-tier",
+  },
+  {
+    id: "fal-ai/bytedance/upscaler/video",
+    family: "video-util",
+    input: { video_url: SAMPLE_VIDEO_URL, target_resolution: "2k" },
+    timeoutMs: 600_000,
+  },
+  {
+    id: "fal-ai/cammaster",
+    family: "video-util",
+    input: { video_url: SAMPLE_VIDEO_URL, prompt: "smooth dolly zoom" },
+    timeoutMs: 600_000,
+  },
+  {
+    id: "fal-ai/dwpose",
+    family: "video-util",
+    input: { video_url: SAMPLE_VIDEO_URL },
+    timeoutMs: 240_000,
+  },
+
+  // 3D round 4
+  {
+    id: "fal-ai/hunyuan3d-v3/image-to-3d",
+    family: "3d-r4",
+    input: { input_image_url: SAMPLE_IMAGE_URL },
+    timeoutMs: 600_000,
+  },
+  {
+    id: "fal-ai/sam-3/3d-objects",
+    family: "3d-r4",
+    input: { image_url: SAMPLE_IMAGE_URL, prompt: "garden lantern" },
+    timeoutMs: 240_000,
+  },
+
+  // Sonauto music
+  {
+    id: "sonauto/v2/text-to-music",
+    family: "audio-r4",
+    input: { tags: "ambient, piano, calm", duration: 30 },
+    timeoutMs: 300_000,
+    notes: "fal alias for sonauto",
+  },
+
+  // ASR
+  {
+    id: "fal-ai/whisper",
+    family: "asr",
+    input: { audio_url: SAMPLE_AUDIO_URL },
+    timeoutMs: 120_000,
+  },
+  {
+    id: "fal-ai/wizper",
+    family: "asr",
+    input: { audio_url: SAMPLE_AUDIO_URL },
+    timeoutMs: 120_000,
+  },
+
+  // ElevenLabs dubbing
+  ...(skipElevenLabs ? [] : [
+    {
+      id: "fal-ai/elevenlabs/dubbing",
+      family: "audio-util-r4",
+      input: { video_url: SAMPLE_VIDEO_URL, target_lang: "es" },
+      timeoutMs: 600_000,
+      extraHeaders: { "x-fal-client-credentials": ELEVENLABS_KEY },
+    },
+  ]),
 ];
 
 // ─── HTTP plumbing ─────────────────────────────────────────────────────────
