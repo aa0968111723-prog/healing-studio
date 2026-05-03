@@ -431,6 +431,23 @@ const multimodalSchema = z.object({
   BRAVE_SEARCH_API_KEY: z.string().min(1).optional().default(""),
   PERPLEXITY_API_KEY: z.string().min(1).optional().default(""),
 
+  // ── Perplexity 開關 + 節流（混合搭配時控制成本 / 啟停） ─────────────
+  // 主開關：關掉後所有走 Perplexity 的功能（director research、inspiration
+  // tool、webSearch native、newsFetcher fallback、braveLearnFetcher fallback）
+  // 都會直接跳過 Perplexity 走原本的 fallback 鏈。
+  ENABLE_PERPLEXITY: z.string().optional().default("true"),
+  // 子開關：個別功能開關（主開關開啟時才生效；任一關閉就停掉該入口）
+  ENABLE_PERPLEXITY_DIRECTOR_RESEARCH: z.string().optional().default("true"),
+  ENABLE_PERPLEXITY_INSPIRATION: z.string().optional().default("true"),
+  ENABLE_PERPLEXITY_WEB_SEARCH: z.string().optional().default("true"),
+  ENABLE_PERPLEXITY_NEWS_FALLBACK: z.string().optional().default("true"),
+  ENABLE_PERPLEXITY_LEARN_FALLBACK: z.string().optional().default("true"),
+  // 節流：per-user / global rate limits（防止單一使用者或整體流量爆衝）
+  // 0 / 空字串 = 不限制（謹慎使用）
+  PERPLEXITY_PER_USER_PER_HOUR: z.string().optional().default("30"),
+  PERPLEXITY_PER_USER_PER_DAY: z.string().optional().default("100"),
+  PERPLEXITY_GLOBAL_PER_MINUTE: z.string().optional().default("60"),
+
   // ── 姿勢估測 ─────────────────────────────────────────────
   OPENPOSE_API_KEY: z.string().min(1).optional().default(""),
 

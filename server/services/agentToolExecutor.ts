@@ -1842,7 +1842,7 @@ async function dispatchStudioTool(
  */
 async function dispatchInspirationTool(
   call: OrbToolCall,
-  _opts: ExecuteOrbToolCallsOptions
+  opts: ExecuteOrbToolCallsOptions
 ): Promise<OrbToolCallResult> {
   const { fetchInspiration } = await import("./inspirationFetcher");
   const args = (call.args ?? {}) as Record<string, unknown>;
@@ -1856,6 +1856,9 @@ async function dispatchInspirationTool(
   }
   try {
     const result = await fetchInspiration({
+      // userId 帶進去讓 perplexityThrottle 計入 per-user 配額（per-hour /
+      // per-day），同一個使用者亂呼叫不會把全站額度燒光。
+      userId: opts.userId,
       topic: topic.trim(),
       modality:
         typeof args.modality === "string"

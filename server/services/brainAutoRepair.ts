@@ -2141,7 +2141,18 @@ export async function webSearch(
   // 優先於 OpenRouter 路徑：少一層轉接，請求本身較快，且能直接吃 Perplexity
   // 提供的 search_results 欄位（含 title / url / 來源網域），不需另外
   // prompt-engineer JSON。
-  if (results.length === 0 && ENV.perplexityApiKey) {
+  // 受 perplexityThrottle 控管：env ENABLE_PERPLEXITY_WEB_SEARCH 可整個關掉，
+  // 全站節流上限超過時自動跳過走下一條 fallback（OpenRouter Sonar / GitHub）。
+  // webSearch 是被多處呼叫的共用工具（光球、director research、其他 cron），
+  // 沒有單一 user 概念，所以 userId 傳 null 只受全站節流。
+  const { checkAndConsumePerplexity: checkWebSearchThrottle } = await import(
+    "./perplexityThrottle"
+  );
+  const webSearchThrottle =
+    results.length === 0 && ENV.perplexityApiKey
+      ? checkWebSearchThrottle({ feature: "web_search", userId: null })
+      : { allowed: false as const };
+  if (results.length === 0 && ENV.perplexityApiKey && webSearchThrottle.allowed) {
     try {
       const sonarRes = await fetch(
         "https://api.perplexity.ai/chat/completions",

@@ -1304,10 +1304,24 @@ async function runDirectorAI(
   //     即時問題
   //   - Sonar 的 search_results / citations 直接附帶可點擊來源，創作者
   //     可以追溯「為什麼導演 AI 提這個風格」
-  const sonarAvailable = Boolean(
+  //
+  // Throttle / Feature flag：透過 perplexityThrottle 統一管控（env:
+  // ENABLE_PERPLEXITY、ENABLE_PERPLEXITY_DIRECTOR_RESEARCH、per-user 與全站
+  // rate limits）。被節流時自動降回 brainConfig，導演 AI 仍可運作。
+  const { checkAndConsumePerplexity } = await import(
+    "../services/perplexityThrottle"
+  );
+  const apiKeyAvailable = Boolean(
     process.env.PERPLEXITY_API_KEY?.trim() ||
       process.env.OPENROUTER_API_KEY?.trim()
   );
+  const throttleCheck = apiKeyAvailable
+    ? checkAndConsumePerplexity({
+        feature: "director_research",
+        userId,
+      })
+    : { allowed: false as const };
+  const sonarAvailable = apiKeyAvailable && throttleCheck.allowed;
   const researchModel = sonarAvailable
     ? "perplexity/sonar-reasoning-pro"
     : brainConfig?.model;
@@ -3810,11 +3824,53 @@ ${director.systemPrompt ? `\n附加大腦指令：\n${director.systemPrompt}` : 
         maxResults: z.number().int().min(1).max(8).optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       const { fetchInspiration } = await import(
         "../services/inspirationFetcher"
       );
-      const result = await fetchInspiration(input);
+      // 帶 userId 進去讓 perplexityThrottle 計入 per-user hourly / daily 配額
+      const result = await fetchInspiration({ ...input, userId: ctx.user.id });
       return result;
     }),
+
+  /**
+   * perplexityThrottleStatus — 給 UI 看當前 Perplexity 配額狀態
+   * ────────────────────────────────────────────────────────────────────────
+   * 回傳：
+   *   - masterEnabled: 主開關是否打開
+   *   - features: 5 個子功能個別是否啟用
+   *   - limits: 環境變數設定的上限（per-user-hour / per-user-day / global-min）
+   *   - user.usedLastHour / usedLastDay: 當前使用者已用次數
+   *   - user.remainingHour / remainingDay: 剩餘配額（Infinity = 不限制）
+   *   - globalUsedLastMinute: 全站最近一分鐘總用量
+   *
+   * UI 使用情境：
+   *   - 導演 / 光球面板顯示「今日靈感查詢還剩 X 次」
+   *   - 「即時趨勢」按鈕在配額用盡時 disable
+   *   - 管理員後台監看是否需要調整 env 上限
+   */
+  perplexityThrottleStatus: brainProcedure.query(async ({ ctx }) => {
+    const { getPerplexityThrottleStatus } = await import(
+      "../services/perplexityThrottle"
+    );
+    const status = getPerplexityThrottleStatus(ctx.user.id);
+    // Number.POSITIVE_INFINITY 不能直接 JSON 序列化（會變成 null），改回 -1
+    // 表示「不限制」讓 client 可以判斷。
+    const sanitize = (n: number): number =>
+      Number.isFinite(n) ? n : -1;
+    return {
+      masterEnabled: status.masterEnabled,
+      features: status.features,
+      limits: status.limits,
+      globalUsedLastMinute: status.globalUsedLastMinute,
+      user: status.user
+        ? {
+            usedLastHour: status.user.usedLastHour,
+            usedLastDay: status.user.usedLastDay,
+            remainingHour: sanitize(status.user.remainingHour),
+            remainingDay: sanitize(status.user.remainingDay),
+          }
+        : null,
+    };
+  }),
 });

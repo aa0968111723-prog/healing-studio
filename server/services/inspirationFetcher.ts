@@ -17,6 +17,10 @@
  */
 
 import { ENV } from "../_core/env";
+import {
+  checkAndConsumePerplexity,
+  describeThrottleReason,
+} from "./perplexityThrottle";
 
 const PERPLEXITY_TIMEOUT_MS = 25_000;
 const OPENROUTER_TIMEOUT_MS = 30_000;
@@ -77,6 +81,11 @@ export interface InspirationFetchInput {
   angle?: InspirationAngle;
   format?: InspirationFormat;
   maxResults?: number;
+  /**
+   * Throttle 計費對象：tRPC / orb tool 呼叫填使用者 ID；cron / 系統內部
+   * 呼叫填 null（仍受全站節流，但不算進 per-user 配額）。預設 null。
+   */
+  userId?: number | null;
 }
 
 function clampMaxResults(n: number | undefined): number {
@@ -381,6 +390,32 @@ export async function fetchInspiration(
       error: "topic 必填",
     };
   }
+
+  // ── Throttle / Feature flag 閘門 ──────────────────────────────────────
+  // 統一在這裡攔截：feature_disabled / user_hour_limit / user_day_limit /
+  // global_minute_limit 都會回 ok=false 帶 reason，呼叫端可以用
+  // describeThrottleReason() 把 reason 轉成繁中提示。
+  const throttle = checkAndConsumePerplexity({
+    feature: "inspiration",
+    userId: input.userId ?? null,
+  });
+  if (!throttle.allowed) {
+    return {
+      ok: false,
+      provider: "none",
+      cards: [],
+      sources: [],
+      summary: "",
+      error: throttle.reason
+        ? `${describeThrottleReason(throttle.reason)}${
+            throttle.retryAfterSec
+              ? `（建議 ${throttle.retryAfterSec}s 後再試）`
+              : ""
+          }`
+        : "Perplexity 節流",
+    };
+  }
+
   const maxResults = clampMaxResults(input.maxResults);
   const systemPrompt = buildSystemPrompt({ ...input, maxResults });
 
