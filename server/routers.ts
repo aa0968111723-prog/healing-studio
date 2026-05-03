@@ -60,6 +60,12 @@ import { loadAgentPreferencesForUser } from "./services/agentPreferenceService";
 import { orbToolCallLogStore } from "./services/orbToolCallLogStore";
 import { runSchemaFirstAgentPlanner } from "./services/agentPlanner";
 import {
+  observeOrbTaskOutcome,
+  observationToAuditMessage,
+  observationToAuditMetadata,
+} from "./services/orbTaskObserver";
+import {
+  appendOrbAgentTaskAuditEvent,
   approveOrbAgentTask,
   cancelOrbAgentTask,
   completeOrbAgentStep,
@@ -315,6 +321,33 @@ async function driveOrbTaskInBackground(input: {
       console.warn(
         `[Orb] auto-driver finished with failure: taskId=${input.taskId} reason=${result.reason ?? "unknown"}`
       );
+    }
+    // Agent loop v1 — post-mortem observation. Off by default; enable via
+    // ORB_OBSERVATION_LOOP=1 to surface a friendly user-facing summary as a
+    // `task.observed` audit event. Front-end already streams audit events
+    // via the FSM SSE so no client change is strictly required to see it.
+    if (process.env.ORB_OBSERVATION_LOOP === "1") {
+      try {
+        const fsmTask = getOrbAgentTask(input.taskId);
+        const observation = await observeOrbTaskOutcome({
+          intent: fsmTask?.intent ?? result.finalTask?.intent ?? "",
+          runResult: result,
+          agentTask: fsmTask,
+        });
+        appendOrbAgentTaskAuditEvent(
+          input.taskId,
+          "task.observed",
+          observationToAuditMessage(observation),
+          observationToAuditMetadata(observation)
+        );
+      } catch (observerError) {
+        // Never let observer crash break the auto-driver — observation is a
+        // post-mortem nicety, not a correctness requirement.
+        console.warn(
+          `[Orb] observer failed for taskId=${input.taskId}:`,
+          observerError instanceof Error ? observerError.message : String(observerError)
+        );
+      }
     }
   } catch (error) {
     // The auto-driver crashed before runOrbTaskToCompletion could write

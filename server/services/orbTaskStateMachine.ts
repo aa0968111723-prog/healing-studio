@@ -594,3 +594,24 @@ export function recordAgentMessage(
 export function getOrbAgentTaskEvents(taskId: string): OrbTaskAuditEvent[] {
   return taskStore.get(taskId)?.auditEvents ?? [];
 }
+
+/**
+ * Append a single audit event to an existing FSM task. Returns the new event
+ * (with generated `eventId` / `timestamp`) or null if the task is unknown.
+ *
+ * Use this for cross-cutting layers (e.g. orbTaskObserver) that need to add
+ * structured events without owning the full pushEvent / lifecycle machinery.
+ * Caller chooses the event `type` from the existing audit-event union.
+ */
+export function appendOrbAgentTaskAuditEvent(
+  taskId: string,
+  type: OrbTaskAuditEvent["type"],
+  message: string,
+  metadata?: Record<string, unknown>
+): OrbTaskAuditEvent | null {
+  const task = taskStore.get(taskId);
+  if (!task) return null;
+  pushEvent(task, type, message, metadata);
+  task.updatedAt = now();
+  return task.auditEvents[task.auditEvents.length - 1] ?? null;
+}

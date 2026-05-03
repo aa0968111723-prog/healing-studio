@@ -34,6 +34,7 @@ export interface OrbTaskAuditEvent {
     | "step.rollback_failed"
     | "task.recovering"
     | "task.replanning"
+    | "task.observed"
     | "task.completed"
     | "task.failed"
     | "task.cancelled"
