@@ -6,7 +6,7 @@
 --
 -- Statements separated by Drizzle breakpoint markers (multi-statement is off).
 
-CREATE TABLE `model_training_consents` (
+CREATE TABLE IF NOT EXISTS `model_training_consents` (
   `id` int NOT NULL AUTO_INCREMENT,
   `userId` int NOT NULL,
   `subjectType` enum('self','real_person','copyrighted') NOT NULL,
@@ -41,7 +41,7 @@ CREATE TABLE `model_training_consents` (
 );
 --> statement-breakpoint
 
-CREATE TABLE `fine_tuned_model_consents` (
+CREATE TABLE IF NOT EXISTS `fine_tuned_model_consents` (
   `id` int NOT NULL AUTO_INCREMENT,
   `modelId` int NOT NULL,
   `consentId` int NOT NULL,

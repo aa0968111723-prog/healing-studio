@@ -162,6 +162,20 @@
       "when": 1777593600000,
       "tag": "0021_align_voice_engine_default",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "5",
+      "when": 1777618545000,
+      "tag": "0022_model_training_consents",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1777736542000,
+      "tag": "0023_agent_preferences_phase_d",
+      "breakpoints": true
     }
   ]
 }
