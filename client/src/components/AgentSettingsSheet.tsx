@@ -89,14 +89,19 @@ const MODE_DESCRIPTIONS: Record<
 /**
  * 預設 cron 範例，幫使用者快速套用，避免不熟 cron 語法。
  * 顯示給人看的標籤是繁中、寫進設定的是標準 cron。
+ * 全部以 台灣時間 (Asia/Taipei, UTC+8) 解讀。
  */
 const CRON_PRESETS: Array<{ id: string; label: string; cron: string }> = [
   { id: "every-morning", label: "每天早上 09:00", cron: "0 9 * * *" },
   { id: "every-noon", label: "每天中午 12:00", cron: "0 12 * * *" },
   { id: "every-evening", label: "每天晚上 21:00", cron: "0 21 * * *" },
+  { id: "every-late-night", label: "每天凌晨 03:00", cron: "0 3 * * *" },
   { id: "weekday-morning", label: "工作日早上 09:00", cron: "0 9 * * 1-5" },
   { id: "weekly-monday", label: "每週一 09:00", cron: "0 9 * * 1" },
+  { id: "weekly-friday-evening", label: "每週五 18:00", cron: "0 18 * * 5" },
+  { id: "monthly-first", label: "每月 1 號 09:00", cron: "0 9 1 * *" },
   { id: "every-hour", label: "每小時整點", cron: "0 * * * *" },
+  { id: "every-30-min", label: "每 30 分鐘", cron: "*/30 * * * *" },
 ];
 
 const TASK_TEMPLATES: Array<{ id: string; label: string; text: string }> = [
@@ -322,6 +327,35 @@ export default function AgentSettingsSheet({
                     <span className="text-xs text-muted-foreground">步</span>
                   </div>
                 </section>
+
+                <section className="space-y-2 rounded-2xl border border-primary/30 bg-primary/5 p-4">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-primary">
+                    目前生效
+                  </h3>
+                  <ul className="text-xs text-foreground space-y-1 leading-relaxed">
+                    <li>
+                      <span className="text-muted-foreground">行為模式：</span>
+                      {MODE_DESCRIPTIONS[mode].title}（
+                      <code className="font-mono text-[10px] bg-muted px-1 rounded">
+                        {MODE_TO_POLICY[mode]}
+                      </code>
+                      ）— {MODE_DESCRIPTIONS[mode].description}
+                    </li>
+                    <li>
+                      <span className="text-muted-foreground">單一任務上限：</span>
+                      {maxAutoStepsPerTask} 步（超過會先暫停問你）
+                    </li>
+                    <li>
+                      <span className="text-muted-foreground">完成通知：</span>
+                      {notifyOnCompletion ? "開啟" : "關閉"}
+                      <span className="text-muted-foreground">，失敗通知：</span>
+                      {notifyOnError ? "開啟" : "關閉"}
+                    </li>
+                  </ul>
+                  <p className="text-[10px] text-muted-foreground pt-1">
+                    記得按下方「儲存設定」才會寫入。
+                  </p>
+                </section>
               </TabsContent>
 
               {/* ── 自動排程 ──────────────────────────────────────── */}
@@ -341,62 +375,74 @@ export default function AgentSettingsSheet({
 
               {/* ── 全站開關 ──────────────────────────────────────── */}
               <TabsContent value="global" className="space-y-3 pt-4">
-                <section className="space-y-3 rounded-2xl border bg-card p-4">
-                  <h3 className="text-sm font-semibold">代理人總開關</h3>
-                  <p className="text-xs text-muted-foreground">
-                    跟隨環境設定 = 讓站方決定；強制啟用 / 關閉 會覆寫整個帳號的設定。
-                  </p>
-                  <div className="grid gap-2 sm:grid-cols-3">
-                    {(
-                      [
-                        [null, "跟隨環境"],
-                        [true, "強制啟用"],
-                        [false, "強制關閉"],
-                      ] as Array<[boolean | null, string]>
-                    ).map(([value, label]) => (
-                      <button
-                        key={String(value)}
-                        type="button"
-                        onClick={() => setOrbAgentEnabled(value)}
-                        className={`rounded-xl border px-2 py-2 text-xs transition ${
-                          orbAgentEnabled === value
-                            ? "border-primary bg-primary/5"
-                            : "border-border hover:border-primary/40"
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </section>
+                <TriStateSection
+                  title="代理人總開關"
+                  intro="這個開關控制全站的光球代理人能不能執行動作（不只聊天）。"
+                  options={[
+                    {
+                      value: null,
+                      label: "跟隨環境",
+                      detail:
+                        "用站方在 ORB_AGENT_ENABLED 設定的預設值。多數時候建議選這個。",
+                    },
+                    {
+                      value: true,
+                      label: "強制啟用",
+                      detail:
+                        "覆寫站方設定，永遠開著。即使站方暫時關閉光球（例如維護），你的帳號仍會嘗試執行。",
+                    },
+                    {
+                      value: false,
+                      label: "強制關閉",
+                      detail:
+                        "覆寫站方設定，整個帳號的光球代理人會停止執行任何動作（聊天還是可以用）。排程也會被略過。",
+                    },
+                  ]}
+                  selected={orbAgentEnabled}
+                  onChange={setOrbAgentEnabled}
+                />
 
-                <section className="space-y-3 rounded-2xl border bg-card p-4">
-                  <h3 className="text-sm font-semibold">跨頁工作流</h3>
-                  <p className="text-xs text-muted-foreground">
-                    多步驟、跨頁面的任務（例如「先生圖、再剪片、再上字幕」）。
-                  </p>
-                  <div className="grid gap-2 sm:grid-cols-3">
-                    {(
-                      [
-                        [null, "跟隨環境"],
-                        [true, "啟用工作流"],
-                        [false, "停用工作流"],
-                      ] as Array<[boolean | null, string]>
-                    ).map(([value, label]) => (
-                      <button
-                        key={String(value)}
-                        type="button"
-                        onClick={() => setWorkflowsEnabled(value)}
-                        className={`rounded-xl border px-2 py-2 text-xs transition ${
-                          workflowsEnabled === value
-                            ? "border-primary bg-primary/5"
-                            : "border-border hover:border-primary/40"
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
+                <TriStateSection
+                  title="跨頁工作流"
+                  intro="多步驟、跨頁面的任務（例如「先生圖、再剪片、再上字幕」）。關閉後光球只能在當前頁完成單一動作。"
+                  options={[
+                    {
+                      value: null,
+                      label: "跟隨環境",
+                      detail:
+                        "用站方在 ORB_WORKFLOWS_ENABLED 設定的預設值。",
+                    },
+                    {
+                      value: true,
+                      label: "啟用工作流",
+                      detail:
+                        "覆寫站方設定，允許光球串連多步任務、跨頁規劃，並使用排程預先準備素材。",
+                    },
+                    {
+                      value: false,
+                      label: "停用工作流",
+                      detail:
+                        "只允許單頁、單步的工具呼叫；自動排程仍會依 cron 觸發，但只會跑「單步」任務。",
+                    },
+                  ]}
+                  selected={workflowsEnabled}
+                  onChange={setWorkflowsEnabled}
+                />
+
+                <section className="space-y-2 rounded-2xl border bg-card p-4">
+                  <h3 className="text-sm font-semibold">時區與生效範圍</h3>
+                  <ul className="text-xs text-muted-foreground space-y-1 leading-relaxed list-disc pl-4">
+                    <li>
+                      所有自動排程都按 <span className="font-medium text-foreground">台灣時間（Asia/Taipei, UTC+8）</span>
+                      解讀，伺服器位於哪個時區都不會影響。
+                    </li>
+                    <li>
+                      上方兩個總開關套用到全站每一頁的光球（首頁、生圖、設定…），按下「儲存設定」後立即生效，不需要重新整理。
+                    </li>
+                    <li>
+                      強制覆寫只影響你自己的帳號，其他使用者仍依站方預設或自己的設定。
+                    </li>
+                  </ul>
                 </section>
 
                 <section className="space-y-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-4">
@@ -550,15 +596,36 @@ function ScheduleSection({ isAuthenticated }: { isAuthenticated: boolean }) {
                     </span>
                   )}
                 </div>
-                <div className="truncate text-xs text-muted-foreground mt-0.5">
-                  <code className="rounded bg-muted px-1 mr-1">
+                <div className="text-xs text-muted-foreground mt-0.5 leading-snug">
+                  <code className="rounded bg-muted px-1 mr-1 font-mono text-[10px]">
                     {job.cronExpression}
                   </code>
+                  {job.cronDescription && (
+                    <span className="text-foreground/80">{job.cronDescription}</span>
+                  )}
+                </div>
+                <div className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">
                   {job.taskDescription}
                 </div>
+                {job.enabled && job.nextRun && (
+                  <div className="text-[10px] text-emerald-700 dark:text-emerald-400 mt-1 flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    下次執行：{job.nextRun.label}
+                    <span className="opacity-70">· {job.nextRun.relative}</span>
+                  </div>
+                )}
                 {job.lastRunAt && (
                   <div className="text-[10px] text-muted-foreground mt-0.5">
-                    上次執行：{new Date(job.lastRunAt).toLocaleString("zh-TW")}
+                    上次執行：
+                    {new Date(job.lastRunAt).toLocaleString("zh-TW", {
+                      timeZone: "Asia/Taipei",
+                      month: "2-digit",
+                      day: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      hour12: true,
+                    })}
+                    <span className="ml-1 opacity-70">（台灣時間）</span>
                   </div>
                 )}
                 {job.lastError && (
@@ -644,7 +711,18 @@ function ScheduleSection({ isAuthenticated }: { isAuthenticated: boolean }) {
         </label>
 
         <div className="space-y-1.5">
-          <span className="text-xs font-medium">執行時間</span>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-medium">執行時間</span>
+            <div className="flex items-center gap-1">
+              <span
+                className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/70 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-700/40"
+                title="所有 cron 都以 Asia/Taipei 解讀，下方預覽就是真實會跑的時間。"
+              >
+                台灣時間 UTC+8
+              </span>
+              <BrowserTimezoneHint />
+            </div>
+          </div>
           <div className="flex flex-wrap gap-1.5">
             {CRON_PRESETS.map(preset => (
               <button
@@ -672,9 +750,33 @@ function ScheduleSection({ isAuthenticated }: { isAuthenticated: boolean }) {
             cron={trimmedCron}
             isAuthenticated={isAuthenticated}
           />
-          <p className="text-[10px] text-muted-foreground">
+          <p className="text-[10px] text-muted-foreground leading-relaxed">
             cron 格式：分(0-59) 時(0-23) 日(1-31) 月(1-12) 週(0-6, 週日為 0)。
+            所有時間都按 <span className="font-medium">台灣時間（Asia/Taipei）</span>解讀，
+            不受瀏覽器或伺服器所在時區影響。
           </p>
+          <details className="text-[10px] text-muted-foreground">
+            <summary className="cursor-pointer hover:text-foreground">
+              cron 範例
+            </summary>
+            <ul className="mt-1 space-y-0.5 pl-3 list-disc">
+              <li>
+                <code className="font-mono">0 9 * * *</code> — 每天 09:00
+              </li>
+              <li>
+                <code className="font-mono">30 14 * * 1-5</code> — 工作日 14:30
+              </li>
+              <li>
+                <code className="font-mono">0 */2 * * *</code> — 每 2 小時整點
+              </li>
+              <li>
+                <code className="font-mono">0 9 1 * *</code> — 每月 1 號 09:00
+              </li>
+              <li>
+                <code className="font-mono">15,45 * * * *</code> — 每小時 15 分、45 分
+              </li>
+            </ul>
+          </details>
         </div>
 
         <div className="space-y-1.5">
@@ -717,11 +819,55 @@ function ScheduleSection({ isAuthenticated }: { isAuthenticated: boolean }) {
   );
 }
 
+// ───────────── 瀏覽器時區提示 ─────────────
+
+/**
+ * If the user's browser is in a timezone other than UTC+8, surface a small
+ * hint so they understand "中午 12:00" means Taipei noon, which may not
+ * match their phone's wall-clock.
+ */
+function BrowserTimezoneHint() {
+  const hint = useMemo(() => {
+    if (typeof Intl === "undefined") return null;
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+      // Collapse Asia/Taipei (or any +08:00 zone) — no need to nag the user.
+      const offsetMin = -new Date().getTimezoneOffset(); // browser → minutes east of UTC
+      if (offsetMin === 480) return null; // already UTC+8
+      const sign = offsetMin >= 0 ? "+" : "-";
+      const abs = Math.abs(offsetMin);
+      const hh = Math.floor(abs / 60);
+      const mm = abs % 60;
+      const browserLabel = `UTC${sign}${String(hh).padStart(2, "0")}${
+        mm ? `:${String(mm).padStart(2, "0")}` : ""
+      }`;
+      const diffH = (offsetMin - 480) / 60;
+      const direction =
+        diffH > 0 ? `比台灣早 ${diffH} 小時` : `比台灣晚 ${Math.abs(diffH)} 小時`;
+      return { tz, browserLabel, direction };
+    } catch {
+      return null;
+    }
+  }, []);
+  if (!hint) return null;
+  return (
+    <span
+      className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200/70 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-700/40"
+      title={`你的瀏覽器時區：${hint.tz} (${hint.browserLabel})，${hint.direction}。下方預覽顯示的是台灣時間。`}
+    >
+      你的瀏覽器：{hint.browserLabel}
+    </span>
+  );
+}
+
 // ───────────── Cron 即時預覽 ─────────────
 
 interface CronPreviewData {
   ok: boolean;
+  timezone?: string;
+  description?: string;
   nextRuns: string[];
+  nextRunsLocal?: Array<{ iso: string; label: string; relative: string }>;
   error?: string;
 }
 
@@ -751,7 +897,24 @@ function CronPreview({ query, cron, isAuthenticated }: CronPreviewProps) {
       </p>
     );
   }
-  if (data.nextRuns.length === 0) {
+  // Prefer server-formatted Taiwan-localized strings; fall back to ISO if the
+  // server is on an older shape (e.g. during a rolling deploy).
+  const rows: Array<{ iso: string; label: string; relative: string }> =
+    data.nextRunsLocal ??
+    data.nextRuns.map(iso => ({
+      iso,
+      label: new Date(iso).toLocaleString("zh-TW", {
+        timeZone: "Asia/Taipei",
+        month: "2-digit",
+        day: "2-digit",
+        weekday: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      }),
+      relative: "",
+    }));
+  if (rows.length === 0) {
     return (
       <p className="text-[11px] text-muted-foreground flex items-center gap-1">
         <Clock className="h-3 w-3" />
@@ -763,16 +926,20 @@ function CronPreview({ query, cron, isAuthenticated }: CronPreviewProps) {
     <div className="text-[11px] text-emerald-700 dark:text-emerald-400 flex items-start gap-1.5 bg-emerald-50/60 dark:bg-emerald-900/20 border border-emerald-200/60 dark:border-emerald-700/40 rounded-md px-2 py-1.5">
       <Clock className="h-3 w-3 mt-0.5 shrink-0" />
       <div className="flex-1 space-y-0.5">
-        <p className="font-medium">接下來 {data.nextRuns.length} 次執行：</p>
-        {data.nextRuns.map(iso => (
-          <p key={iso} className="font-mono">
-            {new Date(iso).toLocaleString("zh-TW", {
-              month: "2-digit",
-              day: "2-digit",
-              weekday: "short",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
+        {data.description && (
+          <p className="font-medium leading-snug">{data.description}</p>
+        )}
+        <p className="text-[10px] opacity-80">
+          接下來 {rows.length} 次執行（{data.timezone ?? "Asia/Taipei"}）：
+        </p>
+        {rows.map(row => (
+          <p key={row.iso} className="font-mono flex items-baseline gap-1.5">
+            <span>{row.label}</span>
+            {row.relative && (
+              <span className="text-[10px] opacity-70 font-sans">
+                · {row.relative}
+              </span>
+            )}
           </p>
         ))}
       </div>
@@ -863,6 +1030,18 @@ function ToolsPickerSection({
         <h3 className="text-sm font-semibold">工具許可</h3>
         <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">
           綠色 = 自動同意（不彈確認）；紅色 = 一律拒絕。點按鈕直接切換，不熟工具就保持灰色。
+        </p>
+        <p className="text-[11px] text-muted-foreground mt-1">
+          目前狀態：
+          <span className="text-emerald-700 dark:text-emerald-400 font-medium ml-1">
+            ✓ {autoApprove.size} 個自動同意
+          </span>
+          <span className="text-destructive font-medium ml-2">
+            ✕ {blocked.size} 個封鎖
+          </span>
+          <span className="text-muted-foreground ml-2">
+            · 其餘 {Math.max(0, tools.length - autoApprove.size - blocked.size)} 個跟隨整體策略
+          </span>
         </p>
       </div>
 
@@ -1068,6 +1247,63 @@ function ToolsPickerSection({
           </label>
         </div>
       </details>
+    </section>
+  );
+}
+
+// ───────────── 三段選擇器（跟隨環境 / 強制啟用 / 強制關閉） ─────────────
+
+interface TriStateOption {
+  value: boolean | null;
+  label: string;
+  detail: string;
+}
+
+interface TriStateSectionProps {
+  title: string;
+  intro: string;
+  options: TriStateOption[];
+  selected: boolean | null;
+  onChange: (value: boolean | null) => void;
+}
+
+function TriStateSection({
+  title,
+  intro,
+  options,
+  selected,
+  onChange,
+}: TriStateSectionProps) {
+  const activeOption = options.find(opt => opt.value === selected) ?? options[0];
+  return (
+    <section className="space-y-3 rounded-2xl border bg-card p-4">
+      <div>
+        <h3 className="text-sm font-semibold">{title}</h3>
+        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+          {intro}
+        </p>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-3">
+        {options.map(option => (
+          <button
+            key={String(option.value)}
+            type="button"
+            onClick={() => onChange(option.value)}
+            aria-pressed={selected === option.value}
+            className={`rounded-xl border px-2 py-2 text-xs transition ${
+              selected === option.value
+                ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                : "border-border hover:border-primary/40"
+            }`}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+      <div className="rounded-md bg-muted/50 px-2.5 py-1.5 text-[11px] text-muted-foreground leading-relaxed">
+        <span className="font-medium text-foreground">目前選擇：</span>
+        {activeOption.label} — {activeOption.detail}
+      </div>
     </section>
   );
 }

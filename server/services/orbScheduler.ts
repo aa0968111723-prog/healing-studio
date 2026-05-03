@@ -7,6 +7,12 @@ import { loadAgentPreferencesForUser } from "./agentPreferenceService";
 import { orbScheduledJobs } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { orbTaskStore } from "./orbTaskStore";
+import { SCHEDULER_TIMEZONE } from "./cronPreview";
+
+// All user-defined orb cron expressions are interpreted in this timezone so
+// they fire at the wall-clock time Taiwanese users expect (and the time the
+// preview UI showed them when they saved the schedule).
+const CRON_OPTIONS = { timezone: SCHEDULER_TIMEZONE } as const;
 
 export interface OrbScheduledJob {
   id: string;
@@ -182,9 +188,13 @@ export async function scheduleOrbJob(job: OrbScheduledJob): Promise<void> {
   await persistJob(job);
   if (!job.enabled) return;
 
-  const task = cron.schedule(job.cronExpression, () => {
-    void runScheduledOrbJob(job);
-  });
+  const task = cron.schedule(
+    job.cronExpression,
+    () => {
+      void runScheduledOrbJob(job);
+    },
+    CRON_OPTIONS
+  );
 
   jobRegistry.set(job.id, { job, task });
 }
@@ -316,9 +326,13 @@ export async function startOrbScheduler(): Promise<void> {
     }
     if (!job.enabled) continue;
     try {
-      const task = cron.schedule(job.cronExpression, () => {
-        void runScheduledOrbJob(job);
-      });
+      const task = cron.schedule(
+        job.cronExpression,
+        () => {
+          void runScheduledOrbJob(job);
+        },
+        CRON_OPTIONS
+      );
       jobRegistry.set(job.id, { job, task });
     } catch (error) {
       console.error(

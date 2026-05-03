@@ -11,7 +11,18 @@
  * Each field accepts: `*`, exact `n`, range `a-b`, list `a,b,c`, step `*​/k`
  * or `a-b/k`. We treat day-of-month AND day-of-week as logical AND (matches
  * node-cron's behaviour for the practical schedules users hit).
+ *
+ * Timezone: cron expressions are interpreted as Asia/Taipei wall-clock time
+ * (UTC+8, no DST). The actual scheduler also passes timezone: "Asia/Taipei"
+ * to node-cron so the preview and the real fire times stay in lockstep.
  */
+
+export const SCHEDULER_TIMEZONE = "Asia/Taipei";
+
+// Asia/Taipei is a fixed UTC+8 zone (no DST), so we can do all the cron
+// matching arithmetic against Date objects whose UTC fields represent
+// Taipei wall-clock time, then translate back to true UTC at the end.
+const TAIPEI_OFFSET_MS = 8 * 60 * 60 * 1000;
 
 function expandField(field: string, min: number, max: number): Set<number> | "ANY" {
   if (field === "*") return "ANY";
@@ -59,6 +70,9 @@ export interface CronPreviewResult {
  * `nextFireTimes("* * * * *")` returns 1 minute, 2 minutes, 3 minutes from
  * now rather than echoing the start date).
  *
+ * Returned `Date` objects are real UTC instants — call `.toISOString()` for
+ * transport, or format with `timeZone: "Asia/Taipei"` for display.
+ *
  * Returns `ok: false` and an `error` string for malformed input rather than
  * throwing, so the client can render the message inline.
  */
@@ -95,37 +109,190 @@ export function nextFireTimes(
   }
 
   const result: Date[] = [];
-  const cur = new Date(fromDate);
-  cur.setSeconds(0, 0);
-  cur.setMinutes(cur.getMinutes() + 1);
+  // Shift into Taipei wall-clock space: a Date whose UTC fields read as
+  // Taipei local. From here we iterate using getUTC*/setUTC* and translate
+  // each match back to a real UTC instant before returning.
+  const cur = new Date(fromDate.getTime() + TAIPEI_OFFSET_MS);
+  cur.setUTCSeconds(0, 0);
+  cur.setUTCMinutes(cur.getUTCMinutes() + 1);
 
   // Cap the search at ~370 days. Yearly schedules (e.g. `0 0 1 1 *`) still
   // resolve within this window for any starting date.
   const cap = new Date(cur.getTime() + 370 * 24 * 60 * 60 * 1000);
 
   while (cur < cap && result.length < count) {
-    if (!matches(cur.getMonth() + 1, month)) {
-      cur.setMonth(cur.getMonth() + 1, 1);
-      cur.setHours(0, 0, 0, 0);
+    if (!matches(cur.getUTCMonth() + 1, month)) {
+      cur.setUTCMonth(cur.getUTCMonth() + 1, 1);
+      cur.setUTCHours(0, 0, 0, 0);
       continue;
     }
     if (
-      !matches(cur.getDate(), dayOfMonth) ||
-      !matches(cur.getDay(), dayOfWeek)
+      !matches(cur.getUTCDate(), dayOfMonth) ||
+      !matches(cur.getUTCDay(), dayOfWeek)
     ) {
-      cur.setDate(cur.getDate() + 1);
-      cur.setHours(0, 0, 0, 0);
+      cur.setUTCDate(cur.getUTCDate() + 1);
+      cur.setUTCHours(0, 0, 0, 0);
       continue;
     }
-    if (!matches(cur.getHours(), hour)) {
-      cur.setHours(cur.getHours() + 1, 0, 0, 0);
+    if (!matches(cur.getUTCHours(), hour)) {
+      cur.setUTCHours(cur.getUTCHours() + 1, 0, 0, 0);
       continue;
     }
-    if (matches(cur.getMinutes(), minute)) {
-      result.push(new Date(cur));
+    if (matches(cur.getUTCMinutes(), minute)) {
+      result.push(new Date(cur.getTime() - TAIPEI_OFFSET_MS));
     }
-    cur.setMinutes(cur.getMinutes() + 1);
+    cur.setUTCMinutes(cur.getUTCMinutes() + 1);
   }
 
   return { ok: true, nextRuns: result };
+}
+
+const TAIPEI_DATE_FMT = new Intl.DateTimeFormat("zh-TW", {
+  timeZone: SCHEDULER_TIMEZONE,
+  month: "2-digit",
+  day: "2-digit",
+  weekday: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: true,
+});
+
+/**
+ * Format a UTC instant as a Taiwan wall-clock label, e.g.
+ *   "05/04（週一）下午 09:00"
+ * Used by the panel so the user sees the time in their own timezone
+ * without the client doing any timezone math.
+ */
+export function formatTaipeiLabel(date: Date): string {
+  // `formatToParts` lets us reorder regardless of locale-default arrangement
+  // (zh-TW puts weekday first in some Node builds and last in others).
+  const parts = TAIPEI_DATE_FMT.formatToParts(date);
+  const get = (type: Intl.DateTimeFormatPartTypes): string =>
+    parts.find(p => p.type === type)?.value ?? "";
+  const month = get("month");
+  const day = get("day");
+  const weekday = get("weekday");
+  const hour = get("hour").padStart(2, "0");
+  const minute = get("minute").padStart(2, "0");
+  const dayPeriod = get("dayPeriod");
+  return `${month}/${day}（${weekday}）${dayPeriod} ${hour}:${minute}`;
+}
+
+const WEEKDAY_LABELS = ["週日", "週一", "週二", "週三", "週四", "週五", "週六"];
+
+function pad2(n: number): string {
+  return n < 10 ? `0${n}` : String(n);
+}
+
+function describePeriod(hour: number, minute: number): string {
+  const hh = pad2(hour);
+  const mm = pad2(minute);
+  if (hour === 0) return `凌晨 00:${mm}`;
+  if (hour < 6) return `凌晨 ${hh}:${mm}`;
+  if (hour < 12) return `早上 ${hh}:${mm}`;
+  if (hour === 12) return `中午 12:${mm}`;
+  if (hour < 18) return `下午 ${pad2(hour - 12)}:${mm}`;
+  if (hour < 21) return `傍晚 ${pad2(hour - 12)}:${mm}`;
+  return `晚上 ${pad2(hour - 12)}:${mm}`;
+}
+
+/**
+ * Translate a 5-field cron expression into a plain Chinese sentence the user
+ * can read at a glance. Covers the patterns the preset list emits plus a few
+ * common ad-hoc shapes; falls back to a generic sentence for anything we
+ * can't confidently summarise.
+ *
+ * Always frames the time as 台灣時間 because the scheduler interprets it
+ * that way.
+ */
+export function describeCron(cron: string): string {
+  const trimmed = cron.trim();
+  const parts = trimmed.split(/\s+/);
+  if (parts.length !== 5) return "（cron 格式不正確）";
+  const [m, h, dom, mon, dow] = parts;
+
+  // every minute
+  if (m === "*" && h === "*" && dom === "*" && mon === "*" && dow === "*") {
+    return "每分鐘執行（台灣時間）";
+  }
+  // every N minutes (*/N)
+  const stepM = m.match(/^\*\/(\d+)$/);
+  if (
+    stepM &&
+    h === "*" &&
+    dom === "*" &&
+    mon === "*" &&
+    dow === "*"
+  ) {
+    return `每 ${stepM[1]} 分鐘執行（台灣時間）`;
+  }
+  // every hour at minute M (M * * * *)
+  if (
+    /^\d+$/.test(m) &&
+    h === "*" &&
+    dom === "*" &&
+    mon === "*" &&
+    dow === "*"
+  ) {
+    return `每小時的第 ${parseInt(m, 10)} 分鐘執行（台灣時間）`;
+  }
+  // every N hours (M */N * * *)
+  const stepH = h.match(/^\*\/(\d+)$/);
+  if (
+    /^\d+$/.test(m) &&
+    stepH &&
+    dom === "*" &&
+    mon === "*" &&
+    dow === "*"
+  ) {
+    return `每 ${stepH[1]} 小時執行一次（台灣時間，每次在第 ${parseInt(m, 10)} 分鐘）`;
+  }
+  // exact minute & hour
+  if (/^\d+$/.test(m) && /^\d+$/.test(h)) {
+    const minute = parseInt(m, 10);
+    const hour = parseInt(h, 10);
+    if (hour > 23 || minute > 59) return "（cron 時間欄超出範圍）";
+    const time = describePeriod(hour, minute);
+    // monthly: 0 9 1 * *
+    if (/^\d+$/.test(dom) && mon === "*" && dow === "*") {
+      return `每月 ${parseInt(dom, 10)} 號 ${time} 執行（台灣時間）`;
+    }
+    // weekday range Mon-Fri
+    if (dom === "*" && mon === "*" && dow === "1-5") {
+      return `工作日（週一至週五）${time} 執行（台灣時間）`;
+    }
+    // single weekday
+    if (dom === "*" && mon === "*" && /^[0-6]$/.test(dow)) {
+      return `每${WEEKDAY_LABELS[parseInt(dow, 10)]} ${time} 執行（台灣時間）`;
+    }
+    // weekend Sat-Sun
+    if (dom === "*" && mon === "*" && (dow === "0,6" || dow === "6,0")) {
+      return `週末（六、日）${time} 執行（台灣時間）`;
+    }
+    // daily
+    if (dom === "*" && mon === "*" && dow === "*") {
+      return `每天 ${time} 執行（台灣時間）`;
+    }
+  }
+  return `依 cron 規則 \`${trimmed}\` 執行（台灣時間）`;
+}
+
+/**
+ * Human-readable "in 4 小時 32 分" / "在 8 分鐘後" style relative label.
+ * Returns "已過" if the target is in the past (which shouldn't happen for
+ * preview output but guards against clock skew).
+ */
+export function formatRelativeFromNow(target: Date, now: Date = new Date()): string {
+  let diff = Math.round((target.getTime() - now.getTime()) / 60000); // minutes
+  if (diff < 0) return "已過";
+  if (diff === 0) return "馬上";
+  if (diff < 60) return `${diff} 分鐘後`;
+  const hours = Math.floor(diff / 60);
+  const mins = diff % 60;
+  if (hours < 24) {
+    return mins === 0 ? `${hours} 小時後` : `${hours} 小時 ${mins} 分後`;
+  }
+  const days = Math.floor(hours / 24);
+  const remHours = hours % 24;
+  return remHours === 0 ? `${days} 天後` : `${days} 天 ${remHours} 小時後`;
 }
