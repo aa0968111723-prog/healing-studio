@@ -3299,6 +3299,17 @@ ${segmentSummaries}
             prompt: input.prompt,
             modelId: submittedModelId,
             request_id: queueResult.request_id,
+            // Persist fal's own canonical tracking URLs so pollGenerationTask
+            // can hit them directly and bypass the modelId-derived URL —
+            // necessary for fal models whose submit path differs from the
+            // queue tracking path (e.g. fal-ai/kling-video/v2.1/standard/text-to-video
+            // submits OK but its queue tracking lives at fal-ai/kling-video/...).
+            ...(queueResult.statusUrl ? { statusUrl: queueResult.statusUrl } : {}),
+            ...(queueResult.responseUrl ? { responseUrl: queueResult.responseUrl } : {}),
+            // Persist the exact charged amount so pollGenerationTask's failure
+            // path can refund the same number of points instead of recomputing
+            // from a partial set of inputs.
+            chargedPoints: estimate.totalPoints,
             ...(queueResult.degraded && queueResult.originalModel
               ? { originalModel: queueResult.originalModel, degraded: true }
               : {}),
@@ -3416,14 +3427,32 @@ ${segmentSummaries}
         };
       }
 
-      const FAL_QUEUE_BASE = "https://queue.fal.run";
+      const { falQueueFetchWithPrefixFallback } = await import(
+        "../services/falQueueClient"
+      );
+      // Prefer fal's own status_url / response_url when we persisted them at
+      // submit time — fal sometimes routes the queue tracking URL to a path
+      // that's NOT a simple prefix of the submit URL (e.g. kling-video t2v
+      // submits to /v2.1/standard/text-to-video but tracks at /kling-video/),
+      // and modelId-based reconstruction can't recover that.
+      const persistedStatusUrl =
+        typeof meta.statusUrl === "string" ? meta.statusUrl : null;
+      const persistedResponseUrl =
+        typeof meta.responseUrl === "string" ? meta.responseUrl : null;
+
       type FalStatus = { status?: string; error?: string } | null;
       let statusData: FalStatus = null;
       try {
-        const statusRes = await fetch(
-          `${FAL_QUEUE_BASE}/${modelId}/requests/${requestId}/status`,
-          { headers: { Authorization: `Key ${falKey}` } }
-        );
+        const statusRes = persistedStatusUrl
+          ? await fetch(persistedStatusUrl, {
+              headers: { Authorization: `Key ${falKey}` },
+            })
+          : await falQueueFetchWithPrefixFallback(
+              modelId,
+              requestId,
+              "/status",
+              falKey
+            );
         if (statusRes.ok) {
           statusData = (await statusRes.json()) as FalStatus;
         }
@@ -3439,10 +3468,16 @@ ${segmentSummaries}
         );
         let resultData: Record<string, unknown> | null = null;
         try {
-          const resultRes = await fetch(
-            `${FAL_QUEUE_BASE}/${modelId}/requests/${requestId}`,
-            { headers: { Authorization: `Key ${falKey}` } }
-          );
+          const resultRes = persistedResponseUrl
+            ? await fetch(persistedResponseUrl, {
+                headers: { Authorization: `Key ${falKey}` },
+              })
+            : await falQueueFetchWithPrefixFallback(
+                modelId,
+                requestId,
+                "",
+                falKey
+              );
           if (resultRes.ok) {
             resultData = (await resultRes.json()) as Record<string, unknown>;
           }

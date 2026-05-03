@@ -43,6 +43,7 @@ import { localizeResultUrls } from "../services/internalMedia";
 import { getAudioCompiler } from "../services/audioCompiler";
 import type { AudioBlock, AudioCompilerInput } from "../services/audioCompiler";
 import { dispatchFalQueueTask } from "../services/falDispatcher";
+import { falQueueFetchWithPrefixFallback } from "../services/falQueueClient";
 import { estimatePoints } from "../services/modelPricing";
 import { deductUserPoints, refundUserPoints } from "../db";
 
@@ -131,11 +132,11 @@ async function falQueueStatus(
 ): Promise<unknown> {
   const startedAt = Date.now();
   const key = getFalKey();
-  const res = await fetch(
-    `${FAL_QUEUE_BASE}/${modelId}/requests/${requestId}/status`,
-    {
-      headers: { Authorization: `Key ${key}` },
-    }
+  const res = await falQueueFetchWithPrefixFallback(
+    modelId,
+    requestId,
+    "/status",
+    key
   );
   if (!res.ok) {
     void traceToolRun({
@@ -177,11 +178,11 @@ async function falQueueResult(
 ): Promise<unknown> {
   const startedAt = Date.now();
   const key = getFalKey();
-  const res = await fetch(
-    `${FAL_QUEUE_BASE}/${modelId}/requests/${requestId}`,
-    {
-      headers: { Authorization: `Key ${key}` },
-    }
+  const res = await falQueueFetchWithPrefixFallback(
+    modelId,
+    requestId,
+    "",
+    key
   );
   if (!res.ok) {
     void traceToolRun({

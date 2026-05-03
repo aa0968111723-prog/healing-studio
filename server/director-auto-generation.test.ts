@@ -47,14 +47,11 @@ describe("director.pollGenerationTask backend wiring", () => {
       procStart,
       source.indexOf("askForStudioPlan: brainProcedure", procStart)
     );
-    // 必須打到 fal queue status 端點
-    expect(procSection).toContain(
-      "/${modelId}/requests/${requestId}/status"
-    );
-    // 必須在 COMPLETED 時抓 result
-    expect(procSection).toContain(
-      "/${modelId}/requests/${requestId}"
-    );
+    // 必須走共用的 fal queue 客戶端（含 modelId 後綴 405 fallback —
+    // 否則 fal-ai/imagen4/preview / seedream/v4/text-to-image 等變體會
+    // 在 status 輪詢時被 fal 回 405 而誤判為失敗）
+    expect(procSection).toContain("falQueueFetchWithPrefixFallback");
+    expect(procSection).toMatch(/"\/status"/);
     // 必須本地化 URL 並寫回 backgroundJob
     expect(procSection).toContain("localizeResultUrls");
     expect(procSection).toContain("dbModule.updateBackgroundJob");

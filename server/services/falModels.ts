@@ -52,6 +52,17 @@ export interface FalModelConfig {
   inputSchema: FalInputSchema;
   outputSchema: FalOutputSchema;
   timeoutMs: number;
+  /**
+   * Mark a model as broken upstream at fal — submit accepts but the model
+   * either never runs (gateway short-circuit, e.g. kling-video t2v) or its
+   * result endpoint returns `200 {"detail": "Path X not found"}` (e.g.
+   * elevenlabs/tts/flash-v2.5 as of 2026-05). Disabled models are filtered
+   * out of `getAllFalModels()` and the studio dropdowns; the entry is kept
+   * in the catalog so historical jobs and `getFalModelById` lookups still
+   * resolve metadata for billing / UI labels.
+   */
+  disabled?: boolean;
+  disabledReason?: string;
 }
 
 export interface FalInputSchema {
@@ -1366,6 +1377,13 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       inputSchema: { prompt: true, voiceId: true, speed: true },
       outputSchema: { audioUrl: true },
       timeoutMs: 30_000,
+      // Broken upstream at fal as of 2026-05-03: submit accepts and status
+      // reports COMPLETED, but result endpoint returns
+      // 200 {"detail":"Path /tts/flash-v2.5 not found"}. Sister models
+      // turbo-v2.5 and multilingual-v2 work fine.
+      disabled: true,
+      disabledReason:
+        "fal upstream returns COMPLETED but result endpoint reports 'Path /tts/flash-v2.5 not found'; use turbo-v2.5 or multilingual-v2 instead",
     },
     {
       modelId: "fal-ai/elevenlabs/tts/eleven-v3",
@@ -1543,6 +1561,15 @@ export const FAL_MODEL_CATALOG: Record<FalCategory, FalModelConfig[]> = {
       },
       outputSchema: { videoUrl: true },
       timeoutMs: 300_000,
+      // Broken upstream at fal as of 2026-05-03: submit accepts but the model
+      // gateway short-circuits — status reports COMPLETED in <1s with empty
+      // metrics, and the result endpoint returns
+      // 200 {"detail":"Path /v2.1/standard/text-to-video not found"}.
+      // Same failure across v1, v1.6, v2, v2.5, v2.5-turbo. Kling i2v still
+      // works, so the i2v workflow (image first, then animate) remains viable.
+      disabled: true,
+      disabledReason:
+        "fal upstream short-circuits the t2v gateway and returns no inference; use wan-t2v / minimax / sora for t2v, or generate an image first and use a kling i2v model",
     },
     {
       modelId: "fal-ai/minimax-video/text-to-video",
@@ -2064,6 +2091,18 @@ export function getFalModelsByCategory(
   category: FalCategory
 ): FalModelConfig[] {
   return FAL_MODEL_CATALOG[category] ?? [];
+}
+
+/**
+ * Returns only the models that are not flagged as broken upstream
+ * (`disabled: true`). User-facing dropdowns / engine pickers should call
+ * this; admin / billing / diagnostics views should keep using the
+ * unfiltered `getFalModelsByCategory` so historical jobs still resolve.
+ */
+export function getActiveFalModelsByCategory(
+  category: FalCategory
+): FalModelConfig[] {
+  return (FAL_MODEL_CATALOG[category] ?? []).filter(m => !m.disabled);
 }
 
 /**

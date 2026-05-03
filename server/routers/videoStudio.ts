@@ -27,6 +27,7 @@ import { recordErrorTrace } from "../services/brainAutoRepair";
 import { traceToolRun } from "../services/langsmithTracer";
 import { localizeResultUrls } from "../services/internalMedia";
 import { dispatchFalQueueTask } from "../services/falDispatcher";
+import { falQueueFetchWithPrefixFallback } from "../services/falQueueClient";
 
 // ─── fal.ai 呼叫工具（與 proStudio 相同模式） ────────────────────────────────
 
@@ -81,11 +82,11 @@ async function falQueueStatus(
 ): Promise<unknown> {
   const startedAt = Date.now();
   const key = getFalKey();
-  const res = await fetch(
-    `${FAL_QUEUE_BASE}/${modelId}/requests/${requestId}/status`,
-    {
-      headers: { Authorization: `Key ${key}` },
-    }
+  const res = await falQueueFetchWithPrefixFallback(
+    modelId,
+    requestId,
+    "/status",
+    key
   );
   if (!res.ok) {
     void traceToolRun({
@@ -126,11 +127,11 @@ async function falQueueResult(
 ): Promise<unknown> {
   const startedAt = Date.now();
   const key = getFalKey();
-  const res = await fetch(
-    `${FAL_QUEUE_BASE}/${modelId}/requests/${requestId}`,
-    {
-      headers: { Authorization: `Key ${key}` },
-    }
+  const res = await falQueueFetchWithPrefixFallback(
+    modelId,
+    requestId,
+    "",
+    key
   );
   if (!res.ok) {
     void traceToolRun({

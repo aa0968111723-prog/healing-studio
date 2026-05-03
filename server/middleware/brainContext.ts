@@ -122,8 +122,13 @@ export const DEFAULT_GENERATION_ENGINES: Record<
   { engine: string; params: Record<string, unknown> | null }
 > = {
   imageEngine: { engine: "fal-ai/flux-pro/v1.1", params: null },
+  // wan-t2v is the verified-working default. Kling t2v variants were
+  // previously the default but they're broken upstream at fal as of
+  // 2026-05 (gateway short-circuits, no actual inference). The dispatcher
+  // also auto-degrades disabled models so users with the old default in
+  // their saved brain config still get a working result.
   videoEngine: {
-    engine: "fal-ai/kling-video/v2.1/standard/text-to-video",
+    engine: "fal-ai/wan-t2v",
     params: null,
   },
   audioEngine: { engine: "fal-ai/ace-step", params: null },
