@@ -615,3 +615,24 @@ export function appendOrbAgentTaskAuditEvent(
   task.updatedAt = now();
   return task.auditEvents[task.auditEvents.length - 1] ?? null;
 }
+
+/**
+ * Mark a task as a continuation of another task. Used by the chain runner
+ * when the post-mortem observer says "continue" and the planner produces
+ * a recovery plan; the new task gets linked back to its predecessor so the
+ * UI can render the chain and metrics can group runs by root task id.
+ *
+ * Idempotent — calling twice with the same predecessor is a no-op.
+ */
+export function linkOrbAgentTaskPredecessor(
+  newTaskId: string,
+  predecessorTaskId: string,
+  iterationIndex: number
+): OrbAgentTask | null {
+  const task = taskStore.get(newTaskId);
+  if (!task) return null;
+  task.predecessorTaskId = predecessorTaskId;
+  task.iterationIndex = iterationIndex;
+  task.updatedAt = now();
+  return task;
+}

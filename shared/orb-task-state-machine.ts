@@ -35,6 +35,7 @@ export interface OrbTaskAuditEvent {
     | "task.recovering"
     | "task.replanning"
     | "task.observed"
+    | "task.continuation_started"
     | "task.completed"
     | "task.failed"
     | "task.cancelled"
@@ -133,4 +134,10 @@ export interface OrbAgentTask {
   riskLevel?: string;
   capabilities?: string[];
   isolation?: "ui" | "tool" | "code";
+  /** When this task was generated as a continuation/recovery of a previous
+   *  task, the originating task id. Lets the UI surface the chain. */
+  predecessorTaskId?: string;
+  /** 0 for the initial task; 1, 2, … for each continuation. Bounded by
+   *  the chain runner so the planner cannot recurse forever. */
+  iterationIndex?: number;
 }

@@ -58,14 +58,10 @@ import { orbTaskRepository } from "./repositories/orbTaskRepository";
 import { executeCurrentStepTools, runOrbTaskToCompletion } from "./services/orbTaskOrchestrator";
 import { loadAgentPreferencesForUser } from "./services/agentPreferenceService";
 import { orbToolCallLogStore } from "./services/orbToolCallLogStore";
-import { runSchemaFirstAgentPlanner } from "./services/agentPlanner";
+import { runSchemaFirstAgentPlanner, type AgentPlannerInput } from "./services/agentPlanner";
+import { runOrbTaskWithContinuationLoop } from "./services/orbTaskChainRunner";
+import { setOrbTaskPlannerContext } from "./services/orbTaskPlannerContextStore";
 import {
-  observeOrbTaskOutcome,
-  observationToAuditMessage,
-  observationToAuditMetadata,
-} from "./services/orbTaskObserver";
-import {
-  appendOrbAgentTaskAuditEvent,
   approveOrbAgentTask,
   cancelOrbAgentTask,
   completeOrbAgentStep,
@@ -302,50 +298,50 @@ async function driveOrbTaskInBackground(input: {
   try {
     const tools = getOrbToolRegistry();
     const agentPreferences = await loadAgentPreferencesForUser(input.userId);
-    const result = await runOrbTaskToCompletion({
-      taskId: input.taskId,
-      userId: input.userId,
-      userRole: input.userRole,
-      tools,
-      agentPreferences,
-      requestId: `orb_auto_${input.taskId}_${Date.now()}`,
-      onToolAuditEvent: event => {
-        try {
-          orbToolCallLogStore.append(event);
-        } catch {
-          // best-effort
-        }
-      },
-    });
-    if (result.outcome === "failed") {
-      console.warn(
-        `[Orb] auto-driver finished with failure: taskId=${input.taskId} reason=${result.reason ?? "unknown"}`
-      );
-    }
-    // Agent loop v1 — post-mortem observation. Off by default; enable via
-    // ORB_OBSERVATION_LOOP=1 to surface a friendly user-facing summary as a
-    // `task.observed` audit event. Front-end already streams audit events
-    // via the FSM SSE so no client change is strictly required to see it.
-    if (process.env.ORB_OBSERVATION_LOOP === "1") {
+    const onToolAuditEvent = (event: Parameters<typeof orbToolCallLogStore.append>[0]) => {
       try {
-        const fsmTask = getOrbAgentTask(input.taskId);
-        const observation = await observeOrbTaskOutcome({
-          intent: fsmTask?.intent ?? result.finalTask?.intent ?? "",
-          runResult: result,
-          agentTask: fsmTask,
-        });
-        appendOrbAgentTaskAuditEvent(
-          input.taskId,
-          "task.observed",
-          observationToAuditMessage(observation),
-          observationToAuditMetadata(observation)
-        );
-      } catch (observerError) {
-        // Never let observer crash break the auto-driver — observation is a
-        // post-mortem nicety, not a correctness requirement.
+        orbToolCallLogStore.append(event);
+      } catch {
+        // best-effort
+      }
+    };
+
+    // Agent loop v1 + v2 — when ORB_OBSERVATION_LOOP=1 the chain runner
+    // wraps the orchestrator with post-mortem observation AND bounded
+    // continuation: if the observer says "continue", the planner is
+    // re-invoked with the original conversation + an execution recap and
+    // a fresh task is materialised + driven. Capped at 2 iterations
+    // (1 replan max). Off by default — preserves the legacy single-shot
+    // path so behaviour and cost don't change for production until
+    // explicitly opted in.
+    if (process.env.ORB_OBSERVATION_LOOP === "1") {
+      const chain = await runOrbTaskWithContinuationLoop({
+        initialTaskId: input.taskId,
+        userId: input.userId,
+        userRole: input.userRole,
+        tools,
+        agentPreferences,
+        onToolAuditEvent,
+      });
+      const last = chain.iterations[chain.iterations.length - 1];
+      if (last?.runResult.outcome === "failed") {
         console.warn(
-          `[Orb] observer failed for taskId=${input.taskId}:`,
-          observerError instanceof Error ? observerError.message : String(observerError)
+          `[Orb] chain finished with failure: finalTaskId=${chain.finalTaskId} stopReason=${chain.stopReason}`
+        );
+      }
+    } else {
+      const result = await runOrbTaskToCompletion({
+        taskId: input.taskId,
+        userId: input.userId,
+        userRole: input.userRole,
+        tools,
+        agentPreferences,
+        requestId: `orb_auto_${input.taskId}_${Date.now()}`,
+        onToolAuditEvent,
+      });
+      if (result.outcome === "failed") {
+        console.warn(
+          `[Orb] auto-driver finished with failure: taskId=${input.taskId} reason=${result.reason ?? "unknown"}`
         );
       }
     }
@@ -6009,6 +6005,32 @@ export const appRouter = router({
                   });
                 } catch (taskError) {
                   console.warn("[Orb] task materialization failed:", taskError instanceof Error ? taskError.message : String(taskError));
+                }
+                // Agent loop v2 — stash the planner inputs so the
+                // continuation chain runner (driven by ORB_OBSERVATION_LOOP)
+                // can replan with the same context if the post-mortem
+                // observer says "continue". No-op when the loop flag is off.
+                if (stateMachineTask?.taskId) {
+                  try {
+                    setOrbTaskPlannerContext(stateMachineTask.taskId, {
+                      userId: ctx.user.id,
+                      userRole: ctx.user.role,
+                      messages: plannerMessages,
+                      context: input.context,
+                      personality: input.personality,
+                      pageSnapshot: (input.pageSnapshot ?? null) as PageAgentSnapshot | null,
+                      recentFeedback: mergedFeedback as AgentFeedbackEvent[],
+                      recentTaskMemorySummary,
+                      recentOrbMemorySummary,
+                      siteKnowledgeSummary,
+                      preferences: (input.preferences ?? null) as AgentPlannerInput["preferences"],
+                    });
+                  } catch (stashError) {
+                    console.warn(
+                      "[Orb] failed to stash planner context for continuation:",
+                      stashError instanceof Error ? stashError.message : String(stashError)
+                    );
+                  }
                 }
               }
               const planRecord =
