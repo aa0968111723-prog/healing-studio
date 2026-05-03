@@ -55,7 +55,11 @@ export interface UseOrbTaskObservationsResult {
   latestKind: OrbTaskObservationItem["kind"] | null;
 }
 
-interface AuditEventRow {
+/**
+ * Shape of one row returned by `trpc.ai.orbTask.events`. Exported so
+ * unit tests can construct fixtures.
+ */
+export interface OrbAuditEventRow {
   eventId: string;
   taskId: string;
   type: string;
@@ -69,8 +73,16 @@ const POLL_INTERVAL_MS = 1_500;
  *  and a runaway poll only burns network budget. */
 const MAX_POLL_MS = 10 * 60 * 1_000;
 
-function eventToObservation(
-  event: AuditEventRow,
+/**
+ * Pure mapping from a server FSM audit event to the typed observation
+ * item the UI renders. Exported (alongside `OrbAuditEventRow`) so the
+ * full mapping can be unit-tested without React Testing Library.
+ *
+ * Returns null for unrelated audit event types (the hook just skips
+ * them).
+ */
+export function eventToObservation(
+  event: OrbAuditEventRow,
   iterationIndex: number
 ): OrbTaskObservationItem | null {
   if (event.type === "task.continuation_started") {
@@ -210,7 +222,7 @@ export function useOrbTaskObservations(
   useEffect(() => {
     const data = eventsQuery.data;
     if (!data || !currentTaskId) return;
-    const events = (Array.isArray(data) ? data : []) as AuditEventRow[];
+    const events = (Array.isArray(data) ? data : []) as OrbAuditEventRow[];
     const iterationIndex = iterationByTaskRef.current.get(currentTaskId) ?? 0;
 
     let switchTo: string | null = null;

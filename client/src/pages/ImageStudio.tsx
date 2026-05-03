@@ -3686,6 +3686,65 @@ export default function ImageStudio() {
       }),
     },
     handle: async (action: AgentAction): Promise<AgentActionResult> => {
+      const result = await runImageStudioAction(action);
+      // Agent loop v5/v6 — overlay structured `data` on successful
+      // results so the observer sees what changed on the page (active
+      // tab, model id, prompt slot etc.). Keeps the giant inner switch
+      // untouched and backwards compatible.
+      if (result.ok) {
+        const data = synthesizeImageStudioData(action);
+        if (data) {
+          return { ...result, data };
+        }
+      }
+      return result;
+    },
+  });
+
+  function synthesizeImageStudioData(
+    action: AgentAction
+  ): Record<string, unknown> | null {
+    switch (action.type) {
+      case "fillPrompt":
+        return {
+          slot: action.slot ?? "prompt",
+          append: !!action.append,
+          promptPreview: String(action.text).slice(0, 120),
+        };
+      case "setTab": {
+        const tab = TABS.find(t => t.id === action.tabId);
+        return { activeTab: action.tabId, activeTabLabel: tab?.label };
+      }
+      case "setModel": {
+        const m = MODELS.find(x => x.id === action.modelId);
+        return {
+          modelId: action.modelId,
+          modelLabel: m?.name,
+          modelCategory: m?.category,
+        };
+      }
+      case "applyPreset":
+        return { presetId: action.presetId };
+      case "setParam":
+        return {
+          paramKey: action.key,
+          paramValueType: typeof action.value,
+          paramValuePreview: JSON.stringify(action.value).slice(0, 80),
+        };
+      case "submit":
+        return { submitted: true };
+      case "reset":
+        return { reset: true };
+      case "openDialog":
+        return { dialogId: action.dialogId };
+      default:
+        return null;
+    }
+  }
+
+  async function runImageStudioAction(
+    action: AgentAction
+  ): Promise<AgentActionResult> {
       switch (action.type) {
         case "fillPrompt": {
           const slot = action.slot ?? "prompt";
@@ -3887,8 +3946,7 @@ export default function ImageStudio() {
         default:
           return { ok: false, reason: `unsupported action` };
       }
-    },
-  });
+  }
 
   return (
     <div className="max-w-[1400px] mx-auto px-3 sm:px-4 lg:px-6 pb-24 lg:pb-10">
