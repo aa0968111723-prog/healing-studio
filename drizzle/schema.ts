@@ -153,6 +153,8 @@ export const orbScheduledJobs = mysqlTable(
     enabled: boolean("enabled").default(true).notNull(),
     lastRunAt: timestamp("lastRunAt"),
     lastError: text("lastError"),
+    lastResult: text("lastResult"),
+    lastRunStatus: varchar("lastRunStatus", { length: 32 }),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },

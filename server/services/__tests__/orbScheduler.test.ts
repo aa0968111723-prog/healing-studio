@@ -1,5 +1,12 @@
-import { describe, expect, it } from "vitest";
-import { isValidCronExpression } from "../orbScheduler";
+import { describe, expect, it, vi } from "vitest";
+import {
+  isValidCronExpression,
+  runDirectLlmFallback,
+  runScheduledOrbJob,
+  type OrbScheduledJob,
+} from "../orbScheduler";
+import type { AgentPlannerResult } from "../agentPlanner";
+import type { InvokeResult } from "../../_core/llm";
 
 describe("orbScheduler.isValidCronExpression", () => {
   it("accepts standard 5-field cron expressions", () => {
@@ -13,5 +20,139 @@ describe("orbScheduler.isValidCronExpression", () => {
     expect(isValidCronExpression("not a cron")).toBe(false);
     expect(isValidCronExpression("")).toBe(false);
     expect(isValidCronExpression("99 99 99 99 99")).toBe(false);
+  });
+});
+
+function makeInvokeResult(text: string): InvokeResult {
+  return {
+    id: "test",
+    created: 0,
+    model: "test-model",
+    choices: [
+      {
+        index: 0,
+        message: { role: "assistant", content: text },
+        finish_reason: "stop",
+      },
+    ],
+  };
+}
+
+describe("orbScheduler.runDirectLlmFallback", () => {
+  it("returns the LLM completion text trimmed", async () => {
+    const invoke = vi
+      .fn()
+      .mockResolvedValue(makeInvokeResult("  整理結果如下 …  "));
+    const text = await runDirectLlmFallback("整理昨天的生成紀錄", invoke);
+    expect(text).toBe("整理結果如下 …");
+    expect(invoke).toHaveBeenCalledTimes(1);
+    const call = invoke.mock.calls[0]?.[0];
+    expect(call.messages[0].role).toBe("system");
+    expect(call.messages[1].role).toBe("user");
+    expect(call.messages[1].content).toBe("整理昨天的生成紀錄");
+    expect(call.runName).toBe("orb-scheduler-direct-fallback");
+  });
+
+  it("returns a placeholder when the LLM returns empty text", async () => {
+    const invoke = vi.fn().mockResolvedValue(makeInvokeResult(""));
+    const text = await runDirectLlmFallback("任務", invoke);
+    expect(text).toContain("模型未回傳");
+  });
+});
+
+function makeJob(overrides: Partial<OrbScheduledJob> = {}): OrbScheduledJob {
+  return {
+    id: "test-job",
+    userId: 1,
+    cronExpression: "0 9 * * *",
+    taskDescription: "整理昨天的生成紀錄成短報告",
+    enabled: true,
+    ...overrides,
+  };
+}
+
+function makeInvalidPlannerResult(): AgentPlannerResult {
+  return {
+    status: "invalid",
+    ok: false,
+    version: "agent-plan.v3",
+    actions: [],
+    askBeforeAct: false,
+    warnings: [],
+    blockers: [],
+    issues: ["no executable step"],
+    plannerUsed: true,
+  } as AgentPlannerResult;
+}
+
+describe("orbScheduler.runScheduledOrbJob (fallback path)", () => {
+  it("falls back to direct LLM when the planner returns invalid and writes lastResult", async () => {
+    const job = makeJob();
+    const runPlanner = vi.fn().mockResolvedValue(makeInvalidPlannerResult());
+    const runFallback = vi
+      .fn()
+      .mockResolvedValue("摘要：昨天共有 12 次生成，建議刪除其中 3 個未採用的草稿。");
+
+    await runScheduledOrbJob(job, { runPlanner, runFallback });
+
+    expect(runPlanner).toHaveBeenCalledOnce();
+    expect(runFallback).toHaveBeenCalledWith("整理昨天的生成紀錄成短報告");
+    expect(job.lastError).toBeUndefined();
+    expect(job.lastRunStatus).toBe("fallback:invalid");
+    expect(job.lastResult).toContain("摘要");
+    expect(typeof job.lastRunAt).toBe("number");
+  });
+
+  it("clamps very long fallback text and marks truncation", async () => {
+    const job = makeJob();
+    const longText = "報告內容".repeat(2000); // 8000 chars
+    const runPlanner = vi.fn().mockResolvedValue(makeInvalidPlannerResult());
+    const runFallback = vi.fn().mockResolvedValue(longText);
+
+    await runScheduledOrbJob(job, { runPlanner, runFallback });
+
+    expect(job.lastResult).toBeDefined();
+    expect(job.lastResult!.length).toBeLessThan(longText.length);
+    expect(job.lastResult).toContain("已截斷");
+  });
+
+  it("sets lastRunStatus=fallback:clarification when planner asks for clarification", async () => {
+    const job = makeJob();
+    const runPlanner = vi.fn().mockResolvedValue({
+      ...makeInvalidPlannerResult(),
+      status: "clarification",
+      clarificationQuestion: "你想統計哪一週的紀錄？",
+    } as AgentPlannerResult);
+    const runFallback = vi.fn().mockResolvedValue("假設整理上週紀錄的報告。");
+
+    await runScheduledOrbJob(job, { runPlanner, runFallback });
+
+    expect(job.lastRunStatus).toBe("fallback:clarification");
+    expect(job.lastResult).toContain("上週");
+    expect(job.lastError).toBeUndefined();
+  });
+
+  it("records lastRunStatus=error when the planner throws", async () => {
+    const job = makeJob();
+    const runPlanner = vi.fn().mockRejectedValue(new Error("LLM down"));
+    const runFallback = vi.fn();
+
+    await runScheduledOrbJob(job, { runPlanner, runFallback });
+
+    expect(runFallback).not.toHaveBeenCalled();
+    expect(job.lastRunStatus).toBe("error");
+    expect(job.lastError).toBe("LLM down");
+    expect(job.lastResult).toBeUndefined();
+  });
+
+  it("records lastRunStatus=error when the fallback throws", async () => {
+    const job = makeJob();
+    const runPlanner = vi.fn().mockResolvedValue(makeInvalidPlannerResult());
+    const runFallback = vi.fn().mockRejectedValue(new Error("OpenAI 5xx"));
+
+    await runScheduledOrbJob(job, { runPlanner, runFallback });
+
+    expect(job.lastRunStatus).toBe("error");
+    expect(job.lastError).toBe("OpenAI 5xx");
   });
 });
