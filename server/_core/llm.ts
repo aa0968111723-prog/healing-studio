@@ -622,6 +622,7 @@ function normalizeModelForEngine(model: string, engineName: string): string {
     if (model.startsWith("gemini-")) return `google/${model}`;
     if (model.startsWith("gpt-")) return `openai/${model}`;
     if (model.startsWith("minimax")) return `minimax/${model}`;
+    if (/^sonar(-|$)/.test(model)) return `perplexity/${model}`;
     // 未知裸模型名 → 預設安全選擇，避免送出去被 OpenRouter 直接 400
     return "anthropic/claude-sonnet-4.5";
   }

@@ -380,32 +380,34 @@ export default function AiBrainSettings() {
 
   // ── Reasoning Brain State ─────────────────────────────────────────────
   // 預設與 server/middleware/brainContext.ts 的 DEFAULT_REASONING_BRAINS 對齊：
-  // 全站光球代理改用 OpenRouter 的 Claude Opus 4.7（AI 代理專用、最高品質）。
-  const [directorModel, setDirectorModel] = useState("anthropic/claude-opus-4.7");
+  // 全站光球代理改用 Perplexity Sonar Reasoning Pro（AI 代理專用、內建 web
+  // grounding 即時搜尋）。無 PERPLEXITY_API_KEY 時 server 端會自動降級到
+  // OpenRouter perplexity/sonar-reasoning-pro 同名 ID。
+  const [directorModel, setDirectorModel] = useState("perplexity/sonar-reasoning-pro");
   const [directorTemp, setDirectorTemp] = useState(0.7);
   const [directorTopP, setDirectorTopP] = useState(0.9);
   const [directorEnabled, setDirectorEnabled] = useState(true);
   const [directorSystemPrompt, setDirectorSystemPrompt] = useState("");
 
-  const [analystModel, setAnalystModel] = useState("anthropic/claude-opus-4.7");
+  const [analystModel, setAnalystModel] = useState("perplexity/sonar-reasoning-pro");
   const [analystTemp, setAnalystTemp] = useState(0.3);
   const [analystTopP, setAnalystTopP] = useState(0.8);
   const [analystEnabled, setAnalystEnabled] = useState(true);
   const [analystSystemPrompt, setAnalystSystemPrompt] = useState("");
 
-  const [storytellerModel, setStorytellerModel] = useState("anthropic/claude-opus-4.7");
+  const [storytellerModel, setStorytellerModel] = useState("perplexity/sonar-reasoning-pro");
   const [storytellerTemp, setStorytellerTemp] = useState(0.9);
   const [storytellerTopP, setStorytellerTopP] = useState(0.95);
   const [storytellerEnabled, setStorytellerEnabled] = useState(true);
   const [storytellerSystemPrompt, setStorytellerSystemPrompt] = useState("");
 
-  const [technicianModel, setTechnicianModel] = useState("anthropic/claude-opus-4.7");
+  const [technicianModel, setTechnicianModel] = useState("perplexity/sonar-reasoning-pro");
   const [technicianTemp, setTechnicianTemp] = useState(0.2);
   const [technicianTopP, setTechnicianTopP] = useState(0.7);
   const [technicianEnabled, setTechnicianEnabled] = useState(true);
   const [technicianSystemPrompt, setTechnicianSystemPrompt] = useState("");
 
-  const [curatorModel, setCuratorModel] = useState("anthropic/claude-opus-4.7");
+  const [curatorModel, setCuratorModel] = useState("perplexity/sonar-reasoning-pro");
   const [curatorTemp, setCuratorTemp] = useState(0.8);
   const [curatorTopP, setCuratorTopP] = useState(0.9);
   const [curatorEnabled, setCuratorEnabled] = useState(true);

@@ -130,8 +130,12 @@ describe("Brain Context Middleware", () => {
       const brain = await buildBrainContext(123);
 
       expect(brain.hasCustomConfig).toBe(false);
-      // 全站光球代理預設改用 OpenRouter Claude Opus 4.7（AI 代理專用、最高品質）。
-      expect(brain.getBrain("director").model).toBe("anthropic/claude-opus-4.7");
+      // 全站光球代理預設改用 Perplexity Sonar Reasoning Pro（AI 代理專用、
+      // 內建 web grounding；無 PERPLEXITY_API_KEY 時 llmRouter 會自動降級到
+      // OpenRouter perplexity/sonar-reasoning-pro 同名 ID）。
+      expect(brain.getBrain("director").model).toBe(
+        "perplexity/sonar-reasoning-pro"
+      );
       expect(brain.getEngine("imageEngine").engine).toBe("fal-ai/flux-pro/v1.1");
 
       warnSpy.mockRestore();
@@ -429,8 +433,10 @@ describe("Brain Context Middleware", () => {
       const brain = await buildBrainContext(999);
       const director = brain.getBrain("director");
       expect(director.slot).toBe("director");
-      // 全站光球代理預設改用 OpenRouter Claude Opus 4.7（AI 代理專用、最高品質）。
-      expect(director.model).toBe("anthropic/claude-opus-4.7");
+      // 全站光球代理預設改用 Perplexity Sonar Reasoning Pro（AI 代理專用、
+      // 內建 web grounding；無 PERPLEXITY_API_KEY 時 llmRouter 自動降級到
+      // OpenRouter perplexity/sonar-reasoning-pro 同名 ID）。
+      expect(director.model).toBe("perplexity/sonar-reasoning-pro");
     });
 
     it("getEngine should return correct slot config", async () => {

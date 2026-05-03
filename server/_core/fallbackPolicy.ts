@@ -45,6 +45,29 @@ export const PER_MODEL_FALLBACK: Record<string, string[]> = {
     "google/gemini-2.5-pro",
     "gemini-2.5-pro",
   ],
+  // Perplexity Sonar(PERPLEXITY_API_KEY 直連;失敗時 invokeLLM 會走
+  // OpenRouter perplexity/sonar-* 同名 ID;再失敗才降級到 Claude / Gemini)
+  "perplexity/sonar-reasoning-pro": [
+    "anthropic/claude-opus-4.7",
+    "anthropic/claude-sonnet-4.5",
+    "google/gemini-2.5-pro",
+  ],
+  "perplexity/sonar-pro": [
+    "anthropic/claude-sonnet-4.5",
+    "google/gemini-2.5-pro",
+  ],
+  "perplexity/sonar-reasoning": [
+    "anthropic/claude-sonnet-4.5",
+    "google/gemini-2.5-flash",
+  ],
+  "perplexity/sonar": [
+    "anthropic/claude-haiku-4.5",
+    "google/gemini-2.5-flash",
+  ],
+  "perplexity/sonar-deep-research": [
+    "anthropic/claude-opus-4.7",
+    "google/gemini-2.5-pro",
+  ],
   "anthropic/claude-haiku-4.5": [
     "google/gemini-2.5-flash",
     "anthropic/claude-sonnet-4.5",

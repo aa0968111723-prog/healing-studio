@@ -336,6 +336,13 @@ const ENGINE_PROVIDER_MAP: Record<string, string> = {
   "mistralai/mistral-nemo": "openrouter",
   "meta-llama/llama-3.1-405b-instruct": "openrouter",
   "meta-llama/llama-3.2-90b-vision-instruct": "openrouter",
+  // ── Perplexity Sonar（PERPLEXITY_API_KEY 直連；無 key 時 llmRouter 會
+  //    自動降級走 OpenRouter perplexity/sonar-* 同名 ID） ──
+  "perplexity/sonar-reasoning-pro": "perplexity",
+  "perplexity/sonar-pro": "perplexity",
+  "perplexity/sonar-reasoning": "perplexity",
+  "perplexity/sonar": "perplexity",
+  "perplexity/sonar-deep-research": "perplexity",
   // ── MiniMax M2.7 via NVIDIA NIM（代理人推理引擎）──
   "minimaxai/minimax-m2.7": "nvidia",
   // ── 圖像生成（Fal.ai） ──
@@ -466,6 +473,28 @@ const REPAIR_FALLBACK: Record<string, string[]> = {
   ],
   "anthropic/claude-opus-4.7": [
     "anthropic/claude-sonnet-4.5",
+    "google/gemini-2.5-pro",
+  ],
+  // Perplexity Sonar：PERPLEXITY_API_KEY 不可用時降級到 Claude / Gemini。
+  "perplexity/sonar-reasoning-pro": [
+    "anthropic/claude-opus-4.7",
+    "anthropic/claude-sonnet-4.5",
+    "google/gemini-2.5-pro",
+  ],
+  "perplexity/sonar-pro": [
+    "anthropic/claude-sonnet-4.5",
+    "google/gemini-2.5-pro",
+  ],
+  "perplexity/sonar-reasoning": [
+    "anthropic/claude-sonnet-4.5",
+    "google/gemini-2.5-flash",
+  ],
+  "perplexity/sonar": [
+    "anthropic/claude-haiku-4.5",
+    "google/gemini-2.5-flash",
+  ],
+  "perplexity/sonar-deep-research": [
+    "anthropic/claude-opus-4.7",
     "google/gemini-2.5-pro",
   ],
   "anthropic/claude-haiku-4.5": [

@@ -106,21 +106,28 @@ export interface DegradationEvent {
 // Default Configurations (硬編碼安全預設)
 // ═══════════════════════════════════════════════════════════════════════════
 
-// 全站光球代理（Global Orb Agent）預設改用 OpenRouter 上最高品質的代理
-// 專用模型 anthropic/claude-opus-4.7（ultra tier）。Anthropic 在 tool use
-// 可靠度與多步驟反問判斷力上明顯領先 Gemini Flash，最適合「全站光球」這種
-// 需要規劃、呼叫工具、跨頁推理的代理人場景（見 server/_core/llmRouter.ts
-// 開頭的「為何 Anthropic 排第一」說明）。使用者仍可在 /ai-brain-settings
-// 自行切換（slot allowlist 已加入 opus-4.7 選項）。
+// 全站光球代理（Global Orb Agent）預設改用 Perplexity 旗艦 AI 代理模型
+// perplexity/sonar-reasoning-pro（ultra tier）：原生帶 web grounding（即時
+// 網路搜尋）、reasoning 強化、最適合「全站光球」需要規劃 + 引用即時資訊
+// 的代理人場景。
+//
+// 路由策略（見 server/_core/llmRouter.ts inferEngineFromModelIdSafe）：
+//   1. 若設了 PERPLEXITY_API_KEY → 走原生 Perplexity API（直連，較便宜）
+//   2. 若沒設 PERPLEXITY_API_KEY 但有 OPENROUTER_API_KEY → 自動走 OpenRouter
+//      （normalizeModelForEngine 會把 perplexity/sonar-* 直接送到
+//      OpenRouter 的 perplexity/sonar-* model id，相容）
+//   3. 都沒設 → 斷路器跳過，降級到下一條 fallback chain（claude/gemini）
+//
+// 使用者仍可在 /ai-brain-settings 自行切換每個 slot 的模型。
 export const DEFAULT_REASONING_BRAINS: Record<
   ReasoningBrainSlot,
   { model: string; temperature: number; topP: number }
 > = {
-  director: { model: "anthropic/claude-opus-4.7", temperature: 0.4, topP: 0.9 },
-  analyst: { model: "anthropic/claude-opus-4.7", temperature: 0.3, topP: 0.8 },
-  storyteller: { model: "anthropic/claude-opus-4.7", temperature: 0.9, topP: 0.95 },
-  technician: { model: "anthropic/claude-opus-4.7", temperature: 0.2, topP: 0.7 },
-  curator: { model: "anthropic/claude-opus-4.7", temperature: 0.8, topP: 0.9 },
+  director: { model: "perplexity/sonar-reasoning-pro", temperature: 0.4, topP: 0.9 },
+  analyst: { model: "perplexity/sonar-reasoning-pro", temperature: 0.3, topP: 0.8 },
+  storyteller: { model: "perplexity/sonar-reasoning-pro", temperature: 0.9, topP: 0.95 },
+  technician: { model: "perplexity/sonar-reasoning-pro", temperature: 0.2, topP: 0.7 },
+  curator: { model: "perplexity/sonar-reasoning-pro", temperature: 0.8, topP: 0.9 },
 };
 
 export const DEFAULT_GENERATION_ENGINES: Record<
