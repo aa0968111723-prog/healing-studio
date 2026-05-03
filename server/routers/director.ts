@@ -1814,16 +1814,25 @@ export const directorRouter = router({
           characters: z.array(z.string()).optional(),
           locations: z.array(z.string()).optional(),
           notes: z.string().optional(),
-          discussion: z.array(
-            z.object({
-              role: z.enum(["user", "assistant"]),
-              content: z.string(),
-              imageUrl: z.string().optional(),
-              quickAction: z.string().optional(),
-              timestamp: z.string(),
-            })
-          ),
-          status: z.enum(["pending", "draft", "refined", "approved"]),
+          // 2026-05 audit: both fields used to be required, but callers
+          // hitting discussSegment for the first time on a brand-new segment
+          // legitimately have no discussion yet — and the orb tool bridge
+          // wouldn't either. Defaulting them keeps the existing UI flow
+          // working while making the API forgiving for new callers.
+          discussion: z
+            .array(
+              z.object({
+                role: z.enum(["user", "assistant"]),
+                content: z.string(),
+                imageUrl: z.string().optional(),
+                quickAction: z.string().optional(),
+                timestamp: z.string(),
+              })
+            )
+            .default([]),
+          status: z
+            .enum(["pending", "draft", "refined", "approved"])
+            .default("pending"),
         }),
         message: z.string().min(1),
         personality: z
@@ -2107,7 +2116,12 @@ ${persona.proactiveHint}
             },
           },
         }),
-        45_000,
+        // 2026-05 audit: same root cause as 導演AI研究 (which I bumped
+        // 30→90s in round 3). gemini-2.5-pro spends 25-50s thinking on a
+        // CO-STAR structured-JSON generation; the 45s ceiling means
+        // ~half the calls 500'd in production. Bumped to 90s, which still
+        // sits comfortably under invokeLLM's env-driven LLM_TIMEOUT_SECONDS.
+        90_000,
         "分鏡 CO-STAR 生成"
       );
 
