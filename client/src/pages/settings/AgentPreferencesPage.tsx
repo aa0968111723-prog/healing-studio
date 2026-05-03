@@ -16,6 +16,7 @@ import {
   type PerceptionStrictness,
 } from "@shared/agent-preferences";
 import { APP_PAGE_REGISTRY } from "@shared/appRegistry";
+import ToolQuickSelectChips from "@/components/ToolQuickSelectChips";
 
 type BehaviorMode = "pure_chat" | "semi_auto" | "auto";
 
@@ -669,30 +670,40 @@ export default function AgentPreferencesPage() {
 
         {/* ───── 工具白黑名單 ───── */}
         <TabsContent value="tools" className="space-y-3 pt-4">
-          <section className="space-y-3 rounded-2xl border bg-card p-4">
+          <section className="space-y-4 rounded-2xl border bg-card p-4">
             <p className="text-xs text-muted-foreground">
               用逗號或換行分隔工具名稱。白名單裡的工具會跳過確認；黑名單裡的工具一律拒絕執行。輸入 <code>*</code> 代表全部工具。
             </p>
-            <label className="block text-sm">
+            <div className="space-y-2 text-sm">
               <span className="font-medium">白名單（auto-approve）</span>
+              <ToolQuickSelectChips
+                csv={autoApproveCsv}
+                setCsv={setAutoApproveCsv}
+                variant="allow"
+              />
               <textarea
-                className="mt-1 w-full rounded border p-2"
+                className="w-full rounded border p-2"
                 rows={3}
                 value={autoApproveCsv}
                 onChange={event => setAutoApproveCsv(event.target.value)}
-                placeholder="例：fal.imagine, gemini.tts"
+                placeholder="例：studio.generateImage, gemini.tts"
               />
-            </label>
-            <label className="block text-sm">
+            </div>
+            <div className="space-y-2 text-sm">
               <span className="font-medium">黑名單（block）</span>
+              <ToolQuickSelectChips
+                csv={blockedCsv}
+                setCsv={setBlockedCsv}
+                variant="block"
+              />
               <textarea
-                className="mt-1 w-full rounded border p-2"
+                className="w-full rounded border p-2"
                 rows={3}
                 value={blockedCsv}
                 onChange={event => setBlockedCsv(event.target.value)}
                 placeholder="例：deploy.preview, github.pr.create"
               />
-            </label>
+            </div>
           </section>
         </TabsContent>
 
