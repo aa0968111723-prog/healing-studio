@@ -202,8 +202,21 @@ describe("global-agent-workflows", () => {
     expect(detection.kind).toBe("needs-clarification");
   });
 
-  it("detectVideoIntent skips clarification when user provides explicit short-form details", () => {
-    const detection = detectVideoIntent("幫我做一支 30 秒廣告短片");
+  it("detectVideoIntent walks the wizard for partially-specified video requests", () => {
+    // "幫我做一支 30 秒廣告短片" gives length + subject + style (廣告) but no
+    // platform/aspect ratio — the wizard should still ask one more round
+    // before committing to the workflow, since "30 秒廣告" reads very
+    // different on IG Reel (9:16) vs YouTube (16:9) vs TV (16:9 broadcast).
+    const partial = detectVideoIntent("幫我做一支 30 秒廣告短片");
+    expect(partial.kind).toBe("needs-clarification");
+  });
+
+  it("detectVideoIntent skips clarification when user provides full details", () => {
+    // Length + subject + style + platform all explicit — wizard is
+    // satisfied and commits to the runWorkflow.
+    const detection = detectVideoIntent(
+      "幫我做一支 30 秒 IG Reel 9:16 電影感的茶道體驗廣告短片"
+    );
     expect(detection.kind).toBe("ready");
   });
 
