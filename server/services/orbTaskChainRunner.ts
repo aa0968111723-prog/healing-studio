@@ -50,6 +50,7 @@ import {
 import { runSchemaFirstAgentPlanner } from "./agentPlanner";
 import type { AgentPlannerInput } from "./agentPlanner";
 import { orbTaskRepository } from "../repositories/orbTaskRepository";
+import { emitGenerationEvent } from "../generationEvents";
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
@@ -283,6 +284,20 @@ export async function runOrbTaskWithContinuationLoop(
   let currentTaskId = input.initialTaskId;
   let stopReason: OrbTaskChainStopReason = "max_iterations";
 
+  const startedAt = Date.now();
+  // Best-effort telemetry; emit failures shouldn't break the loop.
+  try {
+    emitGenerationEvent({
+      type: "chain_started",
+      taskId: input.initialTaskId,
+      userId: input.userId,
+      maxIterations,
+      at: startedAt,
+    });
+  } catch {
+    // ignore — pure observability event
+  }
+
   for (let iter = 0; iter < maxIterations; iter += 1) {
     const runResult = await runTask({
       taskId: currentTaskId,
@@ -396,6 +411,21 @@ export async function runOrbTaskWithContinuationLoop(
 
   // Final cleanup of context for whichever task ended the chain.
   deleteOrbTaskPlannerContext(currentTaskId);
+
+  try {
+    emitGenerationEvent({
+      type: "chain_completed",
+      taskId: input.initialTaskId,
+      finalTaskId: currentTaskId,
+      userId: input.userId,
+      iterations: iterations.length,
+      stopReason,
+      durationMs: Date.now() - startedAt,
+      at: Date.now(),
+    });
+  } catch {
+    // ignore — pure observability event
+  }
 
   return {
     iterations,

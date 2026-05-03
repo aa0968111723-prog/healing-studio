@@ -54,6 +54,37 @@ export type GenerationEvent =
       errorCode: string;
       issueCount: number;
       at: number;
+    } & GenerationEventBase)
+  | ({
+      // Agent loop v2 telemetry: chain runner started a bounded
+      // continuation loop for an initial task. Carries the maxIterations
+      // budget so dashboards can compare planned vs actual chain length.
+      type: "chain_started";
+      taskId: string;
+      userId: number;
+      maxIterations: number;
+      at: number;
+    } & GenerationEventBase)
+  | ({
+      // Agent loop v2 telemetry: chain runner exited with a terminal
+      // stop reason. `iterations` is the number of tasks actually run
+      // (1 for single-shot completion, 2 when a replan happened, …).
+      // `durationMs` covers wall-clock from start of the first iteration
+      // to the end of the last; useful for SLO tracking.
+      type: "chain_completed";
+      taskId: string;
+      finalTaskId: string;
+      userId: number;
+      iterations: number;
+      stopReason:
+        | "completed"
+        | "abort"
+        | "needs_user"
+        | "no_continuation_context"
+        | "planner_no_task"
+        | "max_iterations";
+      durationMs: number;
+      at: number;
     } & GenerationEventBase);
 
 class GenerationEventBus {

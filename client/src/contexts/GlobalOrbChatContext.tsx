@@ -19,6 +19,7 @@ import {
 } from "react";
 import { trpc } from "@/lib/trpc";
 import { useGlobalOrbExecutor } from "@/agent/useGlobalOrbExecutor";
+import OrbTaskObservationStrip from "@/components/OrbTaskObservationStrip";
 import { usePersonality } from "./PersonalityContext";
 import { usePageAgent, parseLLMActions, adaptAgentPlanToActions, type AgentAction } from "./PageAgentContext";
 import { useLocation } from "wouter";
@@ -985,6 +986,13 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
   const [pendingWorkflow, setPendingWorkflow] = useState<PendingWorkflowPlan | null>(null);
   const [pendingExecutorTask, setPendingExecutorTask] = useState<PendingExecutorTask | null>(null);
   const [activeExecutorTask, setActiveExecutorTask] = useState<GlobalOrbExecutorTask | null>(null);
+  // Latest server-side OrbTask id we've seen come back from the brain
+  // router. Used as the rootTaskId for OrbTaskObservationStrip so the
+  // user can watch the agent loop's post-mortem observations + chain
+  // hops. Reset to null when the user clears history. Holds only one
+  // task at a time (the most recent) — the strip itself follows
+  // continuations.
+  const [latestServerTaskId, setLatestServerTaskId] = useState<string | null>(null);
   const [pendingCodeTask, setPendingCodeTask] = useState<PendingCodeTaskPreview | null>(null);
   const [pendingClarification, setPendingClarificationState] = useState<PendingClarificationPrompt | null>(
     () => loadClarificationFromStorage().prompt
@@ -1372,6 +1380,15 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
       const taskDraft = (data as { taskDraft?: { summaryForUser?: string; steps?: Array<{ id: string; label: string; pagePath?: string; uiActions?: Array<{ type: string; payload?: unknown }>; requiresApproval?: boolean; toolCalls?: Array<{ name: string; args?: Record<string, unknown>; requiresApproval?: boolean }> }> } | null }).taskDraft;
       const taskMeta = (data as { task?: { taskId?: string; traceId?: string; riskLevel?: string; preferredEngine?: string; isolation?: "ui" | "tool" | "code"; status?: string } | null; telemetry?: { taskId?: string | null; traceId?: string | null; riskLevel?: string | null } | null }).task;
       const telemetryMeta = (data as { telemetry?: { taskId?: string | null; traceId?: string | null; riskLevel?: string | null } | null }).telemetry;
+      // Capture the latest real server task id so OrbTaskObservationStrip
+      // can subscribe to the chain runner's audit log. Skip drafts /
+      // unset values — the strip ignores null anyway.
+      {
+        const realTaskId = taskMeta?.taskId ?? telemetryMeta?.taskId ?? null;
+        if (realTaskId && !realTaskId.startsWith("draft_")) {
+          setLatestServerTaskId(realTaskId);
+        }
+      }
       const codeTaskPreview = (data as {
         codeTask?: {
           codeTaskId: string;
@@ -1896,6 +1913,15 @@ export function GlobalOrbChatProvider({ children }: { children: ReactNode }) {
         onAnswer={text => void answerClarification(text)}
         onCancel={cancelClarification}
       />
+      {latestServerTaskId && (
+        <div className="fixed bottom-4 right-4 z-[83] w-[360px] max-w-[calc(100vw-2rem)] pointer-events-auto">
+          <OrbTaskObservationStrip
+            rootTaskId={latestServerTaskId}
+            onSuggestionPick={text => void sendMessage(text)}
+            onDismiss={() => setLatestServerTaskId(null)}
+          />
+        </div>
+      )}
     </GlobalOrbChatContext.Provider>
   );
 }
