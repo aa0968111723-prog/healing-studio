@@ -28,6 +28,7 @@ import {
 } from "./orbTaskPageStateStore";
 import {
   getRecentOrbTaskMemory,
+  getRecentOrbTaskMemoryForUser,
   type OrbTaskMemoryEvent,
 } from "./orbTaskMemory";
 
@@ -95,10 +96,18 @@ export interface ObserveOrbTaskInput {
    * observer prompt as "歷史紀錄". Lets the LLM recognise repeat
    * failure patterns ("we've hit `chain.planner_no_task` on this
    * intent before — give up faster"). When omitted, the observer
-   * pulls from `getRecentOrbTaskMemory()` automatically (capped at 5
-   * entries). Pass an empty array to opt out.
+   * auto-pulls (per-user when `userId` is provided, otherwise the
+   * unscoped global feed) capped at 5 entries. Pass an empty array
+   * to opt out.
    */
   recentTaskMemory?: OrbTaskMemoryEvent[];
+  /**
+   * Agent loop v10 — when set, auto-pulled memory is filtered to this
+   * user only via `getRecentOrbTaskMemoryForUser`, so observer prompts
+   * can never leak another account's chain history. Brain-router /
+   * chain-runner callers always have it; tests / batch tools may omit.
+   */
+  userId?: number;
   /** 注入用 — 預設用全站 invokeLLM，測試時用 stub */
   invoke?: typeof invokeLLM;
   /** 觀察 LLM 回應的最大 tokens；預設 600 */
@@ -236,6 +245,12 @@ function resolveRecentTaskMemory(
   if (input.recentTaskMemory !== undefined) {
     // Caller opted in (or out by passing []) — honour exactly.
     return input.recentTaskMemory.slice(0, 5);
+  }
+  // Per-user view when we know the user; falls back to the unscoped
+  // global feed only for legacy callers that don't pass userId (real
+  // brain-router / chain-runner paths always do).
+  if (typeof input.userId === "number") {
+    return getRecentOrbTaskMemoryForUser(input.userId, 5);
   }
   return getRecentOrbTaskMemory(5);
 }

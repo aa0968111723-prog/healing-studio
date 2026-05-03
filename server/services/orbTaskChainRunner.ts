@@ -204,7 +204,7 @@ async function tryReplanAndCreateTask(args: {
   // Materialise FSM task. createOrbAgentTaskFromPlanner internally drops
   // claudeCode / approval-required plans into a paused state; that's the
   // correct behaviour even on the continuation path.
-  const stateMachineTask = createOrbAgentTaskFromPlanner(plannerResult);
+  const stateMachineTask = createOrbAgentTaskFromPlanner(plannerResult, args.userId);
   if (!stateMachineTask) {
     return {
       ok: false,
@@ -339,6 +339,10 @@ export async function runOrbTaskWithContinuationLoop(
         // Agent loop v5 — observer auto-pulls page-state snapshots
         // posted by the client during this task's run.
         taskId: currentTaskId,
+        // Agent loop v10 — observer's auto-pulled memory is scoped
+        // to this user so its "[歷史紀錄]" prompt block can't leak
+        // any other account's chain outcomes.
+        userId: input.userId,
       });
       // Persist observation as audit event on the current task.
       appendOrbAgentTaskAuditEvent(
@@ -532,6 +536,10 @@ export async function runOrbTaskWithContinuationLoop(
       taskId: input.initialTaskId,
       planId: initialAgent?.planId ?? input.initialTaskId,
       traceId: initialAgent?.traceId ?? input.initialTaskId,
+      // Pass through so getRecentOrbTaskMemoryForUser can scope the
+      // memory feed back to the right account on the next planner /
+      // observer round.
+      userId: input.userId,
       userIntent: initialAgent?.intent ?? finalAgent?.intent ?? "",
       outcome: memoryOutcome,
       failedReason: failedReasonParts.length > 0 ? failedReasonParts.join(" / ") : undefined,

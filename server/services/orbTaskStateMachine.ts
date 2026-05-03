@@ -40,7 +40,16 @@ function now() {
   return Date.now();
 }
 
-export function createOrbAgentTaskFromPlanner(result: GatedAgentPlanResult): OrbAgentTask | null {
+export function createOrbAgentTaskFromPlanner(
+  result: GatedAgentPlanResult,
+  /**
+   * Owning user. Optional for backwards compatibility with the small
+   * number of test/scaffold call sites that don't have a user; real
+   * brain-router callers MUST pass it so chain memory + per-user
+   * observer queries stay scoped.
+   */
+  userId?: number
+): OrbAgentTask | null {
   if (result.status !== "tasked" || !result.task) return null;
   const plan = result.plan && typeof result.plan === "object" ? (result.plan as Record<string, unknown>) : null;
   const planId =
@@ -82,6 +91,7 @@ export function createOrbAgentTaskFromPlanner(result: GatedAgentPlanResult): Orb
     taskId: id("orb_task"),
     planId,
     traceId,
+    userId,
     intent: result.task.intent,
     summaryForUser: result.task.summaryForUser,
     status: approvalRequired ? "awaiting_approval" : "approved",
@@ -187,6 +197,7 @@ export function cancelOrbAgentTask(taskId: string, reason = "cancelled by user")
     taskId: task.taskId,
     planId: task.planId,
     traceId: task.traceId,
+    userId: task.userId,
     userIntent: task.intent,
     outcome: "cancelled",
     failedReason: reason,
@@ -284,6 +295,7 @@ export function completeOrbAgentStep(taskId: string, stepId: string): OrbAgentTa
       taskId: task.taskId,
       planId: task.planId,
       traceId: task.traceId,
+      userId: task.userId,
       userIntent: task.intent,
       outcome: "success",
       usedEngine: task.preferredEngine,
@@ -407,6 +419,7 @@ export function failOrbAgentStep(
     taskId: task.taskId,
     planId: task.planId,
     traceId: task.traceId,
+    userId: task.userId,
     userIntent: task.intent,
     outcome: "failure",
     failedReason: reason,

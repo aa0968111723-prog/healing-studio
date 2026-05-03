@@ -114,6 +114,12 @@ export interface OrbAgentTask {
   taskId: string;
   planId: string;
   traceId: string;
+  /** Owning user — required so per-task chain memory + page-state can
+   *  be scoped per user. Optional in the shared shape for backwards
+   *  compatibility with callers that pre-date user scoping; the FSM
+   *  setter populates it whenever createOrbAgentTaskFromPlanner gets
+   *  the userId from the brain router. */
+  userId?: number;
   intent: string;
   summaryForUser: string;
   status: OrbTaskState;

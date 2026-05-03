@@ -5980,7 +5980,7 @@ export const appRouter = router({
               let codeTask: unknown = null;
               let codeTaskPrompt: string | null = null;
               if (globalWorkflowsEnabled && taskDraft && orbTaskStateMachineEnabled) {
-                stateMachineTask = createOrbAgentTaskFromPlanner(plannerResult);
+                stateMachineTask = createOrbAgentTaskFromPlanner(plannerResult, ctx.user.id);
               }
               // Always materialize a legacy orbTaskRepository record so the
               // existing reportTaskStep flow (which queries the legacy store)
@@ -6517,6 +6517,13 @@ export const appRouter = router({
       // generation succeed?). Off-band from the FSM audit log on
       // purpose: this is a "what does the world look like" snapshot,
       // not a "what did I do" event.
+      //
+      // Agent loop v10 — verify caller owns the taskId before
+      // accepting the snapshot. Without this a malicious user could
+      // pollute another user's task state (taskIds are guessable in
+      // shape `orb_task_<ts>_<rand>`). We allow legacy tasks without a
+      // recorded userId through unchanged so existing flows that
+      // pre-date user scoping don't suddenly start failing.
       reportPageState: brainProcedure
         .input(
           z.object({
@@ -6533,7 +6540,15 @@ export const appRouter = router({
               }),
           })
         )
-        .mutation(({ input }) => {
+        .mutation(({ input, ctx }) => {
+          const fsmTask = getOrbAgentTask(input.taskId);
+          if (
+            fsmTask &&
+            typeof fsmTask.userId === "number" &&
+            fsmTask.userId !== ctx.user.id
+          ) {
+            return { ok: false as const, reason: "not-your-task" };
+          }
           appendOrbTaskPageState(input.taskId, {
             at: Date.now(),
             pageId: input.pageId,

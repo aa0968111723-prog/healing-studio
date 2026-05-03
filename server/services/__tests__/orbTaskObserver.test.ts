@@ -11,9 +11,14 @@ import {
   _resetOrbTaskPageStateStoreForTests,
   appendOrbTaskPageState,
 } from "../orbTaskPageStateStore";
+import {
+  _resetOrbTaskMemoryForTests,
+  recordOrbTaskMemory,
+} from "../orbTaskMemory";
 
 afterEach(() => {
   _resetOrbTaskPageStateStoreForTests();
+  _resetOrbTaskMemoryForTests();
 });
 
 function makeRunResult(
@@ -356,5 +361,94 @@ describe("orbTaskObserver", () => {
       invoke: llm as unknown as Parameters<typeof observeOrbTaskOutcome>[0]["invoke"],
     });
     expect(captured).not.toContain("[歷史紀錄]");
+  });
+
+  it("scopes auto-pulled memory to the userId so other users' chains never leak in", async () => {
+    // Seed two events for user A (target) and one for user B (control).
+    recordOrbTaskMemory({
+      taskId: "ta-1",
+      planId: "ta-1",
+      traceId: "ta-1",
+      userId: 1,
+      userIntent: "user A intent",
+      outcome: "failure",
+      failedReason: "USER_A_TRAP_MARKER",
+      usedMultimodalPlanner: false,
+      actionTypes: [],
+      createdAt: Date.now() - 100,
+    });
+    recordOrbTaskMemory({
+      taskId: "tb-1",
+      planId: "tb-1",
+      traceId: "tb-1",
+      userId: 2,
+      userIntent: "user B intent",
+      outcome: "failure",
+      failedReason: "USER_B_TRAP_MARKER",
+      usedMultimodalPlanner: false,
+      actionTypes: [],
+      createdAt: Date.now(),
+    });
+    let captured = "";
+    const llm = vi.fn(async ({ messages }) => {
+      const userMsg = messages.find((m: { role: string }) => m.role === "user");
+      captured = String(userMsg?.content ?? "");
+      return {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ kind: "complete", userMessage: "ok" }),
+            },
+          },
+        ],
+      };
+    });
+    // Observer runs for user A — it must NOT see user B's marker.
+    await observeOrbTaskOutcome({
+      intent: "user A intent again",
+      runResult: makeRunResult({ outcome: "completed" }),
+      agentTask: makeAgentTask(),
+      userId: 1,
+      invoke: llm as unknown as Parameters<typeof observeOrbTaskOutcome>[0]["invoke"],
+    });
+    expect(captured).toContain("USER_A_TRAP_MARKER");
+    expect(captured).not.toContain("USER_B_TRAP_MARKER");
+  });
+
+  it("excludes legacy events with no userId from per-user view", async () => {
+    recordOrbTaskMemory({
+      taskId: "legacy",
+      planId: "legacy",
+      traceId: "legacy",
+      // Intentionally no userId — pre-v10 caller.
+      userIntent: "legacy intent",
+      outcome: "failure",
+      failedReason: "LEGACY_TRAP_MARKER",
+      usedMultimodalPlanner: false,
+      actionTypes: [],
+      createdAt: Date.now(),
+    });
+    let captured = "";
+    const llm = vi.fn(async ({ messages }) => {
+      const userMsg = messages.find((m: { role: string }) => m.role === "user");
+      captured = String(userMsg?.content ?? "");
+      return {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ kind: "complete", userMessage: "ok" }),
+            },
+          },
+        ],
+      };
+    });
+    await observeOrbTaskOutcome({
+      intent: "x",
+      runResult: makeRunResult({ outcome: "completed" }),
+      agentTask: makeAgentTask(),
+      userId: 1,
+      invoke: llm as unknown as Parameters<typeof observeOrbTaskOutcome>[0]["invoke"],
+    });
+    expect(captured).not.toContain("LEGACY_TRAP_MARKER");
   });
 });
