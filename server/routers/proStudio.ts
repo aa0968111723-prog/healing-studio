@@ -1906,17 +1906,21 @@ export const proStudioRouter = router({
       const charged = await chargeForFalTask(ctx.user.id, pricingKey, { durationSec: 60 });
 
       // 先建 backgroundJob 取得 jobId，才能組出帶 jobId 的 callBackUrl
-      const job = await createBackgroundJob({
+      const insertId = await createBackgroundJob({
         userId: ctx.user.id,
         jobType: "audio",
         status: "processing",
         progressMessage: `Suno ${input.modelVersion} 生成中…`,
         resultJson: { estimate } as any,
       });
+      // createBackgroundJob now returns the raw insertId (number) — older
+      // code here typed `job` as an object with `.id` and the typeof-object
+      // check meant `jobId` was always null. That left callBackUrl
+      // undefined, and Suno's apibox.erweima.ai gateway rejects every
+      // generate call with `400 "Please enter callBackUrl."` when it's
+      // missing — i.e. the entire Suno flow was broken in production.
       const jobId =
-        typeof job === "object" && job && "id" in job
-          ? ((job as any).id as number)
-          : null;
+        typeof insertId === "number" && insertId > 0 ? insertId : null;
 
       const siteUrl = process.env.VITE_SITE_URL?.trim();
       const callBackUrl =
@@ -1967,9 +1971,21 @@ export const proStudioRouter = router({
 
       const status = await suno.getTaskStatus(input.taskId);
 
-      if (status.status === "completed" && status.clips?.[0]?.audioUrl) {
+      // 2026-05 audit: apibox.erweima.ai's new status enum is uppercase —
+      // PENDING / TEXT_SUCCESS / FIRST_SUCCESS / SUCCESS /
+      // CREATE_TASK_FAILED / GENERATE_AUDIO_FAILED. Older code only
+      // matched lowercase "completed", so the localize-and-persist branch
+      // never ran even after Suno had published the audio URLs.
+      const isCompleted =
+        status.status === "completed" ||
+        status.status === "SUCCESS" ||
+        status.status === "FIRST_SUCCESS";
+      const firstUsableClip = status.clips?.find(
+        c => typeof c.audioUrl === "string" && c.audioUrl.length > 0
+      );
+      if (isCompleted && firstUsableClip) {
         const localized = (await localizeResultUrls(
-          { audioUrl: status.clips[0].audioUrl, clips: status.clips },
+          { audioUrl: firstUsableClip.audioUrl, clips: status.clips },
           `generated/${ctx.user.id}/suno-${input.taskId}`
         )) as { audioUrl: string; clips: typeof status.clips };
 

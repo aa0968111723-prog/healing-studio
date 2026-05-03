@@ -1315,7 +1315,13 @@ ${memorySection}`,
         })),
       ],
     }),
-    30_000,
+    // gemini-2.5-pro with thinking on a "plan a 30s video" prompt routinely
+    // takes 25-45s. The previous 30s ceiling caused frequent
+    // "導演AI研究 回應超時" 500s in production. Bump to 90s; the underlying
+    // `invokeLLM` already enforces the env-driven LLM_TIMEOUT_SECONDS
+    // (default 60) and a thinking-budget-aware AbortSignal, so this wrapper
+    // is the per-stage failsafe rather than the primary timeout.
+    90_000,
     "導演AI研究"
   );
   const researchContent = extractMessageText(
@@ -1585,7 +1591,9 @@ export const directorRouter = router({
             },
           },
         }),
-        30_000,
+        // Same rationale as `導演AI研究` above — bumped to 90s so
+        // gemini-2.5-pro thinking has headroom.
+        90_000,
         "腳本修改"
       );
 
@@ -3372,7 +3380,27 @@ ${segmentSummaries}
       }
 
       // 終態（completed / failed / cancelled）— 直接回填結果
-      const meta = (job.resultJson as Record<string, unknown> | null) ?? {};
+      // drizzle returns mysql JSON columns as strings (the underlying mysql2
+      // driver hands back the raw bytes from the server). Older code cast
+      // straight to Record<string,unknown>, leaving every field undefined
+      // and breaking the polling path entirely — pollGenerationTask would
+      // forever return IN_PROGRESS even though fal had completed the job.
+      // Parse defensively: accept either a pre-parsed object or a JSON
+      // string, and fall back to {} on any malformed value.
+      const rawMeta = job.resultJson;
+      let meta: Record<string, unknown> = {};
+      if (rawMeta && typeof rawMeta === "object") {
+        meta = rawMeta as Record<string, unknown>;
+      } else if (typeof rawMeta === "string" && rawMeta.length > 0) {
+        try {
+          const parsed = JSON.parse(rawMeta);
+          if (parsed && typeof parsed === "object") {
+            meta = parsed as Record<string, unknown>;
+          }
+        } catch {
+          /* malformed JSON in DB — fall through with empty meta */
+        }
+      }
       const cachedResultUrl =
         typeof meta.resultUrl === "string" ? meta.resultUrl : null;
       if (job.status === "completed") {

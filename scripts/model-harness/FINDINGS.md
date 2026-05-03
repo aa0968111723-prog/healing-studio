@@ -100,12 +100,105 @@ disabled-flag auto-degrade. The catalog flag handles it instead.)
   full submit / status / result body dump, invaluable for triaging
   upstream weirdness one model at a time.
 
+## Round 3 — Director AI live-tested + 5 more production bugs fixed
+
+After the user topped up Replicate, the live audit moved to the parts
+of the pipeline that need a real DB + a logged-in user. Set up a local
+MariaDB, applied schema migrations (with two manual workarounds for
+JSON-default syntax MariaDB doesn't accept), seeded a test user, and
+minted a session JWT with the project's `JWT_SECRET` so I could hit
+`brainProcedure` endpoints from curl.
+
+### F. `director.chat` had a 30s timeout that gemini-2.5-pro routinely exceeds
+
+`server/routers/director.ts` wrapped the research-stage `invokeLLM`
+call in a 30s `withTimeout`. Brain default for `director` slot is
+`gemini-2.5-pro`, which spends 25-45s thinking on any "plan a video"
+prompt. **Every chat call hit `導演AI研究 回應超時（30秒）` 500.**
+
+Bumped both research-stage and refine-stage timeouts to 90s. The
+underlying `invokeLLM` already enforces the env-driven
+`LLM_TIMEOUT_SECONDS` (default 60s) via `AbortSignal`, so the
+per-stage wrapper is just a failsafe; 90s gives gemini-2.5-pro
+headroom without changing the real bound.
+
+Verified: the same prompt that 500'd before now returns a full
+research + 3-segment storyboard in ~73s.
+
+### G. `pollGenerationTask` ignored fal completions because resultJson is a string
+
+Drizzle hands back MySQL `JSON` columns as **strings**, not parsed
+objects. `pollGenerationTask` cast them straight to
+`Record<string, unknown>` — every field came back `undefined`. The
+poller therefore couldn't read `requestId` / `modelId` / `statusUrl`
+from the persisted job, fell into the bottom IN_PROGRESS branch
+forever, and **users would watch a generation spinner indefinitely
+even though fal had completed the job 2 seconds in**.
+
+Fix: parse defensively. Accept either a pre-parsed object (some
+drivers do auto-decode) or a JSON string; fall back to `{}` on
+malformed input. After the fix, the same job that hung 10 polls in a
+row returned `COMPLETED` with an R2-localized URL on the very next
+poll.
+
+### H. `generateMusicSuno` — `createBackgroundJob` return type mismatch
+
+`db.createBackgroundJob` returns the raw `insertId` (a number), but
+`proStudio.generateMusicSuno` had:
+
+```ts
+const jobId = typeof job === "object" && job && "id" in job
+  ? ((job as any).id as number)
+  : null;
+```
+
+`typeof number === "object"` is false, so `jobId` was always `null`,
+which meant `callBackUrl` was always undefined, which meant Suno's
+gateway rejected every request with `400 "Please enter callBackUrl."`
+**Suno music generation was 100% broken in production.**
+
+Fix: read the number directly.
+
+### I. `SunoClient` used the old apibox.erweima.ai contract
+
+The Suno gateway (`https://apibox.erweima.ai`) changed its request
+contract:
+
+- `mv: "chirp-v3-5"` → `model: "V3_5"` (uppercase + underscore)
+- `make_instrumental` / `wait_audio` / `custom_mode` → `instrumental` /
+  removed / `customMode` (camelCase)
+- Status endpoint moved from `/api/v1/generate/record` → `/api/v1/generate/record-info`
+- Response key `data.task_id` → `data.taskId` (camelCase)
+- Status enum changed from `"completed"` → `"SUCCESS"` /
+  `"FIRST_SUCCESS"` (uppercase)
+- Clips moved from `data.data[]` to `data.response.sunoData[]` and
+  the URL field is `audioUrl` (camelCase) not `audio_url`
+
+Calling the old shape returned `400 model cannot be null` then `400
+customMode cannot be null`. **Suno was 100% broken even before the
+callBackUrl bug — every request 400'd.**
+
+Fix: rewrote the request body, status endpoint URL, response parsing,
+and status-mapping in `SunoClient` + `checkMusicSunoStatus` router.
+Verified end-to-end: same prompt now produces 2 audio clips,
+auto-localized to R2.
+
+### J. LoRA training (Replicate) verified end-to-end
+
+After the user topped up Replicate credit, retried the training that
+the previous audit could only get as far as the 402. Result:
+`status=succeeded` in 1m55s, trained weights URL at
+`replicate.delivery/.../weights.tar`.
+
+The codebase's `loraTrainer.trainWithReplicate` flow was already
+correctly wired (auth, destination model creation, training POST,
+status polling, refund on failure). No code changes needed; the
+audit just confirms it works.
+
 ## What still isn't covered
 
-- LoRA training — the audit account ran out of Replicate credit
-  before a training could complete. Code path verified up to the
-  `/v1/trainings` POST (auth + destination model creation worked); the
-  402 Payment Required is a billing issue, not a wiring issue.
+(nothing significant — every codebase-side wiring issue surfaced by
+the live audit has been fixed)
 - Webhook callbacks (Suno, fal, Replicate) — those are exercised
   asynchronously by the providers, not by direct testing.
 - Director AI tRPC procedures (`chat`, `executeGenerationTask`,
