@@ -229,6 +229,22 @@ export function buildShortVideoWorkflow(brief: string): RunWorkflowAction {
           `寫完後直接以朗讀格式輸出，不要附說明文字：${basePrompt}`,
         label: "配音：填入旁白需求",
       },
+      {
+        path: "/pro-studio",
+        actionType: "setTab",
+        payload: "music",
+        label: "音樂配音創作室：切換到音樂分頁",
+      },
+      {
+        path: "/pro-studio",
+        actionType: "fillPrompt",
+        payload:
+          `請生成 30 秒的影片配樂（BGM）：曲風與整支短片的情緒呼應、` +
+          `不要搶過旁白、開頭 3 秒輕聲鋪墊、中段堆疊主題、最後 5 秒淡出。` +
+          `請於提示詞中明確標出「曲風」「情緒」「BPM 區間」「主要樂器」` +
+          `「結構」與「淡出」設定：${basePrompt}`,
+        label: "配樂：填入 BGM 需求",
+      },
     ],
   };
 }

@@ -449,32 +449,33 @@ export function nextMissingDimension(
   modality: ClarificationModality
 ): ClarificationDimension | null {
   const sig = inferConversationDimensions(text, modality);
-  // Bar for "wizard satisfied":
-  //   - The two foundational dimensions (length + subject for time-based
-  //     media; subject for image/lora) are mandatory — we won't run a real
-  //     workflow without these.
-  //   - At least ONE finishing dimension (style / platform / audience) is
-  //     enough; we don't want to over-ask. If the user provided either a
-  //     style cue OR a platform cue, treat the wizard as complete.
-  //
-  // This is intentionally lenient so that "幫我做一支 30 秒廣告短片" (length +
-  // implicit subject + 廣告 style) goes straight to ready instead of being
-  // trapped in an extra "投放平台？" round. The LLM planner can still ask
-  // for finer dimensions when it has the budget for a richer wizard.
+  // Bar for "wizard satisfied" — kept intentionally thorough so the orb feels
+  // like a real director who actually understands the brief, not a one-shot
+  // dispatcher. We walk every dimension that materially changes the output
+  // before committing to the workflow:
+  //   - Image / LoRA: subject + style + platform (aspect ratio / use)
+  //   - Voice / Music: length + subject + style
+  //   - Video / Script: length + subject + style + platform
+  // Each call returns the SINGLE next missing dimension so the orb asks one
+  // at a time; the wizard concludes (returns null) only when every required
+  // box is checked. The LLM planner mirrors this order in the system prompt.
   if (modality === "image" || modality === "lora") {
     if (!sig.hasSubject) return "subject";
-    if (!sig.hasStyle && !sig.hasPlatform) return "style";
+    if (!sig.hasStyle) return "style";
+    if (!sig.hasPlatform) return "platform";
     return null;
   }
   if (modality === "voice" || modality === "music") {
-    if (!sig.hasLength && !sig.hasSubject) return "duration";
+    if (!sig.hasLength) return "duration";
     if (!sig.hasSubject) return "subject";
+    if (!sig.hasStyle) return "style";
     return null;
   }
-  // video / script / unknown
-  if (!sig.hasLength && !sig.hasSubject) return "duration";
+  // video / script / unknown — full 4-dimension wizard
+  if (!sig.hasLength) return "duration";
   if (!sig.hasSubject) return "subject";
-  if (!sig.hasStyle && !sig.hasPlatform) return "style";
+  if (!sig.hasStyle) return "style";
+  if (!sig.hasPlatform) return "platform";
   return null;
 }
 
@@ -508,20 +509,23 @@ function wizardQuestionFor(
   const modalityNoun = modalityNounOf(modality);
   switch (dimension) {
     case "duration":
-      if (modality === "voice") return `想要多長的旁白？（這會決定字數與情緒節奏）`;
-      if (modality === "music") return `音樂希望幾秒到幾分鐘？（影響曲式與配器）`;
-      return `想做多長的${modalityNoun}？（時長決定節奏與分鏡密度）`;
+      if (modality === "voice")
+        return `想要多長的旁白？這會決定字數、情緒節奏與換氣點──30 秒約 60–80 字、1 分鐘約 180–220 字。`;
+      if (modality === "music")
+        return `音樂希望幾秒到幾分鐘？短廣告（10–15 秒）走鉤點旋律、社群（30–60 秒）需要完整 A 段、長 BGM（>2 分鐘）就會配置前奏／主題／尾奏的曲式。`;
+      return `想做多長的${modalityNoun}？時長直接決定運鏡密度──15 秒一個鏡頭一種情緒、30 秒可拼三幕節奏、60 秒以上才裝得下完整故事弧。`;
     case "subject":
-      return `主題或主角是什麼？（一兩個關鍵字就好，例如人物、品牌、場景）`;
+      return `主角或主題是什麼？一兩個關鍵字就好，例如「茶道體驗」「品牌週年」「夜景城市」。我會把它接進每一張關鍵視覺、運鏡、旁白稿，讓整支片同調。`;
     case "style":
-      return `想要什麼風格／調性？（這會決定我給的視覺與運鏡指引）`;
+      return `想走什麼風格／調性？風格直接影響打光、運鏡、配色與配樂──例如「電影感」會選低飽和暖光＋淺景深，「動態插畫」會交給 2D 動畫模型。`;
     case "platform":
-      if (modality === "image") return `要用在哪？這會決定比例與解析度。`;
+      if (modality === "image")
+        return `要用在哪？這決定比例與解析度──IG 1:1、限動 9:16、YouTube 16:9、印刷 3:2，模型參數會跟著切換。`;
       if (modality === "video" || modality === "script")
-        return `投放平台或比例？（IG Reel、YouTube、官網…）`;
-      return `主要用在哪個情境？`;
+        return `投放平台或畫面比例？9:16 直式（IG Reel／TikTok／Shorts）跟 16:9 橫式（YouTube／官網）的剪輯密度與字幕擺位完全不同。`;
+      return `主要用在哪個情境？我會根據投放點調整節奏與輸出規格。`;
     case "audience":
-      return `主要觀眾是誰？（影響文案語氣與節奏）`;
+      return `主要觀眾是誰？影響文案語氣、節奏與梗的選擇──對品牌客戶要穩、對社群粉絲要快、對員工要實。`;
     case "format":
     case "open":
     default:
