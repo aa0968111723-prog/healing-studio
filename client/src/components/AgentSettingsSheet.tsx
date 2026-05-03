@@ -635,6 +635,21 @@ function ScheduleSection({ isAuthenticated }: { isAuthenticated: boolean }) {
                     <span className="line-clamp-2">{job.lastError}</span>
                   </div>
                 )}
+                {job.lastRunStatus && (
+                  <div className="text-[10px] mt-0.5">
+                    <ScheduledJobStatusBadge status={job.lastRunStatus} />
+                  </div>
+                )}
+                {job.lastResult && (
+                  <details className="mt-1 text-[11px] text-muted-foreground">
+                    <summary className="cursor-pointer hover:text-foreground">
+                      查看上次產出（{job.lastResult.length} 字）
+                    </summary>
+                    <pre className="mt-1 whitespace-pre-wrap break-words rounded bg-muted/60 p-2 text-[11px] leading-relaxed text-foreground/90 max-h-48 overflow-auto">
+                      {job.lastResult}
+                    </pre>
+                  </details>
+                )}
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 <Button
@@ -817,6 +832,60 @@ function ScheduleSection({ isAuthenticated }: { isAuthenticated: boolean }) {
         </Button>
       </div>
     </section>
+  );
+}
+
+// ───────────── 上次執行狀態徽章 ─────────────
+
+/**
+ * Render a one-line, colour-coded badge that summarises the most recent
+ * scheduled run. The status string comes from the server:
+ *
+ *   - "completed"         → orchestrator finished every step
+ *   - "outcome:<x>"       → orchestrator ran but ended on a non-completed FSM
+ *                            outcome (failed / awaiting_approval / cancelled)
+ *   - "fallback:<x>"      → planner could not produce a tasked plan; a direct
+ *                            LLM completion was used instead, see lastResult
+ *   - "error"             → the run threw before producing any output
+ */
+function ScheduledJobStatusBadge({ status }: { status: string }) {
+  let label = status;
+  let tone =
+    "bg-muted text-muted-foreground border border-border";
+  if (status === "completed") {
+    label = "已完成";
+    tone =
+      "bg-emerald-50 text-emerald-700 border border-emerald-200/70 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-700/40";
+  } else if (status.startsWith("fallback:")) {
+    const inner = status.slice("fallback:".length);
+    const innerLabel =
+      inner === "invalid"
+        ? "（規劃無工具）"
+        : inner === "clarification"
+          ? "（需澄清）"
+          : inner === "blocked"
+            ? "（安全阻擋）"
+            : inner === "converted"
+              ? "（單頁工作流）"
+              : `（${inner}）`;
+    label = `已產出報告 ${innerLabel}`;
+    tone =
+      "bg-sky-50 text-sky-700 border border-sky-200/70 dark:bg-sky-900/20 dark:text-sky-300 dark:border-sky-700/40";
+  } else if (status.startsWith("outcome:")) {
+    label = `未完成（${status.slice("outcome:".length)}）`;
+    tone =
+      "bg-amber-50 text-amber-800 border border-amber-200/70 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-700/40";
+  } else if (status === "error") {
+    label = "執行錯誤";
+    tone =
+      "bg-rose-50 text-rose-700 border border-rose-200/70 dark:bg-rose-900/20 dark:text-rose-300 dark:border-rose-700/40";
+  }
+  return (
+    <span
+      className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] ${tone}`}
+    >
+      {label}
+    </span>
   );
 }
 
